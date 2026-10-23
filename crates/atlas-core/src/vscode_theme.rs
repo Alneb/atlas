@@ -63,12 +63,7 @@ pub fn strip_jsonc(src: &str) -> String {
     res
 }
 
-fn expand(p: &str) -> PathBuf {
-    match (p.strip_prefix("~/"), std::env::var("HOME")) {
-        (Some(rest), Ok(h)) => Path::new(&h).join(rest),
-        _ => PathBuf::from(p),
-    }
-}
+use crate::platform::dirs::expand_tilde as expand;
 
 /// The configured theme as JSON (an empty path is a 404 so the UI keeps its own palette).
 /// `path`: `~/…`, absolute, or relative to the vault (`root`) — so a theme copied into the vault travels with it.
@@ -99,8 +94,7 @@ fn in_this_vault(root: &Path, p: &Path) -> Option<PathBuf> {
 /// Theme files: VS Code / VSCodium extension folders and any `*color-theme*.json` a few levels
 /// under home (themes kept next to a project, like the TFM workspace's). Bounded walk.
 pub fn discover() -> Vec<Suggestion> {
-    let Ok(home) = std::env::var("HOME") else { return Vec::new() };
-    let home = PathBuf::from(home);
+    let Some(home) = crate::platform::dirs::home() else { return Vec::new() };
     let mut found: Vec<PathBuf> = Vec::new();
     for ext in [".vscode/extensions", ".vscode-oss/extensions", ".cursor/extensions"] {
         for e in walkdir::WalkDir::new(home.join(ext)).max_depth(3).into_iter().flatten() {

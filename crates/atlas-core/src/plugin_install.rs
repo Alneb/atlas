@@ -52,16 +52,13 @@ impl Source {
         }
     }
 
-    fn text(&self) -> String {
-        match self {
-            Self::Folder(p) | Self::Archive(p) => p.to_string_lossy().into_owned(),
-            Self::Git(u) => u.clone(),
-        }
-    }
-
     /// The id a plugin from here gets when none is given: the last part of the path or address.
     fn default_id(&self) -> String {
-        let text = self.text();
+        // a path's own last part (`\` on Windows), an address's after its last `/` or `:`
+        let text = match self {
+            Self::Folder(p) | Self::Archive(p) => p.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default(),
+            Self::Git(u) => u.clone(),
+        };
         let last = text.trim_end_matches('/').rsplit(['/', ':']).next().unwrap_or_default();
         let stem = [".git", ".tar.gz", ".tgz", ".tar", ".zip"].iter().fold(last, |s, e| s.strip_suffix(e).unwrap_or(s));
         stem.chars().map(|c| if c.is_ascii_alphanumeric() || c == '_' || c == '-' { c } else { '-' }).collect::<String>().trim_matches('-').to_string()
@@ -85,7 +82,10 @@ pub struct Installed {
 }
 
 fn run(cmd: &mut std::process::Command, what: &str) -> Result<()> {
-    let out = cmd.output().map_err(|e| Error::CommandFailed(format!("{what}: {e}")))?;
+    let out = cmd.output().map_err(|e| match e.kind() {
+        std::io::ErrorKind::NotFound => Error::CommandFailed(format!("{what}: {} is not installed on this computer", cmd.get_program().to_string_lossy())),
+        _ => Error::CommandFailed(format!("{what}: {e}")),
+    })?;
     if !out.status.success() {
         return Err(Error::CommandFailed(format!("{what}: {}", String::from_utf8_lossy(&out.stderr).trim())));
     }

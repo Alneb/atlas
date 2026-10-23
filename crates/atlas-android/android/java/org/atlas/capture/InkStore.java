@@ -158,7 +158,7 @@ public final class InkStore {
     /** Excalidraw outlines a freedraw about 4.25 × strokeWidth across, and its pressure makes it ~1.41× that at the
      *  middle (the reader's line ≈ Notepad's): page fraction ↔ strokeWidth. */
     private static final float FREEDRAW = 4.25f * 1.41f;
-    /** Notepad's page: A4 at 96 dpi, the gap, 4 pages a row (plugins/beta/notepad Page, Scene.perRow). */
+    /** Notepad's page: A4 at 96 dpi, the gap, 4 pages a row (org.atlas.notepad Page, Scene.perRow). */
     private static final float PAGE_W = 794, PAGE_H = 1123, GAP = 48;
     private static final int PER_ROW = 4;
 

@@ -1,7 +1,7 @@
 //! Git integration: classified log, commit details, status, diff, stage/unstage, commit.
 //! Shells out to `git`.
 use crate::api::{
-    Change, CommandOrigin, Commit, CommitBy, CommitDetail, CommitKind, FileStat, GitStatus, Mtime, Patch, StatusEntry,
+    Change, CommandOrigin, Commit, CommitBy, CommitDetail, CommitKind, FileStat, GitRepo, GitStatus, Mtime, Patch, StatusEntry,
 };
 use crate::{Error, Result, Workspace};
 use std::collections::HashMap;
@@ -26,9 +26,23 @@ fn git(root: &Path, args: &[&str]) -> std::io::Result<Output> {
         .output()
 }
 
+impl GitStatus {
+    fn empty(repo: GitRepo) -> Self {
+        GitStatus { repo, branch: None, upstream: None, ahead: 0, behind: 0, entries: Vec::new() }
+    }
+}
+
+/// What a newcomer without git is told, instead of the system's "No such file or directory".
+const NO_GIT: &str = "git is not installed on this computer: the Git panel, a note's history and the commits in Activity need it (install git from the system's packages)";
+
+/// git could not be started.
+fn not_started(e: std::io::Error) -> Error {
+    Error::BadRequest(if e.kind() == std::io::ErrorKind::NotFound { NO_GIT.into() } else { format!("git: {e}") })
+}
+
 /// Runs git and returns stdout; a non-zero exit becomes a BadRequest carrying git's own message.
 fn git_ok(root: &Path, args: &[&str]) -> Result<String> {
-    let out = git(root, args).map_err(|e| Error::BadRequest(format!("git: {e}")))?;
+    let out = git(root, args).map_err(not_started)?;
     if !out.status.success() {
         let msg = String::from_utf8_lossy(&out.stderr);
         let msg = if msg.trim().is_empty() { String::from_utf8_lossy(&out.stdout) } else { msg };
@@ -187,7 +201,7 @@ fn change(c: u8) -> Option<Change> {
 }
 
 fn parse_status(text: &str) -> GitStatus {
-    let mut st = GitStatus { repo: true, branch: None, upstream: None, ahead: 0, behind: 0, entries: Vec::new() };
+    let mut st = GitStatus::empty(GitRepo::Repo);
     let mut it = text.split('\0').filter(|s| !s.is_empty());
     while let Some(rec) = it.next() {
         if let Some(b) = rec.strip_prefix("## ") {
@@ -294,8 +308,11 @@ pub fn log_since_yesterday(root: &Path) -> Vec<Commit> {
 fn status_now(root: &Path) -> Result<GitStatus> {
     let text = match git_ok(root, &["status", "--porcelain=v1", "-z", "--branch", "--untracked-files=all"]) {
         // a vault outside git is an answer, not a failure: every page asking would otherwise log an error each time
-        Err(e) if outside_git(&e) => {
-            return Ok(GitStatus { repo: false, branch: None, upstream: None, ahead: 0, behind: 0, entries: Vec::new() });
+        Err(e) if outside_git(&e) => return Ok(GitStatus::empty(GitRepo::Outside)),
+        // no git program: the changes read in process (git_read.rs), said as git missing (no pull, push or commit here)
+        Err(Error::BadRequest(why)) if why == NO_GIT => {
+            let st = crate::git_read::status(root)?;
+            return Ok(GitStatus { repo: if st.repo == GitRepo::Repo { GitRepo::NoGit } else { st.repo }, ..st });
         }
         other => other?,
     };
@@ -320,8 +337,7 @@ pub fn diff(root: &Path, rel: &str, staged: bool) -> Result<Patch> {
         return Ok(cut(text));
     }
     // `--no-index` exits 1 when files differ, so read stdout regardless of status.
-    let out = git(root, &["diff", "--no-color", "--no-index", "--", "/dev/null", rel])
-        .map_err(|e| Error::BadRequest(format!("git: {e}")))?;
+    let out = git(root, &["diff", "--no-color", "--no-index", "--", "/dev/null", rel]).map_err(not_started)?;
     Ok(cut(String::from_utf8_lossy(&out.stdout).into_owned()))
 }
 
@@ -381,7 +397,7 @@ pub fn apply(root: &Path, patch: &str, cached: bool, reverse: bool) -> Result<()
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
-        .map_err(|e| Error::BadRequest(format!("git: {e}")))?;
+        .map_err(not_started)?;
     child.stdin.take().expect("piped").write_all(patch.as_bytes())?;
     let out = child.wait_with_output()?;
     if !out.status.success() {
@@ -414,7 +430,7 @@ pub fn sync(root: &Path, way: Sync) -> Result<String> {
         .env("GIT_SSH_COMMAND", std::env::var("GIT_SSH_COMMAND").unwrap_or_else(|_| "ssh -o BatchMode=yes".into()))
         .stdin(Stdio::null())
         .output()
-        .map_err(|e| Error::BadRequest(format!("git: {e}")))?;
+        .map_err(not_started)?;
     let text = format!("{}{}", String::from_utf8_lossy(&out.stdout), String::from_utf8_lossy(&out.stderr));
     if !out.status.success() {
         return Err(Error::BadRequest(format!("git {}: {}", args[0], text.trim())));
@@ -557,7 +573,7 @@ mod tests {
     fn a_folder_outside_git_says_so_instead_of_failing() {
         let d = tempfile::tempdir().unwrap();
         let st = status(d.path()).unwrap();
-        assert!(!st.repo && st.entries.is_empty() && st.branch.is_none());
+        assert!(st.repo == GitRepo::Outside && st.entries.is_empty() && st.branch.is_none());
         std::fs::write(d.path().join("a.md"), "x").unwrap();
         assert!(diff(d.path(), "a.md", false).unwrap().patch.is_empty(), "an opened file's gutter asks: no error");
     }

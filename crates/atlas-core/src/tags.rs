@@ -17,7 +17,7 @@ fn clean(raw: &str) -> Option<String> {
 }
 
 /// The tags one note carries (sorted, unique): `tags:` / `tag:` in its frontmatter (a list, or
-/// words separated by commas or spaces) and every `#tag` in its text outside code.
+/// words separated by commas or spaces), every `#tag` in its text outside code, and its PDF marks' tags.
 pub fn of_note(text: &str, props: &serde_yaml::Mapping) -> Vec<String> {
     let mut out = BTreeSet::new();
     for key in ["tags", "tag"] {
@@ -28,6 +28,10 @@ pub fn of_note(text: &str, props: &serde_yaml::Mapping) -> Vec<String> {
         }
     }
     inline_tags(text, |_, t| out.extend(clean(t)));
+    // a PDF's marks are the note's too: their tags, from its pdf-marks block (a fence, so not read as text above)
+    if crate::pdf_marks::has_block(text) {
+        out.extend(crate::pdf_marks::read(text).live().into_iter().flat_map(|m| m.tags.iter().filter_map(|t| clean(t))));
+    }
     out.into_iter().collect()
 }
 
@@ -225,5 +229,11 @@ mod tests {
         assert_eq!(notes(d.path(), &cfg, "physics/dmft"), ["notes/a.md", "notes/c.md"]);
         // `tag:` in search (quick open, the Search pane) lists those notes
         assert_eq!(crate::search::search(d.path(), &cfg, "tag:physics/dmft").files, ["notes/a.md", "notes/c.md"]);
+    }
+
+    #[test]
+    fn a_pdf_marks_tags_are_the_notes() {
+        let text = "# x\n\nmine #own\n\n```pdf-marks\nm-aaaaaaa1 postit p2 {\"version\":1,\"at\":[1,2],\"text\":\"why #question\",\"tags\":[\"question\"]}\n```\n";
+        assert_eq!(of_note(text, &Default::default()), vec!["own".to_string(), "question".to_string()]);
     }
 }

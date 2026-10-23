@@ -105,12 +105,9 @@ export async function drawPreview(card: HTMLElement, t: PreviewTarget, width = C
     img.alt = "";
     body.append(img);
   } else if (/\.pdf$/i.test(t.path)) {
-    const { withPdf, renderPage } = await import("./pdf");
+    const { pageBitmap, paint, dpr } = await import("./pdf-pages");
     const canvas = document.createElement("canvas");
-    await withPdf(t.path, async (doc) => {
-      const page = await doc.getPage(1);
-      await renderPage(page, canvas, 340 / page.getViewport({ scale: 1 }).width);
-    });
+    paint(canvas, await pageBitmap(t.path, 1, 340 * dpr()));
     canvas.style.width = "100%";
     body.append(canvas);
   } else if (/\.md$/i.test(t.path)) {

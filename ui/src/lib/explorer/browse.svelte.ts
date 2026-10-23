@@ -2,6 +2,7 @@
 // loading rules live here: the run's last listing is shown at once and refreshed behind, an answer older than the last
 // click is dropped, a login is waited for. panes/Explorer.svelte only draws it (docs/refactor/REFACTOR-explorer.md).
 import { basename } from "../paths";
+import { ApiError } from "../api";
 import { sourceOf, listings, listingKey, parentPath, why, type Entry, type Listed } from "../file-sources.svelte";
 
 export type Loc = { source: string; place: string; path: string };
@@ -62,7 +63,7 @@ export class Browse {
       if (this.#gone || mine !== this.#seq) return;
       this.refreshing = false;
       if (seen) return this.#hooks.stale(`Not refreshed: ${why(e)}`);
-      this.mode = "error"; this.note = why(e); return;
+      this.mode = "error"; this.note = e instanceof ApiError && e.status === 404 ? `There is no folder “${to.path}” here.` : why(e); return;
     }
     if ("path" in r) for (const k of new Set([key, listingKey(to.source, to.place, r.path)])) listings.set(k, r);
     if (this.#gone || mine !== this.#seq) return;

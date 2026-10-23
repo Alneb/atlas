@@ -145,7 +145,7 @@ session_file = "{account:~/.claude}/projects/*/{session}.jsonl"
     fn placeholders_take_settings_fallbacks_and_home() {
         let mut s = toml::Table::new();
         s.insert("n".into(), toml::Value::Integer(3));
-        let home = std::env::var("HOME").unwrap();
-        assert_eq!(fill("a {missing:~/x} {n} {} b", &s, None), format!("a {home}/x 3  b"));
+        let home = crate::platform::dirs::home().unwrap();
+        assert_eq!(fill("a {missing:~/x} {n} {} b", &s, None), format!("a {} 3  b", home.join("x").display()));
     }
 }

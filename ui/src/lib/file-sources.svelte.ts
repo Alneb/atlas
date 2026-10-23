@@ -19,6 +19,8 @@ export interface Entry {
   size?: number;
   /** Seconds since 1970. */
   modified?: number;
+  /** A vault note with `shown: false` (hidden like the tree hides it). */
+  unshown?: boolean;
 }
 /** A folder's answer: its entries (and its real path: "" may mean the home folder), a login to wait for,
  *  or "that path is a file" (a link to one). */
@@ -140,7 +142,8 @@ export const vaultSource: FileSource = {
   places: async () => [{ id: "", title: app.workspace?.name ?? "Vault", up: true }],
   list: async (_place, path) => ({
     path,
-    entries: (await api.tree(path)).map((e) => ({ name: e.name, kind: e.kind === "dir" ? "dir" : "file", size: e.size, modified: e.modified })),
+    // every entry, dotfiles too: the explorer hides by the tree's rule (lib/tree-view.svelte.ts), behind its own toggle
+    entries: (await api.tree(path, true)).map((e) => ({ name: e.name, kind: e.kind === "dir" ? "dir" : "file", size: e.size, modified: e.modified, unshown: e.unshown })),
   }),
   local: async (_place, path) => path,
   mkdir: (_place, path) => api.mkdir(path),
@@ -162,7 +165,7 @@ export const vaultSource: FileSource = {
     // the core's picture — a PDF's first page, an EPUB's cover — made once and kept in .atlas/cache/thumbs (thumbs.rs);
     // a PDF is drawn here only where the core cannot (no poppler: a phone)
     try { return await api.thumb(path, width); } catch (e) { if (/\.epub$/i.test(path)) return null; void e; }
-    return (await import("./pdf")).firstPageBlob(path, width, "image/webp"); // the first page
+    return (await import("./pdf-pages")).pageBlob(path, 1, width, "image/webp"); // the first page
   },
 };
 addSource(vaultSource);

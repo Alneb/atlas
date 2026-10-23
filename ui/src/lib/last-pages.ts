@@ -1,4 +1,4 @@
-// The page each drawing was last shown at. The same file as the Boox's Notepad keeps (plugins/beta/notepad LastPages.java), so a drawing
+// The page each drawing was last shown at. The same file as the Boox's Notepad keeps (org.atlas.notepad LastPages.java), so a drawing
 // opens at its page on whichever device or screen: `.atlas/notepad/last-pages.json` = { "<drawing path>": "<frame id>" }.
 import { api } from "./api";
 import { exists } from "./vault-files";

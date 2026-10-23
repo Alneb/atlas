@@ -20,11 +20,7 @@ fn command(ws: &Workspace, q: &PtyQuery) -> anyhow::Result<CommandBuilder> {
         None => ws.root().to_path_buf(),
     };
     let mut cmd = match q.preset {
-        _ if q.command.is_some() => {
-            let mut cmd = CommandBuilder::new("/bin/sh");
-            cmd.args(["-c", q.command.as_deref().unwrap_or_default()]);
-            cmd
-        }
+        _ if q.command.is_some() => command_line(q.command.as_deref().unwrap_or_default()),
         // an agent tab is always a plugin's agent (agent_terminals.rs): `agent` names it; a tab of the old "claude"
         // preset (a saved layout, Super+K) takes the `claude` agent, else the first one a plugin declares
         PtyPreset::Claude => {
@@ -49,7 +45,7 @@ fn command(ws: &Workspace, q: &PtyQuery) -> anyhow::Result<CommandBuilder> {
             }
             cmd
         }
-        PtyPreset::Shell => CommandBuilder::new(std::env::var("SHELL").unwrap_or_else(|_| "/bin/sh".into())),
+        PtyPreset::Shell => CommandBuilder::new(login_shell()),
     };
     // Atlas launched from inside a Claude Code session would hand its session markers to every
     // terminal; a `claude` started there then thinks it is a child session (no transcript, wrong
@@ -66,6 +62,43 @@ fn command(ws: &Workspace, q: &PtyQuery) -> anyhow::Result<CommandBuilder> {
     Ok(cmd)
 }
 
+/// The user's shell for a terminal tab: `$SHELL` (else `/bin/sh`); on Windows PowerShell 7, else Windows
+/// PowerShell, else `%COMSPEC%` (cmd).
+fn login_shell() -> String {
+    if cfg!(windows) {
+        let found = ["pwsh", "powershell"].iter().find(|p| which(p));
+        return found.map(|p| p.to_string()).unwrap_or_else(|| std::env::var("COMSPEC").unwrap_or_else(|_| "cmd.exe".into()));
+    }
+    std::env::var("SHELL").unwrap_or_else(|_| "/bin/sh".into())
+}
+
+fn which(name: &str) -> bool {
+    std::env::var_os("PATH").is_some_and(|p| std::env::split_paths(&p).any(|d| crate::platform::run_line::executable(&d.join(name)).is_some()))
+}
+
+/// A tab that runs one command line: `sh -c` on Unix; on Windows the line as a program and its arguments
+/// (platform/run_line.rs), or through cmd when it needs a shell.
+fn command_line(line: &str) -> CommandBuilder {
+    if !cfg!(windows) {
+        let mut cmd = CommandBuilder::new("/bin/sh");
+        cmd.args(["-c", line]);
+        return cmd;
+    }
+    use crate::platform::run_line::{parse, Launch};
+    match parse(line, &|v| std::env::var(v).ok()) {
+        Launch::Direct { program, args } => {
+            let mut cmd = CommandBuilder::new(program);
+            cmd.args(args);
+            cmd
+        }
+        Launch::Shell { line, .. } => {
+            let mut cmd = CommandBuilder::new(std::env::var("COMSPEC").unwrap_or_else(|_| "cmd.exe".into()));
+            cmd.args(["/C", &line]);
+            cmd
+        }
+    }
+}
+
 /// Every word of a command line or a value through `expand_home`.
 pub(crate) fn expand_home_words(line: &str) -> String {
     line.split(' ').map(expand_home).collect::<Vec<_>>().join(" ")
@@ -73,10 +106,7 @@ pub(crate) fn expand_home_words(line: &str) -> String {
 
 /// `~/x` → `$HOME/x`, so settings can name per-user binaries portably.
 pub(crate) fn expand_home(word: &str) -> String {
-    match (word.strip_prefix("~/"), std::env::var("HOME")) {
-        (Some(rest), Ok(home)) => format!("{home}/{rest}"),
-        _ => word.to_string(),
-    }
+    crate::platform::dirs::expand_tilde(word).to_string_lossy().into_owned()
 }
 
 /// A session id as agents write them (a UUID, 8-4-4-4-12 hex): nothing else reaches an agent's arguments.
@@ -320,8 +350,8 @@ mod tests {
 
     #[test]
     fn expands_leading_tilde_only() {
-        let home = std::env::var("HOME").unwrap();
-        assert_eq!(expand_home("~/.local/bin/claude"), format!("{home}/.local/bin/claude"));
+        let home = crate::platform::dirs::home().unwrap();
+        assert_eq!(expand_home("~/.local/bin/claude"), home.join(".local/bin/claude").to_string_lossy());
         assert_eq!(expand_home("claude"), "claude");
         assert_eq!(expand_home("/a/~/b"), "/a/~/b");
     }

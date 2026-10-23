@@ -15,12 +15,12 @@ export async function resolveWikilink(target: string, fromPath: string): Promise
   return clean.includes("/") ? resolveRel(withExt) : resolveRel(withExt, dir);
 }
 
-/** Opens what a link names; a PDF at the page and passage its `#page=…&selection=…` names (lib/pdf-place.ts). */
+/** Opens what a link names; a PDF at the page its `#page=…` names, its label's words selected there (lib/pdf-place.ts). */
 export async function openWikilink(target: string, fromPath: string, opts: { beside?: boolean } = {}): Promise<void> {
   const path = await resolveWikilink(target, fromPath);
   const place = placeOf(target);
   const section = target.split("|")[0].split("#").slice(1).join("#").trim(); // a drawing's page: `#Page 2`, `#^frame=…`
   if (/\.excalidraw(\.md)?$/i.test(path) && section) openDrawingAt(path, section, opts);
-  else if (/\.pdf$/i.test(path) && place.page) open({ kind: "pdf", path, page: place.page, ...(place.selection ? { selection: place.selection } : {}), ...(place.annotation ? { annotation: place.annotation } : {}) }, opts);
+  else if (/\.pdf$/i.test(path) && place.page) open({ kind: "pdf", path, page: place.page, ...(place.quote ? { quote: place.quote } : {}), ...(place.annotation ? { annotation: place.annotation } : {}) }, opts);
   else openPath(path, undefined, { ...opts, ...(section ? { anchor: section } : {}) }); // a plugin's pane gets the anchor
 }

@@ -358,13 +358,15 @@ journey("Depth: Bases", "Notion-grade databases", async (u) => {
     await u.openFile("depth.base");
   });
   await u.step("Board view grouped by a property; drag a card to change it", want("Notion: board"), async () => {
-    await u.click(p.getByRole("button", { name: "New board view" }));
-    await u.click(p.getByRole("menuitem", { name: "Board grouped by status" }));
+    await u.click(p.locator(".base-pane .view-switch"));
+    await u.click(p.getByRole("menuitem", { name: /New board view/ }));
+    await u.click(p.getByRole("menuitem", { name: "Board grouped by Status" }));
     const todo = p.locator(".lane", { hasText: "todo" }), done = p.locator(".lane", { hasText: "done" });
     await expect(todo.locator(".card")).toHaveCount(1, T);
     await todo.locator(".card").first().dragTo(done);
     await expect.poll(() => fileText(p, "db/depth-items/one.md"), T).toContain("status: done");
-    await u.click(p.getByRole("tab", { name: /All/ }));
+    await u.click(p.locator(".base-pane .view-switch"));
+    await u.click(p.getByRole("menuitem", { name: /^All/ }));
   });
   await u.step("Hide a column, then add it back, from the UI", want("Notion: properties menu"), async () => {
     await p.locator(".base-pane th", { hasText: "Status" }).click({ button: "right" });

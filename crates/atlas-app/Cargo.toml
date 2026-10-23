@@ -21,15 +21,15 @@ tauri = { version = "2", features = [] }
 tokio = { workspace = true }
 serde_json.workspace = true
 serde.workspace = true
-# filter lists → WebKit content-blocker rules, for the browsing windows' ad blocking (web_filters.rs; moved out of the
-# core, which the phone and the server build without needing it: REFACTOR-core-to-plugins.md #9)
-adblock = { version = "0.13", features = ["content-blocking"] }
 reqwest = { workspace = true, features = ["blocking", "rustls-tls"] }
 
 [dev-dependencies]
 tempfile = "3"
 
 [target.'cfg(target_os = "linux")'.dependencies]
+# filter lists → WebKit content-blocker rules, for the browsing windows' ad blocking (web_filters.rs; moved out of the
+# core, which the phone and the server build without needing it: REFACTOR-core-to-plugins.md #9)
+adblock = { version = "0.13", features = ["content-blocking"] }
 # the platform webview's settings (window.open without a fresh click; main.rs)
 webkit2gtk = "2.0"
 # the touchpad pinch caught before WebKit zooms the page with it (main.rs `pinch_to_wheel`)

@@ -13,8 +13,7 @@ pub fn dir() -> Option<PathBuf> {
 
 /// Where `packaging/install.sh` puts the UI: `$XDG_DATA_HOME/atlas/ui` (`~/.local/share/atlas/ui`).
 pub fn installed() -> Option<PathBuf> {
-    let data = std::env::var_os("XDG_DATA_HOME").map(PathBuf::from).or_else(|| std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".local/share")))?;
-    let d = data.join("atlas/ui");
+    let d = crate::platform::dirs::atlas(crate::platform::dirs::Base::Data).join("ui");
     d.join("index.html").is_file().then_some(d)
 }
 

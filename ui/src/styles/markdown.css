@@ -95,6 +95,8 @@ html.phone .markdown a::after, html.phone .markdown .cm-link::after, html.phone 
 /* auto width with wrapping cells (Obsidian): max-content pushed every column after a long one off-screen */
 .markdown table { border-collapse: collapse; width: auto; font-size: 1em; }
 .markdown th, .markdown td { padding: 6px 12px; border-bottom: 1px solid var(--border); text-align: left; line-height: 1.45; }
+/* a cell breaks between words only: the editor's wrapping (`overflow-wrap: anywhere`) split "1963" into "196/3" */
+.markdown th, .markdown td { overflow-wrap: break-word; word-break: normal; }
 .markdown th { background: var(--bg-alt); font-weight: 600; color: var(--heading); }
 .markdown tr:last-child td { border-bottom: 0; }
 .markdown td + td, .markdown th + th { border-left: 1px solid var(--border); }

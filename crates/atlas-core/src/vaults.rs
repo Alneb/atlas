@@ -73,15 +73,12 @@ struct ListFile {
     vault: Vec<Vault>,
 }
 
-/// Where the list lives: `$ATLAS_VAULTS`, else `$XDG_CONFIG_HOME/atlas/vaults.toml`, else `~/.config/…`.
+/// Where the list lives: `$ATLAS_VAULTS`, else `vaults.toml` in Atlas's config folder (`~/.config/atlas/` on Linux).
 pub fn list_file() -> PathBuf {
     if let Some(p) = std::env::var_os("ATLAS_VAULTS") {
         return PathBuf::from(p);
     }
-    let config = std::env::var_os("XDG_CONFIG_HOME")
-        .map(PathBuf::from)
-        .unwrap_or_else(|| PathBuf::from(std::env::var_os("HOME").unwrap_or_default()).join(".config"));
-    config.join("atlas/vaults.toml")
+    crate::platform::dirs::atlas(crate::platform::dirs::Base::Config).join("vaults.toml")
 }
 
 fn read(file: &Path) -> Vec<Vault> {
@@ -213,7 +210,7 @@ pub fn running_server(root: &Path) -> Option<String> {
     let text = std::fs::read_to_string(root.join(".atlas/cache/server.json")).ok()?;
     let f: crate::api::ServerFile = serde_json::from_str(&text).ok()?;
     let same = Path::new(&f.root).canonicalize().ok()? == root.canonicalize().ok()?;
-    (same && Path::new(&format!("/proc/{}", f.pid)).exists()).then(|| format!("http://127.0.0.1:{}{}", f.port, f.path))
+    (same && crate::platform::proc::pid_alive(f.pid)).then(|| format!("http://127.0.0.1:{}{}", f.port, f.path))
 }
 
 /// Another Atlas process serving `root` (its address), never this one: the desktop's one core starts a vault only when
@@ -229,20 +226,17 @@ pub fn served_elsewhere(root: &Path) -> Option<String> {
 /// others. `$ATLAS_APP` names the program; otherwise the one running, one beside it, or `atlas-app`
 /// on the PATH.
 pub fn open_window(root: &Path) -> Result<()> {
-    use std::os::unix::process::CommandExt;
     let app = std::env::var_os("ATLAS_APP").map(PathBuf::from).unwrap_or_else(|| {
         let me = std::env::current_exe().ok();
-        let is_app = |p: &PathBuf| p.file_name().is_some_and(|n| n == "atlas-app");
-        let beside = me.as_ref().and_then(|p| p.parent()).map(|d| d.join("atlas-app")).filter(|p| p.is_file());
+        let is_app = |p: &PathBuf| p.file_stem().is_some_and(|n| n == "atlas-app");
+        let exe = format!("atlas-app{}", std::env::consts::EXE_SUFFIX);
+        let beside = me.as_ref().and_then(|p| p.parent()).map(|d| d.join(&exe)).filter(|p| p.is_file());
         me.clone().filter(is_app).or(beside).unwrap_or_else(|| PathBuf::from("atlas-app"))
     });
-    std::process::Command::new(&app)
-        .arg(root)
-        .stdin(std::process::Stdio::null())
-        .stdout(std::process::Stdio::null())
-        .stderr(std::process::Stdio::null())
-        .process_group(0) // it outlives the window that opened it
-        .spawn()
+    let mut cmd = std::process::Command::new(&app);
+    cmd.arg(root).stdin(std::process::Stdio::null()).stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null());
+    crate::platform::proc::detach(&mut cmd); // it outlives the window that opened it
+    cmd.spawn()
         .map(|_| ())
         .map_err(|e| Error::CommandFailed(format!("could not start {}: {e} (is the Atlas desktop app installed?)", app.display())))
 }

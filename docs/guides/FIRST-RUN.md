@@ -75,9 +75,30 @@ core that keeps no vault list (a server's) says so instead of offering buttons t
 First start also fetches the ad-block lists of the built-in browser (EasyList and EasyPrivacy) once; offline, the
 browser works without them.
 
+## Walked through with no tools at all
+
+A core started with an empty `HOME`, no `$SHELL` and a `PATH` holding only `sh`, `bash`, `env`, `ls` and `cat`: the
+Welcome vault, *New vault…* (`~/Notes`), the Today screen, Settings and a terminal all work, in both themes. What it
+found, fixed:
+
+- **Text search found nothing without ripgrep** (`rg` is installed by default on neither Fedora nor Ubuntu, and no
+  package pulled it in): the core now links ripgrep's own crates (`grep-searcher`, `grep-regex`) and searches the
+  walk's files in process — no `rg` program at all, for search and Replace alike. The files are the walk's (the
+  config's ignores, hidden folders skipped); a `.gitignore` is no longer consulted, as nothing else in Atlas does.
+- **A repository without the git program:** the Git panel's status is read in process by the pure-Rust `gix`
+  (`git_read.rs`) — the changed, staged and new files are listed, and the panel says git is missing for commits, pull
+  and push. Writing (stage, commit, discard, pull, push) always goes through the `git` program, so hooks, signing and
+  SSH behave as in a terminal. With git installed, status, log and diff still use it: gix there would need ahead/behind
+  and the upstream reimplemented, worth it only after timing the panel on a large vault.
+- **The Git panel showed `git: No such file or directory (os error 2)`**: `GitStatus.repo` is now `repo` /
+  `outside` / `no_git`, and the panel says that git is not installed and how to get it. A plugin install from a git
+  URL says the same.
+- **"Show in the system's file manager" did nothing, silently**, when no file manager answers on D-Bus and
+  `xdg-open` is missing: it now says so.
+- The terminal falls back to `/bin/sh` when `$SHELL` is unset.
+
 ## Not checked yet
 
-- Each optional tool's message when it is missing has not been walked through one by one on a clean machine.
 - A build and a run in a container of another distribution (Ubuntu 24.04, Debian 12), to check the package lists of
   the README and of the deb/rpm/Flatpak/AppImage against what the binaries really load.
 - GNOME and X11 sessions; a machine without GPU/WebGL (the terminal falls back to its text renderer).

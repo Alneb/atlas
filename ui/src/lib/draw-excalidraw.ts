@@ -236,7 +236,7 @@ export async function mountDrawing(host: HTMLElement, json: string, theme: "dark
     paperLayer.style.clipPath = pages.length ? `path("${pages.map(rect).join("")}")` : "";
   };
   /** The paper page `n` (1-based) carries itself — `customData.atlasTemplate` on its frame, as the Boox's Notepad
-   *  writes it (plugins/beta/notepad Page.java) — or null for none. */
+   *  writes it (org.atlas.notepad Page.java) — or null for none. */
   const pagePaper = (n: number): Paper | null => {
     const id = api && n > 0 ? pagesOf(api.getSceneElements() as never)[n - 1]?.id : undefined;
     const t = id ? (api!.getSceneElements().find((e) => e.id === id)?.customData as { atlasTemplate?: string } | undefined)?.atlasTemplate : undefined;

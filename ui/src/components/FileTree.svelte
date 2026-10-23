@@ -12,7 +12,7 @@
   import Icon from "./Icon.svelte";
   import { LETTER } from "../lib/gitstatus.svelte";
   import { settings } from "../lib/settings.svelte";
-  import { shownEntries } from "../lib/tree-view.svelte";
+  import { shownEntries, treeView } from "../lib/tree-view.svelte";
   import { activeRow, changeOf, openDirs, revealed, setOpen } from "../lib/file-tree.svelte";
 
   let { roots, version, scroller }: { roots: TreeEntry[]; version: number; scroller: HTMLElement | undefined } = $props();
@@ -23,7 +23,7 @@
 
   async function fetchDir(dir: string): Promise<void> {
     loading.set(dir, true);
-    try { kids.set(dir, await api.tree(dir)); }
+    try { kids.set(dir, await api.tree(dir, treeView.showAll)); }
     catch { kids.set(dir, []); }
     finally { loading.delete(dir); }
   }
@@ -88,17 +88,63 @@
   // the row height as the theme draws it (a phone's rows are taller)
   $effect(() => { void rows.length; const r = listEl?.querySelector<HTMLElement>(".row"); if (r?.offsetHeight) rowH = r.offsetHeight; });
 
-  // follow the active file: once its row exists, scroll it to the middle — only while the tree is shown
+  // follow the active file: once its row exists, scroll it to the middle — only while the tree is shown; a tree shown
+  // later (its height comes) and the same file asked for again (revealed.n) scroll to it then
   let centred = "";
   $effect(() => {
-    const p = revealed.path, i = rows.findIndex((r) => r.kind === "entry" && r.e.path === p);
-    if (!p || p === centred || i < 0 || !scroller?.offsetParent) return;
-    centred = p;
+    const p = revealed.path, ask = `${p}#${revealed.n}`, i = rows.findIndex((r) => r.kind === "entry" && r.e.path === p);
+    if (!p || ask === centred || i < 0 || !height || !scroller?.clientHeight) return;
+    centred = ask;
     const y = i * rowH;
     if (y < scroller.scrollTop || y > scroller.scrollTop + scroller.clientHeight - rowH) scroller.scrollTop = Math.max(0, y - scroller.clientHeight / 2);
   });
 
   const showGit = $derived(settings.config?.files.git_status ?? true);
+
+  // --- the keyboard: ↑ ↓ move, → opens a folder (then goes in), ← closes it (then goes up), Home / End ---------------
+  // The row with the focus is remembered by path: the window may drop its button when scrolled away, and the focus
+  // comes back to it when it is drawn again (it had nowhere else to go).
+  let focusPath = $state("");
+  let kept = false; // the tree had the focus and lost it only because its row left the window
+  const rowEl = (path: string) => listEl?.querySelector<HTMLElement>(`.row[data-path="${CSS.escape(path)}"]`) ?? null;
+  function focusRow(i: number) {
+    const r = rows[Math.max(0, Math.min(rows.length - 1, i))];
+    if (!r || r.kind !== "entry" || !scroller) return;
+    const y = rows.indexOf(r) * rowH;
+    if (y < scroller.scrollTop) scroller.scrollTop = y;
+    else if (y + rowH > scroller.scrollTop + scroller.clientHeight) scroller.scrollTop = y + rowH - scroller.clientHeight;
+    focusPath = r.e.path;
+    requestAnimationFrame(() => rowEl(r.e.path)?.focus());
+  }
+  function onKey(e: KeyboardEvent) {
+    const path = (e.target as HTMLElement).closest<HTMLElement>(".row")?.dataset.path;
+    const i = rows.findIndex((r) => r.kind === "entry" && r.e.path === path);
+    if (i < 0) return;
+    const r = rows[i] as Extract<Row, { kind: "entry" }>, step = (d: number) => { let k = i + d; while (rows[k]?.kind === "empty") k += d; return k; };
+    let to: number | null = null;
+    if (e.key === "ArrowDown") to = step(1);
+    else if (e.key === "ArrowUp") to = step(-1);
+    else if (e.key === "Home") to = 0;
+    else if (e.key === "End") to = rows.length - 1;
+    else if (e.key === "ArrowRight" && r.e.kind === "dir") { if (!r.open) setOpen(r.e.path, true); else to = step(1); }
+    else if (e.key === "ArrowLeft") {
+      if (r.e.kind === "dir" && r.open) setOpen(r.e.path, false);
+      else { const up = r.e.path.slice(0, r.e.path.lastIndexOf("/")); to = up ? rows.findIndex((x) => x.kind === "entry" && x.e.path === up) : null; }
+    } else return;
+    e.preventDefault();
+    if (to !== null && to >= 0) focusRow(to);
+  }
+  $effect(() => {
+    void first; void last;
+    if (!kept || !focusPath) return;
+    const el = rowEl(focusPath);
+    if (el && (document.activeElement === document.body || !document.activeElement)) { el.focus({ preventScroll: true }); kept = false; }
+  });
+  function focusIn(e: FocusEvent) { focusPath = (e.target as HTMLElement).closest<HTMLElement>(".row")?.dataset.path ?? focusPath; kept = false; }
+  // leaving for nothing (the row unmounted) keeps the claim; leaving for something else gives it up
+  function focusOut(e: FocusEvent) { kept = !e.relatedTarget; }
+  /** The row of `path` given the focus again (after a dialog about it closed). */
+  export function refocus(path: string) { focusPath = path; const i = rows.findIndex((r) => r.kind === "entry" && r.e.path === path); if (i >= 0) focusRow(i); }
 
   function toggle(e: MouseEvent, entry: TreeEntry, open: boolean) {
     if (entry.kind === "file") { openPath(entry.path); return; }
@@ -112,7 +158,8 @@
   }
 </script>
 
-<ul class="tree-rows" bind:this={listEl} style:padding-top="{first * rowH}px" style:padding-bottom="{(rows.length - last) * rowH}px">
+<!-- svelte-ignore a11y_no_noninteractive_element_interactions (the keys belong to the row buttons inside) -->
+<ul class="tree-rows" bind:this={listEl} onkeydown={onKey} onfocusin={focusIn} onfocusout={focusOut} style:padding-top="{first * rowH}px" style:padding-bottom="{(rows.length - last) * rowH}px">
   {#each rows.slice(first, last) as r (r.kind === "entry" ? r.e.path : r.key)}
     {#if r.kind === "empty"}
       <li class="empty" style:padding-left="{22 + r.depth * 14}px">empty</li>

@@ -112,11 +112,11 @@ journey("Find and connect notes", "Get to a topic note, see what belongs to it, 
   });
   await u.openFile("Condensed Matter.md");
   await expect(p.locator(".base-embed .base tbody tr").first()).toBeVisible({ timeout: 8000 });
-  if (!(await p.locator(".base-embed .base td.editable").count())) {
+  if (!(await p.locator(".base-embed .base td.editable:not(.bool)").count())) {
     u.skip("Edit a property in a Base cell (Notion-style)", "the user's bases show only computed columns (formulas, file.*) — nothing to edit there; covered by tests/bases.spec.ts");
   } else {
     await u.step("Edit a property in a Base cell (Notion-style)", { budget: 1500, why: "inline-editable database cells (plan D19)" }, async () => {
-      await p.locator(".base-embed .base td.editable").first().dblclick();
+      await p.locator(".base-embed .base td.editable:not(.bool)").first().click(); // a checkbox would toggle at once
       await expect(p.locator(".base-embed .cell-edit")).toBeVisible(T);
       await u.press("Escape"); // look, don't touch
     });

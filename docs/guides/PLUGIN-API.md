@@ -395,9 +395,11 @@ Checked by `server::tests::a_python_helper_calls_the_core_back_over_its_pipe` (a
 
 ### Any program, not only Python
 
-`[helper] run` and `data` are shell command lines run by `sh -c` on the machine running Atlas's server, so the helper can be **any program speaking the protocol above** — a Python script, or a binary compiled from Rust, C++, Go. Everything a helper does (files, notes, the network, secrets) happens on that machine; the page only shows it, so a plugin with a helper works the same from a browser or a phone talking to a remote server.
+`[helper] run` and `data` are command lines run on the machine running Atlas's server, so the helper can be **any program speaking the protocol above** — a Python script, or a binary compiled from Rust, C++, Go. Everything a helper does (files, notes, the network, secrets) happens on that machine; the page only shows it, so a plugin with a helper works the same from a browser or a phone talking to a remote server.
 
-A compiled helper is built per platform. `ATLAS_PLUGIN_TARGET` is `<arch>-<os>` of the server (`x86_64-linux`, `aarch64-android`, `aarch64-macos`), so a plugin can carry one build per platform:
+A line is a program and its arguments: words quoted with `"…"` or `'…'`, `\` escapes, `$VAR`, `${VAR}`, `${VAR:-default}` and a leading `~/`. Atlas reads it itself and starts the program without a shell, so the same line works on Windows, which has no `sh`. An expanded variable stays one argument, spaces and all. A line that uses more of the shell (pipes, `&&`, `;`, redirects, globs, `$(…)`) is run by `sh -c`: on Windows that needs Git for Windows' `sh` on the PATH. Keep plugin lines to the simple shape (`crates/atlas-core/src/platform/run_line.rs`; a test checks every bundled plugin).
+
+A compiled helper is built per platform. `ATLAS_PLUGIN_TARGET` is `<arch>-<os>` of the server (`x86_64-linux`, `aarch64-android`, `aarch64-macos`, `x86_64-windows`), so a plugin can carry one build per platform. On Windows the program's `.exe` is found without being written:
 
 ```toml
 [helper]
@@ -408,7 +410,7 @@ Build Linux helpers **static** (`cargo build --target x86_64-unknown-linux-musl`
 
 ## Native Android side (`[android]`)
 
-A plugin may also carry a native side for the Atlas and Atlas-for-Boox apps — where Java does better than the page: codecs, the e-ink refresh, the pen. Examples: `plugins/beta/manga/` and `plugins/beta/books/` (readers: their libraries are the page's, which hand a book over with `atlas.openNative`) and `plugins/beta/notepad/` (pen drawings on a Boox, saved as `.excalidraw`).
+A plugin may also carry a native side for the Atlas and Atlas-for-Boox apps — where Java does better than the page: codecs, the e-ink refresh, the pen. Examples: `plugins/beta/manga/` and `plugins/beta/books/` (readers: their libraries are the page's, which hand a book over with `atlas.openNative`). The notepad (pen drawings on a Boox, saved as `.excalidraw`) began as one and is now the app's own screen, the same interface (`org.atlas.notepad`; docs/guides/NOTEPAD.md).
 
 ```toml
 [android]
@@ -418,7 +420,7 @@ opens = ["*.cbz"]                        # vault files the app opens with it ins
 
 (`place = "…"`, an entry of its own in the app, is still parsed but unused since 2026-10-20: the app's places are the page's libraries.)
 
-- **`NativePlugin`** (`crates/atlas-android/android/java/org/atlas/capture/NativePlugin.java`): `String id()` (the folder's name) · `boolean opens(String path)` (may narrow `[android] opens` — Notepad claims `.excalidraw` only when `Host.einkScreen()`, so a phone keeps the web Excalidraw) · `View view(Host host, String path)` (`path` a vault path or an address of its own like `suwayomi:<id>/<name>`; never empty since `place()` went, 2026-10-20). A screen with places inside it implements **`NativePlugin.Back`** — `boolean back()`, `false` when at its top and the app should take Back.
+- **`NativePlugin`** (`crates/atlas-android/android/java/org/atlas/capture/NativePlugin.java`): `String id()` (the folder's name) · `boolean opens(String path)` (may narrow `[android] opens` — the notepad claims `.excalidraw` only when `Host.einkScreen()`, so a phone keeps the web Excalidraw) · `View view(Host host, String path)` (`path` a vault path or an address of its own like `suwayomi:<id>/<name>`; never empty since `place()` went, 2026-10-20). A screen with places inside it implements **`NativePlugin.Back`** — `boolean back()`, `false` when at its top and the app should take Back.
 - **Compiled in, never loaded from a vault**: `crates/atlas-android/build-apk.sh` runs `crates/atlas-android/native-plugins.sh`, which finds every `plugins/<tier>/<id>/plugin.toml` with an `[android] main`, hands its `android/` folder to javac with the app, and generates `NativePlugins.java` (the list the app reads). A new native side needs a new APK; each vault still switches the plugin on and off.
 - **`Host`** — what a native side may do, nothing more:
   - the app: `activity()`, `look()` (the app's palette and widgets)

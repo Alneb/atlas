@@ -29,10 +29,7 @@ pub struct Rules {
 
 /// Where lists and rules are kept: the user's cache, not a vault (they are the same for every vault).
 pub fn cache_dir() -> PathBuf {
-    std::env::var_os("XDG_CACHE_HOME")
-        .map(PathBuf::from)
-        .unwrap_or_else(|| PathBuf::from(std::env::var_os("HOME").unwrap_or_default()).join(".cache"))
-        .join("atlas/web-filters")
+    atlas_core::platform::dirs::atlas(atlas_core::platform::dirs::Base::Cache).join("web-filters")
 }
 
 /// FNV-1a: a stable name for a list's file and for a rule set (std's hasher may change between Rust versions).

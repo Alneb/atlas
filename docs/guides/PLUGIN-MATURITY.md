@@ -60,11 +60,12 @@ is the manifest's `api` (the current one is 12; an older number still loads, sin
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
 | ssh | stable | ✓ 8 / 2 | ✓ | ✓ | ✓ | ✓ | ✓ | ~ | ✗ | 4 | ✓ | ~ | 0.8.0 | declare Linux-only (8); the remote-file index through the API (11); 1.0 (12) |
 | copyparty | stable | ~ 0 / 1 | ✓ | ✓ | ✓ | ~ | – | ✓ | ✗ | 4 | ✓ | ✓ | 0.3.4 | unit tests (1); platforms in the README (8); 1.0 (12) |
-| print | stable | ~ 0 / 1 | ✗ | ✓ | ✓ | ✓ | – | ~ | ✗ | 4 | ✓ | ✓ | 0.1.0 | a README that says it needs CUPS on the core's machine (2, 7, 8); 1.0 (12) |
+| print | stable | ✓ 4 / 1 | ✓ | ✓ | ✓ | ✓ | ~ | ✓ | ✓ | ✓ 9 | ✓ | – | 0.2.0 | a note waits silently while Export makes its PDF beyond the first notice (6); 1.0 (12) |
 | run-tools | stable | ~ 0 / 1 | ✗ | ✓ | ✓ | ✓ | ~ | ✓ | ✗ | 4 | ✓ | ✓ | 0.1.0 | a README (2, 8); 1.0 (12) |
 | email | beta | ✓ 73 / 2 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ 12 | ✓ | ✗ | ✓ 1.1.0 | saved notes, rules and attachments written through the API, not `std::fs::write` (11) — then the strongest candidate |
 | dav (Calendar) | beta | ✓ 50 / 1 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ 12 | ✓ | ✓ | ✓ 1.1.0 | a review by someone who did not write it; it meets every criterion on paper |
 | finance | beta | ~ 70 / 0 | ✓ | ✓ | ~ | ✓ | ✓ | ✓ | ✗ | 9 | ✓ | ✗ | 0.1.0 | an end-to-end spec (1); neutral default currencies (4); journal and archive writes through the API (11); platforms (8); 1.0 (12) |
+| export | beta | ✓ 5 / 0 | ✓ | ✓ | ✓ | ✓ | ~ | ✓ | ~ | ✓ 9 | ✓ | ~ | 0.1.0 | an end-to-end spec (1); progress shown but an export cannot be stopped (6); tried only on Linux (8); the `.tex` / `.pdf` written to disk, not through the API, which has no binary write (11); 1.0 (12) |
 | catalog | beta | ✓ 40 / 2 | ✗ | ✓ | ✓ | ✓ | ✓ | ✓ | ✗ | 4 | ✓ | ✓ | 0.5.3 | a README (2, 8); 1.0 (12) |
 | catalog-papers | beta | ~ 28 / 0 | ✗ | ✓ | ✓ | ~ | ✓ | ✓ | ✗ | 4 | ✓ | ✗ | 0.4.0 | a README (2); an end-to-end spec (1); notes and PDFs written through the API (11); errors surfaced in the pane (5) |
 | books | beta | ~ 0 / 2 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ~ | 4 | ✓ | ✓ | 0.9.0 | unit tests (1); platforms in the README (8); 1.0 (12) |

@@ -7,6 +7,7 @@
 //   - anything else is a row view (list, table, calendar: lib/views.ts) fed by the core's /api/view
 import { errText } from "./text";
 import { hydrateFences } from "./fences";
+import "./pdf-marks-fence"; // the core's own fence: a PDF's marks in its note
 import { mount, unmount, type Component } from "svelte";
 import { parse as parseYaml } from "yaml";
 import type { DockviewPanelApi } from "dockview-core";

@@ -3,7 +3,7 @@
 // how it went in the tab's status line; panes/Explorer.svelte only wires them to buttons, keys, menus and drops.
 import { basename, shownName, shownPath } from "../paths";
 import { openPath } from "../dock";
-import { api } from "../api";
+import { api, ApiError } from "../api";
 import { pick } from "../palette.svelte";
 import { toast } from "../state.svelte";
 import { joinPath, parentPath, why, receive, chooseVaultFolder, downloadInto, sourceOf, type Entry, type FileSource } from "../file-sources.svelte";
@@ -66,7 +66,10 @@ export async function finishEdit(h: Here, ed: Editing, value: string, ok: boolea
     if (ed.kind === "new") { await src.mkdir!(loc.place, joinPath(loc.path, to)); h.say(`Made the folder ${to}.`); }
     else { await src.rename!(loc.place, joinPath(loc.path, ed.name), joinPath(loc.path, to)); h.say(`Renamed ${ed.name} to ${to}.`); }
     await h.reload(to);
-  } catch (err) { h.say(why(err), "bad"); }
+  } catch (err) {
+    // a name taken comes back as the server's 409 (nothing is overwritten): say it as the tree does
+    h.say(err instanceof ApiError && err.status === 409 ? `“${to}” already exists here.` : why(err), "bad");
+  }
   h.focus();
 }
 

@@ -355,8 +355,9 @@ pub mod cache {
 
     /// Whether `abs` is per-device state (under some `.atlas/cache/`).
     pub fn is_cache(abs: &Path) -> bool {
-        let s = abs.to_string_lossy();
-        s.contains("/.atlas/cache/") || s.ends_with("/.atlas/cache")
+        // by components, so `\` (Windows) counts as well as `/`
+        let parts: Vec<_> = abs.components().map(|c| c.as_os_str()).collect();
+        parts.windows(2).any(|w| w[0] == ".atlas" && w[1] == "cache")
     }
 
     pub fn write(abs: &Path, bytes: &[u8]) -> Result<()> {

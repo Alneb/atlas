@@ -40,6 +40,6 @@
   .place-note { color: var(--text-faint); font-size: calc(12px * var(--ui-scale, 1)); padding: 2px 8px; }
   .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--border-strong); flex: none; }
   .dot.up { background: var(--green); }
-  @container (max-width: 620px) { .places { display: none; } }
+  @container (max-width: 700px) { .places { display: none; } }
   @media (pointer: coarse) { .place { padding: 10px 8px; } }
 </style>

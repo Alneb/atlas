@@ -56,8 +56,11 @@ fn attributes(el: &ActiveEventLoop, floating: bool) -> WindowAttributes {
         .with_window_level(WindowLevel::AlwaysOnTop)
         .with_active(true);
     // the desktop's name for it (a shortcut, a window rule): atlas-capture
-    a = winit::platform::wayland::WindowAttributesExtWayland::with_name(a, "atlas-capture", "atlas-capture");
-    a = winit::platform::x11::WindowAttributesExtX11::with_name(a, "atlas-capture", "atlas-capture");
+    #[cfg(target_os = "linux")]
+    {
+        a = winit::platform::wayland::WindowAttributesExtWayland::with_name(a, "atlas-capture", "atlas-capture");
+        a = winit::platform::x11::WindowAttributesExtX11::with_name(a, "atlas-capture", "atlas-capture");
+    }
     // the window's own icon (X11; Wayland takes it from the desktop file the app id names)
     a = a.with_window_icon(window_icon());
     // centred, a third of the way down (X11; on Wayland the compositor places it)
@@ -85,8 +88,11 @@ impl Run {
     fn show(&mut self, el: &ActiveEventLoop) -> anyhow::Result<()> {
         // floating on Wayland, where the compositor takes the alpha (and the box cannot place a second window);
         // ATLAS_CAPTURE_FLOAT=0 keeps the growing box there too
-        use winit::platform::wayland::ActiveEventLoopExtWayland;
-        self.cap.floating = el.is_wayland() && std::env::var("ATLAS_CAPTURE_FLOAT").map_or(true, |v| v != "0");
+        #[cfg(target_os = "linux")]
+        let wayland = winit::platform::wayland::ActiveEventLoopExtWayland::is_wayland(el);
+        #[cfg(not(target_os = "linux"))]
+        let wayland = false;
+        self.cap.floating = wayland && std::env::var("ATLAS_CAPTURE_FLOAT").map_or(true, |v| v != "0");
         if self.cap.floating {
             self.cap.asked = FLOAT_HEIGHT;
         }

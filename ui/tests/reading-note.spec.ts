@@ -50,7 +50,8 @@ test("the Library's Notes renames a legacy notes.md to <citekey>.md, which shows
 
   const block = page.locator(".paper-block");
   await expect(block).toContainText("Hubbard, J.");
-  await expect(block.locator(".title")).toHaveCount(0); // in its own note the heading above already says it
+  // in its own note the heading above already says it (the embedded PDF pane's bar has a title of its own)
+  await expect.poll(() => block.evaluate((b) => [...b.querySelectorAll(".title")].filter((t) => !t.closest(".atlas-pane")).length)).toBe(0);
   await expect(block).toContainText("Proc. R. Soc. Lond. A");
   await expect(block.locator(".atlas-pane-pdf")).toBeVisible();
   await expect(block.locator(".textLayer").first()).toContainText("Hubbard model", { timeout: 15_000 });

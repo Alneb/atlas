@@ -6,18 +6,10 @@ use std::path::{Path, PathBuf};
 
 /// `~/…` is under home; a relative path is inside the vault (so a vault can carry its own snippets).
 fn expand(root: &Path, p: &str) -> PathBuf {
-    match (p.strip_prefix("~/"), std::env::var("HOME")) {
-        (Some(rest), Ok(h)) => Path::new(&h).join(rest),
-        _ => root.join(p), // an absolute path stays itself
-    }
+    root.join(crate::platform::dirs::expand_tilde(p)) // an absolute path (home's too) stays itself
 }
 
-fn tilde(p: &Path) -> String {
-    match std::env::var("HOME") {
-        Ok(h) if p.starts_with(&h) => format!("~/{}", p.strip_prefix(&h).unwrap_or(p).display()),
-        _ => p.display().to_string(),
-    }
-}
+use crate::platform::dirs::tilde;
 
 /// A file, every file of a folder (the plugin's "snippets folder" mode), or a plugin `data.json`
 /// (its inline `snippets` string).
@@ -51,7 +43,7 @@ pub fn load(root: &Path, file: &str, variables: &str) -> Result<Snippets> {
 /// LaTeX Suite configs in Obsidian vaults under home (`<vault>/.obsidian/plugins/obsidian-latex-suite/data.json`),
 /// resolved to (snippet files, variable files) the way the plugin resolves them.
 pub fn discover() -> (Vec<Suggestion>, Vec<Suggestion>) {
-    let Ok(home) = std::env::var("HOME") else { return (Vec::new(), Vec::new()) };
+    let Some(home) = crate::platform::dirs::home() else { return (Vec::new(), Vec::new()) };
     let mut files = vec![Suggestion { value: String::new(), label: "None".into() }];
     let mut vars = vec![Suggestion { value: String::new(), label: "None".into() }];
     let skip = ["node_modules", "target", "runs", "lib", "archive", ".git", ".cache", ".local", ".cargo", ".rustup"];

@@ -4,7 +4,7 @@
 //! Special-purpose views (simulation runs, …) live with the project that needs them.
 //! v3 (docs/refactor/REFACTOR-plugins-v3.md): a plugin is data + pieces. `main.js` registers blocks, commands
 //! and entity kinds at startup (no pane needed); the pane (`view.js`) and the rail button are opt-in.
-use crate::commands::{run_script, ScriptCommand, ScriptManifest, SCRIPT_TIMEOUT};
+use crate::commands::{run_script_with, ScriptCommand, ScriptManifest, SCRIPT_TIMEOUT};
 pub use crate::plugin_settings::SettingField;
 use crate::{Error, Result};
 use serde::{Deserialize, Serialize};
@@ -667,9 +667,7 @@ pub async fn data(root: &Path, id: &str, args: Value) -> Result<Value> {
         id: format!("plugin.{id}"),
         manifest: ScriptManifest {
             title: m.title,
-            // exported (not a `VAR=… cmd` prefix, which the shell expands too late) so the command
-            // can name its own files: `python3 "$ATLAS_PLUGIN_DIR/index.py"`
-            run: format!("export ATLAS_PLUGIN_DIR={} ATLAS_PLUGIN_TARGET={}; {run}", shell_quote(&dir.to_string_lossy()), target()),
+            run,
             keys: None,
             description: None,
             timeout_secs: m.timeout_secs,
@@ -677,11 +675,9 @@ pub async fn data(root: &Path, id: &str, args: Value) -> Result<Value> {
         },
     };
     let timeout = m.timeout_secs.map(Duration::from_secs).unwrap_or(SCRIPT_TIMEOUT);
-    run_script(root, &script, &json!({ "settings": settings, "args": args }), timeout).await
-}
-
-fn shell_quote(s: &str) -> String {
-    format!("'{}'", s.replace('\'', r"'\''"))
+    // set for the line's own `$VAR`s too, so it can name its files: `python3 "$ATLAS_PLUGIN_DIR/index.py"`
+    let env = [("ATLAS_PLUGIN_DIR".to_string(), dir.into_os_string()), ("ATLAS_PLUGIN_TARGET".to_string(), target().into())];
+    run_script_with(root, &script, &env, &json!({ "settings": settings, "args": args }), timeout).await
 }
 
 #[cfg(test)]

@@ -353,7 +353,9 @@
       {#each path.split("/") as seg, i}
         {#if i > 0}<span class="sep">›</span>{/if}
         {#if i < path.split("/").length - 1}
-          <button class="seg" onclick={() => open({ kind: "files" })} title={path.split("/").slice(0, i + 1).join("/")}>{seg}</button>
+          <!-- a folder of the path: the explorer there, the next step down (the folder or this note) selected -->
+          <button class="seg" title="Show {path.split("/").slice(0, i + 1).join("/")} in the explorer"
+            onclick={() => open({ kind: "explorer", source: "vault", place: "", path: path.split("/").slice(0, i + 1).join("/"), select: path.split("/")[i + 1] })}>{seg}</button>
         {:else}
           <span class="seg file"><Icon name={fileIcon(path)} size={13} />{shownName(seg)}</span>
         {/if}

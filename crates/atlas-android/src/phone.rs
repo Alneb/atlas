@@ -138,6 +138,29 @@ pub fn companion_note(vault: &Path, file: &str) -> Value {
     }
 }
 
+/// A PDF's marks from its note's block (core pdf_marks.rs): `{note, marks}` or `{error}`.
+pub fn pdf_marks(vault: &Path, pdf: &str) -> Value {
+    let cfg = atlas_core::config::Config::load(vault).unwrap_or_default();
+    match atlas_core::pdf_marks::marks_of(vault, &cfg, pdf) {
+        Ok(m) => json!(m),
+        Err(e) => json!({ "error": e.to_string() }),
+    }
+}
+
+/// `ops` (a JSON array of `{op: "put", mark} | {op: "remove", id}`) applied to a PDF's note: the marks after, or
+/// `{error}`.
+pub fn change_pdf_marks(vault: &Path, pdf: &str, ops: &str) -> Value {
+    let cfg = atlas_core::config::Config::load(vault).unwrap_or_default();
+    let ops: Vec<atlas_core::pdf_marks::Op> = match serde_json::from_str(ops) {
+        Ok(o) => o,
+        Err(e) => return json!({ "error": format!("the marks' changes: {e}") }),
+    };
+    match atlas_core::pdf_marks::change(vault, &cfg, pdf, ops, chrono::Local::now().naive_local()) {
+        Ok((m, _)) => json!(m),
+        Err(e) => json!({ "error": e.to_string() }),
+    }
+}
+
 pub fn config(vault: &Path) -> Value {
     match atlas_core::config::Config::load(vault) {
         Ok(c) => json!({ "config": c, "schema": atlas_core::config::Config::schema() }),

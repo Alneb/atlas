@@ -130,7 +130,8 @@ export const api = {
   /** Every file (the tree); `index`: the user's own only, the agent's (`editor.index_exclude`) left out. */
   exists: (path: RelPath) => request<boolean>("GET", "/api/exists", { query: { path } }),
   files: (o: { index?: boolean } = {}) => request<string[]>("GET", "/api/files", { query: o.index ? { index: "true" } : {} }),
-  tree: (path?: RelPath) => request<TreeEntry[]>("GET", "/api/tree", { query: { path: path || undefined } }),
+  /** One folder's entries; `hidden`: dotfiles too, whatever `[files] show_hidden` says. */
+  tree: (path?: RelPath, hidden = false) => request<TreeEntry[]>("GET", "/api/tree", { query: { path: path || undefined, hidden: hidden ? "true" : undefined } }),
   file: (path: RelPath) => request<FileDoc>("GET", "/api/file", { query: { path } }),
   /** 409 (ApiError.status) when `base_mtime` is given and the file changed on disk (or, in a mirrored vault, this copy
    *  is behind the server's: core mirror_guard.rs). */
@@ -206,6 +207,12 @@ export const api = {
   webFrameable: (url: string) => request<boolean>("GET", "/api/web/frameable", { query: { url } }),
   /** A file's one note (companion.rs): `find` says which without making it; else made when missing. */
   companion: (req: import("./gen/CompanionRequest").CompanionRequest) => request<import("./types").CompanionNote>("POST", "/api/companion", { body: req }),
+  /** A PDF's marks, from its note's `pdf-marks` block (core pdf_marks.rs). */
+  pdfMarks: (pdf: string) => request<import("./gen/PdfMarks").PdfMarks>("GET", "/api/pdf-marks", { query: { pdf } }),
+  /** The PDF a note holds the marks of (core companion.rs `pdf_of_note`); null: none. */
+  pdfOfNote: (note: string) => request<{ pdf: string | null }>("GET", "/api/pdf-of-note", { query: { note } }),
+  /** Changes a PDF's marks (its note made with the first one); the marks after. */
+  changePdfMarks: (pdf: string, ops: import("./gen/Op").Op[]) => request<import("./gen/PdfMarks").PdfMarks>("POST", "/api/pdf-marks", { query: { pdf }, body: ops }),
   refsNote: (key: string) => papers<import("./types").CompanionNote>("note", { key }),
   base: (path: string, thisPath?: string) =>
     request<import("./types").BaseResult>("GET", "/api/base", { query: thisPath ? { path, this: thisPath } : { path } }),

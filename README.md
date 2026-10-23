@@ -65,7 +65,7 @@ docker compose up -d
 
 Behind a reverse proxy with a sign-in in front: [docs/guides/SERVER.md](docs/guides/SERVER.md).
 
-**Windows and macOS** are not supported yet. The core and the browser UI are close; the desktop app needs more work.
+**Windows and macOS** are being ported: the platform differences are gathered in one module of the core, the Windows build is made from Linux and run under Wine, and macOS is checked in CI. Nothing is released for them yet. On Windows, a plugin or command line that needs a shell needs Git for Windows' `sh`. Ad blocking and web pages as tabs are Linux-only for now (docs/guides/DEVELOPING.md, "Windows and macOS").
 
 ## Build from source
 

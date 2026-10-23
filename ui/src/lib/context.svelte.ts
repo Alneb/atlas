@@ -41,8 +41,8 @@ function changed(serverSide = true): void {
 }
 
 export function setPanes(active: PaneRef | undefined, open: PaneRef[]): void {
-  // the file tree follows the active file (reveal)
-  if (active?.path && active.path !== context.active?.path) window.dispatchEvent(new CustomEvent("atlas-active-file", { detail: active.path }));
+  // the file tree follows the active file, or the vault folder an explorer shows ("": its top)
+  if (active?.path !== undefined && active.path !== context.active?.path) window.dispatchEvent(new CustomEvent("atlas-active-file", { detail: active.path }));
   context.active = active;
   context.open = open;
   // a selection in a closed editor is no longer something the user is looking at

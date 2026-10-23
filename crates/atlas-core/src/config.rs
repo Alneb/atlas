@@ -592,6 +592,19 @@ pub struct PdfConfig {
     pub open_zoom: PdfZoom,
     /// Also export annotations to the paper's reading note every time the PDF is saved.
     pub export_on_save: bool,
+    /// What reads PDFs: the reader, covers, thumbnails, previews and embedded pages. One engine per document, never
+    /// both; a file the chosen one cannot open offers the other.
+    pub engine: PdfEngine,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS, JsonSchema)]
+#[serde(rename_all = "lowercase")]
+#[ts(export)]
+pub enum PdfEngine {
+    /// PDFium (WebAssembly, in a worker): fast on scans and books.
+    Pdfium,
+    /// pdf.js: the backup.
+    Pdfjs,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS, JsonSchema)]
@@ -619,7 +632,7 @@ pub enum PdfZoom {
 
 impl Default for PdfConfig {
     fn default() -> Self {
-        Self { color: AnnotationColor::Yellow, ink_thickness: 2, open_zoom: PdfZoom::PageWidth, export_on_save: false }
+        Self { color: AnnotationColor::Yellow, ink_thickness: 2, open_zoom: PdfZoom::PageWidth, export_on_save: false, engine: PdfEngine::Pdfium }
     }
 }
 
@@ -635,7 +648,64 @@ pub struct DrawConfig {
     pub notepad: bool,
     /// The pages a new drawing gets. Ask: chosen each time from the list.
     pub page_format: PageFormat,
+    // ── the Boox's notepad (e-ink screens; org.atlas.notepad) ──
+    /// Pen at the start (knote2's pens, Boox Notes'); the pen menu changes it while drawing.
+    pub pen: NotepadPen,
+    /// Paper of a new page.
+    pub paper: NotepadPaper,
+    /// Hold the pen still for half a second at the end of a stroke: a line, rectangle, ellipse or triangle drawn
+    /// cleanly, as Boox Notes does.
+    pub snap: bool,
+    /// Shape recogniser. openink: boox_5c_re's trained one (lines, boxes, ellipses, triangles, polygons, arcs,
+    /// arrows); atlas: the earlier one (lines, boxes, ellipses, triangles).
+    pub shapes: ShapeRecogniser,
+    /// Scribble back and forth over strokes (as Boox Notes does) and they are erased instead of the scribble kept.
+    pub scribble: bool,
+    /// A drawing opens with the pen, width and colour in hand when the notepad last closed; off: the defaults below.
+    pub remember_pen: bool,
+    /// Pen width at the start.
+    pub width: PenWidth,
+    /// Colour at the start.
+    pub color: PenColor,
+    /// Eraser. Whole strokes: a touch takes the stroke; part of strokes: only where the eraser passes.
+    pub eraser: EraserMode,
+    /// Shape at the start.
+    pub shape: StartShape,
+    /// Text size at the start.
+    pub text_size: TextSize,
+    /// A notebook shows one page filling the screen: the fingers zoom into it but never out of it or past its edges; a
+    /// swipe from a side or the arrows turn it. Off: the canvas pans and zooms freely.
+    pub page_mode: bool,
+    /// A notebook's pages as a grid on one canvas, as Rnote lays them out (1: one under another).
+    #[schemars(range(min = 1, max = 4))]
+    pub per_row: u32,
+    /// A PDF opens on the Boox. write: its pages in a drawing to write over with the pen; reader: the PDF reader.
+    pub pdf: PdfOpens,
 }
+
+/// Declares a setting's choices: each variant written as the given name (the names the notepad has always used).
+macro_rules! choices {
+    ($(#[$m:meta])* $name:ident { $($(#[$vm:meta])* $v:ident = $s:literal),+ $(,)? }) => {
+        $(#[$m])*
+        #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, TS, JsonSchema)]
+        #[ts(export)]
+        pub enum $name { $($(#[$vm])* #[serde(rename = $s)] $v,)+ }
+        impl $name {
+            pub fn as_str(self) -> &'static str { match self { $(Self::$v => $s,)+ } }
+        }
+    };
+}
+choices!(/// knote2's pens.
+    NotepadPen { Ballpoint = "ballpoint", #[default] Fountain = "fountain", Brush = "brush", Marker = "marker", Square = "square", Pencil = "pencil", Charcoal = "charcoal" });
+choices!(/// A new page's paper.
+    NotepadPaper { #[default] Blank = "blank", Lines = "lines", Grid = "grid", Dots = "dots", Fine = "fine", Graph = "graph", Staff = "staff" });
+choices!(ShapeRecogniser { #[default] Openink = "openink", Atlas = "atlas" });
+choices!(PenWidth { Thin = "thin", #[default] Normal = "normal", Thick = "thick", VeryThick = "very thick" });
+choices!(PenColor { #[default] Black = "black", DarkGrey = "dark grey", LightGrey = "light grey", Red = "red", Blue = "blue", Green = "green", Orange = "orange", Purple = "purple" });
+choices!(EraserMode { #[default] WholeStrokes = "whole strokes", PartOfStrokes = "part of strokes" });
+choices!(StartShape { Line = "line", Arrow = "arrow", #[default] Rectangle = "rectangle", Ellipse = "ellipse", Diamond = "diamond", Triangle = "triangle", Axes = "axes", AxesFull = "axes_full" });
+choices!(TextSize { Small = "small", #[default] Medium = "medium", Large = "large", VeryLarge = "very large" });
+choices!(PdfOpens { #[default] Write = "write", Reader = "reader" });
 
 /// A new drawing's pages (ui/src/lib/draw-new.ts draws each).
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, TS, JsonSchema)]
@@ -667,6 +737,20 @@ impl Default for DrawConfig {
             dir: "notes/drawings".into(),
             notepad: true,
             page_format: PageFormat::Ask,
+            pen: NotepadPen::default(),
+            paper: NotepadPaper::default(),
+            snap: true,
+            shapes: ShapeRecogniser::default(),
+            scribble: true,
+            remember_pen: true,
+            width: PenWidth::default(),
+            color: PenColor::default(),
+            eraser: EraserMode::default(),
+            shape: StartShape::default(),
+            text_size: TextSize::default(),
+            page_mode: true,
+            per_row: 4,
+            pdf: PdfOpens::default(),
         }
     }
 }

@@ -22,10 +22,11 @@ pub fn safe_join(root: &Path, rel: &str) -> Result<PathBuf, String> {
     }
     // Symlink escape check on the deepest ancestor that exists.
     let mut probe = out.as_path();
+    let root = plain(root);
     loop {
         match probe.canonicalize() {
             Ok(real) => {
-                if !real.starts_with(root) {
+                if !plain(&real).starts_with(&root) {
                     return Err(bad("resolves outside the workspace"));
                 }
                 break;
@@ -37,6 +38,22 @@ pub fn safe_join(root: &Path, rel: &str) -> Result<PathBuf, String> {
         }
     }
     Ok(out)
+}
+
+/// `p` without Windows' verbatim prefix: `canonicalize` there answers `\\?\C:\…`, which names the same folder as
+/// `C:\…` but never `starts_with` it. Elsewhere `p` itself.
+pub fn plain(p: &Path) -> PathBuf {
+    #[cfg(windows)]
+    {
+        let s = p.as_os_str().to_string_lossy();
+        if let Some(rest) = s.strip_prefix(r"\\?\UNC\") {
+            return PathBuf::from(format!(r"\\{rest}"));
+        }
+        if let Some(rest) = s.strip_prefix(r"\\?\") {
+            return PathBuf::from(rest);
+        }
+    }
+    p.to_path_buf()
 }
 
 /// Workspace-relative, forward-slash form of an absolute path under `root`.

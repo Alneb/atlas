@@ -290,23 +290,21 @@ pub async fn run(ws: &Workspace, bus: &EventBus, cmd: Command) -> Result<Value> 
     }
 }
 
-/// `sh -c <run>` with args as JSON on stdin. stdout is the result (parsed as JSON when it is);
-/// a non-zero exit returns stderr. The whole process group is killed on timeout.
+/// `run` (platform/run_line.rs: no shell unless the line needs one) with args as JSON on stdin. stdout is the result
+/// (parsed as JSON when it is); a non-zero exit returns stderr. The whole process group is killed on timeout.
 pub async fn run_script(root: &Path, script: &ScriptCommand, args: &Value, timeout: Duration) -> Result<Value> {
+    run_script_with(root, script, &[], args, timeout).await
+}
+
+/// [`run_script`] with `env` set for the process and its line's `$VAR`s (a plugin's `ATLAS_PLUGIN_DIR`).
+pub async fn run_script_with(root: &Path, script: &ScriptCommand, env: &[(String, std::ffi::OsString)], args: &Value, timeout: Duration) -> Result<Value> {
     use std::process::Stdio;
     use tokio::io::AsyncWriteExt;
-    let mut cmd = tokio::process::Command::new("sh");
-    cmd.arg("-c")
-        .arg(&script.manifest.run)
-        .current_dir(root)
-        .env("ATLAS_ROOT", root)
-        .env("ATLAS_COMMAND", &script.id)
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .kill_on_drop(true);
-    #[cfg(unix)]
-    cmd.process_group(0);
+    let mut vars = vec![("ATLAS_ROOT".to_string(), root.as_os_str().to_owned()), ("ATLAS_COMMAND".to_string(), script.id.clone().into())];
+    vars.extend_from_slice(env);
+    let mut cmd = crate::platform::run_line::command(&script.manifest.run, root, &vars).map_err(|e| Error::CommandFailed(format!("{}: {e}", script.id)))?;
+    cmd.stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::piped()).kill_on_drop(true);
+    crate::platform::proc::own_group(&mut cmd);
     let mut child = cmd.spawn().map_err(|e| Error::CommandFailed(format!("{}: {e}", script.id)))?;
     let pid = child.id();
     if let Some(mut stdin) = child.stdin.take() {
@@ -317,7 +315,7 @@ pub async fn run_script(root: &Path, script: &ScriptCommand, args: &Value, timeo
         Ok(out) => out?,
         Err(_) => {
             if let Some(pid) = pid {
-                let _ = std::process::Command::new("kill").args(["-KILL", "--", &format!("-{pid}")]).status();
+                crate::platform::proc::stop_group(pid, crate::platform::proc::Stop::Kill);
             }
             return Err(Error::CommandFailed(format!("{} timed out after {}s", script.id, timeout.as_secs())));
         }

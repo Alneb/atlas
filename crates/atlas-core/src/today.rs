@@ -130,8 +130,7 @@ fn task_hits<'a>(files: &'a [Found], cfg: &'a Config) -> impl Iterator<Item = (L
 /// A note's task lines (line, text, done), read again only when it changed (its time, size or file — a save is a new
 /// file renamed over it): Today asks after every save.
 fn tasks_in(abs: &Path, meta: &std::fs::Metadata) -> std::sync::Arc<Vec<(u32, String, bool)>> {
-    use std::os::unix::fs::MetadataExt;
-    let stamp = (meta.modified().unwrap_or(std::time::UNIX_EPOCH), meta.len(), meta.ino());
+    let stamp = (meta.modified().unwrap_or(std::time::UNIX_EPOCH), meta.len(), crate::platform::proc::file_id(meta));
     if let Some(t) = lock(&TASKS).get(abs, &stamp) {
         return t;
     }

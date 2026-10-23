@@ -1,6 +1,5 @@
 # The gate on every push and pull request: the same `scripts/dev/gate.sh` a contributor runs locally, so "green" means
-# one thing. Windows and macOS only `cargo check` the core and the CLI, and may fail until the port is done
-# (docs/decisions/PORTING-windows-macos.md).
+# one thing. Windows and macOS build every crate and run the core's tests; they may fail until those ports are done.
 name: CI
 
 on:
@@ -58,9 +57,10 @@ jobs:
           if-no-files-found: ignore
 
   port:
-    name: cargo check (${{ matrix.os }})
+    name: Port (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     continue-on-error: true
+    timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
@@ -69,5 +69,18 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
-      - name: The core and the CLI
-        run: cargo check --locked -p atlas-core -p atlas
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
+      # the desktop app embeds ui/dist at build time
+      - name: The UI
+        run: |
+          npm --prefix ui ci --no-audit --no-fund
+          npm --prefix ui run build
+      - name: Build the core, the CLI, the desktop app and the capture box
+        run: cargo build --locked -p atlas-core -p atlas -p atlas-app -p atlas-capture
+      # Git for Windows' sh, Python and tar are on the runners: the tests that start them run here, unlike under Wine
+      - name: The core's tests
+        run: cargo test --locked -p atlas-core

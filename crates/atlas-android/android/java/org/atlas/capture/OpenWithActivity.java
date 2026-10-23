@@ -34,8 +34,7 @@ public final class OpenWithActivity extends Activity {
             } catch (Exception e) { why = e.getMessage(); }
             String failed = why;
             runOnUiThread(() -> {
-                NativePlugin p = null;
-                for (NativePlugin n : NativePlugins.ALL) if (n.opens(name)) { p = n; break; }
+                NativePlugin p = Natives.forPath(name, id -> true);
                 if (failed != null) Toast.makeText(this, "Not opened: " + failed, Toast.LENGTH_LONG).show();
                 else if (p == null) Toast.makeText(this, "This app has no reader for " + name, Toast.LENGTH_LONG).show();
                 else PluginActivity.start(this, p.id(), name, dir.getPath());

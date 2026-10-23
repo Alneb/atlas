@@ -1119,7 +1119,7 @@ export function buildDecorations(state, ranges, options = {}) {
 
         // --- [[wikilink]] and [[target|alias]] ---
         if (name === "Wikilink") {
-          const target = node.node.getChild("WikilinkTarget");
+          const target = node.node.getChild("WikilinkTarget"), alias = node.node.getChild("WikilinkAlias");
           // A link whose target does not exist is dimmed, exactly as the read
           // view dims it (`is-unresolved`, decided server-side) and as Obsidian
           // does. opts.linkResolves is a cached lookup by contract -- this runs
@@ -1131,14 +1131,15 @@ export function buildDecorations(state, ranges, options = {}) {
             node.to,
             Decoration.mark({
               class: missing ? "cm-hmd-internal-link is-unresolved" : "cm-hmd-internal-link",
-              // Atlas: the real target, so a click on an aliased link opens the right note
-              attributes: target ? { "data-target": state.doc.sliceString(target.from, target.to) } : undefined,
+              // Atlas: the real target, so a click on an aliased link opens the right note, and its label (a PDF
+              // link's label is the words to select on its page)
+              attributes: target ? { "data-target": state.doc.sliceString(target.from, target.to),
+                ...(alias ? { "data-label": state.doc.sliceString(alias.from, alias.to) } : {}) } : undefined,
             })
           );
           if (!revealed(state, node.from, node.to)) {
             // With an alias, the target is noise: Obsidian shows only the alias.
             // The marks themselves are hidden by the MARK_NODES branch.
-            const alias = node.node.getChild("WikilinkAlias");
             if (alias && target) add(target.from, alias.from, Decoration.replace({}));
           }
           return;

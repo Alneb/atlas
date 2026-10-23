@@ -224,6 +224,8 @@ export const actions: Action[] = [
   { id: "ui.open-in-browser", title: "Open Atlas in the browser", run: openInBrowser },
   // e-ink (Settings → Appearance: ui.eink_refresh): the ghosts of earlier screens cleared by one full refresh
   { id: "ui.eink-refresh", title: "E-ink: clear the screen", run: () => void import("./eink").then((m) => m.einkRefresh(true)) },
+  // the store before the note's pdf-marks block: each older drawing's marks moved over, after a yes (lib/pdf-migrate.ts)
+  { id: "pdf.migrate-marks", title: "PDF: move older marks (drawings) into their notes", run: () => void import("./pdf-migrate").then((m) => m.migratePdfMarks()) },
   // Obsidian's keys, in notes only (lib/editor/md-format.ts sets noteFormat when the editor loads)
   { id: "note.bold", title: "Note: bold", keys: "Ctrl+B", where: "note", run: () => noteFormat.run?.("bold") },
   { id: "note.italic", title: "Note: italic", keys: "Ctrl+I", where: "note", run: () => noteFormat.run?.("italic") },

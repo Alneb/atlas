@@ -106,9 +106,17 @@ async fn workspace(State(st): S) -> Result<Json<WorkspaceInfo>> {
     Ok(Json(with_ws(&st, |ws| ws.info()).await?))
 }
 
-async fn tree(State(st): S, Query(q): Query<PathQuery>) -> Result<Json<Vec<TreeEntry>>> {
+#[derive(serde::Deserialize)]
+struct TreeQuery {
+    path: Option<String>,
+    /// dotfiles listed whatever `[files] show_hidden` says
+    #[serde(default)]
+    hidden: bool,
+}
+
+async fn tree(State(st): S, Query(q): Query<TreeQuery>) -> Result<Json<Vec<TreeEntry>>> {
     let rel = q.path.unwrap_or_default();
-    Ok(Json(with_ws(&st, move |ws| files::tree(&ws, &rel)).await?))
+    Ok(Json(with_ws(&st, move |ws| files::tree(&ws, &rel, q.hidden)).await?))
 }
 
 /// Every workspace file (ignore rules applied): the UI resolves links and embeds against it.
@@ -617,6 +625,36 @@ async fn companion_post(State(st): S, Json(req): Json<crate::api::CompanionReque
     Ok(Json(r))
 }
 
+#[derive(serde::Deserialize)]
+struct PdfQuery {
+    pdf: String,
+}
+
+/// The marks of a PDF, from its note's `pdf-marks` block (crate::pdf_marks).
+async fn pdf_marks_get(State(st): S, Query(q): Query<PdfQuery>) -> Result<Json<crate::pdf_marks::Marks>> {
+    Ok(Json(with_ws(&st, move |ws| crate::pdf_marks::marks_of(ws.root(), &ws.config()?, &q.pdf)).await?))
+}
+
+#[derive(serde::Deserialize)]
+struct NoteQuery {
+    note: String,
+}
+
+/// The PDF a note holds the marks of (companion::pdf_of_note): `{pdf}`, null when it is no PDF's note.
+async fn pdf_of_note_get(State(st): S, Query(q): Query<NoteQuery>) -> Result<Json<serde_json::Value>> {
+    let pdf = with_ws(&st, move |ws| Ok(crate::companion::pdf_of_note(ws.root(), &q.note))).await?;
+    Ok(Json(serde_json::json!({ "pdf": pdf })))
+}
+
+async fn pdf_marks_post(State(st): S, Query(q): Query<PdfQuery>, Json(ops): Json<Vec<crate::pdf_marks::Op>>) -> Result<Json<crate::pdf_marks::Marks>> {
+    let now = chrono::Local::now().naive_local();
+    let (marks, _) = with_ws(&st, move |ws| crate::pdf_marks::change(ws.root(), &ws.config()?, &q.pdf, ops, now)).await?;
+    if let Some(n) = &marks.note {
+        st.bus.publish(Event::Fs { paths: vec![n.clone()] });
+    }
+    Ok(Json(marks))
+}
+
 async fn link_targets_get(State(st): S, Query(q): Query<LinkTargetsQuery>) -> Result<Json<Vec<LinkTarget>>> {
     Ok(Json(with_ws(&st, move |ws| Ok(crate::link_targets::targets(ws.root(), &ws.config()?, &q.q, q.from.as_deref()))).await?))
 }
@@ -633,8 +671,11 @@ async fn property_put(State(st): S, Json(e): Json<PropertyEdit>) -> Result<Statu
         }
         let path = ws.resolve(&e.path)?;
         let text = std::fs::read_to_string(&path)?;
-        let next =
-            crate::frontmatter::set_property(&text, e.key.trim(), &crate::frontmatter::parse_cell(&e.text, e.list));
+        let value = match &e.value {
+            Some(v) => serde_yaml::to_value(v).map_err(|x| Error::BadRequest(x.to_string()))?,
+            None => crate::frontmatter::parse_cell(&e.text, e.list),
+        };
+        let next = crate::frontmatter::set_property(&text, e.key.trim(), &value);
         vault_write::write(&path, next.as_bytes())
     })
     .await?;
@@ -722,8 +763,11 @@ async fn fs_reveal_outside(State(st): S, axum::extract::ConnectInfo(peer): axum:
     }
     let path = match required_path(q) { Ok(p) => p, Err(e) => return e.into_response() };
     let abs = match with_ws(&st, move |ws| ws.resolve(&path)).await { Ok(a) => a, Err(e) => return e.into_response() };
-    tokio::task::spawn_blocking(move || show_in_file_manager(&abs)); // dbus-send is waited for: off the async threads
-    StatusCode::NO_CONTENT.into_response()
+    // the file manager may be waited for (dbus-send, open -R): off the async threads
+    match tokio::task::spawn_blocking(move || crate::platform::open::reveal(&abs)).await {
+        Ok(Err(why)) => Error::CommandFailed(why).into_response(),
+        _ => StatusCode::NO_CONTENT.into_response(),
+    }
 }
 
 /// The desktop's core (no sign-in), asked from this machine: never a server (its nginx makes visitors look local).
@@ -731,23 +775,6 @@ fn may_reveal_outside(signed_in_server: bool, peer: std::net::IpAddr) -> bool {
     !signed_in_server && peer.is_loopback()
 }
 
-/// The freedesktop file manager interface (Dolphin, Nautilus, Thunar… answer it) shows the item selected; without it,
-/// the folder opens with xdg-open. Spawned, never waited for.
-fn show_in_file_manager(abs: &std::path::Path) {
-    if std::env::var_os("ATLAS_NO_BROWSER").is_some() {
-        return; // tests never touch the user's desktop
-    }
-    let uri = format!("file://{}", abs.display());
-    let dbus = std::process::Command::new("dbus-send")
-        .args(["--session", "--dest=org.freedesktop.FileManager1", "--type=method_call", "/org/freedesktop/FileManager1", "org.freedesktop.FileManager1.ShowItems"])
-        .arg(format!("array:string:{uri}"))
-        .arg("string:")
-        .status();
-    if !matches!(dbus, Ok(s) if s.success()) {
-        let dir = if abs.is_dir() { abs.to_path_buf() } else { abs.parent().unwrap_or(abs).to_path_buf() };
-        let _ = std::process::Command::new("xdg-open").arg(dir).spawn();
-    }
-}
 
 async fn task_tick(State(st): S, Json(t): Json<TaskRef>) -> Result<StatusCode> {
     let path = t.path.clone();
@@ -1874,6 +1901,8 @@ fn router(state: Arc<AppState>) -> Router {
         .route("/api/snippets", get(snippets_get))
         .route("/api/attach", post(attach_post).layer(DefaultBodyLimit::max(100 * 1024 * 1024)))
         .route("/api/companion", post(companion_post))
+        .route("/api/pdf-marks", get(pdf_marks_get).post(pdf_marks_post))
+        .route("/api/pdf-of-note", get(pdf_of_note_get))
         .route("/api/backlinks", get(backlinks_get))
         .route("/api/link-targets", get(link_targets_get))
         .route("/api/base", get(base_get))

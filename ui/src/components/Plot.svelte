@@ -1,8 +1,14 @@
 <script lang="ts">
-  // A quick line plot of table columns (no library): one X column, any number of Y columns, nice
-  // ticks, a legend, and a hover readout of the nearest point. For a first look at a run's table;
+  // A quick plot of table columns (no library): one X column, any number of Y columns, as lines or points, either axis
+  // on a log scale, nice ticks, a legend, and a hover readout of the nearest point. For a first look at a run's table;
   // publication figures stay in Python.
-  let { x, ys, xLabel, yLabels }: { x: number[]; ys: number[][]; xLabel: string; yLabels: string[] } = $props();
+  let { x: xIn, ys: ysIn, xLabel, yLabels, mode = "line", logX = false, logY = false }: {
+    x: number[]; ys: number[][]; xLabel: string; yLabels: string[]; mode?: "line" | "points"; logX?: boolean; logY?: boolean;
+  } = $props();
+  // a log axis plots log10 of the values; zero and below have no place on it
+  const lg = (on: boolean) => (a: number[]) => (on ? a.map((v) => (v > 0 ? Math.log10(v) : NaN)) : a);
+  const x = $derived(lg(logX)(xIn));
+  const ys = $derived(ysIn.map(lg(logY)));
 
   const W = 760, H = 320, L = 64, R = 16, T = 14, B = 42;
   const COLORS = ["var(--accent)", "var(--green)", "var(--yellow)", "var(--purple)", "var(--red)", "var(--cyan)"];
@@ -28,8 +34,16 @@
   const yrr = $derived(range(ys));
   const xr = $derived(xrr ?? ([0, 1] as [number, number]));
   const yr = $derived(yrr ?? ([0, 1] as [number, number]));
-  const xt = $derived(ticks(xr[0], xr[1]));
-  const yt = $derived(ticks(yr[0], yr[1], 5));
+  /** On a log axis: the powers of ten in range when there are two or more, else ticks on the exponent. */
+  const decades = (lo: number, hi: number, n: number) => {
+    const out: number[] = [];
+    for (let k = Math.ceil(lo); k <= Math.floor(hi); k++) out.push(k);
+    return out.length >= 2 && out.length <= 12 ? out : ticks(lo, hi, n);
+  };
+  const xt = $derived(logX ? decades(xr[0], xr[1], 6) : ticks(xr[0], xr[1]));
+  const yt = $derived(logY ? decades(yr[0], yr[1], 5) : ticks(yr[0], yr[1], 5));
+  /** a value as shown: the real one on a log axis (10^v) */
+  const shown = (v: number, log: boolean) => fmt(log ? 10 ** v : v);
   const x0 = $derived(Math.min(xt[0], xr[0])), x1 = $derived(Math.max(xt[xt.length - 1], xr[1]));
   const y0 = $derived(Math.min(yt[0], yr[0])), y1 = $derived(Math.max(yt[yt.length - 1], yr[1]));
   const sx = (v: number) => L + ((v - x0) / (x1 - x0 || 1)) * (W - L - R);
@@ -84,13 +98,13 @@
   {:else}
     <!-- svelte-ignore a11y_no_static_element_interactions -->
     <svg viewBox="0 0 {W} {H}" role="img" aria-label="{yLabels.join(', ')} against {xLabel}" onmousemove={move} onmouseleave={() => (hover = null)}>
-      {#each yt as v}<line class="grid" x1={L} x2={W - R} y1={sy(v)} y2={sy(v)} /><text class="tick" x={L - 6} y={sy(v) + 4} text-anchor="end">{fmt(v)}</text>{/each}
-      {#each xt as v}<line class="grid" y1={T} y2={H - B} x1={sx(v)} x2={sx(v)} /><text class="tick" x={sx(v)} y={H - B + 16} text-anchor="middle">{fmt(v)}</text>{/each}
+      {#each yt as v}<line class="grid" x1={L} x2={W - R} y1={sy(v)} y2={sy(v)} /><text class="tick" x={L - 6} y={sy(v) + 4} text-anchor="end">{shown(v, logY)}</text>{/each}
+      {#each xt as v}<line class="grid" y1={T} y2={H - B} x1={sx(v)} x2={sx(v)} /><text class="tick" x={sx(v)} y={H - B + 16} text-anchor="middle">{shown(v, logX)}</text>{/each}
       <line class="axis" x1={L} x2={W - R} y1={H - B} y2={H - B} /><line class="axis" x1={L} x2={L} y1={T} y2={H - B} />
       <text class="label" x={(L + W - R) / 2} y={H - 6} text-anchor="middle">{xLabel}</text>
-      {#each paths as d, k}<path {d} fill="none" stroke={COLORS[k % COLORS.length]} stroke-width="1.8" />{/each}
+      {#if mode === "line"}{#each paths as d, k}<path {d} fill="none" stroke={COLORS[k % COLORS.length]} stroke-width="1.8" />{/each}{/if}
       {#each ys as y, k}
-        {#each order.length <= 400 ? order : [] as i}{#if Number.isFinite(y[i])}<circle cx={sx(x[i])} cy={sy(y[i])} r="2.4" fill={COLORS[k % COLORS.length]} />{/if}{/each}
+        {#each mode === "points" ? drawn : order.length <= 400 ? order : [] as i}{#if Number.isFinite(y[i])}<circle cx={sx(x[i])} cy={sy(y[i])} r="2.4" fill={COLORS[k % COLORS.length]} />{/if}{/each}
       {/each}
       {#if hover !== null}
         <line class="cursor" x1={sx(x[hover])} x2={sx(x[hover])} y1={T} y2={H - B} />
@@ -98,8 +112,8 @@
       {/if}
     </svg>
     <figcaption>
-      {#each yLabels as l, k}<span class="key"><i style:background={COLORS[k % COLORS.length]}></i>{hover !== null ? `${l} = ${fmt(ys[k][hover])}` : l}</span>{/each}
-      {#if hover !== null}<span class="at">at {xLabel} = {fmt(x[hover])}</span>{/if}
+      {#each yLabels as l, k}<span class="key"><i style:background={COLORS[k % COLORS.length]}></i>{hover !== null ? `${l} = ${fmt(ysIn[k][hover])}` : l}</span>{/each}
+      {#if hover !== null}<span class="at">at {xLabel} = {fmt(xIn[hover])}</span>{/if}
     </figcaption>
   {/if}
 </figure>

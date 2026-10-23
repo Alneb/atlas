@@ -42,7 +42,7 @@
     void refreshGitTree(); // the file tree's markers follow stage / commit
   }
   async function loadLog(reset = false) {
-    if (status && !status.repo) { log = []; more = false; return; } // no repository: no history to ask for
+    if (status && status.repo !== "repo") { log = []; more = false; return; } // no repository: no history to ask for
     const page = await api.gitLog(reset ? 0 : log.length, PAGE).catch(() => [] as GitCommit[]);
     log = reset ? page : [...log, ...page];
     more = page.length === PAGE;
@@ -120,16 +120,21 @@
     </span>
   </div>
   <div class="scroll body">
-    {#if status && !status.repo}
+    {#if status?.repo === "no_git"}
+      <p class="faint small pad">git is not installed on this computer: the changes are listed, but committing, history, pull and push need it (install <code>git</code> from the system's packages).</p>
+    {/if}
+    {#if status?.repo === "outside"}
       <p class="faint small pad">This workspace is not a git repository: <code>git init</code> in a terminal here makes it one.</p>
     {:else if error}
       <p class="faint small pad">{error}</p>
     {:else}
+      {#if status?.repo !== "no_git"}
       <div class="commit-box">
         <textarea bind:value={message} rows="2" placeholder={staged.length ? "Commit message (Ctrl+Enter)" : "Stage changes to commit"} spellcheck="false"
           onkeydown={(e) => { if (e.key === "Enter" && (e.ctrlKey || superOf(e))) { e.preventDefault(); void commit(); } }}></textarea>
         <button class="btn primary" disabled={!message.trim() || !staged.length || busy} onclick={commit}>{busy ? "Committing…" : `Commit ${staged.length || ""}`}</button>
       </div>
+      {/if}
 
       {#if staged.length}
         <div class="group-head"><span>Staged</span><span class="count">{staged.length}</span>

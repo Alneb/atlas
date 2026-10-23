@@ -5,9 +5,8 @@
   import { renderMarkdown, stripFrontmatter } from "../lib/markdown";
   import { onHighlightLanguage } from "../lib/highlight";
   import { markLogEntries } from "../lib/log-entries";
-  import { openWikilink } from "../lib/links";
+  import { followRenderedLink } from "../lib/rendered-links";
   import { onVaultChange, vaultReady } from "../lib/vault";
-  import { openPath } from "../lib/dock";
   import { api } from "../lib/api";
   import { toast } from "../lib/state.svelte";
 
@@ -43,21 +42,7 @@
     }
     followLink(e, false);
   }
-  /** A link of the vault opens in Atlas — `beside` for the middle button, as a browser's new tab. */
-  function followLink(e: MouseEvent, beside: boolean) {
-    const a = (e.target as HTMLElement).closest<HTMLAnchorElement>("a");
-    if (!a) return;
-    if (a.classList.contains("internal-link")) {
-      e.preventDefault();
-      void openWikilink(a.dataset.href ?? "", path, { beside });
-    } else if (a.getAttribute("href")?.startsWith("#")) {
-      e.preventDefault();
-    } else if (!/^[a-z]+:/i.test(a.getAttribute("href") ?? "")) {
-      e.preventDefault(); // relative markdown link → open inside Atlas
-      const href = decodeURI(a.getAttribute("href") ?? "");
-      openPath(dir ? `${dir}/${href}`.replace(/\/\.\//g, "/") : href, undefined, { beside });
-    }
-  }
+  const followLink = (e: MouseEvent, beside: boolean) => followRenderedLink(e, path, beside);
   const onauxclick = (e: MouseEvent) => { if (e.button === 1) followLink(e, true); };
 </script>
 

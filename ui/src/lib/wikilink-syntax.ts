@@ -22,7 +22,9 @@ export function wikilinkAt(src: string, pos: number): WikilinkMatch | null {
   const body = src.slice(open + 2, close);
   if (!body || body.includes("\n") || body.includes("[")) return null;
   const bar = body.indexOf("|");
-  const [target, alias] = bar < 0 ? [body, undefined] : [body.slice(0, bar), body.slice(bar + 1)];
+  // in a table the alias's bar is written `\|` (Obsidian), so the backslash is not the target's
+  const cut = bar > 0 && body[bar - 1] === "\\" ? bar - 1 : bar;
+  const [target, alias] = bar < 0 ? [body, undefined] : [body.slice(0, cut), body.slice(bar + 1)];
   return { start: pos, end: close + 2, target: target.trim(), alias: alias?.trim(), embed };
 }
 

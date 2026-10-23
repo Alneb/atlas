@@ -69,7 +69,7 @@ args sent as JSON on stdin, stdout returned (parsed as JSON if it parses), cwd =
 - Layout: left activity rail (Today, Files, Search, Lectures, Commands) + dockview-core panes;
   bottom status bar (workspace, vim mode, server state). Layout JSON persisted in localStorage.
 - Pane kinds: `today`, `editor{path}`, `terminal{preset}`, `files`, `search`, `pdf{path}`
-  (pdf.js viewer — basic in slice 1, annotation in slice 2), `image{path}`, `web{url}`.
+  (Atlas's PDFium reader with its marking tools), `image{path}`, `web{url}`.
 - Editor: CodeMirror 6 + `@replit/codemirror-vim` (**on by default**), markdown live preview from
   vendored obsidian-web `live-preview.js` with KaTeX as `renderMath`, code languages via
   `@codemirror/language-data`; autosave 600 ms after typing stops (PUT with `base_mtime`); reloads on
@@ -168,8 +168,9 @@ returns the state PUT into a live server on a real vault.
   atomic tmp+rename through the same `write_bytes` as text PUT, 409 on stale `base_mtime`. Before a file's
   first overwrite its original is kept at `.atlas/originals/<path>` (hard link when possible).
 - `GET`/`HEAD /api/raw` send `x-atlas-mtime` (ms) so binary editors get their base mtime.
-- The PDF pane is pdf.js's `PDFViewer` (text layer, links, find, outline, annotation editors); saving uses
-  `saveDocument()`.
+- The PDF pane is Atlas's own reader over one engine per document — PDFium in a worker, or pdf.js as the backup
+  (Settings → PDF → engine) — with its text layer, links, find, outline, its own highlight,
+  pen and text-note tools); marks are saved into the PDF's companion drawing `x.pdf.excalidraw`, never into the PDF.
 
 
 ### Drawing (slice 3)

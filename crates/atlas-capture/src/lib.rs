@@ -15,7 +15,10 @@ pub mod icons;
 mod look;
 #[cfg(feature = "window")]
 mod raster;
-#[cfg(feature = "window")]
+#[cfg(all(feature = "window", target_os = "linux"))]
+mod region;
+#[cfg(all(feature = "window", not(target_os = "linux")))]
+#[path = "region_none.rs"]
 mod region;
 pub mod send;
 #[cfg(all(test, feature = "window"))]

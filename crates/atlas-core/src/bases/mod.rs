@@ -5,11 +5,12 @@
 pub(crate) use atlas_template::dates;
 mod edit;
 mod expr;
+mod summary;
 mod value;
 
 pub use edit::{edit_view, new_row, prefill};
 
-use crate::api::{BaseCell, BaseColumn, BaseResult, BaseRow, BaseView};
+use crate::api::{BaseCell, BaseColumn, BaseResult, BaseRow, BaseView, ColumnSummary, PropertyKind, SummaryKind};
 use crate::config::Config;
 use crate::links::{self, Parsed};
 use expr::{Context, Expr};
@@ -55,6 +56,21 @@ struct View {
     /// Obsidian's `groupBy: { property: x }` (a bare string works too); a `board` view's columns.
     #[serde(rename = "groupBy", default)]
     group_by: Option<GroupBy>,
+    /// Obsidian's `summaries: {note.x: Sum}`; a name Atlas does not know (a custom formula summary) is left out.
+    #[serde(default)]
+    summaries: BTreeMap<String, serde_yaml::Value>,
+    /// A cards view's picture: the property holding it (`note.cover`).
+    #[serde(default)]
+    image: Option<String>,
+}
+
+impl View {
+    fn summary(&self, id: &str) -> Option<SummaryKind> {
+        let key = prop_key(id).map(|k| format!("note.{k}"));
+        let v = self.summaries.get(id).or_else(|| key.as_ref().and_then(|k| self.summaries.get(k)))
+            .or_else(|| prop_key(id).and_then(|k| self.summaries.get(&k)))?;
+        serde_yaml::from_value(v.clone()).ok()
+    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -271,6 +287,20 @@ fn cell(v: &Val, resolve: &dyn Fn(&str) -> Option<String>) -> BaseCell {
     }
 }
 
+/// A card's picture from a property's value: a web address as written, a `[[link]]` or a path resolved in the
+/// vault (a list: its first).
+fn picture(v: &Val, from: &str, vault: &links::Vault) -> Option<String> {
+    match v {
+        Val::List(l) => l.iter().find_map(|i| picture(i, from, vault)),
+        Val::Str(s) if s.starts_with("https://") || s.starts_with("http://") => Some(s.trim().to_string()),
+        Val::Link(t) | Val::Str(t) => {
+            let target = t.split('|').next().unwrap_or(t).trim();
+            vault.resolve(target, from)
+        }
+        _ => None,
+    }
+}
+
 /// A cell as plain text (board column titles; lists joined).
 fn cell_text(c: &BaseCell) -> String {
     match c {
@@ -288,12 +318,62 @@ fn prop_key(id: &str) -> Option<String> {
     (!id.starts_with("file.") && !id.starts_with("formula.")).then(|| id.strip_prefix("note.").unwrap_or(id).to_string())
 }
 
+/// The kind a frontmatter value has by its shape (None for an empty one, which says nothing).
+fn kind_of(key: &str, v: &serde_yaml::Value) -> Option<PropertyKind> {
+    use serde_yaml::Value as Y;
+    let wiki = |s: &str| s.starts_with("[[") && s.ends_with("]]");
+    let tag_key = matches!(key.to_ascii_lowercase().as_str(), "tags" | "tag" | "aliases" | "alias" | "cssclasses");
+    Some(match v {
+        Y::Null => return None,
+        Y::Bool(_) => PropertyKind::Bool,
+        Y::Number(_) => PropertyKind::Number,
+        Y::Sequence(_) if tag_key => PropertyKind::Tags,
+        Y::Sequence(items) if !items.is_empty() && items.iter().all(|i| i.as_str().is_some_and(wiki)) => PropertyKind::Links,
+        Y::Sequence(_) => PropertyKind::List,
+        Y::String(_) if tag_key => PropertyKind::Tags,
+        Y::String(s) if wiki(s.trim()) => PropertyKind::Link,
+        Y::String(s) => match from_yaml(v) {
+            Val::Date(d) if d.time() == chrono::NaiveTime::MIN && s.trim().len() == 10 => PropertyKind::Date,
+            Val::Date(_) => PropertyKind::Datetime,
+            _ => PropertyKind::Text,
+        },
+        _ => PropertyKind::Text,
+    })
+}
+
+/// Every property of the notes, with the kind most of its values have.
+fn kinds(notes: &[Note]) -> BTreeMap<String, PropertyKind> {
+    let mut votes: HashMap<&str, Vec<(PropertyKind, u32)>> = HashMap::new();
+    for n in notes {
+        for (k, v) in n.data.props.iter() {
+            let tally = votes.entry(k).or_default();
+            let Some(kind) = kind_of(k, v) else { continue };
+            match tally.iter_mut().find(|(x, _)| *x == kind) {
+                Some((_, c)) => *c += 1,
+                None => tally.push((kind, 1)),
+            }
+        }
+    }
+    votes
+        .into_iter()
+        .map(|(k, tally)| (k.to_string(), tally.into_iter().max_by_key(|(_, c)| *c).map_or(PropertyKind::Text, |(x, _)| x)))
+        .collect()
+}
+
 /// Evaluates the `.base` at `base_path` (workspace-relative); `this` is the note embedding it
 /// (Obsidian's `this.file`), else the base file itself.
 pub fn evaluate(root: &Path, cfg: &Config, base_src: &str, this: Option<&str>) -> BaseResult {
     let base: BaseFile = match serde_yaml::from_str(base_src) {
         Ok(b) => b,
-        Err(e) => return BaseResult { views: Vec::new(), error: Some(format!("could not read the base: {e}")) },
+        Err(e) => {
+            return BaseResult {
+                views: Vec::new(),
+                error: Some(format!("could not read the base: {e}")),
+                filters: None,
+                formulas: Vec::new(),
+                kinds: BTreeMap::new(),
+            }
+        }
     };
     let _names = dates::names(cfg.editor.date_names == crate::config::DateNames::Spanish);
     let vault = links::vault(root, cfg);
@@ -378,14 +458,23 @@ pub fn evaluate(root: &Path, cfg: &Config, base_src: &str, this: Option<&str>) -
                     width: view.column_size.get(id).or_else(|| view.column_size.get(&format!("note.{id}"))).copied(),
                     key: (!id.starts_with("file.") && !id.starts_with("formula."))
                         .then(|| id.strip_prefix("note.").unwrap_or(id).to_string()),
+                    summary: view.summary(id).map(|kind| {
+                        let vals: Vec<Val> = rows.iter().map(|r| resolve_field(r, id)).collect();
+                        ColumnSummary { kind, value: summary::summarize(kind, &vals).unwrap_or_default() }
+                    }),
                 })
                 .collect();
             let rows = rows
                 .iter()
                 .map(|ctx| BaseRow {
                     group: group_by.as_ref().map(|g| cell_text(&cell(&resolve_field(ctx, g), &resolve))),
+                    image: view.image.as_ref().and_then(|p| picture(&resolve_field(ctx, p), ctx.note.path, &vault)),
                     edit: columns_raw(&order, ctx.note),
                     is_list: order.iter().map(|id| raw_value(id, ctx.note).is_some_and(|v| v.is_sequence())).collect(),
+                    values: order
+                        .iter()
+                        .map(|id| raw_value(id, ctx.note).and_then(|v| serde_json::to_value(v).ok()).unwrap_or_default())
+                        .collect(),
                     path: ctx.note.path.to_string(),
                     cells: order
                         .iter()
@@ -409,10 +498,17 @@ pub fn evaluate(root: &Path, cfg: &Config, base_src: &str, this: Option<&str>) -
                 properties: properties.into_iter().map(|(_, k)| k).collect(),
                 filters: view.filters.as_ref().and_then(crate::api::Filter::from_yaml),
                 sort: view.sort.iter().map(SortSpec::key).collect(),
+                image: view.image.clone(),
             }
         })
         .collect();
-    BaseResult { views, error: None }
+    BaseResult {
+        views,
+        error: None,
+        filters: base.filters.as_ref().and_then(crate::api::Filter::from_yaml),
+        formulas: base.formulas.keys().cloned().collect(),
+        kinds: kinds(&notes),
+    }
 }
 
 #[cfg(test)]
@@ -498,6 +594,38 @@ views:
         let src = "views:\n  - type: table\n    filters:\n      and:\n        - date < \"2025-03-01\"\n";
         let r = evaluate(d.path(), &Config::default(), src, None);
         assert_eq!(r.views[0].rows.iter().map(|r| r.path.as_str()).collect::<Vec<_>>(), vec!["a.md"]);
+    }
+
+    #[test]
+    fn summaries_and_card_pictures() {
+        let d = tempfile::tempdir().unwrap();
+        let w = |n: &str, s: &str| std::fs::write(d.path().join(n), s).unwrap();
+        w("a.md", "---\nprice: 3\ncover: \"[[a.png]]\"\n---\n");
+        w("b.md", "---\nprice: 5\ncover: https://example.org/b.jpg\n---\n");
+        w("a.png", "");
+        let src = "views:\n  - type: cards\n    order: [file.name, price]\n    image: note.cover\n    summaries:\n      note.price: Sum\n      file.name: Nope\n";
+        let v = &evaluate(d.path(), &Config::default(), src, None).views[0];
+        let s = v.columns[1].summary.as_ref().unwrap();
+        assert_eq!((s.kind, s.value.as_str()), (SummaryKind::Sum, "8"));
+        assert!(v.columns[0].summary.is_none(), "an unknown summary is left out");
+        let pics: Vec<_> = v.rows.iter().map(|r| r.image.as_deref()).collect();
+        assert_eq!(pics, [Some("a.png"), Some("https://example.org/b.jpg")]);
+    }
+
+    #[test]
+    fn property_kinds_follow_most_values() {
+        let d = tempfile::tempdir().unwrap();
+        let w = |n: &str, s: &str| std::fs::write(d.path().join(n), s).unwrap();
+        w("a.md", "---\ndue: 2025-02-01\nprio: 2\ndone: true\ntags: [x]\nup: \"[[b]]\"\nsee: [\"[[a]]\"]\nat: 2025-02-01 10:30\n---\n");
+        w("b.md", "---\ndue: 2025-03-01\nprio: high\nnote: hi\nlist: [1, 2]\n---\n");
+        w("c.md", "---\nprio: 3\ndue:\n---\n");
+        let r = evaluate(d.path(), &Config::default(), "views: [{type: table}]", None);
+        let k = |p: &str| r.kinds.get(p).copied();
+        use PropertyKind as K;
+        assert_eq!(
+            [k("due"), k("prio"), k("done"), k("tags"), k("up"), k("see"), k("at"), k("note"), k("list")],
+            [Some(K::Date), Some(K::Number), Some(K::Bool), Some(K::Tags), Some(K::Link), Some(K::Links), Some(K::Datetime), Some(K::Text), Some(K::List)]
+        );
     }
 
     #[test]

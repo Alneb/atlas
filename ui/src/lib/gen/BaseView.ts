@@ -25,4 +25,8 @@ properties: Array<string>,
 /**
  * The view's own filter (the base's top-level one applies too), as the editor shows and edits it.
  */
-filters: Filter | null, sort: Array<SortKey>, };
+filters: Filter | null, sort: Array<SortKey>, 
+/**
+ * The property whose value is each card's picture (Obsidian's cards `image`).
+ */
+image: string | null, };

@@ -222,11 +222,22 @@ pub struct StatusEntry {
     pub unstaged: Option<Change>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "snake_case")]
+#[ts(export)]
+pub enum GitRepo {
+    Repo,
+    /// The workspace is not a git repository.
+    Outside,
+    /// git is not installed on this computer.
+    NoGit,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
 #[ts(export)]
 pub struct GitStatus {
-    /// false: the workspace is not a git repository (everything else empty) — said, not an error
-    pub repo: bool,
+    /// Outside a repository, or without git on this computer, everything else is empty — said, not an error
+    pub repo: GitRepo,
     pub branch: Option<String>,
     pub upstream: Option<String>,
     pub ahead: u32,
@@ -970,6 +981,11 @@ pub struct PropertyEdit {
     /// Write a YAML list (the cell showed a list).
     #[serde(default)]
     pub list: bool,
+    /// The typed value to write instead of `text` (a list whose items hold commas, a checkbox, a number); null leaves
+    /// `key:` empty.
+    #[serde(default)]
+    #[ts(optional, type = "unknown")]
+    pub value: Option<serde_json::Value>,
 }
 
 /// One cell of a Bases table, typed so the UI picks the widget.
@@ -1010,6 +1026,36 @@ pub struct BaseColumn {
     pub width: Option<f64>,
     /// The frontmatter key behind the column (None for computed `file.*` / `formula.*`).
     pub key: Option<String>,
+    /// The view's summary of the column (Obsidian's `summaries`), worked out over the rows shown.
+    pub summary: Option<ColumnSummary>,
+}
+
+/// A column's summary and its value as shown under the table.
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[ts(export)]
+pub struct ColumnSummary {
+    pub kind: SummaryKind,
+    pub value: String,
+}
+
+/// Obsidian's built-in summaries, under their names in the `.base`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[ts(export)]
+pub enum SummaryKind {
+    Average,
+    Median,
+    Min,
+    Max,
+    Sum,
+    Range,
+    Stddev,
+    Earliest,
+    Latest,
+    Checked,
+    Unchecked,
+    Empty,
+    Filled,
+    Unique,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
@@ -1022,8 +1068,13 @@ pub struct BaseRow {
     pub edit: Vec<Option<String>>,
     /// Per column: the property is a list in this note.
     pub is_list: Vec<bool>,
-    /// The row's value of the view's `groupBy` (a board column), as text.
+    /// Per column: the frontmatter value as written (null when missing or computed), for the cell editors.
+    #[ts(type = "Array<unknown>")]
+    pub values: Vec<serde_json::Value>,
+    /// The row's value of the view's `groupBy` (a board column, a group of rows), as text.
     pub group: Option<String>,
+    /// The card's picture (the view's `image` property): a workspace path, or a web address.
+    pub image: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
@@ -1045,6 +1096,8 @@ pub struct BaseView {
     /// The view's own filter (the base's top-level one applies too), as the editor shows and edits it.
     pub filters: Option<Filter>,
     pub sort: Vec<SortKey>,
+    /// The property whose value is each card's picture (Obsidian's cards `image`).
+    pub image: Option<String>,
 }
 
 /// A Base filter as Obsidian writes it: one expression (`status == "done"`, `file.hasTag("paper")`), or a group of them
@@ -1116,6 +1169,22 @@ pub enum ViewEdit {
     Duplicate { name: String },
     /// The view goes; the base keeps at least one.
     Remove,
+    /// A new empty view after this one, of a type (`table`, `cards`, `list`), showing this one's columns.
+    Add { name: String, kind: String },
+    /// The view's type (`table`, `cards`, `list`, `board`).
+    Kind { kind: String },
+    /// A column's width in pixels (Obsidian's `columnSize`); none: its natural width.
+    Width { column: String, width: Option<f64> },
+    /// The base's own filter, applied by every view (Obsidian's "All views" scope).
+    BaseFilters { filters: Option<Filter> },
+    /// A column's display name, base-wide (Obsidian's `properties: {note.x: {displayName}}`); none: the default.
+    DisplayName { column: String, name: Option<String> },
+    /// A column's summary under the table (Obsidian's `summaries`); none: no summary.
+    Summary { column: String, summary: Option<SummaryKind> },
+    /// Rows gathered by a property's value, in every view type (a board's lanes); none: not grouped.
+    Group { property: Option<String> },
+    /// The property holding each card's picture; none: cards without pictures.
+    Image { property: Option<String> },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
@@ -1262,6 +1331,14 @@ pub struct BaseRowCreated {
 pub struct BaseResult {
     pub views: Vec<BaseView>,
     pub error: Option<String>,
+    /// The base's own filter (Obsidian's "All views"): every view applies it before its own.
+    pub filters: Option<Filter>,
+    /// The base's formula names (`formula.<name>` columns).
+    pub formulas: Vec<String>,
+    /// Every frontmatter property of the vault's notes and its kind, read off the values (the commonest shape wins):
+    /// the filter editor's operators and the cell editors follow it (a vault's property spec, when there is one, wins
+    /// in the UI).
+    pub kinds: std::collections::BTreeMap<String, PropertyKind>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]

@@ -11,9 +11,9 @@ export type PaneSpec =
   | { kind: "terminal"; preset: PtyPreset; n: number; /** the user's name for it (double-click the tab) */ title?: string; /** run directly (no interactive shell); the tab closes when it ends */ command?: string; /** a Claude tab's own session id: resumed when the layout is restored */ session?: string; /** an AI agent a plugin declares (`<plugin>/<id>`, agent_terminals.rs); its tab is an agent tab like Claude's */ agent?: string }
   | { kind: "files" }
   // the file explorer (Dolphin-like): a folder of a file source — the vault, an SSH host, a copyparty server (lib/file-sources.svelte.ts)
-  | { kind: "explorer"; source: string; place: string; path?: string }
+  | { kind: "explorer"; source: string; place: string; path?: string; /** the entry to select there (a file shown in it) */ select?: string }
   | { kind: "search"; q?: string }
-  | { kind: "pdf"; path: RelPath; /** open at this page (a search hit inside the PDF) */ page?: number; /** and select this passage (lib/pdf-place.ts) */ selection?: [number, number, number, number]; /** or flash this annotation */ annotation?: string }
+  | { kind: "pdf"; path: RelPath; /** open at this page (a search hit inside the PDF) */ page?: number; /** and select these words on it (lib/pdf-place.ts) */ quote?: string; /** or flash this annotation */ annotation?: string }
   | { kind: "image"; path: RelPath }
   | { kind: "web"; url: string }
   | { kind: "settings" }

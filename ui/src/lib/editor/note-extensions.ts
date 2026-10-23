@@ -29,6 +29,7 @@ import { propertySpec, watchPropertySpec } from "../property-spec.svelte";
 import { blobUrlNow, warm, PLACEHOLDER } from "../raw";
 import { hydrateRendered } from "../hydrate";
 import { hydrateTables } from "./table-edit";
+import { followLinksIn } from "../rendered-links";
 import { hoverSync } from "./hover-sync";
 import { mentions, entitySource } from "./mentions";
 import { noteSuggestions } from "./suggest";
@@ -95,7 +96,7 @@ export function noteExtensions(path: string, viewRef: { view: EditorView | null 
     },
     // a log entry with a file under it stays a timeline line, its embed a chip (log-lines.ts), not the reader's block
     blockHtml: (source: string) => (isLog() && LOG_ENTRY.test(source) ? null : blockHtml(source, dir)),
-    hydrateBlock: (host: HTMLElement) => { unmount.set(host, hydrateRendered(host, path)); hydrateTables(host, viewRef); },
+    hydrateBlock: (host: HTMLElement) => { unmount.set(host, hydrateRendered(host, path)); hydrateTables(host, viewRef); followLinksIn(host, path); },
     releaseBlock: (host: HTMLElement) => unmount.get(host)?.(), // the widget's DOM is gone for good (not a hidden tab)
   });
   return {

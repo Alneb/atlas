@@ -196,7 +196,9 @@ pub(crate) fn link_spans(line: &str) -> Vec<Span> {
                 match line[i + 2..].find("]]") {
                     Some(j) => {
                         let inner = &line[i + 2..i + 2 + j];
-                        push(i + 2, i + 2 + inner.find('|').unwrap_or(inner.len()), true, embed);
+                        // in a table the alias's bar is written `\|` (Obsidian): the backslash is not the target's
+                        let end = inner.find('|').map_or(inner.len(), |k| if inner[..k].ends_with('\\') { k - 1 } else { k });
+                        push(i + 2, i + 2 + end, true, embed);
                         i += 2 + j + 2;
                     }
                     None => break,
@@ -621,6 +623,14 @@ pub fn link_mention(text: &str, line: u32, target: &str) -> Option<String> {
 pub(crate) struct Vault {
     pub notes: Vec<(String, Arc<Parsed>, Vec<String>)>,
     pub incoming: HashMap<String, Vec<String>>,
+    names: Arc<Names>,
+}
+
+impl Vault {
+    /// Any file a `[[link]]` written in `from` points at (a picture as well as a note).
+    pub fn resolve(&self, target: &str, from: &str) -> Option<String> {
+        self.names.resolve_target(target, true, from)
+    }
 }
 
 pub(crate) fn vault(root: &Path, cfg: &Config) -> Vault {
@@ -644,7 +654,7 @@ pub(crate) fn vault(root: &Path, cfg: &Config) -> Vault {
         })
         .collect();
     notes.sort_by(|a, b| a.0.cmp(&b.0));
-    Vault { notes, incoming }
+    Vault { notes, incoming, names: names.clone() }
 }
 
 /// The notes and the links between them (markdown only; each pair once, self-links dropped).
@@ -695,6 +705,8 @@ mod tests {
             vec!["A", "B", "C"],
             "flow lists and [x] keep their links"
         );
+        let table = parse("| [[Hubbard model\\|Hubbard]] | [[Mott]] |\n");
+        assert_eq!(table.iter().map(|l| l.target.as_str()).collect::<Vec<_>>(), vec!["Hubbard model", "Mott"], "a table's escaped alias bar");
         let fm = parse("---\ntype: x\ntopics:\n  - '[[Condensed Matter]]'\n---\nsee [[B]]\n");
         assert_eq!(
             fm.iter().map(|l| l.context.as_str()).collect::<Vec<_>>(),

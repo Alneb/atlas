@@ -116,8 +116,7 @@ public final class AtlasActivity extends Activity {
 
     /** The native plugin that opens `path` in this vault (installed there and on), or null. */
     private NativePlugin nativeFor(String path) {
-        for (NativePlugin p : NativePlugins.ALL) if (p.opens(path) && running(p.id())) return p;
-        return null;
+        return Natives.forPath(path, this::running);
     }
 
     /** The shown vault's plugins (VaultFiles.plugins), read in the background when it opens and when its page is

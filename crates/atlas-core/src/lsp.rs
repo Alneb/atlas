@@ -70,18 +70,16 @@ impl LspLang {
 /// a minimal PATH).
 fn find_exe(name: &str, root: &Path) -> Option<PathBuf> {
     if name.contains('/') {
-        let p = root.join(crate::pty::expand_home(name)); // join keeps an absolute path as is
-        return p.is_file().then_some(p);
+        return crate::platform::run_line::executable(&root.join(crate::pty::expand_home(name))); // join keeps an absolute path as is
     }
-    let home = std::env::var_os("HOME").map(PathBuf::from);
+    let home = crate::platform::dirs::home();
     let extra = home.iter().flat_map(|h| [h.join(".cargo/bin"), h.join(".local/bin")]);
     std::env::var_os("PATH")
         .map(|p| std::env::split_paths(&p).collect::<Vec<_>>())
         .unwrap_or_default()
         .into_iter()
         .chain(extra)
-        .map(|d| d.join(name))
-        .find(|p| p.is_file())
+        .find_map(|d| crate::platform::run_line::executable(&d.join(name)))
 }
 
 /// The command line to run for `lang`, with its executable resolved; None = no server.

@@ -36,8 +36,9 @@ fn unshown(path: &std::path::Path) -> bool {
     fm.lines().take_while(|l| l.trim_end() != "---").any(|l| l.trim_end() == "shown: false")
 }
 
-/// One directory level, dirs first then by name. Ignored and hidden entries per `[files]` config.
-pub fn tree(ws: &Workspace, rel: &str) -> Result<Vec<TreeEntry>> {
+/// One directory level, dirs first then by name. Ignored and hidden entries per `[files]` config; `all_hidden`: the
+/// dotfiles too (the explorers' "Show hidden files", which then hide them by the same rule in the UI).
+pub fn tree(ws: &Workspace, rel: &str, all_hidden: bool) -> Result<Vec<TreeEntry>> {
     let cfg = ws.config()?;
     let dir = ws.resolve(rel)?;
     if !dir.is_dir() {
@@ -48,7 +49,7 @@ pub fn tree(ws: &Workspace, rel: &str) -> Result<Vec<TreeEntry>> {
         let entry = entry?;
         let name = entry.file_name().to_string_lossy().into_owned();
         let hidden = name.starts_with('.') && name != ".atlas";
-        if name == ".git" || is_write_tmp(&name) || (hidden && !cfg.files.show_hidden) {
+        if name == ".git" || is_write_tmp(&name) || (hidden && !cfg.files.show_hidden && !all_hidden) {
             continue;
         }
         let path = ws.rel(&entry.path());
@@ -290,13 +291,15 @@ mod tests {
     #[test]
     fn tree_is_dirs_first_and_filtered() {
         let (_d, w) = ws();
-        let entries = tree(&w, "").unwrap();
+        let entries = tree(&w, "", false).unwrap();
         let names: Vec<_> = entries.iter().map(|e| e.name.as_str()).collect();
         assert_eq!(names, [".atlas", "notes", "runs", "A.md", "b.md"]);
         assert!(entries.iter().all(|e| e.ignored == (e.name == "runs")));
+        let all: Vec<_> = tree(&w, "", true).unwrap().into_iter().map(|e| e.name).collect();
+        assert!(all.contains(&".hidden".to_string()) && !all.contains(&".git".to_string()), "asked: dotfiles too, never .git");
         std::fs::write(w.root().join(".atlas/config.toml"), "[files]\nshow_ignored = false\nshow_hidden = true\n")
             .unwrap();
-        let names: Vec<_> = tree(&w, "").unwrap().into_iter().map(|e| e.name).collect();
+        let names: Vec<_> = tree(&w, "", false).unwrap().into_iter().map(|e| e.name).collect();
         assert_eq!(names, [".atlas", "notes", ".hidden", "A.md", "b.md"], ".git stays hidden always");
     }
 
@@ -307,12 +310,12 @@ mod tests {
         std::fs::write(w.root().join("refs/k/k.md"), "---\ncitekey: k\n---\n").unwrap();
         std::fs::write(w.root().join("refs/k/data.md"), "---\ntitle: d\nshown: false\n---\n# d\n").unwrap();
         std::fs::write(w.root().join("refs/k/mine.md"), "# shown: false is only text here\n").unwrap();
-        let top = tree(&w, "refs").unwrap();
+        let top = tree(&w, "refs", false).unwrap();
         assert_eq!(top[0].note.as_deref(), Some("refs/k/k.md"));
-        let inner = tree(&w, "refs/k").unwrap();
+        let inner = tree(&w, "refs/k", false).unwrap();
         let unshown: Vec<_> = inner.iter().filter(|e| e.unshown).map(|e| e.name.as_str()).collect();
         assert_eq!(unshown, ["data.md"]);
-        assert!(tree(&w, "").unwrap().iter().all(|e| e.note.is_none()), "notes/ has no notes/notes.md");
+        assert!(tree(&w, "", false).unwrap().iter().all(|e| e.note.is_none()), "notes/ has no notes/notes.md");
     }
 
     #[test]
@@ -445,7 +448,7 @@ mod manage_tests {
         assert_eq!(std::fs::read(d.path().join("in/new/p.bin")).unwrap(), b"x");
         assert!(put_bytes(&ws, "notes", b"x", true).is_err(), "a folder is never replaced");
         assert!(put_bytes(&ws, "../out.bin", b"x", true).is_err());
-        let e = tree(&ws, "in/new").unwrap();
+        let e = tree(&ws, "in/new", false).unwrap();
         assert_eq!((e[0].size, e[0].modified.is_some()), (Some(1), true));
     }
 }

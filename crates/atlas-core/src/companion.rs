@@ -132,6 +132,35 @@ pub fn stands_for(root: &Path, rel: &str) -> String {
     }
 }
 
+/// The PDF whose note `note` is (the inverse of `ensure` for a PDF): `x.pdf` beside `x.md`; else, for a folder entry's
+/// note, the PDF in its folder (the first by name); else the PDF its `view` block of type `pdf` shows.
+pub fn pdf_of_note(root: &Path, note: &str) -> Option<String> {
+    let note = note.trim_matches('/');
+    let (dir, name) = note.rsplit_once('/').map_or(("", note), |(d, n)| (d, n));
+    let stem = name.strip_suffix(".md")?;
+    let at = |n: &str| if dir.is_empty() { n.to_string() } else { format!("{dir}/{n}") };
+    let beside = at(&format!("{stem}.pdf"));
+    if root.join(&beside).is_file() {
+        return Some(beside);
+    }
+    let abs = paths::safe_join(root, note).ok()?;
+    if is_entry(&abs) {
+        let mut pdfs: Vec<String> = std::fs::read_dir(abs.parent()?).ok()?.flatten()
+            .filter_map(|e| e.file_name().into_string().ok())
+            .filter(|n| n.to_ascii_lowercase().ends_with(".pdf"))
+            .collect();
+        pdfs.sort();
+        if let Some(first) = pdfs.first() {
+            return Some(at(first));
+        }
+    }
+    let text = std::fs::read_to_string(&abs).ok()?;
+    let block = text.split("```view").skip(1).find(|b| b.lines().any(|l| l.trim() == "type: pdf"))?;
+    let path = block.lines().take_while(|l| !l.starts_with("```")).find_map(|l| l.trim().strip_prefix("path:"))?.trim();
+    let path = serde_json::from_str::<String>(path).unwrap_or_else(|_| path.trim_matches(['"', '\'']).to_string());
+    root.join(&path).is_file().then_some(path)
+}
+
 /// Whether `note` is a folder entry's own note (its properties carry ENTRY_MARK).
 fn is_entry(note: &Path) -> bool {
     let Ok(text) = std::fs::read_to_string(note) else { return false };
@@ -472,5 +501,22 @@ book: '[[dune.epub]]'
         std::fs::write(dir.join(LEGACY), "").unwrap();
         ensure(d.path(), &cfg, &paper(), now()).unwrap();
         assert!(std::fs::read_to_string(dir.join("maier2005quantum.md")).unwrap().ends_with("## Notes\n\n"));
+    }
+
+    #[test]
+    fn a_note_knows_its_pdf_beside_it_in_its_entry_or_by_its_block() {
+        let d = tempfile::tempdir().unwrap();
+        let w = |rel: &str, text: &str| { let p = d.path().join(rel); std::fs::create_dir_all(p.parent().unwrap()).unwrap(); std::fs::write(p, text).unwrap(); };
+        w("books/x.pdf", "%PDF");
+        w("books/x.md", "# x\n");
+        w("refs/papers/k/b.pdf", "%PDF");
+        w("refs/papers/k/a.pdf", "%PDF");
+        w("refs/papers/k/k.md", "---\ncitekey: k\n---\n# k\n");
+        w("notes/reading.md", "# r\n\n```view\ntype: pdf\npath: \"books/x.pdf\"\n```\n");
+        w("notes/plain.md", "# p\n");
+        assert_eq!(pdf_of_note(d.path(), "books/x.md").as_deref(), Some("books/x.pdf"));
+        assert_eq!(pdf_of_note(d.path(), "refs/papers/k/k.md").as_deref(), Some("refs/papers/k/a.pdf"));
+        assert_eq!(pdf_of_note(d.path(), "notes/reading.md").as_deref(), Some("books/x.pdf"));
+        assert_eq!(pdf_of_note(d.path(), "notes/plain.md"), None);
     }
 }

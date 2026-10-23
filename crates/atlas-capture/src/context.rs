@@ -4,6 +4,7 @@
 use anyhow::{bail, Context as _, Result};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
+#[cfg(target_os = "linux")]
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant, SystemTime};
 
@@ -46,13 +47,13 @@ pub enum Clip {
 
 /// Where this box keeps what it takes (the screen, a copied picture): the session's runtime folder, removed on exit.
 pub fn scratch() -> PathBuf {
-    let base = std::env::var_os("XDG_RUNTIME_DIR").map(PathBuf::from).unwrap_or_else(std::env::temp_dir);
-    base.join(format!("atlas-capture-{}", std::process::id()))
+    atlas_core::platform::dirs::base(atlas_core::platform::dirs::Base::Runtime).join(format!("atlas-capture-{}", std::process::id()))
 }
 
 /// What is playing (MPRIS: a music player, a browser's video through Plasma's integration): the first player that
 /// says "Playing" — else one "Paused" (paused to capture it) — as a page: the song or video by its artist and title,
 /// linked when the player gives a web address.
+#[cfg(target_os = "linux")]
 pub fn playing() -> Option<Page> {
     use dbus::arg::{PropMap, RefArg};
     use dbus::blocking::stdintf::org_freedesktop_dbus::Properties;
@@ -81,6 +82,20 @@ pub fn playing() -> Option<Page> {
 
 /// A player's title, artists and address → the page offered: "Artist – Title", the address only when it is a web one
 /// (a local file's path says nothing to a note); None when it says nothing at all.
+/// Off Linux there is no MPRIS or KWin to ask (DESIGN-desktop-ports.md): nothing is playing, no window is known.
+#[cfg(not(target_os = "linux"))]
+pub fn playing() -> Option<Page> {
+    None
+}
+#[cfg(not(target_os = "linux"))]
+pub fn window_under() -> Option<Window> {
+    None
+}
+#[cfg(not(target_os = "linux"))]
+pub fn window_shot(_w: &Window) -> Result<PathBuf> {
+    bail!("a window's picture is taken through KWin, on Linux only")
+}
+
 pub fn playing_page(title: &str, artists: &[String], url: &str) -> Option<Page> {
     let artist = artists.iter().map(|a| a.trim()).filter(|a| !a.is_empty()).collect::<Vec<_>>().join(", ");
     let title = title.trim();
@@ -97,6 +112,7 @@ pub fn playing_page(title: &str, artists: &[String], url: &str) -> Option<Page> 
 
 /// The window you were on: asked of KWin with a one-line script that calls back over D-Bus. The box's own window is
 /// skipped by its process id, so it does not matter whether the box is already on screen.
+#[cfg(target_os = "linux")]
 pub fn window_under() -> Option<Window> {
     use dbus::blocking::Connection;
     use dbus::channel::{MatchingReceiver, Sender};
@@ -170,8 +186,7 @@ pub fn browser_app(class: &str) -> Option<String> {
 }
 
 fn application_dirs() -> Vec<PathBuf> {
-    let home = home();
-    let data = std::env::var_os("XDG_DATA_HOME").map(PathBuf::from).unwrap_or_else(|| home.join(".local/share"));
+    let data = atlas_core::platform::dirs::base(atlas_core::platform::dirs::Base::Data);
     let mut dirs = vec![data.join("applications"), data.join("flatpak/exports/share/applications")];
     let system = std::env::var("XDG_DATA_DIRS").unwrap_or_else(|_| "/usr/local/share:/usr/share".into());
     dirs.extend(system.split(':').filter(|d| !d.is_empty()).map(|d| Path::new(d).join("applications")));
@@ -180,7 +195,7 @@ fn application_dirs() -> Vec<PathBuf> {
 }
 
 fn home() -> PathBuf {
-    std::env::var_os("HOME").map(PathBuf::from).unwrap_or_default()
+    atlas_core::platform::dirs::home().unwrap_or_default()
 }
 
 /// The page a browser window shows: the newest visit in that browser's history whose title the window's caption holds
@@ -387,7 +402,7 @@ pub fn last_screenshot(within: Duration) -> Option<PathBuf> {
 
 /// Spectacle's save folder (its `imageSaveLocation`), else Pictures/Screenshots.
 fn screenshots_dir() -> PathBuf {
-    let config = std::env::var_os("XDG_CONFIG_HOME").map(PathBuf::from).unwrap_or_else(|| home().join(".config"));
+    let config = atlas_core::platform::dirs::base(atlas_core::platform::dirs::Base::Config);
     if let Ok(text) = std::fs::read_to_string(config.join("spectaclerc")) {
         if let Some(url) = text.lines().find_map(|l| l.strip_prefix("imageSaveLocation=")) {
             return PathBuf::from(url.trim_start_matches("file://"));
@@ -405,6 +420,7 @@ fn screenshots_dir() -> PathBuf {
 /// whether already on screen or not — is never in it, and it is taken the moment the box opens. KWin allows it to programs whose
 /// desktop file lists `X-KDE-DBUS-Restricted-Interfaces=org.kde.KWin.ScreenShot2` (packaging/atlas-capture.desktop);
 /// refused, the box falls back to `take_screen`.
+#[cfg(target_os = "linux")]
 pub fn window_shot(w: &Window) -> Result<PathBuf> {
     use dbus::arg::{OwnedFd, PropMap, RefArg, Variant};
     use dbus::blocking::Connection;

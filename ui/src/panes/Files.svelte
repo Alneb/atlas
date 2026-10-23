@@ -4,7 +4,7 @@
   import { dirOf } from "../lib/paths";
   import { atPointer, type MenuAt } from "../lib/menu";
   import { errText } from "../lib/text";
-  import { onMount } from "svelte";
+  import { onMount, untrack } from "svelte";
   import { api } from "../lib/api";
   import { onFilesAddedOrRemoved } from "../lib/vault";
   import { app } from "../lib/state.svelte";
@@ -56,9 +56,17 @@
     await api.move(from, to);
     for (const p of follow) openPath(p);
   }
+  // the row a dialog was about: the keyboard goes back to it when the dialog closes (its new name after a rename)
+  let tree = $state<ReturnType<typeof FileTree>>();
+  let backTo = "";
   function rename(path: string) {
+    backTo = path;
     const name = path.split("/").pop() ?? path;
-    dialog = { title: `Rename ${name}`, value: name, submit: (to) => { if (to !== name) void moveTo(path, join(parentOf(path), to)).catch(fail("Could not rename")); } };
+    dialog = { title: `Rename ${name}`, value: name, submit: (to) => {
+      if (to === name) return;
+      backTo = join(parentOf(path), to);
+      void moveTo(path, backTo).then(() => setTimeout(() => tree?.refocus(backTo), 300), fail("Could not rename"));
+    } };
   }
   function remove(path: string) {
     dialog = { title: `Move “${path}” to the Trash?`, confirm: "Move to Trash", hint: "Recoverable from the Trash.", submit: async () => {
@@ -128,12 +136,16 @@
   }
 
   async function refresh() {
-    try { roots = await api.tree(); error = ""; }
+    try { roots = await api.tree(undefined, treeView.showAll); error = ""; }
     catch (err) { error = errText(err); }
     version++;
     // a page nobody looks at (a phone in a pocket, a background tab) asks git nothing: caught up when shown (below)
     if (!document.hidden) void refreshGitTree();
   }
+
+  // "Show hidden files" (here or in an explorer tab): the dotfiles fetched too, or dropped again
+  let showAllSeen = untrack(() => treeView.showAll);
+  $effect(() => { if (treeView.showAll !== showAllSeen) { showAllSeen = treeView.showAll; void refresh(); } });
 
   onMount(() => {
     void refresh();
@@ -174,13 +186,13 @@
   <div class="scroll tree" bind:this={treeEl} class:drop-root={dropDir === ""} oncontextmenu={onContext} onkeydown={onKey}
     ondragstart={onDragStart} ondragover={onDragOver} ondragleave={(e) => { if (!(e.currentTarget as HTMLElement).contains(e.relatedTarget as Node)) dropDir = null; }} ondrop={onDrop} ondragend={() => (dropDir = null)}>
     {#if error}<p class="faint small pad">{error}</p>{/if}
-    <FileTree {roots} {version} scroller={treeEl} />
+    <FileTree bind:this={tree} {roots} {version} scroller={treeEl} />
   </div>
 </div>
 {/if}
 {#if menu}<ContextMenu x={menu.x} y={menu.y} items={menu.items} onclose={() => (menu = null)} />{/if}
 {#if dialog}<InputDialog title={dialog.title} value={dialog.value} hint={dialog.hint} confirm={dialog.confirm}
-  onsubmit={(v) => { const d = dialog!; dialog = null; d.submit(v); }} oncancel={() => (dialog = null)} />{/if}
+  onsubmit={(v) => { const d = dialog!; dialog = null; d.submit(v); }} oncancel={() => { dialog = null; if (backTo) tree?.refocus(backTo); }} />{/if}
 
 <style>
   .head-btns { display: inline-flex; gap: 2px; }

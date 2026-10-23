@@ -8,27 +8,35 @@
   import { errText } from "../lib/text";
   import { attachPan } from "../lib/pdf-pan";
   import { shownName } from "../lib/paths";
-  // PDF reader + annotator on pdf.js's viewer: highlight (H), pen/stylus ink (P), text (T), select (V/Esc),
-  // find (Ctrl+F), outline and page thumbnails, zoom (Ctrl+= / Ctrl+- / Ctrl+0), dark pages (D), reopens at
-  // the last page read, save into the PDF (Ctrl+S, 409-safe), "to notes" extracts annotations to markdown.
+  // PDF reader + annotator on PDFium (lib/pdf-reader.ts): highlight (H, or H over selected text), pen/stylus ink (P),
+  // text note (T), select (V/Esc), eraser (E), undo (Ctrl+Z), find (Ctrl+F), outline and page thumbnails, zoom
+  // (Ctrl+= / Ctrl+- / Ctrl+0), dark pages (D), reopens at the last page read. Marks are saved as they are made into
+  // the PDF's companion drawing (lib/pdf-tools.ts); "to notes" extracts them to markdown.
   import { pdfPages } from "../lib/registry";
   import { onMount } from "svelte";
   import type { PaneProps } from "../lib/dock";
-  import { setDirty } from "../lib/dock";
-  import { createViewer, COLORS, type ToolName, type Viewer } from "../lib/pdf-viewer";
+  import { openReader, type OutlineItem, type Reader, type Zoom } from "../lib/pdf-reader";
+  import { attachTools, COLORS, type ToolName, type Tools } from "../lib/pdf-tools";
   import { attachPdfInk } from "../lib/pdf-ink";
-  import { eraseAt, writeMarks, type PageBox } from "../lib/pdf-ink-save";
-  import { api, ApiError } from "../lib/api";
+  import { attachPdfMarks, markAt, STAMPS, type Mark, type MarksView, type Stamp } from "../lib/pdf-marks";
+  import { eraseAt } from "../lib/pdf-ink-save";
+  import { api } from "../lib/api";
   import { ensureNoteOf, notesBeside } from "../lib/papers";
-  import { placeLink, selectedPlace, showAnnotation, showPlace } from "../lib/pdf-place";
+  import { placeLink } from "../lib/pdf-place";
   import Icon from "../components/Icon.svelte";
   import PdfThumbs from "../components/PdfThumbs.svelte";
+  import PdfMarksList from "../components/PdfMarksList.svelte";
   import { settings } from "../lib/settings.svelte";
+  import { chosenEngine, engine, otherEngine, type EngineName } from "../lib/pdf-engine";
 
   let { spec, panel }: PaneProps<"pdf"> = $props();
   let container: HTMLDivElement;
-  let v = $state.raw<Viewer | null>(null); // raw: pdf.js objects must not be proxied
+  let r = $state.raw<Reader | null>(null); // raw: the reader holds DOM and workers, not state
+  let tools: Tools | null = null;
   let error = $state("");
+  // one engine for this document: Settings' choice, or the other one when asked after it could not open the file
+  let engineName = $state<EngineName>(chosenEngine());
+  const ENGINE_LABEL: Record<EngineName, string> = { pdfium: "PDFium", pdfjs: "pdf.js" };
   let pages = $state(0);
   let pageInput = $state("1");
   let scaleLabel = $state("Fit");
@@ -37,32 +45,30 @@
   const pdfCfg = () => settings.config?.pdf;
   let color = $state<string>(COLORS[pdfCfg()?.color ?? "yellow"]);
   let thickness = $state(pdfCfg()?.ink_thickness ?? 2);
-  const ZOOM = { "page-width": "page-width", "page-fit": "page-fit", actual: "1" } as const;
-  const openZoom = () => ZOOM[pdfCfg()?.open_zoom ?? "page-width"];
-  let dirty = $state(false);
-  let saving = $state(false);
+  const ZOOM = { "page-width": "page-width", "page-fit": "page-fit", actual: 1 } as const;
+  const openZoom = (): Zoom => ZOOM[pdfCfg()?.open_zoom ?? "page-width"];
   let status = $state("");
   let findOpen = $state(false);
-  let passage: { page: number; sel: [number, number, number, number] } | null = null;
-  let annotation: { page: number; id: string } | null = null; // a link's #annotation=…, flashed once drawn
   let spread = $state(false);
-  // a link to this page, or to the selected passage, the Obsidian / PDF++ way (lib/pdf-place.ts)
+  // a link to this page, or to the selected passage by its words (lib/pdf-place.ts)
   async function copyLink() {
-    const here = selectedPlace(container);
-    const link = here ? placeLink(spec.path, here, here.text) : placeLink(spec.path, { page: current || 1 });
-    try { await navigator.clipboard.writeText(link); flash(here?.selection ? "Link to the selected passage copied" : `Link to page ${current || 1} copied`); }
+    const sel = (await r?.selection()) ?? [];
+    const link = sel.length ? placeLink(spec.path, { page: sel[0].page, quote: sel.map((s) => s.text).join(" ") }) : placeLink(spec.path, { page: current || 1 });
+    try { await navigator.clipboard.writeText(link); flash(sel.length ? "Link to the selected passage copied" : `Link to page ${current || 1} copied`); }
     catch { flash(link, 8000); }
   }
-  const rotate = () => { if (v) v.viewer.pagesRotation = (v.viewer.pagesRotation + 90) % 360; };
-  const toggleSpread = () => { spread = !spread; if (v) v.viewer.spreadMode = spread ? 1 : 0; };
+  const rotate = () => r?.rotate();
+  const toggleSpread = () => { spread = !spread; r?.setSpread(spread); };
   let findQ = $state("");
   let findInfo = $state("");
   let outlineOpen = $state(false);
-  let side = $state<"outline" | "pages">("outline");
+  let side = $state<"outline" | "pages" | "marks">("outline");
   let current = $state(1);
   let dark = $state(loadPref("atlas.pdf.dark") === "1");
-  let outline = $state<{ title: string; dest: unknown; depth: number }[]>([]);
-  let offInk = () => {};
+  let outline = $state.raw<OutlineItem[]>([]);
+  // older marks, in the PDF's companion drawing: shown and erasable until moved into the note (`atlas pdf-marks migrate`)
+  let offInk: { stop(): void; reload(): void } | null = null;
+  let marks: MarksView | null = null;
   let findInput = $state<HTMLInputElement | null>(null);
 
   // per-viewer conveniences (which page, which zoom, dark pages): browser storage, never required
@@ -72,108 +78,92 @@
   let posTimer = 0;
   function rememberPosition() {
     clearTimeout(posTimer);
-    posTimer = window.setTimeout(() => { if (v) savePref(posKey(), JSON.stringify({ page: v.viewer.currentPageNumber, scale: v.viewer.currentScaleValue })); }, 400);
+    posTimer = window.setTimeout(() => { if (r) savePref(posKey(), JSON.stringify({ page: r.page, scale: String(r.zoom) })); }, 400);
   }
-  function restorePosition() {
-    const raw = loadPref(posKey());
-    if (!raw || !v) return;
+  /** The page and zoom this PDF was left at (the zoom saved as "page-width", "page-fit" or a number). */
+  function savedPosition(): { page?: number; zoom?: Zoom } {
     try {
-      const pos = JSON.parse(raw) as { page?: number; scale?: string };
-      if (pos.scale) { v.viewer.currentScaleValue = pos.scale; if (pos.scale !== "page-width") scaleLabel = `${Math.round(v.viewer.currentScale * 100)}%`; }
-      if (pos.page && pos.page > 1 && pos.page <= pages) v.viewer.currentPageNumber = pos.page;
-    } catch { /* a stale entry is not worth an error */ }
+      const pos = JSON.parse(loadPref(posKey()) ?? "{}") as { page?: number; scale?: string };
+      const z = pos.scale === "page-width" || pos.scale === "page-fit" ? pos.scale : Number(pos.scale) > 0 ? Number(pos.scale) : undefined;
+      return { ...(pos.page ? { page: pos.page } : {}), ...(z !== undefined ? { zoom: z } : {}) };
+    } catch { return {}; }
   }
   function toggleDark() { dark = !dark; savePref("atlas.pdf.dark", dark ? "1" : "0"); }
-  function toggleSide(which: "outline" | "pages") { if (outlineOpen && side === which) outlineOpen = false; else { side = which; outlineOpen = true; } }
+  function toggleSide(which: "outline" | "pages" | "marks") { if (outlineOpen && side === which) outlineOpen = false; else { side = which; outlineOpen = true; } }
 
   function flash(s: string, ms = 2500) { status = s; setTimeout(() => { if (status === s) status = ""; }, ms); }
 
-  // the eraser: a mark of the PDF's drawing taken out where it is clicked (lib/pdf-ink-save.ts eraseAt); pdf.js's own
-  // tools are off meanwhile
+  // the eraser: the note's mark under the click taken out (lib/pdf-marks.ts), else an older one of the drawing
   let erasing = $state(false);
-  function erase(on = !erasing) { erasing = on; if (on) { tool = "select"; v?.setTool("select"); } }
+  function erase(on = !erasing) { erasing = on; if (on) pick("select", false); }
   async function eraseClick(e: MouseEvent) {
-    if (!erasing) return;
-    const pageEl = (e.target as HTMLElement).closest<HTMLElement>(".page[data-page-number]");
-    if (!pageEl) return;
+    if (!erasing || !r) return;
+    const at = r.pageAt(e.clientX, e.clientY), layer = at && r.pageLayer(at.n);
+    if (!at || !layer) return;
     e.preventDefault(); e.stopPropagation();
-    const r = pageEl.getBoundingClientRect();
+    const px = r.scale * (96 / 72);
     try {
-      const gone = await eraseAt(spec.path, Number(pageEl.dataset.pageNumber), (e.clientX - r.left) / r.width, (e.clientY - r.top) / r.height);
-      if (!gone) flash("No mark of its drawing there");
+      const [x, y] = await r.toPagePoint(at.n, at.X, at.Y), hit = marks && markAt(marks.marks(), at.n, x, y);
+      if (hit) { await marks!.change([{ op: "remove", id: hit.id }]); return; }
+      const gone = await eraseAt(spec.path, at.n, (at.X * px) / layer.offsetWidth, (at.Y * px) / layer.offsetHeight);
+      if (gone) offInk?.reload(); else flash("No mark there");
     } catch (err) { flash(`Not erased: ${errText(err)}`, 5000); }
   }
 
-  function pick(t: ToolName) {
-    erasing = false;
+  function pick(t: ToolName, stopErasing = true) {
+    if (stopErasing) erasing = false;
     tool = t;
-    v?.setTool(t);
-    if (t !== "select") requestAnimationFrame(() => { v?.setColor(color); if (t === "ink") v?.setThickness(thickness); });
+    tools?.setTool(t);
+    tools?.setColor(color);
+    tools?.setThickness(thickness);
+    tools?.setStamp(stamp);
   }
-  function pickColor(c: string) { color = c; v?.setColor(c); }
+  function pickColor(c: string) { color = c; tools?.setColor(c); }
+  let stamp: Stamp = $state("check");
+  function pickStamp(s: Stamp) { stamp = s; tools?.setStamp(s); }
 
-  /** The marks made here into the PDF's companion drawing (`x.pdf.excalidraw`), the store every device writes — the
-   *  PDF itself is never modified; then the document opened
-   *  again, its marks shown from there. */
-  async function save() {
-    if (!v || saving) return;
-    saving = true;
-    const was = v;
-    try {
-      const n = await writeMarks(spec.path, was.marks(), async (k) => (await was.doc.getPage(k)).view as PageBox);
-      dirty = false;
-      savePref(posKey(), JSON.stringify({ page: was.viewer.currentPageNumber, scale: was.viewer.currentScaleValue }));
-      offInk(); was.destroy(); v = null;
-      await openViewer();
-      flash(n ? `Saved into ${shownName(spec.path.split("/").pop()!)}'s notes (its drawing)` : "Nothing new to save");
-      if (pdfCfg()?.export_on_save) void toNotes();
-    } catch (e) {
-      dirty = true;
-      flash(e instanceof ApiError && e.status === 409 ? "Its notes changed on another device meanwhile — save again" : `Save failed: ${errText(e)}`, 6000);
-    } finally {
-      saving = false;
-    }
+  // the page's bookmark (B): one mark of its own, listed with the others in the note
+  let bookmarked = $state(false), markList = $state<readonly Mark[]>([]);
+  const seeBookmark = () => { bookmarked = !!marks?.marks().some((m) => m.page === current && m.kind === "bookmark"); };
+  const marksChanged = (ms: readonly Mark[]) => { markList = ms; seeBookmark(); };
+  async function toggleBookmark() {
+    if (!tools) return;
+    bookmarked = await tools.toggleBookmark(current);
+    flash(bookmarked ? `Page ${current} bookmarked` : "Bookmark taken away");
+  }
+
+  // Settings → PDF → "export on save": the note follows the marks, a moment after the last one
+  let exportTimer = 0;
+  function saved() {
+    offInk?.reload();
+    if (pdfCfg()?.export_on_save) { clearTimeout(exportTimer); exportTimer = window.setTimeout(() => void toNotes(), 2000); }
   }
 
   async function toNotes() {
-    if (dirty) { await save(); if (pdfCfg()?.export_on_save) return; } // save() already exported
     try {
       await ensureNoteOf(spec.path); // a paper's note starts with its properties and block, then the export
-      const r = await api.cmd("pdf.annotations", { path: spec.path });
-      if (!r.ok) throw new Error(r.error);
-      flash(typeof r.result === "string" ? r.result : "Annotations exported");
+      const res = await api.cmd("pdf.annotations", { path: spec.path });
+      if (!res.ok) throw new Error(res.error);
+      flash(typeof res.result === "string" ? res.result : "Annotations exported");
     } catch (e) {
       flash(`Export failed: ${errText(e)}`, 6000);
     }
   }
 
-  function zoom(f: number) { if (v) { v.viewer.currentScale = Math.min(6, Math.max(0.25, v.viewer.currentScale * f)); } }
+  const zoom = (f: number) => r?.zoomBy(f);
   // the label: fit the width, again: the whole page
-  const fitWidth = () => { if (v) v.viewer.currentScaleValue = v.viewer.currentScaleValue === "page-width" ? "page-fit" : "page-width"; };
-  const goto = (n: number) => { if (v) v.viewer.currentPageNumber = Math.max(1, Math.min(n, pages)); };
+  const fitWidth = () => r?.setZoom(r.zoom === "page-width" ? "page-fit" : "page-width");
+  const goto = (n: number) => r?.goto(Math.max(1, Math.min(n, pages)));
+  const runFind = (again = false, back = false) => r?.find(findQ, { again, back });
+  const jump = (o: OutlineItem) => { if (o.page !== null) r?.goto(o.page + 1, o.y); };
 
-  function runFind(again = false, back = false) {
-    v?.bus.dispatch("find", { source: null, type: again ? "again" : "", query: findQ, caseSensitive: false, entireWord: false, highlightAll: true, findPrevious: back, matchDiacritics: false });
-  }
-
-  async function loadOutline() {
-    const items = (await v?.doc.getOutline()) ?? [];
-    const flat: typeof outline = [];
-    const walk = (xs: typeof items, depth: number) => { for (const x of xs ?? []) { flat.push({ title: x.title, dest: x.dest, depth }); walk(x.items, depth + 1); } };
-    walk(items, 0);
-    outline = flat;
-  }
-  async function jump(dest: unknown) {
-    if (!v || !dest) return;
-    const explicit = typeof dest === "string" ? await v.doc.getDestination(dest) : (dest as unknown[]);
-    if (!explicit) return;
-    const idx = await v.doc.getPageIndex(explicit[0] as never);
-    v.viewer.scrollPageIntoView({ pageNumber: idx + 1, destArray: explicit as never });
+  async function undo() {
+    if (await tools?.undo()) { offInk?.reload(); flash("Mark taken back"); } else flash("Nothing to take back");
   }
 
   function onkeydown(e: KeyboardEvent) {
     const mod = e.ctrlKey || superOf(e);
-    if (mod && e.key.toLowerCase() === "s") { e.preventDefault(); e.stopPropagation(); void save(); return; }
+    if (mod && e.key.toLowerCase() === "s") { e.preventDefault(); e.stopPropagation(); flash("Marks are saved as you make them"); return; }
     if (mod && e.key.toLowerCase() === "f") { e.preventDefault(); e.stopPropagation(); findOpen = true; requestAnimationFrame(() => findInput?.select()); return; }
     // zoom the page, not the app (the shell's Ctrl+= scales the whole UI)
     if (mod && (e.key === "=" || e.key === "+")) { e.preventDefault(); e.stopPropagation(); zoom(1.15); return; }
@@ -181,17 +171,18 @@
     if (mod && e.key === "0") { e.preventDefault(); e.stopPropagation(); fitWidth(); return; }
     const t = e.target as HTMLElement;
     const typing = t.isContentEditable || /^(INPUT|TEXTAREA)$/.test(t.tagName);
-    // annotation undo/redo/delete: pdf.js only hears its own keys while focus is inside its viewer,
-    // so the pane forwards them as the viewer's "editingaction" (what its toolbar buttons send)
-    const edit = mod && e.key.toLowerCase() === "z" ? (e.shiftKey ? "redo" : "undo")
-      : mod && e.key.toLowerCase() === "y" ? "redo"
-      : !mod && !typing && (e.key === "Delete" || e.key === "Backspace") ? "delete" : null;
-    if (edit && v && !typing) { e.preventDefault(); e.stopPropagation(); v.bus.dispatch("editingaction", { source: null, name: edit }); return; }
+    if (mod && !e.shiftKey && e.key.toLowerCase() === "z" && !typing) { e.preventDefault(); e.stopPropagation(); void undo(); return; }
     if (mod || typing) return;
     const k = e.key.toLowerCase();
-    if (k === "h") pick("highlight");
+    // a text mark's key marks the selection at once, else picks that tool
+    const textMark = ({ h: "highlight", u: "underline", x: "strike" } as const)[k as "h" | "u" | "x"];
+    if (textMark) { void tools?.markSelection(textMark).then((done) => { if (!done) pick(textMark); }); }
     else if (k === "p") pick("ink");
     else if (k === "t") pick("text");
+    else if (k === "n") pick("postit");
+    else if (k === "c") pick("clip");
+    else if (k === "m") pick("stamp");
+    else if (k === "b") void toggleBookmark();
     else if (k === "e") erase();
     else if (k === "v" || (k === "escape" && (tool !== "select" || erasing))) pick("select");
     else if (k === "d") toggleDark();
@@ -199,19 +190,16 @@
     e.preventDefault();
   }
 
-  $effect(() => { setDirty(panel.id, dirty); });
-
-  // Ctrl+wheel and a touchpad pinch zoom the pages smoothly: scaled at once, drawn sharp when the
-  // gesture rests (pdf.js's drawingDelay) — the app's own Ctrl+wheel (pane-zoom.ts) leaves a PDF alone
+  // Ctrl+wheel and a touchpad pinch zoom the pages smoothly: scaled at once, drawn sharp when the gesture rests
+  // (lib/pdf-reader.ts) — the app's own Ctrl+wheel (pane-zoom.ts) leaves a PDF alone
   function pinch(e: WheelEvent) {
-    if (!e.ctrlKey || !v) return;
+    if (!e.ctrlKey || !r) return;
     e.preventDefault();
     const px = e.deltaMode === 1 ? e.deltaY * 40 : e.deltaY;
-    v.viewer.updateScale({ drawingDelay: 400, scaleFactor: Math.exp(-px / 300), origin: [e.clientX, e.clientY] });
+    r.zoomBy(Math.exp(-px / 300), { x: e.clientX, y: e.clientY });
   }
 
-  // pdf.js rebuilds a page's text layer on zoom, and the focused node goes with it: focus falls to <body>
-  // and the pane would stop hearing keys. Keys typed with nothing focused go to the PDF pane used last.
+  // Keys typed with nothing focused go to the PDF pane used last (a click on a page leaves the focus on <body>).
   let paneEl: HTMLDivElement;
   const markUsed = () => { lastUsed = paneEl; };
   $effect(() => {
@@ -221,30 +209,43 @@
     return () => { window.removeEventListener("keydown", onWin); if (lastUsed === paneEl) lastUsed = null; };
   });
 
+  const labelOf = (z: Zoom, s: number) => (z === "page-width" ? "Fit" : z === "page-fit" ? "Page" : `${Math.round(s * 100)}%`);
   let disposed = false;
-  /** The document in the viewer (again, after a save: pdf.js's marks then show from the companion drawing). */
   async function openViewer(): Promise<void> {
     try {
-      const viewer = await createViewer(container, spec.path, (d) => (dirty = d));
-      if (disposed) { viewer.destroy(); return; }
-      v = viewer;
+      const was = savedPosition();
+      const reader = await openReader(container, spec.path, await engine(engineName), { zoom: was.zoom ?? openZoom(), page: spec.page ?? was.page });
+      if (disposed) { reader.destroy(); return; }
+      r = reader;
+      pages = reader.pages;
+      outline = reader.outline;
+      current = reader.page; pageInput = String(current);
+      scaleLabel = labelOf(reader.zoom, reader.scale);
+      marks = attachPdfMarks(reader, spec.path, marksChanged);
+      tools = attachTools(container, reader, marks, { saved, failed: (e) => flash(`Not saved: ${errText(e)}`, 6000) });
+      pick(tool, false);
       // the ink every device writes to the PDF's companion drawing, over its pages (lib/pdf-ink.ts)
-      offInk = attachPdfInk(container, spec.path, (drawn) => {
-        const f = (e: { pageNumber: number }) => drawn(e.pageNumber);
-        viewer.bus.on("pagerendered", f);
-        return () => viewer.bus.off("pagerendered", f);
-      });
-      viewer.bus.on("pagesinit", () => { viewer.viewer.currentScaleValue = openZoom(); pages = viewer.doc.numPages; restorePosition(); if (spec.page) { goto(spec.page); passage = spec.selection ? { page: spec.page, sel: spec.selection } : null; annotation = spec.annotation ? { page: spec.page, id: spec.annotation } : null; panel.updateParameters({ ...spec, page: undefined, selection: undefined, annotation: undefined }); } }); // used once: a restored layout must not jump back
-      // a link's passage (#page=…&selection=…) is selected once that page's text is drawn
-      viewer.bus.on("textlayerrendered", (e: { pageNumber: number }) => { if (passage && e.pageNumber === passage.page && showPlace(container, passage.page, passage.sel)) passage = null; });
-      viewer.bus.on("annotationlayerrendered", (e: { pageNumber: number }) => { if (annotation && e.pageNumber === annotation.page && showAnnotation(container, annotation.page, annotation.id)) annotation = null; });
-      viewer.bus.on("pagechanging", (e: { pageNumber: number }) => { pageInput = String(e.pageNumber); current = e.pageNumber; rememberPosition(); });
-      viewer.bus.on("scalechanging", (e: { scale: number; presetValue?: string }) => { scaleLabel = e.presetValue === "page-width" ? "Fit" : e.presetValue === "page-fit" ? "Page" : `${Math.round(e.scale * 100)}%`; rememberPosition(); });
-      viewer.bus.on("updatefindmatchescount", (e: { matchesCount: { current: number; total: number } }) => { findInfo = e.matchesCount.total ? `${e.matchesCount.current}/${e.matchesCount.total}` : "0"; });
-      void loadOutline();
+      offInk = attachPdfInk(container, spec.path, (drawn) => reader.on("drawn", drawn));
+      reader.on("page", (n) => { pageInput = String(n); current = n; rememberPosition(); seeBookmark(); });
+      reader.on("scale", ({ scale, zoom: z }) => { scaleLabel = labelOf(z, scale); rememberPosition(); });
+      reader.on("find", ({ current: c, total }) => { findInfo = total ? `${c}/${total}` : "0"; });
+      // a link's page, words and annotation, used once: a restored layout must not jump back
+      if (spec.page) {
+        const { page, quote, annotation } = spec;
+        if (quote) void reader.selectWords(page, quote);
+        if (annotation) void reader.flashAnnotation(page, annotation);
+        panel.updateParameters({ ...spec, page: undefined, quote: undefined, annotation: undefined });
+      }
     } catch (err) {
       error = errText(err);
     }
+  }
+
+  /** After a failure: this file once more, by the other engine. */
+  function openWithOther(): void {
+    engineName = otherEngine(engineName);
+    error = "";
+    void openViewer();
   }
 
   onMount(() => {
@@ -258,10 +259,16 @@
       const w = container.clientWidth;
       if (!w || w === fittedAt) return;
       fittedAt = w;
-      if (v && scaleLabel === "Fit") v.viewer.currentScaleValue = "page-width";
+      r?.refit();
     });
     ro.observe(container);
-    return () => { disposed = true; releaseCanvases(container); offInk(); offPan(); pdfPages.delete(panel.id); ro.disconnect(); clearTimeout(posTimer); v?.destroy(); setDirty(panel.id, false); };
+    return () => {
+      disposed = true;
+      offInk?.stop(); marks?.stop(); offPan(); pdfPages.delete(panel.id); ro.disconnect(); clearTimeout(posTimer); clearTimeout(exportTimer);
+      const reader = r;
+      void (tools?.destroy() ?? Promise.resolve()).finally(() => reader?.destroy());
+      releaseCanvases(container);
+    };
   });
 </script>
 
@@ -274,21 +281,42 @@
     <button class="icon-btn" class:on={outlineOpen && side === "pages"} title="Pages" aria-label="Pages" onclick={() => toggleSide("pages")} disabled={!pages}>
       <svg viewBox="0 0 16 16" width="15" height="15"><rect x="2.5" y="2" width="4.5" height="5.5" rx="1" fill="none" stroke="currentColor" stroke-width="1.3"/><rect x="9" y="2" width="4.5" height="5.5" rx="1" fill="none" stroke="currentColor" stroke-width="1.3"/><rect x="2.5" y="9" width="4.5" height="5.5" rx="1" fill="none" stroke="currentColor" stroke-width="1.3"/><rect x="9" y="9" width="4.5" height="5.5" rx="1" fill="none" stroke="currentColor" stroke-width="1.3"/></svg>
     </button>
-    <span class="title" title={spec.path}><Icon name="pdf" size={14} /><span class="name">{shownName(spec.path)}</span>{#if dirty}<span class="dot" title="Unsaved annotations"></span>{/if}</span>
+    <button class="icon-btn" class:on={outlineOpen && side === "marks"} title="Marks: every highlight, post-it, clip and bookmark, kept in the PDF's note" aria-label="Marks" onclick={() => toggleSide("marks")} disabled={!pages}>
+      <svg viewBox="0 0 16 16" width="15" height="15"><path d="M4 2h8v12l-4-3-4 3z" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/><path d="M6 5.5h4M6 8h4" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>{#if markList.length}<span class="count">{markList.length}</span>{/if}
+    </button>
+    <span class="title" title={spec.path}><Icon name="pdf" size={14} /><span class="name">{shownName(spec.path)}</span>{#if engineName !== "pdfium"}<span class="engine faint small" title="Read by {ENGINE_LABEL[engineName]} (Settings → PDF → engine)">{ENGINE_LABEL[engineName]}</span>{/if}</span>
     <span class="spacer"></span>
 
     <div class="tools" role="toolbar" aria-label="Annotation tools">
       <button class="tool" class:on={tool === "select"} title="Select (V)" onclick={() => pick("select")}>
         <svg viewBox="0 0 16 16" width="15" height="15"><path d="M3 2l9 6-4 1-2 4z" fill="currentColor"/></svg>
       </button>
-      <button class="tool" class:on={tool === "highlight"} title="Highlight (H)" onclick={() => pick("highlight")}>
+      <button class="tool" class:on={tool === "highlight"} title="Highlight (H): select text to mark it; H over a selection marks it at once" onclick={() => pick("highlight")}>
         <svg viewBox="0 0 16 16" width="15" height="15"><path d="M9.5 2.5l4 4-6 6H3.5v-4z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><path d="M2 14.5h12" stroke="currentColor" stroke-width="1.6"/></svg>
+      </button>
+      <button class="tool" class:on={tool === "underline"} title="Underline (U): select text to underline it" aria-label="Underline" onclick={() => pick("underline")}>
+        <svg viewBox="0 0 16 16" width="15" height="15"><path d="M4.5 2.5v5a3.5 3.5 0 0 0 7 0v-5" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><path d="M3 14h10" stroke="currentColor" stroke-width="1.6"/></svg>
+      </button>
+      <button class="tool" class:on={tool === "strike"} title="Strike through (X): select text to strike it" aria-label="Strike through" onclick={() => pick("strike")}>
+        <svg viewBox="0 0 16 16" width="15" height="15"><path d="M11.5 4.5c-.5-1.3-1.8-2-3.5-2-2 0-3.5 1-3.5 2.6 0 3.6 7 1.8 7 5.3 0 1.6-1.5 2.6-3.5 2.6-1.8 0-3.1-.8-3.6-2.1" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/><path d="M2 8h12" stroke="currentColor" stroke-width="1.4"/></svg>
       </button>
       <button class="tool" class:on={tool === "ink"} title="Pen / stylus (P)" onclick={() => pick("ink")}>
         <svg viewBox="0 0 16 16" width="15" height="15"><path d="M2.5 13.5c2-1 3-4 5-6s4-3 6-5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
       </button>
       <button class="tool" class:on={tool === "text"} title="Text note (T)" onclick={() => pick("text")}>
         <svg viewBox="0 0 16 16" width="15" height="15"><path d="M3 3.5h10M8 3.5v9.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+      </button>
+      <button class="tool" class:on={tool === "postit"} title="Post-it (N): click a place; over a highlight it is that passage's" aria-label="Post-it" onclick={() => pick("postit")}>
+        <svg viewBox="0 0 16 16" width="15" height="15"><path d="M2.5 2.5h11v7l-4 4h-7z M13.5 9.5h-4v4" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>
+      </button>
+      <button class="tool" class:on={tool === "clip"} title="Clip an area (C): drag a box around a figure or an equation" aria-label="Clip an area" onclick={() => pick("clip")}>
+        <svg viewBox="0 0 16 16" width="15" height="15"><rect x="2.5" y="3.5" width="11" height="9" fill="none" stroke="currentColor" stroke-width="1.4" stroke-dasharray="2.5 1.8"/></svg>
+      </button>
+      <button class="tool" class:on={tool === "stamp"} title="Stamp (M): ✓ ? ! ★ where you click" aria-label="Stamp" onclick={() => pick("stamp")}>
+        <svg viewBox="0 0 16 16" width="15" height="15"><path d="M8 1.8l1.9 3.9 4.3.6-3.1 3 .7 4.3L8 11.6l-3.8 2 .7-4.3-3.1-3 4.3-.6z" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg>
+      </button>
+      <button class="tool" class:on={bookmarked} title="Bookmark this page (B)" aria-label="Bookmark this page" aria-pressed={bookmarked} onclick={() => void toggleBookmark()}>
+        <svg viewBox="0 0 16 16" width="15" height="15"><path d="M4 2h8v12l-4-3-4 3z" fill={bookmarked ? "currentColor" : "none"} stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>
       </button>
       <button class="tool" class:on={erasing} title="Eraser (E): a saved mark taken out where you click" aria-label="Eraser" aria-pressed={erasing} onclick={() => erase()}>
         <Icon name="eraser" size={15} />
@@ -298,8 +326,13 @@
         {#each Object.entries(COLORS) as [name, hex] (name)}
           <button class="swatch" class:on={color === hex} style:background={hex} title={name} aria-label={name} onclick={() => pickColor(hex)}></button>
         {/each}
+        {#if tool === "stamp"}
+          {#each Object.entries(STAMPS) as [name, glyph] (name)}
+            <button class="tool stamp" class:on={stamp === name} title={name} aria-label={`Stamp ${name}`} onclick={() => pickStamp(name as Stamp)}>{glyph}</button>
+          {/each}
+        {/if}
         {#if tool === "ink"}
-          <input class="thick" type="range" min="1" max="12" bind:value={thickness} oninput={() => v?.setThickness(thickness)} title="Thickness" />
+          <input class="thick" type="range" min="1" max="12" bind:value={thickness} oninput={() => tools?.setThickness(thickness)} title="Thickness" />
         {/if}
       {/if}
     </div>
@@ -323,8 +356,6 @@
     <span class="sep"></span>
     <button class="icon-btn" title="This paper's note (its <citekey>.md), beside the PDF" aria-label="Paper's note" onclick={() => void notesBeside(spec.path)}><Icon name="file-text" size={14} /></button>
     <button class="icon-btn" title="Write the highlights and their comments into the paper's note — the same <citekey>.md the note button opens" aria-label="Highlights into the note" onclick={toNotes}><Icon name="quote" size={14} /></button>
-    <!-- only when there is something to save: the one word in the bar is the thing waiting for you -->
-    {#if dirty || saving}<button class="text-btn primary" disabled={saving} title="Save annotations into the PDF (Ctrl+S)" onclick={save}>{saving ? "Saving…" : "Save"}</button>{/if}
   </div>
 
   {#if findOpen}
@@ -340,18 +371,23 @@
     {#if outlineOpen && side === "outline" && outline.length}
       <nav class="outline scroll">
         {#each outline as o, i (i)}
-          <button class="ol-item" style:padding-left="{10 + o.depth * 12}px" onclick={() => jump(o.dest)}>{o.title}</button>
+          <button class="ol-item" style:padding-left="{10 + o.depth * 12}px" onclick={() => jump(o)}>{o.title}</button>
         {/each}
       </nav>
-    {:else if outlineOpen && side === "pages" && v}
-      <PdfThumbs doc={v.doc} {current} {dark} onpick={goto} />
+    {:else if outlineOpen && side === "pages" && pages}
+      <PdfThumbs {pages} path={spec.path} engine={engineName} {current} {dark} onpick={goto} />
+    {:else if outlineOpen && side === "marks"}
+      <PdfMarksList marks={markList} {current} onpick={(n, y) => r?.goto(n, y)} />
     {/if}
     <div class="viewer-wrap">
-      <div class="viewer-container" class:inking={tool === "ink"} class:can-pan={tool === "select" && !erasing} class:erasing class:dark bind:this={container} onwheel={pinch} onclickcapture={eraseClick}>
+      <div class="viewer-container" class:inking={tool === "ink"} class:noting={tool === "text" || tool === "postit" || tool === "clip" || tool === "stamp"} class:can-pan={tool === "select" && !erasing} class:erasing class:dark bind:this={container} onwheel={pinch} onclickcapture={eraseClick}>
         <div class="pdfViewer"></div>
       </div>
       {#if error}
-        <div class="pane-empty overlay"><p class="muted">Could not open this PDF.</p><p class="faint small">{error}</p></div>
+        <div class="pane-empty overlay">
+          <p class="muted">{ENGINE_LABEL[engineName]} could not open this PDF.</p><p class="faint small">{error}</p>
+          <button class="btn" onclick={openWithOther}>Open with {ENGINE_LABEL[otherEngine(engineName)]}</button>
+        </div>
       {/if}
     </div>
   </div>
@@ -366,9 +402,11 @@
   .toolbar > :not(.title):not(.spacer) { flex: none; }
   .pager { white-space: nowrap; }
   .title { display: inline-flex; align-items: center; gap: 6px; flex: 0 1 auto; min-width: 40px; white-space: nowrap; margin-left: 4px; }
+  .overlay button { margin-top: 8px; padding: 4px 12px; border: 1px solid var(--border-strong); border-radius: 6px; pointer-events: auto; }
+  .overlay button:hover { background: var(--bg-hover); }
+  .title .engine { border: 1px solid var(--border); border-radius: 4px; padding: 0 4px; }
   .title .name { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
   .title :global(svg) { flex: none; }
-  .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); flex: none; }
   .spacer { flex: 1; }
   .sep { width: 1px; height: 16px; background: var(--border); margin: 0 4px; flex: none; }
   .tools { display: inline-flex; align-items: center; gap: 2px; background: var(--bg-elev); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 2px; }
@@ -381,10 +419,7 @@
   .pager { display: inline-flex; align-items: center; gap: 4px; font-variant-numeric: tabular-nums; }
   .page-in { width: 36px; text-align: center; background: var(--bg-elev); border: 1px solid var(--border); border-radius: var(--radius-sm); color: var(--text); font: inherit; padding: 2px 0; }
   .zoom-label { min-width: 46px; padding: 3px 6px; border-radius: var(--radius-sm); color: var(--text); font-variant-numeric: tabular-nums; }
-  .zoom-label:hover, .text-btn:hover:not(:disabled) { background: var(--bg-hover); }
-  .text-btn { padding: 3px 9px; border-radius: var(--radius-sm); color: var(--text); white-space: nowrap; }
-  .text-btn.primary:not(:disabled) { background: var(--accent); color: var(--accent-fg, #fff); }
-  .text-btn:disabled { opacity: .45; }
+  .zoom-label:hover { background: var(--bg-hover); }
   /* a phone: tools a finger can hit, the bar scrolling sideways rather than squeezed; the name is the top bar's */
   :global(html.phone) .toolbar { height: 50px; gap: 6px; overflow-x: auto; scrollbar-width: none; }
   :global(html.phone) .toolbar > * { flex: none; }
@@ -392,7 +427,7 @@
   :global(html.phone) .tool { width: 40px; height: 38px; }
   :global(html.phone) .swatch { width: 26px; height: 26px; }
   :global(html.phone) .page-in { width: 44px; padding: 6px 0; font-size: 16px; }
-  :global(html.phone) .text-btn, :global(html.phone) .zoom-label { padding: 9px 10px; }
+  :global(html.phone) .zoom-label { padding: 9px 10px; }
   .findbar { display: flex; align-items: center; gap: 6px; padding: 5px 10px; border-bottom: 1px solid var(--border); background: var(--bg-elev); flex: none; }
   .findbar input { flex: 0 1 280px; background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-sm); color: var(--text); font: inherit; padding: 3px 8px; }
   .body { flex: 1; min-height: 0; display: flex; }
@@ -400,9 +435,15 @@
   .ol-item { display: block; width: 100%; text-align: left; padding: 4px 10px; font-size: calc(12.5px * var(--ui-scale, 1)); color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .ol-item:hover { background: var(--bg-hover); color: var(--text); }
   .viewer-wrap { position: relative; flex: 1; min-width: 0; }
-  /* pdf.js requires an absolutely positioned scroll container. */
+  /* the reader scrolls this box (lib/pdf-reader.ts) */
   .viewer-container { position: absolute; inset: 0; overflow: auto; background: var(--pdf-bg); }
+  .icon-btn .count { font-size: 10px; margin-left: 2px; color: var(--text-faint); }
+  .tool.stamp { font-size: 13px; font-weight: 700; min-width: 22px; }
   .viewer-container.inking { touch-action: none; } /* stylus strokes are not scroll gestures */
+  /* the pen and the text note take a press on text or a link too (lib/pdf-tools.ts) */
+  .viewer-container.inking :global(.pageLayers > div), .viewer-container.noting :global(.pageLayers > div),
+  .viewer-container.inking :global(.linkLayer > a), .viewer-container.noting :global(.linkLayer > a) { pointer-events: none; }
+  .viewer-container.inking :global(.page), .viewer-container.noting :global(.page) { cursor: crosshair; }
   /* the select tool: the page's blank parts drag it (lib/pdf-pan.ts), text keeps its text cursor */
   .viewer-container.can-pan :global(.pdfViewer .page), .viewer-container.can-pan :global(.textLayer) { cursor: grab; }
   .viewer-container.can-pan :global(.textLayer span) { cursor: text; }

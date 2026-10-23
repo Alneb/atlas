@@ -216,8 +216,7 @@ pub struct Auth {
 /// Where a server-mode core leaves the key the `atlas` CLI of this machine signs in with: the user's runtime
 /// folder (memory, owner-only, never synced — unlike the vault), named by the port.
 pub fn local_key_file(port: u16) -> PathBuf {
-    let run = std::env::var_os("XDG_RUNTIME_DIR").map(PathBuf::from).unwrap_or_else(std::env::temp_dir);
-    run.join("atlas").join(format!("server-{port}.key"))
+    crate::platform::dirs::atlas(crate::platform::dirs::Base::Runtime).join(format!("server-{port}.key"))
 }
 
 /// The key the core on `port` left for this machine's user (a locked or server-mode core), if any.
@@ -250,21 +249,14 @@ pub(crate) fn random_hex(bytes: usize) -> String {
     random_bytes(bytes).iter().map(|x| format!("{x:02x}")).collect()
 }
 
-fn xdg(var: &str, fallback: &str) -> PathBuf {
-    std::env::var_os(var)
-        .map(PathBuf::from)
-        .unwrap_or_else(|| PathBuf::from(std::env::var_os("HOME").unwrap_or_default()).join(fallback))
-        .join("atlas")
-}
-
-/// Where the settings live: `$XDG_CONFIG_HOME/atlas/server.toml` (`ATLAS_SERVER_CONFIG` names another, for tests).
+/// Where the settings live: `server.toml` in Atlas's config folder (`ATLAS_SERVER_CONFIG` names another, for tests).
 pub fn settings_file() -> PathBuf {
-    std::env::var_os("ATLAS_SERVER_CONFIG").map(PathBuf::from).unwrap_or_else(|| xdg("XDG_CONFIG_HOME", ".config").join("server.toml"))
+    std::env::var_os("ATLAS_SERVER_CONFIG").map(PathBuf::from).unwrap_or_else(|| crate::platform::dirs::atlas(crate::platform::dirs::Base::Config).join("server.toml"))
 }
 
-/// Where sessions and tokens live: `$XDG_STATE_HOME/atlas/server.json` (`ATLAS_SERVER_STATE` names another).
+/// Where sessions and tokens live: `server.json` in Atlas's state folder (`ATLAS_SERVER_STATE` names another).
 pub fn state_file() -> PathBuf {
-    std::env::var_os("ATLAS_SERVER_STATE").map(PathBuf::from).unwrap_or_else(|| xdg("XDG_STATE_HOME", ".local/state").join("server.json"))
+    std::env::var_os("ATLAS_SERVER_STATE").map(PathBuf::from).unwrap_or_else(|| crate::platform::dirs::atlas(crate::platform::dirs::Base::State).join("server.json"))
 }
 
 pub fn load_settings() -> anyhow::Result<ServerSettings> {
@@ -596,8 +588,11 @@ mod tests {
         // only the hash is kept, and the file is the owner's alone
         let file = std::fs::read_to_string(dir.path().join("server.json")).unwrap();
         assert!(!file.contains(&token) && file.contains(&sha256(&token)));
-        use std::os::unix::fs::PermissionsExt;
-        assert_eq!(std::fs::metadata(dir.path().join("server.json")).unwrap().permissions().mode() & 0o777, 0o600);
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            assert_eq!(std::fs::metadata(dir.path().join("server.json")).unwrap().permissions().mode() & 0o777, 0o600);
+        }
         // another server (a restart) reads it back
         assert_eq!(Auth::new(a.settings(), dir.path().join("server.json")).identify_at(at(LAN), &c, t0), Some(Who::Session));
         // unused for 31 days: gone

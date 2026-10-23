@@ -11,4 +11,9 @@ text: string,
 /**
  * Write a YAML list (the cell showed a list).
  */
-list: boolean, };
+list: boolean, 
+/**
+ * The typed value to write instead of `text` (a list whose items hold commas, a checkbox, a number); null leaves
+ * `key:` empty.
+ */
+value?: unknown, };

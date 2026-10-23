@@ -60,10 +60,12 @@ pub fn open(app: &AppHandle, url: tauri::Url, outside: fn(&str)) {
         })
         .build();
     match built {
+        #[cfg(target_os = "linux")]
         Ok(w) => {
-            #[cfg(target_os = "linux")]
             let _ = w.with_webview(|v| filter::apply(&v.inner()));
         }
+        #[cfg(not(target_os = "linux"))]
+        Ok(_) => {}
         Err(e) => {
             eprintln!("atlas-app: no browsing window ({e}); the browser instead");
             outside(url.as_str());
@@ -85,22 +87,27 @@ fn percent_decode(s: &str) -> String {
 
 /// Prepare the blocking rules once per run, off the main thread (fetching and converting the lists takes seconds the
 /// first time); windows opened before they are ready get them as soon as they are.
+#[cfg(target_os = "linux")]
 pub fn prepare(app: &AppHandle, web: WebConfig) {
     let app = app.clone();
     std::thread::spawn(move || match crate::web_filters::rules(&web) {
         Ok(Some(rules)) => {
             let n = rules.count.map_or("the kept".into(), |n| n.to_string());
             eprintln!("atlas-app: ad blocking — {n} rules ({})", rules.report.join("; "));
-            #[cfg(target_os = "linux")]
             let _ = app.run_on_main_thread(move || filter::compile(rules.id, rules.path));
         }
         Ok(None) => {
             eprintln!("atlas-app: ad blocking off (web.block_ads, or no filter list could be had)");
-            #[cfg(target_os = "linux")]
             let _ = app.run_on_main_thread(filter::off);
         }
         Err(e) => eprintln!("atlas-app: ad blocking not prepared: {e}"),
     });
+}
+
+/// The rules are WebKitGTK's content filters: WebView2 and WKWebView would need a blocker of their own.
+#[cfg(not(target_os = "linux"))]
+pub fn prepare(_app: &AppHandle, _web: WebConfig) {
+    eprintln!("atlas-app: ad blocking is not built for this platform yet");
 }
 
 /// WebKitGTK's content filter store, through its C API (the Rust bindings stop short of it). Everything here runs on

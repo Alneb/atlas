@@ -14,7 +14,6 @@
   import { shownPath } from "../lib/paths";
   import { toast } from "../lib/state.svelte";
   import { settings } from "../lib/settings.svelte";
-  import { plugins } from "../lib/plugins.svelte";
   import { on } from "../lib/bus";
   import { fullscreen, toggleFullscreen } from "../lib/fullscreen.svelte";
   import { mountDrawing, isPluginDrawing, sceneJson, writeSceneInto, type Drawing, type Notepad } from "../lib/draw-excalidraw";
@@ -132,10 +131,9 @@
     return settings.config?.draw.notepad ?? true;
   }
 
-  /** Pages side by side for a new notebook: the notepad plugin's `per_row`, the Boox's own setting (4 without it). */
-  const notepad = () => plugins.list.find((p) => p.id === "notepad")?.settings;
-  const perRow = () => Number(notepad()?.per_row) || 4;
-  const pageMode = () => notepad()?.page_mode !== false && notepad()?.page_mode !== "false"; // on unless turned off
+  /** Pages side by side for a new notebook, and one page at a time: Settings → Drawing, the Boox's notepad's own. */
+  const perRow = () => settings.config?.draw.per_row ?? 4;
+  const pageMode = () => settings.config?.draw.page_mode ?? true;
 
   async function load() {
     try {

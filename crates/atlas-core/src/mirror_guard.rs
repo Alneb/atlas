@@ -299,10 +299,7 @@ pub fn install_for_mirror(ws: &crate::Workspace) {
 
 /// This device's name in the lease table: stable across restarts (`~/.local/state/atlas/device-id`), made once.
 pub fn device_id() -> Holder {
-    let state = std::env::var_os("XDG_STATE_HOME")
-        .map(PathBuf::from)
-        .unwrap_or_else(|| PathBuf::from(std::env::var_os("HOME").unwrap_or_default()).join(".local/state"));
-    let file = state.join("atlas/device-id");
+    let file = crate::platform::dirs::atlas(crate::platform::dirs::Base::State).join("device-id");
     if let Ok(id) = std::fs::read_to_string(&file) {
         if !id.trim().is_empty() {
             return id.trim().to_string();

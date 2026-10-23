@@ -2,24 +2,26 @@ import { test, expect, type APIRequestContext } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
-// The example print plugin installed as it is: "Print" in a file's menu types `lp` with the
-// printer and options of its settings into the terminal.
+// The print plugin installed as it is: "Print" in a file's menu asks its helper (lp), and the answer comes back as a
+// notice. The printer is one that does not exist, so no job ever reaches a real printer (and without CUPS the helper
+// says lp is missing): either way the reason is shown, not typed into a terminal.
 const H = { "x-atlas": "1" };
 const put = (r: APIRequestContext, path: string, text: string) => r.put("/api/file", { headers: H, data: { path, text } });
 const example = (f: string) => readFileSync(fileURLToPath(new URL(`../../plugins/stable/print/${f}`, import.meta.url)), "utf8");
 
 test.beforeAll(async ({ request }) => {
-  await put(request, ".atlas/plugins/print/main.js", example("main.js"));
-  await put(request, ".atlas/plugins/print/plugin.toml", example("plugin.toml"));
+  for (const f of ["main.js", "plugin.toml", "helper.py"]) await put(request, `.atlas/plugins/print/${f}`, example(f));
 });
 test.afterAll(async ({ request }) => { await put(request, ".atlas/plugins/print/main.js", "export function register() {}\n"); });
 
-test("Print in a file's menu runs lp with the printer of the settings, in the terminal", async ({ page, request }) => {
-  await request.put("/api/plugins/print/settings", { headers: H, data: { printer: "Office", options: "-o media=A4" } });
+test("Print in a file's menu asks lp through the helper and shows why it was not printed", async ({ page, request }) => {
+  await request.put("/api/plugins/print/settings", { headers: H, data: { printer: "atlas-test-no-such-printer", copies: 1 } });
+  await put(request, "print-me.txt", "to print\n");
   await page.goto("/");
   await page.getByText("Finish the GW notes.").waitFor();
   await page.keyboard.press("Meta+Shift+f"); // Files (no button of its own since the side panel's one row of tools)
-  await page.locator('.row[data-path$="journal.md"]').first().click({ button: "right" });
+  await page.locator('.row[data-path="print-me.txt"]').click({ button: "right" });
   await page.getByRole("menu").locator('[data-label="Print"]').click();
-  await expect(page.locator(".xterm-rows")).toContainText("lp -d 'Office' -o media=A4 'journal.md'", { timeout: 15_000 });
+  await expect(page.getByText("Not printed")).toBeVisible({ timeout: 20_000 });
+  await expect(page.locator(".xterm-rows")).toHaveCount(0); // nothing typed into a terminal
 });

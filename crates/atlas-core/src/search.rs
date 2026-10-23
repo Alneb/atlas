@@ -1,10 +1,10 @@
-//! Search: filename "contains every token" match over the walk, plus ripgrep for content.
+//! Search: filename "contains every token" match over the walk, plus ripgrep's searcher (its crates, linked in) for content.
 use crate::api::{FileWrite, LineHit, ReplaceResult, SearchResults};
 use crate::config::Config;
 use crate::{files, walk, Error, Result, Workspace};
-use std::io::{BufRead, BufReader};
+use grep_regex::{RegexMatcher, RegexMatcherBuilder};
+use grep_searcher::{sinks::UTF8, BinaryDetection, Searcher, SearcherBuilder};
 use std::path::Path;
-use std::process::{Command, Stdio};
 
 pub const MAX_RESULTS: usize = 200;
 
@@ -34,7 +34,7 @@ pub fn search_with(root: &Path, cfg: &Config, q: &str, o: Opts) -> SearchResults
     // PDF text (pdf_text.rs): the same rg over the extracted-text cache, listed after the notes' hits;
     // papers keep up to a quarter of the results, so a common word in notes cannot crowd them out
     if root.join(crate::pdf_text::CACHE).is_dir() {
-        let cache = run_rg(rg_in(root, cfg, q, o, &["--json", "--max-columns", "400", "--max-columns-preview"], crate::pdf_text::CACHE));
+        let cache = lines_in(root, cfg, q, o, crate::pdf_text::CACHE);
         let pdf: Vec<LineHit> = crate::pdf_text::hits(cache, root).into_iter().take(MAX_RESULTS / 4).collect();
         lines.truncate(MAX_RESULTS - pdf.len());
         lines.extend(pdf);
@@ -76,58 +76,58 @@ pub fn match_files(root: &Path, cfg: &Config, q: &str, agent: bool) -> Vec<Strin
         .collect()
 }
 
-/// `rg` with the pane's options and the workspace ignores; the caller adds its output mode.
-fn rg(root: &Path, cfg: &Config, q: &str, o: Opts, mode: &[&str]) -> Command {
-    rg_in(root, cfg, q, o, mode, ".")
-}
-
-/// `rg` over one folder of the workspace (`.` = all of it, hidden folders skipped as usual).
-fn rg_in(root: &Path, cfg: &Config, q: &str, o: Opts, mode: &[&str], dir: &str) -> Command {
-    let mut cmd = Command::new("rg");
-    cmd.current_dir(root)
-        .args(mode)
-        .arg(if o.case { "--case-sensitive" } else { "--smart-case" })
-        .args(["--max-filesize", "5M"]);
-    if !o.regex {
-        cmd.arg("--fixed-strings");
-    }
-    if o.word {
-        cmd.arg("--word-regexp");
-    }
-    let apart = if o.agent { &[][..] } else { &cfg.editor.index_exclude[..] };
-    for pat in cfg.ignore.iter().chain(apart) {
-        // rg's globs follow gitignore: a leading `/` anchors at the root, as in the config
-        let anchor = if crate::config::is_path_pattern(pat) { "/" } else { "" };
-        let pat = pat.trim_matches('/');
-        cmd.arg("-g").arg(format!("!{anchor}{pat}")).arg("-g").arg(format!("!{anchor}{pat}/**"));
-    }
-    cmd.arg("-e").arg(q).arg("--").arg(dir);
-    cmd
-}
-
-/// Fixed-string, smart-case `rg --json`; empty when rg is not installed.
+/// The lines matching `q` (fixed-string, smart-case unless the options say otherwise), at most [`MAX_RESULTS`].
 pub fn rg_lines(root: &Path, cfg: &Config, q: &str, o: Opts) -> Vec<LineHit> {
-    run_rg(rg(root, cfg, q, o, &["--json", "--max-columns", "400", "--max-columns-preview"]))
+    lines_in(root, cfg, q, o, ".")
 }
 
-fn run_rg(mut cmd: Command) -> Vec<LineHit> {
-    let Ok(mut child) = cmd.stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::null()).spawn() else {
-        return Vec::new();
-    };
+/// ripgrep's own searcher (its crates, in this process: no `rg` to install) over [`text_files`] of one folder.
+fn lines_in(root: &Path, cfg: &Config, q: &str, o: Opts, dir: &str) -> Vec<LineHit> {
+    let Ok(m) = grep_matcher(q, o) else { return Vec::new() }; // a regex being typed
+    let mut searcher = searcher();
     let mut out = Vec::new();
-    if let Some(stdout) = child.stdout.take() {
-        for line in BufReader::new(stdout).lines().map_while(Result::ok) {
-            if let Some(hit) = parse_rg_match(&line) {
-                out.push(hit);
-                if out.len() >= MAX_RESULTS {
-                    break;
-                }
+    for (abs, rel) in text_files(root, cfg, o, dir) {
+        let _ = searcher.search_path(&m, &abs, UTF8(|n, line| {
+            let text: String = line.trim_end().chars().take(400).collect();
+            if !looks_encoded(&text) {
+                out.push(LineHit { path: rel.clone(), line: n as u32, text });
             }
+            Ok(out.len() < MAX_RESULTS)
+        }));
+        if out.len() >= MAX_RESULTS {
+            break;
         }
     }
-    let _ = child.kill();
-    let _ = child.wait();
     out
+}
+
+/// Binary files (a NUL byte) stop the search of that file, as rg does.
+fn searcher() -> Searcher {
+    SearcherBuilder::new().binary_detection(BinaryDetection::quit(0)).line_number(true).build()
+}
+
+/// [`matcher`]'s rules for ripgrep's searcher.
+fn grep_matcher(q: &str, o: Opts) -> Result<RegexMatcher> {
+    let insensitive = !o.case && !q.chars().any(char::is_uppercase);
+    let re = matcher(q, o)?;
+    RegexMatcherBuilder::new().case_insensitive(insensitive).build(re.as_str()).map_err(|e| Error::BadRequest(format!("bad pattern: {e}")))
+}
+
+/// Largest file searched, as rg's `--max-filesize`.
+const MAX_FILE: u64 = 5 << 20;
+
+/// The files searched in `dir` ("." = the workspace, by the walk's ignores and, unless `o.agent`, without the agent's
+/// files; any other folder whole), at most [`MAX_FILE`] long, as (absolute, relative).
+fn text_files<'a>(root: &'a Path, cfg: &'a Config, o: Opts, dir: &str) -> Box<dyn Iterator<Item = (std::path::PathBuf, String)> + 'a> {
+    let files: Box<dyn Iterator<Item = (std::path::PathBuf, String)>> = if dir == "." {
+        Box::new(walk::files(root, cfg).filter(move |(_, rel)| o.agent || !cfg.is_agent_file(rel)))
+    } else {
+        Box::new(walkdir::WalkDir::new(root.join(dir)).into_iter().filter_map(|e| e.ok()).filter(|e| e.file_type().is_file()).filter_map(|e| {
+            let rel = crate::paths::rel_path(root, e.path())?;
+            Some((e.into_path(), rel))
+        }))
+    };
+    Box::new(files.filter(|(abs, _)| std::fs::metadata(abs).is_ok_and(|m| m.len() <= MAX_FILE)))
 }
 
 /// The same match rules as `rg` (which uses this regex engine): literal unless `regex`, whole
@@ -151,14 +151,19 @@ pub fn replace(ws: &Workspace, q: &str, o: Opts, with: &str, only: Option<&[Stri
         return Err(Error::BadRequest("empty search".into()));
     }
     let re = matcher(q, o)?;
-    let out = rg(ws.root(), &ws.config()?, q, o, &["--files-with-matches"])
-        .stdin(Stdio::null())
-        .stderr(Stdio::null())
-        .output()
-        .map_err(|e| Error::BadRequest(format!("ripgrep is needed to replace: {e}")))?;
+    let cfg = ws.config()?;
+    let m = grep_matcher(q, o)?;
+    let mut searcher = searcher();
+    let found: Vec<String> = text_files(ws.root(), &cfg, o, ".")
+        .filter(|(abs, _)| {
+            let mut hit = false;
+            let _ = searcher.search_path(&m, abs, UTF8(|_, _| { hit = true; Ok(false) }));
+            hit
+        })
+        .map(|(_, rel)| rel)
+        .collect();
     let mut res = ReplaceResult::default();
-    for path in String::from_utf8_lossy(&out.stdout).lines() {
-        let path = path.strip_prefix("./").unwrap_or(path);
+    for path in found.iter().map(String::as_str) {
         if only.is_some_and(|o| !o.iter().any(|p| p == path)) {
             continue;
         }
@@ -173,22 +178,6 @@ pub fn replace(ws: &Workspace, q: &str, o: Opts, with: &str, only: Option<&[Stri
         res.files.push(path.to_string());
     }
     Ok(res)
-}
-
-fn parse_rg_match(line: &str) -> Option<LineHit> {
-    let v: serde_json::Value = serde_json::from_str(line).ok()?;
-    if v.get("type")?.as_str()? != "match" {
-        return None;
-    }
-    let data = v.get("data")?;
-    let path = data.pointer("/path/text")?.as_str()?;
-    let path = path.strip_prefix("./").unwrap_or(path).to_string();
-    let line = data.get("line_number")?.as_u64()? as u32;
-    let text = data.pointer("/lines/text")?.as_str()?.trim_end().to_string();
-    if looks_encoded(&text) {
-        return None;
-    }
-    Some(LineHit { path, line, text })
 }
 
 /// A line that is encoded data, not words: an embedded picture's base64 (a drawing's `dataURL`, a note's inline

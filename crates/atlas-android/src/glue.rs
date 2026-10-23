@@ -103,6 +103,20 @@ pub extern "system" fn Java_org_atlas_capture_Core_companionNote(mut env: JNIEnv
     ret(&mut env, move || phone::companion_note(Path::new(&v), &p).to_string())
 }
 
+/// A PDF's marks (phone::pdf_marks): `{note, marks}` or `{error}`.
+#[no_mangle]
+pub extern "system" fn Java_org_atlas_capture_Core_pdfMarks(mut env: JNIEnv, _: JClass, vault: JString, pdf: JString) -> jstring {
+    let (v, p) = (arg(&mut env, &vault), arg(&mut env, &pdf));
+    ret(&mut env, move || phone::pdf_marks(Path::new(&v), &p).to_string())
+}
+
+/// A PDF's marks changed by `ops` (phone::change_pdf_marks): the marks after, or `{error}`.
+#[no_mangle]
+pub extern "system" fn Java_org_atlas_capture_Core_changePdfMarks(mut env: JNIEnv, _: JClass, vault: JString, pdf: JString, ops: JString) -> jstring {
+    let (v, p, o) = (arg(&mut env, &vault), arg(&mut env, &pdf), arg(&mut env, &ops));
+    ret(&mut env, move || phone::change_pdf_marks(Path::new(&v), &p, &o).to_string())
+}
+
 /// The vault's settings with their schema (phone::config): `{config, schema}` or `{error}`.
 #[no_mangle]
 pub extern "system" fn Java_org_atlas_capture_Core_config(mut env: JNIEnv, _: JClass, vault: JString) -> jstring {

@@ -12,6 +12,14 @@ edit: Array<string | null>,
  */
 is_list: Array<boolean>, 
 /**
- * The row's value of the view's `groupBy` (a board column), as text.
+ * Per column: the frontmatter value as written (null when missing or computed), for the cell editors.
  */
-group: string | null, };
+values: Array<unknown>, 
+/**
+ * The row's value of the view's `groupBy` (a board column, a group of rows), as text.
+ */
+group: string | null, 
+/**
+ * The card's picture (the view's `image` property): a workspace path, or a web address.
+ */
+image: string | null, };

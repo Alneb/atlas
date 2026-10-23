@@ -86,7 +86,7 @@ mkdir -p "$work/classes" "$work/res"
 # the native plugins' Java (docs/refactor/REFACTOR-native-plugins.md) compiled with the app, and the list it reads generated
 mapfile -t plugin_dirs < <(bash "$repo/crates/atlas-android/native-plugins.sh" "$work/NativePlugins.java")
 plugin_java=(); for d in "${plugin_dirs[@]+"${plugin_dirs[@]}"}"; do while IFS= read -r f; do plugin_java+=("$f"); done < <(find "$d" -name '*.java'); done
-javac -nowarn -source 17 -target 17 -cp "$jar" -d "$work/classes" "$repo"/crates/atlas-android/android/java/org/atlas/capture/*.java "$work/NativePlugins.java" "${plugin_java[@]+"${plugin_java[@]}"}"
+javac -nowarn -source 17 -target 17 -cp "$jar" -d "$work/classes" "$repo"/crates/atlas-android/android/java/org/atlas/capture/*.java "$repo"/crates/atlas-android/android/java/org/atlas/notepad/*.java "$work/NativePlugins.java" "${plugin_java[@]+"${plugin_java[@]}"}"
 "$bt/d8" --release --min-api $api --lib "$jar" --output "$work" $(find "$work/classes" -name '*.class')
 cp -r "$repo/crates/atlas-android/android/res/." "$work/res/"
 cargo run -q -p atlas-android --bin android-res -- "$work/res"

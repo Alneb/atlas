@@ -15,6 +15,9 @@
   import { pluginMenu } from "../lib/plugin-menus";
   import { openWith } from "../lib/actions";
   import { on } from "../lib/bus";
+  import { api } from "../lib/api";
+  import { explorerGo, paneFocus } from "../lib/registry";
+  import { shownEntries, toggleShowAll, treeView } from "../lib/tree-view.svelte";
   import { toast } from "../lib/state.svelte";
   import { sources, sourceOf, joinPath, parentPath, vaultSource, type Entry } from "../lib/file-sources.svelte";
   import { Browse, type Loc } from "../lib/explorer/browse.svelte";
@@ -43,7 +46,6 @@
     left: () => { editing = null; confirm = null; },
   });
 
-  let hidden = $state(false);
   // List or Thumbnails: remembered in this browser (one choice for every explorer tab)
   const VIEW = "atlas.explorer.view";
   let view = $state<"list" | "thumbs">((() => { try { return localStorage.getItem(VIEW) === "thumbs" ? "thumbs" : "list"; } catch { return "list"; } })());
@@ -69,9 +71,15 @@
     const dir = (e: Entry) => (e.kind === "dir" ? 0 : 1);
     const key = sort.by === "name" ? (a: Entry, c: Entry) => collator.compare(a.name, c.name)
       : sort.by === "size" ? (a: Entry, c: Entry) => (a.size ?? 0) - (c.size ?? 0) : (a: Entry, c: Entry) => (a.modified ?? 0) - (c.modified ?? 0);
-    return b.entries.filter((e) => hidden || !e.name.startsWith(".")).sort((a, c) => dir(a) - dir(c) || (sort.desc ? -1 : 1) * key(a, c) || collator.compare(a.name, c.name));
+    return [...shownEntries(b.entries)].sort((a, c) => dir(a) - dir(c) || (sort.desc ? -1 : 1) * key(a, c) || collator.compare(a.name, c.name));
   });
-  const sel = $derived(Math.max(0, shown.findIndex((e) => e.name === b.selName)));
+  // the entry selected gone (deleted, moved): its neighbour takes the place, not the first row
+  let lastSel = 0;
+  const sel = $derived.by(() => {
+    const i = shown.findIndex((e) => e.name === b.selName);
+    if (i >= 0) lastSel = i;
+    return i >= 0 ? i : Math.max(0, Math.min(lastSel, shown.length - 1));
+  });
   const current = $derived(shown[sel] as Entry | undefined);
   const crumbs = $derived.by(() => {
     const abs = loc.path.startsWith("/"), parts = loc.path.split("/").filter(Boolean);
@@ -102,6 +110,9 @@
 
   /** The mouse's side buttons and a swipe over the explorer (lib/nav-input.ts `atlas-nav`): its own folders first. */
   let rootEl = $state<HTMLDivElement>();
+  // a long path in a narrow pane: the crumbs scrolled to their end, so the folder shown is the one in view
+  let crumbsEl = $state<HTMLDivElement>();
+  $effect(() => { void crumbs; const el = crumbsEl; if (el) queueMicrotask(() => (el.scrollLeft = el.scrollWidth)); });
   $effect(() => {
     const el = rootEl;
     if (!el) return;
@@ -118,7 +129,11 @@
   // the tab keeps where it is (a restored layout opens there) and says it in its title
   $effect(() => {
     const { source, place, path } = loc, title = path ? `${basename(path)}${remote ? ` (${placeTitle})` : ""}` : placeTitle;
-    untrack(() => { panel.updateParameters({ ...spec, source, place, path }); panel.setTitle(title); });
+    untrack(() => {
+      panel.updateParameters({ ...spec, source, place, path }); panel.setTitle(title);
+      // in front, in the vault: the sidebar tree shows this folder as where you are
+      if (source === vaultSource.id && panel.isActive) window.dispatchEvent(new CustomEvent("atlas-active-file", { detail: path }));
+    });
   });
   // a plugin's source can arrive after the tab (a restored layout): load once it is there
   $effect(() => { if (src && b.mode === "nosource") untrack(() => void b.go(b.loc, { record: false })); });
@@ -167,7 +182,7 @@
     if (b.mode !== "ready" || editing || typing) return;
     const n = shown.length, cur = current;
     const action = explorerKey(e, {
-      travel: (w) => b.travel(w), up: () => b.up(), typePath: () => (typing = true), toggleHidden: () => (hidden = !hidden),
+      travel: (w) => b.travel(w), up: () => b.up(), typePath: () => (typing = true), toggleHidden: toggleShowAll,
       move: (to) => { b.selName = shown[Math.max(0, Math.min(n - 1, to))]?.name ?? null; },
       enter: () => cur && enter(cur), reload: () => b.reload(),
       rename: () => { if (cur && src?.rename) rename(cur); }, remove: () => { if (cur) run(act.askDelete, cur); },
@@ -212,15 +227,36 @@
     else run(act.dropRemote, d.remote, dir);
   }
 
+  /** The nearest folder above `path` that is still there (the folder shown was moved or deleted elsewhere). */
+  async function nearestThere(path: string): Promise<string> {
+    for (let p = parentPath(path); ; p = parentPath(p)) if (!p || (await api.exists(p).catch(() => false))) return p;
+  }
+
   onMount(() => {
-    void b.go(b.loc, { record: false }).then(() => { if (!b.gone && !document.activeElement?.closest(".explorer")) focusList(); });
-    // the vault's own folders follow the disk (another program, the sidebar): the folder shown is read again
+    // svelte-ignore state_referenced_locally -- the entry asked for when the tab opened
+    void b.go(b.loc, { record: false, keep: spec.select }).then(() => { if (!b.gone && !document.activeElement?.closest(".explorer")) focusList(); });
+    // asked for again (Show in the explorer, a breadcrumb): there, the entry selected, the keyboard here
+    explorerGo.set(panel.id, (path, select) => void b.go({ ...b.loc, path }, { keep: select }).then(focusList));
+    paneFocus.set(panel.id, focusList);
+    // the vault's own folders follow the disk (another program, the sidebar): the folder shown is read again; the
+    // folder itself (or one above it) renamed or deleted → the nearest one still there
     let t: ReturnType<typeof setTimeout> | undefined;
     const off = on("fs", (e) => {
-      if (!isVault || !e.paths.some((p) => parentPath(p) === b.loc.path)) return;
-      clearTimeout(t); t = setTimeout(() => void b.reload(), 300);
+      if (!isVault) return;
+      const here = b.loc.path;
+      if (here && e.paths.some((p) => p === here || here.startsWith(`${p}/`))) {
+        clearTimeout(t);
+        t = setTimeout(async () => {
+          if (await api.exists(here).catch(() => true)) return void b.reload();
+          const to = await nearestThere(here);
+          await b.go({ ...b.loc, path: to }, { record: false });
+          say(`“${basename(here)}” was moved or deleted; this is the folder above it.`, "bad");
+        }, 300);
+      } else if (e.paths.some((p) => parentPath(p) === here)) {
+        clearTimeout(t); t = setTimeout(() => void b.reload(), 300);
+      }
     });
-    return () => { b.dispose(); clearTimeout(t); off(); };
+    return () => { b.dispose(); clearTimeout(t); off(); explorerGo.delete(panel.id); paneFocus.delete(panel.id); };
   });
 
   const focusInput = (el: HTMLInputElement, select: [number, number] | null) => { queueMicrotask(() => { el.focus(); if (select) el.setSelectionRange(...select); else el.select(); }); };
@@ -239,18 +275,18 @@
       <button class="icon-btn" title="The folder above (Backspace)" aria-label="The folder above" disabled={b.atTop} onclick={() => b.up()}><Icon name="arrow-up" size={14} /></button>
       {#if typing}
         <input class="path" value={loc.path} aria-label="Go to a folder" use:focusInput={null}
-          onkeydown={(e) => { e.stopPropagation(); if (e.key === "Enter") { typing = false; go({ ...loc, path: (e.currentTarget as HTMLInputElement).value.trim() }); } else if (e.key === "Escape") { typing = false; listEl?.focus(); } }}
+          onkeydown={(e) => { e.stopPropagation(); if (e.key === "Enter") { typing = false; const v = (e.currentTarget as HTMLInputElement).value.trim(); go({ ...loc, path: isVault ? v.replace(/^\/+|\/+$/g, "") : v }); } else if (e.key === "Escape") { typing = false; listEl?.focus(); } }}
           onblur={() => (typing = false)} />
       {:else}
         <!-- svelte-ignore a11y_click_events_have_key_events (Ctrl+L, from the list) -->
-        <div class="crumbs" title="Click the empty space (or Ctrl+L) to type a path" onclick={() => (typing = true)}>
+        <div class="crumbs" bind:this={crumbsEl} title="Click the empty space (or Ctrl+L) to type a path" onclick={() => (typing = true)}>
           {#each crumbs as c, i (c.path)}
             {#if i > 1 || (i === 1 && crumbs[0].path !== "/")}<span class="sep">/</span>{/if}
             <button onclick={(e) => { e.stopPropagation(); go({ ...loc, path: c.path }); }}>{c.label}</button>
           {/each}
         </div>
       {/if}
-      <button class="btn" class:on={hidden} aria-pressed={hidden} title="Files whose name starts with a dot (Ctrl+H)" onclick={() => (hidden = !hidden)}>Hidden</button>
+      <button class="btn" class:on={treeView.showAll} aria-pressed={treeView.showAll} title="Hidden files: dotfiles, companions (a mail's files, a PDF's ink), notes with shown: false — the same in the sidebar tree (Ctrl+H)" onclick={toggleShowAll}>Hidden</button>
       <div class="seg" role="group" aria-label="View">
         <button class="icon-btn" class:on={view === "list"} aria-pressed={view === "list"} title="List: names, sizes and dates" aria-label="List" onclick={() => setView("list")}><Icon name="rows" size={14} /></button>
         <button class="icon-btn" class:on={view === "thumbs"} aria-pressed={view === "thumbs"} title="Thumbnails: pictures, the first page of PDFs" aria-label="Thumbnails" onclick={() => setView("thumbs")}><Icon name="grid" size={14} /></button>
@@ -354,7 +390,8 @@
   .icon-btn:hover:not(:disabled) { background: var(--bg-hover); color: var(--text); }
   .icon-btn:disabled { opacity: .35; cursor: default; }
   .flip { display: inline-flex; transform: scaleX(-1); }
-  .crumbs { flex: 1; min-width: 0; display: flex; align-items: center; overflow: hidden; white-space: nowrap; font-family: var(--font-mono); font-size: .95em; border-radius: var(--radius-sm); padding: 0 4px; min-height: 26px; cursor: text; }
+  .bar > :not(.crumbs) { flex: none; }
+  .crumbs { flex: 1; min-width: 0; display: flex; align-items: center; overflow-x: auto; scrollbar-width: none; white-space: nowrap; font-family: var(--font-mono); font-size: .95em; border-radius: var(--radius-sm); padding: 0 4px; min-height: 26px; cursor: text; }
   .crumbs:hover { background: var(--bg-hover); }
   .crumbs button { padding: 2px 3px; border-radius: var(--radius-sm); color: var(--text-muted); flex: none; }
   .crumbs button:hover { color: var(--text); background: var(--bg-active); }
@@ -418,7 +455,9 @@
   :global(.x-row.has-thumb) .pic img { opacity: 1; background: var(--bg-elev); }
   @container (max-width: 820px) { .head, .x-row { grid-template-columns: minmax(0, 1fr) 6em; } .when { display: none; } .head .modified { display: none; } }
   .places-btn { display: none; }
-  @container (max-width: 620px) { .places-btn { display: inline-flex; } }
+  @container (max-width: 700px) { .places-btn { display: inline-flex; } }
+  /* a narrow explorer: the buttons on one line, the path on its own line under them (it was squeezed to nothing) */
+  @container (max-width: 700px) { .bar { flex-wrap: wrap; row-gap: 4px; } .crumbs { order: 10; flex-basis: 100%; } }
   /* a finger's targets: rows and buttons ~40 px; the row's hover buttons never show (long press: its menu) */
   @media (pointer: coarse) {
     .x-row { min-height: 44px; }

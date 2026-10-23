@@ -22,6 +22,9 @@ export function cellsOf(line: string): string[] {
   return out;
 }
 
+/** What in a drawn cell is clicked for itself, not to edit the cell. */
+const LIVE_IN_CELL = "a, button, input, label, summary";
+
 const rowOf = (cells: string[]) => `| ${cells.join(" | ")} |`;
 /** What a cell may hold: one line, its pipes escaped. */
 const clean = (t: string) => t.replace(/\r?\n/g, " ").replace(/(?<!\\)\|/g, "\\|").trim();
@@ -93,6 +96,8 @@ const now = (view: EditorView, table: HTMLElement) => tableAt(view.state.doc, vi
 
 function cellEditable(view: EditorView, table: HTMLElement, cell: HTMLElement, r: number, c: number) {
   cell.addEventListener("mousedown", (e) => {
+    // a link, a checkbox or a button in the cell does its own thing (the editor's link clicks: lib/editor/link-clicks.ts)
+    if (!cell.isContentEditable && (e.button !== 0 || (e.target as Element | null)?.closest?.(LIVE_IN_CELL))) return;
     e.stopPropagation(); // the editor would move its caret into the table and show its markdown
     if (cell.isContentEditable) return;
     const t = now(view, table);
@@ -184,14 +189,17 @@ function controls(view: EditorView, table: HTMLElement) {
     if (!cell) return;
     const tr = cell.parentElement as HTMLTableRowElement, rows = [...table.querySelectorAll("tr")];
     at = { r: rows.indexOf(tr), c: [...tr.children].indexOf(cell) };
-    const box = (table.parentElement ?? table).getBoundingClientRect(), cb = cell.getBoundingClientRect();
+    // over the hovered cell's own edges (its row's left, its column's top right), so no band is kept for them
+    const b = box.getBoundingClientRect(), cb = cell.getBoundingClientRect(), tb = table.getBoundingClientRect();
     minusRow.hidden = at.r === 0;
-    Object.assign(minusRow.style, { top: `${cb.top - box.top + cb.height / 2 - 9}px` });
-    Object.assign(minusCol.style, { left: `${cb.left - box.left + cb.width / 2 - 9}px` });
+    Object.assign(minusRow.style, { top: `${cb.top - b.top + cb.height / 2 - 7}px`, left: `${tb.left - b.left - 7}px` }); // on the frame's left border
+    Object.assign(minusCol.style, { top: `${tb.top - b.top + 1}px`, left: `${cb.right - b.left - 16}px` });
   });
-  // the table in a box of its own, which holds the controls (a button cannot sit in a <table>)
+  // the framed table in a box of its own, which holds the controls (a button cannot sit in a <table>, and the frame
+  // scrolls a wide table, which would clip them)
+  const framed = table.closest<HTMLElement>(".table-wrap") ?? table;
   const box = document.createElement("div");
   box.className = "table-edit-box";
-  table.before(box);
-  box.append(table, minusRow, minusCol, wrap);
+  framed.before(box);
+  box.append(framed, minusRow, minusCol, wrap);
 }

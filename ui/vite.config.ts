@@ -4,7 +4,7 @@ import { cpSync, existsSync, createReadStream } from "node:fs";
 import { join, resolve, normalize } from "node:path";
 
 // Offline app: libraries that fetch assets at runtime get them from the app itself — from
-// node_modules in dev, copied into dist on build. pdf.js: cMaps / fonts / wasm under /pdfjs/;
+// node_modules in dev, copied into dist on build. pdf.js (the backup PDF engine): cMaps / fonts / wasm under /pdfjs/;
 // Excalidraw: its hand-drawn fonts under /excalidraw/ (window.EXCALIDRAW_ASSET_PATH).
 function nodeAssets(name: string, mount: string, pkgDir: string, dirs: string[]): Plugin {
   const root = resolve(__dirname, "node_modules", pkgDir);

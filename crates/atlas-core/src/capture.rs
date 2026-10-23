@@ -18,8 +18,8 @@ pub const PENDING_DIR: &str = ".atlas/pending";
 
 /// This device's file in [`PENDING_DIR`]: its host name, letters and digits only.
 fn pending_file(root: &Path) -> std::path::PathBuf {
-    let host = std::fs::read_to_string("/proc/sys/kernel/hostname").or_else(|_| std::env::var("HOSTNAME")).unwrap_or_default();
-    let host: String = host.trim().chars().filter(|c| c.is_ascii_alphanumeric() || *c == '-').collect();
+    let host = crate::platform::proc::hostname();
+    let host: String = host.chars().filter(|c| c.is_ascii_alphanumeric() || *c == '-').collect();
     root.join(PENDING_DIR).join(format!("{}.jsonl", if host.is_empty() { "device" } else { &host }))
 }
 

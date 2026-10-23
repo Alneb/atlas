@@ -35,9 +35,10 @@ pub fn env(root: &Path, id: &str) -> Vec<(&'static str, String)> {
     let mut out = vec![("ATLAS_PLUGIN_ID", id.to_string())];
     match python_dir(root) {
         Ok(dir) => {
-            let rest = std::env::var("PYTHONPATH").unwrap_or_default();
-            let dir = dir.to_string_lossy().into_owned();
-            out.push(("PYTHONPATH", if rest.is_empty() { dir } else { format!("{dir}:{rest}") }));
+            // the OS's own list separator (`;` on Windows)
+            let rest = std::env::var_os("PYTHONPATH").map(|r| std::env::split_paths(&r).collect::<Vec<_>>()).unwrap_or_default();
+            let all = std::env::join_paths(std::iter::once(dir).chain(rest)).unwrap_or_default();
+            out.push(("PYTHONPATH", all.to_string_lossy().into_owned()));
         }
         Err(e) => eprintln!("atlas: the plugins' Python library could not be written: {e}"),
     }

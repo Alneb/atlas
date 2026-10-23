@@ -29,6 +29,10 @@ final class Core {
     static native String config(String vault);
     /** phone::companion_note: a file's one note, found (none made) — `{path, created}` or `{error}`. */
     static native String companionNote(String vault, String file);
+    /** A PDF's marks from its note's pdf-marks block: {note, marks} or {error} (core pdf_marks.rs). */
+    static native String pdfMarks(String vault, String pdf);
+    /** ops: a JSON array of {op:"put",mark} | {op:"remove",id}; the marks after, or {error}. */
+    static native String changePdfMarks(String vault, String pdf, String ops);
     /** The vault's settings (the whole config, JSON) saved as PUT /api/config does: {} or {error}. */
     static native String configSave(String vault, String config);
     /** The full app's core: Atlas's server for the vault, inside the app (crates/atlas-android/src/serve.rs) → {port, open} or {error}; `open` a one-time address (the core is locked to this app);

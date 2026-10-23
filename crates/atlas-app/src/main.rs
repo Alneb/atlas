@@ -3,6 +3,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod browser;
+#[cfg(target_os = "linux")]
 mod web_filters;
 #[cfg(target_os = "linux")]
 mod webtab;
@@ -14,6 +15,9 @@ use tauri::{Manager, WebviewUrl, WebviewWindowBuilder};
 /// turning it off everywhere makes scrolling sluggish (it did on an AMD 680M). Setting
 /// `ui.gpu_rendering`; an explicit env var wins. Must run before any thread exists.
 fn webkit_rendering(root: &std::path::Path) {
+    if !cfg!(target_os = "linux") {
+        return; // a WebKitGTK setting
+    }
     use atlas_core::config::{Config, GpuRendering};
     if std::env::var_os("WEBKIT_DISABLE_DMABUF_RENDERER").is_some() {
         return;
@@ -39,10 +43,7 @@ fn vault_to_open(asked: Option<PathBuf>) -> anyhow::Result<PathBuf> {
     if let Some(known) = vaults::to_open(asked, &vaults::list_file()) {
         return Ok(known);
     }
-    let data = std::env::var_os("XDG_DATA_HOME")
-        .map(PathBuf::from)
-        .unwrap_or_else(|| PathBuf::from(std::env::var_os("HOME").unwrap_or_default()).join(".local/share"));
-    let welcome = data.join("atlas/Welcome");
+    let welcome = atlas_core::platform::dirs::atlas(atlas_core::platform::dirs::Base::Data).join("Welcome");
     std::fs::create_dir_all(&welcome)?;
     let home = welcome.join("Home.page");
     if !home.exists() {
@@ -523,8 +524,8 @@ fn web_link(app: &tauri::AppHandle, to: tauri::Url, vault: &std::path::Path) {
 }
 
 fn open_outside(url: &str) {
-    if let Err(e) = std::process::Command::new("xdg-open").arg(url).spawn() {
-        eprintln!("atlas-app: could not open {url}: {e}");
+    if let Err(e) = atlas_core::platform::open::url(url) {
+        eprintln!("atlas-app: {e}");
     }
 }
 

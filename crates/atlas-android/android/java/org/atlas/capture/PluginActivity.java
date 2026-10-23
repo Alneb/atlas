@@ -28,7 +28,7 @@ public final class PluginActivity extends Activity {
         Shell.edgeToEdge(this, look);
         String id = getIntent().getStringExtra(ID), path = getIntent().getStringExtra(PATH), asked = getIntent().getStringExtra(VAULT);
         String vault = asked != null ? asked : new Vaults(this).current();
-        NativePlugin plugin = NativePlugins.byId(id);
+        NativePlugin plugin = Natives.byId(id);
         FrameLayout root = new FrameLayout(this);
         root.setBackgroundColor(look.bg);
         Shell.padForBars(root);

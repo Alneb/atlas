@@ -380,8 +380,14 @@ fn eval_scoped(e: &Expr, ctx: &dyn Context, scope: Option<&Val>) -> Val {
         Expr::Binary(op, a, b) => eval_binary(op, a, b, ctx, scope),
         Expr::Member(obj, name) => eval_member(obj, name, ctx, scope),
         Expr::Index(obj, idx) => {
-            let o = eval_scoped(obj, ctx, scope);
             let i = eval_scoped(idx, ctx, scope);
+            // `note["a key"]`: Obsidian's way to name a property that is not an identifier
+            if let (Expr::Ident(root), Val::Str(k)) = (obj.as_ref(), &i) {
+                if root == "note" {
+                    return ctx.property(k);
+                }
+            }
+            let o = eval_scoped(obj, ctx, scope);
             match (&o, &i) {
                 (Val::Map(m), Val::Str(k)) => m.get(k).cloned().unwrap_or(Val::Null),
                 (Val::List(l), Val::Num(n)) => l.get(*n as usize).cloned().unwrap_or(Val::Null),
@@ -571,6 +577,16 @@ fn eval_call(callee: &Expr, args: &[Expr], ctx: &dyn Context, scope: Option<&Val
                     _ => Val::Bool(false),
                 }
             }
+            // Obsidian's list tests over several values (the filter editor's "contains any / all of")
+            "containsAny" | "containsAll" => {
+                let wanted: Vec<Val> = args.iter().map(|e| eval_scoped(e, ctx, scope)).collect();
+                let has = |w: &Val| match &recv {
+                    Val::List(l) => l.iter().any(|x| x.eq_val(w)),
+                    Val::Str(s) => s.to_lowercase().contains(&to_plain(w).to_lowercase()),
+                    _ => false,
+                };
+                Val::Bool(if method == "containsAny" { wanted.iter().any(has) } else { wanted.iter().all(has) })
+            }
             "startsWith" => Val::Bool(to_plain(&recv).starts_with(&to_plain(&arg0.unwrap_or(Val::Null)))),
             "endsWith" => Val::Bool(to_plain(&recv).ends_with(&to_plain(&arg0.unwrap_or(Val::Null)))),
             // `.format("YY.MM-DD")` on a date gives that string, as in Obsidian
@@ -687,6 +703,9 @@ mod tests {
         assert!(run("status.startsWith(\"act\")", &ctx).truthy());
         assert!(run("tags.contains(\"a\")", &ctx).truthy());
         assert!(!run("tags.isEmpty()", &ctx).truthy());
+        assert!(run("tags.containsAny(\"x\", \"b\")", &ctx).truthy() && !run("tags.containsAny(\"x\")", &ctx).truthy());
+        assert!(run("note[\"status\"] == \"active\"", &ctx).truthy());
+        assert!(run("tags.containsAll(\"a\", \"b\")", &ctx).truthy() && !run("tags.containsAll(\"a\", \"x\")", &ctx).truthy());
     }
 
     #[test]

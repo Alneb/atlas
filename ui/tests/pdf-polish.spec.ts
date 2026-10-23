@@ -83,18 +83,21 @@ test("dark pages toggle (D) and stay on for the next PDF", async ({ page }) => {
   expect(await page.evaluate(() => localStorage.getItem("atlas.pdf.dark"))).toBe("1");
 });
 
-test("internal links (references, equations) jump inside the paper", async ({ page }) => {
+// PDFium misses a named destination that sits under a name tree whose root has both /Names and /Kids, as this thesis's
+// does (1 of 74 papers): its links resolve nowhere. Internal links are checked on a generated PDF in pdf-reader.spec.ts;
+// docs/refactor/REFACTOR-pdfium-reader.md "drawbacks".
+test.fixme("internal links (references, equations) jump inside the paper", async ({ page }) => {
   const pane = await openPdf(page, LINKED_PDF);
   // page 20 of the thesis carries 20 link annotations (mutool show … pages/20/Annots)
   await pane.locator(".page-in").fill("20"); await pane.locator(".page-in").press("Enter");
-  const link = pane.locator('.page[data-page-number="20"] .annotationLayer .linkAnnotation > a[href^="#"]').first();
+  const link = pane.locator('.page[data-page-number="20"] .linkLayer > a[href="#"]').first();
   await expect(link).toBeAttached({ timeout: 10000 });
   const before = await pageNo(pane);
   await link.click();
   await expect.poll(() => pageNo(pane)).not.toBe(before);
 });
 
-test("an ink stroke can be undone (Ctrl+Z) and a selected annotation deleted (Delete)", async ({ page }) => {
+test("a pen stroke is saved into the PDF's note as it is made, and Ctrl+Z takes it back", async ({ page }) => {
   const pane = await openPdf(page);
   const pg = pane.locator(".pdfViewer .page").first();
   const box = (await pg.boundingBox())!;
@@ -104,29 +107,22 @@ test("an ink stroke can be undone (Ctrl+Z) and a selected annotation deleted (De
     for (let i = 1; i <= 12; i++) await page.mouse.move(box.x + box.width * (0.3 + i * 0.02), y0 + dy + (i % 2) * 8);
     await page.mouse.up();
   };
-  const ink = pane.locator(".inkEditor");
+  // the saved ink is drawn from the note's marks over the page (lib/pdf-marks.ts)
+  const ink = pane.locator('.page[data-page-number="1"] svg.atlas-marks [data-kind="ink"]');
   await pane.getByTitle("Pen / stylus (P)").click();
   await stroke(0);
-  await pane.getByTitle("Select (V)").click(); // commits the stroke into an editor
-  await expect(ink).toHaveCount(1);
-  await expect(pane.locator(".title .dot")).toHaveCount(1); // dirty
+  await pane.getByTitle("Select (V)").click(); // leaving the pen saves what it holds
+  await expect(ink).toHaveCount(1, { timeout: 20000 });
   await page.keyboard.press("Control+z");
-  await expect(ink).toHaveCount(0);
-  await pane.getByTitle("Pen / stylus (P)").click();
-  await stroke(60);
-  await pane.getByTitle("Select (V)").click();
-  await expect(ink).toHaveCount(1);
-  await pane.getByTitle("Pen / stylus (P)").click(); // editors are selectable in their own mode
-  await ink.first().click();
-  await page.keyboard.press("Delete");
-  await expect(ink).toHaveCount(0);
+  await expect(pane.locator(".status")).toContainText("Mark taken back");
+  await expect(ink).toHaveCount(0, { timeout: 20000 });
 });
 
-test("pdf.js's stylesheet stays inside the viewer: the collapsed left bar keeps its width", async ({ page }) => {
+test("the reader's styles stay inside the viewer: the collapsed left bar keeps its width", async ({ page }) => {
   const pane = await openPdf(page);
-  // still styled by pdf.js inside the viewer
+  // the reader's own text layer
   await expect(pane.locator(".textLayer").first()).toHaveCSS("position", "absolute");
-  // its global `.sidebar { min-width: 180px }` widened the collapsed bar (2026-10-14)
+  // a global `.sidebar { min-width: 180px }` (pdf.js's, once) widened the collapsed bar
   const bar = page.getByTestId("sidebar");
   if ((await bar.getAttribute("class"))?.includes("wide")) await page.getByTestId("sidebar-toggle").click();
   await page.mouse.move(900, 400);

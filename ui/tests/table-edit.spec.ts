@@ -59,3 +59,15 @@ test("+ column adds one, − removes a row, the rest of the note untouched", asy
   expect(text.startsWith("# Tabled\n\nbefore\n\n| Name")).toBe(true);
   expect(text.endsWith("|\n\nafter\n")).toBe(true);
 });
+
+test("a link in a table cell opens; the rest of the cell edits; `\\|` is the alias's bar", async ({ page, request }) => {
+  await request.put("/api/file", { headers: H, data: { path: "notes/cell-target.md", text: "# Cell target\n\nreached from a table\n" } });
+  const table = await open(page, request, "# Tabled\n\n| Paper | Notes |\n| --- | --- |\n| [[cell-target\\|the target]] | read it |\n");
+  const link = table.locator("a.internal-link", { hasText: "the target" });
+  await expect(link).not.toHaveClass(/is-unresolved/); // the backslash is not part of the target
+  await table.locator("td", { hasText: "read it" }).click();
+  await expect(table.locator(".editing")).toHaveText("read it"); // a plain cell still edits
+  await page.keyboard.press("Escape");
+  await link.click();
+  await expect(page.getByText("reached from a table").first()).toBeVisible(); // the linked note opened
+});

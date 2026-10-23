@@ -199,11 +199,10 @@ fn make(p: &mut Place, id: &str) -> WebView {
     view
 }
 
-/// The web tabs' data and cache folders, beside the app's own (XDG).
+/// The web tabs' data and cache folders, beside the app's own.
 fn context() -> WebContext {
-    let home = std::path::PathBuf::from(std::env::var_os("HOME").unwrap_or_default());
-    let base = |var: &str, dflt: &str| std::env::var_os(var).map(std::path::PathBuf::from).unwrap_or_else(|| home.join(dflt)).join("atlas/web-tabs");
-    let (data, cache) = (base("XDG_DATA_HOME", ".local/share"), base("XDG_CACHE_HOME", ".cache"));
+    use atlas_core::platform::dirs::{atlas, Base};
+    let (data, cache) = (atlas(Base::Data).join("web-tabs"), atlas(Base::Cache).join("web-tabs"));
     let manager = WebsiteDataManager::builder()
         .base_data_directory(data.to_string_lossy().as_ref())
         .base_cache_directory(cache.to_string_lossy().as_ref())

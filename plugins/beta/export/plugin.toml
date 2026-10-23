@@ -1,0 +1,64 @@
+# Export a note to LaTeX and PDF: pandoc writes the .tex, latexmk compiles that same file, a paper linked as [[citekey]]
+# becomes \cite{citekey} with the bibliography from the vault's .bib (biblatex + biber). Needs pandoc and a TeX
+# distribution with latexmk on the machine running Atlas. Copy into a vault's .atlas/plugins/.
+title = "Export"
+description = "a note to LaTeX and PDF (pandoc + latexmk), papers cited from the vault's .bib"
+icon = "file"
+version = "0.1.0"
+api = 9
+
+[helper]
+run = "python3 -u \"$ATLAS_PLUGIN_DIR/helper.py\""
+
+[[setting]]
+key = "folder"
+label = "Exports folder"
+kind = "text"
+default = "exports"
+hint = "where the .tex and .pdf go, under the note's own path (notes/a/x.md → exports/notes/a/x.pdf)"
+
+[[setting]]
+key = "engine"
+label = "LaTeX engine"
+kind = "choice"
+choices = ["lualatex", "xelatex", "pdflatex"]
+default = "lualatex"
+hint = "what latexmk compiles with; lualatex and xelatex read any Unicode in the note"
+
+[[setting]]
+key = "bibliography"
+label = "Bibliography"
+kind = "text"
+hint = "the .bib the citations come from; empty: refs/refs.bib, else the one .bib at the top or in refs/"
+group = "LaTeX"
+
+[[setting]]
+key = "style"
+label = "Citation style"
+kind = "text"
+default = "numeric-comp"
+hint = "a biblatex style: numeric-comp, authoryear, phys, alphabetic…"
+group = "LaTeX"
+
+[[setting]]
+key = "fontsize"
+label = "Font size"
+kind = "choice"
+choices = ["10pt", "11pt", "12pt"]
+default = "11pt"
+group = "LaTeX"
+
+[[setting]]
+key = "lang"
+label = "Language"
+kind = "text"
+default = "en"
+hint = "the document's language (hyphenation, \"Contents\", \"References\"): en, fr, es…"
+group = "LaTeX"
+
+[[setting]]
+key = "preamble"
+label = "Extra preamble"
+kind = "text"
+hint = "a .tex file of the vault added to every export's preamble (packages, macros): e.g. templates/preamble.tex"
+group = "LaTeX"

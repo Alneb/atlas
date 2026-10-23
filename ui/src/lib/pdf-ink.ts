@@ -1,27 +1,18 @@
 // A PDF's ink on the desktop's PDF pane (docs/design/DESIGN-libraries-everywhere.md, "PDF notes: one store"). Every device writes a PDF's ink to its companion drawing
 // `x.pdf.excalidraw` (the PDF is never modified): a frame per page holding a picture tagged `customData.atlasPage =
 // { file, page }` (drawn from the PDF, never stored) and the ink over it (InkStore.java, the Boox's Notepad). Here each
-// page frame's ink is exported without the picture — a see-through SVG — and laid over pdf.js's page, redrawn when the
-// drawing changes on disk (another device's save). Excalidraw is loaded only for a PDF that has a companion drawing.
+// page frame's ink is exported without the picture — a see-through SVG — and laid over the reader's page (in the box
+// that turns with it, lib/pdf-reader.ts), redrawn when the drawing changes on disk (this pane's marks, another
+// device's save). Excalidraw is loaded only for a PDF that has a companion drawing.
 import { api } from "./api";
 import { exists } from "./vault-files";
 import { on } from "./bus";
+import { pageFrames } from "./pdf-ink-scene";
 
 type El = { id: string; type: string; frameId?: string | null; isDeleted?: boolean; customData?: { atlasPage?: { page?: number } } };
 
 /** The companion drawing of `pdf`: `x.pdf` → `x.pdf.excalidraw`. */
 export const inkPathOf = (pdf: string): string => `${pdf}.excalidraw`;
-
-/** Page number → the ids of its frame and of the PDF's picture in it, from the drawing's `atlasPage` pictures. */
-export function pageFrames(elements: readonly El[]): Map<number, { frame: string; picture: string }> {
-  const out = new Map<number, { frame: string; picture: string }>();
-  for (const e of elements) {
-    const n = e.customData?.atlasPage?.page;
-    if (e.isDeleted || e.type !== "image" || !n || !e.frameId) continue;
-    out.set(n, { frame: e.frameId, picture: e.id });
-  }
-  return out;
-}
 
 /** Page n's ink as a see-through SVG (an object URL), or null when that page has none. */
 async function pageInk(scene: { elements: readonly El[]; appState?: object; files?: object }, n: number): Promise<string | null> {
@@ -44,15 +35,16 @@ async function pageInk(scene: { elements: readonly El[]; appState?: object; file
   return URL.createObjectURL(new Blob([svg.outerHTML], { type: "image/svg+xml" }));
 }
 
-/** The companion drawing's ink over the pages of the PDF in `container` (pdf.js's `.page[data-page-number]`), each page
- *  drawn when pdf.js draws it; follows the drawing's saves. Returns the teardown. */
-export function attachPdfInk(container: HTMLElement, pdf: string, onPage: (handler: (n: number) => void) => () => void): () => void {
+/** The companion drawing's ink over the pages of the PDF in `container` (`.page[data-page-number]`), each page drawn
+ *  when the reader draws it; follows the drawing's saves. `reload` reads it again at once (a mark just saved). */
+export function attachPdfInk(container: HTMLElement, pdf: string, onPage: (handler: (n: number) => void) => () => void): { stop(): void; reload(): void } {
   const path = inkPathOf(pdf);
   let scene: { elements: readonly El[]; appState?: object; files?: object } | null = null;
   const urls = new Map<number, string>();
   let gone = false;
   const place = async (n: number) => {
-    const div = container.querySelector<HTMLElement>(`.page[data-page-number="${n}"]`);
+    const page = container.querySelector<HTMLElement>(`.page[data-page-number="${n}"]`);
+    const div = page?.querySelector<HTMLElement>(":scope > .pageLayers") ?? page;
     if (!div || !scene) return;
     const url = await pageInk(scene, n).catch(() => null);
     if (gone) { if (url) URL.revokeObjectURL(url); return; }
@@ -79,11 +71,11 @@ export function attachPdfInk(container: HTMLElement, pdf: string, onPage: (handl
   void load();
   const offPage = onPage((n) => void place(n));
   const offFs = on("fs", (e) => { if (e.paths.includes(path)) void load(); });
-  return () => {
+  return { reload: () => void load(), stop: () => {
     gone = true;
     offPage();
     offFs();
     for (const u of urls.values()) URL.revokeObjectURL(u);
     for (const img of container.querySelectorAll("img.atlas-ink")) img.remove();
-  };
+  } };
 }

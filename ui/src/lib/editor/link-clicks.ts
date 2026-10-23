@@ -28,7 +28,9 @@ function linkTarget(view: EditorView, el: HTMLElement | null, onOpenLink?: OpenL
   const rendered = el.closest<HTMLElement>("a.internal-link");
   if (rendered) return rendered.dataset.href ?? "";
   const link = el.closest<HTMLElement>(".cm-hmd-internal-link");
-  if (link) return (link.dataset.target ?? link.textContent ?? "").replace(/^\[\[|\]\]$/g, "").split("|")[0];
+  // the label goes along: a PDF link's label is the words to select on its page (lib/pdf-place.ts)
+  if (link) return link.dataset.target ? link.dataset.target + (link.dataset.label ? `|${link.dataset.label}` : "")
+    : (link.textContent ?? "").replace(/^\[\[|\]\]$/g, "");
   return null;
 }
 

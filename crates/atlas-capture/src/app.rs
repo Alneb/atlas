@@ -527,7 +527,7 @@ impl Capture {
     /// → the list's rectangle.
     fn list(&mut self, ui: &mut egui::Ui, p: Palette, anchor_x: f32, room: egui::Rangef, top: Option<f32>) -> Option<Rect> {
         let ctx = ui.ctx().clone();
-        let home = std::env::var("HOME").unwrap_or_default();
+        let home = atlas_core::platform::dirs::home().unwrap_or_default().to_string_lossy().into_owned();
         let rows: Vec<(Icon, String, String)> = match &self.popup {
             Popup::Complete { items, .. } => items.iter().map(|s| (s.icon, s.label.clone(), s.detail.clone())).collect(),
             Popup::Vaults { .. } => self

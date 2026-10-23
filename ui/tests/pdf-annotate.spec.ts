@@ -1,24 +1,20 @@
 import { test, expect, type Page } from "@playwright/test";
-import { copyFileSync, mkdirSync, writeFileSync, readFileSync, existsSync, statSync, readdirSync } from "node:fs";
+import { copyFileSync, mkdirSync, readFileSync, existsSync, statSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { WS } from "../playwright.config";
 
 // Fixtures added at test time (the shared config stays untouched): one real paper copied read-only
-// from a papers library (`ATLAS_TEST_PAPERS`) and the annotation-export
-// command pointing at this checkout. Without that paper the tests are skipped, and say so.
+// from a papers library (`ATLAS_TEST_PAPERS`). Without that paper the tests are skipped, and say so.
 const PAPERS = process.env.ATLAS_TEST_PAPERS ?? "";
 const PHD_PAPER = join(PAPERS, "georges1996dynamical");
 test.skip(!existsSync(PHD_PAPER), `needs the paper georges1996dynamical in ${PAPERS} (set ATLAS_TEST_PAPERS)`);
 // Outside refs/papers so the Library tests keep their fixture count; notes go to <name>.notes.md.
 const PDF_REL = "pdfs/annotate-me.pdf";
-const TOOLS = join(process.cwd(), "..", "scripts", "vault"); // playwright runs from ui/
 
 test.beforeAll(() => {
   mkdirSync(join(WS, "pdfs"), { recursive: true });
   const pdf = readdirSync(PHD_PAPER).find((f) => f.endsWith(".pdf"))!;
   copyFileSync(join(PHD_PAPER, pdf), join(WS, PDF_REL));
-  mkdirSync(join(WS, ".atlas/commands"), { recursive: true });
-  writeFileSync(join(WS, ".atlas/commands/pdf.annotations.toml"), `title = "PDF: export annotations"\nrun = "uv run --script ${TOOLS}/pdf_annotations.py"\n`);
 });
 
 function trackErrors(page: Page): string[] {
@@ -28,10 +24,10 @@ function trackErrors(page: Page): string[] {
   return errs;
 }
 
-test("PDF: ink + highlight, Ctrl+S saves them into its drawing (the PDF untouched), find, export to notes", async ({ page }) => {
+test("PDF: ink + highlight are saved into its note as they are made (the PDF untouched), find", async ({ page }) => {
   const errs = trackErrors(page);
   const abs = join(WS, PDF_REL);
-  const before = statSync(abs).size;
+  const before = statSync(abs).size, pdfBytes = readFileSync(abs);
   await page.goto("/");
   await page.getByText("Finish the GW notes.").waitFor();
   await page.keyboard.press("Control+p");
@@ -53,40 +49,35 @@ test("PDF: ink + highlight, Ctrl+S saves them into its drawing (the PDF untouche
   await page.mouse.up();
   await pdfPane.getByTitle("Select (V)").click(); // commits the ink editor
 
-  // Highlight: drag across the first line of text.
-  await pdfPane.getByTitle("Highlight (H)").click();
+  // Highlight: drag across words; letting go marks them.
+  await pdfPane.getByTitle(/^Highlight \(H\)/).click();
   const span = page.locator(".textLayer span").filter({ hasText: /\w{4,}/ }).nth(2);
   const sb = (await span.boundingBox())!;
   await page.mouse.move(sb.x + 1, sb.y + sb.height / 2);
   await page.mouse.down();
   await page.mouse.move(sb.x + sb.width - 1, sb.y + sb.height / 2, { steps: 8 });
   await page.mouse.up();
+  const words = (await span.textContent())!.trim();
   await pdfPane.getByTitle("Select (V)").click();
 
-  await expect(pdfPane.locator(".dot")).toBeVisible(); // unsaved annotations
   await page.screenshot({ path: "test-results/pdf-annotated.png" });
-  // saved into the PDF's companion drawing, the store every device writes: the PDF itself untouched, the marks shown over its page from the drawing
-  const pdfBytes = readFileSync(abs);
-  await page.keyboard.press("Control+s");
-  await expect(pdfPane.locator(".status")).toContainText("Saved into");
-  await expect(pdfPane.locator(".dot")).toHaveCount(0);
+  // saved into the PDF's note (its pdf-marks block), the store every device writes: the PDF itself untouched
+  type Mark = { kind: string; page: number; quote?: { exact: string }; strokes?: { samples: string }[] };
+  const marks = async (): Promise<Mark[]> => (await (await page.request.get(`/api/pdf-marks?pdf=${encodeURIComponent(PDF_REL)}`, { headers: { "x-atlas": "1" } })).json()).marks;
+  await expect.poll(async () => (await marks()).map((m) => m.kind).sort().join(","), { timeout: 20_000 }).toBe("highlight,ink");
   expect(statSync(abs).size).toBe(before);
   expect(readFileSync(abs).equals(pdfBytes)).toBe(true);
-  const drawing = JSON.parse(readFileSync(`${abs}.excalidraw`, "utf8")) as { elements: { type: string; customData?: Record<string, unknown> }[] };
-  expect(drawing.elements.some((e) => e.type === "freedraw")).toBe(true);
-  expect(drawing.elements.some((e) => e.customData?.atlasHighlight)).toBe(true);
-  expect(drawing.elements.some((e) => (e.customData?.atlasPage as { page?: number } | undefined)?.page === 1)).toBe(true);
-  await expect(page.locator('.page[data-page-number="1"] > img.atlas-ink')).toHaveCount(1, { timeout: 20_000 });
+  const ms = await marks();
+  expect(ms.find((m) => m.kind === "ink")!.strokes![0].samples.length).toBeGreaterThan(10);
+  // the highlight keeps its words (the span's own text, give or take its edges)
+  const quote = ms.find((m) => m.kind === "highlight")!.quote!.exact;
+  expect(words.replace(/\s+/g, " ")).toContain(quote.split(" ")[0]);
+  expect(readFileSync(join(WS, "pdfs/annotate-me.md"), "utf8").trimEnd().endsWith("```")).toBe(true);
+  await expect(page.locator('.page[data-page-number="1"] svg.atlas-marks [data-mark]')).toHaveCount(2, { timeout: 20_000 });
 
   await page.keyboard.press("Control+f");
   await page.keyboard.type("impurity");
   await expect(pdfPane.locator(".findbar .faint")).toHaveText(/\d+\/\d+/);
 
-  await pdfPane.getByRole("button", { name: "Highlights into the note" }).click();
-  await expect(pdfPane.locator(".status")).toContainText("annotations →", { timeout: 30_000 });
-  const notes = readFileSync(join(WS, "pdfs/annotate-me.notes.md"), "utf8");
-  expect(notes).toContain("<!-- atlas:annotations -->");
-  expect(notes).toMatch(/\[\[pdfs\/annotate-me\.pdf#page=1\|p\.1\]\] — > \S+/); // the drawing's highlight, its passage read under it
-  expect(notes).toContain("handwritten mark");
   expect(errs).toEqual([]);
 });

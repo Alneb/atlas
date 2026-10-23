@@ -4,7 +4,7 @@
 //! version both had, kept by mirror_guard.rs at each leased write) line by line, writes the result (with a lease) and
 //! moves the conflict copy to `.atlas/trash/`. Only when both sides changed the same lines is it left for the user.
 use crate::events::EventBus;
-use crate::{mirror_guard, vault_write, Workspace};
+use crate::{mirror_guard, pdf_marks, vault_write, Workspace};
 use std::path::Path;
 
 /// `notes/a.sync-conflict-20261020-231529-H3IIIUW.md` → `notes/a.md`; `None`: not a conflict copy.
@@ -134,10 +134,16 @@ pub fn settle(ws: &Workspace, copy: &str) -> crate::Result<Settled> {
     let (Ok(theirs), Ok(ours)) = (String::from_utf8(theirs), String::from_utf8(ours)) else {
         return Ok(Settled::Left("not text".into()));
     };
-    let Ok(base) = std::fs::read_to_string(mirror_guard::base_path(ws.root(), &orig)) else {
-        return Ok(Settled::Left("no base kept for it".into()));
+    let base = std::fs::read_to_string(mirror_guard::base_path(ws.root(), &orig)).ok();
+    let marks = pdf_marks::has_block(&ours) || pdf_marks::has_block(&theirs);
+    let merged = match (base, marks) {
+        // a note with PDF marks: its text by lines, its marks mark by mark (with no base, only when the text agrees)
+        (Some(b), true) => pdf_marks::merge_notes(&b, &ours, &theirs).map(Merged::Clean),
+        (None, true) if pdf_marks::outside(&ours) == pdf_marks::outside(&theirs) => pdf_marks::merge_notes(&ours, &ours, &theirs).map(Merged::Clean),
+        (Some(b), false) => Some(merge3(&b, &ours, &theirs)),
+        (None, _) => return Ok(Settled::Left("no base kept for it".into())),
     };
-    match merge3(&base, &ours, &theirs) {
+    match merged.unwrap_or(Merged::Clashed) {
         Merged::Clashed => Ok(Settled::Left("both sides changed the same lines".into())),
         Merged::Clean(text) => {
             if let Err(e) = vault_write::write(&ws.resolve(&orig)?, text.as_bytes()) {
@@ -281,6 +287,24 @@ mod tests {
         assert_eq!(all_copies(d.path()), vec![copy.to_string()]);
         std::fs::write(d.path().join(copy), "a (here)\nb\nc (there)\n").unwrap();
         assert_eq!(settle(&ws, copy).unwrap(), Settled::Same);
+    }
+
+    #[test]
+    fn a_note_with_pdf_marks_merges_mark_by_mark_even_without_a_base() {
+        let d = tempfile::tempdir().unwrap();
+        let ws = Workspace::open(d.path()).unwrap();
+        let with = |line: &str| {
+            let mut b = pdf_marks::Block::default();
+            pdf_marks::apply(&mut b, vec![pdf_marks::Op::Put { mark: Box::new(pdf_marks::Mark::from_line(line).unwrap()) }]);
+            pdf_marks::write("# x\n\nmy words\n", &b)
+        };
+        let copy = "x.sync-conflict-20261020-231529-H3IIIUW.md";
+        std::fs::write(d.path().join("x.md"), with(r#"m-aaaaaaa1 bookmark p2 {"title":"here"}"#)).unwrap();
+        std::fs::write(d.path().join(copy), with(r#"m-aaaaaaa2 bookmark p5 {"title":"there"}"#)).unwrap();
+        assert_eq!(settle(&ws, copy).unwrap(), Settled::Merged);
+        let note = std::fs::read_to_string(d.path().join("x.md")).unwrap();
+        assert_eq!(pdf_marks::read(&note).live().len(), 2, "{note}");
+        assert!(note.starts_with("# x\n\nmy words\n"), "{note}");
     }
 
     #[test]

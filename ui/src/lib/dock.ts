@@ -21,7 +21,7 @@ import { travelSign } from "./nav-signs";
 import { isSideKind, showSide, sideInBar, sidePanel, toggleSide, type SideId, type SideKind } from "./side-panel.svelte";
 import { TOOL, sideToolOf, sideTools, toolId } from "./side-tools.svelte";
 import { emitPluginEvent } from "./plugin-events";
-import { drawingPages, editors, noteEditorActive, openIntent, paneFocus, parkOf, pdfPages, pluginAnchors, terminals } from "./registry";
+import { drawingPages, editors, noteEditorActive, openIntent, paneFocus, explorerGo, parkOf, pdfPages, pluginAnchors, terminals } from "./registry";
 import { rememberFile } from "./recent";
 import { app } from "./state.svelte";
 import { iconSvg } from "./icons";
@@ -329,7 +329,9 @@ export function resetLayout(): void {
 
 function paneRef(p: { id: string; params?: Record<string, unknown> }): PaneRef {
   const path = p.params?.path;
-  return typeof path === "string" ? { kind: kindOf(p), path } : { kind: kindOf(p) };
+  // an explorer's path is a vault path only in the vault (an SSH host's /home is not one)
+  const inVault = kindOf(p) !== "explorer" || (p.params?.source ?? "vault") === "vault";
+  return typeof path === "string" && inVault ? { kind: kindOf(p), path } : { kind: kindOf(p) };
 }
 
 function reportPanes(): void {
@@ -366,11 +368,16 @@ export function open(spec: PaneSpec, opts: { activate?: boolean; beside?: boolea
   const existing = dock.getPanel(id);
   if (!existing && "path" in spec && spec.path) emitPluginEvent({ type: "file:open", path: spec.path }); // a new tab, not a return to one
   if (existing) {
-    if (opts.activate !== false) { reveal(existing.group); existing.api.setActive(); paneFocus.get(id)?.(); }
+    if (opts.activate !== false) {
+      reveal(existing.group); existing.api.setActive(); paneFocus.get(id)?.();
+      // the file asked for again: the tree scrolls back to it (the active file did not change, so nothing else says so)
+      if (spec.kind !== "explorer" && "path" in spec && spec.path) window.dispatchEvent(new CustomEvent("atlas-active-file", { detail: spec.path }));
+    }
     if (spec.kind === "editor" && spec.line !== undefined) editors.get(id)?.gotoLine(spec.line);
     if (spec.kind === "pdf" && spec.page !== undefined) pdfPages.get(id)?.(spec.page);
     if (spec.kind === "excalidraw" && spec.page) drawingPages.get(id)?.(spec.page);
     if (spec.kind === "plugin" && spec.anchor) pluginAnchors.get(id)?.(spec.anchor);
+    if (spec.kind === "explorer" && spec.path !== undefined) explorerGo.get(id)?.(spec.path, spec.select);
     return existing.api;
   }
   setOpening(opts.activate === false ? null : id);

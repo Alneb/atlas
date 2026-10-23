@@ -42,7 +42,7 @@ pub enum Icon {
     Music,
     /// the phone's capture box: Draw
     Pen,
-    /// the Boox pen screen's tools (plugins/beta/notepad)
+    /// the Boox pen screen's tools (the notepad, org.atlas.notepad)
     Undo,
     Redo,
     Eraser,

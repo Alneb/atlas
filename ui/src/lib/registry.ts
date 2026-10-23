@@ -75,6 +75,8 @@ export const searchRequest: { replace: boolean; q?: string } = { replace: false 
 /** A pane's own focus target (its search box…), by panel id: `open()` calls it right as it
  *  activates the pane, so keys typed after a shortcut land there and not in the old focus. */
 export const paneFocus = new Map<string, () => void>();
+/** An open explorer tab asked for again: it goes to `path` and selects `select` (Show in the explorer, a breadcrumb). */
+export const explorerGo = new Map<string, (path: string, select?: string) => void>();
 /** Open PDF panes by panel id: jump to a page (a search hit in a PDF that is already open). */
 export const pdfPages = new Map<string, (page: number) => void>();
 /** An open drawing's "show this page" (an embed's `#Page 2`), by panel id — as pdfPages. */

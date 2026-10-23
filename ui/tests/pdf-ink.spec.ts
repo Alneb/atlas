@@ -46,7 +46,7 @@ test("the ink of a PDF's companion drawing lies over its page, and follows anoth
   await page.keyboard.press("Control+p");
   await page.keyboard.type("inked.pdf");
   await page.getByTestId("palette").getByRole("button", { name: /^inked\.pdf/ }).first().click();
-  const ink = page.locator('.page[data-page-number="1"] > img.atlas-ink');
+  const ink = page.locator('.page[data-page-number="1"] > .pageLayers > img.atlas-ink');
   await expect(ink).toHaveCount(1, { timeout: 20_000 });
   const first = await ink.getAttribute("src");
   // drawn over the whole page, never in the way of the text under it
@@ -70,7 +70,7 @@ test("the PDF pane's eraser takes a saved mark out of the drawing", async ({ pag
   await page.keyboard.type("erased.pdf");
   await page.getByTestId("palette").getByRole("button", { name: /^erased\.pdf/ }).first().click();
   const pg = page.locator('.page[data-page-number="1"]');
-  await expect(pg.locator("> img.atlas-ink")).toHaveCount(1, { timeout: 20_000 });
+  await expect(pg.locator("> .pageLayers > img.atlas-ink")).toHaveCount(1, { timeout: 20_000 });
   await page.locator(".pdf-pane").getByRole("button", { name: "Eraser" }).click();
   const box = (await pg.boundingBox())!;
   // the stroke: scene (100…500, 200) on a 794-wide page frame
@@ -79,5 +79,5 @@ test("the PDF pane's eraser takes a saved mark out of the drawing", async ({ pag
     const f = await (await page.request.get("/api/file?path=pdf-ink/erased.pdf.excalidraw", { headers: H })).json();
     return (JSON.parse(f.text).elements as { id: string; isDeleted?: boolean }[]).find((e) => e.id === "ink-0")?.isDeleted;
   }).toBe(true);
-  await expect(pg.locator("> img.atlas-ink")).toHaveCount(0);
+  await expect(pg.locator("> .pageLayers > img.atlas-ink")).toHaveCount(0);
 });

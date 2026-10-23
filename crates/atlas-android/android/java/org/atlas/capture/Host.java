@@ -67,8 +67,14 @@ public final class Host {
         if (why != null) toast("The drawing's note was not updated: " + why);
     }
 
-    /** This plugin's settings in this vault, the same values its web side reads (the defaults filled in), or {}. */
+    /** This plugin's settings in this vault, the same values its web side reads (the defaults filled in), or {}. The
+     *  app's own screens (Natives.CORE) read theirs from the core's settings: the notepad's are `[draw]`. */
     public JSONObject settings() {
+        if (Natives.core(plugin)) {
+            try { JSONObject d = VaultFiles.config(activity, vault).getJSONObject("config").optJSONObject("draw"); if (d != null) return d; }
+            catch (Exception e) { /* the defaults */ }
+            return new JSONObject();
+        }
         try {
             JSONObject p = VaultFiles.plugin(VaultFiles.plugins(activity, vault), plugin); // the carried defaults too
             JSONObject s = p == null ? null : p.optJSONObject("settings");

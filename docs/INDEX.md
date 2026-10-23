@@ -13,6 +13,7 @@
 - [MALLEABLE.md](guides/MALLEABLE.md) — the design guideline (D21, Ink & Switch *Malleable Software* + *Embark*): rules R1–R7, the rung ladder from settings to core, what exists vs planned, roadmap
 - [SETTINGS.md](guides/SETTINGS.md) — Settings rebuilt as pages: sidebar + search across pages, features to try per area, controls by field shape, modified/reset, accent/interface font/line height, plugins on/off, keyboard page, toolsmith drafts, pages as `.page` blocks
 - [SERVER.md](guides/SERVER.md) — server mode: `atlas serve --listen`, the sign-in (password / Authelia / both), device tokens, Settings → Server, the CLI
+- [NOTEPAD.md](guides/NOTEPAD.md) — the Boox's notepad: pen drawings written natively (Boox Notes' pens, shapes, lasso, pages, paper), saved as Excalidraw; part of the app, its settings in Settings → Drawing
 - [ANDROID.md](guides/ANDROID.md) — the phone capture app: the capture box as a native Android app, the toolchain in local/toolchains/ (NDK + build-tools + one platform), build-apk.sh, what comes next
 - [MOBILE.md](guides/MOBILE.md) — the web UI on a phone: below 720 px one pane at a time (fullscreen held), a bottom bar (Home, Files, Search, Tabs sheet, Commands), what comes next
 - [UI-STYLE.md](guides/UI-STYLE.md) — the interface rules every visible change is checked against (tokens, typography, hierarchy, interaction, motion, layout, words), distilled from the design skill, Vercel's guidelines and Practical Typography

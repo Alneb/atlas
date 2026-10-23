@@ -51,10 +51,9 @@ impl Running {
     }
 
     fn kill(&self) {
-        #[cfg(unix)]
         if let Some(pid) = self.pid {
             // the whole group: a helper started through `sh -c` is the shell's child
-            let _ = std::process::Command::new("kill").args(["-TERM", "--", &format!("-{pid}")]).status();
+            crate::platform::proc::stop_group(pid, crate::platform::proc::Stop::Ask);
         }
     }
 }
@@ -158,21 +157,17 @@ impl Helpers {
         let dir = self.root.join(plugins::PLUGINS_DIR).join(id);
         let cache = self.root.join(".atlas/cache/plugins").join(id);
         crate::vault_write::cache::mkdir(&cache)?;
-        let mut cmd = tokio::process::Command::new("sh");
-        cmd.arg("-c")
-            .arg(&run)
-            .current_dir(&self.root)
-            .env("ATLAS_ROOT", &self.root)
-            .env("ATLAS_PLUGIN_DIR", &dir)
-            .env("ATLAS_PLUGIN_TARGET", plugins::target())
-            .env("ATLAS_PLUGIN_CACHE", &cache)
-            .envs(crate::helper_api::env(&self.root, id)) // the core's address and the plugin's key: helper_api.rs
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .kill_on_drop(true);
-        #[cfg(unix)]
-        cmd.process_group(0);
+        let mut env = vec![
+            ("ATLAS_ROOT".to_string(), self.root.clone().into_os_string()),
+            ("ATLAS_PLUGIN_DIR".to_string(), dir.into_os_string()),
+            ("ATLAS_PLUGIN_TARGET".to_string(), plugins::target().into()),
+            ("ATLAS_PLUGIN_CACHE".to_string(), cache.into_os_string()),
+        ];
+        // the core's address and the plugin's key: helper_api.rs
+        env.extend(crate::helper_api::env(&self.root, id).into_iter().map(|(k, v)| (k.to_string(), std::ffi::OsString::from(v))));
+        let mut cmd = crate::platform::run_line::command(&run, &self.root, &env).map_err(|e| Error::CommandFailed(format!("plugin {id}: helper: {e}")))?;
+        cmd.stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::piped()).kill_on_drop(true);
+        crate::platform::proc::own_group(&mut cmd);
         let mut child = cmd.spawn().map_err(|e| Error::CommandFailed(format!("plugin {id}: helper: {e}")))?;
         let (stdin, stdout, stderr) = (child.stdin.take(), child.stdout.take(), child.stderr.take());
         let (Some(stdin), Some(stdout), Some(stderr)) = (stdin, stdout, stderr) else {
