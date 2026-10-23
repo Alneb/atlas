@@ -1,0 +1,26 @@
+# Actual Budget's transactions as CSV, every account in one file: Account, Date, Payee, Notes, Category, Group,
+# Transfer, Amount, Imported ID, as docs/design/DESIGN-finance-import.md ("Actual Budget") writes it from a budget's
+# db.sqlite with sqlite3, read-only. A vault preset that
+# `extends = "actual-csv"` maps the budget's account names to the ledger's (`[accounts]`) and its categories
+# (`[categories]`).
+id = "actual-csv"
+name = "Actual Budget (CSV)"
+bank = "actual"
+order = 1
+currency = "EUR"
+dates = ["%Y-%m-%d"]
+description = ["{payee}", "{notes}", "{category}"]
+bank_text = "{payee} {notes}"
+split_by = "account"
+
+[detect]
+contains = ["Account,Date,Payee,Notes,Category"]
+
+[layout]
+format = "csv"
+columns = { account = "Account", booked = "Date", payee = "Payee", notes = "Notes", category = "Category", group = "Group", transfer = "Transfer", amount = "Amount", ref = "Imported ID" }
+
+# The note is the user's own words beside the payee.
+[[rules]]
+when = { notes = "*" }
+set = { note = "{notes}" }

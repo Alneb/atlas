@@ -1,0 +1,25 @@
+[package]
+name = "atlas-catalog"
+description = "The catalog meta plugin's helper: recognise → fetch → merge → dedupe → write (docs/refactor/REFACTOR-catalog.md)"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+
+# Built static (x86_64-unknown-linux-musl) into the plugin's bin/<target>/ so the same file runs on the desktop, in the
+# server's container and (compiled into the APK) on the phone. The network goes through the core, never from here.
+[[bin]]
+name = "catalog"
+path = "src/main.rs"
+
+[dependencies]
+atlas-plugin = { path = "../../../../crates/atlas-plugin" }
+atlas-template = { path = "../../../../crates/atlas-template" }
+serde = { workspace = true }
+serde_json = { workspace = true }
+serde_yaml = "0.9"
+regex = "1"
+chrono = { version = "0.4", default-features = false, features = ["clock"] }
+# a page read for catalog-web (clip.rs, moved from the core): its metadata and readable text; the page itself fetched
+# through the core
+scraper = "0.27"
+url = "2"

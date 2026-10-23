@@ -1,0 +1,44 @@
+# OCR for screenshots. A picture captured from
+# any app — the desktop box's screenshot or clipboard image, the phone's share — has its text read on this machine
+# (Tesseract, compiled into the plugin's program; each language's model fetched once into the plugin's cache), put
+# under it as a folded callout so search finds it, and handed to the catalog like typed text: a link, DOI or ISBN in a
+# screenshot is filed as if it had been pasted.
+title = "OCR"
+description = "the text in captured screenshots, read on this machine and kept under them"
+icon = "image"
+version = "0.2.0"
+api = 4
+
+[permissions]
+net = ["raw.githubusercontent.com"]
+
+[helper]
+# built by engine/build.sh: one binary per platform
+run = "\"$ATLAS_PLUGIN_DIR/bin/$ATLAS_PLUGIN_TARGET/ocr\""
+
+[[tool]]
+name = "read"
+description = "The text in a picture of the vault (a screenshot, a photo of a page), read on this machine in the languages of the setting."
+input = { path = "string" }
+timeout_secs = 300
+
+[[tool]]
+name = "capture"
+description = "After every capture: each picture in it is read, its text put under it as a folded callout, and the text offered to the catalog."
+input = { text = "string", path = "string?", line = "integer?" }
+timeout_secs = 300
+on = "capture"
+
+[[setting]]
+key = "languages"
+label = "Languages"
+kind = "text"
+default = "eng+spa"
+hint = "Tesseract's codes joined by +: eng, spa, fra, deu, ita, por, cat… — each one's model (a few MB) is fetched the first time; fewer languages read faster"
+
+[[setting]]
+key = "to_catalog"
+label = "File what the screenshot shows"
+kind = "toggle"
+default = true
+hint = "a link, DOI, ISBN or IMDb id read in a screenshot goes to the catalog like a typed one (needs the Catalog plugin)"

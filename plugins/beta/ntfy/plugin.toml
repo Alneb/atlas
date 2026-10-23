@@ -1,0 +1,47 @@
+# ntfy: send a line, a selection or a note's title to a phone through an ntfy server (ntfy.sh, or
+# your own); what the phone sends to another topic becomes a capture. The helper does both, so agents
+# send through the same call ([[tool]] send). Copy into a vault's .atlas/plugins/.
+title = "ntfy"
+description = "send text to your phone through ntfy"
+phone = true # runs in the phone apps too (only plugins marked so start there)
+icon = "arrow-up"
+version = "0.2.0"
+api = 4
+
+# sends, and keeps the subscription to the inbox topic open (listen.py)
+[helper]
+run = "python3 -u \"$ATLAS_PLUGIN_DIR/listen.py\""
+
+[permissions]
+secrets = true       # an access token, when the topic is protected
+
+[[setting]]
+key = "server"
+label = "ntfy server"
+kind = "text"
+default = "https://ntfy.sh"
+
+[[setting]]
+key = "topic"
+label = "Topic"
+kind = "text"
+hint = "the topic your phone is subscribed to"
+
+[[setting]]
+key = "inbox"
+label = "Topic to capture from"
+kind = "text"
+hint = "what you send to this topic from the phone is captured into today's log; empty: not listened to"
+
+[[setting]]
+key = "token"
+label = "Access token"
+kind = "secret"
+hint = "only for a protected topic; leave empty otherwise"
+
+[[tool]]
+name = "send"
+description = "Send a short message to the user's own phone through their ntfy topic (a push notification). Use it when the user asks to be told or reminded on their phone, e.g. when a long job ends."
+input = { text = "string", title = { type = "string", description = "the notification's title (default: Atlas)", optional = true } }
+secrets = ["token"]
+timeout_secs = 40

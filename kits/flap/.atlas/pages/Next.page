@@ -1,0 +1,8 @@
+# What to do now: the first unchecked task of every project, and the dated ones on a calendar.
+title: Next
+rows:
+  - columns:
+      - [{view: list, from: next-actions, filters: 'type == "project"', title: Next actions}]
+      - [{view: calendar, from: tasks, dated: true, title: Calendar}]
+    widths: [3, 2]
+  - [{base: .atlas/pages/Projects.base, title: Projects}]

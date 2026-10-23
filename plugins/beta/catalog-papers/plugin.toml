@@ -1,0 +1,118 @@
+# Papers for the catalog, and the references library itself: Atlas does what Zotero did. A DOI or an arXiv id, bare or as a link, is recognised as
+# a paper; OpenAlex and arXiv say what it is (title, authors, year, venue, abstract, its other identifier); the entry is
+# written by this plugin's helper (refs/papers/<citekey>/: the note whose properties are the paper's fields, the PDF
+# when an open-access copy exists, refs.bib), so it looks like every paper already in the library. The helper also
+# serves the References view (list, add, import, edit, merge, type, delete, BibTeX) and, when switched on, answers
+# the Zotero browser extension on 127.0.0.1:23119. docs/design/DESIGN-collections.md, "Papers";
+# docs/refactor/REFACTOR-references-plugin.md (moved out of the core).
+title = "Catalog · Science"
+description = "everything science: papers by DOI or arXiv id into References, with metadata, the open-access PDF (arXiv, OpenAlex, Unpaywall, Semantic Scholar, Europe PMC, CORE), refs.bib and the Zotero connector"
+icon = "book"
+version = "0.4.0"
+api = 4
+requires = ["catalog"]
+
+[permissions]
+# the indexes (Crossref, arXiv, OpenAlex, Unpaywall, Semantic Scholar, Europe PMC, CORE), and wherever they say a
+# paper's open-access PDF is (a repository, an author's page, a publisher)
+net = ["api.crossref.org", "export.arxiv.org", "arxiv.org", "api.openalex.org", "api.unpaywall.org", "api.semanticscholar.org", "www.ebi.ac.uk", "api.core.ac.uk", "*"]
+# CORE's API key, sent by the core as a header (the helper never holds it)
+secrets = true
+
+[helper]
+# built by engine/build.sh (crate atlas-papers): one static binary per platform
+run = "\"$ATLAS_PLUGIN_DIR/bin/$ATLAS_PLUGIN_TARGET/papers\""
+# with the vault, so the Zotero Connector's listener is up when the setting is on
+start = "open"
+
+# The vault's former [refs] settings (Settings → References & PDF) are the starting values.
+[[setting]]
+key = "dir"
+label = "Folder of your references"
+kind = "text"
+default = "refs/papers"
+hint = "papers, books, theses, lecture notes — one folder each (<citekey>/: its note <citekey>.md, whose properties are the reference's fields, and its PDF)"
+
+[[setting]]
+key = "bib"
+label = "BibTeX file"
+kind = "text"
+default = "refs/refs.bib"
+hint = "written from your references after every change (@article, @book, @phdthesis…); never edit it by hand"
+
+[[setting]]
+key = "download_pdfs"
+label = "Download the PDF when adding a paper"
+kind = "toggle"
+default = true
+hint = "arXiv's, else an open-access copy (OpenAlex, Unpaywall), then the PDF sources your plugins add, in the order below"
+
+[[setting]]
+key = "email"
+label = "Your email, for OpenAlex and Unpaywall"
+kind = "text"
+hint = "optional: sent with the open-access lookups as they ask (Unpaywall only answers with it); nothing else is sent"
+
+[[setting]]
+key = "connector"
+label = "Answer the Zotero browser extension"
+kind = "toggle"
+default = false
+hint = "on 127.0.0.1:23119 while Zotero itself is closed, so \"Save to Zotero\" saves into your references (one vault only: the one you browse for)"
+
+[[setting]]
+key = "pdf_sources_on"
+label = "Ask other plugins for a PDF"
+kind = "toggle"
+default = true
+hint = "when the built-in open-access sources (arXiv, OpenAlex, Unpaywall and the indexes below) find no PDF, the PDF sources your other plugins add are asked, one after the other"
+
+[[setting]]
+key = "pdf_order"
+label = "Order of the PDF sources"
+kind = "text"
+hint = "plugin ids, first asked first; -id switches one off; sources not named are asked after, by id. Each plugin's card says which are PDF sources"
+
+[[setting]]
+key = "indexes"
+label = "More open-access indexes, in order"
+kind = "text"
+default = "semanticscholar, europepmc, core"
+hint = "asked after OpenAlex and Unpaywall: any of semanticscholar, europepmc, core (CORE only with its key, below). What the Papers · more open access plugin did"
+
+[[setting]]
+key = "core_key"
+label = "CORE API key (optional)"
+kind = "secret"
+hint = "free at core.ac.uk/services/api: CORE gathers the papers of thousands of university repositories"
+
+[[tool]]
+name = "lookup"
+description = "A paper's metadata from its DOI or arXiv id: title, authors, year, venue, abstract, and its other identifier."
+input = { kind = "string", ids = "object?", url = "string?" }
+
+[[tool]]
+name = "add"
+method = "catalog_add"     # the helper's own `add` is the References view's (by DOI or arXiv id → the entry)
+description = "Add a paper to the papers library by DOI or arXiv id (metadata, citekey, reading note, open-access PDF, refs.bib) and answer its reading note."
+input = { kind = "string", ids = "object?", fields = "object?", url = "string?", exists = "string?" }
+timeout_secs = 300
+
+[contributes.catalog]
+recognize = [
+  { pattern = "(?i)\\b(?:doi:\\s*|doi\\.org/)?(10\\.\\d{4,9}/[^\\s\"<>]+[^\\s\"<>.,;)])", kind = "paper", id = "doi" },
+  { pattern = "(?i)arxiv\\.org/(?:abs|pdf)/(\\d{4}\\.\\d{4,5})(?:v\\d+)?", kind = "paper", id = "arxiv" },
+  { pattern = "(?i)\\barxiv:\\s*(\\d{4}\\.\\d{4,5})(?:v\\d+)?", kind = "paper", id = "arxiv" },
+]
+sources = [{ kind = "paper", tool = "lookup", priority = 70, needs = ["doi", "arxiv"] }]
+
+[[contributes.catalog.kinds]]
+name = "paper"
+label = "Paper"
+type = "Literature"
+folder = "refs/papers"
+note_name = "{citekey}/{citekey}"
+ids = [{ id = "doi", property = "source", prefix = "https://doi.org/" }, { id = "arxiv", property = "source", prefix = "https://arxiv.org/abs/" }]
+writer = { by = "plugin", plugin = "catalog-papers", tool = "add" }
+links = { catalog-linkwarden = false }
+library = { title = "Papers", layout = "table", group = "status", shelves = ["to-read", "reading", "read"], key = ["authors", "year", "journal"], icon = "book" }

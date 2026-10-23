@@ -1,0 +1,44 @@
+# Linkwarden for the catalog: every capture that started from a link is saved there, whatever it turned out to be,
+# in a collection named after its library (Films, Videos, Web pages…), and the note keeps its Linkwarden address.
+# A kind or a vault rule can leave it out (`links: { catalog-linkwarden: false }`) or name another collection
+# (`{ collection: Newsletters }`) — docs/refactor/REFACTOR-catalog.md, "Linkwarden".
+title = "Catalog · Linkwarden"
+description = "every catalogued link also saved in Linkwarden, in its library's collection"
+icon = "link"
+version = "0.2.0"
+api = 4
+requires = ["catalog"]
+
+[permissions]
+net = ["*"]          # the user's own Linkwarden, wherever it is
+secrets = true
+
+[[setting]]
+key = "address"
+label = "Linkwarden address"
+kind = "text"
+hint = "https://links.example.org"
+
+[[setting]]
+key = "token"
+label = "Access token"
+kind = "secret"
+hint = "Linkwarden → Settings → Access Tokens"
+
+[[setting]]
+key = "tags"
+label = "Tags on every link"
+kind = "list"
+default = ["atlas"]
+
+[helper]
+run = "python3 -u \"$ATLAS_PLUGIN_DIR/helper.py\""
+
+[[tool]]
+name = "save"
+description = "Save a catalogued thing's link in Linkwarden (in its library's collection) and answer its Linkwarden address."
+input = { kind = "string", library = "string?", folder = "string?", ids = "object?", path = "string?", props = "object?", options = "object?" }
+secrets = ["token"]
+
+[contributes.catalog]
+links = [{ kind = "*", tool = "save" }]

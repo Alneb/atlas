@@ -1,0 +1,19 @@
+# Unicaja's account movements as Excel (Cuentas → Movimientos → Exportar → Excel). Norma 43 says the same and is
+# every bank's format; this reads the older files (Paisa's) and any range Norma 43 was not downloaded for. Rows come
+# newest first: the bank's movement number orders a day's rows, so each balance follows the one before.
+id = "unicaja-account-xls"
+name = "Unicaja account (Excel)"
+bank = "unicaja"
+order = 1
+currency = "EUR"
+description = ["{description}"]
+bank_text = "{description} (n.º {ref})"
+sort = ["ref"]
+
+[detect]
+contains = ["Movimientos en cuenta", "Saldo"]
+
+[layout]
+format = "sheet"
+labels = { number = "Número de cuenta:", from = "Fecha desde:", to = "Fecha hasta:" }
+columns = { booked = "Fecha de operación", value = "Fecha valor", description = "Concepto", amount = "Importe", currency = "Divisa", balance = "Saldo", ref = "Nº mov" }

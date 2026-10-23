@@ -1,0 +1,52 @@
+# TMDB for the catalog: films and series. A themoviedb.org link is recognised (IMDb's by catalog-letterboxd); a bare title ("Dune 2021") is
+# searched and the matches offered to pick from (never filed on a guess); details come with the credits (director and
+# cast), genres, poster, runtime and the other IDs (IMDb, TVDB); a film in a language the vault keeps originals in
+# (`original_title: [es]` in its kind) also in that language. The film and series kinds are the catalog's. Works with no
+# key, from themoviedb.org's own pages; a free "API Read Access Token" (themoviedb.org → Settings → API) is optional:
+# the API is faster and adds the IMDb and TVDB ids.
+title = "Catalog · TMDB"
+description = "films and series: search, details, posters, credits"
+icon = "film"
+version = "0.2.0"
+api = 4
+requires = ["catalog"]
+
+[permissions]
+net = ["api.themoviedb.org", "www.themoviedb.org"]
+secrets = true
+
+[[setting]]
+key = "token"
+label = "API Read Access Token (optional)"
+kind = "secret"
+hint = "not needed: without it the films' and series' pages on themoviedb.org are read. With it (themoviedb.org → Settings → API) the API answers faster and adds IMDb and TVDB ids"
+
+[[setting]]
+key = "language"
+label = "Language"
+kind = "text"
+default = "en-US"
+hint = "titles and overviews in this language when TMDB has them (es-ES, fr-FR…)"
+
+[helper]
+run = "python3 -u \"$ATLAS_PLUGIN_DIR/helper.py\""
+
+[[tool]]
+name = "search"
+description = "Films and series whose title matches the words (a year narrows it), best first."
+input = { text = "string", url = "string?" }
+secrets = ["token"]
+
+[[tool]]
+name = "details"
+description = "A film's or series' details from its TMDB or IMDb id: title, year, overview, genres, director, cast, poster, runtime, other IDs."
+input = { kind = "string", ids = "object?", url = "string?" }
+secrets = ["token"]
+
+[contributes.catalog]
+recognize = [
+  { pattern = "(?i)themoviedb\\.org/movie/(\\d+)", kind = "movie", id = "tmdb" },
+  { pattern = "(?i)themoviedb\\.org/tv/(\\d+)", kind = "show", id = "tmdb" },
+]
+recognizers = [{ tool = "search" }]
+sources = [{ kind = ["movie", "show"], tool = "details", priority = 70, needs = ["tmdb", "imdb"] }]

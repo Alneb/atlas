@@ -1,0 +1,49 @@
+# Where prices come from (engine/src/pricefeed.rs). A vault's own finance/prices.toml is read on top of this file:
+# its tables replace these by name, its measures by symbol. Placeholders: {quote} {since} (ECB), {ticker} {from} {to}
+# (Yahoo, Unix seconds), {isin} {symbol} {currency} (pages).
+
+# A fund or ETF with an ISIN and no other source is read from this page (below, [pages.…]).
+default_page = "ft"
+
+# FX: one unit of `base` in each other currency, daily, as CSV with TIME_PERIOD and OBS_VALUE columns.
+[fx]
+base = "EUR"
+url = "https://data-api.ecb.europa.eu/service/data/EXR/D.{quote}.EUR.SP00.A?startPeriod={since}&format=csvdata"
+
+# Daily history by ticker (Yahoo's chart API: closes and the currency they are in).
+[history]
+url = "https://query1.finance.yahoo.com/v8/finance/chart/{ticker}?period1={from}&period2={to}&interval=1d"
+
+# Pages read with regexes, by the name a commodity note gives as `price_source`. `price` needs a group (?P<price>…),
+# optionally (?P<currency>…); `date` a group (?P<date>…) read with `date_format`.
+[pages.ft]
+url = "https://markets.ft.com/data/funds/tearsheet/summary?s={isin}:{currency}"
+price = 'Price \((?P<currency>[A-Z]{3})\)</span>\s*<span class="mod-ui-data-list__value">(?P<price>[0-9][0-9.,]*)'
+date = 'as of (?P<date>[A-Z][a-z]{2} \d{1,2} \d{4})'
+date_format = "%b %d %Y"
+
+# Units wealth can be measured in without a note of their own (a note with the same symbol wins).
+[[measure]]
+symbol = "XAU"
+name = "Gold (troy ounce)"
+ticker = "GC=F"
+
+[[measure]]
+symbol = "XAG"
+name = "Silver (troy ounce)"
+ticker = "SI=F"
+
+[[measure]]
+symbol = "BTC"
+name = "Bitcoin"
+ticker = "BTC-EUR"
+
+[[measure]]
+symbol = "ETH"
+name = "Ether"
+ticker = "ETH-EUR"
+
+[[measure]]
+symbol = "SPX"
+name = "S&P 500"
+ticker = "^GSPC"

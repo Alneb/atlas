@@ -1,0 +1,75 @@
+[workspace]
+resolver = "2"
+members = ["crates/atlas-core", "crates/atlas", "crates/atlas-capture", "crates/atlas-android", "crates/atlas-pen", "crates/atlas-plugin", "crates/atlas-text", "plugins/beta/catalog/engine", "plugins/beta/catalog-papers/engine", "plugins/stable/ssh/engine", "plugins/beta/ocr/engine", "plugins/beta/finance/engine", "plugins/beta/email/engine", "crates/atlas-template", "crates/atlas-app"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "AGPL-3.0-or-later"
+description = "A workspace over plain files: notes, papers, mail, code and runs, extended by plugins"
+readme = "README.md"
+
+[workspace.dependencies]
+atlas-core = { path = "crates/atlas-core" }
+atlas-template = { path = "crates/atlas-template" }
+atlas-text = { path = "crates/atlas-text" }
+anyhow = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["full"] }
+reqwest = { version = "0.12", default-features = false, features = ["json"] }
+
+# The quick-capture box draws its card with see-through corners, shadow and lists floating under it: on
+# Wayland softbuffer 0.4 hands the compositor opaque XRGB buffers, so a copy that hands it ARGB
+# (crates/vendor/softbuffer: two `Xrgb8888` → `Argb8888` in src/backends/wayland/buffer.rs; nothing else changed).
+[patch.crates-io]
+softbuffer = { path = "crates/vendor/softbuffer" }
+
+# Debug builds keep full debug info for Atlas's own crates and none for the dependencies: the debug target/ had grown
+# to 47 GB, mostly dependencies' debug info.
+# A backtrace still names every function; only the dependencies' line numbers go.
+# The phone apps' native library (crates/atlas-android/build-apk.sh): built for size (the APK had grown
+# large). Slower to build (one codegen unit, fat LTO); the desktop keeps `release`.
+[profile.android]
+inherits = "release"
+opt-level = "z"
+lto = "fat"
+codegen-units = 1
+strip = true
+
+# the JPEG XL decoder at full speed (manga pages): at "z" a 2142×3056 page took 2.1–2.3× as long (3.49 s against
+# 1.49 s on one thread, measured 2026-10-21); the rest stays small
+[profile.android.package.jxl-bitstream]
+opt-level = 3
+[profile.android.package.jxl-coding]
+opt-level = 3
+[profile.android.package.jxl-color]
+opt-level = 3
+[profile.android.package.jxl-frame]
+opt-level = 3
+[profile.android.package.jxl-grid]
+opt-level = 3
+[profile.android.package.jxl-image]
+opt-level = 3
+[profile.android.package.jxl-jbr]
+opt-level = 3
+[profile.android.package.jxl-modular]
+opt-level = 3
+[profile.android.package.jxl-oxide]
+opt-level = 3
+[profile.android.package.jxl-oxide-common]
+opt-level = 3
+[profile.android.package.jxl-render]
+opt-level = 3
+[profile.android.package.jxl-threadpool]
+opt-level = 3
+[profile.android.package.jxl-vardct]
+opt-level = 3
+
+[profile.dev.package."*"]
+debug = false
+
+# Atlas's own crates: line tables only (file:line in backtraces, no variable info) — debug builds were 56 GB
+# of target/.
+[profile.dev]
+debug = "line-tables-only"

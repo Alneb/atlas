@@ -1,0 +1,30 @@
+# Wikipedia for the catalog: a Wikipedia page about a film, a series, an album, a song, a book, a manga or a band is
+# filed as that thing, not as a web page. Wikipedia's own one-line description says what it is ("2023 film by Ari
+# Aster", "2001 studio album by Radiohead", "novela de Frank Herbert"), and the page's links give the IDs the other
+# sources need (IMDb, MusicBrainz, Goodreads, AniList…). Any language's Wikipedia; no key. Not Wikidata.
+title = "Catalog · Wikipedia"
+description = "Wikipedia pages about films, albums, books… filed as what they are"
+icon = "globe"
+version = "0.1.0"
+api = 4
+requires = ["catalog"]
+
+[permissions]
+net = ["*.wikipedia.org"]
+
+[helper]
+run = "python3 -u \"$ATLAS_PLUGIN_DIR/helper.py\""
+
+[[tool]]
+name = "recognize"
+description = "What a Wikipedia page is about (film, series, album, song, book, manga, artist), with the identifiers its links give."
+input = { text = "string", url = "string?" }
+
+[contributes.catalog]
+recognizers = [{ tool = "recognize" }]
+
+[[setting]]
+key = "contact"
+label = "Contact for Wikipedia"
+kind = "text"
+hint = "an email or web address Wikipedia may reach you at; Wikimedia throttles programs that give none (optional)"

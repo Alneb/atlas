@@ -1,0 +1,12 @@
+[package]
+name = "atlas-plugin"
+description = "Atlas from a plugin's compiled helper: the core's API and the helper protocol (docs/guides/PLUGIN-API.md, \"Calling Atlas back\")"
+version.workspace = true
+edition.workspace = true
+# the SDK plugins compile in: permissive, so a plugin can carry any licence (Atlas itself is AGPL-3.0-or-later)
+license = "MIT OR Apache-2.0"
+
+# Only std and serde_json: a helper built static (x86_64-unknown-linux-musl) stays small and runs in the server's
+# container and on the desktop alike. The core is always on the same machine (loopback HTTP, no TLS).
+[dependencies]
+serde_json.workspace = true

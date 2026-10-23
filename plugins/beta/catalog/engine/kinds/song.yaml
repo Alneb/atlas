@@ -1,0 +1,8 @@
+name: song
+label: Song
+folder: notes/music/songs  # under notes/: the top level holds kinds of file, not topics
+note_name: "{artist} - {title}"
+ids: [{ id: musicbrainz }, { id: spotify }, { id: youtube }, { id: url, property: source }]
+properties: [artist, album, year, duration, genres, cover]
+as_links: [artist, album]
+library: { in: "Music", title: Songs, layout: table, group: status, shelves: [to-listen, listened], cover: cover, key: [artist, album, year], icon: music }

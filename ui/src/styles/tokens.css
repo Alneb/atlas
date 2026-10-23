@@ -1,0 +1,122 @@
+/* Design tokens. Dark is the default; [data-theme="light"] swaps the palette.
+   Everything else (dockview, CodeMirror, hljs, xterm, KaTeX colour) reads these variables. */
+@font-face { font-family: "Atlas Term Symbols"; font-weight: 400; font-display: swap; src: url("../assets/fonts/atlas-term-symbols-regular.woff2") format("woff2");
+  unicode-range: U+2000-206F, U+2190-22FF, U+2300-23FF, U+2460-24FF, U+2500-27BF, U+2900-29FF, U+2B00-2BFF; }
+@font-face { font-family: "Atlas Term Symbols"; font-weight: 700; font-display: swap; src: url("../assets/fonts/atlas-term-symbols-bold.woff2") format("woff2");
+  unicode-range: U+2000-206F, U+2190-22FF, U+2300-23FF, U+2460-24FF, U+2500-27BF, U+2900-29FF, U+2B00-2BFF; }
+
+:root {
+  --font-ui: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  /* Atlas Term Symbols: Adwaita Mono's symbols (OFL, assets/fonts) for what JetBrains Mono's subsets lack —
+     Claude Code's ⎿ ⏺ ✻, arrows, shapes — at the same 0.6 em advance, so they keep the cell grid */
+  --font-mono: "JetBrains Mono", "Atlas Term Symbols", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  --radius-sm: 6px; --radius: 8px; --radius-lg: 12px; --radius-xl: 14px;
+  --rail-w: 54px; --status-h: 26px;
+  --ease: cubic-bezier(.2, .8, .2, 1);
+}
+
+:root, [data-theme="dark"] {
+  color-scheme: dark;
+  --bg-app: #101216;
+  --bg: #16181d;
+  --bg-alt: #1a1d23;
+  --bg-elev: #1f2229;
+  --bg-hover: rgba(255, 255, 255, .045);
+  --bg-active: rgba(255, 255, 255, .08);
+  --border: rgba(255, 255, 255, .07);
+  --border-strong: rgba(255, 255, 255, .12);
+  --text: #dcdfe5;
+  --text-muted: #9aa1ad;
+  --text-faint: #767e8b; /* ≥ 4:1 on --bg-elev (UX audit: faint text was hard to read) */
+  --heading: #f0f2f5;
+  --accent: #8aa4ff;
+  --accent-fg: #0b0d12; /* text on the accent (primary buttons) */
+  --accent-strong: #aabdff;
+  --accent-soft: rgba(138, 164, 255, .12);
+  --accent-sel: rgba(138, 164, 255, .26);
+  --link: #8aa4ff;
+  --green: #86d1a0; --red: #f28b8f; --yellow: #e8c47c; --orange: #f2a97a; --purple: #c4a7ff; --cyan: #7fd3dc;
+  --code-bg: #1c1f26;
+  --inline-code: #f0b7a4;
+  --highlight-bg: rgba(232, 196, 124, .24);
+  --tag-bg: rgba(138, 164, 255, .13); --tag-color: #aabdff;
+  --scrim: rgba(6, 8, 12, .55);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, .3), 0 2px 8px rgba(0, 0, 0, .18);
+  --shadow-pop: 0 24px 60px rgba(0, 0, 0, .5), 0 4px 16px rgba(0, 0, 0, .3);
+  --term-bg: #13151a; --term-black: #2a2e36;
+  /* the terminal's 16 colours: bright ones differ from normal ones, or bold/dim text in TUIs reads the same */
+  --ansi-black: #2a2e36; --ansi-red: #f28b8f; --ansi-green: #86d1a0; --ansi-yellow: #e8c47c;
+  --ansi-blue: #8aa4ff; --ansi-magenta: #c4a7ff; --ansi-cyan: #7fd3dc; --ansi-white: #b4bac6;
+  --ansi-bright-black: #6b7385; --ansi-bright-red: #ffabae; --ansi-bright-green: #a8e6bb; --ansi-bright-yellow: #f6d89c;
+  --ansi-bright-blue: #adc0ff; --ansi-bright-magenta: #dac6ff; --ansi-bright-cyan: #a4e8ef; --ansi-bright-white: #f2f4f8;
+  --term-contrast: 3;
+  --pdf-bg: #0e1013;
+  --paper-line: #3a3f47; /* a drawing page's ruling (draw-notepad.ts paperCss) */
+  /* Tokyo-Night-like: distinct hues per role, comments recede, punctuation quiet but legible */
+  --syn-keyword: #bb9af7; --syn-string: #9ece6a; --syn-number: #ff9e64; --syn-comment: #636a8a;
+  --syn-function: #7aa2f7; --syn-type: #2ac3de; --syn-property: #73daca; --syn-variable: #d5dae6;
+  --syn-operator: #89ddff; --syn-meta: #e0af68; --syn-tag: #f7768e;
+}
+
+[data-theme="light"] {
+  color-scheme: light;
+  --bg-app: #eceef2;
+  --bg: #ffffff;
+  --bg-alt: #f8f9fb;
+  --bg-elev: #ffffff;
+  --bg-hover: rgba(15, 23, 42, .045);
+  --bg-active: rgba(15, 23, 42, .075);
+  --border: rgba(15, 23, 42, .085);
+  --border-strong: rgba(15, 23, 42, .14);
+  --text: #23272e;
+  --text-muted: #5b6270;
+  --text-faint: #767c89; /* ≥ 3.8:1 on light surfaces */
+  --heading: #12151a;
+  --accent: #4864dd;
+  --accent-fg: #ffffff;
+  --accent-strong: #3a52c4;
+  --accent-soft: rgba(72, 100, 221, .1);
+  --accent-sel: rgba(72, 100, 221, .2);
+  --link: #3f5bd6;
+  --green: #2f9e5c; --red: #d4464f; --yellow: #b8860b; --orange: #c8641e; --purple: #8150d6; --cyan: #138a96;
+  --code-bg: #f4f5f8;
+  --inline-code: #b6452c;
+  --highlight-bg: rgba(250, 204, 21, .32);
+  --tag-bg: rgba(72, 100, 221, .1); --tag-color: #3a52c4;
+  --scrim: rgba(30, 36, 48, .28);
+  --shadow-sm: 0 1px 2px rgba(15, 23, 42, .06), 0 2px 8px rgba(15, 23, 42, .06);
+  --shadow-pop: 0 24px 60px rgba(15, 23, 42, .18), 0 4px 16px rgba(15, 23, 42, .08);
+  --term-bg: #fbfbfc; --term-black: #e3e5ea;
+  /* on white, "white" text must still be dark enough to read: GitHub-light-like greys */
+  --ansi-black: #24292f; --ansi-red: #c4303a; --ansi-green: #1f7a45; --ansi-yellow: #8a6300;
+  --ansi-blue: #3550c8; --ansi-magenta: #7a3fc9; --ansi-cyan: #0b7380; --ansi-white: #6e7781;
+  --ansi-bright-black: #57606a; --ansi-bright-red: #e0525b; --ansi-bright-green: #2f9e5c; --ansi-bright-yellow: #a87a00;
+  --ansi-bright-blue: #4f6be0; --ansi-bright-magenta: #9461e0; --ansi-bright-cyan: #138a96; --ansi-bright-white: #8c959f;
+  --term-contrast: 4.5;
+  --pdf-bg: #e6e8ec;
+  --paper-line: #d9dde3; /* the Boox Notepad's on a screen (Pad.java) */
+  --syn-keyword: #7847bd; --syn-string: #3f7a2e; --syn-number: #b15c00; --syn-comment: #8c93a3;
+  --syn-function: #2959aa; --syn-type: #00708a; --syn-property: #33635c; --syn-variable: #23272e;
+  --syn-operator: #0f5a83; --syn-meta: #8f5e15; --syn-tag: #b3304a;
+}
+
+/* E-ink (ui.eink, lib/eink.ts): over the light palette, what an e-ink panel shows cleanly — black on white, greys only
+   as flat fills, no translucency (dither), no shadows (a frame instead), colours dark enough for a 16-grey screen. */
+:root.eink {
+  --bg-app: #ffffff; --bg: #ffffff; --bg-alt: #ffffff; --bg-elev: #ffffff;
+  --bg-hover: transparent; --bg-active: #e4e4e4;
+  --border: #5a5a5a; --border-strong: #000000; /* darker than light mode's: a 1 px grey line breaks up on the panel */
+  --text: #000000; --text-muted: #1f1f1f; --text-faint: #3a3a3a; --heading: #000000;
+  --accent: #000000; --accent-fg: #ffffff; --accent-strong: #000000; --accent-soft: #ececec; --accent-sel: #d0d0d0;
+  --link: #000000;
+  --green: #145c2e; --red: #8f1a20; --yellow: #5c4300; --orange: #6b3000; --purple: #3f1f78; --cyan: #08515a;
+  --code-bg: #f2f2f2; --inline-code: #000000; --highlight-bg: #dcdcdc;
+  --tag-bg: #ffffff; --tag-color: #000000;
+  --scrim: transparent;
+  --shadow-sm: none; --shadow-pop: 0 0 0 1.5px #000000;
+  --pdf-bg: #ffffff;
+  --paper-line: #b4b4b4; /* the Boox Notepad's on e-ink */
+  --syn-keyword: #000000; --syn-string: #2a2a2a; --syn-number: #000000; --syn-comment: #555555;
+  --syn-function: #000000; --syn-type: #000000; --syn-property: #1f1f1f; --syn-variable: #000000;
+  --syn-operator: #000000; --syn-meta: #2a2a2a; --syn-tag: #000000;
+}

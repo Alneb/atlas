@@ -1,0 +1,8 @@
+# Vendored from boox_5c_re (scripts/dev/sync-openink.sh, VENDORED.md); only this file is Atlas's.
+[package]
+name = "openink-nn"
+description = "Tiny dependency-free inference for openink's trained models: the .oisw weight format, dense layers, GRUs"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+publish = false

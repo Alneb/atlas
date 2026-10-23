@@ -1,0 +1,25 @@
+# Boox Notes → Atlas drawings. Reads Boox Notes' own copy of every note (the KSync tree, /sdcard/.ksync, readable
+# without root: decoded in ~/Projects/boox_5c_re docs/KNOTE2.md) and writes one Excalidraw drawing per note, one Atlas
+# page per Boox page, the pen strokes with their pressure. Runs where Atlas's server runs: in the Boox app itself, or on
+# a computer over a copy of the folder (adb pull /sdcard/.ksync).
+title = "Boox Notes"
+description = "import the Boox Notes app's notes as Excalidraw drawings: a page per page, strokes with their pressure; a drawing edited since its import is never overwritten"
+icon = "edit"
+version = "0.1.0"
+api = 4
+
+[helper]
+run = "python3 -u \"$ATLAS_PLUGIN_DIR/helper.py\""
+
+[[setting]]
+key = "ksync"
+label = "Where the notes are"
+kind = "text"
+default = "/sdcard/.ksync"
+hint = "Boox Notes' KSync folder: /sdcard/.ksync on the Boox; on a computer, a copy of it (adb pull /sdcard/.ksync)"
+
+[[setting]]
+key = "folder"
+label = "Folder for the drawings"
+kind = "text"
+default = "boox"

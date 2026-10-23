@@ -1,0 +1,17 @@
+# The day's log, drawn: the `daily.header` block at the top of a day's log (the vault's `log` template puts it there) shows
+# the day in words, the weather the Weather plugin noted as the log's `weather` property, how much was captured, and the
+# days before and after that have a log.
+title = "Daily"
+description = "the top of a day's log: the date in words, its weather, and the days around it"
+icon = "today"
+version = "0.1.3"
+api = 4
+phone = true
+
+[[setting]]
+key = "language"
+label = "Language of the date"
+kind = "choice"
+choices = ["auto", "en", "es", "fr"]
+default = "auto"
+hint = "auto: this device's language"

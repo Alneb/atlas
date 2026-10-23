@@ -1,0 +1,28 @@
+# The Paisa migration's defaults (engine/src/migrate/paisa.rs): the user's own Paisa ledger, read once. The vault's
+# finance/migration/paisa-mapping.md overrides `mapping` line by line.
+
+# Paisa account → finance account.
+[mapping]
+"Assets:Checking:Revolut" = "Assets:Revolut"
+"Assets:Checking:Unicaja" = "Assets:Unicaja:Cuenta"
+"Assets:Checking:Prepago" = "Assets:Unicaja:Prepago"
+"Assets:Checking:Cash" = "Assets:Cash"
+"Assets:Funds" = "Assets:Unicaja:Fondos"
+"Equity:OpeningBalance" = "Equity:Opening"
+# Moves between own accounts net to zero here; what stays is money to or from other people (Bizum, shared bills).
+"Expenses:Transfers" = "Assets:Transfers"
+"Income:CapitalGains:Funds" = "Income:Gains:Funds"
+"Expenses:Tax:CapitalGains" = "Expenses:Taxes:Withholding"
+
+# Funds by Paisa's commodity code: their names and ISINs, for the fund notes.
+[funds]
+DVE = { name = "Dunas Valor Equilibrado", isin = "ES0175414012" }
+DVF = { name = "Dunas Valor Flexible", isin = "ES0175316019" }
+DVP = { name = "Dunas Valor Prudente", isin = "ES0175437005" }
+
+# The importer presets that read each account's statements (Paisa read them from ins/), for its note's `import:`.
+[importers]
+"Assets:Revolut" = ["revolut-csv"]
+"Assets:Unicaja:Cuenta" = ["norma43", "unicaja-account-xls"]
+"Assets:Unicaja:Prepago" = ["unicaja-card-xls"]
+"Assets:Unicaja:Fondos" = ["unicaja-funds-pdf"]

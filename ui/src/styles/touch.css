@@ -1,0 +1,13 @@
+/* Touch screens: targets a finger hits — 40 px
+   buttons, taller rows, no hover-only controls hidden. Desktop sizes are untouched (a mouse is `pointer: fine`). The phone
+   app's own layout (phone.svelte.ts) already sizes its bars; this covers everything else, tablets and the Boox. */
+@media (pointer: coarse) {
+  .icon-btn, .side-tool, .app, .pin { min-width: 40px; min-height: 40px; }
+  .tab.side-row, .side-row, .mail-row, .row, .item { min-height: 44px; }
+  .tab-close, .unsplit { opacity: 1 !important; min-width: 32px; min-height: 32px; }
+  .split-row .tab.half .tab-close { display: grid; }
+  .btn { min-height: 40px; padding-inline: 14px; }
+  .chip { min-height: 36px; }
+  /* links in rendered text: a little room around them, so a finger finds them */
+  .markdown a, .cm-content .cm-link, .cm-content .cm-wikilink { padding-block: 4px; }
+}

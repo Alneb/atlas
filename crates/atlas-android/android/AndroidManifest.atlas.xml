@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Atlas (docs/guides/ANDROID.md, "The full app"): the desktop app's phone part, native — Today, Files, Search, notes — and the
+     capture box, tile and screen service of the capture app. The same Java (package org.atlas.capture) and Rust library. -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="org.atlas.app" android:versionCode="1" android:versionName="0.1.0">
+  <uses-permission android:name="android.permission.INTERNET" />
+  <!-- Outbox: a job that waits for a network (JobScheduler asks for it; without it the app was killed, 2026-10-19) -->
+  <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+  <!-- the outbox job (Outbox) survives a restart of the phone: captures kept offline are still sent -->
+  <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+  <!-- "kept captures were sent" (OutboxJob), asked for the first time a capture is kept offline -->
+  <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+  <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" />
+  <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="29" />
+  <!-- the last screenshot, when all-files access is not given -->
+  <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+  <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
+  <!-- the camera apps, visible to Host.hasCamera / takePhoto (package visibility, Android 11+) -->
+  <queries><intent><action android:name="android.media.action.IMAGE_CAPTURE" /></intent></queries>
+  <application android:networkSecurityConfig="@xml/network" android:label="Atlas" android:icon="@mipmap/ic_launcher" android:extractNativeLibs="true" android:requestLegacyExternalStorage="true">
+    <!-- rotating keeps this window and its page (configChanges): recreated, the WebView and the vault opened anew -->
+    <activity android:name="org.atlas.capture.AtlasActivity" android:exported="true" android:theme="@style/App" android:windowSoftInputMode="adjustResize" android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden">
+      <intent-filter>
+        <action android:name="android.intent.action.MAIN" />
+        <category android:name="android.intent.category.LAUNCHER" />
+      </intent-filter>
+    </activity>
+    <!-- the box: a translucent, dimmed window over whatever was on screen; out of the recent apps, its own task -->
+    <activity android:name="org.atlas.capture.CaptureActivity" android:exported="true" android:theme="@style/Capture" android:excludeFromRecents="true" android:taskAffinity="" android:launchMode="singleTask" android:windowSoftInputMode="stateAlwaysVisible|adjustResize">
+      <intent-filter>
+        <action android:name="android.intent.action.SEND" />
+        <category android:name="android.intent.category.DEFAULT" />
+        <data android:mimeType="*/*" />
+      </intent-filter>
+      <intent-filter>
+        <action android:name="android.intent.action.SEND_MULTIPLE" />
+        <category android:name="android.intent.category.DEFAULT" />
+        <data android:mimeType="*/*" />
+      </intent-filter>
+    </activity>
+    <!-- signing in to a server (docs/guides/ANDROID.md, "Signing in"): the browser comes back to the app's own address -->
+    <activity android:name="org.atlas.capture.SignedInActivity" android:exported="true" android:launchMode="singleTask" android:theme="@android:style/Theme.Translucent.NoTitleBar">
+      <intent-filter>
+        <action android:name="android.intent.action.VIEW" />
+        <category android:name="android.intent.category.DEFAULT" />
+        <category android:name="android.intent.category.BROWSABLE" />
+        <data android:scheme="org.atlas.app" />
+      </intent-filter>
+    </activity>
+    <activity android:name="org.atlas.capture.SignInWebActivity" android:exported="false" android:theme="@style/App" />
+    <!-- "Open with → Atlas" for a book, a comic or a PDF from another app (OpenWithActivity): read in the app's own reader -->
+    <activity android:name="org.atlas.capture.OpenWithActivity" android:exported="true" android:theme="@android:style/Theme.Translucent.NoTitleBar" android:excludeFromRecents="true" android:noHistory="true">
+      <intent-filter>
+        <action android:name="android.intent.action.VIEW" />
+        <category android:name="android.intent.category.DEFAULT" />
+        <data android:scheme="content" />
+        <data android:scheme="file" />
+        <data android:mimeType="application/epub+zip" />
+        <data android:mimeType="application/pdf" />
+        <data android:mimeType="application/x-mobipocket-ebook" />
+        <data android:mimeType="application/vnd.amazon.ebook" />
+        <data android:mimeType="application/x-fictionbook+xml" />
+        <data android:mimeType="application/x-cbz" />
+        <data android:mimeType="application/vnd.comicbook+zip" />
+      </intent-filter>
+    </activity>
+    <provider android:name="org.atlas.capture.PhotoProvider" android:authorities="org.atlas.app.photos" android:exported="false" android:grantUriPermissions="true" />
+    <!-- a native plugin's screen (docs/refactor/REFACTOR-native-plugins.md): Manga, Books… -->
+    <activity android:name="org.atlas.capture.PluginActivity" android:exported="false" android:theme="@style/App" android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden" />
+    <service android:name="org.atlas.capture.CaptureTile" android:exported="true" android:label="@string/tile" android:icon="@drawable/ic_plus" android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+      <intent-filter><action android:name="android.service.quicksettings.action.QS_TILE" /></intent-filter>
+    </service>
+    <!-- what is playing (Playing): media sessions are shown only to an app with notification access; it reads none -->
+    <service android:name="org.atlas.capture.MediaListener" android:exported="true" android:label="@string/media_listener" android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+      <intent-filter><action android:name="android.service.notification.NotificationListenerService" /></intent-filter>
+    </service>
+    <service android:name="org.atlas.capture.ScreenService" android:exported="true" android:label="@string/screen_service" android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+      <intent-filter><action android:name="android.accessibilityservice.AccessibilityService" /></intent-filter>
+      <meta-data android:name="android.accessibilityservice" android:resource="@xml/screen_service" />
+    </service>
+    <!-- captures kept while a server did not answer, sent once there is a network (Outbox) -->
+    <service android:name="org.atlas.capture.OutboxJob" android:exported="false" android:permission="android.permission.BIND_JOB_SERVICE" />
+  </application>
+</manifest>

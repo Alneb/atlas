@@ -1,0 +1,67 @@
+# The capture + organization meta plugin: anything captured (a link, an ID, a title) is recognised, looked up in every
+# source the switched-on catalog-* plugins offer, written as one note of its kind and kept in step with the services
+# that hold it (Linkwarden, Jellyfin, Zotero…). The work runs in its helper on the server; docs/REFACTOR-catalog.md.
+title = "Library"
+rail = true                 # the Library app (view.js → main.js catalog.app): every kind, as covers or a table
+description = "anything you capture, recognised, enriched and filed in its library"
+phone = true # runs in the phone apps too (only plugins marked so start there)
+icon = "grid" # not References' library icon (a vault may show both)
+version = "0.5.3"
+api = 4
+
+[permissions]
+net = ["*"] # the pages a link points to, read for catalog-web (clip.rs: fetched through the core's fetch)
+
+[helper]
+# built by engine/build.sh: one static binary per platform
+# (on the phone the app's own copy, from the APK: $ATLAS_PLUGIN_BIN — Android runs nothing from the vault)
+run = "\"${ATLAS_PLUGIN_BIN:-$ATLAS_PLUGIN_DIR/bin/$ATLAS_PLUGIN_TARGET}/catalog\""
+
+[[tool]]
+name = "add"
+description = "Catalogue a link, DOI, arXiv id or other identifier: recognise what it is, gather metadata from every catalog source, and write (or update) its note in the right library (`note`: the existing note it is, chosen by the user — only its gaps are filled when it has no IDs yet). Returns the note's path, what was done and each step."
+input = { text = "string", kind = "string?", ids = "object?", own = "object?", note = "string?" }
+timeout_secs = 120
+
+[[tool]]
+name = "capture"
+description = "After every capture (any app): a link or identifier in it is catalogued as add does; plain words are left alone (no search). Answers the note, or skipped."
+input = { text = "string", path = "string?", line = "integer?" }
+timeout_secs = 120
+on = "capture"
+
+[[setting]]
+key = "rail"
+label = "The Library app in the left bar"
+kind = "toggle"
+default = true
+hint = "every kind the catalog files (films, series, music, books, manga…) as covers or a table; off in a vault whose library is another view (References, say)"
+
+[[setting]]
+key = "on_capture"
+label = "File links from every capture"
+kind = "toggle"
+default = true
+hint = "a link, DOI, ISBN or IMDb id captured anywhere (the capture box, the phone, the desktop, an agent) becomes its note in its library, and the capture links to it"
+
+[[tool]]
+name = "preview"
+description = "What `add` would do with this text, without writing anything: the recognised kind, the merged metadata, where the note would go or the note that already holds it."
+input = { text = "string", kind = "string?", ids = "object?", note = "string?" }
+timeout_secs = 120
+
+[[tool]]
+name = "recognize"
+description = "Which kinds of thing this text could be (film, paper, video, web page…) and the identifiers found, without asking any service."
+input = { text = "string" }
+
+[[tool]]
+name = "refresh"
+description = "Fetch a catalogued note's metadata again and update the properties the catalog owns (never the user's text)."
+input = { path = "string" }
+timeout_secs = 120
+
+[[tool]]
+name = "kinds"
+description = "The kinds of thing the catalog knows in this vault, where each one's library is and where it was declared."
+input = {}

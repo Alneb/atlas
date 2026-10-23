@@ -1,0 +1,15 @@
+filters:
+  and:
+    - type == "project"
+views:
+  - type: table
+    name: Projects
+    order: [file.name, state, due, up]
+    sort:
+      - property: due
+        direction: ASC
+  - type: board
+    name: By state
+    groupBy:
+      property: state
+    order: [file.name, due]

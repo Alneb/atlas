@@ -1,0 +1,9 @@
+name: show
+label: Series
+folder: notes/series  # under notes/: the top level holds kinds of file, not topics
+note_name: "{title} ({year})"
+ids: [{ id: tmdb }, { id: imdb }, { id: tvdb }, { id: url, property: source }]
+properties: [year, creator, cast, genres, seasons, language, original_title, aka, cover]
+as_links: [creator]
+body: description
+library: { in: "Films & Series", title: Series, layout: shelves, group: status, shelves: [to-watch, watching, watched, dropped], cover: cover, key: [year, creator], icon: tv }

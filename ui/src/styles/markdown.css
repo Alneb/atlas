@@ -1,0 +1,215 @@
+/* Markdown typography, shared by the reading view (<div class="markdown">) and the live-preview
+   editor (whose .cm-content carries class "markdown"). Each rule names the reader element and
+   the live-preview decoration class side by side so the two views cannot drift (pattern and
+   cm-* class names ported from obsidian-web web/src/app.css). */
+.markdown { line-height: 1.68; color: var(--text); overflow-wrap: break-word; font-size: calc(15px * var(--ui-scale, 1)); }
+.markdown > :first-child { margin-top: 0; }
+.markdown > :last-child { margin-bottom: 0; }
+.markdown p { margin: .55em 0; }
+
+.markdown h1, .markdown h2, .markdown h3, .markdown h4, .markdown h5, .markdown h6, .markdown .cm-header {
+  line-height: 1.3; font-weight: 650; color: var(--heading); letter-spacing: -.012em;
+}
+.markdown h1, .markdown h2, .markdown h3, .markdown h4, .markdown h5, .markdown h6 { margin: 1.35em 0 .45em; }
+/* Obsidian's default scale (--h1-size … --h6-size); h5/h6 keep the text colour and case */
+.markdown h1, .markdown .cm-header-1 { font-size: 1.802em; font-weight: 700; letter-spacing: -.022em; }
+.markdown h2, .markdown .cm-header-2 { font-size: 1.602em; letter-spacing: -.018em; }
+.markdown h3, .markdown .cm-header-3 { font-size: 1.424em; }
+.markdown h4, .markdown .cm-header-4 { font-size: 1.266em; }
+.markdown h5, .markdown .cm-header-5 { font-size: 1.125em; }
+.markdown h6, .markdown .cm-header-6 { font-size: 1em; }
+.markdown h1 { padding-bottom: .25em; border-bottom: 1px solid var(--border); }
+
+/* every link changes colour under the pointer: [text](url) in the editor (.cm-link) had no hover rule at all */
+.markdown a, .markdown .cm-link { color: var(--link); text-decoration: none; }
+.markdown .cm-link { cursor: pointer; }
+.markdown a:hover, .markdown .cm-link:hover, .markdown .cm-link:hover * { color: var(--accent-strong); text-decoration: underline; text-underline-offset: 2px; }
+.markdown a.internal-link, .markdown .cm-hmd-internal-link { color: var(--accent); cursor: pointer; text-decoration: none; border-bottom: 1px solid color-mix(in srgb, var(--accent) 35%, transparent); }
+/* a phone: a target a finger can hit — an invisible box around the link, not padding (that would move the underline) */
+html.phone .markdown a, html.phone .markdown .cm-link, html.phone .markdown .cm-hmd-internal-link { position: relative; }
+html.phone .markdown a::after, html.phone .markdown .cm-link::after, html.phone .markdown .cm-hmd-internal-link::after { content: ""; position: absolute; inset: -9px -3px; }
+.markdown a.internal-link:hover, .markdown .cm-hmd-internal-link:hover { color: var(--accent-strong); border-bottom-color: var(--accent-strong); text-decoration: none; }
+.markdown .cm-hmd-internal-link.is-unresolved, .markdown a.internal-link.is-unresolved { color: var(--red); opacity: .85; }
+/* hover sync (context.svelte.ts): the note another pane is pointing at */
+.markdown .atlas-hover-link { background: var(--accent-soft); border-radius: 3px; box-shadow: 0 0 0 2px var(--accent-soft); }
+.markdown .embed-chip { display: inline-flex; padding: .1em .55em; border: 1px solid var(--border-strong); border-radius: 6px; border-bottom-width: 1px; font-size: .9em; }
+/* a video player written in a note (a clipped YouTube video; lib/markdown.ts lets only players through) */
+.markdown iframe { display: block; width: min(100%, 720px); aspect-ratio: 16 / 9; height: auto; border: 0; border-radius: 8px; margin: .5em 0; background: #000; }
+/* any file embedded (lib/embeds.ts): a card that opens it, a sound or a video played in place */
+.markdown .file-card { display: inline-flex; align-items: center; gap: 8px; padding: .45em .8em; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-elev); color: var(--text); text-decoration: none; }
+.markdown .file-card:hover { border-color: var(--border-strong); background: var(--bg-hover); }
+.markdown .file-card-icon { display: inline-flex; color: var(--text-faint); }
+.markdown .embed-audio { display: block; width: min(100%, 480px); margin: .4em 0; }
+.markdown .embed-video { display: block; max-width: 100%; max-height: 480px; margin: .4em 0; border-radius: 6px; background: #000; }
+
+.markdown strong, .markdown .cm-strong { font-weight: 650; color: var(--heading); }
+.markdown em, .markdown .cm-em { font-style: italic; }
+.markdown del, .markdown s, .markdown .cm-strikethrough { text-decoration: line-through; opacity: .65; }
+.markdown mark, .markdown .cm-highlight { background: var(--highlight-bg); color: inherit; padding: .05em .15em; border-radius: 3px; }
+
+.markdown code, .markdown .cm-inline-code {
+  font-family: var(--font-mono); font-size: .86em; background: var(--code-bg); border: 1px solid var(--border);
+  padding: .1em .38em; border-radius: 5px; color: var(--inline-code);
+}
+/* an inline expression's value (docs/design/EXPRESSIONS.md): reads as prose; the dotted line says "computed" */
+.markdown code.expr { font-family: inherit; font-size: inherit; background: none; border: 0; border-radius: 0; padding: 0; color: inherit; cursor: default;
+  border-bottom: 1px dotted color-mix(in srgb, var(--accent) 60%, transparent); font-variant-numeric: tabular-nums; }
+.markdown code.expr.expr-error { color: var(--red); border-bottom-color: var(--red); }
+.markdown code.expr.expr-wait { color: var(--text-faint); }
+/* `key:: value` — a section property: the key steps back */
+.markdown .cm-field-key { color: var(--text-faint); }
+.markdown pre {
+  position: relative; background: var(--code-bg); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 14px 16px; margin: .9em 0; overflow: auto; white-space: pre-wrap; overflow-wrap: break-word;
+  font-size: calc(13px * var(--ui-scale, 1)); line-height: 1.6;
+}
+.markdown pre code { background: none; border: 0; padding: 0; color: var(--text); font-size: inherit; }
+.markdown pre .code-lang { position: absolute; top: 6px; right: 10px; font-family: var(--font-ui); font-size: calc(10.5px * var(--ui-scale, 1)); letter-spacing: .05em; text-transform: uppercase; color: var(--text-faint); user-select: none; }
+
+.markdown ul, .markdown ol { padding-left: 1.6em; margin: .5em 0; }
+.markdown li { margin: .18em 0; }
+.markdown li::marker { color: var(--text-faint); }
+.markdown ol > li::marker { color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.markdown ul.contains-task-list { list-style: none; padding-left: .3em; }
+/* hanging indent, not flex: under flex each bare text run and inline element became its own column */
+.markdown li.task-list-item { padding-left: 1.55em; }
+.markdown li.task-list-item input.task-checkbox { margin: 0 .55em 0 -1.55em; }
+.markdown li.task-list-item.is-checked { color: var(--text-muted); text-decoration: line-through; text-decoration-color: var(--text-faint); }
+.markdown input.task-checkbox, .markdown .cm-task-mark {
+  appearance: none; -webkit-appearance: none; width: 1em; height: 1em; flex: none; margin: 0; border: 1.5px solid var(--text-faint);
+  border-radius: 4px; transform: translateY(.15em); background: transparent; display: inline-grid; place-content: center; cursor: default;
+}
+.markdown input.task-checkbox:checked, .markdown .cm-task-mark:checked { background: var(--accent); border-color: var(--accent); }
+.markdown input.task-checkbox:checked::after, .markdown .cm-task-mark:checked::after {
+  content: ""; width: .5em; height: .28em; border: solid var(--bg); border-width: 0 0 2px 2px; transform: translateY(-.06em) rotate(-45deg);
+}
+
+.markdown blockquote, .markdown .cm-quote { border-left: 3px solid var(--border-strong); padding: .1em 1em; color: var(--text-muted); margin: .8em 0; }
+.markdown .cm-quote { margin: 0; }
+
+.markdown hr, .markdown .cm-hr { border: 0; border-top: 1px solid var(--border-strong); margin: 1.6em 0; }
+.markdown .cm-hr { display: block; margin: .8em 0; }
+
+/* the frame fits the table (a full-width frame around a half-width table left an empty box) */
+.markdown .table-wrap { overflow-x: auto; margin: .9em 0; border: 1px solid var(--border); border-radius: var(--radius); width: fit-content; max-width: 100%; }
+/* auto width with wrapping cells (Obsidian): max-content pushed every column after a long one off-screen */
+.markdown table { border-collapse: collapse; width: auto; font-size: 1em; }
+.markdown th, .markdown td { padding: 6px 12px; border-bottom: 1px solid var(--border); text-align: left; line-height: 1.45; }
+.markdown th { background: var(--bg-alt); font-weight: 600; color: var(--heading); }
+.markdown tr:last-child td { border-bottom: 0; }
+.markdown td + td, .markdown th + th { border-left: 1px solid var(--border); }
+.markdown tbody tr:hover { background: var(--bg-hover); }
+
+.markdown img { max-width: 100%; border-radius: 6px; }
+.markdown img.embed-img { display: block; margin: .6em 0; }
+.markdown img.embed-img.is-centered { margin-inline: auto; }
+.markdown img.is-missing { min-width: 120px; min-height: 40px; border: 1px dashed var(--border-strong); }
+
+.markdown .tag, .markdown .cm-hashtag { background: var(--tag-bg); color: var(--tag-color); border-radius: 99px; padding: .05em .55em; font-size: .85em; font-weight: 500; }
+
+/* math */
+.markdown .katex { font-size: 1.08em; }
+.markdown .math-display, .markdown .cm-math-block { display: block; overflow-x: auto; overflow-y: hidden; padding: .3em 0; margin: .6em 0; text-align: center; }
+.markdown .katex-display { margin: 0; }
+.markdown .cm-math-inline { display: inline-block; }
+.markdown .math-glue { white-space: nowrap; }
+.markdown .cm-math-error, .markdown .math-error { color: var(--red); font-family: var(--font-mono); font-size: .88em; }
+.markdown .cm-math-src { font-family: var(--font-mono); font-size: .88em; }
+.markdown .cm-formatting-math { color: var(--text-faint); }
+.katex .katex-error { color: var(--red) !important; }
+
+/* callouts: the type class only sets variables; both views read them */
+.callout-note, .callout-info, .callout-todo { --callout-edge: var(--accent); --callout-ink: var(--accent); }
+.callout-tip, .callout-hint, .callout-important, .callout-success, .callout-check, .callout-done { --callout-edge: var(--green); --callout-ink: var(--green); }
+.callout-warning, .callout-caution, .callout-attention, .callout-question, .callout-help, .callout-faq { --callout-edge: var(--yellow); --callout-ink: var(--yellow); }
+.callout-danger, .callout-error, .callout-bug, .callout-failure, .callout-fail, .callout-missing { --callout-edge: var(--red); --callout-ink: var(--red); }
+.callout-example, .callout-abstract, .callout-summary, .callout-tldr { --callout-edge: var(--purple); --callout-ink: var(--purple); }
+.callout-quote, .callout-cite { --callout-edge: var(--text-faint); --callout-ink: var(--text-muted); }
+.markdown .callout { margin: .9em 0; border: 1px solid var(--border); border-left: 3px solid var(--callout-edge, var(--accent)); border-radius: var(--radius);
+  background: color-mix(in srgb, var(--callout-edge, var(--accent)) 7%, transparent); overflow: hidden; }
+.markdown .callout-title { padding: 8px 14px 2px; font-weight: 650; color: var(--callout-ink, inherit); }
+.markdown .callout-body { padding: 2px 14px 10px; }
+/* a foldable callout ([!x]- / [!x]+): the title opens and closes it, a chevron says which */
+.markdown summary.callout-title { cursor: pointer; list-style: none; display: flex; align-items: center; gap: 6px; padding-bottom: 8px; }
+.markdown summary.callout-title::-webkit-details-marker { display: none; }
+.markdown summary.callout-title::after { content: "›"; margin-left: auto; color: var(--text-faint); transition: transform .12s; }
+.markdown details.callout[open] > summary.callout-title { padding-bottom: 2px; }
+.markdown details.callout[open] > summary.callout-title::after { transform: rotate(90deg); }
+.markdown .callout-body > :first-child { margin-top: 0; }
+.markdown .callout-body > :last-child { margin-bottom: 0; }
+.markdown .cm-callout { border-left: 3px solid var(--callout-edge, var(--accent)); border-right: 1px solid var(--border);
+  background: color-mix(in srgb, var(--callout-edge, var(--accent)) 7%, transparent); padding: .05em 14px !important; }
+.markdown .cm-callout-first { border-top: 1px solid var(--border); border-radius: var(--radius) var(--radius) 0 0; padding-top: 8px !important; }
+.markdown .cm-callout-last { border-bottom: 1px solid var(--border); border-radius: 0 0 var(--radius) var(--radius); padding-bottom: 8px !important; }
+.markdown .cm-callout-first.cm-callout-last { border-radius: var(--radius); }
+.markdown .cm-callout-title, .markdown .cm-callout-label { font-weight: 650; color: var(--callout-ink, inherit); }
+
+/* Obsidian-style Properties (lib/properties.ts): shared by the editor's frontmatter widget and the reader */
+/* padding, not margin: CodeMirror measures a block widget by its border box, margins shift the gutter */
+.note-properties { margin: 0; padding: .4em 0 1.1em; font-size: .9em; }
+.note-properties .prop-head { all: unset; display: inline-flex; align-items: center; gap: .45em; cursor: pointer; color: var(--text-muted); font-weight: 600; font-size: .92em; padding: 2px 0 6px; }
+.note-properties .prop-head:hover { color: var(--text); }
+.note-properties .prop-chevron { display: inline-block; transition: transform .12s; transform: rotate(90deg); font-size: .8em; }
+.note-properties.is-collapsed .prop-chevron { transform: none; }
+.note-properties .prop-count { font-weight: 500; color: var(--text-faint); font-size: .9em; }
+.note-properties.is-collapsed .prop-rows { display: none; }
+.note-properties .prop-row { display: grid; grid-template-columns: minmax(7em, 11em) 1fr; gap: .8em; align-items: start; padding: 4px 6px; border-radius: 6px; }
+.note-properties .prop-row:hover { background: var(--bg-hover); }
+.note-properties .prop-key { display: inline-flex; align-items: center; gap: .5em; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.note-properties .prop-key svg { width: 1.05em; height: 1.05em; flex: none; opacity: .8; }
+.note-properties .prop-value { display: flex; flex-wrap: wrap; gap: .35em; min-width: 0; overflow-wrap: anywhere; color: var(--text); }
+.note-properties .prop-pill { display: inline-block; padding: 0 .6em; border-radius: 999px; background: var(--bg-alt); border: 1px solid var(--border); line-height: 1.6; text-decoration: none; }
+.note-properties a.prop-pill { color: var(--link, var(--accent)); }
+.note-properties .prop-tag { color: var(--accent); background: var(--accent-soft); border-color: transparent; }
+.note-properties .prop-empty { color: var(--text-faint); font-style: italic; }
+.note-properties .prop-error { color: var(--danger, #e06c75); }
+
+/* unresolved [[links]] are dimmed, as in Obsidian */
+.markdown a.internal-link.is-unresolved { opacity: .6; }
+
+/* ![[x.excalidraw]] drawn inline (lib/draw-embed.ts); left-aligned like images, |center centers */
+.markdown .drawing-embed { margin: .6em 0; max-width: 100%; min-height: 2em; }
+.markdown .drawing-embed.is-centered { margin-inline: auto; }
+.markdown .drawing-embed.is-centered .drawing-svg { margin-inline: auto; }
+.markdown .drawing-svg { display: block; max-width: 100%; height: auto; }
+.markdown .drawing-embed.is-missing { color: var(--text-faint); font-size: .9em; border: 1px dashed var(--border-strong); border-radius: 6px; padding: .4em .7em; }
+/* mentions (editor/mentions.ts): @citekey and plugin entities as chips */
+.markdown .atlas-mention { color: var(--accent); background: var(--accent-soft); border-radius: 4px; padding: 0 2px; cursor: pointer; }
+.markdown .atlas-mention.is-missing { color: var(--red); background: color-mix(in srgb, var(--red) 12%, transparent); }
+.atlas-mention-card { padding: 8px 10px; max-width: 420px; font-family: var(--font-ui); font-size: calc(12.5px * var(--ui-scale, 1)); }
+.atlas-mention-card .t { font-weight: 600; color: var(--heading); }
+.atlas-mention-card .s { color: var(--text-muted); margin-top: 2px; }
+.atlas-mention-card .p { color: var(--text-faint); font-family: var(--font-mono); font-size: .9em; }
+.atlas-mention-card .hint { color: var(--text-faint); font-size: .85em; margin-top: 4px; }
+/* view blocks (lib/views.ts): a framed, quiet panel inside the note */
+.markdown .view-block { margin: .6em 0; padding: 6px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-alt); font-family: var(--font-ui); white-space: normal; }
+/* a Today part brings its own card: no second frame around it */
+.markdown .view-block.own { border: 0; padding: 0; background: none; margin: .9em 0; }
+.markdown .view-block .view-loading { color: var(--text-faint); margin: 0; padding: 4px 8px; }
+.markdown .view-block .view-error { color: var(--red); margin: 0; padding: 4px 8px; }
+.markdown .ink-card { margin: .6em 0; padding: .55em .8em; border: 1px dashed var(--border-strong); border-radius: 6px; color: var(--text-muted); font-size: .92em; }
+.markdown .drawing-embed { position: relative; }
+.markdown .drawing-edit { position: absolute; top: 6px; right: 6px; opacity: 0; transition: opacity .12s; font-size: .8em; padding: 2px 8px; border-radius: 999px; background: var(--bg-elev); border: 1px solid var(--border); color: var(--text-muted); cursor: pointer; }
+.markdown .drawing-embed:hover .drawing-edit, .markdown .drawing-edit:focus-visible { opacity: 1; }
+
+/* A mail kept as a note (plugins/beta/email, `html_block`): its own HTML, drawn as the mail laid it out — its
+   layout tables are not the note's data tables (no grid, no header shading), its paragraphs keep the mail's spacing,
+   and it never widens the pane. */
+/* always on a light sheet, as mail apps draw HTML mail in a dark theme: a mail sets its own (dark) text colours */
+.markdown .email-html { font-size: .95em; line-height: 1.45; overflow-x: auto; overflow-wrap: anywhere; background: #fff; color: #1f2328; padding: 14px 18px; border-radius: var(--radius); border: 1px solid var(--border); color-scheme: light; }
+.markdown .email-html a { color: #1a5fd0; }
+.markdown .email-html p { margin: 0 0 .4em; }
+.markdown .email-html table { border-collapse: collapse; width: auto; max-width: 100%; font-size: inherit; }
+.markdown .email-html th, .markdown .email-html td { padding: 0; border: 0; background: none; color: inherit; font-weight: inherit; line-height: inherit; }
+.markdown .email-html td + td, .markdown .email-html th + th { border-left: 0; }
+.markdown .email-html .table-wrap { overflow: visible; margin: 0; }
+.markdown .email-html img { border-radius: 0; height: auto; }
+
+/* the ↗ over the embed under the pointer: its original (lib/embed-open.ts) */
+.embed-open {
+  position: fixed; z-index: 40; width: 24px; height: 24px; display: grid; place-items: center; padding: 0;
+  border: 1px solid var(--border); border-radius: 6px; background: var(--bg-elev); color: var(--text-muted);
+  cursor: pointer; opacity: .9; box-shadow: 0 1px 3px rgb(0 0 0 / .12);
+}
+.embed-open:hover { color: var(--text); opacity: 1; }
+.embed-open[hidden] { display: none; }

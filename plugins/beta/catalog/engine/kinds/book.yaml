@@ -1,0 +1,9 @@
+name: book
+label: Book
+folder: notes/books  # under notes/: the top level holds kinds of file, not topics
+note_name: "{title}"
+ids: [{ id: isbn }, { id: openlibrary }, { id: goodreads }, { id: audiobookshelf }, { id: url, property: source }]
+properties: [author, narrator, year, pages, duration, publisher, genres, language, original_title, aka, audiobook, cover]
+as_links: [author]
+body: description
+library: { in: "Books", title: Books, layout: shelves, group: status, shelves: [to-read, reading, read, dropped], cover: cover, key: [author, year], icon: book }

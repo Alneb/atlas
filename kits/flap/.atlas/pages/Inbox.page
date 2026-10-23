@@ -1,0 +1,8 @@
+# The inbox: catch things at the top, decide about them below (one note at a time).
+title: Inbox
+rows:
+  - [capture]
+  - [{view: review, filters: 'type == "fleeting"', types: [literature, atomic, project]}]
+  - columns:
+      - [{view: list, from: "folder:", filters: 'type == "fleeting"', title: Still fleeting}]
+      - [{view: review, title: Asked to come back}]

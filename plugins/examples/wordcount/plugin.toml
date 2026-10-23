@@ -1,0 +1,9 @@
+# A minimal Atlas plugin: copy this folder to <vault>/.atlas/plugins/wordcount/ and it is live.
+# Only `title` is required. Everything a plugin can declare: docs/PLUGINS.md.
+title = "Word count"
+description = "a block that counts the words of the note it is in"
+phone = true # runs in the phone apps too (only plugins marked so start there)
+
+[settings]
+# read in main.js as atlas.plugin.settings.goal; editable in Settings → Plugins
+goal = 500

@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <string name="screen_service">Atlas capture: the screen you were on</string>
+  <string name="screen_service_about">Lets the Atlas capture tile and the accessibility button add a picture of the screen you were on to a capture. Only when you tap the tile or the button, it takes a picture of the screen and reads what the app shows: a page\'s address, or the video, song, film or article on screen; it reads nothing at any other time.</string>
+  <string name="media_listener">Atlas capture: what is playing</string>
+  <string name="tile">Capture</string>
+</resources>

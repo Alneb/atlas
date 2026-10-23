@@ -1,0 +1,27 @@
+#!/usr/bin/env sh
+# Global quick capture (bind a key to "Atlas Capture" in System Settings → Shortcuts):
+# a small box above everything — type, Enter, gone. docs/CAPTURE.md.
+#
+#   ATLAS_WORKSPACE=/path/to/vault   the vault it writes to (default: the one opened last);
+#                                    the box can also switch vault itself
+#   ATLAS_CAPTURE=webview            the older box drawn by the desktop app (WebKit; slower to open)
+#   ATLAS_CAPTURE=dialog             use the plain one-line dialog instead of Atlas's own box
+#
+# The box is atlas-capture: a native window, no web view, so it opens at once. Without the app (or when asked), the old way:
+# a one-line kdialog prompt and `atlas capture`, which writes to disk with or without Atlas open.
+# Started from a menu or a shortcut, PATH may lack ~/.cargo/bin (where install.sh puts the binaries).
+PATH="$PATH:$HOME/.cargo/bin"
+if [ "${ATLAS_CAPTURE:-box}" = "box" ] && command -v atlas-capture >/dev/null 2>&1; then
+  exec atlas-capture ${ATLAS_WORKSPACE:+"$ATLAS_WORKSPACE"}
+fi
+if [ "${ATLAS_CAPTURE:-box}" != "dialog" ] && command -v atlas-app >/dev/null 2>&1; then
+  if [ -n "${ATLAS_WORKSPACE:-}" ]; then exec atlas-app --capture "$ATLAS_WORKSPACE"; fi
+  exec atlas-app --capture
+fi
+text=$(kdialog --title "Atlas capture" --inputbox "→ today's log" "" 2>/dev/null) || exit 0
+[ -n "$text" ] || exit 0
+if out=$(atlas ${ATLAS_WORKSPACE:+--workspace "$ATLAS_WORKSPACE"} capture "$text" 2>&1); then
+  notify-send -a Atlas -t 1500 "Captured" "$text" 2>/dev/null || true
+else
+  kdialog --error "Atlas capture failed:\n$out"
+fi

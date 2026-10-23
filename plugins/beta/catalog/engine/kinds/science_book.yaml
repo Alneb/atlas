@@ -1,0 +1,12 @@
+# A science book (physics, mathematics, a textbook…) kept apart from the other books. catalog-books says which is which from the
+# book's subjects; a vault moves the library with its own .atlas/kinds/science_book.yaml (e.g. next to its papers).
+name: science_book
+label: Science book
+type: science-book
+folder: notes/books/science  # under notes/: the top level holds kinds of file, not topics
+note_name: "{title}"
+ids: [{ id: isbn }, { id: openlibrary }, { id: goodreads }, { id: audiobookshelf }, { id: url, property: source }]
+properties: [author, narrator, year, edition, pages, duration, publisher, genres, audiobook, cover]
+as_links: [author]
+body: description
+library: { in: "Books", title: Science books, layout: table, group: status, shelves: [to-read, reading, read, reference], cover: cover, key: [author, year], icon: book }

@@ -1,0 +1,96 @@
+# SSH: the hosts of your ssh config, one click (or one key) from a terminal on each. Connect, run one command, browse a
+# host's files (in Atlas's explorer), copy a file over, mount a host's folder. The helper is Rust (engine/, built by
+# engine/build.sh into bin/<target>/atlas-ssh); OpenSSH does the connecting. Copy into a vault's .atlas/plugins/.
+title = "SSH"
+description = "your ssh hosts: connect, run a command, browse files (SFTP), copy a file, mount"
+icon = "terminal"
+version = "0.8.0"
+api = 4
+# what an agent reads first (atlas mcp's instructions): the user saw Claude run ssh in its own shell instead (2026-10-19)
+for_agents = "For anything on the user's ssh hosts, use these tools, never ssh, scp or sftp in your own shell: ssh_hosts to see them, ssh_open then ssh_run for commands (one shared connection per host; a passphrase or 2FA is asked of the user once, in Atlas, and everything you run is visible to them), ssh_terminal for a tab the user works in. Your own `ssh host` cannot answer a 2FA prompt and the user cannot see what it does."
+
+# remote shells kept open for agents (atlas mcp) and the page, one shared connection per host (engine/src/sessions.rs)
+[helper]
+run = "\"$ATLAS_PLUGIN_DIR/bin/$ATLAS_PLUGIN_TARGET/atlas-ssh\""
+
+[[tool]]
+name = "hosts"
+description = "The user's ssh hosts (from their ssh config and this plugin's settings)."
+
+[[tool]]
+name = "open"
+description = "Use this (then ssh_run), not ssh in your own shell, for anything on the user's hosts. Open a long-lived shell on an ssh host, over one shared connection per host. If the host asks for a passphrase or 2FA, a terminal tab opens in Atlas for the user to answer and this call returns waiting_for_login: call it again until it returns the session. cd, variables and environments persist between ssh_run calls. Returns the session name."
+input = { host = { type = "string", description = "a host name from ssh_hosts, or user@host[:port]" }, name = { type = "string", description = "a session name (default: the host)", optional = true } }
+timeout_secs = 400
+
+[[tool]]
+name = "terminal"
+description = "Open a visible SSH terminal tab in the user's Atlas window, for the user to work in (\"open me a terminal on iq\"). Uses the shared connection when it is up (no password); otherwise ssh asks for the passphrase / 2FA in that tab and the user answers there. Fails when no Atlas window is open. For commands you run yourself, use ssh_open / ssh_run instead."
+input = { host = { type = "string", description = "a host name from ssh_hosts, or user@host[:port]" }, command = { type = "string", description = "run this on the host in the tab instead of a login shell", optional = true }, title = { type = "string", description = "the tab's title (default: the host)", optional = true } }
+timeout_secs = 30
+
+[[tool]]
+name = "run"
+description = "Run a shell command in an open ssh session and return its output and exit status. If it is still running after `timeout` seconds you get the output so far and running=true: call ssh_read for more, ssh_send to answer a prompt. If the connection had dropped it is reopened first (reconnected: a new shell). The user can watch everything in Atlas."
+input = { session = "string", command = "string", timeout = { type = "number", description = "seconds to wait (default 30)", optional = true } }
+timeout_secs = 3600
+
+[[tool]]
+name = "read"
+description = "More output of a command still running in an ssh session (waits up to `wait` seconds)."
+input = { session = "string", wait = "number?" }
+timeout_secs = 3600
+
+[[tool]]
+name = "send"
+description = "Type a line into an ssh session (answer a prompt of the running command)."
+input = { session = "string", text = "string" }
+
+[[tool]]
+name = "close"
+description = "Close an ssh session."
+input = { session = "string" }
+
+[[tool]]
+name = "sessions"
+description = "The open ssh sessions, which are running a command, and their log files."
+
+[[setting]]
+key = "config"
+label = "ssh config"
+kind = "text"
+default = "~/.ssh/config"
+hint = "the file the hosts are read from (its Include lines are followed)"
+
+[[setting]]
+key = "extra"
+label = "More hosts"
+kind = "list"
+hint = "user@host or host:port, for hosts not in the config"
+
+[[setting]]
+key = "options"
+label = "ssh options"
+kind = "text"
+hint = "added to every ssh / scp, e.g. -o ServerAliveInterval=30"
+
+[[setting]]
+key = "persist"
+label = "Keep connections"
+kind = "text"
+default = "yes"
+hint = "how long a shared connection stays up once idle (ssh ControlPersist): yes = until it drops, or e.g. 8h"
+
+[[setting]]
+key = "remote_dir"
+label = "Copy files to"
+kind = "text"
+default = "~"
+hint = "the folder on the host that \"Copy to host\" puts a file in"
+
+[[setting]]
+key = "mounts"
+label = "Mount folder"
+kind = "text"
+default = "~/mnt"
+hint = "\"Mount\" puts each host under this folder with sshfs"

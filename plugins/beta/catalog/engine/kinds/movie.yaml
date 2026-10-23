@@ -1,0 +1,10 @@
+# The catalog's film. A vault changes any of it with its own .atlas/kinds/movie.yaml (folder, names, links, `set`).
+name: movie
+label: Film
+folder: notes/films  # under notes/: the top level holds kinds of file, not topics
+note_name: "{title} ({year})"
+ids: [{ id: tmdb }, { id: imdb }, { id: letterboxd }, { id: url, property: source }]
+properties: [year, director, cast, genres, duration, language, original_title, aka, cover]
+as_links: [director]
+body: description
+library: { in: "Films & Series", title: Films, layout: shelves, group: status, shelves: [to-watch, watching, watched, dropped], cover: cover, key: [year, director], icon: film }

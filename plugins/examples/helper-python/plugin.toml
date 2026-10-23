@@ -1,0 +1,12 @@
+# A plugin with a helper: a program of its own that Atlas keeps running (docs/guides/PLUGINS.md, "v4").
+# Use one when JavaScript in the page is not enough: heavy work, a compiled library, a connection
+# that must stay open. Copy this folder into a vault's .atlas/plugins/ and run "Word stats: count".
+title = "Word stats"
+description = "counts the words of every note in a helper process (an example of [helper])"
+icon = "chart"
+version = "0.1.0"
+api = 4
+
+[helper]
+# -u: unbuffered, so every answer reaches Atlas at once. $ATLAS_PLUGIN_DIR is this folder.
+run = "python3 -u \"$ATLAS_PLUGIN_DIR/helper.py\""

@@ -1,0 +1,195 @@
+/* CodeMirror chrome for Atlas: caret, selection, gutters, panels, tooltips, vim prompt; plus
+   the live-preview specifics (fenced lines, lists, rendered blocks) from obsidian-web's app.css. */
+.cm-editor { height: 100%; background: var(--bg); color: var(--text); font-size: var(--code-size, 14px); }
+.cm-editor.cm-focused { outline: none; }
+/* Colours, fonts and gutters that CodeMirror's base theme also sets live in lib/editor/theme.ts. */
+.cm-content { caret-color: var(--accent); padding: 14px 0 40vh; }
+.cm-cursor, .cm-dropCursor { border-left: 2px solid var(--accent) !important; }
+.cm-fat-cursor { background: color-mix(in srgb, var(--accent) 70%, transparent) !important; color: var(--accent-fg) !important; border: 0 !important; }
+.cm-editor:not(.cm-focused) .cm-fat-cursor { background: none !important; outline: 1px solid var(--accent) !important; color: inherit !important; }
+.cm-selectionBackground { background: var(--accent-sel) !important; }
+.cm-content ::selection { background: var(--accent-sel); }
+.cm-activeLine { background: color-mix(in srgb, var(--text) 3%, transparent); }
+.cm-selectionMatch { background: color-mix(in srgb, var(--yellow) 16%, transparent); }
+.cm-matchingBracket { background: var(--accent-soft); outline: 1px solid color-mix(in srgb, var(--accent) 40%, transparent); }
+.cm-searchMatch { background: color-mix(in srgb, var(--yellow) 28%, transparent); border-radius: 2px; }
+.cm-searchMatch-selected { background: color-mix(in srgb, var(--orange) 45%, transparent); }
+
+.cm-gutters { background: var(--bg); border-right: 0; color: color-mix(in srgb, var(--text-faint) 80%, transparent); font-size: .86em; }
+.cm-lineNumbers .cm-gutterElement { padding: 0 14px 0 18px; min-width: 48px; font-variant-numeric: tabular-nums; }
+.cm-activeLineGutter { background: transparent; color: var(--accent-strong); font-weight: 600; }
+/* code files: ligatures, breathing room, a quiet active line with an accent edge */
+.code-cm .cm-content { padding-left: 6px; font-variant-ligatures: contextual; font-feature-settings: "calt", "liga"; }
+.code-cm .cm-activeLine { background: color-mix(in srgb, var(--accent) 5%, transparent); box-shadow: inset 2px 0 0 color-mix(in srgb, var(--accent) 55%, transparent); }
+.code-cm .cm-gutters { padding-right: 2px; }
+.cm-foldGutter .cm-gutterElement { color: var(--text-faint); padding: 0 4px; cursor: pointer; }
+.cm-foldPlaceholder { background: var(--bg-active); border: 0; color: var(--text-muted); border-radius: 4px; padding: 0 6px; }
+
+.cm-panels { background: var(--bg-alt); color: var(--text); border-color: var(--border) !important; font-family: var(--font-ui); }
+.cm-panel.cm-search { padding: 8px 12px; font-size: calc(12.5px * var(--ui-scale, 1)); display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.cm-panel.cm-search input, .cm-panel.cm-search button, .cm-textfield, .cm-button {
+  font: inherit; font-size: calc(12.5px * var(--ui-scale, 1)); background: var(--bg-elev); color: var(--text); border: 1px solid var(--border-strong); border-radius: var(--radius-sm); padding: 3px 8px; background-image: none;
+}
+.cm-panel.cm-search label { color: var(--text-muted); display: inline-flex; gap: 4px; align-items: center; }
+.cm-panel.cm-search [name=close] { color: var(--text-faint); font-size: calc(16px * var(--ui-scale, 1)); border: 0; background: none; }
+.cm-vim-panel, .cm-panel.cm-vim-panel { font-family: var(--font-mono); font-size: calc(13px * var(--ui-scale, 1)); padding: 4px 12px; background: var(--bg-alt); }
+.cm-vim-panel input { background: transparent; color: var(--text); border: 0; outline: 0; font: inherit; }
+
+.cm-tooltip { background: var(--bg-elev); border: 1px solid var(--border-strong); border-radius: var(--radius); box-shadow: var(--shadow-pop); color: var(--text); overflow: hidden; }
+.cm-tooltip-autocomplete > ul { font-family: var(--font-mono); font-size: calc(12.5px * var(--ui-scale, 1)); max-height: 16em; }
+.cm-tooltip-autocomplete > ul > li { padding: 3px 10px !important; }
+.cm-tooltip-autocomplete > ul > li[aria-selected] { background: var(--accent-soft); color: var(--heading); }
+.cm-completionMatchedText { color: var(--accent-strong); text-decoration: none; font-weight: 600; }
+/* task fields (lib/task-complete.ts): icon · name · hint in its own column, in the interface font */
+.cm-tooltip-autocomplete > ul > li.cm-task-row, .ta-complete li.task-row { display: flex; align-items: center; gap: 8px; font-family: var(--font-ui); }
+.cm-tooltip-autocomplete > ul > li.cm-task-row { min-width: 15em; }
+.task-sugg-icon { display: inline-flex; flex: none; width: 16px; justify-content: center; color: var(--text-muted); }
+/* the chosen row's icon in the accent: CodeMirror marks only that row, the text boxes mark every row true/false */
+.cm-tooltip-autocomplete li[aria-selected] > .task-sugg-icon, .ta-complete li[aria-selected="true"] > .task-sugg-icon { color: var(--accent-strong); }
+.cm-task-row .cm-completionLabel, .task-row .task-sugg-label { flex: 1; }
+.cm-task-row .cm-completionDetail, .task-row .task-sugg-detail { margin-left: 16px; font-style: normal; color: var(--text-faint); font-variant-numeric: tabular-nums; }
+
+/* --- live preview (markdown) -------------------------------------------------------------- */
+.live-cm.cm-editor { font-size: var(--prose-size, 15px); }
+.live-cm.cm-editor .cm-scroller.cm-scroller { font-family: var(--prose-font, var(--font-ui)); line-height: var(--prose-line-height, 1.68); }
+.live-cm .cm-content { max-width: calc(var(--prose-width, 88ch) + 80px); margin: 0 auto; padding: 36px 40px 45vh; box-sizing: border-box; width: 100%; }
+.live-cm .cm-line { padding: 0; }
+.live-cm .cm-activeLine { background: transparent; }
+.live-cm .markdown .cm-header { margin: 0; }
+.live-cm .cm-header-1 { padding-top: .35em; padding-bottom: .1em; }
+.live-cm .cm-header-2 { padding-top: .45em; }
+.live-cm .cm-header-3, .live-cm .cm-header-4 { padding-top: .35em; }
+.live-cm .cm-header .cm-formatting, .live-cm .cm-formatting { color: var(--text-faint); }
+
+/* the selection over the line backgrounds and rendered boxes (a code block, a callout): drawn under them it showed in pieces,
+   misaligned with the smaller code text.
+   Its colour is translucent, so the text reads through it; the browser's own selection is not drawn twice there. */
+.live-cm .cm-selectionLayer { z-index: 2 !important; pointer-events: none; }
+.live-cm .cm-rendered-block ::selection, .live-cm .cm-codeblock ::selection { background: transparent; }
+
+/* fenced code drawn as one box from per-line decorations */
+.markdown .cm-codeblock { background: var(--code-bg); font-family: var(--font-mono); font-size: .86em; line-height: 1.6;
+  padding: 0 16px !important; border-left: 1px solid var(--border); border-right: 1px solid var(--border); }
+.markdown .cm-codeblock-first { border-top: 1px solid var(--border); border-radius: var(--radius) var(--radius) 0 0; padding-top: 8px !important; color: var(--text-faint); }
+.markdown .cm-codeblock-last { border-bottom: 1px solid var(--border); border-radius: 0 0 var(--radius) var(--radius); padding-bottom: 8px !important; color: var(--text-faint); }
+
+/* lists: hanging indent rebuilt per line (28px = LIST_INDENT in live-preview.js) */
+.markdown .cm-list { text-indent: -28px; }
+.markdown .cm-list.cm-list-cont { text-indent: 0; }
+.markdown .cm-list-1 { padding-left: 28px !important; }
+.markdown .cm-list-2 { padding-left: 56px !important; }
+.markdown .cm-list-3 { padding-left: 84px !important; }
+.markdown .cm-list-4 { padding-left: 112px !important; }
+.markdown .cm-list-5 { padding-left: 140px !important; }
+.markdown .cm-list-6 { padding-left: 168px !important; }
+.markdown .cm-list-mark { display: inline-block; width: 28px; box-sizing: border-box; text-align: right; padding-right: 9px; color: var(--text-faint); text-indent: 0; }
+.markdown .cm-list-mark-ordered { color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.markdown .cm-task-mark { margin-right: .5em; text-indent: 0; vertical-align: baseline; }
+.markdown .cm-line:has(.cm-task-mark:checked) { color: var(--text-muted); }
+
+/* blocks rendered by markdown-it inside the editor (tables, fences, $$, embeds) */
+/* white-space: CodeMirror's pre-wrap would draw every line break of a rendered block's source (raw HTML: a mail) as an empty line */
+.markdown .cm-rendered-block { margin: 0; padding: 2px 0; border-radius: var(--radius); transition: background .12s; cursor: text; white-space: normal; }
+.markdown .cm-rendered-block > :first-child { margin-top: 0; }
+.markdown .cm-rendered-block > :last-child { margin-bottom: 0; }
+/* a hint that the block is clickable, not a highlight: the accent tint read as "selected" */
+.markdown .cm-rendered-block:hover { background: var(--bg-hover); }
+.markdown .cm-rendered-block pre, .markdown .cm-rendered-block .table-wrap { margin: .3em 0; }
+
+.markdown .cm-frontmatter { font-family: var(--font-mono); font-size: .78em; color: var(--text-muted); line-height: 1.55; }
+.markdown .cm-yaml-key { color: var(--heading); font-weight: 600; }
+/* the folded properties (`[editor] properties = hidden | panel`): one faint line; a click shows the YAML */
+.markdown .cm-properties-line { padding: 0 0 .3em; }
+.markdown .cm-properties { display: inline-flex; align-items: center; gap: .6em; min-height: 24px; padding: 0 .55em; position: relative; left: -.55em; border-radius: var(--radius-sm);
+  font-size: .68em; letter-spacing: .07em; text-transform: uppercase; color: var(--text-faint); cursor: pointer; }
+.markdown .cm-properties:hover { color: var(--text-muted); background: var(--bg-hover); }
+.markdown .cm-properties-n { letter-spacing: 0; font-variant-numeric: tabular-nums; opacity: .8; }
+.markdown .cm-embed-chip { display: inline-flex; padding: .1em .5em; border: 1px solid var(--border-strong); border-radius: 6px; font-size: .9em; }
+.markdown .cm-embed-missing { opacity: .6; text-decoration: line-through; }
+.markdown .cm-embed-image-host { display: block; }
+.markdown .cm-embed-image { display: block; margin: .5em 0; max-width: 100%; border-radius: 6px; }
+.markdown .cm-embed-image-host.is-centered .cm-embed-image { margin-inline: auto; }
+.markdown .cm-embed-link { display: inline-block; margin: .3em 0; color: var(--accent); }
+.markdown .cm-html-tag { color: var(--text-faint); }
+.markdown .cm-inline-html img { max-width: 100%; vertical-align: middle; }
+
+/* code files */
+.code-cm .cm-content { padding: 10px 0 40vh; }
+
+/* List lines hang their bullet with a negative text-indent, which inline-block children INHERIT:
+   an inline formula in a list item drew its glyph that far to the left, over the previous word, and a task's
+   chips their text over their own icon ("Tue📅sday"). Every widget (contenteditable=false) resets it. */
+.markdown .cm-line [contenteditable="false"], .markdown .cm-line .cm-math-inline, .markdown .cm-line .cm-inline-html,
+.markdown .cm-line .cm-embed-image-host { text-indent: 0; }
+/* a formula and the punctuation after it on one line (live-preview.js MATH_GLUE) */
+.markdown .cm-math-glue { white-space: nowrap; }
+
+/* fold arrows appear when the pointer is over the gutter, as in Obsidian: always-visible arrows
+   beside notes read as clutter. Folded ranges keep their arrow so they stay findable. */
+.live-cm .cm-foldGutter .cm-gutterElement { opacity: 0; transition: opacity .12s; }
+.live-cm .cm-gutters:hover .cm-foldGutter .cm-gutterElement, .live-cm .cm-foldGutter .cm-gutterElement:has(span[title*="Unfold"]) { opacity: 1; }
+
+/* --- look parity with Obsidian (side-by-side look audit, docs/decisions/LOOK-PARITY.md) --- */
+/* quotes: the bar, then air before the text */
+.markdown .cm-line.cm-quote { padding-left: 14px !important; }
+/* a task's checkbox sits in the bullet's column (the bullet itself is hidden) */
+.markdown .cm-task-mark { vertical-align: -0.12em; }
+/* foldable callouts: a chevron after the title, turned when open */
+.markdown .cm-callout-fold { all: unset; cursor: pointer; display: inline-block; margin-left: .45em; color: var(--text-muted); transition: transform .12s; transform: rotate(90deg); font-weight: 600; line-height: 1; }
+.markdown .cm-callout-fold.is-folded { transform: none; }
+.markdown .cm-callout-fold:hover { color: var(--text); }
+/* footnotes: `[^1]` is a superscript reference, `[^1]:` the definition's small label (brackets hidden) */
+.markdown .cm-footnote-ref { vertical-align: super; font-size: .75em; color: var(--accent); }
+.markdown .cm-footnote-label { font-size: .85em; color: var(--text-muted); }
+/* Obsidian's inline title: the file name, at h1 size, above the note's first line */
+/* padding, never margin: CodeMirror measures block widgets by their border box (a margin shifted every click below it) */
+.markdown .inline-title { font-size: 1.802em; font-weight: 700; letter-spacing: -.022em; color: var(--heading, var(--text)); line-height: 1.2; margin: 0; padding: .1em 0 .5em; overflow-wrap: anywhere; }
+
+/* lib/task-chips.ts: a task's fields as chips (the editor, Today's open tasks) */
+.task-chip { display: inline-flex; align-items: center; gap: 3px; margin: 0 1px 0 3px; text-indent: 0; padding: 0 6px; border-radius: 999px; vertical-align: baseline;
+  font-family: var(--font-ui); font-size: .8em; line-height: 1.6; color: var(--text-muted); background: var(--bg-hover, rgba(127,127,127,.12)); white-space: nowrap; }
+.task-chip svg { flex: none; opacity: .85; }
+.task-chip.tone-soon { color: var(--accent-strong); }
+.task-chip.tone-late { color: var(--red); }
+.task-chip.tone-high { color: var(--orange, var(--yellow)); }
+.task-chip.tone-low { color: var(--text-faint); }
+/* a day's log as a timeline (editor/log-lines.ts): the time in a column, a dot on a line through the entries */
+.markdown .cm-line.cm-log-entry { position: relative; padding-left: 86px !important; text-indent: 0; padding-top: 3px; padding-bottom: 3px; } /* no hanging bullet: the dot is it */
+.cm-log-entry .cm-list-mark { display: none; } /* the dot is the marker */
+.cm-log-entry::before { content: ""; position: absolute; left: 63px; top: 0; bottom: 0; width: 2px; background: color-mix(in srgb, var(--accent) 30%, transparent); }
+.cm-log-entry { --dot: calc(3px + .8em); } /* the dot on the entry's first row (a long one wraps) */
+.cm-log-entry.cm-log-first::before { top: var(--dot); }
+.cm-log-entry.cm-log-last::before { bottom: auto; height: var(--dot); }
+.cm-log-entry.cm-log-first.cm-log-last::before { display: none; }
+.cm-log-entry::after { content: ""; position: absolute; left: 59px; top: calc(var(--dot) - 5px); width: 10px; height: 10px; border-radius: 50%;
+  background: var(--bg); border: 2px solid var(--accent); box-sizing: border-box; }
+.cm-log-time { position: absolute; left: 4px; width: 48px; text-align: right; font-size: .82em; font-variant-numeric: tabular-nums;
+  color: var(--text-muted); font-weight: 500; line-height: inherit; }
+/* an untimed item (a to-do) on the timeline: a small filled dot, no time */
+.cm-log-entry.cm-log-untimed::after { left: 61px; top: calc(var(--dot) - 3px); width: 6px; height: 6px; border: 0; background: color-mix(in srgb, var(--accent) 45%, transparent); }
+/* an entry's own lines under it (a capture's picture, its file): on the timeline, the embeds as thumbnails */
+.markdown .cm-line.cm-log-more { position: relative; padding-left: 86px !important; text-indent: 0; padding-bottom: 3px; }
+.cm-log-more::before { content: ""; position: absolute; left: 63px; top: 0; bottom: 0; width: 2px; background: color-mix(in srgb, var(--accent) 30%, transparent); }
+.cm-log-more.cm-log-last::before { display: none; }
+.cm-log-src { color: var(--text-faint); font-family: var(--font-mono); font-size: .78em; }
+.cm-log-more .cm-embed-image-host { display: inline-block; vertical-align: top; }
+.cm-log-more .cm-embed-image { max-width: min(160px, 100%); max-height: 160px; width: auto !important; object-fit: cover; margin: .2em 0;
+  border: 1px solid var(--border); cursor: zoom-in; }
+.cm-log-more .cm-embed-chip { align-items: center; gap: .4em; padding: .15em .6em; border-color: var(--border); border-radius: var(--radius-sm, 6px);
+  background: var(--bg-elev); color: var(--text-muted); font-size: .85em; }
+
+/* a table edited in place (lib/editor/table-edit.ts) */
+/* room on the left and above for the − buttons, inside the box (the rendered block clips what leaves it): the pointer on them still hovers it */
+.table-edit-box { position: relative; z-index: 2; width: fit-content; max-width: 100%; padding: 22px 0 0 26px; }
+.table-edit td, .table-edit th { cursor: text; }
+.table-edit .editing { outline: 2px solid var(--accent); outline-offset: -2px; background: var(--bg); }
+.table-edit-tools { display: flex; gap: 6px; margin-top: 4px; opacity: 0; transition: opacity .12s; }
+.table-edit-box:hover .table-edit-tools, .table-edit-box:focus-within .table-edit-tools { opacity: 1; }
+.table-edit-tools button { padding: 1px 8px; border: 1px solid var(--border); border-radius: 5px; background: var(--bg-elev); color: var(--text-muted); font-size: 12px; cursor: pointer; }
+.table-edit-tools button:hover { color: var(--text); border-color: var(--accent); }
+.table-minus { position: absolute; z-index: 3; width: 18px; height: 18px; display: none; place-items: center; padding: 0; border: 1px solid var(--border); border-radius: 50%;
+  background: var(--bg-elev); color: var(--text-muted); font-size: 12px; line-height: 1; cursor: pointer; }
+.table-minus.row { left: 2px; }
+.table-minus.col { top: 1px; }
+.table-edit-box:hover .table-minus:not([hidden]) { display: grid; }
+.table-minus:hover { color: var(--red); border-color: var(--red); }

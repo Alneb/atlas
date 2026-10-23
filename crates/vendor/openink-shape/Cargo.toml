@@ -1,0 +1,13 @@
+# Vendored from boox_5c_re (scripts/dev/sync-openink.sh, VENDORED.md); only this file is Atlas's.
+# autobins off: src/bin's training-data generator needs upstream's `dataset` feature (serde_json), not shipped here.
+[package]
+name = "openink-shape"
+description = "Open shape recogniser and beautifier (lines, polygons, conics, arrows, scratch-out)"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+publish = false
+autobins = false
+
+[dependencies]
+openink-nn = { path = "../openink-nn" }

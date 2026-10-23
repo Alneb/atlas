@@ -1,0 +1,31 @@
+# memos: send a line or the selection to a memos server as a new memo. An example of atlas.fetch
+# with a token kept as a secret. Copy into a vault's .atlas/plugins/.
+title = "memos"
+description = "a line or the selection to your memos server"
+phone = true # runs in the phone apps too (only plugins marked so start there)
+icon = "file-text"
+version = "0.1.0"
+api = 4
+
+[permissions]
+net = ["*"]          # the server is a setting
+secrets = true
+
+[[setting]]
+key = "server"
+label = "memos server"
+kind = "text"
+hint = "https://memos.example.org"
+
+[[setting]]
+key = "token"
+label = "Access token"
+kind = "secret"
+hint = "memos → Settings → My account → Access tokens"
+
+[[setting]]
+key = "visibility"
+label = "Visibility"
+kind = "choice"
+choices = ["PRIVATE", "PROTECTED", "PUBLIC"]
+default = "PRIVATE"

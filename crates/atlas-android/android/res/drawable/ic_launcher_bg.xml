@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- the adaptive icon's background: the desktop tile's gradient (packaging/icon/atlas.svg), top-left to bottom-right -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+  <gradient android:angle="315" android:startColor="#4864dd" android:endColor="#8150d6" />
+</shape>

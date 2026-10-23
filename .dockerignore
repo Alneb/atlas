@@ -1,0 +1,22 @@
+# Keep the build context small: packaging/docker/Dockerfile copies Cargo.*, crates/, ui/, the plugins' engines (workspace members)
+# and two guides, plus packaging/docker/ (the terminals' bashrc). At the context root, where every builder reads it.
+target/
+**/node_modules/
+ui/dist/
+ui/test-results/
+ui/playwright-report/
+.git/
+docs/*
+!docs/guides/EXTENDING.md
+!docs/guides/DEVELOPING.md
+# a plugin's engine wherever the plugin sits (beta/, stable/…): 2026-10-19 the SSH engine under stable/ was left out
+plugins/*/*/*
+!plugins/*/*/engine/
+plugins/*/*/engine/target/
+plugins/*/*/engine/bin/
+scripts/
+kits/
+local/
+worktrees/
+packaging/*
+!packaging/docker/

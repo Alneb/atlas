@@ -1,0 +1,11 @@
+[package]
+name = "atlas-template"
+description = "Atlas's template language ({{…}}: dates, values, prompts, includes, filters, if/each) and its moment-style date formatting, shared by the core and the catalog's helper (docs/guides/TEMPLATES.md)"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+# Only chrono and serde_json: the catalog's helper links it and is built static for the server and the phone.
+[dependencies]
+serde_json.workspace = true
+chrono = { version = "0.4", default-features = false, features = ["clock"] }

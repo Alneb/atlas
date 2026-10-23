@@ -1,0 +1,30 @@
+# Revolut's account statement as CSV (app → Statement → Excel/CSV). Only completed rows are booked; the balance after
+# each row becomes the day's assertion.
+id = "revolut-csv"
+name = "Revolut CSV"
+bank = "revolut"
+order = 1
+description = ["{description}"]
+bank_text = "{type}: {description}"
+sort = ["time"]
+
+[detect]
+contains = ["Type,Product,Started Date,Completed Date,Description,Amount,Fee,Currency,State,Balance"]
+
+[layout]
+format = "csv"
+columns = { type = "Type", product = "Product", started = "Started Date", completed = "Completed Date", description = "Description", amount = "Amount", fee = "Fee", currency = "Currency", state = "State", balance = "Balance" }
+
+# "2026-10-20 16:43:13": the date and the time apart.
+[derive]
+booked = "{completed:0:10}"
+time = "{completed:11:19}"
+value = "{started:0:10}"
+
+[[skip]]
+when = { state = "!COMPLETED" }
+why = "not completed (pending or reverted)"
+
+[[skip]]
+when = { product = "!Current" }
+why = "a pocket other than the current account"

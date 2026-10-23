@@ -1,0 +1,192 @@
+# Finance (docs/design/DESIGN-finance.md): money as a plain-text ledger in the vault. Transactions in finance/journal/*.fin
+# (an hledger-shaped format with booked lots, bank-balance assertions and import ids: DESIGN-finance-format.md), and
+# accounts, funds and categories as notes. The engine (engine/, Rust) reads, books and checks it. It exports to hledger,
+# and it migrates a Paisa ledger once. The pane and blocks (Overview, Accounts, Review; finance.balance / .spending /
+# .register) are built from ui/ (Svelte + TS) by scripts/dev/plugin-ui.mjs. Bank feeds, statement imports and the capture
+# helper follow (DESIGN-finance.md, "Phases").
+title = "Finance"
+description = "your money as a plain-text ledger: accounts, funds, budgets and bank imports, checked against the bank's own balances"
+icon = "chart"
+version = "0.1.0"
+api = 9
+rail = true
+
+[permissions]
+# prices and FX (engine/src/pricefeed.rs): the ECB, Yahoo's chart API, the FT's fund pages, and any page a commodity
+# note names as its price_source
+net = ["*"]
+# the Enable Banking application's private key and each bank session (bank.rs), kept outside the vault
+secrets = true
+
+[helper]
+# built by engine/build.sh: one static binary per platform (it also runs in the server's container)
+run = "\"$ATLAS_PLUGIN_DIR/bin/$ATLAS_PLUGIN_TARGET/finance\""
+
+[[tool]]
+name = "summary"
+description = "The ledger at a glance: every account's balance, the number of transactions to review, spending per category for the last 13 months, and how many errors the checks found."
+input = {}
+
+[[tool]]
+name = "register"
+description = "Every posting to an account (and the accounts under it), oldest first, with the running balance. account: e.g. Assets:Revolut or Expenses:Food."
+input = { account = "string" }
+
+[[tool]]
+name = "review"
+description = "The transactions waiting for review (status !): imported or captured, not yet accepted."
+input = {}
+
+[[tool]]
+name = "check"
+description = "Every finding of the ledger's checks (syntax, unknown accounts, unbalanced transactions, lots, failed bank-balance assertions), each with its file and line."
+input = {}
+
+[[tool]]
+name = "budget"
+description = "This month per category against its usual month (or a target pinned on its note), the savings rate of the last months, and the recurring payments with their next date. In the display currency."
+input = {}
+
+[[tool]]
+name = "invest"
+description = "Investments: the holdings in lots with cost, value, gain and their price's date; realised gains per year; the money-weighted return (XIRR); and the money held in other currencies with what the rate's moves made of it."
+input = {}
+
+[[tool]]
+name = "wealth"
+description = "Net worth at each month's end measured in a unit: any currency (EUR, CAD, USD…) or an asset (XAU gold, BTC, a fund), everything converted at that month's price."
+input = { unit = "string?" }
+
+[[tool]]
+name = "prices"
+description = "Fetches FX from the ECB and the prices of funds and measures (Yahoo, FT, or a note's price_source), and writes them sparse into finance/prices/. dry: true only reports."
+input = { dry = "boolean?" }
+schedule = "daily 17:30"
+timeout_secs = 180
+
+[[tool]]
+name = "set_target"
+description = "Pins a monthly target on a category (its note's target:, the note made if missing); an empty target unpins it."
+input = { account = "string", target = "string" }
+
+[[tool]]
+name = "parse"
+description = "Reads a money phrase as the capture would (\"12,40 café con Ana revolut ayer\", \"+1500 salary unicaja\"): date, amount, account, category and why, or skipped when it is not money. Writes nothing."
+input = { text = "string" }
+
+[[tool]]
+name = "add"
+description = "Writes a money phrase as a transaction to review (!) in this year's journal: date, amount, account and category read from the words (es, en, fr)."
+input = { text = "string", path = "string?" }
+
+[[tool]]
+name = "capture"
+description = "After every capture (any app): a phrase that reads as money (an amount with a currency, an account's name, or a leading +) becomes a transaction to review; anything else is left alone."
+input = { text = "string", path = "string?", line = "integer?" }
+on = "capture"
+
+[[tool]]
+name = "bank_list"
+description = "The banks Enable Banking reaches in a country (ES, FR, PT…), for connecting one."
+input = { country = "string?" }
+secrets = ["enable_banking_key"]
+
+[[tool]]
+name = "bank_connect"
+description = "Asks a bank for a consent through Enable Banking: answers the bank's page (url) to open; it comes back to the redirect address with a code."
+input = { bank = "string", country = "string?" }
+secrets = ["enable_banking_key"]
+
+[[tool]]
+name = "bank_finish"
+description = "Finishes a connection with the address the bank came back to: the session is kept as a secret, the linked accounts written to finance/sources/<bank>.md."
+input = { address = "string", bank = "string", country = "string?" }
+secrets = ["enable_banking_key"]
+
+[[tool]]
+name = "bank_sync"
+description = "Reads every connected bank's new transactions through Enable Banking into the statements inbox and imports them (duplicates, transfers and balances as for any statement). Runs on the server, at most four times a day."
+input = {}
+schedule = "every 6h"
+timeout_secs = 300
+secrets = ["enable_banking_key"]
+
+[[tool]]
+name = "downloads"
+description = "Moves the statements downloaded since `since` (Unix seconds) from the downloads folder into the statements inbox: only files an importer preset recognises; the rest are left where they are."
+input = { since = "integer?" }
+
+[[tool]]
+name = "export_hledger"
+description = "Writes finance/export/hledger.journal, a one-way hledger journal with the same balances (lots written as costs, gains as amounts)."
+input = {}
+
+[[tool]]
+name = "migrate_paisa"
+description = "Migrates a Paisa (hledger) journal into the finance folder. Without write it only reports what it would do. With write: true it writes only files that do not exist yet."
+input = { source = "string", write = "boolean?" }
+timeout_secs = 120
+
+[[setting]]
+key = "folder"
+label = "Folder"
+kind = "text"
+default = "finance"
+hint = "where the journal (journal/*.fin), the account and fund notes and the statements live"
+
+[[setting]]
+key = "currency"
+label = "Display currency"
+kind = "choice"
+choices = ["EUR", "CAD", "USD"]
+default = "EUR"
+hint = "totals and net worth are shown in this currency (other currencies converted at the price of the day)"
+
+[[setting]]
+key = "on_capture"
+label = "Money from captures"
+kind = "toggle"
+default = true
+hint = "a capture that reads as money (\"12,40 café revolut ayer\") becomes a transaction to review"
+
+[[setting]]
+key = "capture_account"
+label = "Capture account"
+kind = "text"
+default = "Assets:Cash"
+hint = "the account a captured payment comes from when its words name none"
+
+[[setting]]
+key = "bank_app_id"
+label = "Enable Banking application"
+kind = "text"
+default = ""
+hint = "the application id from enablebanking.com's control panel (its private key goes in Finance → Sources); runs on the server, clients get the transactions through the mirror"
+
+[[setting]]
+key = "bank_redirect"
+label = "Bank redirect address"
+kind = "text"
+default = ""
+hint = "the redirect URL registered with the application (the server's https address); the bank's consent page comes back there with ?code="
+
+[[setting]]
+key = "downloads"
+label = "Downloads folder"
+kind = "text"
+default = "~/Downloads"
+hint = "where your browser saves files: \"Fetch from the bank's site\" moves the statements it recognises from there into the inbox"
+
+[[setting]]
+key = "measures"
+label = "Measure wealth in"
+kind = "text"
+default = "EUR, CAD, USD, XAU, BTC"
+hint = "the units net worth can be shown in: currencies (the ECB's), and assets — XAU gold, XAG silver, BTC, ETH, SPX the S&P 500, or any commodity whose note has a ticker"
+
+[[setting]]
+key = "baseline_months"
+label = "Baseline"
+kind = "number"
+default = 6
+hint = "how many months before this one a category's usual month is taken from: the median when it is spent most months, the mean when only in some (a yearly bill)"

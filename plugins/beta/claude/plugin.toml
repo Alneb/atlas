@@ -1,0 +1,57 @@
+# Claude as an AI agent of Atlas (docs/refactor/REFACTOR-agents-as-plugins.md): Claude Code sessions in the terminal (the + menu, Super+K), each tab
+# resuming its own conversation, with the account and command of the settings below — and the plan's usage in the
+# status bar (5-hour session, week), as `claude-acc usage` and Claude Code's session hooks read it. README.md.
+title = "Claude"
+description = "Claude Code sessions in the terminal, and the plan's usage (5-hour session, week) in the status bar"
+icon = "claude"
+version = "0.5.0"
+api = 4
+
+[[agent]]
+id = "claude"
+title = "Claude"
+icon = "claude"
+command = "{command:claude}"
+env = { CLAUDE_CONFIG_DIR = "{account}" }
+new_session = ["--session-id", "{session}"]
+resume_session = ["--resume", "{session}"]
+session_file = "{account:~/.claude}/projects/*/{session}.jsonl"
+commit_marks = ["co-authored-by: claude", "noreply@anthropic.com"]
+send_selection = "@{path}#L{from}-{to} "
+
+[[setting]]
+key = "command"
+label = "Command"
+kind = "text"
+default = "claude"
+suggest = "commands"
+hint = "what a Claude session runs: claude, a path, or a wrapper such as `claude-acc personal`"
+
+[[setting]]
+key = "account"
+label = "Account folder (optional)"
+kind = "text"
+suggest = "account_folders"
+hint = "a Claude Code configuration folder (CLAUDE_CONFIG_DIR), to run as another account: ~/.claude-switch/accounts/personal; empty: Claude Code's own"
+
+[helper]
+run = "python3 -u \"$ATLAS_PLUGIN_DIR/usage.py\""
+
+[[setting]]
+key = "every"
+label = "Look every (minutes)"
+kind = "number"
+default = 2
+hint = "the endpoint is asked at most this often; 0: only with “Claude: show usage”"
+
+[[setting]]
+key = "warn"
+label = "Warn from (%)"
+kind = "number"
+default = 80
+hint = "a session limit at or above this is marked in the bar, and a notice is shown once per 5-hour window"
+
+[[tool]]
+name = "usage"
+description = "How much of the Claude plan's limits the Claude account Atlas runs Claude as has used (every account on this computer with all=true): the 5-hour session and the weekly limits, in percent, with when each resets. No secrets."
+input = { all = { type = "boolean", description = "every Claude account found on this computer, not only the current one", optional = true } }

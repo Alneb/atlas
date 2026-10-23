@@ -1,0 +1,7 @@
+# Enable Banking (engine/src/bank.rs; DESIGN-finance "Enable Banking", which runs on the server): its API and how
+# long a consent is asked for. A vault's finance/enable-banking.toml replaces these values.
+api = "https://api.enablebanking.com"
+# Days of access asked when connecting (the bank may grant less: 90–180 days in the EU).
+consent_days = 180
+# How far back the first sync reads (banks keep 90 days to several years).
+first_days = 730

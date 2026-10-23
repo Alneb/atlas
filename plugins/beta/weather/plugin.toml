@@ -1,0 +1,48 @@
+# Weather for templates: `{{weather.summary}}`, `{{weather.city}}`, `{{weather.max}}`… in a note made from
+# a template — what a daily template gets from a Templater user script (getWeather.js), here as data: the
+# template never runs code. Open-Meteo, no key; the place is a setting, else found from this machine's address.
+title = "Weather"
+description = "today's weather for templates: {{weather.summary}}, {{weather.city}}, {{weather.max}}…"
+icon = "sun"
+phone = true # runs in the phone apps too: its page side and helper work there
+version = "0.3.2"
+api = 4
+
+[permissions]
+net = ["api.open-meteo.com", "geocoding-api.open-meteo.com", "api.seeip.org"]
+
+[[setting]]
+key = "place"
+label = "Place"
+kind = "text"
+hint = "a city (Oslo, Madrid…); empty: found from this machine's internet address (api.seeip.org)"
+
+[[setting]]
+key = "language"
+label = "Language of the descriptions"
+kind = "choice"
+choices = ["en", "es"]
+default = "en"
+
+[helper]
+run = "python3 -u \"$ATLAS_PLUGIN_DIR/helper.py\""
+
+[[tool]]
+name = "now"
+description = "Today's weather at the place: city, temperature, condition, min/max, humidity, wind, sunrise/sunset, and a one-line summary."
+input = { title = "string?" }
+template = "weather"
+
+[[tool]]
+name = "log_day"
+description = "After a capture into today's log: the day's weather as its `weather` property, once a day. Answers skipped."
+input = { text = "string", path = "string?", line = "integer?" }
+timeout_secs = 30
+on = "capture"
+
+[[tool]]
+name = "log_made"
+description = "Today's log was just made (the log card's button): its weather as its `weather` property. Answers skipped."
+input = { text = "string", path = "string?", line = "integer?" }
+timeout_secs = 30
+on = "log"

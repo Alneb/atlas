@@ -1,0 +1,26 @@
+//! One error type for the core; each variant maps to exactly one HTTP status.
+use crate::api::Mtime;
+
+#[derive(Debug, thiserror::Error)]
+pub enum Error {
+    #[error("not found: {0}")]
+    NotFound(String),
+    #[error("invalid path: {0}")]
+    BadPath(String),
+    #[error("bad request: {0}")]
+    BadRequest(String),
+    #[error("file changed on disk since it was read")]
+    Conflict { current: Option<Mtime> },
+    #[error("file too large: {0}")]
+    TooLarge(String),
+    #[error("not a UTF-8 text file: {0}")]
+    NotText(String),
+    #[error("command failed: {0}")]
+    CommandFailed(String),
+    #[error("io: {0}")]
+    Io(#[from] std::io::Error),
+    #[error("{0}")]
+    Other(#[from] anyhow::Error),
+}
+
+pub type Result<T, E = Error> = std::result::Result<T, E>;

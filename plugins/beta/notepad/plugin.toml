@@ -1,0 +1,118 @@
+# Notepad: drawings written with the pen on a Boox, natively — knote2's pens (openink's engine, vendored in
+# crates/vendor/openink-stroke), Onyx's instant ink under the pen, a toolbar like Boox Notes, pages — saved into the
+# same .excalidraw file every Atlas opens.
+# On an e-ink screen only (Host.einkScreen); a phone and the desktop keep Excalidraw.
+title = "Notepad"
+description = "pen drawings on the Boox like Boox Notes: its pens in colours, shapes, lasso, erasers, pages and paper, instant ink — saved as Excalidraw, with a companion note"
+phone = true # runs in the phone apps too (only plugins marked so start there)
+icon = "pen"
+version = "0.4.0"
+api = 4
+
+[android]
+main = "org.atlas.plugins.notepad.Notepad"
+opens = ["*.excalidraw"]
+
+[[setting]]
+key = "pen"
+label = "Pen at the start"
+kind = "choice"
+choices = ["ballpoint", "fountain", "brush", "marker", "square", "pencil", "charcoal"]
+default = "fountain"
+hint = "knote2's pens (Boox Notes'); the pen menu changes it while drawing"
+
+[[setting]]
+key = "paper"
+label = "Paper of a new page"
+kind = "choice"
+choices = ["blank", "lines", "grid", "dots", "fine", "graph", "staff"]
+default = "blank"
+
+[[setting]]
+key = "snap"
+label = "Shapes from a held stroke"
+kind = "toggle"
+default = true
+hint = "hold the pen still for half a second at the end of a stroke: a line, rectangle, ellipse or triangle drawn cleanly, as Boox Notes does"
+
+[[setting]]
+key = "shapes"
+label = "Shape recogniser"
+kind = "choice"
+choices = ["openink", "atlas"]
+default = "openink"
+hint = "openink: boox_5c_re's trained recogniser — lines, boxes, ellipses, triangles, polygons, arcs and arrows; atlas: the earlier one (lines, boxes, ellipses, triangles)"
+
+[[setting]]
+key = "scribble"
+label = "Scribble to erase"
+kind = "toggle"
+default = true
+hint = "scribble back and forth over strokes (as Boox Notes does) and they are erased instead of the scribble being kept"
+
+# the toolbar's defaults
+[[setting]]
+key = "remember_pen"
+label = "Start with the pen last used"
+kind = "toggle"
+default = true
+hint = "on: a drawing opens with the pen, width and colour in hand when Notepad last closed; off: with the defaults below"
+
+[[setting]]
+key = "width"
+label = "Pen width at the start"
+kind = "choice"
+choices = ["thin", "normal", "thick", "very thick"]
+default = "normal"
+
+[[setting]]
+key = "color"
+label = "Colour at the start"
+kind = "choice"
+choices = ["black", "dark grey", "light grey", "red", "blue", "green", "orange", "purple"]
+default = "black"
+
+[[setting]]
+key = "eraser"
+label = "Eraser"
+kind = "choice"
+choices = ["whole strokes", "part of strokes"]
+default = "whole strokes"
+hint = "whole strokes: a touch takes the stroke; part of strokes: only where the eraser passes"
+
+[[setting]]
+key = "shape"
+label = "Shape at the start"
+kind = "choice"
+choices = ["line", "arrow", "rectangle", "ellipse", "diamond", "triangle", "axes", "axes_full"]
+default = "rectangle"
+
+[[setting]]
+key = "text_size"
+label = "Text size at the start"
+kind = "choice"
+choices = ["small", "medium", "large", "very large"]
+default = "medium"
+
+[[setting]]
+key = "page_mode"
+label = "One page at a time"
+kind = "toggle"
+default = true
+hint = "a notebook shows one page filling the screen: the fingers zoom into it but never out of it or past its edges; a swipe from a side or the arrows turn it. Off: the canvas pans and zooms freely"
+
+[[setting]]
+key = "per_row"
+label = "Pages side by side"
+kind = "choice"
+choices = ["1", "2", "3", "4"]
+default = "4"
+hint = "a notebook's pages as a grid on one canvas, as Rnote lays them out (1: one under another); a drawing laid out otherwise keeps its pages until Pages → Arrange in a grid"
+
+[[setting]]
+key = "pdf"
+label = "A PDF opens"
+kind = "choice"
+choices = ["write", "reader"]
+default = "write"
+hint = "write: its pages in a drawing beside it (x.pdf.excalidraw) to write over with the pen, each linked to its page; reader: the PDF reader (the drawing's Pages menu has it too)"

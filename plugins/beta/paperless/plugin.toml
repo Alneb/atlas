@@ -1,0 +1,24 @@
+# Paperless-ngx: your documents in a note or a page — a block that searches them, each one a link
+# to open it in Paperless. An example of a block fed by atlas.fetch. Copy into a vault's .atlas/plugins/.
+title = "Paperless"
+description = "search your Paperless documents in a block"
+phone = true # runs in the phone apps too (only plugins marked so start there)
+icon = "file-text"
+version = "0.1.0"
+api = 4
+
+[permissions]
+net = ["*"]          # the server is a setting
+secrets = true
+
+[[setting]]
+key = "server"
+label = "Paperless server"
+kind = "text"
+hint = "https://paperless.example.org"
+
+[[setting]]
+key = "token"
+label = "API token"
+kind = "secret"
+hint = "Paperless → your profile → API auth token"

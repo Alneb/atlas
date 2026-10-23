@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Atlas
+Comment=Notes, papers, code, runs and Claude in one workspace
+Exec=atlas-app
+Icon=atlas
+Categories=Office;Development;Science;
+StartupWMClass=atlas

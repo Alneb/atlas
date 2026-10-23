@@ -1,0 +1,116 @@
+/* Shell chrome of the vertical-tabs layout (docs/design/VERTICAL-TABS.md; calm, SilverBullet-inspired):
+   no tab strips, a quiet title bar on each editor, soft group cards whose focus shows only when
+   the window is split. Chrome only: note rendering (LOOK-PARITY.md) is not touched here. */
+.vtabs .dockview-theme-atlas .dv-groupview { box-shadow: none; transition: border-color .15s; }
+.vtabs.split .dockview-theme-atlas .dv-groupview.dv-active-group { border-color: color-mix(in srgb, var(--accent) 38%, var(--border-strong)); }
+.vtabs:not(.split) .dockview-theme-atlas .dv-groupview.dv-active-group { border-color: var(--border); }
+
+/* the editor's path bar is the page's title bar now (SilverBullet's page name): roomier, no rule */
+.vtabs .editor-pane .crumbs { min-height: 36px; padding: 6px 16px; border-bottom-color: transparent; }
+.vtabs .editor-pane .crumbs .seg.file { font-weight: 600; color: var(--heading); }
+
+/* blocks (lib/blocks.ts): anything drawn inside a note or a page */
+.atlas-block { position: relative; min-width: 0; }
+/* a block that fills its box (an embedded pane): a framed window the user can pull taller */
+.atlas-block.framed > .block-body { border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--bg); overflow: hidden; resize: vertical; min-height: 140px; max-height: 92vh; }
+/* "open as a tab": hangs on the corner, so it never covers the block's own controls */
+.block-pop { position: absolute; top: -9px; right: -9px; z-index: 5; width: 24px; height: 24px; display: grid; place-items: center; border-radius: 50%;
+  color: var(--text-muted); background: var(--bg-elev); border: 1px solid var(--border-strong); box-shadow: var(--shadow-sm); opacity: 0; transition: opacity .12s; }
+.atlas-block:hover > .block-pop, .block-pop:focus-visible { opacity: 1; }
+.block-pop:hover { color: var(--text); background: var(--bg-hover); }
+.view-wait { color: var(--text-faint); margin: 0; padding: 4px 8px; }
+@media (prefers-reduced-motion: reduce) { .block-pop { transition: none; } }
+
+/* --- the sidebar's blocks (components/sidebar/): shared by the toolbar, pins, bookmarks and tab list --- */
+.side-tool { position: relative; width: 32px; height: 32px; border-radius: 8px; display: grid; place-items: center; color: var(--text-muted); transition: color .12s, background .12s; flex: none; }
+.side-tool:hover { color: var(--text); background: var(--bg-hover); }
+.side-tool:active { transform: scale(.96); }
+/* delayed tooltips: to the right by default (icons in a column), below in a row of buttons */
+.tipped { position: relative; }
+.tipped::after { content: attr(data-tip); position: absolute; left: calc(100% + 10px); top: 50%; transform: translateY(-50%) translateX(-4px); white-space: nowrap;
+  background: var(--bg-elev); color: var(--text); border: 1px solid var(--border-strong); box-shadow: var(--shadow-sm); padding: 4px 9px; border-radius: 7px;
+  font-size: calc(12px * var(--ui-scale, 1)); font-weight: 400; pointer-events: none; opacity: 0; transition: opacity .12s, transform .12s; z-index: 100; }
+.tipped:hover::after { opacity: 1; transform: translateY(-50%); transition-delay: .45s; }
+.side-toolbar.wide .tipped::after { left: 50%; top: calc(100% + 6px); transform: translateX(-50%) translateY(-2px); }
+.side-toolbar.wide .tipped:hover::after { transform: translateX(-50%); }
+.side-toolbar.wide .tipped:first-child::after { left: 0; transform: none; }
+.side-toolbar.wide .tipped:last-child:not(:first-child)::after { left: auto; right: 0; transform: none; }
+.side-row { position: relative; display: flex; align-items: center; justify-content: center; gap: 9px; width: 36px; height: 34px; padding: 0; border-radius: 8px; color: var(--text-muted); cursor: default;
+  font-size: calc(13px * var(--ui-scale, 1)); outline: none; border: 1px solid transparent; transition: background .1s, color .1s; }
+.wide .side-row { width: auto; height: 32px; padding: 0 4px 0 calc(var(--side-inset) - 9px); justify-content: flex-start; } /* the icon on the bar's one left edge */
+.side-row:hover { background: var(--bg-hover); color: var(--text); }
+.mono-chip { font-size: calc(11.5px * var(--ui-scale, 1)); font-weight: 600; letter-spacing: -.01em; color: var(--text-muted); }
+
+/* completions in a plain text box (lib/textarea-complete.ts): the capture boxes */
+/* placed by textarea-complete.ts's fit(), in the window's coordinates: no scrolling block can clip it */
+.ta-complete { position: fixed; z-index: 1000; min-width: 220px; max-width: min(460px, calc(100vw - 12px)); margin: 0; padding: 4px; list-style: none; overflow-y: auto; overscroll-behavior: contain; box-sizing: border-box;
+  background: var(--bg-elev); border: 1px solid var(--border-strong); border-radius: var(--radius); box-shadow: var(--shadow-pop); font-size: calc(13px * var(--ui-scale, 1)); }
+.ta-complete li { padding: 3px 8px; border-radius: var(--radius-sm); color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; }
+.ta-complete li[aria-selected="true"] { background: var(--accent-soft); }
+
+/* History signs (lib/nav-signs.ts): the swipe's arrow at an edge, the pill after a step */
+.nav-edge { position: fixed; top: 50%; z-index: 90; width: 44px; height: 44px; margin-top: -22px; border-radius: 50%;
+  display: grid; place-items: center; font-size: 20px; pointer-events: none;
+  background: var(--bg-elev); color: var(--text-muted); border: 1px solid var(--border-strong); box-shadow: var(--shadow, 0 4px 16px rgba(0,0,0,.25));
+  opacity: calc(.25 + .75 * var(--k, 0)); transition: transform 60ms linear, background 120ms, color 120ms; }
+.nav-edge[data-side="left"] { left: 10px; transform: translateX(calc(-60px + 60px * var(--k, 0))) scale(calc(.7 + .3 * var(--k, 0))); }
+.nav-edge[data-side="right"] { right: 10px; transform: translateX(calc(60px - 60px * var(--k, 0))) scale(calc(.7 + .3 * var(--k, 0))); }
+.nav-edge[data-ready="true"] { background: var(--accent); color: var(--bg); border-color: var(--accent); }
+.nav-edge[data-blocked="true"] { color: var(--text-faint); opacity: .35; }
+.nav-pill { position: fixed; left: 50%; bottom: 44px; z-index: 90; transform: translateX(-50%); pointer-events: none;
+  padding: 5px 12px; border-radius: 999px; font-size: 12px; white-space: nowrap; max-width: 70vw; overflow: hidden; text-overflow: ellipsis;
+  background: var(--bg-elev); color: var(--text); border: 1px solid var(--border-strong); box-shadow: var(--shadow, 0 4px 16px rgba(0,0,0,.25)); }
+.nav-pill.show { animation: nav-pill-in 160ms ease-out; }
+@keyframes nav-pill-in { from { opacity: 0; transform: translate(-50%, 6px); } to { opacity: 1; transform: translate(-50%, 0); } }
+.nav-edge[hidden], .nav-pill[hidden] { display: none; }
+/* lib/preview.ts: what a link or a left-bar tab leads to, while the pointer rests on it */
+.hover-preview { position: fixed; z-index: 90; max-height: 300px; overflow: auto; border-radius: var(--radius, 8px); background: var(--bg-elev);
+  border: 1px solid var(--border-strong); box-shadow: 0 10px 32px rgba(0,0,0,.28); font-size: calc(13px * var(--ui-scale, 1)); color: var(--text); }
+.hover-preview .preview-head { position: sticky; top: 0; padding: 6px 12px; background: var(--bg-elev); border-bottom: 1px solid var(--border);
+  color: var(--text-muted); font-size: calc(11.5px * var(--ui-scale, 1)); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hover-preview .preview-body { padding: 8px 12px 12px; }
+.hover-preview .preview-body.markdown { font-size: calc(13.5px * var(--ui-scale, 1)); }
+.hover-preview .preview-body.markdown h1 { font-size: 1.3em; }
+.hover-preview .preview-body:not(.preview-mini) img, .hover-preview .preview-body:not(.preview-mini) canvas { display: block; max-width: 100%; border-radius: 4px; }
+.hover-preview .preview-body pre { margin: 0; font: calc(12px * var(--ui-scale, 1)) / 1.45 var(--font-mono, monospace); white-space: pre; overflow: hidden; }
+.hover-preview .preview-body.preview-mini { padding: 0; }
+.hover-preview .preview-frame { overflow: hidden; pointer-events: none; background: var(--bg); }
+.hover-preview .preview-term { padding: 2px 0; font-size: calc(10.5px * var(--ui-scale, 1)) !important; }
+.hover-preview .preview-url { color: var(--text-muted); word-break: break-all; }
+/* a link to no file yet: the editor's unresolved colour (markdown.css .is-unresolved) */
+.hover-preview .preview-body.preview-missing { color: var(--red); opacity: .85; word-break: normal; }
+
+/* lib/tab-glance.ts: Ctrl+Tab over the focused split's tabs, most recent first — a strip of names over the top; the pane
+   behind shows the chosen tab itself */
+.tab-glance { position: fixed; z-index: 96; left: 50%; top: 56px; transform: translateX(-50%); max-width: 92vw; display: flex; gap: 6px; padding: 8px;
+  overflow-x: auto; border-radius: 12px; background: var(--bg-elev); border: 1px solid var(--border-strong); box-shadow: 0 12px 36px rgba(0,0,0,.35); }
+.tab-glance .glance-card { flex: none; max-width: 220px; min-width: 120px; border-radius: 8px; border: 2px solid transparent; background: var(--bg); padding: 6px 10px; }
+.tab-glance .glance-card.chosen { border-color: var(--accent); }
+.tab-glance .glance-title { font-size: calc(12.5px * var(--ui-scale, 1)); color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tab-glance .glance-where { font-size: calc(11px * var(--ui-scale, 1)); color: var(--text-faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; direction: rtl; text-align: left; }
+.tab-glance .glance-card.chosen .glance-title { color: var(--accent-strong); }
+
+/* lib/image-peek.ts: a picture shown large while Ctrl is held over it */
+.image-peek { position: fixed; inset: 0; margin: auto; z-index: 95; max-width: 86vw; max-height: 86vh; object-fit: contain; pointer-events: none;
+  border-radius: 8px; background: var(--bg-elev); box-shadow: 0 12px 48px rgba(0,0,0,.45); border: 1px solid var(--border-strong); }
+/* vertical tabs: the side column's header is the side panel's row of tools (SideHead.svelte), not tabs */
+.dockview-theme-atlas .atlas-side-group .dv-tabs-container,
+.dockview-theme-atlas .atlas-side-group .dv-void-container,
+.dockview-theme-atlas .atlas-side-group .dv-right-actions-container { display: none; }
+.dockview-theme-atlas .atlas-side-group .dv-pre-actions-container { flex: 1; min-width: 0; }
+.dockview-theme-atlas .atlas-side-group .dv-tabs-and-actions-container { height: auto; background: transparent; border-bottom: 0; overflow: visible; }
+.dockview-theme-atlas .atlas-side-group .side-head-row { padding-left: 6px; }
+/* the side panel is one row (SideHead.svelte): each tool's own heading is hidden there, its "+" lists it */
+[data-testid="side-panel"] .sp-tool .side-pane > .side-head,
+.dockview-theme-atlas .atlas-side-group .dv-content-container .side-pane > .side-head { display: none; }
+
+/* a split's halves: each one's × in its corner, shown on hover (lib/tabs.svelte.ts halfCloses) */
+.vtabs .dockview-theme-atlas .dv-groupview { position: relative; }
+.half-close { position: absolute; top: 6px; right: 6px; z-index: 6; width: 22px; height: 22px; display: grid; place-items: center; border-radius: 50%;
+  color: var(--text-muted); background: var(--bg-elev); border: 1px solid var(--border-strong); opacity: 0; transition: opacity .12s; cursor: pointer; }
+.dv-groupview:hover > .half-close, .half-close:focus-visible { opacity: 1; }
+.half-close:hover { color: var(--text); background: var(--bg-hover); }
+
+/* a drawing's zen (panes/Excalidraw.svelte setZen): the page alone — no tab bar, not even fullscreen's icons, no status */
+html.atlas-zen .shell .main > :not(.work), html.atlas-zen .shell .status { display: none !important; }
+html.atlas-zen .shell .dock { inset: 0; }

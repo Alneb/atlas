@@ -1,0 +1,9 @@
+name: album
+label: Album
+folder: notes/music/albums  # under notes/: the top level holds kinds of file, not topics
+note_name: "{artist} - {title}"
+ids: [{ id: musicbrainz }, { id: discogs }, { id: spotify }, { id: bandcamp }, { id: url, property: source }]
+properties: [artist, year, tracks, genres, label, cover]
+as_links: [artist]
+body: description
+library: { in: "Music", title: Albums, layout: grid, group: status, shelves: [to-listen, listened], cover: cover, key: [artist, year], icon: music }

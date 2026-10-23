@@ -1,0 +1,39 @@
+# Atlas as a Flatpak, from binaries already built (the Release workflow's `linux` job puts them in ./dist):
+#   flatpak-builder --user --install --force-clean build-dir packaging/flatpak/io.github.alneb.Atlas.yml
+# The GNOME runtime carries WebKitGTK 4.1, which the desktop app (Tauri) draws with.
+app-id: io.github.alneb.Atlas
+runtime: org.gnome.Platform
+runtime-version: "47"
+sdk: org.gnome.Sdk
+command: atlas-app
+finish-args:
+  - --share=network          # plugins' services, sync, the local core on 127.0.0.1
+  - --share=ipc
+  - --socket=wayland
+  - --socket=fallback-x11
+  - --device=dri
+  - --filesystem=home        # vaults are ordinary folders, anywhere in the home folder
+  - --talk-name=org.freedesktop.Notifications
+  - --talk-name=org.freedesktop.secrets
+  # lets a terminal reach the host with `flatpak-spawn --host` (inside the sandbox its shell is the runtime's)
+  - --talk-name=org.freedesktop.Flatpak
+modules:
+  - name: atlas
+    buildsystem: simple
+    build-commands:
+      - install -Dm755 atlas-app /app/bin/atlas-app
+      - install -Dm755 atlas /app/bin/atlas
+      - install -Dm644 io.github.alneb.Atlas.desktop /app/share/applications/io.github.alneb.Atlas.desktop
+      - install -Dm644 io.github.alneb.Atlas.metainfo.xml /app/share/metainfo/io.github.alneb.Atlas.metainfo.xml
+      - install -Dm644 atlas.svg /app/share/icons/hicolor/scalable/apps/io.github.alneb.Atlas.svg
+    sources:
+      - type: file
+        path: ../../dist/atlas-app
+      - type: file
+        path: ../../dist/atlas
+      - type: file
+        path: io.github.alneb.Atlas.desktop
+      - type: file
+        path: io.github.alneb.Atlas.metainfo.xml
+      - type: file
+        path: ../icon/atlas.svg

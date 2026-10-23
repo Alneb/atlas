@@ -1,0 +1,20 @@
+# Run tools for code files: buttons in the bar above a Python, Rust or LaTeX file that run it in
+# the terminal — where the output is, and where ↑ runs it again. Copy into a vault's .atlas/plugins/.
+title = "Run tools"
+description = "Run / test buttons above Python, Rust and LaTeX files"
+icon = "terminal"
+version = "0.1.0"
+api = 4
+
+[[setting]]
+key = "python"
+label = "Python"
+kind = "text"
+hint = "the interpreter to run .py files with; empty: a .venv beside the file or above it, else python3. For conda: conda run -n myenv python"
+
+[[setting]]
+key = "latex"
+label = "LaTeX"
+kind = "text"
+hint = "the command that builds a .tex file"
+default = "latexmk -pdf -interaction=nonstopmode"

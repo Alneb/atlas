@@ -1,0 +1,30 @@
+# Manga and anime for the catalog, with no key: an AniList, MyAnimeList or MangaDex link. AniList gives the title (and
+# the original Japanese one), the author or studio, the first year, chapters, volumes or episodes, whether it is still
+# coming out, genres, the description and the cover; a MangaDex title is matched through the links MangaDex keeps.
+title = "Catalog · Manga and anime"
+description = "manga and anime from AniList, MyAnimeList and MangaDex links, filled in by AniList"
+icon = "book"
+version = "0.1.0"
+api = 4
+requires = ["catalog"]
+
+[permissions]
+net = ["graphql.anilist.co", "api.mangadex.org"]
+
+[helper]
+run = "python3 -u \"$ATLAS_PLUGIN_DIR/helper.py\""
+
+[[tool]]
+name = "lookup"
+description = "A manga's or anime's details from AniList by its AniList, MyAnimeList or MangaDex id: title, original title, author or studio, year, chapters, volumes or episodes, status, genres, description, cover."
+input = { kind = "string", ids = "object?", url = "string?" }
+
+[contributes.catalog]
+recognize = [
+  { pattern = "(?i)anilist\\.co/manga/(\\d+)", kind = "manga", id = "anilist" },
+  { pattern = "(?i)anilist\\.co/anime/(\\d+)", kind = "anime", id = "anilist" },
+  { pattern = "(?i)myanimelist\\.net/manga/(\\d+)", kind = "manga", id = "myanimelist" },
+  { pattern = "(?i)myanimelist\\.net/anime/(\\d+)", kind = "anime", id = "myanimelist" },
+  { pattern = "(?i)mangadex\\.org/title/([0-9a-f-]{36})", kind = "manga", id = "mangadex" },
+]
+sources = [{ kind = ["manga", "anime"], tool = "lookup", priority = 65, needs = ["anilist", "myanimelist", "mangadex"] }]

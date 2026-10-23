@@ -1,0 +1,73 @@
+# The gate on every push and pull request: the same `scripts/dev/gate.sh` a contributor runs locally, so "green" means
+# one thing. Windows and macOS only `cargo check` the core and the CLI, and may fail until the port is done
+# (docs/decisions/PORTING-windows-macos.md).
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  # gate.sh runs itself in a memory-capped systemd scope on a desktop; a CI runner has none to spare
+  ATLAS_HEAVY: "1"
+
+jobs:
+  gate:
+    name: Gate (Linux)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - name: System libraries (Tauri / WebKitGTK, the capture box's Wayland and D-Bus)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev \
+            libdbus-1-dev libxkbcommon-dev libwayland-dev libssl-dev pkg-config build-essential musl-tools
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: UI dependencies and the browsers the end-to-end tests use
+        run: |
+          npm --prefix ui ci --no-audit --no-fund
+          npx --prefix ui playwright install --with-deps chromium
+      - name: Gate
+        run: bash scripts/dev/gate.sh scan tidy rust clippy py ui build e2e
+      - name: Gate logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gate-logs
+          path: /tmp/atlas-gate/
+          if-no-files-found: ignore
+
+  port:
+    name: cargo check (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    continue-on-error: true
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: The core and the CLI
+        run: cargo check --locked -p atlas-core -p atlas

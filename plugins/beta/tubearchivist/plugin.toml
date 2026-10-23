@@ -1,0 +1,44 @@
+# TubeArchivist, the user's video archive on their server: a video captured into the catalog is handed over to be
+# downloaded, and its note links the archived copy (`tubearchivist:`). One plugin for the service (its address, its
+# token, the sign-in in front of it), which also gives the catalog its link (docs/refactor/REFACTOR-catalog.md, "Which
+# subplugins"). Written from TubeArchivist's REST API (POST /api/download/, "Authorization: Token …"); check it
+# against your server's version. Behind Authelia, Atlas offers the sign-in (docs/design/SERVICE-SIGNIN.md).
+title = "TubeArchivist"
+description = "captured videos archived on your TubeArchivist"
+icon = "video"
+version = "0.1.0"
+api = 4
+
+[permissions]
+net = ["*"]          # the user's own server, wherever it is
+secrets = true
+
+[[setting]]
+key = "address"
+label = "TubeArchivist address"
+kind = "text"
+hint = "https://tube.example.org"
+
+[[setting]]
+key = "token"
+label = "API token"
+kind = "secret"
+hint = "TubeArchivist → Settings → Integrations → API token"
+
+[[setting]]
+key = "auto"
+label = "Archive every captured video"
+kind = "toggle"
+default = true
+
+[helper]
+run = "python3 -u \"$ATLAS_PLUGIN_DIR/helper.py\""
+
+[[tool]]
+name = "archive"
+description = "Queue a YouTube video for download on TubeArchivist and answer where the archived copy will be."
+input = { kind = "string", ids = "object?", path = "string?", props = "object?", options = "object?" }
+secrets = ["token"]
+
+[contributes.catalog]
+links = [{ kind = "video", tool = "archive" }]

@@ -1,0 +1,19 @@
+# Banks' own sites, for "Fetch from the bank's site" (Finance → Sources): the page opens in your browser, you download
+# the statement as usual, and every file that lands in the downloads folder and that a preset recognises is moved
+# into the statements inbox (engine/src/main.rs `downloads`). No password and no page selector here: nothing to break
+# when a site changes. A vault's finance/banks.toml replaces this list.
+
+[[bank]]
+name = "Desjardins (AccèsD)"
+url = "https://accweb.mouv.desjardins.com/"
+hint = "Comptes → Relevés de compte → PDF"
+
+[[bank]]
+name = "Unicaja"
+url = "https://univia.unicajabanco.es/"
+hint = "Cuentas → Movimientos → Exportar (Norma 43 or Excel)"
+
+[[bank]]
+name = "Revolut"
+url = "https://app.revolut.com/"
+hint = "Account → Statement → Excel/CSV"

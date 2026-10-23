@@ -1,0 +1,159 @@
+# Books: EPUB reflowed in your typography, paged on e-ink (docs/design/DESIGN-pen-eink-reader.md). A library of the books folder → a reader; where you are is a file of the folder (reading.json), so
+# every device carries on from the others. Runs in the page: any device, no conversion.
+title = "Books"
+description = "an EPUB library and reader: your font, size and margins; paged (always on e-ink) or scrolled; the table of contents; read from where you left on any device"
+phone = true # runs in the phone apps too (only plugins marked so start there)
+icon = "file-text"
+version = "0.9.0"
+api = 4
+claims = ["*.epub"]                    # an .epub opens here on a click (API 7: the default editor; "Open with…" offers it too)
+requires = ["zip"]                     # its zip reader is the Zip archives plugin's (../zip/zip.js), shared with the other reader
+
+[android]                              # the native reader in the Atlas apps (docs/design/DESIGN-native-book-reader.md)
+main = "org.atlas.plugins.books.Books"
+opens = ["*.epub", "*.mobi", "*.azw", "*.azw3", "*.prc", "*.fb2", "*.fb2.zip"]   # Formats.java; PDFs by the notepad's `pdf` setting, text stays a note
+
+[[setting]]
+key = "folder"
+label = "Library folder"
+kind = "text"
+default = "books"
+hint = "a folder of the vault: every book in it (EPUB, PDF, MOBI, AZW3, FB2, TXT; subfolders too) is one"
+
+[[setting]]
+key = "remote"
+label = "Folders on a server"
+kind = "records"
+add = "Add folder"
+hint = "their books (EPUB, PDF, DjVu…) in the Libraries page's E-books beside the vault's, fetched when opened (a copyparty server of Settings → copyparty)"
+fields = [
+  { key = "server", label = "Server", kind = "text", hint = "its name in copyparty's settings: home" },
+  { key = "folder", label = "Folder", kind = "text", hint = "on that server: /hdd1/Books" },
+  { key = "source", label = "Through", kind = "text", hint = "the plugin that reaches it; empty: copyparty" },
+]
+
+[[setting]]
+key = "font"
+label = "Font"
+kind = "choice"
+choices = ["serif", "sans-serif", "the book's own", "the app's"]
+default = "serif"
+
+[[setting]]
+key = "size"
+label = "Text size (px)"
+kind = "number"
+default = 19
+
+[[setting]]
+key = "line"
+label = "Line height"
+kind = "number"
+default = 1.55
+
+[[setting]]
+key = "margin"
+label = "Side margins (px)"
+kind = "number"
+default = 28
+
+[[setting]]
+key = "justify"
+label = "Justified text"
+kind = "toggle"
+default = true
+
+[[setting]]
+key = "flow"
+label = "Turning"
+kind = "choice"
+choices = ["paged", "scrolled"]
+default = "paged"
+hint = "on an e-ink screen books are always paged"
+
+# ---- the native reader's own (the web reader reads font, size, line, margin, justify, flow) ----
+[[setting]]
+key = "theme"
+label = "Page colours"
+kind = "choice"
+choices = ["white", "sepia", "dark", "black"]
+default = "white"
+hint = "on an e-ink screen only white or black"
+
+[[setting]]
+key = "weight"
+label = "Text weight"
+kind = "number"
+default = 400
+hint = "300 light, 400 regular, 600 bold"
+
+[[setting]]
+key = "para"
+label = "Space between paragraphs (em)"
+kind = "number"
+default = 0.4
+
+[[setting]]
+key = "indent"
+label = "First-line indent (em)"
+kind = "number"
+default = 1.2
+
+[[setting]]
+key = "hyphenate"
+label = "Hyphenation"
+kind = "toggle"
+default = true
+
+[[setting]]
+key = "publisher"
+label = "The book's own styles"
+kind = "toggle"
+default = false
+hint = "its fonts, sizes and spacing as its publisher set them; off, yours"
+
+[[setting]]
+key = "taps"
+label = "Tap zones"
+kind = "choice"
+choices = ["sides", "Kindle", "edge", "L-shaped"]
+default = "sides"
+
+[[setting]]
+key = "invert_taps"
+label = "Inverted taps"
+kind = "toggle"
+default = false
+
+[[setting]]
+key = "volume_keys"
+label = "Volume keys turn pages"
+kind = "toggle"
+default = true
+
+[[setting]]
+key = "flash_every"
+label = "Full e-ink refresh every N pages (0 never)"
+kind = "number"
+default = 6
+
+# the Aa sheet's "Save these" (the native reader): your own themes, kept here rather than in reading.json
+[[setting]]
+key = "themes"
+label = "Your reading themes"
+kind = "records"
+add = "Add theme"
+hint = "Saved from the reader's Aa sheet (Themes → Save these); each sets the text as it was then"
+fields = [
+  { key = "name", label = "Name", kind = "text" },
+  { key = "font", label = "Font", kind = "choice", choices = ["serif", "sans-serif", "the book's own", "the app's"] },
+  { key = "size", label = "Text size (px)", kind = "number" },
+  { key = "line", label = "Line height", kind = "number" },
+  { key = "weight", label = "Text weight", kind = "number" },
+  { key = "margin", label = "Side margins (px)", kind = "number" },
+  { key = "para", label = "Space between paragraphs (em)", kind = "number" },
+  { key = "indent", label = "First-line indent (em)", kind = "number" },
+  { key = "justify", label = "Justified text", kind = "toggle" },
+  { key = "hyphenate", label = "Hyphenation", kind = "toggle" },
+  { key = "publisher", label = "The book's own styles", kind = "toggle" },
+]

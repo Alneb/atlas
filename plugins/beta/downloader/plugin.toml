@@ -1,0 +1,64 @@
+# A downloader for the catalog: the address of a captured thing (a YouTube Music song, a video, an album page) handed
+# to a service on the user's server that downloads it into a library. The user, 2026-10-16: "the actual YTmusic
+# downloader will be a different service in my server". Which service is not fixed, so the request is set here:
+# where, which method, and the body with {url}, {kind}, {title}, {artist}, {id} filled in (MeTube: POST /add
+# {"url": "{url}", "quality": "best", "format": "mp3"}; a yt-dlp web UI; your own). Behind Authelia, Atlas offers the
+# sign-in (docs/design/SERVICE-SIGNIN.md).
+title = "Downloader"
+description = "captured songs (and anything else you choose) sent to your download service"
+icon = "download"
+version = "0.1.0"
+api = 4
+
+[permissions]
+net = ["*"]
+secrets = true
+
+[[setting]]
+key = "address"
+label = "Request address"
+kind = "text"
+hint = "https://music-dl.example.org/add — {url}, {id}… may appear in it"
+
+[[setting]]
+key = "method"
+label = "Method"
+kind = "choice"
+choices = ["POST", "GET", "PUT"]
+default = "POST"
+
+[[setting]]
+key = "body"
+label = "Body (JSON)"
+kind = "text"
+default = "{\"url\": \"{url}\"}"
+hint = "{url} {kind} {title} {artist} {id} are filled in"
+
+[[setting]]
+key = "kinds"
+label = "Kinds to send"
+kind = "list"
+default = ["song"]
+
+[[setting]]
+key = "header"
+label = "Token header (optional)"
+kind = "text"
+hint = "e.g. Authorization or X-Api-Key"
+
+[[setting]]
+key = "token"
+label = "Token (optional)"
+kind = "secret"
+
+[helper]
+run = "python3 -u \"$ATLAS_PLUGIN_DIR/helper.py\""
+
+[[tool]]
+name = "send"
+description = "Send a catalogued thing's address to the download service set in Settings → Downloader."
+input = { kind = "string", ids = "object?", path = "string?", props = "object?", options = "object?" }
+secrets = ["token"]
+
+[contributes.catalog]
+links = [{ kind = "*", tool = "send" }]

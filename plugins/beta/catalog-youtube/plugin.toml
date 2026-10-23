@@ -1,0 +1,31 @@
+# YouTube and YouTube Music for the catalog. The user, 2026-10-16: "so its important that for youtube and ytmusic you
+# get the url, because the idea will be to pass that to either tubearchivist or another app that downloads yt music
+# into the music library". A link is recognised by its shape (youtu.be, watch, shorts, live, music.youtube.com), kept
+# as its clean watch address (no ?si= or other tracking), and filled in from YouTube's oEmbed: title, channel, the
+# largest thumbnail. A YouTube Music link is a song; its artist is the channel without " - Topic".
+title = "Catalog · YouTube"
+description = "YouTube videos and YouTube Music songs, with their clean address"
+icon = "video"
+version = "0.1.0"
+api = 4
+requires = ["catalog"]
+
+[permissions]
+net = ["www.youtube.com"]
+
+[helper]
+run = "python3 -u \"$ATLAS_PLUGIN_DIR/helper.py\""
+
+[[tool]]
+name = "lookup"
+description = "A YouTube video's or YouTube Music song's title, channel or artist, thumbnail and clean address."
+input = { kind = "string", ids = "object?", url = "string?" }
+
+[contributes.catalog]
+recognize = [
+  { pattern = "(?i)music\\.youtube\\.com/watch\\?(?:[^\\s#]*&)?v=([\\w-]{11})", kind = "song", id = "youtube" },
+  { pattern = "(?i)(?:^|[^.\\w])(?:www\\.|m\\.)?youtube\\.com/(?:watch\\?(?:[^\\s#]*&)?v=|shorts/|live/|embed/)([\\w-]{11})", kind = "video", id = "youtube" },
+  { pattern = "(?i)youtu\\.be/([\\w-]{11})", kind = "video", id = "youtube" },
+]
+sources = [{ kind = ["video", "song"], tool = "lookup", priority = 60, needs = ["youtube"] }]
+# the video and song kinds are the catalog's (engine/kinds/); a vault reshapes them with .atlas/kinds/<kind>.yaml

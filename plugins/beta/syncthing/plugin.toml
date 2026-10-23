@@ -1,0 +1,43 @@
+# Syncthing, scan now (docs/design/DESIGN-mirror-v2.md, build step 5): every
+# batch of files the vault's watcher sees change is handed to Syncthing's REST API (`POST /rest/db/scan?sub=`), so a
+# save reaches the other devices in about a second instead of after Syncthing's own watcher delay (10 s by default). The
+# fewer seconds two copies differ, the rarer the offline case of the mirror (its conflict copies, merged by the core).
+title = "Syncthing"
+description = "asks Syncthing to sync a file the moment it changes, instead of after its own delay"
+icon = "refresh"
+version = "0.1.1"
+api = 4
+
+[permissions]
+net = ["127.0.0.1", "localhost"]
+secrets = true
+
+[[setting]]
+key = "url"
+label = "Syncthing's address"
+kind = "text"
+default = "http://127.0.0.1:8384"
+hint = "its web interface (the GUI address in Syncthing's settings)"
+
+[[setting]]
+key = "api_key"
+label = "API key"
+kind = "secret"
+hint = "Syncthing → Actions → Settings → API Key; empty: read from this computer's Syncthing config (~/.config/syncthing, ~/.local/state/syncthing)"
+
+[[setting]]
+key = "folder"
+label = "Folder ID"
+kind = "text"
+hint = "empty: the Syncthing folder that holds this vault, found by its path"
+
+[helper]
+run = "python3 -u \"$ATLAS_PLUGIN_DIR/helper.py\""
+
+[[tool]]
+name = "scan"
+description = "Ask Syncthing to scan the given vault paths now. Called by Atlas after files change; answers what was asked."
+input = { paths = "array" }
+secrets = ["api_key"]
+timeout_secs = 15
+on = "fs"

@@ -1,0 +1,9 @@
+# Zip archives read in the page — a library plugin (no pane, no main.js): one copy for every plugin that opens a zip.
+# Books (EPUB) and Manga (CBZ) import it as `import { zipIndex, zipBlob } from "../zip/zip.js"` and say
+# `requires = ["zip"]` (docs/guides/PLUGIN-API.md "Sharing a module between plugins").
+title = "Zip archives"
+description = "a library other plugins use: reads zip archives (EPUB books, CBZ comics) in the page"
+icon = "file"
+version = "0.1.0"
+api = 4
+phone = true

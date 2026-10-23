@@ -1,0 +1,115 @@
+/* Atlas theme for dockview-core: every --dv-* variable mapped onto the app tokens, plus the
+   custom tab (icon · title · dirty dot/close). Groups float as rounded cards on --bg-app. */
+.dockview-theme-atlas {
+  color-scheme: inherit;
+  --dv-paneview-active-outline-color: var(--accent);
+  --dv-tabs-and-actions-container-font-size: calc(12.5px * var(--ui-scale, 1));
+  --dv-tabs-and-actions-container-height: 36px;
+  --dv-drag-over-background-color: var(--accent-soft);
+  --dv-drag-over-border-color: var(--accent);
+  --dv-drag-over-border: 1.5px solid color-mix(in srgb, var(--accent) 60%, transparent);
+  --dv-edge-dock-indicator-color: var(--accent);
+  --dv-tabs-container-scrollbar-color: var(--border-strong);
+  --dv-icon-hover-background-color: var(--bg-hover);
+  --dv-floating-box-shadow: var(--shadow-pop);
+  --dv-floating-border: 1px solid var(--border-strong);
+  --dv-overlay-z-index: 999;
+  --dv-tab-font-size: calc(12.5px * var(--ui-scale, 1));
+  --dv-border-radius: var(--radius-lg);
+  --dv-tab-margin: 0;
+  --dv-sash-color: transparent;
+  --dv-active-sash-color: color-mix(in srgb, var(--accent) 45%, transparent);
+  --dv-active-sash-transition-duration: .12s;
+  --dv-active-sash-transition-delay: .25s;
+  --dv-spacing-padding: 0px;
+  --dv-tab-border-radius: 0px;
+  --dv-sash-border-radius: 3px;
+  --dv-dropdown-border-radius: var(--radius);
+  --dv-tab-close-icon-size: 14px;
+  --dv-floating-group-border: 1px solid var(--border-strong);
+  --dv-floating-group-dragging-opacity: .6;
+  --dv-floating-titlebar-height: 22px;
+  --dv-floating-titlebar-background-color: var(--bg-alt);
+  --dv-floating-titlebar-border-bottom: 1px solid var(--border);
+  --dv-tab-group-color-grey: var(--text-faint); --dv-tab-group-color-blue: var(--accent); --dv-tab-group-color-red: var(--red);
+  --dv-tab-group-color-yellow: var(--yellow); --dv-tab-group-color-green: var(--green); --dv-tab-group-color-pink: #f0a3c8;
+  --dv-tab-group-color-purple: var(--purple); --dv-tab-group-color-cyan: var(--cyan); --dv-tab-group-color-orange: var(--orange);
+  --dv-tab-group-chip-padding: 4px 8px; --dv-tab-group-chip-border-radius: 6px; --dv-tab-group-chip-font-size: calc(11px * var(--ui-scale, 1));
+  --dv-tab-group-line-height: 2px; --dv-tab-group-line-opacity: .6;
+
+  --dv-group-view-background-color: var(--bg);
+  --dv-tabs-and-actions-container-background-color: var(--bg-alt);
+  --dv-activegroup-visiblepanel-tab-background-color: var(--bg);
+  --dv-activegroup-hiddenpanel-tab-background-color: transparent;
+  --dv-inactivegroup-visiblepanel-tab-background-color: var(--bg);
+  --dv-inactivegroup-hiddenpanel-tab-background-color: transparent;
+  --dv-tab-divider-color: transparent;
+  --dv-activegroup-visiblepanel-tab-color: var(--heading);
+  --dv-activegroup-hiddenpanel-tab-color: var(--text-muted);
+  --dv-inactivegroup-visiblepanel-tab-color: var(--text-muted);
+  --dv-inactivegroup-hiddenpanel-tab-color: var(--text-faint);
+  --dv-separator-border: transparent;
+  --dv-paneview-header-border-color: var(--border);
+  font-family: var(--font-ui);
+}
+
+/* groups are cards on the app's ground: the dock itself paints nothing, or its colour shows in the
+   gaps and behind every rounded corner (white squares around the cards in the light theme) */
+.dockview-theme-atlas .dv-dockview { background-color: transparent; }
+.dockview-theme-atlas .dv-groupview { border-radius: var(--radius-lg); overflow: hidden; border: 1px solid var(--border); box-shadow: 0 1px 0 rgba(0,0,0,.04); }
+.dockview-theme-atlas .dv-groupview.dv-active-group { border-color: var(--border-strong); }
+/* always-rendered panes (terminal, PDF) float over their card: same rounding, or their square
+   background covers the card's corners and the active outline looks broken */
+.dockview-theme-atlas .dv-render-overlay { border-radius: calc(var(--radius-lg) - 1px); overflow: hidden; }
+/* A kept-alive pane (terminal, PDF) that was never shown has no position yet: without this it
+   lands under the dock in normal flow and doubles the dock's scroll height. Shown ones set inline. */
+.dockview-theme-atlas .dv-render-overlay { top: 0; left: 0; }
+.dockview-theme-atlas .dv-tabs-and-actions-container { border-bottom: 1px solid var(--border); }
+.dockview-theme-atlas .dv-drop-target-container .dv-drop-target-anchor { border-radius: var(--radius); }
+
+/* tabs */
+.dockview-theme-atlas .dv-tab { padding: 0; position: relative; transition: background .12s, color .12s; }
+.dockview-theme-atlas .dv-tab:hover { color: var(--text); }
+.dockview-theme-atlas .dv-tab.dv-active-tab::after { content: ""; position: absolute; left: 10px; right: 10px; bottom: -1px; height: 2px; border-radius: 2px 2px 0 0; background: transparent; }
+.dockview-theme-atlas .dv-active-group .dv-tab.dv-active-tab::after { background: var(--accent); }
+.dockview-theme-atlas .dv-tab.dv-active-tab { box-shadow: inset 1px 0 0 var(--border), inset -1px 0 0 var(--border); }
+.dockview-theme-atlas .dv-tab:first-child.dv-active-tab { box-shadow: inset -1px 0 0 var(--border); }
+
+.atlas-tab { display: flex; align-items: center; gap: 7px; height: 100%; padding: 0 8px 0 12px; max-width: 240px; user-select: none; }
+.atlas-tab-icon { display: inline-flex; color: var(--text-faint); flex: none; }
+.dv-active-tab .atlas-tab-icon { color: var(--accent); }
+.atlas-tab-title { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 500; }
+.atlas-tab-rename { width: 120px; font: inherit; font-weight: 500; color: var(--text); background: var(--bg); border: 1px solid var(--accent); border-radius: 4px; padding: 1px 5px; outline: none; }
+.atlas-group-actions { display: flex; align-items: center; height: 100%; padding: 0 6px; }
+.atlas-tab-close { position: relative; display: grid; place-items: center; width: 20px; height: 20px; border-radius: 5px; color: var(--text-faint); opacity: 0; transition: opacity .1s, background .1s; flex: none; }
+.atlas-tab-close svg { width: 13px; height: 13px; }
+.dv-tab:hover .atlas-tab-close, .dv-active-tab .atlas-tab-close { opacity: 1; }
+.atlas-tab-close:hover { background: var(--bg-active); color: var(--text); }
+/* unsaved: a dot that becomes the close button on hover */
+.atlas-tab.is-dirty .atlas-tab-close { opacity: 1; }
+.atlas-tab.is-dirty .atlas-tab-close svg { opacity: 0; }
+.atlas-tab.is-dirty .atlas-tab-close::before { content: ""; position: absolute; width: 7px; height: 7px; border-radius: 50%; background: var(--text-muted); }
+.atlas-tab.is-dirty .atlas-tab-close:hover svg { opacity: 1; }
+.atlas-tab.is-dirty .atlas-tab-close:hover::before { display: none; }
+
+.atlas-pane { height: 100%; width: 100%; overflow: hidden; }
+
+/* empty dock */
+.atlas-watermark { height: 100%; display: grid; place-items: center; background: var(--bg); }
+.atlas-watermark-inner { display: flex; flex-direction: column; gap: 10px; min-width: 240px; color: var(--text-muted); font-size: calc(13px * var(--ui-scale, 1)); }
+.wm-mark { font-size: calc(40px * var(--ui-scale, 1)); font-weight: 700; letter-spacing: -.04em; color: var(--border-strong); text-align: center; margin-bottom: 12px; }
+.wm-row { display: flex; justify-content: space-between; gap: 24px; }
+
+/* sashes: invisible until hovered */
+.dockview-theme-atlas .dv-sash { border-radius: 3px; }
+
+/* Tab strips: no scrollbar chrome (WebKitGTK drew a stray vertical thumb on a 1px overflow);
+   overflowing tabs still scroll horizontally with the wheel. */
+.dockview-theme-atlas .dv-tabs-container { overflow-y: hidden; scrollbar-width: none; }
+.dockview-theme-atlas .dv-tabs-container::-webkit-scrollbar { display: none; width: 0; height: 0; }
+.dockview-theme-atlas .dv-scrollable .dv-scrollbar-horizontal { display: none; }
+/* Grid views never scroll (panes scroll inside). In WebKitGTK a .dv-view came out 10px larger
+   than its box with overflow:auto → window-wide scrollbars (found via .atlas/cache/ui.log). */
+/* `clip`, not `hidden`: a hidden box can still be scrolled by focus()/scrollIntoView, which shifted
+   whole views sideways (glitched edges, the rail cut off). clip forbids any scrolling. */
+.dockview-theme-atlas .dv-view, .dockview-theme-atlas .dv-split-view-container, .dockview-theme-atlas .dv-grid-view { overflow: clip; }

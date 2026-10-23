@@ -1,0 +1,7 @@
+name: video
+label: Video
+folder: notes/videos  # under notes/: the top level holds kinds of file, not topics
+ids: [{ id: youtube }, { id: url, property: source }]
+properties: [channel, published, duration, cover]
+body: description
+library: { in: "Videos", title: Videos, layout: grid, group: status, shelves: [to-watch, watched], cover: cover, key: [channel, published, duration], icon: video }

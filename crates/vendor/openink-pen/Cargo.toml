@@ -1,0 +1,23 @@
+# Vendored from boox_5c_re (scripts/dev/sync-openink.sh, VENDORED.md); only this file is Atlas's.
+[package]
+name = "openink-pen"
+description = "Stylus input for the BOOX Note Air 5C: evdev decoding, pen state machine, regions"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+publish = false
+
+[[bin]]
+name = "pen-dump"
+path = "src/bin/pen-dump.rs"
+required-features = ["dump"]
+
+[features]
+dump = []
+
+[target.'cfg(any(target_os = "linux", target_os = "android"))'.dependencies]
+libc = "0.2"
+
+# Upstream writes `len % 4` for older compilers; the vendored source is not edited here (VENDORED.md).
+[lints.clippy]
+manual_is_multiple_of = "allow"

@@ -1,0 +1,30 @@
+# Jellyfin: what was watched lately, in a block. An example of a block over a media server's API.
+# Copy into a vault's .atlas/plugins/.
+title = "Jellyfin"
+description = "what you watched lately"
+phone = true # runs in the phone apps too (only plugins marked so start there)
+icon = "image"
+version = "0.1.0"
+api = 4
+
+[permissions]
+net = ["*"]
+secrets = true
+
+[[setting]]
+key = "server"
+label = "Jellyfin server"
+kind = "text"
+hint = "https://media.example.org"
+
+[[setting]]
+key = "user"
+label = "User id"
+kind = "text"
+hint = "Jellyfin → Dashboard → Users → the user's page: the id in its address"
+
+[[setting]]
+key = "token"
+label = "API key"
+kind = "secret"
+hint = "Jellyfin → Dashboard → API keys"

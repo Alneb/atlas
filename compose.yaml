@@ -1,0 +1,45 @@
+# Atlas in server mode: every folder in ./vaults (or $ATLAS_VAULTS) is a vault at http://<host>:7700/v/<folder>/.
+#
+#   cp .env.example .env                                     # then edit it
+#   docker compose run --rm atlas server password            # once: the owner's password (asked twice, never echoed)
+#   docker compose up -d
+#
+# Behind a reverse proxy with a sign-in in front (Authelia, Authentik, oauth2-proxy…): see the commented lines below and
+# docs/guides/SERVER.md, "Behind a proxy".
+name: atlas
+
+services:
+  atlas:
+    image: ${ATLAS_IMAGE:-ghcr.io/alneb/atlas:latest}
+    build:
+      context: .
+      dockerfile: packaging/docker/Dockerfile
+    # the vault files keep their owner on the host: run as that user (`id -u` / `id -g`)
+    user: "${ATLAS_UID:-1000}:${ATLAS_GID:-1000}"
+    ports:
+      - "${ATLAS_PORT:-7700}:7700"
+    volumes:
+      - ${ATLAS_VAULTS:-./vaults}:/vaults          # your notes: one folder per vault
+      - atlas-config:/config                       # server.toml: the sign-in mode, the password's hash
+      - atlas-state:/state                         # sessions, device tokens, caches
+      # plugins' secrets as read-only files (/secrets/<plugin>/<name>), as Docker secrets are:
+      # - ./secrets:/secrets:ro
+    environment:
+      TZ: ${TZ:-UTC}
+      # ATLAS_SECRET_FILES: /secrets
+    restart: unless-stopped
+    healthcheck:
+      # any HTTP answer means the server is up (the sign-in page answers whether or not one is signed in)
+      test: ["CMD", "curl", "-so", "/dev/null", "http://127.0.0.1:7700/login"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    # Behind a reverse proxy that signs people in and passes `Remote-User`, set in Settings → Server (or server.toml):
+    #   auth = "proxy"            # or "both" to keep the password on the LAN
+    #   trusted_proxies = ["<the proxy's address or network>"]
+    # and publish the port only to the proxy, e.g. `ports: ["127.0.0.1:7700:7700"]`.
+
+volumes:
+  atlas-config:
+  atlas-state:

@@ -1,0 +1,30 @@
+# FreshRSS: the unread articles in a block; one into a note with a click. An example of a block
+# fed by atlas.fetch through FreshRSS's Fever API. Copy into a vault's .atlas/plugins/.
+title = "FreshRSS"
+description = "unread articles in a block, an article into a note"
+phone = true # runs in the phone apps too (only plugins marked so start there)
+icon = "globe"
+version = "0.1.0"
+api = 4
+
+[permissions]
+net = ["*"]
+secrets = true
+
+[[setting]]
+key = "server"
+label = "FreshRSS address"
+kind = "text"
+hint = "https://rss.example.org"
+
+[[setting]]
+key = "api_key"
+label = "Fever API key"
+kind = "secret"
+hint = "the md5 of \"user:API password\" (FreshRSS → Settings → Profile → API password)"
+
+[[setting]]
+key = "folder"
+label = "Folder for saved articles"
+kind = "text"
+default = "notes/reading"

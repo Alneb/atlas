@@ -1,0 +1,24 @@
+# copyparty: your copyparty servers' files in Atlas's explorer (browse, open and edit from a local copy, upload,
+# download, rename, delete). main.js only: copyparty's own HTTP API through atlas.fetch. Copy into a vault's .atlas/plugins/.
+title = "copyparty"
+description = "your copyparty file servers in the explorer: browse, open, edit, upload, download"
+icon = "server"
+phone = true # runs in the phone apps too (the books of the server's folders, the explorer's servers)
+version = "0.3.4"
+api = 4
+
+[permissions]
+net = ["*"]          # the servers are a setting: any host
+secrets = true       # a server's password, when it has one
+
+[[setting]]
+key = "servers"
+label = "Servers"
+kind = "records"
+add = "Add server"
+hint = "Each is a place in the explorer. On a VPN-only server with no password, leave the password empty."
+fields = [
+  { key = "name", label = "Name", kind = "text", hint = "short, shown in the explorer: nas, home (letters, digits, . @ - _)" },
+  { key = "url", label = "Address", kind = "text", hint = "the server, or a folder of it: https://files.example.org/hdd1/Physics" },
+  { key = "password", label = "Password", kind = "secret", hint = "copyparty's own password (sent as its pw header); empty: none" },
+]

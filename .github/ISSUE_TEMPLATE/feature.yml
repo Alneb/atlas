@@ -1,0 +1,24 @@
+name: Feature
+description: An idea for Atlas itself
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Many ideas fit in a vault without changing Atlas: a page, a command, a template or a plugin
+        ([EXTENDING.md](../blob/main/docs/guides/EXTENDING.md)). If yours needs Atlas itself, tell us below.
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: What you are trying to do, and what gets in the way today.
+    validations: { required: true }
+  - type: textarea
+    id: idea
+    attributes:
+      label: What you would like
+    validations: { required: true }
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: What you tried instead

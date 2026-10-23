@@ -1,0 +1,25 @@
+# Unicaja's investment-fund movements (Inversión → Fondos → Consulta de movimientos → PDF). Each row is a
+# subscription or a redemption; its cash leg is the account's own row (Norma 43), its withholding another.
+id = "unicaja-funds-pdf"
+name = "Unicaja funds (PDF)"
+bank = "unicaja"
+order = 0                     # first: the account's statement then finds the cash legs written
+currency = "EUR"
+dates = ["%d-%m-%y"]
+description = ["{kind} {fund}"]
+bank_text = "{kind} {fund} {isin}: {units} units, {total} EUR, result {gain}, withheld {tax}"
+funds = { ops = { "Suscripción" = "buy", "Reembolso" = "sell" } }
+
+[detect]
+contains = ["CONSULTA DE MOVIMIENTOS", "Nombre de Fondo"]
+
+[layout]
+format = "pdf"
+# A long name wraps: its row has no name, the line before holds it.
+fill_from_previous = ["fund"]
+row = '^\s*(?P<fund>.*?)\s*(?P<isin>[A-Z]{2}[A-Z0-9]{9}\d)\s+\S+\s+(?P<kind>\S+)\s+(?P<units>[\d.,]+)\s+(?P<total>[\d.,]+) €\s+(?P<gain>\S+)(?: €)?\s+(?P<tax>\S+)(?: €)?\s+(?P<booked>\d\d-\d\d-\d\d)\s*$'
+
+[layout.find]
+number = 'CCC MARCO[\s\S]*?(\d{20})'
+from = '(\d\d/\d\d/\d{4}) a \d\d/\d\d/\d{4}'
+to = '\d\d/\d\d/\d{4} a (\d\d/\d\d/\d{4})'

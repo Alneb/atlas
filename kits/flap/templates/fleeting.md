@@ -1,0 +1,4 @@
+---
+type: fleeting
+created: {{date}}
+---

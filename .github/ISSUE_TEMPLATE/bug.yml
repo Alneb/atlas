@@ -1,0 +1,40 @@
+name: Bug
+description: Something does not work as it should
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened, and what you expected
+      placeholder: "Opening a PDF from the file tree shows a blank page instead of the first page."
+    validations: { required: true }
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: "1. …\n2. …\n3. …"
+    validations: { required: true }
+  - type: dropdown
+    id: where
+    attributes:
+      label: Where
+      multiple: true
+      options: [Desktop app, Browser (atlas serve), Server (Docker), Android app, Quick capture, A plugin]
+    validations: { required: true }
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: "`atlas --version`, or the commit"
+    validations: { required: true }
+  - type: input
+    id: os
+    attributes:
+      label: Operating system and desktop
+      placeholder: "Fedora 44, KDE Plasma 6 (Wayland)"
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs or screenshots
+      description: The terminal Atlas was started from, or the browser console. Remove anything private first.
+      render: text

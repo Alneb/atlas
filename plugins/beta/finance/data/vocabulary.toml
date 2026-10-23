@@ -1,0 +1,163 @@
+# Kinds of shop and service, for a payee the history has never seen (engine/src/classify.rs, the third layer).
+# `words` are matched on the payee's words with accents and case folded: a word of five letters or more is a
+# beginning ("supermar" matches SUPERMARCHE), a shorter one the whole word ("bell" is not BELLEVILLE), several words a
+# phrase. `category` is matched against the ledger's own categories by its last parts, so "Food:Groceries" files
+# into whatever account of the ledger ends that way, and is made under Expenses only when none does. `income = true`
+# kinds apply to money coming in. A guess from here is a suggestion: Review shows it, the history and the user's rules
+# outrank it.
+
+# Words banks use for moving money (between one's own accounts among others), in the user's languages: two rows days
+# apart on two of the user's accounts are paired as one transfer only when the text says so, with one of these or the
+# other account's name (engine/src/statement/plan.rs). Matched anywhere in the text, accents and case folded.
+transfer_words = ["transfer", "transf", "traspaso", "trasp", "recarga", "top-up", "topup", "money added", "virement", "deposit"]
+
+# Words for money sent to or received from another person (Revolut's "Payment from …", Bizum): such a transfer waiting in
+# a holding account is guessed to be a share of the nearest card payment before it (engine/src/classify.rs, `shared`).
+person_words = ["transfer to", "transfer from", "payment from", "payment to", "bizum", "transferencia a", "transferencia de", "virement de", "virement a"]
+
+# Words for a currency exchange inside one multi-currency account (Revolut's "Exchanged to CAD"): the row in one currency
+# and the row in the other, a day apart at most, are one transaction with its price (`250.00 CAD @@ 157.69 EUR`).
+exchange_words = ["exchanged", "exchange", "cambio de divisa", "conversion", "change de devise", "currency"]
+
+# Where a movement waits for its other side besides Expenses:Unknown (the Paisa migration's parked transfers): a later
+# statement that shows that side completes the transaction in place instead of adding a second one.
+holding_accounts = ["Assets:Transfers"]
+
+[[kind]]
+name = "supermarket"
+category = "Food:Groceries"
+words = ["supermar", "hipermer", "hypermar", "mercadona", "carrefour", "auchan", "lidl", "aldi", "intermarche", "itm", "monoprix",
+  "franprix", "spar", "continente", "pingo", "minipreco", "consum", "ahorramas", "alcampo", "eroski", "hipercor", "rewe", "edeka",
+  "maxi", "iga", "provigo", "metro plus", "superc", "walmart", "costco", "leclerc", "casino", "picard", "biocoop", "naturalia",
+  "mini merc", "minimerc", "alimentacion", "alimentation", "epicerie", "grocery", "famila", "conad", "esselunga", "coop"]
+
+[[kind]]
+name = "vending machine"
+category = "Food:Snacks"
+words = ["ivs", "selecta", "vending", "distributeur", "automat", "nyx"]
+
+[[kind]]
+name = "bakery or café"
+category = "Food:Snacks"
+words = ["boulang", "padaria", "panader", "pasteler", "patisser", "pastic", "pastel", "confeitar", "bakery", "cafe", "coffee",
+  "starbucks", "hortons", "gelat", "glacier", "gelato", "jerry", "manteigaria", "nata", "croissant", "pao", "pain", "churr"]
+
+[[kind]]
+name = "restaurant"
+category = "Food:Restaurants"
+words = ["restaur", "ristorante", "donald", "keb", "pizza", "pizzer", "trattoria", "osteria", "burger", "hamburg", "mcdonald", "kfc", "subway", "sushi",
+  "kebab", "kebap", "shawarma", "falafel", "fallafel", "taco", "tacos", "burrito", "bistro", "brasserie", "poke", "ramen", "noodle",
+  "nouilles", "grill", "tasca", "cervecer", "harvey", "domino", "wok", "momo", "thai", "viet", "bouillon", "souvlaki", "crepe",
+  "tapas", "brasao", "frango", "asador", "steak", "dumpling", "curry", "tandoor", "bbq", "taverna", "trinkas", "leitao"]
+
+[[kind]]
+name = "pharmacy or doctor"
+category = "Medicine"
+words = ["pharmac", "farmac", "apothe", "medic", "clinic", "clinique", "dentist", "dental", "dermat", "optic", "hospital", "sante"]
+
+[[kind]]
+name = "cinema"
+category = "Cinema"
+words = ["cinema", "cines", "cine", "ugc", "pathe", "gaumont", "renoir", "yelmo", "kinepolis"]
+
+[[kind]]
+name = "museum, show or outing"
+category = "Going"
+words = ["museu", "museo", "musee", "museum", "galler", "exhibit", "exposition", "teatro", "theatre", "theater", "concert",
+  "ticketmaster", "dice", "billet", "tickets", "festival", "opera", "zoo", "palacio", "palace", "castle", "chateau", "torre",
+  "alcazar", "sepaq", "parc"]
+
+[[kind]]
+name = "coach"
+category = "Travel:Bus"
+words = ["flixbus", "megabus", "autocar", "alsa", "blablacar", "ouibus", "greyhound", "orleans express", "autolinee"]
+
+[[kind]]
+name = "train"
+category = "Travel:Trains"
+words = ["renfe", "sncf", "trenitalia", "italo", "comboios", "viarail", "amtrak", "railnet", "rail", "train", "ouigo",
+  "thalys", "eurostar", "db bahn", "bahn"]
+
+[[kind]]
+name = "metro or city transport"
+category = "Travel:Metro"
+words = ["ratp", "metro", "navigo", "mobilites", "stm", "rem", "presto", "tisseo", "carris", "atac", "transport", "crtm", "emt",
+  "tcl", "ttc", "translink", "stl"]
+
+[[kind]]
+name = "ride"
+category = "Travel:VTCs"
+words = ["bolt", "uber", "cabify", "taxi", "freenow", "lyft", "heetch"]
+
+[[kind]]
+name = "airline"
+category = "Travel:Flights"
+words = ["ryanair", "iberia", "vueling", "easyjet", "wizz", "airfrance", "air france", "aircanada", "air canada", "lufthansa",
+  "tap air", "klm", "transavia", "volotea", "aeroport", "airport", "aelia", "immfly"]
+
+[[kind]]
+name = "place to stay"
+category = "Travel:Lodging"
+words = ["booking", "airbnb", "hotel", "hostel", "hostal", "auberge", "pension", "residence"]
+
+[[kind]]
+name = "clothes shop"
+category = "Things:Clothes"
+words = ["bershka", "zara", "primark", "humana", "uniqlo", "pull", "mango", "vinted", "kiabi", "celio", "jules", "stradivarius"]
+
+[[kind]]
+name = "books, music or games"
+category = "Things:Media"
+words = ["librair", "librer", "library", "bookstore", "fnac", "steam", "gog", "eneba", "g2a", "bandcamp", "musique", "music", "nintendo", "playstation",
+  "humble", "editora", "edic", "kobo", "comics", "manga"]
+
+[[kind]]
+name = "shop"
+category = "Things"
+words = ["amazon", "aliexpress", "dollarama", "gifi", "ikea", "action", "bazar", "wallapop", "decathlon", "ebay", "tech",
+  "leroy", "bricodepot", "flying tiger", "normal"]
+
+[[kind]]
+name = "subscription"
+category = "Bills:Subscriptions"
+words = ["spotify", "netflix", "patreon", "disney", "youtube", "apple com", "icloud", "prime video", "deezer", "crunchyroll"]
+
+[[kind]]
+name = "server or software"
+category = "Bills:Software"
+words = ["hetzner", "ovh", "digitalocean", "cloudflare", "namecheap", "github", "claude", "anthropic", "openai", "proton",
+  "backblaze", "jetbrains"]
+
+[[kind]]
+name = "phone company"
+category = "Bills:Phone"
+words = ["lebara", "fizz", "free mobile", "orange", "movistar", "vodafone", "bouygues", "sfr", "videotron", "koodo", "fido",
+  "virgin", "telus", "bell"]
+
+[[kind]]
+name = "laundry"
+category = "Laundry"
+words = ["lavomatic", "laverie", "laundry", "lavander", "wash"]
+
+[[kind]]
+name = "gym"
+category = "Gym"
+words = ["gym", "synergym", "basicfit", "basic fit", "climbing", "escalade", "fitness", "piscine", "basecamp", "bloc"]
+
+[[kind]]
+name = "bank fee"
+category = "Bank:Fees"
+words = ["comision", "commission", "frais", "fee", "certificados"]
+
+[[kind]]
+name = "government office"
+category = "Admin"
+words = ["government", "goverment", "gouvernement", "ministry", "ministere", "ministerio", "immigration", "passeport",
+  "pasaporte", "dni", "prefecture", "ayuntamiento", "commune", "mairie", "citizenimm"]
+
+[[kind]]
+name = "interest"
+category = "Interest"
+income = true
+words = ["interest", "interes", "interet"]
+

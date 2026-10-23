@@ -1,0 +1,121 @@
+# Words a capture is read with (engine/src/capture.rs): "12,40 café con Ana revolut ayer", "30 cad groceries
+# desjardins", "+1500 salary unicaja". In Spanish, English and French; a vault's finance/capture.toml adds to
+# these lists (its tables extend the plugin's). Matched on words with accents and case folded.
+
+# Days back from today.
+[days]
+"hoy" = 0
+"today" = 0
+"aujourd'hui" = 0
+"aujourdhui" = 0
+"ayer" = 1
+"yesterday" = 1
+"hier" = 1
+"anteayer" = 2
+"antier" = 2
+"avant-hier" = 2
+
+# Weekday names (0 = Monday): the last such day, today included.
+[weekdays]
+"lunes" = 0
+"monday" = 0
+"lundi" = 0
+"martes" = 1
+"tuesday" = 1
+"mardi" = 1
+"miercoles" = 2
+"wednesday" = 2
+"mercredi" = 2
+"jueves" = 3
+"thursday" = 3
+"jeudi" = 3
+"viernes" = 4
+"friday" = 4
+"vendredi" = 4
+"sabado" = 5
+"saturday" = 5
+"samedi" = 5
+"domingo" = 6
+"sunday" = 6
+"dimanche" = 6
+
+# Month names and abbreviations, for "20 oct", "3 de marzo", "le 5 mai".
+[months]
+"ene" = 1
+"enero" = 1
+"jan" = 1
+"january" = 1
+"janvier" = 1
+"feb" = 2
+"febrero" = 2
+"february" = 2
+"fev" = 2
+"fevrier" = 2
+"mar" = 3
+"marzo" = 3
+"march" = 3
+"mars" = 3
+"abr" = 4
+"abril" = 4
+"apr" = 4
+"april" = 4
+"avr" = 4
+"avril" = 4
+"may" = 5
+"mayo" = 5
+"mai" = 5
+"jun" = 6
+"junio" = 6
+"june" = 6
+"juin" = 6
+"jul" = 7
+"julio" = 7
+"july" = 7
+"juil" = 7
+"juillet" = 7
+"ago" = 8
+"agosto" = 8
+"aug" = 8
+"august" = 8
+"aout" = 8
+"sep" = 9
+"sept" = 9
+"septiembre" = 9
+"september" = 9
+"septembre" = 9
+"oct" = 10
+"octubre" = 10
+"october" = 10
+"octobre" = 10
+"nov" = 11
+"noviembre" = 11
+"november" = 11
+"novembre" = 11
+"dic" = 12
+"diciembre" = 12
+"dec" = 12
+"december" = 12
+"decembre" = 12
+
+# Currency words and symbols → the commodity.
+[currencies]
+"€" = "EUR"
+"eur" = "EUR"
+"euro" = "EUR"
+"euros" = "EUR"
+"$" = "USD"
+"usd" = "USD"
+"dollar" = "USD"
+"dollars" = "USD"
+"ca$" = "CAD"
+"cad" = "CAD"
+"$ca" = "CAD"
+"£" = "GBP"
+"gbp" = "GBP"
+"chf" = "CHF"
+
+[words]
+# Money coming in (else a capture is a payment): a leading "+" says it too.
+income = ["salary", "sueldo", "nomina", "salaire", "paie", "ingreso", "cobro", "income", "refund", "reembolso", "remboursement", "devolucion"]
+# Words between the others that say nothing about the payment ("café con Ana": "con").
+filler = ["con", "with", "avec", "en", "at", "a", "de", "del", "for", "para", "pour", "the", "el", "la", "le", "les", "los", "las", "un", "una", "une", "y", "and", "et", "on", "el", "por", "paid", "pague", "pagado", "paye"]

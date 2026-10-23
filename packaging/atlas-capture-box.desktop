@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Atlas Capture (the box itself)
+Comment=Not for the menu: names the capture box's binary so KWin lets it take a picture of the window you were on
+Exec=atlas-capture
+Icon=atlas
+NoDisplay=true
+X-KDE-DBUS-Restricted-Interfaces=org.kde.KWin.ScreenShot2

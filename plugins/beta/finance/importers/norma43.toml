@@ -1,0 +1,46 @@
+# AEB Norma 43 ("Cuaderno 43"): the account statement every Spanish bank exports, fixed-width records of 80
+# characters. Unicaja: Banca digital → Cuentas → Movimientos → Exportar → "AEB Norma 43". The SEPA variant reads too,
+# but hides the text of internal transfers ("RECARGA PREPAGO") behind "NO DISPONIBLE", so the plain one is better.
+id = "norma43"
+name = "AEB Norma 43"
+bank = "unicaja"
+order = 1
+currency_codes = { "978" = "EUR", "840" = "USD", "826" = "GBP", "124" = "CAD" }
+decimals = 2
+negative_sign = "1"          # sign 1 = debe (money out), 2 = haber (money in)
+dates = ["%y%m%d"]
+description = ["{text2}", "{text1}"]
+bank_text = "{text1} {text2} {more}"
+empty_text = ["NO DISPONIBLE", "NO DISPONIBL"]
+
+[detect]
+first_line = '^11\d{18}\d{12}[12]\d{14}\d{3}'
+
+[layout]
+format = "fixed"
+encoding = "latin1"
+
+# 11: the account and its opening balance.
+[layout.records."11"]
+role = "statement"
+begins = true
+fields = { number = [10, 20], from = [20, 26], to = [26, 32], opening_sign = [32, 33], opening = [33, 47], currency = [47, 50] }
+
+# 22: one movement. ref2 ends in the bank's own movement number.
+[layout.records."22"]
+role = "movement"
+fields = { booked = [10, 16], value = [16, 22], common = [22, 24], own = [24, 27], amount_sign = [27, 28], amount = [28, 42], ref1 = [52, 64], ref2 = [64, 80] }
+
+# 2301: the movement's two texts (the bank's concept, the other party); 2302…2305 (SEPA): more of them.
+[layout.records."2301"]
+role = "detail"
+fields = { text1 = [4, 42], text2 = [42, 80] }
+
+[layout.records."23"]
+role = "detail"
+fields = { more = [4, 80] }
+
+# 33: the closing balance.
+[layout.records."33"]
+role = "statement"
+fields = { closing_sign = [58, 59], closing = [59, 73] }

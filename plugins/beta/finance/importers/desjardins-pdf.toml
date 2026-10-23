@@ -1,0 +1,43 @@
+# A Desjardins monthly statement (AccèsD → Statements → PDF), in English. The withdrawal and deposit columns are
+# told apart only by where the number sits, which a PDF's text loses: each amount is its balance minus the one
+# before, from "Balance forward". Dates carry no year: the period's ("From August 1 to August 31, 2026") is used.
+id = "desjardins-pdf"
+name = "Desjardins statement (PDF)"
+bank = "desjardins"
+order = 1
+currency = "CAD"
+dates = ["%d %b %Y"]
+description = ["{description}"]
+bank_text = "{code} {kind} / {description}"
+amount_from_balance = true
+
+[detect]
+contains = ["DESJARDINS", "STATEMENT OF ACCOUNT", "Balance forward"]
+
+[layout]
+format = "pdf"
+# Each account's section starts with its code (PCA, the chequing account; SHR, the qualifying share), matched to
+# the account note whose alias it is; a page's "(CONTINUED)" joins its section.
+section = '^\s*(?P<account>[A-Z]{2,4})\s{2,}(?P<title>[A-Z][A-Z ,\x27()-]+?)\s*(?:\(CONTINUED\))?\s*$'
+row = '^\s*(?P<month>[A-Z]{3})\s+(?P<day>\d{1,2})\s+(?P<code>[A-Z]{2,5})\s+(?P<kind>[^/]+?)(?: / (?P<description>.*?))?\s{2,}(?P<amount>\d[\d ]*\.\d\d)\s+(?P<balance>\d[\d ]*\.\d\d)\s*$'
+
+[layout.find]
+number = 'STATEMENT OF ACCOUNT\s+\S+ ([\d-]+)'
+year = 'From \w+ \d+ to \w+ \d+, (\d{4})'
+start = 'From (\w+ \d+) to'
+end = 'to (\w+ \d+), \d{4}'
+
+[layout.section_find]
+opening = 'Balance forward\s+([\d ]+\.\d\d)'
+
+[derive]
+booked = "{day} {month} {year}"
+
+[derive_statement]
+from = "{start} {year}"
+to = "{end} {year}"
+
+# A row with no " / party" (interest) is described by its kind.
+[[rules]]
+when = { description = "" }
+set = { description = "{kind}" }

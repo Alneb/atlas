@@ -1,0 +1,15 @@
+# The core changes files only through src/vault_write.rs: every write of vault content must ask the vault's
+# WriteGuard (the mirror's lease, docs/design/DESIGN-mirror-v2.md §2). docs/refactor/REFACTOR-vault-write.md.
+disallowed-methods = [
+  { path = "std::fs::write", reason = "write vault files with vault_write::write (cache: vault_write::cache, outside a vault: vault_write::outside)" },
+  { path = "std::fs::File::create", reason = "use vault_write (write / create / cache::file)" },
+  { path = "std::fs::OpenOptions::open", reason = "opening for writing goes through vault_write (append / create); to read use std::fs::File::open or read" },
+  { path = "std::fs::rename", reason = "use vault_write::rename" },
+  { path = "std::fs::copy", reason = "use vault_write::copy" },
+  { path = "std::fs::hard_link", reason = "use vault_write::link_or_copy" },
+  { path = "std::fs::remove_file", reason = "use vault_write::remove_file" },
+  { path = "std::fs::remove_dir", reason = "use vault_write::remove_dir_all" },
+  { path = "std::fs::remove_dir_all", reason = "use vault_write::remove_dir_all" },
+  { path = "std::fs::create_dir", reason = "use vault_write::mkdir" },
+  { path = "std::fs::create_dir_all", reason = "use vault_write::mkdir" },
+]

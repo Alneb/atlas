@@ -1,0 +1,23 @@
+# Unicaja's card movements as Excel (Tarjetas → Movimientos → Exportar Excel): the prepaid card, which has no
+# Norma 43. A top-up's "Nombre comercio" is the label typed when topping up: kept as the transaction's note.
+id = "unicaja-card-xls"
+name = "Unicaja card (Excel)"
+bank = "unicaja"
+order = 2                     # after the account: its top-ups are the account's transfers, already written
+currency = "EUR"
+dates = ["%d/%m/%Y"]
+description = ["{description}"]
+bank_text = "{kind}: {description}"
+sort = ["time"]
+
+[detect]
+contains = ["Movimientos de tarjeta"]
+
+[layout]
+format = "sheet"
+labels = { number = "tarjeta:", from = "Fecha desde:", to = "Fecha hasta:" }
+columns = { booked = "Fecha operación", time = "Hora", description = "Nombre comercio", kind = "Concepto", amount = "Importe", currency = "Divisa" }
+
+[[rules]]
+when = { kind = "RECARGA TARJETA PREPAGO" }
+set = { note = "{description}", description = "{kind}" }

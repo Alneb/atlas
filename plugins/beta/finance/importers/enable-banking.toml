@@ -1,0 +1,18 @@
+# What the Enable Banking sync (engine/src/bank.rs) writes into the statements inbox: one CSV per sync, every linked
+# account in it (split by IBAN, which names the ledger's account by its note's `iban`). Only booked transactions; the
+# balance after each, when the bank gives it, becomes the day's assertion.
+id = "enable-banking"
+name = "Enable Banking (synced)"
+bank = "enable-banking"
+order = 1
+dates = ["%Y-%m-%d"]
+description = ["{counterparty}", "{information}"]
+bank_text = "{counterparty} {information}"
+split_by = "iban"
+
+[detect]
+contains = ["Reference,IBAN,Booking date,Value date,Amount,Currency,Counterparty,Information,Balance after"]
+
+[layout]
+format = "csv"
+columns = { ref = "Reference", iban = "IBAN", booked = "Booking date", value = "Value date", amount = "Amount", currency = "Currency", counterparty = "Counterparty", information = "Information", balance = "Balance after" }

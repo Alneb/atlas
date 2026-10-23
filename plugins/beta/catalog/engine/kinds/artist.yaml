@@ -1,0 +1,7 @@
+name: artist
+label: Artist
+folder: notes/music/artists  # under notes/: the top level holds kinds of file, not topics
+ids: [{ id: musicbrainz }, { id: spotify }, { id: url, property: source }]
+properties: [genres, country, cover]
+body: description
+library: { in: "Music", title: Artists, layout: grid, cover: cover, key: [genres], icon: music }

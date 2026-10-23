@@ -1,0 +1,24 @@
+# Immich: your latest photos in a note or a page. An example of atlas.fetch with saveTo (pictures
+# fetched by the core into the plugin's cache, shown from there). Copy into a vault's .atlas/plugins/.
+title = "Immich"
+description = "your latest photos in a block"
+phone = true # runs in the phone apps too (only plugins marked so start there)
+icon = "image"
+version = "0.1.0"
+api = 4
+
+[permissions]
+net = ["*"]          # the server is a setting
+secrets = true
+
+[[setting]]
+key = "server"
+label = "Immich server"
+kind = "text"
+hint = "https://photos.example.org"
+
+[[setting]]
+key = "key"
+label = "API key"
+kind = "secret"
+hint = "Immich → Account settings → API keys"

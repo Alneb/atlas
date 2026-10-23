@@ -1,0 +1,43 @@
+[package]
+name = "atlas-android"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Atlas on the phone: the Rust half of the capture app and of the full app (captures, notes, search, tasks, through JNI); the screens are Java (docs/guides/ANDROID.md)"
+
+[lib]
+# Android loads it from the Java side (System.loadLibrary); on a desktop the plain functions are tested
+crate-type = ["cdylib", "rlib"]
+path = "src/lib.rs"
+
+[features]
+# the full app (atlas.apk): Atlas's server inside the app, carrying the web interface (src/serve.rs); without it the
+# library is the capture app's, a megabyte, not 27
+full = []
+
+[dependencies]
+atlas-capture = { path = "../atlas-capture", default-features = false }
+atlas-core.workspace = true
+serde_json.workspace = true
+serde = { version = "1", features = ["derive"] }
+anyhow.workspace = true
+tokio.workspace = true
+chrono = "0.4"
+# a mirror's address read (src/serve.rs `mirror`): the core's own reqwest
+reqwest.workspace = true
+# the Boox pens (src/ink.rs): openink's engine, vendored from openink (scripts/dev/sync-openink.sh)
+openink-stroke = { path = "../vendor/openink-stroke" }
+# the pen's shape snapping: atlas-pen (Atlas's and openink's recognisers, arrows, regular shapes), shared with the core
+atlas-pen = { path = "../atlas-pen" }
+
+[target.'cfg(target_os = "android")'.dependencies]
+jni = "0.21"
+# the Boox's stylus read from evdev (src/pen_reader.rs): its linear pressure over the whole range, which Android's
+# MotionEvents curve and cut at 1.0 (docs/design/DESIGN-boox-pen-openink.md); vendored like openink-stroke
+openink-pen = { path = "../vendor/openink-pen" }
+libc = "0.2"
+
+[dev-dependencies]
+tempfile = "3"
+regex = "1"
+walkdir = "2"

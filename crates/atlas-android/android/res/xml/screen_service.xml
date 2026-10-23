@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- acts on request only (the tile, the button): takes the screen and reads what the app shows (Page, Onscreen); listens to no events -->
+<accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
+  android:description="@string/screen_service_about"
+  android:canTakeScreenshot="true"
+  android:canRetrieveWindowContent="true"
+  android:accessibilityEventTypes="typeWindowStateChanged"
+  android:accessibilityFeedbackType="feedbackGeneric"
+  android:accessibilityFlags="flagRequestAccessibilityButton|flagReportViewIds" />

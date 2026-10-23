@@ -1,0 +1,20 @@
+name: Plugin
+description: A problem with a plugin, or a plugin you would like
+labels: [plugin]
+body:
+  - type: input
+    id: plugin
+    attributes:
+      label: Plugin
+      description: Its folder under plugins/, or the service it would connect to
+    validations: { required: true }
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened, or what it should do
+    validations: { required: true }
+  - type: input
+    id: version
+    attributes:
+      label: Atlas and plugin version
+      description: "`atlas --version`; the plugin's version is in Settings → Plugins"

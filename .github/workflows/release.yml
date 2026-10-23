@@ -1,0 +1,89 @@
+# The Linux packages: AppImage, deb, rpm (Tauri's bundler) and a Flatpak (packaging/flatpak), plus the `atlas` CLI.
+# A tag `v*` attaches them to a draft GitHub release for the maintainer to review and publish; a manual run keeps them
+# as the run's artifacts. Windows and macOS join once the port lands (docs/decisions/PORTING-windows-macos.md).
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  linux:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - name: System libraries
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev \
+            libdbus-1-dev libxkbcommon-dev libwayland-dev libssl-dev pkg-config build-essential rpm
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
+      - name: The UI
+        run: npm --prefix ui ci --no-audit --no-fund && npm --prefix ui run build
+      - name: The CLI
+        run: cargo build --release --locked -p atlas && strip target/release/atlas
+      - name: The desktop app's packages
+        run: |
+          cargo install tauri-cli --version "^2" --locked
+          cd crates/atlas-app
+          cargo tauri build --bundles appimage,deb,rpm --config '{"bundle":{"active":true}}'
+      - name: Collect
+        run: |
+          mkdir -p dist
+          cp target/release/atlas target/release/atlas-app dist/
+          cp target/release/bundle/appimage/*.AppImage target/release/bundle/deb/*.deb target/release/bundle/rpm/*.rpm dist/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux
+          path: dist/
+
+  flatpak:
+    needs: linux
+    runs-on: ubuntu-24.04
+    container:
+      image: ghcr.io/flathub-infra/flatpak-github-actions:gnome-47
+      options: --privileged
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: linux
+          path: dist
+      - run: chmod +x dist/atlas dist/atlas-app
+      - uses: flathub-infra/flatpak-github-actions/flatpak-builder@master
+        with:
+          bundle: atlas.flatpak
+          manifest-path: packaging/flatpak/io.github.alneb.Atlas.yml
+          cache-key: flatpak-${{ github.sha }}
+
+  publish:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [linux, flatpak]
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      - name: Draft release
+        uses: softprops/action-gh-release@v2
+        with:
+          draft: true
+          generate_release_notes: true
+          files: |
+            artifacts/linux/atlas
+            artifacts/linux/*.AppImage
+            artifacts/linux/*.deb
+            artifacts/linux/*.rpm
+            artifacts/**/atlas.flatpak

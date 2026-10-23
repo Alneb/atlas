@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Atlas
+Comment=Notes, papers, mail, code and terminals over plain files
+Exec=atlas-app %F
+Icon=io.github.alneb.Atlas
+Categories=Office;Development;Science;
+StartupWMClass=atlas

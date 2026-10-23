@@ -1,0 +1,139 @@
+/* Base elements + small shared utilities. Component styles live in their .svelte files. */
+*, *::before, *::after { box-sizing: border-box; }
+/* the interface's scale: Settings → font size (--ui-scale-set), larger on a phone for fingers (lib/phone.svelte.ts) */
+:root { --ui-scale: calc(var(--ui-scale-set, 1) * var(--eink-scale, 1)); }
+/* No browser "back" from a sideways two-finger swipe, anywhere: Atlas has its own (nav-input.ts), which stays out of
+   drawings; the browser's, on top, was a second back. */
+html, body { overscroll-behavior-x: none; }
+html.phone { --ui-scale: calc(var(--ui-scale-set, 1) * var(--eink-scale, 1) * 1.15); }
+/* in the phone app, the phone's own font size too (lib/native-shell.svelte.ts) */
+html.phone.native-shell { --ui-scale: calc(var(--ui-scale-set, 1) * var(--eink-scale, 1) * 1.15 * var(--system-font, 1)); }
+/* keyboard shortcuts and key hints: nothing to press on a phone */
+html.phone .keys-only { display: none !important; }
+/* icon buttons a finger can hit: 40 px seen where the desktop has 26, and a 48 px target (Android's minimum; a CSS px is
+   a dp in the WebView) by an invisible strip above and below — never sideways, where it would cover a neighbour's */
+html.phone .icon-btn { width: 40px !important; height: 40px !important; flex: none; position: relative; }
+html.phone .icon-btn:not(.tipped)::after { content: ""; position: absolute; inset: -4px 0; } /* .tipped: its ::after is the tooltip */
+/* the rest a finger hits (scripts/dev/phone-audit.mjs "small-target"): buttons, fields and rows at least
+   40 px tall on a phone — the note's format bar, Settings' switches and side list, the path crumbs, Today's rows */
+html.phone .btn { min-height: 40px; }
+html.phone .format-bar button { min-width: 44px; min-height: 48px; }
+html.phone nav.crumbs .seg { min-height: 44px; }
+html.phone .changed-row, html.phone nav.side .item { min-height: 44px; }
+html.phone .field input:not([type="checkbox"]):not([type="radio"]), html.phone .field select { min-height: 40px; }
+html.phone button.switch { transform: scale(1.5); margin: 6px 10px; }
+html.phone button.link, html.phone .tools > button.tool { min-height: 40px; }
+html.phone label.toggle > input[type="checkbox"] { width: 26px; height: 26px; }
+html, body { margin: 0; height: 100%; overflow: clip; }
+body {
+  font-family: var(--font-ui); font-size: calc(14px * var(--ui-scale, 1)); line-height: 1.5; color: var(--text); background: var(--bg-app);
+  -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; text-rendering: optimizeLegibility;
+  font-feature-settings: "cv02", "cv03", "cv04", "cv11", "calt";
+}
+button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
+button:focus-visible, a:focus-visible, input:focus-visible { outline: 2px solid color-mix(in srgb, var(--accent) 60%, transparent); outline-offset: 1px; }
+code, kbd, pre, .mono { font-family: var(--font-mono); }
+::selection { background: var(--accent-sel); }
+
+kbd { display: inline-block; min-width: 1.6em; padding: 0 .4em; height: 1.55em; line-height: 1.5em; text-align: center; font-size: calc(10.5px * var(--ui-scale, 1)); font-weight: 500;
+  color: var(--text-muted); background: var(--bg-hover); border: 1px solid var(--border); border-bottom-width: 2px; border-radius: 5px; margin: 0 1px; font-family: var(--font-ui); }
+.kbd-group { display: inline-flex; gap: 2px; }
+
+.muted { color: var(--text-muted); }
+.faint { color: var(--text-faint); }
+.small { font-size: calc(12px * var(--ui-scale, 1)); }
+
+.icon-btn { display: inline-grid; place-items: center; width: 26px; height: 26px; border-radius: var(--radius-sm); color: var(--text-faint); transition: background .12s, color .12s; }
+.icon-btn:hover { background: var(--bg-hover); color: var(--text); }
+.icon-btn.on { color: var(--accent); background: var(--accent-soft, var(--bg-hover)); } /* a toggle that is on */
+.btn { height: 28px; padding: 0 12px; border-radius: var(--radius-sm); font-size: calc(12.5px * var(--ui-scale, 1)); font-weight: 500; transition: background .12s, border-color .12s; }
+.btn-ghost { border: 1px solid var(--border-strong); }
+.btn-ghost:hover { background: var(--bg-hover); }
+/* The one primary button, for every pane and dialog (components keep only their layout). `button.` outranks a
+   component's scoped `.btn` border and hover. */
+button.btn.primary { background: var(--accent); color: var(--accent-fg); border-color: transparent; font-weight: 600; }
+button.btn.primary:hover:not(:disabled) { background: var(--accent-strong); }
+button.btn.primary:disabled { opacity: .45; cursor: default; }
+.link { color: var(--accent); }
+.link:hover { text-decoration: underline; }
+
+.pane-empty { padding: 48px 24px; text-align: center; }
+
+/* side panes (files/search) and the left bar's groups share ONE heading: a small-caps label, its buttons at the right.
+   In the left bar every heading label and row icon starts at --side-inset from the bar's edge (one left edge). */
+:root { --side-inset: 17px; }
+.side-pane { height: 100%; display: flex; flex-direction: column; background: var(--bg); }
+.side-head { display: flex; align-items: center; justify-content: space-between; gap: 4px; height: 36px; padding: 0 8px 0 14px; flex: none;
+  font-size: calc(11px * var(--ui-scale, 1)); font-weight: 600; text-transform: uppercase; letter-spacing: .08em; color: var(--text-muted); }
+.sidebar .side-head { height: 28px; padding: 0 6px 0 var(--side-inset); color: var(--text-faint); }
+.side-title { min-width: 0; color: inherit; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* quiet scrollbars */
+/* scrollbars: own token (--scrollbar), visible on any theme; brighter on hover */
+.scroll, .cm-scroller, .dv-scrollable { scrollbar-width: thin; scrollbar-color: var(--scrollbar, color-mix(in srgb, var(--text) 30%, transparent)) transparent; }
+::-webkit-scrollbar { width: 12px; height: 12px; }
+::-webkit-scrollbar-thumb { background: var(--scrollbar, color-mix(in srgb, var(--text) 30%, transparent)); border-radius: 10px; border: 3px solid transparent; background-clip: padding-box; min-height: 32px; }
+::-webkit-scrollbar-thumb:hover { background-color: var(--scrollbar-hover, color-mix(in srgb, var(--text) 50%, transparent)); }
+::-webkit-scrollbar-corner { background: transparent; }
+::-webkit-scrollbar-track { background: transparent; }
+
+@keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes pop-in { from { opacity: 0; transform: translateY(-6px) scale(.985); } to { opacity: 1; transform: none; } }
+@keyframes slide-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes pulse { 50% { opacity: .35; } }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; } }
+
+/* while a pane divider is dragged: no selection, and iframes/terminals do not eat the pointer */
+body.atlas-resizing, body.atlas-resizing * { user-select: none !important; -webkit-user-select: none !important; }
+body.atlas-resizing iframe, body.atlas-resizing .xterm { pointer-events: none; }
+
+/* Motion (ui.motion): "instant" — no transitions or fades, the interface changes at once (the user
+   found it "much better"). What shows progress or travel keeps moving: spinners, the swipe and
+   history signs (.motion-keep). */
+:root[data-motion="instant"] *:not(.spin):not(.motion-keep):not(.motion-keep *),
+:root[data-motion="instant"] *::before, :root[data-motion="instant"] *::after {
+  transition: none !important;
+  animation: none !important;
+}
+
+/* Shared by plugins (docs/guides/PLUGIN-API.md, "Looks"): a message in place of content — empty, loading or an error —
+   and a button, so every plugin's states look like Atlas's own. An error is a calm box with a red edge and the way
+   out beside it, never a paragraph of red text. */
+.atlas-notice { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; margin: 4px 0; padding: 9px 11px; border-radius: var(--radius-sm);
+  background: var(--bg-alt); border: 1px solid var(--border); color: var(--text-muted); font-size: calc(12.5px * var(--ui-scale, 1)); line-height: 1.45; overflow-wrap: anywhere; }
+.atlas-notice.error { border-left: 3px solid var(--red); }
+.atlas-notice strong { color: var(--text); font-weight: 600; }
+.atlas-notice .actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.atlas-empty { color: var(--text-faint); font-size: calc(12.5px * var(--ui-scale, 1)); padding: 6px 0; }
+.atlas-btn { font: inherit; font-size: calc(12.5px * var(--ui-scale, 1)); padding: 3px 10px; border-radius: var(--radius-sm); border: 1px solid var(--border-strong); background: var(--bg); color: var(--text); cursor: pointer; }
+.atlas-btn:hover { background: var(--bg-hover); }
+.atlas-btn.primary { background: var(--accent); border-color: transparent; color: var(--accent-fg); }
+.atlas-btn.primary:hover { background: var(--accent-strong); }
+
+/* E-ink (ui.eink): every change is a panel refresh, so nothing moves — not even what ui.motion keeps moving (spinners,
+   the swipe signs) — nothing blurs, and links are underlined since their colour is black like the text. */
+:root.eink *, :root.eink *::before, :root.eink *::after {
+  transition: none !important; animation: none !important; scroll-behavior: auto !important;
+  text-shadow: none !important; backdrop-filter: none !important;
+}
+/* thicker lines, bigger and heavier text ("the lines of the whole app need to be a bit thicker and the text a
+   bit bigger and thicker"): thin greys and 400-weight strokes break up on a 16-grey panel */
+/* (again,: "the rest of the lines of the ui are too thin and the text a touch too small"): text ×1.15, every
+   drawn border 1.5 px (the few set wider come down to it too), icons 2.5 */
+:root.eink { --eink-scale: 1.25; font-weight: 500; } /* e-ink: everything a little bigger */
+:root.eink .cm-editor { font-size: calc(var(--code-size, 14px) * 1.15); }
+:root.eink .live-cm.cm-editor { font-size: calc(var(--prose-size, 15px) * 1.15); }
+:root.eink .cm-content { font-weight: 500; }
+:root.eink *:not(svg, svg *) { border-width: 1.5px !important; } /* a style-less side stays without a line */
+:root.eink svg[stroke-width="1.75"] { stroke-width: 2.5; }
+/* Excalidraw's own chrome leaner than the app's */
+:root.eink .excalidraw *:not(svg, svg *), :root.eink [data-testid="notepad-bar"] *:not(svg, svg *) { border-width: 1px !important; }
+:root.eink .excalidraw svg[stroke-width="1.75"], :root.eink [data-testid="notepad-bar"] svg[stroke-width="1.75"] { stroke-width: 1.75; }
+:root.eink a, :root.eink .cm-link, :root.eink .cm-hmd-internal-link, :root.eink .md a { text-decoration: underline; }
+:root.eink ::selection { background: #000000; color: #ffffff; }
+:root.eink :focus-visible { outline: 2px solid #000000; outline-offset: 1px; }
+/* the full refresh's veil (lib/eink.ts): black, then white, over everything for a few frames */
+.eink-flash { position: fixed; inset: 0; z-index: 2147483647; background: #000000; pointer-events: none; }
+/* a hover that paints a fill is a refresh of its own, and on a pen or a finger it stays behind */
+:root.eink *:hover { box-shadow: none !important; }

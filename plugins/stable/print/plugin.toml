@@ -1,0 +1,19 @@
+# Print through CUPS: "Print" in the file tree's and the tab's menus, and a command, run `lp` in the
+# terminal (where its answer — the job id, or why not — can be read). Copy into a vault's .atlas/plugins/.
+title = "Print"
+description = "print a file or the open note with CUPS (lp)"
+icon = "file"
+version = "0.1.0"
+api = 4
+
+[[setting]]
+key = "printer"
+label = "Printer"
+kind = "text"
+hint = "a CUPS printer name (lpstat -p lists them); empty: the default printer"
+
+[[setting]]
+key = "options"
+label = "lp options"
+kind = "text"
+hint = "for example: -o sides=two-sided-long-edge -o media=A4"
