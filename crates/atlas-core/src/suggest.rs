@@ -1,4 +1,4 @@
-//! The toolsmith (docs/design/MALLEABLE.md R5: tools should not have to be asked for): Atlas
+//! The toolsmith (docs/guides/MALLEABLE.md R5: tools should not have to be asked for): Atlas
 //! notices what the workspace already does and drafts a tool for it. Drafts are computed, never
 //! written until kept (inert, reversible); a dismissed one does not come back.
 //!

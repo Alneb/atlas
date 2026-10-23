@@ -21,7 +21,7 @@ export function drop(key: string): void {
 }
 
 export const KEYS = {
-  // layout, recent and pins moved to files of the vault (docs/design/SHELL.md); the keys remain to read them once
+  // layout, recent and pins moved to files of the vault (docs/guides/SHELL.md); the keys remain to read them once
   layout: "atlas.layout.v1",
   theme: "atlas.theme",
   vim: "atlas.vim",

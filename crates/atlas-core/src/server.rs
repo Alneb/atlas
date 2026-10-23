@@ -429,7 +429,7 @@ async fn plugin_secrets_get(State(st): S, UrlPath(id): UrlPath<String>) -> Resul
 
 /// A secret's value: only to the plugin's own helper (over its pipe, `helper_api::Caller`), never to a page — a page
 /// lets the core fill it in (`atlas.fetch` headers and form fields) or asks the helper, which gets it with each call
-/// (docs/refactor/REFACTOR-plugins-server-side.md, step 1).
+/// (docs/guides/PLUGIN-API.md).
 async fn plugin_secret_get(State(st): S, helper: Option<axum::Extension<crate::helper_api::Caller>>, UrlPath((id, name)): UrlPath<(String, String)>) -> Response {
     if helper.is_none() {
         return forbidden("a plugin's secret stays on the server: let atlas.fetch fill it in ({ secret: name } in a header or a form field), or read it in the plugin's helper (it comes with each call as params.secrets)");
@@ -2362,7 +2362,7 @@ atlas.serve()
         // the vault: the three plugins as shipped, the engine run from where cargo built it
         let dir = tempfile::tempdir().unwrap();
         let root = dir.path().join("vault");
-        let plugins = ws.join("plugins/beta"); // the catalog and its subplugins are beta (REFACTOR-layout.md)
+        let plugins = ws.join("plugins/beta"); // the catalog and its subplugins are beta
         for id in ["catalog", "catalog-web", "catalog-linkwarden"] {
             let to = root.join(".atlas/plugins").join(id);
             std::fs::create_dir_all(&to).unwrap();

@@ -1,4 +1,4 @@
-// Inline expressions (docs/design/EXPRESSIONS.md): `= days(note.due)` written as inline code in a note is
+// Inline expressions (docs/guides/EXPRESSIONS.md): `= days(note.due)` written as inline code in a note is
 // shown as its value. This module evaluates one (in the worker, lib/expr-worker.ts) and draws the
 // value into an element — the editor's widget and the reading view both end here.
 //

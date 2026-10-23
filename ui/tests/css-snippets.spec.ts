@@ -1,7 +1,7 @@
 import { test, expect } from "@playwright/test";
 const H = { "x-atlas": "1" };
 
-// docs/design/MALLEABLE.md rung 2 (Stylish / Obsidian snippets): a .css file in .atlas/snippets restyles
+// docs/guides/MALLEABLE.md rung 2 (Stylish / Obsidian snippets): a .css file in .atlas/snippets restyles
 // Atlas on save, a switch in Settings turns it off, "New snippet" starts one and opens it.
 test("CSS snippets: live on save, switch off in Settings, new snippet", async ({ page, request }) => {
   await page.goto("/");

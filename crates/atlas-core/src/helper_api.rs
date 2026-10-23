@@ -1,6 +1,6 @@
-//! A plugin's helper calling back into the core (docs/guides/PLUGIN-API.md, "Calling Atlas back"). The user: *"it would be
-//! great to have a python library to have an api so the python sideload can talk to the rust backend, same for rust
-//! compiled executables"* — and, asked how: over the helper's own pipe, not a web interface.
+//! A plugin's helper calling back into the core (docs/guides/PLUGIN-API.md, "Calling Atlas back"). A helper in any
+//! language (a Python script, a compiled program) can ask the core for things, over the helper's own pipe rather than
+//! a web interface.
 //!
 //! The helper writes `{"call": n, "verb": "GET", "path": "/api/file?path=a.md", "body": …}` on its stdout; the core runs
 //! it through the vault's own router **in-process** (no socket, no port, no key: the pipe is the identity) and writes

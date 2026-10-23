@@ -1,4 +1,4 @@
-//! The usage journal (docs/design/MALLEABLE.md R5): what the user does in Atlas — files opened, searches acted
+//! The usage journal (docs/guides/MALLEABLE.md R5): what the user does in Atlas — files opened, searches acted
 //! on, commands run — appended to `.atlas/cache/usage.jsonl` (derived, local, rebuildable by just
 //! using Atlas; capped). The toolsmith's miners read it (`suggest.rs`); nothing else does.
 use crate::{Result, Workspace};

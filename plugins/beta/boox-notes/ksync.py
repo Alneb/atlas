@@ -1,4 +1,4 @@
-# Vendored unchanged from ~/Projects/boox_5c_re docs/scripts/ksync_decode.py (commit c4fe711, MIT, the same author):
+# Vendored unchanged from boox_5c_re docs/scripts/ksync_decode.py (commit c4fe711, MIT, the same author):
 # the reference decoder of Boox Notes' KSync tree (boox_5c_re docs/KNOTE2.md). Update by copying it again.
 #!/usr/bin/env python3
 """Decode knote2 (BOOX Notes) KSync documents into JSON: pages -> strokes -> points.

@@ -1513,8 +1513,7 @@ export function livePreview(options = {}) {
  * A block replace decoration collapses its lines into a single widget, so
  * CodeMirror's vertical motion -- which thinks in visual lines -- jumps straight
  * past it to the next real line. The keyboard could then never reach a table, a
- * base or an equation to edit it: the user's report was "moving with the cursor
- * it just skips them".
+ * base or an equation to edit it: moving with the cursor skipped them.
  *
  * Making the range non-atomic is necessary but not sufficient; the motion has to
  * be aimed. So this runs ahead of the default keymap, works out the offset the

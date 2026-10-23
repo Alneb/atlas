@@ -79,7 +79,7 @@ export interface PluginApi {
    *  every sample of each stroke to `take` in client CSS px); `sync()` after what `opts` reads changes, `off()` to give
    *  it back. Null where there is no native pen (a browser, the desktop): read the pointer there. */
   eink: { readonly on: boolean; refresh(): void; pen(host: HTMLElement, take: (samples: NativeSample[]) => void, opts?: PenOptions): { sync(): void; off(): void } | null };
-  // --- v2 (docs/design/MALLEABLE.md, R3): the shared context and the data substrate ---
+  // --- v2 (docs/guides/MALLEABLE.md, R3): the shared context and the data substrate ---
   /** What the user is looking at: active/open panes, editor selection, caret section, hover. A snapshot. */
   context(): ContextSnapshot;
   /** Called on every context change (with a snapshot); returns the unsubscribe function. */
@@ -320,7 +320,7 @@ export interface BlockContext {
   /** The note or .page holding the block. */
   note: string;
   /** That note's frontmatter, plus the `key:: value` properties of the section the block is in
-   *  (docs/design/EXPRESSIONS.md): `run:: X` under a heading reaches every block below it. */
+   *  (docs/guides/EXPRESSIONS.md): `run:: X` under a heading reaches every block below it. */
   props(): Promise<Record<string, unknown>>;
 }
 export interface PluginEntity { title: string; subtitle?: string; props?: Record<string, string>; path?: string }

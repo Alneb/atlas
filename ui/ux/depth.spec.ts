@@ -1,4 +1,4 @@
-// Depth audit (docs/decisions/POLISH.md): not "does it open" but "is it complete". Every step is `want: true`
+// Depth audit: not "does it open" but "is it complete". Every step is `want: true`
 // until it passes, so the report's Missing list IS the polish backlog. Runs on the UX copy only.
 import { expect, type Page } from "@playwright/test";
 import { journey, type User } from "./harness";
@@ -399,7 +399,7 @@ journey("Depth: settings and layout", "It remembers and responds", async (u) => 
   });
 });
 
-// docs/design/MALLEABLE.md (D21): the Ink & Switch guideline as user flows. Every step is `want` until built.
+// docs/guides/MALLEABLE.md (D21): the Ink & Switch guideline as user flows. Every step is `want` until built.
 journey("Depth: malleability", "Reshape Atlas without leaving it (gentle slope, tools not apps, dynamic documents)", async (u) => {
   const p = u.page;
   await ready(p);

@@ -2,7 +2,7 @@
 # gate.sh — every check a change must pass, one stage at a time, each with its own log and verdict.
 #
 #   bash scripts/dev/gate.sh            # all stages
-#   bash scripts/dev/gate.sh rust ui    # only some: scan | tidy | rust | clippy | py | ui | build | e2e
+#   bash scripts/dev/gate.sh rust ui    # only some: sync | scan | tidy | rust | clippy | py | ui | build | e2e
 #   bash scripts/dev/gate.sh audit      # Obsidian fidelity: every note of a COPY of $ATLAS_VAULT rendered and
 #                                        # checked (minutes; run after editor / markdown / embed changes)
 #
@@ -24,6 +24,8 @@ cd "$root"
 
 stages=("$@")
 [ ${#stages[@]} -eq 0 ] && stages=(scan tidy rust clippy py ui build e2e)
+# a checkout with the publishing tools (the private one) also checks it is in step with `public`
+[ $# -eq 0 ] && [ -f publish/sync.mjs ] && stages=(sync "${stages[@]}")
 failed=0
 summary=()
 
@@ -39,6 +41,7 @@ run() { # name, what it checks, command…
     ui)   note="$(grep -E 'COMPLETED' "$logs/$name.log" | sed 's/^[0-9]* //' | tail -1)" ;;
     audit) note="$(grep -m1 -i -E 'finding' ui/audit-report/REPORT.md 2>/dev/null)" ;;
     scan) note="$(grep -E '^\[scan\] findings' "$logs/$name.log" | sed 's/^\[scan\] //')" ;;
+    sync) note="$(grep -E '^\[sync\] (DIVERGED|behind|in step)' "$logs/$name.log" | sed 's/^\[sync\] //' | cut -c1-90 | tr '\n' ' ')" ;;
     tidy) note="$(grep -E '^\[tidy\] findings' "$logs/$name.log" | sed 's/^\[tidy\] //')" ;;
     build) note="$(grep -E '^\[bundle\]' "$logs/$name.log" | tail -1 | sed 's/^\[bundle\] //')" ;;
     py)   note="$(grep -E '^\[py\] .*: Ran' "$logs/$name.log" | grep -oE 'Ran [0-9]+' | awk '{n+=$2} END {printf "%d tests", n}'), $(grep -E '^\[py\] failed' "$logs/$name.log" | sed 's/^\[py\] //')" ;;
@@ -56,6 +59,7 @@ for s in "${stages[@]}"; do
     e2e)    run e2e    "Playwright on a throwaway workspace (needs the build stage)" npm --prefix ui test ;;
     audit)  run audit  "markdown render audit on a copy of the real notes (needs the build stage)" npm --prefix ui run audit:md ;;
     scan)   run scan   "secrets and personal paths in the tracked code" bash scripts/dev/scan-personal.sh ;;
+    sync)   run sync   "master and public in step (publish/sync.mjs)" node publish/sync.mjs ;;
     tidy)   run tidy   "no stray files at the repo root (AGENTS.md)" bash scripts/dev/check-tidy.sh ;;
     *) echo "[gate] unknown stage: $s"; failed=$((failed + 1)) ;;
   esac

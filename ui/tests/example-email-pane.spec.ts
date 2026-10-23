@@ -1,17 +1,17 @@
 import { test, expect, type APIRequestContext, type Page } from "@playwright/test";
-import { readFileSync, rmSync, mkdirSync, cpSync, existsSync, readdirSync } from "node:fs";
+import { readFileSync, rmSync, mkdirSync, existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { spawn, spawnSync, type ChildProcess } from "node:child_process";
 import { createInterface } from "node:readline";
 import { fileURLToPath } from "node:url";
 import { WS } from "../playwright.config";
+import { installEmailPlugin } from "./fixtures/plugins";
 
 // The Email pane (plugins/beta/email: the Rust engine and the Svelte pane, docs/refactor/REFACTOR-email-rust.md)
 // against the engine's stand-in server (engine/src/fake.rs, the `fake-mail` binary: IMAP and SMTP on 127.0.0.1, three
 // messages in the inbox) — never a real account. It writes what it holds to state.json and what it was sent to
 // sent/<n>.eml, which is what these tests read back.
 const H = { "x-atlas": "1" };
-const PLUGIN = fileURLToPath(new URL("../../plugins/beta/email", import.meta.url));
 const REPO = fileURLToPath(new URL("../..", import.meta.url));
 const STATE = `${WS}-mail`;
 const put = (r: APIRequestContext, path: string, text: string) => r.put("/api/file", { headers: H, data: { path, text } });
@@ -29,10 +29,7 @@ test.beforeAll(async ({ request }) => {
   mkdirSync(STATE, { recursive: true });
   server = spawn(join(REPO, "target/debug/fake-mail"), [STATE], { stdio: ["ignore", "pipe", "inherit"] });
   const ports = await new Promise<{ imap: number; smtp: number }>((ok) => createInterface({ input: server.stdout! }).once("line", (l) => ok(JSON.parse(l))));
-  // the plugin as shipped (its committed helper and built pane), copied into the test vault
-  const dir = join(WS, ".atlas/plugins/email");
-  rmSync(dir, { recursive: true, force: true });
-  for (const f of ["plugin.toml", "view.js", "main.js", "ui-lib", "bin"]) cpSync(join(PLUGIN, f), join(dir, f), { recursive: true });
+  installEmailPlugin(); // the plugin as shipped, its helper built from this checkout
   await put(request, ".atlas/plugin-settings/email.toml",
     `undo_send = 1\nprefetch = 50\n\n[[accounts]]\nname = "test"\nuser = "me@example.org"\nfrom = "Me <me@example.org>"\nsignature = "Me\\nPhysics dept."\nimap_host = "127.0.0.1"\nimap_port = ${ports.imap}\nsmtp_host = "127.0.0.1"\nsmtp_port = ${ports.smtp}\nsecurity = "none"\n`);
   await request.put(`/api/plugins/email/secrets/${encodeURIComponent("accounts.test.password")}`, { headers: H, data: { value: "pw" } });

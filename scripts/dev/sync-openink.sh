@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# sync-openink.sh — openink's crates vendored from the Boox reverse-engineering repo into crates/vendor/ (# docs/memory/FROM-BOOX.md): openink-stroke (knote2's pens, libneo_pen's width formulas) and openink-shape (the shape
+# sync-openink.sh — openink's crates vendored from the Boox reverse-engineering repo into crates/vendor/: openink-stroke (knote2's pens, libneo_pen's width formulas) and openink-shape (the shape
 # recogniser: classifier + segmenter + fits, its trained weights in weights/). Copied as they are — src/ and, where
 # there is one, weights/; only Cargo.toml is Atlas's (the upstream one inherits its workspace) — with the upstream
 # commit kept in each VENDORED.md, so a copy never drifts unseen.
@@ -38,7 +38,7 @@ for c in "${crates[@]}"; do
 
 Of \`boox_5c_re\` (the openink Boox reverse-engineering repo; MIT): \`impl/crates/$c\` (${parts[*]}) at commit
 \`$commit\`${dirty:+ (with uncommitted changes)}, copied by \`scripts/dev/sync-openink.sh\` on $(date +%F).
-Do not edit it here: change it upstream (or ask its sessions, docs/memory/FROM-ATLAS.md in that repo) and sync.
+Do not edit it here: change it upstream and sync.
 Only \`Cargo.toml\` is Atlas's: the upstream one inherits its workspace's version, edition and license.
 EOF
   echo "[openink] $c: copied ${parts[*]} ($(find "$dst/src" -name '*.rs' | wc -l) .rs files) at $commit"

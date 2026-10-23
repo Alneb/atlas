@@ -1,4 +1,4 @@
-//! View blocks (docs/design/MALLEABLE.md, R4 — Embark's views over the surrounding document): a fenced
+//! View blocks (docs/guides/MALLEABLE.md, R4 — Embark's views over the surrounding document): a fenced
 //! ```` ```view ```` block in a note holds YAML, and this turns it into rows for a registered view
 //! (calendar, list, table…, drawn by `ui/src/lib/views.ts`, which Lua widgets share):
 //! ```yaml

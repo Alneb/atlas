@@ -1,4 +1,4 @@
-// Who calls a hot function, from a .cpuprofile written by profile-ui.mjs (docs/decisions/PERFORMANCE.md): for each name prefix
+// Who calls a hot function, from a .cpuprofile written by profile-ui.mjs: for each name prefix
 // ("sanitize", "Y@latex-suite"), the call chains (9 frames up) that spend the most time in it, with that time.
 //
 //   node scripts/dev/profile-callers.mjs /tmp/atlas-profile/typing.cpuprofile <name-prefix>…

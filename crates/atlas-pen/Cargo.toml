@@ -3,6 +3,8 @@ name = "atlas-pen"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+authors.workspace = true
+repository.workspace = true
 description = "What a pen stroke was meant as: Atlas's and openink's shape recognisers, two-stroke arrows, the bias to regular shapes — one implementation for the phone's Notepad (JNI) and the core's /api/pen/shape (the web drawing)"
 
 [dependencies]

@@ -29,7 +29,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-/** A drawing written with the pen, as Boox Notes does it (docs/design/NOTEPAD-PARITY.md): knote2's pens
+/** A drawing written with the pen, as Boox Notes does it: knote2's pens
  *  from openink in colours, Onyx's quick ink under the pen, a stroke held still at its end snapping to a shape, the
  *  stroke or area eraser, the lasso (move, duplicate, recolour, delete), pages with paper (lines, grid, dots), fingers
  *  to move and zoom, two- and three-finger taps to undo and redo, a tap on a linked element opening its note. The

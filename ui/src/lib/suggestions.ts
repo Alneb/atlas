@@ -1,4 +1,4 @@
-// Ephemeral suggestions (docs/design/MALLEABLE.md R4, Embark): while the caret is in a note's section, views
+// Ephemeral suggestions (docs/guides/MALLEABLE.md R4, Embark): while the caret is in a note's section, views
 // that fit its data are offered; accepting inserts concrete text; nothing is ever inserted by itself.
 // Providers are plain functions, so plugins add their own (`atlas.registerSuggestion`).
 export interface SectionInfo { path: string; heading: string; text: string }

@@ -4,7 +4,7 @@ import android.view.View;
 
 /** The ink under the pen drawn by the screen itself, before the app redraws (docs/design/DESIGN-pen-eink-reader.md,
  *  "The pen"): on a Boox, Onyx's SurfaceFlinger draws the stroke straight into the e-ink panel in its fast handwriting
- *  mode (traced in ~/Projects/boox_5c_re, docs/ONYX-EPD-PEN.md), so the line follows the pen with no e-ink lag; the
+ *  mode (traced in boox_5c_re, docs/ONYX-EPD-PEN.md), so the line follows the pen with no e-ink lag; the
  *  app's own stroke replaces it on pen-up. Elsewhere nothing: the canvas alone is fast enough on an LCD. */
 abstract class Ink {
     abstract void start();

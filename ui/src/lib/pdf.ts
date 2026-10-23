@@ -10,13 +10,33 @@ export type PdfPage = pdfjs.PDFPageProxy;
 
 const asset = (d: string) => new URL(`pdfjs/${d}/`, document.baseURI).toString();
 
-// One worker for every document, never ended: by default each document starts a worker of its own, and WebKit did not
-// give back an ended worker's JavaScript heap (decisions/PERFORMANCE.md, "The long day in WebKit"); a live one reuses it.
+// One worker for every open document, ended a minute after the last one closed: WebKit gives an idle worker's heap
+// back only when the worker ends (8 PDFs closed: ~300 → ~200 MB kept). The next PDF then starts a new one (+0.2 s).
 let worker: pdfjs.PDFWorker | null = null;
-const sharedWorker = () => (worker && !worker.destroyed ? worker : (worker = new pdfjs.PDFWorker()));
+let open = 0, idle: ReturnType<typeof setTimeout> | undefined;
+const IDLE_MS = 60_000;
+const closedDocs = new WeakSet<PdfDoc>();
+
+function sharedWorker(): pdfjs.PDFWorker {
+  open++;
+  clearTimeout(idle);
+  return worker && !worker.destroyed ? worker : (worker = new pdfjs.PDFWorker());
+}
+function released(): void {
+  if (--open > 0) return;
+  clearTimeout(idle);
+  idle = setTimeout(() => { if (open === 0) { worker?.destroy(); worker = null; } }, IDLE_MS);
+}
+
+/** Close a document from openPdf: its pages and fonts here, its copy in the worker. Twice is harmless. */
+export function closePdf(doc: PdfDoc): void {
+  if (closedDocs.has(doc)) return;
+  closedDocs.add(doc);
+  void doc.loadingTask.destroy().finally(released);
+}
 
 export function openPdf(path: string): Promise<PdfDoc> {
-  return pdfjs.getDocument({
+  const task = pdfjs.getDocument({
     worker: sharedWorker(),
     url: api.rawUrl(path),
     httpHeaders: { "x-atlas": "1" },
@@ -30,13 +50,14 @@ export function openPdf(path: string): Promise<PdfDoc> {
     standardFontDataUrl: asset("standard_fonts"),
     wasmUrl: asset("wasm"),
     iccUrl: asset("iccs"),
-  }).promise;
+  });
+  return task.promise.catch((e) => { released(); throw e; });
 }
 
 /** `path` opened for `use` and closed after: a document left open keeps its pages and its worker's copy all day. */
 export async function withPdf<T>(path: string, use: (doc: PdfDoc) => Promise<T>): Promise<T> {
   const doc = await openPdf(path);
-  try { return await use(doc); } finally { void doc.loadingTask.destroy(); }
+  try { return await use(doc); } finally { closePdf(doc); }
 }
 
 /** A PDF's first page as an image `width` CSS px wide; the canvas is freed at once (WebKit keeps a dropped one drawn). */

@@ -1,4 +1,4 @@
-// Section properties (docs/design/EXPRESSIONS.md). A line `key:: value` under a heading is a property of that
+// Section properties (docs/guides/EXPRESSIONS.md). A line `key:: value` under a heading is a property of that
 // heading's section, and the sections inside it inherit it — so `run:: X` under "## Results" is known
 // to every expression and block below that heading, and the note's frontmatter to all of them.
 // Pure text in, plain data out: used by expressions, by blocks (`ctx.props()`) and by tests.

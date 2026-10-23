@@ -1,5 +1,5 @@
 // Recently opened files (the palette's first list), kept in `.atlas/cache/recent.json`: per machine,
-// deletable, and shared by the browser and the desktop app (docs/design/SHELL.md).
+// deletable, and shared by the browser and the desktop app (docs/guides/SHELL.md).
 import { api } from "./api";
 import { drop, KEYS, load } from "./prefs";
 import { readText } from "./vault-files";

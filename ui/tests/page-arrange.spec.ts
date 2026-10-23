@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
 
-// docs/design/PAGES.md: a page is arranged by hand — add, move (menu or drag), remove, undo — and every
+// docs/guides/PAGES.md: a page is arranged by hand — add, move (menu or drag), remove, undo — and every
 // gesture is one write of the `.page` file, whose comments and other keys survive.
 const H = { "x-atlas": "1" };
 

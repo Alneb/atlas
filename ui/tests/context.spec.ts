@@ -3,7 +3,7 @@ const H = { "x-atlas": "1" };
 const put = (request: import("@playwright/test").APIRequestContext, path: string, text: string) =>
   request.put("/api/file", { headers: H, data: { path, text } });
 
-// docs/design/MALLEABLE.md R3: one shared context. Hover sync (Embark's map ↔ outline): a Base row under the
+// docs/guides/MALLEABLE.md R3: one shared context. Hover sync (Embark's map ↔ outline): a Base row under the
 // pointer lights the links to that note; a note link under the pointer lights the row.
 test("hover sync between a note's links and an embedded base", async ({ page, request }) => {
   await put(request, "notes/hov-a.md", "---\nkind: hov\n---\n");

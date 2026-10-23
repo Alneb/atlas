@@ -4,6 +4,8 @@ description = "The Email plugin's engine: IMAP sync into a local index, parsing,
 version = "0.1.0"
 edition.workspace = true
 license.workspace = true
+authors.workspace = true
+repository.workspace = true
 
 # Built into the plugin's bin/<target>/email by build.sh (static musl, like finance). The library half is what the
 # tests and the helper share.

@@ -3,6 +3,8 @@ name = "atlas-android"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+authors.workspace = true
+repository.workspace = true
 description = "Atlas on the phone: the Rust half of the capture app and of the full app (captures, notes, search, tasks, through JNI); the screens are Java (docs/guides/ANDROID.md)"
 
 [lib]

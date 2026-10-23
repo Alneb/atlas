@@ -129,7 +129,7 @@
 .live-cm .cm-foldGutter .cm-gutterElement { opacity: 0; transition: opacity .12s; }
 .live-cm .cm-gutters:hover .cm-foldGutter .cm-gutterElement, .live-cm .cm-foldGutter .cm-gutterElement:has(span[title*="Unfold"]) { opacity: 1; }
 
-/* --- look parity with Obsidian (side-by-side look audit, docs/decisions/LOOK-PARITY.md) --- */
+/* --- look parity with Obsidian (side-by-side look audit, ui/audit/look.spec.ts) --- */
 /* quotes: the bar, then air before the text */
 .markdown .cm-line.cm-quote { padding-left: 14px !important; }
 /* a task's checkbox sits in the bullet's column (the bullet itself is hidden) */

@@ -14,7 +14,7 @@ Every ssh, scp and sftp the plugin starts uses the same `ControlMaster=auto` soc
 
 ## Files: in Atlas's explorer (0.5.0)
 
-Since 0.5.0 the hosts are a **file source** of Atlas's own explorer (`docs/refactor/REFACTOR-explorer.md`) — one explorer for the
+Since 0.5.0 the hosts are a **file source** of Atlas's own explorer — one explorer for the
 vault, SSH hosts and copyparty servers, shared with the local files and the copyparty plugin's files, more integrated: files can be edited,
 sent and downloaded, in the same editor as local files. `view.js` and the rail button are gone; **SSH: browse
 files on…** and a host's **Files** button open the explorer at that host. Everything below still holds (the same helper

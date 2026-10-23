@@ -24,4 +24,4 @@ Tests: `scripts/vault/tests/test_claude_usage_plugin.py` (accounts found by shap
 claude mcp add atlas --scope user -e ATLAS_AGENT_TOKEN=atl_… -- atlas mcp
 ```
 
-(or the entry pasted into a project's `.mcp.json`). This lives here and not in the core because how an agent registers an MCP server is that agent's business. When agents become plugins (`docs/refactor/REFACTOR-agents-as-plugins.md`), this line becomes the Claude plugin's `[[agent]] mcp_add`, and Settings → AI agents shows it beside the token.
+(or the entry pasted into a project's `.mcp.json`). This lives here and not in the core because how an agent registers an MCP server is that agent's business. When agents become plugins, this line becomes the Claude plugin's `[[agent]] mcp_add`, and Settings → AI agents shows it beside the token.

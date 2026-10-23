@@ -87,8 +87,7 @@ default_template = "00_default"   # the Vault: its Obsidian default (date, type,
 
 Unset, a `default.md` in the templates folder is the default (for example: `date`, `type`, `topics`, `project`, `tags`, from
 its `templates/properties.yaml`); with neither, the built-in one gives `date: {{now}}`, `type:` and `tags:`. The default
-is left out of **New…** and **New note from a template…**: a plain **Note** is already made from it (*"make default not
-show bc its the default anyways"*).
+is left out of **New…** and **New note from a template…**: a plain **Note** is already made from it.
 
 ### A template's name in the lists: `template_title:`
 
@@ -100,8 +99,7 @@ type: movie
 ```
 
 `template_title:` names the template in the lists (**Film** rather than "12 movie note"). Like `create_in:`, it is the
-template's own: never copied into the notes made from it (*"a property that does not get passed to its daughters that
-changes its display name"*). Without one the list shows the file name made readable — a leading `12_` dropped,
+template's own: never copied into the notes made from it. Without one the list shows the file name made readable — a leading `12_` dropped,
 `-`/`_` as spaces, capitalised.
 
 ## Catalog notes

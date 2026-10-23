@@ -1,6 +1,6 @@
 # Server mode — serving a vault to other machines and the phone
 
-A server mode (2026-10-15): Atlas served from a server with authentication, a sign-in page of its own, and apps — the Android client above all — able to connect to it. Both ways of signing in (its own password and Authelia in front) work, chosen by configuration, and the server's settings are in Settings. The design and its reasons: [DESIGN-server-and-android.md](../design/DESIGN-server-and-android.md).
+A server mode (2026-10-15): Atlas served from a server with authentication, a sign-in page of its own, and apps — the Android client above all — able to connect to it. Both ways of signing in (its own password and Authelia in front) work, chosen by configuration, and the server's settings are in Settings.
 
 ## Start it
 
@@ -52,7 +52,7 @@ mcp = false                         # AI agents through `atlas mcp`: off on a se
 - **Plain HTTP**: the sign-in page refuses the password over plain HTTP from another machine unless `allow_plain_http` (a LAN or VPN one trusts); a client cannot claim HTTPS — only a trusted proxy's `X-Forwarded-Proto` counts.
 - **Other sites**: the sign-in form must come from this server's own page (Origin), the API still needs `x-atlas: 1`, and a WebSocket must come from a page of this server.
 - **This machine's `atlas` CLI** (`atlas capture`, `atlas mcp`): a server-mode core writes a key for it to `$XDG_RUNTIME_DIR/atlas/server-<port>.key` (memory, owner-only, new each start); the CLI sends it.
-- **What a signed-in browser may do: everything**, terminals and helpers included — the user chose "the same as local". So the sign-in is the lock on a shell on the server: beyond your own network, put Authelia (with a security key) in front.
+- **What a signed-in browser may do: everything**, terminals and helpers included, the same as local. So the sign-in is the lock on a shell on the server: beyond your own network, put Authelia (with a security key) in front.
 
 ## Plugin secrets from the host (`ATLAS_SECRET_FILES`)
 

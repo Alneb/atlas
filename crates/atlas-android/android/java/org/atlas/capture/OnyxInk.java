@@ -5,7 +5,7 @@ import android.view.View;
 
 import java.lang.reflect.Method;
 
-/** Onyx's instant ink, the way its pen SDK's SurfaceFlinger path does it (SFTouchRender; traced in ~/Projects/boox_5c_re,
+/** Onyx's instant ink, the way its pen SDK's SurfaceFlinger path does it (SFTouchRender; traced in boox_5c_re,
  *  firmware 4.2.1, docs/ONYX-EPD-PEN.md). With the handwriting pen state on inside a region, Onyx's SurfaceFlinger reads
  *  the pen's own input device and draws the stroke into the e-ink panel itself — before Android's input pipeline, so the
  *  line is under the pen at once. The app gets the same stroke as MotionEvents (PenView) and draws its lasting copy;

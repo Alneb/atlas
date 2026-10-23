@@ -4,8 +4,7 @@ import { execFileSync } from "node:child_process";
 import { join } from "node:path";
 import { WS } from "../playwright.config";
 
-// The user, 2026-10-15: "there should be a way to link to specific places and spots of the pdf in the obsidian way":
-// [[x.pdf#page=N]] opens that page; the PDF's "Copy link" gives such a link (lib/pdf-place.ts).
+// Places in a PDF are linked the Obsidian way: [[x.pdf#page=N]] opens that page; the PDF's "Copy link" gives such a link (lib/pdf-place.ts).
 const PAPERS = process.env.ATLAS_TEST_PAPERS ?? "";
 const PAPER = join(PAPERS, "georges1996dynamical");
 test.skip(!existsSync(PAPER), `needs the paper georges1996dynamical in ${PAPERS} (set ATLAS_TEST_PAPERS)`);

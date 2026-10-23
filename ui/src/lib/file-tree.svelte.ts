@@ -1,6 +1,5 @@
 // The file tree's shared state: which folders are open and which row is the active file. Per-key reactive sets, so following the active file touches only the rows that change — handing a
-// `reveal` prop down to every row re-ran an effect in each of them (23 000 rows after a day of tabs, session
-// 043, decisions/PERFORMANCE.md).
+// `reveal` prop down to every row re-ran an effect in each of them (23 000 rows after a day of tabs).
 import { SvelteSet } from "svelte/reactivity";
 import { load, save } from "./prefs";
 import { gitTree } from "./gitstatus.svelte";

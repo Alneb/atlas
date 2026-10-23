@@ -1,4 +1,4 @@
-//! New notes from templates (docs/design/NOTES-SYSTEM.md). A template is a plain note in the templates
+//! New notes from templates (docs/guides/NOTES-SYSTEM.md). A template is a plain note in the templates
 //! folder; `{{date}}`, `{{time}}` and `{{title}}` in it are filled in (the syntax of Obsidian's core
 //! Templates plugin). A new note never replaces a file: a taken name gets " 2", " 3"…
 use crate::api::{NewNote, NewNoteResult};

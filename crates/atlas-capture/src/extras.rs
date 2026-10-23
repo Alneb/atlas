@@ -23,7 +23,7 @@ pub enum Kind {
     Clipboard,
     Last,
     Screen,
-    /// the song or video playing (MPRIS), last as in the user's order ("… link, youtube/etc")
+    /// the song or video playing (MPRIS), last: after the screen and the link
     Playing,
 }
 

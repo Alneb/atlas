@@ -137,7 +137,7 @@ export function register(atlas) {
   // The panel: one card per host, connected ones first. The name and address on top (never squeezed by the buttons),
   // what the connection is doing under it, the actions on their own wrapping line: the main one (Shell / Connect) is
   // also a click on the card; the rarer ones (run, mount, disconnect…) are under "⋯". Redrawn when a connection comes
-  // or goes. (The user, 2026-10-20: "the ssh side panel needs some work" — the buttons had pushed the names out.)
+  // or goes. (The buttons used to push the names out.)
   const ago = (t) => { const m = Math.max(0, Math.round((Date.now() / 1000 - t) / 60)); return m < 1 ? "just now" : m < 60 ? `${m} min` : `${Math.floor(m / 60)} h ${m % 60} min`; };
   const stays = (persist) => (/^(yes|0)$/i.test(persist) ? "kept until you disconnect" : /^no$/i.test(persist) ? "closes with its last tab" : `closes ${persist} after its last tab`);
   const small = "font-size: calc(12px * var(--ui-scale, 1)); padding: 1px 8px";

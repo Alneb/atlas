@@ -19,7 +19,7 @@ const LIST_WAIT_MS = 250;
 let replaying = false;
 // Tab as in Obsidian (notes) and VS Code (code): a selection's lines, or a list item, are indented; anywhere
 // else a tab (a note) or one indent unit (code) is typed at the caret. CodeMirror's indentWithTab indented the
-// whole line from anywhere in it — the user's "it just tabs the whole line instead of adding a tab character".
+// whole line from anywhere in it, instead of typing a tab character.
 const LIST_ITEM = /^\s*(?:[-*+]|\d+[.)])\s/;
 export const tabKey = (md: boolean): KeyBinding => ({
   key: "Tab",
@@ -41,7 +41,7 @@ const browsingTasks = (v: EditorView) => (currentCompletions(v.state)[0] as Task
 // (it is there on every task line now — two Escapes to leave insert mode would be the rule, not the exception)
 export const untouchedTaskList = (v: EditorView) =>
   completionStatus(v.state) === "active" && (currentCompletions(v.state)[selectedCompletionIndex(v.state) ?? -1] as TaskCompletion | undefined)?.task?.icon === "new_line";
-// what Tab does to an open list: walk it (notes, the user's "it should move down and enter works") or take
+// what Tab does to an open list: walk it (notes: Tab moves down, Enter takes it) or take
 // the entry (code, as VS Code: with one entry, walking did nothing at all)
 const walkList = (down: boolean, take = false) => (v: EditorView): boolean => {
   if (replaying || (down ? hasNextSnippetField : hasPrevSnippetField)(v.state)) return false;

@@ -1,6 +1,5 @@
 # Books — an EPUB library and reader
 
-The design: docs/design/DESIGN-pen-eink-reader.md.
 
 - **Library**: every `.epub` under the library folder (setting `folder`, default `books/`, subfolders included), with
   its cover, title and author from the book's package; the books you read most recently first.

@@ -1,6 +1,5 @@
 // Claude usage in the status bar (README.md): "Claude 42 %" — the session limit of the account Atlas's Claude runs
-// as (usage.py `in_use`) — and its limits on hover; a click looks again. The user, 2026-10-15: "you should write
-// an usage indicator into the app when using claude".
+// as (usage.py `in_use`) — and its limits on hover; a click looks again.
 export function register(atlas) {
   const cell = atlas.shell.statusItem({ id: "usage", text: "Claude …", title: "Claude usage", run: () => void look(true) });
   // A limit is announced once per window, also across restarts. The key leaves out resets_at: the endpoint moves it

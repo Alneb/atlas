@@ -50,7 +50,7 @@ rows:
       - [{view: editor, path: refs/papers/georges1996/georges1996.md, height: 420}, {view: calendar, from: tasks}]
     widths: [3, 2]
 ```
-A block is a bare name (`tasks`) or `{view: <type>, …options, title: …}`. Open the page and press **Arrange** to reshape it by hand. Block types and their options: `REFACTOR-blocks.md`; the format: `PAGES.md`.
+A block is a bare name (`tasks`) or `{view: <type>, …options, title: …}`. Open the page and press **Arrange** to reshape it by hand. Block types, their options and the format: [PAGES.md](PAGES.md).
 
 ### Bookmarks and the sidebar
 ```yaml

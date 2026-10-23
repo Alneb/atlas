@@ -552,7 +552,7 @@ function collectionsBlock(atlas) {
 }
 
 // ---- catalog.app: the Library app --------------------------------------------------------------------------------
-// One app over every kind the catalog knows (DESIGN-library-app.md),
+// One app over every kind the catalog knows,
 // drawn by Atlas's library page, the one References is (atlas.mountLibrary; docs/refactor/REFACTOR-libraries.md).
 // Nothing about a kind is written here: its tab, cover, key fields and shelves come from its kind file.
 

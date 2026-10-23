@@ -1,4 +1,4 @@
-// A `.page` file as a model the UI can edit (docs/design/PAGES.md). The file is YAML and stays the truth:
+// A `.page` file as a model the UI can edit (docs/guides/PAGES.md). The file is YAML and stays the truth:
 // `parsePage` reads it, the edit functions below change the model, `writePage` puts the rows back
 // into the same YAML document — so the title, other keys and the comments above them survive.
 //

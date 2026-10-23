@@ -6,7 +6,7 @@ Your money as a plain-text ledger in the vault. hledger-shaped, but stricter and
 - **Import ids:** each movement carries an import id, so the same one is never imported twice.
 - **Notes for accounts and funds:** accounts and funds are notes you can link.
 
-Design: [DESIGN-finance](../../../docs/design/DESIGN-finance.md). The format: [DESIGN-finance-format](../../../docs/design/DESIGN-finance-format.md).
+
 
 ## What it does today (0.1.0)
 - **Engine** (`engine/`, Rust, static):

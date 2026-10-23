@@ -1,4 +1,4 @@
-// The sidebar is a page of blocks (docs/design/SHELL.md): `.atlas/sidebar.page` lists them top to bottom —
+// The sidebar is a page of blocks (docs/guides/SHELL.md): `.atlas/sidebar.page` lists them top to bottom —
 // `toolbar`, `pins`, `bookmarks`, `tabs`, or any other block (outline, backlinks, a calendar). Without
 // the file the default below is used; "Sidebar: arrange its blocks…" writes it and opens it as a page.
 // Also here: what the sidebar's own blocks share — the keyboard cursor, the filter, drag state, menu.

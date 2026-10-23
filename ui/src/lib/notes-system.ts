@@ -1,4 +1,4 @@
-// The note system's commands (docs/design/NOTES-SYSTEM.md): a new note from a template, and installing the
+// The note system's commands (docs/guides/NOTES-SYSTEM.md): a new note from a template, and installing the
 // starter kit — files copied into the vault, only the ones that are not there, after the user says so.
 import { errText } from "./text";
 import type { Action } from "./actions";

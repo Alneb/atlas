@@ -68,7 +68,7 @@ class UsageTest(unittest.TestCase):
             got = {a["folder"]: a["current"] for a in self.m.usage({"all": True})["accounts"]}
             only = [a["folder"] for a in self.m.usage({})["accounts"]]
         self.assertEqual(got, {"default": False, "personal": False, "work": True})
-        self.assertEqual(only, ["work"], "the user: \"it should just give it to you for the current one\"")
+        self.assertEqual(only, ["work"], "only the account in use is reported")
         with mock.patch.dict(os.environ, {"ATLAS_ROOT": str(self.home / "none")}):
             self.assertEqual(self.m.in_use(), os.path.realpath(self.home / ".claude"), "no setting: ~/.claude")
 

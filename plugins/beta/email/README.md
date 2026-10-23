@@ -2,8 +2,7 @@
 
 A mail client inside Atlas: conversations, search, fast triage from the keyboard, a composer, rules — over the user's
 own IMAP/SMTP accounts (a password) or Outlook / Microsoft 365 (OAuth2). Version 1.0 (2026-10-22) is a rewrite: the
-engine in Rust (`engine/`), the pane in Svelte (`ui/`). Why and how: [REFACTOR-email-rust.md](../../../docs/refactor/REFACTOR-email-rust.md);
-the interface's design and its sources: [DESIGN-mail-ui.md](../../../docs/design/DESIGN-mail-ui.md).
+engine in Rust (`engine/`), the pane in Svelte (`ui/`).
 
 ## What it does
 
@@ -13,7 +12,7 @@ the interface's design and its sources: [DESIGN-mail-ui.md](../../../docs/design
   folders are checked every few minutes. Deleting the index loses nothing.
 - **Mail becomes a note only when you say so**: *Save as note* (⇧N, the reader's note button, or a rule's `save`)
   writes the conversation as `mail/<account>/<folder>/<date> <subject>.md`, in the same thread-note shape the earlier
-  versions kept (DESIGN-mail-notes.md), with its files beside it; saving again adds the new messages. Such a note is
+  versions kept, with its files beside it; saving again adds the new messages. Such a note is
   drawn as mail, with Reply / Forward.
 - **Conversations** by the messages' own ids (Gmail's thread ids where there are any); a new subject is a new
   conversation; a reply without ids joins by subject only with someone in common.

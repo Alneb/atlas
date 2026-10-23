@@ -382,7 +382,7 @@ export function open(spec: PaneSpec, opts: { activate?: boolean; beside?: boolea
     params: spec,
     // only terminals stay in the page in the background (a shell's screen must keep up); every other pane
     // leaves it — out of layout and of global listeners (pdf.js's selection watch cost every key ~60 ms with
-    // 8 PDFs open, decisions/PERFORMANCE.md) — and keeps its place through pane-scroll.ts
+    // 8 PDFs open) — and keeps its place through pane-scroll.ts
     renderer: spec.kind === "terminal" ? "always" : "onlyWhenVisible",
     inactive: opts.activate === false,
     ...((opts.beside && besideActive()) || placement(specZone(spec))),

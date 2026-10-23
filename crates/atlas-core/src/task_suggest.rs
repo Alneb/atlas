@@ -95,7 +95,7 @@ pub struct Ask {
     /// matches a field shows the list.
     pub browse: bool,
     /// The ⏎ row first even when a word matched: a word that only looks like a field never takes Enter
-    /// (the capture boxes, where Enter saves; and the note editor, after the user's "fix the low" + Enter
+    /// (the capture boxes, where Enter saves; and the note editor, where "fix the low" + Enter
     /// became 🔽 — Obsidian lets it). Tab or ↓ go to the fields.
     pub keep_enter: bool,
 }

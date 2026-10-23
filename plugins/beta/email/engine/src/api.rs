@@ -1047,8 +1047,7 @@ fn agent_rules(m: &Arc<Mail>, p: &Value) -> Result<Value, String> {
     rules(m, p)
 }
 
-/// Claude's `email_add_rule`: `{ when, actions, apply_now? }` (the user said what they want; the rules note says it
-/// in the vault, where the user sees and edits it).
+/// Claude's `email_add_rule`: `{ when, actions, apply_now? }`.
 fn agent_add_rule(m: &Arc<Mail>, p: &Value) -> Result<Value, String> {
     let actions: Vec<String> = match p.get("actions") {
         Some(Value::Array(a)) => a.iter().filter_map(Value::as_str).map(str::to_string).collect(),

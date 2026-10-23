@@ -4,7 +4,7 @@
 //! (docs/refactor/REFACTOR-references-plugin.md); everything outside the vault's files goes through a seam — the
 //! network ([`Net`]), a new entry's note ([`Companion`]), the Trash ([`Trash`]) — so tests run on a temp folder.
 use crate::entry::{self, Companion};
-use crate::net::Net;
+use crate::net::{Miss, Net};
 use crate::remote::{self, parse_arxiv, parse_doi};
 use crate::settings::Settings;
 use atlas_text::paths::{rel_path, safe_join};
@@ -54,6 +54,9 @@ pub struct PaperAdded {
     /// false when the DOI / arXiv id (or the same PDF) was already in the library.
     pub created: bool,
     pub pdf: bool,
+    /// No PDF came and a copy stood behind a sign-in (a publisher's): its address, offered only if no PDF source
+    /// finds one either.
+    pub gate: Option<String>,
 }
 
 /// The fields the References view edits in place (the note's other properties are kept).
@@ -363,7 +366,7 @@ impl Lib<'_> {
             (doi.is_some() && p.doi.as_deref().map(str::to_lowercase) == doi.as_deref().map(str::to_lowercase)) || (ax.is_some() && p.arxiv == ax)
         };
         if let Some(p) = existing.iter().find(same) {
-            return Ok(PaperAdded { paper: p.clone(), created: false, pdf: false });
+            return Ok(PaperAdded { paper: p.clone(), created: false, pdf: false, gate: None });
         }
         let mut m = match (&doi, &ax) {
             (Some(d), _) => remote::crossref(self.net, d)?,
@@ -377,29 +380,34 @@ impl Lib<'_> {
         std::fs::create_dir_all(&dir).map_err(io(&dir))?;
         m.insert("citekey".into(), key.clone().into());
         m.insert("dateAdded".into(), now_stamp().into());
-        let pdf = self.cfg.download_pdfs && self.fetch_pdf(&dir, &key, ax.as_deref(), &mut m)?;
+        let got = if self.cfg.download_pdfs { self.fetch_pdf(&dir, &key, ax.as_deref(), &mut m)? } else { Err(None) };
         let paper = self.saved(&dir, &key, &m)?;
-        Ok(PaperAdded { paper, created: true, pdf })
+        Ok(PaperAdded { paper, created: true, pdf: got.is_ok(), gate: got.err().flatten() })
     }
 
     /// The PDF: arXiv's, else an open-access copy the indexes know; a publisher's paywalled PDF is left to the user
-    /// (or to the PDF sources other plugins add). → whether one was saved.
-    fn fetch_pdf(&self, dir: &Path, key: &str, ax: Option<&str>, m: &mut Mapping) -> Res<bool> {
+    /// (or to the PDF sources other plugins add). → saved, or not and the first copy behind a sign-in.
+    fn fetch_pdf(&self, dir: &Path, key: &str, ax: Option<&str>, m: &mut Mapping) -> Res<Result<(), Option<String>>> {
         let from_entry = m.get("archiveID").and_then(Value::as_str).and_then(|v| v.strip_prefix("arXiv:")).map(String::from);
         let arxiv_pdf = ax.map(String::from).or(from_entry).map(|a| (format!("https://arxiv.org/pdf/{a}"), "arXiv"));
         let doi = s(m, "DOI");
         let more = remote::Index::order(&self.cfg.indexes);
         let tries = arxiv_pdf.into_iter().chain(doi.iter().flat_map(|d| remote::open_access_pdfs(self.net, d, &self.cfg.email, &more)));
+        let mut gate = None;
         for (url, from) in tries {
-            if let Ok(b) = self.net.pdf(&url) {
-                let name = format!("{key}.pdf");
-                std::fs::write(dir.join(&name), &b).map_err(io(dir))?;
-                m.insert("files".into(), Value::Sequence(vec![name.into()]));
-                m.insert("pdfFrom".into(), format!("{from}: {url}").into());
-                return Ok(true);
+            match self.net.pdf(&url) {
+                Ok(b) => {
+                    let name = format!("{key}.pdf");
+                    std::fs::write(dir.join(&name), &b).map_err(io(dir))?;
+                    m.insert("files".into(), Value::Sequence(vec![name.into()]));
+                    m.insert("pdfFrom".into(), format!("{from}: {url}").into());
+                    return Ok(Ok(()));
+                }
+                Err(Miss::Gate(u)) => gate = gate.or(Some(u)),
+                Err(Miss::Other(_)) => {}
             }
         }
-        Ok(false)
+        Ok(Err(gate))
     }
 
     /// A PDF dropped on the library: a DOI (the published version) or else an arXiv id on its first pages gives the
@@ -423,7 +431,7 @@ impl Lib<'_> {
                     || p.pdf.as_deref().and_then(|f| std::fs::read(self.root.join(f)).ok()).is_some_and(|b| b.len() == bytes.len() && sha(&b) == digest)
             };
             if let Some(p) = self.list()?.into_iter().find(|p| same(p)) {
-                return Ok(PaperAdded { paper: p, created: false, pdf: true });
+                return Ok(PaperAdded { paper: p, created: false, pdf: true, gate: None });
             }
         }
         let text = pdf_text(bytes);
@@ -479,7 +487,7 @@ impl Lib<'_> {
         m.insert("citekey".into(), key.clone().into());
         m.insert("dateAdded".into(), now_stamp().into());
         self.save(&dir, &m)?;
-        Ok(PaperAdded { paper: self.paper_of(&dir, &key, &m), created: true, pdf: false })
+        Ok(PaperAdded { paper: self.paper_of(&dir, &key, &m), created: true, pdf: false, gate: None })
     }
 
     /// A PDF a plugin found (the PDF sources, docs/guides/PLUGIN-API.md) becomes the paper's: `file` is a download in a

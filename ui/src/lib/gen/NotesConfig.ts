@@ -3,7 +3,7 @@ import type { CaptureMode } from "./CaptureMode";
 import type { TemplateRule } from "./TemplateRule";
 
 /**
- * Notes: capture, and new notes from templates (docs/design/NOTES-SYSTEM.md).
+ * Notes: capture, and new notes from templates (docs/guides/NOTES-SYSTEM.md).
  */
 export type NotesConfig = { 
 /**

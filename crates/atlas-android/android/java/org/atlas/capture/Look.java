@@ -65,7 +65,7 @@ public final class Look {
     public int dp(float v) { return Math.round(v * density); }
 
     /** Boox tablets: Onyx's framework carries its e-ink refresh API (`android.onyx.ViewUpdateHelper`, which Onyx's own
-     *  SDK finds the same way — ~/Projects/boox_5c_re docs/ONYX-EPD-PEN.md); else the maker or brand says Onyx. */
+     *  SDK finds the same way — boox_5c_re docs/ONYX-EPD-PEN.md); else the maker or brand says Onyx. */
     static boolean isEink() {
         try { Class.forName("android.onyx.ViewUpdateHelper"); return true; } catch (ClassNotFoundException | LinkageError e) { /* not a Boox framework */ }
         String m = (android.os.Build.MANUFACTURER + " " + android.os.Build.BRAND).toLowerCase(java.util.Locale.ROOT);

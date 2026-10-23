@@ -3,7 +3,7 @@
   import { below, type MenuAt } from "../lib/menu";
   import { shownName, shownPath } from "../lib/paths";
   import { superOf } from "../lib/keys";
-  // A `.page` file (docs/design/PAGES.md): rows and columns of blocks. The file is the source — "Arrange"
+  // A `.page` file (docs/guides/PAGES.md): rows and columns of blocks. The file is the source — "Arrange"
   // reshapes it by hand (drag, add, resize, remove; each gesture is one write of the file) and
   // "Edit as text" opens the same YAML in the editor. Saving either way redraws the page at once.
   import { onMount } from "svelte";
@@ -17,8 +17,8 @@
   import { pick, type PickItem } from "../lib/palette.svelte";
   import { toast } from "../lib/state.svelte";
   import {
-    parsePage, writePage, blockSrc, newBlock, findBlock, insertBlock, insertRow, insertColumn, moveBlock, removeBlock, setWidths,
-    type Drop, type PageBlock, type PageModel,
+    parsePage, writePage, blockSrc, newBlock, findBlock, blockAt, insertBlock, insertRow, insertColumn, moveBlock, removeBlock, setWidths,
+    type BlockAt, type Drop, type PageBlock, type PageModel,
   } from "../lib/page-doc";
   import ContextMenu from "../components/ContextMenu.svelte";
   import { pluginMenu } from "../lib/plugin-menus";
@@ -45,9 +45,12 @@
     error = "";
     if (page.title) panel.setTitle(page.title);
   }
+  let writes = 0; // our own writes started: a reload begun before one of them answers with the older file
   async function load(): Promise<void> {
+    const seen = writes;
     try {
       const f = await api.file(path);
+      if (seen !== writes) return;
       mtime = f.mtime;
       if (f.text !== text || error) show(f.text); // our own write comes back unchanged: keep the blocks
     } catch (e) { error = errText(e); }
@@ -58,6 +61,7 @@
     if (next === text) return;
     const before = text;
     text = next;
+    writes++;
     try {
       mtime = (await api.putFile(path, next, mtime)).mtime;
       if (keep) undo = [...undo.slice(-30), before];
@@ -150,7 +154,14 @@
 
   // --- arranging: a block's menu ------------------------------------------------------------------------
   let menu = $state<MenuAt | null>(null);
-  let editing = $state<PageBlock | null>(null); // the block whose options form is open
+  // the block whose options form is open, and where it stood: a reload meanwhile re-parses the page into new blocks
+  let editing = $state<{ block: PageBlock; at: BlockAt } | null>(null);
+  /** `b` if it is still in the page, else the block of its type at its old place (the file was reloaded meanwhile). */
+  function current(b: PageBlock, at: BlockAt): PageBlock | undefined {
+    if (findBlock(page, b.id)) return b;
+    const there = blockAt(page, at);
+    return there?.type === b.type ? there : undefined;
+  }
   function ask(placeholder: string, tag: string, then: (v: string) => void, clear?: string): void {
     pick({ placeholder, tag, icon: "edit", items: clear ? [{ value: "", title: clear }] : [], typed: (t) => `Use “${t}”`, onpick: then });
   }
@@ -161,7 +172,7 @@
     const edit = (f: () => void) => () => { f(); void save(); };
     menu = below(e, [
       { label: "Title…", icon: "edit" as const, run: () => ask("Title of this block", "Title", (v) => { b.title = v.trim() || undefined; void save(); }, "No title") },
-      ...(optionFields(b.type).length ? [{ label: "Options…", icon: "settings" as const, run: () => { editing = b; } }] : []),
+      ...(optionFields(b.type).length ? [{ label: "Options…", icon: "settings" as const, run: () => { editing = { block: b, at }; } }] : []),
       ...(getBlock(b.type)?.height ? [{ label: "Height…", run: () => ask("Height in pixels (e.g. 360)", "Height", (v) => { const n = Number(v); if (n >= 120) b.options.height = Math.round(n); else delete b.options.height; void save(); }, "Default height") }] : []),
       "sep",
       ...(at.index > 0 ? [{ label: "Move up", icon: "arrow-up" as const, run: edit(() => moveBlock(page, b.id, { kind: "at", at: { ...at, index: at.index - 1 } })) }] : []),
@@ -281,9 +292,9 @@
 </div>
 {#if menu}<ContextMenu x={menu.x} y={menu.y} items={menu.items} onclose={() => (menu = null)} />{/if}
 {#if editing}
-  {@const b = editing}
+  {@const { block: b, at } = editing}
   <BlockOptions title={label(b)} fields={optionFields(b.type)} options={$state.snapshot(b.options)} oncancel={() => (editing = null)}
-    onsave={(o) => { b.options = o; editing = null; void save(); }} />
+    onsave={(o) => { const cur = current(b, at); editing = null; if (!cur) return toast("The block moved meanwhile", "Its options were not saved.", "error"); cur.options = o; void save(); }} />
 {/if}
 
 <style>

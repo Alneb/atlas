@@ -1,4 +1,4 @@
-// Reading a paper (docs/design/NOTES-SYSTEM.md, "Reading"; docs/guides/ZOTERO.md, "The reading note"): its note,
+// Reading a paper (docs/guides/NOTES-SYSTEM.md, "Reading"; docs/guides/ZOTERO.md, "The reading note"): its note,
 // `<paper folder>/<citekey>.md`, beside its PDF. The core makes the note on first use (properties, the
 // `library.paper` block, a place to write) and renames a legacy `notes.md`; this module only opens it.
 import { errText } from "./text";
@@ -22,8 +22,7 @@ export async function openReadingNote(key: string, opts: { beside?: boolean } = 
 }
 
 /** The PDF, and the notes in the split beside it with the caret in them (the Library's "Read"). */
-/** Opens a paper: its PDF (the note is one button away there — "Note"), else its note. The user, 2026-10-15: "when you
- *  open pdf it opens both pdf and the note in a different page, in the pdf editor there should be an button to do that". */
+/** Opens a paper: its PDF (the note is one button away there — "Note"), else its note. The PDF opens alone; its bar has a button for the note. */
 export function readPaper(p: { key: string; pdf: string | null }): void {
   if (p.pdf) openPath(p.pdf);
   else void openReadingNote(p.key);

@@ -1,0 +1,87 @@
+# Manga and comics, shaped like Tachiyomi / Mihon (docs/design/DESIGN-pen-eink-reader.md). Two sides
+# (docs/refactor/REFACTOR-native-plugins.md): native in the
+# Atlas apps (android/), the web side (main.js) for the desktop and the server. A series is a folder of the library;
+# its chapters are .cbz files or folders of pictures; where you are is a file in the series (reading.json).
+title = "Manga"
+description = "a manga and comics library and reader like Mihon: series, chapters, read from where you left, right-to-left, webtoon, e-ink paging"
+phone = true # runs in the phone apps too (only plugins marked so start there)
+icon = "file"
+version = "0.4.2"
+api = 4
+claims = ["*.cbz"]                     # a .cbz opens here on a click (API 7); .cbr is RAR, which the web side cannot read
+requires = ["zip"]                     # its zip reader is the Zip archives plugin's (../zip/zip.js), shared with the other reader
+
+# the user's Suwayomi (its address a setting): any server, as the vault's settings name it
+[permissions]
+net = ["*"]
+
+[android]
+main = "org.atlas.plugins.manga.Manga"
+opens = ["*.cbz"]                      # and a folder of pictures, a `suwayomi:<chapter id>/<name>` chapter (Manga.opens): the reader only, the library is the web side's
+
+[[setting]]
+key = "folder"
+label = "Library folder"
+kind = "text"
+default = "manga"
+hint = "a folder of the vault: each folder in it is a series, its .cbz files or picture folders the chapters"
+
+[[setting]]
+key = "suwayomi"
+label = "Suwayomi server"
+kind = "text"
+default = ""
+hint = "your Suwayomi (Tachiyomi's server), e.g. https://manga.example.org: its library beside the folder's, read page by page from it, where you are written back. Behind Authelia: the vault's sign-in (on the VPN none)"
+
+[[setting]]
+key = "mode"
+label = "Reading mode"
+kind = "choice"
+choices = ["right to left", "left to right", "vertical", "webtoon"]
+default = "right to left"
+
+[[setting]]
+key = "scale"
+label = "Scale"
+kind = "choice"
+choices = ["fit screen", "fit width", "fit height", "original"]
+default = "fit screen"
+
+[[setting]]
+key = "taps"
+label = "Tap zones"
+kind = "choice"
+choices = ["default", "L-shaped", "Kindle", "edge", "right and left", "off"]
+default = "default"
+
+[[setting]]
+key = "invert_taps"
+label = "Invert tap zones"
+kind = "toggle"
+default = false
+
+[[setting]]
+key = "volume_keys"
+label = "Volume keys turn pages"
+kind = "toggle"
+default = true
+
+[[setting]]
+key = "background"
+label = "Background"
+kind = "choice"
+choices = ["white", "black", "grey", "automatic"]
+default = "automatic"
+
+[[setting]]
+key = "page_number"
+label = "Show the page number"
+kind = "toggle"
+default = true
+
+[[setting]]
+key = "flash_every"
+label = "E-ink: flash on page change, every N pages (0: never)"
+kind = "number"
+default = 1
+hint = "Mihon's e-ink option: a full refresh clears the ghosts of the last page"

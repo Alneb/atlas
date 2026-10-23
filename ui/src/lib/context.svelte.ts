@@ -1,4 +1,4 @@
-// The shared context (docs/design/MALLEABLE.md, R3): what the user is looking at — active and open panes,
+// The shared context (docs/guides/MALLEABLE.md, R3): what the user is looking at — active and open panes,
 // the editor selection, the section around the caret, and the entity under the pointer. One reactive
 // object for every pane, plugin and view; also pushed to the core (PUT /api/ui/state), so Claude
 // reads it through `atlas mcp` → atlas_context. The push is fire-and-forget and debounced.

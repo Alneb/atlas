@@ -1,5 +1,5 @@
 // The "go further" steps at the bottom of Settings pages: each makes the next rung's file for you
-// and opens it (docs/design/MALLEABLE.md R1: the step up costs one click, never a blank page).
+// and opens it (docs/guides/MALLEABLE.md R1: the step up costs one click, never a blank page).
 import { errText } from "./text";
 import { api } from "./api";
 import { openPath } from "./dock";

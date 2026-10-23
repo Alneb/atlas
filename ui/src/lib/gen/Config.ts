@@ -48,6 +48,6 @@ home: string,
  */
 ignore: Array<string>, 
 /**
- * Vim keybindings in the editor.
+ * Vim keybindings in the editor. Off by default, as in Obsidian: a newcomer's keys type text.
  */
 vim: boolean, ui: UiConfig, editor: EditorConfig, terminal: TerminalConfig, files: FilesConfig, activity: ActivityConfig, pdf: PdfConfig, draw: DrawConfig, lsp: LspConfig, automation: AutomationConfig, plugins: PluginsConfig, notes: NotesConfig, web: WebConfig, };

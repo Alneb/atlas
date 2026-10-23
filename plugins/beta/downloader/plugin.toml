@@ -1,6 +1,5 @@
 # A downloader for the catalog: the address of a captured thing (a YouTube Music song, a video, an album page) handed
-# to a service on the user's server that downloads it into a library. The user, 2026-10-16: "the actual YTmusic
-# downloader will be a different service in my server". Which service is not fixed, so the request is set here:
+# to a service on the user's server that downloads it into a library. Which service is not fixed, so the request is set here:
 # where, which method, and the body with {url}, {kind}, {title}, {artist}, {id} filled in (MeTube: POST /add
 # {"url": "{url}", "quality": "best", "format": "mp3"}; a yt-dlp web UI; your own). Behind Authelia, Atlas offers the
 # sign-in (docs/design/SERVICE-SIGNIN.md).

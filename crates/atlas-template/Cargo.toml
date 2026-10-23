@@ -4,6 +4,8 @@ description = "Atlas's template language ({{…}}: dates, values, prompts, inclu
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+authors.workspace = true
+repository.workspace = true
 
 # Only chrono and serde_json: the catalog's helper links it and is built static for the server and the phone.
 [dependencies]

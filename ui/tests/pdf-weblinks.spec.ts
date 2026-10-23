@@ -4,7 +4,7 @@ import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { WS } from "../playwright.config";
 
-// The user, 2026-10-16: "the web browser replaced the whole UI when clicking a url in a pdf". A PDF's web link opens
+// A web link clicked in a PDF used to replace the whole UI. Now it opens
 // a new window (the app makes it a browsing window, crates/atlas-app on_new_window); the app stays where it was.
 test("a web link inside a PDF opens a new window and leaves the app in place", async ({ page, request, context }) => {
   mkdirSync(join(WS, "pdfs"), { recursive: true });

@@ -1,4 +1,7 @@
 import { test, expect, type Page } from "@playwright/test";
+import { mkdirSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
+import { WS } from "../playwright.config";
 
 // A background tab leaves the page and
 // keeps its place; past the working set it sleeps (unmounted) and wakes where it was. And a note reopened later
@@ -6,6 +9,17 @@ import { test, expect, type Page } from "@playwright/test";
 const H = { "x-atlas": "1" };
 const long = (n: number) => Array.from({ length: 300 }, (_, i) => `Line ${i + 1} of note ${n}.`).join("\n\n") + "\n";
 const editorTop = (page: Page) => page.evaluate(() => document.querySelector<HTMLElement>(".atlas-pane-editor:not(.asleep) .cm-scroller")?.scrollTop ?? -1);
+/** A plain PDF of `n` letter pages, each saying its number (pdf.js rebuilds the cross-reference table it lacks). */
+const pagesPdf = (n: number) => {
+  const objs = ["<< /Type /Catalog /Pages 2 0 R >>", `<< /Type /Pages /Kids [${Array.from({ length: n }, (_, i) => `${4 + 2 * i} 0 R`).join(" ")}] /Count ${n} >>`,
+    "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>"];
+  for (let i = 0; i < n; i++) {
+    const text = `BT /F1 36 Tf 72 700 Td (Page ${i + 1}) Tj ET`;
+    objs.push(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents ${5 + 2 * i} 0 R >>`,
+      `<< /Length ${text.length} >>\nstream\n${text}\nendstream`);
+  }
+  return `%PDF-1.4\n${objs.map((o, i) => `${i + 1} 0 obj\n${o}\nendobj\n`).join("")}trailer\n<< /Root 1 0 R /Size ${objs.length + 1} >>\n%%EOF\n`;
+};
 const atlas = <T>(page: Page, f: string, ...a: unknown[]) => page.evaluate(([f, a]) => (window as unknown as Record<string, Record<string, (...x: unknown[]) => T>>).__atlas[f as string](...(a as unknown[])), [f, a] as const);
 
 test("a note reopened, or woken from sleep, is where it was left", async ({ page, request }) => {
@@ -39,21 +53,21 @@ test("a note reopened, or woken from sleep, is where it was left", async ({ page
 });
 
 test("a PDF tab switched away and back keeps its scroll (it leaves the page while hidden)", async ({ page }) => {
+  mkdirSync(join(WS, "sleep"), { recursive: true });
+  writeFileSync(join(WS, "sleep/pages.pdf"), pagesPdf(6));
+  const pdf = "sleep/pages.pdf";
   await page.goto("/");
   await page.getByText("Finish the GW notes.").waitFor();
-  const files = await page.evaluate(async () => (await (await fetch("/api/files", { headers: { "x-atlas": "1" } })).json()) as string[]);
-  const pdf = files.find((f) => f.endsWith(".pdf"));
-  test.skip(!pdf, "no PDF in the test vault");
-  await atlas(page, "open", pdf!);
+  await atlas(page, "open", pdf);
   const viewer = page.locator(".atlas-pane-pdf .viewer-container").first();
   await expect(viewer.locator(".page").first()).toBeVisible({ timeout: 15_000 });
   const max = await viewer.evaluate((el) => el.scrollHeight - el.clientHeight);
-  test.skip(max < 200, "the PDF is too short to scroll");
+  expect(max).toBeGreaterThan(600);
   await viewer.evaluate((el) => { el.scrollTop = Math.min(600, el.scrollHeight - el.clientHeight); });
   const at = await viewer.evaluate((el) => el.scrollTop);
   await page.waitForTimeout(300);
   await atlas(page, "open", "FOCUS.md");
   await expect(page.locator(".atlas-pane-pdf")).toHaveCount(0); // out of the page, not hidden in it
-  await atlas(page, "open", pdf!);
+  await atlas(page, "open", pdf);
   await expect.poll(() => page.locator(".atlas-pane-pdf .viewer-container").first().evaluate((el) => el.scrollTop)).toBeGreaterThan(at - 50);
 });

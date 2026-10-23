@@ -1,4 +1,4 @@
-// Vaults (docs/design/SHELL.md): the folders the user works in, like Obsidian's. Each opens in a window of
+// Vaults (docs/guides/SHELL.md): the folders the user works in, like Obsidian's. Each opens in a window of
 // its own with its own `.atlas/` (settings, plugins, pages, workspaces), so vaults share nothing
 // but the app. The list lives in ~/.config/atlas/vaults.toml (core vaults.rs).
 import { errText } from "./text";

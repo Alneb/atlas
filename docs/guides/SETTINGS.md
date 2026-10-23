@@ -11,8 +11,7 @@ They chose:
 - Settings **doubling as the "what can Atlas do" map**: each page shows its area's features, their shortcuts and
   a Try button.
 
-Asked how it should fit the dynamic-documents rework, they said *"you should know how to do it yourself"*, so it
-follows docs/design/MALLEABLE.md:
+It fits the dynamic-documents rework by following docs/guides/MALLEABLE.md:
 - a page is also a **block** (R4, everything is a document);
 - every page ends with the **next rung** up the ladder (R1, gentle slope);
 - the toolsmith's drafts appear there and on Home (R5).
@@ -156,4 +155,4 @@ After a day of features, Settings had fallen behind: many new things were not in
   in 68524e6); `pdf.export_on_save` no longer names `<citekey>.md`; `clip.rs` no longer mentions the Clip plugin.
 - **Not done, on purpose:** a device name for live editing (config is per vault and shared between devices, so a
   name there would be every device's); a Vaults page (it comes with "core serves all"); a kinds editor for
-  the catalog (it comes with the library page, docs/refactor/REFACTOR-libraries.md).
+  the catalog (it comes with the library page).

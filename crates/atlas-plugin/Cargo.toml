@@ -5,6 +5,8 @@ version.workspace = true
 edition.workspace = true
 # the SDK plugins compile in: permissive, so a plugin can carry any licence (Atlas itself is AGPL-3.0-or-later)
 license = "MIT OR Apache-2.0"
+authors.workspace = true
+repository.workspace = true
 
 # Only std and serde_json: a helper built static (x86_64-unknown-linux-musl) stays small and runs in the server's
 # container and on the desktop alike. The core is always on the same machine (loopback HTTP, no TLS).

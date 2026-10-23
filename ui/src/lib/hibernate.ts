@@ -3,7 +3,7 @@
 // editor/places.ts for a note's caret and scroll, the PDF's remembered page). After a long day with many tabs the app
 // held every tab it ever opened; the least recently used now sleep.
 //
-// The sweet spot (decisions/PERFORMANCE.md, "The long day"), a setting: the 8 most recently seen tabs never sleep
+// The sweet spot, measured over a long day of use, and a setting: the 8 most recently seen tabs never sleep
 // (switching among a working set stays instant), others after 10 min unseen — notes 30 (their undo history goes too).
 // Never: a terminal (its shell's screen), a tab with unsaved changes, a tab on screen. A web tab is a whole WebKit
 // process of its own (~50–100 MB, the native view of app/webtab.rs): it is not one of the awake tabs, and sleeps

@@ -1,4 +1,4 @@
-// Toolbar buttons are commands (docs/design/SHELL.md): a toolbar block lists command ids, and each button
+// Toolbar buttons are commands (docs/guides/SHELL.md): a toolbar block lists command ids, and each button
 // takes its icon, name and shortcut from the command. Three words are not commands: `plugins` (a
 // button per built-in plugin that is on and per vault plugin with a view), `divider` (a line)
 // and `spacer` (pushes what follows to the far end).

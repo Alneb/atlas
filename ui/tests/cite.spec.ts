@@ -14,8 +14,7 @@ async function open(page: import("@playwright/test").Page, name: string, text: s
   await page.keyboard.type("Go"); // vim: new last line, insert mode
 }
 
-// The user, 2026-10-15: "i think you made a @ command to cite things, we shouldnt, you should just do wikilink to the note,
-// right? everything should be able to be reference with a wikilink": a paper is cited as [[citekey]], its note.
+// Citing is linking (docs/PHILOSOPHY.md): a paper is cited as [[citekey]], a wikilink to its note; there is no @ cite command.
 test("[[ in a note finds Library papers by author or title and links their note; @ does not cite", async ({ page }) => {
   await open(page, "aids.md", "Some text.");
   await page.keyboard.type("As shown by [[hubbard");

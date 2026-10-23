@@ -17,7 +17,7 @@ strokes with their own pressure, outlined crisply (`customData.atlasPen`, ui/src
   vendored decoder drew them back (21 of 43 shapes on one of the user's notes).
 - **Not converted** (counted in the result): geometric shapes and pictures; "reference" shapes are copies of a
   stroke shown on a neighbouring page and are left out on purpose.
-- **Files**: `ksync.py` — the decoder, vendored unchanged from ~/Projects/boox_5c_re (docs/scripts/ksync_decode.py,
+- **Files**: `ksync.py` — the decoder, vendored unchanged from boox_5c_re (docs/scripts/ksync_decode.py,
   commit c4fe711; format in its docs/KNOTE2.md); `ksync_text.py` — the text boxes the decoder leaves out; `convert.py` — pure conversion; `helper.py` — reads, writes through
   Atlas, remembers what it wrote (`imports.json` in the plugin's cache); `test_convert.py` — `python3 test_convert.py`
   (the conversion, and the whole way from a KSync tree built on disk to a kept edit).

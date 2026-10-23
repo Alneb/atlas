@@ -1,7 +1,7 @@
 import { test, expect, type Page } from "@playwright/test";
 import { shownName } from "../src/lib/paths";
 
-// docs/design/SHELL.md: the shell is files. Layouts are JSON in the vault (the current one, and named
+// docs/guides/SHELL.md: the shell is files. Layouts are JSON in the vault (the current one, and named
 // workspaces that are also commands); vaults are a list the chooser reads and writes.
 const H = { "x-atlas": "1" };
 const openFile = async (page: Page, name: string) => {

@@ -22,8 +22,7 @@ function formulaOf(state: EditorState, n: { name: string; from: number; to: numb
 
 /** In a note: the formula whose source the editor shows — the one the caret touches, its dollars included, the rule the
  *  live preview reveals by (live-preview.js `revealed`) — from the markdown tree; else an inline one still being typed
- *  (no closing `$` yet). The user, 2026-10-19: "it only works if you are inside the $$$$ it should work at the moment to
- *  move to that line and it changes to edit mode", "same for $ $ inline". */
+ *  (no closing `$` yet). The preview follows as soon as the caret reaches the formula's line, block or inline. */
 function noteFormulaAt(state: EditorState): Formula | null {
   const sel = state.selection.main;
   if (!sel.empty) return null;

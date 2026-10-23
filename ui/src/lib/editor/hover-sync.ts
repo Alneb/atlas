@@ -1,4 +1,4 @@
-// Hover sync (docs/design/MALLEABLE.md, R3 — Embark's map ↔ outline): pointing at a [[link]] in a note
+// Hover sync (docs/guides/MALLEABLE.md, R3 — Embark's map ↔ outline): pointing at a [[link]] in a note
 // publishes the linked note as the shared hover; when another pane (a Base row, a board card) hovers
 // a note, the links to it in this note light up. DOM-only and transient: nothing enters the document.
 import { ViewPlugin, type EditorView, type ViewUpdate } from "@codemirror/view";

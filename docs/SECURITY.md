@@ -12,7 +12,7 @@ You will get an answer within a week. A fix is released before the details are m
 
 ## What is in scope
 - The core's HTTP API and its guards: the local lock, the sign-in, served mode, trusted-proxy headers (`docs/guides/SERVER.md`).
-- Plugin isolation: the `net` host list, secrets that never reach a plugin, helpers' access to the API (`docs/guides/PLUGIN-API.md`), and the service sign-ins kept for plugins (`docs/design/SERVICE-SIGNIN.md`).
+- Plugin isolation: the `net` host list, secrets that never reach a plugin, helpers' access to the API (`docs/guides/PLUGIN-API.md`), and the service sign-ins kept for plugins.
 - Path handling: no file outside the vault reached through the API.
 - The Android app's sign-in and its token.
 

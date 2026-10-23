@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
 
-// Ephemeral suggestions (docs/design/MALLEABLE.md R4): a section with dated tasks offers a calendar; nothing is
+// Ephemeral suggestions (docs/guides/MALLEABLE.md R4): a section with dated tasks offers a calendar; nothing is
 // inserted until the user accepts, and the offer leaves with the caret.
 const H = { "x-atlas": "1" };
 

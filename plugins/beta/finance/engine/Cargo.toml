@@ -4,6 +4,8 @@ description = "The finance plugin's engine: the .fin journal (parser, lot bookin
 version = "0.1.0"
 edition.workspace = true
 license.workspace = true
+authors.workspace = true
+repository.workspace = true
 
 # Built into the plugin's bin/<target>/finance by build.sh (static musl: the same file runs on the desktop and in the
 # server's container, where Enable Banking syncs). The library half is what the tests and the helper share.

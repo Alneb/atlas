@@ -1,4 +1,4 @@
-//! CSS snippets (docs/design/MALLEABLE.md, rung 2): `.atlas/snippets/*.css` restyle Atlas live, like
+//! CSS snippets (docs/guides/MALLEABLE.md, rung 2): `.atlas/snippets/*.css` restyle Atlas live, like
 //! Obsidian snippets or Stylish. Every file applies unless `[ui] css_snippets_off` names it.
 use crate::api::CssSnippet;
 use std::path::Path;

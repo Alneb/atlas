@@ -121,7 +121,7 @@ export async function loadPlugins(): Promise<void> {
   await startInit();
 }
 
-// `.atlas/init.js` (docs/design/MALLEABLE.md rung 8): the workspace's own startup script — `register(atlas)`
+// `.atlas/init.js` (docs/guides/MALLEABLE.md rung 8): the workspace's own startup script — `register(atlas)`
 // with the plugin API, no manifest, reloaded on save. A plugin without the ceremony.
 const INIT_PATH = ".atlas/init.js";
 const INIT: Plugin = { id: INIT_ID, title: "init.js", main: INIT_PATH, rail: false, opens: [], claims: [], has_data: false, settings: {}, fields: [], phone: true, permissions: { net: [], secrets: false }, has_helper: false, requires: [], parts: [], agents: [] };

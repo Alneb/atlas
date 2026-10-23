@@ -50,7 +50,8 @@
   let actTab = $state<"created" | "changed" | "commits">("created");
   let dayAct = $state<import("../lib/gen/DayActivity").DayActivity | null>(null);
   const shownDay = $derived(fixedDay ?? actDay ?? today?.date ?? "");
-  const onToday = $derived(!!today && shownDay === today.date);
+  // no day yet (Today still loading) counts as today: no "Invalid date" title, no day buttons on nothing
+  const onToday = $derived(!shownDay || (!!today && shownDay === today.date));
   async function loadActivity() {
     const d = shownDay;
     if (!d || !show("activity")) return; // each Home block is its own instance: only the activity one asks
@@ -381,7 +382,7 @@
             <h2>{fixedDay ? "Made this day" : onToday ? "Activity" : `Activity — ${dayLabel(shownDay)}`}</h2>
             <span class="day-nav">
               {#if !fixedDay}
-                <button class="icon-btn" title="The day before" aria-label="Activity of the day before" onclick={() => (actDay = shiftDay(shownDay, -1))}>‹</button>
+                <button class="icon-btn" title="The day before" aria-label="Activity of the day before" disabled={!shownDay} onclick={() => (actDay = shiftDay(shownDay, -1))}>‹</button>
                 {#if !onToday}<button class="link today-btn" onclick={() => (actDay = null)}>Today</button>{/if}
                 <button class="icon-btn" title="The day after" aria-label="Activity of the day after" disabled={onToday} onclick={() => (actDay = shiftDay(shownDay, 1) === today?.date ? null : shiftDay(shownDay, 1))}>›</button>
               {/if}

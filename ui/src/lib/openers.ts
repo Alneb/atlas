@@ -1,4 +1,4 @@
-// Open with… (docs/design/MALLEABLE.md R2, tools not apps): one file, many views. Atlas's own viewers and
+// Open with… (docs/guides/MALLEABLE.md R2, tools not apps): one file, many views. Atlas's own viewers and
 // plugin panes that declare `opens = [...]` are openers. The default of a plain open, first that applies: the vault's
 // `[files] open_with` for the extension, a plugin's `claims = [...]` (the editor contract,
 // docs/guides/PLUGIN-API.md), Atlas's built-in viewer. Kept free of dock/plugin imports (they register here).

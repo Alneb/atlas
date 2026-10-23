@@ -3,8 +3,7 @@ import { readFileSync } from "node:fs";
 import { WS } from "../playwright.config";
 
 // Settings → Server (docs/guides/SERVER.md), on the desktop: it prepares what `atlas serve --listen` starts from. The test
-// server writes ${WS}-server.toml / .json (ATLAS_SERVER_CONFIG / _STATE), never ~/.config. The user: "in the server
-// you need to add the settings fot the user now in settings". The page shows only in server mode; the test server is a local one, so
+// server writes ${WS}-server.toml / .json (ATLAS_SERVER_CONFIG / _STATE), never ~/.config. The page shows only in server mode; the test server is a local one, so
 // /api/auth/me is answered as `atlas serve`'s would be — the panel's own calls are the real ones.
 async function serverPage(page: Page) {
   await page.route("**/api/auth/me", (r) => r.fulfill({ json: { server: true, via: "password", signOut: true } }));

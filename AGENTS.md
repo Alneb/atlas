@@ -18,6 +18,8 @@ Several agents and people may work in one checkout at once. Leave it as you foun
 - **Generated files are produced by their generator**, never edited by hand: `ui/src/lib/gen/*.ts` (from the Rust
   types), plugins' `view.js` (from their `ui/`), icons (`scripts/dev/icons.mjs`).
 - **Never commit binaries or build outputs**: plugin helpers in `plugins/*/*/bin/`, `ui/dist/`, APKs, archives.
+- **Downloaded toolchains and runtimes stay in `local/`** (git-ignored): the Android SDK/NDK and emulator images, a JDK,
+  Python for Android, signing keys. `node publish/scan.mjs` rejects such paths and package files, whatever their size.
 - **Tests and probes never write into the repository or a real vault.** They work on a throwaway copy in the temp
   folder. A cache a test leaves behind (`.atlas/cache/`) is ignored, but the test should still clean up.
 - **Delete what you created and no longer need**, before you finish: temporary files, test folders, stopped servers.
@@ -35,6 +37,14 @@ The repository is published. Everything you write here can be read by anyone.
   requests, chat sessions, ticket numbers from a private tracker, or which agent wrote the code. Say what the code does
   and why, in one or two lines.
 - **No secrets**, not even in tests: use obviously fake values. `bash scripts/dev/gate.sh scan` checks this.
+
+## Branches
+
+- **The public repository has one branch, `main`.** Contributions are pull requests against it.
+- **A checkout that has a `publish/` folder is the maintainer's private development branch**, published by a tool. In
+  it: work and commit only on that branch, never on `public` (a hook refuses it); every file not listed in
+  `publish/overlay.txt` is published, so `node publish/scan.mjs --worktree` must find nothing; and `node publish/sync.mjs`
+  (the gate's first stage there) must not report the two as diverged. `publish/README.md` has the workflow.
 
 ## Work alongside others
 

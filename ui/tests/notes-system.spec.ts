@@ -1,7 +1,7 @@
 import { test, expect, type Page } from "@playwright/test";
 import { shownName } from "../src/lib/paths";
 
-// The generic pieces of a note system (docs/design/NOTES-SYSTEM.md): a review queue kept in the notes'
+// The generic pieces of a note system (docs/guides/NOTES-SYSTEM.md): a review queue kept in the notes'
 // own properties, next actions, typed links, a tree by a property — and the starter kit built on them.
 const H = { "x-atlas": "1" };
 const put = (page: Page, path: string, text: string) => page.request.put("/api/file", { headers: H, data: { path, text } });

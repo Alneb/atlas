@@ -3,8 +3,7 @@ import { shownName } from "../src/lib/paths";
 
 // A note's properties (`[editor] properties`): hidden by default behind one faint line, shown in the
 // note as Obsidian does, or edited in a panel at the right of the note with a control per kind (the
-// vault's spec, templates/properties.yaml in the fixture). The user: "hide the properties by default,
-// and add an option in settings to show them in a right panel, and to edit them visually".
+// vault's spec, templates/properties.yaml in the fixture).
 const H = { "x-atlas": "1" };
 type Mode = "hidden" | "inline" | "panel";
 const PANEL = "---\n# a comment that stays\ndate: 2026-10-01 09:00\ntype: Talk\ntags:\n  - physics\nrating: 3\nsomething_else: kept as it is\n---\n# Panel\n\nThe body, untouched by the panel.\n";

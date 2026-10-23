@@ -1,4 +1,4 @@
-//! The home document (docs/design/MALLEABLE.md, "everything is a file"): the first screen is a file the user
+//! The home document (docs/guides/MALLEABLE.md, "everything is a file"): the first screen is a file the user
 //! reshapes — by default `Home.page`, the Today dashboard as a layout (page.rs); a `.md` works too. Atlas writes it once, from the
 //! template below, when it does not exist; after that it is the user's note and never rewritten.
 use crate::{Result, Workspace};

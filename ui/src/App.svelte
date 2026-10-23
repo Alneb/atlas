@@ -119,7 +119,7 @@
     // A mouse's side button is taken by nav-input.ts as well: that step counts once.
     const offTouch = attachTouch(); // a long press is a right click; finger-sized targets are styles/touch.css
     const offBack = attachBrowserBack(() => !nativeShell.on, () => steppedJustNow() || (canNavigate(-1) && (navigate(-1), true)), () => phone.on);
-    // The tabs as they were left (a file of this vault — docs/design/SHELL.md), unless the setting says to
+    // The tabs as they were left (a file of this vault — docs/guides/SHELL.md), unless the setting says to
     // start clean. Home is the first screen either way: restored layouts keep their panes, but home
     // is always there. `home = ""` brings back the classic Today pane.
     let stopLayout = () => {};

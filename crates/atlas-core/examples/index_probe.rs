@@ -1,6 +1,6 @@
 //! Measures the core's in-memory note index (links.rs) on a real-shaped vault: its build time, the heap it keeps,
 //! the peak a request costs, and representative queries. Never point it at the user's own vault while Atlas runs on
-//! it — it only reads, but use a copy (docs/decisions/PERFORMANCE.md, "The core's indexes").
+//! it — it only reads, but use a copy.
 //!
 //! `cargo run --release -p atlas-core --example index_probe -- <vault> [note-for-backlinks] [base-file]`
 use atlas_core::config::Config;

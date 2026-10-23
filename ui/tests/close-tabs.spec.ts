@@ -1,9 +1,8 @@
 import { test, expect } from "@playwright/test";
 import { shownName } from "../src/lib/paths";
 
-// The user, 2026-10-15: "make close all other tabs of this group only apply to normal tabs, not terminal ones, and add
-// an option to close all tabs (not including terminal), if no tab is open home should open automatically" — and
-// "make super + f also do fullscreen".
+// "Close other tabs" and "Close all tabs" leave terminals open, Home opens when no tab is left, and Super+F is
+// fullscreen.
 test("Close all tabs keeps the terminals, and Home comes back when nothing is open", async ({ page }) => {
   await page.goto("/");
   await page.getByText("Finish the GW notes.").waitFor();

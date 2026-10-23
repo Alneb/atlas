@@ -11,7 +11,6 @@ use std::rc::Rc;
 
 /// Tesseract's fast models (the ones distributions ship): a few MB per language.
 const MODELS_URL: &str = "https://raw.githubusercontent.com/tesseract-ocr/tessdata_fast/main";
-const LANGUAGES: &str = "eng+spa";
 const PICTURES: [&str; 6] = ["png", "jpg", "jpeg", "webp", "gif", "bmp"];
 const ME: &str = "ocr";
 
@@ -151,11 +150,28 @@ fn prepare(img: image::DynamicImage) -> image::GrayImage {
     g
 }
 
-/// The languages to read in: the setting (`eng+spa+fra`), else English and Spanish.
+/// The languages to read in: the setting (`eng+spa+fra`), else English plus the system's language.
 fn languages(p: &Value) -> String {
     let raw = p.pointer("/settings/languages").and_then(Value::as_str).unwrap_or("");
     let codes: Vec<&str> = raw.split(|c: char| !(c.is_ascii_alphanumeric() || c == '_')).filter(|c| !c.is_empty()).collect();
-    if codes.is_empty() { LANGUAGES.to_string() } else { codes.join("+") }
+    if codes.is_empty() { default_languages(&system_locale()) } else { codes.join("+") }
+}
+
+/// The locale as the C library reads it: the first of LC_ALL, LC_MESSAGES, LANG that is set.
+fn system_locale() -> String {
+    ["LC_ALL", "LC_MESSAGES", "LANG"].iter().find_map(|k| std::env::var(k).ok().filter(|v| !v.is_empty())).unwrap_or_default()
+}
+
+/// `eng`, plus the locale's language as Tesseract names it (`es_ES.UTF-8` → `eng+spa`); an unknown one adds nothing.
+fn default_languages(locale: &str) -> String {
+    const TESS: [(&str, &str); 16] = [("es", "spa"), ("fr", "fra"), ("de", "deu"), ("it", "ita"), ("pt", "por"), ("ca", "cat"),
+        ("nl", "nld"), ("pl", "pol"), ("ru", "rus"), ("sv", "swe"), ("da", "dan"), ("fi", "fin"), ("cs", "ces"),
+        ("tr", "tur"), ("ja", "jpn"), ("zh", "chi_sim")];
+    let lang = locale.split(['_', '.', '@']).next().unwrap_or("");
+    match TESS.iter().find(|(iso, _)| *iso == lang) {
+        Some((_, code)) => format!("eng+{code}"),
+        None => "eng".into(),
+    }
 }
 
 /// Tesseract reads a link's "://" with a space before the slashes ("https: //…"): put it back together, so the
@@ -266,10 +282,14 @@ mod tests {
 
     #[test]
     fn the_languages_come_from_the_setting() {
-        assert_eq!(languages(&json!({})), "eng+spa");
+        assert_eq!(default_languages("es_ES.UTF-8"), "eng+spa");
+        assert_eq!(default_languages("fr_CA"), "eng+fra");
+        assert_eq!(default_languages("en_US.UTF-8"), "eng");
+        assert_eq!(default_languages("C"), "eng");
+        assert_eq!(default_languages(""), "eng");
         assert_eq!(languages(&json!({ "settings": { "languages": "eng, fra" } })), "eng+fra");
         assert_eq!(languages(&json!({ "settings": { "languages": "../x" } })), "x", "only a code's own characters reach a path");
-        assert_eq!(languages(&json!({ "settings": { "languages": " " } })), "eng+spa");
+        assert_eq!(languages(&json!({ "settings": { "languages": " " } })), default_languages(&system_locale()));
     }
 
     #[test]

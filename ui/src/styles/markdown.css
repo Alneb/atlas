@@ -51,7 +51,7 @@ html.phone .markdown a::after, html.phone .markdown .cm-link::after, html.phone 
   font-family: var(--font-mono); font-size: .86em; background: var(--code-bg); border: 1px solid var(--border);
   padding: .1em .38em; border-radius: 5px; color: var(--inline-code);
 }
-/* an inline expression's value (docs/design/EXPRESSIONS.md): reads as prose; the dotted line says "computed" */
+/* an inline expression's value (docs/guides/EXPRESSIONS.md): reads as prose; the dotted line says "computed" */
 .markdown code.expr { font-family: inherit; font-size: inherit; background: none; border: 0; border-radius: 0; padding: 0; color: inherit; cursor: default;
   border-bottom: 1px dotted color-mix(in srgb, var(--accent) 60%, transparent); font-variant-numeric: tabular-nums; }
 .markdown code.expr.expr-error { color: var(--red); border-bottom-color: var(--red); }

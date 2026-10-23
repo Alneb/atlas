@@ -4,6 +4,8 @@ description = "The Calendar (DAV) plugin's engine: a local cache of CalDAV calen
 version = "0.1.0"
 edition = "2021"
 license = "AGPL-3.0-or-later"
+authors = ["alneb <16853434+alneb@users.noreply.github.com>"]
+repository = "https://github.com/Alneb/atlas"
 publish = false
 
 # Its own workspace (not a member of Atlas's): the TLS stack stays out of the core's lock file and build.

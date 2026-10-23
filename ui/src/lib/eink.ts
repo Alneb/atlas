@@ -3,7 +3,7 @@
 // them. So, besides the look (tokens.css / base.css: no motion, no shadows, no translucency), this module refreshes
 // the whole screen where ghosts come from: another tab to the front, a scroll come to rest (PDF pages, a long note).
 // The phone app on a Boox does it with Onyx's own call (AtlasNative.einkRefresh: applyGCOnce + repaintEverything, as
-// Onyx's framework does after a scroll — ~/Projects/boox_5c_re docs/ONYX-EPD-PEN.md); a browser gets a black-then-white
+// Onyx's framework does after a scroll — boox_5c_re docs/ONYX-EPD-PEN.md); a browser gets a black-then-white
 // flash, which an e-ink panel answers with a clearing refresh.
 import type { DockviewApi } from "dockview-core";
 import type { Eink } from "./gen/Eink";
@@ -36,8 +36,7 @@ function flash(): void {
 
 let last = 0;
 /** The automatic refreshes are calm (the app's REGAL, no flash) and at most one every 5 s; `clear` (the command
- *  "E-ink: clear the screen") is the full flashing one, always. The user: "the app does a full refresh too often and
- *  it's strident". A browser has no calm refresh: there, only `clear` flashes. */
+ *  "E-ink: clear the screen") is the full flashing one, always: frequent full refreshes are jarring. A browser has no calm refresh: there, only `clear` flashes. */
 export function einkRefresh(clear = false): void {
   document.dispatchEvent(new CustomEvent("atlas-eink-refresh", { detail: { clear } })); // every ask, kept or not (specs, probes)
   const now = performance.now();

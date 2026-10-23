@@ -5,20 +5,22 @@
 <h1 align="center">Atlas</h1>
 
 <p align="center">
-  <b>One fast desktop workspace over plain files</b>: notes that render like Obsidian, views like Notion, papers like
+  <b>Desktop workspace over plain files</b>: notes that render like Obsidian, views like Notion, papers like
   Zotero, an editor like VS Code and real terminals, all in one window, all on a folder you own.
 </p>
 
 <p align="center">
-  <a href="https://github.com/alneb/atlas/actions/workflows/ci.yml"><img src="https://github.com/alneb/atlas/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://github.com/Alneb/atlas/actions/workflows/ci.yml"><img src="https://github.com/Alneb/atlas/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-blue" alt="License: AGPL-3.0"></a>
   <img src="https://img.shields.io/badge/status-early-orange" alt="Status: early">
 </p>
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/img/vertical-tabs/after-dark.png">
-  <img src="docs/img/vertical-tabs/after-light.png" alt="Atlas: a vault's file tree, two notes side by side with their properties, and a Bases table">
+  <source media="(prefers-color-scheme: dark)" srcset="docs/img/readme/workspace-dark.webp">
+  <img src="docs/img/readme/workspace-light.webp" alt="Atlas: two notes side by side, one with its properties, a callout and an embedded Bases table, the other with LaTeX and a table">
 </picture>
+
+<sub>A demo vault (<code>scripts/dev/readme-shots.mjs</code> builds it and takes these shots).</sub>
 
 ## Why Atlas
 
@@ -36,7 +38,8 @@
 - **Notes** that render like Obsidian: live preview, wikilinks, embeds, callouts, LaTeX with snippets, Bases tables,
   tasks with priorities, dates and repeats (the Tasks plugin's format), inline expressions and templates.
 - **Pages of blocks** you arrange by hand: a home screen, an inbox, a dashboard. The left bar is one too.
-- **Papers**: a library with citations (`[[citekey]]`), PDFs with annotations saved into the file, notes beside the paper.
+- **Papers**: a library with citations (`[[citekey]]`), PDFs with highlights and ink kept beside them (the PDF itself is never
+  rewritten), notes beside the paper.
 - **Code**: language servers, find and replace, formatting, problems, run and test buttons, git changes in the
   gutter, two vim modes.
 - **Terminals** beside your notes, including AI coding agents that see what you are looking at (through Atlas's MCP
@@ -50,7 +53,7 @@
 ## Install
 
 **Linux packages.** Download the AppImage, `.deb`, `.rpm` or Flatpak from the
-[latest release](https://github.com/alneb/atlas/releases), or build from source (below).
+[latest release](https://github.com/Alneb/atlas/releases), or build from source (below).
 
 **Server (Docker).** Every folder in `./vaults` becomes a vault at `http://<host>:7700/v/<folder>/`:
 
@@ -62,8 +65,7 @@ docker compose up -d
 
 Behind a reverse proxy with a sign-in in front: [docs/guides/SERVER.md](docs/guides/SERVER.md).
 
-**Windows and macOS** are not supported yet. The core and the browser UI are close; the desktop app needs more work
-([the porting study](docs/decisions/PORTING-windows-macos.md)).
+**Windows and macOS** are not supported yet. The core and the browser UI are close; the desktop app needs more work.
 
 ## Build from source
 
@@ -71,10 +73,14 @@ You need Rust (stable), Node 20+ and, on Linux, the WebKitGTK development packag
 (`libwebkit2gtk-4.1-dev`, `libgtk-3-dev`, `libdbus-1-dev`, `libxkbcommon-dev` on Debian and Ubuntu).
 
 ```sh
-bash scripts/dev/dev.sh ~/Notes      # the core and the UI with hot reload → http://localhost:5173
-bash packaging/install.sh            # build and install the desktop app and the CLI for this user
-bash scripts/dev/gate.sh             # every check: secrets scan, Rust tests, lints, types, build, end-to-end
+npm --prefix ui ci && npm --prefix ui run build   # the interface, embedded into the binaries
+cargo build                                       # the core and CLI (target/debug/atlas) and the desktop app
+bash scripts/dev/dev.sh ~/Notes                   # the core and the UI with hot reload → http://localhost:5173
+bash packaging/install.sh                         # build and install the desktop app and the CLI for this user
+bash scripts/dev/gate.sh                          # every check: secrets scan, Rust tests, lints, types, build, end-to-end
 ```
+
+The end-to-end tests need Playwright's Chromium once: `npx --prefix ui playwright install chromium`.
 
 ## Documentation
 
@@ -98,5 +104,6 @@ follow the [code of conduct](docs/CODE_OF_CONDUCT.md).
 
 ## License
 
-[AGPL-3.0-or-later](LICENSE). Third-party code inside the repository keeps its own license
+[AGPL-3.0-or-later](LICENSE), except the plugin SDK (`crates/atlas-plugin`, `crates/atlas-core/sdk/python`), which is
+MIT OR Apache-2.0 so plugins may carry any licence. Third-party code inside the repository keeps its own license
 ([docs/THIRD-PARTY.md](docs/THIRD-PARTY.md)).

@@ -220,7 +220,7 @@ function build() {
   md.core.ruler.push("callouts", callouts);
 
   const r = md.renderer.rules;
-  // an inline expression (docs/design/EXPRESSIONS.md): its value is filled in by lib/expr.ts (hydrateExprs)
+  // an inline expression (docs/guides/EXPRESSIONS.md): its value is filled in by lib/expr.ts (hydrateExprs)
   const defaultCode = r.code_inline!;
   r.code_inline = (t, i, o, env, self) => {
     const expr = /^=\s*\S/.test(t[i].content) ? t[i].content.replace(/^=\s*/, "") : null;
@@ -229,7 +229,7 @@ function build() {
   // Obsidian Ink plugin blocks hold a pointer to a `.drawing` file, not content: show what they are
   const defaultFence = r.fence!;
   r.fence = (t, i, o, env, self) => {
-    // a view block (docs/design/MALLEABLE.md): drawn by lib/blocks.ts once mounted (hydrateBlocks)
+    // a view block (docs/guides/MALLEABLE.md): drawn by lib/blocks.ts once mounted (hydrateBlocks)
     if (t[i].info.trim() === "view") return `<div class="view-block" data-src="${esc(t[i].content)}"><p class="view-loading">…</p></div>`;
     if (!/^(handdrawn|handwritten)-ink$/.test(t[i].info.trim())) return defaultFence(t, i, o, env, self);
     let file = "";

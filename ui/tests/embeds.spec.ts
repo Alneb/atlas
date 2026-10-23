@@ -3,8 +3,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { WS } from "../playwright.config";
 
-// The user (2026-10-16, on the phone): "the notes renderer still has some problems, pdf's, some blocks … dont render
-// correctly". `![[x.pdf]]` and `![[Note#Heading]]` were link chips; Obsidian embeds both (lib/embeds.ts).
+// Embeds render as in Obsidian, on the phone too: `![[x.pdf]]` and `![[Note#Heading]]` were link chips; Obsidian embeds both (lib/embeds.ts).
 const H = { "x-atlas": "1" };
 
 /** A one-page PDF with the word "Embedded" on it, small enough to write here. */

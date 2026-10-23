@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: MIT OR Apache-2.0  (the plugin SDK: LICENSE-MIT / LICENSE-APACHE beside it; Atlas itself is AGPL-3.0-or-later)
+# SPDX-License-Identifier: MIT OR Apache-2.0  (the plugin SDK: crates/atlas-plugin/LICENSE-MIT and LICENSE-APACHE; Atlas itself is AGPL-3.0-or-later)
 """Atlas, from a plugin's own Python helper (docs/guides/PLUGIN-API.md, "Calling Atlas back").
 
 A helper talks to the core over its own pipe: the core's requests arrive on stdin, the answers go to stdout — and the

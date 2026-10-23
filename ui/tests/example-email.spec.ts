@@ -1,20 +1,18 @@
 import { test, expect, type APIRequestContext } from "@playwright/test";
-import { rmSync, cpSync } from "node:fs";
+import { rmSync } from "node:fs";
 import { join } from "node:path";
-import { fileURLToPath } from "node:url";
 import { WS } from "../playwright.config";
+import { installEmailPlugin } from "./fixtures/plugins";
 
 // The Email plugin's Outlook sign-in through Atlas's sign-in window (engine/src/oauth.rs, ui/src/signin.ts): the
 // window's return address finishes it; Microsoft's refusal is said in plain words.
 const H = { "x-atlas": "1" };
-const PLUGIN = fileURLToPath(new URL("../../plugins/beta/email", import.meta.url));
 const SETTINGS = ".atlas/plugin-settings/email.toml";
 const put = (r: APIRequestContext, path: string, text: string) => r.put("/api/file", { headers: H, data: { path, text } });
 
 test.beforeAll(async ({ request }) => {
-  const dir = join(WS, ".atlas/plugins/email");
-  rmSync(dir, { recursive: true, force: true });
-  for (const f of ["plugin.toml", "view.js", "main.js", "ui-lib", "bin"]) cpSync(join(PLUGIN, f), join(dir, f), { recursive: true });
+  test.setTimeout(300_000); // the engine is built once
+  installEmailPlugin(); // the plugin as shipped, its helper built from this checkout
   await put(request, SETTINGS, `[[accounts]]\nname = "uni"\nauth = "outlook"\nuser = "me@uni.example.org"\nflow = "window"\ntenant = "uni.example.org"\n`);
   await request.post("/api/plugins/email/helper/stop", { headers: H });
 });

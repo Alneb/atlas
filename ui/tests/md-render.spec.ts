@@ -3,7 +3,7 @@ import lz from "lz-string";
 const { decompressFromBase64 } = lz; // CommonJS module
 
 // Rendering regressions, each a shape taken from the user's real Obsidian notes (see
-// docs/decisions/MD-RENDERING.md). Fixtures are written through the API so no other test's files change.
+// docs/guides/MD-RENDERING.md). Fixtures are written through the API so no other test's files change.
 const H = { "x-atlas": "1" };
 const PNG = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAgAAAAGCAIAAABxZ0isAAAAEUlEQVR4nGNocFDAihgGUgIAYUoqARogppwAAAAASUVORK5CYII=", "base64");
 const NOTES: Record<string, string> = {

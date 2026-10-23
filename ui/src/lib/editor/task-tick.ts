@@ -1,6 +1,6 @@
 // A task's box in a note ticks the way Home's list does (the core's `tick_line`, POST /api/task/line): `✅ day` on
 // a line written with the Tasks fields, the next occurrence of a recurring one above it; opened again, the date
-// goes. The user: "the tasks completion only works in the home capture box, not in notes".
+// goes. Completing a task works the same in every note, not only on Home.
 import type { EditorView } from "@codemirror/view";
 import { api } from "../api";
 

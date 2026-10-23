@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
 
-// The user, 2026-10-19: "no button in the tab to delete the current note" — the tab's menu moves it to the Trash.
+// A note can be deleted from its tab: the tab's menu moves it to the Trash.
 const H = { "x-atlas": "1" };
 
 test("a note's tab moves it to the Trash, after a yes, and closes", async ({ page, request }) => {

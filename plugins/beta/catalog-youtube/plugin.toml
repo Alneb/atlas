@@ -1,6 +1,5 @@
-# YouTube and YouTube Music for the catalog. The user, 2026-10-16: "so its important that for youtube and ytmusic you
-# get the url, because the idea will be to pass that to either tubearchivist or another app that downloads yt music
-# into the music library". A link is recognised by its shape (youtu.be, watch, shorts, live, music.youtube.com), kept
+# YouTube and YouTube Music for the catalog. The clean URL matters most: it is what a
+# downloader (Tube Archivist, a YouTube Music downloader) is handed. A link is recognised by its shape (youtu.be, watch, shorts, live, music.youtube.com), kept
 # as its clean watch address (no ?si= or other tracking), and filled in from YouTube's oEmbed: title, channel, the
 # largest thumbnail. A YouTube Music link is a song; its artist is the channel without " - Topic".
 title = "Catalog · YouTube"

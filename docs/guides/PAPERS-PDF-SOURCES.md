@@ -54,6 +54,6 @@ copies before it failed (`remote::open_access_pdfs`, lazy; test
 `the_other_indexes_come_after_in_the_settings_order_and_only_when_the_ones_before_had_nothing`).
 
 These three were the `papers-open-access` plugin (Python helper, 2026-10-18), folded into the engine on 2026-10-19
-when science became one subplugin of the catalog (docs/refactor/REFACTOR-libraries.md, step 3). A
+when science became one subplugin of the catalog. A
 vault that had it installed removes it (`atlas plugin remove papers-open-access`); its settings were the defaults.
 A new source is still a plugin of its own, on the contract above.

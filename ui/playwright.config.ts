@@ -7,7 +7,7 @@ import { tmpdir } from "node:os";
 
 // A throwaway workspace, rebuilt on every run, served by the real `atlas` binary (UI embedded).
 // Build the UI first (`npm run build`) — the server serves what was compiled into it.
-// Overridable so concurrent sessions (several Claude instances, see docs/decisions/LANES.md) never share a run.
+// Overridable so concurrent runs (several people or agents in one checkout) never share a workspace.
 // a shell started inside Atlas inherits ATLAS_UI_DIR: the tests would be served the installed UI, not the
 // built one. Removed from process.env itself — Playwright gives the web server process.env plus `env`.
 delete process.env.ATLAS_UI_DIR;
@@ -38,7 +38,7 @@ const files: Record<string, string> = {
   // the references library is the catalog-papers plugin's: its manifest, its helper the debug build (webServer builds it)
   ".atlas/plugins/catalog-papers/plugin.toml": readFileSync(fileURLToPath(new URL("../plugins/beta/catalog-papers/plugin.toml", import.meta.url)), "utf8")
     .replace(/^run = .*$/m, `run = "${fileURLToPath(new URL("../target/debug/papers", import.meta.url))}"`),
-  ".atlas/config.toml": `log_dir = "log"\nfocus = "FOCUS.md"\n\n[ui]\nrestore_layout = false\n\n[editor]\nlatex_snippets_file = "snippets/snips.js"\nlatex_snippet_variables_file = "snippets/vars.js"\n\n[terminal]\nrenderer = "text"\n\n[lsp]\npython = "python3 ${FAKE_LS}"\nrust = "off"\nlatex = "off"\nc = "off"\n`,
+  ".atlas/config.toml": `log_dir = "log"\nfocus = "FOCUS.md"\nvim = true\n\n[ui]\nrestore_layout = false\n\n[editor]\nlatex_snippets_file = "snippets/snips.js"\nlatex_snippet_variables_file = "snippets/vars.js"\n\n[terminal]\nrenderer = "text"\n\n[lsp]\npython = "python3 ${FAKE_LS}"\nrust = "off"\nlatex = "off"\nc = "off"\n`,
   "data/sweep.tsv": "U\tE_kin\tZ\n3.0\t-1.25\t0.81\n5.5\t-0.90\t0.42\n4.0\t-1.10\t0.66\n",
   "themes/test-color-theme.json": '{\n  // VS Code themes are JSONC\n  "name": "Test Zed", "type": "dark",\n  "colors": { "editor.background": "#050505", "focusBorder": "#7de486", },\n  "tokenColors": [ { "scope": "keyword", "settings": { "foreground": "#c678dd" } }, { "scope": ["variable"], "settings": { "foreground": "#4cc2fb", "fontStyle": "bold" } } ]\n}\n',
   "snippets/snips.js": '[\n  { trigger: "mk", replacement: "$$0$", options: "tA" },\n  { trigger: "//", replacement: "\\\\frac{$0}{$1}$2", options: "mA" },\n  { trigger: "([A-Za-z])(\\\\d)", replacement: "[[0]]_{[[1]]}", options: "rmA" },\n  { trigger: "@${GREEK}", replacement: "\\\\[[0]]", options: "rmA" },\n  { trigger: "U", replacement: "\\\\underbrace{${VISUAL}}_{$0}", options: "mA" },\n  { trigger: "beg", replacement: "\\\\begin{$0}", options: "mA" },\n  { trigger: "sumk", replacement: "\\\\sum_{k=$0}^{$1}$2", options: "mA" },\n  { trigger: "sumq", replacement: "\\\\sum_{q}$0", options: "mA" },\n  { trigger: "kV", replacement: "\\\\text{kV}", options: "mA" },\n  { trigger: "VA", replacement: "\\\\text{VA}", options: "mA" },\n  { trigger: "kVA", replacement: "\\\\text{kVA}", options: "mA" },\n]\n',

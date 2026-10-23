@@ -102,7 +102,8 @@ test("the Drawings library converts the Obsidian Excalidraw plugin's drawings in
   const drawn = JSON.parse((await (await page.request.get(`/api/file?path=${encodeURIComponent("libs3/Lecture 2025-11-21 14.37.13.excalidraw")}`, { headers: H })).json()).text);
   expect(drawn.elements.map((e: { id: string }) => e.id)).toEqual(["a", "b"]);
   await expect.poll(() => status("libs3/Lecture 2025-11-21 14.37.13.md")).toBe(200); // its companion note, written by the core
-  expect(await status("libs3/Lecture 2025-11-21 14.37.13.excalidraw.md")).toBe(404); // in the Trash
+  // the note is the core's answer to the new drawing; the old file goes to the Trash a moment later, after its links
+  await expect.poll(() => status("libs3/Lecture 2025-11-21 14.37.13.excalidraw.md")).toBe(404);
   expect(await status("libs3/taken.excalidraw.md")).toBe(200); // left: its note's name is the user's
   expect(await status("libs3/taken.excalidraw")).toBe(404);
   await expect(page.locator(".toast", { hasText: "1 Obsidian drawing converted" })).toBeVisible();

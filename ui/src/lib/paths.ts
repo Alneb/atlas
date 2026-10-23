@@ -25,8 +25,7 @@ export const IMAGE_RE = /\.(png|jpe?g|gif|svg|webp|avif|bmp|ico)$/i;
 const NOTE_EXT = /\.(md|markdown|txt|page)$/i;
 
 /** A file as the interface names it: a text note without its extension (`hubbard`), every other file — a PDF, a
- *  picture, a drawing, a table — with it (`paper.pdf`). The user, 2026-10-18: "never show the extensions anywhere",
- *  then "also show the extensions of pdfs as well and basically any non text file please"; the file explorers (tree,
+ *  picture, a drawing, a table — with it (`paper.pdf`), so a note and a PDF of the same name stay apart; the file explorers (tree,
  *  explorer pane, phone list) show real names. The one place an extension is dropped: paths typed, copied or linked
  *  keep the real name. */
 export function shownName(p: string): string {

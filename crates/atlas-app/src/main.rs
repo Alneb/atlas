@@ -55,14 +55,20 @@ const WELCOME_PAGE: &str = r#"# The first screen of a fresh Atlas. This folder i
 title: Welcome
 rows:
   - [greeting]
+  - - view: vaults
+      title: Start with a vault
   - - view: text
-      title: Open your notes
+      title: What a vault is
       text: |
         Atlas works on **vaults**: plain folders of notes, papers, code and data. Each vault keeps its own
         settings, plugins and pages in its `.atlas/` folder, so a work vault and a personal one stay apart.
+        An Obsidian vault opens as it is.
 
-        Press **Ctrl+K** and run **Vault: switch, open or create…**, then type the folder's path
-        (for example `~/Notes`). It opens in its own window and is remembered for next time.
+        **New vault…** makes a folder (for example `~/Notes`); **Open a folder…** takes one you have. Atlas
+        remembers it and opens it the next time it starts. Later, **Ctrl+Alt+V** switches between vaults and
+        **F1** lists every command.
+
+        This Welcome vault is only a start page; what is written here stays in Atlas's own data folder.
 "#;
 
 /// The desktop's core for `root`: on this machine only, locked (local_lock.rs `Lock::desktop`). It serves every vault
@@ -175,12 +181,26 @@ fn remote_window(url: tauri::Url) -> anyhow::Result<()> {
                     open_outside(to.as_str());
                     tauri::webview::NewWindowResponse::Deny
                 })
-                .build()?;
+                .build()
+                .map(|w| fit_to_screen(&w))?;
             Ok(())
         })
         .build(tauri::generate_context!())?
         .run(|_, _| {});
     Ok(())
+}
+
+/// A window larger than its screen's free area (a 1366×768 laptop, a 1280×800 tablet) is shrunk into it and centred,
+/// so no edge or title bar starts off screen. A screen with room keeps the size asked for.
+fn fit_to_screen(window: &tauri::WebviewWindow) {
+    let (Ok(Some(monitor)), Ok(size)) = (window.current_monitor(), window.outer_size()) else { return };
+    let area = monitor.work_area().size;
+    if size.width <= area.width && size.height <= area.height {
+        return;
+    }
+    let fit = tauri::PhysicalSize::new(size.width.min(area.width * 95 / 100), size.height.min(area.height * 95 / 100));
+    let _ = window.set_size(fit);
+    let _ = window.center();
 }
 
 /// The window in the theme's background (tokens.css `--bg-app`) until the page paints: no white flash at start.
@@ -239,7 +259,7 @@ fn main() -> anyhow::Result<()> {
     }
     // Tauri's async runtime is tokio; the server task keeps running on it after block_on returns.
     let server = tauri::async_runtime::block_on(desktop_core(root.clone()))?;
-    // the vault list (docs/design/SHELL.md) is written here only: `atlas serve` on a throwaway folder leaves no trace
+    // the vault list (docs/guides/SHELL.md) is written here only: `atlas serve` on a throwaway folder leaves no trace
     if let Err(e) = atlas_core::vaults::remember_now(&server.info().root) {
         eprintln!("atlas-app: vault list not updated: {e}");
     }
@@ -283,6 +303,7 @@ fn main() -> anyhow::Result<()> {
                     tauri::webview::NewWindowResponse::Deny
                 })
                 .build()?;
+            fit_to_screen(&main);
             paint_before_page(&main, &vault_bg);
             // WebKitGTK silently drops a window.open that no fresh click started — and a plugin's sign-in
             // opens its page only after its helper has answered. Every request still goes through on_new_window.
@@ -582,6 +603,16 @@ fn dev_ui(core: &str, key: Option<&str>) -> anyhow::Result<DevUi> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_welcome_page_parses_and_leads_to_a_vault() {
+        let p = atlas_core::page::parse(WELCOME_PAGE).unwrap();
+        assert_eq!(p.title.as_deref(), Some("Welcome"));
+        let blocks: Vec<_> = p.rows.iter().flat_map(|r| r.columns.iter().flatten()).collect();
+        assert!(blocks.iter().any(|b| matches!(b, atlas_core::api::PageBlock::View { view, .. } if view == "vaults")), "the buttons to a vault");
+        // the keys it names are the app's (actions.ts / vaults.ts), not another program's
+        assert!(WELCOME_PAGE.contains("Ctrl+Alt+V") && !WELCOME_PAGE.contains("Ctrl+K"));
+    }
 
     #[test]
     fn the_capture_box_opens_through_the_one_time_link() {

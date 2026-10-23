@@ -118,6 +118,7 @@ registerBlock(lazyBlock("settings", "Settings page", () => import("../components
 registerBlock(lazyBlock("search", "Saved search", () => import("../components/views/SearchBlock.svelte"), (c) => ({ src: c.src })));
 registerBlock({ ...lazyBlock("review", "Review (notes waiting, one at a time)", () => import("../components/views/Review.svelte"), (c) => ({ src: c.src, doc: c.doc })), icon: "check", card: true });
 registerBlock(lazyBlock("tags", "Tags (every tag, its notes)", () => import("../components/views/Tags.svelte"), () => ({})));
+registerBlock(lazyBlock("vaults", "Vaults (new, open, switch)", () => import("../components/views/VaultsBlock.svelte"), () => ({})));
 registerBlock(lazyBlock("suggestions", "Drafted for you", () => import("../components/ToolDrafts.svelte"), () => ({ compact: true })));
 
 // --- every pane is a block ------------------------------------------------------------------------

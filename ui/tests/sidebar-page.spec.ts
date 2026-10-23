@@ -1,7 +1,7 @@
 import { test, expect, type Page } from "@playwright/test";
 import { shownName } from "../src/lib/paths";
 
-// The shell as files, second half (docs/design/SHELL.md): bookmarks and pins live in `.atlas/bookmarks.yaml`,
+// The shell as files, second half (docs/guides/SHELL.md): bookmarks and pins live in `.atlas/bookmarks.yaml`,
 // and the sidebar is a page of blocks (`.atlas/sidebar.page`) that can be rearranged like any page.
 const FILES = { bookmarks: ".atlas/bookmarks.yaml", sidebar: ".atlas/sidebar.page" };
 const side = (page: Page) => page.getByTestId("sidebar");

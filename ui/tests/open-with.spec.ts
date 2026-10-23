@@ -1,7 +1,7 @@
 import { test, expect, type Page, type APIRequestContext } from "@playwright/test";
 import { shownName } from "../src/lib/paths";
 
-// Open with… (docs/design/MALLEABLE.md R2): one file, many views — Atlas's own and plugin panes that declare
+// Open with… (docs/guides/MALLEABLE.md R2): one file, many views — Atlas's own and plugin panes that declare
 // `opens`; "always" makes it the default for the extension ([files] open_with).
 const H = { "x-atlas": "1" };
 const put = (r: APIRequestContext, path: string, text: string) => r.put("/api/file", { headers: H, data: { path, text } });

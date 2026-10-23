@@ -4,6 +4,8 @@ description = "The OCR plugin's helper: a screenshot's text read on this machine
 version = "0.1.0"
 edition.workspace = true
 license.workspace = true
+authors.workspace = true
+repository.workspace = true
 
 # Built into the plugin's bin/<target>/ by build.sh, like the catalog's engine. Tesseract and Leptonica are compiled
 # into it (kreuzberg-tesseract, static); each language's model (a few MB) is fetched once through the core into the

@@ -1,4 +1,4 @@
-// Bookmarks (docs/design/SHELL.md): `.atlas/bookmarks.yaml`, a plain file of the vault.
+// Bookmarks (docs/guides/SHELL.md): `.atlas/bookmarks.yaml`, a plain file of the vault.
 //   pins:       the tiles at the top of the sidebar (Ctrl+1…8 reach them)
 //   bookmarks:  a list for the sidebar and the palette; each is also a command (`bookmark.<name>`),
 //               so it can have a shortcut

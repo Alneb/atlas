@@ -4,6 +4,8 @@ description = "Pure helpers shared by the core and the plugin engines: frontmatt
 version = "0.1.0"
 edition.workspace = true
 license.workspace = true
+authors.workspace = true
+repository.workspace = true
 
 # No I/O beyond resolving a path, no core types: the core re-exports these, the engines (catalog-papers) link them,
 # so one implementation serves both (docs/refactor/REFACTOR-references-plugin.md).

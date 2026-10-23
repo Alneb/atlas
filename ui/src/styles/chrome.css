@@ -1,6 +1,6 @@
 /* Shell chrome of the vertical-tabs layout (docs/design/VERTICAL-TABS.md; calm, SilverBullet-inspired):
    no tab strips, a quiet title bar on each editor, soft group cards whose focus shows only when
-   the window is split. Chrome only: note rendering (LOOK-PARITY.md) is not touched here. */
+   the window is split. Chrome only: note rendering is not touched here. */
 .vtabs .dockview-theme-atlas .dv-groupview { box-shadow: none; transition: border-color .15s; }
 .vtabs.split .dockview-theme-atlas .dv-groupview.dv-active-group { border-color: color-mix(in srgb, var(--accent) 38%, var(--border-strong)); }
 .vtabs:not(.split) .dockview-theme-atlas .dv-groupview.dv-active-group { border-color: var(--border); }

@@ -30,7 +30,7 @@ pub struct Config {
     /// a path is that entry and what is under it (`refs/zotero`); a leading `/` means "only at the
     /// vault's root" (`/runs` skips the top-level `runs` but not `notes/runs`).
     pub ignore: Vec<String>,
-    /// Vim keybindings in the editor.
+    /// Vim keybindings in the editor. Off by default, as in Obsidian: a newcomer's keys type text.
     pub vim: bool,
     pub ui: UiConfig,
     pub editor: EditorConfig,
@@ -72,7 +72,7 @@ pub enum CaptureMode {
     Note,
 }
 
-/// Notes: capture, and new notes from templates (docs/design/NOTES-SYSTEM.md).
+/// Notes: capture, and new notes from templates (docs/guides/NOTES-SYSTEM.md).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS, JsonSchema)]
 #[serde(default)]
 #[ts(export)]
@@ -219,8 +219,8 @@ pub struct UiConfig {
     /// Where the side panel (files, search, outline, git) shows: its own column beside the editors
     /// (`dock`), or inside the left bar, under the list of tabs (`sidebar`; vertical tabs only).
     pub side_panel: SidePanelPlace,
-    /// Motion: `instant` (no transitions or fades: the interface changes at once — the user found
-    /// it "much better") or `full`. The swipe and history signs and loading spinners move either way.
+    /// Motion: `instant` (no transitions or fades: the interface changes at once) or `full`. The swipe and history
+    /// signs and loading spinners move either way.
     pub motion: Motion,
     /// E-ink screens (a Boox and the like): pure black on white, no motion, no shadows, no tints that only say
     /// something in colour, links underlined. `auto` turns it on where the screen is one — the phone app on a Boox, or
@@ -697,7 +697,7 @@ impl Default for Config {
             focus: "FOCUS.md".into(),
             home: "Home.page".into(),
             ignore: ["runs", "lib", "archive", "node_modules", "target", ".git"].map(String::from).to_vec(),
-            vim: true,
+            vim: false,
             ui: UiConfig::default(),
             editor: EditorConfig::default(),
             terminal: TerminalConfig::default(),
@@ -938,7 +938,7 @@ mod tests {
         std::fs::write(dir.path().join(CONFIG_FILE), "log_dir = \"notes/log\"\n").unwrap();
         assert_eq!(Config::load(dir.path()).unwrap().log_dir, "notes/log");
         assert_eq!(c.focus, "FOCUS.md");
-        assert!(c.vim);
+        assert!(!c.vim, "vim is asked for, never assumed");
         assert!(c.ignore.contains(&"node_modules".to_string()));
     }
 
@@ -946,10 +946,10 @@ mod tests {
     fn partial_file_keeps_other_defaults() {
         let dir = tempfile::tempdir().unwrap();
         std::fs::create_dir_all(dir.path().join(".atlas")).unwrap();
-        std::fs::write(dir.path().join(CONFIG_FILE), "log_dir = \"journal\"\nvim = false\n").unwrap();
+        std::fs::write(dir.path().join(CONFIG_FILE), "log_dir = \"journal\"\nvim = true\n").unwrap();
         let c = Config::load(dir.path()).unwrap();
         assert_eq!(c.log_dir, "journal");
-        assert!(!c.vim);
+        assert!(c.vim);
         assert_eq!(c.focus, "FOCUS.md");
         assert_eq!(c.ignore, Config::default().ignore);
     }

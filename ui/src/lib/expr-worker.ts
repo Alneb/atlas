@@ -1,4 +1,4 @@
-// Where inline expressions run (docs/design/EXPRESSIONS.md): a worker of their own, so a slow or broken one
+// Where inline expressions run (docs/guides/EXPRESSIONS.md): a worker of their own, so a slow or broken one
 // cannot freeze the app, with the worker's doors to the network and to storage closed first. What an
 // expression may know arrives as plain data; what it may ask for goes through `call` to the app.
 /// <reference lib="webworker" />

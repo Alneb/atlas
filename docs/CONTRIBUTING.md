@@ -30,7 +30,7 @@ Rust (stable), Node 20+, and on Linux the WebKitGTK development packages Tauri n
 paths, the Rust tests, clippy with warnings as errors, the Svelte / TypeScript types, the production
 build, and the end-to-end tests on a throwaway vault. The verdict is that table — not an exit code
 that went through a pipe. After a change to the editor or to markdown, also `gate.sh audit` (Obsidian
-fidelity on a copy of real notes) and compare with [MD-RENDERING.md](decisions/MD-RENDERING.md).
+fidelity on a copy of real notes) and compare with [MD-RENDERING.md](guides/MD-RENDERING.md).
 
 The gate takes about six minutes. Do not wait for it: start it and work on the next thing, touching
 no sources until its log reaches the end-to-end stage.
@@ -52,6 +52,7 @@ no sources until its log reaches the end-to-end stage.
 
 ## Commits
 
-Name the files you add (`git add -- <paths>`, not `-A`), a first line that says what changed for the
-person using Atlas, a body with the why, then `bash docs/scripts/update-history.sh` (it regenerates
-[HISTORY.md](HISTORY.md)). Nothing is pushed without the owner asking.
+Name the files you add (`git add -- <paths>`, not `-A`). The first line follows
+[Conventional Commits](https://www.conventionalcommits.org/) (`fix(editor): tables keep their column widths`) and says
+what changed for the person using Atlas; the body gives the why. Run `bash scripts/dev/gate.sh` before opening a pull
+request, and add a line to [CHANGELOG.md](CHANGELOG.md) under "Unreleased" for a change people will notice.

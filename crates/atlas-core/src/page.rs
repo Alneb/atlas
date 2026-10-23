@@ -1,4 +1,4 @@
-//! Pages (`.page`, docs/design/MALLEABLE.md): a layout file that is not markdown — rows of blocks and
+//! Pages (`.page`, docs/guides/MALLEABLE.md): a layout file that is not markdown — rows of blocks and
 //! columns of blocks, each block a Today part, a view, an embedded note, a base or free text. The
 //! home screen is one (`Home.page`), so the dashboard the user liked is a file they can reshape.
 //! ```yaml

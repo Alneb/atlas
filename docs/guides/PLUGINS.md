@@ -43,7 +43,7 @@ dir = "runs"
   Each plugin becomes a palette command (`plugin.<id>`), a rail button after the built-ins, and a `plugin`
   pane (`{ kind: "plugin", id, title, icon }` — title/icon travel in the spec so restored layouts label the tab).
 
-## API v2 — the shared context and the data substrate (2026-10-07, docs/design/MALLEABLE.md R3)
+## API v2 — the shared context and the data substrate (2026-10-07, docs/guides/MALLEABLE.md R3)
 Additive; v1 plugins keep working.
 - `context()` → a snapshot of what the user is looking at: `active` / `open` panes, the editor `selection`
   (path, lines, text), the caret's `section` (`{ path, heading, line }`), and `hover` (`{ path, line?, source }`).
@@ -81,7 +81,7 @@ Do not open a workspace you did not create without reading its `.atlas/`.
 
 
 ## v3 — pieces, not apps (2026-10-08)
-Full design and measurements: [REFACTOR-plugins-v3.md](../refactor/REFACTOR-plugins-v3.md). In short:
+In short:
 - `main.js` with `export function register(atlas)` runs at startup and **again on every save**. It registers blocks
   (`registerBlock("runs.plot", (host, {options, note, props}) => cleanup, {title?, options?})` — `options` lists the block's options as form fields, `{ key, label, hint?, kind }` with `kind` one of `text`, `number`, `toggle`, `list` (comma-separated, written as a YAML list) or `choice` (with `choices: [...]`); a page then offers "Options…" for the block), commands (`registerCommand`) and entity
   kinds. All of it is undone on reload or switch-off.
@@ -137,7 +137,7 @@ Zotero moves to a plugin as well, and the leftmost panel separates the core icon
 | `helper-python/` | a plugin with a helper process: the protocol in 40 lines of Python that keep a cache between calls, events while a call runs, a status cell, a reaction to `file:save` |
 
 
-The whole design, with what is still a proposal: [REFACTOR-plugins-v4.md](../refactor/REFACTOR-plugins-v4.md). Built so far:
+Built so far:
 
 - **`atlas.shell.menu(where, fn)`** — rows in the app's right-click menus. `where` is `"file"` (the file tree), `"tab"` (a tab or a pin in the left bar), `"editor"` (the text), `"block"` (a block's menu on a page) or `"terminal"` (the terminal's "+" menu, under Shell and Claude session: the SSH plugin puts one row per host there). `fn(target)` returns the rows for what was clicked, or nothing; `target` is `{ path, dir }` for a file, `{ path?, kind }` for a tab, `{ path, selection }` for the editor, `{ type, note }` for a block. A row is `{ label, run, icon?, hint?, detail?, danger?, disabled? }` (`icon`: an app icon name, ignored when unknown). Plugin rows come after the app's, under a separator; a builder that throws loses only its own rows (the error is in the console). Undone on reload and switch-off like every registration. Code: `ui/src/lib/plugin-menus.ts` (the lists and `pluginMenu(place, target)`), one `...pluginMenu(…)` in each of the four menu builders. Test: `plugin-menus.spec.ts`. Example: `plugins/examples/wordcount/main.js`.
 - **`atlas.shell.statusItem({ id, text, title?, run? })`** — a cell in the status bar, left of the vim mode. With `run` it is a button. It returns `{ set(text, title?), remove() }`; the cell goes away on reload or switch-off. Text longer than 28 characters is cut with an ellipsis: a status cell is a word or a number, not a sentence. Code: `ui/src/lib/plugin-status.svelte.ts` (the list) and `StatusBar.svelte` (draws it). Same test.
@@ -148,7 +148,7 @@ The whole design, with what is still a proposal: [REFACTOR-plugins-v4.md](../ref
   - `atlas plugin remove <id>` (or ✕): the folder moves to `.atlas/trash/`. **Nothing is ever deleted** by these commands.
   - `atlas plugin list`: each plugin, on / off / broken, its version, what it may do, and where it was installed from (so `atlas plugin update <id>` can be run on it).
   - Code: `crates/atlas-core/src/plugin_install.rs`; the CLI in `crates/atlas/src/main.rs`; routes `POST /api/plugins/install`, `/api/plugins/{id}/update`, `/api/plugins/{id}/remove`. Tests: three in `plugin_install.rs` (folder, update keeping settings, archive, and git with a local repository), `plugin-install.spec.ts`.
-- **`atlas.helper` — a program of the plugin's own that stays running.** This is the answer to *"you could make plugins execute code so that they are fast"*: a plugin names a program in its manifest, in any language, and the core runs it for as long as the plugin is used.
+- **`atlas.helper` — a program of the plugin's own that stays running.** It lets a plugin run code of its own, for speed: a plugin names a program in its manifest, in any language, and the core runs it for as long as the plugin is used.
   ```toml
   [helper]
   run = "python3 -u \"$ATLAS_PLUGIN_DIR/helper.py\""   # or a compiled binary in the plugin folder

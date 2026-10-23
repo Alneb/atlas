@@ -37,7 +37,7 @@ pub(crate) struct Parsed {
 }
 
 /// Notes larger than this give no unlinked mentions. The text itself is never kept: it was 39 of the index's 47 MB
-/// on a large real vault; [`unlinked`] reads it again from disk (docs/decisions/PERFORMANCE.md).
+/// on a large real vault; [`unlinked`] reads it again from disk.
 const TEXT_BYTES: u64 = 1 << 20;
 
 /// Each note's parse, shared: a request takes the index by `Arc`, and a rebuild reuses every unchanged note's entry.

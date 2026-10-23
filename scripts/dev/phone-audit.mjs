@@ -1,5 +1,5 @@
-// The phone layout's look, audited (docs/guides/MOBILE.md, "The shape audit"). The user, 2026-10-16: "the main thing about the
-// mobile app is things streteched because of the change in shape everythin must look perfect". Opens every place of
+// The phone layout's look, audited (docs/guides/MOBILE.md, "The shape audit"): nothing may stretch or break
+// when the screen's shape changes. Opens every place of
 // Atlas on a phone-shaped Chromium (the engine of Android's WebView) — as the phone app's note view (a fake
 // `AtlasNative` bridge: the page hides its own bars) and as a phone's browser, portrait and landscape, both themes —
 // and flags by shape, not by a list of components: what runs off the screen sideways, media drawn out of their

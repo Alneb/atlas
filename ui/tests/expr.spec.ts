@@ -1,7 +1,7 @@
 import { test, expect, type Page } from "@playwright/test";
 import { scopeAt, lineOf } from "../src/lib/section-props";
 
-// Notes that compute (docs/design/EXPRESSIONS.md): inline code that starts with `=` shows its value, in the
+// Notes that compute (docs/guides/EXPRESSIONS.md): inline code that starts with `=` shows its value, in the
 // editor and in the reading view; `key:: value` lines are properties of their section, inherited by
 // the sections inside it.
 const H = { "x-atlas": "1" };

@@ -1,8 +1,7 @@
 # Atlas — architecture and the v0 API contract
 
 Atlas is a personal desktop workspace app: Obsidian + Notion + Zotero + VS Code + a Claude Code
-terminal, in one window, over **plain files**. Principles: [PHILOSOPHY.md](PHILOSOPHY.md). Reuse
-verdicts: [DECISION-obsidian-web-reuse.md](decisions/DECISION-obsidian-web-reuse.md).
+terminal, in one window, over **plain files**. Principles: [PHILOSOPHY.md](PHILOSOPHY.md).
 
 ## Shape
 ```
@@ -130,7 +129,7 @@ Known gaps: `/api/raw` reads whole files (no Range); watcher ignore list read on
     re-discovered per call, so opening/closing the window mid-conversation works. Register it in a workspace's
     `.mcp.json` as `{"mcpServers": {"atlas": {"command": "atlas", "args": ["mcp"]}}}`.
     Also `atlas_templates` and `atlas_new_note` (a note from one of the vault's templates at
-    an exact path, properties set from `fields`, an existing path refused; docs/design/NOTES-SYSTEM.md), and the
+    an exact path, properties set from `fields`, an existing path refused; docs/guides/NOTES-SYSTEM.md), and the
     instructions the server sends at `initialize` (`INSTRUCTIONS` in `crates/atlas/src/mcp.rs`) tell agents to
     create notes that way and name the SSH plugin's `ssh_terminal` for a visible terminal tab. Every switched-on
     plugin's `[[tool]]`s follow the built-in ones (`plugin_tools.rs`; docs/guides/PLUGIN-API.md).
@@ -144,7 +143,7 @@ Chromium binary if Playwright's pinned browser is not downloaded). Verified by h
 returns the state PUT into a live server on a real vault.
 
 
-### Session-110 additions (rounds 2–6 of the user's feedback)
+### Later additions (rounds 2–6 of feedback)
 17. **Settings are generated** from the Config JSON schema (schemars; doc comments = descriptions);
     `GET/PUT /api/config` (toml_edit: only changed keys, comments kept), `GET /api/config/suggestions`
     (detect.rs: claude installs/accounts, fonts, VS Code themes, LaTeX Suite snippet files; cached 5 min).
@@ -177,7 +176,7 @@ returns the state PUT into a live server on a real vault.
 - Pane kind `excalidraw {path}`; `specForPath` routes `.excalidraw` to it. An `.rnote` is an input: the Rnote plugin
   claims it (`claims = ["*.rnote"]`, its view converts it into an `.excalidraw` beside it and opens that). The core's
   Rnote pane, its `draw.rnote_open` / `draw.rnote_export` built-ins and `[draw] rnote_*` settings were removed
-  (REFACTOR-core-to-plugins.md #4).
+ .
 - Settings `[pdf]` and `[draw]`.
 - Playwright isolation: `ATLAS_PW_WS`, `ATLAS_PW_PORT`.
 

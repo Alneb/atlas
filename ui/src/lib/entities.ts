@@ -1,4 +1,4 @@
-// Mention entities (docs/design/MALLEABLE.md R4): what `@id` in a note points at. Papers come from the
+// Mention entities (docs/guides/MALLEABLE.md R4): what `@id` in a note points at. Papers come from the
 // Library; plugins add kinds by prefix (`@run:…`). Kept free of CodeMirror: plugins load at startup,
 // the editor does not (editor/mentions.ts draws the chips).
 import { api } from "./api";

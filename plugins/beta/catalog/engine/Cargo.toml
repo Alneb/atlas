@@ -4,6 +4,8 @@ description = "The catalog meta plugin's helper: recognise → fetch → merge �
 version = "0.1.0"
 edition.workspace = true
 license.workspace = true
+authors.workspace = true
+repository.workspace = true
 
 # Built static (x86_64-unknown-linux-musl) into the plugin's bin/<target>/ so the same file runs on the desktop, in the
 # server's container and (compiled into the APK) on the phone. The network goes through the core, never from here.

@@ -21,7 +21,7 @@ A companion note is written only by the feature's own path (keeping mail from th
 
 ## 3. Integrations are plugins; the core is generic
 
-Email, SSH, Linkwarden, Zotero sync, Claude usage — and AI agents, each agent its own plugin over the one generic MCP server (docs/refactor/REFACTOR-agents-as-plugins.md) — are plugins (docs/guides/PLUGIN-API.md). The core offers generic pieces: files, blocks, the MCP server any agent can use, terminals, the settings form. A plugin's settings appear in Settings; every new feature is reflected there.
+Email, SSH, Linkwarden, Zotero sync, Claude usage — and AI agents, each agent its own plugin over the one generic MCP server — are plugins (docs/guides/PLUGIN-API.md). The core offers generic pieces: files, blocks, the MCP server any agent can use, terminals, the settings form. A plugin's settings appear in Settings; every new feature is reflected there.
 
 ## 4. Obsidian-compatible, Thunderbird-grade, the owner's habits
 

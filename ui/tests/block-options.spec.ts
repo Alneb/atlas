@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
 
-// A block's options as a form (docs/design/PAGES.md): the page's block menu → "Options…" draws the fields
+// A block's options as a form (docs/guides/PAGES.md): the page's block menu → "Options…" draws the fields
 // the block declares; saving writes them into the `.page` file, an emptied field leaves the file.
 const H = { "x-atlas": "1" };
 

@@ -2,7 +2,13 @@
   "name": "atlas-ui",
   "private": true,
   "license": "AGPL-3.0-or-later",
-  "version": "0.0.0",
+  "author": "alneb",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Alneb/atlas.git",
+    "directory": "ui"
+  },
+  "version": "0.1.0",
   "type": "module",
   "scripts": {
     "dev": "vite",

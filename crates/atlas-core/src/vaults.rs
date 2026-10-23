@@ -1,4 +1,4 @@
-//! Vaults (docs/design/SHELL.md): the folders the user works in, like Obsidian's vault list. A vault is
+//! Vaults (docs/guides/SHELL.md): the folders the user works in, like Obsidian's vault list. A vault is
 //! any folder; everything specific to it (plugins, settings, pages, workspaces) lives in its own
 //! `.atlas/`, so the work vault and a personal vault share nothing but the app.
 //!
@@ -255,7 +255,11 @@ mod tests {
         assert!(throwaway(tmp.path()), "under the temp folder");
         let repo = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap().parent().unwrap(); // the workspace: Cargo.toml
         assert!(throwaway(&repo.join("target/probe-vault-phone")), "a probe copy in target/");
-        assert!(!throwaway(&repo.join("docs")), "a folder of a project is not");
+        // (a checkout that itself sits in another project's target/, as the publishing check's clone does, is throwaway)
+        if !throwaway(repo) {
+            assert!(!throwaway(&repo.join("docs")), "a folder of a project is not");
+        }
+        assert!(!throwaway(Path::new("/home/u/project/target/x")), "a target/ without a Cargo.toml beside it is not");
         assert!(!throwaway(Path::new("/srv/vaults/Work")));
     }
     use super::*;

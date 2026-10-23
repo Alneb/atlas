@@ -1,4 +1,4 @@
-// Layouts as files (docs/design/SHELL.md). Two kinds, both plain JSON of the dock (which tabs, where):
+// Layouts as files (docs/guides/SHELL.md). Two kinds, both plain JSON of the dock (which tabs, where):
 //   .atlas/cache/layout.json        the current layout, saved as it changes and restored on start —
 //                                   per machine, deletable; the browser and the desktop app share it
 //   .atlas/workspaces/<name>.json   a named arrangement the user saved ("Read paper", "Write"):

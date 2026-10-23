@@ -223,7 +223,7 @@ export const api = {
   home: () => request<import("./gen/HomeDoc").HomeDoc>("GET", "/api/home"),
   /** The usage journal (core usage.rs): fire-and-forget, never in the way of what the user did. */
   usage: (e: import("./gen/UsageEvent").UsageEvent) => { void request<void>("POST", "/api/usage", { body: e }).catch(() => {}); },
-  /** Tools Atlas drafted from how the workspace is used (docs/design/MALLEABLE.md R5); nothing is written until kept. */
+  /** Tools Atlas drafted from how the workspace is used (docs/guides/MALLEABLE.md R5); nothing is written until kept. */
   toolDrafts: () => request<import("./gen/ToolDraft").ToolDraft[]>("GET", "/api/tools/suggestions"),
   keepTool: (id: string) => request<string[]>("POST", "/api/tools/keep", { body: { id } }),
   dismissTool: (id: string) => request<void>("POST", "/api/tools/dismiss", { body: { id } }),

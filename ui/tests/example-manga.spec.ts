@@ -154,7 +154,7 @@ test("manga on e-ink: a refresh asked on each page turn (flash_every = 1)", asyn
   await expect(pane.locator(".m-num")).toHaveText("2 / 3");
 });
 
-// The user's Suwayomi (plugins/beta/manga/suwayomi.js; its GraphQL API as the user's server answers it, 2026-10-20): a
+// The user's Suwayomi (plugins/beta/manga/suwayomi.js; its GraphQL API as a real server answers it): a
 // stand-in server with one series of two chapters; its library beside the vault's, a chapter read from it page by page,
 // where you are written back with updateChapter, and the Libraries page's Comics listing both.
 test("Suwayomi: its library beside the vault's, a chapter read from it, where you are written back", async ({ page, request }) => {
@@ -241,7 +241,7 @@ test("on the phone the library is the page's, and a chapter is handed to the app
 });
 
 test("a Suwayomi error is one line, and a source gone says what to do", () => {
-  // the user's capture (2026-10-21): the reader showed Suwayomi's whole Java stack trace
+  // a capture from a phone: the reader showed Suwayomi's whole Java stack trace
   const trace = "Exception while fetching data (/fetchChapterPages) : Source not installed: 1998944621602463790\n\nsuwayomi.tachidesk.manga.impl.util.source.StubSource$SourceNotInstalledException: Source not installed: 1998944621602463790\n\tat suwayomi.tachidesk.manga.impl.util.source.StubSource.getPageList(StubSource.kt:65)";
   expect(said(trace)).toBe("this series' source is not installed in Suwayomi (source 1998944621602463790): install its extension in Suwayomi's Extensions, or migrate the series to another source");
   expect(said("Exception while fetching data (/x) : boom\n\tat a.B.c(B.kt:1)")).toBe("Suwayomi: Exception while fetching data (/x) : boom");

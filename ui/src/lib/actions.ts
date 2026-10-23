@@ -172,7 +172,7 @@ export async function sendToAgent(): Promise<void> {
   toast("The agent is not ready yet", `Type it yourself: ${fillSelection(first.send_selection ?? "", path, lines)}`, "info", 8000);
 }
 
-/** Open with…: every view that can show the file, plus "always open .ext with…" (docs/design/MALLEABLE.md R2). */
+/** Open with…: every view that can show the file, plus "always open .ext with…" (docs/guides/MALLEABLE.md R2). */
 export function openWith(path?: string): void {
   const file = path ?? context.active?.path;
   if (!file) { toast("Open with…", "Open or select a file first."); return; }

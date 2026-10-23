@@ -1,6 +1,6 @@
 //! A reference's fields live in its note's properties: `<refs.dir>/<key>/<key>.md`. Zotero's field names are kept, except four the note already uses for its own meaning (RENAMED). The rest of
 //! the crate sees Zotero-shaped mappings, as `info.yaml` had them; an `info.yaml` not folded yet is still read, and the
-//! first write folds it into the note. docs/refactor/REFACTOR-science-library.md, "Fields in the note"; moved out of
+//! first write folds it into the note. Moved out of
 //! the core with the rest of References (REFACTOR-references-plugin.md).
 use atlas_text::frontmatter::{remove_property, set_property};
 use serde_yaml::{Mapping, Value};

@@ -1,5 +1,5 @@
 <script lang="ts">
-  // The sidebar's frame (docs/design/SHELL.md): the vault's name, then the blocks `.atlas/sidebar.page` lists
+  // The sidebar's frame (docs/guides/SHELL.md): the vault's name, then the blocks `.atlas/sidebar.page` lists
   // (lib/sidebar.svelte.ts). Collapses to icons (expands while hovered), resizes by its edge.
   import { onMount } from "svelte";
   import { app } from "../lib/state.svelte";

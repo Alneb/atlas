@@ -3,8 +3,7 @@ import type { IBufferCell, IBufferLine } from "@xterm/xterm";
 import { linksOn, runAround } from "../src/lib/terminal-text";
 import { wikilinksIn } from "../src/lib/wikilink-syntax";
 
-// The user (2026-10-21, from Claude in an Atlas terminal): "can you make the terminal here read [[]] as wikilinks".
-// A `[[note]]` printed in a terminal is a link: the pointer on it previews the note (its path on top), a click
+// A terminal reads [[…]] as wikilinks (an agent's output names notes this way). A `[[note]]` printed in a terminal is a link: the pointer on it previews the note (its path on top), a click
 // opens it; a link to no note says so in the editor's unresolved colour.
 
 /** A fake buffer: one string per row, `~` at a row's start marks it a soft-wrapped continuation. */

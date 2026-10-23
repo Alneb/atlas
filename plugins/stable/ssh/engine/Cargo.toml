@@ -4,6 +4,8 @@ description = "The SSH plugin's helper: long-lived shells on the user's hosts fo
 version = "0.1.0"
 edition.workspace = true
 license.workspace = true
+authors.workspace = true
+repository.workspace = true
 
 # OpenSSH does the connecting (ssh, sftp, ControlMaster): this is the bookkeeping around it, in place of session.py,
 # sftp.py and hosts.py. Built static (musl) into the plugin's

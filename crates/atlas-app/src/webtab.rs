@@ -214,7 +214,7 @@ fn context() -> WebContext {
     }
     let context = WebContext::with_website_data_manager(&manager);
     // a browser's back / forward and some page cache, not a full browser's memory caches: every web tab shares this
-    // context, and each is a WebKit process of its own (decisions/PERFORMANCE.md "Memory")
+    // context, and each is a WebKit process of its own
     context.set_cache_model(webkit2gtk::CacheModel::DocumentBrowser);
     context
 }

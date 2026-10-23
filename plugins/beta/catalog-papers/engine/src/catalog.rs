@@ -239,6 +239,10 @@ pub fn add(lib: &Lib, params: &Value, sources_of: &dyn Fn() -> Res<Map<String, V
         let sources = pdf_sources(&sources_of().unwrap_or_default(), &lib.cfg.pdf_order);
         found = find_pdf(ask, &|file, from| lib.attach_pdf(&key, file, from).map(drop), &sources, &paper);
     }
+    // a publisher's copy behind its login is offered only now, when nothing else had the PDF
+    if let Some(u) = added.gate.as_deref().filter(|_| !found.pdf) {
+        lib.net.offer_signin(u);
+    }
     let mut out = json!({ "path": lib.note(&key)?, "created": added.created, "pdf": found.pdf });
     if let Some(from) = &found.from {
         out["notice"] = format!("PDF from {from}").into();
@@ -251,7 +255,7 @@ pub fn add(lib: &Lib, params: &Value, sources_of: &dyn Fn() -> Res<Map<String, V
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::net::fake::{Answer, Table};
+    use crate::net::fake::{Answer, Table, GATE};
     use crate::refs::tests::Vault;
     use std::cell::RefCell;
 
@@ -381,5 +385,27 @@ mod tests {
         let lib = v.lib();
         let r = add(&lib, &json!({ "ids": { "doi": "10.1/x" } }), &|| Ok(Map::new()), &|_, _| panic!("not asked")).unwrap();
         assert_eq!((r["pdf"].as_bool(), r.get("notice")), (Some(false), None));
+    }
+
+    /// gull2015quasiparticle (2026-10-21): PRL's copy stood behind its login, OpenAlex's open copy came — no sign-in
+    /// offered. With only the publisher's copy, its sign-in is offered once, after every try.
+    #[test]
+    fn a_publishers_sign_in_is_offered_only_when_no_copy_came() {
+        let work = |locations: Value| json!({ "ids": { "doi": "https://doi.org/10.1/x" }, "locations": locations });
+        let gated = json!({ "pdf_url": "https://journals.aps.org/prl/pdf/x" });
+        for (locations, pdf, offered) in [
+            (json!([gated, { "pdf_url": "https://repo.org/x.pdf" }]), true, vec![]),
+            (json!([gated]), false, vec!["https://journals.aps.org/prl/pdf/x".to_string()]),
+        ] {
+            let mut v = Vault::new();
+            v.net = Table::default()
+                .on("https://api.crossref.org/", Answer::Json(json!({ "message": { "title": ["Kinks"] } })))
+                .on("https://api.openalex.org/", Answer::Json(work(locations)))
+                .on("https://journals.aps.org/", Answer::Text(GATE.into()))
+                .on("https://repo.org/", Answer::Bytes(b"%PDF-1.4 open".to_vec()));
+            let r = add(&v.lib(), &json!({ "ids": { "doi": "10.1/x" } }), &|| Ok(Map::new()), &|_, _| panic!("no sources")).unwrap();
+            assert_eq!(r["pdf"].as_bool(), Some(pdf));
+            assert_eq!(*v.net.offered.borrow(), offered);
+        }
     }
 }

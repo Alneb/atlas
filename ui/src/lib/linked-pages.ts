@@ -52,6 +52,6 @@ export async function fillLinked(elements: readonly El[], have: Record<string, u
       }
     }
   } finally {
-    for (const d of docs.values()) void d.then((doc) => doc.loadingTask.destroy(), () => {});
+    for (const d of docs.values()) void d.then(async (doc) => (await import("./pdf")).closePdf(doc), () => {});
   }
 }

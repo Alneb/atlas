@@ -2,7 +2,7 @@
   import { errText } from "../../lib/text";
   import { shownName, shownPath } from "../../lib/paths";
   import { superOf } from "../../lib/keys";
-  // The `review` block (docs/design/NOTES-SYSTEM.md): notes waiting to be looked at, one at a time — an inbox
+  // The `review` block (docs/guides/NOTES-SYSTEM.md): notes waiting to be looked at, one at a time — an inbox
   // of fleeting notes, or anything asked to come back later. Each answer is one property written to
   // the note (`review:` a date or "done", `review_interval:` days), so the queue is in the files.
   //   type: review

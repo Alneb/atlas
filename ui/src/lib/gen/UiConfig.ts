@@ -55,8 +55,8 @@ tabs: TabsLayout,
  */
 side_panel: SidePanelPlace, 
 /**
- * Motion: `instant` (no transitions or fades: the interface changes at once — the user found
- * it "much better") or `full`. The swipe and history signs and loading spinners move either way.
+ * Motion: `instant` (no transitions or fades: the interface changes at once) or `full`. The swipe and history
+ * signs and loading spinners move either way.
  */
 motion: Motion, 
 /**

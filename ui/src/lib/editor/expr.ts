@@ -1,4 +1,4 @@
-// Inline expressions and section properties in the editor (docs/design/EXPRESSIONS.md):
+// Inline expressions and section properties in the editor (docs/guides/EXPRESSIONS.md):
 //   `= days(note.due)`   inline code that starts with `=` shows its value; the source comes back while
 //                        the caret is in it. Right-click the value: copy it, or freeze it as text.
 //   key:: value          a property of the section it is in; the key is dimmed so the value reads first

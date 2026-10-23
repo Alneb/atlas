@@ -11,4 +11,4 @@ and versions follow [Semantic Versioning](https://semver.org/) once 1.0 is out.
 - Packages for Linux: AppImage, `.deb`, `.rpm` and Flatpak, built by the Release workflow.
 - `AGENTS.md`: rules for AI coding agents working in the repository, and a `tidy` stage in the gate.
 - [Plugin maturity](guides/PLUGIN-MATURITY.md): what beta and stable promise, and the criteria for stable.
-- [Porting study](decisions/PORTING-windows-macos.md) for Windows and macOS.
+- Porting study for Windows and macOS.

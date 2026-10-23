@@ -216,6 +216,21 @@ fn workspace_root(flag: Option<PathBuf>) -> Result<PathBuf> {
     Ok(workspace::find_root(&cwd).unwrap_or(cwd))
 }
 
+/// The folder `atlas serve` serves when none is named: the vault around the current folder, or the current folder —
+/// never the home folder itself, which a newcomer's first `atlas serve` would otherwise index whole and write into.
+fn serve_root(flag: Option<PathBuf>) -> Result<PathBuf> {
+    let root = workspace_root(flag.clone())?;
+    let home = std::env::var_os("HOME").map(PathBuf::from).and_then(|h| h.canonicalize().ok());
+    let is_home = home.is_some_and(|h| root.canonicalize().is_ok_and(|r| r == h));
+    if flag.is_none() && is_home && !root.join(".atlas").is_dir() {
+        anyhow::bail!("no vault here: name the folder to serve, e.g. `atlas serve ~/Notes` (a new folder becomes a new vault)");
+    }
+    if !root.join(".atlas").is_dir() {
+        eprintln!("atlas: {} is not a vault yet: Atlas adds its .atlas/ folder and a Home.page there", root.display());
+    }
+    Ok(root)
+}
+
 /// A live server for this workspace: `server.json` exists, and the port answers for our root.
 pub(crate) struct Server {
     base: String,
@@ -450,7 +465,7 @@ async fn main() -> Result<()> {
         } else {
             Vaults::One(match dir {
                 Some(d) => d.clone(),
-                None => workspace_root(cli.workspace.clone())?,
+                None => serve_root(cli.workspace.clone())?,
             })
         };
         if let Vaults::Many(list) = &what {

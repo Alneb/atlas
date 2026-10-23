@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { WS } from "../../playwright.config";
 
 /** A plugin's secret as the core stored it — read from the store's files (`${WS}-secrets`, outside the vault), since a
- *  page may not read a secret's value back (403: docs/refactor/REFACTOR-plugins-server-side.md, step 1). */
+ *  page may not read a secret's value back (403: docs/guides/PLUGIN-API.md). */
 export function storedSecret(plugin: string, name: string): string | null {
   const dir = `${WS}-secrets`;
   let files: string[] = [];

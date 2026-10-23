@@ -2,7 +2,7 @@
 //! so the plugin's `net` permissions apply), a new entry's note, the Trash, captures and the plugin's settings.
 use crate::connector::Host;
 use crate::entry::{self, Companion};
-use crate::net::{only_pdf, Net};
+use crate::net::{only_pdf, Miss, Net};
 use crate::refs::{Res, Trash};
 use crate::settings::Settings;
 use atlas_plugin::{q, Atlas, Verb};
@@ -38,6 +38,15 @@ impl CoreApi {
 
     /// `fetch` with an `Authorization` header from the plugin's secret (`(name, prefix)`), filled in by the core.
     fn fetch_with(&self, url: &str, save_to: Option<&str>, secret: Option<(&str, &str)>) -> Res<Value> {
+        let r = self.ask(url, save_to, secret, false)?;
+        match r["ok"].as_bool() {
+            Some(true) => Ok(r),
+            _ => Err(format!("{url}: {}", r["status"].as_u64().map_or("no answer".to_string(), |s| format!("HTTP {s}")))),
+        }
+    }
+
+    /// The core's answer as it is, `ok` or not; `quiet`: a sign-in met is not offered (plugin_net `quiet`).
+    fn ask(&self, url: &str, save_to: Option<&str>, secret: Option<(&str, &str)>, quiet: bool) -> Res<Value> {
         if url.contains("arxiv.org/") {
             let mut last = self.arxiv_last.lock().unwrap_or_else(|e| e.into_inner());
             if let Some(wait) = last.map(|t| ARXIV_EVERY.saturating_sub(t.elapsed())) {
@@ -52,11 +61,10 @@ impl CoreApi {
         if let Some(s) = save_to {
             req["save_to"] = s.into();
         }
-        let r = self.atlas.post(&format!("/api/plugins/{}/fetch", q(&self.plugin)), &req).map_err(why)?;
-        match r["ok"].as_bool() {
-            Some(true) => Ok(r),
-            _ => Err(format!("{url}: {}", r["status"].as_u64().map_or("no answer".to_string(), |s| format!("HTTP {s}")))),
+        if quiet {
+            req["quiet"] = true.into();
         }
+        self.atlas.post(&format!("/api/plugins/{}/fetch", q(&self.plugin)), &req).map_err(why)
     }
 
     /// The plugin's settings: given with a tool's call (`params.settings`), else asked of the core (the plugin's
@@ -94,14 +102,23 @@ impl Net for CoreApi {
         let r = self.fetch_with(url, None, Some((secret, prefix)))?;
         serde_json::from_str(r["text"].as_str().unwrap_or_default()).map_err(|e| format!("{url}: not JSON ({e})"))
     }
-    fn pdf(&self, url: &str) -> Res<Vec<u8>> {
+    fn pdf(&self, url: &str) -> Result<Vec<u8>, Miss> {
         let name = format!("pdf-{:x}.pdf", url.bytes().fold(0u64, |h, b| h.wrapping_mul(31).wrapping_add(b as u64)));
-        let r = self.fetch(url, Some(&name))?;
-        let saved = r["saved"].as_str().ok_or_else(|| format!("{url}: nothing saved"))?;
-        let path = atlas_text::paths::safe_join(&self.root, saved)?;
-        let bytes = std::fs::read(&path).map_err(|e| format!("{saved}: {e}"));
+        let r = self.ask(url, Some(&name), None, true).map_err(Miss::Other)?;
+        if !r["signin"].is_null() {
+            return Err(Miss::Gate(url.to_string()));
+        }
+        if r["ok"].as_bool() != Some(true) {
+            return Err(Miss::Other(format!("{url}: {}", r["status"].as_u64().map_or("no answer".to_string(), |s| format!("HTTP {s}")))));
+        }
+        let saved = r["saved"].as_str().ok_or_else(|| Miss::Other(format!("{url}: nothing saved")))?;
+        let path = atlas_text::paths::safe_join(&self.root, saved).map_err(Miss::Other)?;
+        let bytes = std::fs::read(&path).map_err(|e| Miss::Other(format!("{saved}: {e}")));
         let _ = std::fs::remove_file(&path); // written into the entry by the caller; the cache keeps no second copy
-        only_pdf(url, bytes?)
+        only_pdf(url, bytes?).map_err(Miss::Other)
+    }
+    fn offer_signin(&self, url: &str) {
+        let _ = self.ask(url, None, None, false); // the core sees the gate again and offers it this time
     }
 }
 

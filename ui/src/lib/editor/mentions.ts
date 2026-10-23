@@ -1,4 +1,4 @@
-// Mentions (docs/design/MALLEABLE.md R4 — Embark's `@`): `@key` / `[@key]` in a note is a chip for a
+// Mentions (docs/guides/MALLEABLE.md R4 — Embark's `@`): `@key` / `[@key]` in a note is a chip for a
 // structured entity. Papers come from the Library (Pandoc citation syntax, so files stay plain);
 // plugins add other kinds by prefix (`@run:…`) through registerEntities. Hover shows the entity,
 // a click opens it. The text stays editable: chips are marks, not replacements.

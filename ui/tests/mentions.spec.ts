@@ -1,7 +1,7 @@
 import { test, expect } from "@playwright/test";
 const H = { "x-atlas": "1" };
 
-// docs/design/MALLEABLE.md R4 (Embark's mentions): `[@key]` is a chip for a Library paper — hover shows the
+// docs/guides/MALLEABLE.md R4 (Embark's mentions): `[@key]` is a chip for a Library paper — hover shows the
 // paper, a click opens its reading note; an unknown key is marked, not hidden. The file stays plain.
 test("@citekey mentions: chip, hover card, missing key, click opens the reading note", async ({ page, request }) => {
   await request.put("/api/file", { headers: H, data: { path: "notes/reading.md", text: "# Reading\n\nAs [@anderson1972more] argued; see also @nosuchpaper2001.\n\nmail me@example.org\n" } });

@@ -1,5 +1,5 @@
 // Settings pages (docs/guides/SETTINGS.md): each page groups one area's options, the features you can try
-// there, and the next rung up the ladder (docs/design/MALLEABLE.md R1). Fields come from the config schema;
+// there, and the next rung up the ladder (docs/guides/MALLEABLE.md R1). Fields come from the config schema;
 // this table only places them. A field no page claims lands on its section's own page, so a new
 // config section shows up with no UI work (shape over lists).
 

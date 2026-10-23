@@ -2,8 +2,7 @@
 
 Excalidraw on the Boox should look like the native app as far as possible — or Atlas has its own app that saves in the
 Excalidraw file format (2026-10-17) — with feature parity with Boox Notes, plus the best of Rnote, Excalidraw and the
-Obsidian Excalidraw plugin, for a seamless fit with Atlas. This is that app: a native screen of the Atlas apps (`android/`, Java,
-docs/refactor/REFACTOR-native-plugins.md) that opens `.excalidraw` files on an e-ink screen (a Boox, or the Boox app
+Obsidian Excalidraw plugin, for a seamless fit with Atlas. This is that app: a native screen of the Atlas apps (`android/`, Java) that opens `.excalidraw` files on an e-ink screen (a Boox, or the Boox app
 anywhere); a phone and the desktop keep Excalidraw.
 
 ## Using it

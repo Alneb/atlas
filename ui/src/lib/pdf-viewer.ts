@@ -4,7 +4,7 @@
 import * as pdfjs from "pdfjs-dist";
 import { EventBus, LinkTarget, PDFFindController, PDFLinkService, PDFViewer } from "pdfjs-dist/web/pdf_viewer.mjs";
 import viewerCss from "pdfjs-dist/web/pdf_viewer.css?inline";
-import { dropThumbCache, openPdf } from "./pdf";
+import { closePdf, dropThumbCache, openPdf } from "./pdf";
 import { releaseCanvases } from "./release-canvases";
 import type { Mark } from "./pdf-ink-save";
 
@@ -83,7 +83,7 @@ export async function createViewer(container: HTMLDivElement, path: string, onDi
       releaseCanvases(container);
       viewer.setDocument(null as unknown as pdfjs.PDFDocumentProxy);
       dropThumbCache(doc);
-      void doc.loadingTask.destroy();
+      closePdf(doc);
     },
   };
 }

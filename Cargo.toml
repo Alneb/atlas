@@ -6,6 +6,9 @@ members = ["crates/atlas-core", "crates/atlas", "crates/atlas-capture", "crates/
 version = "0.1.0"
 edition = "2021"
 license = "AGPL-3.0-or-later"
+authors = ["alneb <16853434+alneb@users.noreply.github.com>"]
+repository = "https://github.com/Alneb/atlas"
+homepage = "https://github.com/Alneb/atlas"
 description = "A workspace over plain files: notes, papers, mail, code and runs, extended by plugins"
 readme = "README.md"
 

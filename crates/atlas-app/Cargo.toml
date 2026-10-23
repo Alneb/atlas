@@ -3,6 +3,8 @@ name = "atlas-app"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+authors.workspace = true
+repository.workspace = true
 description = "Atlas desktop window: runs atlas-core in-process and points a webview at it"
 
 [[bin]]

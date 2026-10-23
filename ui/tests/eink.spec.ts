@@ -275,7 +275,7 @@ test("e-ink: the notepad's pens and paper — a highlighter is wide and see-thro
   await page.evaluate(([x, y]) => document.querySelector(".draw-pane canvas.interactive")!.dispatchEvent(new PointerEvent("pointerup", { pointerId: 21, pointerType: "touch", clientX: x, clientY: y, bubbles: true })), [box.x + 300, box.y + 310]);
 });
 
-// The user: "some traces are not recorded" · "i dont like how writing looks". A palm's brief two contacts
+// Strokes went missing and ink looked rough. A palm's brief two contacts
 // while the pen writes were a two-finger tap — undo, the stroke gone; and a pen stroke is saved marked for the crisp
 // outline (draw-ink.ts; vite.config.ts inkStroke makes Excalidraw ask it).
 test("e-ink: a palm while the pen writes neither undoes nor moves the page; pen strokes are kept crisp", async ({ page }) => {

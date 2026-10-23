@@ -25,7 +25,8 @@ fn seed(root: &Path) {
     copy("log/2026-10-05.md", "# 2026-10-05\n\nReorganized ~/Notes.\n");
     copy("docs/SYSTEM.md", "# System\n");
     copy("docs/INDEX.md", "# Index\n");
-    copy(".atlas/config.toml", "ignore = [\"runs\", \"refs/zotero\"]\n");
+    // `log_dir` set explicitly: the stand-in has a legacy `log/` folder, which an unset `log_dir` would pick
+    copy(".atlas/config.toml", "log_dir = \"notes/log\"\nignore = [\"runs\", \"refs/zotero\"]\n");
     // a real vault's list may differ; the folders this test hides are always in it
     let cfg = root.join(".atlas/config.toml");
     let mut table: toml::Table = std::fs::read_to_string(&cfg).unwrap().parse().unwrap();

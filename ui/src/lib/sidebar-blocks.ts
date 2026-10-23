@@ -1,4 +1,4 @@
-// The sidebar's own parts as blocks: what `.atlas/sidebar.page` arranges (docs/design/SHELL.md). Being
+// The sidebar's own parts as blocks: what `.atlas/sidebar.page` arranges (docs/guides/SHELL.md). Being
 // blocks, they also work on any page. Imported once by the shell (App.svelte).
 import type { Component } from "svelte";
 import { registerBlock, svelteBlock, type BlockCtx } from "./blocks";

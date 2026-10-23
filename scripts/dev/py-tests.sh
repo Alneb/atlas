@@ -17,6 +17,8 @@ suite() { # name, folder, unittest arguments…
   [ $code -eq 0 ] || failed=$((failed + 1))
 }
 
+# the SSH plugin's tests drive its helper binary: build it first (a fresh clone has none yet)
+(cd "$root" && cargo build --quiet -p atlas-ssh) || echo "[py] could not build atlas-ssh: the SSH tests will fail"
 suite scripts/vault "$root/scripts/vault" discover -s tests
 suite sdk/python "$root/crates/atlas-core/sdk/python" test_atlas_plugin
 for f in "$root"/plugins/*/*/test_*.py; do

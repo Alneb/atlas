@@ -11,7 +11,7 @@ import android.util.Log;
  *  android.onyx.ViewUpdateHelper behind the hidden-API filter for apps outside Onyx's own whitelist: `getMethod` then
  *  fails ("Accessing hidden method … denied" in logcat). Onyx adds a package to that list itself on the broadcast
  *  `com.onyx.action.disable_restriction` (system_server's OnyxAlarmManagerReceiver; persisted in /onyxconfig, traced in
- *  ~/Projects/boox_5c_re docs/OPEN-STACK.md); the filter is decided at process start, so the app restarts after it. */
+ *  boox_5c_re docs/OPEN-STACK.md); the filter is decided at process start, so the app restarts after it. */
 enum OnyxAccess {
     NONE,    // not an Onyx framework: nothing to ask for
     BLOCKED, // Onyx's class is there, its methods hidden from this app: the whitelist is needed

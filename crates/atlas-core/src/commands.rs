@@ -446,7 +446,7 @@ mod tests {
             tmp.path(),
             "refs.bib",
             "title = \"Papers: rebuild refs.bib\"\ndescription = \"Regenerate refs/refs.bib from the notes of refs/papers/*\"\n\
-             run = \"uv run --script ~/Projects/atlas/scripts/vault/refs_bib.py refs/papers refs/refs.bib\"\n",
+             run = \"uv run --script ~/src/atlas/scripts/vault/refs_bib.py refs/papers refs/refs.bib\"\n",
         );
         let l = list(tmp.path());
         let c = l.iter().find(|c| c.id == "refs.bib").unwrap();

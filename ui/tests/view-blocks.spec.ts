@@ -1,7 +1,7 @@
 import { test, expect } from "@playwright/test";
 const H = { "x-atlas": "1" };
 
-// docs/design/MALLEABLE.md R4 (Embark): a ```view block draws the tasks of its section as a calendar; ticking
+// docs/guides/MALLEABLE.md R4 (Embark): a ```view block draws the tasks of its section as a calendar; ticking
 // a task in the calendar writes [x] in the note, and the block follows the note as it changes.
 test("a view block shows its section's dated tasks as a calendar, and ticks them", async ({ page, request }) => {
   const note = "# Week\n\n## Monday\n\n- [ ] read Georges 📅 2026-10-12\n- [ ] run U=4 sweep 📅 2026-10-13\n- [ ] someday\n\n```view\ntype: calendar\n```\n\n## Other\n\n- [ ] not mine 📅 2026-10-14\n";

@@ -1,4 +1,4 @@
-// CSS snippets (docs/design/MALLEABLE.md, rung 2): every `.atlas/snippets/*.css` applies live — on save,
+// CSS snippets (docs/guides/MALLEABLE.md, rung 2): every `.atlas/snippets/*.css` applies live — on save,
 // with no reload — unless `[ui] css_snippets_off` names it. Settings lists them with switches.
 import { api } from "./api";
 import { on } from "./bus";

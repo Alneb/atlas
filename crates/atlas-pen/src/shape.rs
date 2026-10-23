@@ -1,4 +1,4 @@
-//! Shape snapping for the pen (NOTEPAD-PARITY.md, "Shapes"): Boox Notes turns a stroke held still at its end into a
+//! Shape snapping for the pen: Boox Notes turns a stroke held still at its end into a
 //! clean line, rectangle, ellipse or triangle; its fitting is MyScript's closed engine (boox_5c_re
 //! SHAPE-RECOGNITION.md), so this is an open one with no learning: the stroke resampled, then closure, corners
 //! (Douglas–Peucker) and the residual of each candidate fit decide. Pure, in the units of the points it is given.

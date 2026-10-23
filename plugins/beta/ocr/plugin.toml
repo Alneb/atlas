@@ -33,8 +33,8 @@ on = "capture"
 key = "languages"
 label = "Languages"
 kind = "text"
-default = "eng+spa"
-hint = "Tesseract's codes joined by +: eng, spa, fra, deu, ita, por, cat… — each one's model (a few MB) is fetched the first time; fewer languages read faster"
+default = ""
+hint = "Tesseract's codes joined by +: eng, spa, fra, deu, ita, por, cat…; empty: English and the system's language. Each one's model (a few MB) is fetched the first time; fewer languages read faster"
 
 [[setting]]
 key = "to_catalog"

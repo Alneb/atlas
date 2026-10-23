@@ -1,6 +1,6 @@
 # Keys — what is bound, what was added for the Super key, and what is still a proposal
 
-The user (2026-10-14): *"super + e opens a super comand bar that does commands actions and also searches and opens files, and make the most useful shortcuts use super instead of ctrl, look at the obsidian and zen shortcuts as inspiration"*, with their own Obsidian hotkeys: Super/Ctrl+E command palette, Super+F omnisearch, Alt+N / Super+N new note from a template, Ctrl+Q cycle list / checklist, Ctrl+Shift+= zoom. And later: *"don't stop to ask me anything"* — so the part that is safe was applied, and the part that would change habits is written here as a proposal instead of being done.
+The idea: Super+E opens a command bar that runs commands and also searches and opens files, and the most useful shortcuts use Super instead of Ctrl, inspired by Obsidian's and Zen's keys and by common Obsidian hotkeys (Super/Ctrl+E command palette, Super+F omnisearch, Alt+N / Super+N new note from a template, Ctrl+Q cycle list / checklist, Ctrl+Shift+= zoom). The part that is safe was applied; the part that would change habits is written here as a proposal.
 
 Every key can be changed in Settings → Keyboard (it writes `.atlas/keys.toml`); this page is about the defaults (`keys` and `alsoKeys` on the actions in `ui/src/lib/actions.ts`, `notes-system.ts`, `tabs.svelte.ts`).
 
@@ -11,7 +11,7 @@ A command keeps its Ctrl key and gains a second one. Nothing that worked stopped
 | key | does | note |
 |---|---|---|
 | **Super+E**, Ctrl+E | the command bar | besides Ctrl+K, Ctrl+Shift+P, F1. The user's Obsidian key |
-| **Super+F** | fullscreen: the tab with the keys over the whole window (2026-10-15, *"make super + f also do fullscreen"*) | besides F11; search moved to **Ctrl+Shift+F** |
+| **Super+F** | fullscreen: the tab with the keys over the whole window | besides F11; search moved to **Ctrl+Shift+F** |
 | **Alt+N**, **Super+N** | new note from a template | besides Ctrl+Alt+N |
 | **Ctrl+Q** | cycle the line: text → list item → to-do → text | new command `note.cycle` (Obsidian's "cycle bullet / checkbox"); Ctrl+L still toggles a to-do done / open |
 | Super+K | the Claude terminal | besides Ctrl+Alt+K |
@@ -33,7 +33,7 @@ A command keeps its Ctrl key and gains a second one. Nothing that worked stopped
 
 ## Two vim modes (2026-10-14)
 
-The user: *"make two vim modes, classic one, but also one where visual deos not interfere wuth crtl x y c etc and it works in a normal way, while also having a nice vim experience"*.
+Two vim modes: the classic one, and one where Visual mode leaves Ctrl+X / Y / C and the other usual keys alone while still feeling like vim.
 
 Settings → Writing → **Vim keys** (`[editor] vim_keys`):
 
@@ -48,7 +48,7 @@ Settings → Writing → **Format bar** (`[editor] format_bar`, off by default):
 
 ## Decided (2026-10-14) — Super is Atlas's key, Ctrl is for text
 
-The user: *"the main key is super, ctrl is for the classic things like text edit etc, do not conflict with kde, you should be able to read them"*, and on the table below: drop the old Ctrl+Shift / Ctrl+Alt app keys. Every Super key was checked against the user's **active** KDE bindings (`~/.config/kglobalshortcutsrc`, first field of each entry). KDE keeps Super alone (the launcher), Super+A (launches Atlas), D, L, R, T, W, Tab, Return, Backspace, the digits and Shift+A/E/I/P/Q/T, so none of those is used.
+The rule: Super is the main key for the app, Ctrl is for the classic things (text editing and the like), and nothing conflicts with KDE, whose bindings can be read; the old Ctrl+Shift / Ctrl+Alt app keys were dropped. Every Super key was checked against KDE's **active** bindings (`kglobalshortcutsrc` in the config folder, first field of each entry). KDE keeps Super alone (the launcher), Super+A (launches Atlas), D, L, R, T, W, Tab, Return, Backspace, the digits and Shift+A/E/I/P/Q/T, so none of those is used.
 
 | command | key now | was |
 |---|---|---|
@@ -74,7 +74,7 @@ The user: *"the main key is super, ctrl is for the classic things like text edit
 
 **Kept on Ctrl** (text editing and the universal editor keys): Ctrl+W (also Super+Q), Ctrl+Tab, Ctrl+1…9, Ctrl+S, Ctrl+F, Ctrl+Z / Y / C / V / X / A, and in a note Ctrl+B / I / K / L / Q; zoom Ctrl+Plus / Minus / 0; Ctrl+` (focus the terminal). Commands not in the table keep their keys (Ctrl+Shift+H replace, Ctrl+Alt+O open with, Ctrl+Alt+P pin, Ctrl+Shift+A find a tab, Ctrl+Alt+Enter send to Claude, the Ctrl+Alt zoom-all keys).
 
-**Tab in the editor** (2026-10-15, after *"it just tabs the whole line instead of adding a tab character, that is not intuitive is it?"* and *"the tab is kind of broken with code autocompletion"*), `tabKey` and `walkList` in `ui/src/lib/editor/create.ts`:
+**Tab in the editor** (Tab used to indent the whole line instead of typing a tab character, and fought with code completion), `tabKey` and `walkList` in `ui/src/lib/editor/create.ts`:
 
 | where | Tab | Shift+Tab |
 |---|---|---|
@@ -106,4 +106,4 @@ Settings → Keyboard marks, in red beside the command, a key that another comma
 - The user's own bindings win: `.atlas/keys.toml`, edited by Settings → Keyboard.
 
 
-**Closing tabs** (2026-10-15, *"make close all other tabs of this group only apply to normal tabs, not terminal ones, and add an option to close all tabs (not including terminal), if no tab is open home should open automatically"*): "Close others in this group" and **"Close all tabs"** (`ui.tabs.closeAll`, in the tab menu and the palette) close documents only — never a terminal, never a pinned tab. When the last document tab is gone, Home opens by itself (`tabs.svelte.ts` `whenNoTabs`).
+**Closing tabs**: "Close others in this group" and **"Close all tabs"** (`ui.tabs.closeAll`, in the tab menu and the palette) close documents only — never a terminal, never a pinned tab. When the last document tab is gone, Home opens by itself (`tabs.svelte.ts` `whenNoTabs`).
