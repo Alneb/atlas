@@ -96,7 +96,7 @@ test("the note's view reads a block's lines, leaving out removed marks and lines
 });
 
 test("an older drawing's marks come back as the note's marks, in PDF points, a highlight's boxes one mark", async () => {
-  const { convert } = await import("../src/lib/pdf-ink-to-marks");
+  const { convert, placeKey } = await import("../src/lib/pdf-ink-to-marks");
   const { addPageFrame } = await import("../src/lib/pdf-ink-scene");
   const { decodeSamples } = await import("../src/lib/pdf-samples");
   const box: PageBox = [0, 0, 612, 792], els: import("../src/lib/pdf-ink-scene").El[] = [];
@@ -117,4 +117,33 @@ test("an older drawing's marks come back as the note's marks, in PDF points, a h
   const rect = by("text-box").rect as number[];
   expect(rect.map(Math.round)).toEqual([300, 400, 360, 412]);
   expect(by("text-box").text).toBe("a note");
+  // the same drawing read twice gives the same ids: a second migration run adds nothing
+  const again = convert([...els, ...made], new Map([[1, { view: box, rotate: 0 }]]));
+  expect(again.marks.map((m) => m.id)).toEqual(got.marks.map((m) => m.id));
+  for (const m of got.marks) expect(m.id).toMatch(/^m-[0-9a-z]{8}$/);
+  // a mark already moved under another id (as the core gives it back: saved, its own key order) is found by its place
+  const hl = got.marks.find((m) => m.kind === "highlight")!;
+  const back = JSON.parse(JSON.stringify({ kind: hl.kind, id: "m-00000000", version: 1, quads: (hl as { quads: unknown }).quads, page: hl.page, quote: null, tags: [] }));
+  expect(placeKey(back)).toBe(placeKey(hl));
+  const nudged = { ...back, quads: (back.quads as number[][]).map((q) => q.map((x) => x * (1 + Number.EPSILON))) };
+  expect(placeKey(nudged)).toBe(placeKey(hl)); // a last-bit difference from reading the note back
+  expect(placeKey({ ...back, page: 2 })).not.toBe(placeKey(hl));
+});
+
+test("a saved mark moved, reworded and recoloured: only what can change changes", async () => {
+  const { movedBy, reworded, recoloured } = await import("../src/lib/pdf-mark-edit");
+  const base = { id: "m-00000001", page: 1, version: 2, color: "#000000", device: "desktop", created: "2026-01-01T10:00", tags: [] };
+  const box = { ...base, kind: "text-box", rect: [10, 20, 110, 40], text: "a", size: 10 } as never;
+  expect((movedBy(box, 5, -3) as { rect: number[] }).rect).toEqual([15, 17, 115, 37]);
+  const stamp = { ...base, kind: "stamp", at: [50, 60], stamp: "star" } as never;
+  expect((movedBy(stamp, 1, 1) as { at: number[] }).at).toEqual([51, 61]);
+  const hl = { ...base, kind: "highlight", quads: [[1, 2, 3, 4]] } as never;
+  expect(movedBy(hl, 9, 9)).toBe(hl); // on the text: it does not move
+  const r = reworded(box, "now #todo #later") as { text: string; tags: string[] };
+  expect([r.text, r.tags]).toEqual(["now #todo #later", ["todo", "later"]]);
+  const clip = { ...base, kind: "clip", rect: [0, 0, 1, 1], title: "" } as never;
+  expect((reworded(clip, "Figure 2") as { title: string }).title).toBe("Figure 2");
+  const ink = { ...base, kind: "ink", strokes: [{ pen: "pen", width: 1, color: "#ff0000", samples: "" }] } as never;
+  const c = recoloured(ink, "#74C0FC") as { color: string; strokes: { color?: string }[] };
+  expect([c.color, c.strokes[0].color]).toEqual(["#74C0FC", undefined]);
 });

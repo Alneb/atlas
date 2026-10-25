@@ -6,6 +6,7 @@
 //   {path: notes/x.md, heading: Results}   {view: library}   {search: "tag:todo"}
 //   {command: workspace.Read paper}        {url: https://arxiv.org}          — each may say `title:`
 import { errText } from "./text";
+import { anchorLine } from "./note-anchor";
 import { shownName } from "./paths";
 import { parseDocument, parse as parseYaml, stringify, type Document } from "yaml";
 import type { Action } from "./actions";
@@ -144,8 +145,7 @@ export function bookmarkDetail(b: Bookmark): string {
 
 async function headingLine(path: string, heading: string): Promise<number | undefined> {
   const text = await readText(path);
-  const i = text?.split("\n").findIndex((l) => /^#{1,6}\s/.test(l) && l.replace(/^#+\s+/, "").trim() === heading) ?? -1;
-  return i < 0 ? undefined : i + 1;
+  return text == null ? undefined : anchorLine(text, heading);
 }
 
 export async function openBookmark(b: Bookmark): Promise<void> {

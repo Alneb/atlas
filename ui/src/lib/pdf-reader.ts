@@ -279,7 +279,9 @@ export async function openReader(container: HTMLElement, path: string, eng: PdfE
 
   /** Draws what is near the view, lets go of what is far, keeps the current page. */
   function update(): void {
-    if (gone || !views.length) return;
+    // a pane with no size (a hidden tab, a page being left) has no page in view: its pages laid out at width 0 would put
+    // the old scroll position on the last page, which was then taken (and remembered) as the one being read
+    if (gone || !views.length || !container.clientHeight || !container.clientWidth) return;
     const top = container.scrollTop, bottom = top + container.clientHeight;
     const first = pageIndexAt(top), last = pageIndexAt(Math.max(top, bottom - 1));
     const now = views[pageIndexAt(top + container.clientHeight / 3)].n;

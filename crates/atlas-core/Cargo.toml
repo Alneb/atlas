@@ -21,6 +21,10 @@ tokio-util = { version = "0.7", features = ["io"] }
 futures-util = "0.3"
 toml = "0.9"
 chrono = "0.4"
+# "Export with marks": PDF annotations written into a copy (pdf_export.rs)
+lopdf = { version = "0.36", default-features = false }
+# PDF text for search, read in Rust (pdf_text.rs): no poppler needed
+pdf_oxide = "0.3.78"
 thiserror = "2"
 walkdir = "2"
 base64 = "0.22"

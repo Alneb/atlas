@@ -34,6 +34,8 @@ export interface Sheet {
   comments: { at: number; text: string }[];
   numeric: boolean[];
   delimiterName: string;
+  /** an Excel sheet's formulas behind its values, "row,col" of `rows` → the formula without `=` (shown, not run) */
+  formulas?: Map<string, string>;
 }
 
 const NUM = /^[-+]?(\d+\.?\d*|\.\d+)([eEdD][-+]?\d+)?$|^[-+]?(inf|infinity|nan)$/i;
@@ -175,4 +177,17 @@ function alignedEnds(raw: (string | null)[]): number[] | null {
     ends = here;
   }
   return ends && ends.length > 1 ? ends : null;
+}
+
+/** A sheet from rows that come without a text of their own (an Excel workbook's): the header found by shape, as in a
+ *  text table; written back, it is a comma-separated file. `kind`: what the pane says it is. */
+export function sheetFromRows(input: string[][], kind: string, formulas?: Map<string, string>): Sheet {
+  let rows = input.map((r) => [...r]);
+  const width = Math.max(1, ...rows.slice(0, 500).map((r) => r.length));
+  let header: string[] = [], headerSource: HeaderSource = "none", shift = 0;
+  if (rows.length > 1 && looksLikeHeader(rows[0], rows.slice(1, 40))) { header = rows[0]; headerSource = "row"; rows = rows.slice(1); shift = 1; }
+  while (header.length < width) header.push(`col ${header.length + 1}`);
+  const layout: Layout = { delimiter: ",", eol: "\n", quoteAll: false, spaceAfter: false, bom: false, trailingEol: true, comment: null, columnEnds: null };
+  const moved = formulas && new Map([...formulas].flatMap(([k, f]) => { const [r, c] = k.split(",").map(Number); return r >= shift ? [[`${r - shift},${c}`, f] as [string, string]] : []; }));
+  return { layout, header, headerSource, rows, raw: rows.map(() => null), headerRaw: null, comments: [], numeric: numericColumns(header.length, rows), delimiterName: kind, ...(moved?.size ? { formulas: moved } : {}) };
 }

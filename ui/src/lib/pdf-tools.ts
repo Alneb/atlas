@@ -2,9 +2,10 @@
 // strike the selected text, write with the pen (pressure, tilt and time kept), put a text box or a post-it (on a
 // highlight when put over one), clip an area, stamp, bookmark the page. Each mark is saved as it is made
 // into the PDF's note (lib/pdf-marks.ts, core pdf_marks.rs), which every device writes; the PDF itself is never
-// touched. Undo takes this pane's last mark back out.
+// touched. With the select tool a click picks a saved mark (the pane's bar recolours, rewords or deletes it) and a drag
+// moves one that sits on its own (a text box, post-it, stamp, clip). Undo takes this pane's last change back.
 import { quoteOf } from "./atlas-mark";
-import { encodeSamples, markAt, newMark, tagsIn, type Mark, type MarksView, type Sample, type Stamp } from "./pdf-marks";
+import { encodeSamples, markAt, MOVABLE, movedBy, newMark, tagsIn, type Mark, type MarksView, type Op, type Sample, type Stamp } from "./pdf-marks";
 import type { Reader } from "./pdf-reader";
 
 export type TextMark = "highlight" | "underline" | "strike";
@@ -25,11 +26,17 @@ export interface Tools {
   markSelection(kind: TextMark): Promise<boolean>;
   /** Bookmarks page n, or takes its bookmark away; whether it has one now. */
   toggleBookmark(n: number): Promise<boolean>;
+  /** Saves a changed saved mark (recoloured, reworded, moved); undo puts the old one back. */
+  edit(next: Mark): Promise<void>;
+  /** Takes a saved mark out; undo puts it back. */
+  remove(id: string): Promise<void>;
+  /** Picks a saved mark (null: none), as a click with the select tool does. */
+  select(id: string | null): void;
   undo(): Promise<boolean>;
   /** Saves what the pen holds and stops. */
   destroy(): Promise<void>;
 }
-export interface ToolEvents { saved(ids: string[]): void; failed(e: unknown): void }
+export interface ToolEvents { saved(ids: string[]): void; failed(e: unknown): void; /** the picked mark, or null */ selected?(m: Mark | null): void }
 
 const SVG = "http://www.w3.org/2000/svg";
 
@@ -38,19 +45,76 @@ interface Stroke { points: number[]; pressures: number[]; tilts: number[]; times
 
 export function attachTools(container: HTMLElement, reader: Reader, store: MarksView, on: ToolEvents): Tools {
   let tool: ToolName = "select", color: string = COLORS.yellow, thickness = 2, stamp: Stamp = "check";
-  const done: string[][] = [];
+  // each change's way back (new marks removed, changed ones put back as they were), for undo
+  const done: Op[][] = [];
   // one save at a time, in the order made
   let chain: Promise<unknown> = Promise.resolve();
-  const save = (marks: Mark[]) => {
-    if (!marks.length) return Promise.resolve();
-    const run = chain.then(() => store.change(marks.map((mark) => ({ op: "put" as const, mark })))).then(() => {
-      const ids = marks.map((m) => m.id);
-      done.push(ids);
-      on.saved(ids);
-    }).catch(on.failed);
+  const apply = (ops: Op[], back: Op[], ids: string[]) => {
+    const run = chain.then(() => store.change(ops)).then(() => { done.push(back); on.saved(ids); }).catch(on.failed);
     chain = run;
     return run;
   };
+  const save = (marks: Mark[]) => !marks.length ? Promise.resolve()
+    : apply(marks.map((mark) => ({ op: "put" as const, mark })), marks.map((m) => ({ op: "remove" as const, id: m.id })), marks.map((m) => m.id));
+  const was = (id: string) => store.marks().find((m) => m.id === id && m.kind !== "deleted");
+  const edit = (next: Mark) => { const old = was(next.id); return old ? apply([{ op: "put", mark: next }], [{ op: "put", mark: old }], [next.id]) : Promise.resolve(); };
+  const remove = (id: string) => { const old = was(id); return old ? apply([{ op: "remove", id }], [{ op: "put", mark: old }], [id]) : Promise.resolve(); };
+
+  // ── the select tool: picking and moving saved marks ──────────────────────────────────────────────────────────
+  let picked: string | null = null;
+  const pickedStyle = document.createElement("style"); // follows the marks' redraws, which replace their elements
+  container.append(pickedStyle);
+  function select(id: string | null): void {
+    picked = id;
+    pickedStyle.textContent = id ? `.atlas-marks [data-mark="${id}"] { filter: drop-shadow(0 0 1px var(--accent)) drop-shadow(0 0 3px var(--accent)); }` : "";
+    on.selected?.(id ? was(id) ?? null : null);
+  }
+  /** The movable mark drawn under a client point, topmost first (found from what is drawn: no wait, so the press can
+   *  still be kept from starting a text selection). A clip is taken by its edge, so the text inside stays selectable. */
+  function movableAt(x: number, y: number): SVGGElement | null {
+    const gs = [...container.querySelectorAll<SVGGElement>("svg.atlas-marks > g[data-mark]")].reverse();
+    return gs.find((g) => {
+      if (!MOVABLE.has(g.dataset.kind as Mark["kind"])) return false;
+      const b = g.getBoundingClientRect(), pad = 4, inside = x >= b.left - pad && x <= b.right + pad && y >= b.top - pad && y <= b.bottom + pad;
+      return inside && (g.dataset.kind !== "clip" || Math.min(x - b.left, b.right - x, y - b.top, b.bottom - y) < 6);
+    }) ?? null;
+  }
+  let pressed: { id: string; n: number; pointer: number; X: number; Y: number; dX: number; dY: number; g: SVGGElement | null; cx: number; cy: number } | null = null;
+  function selectDown(e: PointerEvent): void {
+    if (e.button !== 0 || e.pointerType === "touch" || (e.target as Element).closest("textarea, button, input")) return;
+    const at = reader.pageAt(e.clientX, e.clientY);
+    if (!at) return;
+    const g = movableAt(e.clientX, e.clientY);
+    pressed = { id: g?.dataset.mark ?? "", n: at.n, pointer: e.pointerId, X: at.X, Y: at.Y, dX: 0, dY: 0, g, cx: e.clientX, cy: e.clientY };
+    if (!g) return; // a click on the text (or a highlight) picks on release, once it is clear no words were selected
+    e.preventDefault();
+    (document.activeElement as HTMLElement | null)?.blur(); // the pane's keys (Delete, Esc) come to it with nothing focused
+    container.setPointerCapture(e.pointerId);
+  }
+  function selectMove(e: PointerEvent): void {
+    const p = pressed, at = p?.g && reader.pageAt(e.clientX, e.clientY);
+    if (!p || !at || at.n !== p.n || e.pointerId !== p.pointer) return;
+    p.dX = at.X - p.X; p.dY = at.Y - p.Y;
+    p.g!.setAttribute("transform", `translate(${p.dX} ${p.dY})`);
+  }
+  async function selectUp(e: PointerEvent): Promise<void> {
+    const p = pressed;
+    if (!p || e.pointerId !== p.pointer) return;
+    pressed = null;
+    if (container.hasPointerCapture(e.pointerId)) container.releasePointerCapture(e.pointerId);
+    if (p.g && Math.hypot(p.dX, p.dY) > 1.5) {
+      const m = was(p.id);
+      const [x0, y0] = await reader.toPagePoint(p.n, p.X, p.Y), [x1, y1] = await reader.toPagePoint(p.n, p.X + p.dX, p.Y + p.dY);
+      if (m) { await edit(movedBy(m, x1 - x0, y1 - y0)); select(m.id); }
+      return;
+    }
+    p.g?.removeAttribute("transform");
+    if (p.g) { select(p.id); return; }
+    // a plain click (not a drag that selected words): the saved mark under it, or none
+    if (Math.hypot(e.clientX - p.cx, e.clientY - p.cy) > 3 || (window.getSelection()?.toString() ?? "").trim()) return;
+    const [x, y] = await reader.toPagePoint(p.n, p.X, p.Y);
+    select(markAt(store.marks(), p.n, x, y)?.id ?? null);
+  }
 
   async function markSelection(kind: TextMark): Promise<boolean> {
     const parts = await reader.selection();
@@ -131,6 +195,8 @@ export function attachTools(container: HTMLElement, reader: Reader, store: Marks
     return svg;
   };
   const down = (e: PointerEvent) => {
+    if (tool === "select") { selectDown(e); return; }
+    if (picked) select(null);
     if (tool === "text" || tool === "postit") { void note(e); return; }
     if (tool === "stamp") { void stampAt(e); return; }
     if (tool === "clip") { clipDown(e); return; }
@@ -151,6 +217,7 @@ export function attachTools(container: HTMLElement, reader: Reader, store: Marks
     container.setPointerCapture(e.pointerId);
   };
   const move = (e: PointerEvent) => {
+    if (pressed) { selectMove(e); return; }
     if (clipping) { clipMove(e); return; }
     if (!drawing || e.pointerId !== drawing.id) return;
     const d = drawing;
@@ -165,6 +232,7 @@ export function attachTools(container: HTMLElement, reader: Reader, store: Marks
     d.s.el.setAttribute("points", d.s.points.reduce((a, v, i) => a + (i % 2 ? `,${v.toFixed(1)}` : ` ${v.toFixed(1)}`), ""));
   };
   const up = (e: PointerEvent) => {
+    if (pressed) { void selectUp(e); return; }
     if (clipping) { void clipUp(e); return; }
     if (!drawing || e.pointerId !== drawing.id) return;
     const { n, s } = drawing;
@@ -246,18 +314,21 @@ export function attachTools(container: HTMLElement, reader: Reader, store: Marks
   container.addEventListener("pointerup", onUp);
 
   return {
-    setTool(t) { if (tool === "ink" && t !== "ink") void flushPen(); tool = t; },
+    setTool(t) { if (tool === "ink" && t !== "ink") void flushPen(); if (t !== "select" && picked) select(null); tool = t; },
     setColor(hex) { color = hex; },
     setStamp(s) { stamp = s; },
     toggleBookmark,
+    edit,
+    remove,
+    select,
     setThickness(pt) { thickness = pt; },
     markSelection,
     async undo() {
       await flushPen();
       await chain;
-      const ids = done.pop();
-      if (!ids) return false;
-      try { await store.change(ids.map((id) => ({ op: "remove" as const, id }))); return true; } catch (e) { on.failed(e); return false; }
+      const back = done.pop();
+      if (!back) return false;
+      try { await store.change(back); if (picked && !was(picked)) select(null); return true; } catch (e) { on.failed(e); return false; }
     },
     async destroy() {
       container.removeEventListener("pointerdown", down);
@@ -265,6 +336,7 @@ export function attachTools(container: HTMLElement, reader: Reader, store: Marks
       container.removeEventListener("pointerup", up);
       container.removeEventListener("pointercancel", up);
       container.removeEventListener("pointerup", onUp);
+      pickedStyle.remove();
       editing?.blur();
       await flushPen();
       await chain;

@@ -35,6 +35,7 @@ pub mod mem_trim;
 pub mod notes;
 pub mod page;
 pub mod paths;
+pub mod pdf_export;
 pub mod pdf_marks;
 pub mod pdf_text;
 pub mod plugin_files;

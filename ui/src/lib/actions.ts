@@ -226,6 +226,16 @@ export const actions: Action[] = [
   { id: "ui.eink-refresh", title: "E-ink: clear the screen", run: () => void import("./eink").then((m) => m.einkRefresh(true)) },
   // the store before the note's pdf-marks block: each older drawing's marks moved over, after a yes (lib/pdf-migrate.ts)
   { id: "pdf.migrate-marks", title: "PDF: move older marks (drawings) into their notes", run: () => void import("./pdf-migrate").then((m) => m.migratePdfMarks()) },
+  { id: "pdf.export-marks", title: "PDF: export a copy with its marks inside", run: () => {
+    const p = context.active?.path;
+    if (!p?.toLowerCase().endsWith(".pdf")) { toast("Export with marks", "Open the PDF to export first."); return; }
+    void import("./pdf-export").then((m) => m.exportWithMarks(p));
+  } },
+  { id: "pdf.export-marks-flat", title: "PDF: export a copy with its marks drawn into the pages (for printing)", run: () => {
+    const p = context.active?.path;
+    if (!p?.toLowerCase().endsWith(".pdf")) { toast("Export with marks", "Open the PDF to export first."); return; }
+    void import("./pdf-export").then((m) => m.exportWithMarks(p, "flat"));
+  } },
   // Obsidian's keys, in notes only (lib/editor/md-format.ts sets noteFormat when the editor loads)
   { id: "note.bold", title: "Note: bold", keys: "Ctrl+B", where: "note", run: () => noteFormat.run?.("bold") },
   { id: "note.italic", title: "Note: italic", keys: "Ctrl+I", where: "note", run: () => noteFormat.run?.("italic") },

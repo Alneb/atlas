@@ -78,7 +78,8 @@ export const paneFocus = new Map<string, () => void>();
 /** An open explorer tab asked for again: it goes to `path` and selects `select` (Show in the explorer, a breadcrumb). */
 export const explorerGo = new Map<string, (path: string, select?: string) => void>();
 /** Open PDF panes by panel id: jump to a page (a search hit in a PDF that is already open). */
-export const pdfPages = new Map<string, (page: number) => void>();
+/** An open PDF's "show this place": its page, and a link's words or annotation / mark id (lib/pdf-place.ts). */
+export const pdfPages = new Map<string, (page: number, at?: { quote?: string; annotation?: string }) => void>();
 /** An open drawing's "show this page" (an embed's `#Page 2`), by panel id — as pdfPages. */
 export const drawingPages = new Map<string, (page: string) => void>();
 /** An open plugin pane's "go to this anchor" (a later `[[x.epub#Chapter 3]]` to its file), by panel id. */

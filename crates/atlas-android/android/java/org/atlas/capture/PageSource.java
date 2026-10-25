@@ -15,7 +15,7 @@ import java.util.concurrent.Executors;
 
 /** The pages of a vault document drawn on the fly (memory `project_paper_core.md`). A drawing over a PDF holds, per page, an image element with no file — `fileId` `fileId(path, n)`,
  *  `customData.atlasPage = {file, page}` — and whoever paints it (Notepad's Painter, the book reader) asks here. Pages
- *  are rendered by Android's PdfRenderer off the UI thread at the width they are drawn (in steps, so a zoom reuses
+ *  are rendered by PDFium when the APK carries it (Pdfium.java, the desktop's engine), else Android's PdfRenderer, off the UI thread at the width they are drawn (in steps, so a zoom reuses
  *  them), kept in a shared cache; `ready` runs on the UI thread when a page asked for is there. */
 public final class PageSource {
     private PageSource() {}
@@ -95,6 +95,14 @@ public final class PageSource {
     }
 
     private static Bitmap draw(Host host, String path, int page, int width) throws Exception {
+        if (Pdfium.ready(host.activity())) {
+            try {
+                float[][] s = sizes(host, path);
+                if (page < 1 || page > s.length) return null;
+                int h = Math.max(1, Math.round(width * s[page - 1][1] / Math.max(1f, s[page - 1][0])));
+                return Pdfium.render(host.local(path).getAbsolutePath(), page, width, h, 0); // on white already
+            } catch (IllegalArgumentException e) { android.util.Log.w("AtlasPages", "PDFium: " + e.getMessage() + "; PdfRenderer instead"); }
+        }
         PdfRenderer r;
         try { r = renderer(host, path); } catch (Exception e) { closeOpen(); throw e; }
         if (page < 1 || page > r.getPageCount()) return null;
@@ -130,7 +138,11 @@ public final class PageSource {
      *  the UI thread. */
     public static float[][] sizes(Host host, String path) {
         synchronized (sizes) { if (sizes.containsKey(path)) return sizes.get(path); }
-        float[][] out;
+        float[][] out = null;
+        if (Pdfium.ready(host.activity())) {
+            try { out = Pdfium.pages(host.local(path).getAbsolutePath()); } catch (IllegalArgumentException | java.io.IOException e) { out = null; }
+        }
+        if (out != null) { synchronized (sizes) { sizes.put(path, out); } return out; }
         try (ParcelFileDescriptor fd = ParcelFileDescriptor.open(host.local(path), ParcelFileDescriptor.MODE_READ_ONLY);
              PdfRenderer r = new PdfRenderer(fd)) {
             out = new float[r.getPageCount()][];

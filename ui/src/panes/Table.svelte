@@ -12,9 +12,12 @@
   import type { PaneProps } from "../lib/dock";
   import { toast } from "../lib/state.svelte";
   import { ApiError } from "../lib/api";
-  import { diskMtime, loadSheet, saveSheet } from "../lib/csv/io";
+  import { diskMtime, loadSheet, loadWorkbook, saveSheet } from "../lib/csv/io";
+  import type { Sheet } from "../lib/csv/parse";
   import { SheetEdit, type Cell } from "../lib/csv/edit.svelte";
   import { compile, compare } from "../lib/csv/filter";
+  import { valuesOf } from "../lib/csv/formula";
+  import { numericColumns } from "../lib/csv/parse";
   import Icon from "../components/Icon.svelte";
   import Grid from "../components/csv/Grid.svelte";
   import PlotPanel from "../components/csv/PlotPanel.svelte";
@@ -25,6 +28,11 @@
   let { spec }: PaneProps<"table"> = $props();
 
   let edit = $state.raw<SheetEdit | null>(null);
+  // an Excel workbook: its sheets, the one shown; read here only (writing would lose its styles), saved as CSV
+  const xlsx = $derived(/\.xlsx$/i.test(spec.path));
+  const READONLY = "An Excel sheet is shown here, not changed: “Save as CSV” makes a table you can edit";
+  let book = $state.raw<{ name: string; sheet: Sheet }[] | null>(null);
+  let sheetAt = $state(0);
   let mtime = 0;
   let progress = $state<number | null>(null);
   let error = $state("");
@@ -44,6 +52,10 @@
 
   // a new object at each edit (the rows change in place; the same object would tell no one)
   const sheet = $derived(edit ? { ...edit.sheet, version: edit.version } : null);
+  // the rows as they read (formulas' results): what the filters, sort, footer and plot use; a formula column is numeric
+  // when its results are
+  const values = $derived(sheet ? (sheet.version, valuesOf(sheet.rows)) : []);
+  const numeric = $derived(sheet ? (values === sheet.rows ? sheet.numeric : numericColumns(sheet.header.length, values)) : []);
 
   // --- this device's view of the file: widths, hidden, frozen, order (by column name, so edits keep them) ---------
   type Prefs = { widths: Record<string, number>; hidden: string[]; frozen: number; order: string[] };
@@ -76,14 +88,14 @@
     const tests = Object.entries(filters).map(([c, q]) => [Number(c), compile(q)] as const).filter((t) => t[1]);
     const q = quick.trim().toLowerCase();
     let idx: number[] = [];
-    for (let i = 0; i < sheet.rows.length; i++) {
-      const r = sheet.rows[i];
+    for (let i = 0; i < values.length; i++) {
+      const r = values[i];
       if (q && !r.some((c) => c.toLowerCase().includes(q))) continue;
       if (tests.some(([c, t]) => !t!(r[c] ?? ""))) continue;
       idx.push(i);
     }
     if (sort) {
-      const { col, dir } = sort, num = sheet.numeric[col], rows = sheet.rows;
+      const { col, dir } = sort, num = numeric[col], rows = values;
       // blanks last whichever way it is sorted
       idx = idx.sort((a, b) => {
         const [x, y] = [rows[a][col] ?? "", rows[b][col] ?? ""];
@@ -101,27 +113,54 @@
     if (!sheet || !cols.length) return { cells: [] as string[], what: "" };
     if (multi) {
       const out: string[] = [];
-      for (let r = selBox.r0; r <= selBox.r1; r++) for (let c = selBox.c0; c <= selBox.c1; c++) out.push(sheet.rows[view[r]]?.[cols[c]] ?? "");
+      for (let r = selBox.r0; r <= selBox.r1; r++) for (let c = selBox.c0; c <= selBox.c1; c++) out.push(values[view[r]]?.[cols[c]] ?? "");
       return { cells: out, what: `${selBox.r1 - selBox.r0 + 1} × ${selBox.c1 - selBox.c0 + 1} selected` };
     }
     const c = cols[Math.min(cur.c, cols.length - 1)];
-    return { cells: view.map((i) => sheet.rows[i][c] ?? ""), what: sheet.header[c] };
+    return { cells: view.map((i) => values[i][c] ?? ""), what: sheet.header[c] };
   });
-  const shownRows = $derived(sheet ? view.map((i) => sheet.rows[i]) : []);
-  const selectedRows = $derived(sheet && selBox.r1 > selBox.r0 ? view.slice(selBox.r0, selBox.r1 + 1).map((i) => sheet.rows[i]) : null);
+  const shownRows = $derived(sheet ? view.map((i) => values[i]) : []);
+  const selectedRows = $derived(sheet && selBox.r1 > selBox.r0 ? view.slice(selBox.r0, selBox.r1 + 1).map((i) => values[i]) : null);
 
   // --- reading and saving ------------------------------------------------------------------------------------------
   async function load() {
     try {
       progress = 0;
-      const got = await loadSheet(spec.path, (p) => (progress = p));
-      edit = new SheetEdit(got.sheet);
-      mtime = got.mtime;
+      if (xlsx) {
+        const got = await loadWorkbook(spec.path);
+        if (!got.sheets.length) throw new Error("this workbook has no sheet with cells");
+        book = got.sheets;
+        mtime = got.mtime;
+        pickSheet(Math.min(sheetAt, got.sheets.length - 1));
+      } else {
+        const got = await loadSheet(spec.path, (p) => (progress = p));
+        edit = new SheetEdit(got.sheet);
+        mtime = got.mtime;
+      }
       error = ""; conflict = false;
     } catch (e) { error = errText(e); }
     finally { progress = null; }
   }
+  function pickSheet(i: number) {
+    if (!book) return;
+    sheetAt = i;
+    edit = new SheetEdit(book[i].sheet);
+    filters = {}; sort = null; cur = { r: 0, c: 0 }; anchor = { r: 0, c: 0 };
+  }
+  /** The sheet shown, as a CSV beside the workbook (a new name: an existing file is never written over), opened. */
+  async function saveAsCsv() {
+    if (!edit || !book) return;
+    const stem = spec.path.replace(/\.xlsx$/i, "") + (book.length > 1 ? ` - ${book[sheetAt].name.replace(/[\\/:*?"<>|]+/g, " ").trim()}` : "");
+    let to = `${stem}.csv`;
+    for (let n = 2; (await diskMtime(to)) > 0; n++) to = `${stem} (${n}).csv`;
+    try {
+      await saveSheet(to, edit.sheet, 0);
+      toast("Saved as CSV", shownPath(to));
+      open({ kind: "table", path: to });
+    } catch (e) { toast("Not saved", errText(e), "error"); }
+  }
   async function save(force = false) {
+    if (xlsx) { toast(READONLY); return; }
     if (!edit || saving || (!edit.dirty && !force)) return;
     saving = true;
     try {
@@ -168,6 +207,7 @@
   function headerMenu(e: MouseEvent, c: number) {
     if (!edit || !sheet) return;
     const pos = cols.indexOf(c), ed = edit;
+    const changes = (items: MenuItem[]) => (xlsx ? [] : items);
     menu = { x: e.clientX, y: e.clientY, items: [
       { label: "Sort ascending", icon: "arrow-up", run: () => (sort = { col: c, dir: 1 }) },
       { label: "Sort descending", icon: "arrow-down", run: () => (sort = { col: c, dir: -1 }) },
@@ -176,16 +216,16 @@
       { label: "Hide column", icon: "eye", run: () => setHidden([...prefs.hidden, keys[c]]) },
       { label: pos < prefs.frozen ? "Unfreeze columns" : "Freeze up to here", detail: "kept in view when scrolling sideways", run: () => { prefs.frozen = pos < prefs.frozen ? 0 : pos + 1; savePrefs(); } },
       { label: "Fit width", run: () => resize(c, "fit") },
-      "sep",
+      ...changes(["sep",
       { label: "Rename…", icon: "edit", run: () => ask("Rename column", sheet.header[c], (v) => v.trim() && ed.do({ kind: "rename", c, name: v.trim() })) },
       { label: "Insert column left", icon: "plus", run: () => ed.do({ kind: "insertCol", at: c, name: "new" }) },
       { label: "Insert column right", icon: "plus", run: () => ed.do({ kind: "insertCol", at: c + 1, name: "new" }) },
-      { label: "Delete column", icon: "minus", danger: true, disabled: sheet.header.length < 2, run: () => ed.do({ kind: "deleteCol", at: c }) },
+      { label: "Delete column", icon: "minus", danger: true, disabled: sheet.header.length < 2, run: () => ed.do({ kind: "deleteCol", at: c }) }]),
     ] };
   }
 
   function rowMenu(e: MouseEvent, r: number) {
-    if (!edit || !sheet) return;
+    if (!edit || !sheet || xlsx) return;
     const ed = edit, data = view[r], { r0, r1 } = selBox, many = r1 > r0;
     // contiguous in the file only when the table shows the file's order unfiltered
     const plain = !sort && view.length === sheet.rows.length;
@@ -221,10 +261,17 @@
 <svelte:window onkeydown={onKey} />
 <div class="table-pane" bind:this={pane}>
   <header>
-    <span class="name"><Icon name="table" size={14} /> {shownPath(spec.path)}{#if edit?.dirty}<span class="dirty" title="Unsaved changes (Ctrl+S saves)">●</span>{/if}</span>
+    <span class="name"><Icon name="table" size={14} /> {shownPath(spec.path)}{#if edit?.dirty && !xlsx}<span class="dirty" title="Unsaved changes (Ctrl+S saves)">●</span>{/if}</span>
     {#if sheet}<span class="meta">{view.length === sheet.rows.length ? sheet.rows.length : `${view.length} / ${sheet.rows.length}`} rows · {sheet.header.length} columns · {sheet.delimiterName}</span>{/if}
     <input class="filter" placeholder="Filter rows…" bind:value={quick} spellcheck="false" />
-    {#if edit}
+    {#if book && book.length > 1}
+      <span class="sheets" role="tablist" aria-label="Sheets">
+        {#each book as s, i (i)}<button class="sheet" class:on={i === sheetAt} role="tab" aria-selected={i === sheetAt} onclick={() => pickSheet(i)}>{s.name}</button>{/each}
+      </span>
+    {/if}
+    {#if xlsx && edit}
+      <button class="btn" onclick={() => void saveAsCsv()} title="This sheet as a CSV beside the workbook, which you can edit; the workbook is not changed">Save as CSV</button>
+    {:else if edit}
       <button class="btn icon" onclick={() => edit?.undo()} disabled={!edit.canUndo} title="Undo (Ctrl+Z)" aria-label="Undo"><Icon name="undo" size={14} /></button>
       <button class="btn icon" onclick={() => edit?.redo()} disabled={!edit.canRedo} title="Redo (Ctrl+Shift+Z)" aria-label="Redo"><Icon name="redo" size={14} /></button>
       <button class="btn" class:primary={edit.dirty} onclick={() => save()} disabled={!edit.dirty || saving} title="Save (Ctrl+S): only the rows you changed are rewritten">Save</button>
@@ -239,7 +286,7 @@
       {/if}
     {/if}
     <button class="btn" class:on={plotOn} onclick={() => (plotOn = !plotOn)} disabled={!sheet?.numeric.some(Boolean)} title="Plot columns, or a histogram"><Icon name="chart" size={14} /> Plot</button>
-    <button class="btn" onclick={() => open({ kind: "editor", path: spec.path })} title="Open the raw file in the editor"><Icon name="file-code" size={14} /> Text</button>
+    {#if !xlsx}<button class="btn" onclick={() => open({ kind: "editor", path: spec.path })} title="Open the raw file in the editor"><Icon name="file-code" size={14} /> Text</button>{/if}
   </header>
   {#if conflict}
     <div class="banner" role="alert">
@@ -250,9 +297,9 @@
   {/if}
   {#if error}<p class="muted pad">{error}</p>{/if}
   {#if progress !== null}<div class="loading" role="progressbar" aria-valuenow={Math.round(progress * 100)}><i style:width="{Math.round(progress * 100)}%"></i><span>Reading {shownPath(spec.path)}…</span></div>{/if}
-  {#if plotOn && sheet}<PlotPanel header={sheet.header} numeric={sheet.numeric} rows={shownRows} selected={selectedRows} />{/if}
+  {#if plotOn && sheet}<PlotPanel header={sheet.header} {numeric} rows={shownRows} selected={selectedRows} />{/if}
   {#if edit && sheet}
-    <Grid {edit} {view} {cols} {widths} frozen={Math.min(prefs.frozen, cols.length)} {sort} bind:filters bind:cur bind:anchor
+    <Grid {edit} {view} {cols} {widths} path={spec.path} readonly={xlsx ? READONLY : ""} frozen={Math.min(prefs.frozen, cols.length)} {sort} bind:filters bind:cur bind:anchor
       onsort={sortBy} onresize={resize} onmovecol={moveCol} onheadermenu={headerMenu} onrowmenu={rowMenu} />
     <StatsBar cells={statCells.cells} what={statCells.what} />
   {/if}
@@ -276,6 +323,10 @@
   .btn.primary { border-color: var(--accent); background: var(--accent); color: var(--accent-fg, #fff); }
   .btn.danger { border-color: var(--red); color: var(--red); }
   .btn:disabled { opacity: .45; }
+  .sheets { display: inline-flex; gap: 2px; padding: 2px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--bg-elev); max-width: 40%; overflow-x: auto; scrollbar-width: none; }
+  .sheet { padding: 2px 10px; border-radius: calc(var(--radius-sm) - 2px); font-size: calc(12px * var(--ui-scale, 1)); color: var(--text-muted); white-space: nowrap; }
+  .sheet:hover { background: var(--bg-hover); }
+  .sheet.on { background: var(--accent-soft, var(--bg-hover)); color: var(--text); font-weight: 500; }
   .check { display: inline-flex; align-items: center; gap: 4px; font-size: calc(12px * var(--ui-scale, 1)); color: var(--text-muted); }
   .banner { display: flex; align-items: center; gap: 10px; padding: 6px 12px; background: color-mix(in srgb, var(--yellow) 14%, var(--bg)); border-bottom: 1px solid var(--border); font-size: calc(12.5px * var(--ui-scale, 1)); }
   .loading { position: relative; height: 22px; margin: 8px 12px; border-radius: var(--radius-sm); background: var(--bg-alt); overflow: hidden; font-size: calc(12px * var(--ui-scale, 1)); }

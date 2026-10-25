@@ -1,4 +1,7 @@
 import { test, expect, type Page } from "@playwright/test";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+import { WS } from "../playwright.config";
 
 // The reader (lib/pdf-reader.ts, lib/pdf-tools.ts) on each engine (lib/pdf-engine.ts: PDFium, pdf.js): a generated
 // three-page PDF with text, a link to its last page, a web link and an outline — its text layer, find, a highlight
@@ -133,12 +136,76 @@ for (const eng of ["pdfium", "pdfjs"] as const) test.describe(`with ${eng}`, () 
   test("a link with words opens its page with those words selected", async ({ page }) => {
     await page.goto("/");
     await page.getByText("Finish the GW notes.").waitFor();
-    await page.keyboard.press("Control+p");
-    await page.keyboard.type("links.md");
-    await page.getByTestId("palette").getByText("links", { exact: true }).first().click();
+    // opened by its path: another spec's notes/links.md has the same title in quick open
+    await page.request.post("/api/cmd/open", { headers: H, data: { args: { path: `${DIR}/links.md` } } });
     await page.locator(".cm-content").getByText("the second passage").click();
     await expect(page.getByRole("textbox", { name: "Page", exact: true })).toHaveValue("2", { timeout: 20000 });
     await expect.poll(() => page.evaluate(() => window.getSelection()?.toString() ?? ""), { timeout: 20000 }).toBe("the second passage");
+  });
+
+  test("a link to a mark in the PDF's note (`[[doc#^m-…]]`) opens the PDF at the mark, which blinks", async ({ page }) => {
+    const id = "m-link0001";
+    await page.request.post(`/api/pdf-marks?pdf=${encodeURIComponent(PATH)}`, { headers: H, data: [{ op: "put", mark: { id, page: 2, version: 1, kind: "highlight", quads: [[72, 660, 300, 684]] } }] });
+    await page.request.put("/api/file", { headers: H, data: { path: `${DIR}/to-mark.md`, text: `# To a mark\n\nsee [[doc#^${id}|that mark]]\n` } });
+    await page.goto("/");
+    await page.getByText("Finish the GW notes.").waitFor();
+    await page.request.post("/api/cmd/open", { headers: H, data: { args: { path: `${DIR}/to-mark.md` } } });
+    await page.locator(".cm-content").getByText("that mark").click();
+    const pane = page.locator(".pdf-pane").last();
+    await expect(pane.locator(".page-in")).toHaveValue("2", { timeout: 20000 });
+    await expect(pane.locator(`.page[data-page-number="2"] svg.atlas-marks [data-mark="${id}"]`)).toHaveClass(/atlas-flash-mark/, { timeout: 20000 });
+  });
+
+  test("a saved mark picked with the select tool is recoloured, reworded, moved and deleted; undo brings it back", async ({ page }) => {
+    const tb = "m-edit0001", hl = "m-edit0002";
+    await page.request.post(`/api/pdf-marks?pdf=${encodeURIComponent(PATH)}`, { headers: H, data: [
+      { op: "put", mark: { id: tb, page: 1, version: 1, color: "#000000", kind: "text-box", rect: [320, 480, 440, 500], text: "first words", size: 12 } },
+      { op: "put", mark: { id: hl, page: 1, version: 1, color: "#FFE066", kind: "highlight", quads: [[72, 696, 200, 716]] } },
+    ] });
+    const pane = await openReader(page);
+    const box = pane.locator(`.page[data-page-number="1"] svg.atlas-marks [data-mark="${tb}"]`);
+    await expect(box).toContainText("first words", { timeout: 20000 });
+    const bar = pane.getByTestId("pdf-mark-bar");
+    const c = (await box.boundingBox())!; // the marks' layer lets the pointer through: clicked where it is drawn
+    await page.mouse.click(c.x + c.width / 2, c.y + c.height / 2);
+    await expect(bar).toContainText("Text box");
+    await bar.getByRole("button", { name: "Colour blue" }).click();
+    const one = async (id: string) => (await marks(page)).find((m) => m.id === id) as (Mark & { color?: string; rect?: number[]; tags?: string[] }) | undefined;
+    await expect.poll(async () => (await one(tb))?.color, { timeout: 20000 }).toBe("#74C0FC");
+    await bar.getByRole("button", { name: /first words/ }).click();
+    await bar.getByRole("textbox", { name: "Words" }).fill("new words #idea");
+    await page.keyboard.press("Enter");
+    await expect.poll(async () => { const m = await one(tb); return [m?.text, m?.tags]; }, { timeout: 20000 }).toEqual(["new words #idea", ["idea"]]);
+    // to be looked at, in both themes
+    await page.screenshot({ path: `test-results/pdf-mark-bar-${eng}-light.png` });
+    await page.emulateMedia({ colorScheme: "dark" });
+    await page.waitForTimeout(300);
+    await page.screenshot({ path: `test-results/pdf-mark-bar-${eng}-dark.png` });
+    await page.emulateMedia({ colorScheme: "light" });
+    // dragged 60 px to the right: the box moves right on the page, its size kept
+    const b = (await box.boundingBox())!;
+    await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(b.x + b.width / 2 + 60, b.y + b.height / 2, { steps: 8 });
+    await page.mouse.up();
+    await expect.poll(async () => (await one(tb))?.rect?.[0] ?? 0, { timeout: 20000 }).toBeGreaterThan(340);
+    const moved = (await one(tb))!.rect!;
+    expect(moved[2] - moved[0]).toBeCloseTo(120, 3);
+    expect(moved[1]).toBeCloseTo(480, 0);
+    // Delete takes it out; Ctrl+Z puts it back as it was
+    await page.keyboard.press("Delete");
+    await expect.poll(async () => (await one(tb))?.kind ?? "gone", { timeout: 20000 }).toBe("gone");
+    await expect(bar).toHaveCount(0);
+    await page.keyboard.press("Control+z");
+    await expect.poll(async () => (await one(tb))?.text, { timeout: 20000 }).toBe("new words #idea");
+    // a highlight is picked by a click on its words; Esc lets it go
+    const hlRect = pane.locator(`.page[data-page-number="1"] svg.atlas-marks [data-mark="${hl}"] rect`);
+    await expect.poll(async () => !!(await hlRect.boundingBox()), { timeout: 20000 }).toBe(true); // drawn again after the undo
+    const h = (await hlRect.boundingBox())!;
+    await page.mouse.click(h.x + h.width / 2, h.y + h.height / 2);
+    await expect(bar).toContainText("Highlight");
+    await page.keyboard.press("Escape");
+    await expect(bar).toHaveCount(0);
   });
 
   test("a link in the PDF and the outline go to their pages", async ({ page }) => {
@@ -230,6 +297,21 @@ for (const eng of ["pdfium", "pdfjs"] as const) test.describe(`with ${eng}`, () 
     await expect.poll(kinds, { timeout: 20000 }).not.toContain("stamp");
     await pane.getByRole("button", { name: "Bookmark this page" }).click();
     await expect.poll(kinds, { timeout: 20000 }).toEqual(["clip", "highlight", "postit", "underline"]);
+    // "Export with marks": a copy beside the PDF with the marks as annotations; the original untouched
+    const before = readFileSync(join(WS, PATH));
+    await pane.getByRole("button", { name: "Export with marks" }).click();
+    await expect(page.getByText("doc (marked).pdf: 4 marks written in.")).toBeVisible({ timeout: 20000 });
+    const copy = readFileSync(join(WS, DIR, "doc (marked).pdf"));
+    expect(copy.subarray(0, before.length).equals(before)).toBe(true); // an update after the original's bytes
+    for (const s of ["/Highlight", "/Underline", "/Text", "/Square", "/IRT", "/QuadPoints"]) expect(copy.toString("latin1")).toContain(s);
+    expect(readFileSync(join(WS, PATH)).equals(before)).toBe(true);
+    // Shift+click: the marks drawn into the pages instead (for printing), no annotations
+    await pane.getByRole("button", { name: "Export with marks" }).click({ modifiers: ["Shift"] });
+    await expect(page.getByText("doc (marked, flat).pdf: 4 marks written in.")).toBeVisible({ timeout: 20000 });
+    const flat = readFileSync(join(WS, DIR, "doc (marked, flat).pdf")).toString("latin1");
+    expect(flat).toContain("/AtlasMark0_0 Do");
+    for (const s of ["/Highlight", "/QuadPoints", "/IRT"]) expect(flat).not.toContain(s);
+    expect(readFileSync(join(WS, PATH)).equals(before)).toBe(true);
   });
 
   test("the reader's rotation turns the pages, their text with them", async ({ page }) => {

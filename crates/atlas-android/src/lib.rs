@@ -4,6 +4,7 @@
 pub mod phone;
 pub mod image;
 pub mod ink;
+pub mod pdfium;
 pub use atlas_pen::{arrow, regular, shape, shape_openink}; // the recognisers live in atlas-pen (the core uses them too)
 #[cfg(feature = "full")]
 pub mod serve;

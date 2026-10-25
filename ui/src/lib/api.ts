@@ -210,6 +210,9 @@ export const api = {
   /** A PDF's marks, from its note's `pdf-marks` block (core pdf_marks.rs). */
   pdfMarks: (pdf: string) => request<import("./gen/PdfMarks").PdfMarks>("GET", "/api/pdf-marks", { query: { pdf } }),
   /** The PDF a note holds the marks of (core companion.rs `pdf_of_note`); null: none. */
+  /** "Export with marks": `x (marked).pdf` beside the PDF, its marks as real annotations (core pdf_export.rs). */
+  exportPdfMarks: (pdf: string, mode: import("./gen/PdfExportMode").PdfExportMode = "annotations") =>
+    request<import("./gen/PdfExported").PdfExported>("POST", "/api/pdf-export", { query: { pdf, mode } }),
   pdfOfNote: (note: string) => request<{ pdf: string | null }>("GET", "/api/pdf-of-note", { query: { note } }),
   /** Changes a PDF's marks (its note made with the first one); the marks after. */
   changePdfMarks: (pdf: string, ops: import("./gen/Op").Op[]) => request<import("./gen/PdfMarks").PdfMarks>("POST", "/api/pdf-marks", { query: { pdf }, body: ops }),

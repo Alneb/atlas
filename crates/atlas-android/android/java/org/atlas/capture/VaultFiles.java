@@ -157,6 +157,43 @@ abstract class VaultFiles {
         } catch (org.json.JSONException | UnsatisfiedLinkError e) { throw new IOException(e.getMessage()); }
     }
 
+    /** A PDF's marks from its note's pdf-marks block (core pdf_marks.rs), `{note, marks}`, here or on the vault's server
+     *  alike. Never on the UI thread. Throws with why. */
+    static JSONObject pdfMarks(Context c, String vault, String pdf) throws IOException {
+        try {
+            String q = "/api/pdf-marks?pdf=" + java.net.URLEncoder.encode(pdf, "UTF-8");
+            JSONObject r = Server.is(vault) ? new JSONObject(new String(new OnServer(c, vault).get(q), StandardCharsets.UTF_8)) : new JSONObject(Core.pdfMarks(vault, pdf));
+            if (r.has("error")) throw new IOException(r.optString("error"));
+            return r;
+        } catch (org.json.JSONException | UnsatisfiedLinkError e) { throw new IOException(e.getMessage()); }
+    }
+
+    /** `ops` (`[{op: "put", mark} | {op: "remove", id}]`) applied to a PDF's note, made with its first mark: the marks
+     *  after. Never on the UI thread. Throws with why. */
+    static JSONObject changePdfMarks(Context c, String vault, String pdf, org.json.JSONArray ops) throws IOException {
+        try {
+            String q = "/api/pdf-marks?pdf=" + java.net.URLEncoder.encode(pdf, "UTF-8");
+            JSONObject r = Server.is(vault)
+                ? new JSONObject(new String(new OnServer(c, vault).send("POST", q, "application/json", ops.toString().getBytes(StandardCharsets.UTF_8)), StandardCharsets.UTF_8))
+                : new JSONObject(Core.changePdfMarks(vault, pdf, ops.toString()));
+            if (r.has("error")) throw new IOException(r.optString("error"));
+            return r;
+        } catch (org.json.JSONException | UnsatisfiedLinkError e) { throw new IOException(e.getMessage()); }
+    }
+
+    /** A copy of the PDF with its marks inside as real annotations, `x (marked).pdf` beside it (core pdf_export.rs), here
+     *  or on the vault's server: `{path, annotations, bookmarks, skipped, rewritten}`. Never on the UI thread. */
+    static JSONObject exportPdfMarks(Context c, String vault, String pdf) throws IOException {
+        try {
+            String q = "/api/pdf-export?pdf=" + java.net.URLEncoder.encode(pdf, "UTF-8");
+            JSONObject r = Server.is(vault)
+                ? new JSONObject(new String(new OnServer(c, vault).send("POST", q, "application/json", new byte[0]), StandardCharsets.UTF_8))
+                : new JSONObject(Core.exportPdfMarks(vault, pdf));
+            if (r.has("error")) throw new IOException(r.optString("error"));
+            return r;
+        } catch (org.json.JSONException | UnsatisfiedLinkError e) { throw new IOException(e.getMessage()); }
+    }
+
     static JSONObject config(Context c, String vault) throws IOException {
         try {
             JSONObject r = Server.is(vault) ? new JSONObject(new String(new OnServer(c, vault).get("/api/config"), StandardCharsets.UTF_8)) : new JSONObject(Core.config(vault));

@@ -17,7 +17,13 @@ export interface Space { view: Box; rotate: number }
 export interface Converted { marks: Mark[]; /** elements over a page with no mark shape */ kept: number; pages: number[] }
 
 const ID = /^m-[0-9a-z]{8}$/;
-const freshId = () => { let s = ""; for (let i = 0; i < 8; i++) s += Math.floor(Math.random() * 36).toString(36); return `m-${s}`; };
+/** A mark id from the drawing's own element id (FNV-1a): the same element always gives the same mark, so a second run
+ *  of the migration finds it already in the note instead of adding it again. */
+const idOf = (key: string) => {
+  let h = 0xcbf29ce484222325n;
+  for (const c of new TextEncoder().encode(key)) h = BigInt.asUintN(64, (h ^ BigInt(c)) * 0x100000001b3n);
+  return `m-${(h % 36n ** 8n).toString(36).padStart(8, "0")}`;
+};
 const stamp = (ms: number) => {
   const d = new Date(ms), p = (n: number) => String(n).padStart(2, "0");
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
@@ -66,7 +72,7 @@ export function convert(els: readonly El[], spaces: Map<number, Space>): Convert
     const device = am?.device ?? (/^(pen|highlight|note)-/.test(e.id) ? "desktop" : "android");
     const key = am?.id ?? cd.atlasHighlight?.mark ?? e.id;
     const head = (color: string) => ({
-      id: am && ID.test(am.id) ? am.id : (marks.get(key)?.id ?? freshId()), page: n, version: 0, color, device,
+      id: am && ID.test(am.id) ? am.id : (marks.get(key)?.id ?? idOf(key)), page: n, version: 0, color, device,
       created: stamp(am?.created ?? (Number(e.updated) || Date.now())), tags: [] as string[],
     });
     if (e.type === "rectangle" && (cd.atlasHighlight || am?.kind === "highlight")) {
@@ -100,4 +106,13 @@ export function convert(els: readonly El[], spaces: Map<number, Space>): Convert
   }
   const out = [...marks.values()];
   return { marks: out, kept, pages: [...new Set(out.map((m) => m.page))] };
+}
+
+/** What a mark is, apart from who made it when: its kind, page and place (keys sorted, numbers to 0.01 pt, since a number
+ *  read back from the note may differ in its last bit), to find one already moved. */
+export function placeKey(m: Mark): string {
+  const { id: _i, version: _v, color: _c, device: _d, created: _t, tags: _g, ...rest } = m as Mark & Record<string, unknown>;
+  const sorted = (v: unknown): unknown => typeof v === "number" ? Math.round(v * 100) / 100 : Array.isArray(v) ? v.map(sorted) : v && typeof v === "object"
+    ? Object.fromEntries(Object.entries(v).filter(([, x]) => x != null).sort(([a], [b]) => a.localeCompare(b)).map(([k, x]) => [k, sorted(x)])) : v;
+  return JSON.stringify(sorted(rest));
 }

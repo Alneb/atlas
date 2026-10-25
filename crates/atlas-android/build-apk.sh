@@ -34,6 +34,11 @@ native() { # native <app> → $work/lib-<app>/<abi>/libatlas_android.so
     cargo build -p atlas-android --target "$triple" $feat $([ $profile = release ] && echo --profile android)
     mkdir -p "$work/lib-$1-$abi/lib/$abi"
     "$bin/llvm-strip" -o "$work/lib-$1-$abi/lib/$abi/libatlas_android.so" "$repo/target/$triple/$([ $profile = release ] && echo android || echo debug)/libatlas_android.so"
+    # PDFium for the PDF reader (docs/design/DESIGN-pdfium-android.md; scripts/dev/fetch-pdfium.sh puts it in local/);
+    # without it the reader keeps PdfRenderer
+    pdfium=$(ls "$repo"/local/pdfium/*-"${abi/arm64-v8a/android-arm64}"/lib/libpdfium.so 2>/dev/null | tail -1)
+    if [ -n "$pdfium" ]; then cp "$pdfium" "$work/lib-$1-$abi/lib/$abi/libpdfium.so"; echo "[apk]   PDFium ($abi): $(du -h "$pdfium" | cut -f1)"
+    else echo "[apk]   no PDFium for $abi (bash scripts/dev/fetch-pdfium.sh): the PDF reader keeps PdfRenderer"; fi
   done
 }
 for app in $apps; do echo "[apk] 1/4 the native library for $app ($abis, API $api, $profile)"; native "$app"; done

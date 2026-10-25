@@ -25,8 +25,14 @@ reqwest = { version = "0.12", default-features = false, features = ["json"] }
 # The quick-capture box draws its card with see-through corners, shadow and lists floating under it: on
 # Wayland softbuffer 0.4 hands the compositor opaque XRGB buffers, so a copy that hands it ARGB
 # (crates/vendor/softbuffer: two `Xrgb8888` → `Argb8888` in src/backends/wayland/buffer.rs; nothing else changed).
+# kreuzberg-tesseract 4.10.4 (the OCR plugin's engine) takes any zip >= 7 for its build script, which then picked zip 9
+# (brought by pdf_oxide's office_oxide), where `ZipFile::mangled_name` changed and the build script fails: a copy whose
+# build dependency is capped below 9 (crates/vendor/kreuzberg-tesseract/Cargo.toml, one line; its `authors` line left out
+# for the publish scan, as the other vendored crates; nothing else changed),
+# until upstream follows.
 [patch.crates-io]
 softbuffer = { path = "crates/vendor/softbuffer" }
+kreuzberg-tesseract = { path = "crates/vendor/kreuzberg-tesseract" }
 
 # Debug builds keep full debug info for Atlas's own crates and none for the dependencies: the debug target/ had grown
 # to 47 GB, mostly dependencies' debug info.

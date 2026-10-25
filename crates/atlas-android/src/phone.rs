@@ -161,6 +161,15 @@ pub fn change_pdf_marks(vault: &Path, pdf: &str, ops: &str) -> Value {
     }
 }
 
+/// "Export with marks" (core pdf_export.rs): `x (marked).pdf` beside the PDF, its marks as real annotations — what was
+/// written (`{path, annotations, bookmarks, skipped, rewritten}`), or `{error}`.
+pub fn export_pdf_marks(vault: &Path, pdf: &str) -> Value {
+    match atlas_core::Workspace::open(vault).and_then(|ws| atlas_core::pdf_export::export(&ws, pdf, atlas_core::pdf_export::Mode::Annotations)) {
+        Ok(r) => json!(r),
+        Err(e) => json!({ "error": e.to_string() }),
+    }
+}
+
 pub fn config(vault: &Path) -> Value {
     match atlas_core::config::Config::load(vault) {
         Ok(c) => json!({ "config": c, "schema": atlas_core::config::Config::schema() }),

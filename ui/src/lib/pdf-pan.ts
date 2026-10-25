@@ -8,7 +8,7 @@ const OWN = ".textLayer span, .textLayer br, a, .annotationLayer section, .annot
 export function attachPan(container: HTMLElement, selecting: () => boolean): () => void {
   let drag: { id: number; x: number; y: number; left: number; top: number } | null = null;
   const down = (e: PointerEvent) => {
-    if (e.pointerType !== "mouse") return;
+    if (e.pointerType !== "mouse" || e.defaultPrevented) return; // taken by a tool first (a mark being moved)
     const middle = e.button === 1;
     if (!middle && (e.button !== 0 || !selecting() || (e.target as Element).closest(OWN))) return;
     e.preventDefault(); // no text selection starting, no autoscroll / X11 paste

@@ -232,7 +232,7 @@ returns the state PUT into a live server on a real vault.
 ### Round 15: the audit's "missing" list, built
 - **Today**: ‹ › browse days that have a log. **Bases**: double-click a property cell → `PUT /api/property`
   (`frontmatter.rs`: rewrites only that key's block). **Library**: drop PDFs → `POST /api/refs/pdf`
-  (DOI/arXiv id from `pdftotext` → metadata, else named after the file). **Tables**: quick SVG plot
+  (DOI/arXiv id from the PDF's text, read in Rust by pdf_oxide → metadata, else named after the file). **Tables**: quick SVG plot
   (`components/Plot.svelte`; X = an increasing column else the row number). **Scheduled commands**:
   `schedule = "daily 03:00" | "every 2h" | "hourly"` (`schedule.rs`, `[automation] run_schedules`).
   **Graph** (`panes/Graph.svelte`, `GET /api/graph`).

@@ -8,8 +8,8 @@
 /** A place: the page, and optionally the passage's words or an annotation's id. */
 export interface PdfPlace { page?: number; quote?: string; annotation?: string }
 
-/** pdf.js's annotation ids: `<object number>R`, `<num>R<gen>` for a later generation. */
-const ANNOT_ID = /^\d+R\d*$/;
+/** A PDF annotation (`<object number>R`, `<num>R<gen>` for a later generation), or one of the note's marks (`m-…`). */
+const ANNOT_ID = /^(\d+R\d*|m-[0-9a-z]{8})$/;
 
 /** A label that names the page rather than words on it ("p. 3", "page 12", "3"). */
 const PAGE_LABEL = /^(p(p|age)?\.?\s*)?\d+([-–]\d+)?$/i;

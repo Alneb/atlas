@@ -13,14 +13,17 @@
   // (Ctrl+= / Ctrl+- / Ctrl+0), dark pages (D), reopens at the last page read. Marks are saved as they are made into
   // the PDF's companion drawing (lib/pdf-tools.ts); "to notes" extracts them to markdown.
   import { pdfPages } from "../lib/registry";
-  import { onMount } from "svelte";
+  import { MARK_ID } from "../lib/note-anchor";
+  import { flushSync, onMount } from "svelte";
   import type { PaneProps } from "../lib/dock";
   import { openReader, type OutlineItem, type Reader, type Zoom } from "../lib/pdf-reader";
   import { attachTools, COLORS, type ToolName, type Tools } from "../lib/pdf-tools";
   import { attachPdfInk } from "../lib/pdf-ink";
-  import { attachPdfMarks, markAt, STAMPS, type Mark, type MarksView, type Stamp } from "../lib/pdf-marks";
+  import { attachPdfMarks, markAt, recoloured, reworded, STAMPS, type Mark, type MarksView, type Stamp } from "../lib/pdf-marks";
+  import PdfMarkBar from "../components/PdfMarkBar.svelte";
   import { eraseAt } from "../lib/pdf-ink-save";
   import { api } from "../lib/api";
+  import { exportWithMarks } from "../lib/pdf-export";
   import { ensureNoteOf, notesBeside } from "../lib/papers";
   import { placeLink } from "../lib/pdf-place";
   import Icon from "../components/Icon.svelte";
@@ -77,8 +80,9 @@
   const posKey = () => `atlas.pdf.pos:${spec.path}`;
   let posTimer = 0;
   function rememberPosition() {
+    if (!container?.clientWidth) return; // hidden: nothing being read to remember
     clearTimeout(posTimer);
-    posTimer = window.setTimeout(() => { if (r) savePref(posKey(), JSON.stringify({ page: r.page, scale: String(r.zoom) })); }, 400);
+    posTimer = window.setTimeout(() => { if (r && container?.clientWidth) savePref(posKey(), JSON.stringify({ page: r.page, scale: String(r.zoom) })); }, 400);
   }
   /** The page and zoom this PDF was left at (the zoom saved as "page-width", "page-fit" or a number). */
   function savedPosition(): { page?: number; zoom?: Zoom } {
@@ -104,7 +108,7 @@
     const px = r.scale * (96 / 72);
     try {
       const [x, y] = await r.toPagePoint(at.n, at.X, at.Y), hit = marks && markAt(marks.marks(), at.n, x, y);
-      if (hit) { await marks!.change([{ op: "remove", id: hit.id }]); return; }
+      if (hit) { await tools?.remove(hit.id); return; } // undo brings it back
       const gone = await eraseAt(spec.path, at.n, (at.X * px) / layer.offsetWidth, (at.Y * px) / layer.offsetHeight);
       if (gone) offInk?.reload(); else flash("No mark there");
     } catch (err) { flash(`Not erased: ${errText(err)}`, 5000); }
@@ -125,7 +129,31 @@
   // the page's bookmark (B): one mark of its own, listed with the others in the note
   let bookmarked = $state(false), markList = $state<readonly Mark[]>([]);
   const seeBookmark = () => { bookmarked = !!marks?.marks().some((m) => m.page === current && m.kind === "bookmark"); };
-  const marksChanged = (ms: readonly Mark[]) => { markList = ms; seeBookmark(); };
+  const marksChanged = (ms: readonly Mark[]) => {
+    markList = ms;
+    seeBookmark();
+    if (picked) { picked = ms.find((m) => m.id === picked!.id && m.kind !== "deleted") ?? null; if (!picked) tools?.select(null); placeBarSoon(); }
+  };
+
+  // the picked mark's bar (the select tool's click): under the mark, over it near the bottom
+  let picked = $state.raw<Mark | null>(null), barAt = $state<{ left: number; top: number } | null>(null), wrap = $state<HTMLElement | null>(null);
+  function placeBar() {
+    const g = picked && container?.querySelector(`svg.atlas-marks [data-mark="${picked.id}"]`);
+    if (!g || !wrap) { barAt = null; return; }
+    const b = g.getBoundingClientRect(), w = wrap.getBoundingClientRect();
+    const below = b.bottom - w.top + 8, above = b.top - w.top - 44;
+    barAt = { left: Math.max(150, Math.min(w.width - 150, b.left + b.width / 2 - w.left)), top: below + 40 > w.height && above > 0 ? above : below };
+  }
+  // the marks are drawn again after a save: the bar finds its mark once they are
+  const placeBarSoon = () => { requestAnimationFrame(placeBar); setTimeout(placeBar, 250); };
+  const unpick = () => tools?.select(null);
+  const editPicked = (next: Mark) => { void tools?.edit(next); };
+  function deletePicked() {
+    if (!picked || !tools) return;
+    const id = picked.id;
+    tools.select(null);
+    void tools.remove(id).then(() => flash("Mark deleted — Ctrl+Z brings it back"));
+  }
   async function toggleBookmark() {
     if (!tools) return;
     bookmarked = await tools.toggleBookmark(current);
@@ -154,6 +182,12 @@
   // the label: fit the width, again: the whole page
   const fitWidth = () => r?.setZoom(r.zoom === "page-width" ? "page-fit" : "page-width");
   const goto = (n: number) => r?.goto(Math.max(1, Math.min(n, pages)));
+  /** A link's words selected, or its annotation flashed: a PDF annotation's id, or one of the note's marks (`m-…`). */
+  function mark(page: number, at: { quote?: string; annotation?: string }) {
+    if (at.quote) void r?.selectWords(page, at.quote);
+    if (at.annotation && MARK_ID.test(at.annotation)) void marks?.flash(at.annotation).then((ok) => { if (!ok) flash("That mark is gone"); });
+    else if (at.annotation) void r?.flashAnnotation(page, at.annotation);
+  }
   const runFind = (again = false, back = false) => r?.find(findQ, { again, back });
   const jump = (o: OutlineItem) => { if (o.page !== null) r?.goto(o.page + 1, o.y); };
 
@@ -164,7 +198,7 @@
   function onkeydown(e: KeyboardEvent) {
     const mod = e.ctrlKey || superOf(e);
     if (mod && e.key.toLowerCase() === "s") { e.preventDefault(); e.stopPropagation(); flash("Marks are saved as you make them"); return; }
-    if (mod && e.key.toLowerCase() === "f") { e.preventDefault(); e.stopPropagation(); findOpen = true; requestAnimationFrame(() => findInput?.select()); return; }
+    if (mod && e.key.toLowerCase() === "f") { e.preventDefault(); e.stopPropagation(); findOpen = true; flushSync(); findInput?.select(); return; } // focused at once: the next keys are the query's, not the pane's
     // zoom the page, not the app (the shell's Ctrl+= scales the whole UI)
     if (mod && (e.key === "=" || e.key === "+")) { e.preventDefault(); e.stopPropagation(); zoom(1.15); return; }
     if (mod && e.key === "-") { e.preventDefault(); e.stopPropagation(); zoom(1 / 1.15); return; }
@@ -173,6 +207,8 @@
     const typing = t.isContentEditable || /^(INPUT|TEXTAREA)$/.test(t.tagName);
     if (mod && !e.shiftKey && e.key.toLowerCase() === "z" && !typing) { e.preventDefault(); e.stopPropagation(); void undo(); return; }
     if (mod || typing) return;
+    if (picked && (e.key === "Delete" || e.key === "Backspace")) { e.preventDefault(); e.stopPropagation(); deletePicked(); return; }
+    if (picked && e.key === "Escape") { e.preventDefault(); e.stopPropagation(); unpick(); return; }
     const k = e.key.toLowerCase();
     // a text mark's key marks the selection at once, else picks that tool
     const textMark = ({ h: "highlight", u: "underline", x: "strike" } as const)[k as "h" | "u" | "x"];
@@ -203,7 +239,11 @@
   let paneEl: HTMLDivElement;
   const markUsed = () => { lastUsed = paneEl; };
   $effect(() => {
-    const onWin = (e: KeyboardEvent) => { if (document.activeElement === document.body && lastUsed === paneEl && paneEl.isConnected) onkeydown(e); };
+    // keys with nothing focused, or the dock's wrapper around this pane (a click on the page focuses it): this pane's
+    const onWin = (e: KeyboardEvent) => {
+      const a = document.activeElement;
+      if ((a === document.body || (a !== paneEl && a?.contains(paneEl))) && lastUsed === paneEl && paneEl.isConnected) onkeydown(e);
+    };
     window.addEventListener("keydown", onWin);
     // the module keeps the last pane used: a closed one must not stay alive through it
     return () => { window.removeEventListener("keydown", onWin); if (lastUsed === paneEl) lastUsed = null; };
@@ -222,7 +262,7 @@
       current = reader.page; pageInput = String(current);
       scaleLabel = labelOf(reader.zoom, reader.scale);
       marks = attachPdfMarks(reader, spec.path, marksChanged);
-      tools = attachTools(container, reader, marks, { saved, failed: (e) => flash(`Not saved: ${errText(e)}`, 6000) });
+      tools = attachTools(container, reader, marks, { saved, failed: (e) => flash(`Not saved: ${errText(e)}`, 6000), selected: (m) => { picked = m; placeBar(); } });
       pick(tool, false);
       // the ink every device writes to the PDF's companion drawing, over its pages (lib/pdf-ink.ts)
       offInk = attachPdfInk(container, spec.path, (drawn) => reader.on("drawn", drawn));
@@ -231,9 +271,7 @@
       reader.on("find", ({ current: c, total }) => { findInfo = total ? `${c}/${total}` : "0"; });
       // a link's page, words and annotation, used once: a restored layout must not jump back
       if (spec.page) {
-        const { page, quote, annotation } = spec;
-        if (quote) void reader.selectWords(page, quote);
-        if (annotation) void reader.flashAnnotation(page, annotation);
+        mark(spec.page, spec);
         panel.updateParameters({ ...spec, page: undefined, quote: undefined, annotation: undefined });
       }
     } catch (err) {
@@ -250,7 +288,7 @@
 
   onMount(() => {
     void openViewer();
-    pdfPages.set(panel.id, (n) => goto(n));
+    pdfPages.set(panel.id, (n, at) => { goto(n); if (at) mark(n, at); });
     // refit on a real width change only: a background tab leaves the page (width 0) and comes back at the same
     // width — refitting then re-laid out every page on each tab switch
     let fittedAt = 0;
@@ -355,6 +393,7 @@
     <button class="icon-btn" title="Find (Ctrl+F)" onclick={() => { findOpen = !findOpen; if (findOpen) requestAnimationFrame(() => findInput?.focus()); }}><Icon name="search" size={14} /></button>
     <span class="sep"></span>
     <button class="icon-btn" title="This paper's note (its <citekey>.md), beside the PDF" aria-label="Paper's note" onclick={() => void notesBeside(spec.path)}><Icon name="file-text" size={14} /></button>
+    <button class="icon-btn" title="Export a copy with the marks inside, as annotations any PDF reader shows — x (marked).pdf, beside this one. Shift+click: drawn into the pages, for printing — x (marked, flat).pdf" aria-label="Export with marks" onclick={(e) => void exportWithMarks(spec.path, e.shiftKey ? "flat" : "annotations")}><Icon name="pdf" size={14} /></button>
     <button class="icon-btn" title="Write the highlights and their comments into the paper's note — the same <citekey>.md the note button opens" aria-label="Highlights into the note" onclick={toNotes}><Icon name="quote" size={14} /></button>
   </div>
 
@@ -379,8 +418,11 @@
     {:else if outlineOpen && side === "marks"}
       <PdfMarksList marks={markList} {current} onpick={(n, y) => r?.goto(n, y)} />
     {/if}
-    <div class="viewer-wrap">
-      <div class="viewer-container" class:inking={tool === "ink"} class:noting={tool === "text" || tool === "postit" || tool === "clip" || tool === "stamp"} class:can-pan={tool === "select" && !erasing} class:erasing class:dark bind:this={container} onwheel={pinch} onclickcapture={eraseClick}>
+    <div class="viewer-wrap" bind:this={wrap}>
+      {#if picked && barAt}
+        <PdfMarkBar mark={picked} at={barAt} onrecolor={(hex) => editPicked(recoloured(picked!, hex))} onreword={(t) => editPicked(reworded(picked!, t))} ondelete={deletePicked} onclose={unpick} />
+      {/if}
+      <div class="viewer-container" onscroll={() => { if (picked) placeBar(); }} class:inking={tool === "ink"} class:noting={tool === "text" || tool === "postit" || tool === "clip" || tool === "stamp"} class:can-pan={tool === "select" && !erasing} class:erasing class:dark bind:this={container} onwheel={pinch} onclickcapture={eraseClick}>
         <div class="pdfViewer"></div>
       </div>
       {#if error}
@@ -452,6 +494,8 @@
   /* dark reading: invert the rendered page (Zotero/Okular-style); annotation layers keep their colours */
   .viewer-container.dark :global(.pdfViewer .page .canvasWrapper) { filter: invert(.88) hue-rotate(180deg); }
   /* a link's annotation (#annotation=…), pointed at once it is drawn */
+  .viewer-container :global(.atlas-flash-mark) { animation: atlas-flash-mark 1.6s ease-out 2; }
+  @keyframes -global-atlas-flash-mark { 0%, 40% { filter: drop-shadow(0 0 3px var(--accent)) drop-shadow(0 0 8px var(--accent)); } 100% { filter: none; } }
   .viewer-container :global(.atlas-flash) { animation: atlas-flash 1.6s ease-out 2; border-radius: 2px; }
   @keyframes -global-atlas-flash { 0%, 40% { box-shadow: 0 0 0 3px var(--accent), 0 0 18px 4px var(--accent); } 100% { box-shadow: 0 0 0 3px transparent; } }
   .overlay { position: absolute; inset: 0; }

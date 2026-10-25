@@ -94,6 +94,14 @@ public final class Host {
 
     public String companionNote(String file) throws IOException { return VaultFiles.companionNote(activity, vault, file); }
 
+    /** PDF `pdf`'s marks, from its note (core pdf_marks.rs): `{note, marks}`. Never on the UI thread. */
+    public JSONObject pdfMarks(String pdf) throws IOException { return VaultFiles.pdfMarks(activity, vault, pdf); }
+
+    /** Changes to PDF `pdf`'s marks (its note made with the first): the marks after. Never on the UI thread. */
+    public JSONObject changePdfMarks(String pdf, org.json.JSONArray ops) throws IOException { return VaultFiles.changePdfMarks(activity, vault, pdf, ops); }
+    /** A copy of the PDF with its marks inside (`x (marked).pdf`), what was written. Never on the UI thread. */
+    public JSONObject exportPdfMarks(String pdf) throws IOException { return VaultFiles.exportPdfMarks(activity, vault, pdf); }
+
     /** File `name` of this plugin's shared/ folder, carried in the app (its web side uses the same file), or null. */
     public String sharedFile(String name) { return NativePlugins.shared(plugin, name); }
 

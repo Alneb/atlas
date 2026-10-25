@@ -140,7 +140,7 @@ export function paneTitle(s: PaneSpec): string {
 
 export type IconName =
   | "today" | "files" | "search" | "lecture" | "command" | "file" | "file-code" | "file-text" | "pdf"
-  | "image" | "terminal" | "claude" | "globe" | "mail" | "folder" | "folder-open" | "chevron" | "close" | "edit"
+  | "image" | "terminal" | "claude" | "globe" | "mail" | "folder" | "folder-open" | "chevron" | "close" | "edit" | "trash"
   | "eye" | "check" | "circle" | "commit" | "clock" | "sun" | "moon" | "plus" | "minus" | "refresh" | "zoom"
   | "settings" | "git" | "panel-bottom" | "panel-right" | "chevron-down" | "table" | "library" | "copy" | "link" | "outline" | "plugin" | "chart"
   | "error" | "warning" | "undo" | "arrow-up" | "arrow-down" | "arrow-left" | "arrow-right" | "pin" | "panel-left"
@@ -180,7 +180,7 @@ export function paneIcon(s: PaneSpec): IconName {
 }
 
 /** Delimited data opens as a table (the pane has a "view as text" switch). */
-export const TABLE_RE = /\.(tsv|csv|tab)$/i;
+export const TABLE_RE = /\.(tsv|csv|tab|xlsx)$/i;
 const CODE_RE = /\.(rs|py|ts|js|mjs|cjs|tsx|jsx|svelte|c|h|cc|cpp|hpp|go|java|kt|jl|f90|f|sh|zsh|bash|toml|ya?ml|json|lua|rb|css|scss|html|tex|bib|nix|cmake|sql)$/i;
 
 export function fileIcon(path: string): IconName {

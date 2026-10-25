@@ -1,5 +1,6 @@
 # The gate on every push and pull request: the same `scripts/dev/gate.sh` a contributor runs locally, so "green" means
 # one thing. Windows and macOS build every crate and run the core's tests; they may fail until those ports are done.
+# Android builds the three APKs from the same toolchain scripts as a desktop (docs/guides/ANDROID.md).
 name: CI
 
 on:
@@ -84,3 +85,40 @@ jobs:
       # Git for Windows' sh, Python and tar are on the runners: the tests that start them run here, unlike under Wine
       - name: The core's tests
         run: cargo test --locked -p atlas-core
+
+  android:
+    name: Android (the three APKs)
+    runs-on: ubuntu-24.04
+    # new: may fail while it settles; the APKs are the run's artifacts, signed with a key made for the run
+    continue-on-error: true
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
+      # the core carries the interface it serves
+      - name: The UI
+        run: |
+          npm --prefix ui ci --no-audit --no-fund
+          npm --prefix ui run build
+      # the NDK, build-tools and a platform (checked against Google's sums), and PDFium for the PDF reader (pinned)
+      - name: The toolchain
+        run: |
+          bash crates/atlas-android/get-toolchain.sh
+          bash scripts/dev/fetch-pdfium.sh
+      - name: The APKs
+        run: bash crates/atlas-android/build-apk.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android-apks
+          path: target/dist/android/*.apk
+          if-no-files-found: error

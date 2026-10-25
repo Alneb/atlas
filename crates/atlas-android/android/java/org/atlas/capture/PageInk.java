@@ -48,6 +48,7 @@ public final class PageInk extends View implements PenBar.Pen {
     private Map<Integer, InkStore.Sheet> sheets = new HashMap<>();
     private int page = -1, opened;
     private final List<Float> drawing = new ArrayList<>(); // the stroke under the pen, in page fractions
+    private final List<Float> samples = new ArrayList<>(); // per point of `drawing`: pressure, tilt x, tilt y, ms
     private final Deque<Object[]> undo = new ArrayDeque<>(); // {page, the sheet before}
     private float downX, downY;
     private long downAt;
@@ -170,6 +171,7 @@ public final class PageInk extends View implements PenBar.Pen {
                 downX = e.getX(); downY = e.getY(); downAt = e.getEventTime();
                 erasing = PenInput.erasing(e) || tool == Tool.ERASER;
                 drawing.clear();
+                samples.clear();
                 if (inks()) add(e, r);
                 return true;
             case MotionEvent.ACTION_MOVE:
@@ -181,6 +183,8 @@ public final class PageInk extends View implements PenBar.Pen {
                 if (dot && r != null && store != null && page >= 0) {
                     InkStore.Note n = noteAt(e.getX(), e.getY(), r);
                     if (n != null) { drawing.clear(); edit(n); return true; }
+                    InkStore.Shape post = postitAt(e.getX(), e.getY(), r);
+                    if (post != null) { drawing.clear(); host.toast(post.text.isEmpty() ? "An empty post-it" : post.text); return true; }
                     if (tool == Tool.TEXT && writing) { drawing.clear(); write((e.getX() - r.left) / r.width(), (e.getY() - r.top) / r.height()); return true; }
                 }
                 // writing (the pen bar out): the pen only writes — a dot is ink (an i's, a full stop), never a page
@@ -205,11 +209,25 @@ public final class PageInk extends View implements PenBar.Pen {
     /** The samples since the last event (every one the pen gave), in page fractions. */
     private void add(MotionEvent e, RectF r) {
         if (r == null) return;
-        for (int h = 0; h < e.getHistorySize(); h++) { drawing.add((e.getHistoricalX(h) - r.left) / r.width()); drawing.add((e.getHistoricalY(h) - r.top) / r.height()); }
+        for (int h = 0; h < e.getHistorySize(); h++) {
+            drawing.add((e.getHistoricalX(h) - r.left) / r.width()); drawing.add((e.getHistoricalY(h) - r.top) / r.height());
+            sample(e.getHistoricalPressure(h), e.getHistoricalAxisValue(MotionEvent.AXIS_TILT, h), e.getHistoricalAxisValue(MotionEvent.AXIS_ORIENTATION, h), e.getHistoricalEventTime(h));
+        }
         drawing.add((e.getX() - r.left) / r.width());
         drawing.add((e.getY() - r.top) / r.height());
-        if (erasing && drawing.size() > 4) { erase(r); drawing.subList(0, drawing.size() - 2).clear(); }
+        sample(e.getPressure(), e.getAxisValue(MotionEvent.AXIS_TILT), e.getAxisValue(MotionEvent.AXIS_ORIENTATION), e.getEventTime());
+        if (erasing && drawing.size() > 4) { erase(r); drawing.subList(0, drawing.size() - 2).clear(); samples.clear(); }
         else if (drawing.size() > 2 && !host.eink()) invalidate(); // drawn as it goes off e-ink (a Boox's quick ink draws it there)
+    }
+
+    /** What the pen gave at a point: its pressure, its tilt (Android's angle from upright and its direction, turned into
+     *  the desktop's tilt x / y, −1…1 of 90°, as a browser's PointerEvent gives them) and the ms since the pen came down. */
+    private void sample(float pressure, float tilt, float orientation, long at) {
+        double tx = Math.toDegrees(Math.atan(Math.tan(tilt) * Math.sin(-orientation))) / 90, ty = Math.toDegrees(Math.atan(Math.tan(tilt) * Math.cos(orientation))) / 90;
+        samples.add(Math.max(0f, Math.min(1f, pressure)));
+        samples.add((float) Math.max(-1, Math.min(1, tx)));
+        samples.add((float) Math.max(-1, Math.min(1, ty)));
+        samples.add((float) Math.max(0, at - downAt));
     }
 
     private InkStore.Sheet sheet() { return sheets.computeIfAbsent(page, k -> new InkStore.Sheet()); }
@@ -229,6 +247,7 @@ public final class PageInk extends View implements PenBar.Pen {
         st.opacity = tool == Tool.HIGHLIGHTER ? 0.4f : 1;
         st.pts = new float[drawing.size()];
         for (int i = 0; i < st.pts.length; i++) st.pts[i] = Math.round(drawing.get(i) * 10000) / 10000f;
+        if (samples.size() == 2 * drawing.size()) { st.sm = new float[samples.size()]; for (int i = 0; i < st.sm.length; i++) st.sm[i] = samples.get(i); }
         sheet().strokes.add(st);
         invalidate();
         quick.up();
@@ -264,6 +283,79 @@ public final class PageInk extends View implements PenBar.Pen {
         }
         return false;
     }
+
+    // ---- another device's marks, shown --------------------------------------------------------------------------------
+
+    /** A post-it's icon size, of the page's width (the desktop draws 14 pt on a 612 pt page). */
+    private static final float POSTIT = 14f / 612, STAMP = 18f / 612;
+
+    private InkStore.Shape postitAt(float x, float y, RectF r) {
+        InkStore.Sheet s = sheets.get(page);
+        if (s == null) return null;
+        float side = POSTIT * r.width(), pad = host.look().dp(8);
+        for (InkStore.Shape sh : s.shapes) if ("postit".equals(sh.kind)) {
+            float px = r.left + sh.x * r.width(), py = r.top + sh.y * r.height();
+            if (x >= px - pad && x <= px + side + pad && y >= py - pad && y <= py + side + pad) return sh;
+        }
+        return null;
+    }
+
+    /** The desktop's marks under this reader's ink: a highlight's lines filled (grey on e-ink), an underline or a strike
+     *  as a line, a clip's dashed box, a post-it's folded square, a stamp's glyph. */
+    private void drawShapes(Canvas c, List<InkStore.Shape> shapes, RectF r) {
+        Paint f = new Paint(Paint.ANTI_ALIAS_FLAG);
+        for (InkStore.Shape sh : shapes) {
+            f.setPathEffect(null);
+            f.setColor(sh.color);
+            switch (sh.kind) {
+                case "highlight":
+                    f.setStyle(Paint.Style.FILL);
+                    f.setAlpha(host.eink() ? 70 : 100);
+                    for (int i = 0; i + 3 < sh.boxes.length; i += 4) c.drawRect(x(r, sh.boxes[i]), y(r, sh.boxes[i + 1]), x(r, sh.boxes[i + 2]), y(r, sh.boxes[i + 3]), f);
+                    break;
+                case "underline": case "strike":
+                    f.setStyle(Paint.Style.STROKE);
+                    for (int i = 0; i + 3 < sh.boxes.length; i += 4) {
+                        float top = y(r, sh.boxes[i + 1]), bottom = y(r, sh.boxes[i + 3]), at = "underline".equals(sh.kind) ? bottom - 0.5f : (top + bottom) / 2;
+                        f.setStrokeWidth(Math.max(1.5f, (bottom - top) * 0.08f));
+                        c.drawLine(x(r, sh.boxes[i]), at, x(r, sh.boxes[i + 2]), at, f);
+                    }
+                    break;
+                case "clip": {
+                    f.setStyle(Paint.Style.STROKE);
+                    f.setStrokeWidth(host.look().dp(1));
+                    f.setPathEffect(new android.graphics.DashPathEffect(new float[] { host.look().dp(4), host.look().dp(3) }, 0));
+                    c.drawRect(x(r, sh.boxes[0]), y(r, sh.boxes[1]), x(r, sh.boxes[2]), y(r, sh.boxes[3]), f);
+                    if (!sh.text.isEmpty()) { f.setPathEffect(null); f.setStyle(Paint.Style.FILL); f.setTextSize(host.look().dp(10)); c.drawText(sh.text, x(r, sh.boxes[0]), y(r, sh.boxes[1]) - host.look().dp(3), f); }
+                    break;
+                }
+                case "postit": {
+                    float px = x(r, sh.x), py = y(r, sh.y), side = POSTIT * r.width(), fold = side * 0.3f;
+                    Path p = new Path();
+                    p.moveTo(px, py); p.lineTo(px + side, py); p.lineTo(px + side, py + side - fold); p.lineTo(px + side - fold, py + side); p.lineTo(px, py + side); p.close();
+                    f.setStyle(Paint.Style.FILL);
+                    c.drawPath(p, f);
+                    f.setStyle(Paint.Style.STROKE); f.setStrokeWidth(Math.max(1f, side / 20)); f.setColor(0xff5c4a00);
+                    c.drawPath(p, f);
+                    break;
+                }
+                case "stamp": {
+                    f.setStyle(Paint.Style.FILL);
+                    f.setFakeBoldText(true);
+                    f.setTextAlign(Paint.Align.CENTER);
+                    f.setTextSize(STAMP * r.width());
+                    c.drawText(sh.text, x(r, sh.x), y(r, sh.y) + STAMP * r.width() * 0.35f, f);
+                    f.setFakeBoldText(false);
+                    f.setTextAlign(Paint.Align.LEFT);
+                    break;
+                }
+                default: break;
+            }
+        }
+    }
+
+    private static float x(RectF r, float fx) { return r.left + fx * r.width(); }
+    private static float y(RectF r, float fy) { return r.top + fy * r.height(); }
 
     // ---- typed notes -----------------------------------------------------------------------------------------------
 
@@ -353,7 +445,9 @@ public final class PageInk extends View implements PenBar.Pen {
         InkStore.Sheet s = sheets.get(page);
         if (s == null || s.empty()) return;
         remember();
-        sheets.put(page, new InkStore.Sheet());
+        InkStore.Sheet bare = new InkStore.Sheet();
+        bare.shapes.addAll(s.shapes); // another device's marks stay: only this reader's own ink is cleared
+        sheets.put(page, bare);
         invalidate();
         quick.repaint(0);
         later();
@@ -364,7 +458,7 @@ public final class PageInk extends View implements PenBar.Pen {
     /** The pages that have ink or notes, in order (the reader's list of annotated pages). */
     public List<Integer> inked() {
         List<Integer> out = new ArrayList<>();
-        for (Map.Entry<Integer, InkStore.Sheet> e : sheets.entrySet()) if (!e.getValue().empty()) out.add(e.getKey());
+        for (Map.Entry<Integer, InkStore.Sheet> e : sheets.entrySet()) if (!e.getValue().bare()) out.add(e.getKey());
         java.util.Collections.sort(out);
         return out;
     }
@@ -400,12 +494,14 @@ public final class PageInk extends View implements PenBar.Pen {
     protected void onDraw(Canvas c) {
         InkStore.Sheet s = page < 0 ? null : sheets.get(page);
         boolean live = drawing.size() > 2 && !erasing && inks();
-        if ((s == null || s.empty()) && !live) return;
+        if ((s == null || s.bare()) && !live) return;
         RectF r = frame.shown();
         if (r == null) return;
+        if (s != null) drawShapes(c, s.shapes, r);
         Path p = new Path();
         if (s != null) for (InkStore.Stroke st : s.strokes) {
             if (st.pts.length < 4) continue;
+            if (st.sm != null && st.sm.length >= 2 * st.pts.length) { pressed(c, st, r); continue; }
             p.rewind();
             p.moveTo(r.left + st.pts[0] * r.width(), r.top + st.pts[1] * r.height());
             for (int k = 2; k + 1 < st.pts.length; k += 2) p.lineTo(r.left + st.pts[k] * r.width(), r.top + st.pts[k + 1] * r.height());
@@ -430,6 +526,19 @@ public final class PageInk extends View implements PenBar.Pen {
             for (int i = 0; i < lines.length; i++) c.drawText(lines[i], b.left, b.top + size * (0.95f + 1.25f * i), text);
             b.inset(-size * 0.3f, -size * 0.2f);
             c.drawRoundRect(b, size * 0.3f, size * 0.3f, box);
+        }
+    }
+
+    /** A stroke with the pen's pressure: each piece as wide as the desktop draws it (pdf-marks.ts widthAt), so a line
+     *  thins where the pen was light, the same on both. */
+    private void pressed(Canvas c, InkStore.Stroke st, RectF r) {
+        paint.setColor(st.color);
+        paint.setAlpha(Math.round(255 * Math.max(0, Math.min(1, st.opacity))));
+        float full = st.width * r.width();
+        for (int k = 2, a = 4; k + 1 < st.pts.length; k += 2, a += 4) {
+            float pr = (st.sm[a - 4] + st.sm[a]) / 2;
+            paint.setStrokeWidth(Math.max(1f, full * (0.35f + 0.65f * Math.max(0, Math.min(1, pr)))));
+            c.drawLine(x(r, st.pts[k - 2]), y(r, st.pts[k - 1]), x(r, st.pts[k]), y(r, st.pts[k + 1]), paint);
         }
     }
 

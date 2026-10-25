@@ -15,6 +15,7 @@ import type { Stamp } from "./gen/Stamp";
 import type { Reader } from "./pdf-reader";
 import { decodeSamples } from "./pdf-samples";
 export { encodeSamples, decodeSamples } from "./pdf-samples";
+export { MOVABLE, WORDED, movedBy, recoloured, reworded, tagsIn, wordsOf } from "./pdf-mark-edit";
 
 export type { Mark, Op, Sample, Stamp };
 export type MarkKind = Mark["kind"];
@@ -27,8 +28,6 @@ const stamp = (d = new Date()) => {
   const p = (n: number) => String(n).padStart(2, "0");
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
 };
-/** The `#tags` in a mark's text. */
-export const tagsIn = (text: string): string[] => [...new Set([...text.matchAll(/(?:^|\s)#([\p{L}\p{N}_/-]+)/gu)].map((m) => m[1]))];
 
 type Body = Mark extends infer M ? (M extends { kind: string } ? Omit<M, "id" | "page" | "version" | "color" | "device" | "created" | "tags"> : never) : never;
 /** A new mark of this desktop: an id, now, the `#tags` of its text. */
@@ -157,6 +156,8 @@ export interface MarksView {
   /** Applies `ops` (the note made with the first mark) and redraws; the marks after. */
   change(ops: Op[]): Promise<readonly Mark[]>;
   reload(): void;
+  /** Scrolls to mark `id` once its page is drawn and makes it blink (a `[[note#^m-…]]` link); false if not found. */
+  flash(id: string): Promise<boolean>;
   stop(): void;
 }
 
@@ -196,6 +197,21 @@ export function attachPdfMarks(reader: Reader, pdf: string, changed: (marks: rea
     note: () => state.note,
     async change(ops) { const m = await api.changePdfMarks(pdf, ops); if (!gone) set(m); return m.marks; },
     reload: () => void load(),
+    async flash(id) {
+      for (let t = 0; t < 50 && !gone; t++) { // the marks load and the page draws first: up to 5 s
+        const m = state.marks.find((x) => x.id === id);
+        const g = m && reader.pageLayer(m.page)?.querySelector<SVGGElement>(`svg.atlas-marks [data-mark="${id}"]`);
+        if (g) {
+          g.scrollIntoView({ block: "center" });
+          g.classList.remove("atlas-flash-mark");
+          void g.getBoundingClientRect(); // the animation again when the same link is followed twice
+          g.classList.add("atlas-flash-mark");
+          return true;
+        }
+        await new Promise((r) => setTimeout(r, 100));
+      }
+      return false;
+    },
     stop() {
       gone = true;
       offDrawn();

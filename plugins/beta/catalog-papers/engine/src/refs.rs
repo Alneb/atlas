@@ -638,15 +638,14 @@ fn sha(bytes: &[u8]) -> [u8; 32] {
     sha2::Sha256::digest(bytes).into()
 }
 
-/// Text of a PDF's first pages (`pdftotext`; empty when it is not installed or fails).
+/// Text of a PDF's first two pages, read in Rust (pdf_oxide: no poppler needed); empty when it cannot be read.
 fn pdf_text(bytes: &[u8]) -> String {
-    let tmp = std::env::temp_dir().join(format!("atlas-papers-import-{}-{:x}.pdf", std::process::id(), sha(bytes)[0]));
-    if std::fs::write(&tmp, bytes).is_err() {
-        return String::new();
-    }
-    let out = std::process::Command::new("pdftotext").args(["-l", "2", "-q"]).arg(&tmp).arg("-").output();
-    let _ = std::fs::remove_file(&tmp);
-    out.ok().filter(|o| o.status.success()).map(|o| String::from_utf8_lossy(&o.stdout).into_owned()).unwrap_or_default()
+    let read = || -> Option<String> {
+        let doc = pdf_oxide::PdfDocument::from_bytes(bytes.to_vec()).ok()?;
+        let pages = doc.page_count().ok()?.min(2);
+        Some((0..pages).map(|i| doc.extract_text(i).unwrap_or_default()).collect::<Vec<_>>().join("\x0c"))
+    };
+    std::panic::catch_unwind(read).ok().flatten().unwrap_or_default() // a malformed PDF never stops an import
 }
 
 #[cfg(test)]

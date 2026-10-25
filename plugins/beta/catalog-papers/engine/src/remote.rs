@@ -297,8 +297,12 @@ pub fn open_access_pdfs<'a>(net: &'a dyn Net, doi: &'a str, email: &'a str, more
         v.map(|v| openalex_pdf_urls(&v, doi)).unwrap_or_default().into_iter().map(|u| (u, "OpenAlex"))
     });
     let unpaywall = std::iter::once(()).filter(move |_| !email.is_empty()).flat_map(move |_| {
-        let v = net.json(&format!("https://api.unpaywall.org/v2/{}?email={}", enc(doi, "/"), enc(email, "")));
-        v.map(|v| unpaywall_pdf_urls(&v)).unwrap_or_default().into_iter().map(|u| (u, "Unpaywall"))
+        let v = net.json(&format!("https://api.unpaywall.org/v2/{}?email={}", enc(doi, "/"), enc(email, ""))).unwrap_or_default();
+        let direct = unpaywall_pdf_urls(&v);
+        // then the repository copies Unpaywall knows only by their page: the PDF that page names, asked for lazily
+        let pages = unpaywall_landing_pages(&v);
+        let named = pages.into_iter().filter_map(move |page| net.text(&page).ok().and_then(|html| citation_pdf_url(&html, &page)));
+        direct.into_iter().map(|u| (u, "Unpaywall")).chain(named.map(|u| (u, "Unpaywall (repository page)")))
     });
     let more = more.iter().flat_map(move |i| i.pdf_urls(net, doi).into_iter().map(move |u| (u, i.label())));
     openalex.chain(unpaywall).chain(more)
@@ -326,14 +330,80 @@ pub fn openalex_pdf_urls(v: &Json, doi: &str) -> Vec<String> {
     out
 }
 
+/// Unpaywall's locations, its best first, then the others by version: the published one before the accepted
+/// manuscript before the preprint (a reader wants the journal's pages when an open copy of them exists).
+fn unpaywall_locations(v: &Json) -> Vec<&Json> {
+    let rank = |l: &Json| match l["version"].as_str() {
+        Some("publishedVersion") => 0,
+        Some("acceptedVersion") => 1,
+        Some("submittedVersion") => 2,
+        _ => 3,
+    };
+    let mut others: Vec<&Json> = v["oa_locations"].as_array().into_iter().flatten().collect();
+    others.sort_by_key(|l| rank(l)); // stable: Unpaywall's own order within a version
+    std::iter::once(&v["best_oa_location"]).chain(others).collect()
+}
+
 pub fn unpaywall_pdf_urls(v: &Json) -> Vec<String> {
     let mut out: Vec<String> = Vec::new();
-    for l in std::iter::once(&v["best_oa_location"]).chain(v["oa_locations"].as_array().into_iter().flatten()) {
+    for l in unpaywall_locations(v) {
         if let Some(u) = l["url_for_pdf"].as_str().filter(|u| !out.iter().any(|o| o == u)) {
             out.push(u.to_string());
         }
     }
     out
+}
+
+/// The pages of Unpaywall's open copies that have no PDF address of their own (a repository's record page).
+pub fn unpaywall_landing_pages(v: &Json) -> Vec<String> {
+    let mut out: Vec<String> = Vec::new();
+    for l in unpaywall_locations(v).into_iter().filter(|l| l["url_for_pdf"].is_null()) {
+        if let Some(u) = l["url_for_landing_page"].as_str().filter(|u| !out.iter().any(|o| o == u)) {
+            out.push(u.to_string());
+        }
+    }
+    out
+}
+
+/// The PDF a scholarly page names in its `<meta name="citation_pdf_url" content="…">` (the Highwire tags Google
+/// Scholar reads, which repositories and publishers write), made absolute against the page's address.
+pub fn citation_pdf_url(html: &str, page: &str) -> Option<String> {
+    let lower = html.to_ascii_lowercase();
+    let mut from = 0;
+    while let Some(i) = lower[from..].find("<meta") {
+        let start = from + i;
+        let end = start + lower[start..].find('>')?;
+        let tag = &html[start..end];
+        from = end;
+        let attr = |name: &str| -> Option<String> {
+            let t = tag.to_ascii_lowercase();
+            let at = t.find(&format!("{name}="))? + name.len() + 1;
+            let rest = &tag[at..];
+            let q = rest.chars().next().filter(|c| *c == '"' || *c == '\'')?;
+            Some(rest[1..].split(q).next()?.to_string())
+        };
+        if attr("name").is_some_and(|n| n.eq_ignore_ascii_case("citation_pdf_url")) {
+            let u = attr("content")?.replace("&amp;", "&");
+            return Some(absolute(&u, page));
+        }
+    }
+    None
+}
+
+/// `u` made absolute against `page` (`/x.pdf` → the page's site + `/x.pdf`; `x.pdf` → beside the page).
+fn absolute(u: &str, page: &str) -> String {
+    if u.starts_with("http://") || u.starts_with("https://") {
+        return u.to_string();
+    }
+    let site_end = page.find("://").map_or(0, |i| i + 3);
+    let site = &page[..site_end + page[site_end..].find('/').unwrap_or(page.len() - site_end)];
+    if let Some(rest) = u.strip_prefix("//") {
+        return format!("{}//{rest}", &page[..site_end.saturating_sub(2)]);
+    }
+    if u.starts_with('/') {
+        return format!("{site}{u}");
+    }
+    format!("{}/{u}", page.rsplit_once('/').map_or(page, |(d, _)| d))
 }
 
 #[cfg(test)]
@@ -362,6 +432,32 @@ mod tests {
         let found: Vec<_> = open_access_pdfs(&net, "10.1103/revmodphys.77.1027", "", &[]).collect();
         assert_eq!(found.len(), 2);
         assert!(net.asked.borrow().iter().all(|u| !u.contains("unpaywall")));
+    }
+
+    #[test]
+    fn unpaywall_prefers_the_published_version_and_follows_a_repository_page_to_its_pdf() {
+        let up = json!({
+            "best_oa_location": { "url_for_pdf": "https://best.example/b.pdf", "version": "acceptedVersion" },
+            "oa_locations": [
+                { "url_for_pdf": "https://arxiv.example/pre.pdf", "version": "submittedVersion" },
+                { "url_for_pdf": null, "url_for_landing_page": "https://hal.example/record/42", "version": "publishedVersion" },
+                { "url_for_pdf": "https://journal.example/pub.pdf", "version": "publishedVersion" }
+            ]
+        });
+        assert_eq!(unpaywall_pdf_urls(&up), ["https://best.example/b.pdf", "https://journal.example/pub.pdf", "https://arxiv.example/pre.pdf"]);
+        assert_eq!(unpaywall_landing_pages(&up), ["https://hal.example/record/42"]);
+        let page = r#"<html><head><meta name="citation_title" content="X"><META NAME='citation_pdf_url' CONTENT='/record/42/file.pdf?a=1&amp;b=2'></head></html>"#;
+        assert_eq!(citation_pdf_url(page, "https://hal.example/record/42").as_deref(), Some("https://hal.example/record/42/file.pdf?a=1&b=2"));
+        assert_eq!(citation_pdf_url("<meta name=\"citation_pdf_url\" content=\"f.pdf\">", "https://r.example/a/b").as_deref(), Some("https://r.example/a/f.pdf"));
+        assert_eq!(citation_pdf_url("<meta name=\"description\" content=\"x\">", "https://r.example/"), None);
+        // the page is asked only after the direct copies, and its PDF comes last, said where it came from
+        let net = Table::default()
+            .on("https://api.openalex.org/", Answer::Json(json!({})))
+            .on("https://api.unpaywall.org/", Answer::Json(up))
+            .on("https://hal.example/record/42", Answer::Text(page.into()));
+        let found: Vec<_> = open_access_pdfs(&net, "10.1/x", "me@example.org", &[]).collect();
+        assert_eq!(found.last().unwrap(), &("https://hal.example/record/42/file.pdf?a=1&b=2".to_string(), "Unpaywall (repository page)"));
+        assert_eq!(found.len(), 4);
     }
 
     #[test]

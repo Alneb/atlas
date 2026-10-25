@@ -125,7 +125,17 @@ fn local(t: Option<std::time::SystemTime>) -> Val {
     t.map_or(Val::Null, |t| Val::Date(chrono::DateTime::<chrono::Local>::from(t).naive_local()))
 }
 
-fn tags_of(props: &crate::note_props::Props) -> Vec<String> {
+/// A note's tags, as Obsidian's `file.tags` gives them: its properties' as written, then the rest the index found (the
+/// `#tags` in its text, its PDF marks' tags; tags.rs, lower case) that are not already there.
+fn tags_of(props: &crate::note_props::Props, found: &[String]) -> Vec<String> {
+    let mut out = own_tags(props);
+    let have: std::collections::HashSet<String> = out.iter().map(|t| t.to_lowercase()).collect();
+    out.extend(found.iter().filter(|t| !have.contains(*t)).cloned());
+    out
+}
+
+/// The tags a note's properties name (`tags` / `tag`: a list, or words separated by commas or spaces).
+fn own_tags(props: &crate::note_props::Props) -> Vec<String> {
     let mut out = Vec::new();
     for key in ["tags", "tag"] {
         let items: Vec<&str> = match props.get(key) {
@@ -154,7 +164,7 @@ impl Note<'_> {
             "size" => Val::Num(self.data.size as f64),
             "ctime" => local(self.data.ctime),
             "mtime" => local(self.data.mtime),
-            "tags" => Val::List(tags_of(&self.data.props).into_iter().map(Val::Str).collect()),
+            "tags" => Val::List(tags_of(&self.data.props, &self.data.tags).into_iter().map(Val::Str).collect()),
             "links" => Val::List(self.out.iter().map(|t| Val::Link(stem(t))).collect()),
             "backlinks" => Val::List(self.incoming.iter().map(|t| Val::Link(stem(t))).collect()),
             "properties" => Val::Map(self.props()),
@@ -626,6 +636,21 @@ views:
             [k("due"), k("prio"), k("done"), k("tags"), k("up"), k("see"), k("at"), k("note"), k("list")],
             [Some(K::Date), Some(K::Number), Some(K::Bool), Some(K::Tags), Some(K::Link), Some(K::Links), Some(K::Datetime), Some(K::Text), Some(K::List)]
         );
+    }
+
+    #[test]
+    fn file_tags_are_every_tag_of_the_note_as_in_obsidian() {
+        let d = tempfile::tempdir().unwrap();
+        let w = |n: &str, s: &str| std::fs::write(d.path().join(n), s).unwrap();
+        w("a.md", "---\ntags: [Physics]\n---\nsome #inline/nested words, #physics again\n");
+        w("b.md", "nothing\n\n```pdf-marks\nm-0000000a postit p1 {\"version\":1,\"at\":[1,2],\"text\":\"#question\",\"tags\":[\"question\"]}\n```\n");
+        w("c.md", "no tags\n");
+        let src = "filters: 'file.hasTag(\"inline\") || file.hasTag(\"question\")'\nviews:\n  - type: table\n    order: [file.name, file.tags]\n";
+        let v = &evaluate(d.path(), &Config::default(), src, None).views[0];
+        let paths: Vec<&str> = v.rows.iter().map(|r| r.path.as_str()).collect();
+        assert_eq!(paths, ["a.md", "b.md"], "a by its inline tag, b by its PDF mark's tag");
+        let tags = format!("{:?}", v.rows[0].cells[1]);
+        assert!(tags.contains("\"Physics\"") && tags.contains("\"inline/nested\"") && !tags.contains("\"physics\""), "the property as written, no duplicate: {tags}");
     }
 
     #[test]

@@ -655,6 +655,21 @@ async fn pdf_marks_post(State(st): S, Query(q): Query<PdfQuery>, Json(ops): Json
     Ok(Json(marks))
 }
 
+#[derive(serde::Deserialize)]
+struct PdfExportQuery {
+    pdf: String,
+    #[serde(default)]
+    mode: crate::pdf_export::Mode,
+}
+
+/// "Export with marks": a copy beside the PDF, its marks as real annotations or (`mode=flat`) drawn into the pages
+/// (crate::pdf_export).
+async fn pdf_export_post(State(st): S, Query(q): Query<PdfExportQuery>) -> Result<Json<crate::pdf_export::Exported>> {
+    let r = with_ws(&st, move |ws| crate::pdf_export::export(&ws, &q.pdf, q.mode)).await?;
+    st.bus.publish(Event::Fs { paths: vec![r.path.clone()] });
+    Ok(Json(r))
+}
+
 async fn link_targets_get(State(st): S, Query(q): Query<LinkTargetsQuery>) -> Result<Json<Vec<LinkTarget>>> {
     Ok(Json(with_ws(&st, move |ws| Ok(crate::link_targets::targets(ws.root(), &ws.config()?, &q.q, q.from.as_deref()))).await?))
 }
@@ -1903,6 +1918,7 @@ fn router(state: Arc<AppState>) -> Router {
         .route("/api/companion", post(companion_post))
         .route("/api/pdf-marks", get(pdf_marks_get).post(pdf_marks_post))
         .route("/api/pdf-of-note", get(pdf_of_note_get))
+        .route("/api/pdf-export", post(pdf_export_post))
         .route("/api/backlinks", get(backlinks_get))
         .route("/api/link-targets", get(link_targets_get))
         .route("/api/base", get(base_get))

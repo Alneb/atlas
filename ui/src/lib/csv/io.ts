@@ -1,7 +1,7 @@
 // A table file read and written whole through /api/raw (no 5 MB cap, unlike /api/file): read with its modification
 // time, parsed in a worker, saved only if nobody changed it since (409 otherwise, as every editor's save).
 import { apiBase, ApiError } from "../api";
-import type { Sheet } from "./parse";
+import { sheetFromRows, type Sheet } from "./parse";
 import { writeSheet } from "./write";
 
 const href = (path: string, q: Record<string, string> = {}) => `${apiBase()}/api/raw?${new URLSearchParams({ path, ...q })}`;
@@ -28,6 +28,20 @@ export async function loadSheet(path: string, progress?: (done: number) => void)
     w.postMessage({ bytes, path }, [bytes]);
   });
   return { sheet, mtime, bytes: size };
+}
+
+/** An Excel workbook's sheets (read in the worker, lib/csv/xlsx.ts), each as a read-only Sheet. */
+export async function loadWorkbook(path: string): Promise<{ sheets: { name: string; sheet: Sheet }[]; mtime: number }> {
+  const res = await fetch(href(path), { headers: { "x-atlas": "1" } });
+  if (!res.ok) throw new ApiError(res.status, res.status === 404 ? `${path} is not there` : `reading ${path}: ${res.status}`);
+  const mtime = Number(res.headers.get("x-atlas-mtime") ?? 0), bytes = await res.arrayBuffer();
+  const got = await new Promise<{ name: string; rows: string[][]; formulas: [string, string][] }[]>((resolve, reject) => {
+    const w = new Worker(new URL("./worker.ts", import.meta.url), { type: "module" });
+    w.onmessage = (e) => { w.terminate(); if (e.data.sheets) resolve(e.data.sheets); else reject(new Error(e.data.error ?? "the workbook could not be read")); };
+    w.onerror = (e) => { w.terminate(); reject(new Error(e.message || "the workbook reader failed")); };
+    w.postMessage({ bytes, path }, [bytes]);
+  });
+  return { sheets: got.map((s) => ({ name: s.name, sheet: sheetFromRows(s.rows, "Excel sheet", new Map(s.formulas)) })), mtime };
 }
 
 /** Writes the sheet; the new modification time. A 409 (changed on disk since `baseMtime`) is an ApiError of status 409. */

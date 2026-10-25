@@ -33,6 +33,20 @@ final class Core {
     static native String pdfMarks(String vault, String pdf);
     /** ops: a JSON array of {op:"put",mark} | {op:"remove",id}; the marks after, or {error}. */
     static native String changePdfMarks(String vault, String pdf, String ops);
+    /** "Export with marks": `x (marked).pdf` beside the PDF (core pdf_export.rs); what was written, or `{error}`. */
+    static native String exportPdfMarks(String vault, String pdf);
+    /** PDFium (crates/atlas-android/src/pdfium.rs), through Pdfium.java: "" once libpdfium.so at `lib` is loaded, else why. */
+    static native String pdfiumInit(String lib);
+    /** Each page's width, height in points, pair after pair. Throws IllegalArgumentException with why. */
+    static native float[] pdfiumPages(String pdf);
+    /** Page n (1-based) drawn w × h, RGBA bytes (an ARGB_8888 bitmap's), turned `turns` quarters more. */
+    static native byte[] pdfiumRender(String pdf, int n, int w, int h, int turns);
+    /** Page n's characters: code point, left, bottom, right, top (points, y up), five floats each. */
+    static native float[] pdfiumChars(String pdf, int n);
+    /** Page n's matches of `query` (case ignored): per match, its box count k, then k boxes of four floats. */
+    static native float[] pdfiumFind(String pdf, int n, String query);
+    /** Page n's links: [{box, page} | {box, url}] or {error}. */
+    static native String pdfiumLinks(String pdf, int n);
     /** The vault's settings (the whole config, JSON) saved as PUT /api/config does: {} or {error}. */
     static native String configSave(String vault, String config);
     /** The full app's core: Atlas's server for the vault, inside the app (crates/atlas-android/src/serve.rs) → {port, open} or {error}; `open` a one-time address (the core is locked to this app);

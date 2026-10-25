@@ -1,8 +1,9 @@
 //! PDF text for search (PLAN.md slice 4, "search md + pdf text"): ripgrep already searches notes in
-//! ~20 ms, so the index that was missing is PDF text. Each PDF's text is extracted once with
-//! `pdftotext` into `.atlas/cache/pdftext/<pdf path>.txt` (rebuilt when the PDF is newer) and searched
-//! with the same rg; a hit maps back to the PDF and its page (`\f` separates pages). The same pass draws each PDF's
-//! cover (thumbs.rs `pdf_cover`), at start and whenever a PDF arrives.
+//! ~20 ms, so the index that was missing is PDF text. Each PDF's text is extracted once into
+//! `.atlas/cache/pdftext/<pdf path>.txt` (rebuilt when the PDF is newer) and searched with the same rg; a hit maps
+//! back to the PDF and its page (`\f` separates pages). The text is read in Rust (pdf_oxide), so a new computer needs
+//! no poppler; `pdftotext` is asked only for a PDF that reader cannot open, when it is installed. The same pass draws
+//! each PDF's cover (thumbs.rs `pdf_cover`), at start and whenever a PDF arrives.
 use crate::api::LineHit;
 use crate::config::Config;
 use crate::{vault_write, walk};
@@ -30,16 +31,8 @@ pub fn refresh(root: &Path, cfg: &Config) -> usize {
         }
         let _ = vault_write::cache::mkdir(out.parent().expect("cache file has a folder"));
         let tmp = out.with_extension("tmp");
-        let ok = std::process::Command::new("pdftotext")
-            .args(["-enc", "UTF-8", "-q"])
-            .arg(&abs)
-            .arg(&tmp)
-            .status()
-            .is_ok_and(|s| s.success());
         // a PDF with no text layer still gets an (empty) entry, so it is not retried on every search
-        if !ok {
-            let _ = vault_write::cache::write(&tmp, b"");
-        }
+        let _ = vault_write::cache::write(&tmp, extract(&abs).as_bytes());
         if vault_write::cache::rename(&tmp, &out).is_ok() {
             n += 1;
         }
@@ -47,10 +40,44 @@ pub fn refresh(root: &Path, cfg: &Config) -> usize {
     n
 }
 
+/// Longer than this for one PDF, and the reader is left to finish on its own while pdftotext is asked.
+const EXTRACT_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(60);
+
+/// A PDF's text, each page ending in a form feed (as pdftotext writes it); empty when nothing can read it.
+pub fn extract(abs: &Path) -> String {
+    let path = abs.to_path_buf();
+    let (tx, rx) = std::sync::mpsc::channel();
+    // its own thread: a malformed PDF that panics or loops in the reader never stops the pass
+    std::thread::spawn(move || {
+        let _ = tx.send(std::panic::catch_unwind(|| oxide_text(&path)).ok().flatten());
+    });
+    match rx.recv_timeout(EXTRACT_TIMEOUT) {
+        Ok(Some(text)) => text,
+        _ => pdftotext(abs).unwrap_or_default(),
+    }
+}
+
+/// The text by pdf_oxide, page by page; None when it cannot open the PDF.
+fn oxide_text(abs: &Path) -> Option<String> {
+    let doc = pdf_oxide::PdfDocument::open(abs).ok()?;
+    let mut out = String::new();
+    for i in 0..doc.page_count().ok()? {
+        out += &doc.extract_text(i).unwrap_or_default();
+        out.push('\x0c');
+    }
+    Some(out)
+}
+
+/// The text by `pdftotext`, when it is installed.
+fn pdftotext(abs: &Path) -> Option<String> {
+    let o = std::process::Command::new("pdftotext").args(["-enc", "UTF-8", "-q"]).arg(abs).arg("-").stderr(std::process::Stdio::null()).output().ok()?;
+    o.status.success().then(|| String::from_utf8_lossy(&o.stdout).into_owned())
+}
+
 static RUNNING: AtomicBool = AtomicBool::new(false);
 
 /// `refresh` on a background thread, at most one at a time (startup, and after each search so new
-/// PDFs join the next one). Without `pdftotext` installed it does nothing.
+/// PDFs join the next one).
 pub fn refresh_in_background(root: &Path, cfg: &Config) {
     if RUNNING.swap(true, Ordering::SeqCst) {
         return;
@@ -108,5 +135,47 @@ mod tests {
         let paths: Vec<(&str, u32)> = r.lines.iter().map(|h| (h.path.as_str(), h.line)).collect();
         assert_eq!(paths, [("note.md", 1), ("refs/paper.pdf", 2)], "{r:?}");
         assert_eq!(r.lines[1].text, "p. 2 · The Hubbard model");
+    }
+}
+
+#[cfg(test)]
+mod extract_tests {
+    /// A PDF of `pages`, each one line of Helvetica text.
+    fn text_pdf(pages: &[&str]) -> Vec<u8> {
+        let mut objs = vec!["<< /Type /Catalog /Pages 2 0 R >>".to_string(), String::new(), "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>".to_string()];
+        let kids: Vec<String> = (0..pages.len()).map(|i| format!("{} 0 R", 4 + 2 * i)).collect();
+        objs[1] = format!("<< /Type /Pages /Kids [{}] /Count {} >>", kids.join(" "), pages.len());
+        for (i, t) in pages.iter().enumerate() {
+            let body = format!("BT /F1 18 Tf 72 700 Td ({t}) Tj ET");
+            objs.push(format!("<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents {} 0 R >>", 5 + 2 * i));
+            objs.push(format!("<< /Length {} >>\nstream\n{body}\nendstream", body.len()));
+        }
+        let mut out = String::from("%PDF-1.4\n");
+        let mut at = vec![];
+        for (i, o) in objs.iter().enumerate() {
+            at.push(out.len());
+            out += &format!("{} 0 obj\n{o}\nendobj\n", i + 1);
+        }
+        let xref = out.len();
+        out += &format!("xref\n0 {}\n0000000000 65535 f \n", objs.len() + 1);
+        for n in at {
+            out += &format!("{n:010} 00000 n \n");
+        }
+        out += &format!("trailer\n<< /Size {} /Root 1 0 R >>\nstartxref\n{xref}\n%%EOF\n", objs.len() + 1);
+        out.into_bytes()
+    }
+
+    #[test]
+    fn the_text_is_read_in_rust_a_page_per_form_feed() {
+        let d = tempfile::tempdir().unwrap();
+        let pdf = d.path().join("a.pdf");
+        std::fs::write(&pdf, text_pdf(&["The quantum dot model", "Second page words"])).unwrap();
+        let text = super::oxide_text(&pdf).expect("read without pdftotext");
+        let pages: Vec<&str> = text.split('\x0c').collect();
+        assert_eq!(pages.len(), 3, "each page ends in a form feed: {text:?}");
+        assert!(pages[0].contains("quantum dot") && pages[1].contains("Second page"), "{text:?}");
+        std::fs::write(&pdf, b"not a pdf").unwrap();
+        assert!(super::oxide_text(&pdf).is_none());
+        assert_eq!(super::extract(&pdf), "", "nothing reads it: empty, not an error");
     }
 }

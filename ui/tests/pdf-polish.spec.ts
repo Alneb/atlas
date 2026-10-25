@@ -34,6 +34,9 @@ test.beforeEach(async ({ page }) => {
   await page.goto("/");
   await page.getByText("Finish the GW notes.").waitFor();
   await page.evaluate(() => { for (const k of Object.keys(localStorage)) if (k.startsWith("atlas.pdf")) localStorage.removeItem(k); });
+  // the tabs earlier specs left (the layout outlives a test's browser) closed: a PDF tab of theirs, coming back on a
+  // reload, would save its own place over this one's
+  await page.evaluate(() => { const a = (window as unknown as { __atlas: { panes(): { id: string }[]; close(id: string): void } }).__atlas; for (const p of a.panes()) a.close(p.id); });
 });
 
 test("page thumbnails: lazy, click jumps, the current page is marked", async ({ page }) => {
