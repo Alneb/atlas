@@ -45,7 +45,7 @@ reqwest = { workspace = true, features = ["blocking", "rustls-tls", "stream"] }
 # server mode's sign-in (auth.rs): the password's Argon2id hash, SHA-256 of sessions and tokens
 argon2 = "0.5"
 sha2 = "0.10"
-getrandom = "0.2"
+getrandom = "0.4"
 # a helper's calls back go through the vault's router in-process (helper_api.rs): `oneshot` (axum already depends on it)
 tower = { version = "0.5", features = ["util"] }
 # gzip for what leaves the machine (server.rs `compress_gate`): the UI's scripts and the path listings

@@ -480,7 +480,7 @@ dependencies = [
  "base64 0.22.1",
  "chrono",
  "futures-util",
- "getrandom 0.2.17",
+ "getrandom 0.4.3",
  "gix",
  "grep-matcher",
  "grep-regex",
@@ -1594,7 +1594,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d045de693cb712d0b22c6a64be5b953f67b3ce00ab5ad3dd5d8b441886ab8e1a"
 dependencies = [
  "quote",
- "syn 3.0.6",
+ "syn 2.0.119",
 ]
 
 [[package]]
