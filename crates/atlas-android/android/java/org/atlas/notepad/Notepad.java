@@ -5,8 +5,9 @@ import android.view.View;
 import org.atlas.capture.Host;
 import org.atlas.capture.NativePlugin;
 
-/** The notepad plugin's Android side (plugin.toml): on an e-ink screen a drawing opened from the vault goes to the pen
- *  screen; a phone keeps Excalidraw. A PDF too: written on in its drawing beside it, `x.pdf.excalidraw`, its pages in as the notebook's. */
+/** The notepad's Android side: on an e-ink screen a drawing opened from the vault goes to the pen screen; a phone keeps
+ *  Excalidraw. A PDF goes to the book reader, whose pen and marks are kept in the PDF's note (pdf-marks), as on the
+ *  desktop; an older `x.pdf.excalidraw` still opens here until `atlas pdf-marks migrate` moves it into the note. */
 public final class Notepad implements NativePlugin {
     @Override public String id() { return "notepad"; }
 
@@ -22,10 +23,10 @@ public final class Notepad implements NativePlugin {
             return v;
         }
         String low = path.toLowerCase(java.util.Locale.ROOT);
-        // a PDF's companion (Books' "Write on it"): written on, its pages linked in the first time
+        // an older PDF companion drawing, not yet moved into the note: opened as it is
         if (low.endsWith(".pdf.excalidraw")) return new NotepadView(host, path, path.substring(0, path.length() - ".excalidraw".length()));
         if (!low.endsWith(".pdf")) return new NotepadView(host, path);
-        if ("reader".equals(host.settings().optString("pdf", "write"))) { host.openPlugin("books", path); return new View(host.activity()); } // Settings: PDFs in the book reader (the same ink)
-        return new NotepadView(host, path + ".excalidraw", path);
+        host.openPlugin("books", path); // one store for a PDF's ink and marks: its note, through the reader
+        return new View(host.activity());
     }
 }

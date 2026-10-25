@@ -69,6 +69,8 @@ pub mod tags;
 pub mod task_suggest;
 pub mod tasks;
 pub use atlas_template as template;
+pub mod template_apply;
+pub mod template_rules;
 pub mod template_values;
 pub mod ui_files;
 pub mod thumbs;

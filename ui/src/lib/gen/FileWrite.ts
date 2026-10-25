@@ -10,4 +10,9 @@ base_mtime?: Mtime,
  * Write only if there is no such file yet (a plugin's `createFile`): an existing one is left as it is and the
  * answer says `written: false` — a 200, so a browser logs no error. Not together with `base_mtime`.
  */
-only_new?: boolean, };
+only_new?: boolean, 
+/**
+ * The writer holds the note open (an editor): a template this save brings (template_apply.rs, a property set) is
+ * answered as text for it to apply as its own change, not written by the core.
+ */
+apply_here?: boolean, };

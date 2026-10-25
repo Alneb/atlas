@@ -173,7 +173,7 @@ pub fn update(ws: &crate::Workspace, rel: &str, scene: &str) -> crate::Result<Op
     let name = rel.rsplit('/').next().unwrap_or(rel);
     let existing = std::fs::read_to_string(ws.resolve(&path)?).ok();
     let Some(text) = note(name, &facts(&scene), existing.as_deref()) else { return Ok(None) };
-    let req = crate::api::FileWrite { path: path.clone(), text, base_mtime: None, only_new: false };
+    let req = crate::api::FileWrite { path: path.clone(), text, base_mtime: None, only_new: false, apply_here: false };
     crate::files::write_text(ws, &req)?;
     Ok(Some(path))
 }

@@ -25,3 +25,22 @@ test("an Excel workbook's sheets, values and formulas", async () => {
   expect(sheets[1].formulas.get("0,0")).toBe('"a"&"b"');
   await expect(readXlsx(new TextEncoder().encode("not a zip"))).rejects.toThrow(/not an Excel file/);
 });
+
+// A table written as a new workbook (lib/csv/xlsx-write.ts) reads back as it was: the header as row 1, numbers,
+// text with XML's specials, and formulas with their references moved down a row and Atlas's value beside them.
+test("a table written as a workbook reads back, its formulas moved under the header", async () => {
+  const { writeXlsx, crc32, sheetName } = await import("../src/lib/csv/xlsx-write");
+  expect(crc32(new TextEncoder().encode("123456789"))).toBe(0xcbf43926);
+  expect(sheetName("prices: [2026]/final")).toBe("prices 2026 final");
+  const bytes = await writeXlsx("prices", ["item", "qty", "price", "total"], [
+    ["apples <red>", "3", "1.5", "=B1*C1"],
+    ["pears & co", "2", "2", "=B2*C2"],
+    ["", "=SUM(B1:B2)", "", '=IF(D1>4,"big","small")'],
+  ]);
+  const [s] = await readXlsx(bytes);
+  expect(s.name).toBe("prices");
+  expect(s.rows).toEqual([["item", "qty", "price", "total"], ["apples <red>", "3", "1.5", "4.5"], ["pears & co", "2", "2", "4"], ["", "5", "", "big"]]);
+  expect(s.formulas.get("1,3")).toBe("B2*C2");
+  expect(s.formulas.get("3,1")).toBe("SUM(B2:B3)");
+  expect(s.formulas.get("3,3")).toBe('IF(D2>4,"big","small")');
+});

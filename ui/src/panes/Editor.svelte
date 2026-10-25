@@ -11,6 +11,7 @@
   import Icon from "../components/Icon.svelte";
   import { onMount } from "svelte";
   import { api, ApiError } from "../lib/api";
+  import { diff } from "../lib/frontmatter-edit";
   import { on } from "../lib/bus";
   import { app, toast } from "../lib/state.svelte";
   import { setDirty, closePanel, open } from "../lib/dock";
@@ -94,9 +95,10 @@
     let again = false;
     inflight = (async () => {
       try {
-        const res = await api.putFile(path, text, force || isNew ? undefined : mtime);
+        const res = await api.putFile(path, text, force || isNew ? undefined : mtime, true);
         mtime = res.mtime;
         saved = text;
+        if (res.template?.text !== undefined) void applyTemplate(res.template.template, res.template.added, res.template.text, text);
         if (!autosave()) keepRecovery(true);
         else if (rescued) { rescued = false; void api.putFile(RECOVERY, "").catch(() => {}); }
         if (ed) void refreshGitGutter(ed.view, path); // what differs from git changed with this save
@@ -125,6 +127,27 @@
     })();
     await inflight;
     if (again) return save(force, closing);
+  }
+
+  /** A template this save brought (a property set to a value a template applies to, core template_apply.rs), merged
+   *  in as one change of the editor's own — undo and the autosave as typing. Typed in meanwhile: merged again into
+   *  what is there now, and given up when typing goes on. */
+  async function applyTemplate(name: string, added: string[], merged: string, base: string): Promise<void> {
+    if (!ed) return;
+    if (current() !== base) {
+      base = current();
+      const again = await api.mergeTemplate(path, name, base).catch(() => null);
+      if (!again?.text || !ed || current() !== base) return;
+      merged = again.text;
+    }
+    const change = diff(base, merged);
+    if (!change) return;
+    ed.view.dispatch({ changes: change, userEvent: "input.template" });
+    toast(`Template “${name}” applied`, `Added ${added.join(", ")} · click to undo`, "info", 9000, () => {
+      if (!ed || current() !== merged) return;
+      const back = diff(merged, base);
+      if (back) ed.view.dispatch({ changes: back, userEvent: "input.template" });
+    });
   }
 
   /** The tab closed with text that could not be saved: kept in the recovery copy, offered back when the note opens. */

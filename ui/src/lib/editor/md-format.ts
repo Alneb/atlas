@@ -125,6 +125,7 @@ const focusedNote = (): EditorView | null => {
 
 export function formatNote(view: EditorView, kind: MdFormat): void {
   if (kind === "taskDialog") void import("./task-dialog").then((m) => m.editTask(view));
+  else if (kind === "insertTemplate") void import("./insert-template").then((m) => m.insertTemplate(view));
   else if (kind === "link") insertLink(view);
   else if (kind === "task") toggleTask(view);
   else if (kind === "cycle") cycleLine(view);

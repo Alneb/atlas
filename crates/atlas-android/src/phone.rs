@@ -129,9 +129,13 @@ pub fn drawing_saved(vault: &Path, rel: &str, scene: &str) -> Value {
 /// same way for a vault here and on a server (SettingsPages), or `{error}`.
 /// The one note of a file (atlas_core::companion: a paper's PDF has the paper's note, else `<name>.md` beside it), only
 /// found — the reader writes its own note when it must: `{path, created}` or `{error}`.
-pub fn companion_note(vault: &Path, file: &str) -> Value {
+pub fn companion_note(vault: &Path, request: &str) -> Value {
     let cfg = atlas_core::config::Config::load(vault).unwrap_or_default();
-    let req = atlas_core::api::CompanionRequest { path: file.to_string(), title: None, properties: Default::default(), block: None, find: true };
+    // the body `POST /api/companion` takes, so a vault here and one on a server are asked alike
+    let req: atlas_core::api::CompanionRequest = match serde_json::from_str(request) {
+        Ok(r) => r,
+        Err(e) => return json!({ "error": format!("companion request: {e}") }),
+    };
     match atlas_core::companion::ensure(vault, &cfg, &req, chrono::Local::now().naive_local()) {
         Ok(n) => json!({ "path": n.path, "created": n.created }),
         Err(e) => json!({ "error": e.to_string() }),

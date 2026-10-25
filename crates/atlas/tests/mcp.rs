@@ -76,7 +76,7 @@ fn notes_from_the_vaults_templates_and_never_over_an_existing_one() {
     assert!(names.contains(&"atlas_new_note") && names.contains(&"atlas_templates"), "{names:?}");
     let text = |i: usize| replies[i]["result"]["content"][0]["text"].as_str().unwrap().to_string();
     let templates: Value = serde_json::from_str(&text(1)).unwrap();
-    assert_eq!(templates, json!([{"name": "literature", "default": false, "path": "templates/literature.md", "folder": "notes/papers", "properties": ["type", "created", "sources"], "prompts": []}]));
+    assert_eq!(templates, json!([{"name": "literature", "default": false, "path": "templates/literature.md", "folder": "notes/papers", "properties": ["type", "created", "sources"], "prompts": [], "applies": ["the note of any file (the literature template)"], "asks": []}]));
     let made: Value = serde_json::from_str(&text(2)).unwrap();
     assert_eq!(made["path"], "notes/papers/Sum rules.md");
     let note = std::fs::read_to_string(d.path().join("notes/papers/Sum rules.md")).unwrap();

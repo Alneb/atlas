@@ -135,9 +135,14 @@ export const api = {
   file: (path: RelPath) => request<FileDoc>("GET", "/api/file", { query: { path } }),
   /** 409 (ApiError.status) when `base_mtime` is given and the file changed on disk (or, in a mirrored vault, this copy
    *  is behind the server's: core mirror_guard.rs). */
-  putFile: (path: RelPath, text: string, base_mtime?: number) =>
-    request<PutFileResult>("PUT", "/api/file", { body: base_mtime === undefined ? { path, text } : { path, text, base_mtime } })
+  /** `applyHere`: the caller (an editor holding the note) applies a template the save brings itself — the answer's
+   *  `template.text` (core template_apply.rs). */
+  putFile: (path: RelPath, text: string, base_mtime?: number, applyHere = false) =>
+    request<PutFileResult>("PUT", "/api/file", { body: { path, text, ...(base_mtime === undefined ? {} : { base_mtime }), ...(applyHere ? { apply_here: true } : {}) } })
       .then(told({ type: "file:save", path })),
+  /** `template` merged into `text` (the note at `path` as an editor holds it): only what it lacks is added. */
+  mergeTemplate: (path: RelPath, template: string, text: string, atCursor = false) =>
+    request<import("./gen/TemplateMerged").TemplateMerged>("POST", "/api/note/merge-template", { body: { path, template, text, ...(atCursor ? { at_cursor: true } : {}) } }),
   /** Writes only if there is no such file (atomic on the server); `written: false` when one was there, kept as it is. */
   createFile: (path: RelPath, text: string) => request<PutFileResult>("PUT", "/api/file", { body: { path, text, only_new: true } }),
   today: () => request<Today>("GET", "/api/today"),

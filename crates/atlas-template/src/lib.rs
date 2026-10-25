@@ -77,6 +77,49 @@ pub fn names_used(template: &str) -> Vec<String> {
     out
 }
 
+/// How a prompt is asked: `{{prompt:Course | choice:Physics,Maths}}`, `| date`, `| number`, `| note:projects/`
+/// (a note in that folder, answered as a link), else plain text. Rendering skips these pipes.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum PromptKind {
+    Text,
+    Choice(Vec<String>),
+    Date,
+    Number,
+    /// a note, optionally in this folder
+    Note(String),
+}
+
+const PROMPT_KINDS: [&str; 5] = ["text", "choice", "date", "number", "note"];
+
+/// The questions a template asks with how each is asked, in order, each once (its first tag says the kind).
+pub fn prompt_kinds(template: &str) -> Vec<(String, PromptKind)> {
+    let mut out: Vec<(String, PromptKind)> = vec![];
+    for tag in template.split("{{").skip(1).filter_map(|t| t.split_once("}}").map(|(t, _)| t)) {
+        let Some(q) = tag.trim().strip_prefix("prompt:") else { continue };
+        let parts = split_pipes(q);
+        let name = parts[0].trim().to_string();
+        if name.is_empty() || out.iter().any(|(n, _)| *n == name) {
+            continue;
+        }
+        let kind = parts[1..]
+            .iter()
+            .find_map(|p| {
+                let (k, a) = p.trim().split_once(':').map_or((p.trim(), ""), |(k, a)| (k.trim(), a.trim()));
+                Some(match k {
+                    "choice" => PromptKind::Choice(unquote(a).split(',').map(|c| c.trim().to_string()).filter(|c| !c.is_empty()).collect()),
+                    "date" => PromptKind::Date,
+                    "number" => PromptKind::Number,
+                    "note" => PromptKind::Note(unquote(a).trim().trim_matches('/').to_string()),
+                    "text" => PromptKind::Text,
+                    _ => return None,
+                })
+            })
+            .unwrap_or(PromptKind::Text);
+        out.push((name, kind));
+    }
+    out
+}
+
 /// The questions a template asks (`{{prompt:…}}`), in order, each once.
 pub fn prompts(template: &str) -> Vec<String> {
     let mut out: Vec<String> = vec![];
@@ -185,8 +228,12 @@ impl Renderer<'_, '_> {
     fn value(&self, expr: &str, vars: &Map<String, Value>) -> Option<Value> {
         let parts = split_pipes(expr);
         let mut v = self.head(parts[0].trim(), vars);
+        let prompt = parts[0].trim().starts_with("prompt:");
         for f in &parts[1..] {
             let (name, arg) = f.trim().split_once(':').map_or((f.trim(), None), |(n, a)| (n.trim(), Some(unquote(a.trim()))));
+            if prompt && PROMPT_KINDS.contains(&name) {
+                continue; // how it is asked (prompt_kinds), not a filter
+            }
             v = filter(v, name, arg.as_deref());
         }
         v
@@ -447,6 +494,29 @@ mod tests {
     fn the_values_a_template_reads_are_named_for_the_plugins_that_provide_them() {
         let t = "{{title}} {{date:YYYY}} {{day-1d}} {{weather.city | upper}} {{#if weather.rain}}☔{{/if}} {{#each tasks}}{{this}}{{/each}} {{prompt:Q}} {{\"x\"}} {{cursor}}";
         assert_eq!(names_used(t), vec!["weather", "tasks"]);
+    }
+
+    #[test]
+    fn prompt_kinds_say_how_to_ask_and_render_as_the_answer() {
+        let t = "{{prompt:Course | choice:Physics, Maths}} {{prompt:Due | date}} {{prompt:Project | note:projects/ | link}} {{prompt:N | number}} {{prompt:Free}} {{prompt:Course}}";
+        assert_eq!(
+            prompt_kinds(t),
+            vec![
+                ("Course".into(), PromptKind::Choice(vec!["Physics".into(), "Maths".into()])),
+                ("Due".into(), PromptKind::Date),
+                ("Project".into(), PromptKind::Note("projects".into())),
+                ("N".into(), PromptKind::Number),
+                ("Free".into(), PromptKind::Text),
+            ]
+        );
+        let mut values = Map::new();
+        for (k, v) in [("Course", "Maths"), ("Due", "2026-11-02"), ("Project", "Thesis"), ("N", "3"), ("Free", "x")] {
+            values.insert(k.into(), Value::from(v));
+        }
+        let include = |_: &str| None;
+        let now = NaiveDate::from_ymd_opt(2026, 10, 20).unwrap().and_hms_opt(9, 0, 0).unwrap();
+        let ctx = Ctx { title: "t", now, values, include: &include, unknown: Unknown::Keep };
+        assert_eq!(render(t, &ctx).text, "Maths 2026-11-02 [[Thesis]] 3 x Maths");
     }
 
     #[test]

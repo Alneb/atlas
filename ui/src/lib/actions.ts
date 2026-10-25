@@ -244,6 +244,7 @@ export const actions: Action[] = [
   // Obsidian Tasks' dialog: the caret's line (a to-do, or text that becomes one) with its fields in a form
   { id: "file.rename", title: "File: rename this file…", run: () => { const p = context.active?.path; if (p) renameFile(p); else toast("Rename", "Open the file to rename first."); } },
   { id: "note.task-edit", title: "Note: create or edit task…", where: "note", run: () => noteFormat.run?.("taskDialog") },
+  { id: "note.insert-template", title: "Note: insert a template…", where: "note", run: () => noteFormat.run?.("insertTemplate") },
   { id: "note.cycle", title: "Note: cycle this line — text, list item, to-do, text", keys: "Ctrl+Q", where: "note", run: () => noteFormat.run?.("cycle") },
   { id: "ui.quickOpen", title: "Open file…", keys: "Super+P", alsoKeys: ["Ctrl+P"], run: () => openPalette("files") },
   // no default keys: Alt+←/→ move by word in the editor; the mouse's side buttons and a swipe do this (nav-input.ts)

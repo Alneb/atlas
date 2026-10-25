@@ -20,7 +20,8 @@ export type PaneSpec =
   | { kind: "git" }
   | { kind: "commit"; hash: string; subject?: string }
   | { kind: "diff"; path: RelPath; staged: boolean }
-  | { kind: "table"; path: RelPath }
+  /** `view`: a named view of the table's note to show (`x.csv#view=Cheap`, lib/csv/views.ts) */
+  | { kind: "table"; path: RelPath; view?: string }
   | { kind: "base"; path: RelPath }
   // a .page layout file (rows/columns of blocks) — the home screen is one; title from the file
   | { kind: "page"; path: RelPath; title?: string }
@@ -194,11 +195,14 @@ export function fileIcon(path: string): IconName {
 }
 
 /** Which pane opens a file: PDFs and images get viewers, everything else the editor. */
-export function specForPath(path: RelPath, line?: number): PaneSpec {
+/** The view a table link names: `x.csv#view=Cheap` → "Cheap". */
+export const tableViewIn = (anchor?: string) => /^view=(.+)$/.exec(anchor?.trim() ?? "")?.[1].trim() || undefined;
+
+export function specForPath(path: RelPath, line?: number, anchor?: string): PaneSpec {
   if (/\.excalidraw(\.md)?$/i.test(path)) return { kind: "excalidraw", path }; // .md: the Obsidian plugin's format
   if (/\.pdf$/i.test(path)) return line === undefined ? { kind: "pdf", path } : { kind: "pdf", path, page: line }; // a PDF's "line" is its page
   if (IMAGE_RE.test(path)) return { kind: "image", path }; // SVG too, as a picture; "Open with" → the text editor for its code
-  if (TABLE_RE.test(path)) return { kind: "table", path };
+  if (TABLE_RE.test(path)) return tableViewIn(anchor) ? { kind: "table", path, view: tableViewIn(anchor) } : { kind: "table", path };
   if (/\.base$/i.test(path)) return { kind: "base", path };
   if (/\.page$/i.test(path)) return { kind: "page", path };
   return line === undefined ? { kind: "editor", path } : { kind: "editor", path, line };
@@ -250,7 +254,8 @@ export function embedOptions(s: PaneSpec): Record<string, string> | null {
       return {};
     case "search": return s.q ? { q: s.q } : {};
     case "libraries": return s.at ? { at: s.at } : {};
-    case "editor": case "pdf": case "image": case "table": case "base": case "excalidraw": case "page":
+    case "table": return s.view ? { path: s.path, view: s.view } : { path: s.path };
+    case "editor": case "pdf": case "image": case "base": case "excalidraw": case "page":
       return { path: s.path };
     default: return null;
   }
@@ -278,10 +283,10 @@ export function specFromOptions(kind: PaneKind, o: Record<string, unknown>): Pan
     case "editor":
     case "pdf":
     case "image":
-    case "table":
     case "base":
     case "excalidraw":
       return path ? { kind, path } : needPath;
+    case "table": return path ? { kind, path, view: str(o.view) } : needPath;
     case "page": return path ? { kind, path, title: str(o.title) } : needPath;
     case "diff": return path ? { kind, path, staged: o.staged === true } : needPath;
     case "commit": return str(o.hash) ? { kind, hash: str(o.hash)! } : "a commit block needs `hash:`";

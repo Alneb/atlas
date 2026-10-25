@@ -679,8 +679,6 @@ pub struct DrawConfig {
     /// A notebook's pages as a grid on one canvas, as Rnote lays them out (1: one under another).
     #[schemars(range(min = 1, max = 4))]
     pub per_row: u32,
-    /// A PDF opens on the Boox. write: its pages in a drawing to write over with the pen; reader: the PDF reader.
-    pub pdf: PdfOpens,
 }
 
 /// Declares a setting's choices: each variant written as the given name (the names the notepad has always used).
@@ -705,7 +703,6 @@ choices!(PenColor { #[default] Black = "black", DarkGrey = "dark grey", LightGre
 choices!(EraserMode { #[default] WholeStrokes = "whole strokes", PartOfStrokes = "part of strokes" });
 choices!(StartShape { Line = "line", Arrow = "arrow", #[default] Rectangle = "rectangle", Ellipse = "ellipse", Diamond = "diamond", Triangle = "triangle", Axes = "axes", AxesFull = "axes_full" });
 choices!(TextSize { Small = "small", #[default] Medium = "medium", Large = "large", VeryLarge = "very large" });
-choices!(PdfOpens { #[default] Write = "write", Reader = "reader" });
 
 /// A new drawing's pages (ui/src/lib/draw-new.ts draws each).
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, TS, JsonSchema)]
@@ -750,7 +747,6 @@ impl Default for DrawConfig {
             text_size: TextSize::default(),
             page_mode: true,
             per_row: 4,
-            pdf: PdfOpens::default(),
         }
     }
 }

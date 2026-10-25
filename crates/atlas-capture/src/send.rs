@@ -4,16 +4,23 @@ use anyhow::{anyhow, bail, Context, Result};
 use std::io::{Read, Write};
 use std::path::Path;
 
-/// → (path, line) of what was written.
+/// → (path, line) of what was written. An Atlas that is listed as serving the vault but takes no connection (it
+/// crashed, or is closing) is passed by: the files are written directly, so the capture is never lost. Once the
+/// request is sent, a failure is said instead — the open Atlas may have written it already.
 pub fn capture(root: &Path, text: &str) -> Result<(String, u64)> {
     if let Some(base) = atlas_core::vaults::running_server(root) {
         let body = serde_json::json!({ "args": { "text": text } }).to_string();
-        let v = post(&base, "/api/cmd/capture", &body)?;
-        if v["ok"].as_bool() != Some(true) {
-            bail!("{}", v["error"].as_str().unwrap_or("the open Atlas refused it"));
+        match post(&base, "/api/cmd/capture", &body) {
+            Err(Post::Unreachable) => {} // to the files below
+            Err(Post::Failed(e)) => return Err(e),
+            Ok(v) => {
+                if v["ok"].as_bool() != Some(true) {
+                    bail!("{}", v["error"].as_str().unwrap_or("the open Atlas refused it"));
+                }
+                let r = &v["result"];
+                return Ok((r["path"].as_str().unwrap_or("").to_string(), r["line"].as_u64().unwrap_or(0)));
+            }
         }
-        let r = &v["result"];
-        return Ok((r["path"].as_str().unwrap_or("").to_string(), r["line"].as_u64().unwrap_or(0)));
     }
     let ws = atlas_core::Workspace::open(root)?;
     let r = atlas_core::capture::capture_unserved(ws.root(), &ws.config()?, text)?;
@@ -31,14 +38,28 @@ pub fn attach(root: &Path, name: &str, source: &Path) -> Result<(String, String)
     Ok((a.path, a.embed))
 }
 
+/// Why a POST to the open Atlas did not answer.
+#[derive(Debug)]
+enum Post {
+    /// no connection: nothing reached it
+    Unreachable,
+    /// sent (or half sent): it may have acted on it
+    Failed(anyhow::Error),
+}
+
 /// One POST to the core on localhost, with no HTTP client library (the box must start fast and small); with the
 /// core's key when it left one — a locked core (the phone's in-app one, local_lock.rs) refuses anything without it.
-fn post(base: &str, path: &str, body: &str) -> Result<serde_json::Value> {
+fn post(base: &str, path: &str, body: &str) -> std::result::Result<serde_json::Value, Post> {
     let rest = base.trim_start_matches("http://");
     let host = rest.split('/').next().unwrap_or(rest);
     let prefix = rest[host.len()..].trim_end_matches('/');
     let key = atlas_core::auth::local_key_header(host);
-    let mut s = std::net::TcpStream::connect(host).with_context(|| format!("the open Atlas at {host}"))?;
+    let s = std::net::TcpStream::connect_timeout(&host.parse().map_err(|e| Post::Failed(anyhow!("{host}: {e}")))?, std::time::Duration::from_secs(2))
+        .map_err(|_| Post::Unreachable)?;
+    exchange(s, host, prefix, &key, path, body).map_err(Post::Failed)
+}
+
+fn exchange(mut s: std::net::TcpStream, host: &str, prefix: &str, key: &str, path: &str, body: &str) -> Result<serde_json::Value> {
     s.set_read_timeout(Some(std::time::Duration::from_secs(10)))?;
     write!(s, "POST {prefix}{path} HTTP/1.1\r\nHost: {host}\r\nx-atlas: 1\r\n{key}content-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{body}", body.len())?;
     let mut raw = Vec::new();

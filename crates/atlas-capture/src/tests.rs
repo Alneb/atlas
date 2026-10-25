@@ -408,3 +408,20 @@ fn a_guide_clicked_starts_the_text_and_opens_its_suggestions() {
     h.cap.start_with("[] ");
     assert_eq!(h.cap.text, "[] ");
 }
+
+// An Atlas listed as serving the vault that takes no connection (it crashed, or is closing): the capture is written
+// to the files directly, never lost.
+#[test]
+fn a_capture_goes_to_the_files_when_the_listed_atlas_does_not_answer() {
+    let root = std::env::temp_dir().join(format!("atlas-capture-unreachable-{}", std::process::id()));
+    std::fs::create_dir_all(root.join(".atlas/cache")).unwrap();
+    // a port nothing listens on: bound, then let go
+    let port = std::net::TcpListener::bind("127.0.0.1:0").unwrap().local_addr().unwrap().port();
+    let file = serde_json::json!({ "port": port, "pid": std::process::id(), "root": root.to_string_lossy(), "path": "" });
+    std::fs::write(root.join(".atlas/cache/server.json"), file.to_string()).unwrap();
+    assert!(atlas_core::vaults::running_server(&root).is_some(), "listed as served by a live process");
+    let (path, _) = crate::send::capture(&root, "kept anyway").expect("written to the files");
+    let text = std::fs::read_to_string(root.join(&path)).unwrap();
+    assert!(text.contains("kept anyway"), "{text:?}");
+    std::fs::remove_dir_all(&root).unwrap();
+}

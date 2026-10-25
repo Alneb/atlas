@@ -17,6 +17,11 @@
 .block-pop { position: absolute; top: -9px; right: -9px; z-index: 5; width: 24px; height: 24px; display: grid; place-items: center; border-radius: 50%;
   color: var(--text-muted); background: var(--bg-elev); border: 1px solid var(--border-strong); box-shadow: var(--shadow-sm); opacity: 0; transition: opacity .12s; }
 .atlas-block:hover > .block-pop, .block-pop:focus-visible { opacity: 1; }
+/* a table's saved views in its note (lib/table-views-fence.ts) */
+.table-views { border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--bg-elev); padding: 8px 12px; font-size: calc(13px * var(--ui-scale, 1)); }
+.table-views-head { color: var(--text-faint); font-size: calc(12px * var(--ui-scale, 1)); margin-bottom: 4px; }
+.table-views-row { display: flex; gap: 10px; align-items: baseline; padding: 2px 0; }
+.table-views-row > span { color: var(--text-muted); font-family: var(--font-mono); font-size: calc(12px * var(--ui-scale, 1)); }
 .block-pop:hover { color: var(--text); background: var(--bg-hover); }
 .view-wait { color: var(--text-faint); margin: 0; padding: 4px 8px; }
 @media (prefers-reduced-motion: reduce) { .block-pop { transition: none; } }

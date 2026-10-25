@@ -8,6 +8,7 @@
 import { errText } from "./text";
 import { hydrateFences } from "./fences";
 import "./pdf-marks-fence"; // the core's own fence: a PDF's marks in its note
+import "./table-views-fence"; // the core's own fence: a table's saved views in its note
 import { mount, unmount, type Component } from "svelte";
 import { parse as parseYaml } from "yaml";
 import type { DockviewPanelApi } from "dockview-core";

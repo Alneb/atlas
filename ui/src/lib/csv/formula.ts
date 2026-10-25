@@ -35,6 +35,23 @@ type Node =
 
 const TOKEN = /\s*(?:(\d+\.?\d*(?:e[-+]?\d+)?|\.\d+(?:e[-+]?\d+)?)|("(?:[^"]|"")*")|(\$?[A-Za-z]{1,3}\$?\d+(?::\$?[A-Za-z]{1,3}\$?\d+)?)|([A-Za-z_][A-Za-z0-9_.]*)|(<>|<=|>=|[-+*/^&=<>(),:;%]))/y;
 
+/** The formula with every reference moved `dr` rows (a sheet written with its header as row 1: `dr` = 1), the rest
+ *  as typed. A token the formula does not read is left alone. */
+export function shiftRows(src: string, dr: number): string {
+  let out = "", last = 0;
+  TOKEN.lastIndex = 0;
+  while (TOKEN.lastIndex < src.length) {
+    const m = TOKEN.exec(src);
+    if (!m) break;
+    if (m[3]) {
+      const start = TOKEN.lastIndex - m[3].length;
+      out += src.slice(last, start) + m[3].replace(/(\$?[A-Za-z]+\$?)(\d+)/g, (_, col: string, row: string) => col + (Number(row) + dr));
+      last = TOKEN.lastIndex;
+    }
+  }
+  return out + src.slice(last);
+}
+
 function parse(src: string): Node {
   const toks: string[] = [];
   TOKEN.lastIndex = 0;

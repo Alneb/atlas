@@ -37,6 +37,9 @@
 
 - **Notes** that render like Obsidian: live preview, wikilinks, embeds, callouts, LaTeX with snippets, Bases tables,
   tasks with priorities, dates and repeats (the Tasks plugin's format), inline expressions and templates.
+- **Tables**: CSV, TSV and Excel files as a spreadsheet — cells edited in place, formulas between cells, a filter
+  per column, sort, grouping with sub-totals, plots; named views kept in the file's note and embedded in any note
+  (`![[x.csv#view=Name]]`); a copy saved as an Excel workbook.
 - **Pages of blocks** you arrange by hand: a home screen, an inbox, a dashboard. The left bar is one too.
 - **Papers**: a library with citations (`[[citekey]]`), PDFs with highlights and ink kept beside them (the PDF itself is never
   rewritten), notes beside the paper.

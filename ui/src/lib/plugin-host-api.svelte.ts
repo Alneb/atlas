@@ -151,6 +151,14 @@ export function pluginApi(p: Plugin, at: PaneAt = {}): PluginApi {
     noteProps,
     trash: async (path) => { await api.trash(path); },
     companion: async (path, opts) => (await api.companion({ path, title: opts?.title ?? null, properties: opts?.properties ?? {}, block: null, find: opts?.find ?? false })).path,
+    templates: () => api.templates(),
+    newNote: async (o) => (await api.newNote({ title: o.title, dir: o.folder, template: o.template, values: o.values, text: o.body })).path,
+    applyTemplate: async (path, template) => {
+      const f = await api.file(path);
+      const m = await api.mergeTemplate(path, template, f.text);
+      if (m.text !== undefined && m.text !== f.text) await api.putFile(path, m.text, f.mtime);
+      return m.added;
+    },
     pick: (req) => pick(req),
     signIn: (url, back) => signIn(url, back),
     signInReturned: (back) => returned(back),

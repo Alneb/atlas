@@ -34,7 +34,10 @@ public final class PageInk extends View implements PenBar.Pen {
     /** Where the page is on this view, px (null: not shown). */
     public interface Frame { RectF shown(); }
 
-    public enum Tool { PEN, HIGHLIGHTER, ERASER, TEXT }
+    public enum Tool { PEN, HIGHLIGHTER, ERASER, TEXT, SELECT }
+
+    /** What the pen selects with the Select tool (a reader with text: the PDF's words), in screen points. */
+    public interface Selector { void down(float x, float y); void move(float x, float y); void up(); void cancel(); }
 
     /** The pens' widths, of the page's width: a fine pen on a phone-sized page, a highlighter a line of text tall. */
     public static final float PEN_WIDTH = 0.0022f, HIGHLIGHTER_WIDTH = 0.014f;
@@ -61,6 +64,8 @@ public final class PageInk extends View implements PenBar.Pen {
     /** Whether the pen writes (else every pen touch is a tap or a turn: the reader's "pen off"). */
     private boolean writing = true;
     private Runnable changed = () -> {};
+    private Selector selector;                           // null: this reader has no text to select
+    private boolean selectingNow;                        // the pen's stroke is a selection
 
     PageInk(Context c, Host host, Frame frame, Taps taps) {
         super(c);
@@ -123,6 +128,9 @@ public final class PageInk extends View implements PenBar.Pen {
     public void widthTimes(float w) { widthTimes = w; area(); }
     public float widthTimes() { return widthTimes; }
     public void writing(boolean on) { writing = on; area(); }
+    /** The reader's text selection, offered as the pen bar's Select tool; null: none. */
+    public void selector(Selector s) { selector = s; }
+    @Override public boolean selects() { return selector != null; }
     public boolean writing() { return writing; }
     /** Told when the ink changed (an undo to offer, a page with notes). */
     public void onChange(Runnable r) { changed = r == null ? () -> {} : r; }
@@ -132,7 +140,7 @@ public final class PageInk extends View implements PenBar.Pen {
     /** The screen's quick ink only over the page (Onyx's on a Boox), as wide as the line drawn there; none when the pen
      *  does not draw (the eraser, a note, the pen off). */
     public void area() {
-        RectF r = store == null || !writing || tool == Tool.ERASER || tool == Tool.TEXT ? null : frame.shown();
+        RectF r = store == null || !writing || tool == Tool.ERASER || tool == Tool.TEXT || tool == Tool.SELECT ? null : frame.shown();
         if (r == null || !hasWindowFocus()) { quick.area(0, 0, 0, 0, 0, 0); return; }
         quick.area((int) r.left, (int) r.top, (int) r.right, (int) r.bottom, Math.max(1f, lineWidth() * r.width()), tool == Tool.HIGHLIGHTER ? 2 : 0);
     }
@@ -166,6 +174,7 @@ public final class PageInk extends View implements PenBar.Pen {
         }
         RectF r = frame.shown();
         penAt = android.os.SystemClock.uptimeMillis();
+        if (select(e)) return true;
         switch (e.getActionMasked()) {
             case MotionEvent.ACTION_DOWN:
                 downX = e.getX(); downY = e.getY(); downAt = e.getEventTime();
@@ -201,6 +210,18 @@ public final class PageInk extends View implements PenBar.Pen {
             default:
                 return true;
         }
+    }
+
+    /** The Select tool: the pen's stroke goes to the reader's selector (the side button still erases). */
+    private boolean select(MotionEvent e) {
+        int act = e.getActionMasked();
+        if (act == MotionEvent.ACTION_DOWN) selectingNow = selector != null && writing && tool == Tool.SELECT && !PenInput.erasing(e);
+        if (!selectingNow) return false;
+        if (act == MotionEvent.ACTION_DOWN) selector.down(e.getX(), e.getY());
+        else if (act == MotionEvent.ACTION_MOVE) selector.move(e.getX(), e.getY());
+        else if (act == MotionEvent.ACTION_UP) { selectingNow = false; selector.up(); }
+        else if (act == MotionEvent.ACTION_CANCEL) { selectingNow = false; selector.cancel(); }
+        return true;
     }
 
     /** Whether this pen touch makes ink or erases (else it is only a tap). */

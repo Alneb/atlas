@@ -89,6 +89,11 @@ pub struct FileWrite {
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     #[ts(as = "Option<bool>", optional)]
     pub only_new: bool,
+    /// The writer holds the note open (an editor): a template this save brings (template_apply.rs, a property set) is
+    /// answered as text for it to apply as its own change, not written by the core.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    #[ts(as = "Option<bool>", optional)]
+    pub apply_here: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
@@ -97,6 +102,42 @@ pub struct FileWritten {
     pub mtime: Mtime,
     /// False only for an `only_new` write that found the file there (`mtime` is then the existing file's).
     pub written: bool,
+    /// A template this save brought (a property set to a value a template applies to): merged by the core, or, for a
+    /// writer that applies it itself (`apply_here`), with the merged `text`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub template: Option<TemplateMerged>,
+}
+
+/// A template merged into a note (docs/design/DESIGN-templates-automation.md): which, what it added, and the note's
+/// text after it when the caller applies it itself.
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[ts(export)]
+pub struct TemplateMerged {
+    pub template: String,
+    /// In words, for the notice: `course`, `tags: lecture`, `## Summary`.
+    pub added: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub text: Option<String>,
+    /// "Insert template": the template's body, filled in, for the editor to put at the cursor (only its properties
+    /// were merged into `text`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub body: Option<String>,
+}
+
+/// `POST /api/note/merge-template`: `template` merged into `text`, the note at `path` as it is in an editor now;
+/// `at_cursor`: only its properties merged, its body answered apart ("Insert template").
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[ts(export)]
+pub struct MergeTemplate {
+    pub path: String,
+    pub template: String,
+    pub text: String,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    #[ts(as = "Option<bool>", optional)]
+    pub at_cursor: bool,
 }
 
 /// Body of every non-2xx `/api` response. `mtime` is set on 409 (current on-disk mtime, if any).

@@ -80,8 +80,7 @@ e-ink screen, its settings in Settings → Drawing (`[draw]`) on every device (d
 
 In Settings → Drawing (`[draw]` in `.atlas/config.toml`, `DrawConfig` in `crates/atlas-core/src/config.rs`): *Pen at the start*, *Paper of a new page*, *Shapes from a held stroke*, *Shape recogniser*, *Scribble to erase*, and
 the toolbar's defaults: *Start with the pen last used* (on: the last pen, width and colour win over the defaults),
-*Pen width*, *Colour*, *Eraser* (whole strokes or part of strokes), *Shape* and *Text size at the start*; *A PDF
-opens* (write: its pages in `x.pdf.excalidraw` beside it, to write over; reader: the PDF reader).
+*Pen width*, *Colour*, *Eraser* (whole strokes or part of strokes), *Shape* and *Text size at the start*.
 
 The toolbar never scrolls: `fitBar` keeps it at full
 size when it fits, else narrows every tool (≤ 36 dp, 2 dp padding), else drops the title too, on every size change
@@ -92,8 +91,10 @@ only everywhere, each name a long-press tooltip.
 
 - **Insert → A PDF**: one page, or *the whole PDF*: a new notebook page per PDF page (≤ 60), the page fitted on it as a
   picture linked to `[[x.pdf#page=N]]`, all one undo step.
-- **A PDF opened on the Boox** is written on: its drawing `x.pdf.excalidraw` (a companion file, PHILOSOPHY §1) is made
-  the first time with the PDF's pages in it; Pages → *The PDF in the reader* opens the reader instead.
+- **A PDF opened on the Boox** goes to the book reader (Books' `PdfView`), whose pen, text boxes and highlights are
+  saved into the PDF's note, its `pdf-marks` block — the one store the desktop reads and writes too
+  (docs/design/DESIGN-pdf-notes.md). An older `x.pdf.excalidraw` still opens here as a notebook until
+  `atlas pdf-marks migrate` moves its ink into the note; no new one is made.
 - **The file picker** (`FilePicker.java`, for links and PDFs): browse folder by folder, the recently chosen on top, or
   type to search the whole vault, names first, then folders.
 - **Pages → Open in Excalidraw (all its tools)**: the drawing in the web editor this once (fills, stroke styles,

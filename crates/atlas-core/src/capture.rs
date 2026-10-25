@@ -153,9 +153,14 @@ pub fn capture_at(root: &Path, cfg: &Config, text: &str, now: NaiveDateTime) -> 
                 return Err(Error::BadRequest("capture text is empty".into()));
             }
             // named by its first line; the whole text is the note's body
+            let title = text.trim().lines().next().unwrap_or_default().to_string();
+            // its template by the rules (template_rules.rs): a template's own for captures or the inbox, else
+            // `capture_template`; none fits: the new-note rules, then the default
+            let at = format!("{}/{}.md", cfg.notes.inbox.trim_matches('/'), crate::notes::file_stem(&title));
+            let template = crate::template_rules::choose(root, cfg, &crate::template_rules::Moment::Capture { path: &at }).map(|c| c.template);
             let req = NewNote {
-                template: Some(cfg.notes.capture_template.clone()),
-                title: text.trim().lines().next().unwrap_or_default().to_string(),
+                template,
+                title,
                 dir: Some(cfg.notes.inbox.clone()),
                 near: None,
                 text: Some(text.replace("\r\n", "\n")),

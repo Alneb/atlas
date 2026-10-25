@@ -9,6 +9,7 @@
   import OverviewPanel from "./OverviewPanel.svelte";
   import PreviewPanel from "./PreviewPanel.svelte";
   import SnippetsPanel from "./SnippetsPanel.svelte";
+  import TemplatesPanel from "./TemplatesPanel.svelte";
   import KeysPanel from "./KeysPanel.svelte";
   import PluginsPanel from "./PluginsPanel.svelte";
   import ScriptsPanel from "./ScriptsPanel.svelte";
@@ -63,6 +64,7 @@
     {#if panel === "overview"}<OverviewPanel {pages} {go} />
     {:else if panel === "preview"}<PreviewPanel />
     {:else if panel === "snippets"}<SnippetsPanel onnew={() => (naming = "snippet")} />
+    {:else if panel === "templates"}<TemplatesPanel />
     {:else if panel === "keys"}<KeysPanel />
     {:else if panel === "plugins"}<PluginsPanel onnew={() => (naming = "plugin")} onblock={() => (naming = "block")} />
     {:else if panel === "signins"}<SigninsPanel />

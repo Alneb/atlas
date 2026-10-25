@@ -55,12 +55,11 @@ test.afterAll(() => { rmSync(PLUGIN, { recursive: true, force: true }); rmSync(j
 test("a book's note: its highlights read back, the attribution line left out", async () => {
   // the plugin is plain JS without types: imported by a variable path, its shape stated here
   const view = "../../plugins/beta/books/view.js";
-  const { highlightsIn, newNote, notePathOf, highlightBlock } = (await import(view)) as {
-    highlightsIn(md: string): string[]; newNote(book: string, meta: { title: string; author: string }): string;
-    notePathOf(book: string): string; highlightBlock(text: string, where: string): string;
+  const { highlightsIn, notePathOf, highlightBlock } = (await import(view)) as {
+    highlightsIn(md: string): string[]; notePathOf(book: string): string; highlightBlock(text: string, where: string): string;
   };
   expect(notePathOf("books/a/quantum.epub")).toBe("books/a/quantum.md");
-  const md = newNote("books/a/quantum.epub", { title: "Quantum Notes", author: "A. Author" }) + highlightBlock("two  spaces\nand a line", "One, chapter 1") + "\nMy own words.\n" + highlightBlock("second", "Two, chapter 2");
+  const md = "---\nbook: '[[quantum.epub]]'\ntitle: Quantum Notes\n---\n# Quantum Notes\n\n## Highlights\n" + highlightBlock("two  spaces\nand a line", "One, chapter 1") + "\nMy own words.\n" + highlightBlock("second", "Two, chapter 2");
   expect(highlightsIn(md)).toEqual(["two spaces and a line", "second"]);
 });
 
@@ -119,7 +118,7 @@ test("books: the library, an EPUB read in the page, paged, its contents and link
   await pane.getByRole("button", { name: "Highlight" }).click();
   await expect.poll(() => existsSync(note) && readFileSync(note, "utf8")).toContain("> Paragraph 1");
   const md = readFileSync(note, "utf8");
-  expect(md).toContain('book: "[[quantum.epub]]"');
+  expect(md).toMatch(/^book: ['"]\[\[quantum\.epub\]\]['"]$/m); // made by the core, as on every device
   expect(md).toContain("> — Two: readout, chapter 2");
   await expect(book.locator("mark.atlas-hl")).toHaveText("Paragraph 1"); // "Paragraph 1 " squashed: the trailing space dropped
   // back to the library and in again: where you left

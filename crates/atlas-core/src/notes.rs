@@ -14,7 +14,7 @@ const FLEETING: &str = "---\ntype: fleeting\ncreated: {{date}}\n---\n";
 const TITLE_CHARS: usize = 60;
 
 /// A file name out of a title: path separators and characters file systems reject become spaces.
-fn file_stem(title: &str) -> String {
+pub(crate) fn file_stem(title: &str) -> String {
     let clean: String = title.chars().map(|c| if c.is_control() || r#"\/:*?"<>|#^[]"#.contains(c) { ' ' } else { c }).collect();
     let short: String = clean.split_whitespace().collect::<Vec<_>>().join(" ").chars().take(TITLE_CHARS).collect();
     short.trim().trim_start_matches('.').trim().to_string() // a leading dot hides a file; a trailing one is a name ("2026-03-07 sáb.")
@@ -129,11 +129,13 @@ fn fill(vault: Option<(&Path, &Config)>, template: &str, title: &str, now: Naive
 /// the vault's date names.
 const DAILY_LOG: &str = "---\ndate: {{date}}\ntype: log\n---\n# {{date:dddd, D MMMM YYYY}}\n\n";
 
-/// How a new day's log starts: `log_template` filled in for the day (its own properties dropped), else [`DAILY_LOG`].
+/// How a new day's log starts: the template the rules give the day (a template's `apply_when: { moment: day }`, else
+/// `log_template`) filled in for it (its own properties dropped), else [`DAILY_LOG`].
 /// A named template that is missing falls back too, so a capture never fails over it.
 pub(crate) fn daily_log_start(root: &Path, cfg: &Config, date: &str, now: NaiveDateTime) -> String {
-    let name = cfg.log_template.trim();
-    let text = (!name.is_empty()).then(|| template_text(root, cfg, name).ok()).flatten().map(|t| take_own(&t).0);
+    let path = crate::capture::day_log(cfg, now.date());
+    let chosen = crate::template_rules::choose(root, cfg, &crate::template_rules::Moment::Day { path: &path });
+    let text = chosen.and_then(|c| template_text(root, cfg, &c.template).ok()).map(|t| take_own(&t).0);
     let filled = templater(&fill(Some((root, cfg)), text.as_deref().unwrap_or(DAILY_LOG), date, now, &Map::new()).0, date, now).0;
     match filled.trim_end_matches('\n') {
         "" => String::new(),
@@ -169,10 +171,18 @@ fn take_own(template: &str) -> (String, TemplateOwn) {
     let Some(end) = body.find("\n---") else { return (template.to_string(), own) };
     let value = |v: &str| Some(v.trim().trim_matches(|c| c == '"' || c == '\'').to_string()).filter(|f| !f.is_empty());
     let mut taken = false;
+    // `apply_when:` spans the lines indented under it (template_rules.rs reads it)
+    let mut in_rules = false;
     let kept: Vec<&str> = body[..end]
         .lines()
         .filter(|l| {
-            if let Some(v) = l.strip_prefix("create_in:") {
+            if in_rules && l.starts_with([' ', '\t', '-']) {
+                return false;
+            }
+            in_rules = false;
+            if l.starts_with("apply_when:") {
+                in_rules = true;
+            } else if let Some(v) = l.strip_prefix("create_in:") {
                 own.create_in = value(v);
             } else if let Some(v) = l.strip_prefix("template_title:") {
                 own.title = value(v);
@@ -204,7 +214,7 @@ fn default_name(root: &Path, cfg: &Config) -> Option<String> {
 
 /// Templater's own rules, read from the vault's Obsidian settings (`file_templates` / `folder_templates`, each only
 /// when switched on there), so a vault keeps choosing its templates the same way in both apps.
-fn templater_rules(root: &Path, cfg: &Config) -> Vec<crate::config::TemplateRule> {
+pub(crate) fn templater_rules(root: &Path, cfg: &Config) -> Vec<crate::config::TemplateRule> {
     let Ok(text) = std::fs::read_to_string(root.join(".obsidian/plugins/templater-obsidian/data.json")) else { return vec![] };
     let Ok(v) = serde_json::from_str::<Value>(&text) else { return vec![] };
     let dir = cfg.notes.templates.trim_matches('/');
@@ -229,24 +239,14 @@ fn templater_rules(root: &Path, cfg: &Config) -> Vec<crate::config::TemplateRule
     rules
 }
 
-/// The template a note made without one gets: the first rule (the vault's own, else Templater's) whose title regex
-/// is found in the note's path or whose folder holds it. A rule with a bad regex is skipped, never fatal.
+/// The template a note made without one gets by the vault's rules (template_rules.rs: the templates' own
+/// `apply_when:`, `[notes] template_rules`, else Templater's).
 fn template_by_rule(root: &Path, cfg: &Config, rel: &str) -> Option<String> {
-    let own = !cfg.notes.template_rules.is_empty();
-    let rules = if own { cfg.notes.template_rules.clone() } else { templater_rules(root, cfg) };
-    let dir = rel.rsplit_once('/').map_or("", |(d, _)| d);
-    // a Templater template built on a script (`<%* … %>`: weather, moving the file) is left to Obsidian when the
-    // rule is Templater's: Atlas runs no scripts, and the note would hold the script's text instead of its result
-    let usable = |t: &str| own || template_text(root, cfg, t).is_ok_and(|text| !text.contains("<%*"));
-    rules.into_iter().filter(|r| usable(&r.template)).find_map(|r| {
-        let by_title = r.title.as_deref().map(|re| regex::Regex::new(re).is_ok_and(|re| re.is_match(rel)));
-        let by_folder = r.folder.as_deref().map(|f| dir == f || dir.starts_with(&format!("{f}/")));
-        (by_title.unwrap_or(true) && by_folder.unwrap_or(true) && (by_title.is_some() || by_folder.is_some())).then_some(r.template)
-    })
+    crate::template_rules::choose(root, cfg, &crate::template_rules::Moment::NewNote { path: rel }).map(|c| c.template)
 }
 
 /// The template's text; a missing `fleeting` falls back to the built-in one, any other is an error.
-fn template_text(root: &Path, cfg: &Config, name: &str) -> Result<String> {
+pub(crate) fn template_text(root: &Path, cfg: &Config, name: &str) -> Result<String> {
     let rel = format!("{}/{name}.md", cfg.notes.templates.trim_matches('/'));
     match std::fs::read_to_string(paths::safe_join(root, &rel)?) {
         Ok(s) => Ok(s),
@@ -400,6 +400,40 @@ pub struct TemplateInfo {
     pub properties: Vec<String>,
     /// What the template asks when a note is made from it (`{{prompt:…}}`), answered through `values`.
     pub prompts: Vec<String>,
+    /// When it applies by itself, in words, in the order tried (template_rules.rs `described`).
+    pub applies: Vec<String>,
+    /// How each prompt is asked (`| choice:a,b`, `| date`, `| number`, `| note:folder`), in `prompts`' order.
+    pub asks: Vec<PromptAsk>,
+}
+
+/// One question of a template, and how the app asks it (one form for all of them).
+#[derive(Debug, Clone, Serialize, ts_rs::TS)]
+#[ts(export)]
+pub struct PromptAsk {
+    pub name: String,
+    /// `text`, `choice`, `date`, `number` or `note`
+    pub kind: String,
+    /// `choice`: the choices
+    pub choices: Vec<String>,
+    /// `note`: the folder its notes are in ("" anywhere)
+    pub folder: String,
+}
+
+fn asks(template: &str) -> Vec<PromptAsk> {
+    use crate::template::PromptKind as K;
+    crate::template::prompt_kinds(template)
+        .into_iter()
+        .map(|(name, k)| {
+            let (kind, choices, folder) = match k {
+                K::Text => ("text", vec![], String::new()),
+                K::Choice(c) => ("choice", c, String::new()),
+                K::Date => ("date", vec![], String::new()),
+                K::Number => ("number", vec![], String::new()),
+                K::Note(f) => ("note", vec![], f),
+            };
+            PromptAsk { name, kind: kind.into(), choices, folder }
+        })
+        .collect()
 }
 
 /// The templates "New note from a template…" offers: the `.md` files directly in `[notes] templates`.
@@ -412,6 +446,7 @@ pub fn templates(root: &Path, cfg: &Config) -> Result<Vec<TemplateInfo>> {
     };
     let now = chrono::Local::now().naive_local();
     let default = default_name(root, cfg);
+    let mut applies = crate::template_rules::described(root, cfg);
     let mut out: Vec<TemplateInfo> = entries
         .flatten()
         .filter(|e| e.file_type().is_ok_and(|t| t.is_file()))
@@ -425,6 +460,8 @@ pub fn templates(root: &Path, cfg: &Config) -> Result<Vec<TemplateInfo>> {
                 folder,
                 properties: frontmatter_keys(&text),
                 prompts: crate::template::prompts(&text),
+                asks: asks(&text),
+                applies: applies.remove(&name).unwrap_or_default(),
                 title: own.title,
                 default: default.as_deref() == Some(name.as_str()),
                 name,

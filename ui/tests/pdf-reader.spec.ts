@@ -172,7 +172,11 @@ for (const eng of ["pdfium", "pdfjs"] as const) test.describe(`with ${eng}`, () 
     await bar.getByRole("button", { name: "Colour blue" }).click();
     const one = async (id: string) => (await marks(page)).find((m) => m.id === id) as (Mark & { color?: string; rect?: number[]; tags?: string[] }) | undefined;
     await expect.poll(async () => (await one(tb))?.color, { timeout: 20000 }).toBe("#74C0FC");
-    await bar.getByRole("button", { name: /first words/ }).click();
+    // the bar is drawn again when the colour's save comes back: open the words box once it has settled
+    await expect(async () => {
+      await bar.getByRole("button", { name: /first words/ }).click({ timeout: 2000 });
+      await expect(bar.getByRole("textbox", { name: "Words" })).toBeVisible({ timeout: 2000 });
+    }).toPass({ timeout: 20000 });
     await bar.getByRole("textbox", { name: "Words" }).fill("new words #idea");
     await page.keyboard.press("Enter");
     await expect.poll(async () => { const m = await one(tb); return [m?.text, m?.tags]; }, { timeout: 20000 }).toEqual(["new words #idea", ["idea"]]);
@@ -200,10 +204,13 @@ for (const eng of ["pdfium", "pdfjs"] as const) test.describe(`with ${eng}`, () 
     await expect.poll(async () => (await one(tb))?.text, { timeout: 20000 }).toBe("new words #idea");
     // a highlight is picked by a click on its words; Esc lets it go
     const hlRect = pane.locator(`.page[data-page-number="1"] svg.atlas-marks [data-mark="${hl}"] rect`);
-    await expect.poll(async () => !!(await hlRect.boundingBox()), { timeout: 20000 }).toBe(true); // drawn again after the undo
-    const h = (await hlRect.boundingBox())!;
-    await page.mouse.click(h.x + h.width / 2, h.y + h.height / 2);
-    await expect(bar).toContainText("Highlight");
+    // drawn again after the undo (perhaps more than once): found and clicked until its bar shows
+    await expect(async () => {
+      const h = await hlRect.boundingBox();
+      expect(h).not.toBeNull();
+      await page.mouse.click(h!.x + h!.width / 2, h!.y + h!.height / 2);
+      await expect(bar).toContainText("Highlight", { timeout: 2000 });
+    }).toPass({ timeout: 20000 });
     await page.keyboard.press("Escape");
     await expect(bar).toHaveCount(0);
   });

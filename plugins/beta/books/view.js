@@ -23,11 +23,11 @@ export function resolve(base, rel) {
 /** The note beside the book that holds its highlights: `quantum.epub` → `quantum.md`. */
 export const notePathOf = (book) => book.replace(EPUB, ".md");
 const squash = (t) => t.replace(/\s+/g, " ").trim();
-/** A new companion note: the book's properties and a Highlights heading the reader appends under. */
-export function newNote(book, meta) {
+/** The book's one note, made through the core when it is missing — as every device makes it (companion.rs: the vault's
+ *  template rules, the book's block, `title`) — with `book` linking the file, and `author` when known. → its path. */
+export function ensureNote(atlas, book, meta = {}) {
   const name = book.split("/").pop();
-  const q = (v) => JSON.stringify(v ?? "");
-  return `---\nbook: ${q(`[[${name}]]`)}\ntitle: ${q(meta.title || name.replace(EPUB, ""))}\nauthor: ${q(meta.author)}\n---\n# ${meta.title || name.replace(EPUB, "")}\n\n## Highlights\n`;
+  return atlas.companion(book, { find: false, title: meta.title || name.replace(EPUB, ""), properties: { book: `[[${name}]]`, ...(meta.author ? { author: meta.author } : {}) } });
 }
 /** One highlight as Markdown: the passage quoted, then where it is (`— <chapter>`). */
 export const highlightBlock = (text, where) => `\n> ${squash(text)}\n> — ${where}\n`;
@@ -263,8 +263,7 @@ export default function mount(host, atlas) {
   const saveAt = (book, spine, at) => {
     writes = writes.then(async () => {
       const note = await noteOf(book);
-      const name = book.split("/").pop();
-      await atlas.createFile(note, newNote(book, { title: name.replace(EPUB, "") })); // a note of its own when none (false when there is)
+      if (!(await atlas.readText(note).catch(() => ""))) await ensureNote(atlas, book); // a note of its own when none
       const r = (n, d) => `${Math.round(n * 100 * 10 ** d) / 10 ** d}%`;
       await atlas.writeProperty(note, "reading_chapter", String(spine + 1));
       await atlas.writeProperty(note, "reading_at", r(at, 2));
@@ -414,7 +413,8 @@ export default function mount(host, atlas) {
       const whereText = `${label ? `${label}, ` : ""}chapter ${spine + 1}`;
       try {
         let md = await readNote();
-        if (!md) md = newNote(path, book);
+        if (!md) { await ensureNote(atlas, path, book); md = await readNote(); }
+        if (!/^## Highlights\s*$/m.test(md)) md = `${md.replace(/\n*$/, "\n")}\n## Highlights\n`;
         const notePath = await noteOf(path);
         await atlas.writeText(notePath, md.replace(/\n*$/, "\n") + highlightBlock(text, whereText));
         sel.removeAllRanges();

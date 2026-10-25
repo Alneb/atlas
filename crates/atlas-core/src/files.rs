@@ -148,7 +148,7 @@ fn write_bytes(ws: &Workspace, rel: &str, bytes: &[u8], guard: Guard) -> Result<
         }
         Guard::OnlyNew => {
             if let Some(meta) = &existing {
-                return Ok(FileWritten { mtime: Mtime::of(meta)?, written: false });
+                return Ok(FileWritten { mtime: Mtime::of(meta)?, written: false, template: None });
             }
         }
     }
@@ -159,7 +159,7 @@ fn write_bytes(ws: &Workspace, rel: &str, bytes: &[u8], guard: Guard) -> Result<
             true
         }
     };
-    Ok(FileWritten { mtime: Mtime::of(&std::fs::metadata(&path)?)?, written })
+    Ok(FileWritten { mtime: Mtime::of(&std::fs::metadata(&path)?)?, written, template: None })
 }
 
 /// Bytes plus a guessed content type, for PDFs/images.
@@ -256,7 +256,7 @@ mod tests {
         std::fs::write(d.path().join("notes/huge.md"), &big).unwrap();
         assert_eq!(read_text(&w, "notes/page.excalidraw").unwrap().text.len(), big.len(), "the 22.9 MB drawing of 2026-10-18");
         assert!(matches!(read_text(&w, "notes/huge.md"), Err(Error::TooLarge(_))), "a note keeps the editor's limit");
-        let save = |path: &str| write_text(&w, &FileWrite { path: path.into(), text: big.clone(), base_mtime: None, only_new: false });
+        let save = |path: &str| write_text(&w, &FileWrite { path: path.into(), text: big.clone(), base_mtime: None, only_new: false, apply_here: false });
         assert!(save("notes/page2.excalidraw").is_ok());
         assert!(matches!(save("notes/huge2.md"), Err(Error::TooLarge(_))));
     }
@@ -322,12 +322,12 @@ mod tests {
     fn write_then_conflict_on_stale_mtime() {
         let (_d, w) = ws();
         let first =
-            write_text(&w, &FileWrite { path: "notes/n.md".into(), text: "one".into(), base_mtime: None, only_new: false }).unwrap();
+            write_text(&w, &FileWrite { path: "notes/n.md".into(), text: "one".into(), base_mtime: None, only_new: false, apply_here: false }).unwrap();
         assert_eq!(read_text(&w, "notes/n.md").unwrap().text, "one");
         let stale = Mtime(first.mtime.0 - 1000);
-        let err = write_text(&w, &FileWrite { path: "notes/n.md".into(), text: "two".into(), base_mtime: Some(stale), only_new: false });
+        let err = write_text(&w, &FileWrite { path: "notes/n.md".into(), text: "two".into(), base_mtime: Some(stale), only_new: false, apply_here: false });
         assert!(matches!(err, Err(Error::Conflict { current: Some(m) }) if m == first.mtime));
-        write_text(&w, &FileWrite { path: "notes/n.md".into(), text: "two".into(), base_mtime: Some(first.mtime), only_new: false })
+        write_text(&w, &FileWrite { path: "notes/n.md".into(), text: "two".into(), base_mtime: Some(first.mtime), only_new: false, apply_here: false })
             .unwrap();
         assert_eq!(read_text(&w, "notes/n.md").unwrap().text, "two");
         // No temp files left behind.
@@ -337,7 +337,7 @@ mod tests {
     #[test]
     fn only_new_creates_once_and_never_replaces() {
         let (_d, w) = ws();
-        let new = |text: &str| FileWrite { path: "notes/d.excalidraw".into(), text: text.into(), base_mtime: None, only_new: true };
+        let new = |text: &str| FileWrite { path: "notes/d.excalidraw".into(), text: text.into(), base_mtime: None, only_new: true, apply_here: false };
         assert!(write_text(&w, &new("first")).unwrap().written);
         let again = write_text(&w, &new("second")).unwrap();
         assert!(!again.written, "an existing file is kept, and the answer says so");

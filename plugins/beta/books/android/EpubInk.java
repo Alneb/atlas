@@ -312,7 +312,7 @@ final class EpubInk extends View implements PenBar.Pen {
         new Thread(() -> {
             try {
                 synchronized (EpubInk.class) {
-                    String md = host.exists(note) ? host.readText(note) : Highlights.newNote(book.substring(book.lastIndexOf('/') + 1), "", "");
+                    String md = Highlights.noteText(host, book, note, "", "");
                     host.write(note, e.apply(md).getBytes(StandardCharsets.UTF_8));
                 }
             } catch (Exception ex) { post(() -> host.toast("The note was not saved: " + ex.getMessage())); }

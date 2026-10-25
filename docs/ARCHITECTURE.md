@@ -170,7 +170,8 @@ returns the state PUT into a live server on a real vault.
 - `GET`/`HEAD /api/raw` send `x-atlas-mtime` (ms) so binary editors get their base mtime.
 - The PDF pane is Atlas's own reader over one engine per document — PDFium in a worker, or pdf.js as the backup
   (Settings → PDF → engine) — with its text layer, links, find, outline, its own highlight,
-  pen and text-note tools); marks are saved into the PDF's companion drawing `x.pdf.excalidraw`, never into the PDF.
+  pen and text-note tools); marks are saved into the PDF's note, its `pdf-marks` block (`pdf_marks.rs`), never into
+  the PDF — the Boox's reader writes the same block.
 
 
 ### Drawing (slice 3)

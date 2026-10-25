@@ -3,7 +3,6 @@ import type { EraserMode } from "./EraserMode";
 import type { NotepadPaper } from "./NotepadPaper";
 import type { NotepadPen } from "./NotepadPen";
 import type { PageFormat } from "./PageFormat";
-import type { PdfOpens } from "./PdfOpens";
 import type { PenColor } from "./PenColor";
 import type { PenWidth } from "./PenWidth";
 import type { ShapeRecogniser } from "./ShapeRecogniser";
@@ -81,8 +80,4 @@ page_mode: boolean,
 /**
  * A notebook's pages as a grid on one canvas, as Rnote lays them out (1: one under another).
  */
-per_row: number, 
-/**
- * A PDF opens on the Boox. write: its pages in a drawing to write over with the pen; reader: the PDF reader.
- */
-pdf: PdfOpens, };
+per_row: number, };

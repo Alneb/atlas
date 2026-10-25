@@ -797,10 +797,10 @@ final class ReaderView extends FrameLayout implements NativePlugin.Back {
             if (text.isEmpty()) return;
             passages.put(text);
             final String quote = text, where = (doc.chapterLabel(spine).isEmpty() ? "" : doc.chapterLabel(spine) + ", ") + "chapter " + (spine + 1);
-            final String bookName = path.substring(path.lastIndexOf('/') + 1), title = doc.title(), author = doc.author();
+            final String title = doc.title(), author = doc.author();
             background(() -> {
                 try {
-                    String md = host.exists(notePath()) ? host.readText(notePath()) : Highlights.newNote(bookName, title, author);
+                    String md = Highlights.noteText(host, path, notePath(), title, author);
                     host.write(notePath(), (md.replaceAll("\\n*$", "\n") + Highlights.block(quote, where)).getBytes(StandardCharsets.UTF_8));
                     post(() -> host.toast("Kept in the book's note"));
                 } catch (Exception e) { post(() -> host.toast("Not kept: " + e.getMessage())); }

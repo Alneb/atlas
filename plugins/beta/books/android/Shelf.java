@@ -128,9 +128,11 @@ final class Shelf {
         String note = noteOf(host, book);
         boolean pdf = book.toLowerCase(Locale.ROOT).endsWith(".pdf");
         String text = host.exists(note) ? host.readText(note) : null;
-        if (text == null) { // a note of its own, as the web reader makes it (view.js newNote)
+        if (text == null) { // a note of its own, made by the core as on every device (the vault's template rules, the book's block)
             String name = book.substring(book.lastIndexOf('/') + 1), title = name.replaceFirst("\\.[^.]+$", "");
-            text = "---\n" + (pdf ? "pdf" : "book") + ": '[[" + name.replace("'", "''") + "]]'\ntitle: '" + title.replace("'", "''") + "'\n---\n# " + title + "\n";
+            note = host.ensureCompanionNote(book, title, new JSONObject().put(pdf ? "pdf" : "book", "[[" + name + "]]"));
+            notes.put(book, note);
+            text = host.readText(note);
         }
         java.util.Map<String, String> set = new java.util.LinkedHashMap<>();
         if (e.has("progress")) set.put("progress", pct(e.optDouble("progress"), 1));

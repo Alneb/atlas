@@ -28,7 +28,8 @@ final class Core {
     /** The vault's settings as GET /api/config gives them: {config, schema} or {error}. */
     static native String config(String vault);
     /** phone::companion_note: a file's one note, found (none made) — `{path, created}` or `{error}`. */
-    static native String companionNote(String vault, String file);
+    /** `request`: `POST /api/companion`'s body (path, find, title, properties). */
+    static native String companionNote(String vault, String request);
     /** A PDF's marks from its note's pdf-marks block: {note, marks} or {error} (core pdf_marks.rs). */
     static native String pdfMarks(String vault, String pdf);
     /** ops: a JSON array of {op:"put",mark} | {op:"remove",id}; the marks after, or {error}. */

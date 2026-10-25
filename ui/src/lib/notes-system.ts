@@ -10,6 +10,8 @@ import { settings } from "./settings.svelte";
 import { toast } from "./state.svelte";
 import { exists } from "./vault-files";
 import type { TemplateInfo } from "./gen/TemplateInfo";
+import type { PromptAsk } from "./gen/PromptAsk";
+import { mount, unmount } from "svelte";
 /** The folder of the note the user is in (undefined: not in a note, or at the vault's root). */
 const nearDir = (): string | undefined => { const p = context.active?.path ?? ""; return /\.md$/i.test(p) && p.includes("/") ? p.slice(0, p.lastIndexOf("/")) : undefined; };
 
@@ -44,20 +46,21 @@ export function nameAndCreate(template?: string): void {
     items: [],
     typed: (name) => `Create “${name}”`,
     onpick: async (name) => {
-      const prompts = template ? (await api.templates().catch(() => [])).find((t) => t.name === template)?.prompts ?? [] : [];
-      void askPrompts(prompts, {}, (values) => void createNote(name, template, undefined, values));
+      const asks = template ? (await api.templates().catch(() => [])).find((t) => t.name === template)?.asks ?? [] : [];
+      askPrompts(name, asks, (values) => void createNote(name, template, undefined, values));
     },
   });
 }
 
-/** Asks a template's `{{prompt:…}}` questions one after another, then hands the answers on. */
-function askPrompts(prompts: string[], values: Record<string, string>, done: (values: Record<string, string>) => void): void {
-  const [q, ...rest] = prompts;
-  if (q === undefined) return done(values);
-  pick({
-    placeholder: `${q}…`, tag: q, icon: "file-text", items: [],
-    typed: (answer) => `“${answer}”`,
-    onpick: (answer) => askPrompts(rest, { ...values, [q]: answer }, done),
+/** A template's `{{prompt:…}}` questions, all in one form (components/PromptForm.svelte), then the answers handed on;
+ *  none: at once. */
+function askPrompts(title: string, asks: PromptAsk[], done: (values: Record<string, string>) => void): void {
+  if (!asks.length) return done({});
+  void import("../components/PromptForm.svelte").then(({ default: PromptForm }) => {
+    const host = document.body.appendChild(document.createElement("div"));
+    let app: ReturnType<typeof mount> | null = null;
+    const close = () => { if (app) void unmount(app); app = null; host.remove(); };
+    app = mount(PromptForm, { target: host, props: { title: `“${title}”`, asks, oncancel: close, onsubmit: (v: Record<string, string>) => { close(); done(v); } } });
   });
 }
 

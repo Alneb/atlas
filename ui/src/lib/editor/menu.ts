@@ -47,6 +47,7 @@ function items(view: EditorView, target: HTMLElement, o: EditorMenuOptions): Men
     { label: "Link", icon: "link", hint: keysOf("note.link"), run: () => formatNote(view, "link") },
     { label: "To-do", icon: "check", hint: keysOf("note.task"), run: () => formatNote(view, "task") },
     { label: "Task…", icon: "calendar", run: () => formatNote(view, "taskDialog") },
+    { label: "Insert template…", icon: "file-text", run: () => formatNote(view, "insertTemplate") },
   );
   else if (LSPPlugin.get(view)) list.push("sep",
     { label: "Go to definition", hint: "F12", run: () => { jumpToDefinition(view); } },

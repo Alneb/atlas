@@ -2,7 +2,7 @@
 // plugin panes that declare `opens = [...]` are openers. The default of a plain open, first that applies: the vault's
 // `[files] open_with` for the extension, a plugin's `claims = [...]` (the editor contract,
 // docs/guides/PLUGIN-API.md), Atlas's built-in viewer. Kept free of dock/plugin imports (they register here).
-import { specForPath, TABLE_RE, type IconName, type PaneSpec } from "./panes";
+import { specForPath, tableViewIn, TABLE_RE, type IconName, type PaneSpec } from "./panes";
 import { settings, updateSettings } from "./settings.svelte";
 
 export interface Opener {
@@ -20,7 +20,7 @@ export interface Opener {
 const TEXTISH = /\.(md|markdown|txt|tsv|csv|tab|dat|json|ya?ml|toml|base|page|svg|tex|bib|py|rs|js|ts|sh|log|ini|cfg|xml|html|css|lua)$/i;
 const builtins: Opener[] = [
   { id: "editor", title: "Text editor", icon: "file-text", accepts: (p) => TEXTISH.test(p) || !/\.[^/]+$/.test(p), spec: (path, line) => (line === undefined ? { kind: "editor", path } : { kind: "editor", path, line }) },
-  { id: "table", title: "Table", icon: "table", accepts: (p) => TABLE_RE.test(p) || /\.(dat|txt)$/i.test(p), spec: (path) => ({ kind: "table", path }) },
+  { id: "table", title: "Table", icon: "table", accepts: (p) => TABLE_RE.test(p) || /\.(dat|txt)$/i.test(p), spec: (path, _line, anchor) => ({ kind: "table", path, view: tableViewIn(anchor) }) },
   { id: "base", title: "Database (Bases)", icon: "table", accepts: (p) => /\.base$/i.test(p), spec: (path) => ({ kind: "base", path }) },
   { id: "page", title: "Page", icon: "today", accepts: (p) => /\.page$/i.test(p), spec: (path) => ({ kind: "page", path }) },
   { id: "pdf", title: "PDF reader", icon: "pdf", accepts: (p) => /\.pdf$/i.test(p), spec: (path, line) => (line === undefined ? { kind: "pdf", path } : { kind: "pdf", path, page: line }) },
@@ -45,7 +45,7 @@ const defaultId = (path: string) => settings.config?.files.open_with?.[extOf(pat
 export function resolveSpec(path: string, line?: number, anchor?: string): PaneSpec {
   const id = defaultId(path);
   const o = (id ? all().find((x) => x.id === id && x.accepts(path)) : undefined) ?? [...extra.values()].find((x) => x.claims?.(path));
-  return o ? o.spec(path, line, anchor) : specForPath(path, line);
+  return o ? o.spec(path, line, anchor) : specForPath(path, line, anchor);
 }
 
 /** Every view that can show `path`, the current default first. */

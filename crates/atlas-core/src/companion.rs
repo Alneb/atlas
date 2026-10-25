@@ -20,7 +20,7 @@ use std::path::Path;
 /// The name an entry's note had before 2026-10-14 (the Zotero import, older Atlas).
 pub const LEGACY: &str = "notes.md";
 /// The vault's template for these notes, in `[notes] templates`, when it has one.
-const TEMPLATE: &str = "literature";
+pub(crate) const TEMPLATE: &str = "literature";
 /// The property that marks a folder's own note as an entry (a reference) a file inside it belongs to.
 const ENTRY_MARK: &str = "citekey";
 
@@ -66,7 +66,7 @@ pub fn ensure(root: &Path, cfg: &Config, req: &CompanionRequest, now: NaiveDateT
         return Ok(CompanionNote { path: note, created: false, migrated_from: None });
     }
     shape.block = req.block.as_deref().map(view_block).unwrap_or_else(|| file_block(rel));
-    let text = new_text(&shape, template(root, cfg, &shape.title, now)?.as_deref(), now);
+    let text = new_text(&shape, template(root, cfg, rel, &note, &shape.title, now)?.as_deref(), now);
     write_new(&path, &text)?;
     Ok(CompanionNote { path: note, created: true, migrated_from: None })
 }
@@ -179,7 +179,7 @@ fn entry_note(root: &Path, cfg: &Config, dir_rel: &str, stem: &str, shape: &Shap
     }
     let legacy = dir.join(LEGACY);
     let old = std::fs::read_to_string(&legacy).ok();
-    let template = template(root, cfg, &shape.title, now)?;
+    let template = template(root, cfg, dir_rel, &rel, &shape.title, now)?;
     if old.as_deref().is_some_and(|t| t.starts_with("---\n")) {
         vault_write::rename(&legacy, &path)?;
     } else {
@@ -217,14 +217,14 @@ fn write_new(path: &Path, text: &str) -> Result<()> {
     }
 }
 
-/// The vault's literature template, filled in (`{{title}}`, `{{date}}`, Templater tags); None without one.
-fn template(root: &Path, cfg: &Config, title: &str, now: NaiveDateTime) -> Result<Option<String>> {
-    let rel = format!("{}/{TEMPLATE}.md", cfg.notes.templates.trim_matches('/'));
-    match std::fs::read_to_string(paths::safe_join(root, &rel)?) {
-        Ok(t) => Ok(Some(crate::notes::render_template(root, cfg, &t, title, now))),
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),
-        Err(e) => Err(e.into()),
-    }
+/// The template the rules give the companion note of `file` (template_rules.rs: a template's own
+/// `apply_when: { file: … }`, else the vault's `literature` template), filled in (`{{title}}`, `{{date}}`, Templater
+/// tags); None when none applies.
+fn template(root: &Path, cfg: &Config, file: &str, note: &str, title: &str, now: NaiveDateTime) -> Result<Option<String>> {
+    let moment = crate::template_rules::Moment::Companion { file, path: note };
+    let Some(chosen) = crate::template_rules::choose(root, cfg, &moment) else { return Ok(None) };
+    let t = crate::notes::template_text(root, cfg, &chosen.template)?;
+    Ok(Some(crate::notes::render_template(root, cfg, &t, title, now)))
 }
 
 /// The caller's properties, then `title` and the `created` stamp when it gave none (a note says when it was made).

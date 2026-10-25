@@ -148,10 +148,26 @@ abstract class VaultFiles {
     /** The one note of file `file` (companion.rs: a paper's PDF has the paper's note, else `<name>.md` beside it), only
      *  found — here or on the vault's server alike. Its path. Never on the UI thread. */
     static String companionNote(Context c, String vault, String pdf) throws IOException {
+        try { return companion(c, vault, new JSONObject().put("path", pdf).put("find", true)); }
+        catch (org.json.JSONException e) { throw new IOException(e.getMessage()); }
+    }
+
+    /** The note of `file`, made by the core when missing — the vault's template rules, the file's block — as on every
+     *  device; `properties` (may be null) go into a new note. Its path. Never on the UI thread. */
+    static String ensureCompanionNote(Context c, String vault, String file, String title, JSONObject properties) throws IOException {
+        try {
+            JSONObject req = new JSONObject().put("path", file).put("find", false).put("title", title);
+            if (properties != null) req.put("properties", properties);
+            return companion(c, vault, req);
+        } catch (org.json.JSONException e) { throw new IOException(e.getMessage()); }
+    }
+
+    /** `POST /api/companion` with `req`, to the vault's server or the core here: the note's path. */
+    private static String companion(Context c, String vault, JSONObject req) throws IOException {
         try {
             JSONObject r = Server.is(vault)
-                ? new JSONObject(new String(new OnServer(c, vault).send("POST", "/api/companion", "application/json", new JSONObject().put("path", pdf).put("find", true).toString().getBytes(StandardCharsets.UTF_8)), StandardCharsets.UTF_8))
-                : new JSONObject(Core.companionNote(vault, pdf));
+                ? new JSONObject(new String(new OnServer(c, vault).send("POST", "/api/companion", "application/json", req.toString().getBytes(StandardCharsets.UTF_8)), StandardCharsets.UTF_8))
+                : new JSONObject(Core.companionNote(vault, req.toString()));
             if (r.has("error") || !r.has("path")) throw new IOException(r.optString("error", "no note"));
             return r.getString("path");
         } catch (org.json.JSONException | UnsatisfiedLinkError e) { throw new IOException(e.getMessage()); }

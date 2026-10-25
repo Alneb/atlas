@@ -25,7 +25,7 @@ export const editors = new Map<string, EditorHandle>();
 
 /** Bold / italic / link on the note that has the keys. Set by lib/editor/md-format.ts when the
  *  editor's code loads, so the commands (lib/actions.ts) run it at once, without importing CodeMirror. */
-export type MdFormat = "bold" | "italic" | "link" | "task" | "cycle" | "heading" | "bullet" | "number" | "quote" | "code" | "table" | "taskDialog";
+export type MdFormat = "bold" | "italic" | "link" | "task" | "cycle" | "heading" | "bullet" | "number" | "quote" | "code" | "table" | "taskDialog" | "insertTemplate";
 export const noteFormat: { run: ((kind: MdFormat) => void) | null } = { run: null };
 
 /** Live terminals (keyed by panel id): enough for "send the selection" to type into one. */

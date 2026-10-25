@@ -156,7 +156,12 @@ async fn file_get(State(st): S, Query(q): Query<PathQuery>) -> Result<Json<FileT
 async fn file_put(State(st): S, Json(req): Json<FileWrite>) -> Result<Json<FileWritten>> {
     let path = req.path.clone();
     let (written, note) = with_ws(&st, move |ws| {
-        let written = files::write_text(&ws, &req)?;
+        // what it was, for a property that this save sets (template_apply.rs); notes only
+        let before = req.path.ends_with(".md").then(|| ws.resolve(&req.path).ok().and_then(|p| std::fs::read_to_string(p).ok())).flatten();
+        let mut written = files::write_text(&ws, &req)?;
+        if written.written {
+            written = apply_template(&ws, &req, before.as_deref(), written)?;
+        }
         // a drawing's companion note follows each save (drawing_note.rs); a failure there never fails the save
         let note = crate::drawing_note::update(&ws, &req.path, &req.text).unwrap_or_else(|e| {
             eprintln!("atlas: the companion note of {} was not written: {e}", req.path);
@@ -167,6 +172,29 @@ async fn file_put(State(st): S, Json(req): Json<FileWrite>) -> Result<Json<FileW
     .await?;
     st.bus.publish(Event::Fs { paths: std::iter::once(path).chain(note).collect() });
     Ok(Json(written))
+}
+
+/// A template the save brings (template_apply.rs): answered as text to an editor that applies it itself, else written
+/// here, the answer's mtime then the merged file's. A failure never fails the save.
+fn apply_template(ws: &Workspace, req: &FileWrite, before: Option<&str>, written: FileWritten) -> Result<FileWritten> {
+    let Ok(cfg) = ws.config() else { return Ok(written) };
+    let now = chrono::Local::now().naive_local();
+    let Some(a) = crate::template_apply::on_save(ws.root(), &cfg, &req.path, before, &req.text, now) else { return Ok(written) };
+    if req.apply_here {
+        return Ok(FileWritten { template: Some(TemplateMerged { template: a.template, added: a.added, text: Some(a.text), body: None }), ..written });
+    }
+    let merged = files::write_text(ws, &FileWrite { path: req.path.clone(), text: a.text, base_mtime: Some(written.mtime), only_new: false, apply_here: false })?;
+    Ok(FileWritten { template: Some(TemplateMerged { template: a.template, added: a.added, text: None, body: None }), ..merged })
+}
+
+/// `POST /api/note/merge-template`: a template merged into a note's text as an editor holds it (its retry when it
+/// was typed in meanwhile; "Insert template").
+async fn merge_template_post(State(st): S, Json(r): Json<MergeTemplate>) -> Result<Json<TemplateMerged>> {
+    Ok(Json(with_ws(&st, move |ws| {
+        let a = crate::template_apply::merge_into(ws.root(), &ws.config()?, &r.path, &r.template, &r.text, r.at_cursor, chrono::Local::now().naive_local())?;
+        Ok(TemplateMerged { template: a.template, added: a.added, text: Some(a.text), body: a.body })
+    })
+    .await?))
 }
 
 /// `Range: bytes=a-b` (or `a-`): the one range a PDF viewer asks for; anything else is served whole.
@@ -1012,7 +1040,7 @@ async fn base_view_post(State(st): S, Json(q): Json<BaseViewEdit>) -> Result<Sta
     with_ws(&st, move |ws| {
         let doc = files::read_text(&ws, &q.path)?;
         let text = crate::bases::edit_view(&doc.text, &q.view, &q.edit)?;
-        files::write_text(&ws, &FileWrite { path: q.path, text, base_mtime: Some(doc.mtime), only_new: false }).map(drop)
+        files::write_text(&ws, &FileWrite { path: q.path, text, base_mtime: Some(doc.mtime), only_new: false, apply_here: false }).map(drop)
     })
     .await?;
     st.bus.publish(Event::Fs { paths: vec![path] });
@@ -1951,6 +1979,7 @@ fn router(state: Arc<AppState>) -> Router {
         .route("/api/link-mention", post(link_mention_post))
         .route("/api/property", put(property_put))
         .route("/api/frontmatter/edit", post(frontmatter_edit_post))
+        .route("/api/note/merge-template", post(merge_template_post))
         .route("/api/properties/spec", get(properties_spec_get))
         .route("/api/properties/known", get(properties_known_get))
         .route("/api/git/log", get(git_log_get))

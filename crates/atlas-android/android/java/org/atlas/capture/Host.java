@@ -93,6 +93,8 @@ public final class Host {
     }
 
     public String companionNote(String file) throws IOException { return VaultFiles.companionNote(activity, vault, file); }
+    /** The note of `file`, made by the core when missing (the vault's template rules, the file's block): its path. */
+    public String ensureCompanionNote(String file, String title, org.json.JSONObject properties) throws IOException { return VaultFiles.ensureCompanionNote(activity, vault, file, title, properties); }
 
     /** PDF `pdf`'s marks, from its note (core pdf_marks.rs): `{note, marks}`. Never on the UI thread. */
     public JSONObject pdfMarks(String pdf) throws IOException { return VaultFiles.pdfMarks(activity, vault, pdf); }

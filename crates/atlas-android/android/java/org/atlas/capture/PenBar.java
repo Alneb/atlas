@@ -22,6 +22,8 @@ public final class PenBar {
         void widthTimes(float w);
         float widthTimes();
         boolean undo();
+        /** Whether the reader has words the pen can select (the Select tool shown). */
+        default boolean selects() { return false; }
     }
 
     /** Black, red, blue, green: the Boox's colour panel shows them; on a grey panel they are greys apart. */
@@ -73,6 +75,7 @@ public final class PenBar {
         tool("highlighter", "Highlighter", PageInk.Tool.HIGHLIGHTER);
         tool("eraser", "Eraser", PageInk.Tool.ERASER);
         tool("text", "A typed note: tap where it goes", PageInk.Tool.TEXT);
+        if (pen.selects()) tool("pointer", "Select words: drag the pen over them", PageInk.Tool.SELECT);
         gap();
         for (int col : COLORS) swatch(col);
         gap();
@@ -125,7 +128,7 @@ public final class PenBar {
         dot.setSize(look.dp(20), look.dp(20));
         b.setImageDrawable(dot);
         b.setContentDescription("Colour");
-        b.setOnClickListener(v -> { pen.color(col); if (pen.tool() == PageInk.Tool.ERASER || pen.tool() == PageInk.Tool.TEXT) pen.tool(PageInk.Tool.PEN); draw(); });
+        b.setOnClickListener(v -> { pen.color(col); if (pen.tool() == PageInk.Tool.ERASER || pen.tool() == PageInk.Tool.TEXT || pen.tool() == PageInk.Tool.SELECT) pen.tool(PageInk.Tool.PEN); draw(); });
         row.addView(b);
     }
 

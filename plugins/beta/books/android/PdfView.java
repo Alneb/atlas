@@ -38,7 +38,7 @@ import java.util.List;
  *  (PageSource), zoomed with two fingers or a double tap. The pen writes on it — the pen, the highlighter, the eraser,
  *  typed notes (PenBar) — into the PDF's note, its pdf-marks block (InkStore.marks, core pdf_marks.rs), where the
  *  desktop's reader keeps its marks too. The chrome is the readers' (ReaderBars): where you are, a slider, Pages (bookmarks,
- *  pages written on, go to a page), Pen, Notes, Notepad, Settings. Where you are is kept in the book's note. */
+ *  pages written on, go to a page), Pen, Notes, Settings. Where you are is kept in the book's note. */
 @SuppressLint("ViewConstructor")
 final class PdfView extends FrameLayout implements NativePlugin.Back {
     private final BooksScreen screen;
@@ -73,6 +73,7 @@ final class PdfView extends FrameLayout implements NativePlugin.Back {
         sheet = new Sheet(c);
         addView(sheet, new LayoutParams(-1, -1));
         ink = host.pageInk(this::pageRect, (x, y) -> tapped(x, y));
+        ink.selector(penSelect); // the pen bar's Select tool: words chosen with the pen
         addView(ink, new LayoutParams(-1, -1));
         where = look.label(c, "", 12, host.eink() ? 0xff444444 : 0xffdddddd);
         where.setGravity(Gravity.CENTER);
@@ -98,8 +99,6 @@ final class PdfView extends FrameLayout implements NativePlugin.Back {
         pagesTab = bars.tab("contents", "Pages", this::pagesPanel);
         bars.tab("pen", "Pen", this::penTools);
         notesTab = bars.tab("notes", "Notes", this::notesPanel);
-        // the Notepad reads the drawing once the reader's last ink is in it (opened at once, it read the copy before)
-        bars.tab("pages", "Notepad", () -> { save(); ink.flush(() -> host.openPlugin("notepad", path + ".excalidraw")); });
         settingsTab = bars.tab("settings", "Settings", this::settingsPanel);
         bars.slider.setContentDescription("Page");
         bars.slider.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
@@ -392,6 +391,21 @@ final class PdfView extends FrameLayout implements NativePlugin.Back {
         if (i >= 0 && i != selTo) { selTo = i < selFrom ? text.word(i)[0] : text.word(i)[1]; sheet.invalidate(); }
     }
 
+    /** The finger or the pen lifted: the bar with what to do, now or once the words arrive. */
+    private void endSelect() { selecting = false; if (selFrom >= 0) showSelBar(); else barOwed = true; }
+
+    /** The pen bar's Select tool: the pen drags over words as a finger does after its long press. */
+    private final PageInk.Selector penSelect = new PageInk.Selector() {
+        public void down(float x, float y) {
+            if (selFrom >= 0) clearSelect();
+            if (!Pdfium.ready(getContext())) { host.toast("Selecting words needs PDFium in the app"); return; }
+            startSelect(x, y);
+        }
+        public void move(float x, float y) { if (selecting) extendSelect(x, y); }
+        public void up() { if (selecting) endSelect(); }
+        public void cancel() { clearSelect(); }
+    };
+
     private void clearSelect() { selFrom = selTo = -1; selecting = barOwed = false; hideSelBar(); sheet.invalidate(); }
 
     private void hideSelBar() { if (selBar != null) { removeView(selBar); selBar = null; } }
@@ -572,7 +586,7 @@ final class PdfView extends FrameLayout implements NativePlugin.Back {
         // selecting words: a long press starts it, the finger moving extends it, lifting it offers what to do
         if (selecting) {
             if (act == MotionEvent.ACTION_MOVE) extendSelect(e.getX(), e.getY());
-            else if (act == MotionEvent.ACTION_UP) { selecting = false; if (selFrom >= 0) showSelBar(); else barOwed = true; }
+            else if (act == MotionEvent.ACTION_UP) endSelect();
             else if (act == MotionEvent.ACTION_CANCEL) clearSelect();
             return true;
         }

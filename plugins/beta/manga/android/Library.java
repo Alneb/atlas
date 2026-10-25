@@ -118,7 +118,8 @@ final class Library {
     /** The screens' shape → the series' note (view.js readingProps), made when missing. */
     static void save(Host host, Series s, JSONObject r) throws Exception {
         String note = noteOf(host, s);
-        String text = host.exists(note) ? host.readText(note) : "---\ntitle: '" + s.title.replace("'", "''") + "'\n---\n# " + s.title + "\n";
+        // a note of its own when missing, made by the core as on every device (the vault's template rules)
+        String text = host.exists(note) ? host.readText(note) : host.readText(host.ensureCompanionNote(s.path + "/", s.title, null));
         JSONObject chapters = r.optJSONObject("chapters"), progress = new JSONObject();
         if (chapters != null) for (Iterator<String> it = chapters.keys(); it.hasNext(); ) {
             String k = it.next();

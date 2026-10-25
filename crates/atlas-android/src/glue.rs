@@ -96,10 +96,11 @@ pub extern "system" fn Java_org_atlas_capture_Core_plugins(mut env: JNIEnv, _: J
     ret(&mut env, move || phone::plugins(Path::new(&v)).to_string())
 }
 
-/// A file's one note, found (phone::companion_note): `{path, created}` or `{error}`.
+/// A file's one note, found or made (phone::companion_note; `request` is `POST /api/companion`'s body): `{path,
+/// created}` or `{error}`.
 #[no_mangle]
-pub extern "system" fn Java_org_atlas_capture_Core_companionNote(mut env: JNIEnv, _: JClass, vault: JString, pdf: JString) -> jstring {
-    let (v, p) = (arg(&mut env, &vault), arg(&mut env, &pdf));
+pub extern "system" fn Java_org_atlas_capture_Core_companionNote(mut env: JNIEnv, _: JClass, vault: JString, request: JString) -> jstring {
+    let (v, p) = (arg(&mut env, &vault), arg(&mut env, &request));
     ret(&mut env, move || phone::companion_note(Path::new(&v), &p).to_string())
 }
 

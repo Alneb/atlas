@@ -20,7 +20,7 @@ import type { NativeSample, PenOptions } from "./pen-target";
 import type { EmbedRender } from "./embed-registry";
 import type { Live, LiveHandlers } from "./live";
 
-export const PLUGIN_API_VERSION = 12;
+export const PLUGIN_API_VERSION = 13;
 
 /** What a plugin's view gets. Kept small and stable: plugins outlive app refactors. */
 export interface PluginApi {
@@ -134,9 +134,19 @@ export interface PluginApi {
   noteProps(path: string): Promise<Record<string, unknown>>;
   /** (v10) A file to the vault's Trash (`.atlas/trash/`, taken back from there): what a library's Delete… does. */
   trash(path: string): Promise<void>;
-  /** The one note of file `path` (a paper's PDF: the paper's note; else `<name>.md` beside it): its path. `find`: only
-   *  say which, make none (where you are is looked up with it; write your own note shape when it is missing). */
+  /** The one note of file `path` (a paper's PDF: the paper's note; else `<name>.md` beside it): its path, made by the
+   *  core when missing — the vault's template rules, the file's block, `properties` — as on every device. `find`:
+   *  only say which, make none. Never write a companion note's text yourself. */
   companion(path: string, opts?: { find?: boolean; title?: string; properties?: Record<string, unknown> }): Promise<string>;
+  /** (v13) The vault's templates: name, title, the folder their notes go in, their questions and when each applies by
+   *  itself (docs/guides/TEMPLATES.md). */
+  templates(): Promise<import("./gen/TemplateInfo").TemplateInfo[]>;
+  /** (v13) A new note, made the way every new note is (the core: `template` when named, else the vault's rules for
+   *  where it goes, else the default template; `values` answer its questions; `body` after it) → its path. */
+  newNote(o: { title: string; folder?: string; template?: string; values?: Record<string, unknown>; body?: string }): Promise<string>;
+  /** (v13) `template` merged into the existing note `path` — only what the note lacks (properties, list items,
+   *  sections, blocks) → what it added, in words. */
+  applyTemplate(path: string, template: string): Promise<string[]>;
   /** Capture text as the capture box does (today's log, or a note — the vault's setting); `[] ` makes a to-do. */
   capture(text: string): Promise<{ path: string; line: number }>;
   /** Write a new file; false (and nothing written) when it already exists. */

@@ -10,7 +10,7 @@ export type PageId =
   | "terminal" | "keyboard" | "automation" | "agents" | "advanced";
 
 /** Custom panels drawn by the Settings UI beside the generated fields. */
-export type Panel = "overview" | "preview" | "snippets" | "keys" | "plugins" | "signins" | "scripts" | "drafts" | "openwith" | "server" | "agents";
+export type Panel = "overview" | "preview" | "snippets" | "keys" | "plugins" | "signins" | "scripts" | "drafts" | "openwith" | "server" | "agents" | "templates";
 
 export interface NextRung {
   label: string;
@@ -65,7 +65,7 @@ export const PAGES: PageDef[] = [
     fields: ["vim", "editor.vim_keys", "editor.format_bar", "editor.math_preview", "editor.link_preview", "editor.task_chips", "editor.task_suggest", "editor.task_short_forms", "editor.properties", "editor.properties_spec", "editor.link_completion", "editor.citation_completion", "editor.slash_menu", "editor.fold_headings", "editor.typewriter", "editor.live",
       "editor.backlinks", "editor.latex_snippets", "editor.latex_snippets_file", "editor.latex_snippet_variables_file",
       "editor.attachment_folder", "editor.date_names", "editor.strict_line_breaks", "notes.*"],
-    features: ["ui.vim", "ui.new", "ui.note.new", "note.cycle", "ui.properties", "ui.properties.inline", "ui.kit.install", "ui.outline", "ui.graph"],
+    features: ["ui.vim", "ui.new", "ui.note.new", "note.cycle", "note.insert-template", "ui.properties", "ui.properties.inline", "ui.kit.install", "ui.outline", "ui.graph"], panels: ["templates"],
     next: [{ label: "Put a live view in a note", why: "A ```view block (calendar, list, table) over the note's own tasks or a folder.", run: "settings.viewHelp" }],
   },
   {

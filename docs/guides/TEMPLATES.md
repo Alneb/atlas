@@ -53,6 +53,41 @@ Blocks nest. Inside `#each`, `this` is the item, `@index` counts from 1, and an 
 - **Templates are not notes**: the templates folder is left out of `[[` completion, backlinks, the graph, Bases and tasks (`Config::index_excluded`); a test in `link_targets.rs` holds it.
 - `GET /api/note/templates` lists them with their folder, properties and prompts; `POST /api/note/new` takes `values`.
 
+## When a template applies by itself: `apply_when:`
+
+A template can say when it applies, in its own frontmatter (taken out of the notes it makes, like `create_in:`):
+
+```yaml
+---
+template_title: Lecture
+apply_when:
+  - folder: lectures              # a new note in lectures/ or under it (a capture made a note too)
+  - title: '^Lecture \d+'         # a regex searched in the new note's path, as Templater's file rules
+  - file: "lectures/**/*.pdf"     # a file arriving there: its companion note is made from this template
+  - property: { type: lecture }   # an existing note whose type is set to lecture: merged in (below)
+  - moment: day                   # the day's log (`moment: capture`: a capture made a note)
+type: lecture
+course:
+---
+## Summary
+```
+
+One condition, or a list of them; the parts of one condition must all fit. Every way Atlas makes a note asks the same
+rules (`crates/atlas-core/src/template_rules.rs`): **New…** and a link to a missing note, the phone's **+**, a capture
+made a note, the day's log, a file's companion note, an agent's or a plugin's new note. The order they are tried:
+templates' own rules (the most specific first: a file pattern or a title over a folder, a deeper folder over a
+shallower one), then `[notes] template_rules` (else Templater's), then the older settings as rules
+(`capture_template`, `log_template`, the `literature` template for companion notes); the first whose template is there
+wins.
+
+**A property set merges the template in.** When a save makes a property a value some template names
+(`property: { type: movie }`; a tag added to `tags` counts), and it was not so before, the template is merged into
+the note: only what the note lacks is added — a missing property (an empty one filled), the template's list items
+after the note's own, a missing section after the one the template puts before it, a missing block (` ```view `…)
+at its section's end — and nothing of the note's is changed, moved or removed (`atlas-text` `merge`). In the editor it
+is one change of its own (Ctrl+Z undoes it; the notice too); written by anything else (a plugin, an agent, the
+phone), the core writes it. A new file, a template itself, and a save that changes no such property bring nothing.
+
 ## Which template a new note gets
 
 A note made without naming a template (New → Note, a link followed to a note that does not exist yet) gets one by

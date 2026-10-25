@@ -22,9 +22,10 @@ const PDF_HEIGHT = 520;
 const AUDIO = /\.(mp3|ogg|oga|opus|m4a|aac|wav|flac)$/i;
 const VIDEO = /\.(mp4|webm|mov|m4v|mkv|ogv)$/i;
 
-/** The block an embedded file is drawn with (`type: table\npath: …`), or null: a card. */
-function fileBlock(path: string): string | null {
-  const spec = resolveSpec(path);
+/** The block an embedded file is drawn with (`type: table\npath: …`), or null: a card. `section`: what follows the
+ *  `#` (a table's `view=Name`). */
+function fileBlock(path: string, section: string): string | null {
+  const spec = resolveSpec(path, undefined, section || undefined);
   // the editor is everyone's fallback: only for what it can read (a .zip is not text)
   if (spec.kind === "editor" && !openersFor(path).some((o) => o.id === "editor")) return null;
   const opts = spec.kind === "plugin" ? { id: spec.id, path } : embedOptions(spec);
@@ -114,7 +115,7 @@ async function mountEmbed(el: HTMLElement, notePath: string, compact: boolean): 
   if (compact && !(AUDIO.test(path) || VIDEO.test(path))) return card(el, path);
   if (file) {
     if (AUDIO.test(path) || VIDEO.test(path)) return void media(el, path, VIDEO.test(path)).catch(() => card(el, path));
-    const src = fileBlock(path);
+    const src = fileBlock(path, section);
     if (!src) return card(el, path);
     el.replaceChildren();
     return keep(el, mountBlock(el, notePath, src));

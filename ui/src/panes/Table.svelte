@@ -2,7 +2,9 @@
   // A CSV / TSV / whitespace table as a spreadsheet: read in a worker (lib/csv/io.ts), edited in place with undo
   // (lib/csv/edit.svelte.ts), saved with Ctrl+S in the file's own layout — only edited rows rewritten (lib/csv/write.ts).
   // Filters per column, sort, columns resized / hidden / frozen / reordered (this device's view of the file, kept per
-  // file), numbers of the selection or column underneath, and a plot of the rows shown.
+  // file), numbers of the selection or column underneath, and a plot of the rows shown. Named views (filters, sort,
+  // hidden columns, grouping) are saved in the file's companion note, a `table-views` block (lib/csv/views.ts), for every
+  // device. Grouped by a column, the rows come group by group and a panel gives each group's sub-totals (GroupPanel).
   import { onMount } from "svelte";
   import { errText } from "../lib/text";
   import { shownPath } from "../lib/paths";
@@ -11,16 +13,20 @@
   import { open } from "../lib/dock";
   import type { PaneProps } from "../lib/dock";
   import { toast } from "../lib/state.svelte";
-  import { ApiError } from "../lib/api";
+  import { api, ApiError } from "../lib/api";
+  import { readViews, writeViews, type TableView } from "../lib/csv/views";
+  import { writeXlsx } from "../lib/csv/xlsx-write";
   import { diskMtime, loadSheet, loadWorkbook, saveSheet } from "../lib/csv/io";
   import type { Sheet } from "../lib/csv/parse";
   import { SheetEdit, type Cell } from "../lib/csv/edit.svelte";
   import { compile, compare } from "../lib/csv/filter";
+  import type { Measure } from "../lib/csv/group";
   import { valuesOf } from "../lib/csv/formula";
   import { numericColumns } from "../lib/csv/parse";
   import Icon from "../components/Icon.svelte";
   import Grid from "../components/csv/Grid.svelte";
   import PlotPanel from "../components/csv/PlotPanel.svelte";
+  import GroupPanel from "../components/csv/GroupPanel.svelte";
   import StatsBar from "../components/csv/StatsBar.svelte";
   import ContextMenu, { type MenuItem } from "../components/ContextMenu.svelte";
   import InputDialog from "../components/InputDialog.svelte";
@@ -41,6 +47,9 @@
   let quick = $state("");
   let filters = $state<Record<number, string>>({});
   let sort = $state<{ col: number; dir: 1 | -1 } | null>(null);
+  /** the column the rows are grouped by */
+  let group = $state<number | null>(null);
+  let groupMeasure = $state<Measure>("sum");
   let cur = $state<Cell>({ r: 0, c: 0 });
   let anchor = $state<Cell>({ r: 0, c: 0 });
   let plotOn = $state(false);
@@ -103,6 +112,15 @@
         return dir * compare(x, y, num) || a - b;
       });
     }
+    if (group !== null && group < (sheet.header.length)) {
+      // group by group (as the panel orders them), the sort kept inside each; one value whatever its case or spaces
+      const g = group, num = numeric[g], dir = sort?.col === g ? sort.dir : 1, rows = values;
+      const key = (i: number) => (rows[i][g] ?? "").trim();
+      idx = idx.sort((a, b) => {
+        const [x, y] = [key(a), key(b)];
+        return !x !== !y ? (x ? -1 : 1) : dir * compare(x, y, num);
+      });
+    }
     return idx;
   });
 
@@ -121,6 +139,84 @@
   });
   const shownRows = $derived(sheet ? view.map((i) => values[i]) : []);
   const selectedRows = $derived(sheet && selBox.r1 > selBox.r0 ? view.slice(selBox.r0, selBox.r1 + 1).map((i) => values[i]) : null);
+
+  // --- named views, in the companion note -------------------------------------------------------------------------
+  let views = $state<TableView[]>([]);
+  let viewName = $state("");
+  let notePath = "";
+  const note = (find: boolean) => api.companion({ path: spec.path, title: null, properties: {}, block: null, find });
+  let viewsRead = $state(false);
+  async function loadViews() {
+    try {
+      notePath = (await note(true)).path;
+      views = readViews((await api.file(notePath)).text);
+    } catch { views = []; /* no note yet: no views */ }
+    viewsRead = true;
+  }
+  // the view a link or an embed names (`x.csv#view=Cheap`), applied once the rows and the note are read; again when
+  // the link changes
+  let viewAsked = "";
+  $effect(() => {
+    const want = spec.view ?? "";
+    if (!want || want === viewAsked || !sheet || !viewsRead) return;
+    viewAsked = want;
+    const v = views.find((x) => x.name === want);
+    if (v) applyView(v); else toast(`No view “${want}” in this table's note`, shownPath(spec.path), "error");
+  });
+  /** `change` applied to the note's views as they are on disk now (another device's kept), then written. */
+  async function changeViews(change: (vs: TableView[]) => TableView[], done: string) {
+    try {
+      notePath = (await note(false)).path;
+      for (let tries = 0; ; tries++) {
+        const f = await api.file(notePath);
+        const next = change(readViews(f.text));
+        try { await api.putFile(notePath, writeViews(f.text, next), f.mtime); views = next; break; }
+        catch (e) { if (!(e instanceof ApiError && e.status === 409) || tries > 1) throw e; }
+      }
+      toast(done, shownPath(notePath));
+    } catch (e) { toast("The view was not saved", errText(e), "error"); }
+  }
+  /** What the table shows now, columns by name. */
+  function currentView(name: string): TableView {
+    const h = sheet?.header ?? [];
+    return {
+      name, quick,
+      filters: Object.fromEntries(Object.entries(filters).filter(([c]) => h[Number(c)] !== undefined).map(([c, q]) => [h[Number(c)], q])),
+      sort: sort && h[sort.col] !== undefined ? { col: h[sort.col], dir: sort.dir } : undefined,
+      hidden: prefs.hidden.map((k) => k.split("\u0000")[0]),
+      group: group !== null ? h[group] : undefined,
+    };
+  }
+  function applyView(v: TableView) {
+    if (!sheet) return;
+    const h = sheet.header, at = (name: string) => h.indexOf(name);
+    quick = v.quick ?? "";
+    filters = Object.fromEntries(Object.entries(v.filters ?? {}).filter(([n]) => at(n) >= 0).map(([n, q]) => [at(n), q]));
+    sort = v.sort && at(v.sort.col) >= 0 ? { col: at(v.sort.col), dir: v.sort.dir } : null;
+    setHidden(keys.filter((_, i) => (v.hidden ?? []).includes(h[i])));
+    group = v.group && at(v.group) >= 0 ? at(v.group) : null;
+    viewName = v.name;
+  }
+  function viewsMenu(e: MouseEvent) {
+    const upsert = (v: TableView) => (vs: TableView[]) => vs.some((x) => x.name === v.name) ? vs.map((x) => (x.name === v.name ? v : x)) : [...vs, v];
+    const saveAs = () => ask("Save this view as", viewName, (n) => {
+      const name = n.trim();
+      if (name) void changeViews(upsert(currentView(name)), `View “${name}” saved`).then(() => (viewName = name));
+    });
+    const mine = views.find((v) => v.name === viewName);
+    menu = { x: e.clientX, y: e.clientY, items: [
+      ...views.map((v) => ({ label: v.name, icon: v.name === viewName ? "check" : undefined, run: () => applyView(v) }) as MenuItem),
+      ...(views.length ? ["sep" as const] : []),
+      ...(mine ? [{ label: `Update “${mine.name}”`, detail: "with the filters, sort and columns shown now", run: () => void changeViews(upsert(currentView(mine.name)), `View “${mine.name}” updated`) } as MenuItem] : []),
+      { label: "Save this view as…", icon: "plus", detail: "kept in the file's note", run: saveAs },
+      ...(mine ? [{ label: "Copy its embed", icon: "copy", detail: "paste it in a note: the table shown with this view", run: () => {
+        const embed = `![[${spec.path}#view=${mine.name}]]`;
+        void navigator.clipboard.writeText(embed).then(() => toast("Copied — paste it in a note", embed), () => toast("Could not copy", embed, "error"));
+      } } as MenuItem] : []),
+      { label: "Everything", detail: "no filter, the file's order, every column", run: () => { quick = ""; filters = {}; sort = null; group = null; setHidden([]); viewName = ""; } },
+      ...(mine ? [{ label: `Delete “${mine.name}”`, icon: "trash", danger: true, run: () => void changeViews((vs) => vs.filter((v) => v.name !== mine.name), `View “${mine.name}” deleted`).then(() => (viewName = "")) } as MenuItem] : []),
+    ] };
+  }
 
   // --- reading and saving ------------------------------------------------------------------------------------------
   async function load() {
@@ -145,7 +241,7 @@
     if (!book) return;
     sheetAt = i;
     edit = new SheetEdit(book[i].sheet);
-    filters = {}; sort = null; cur = { r: 0, c: 0 }; anchor = { r: 0, c: 0 };
+    filters = {}; sort = null; group = null; cur = { r: 0, c: 0 }; anchor = { r: 0, c: 0 };
   }
   /** The sheet shown, as a CSV beside the workbook (a new name: an existing file is never written over), opened. */
   async function saveAsCsv() {
@@ -156,6 +252,20 @@
     try {
       await saveSheet(to, edit.sheet, 0);
       toast("Saved as CSV", shownPath(to));
+      open({ kind: "table", path: to });
+    } catch (e) { toast("Not saved", errText(e), "error"); }
+  }
+  /** The table as a new Excel workbook beside it (a free name: an existing workbook is never written over), formulas
+   *  kept as Excel's. */
+  async function saveAsXlsx() {
+    if (!edit) return;
+    const stem = spec.path.replace(/\.[^./]+$/, ""), base = stem.split("/").pop() ?? "Sheet1";
+    let to = `${stem}.xlsx`;
+    for (let n = 2; (await diskMtime(to)) > 0; n++) to = `${stem} (${n}).xlsx`;
+    try {
+      const s = edit.sheet, bytes = await writeXlsx(base, s.headerSource === "none" ? null : s.header, s.rows);
+      await api.upload(to, new Blob([bytes as BlobPart], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }));
+      toast("Saved as an Excel workbook", shownPath(to));
       open({ kind: "table", path: to });
     } catch (e) { toast("Not saved", errText(e), "error"); }
   }
@@ -212,6 +322,9 @@
       { label: "Sort ascending", icon: "arrow-up", run: () => (sort = { col: c, dir: 1 }) },
       { label: "Sort descending", icon: "arrow-down", run: () => (sort = { col: c, dir: -1 }) },
       ...(sort ? [{ label: "Back to the file's order", run: () => (sort = null) } as MenuItem] : []),
+      group === c
+        ? { label: "Ungroup", icon: "rows", run: () => (group = null) }
+        : { label: "Group by this column", icon: "rows", detail: "its values' rows together, with sub-totals", run: () => (group = c) },
       "sep",
       { label: "Hide column", icon: "eye", run: () => setHidden([...prefs.hidden, keys[c]]) },
       { label: pos < prefs.frozen ? "Unfreeze columns" : "Freeze up to here", detail: "kept in view when scrolling sideways", run: () => { prefs.frozen = pos < prefs.frozen ? 0 : pos + 1; savePrefs(); } },
@@ -228,7 +341,7 @@
     if (!edit || !sheet || xlsx) return;
     const ed = edit, data = view[r], { r0, r1 } = selBox, many = r1 > r0;
     // contiguous in the file only when the table shows the file's order unfiltered
-    const plain = !sort && view.length === sheet.rows.length;
+    const plain = !sort && group === null && view.length === sheet.rows.length;
     menu = { x: e.clientX, y: e.clientY, items: [
       { label: "Insert row above", icon: "plus", run: () => ed.do({ kind: "insertRows", at: data, rows: [[]] }) },
       { label: "Insert row below", icon: "plus", run: () => ed.do({ kind: "insertRows", at: data + 1, rows: [[]] }) },
@@ -248,9 +361,11 @@
   onMount(() => {
     loadPrefs();
     void load();
+    void loadViews();
     // a change on disk that is not our own save: read again when nothing is unsaved here, else say so (a reload would
     // also lose the undo history)
     const off = on("fs", async (e) => {
+      if (notePath && e.paths.includes(notePath)) void loadViews(); // the views changed elsewhere
       if (!e.paths.includes(spec.path) || saving || (await diskMtime(spec.path)) === mtime) return;
       if (edit?.dirty) conflict = true; else void load();
     });
@@ -285,7 +400,11 @@
         ] })}><Icon name="eye" size={14} /> {prefs.hidden.length} hidden</button>
       {/if}
     {/if}
+    {#if sheet}<button class="btn" class:on={!!viewName} onclick={viewsMenu} title="Named views — filters, sort, grouping and hidden columns — kept in the file's note"><Icon name="list" size={14} /> {viewName || (views.length ? `${views.length} view${views.length === 1 ? "" : "s"}` : "Views")}</button>{/if}
+    {#if sheet}<button class="btn" class:on={group !== null} onclick={() => (group = group !== null ? null : (cols[Math.min(cur.c, cols.length - 1)] ?? null))}
+      title={group !== null ? "Show the rows ungrouped" : "Group the rows by the cursor's column, with sub-totals"}><Icon name="rows" size={14} /> {group !== null ? `By ${sheet.header[group]}` : "Group"}</button>{/if}
     <button class="btn" class:on={plotOn} onclick={() => (plotOn = !plotOn)} disabled={!sheet?.numeric.some(Boolean)} title="Plot columns, or a histogram"><Icon name="chart" size={14} /> Plot</button>
+    {#if !xlsx && edit}<button class="btn" onclick={() => void saveAsXlsx()} title="A copy of this table as an Excel workbook beside it (formulas kept); the table itself stays as it is">Save as Excel</button>{/if}
     {#if !xlsx}<button class="btn" onclick={() => open({ kind: "editor", path: spec.path })} title="Open the raw file in the editor"><Icon name="file-code" size={14} /> Text</button>{/if}
   </header>
   {#if conflict}
@@ -297,6 +416,11 @@
   {/if}
   {#if error}<p class="muted pad">{error}</p>{/if}
   {#if progress !== null}<div class="loading" role="progressbar" aria-valuenow={Math.round(progress * 100)}><i style:width="{Math.round(progress * 100)}%"></i><span>Reading {shownPath(spec.path)}…</span></div>{/if}
+  {#if group !== null && sheet}
+    <GroupPanel header={sheet.header} {numeric} rows={values} idx={view} col={group} {cols} dir={sort?.col === group ? sort.dir : 1}
+      shown={filters[group] ?? ""} by={cols} bind:measureOf={groupMeasure} onpick={(c) => (group = c)} onclose={() => (group = null)}
+      onfilter={(f) => { const g = group!; const { [g]: _, ...rest } = filters; filters = f === null ? rest : { ...rest, [g]: f }; }} />
+  {/if}
   {#if plotOn && sheet}<PlotPanel header={sheet.header} {numeric} rows={shownRows} selected={selectedRows} />{/if}
   {#if edit && sheet}
     <Grid {edit} {view} {cols} {widths} path={spec.path} readonly={xlsx ? READONLY : ""} frozen={Math.min(prefs.frozen, cols.length)} {sort} bind:filters bind:cur bind:anchor
