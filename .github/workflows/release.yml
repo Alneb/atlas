@@ -22,9 +22,12 @@ jobs:
       - uses: actions/download-artifact@v8
         with:
           path: artifacts
+      # an artifact keeps the folders below its paths' common root (atlas-macOS/dmg/…), hence the **; a pattern that
+      # finds nothing fails the release instead of leaving a package out
       - name: Draft release
         uses: softprops/action-gh-release@v3
         with:
+          fail_on_unmatched_files: true
           draft: true
           generate_release_notes: true
           files: |
@@ -33,6 +36,6 @@ jobs:
             artifacts/linux/*.deb
             artifacts/linux/*.rpm
             artifacts/**/atlas.flatpak
-            artifacts/atlas-macOS/*.dmg
-            artifacts/atlas-Windows/*.exe
-            artifacts/android-apks/*.apk
+            artifacts/atlas-macOS/**/*.dmg
+            artifacts/atlas-Windows/**/*.exe
+            artifacts/android-apks/**/*.apk
