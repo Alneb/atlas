@@ -560,13 +560,16 @@ async fn a_switched_off_builtin_plugin_has_no_routes() {
     let t = T::start().await;
     let cfg = t.root().join(".atlas/config.toml");
     std::fs::write(t.root().join("snips.js"), "[{trigger: 'ff', replacement: '\\\\frac{$0}{$1}', options: 'mA'}]").unwrap();
-    let text = std::fs::read_to_string(&cfg).unwrap();
-    std::fs::write(&cfg, format!("{text}\n[latex]\nsnippets_file = \"snips.js\"\n")).unwrap();
+    // a new vault's config already has a [plugins] section: edit it, never append a second one
+    let mut doc: toml_edit::DocumentMut = std::fs::read_to_string(&cfg).unwrap().parse().unwrap();
+    doc["latex"]["snippets_file"] = toml_edit::value("snips.js");
+    std::fs::write(&cfg, doc.to_string()).unwrap();
     let (s, v) = t.get("/api/snippets").await;
     assert_eq!(s, StatusCode::OK);
     assert!(v["sources"][0].as_str().is_some_and(|x| x.contains("ff")), "{v}");
     // off: the whole group answers 404, the handler never runs
-    std::fs::write(&cfg, format!("{text}\n[latex]\nsnippets_file = \"snips.js\"\n\n[plugins]\noff = [\"latex\"]\n")).unwrap();
+    doc["plugins"]["off"] = toml_edit::value(toml_edit::Array::from_iter(["latex"]));
+    std::fs::write(&cfg, doc.to_string()).unwrap();
     let r = t.http.get(format!("{}/api/snippets", t.base)).header("x-atlas", "1").send().await.unwrap();
     assert_eq!(r.status(), StatusCode::NOT_FOUND);
     assert!(r.text().await.unwrap().contains("LaTeX plugin is switched off"));

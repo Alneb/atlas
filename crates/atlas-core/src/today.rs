@@ -152,7 +152,7 @@ fn tasks_in(abs: &Path, meta: &std::fs::Metadata) -> std::sync::Arc<Vec<(u32, St
         }
     }
     let t = std::sync::Arc::new(out);
-    lock(&TASKS).put(abs, stamp, t.clone());
+    lock(&TASKS).put(abs, stamp, meta.modified().ok(), t.clone());
     t
 }
 
@@ -187,6 +187,9 @@ fn lock<T>(m: &std::sync::Mutex<T>) -> std::sync::MutexGuard<'_, T> {
 
 /// A vault not walked for this long is forgotten whole (a vault opened once kept its entries all day).
 const FORGET_AFTER: Duration = Duration::from_secs(30 * 60);
+/// A file changed this recently is not remembered: a second same-size save within one tick of the file system's clock
+/// (~15 ms on Windows, 2 s on FAT) would keep its stamp, and the cache would answer with the first save's contents.
+const RACY: Duration = Duration::from_secs(2);
 
 /// What is remembered of each file while its stamp holds. Each walk of a vault forgets the files it no longer finds
 /// (deleted, renamed, newly ignored): before, an entry stayed for ever.
@@ -206,8 +209,12 @@ impl<S: PartialEq, V: Clone> PerFile<S, V> {
         self.files.get(abs).filter(|(at, _)| at == stamp).map(|(_, v)| v.clone())
     }
 
-    fn put(&mut self, abs: &Path, stamp: S, v: V) {
-        self.files.insert(abs.to_path_buf(), (stamp, v));
+    /// `modified`: the file's time, which [`RACY`] checks (none: not remembered).
+    fn put(&mut self, abs: &Path, stamp: S, modified: Option<SystemTime>, v: V) {
+        let settled = modified.and_then(|m| SystemTime::now().duration_since(m).ok()).is_some_and(|age| age >= RACY);
+        if settled {
+            self.files.insert(abs.to_path_buf(), (stamp, v));
+        }
     }
 
     /// After a walk of `root` that found `here`: its other files, and every vault idle for [`FORGET_AFTER`], go.
@@ -333,7 +340,7 @@ fn facts(abs: &Path, meta: &std::fs::Metadata) -> Facts {
         return f;
     }
     let f = Facts { made: made_on(abs), mail: is_mail(abs) };
-    lock(&FACTS).put(abs, stamp, f);
+    lock(&FACTS).put(abs, stamp, meta.modified().ok(), f);
     f
 }
 
@@ -386,9 +393,9 @@ mod tests {
     fn remembered_files_are_forgotten_once_gone_or_idle() {
         let mut c: PerFile<u32, u32> = PerFile::default();
         let (a, b) = (Path::new("/v/a.md"), Path::new("/v/b.md"));
-        c.put(a, 1, 10);
-        c.put(b, 1, 20);
-        c.put(Path::new("/w/c.md"), 1, 30);
+        c.put(a, 1, Some(SystemTime::UNIX_EPOCH), 10);
+        c.put(b, 1, Some(SystemTime::UNIX_EPOCH), 20);
+        c.put(Path::new("/w/c.md"), 1, Some(SystemTime::UNIX_EPOCH), 30);
         assert_eq!((c.get(a, &1), c.get(a, &2)), (Some(10), None), "a new stamp is a miss");
         let t0 = std::time::Instant::now();
         c.sweep(Path::new("/w"), &[Path::new("/w/c.md")].into(), t0);
@@ -539,8 +546,29 @@ mod tests {
         assert_eq!(scan_tasks(d.path(), &Config::default()).len(), 1);
         std::fs::write(&f, "- [ ] one\n- [ ] two\n").unwrap(); // within the same clock tick: the size differs
         assert_eq!(scan_tasks(d.path(), &Config::default()).len(), 2);
-        std::fs::write(&f, "- [x] one\n- [ ] two\n").unwrap(); // same size: the time differs
+        std::fs::write(&f, "- [x] one\n- [ ] two\n").unwrap(); // same size, perhaps the same tick: never cached yet
         assert_eq!(scan_tasks(d.path(), &Config::default()).iter().map(|h| h.text.as_str()).collect::<Vec<_>>(), ["two"]);
+    }
+
+    /// A settled file is remembered; a same-size rewrite carrying the very same time is the case [`RACY`] guards.
+    #[test]
+    fn a_settled_note_is_remembered_and_a_fresh_one_is_not() {
+        let d = tempfile::tempdir().unwrap();
+        let f = d.path().join("a.md");
+        std::fs::write(&f, "- [ ] one\n").unwrap();
+        let old = SystemTime::now() - Duration::from_secs(60);
+        std::fs::File::options().write(true).open(&f).unwrap().set_modified(old).unwrap();
+        tasks_in(&f, &f.metadata().unwrap());
+        assert!(lock(&TASKS).get(&f, &stamp_of(&f)).is_some(), "a settled note is cached");
+        let g = d.path().join("b.md");
+        std::fs::write(&g, "- [ ] two\n").unwrap();
+        tasks_in(&g, &g.metadata().unwrap());
+        assert!(lock(&TASKS).get(&g, &stamp_of(&g)).is_none(), "a note saved just now is read again next time");
+    }
+
+    fn stamp_of(f: &Path) -> (SystemTime, u64, u64) {
+        let m = f.metadata().unwrap();
+        (m.modified().unwrap(), m.len(), crate::platform::proc::file_id(&m))
     }
 
     #[test]

@@ -1,15 +1,14 @@
-# The Linux packages: AppImage, deb, rpm (Tauri's bundler) and a Flatpak (packaging/flatpak), plus the `atlas` CLI.
-# A tag `v*` attaches them to a draft GitHub release for the maintainer to review and publish; a manual run keeps them
-# as the run's artifacts. Windows and macOS join once the port lands (docs/decisions/PORTING-windows-macos.md).
+# The packages: on Linux the AppImage, deb, rpm (Tauri's bundler) and a Flatpak (packaging/flatpak), plus the `atlas`
+# CLI; on macOS an ad-hoc-signed .dmg, on Windows an NSIS installer (unsigned: docs/decisions/PORTING-windows-macos.md).
+# A tag `v*` attaches them to a draft GitHub release for the maintainer to review and publish; a manual run, or CI
+# calling this workflow on every push to main, keeps them as the run's artifacts.
 name: Release
 
 on:
   push:
     tags: ["v*"]
   workflow_dispatch:
-
-permissions:
-  contents: write
+  workflow_call:
 
 jobs:
   linux:
@@ -34,11 +33,11 @@ jobs:
         run: npm --prefix ui ci --no-audit --no-fund && npm --prefix ui run build
       - name: The CLI
         run: cargo build --release --locked -p atlas && strip target/release/atlas
+      # the same pinned bundler as CI's macOS and Windows packages
       - name: The desktop app's packages
         run: |
-          cargo install tauri-cli --version "^2" --locked
           cd crates/atlas-app
-          cargo tauri build --bundles appimage,deb,rpm --config '{"bundle":{"active":true}}'
+          npx --yes @tauri-apps/cli@2.12.4 build --ci --bundles appimage,deb,rpm --config '{"bundle":{"active":true}}'
       - name: Collect
         run: |
           mkdir -p dist
@@ -48,6 +47,39 @@ jobs:
         with:
           name: linux
           path: dist/
+
+  # the desktop app on the ports; the config beside tauri.conf.json picks each system's package
+  desktop:
+    name: desktop (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
+      - name: The UI
+        run: npm --prefix ui ci --no-audit --no-fund && npm --prefix ui run build
+      - name: The desktop app's package
+        shell: bash
+        run: |
+          cd crates/atlas-app
+          npx --yes @tauri-apps/cli@2.12.4 build --ci
+      - uses: actions/upload-artifact@v6
+        with:
+          name: atlas-${{ runner.os }}
+          path: |
+            target/release/bundle/dmg/*.dmg
+            target/release/bundle/nsis/*.exe
+          if-no-files-found: error
 
   flatpak:
     needs: linux
@@ -70,8 +102,11 @@ jobs:
 
   publish:
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: [linux, flatpak]
+    needs: [linux, flatpak, desktop]
     runs-on: ubuntu-24.04
+    # only this job writes (the draft release); a caller such as CI then needs to grant nothing beyond reading
+    permissions:
+      contents: write
     steps:
       - uses: actions/download-artifact@v7
         with:
@@ -87,3 +122,5 @@ jobs:
             artifacts/linux/*.deb
             artifacts/linux/*.rpm
             artifacts/**/atlas.flatpak
+            artifacts/atlas-macOS/*.dmg
+            artifacts/atlas-Windows/*.exe

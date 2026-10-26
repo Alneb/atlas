@@ -1,5 +1,6 @@
 # The gate on every push and pull request: the same `scripts/dev/gate.sh` a contributor runs locally, so "green" means
 # one thing. Windows and macOS build every crate and run the core's tests; they may fail until those ports are done.
+# Every system's packages come from the release workflow, called here (job `packages`), so a run keeps them as artifacts.
 # Android builds the three APKs from the same toolchain scripts as a desktop (docs/guides/ANDROID.md).
 # scripts/dev/ci-annotate.mjs turns a failing step's errors and tests into annotations, readable without a sign-in.
 name: CI
@@ -103,24 +104,15 @@ jobs:
           npm --prefix ui ci --no-audit --no-fund
           npm --prefix ui run build
       - name: Build the core, the CLI and the capture box
-        run: node scripts/dev/ci-annotate.mjs cargo build --locked -p atlas-core -p atlas -p atlas-capture
-      # unsigned packages, from tauri.<os>.conf.json: a .dmg (ad-hoc signed) on macOS, an NSIS installer on Windows;
-      # before the tests, so a failing test still leaves something to try
-      - name: The desktop app's package
-        shell: bash
-        run: |
-          cd crates/atlas-app
-          npx --yes @tauri-apps/cli@2.12.4 build --ci
-      - uses: actions/upload-artifact@v6
-        with:
-          name: atlas-${{ runner.os }}
-          path: |
-            target/release/bundle/dmg/*.dmg
-            target/release/bundle/nsis/*.exe
-          if-no-files-found: error
+        run: node scripts/dev/ci-annotate.mjs cargo build --locked -p atlas-core -p atlas -p atlas-capture -p atlas-app
       # Git for Windows' sh, Python and tar are on the runners: the tests that start them run here, unlike under Wine
       - name: The core's tests
         run: node scripts/dev/ci-annotate.mjs cargo test --locked -p atlas-core
+
+  # the packages (Linux, macOS, Windows) as this run's artifacts, from the release workflow itself
+  packages:
+    name: Packages
+    uses: ./.github/workflows/release.yml
 
   android:
     name: Android (the three APKs)
