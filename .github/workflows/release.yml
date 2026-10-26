@@ -43,7 +43,7 @@ jobs:
           mkdir -p dist
           cp target/release/atlas target/release/atlas-app dist/
           cp target/release/bundle/appimage/*.AppImage target/release/bundle/deb/*.deb target/release/bundle/rpm/*.rpm dist/
-      - uses: actions/upload-artifact@v6
+      - uses: actions/upload-artifact@v7
         with:
           name: linux
           path: dist/
@@ -73,7 +73,7 @@ jobs:
         run: |
           cd crates/atlas-app
           npx --yes @tauri-apps/cli@2.12.4 build --ci
-      - uses: actions/upload-artifact@v6
+      - uses: actions/upload-artifact@v7
         with:
           name: atlas-${{ runner.os }}
           path: |

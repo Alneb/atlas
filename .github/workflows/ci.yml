@@ -71,7 +71,7 @@ jobs:
         run: node scripts/dev/ci-annotate.mjs bash scripts/dev/gate.sh scan tidy rust clippy py ui build e2e
       - name: Gate logs
         if: failure()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: gate-logs
           path: /tmp/atlas-gate/
@@ -148,7 +148,7 @@ jobs:
           bash scripts/dev/fetch-pdfium.sh
       - name: The APKs
         run: bash crates/atlas-android/build-apk.sh
-      - uses: actions/upload-artifact@v6
+      - uses: actions/upload-artifact@v7
         with:
           name: android-apks
           path: target/dist/android/*.apk
