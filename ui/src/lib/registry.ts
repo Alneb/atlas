@@ -26,6 +26,8 @@ export interface EditorHandle {
 }
 
 export const editors = new Map<string, EditorHandle>();
+/** Told the path of the tab that comes forward (lib/where: the other devices hear what this one shows). */
+export const shownHooks = new Set<(path: string) => void>();
 
 /** Bold / italic / link on the note that has the keys. Set by lib/editor/md-format.ts when the
  *  editor's code loads, so the commands (lib/actions.ts) run it at once, without importing CodeMirror. */

@@ -21,7 +21,7 @@ import { travelSign } from "./nav-signs";
 import { isSideKind, showSide, sideInBar, sidePanel, toggleSide, type SideId, type SideKind } from "./side-panel.svelte";
 import { TOOL, sideToolOf, sideTools, toolId } from "./side-tools.svelte";
 import { emitPluginEvent } from "./plugin-events";
-import { drawingPages, editors, noteEditorActive, openIntent, paneFocus, explorerGo, parkOf, pdfPages, pluginAnchors, terminals } from "./registry";
+import { drawingPages, editors, noteEditorActive, shownHooks, openIntent, paneFocus, explorerGo, parkOf, pdfPages, pluginAnchors, terminals } from "./registry";
 import { rememberFile } from "./recent";
 import { app } from "./state.svelte";
 import { iconSvg } from "./icons";
@@ -222,6 +222,8 @@ export function initDock(el: HTMLElement, components: PaneComponents): DockviewA
   dock.onDidActivePanelChange(reportPanes);
   dock.onDidActivePanelChange((e) => { if (e.panel && editors.has(e.panel.id)) noteEditorActive(e.panel.id); });
   dock.onDidActivePanelChange((e) => { if (e.panel) noteVisit(e.panel); });
+  // the other devices hear what this one shows (lib/where: glance mode follows it); a PDF adds its page itself
+  dock.onDidActivePanelChange((e) => { const s = e.panel?.params as { path?: unknown } | undefined; if (typeof s?.path === "string" && s.path) for (const f of shownHooks) f(s.path); });
   // a click on the tab of the pane already in front fires no activation: hand it the keys anyway
   el.addEventListener("pointerup", (e) => {
     const tab = (e.target as HTMLElement).closest?.(".dv-tab.dv-active-tab");

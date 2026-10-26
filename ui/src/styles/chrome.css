@@ -119,3 +119,8 @@
 /* a drawing's zen (panes/Excalidraw.svelte setZen): the page alone — no tab bar, not even fullscreen's icons, no status */
 html.atlas-zen .shell .main > :not(.work), html.atlas-zen .shell .status { display: none !important; }
 html.atlas-zen .shell .dock { inset: 0; }
+
+/* glance mode (lib/where.svelte.ts): following another device — what it shows alone, none of the app around it, the
+   page as large as the window lets it be */
+html.glance .main > .slot, html.glance .sidebar, html.glance .rail, html.glance .statusbar, html.glance .status-bar,
+html.glance .pdf-pane .toolbar, html.glance .dv-tabs-and-actions-container { display: none !important; }

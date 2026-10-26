@@ -48,6 +48,7 @@
   import StatusBar from "./components/StatusBar.svelte";
   import Palette from "./components/Palette.svelte";
   import Toasts from "./components/Toasts.svelte";
+  import { startWhere } from "./lib/where.svelte";
 
   let dockEl: HTMLDivElement;
 
@@ -167,6 +168,7 @@
       on("fs", (e) => { if (e.paths.some((p) => p === ".atlas/keys.toml" || p.startsWith(".atlas/commands/"))) void loadKeymap().catch(() => {}); }),
       watchPlugins(),
       watchServiceSignins(),
+      startWhere(),
       initWorkspaces(),
       initBookmarks(),
       initSidebar(),

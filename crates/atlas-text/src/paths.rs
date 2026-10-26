@@ -65,3 +65,28 @@ pub fn rel_path(root: &Path, abs: &Path) -> Option<String> {
     Some(parts.join("/"))
 }
 
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A root given in another form than its canonical one (Windows' short `RUNNER~1` temp names; here a symlink to it)
+    /// still contains its own files, and `..` or a symlink out of it is still refused.
+    #[cfg(unix)]
+    #[test]
+    fn a_root_not_given_canonical_still_holds_its_files() {
+        let d = tempfile::tempdir().unwrap();
+        let real = d.path().join("real");
+        std::fs::create_dir_all(real.join("notes")).unwrap();
+        std::fs::write(real.join("notes/a.md"), "x").unwrap();
+        let link = d.path().join("link");
+        std::os::unix::fs::symlink(&real, &link).unwrap();
+        assert_eq!(safe_join(&link, "notes/a.md").unwrap(), link.join("notes/a.md"));
+        assert_eq!(safe_join(&link, "notes/new.md").unwrap(), link.join("notes/new.md"), "a file not there yet");
+        assert!(safe_join(&link, "../real/notes/a.md").is_err());
+        std::fs::create_dir_all(d.path().join("elsewhere")).unwrap();
+        std::fs::write(d.path().join("elsewhere/b.md"), "x").unwrap();
+        std::os::unix::fs::symlink(d.path().join("elsewhere"), real.join("out")).unwrap();
+        assert!(safe_join(&link, "out/b.md").unwrap_err().contains("outside the workspace"), "a symlink out of it");
+    }
+}

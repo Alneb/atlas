@@ -13,6 +13,7 @@
   // (Ctrl+= / Ctrl+- / Ctrl+0), dark pages (D), reopens at the last page read. Marks are saved as they are made into
   // the PDF's companion drawing (lib/pdf-tools.ts); "to notes" extracts them to markdown.
   import { pdfPages } from "../lib/registry";
+  import { tellWhere } from "../lib/where.svelte";
   import { MARK_ID } from "../lib/note-anchor";
   import { flushSync, onMount } from "svelte";
   import type { PaneProps } from "../lib/dock";
@@ -82,7 +83,11 @@
   function rememberPosition() {
     if (!container?.clientWidth) return; // hidden: nothing being read to remember
     clearTimeout(posTimer);
-    posTimer = window.setTimeout(() => { if (r && container?.clientWidth) savePref(posKey(), JSON.stringify({ page: r.page, scale: String(r.zoom) })); }, 400);
+    posTimer = window.setTimeout(() => {
+      if (!r || !container?.clientWidth) return;
+      savePref(posKey(), JSON.stringify({ page: r.page, scale: String(r.zoom) }));
+      if (panel.isActive) tellWhere({ path: spec.path, page: r.page }); // the page, for a device that follows this one
+    }, 400);
   }
   /** The page and zoom this PDF was left at (the zoom saved as "page-width", "page-fit" or a number). */
   function savedPosition(): { page?: number; zoom?: Zoom } {

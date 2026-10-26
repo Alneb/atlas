@@ -318,6 +318,7 @@ export const actions: Action[] = [
   { id: "ui.focusFile", title: "Edit FOCUS.md", run: () => openPath(app.workspace?.config.focus ?? "FOCUS.md") },
   { id: "ui.resetLayout", title: "Reset layout", run: resetLayout },
   { id: "ui.python.env", title: "Python: choose the environment (for the Python server and new terminals)", icon: "terminal", run: () => void import("./python-env").then((m) => m.choosePythonEnv()) },
+  { id: "ui.glance", title: "Glance: follow another device (what it shows, full screen)", icon: "eye", run: () => void import("./where.svelte").then((m) => m.followDevice()) },
   { id: "ui.symbols", title: "Go to a symbol in the project (functions, classes…)", icon: "file-code", run: () => goToSymbol() },
   { id: "ui.problems", title: "Problems: errors and warnings of the current file", keys: "Super+M", run: showProblems },
   { id: "ui.graph", title: "Graph of notes (links between notes)", icon: "link", label: "Graph", keys: "Super+Shift+G", run: () => { open({ kind: "graph" }); } },
