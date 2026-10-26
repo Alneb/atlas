@@ -210,8 +210,11 @@ async fn the_desktop_core_serves_every_vault_of_its_list_each_started_when_first
         std::fs::create_dir_all(v.join(".atlas/cache")).unwrap();
         std::fs::write(v.join(note), "# here\n").unwrap();
     }
-    // Busy is open in another Atlas (a live process that is not this one: pid 1)
-    std::fs::write(c.join(".atlas/cache/server.json"), r#"{"port": 1, "pid": 1, "root": "ROOT", "path": ""}"#.replace("ROOT", &c.canonicalize().unwrap().to_string_lossy())).unwrap();
+    // Busy is open in another Atlas: a live process that is not this one (a child waiting on its input; pid 1 is no
+    // process on Windows)
+    let mut other_atlas = if cfg!(windows) { std::process::Command::new("cmd").args(["/C", "pause"]).stdin(std::process::Stdio::piped()).stdout(std::process::Stdio::null()).spawn() } else { std::process::Command::new("cat").stdin(std::process::Stdio::piped()).spawn() }.unwrap();
+    let busy = serde_json::json!({ "port": 1, "pid": other_atlas.id(), "root": c.canonicalize().unwrap(), "path": "" });
+    std::fs::write(c.join(".atlas/cache/server.json"), busy.to_string()).unwrap();
     let list = home.path().join("vaults.toml");
     std::fs::write(&list, format!("[[vault]]\nname = \"My Notes\"\npath = {:?}\nlast_opened = 2\n\n[[vault]]\nname = \"Busy\"\npath = {:?}\nlast_opened = 1\n", b, c)).unwrap();
     let srv = serve_vaults(Vaults::Desktop { first: a.clone(), list }, Listen::Local(0, atlas_core::local_lock::Lock::Open)).await.unwrap();
@@ -234,6 +237,8 @@ async fn the_desktop_core_serves_every_vault_of_its_list_each_started_when_first
     assert!(page.contains(r#"__ATLAS_API__="/v/My-Notes""#), "the page is told where its API is");
 
     assert_eq!(get("/v/Busy/").await.unwrap().status(), StatusCode::CONFLICT, "open in another Atlas: not started twice");
+    let _ = other_atlas.kill();
+    let _ = other_atlas.wait();
     assert_eq!(get("/v/Nowhere/").await.unwrap().status(), StatusCode::NOT_FOUND);
     srv.shutdown().await.unwrap();
     assert!(!b.join(".atlas/cache/server.json").exists(), "a vault started on demand is cleaned up too");
