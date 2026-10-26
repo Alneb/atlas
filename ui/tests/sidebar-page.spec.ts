@@ -83,7 +83,8 @@ test("the sidebar is a page: its file decides the blocks, a toolbar's buttons ar
 
   // the command writes the default file and opens it as a page to arrange
   await run(page, "Sidebar: arrange its blocks");
-  await expect(page.getByRole("button", { name: "Arrange" })).toBeVisible();
+  // exact: until the file is written the page is empty and also offers "Arrange it"
+  await expect(page.getByRole("button", { name: "Arrange", exact: true })).toBeVisible();
   await expect.poll(() => fileText(page, FILES.sidebar)).toContain("view: toolbar");
 
   // the file as text: fewer buttons, one of them dressed, and an outline under the tabs
