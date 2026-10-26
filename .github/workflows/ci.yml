@@ -1,7 +1,6 @@
 # The gate on every push and pull request: the same `scripts/dev/gate.sh` a contributor runs locally, so "green" means
 # one thing. Windows and macOS build every crate and run the core's tests; they may fail until those ports are done.
-# Every system's packages come from the release workflow, called here (job `packages`), so a run keeps them as artifacts.
-# Android builds the three APKs from the same toolchain scripts as a desktop (docs/guides/ANDROID.md).
+# Every package, the APKs included, comes from packages.yml, called here (job `packages`): a run keeps them as artifacts.
 # scripts/dev/ci-annotate.mjs turns a failing step's errors and tests into annotations, readable without a sign-in.
 name: CI
 
@@ -26,7 +25,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       # System libraries (Tauri / WebKitGTK, the capture box's Wayland and D-Bus). Plain apt: a cached-packages action
       # restored nothing usable here (glib-2.0.pc missing), and a slow mirror is rare; retries ride it out.
       - name: System libraries (Tauri / WebKitGTK, the capture box's Wayland and D-Bus)
@@ -44,12 +43,12 @@ jobs:
         with:
           cache-on-failure: true
           save-if: ${{ github.ref == 'refs/heads/main' }}
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@v7
         with:
           node-version: 24
           cache: npm
           cache-dependency-path: ui/package-lock.json
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
       - name: What the vault scripts import beyond the standard library (PyYAML)
@@ -59,7 +58,7 @@ jobs:
       # Playwright's Chromium kept between runs, keyed by the lock file (a new Playwright wants its own browser); on a
       # hit only its system libraries are checked (mostly on the runner already)
       - id: browsers
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ hashFiles('ui/package-lock.json') }}
@@ -71,7 +70,7 @@ jobs:
         run: node scripts/dev/ci-annotate.mjs bash scripts/dev/gate.sh scan tidy rust clippy py ui build e2e
       - name: Gate logs
         if: failure()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: gate-logs
           path: /tmp/atlas-gate/
@@ -87,13 +86,13 @@ jobs:
       matrix:
         os: [windows-latest, macos-latest]
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
         with:
           cache-on-failure: true
           save-if: ${{ github.ref == 'refs/heads/main' }}
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@v7
         with:
           node-version: 24
           cache: npm
@@ -109,47 +108,8 @@ jobs:
       - name: The core's tests
         run: node scripts/dev/ci-annotate.mjs cargo test --locked -p atlas-core
 
-  # the packages (Linux, macOS, Windows) as this run's artifacts, from the release workflow itself
+  # every package (Linux, macOS, Windows, the APKs) as this run's artifacts
   packages:
     name: Packages
-    uses: ./.github/workflows/release.yml
-
-  android:
-    name: Android (the three APKs)
-    runs-on: ubuntu-24.04
-    # new: may fail while it settles; the APKs are the run's artifacts, signed with a key made for the run
-    continue-on-error: true
-    timeout-minutes: 90
-    steps:
-      - uses: actions/checkout@v5
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
-        with:
-          cache-on-failure: true
-          save-if: ${{ github.ref == 'refs/heads/main' }}
-      - uses: actions/setup-java@v5
-        with:
-          distribution: temurin
-          java-version: 17
-      - uses: actions/setup-node@v5
-        with:
-          node-version: 24
-          cache: npm
-          cache-dependency-path: ui/package-lock.json
-      # the core carries the interface it serves
-      - name: The UI
-        run: |
-          npm --prefix ui ci --no-audit --no-fund
-          npm --prefix ui run build
-      # the NDK, build-tools and a platform (checked against Google's sums), and PDFium for the PDF reader (pinned)
-      - name: The toolchain
-        run: |
-          bash crates/atlas-android/get-toolchain.sh
-          bash scripts/dev/fetch-pdfium.sh
-      - name: The APKs
-        run: bash crates/atlas-android/build-apk.sh
-      - uses: actions/upload-artifact@v6
-        with:
-          name: android-apks
-          path: target/dist/android/*.apk
-          if-no-files-found: error
+    uses: ./.github/workflows/packages.yml
+    secrets: inherit

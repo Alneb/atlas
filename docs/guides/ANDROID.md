@@ -27,6 +27,13 @@ adb install -r target/dist/android/atlas-capture.apk   # the phone with USB debu
 
 The script: `cargo build -p atlas-android --target aarch64-linux-android --release` with the NDK's `aarch64-linux-android26-clang` as linker → `llvm-strip` → `aapt2 link` of `crates/atlas-android/android/AndroidManifest.xml` against `android.jar` → the `.so` zipped in as `lib/arm64-v8a/` → `zipalign` → `apksigner` (key `local/toolchains/atlas-debug.keystore`, made once). Android 8.0 (API 26) and newer.
 
+**Signing.** Android installs an update only when it carries the same signature as the app already there. The script
+signs with `local/toolchains/atlas-debug.keystore` (store and key password `atlas-debug`, alias `atlas`), made once if
+missing. CI and releases (`.github/workflows/packages.yml`) write the project's key there first, from the repository
+secret `ANDROID_KEYSTORE_B64` (the keystore file in base64: `base64 -w0 local/toolchains/atlas-debug.keystore`), so an
+APK from any run or release installs over the one before, and over one built on the maintainer's machine. Without the
+secret (a fork, a Dependabot pull request) a run signs with a key made for it, and says so; a release refuses.
+
 ## The plan for the rework
 
 Two runs on the phone showed that the text line was not a normal Android text box (some keyboard features did not work), that the box sat under the notification bar and looked poor, lacked most of the planned features, and had no icon. The chosen way on: **Android widgets + Rust core, looking like a modern Android app**, keeping the desktop's visual style, with the screens in Java.
