@@ -371,41 +371,42 @@ async fn pty_shell_session() {
     ws.send(Message::Binary(typed(r#"echo "hi atlas{SUM}"; pwd"#).into())).await.unwrap();
     // the folder's own name: the shells write the whole path each their way
     let here = t.root().file_name().unwrap().to_string_lossy().into_owned();
-    let out = tokio::time::timeout(Duration::from_secs(10), async {
-        let mut out = String::new();
-        while let Some(Ok(m)) = ws.next().await {
-            if let Message::Binary(b) = m {
-                out.push_str(&String::from_utf8_lossy(&b));
-                if out.contains("hi atlas42") && out.contains(&here) {
-                    break;
-                }
-            }
-        }
-        out
-    })
-    .await
-    .expect("pty output within 10 s");
+    let out = read_until(&mut ws, "hi atlas42").await;
+    let out = if out.contains(&here) { out } else { out + &read_until(&mut ws, &here).await };
     assert!(out.contains("hi atlas42"), "{out}");
     ws.close(None).await.unwrap();
     t.stop().await;
 }
 
-/// Reads binary frames until `want` shows up (10 s at most); returns everything read.
-async fn read_until<S: futures_util::Stream<Item = Result<Message, tokio_tungstenite::tungstenite::Error>> + Unpin>(ws: &mut S, want: &str) -> String {
-    tokio::time::timeout(Duration::from_secs(10), async {
-        let mut out = String::new();
+type Ws = tokio_tungstenite::WebSocketStream<tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>>;
+
+/// What a terminal answers itself, as xterm.js does in the app: Windows' ConPTY (portable-pty inherits the cursor)
+/// asks where the cursor is (`ESC[6n`) and writes nothing more until it hears back.
+async fn answer_terminal_queries(ws: &mut Ws, chunk: &[u8]) {
+    if chunk.windows(4).any(|w| w == b"\x1b[6n") {
+        ws.send(Message::Binary(b"\x1b[1;1R".to_vec().into())).await.unwrap();
+    }
+}
+
+/// Reads binary frames until `want` shows up (10 s at most); returns everything read. A timeout says what did come,
+/// so a failure on another system shows the terminal's own output.
+async fn read_until(ws: &mut Ws, want: &str) -> String {
+    let mut out = String::new();
+    let found = tokio::time::timeout(Duration::from_secs(10), async {
         while let Some(Ok(m)) = ws.next().await {
             if let Message::Binary(b) = m {
+                answer_terminal_queries(ws, &b).await;
                 out.push_str(&String::from_utf8_lossy(&b));
                 if out.contains(want) {
-                    break;
+                    return true;
                 }
             }
         }
-        out
+        false
     })
-    .await
-    .unwrap_or_else(|_| panic!("{want:?} within 10 s"))
+    .await;
+    assert!(matches!(found, Ok(true)), "{want:?} within 10 s; the terminal wrote {out:?}");
+    out
 }
 
 /// "it reset": every new interface reloads the window, and a reload closed every terminal's socket,
@@ -454,19 +455,22 @@ async fn pty_command_runs_directly_and_says_when_it_exited() {
     let t = T::start().await;
     // `echo` is no program: the line goes to sh (on Windows Git's), as every command line does
     let mut ws = ws_connect(t.port(), "/api/pty?command=echo%20done%24((6*7))&cols=80&rows=24", None).await.unwrap();
-    let (out, close) = tokio::time::timeout(Duration::from_secs(10), async {
-        let mut out = String::new();
+    let mut out = String::new();
+    let close = tokio::time::timeout(Duration::from_secs(10), async {
         while let Some(Ok(m)) = ws.next().await {
             match m {
-                Message::Binary(b) => out.push_str(&String::from_utf8_lossy(&b)),
-                Message::Close(f) => return (out, f),
+                Message::Binary(b) => {
+                    answer_terminal_queries(&mut ws, &b).await;
+                    out.push_str(&String::from_utf8_lossy(&b));
+                }
+                Message::Close(f) => return f,
                 _ => {}
             }
         }
-        (out, None)
+        None
     })
-    .await
-    .expect("the command ends within 10 s");
+    .await;
+    let close = close.unwrap_or_else(|_| panic!("the command ends within 10 s; it wrote {out:?}"));
     assert!(out.contains("done42"), "{out}");
     let close = close.expect("a close frame");
     assert_eq!((u16::from(close.code), close.reason.as_str()), (1000, "exited"));
