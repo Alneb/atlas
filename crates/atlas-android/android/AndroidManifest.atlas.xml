@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Atlas (docs/guides/ANDROID.md, "The full app"): the desktop app's phone part, native — Today, Files, Search, notes — and the
      capture box, tile and screen service of the capture app. The same Java (package org.atlas.capture) and Rust library. -->
-<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="org.atlas.app" android:versionCode="1" android:versionName="0.1.0">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="org.atlas.app" android:versionCode="2" android:versionName="0.1.1">
   <uses-permission android:name="android.permission.INTERNET" />
   <!-- Outbox: a job that waits for a network (JobScheduler asks for it; without it the app was killed, 2026-10-19) -->
   <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
