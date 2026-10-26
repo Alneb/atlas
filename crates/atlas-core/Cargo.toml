@@ -19,15 +19,15 @@ tokio.workspace = true
 axum = { version = "0.8", features = ["ws"] }
 tokio-util = { version = "0.7", features = ["io"] }
 futures-util = "0.3"
-toml = "0.9"
+toml = "1.1"
 chrono = "0.4"
 # "Export with marks": PDF annotations written into a copy (pdf_export.rs)
-lopdf = { version = "0.36", default-features = false }
+lopdf = { version = "0.45", default-features = false }
 # PDF text for search, read in Rust (pdf_text.rs): no poppler needed
 pdf_oxide = "0.3.78"
 thiserror = "2"
 walkdir = "2"
-base64 = "0.22"
+base64 = "0.23"
 mime_guess = "2"
 notify = "8"
 portable-pty = "0.9"
@@ -38,20 +38,20 @@ toml_edit = "0.25.15"
 serde_yaml = "0.9"
 regex = "1"
 image = { version = "0.25", default-features = false, features = ["png", "jpeg", "webp"] }
-zip = { version = "8", default-features = false, features = ["deflate"] } # an EPUB's cover (thumbs.rs)
+zip = { version = "9", default-features = false, features = ["deflate"] } # an EPUB's cover (thumbs.rs)
 # JPEG XL thumbnails (src/thumbs.rs): pure Rust, so the phone's build needs no C either
 jxl-oxide = "0.12"
 reqwest = { workspace = true, features = ["blocking", "rustls-tls", "stream"] }
 # server mode's sign-in (auth.rs): the password's Argon2id hash, SHA-256 of sessions and tokens
-argon2 = "0.5"
-sha2 = "0.10"
-getrandom = "0.2"
+argon2 = "0.6"
+sha2 = "0.11"
+getrandom = "0.4"
 # a helper's calls back go through the vault's router in-process (helper_api.rs): `oneshot` (axum already depends on it)
 tower = { version = "0.5", features = ["util"] }
 # gzip for what leaves the machine (server.rs `compress_gate`): the UI's scripts and the path listings
-tower-http = { version = "0.6", default-features = false, features = ["compression-gzip"] }
+tower-http = { version = "0.7", default-features = false, features = ["compression-gzip"] }
 # the desktop's bridge to a vault on a server (remote_bridge.rs): its sockets piped through, wss with webpki roots
-tokio-tungstenite = { version = "0.28", features = ["rustls-tls-webpki-roots"] }
+tokio-tungstenite = { version = "0.29", features = ["rustls-tls-webpki-roots"] }
 grep-searcher = "0.1.17"
 grep-regex = "0.1.14"
 grep-matcher = "0.1.9"
@@ -66,4 +66,4 @@ windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_System_
 [dev-dependencies]
 tempfile = "3"
 reqwest = { workspace = true, features = ["blocking", "rustls-tls"] }
-tokio-tungstenite = "0.28"
+tokio-tungstenite = "0.29"

@@ -22,7 +22,7 @@ atlas-capture = { path = "../atlas-capture", default-features = false }
 atlas-core.workspace = true
 serde_json.workspace = true
 # PDFium (libpdfium.so in the APK) loaded at run time: the PDF reader's text, find and links (src/pdfium.rs)
-libloading = "0.8"
+libloading = "0.9"
 serde = { version = "1", features = ["derive"] }
 anyhow.workspace = true
 tokio.workspace = true
@@ -35,7 +35,7 @@ openink-stroke = { path = "../vendor/openink-stroke" }
 atlas-pen = { path = "../atlas-pen" }
 
 [target.'cfg(target_os = "android")'.dependencies]
-jni = "0.21"
+jni = "0.22"
 # the Boox's stylus read from evdev (src/pen_reader.rs): its linear pressure over the whole range, which Android's
 # MotionEvents curve and cut at 1.0 (docs/design/DESIGN-boox-pen-openink.md); vendored like openink-stroke
 openink-pen = { path = "../vendor/openink-pen" }
