@@ -27,8 +27,8 @@ export function appLaunchers(): AppTile[] {
   const cmds = allCommands(), cmd = (id: string) => cmds.find((c) => c.id === id);
   const homeCmd = cmd("ui.today");
   const builtins = BUILTINS.filter((b) => builtinOn(b.id)).flatMap((b): AppTile[] => {
-    const c = cmd(b.command);
-    return c ? [{ ids: [paneId(b.pane)], title: c.label ?? b.title, icon: b.icon, keys: c.keys, open: () => void c.run() }] : [];
+    const c = b.button && cmd(b.button.command);
+    return b.button && c ? [{ ids: [paneId(b.button.pane)], title: c.label ?? b.title, icon: b.icon, keys: c.keys, open: () => void c.run() }] : [];
   });
   const vault = plugins.list.filter((p) => pluginOn(p) && p.rail && p.view).map((p): AppTile => ({
     ids: [paneId(pluginSpec(p))], title: p.title, icon: p.icon && isIconName(p.icon) ? p.icon : "plugin", keys: cmd(`plugin.${p.id}`)?.keys, open: () => void cmd(`plugin.${p.id}`)?.run(),

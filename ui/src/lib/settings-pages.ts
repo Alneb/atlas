@@ -4,10 +4,11 @@
 // config section shows up with no UI work (shape over lists).
 
 import type { IconName } from "./panes";
+import type { BuiltinId } from "./builtin-plugins";
 
 export type PageId =
   | "overview" | "appearance" | "writing" | "today" | "code" | "files" | "web" | "server" | "papers" | "drawing"
-  | "terminal" | "keyboard" | "automation" | "agents" | "advanced";
+  | "terminal" | "keyboard" | "automation" | "agents" | "advanced" | "latex";
 
 /** Custom panels drawn by the Settings UI beside the generated fields. */
 export type Panel = "overview" | "preview" | "snippets" | "keys" | "plugins" | "signins" | "scripts" | "drafts" | "openwith" | "server" | "agents" | "templates";
@@ -35,6 +36,8 @@ export interface PageDef {
   /** Shown only where the page runs (hostOf): Server only in a browser on the server's page, Advanced (the desktop's
    *  rendering) only on this machine. */
   only?: SettingsHost[];
+  /** A built-in plugin's page (lib/builtin-plugins.ts): listed under Plugins, dimmed while the plugin is off. */
+  plugin?: BuiltinId;
 }
 
 /** Where a Settings page runs: `app` this machine's own vault (the desktop app, or its page in a browser), `bridged` a
@@ -63,7 +66,7 @@ export const PAGES: PageDef[] = [
   {
     id: "writing", title: "Writing", icon: "edit", blurb: "Notes in markdown: vim, links, citations, math, the / menu, properties, capture and templates. A plain note starts from the default template, which the New… list leaves out; a template's `template_title:` names it there and is never copied into its notes. A note open on two devices is edited together, live. In a note Ctrl+B is bold, Ctrl+I italic, Ctrl+K a link, Ctrl+Q turns a line into a list item or a to-do.",
     fields: ["vim", "editor.vim_keys", "editor.format_bar", "editor.math_preview", "editor.link_preview", "editor.task_chips", "editor.task_suggest", "editor.task_short_forms", "editor.properties", "editor.properties_spec", "editor.link_completion", "editor.citation_completion", "editor.slash_menu", "editor.fold_headings", "editor.typewriter", "editor.live",
-      "editor.backlinks", "editor.latex_snippets", "editor.latex_snippets_file", "editor.latex_snippet_variables_file",
+      "editor.backlinks",
       "editor.attachment_folder", "editor.date_names", "editor.strict_line_breaks", "notes.*"],
     features: ["ui.vim", "ui.new", "ui.note.new", "note.cycle", "note.insert-template", "ui.properties", "ui.properties.inline", "ui.kit.install", "ui.outline", "ui.graph"], panels: ["templates"],
     next: [{ label: "Put a live view in a note", why: "A ```view block (calendar, list, table) over the note's own tasks or a folder.", run: "settings.viewHelp" }],
@@ -122,6 +125,10 @@ export const PAGES: PageDef[] = [
     fields: [], features: [], panels: ["agents"], only: ["app"],
   },
   {
+    id: "latex", title: "LaTeX", icon: "sigma", plugin: "latex", blurb: "Typing LaTeX, in a note's math and in .tex files: LaTeX Suite snippets from your file (Obsidian's format — your snippets and variables files), Tab through a snippet's stops, Tab out of a bracket, LaTeX symbols and snippets offered as you type. Its language server (texlab) is under Code. Switched off in Settings → Plugins, all of it goes; math in notes is still rendered.",
+    fields: ["latex.*"], features: [],
+  },
+  {
     id: "advanced", title: "Advanced", icon: "settings", blurb: "Rendering and the raw settings file.",
     fields: ["ui.gpu_rendering"], features: [], only: ["app", "bridged"],
   },
@@ -130,13 +137,13 @@ export const PAGES: PageDef[] = [
 /** Fields edited by a custom panel, never as a raw row. */
 export const HIDDEN = new Set(["ui.css_snippets_off", "plugins.off", "files.open_with"]);
 
-export interface Placed { page: string; title: string; icon: IconName; blurb: string; fields: string[] }
+export interface Placed { page: string; title: string; icon: IconName; blurb: string; fields: string[]; plugin?: BuiltinId }
 
 /** Places every schema leaf on a page: explicit paths first, then `section.*`, then a page per
  *  unclaimed section (titled from its key) and "General" for unclaimed top-level fields. */
 export function placeFields(leaves: string[], host: SettingsHost = "app"): Placed[] {
   const shown = PAGES.filter((p) => !p.only || p.only.includes(host));
-  const placed: Placed[] = shown.map((p) => ({ page: p.id, title: p.title, icon: p.icon, blurb: p.blurb, fields: [] }));
+  const placed: Placed[] = shown.map((p) => ({ page: p.id, title: p.title, icon: p.icon, blurb: p.blurb, fields: [], plugin: p.plugin }));
   const byId = new Map(placed.map((p) => [p.page, p]));
   const taken = new Set<string>();
   for (const def of shown) {
@@ -181,6 +188,7 @@ const FIELD_LABELS: Record<string, string> = {
   "plugins.oidc_issuer": "Sign-in provider (OpenID Connect)", "plugins.oidc_client_id": "Sign-in client id", "plugins.oidc_redirect": "Sign-in return address",
   "ui.eink": "E-ink screen", "ui.eink_refresh": "E-ink full refresh", "terminal.min_size": "Terminal's smallest size (px)",
   "lsp.c": "C / C++ server", "lsp.rust": "Rust server", "lsp.python": "Python server", "lsp.latex": "LaTeX server", "lsp.language": "Servers' message language", "lsp.inlay_hints": "Inlay hints", "lsp.python_env": "Python environment",
+  "latex.snippets": "Snippets while typing math", "latex.snippets_file": "Snippets file", "latex.variables_file": "Snippet variables file",
   "draw.page_format": "A new drawing's pages",
   "web.open_links": "Web links open in", "pdf.export_on_save": "Export annotations on save",
 };

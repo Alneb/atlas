@@ -160,19 +160,6 @@ strict_line_breaks: boolean,
  */
 attachment_folder: string, 
 /**
- * LaTeX Suite snippets while typing math in markdown (and in .tex files).
- */
-latex_snippets: boolean, 
-/**
- * Snippet file or folder in Obsidian LaTeX Suite format (a JS array of {trigger, replacement, options}).
- * A relative path is inside the vault (`.atlas/snippets/snippets.coffee`); `~/…` is under home.
- */
-latex_snippets_file: string, 
-/**
- * Snippet variables file (e.g. `${GREEK}` → `alpha|beta|…`).
- */
-latex_snippet_variables_file: string, 
-/**
  * Line spacing in markdown notes (1.68 = default).
  */
 prose_line_height: number, 

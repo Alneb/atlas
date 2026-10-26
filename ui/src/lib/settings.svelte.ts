@@ -51,7 +51,7 @@ let snippetSource = "";
 
 function apply(c: WorkspaceConfig): void {
   const root = document.documentElement;
-  const src = `${c.editor.latex_snippets_file}\u0000${c.editor.latex_snippet_variables_file}`;
+  const src = `${c.latex.snippets_file}\u0000${c.latex.variables_file}`;
   if (src !== snippetSource) { snippetSource = src; void import("./editor/latex-suite").then((m) => m.reloadSnippets()); }
   void syncVscodeTheme(c.ui.vscode_theme);
   // the theme setting decides dark or light ("system": the desktop's); a VS Code theme dresses the

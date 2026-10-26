@@ -94,11 +94,11 @@ In short:
   under the caret), `path` (the file a pane was opened with); manifest `opens = ["*.tsv"]` makes the pane an
   "Open with…" choice. `.atlas/init.js` is a plugin without a manifest (`register(atlas)`, reloads on save).
 
-## Built-in plugins (the Library)
+## Built-in plugins (the Library, LaTeX)
 
 Zotero moves to a plugin as well, and the leftmost panel separates the core icons from the plugins' icons. A plugin can execute code so that it is fast, and the papers Library is kept separate because it serves scientific work, not every way of using the app.
 
-**What was built.** A *built-in plugin* is a part of Atlas that is not for every vault. It is listed in `ui/src/lib/builtin-plugins.ts` (`BUILTINS`; today one entry, `library`) and switched exactly like a vault plugin: its id in `[plugins] off` of the vault's `.atlas/config.toml`, by the same switch in Settings → Plugins & automation. While it is off, nothing of it exists in that vault:
+**What was built.** A *built-in plugin* is a part of Atlas that is not for every vault. It is listed in `ui/src/lib/builtin-plugins.ts` (`BUILTINS`: `library`, `latex`) and switched exactly like a vault plugin: its id in `[plugins] off` of the vault's `.atlas/config.toml`, by the same switch in Settings → Plugins & automation. While it is off, nothing of it exists in that vault:
 
 | part of the Library | how it is gated |
 |---|---|
@@ -111,7 +111,37 @@ Zotero moves to a plugin as well, and the leftmost panel separates the core icon
 
 **Why the native code stays in the core.** The Library's heavy parts (`refs.rs`, `connector.rs`, PDF text and thumbnails) are Rust and must stay fast; a vault plugin today is JavaScript plus a data script started per request, which is too slow for importing and listing a few thousand papers. So "separate" is done at the level that matters to someone not doing science — no button, command, completion or open port — while the code ships in the binary. **Not done, and the honest next step if more built-ins or third-party fast plugins are wanted:** a native helper per plugin (a long-lived process named in `plugin.toml`, spoken to over stdin/stdout with JSON, started when the plugin is on and stopped when it is off). With that, `refs.rs` could move out of the core into `plugins/library/` as its own crate. It is a design of its own (lifecycle, crash handling, sandboxing, packaging the helper for each platform) and was not started.
 
-**Adding another built-in plugin**: one entry in `BUILTINS`, `plugin: "<id>"` on its actions, and a `builtinOn("<id>")` check wherever it hooks into the editor or the core. Tests: `ui/tests/library-plugin.spec.ts`, `a_vault_atlas_creates_starts_without_the_library…` (core).
+**The LaTeX plugin** (`latex`) is everything about *typing* LaTeX; rendering `$…$` in notes stays in the core, since
+Obsidian fidelity needs it in every vault. On by default. While it is off:
+
+| part of LaTeX | how it is gated |
+|---|---|
+| LaTeX Suite snippets, their Tab stops and Tab out of brackets | `latexSnippetsOn()` (`editor/completion-sources.ts`: the plugin on *and* `[latex] snippets`), the one test `latexSuite({ enabled })` and the snippet completions read |
+| LaTeX symbol completions (notes' math, `.tex`) | the same file's `ofLatex` wrapper: a source of the plugin answers nothing while it is off |
+| `GET /api/snippets` | in the core's group of LaTeX routes: 404 "the LaTeX plugin is switched off in this vault" |
+| its settings `[latex] snippets`, `snippets_file`, `variables_file` | its page in Settings, listed under Plugins (dimmed while off) |
+
+The three settings were `[editor] latex_snippets`, `latex_snippets_file`, `latex_snippet_variables_file`; a config that
+still has them loads them into `[latex]` and is written in the new shape on the next save (`config.rs`, `MOVED` and
+`migrate`, the one path both `load` and `save` parse through). Building `.tex` files, texlab's errors and SyncTeX
+are its next parts (`docs/design/DESIGN-latex-plugin.md`).
+
+**One mechanism, typed.** The ids are a type on both sides, so a misspelt id is a compile error rather than a plugin
+silently "on":
+
+- **Core**: `config::BuiltinPlugin` (an enum: `Library`, `Latex`, each with its `id()` and `title()`), asked through
+  `PluginsConfig::is_on(BuiltinPlugin::…)`. A plugin's HTTP routes are mounted together with
+  `builtin_routes(&state, BuiltinPlugin::…, routes)` in `server.rs`, whose layer refuses the whole group while the
+  plugin is off — no handler checks `[plugins] off` itself.
+- **UI**: `BuiltinId` (`"library" | "latex"`) for `BUILTINS`, `builtinOn(id)` and an action's `plugin` field. A
+  built-in plugin may have a left-bar `button` (command + pane; the Library) and a Settings `page` (a `PageDef` with
+  `plugin: id`; LaTeX) — both optional, since a plugin that only adds to the editor has neither a pane nor a button.
+
+**Adding another built-in plugin**: a variant of `BuiltinPlugin` (core) and of `BuiltinId` (UI) — the two lists must
+name the same ids —, one entry in `BUILTINS`, `plugin: "<id>"` on its actions, its routes through `builtin_routes`,
+its settings a config section with a page marked `plugin: "<id>"`, and `builtinOn("<id>")` wherever it hooks into the
+editor. Tests: `ui/tests/library-plugin.spec.ts`, `ui/tests/latex-plugin.spec.ts`,
+`a_vault_atlas_creates_starts_without_the_library…` and `a_switched_off_builtin_plugin_has_no_routes` (core).
 
 
 ## v4 — hooks into the frame

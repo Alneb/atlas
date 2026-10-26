@@ -41,6 +41,7 @@
   const pages = $derived(placeFields([...fields.keys()], hostOf({ server: !!me.info?.server, phone: nativeShell.on, path: apiBase() })));
   // each plugin with settings is a page of its own, under the core's (components/settings/PluginPage.svelte)
   const pluginPages = $derived(plugins.list.filter((p) => p.fields.length).sort((a, b) => a.title.localeCompare(b.title)));
+  const builtinPages = $derived(pages.filter((p) => p.plugin));
   // every plugin has a page (its problems, actions); the bar lists those with settings
   const plugin = $derived(current.startsWith("plugin:") ? plugins.list.find((p) => pluginPageId(p.id) === current) : undefined);
   const accounts = $derived(current === ACCOUNTS);
@@ -103,14 +104,21 @@
       <span class="ico acc"><Icon name="user" size={14} /></span> <span>Accounts</span>{#if accountTrouble}<b class="bad" title="An account has a problem"></b>{:else if accountCount}<i>{accountCount}</i>{/if}
     </button>
     <h2 class="group">Atlas</h2>
-    {#each pages as p (p.page)}
+    {#each pages.filter((p) => !p.plugin) as p (p.page)}
       {@const n = changedIn(p.fields)}
       <button class="nav" class:on={!words.length && p.page === page?.page} onclick={() => go(p.page)} aria-current={!words.length && p.page === page?.page ? "page" : undefined}>
         <span class="ico"><Icon name={p.icon} size={14} /></span> <span>{p.title}</span>{#if n}<i title="{n} changed">{n}</i>{/if}
       </button>
     {/each}
-    {#if pluginPages.length}
+    {#if pluginPages.length || builtinPages.length}
       <h2 class="group">Plugins</h2>
+      <!-- built-in plugins' pages first: their fields come from the config schema like the core's -->
+      {#each builtinPages as p (p.page)}
+        {@const n = changedIn(p.fields)}
+        <button class="nav plugin" class:on={!words.length && p.page === page?.page} class:off={isOff(p.plugin ?? "")} onclick={() => go(p.page)} aria-current={!words.length && p.page === page?.page ? "page" : undefined}>
+          <span class="ico plug"><Icon name={p.icon} size={14} /></span> <span>{p.title}</span>{#if n}<i title="{n} changed">{n}</i>{/if}
+        </button>
+      {/each}
       {#each pluginPages as p (p.id)}
         <button class="nav plugin" class:on={!words.length && plugin?.id === p.id} class:off={isOff(p.id)} onclick={() => go(pluginPageId(p.id))} aria-current={!words.length && plugin?.id === p.id ? "page" : undefined}>
           <span class="ico plug"><Icon name={pluginIcon(p)} size={14} /></span> <span>{p.title}</span>{#if pluginTrouble(p)}<b class="bad" title="It has a problem"></b>{/if}

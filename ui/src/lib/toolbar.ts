@@ -16,8 +16,8 @@ export type ToolEntry = ToolItem | "spacer" | "divider";
 function pluginItems(listed: Set<unknown>): ToolItem[] {
   const cmds = allCommands();
   // a toolbar file that names the command itself (older ones list ui.library) keeps that one button
-  const builtin = BUILTINS.filter((b) => builtinOn(b.id) && !listed.has(b.command)).flatMap((b): ToolItem[] => {
-    const c = cmds.find((x) => x.id === b.command);
+  const builtin = BUILTINS.filter((b) => builtinOn(b.id) && b.button && !listed.has(b.button.command)).flatMap((b): ToolItem[] => {
+    const c = cmds.find((x) => x.id === b.button?.command);
     return c ? [{ icon: b.icon, label: c.label ?? b.title, keys: c.keys, run: () => void c.run() }] : [];
   });
   return [...builtin, ...vaultPluginItems()];

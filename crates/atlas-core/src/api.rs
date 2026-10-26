@@ -1594,7 +1594,7 @@ pub struct Trashed {
 
 
 /// LaTeX Suite snippet sources (JS text; the UI evaluates the array) + the variables file text.
-#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, TS)]
 #[ts(export)]
 pub struct Snippets {
     pub sources: Vec<String>,

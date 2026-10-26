@@ -228,6 +228,12 @@ mod tests {
     }
 
     #[test]
+    fn a_windows_path_keeps_its_backslashes_only_when_quoted() {
+        assert_eq!(direct(r"'C:\Users\u\catalog.exe' add").0, r"C:\Users\u\catalog.exe");
+        assert_eq!(direct(r"C:\Users\u\catalog.exe").0, "C:Usersucatalog.exe", "unquoted, a backslash escapes as in sh");
+    }
+
+    #[test]
     fn quoting_and_empties() {
         assert_eq!(direct(r#"echo 'a "b" $X' "c \"d\" \$e" f\ g"#).1, [r#"a "b" $X"#, r#"c "d" $e"#, "f g"]);
         assert_eq!(direct(r#"echo "" $EMPTY $UNSET x"#).1, ["", "x"]);

@@ -554,3 +554,21 @@ async fn a_task_line_is_ticked_and_opened_again_as_text() {
     assert_eq!(s, StatusCode::BAD_REQUEST);
     t.stop().await;
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_switched_off_builtin_plugin_has_no_routes() {
+    let t = T::start().await;
+    let cfg = t.root().join(".atlas/config.toml");
+    std::fs::write(t.root().join("snips.js"), "[{trigger: 'ff', replacement: '\\\\frac{$0}{$1}', options: 'mA'}]").unwrap();
+    let text = std::fs::read_to_string(&cfg).unwrap();
+    std::fs::write(&cfg, format!("{text}\n[latex]\nsnippets_file = \"snips.js\"\n")).unwrap();
+    let (s, v) = t.get("/api/snippets").await;
+    assert_eq!(s, StatusCode::OK);
+    assert!(v["sources"][0].as_str().is_some_and(|x| x.contains("ff")), "{v}");
+    // off: the whole group answers 404, the handler never runs
+    std::fs::write(&cfg, format!("{text}\n[latex]\nsnippets_file = \"snips.js\"\n\n[plugins]\noff = [\"latex\"]\n")).unwrap();
+    let r = t.http.get(format!("{}/api/snippets", t.base)).header("x-atlas", "1").send().await.unwrap();
+    assert_eq!(r.status(), StatusCode::NOT_FOUND);
+    assert!(r.text().await.unwrap().contains("LaTeX plugin is switched off"));
+    t.stop().await;
+}

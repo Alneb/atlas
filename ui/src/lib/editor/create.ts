@@ -30,7 +30,7 @@ import { tabKey, untouchedTaskList } from "./tab-keys";
 import { placeOf, keepPlace, placeIn } from "./places";
 import { noteExtensions, mdOptions } from "./note-extensions";
 import { codeExtensions, codeOptions, countProblems, openReplace } from "./code-extensions";
-import { texCite } from "./completion-sources";
+import { latexSnippetsOn, texCite } from "./completion-sources";
 import { linkClicks } from "./link-clicks";
 import { blameExtension } from "./blame";
 import type { Blame } from "../gen/Blame";
@@ -123,7 +123,7 @@ export function createEditor(o: EditorOptions): AtlasEditor {
     ]),
     atlasTheme,
     ansiColors(), // before highlightSpecialChars: a hidden ESC [ … m is not drawn as a special character
-    md || /\.tex$/i.test(o.path) ? latexSuite({ tex: !md, enabled: () => settings.config?.editor.latex_snippets ?? true }) : [],
+    md || /\.tex$/i.test(o.path) ? latexSuite({ tex: !md, enabled: latexSnippetsOn }) : [],
     history(),
     drawSelection(),
     dropCursor(),

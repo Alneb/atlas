@@ -4,6 +4,7 @@ import type { AutomationConfig } from "./AutomationConfig";
 import type { DrawConfig } from "./DrawConfig";
 import type { EditorConfig } from "./EditorConfig";
 import type { FilesConfig } from "./FilesConfig";
+import type { LatexConfig } from "./LatexConfig";
 import type { LspConfig } from "./LspConfig";
 import type { NotesConfig } from "./NotesConfig";
 import type { PdfConfig } from "./PdfConfig";
@@ -50,4 +51,8 @@ ignore: Array<string>,
 /**
  * Vim keybindings in the editor. Off by default, as in Obsidian: a newcomer's keys type text.
  */
-vim: boolean, ui: UiConfig, editor: EditorConfig, terminal: TerminalConfig, files: FilesConfig, activity: ActivityConfig, pdf: PdfConfig, draw: DrawConfig, lsp: LspConfig, automation: AutomationConfig, plugins: PluginsConfig, notes: NotesConfig, web: WebConfig, };
+vim: boolean, ui: UiConfig, editor: EditorConfig, terminal: TerminalConfig, files: FilesConfig, activity: ActivityConfig, pdf: PdfConfig, draw: DrawConfig, lsp: LspConfig, 
+/**
+ * The LaTeX plugin (built in; switched off with the other plugins): snippets while typing math, `.tex` files.
+ */
+latex: LatexConfig, automation: AutomationConfig, plugins: PluginsConfig, notes: NotesConfig, web: WebConfig, };

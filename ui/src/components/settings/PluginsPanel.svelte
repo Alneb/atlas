@@ -7,6 +7,7 @@
   import { openPluginSettings } from "../../lib/plugin-settings.svelte";
   import { open, openPath } from "../../lib/dock";
   import { BUILTINS } from "../../lib/builtin-plugins";
+  import { openSettingsAt } from "../../lib/settings-nav.svelte";
   import { plugins, pluginOn, pluginBlocked, pluginSpec, loadPlugins } from "../../lib/plugins.svelte";
   import { changedSettings, installPlugin, isOff, mayOf, partsOf, pluginDir, removePlugin, switchPlugin, updatePlugin } from "../../lib/plugin-manage";
   import { onMount } from "svelte";
@@ -25,7 +26,7 @@
       <li class:off={isOff(b.id)}>
         <button class="switch" class:on={!isOff(b.id)} role="switch" aria-checked={!isOff(b.id)} aria-label="Plugin {b.title}" onclick={() => switchPlugin(b.id, isOff(b.id))}><span></span></button>
         <div class="main">
-          <b>{b.title}</b> <code>built in</code>
+          {#if b.page}{@const at = b.page}<button class="name" aria-label="The page of {b.title}" title="Its settings" onclick={() => openSettingsAt(at)}><b>{b.title}</b></button>{:else}<b>{b.title}</b>{/if} <code>built in</code>
           <span class="d">{b.description}</span>
           <span class="d">{b.parts}</span>
         </div>

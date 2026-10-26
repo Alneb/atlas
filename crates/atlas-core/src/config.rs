@@ -40,6 +40,8 @@ pub struct Config {
     pub pdf: PdfConfig,
     pub draw: DrawConfig,
     pub lsp: LspConfig,
+    /// The LaTeX plugin (built in; switched off with the other plugins): snippets while typing math, `.tex` files.
+    pub latex: LatexConfig,
     pub automation: AutomationConfig,
     pub plugins: PluginsConfig,
     pub notes: NotesConfig,
@@ -124,9 +126,39 @@ impl Default for NotesConfig {
     }
 }
 
-/// The built-in References plugin (the References page, \cite completion, the PDF reader's paper actions): on in a
-/// vault unless listed in `plugins.off`. The references themselves are the catalog-papers plugin's.
-pub const LIBRARY_PLUGIN: &str = "library";
+/// The plugins built into Atlas (ui/src/lib/builtin-plugins.ts lists the same ids): each is on in a vault unless its
+/// id is in `[plugins] off`. The one way the core asks is [`PluginsConfig::is_on`]; a plugin's routes are refused as a
+/// group while it is off (server.rs `builtin_routes`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BuiltinPlugin {
+    /// The References page, \cite completion, the PDF reader's paper actions (the references themselves are the
+    /// catalog-papers plugin's).
+    Library,
+    /// Snippets while typing math, LaTeX completions, `.tex` files.
+    Latex,
+}
+
+impl BuiltinPlugin {
+    pub const fn id(self) -> &'static str {
+        match self {
+            Self::Library => "library",
+            Self::Latex => "latex",
+        }
+    }
+
+    pub const fn title(self) -> &'static str {
+        match self {
+            Self::Library => "Library",
+            Self::Latex => "LaTeX",
+        }
+    }
+}
+
+impl PluginsConfig {
+    pub fn is_on(&self, b: BuiltinPlugin) -> bool {
+        !self.off.iter().any(|id| id == b.id())
+    }
+}
 
 /// Plugins: the vault's own (`.atlas/plugins/<id>/`) and the built-in ones (`library`).
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, TS, JsonSchema)]
@@ -170,6 +202,56 @@ pub struct LspConfig {
     /// The Python environment for the Python server and new terminals: a folder (a venv, a conda env; relative to the
     /// vault or absolute), "none" for the system's Python. Empty = the vault's own .venv or venv when there is one.
     pub python_env: String,
+}
+
+/// The LaTeX plugin's settings. Its id in `[plugins] off` switches all of it off: no snippets, no Tab stops, no LaTeX
+/// completions, no `/api/snippets`. Rendering `$…$` in notes is the core's and stays.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS, JsonSchema)]
+#[serde(default)]
+#[ts(export)]
+pub struct LatexConfig {
+    /// LaTeX Suite snippets while typing math in markdown (and in .tex files).
+    pub snippets: bool,
+    /// Snippet file or folder in Obsidian LaTeX Suite format (a JS array of {trigger, replacement, options}).
+    /// A relative path is inside the vault (`.atlas/snippets/snippets.coffee`); `~/…` is under home.
+    pub snippets_file: String,
+    /// Snippet variables file (e.g. `${GREEK}` → `alpha|beta|…`).
+    pub variables_file: String,
+}
+
+impl Default for LatexConfig {
+    fn default() -> Self {
+        Self { snippets: true, snippets_file: String::new(), variables_file: String::new() }
+    }
+}
+
+/// Keys that moved to another section: (old section, old key, new section, new key).
+const MOVED: &[(&str, &str, &str, &str)] = &[
+    ("editor", "latex_snippets", "latex", "snippets"),
+    ("editor", "latex_snippets_file", "latex", "snippets_file"),
+    ("editor", "latex_snippet_variables_file", "latex", "variables_file"),
+];
+
+/// Moves keys of an older config to where they live now, keeping their value (and comments, as far as toml_edit can);
+/// a key already set at its new place wins. Read and save both go through it, so an old file loads and is rewritten
+/// in the new shape on the next save.
+fn migrate(doc: &mut toml_edit::DocumentMut) {
+    for (from, key, to, new) in MOVED {
+        let Some(v) = doc.get_mut(from).and_then(|t| t.as_table_like_mut()).and_then(|t| t.remove(key)) else { continue };
+        let dest = doc.entry(to).or_insert_with(toml_edit::table);
+        if let Some(t) = dest.as_table_like_mut() {
+            if t.get(new).is_none() {
+                t.insert(new, v);
+            }
+        }
+    }
+}
+
+/// The parse every reader uses: `toml_edit` for the migration, then serde.
+fn parse(text: &str) -> anyhow::Result<(Config, toml_edit::DocumentMut)> {
+    let mut doc: toml_edit::DocumentMut = text.parse()?;
+    migrate(&mut doc);
+    Ok((toml::from_str::<Config>(&doc.to_string())?, doc))
 }
 
 impl Default for LspConfig {
@@ -471,13 +553,6 @@ pub struct EditorConfig {
     pub strict_line_breaks: bool,
     /// Where pasted / dropped files go, relative to the note's folder ("" = next to the note).
     pub attachment_folder: String,
-    /// LaTeX Suite snippets while typing math in markdown (and in .tex files).
-    pub latex_snippets: bool,
-    /// Snippet file or folder in Obsidian LaTeX Suite format (a JS array of {trigger, replacement, options}).
-    /// A relative path is inside the vault (`.atlas/snippets/snippets.coffee`); `~/…` is under home.
-    pub latex_snippets_file: String,
-    /// Snippet variables file (e.g. `${GREEK}` → `alpha|beta|…`).
-    pub latex_snippet_variables_file: String,
     /// Line spacing in markdown notes (1.68 = default).
     #[schemars(range(min = 1.2, max = 2.2))]
     pub prose_line_height: f32,
@@ -796,6 +871,7 @@ impl Default for Config {
             pdf: PdfConfig::default(),
             draw: DrawConfig::default(),
             lsp: LspConfig::default(),
+            latex: LatexConfig::default(),
             automation: AutomationConfig::default(),
             plugins: PluginsConfig::default(),
             notes: NotesConfig::default(),
@@ -846,9 +922,6 @@ impl Default for EditorConfig {
             date_names: DateNames::English,
             strict_line_breaks: false,
             attachment_folder: "attachments".into(),
-            latex_snippets: true,
-            latex_snippets_file: String::new(),
-            latex_snippet_variables_file: String::new(),
             prose_line_height: 1.68,
             prose_width: 88,
         }
@@ -884,7 +957,7 @@ impl Config {
     pub fn load(root: &Path) -> anyhow::Result<Self> {
         let path = root.join(CONFIG_FILE);
         let (mut c, text) = match std::fs::read_to_string(&path) {
-            Ok(text) => (toml::from_str::<Self>(&text).map_err(|e| anyhow::anyhow!("{}: {e}", path.display()))?, text),
+            Ok(text) => (parse(&text).map_err(|e| anyhow::anyhow!("{}: {e}", path.display()))?.0, text),
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => (Self::default(), String::new()),
             Err(e) => return Err(e.into()),
         };
@@ -910,8 +983,8 @@ impl Config {
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => String::new(),
             Err(e) => return Err(e.into()),
         };
-        let mut doc: toml_edit::DocumentMut = text.parse()?;
         let old = toml::Value::try_from(Self::load(root)?)?;
+        let mut doc = parse(&text)?.1;
         let new_v = toml::Value::try_from(new)?;
         merge_changed(
             doc.as_table_mut(),
@@ -919,7 +992,7 @@ impl Config {
             new_v.as_table().ok_or_else(|| anyhow::anyhow!("config is not a table"))?,
         );
         let out = doc.to_string();
-        let check: Config = toml::from_str(&out)?;
+        let check = parse(&out)?.0;
         anyhow::ensure!(&check == new, "config did not round-trip; not written");
         crate::vault_write::write(&path, out.as_bytes())?;
         Ok(())
@@ -1063,6 +1136,23 @@ mod tests {
         Config::save(dir.path(), &c).unwrap();
         let text = std::fs::read_to_string(dir.path().join(CONFIG_FILE)).unwrap();
         assert!(!text.contains("tsv") && text.contains("dat = \"table\""), "{text}");
+        assert_eq!(Config::load(dir.path()).unwrap(), c);
+    }
+
+    #[test]
+    fn latex_keys_of_the_editor_section_move_to_latex() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(dir.path().join(".atlas")).unwrap();
+        let old = "[editor]\nlatex_snippets = false\nlatex_snippets_file = \"s.js\" # mine\nlatex_snippet_variables_file = \"v.js\"\nbacklinks = false\n";
+        std::fs::write(dir.path().join(CONFIG_FILE), old).unwrap();
+        let mut c = Config::load(dir.path()).unwrap();
+        assert_eq!(c.latex, LatexConfig { snippets: false, snippets_file: "s.js".into(), variables_file: "v.js".into() });
+        assert!(!c.editor.backlinks);
+        // the next save writes the new shape; the value and its comment survive
+        c.ui.font_size = 15;
+        Config::save(dir.path(), &c).unwrap();
+        let text = std::fs::read_to_string(dir.path().join(CONFIG_FILE)).unwrap();
+        assert!(!text.contains("latex_snippet") && text.contains("[latex]") && text.contains("# mine"), "{text}");
         assert_eq!(Config::load(dir.path()).unwrap(), c);
     }
 

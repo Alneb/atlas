@@ -74,8 +74,8 @@ pub fn suggestions() -> Suggestions {
     });
     BTreeMap::from([
         ("ui.vscode_theme".to_string(), themes),
-        ("editor.latex_snippets_file".to_string(), snip),
-        ("editor.latex_snippet_variables_file".to_string(), vars),
+        ("latex.snippets_file".to_string(), snip),
+        ("latex.variables_file".to_string(), vars),
         ("editor.code_font".to_string(), mono),
         ("ui.ui_font".to_string(), all.clone()),
         ("editor.prose_font".to_string(), all),

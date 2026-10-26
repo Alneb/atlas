@@ -1,4 +1,5 @@
 // Built-in UI actions: one table drives the palette, the global keymap and the key hints.
+import type { BuiltinId } from "./builtin-plugins";
 import { errText } from "./text";
 import { renameFile } from "./rename-file";
 import { shownName } from "./paths";
@@ -38,7 +39,7 @@ export interface Action {
    *  command's keys reach it from a terminal too (switching tabs, the terminal toggle). */
   fromTerminal?: boolean;
   /** A built-in plugin's command (builtin-plugins.ts): it exists only while that plugin is on. */
-  plugin?: string;
+  plugin?: BuiltinId;
   /** CSS selector of panes that keep this chord for themselves (the PDF zooms its page, not the app). */
   yieldTo?: string;
   /** As a toolbar button (lib/toolbar.ts): its icon, and a short name when the title is a sentence. */

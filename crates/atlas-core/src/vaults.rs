@@ -199,7 +199,7 @@ pub fn resolve(typed: &str, create: bool) -> Result<PathBuf> {
 pub fn start_plain(root: &Path) -> Result<()> {
     let cfg = root.join(".atlas/config.toml");
     if !cfg.exists() {
-        crate::vault_write::write(&cfg, format!("# Settings of this vault (Settings in Atlas edits this file; your comments are kept).\n\n[plugins]\n# built-in plugins this vault does not use; remove a name (or use Settings → Plugins) to switch it on\noff = [\"{}\"]\n", crate::config::LIBRARY_PLUGIN).as_bytes())?;
+        crate::vault_write::write(&cfg, format!("# Settings of this vault (Settings in Atlas edits this file; your comments are kept).\n\n[plugins]\n# built-in plugins this vault does not use; remove a name (or use Settings → Plugins) to switch it on\noff = [\"{}\"]\n", crate::config::BuiltinPlugin::Library.id()).as_bytes())?;
     }
     Ok(())
 }
@@ -334,7 +334,7 @@ mod tests {
         let d = tempfile::tempdir().unwrap();
         start_plain(d.path()).unwrap();
         let cfg = crate::workspace::Workspace::open(d.path()).unwrap().config().unwrap();
-        assert_eq!(cfg.plugins.off, [crate::config::LIBRARY_PLUGIN]);
+        assert_eq!(cfg.plugins.off, [crate::config::BuiltinPlugin::Library.id()]);
         std::fs::write(d.path().join(".atlas/config.toml"), "vim = false\n").unwrap();
         start_plain(d.path()).unwrap();
         assert_eq!(std::fs::read_to_string(d.path().join(".atlas/config.toml")).unwrap(), "vim = false\n");

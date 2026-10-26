@@ -2,6 +2,7 @@
 use crate::api::*;
 use crate::commands::{self, blocking, Command};
 use crate::events::{spawn_watcher, EventBus, WatcherGuard};
+use crate::config::BuiltinPlugin;
 use crate::{capture, files, git, pty, search, today, vault_write, Error, Result, Workspace};
 use axum::body::Bytes;
 use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
@@ -1094,8 +1095,8 @@ async fn base_get(State(st): S, Query(q): Query<BaseQuery>) -> Result<Json<BaseR
 async fn snippets_get(State(st): S) -> Result<Json<Snippets>> {
     Ok(Json(
         with_ws(&st, |ws| {
-            let e = ws.config()?.editor;
-            crate::snippets::load(ws.root(), &e.latex_snippets_file, &e.latex_snippet_variables_file)
+            let l = ws.config()?.latex;
+            crate::snippets::load(ws.root(), &l.snippets_file, &l.variables_file)
         })
         .await?,
     ))
@@ -1992,7 +1993,6 @@ fn router(state: Arc<AppState>) -> Router {
         .route("/api/config", get(config_get).put(config_put))
         .route("/api/config/suggestions", get(config_suggestions_get))
         .route("/api/theme/vscode", get(vscode_theme_get))
-        .route("/api/snippets", get(snippets_get))
         .route("/api/attach", post(attach_post).layer(DefaultBodyLimit::max(100 * 1024 * 1024)))
         .route("/api/companion", post(companion_post))
         .route("/api/pdf-marks", get(pdf_marks_get).post(pdf_marks_post))
@@ -2060,6 +2060,7 @@ fn router(state: Arc<AppState>) -> Router {
         .route("/api/server/tokens", post(server_token_post))
         .route("/api/server/tokens/{name}", axum::routing::delete(server_token_delete))
         .route("/api/server/signout-all", post(server_signout_all))
+        .merge(builtin_routes(&state, BuiltinPlugin::Latex, Router::new().route("/api/snippets", get(snippets_get))))
         .fallback({
             let prefix = state.prefix.clone();
             move |uri: Uri| static_files(uri, prefix.clone())
@@ -2068,6 +2069,21 @@ fn router(state: Arc<AppState>) -> Router {
         .layer(DefaultBodyLimit::max(12 * 1024 * 1024))
         .layer(middleware::from_fn_with_state(state.clone(), guard))
         .with_state(state)
+}
+
+/// A built-in plugin's routes: while the vault has it switched off they answer 404 saying so, so no handler of it has
+/// to check (config.rs `BuiltinPlugin`).
+fn builtin_routes(state: &Arc<AppState>, plugin: BuiltinPlugin, routes: Router<Arc<AppState>>) -> Router<Arc<AppState>> {
+    routes.layer(middleware::from_fn_with_state((state.clone(), plugin), builtin_on))
+}
+
+async fn builtin_on(State((st, plugin)): State<(Arc<AppState>, BuiltinPlugin)>, req: Request, next: Next) -> Response {
+    let on = with_ws(&st, move |ws| Ok(ws.config()?.plugins.is_on(plugin))).await;
+    match on {
+        Ok(true) => next.run(req).await,
+        Ok(false) => (StatusCode::NOT_FOUND, format!("the {} plugin is switched off in this vault", plugin.title())).into_response(),
+        Err(e) => e.into_response(),
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -2497,7 +2513,9 @@ atlas.serve()
             std::fs::create_dir_all(&to).unwrap();
             let mut manifest = std::fs::read_to_string(plugins.join(id).join("plugin.toml")).unwrap();
             if id == "catalog" {
-                manifest = manifest.replace("run = \"\\\"${ATLAS_PLUGIN_BIN:-$ATLAS_PLUGIN_DIR/bin/$ATLAS_PLUGIN_TARGET}/catalog\\\"\"", &format!("run = {:?}", engine.to_string_lossy()));
+                // a run line reads an unquoted `\` as an escape, as sh does: a Windows path goes in single quotes
+                let line = toml::Value::String(format!("'{}'", engine.to_string_lossy()));
+                manifest = manifest.replace("run = \"\\\"${ATLAS_PLUGIN_BIN:-$ATLAS_PLUGIN_DIR/bin/$ATLAS_PLUGIN_TARGET}/catalog\\\"\"", &format!("run = {line}"));
                 assert!(!manifest.contains("$ATLAS_PLUGIN_TARGET}/catalog"), "the helper line moved: {manifest}");
             }
             if id == "catalog-linkwarden" {
