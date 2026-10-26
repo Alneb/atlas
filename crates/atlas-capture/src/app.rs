@@ -57,8 +57,8 @@ pub enum Theme {
 
 pub struct Capture {
     pub text: String,
-    /// What the catalog will make of the text, for the vault chosen: (text, vault, kind), remembered until either changes
-    catalog: std::cell::RefCell<Option<(String, PathBuf, Option<String>)>>,
+    /// What the text will become, for the vault chosen: (text, vault, words), remembered until either changes
+    said: std::cell::RefCell<Option<(String, Option<PathBuf>, String)>>,
     /// The Super key is held (set by the window from winit: egui does not report Super on Linux). Super is Atlas's key
     /// for its own actions, Ctrl the text's (docs/guides/KEYS.md).
     pub super_key: bool,
@@ -120,23 +120,21 @@ impl Capture {
             list_x: None,
             hit: Vec::new(),
             extras: Extras::default(),
-            catalog: Default::default(),
+            said: Default::default(),
         }
     }
 
-    /// "a line in today's log · catalogued as a film": the catalog's own patterns, matched here at once.
+    /// "a line in today's log · catalogued as a film": the core's words for the chosen vault, asked again only when
+    /// the text or the vault changes (it reads the vault's settings and the catalog's patterns).
     fn becomes(&self) -> String {
-        let said = complete::what_it_becomes(&self.text);
-        let Some(root) = self.vault().map(|v| v.path.clone()) else { return said };
-        let mut memo = self.catalog.borrow_mut();
+        let root = self.vault().map(|v| v.path.clone());
+        let mut memo = self.said.borrow_mut();
         if memo.as_ref().is_none_or(|(t, r, _)| *t != self.text || *r != root) {
-            let kind = atlas_core::Workspace::open(&root).and_then(|ws| ws.config()).ok().and_then(|cfg| atlas_core::catalog_hint::kind_of(&root, &cfg, &self.text));
-            *memo = Some((self.text.clone(), root, kind));
+            let cfg = root.as_ref().and_then(|r| atlas_core::Workspace::open(r).and_then(|ws| ws.config()).ok());
+            let says = complete::what_it_becomes(root.as_deref().zip(cfg.as_ref()), &self.text);
+            *memo = Some((self.text.clone(), root, says));
         }
-        match memo.as_ref().and_then(|(_, _, k)| k.as_deref()) {
-            Some(k) => format!("{said} · catalogued as {}", atlas_core::catalog_hint::kind_words(k)),
-            None => said,
-        }
+        memo.as_ref().map(|(_, _, s)| s.clone()).unwrap_or_default()
     }
 
     pub fn started_at(mut self, t: Instant) -> Self {

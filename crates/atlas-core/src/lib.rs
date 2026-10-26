@@ -61,6 +61,7 @@ pub mod schedule;
 pub mod search;
 pub mod secrets;
 pub mod server;
+pub mod settings_layout;
 pub mod service_signin;
 pub mod snippets;
 pub mod style;

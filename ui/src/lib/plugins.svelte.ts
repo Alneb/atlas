@@ -4,7 +4,7 @@
 // plugin-specific code. This module starts, reloads and watches them; the list and the ledger of registrations are
 // plugin-registry.svelte.ts, commands plugin-commands.ts, what a plugin is handed plugin-host-api.svelte.ts.
 import { errText } from "./text";
-import { api, apiBase } from "./api";
+import { api } from "./api";
 import { getDock } from "./dock-instance";
 import { on } from "./bus";
 import { toast } from "./state.svelte";
@@ -99,9 +99,8 @@ addEventListener("atlas-layout", () => { if (listed) closeOrphanViews(); });
 export async function loadPlugins(): Promise<void> {
   let known = false;
   try {
-    const r = await fetch(`${apiBase()}/api/plugins`, { headers: { "x-atlas": "1" } });
-    plugins.list = r.ok ? ((await r.json()) as Plugin[]) : [];
-    known = r.ok;
+    plugins.list = await api.plugins();
+    known = true;
   } catch { plugins.list = []; }
   plugins.loaded = true;
   registerActions(plugins.list);

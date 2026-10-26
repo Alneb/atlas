@@ -18,13 +18,13 @@
   import Select from "../Select.svelte";
   import Icon from "../Icon.svelte";
   import { settings } from "../../lib/settings.svelte";
-  import { options, plain, valueOf, defaultOf, isModified, setValue, resetValue, resolve, type Schema } from "../../lib/settings-schema";
+  import { options, plain, valueOf, defaultOf, isModified, setValue, resetValue, resolve, choiceLabel, type Schema } from "../../lib/settings-schema";
   import { errText } from "../../lib/text";
-  import { human, fieldLabel, stringKind } from "../../lib/settings-pages";
+  import { stringKind } from "../../lib/settings-pages";
 
   let { path, schema: s }: { path: string; schema: Schema } = $props();
 
-  const label = $derived(fieldLabel(path));
+  const label = $derived(s.title ?? path.split(".").pop() ?? path);
   const opts = $derived(options(s));
   const v = $derived(valueOf(path));
   const modified = $derived(isModified(path));
@@ -67,12 +67,12 @@
     {:else if opts && opts.length <= 4}
       <div class="seg" role="radiogroup" id={path} aria-label={label}>
         {#each opts as o (o.value)}
-          <button role="radio" aria-checked={v === o.value} class:on={v === o.value} title={o.note ? plain(o.note) : undefined} onclick={() => setValue(path, o.value)}>{human(o.value)}</button>
+          <button role="radio" aria-checked={v === o.value} class:on={v === o.value} title={o.note ? plain(o.note) : undefined} onclick={() => setValue(path, o.value)}>{choiceLabel(s, o.value)}</button>
         {/each}
       </div>
     {:else if opts}
       <Select id={path} value={String(v)} onchange={(x) => setValue(path, x)}
-        options={opts.map((o) => ({ value: o.value, label: human(o.value), note: o.note ? plain(o.note) : undefined }))} />
+        options={opts.map((o) => ({ value: o.value, label: choiceLabel(s, o.value), note: o.note ? plain(o.note) : undefined }))} />
     {:else if s.type === "integer" || s.type === "number"}
       <div class="range">
         {#if s.minimum !== undefined && s.maximum !== undefined}

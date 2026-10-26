@@ -353,7 +353,7 @@ fn front_of(note: &Path) -> Option<String> {
     let mut head = vec![0u8; 4096];
     let n = std::fs::File::open(note).ok()?.read(&mut head).ok()?;
     let text = String::from_utf8_lossy(&head[..n]).into_owned();
-    Some(text.strip_prefix("---\n")?.split_once("\n---")?.0.to_string())
+    atlas_text::frontmatter::yaml_head(&text).map(String::from)
 }
 
 fn property<'a>(front: &'a str, key: &str) -> Option<&'a str> {

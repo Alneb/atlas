@@ -62,7 +62,7 @@ export interface FileSource {
 }
 
 export const REMOTE = ".atlas/remote/";
-/** Pictures the core can thumbnail (`/api/thumb`). */
+/** Pictures the core can thumbnail (`/api/thumb`): IMAGE_RE (paths.ts) without the drawn kinds (svg, ico). */
 export const IMAGE = /\.(png|jpe?g|gif|webp|avif|bmp)$/i;
 /** Every folder's last listing ("source\nplace\npath"), for this run of Atlas: a folder seen before shows at once and
  *  is refreshed behind. */

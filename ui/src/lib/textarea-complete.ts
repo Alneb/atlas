@@ -7,21 +7,17 @@
 // native box (crates/atlas-capture). Nothing here knows about the editor.
 import { settings } from "./settings.svelte";
 import { api } from "./api";
-import { dayOf } from "./capture-hints";
+import { captureDays } from "./capture-hints.svelte";
 import type { IconName } from "./panes";
 import { taskSuggestions, taskIconEl, rowIconEl, type TaskSuggestion } from "./task-complete";
 
-/** A capture that is a to-do: the short forms of capture.rs (`[] x`, `[ ] x`, `todo x`). */
-// a to-do in capture's spellings (`starts_as_task` in crates/atlas-core/src/capture.rs)
-const TODO = /^\s*(?:[-*+]\s*)?(?:\[\s?\]|todo:?|t:)\s/i;
-
-const DAYS = ["today", "tomorrow", "mon", "tue", "wed", "thu", "fri", "sat", "sun", "+3d", "+7d"];
 const MOST = 7;
 interface Open { start: number; kind: "note" | "tag" | "day"; typed: string }
 const ICON: Record<Open["kind"], IconName> = { note: "file-text", tag: "hash", day: "calendar" };
 const SIGN: Record<Open["kind"], string> = { note: "", tag: "#", day: "@" };
-/** A day's hint in the list: "Fri 16 Oct". */
-const dayHint = (word: string) => dayOf(word, new Date())?.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" }) ?? "";
+/** A day's hint in the list ("Fri 16 Oct"), from the date the core gives the word. */
+const sayDate = (iso: string) => new Date(`${iso}T12:00`).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
+let dayDates = new Map<string, string>();
 
 /** What is being typed just before the caret, if it is one of the three kinds. */
 export function tokenAt(text: string, caret: number): Open | null {
@@ -37,7 +33,11 @@ let notes: Promise<string[]> | null = null, tags: Promise<string[]> | null = nul
 const stem = (p: string) => (p.split("/").pop() ?? p).replace(/\.md$/i, "");
 async function candidates(o: Open): Promise<string[]> {
   const q = o.typed.toLowerCase();
-  if (o.kind === "day") return DAYS.filter((d) => d.startsWith(q));
+  if (o.kind === "day") {
+    const days = await captureDays();
+    dayDates = new Map(days.map((d) => [d.word, d.date]));
+    return days.map((d) => d.word).filter((d) => d.startsWith(q));
+  }
   if (o.kind === "tag") {
     tags ??= api.tags().then((t) => t.map((x) => x.tag.replace(/^#/, "")), () => []);
     return (await tags).filter((t) => t.toLowerCase().startsWith(q));
@@ -71,7 +71,7 @@ export function complete(box: HTMLTextAreaElement | HTMLInputElement, opts: { wh
         li.append(taskIconEl(t.icon), label, detail);
       } else if (open) {
         label.textContent = SIGN[open.kind] + it;
-        detail.textContent = open.kind === "day" ? dayHint(it) : "";
+        detail.textContent = open.kind === "day" && dayDates.has(it) ? sayDate(dayDates.get(it)!) : "";
         li.append(rowIconEl(ICON[open.kind]), label, detail);
       }
       li.setAttribute("role", "option");
@@ -109,7 +109,10 @@ export function complete(box: HTMLTextAreaElement | HTMLInputElement, opts: { wh
     if (!o) {
       const before = box.value.slice(0, caret);
       const mode = settings.config?.editor.task_suggest ?? "always"; // as in a note
-      const t = TODO.test(box.value) && mode !== "off" ? await taskSuggestions(before.slice(before.lastIndexOf("\n") + 1), { browse: mode === "always", keepEnter: true }) : null;
+      // a to-do in capture's spellings: the core says (capture.rs `starts_as_task`)
+      const todo = mode !== "off" && (await api.describeCapture(box.value).catch(() => null))?.task;
+      if (my !== seq) return;
+      const t = todo ? await taskSuggestions(before.slice(before.lastIndexOf("\n") + 1), { browse: mode === "always", keepEnter: true }) : null;
       if (my !== seq) return; // a later key already asked again
       if (!t) return close();
       open = null; task = { start: caret - t.replace, items: t.items }; items = t.items.map((x) => x.label); sel = 0;

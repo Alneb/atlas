@@ -46,7 +46,7 @@ final class PluginForm {
             View row;
             switch (kind) {
                 case "toggle": row = toggle(key, label, Boolean.TRUE.equals(now)); break;
-                case "choice": row = choice(key, label, now == null ? "" : String.valueOf(now), f.optJSONArray("choices")); break;
+                case "choice": row = choice(key, label, now == null ? "" : String.valueOf(now), f.optJSONArray("choices"), f.optJSONArray("labels")); break;
                 case "text": case "longtext": case "number": row = field(key, label, now == null ? "" : String.valueOf(now), kind); break;
                 default: elsewhere = true; continue; // secret, list, records: the vault's Settings
             }
@@ -80,16 +80,19 @@ final class PluginForm {
         return r;
     }
 
-    /** The value at the right; a tap lists the choices. */
-    private View choice(String key, String label, String now, JSONArray choices) {
-        Row r = look.row(a, null, label, now.isEmpty() ? "—" : now);
+    /** The value at the right; a tap lists the choices. `labels` (may be null): how each choice reads, the value saved. */
+    private View choice(String key, String label, String now, JSONArray choices, JSONArray labels) {
+        java.util.function.IntFunction<String> shown = i -> labels != null && !labels.isNull(i) ? labels.optString(i) : choices.optString(i);
+        String nowShown = now;
+        for (int i = 0; choices != null && i < choices.length(); i++) if (now.equals(choices.optString(i))) nowShown = shown.apply(i);
+        Row r = look.row(a, null, label, now.isEmpty() ? "—" : nowShown);
         r.setOnClickListener(v -> {
             PopupMenu m = new PopupMenu(a, r, Gravity.END);
-            for (int i = 0; choices != null && i < choices.length(); i++) m.getMenu().add(choices.optString(i));
+            for (int i = 0; choices != null && i < choices.length(); i++) m.getMenu().add(0, i, i, shown.apply(i));
             m.setOnMenuItemClickListener(it -> {
-                String c = String.valueOf(it.getTitle());
-                if (r.detail != null) r.detail.setText(c);
-                save(key, c);
+                int i = it.getItemId();
+                if (r.detail != null) r.detail.setText(shown.apply(i));
+                save(key, choices.optString(i));
                 return true;
             });
             m.show();

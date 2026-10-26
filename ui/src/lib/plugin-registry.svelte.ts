@@ -2,7 +2,7 @@
 // a plugin it requires missing), and the ledger of what each registered — every block, view, command… is owned by
 // its plugin and undone when it reloads or is switched off. No plugin code runs here: plugins.svelte.ts starts them,
 // plugin-host-api.ts is what they are handed.
-import { apiBase, ApiError } from "./api";
+import { api } from "./api";
 import type { Plugin } from "./gen/Plugin";
 import type { PaneSpec } from "./panes";
 import { settings, updateSettings } from "./settings.svelte";
@@ -50,16 +50,7 @@ export function depth(p: Plugin, seen: string[] = []): number {
 
 export const pluginSpec = (p: Plugin): PaneSpec => ({ kind: "plugin", id: p.id, title: p.title, icon: p.icon });
 
-export async function pluginData(id: string, args?: unknown): Promise<unknown> {
-  const r = await fetch(`${apiBase()}/api/plugins/${encodeURIComponent(id)}/data`, {
-    method: "POST",
-    headers: { "x-atlas": "1", "content-type": "application/json" },
-    body: args === undefined ? "" : JSON.stringify(args),
-  });
-  const data = await r.json().catch(() => ({}));
-  if (!r.ok) throw new ApiError(r.status, `plugin ${id}: ${(data as { error?: string }).error ?? r.status}`, data);
-  return data;
-}
+export const pluginData = (id: string, args?: unknown): Promise<unknown> => api.pluginData(id, args);
 
 // Registrations each plugin made (blocks, views, entities, commands): undone on reload / switch-off.
 const owned = new Map<string, (() => void)[]>();

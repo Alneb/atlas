@@ -3,41 +3,27 @@
 // but the app. The list lives in ~/.config/atlas/vaults.toml (core vaults.rs).
 import { errText } from "./text";
 import type { Action } from "./actions";
-import { apiBase, ApiError } from "./api";
+import { api, apiBase, ApiError, ownCore } from "./api";
 import { pick } from "./palette.svelte";
 import { toast } from "./state.svelte";
 import type { VaultList } from "./gen/VaultList";
 import type { Vault } from "./gen/Vault";
-
-async function call<T>(method: string, path: string, body?: unknown): Promise<T> {
-  const r = await fetch(`${apiBase()}${path}`, { method, headers: { "x-atlas": "1", ...(body ? { "content-type": "application/json" } : {}) }, body: body ? JSON.stringify(body) : undefined });
-  const data = r.status === 204 ? undefined : await r.json().catch(() => undefined);
-  if (!r.ok) throw new ApiError(r.status, (data as { error?: string } | undefined)?.error ?? `${method} ${path}: ${r.status}`, data);
-  return data as T;
-}
 
 /** This window, on a vault on a server: the desktop's own page with the server's API through the bridge
  *  (core remote_bridge.rs). */
 const throughBridge = (url: string) => { const u = new URL(url); return `/r/${u.host}${u.pathname.replace(/\/?$/, "/")}`; };
 /** On a page of a server vault (`/r/<host>/…`): that server's address. */
 const remoteHost = () => /^\/remote\/([^/]+)/.exec(apiBase())?.[1] ?? null;
-/** The desktop's own core, whatever vault this page shows. */
-async function local<T>(method: string, path: string, body?: unknown): Promise<T> {
-  const r = await fetch(path, { method, headers: { "x-atlas": "1", ...(body ? { "content-type": "application/json" } : {}) }, body: body ? JSON.stringify(body) : undefined });
-  const data = r.status === 204 ? undefined : await r.json().catch(() => undefined);
-  if (!r.ok) throw new ApiError(r.status, (data as { error?: string } | undefined)?.error ?? `${method} ${path}: ${r.status}`, data);
-  return data as T;
-}
 
 async function openVault(path: string, create = false): Promise<void> {
   if (/^https?:\/\//i.test(path)) {
-    try { await local("POST", "/api/vaults/open", { path }); } catch { /* remembered or not, it opens */ }
+    try { await ownCore("POST", "/api/vaults/open", { path }); } catch { /* remembered or not, it opens */ }
     location.href = throughBridge(path);
     return;
   }
   try {
     // the desktop's one core answers where the vault is: this window goes there (no history entry, as a switch)
-    const r = await local<{ url?: string } | undefined>("POST", "/api/vaults/open", { path, create });
+    const r = await ownCore<{ url?: string } | undefined>("POST", "/api/vaults/open", { path, create });
     if (r?.url) { location.replace(r.url); return; }
     toast("Vault opened in its own window", path, "success");
   } catch (e) {
@@ -98,8 +84,8 @@ const slash = (a: string) => a.replace(/\/?$/, "/");
  *  plus the server's vaults. */
 export async function vaultListing(): Promise<VaultListing> {
   const remote = remoteHost();
-  const l = remote ? await local<VaultList>("GET", "/api/vaults") : await call<VaultList>("GET", "/api/vaults");
-  const theirs = remote ? await call<VaultList>("GET", "/api/vaults").catch(() => null) : null;
+  const l = remote ? await ownCore<VaultList>("GET", "/api/vaults") : await api.vaults();
+  const theirs = remote ? await api.vaults().catch(() => null) : null;
   const here = remote ? slash(`https://${remote}${apiBase().replace(/^\/remote\/[^/]+/, "")}`) : l.current;
   // a server lists its own vaults at their place on it (`/v/notes/`): going there is the switch
   const own = (v: Vault) => !!v.url?.startsWith("/");
@@ -136,10 +122,10 @@ export async function vaultListing(): Promise<VaultListing> {
 
 /** Links a folder to its copy on a server (`mirror` empty: unlinked). */
 export const setMirror = (path: string, mirror: string): Promise<void> =>
-  local("POST", "/api/vaults/mirror", { path, mirror: mirror.trim() || undefined });
+  ownCore("POST", "/api/vaults/mirror", { path, mirror: mirror.trim() || undefined });
 
 /** Takes a vault off the list (its folder stays as it is). */
-export const forgetVault = (path: string): Promise<void> => local("POST", "/api/vaults/forget", { path });
+export const forgetVault = (path: string): Promise<void> => ownCore("POST", "/api/vaults/forget", { path });
 
 export { askFolder, askServer, openVault };
 

@@ -7,7 +7,7 @@
 //   {command: workspace.Read paper}        {url: https://arxiv.org}          — each may say `title:`
 import { errText } from "./text";
 import { anchorLine } from "./note-anchor";
-import { shownName } from "./paths";
+import { shownName, slug } from "./paths";
 import { parseDocument, parse as parseYaml, stringify, type Document } from "yaml";
 import type { Action } from "./actions";
 import { api } from "./api";
@@ -169,7 +169,7 @@ function publish(): void {
   bookmarks.list = entries("bookmarks");
   pins = entries("pins").map(toPin).filter((p): p is Pin => !!p);
   for (const f of pinWatchers) f(pins);
-  setCommands(PREFIX, bookmarks.list.map((b): Action => ({ id: `${PREFIX}${slug(bookmarkTitle(b))}`, title: `Bookmark: ${bookmarkTitle(b)}`, run: () => openBookmark(b) })));
+  setCommands(PREFIX, bookmarks.list.map((b, i): Action => ({ id: `${PREFIX}${slug(bookmarkTitle(b)) || i}`, title: `Bookmark: ${bookmarkTitle(b)}`, run: () => openBookmark(b) })));
 }
 
 async function loadFile(): Promise<void> {
@@ -214,7 +214,6 @@ export const removeBookmark = (b: Bookmark) => writeList("bookmarks", bookmarks.
 // --- commands -----------------------------------------------------------------------------------------
 
 const PREFIX = "bookmark.";
-const slug = (s: string) => s.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "-").replace(/^-|-$/g, "") || "untitled";
 
 /** Bookmark what is in front of the user: the tab, the heading under the caret, or a typed search / link. */
 function askAdd(): void {

@@ -19,10 +19,8 @@
   import type { PaneProps } from "../lib/dock";
   import { openReader, type OutlineItem, type Reader, type Zoom } from "../lib/pdf-reader";
   import { attachTools, COLORS, type ToolName, type Tools } from "../lib/pdf-tools";
-  import { attachPdfInk } from "../lib/pdf-ink";
   import { attachPdfMarks, markAt, recoloured, reworded, STAMPS, type Mark, type MarksView, type Stamp } from "../lib/pdf-marks";
   import PdfMarkBar from "../components/PdfMarkBar.svelte";
-  import { eraseAt } from "../lib/pdf-ink-save";
   import { api } from "../lib/api";
   import { exportWithMarks } from "../lib/pdf-export";
   import { ensureNoteOf, notesBeside } from "../lib/papers";
@@ -71,7 +69,6 @@
   let dark = $state(loadPref("atlas.pdf.dark") === "1");
   let outline = $state.raw<OutlineItem[]>([]);
   // older marks, in the PDF's companion drawing: shown and erasable until moved into the note (`atlas pdf-marks migrate`)
-  let offInk: { stop(): void; reload(): void } | null = null;
   let marks: MarksView | null = null;
   let findInput = $state<HTMLInputElement | null>(null);
 
@@ -102,20 +99,18 @@
 
   function flash(s: string, ms = 2500) { status = s; setTimeout(() => { if (status === s) status = ""; }, ms); }
 
-  // the eraser: the note's mark under the click taken out (lib/pdf-marks.ts), else an older one of the drawing
+  // the eraser: the note's mark under the click taken out (lib/pdf-marks.ts)
   let erasing = $state(false);
   function erase(on = !erasing) { erasing = on; if (on) pick("select", false); }
   async function eraseClick(e: MouseEvent) {
     if (!erasing || !r) return;
-    const at = r.pageAt(e.clientX, e.clientY), layer = at && r.pageLayer(at.n);
-    if (!at || !layer) return;
+    const at = r.pageAt(e.clientX, e.clientY);
+    if (!at) return;
     e.preventDefault(); e.stopPropagation();
-    const px = r.scale * (96 / 72);
     try {
       const [x, y] = await r.toPagePoint(at.n, at.X, at.Y), hit = marks && markAt(marks.marks(), at.n, x, y);
       if (hit) { await tools?.remove(hit.id); return; } // undo brings it back
-      const gone = await eraseAt(spec.path, at.n, (at.X * px) / layer.offsetWidth, (at.Y * px) / layer.offsetHeight);
-      if (gone) offInk?.reload(); else flash("No mark there");
+      flash("No mark there");
     } catch (err) { flash(`Not erased: ${errText(err)}`, 5000); }
   }
 
@@ -168,7 +163,6 @@
   // Settings → PDF → "export on save": the note follows the marks, a moment after the last one
   let exportTimer = 0;
   function saved() {
-    offInk?.reload();
     if (pdfCfg()?.export_on_save) { clearTimeout(exportTimer); exportTimer = window.setTimeout(() => void toNotes(), 2000); }
   }
 
@@ -197,7 +191,7 @@
   const jump = (o: OutlineItem) => { if (o.page !== null) r?.goto(o.page + 1, o.y); };
 
   async function undo() {
-    if (await tools?.undo()) { offInk?.reload(); flash("Mark taken back"); } else flash("Nothing to take back");
+    if (await tools?.undo()) flash("Mark taken back"); else flash("Nothing to take back");
   }
 
   function onkeydown(e: KeyboardEvent) {
@@ -269,8 +263,6 @@
       marks = attachPdfMarks(reader, spec.path, marksChanged);
       tools = attachTools(container, reader, marks, { saved, failed: (e) => flash(`Not saved: ${errText(e)}`, 6000), selected: (m) => { picked = m; placeBar(); } });
       pick(tool, false);
-      // the ink every device writes to the PDF's companion drawing, over its pages (lib/pdf-ink.ts)
-      offInk = attachPdfInk(container, spec.path, (drawn) => reader.on("drawn", drawn));
       reader.on("page", (n) => { pageInput = String(n); current = n; rememberPosition(); seeBookmark(); });
       reader.on("scale", ({ scale, zoom: z }) => { scaleLabel = labelOf(z, scale); rememberPosition(); });
       reader.on("find", ({ current: c, total }) => { findInfo = total ? `${c}/${total}` : "0"; });
@@ -307,7 +299,7 @@
     ro.observe(container);
     return () => {
       disposed = true;
-      offInk?.stop(); marks?.stop(); offPan(); pdfPages.delete(panel.id); ro.disconnect(); clearTimeout(posTimer); clearTimeout(exportTimer);
+      marks?.stop(); offPan(); pdfPages.delete(panel.id); ro.disconnect(); clearTimeout(posTimer); clearTimeout(exportTimer);
       const reader = r;
       void (tools?.destroy() ?? Promise.resolve()).finally(() => reader?.destroy());
       releaseCanvases(container);

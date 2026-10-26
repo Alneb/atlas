@@ -150,19 +150,6 @@ export const toggleVim = () => change("Vim mode", (c) => { c.vim = !c.vim; });
 export const setTerminalPosition = (p: "bottom" | "right") => change("Terminal position", (c) => { c.terminal.position = p; });
 export const setPropertiesView = (v: PropertiesView) => change("Properties", (c) => { c.editor.properties = v; });
 
-// Zoom: the four text sizes move together, each inside its own range (config.rs); reset = the defaults.
-const SIZES: { get: (c: WorkspaceConfig) => number; set: (c: WorkspaceConfig, n: number) => void; min: number; max: number }[] = [
-  { get: (c) => c.ui.font_size, set: (c, n) => { c.ui.font_size = n; }, min: 10, max: 22 },
-  { get: (c) => c.editor.code_font_size, set: (c, n) => { c.editor.code_font_size = n; }, min: 9, max: 28 },
-  { get: (c) => c.editor.prose_font_size, set: (c, n) => { c.editor.prose_font_size = n; }, min: 10, max: 28 },
-  { get: (c) => c.terminal.font_size, set: (c, n) => { c.terminal.font_size = n; }, min: 9, max: 24 },
-];
-/** `step` px larger or smaller; 0 = back to the default sizes. */
-export const zoom = (step: -1 | 0 | 1) => change("Zoom", (c) => {
-  const d = settings.defaults;
-  for (const s of SIZES) s.set(c, step === 0 && d ? s.get(d) : Math.min(s.max, Math.max(s.min, s.get(c) + step)));
-});
-
 /** Detected choices (fonts, snippet files, themes) — slow to compute, fetched by Settings only. */
 export async function loadSuggestions(): Promise<void> {
   settings.suggestions = await api.configSuggestions();

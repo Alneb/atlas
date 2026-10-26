@@ -141,7 +141,7 @@ export interface Placed { page: string; title: string; icon: IconName; blurb: st
 
 /** Places every schema leaf on a page: explicit paths first, then `section.*`, then a page per
  *  unclaimed section (titled from its key) and "General" for unclaimed top-level fields. */
-export function placeFields(leaves: string[], host: SettingsHost = "app"): Placed[] {
+export function placeFields(leaves: string[], host: SettingsHost = "app", titleOf: (section: string) => string = (s) => s): Placed[] {
   const shown = PAGES.filter((p) => !p.only || p.only.includes(host));
   const placed: Placed[] = shown.map((p) => ({ page: p.id, title: p.title, icon: p.icon, blurb: p.blurb, fields: [], plugin: p.plugin }));
   const byId = new Map(placed.map((p) => [p.page, p]));
@@ -160,7 +160,7 @@ export function placeFields(leaves: string[], host: SettingsHost = "app"): Place
     const sec = l.includes(".") ? l.split(".")[0] : "general";
     let p = byId.get(sec);
     if (!p) {
-      p = { page: sec, title: sec === "general" ? "General" : human(sec), icon: "settings", blurb: "", fields: [] };
+      p = { page: sec, title: sec === "general" ? "General" : titleOf(sec), icon: "settings", blurb: "", fields: [] };
       placed.push(p);
       byId.set(sec, p);
     }
@@ -171,30 +171,6 @@ export function placeFields(leaves: string[], host: SettingsHost = "app"): Place
 }
 
 export const pageDef = (id: string) => PAGES.find((p) => p.id === id);
-// acronyms and names keep their casing in labels ("vscode_theme" → "VS Code theme")
-const WORDS: Record<string, string> = { eink: "e-ink", oidc: "OpenID", vscode: "VS Code", ui: "UI", lsp: "LSP", pdf: "PDF", svg: "SVG", gpu: "GPU", css: "CSS", url: "URL", bib: "BibTeX", rnote: "Rnote", latex: "LaTeX" };
-/** Labels that read better than their key. */
-const LABELS: Record<string, string> = { ui_font: "Interface font", font_size: "Text size", min_size: "Minimum size", off: "Switched off",
-  index_exclude: "Agent files (kept apart from your notes)", side_panel: "Side panel: where it sits", restore_layout: "Reopen the last tabs at start",
-  tab_preview: "Preview a tab on hover", link_preview: "Preview a link on hover", tab_switcher: "Ctrl+Tab", libraries: "Libraries shown", properties: "Properties", properties_spec: "Property spec (file)",
-  dir: "Folder", templates: "Templates folder", template_rules: "Templates by name or folder", default_template: "Default template (a plain note starts from it)", strict_line_breaks: "Strict line breaks" };
-export const human = (k: string) => LABELS[k] ?? k.split("_").map((w, i) => WORDS[w] ?? (i ? w : w.replace(/^./, (c) => c.toUpperCase()))).join(" ");
-/** Labels of one field, where its key alone is vague or would collide ("dir" is the notes' and the drawings' folder). */
-const FIELD_LABELS: Record<string, string> = {
-  log_dir: "Daily log folder", log_folders: "Daily logs filed in (YYYY/MM-MMMM)", log_template: "Daily log template", "notes.dir": "Notes folder", "draw.dir": "Drawings folder",
-  "notes.capture": "Capture writes", "notes.inbox": "Inbox folder (fleeting notes)", "notes.capture_template": "Fleeting note template", "notes.capture_thumbnail": "Captured pictures in the log, width (px)",
-  "editor.live": "Live editing between devices", "editor.code_bar": "Tool bar above code files", "editor.task_chips": "Task dates as chips",
-  "activity.show_claude": "AI agents' commits", "activity.show_housekeeping": "Housekeeping commits", "activity.group_threshold": "Group a folder's changes from",
-  "plugins.oidc_issuer": "Sign-in provider (OpenID Connect)", "plugins.oidc_client_id": "Sign-in client id", "plugins.oidc_redirect": "Sign-in return address",
-  "ui.eink": "E-ink screen", "ui.eink_refresh": "E-ink full refresh", "terminal.min_size": "Terminal's smallest size (px)",
-  "lsp.c": "C / C++ server", "lsp.rust": "Rust server", "lsp.python": "Python server", "lsp.latex": "LaTeX server", "lsp.language": "Servers' message language", "lsp.inlay_hints": "Inlay hints", "lsp.python_env": "Python environment",
-  "latex.snippets": "Snippets while typing math", "latex.snippets_file": "Snippets file", "latex.variables_file": "Snippet variables file",
-  "draw.page_format": "A new drawing's pages",
-  "web.open_links": "Web links open in", "pdf.export_on_save": "Export annotations on save",
-};
-/** A field's label from its dotted path. */
-export const fieldLabel = (path: string) => FIELD_LABELS[path] ?? human(path.split(".").pop() ?? path);
-
 /** How a string field is edited, from its name (shape-based: new fields get the right control). */
 export type StringKind = "colour" | "folder" | "file" | "plain";
 export function stringKind(path: string): StringKind {

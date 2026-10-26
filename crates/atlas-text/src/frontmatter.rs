@@ -45,11 +45,60 @@ pub fn parse_cell(text: &str, list: bool) -> Value {
     }
 }
 
+/// Where a note's frontmatter is: the YAML between the fences, and where the body starts (after the closing fence's
+/// line), as byte offsets of `text`. The opening fence is the first line (after a BOM); the closing one is the next line
+/// that is `---` (or YAML's `...`) alone, trailing spaces allowed; CRLF line ends count. None: no frontmatter, or one
+/// never closed. The UI reads it the same way (property-model.ts `frontmatterOf`).
+fn fences(text: &str) -> Option<(std::ops::Range<usize>, usize)> {
+    let bom = if text.starts_with('\u{feff}') { '\u{feff}'.len_utf8() } else { 0 };
+    let t = &text[bom..];
+    let open = if t.starts_with("---\n") { 4 } else if t.starts_with("---\r\n") { 5 } else { return None };
+    let start = bom + open;
+    let mut at = start;
+    loop {
+        let end = text[at..].find('\n').map_or(text.len(), |i| at + i);
+        if matches!(text[at..end].trim_end(), "---" | "...") {
+            return Some((start..at, (end + 1).min(text.len())));
+        }
+        if end == text.len() {
+            return None;
+        }
+        at = end + 1;
+    }
+}
+
+/// A note split at its frontmatter: the YAML between the fences (None when it has none) and the body after them.
+/// The one reader of the fences, for the core and the plugin engines alike.
+pub fn split(text: &str) -> (Option<&str>, &str) {
+    match fences(text) {
+        Some((yaml, body)) => (Some(&text[yaml]), &text[body..]),
+        None => (None, text),
+    }
+}
+
+/// Where the frontmatter's YAML is in `text` (byte offsets), for an edit in place; None without one.
+pub fn yaml_range(text: &str) -> Option<std::ops::Range<usize>> {
+    fences(text).map(|(r, _)| r)
+}
+
+/// The frontmatter's YAML of a file read only in part (its first kilobytes): up to the closing fence, or to the end of
+/// what was read when the fence lies past it. None: the text does not open with a frontmatter.
+pub fn yaml_head(text: &str) -> Option<&str> {
+    if let (Some(yaml), _) = split(text) {
+        return Some(yaml);
+    }
+    let t = text.strip_prefix('\u{feff}').unwrap_or(text);
+    t.strip_prefix("---\n").or_else(|| t.strip_prefix("---\r\n"))
+}
+
+/// The frontmatter as a YAML mapping (empty when there is none or it does not read as one).
+pub fn mapping(text: &str) -> serde_yaml::Mapping {
+    split(text).0.and_then(|y| serde_yaml::from_str::<Value>(y).ok()).and_then(|v| v.as_mapping().cloned()).unwrap_or_default()
+}
+
 /// The frontmatter's body (between the fences) as a byte range of `text`, when the note has one.
 fn body_range(text: &str) -> Option<(usize, usize)> {
-    let rest = text.strip_prefix("---\n")?;
-    let end = rest.find("\n---").map(|i| i + 1).or_else(|| rest.starts_with("---").then_some(0))?;
-    Some((4, 4 + end))
+    fences(text).map(|(r, _)| (r.start, r.end))
 }
 
 /// A top-level `key:` line (not a list item, not an indented continuation).
@@ -112,3 +161,22 @@ pub fn has_property(text: &str, key: &str) -> bool {
     body_range(text).is_some_and(|(a, b)| key_block(&text[a..b], key).is_some())
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn one_reader_of_the_fences_for_every_spelling() {
+        assert_eq!(split("---\ntitle: x\n---\nbody\n"), (Some("title: x\n"), "body\n"));
+        assert_eq!(split("\u{feff}---\r\ntitle: x\r\n---\r\nbody"), (Some("title: x\r\n"), "body"), "a BOM, CRLF");
+        assert_eq!(split("---\n---\nbody"), (Some(""), "body"), "an empty one");
+        assert_eq!(split("---\na: 1\n---"), (Some("a: 1\n"), ""), "nothing after it");
+        assert_eq!(split("---\na: 1\n----\nb: 2\n---\nbody"), (Some("a: 1\n----\nb: 2\n"), "body"), "only `---` alone closes it");
+        assert_eq!(split("---\na: 1\n... \nbody"), (Some("a: 1\n"), "body"), "YAML's own end, as the UI reads it");
+        assert_eq!(split("---\na: 1\nnever closed"), (None, "---\na: 1\nnever closed"));
+        assert_eq!(split("text\n---\n"), (None, "text\n---\n"));
+        assert_eq!(mapping("---\r\ntags: [a]\r\n---\r\n").get("tags").and_then(Value::as_sequence).map(Vec::len), Some(1));
+        assert!(mapping("---\n: : bad\n---\n").is_empty());
+        assert_eq!(set_property("\u{feff}---\r\na: 1\r\n---\r\nbody", "b", &Value::from(2)), "\u{feff}---\r\na: 1\r\nb: 2\n---\r\nbody");
+    }
+}

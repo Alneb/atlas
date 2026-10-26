@@ -1697,3 +1697,133 @@ pub struct PropertySpecs {
     /// What could not be read (an unknown kind, a YAML error); the rest is still used.
     pub problems: Vec<String>,
 }
+
+/// Settings → Server: how this core serves itself (`GET /api/server`, docs/guides/SERVER.md).
+#[derive(Debug, Clone, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct ServerState {
+    pub serving: bool,
+    pub port: u16,
+    pub options: ServerOptions,
+    pub has_password: bool,
+    #[ts(type = "number")]
+    pub sessions: usize,
+    /// Why the server can't serve yet (no password set for password sign-in, …).
+    pub not_ready: Option<String>,
+    pub tokens: Vec<IssuedToken>,
+    pub files: ServerFiles,
+}
+
+/// The server's settings Settings edits (`PUT /api/server/options`).
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct ServerOptions {
+    pub auth: crate::auth::AuthMode,
+    #[serde(default)]
+    pub trusted_proxies: Vec<String>,
+    /// The proxy's header naming the user; empty = `Remote-User`.
+    #[serde(default)]
+    pub remote_user_header: String,
+    #[serde(default)]
+    pub allow_plain_http: bool,
+    #[serde(default)]
+    pub mcp: bool,
+}
+
+/// Where the server keeps its settings and its sessions/tokens, shown so they can be found.
+#[derive(Debug, Clone, Serialize, TS)]
+#[ts(export)]
+pub struct ServerFiles {
+    pub settings: String,
+    pub state: String,
+}
+
+/// A device's or an agent's token as listed (never the token itself). `scope` is a device's only.
+#[derive(Debug, Clone, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct IssuedToken {
+    pub name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub scope: Option<crate::auth::Scope>,
+    #[ts(type = "number")]
+    pub created: u64,
+    #[ts(type = "number | null")]
+    pub last_used: Option<u64>,
+}
+
+impl IssuedToken {
+    pub fn of(t: &crate::auth::Token, with_scope: bool) -> Self {
+        Self { name: t.name.clone(), scope: with_scope.then_some(t.scope), created: t.created, last_used: t.last_used }
+    }
+}
+
+/// Settings → Agents (`GET /api/agents`).
+#[derive(Debug, Clone, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct AgentsState {
+    pub agents: Vec<IssuedToken>,
+    pub locked: bool,
+    pub file: String,
+    pub terminals: bool,
+    pub terminal_agent: String,
+}
+
+/// How a request got in (`GET /api/auth/me`).
+#[derive(Debug, Clone, Copy, Serialize, TS)]
+#[serde(rename_all = "lowercase")]
+#[ts(export)]
+pub enum Via {
+    Password,
+    Proxy,
+    Token,
+}
+
+/// Who this window is to the server; `server: false` when the core serves only its own machine.
+#[derive(Debug, Clone, Default, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct Me {
+    pub server: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub via: Option<Via>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub user: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub device: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub scope: Option<crate::auth::Scope>,
+    /// The sign-out button works (a password session); a proxy's or a token's can't be signed out here.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub sign_out: Option<bool>,
+}
+
+/// What a capture's text will become, said before it is sent (`POST /api/capture/describe`): every capture box's hint.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, TS)]
+#[ts(export)]
+pub struct CaptureHint {
+    /// A to-do in capture's short forms (its text perhaps still being typed): the boxes offer the task fields.
+    pub task: bool,
+    /// The day it names (`@fri`, `📅 2026-10-30`), `YYYY-MM-DD`.
+    pub due: Option<String>,
+    /// In words: "a to-do, due tomorrow", "a line in today's log · catalogued as a film".
+    pub says: String,
+}
+
+/// A day word the boxes offer after `@`, and the day it names today (`GET /api/capture/days`).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, TS)]
+#[ts(export)]
+pub struct CaptureDay {
+    pub word: String,
+    /// `YYYY-MM-DD`.
+    pub date: String,
+}

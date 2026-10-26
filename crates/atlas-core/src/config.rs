@@ -982,8 +982,12 @@ impl Config {
     }
 
     /// JSON schema (titles, descriptions, enums, ranges) that the Settings pane renders.
+    /// The config's JSON schema, with what Settings shows on every client: labels, choices' labels, hosts
+    /// (settings_layout.rs).
     pub fn schema() -> serde_json::Value {
-        serde_json::to_value(schemars::schema_for!(Config)).unwrap_or_default()
+        let mut s = serde_json::to_value(schemars::schema_for!(Config)).unwrap_or_default();
+        crate::settings_layout::annotate(&mut s);
+        s
     }
 
     /// Writes only the keys whose value changed, into the existing file, keeping its comments and

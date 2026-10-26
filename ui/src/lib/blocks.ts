@@ -23,6 +23,7 @@ import { BUILTIN_FIELDS, ROW_VIEW_FIELDS, type OptionField } from "./block-optio
 import type { ViewRow } from "./gen/ViewRow";
 import { lineOf, scopeAt, type Props } from "./section-props";
 import TodayParts, { type TodayPart } from "../components/TodayParts.svelte";
+import { IMAGE_RE } from "./paths";
 
 /** Where a block is drawn: inside a note, on a page, alone in a tab, or in the sidebar. */
 export type BlockHost = "note" | "page" | "tab" | "side";
@@ -131,7 +132,7 @@ const PANE_BLOCK_TYPE: Partial<Record<PaneKind, string>> = { search: "search-pan
 export const paneBlockType = (kind: PaneKind) => PANE_BLOCK_TYPE[kind] ?? kind;
 // pane kinds that show a file, and which files (asked for when the block is added by hand)
 const PANE_FILES: Partial<Record<PaneKind, RegExp | true>> = {
-  editor: true, pdf: /\.pdf$/i, image: /\.(png|jpe?g|gif|svg|webp|avif|bmp)$/i, table: /\.(tsv|csv|tab|dat|txt)$/i,
+  editor: true, pdf: /\.pdf$/i, image: IMAGE_RE, table: /\.(tsv|csv|tab|dat|txt)$/i,
   page: /\.page$/i, excalidraw: /\.excalidraw(\.md)?$/i,
 };
 const EMBED_HEIGHT = 420;

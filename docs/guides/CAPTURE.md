@@ -151,5 +151,6 @@ capture the phone made reaches the desktop — and the next Atlas to serve the v
 The status line under the text says, as it is typed, what the catalog will file — "a line in today's log · catalogued
 as a film" (an album, a paper, a web page…): the vault's catalog plugins' own `recognize` patterns, matched in the box
 at once (`atlas_core::catalog_hint`, read again every 30 s; nothing asked of any service). Plain words get no mention.
-The phone's box takes "what it becomes" from the same Rust code through JNI (`crates/atlas-android/src/phone.rs`): it
-still calls `complete::what_it_becomes` alone — to switch to the catalog-aware line there (the Android lane).
+Every box takes this line from one place, `atlas_core::capture::describe`: the desktop box and the web (`POST
+/api/capture/describe`) with the vault's settings; the phone through JNI (`crates/atlas-android/src/phone.rs`) still
+without its vault, so without the catalog's kind (the Android lane).

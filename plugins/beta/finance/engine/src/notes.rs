@@ -233,9 +233,7 @@ impl Notes {
 }
 
 pub fn frontmatter(text: &str) -> Option<&str> {
-    let rest = text.strip_prefix("---\n").or_else(|| text.strip_prefix("---\r\n"))?;
-    let end = rest.find("\n---").map(|i| i + 1)?;
-    Some(&rest[..end])
+    atlas_text::frontmatter::split(text).0
 }
 
 /// A top-level property's values (one or a list), as `set_property` finds it.

@@ -6,7 +6,7 @@ import type { StateInline, StateBlock, StateCore } from "markdown-it";
 import { mathToString } from "./math";
 import { highlightToHtml, onHighlightLanguage } from "./highlight";
 import DOMPurify from "dompurify";
-import { resolveRel, shownName } from "./paths";
+import { resolveRel, shownName, IMAGE_RE } from "./paths";
 import { onVaultChange, resolveLink, resolveOrBeside } from "./vault";
 import { onSettings } from "./settings.svelte";
 import { wikilinkAt } from "./wikilink-syntax";
@@ -14,7 +14,6 @@ import { wikilinkAt } from "./wikilink-syntax";
 export { resolveRel };
 
 const esc = escapeHtml;
-const IMAGE_EXT = /\.(png|jpe?g|gif|svg|webp|avif|bmp)$/i;
 
 // --- math: $…$ inline, $$…$$ block (pandoc-ish rules: no space inside the delimiters) ----------
 function mathInline(state: StateInline, silent: boolean): boolean {
@@ -254,7 +253,7 @@ function build() {
   r.wiki_embed = (t, i, _o, env) => {
     const { target, alias } = t[i].meta as { target: string; alias?: string };
     const path = target.split("#")[0].trim();
-    if (IMAGE_EXT.test(path)) {
+    if (IMAGE_RE.test(path)) {
       // `|600`, `|600x400` (Obsidian sizes) and `|center` (this vault's CSS snippet) after the target
       const opts = (alias ?? "").split("|").map((p) => p.trim());
       const width = opts.map((p) => /^(\d+)(?:x\d+)?$/.exec(p)?.[1]).find(Boolean);

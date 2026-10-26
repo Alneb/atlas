@@ -2,7 +2,7 @@
 import type { HeaderValue } from "./HeaderValue";
 import type { SaveIn } from "./SaveIn";
 
-export type FetchRequest = { url: string, method?: string, headers: { [key in string]: HeaderValue }, body?: string, timeout_secs?: bigint, 
+export type FetchRequest = { url: string, method?: string, headers?: { [key in string]: HeaderValue }, body?: string, timeout_secs?: number, 
 /**
  * Write the answer's body to this file of the plugin's cache (`.atlas/cache/plugins/<id>/<save_to>`)
  * instead of returning it as text: pictures, PDFs, anything large. The path comes back in `saved`.

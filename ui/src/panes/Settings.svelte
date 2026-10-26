@@ -7,8 +7,8 @@
   import { settings, loadSuggestions } from "../lib/settings.svelte";
   import { openPath } from "../lib/dock";
   import { load, save } from "../lib/prefs";
-  import { leaves, sectionDescription, isModified } from "../lib/settings-schema";
-  import { placeFields, hostOf, fieldLabel, pageDef } from "../lib/settings-pages";
+  import { leaves, sectionDescription, isModified, fieldTitle, sectionTitle, shownOn } from "../lib/settings-schema";
+  import { placeFields, hostOf, pageDef } from "../lib/settings-pages";
   import { nativeShell } from "../lib/native-shell.svelte";
   import { apiBase } from "../lib/api";
   import { me, loadMe } from "../lib/me.svelte";
@@ -38,7 +38,9 @@
   let search = $state<HTMLInputElement>();
 
   const fields = $derived.by(() => { void settings.schema; return leaves(); });
-  const pages = $derived(placeFields([...fields.keys()], hostOf({ server: !!me.info?.server, phone: nativeShell.on, path: apiBase() })));
+  const host = $derived(hostOf({ server: !!me.info?.server, phone: nativeShell.on, path: apiBase() }));
+  // a setting that does nothing here (a terminal's on the phone) is not offered (its `x-hosts`)
+  const pages = $derived(placeFields([...fields].filter(([, s]) => shownOn(s, host)).map(([p]) => p), host, sectionTitle));
   // each plugin with settings is a page of its own, under the core's (components/settings/PluginPage.svelte)
   const pluginPages = $derived(plugins.list.filter((p) => p.fields.length).sort((a, b) => a.title.localeCompare(b.title)));
   const builtinPages = $derived(pages.filter((p) => p.plugin));
@@ -75,7 +77,7 @@
         .filter((a) => words.every((w) => a.title.toLowerCase().includes(w)));
       const opts = p.fields.filter((path) => {
         const s = fields.get(path);
-        const hay = `${fieldLabel(path)} ${path} ${s?.description ?? ""} ${sectionDescription(path.split(".")[0])} ${p.title}`.toLowerCase();
+        const hay = `${fieldTitle(path)} ${path} ${s?.description ?? ""} ${sectionDescription(path.split(".")[0])} ${p.title}`.toLowerCase();
         return words.every((w) => hay.includes(w));
       });
       return opts.length || feats.length ? [{ page: p, opts, feats }] : [];

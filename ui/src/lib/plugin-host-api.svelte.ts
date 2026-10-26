@@ -1,7 +1,7 @@
 // What a plugin is handed (`register(atlas)`, a pane's `api`): the PluginApi of plugin-api.ts, built for one plugin.
 // Every registration goes through `own`, so it is undone when the plugin reloads or is switched off.
 import { mount, unmount } from "svelte";
-import { parse as parseYaml } from "yaml";
+import { frontmatterOf } from "./property-model";
 import type { Extension } from "@codemirror/state";
 import * as cmState from "@codemirror/state";
 import * as cmView from "@codemirror/view";
@@ -61,9 +61,7 @@ const snapshot = () => $state.snapshot(context);
 
 export async function noteProps(path: string): Promise<Record<string, unknown>> {
   const text = (await api.file(path)).text;
-  const m = /^---\r?\n([\s\S]*?)\r?\n---/.exec(text);
-  const v = m ? parseYaml(m[1]) : null;
-  return v && typeof v === "object" ? (v as Record<string, unknown>) : {};
+  return frontmatterOf(text)?.data ?? {};
 }
 
 /** What a plugin hands `atlas.files.source`: a FileSource without its id (the plugin's) and with any icon name. */

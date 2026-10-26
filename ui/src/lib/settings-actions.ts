@@ -6,12 +6,12 @@ import { openPath } from "./dock";
 import { homeDoc } from "./actions";
 import { SNIPPET_TEMPLATE } from "./css-snippets.svelte";
 import { toast } from "./state.svelte";
+import { slug } from "./paths";
 
-const slug = (name: string) => name.trim().toLowerCase().replace(/\.css$/i, "").replace(/[^\w.-]+/g, "-").replace(/^-+|-+$/g, "");
 const fail = (what: string) => (e: unknown) => toast(what, errText(e), "error");
 
 export async function newSnippet(name: string): Promise<void> {
-  const file = `.atlas/snippets/${slug(name) || "snippet"}.css`;
+  const file = `.atlas/snippets/${slug(name.replace(/\.css$/i, "")) || "snippet"}.css`;
   try { await api.putFile(file, SNIPPET_TEMPLATE); openPath(file); } catch (e) { fail("Could not create the snippet")(e); }
 }
 
@@ -29,7 +29,7 @@ export default function mount(host, atlas) {
 `;
 
 export async function newPlugin(name: string): Promise<void> {
-  const id = slug(name).replace(/\./g, "-") || "my-plugin"; // plugin ids: letters, digits, - and _
+  const id = slug(name) || "my-plugin"; // plugin ids: letters, digits, - and _
   const dir = `.atlas/plugins/${id}`;
   const toml = `# A workspace plugin: only \`title\` is required (docs/guides/PLUGINS.md).\ntitle = ${JSON.stringify(name.trim() || id)}\ndescription = "what it shows, in one line"\nicon = "plugin"\n# keys = "Ctrl+Alt+P"\n# data = "python3 \\"$ATLAS_PLUGIN_DIR/data.py\\""\n\n# Where it runs: works, untested or no, per platform (linux, macos, windows, android, server); unnamed: untested.\n# phone = true  # starts in the phone app too\n[platforms]\nlinux = "untested"\n`;
   try {
@@ -68,7 +68,7 @@ export function register(atlas) {
 
 /** "New block from a template": a plugin folder with one block, opened ready to edit. */
 export async function newBlock(name: string): Promise<void> {
-  const id = slug(name).replace(/\./g, "-") || "my-block";
+  const id = slug(name) || "my-block";
   const dir = `.atlas/plugins/${id}`, type = `${id}.block`, title = name.trim() || id;
   const toml = `# A workspace plugin with one block, \`${type}\` (docs/guides/PLUGINS.md).\ntitle = ${JSON.stringify(title)}\ndescription = "what the block shows, in one line"\nicon = "plugin"\n\n# A setting: Settings → Plugins shows a form for it; the code reads atlas.plugin.settings.greeting.\n# kind: text, number, toggle, list or choice (with choices = [...]).\n[[setting]]\nkey = "greeting"\nlabel = "Greeting"\nkind = "text"\nhint = "what the block says when the page gives it no text"\ndefault = "Hello"\n\n# Where it runs: works, untested or no, per platform (linux, macos, windows, android, server); unnamed: untested.\n[platforms]\nlinux = "untested"\n`;
   try {

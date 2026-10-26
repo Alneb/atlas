@@ -26,10 +26,8 @@ pub fn merge(note: &str, template: &str) -> Merged {
 
 /// `(frontmatter body, the rest)`; no frontmatter: `("", text)`.
 fn split(text: &str) -> (&str, &str) {
-    let Some(rest) = text.strip_prefix("---\n") else { return ("", text) };
-    let Some(end) = rest.find("\n---") else { return ("", text) };
-    let after = &rest[end + 4..];
-    (&rest[..end + 1], after.strip_prefix('\n').unwrap_or(after))
+    let (yaml, body) = crate::frontmatter::split(text);
+    (yaml.unwrap_or(""), body)
 }
 
 fn merge_properties(note: &str, template: &str, added: &mut Vec<String>) -> String {

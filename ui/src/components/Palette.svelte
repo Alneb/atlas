@@ -16,7 +16,7 @@
   import { basename, shownName, shownPath } from "../lib/paths";
   import { toast } from "../lib/state.svelte";
   import { complete } from "../lib/textarea-complete";
-  import { captureHint, sayDay } from "../lib/capture-hints";
+  import { captureHint } from "../lib/capture-hints.svelte";
   import Icon from "./Icon.svelte";
 
   /** `beside`: what Ctrl+Enter does instead (a file opens next to the active tab, not over it). */
@@ -69,10 +69,9 @@
     // "commands only" prefix) — it answered "No matches" before
     if (palette.open && palette.mode === "files" && palette.q.startsWith(">")) palette.mode = "all";
   });
-  const captureWhat = (text: string) => {
-    const h = captureHint(text);
-    return `${h.task ? "a to-do" : "a line in today's log"}${h.due ? `${h.task ? ", due " : " · mentions "}${sayDay(h.due)}` : ""}`;
-  };
+  // the capture row's words (the core's), asked only while a capture row can show
+  const captureHintNow = captureHint(() => (palette.open && (palette.mode === "capture" || palette.mode === "all") && !q.trim().startsWith(">") ? q.trim() : ""));
+  const captureWhat = () => captureHintNow.current.says;
   const captureNow = (text: string) => void api.capture(text).then((r) => toast("Captured", `${shownPath(r.path)}:${r.line}`, "success"), (e) => toast("Not captured", errText(e), "error"));
 
   // file search (server-side filename match), debounced
@@ -122,7 +121,7 @@
     const query = q.trim();
     switch (palette.mode) {
       case "capture":
-        return query ? [{ key: "cap", section: "", title: `Capture “${query}”`, detail: captureWhat(query), icon: "plus", score: 0, hl: [], run: () => captureNow(query) }] : [];
+        return query ? [{ key: "cap", section: "", title: `Capture “${query}”`, detail: captureWhat(), icon: "plus", score: 0, hl: [], run: () => captureNow(query) }] : [];
       case "url": {
         if (!query) return [];
         const url = /^[a-z]+:\/\//i.test(query) ? query : `http://${query}`;
@@ -170,7 +169,7 @@
         // search has answered: before, the capture row was the only one, and an Enter typed early wrote a file's name
         // into today's log instead of opening the file
         const capture: Item[] = query && !query.startsWith(">") && answered === query ? [{
-          key: "cap", section: "Capture", title: `Capture “${query}”`, detail: `${captureWhat(query)} — or start with + to capture with completions`, icon: "plus", score: -2, hl: [],
+          key: "cap", section: "Capture", title: `Capture “${query}”`, detail: `${captureWhat()} — or start with + to capture with completions`, icon: "plus", score: -2, hl: [],
           run: () => captureNow(query),
         }] : [];
         return query ? [...cmds.slice(0, 8), ...heads, ...files, ...lines, ...capture] : [...files, ...cmds];

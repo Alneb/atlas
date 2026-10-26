@@ -1,7 +1,10 @@
 //! The usage journal (docs/guides/MALLEABLE.md R5): what the user does in Atlas — files opened, searches acted
 //! on, commands run — appended to `.atlas/cache/usage.jsonl` (derived, local, rebuildable by just
-//! using Atlas; capped). The toolsmith's miners read it (`suggest.rs`); nothing else does.
+//! using Atlas; capped). The toolsmith's miners read it (`suggest.rs`), and it is the one record of the files opened
+//! lately ([`opened`]: the palette's recent files, the `[[` list's ranking, the phone's Home).
+use crate::config::Config;
 use crate::{Result, Workspace};
+use std::path::Path;
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
@@ -48,27 +51,41 @@ pub fn record_at(ws: &Workspace, event: UsageEvent, t: i64) -> Result<()> {
 
 /// Every readable entry, oldest first (a malformed line is skipped, never fatal).
 pub fn read(ws: &Workspace) -> Vec<Entry> {
-    std::fs::read_to_string(ws.root().join(JOURNAL))
+    read_at(ws.root())
+}
+
+fn read_at(root: &Path) -> Vec<Entry> {
+    std::fs::read_to_string(root.join(JOURNAL))
         .unwrap_or_default()
         .lines()
         .filter_map(|l| serde_json::from_str(l).ok())
         .collect()
 }
 
-/// The phone's Home (`GET /api/recent`): the user's files opened lately, newest first, then the ones changed lately to fill
-/// up to `limit`. Gone files and the agent's own (`editor.index_exclude`) are left out.
-pub fn recent(ws: &Workspace, limit: usize) -> Result<Vec<String>> {
-    let cfg = ws.config()?;
+/// The user's files opened lately, newest first, once each, at most `limit`; gone files and the agent's own
+/// (`editor.index_exclude`) left out.
+pub fn opened(root: &Path, cfg: &Config, limit: usize) -> Vec<String> {
     let mut out: Vec<String> = Vec::new();
-    for e in read(ws).into_iter().rev() {
+    for e in read_at(root).into_iter().rev() {
         if out.len() >= limit {
-            return Ok(out);
+            break;
         }
         if let UsageEvent::Open { path } = e.event {
-            if !out.contains(&path) && !cfg.is_agent_file(&path) && ws.root().join(&path).is_file() {
+            if !out.contains(&path) && !cfg.is_agent_file(&path) && root.join(&path).is_file() {
                 out.push(path);
             }
         }
+    }
+    out
+}
+
+/// The files to come back to (`GET /api/recent`: the palette, the phone's Home): [`opened`], then the ones changed
+/// lately to fill up to `limit`.
+pub fn recent(ws: &Workspace, limit: usize) -> Result<Vec<String>> {
+    let cfg = ws.config()?;
+    let mut out = opened(ws.root(), &cfg, limit);
+    if out.len() >= limit {
+        return Ok(out);
     }
     let mut changed: Vec<(std::time::SystemTime, String)> = crate::walk::files(ws.root(), &cfg)
         .filter(|(_, rel)| !cfg.is_agent_file(rel) && !out.contains(rel))

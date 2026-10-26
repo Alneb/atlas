@@ -17,9 +17,9 @@ fn running() -> &'static Mutex<HashMap<PathBuf, (u16, atlas_core::server::Server
     R.get_or_init(Default::default)
 }
 
-/// `{port, open}` of the vault's server (started now if it is not running), or `{error}`. The server is locked to this
-/// app (local_lock.rs: every app on a phone reaches 127.0.0.1); `open` is a fresh one-time address that gives the
-/// app's WebView the key's cookie. `home`: the app's own folder, Atlas's
+/// `{port, open, key}` of the vault's server (started now if it is not running), or `{error}`. The server is locked to
+/// this app (local_lock.rs: every app on a phone reaches 127.0.0.1); `open` is a fresh one-time address that gives the
+/// app's WebView the key's cookie, `key` what the app's native screens send (`x-atlas-token`) on their own calls. `home`: the app's own folder, Atlas's
 /// home there (its settings, the list of vaults, caches) — a phone has no `$HOME` an app may write. `env`: what the
 /// plugin helpers the core starts need (PATH with `python3` and the helpers, PYTHONHOME; the app's Helpers.java).
 pub fn serve(vault: &Path, home: &Path, env: &Value) -> Value {
@@ -27,7 +27,7 @@ pub fn serve(vault: &Path, home: &Path, env: &Value) -> Value {
     static STARTING: Mutex<()> = Mutex::new(());
     let _one = STARTING.lock().unwrap_or_else(|e| e.into_inner());
     if let Some((port, h)) = running().lock().unwrap().get(vault) {
-        return json!({ "port": port, "open": h.open_url() });
+        return json!({ "port": port, "open": h.open_url(), "key": h.key() });
     }
     // the environment once, before the first server's threads exist (set_var with threads running is undefined
     // behaviour); every later call passes the same app folder and helpers
@@ -47,9 +47,9 @@ pub fn serve(vault: &Path, home: &Path, env: &Value) -> Value {
     let locked = atlas_core::server::Listen::Local(0, atlas_core::local_lock::Lock::Locked { fixed: None });
     match runtime().block_on(atlas_core::server::serve_on(vault.to_path_buf(), locked)) {
         Ok(h) => {
-            let (port, open) = (h.port(), h.open_url());
+            let (port, open, key) = (h.port(), h.open_url(), h.key().map(String::from));
             running().lock().unwrap().insert(vault.to_path_buf(), (port, h));
-            json!({ "port": port, "open": open })
+            json!({ "port": port, "open": open, "key": key })
         }
         Err(e) => json!({ "error": format!("{e:#}") }),
     }

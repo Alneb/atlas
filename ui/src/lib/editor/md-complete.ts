@@ -13,6 +13,7 @@ import { mathMode } from "./latex-suite";
 import type { LinkTarget, Paper } from "../types";
 import { settings } from "../settings.svelte";
 import { localDay } from "../local-day";
+import { splitFrontmatter } from "../property-model";
 
 
 /** Enter in a list: the next item's marker; on an empty item, the list ends (Obsidian). CodeMirror's
@@ -107,7 +108,7 @@ async function preview(path: string): Promise<Node> {
   const text = await api.file(path).then((f) => f.text, () => "");
   const el = document.createElement("div");
   el.className = "cm-link-preview";
-  el.textContent = text.replace(/^---\n[\s\S]*?\n---\n/, "").trim().slice(0, 600) || "(empty)";
+  el.textContent = splitFrontmatter(text).body.trim().slice(0, 600) || "(empty)";
   return el;
 }
 

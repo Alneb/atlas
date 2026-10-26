@@ -10,8 +10,6 @@ use std::path::Path;
 use std::time::SystemTime;
 
 pub const MAX_TARGETS: usize = 50;
-/// The UI's recently opened files (lib/recent.ts), most recent first.
-const RECENT_FILE: &str = ".atlas/cache/recent.json";
 /// A query this short (or empty) says little: dated notes wait below every other match.
 const SHORT_QUERY: usize = 3;
 /// Fewer letters than this never match fuzzily (too loose to mean anything).
@@ -172,14 +170,10 @@ fn useful(note: bool, opened: Option<usize>, near: bool, incoming: u32, age_days
     (note + opened + near + linked + fresh).round() as u32
 }
 
-fn recent_opened(root: &Path) -> Vec<String> {
-    std::fs::read_to_string(root.join(RECENT_FILE)).ok().and_then(|t| serde_json::from_str(&t).ok()).unwrap_or_default()
-}
-
 pub fn targets(root: &Path, cfg: &Config, q: &str, from: Option<&str>) -> Vec<LinkTarget> {
     let snap = crate::links::snapshot(root, cfg);
     let stats = snap.link_stats(from);
-    let opened = recent_opened(root);
+    let opened = crate::usage::opened(root, cfg, 40); // past 40 places an opening earns no points (`useful`)
     let query = Query::new(q);
     let short = query.q.chars().count() <= SHORT_QUERY;
     let now = SystemTime::now();
@@ -361,7 +355,8 @@ mod tests {
             ("x.md", "[[plan c]]"),
             ("y.md", "[[plan c]] [[plan c]]"),
             ("z.md", "[[plan c]]"),
-            (RECENT_FILE, r#"["plan b.md", "gone.md"]"#),
+            // the usage journal (usage.rs), oldest first
+            (crate::usage::JOURNAL, "{\"t\":1,\"kind\":\"open\",\"path\":\"gone.md\"}\n{\"t\":2,\"kind\":\"open\",\"path\":\"plan b.md\"}\n"),
         ]);
         let got: Vec<String> = targets(d.path(), &Config::default(), "plan", None).into_iter().map(|t| t.link).collect();
         assert_eq!(got, ["plan b", "plan c", "plan a"], "opened, then linked to by three notes");

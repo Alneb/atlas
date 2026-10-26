@@ -13,9 +13,10 @@ export const WIKI = /^\[\[([^\]|]+)(?:\|([^\]]+))?\]\]$/;
 // Obsidian's two list keys with a meaning of their own (not a vault's list of names)
 const isTagKey = (k: string) => /^(tags?|aliases?|cssclasses)$/i.test(k);
 
-/** The note's frontmatter (`---` on the first line to the next `---` / `...`), or null. */
+/** The note's frontmatter (`---` on the first line, after a BOM, to the next `---` / `...` alone), or null. The core
+ *  reads it the same way (atlas-text `frontmatter::split`). */
 export function frontmatterOf(text: string): Frontmatter | null {
-  const m = /^---\r?\n/.exec(text);
+  const m = /^\uFEFF?---\r?\n/.exec(text);
   if (!m) return null;
   const close = /^(---|\.\.\.)[ \t]*$/m;
   const rest = text.slice(m[0].length);
@@ -23,6 +24,12 @@ export function frontmatterOf(text: string): Frontmatter | null {
   if (!c) return null;
   const yaml = rest.slice(0, c.index).replace(/\r?\n$/, "");
   return { yaml, end: m[0].length + c.index + c[0].length, data: parseYaml(yaml) };
+}
+
+/** A note's frontmatter YAML (null without one) and its body after the closing fence. */
+export function splitFrontmatter(text: string): { yaml: string | null; body: string } {
+  const f = frontmatterOf(text);
+  return f ? { yaml: f.yaml, body: text.slice(f.end).replace(/^\r?\n/, "") } : { yaml: null, body: text };
 }
 
 /** The YAML as a mapping, or null when it does not parse to one (the panel then says so). */

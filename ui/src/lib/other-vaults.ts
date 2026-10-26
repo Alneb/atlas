@@ -4,7 +4,6 @@
 // as a remote file does (file-sources.svelte.ts).
 import { api, apiBase, ApiError } from "./api";
 import { addSource, joinPath, parentPath, REMOTE, IMAGE, type FileSource, type Entry, type Place } from "./file-sources.svelte";
-import type { VaultList } from "./gen/VaultList";
 import type { TreeEntry } from "./gen/TreeEntry";
 
 const ID = "vaults";
@@ -36,7 +35,7 @@ const seen = new Map<string, string | null>();
 export const otherVaults: FileSource = {
   id: ID, title: "Other vaults", icon: "folder-tree", hideEmpty: true,
   places: async () => {
-    const l: VaultList = await (await fetch(`${apiBase()}/api/vaults`, { headers: { "x-atlas": "1" } })).json();
+    const l = await api.vaults();
     return l.vaults
       .filter((v) => v.url?.startsWith("/v/") && v.path !== l.current && !v.missing)
       .map((v): Place => ({ id: v.url!, title: v.name, detail: v.path }));

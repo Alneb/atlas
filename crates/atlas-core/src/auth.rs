@@ -28,8 +28,9 @@ const MAX_WAIT: Duration = Duration::from_secs(300);
 const TOUCH_EVERY: Duration = Duration::from_secs(600);
 
 /// Who may sign in, set per server.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize, ts_rs::TS)]
 #[serde(rename_all = "lowercase")]
+#[ts(export)]
 pub enum AuthMode {
     /// The owner's password, on Atlas's own sign-in page.
     #[default]
@@ -128,8 +129,9 @@ impl ServerSettings {
 }
 
 /// What a device token may do.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
 #[serde(rename_all = "lowercase")]
+#[ts(export)]
 pub enum Scope {
     /// Add captures and read what completions need (the phone).
     Capture,

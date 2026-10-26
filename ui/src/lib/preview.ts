@@ -4,7 +4,7 @@
 // seen (any kind: Settings, a Base, a PDF at its page; a terminal as its last lines). One installer for the whole
 // window (like image-peek.ts): an element says what it points at through `targetOf`; the card stays
 // while the pointer is on it, so a long preview can be scrolled.
-import { dirOf, shownName } from "./paths";
+import { dirOf, shownName, IMAGE_RE } from "./paths";
 import { api } from "./api";
 import { renderMarkdown, stripFrontmatter } from "./markdown";
 import { resolveLink } from "./vault";
@@ -23,7 +23,6 @@ export type PreviewTarget =
   | { kind: "tab"; id: string; title: string; detail: string; path?: string };
 
 const SHOW_MS = 450, HIDE_MS = 250, CARD_W = 420;
-const IMAGE = /\.(png|jpe?g|gif|svg|webp|avif|bmp)$/i;
 const TEXT = /\.(md|txt|py|rs|ts|js|svelte|tex|bib|toml|ya?ml|json|tsv|csv|sh|c|h|cpp|jl|m|lua|css|html|base)$/i;
 
 /** The note an element of a note belongs to: the editor or reading view around it says (`data-note`). */
@@ -99,7 +98,7 @@ export async function drawPreview(card: HTMLElement, t: PreviewTarget, width = C
     return;
   }
   head.textContent = t.title ?? shownName(t.path);
-  if (IMAGE.test(t.path)) {
+  if (IMAGE_RE.test(t.path)) {
     const img = document.createElement("img");
     img.src = URL.createObjectURL(await api.thumb(t.path, 360));
     img.alt = "";

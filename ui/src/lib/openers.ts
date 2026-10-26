@@ -4,6 +4,7 @@
 // docs/guides/PLUGIN-API.md), Atlas's built-in viewer. Kept free of dock/plugin imports (they register here).
 import { specForPath, tableViewIn, TABLE_RE, type IconName, type PaneSpec } from "./panes";
 import { settings, updateSettings } from "./settings.svelte";
+import { IMAGE_RE } from "./paths";
 
 export interface Opener {
   /** `editor`, `table`… or `plugin:<id>`; what `[files] open_with` stores. */
@@ -24,7 +25,7 @@ const builtins: Opener[] = [
   { id: "base", title: "Database (Bases)", icon: "table", accepts: (p) => /\.base$/i.test(p), spec: (path) => ({ kind: "base", path }) },
   { id: "page", title: "Page", icon: "today", accepts: (p) => /\.page$/i.test(p), spec: (path) => ({ kind: "page", path }) },
   { id: "pdf", title: "PDF reader", icon: "pdf", accepts: (p) => /\.pdf$/i.test(p), spec: (path, line) => (line === undefined ? { kind: "pdf", path } : { kind: "pdf", path, page: line }) },
-  { id: "image", title: "Image", icon: "image", accepts: (p) => /\.(png|jpe?g|gif|svg|webp|avif|bmp)$/i.test(p), spec: (path) => ({ kind: "image", path }) },
+  { id: "image", title: "Image", icon: "image", accepts: (p) => IMAGE_RE.test(p), spec: (path) => ({ kind: "image", path }) },
   { id: "excalidraw", title: "Excalidraw", icon: "edit", accepts: (p) => /\.excalidraw(\.md)?$/i.test(p), spec: (path) => ({ kind: "excalidraw", path }) },
 ];
 const extra = new Map<string, Opener>();

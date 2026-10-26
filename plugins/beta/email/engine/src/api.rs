@@ -674,16 +674,13 @@ fn templates(m: &Arc<Mail>, _p: &Value) -> Result<Value, String> {
 
 fn front(text: &str) -> (HashMap<String, String>, String) {
     let mut props = HashMap::new();
-    if let Some(rest) = text.strip_prefix("---\n") {
-        if let Some(end) = rest.find("\n---") {
-            for line in rest[..end].lines() {
-                if let Some((k, v)) = line.split_once(':') {
-                    props.insert(k.trim().to_string(), v.trim().trim_matches('"').to_string());
-                }
+    if let (Some(yaml), body) = atlas_text::frontmatter::split(text) {
+        for line in yaml.lines() {
+            if let Some((k, v)) = line.split_once(':') {
+                props.insert(k.trim().to_string(), v.trim().trim_matches('"').to_string());
             }
-            let body = rest[end + 4..].trim_start_matches('\n');
-            return (props, body.to_string());
         }
+        return (props, body.trim_start_matches(['\r', '\n']).to_string());
     }
     (props, text.to_string())
 }

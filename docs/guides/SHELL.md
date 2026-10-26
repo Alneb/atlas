@@ -9,7 +9,7 @@ Phase 3 of the shell overhaul. Before it, what was open and where lived in the b
 | named workspaces | `<vault>/.atlas/workspaces/<name>.json` | "Workspace: save the current tabs as…" |
 | pinned tabs and bookmarks | `<vault>/.atlas/bookmarks.yaml` | pinning a tab; "Bookmark: add…"; the user, as text |
 | the sidebar's content | `<vault>/.atlas/sidebar.page` (a built-in default until the file exists) | "Sidebar: arrange its blocks…"; the user, as text |
-| recently opened files | `<vault>/.atlas/cache/recent.json` — per machine, deletable | the UI, a moment after a file is opened |
+| recently opened files | the usage journal `<vault>/.atlas/cache/usage.jsonl` (`GET /api/recent`) — every window and device that opens a file in the vault, deletable | the core, when a pane shows a file |
 
 What is still only in the browser: the sidebar's width and whether it is collapsed, the folded state of the properties and backlinks panels, PDF zoom — per-window comforts, not content.
 

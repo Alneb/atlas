@@ -3,7 +3,6 @@ package org.atlas.capture;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Locale;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
@@ -29,14 +28,14 @@ final class ConfigPages {
         int loose = 0;
         for (Iterator<String> it = props.keys(); it.hasNext(); ) {
             String k = it.next();
-            JSONObject r = resolve(schema, props.optJSONObject(k));
+            JSONObject raw = props.optJSONObject(k), r = resolve(schema, raw);
             JSONObject inner = r.optJSONObject("properties");
             if (inner != null) {
                 // a short description names the section better than its key ("Appearance" for ui); a long one says what
                 // it is under the key's name (LSP, PDF in capitals)
                 String d = firstSentence(r.optString("description")).replaceAll("\\s*\\((docs|see)/[^)]*\\)", "").replaceAll("[.:]$", "").trim();
                 boolean short_ = !d.isEmpty() && d.split("\\s+").length <= 5;
-                out.add(new Section(k, short_ ? d : name(k), short_ ? "" : d, inner.length()));
+                out.add(new Section(k, short_ ? d : raw.optString("title", k), short_ ? "" : d, inner.length()));
             }
             else loose++;
         }
@@ -58,13 +57,20 @@ final class ConfigPages {
         if (props == null) return out;
         for (Iterator<String> it = props.keys(); it.hasNext(); ) {
             String k = it.next();
-            JSONObject r = resolve(schema, props.optJSONObject(k));
+            // the core's words and hosts for it sit on the property itself (settings_layout.rs), not on its type
+            JSONObject raw = props.optJSONObject(k), r = resolve(schema, raw);
             if (key.isEmpty() && r.optJSONObject("properties") != null) continue; // a section: its own page
+            if (!onPhone(raw)) continue; // does nothing here (a terminal's, a language server's)
             String kind = kind(r);
             if (kind == null) { elsewhere[0]++; continue; }
             try {
-                JSONObject f = new JSONObject().put("key", k).put("label", human(k)).put("kind", kind).put("hint", firstSentence(r.optString("description")));
-                if ("choice".equals(kind)) f.put("choices", choices(r));
+                JSONObject f = new JSONObject().put("key", k).put("label", raw.optString("title", k)).put("kind", kind).put("hint", firstSentence(r.optString("description")));
+                if ("choice".equals(kind)) {
+                    JSONArray opts = choices(r), labels = new JSONArray();
+                    JSONObject named = raw.optJSONObject("x-labels");
+                    for (int i = 0; i < opts.length(); i++) labels.put(named == null ? opts.optString(i) : named.optString(opts.optString(i), opts.optString(i)));
+                    f.put("choices", opts).put("labels", labels);
+                }
                 out.put(f);
                 if (now.has(k)) values.put(k, now.get(k));
             } catch (org.json.JSONException e) { /* left out */ }
@@ -122,31 +128,12 @@ final class ConfigPages {
         if (from.has("description")) try { to.put("description", from.optString("description")); } catch (org.json.JSONException e) { /* a string */ }
     }
 
-    /** A section's key as a name (human(): "lsp" → "LSP"). */
-    private static String name(String k) { return human(k); }
-
-    /** Words a key spells in short that read better as written out ("vscode" → "VS Code"). */
-    private static final java.util.Map<String, String> WORDS = new java.util.HashMap<>();
-    static {
-        for (String w : new String[] {"ui", "gpu", "pdf", "lsp", "url", "id", "api", "ssh", "css", "html", "js", "ocr", "mcp", "dpi", "ai"}) WORDS.put(w, w.toUpperCase(Locale.ROOT));
-        WORDS.put("vscode", "VS Code");
-        WORDS.put("eink", "e-ink");
-        WORDS.put("latex", "LaTeX");
-    }
-
-    /** "font_size" → "Font size", "ui_font" → "UI font", "vscode_theme" → "VS Code theme". */
-    static String human(String k) {
-        String[] w = k.replace('-', '_').split("_+");
-        StringBuilder b = new StringBuilder();
-        for (String part : w) {
-            if (part.isEmpty()) continue;
-            String low = part.toLowerCase(Locale.ROOT), out = WORDS.getOrDefault(low, low);
-            if (b.length() > 0) b.append(' ');
-            b.append(out);
-        }
-        if (b.length() == 0) return k;
-        b.setCharAt(0, Character.toUpperCase(b.charAt(0)));
-        return b.toString();
+    /** Whether a setting does something on the phone: its `x-hosts` (absent: everywhere). */
+    private static boolean onPhone(JSONObject raw) {
+        JSONArray h = raw == null ? null : raw.optJSONArray("x-hosts");
+        if (h == null) return true;
+        for (int i = 0; i < h.length(); i++) if ("phone".equals(h.optString(i))) return true;
+        return false;
     }
 
     /** A description's first sentence (the rest stays in the web settings), at most ~160 characters. */

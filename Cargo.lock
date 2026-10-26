@@ -458,6 +458,7 @@ version = "0.1.0"
 dependencies = [
  "atlas-plugin",
  "atlas-template",
+ "atlas-text",
  "chrono",
  "regex",
  "scraper",
@@ -523,6 +524,7 @@ dependencies = [
  "ammonia",
  "async-imap",
  "atlas-plugin",
+ "atlas-text",
  "base64 0.22.1",
  "chrono",
  "chrono-tz",
@@ -547,6 +549,7 @@ name = "atlas-finance"
 version = "0.1.0"
 dependencies = [
  "atlas-plugin",
+ "atlas-text",
  "base64 0.22.1",
  "calamine",
  "chrono",

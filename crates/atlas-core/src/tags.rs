@@ -101,11 +101,10 @@ pub fn rename_in(text: &str, from: &str, to: &str) -> (String, usize) {
         }
     });
     // the frontmatter's tag list: `tags: [a, b]`, `tags: a, b`, or one `- a` per line under it
-    if let Some(rest) = text.strip_prefix("---\n").or_else(|| text.strip_prefix("---\r\n")) {
-        let end = rest.find("\n---").map_or(0, |i| i + 1);
-        let mut at = text.len() - rest.len();
+    if let Some(r) = atlas_text::frontmatter::yaml_range(text) {
+        let (yaml, mut at) = (&text[r.clone()], r.start);
         let mut in_tags = false;
-        for raw in rest[..end].split_inclusive('\n') {
+        for raw in yaml.split_inclusive('\n') {
             let line = raw.trim_end_matches(['\n', '\r']);
             let top = !line.starts_with([' ', '\t', '-']);
             let value = if top {
@@ -160,9 +159,7 @@ pub fn rename(ws: &crate::workspace::Workspace, from: &str, to: &str) -> crate::
 
 /// The text after the frontmatter block.
 fn body_of(text: &str) -> &str {
-    let t = text.strip_prefix('\u{feff}').unwrap_or(text);
-    let Some(rest) = t.strip_prefix("---\n").or_else(|| t.strip_prefix("---\r\n")) else { return t };
-    rest.find("\n---").map_or("", |i| rest[i + 4..].split_once('\n').map_or("", |(_, b)| b))
+    atlas_text::frontmatter::split(text).1
 }
 
 /// `tag` itself and each of its parents: `a/b/c` → `a`, `a/b`, `a/b/c`.

@@ -74,14 +74,7 @@ pub fn is_mail(m: &serde_yaml::Mapping) -> bool {
 
 /// A note's frontmatter (an empty map when it has none or it is not YAML).
 pub fn frontmatter(text: &str) -> serde_yaml::Mapping {
-    let Some(rest) = text.strip_prefix("---\n").or_else(|| text.strip_prefix("---\r\n")) else {
-        return Default::default();
-    };
-    let end = rest.find("\n---").unwrap_or(rest.len());
-    match serde_yaml::from_str::<Yaml>(&rest[..end]) {
-        Ok(Yaml::Mapping(m)) => m,
-        _ => Default::default(),
-    }
+    atlas_text::frontmatter::mapping(text)
 }
 
 /// A property as text: a scalar as written, a list's first item.

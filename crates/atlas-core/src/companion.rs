@@ -308,20 +308,8 @@ fn new_text(s: &Shape, template: Option<&str>, stamp: &(String, String)) -> Stri
     }
 }
 
-/// (frontmatter without its fences, the body after it).
-pub(crate) fn split(t: &str) -> (Option<&str>, &str) {
-    let Some(rest) = t.strip_prefix("---\n") else { return (None, t) };
-    if let Some(after) = rest.strip_prefix("---\n") {
-        return (Some(""), after);
-    }
-    match rest.find("\n---\n") {
-        Some(i) => (Some(&rest[..i + 1]), &rest[i + 5..]),
-        None => match rest.strip_suffix("\n---") {
-            Some(inner) => (Some(inner), ""),
-            None => (None, t),
-        },
-    }
-}
+/// (frontmatter without its fences, the body after it): atlas-text's one reader.
+pub(crate) use atlas_text::frontmatter::split;
 
 #[cfg(test)]
 mod tests {

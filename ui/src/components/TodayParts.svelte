@@ -15,7 +15,7 @@
   import CommitRow from "../components/CommitRow.svelte";
   import { capture } from "../lib/registry";
   import { inPhoneApp } from "../lib/eink";
-  import { captureHint, sayDay } from "../lib/capture-hints";
+  import { captureHint } from "../lib/capture-hints.svelte";
   import { complete } from "../lib/textarea-complete";
   import { md } from "../lib/markdown";
   import { chipEl, taskTextWithChips } from "../lib/task-chips";
@@ -189,7 +189,7 @@
   }
   const tasks = $derived(today ? (showAllTasks ? today.tasks : today.tasks.slice(0, 12)) : []);
 
-  const hint = $derived(captureHint(text));
+  const hint = captureHint(() => text);
   let confirmSeq = 0;
   async function send() {
     const value = text.trim();
@@ -296,7 +296,7 @@
           <!-- what the text will become, or — while the box is empty — the short forms that exist -->
           <span class="what" data-testid="capture-what">
             {#if !text.trim()}<code>[] </code> or <code>todo </code> makes a to-do · <code>@tomorrow</code> <code>@fri</code> <code>@+3d</code> a date
-            {:else}{hint.task ? "a to-do" : "a line in today's log"}{#if hint.due}{hint.task ? ", due " : " · mentions "}{sayDay(hint.due)}{/if}{/if}
+            {:else}{hint.current.says}{/if}
           </span>
           <span class="hint keys-only"><kbd>Enter</kbd> to save · <kbd>Shift</kbd><kbd>Enter</kbd> new line</span>
         {/if}

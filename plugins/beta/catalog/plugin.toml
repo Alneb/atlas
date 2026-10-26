@@ -6,7 +6,7 @@ rail = true                 # the Library app (view.js → main.js catalog.app):
 description = "anything you capture, recognised, enriched and filed in its library"
 phone = true # runs in the phone apps too (only plugins marked so start there)
 icon = "grid" # not References' library icon (a vault may show both)
-version = "0.5.4"
+version = "0.5.5"
 api = 4
 
 [permissions]

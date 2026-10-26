@@ -101,6 +101,57 @@ pub fn day_of(word: &str, today: chrono::NaiveDate) -> Option<chrono::NaiveDate>
     }
 }
 
+/// The day words the capture boxes offer after `@`, in their order.
+pub const DAY_WORDS: [&str; 11] = ["today", "tomorrow", "mon", "tue", "wed", "thu", "fri", "sat", "sun", "+3d", "+7d"];
+
+/// [`DAY_WORDS`] with the day each names from `today`.
+pub fn days(today: chrono::NaiveDate) -> Vec<crate::api::CaptureDay> {
+    DAY_WORDS.iter().filter_map(|w| Some(crate::api::CaptureDay { word: w.to_string(), date: day_of(w, today)?.format("%Y-%m-%d").to_string() })).collect()
+}
+
+/// The day the text names (`@tomorrow`, `@fri`, `@+3d`, `@2026-10-30`, or `📅 YYYY-MM-DD`).
+pub fn due(text: &str, today: chrono::NaiveDate) -> Option<chrono::NaiveDate> {
+    use chrono::NaiveDate;
+    let words: Vec<&str> = text.split_whitespace().collect();
+    words.iter().enumerate().find_map(|(i, w)| {
+        if let Some(d) = w.strip_prefix('@') {
+            return day_of(d, today).or_else(|| NaiveDate::parse_from_str(d, "%Y-%m-%d").ok());
+        }
+        (w.trim_end_matches('\u{FE0F}') == "📅").then(|| words.get(i + 1).and_then(|d| NaiveDate::parse_from_str(d, "%Y-%m-%d").ok())).flatten()
+    })
+}
+
+/// A day as people say it: today, tomorrow, Friday (within the week), else "Thu 22 Oct".
+pub fn say_day(d: chrono::NaiveDate, today: chrono::NaiveDate) -> String {
+    match (d - today).num_days() {
+        0 => "today".into(),
+        1 => "tomorrow".into(),
+        2..=6 => d.format("%A").to_string(),
+        _ => d.format("%a %-d %b").to_string(),
+    }
+}
+
+/// What `text` will become once sent, for every capture box. With its vault (`at`), the vault's own capture mode and
+/// inbox, and the kind the catalog would file it as, count; without, a vault's defaults.
+pub fn describe(at: Option<(&Path, &Config)>, text: &str, today: chrono::NaiveDate) -> crate::api::CaptureHint {
+    let task = starts_as_task(text);
+    let due = due(text, today);
+    let when = due.map(|d| say_day(d, today));
+    let note = at.is_some_and(|(_, cfg)| cfg.notes.capture == CaptureMode::Note);
+    let mut says = match (task, when) {
+        (true, Some(w)) => format!("a to-do, due {w}"),
+        (true, None) => "a to-do".into(),
+        (false, w) => {
+            let what = if note { format!("a note in {}", at.map_or("", |(_, c)| c.notes.inbox.trim_matches('/'))) } else { "a line in today's log".into() };
+            w.map_or(what.clone(), |w| format!("{what} · mentions {w}"))
+        }
+    };
+    if let Some(kind) = at.and_then(|(root, cfg)| crate::catalog_hint::kind_of(root, cfg, text)) {
+        says = format!("{says} · catalogued as {}", crate::catalog_hint::kind_words(&kind));
+    }
+    crate::api::CaptureHint { task, due: due.map(|d| d.format("%Y-%m-%d").to_string()), says }
+}
+
 /// `@today`, `@tomorrow`, `@mon`…`@sun` and `@+3d` → `@YYYY-MM-DD`, the date the task views read;
 /// any other word is left as typed.
 fn with_dates(text: &str, today: chrono::NaiveDate) -> String {
@@ -143,7 +194,9 @@ pub fn format_entry(text: &str, now: NaiveDateTime) -> Result<String> {
     Ok(out)
 }
 
+/// Every door's capture ends here: its addresses lose their share-tracking parameters first (`atlas_text::links`).
 pub fn capture_at(root: &Path, cfg: &Config, text: &str, now: NaiveDateTime) -> Result<CaptureResult> {
+    let text = &atlas_text::links::untracked(text);
     match cfg.notes.capture {
         CaptureMode::Log => append_to_log(root, cfg, text, now),
         // a task is a line among the day's tasks, never a note of its own
@@ -340,6 +393,27 @@ mod tests {
         assert_eq!(std::fs::read_to_string(&p).unwrap(), "# 2026-10-05\n\nReorganized ~/Notes.\n- 14:30 second\n");
         let r = capture_at(d.path(), &Config::default(), "third", at(14, 31)).unwrap();
         assert_eq!(r.line, 5);
+    }
+
+    #[test]
+    fn every_box_is_told_what_the_text_becomes() {
+        let thu = chrono::NaiveDate::from_ymd_opt(2026, 10, 15).unwrap();
+        assert_eq!(due("[] call x @tomorrow", thu), chrono::NaiveDate::from_ymd_opt(2026, 10, 16));
+        assert_eq!(due("[] call x 📅 2026-10-20", thu), chrono::NaiveDate::from_ymd_opt(2026, 10, 20));
+        assert_eq!(due("plain words", thu), None);
+        assert_eq!(say_day(chrono::NaiveDate::from_ymd_opt(2026, 10, 17).unwrap(), thu), "Saturday");
+        let h = describe(None, "[] pay rent @fri", thu);
+        assert_eq!((h.task, h.due.as_deref(), h.says.as_str()), (true, Some("2026-10-16"), "a to-do, due tomorrow"));
+        assert_eq!(describe(None, "* [ ] x", thu).says, "a to-do", "every bullet the capture accepts");
+        assert_eq!(describe(None, "lunch with Ana @mon", thu).says, "a line in today's log · mentions Monday");
+        let t = tempfile::tempdir().unwrap();
+        let mut cfg = Config::default();
+        cfg.notes.capture = CaptureMode::Note;
+        assert_eq!(describe(Some((t.path(), &cfg)), "an idea", thu).says, "a note in inbox", "the vault's own capture mode");
+        assert_eq!(describe(Some((t.path(), &cfg)), "todo x", thu).says, "a to-do", "a task is a line even then");
+        let d = days(thu);
+        assert_eq!(d.len(), DAY_WORDS.len());
+        assert_eq!((d[1].word.as_str(), d[1].date.as_str()), ("tomorrow", "2026-10-16"));
     }
 
     #[test]

@@ -405,7 +405,25 @@ async fn read_until(ws: &mut Ws, want: &str) -> String {
         false
     })
     .await;
-    assert!(matches!(found, Ok(true)), "{want:?} within 10 s; the terminal wrote {out:?}");
+    // the end is what tells why (a CI annotation keeps only the message's start)
+    let tail: String = out.chars().rev().take(1500).collect::<Vec<_>>().into_iter().rev().collect();
+    assert!(matches!(found, Ok(true)), "{want:?} within 10 s; the terminal's last output {tail:?}");
+    out
+}
+
+/// Reads until the terminal has been quiet for a moment (at most 3 s): a terminal taken over redraws its screen
+/// (ConPTY repaints it all for the new socket's size), and keys typed during that repaint can be lost.
+async fn settle(ws: &mut Ws) -> String {
+    let mut out = String::new();
+    let _ = tokio::time::timeout(Duration::from_secs(3), async {
+        while let Ok(Some(Ok(m))) = tokio::time::timeout(Duration::from_millis(400), ws.next()).await {
+            if let Message::Binary(b) = m {
+                answer_terminal_queries(ws, &b).await;
+                out.push_str(&String::from_utf8_lossy(&b));
+            }
+        }
+    })
+    .await;
     out
 }
 
@@ -426,6 +444,7 @@ async fn a_terminal_outlives_a_page_reload_and_ends_when_its_tab_closes() {
     let mut ws = ws_connect(t.port(), url, None).await.unwrap();
     let replay = read_until(&mut ws, "before42").await;
     assert!(replay.contains("before42"), "the recent output comes back: {replay}");
+    settle(&mut ws).await;
     ws.send(Message::Binary(typed(r#"echo "again={PID}=""#).into())).await.unwrap();
     let again = read_until(&mut ws, &format!("again={pid}=")).await;
     assert!(again.contains(&format!("again={pid}=")), "the same shell: {again}");

@@ -126,6 +126,7 @@ export async function openReader(container: HTMLElement, path: string, eng: PdfE
   const handlers = new Map<keyof Events, Set<(e: never) => void>>();
   const emit = <K extends keyof Events>(k: K, e: Events[K]) => handlers.get(k)?.forEach((f) => (f as Handler<K>)(e));
   let scale = 1, zoom: Zoom = start.zoom, turns = 0, spread = false, current = 1, gone = false;
+  let fittedWidth = 0; // the view's width at the last fit: 0 while it was laid out hidden
   let tops: number[] = [], heights: number[] = [];
 
   // every page's box, empty until near the view
@@ -464,7 +465,20 @@ export async function openReader(container: HTMLElement, path: string, eng: PdfE
       const r = container.getBoundingClientRect();
       rescale(zoom, origin ? origin.x - r.left : undefined, origin ? origin.y - r.top : undefined);
     },
-    refit() { if (typeof zoom !== "number") rescale(scaleFor(zoom)); },
+    refit() {
+      if (typeof zoom === "number") return;
+      // first laid out with no size (a pane opened hidden): its scroll position is clamped to the end of a tiny layout
+      // and means nothing — back to the page being read, which update() kept
+      if (!fittedWidth) {
+        const n = current;
+        scale = scaleFor(zoom, n);
+        layout();
+        reader.goto(n);
+        emit("scale", { scale, zoom });
+        scheduleRedraw();
+      } else rescale(scaleFor(zoom));
+      fittedWidth = container.clientWidth;
+    },
     rotate() {
       const n = current;
       turns = (turns + 1) % 4;
@@ -584,6 +598,7 @@ export async function openReader(container: HTMLElement, path: string, eng: PdfE
   scale = scaleFor(zoom, start.page ?? 1);
   layout();
   reader.goto(start.page ?? 1);
+  fittedWidth = container.clientWidth;
   return reader;
 }
 

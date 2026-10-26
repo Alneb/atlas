@@ -145,8 +145,7 @@ pub fn apply_when(template: &str) -> Vec<When> {
 
 /// The lines of a frontmatter key and what is indented under it (`key:` then `  - …`), as YAML text.
 pub(crate) fn own_block(template: &str, key: &str) -> Option<String> {
-    let body = template.strip_prefix("---\n")?;
-    let head = &body[..body.find("\n---")?];
+    let head = atlas_text::frontmatter::split(template).0?;
     let mut lines = head.lines().skip_while(|l| !l.starts_with(&format!("{key}:")));
     let first = lines.next()?;
     let rest: Vec<&str> = lines.take_while(|l| l.starts_with([' ', '\t', '-'])).collect();

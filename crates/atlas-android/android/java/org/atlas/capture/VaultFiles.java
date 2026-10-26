@@ -8,7 +8,6 @@ import org.json.JSONObject;
 
 import java.io.ByteArrayInputStream;
 import java.io.File;
-import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -26,8 +25,9 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
-/** A vault's files for the native plugins (Host), by vault path: a folder on the phone, or a vault on an Atlas server
- *  through its file API (/api/tree, /api/raw, /api/file) — the same calls, so a plugin never knows which. */
+/** A vault's files and API for the native screens (Host, Settings), by vault: a vault on an Atlas server, or a folder on
+ *  the phone through the core running in this app (Local) — the same calls (/api/tree, /api/raw, /api/file, /api/config…)
+ *  either way, so a screen never knows which, and the core's rules (leases, companion notes) apply to both. */
 abstract class VaultFiles {
     abstract boolean exists(String path);
     abstract boolean isDir(String path);
@@ -51,7 +51,7 @@ abstract class VaultFiles {
     /** The server answered and said no (an HTTP error): unlike no answer at all, waiting will not help. */
     static final class Refused extends IOException { Refused(String why) { super(why); } }
 
-    static VaultFiles of(Context c, String vault) { return Server.is(vault) ? new OnServer(c, vault) : new OnPhone(new File(vault)); }
+    static VaultFiles of(Context c, String vault) { return new OnServer(c, vault); }
 
     /** Whether plugin `id` runs in a vault whose plugins are `all` (plugins() below). A plugin built into the app runs
      *  in every vault, installed there or not, whatever the vault's copy of it says (an older or broken plugin.toml);
@@ -105,11 +105,8 @@ abstract class VaultFiles {
     }
 
     /** The vault's plugins as `[{id, on, settings}]` (settings with the defaults filled in), or [] when it cannot say.
-     *  Talks to the server for a server's vault: never on the UI thread (AtlasActivity keeps its answer). */
+     *  Never on the UI thread (AtlasActivity keeps its answer). */
     static JSONArray plugins(Context c, String vault) {
-        if (!Server.is(vault)) {
-            try { return new JSONArray(Core.plugins(vault)); } catch (Exception | UnsatisfiedLinkError e) { return new JSONArray(); }
-        }
         OnServer s = new OnServer(c, vault);
         JSONArray out = new JSONArray();
         try {
@@ -154,17 +151,11 @@ abstract class VaultFiles {
                 String want = there == null ? manifest : manifest.stripTrailing() + ownSettings(there);
                 if (there == null || !there.equals(want)) files.write(at, want.getBytes(StandardCharsets.UTF_8));
             }
-            if (Server.is(vault)) {
-                new OnServer(c, vault).send("PUT", "/api/plugins/" + id + "/settings", "application/json", values.toString().getBytes(StandardCharsets.UTF_8));
-                return null;
-            }
-            JSONObject r = new JSONObject(Core.pluginSettingsSave(vault, id, values.toString()));
-            return r.has("error") ? r.optString("error") : null;
-        } catch (Exception | UnsatisfiedLinkError e) { return String.valueOf(e.getMessage()); }
+            new OnServer(c, vault).send("PUT", "/api/plugins/" + id + "/settings", "application/json", values.toString().getBytes(StandardCharsets.UTF_8));
+            return null;
+        } catch (Exception e) { return String.valueOf(e.getMessage()); }
     }
 
-    /** The vault's settings with their schema, `{config, schema}`, the same for a vault here and on a server (GET
-     *  /api/config). Never on the UI thread for a server. Throws with why. */
     /** The one note of file `file` (companion.rs: a paper's PDF has the paper's note, else `<name>.md` beside it), only
      *  found — here or on the vault's server alike. Its path. Never on the UI thread. */
     static String companionNote(Context c, String vault, String pdf) throws IOException {
@@ -185,12 +176,10 @@ abstract class VaultFiles {
     /** `POST /api/companion` with `req`, to the vault's server or the core here: the note's path. */
     private static String companion(Context c, String vault, JSONObject req) throws IOException {
         try {
-            JSONObject r = Server.is(vault)
-                ? new JSONObject(new String(new OnServer(c, vault).send("POST", "/api/companion", "application/json", req.toString().getBytes(StandardCharsets.UTF_8)), StandardCharsets.UTF_8))
-                : new JSONObject(Core.companionNote(vault, req.toString()));
+            JSONObject r = new JSONObject(new String(new OnServer(c, vault).send("POST", "/api/companion", "application/json", req.toString().getBytes(StandardCharsets.UTF_8)), StandardCharsets.UTF_8));
             if (r.has("error") || !r.has("path")) throw new IOException(r.optString("error", "no note"));
             return r.getString("path");
-        } catch (org.json.JSONException | UnsatisfiedLinkError e) { throw new IOException(e.getMessage()); }
+        } catch (org.json.JSONException e) { throw new IOException(e.getMessage()); }
     }
 
     /** A PDF's marks from its note's pdf-marks block (core pdf_marks.rs), `{note, marks}`, here or on the vault's server
@@ -198,10 +187,10 @@ abstract class VaultFiles {
     static JSONObject pdfMarks(Context c, String vault, String pdf) throws IOException {
         try {
             String q = "/api/pdf-marks?pdf=" + java.net.URLEncoder.encode(pdf, "UTF-8");
-            JSONObject r = Server.is(vault) ? new JSONObject(new String(new OnServer(c, vault).get(q), StandardCharsets.UTF_8)) : new JSONObject(Core.pdfMarks(vault, pdf));
+            JSONObject r = new JSONObject(new String(new OnServer(c, vault).get(q), StandardCharsets.UTF_8));
             if (r.has("error")) throw new IOException(r.optString("error"));
             return r;
-        } catch (org.json.JSONException | UnsatisfiedLinkError e) { throw new IOException(e.getMessage()); }
+        } catch (org.json.JSONException e) { throw new IOException(e.getMessage()); }
     }
 
     /** `ops` (`[{op: "put", mark} | {op: "remove", id}]`) applied to a PDF's note, made with its first mark: the marks
@@ -209,12 +198,10 @@ abstract class VaultFiles {
     static JSONObject changePdfMarks(Context c, String vault, String pdf, org.json.JSONArray ops) throws IOException {
         try {
             String q = "/api/pdf-marks?pdf=" + java.net.URLEncoder.encode(pdf, "UTF-8");
-            JSONObject r = Server.is(vault)
-                ? new JSONObject(new String(new OnServer(c, vault).send("POST", q, "application/json", ops.toString().getBytes(StandardCharsets.UTF_8)), StandardCharsets.UTF_8))
-                : new JSONObject(Core.changePdfMarks(vault, pdf, ops.toString()));
+            JSONObject r = new JSONObject(new String(new OnServer(c, vault).send("POST", q, "application/json", ops.toString().getBytes(StandardCharsets.UTF_8)), StandardCharsets.UTF_8));
             if (r.has("error")) throw new IOException(r.optString("error"));
             return r;
-        } catch (org.json.JSONException | UnsatisfiedLinkError e) { throw new IOException(e.getMessage()); }
+        } catch (org.json.JSONException e) { throw new IOException(e.getMessage()); }
     }
 
     /** A copy of the PDF with its marks inside as real annotations, `x (marked).pdf` beside it (core pdf_export.rs), here
@@ -222,20 +209,20 @@ abstract class VaultFiles {
     static JSONObject exportPdfMarks(Context c, String vault, String pdf) throws IOException {
         try {
             String q = "/api/pdf-export?pdf=" + java.net.URLEncoder.encode(pdf, "UTF-8");
-            JSONObject r = Server.is(vault)
-                ? new JSONObject(new String(new OnServer(c, vault).send("POST", q, "application/json", new byte[0]), StandardCharsets.UTF_8))
-                : new JSONObject(Core.exportPdfMarks(vault, pdf));
+            JSONObject r = new JSONObject(new String(new OnServer(c, vault).send("POST", q, "application/json", new byte[0]), StandardCharsets.UTF_8));
             if (r.has("error")) throw new IOException(r.optString("error"));
             return r;
-        } catch (org.json.JSONException | UnsatisfiedLinkError e) { throw new IOException(e.getMessage()); }
+        } catch (org.json.JSONException e) { throw new IOException(e.getMessage()); }
     }
 
+    /** The vault's settings with their schema, `{config, schema, defaults, path}` (GET /api/config). Never on the UI
+     *  thread. Throws with why. */
     static JSONObject config(Context c, String vault) throws IOException {
         try {
-            JSONObject r = Server.is(vault) ? new JSONObject(new String(new OnServer(c, vault).get("/api/config"), StandardCharsets.UTF_8)) : new JSONObject(Core.config(vault));
+            JSONObject r = new JSONObject(new String(new OnServer(c, vault).get("/api/config"), StandardCharsets.UTF_8));
             if (r.has("error") || r.optJSONObject("config") == null) throw new IOException(r.optString("error", "no config"));
             return r;
-        } catch (org.json.JSONException | UnsatisfiedLinkError e) { throw new IOException(e.getMessage()); }
+        } catch (org.json.JSONException e) { throw new IOException(e.getMessage()); }
     }
 
     /** One setting changed (`path`: its dotted place, "ui.font_size"; `value`: JSON's), read fresh then written whole —
@@ -250,13 +237,9 @@ abstract class VaultFiles {
                 at = next;
             }
             at.put(parts[parts.length - 1], value);
-            if (Server.is(vault)) {
-                new OnServer(c, vault).send("PUT", "/api/config", "application/json", cfg.toString().getBytes(StandardCharsets.UTF_8));
-                return null;
-            }
-            JSONObject r = new JSONObject(Core.configSave(vault, cfg.toString()));
-            return r.has("error") ? r.optString("error") : null;
-        } catch (Exception | UnsatisfiedLinkError e) { return String.valueOf(e.getMessage()); }
+            new OnServer(c, vault).send("PUT", "/api/config", "application/json", cfg.toString().getBytes(StandardCharsets.UTF_8));
+            return null;
+        } catch (Exception e) { return String.valueOf(e.getMessage()); }
     }
 
     /** A manifest's own `[settings]` table, verbatim (with a blank line before it), or "". */
@@ -269,105 +252,43 @@ abstract class VaultFiles {
         try (InputStream in = f.read(path)) { return new String(Bytes.all(in), StandardCharsets.UTF_8); } catch (IOException e) { return null; }
     }
 
-    /** Plugin `id` switched on or off in this vault (`plugins.off` in its config); an error, or null. A server's: its
-     *  config read, changed and written back, as the desktop's Settings does. Never on the UI thread for a server. */
+    /** Plugin `id` switched on or off in this vault (`plugins.off` in its config): its config read, changed and
+     *  written back, as the desktop's Settings does; an error, or null. Never on the UI thread. */
     static String setOn(Context c, String vault, String id, boolean on) {
         try {
-            if (Server.is(vault)) {
-                OnServer s = new OnServer(c, vault);
-                // GET answers {config, schema, defaults, path}; PUT takes the config alone. Sending the whole answer back
-                // made a server rebuild its config from the defaults (only `plugins` kept): never without `config`.
-                JSONObject cfg = new JSONObject(new String(s.get("/api/config"), StandardCharsets.UTF_8)).optJSONObject("config");
-                if (cfg == null) return "the server did not give its config";
-                JSONObject plugins = cfg.optJSONObject("plugins") != null ? cfg.optJSONObject("plugins") : new JSONObject();
-                org.json.JSONArray off = new org.json.JSONArray();
-                org.json.JSONArray had = plugins.optJSONArray("off");
-                for (int i = 0; had != null && i < had.length(); i++) if (!id.equals(had.optString(i))) off.put(had.optString(i));
-                if (!on) off.put(id);
-                cfg.put("plugins", plugins.put("off", off));
-                s.send("PUT", "/api/config", "application/json", cfg.toString().getBytes(StandardCharsets.UTF_8));
-                return null;
-            }
-            JSONObject r = new JSONObject(Core.pluginOn(vault, id, on));
-            return r.has("error") ? r.optString("error") : null;
-        } catch (Exception | UnsatisfiedLinkError e) { return String.valueOf(e.getMessage()); }
+            OnServer s = new OnServer(c, vault);
+            // GET answers {config, schema, defaults, path}; PUT takes the config alone. Sending the whole answer back
+            // made a server rebuild its config from the defaults (only `plugins` kept): never without `config`.
+            JSONObject cfg = new JSONObject(new String(s.get("/api/config"), StandardCharsets.UTF_8)).optJSONObject("config");
+            if (cfg == null) return "the core did not give the vault's config";
+            JSONObject plugins = cfg.optJSONObject("plugins") != null ? cfg.optJSONObject("plugins") : new JSONObject();
+            org.json.JSONArray off = new org.json.JSONArray();
+            org.json.JSONArray had = plugins.optJSONArray("off");
+            for (int i = 0; had != null && i < had.length(); i++) if (!id.equals(had.optString(i))) off.put(had.optString(i));
+            if (!on) off.put(id);
+            cfg.put("plugins", plugins.put("off", off));
+            s.send("PUT", "/api/config", "application/json", cfg.toString().getBytes(StandardCharsets.UTF_8));
+            return null;
+        } catch (Exception e) { return String.valueOf(e.getMessage()); }
     }
 
-    /** A folder in the phone's storage. */
-    static final class OnPhone extends VaultFiles {
-        private final File root;
-
-        OnPhone(File root) { this.root = root; }
-
-        /** The file of a vault path, never outside the vault. */
-        private File file(String path) throws IOException {
-            File f = new File(root, path).getCanonicalFile();
-            if (!f.getPath().startsWith(root.getCanonicalPath())) throw new IOException("outside the vault: " + path);
-            return f;
-        }
-
-        @Override boolean exists(String path) { try { return file(path).exists(); } catch (IOException e) { return false; } }
-        @Override boolean isDir(String path) { try { return file(path).isDirectory(); } catch (IOException e) { return false; } }
-
-        @Override List<String> list(String dir) {
-            List<String> out = new ArrayList<>();
-            try {
-                File[] fs = file(dir).listFiles();
-                if (fs != null) for (File f : fs) if (!f.getName().startsWith(".")) out.add(f.getName() + (f.isDirectory() ? "/" : ""));
-            } catch (IOException e) { /* none */ }
-            Collections.sort(out, String.CASE_INSENSITIVE_ORDER);
-            return out;
-        }
-
-        @Override long modified(String path) { try { return file(path).lastModified(); } catch (IOException e) { return 0; } }
-        @Override InputStream read(String path) throws IOException { return new FileInputStream(file(path)); }
-        @Override File local(String path) throws IOException { return file(path); }
-
-        /** Through a temporary file, so a crash never leaves half of it. */
-        @Override void write(String path, byte[] bytes) throws IOException {
-            File f = file(path), tmp = new File(f.getParentFile(), "." + f.getName() + ".atlas-tmp");
-            if (!f.getParentFile().isDirectory() && !f.getParentFile().mkdirs()) throw new IOException("cannot make " + f.getParent());
-            try (FileOutputStream o = new FileOutputStream(tmp)) { o.write(bytes); o.getFD().sync(); }
-            if (!tmp.renameTo(f)) throw new IOException("cannot write " + path);
-        }
-
-        @Override String trash(String path) throws IOException {
-            File f = file(path);
-            if (!f.exists() || path.replaceAll("^/+|/+$", "").isEmpty()) throw new IOException("no such file: " + path);
-            String stamp = new java.text.SimpleDateFormat("yyyyMMdd-HHmmss", java.util.Locale.ROOT).format(new java.util.Date());
-            String to = ".atlas/trash/" + stamp + "/" + path.replaceAll("^/+", "");
-            move(path, to);
-            return ".atlas/trash/" + stamp;
-        }
-
-        @Override void move(String from, String to) throws IOException {
-            File a = file(from), b = file(to);
-            if (!a.exists()) throw new IOException("no such file: " + from);
-            if (b.exists()) throw new IOException(to + " is there already");
-            File dir = b.getParentFile();
-            if (dir != null && !dir.isDirectory() && !dir.mkdirs()) throw new IOException("cannot make " + dir);
-            if (!a.renameTo(b)) throw new IOException("cannot move " + from + " to " + to);
-        }
-
-        @Override String drawingSaved(String path, String scene) {
-            try {
-                JSONObject r = new JSONObject(Core.drawingSaved(root.getPath(), path, scene));
-                return r.has("error") ? r.optString("error") : null;
-            } catch (Exception | UnsatisfiedLinkError e) { return null; } // the drawing is saved; the note waits for the next save
-        }
-    }
-
-    /** A vault on an Atlas server, signed in as the app is (Server.headers). Calls made on the UI thread (a plugin's
-     *  save) run on a worker and are waited for: Android forbids the network there, and a plugin's calls are short. */
+    /** A vault through its core's API: a server's, signed in as the app is (Server.headers), or — for a folder on the
+     *  phone — the core running in this app (Local), with the key it is locked with. Calls made on the UI thread (a
+     *  plugin's save) run on a worker and are waited for: Android forbids the network there, and a plugin's calls are
+     *  short. */
     static final class OnServer extends VaultFiles {
         private static final ExecutorService NET = Executors.newCachedThreadPool();
         private final Context c;
+        /** The vault: a server's address, or a folder's path (PendingWrites keeps a write under it). */
         private final String base;
+        /** The folder, for a vault on the phone; null for a server's. */
+        private final File folder;
         private final File cache;
 
         OnServer(Context c, String vault) {
             this.c = c.getApplicationContext();
             this.base = vault.replaceAll("/+$", "");
+            this.folder = Server.is(vault) ? null : new File(base);
             this.cache = new File(c.getCacheDir(), "server-files");
         }
 
@@ -385,13 +306,15 @@ abstract class VaultFiles {
         }
 
         private HttpURLConnection open(String method, String path) throws IOException {
-            HttpURLConnection h = (HttpURLConnection) new URL(base + path).openConnection();
+            Local.Endpoint here = folder == null ? null : Local.of(c, base);
+            HttpURLConnection h = (HttpURLConnection) new URL((here == null ? base : here.base) + path).openConnection();
             h.setRequestMethod(method);
             h.setConnectTimeout(8000);
             h.setReadTimeout(30000);
             h.setInstanceFollowRedirects(false); // a redirect is a sign-in in front: an error here, never followed
             h.setRequestProperty("x-atlas", "1");
-            Server.headers(c, base, h);
+            if (here == null) Server.headers(c, base, h);
+            else if (!here.key.isEmpty()) h.setRequestProperty("x-atlas-token", here.key);
             return h;
         }
 
@@ -459,8 +382,14 @@ abstract class VaultFiles {
             return new ByteArrayInputStream(kept != null ? kept : get("/api/raw?path=" + q(path)));
         }
 
-        /** Fetched into the app's cache (kept while unchanged on the server: a chapter is read many times). */
+        /** A folder vault's file itself (nothing copied: a book is large); a server's fetched into the app's cache (kept
+         *  while unchanged on the server: a chapter is read many times). */
         @Override File local(String path) throws IOException {
+            if (folder != null) {
+                File f = new File(folder, path).getCanonicalFile();
+                if (!f.getPath().startsWith(folder.getCanonicalPath())) throw new IOException("outside the vault: " + path);
+                return f;
+            }
             File f = new File(cache, Integer.toHexString(path.hashCode()) + "-" + new File(path).getName());
             byte[] kept = PendingWrites.waitingFor(c, base, path);
             if (kept != null) {

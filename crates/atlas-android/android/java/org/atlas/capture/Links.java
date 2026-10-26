@@ -6,13 +6,15 @@ import java.util.regex.Pattern;
 /**
  * Addresses as they go into a capture: the share-tracking parameters apps add (`si` from YouTube and Spotify, `igsh` from
  * Instagram, `utm_*`, `feature=share…`) taken off, so what reaches the catalog, TubeArchivist or a downloader is the item's
- * own address. By shape: any parameter of that kind on any site; the rest of the address is kept as it was.
+ * own address. By shape: any parameter of that kind on any site; the rest of the address is kept as it was. The rule is
+ * atlas-text's `links.rs`, which every capture passes through in the core; this copy serves only what the phone reads
+ * on screen before anything reaches the core (Onscreen.canonical), and must list the same parameters.
  */
 final class Links {
     private Links() {}
 
     private static final Pattern URL = Pattern.compile("https?://[^\\s<>\"\\]\\)]+");
-    private static final Pattern TRACKING = Pattern.compile("^(si|igsh|igshid|fbclid|gclid|utm_[a-z]+|feature=share\\w*)(=|$)");
+    private static final Pattern TRACKING = Pattern.compile("^(si|igsh|igshid|fbclid|gclid|mc_cid|mc_eid|ref_src|feature|pp|utm_[a-z]+)(=|$)");
 
     static String untracked(String text) {
         if (text == null) return null;

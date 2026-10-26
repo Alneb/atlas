@@ -90,7 +90,7 @@ pub fn facts(scene: &Value) -> Facts {
 
 /// The frontmatter's lines (empty without one).
 fn frontmatter(text: &str) -> &str {
-    text.strip_prefix("---\n").and_then(|r| r.find("\n---").map(|i| &r[..i])).unwrap_or("")
+    atlas_text::frontmatter::split(text).0.unwrap_or("")
 }
 
 /// Atlas's part of the body, between the markers.

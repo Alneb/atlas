@@ -32,8 +32,8 @@ fn unshown(path: &std::path::Path) -> bool {
     let mut head = [0u8; 4096];
     let n = std::fs::File::open(path).and_then(|mut f| f.read(&mut head)).unwrap_or(0);
     let text = String::from_utf8_lossy(&head[..n]);
-    let Some(fm) = text.strip_prefix("---\n") else { return false };
-    fm.lines().take_while(|l| l.trim_end() != "---").any(|l| l.trim_end() == "shown: false")
+    let Some(fm) = atlas_text::frontmatter::yaml_head(&text) else { return false };
+    fm.lines().any(|l| l.trim_end() == "shown: false")
 }
 
 /// One directory level, dirs first then by name. Ignored and hidden entries per `[files]` config; `all_hidden`: the

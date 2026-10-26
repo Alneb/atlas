@@ -8,4 +8,4 @@ export type HeaderValue = string | { secret: string,
 /**
  * Written before the secret (`"Bearer "`).
  */
-prefix: string, } | { oauth: string, };
+prefix?: string, } | { oauth: string, };

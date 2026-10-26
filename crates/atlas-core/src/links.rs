@@ -354,15 +354,7 @@ impl Names {
 
 /// The frontmatter mapping at the top of a note (empty when absent or malformed).
 pub(crate) fn frontmatter(text: &str) -> serde_yaml::Mapping {
-    let body = text.strip_prefix("\u{feff}").unwrap_or(text);
-    let Some(rest) = body.strip_prefix("---\n").or_else(|| body.strip_prefix("---\r\n")) else {
-        return Default::default();
-    };
-    let end = rest.find("\n---").unwrap_or(rest.len());
-    serde_yaml::from_str::<serde_yaml::Value>(&rest[..end])
-        .ok()
-        .and_then(|v| v.as_mapping().cloned())
-        .unwrap_or_default()
+    atlas_text::frontmatter::mapping(text)
 }
 
 /// The vault's index, current: the walk is done on every call, and only the notes whose mtime changed are read again.

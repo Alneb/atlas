@@ -582,6 +582,43 @@ async fn today_log_post(State(st): S) -> Result<Json<crate::api::TodayLog>> {
     Ok(Json(r))
 }
 
+#[derive(serde::Deserialize)]
+struct DescribeRequest {
+    text: String,
+    /// The vault the capture goes to, when it is not this one (the capture window's choice, as `POST /api/capture`).
+    #[serde(default)]
+    vault: Option<String>,
+}
+
+/// Every capture box's hint as it is typed (`capture::describe`), with the settings of the vault it goes to.
+async fn capture_describe(State(st): S, Json(req): Json<DescribeRequest>) -> Result<Json<crate::api::CaptureHint>> {
+    let today = chrono::Local::now().date_naive();
+    let here = st.ws.root().to_path_buf();
+    let other = req.vault.as_deref().map(std::path::PathBuf::from).filter(|v| *v != here);
+    let Some(other) = other else {
+        return Ok(Json(with_ws(&st, move |ws| Ok(capture::describe(Some((ws.root(), &ws.config()?)), &req.text, today))).await?));
+    };
+    blocking(move || {
+        let ws = known_vault(&other)?;
+        Ok(capture::describe(Some((ws.root(), &ws.config()?)), &req.text, today))
+    })
+    .await
+    .map(Json)
+}
+
+/// Another vault a capture names: only one the user has opened before (the list).
+fn known_vault(path: &std::path::Path) -> Result<Workspace> {
+    if !crate::vaults::list(&crate::vaults::list_file()).iter().any(|v| std::path::Path::new(&v.path) == path && !v.missing) {
+        return Err(Error::BadRequest(format!("{} is not one of the known vaults", path.display())));
+    }
+    Workspace::open(path)
+}
+
+/// The day words offered after `@`, each with the day it names today.
+async fn capture_days() -> Json<Vec<crate::api::CaptureDay>> {
+    Json(capture::days(chrono::Local::now().date_naive()))
+}
+
 async fn capture_post(State(st): S, Json(req): Json<CaptureRequest>) -> Result<Json<CaptureResult>> {
     let here = st.ws.root().to_path_buf();
     let other = req.vault.as_deref().map(std::path::PathBuf::from).filter(|v| *v != here);
@@ -591,13 +628,10 @@ async fn capture_post(State(st): S, Json(req): Json<CaptureRequest>) -> Result<J
         st.bus.captured(crate::events::Captured { text, path: r.path.clone(), line: r.line });
         return Ok(Json(r));
     };
-    // another vault: only one the user has opened before (the list), written as that vault's own settings say
+    // another vault: written as that vault's own settings say
     Ok(Json(
         blocking(move || {
-            if !crate::vaults::list(&crate::vaults::list_file()).iter().any(|v| std::path::Path::new(&v.path) == other && !v.missing) {
-                return Err(Error::BadRequest(format!("{} is not one of the known vaults", other.display())));
-            }
-            let ws = Workspace::open(&other)?;
+            let ws = known_vault(&other)?;
             capture::capture_unserved(ws.root(), &ws.config()?, &req.text)
         })
         .await?,
@@ -905,7 +939,7 @@ struct RecentQuery {
     limit: Option<usize>,
 }
 
-/// The files to come back to (the phone's Home): opened lately, then changed lately (`usage::recent`).
+/// The files to come back to (the palette's recent files, the phone's Home): opened lately, then changed lately (`usage::recent`).
 async fn recent_get(State(st): S, Query(q): Query<RecentQuery>) -> Result<Json<Vec<String>>> {
     let limit = q.limit.unwrap_or(30).min(200);
     Ok(Json(with_ws(&st, move |ws| crate::usage::recent(&ws, limit)).await?))
@@ -1582,10 +1616,15 @@ fn agents_of(st: &AppState) -> Result<crate::agents::Agents> {
     Ok(crate::agents::Agents::here())
 }
 
-async fn agents_get(State(st): S) -> Result<Json<serde_json::Value>> {
-    let list: Vec<_> = agents_of(&st)?.list().into_iter().map(|t| serde_json::json!({ "name": t.name, "created": t.created, "lastUsed": t.last_used })).collect();
+async fn agents_get(State(st): S) -> Result<Json<AgentsState>> {
     let a = agents_of(&st)?;
-    Ok(Json(serde_json::json!({ "agents": list, "locked": st.lock.is_some(), "file": crate::agents::agents_file(), "terminals": a.terminals_on(), "terminalAgent": crate::agents::TERMINAL_AGENT })))
+    Ok(Json(AgentsState {
+        agents: a.list().iter().map(|t| IssuedToken::of(t, false)).collect(),
+        locked: st.lock.is_some(),
+        file: crate::agents::agents_file().display().to_string(),
+        terminals: a.terminals_on(),
+        terminal_agent: crate::agents::TERMINAL_AGENT.into(),
+    }))
 }
 
 #[derive(serde::Deserialize)]
@@ -1743,15 +1782,16 @@ async fn login_post(State(st): S, axum::extract::ConnectInfo(peer): axum::extrac
 
 /// Who this is, for the UI: `{ server: false }` on the desktop; in server mode how it is signed in, and whether
 /// signing out here means anything (a proxy's sign-in ends at the proxy).
-async fn auth_me(State(st): S, req: Request) -> Json<serde_json::Value> {
+async fn auth_me(State(st): S, req: Request) -> Json<Me> {
     use crate::auth::Who;
     let who = req.extensions().get::<Who>().cloned();
+    let on = Me { server: true, ..Me::default() };
     Json(match (st.auth.is_some(), who) {
-        (false, _) => serde_json::json!({ "server": false }),
-        (true, Some(Who::Session)) => serde_json::json!({ "server": true, "via": "password", "signOut": true }),
-        (true, Some(Who::Proxy(user))) => serde_json::json!({ "server": true, "via": "proxy", "user": user, "signOut": false }),
-        (true, Some(Who::Device { name, scope })) => serde_json::json!({ "server": true, "via": "token", "device": name, "scope": scope, "signOut": false }),
-        (true, None) => serde_json::json!({ "server": true }),
+        (false, _) => Me::default(),
+        (true, Some(Who::Session)) => Me { via: Some(Via::Password), sign_out: Some(true), ..on },
+        (true, Some(Who::Proxy(user))) => Me { via: Some(Via::Proxy), user: Some(user), sign_out: Some(false), ..on },
+        (true, Some(Who::Device { name, scope })) => Me { via: Some(Via::Token), device: Some(name), scope: Some(scope), sign_out: Some(false), ..on },
+        (true, None) => on,
     })
 }
 
@@ -1771,38 +1811,30 @@ fn auth_of(st: &AppState) -> Result<Arc<crate::auth::Auth>> {
     }
 }
 
-async fn server_get(State(st): S) -> Result<Json<serde_json::Value>> {
+async fn server_get(State(st): S) -> Result<Json<ServerState>> {
     let a = auth_of(&st)?;
     let s = a.settings();
-    let tokens: Vec<_> = a.tokens().into_iter().map(|t| serde_json::json!({ "name": t.name, "scope": t.scope, "created": t.created, "lastUsed": t.last_used })).collect();
-    Ok(Json(serde_json::json!({
-        "serving": st.auth.is_some(),
-        "port": st.port,
-        "options": { "auth": s.auth, "trustedProxies": s.trusted_proxies.iter().map(ToString::to_string).collect::<Vec<_>>(), "remoteUserHeader": s.remote_user_header(), "allowPlainHttp": s.allow_plain_http, "mcp": s.mcp },
-        "hasPassword": s.password_hash.is_some(),
-        "tokens": tokens,
-        "sessions": a.session_count(),
-        "files": { "settings": crate::auth::settings_file(), "state": crate::auth::state_file() },
-        "notReady": a.not_ready(),
-    })))
-}
-
-#[derive(serde::Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct ServerOptions {
-    auth: crate::auth::AuthMode,
-    #[serde(default)]
-    trusted_proxies: Vec<String>,
-    remote_user_header: Option<String>,
-    #[serde(default)]
-    allow_plain_http: bool,
-    #[serde(default)]
-    mcp: bool,
+    Ok(Json(ServerState {
+        serving: st.auth.is_some(),
+        port: st.port,
+        options: ServerOptions {
+            auth: s.auth,
+            trusted_proxies: s.trusted_proxies.iter().map(ToString::to_string).collect(),
+            remote_user_header: s.remote_user_header().into(),
+            allow_plain_http: s.allow_plain_http,
+            mcp: s.mcp,
+        },
+        has_password: s.password_hash.is_some(),
+        tokens: a.tokens().iter().map(|t| IssuedToken::of(t, true)).collect(),
+        sessions: a.session_count(),
+        files: ServerFiles { settings: crate::auth::settings_file().display().to_string(), state: crate::auth::state_file().display().to_string() },
+        not_ready: a.not_ready(),
+    }))
 }
 
 async fn server_options_put(State(st): S, Json(o): Json<ServerOptions>) -> Result<StatusCode> {
     let proxies = o.trusted_proxies.iter().map(|p| p.trim()).filter(|p| !p.is_empty()).map(|p| p.parse().map_err(Error::BadRequest)).collect::<Result<Vec<_>>>()?;
-    let header = o.remote_user_header.map(|h| h.trim().to_string()).filter(|h| !h.is_empty() && h != "Remote-User");
+    let header = Some(o.remote_user_header.trim().to_string()).filter(|h| !h.is_empty() && h != "Remote-User");
     let a = auth_of(&st)?;
     let new = crate::auth::ServerSettings { auth: o.auth, trusted_proxies: proxies, remote_user_header: header, allow_plain_http: o.allow_plain_http, mcp: o.mcp, password_hash: None };
     tokio::task::spawn_blocking(move || a.set_options(new)).await.map_err(|e| Error::Other(e.into()))?.map_err(Error::Other)?;
@@ -1971,6 +2003,8 @@ fn router(state: Arc<AppState>) -> Router {
         .route("/api/plugins/{id}/oauth/{name}", get(plugin_oauth_status).delete(plugin_oauth_delete))
         .route("/api/tasks/suggest", get(tasks_suggest))
         .route("/api/capture", post(capture_post))
+        .route("/api/capture/describe", post(capture_describe))
+        .route("/api/capture/days", get(capture_days))
         .route("/api/log/today", post(today_log_post))
         .route("/api/note/new", post(note_new))
         .route("/api/note/templates", get(note_templates))
@@ -2489,7 +2523,7 @@ atlas.serve()
     }
     /// The catalog end to end with its real helpers: the compiled engine (plugins/beta/catalog) and the Python
     /// Linkwarden helper, a page served here, read by the engine (its clip.rs, the page fetched through the core) for
-    /// `catalog-web`'s `/api/clip` source, written as a note,
+    /// `catalog-web`'s clip source (`engine = "clip"`), written as a note,
     /// saved to a stand-in Linkwarden in the library's collection; the same link again finds the same note.
     #[tokio::test(flavor = "multi_thread")]
     async fn the_catalog_turns_a_link_into_a_note_and_a_linkwarden_link_with_its_real_helpers() {

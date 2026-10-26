@@ -22,9 +22,7 @@ pub struct Applied {
 
 /// The note's properties as text values: a list's items each, `[[links]]` as written.
 fn values(text: &str) -> Vec<(String, String)> {
-    let Some(rest) = text.strip_prefix("---\n") else { return vec![] };
-    let Some(end) = rest.find("\n---") else { return vec![] };
-    let Ok(serde_yaml::Value::Mapping(m)) = serde_yaml::from_str::<serde_yaml::Value>(&rest[..end + 1]) else { return vec![] };
+    let m = atlas_text::frontmatter::mapping(text);
     let scalar = |v: &serde_yaml::Value| match v {
         serde_yaml::Value::String(s) => Some(s.clone()),
         serde_yaml::Value::Number(n) => Some(n.to_string()),
@@ -73,9 +71,9 @@ pub fn merge_into(root: &Path, cfg: &Config, rel: &str, template: &str, text: &s
         let merged = atlas_text::merge::merge(text, &rendered);
         return Ok(Applied { template: template.to_string(), added: merged.added, text: merged.text, body: None });
     }
-    let (props, body) = match rendered.strip_prefix("---\n").and_then(|r| r.find("\n---").map(|e| (r, e))) {
-        Some((r, e)) => (format!("---\n{}\n---\n", &r[..e]), r[e + 4..].trim_start_matches('\n').to_string()),
-        None => (String::new(), rendered),
+    let (props, body) = match atlas_text::frontmatter::split(&rendered) {
+        (Some(yaml), body) => (format!("---\n{yaml}---\n"), body.trim_start_matches(['\r', '\n']).to_string()),
+        (None, _) => (String::new(), rendered),
     };
     let merged = atlas_text::merge::merge(text, &props);
     Ok(Applied { template: template.to_string(), added: merged.added, text: merged.text, body: Some(body) })

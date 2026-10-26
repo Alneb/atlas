@@ -18,6 +18,11 @@ export const dirOf = (p: string): string => (p.includes("/") ? p.slice(0, p.last
 /** A path's last part, a trailing slash ignored ("notes/" → "notes"). */
 export const basename = (p: string): string => p.replace(/\/+$/, "").split("/").pop() || p;
 
+/** A name as a file or id part, the core's `paths::slugify` rule: accents folded (é → e), lower-case ASCII letters and
+ *  digits, every other run one `-`. "" when nothing is left (a name in another script). */
+export const slug = (s: string): string =>
+  s.normalize("NFD").replace(/\p{M}+/gu, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+
 /** A picture: it opens in the image pane and keeps its extension in its name. */
 export const IMAGE_RE = /\.(png|jpe?g|gif|svg|webp|avif|bmp|ico)$/i;
 

@@ -7,7 +7,7 @@
 title = "Calendar"
 description = "your calendars in a pane: month, week, day, agenda; several CalDAV accounts and ICS subscriptions; invitations from Email; contacts"
 icon = "calendar"
-version = "1.2.0"
+version = "1.2.1"
 rail = true          # a button for the Calendar pane (view.js)
 api = 12             # Settings v2: account cards (status, Test, presets), hidden / advanced fields, a drawn section
 

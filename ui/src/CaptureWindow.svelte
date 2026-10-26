@@ -6,8 +6,8 @@
   import { errText } from "./lib/text";
   import { shownPath } from "./lib/paths";
   import { onMount } from "svelte";
-  import { api, apiBase } from "./lib/api";
-  import { captureHint, sayDay } from "./lib/capture-hints";
+  import { api } from "./lib/api";
+  import { captureHint } from "./lib/capture-hints.svelte";
   import { complete } from "./lib/textarea-complete";
   import { paintTheme } from "./lib/state.svelte";
   import type { VaultList } from "./lib/gen/VaultList";
@@ -18,7 +18,7 @@
   let vault = $state(""); // the vault written to (default: the one this window belongs to)
   let phase = $state<"typing" | "sending" | "saved" | "failed">("typing"); // (not `state`: `$state` would then read as a store)
   let message = $state("");
-  const hint = $derived(captureHint(text));
+  const hint = captureHint(() => text, () => vault || undefined);
   // this window's vault first (it need not be in the list: `atlas serve` on a folder leaves no trace there), then the known ones
   const others = $derived.by(() => {
     if (!vaults) return [];
@@ -36,7 +36,7 @@
     box?.focus();
     // the look of the vault, and the list of vaults — neither is needed to type
     void api.config().then((c) => { const t = c.config.ui.theme; paintTheme(t === "system" ? (matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark") : t); }).catch(() => {});
-    void fetch(`${apiBase()}/api/vaults`, { headers: { "x-atlas": "1" } }).then((r) => r.json()).then((l: VaultList) => { vaults = l; vault = l.current; }).catch(() => {});
+    void api.vaults().then((l) => { vaults = l; vault = l.current; }).catch(() => {});
   });
 
   async function send() {
@@ -81,7 +81,7 @@
       <span class="what" data-testid="capture-what">
         <!-- the little guides, as in the native box: what the short forms do -->
         {#if !text.trim()}<code>[]</code> to-do <code>@fri</code> date <code>[[</code> link <code>#</code> tag
-        {:else}{hint.task ? "a to-do" : "a line in today's log"}{#if hint.due}{hint.task ? ", due " : " · mentions "}{sayDay(hint.due)}{/if}{/if}
+        {:else}{hint.current.says}{/if}
       </span>
     {/if}
     {#if others.length > 1 && phase !== "saved"}

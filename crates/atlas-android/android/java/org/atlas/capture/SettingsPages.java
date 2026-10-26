@@ -36,7 +36,7 @@ final class SettingsPages {
     static String title(String arg) {
         if (arg == null || arg.isEmpty()) return "Settings";
         if (arg.startsWith("plugin:")) return titleOf(arg.substring(7), null);
-        if (arg.startsWith("cfg:")) { int bar = arg.indexOf('|'); return bar > 0 ? arg.substring(bar + 1) : arg.length() == 4 ? "General" : ConfigPages.human(arg.substring(4)); }
+        if (arg.startsWith("cfg:")) { int bar = arg.indexOf('|'); return bar > 0 ? arg.substring(bar + 1) : arg.length() == 4 ? "General" : arg.substring(4); }
         switch (arg) {
             case "vaults": return "Vaults";
             case "capture": return "Capture";

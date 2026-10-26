@@ -4,7 +4,8 @@
   // `atlas serve --listen` starts from. Nothing here lives in the vault.
   import { errText, errReason } from "../../lib/text";
   import { onMount } from "svelte";
-  import { api, type AuthMode, type Me, type ServerState } from "../../lib/api";
+  import { api } from "../../lib/api";
+  import type { AuthMode, Me, ServerState } from "../../lib/types";
 
   let st = $state<ServerState | null>(null);
   let me = $state<Me | null>(null);

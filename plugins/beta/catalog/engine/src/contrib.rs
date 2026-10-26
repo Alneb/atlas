@@ -62,12 +62,42 @@ pub struct RecognizerSpec {
     pub tool: String,
 }
 
-/// How a source is asked: exactly one of `tool = "…"` or `api = "/api/…"`.
+/// How a source is asked: exactly one of `tool = "…"` (the plugin's own), `api = "/api/…"` (a core route, POSTed)
+/// or `engine = "clip"` (read by this engine itself).
 #[derive(Debug, Clone, PartialEq, Deserialize)]
-#[serde(rename_all = "lowercase")]
+#[serde(rename_all = "lowercase", from = "ViaSpec")]
 pub enum Via {
     Tool(String),
     Api(String),
+    Engine(EngineSource),
+}
+
+/// What the catalog engine answers itself, with no plugin program behind it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum EngineSource {
+    /// A web page read here: its own metadata and readable text (clip.rs; the page fetched through the core).
+    Clip,
+}
+
+/// [`Via`] as written. `api = "/api/clip"` was the clip's name when the core read pages, in manifests still installed.
+#[derive(Deserialize)]
+#[serde(rename_all = "lowercase")]
+enum ViaSpec {
+    Tool(String),
+    Api(String),
+    Engine(EngineSource),
+}
+
+impl From<ViaSpec> for Via {
+    fn from(v: ViaSpec) -> Self {
+        match v {
+            ViaSpec::Tool(t) => Via::Tool(t),
+            ViaSpec::Api(a) if a == "/api/clip" => Via::Engine(EngineSource::Clip),
+            ViaSpec::Api(a) => Via::Api(a),
+            ViaSpec::Engine(e) => Via::Engine(e),
+        }
+    }
 }
 
 impl std::fmt::Display for Via {
@@ -75,6 +105,7 @@ impl std::fmt::Display for Via {
         match self {
             Via::Tool(t) => write!(f, "tool {t}"),
             Via::Api(a) => write!(f, "{a}"),
+            Via::Engine(EngineSource::Clip) => write!(f, "the page itself"),
         }
     }
 }
@@ -82,8 +113,8 @@ impl std::fmt::Display for Via {
 #[derive(Debug, Clone, Deserialize)]
 pub struct SourceSpec {
     pub kind: OneOrMany,
-    /// who answers: the plugin's `[[tool]]`, or a core API (`api = "/api/clip"`, POSTed) — so a subplugin made only
-    /// of a manifest can use what the core already does. Input `{ kind, ids, url }` → `{ kind?, ids?, fields }`
+    /// who answers: the plugin's `[[tool]]`, a core API (`api = "/api/…"`, POSTed) or this engine (`engine = "clip"`)
+    /// — so a subplugin made only of a manifest can use what is already there. Input `{ kind, ids, url }` → `{ kind?, ids?, fields }`
     /// (or `{ signin }`)
     #[serde(flatten)]
     pub via: Via,
@@ -219,5 +250,14 @@ mod tests {
         let problems: Vec<&str> = say.0.iter().filter(|s| s.problem).map(|s| s.explanation.as_str()).collect();
         assert_eq!(problems.len(), 2, "{problems:?}");
         assert!(problems.iter().any(|p| p.starts_with("catalog-typo")));
+    }
+
+    #[test]
+    fn the_page_reader_is_the_engines_own_source_and_its_old_name_still_reads() {
+        let spec = |v: serde_json::Value| serde_json::from_value::<SourceSpec>(v).unwrap().via;
+        assert_eq!(spec(serde_json::json!({ "kind": "*", "engine": "clip" })), Via::Engine(EngineSource::Clip));
+        assert_eq!(spec(serde_json::json!({ "kind": "*", "api": "/api/clip" })), Via::Engine(EngineSource::Clip), "a manifest from before");
+        assert_eq!(spec(serde_json::json!({ "kind": "*", "api": "/api/other" })), Via::Api("/api/other".into()));
+        assert!(serde_json::from_value::<SourceSpec>(serde_json::json!({ "kind": "*", "engine": "nope" })).is_err());
     }
 }

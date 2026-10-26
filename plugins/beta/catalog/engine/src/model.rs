@@ -100,10 +100,7 @@ pub fn canonical_url(url: &str) -> String {
     let kept: Vec<&str> = query
         .into_iter()
         .flat_map(|q| q.split('&'))
-        .filter(|kv| {
-            let k = kv.split('=').next().unwrap_or("");
-            !(k.is_empty() || k.starts_with("utm_") || matches!(k, "fbclid" | "gclid" | "mc_cid" | "mc_eid" | "ref_src" | "si" | "igsh" | "feature" | "pp"))
-        })
+        .filter(|kv| !kv.split('=').next().unwrap_or("").is_empty() && !atlas_text::links::is_tracking(kv))
         .collect();
     let path = path.trim_end_matches('/');
     let mut out = format!("{}://{host}", scheme.to_ascii_lowercase());

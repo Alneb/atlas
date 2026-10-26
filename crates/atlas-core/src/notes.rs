@@ -113,9 +113,9 @@ fn templater(text: &str, title: &str, now: NaiveDateTime) -> (String, Option<u32
 /// `{{include:name}}` reads the vault's templates folder when there is a vault: the other template's
 /// body, its frontmatter left out (an included piece is text, not a second note's properties).
 fn fill(vault: Option<(&Path, &Config)>, template: &str, title: &str, now: NaiveDateTime, values: &Map<String, Value>) -> (String, Option<u32>) {
-    let body = |t: String| match t.strip_prefix("---\n").and_then(|b| b.find("\n---").map(|e| b[e + 4..].trim_start_matches('\n').to_string())) {
-        Some(rest) => rest,
-        None => t,
+    let body = |t: String| match atlas_text::frontmatter::split(&t) {
+        (Some(_), rest) => rest.trim_start_matches(['\r', '\n']).to_string(),
+        (None, _) => t,
     };
     let include = |name: &str| vault.and_then(|(root, cfg)| template_text(root, cfg, name).ok()).map(body);
     // day and month names in the vault's language ("2026-10-17 sáb."), as its Bases and daily notes write them
@@ -167,13 +167,12 @@ struct TemplateOwn {
 /// The template's text without its own properties, and those properties.
 fn take_own(template: &str) -> (String, TemplateOwn) {
     let mut own = TemplateOwn::default();
-    let Some(body) = template.strip_prefix("---\n") else { return (template.to_string(), own) };
-    let Some(end) = body.find("\n---") else { return (template.to_string(), own) };
+    let (Some(yaml), after) = atlas_text::frontmatter::split(template) else { return (template.to_string(), own) };
     let value = |v: &str| Some(v.trim().trim_matches(|c| c == '"' || c == '\'').to_string()).filter(|f| !f.is_empty());
     let mut taken = false;
     // `apply_when:` spans the lines indented under it (template_rules.rs reads it)
     let mut in_rules = false;
-    let kept: Vec<&str> = body[..end]
+    let kept: Vec<&str> = yaml
         .lines()
         .filter(|l| {
             if in_rules && l.starts_with([' ', '\t', '-']) {
@@ -197,7 +196,7 @@ fn take_own(template: &str) -> (String, TemplateOwn) {
         return (template.to_string(), own);
     }
     let head = if kept.is_empty() { String::new() } else { format!("{}\n", kept.join("\n")) };
-    (format!("---\n{head}{}", &body[end + 1..]), own)
+    (format!("---\n{head}---\n{after}"), own)
 }
 
 /// What a note gets when nothing chose a template (`[notes] default_template` unset and no `default.md`).
@@ -371,8 +370,8 @@ pub fn new_note_at(root: &Path, cfg: &Config, req: &NewNote, now: NaiveDateTime)
 /// The top-level keys of a text's frontmatter, in order: a `key:` line at the left margin (Templater
 /// script lines and list items are not keys).
 fn frontmatter_keys(text: &str) -> Vec<String> {
-    let Some(end) = text.strip_prefix("---\n").and_then(|b| b.find("\n---").map(|e| &b[..e])) else { return vec![] };
-    end.lines()
+    let Some(yaml) = atlas_text::frontmatter::split(text).0 else { return vec![] };
+    yaml.lines()
         .filter(|l| !l.starts_with([' ', '\t', '-', '#']))
         .filter_map(|l| l.split_once(':').map(|(k, _)| k.trim()))
         .filter(|k| !k.is_empty() && k.chars().all(|c| c.is_alphanumeric() || "_- ".contains(c)))

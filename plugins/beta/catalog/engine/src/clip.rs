@@ -1,4 +1,4 @@
-//! A web page read on the server (`POST /api/clip`): what it says about itself — OpenGraph, Twitter cards, JSON-LD,
+//! A web page read for the catalog (`engine = "clip"`, catalog-web's source): what it says about itself — OpenGraph, Twitter cards, JSON-LD,
 //! Highwire `citation_*` tags — and its readable text as Markdown. One implementation for every client (the page, the
 //! phone, a helper, an agent): the catalog's web-page source (catalog-web), anything that turns a link into a note.
 //! It only reads; nothing is written here.

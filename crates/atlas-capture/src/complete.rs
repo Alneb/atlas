@@ -4,7 +4,7 @@
 use atlas_core::config::TaskSuggestMode;
 use crate::icons::Icon;
 use atlas_core::task_suggest::TaskIcon;
-use chrono::{Local, NaiveDate};
+use chrono::Local;
 use std::ops::Range;
 
 #[derive(Clone, Debug, PartialEq)]
@@ -22,32 +22,10 @@ pub struct Suggestion {
 }
 
 const MOST: usize = 7;
-const DAYS: [&str; 11] = ["today", "tomorrow", "mon", "tue", "wed", "thu", "fri", "sat", "sun", "+3d", "+7d"];
 
 /// A to-do in capture's short forms (`[] x`, `- [ ] x`, `todo x`, `TODO: x`…): the core's own rule.
 pub fn is_todo(text: &str) -> bool {
     atlas_core::capture::starts_as_task(text)
-}
-
-/// The day the text names (`@tomorrow`, `@fri`, `@+3d` — as capture.rs writes them — or `📅 YYYY-MM-DD`).
-pub fn due(text: &str, today: NaiveDate) -> Option<NaiveDate> {
-    let words: Vec<&str> = text.split_whitespace().collect();
-    words.iter().enumerate().find_map(|(i, w)| {
-        if let Some(d) = w.strip_prefix('@') {
-            return atlas_core::capture::day_of(d, today).or_else(|| NaiveDate::parse_from_str(d, "%Y-%m-%d").ok());
-        }
-        (w.trim_end_matches('\u{FE0F}') == "📅").then(|| words.get(i + 1).and_then(|d| NaiveDate::parse_from_str(d, "%Y-%m-%d").ok())).flatten()
-    })
-}
-
-/// A day as people say it: today, tomorrow, Friday (within the week), else "Thu 22 Oct".
-pub fn say_day(d: NaiveDate, today: NaiveDate) -> String {
-    match (d - today).num_days() {
-        0 => "today".into(),
-        1 => "tomorrow".into(),
-        2..=6 => d.format("%A").to_string(),
-        _ => d.format("%a %-d %b").to_string(),
-    }
 }
 
 /// What the lists draw on: the vault's note names and tags, and when its tasks offer their fields.
@@ -99,7 +77,7 @@ pub fn suggest(text: &str, caret: usize, names: &Names) -> Vec<Suggestion> {
     }
     if let Some(typed) = word.strip_prefix('@') {
         let today = Local::now().date_naive();
-        return DAYS
+        return atlas_core::capture::DAY_WORDS
             .iter()
             .filter(|d| d.starts_with(typed) && **d != typed)
             .take(MOST)
@@ -115,16 +93,10 @@ pub fn suggest(text: &str, caret: usize, names: &Names) -> Vec<Suggestion> {
     vec![]
 }
 
-/// What the text will become once sent: "a to-do, due tomorrow", "a line in today's log".
-pub fn what_it_becomes(text: &str) -> String {
-    let today = chrono::Local::now().date_naive();
-    let when = due(text, today).map(|d| say_day(d, today));
-    match (is_todo(text), when) {
-        (true, Some(w)) => format!("a to-do, due {w}"),
-        (true, None) => "a to-do".into(),
-        (false, Some(w)) => format!("a line in today's log · mentions {w}"),
-        (false, None) => "a line in today's log".into(),
-    }
+/// What the text will become once sent: "a to-do, due tomorrow", "a line in today's log" — the core's words
+/// (`capture::describe`), with the vault's own settings when it is known.
+pub fn what_it_becomes(at: Option<(&std::path::Path, &atlas_core::config::Config)>, text: &str) -> String {
+    atlas_core::capture::describe(at, text, Local::now().date_naive()).says
 }
 
 fn s(label: &str, detail: &str, icon: Icon, insert: &str, replace: Range<usize>) -> Suggestion {
@@ -196,11 +168,6 @@ mod tests {
         assert_eq!(d[0].label, "tomorrow");
         assert_eq!(d[0].replace, t.len() - 3..t.len());
         assert!(suggest("pay rent due", 12, &names).is_empty(), "not a to-do: no task fields");
-        let thu = NaiveDate::from_ymd_opt(2026, 10, 15).unwrap();
-        assert_eq!(due("[] call x @tomorrow", thu), NaiveDate::from_ymd_opt(2026, 10, 16));
-        assert_eq!(due("[] call x 📅 2026-10-20", thu), NaiveDate::from_ymd_opt(2026, 10, 20));
-        assert_eq!(say_day(NaiveDate::from_ymd_opt(2026, 10, 17).unwrap(), thu), "Saturday");
-        assert_eq!(due("plain words", thu), None);
         let t = "[] call x h";
         let h: Vec<String> = suggest(t, t.len(), &names).into_iter().map(|s| s.label).collect();
         assert_eq!(h, ["new line", "scheduled date", "high priority", "highest priority"], "one letter is enough; Obsidian's order, by contains");

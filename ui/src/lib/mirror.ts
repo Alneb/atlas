@@ -3,7 +3,7 @@
 // and splices the live rooms to the server's (server.rs live_ws), so the interface only shows the link (the panes'
 // `⇄ host` chip), and offers the server's sign-in. The desktop reaches the server through its bridge (core
 // remote_bridge.rs), which only goes to servers on the vault list or named as a mirror.
-import { apiBase } from "./api";
+import { api, apiBase } from "./api";
 
 /** Where a server vault's API is through the desktop's bridge: `https://host/v/notes/` → `/remote/host/v/notes`. */
 export function bridgeBase(address: string): string {
@@ -55,9 +55,8 @@ function refresh(): Promise<void> {
   asking ??= (async () => {
     try {
       // a page already on a server (through the bridge) has no mirror of its own
-      const address = apiBase().startsWith("/remote/") ? null : await fetch(`${apiBase()}/api/vaults`, { headers: { "x-atlas": "1" } })
-        .then((r) => (r.ok ? r.json() : null))
-        .then((l: { current: string; vaults: { path: string; mirror?: string }[] } | null) => l?.vaults.find((v) => v.path === l.current)?.mirror ?? null, () => null);
+      const address = apiBase().startsWith("/remote/") ? null : await api.vaults()
+        .then((l) => l.vaults.find((v) => v.path === l.current)?.mirror ?? null, () => null);
       known = { address, state: address ? await reach(address) : "offline", at: Date.now() };
     } finally { asking = null; }
   })();

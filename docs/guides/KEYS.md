@@ -101,7 +101,7 @@ Settings → Keyboard marks, in red beside the command, a key that another comma
 
 ## Where keys are decided (for whoever changes this)
 
-- A default is `keys: "Ctrl+Alt+K"` on the action, with `alsoKeys: ["Super+K"]` for more. Keys are matched by physical key (`ui/src/lib/keys.ts`), so they work on a Spanish layout; `Super`, `Meta` and `Cmd` are the same modifier.
+- A default is `keys: "Super+K"` on the action, with `alsoKeys: ["F1"]` for more. Keys are matched by physical key (`ui/src/lib/keys.ts`), so they work on a Spanish layout; `Super`, `Meta` and `Cmd` are the same modifier.
 - `where: "note"` limits a key to notes (Ctrl+B is bold there and nothing elsewhere); a focused terminal keeps every key without Super for its shell; `fromTerminal: true` lets a command's keys work from there too (Ctrl+Tab, Ctrl+`). (Until only plain Ctrl+letter keys of commands marked `yieldToTerminal` went to the shell.)
 - The user's own bindings win: `.atlas/keys.toml`, edited by Settings → Keyboard.
 

@@ -1,6 +1,7 @@
 // Who this page is talking to (GET /api/auth/me), asked once and shared: `server` is true only under `atlas serve`
 // (server mode). Settings shows its Server page only then.
-import { api, type Me } from "./api";
+import { api } from "./api";
+import type { Me } from "./types";
 
 export const me = $state<{ info: Me | null }>({ info: null });
 

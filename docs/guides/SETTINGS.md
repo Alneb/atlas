@@ -132,8 +132,12 @@ would cycle):
 
 ## A Settings pass
 After a day of features, Settings had fallen behind: many new things were not in it. An audit listed what was missing; this pass:
-- **Labels by path.** `fieldLabel(path)` in `settings-pages.ts` looks up `FIELD_LABELS` by the dotted path first,
-  then falls back to `human(key)`. Keys alone collided (`notes.dir` and `draw.dir` were both "Folder") or read badly
+- **Labels by path, from the core.** The core writes each setting's label into the schema it serves
+  (`settings_layout.rs`: `title` from `FIELD_LABELS` by the dotted path, else `human(key)`; a choice's label in
+  `x-labels`; the clients a setting does something on in `x-hosts` — terminals and language servers where a desktop
+  page runs, the GPU and the web window's ad blocker in the desktop app). The web's Settings and the phone's read them
+  from there (`fieldTitle`, `choiceLabel`, `shownOn` in `settings-schema.ts`; `ConfigPages.java`), so both name and
+  leave out the same fields. Keys alone collided (`notes.dir` and `draw.dir` were both "Folder") or read badly
   ("Log dir", "Eink refresh", "Oidc issuer", "C", "Show claude"). Search uses the same label.
 - **Placed:** `editor.live` (live editing between devices) sat alone on an automatic "Editor" page; it is on Writing.
 - **New options, each doing something:**

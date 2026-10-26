@@ -4,16 +4,18 @@ import type {
   ApiErrorBody, CaptureResult, CmdResult, CommandInfo, FileDoc, PtyPreset, PtyControl,
   PutFileResult, RelPath, ReplaceRequest, TaskTicked, LinkTarget, ReplaceResult, SearchResult, ServerEvent, Today, TreeEntry, UiState, Workspace,
   ConfigDoc, WorkspaceConfig, GitCommit, CommitDetail, GitStatus, Patch, GitCommitted, GitDiscarded, GitSynced,
+  ServerState, ServerOptions, AgentsState, Me, PluginFetchRequest, PluginFetchResponse,
 } from "./types";
 
 import { emitPluginEvent, type PluginEvent } from "./plugin-events";
+import type { VaultList } from "./gen/VaultList";
+import type { Plugin } from "./gen/Plugin";
+import type { CaptureHint } from "./gen/CaptureHint";
+import type { CaptureDay } from "./gen/CaptureDay";
 
 declare global {
   interface Window { __ATLAS_API__?: string }
 }
-/** `plugin_net.rs`: FetchRequest / FetchResponse. A header is its text, or a secret the core fills in. */
-export interface PluginFetchRequest { url: string; method?: string; headers?: Record<string, string | { secret: string; prefix?: string } | { oauth: string }>; body?: string; timeout_secs?: number; save_to?: string; save_in?: import("./gen/SaveIn").SaveIn; body_file?: string; form?: Record<string, string | { secret: string; prefix?: string }> }
-export interface PluginFetchResponse { status: number; ok: boolean; headers: Record<string, string>; text: string; saved?: string; url: string; signin?: import("./gen/Needed").Needed }
 
 /** After a request that worked, tell the plugins what happened; the result passes through. */
 const told = (e: PluginEvent) => <T>(r: T): T => { emitPluginEvent(e); return r; };
@@ -39,11 +41,11 @@ type Query = Record<string, string | number | undefined>;
 /** How the task list is asked for (`Ask` in crates/atlas-core/src/task_suggest.rs). */
 export type TaskAsk = { explicit?: boolean; at?: boolean; browse?: boolean; keepEnter?: boolean };
 
-function url(path: string, query?: Query): string {
+function url(path: string, query?: Query, base = apiBase()): string {
   const qs = new URLSearchParams();
   for (const [k, v] of Object.entries(query ?? {})) if (v !== undefined) qs.set(k, String(v));
   const s = qs.toString();
-  return `${apiBase()}${path}${s ? `?${s}` : ""}`;
+  return `${base}${path}${s ? `?${s}` : ""}`;
 }
 
 let bridgeAsked = 0;
@@ -59,11 +61,12 @@ function signInThroughBridge(page: string): void {
 }
 
 // Every call goes to this vault's own core (apiBase): a mirrored vault's writes are local, and the core asks the server
-// for a lease first (core mirror_guard.rs; docs/design/DESIGN-mirror-v2.md).
-async function request<T>(method: string, path: string, opts: { query?: Query; body?: unknown } = {}): Promise<T> {
+// for a lease first (core mirror_guard.rs; docs/design/DESIGN-mirror-v2.md). `base: ""` is the desktop's own core
+// whatever vault the page shows (ownCore).
+async function request<T>(method: string, path: string, opts: { query?: Query; body?: unknown; base?: string } = {}): Promise<T> {
   const headers: Record<string, string> = { "x-atlas": "1" };
   if (opts.body !== undefined) headers["content-type"] = "application/json";
-  const res = await fetch(url(path, opts.query), {
+  const res = await fetch(url(path, opts.query, opts.base), {
     method,
     headers,
     body: opts.body === undefined ? undefined : JSON.stringify(opts.body),
@@ -83,16 +86,6 @@ async function request<T>(method: string, path: string, opts: { query?: Query; b
   return data as T;
 }
 
-/** Settings → Server (docs/guides/SERVER.md). */
-export type AuthMode = "password" | "proxy" | "both";
-export interface ServerOptions { auth: AuthMode; trustedProxies: string[]; remoteUserHeader: string; allowPlainHttp: boolean; mcp: boolean }
-export interface ServerState {
-  serving: boolean; port: number; options: ServerOptions; hasPassword: boolean; sessions: number; notReady: string | null;
-  tokens: { name: string; scope: "capture" | "full"; created: number; lastUsed: number | null }[];
-  files: { settings: string; state: string };
-}
-export interface AgentsState { agents: { name: string; created: number; lastUsed: number | null }[]; locked: boolean; file: string; terminals: boolean; terminalAgent: string }
-export interface Me { server: boolean; via?: "password" | "proxy" | "token"; user?: string; device?: string; signOut?: boolean }
 
 /** The references library's plugin, and a call to its helper (typed: the answers are the core's Paper shapes). */
 const PAPERS = "catalog-papers";
@@ -101,9 +94,22 @@ const papers = <T>(method: string, params?: unknown, timeout?: number): Promise<
 /** Is the plugin in this vault, with its helper? Asked before listing: a missing helper answers 404, which the
  *  browser logs on every start of a vault without it (as a missing init.js would). */
 const papersHere = (): Promise<boolean> =>
-  request<{ id: string; has_helper: boolean; error?: string | null }[]>("GET", "/api/plugins").then((ps) => ps.some((p) => p.id === PAPERS && p.has_helper && !p.error));
+  api.plugins().then((ps) => ps.some((p) => p.id === PAPERS && p.has_helper && !p.error));
+
+/** A call to the desktop's own core, whatever vault this page shows (a server vault's page goes through its bridge). */
+export const ownCore = <T>(method: string, path: string, body?: unknown): Promise<T> => request<T>(method, path, { body, base: "" });
 
 export const api = {
+  vaults: () => request<VaultList>("GET", "/api/vaults"),
+  /** This window's vault becomes the one the capture box starts on. */
+  vaultActive: () => request<void>("POST", "/api/vaults/active"),
+  plugins: () => request<Plugin[]>("GET", "/api/plugins"),
+  /** What a capture's text will become (capture.rs `describe`), for `vault` when it is not this window's. */
+  describeCapture: (text: string, vault?: string) => request<CaptureHint>("POST", "/api/capture/describe", { body: { text, vault } }),
+  captureDays: () => request<CaptureDay[]>("GET", "/api/capture/days"),
+  /** Files opened lately (the usage journal), then changed lately: `limit` in all. */
+  recent: (limit: number) => request<string[]>("GET", "/api/recent", { query: { limit } }),
+  pluginData: (id: string, args?: unknown) => request<unknown>("POST", `/api/plugins/${encodeURIComponent(id)}/data`, { body: args }),
   me: () => request<Me>("GET", "/api/auth/me"),
   /** A locked local core's one-time link for another window (local_lock.rs); 400 when the core is open. */
   localLink: () => request<{ url: string }>("POST", "/api/local/link"),

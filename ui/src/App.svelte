@@ -101,7 +101,7 @@
     installPreviews(); // hover previews of links and of the left bar's tabs
     installDiagnostics();
     // this window's vault is the active one: the capture box (atlas-capture) starts on the vault opened last
-    const active = () => { if (!apiBase().startsWith("/remote/")) void fetch(`${apiBase()}/api/vaults/active`, { method: "POST", headers: { "x-atlas": "1" } }).catch(() => {}); };
+    const active = () => { if (!apiBase().startsWith("/remote/")) void api.vaultActive().catch(() => {}); };
     window.addEventListener("focus", active);
     if (document.hasFocus()) active(); // a switch loads the vault's page in a window that has the focus already
     paintTheme(app.theme); // cached choice first (no flash), then the real settings

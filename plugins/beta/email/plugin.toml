@@ -7,7 +7,7 @@
 title = "Email"
 description = "mail: conversations, search, fast triage, a composer, rules; saved notes; IMAP/SMTP or Outlook (OAuth2), several accounts"
 icon = "mail"
-version = "1.1.1"
+version = "1.1.2"
 rail = true          # a button for the Email pane (view.js)
 api = 12
 

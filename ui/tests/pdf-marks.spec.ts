@@ -1,6 +1,7 @@
 import { test, expect } from "@playwright/test";
 import { quoteOf, type TextPiece } from "../src/lib/atlas-mark";
-import { eraseIn, marksToElements, stampOldMarks, type Mark, type PageBox } from "../src/lib/pdf-ink-scene";
+import { addPageFrame, marksToElements, type PageBox } from "./fixtures/old-pdf-drawing";
+import type { El } from "../src/lib/pdf-ink-scene";
 
 // A PDF's marks carry `atlasMark` (lib/atlas-mark.ts): a highlight's boxes in PDF points and its words, found from the
 // page's text, so any engine can anchor it again. Two lines of 10-pt-wide characters, as pdf.js's getTextContent gives.
@@ -16,58 +17,7 @@ test("a highlight's words are the characters under its boxes, with the words aro
   expect(quoteOf(TEXT, [[0, 200, 50, 210]])).toBeNull();
 });
 
-const frame = { id: "f1", type: "frame", x: 0, y: 0, width: 200, height: 260 };
-const BOX: PageBox = [0, 0, 200, 260];
 
-test("a new highlight's line boxes are one mark with its quads and words; a pen mark's lines one ink mark", () => {
-  const q = [100, 112, 150, 112, 100, 98, 150, 98];
-  const marks: Mark[] = [
-    { annotationType: 9, pageIndex: 0, color: [255, 224, 102], quadPoints: q },
-    { annotationType: 15, pageIndex: 0, color: [0, 0, 0], thickness: 1, paths: { points: [[10, 10, 20, 20], [30, 30, 40, 40]] } },
-  ];
-  const els = marksToElements(marks, new Map([[1, frame]]), new Map([[1, BOX]]), new Map([[1, TEXT]]));
-  const hl = els.filter((e) => e.type === "rectangle"), ink = els.filter((e) => e.type === "freedraw");
-  const m = (e: object) => ((e as { customData?: unknown }).customData as { atlasMark: import("../src/lib/atlas-mark").AtlasMark }).atlasMark;
-  expect(hl).toHaveLength(1);
-  expect(m(hl[0])).toMatchObject({ kind: "highlight", page: 1, device: "desktop", color: "#ffe066", quads: [BROWN], quote: { exact: "brown" } });
-  expect(m(hl[0]).id).toMatch(/^m-[0-9a-z]{8}$/);
-  expect(ink).toHaveLength(2);
-  expect(new Set(ink.map((e) => m(e).id)).size).toBe(1);
-  expect(m(ink[0]).kind).toBe("ink");
-});
-
-test("older marks get their atlasMark on the next save: a highlight's boxes stay one mark, the phone's ink is the phone's", () => {
-  const picture = { id: "p1", type: "image", frameId: "f1", customData: { atlasPage: { file: "x.pdf", page: 1 } } };
-  const old = (id: string, rect: number[]) => ({ id, type: "rectangle", frameId: "f1", version: 3, backgroundColor: "#FFE066", customData: { atlasHighlight: { page: 1, mark: "passage-1", rect } } });
-  const els = [frame, picture, old("highlight-a", [100, 98, 150, 112]), old("highlight-b", [160, 98, 190, 112]),
-    { id: "Xy7Q", type: "freedraw", frameId: "f1", version: 1, strokeColor: "#1e1e1e" }, { id: "gone", type: "freedraw", frameId: "f1", isDeleted: true }];
-  expect(stampOldMarks(els as never, new Map([[1, TEXT]]))).toBe(3);
-  const m = (i: number) => (els[i] as { customData?: { atlasMark?: { id: string; kind: string; device: string; quote?: { exact: string } } } }).customData?.atlasMark;
-  expect(m(2)?.id).toBe(m(3)?.id);
-  expect(m(2)).toMatchObject({ kind: "highlight", device: "desktop", quote: { exact: "brown fox" } });
-  expect(m(4)).toMatchObject({ kind: "ink", device: "android" });
-  expect((els[2] as { version: number }).version).toBe(4);
-  expect(m(1)).toBeUndefined();
-  expect(m(5)).toBeUndefined();
-});
-
-test("the eraser takes a highlight out whole and a pen mark stroke by stroke", () => {
-  const picture = { id: "p1", type: "image", frameId: "f1", customData: { atlasPage: { file: "x.pdf", page: 1 } } };
-  const marks: Mark[] = [
-    { annotationType: 9, pageIndex: 0, quadPoints: [100, 112, 150, 112, 100, 98, 150, 98, 0, 97, 50, 97, 0, 83, 50, 83] },
-    { annotationType: 15, pageIndex: 0, paths: { points: [[10, 250, 30, 250], [10, 240, 30, 240]] } },
-  ];
-  const els = [frame, picture, ...marksToElements(marks, new Map([[1, frame]]), new Map([[1, BOX]]), new Map([[1, TEXT]]))] as never[];
-  const live = () => (els as { type: string; isDeleted?: boolean }[]).filter((e) => !e.isDeleted);
-  // a click on "brown" (page space y up: 105 pt of 260 → 0.596 down)
-  expect(eraseIn(els, 1, 125 / 200, (260 - 105) / 260)).toBe(true);
-  expect(live().filter((e) => e.type === "rectangle")).toHaveLength(0);
-  expect(eraseIn(els, 1, 20 / 200, 10 / 260)).toBe(true);
-  expect(live().filter((e) => e.type === "freedraw")).toHaveLength(1);
-  expect(eraseIn(els, 1, 0.9, 0.9)).toBe(false);
-});
-
-// the same string the core's test pins (pdf_marks.rs `the_samples_codec_is_the_one_every_device_reads`)
 test("pen samples are coded as the core codes them, to its precision", async () => {
   const { encodeSamples, decodeSamples } = await import("../src/lib/pdf-samples");
   const samples = [
@@ -97,9 +47,8 @@ test("the note's view reads a block's lines, leaving out removed marks and lines
 
 test("an older drawing's marks come back as the note's marks, in PDF points, a highlight's boxes one mark", async () => {
   const { convert, placeKey } = await import("../src/lib/pdf-ink-to-marks");
-  const { addPageFrame } = await import("../src/lib/pdf-ink-scene");
   const { decodeSamples } = await import("../src/lib/pdf-samples");
-  const box: PageBox = [0, 0, 612, 792], els: import("../src/lib/pdf-ink-scene").El[] = [];
+  const box: PageBox = [0, 0, 612, 792], els: El[] = [];
   const frame = addPageFrame(els, "x.pdf", 1, box);
   const made = marksToElements([
     { annotationType: 9, pageIndex: 0, color: [255, 224, 102], quadPoints: [100, 712, 200, 712, 100, 700, 200, 700, 100, 692, 150, 692, 100, 680, 150, 680] },

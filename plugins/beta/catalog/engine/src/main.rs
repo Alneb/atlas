@@ -13,9 +13,8 @@ fn why(e: atlas_plugin::Error) -> Fail {
 
 /// The frontmatter of a note's text as fields (none: an empty set).
 fn frontmatter(text: &str) -> Fields {
-    let Some(rest) = text.strip_prefix("---\n").or_else(|| text.strip_prefix("---\r\n")) else { return Fields::new() };
-    let Some(end) = rest.find("\n---") else { return Fields::new() };
-    serde_yaml::from_str::<serde_json::Value>(&rest[..end]).ok().and_then(|v| serde_json::from_value(v).ok()).unwrap_or_default()
+    let Some(yaml) = atlas_text::frontmatter::split(text).0 else { return Fields::new() };
+    serde_yaml::from_str::<serde_json::Value>(yaml).ok().and_then(|v| serde_json::from_value(v).ok()).unwrap_or_default()
 }
 
 impl Host for Core {
@@ -45,25 +44,26 @@ impl Host for Core {
     }
 
     fn api(&self, path: &str, input: Value) -> Result<Value, Fail> {
-        // a page read here (catalog-web's source; clip.rs moved from the core), fetched through the core's fetch
-        if path == "/api/clip" {
-            let url = input.get("url").and_then(Value::as_str).ok_or("clip: no url")?;
-            let clip = atlas_catalog::clip::fetch(url, |u, cookie| {
-                let mut headers = json!({ "accept": "text/html,application/xhtml+xml,*/*;q=0.8" });
-                if !cookie.is_empty() { headers["cookie"] = json!(cookie); }
-                let r = self.0.post("/api/plugins/catalog/fetch", &json!({ "url": u, "headers": headers, "timeout_secs": 20 })).map_err(why)?;
-                Ok(atlas_catalog::clip::Page {
-                    status: r.get("status").and_then(Value::as_u64).unwrap_or(0) as u16,
-                    url: r.get("url").and_then(Value::as_str).unwrap_or(u).to_string(),
-                    text: r.get("text").and_then(Value::as_str).unwrap_or_default().to_string(),
-                })
-            })?;
-            return serde_json::to_value(clip).map_err(|e| e.to_string());
-        }
         if !path.starts_with("/api/") {
             return Err(format!("{path}: a source's api must be a path of Atlas's own API (/api/…)"));
         }
         self.0.post(path, &input).map_err(why)
+    }
+
+    fn clip(&self, input: Value) -> Result<Value, Fail> {
+        // a page read here (catalog-web's source), fetched through the core's fetch
+        let url = input.get("url").and_then(Value::as_str).ok_or("clip: no url")?;
+        let clip = atlas_catalog::clip::fetch(url, |u, cookie| {
+            let mut headers = json!({ "accept": "text/html,application/xhtml+xml,*/*;q=0.8" });
+            if !cookie.is_empty() { headers["cookie"] = json!(cookie); }
+            let r = self.0.post("/api/plugins/catalog/fetch", &json!({ "url": u, "headers": headers, "timeout_secs": 20 })).map_err(why)?;
+            Ok(atlas_catalog::clip::Page {
+                status: r.get("status").and_then(Value::as_u64).unwrap_or(0) as u16,
+                url: r.get("url").and_then(Value::as_str).unwrap_or(u).to_string(),
+                text: r.get("text").and_then(Value::as_str).unwrap_or_default().to_string(),
+            })
+        })?;
+        serde_json::to_value(clip).map_err(|e| e.to_string())
     }
 
     fn notes_in(&self, folder: &str) -> Result<Vec<(String, Fields)>, Fail> {

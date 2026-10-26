@@ -29,6 +29,7 @@ pub enum HeaderValue {
         secret: String,
         /// Written before the secret (`"Bearer "`).
         #[serde(default)]
+        #[ts(as = "Option<String>", optional)]
         prefix: String,
     },
     /// `{ oauth: "authelia" }`: the plugin's sign-in of that name (`atlas.oauth.signIn`), renewed when needed.
@@ -43,12 +44,13 @@ pub struct FetchRequest {
     #[ts(optional)]
     pub method: Option<String>,
     #[serde(default)]
+    #[ts(as = "Option<BTreeMap<String, HeaderValue>>", optional)]
     pub headers: BTreeMap<String, HeaderValue>,
     #[serde(default)]
     #[ts(optional)]
     pub body: Option<String>,
     #[serde(default)]
-    #[ts(optional)]
+    #[ts(as = "Option<u32>", optional)]
     pub timeout_secs: Option<u64>,
     /// Write the answer's body to this file of the plugin's cache (`.atlas/cache/plugins/<id>/<save_to>`)
     /// instead of returning it as text: pictures, PDFs, anything large. The path comes back in `saved`.

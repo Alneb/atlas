@@ -235,7 +235,24 @@ fn browse_window(url: tauri::Url, root: PathBuf) -> anyhow::Result<()> {
     Ok(())
 }
 
+/// An AppImage's runtime points Python (and Perl) at the libraries in its own mount; every program Atlas starts inherits
+/// that, and the system's `python3` then fails ("Python path configuration") — every Python plugin with it. Atlas runs
+/// no interpreter itself, so those variables go before anything starts. By shape: any `PYTHON*` / `PERL*` variable whose
+/// value lies in `$APPDIR`; none outside an AppImage.
+fn leave_appimage_interpreters() {
+    let Some(dir) = std::env::var_os("APPDIR").filter(|d| !d.is_empty()) else { return };
+    let dir = dir.to_string_lossy().into_owned();
+    for (k, v) in std::env::vars_os() {
+        let name = k.to_string_lossy();
+        if (name.starts_with("PYTHON") || name.starts_with("PERL")) && v.to_string_lossy().contains(&dir) {
+            // SAFETY: the first thing main does, before any thread exists
+            unsafe { std::env::remove_var(&k) };
+        }
+    }
+}
+
 fn main() -> anyhow::Result<()> {
+    leave_appimage_interpreters();
     // GTK's Wayland app id (X11: WM_CLASS) is the program name; "atlas" makes KWin find atlas.desktop and its Icon=atlas,
     // where the binary's name "atlas-app" matched no desktop file and the window showed Wayland's generic icon.
     #[cfg(target_os = "linux")]

@@ -19,8 +19,10 @@ pub trait Host {
     fn vault_kinds(&self) -> Result<Vec<(String, String)>, Fail>;
     /// a plugin's `[[tool]]` called through the core (its helper, its secrets, its sign-in)
     fn tool(&self, plugin: &PluginId, tool: &str, input: Value) -> Result<Value, Fail>;
-    /// a core API answering a source (`api = "/api/clip"`), POSTed with the source's input
+    /// a core API answering a source (`api = "/api/…"`), POSTed with the source's input
     fn api(&self, path: &str, input: Value) -> Result<Value, Fail>;
+    /// a web page read for a source (`engine = "clip"`): `{ url }` → `{ kind, ids, fields, text }` (clip.rs)
+    fn clip(&self, input: Value) -> Result<Value, Fail>;
     /// every note under `folder` (any depth) with its properties
     fn notes_in(&self, folder: &str) -> Result<Vec<(String, Fields)>, Fail>;
     fn props(&self, path: &str) -> Result<Fields, Fail>;
@@ -353,6 +355,7 @@ impl<H: Host> Engine<H> {
                 let answer = match &s.spec.via {
                     crate::contrib::Via::Tool(t) => self.host.tool(&s.plugin, t, input),
                     crate::contrib::Via::Api(path) => self.host.api(path, input),
+                    crate::contrib::Via::Engine(crate::contrib::EngineSource::Clip) => self.host.clip(input),
                 };
                 match answer {
                     Ok(v) if v.get("signin").is_some() => {
@@ -378,7 +381,7 @@ impl<H: Host> Engine<H> {
                             ids: v.get("ids").cloned().and_then(|x| serde_json::from_value(x).ok()).unwrap_or_default(),
                             fields: {
                                 let mut f: Fields = v.get("fields").cloned().and_then(|x| serde_json::from_value(x).ok()).unwrap_or_default();
-                                // a source may answer its readable text beside its fields (`/api/clip` does)
+                                // a source may answer its readable text beside its fields (the clip does)
                                 if let Some(t) = v.get("text").filter(|t| t.as_str().is_some_and(|t| !t.trim().is_empty())) {
                                     f.entry("text".into()).or_insert_with(|| t.clone());
                                 }
@@ -709,6 +712,10 @@ mod tests {
             self.calls.borrow_mut().push(path.to_string());
             (self.tools)("core", path, &input)
         }
+        fn clip(&self, input: Value) -> Result<Value, Fail> {
+            self.calls.borrow_mut().push("clip".to_string());
+            (self.tools)("catalog", "clip", &input)
+        }
         fn now(&self) -> String {
             "2026-10-17 13:45".into()
         }
@@ -728,20 +735,19 @@ mod tests {
     }
 
     fn fm(t: &str) -> Fields {
-        let Some(rest) = t.strip_prefix("---\n") else { return Fields::new() };
-        let end = rest.find("---\n").unwrap_or(0);
-        serde_yaml::from_str::<Value>(&rest[..end]).ok().and_then(|v| serde_json::from_value(v).ok()).unwrap_or_default()
+        let Some(yaml) = atlas_text::frontmatter::split(t).0 else { return Fields::new() };
+        serde_yaml::from_str::<Value>(yaml).ok().and_then(|v| serde_json::from_value(v).ok()).unwrap_or_default()
     }
 
     fn web_and_linkwarden() -> Fake {
         Fake {
             files: RefCell::new(BTreeMap::from([("notes/mine.md".to_string(), "my own note\n".to_string())])),
             contributions: json!({
-                "catalog-web": { "sources": [{ "kind": "article", "api": "/api/clip", "priority": 10 }] },
+                "catalog-web": { "sources": [{ "kind": "article", "engine": "clip", "priority": 10 }] },
                 "catalog-linkwarden": { "links": [{ "kind": "*", "tool": "save" }] }
             }),
             tools: Box::new(|plugin, tool, input| match (plugin, tool) {
-                ("core", "/api/clip") => {
+                ("catalog", "clip") => {
                     assert!(input["url"].as_str().is_some_and(|u| u.contains("example.org/post")), "the page is read by its address: {input}");
                     Ok(json!({ "kind": "article", "fields": { "title": "A post: on things", "site": "example.org", "author": "", "text": "First paragraph." } }))
                 }

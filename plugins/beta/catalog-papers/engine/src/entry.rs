@@ -99,9 +99,7 @@ pub fn key_of(dir: &Path) -> String {
 
 /// The note's frontmatter as a mapping (None: no note, or no properties).
 fn note_props(text: &str) -> Option<Mapping> {
-    let rest = text.strip_prefix("---\n")?;
-    let end = rest.find("\n---").map(|i| i + 1).unwrap_or(0);
-    serde_yaml::from_str::<Value>(&rest[..end]).ok()?.as_mapping().cloned()
+    serde_yaml::from_str::<Value>(atlas_text::frontmatter::split(text).0?).ok()?.as_mapping().cloned()
 }
 
 /// The entry in `dir`, Zotero-shaped. None when the folder holds no entry: no `info.yaml`, and no note naming a

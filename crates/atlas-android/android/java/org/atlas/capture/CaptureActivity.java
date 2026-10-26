@@ -955,7 +955,8 @@ public final class CaptureActivity extends Activity {
         CharSequence t = i.getCharSequenceExtra(Intent.EXTRA_TEXT);
         String subject = i.getStringExtra(Intent.EXTRA_SUBJECT);
         if (t == null) return subject;
-        return Links.untracked(subject != null && !t.toString().contains(subject) ? subject + "\n" + t : t.toString());
+        // the core takes the share-tracking parameters off every capture (atlas_text::links)
+        return subject != null && !t.toString().contains(subject) ? subject + "\n" + t : t.toString();
     }
 
     /** A file the capture can carry; its thumbnail decoded once, small. */

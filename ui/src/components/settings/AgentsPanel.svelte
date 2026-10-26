@@ -5,7 +5,8 @@
   // own command) is that agent's plugin's (REFACTOR-agents-as-plugins.md).
   import { errReason } from "../../lib/text";
   import { onMount } from "svelte";
-  import { api, type AgentsState } from "../../lib/api";
+  import { api } from "../../lib/api";
+  import type { AgentsState } from "../../lib/types";
 
   let st = $state<AgentsState | null>(null);
   let error = $state("");
