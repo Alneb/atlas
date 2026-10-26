@@ -121,7 +121,7 @@ pub fn recognize_wire(xyt: &[f32]) -> Vec<f32> {
 /// The wire's strokes: split at NaN triples, other non-finite points dropped.
 pub fn strokes(xyt: &[f32]) -> Vec<Vec<[f32; 3]>> {
     let mut out = vec![Vec::new()];
-    for p in xyt.chunks_exact(3) {
+    for p in xyt.as_chunks::<3>().0 {
         if p.iter().all(|v| v.is_nan()) { out.push(Vec::new()); }
         else if p.iter().all(|v| v.is_finite()) { out.last_mut().unwrap().push([p[0], p[1], p[2]]); }
     }

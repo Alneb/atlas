@@ -459,7 +459,7 @@ pub fn window_shot(w: &Window) -> Result<PathBuf> {
     };
     let mut rgba = Vec::with_capacity(width * height * 4);
     for y in 0..height {
-        for px in data[y * stride..y * stride + width * 4].chunks_exact(4) {
+        for px in data[y * stride..y * stride + width * 4].as_chunks::<4>().0 {
             let (r, b) = if bgra { (px[2], px[0]) } else { (px[0], px[2]) };
             rgba.extend_from_slice(&[r, px[1], b, if format == 4 || format == 16 { 255 } else { px[3] }]);
         }

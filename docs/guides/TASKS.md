@@ -83,7 +83,8 @@ show: open           # open (default) · done · all
 tag: [work, admin]   # any of these tags; a tag takes its sub-tags (work also finds #work/thesis)
 path: notes/projects # only tasks in this folder or file
 priority: medium     # this priority or higher
-due: week            # overdue · today · week (the next 7 days, and what is overdue) · dated · undated
+due: week            # overdue · today · week (the next 7 days, and what is overdue) · dated · undated · a day (2026-10-25)
+completed: 2026-10-25  # done that day (✅ 2026-10-25), with show: all or done — a day's log shows its own
 started: true        # default: hide tasks whose 🛫 start is still in the future
 sort: [priority, due]  # priority · due · start · file · title — the first is the most important
 group: due           # due (Overdue, Today, This week, Later, No date) · priority · file · tag
@@ -99,7 +100,7 @@ The same options work on the other task views: `type: list` or `type: calendar` 
 
 The name: `type: tasks` was already taken — it is the "Open tasks" part of Today, a block of its own, which stays as it is.
 
-An option that is misspelt or has a value that is not one of the list is an error shown in the block (`view: due: "someday" (overdue, today, week, dated, undated)`), not silently ignored.
+An option that is misspelt or has a value that is not one of the list is an error shown in the block (`view: due: "someday" (overdue, today, week, dated, undated, or a day YYYY-MM-DD)`), not silently ignored.
 
 Code: `tasks::Query` (`apply`: filter, sort, group, limit) and `views.rs` (`ask`). The filtering, sorting and grouping are done in the core, so every view — and a plugin's — gets the same rows.
 

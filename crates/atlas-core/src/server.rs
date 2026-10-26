@@ -357,7 +357,11 @@ async fn signin_door_post(State(st): S, Json(r): Json<DoorReturn>) -> Result<()>
 
 /// The kept sign-ins, for Settings (hosts and dates, never a cookie's value).
 async fn signin_doors_get(State(st): S) -> Result<Json<Vec<crate::service_signin::Kept>>> {
-    Ok(Json(with_ws(&st, |ws| crate::service_signin::list(&crate::secrets::Store::for_vault(ws.root()))).await?))
+    Ok(Json(with_ws(&st, |ws| {
+        let plugins: Vec<(String, Vec<String>)> = crate::plugins::list(ws.root()).into_iter().map(|p| (p.id, p.permissions.net)).collect();
+        crate::service_signin::with_users(&crate::secrets::Store::for_vault(ws.root()), &plugins)
+    })
+    .await?))
 }
 
 async fn signin_door_delete(State(st): S, UrlPath(host): UrlPath<String>) -> Result<Json<bool>> {
@@ -2154,6 +2158,7 @@ pub async fn serve_vaults(vaults: Vaults, listen: Listen) -> anyhow::Result<Serv
             if let Some(why) = auth.not_ready() {
                 anyhow::bail!("server mode: {why}");
             }
+            crate::platform::Platform::mark_server(); // plugins that say `server = "no"` stop here
             (tokio::net::TcpListener::bind(addr).await?, Some(Arc::from(auth)), crate::local_lock::Lock::Open)
         }
     };
@@ -2290,6 +2295,8 @@ fn start_vault(root: &std::path::Path, port: u16, auth: Option<Arc<crate::auth::
     let scheduler = crate::schedule::spawn(ws.clone(), bus.clone(), helpers.clone());
     let hooks = crate::capture_hooks::spawn(ws.clone(), bus.clone(), helpers.clone());
     let merges = crate::sync_merge::spawn(ws.clone(), bus.clone()); // Syncthing's conflict copies merged (DESIGN-mirror-v2 §4)
+    // the sign-ins kept for plugins visited now and then, so a gate's idle limit never ends them between uses
+    let _keep_alive = crate::service_signin::spawn_keep_alive(ws.root().to_path_buf());
     let state = Arc::new(AppState {
         helpers,
         ws,

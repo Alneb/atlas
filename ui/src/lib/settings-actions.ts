@@ -31,7 +31,7 @@ export default function mount(host, atlas) {
 export async function newPlugin(name: string): Promise<void> {
   const id = slug(name).replace(/\./g, "-") || "my-plugin"; // plugin ids: letters, digits, - and _
   const dir = `.atlas/plugins/${id}`;
-  const toml = `# A workspace plugin: only \`title\` is required (docs/guides/PLUGINS.md).\ntitle = ${JSON.stringify(name.trim() || id)}\ndescription = "what it shows, in one line"\nicon = "plugin"\n# keys = "Ctrl+Alt+P"\n# data = "python3 \\"$ATLAS_PLUGIN_DIR/data.py\\""\n`;
+  const toml = `# A workspace plugin: only \`title\` is required (docs/guides/PLUGINS.md).\ntitle = ${JSON.stringify(name.trim() || id)}\ndescription = "what it shows, in one line"\nicon = "plugin"\n# keys = "Ctrl+Alt+P"\n# data = "python3 \\"$ATLAS_PLUGIN_DIR/data.py\\""\n\n# Where it runs: works, untested or no, per platform (linux, macos, windows, android, server); unnamed: untested.\n# phone = true  # starts in the phone app too\n[platforms]\nlinux = "untested"\n`;
   try {
     await api.putFile(`${dir}/plugin.toml`, toml);
     await api.putFile(`${dir}/view.js`, PLUGIN_VIEW);
@@ -70,7 +70,7 @@ export function register(atlas) {
 export async function newBlock(name: string): Promise<void> {
   const id = slug(name).replace(/\./g, "-") || "my-block";
   const dir = `.atlas/plugins/${id}`, type = `${id}.block`, title = name.trim() || id;
-  const toml = `# A workspace plugin with one block, \`${type}\` (docs/guides/PLUGINS.md).\ntitle = ${JSON.stringify(title)}\ndescription = "what the block shows, in one line"\nicon = "plugin"\n\n# A setting: Settings → Plugins shows a form for it; the code reads atlas.plugin.settings.greeting.\n# kind: text, number, toggle, list or choice (with choices = [...]).\n[[setting]]\nkey = "greeting"\nlabel = "Greeting"\nkind = "text"\nhint = "what the block says when the page gives it no text"\ndefault = "Hello"\n`;
+  const toml = `# A workspace plugin with one block, \`${type}\` (docs/guides/PLUGINS.md).\ntitle = ${JSON.stringify(title)}\ndescription = "what the block shows, in one line"\nicon = "plugin"\n\n# A setting: Settings → Plugins shows a form for it; the code reads atlas.plugin.settings.greeting.\n# kind: text, number, toggle, list or choice (with choices = [...]).\n[[setting]]\nkey = "greeting"\nlabel = "Greeting"\nkind = "text"\nhint = "what the block says when the page gives it no text"\ndefault = "Hello"\n\n# Where it runs: works, untested or no, per platform (linux, macos, windows, android, server); unnamed: untested.\n[platforms]\nlinux = "untested"\n`;
   try {
     // the manifest last: writing it is what makes the app load the plugin, and its code must be there
     await api.putFile(`${dir}/main.js`, blockCode(type, title));

@@ -27,3 +27,7 @@ key = "loud"
 label = "Show every roll as a notification"
 kind = "toggle"
 default = true
+
+# where it runs (PLUGIN-API.md, "Platforms"); a platform not named is untested (Android: only with `phone = true`)
+[platforms]
+linux = "works"

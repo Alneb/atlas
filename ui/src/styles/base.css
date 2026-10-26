@@ -82,14 +82,13 @@ button.btn.primary:disabled { opacity: .45; cursor: default; }
 @keyframes slide-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
 @keyframes spin { to { transform: rotate(360deg); } }
 @keyframes pulse { 50% { opacity: .35; } }
-@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; } }
 
 /* while a pane divider is dragged: no selection, and iframes/terminals do not eat the pointer */
 body.atlas-resizing, body.atlas-resizing * { user-select: none !important; -webkit-user-select: none !important; }
 body.atlas-resizing iframe, body.atlas-resizing .xterm { pointer-events: none; }
 
-/* Motion (ui.motion): "instant" — no transitions or fades, the interface changes at once (the user
-   found it "much better"). What shows progress or travel keeps moving: spinners, the swipe and
+/* Motion (ui.motion): "full" by default (≈120 ms, subtle); "instant" (also on e-ink and under the system's reduced motion, settings.svelte.ts) — no transitions or fades, the interface
+   changes at once. What shows progress or travel keeps moving: spinners, the swipe and
    history signs (.motion-keep). */
 :root[data-motion="instant"] *:not(.spin):not(.motion-keep):not(.motion-keep *),
 :root[data-motion="instant"] *::before, :root[data-motion="instant"] *::after {

@@ -41,3 +41,7 @@ input = { paths = "array" }
 secrets = ["api_key"]
 timeout_secs = 15
 on = "fs"
+
+# where it runs (PLUGIN-API.md, "Platforms"); a platform not named is untested (Android: only with `phone = true`)
+[platforms]
+linux = "works"

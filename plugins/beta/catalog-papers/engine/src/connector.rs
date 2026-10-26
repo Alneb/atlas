@@ -695,6 +695,13 @@ mod tests {
                 Err(e) => panic!("{e}"),
             }
         };
+        // bound a moment before it says so: the connection can come in between
+        for _ in 0..40 {
+            if l.listening() {
+                break;
+            }
+            std::thread::sleep(Duration::from_millis(25));
+        }
         assert!(l.listening());
         let body = "{}";
         write!(stream, "POST /connector/ping HTTP/1.1\r\nHost: 127.0.0.1\r\nX-Zotero-Connector-API-Version: 3\r\nContent-Length: {}\r\n\r\n{body}", body.len()).unwrap();

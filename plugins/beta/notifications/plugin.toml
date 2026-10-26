@@ -1,0 +1,77 @@
+# Notifications: what the server says, kept. Apprise is the hub (a server's services → Apprise → ntfy, mail…); this
+# plugin reads the ntfy topics Apprise (or anything else) posts to, files each message in a note per source — the
+# message's tag, else the topic — newest first, and can mute a source; it also sends to the phone (through Apprise
+# when set, else ntfy) and turns what the phone sends to an inbox topic into captures. docs/design/DESIGN-notifications.md.
+title = "Notifications"
+description = "your server's notifications (ntfy, Apprise), a note per source"
+phone = true
+icon = "bell"
+version = "0.1.0"
+api = 13
+
+[helper]
+run = "python3 -u \"$ATLAS_PLUGIN_DIR/notify.py\""
+
+[permissions]
+secrets = true       # the ntfy access token
+
+[[setting]]
+key = "server"
+label = "ntfy server"
+kind = "text"
+default = "https://ntfy.sh"
+
+[[setting]]
+key = "topics"
+label = "Topics to keep"
+kind = "text"
+hint = "comma-separated; each message is filed under its first tag (Apprise's tag: backups, updates…), else the topic"
+
+[[setting]]
+key = "folder"
+label = "Folder of the notes"
+kind = "text"
+default = "notifications"
+
+[[setting]]
+key = "phone_topic"
+label = "Your phone's topic"
+kind = "text"
+hint = "what “Send to my phone” posts to when no Apprise address is set"
+
+[[setting]]
+key = "inbox"
+label = "Topic to capture from"
+kind = "text"
+hint = "what you send to this topic from the phone is captured into today's log; empty: not read"
+
+[[setting]]
+key = "apprise"
+label = "Apprise address"
+kind = "text"
+hint = "the Apprise API's notify address (…/notify/<key>): Atlas's own messages go out through it; empty: ntfy"
+
+[[setting]]
+key = "token"
+label = "ntfy access token"
+kind = "secret"
+hint = "only for protected topics"
+
+[[tool]]
+name = "sync"
+description = "Read what arrived on the kept ntfy topics since the last time and file it in the notes, one per source; captures what the phone sent to the inbox topic."
+input = {}
+secrets = ["token"]
+schedule = "every 5m"
+timeout_secs = 60
+
+[[tool]]
+name = "send"
+description = "Send a short message to the user's phone (through Apprise when set, else their ntfy topic). Use it when the user asks to be told or reminded on their phone, e.g. when a long job ends."
+input = { text = "string", title = { type = "string", description = "the notification's title (default: Atlas)", optional = true } }
+secrets = ["token"]
+timeout_secs = 40
+
+# where it runs (PLUGIN-API.md, "Platforms"); a platform not named is untested (Android: only with `phone = true`)
+[platforms]
+linux = "works"

@@ -190,3 +190,7 @@ label = "Baseline"
 kind = "number"
 default = 6
 hint = "how many months before this one a category's usual month is taken from: the median when it is spent most months, the mean when only in some (a yearly bill)"
+
+# where it runs (PLUGIN-API.md, "Platforms"); a platform not named is untested (Android: only with `phone = true`)
+[platforms]
+linux = "works"

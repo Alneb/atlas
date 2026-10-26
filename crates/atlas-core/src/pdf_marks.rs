@@ -297,34 +297,54 @@ fn order(a: &Mark, b: &Mark) -> std::cmp::Ordering {
     (a.page, &a.created, &a.id).cmp(&(b.page, &b.created, &b.id))
 }
 
-/// Where the block lies: the byte range of its lines, fences included.
-fn span(note: &str) -> Option<(usize, usize)> {
+/// The block of a note's own file (a PDF's note: ```` ```pdf-marks ````), or of a file the note holds the marks of —
+/// a series note keeps one block per chapter, ```` ```pdf-marks ch 1.cbz ````.
+pub type For = Option<String>;
+
+/// Which block a fence line opens, if it opens one.
+fn opens(line: &str) -> Option<For> {
+    let rest = line.trim_end().strip_prefix(OPEN)?;
+    match rest.strip_prefix(' ') {
+        _ if rest.is_empty() => Some(None),
+        Some(name) if !name.trim().is_empty() => Some(Some(name.trim().to_string())),
+        _ => None,
+    }
+}
+
+/// Where the blocks lie: each one's byte range, fences included, and whose it is.
+fn spans(note: &str) -> Vec<(usize, usize, For)> {
+    let mut out = vec![];
     let mut at = 0;
-    let mut start = None;
+    let mut open: Option<(usize, For)> = None;
     for line in note.split_inclusive('\n') {
-        let t = line.trim_end();
-        match start {
-            None if t == OPEN => start = Some(at),
-            Some(s) if t == CLOSE => return Some((s, at + line.len())),
-            _ => {}
+        match open.take() {
+            None => open = opens(line).map(|f| (at, f)),
+            Some((s, f)) if line.trim_end() == CLOSE => out.push((s, at + line.len(), f)),
+            o => open = o,
         }
         at += line.len();
     }
-    start.map(|s| (s, note.len())) // an unclosed block runs to the end
-}
-
-/// The note without its block: the owner's text.
-pub fn outside(note: &str) -> String {
-    match span(note) {
-        Some((a, b)) => format!("{}{}", &note[..a], &note[b..]),
-        None => note.to_string(),
+    if let Some((s, f)) = open {
+        out.push((s, note.len(), f)); // an unclosed block runs to the end
     }
+    out
 }
 
-pub fn read(note: &str) -> Block {
+/// The note without its blocks: the owner's text.
+pub fn outside(note: &str) -> String {
+    let mut out = String::new();
+    let mut from = 0;
+    for (a, b, _) in spans(note) {
+        out.push_str(&note[from..a]);
+        from = b;
+    }
+    out.push_str(&note[from..]);
+    out
+}
+
+fn parse(lines: &str) -> Block {
     let mut block = Block::default();
-    let Some((a, b)) = span(note) else { return block };
-    for line in note[a..b].lines().skip(1) {
+    for line in lines.lines().skip(1) {
         if line.trim_end() == CLOSE || line.trim().is_empty() {
             continue;
         }
@@ -336,32 +356,73 @@ pub fn read(note: &str) -> Block {
     block
 }
 
-/// The note with `block` as its last part; the owner's text as it was (a block found elsewhere moves to the end).
-/// No marks and nothing unread: no block.
+/// Every block of the note, by whose it is (two blocks for the same file read as one).
+pub fn all(note: &str) -> BTreeMap<For, Block> {
+    let mut out: BTreeMap<For, Block> = BTreeMap::new();
+    for (a, b, f) in spans(note) {
+        let block = parse(&note[a..b]);
+        let merged = match out.remove(&f) {
+            Some(was) => merge(&was, &block),
+            None => block,
+        };
+        out.insert(f, merged);
+    }
+    out
+}
+
+/// The block of the note's own file.
+pub fn read(note: &str) -> Block {
+    read_for(note, None)
+}
+
+/// The block of `file` (None: the note's own file's).
+pub fn read_for(note: &str, file: Option<&str>) -> Block {
+    all(note).remove(&file.map(str::to_string)).unwrap_or_default()
+}
+
+/// The note with `block` as its own file's block.
 pub fn write(note: &str, block: &Block) -> String {
-    let mut out = outside(note);
-    if block.marks.is_empty() && block.unread.is_empty() {
-        return out;
-    }
-    let body = out.trim_end().len();
-    out.truncate(body);
-    if !out.is_empty() {
-        out.push_str("\n\n");
-    }
-    out.push_str(OPEN);
-    out.push('\n');
-    let mut marks: Vec<&Mark> = block.marks.values().collect();
-    marks.sort_by(|a, b| order(a, b));
-    for m in marks {
-        out.push_str(&m.line());
+    write_for(note, None, block)
+}
+
+/// The note with `block` as `file`'s block; the others as they were.
+pub fn write_for(note: &str, file: Option<&str>, block: &Block) -> String {
+    let mut blocks = all(note);
+    blocks.insert(file.map(str::to_string), block.clone());
+    write_all(&outside(note), &blocks)
+}
+
+/// The owner's text, then the blocks as its last part (the note's own file's first, then by name). Blocks with no
+/// marks and nothing unread are left out.
+fn write_all(owner: &str, blocks: &BTreeMap<For, Block>) -> String {
+    let mut out = owner.to_string();
+    for (f, block) in blocks {
+        if block.marks.is_empty() && block.unread.is_empty() {
+            continue;
+        }
+        out.truncate(out.trim_end().len());
+        if !out.is_empty() {
+            out.push_str("\n\n");
+        }
+        out.push_str(OPEN);
+        if let Some(name) = f {
+            out.push(' ');
+            out.push_str(name);
+        }
+        out.push('\n');
+        let mut marks: Vec<&Mark> = block.marks.values().collect();
+        marks.sort_by(|a, b| order(a, b));
+        for m in marks {
+            out.push_str(&m.line());
+            out.push('\n');
+        }
+        for l in &block.unread {
+            out.push_str(l);
+            out.push('\n');
+        }
+        out.push_str(CLOSE);
         out.push('\n');
     }
-    for l in &block.unread {
-        out.push_str(l);
-        out.push('\n');
-    }
-    out.push_str(CLOSE);
-    out.push('\n');
     out
 }
 
@@ -429,12 +490,20 @@ pub fn merge_notes(base: &str, ours: &str, theirs: &str) -> Option<String> {
         Merged::Clean(t) => t,
         Merged::Clashed => return None,
     };
-    Some(write(&text, &merge(&read(ours), &read(theirs))))
+    let (mut ours, theirs) = (all(ours), all(theirs));
+    for (f, b) in theirs {
+        let m = match ours.remove(&f) {
+            Some(a) => merge(&a, &b),
+            None => b,
+        };
+        ours.insert(f, m);
+    }
+    Some(write_all(&text, &ours))
 }
 
 /// Whether `note` has a marks block.
 pub fn has_block(note: &str) -> bool {
-    span(note).is_some()
+    !spans(note).is_empty()
 }
 
 /// A PDF's marks as the API gives them: the note that holds them (none yet: no mark made) and the live marks.
@@ -445,17 +514,31 @@ pub struct Marks {
     pub marks: Vec<Mark>,
 }
 
-fn note_of(root: &std::path::Path, cfg: &crate::config::Config, pdf: &str, make: bool, now: chrono::NaiveDateTime) -> crate::Result<crate::api::CompanionNote> {
-    let req = crate::api::CompanionRequest { path: pdf.into(), title: None, properties: Default::default(), block: None, find: !make };
+/// Where a file's marks are kept: its own note, in the note's own block (a PDF) — or, for a book of pictures (a comic
+/// archive, a chapter's folder of pages), its folder's note (a series' note), in a block named by the file. A picture
+/// page's places are its fractions × 1000 (y up, as a PDF's points), so every device draws them at any size.
+pub fn holder(file: &str) -> (String, For) {
+    let bare = file.trim_end_matches('/');
+    let pictures = file.ends_with('/')
+        || bare.rsplit_once('.').is_some_and(|(_, ext)| matches!(ext.to_ascii_lowercase().as_str(), "cbz" | "cbr" | "cb7" | "cbt"));
+    match bare.rsplit_once('/') {
+        Some((dir, name)) if pictures => (format!("{dir}/"), Some(if file.ends_with('/') { format!("{name}/") } else { name.to_string() })),
+        _ => (file.to_string(), None),
+    }
+}
+
+fn note_of(root: &std::path::Path, cfg: &crate::config::Config, holder: &str, make: bool, now: chrono::NaiveDateTime) -> crate::Result<crate::api::CompanionNote> {
+    let req = crate::api::CompanionRequest { path: holder.into(), title: None, properties: Default::default(), block: None, find: !make };
     crate::companion::ensure(root, cfg, &req, now)
 }
 
-/// `GET /api/pdf-marks?pdf=`: the marks of `pdf`, read from its note's block. Makes no note.
+/// `GET /api/pdf-marks?pdf=`: the marks of `pdf` (a PDF, or a chapter: `holder`), read from its block. Makes no note.
 pub fn marks_of(root: &std::path::Path, cfg: &crate::config::Config, pdf: &str) -> crate::Result<Marks> {
-    let note = note_of(root, cfg, pdf, false, chrono::Local::now().naive_local())?;
+    let (at, file) = holder(pdf);
+    let note = note_of(root, cfg, &at, false, chrono::Local::now().naive_local())?;
     let text = std::fs::read_to_string(crate::paths::safe_join(root, &note.path)?).ok();
     Ok(match text {
-        Some(t) => Marks { note: Some(note.path), marks: read(&t).live().into_iter().cloned().collect() },
+        Some(t) => Marks { note: Some(note.path), marks: read_for(&t, file.as_deref()).live().into_iter().cloned().collect() },
         None => Marks { note: None, marks: vec![] },
     })
 }
@@ -463,12 +546,13 @@ pub fn marks_of(root: &std::path::Path, cfg: &crate::config::Config, pdf: &str) 
 /// `POST /api/pdf-marks?pdf=`: `ops` applied to `pdf`'s note (made with the first mark), the rest of it untouched.
 /// Returns the marks after, and whether the note was just made.
 pub fn change(root: &std::path::Path, cfg: &crate::config::Config, pdf: &str, ops: Vec<Op>, now: chrono::NaiveDateTime) -> crate::Result<(Marks, bool)> {
-    let note = note_of(root, cfg, pdf, true, now)?;
+    let (at, file) = holder(pdf);
+    let note = note_of(root, cfg, &at, true, now)?;
     let abs = crate::paths::safe_join(root, &note.path)?;
     let text = std::fs::read_to_string(&abs)?;
-    let mut block = read(&text);
+    let mut block = read_for(&text, file.as_deref());
     apply(&mut block, ops);
-    let next = write(&text, &block);
+    let next = write_for(&text, file.as_deref(), &block);
     if next != text {
         crate::vault_write::write(&abs, next.as_bytes())?;
     }
@@ -628,6 +712,48 @@ mod tests {
         assert!(after.contains("my own words"));
         assert!(after.trim_end().ends_with("```"), "the block is last: {after}");
         assert_eq!(marks_of(dir.path(), &cfg, "books/x.pdf").unwrap().marks.len(), 2);
+    }
+
+    #[test]
+    fn a_chapters_marks_live_in_its_series_note_one_block_each() {
+        assert_eq!(holder("books/x.pdf"), ("books/x.pdf".into(), None));
+        assert_eq!(holder("manga/One/ch 1.cbz"), ("manga/One/".into(), Some("ch 1.cbz".into())));
+        assert_eq!(holder("manga/One/ch 2/"), ("manga/One/".into(), Some("ch 2/".into())));
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(dir.path().join("manga/One/ch 2")).unwrap();
+        std::fs::write(dir.path().join("manga/One/ch 1.cbz"), b"PK").unwrap();
+        let cfg = crate::config::Config::default();
+        let now = chrono::NaiveDate::from_ymd_opt(2026, 1, 2).unwrap().and_hms_opt(3, 4, 5).unwrap();
+        let (a, _) = change(dir.path(), &cfg, "manga/One/ch 1.cbz", vec![Op::Put { mark: Box::new(ink("m-ccccccc1")) }], now).unwrap();
+        let (b, _) = change(dir.path(), &cfg, "manga/One/ch 2/", vec![Op::Put { mark: Box::new(hl("m-ccccccc2", 3, "w")) }], now).unwrap();
+        assert_eq!(a.note, b.note, "one note: the series'");
+        let note = std::fs::read_to_string(dir.path().join(a.note.unwrap())).unwrap();
+        assert!(note.contains("```pdf-marks ch 1.cbz\nm-ccccccc1 ink p7 ") && note.contains("```pdf-marks ch 2/\nm-ccccccc2 highlight p3 "), "{note}");
+        assert_eq!(marks_of(dir.path(), &cfg, "manga/One/ch 1.cbz").unwrap().marks.len(), 1);
+        assert_eq!(marks_of(dir.path(), &cfg, "manga/One/ch 2/").unwrap().marks[0].id.as_str(), "m-ccccccc2");
+        // a removal in one chapter leaves the other's block; the owner's words and their place stay
+        let mine = note.replacen("\n", "\nmy words\n", 1);
+        std::fs::write(dir.path().join(b.note.as_ref().unwrap()), &mine).unwrap();
+        change(dir.path(), &cfg, "manga/One/ch 1.cbz", vec![Op::Remove { id: MarkId::parse("m-ccccccc1").unwrap() }], now).unwrap();
+        let after = std::fs::read_to_string(dir.path().join(b.note.unwrap())).unwrap();
+        assert!(after.contains("my words") && after.contains("```pdf-marks ch 2/") && marks_of(dir.path(), &cfg, "manga/One/ch 1.cbz").unwrap().marks.is_empty(), "{after}");
+        assert_eq!(all(&after).len(), 2, "the removed mark's line stays, for merging");
+        assert!(outside(&after).contains("my words") && !outside(&after).contains("pdf-marks"));
+    }
+
+    #[test]
+    fn copies_of_a_series_note_merge_block_by_block() {
+        let mut one = Block::default();
+        put(&mut one, hl("m-ddddddd1", 1, "a"));
+        let mut two = Block::default();
+        put(&mut two, hl("m-ddddddd2", 1, "b"));
+        let base = "# One\n";
+        let ours = write_for(base, Some("ch 1.cbz"), &one);
+        let theirs = write_for(base, Some("ch 2.cbz"), &two);
+        let m = merge_notes(base, &ours, &theirs).unwrap();
+        assert_eq!(read_for(&m, Some("ch 1.cbz")).live().len(), 1);
+        assert_eq!(read_for(&m, Some("ch 2.cbz")).live().len(), 1);
+        assert!(read(&m).marks.is_empty(), "no block of the note's own");
     }
 
     #[test]

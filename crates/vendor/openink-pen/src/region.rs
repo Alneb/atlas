@@ -19,7 +19,7 @@ impl Rect {
         if a.len() % 4 != 0 {
             return None;
         }
-        Some(a.chunks_exact(4).map(|c| Rect { left: c[0], top: c[1], right: c[2], bottom: c[3] }).collect())
+        Some(a.as_chunks::<4>().0.iter().map(|c| Rect { left: c[0], top: c[1], right: c[2], bottom: c[3] }).collect())
     }
 }
 

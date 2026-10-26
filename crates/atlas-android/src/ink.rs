@@ -56,7 +56,7 @@ fn samples(v: &[f32]) -> Result<Vec<Sample>, Refused> {
     if !v.len().is_multiple_of(SAMPLE_LEN) || !v.iter().all(|x| x.is_finite()) {
         return Err(Refused::Samples);
     }
-    Ok(v.chunks_exact(SAMPLE_LEN).map(|s| Sample { x: s[0], y: s[1], pressure: s[2], tilt_x: s[3], tilt_y: s[4], t_ms: s[5] }).collect())
+    Ok(v.as_chunks::<SAMPLE_LEN>().0.iter().map(|s| Sample { x: s[0], y: s[1], pressure: s[2], tilt_x: s[3], tilt_y: s[4], t_ms: s[5] }).collect())
 }
 
 /// A pen's knote2 defaults at this screen's dpi, resolved (what a drawing keeps), in the form Onyx's instant ink

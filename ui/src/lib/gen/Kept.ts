@@ -7,4 +7,20 @@ export type Kept = { host: string,
 /**
  * Unix seconds.
  */
-at: number, cookies: number, };
+at: number, cookies: number, 
+/**
+ * When the gate last took it (the keep-alive's visit), unix seconds.
+ */
+renewed?: number, 
+/**
+ * The latest a cookie of it lasts, unix seconds (none: as long as the gate keeps the session).
+ */
+expires?: number, 
+/**
+ * The gate stopped taking it: the next door met offers the sign-in again.
+ */
+ended: boolean, 
+/**
+ * The plugins it is sent for: those naming a host its cookies cover (`with_users`).
+ */
+plugins: Array<string>, };

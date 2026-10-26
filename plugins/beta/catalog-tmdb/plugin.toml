@@ -50,3 +50,7 @@ recognize = [
 ]
 recognizers = [{ tool = "search" }]
 sources = [{ kind = ["movie", "show"], tool = "details", priority = 70, needs = ["tmdb", "imdb"] }]
+
+# where it runs (PLUGIN-API.md, "Platforms"); a platform not named is untested (Android: only with `phone = true`)
+[platforms]
+linux = "works"

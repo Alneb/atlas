@@ -55,8 +55,8 @@ tabs: TabsLayout,
  */
 side_panel: SidePanelPlace, 
 /**
- * Motion: `instant` (no transitions or fades: the interface changes at once) or `full`. The swipe and history
- * signs and loading spinners move either way.
+ * Motion: `full` (the default: short, subtle transitions and fades) or `instant` (the interface changes at
+ * once). Off on e-ink and under the system's reduced motion; the swipe and history signs and spinners move either way.
  */
 motion: Motion, 
 /**

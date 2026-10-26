@@ -61,7 +61,7 @@ impl Store {
             }
             let n: usize = dims.iter().product();
             let raw = take(n * 4)?;
-            let data = raw.chunks_exact(4).map(|c| f32::from_le_bytes([c[0], c[1], c[2], c[3]])).collect();
+            let data = raw.as_chunks::<4>().0.iter().map(|c| f32::from_le_bytes([c[0], c[1], c[2], c[3]])).collect();
             out.insert(name, Tensor { dims, data });
         }
         Ok(Store(out))

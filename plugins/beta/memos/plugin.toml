@@ -29,3 +29,7 @@ label = "Visibility"
 kind = "choice"
 choices = ["PRIVATE", "PROTECTED", "PUBLIC"]
 default = "PRIVATE"
+
+# where it runs (PLUGIN-API.md, "Platforms"); a platform not named is untested (Android: only with `phone = true`)
+[platforms]
+linux = "works"

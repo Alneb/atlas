@@ -358,7 +358,7 @@ pub(crate) fn frontmatter(text: &str) -> serde_yaml::Mapping {
     let Some(rest) = body.strip_prefix("---\n").or_else(|| body.strip_prefix("---\r\n")) else {
         return Default::default();
     };
-    let end = rest.find("\n---").map_or(rest.len(), |i| i);
+    let end = rest.find("\n---").unwrap_or(rest.len());
     serde_yaml::from_str::<serde_yaml::Value>(&rest[..end])
         .ok()
         .and_then(|v| v.as_mapping().cloned())

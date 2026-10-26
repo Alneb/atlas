@@ -28,3 +28,7 @@ key = "contact"
 label = "Contact for Wikipedia"
 kind = "text"
 hint = "an email or web address Wikipedia may reach you at; Wikimedia throttles programs that give none (optional)"
+
+# where it runs (PLUGIN-API.md, "Platforms"); a platform not named is untested (Android: only with `phone = true`)
+[platforms]
+linux = "works"

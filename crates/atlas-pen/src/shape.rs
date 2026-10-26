@@ -279,7 +279,7 @@ pub fn recognize_xyt(xyt: &[f32]) -> Vec<f32> {
 }
 
 pub fn recognize_wire(xy: &[f32]) -> Vec<f32> {
-    let pts: Vec<P> = xy.chunks_exact(2).filter(|p| p[0].is_finite() && p[1].is_finite()).map(|p| [p[0], p[1]]).collect();
+    let pts: Vec<P> = xy.as_chunks::<2>().0.iter().filter(|p| p[0].is_finite() && p[1].is_finite()).map(|p| [p[0], p[1]]).collect();
     recognize(&pts).map_or_else(|| vec![0.0], |s| s.to_wire())
 }
 

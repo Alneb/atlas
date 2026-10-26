@@ -219,8 +219,8 @@ pub struct UiConfig {
     /// Where the side panel (files, search, outline, git) shows: its own column beside the editors
     /// (`dock`), or inside the left bar, under the list of tabs (`sidebar`; vertical tabs only).
     pub side_panel: SidePanelPlace,
-    /// Motion: `instant` (no transitions or fades: the interface changes at once) or `full`. The swipe and history
-    /// signs and loading spinners move either way.
+    /// Motion: `full` (the default: short, subtle transitions and fades) or `instant` (the interface changes at
+    /// once). Off on e-ink and under the system's reduced motion; the swipe and history signs and spinners move either way.
     pub motion: Motion,
     /// E-ink screens (a Boox and the like): pure black on white, no motion, no shadows, no tints that only say
     /// something in colour, links underlined. `auto` turns it on where the screen is one — the phone app on a Boox, or
@@ -316,13 +316,15 @@ pub enum EinkRefresh {
     Manual,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS, JsonSchema)]
+/// Short (≈120 ms) transitions and fades by default; e-ink screens and the system's reduced motion turn them off.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, TS, JsonSchema)]
 #[serde(rename_all = "lowercase")]
 #[ts(export)]
 pub enum Motion {
     /// No transitions or fades.
     Instant,
     /// The interface's transitions and fades.
+    #[default]
     Full,
 }
 
@@ -796,7 +798,7 @@ impl Default for Config {
 
 impl Default for UiConfig {
     fn default() -> Self {
-        Self { theme: Theme::System, vscode_theme: String::new(), accent: String::new(), ui_font: String::new(), font_size: 14, gpu_rendering: GpuRendering::Auto, css_snippets_off: Vec::new(), tabs: TabsLayout::Vertical, side_panel: SidePanelPlace::Dock, motion: Motion::Instant, eink: Eink::Auto, eink_refresh: EinkRefresh::Often, restore_layout: true, tab_preview: true, tab_switcher: TabSwitcher::Glance, sleep_after_min: 10, awake_tabs: 8, libraries: Vec::new() }
+        Self { theme: Theme::System, vscode_theme: String::new(), accent: String::new(), ui_font: String::new(), font_size: 14, gpu_rendering: GpuRendering::Auto, css_snippets_off: Vec::new(), tabs: TabsLayout::Vertical, side_panel: SidePanelPlace::Dock, motion: Motion::default(), eink: Eink::Auto, eink_refresh: EinkRefresh::Often, restore_layout: true, tab_preview: true, tab_switcher: TabSwitcher::Glance, sleep_after_min: 10, awake_tabs: 8, libraries: Vec::new() }
     }
 }
 

@@ -38,6 +38,7 @@ import { sourcePicture } from "./explorer-thumbs";
 import { joinLive } from "./live";
 import { addSettingsSection } from "./settings-sections.svelte";
 import { api, apiBase } from "./api";
+import { pageSvg } from "./pdf-marks";
 import { open, openNative, openPath, openSide } from "./dock";
 import { guard, logPlugin } from "./plugin-log.svelte";
 import { pluginAssetUrl } from "./plugin-files";
@@ -151,6 +152,12 @@ export function pluginApi(p: Plugin, at: PaneAt = {}): PluginApi {
     noteProps,
     trash: async (path) => { await api.trash(path); },
     companion: async (path, opts) => (await api.companion({ path, title: opts?.title ?? null, properties: opts?.properties ?? {}, block: null, find: opts?.find ?? false })).path,
+    marks: async (file) => { const r = await api.pdfMarks(file); return { note: r.note ?? null, marks: r.marks }; },
+    marksSvg: (marks, page, size = [1000, 1000]) => {
+      const svg = pageSvg(marks, page, { view: [0, 0, size[0], size[1]], rotate: 0 });
+      svg.setAttribute("preserveAspectRatio", "none"); // a picture page's places are fractions of each side
+      return svg;
+    },
     templates: () => api.templates(),
     newNote: async (o) => (await api.newNote({ title: o.title, dir: o.folder, template: o.template, values: o.values, text: o.body })).path,
     applyTemplate: async (path, template) => {

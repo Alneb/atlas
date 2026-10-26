@@ -28,3 +28,7 @@ key = "token"
 label = "API key"
 kind = "secret"
 hint = "Jellyfin → Dashboard → API keys"
+
+# where it runs (PLUGIN-API.md, "Platforms"); a platform not named is untested (Android: only with `phone = true`)
+[platforms]
+linux = "works"

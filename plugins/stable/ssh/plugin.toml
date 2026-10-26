@@ -94,3 +94,7 @@ label = "Mount folder"
 kind = "text"
 default = "~/mnt"
 hint = "\"Mount\" puts each host under this folder with sshfs"
+
+# where it runs (PLUGIN-API.md, "Platforms"); a platform not named is untested (Android: only with `phone = true`)
+[platforms]
+linux = "works"

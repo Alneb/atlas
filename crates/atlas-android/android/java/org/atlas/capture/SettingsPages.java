@@ -98,11 +98,13 @@ final class SettingsPages {
     private View pluginRow(String id, boolean builtIn) {
         JSONObject listed = VaultFiles.plugin(nav.plugins(), id);
         String what = !text(listed, "description").isEmpty() ? text(listed, "description") : builtIn ? "built into this app" : null;
-        // a vault plugin not marked `phone = true` does not start in this app (its page would only show errors here)
-        if (!builtIn && listed != null && !listed.optBoolean("phone")) what = "not on phones · desktop and server" + (what == null ? "" : " — " + what);
+        // why it does not run here (not made for the phone, a plugin it needs off…), from the core; switched off says itself
+        String why = listed == null || listed.optBoolean("off") ? "" : text(listed, "why");
+        if (!builtIn && !why.isEmpty()) what = why + (what == null ? "" : " — " + what);
         Row r = look.row(a, null, titleOf(id, listed), what);
         if (r.detail != null) r.detail.setMaxLines(2);
-        r.addView(switchOf(VaultFiles.on(nav.plugins(), id), on -> nav.switchPlugin(id, on)));
+        // the switch is the vault's own choice (its `off` list), whether or not the plugin can run on this device
+        r.addView(switchOf(listed == null ? builtIn : !listed.optBoolean("off"), on -> nav.switchPlugin(id, on)));
         r.setOnClickListener(v -> { if (builtIn) nav.page("plugin:" + id); else nav.web("pluginSettings(" + JSONObject.quote(id) + ")"); });
         return r;
     }

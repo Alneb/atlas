@@ -29,6 +29,9 @@ stages=("$@")
 failed=0
 summary=()
 
+# CI shows a failed stage's whole log (ci-annotate.mjs reads it for annotations); a terminal, its tail
+show_failed() { if [ -n "${GITHUB_ACTIONS:-}" ]; then cat "$1"; else tail -25 "$1"; fi; }
+
 run() { # name, what it checks, command…
   local name="$1" why="$2"; shift 2
   echo "[gate] $name — $why (log: $logs/$name.log)"
@@ -46,7 +49,7 @@ run() { # name, what it checks, command…
     build) note="$(grep -E '^\[bundle\]' "$logs/$name.log" | tail -1 | sed 's/^\[bundle\] //')" ;;
     py)   note="$(grep -E '^\[py\] .*: Ran' "$logs/$name.log" | grep -oE 'Ran [0-9]+' | awk '{n+=$2} END {printf "%d tests", n}'), $(grep -E '^\[py\] failed' "$logs/$name.log" | sed 's/^\[py\] //')" ;;
   esac
-  if [ $code -eq 0 ]; then summary+=("PASS  $name  $note"); else summary+=("FAIL  $name  $note  (exit $code)"); failed=$((failed + 1)); tail -25 "$logs/$name.log"; fi
+  if [ $code -eq 0 ]; then summary+=("PASS  $name  $note"); else summary+=("FAIL  $name  $note  (exit $code)"); failed=$((failed + 1)); show_failed "$logs/$name.log"; fi
 }
 
 for s in "${stages[@]}"; do

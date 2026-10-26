@@ -228,3 +228,7 @@ timeout_secs = 600
 name = "accounts"
 method = "agent_accounts"
 description = "The user's email accounts in Atlas (names to pass as `account`; the first is the main one). No secrets."
+
+# where it runs (PLUGIN-API.md, "Platforms"); a platform not named is untested (Android: only with `phone = true`)
+[platforms]
+linux = "works"

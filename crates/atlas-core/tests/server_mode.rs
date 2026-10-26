@@ -30,7 +30,10 @@ async fn a_served_vault_lets_in_only_who_signed_in() {
     // a wrong password, then (after the wait) the right one: a session cookie, HttpOnly, SameSite=Strict
     let login = |pw: &str, origin: &str| http.post(format!("{base}/login")).header("origin", origin).form(&[("password", pw), ("next", "/notes")]);
     assert_eq!(login("nope", &base).send().await.unwrap().status(), StatusCode::UNAUTHORIZED);
-    assert_eq!(login("a long password", &base).send().await.unwrap().status(), StatusCode::TOO_MANY_REQUESTS, "the second try waits");
+    let wrong_at = std::time::Instant::now();
+    let second = login("a long password", &base).send().await.unwrap().status();
+    // the wait is 1 s (auth.rs tests it on a fake clock); on a loaded machine the second try may come after it
+    assert!(second == StatusCode::TOO_MANY_REQUESTS || wrong_at.elapsed() >= std::time::Duration::from_secs(1), "the second try waits: {second}");
     // a form posted from another site is refused whatever the password
     tokio::time::sleep(std::time::Duration::from_millis(1100)).await;
     assert_eq!(login("a long password", "https://evil.example").send().await.unwrap().status(), StatusCode::FORBIDDEN);

@@ -27,7 +27,7 @@ impl Gray {
             Output::Fill => self.fill_union(&ink.data),
             Output::Translucent => self.composite_translucent(ink),
             Output::Dabs => {
-                for d in ink.data.chunks_exact(5) {
+                for d in ink.data.as_chunks::<5>().0 {
                     self.stamp(d[0], d[1], d[2], d[3], d[4]);
                 }
             }
@@ -177,7 +177,7 @@ pub fn grain_mask(m: usize) -> Vec<u8> {
 /// (left, top, width, height, alpha bytes 0/255), empty when there are no dabs.
 pub fn charcoal_bitmap(dabs: &[f32]) -> (i32, i32, usize, usize, Vec<u8>) {
     let tiles: Vec<(i32, i32, usize, f32)> = dabs
-        .chunks_exact(5)
+        .as_chunks::<5>().0.iter()
         .filter(|d| d.iter().all(|v| v.is_finite()) && d[2] >= 1.0)
         .map(|d| {
             let s = (d[2] as usize).clamp(2, 256);

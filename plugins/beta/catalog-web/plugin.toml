@@ -12,3 +12,7 @@ requires = ["catalog"]
 [contributes.catalog]
 # for every kind: the page behind the link is one more (low-priority) source; the article kind lives on it
 sources = [{ kind = "*", api = "/api/clip", priority = 10, needs = ["url"] }]
+
+# where it runs (PLUGIN-API.md, "Platforms"); a platform not named is untested (Android: only with `phone = true`)
+[platforms]
+linux = "works"

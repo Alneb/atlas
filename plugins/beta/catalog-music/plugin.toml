@@ -41,3 +41,7 @@ recognize = [
   { pattern = "(?i)music\\.youtube\\.com/playlist\\?list=(OLAK5uy_[\\w-]+)", kind = "album", id = "ytmusic_album" },
 ]
 sources = [{ kind = ["album", "song", "artist"], tool = "lookup", priority = 65, needs = ["musicbrainz", "mb_release", "url"] }]
+
+# where it runs (PLUGIN-API.md, "Platforms"); a platform not named is untested (Android: only with `phone = true`)
+[platforms]
+linux = "works"

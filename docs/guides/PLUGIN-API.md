@@ -98,6 +98,25 @@ An unknown key is an error shown in Settings (a typo should be seen), not ignore
 - **`template = "<name>"`**: the tool provides a template value. A note made from a template that uses `{{<name>…}}` (or includes one that does) gets the tool's answer as that value, asked with `{ title }` just before the note is made and only then (`template_values.rs`; docs/guides/TEMPLATES.md "Values from plugins"). The template stays data; the program is the plugin, with its permissions. Example: the Weather plugin's `now` (`template = "weather"`). A capture made with no Atlas serving the vault is kept in `.atlas/pending/` and the `on = "capture"` tools run on it when the vault is next served.
 - A Python helper may call Atlas while Atlas calls it (a sync asking the catalog, which asks this helper's lookup): `atlas_plugin` answers such a request at once, nested, instead of queueing it behind the call that waits for it.
 
+### Platforms — `[platforms]`
+
+A plugin says where it runs, platform by platform: the three desktops (`linux`, `macos`, `windows`), the phone app (`android`) and a server (`server`: a core started by `atlas serve` or the Docker image, whatever system is under it). Each is `"works"` (tried there), `"untested"`, or `"no"`, bare or with a reason:
+
+```toml
+[platforms]
+linux = "works"
+macos = { support = "untested", why = "CUPS ships with macOS" }
+windows = { support = "no", why = "no `lp` (CUPS) on Windows" }
+server = "works"
+```
+
+- **A platform not named is `untested`**, except `android`, which is `no` unless `phone = true` (the phone app starts only plugins made for it; `phone = true` is short for `android = "works"`).
+- **Only `no` stops a plugin.** Where its core runs on a platform it says `no` for, the core does not run its helper, tools or contributions (`plugins::blocked`), the page does not load it, and Settings shows the reason ("Print does not run on Windows: no `lp`…"). Inside the phone app the page checks the `android` entry, even on a server's vault. A plugin that `requires` a stopped one stops too.
+- **Settings shows all five** on the plugin's row and page (works ✓, untested ?, no ✕, the reason on hover). `/api/plugins` gives them as `platforms: [{ platform, support, why? }]` in that order, plus `not_here`, the reason it cannot run on this core's platform.
+- An unknown platform name is a manifest error: the plugin is listed with the error, not loaded.
+
+The core knows its platform from its build (`platform::Platform::os()`) and from server mode (`Platform::mark_server()` when `atlas serve` starts listening).
+
 ### A meta plugin and its subplugins — `requires`, `[contributes.<id>]`
 
 A plugin can be built on another (the catalog and its `catalog-*` sources):
@@ -257,6 +276,8 @@ Every `register…` / `on…` returns a function that undoes it (rarely needed).
 | `atlas.templates()` (v13) | the vault's templates: name, title, folder, questions (`asks`), when each applies by itself (`applies`, in words) |
 | `atlas.newNote({ title, folder?, template?, values?, body? })` (v13) | a new note made the way every new note is: the template named, else the vault's rules for that folder, else its default template; `values` answer the template's questions → its path. Use it instead of writing a new note's text |
 | `atlas.applyTemplate(path, template)` (v13) | a template merged into an existing note — only what it lacks (properties, list items, sections, blocks) → what was added |
+| `atlas.marks(file)` (v14) | the marks of a PDF or a book of pictures (a manga chapter: an archive, or a folder ending in `/`) → `{ note, marks }`: the note that keeps them (a chapter's: its series' note, a block per chapter) — watch it with `onFilesChanged` |
+| `atlas.marksSvg(marks, page, size?)` (v14) | a page's marks drawn as Atlas draws them (ink with its pressure, highlights, post-its…) → an `<svg>` filling its positioned parent; `size` the page in the marks' space (PDF points; default a picture page, 1000 × 1000) |
 | `atlas.open(path, line?, { beside? })` / `openTable(path)` | open in a tab |
 | `atlas.openNative(path)` (v6) | hand `path` to the phone app's own reader (a native plugin whose `opens` takes it: an `.epub`, a `.cbz`, a chapter folder, `suwayomi:<id>/<name>`); `true` when the app took it, `false` on the desktop or in a browser — show it in the page then. A library stays the page's on the phone too; only its reader is native (Books' and Manga's Read) |
 | `atlas.onFilesChanged((paths) => …)` | any change on disk, also from other programs |

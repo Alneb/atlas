@@ -206,3 +206,7 @@ input = { paths = { type = "array", description = "only these vault paths (Atlas
 secrets = ["*"]
 timeout_secs = 300
 on = "fs"
+
+# where it runs (PLUGIN-API.md, "Platforms"); a platform not named is untested (Android: only with `phone = true`)
+[platforms]
+linux = "works"

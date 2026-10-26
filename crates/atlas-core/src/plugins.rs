@@ -6,6 +6,7 @@
 //! and entity kinds at startup (no pane needed); the pane (`view.js`) and the rail button are opt-in.
 use crate::commands::{run_script_with, ScriptCommand, ScriptManifest, SCRIPT_TIMEOUT};
 pub use crate::plugin_settings::SettingField;
+use crate::platform::{Compat, Platform, Support};
 use crate::{Error, Result};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -66,9 +67,12 @@ struct Manifest {
     /// The plugin's own version (shown; nothing is decided by it yet).
     #[serde(default)]
     version: Option<String>,
-    /// It runs on phones (`phone = true`): the phone apps start only plugins marked so.
+    /// It runs on phones (`phone = true`): shorthand for `android = "works"` in `[platforms]`.
     #[serde(default)]
     phone: bool,
+    /// Its word on each platform (`[platforms]`: `windows = "no"`, `macos = { support = "untested", why = "…" }`).
+    #[serde(default)]
+    platforms: std::collections::BTreeMap<Platform, PlatformEntry>,
     /// The plugin API the plugin was written for (`atlas.version` in the page).
     #[serde(default)]
     api: Option<u32>,
@@ -217,8 +221,10 @@ pub fn permissions(root: &Path, id: &str) -> Result<Permissions> {
 /// `atlas.shell`, settings from a schema; v5 the native pen; v6 `openNative`; v7 the editor contract (`claims`,
 /// `atlas.pane`, `atlas.anchor`) and `registerEmbed`; v8 `atlas.live.join` and `atlas.pane.close`; v9 `atlas.assetUrl`
 /// (a plugin's own files by URL, plugin_files.rs); v10 `atlas.trash`; v11 `atlas.files.thumb`; v12 Settings v2: accounts
-/// (`account = {…}` on a records field), `advanced` / `hidden` fields, `atlas.plugin.registerSettingsSection`.
-pub const API_VERSION: u32 = 12;
+/// (`account = {…}` on a records field), `advanced` / `hidden` fields, `atlas.plugin.registerSettingsSection`; v13
+/// `atlas.templates`, `atlas.newNote`, `atlas.applyTemplate`; v14 `atlas.marks`, `atlas.marksSvg`. The page's number
+/// must be the same (a test holds it).
+pub const API_VERSION: u32 = 14;
 
 /// `"1.2.3"` → `[1, 2, 3]` (missing parts are 0; anything after a non-digit part is ignored).
 fn version_parts(v: &str) -> [u64; 3] {
@@ -345,8 +351,13 @@ pub struct Plugin {
     pub from: Option<String>,
     #[ts(optional)]
     pub version: Option<String>,
-    /// Marked to run on phones (`phone = true`): the phone apps start only these.
+    /// Its support on every platform, in `Platform::ALL`'s order: where it is `no` the core does not run it (`blocked`).
+    pub platforms: Vec<Compat>,
+    /// Android is not `no`: the phone apps start only these (kept for clients older than `platforms`).
     pub phone: bool,
+    /// Why it does not run where this core runs (its `platforms` entry for `Platform::current()` is `no`).
+    #[ts(optional)]
+    pub not_here: Option<String>,
     /// Set when the manifest does not parse: the plugin is listed (so the user sees why), not loaded.
     #[ts(optional)]
     pub error: Option<String>,
@@ -376,7 +387,9 @@ impl Plugin {
             has_data: false,
             settings: Value::Null,
             fields: Vec::new(),
+            platforms: Vec::new(),
             phone: false,
+            not_here: None,
             permissions: Permissions::default(),
             has_helper: false,
             from: None,
@@ -584,6 +597,9 @@ pub fn list(root: &Path) -> Vec<Plugin> {
                     // first, while the manifest is whole: the fields below take it apart
                     settings: serde_json::to_value(settings_with_defaults(&m)).unwrap_or(Value::Null),
                     parts: parts_of(&m),
+                    phone: support(&platforms_of(&m), Platform::Android) != Support::No,
+                    not_here: not_on(&m.title, &platforms_of(&m), Platform::current()),
+                    platforms: platforms_of(&m),
                     opens: opens_and_claims(&m),
                     agents: m.agents.clone(),
                     requires: m.requires.clone(),
@@ -596,7 +612,6 @@ pub fn list(root: &Path) -> Vec<Plugin> {
                     keys: m.keys,
                     has_data: m.data.is_some(),
                     fields: m.fields,
-                    phone: m.phone,
                     permissions: m.permissions,
                     has_helper: m.helper.is_some(),
                     from: installed_from(root, &id),
@@ -610,8 +625,44 @@ pub fn list(root: &Path) -> Vec<Plugin> {
         .collect()
 }
 
-/// Why plugin `id` cannot run with these plugins and this `off` list: itself off or broken, or a plugin it requires
-/// (at any depth) missing, broken or off. None: it can run.
+/// One platform in `[platforms]`: a bare level (`"works"`) or a level with its reason.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(untagged)]
+enum PlatformEntry {
+    Level(Support),
+    Said { support: Support, why: Option<String> },
+}
+
+/// A manifest's word on every platform. Unsaid: `untested`, except Android, which is `no` unless `phone = true`
+/// (the phone app starts only plugins made for it).
+fn platforms_of(m: &Manifest) -> Vec<Compat> {
+    Platform::ALL
+        .iter()
+        .map(|&platform| {
+            let (support, why) = match m.platforms.get(&platform) {
+                Some(PlatformEntry::Level(s)) => (*s, None),
+                Some(PlatformEntry::Said { support, why }) => (*support, why.clone()),
+                None if platform == Platform::Android && m.phone => (Support::Works, None),
+                None if platform == Platform::Android => (Support::No, Some("not made for the phone app".into())),
+                None => (Support::Untested, None),
+            };
+            Compat { platform, support, why }
+        })
+        .collect()
+}
+
+/// "X does not run on Windows: why" when the plugin says `no` for `platform`.
+fn not_on(title: &str, all: &[Compat], platform: Platform) -> Option<String> {
+    let c = all.iter().find(|c| c.platform == platform && c.support == Support::No)?;
+    Some(format!("{title} does not run on {}{}", platform.name(), c.why.as_deref().map(|w| format!(": {w}")).unwrap_or_default()))
+}
+
+fn support(all: &[Compat], platform: Platform) -> Support {
+    all.iter().find(|c| c.platform == platform).map_or(Support::Untested, |c| c.support)
+}
+
+/// Why plugin `id` cannot run with these plugins and this `off` list: itself off or broken, not for this system, or a
+/// plugin it requires (at any depth) missing, broken, off or not for this system. None: it can run.
 pub fn blocked(plugins: &[Plugin], off: &[String], id: &str) -> Option<String> {
     fn walk(plugins: &[Plugin], off: &[String], id: &str, seen: &mut Vec<String>) -> Option<String> {
         if seen.iter().any(|s| s == id) {
@@ -623,6 +674,9 @@ pub fn blocked(plugins: &[Plugin], off: &[String], id: &str) -> Option<String> {
         }
         if off.iter().any(|o| o == id) {
             return Some(format!("{} is switched off", p.title));
+        }
+        if let Some(why) = &p.not_here {
+            return Some(why.clone());
         }
         seen.push(id.to_string());
         let why = p.requires.iter().find_map(|r| walk(plugins, off, r, seen).map(|w| format!("needs {r}: {w}")));
@@ -682,6 +736,13 @@ pub async fn data(root: &Path, id: &str, args: Value) -> Result<Value> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn the_page_offers_the_same_plugin_api_as_the_core() {
+        let ts = include_str!("../../../ui/src/lib/plugin-api.ts");
+        let page = ts.lines().find_map(|l| l.strip_prefix("export const PLUGIN_API_VERSION = ")).and_then(|v| v.trim_end_matches(';').trim().parse::<u32>().ok());
+        assert_eq!(page, Some(API_VERSION), "ui/src/lib/plugin-api.ts PLUGIN_API_VERSION and plugins.rs API_VERSION drifted apart");
+    }
+
     use super::*;
 
     fn plugin(root: &Path, id: &str, toml: &str) {
@@ -956,5 +1017,33 @@ mod tests {
         assert_eq!(c["catalog-tmdb"]["sources"][0]["tool"], "lookup");
         let c = contributions(t.path(), &["catalog-tmdb".into()], "catalog").unwrap();
         assert_eq!(c.keys().collect::<Vec<_>>(), ["jellyfin"], "a switched-off subplugin contributes nothing");
+    }
+
+    #[test]
+    fn a_plugin_runs_everywhere_but_where_it_says_no() {
+        let t = tempfile::tempdir().unwrap();
+        let here = format!("{:?}", Platform::current()).to_lowercase();
+        plugin(t.path(), "plain", "title = \"Plain\"\n");
+        plugin(t.path(), "phone", "title = \"Phone\"\nphone = true\n");
+        plugin(t.path(), "said", "title = \"Said\"\n[platforms]\nlinux = \"works\"\nserver = { support = \"no\", why = \"needs a screen\" }\n");
+        plugin(t.path(), "not-here", &format!("title = \"Not here\"\n[platforms]\n{here} = {{ support = \"no\", why = \"needs CUPS\" }}\n"));
+        plugin(t.path(), "on-it", "title = \"On it\"\nrequires = [\"not-here\"]\n");
+        plugin(t.path(), "bad", "title = \"Bad\"\n[platforms]\nplan9 = \"works\"\n");
+        let all = list(t.path());
+        let get = |id: &str| all.iter().find(|p| p.id == id).unwrap();
+        let level = |id: &str, pl: Platform| support(&get(id).platforms, pl);
+        assert_eq!(get("plain").platforms.iter().map(|c| c.platform).collect::<Vec<_>>(), Platform::ALL, "every platform reported");
+        assert_eq!(level("plain", Platform::Windows), Support::Untested);
+        assert_eq!(level("plain", Platform::Android), Support::No, "not made for the phone app unless it says so");
+        assert!(!get("plain").phone);
+        assert_eq!(level("phone", Platform::Android), Support::Works);
+        assert!(get("phone").phone);
+        assert_eq!(level("said", Platform::Linux), Support::Works);
+        let server = get("said").platforms.iter().find(|c| c.platform == Platform::Server).unwrap();
+        assert_eq!((server.support, server.why.as_deref()), (Support::No, Some("needs a screen")));
+        assert_eq!(blocked(&all, &[], "plain"), None, "untested still runs");
+        assert_eq!(blocked(&all, &[], "not-here").unwrap(), format!("Not here does not run on {}: needs CUPS", Platform::current().name()));
+        assert!(blocked(&all, &[], "on-it").unwrap().starts_with("needs not-here: Not here does not run on"));
+        assert!(get("bad").error.as_deref().unwrap_or("").contains("plan9"), "an unknown platform is a manifest error");
     }
 }

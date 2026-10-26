@@ -57,6 +57,20 @@ abstract class VaultFiles {
      *  in every vault, installed there or not, whatever the vault's copy of it says (an older or broken plugin.toml);
      *  only the vault's config.toml (`[plugins] off`, the row's `off`) stops it.
      *  Any other plugin: as the vault says. */
+    /** Why a server's plugin does not run in this app (its `platforms` entry for Android says `no`; a server older than
+     *  `platforms` only has `phone`), or null: what phone.rs's `why` says for a vault on the device. */
+    static String androidWhy(JSONObject p) {
+        JSONArray platforms = p.optJSONArray("platforms");
+        for (int i = 0; platforms != null && i < platforms.length(); i++) {
+            JSONObject c = platforms.optJSONObject(i);
+            if (c == null || !"android".equals(c.optString("platform"))) continue;
+            if (!"no".equals(c.optString("support"))) return null;
+            String title = p.isNull("title") ? p.optString("id") : p.optString("title", p.optString("id"));
+            return title + " does not run on Android" + (c.isNull("why") ? "" : ": " + c.optString("why"));
+        }
+        return p.optBoolean("phone") ? null : "not made for the phone app";
+    }
+
     static boolean on(JSONArray all, String id) {
         boolean builtIn = NativePlugins.byId(id) != null;
         for (int i = 0; i < all.length(); i++) {
@@ -109,8 +123,10 @@ abstract class VaultFiles {
                 String id = p.optString("id");
                 // a plugin built into this app runs here, natively, whatever the server makes of its manifest (an older
                 // server refusing a newer one turned Notepad off: drawings fell back to Excalidraw); only `off` stops it
-                boolean on = !off.contains(id) && (p.isNull("error") || NativePlugins.byId(id) != null);
-                out.put(new JSONObject().put("id", id).put("off", off.contains(id)).put("title", p.isNull("title") ? id : p.optString("title", id)).put("description", SettingsPages.text(p, "description")).put("phone", p.optBoolean("phone")).put("on", on).put("settings", p.optJSONObject("settings") != null ? p.optJSONObject("settings") : new JSONObject())
+                boolean builtIn = NativePlugins.byId(id) != null;
+                String why = builtIn ? null : androidWhy(p);
+                boolean on = !off.contains(id) && (p.isNull("error") || builtIn) && why == null;
+                out.put(new JSONObject().put("id", id).put("off", off.contains(id)).put("why", why == null ? JSONObject.NULL : why).put("title", p.isNull("title") ? id : p.optString("title", id)).put("description", SettingsPages.text(p, "description")).put("phone", p.optBoolean("phone")).put("on", on).put("settings", p.optJSONObject("settings") != null ? p.optJSONObject("settings") : new JSONObject())
                     .put("fields", p.optJSONArray("fields") != null ? p.optJSONArray("fields") : new JSONArray()));
                 off.remove(id);
             }

@@ -4,6 +4,7 @@
   // "Settings…" button in a list of 24. Saved with the bar that appears once something changed (Ctrl+S too).
   import { untrack } from "svelte";
   import Icon from "../Icon.svelte";
+  import PlatformChips from "./PlatformChips.svelte";
   import FormFields from "../FormFields.svelte";
   import { applies, shown, store, type FormValue } from "../../lib/block-options";
   import { formFields, loadSuggestions, runSettingsAction, savePluginSettings, secretNames } from "../../lib/plugin-settings.svelte";
@@ -85,6 +86,7 @@
     <dl>
       <dt>Adds</dt><dd>{partsOf(p).join(" · ") || "nothing yet"}</dd>
       {#if may}<dt>May</dt><dd data-plugin-may={p.id}>{may}</dd>{/if}
+      <dt>Runs on</dt><dd><PlatformChips {p} /></dd>
     </dl>
     <div class="acts">
       {#if pluginOn(p) && p.view}<button class="btn" onclick={() => open(pluginSpec(p))}><Icon name="panel-right" size={13} /> Open</button>{/if}

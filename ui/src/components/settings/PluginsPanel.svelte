@@ -2,6 +2,7 @@
   // Workspace plugins as a list: on/off (`[plugins] off`), open, install / update / remove; each one's settings and
   // details are its own page in Settings (PluginPage.svelte), reached by its name or "Settings…".
   import Icon from "../Icon.svelte";
+  import PlatformChips from "./PlatformChips.svelte";
   import { pluginLog } from "../../lib/plugin-log.svelte";
   import { openPluginSettings } from "../../lib/plugin-settings.svelte";
   import { open, openPath } from "../../lib/dock";
@@ -41,6 +42,7 @@
           {:else if !isOff(p.id) && pluginBlocked(p)}<span class="err">Not loaded — {pluginBlocked(p)}</span>{/if}
           {#if pluginLog[p.id]?.length}<button class="d problems" onclick={() => void openPluginSettings(p.id)}>{pluginLog[p.id].length} problem{pluginLog[p.id].length === 1 ? "" : "s"} since Atlas started</button>{/if}
           <span class="d">{partsOf(p).join(" · ") || "nothing yet"}</span>
+          <span class="d"><PlatformChips {p} /></span>
           {#if changedSettings(p).length}
             {@const changed = changedSettings(p)}
             <span class="props" title="Its settings changed from the defaults">{#each changed.slice(0, PROPS) as s (s.key)}<span><i>{s.label}</i> {s.value}</span>{/each}{#if changed.length > PROPS}<span class="more">{changed.length - PROPS} more</span>{/if}</span>

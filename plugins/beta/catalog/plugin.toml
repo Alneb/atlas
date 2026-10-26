@@ -65,3 +65,7 @@ timeout_secs = 120
 name = "kinds"
 description = "The kinds of thing the catalog knows in this vault, where each one's library is and where it was declared."
 input = {}
+
+# where it runs (PLUGIN-API.md, "Platforms"); a platform not named is untested (Android: only with `phone = true`)
+[platforms]
+linux = "works"

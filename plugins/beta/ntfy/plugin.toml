@@ -45,3 +45,7 @@ description = "Send a short message to the user's own phone through their ntfy t
 input = { text = "string", title = { type = "string", description = "the notification's title (default: Atlas)", optional = true } }
 secrets = ["token"]
 timeout_secs = 40
+
+# where it runs (PLUGIN-API.md, "Platforms"); a platform not named is untested (Android: only with `phone = true`)
+[platforms]
+linux = "works"

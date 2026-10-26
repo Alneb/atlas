@@ -107,3 +107,12 @@ and a folder chapter's pictures are shown through `atlas.thumbUrl`: the core dec
 same decoder as the phone's) and answers PNG, and a 1500 × 2250 AVIF cover is no longer decoded to be shown 140 px
 wide. A picture inside a `.cbz` is still unzipped in the page (JPEG XL is not in its picture pattern). Spec:
 `example-manga.spec.ts` serves the stand-in server's cover as JPEG XL and waits for it to be decoded.
+
+## The pen's ink
+
+What the pen writes on a page (the Boox reader, `PageInk`) is kept by the core in the **series' note**, a
+```` ```pdf-marks <chapter> ```` block per chapter, exactly as a PDF's marks are kept in its note
+(docs/design/DESIGN-pdf-notes.md): pages from 1, places in fractions × 1000 of the page. The Boox writes it through
+`InkStore.pictures`; the web reader reads it with `atlas.marks(chapter)` and draws it over the page with
+`atlas.marksSvg` (plugin API 14; an older Atlas shows no ink). A server's (Suwayomi) chapter has no ink: it has no
+vault file. (Before 0.5.0 the ink was a `<chapter>.ink.json` beside the chapter.)

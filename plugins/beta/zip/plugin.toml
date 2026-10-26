@@ -7,3 +7,7 @@ icon = "file"
 version = "0.1.0"
 api = 4
 phone = true
+
+# where it runs (PLUGIN-API.md, "Platforms"); a platform not named is untested (Android: only with `phone = true`)
+[platforms]
+linux = "works"

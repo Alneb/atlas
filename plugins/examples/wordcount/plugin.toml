@@ -7,3 +7,7 @@ phone = true # runs in the phone apps too (only plugins marked so start there)
 [settings]
 # read in main.js as atlas.plugin.settings.goal; editable in Settings → Plugins
 goal = 500
+
+# where it runs (PLUGIN-API.md, "Platforms"); a platform not named is untested (Android: only with `phone = true`)
+[platforms]
+linux = "works"

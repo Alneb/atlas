@@ -3,11 +3,16 @@
   // Places at the left; a folder's entries with size and date. Its parts (docs/refactor/REFACTOR-explorer.md): the folder
   // and its loading lib/explorer/browse, the places column lib/explorer/places + components/explorer/Places, the keys
   // lib/explorer/keys, what is done to entries lib/explorer/actions, dragging lib/explorer/drag. This file wires them.
+  // Like a file manager: a filter over the folder (Ctrl+F; "below" searches every folder under it, in the vault), a
+  // preview of the selected file at the right — drawn as a note embeds it (lib/embeds.ts), so every kind of file
+  // previews as its own view — and Split, a second explorer beside this one to drag between.
   import { onMount, untrack } from "svelte";
   import { basename } from "../lib/paths";
   import { atPointer, below, type MenuAt } from "../lib/menu";
   import type { PaneProps } from "../lib/dock";
-  import { openPath } from "../lib/dock";
+  import { open, openPath } from "../lib/dock";
+  import { hydrateEmbeds } from "../lib/embeds";
+  import { embedClass } from "../lib/markdown";
   import { fileIcon, type IconName } from "../lib/panes";
   import Icon from "../components/Icon.svelte";
   import ContextMenu, { type MenuItem } from "../components/ContextMenu.svelte";
@@ -51,6 +56,15 @@
   let view = $state<"list" | "thumbs">((() => { try { return localStorage.getItem(VIEW) === "thumbs" ? "thumbs" : "list"; } catch { return "list"; } })());
   const setView = (v: typeof view) => { view = v; try { localStorage.setItem(VIEW, v); } catch { /* for this run */ } };
   let sort = $state<{ by: "name" | "size" | "modified"; desc: boolean }>({ by: "name", desc: false });
+  // the filter: names containing it, here; with `deep` ("Below"), every file under this folder (the vault's own list)
+  let filter = $state("");
+  let deep = $state(false);
+  let filterEl = $state<HTMLInputElement>();
+  let underHere = $state<Entry[] | null>(null);
+  // the preview at the right: remembered in this browser, as the view is
+  const PREVIEW = "atlas.explorer.preview";
+  let preview = $state((() => { try { return localStorage.getItem(PREVIEW) === "1"; } catch { return false; } })());
+  const setPreview = (v: boolean) => { preview = v; try { localStorage.setItem(PREVIEW, v ? "1" : "0"); } catch { /* for this run */ } };
   let typing = $state(false);
   let menu = $state<MenuAt | null>(null);
   let dropDir = $state<string | null>(null);
@@ -71,8 +85,41 @@
     const dir = (e: Entry) => (e.kind === "dir" ? 0 : 1);
     const key = sort.by === "name" ? (a: Entry, c: Entry) => collator.compare(a.name, c.name)
       : sort.by === "size" ? (a: Entry, c: Entry) => (a.size ?? 0) - (c.size ?? 0) : (a: Entry, c: Entry) => (a.modified ?? 0) - (c.modified ?? 0);
-    return [...shownEntries(b.entries)].sort((a, c) => dir(a) - dir(c) || (sort.desc ? -1 : 1) * key(a, c) || collator.compare(a.name, c.name));
+    const q = filter.trim().toLowerCase();
+    const base = q && deep && underHere ? underHere : shownEntries(b.entries);
+    const kept = q ? base.filter((e) => e.name.toLowerCase().includes(q)) : base;
+    return [...kept].sort((a, c) => dir(a) - dir(c) || (sort.desc ? -1 : 1) * key(a, c) || collator.compare(a.name, c.name));
   });
+  // every file under this folder, read once per folder while "below" is on (the vault's file list: no walk)
+  $effect(() => {
+    const path = loc.path, want = deep && isVault && !!filter.trim();
+    if (!want) { underHere = null; return; }
+    let gone = false;
+    void api.files().then((all) => {
+      if (gone) return;
+      const pre = path ? `${path}/` : "";
+      underHere = all.filter((p) => p.startsWith(pre)).map((p) => ({ name: p.slice(pre.length), kind: "file" as const }));
+    }, () => { if (!gone) underHere = []; });
+    return () => { gone = true; };
+  });
+  /** The selected file drawn in `el` as a note embeds it; again when the selection moves. */
+  function previewOf(el: HTMLElement, path: string | null) {
+    let undo = () => {};
+    const draw = (p: string | null) => {
+      undo();
+      el.replaceChildren();
+      if (!p) return;
+      const box = document.createElement("div");
+      box.className = embedClass(p);
+      box.dataset.target = p;
+      el.append(box);
+      undo = hydrateEmbeds(el, "", false);
+    };
+    draw(path);
+    return { update: draw, destroy: () => undo() };
+  }
+  /** Split: another explorer beside this one, at the same folder, to drag between. */
+  const split = () => open({ kind: "explorer", source: loc.source, place: loc.place, path: loc.path, n: (spec.n ?? 0) + 1 }, { beside: true });
   // the entry selected gone (deleted, moved): its neighbour takes the place, not the first row
   let lastSel = 0;
   const sel = $derived.by(() => {
@@ -180,6 +227,7 @@
   const ahead = new TypeAhead();
   function onKey(e: KeyboardEvent): void {
     if (b.mode !== "ready" || editing || typing) return;
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "f") { e.preventDefault(); e.stopPropagation(); filterEl?.focus(); filterEl?.select(); return; }
     const n = shown.length, cur = current;
     const action = explorerKey(e, {
       travel: (w) => b.travel(w), up: () => b.up(), typePath: () => (typing = true), toggleHidden: toggleShowAll,
@@ -286,6 +334,9 @@
           {/each}
         </div>
       {/if}
+      <input class="filter" bind:this={filterEl} bind:value={filter} placeholder="Filter…" aria-label="Filter this folder" spellcheck="false"
+        onkeydown={(e) => { e.stopPropagation(); if (e.key === "Escape") { filter = ""; focusList(); } else if (e.key === "Enter" || e.key === "ArrowDown") { e.preventDefault(); focusList(); } }} />
+      {#if isVault}<button class="btn" class:on={deep} aria-pressed={deep} title="Search every folder under this one, not only this folder" onclick={() => (deep = !deep)}>Below</button>{/if}
       <button class="btn" class:on={treeView.showAll} aria-pressed={treeView.showAll} title="Hidden files: dotfiles, companions (a mail's files, a PDF's ink), notes with shown: false — the same in the sidebar tree (Ctrl+H)" onclick={toggleShowAll}>Hidden</button>
       <div class="seg" role="group" aria-label="View">
         <button class="icon-btn" class:on={view === "list"} aria-pressed={view === "list"} title="List: names, sizes and dates" aria-label="List" onclick={() => setView("list")}><Icon name="rows" size={14} /></button>
@@ -293,6 +344,8 @@
       </div>
       {#if src?.mkdir}<button class="btn" title="Make a folder here" onclick={() => (editing = { kind: "new" })}>New folder</button>{/if}
       {#if src && (src.upload || isVault)}<button class="btn" title="Put files into this folder" onclick={uploadMenu}>Upload…</button>{/if}
+      <button class="btn" class:on={preview} aria-pressed={preview} title="Show the selected file at the right" onclick={() => setPreview(!preview)}>Preview</button>
+      <button class="btn" title="Another explorer beside this one, to drag files between" onclick={split}>Split</button>
       <button class="icon-btn" title="Refresh (F5)" aria-label="Refresh" onclick={() => void b.reload()}><Icon name="refresh" size={14} /></button>
     </div>
     {#if confirm}
@@ -364,7 +417,7 @@
         {/each}
         </div>
         {#if !shown.length && editing?.kind !== "new"}
-          <div class="note">{b.entries.length ? "Only hidden files here: “Hidden” shows them." : "This folder is empty. Drop files here, or make a folder."}</div>
+          <div class="note">{filter.trim() ? `Nothing here matches “${filter.trim()}”${isVault && !deep ? ": “Below” looks in the folders under this one too" : ""}.` : b.entries.length ? "Only hidden files here: “Hidden” shows them." : "This folder is empty. Drop files here, or make a folder."}</div>
         {/if}
       {/if}
     </div>
@@ -377,6 +430,21 @@
       {/if}
     </div>
   </section>
+  {#if preview}
+    {@const cur = current}
+    <aside class="preview" aria-label="Preview">
+      {#if !cur}<div class="note">Nothing selected.</div>
+      {:else if cur.kind === "dir"}<div class="note"><strong>{cur.name}</strong>A folder: Enter opens it.</div>
+      {:else if isVault}
+        <div class="pv-head"><b>{cur.name.split("/").pop()}</b><span>{bytes(cur.size)}{cur.modified ? ` · ${shortWhen(cur.modified)}` : ""}</span></div>
+        <div class="pv-body" use:previewOf={joinPath(loc.path, cur.name)}></div>
+      {:else}
+        <div class="pv-head"><b>{cur.name}</b><span>{bytes(cur.size)}{cur.modified ? ` · ${shortWhen(cur.modified)}` : ""}</span></div>
+        {#if src?.thumb}<span class="pic big"><Icon name={iconOf(cur)} size={48} /><img alt="" use:thumb={{ src, place: loc.place, path: joinPath(loc.path, cur.name), entry: cur }} /></span>{/if}
+        <div class="note">On {placeTitle}: Open (Enter) to see all of it.</div>
+      {/if}
+    </aside>
+  {/if}
   <input type="file" multiple hidden bind:this={fileInput} onchange={(e) => { const f = [...(e.currentTarget.files ?? [])]; e.currentTarget.value = ""; run(act.putFiles, f); }} />
 </div>
 {#if menu}<ContextMenu x={menu.x} y={menu.y} items={menu.items} onclose={() => (menu = null)} />{/if}
@@ -385,13 +453,14 @@
   .explorer { display: flex; height: 100%; min-height: 0; container-type: inline-size; font-size: calc(13px * var(--ui-scale, 1)); color: var(--text); background: var(--bg); }
   button { font: inherit; color: inherit; background: transparent; border: 0; cursor: pointer; }
   .main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
-  .bar { display: flex; align-items: center; gap: 4px; padding: 6px 10px; border-bottom: 1px solid var(--border); flex: none; min-width: 0; }
+  .bar { display: flex; align-items: center; flex-wrap: wrap; gap: 4px; row-gap: 4px; padding: 6px 10px; border-bottom: 1px solid var(--border); flex: none; min-width: 0; }
   .icon-btn { display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; border-radius: var(--radius-sm); color: var(--text-muted); flex: none; }
   .icon-btn:hover:not(:disabled) { background: var(--bg-hover); color: var(--text); }
   .icon-btn:disabled { opacity: .35; cursor: default; }
   .flip { display: inline-flex; transform: scaleX(-1); }
   .bar > :not(.crumbs) { flex: none; }
-  .crumbs { flex: 1; min-width: 0; display: flex; align-items: center; overflow-x: auto; scrollbar-width: none; white-space: nowrap; font-family: var(--font-mono); font-size: .95em; border-radius: var(--radius-sm); padding: 0 4px; min-height: 26px; cursor: text; }
+  /* the path on a row of its own under the buttons, its whole width to read and click (a file manager's path bar) */
+  .crumbs { order: 10; flex: 1 1 100%; min-width: 0; display: flex; align-items: center; overflow-x: auto; scrollbar-width: none; white-space: nowrap; font-family: var(--font-mono); font-size: .95em; border-radius: var(--radius-sm); padding: 0 4px; min-height: 26px; cursor: text; }
   .crumbs:hover { background: var(--bg-hover); }
   .crumbs button { padding: 2px 3px; border-radius: var(--radius-sm); color: var(--text-muted); flex: none; }
   .crumbs button:hover { color: var(--text); background: var(--bg-active); }
@@ -454,10 +523,18 @@
   .pic img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; opacity: 0; }
   :global(.x-row.has-thumb) .pic img { opacity: 1; background: var(--bg-elev); }
   @container (max-width: 820px) { .head, .x-row { grid-template-columns: minmax(0, 1fr) 6em; } .when { display: none; } .head .modified { display: none; } }
+  .filter { width: 140px; min-width: 70px; font: inherit; color: var(--text); background: var(--bg-elev); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 3px 8px; min-height: 26px; outline: none; flex: 0 1 140px; }
+  .filter:focus { border-color: var(--accent); }
+  .preview { width: min(42%, 520px); min-width: 240px; flex: none; border-left: 1px solid var(--border); display: flex; flex-direction: column; min-height: 0; background: var(--bg); }
+  .pv-head { display: flex; align-items: baseline; gap: 8px; padding: 8px 12px; border-bottom: 1px solid var(--border); flex: none; min-width: 0; }
+  .pv-head b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .pv-head span { color: var(--text-faint); white-space: nowrap; font-size: .92em; }
+  .pv-body { flex: 1; min-height: 0; overflow: auto; padding: 8px 12px; }
+  .pic.big { margin: 12px; width: auto; }
+  @container (max-width: 760px) { .preview { display: none; } }
   .places-btn { display: none; }
   @container (max-width: 700px) { .places-btn { display: inline-flex; } }
-  /* a narrow explorer: the buttons on one line, the path on its own line under them (it was squeezed to nothing) */
-  @container (max-width: 700px) { .bar { flex-wrap: wrap; row-gap: 4px; } .crumbs { order: 10; flex-basis: 100%; } }
+
   /* a finger's targets: rows and buttons ~40 px; the row's hover buttons never show (long press: its menu) */
   @media (pointer: coarse) {
     .x-row { min-height: 44px; }

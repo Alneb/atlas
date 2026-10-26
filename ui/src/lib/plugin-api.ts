@@ -20,7 +20,7 @@ import type { NativeSample, PenOptions } from "./pen-target";
 import type { EmbedRender } from "./embed-registry";
 import type { Live, LiveHandlers } from "./live";
 
-export const PLUGIN_API_VERSION = 13;
+export const PLUGIN_API_VERSION = 14;
 
 /** What a plugin's view gets. Kept small and stable: plugins outlive app refactors. */
 export interface PluginApi {
@@ -138,6 +138,13 @@ export interface PluginApi {
    *  core when missing — the vault's template rules, the file's block, `properties` — as on every device. `find`:
    *  only say which, make none. Never write a companion note's text yourself. */
   companion(path: string, opts?: { find?: boolean; title?: string; properties?: Record<string, unknown> }): Promise<string>;
+  /** (v14) The marks of a PDF or a book of pictures (a manga chapter: an archive, or a folder ending in `/`) — kept
+   *  by the core in the file's note (a chapter's in its series' note, a block each) — and that note, to watch. */
+  marks(file: string): Promise<{ note: string | null; marks: import("./gen/Mark").Mark[] }>;
+  /** (v14) A page's marks drawn as Atlas draws them (ink with its pressure, highlights, post-its…), to lay over the
+   *  page: an `<svg>` filling its positioned parent. `size`: the page in the marks' space, PDF points (default: a
+   *  picture page, 1000 × 1000 — its fractions). */
+  marksSvg(marks: readonly import("./gen/Mark").Mark[], page: number, size?: [number, number]): SVGSVGElement;
   /** (v13) The vault's templates: name, title, the folder their notes go in, their questions and when each applies by
    *  itself (docs/guides/TEMPLATES.md). */
   templates(): Promise<import("./gen/TemplateInfo").TemplateInfo[]>;

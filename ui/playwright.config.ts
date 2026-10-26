@@ -112,6 +112,7 @@ export default defineConfig({
     storageState: { cookies: [{ name: "atlas_local", value: KEY, domain: "127.0.0.1", path: "/", expires: -1, httpOnly: true, secure: false, sameSite: "Strict" }], origins: [] },
     viewport: { width: 1500, height: 900 },
     colorScheme: "dark", // ui.theme follows the desktop by default; the tests look at the dark side
+    reducedMotion: "reduce", // ui.motion is on by default; the tests check end states, not transitions
     // Playwright's pinned browser may be newer than the cached one; ATLAS_PW_CHROME overrides.
     launchOptions: process.env.ATLAS_PW_CHROME ? { executablePath: process.env.ATLAS_PW_CHROME } : {},
   },

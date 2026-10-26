@@ -6,3 +6,7 @@ version = "0.3.0"
 api = 7
 # a click on an .rnote opens this plugin's view (view.js), which converts it and opens the drawing in its place
 claims = ["*.rnote"]
+
+# where it runs (PLUGIN-API.md, "Platforms"); a platform not named is untested (Android: only with `phone = true`)
+[platforms]
+linux = "works"

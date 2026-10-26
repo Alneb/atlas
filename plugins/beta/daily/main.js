@@ -1,6 +1,7 @@
 // `daily.header`: a bar under a day's log heading (plugin.toml). Everything comes from the note itself — its name or `date:`,
 // its `weather:` (written by the Weather plugin after the day's first capture) and its lines — and from the folder's
-// other logs, for the days before and after.
+// other logs, for the days before and after — and, live (never written into the note), the day's calendar events (the DAV
+// plugin's `events`, through a view: none when it is off) and its tasks due and done (the core's tasks).
 const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; };
 const DAY = /(\d{4}-\d{2}-\d{2})(?=\.md$)/;
 
@@ -18,6 +19,12 @@ const CSS = `
 .daily-head nav button { border: 1px solid var(--border); border-radius: 999px; padding: 3px 10px; color: var(--text-muted); background: transparent; font: inherit; font-size: .85em; cursor: pointer; }
 .daily-head nav button:hover:not(:disabled) { color: var(--accent); border-color: var(--accent); }
 .daily-head nav button:disabled { opacity: .35; cursor: default; }
+.daily-head .facts { flex-basis: 100%; display: flex; flex-direction: column; gap: 2px; font-size: .88em; color: var(--text-muted); }
+.daily-head .facts:empty { display: none; }
+.daily-head .facts .row { display: flex; gap: 8px; align-items: baseline; min-width: 0; }
+.daily-head .facts .k { color: var(--text-faint); min-width: 5.5em; }
+.daily-head .facts .v { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.daily-head .facts a { color: inherit; text-decoration: none; border-bottom: 1px dotted var(--border-strong); cursor: pointer; }
 `;
 let styled = false;
 const style = () => { if (styled) return; styled = true; const s = document.createElement("style"); s.textContent = CSS; document.head.append(s); };
@@ -48,9 +55,11 @@ export function register(atlas) {
       const lines = text.split("\n").filter((l) => /^\s*[-*] (\[.\] )?\d{1,2}:\d{2}\b/.test(l)).length;
       sub.append(el("span", "", lines ? `${lines} ${lines === 1 ? "entry" : "entries"}` : "nothing captured yet"));
       const nav = el("nav");
-      box.append(sub, nav);
+      const facts = el("div", "facts");
+      box.append(sub, nav, facts);
       if (template) box.append(el("p", "daily-template", "Template preview: a log made from it shows its own day here."));
       host.replaceChildren(box);
+      if (!template) void dayFacts(facts, iso);
       // the days around it that have a log: the log folder's dated notes, across its year / month folders (`log_folders`)
       const here = block.note.includes("/") ? block.note.slice(0, block.note.lastIndexOf("/")) : "";
       const folder = here.replace(/(^|\/)\d{4}(\/[^/]+)*$/, "");
@@ -60,6 +69,33 @@ export function register(atlas) {
       const at = days.indexOf(block.note);
       const step = (label, path) => { const b = el("button", "", label); b.disabled = !path; if (path) { b.title = DAY.exec(path)[1]; b.onclick = () => atlas.open(path); } return b; };
       nav.append(step("←", at > 0 ? days[at - 1] : null), step("→", at >= 0 && at < days.length - 1 ? days[at + 1] : null));
+    };
+    /** A line of the facts: a label, then items each opening where it came from. */
+    const fact = (facts, label, items) => {
+      if (!items.length) return;
+      const row = el("div", "row"), v = el("span", "v");
+      row.append(el("span", "k", label), v);
+      items.forEach((it, i) => {
+        if (i) v.append(" · ");
+        const a = el("a", "", it.text);
+        if (it.path) a.onclick = () => atlas.open(it.path, it.line);
+        v.append(a);
+      });
+      facts.append(row);
+    };
+    /** The day's events (any calendar plugin's `events` tool, through a view) and its tasks due and done. */
+    const dayFacts = async (facts, iso) => {
+      const rows = async (src) => (await atlas.view(src, block.note).catch(() => null))?.rows ?? [];
+      const [events, due, done] = await Promise.all([
+        rows(`type: list\nfrom: plugin:dav/events\nargs: {from: "${iso}", to: "${iso}"}`),
+        rows(`type: task-list\nfrom: tasks\ndue: ${iso}\nstarted: false`),
+        rows(`type: task-list\nfrom: tasks\nshow: all\ncompleted: ${iso}`),
+      ]);
+      if (gone) return;
+      const time = (d) => (/T(\d{2}:\d{2})/.exec(String(d ?? ""))?.[1] ?? "");
+      fact(facts, "Calendar", events.map((r) => ({ text: `${time(r.props?.start) ? `${time(r.props.start)} ` : ""}${r.title ?? ""}`, path: r.path })));
+      fact(facts, "Due", due.filter((r) => !r.done).map((r) => ({ text: r.title ?? "", path: r.path, line: r.line })));
+      fact(facts, "Done", done.map((r) => ({ text: r.title ?? "", path: r.path, line: r.line })));
     };
     void draw();
     const off = atlas.onFilesChanged((paths) => { if (paths.includes(block.note)) void draw(); });

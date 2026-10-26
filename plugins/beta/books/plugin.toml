@@ -157,3 +157,7 @@ fields = [
   { key = "hyphenate", label = "Hyphenation", kind = "toggle" },
   { key = "publisher", label = "The book's own styles", kind = "toggle" },
 ]
+
+# where it runs (PLUGIN-API.md, "Platforms"); a platform not named is untested (Android: only with `phone = true`)
+[platforms]
+linux = "works"

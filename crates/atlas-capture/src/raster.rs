@@ -64,7 +64,7 @@ impl Canvas {
                 (p.clip_rect.max.x * ppp).round().clamp(0.0, w as f32) as i32,
                 (p.clip_rect.max.y * ppp).round().clamp(0.0, h as f32) as i32,
             ];
-            for t in mesh.indices.chunks_exact(3) {
+            for t in mesh.indices.as_chunks::<3>().0 {
                 let v = [&mesh.vertices[t[0] as usize], &mesh.vertices[t[1] as usize], &mesh.vertices[t[2] as usize]];
                 triangle(buf, w, clip, ppp, v, tex);
             }

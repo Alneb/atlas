@@ -61,3 +61,7 @@ secrets = ["token"]
 
 [contributes.catalog]
 links = [{ kind = "*", tool = "send" }]
+
+# where it runs (PLUGIN-API.md, "Platforms"); a platform not named is untested (Android: only with `phone = true`)
+[platforms]
+linux = "works"

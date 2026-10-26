@@ -62,3 +62,7 @@ label = "Extra preamble"
 kind = "text"
 hint = "a .tex file of the vault added to every export's preamble (packages, macros): e.g. templates/preamble.tex"
 group = "LaTeX"
+
+# where it runs (PLUGIN-API.md, "Platforms"); a platform not named is untested (Android: only with `phone = true`)
+[platforms]
+linux = "works"

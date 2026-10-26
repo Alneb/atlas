@@ -58,12 +58,27 @@ pub struct Kept {
     #[ts(type = "number")]
     pub at: u64,
     pub cookies: usize,
+    /// When the gate last took it (the keep-alive's visit), unix seconds.
+    #[ts(optional, type = "number")]
+    pub renewed: Option<u64>,
+    /// The latest a cookie of it lasts, unix seconds (none: as long as the gate keeps the session).
+    #[ts(optional, type = "number")]
+    pub expires: Option<u64>,
+    /// The gate stopped taking it: the next door met offers the sign-in again.
+    pub ended: bool,
+    /// The plugins it is sent for: those naming a host its cookies cover (`with_users`).
+    #[serde(default)]
+    pub plugins: Vec<String>,
 }
 
 #[derive(Serialize, Deserialize)]
 struct Entry {
     at: u64,
     cookies: Vec<Cookie>,
+    #[serde(default)]
+    renewed: Option<u64>,
+    #[serde(default)]
+    ended: bool,
 }
 
 fn now() -> u64 {
@@ -84,7 +99,7 @@ fn applies(c: &Cookie, host: &str, path: &str, https: bool, at: u64) -> bool {
 
 /// Keep what a sign-in window ended with on `host` (replacing an earlier sign-in there).
 pub fn keep(store: &Store, host: &str, cookies: Vec<Cookie>) -> Result<()> {
-    let entry = Entry { at: now(), cookies };
+    let entry = Entry { at: now(), cookies, renewed: None, ended: false };
     store.set(SECTION, &key(host), &serde_json::to_string(&entry).map_err(|e| crate::Error::Other(e.into()))?)
 }
 
@@ -104,7 +119,113 @@ fn entries(store: &Store) -> Result<Vec<(String, Entry)>> {
 }
 
 pub fn list(store: &Store) -> Result<Vec<Kept>> {
-    Ok(entries(store)?.into_iter().map(|(host, e)| Kept { host, at: e.at, cookies: e.cookies.len() }).collect())
+    Ok(entries(store)?
+        .into_iter()
+        .map(|(host, e)| Kept { host, at: e.at, cookies: e.cookies.len(), renewed: e.renewed, expires: e.cookies.iter().filter_map(|c| c.expires).max(), ended: e.ended, plugins: vec![] })
+        .collect())
+}
+
+/// `list` with each sign-in's plugins: those whose `[permissions] net` names a host (exactly or a `*.domain`, never a
+/// lone `*`) that one of its cookies covers — the plugins the core sends it for.
+pub fn with_users(store: &Store, plugins: &[(String, Vec<String>)]) -> Result<Vec<Kept>> {
+    let entries: BTreeMap<String, Entry> = entries(store)?.into_iter().collect();
+    let mut out = list(store)?;
+    for k in &mut out {
+        let Some(e) = entries.get(&k.host) else { continue };
+        let covers = |host: &str| e.cookies.iter().any(|c| applies(c, host, &c.path, true, 0));
+        k.plugins = plugins
+            .iter()
+            .filter(|(_, net)| net.iter().map(|n| n.trim().to_ascii_lowercase()).any(|n| n != "*" && covers(&n.replace("*.", "x."))))
+            .map(|(id, _)| id.clone())
+            .collect();
+    }
+    Ok(out)
+}
+
+/// How often a kept sign-in is visited: well inside the shortest idle limit seen (Authelia's `inactivity`, days).
+const KEEP_ALIVE: std::time::Duration = std::time::Duration::from_secs(6 * 3600);
+
+/// Every kept door visited once in a while with its cookies, so the gate's idle limit never ends the session between
+/// uses; a cookie the gate renews is kept, a session the gate no longer takes is marked ended (not forgotten). The
+/// first visit a minute after start.
+pub fn spawn_keep_alive(root: std::path::PathBuf) -> tokio::task::JoinHandle<()> {
+    tokio::spawn(async move {
+        tokio::time::sleep(std::time::Duration::from_secs(60)).await;
+        loop {
+            let store = Store::for_vault(&root);
+            for (host, ended) in entries(&store).unwrap_or_default().into_iter().map(|(h, e)| (h, e.ended)) {
+                if !ended {
+                    if let Err(e) = touch(&store, &host).await {
+                        eprintln!("atlas: keeping the sign-in to {host}: {e}");
+                    }
+                }
+            }
+            tokio::time::sleep(KEEP_ALIVE).await;
+        }
+    })
+}
+
+/// One visit to `host` with its kept cookies: renewed (and its new cookies kept), or ended.
+async fn touch(store: &Store, host: &str) -> Result<()> {
+    touch_at(store, host, &format!("https://{host}/")).await
+}
+
+async fn touch_at(store: &Store, host: &str, address: &str) -> Result<()> {
+    let url = reqwest::Url::parse(address).map_err(|e| crate::Error::BadRequest(e.to_string()))?;
+    let Some(cookie) = cookie_header(store, &url)? else { return Ok(()) };
+    let client = reqwest::Client::builder().redirect(reqwest::redirect::Policy::none()).timeout(std::time::Duration::from_secs(20)).build().map_err(|e| crate::Error::Other(e.into()))?;
+    let res = client.get(url.clone()).header(reqwest::header::COOKIE, cookie).send().await.map_err(|e| crate::Error::Other(e.into()))?;
+    let status = res.status().as_u16();
+    let mut headers = BTreeMap::new();
+    let mut set = Vec::new();
+    for (k, v) in res.headers() {
+        let v = v.to_str().unwrap_or_default().to_string();
+        if k == reqwest::header::SET_COOKIE {
+            set.push(v);
+        } else {
+            headers.insert(k.as_str().to_string(), v);
+        }
+    }
+    let gate = detect(&url, &url, status, &headers, false).is_some();
+    let Some(raw) = store.get(SECTION, &key(host))? else { return Ok(()) };
+    let Ok(mut e) = serde_json::from_str::<Entry>(&raw) else { return Ok(()) };
+    if gate {
+        e.ended = true;
+    } else {
+        e.renewed = Some(now());
+        for line in &set {
+            if let Some(fresh) = parse_set_cookie(line, host) {
+                if let Some(c) = e.cookies.iter_mut().find(|c| c.name == fresh.name && c.domain.trim_start_matches('.') == fresh.domain.trim_start_matches('.')) {
+                    *c = fresh;
+                }
+            }
+        }
+    }
+    store.set(SECTION, &key(host), &serde_json::to_string(&e).map_err(|e| crate::Error::Other(e.into()))?)
+}
+
+/// A `Set-Cookie` line as a cookie of `host`: its name and value, Domain, Path, Secure, and its end from Max-Age (or
+/// Expires, an HTTP date). None for a line with no `name=value`.
+fn parse_set_cookie(line: &str, host: &str) -> Option<Cookie> {
+    let mut parts = line.split(';').map(str::trim);
+    let (name, value) = parts.next()?.split_once('=')?;
+    let mut c = Cookie { name: name.trim().to_string(), value: value.trim().to_string(), domain: host.to_string(), host_only: true, path: root_path(), secure: false, expires: None };
+    let mut max_age = None;
+    for p in parts {
+        let (k, v) = p.split_once('=').map_or((p, ""), |(k, v)| (k.trim(), v.trim()));
+        match k.to_ascii_lowercase().as_str() {
+            "domain" if !v.is_empty() => (c.domain, c.host_only) = (v.trim_start_matches('.').to_string(), false),
+            "path" if v.starts_with('/') => c.path = v.to_string(),
+            "secure" => c.secure = true,
+            "max-age" => max_age = v.parse::<i64>().ok(),
+            "expires" => c.expires = chrono::NaiveDateTime::parse_from_str(v, "%a, %d %b %Y %H:%M:%S GMT").ok().map(|t| t.and_utc().timestamp().max(0) as u64),
+            _ => {}
+        }
+    }
+    if let Some(m) = max_age {
+        c.expires = Some((now() as i64 + m).max(0) as u64);
+    }
+    Some(c)
 }
 
 /// The `Cookie` header for a request to `url` from every kept sign-in that covers it: a gate's cookie usually covers
@@ -148,6 +269,54 @@ pub fn detect(asked: &reqwest::Url, landed: &reqwest::Url, status: u16, headers:
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A stand-in gated service: each connection gets the next canned answer.
+    fn stand_in(answers: Vec<&'static str>) -> u16 {
+        use std::io::{Read, Write};
+        let l = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = l.local_addr().unwrap().port();
+        std::thread::spawn(move || {
+            for (a, s) in answers.into_iter().zip(l.incoming()) {
+                let mut s = s.unwrap();
+                let mut buf = [0u8; 4096];
+                let _ = s.read(&mut buf);
+                let _ = s.write_all(a.as_bytes());
+            }
+        });
+        port
+    }
+
+    #[tokio::test]
+    async fn the_keep_alive_renews_a_kept_sign_in_and_marks_one_the_gate_refuses() {
+        let (sdir, vault) = (tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap());
+        let store = Store::in_dir(sdir.path(), vault.path());
+        let host = "127.0.0.1";
+        let old = Cookie { name: "authelia_session".into(), value: "old".into(), domain: host.into(), host_only: true, path: "/".into(), secure: false, expires: None };
+        keep(&store, host, vec![old]).unwrap();
+        let port = stand_in(vec![
+            "HTTP/1.1 200 OK\r\nSet-Cookie: authelia_session=new; Max-Age=3600; Path=/; HttpOnly\r\nContent-Length: 2\r\nConnection: close\r\n\r\nok",
+            "HTTP/1.1 302 Found\r\nLocation: https://auth.example.org/?rd=x\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
+        ]);
+        let at = format!("http://{host}:{port}/");
+        touch_at(&store, host, &at).await.unwrap();
+        let k = &list(&store).unwrap()[0];
+        assert!(k.renewed.is_some() && !k.ended, "{k:?}");
+        assert!(k.expires.is_some_and(|e| e > now() + 3000), "the renewed cookie's end kept: {k:?}");
+        let header = cookie_header(&store, &format!("http://{host}/x").parse().unwrap()).unwrap();
+        assert_eq!(header.as_deref(), Some("authelia_session=new"), "the gate's fresh value sent from now on");
+        // the gate sends the visit to its portal: the session ended, kept to say so
+        touch_at(&store, host, &at).await.unwrap();
+        let k = &list(&store).unwrap()[0];
+        assert!(k.ended, "{k:?}");
+    }
+
+    #[test]
+    fn a_set_cookie_line_is_read() {
+        let c = parse_set_cookie("sid=abc; Domain=.example.org; Path=/app; Secure; Expires=Wed, 21 Oct 2037 07:28:00 GMT", "a.example.org").unwrap();
+        assert_eq!((c.name.as_str(), c.value.as_str(), c.domain.as_str(), c.host_only, c.path.as_str(), c.secure), ("sid", "abc", "example.org", false, "/app", true));
+        assert_eq!(c.expires, Some(2139722880));
+        assert!(parse_set_cookie("no pair here", "h").is_none());
+    }
 
     fn url(s: &str) -> reqwest::Url {
         s.parse().unwrap()
@@ -200,6 +369,10 @@ mod tests {
 
         let kept = list(&store).unwrap();
         assert_eq!((kept.len(), kept[0].host.as_str(), kept[0].cookies), (1, "links.example.org", 3));
+        // the plugins it goes to: those naming a host it covers — never a lone `*`, never another domain
+        let p = |id: &str, net: &[&str]| (id.to_string(), net.iter().map(|s| s.to_string()).collect::<Vec<_>>());
+        let users = with_users(&store, &[p("links", &["links.example.org"]), p("media", &["*.example.org"]), p("clipper", &["*"]), p("other", &["other.net"])]).unwrap();
+        assert_eq!(users[0].plugins, ["links", "media"]);
         assert!(forget(&store, "links.example.org").unwrap());
         assert_eq!(header("https://links.example.org/api"), None);
     }

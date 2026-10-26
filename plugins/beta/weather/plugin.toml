@@ -46,3 +46,7 @@ description = "Today's log was just made (the log card's button): its weather as
 input = { text = "string", path = "string?", line = "integer?" }
 timeout_secs = 30
 on = "log"
+
+# where it runs (PLUGIN-API.md, "Platforms"); a platform not named is untested (Android: only with `phone = true`)
+[platforms]
+linux = "works"

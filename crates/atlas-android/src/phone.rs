@@ -235,8 +235,8 @@ mod tests {
     }
 }
 
-/// The vault's plugins for the native sides (docs/refactor/REFACTOR-native-plugins.md): `[{id, on, settings}]` — `on`
-/// false when the vault switched it off or it cannot run (plugins::blocked), `settings` with the defaults filled in, the
+/// The vault's plugins for the native sides (docs/refactor/REFACTOR-native-plugins.md): `[{id, on, why, settings}]` — `on`
+/// false when the vault switched it off or it cannot run here, `why` saying which (plugins::blocked), `settings` with the defaults filled in, the
 /// same values the plugin's web side reads. A plugin switched off but not installed here is listed too (`on` false,
 /// no settings): the app's built-in plugins run in every vault that does not switch them off.
 pub fn plugins(vault: &Path) -> Value {
@@ -246,7 +246,10 @@ pub fn plugins(vault: &Path) -> Value {
         .iter()
         // `off`: switched off by the vault's config.toml — the one thing that stops a plugin built into the app
         // (VaultFiles.on), which runs whatever the vault's own copy of it says
-        .map(|p| json!({ "id": p.id, "title": p.title, "description": p.description, "phone": p.phone, "on": atlas_core::plugins::blocked(&all, &off, &p.id).is_none(), "off": off.contains(&p.id), "settings": p.settings, "fields": p.fields }))
+        .map(|p| {
+            let why = atlas_core::plugins::blocked(&all, &off, &p.id);
+            json!({ "id": p.id, "title": p.title, "description": p.description, "phone": p.phone, "on": why.is_none(), "why": why, "off": off.contains(&p.id), "settings": p.settings, "fields": p.fields })
+        })
         .collect();
     rows.extend(off.iter().filter(|id| !all.iter().any(|p| &p.id == *id)).map(|id| json!({ "id": id, "on": false, "off": true, "settings": {} })));
     Value::Array(rows)

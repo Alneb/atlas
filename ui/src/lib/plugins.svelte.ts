@@ -26,9 +26,6 @@ export { plugins, pluginBlocked, pluginOn, pluginSpec, pluginData, setPluginOn, 
 export { runPluginCommand } from "./plugin-commands";
 export { pluginApi, noteProps, type ContextSnapshot, type PaneAt, type PluginFileSource } from "./plugin-host-api.svelte";
 
-/** Inside the phone app (its bridge, as native-shell.svelte.ts reads it; not imported: that module imports this one). */
-const inPhoneApp = !!(globalThis as unknown as { AtlasNative?: unknown }).AtlasNative;
-
 /** Run a plugin's main.js `register(atlas)` (after undoing its previous registrations). */
 // the newest start of each plugin: a start overtaken while it fetched main.js (switched off, reloaded) stops there
 const starts = new Map<string, number>();
@@ -58,8 +55,6 @@ async function startMainNow(p: Plugin): Promise<void> {
     }));
   } else if (p.claims.length) logPlugin(p.id, "claims", new Error("`claims` needs a pane (view.js) to open the files in"));
   if (!p.main) return;
-  // the phone app starts only plugins marked `phone = true`; an older server's list has no mark, so none of its plugins start there
-  if (inPhoneApp && !p.phone) return;
   try {
     const mod = await importModule(p.main);
     if (starts.get(p.id) !== run || !pluginOn(p)) return;
@@ -124,7 +119,7 @@ export async function loadPlugins(): Promise<void> {
 // `.atlas/init.js` (docs/guides/MALLEABLE.md rung 8): the workspace's own startup script — `register(atlas)`
 // with the plugin API, no manifest, reloaded on save. A plugin without the ceremony.
 const INIT_PATH = ".atlas/init.js";
-const INIT: Plugin = { id: INIT_ID, title: "init.js", main: INIT_PATH, rail: false, opens: [], claims: [], has_data: false, settings: {}, fields: [], phone: true, permissions: { net: [], secrets: false }, has_helper: false, requires: [], parts: [], agents: [] };
+const INIT: Plugin = { id: INIT_ID, title: "init.js", main: INIT_PATH, rail: false, opens: [], claims: [], has_data: false, settings: {}, fields: [], platforms: [], phone: true, permissions: { net: [], secrets: false }, has_helper: false, requires: [], parts: [], agents: [] };
 async function startInit(): Promise<void> {
   // asked, not fetched: a missing init.js must not log a 404 on every start
   if (await exists(INIT_PATH)) await startMain(INIT);

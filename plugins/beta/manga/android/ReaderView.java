@@ -33,7 +33,7 @@ import java.util.concurrent.ExecutorService;
  *  (ReaderBars): the chapters from the top bar, at the bottom where you are, a page slider, the chapters before and
  *  after, Pen, Settings (the mode, kept per series). Pages come from Pages (fetched and decoded away from the UI, the
  *  next ones ahead); the next chapter is opened before its end. The pen writes on a page (PenBar, PageInk:
- *  `<chapter>.ink.json` beside a vault chapter); a pen tap is a tap. Plugin settings (plugin.toml) are the defaults,
+ *  a block per chapter in the series' note, InkStore.pictures); a pen tap is a tap. Plugin settings (plugin.toml) are the defaults,
  *  a series' `reader_options` override them. */
 final class ReaderView extends FrameLayout implements NativePlugin.Back {
     private enum Mode { RTL, LTR, VERTICAL, WEBTOON }
@@ -185,8 +185,9 @@ final class ReaderView extends FrameLayout implements NativePlugin.Back {
         pages.ahead(null);
         chapter = c;
         index = i;
-        // the chapter's ink (read away from the UI by PageInk); none in webtoon, none for a server's chapter (no vault file to keep it beside)
-        ink.open(mode == Mode.WEBTOON || Suwayomi.is(c.path) ? null : InkStore.beside(host, c.path));
+        // the chapter's ink (read away from the UI by PageInk), in the series' note as a PDF's is in its own; none in
+        // webtoon, none for a server's chapter (no vault file it belongs to)
+        ink.open(mode == Mode.WEBTOON || Suwayomi.is(c.path) ? null : InkStore.pictures(host, c.path));
         bars.where(c.title);
         bars.slider.setMax(Math.max(0, c.size() - 1));
         if (c.size() == 0) { say(c.title + " has no pages."); return; }
@@ -228,7 +229,7 @@ final class ReaderView extends FrameLayout implements NativePlugin.Back {
         Library.mark(host, series, chapter.path, p, chapter.size());
         int flash = options.optInt("flash_every", 1);
         boolean flashNow = host.eink() && flash > 0 && ++turns % flash == 0;
-        ink.page(p);
+        ink.page(p + 1);
         final Chapter ch = chapter;
         if (pages.cached(ch, p, pageW, pageH) == null) { image.setImageDrawable(null); say("Page " + (p + 1) + " of " + ch.size() + "…"); }
         pages.load(ch, p, pageW, pageH, g -> {
@@ -237,7 +238,7 @@ final class ReaderView extends FrameLayout implements NativePlugin.Back {
                 say(null);
                 image.setImageBitmap(g.bitmap);
                 scroller.scrollTo(0, 0);
-                ink.post(() -> ink.page(p));
+                ink.post(() -> ink.page(p + 1));
                 if (flashNow) ui.postDelayed(host::einkRefresh, 60); // after the page is drawn
             } else if (g.error != null) say("Page " + (p + 1) + ": " + g.error + "\n(turn back to it to try again)");
         });

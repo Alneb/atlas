@@ -22,3 +22,7 @@ key = "key"
 label = "API key"
 kind = "secret"
 hint = "Immich → Account settings → API keys"
+
+# where it runs (PLUGIN-API.md, "Platforms"); a platform not named is untested (Android: only with `phone = true`)
+[platforms]
+linux = "works"

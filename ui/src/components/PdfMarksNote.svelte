@@ -11,9 +11,12 @@
   import { dpr, pageBitmap } from "../lib/pdf-pages";
   import { engine } from "../lib/pdf-engine";
 
-  let { source, note }: { source: string; note: string } = $props();
+  // `file`: the block is a chapter's in its series' note (```pdf-marks ch 1.cbz, core pdf_marks.rs `holder`): its
+  // pages are pictures, so the marks are listed and linked, with no page drawn under them
+  let { source, note, file = "" }: { source: string; note: string; file?: string } = $props();
   let pdf = $state<string | null>(null);
-  onMount(() => { void api.pdfOfNote(note).then((r) => (pdf = r.pdf)).catch(() => {}); });
+  const chapter = $derived(file ? `${note.slice(0, note.lastIndexOf("/") + 1)}${file}` : null);
+  onMount(() => { if (!file) void api.pdfOfNote(note).then((r) => (pdf = r.pdf)).catch(() => {}); });
 
   const marks = $derived(marksOfBlock(source));
   const onPassage = (m: Mark) => m.kind === "postit" && !!m.on && marks.some((o) => o.id === m.on);
@@ -25,6 +28,7 @@
   const NAMES: Record<string, string> = { "text-box": "Text", postit: "Post-it", clip: "Clip", stamp: "Stamp", bookmark: "Bookmark" };
 
   function go(m: Mark, e: MouseEvent) {
+    if (chapter) { void openWikilink(`${chapter.replace(/\/$/, "")}#page=${m.page}`, note, { beside: e.button === 1 || e.ctrlKey }).catch(() => {}); return; }
     if (!pdf) return;
     const words = TEXT.has(m.kind) ? (m as { quote?: { exact: string } | null }).quote?.exact : "";
     void openWikilink(`${pdf}#page=${m.page}${words ? `|${words}` : ""}`, note, { beside: e.button === 1 || e.ctrlKey });
@@ -66,7 +70,7 @@
 <section class="pdf-marks-note" aria-label="Marks">
   <header>
     <span class="title">Marks</span>
-    <span class="faint">{marks.length} on {pages.length} page{pages.length === 1 ? "" : "s"}{#if pdf} · {pdf.split("/").pop()}{/if}</span>
+    <span class="faint">{marks.length} on {pages.length} page{pages.length === 1 ? "" : "s"}{#if pdf} · {pdf.split("/").pop()}{:else if file} · {file.replace(/\/$/, "")}{/if}</span>
   </header>
   {#each pages as n (n)}
     <div class="page">
@@ -93,6 +97,8 @@
         {/each}
         {#if inked(n) && pdf}
           <button class="ink" onclick={(e) => go(marks.find((m) => m.page === n && m.kind === "ink")!, e)} title="Handwriting on page {n}"><canvas use:picture={{ page: n, ink: true }}></canvas></button>
+        {:else if inked(n) && chapter}
+          <button class="line" onclick={(e) => go(marks.find((m) => m.page === n && m.kind === "ink")!, e)}><span class="kind">Handwriting</span></button>
         {/if}
       </div>
     </div>

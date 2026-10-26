@@ -11,6 +11,8 @@ export interface FenceContext {
   source: string;
   /** The note the fence is in. */
   path: string;
+  /** The rest of the fence's first line, after its name (```` ```pdf-marks ch 1.cbz ```` → `ch 1.cbz`); "" when none. */
+  info?: string;
   /** That note's properties (frontmatter and the section's `key:: value`). */
   props(): Promise<Record<string, unknown>>;
 }
@@ -62,11 +64,12 @@ function mountFence(pre: HTMLElement, name: string, ctx: FenceContext): () => vo
  *  mount's undo goes to `track` (unmarked too, so a later hydrate draws it again). */
 export function hydrateFences(root: HTMLElement, path: string, props: (source: string) => Promise<Record<string, unknown>>, track: (clean: () => void) => void): void {
   for (const pre of root.querySelectorAll<HTMLElement>("pre.hljs:not([data-fence])")) {
-    const name = pre.querySelector(":scope > .code-lang")?.textContent?.trim() ?? "";
+    const label = pre.querySelector<HTMLElement>(":scope > .code-lang");
+    const name = label?.textContent?.trim() ?? "";
     if (!NAME.test(name)) continue;
     pre.dataset.fence = name;
     const source = (pre.querySelector(":scope > code")?.textContent ?? "").replace(/\n$/, "");
-    const clean = mountFence(pre, name, { source, path, props: () => props(source) });
+    const clean = mountFence(pre, name, { source, path, info: label?.dataset.info ?? "", props: () => props(source) });
     track(() => { clean(); delete pre.dataset.fence; });
   }
 }

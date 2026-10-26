@@ -7,6 +7,8 @@ import { pick } from "./palette.svelte";
 import { toast } from "./state.svelte";
 import { settings } from "./settings.svelte";
 import { loadPlugins, setPluginOn, type Plugin } from "./plugins.svelte";
+import type { Platform } from "./gen/Platform";
+import type { Support } from "./gen/Support";
 
 export const isOff = (id: string): boolean => (settings.config?.plugins.off ?? []).includes(id);
 export const pluginDir = (id: string): string => `.atlas/plugins/${id}`;
@@ -23,6 +25,9 @@ export function mayOf(perm: Plugin["permissions"] | undefined, helper: boolean):
     helper ? "run a program of its own" : "",
   ].filter(Boolean).join(" · ");
 }
+
+export const PLATFORM_NAMES: Record<Platform, string> = { linux: "Linux", macos: "macOS", windows: "Windows", android: "Android", server: "Server" };
+export const SUPPORT_WORDS: Record<Support, string> = { works: "works", untested: "untested", no: "does not run" };
 
 /** What it adds to Atlas, as a list of words. */
 export const partsOf = (p: Plugin): string[] =>

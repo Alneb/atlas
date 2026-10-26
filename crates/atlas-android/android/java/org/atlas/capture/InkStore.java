@@ -4,7 +4,6 @@ import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -13,11 +12,9 @@ import java.util.Map;
 import java.util.Set;
 
 /** Where a reader's ink is kept (PageInk), and the ink itself: per page, strokes and typed notes, everything in
- *  fractions of the page (0–1 of its width and height), so it sits in the same place on any screen. Two homes:
- *  - `beside(path)`: `<file>.ink.json` beside a chapter or a book (manga, EPUB) — `{ pages: { "<n>": [stroke…] },
- *    notes: { "<n>": [{x, y, text, size}] } }`, a stroke `[width, x, y, …]` (the black pen; the web reader's format)
- *    or `{w, color, opacity, pts: [x, y, …]}`;
- *  - `marks(pdf)`: the PDF's note, its pdf-marks block (core pdf_marks.rs) — the store every device reads and writes.
+ *  fractions of the page (0–1 of its width and height), so it sits in the same place on any screen. One home, the
+ *  core's (pdf_marks.rs), the store every device reads and writes: `marks(pdf)` a PDF's note, its pdf-marks block;
+ *  `pictures(chapter)` a manga chapter's block in its series' note. (`file(path)`: the EPUB reader's own ink file.)
  *  Read and written off the UI thread. */
 public final class InkStore {
     private InkStore() {}
@@ -73,100 +70,18 @@ public final class InkStore {
         void write(Map<Integer, Sheet> pages) throws Exception;
     }
 
-    // ---- beside the file ------------------------------------------------------------------------------------------
-
-    /** `<path>.ink.json` (a folder `ch 1/` → `ch 1.ink.json`; view.js inkPath alike). */
+    /** `<path>.ink.json` (EpubInk's). */
     public static String file(String path) { return path.replaceAll("/+$", "") + ".ink.json"; }
 
-    public static Store beside(Host host, String path) {
-        final String at = file(path);
-        return new Store() {
-            public Map<Integer, Sheet> read() throws Exception {
-                Map<Integer, Sheet> out = new HashMap<>();
-                if (!host.exists(at)) return out;
-                JSONObject o = new JSONObject(host.readText(at));
-                JSONObject pages = o.optJSONObject("pages"), notes = o.optJSONObject("notes");
-                if (pages != null) for (java.util.Iterator<String> k = pages.keys(); k.hasNext(); ) {
-                    String key = k.next();
-                    JSONArray list = pages.optJSONArray(key);
-                    Sheet s = sheet(out, key);
-                    if (s != null && list != null) for (int i = 0; i < list.length(); i++) { Stroke st = stroke(list.opt(i)); if (st != null) s.strokes.add(st); }
-                }
-                if (notes != null) for (java.util.Iterator<String> k = notes.keys(); k.hasNext(); ) {
-                    String key = k.next();
-                    JSONArray list = notes.optJSONArray(key);
-                    Sheet s = sheet(out, key);
-                    if (s != null && list != null) for (int i = 0; i < list.length(); i++) {
-                        JSONObject n = list.optJSONObject(i);
-                        if (n == null || n.optString("text").isEmpty()) continue;
-                        Note note = new Note();
-                        note.x = (float) n.optDouble("x"); note.y = (float) n.optDouble("y");
-                        note.size = (float) n.optDouble("size", NOTE_SIZE); note.text = n.optString("text");
-                        s.notes.add(note);
-                    }
-                }
-                return out;
-            }
+    /** A picture page's side in the marks' space: its places are fractions × 1000 (core pdf_marks.rs `holder`). */
+    static final float PICTURE = 1000;
 
-            public void write(Map<Integer, Sheet> pages) throws Exception {
-                JSONObject ps = new JSONObject(), ns = new JSONObject();
-                for (Map.Entry<Integer, Sheet> e : pages.entrySet()) {
-                    String key = String.valueOf(e.getKey());
-                    if (!e.getValue().strokes.isEmpty()) {
-                        JSONArray list = new JSONArray();
-                        for (Stroke st : e.getValue().strokes) list.put(json(st));
-                        ps.put(key, list);
-                    }
-                    if (!e.getValue().notes.isEmpty()) {
-                        JSONArray list = new JSONArray();
-                        for (Note n : e.getValue().notes) list.put(new JSONObject().put("x", r4(n.x)).put("y", r4(n.y)).put("size", r4(n.size)).put("text", n.text));
-                        ns.put(key, list);
-                    }
-                }
-                JSONObject o = new JSONObject().put("pages", ps);
-                if (ns.length() > 0) o.put("notes", ns);
-                host.write(at, o.toString().getBytes(StandardCharsets.UTF_8));
-            }
-        };
-    }
+    /** A book of pictures' marks (a manga chapter: an archive, or a folder ending in `/`), pages numbered from 1: kept
+     *  in its series' note, a block per chapter, by the core as a PDF's are. */
+    public static Store pictures(Host host, String chapter) { return marks(host, chapter, null); }
 
     /** A typed note's text height by default: about 11 pt on A4. */
     public static final float NOTE_SIZE = 0.018f;
-
-    private static Sheet sheet(Map<Integer, Sheet> out, String key) {
-        try { return out.computeIfAbsent(Integer.parseInt(key), k -> new Sheet()); } catch (NumberFormatException e) { return null; }
-    }
-
-    private static Stroke stroke(Object o) {
-        Stroke st = new Stroke();
-        JSONArray pts;
-        if (o instanceof JSONArray) {
-            JSONArray a = (JSONArray) o;
-            if (a.length() < 5) return null;
-            st.width = (float) a.optDouble(0);
-            st.pts = new float[a.length() - 1];
-            for (int i = 1; i < a.length(); i++) st.pts[i - 1] = (float) a.optDouble(i);
-            return st;
-        }
-        if (!(o instanceof JSONObject)) return null;
-        JSONObject j = (JSONObject) o;
-        pts = j.optJSONArray("pts");
-        if (pts == null || pts.length() < 4) return null;
-        st.width = (float) j.optDouble("w", 0.0022);
-        st.color = color(j.optString("color", "#000000"));
-        st.opacity = (float) j.optDouble("opacity", 1);
-        st.pts = new float[pts.length() & ~1];
-        for (int i = 0; i < st.pts.length; i++) st.pts[i] = (float) pts.optDouble(i);
-        return st;
-    }
-
-    private static Object json(Stroke st) throws JSONException {
-        JSONArray pts = new JSONArray();
-        if (st.plain()) pts.put(r4(st.width)); // the black pen: the plain array every reader reads
-        for (float v : st.pts) pts.put(r4(v));
-        if (st.plain()) return pts;
-        return new JSONObject().put("w", r4(st.width)).put("color", hex(st.color)).put("opacity", r4(st.opacity)).put("pts", pts);
-    }
 
     static double r4(float v) { return Math.round(v * 10000) / 10000.0; }
     public static String hex(int c) { return String.format("#%06x", c & 0xffffff); }
@@ -182,8 +97,8 @@ public final class InkStore {
     public static Store marks(Host host, String pdf, float[][] sizes) {
         final Map<String, JSONObject> was = new HashMap<>(); // the marks read, by id
         return new Store() {
-            float w(int n) { return n >= 1 && n <= sizes.length ? sizes[n - 1][0] : 612; }
-            float h(int n) { return n >= 1 && n <= sizes.length ? sizes[n - 1][1] : 792; }
+            float w(int n) { return sizes == null ? PICTURE : n >= 1 && n <= sizes.length ? sizes[n - 1][0] : 612; }
+            float h(int n) { return sizes == null ? PICTURE : n >= 1 && n <= sizes.length ? sizes[n - 1][1] : 792; }
 
             public Map<Integer, Sheet> read() throws Exception {
                 return sheets(host.pdfMarks(pdf).optJSONArray("marks"));

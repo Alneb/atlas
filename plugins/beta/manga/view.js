@@ -44,20 +44,6 @@ export function natural(a, b) {
 }
 /** Library.name: a chapter's key in reading.json, its last path segment (a folder keeps its "/"). */
 export const nameOf = (ch) => ch.slice(ch.lastIndexOf("/", ch.length - 2) + 1);
-/** A chapter's pen ink, beside it (the app's PageInk.file: `ch 1.cbz` → `ch 1.cbz.ink.json`, `ch 1/` → `ch 1.ink.json`):
- *  `{ pages: { "<page>": [[width, x, y, x, y, …], …] } }`, all in fractions of the page's width and height. */
-export const inkPath = (ch) => ch.replace(/\/+$/, "") + ".ink.json";
-/** A page's strokes as SVG paths in a picture `w` × `h` px: `{ d, width, color, opacity }` each. A stroke is the black
- *  pen's `[width, x, y, …]` or `{ w, color, opacity, pts: [x, y, …] }` (the app's InkStore: highlighter, colours). */
-export function inkPaths(strokes, w, h) {
-  return (strokes ?? []).map((st) => (Array.isArray(st) ? { w: st[0], pts: st.slice(1) } : st))
-    .filter((st) => Array.isArray(st?.pts) && st.pts.length >= 4).map((st) => {
-      let d = `M${st.pts[0] * w} ${st.pts[1] * h}`;
-      for (let k = 2; k + 1 < st.pts.length; k += 2) d += `L${st.pts[k] * w} ${st.pts[k + 1] * h}`;
-      return { d, width: Math.max(1, st.w * w), color: st.color ?? "#000", opacity: st.opacity ?? 1 };
-    });
-}
-
 // ---- a .cbz, read in the page: the central directory, then each picture inflated on demand -----------------
 // the zip itself: the Zip archives plugin's, shared with Books (manifest `requires = ["zip"]`)
 import { zipIndex, zipBlob } from "../zip/zip.js";
@@ -306,32 +292,23 @@ export default function mount(host, atlas) {
       if (gone) return ch.done();
       if (!ch.count) { view.replaceChildren(el("div", "atlas-notice", "This chapter has no pictures.")); return; }
       page = Math.max(0, Math.min(at === -1 ? ch.count - 1 : at, ch.count - 1));
-      ink = webtoon ? {} : await readInk();
+      ink = webtoon ? [] : await readInk();
       view.replaceChildren();
       if (webtoon) strip(); else void draw();
     }
-    // the pen's ink over the page (written on the phone: the app's PageInk), shown over the picture at its size
-    const SVG = "http://www.w3.org/2000/svg";
-    const over = document.createElementNS(SVG, "svg");
-    over.classList.add("m-ink");
-    let ink = {};
-    const readInk = () => (isRemote(s.chapters[index]) ? Promise.resolve("{}") : atlas.readText(inkPath(s.chapters[index]))).then((t) => JSON.parse(t).pages ?? {}, () => ({}));
+    // the pen's ink over the page (written on the phone: the app's PageInk), kept by the core in the series' note (a
+    // block per chapter, pages from 1) and drawn as Atlas draws a PDF's marks; an Atlas before API 14: none
+    const over = el("div", "m-ink");
+    let ink = [], inkNote = null;
+    const readInk = () => (isRemote(s.chapters[index]) || !atlas.marks ? Promise.resolve({ note: null, marks: [] }) : atlas.marks(s.chapters[index]))
+      .then((r) => { inkNote = r.note; return r.marks; }, () => []);
     function drawInk() {
-      const w = img.naturalWidth, h = img.naturalHeight;
       over.replaceChildren();
-      if (webtoon || !w || !h) return;
-      over.setAttribute("viewBox", `0 0 ${w} ${h}`);
+      if (webtoon || !img.naturalWidth || !atlas.marksSvg) return;
       Object.assign(over.style, { left: `${img.offsetLeft}px`, top: `${img.offsetTop}px`, width: `${img.offsetWidth}px`, height: `${img.offsetHeight}px` });
-      for (const p of inkPaths(ink[String(page)], w, h)) {
-        const path = document.createElementNS(SVG, "path");
-        path.setAttribute("d", p.d);
-        path.setAttribute("stroke-width", String(p.width));
-        path.setAttribute("stroke", p.color);
-        if (p.opacity < 1) path.setAttribute("stroke-opacity", String(p.opacity));
-        over.append(path);
-      }
+      if (ink.some((m) => m.page === page + 1)) over.append(atlas.marksSvg(ink, page + 1));
     }
-    const offInk = atlas.onFilesChanged((paths) => { if (ch && paths.includes(inkPath(s.chapters[index]))) void readInk().then((k) => { ink = k; drawInk(); }); });
+    const offInk = atlas.onFilesChanged((paths) => { if (ch && inkNote && paths.includes(inkNote)) void readInk().then((k) => { ink = k; drawInk(); }); });
     const sized = new ResizeObserver(() => drawInk());
     // paged: one picture, the next one fetched ahead
     const img = el("img", "m-page");
@@ -463,7 +440,7 @@ function style() {
   .manga .m-reader { position: absolute; inset: 0; overflow: auto; display: flex; align-items: center; justify-content: center; background: var(--bg); }
   .manga .m-reader.bg-black { background: #000; } .manga .m-reader.bg-white { background: #fff; } .manga .m-reader.bg-grey { background: #888; }
   .manga .m-reader.webtoon { flex-direction: column; justify-content: flex-start; }
-  .manga .m-ink { position: absolute; pointer-events: none; fill: none; stroke: #000; stroke-linecap: round; stroke-linejoin: round; }
+  .manga .m-ink { position: absolute; pointer-events: none; }
   .manga .m-reader.webtoon .m-page { width: min(100%, 900px); min-height: 40vh; display: block; }
   .manga .m-reader.paged.fit-screen .m-page { max-width: 100%; max-height: 100%; object-fit: contain; }
   .manga .m-reader.paged.fit-width { align-items: flex-start; } .manga .m-reader.paged.fit-width .m-page { width: 100%; }

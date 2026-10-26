@@ -9,20 +9,33 @@ import { settings, updateSettings } from "./settings.svelte";
 
 export type { Plugin };
 
+/** Inside the phone app (its bridge, as native-shell.svelte.ts reads it; not imported: that module imports this one). */
+export const inPhoneApp = !!(globalThis as unknown as { AtlasNative?: unknown }).AtlasNative;
+
 export const plugins = $state({ list: [] as Plugin[], loaded: false, /** main.js failures, by plugin id */ errors: {} as Record<string, string> });
 
-/** Why plugin `id` cannot run: off, broken, or a plugin it `requires` (at any depth) missing, broken or off; null when
+/** Why plugin `id` cannot run: off, broken, not for this platform, or a plugin it `requires` (at any depth) missing, broken or off; null when
  *  it can. The page's twin of the core's `plugins::blocked`, which refuses the tools of a blocked plugin. */
 export function pluginBlocked(p: Plugin, seen: string[] = []): string | null {
   if (seen.includes(p.id)) return `requires itself through ${seen.join(" → ")}`;
   if (p.error) return `${p.title} cannot load: ${p.error}`;
   if ((settings.config?.plugins.off ?? []).includes(p.id)) return `${p.title} is switched off`;
+  const notHere = inPhoneApp ? notOnAndroid(p) : p.not_here;
+  if (notHere) return notHere;
   for (const r of p.requires ?? []) {
     const q = plugins.list.find((x) => x.id === r);
     const why = q ? pluginBlocked(q, [...seen, p.id]) : `needs the plugin ${r}, which is not installed`;
     if (why) return q ? `needs ${r}: ${why}` : why;
   }
   return null;
+}
+
+/** Inside the phone app the page runs on Android whatever its core is (a server's vault): the plugin's Android entry
+ *  decides, as `not_here` does for the core's own platform. An older core's list has only `phone`. */
+function notOnAndroid(p: Plugin): string | null {
+  const c = p.platforms?.find((x) => x.platform === "android");
+  if (!c) return p.phone ? null : `${p.title} is not made for the phone app`;
+  return c.support === "no" ? `${p.title} does not run on Android${c.why ? `: ${c.why}` : ""}` : null;
 }
 
 /** Loaded and offered (command, button, pane): it parses, is not off, and every plugin it requires is on. */

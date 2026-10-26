@@ -28,9 +28,12 @@ pub fn of_note(text: &str, props: &serde_yaml::Mapping) -> Vec<String> {
         }
     }
     inline_tags(text, |_, t| out.extend(clean(t)));
-    // a PDF's marks are the note's too: their tags, from its pdf-marks block (a fence, so not read as text above)
+    // a PDF's (or a series' chapters') marks are the note's too: their tags, from its pdf-marks blocks (fences, so
+    // not read as text above)
     if crate::pdf_marks::has_block(text) {
-        out.extend(crate::pdf_marks::read(text).live().into_iter().flat_map(|m| m.tags.iter().filter_map(|t| clean(t))));
+        for block in crate::pdf_marks::all(text).values() {
+            out.extend(block.live().into_iter().flat_map(|m| m.tags.iter().filter_map(|t| clean(t))));
+        }
     }
     out.into_iter().collect()
 }

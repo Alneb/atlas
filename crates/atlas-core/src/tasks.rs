@@ -282,9 +282,13 @@ pub struct Query {
     /// This priority or higher.
     #[serde(default)]
     pub priority: Option<String>,
-    /// `overdue`, `today`, `week` (the next seven days and anything overdue), `dated`, `undated`.
+    /// `overdue`, `today`, `week` (the next seven days and anything overdue), `dated`, `undated`, or a day
+    /// (`2026-10-25`: due that day — a day's log asks for its own).
     #[serde(default)]
     pub due: Option<String>,
+    /// Done on this day (`✅ 2026-10-25`): what a day's log shows as finished.
+    #[serde(default)]
+    pub completed: Option<String>,
     /// Hide tasks whose start date (🛫) is still in the future. Default: true.
     #[serde(default = "yes")]
     pub started: bool,
@@ -364,9 +368,18 @@ impl Query {
                 "week" => date.is_some_and(|x| x <= today + Duration::days(7)),
                 "dated" => date.is_some(),
                 "undated" => date.is_none(),
-                other => return Err(format!("due: {other:?} (overdue, today, week, dated, undated)")),
+                other => match NaiveDate::parse_from_str(other, "%Y-%m-%d") {
+                    Ok(day) => date == Some(day),
+                    Err(_) => return Err(format!("due: {other:?} (overdue, today, week, dated, undated, or a day YYYY-MM-DD)")),
+                },
             };
             if !ok {
+                return Ok(false);
+            }
+        }
+        if let Some(c) = self.completed.as_deref().map(str::trim).filter(|c| !c.is_empty()) {
+            let day = NaiveDate::parse_from_str(c, "%Y-%m-%d").map_err(|_| format!("completed: {c:?} (a day YYYY-MM-DD)"))?;
+            if t.completed != Some(day) {
                 return Ok(false);
             }
         }
@@ -484,7 +497,7 @@ mod tests {
             found("notes/proj/thesis.md", 3, false, "write intro 🔼 📅 2026-10-20 #work"),
             found("notes/proj/thesis.md", 4, false, "fix figure 2 ⏫ 📅 2026-10-12 #work/figures"),
             found("notes/home.md", 1, false, "buy dice #fun"),
-            found("notes/home.md", 2, true, "pay rent 📅 2026-10-01"),
+            found("notes/home.md", 2, true, "pay rent 📅 2026-10-01 ✅ 2026-10-02"),
             found("notes/home.md", 3, false, "book flights 🛫 2026-11-01 📅 2026-11-10"),
         ];
         let q = |yaml: &str| serde_yaml::from_str::<Query>(yaml).unwrap();
@@ -502,6 +515,10 @@ mod tests {
         assert_eq!(names(&q("due: overdue")), ["fix figure 2 #work/figures"]);
         assert_eq!(names(&q("due: week")), ["write intro #work", "fix figure 2 #work/figures"]);
         assert_eq!(names(&q("due: undated")), ["buy dice #fun"]);
+        assert_eq!(names(&q("due: 2026-10-20")), ["write intro #work"], "due on one day");
+        assert_eq!(names(&q("show: all\ncompleted: 2026-10-02")), ["pay rent"], "done on one day");
+        assert!(names(&q("show: all\ncompleted: 2026-10-03")).is_empty());
+        assert!(q("completed: yesterday").apply(all(), today).is_err());
         assert_eq!(names(&q("sort: [due]\nlimit: 2")), ["fix figure 2 #work/figures", "write intro #work"]);
         let by_due = titles(&q("group: due\nshow: all\nstarted: false"));
         assert_eq!(by_due.iter().map(|(_, g)| g.clone().unwrap()).collect::<Vec<_>>(), ["Overdue", "Overdue", "This week", "Later", "No date"], "groups arrive in the order of urgency");

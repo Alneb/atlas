@@ -29,3 +29,7 @@ recognize = [
   { pattern = "(?i)goodreads\\.com/(?:[a-z]+/)?book/show/(\\d+)", kind = "book", id = "goodreads" },
 ]
 sources = [{ kind = ["book", "science_book"], tool = "lookup", priority = 65, needs = ["isbn", "openlibrary", "ol_edition", "goodreads"] }]
+
+# where it runs (PLUGIN-API.md, "Platforms"); a platform not named is untested (Android: only with `phone = true`)
+[platforms]
+linux = "works"

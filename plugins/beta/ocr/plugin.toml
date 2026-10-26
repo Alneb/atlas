@@ -42,3 +42,7 @@ label = "File what the screenshot shows"
 kind = "toggle"
 default = true
 hint = "a link, DOI, ISBN or IMDb id read in a screenshot goes to the catalog like a typed one (needs the Catalog plugin)"
+
+# where it runs (PLUGIN-API.md, "Platforms"); a platform not named is untested (Android: only with `phone = true`)
+[platforms]
+linux = "works"

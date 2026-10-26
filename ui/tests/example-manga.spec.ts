@@ -53,19 +53,6 @@ test.beforeAll(() => {
 });
 test.afterAll(() => { rmSync(PLUGIN, { recursive: true, force: true }); rmSync(join(WS, "manga"), { recursive: true, force: true }); });
 
-test("a chapter's pen ink: beside it (a folder's too), its strokes drawn at the picture's size", async () => {
-  const view = "../../plugins/beta/manga/view.js";
-  const { inkPath, inkPaths } = (await import(view)) as { inkPath(ch: string): string; inkPaths(s: number[][] | undefined, w: number, h: number): { d: string; width: number }[] };
-  expect(inkPath("manga/One/ch 1.cbz")).toBe("manga/One/ch 1.cbz.ink.json"); // as the app's PageInk.file
-  expect(inkPath("manga/One/ch 2/")).toBe("manga/One/ch 2.ink.json");
-  expect(inkPaths([[0.002, 0.1, 0.2, 0.5, 0.2, 0.5, 0.9]], 1000, 1500)).toEqual([{ d: "M100 300L500 300L500 1350", width: 2, color: "#000", opacity: 1 }]);
-  // the app's highlighter and colours (InkStore): an object with its points
-  expect(inkPaths([{ w: 0.014, color: "#d32f2f", opacity: 0.4, pts: [0.1, 0.2, 0.5, 0.2] }] as never, 1000, 1500))
-    .toEqual([{ d: "M100 300L500 300", width: 14, color: "#d32f2f", opacity: 0.4 }]);
-  expect(inkPaths([[0.002, 0.1, 0.2]], 1000, 1500)).toEqual([]); // a single point is no stroke
-  expect(inkPaths(undefined, 10, 10)).toEqual([]);
-});
-
 test("manga: the library, a series, a .cbz read in the page, and where you are saved for the phone too", async ({ page }) => {
   const errs: string[] = [];
   page.on("pageerror", (e) => errs.push(e.message));
@@ -111,6 +98,32 @@ test("manga: the library, a series, a .cbz read in the page, and where you are s
   await expect(pane.getByRole("button", { name: "Continue" })).toBeVisible();
   await expect.poll(() => progress()["Chapter 10.cbz"]).toBeUndefined(); // unread, from its first page
   expect(errs).toEqual([]);
+});
+
+test("a chapter's marks: in the series' note, a block per chapter, drawn over its page", async ({ page }) => {
+  const H = { "x-atlas": "1" }, CH = "manga/Blue Period/Chapter 9.cbz";
+  // as the phone's pen writes them (InkStore.pictures): a picture page's places are its fractions × 1000, y up
+  const r = await page.request.post(`/api/pdf-marks?pdf=${encodeURIComponent(CH)}`, { headers: H, data: [{ op: "put", mark: { id: "m-mangaa01", page: 1, version: 1, kind: "highlight", quads: [[100, 600, 500, 800]] } }] });
+  expect(r.ok()).toBe(true);
+  const note = readFileSync(join(WS, "manga/Blue Period/Blue Period.md"), "utf8");
+  expect(note).toContain("```pdf-marks Chapter 9.cbz\nm-mangaa01 highlight p1 ");
+  await page.goto("/");
+  await page.getByText("Finish the GW notes.").waitFor();
+  await page.keyboard.press("F1");
+  await page.keyboard.type("Manga: library");
+  await page.getByTestId("palette").getByText("Manga: library", { exact: true }).first().click();
+  const pane = page.locator(".manga");
+  await pane.locator(".m-card", { hasText: "Blue Period" }).click();
+  await pane.locator(".m-ch", { hasText: "Chapter 9" }).click();
+  const mark = pane.locator('.m-ink [data-mark="m-mangaa01"] rect');
+  await expect(pane.locator(".m-num")).toHaveText(/^\d \/ 3$/);
+  // on page 1 only: turn back to it (right to left: → goes back), then on
+  for (let i = 0; i < 3 && !(await pane.locator(".m-num").textContent())?.startsWith("1 "); i++) await page.keyboard.press("ArrowRight");
+  await expect(pane.locator(".m-num")).toHaveText("1 / 3");
+  await expect(mark).toHaveCount(1);
+  await page.keyboard.press("ArrowLeft");
+  await expect(mark).toHaveCount(0);
+  await page.request.post(`/api/pdf-marks?pdf=${encodeURIComponent(CH)}`, { headers: H, data: [{ op: "remove", id: "m-mangaa01" }] });
 });
 
 test("manga on e-ink: a refresh asked on each page turn (flash_every = 1)", async ({ page }) => {

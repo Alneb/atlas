@@ -18,3 +18,7 @@ label = "LaTeX"
 kind = "text"
 hint = "the command that builds a .tex file"
 default = "latexmk -pdf -interaction=nonstopmode"
+
+# where it runs (PLUGIN-API.md, "Platforms"); a platform not named is untested (Android: only with `phone = true`)
+[platforms]
+linux = "works"

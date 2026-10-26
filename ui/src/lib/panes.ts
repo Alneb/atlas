@@ -11,7 +11,8 @@ export type PaneSpec =
   | { kind: "terminal"; preset: PtyPreset; n: number; /** the user's name for it (double-click the tab) */ title?: string; /** run directly (no interactive shell); the tab closes when it ends */ command?: string; /** a Claude tab's own session id: resumed when the layout is restored */ session?: string; /** an AI agent a plugin declares (`<plugin>/<id>`, agent_terminals.rs); its tab is an agent tab like Claude's */ agent?: string }
   | { kind: "files" }
   // the file explorer (Dolphin-like): a folder of a file source — the vault, an SSH host, a copyparty server (lib/file-sources.svelte.ts)
-  | { kind: "explorer"; source: string; place: string; path?: string; /** the entry to select there (a file shown in it) */ select?: string }
+  | { kind: "explorer"; source: string; place: string; path?: string; /** the entry to select there (a file shown in it) */ select?: string;
+    /** a second explorer on the same place (split beside the first) */ n?: number }
   | { kind: "search"; q?: string }
   | { kind: "pdf"; path: RelPath; /** open at this page (a search hit inside the PDF) */ page?: number; /** and select these words on it (lib/pdf-place.ts) */ quote?: string; /** or flash this annotation */ annotation?: string }
   | { kind: "image"; path: RelPath }
@@ -89,7 +90,7 @@ export function paneId(s: PaneSpec): string {
     case "terminal":
       return `terminal:${s.preset}:${s.n}`;
     case "explorer":
-      return `explorer:${s.source}:${s.place}`; // where it opened: it may wander since (its title says where it is)
+      return `explorer:${s.source}:${s.place}${s.n ? `:${s.n}` : ""}`; // where it opened: it may wander since (its title says where it is)
     case "web":
       return `web:${s.url}`;
     case "block":
@@ -145,7 +146,7 @@ export type IconName =
   | "eye" | "check" | "circle" | "commit" | "clock" | "sun" | "moon" | "plus" | "minus" | "refresh" | "zoom"
   | "settings" | "git" | "panel-bottom" | "panel-right" | "chevron-down" | "table" | "library" | "copy" | "link" | "outline" | "plugin" | "chart"
   | "error" | "warning" | "undo" | "arrow-up" | "arrow-down" | "arrow-left" | "arrow-right" | "pin" | "panel-left"
-  | "calendar" | "flag" | "repeat" | "chevrons-up" | "chevrons-down" | "return" | "hash" | "inbox" | "server" | "grid" | "rows"
+  | "calendar" | "flag" | "repeat" | "chevrons-up" | "chevrons-down" | "return" | "hash" | "inbox" | "bell" | "server" | "grid" | "rows"
   | "pen" | "headphones" | "ballpoint" | "highlighter" | "eraser" | "pointer" | "hand" | "redo" | "maximize" | "sliders"
   | "folder-tree" | "move-out" | "move-in" | "external-link" | "user"
   | "bold" | "italic" | "code" | "heading" | "list" | "list-ordered" | "list-todo" | "quote";
@@ -295,6 +296,6 @@ export function specFromOptions(kind: PaneKind, o: Record<string, unknown>): Pan
     case "terminal": return { kind, preset: o.preset === "claude" ? "claude" : "shell", n: typeof o.n === "number" ? o.n : ++embeddedTerminals, title: str(o.title) };
     case "plugin": return str(o.id) ? { kind, id: str(o.id)!, path, title: str(o.title), icon: str(o.icon), arg: str(o.arg), anchor: str(o.anchor) } : "a plugin block needs `id:`";
     case "block": return "a block cannot embed itself";
-    case "explorer": return { kind, source: str(o.source) ?? "vault", place: str(o.place) ?? "", path };
+    case "explorer": return { kind, source: str(o.source) ?? "vault", place: str(o.place) ?? "", path, n: typeof o.n === "number" ? o.n : undefined };
   }
 }

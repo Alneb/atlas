@@ -51,3 +51,7 @@ secrets = ["token"]
 
 [contributes.catalog]
 sources = [{ kind = ["book", "science_book"], tool = "lookup", priority = 40, needs = ["audiobookshelf", "isbn"] }]
+
+# where it runs (PLUGIN-API.md, "Platforms"); a platform not named is untested (Android: only with `phone = true`)
+[platforms]
+linux = "works"

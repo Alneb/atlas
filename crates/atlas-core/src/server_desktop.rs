@@ -94,15 +94,16 @@ impl DesktopVaults {
         self.started.try_lock().is_ok_and(|s| s.contains_key(&name))
     }
 
-    /// The vault's router, started now when this is its first request.
-    async fn router(self: &Arc<Self>, name: &str) -> Result<Router, Response> {
-        let Some(root) = self.root_of(name) else { return Err(not_here(name)) };
+    /// The vault's router, started now when this is its first request; else the answer that says why not (boxed: an
+    /// answer is large, the router small).
+    async fn router(self: &Arc<Self>, name: &str) -> Result<Router, Box<Response>> {
+        let Some(root) = self.root_of(name) else { return Err(Box::new(not_here(name))) };
         let mut started = self.started.lock().await;
         if let Some(s) = started.get(name) {
             return Ok(s.router.clone());
         }
         if let Some(other) = crate::vaults::served_elsewhere(&root) {
-            return Err(elsewhere(name, &other));
+            return Err(Box::new(elsewhere(name, &other)));
         }
         let (port, lock, prefix, me) = (self.port, self.lock.clone(), format!("/v/{name}"), Arc::downgrade(self));
         let made = tokio::task::spawn_blocking(move || {
@@ -117,8 +118,8 @@ impl DesktopVaults {
                 started.insert(name.to_string(), Arc::new(s));
                 Ok(router)
             }
-            Ok(Err(e)) => Err((StatusCode::INTERNAL_SERVER_ERROR, format!("the vault {name} could not start: {e:#}")).into_response()),
-            Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, format!("the vault {name} could not start: {e}")).into_response()),
+            Ok(Err(e)) => Err(Box::new((StatusCode::INTERNAL_SERVER_ERROR, format!("the vault {name} could not start: {e:#}")).into_response())),
+            Err(e) => Err(Box::new((StatusCode::INTERNAL_SERVER_ERROR, format!("the vault {name} could not start: {e}")).into_response())),
         }
     }
 
@@ -139,7 +140,7 @@ impl DesktopVaults {
         };
         let router = match self.router(&name).await {
             Ok(r) => r,
-            Err(refused) => return refused,
+            Err(refused) => return *refused,
         };
         let (mut parts, body) = req.into_parts();
         let original = parts.uri.clone();

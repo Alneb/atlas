@@ -202,9 +202,11 @@ function build() {
     // Obsidian's default ("Strict line breaks" off): a newline inside a paragraph shows; `[editor] strict_line_breaks`
     // turns it off (applied when the settings load, below)
     breaks: true,
-    highlight: (code, lang) => {
+    highlight: (code, lang, attrs) => {
       const html = highlightToHtml(code, lang);
-      const label = lang ? `<span class="code-lang">${esc(lang)}</span>` : "";
+      // the rest of the fence's first line (```pdf-marks ch 1.cbz) for a fence that reads it (lib/fences.ts `info`)
+      const info = attrs?.trim() ? ` data-info="${esc(attrs.trim())}"` : "";
+      const label = lang ? `<span class="code-lang"${info}>${esc(lang)}</span>` : "";
       return `<pre class="hljs">${label}<code>${html ?? esc(code)}</code></pre>`;
     },
   });
@@ -265,10 +267,7 @@ function build() {
     // shows until then, and stays where the target is missing. `|600|center` travel as data-opts.
     const chip = `<a class="internal-link embed-chip" data-href="${esc(target)}" href="#">${esc(target)}</a>`;
     const attrs = `data-target="${esc(target.split("|")[0])}"${alias ? ` data-opts="${esc(alias)}"` : ""}`;
-    if (/\.pdf$/i.test(path)) return `<div class="pdf-embed" ${attrs}>${chip}</div>`;
-    if (!/\.[a-z0-9]{1,8}$/i.test(path) || /\.(md|markdown)$/i.test(path)) return `<div class="note-embed" ${attrs}>${chip}</div>`;
-    // any other file: its own viewer, a player, or a card (lib/embeds.ts)
-    return `<div class="file-embed" ${attrs}>${chip}</div>`;
+    return `<div class="${embedClass(path)}" ${attrs}>${chip}</div>`;
   };
   r.hashtag = (t, i) => `<span class="tag">#${esc(t[i].content)}</span>`;
   // local images get resolved + fetched with the API header by hydrate(); remote ones load as-is
@@ -393,3 +392,12 @@ function memo(limit: number, make: (source: string, dir?: string) => string): (s
 export const blockHtml: (source: string, dir?: string) => string | null = memo(300, (source, dir) => renderMarkdown(source, { dir }));
 /** A raw HTML fragment written in a note (`<br>`, `<img>`, `<sup>`), sanitized, as the live-preview editor shows it. */
 export const inlineHtml = memo(2000, sanitizeHtml);
+
+/** The placeholder class an embedded file gets, which lib/embeds.ts mounts: a PDF's viewer, a note (or a link with no
+ *  extension) as Obsidian embeds it, any other file by its own viewer, a player, or a card. The explorer's preview
+ *  embeds the same way. */
+export function embedClass(path: string): "pdf-embed" | "note-embed" | "file-embed" {
+  if (/\.pdf$/i.test(path)) return "pdf-embed";
+  if (!/\.[a-z0-9]{1,8}$/i.test(path) || /\.(md|markdown)$/i.test(path)) return "note-embed";
+  return "file-embed";
+}

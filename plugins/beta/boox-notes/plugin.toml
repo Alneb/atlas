@@ -23,3 +23,7 @@ key = "folder"
 label = "Folder for the drawings"
 kind = "text"
 default = "boox"
+
+# where it runs (PLUGIN-API.md, "Platforms"); a platform not named is untested (Android: only with `phone = true`)
+[platforms]
+linux = "works"

@@ -173,12 +173,14 @@ for (const eng of ["pdfium", "pdfjs"] as const) test.describe(`with ${eng}`, () 
     const one = async (id: string) => (await marks(page)).find((m) => m.id === id) as (Mark & { color?: string; rect?: number[]; tags?: string[] }) | undefined;
     await expect.poll(async () => (await one(tb))?.color, { timeout: 20000 }).toBe("#74C0FC");
     // the bar is drawn again when the colour's save comes back: open the words box once it has settled
+    // (a redraw can still replace the box while it is filled: open, fill and check it again until it holds)
     await expect(async () => {
-      await bar.getByRole("button", { name: /first words/ }).click({ timeout: 2000 });
-      await expect(bar.getByRole("textbox", { name: "Words" })).toBeVisible({ timeout: 2000 });
+      const words = bar.getByRole("textbox", { name: "Words" });
+      if (!(await words.isVisible())) await bar.getByRole("button", { name: /first words/ }).click({ timeout: 2000 });
+      await words.fill("new words #idea", { timeout: 2000 });
+      await expect(words).toHaveValue("new words #idea", { timeout: 500 });
+      await words.press("Enter", { timeout: 1000 });
     }).toPass({ timeout: 20000 });
-    await bar.getByRole("textbox", { name: "Words" }).fill("new words #idea");
-    await page.keyboard.press("Enter");
     await expect.poll(async () => { const m = await one(tb); return [m?.text, m?.tags]; }, { timeout: 20000 }).toEqual(["new words #idea", ["idea"]]);
     // to be looked at, in both themes
     await page.screenshot({ path: `test-results/pdf-mark-bar-${eng}-light.png` });

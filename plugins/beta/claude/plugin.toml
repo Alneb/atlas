@@ -55,3 +55,7 @@ hint = "a session limit at or above this is marked in the bar, and a notice is s
 name = "usage"
 description = "How much of the Claude plan's limits the Claude account Atlas runs Claude as has used (every account on this computer with all=true): the 5-hour session and the weekly limits, in percent, with when each resets. No secrets."
 input = { all = { type = "boolean", description = "every Claude account found on this computer, not only the current one", optional = true } }
+
+# where it runs (PLUGIN-API.md, "Platforms"); a platform not named is untested (Android: only with `phone = true`)
+[platforms]
+linux = "works"

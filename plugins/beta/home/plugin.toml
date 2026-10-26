@@ -22,3 +22,7 @@ label = "Map: the property notes hang from"
 kind = "text"
 default = "topics"
 hint = "the links that make the vault's tree (topics, up, parent…)"
+
+# where it runs (PLUGIN-API.md, "Platforms"); a platform not named is untested (Android: only with `phone = true`)
+[platforms]
+linux = "works"

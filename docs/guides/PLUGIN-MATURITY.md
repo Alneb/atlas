@@ -37,8 +37,9 @@ Each criterion can be checked by someone who did not write the plugin.
 7. **Local and remote alike.** It works the same on a vault opened on the desktop and on a vault served by
    `atlas serve` or the Docker image (docs/guides/SERVER.md), or it says in its manifest and README that it is
    desktop-only.
-8. **Its platforms are declared.** It runs on Linux, and either on Windows and macOS too, or its README says it doesn't.
-   `phone = true` only when it has been tried in the Android app.
+8. **Its platforms are declared.** Its manifest's `[platforms]` (PLUGIN-API.md, "Platforms") names each of Linux, macOS,
+   Windows, Android and a server as `works` (tried there), `untested` or `no` with the reason, and its README agrees.
+   `works` only where it has been tried; `phone = true` (Android) only when it has been tried in the Android app.
 9. **The current plugin API.** `api` in `plugin.toml` is the current major version (`API_VERSION` in
    `crates/atlas-core/src/plugins.rs`), or the README says why it stays on an older one. It uses only documented calls.
 10. **Nothing built is committed.** A helper program is built by `engine/build.sh` into `bin/` (ignored by git), and
@@ -77,7 +78,8 @@ is the manifest's `api` (the current one is 12; an older number still loads, sin
 | home | beta | ~ 0 / 1 | ✗ | ✓ | ✓ | ~ | – | ✓ | ~ | 4 | ✓ | ✓ | 0.2.0 | a README (2); unit tests (1) |
 | daily | beta | ~ 0 / 1 | ✗ | ✓ | ✓ | ~ | – | ✓ | ~ | 4 | ✓ | ✓ | 0.1.3 | a README (2); unit tests (1) |
 | weather | beta | ~ 1 / 0 | ✗ | ✓ | ✓ | ~ | – | ✓ | ~ | 4 | ✓ | ✓ | 0.3.2 | a README (2); an end-to-end spec (1) |
-| ntfy | beta | ✓ 1 / 1 | ✗ | ✓ | ✓ | ✓ | – | ✓ | ~ | 4 | ✓ | ✓ | 0.2.0 | a README (2) |
+| notifications | beta | ~ 3 / 0 | ✓ | ✓ | ✓ | ✓ | – | ✓ | ✓ | 13 | ✓ | ✓ | 0.1.0 | an end-to-end spec (1); the Apprise hook into Atlas (DESIGN-notifications.md step 1) |
+| ntfy | beta | ✓ 1 / 1 | ✗ | ✓ | ✓ | ✓ | – | ✓ | ~ | 4 | ✓ | ✓ | 0.2.0 | superseded by notifications (its send and inbox are there); kept until vaults switch |
 | syncthing, downloader, tubearchivist | beta | ~ 1 / 0 | ✗ | ✓ | ✓ | ~ | ~ | ✓ | ✗ | 4 | ✓ | ✓ | 0.1.x | a README each (2); end-to-end specs against a stub (1); progress for long transfers (6) |
 | catalog-anime, -books, -music, -tmdb, -wikipedia, -youtube, -audiobookshelf | beta | ~ 1 / 0 each | ✗ | ✓ | ✓ | ~ | – | ✓ | ✗ | 4 | ✓ | ✓ | 0.1–0.2 | a README each (2); one shared end-to-end spec for the catalog's sources (1) |
 | catalog-web | beta | ✗ 0 / 0 | ✗ | ✓ | ✓ | ~ | – | ✓ | ✗ | 4 | ✓ | ✓ | 0.1.0 | tests (1), a README (2) |

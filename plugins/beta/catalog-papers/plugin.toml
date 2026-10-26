@@ -116,3 +116,7 @@ ids = [{ id = "doi", property = "source", prefix = "https://doi.org/" }, { id = 
 writer = { by = "plugin", plugin = "catalog-papers", tool = "add" }
 links = { catalog-linkwarden = false }
 library = { title = "Papers", layout = "table", group = "status", shelves = ["to-read", "reading", "read"], key = ["authors", "year", "journal"], icon = "book" }
+
+# where it runs (PLUGIN-API.md, "Platforms"); a platform not named is untested (Android: only with `phone = true`)
+[platforms]
+linux = "works"

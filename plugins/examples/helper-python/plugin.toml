@@ -10,3 +10,7 @@ api = 4
 [helper]
 # -u: unbuffered, so every answer reaches Atlas at once. $ATLAS_PLUGIN_DIR is this folder.
 run = "python3 -u \"$ATLAS_PLUGIN_DIR/helper.py\""
+
+# where it runs (PLUGIN-API.md, "Platforms"); a platform not named is untested (Android: only with `phone = true`)
+[platforms]
+linux = "works"

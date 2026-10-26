@@ -6,7 +6,7 @@ title = "Manga"
 description = "a manga and comics library and reader like Mihon: series, chapters, read from where you left, right-to-left, webtoon, e-ink paging"
 phone = true # runs in the phone apps too (only plugins marked so start there)
 icon = "file"
-version = "0.4.2"
+version = "0.5.0"
 api = 4
 claims = ["*.cbz"]                     # a .cbz opens here on a click (API 7); .cbr is RAR, which the web side cannot read
 requires = ["zip"]                     # its zip reader is the Zip archives plugin's (../zip/zip.js), shared with the other reader
@@ -85,3 +85,7 @@ label = "E-ink: flash on page change, every N pages (0: never)"
 kind = "number"
 default = 1
 hint = "Mihon's e-ink option: a full refresh clears the ghosts of the last page"
+
+# where it runs (PLUGIN-API.md, "Platforms"); a platform not named is untested (Android: only with `phone = true`)
+[platforms]
+linux = "works"

@@ -28,6 +28,9 @@ export function onSettings(f: Listener): () => void {
 
 const media = typeof matchMedia === "function" ? matchMedia("(prefers-color-scheme: light)") : null;
 media?.addEventListener("change", () => settings.config && apply(settings.config));
+// the system's reduced motion counts as ui.motion = "instant" (a shortened animation that repeats forever would spin flat out)
+const still = typeof matchMedia === "function" ? matchMedia("(prefers-reduced-motion: reduce)") : null;
+still?.addEventListener("change", () => settings.config && apply(settings.config));
 
 let vscodeLoaded: string | null = null;
 let vscode: VscodeTheme | null = null;
@@ -64,7 +67,7 @@ function apply(c: WorkspaceConfig): void {
   const px = (n: number) => `${n}px`;
   const font = (name: string, fallback: string) => (name.trim() ? `"${name.trim()}", ${fallback}` : fallback);
   root.style.setProperty("--ui-scale-set", String(c.ui.font_size / 14)); // base.css turns it into --ui-scale (larger on a phone)
-  root.dataset.motion = eink ? "instant" : c.ui.motion; // base.css: "instant" turns transitions and fades off
+  root.dataset.motion = eink || still?.matches ? "instant" : c.ui.motion; // base.css: "instant" turns transitions and fades off
   root.style.setProperty("--code-font", font(c.editor.code_font, "var(--font-mono)"));
   root.style.setProperty("--code-size", px(c.editor.code_font_size));
   root.style.setProperty("--prose-font", font(c.editor.prose_font, "var(--font-ui)"));

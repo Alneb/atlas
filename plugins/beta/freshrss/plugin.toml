@@ -28,3 +28,7 @@ key = "folder"
 label = "Folder for saved articles"
 kind = "text"
 default = "notes/reading"
+
+# where it runs (PLUGIN-API.md, "Platforms"); a platform not named is untested (Android: only with `phone = true`)
+[platforms]
+linux = "works"

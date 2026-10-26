@@ -22,3 +22,7 @@ fields = [
   { key = "url", label = "Address", kind = "text", hint = "the server, or a folder of it: https://files.example.org/hdd1/Physics" },
   { key = "password", label = "Password", kind = "secret", hint = "copyparty's own password (sent as its pw header); empty: none" },
 ]
+
+# where it runs (PLUGIN-API.md, "Platforms"); a platform not named is untested (Android: only with `phone = true`)
+[platforms]
+linux = "works"

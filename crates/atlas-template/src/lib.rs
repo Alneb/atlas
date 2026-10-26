@@ -282,7 +282,7 @@ impl Renderer<'_, '_> {
                 b'-' => -1,
                 _ => return None,
             };
-            let digits = rest[1..].find(|c: char| !c.is_ascii_digit()).map_or(rest.len() - 1, |i| i);
+            let digits = rest[1..].find(|c: char| !c.is_ascii_digit()).unwrap_or(rest.len() - 1);
             let n: i64 = rest[1..1 + digits].parse().ok()?;
             let unit = rest[1 + digits..].chars().next()?;
             when = match unit {
