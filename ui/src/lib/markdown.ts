@@ -261,7 +261,6 @@ function build() {
       const cls = `embed-img${opts.includes("center") ? " is-centered" : ""}`;
       return `<img class="${cls}" data-src="${esc(resolveOrBeside(path, dirOf(env) ?? ""))}" alt="${esc(path)}"${width ? ` style="width:${width}px"` : ""}>`;
     }
-    if (/\.base$/i.test(path)) return `<div class="base-embed" data-target="${esc(target.split("|")[0])}">${esc(path)}</div>`;
     // a PDF and a note are embedded as Obsidian does, any other file by what is registered for it (a drawing,
     // a plugin's: lib/embed-registry.ts) or its own viewer (lib/embeds.ts mounts them all); the link chip is what
     // shows until then, and stays where the target is missing. `|600|center` travel as data-opts.

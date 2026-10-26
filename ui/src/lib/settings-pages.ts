@@ -77,7 +77,7 @@ export const PAGES: PageDef[] = [
   {
     id: "code", title: "Code", icon: "file-code", blurb: "The code editor and language servers (completion, errors, go to definition). VS Code's keys work in a code file: Ctrl+G go to line, Ctrl+Shift+K delete line, Ctrl+Shift+L select all occurrences, Ctrl+D next occurrence, Ctrl+/ comment, Alt+↑/↓ move the line, F2 rename, F12 definition.",
     fields: ["editor.autosave_code", "editor.code_bar", "editor.git_gutter", "editor.line_numbers", "editor.wrap_code", "editor.indent_guides", "editor.minimap", "editor.breadcrumbs", "lsp.*"],
-    features: ["ui.problems", "ui.git", "ui.replace"],
+    features: ["ui.problems", "ui.symbols", "ui.python.env", "ui.git", "ui.git.blame", "ui.replace"],
   },
   {
     id: "files", title: "Files & search", icon: "files", blurb: "What the file tree, search and the note index see — and which files are an AI agent's own, kept apart from your notes. The explorer also opens other vaults, SSH hosts and servers (copyparty) beside your vault.",
@@ -180,7 +180,7 @@ const FIELD_LABELS: Record<string, string> = {
   "activity.show_claude": "AI agents' commits", "activity.show_housekeeping": "Housekeeping commits", "activity.group_threshold": "Group a folder's changes from",
   "plugins.oidc_issuer": "Sign-in provider (OpenID Connect)", "plugins.oidc_client_id": "Sign-in client id", "plugins.oidc_redirect": "Sign-in return address",
   "ui.eink": "E-ink screen", "ui.eink_refresh": "E-ink full refresh", "terminal.min_size": "Terminal's smallest size (px)",
-  "lsp.c": "C / C++ server", "lsp.rust": "Rust server", "lsp.python": "Python server", "lsp.latex": "LaTeX server", "lsp.language": "Servers' message language",
+  "lsp.c": "C / C++ server", "lsp.rust": "Rust server", "lsp.python": "Python server", "lsp.latex": "LaTeX server", "lsp.language": "Servers' message language", "lsp.inlay_hints": "Inlay hints", "lsp.python_env": "Python environment",
   "draw.page_format": "A new drawing's pages",
   "web.open_links": "Web links open in", "pdf.export_on_save": "Export annotations on save",
 };

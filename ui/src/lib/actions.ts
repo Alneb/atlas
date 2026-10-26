@@ -101,6 +101,19 @@ function drawingProperties(): void {
   openPath(spec.path.replace(/\.excalidraw$/i, ".md"), undefined, { beside: true });
 }
 
+/** The project's symbols, from the current code file's language server. */
+function goToSymbol(): void {
+  const id = lastEditorId();
+  if (!id || !editors.get(id)?.symbols()) toast("No symbols here", "Symbols come from a language server: open a code file.");
+}
+
+/** Git blame beside the current file's lines, or away again. */
+async function toggleBlame(): Promise<void> {
+  const id = lastEditorId();
+  if (!id || !editors.get(id)) return void toast("No file here", "Open a file to see who changed each line.");
+  await editors.get(id)!.toggleBlame();
+}
+
 export function showProblems(): void {
   const id = lastEditorId();
   if (!id || !editors.get(id)?.showProblems()) toast("No problems list here", "Problems come from a language server: open a code file.");
@@ -294,6 +307,7 @@ export const actions: Action[] = [
   // one Library page: References is its first library
   { id: "ui.library", title: "Library: references, then the vault's other libraries", icon: "library", label: "Library", keys: "Super+Shift+L", plugin: "library", run: () => { open({ kind: "libraries", at: "references" }); } },
   { id: "ui.git", title: "Git: changes and history", icon: "git", label: "Git", keys: "Super+G", run: () => { open({ kind: "git" }); } },
+  { id: "ui.git.blame", title: "Git: who changed each line (blame)", icon: "git", run: () => void toggleBlame() },
   { id: "ui.sidePanel", title: "Show / hide the side panel (files, search, outline, git)", icon: "folder-tree", label: "Side panel (show / hide)", keys: "Super+B", run: toggleSidePanel },
   { id: "ui.sidePanel.move", title: "Move side panel (beside the editors ↔ in the left bar)", run: () => placeSidePanel(sideInBar() ? "dock" : "sidebar") },
   { id: "ui.panel", title: "Show / hide terminal panel", icon: "terminal", label: "Terminal (show / hide)", keys: "Super+J", run: toggleTerminalPanel },
@@ -303,6 +317,8 @@ export const actions: Action[] = [
   { id: "ui.openWith", title: "Open with… (this file in another view)", keys: "Ctrl+Alt+O", run: () => openWith() },
   { id: "ui.focusFile", title: "Edit FOCUS.md", run: () => openPath(app.workspace?.config.focus ?? "FOCUS.md") },
   { id: "ui.resetLayout", title: "Reset layout", run: resetLayout },
+  { id: "ui.python.env", title: "Python: choose the environment (for the Python server and new terminals)", icon: "terminal", run: () => void import("./python-env").then((m) => m.choosePythonEnv()) },
+  { id: "ui.symbols", title: "Go to a symbol in the project (functions, classes…)", icon: "file-code", run: () => goToSymbol() },
   { id: "ui.problems", title: "Problems: errors and warnings of the current file", keys: "Super+M", run: showProblems },
   { id: "ui.graph", title: "Graph of notes (links between notes)", icon: "link", label: "Graph", keys: "Super+Shift+G", run: () => { open({ kind: "graph" }); } },
   { id: "ui.commands", title: "Commands & keyboard shortcuts (all commands, new command)", icon: "command", label: "Commands & shortcuts", keys: "Super+Shift+K", run: () => { open({ kind: "commands" }); } },

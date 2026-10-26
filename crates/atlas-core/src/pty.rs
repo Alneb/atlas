@@ -45,7 +45,16 @@ fn command(ws: &Workspace, q: &PtyQuery) -> anyhow::Result<CommandBuilder> {
             }
             cmd
         }
-        PtyPreset::Shell => CommandBuilder::new(login_shell()),
+        PtyPreset::Shell => {
+            let mut cmd = CommandBuilder::new(login_shell());
+            // a new shell runs in the vault's Python environment (python_env.rs), as VS Code's terminal does
+            if let Some(env) = ws.config().ok().and_then(|c| crate::python_env::chosen(&c, ws.root())) {
+                for (k, v) in crate::python_env::vars(&env) {
+                    cmd.env(k, v);
+                }
+            }
+            cmd
+        }
     };
     // Atlas launched from inside a Claude Code session would hand its session markers to every
     // terminal; a `claude` started there then thinks it is a child session (no transcript, wrong

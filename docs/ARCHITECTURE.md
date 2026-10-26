@@ -46,6 +46,7 @@ absent, `tauri://localhost`, `http://tauri.localhost` or `http://127.0.0.1:<port
 |---|---|---|
 | `GET /api/workspace` | – | `{root, name, config}` |
 | `GET /api/tree` | `?path=` (default root) | `[{name, path, kind:"dir"\|"file"}]` sorted dirs-first; config `ignore` honored at any depth, dotfiles hidden except `.atlas` |
+| `GET /api/files` | `?index=true` (the user's own files), `?under=<path>` (only what is at or under that file or folder) | every file the walk keeps (`walk::files`: dot-entries and `ignore` skipped), vault-relative; the UI's link index (`ui/src/lib/vault.ts`) fetches it whole once, then `?under=` per new path from the file events |
 | `GET /api/file` | `?path=` | `{path, text, mtime}` (text files ≤ 5 MB) |
 | `PUT /api/file` | `{path, text, base_mtime?}` | `{mtime}`; atomic write (tmp + rename); 409 if `base_mtime` given and file changed |
 | `GET /api/raw` | `?path=` | bytes, guessed `content-type` (PDF/images/etc) |
@@ -148,7 +149,7 @@ returns the state PUT into a live server on a real vault.
     `GET/PUT /api/config` (toml_edit: only changed keys, comments kept), `GET /api/config/suggestions`
     (detect.rs: claude installs/accounts, fonts, VS Code themes, LaTeX Suite snippet files; cached 5 min).
     Rule: **every new feature adds its settings as Config fields**.
-18. **Git**: `/api/git/{log,commit,status,diff,stage}`; commits classified you/claude × work/housekeeping.
+18. **Git**: `/api/git/{log,commit,status,diff,stage,blame}`; commits classified you/claude × work/housekeeping. `blame?path=` (`git blame --porcelain`) → `{commits: {hash: {author, time, summary}}, lines: [hash per line]}` (all zeros: not committed yet; empty outside a repository or for an untracked file): the editor's "Git: who changed each line" gutter (`ui/src/lib/editor/blame.ts`, markers mapped through edits, a click opens the commit).
 19. **fs watcher**: raw notify watcher, `Access` events ignored (they fed an endless read→event loop).
 20. **UI diagnostics**: `POST /api/ui/log` → `.atlas/cache/ui.log` (uncaught errors, layout overflow
     and shell-scroll self-checks) — how WebKitGTK-only bugs are seen.
@@ -180,7 +181,7 @@ returns the state PUT into a live server on a real vault.
   Rnote pane, its `draw.rnote_open` / `draw.rnote_export` built-ins and `[draw] rnote_*` settings were removed
  .
 - Settings `[pdf]` and `[draw]`.
-- Playwright isolation: `ATLAS_PW_WS`, `ATLAS_PW_PORT`.
+- Playwright isolation: `ATLAS_PW_WS`, `ATLAS_PW_PORT` (one per shard of the gate's e2e stage, `scripts/dev/e2e-shards.mjs`).
 
 
 ### Runs (slice 5)

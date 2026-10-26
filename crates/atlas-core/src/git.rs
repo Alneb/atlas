@@ -1,7 +1,7 @@
 //! Git integration: classified log, commit details, status, diff, stage/unstage, commit.
 //! Shells out to `git`.
 use crate::api::{
-    Change, CommandOrigin, Commit, CommitBy, CommitDetail, CommitKind, FileStat, GitRepo, GitStatus, Mtime, Patch, StatusEntry,
+    Blame, BlameCommit, Change, CommandOrigin, Commit, CommitBy, CommitDetail, CommitKind, FileStat, GitRepo, GitStatus, Mtime, Patch, StatusEntry,
 };
 use crate::{Error, Result, Workspace};
 use std::collections::HashMap;
@@ -341,6 +341,46 @@ pub fn diff(root: &Path, rel: &str, staged: bool) -> Result<Patch> {
     Ok(cut(String::from_utf8_lossy(&out.stdout).into_owned()))
 }
 
+/// Who last changed each line of `rel` (`git blame --porcelain`); unsaved lines count as the file on disk has them.
+pub fn blame(root: &Path, rel: &str) -> Result<Blame> {
+    match git_ok(root, &["blame", "--porcelain", "--", rel]) {
+        Ok(text) => Ok(read_blame(&text)),
+        // outside a repository, or a file git does not know: no history to show
+        Err(e) if outside_git(&e) || matches!(&e, Error::BadRequest(w) if w.contains("no such path") || w.contains("no such ref")) => Ok(Blame::default()),
+        Err(e) => Err(e),
+    }
+}
+
+/// The porcelain format: a `<hash> <orig> <final> [<count>]` header per line, the commit's `author`, `author-time` and
+/// `summary` the first time it appears, then the line itself after a tab.
+fn read_blame(text: &str) -> Blame {
+    let mut b = Blame::default();
+    let mut cur: Option<String> = None;
+    for line in text.lines() {
+        if line.starts_with('\t') {
+            if let Some(h) = cur.take() {
+                b.lines.push(h);
+            }
+            continue;
+        }
+        let mut parts = line.splitn(2, ' ');
+        let (key, rest) = (parts.next().unwrap_or(""), parts.next().unwrap_or(""));
+        if key.len() == 40 && key.bytes().all(|c| c.is_ascii_hexdigit()) {
+            b.commits.entry(key.to_string()).or_insert(BlameCommit { author: String::new(), time: 0, summary: String::new() });
+            cur = Some(key.to_string());
+            continue;
+        }
+        let Some(c) = cur.as_ref().and_then(|h| b.commits.get_mut(h)) else { continue };
+        match key {
+            "author" => c.author = rest.to_string(),
+            "author-time" => c.time = rest.parse().unwrap_or(0),
+            "summary" => c.summary = rest.to_string(),
+            _ => {}
+        }
+    }
+    b
+}
+
 pub fn stage(root: &Path, rels: &[String], on: bool) -> Result<()> {
     if rels.is_empty() {
         return Ok(());
@@ -567,6 +607,15 @@ mod tests {
         assert!(d.patch.patch.contains("+one"));
         assert!(commit_detail(r, "zz; rm -rf").is_err());
         assert!(commit(r, "  ").is_err());
+        // blame: the committed line is the commit's; a line added since, nobody's yet
+        std::fs::write(r.join("a.md"), "one\ntwo\n").unwrap();
+        let b = blame(r, "a.md").unwrap();
+        assert_eq!(b.lines.len(), 2);
+        assert!(b.lines[0].starts_with(&h) || h.starts_with(&b.lines[0][..h.len().min(40)]), "{b:?} {h}");
+        assert_eq!((b.commits[&b.lines[0]].author.as_str(), b.commits[&b.lines[0]].summary.as_str()), ("T", "first"));
+        assert!(b.lines[1].bytes().all(|c| c == b'0'), "not committed yet: {b:?}");
+        std::fs::write(r.join("new.md"), "x\n").unwrap();
+        assert_eq!(blame(r, "new.md").unwrap(), Blame::default(), "a file git does not track: no history, no error");
     }
 
     #[test]
@@ -576,5 +625,6 @@ mod tests {
         assert!(st.repo == GitRepo::Outside && st.entries.is_empty() && st.branch.is_none());
         std::fs::write(d.path().join("a.md"), "x").unwrap();
         assert!(diff(d.path(), "a.md", false).unwrap().patch.is_empty(), "an opened file's gutter asks: no error");
+        assert_eq!(blame(d.path(), "a.md").unwrap(), Blame::default());
     }
 }

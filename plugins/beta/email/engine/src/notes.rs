@@ -121,7 +121,8 @@ fn section(m: &Mail, x: &Msg, folder_label: &str, files_dir: &str, raw: &[u8]) -
         None => body.text.trim_end().to_string(),
     };
     let from = x.from.first().map(Person::display).unwrap_or_else(|| "(no sender)".into());
-    let mut head = json!({ "message_id": format!("<{}>", x.message_id), "uid": x.uid.to_string(), "date": iso(x.date), "from": from, "folder": folder_label, "seen": x.seen });
+    // all the pane shows of a message (lossless): its own subject, flags, labels and unsubscribe link
+    let mut head = json!({ "message_id": format!("<{}>", x.message_id), "uid": x.uid.to_string(), "date": iso(x.date), "from": from, "subject": x.subject, "folder": folder_label, "seen": x.seen });
     for (k, v) in [("to", people(&x.to)), ("cc", people(&x.cc)), ("reply_to", people(&x.reply_to)), ("in_reply_to", x.in_reply_to.iter().map(|i| format!("<{i}>")).collect::<Vec<_>>().join(" ")), ("references", x.references.iter().map(|i| format!("<{i}>")).collect::<Vec<_>>().join(" "))] {
         if !v.is_empty() {
             head[k] = json!(v);
@@ -129,6 +130,17 @@ fn section(m: &Mail, x: &Msg, folder_label: &str, files_dir: &str, raw: &[u8]) -
     }
     if x.flagged {
         head["important"] = json!(true);
+    }
+    for (k, on) in [("answered", x.answered), ("draft", x.draft)] {
+        if on {
+            head[k] = json!(true);
+        }
+    }
+    if !x.labels.is_empty() {
+        head["labels"] = json!(x.labels);
+    }
+    if let Some(u) = &x.unsubscribe {
+        head["unsubscribe"] = u.clone();
     }
     let when = iso(x.date).get(..16).unwrap_or("").replace('T', " ");
     let files: String = listed.iter().map(|p| format!("- ![[{p}]]\n")).collect();
@@ -326,6 +338,7 @@ mod tests {
         let text = std::fs::read_to_string(d.path().join("vault").join(&rel)).unwrap();
         assert!(text.starts_with("---\ntype: email-thread\nsubject: \"Draft of the DCA section\"\nmessage_id: \"<seed-2@example.org>\"\naccount: \"fake\"\nfolder: \"Inbox\"\nmessages: 1\nunread: 1\n"), "{text}");
         assert!(text.contains("\"uid\":\"2\""), "the uid is kept");
+        assert!(text.contains("\"subject\":\"Draft of the DCA section\""), "each message keeps its own subject: {text}");
         assert!(text.contains("- ![[mail/fake/Inbox/2026-10-13 Draft of the DCA section files/notes.txt]]"), "{text}");
         assert!(d.path().join("vault/mail/fake/Inbox/2026-10-13 Draft of the DCA section files/notes.txt").exists());
         assert_eq!(saved(&m, thread).as_deref(), Some(rel.as_str()));

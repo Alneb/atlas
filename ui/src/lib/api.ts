@@ -129,7 +129,8 @@ export const api = {
   workspace: () => request<Workspace>("GET", "/api/workspace"),
   /** Every file (the tree); `index`: the user's own only, the agent's (`editor.index_exclude`) left out. */
   exists: (path: RelPath) => request<boolean>("GET", "/api/exists", { query: { path } }),
-  files: (o: { index?: boolean } = {}) => request<string[]>("GET", "/api/files", { query: o.index ? { index: "true" } : {} }),
+  /** `under`: only what is at or under that file or folder (a file event's path) */
+  files: (o: { index?: boolean; under?: RelPath } = {}) => request<string[]>("GET", "/api/files", { query: { ...(o.index ? { index: "true" } : {}), ...(o.under !== undefined ? { under: o.under } : {}) } }),
   /** One folder's entries; `hidden`: dotfiles too, whatever `[files] show_hidden` says. */
   tree: (path?: RelPath, hidden = false) => request<TreeEntry[]>("GET", "/api/tree", { query: { path: path || undefined, hidden: hidden ? "true" : undefined } }),
   file: (path: RelPath) => request<FileDoc>("GET", "/api/file", { query: { path } }),
@@ -312,6 +313,8 @@ export const api = {
   gitLog: (skip = 0, limit = 100) => request<GitCommit[]>("GET", "/api/git/log", { query: { skip: String(skip), limit: String(limit) } }),
   gitCommit: (hash: string) => request<CommitDetail>("GET", "/api/git/commit", { query: { hash } }),
   gitStatus: () => request<GitStatus>("GET", "/api/git/status"),
+  pythonEnvs: () => request<import("./gen/PythonEnvs").PythonEnvs>("GET", "/api/python-envs"),
+  gitBlame: (path: RelPath) => request<import("./gen/Blame").Blame>("GET", "/api/git/blame", { query: { path } }),
   gitDiff: (path: RelPath, staged = false) => request<Patch>("GET", "/api/git/diff", { query: { path, staged: staged ? "true" : undefined } }),
   gitStage: (paths: RelPath[], stage: boolean) => request<void>("POST", "/api/git/stage", { body: { paths, stage } }),
   gitCommitIndex: (message: string) => request<GitCommitted>("POST", "/api/git/commit", { body: { message } }),

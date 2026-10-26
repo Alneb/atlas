@@ -66,7 +66,7 @@ pub fn ensure(root: &Path, cfg: &Config, req: &CompanionRequest, now: NaiveDateT
         return Ok(CompanionNote { path: note, created: false, migrated_from: None });
     }
     shape.block = req.block.as_deref().map(view_block).unwrap_or_else(|| file_block(rel));
-    let text = new_text(&shape, template(root, cfg, rel, &note, &shape.title, now)?.as_deref(), now);
+    let text = new_text(&shape, template(root, cfg, rel, &note, &shape.title, now)?.as_deref(), &stamp(root, cfg, now));
     write_new(&path, &text)?;
     Ok(CompanionNote { path: note, created: true, migrated_from: None })
 }
@@ -184,8 +184,8 @@ fn entry_note(root: &Path, cfg: &Config, dir_rel: &str, stem: &str, shape: &Shap
         vault_write::rename(&legacy, &path)?;
     } else {
         let text = match old.as_deref().filter(|t| !t.trim().is_empty()) {
-            Some(t) => format!("{}{}\n{t}", frontmatter(shape, template.as_deref(), now), heading(shape)),
-            None => new_text(shape, template.as_deref(), now),
+            Some(t) => format!("{}{}\n{t}", frontmatter(shape, template.as_deref(), &stamp(root, cfg, now)), heading(shape)),
+            None => new_text(shape, template.as_deref(), &stamp(root, cfg, now)),
         };
         write_new(&path, &text)?;
         if old.is_some() {
@@ -227,14 +227,19 @@ fn template(root: &Path, cfg: &Config, file: &str, note: &str, title: &str, now:
     Ok(Some(crate::notes::render_template(root, cfg, &t, title, now)))
 }
 
-/// The caller's properties, then `title` and the `created` stamp when it gave none (a note says when it was made).
-fn properties(s: &Shape, now: NaiveDateTime) -> Vec<(String, Value)> {
+/// When a note was made, as the vault's property spec writes it (`created`, or its `date`, in the spec's format).
+fn stamp(root: &Path, cfg: &Config, now: NaiveDateTime) -> (String, String) {
+    crate::property_spec::creation_stamp(&crate::property_spec::load(root, &cfg.editor.properties_spec), now)
+}
+
+/// The caller's properties, then `title` and the creation stamp when it gave none (a note says when it was made).
+fn properties(s: &Shape, stamp: &(String, String)) -> Vec<(String, Value)> {
     let mut out: Vec<(String, Value)> = s.props.iter().filter_map(|(k, v)| Some((k.as_str()?.to_string(), v.clone()))).collect();
     if !s.props.contains_key("title") {
         out.push(("title".into(), s.title.clone().into()));
     }
-    if !s.props.contains_key("created") {
-        out.push(("created".into(), now.format("%Y-%m-%d").to_string().into()));
+    if !s.props.contains_key("created") && !s.props.contains_key(stamp.0.as_str()) {
+        out.push((stamp.0.clone(), stamp.1.clone().into()));
     }
     out
 }
@@ -250,14 +255,14 @@ fn blank(v: Option<&Value>) -> bool {
 
 /// The frontmatter block: the template's own (its order, its comments, its values) with the properties filled into
 /// the keys it leaves empty and added after it.
-fn frontmatter(s: &Shape, template: Option<&str>, now: NaiveDateTime) -> String {
+fn frontmatter(s: &Shape, template: Option<&str>, stamp: &(String, String)) -> String {
     let inner = split(template.unwrap_or("")).0.map(|i| i.trim_end_matches('\n')).filter(|i| !i.trim().is_empty());
     let mut text = match inner {
         Some(i) => format!("---\n{i}\n---\n"),
         None => "---\n---\n".into(),
     };
     let have: Mapping = inner.and_then(|i| serde_yaml::from_str(i).ok()).unwrap_or_default();
-    for (k, v) in properties(s, now) {
+    for (k, v) in properties(s, stamp) {
         let Some((k, v)) = their_key(&k, v, &have) else { continue };
         if blank(have.get(k.as_str())) {
             text = set_property(&text, &k, &v);
@@ -290,8 +295,8 @@ fn heading(s: &Shape) -> String {
 }
 
 /// A new note: the template's body with the block under its title, or (no template) title, block, `## Notes`.
-fn new_text(s: &Shape, template: Option<&str>, now: NaiveDateTime) -> String {
-    let fm = frontmatter(s, template, now);
+fn new_text(s: &Shape, template: Option<&str>, stamp: &(String, String)) -> String {
+    let fm = frontmatter(s, template, stamp);
     let Some(body) = template.map(|t| split(t).1) else { return format!("{fm}{}\n## Notes\n\n", heading(s)) };
     match body.lines().position(|l| l.starts_with("# ")) {
         Some(i) => {
@@ -343,6 +348,18 @@ mod tests {
     }
     fn file(path: &str) -> CompanionRequest {
         CompanionRequest { path: path.into(), title: None, properties: Mapping::new(), block: None, find: false }
+    }
+
+    #[test]
+    fn the_creation_stamp_is_the_one_the_vaults_spec_names() {
+        let (d, cfg) = vault();
+        std::fs::create_dir_all(d.path().join("templates")).unwrap();
+        std::fs::write(d.path().join("templates/properties.yaml"), "properties:\n  date:\n    kind: datetime\n    format: \"YYYY-MM-DD HH:mm\"\n").unwrap();
+        std::fs::create_dir_all(d.path().join("books")).unwrap();
+        std::fs::write(d.path().join("books/Notes.pdf"), b"%PDF").unwrap();
+        ensure(d.path(), &cfg, &file("books/Notes.pdf"), now()).unwrap();
+        let text = std::fs::read_to_string(d.path().join("books/Notes.md")).unwrap();
+        assert!(text.contains("\ndate: 2026-10-14 10:00\n") && !text.contains("created:"), "{text}");
     }
 
     #[test]

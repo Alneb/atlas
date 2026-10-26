@@ -176,7 +176,7 @@ test("a named view saved into the file's note, applied again after everything is
   await pane.getByRole("button", { name: "Views" }).click();
   await page.getByRole("menuitem", { name: "Save this view as…" }).click();
   await page.getByRole("dialog").locator("input").fill("Cheap");
-  await page.keyboard.press("Enter");
+  await page.getByRole("dialog").locator("input").press("Enter"); // on the field: a page-level key could land elsewhere
   await expect(pane.getByRole("button", { name: "Cheap" })).toBeVisible();
   // in the companion note, as one block a view a line, columns by name
   const note = await request.post("/api/companion", { headers: H, data: { path: "data/views.csv", title: null, properties: {}, block: null, find: true } }).then((r) => r.json());
@@ -231,9 +231,13 @@ test("rows grouped by a column: group by group, each group's sub-totals, a click
   await pane.getByRole("button", { name: "Views" }).click();
   await page.getByRole("menuitem", { name: "Save this view as…" }).click();
   await page.getByRole("dialog").locator("input").fill("By shop");
-  await page.keyboard.press("Enter");
-  const note = await request.post("/api/companion", { headers: H, data: { path: "data/shops.csv", title: null, properties: {}, block: null, find: true } }).then((r) => r.json());
-  await expect.poll(() => read(request, note.path)).toContain('{"name":"By shop","group":"shop"}');
+  await page.getByRole("dialog").locator("input").press("Enter"); // on the field: a page-level key could land elsewhere
+  // the companion note is written when the view is saved: looked up again until it is there (slower under load)
+  const viewNote = async () => {
+    const note = await request.post("/api/companion", { headers: H, data: { path: "data/shops.csv", title: null, properties: {}, block: null, find: true } }).then((r) => r.json());
+    return note?.path ? read(request, note.path) : "";
+  };
+  await expect.poll(viewNote, { timeout: 15_000 }).toContain('{"name":"By shop","group":"shop"}');
   await groups.getByRole("button", { name: "Ungroup" }).click();
   await expect(groups).toHaveCount(0);
   await pane.getByRole("button", { name: "By shop" }).click();

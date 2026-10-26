@@ -13,14 +13,23 @@ let byName = new Map<string, string[]>();
 let loading: Promise<void> | null = null;
 const listeners = new Set<() => void>();
 
+const nameOf = (f: string) => f.slice(f.lastIndexOf("/") + 1).toLowerCase();
+
 function index(files: string[]): void {
-  all = new Set(files);
+  all = new Set();
   byName = new Map();
-  for (const f of files) {
-    const n = f.slice(f.lastIndexOf("/") + 1).toLowerCase();
-    const list = byName.get(n);
-    if (list) list.push(f); else byName.set(n, [f]);
-  }
+  for (const f of files) add(f);
+}
+function add(f: string): void {
+  if (all.has(f)) return;
+  all.add(f);
+  const list = byName.get(nameOf(f));
+  if (list) list.push(f); else byName.set(nameOf(f), [f]);
+}
+function remove(f: string): void {
+  if (!all.delete(f)) return;
+  const list = byName.get(nameOf(f))?.filter((x) => x !== f);
+  if (list?.length) byName.set(nameOf(f), list); else byName.delete(nameOf(f));
 }
 
 /** Load (or reload) the file list; listeners re-render whatever resolved against the old one. */
@@ -48,7 +57,36 @@ function whenAddedOrRemoved(fn: () => void, wait: number): () => void {
   return () => { offFs(); offGone(); clearTimeout(t); };
 }
 
-whenAddedOrRemoved(() => void refreshVault(), 300);
+/** Above this many new paths in one go (an unzip, a sync) the whole list is fetched again instead. */
+const MOST_ASKED = 20;
+let pending = { gone: new Set<string>(), fresh: new Set<string>(), all: false };
+let timer: ReturnType<typeof setTimeout> | undefined;
+// The list kept current from the events themselves: a path gone takes what was under it, a new one is asked for alone
+// (`/api/files?under=`, a file or a whole new folder); only an event that names nothing refetches the whole list.
+on("gone", (e) => { for (const p of e.paths) pending.gone.add(p); later(); });
+on("fs", (e) => {
+  if (!e.paths.length) pending.all = true;
+  // a known file only rewritten (every autosave) needs nothing; anything else (new, a folder, moved away) is asked
+  for (const p of e.paths) if (!all.has(p) && !isBookkeeping(p)) pending.fresh.add(p);
+  if (pending.all || pending.fresh.size) later();
+});
+function later(): void { clearTimeout(timer); timer = setTimeout(() => void apply(), 300); }
+async function apply(): Promise<void> {
+  const { gone, fresh, all: everything } = pending;
+  pending = { gone: new Set(), fresh: new Set(), all: false };
+  if (!loading) return; // never listed: the first listing will be current
+  await loading;
+  if (everything || fresh.size > MOST_ASKED) return void refreshVault();
+  const dropUnder = (p: string) => { for (const f of [...all]) if (f === p || f.startsWith(`${p}/`)) remove(f); };
+  for (const g of gone) dropUnder(g);
+  try {
+    const asked = [...fresh];
+    const lists = await Promise.all(asked.map((under) => api.files({ under })));
+    // what is at or under an asked path is its answer: a folder moved away answers nothing, even without a `gone`
+    asked.forEach((p, i) => { dropUnder(p); for (const f of lists[i]) add(f); });
+  } catch { return void refreshVault(); }
+  listeners.forEach((fn) => fn());
+}
 
 
 /**

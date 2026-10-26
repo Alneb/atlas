@@ -49,6 +49,7 @@ pub mod platform;
 pub mod plugins;
 pub mod property_spec;
 pub mod pty;
+pub mod python_env;
 pub mod companion;
 pub mod companion_tidy;
 pub mod live;

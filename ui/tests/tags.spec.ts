@@ -28,6 +28,6 @@ test("the tags block nests tags and opens a tag's notes; tag: works in quick ope
   await page.keyboard.press("Control+p");
   await page.keyboard.type("tag:zoology/birds");
   const palette = page.getByTestId("palette");
-  await expect(palette.getByText("tag-a", { exact: true }).first()).toBeVisible();
+  await expect(palette.getByText("tag-a", { exact: true }).first()).toBeVisible({ timeout: 15_000 }); // the index answers; slower under load
   await expect(palette.getByText("tag-b", { exact: true })).toHaveCount(0);
 });

@@ -8,16 +8,20 @@ async function openFile(page: import("@playwright/test").Page, name: string) {
   await page.keyboard.press("Enter");
 }
 
-test("a note embedding ![[x.base]] shows the live table, scoped to the note (this.file)", async ({ page }) => {
+test("a note embedding ![[x.base]] shows the live table, scoped to the note (this.file)", async ({ page }, info) => {
   await page.goto("/");
   await page.getByText("Finish the GW notes.").waitFor();
   await openFile(page, "Topic.md");
-  const base = page.locator(".cm-content .base-embed .base");
+  const base = page.locator(".cm-content .file-embed .base");
   await expect(base.locator("tbody tr")).toHaveCount(2);
   // sorted by the base's own sort (date, newest first), formula formatted as written
   await expect(base.locator("tbody tr").first().locator("td:not(.add-col)")).toHaveText(["25.03-10", "l2", "Lecture"]);
   // the base's global filter applies to every view, as in Obsidian; the views are in the switcher's menu
   await expect(base.locator(".view-switch")).toHaveText("By date");
+  for (const theme of ["light", "dark"]) {
+    await page.evaluate((t) => document.documentElement.setAttribute("data-theme", t), theme);
+    await page.locator(".cm-content .file-embed", { has: page.locator(".base") }).first().screenshot({ path: info.outputPath(`base-embed-${theme}.png`) });
+  }
   await base.locator(".view-switch").click();
   await expect(page.getByRole("menuitem", { name: /^By date/ })).toBeVisible();
   await page.getByRole("menuitem", { name: /^All lectures/ }).click();
@@ -128,7 +132,7 @@ test("an embed that names its view shows that view alone, without the other view
   await page.goto("/");
   await page.getByText("Finish the GW notes.").waitFor();
   await openFile(page, "early-only.md");
-  const base = page.locator(".cm-content .base-embed .base");
+  const base = page.locator(".cm-content .file-embed .base");
   await expect(base.locator("tbody tr")).toHaveCount(2);
   await expect(base.locator(".view-switch")).toHaveText("Early");
   await base.locator(".view-switch").click();

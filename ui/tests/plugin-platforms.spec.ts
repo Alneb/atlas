@@ -22,7 +22,7 @@ test.beforeAll(async ({ request }) => {
 });
 
 test.afterAll(async ({ request }) => {
-  for (const id of ["plat-here", "plat-gone"]) await request.delete(`/api/file?path=${encodeURIComponent(`.atlas/plugins/${id}`)}`, { headers: H });
+  for (const id of ["plat-here", "plat-gone"]) await request.post(`/api/fs/trash?path=${encodeURIComponent(`.atlas/plugins/${id}`)}`, { headers: H });
 });
 
 test("a plugin's row shows each platform; one that says no here does not run, and says why", async ({ page }, info) => {

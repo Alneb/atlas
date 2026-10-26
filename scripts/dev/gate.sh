@@ -40,7 +40,7 @@ run() { # name, what it checks, command…
   local note=""
   case "$name" in
     rust) note="$(grep -E '^test result:' "$logs/$name.log" | awk '{p+=$4; f+=$6} END {printf "%d passed, %d failed", p, f}')" ;;
-    e2e)  note="$(grep -E '^\s+[0-9]+ (passed|failed|skipped|flaky)' "$logs/$name.log" | tr -s ' \n' ' ')" ;;
+    e2e)  note="$(sed -n '/^\[e2e\] [0-9]* s for/,$p' "$logs/$name.log" | grep -E '^\s+[0-9]+ (passed|failed|skipped|flaky)' | tr -s ' \n' ' ')" ;;
     ui)   note="$(grep -E 'COMPLETED' "$logs/$name.log" | sed 's/^[0-9]* //' | tail -1)" ;;
     audit) note="$(grep -m1 -i -E 'finding' ui/audit-report/REPORT.md 2>/dev/null)" ;;
     scan) note="$(grep -E '^\[scan\] findings' "$logs/$name.log" | sed 's/^\[scan\] //')" ;;
@@ -59,7 +59,7 @@ for s in "${stages[@]}"; do
     py)     run py     "Python tests: vault scripts and plugin helpers" bash scripts/dev/py-tests.sh ;;
     ui)     run ui     "Svelte + TypeScript types (the app, and each plugin's ui/ with its build current)" sh -c "npm --prefix ui run check && node scripts/dev/plugin-ui.mjs --check" ;;
     build)  run build  "production UI bundle, every chunk parsed" sh -c "npm --prefix ui run build && node scripts/dev/check-bundle.mjs" ;;
-    e2e)    run e2e    "Playwright on a throwaway workspace (needs the build stage)" npm --prefix ui test ;;
+    e2e)    run e2e    "Playwright in parallel shards, each on its own throwaway workspace (needs the build stage)" node scripts/dev/e2e-shards.mjs ;;
     audit)  run audit  "markdown render audit on a copy of the real notes (needs the build stage)" npm --prefix ui run audit:md ;;
     scan)   run scan   "secrets and personal paths in the tracked code" bash scripts/dev/scan-personal.sh ;;
     sync)   run sync   "master and public in step (publish/sync.mjs)" node publish/sync.mjs ;;

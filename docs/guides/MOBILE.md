@@ -79,7 +79,17 @@ node scripts/dev/phone-audit.mjs --url http://127.0.0.1:7790/ --vault <copy> --o
 - **Back** — **done** (`lib/back.ts`): open overlays register how they close; the app's system Back closes them first (`atlasShell.dismiss`), and in a phone's browser one guard history entry makes the system Back close an overlay, then go back a place (`navigate(-1)`), and only then leave Atlas (before, Back left Atlas at once: the app kept no browser history). Spec `phone-back.spec.ts`.
 - **Sideways** — **done**: a phone turned sideways is a phone (`PHONE_QUERY` adds `(max-height: 480px) and (pointer: coarse)`), and inside the app the page is always one.
 - **The shape audit**: `scripts/dev/phone-audit.mjs` — see below.
-- Speed on a phone: profiled on the desktop first (typing 135 → 18 ms a key on the biggest note); next with CPU throttling, as a phone runs it.
+- ~~Speed on a phone~~ — **measured** with Chromium's CPU throttling (a 390 × 760 touch page; `ATLAS_PERF=1 npx playwright test tests/perf-phone.spec.ts`, which prints `[perf]` lines; it is skipped otherwise). A 1000-line note with math, links and tags; a key from its input event to the frame after next:
+
+  | CPU | open the note | a key (median / worst) | Files | Search |
+  |---|---|---|---|---|
+  | 1× (this laptop) | 295 ms | 9 / 19 ms | 126 ms | 115 ms |
+  | 4× (a mid-range phone) | 892 ms | 42 / 70 ms | 278 ms | 99 ms |
+  | 6× (a slow phone) | 867 ms | 43 / 66 ms | 381 ms | 132 ms |
+
+  Typing stays within three frames even at 6×; opening a very big note is the one wait near a second (its first
+  render), and Files grows with the throttle (the folder's rows). Nothing here needs work now; the spec is there to
+  measure again after a change to the editor or the phone views.
 - The Tauri app on Android, and what "hook it up" means: open questions (2026-10-16).
 
 

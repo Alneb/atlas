@@ -23,7 +23,8 @@ export type PaneSpec =
   | { kind: "diff"; path: RelPath; staged: boolean }
   /** `view`: a named view of the table's note to show (`x.csv#view=Cheap`, lib/csv/views.ts) */
   | { kind: "table"; path: RelPath; view?: string }
-  | { kind: "base"; path: RelPath }
+  /** `view`: the base's view to show first (`![[x.base#View]]`, `[[x.base#View]]`) */
+  | { kind: "base"; path: RelPath; view?: string }
   // a .page layout file (rows/columns of blocks) — the home screen is one; title from the file
   | { kind: "page"; path: RelPath; title?: string }
   | { kind: "excalidraw"; path: RelPath; page?: string } // `page`: shown at open (an embed's `#Page 2`, draw-pages.ts frameRef)
@@ -204,7 +205,7 @@ export function specForPath(path: RelPath, line?: number, anchor?: string): Pane
   if (/\.pdf$/i.test(path)) return line === undefined ? { kind: "pdf", path } : { kind: "pdf", path, page: line }; // a PDF's "line" is its page
   if (IMAGE_RE.test(path)) return { kind: "image", path }; // SVG too, as a picture; "Open with" → the text editor for its code
   if (TABLE_RE.test(path)) return tableViewIn(anchor) ? { kind: "table", path, view: tableViewIn(anchor) } : { kind: "table", path };
-  if (/\.base$/i.test(path)) return { kind: "base", path };
+  if (/\.base$/i.test(path)) return anchor?.trim() ? { kind: "base", path, view: anchor.trim() } : { kind: "base", path };
   if (/\.page$/i.test(path)) return { kind: "page", path };
   return line === undefined ? { kind: "editor", path } : { kind: "editor", path, line };
 }
@@ -256,7 +257,8 @@ export function embedOptions(s: PaneSpec): Record<string, string> | null {
     case "search": return s.q ? { q: s.q } : {};
     case "libraries": return s.at ? { at: s.at } : {};
     case "table": return s.view ? { path: s.path, view: s.view } : { path: s.path };
-    case "editor": case "pdf": case "image": case "base": case "excalidraw": case "page":
+    case "base": return s.view ? { path: s.path, table: s.view } : { path: s.path }; // the block's option is `table`
+    case "editor": case "pdf": case "image": case "excalidraw": case "page":
       return { path: s.path };
     default: return null;
   }
@@ -284,9 +286,9 @@ export function specFromOptions(kind: PaneKind, o: Record<string, unknown>): Pan
     case "editor":
     case "pdf":
     case "image":
-    case "base":
     case "excalidraw":
       return path ? { kind, path } : needPath;
+    case "base": return path ? { kind, path, view: str(o.table) || undefined } : needPath;
     case "table": return path ? { kind, path, view: str(o.view) } : needPath;
     case "page": return path ? { kind, path, title: str(o.title) } : needPath;
     case "diff": return path ? { kind, path, staged: o.staged === true } : needPath;

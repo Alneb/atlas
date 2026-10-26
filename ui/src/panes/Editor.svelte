@@ -6,6 +6,7 @@
   import { inPhoneApp } from "../lib/eink";
   import { shownName, shownPath } from "../lib/paths";
   import { openLintPanel } from "@codemirror/lint";
+  import { workspaceSymbols } from "../lib/editor/lsp";
   import { settings } from "../lib/settings.svelte";
   import { fileIcon } from "../lib/panes";
   import Icon from "../components/Icon.svelte";
@@ -73,6 +74,7 @@
   const autosave = () => isMarkdown(path) || (settings.config?.editor.autosave_code ?? false);
   const RECOVERY = `.atlas/cache/recovery/${path}`;
   let parked = false; // the tab is going away with unsaved text (park)
+  let blameOn = false; // git blame shown beside the lines (toggleBlame)
   let rescued = false; // text that could not be saved was put in the recovery copy (rescue)
   let recovered = $state<string | null>(null); // a recovery copy that differs from the file, offered back
   let recoveryTimer: ReturnType<typeof setTimeout> | undefined;
@@ -261,6 +263,18 @@
         vimMode: () => ed?.vimMode() ?? "",
         snapshot: () => ({ text: ed?.view.state.doc.toString() ?? "", ranges: ed?.view.state.selection.ranges.map((r) => ({ from: r.from, to: r.to })) ?? [] }),
         showProblems: () => (ed?.problems() ? openLintPanel(ed.view) : false),
+        symbols: () => (ed ? workspaceSymbols(ed.view) : false),
+        toggleBlame: async () => {
+          if (!ed) return null;
+          if (blameOn) { ed.setBlame(null, () => {}); blameOn = false; return false; }
+          if (autosave()) await save(); // blame reads the file on disk
+          const b = await api.gitBlame(path).catch((e) => { toast("No blame", errText(e), "error"); return null; });
+          if (!b || !ed) return null;
+          if (!b.lines.length) { toast("No history for this file", "Git has no commit of it (outside a repository, or never committed)."); return null; }
+          ed.setBlame(b, (hash, subject) => open({ kind: "commit", hash, subject }));
+          blameOn = true;
+          return true;
+        },
         moveSection: (m) => {
           if (!ed) return;
           const doc = ed.view.state.doc, { lo, hi, text, head } = applyMove((n) => doc.line(n).text, m);

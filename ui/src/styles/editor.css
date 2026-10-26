@@ -17,6 +17,16 @@
 
 .cm-gutters { background: var(--bg); border-right: 0; color: color-mix(in srgb, var(--text-faint) 80%, transparent); font-size: .86em; }
 .cm-lineNumbers .cm-gutterElement { padding: 0 14px 0 18px; min-width: 48px; font-variant-numeric: tabular-nums; }
+/* inlay hints (lib/editor/inlay-hints.ts): the server's words inside the code, small and faint */
+.cm-inlay-hint { font-size: .82em; color: var(--text-faint); background: color-mix(in srgb, var(--text-faint) 12%, transparent); border-radius: 4px; padding: 0 3px; }
+.cm-inlay-hint.pad-left { margin-left: 3px; }
+.cm-inlay-hint.pad-right { margin-right: 3px; }
+/* git blame (lib/editor/blame.ts): author · date at the first line of each commit's run, faint; a click opens it */
+.cm-blame-gutter .cm-gutterElement { width: 21ch; padding: 0 10px 0 12px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-family: var(--font-ui, inherit); }
+.cm-blame { cursor: pointer; color: var(--text-muted); }
+.cm-blame:hover { color: var(--accent); text-decoration: underline; }
+.cm-blame-new { cursor: default; color: var(--text-faint); font-style: italic; }
+.cm-blame-new:hover { color: var(--text-faint); text-decoration: none; }
 .cm-activeLineGutter { background: transparent; color: var(--accent-strong); font-weight: 600; }
 /* code files: ligatures, breathing room, a quiet active line with an accent edge */
 .code-cm .cm-content { padding-left: 6px; font-variant-ligatures: contextual; font-feature-settings: "calt", "liga"; }

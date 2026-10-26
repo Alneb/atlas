@@ -11,10 +11,12 @@ import { openPath } from "../dock";
 import { toast } from "../state.svelte";
 import { onSettings } from "../settings.svelte";
 import type { LspLang, LspServerInfo } from "../types";
+import { inlayHints } from "./inlay-hints";
 
 let servers: Promise<LspServerInfo[]> | null = null;
 const clients = new Map<LspLang, Promise<LSPClient | null>>();
 const workspaces = new Map<LspLang, AtlasWorkspace>();
+const sockets = new Map<LspLang, WebSocket>(); // each client's current connection (restartLanguage closes it)
 // a settings change may pick another server: new editors re-resolve, running clients stay
 onSettings(() => { servers = null; });
 
@@ -193,6 +195,45 @@ function runAction(view: EditorView, p: LSPPlugin, a: CodeAction | undefined): v
   view.focus();
 }
 
+// --- symbols in the project: any function, class or section the server knows, by name, in the chooser ---
+
+type Symbol = { name: string; kind?: number; containerName?: string; location: { uri: string; range?: { start: { line: number } } } };
+/** LSP's SymbolKind numbers, the common ones by name (the rest go without). */
+const KINDS: Record<number, string> = { 2: "module", 5: "class", 6: "method", 8: "field", 9: "constructor", 10: "enum", 11: "interface", 12: "function", 13: "variable", 14: "constant", 23: "struct", 26: "type" };
+
+/** Asks the server for the project's symbols (`workspace/symbol`; servers that list nothing for "" are asked for the
+ *  word at the caret) and opens the one chosen at its line. */
+export function workspaceSymbols(view: EditorView): boolean {
+  const p = LSPPlugin.get(view);
+  if (!p) return false;
+  const root = roots.get(p.client) ?? "";
+  const at = view.state.wordAt(view.state.selection.main.head);
+  const word = at ? view.state.sliceDoc(at.from, at.to) : "";
+  const ask = (query: string) => p.client.request<unknown, Symbol[] | null>("workspace/symbol", { query }).then((l) => l ?? []);
+  let found: Symbol[] = [];
+  pick({
+    placeholder: "Symbol in the project…", tag: "Symbol", icon: "file-code",
+    items: async () => {
+      p.client.sync();
+      found = await ask("").catch(() => []);
+      if (!found.length && word) found = await ask(word).catch(() => []);
+      if (!found.length) toast("No symbols", "The language server lists none for this project.");
+      return found.map((s, i) => {
+        const where = s.location.uri.startsWith(root + "/") ? decodeURIComponent(s.location.uri.slice(root.length + 1)) : decodeURIComponent(s.location.uri);
+        const line = s.location.range ? `:${s.location.range.start.line + 1}` : "";
+        return { value: String(i), title: s.name, detail: [KINDS[s.kind ?? 0], s.containerName, `${where}${line}`].filter(Boolean).join(" · ") };
+      });
+    },
+    onpick: (v) => {
+      const s = found[Number(v)];
+      if (!s) return;
+      if (!s.location.uri.startsWith(root + "/")) return void toast("The symbol is outside the workspace", decodeURIComponent(s.location.uri));
+      openPath(s.location.uri.slice(root.length + 1).split("/").map(decodeURIComponent).join("/"), s.location.range ? s.location.range.start.line + 1 : undefined);
+    },
+  });
+  return true;
+}
+
 /** A server that went away without ever answering (not installed properly, a wrong command): say so
  *  once, with the last line it wrote — else completion and hover are just silently missing. */
 const reported = new Set<LspLang>();
@@ -207,6 +248,7 @@ async function reportDead(lang: LspLang, why: string): Promise<void> {
 function connect(lang: LspLang, rootUri: string): Promise<Transport> {
   return new Promise((resolve, reject) => {
     const ws = lspSocket(lang);
+    sockets.set(lang, ws);
     const handlers = new Set<(m: string) => void>();
     const renames = new Set<number>(); // ids of our textDocument/rename requests
     let heard = false;
@@ -246,7 +288,8 @@ function client(info: LspServerInfo): Promise<LSPClient | null> {
           rootUri: info.root_uri,
           workspace: (c) => { const w = new AtlasWorkspace(c, info.root_uri); workspaces.set(info.lang, w); return w; },
           // code actions come back as objects with their edits only when the client says it reads them
-          extensions: [...languageServerExtensions(), { clientCapabilities: { textDocument: { codeAction: { codeActionLiteralSupport: { codeActionKind: { valueSet: ["", "quickfix", "refactor", "source"] } } } } } }],
+          // inlay hints come only to a client that says it shows them
+          extensions: [...languageServerExtensions(), { clientCapabilities: { textDocument: { codeAction: { codeActionLiteralSupport: { codeActionKind: { valueSet: ["", "quickfix", "refactor", "source"] } } }, inlayHint: { dynamicRegistration: false } } } }],
           timeout: 8000,
         });
         roots.set(made, info.root_uri);
@@ -257,6 +300,18 @@ function client(info: LspServerInfo): Promise<LSPClient | null> {
     clients.set(info.lang, c);
   }
   return c;
+}
+
+/** A language's server started again (another Python environment chosen): the same client reconnects to a new
+ *  server, which is sent the open files again. Nothing when no server of that language is running. */
+export async function restartLanguage(lang: LspLang): Promise<void> {
+  const c = await clients.get(lang);
+  const root = c ? roots.get(c) : undefined;
+  if (!c || !root) return;
+  c.disconnect();
+  const old = sockets.get(lang);
+  if (old) { old.onclose = null; old.close(); } // its server stops with it (lsp.rs: kill_on_drop)
+  try { c.connect(await connect(lang, root)); } catch (e) { clients.delete(lang); toast(`The ${lang} language server did not start again`, errText(e), "error"); }
 }
 
 /** The LSP keys, ahead of vim (whose normal mode swallows F2). Each command declines (false) in a
@@ -279,5 +334,5 @@ export async function lspFor(path: string): Promise<Extension | null> {
   const info = (await servers).find((s) => s.command && s.extensions.includes(e));
   if (!info) return null;
   const c = await client(info);
-  return c ? c.plugin(`${info.root_uri}/${path.split("/").map(encodeURIComponent).join("/")}`, languageId(info.lang, e)) : null;
+  return c ? [c.plugin(`${info.root_uri}/${path.split("/").map(encodeURIComponent).join("/")}`, languageId(info.lang, e)), inlayHints] : null;
 }

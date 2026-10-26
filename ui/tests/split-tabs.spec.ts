@@ -75,3 +75,25 @@ test("the × in a half's corner closes that half and ends the split", async ({ p
   await expect(closes).toHaveCount(0);
   await expect(page.getByTestId("sidebar").locator(".tab", { hasText: "corner-c" })).toHaveCount(0);
 });
+
+// The focus inside a split: a click in a half makes it the active tab (marked in the split row), the keys go there,
+// and Ctrl+W closes that half — not the other.
+test("a click in a half focuses it: its row is marked, typing and Ctrl+W go to it", async ({ page, request }) => {
+  await splitThree(page, ["focus-a", "focus-b", "focus-c"]);
+  const row = page.getByTestId("split-row");
+  const pair = (await row.locator(".tab").allInnerTexts()).map((t) => ["focus-a", "focus-b", "focus-c"].find((n) => t.includes(n))!);
+  for (const name of [pair[1], pair[0], pair[1]]) {
+    await page.locator(".cm-content", { hasText: `Body of ${name}` }).filter({ visible: true }).click();
+    await expect(row.locator(".tab.active")).toHaveText(new RegExp(name));
+  }
+  const [other, focused] = pair;
+  await page.keyboard.press("Escape");
+  await page.keyboard.type("Go typed"); // vim (the test vault's editor): a new last line, insert mode
+  await page.keyboard.press("Escape");
+  await expect.poll(async () => (await (await request.get(`/api/file?path=notes/${focused}.md`, { headers: H })).json()).text, { timeout: 15_000 }).toContain("typed");
+  expect((await (await request.get(`/api/file?path=notes/${other}.md`, { headers: H })).json()).text).not.toContain("typed");
+  await page.keyboard.press("Control+w");
+  await expect(row).toHaveCount(0);
+  await expect(page.getByTestId("sidebar").locator(".tab", { hasText: focused })).toHaveCount(0);
+  await expect(page.getByTestId("sidebar").locator(".tab", { hasText: other })).toHaveCount(1);
+});

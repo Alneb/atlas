@@ -19,6 +19,10 @@ export interface EditorHandle {
   snapshot(): { text: string; ranges: { from: number; to: number }[] };
   /** The diagnostics list (CodeMirror's lint panel: click → line); false when the file has none. */
   showProblems(): boolean;
+  /** Git blame beside the lines, on or off → on, or null when git has no history for the file (said by a toast). */
+  toggleBlame(): Promise<boolean | null>;
+  /** The project's symbols in the chooser (its language server's); false when the file has no server. */
+  symbols(): boolean;
 }
 
 export const editors = new Map<string, EditorHandle>();

@@ -125,13 +125,19 @@ struct FilesQuery {
     /// Only the user's own files: the agent's (`editor.index_exclude`) left out, as in `[[` completion.
     #[serde(default)]
     index: bool,
+    /// Only what is at or under this file or folder: the UI keeps its list current from file events with it.
+    under: Option<String>,
 }
 
 async fn files_get(State(st): S, Query(q): Query<FilesQuery>) -> Result<Json<Vec<String>>> {
     Ok(Json(
         with_ws(&st, move |ws| {
             let cfg = ws.config()?;
-            Ok(crate::walk::files(ws.root(), &cfg).map(|(_, rel)| rel).filter(|rel| !q.index || !cfg.is_agent_file(rel)).collect())
+            let listed: Vec<String> = match &q.under {
+                Some(under) => crate::walk::files_under(ws.root(), &ws.resolve(under)?, &cfg).into_iter().map(|(_, rel)| rel).collect(),
+                None => crate::walk::files(ws.root(), &cfg).map(|(_, rel)| rel).collect(),
+            };
+            Ok(listed.into_iter().filter(|rel| !q.index || !cfg.is_agent_file(rel)).collect())
         })
         .await?,
     ))
@@ -1115,6 +1121,17 @@ async fn git_status_get(State(st): S) -> Result<Json<GitStatus>> {
     Ok(Json(with_ws(&st, |ws| git::status(ws.root())).await?))
 }
 
+async fn git_blame_get(State(st): S, Query(q): Query<PathQuery>) -> Result<Json<crate::api::Blame>> {
+    let rel = required_path(q)?;
+    Ok(Json(
+        with_ws(&st, move |ws| {
+            ws.resolve(&rel)?; // rejects absolute and `..` paths
+            git::blame(ws.root(), &rel)
+        })
+        .await?,
+    ))
+}
+
 async fn git_diff_get(State(st): S, Query(q): Query<GitDiffQuery>) -> Result<Json<Patch>> {
     Ok(Json(
         with_ws(&st, move |ws| {
@@ -1302,6 +1319,10 @@ async fn forward_events(mut socket: WebSocket, mut rx: tokio::sync::broadcast::R
             },
         }
     }
+}
+
+async fn python_envs_get(State(st): S) -> Result<Json<crate::api::PythonEnvs>> {
+    Ok(Json(with_ws(&st, |ws| Ok(crate::python_env::list(&ws.config()?, ws.root()))).await?))
 }
 
 async fn lsp_get(State(st): S) -> Result<Json<Vec<LspServerInfo>>> {
@@ -1941,6 +1962,7 @@ fn router(state: Arc<AppState>) -> Router {
         .route("/remote/{host}/{*rest}", axum::routing::any(remote_any))
         .route("/api/pty", get(pty_ws))
         .route("/api/lsp", get(lsp_get))
+        .route("/api/python-envs", get(python_envs_get))
         .route("/api/lsp/{lang}", get(lsp_ws))
         .route("/api/config", get(config_get).put(config_put))
         .route("/api/config/suggestions", get(config_suggestions_get))
@@ -1990,6 +2012,7 @@ fn router(state: Arc<AppState>) -> Router {
         .route("/api/git/commit", get(git_commit_get).post(git_commit_post))
         .route("/api/git/status", get(git_status_get))
         .route("/api/git/diff", get(git_diff_get))
+        .route("/api/git/blame", get(git_blame_get))
         .route("/api/git/stage", post(git_stage_post))
         .route("/api/git/discard", post(git_discard_post))
         .route("/api/git/apply", post(git_apply_post))

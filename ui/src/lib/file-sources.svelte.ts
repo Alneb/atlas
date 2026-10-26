@@ -10,6 +10,7 @@ import { movedTabs } from "./gone-files";
 import { onPluginEvent } from "./plugin-events";
 import { pick } from "./palette.svelte";
 import { isIconName } from "./icons";
+import { vaultFiles, vaultReady } from "./vault";
 import type { IconName } from "./panes";
 
 export type EntryKind = "dir" | "file" | "link";
@@ -123,7 +124,8 @@ export const why = (e: unknown) => errText(e).replace(/^POST \S+: \d+ [^:]*: plu
 
 /** The vault's folders, for "Download into…" (the folder of the open file first). */
 export async function chooseVaultFolder(placeholder: string, tag: string): Promise<string | null> {
-  const files = await api.files().catch(() => [] as string[]);
+  await vaultReady(); // the one list of the vault's files, kept current (lib/vault.ts)
+  const files = vaultFiles();
   const folders = new Set<string>();
   for (const f of files) for (let p = parentPath(f); p && !folders.has(p); p = parentPath(p)) folders.add(p);
   return new Promise((resolve) => {

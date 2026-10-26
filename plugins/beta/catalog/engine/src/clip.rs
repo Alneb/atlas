@@ -52,6 +52,8 @@ static LDJSON: LazyLock<Selector> = LazyLock::new(|| sel(r#"script[type="applica
 static CANONICAL: LazyLock<Selector> = LazyLock::new(|| sel(r#"link[rel="canonical"]"#));
 static TITLE: LazyLock<Selector> = LazyLock::new(|| sel("title"));
 static H1: LazyLock<Selector> = LazyLock::new(|| sel("h1"));
+static HTML: LazyLock<Selector> = LazyLock::new(|| sel("html"));
+static TAGS: LazyLock<Selector> = LazyLock::new(|| sel(r#"meta[property="article:tag"]"#));
 static ROOTS: LazyLock<[Selector; 2]> = LazyLock::new(|| [sel("article"), sel("main")]);
 static PARAS: LazyLock<Selector> = LazyLock::new(|| sel("body p"));
 static BODY: LazyLock<Selector> = LazyLock::new(|| sel("body"));
@@ -500,7 +502,37 @@ pub fn read(url: &str, html: &str) -> Clip {
         }
     }
 
-    Clip { url: url.to_string(), kind: kind_of(get(&["og:type"]).as_deref(), &types, &ids), ids, fields, text: markdown(&doc) }
+    // what any page says of itself beyond that: its language, its keywords, when it last changed, how long it reads
+    let lang = doc.select(&HTML).next().and_then(|e| e.value().attr("lang")).or(m.get("og:locale").map(String::as_str)).and_then(|l| l.split(['-', '_']).next()).filter(|l| (2..=3).contains(&l.len()));
+    if let Some(l) = lang {
+        put("language", Value::String(l.to_lowercase()));
+    }
+    let mut keywords: Vec<String> = doc.select(&TAGS).filter_map(|e| e.value().attr("content")).map(clean).collect();
+    if keywords.is_empty() {
+        let ld_keys = entity.and_then(|e| e.get("keywords")).cloned();
+        keywords = match ld_keys {
+            Some(Value::Array(a)) => a.iter().filter_map(ld_text).collect(),
+            Some(v) => ld_text(&v).map(|t| t.split(',').map(clean).collect()).unwrap_or_default(),
+            None => get(&["keywords", "news_keywords"]).map(|t| t.split(',').map(clean).collect()).unwrap_or_default(),
+        };
+    }
+    let mut seen = std::collections::HashSet::new();
+    keywords.retain(|k| !k.is_empty() && k.chars().count() <= 40 && seen.insert(k.to_lowercase()));
+    keywords.truncate(8);
+    if !keywords.is_empty() {
+        put("keywords", Value::from(keywords));
+    }
+    let updated = get(&["article:modified_time", "og:updated_time"]).or_else(|| from_ld("dateModified")).and_then(|d| date_of(&d));
+    if let Some(u) = updated.filter(|u| Some(*u) != date) {
+        put("updated", Value::String(u.format("%Y-%m-%d").to_string()));
+    }
+    let text = markdown(&doc);
+    let words = text.split_whitespace().count();
+    if words >= 200 {
+        put("reading_time", Value::String(format!("{} min", words.div_ceil(230))));
+    }
+
+    Clip { url: url.to_string(), kind: kind_of(get(&["og:type"]).as_deref(), &types, &ids), ids, fields, text }
 }
 
 /// A YouTube video: its thumbnail as the cover when the page gave
@@ -614,6 +646,25 @@ mod tests {
         assert_eq!(c.fields["published"], "2026-10-01");
         assert_eq!(c.fields["site"], "blog.example");
         assert_eq!(c.text, "## A post\n\nFirst paragraph.\n\n- one");
+        assert!(!c.fields.contains_key("reading_time"), "a few words: no reading time");
+    }
+
+    #[test]
+    fn any_page_gives_its_language_keywords_last_change_and_reading_time() {
+        let body = "word ".repeat(700);
+        let html = format!(r#"<html lang="es-ES"><head><title>Una nota</title>
+            <meta property="article:published_time" content="2026-10-01"><meta property="article:modified_time" content="2026-10-20T08:00:00Z">
+            <meta property="article:tag" content="Física"><meta property="article:tag" content="Redes"><meta property="article:tag" content="física">
+            <meta name="keywords" content="ignored, when, tags"></head><body><article><p>{body}</p></article></body></html>"#);
+        let c = read("https://example.org/nota", &html);
+        assert_eq!(c.fields["language"], "es");
+        assert_eq!(c.fields["keywords"], serde_json::json!(["Física", "Redes"]));
+        assert_eq!(c.fields["updated"], "2026-10-20");
+        assert_eq!(c.fields["reading_time"], "4 min");
+        let plain = read("https://example.org/x", r#"<html><head><meta name="keywords" content="a, b ,, c"><meta property="article:published_time" content="2026-10-01"><meta property="article:modified_time" content="2026-10-01"></head><body><p>x</p></body></html>"#);
+        assert_eq!(plain.fields["keywords"], serde_json::json!(["a", "b", "c"]));
+        assert!(!plain.fields.contains_key("updated"), "changed the day it came out: no second date");
+        assert!(!plain.fields.contains_key("language"));
     }
 
     #[test]

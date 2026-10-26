@@ -138,6 +138,20 @@ pub fn known(root: &Path, cfg: &crate::config::Config) -> Vec<KnownProperty> {
     out
 }
 
+/// The key and text of the stamp saying when a note was made, as the vault's spec writes it: `created` when the spec
+/// names it, else its `date` (a vault whose rule is "date is the one creation stamp"), each in the spec's `format`
+/// (moment tokens) or its kind's usual form; with no spec, `created: YYYY-MM-DD`.
+pub fn creation_stamp(specs: &PropertySpecs, now: chrono::NaiveDateTime) -> (String, String) {
+    let key = if specs.properties.contains_key("created") || !specs.properties.contains_key("date") { "created" } else { "date" };
+    let fmt = match specs.properties.get(key) {
+        Some(p) if !p.format.trim().is_empty() => p.format.trim().to_string(),
+        Some(p) if p.kind == PropertyKind::Datetime => "YYYY-MM-DD HH:mm".into(),
+        _ => "YYYY-MM-DD".into(),
+    };
+    let ctx = atlas_template::Ctx { title: "", now, values: Default::default(), include: &|_| None, unknown: atlas_template::Unknown::Keep };
+    (key.to_string(), atlas_template::render(&format!("{{{{now:{fmt}}}}}"), &ctx).text)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -185,5 +199,15 @@ mod tests {
         let g = k.iter().find(|p| p.key == "genres").unwrap();
         assert_eq!(g.values, ["Drama", "Comedy"], "list items, the commonest first");
         assert_eq!(k.iter().find(|p| p.key == "year").unwrap().values, ["1999"]);
+    }
+
+    #[test]
+    fn the_creation_stamp_follows_the_spec() {
+        let now = chrono::NaiveDate::from_ymd_opt(2026, 10, 13).unwrap().and_hms_opt(9, 5, 0).unwrap();
+        assert_eq!(creation_stamp(&PropertySpecs::default(), now), ("created".into(), "2026-10-13".into()));
+        let date_only = parse("properties:\n  date:\n    kind: datetime\n    format: \"YYYY-MM-DD HH:mm\"\n");
+        assert_eq!(creation_stamp(&date_only, now), ("date".into(), "2026-10-13 09:05".into()), "date is the one stamp");
+        let both = parse("properties:\n  date:\n    kind: date\n  created:\n    kind: datetime\n");
+        assert_eq!(creation_stamp(&both, now), ("created".into(), "2026-10-13 09:05".into()));
     }
 }

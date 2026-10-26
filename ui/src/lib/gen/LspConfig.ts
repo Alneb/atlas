@@ -30,4 +30,13 @@ c: string,
  * The locale the servers write their messages in (e.g. en_US.UTF-8, es_ES.UTF-8). Empty = the
  * system's (yours is Spanish; the default asks for English).
  */
-language: string, };
+language: string, 
+/**
+ * Hints the server draws inside the code, faint: a parameter's name at a call, the type a variable was given.
+ */
+inlay_hints: boolean, 
+/**
+ * The Python environment for the Python server and new terminals: a folder (a venv, a conda env; relative to the
+ * vault or absolute), "none" for the system's Python. Empty = the vault's own .venv or venv when there is one.
+ */
+python_env: string, };

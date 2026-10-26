@@ -345,7 +345,8 @@ pub fn body_of(m: &Message) -> Body {
                 forwarded.push((envelope_of(inner, inner.raw_message(), None), body_of(inner)));
                 true
             }
-            PartType::Text(_) | PartType::Html(_) => !is_body && (named || p.content_disposition().is_some_and(|d| d.ctype().eq_ignore_ascii_case("attachment"))),
+            // an invitation is a file too (`invite.ics`, as Thunderbird lists it): a saved note keeps it
+            PartType::Text(_) | PartType::Html(_) => mime == "text/calendar" || (!is_body && (named || p.content_disposition().is_some_and(|d| d.ctype().eq_ignore_ascii_case("attachment")))),
             PartType::Multipart(_) => false,
         };
         if !listed {
@@ -355,6 +356,7 @@ pub fn body_of(m: &Message) -> Body {
         let inline = cid.as_ref().is_some_and(|c| html_cids.iter().any(|h| h.eq_ignore_ascii_case(c)));
         let name = p.attachment_name().map(String::from).unwrap_or_else(|| match &p.body {
             PartType::Message(inner) => format!("{}.eml", inner.subject().unwrap_or("message")),
+            _ if mime == "text/calendar" => "invite.ics".to_string(),
             _ => format!("part {i}.{}", mime.rsplit('/').next().unwrap_or("bin")),
         });
         attachments.push(Attachment { part: i as u32, name, mime, size: p.len(), cid, inline });
@@ -676,6 +678,7 @@ mod tests {
         let b = body(raw).unwrap();
         let names: Vec<_> = b.attachments.iter().map(|a| (a.name.as_str(), a.inline)).collect();
         assert!(names.contains(&("paper.pdf", false)), "{names:?}");
+        assert!(names.contains(&("invite.ics", false)), "the invitation is a file too: {names:?}");
         assert!(b.attachments.iter().any(|a| a.cid.as_deref() == Some("logo@x") && a.inline), "{names:?}");
         let inv = b.invite.unwrap();
         assert_eq!(inv.summary, "Group meeting, room 3");

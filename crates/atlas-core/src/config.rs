@@ -165,11 +165,16 @@ pub struct LspConfig {
     /// The locale the servers write their messages in (e.g. en_US.UTF-8, es_ES.UTF-8). Empty = the
     /// system's (yours is Spanish; the default asks for English).
     pub language: String,
+    /// Hints the server draws inside the code, faint: a parameter's name at a call, the type a variable was given.
+    pub inlay_hints: bool,
+    /// The Python environment for the Python server and new terminals: a folder (a venv, a conda env; relative to the
+    /// vault or absolute), "none" for the system's Python. Empty = the vault's own .venv or venv when there is one.
+    pub python_env: String,
 }
 
 impl Default for LspConfig {
     fn default() -> Self {
-        Self { enabled: true, rust: String::new(), python: String::new(), latex: String::new(), c: String::new(), language: "en_US.UTF-8".into() }
+        Self { enabled: true, rust: String::new(), python: String::new(), latex: String::new(), c: String::new(), language: "en_US.UTF-8".into(), inlay_hints: true, python_env: String::new() }
     }
 }
 

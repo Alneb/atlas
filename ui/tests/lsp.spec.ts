@@ -82,3 +82,94 @@ test("in code Tab takes the server's completion; without a list it indents at th
   await expect.poll(text).toContain("x = fake_completion");
   await expect(list).toBeHidden();
 });
+
+// Symbols in the project (workspace/symbol): the server's list in the chooser, with kind and place; the one chosen
+// opens at its line.
+test("go to a symbol in the project: the server's symbols, the chosen one opened at its line", async ({ page, request }, info) => {
+  await request.put("/api/file", { headers: { "x-atlas": "1" }, data: { path: "projects/lsp_sym.py", text: "# shapes\n\nclass Lattice:\n    pass\n" } });
+  await page.goto("/");
+  await page.getByText("Finish the GW notes.").waitFor();
+  await page.keyboard.press("Control+p");
+  await page.keyboard.type("run.py");
+  await expect(page.getByTestId("palette").getByText("run.py").first()).toBeVisible();
+  await page.keyboard.press("Enter");
+  await expect(page.locator(".cm-lintRange-warning")).toHaveCount(1, { timeout: 10000 });
+  await page.keyboard.press("F1");
+  await expect(page.getByTestId("palette").getByRole("textbox")).toBeFocused();
+  await page.keyboard.type("symbol in the project");
+  await page.getByTestId("palette").getByText("Go to a symbol in the project (functions, classes…)").first().click();
+  const palette = page.getByTestId("palette");
+  await expect(palette.getByText("Lattice", { exact: true })).toBeVisible();
+  await expect(palette.getByText("class · lsp_sym · projects/lsp_sym.py:3")).toBeVisible();
+  await expect(palette.getByText("energy", { exact: true })).toBeVisible();
+  for (const theme of ["light", "dark"]) {
+    await page.evaluate((t) => document.documentElement.setAttribute("data-theme", t), theme);
+    await palette.screenshot({ path: info.outputPath(`symbols-${theme}.png`) });
+  }
+  await page.keyboard.type("Latt");
+  await page.keyboard.press("Enter");
+  await expect(page.getByTestId("sidebar").locator(".tab", { hasText: "lsp_sym" })).toHaveCount(1);
+  await expect.poll(() => page.evaluate(() => (window as any).__atlas.editor().text as string)).toContain("class Lattice");
+});
+
+// Inlay hints (textDocument/inlayHint): the server's words drawn faint inside the code; `[lsp] inlay_hints` off, none.
+for (const shown of [true, false]) {
+  test(`inlay hints are drawn where the server puts them${shown ? "" : " — and not when switched off"}`, async ({ page }, info) => {
+    await page.route("**/api/config", async (route) => {
+      if (route.request().method() !== "GET") return route.continue();
+      const res = await route.fetch(), body = await res.json();
+      body.config.lsp.inlay_hints = shown;
+      await route.fulfill({ response: res, json: body });
+    });
+    await page.goto("/");
+    await page.getByText("Finish the GW notes.").waitFor();
+    await page.keyboard.press("Control+p");
+    await page.keyboard.type("run.py");
+    await expect(page.getByTestId("palette").getByText("run.py").first()).toBeVisible();
+    await page.keyboard.press("Enter");
+    await expect(page.locator(".cm-lintRange-warning")).toHaveCount(1, { timeout: 10000 });
+    const hint = page.locator(".cm-line", { hasText: "return" }).locator(".cm-inlay-hint");
+    if (!shown) { await page.waitForTimeout(1200); await expect(hint).toHaveCount(0); return; }
+    await expect(hint).toHaveText("t:");
+    await expect(page.locator(".cm-line", { hasText: "return" })).toHaveText(/return -t:2 \* t/);
+    for (const theme of ["light", "dark"]) {
+      await page.evaluate((t) => document.documentElement.setAttribute("data-theme", t), theme);
+      await page.locator(".cm-line", { hasText: "return" }).screenshot({ path: info.outputPath(`inlay-${theme}.png`) });
+    }
+  });
+}
+
+// The environment picker: a venv in the vault is found; choosing it restarts the Python server inside it (the fake
+// server's hover names its VIRTUAL_ENV), and the setting says so. Automatic again at the end.
+test("Python: choose the environment — found in the vault, and the server runs in it", async ({ page, request }, info) => {
+  const H = { "x-atlas": "1" };
+  await request.put("/api/file", { headers: H, data: { path: "simenv/.venv/pyvenv.cfg", text: "home = /usr/bin\n" } });
+  await request.put("/api/file", { headers: H, data: { path: "simenv/.venv/bin/python3", text: "" } });
+  await page.goto("/");
+  await page.getByText("Finish the GW notes.").waitFor();
+  await page.keyboard.press("Control+p");
+  await page.keyboard.type("run.py");
+  await expect(page.getByTestId("palette").getByText("run.py").first()).toBeVisible();
+  await page.keyboard.press("Enter");
+  await expect(page.locator(".cm-lintRange-warning")).toHaveCount(1, { timeout: 10000 });
+  const choose = async (name: string) => {
+    await page.keyboard.press("F1");
+    await expect(page.getByTestId("palette").getByRole("textbox")).toBeFocused();
+    await page.keyboard.type("Python: choose the environment");
+    await page.getByTestId("palette").getByText("Python: choose the environment", { exact: false }).first().click();
+    if (name === "simenv/.venv") for (const theme of ["light", "dark"]) {
+      await page.evaluate((t) => document.documentElement.setAttribute("data-theme", t), theme);
+      await page.getByTestId("palette").screenshot({ path: info.outputPath(`pyenv-${theme}.png`) });
+    }
+    await page.getByTestId("palette").getByText(name, { exact: true }).click();
+  };
+  await choose("simenv/.venv");
+  await expect.poll(async () => (await (await request.get("/api/config", { headers: H })).json()).config.lsp.python_env).toMatch(/simenv\/\.venv$/);
+  await expect(page.locator(".cm-lintRange-warning")).toHaveCount(1, { timeout: 10000 }); // the new server got the file
+  await page.locator(".cm-line", { hasText: "def energy" }).getByText("energy").hover();
+  await expect(page.locator(".cm-tooltip-hover")).toContainText("in env simenv/.venv", { timeout: 8000 });
+  await page.mouse.move(0, 0);
+  await choose("Automatic");
+  await expect.poll(async () => (await (await request.get("/api/config", { headers: H })).json()).config.lsp.python_env).toBe("");
+  await request.post(`/api/fs/trash?path=${encodeURIComponent("simenv")}`, { headers: H });
+});

@@ -231,6 +231,26 @@ pub struct FileStat {
     pub removed: Option<u32>,
 }
 
+/// One commit as `git blame` names it.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+#[ts(export)]
+pub struct BlameCommit {
+    pub author: String,
+    /// Unix seconds (author time).
+    #[ts(type = "number")]
+    pub time: i64,
+    pub summary: String,
+}
+
+/// `GET /api/git/blame?path=`: who last changed each line. `lines[i]` is the commit of line i+1 (a full hash; all zeros:
+/// not committed yet), `commits` each one once. Empty outside a repository or for a file git does not track.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, TS)]
+#[ts(export)]
+pub struct Blame {
+    pub commits: std::collections::BTreeMap<String, BlameCommit>,
+    pub lines: Vec<String>,
+}
+
 /// Unified diff text, cut at 1 MB (`truncated`).
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
 #[ts(export)]
@@ -997,6 +1017,38 @@ pub struct Attached {
     pub path: String,
     /// What to write in the note: `![[name]]`.
     pub embed: String,
+}
+
+/// What kind of Python environment a folder is.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "lowercase")]
+#[ts(export)]
+pub enum PythonEnvKind {
+    Venv,
+    Conda,
+}
+
+/// A Python environment found for the vault (`python_env.rs`).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+#[ts(export)]
+pub struct PythonEnv {
+    /// The environment's folder.
+    pub path: String,
+    /// Its interpreter.
+    pub python: String,
+    /// `.venv`, `sim/venv`, `conda: physics`.
+    pub name: String,
+    pub kind: PythonEnvKind,
+}
+
+/// `GET /api/python-envs`: the setting (`[lsp] python_env`), the folder it comes to (None: the system's Python), and
+/// the environments found.
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[ts(export)]
+pub struct PythonEnvs {
+    pub setting: String,
+    pub chosen: Option<String>,
+    pub found: Vec<PythonEnv>,
 }
 
 /// `GET /api/lsp`: per language, the files it covers and the server that would run (None = none).

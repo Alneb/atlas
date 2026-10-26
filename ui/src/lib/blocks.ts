@@ -198,7 +198,7 @@ registerBlock({
 registerBlock({
   ...lazyBlock("base", "Database", () => import("../components/BaseTable.svelte"), (c) => ({ path: str(c.options.path), view: str(c.options.table) || undefined, thisPath: c.doc, embedded: true })),
   icon: "table", card: true, file: /\.base$/i,
-  tab: (c) => (str(c.options.path) ? { kind: "base", path: str(c.options.path) } : null),
+  tab: (c) => (str(c.options.path) ? { kind: "base", path: str(c.options.path), view: str(c.options.table) || undefined } : null),
 });
 
 // --- mounting -------------------------------------------------------------------------------------

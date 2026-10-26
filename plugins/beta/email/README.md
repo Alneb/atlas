@@ -13,7 +13,9 @@ engine in Rust (`engine/`), the pane in Svelte (`ui/`).
 - **Mail becomes a note only when you say so**: *Save as note* (⇧N, the reader's note button, or a rule's `save`)
   writes the conversation as `mail/<account>/<folder>/<date> <subject>.md`, in the same thread-note shape the earlier
   versions kept, with its files beside it; saving again adds the new messages. Such a note is
-  drawn as mail, with Reply / Forward.
+  drawn as mail, with Reply / Forward. It holds all the reader shows: each message's envelope, its own subject, flags
+  (read, important, answered, draft), labels and unsubscribe link in its section's marker, the body, and every file —
+  an invitation too (`invite.ics`).
 - **Conversations** by the messages' own ids (Gmail's thread ids where there are any); a new subject is a new
   conversation; a reply without ids joins by subject only with someone in common.
 - **Reading**: stacked cards (read ones folded), the HTML in a sandboxed frame whose Content-Security-Policy blocks

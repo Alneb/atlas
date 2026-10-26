@@ -3,14 +3,14 @@
 title = "Run tools"
 description = "Run / test buttons above Python, Rust and LaTeX files"
 icon = "terminal"
-version = "0.1.0"
+version = "0.2.0"
 api = 4
 
 [[setting]]
 key = "python"
 label = "Python"
 kind = "text"
-hint = "the interpreter to run .py files with; empty: a .venv beside the file or above it, else python3. For conda: conda run -n myenv python"
+hint = "the interpreter to run .py files with; empty: the vault's Python environment (Python: choose the environment), else a .venv beside the file or above it, else python3. For conda: conda run -n myenv python"
 
 [[setting]]
 key = "latex"

@@ -251,7 +251,7 @@ impl Kinds {
                 folder: "notes/clips".into(),
                 note_name: default_note_name(),
                 ids: vec![IdProperty { id: IdName::new("url"), property: Some("source".into()), prefix: String::new() }],
-                properties: ["type", "title", "site", "author", "published", "description", "cover"].map(String::from).to_vec(),
+                properties: ["type", "title", "site", "author", "published", "updated", "description", "keywords", "language", "reading_time", "cover"].map(String::from).to_vec(),
                 priority: BTreeMap::new(),
                 note_type: None,
                 block: default_block(),

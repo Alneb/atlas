@@ -155,8 +155,15 @@ async fn run(mut socket: WebSocket, ws: &Workspace, lang: LspLang) -> anyhow::Re
         anyhow::bail!("no server configured or found");
     };
     let log = crate::vault_write::cache::file(&ws.cache_dir().join(format!("lsp-{}.log", lang.name())))?;
-    let locale = ws.config()?.lsp.language;
+    let cfg = ws.config()?;
+    let locale = cfg.lsp.language.clone();
     let mut cmd = tokio::process::Command::new(&argv[0]);
+    // the Python server sees the vault's environment's packages (python_env.rs)
+    if lang == LspLang::Python {
+        if let Some(env) = crate::python_env::chosen(&cfg, ws.root()) {
+            cmd.envs(crate::python_env::vars(&env));
+        }
+    }
     if !locale.trim().is_empty() {
         // servers localize from the environment (pyright: LC_ALL / LC_MESSAGES / LANG / LANGUAGE)
         let lang_only = locale.split(['_', '.']).next().unwrap_or("en").to_string();

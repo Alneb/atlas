@@ -38,7 +38,7 @@ test.beforeAll(async ({ request }) => {
 test.afterAll(async ({ request }) => {
   await request.post("/api/plugins/dav/helper/stop", { headers: { "x-atlas": "1" } });
   rmSync(join(WS, ".atlas/plugins/dav"), { recursive: true, force: true });
-  await request.delete(`/api/file?path=${encodeURIComponent(".atlas/plugin-settings/dav.toml")}`, { headers: { "x-atlas": "1" } });
+  await request.post(`/api/fs/trash?path=${encodeURIComponent(".atlas/plugin-settings/dav.toml")}`, { headers: { "x-atlas": "1" } });
   feed?.close();
 });
 

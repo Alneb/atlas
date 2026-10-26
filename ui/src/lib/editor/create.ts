@@ -31,6 +31,8 @@ import { noteExtensions, mdOptions } from "./note-extensions";
 import { codeExtensions, codeOptions, countProblems, openReplace } from "./code-extensions";
 import { texCite } from "./completion-sources";
 import { linkClicks } from "./link-clicks";
+import { blameExtension } from "./blame";
+import type { Blame } from "../gen/Blame";
 
 export { codeTools } from "./code-extensions";
 export { headingRepeats } from "./note-extensions";
@@ -71,6 +73,8 @@ export interface AtlasEditor {
   vimMode(): VimModeLabel;
   /** Error / warning counts, or null for a note (no language server). */
   problems(): Problems | null;
+  /** Git blame beside the lines (null: away); `open` opens a commit. */
+  setBlame(b: Blame | null, open: (hash: string, subject: string) => void): void;
   destroy(): void;
 }
 
@@ -86,6 +90,7 @@ export function createEditor(o: EditorOptions): AtlasEditor {
   const lang = new Compartment();
   const codeOpts = new Compartment();
   const lspSlot = new Compartment();
+  const blameSlot = new Compartment();
   const md = isMarkdown(o.path);
   const viewRef: { view: EditorView | null } = { view: null };
   let lastProblems: Problems = { errors: 0, warnings: 0 };
@@ -129,6 +134,7 @@ export function createEditor(o: EditorOptions): AtlasEditor {
     // Tab is the editor's (without a binding the key walked out of it): see tabKey
     keymap.of([...defaultKeymap, ...historyKeymap, ...searchKeymap, tabKey(md)]),
     md ? [mdx!.body, codeOpts.of(mdOptions(settings.config))] : codeExtensions(lang, codeOpts, lspSlot, settings.config),
+    blameSlot.of([]),
     // \cite{ in LaTeX: the Library next to texlab's own completions
     /\.tex$/i.test(o.path) ? [texCite, mathPreview(() => settings.config?.editor.math_preview ?? true, true)] : [],
     EditorView.updateListener.of((u) => {
@@ -232,6 +238,7 @@ export function createEditor(o: EditorOptions): AtlasEditor {
       view.focus();
     },
     vimMode: () => mode,
+    setBlame: (b, open) => view.dispatch({ effects: blameSlot.reconfigure(b ? blameExtension(b, open) : []) }),
     problems: () => (md ? null : countProblems(view.state)),
     destroy() {
       read();

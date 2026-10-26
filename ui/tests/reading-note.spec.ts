@@ -44,7 +44,9 @@ test("the Library's Notes renames a legacy notes.md to <citekey>.md, which shows
   // the properties (their order follows the vault's literature template when an earlier test installed one)
   const fm = note.text.match(/^---\n([^]*?)\n---\n/)?.[1] ?? "";
   for (const line of ["type: literature", "citekey: hubbard1963electron", "title: Electron correlations in narrow energy bands", "authors:\n  - Hubbard, J.", "year: 1963"]) expect(fm).toContain(line);
-  expect(fm).toMatch(/^created: \d{4}-\d\d-\d\d$/m);
+  // the creation stamp the vault's spec names: `date`, "YYYY-MM-DD HH:mm" (playwright.config.ts's properties.yaml)
+  expect(fm).toMatch(/^date: \d{4}-\d\d-\d\d \d\d:\d\d$/m);
+  expect(fm).not.toMatch(/^created:/m);
   expect(note.text).toContain("```view\ntype: library.paper\n```\n\nOld note from Zotero.\n");
   expect(existsSync(join(WS, DIR, "notes.md"))).toBe(false);
 

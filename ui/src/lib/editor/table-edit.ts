@@ -75,7 +75,7 @@ export function hydrateTables(host: HTMLElement, viewRef: { view: EditorView | n
 
 function hydrateNow(host: HTMLElement, view: EditorView): void {
   for (const table of host.querySelectorAll<HTMLTableElement>("table")) {
-    if (table.closest(".note-embed, .atlas-block, .base, .base-embed") || table.dataset.editable) continue;
+    if (table.closest(".note-embed, .atlas-block, .base") || table.dataset.editable) continue;
     const t = tableAt(view.state.doc, view.posAtDOM(table));
     const trs = [...table.querySelectorAll<HTMLTableRowElement>("tr")];
     if (!t || trs.length !== t.rows.length) continue; // drawn differently than it is written: left alone

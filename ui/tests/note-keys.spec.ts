@@ -5,12 +5,15 @@ import { test, expect, type Page } from "@playwright/test";
 // same in a note and outside one; outside a note Ctrl+K and Ctrl+B are nobody's.
 // the file's text, not what is drawn: live preview hides the marks of the span the caret has left
 const lastLine = (page: Page) => page.evaluate(() => (window as unknown as { __atlas: { editor(): { text: string } | null } }).__atlas.editor()?.text.trimEnd().split("\n").pop() ?? "");
+// a note of its own: the shared test vault's notes may hold what other specs typed (an unclosed `$` makes the new
+// line math, where `//` is a fraction)
 async function note(page: Page): Promise<void> {
+  await page.request.put("/api/file", { headers: { "x-atlas": "1" }, data: { path: "notes/note-keys.md", text: "# Keys\n\nA line of text.\n" } });
   await page.goto("/");
   await page.getByText("Finish the GW notes.").waitFor();
   await page.keyboard.press("Control+p");
-  await page.keyboard.type("hubbard.md");
-  await expect(page.getByTestId("palette").getByText("hubbard", { exact: true }).first()).toBeVisible();
+  await page.keyboard.type("note-keys.md");
+  await expect(page.getByTestId("palette").getByText("note-keys", { exact: true }).first()).toBeVisible();
   await page.keyboard.press("Enter");
   await page.locator(".cm-content").click();
   await page.keyboard.press("Escape");

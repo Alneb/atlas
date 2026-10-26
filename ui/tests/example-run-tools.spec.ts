@@ -30,3 +30,20 @@ test("the example run tools: Run above a Python file runs it in the terminal", a
   await expect(term, "the command is there to read").toContainText("python3 'code/answer.py'", { timeout: 15_000 });
   await expect(term, "and so is what it printed").toContainText("the answer is 42", { timeout: 15_000 });
 });
+
+// Test: the file's own tests in the chooser, "All" first; the one chosen is the command's selector (pytest file::name).
+test("Test offers the file's tests, and runs the one chosen", async ({ page, request }) => {
+  await put(request, "code/test_pick.py", "def test_one():\n    assert True\n\nclass TestTwo:\n    def test_inner(self):\n        assert True\n");
+  await page.goto("/");
+  await page.getByText("Finish the GW notes.").waitFor();
+  await page.keyboard.press("Control+p");
+  await page.keyboard.type("test_pick.py");
+  await expect(page.getByTestId("palette").getByText("test_pick.py").first()).toBeVisible();
+  await page.keyboard.press("Enter");
+  await page.getByTestId("code-bar").getByRole("button", { name: "Test" }).click();
+  const palette = page.getByTestId("palette");
+  await expect(palette.getByText("All tests in this file")).toBeVisible();
+  await expect(palette.getByText("test_one", { exact: true })).toBeVisible();
+  await palette.getByText("TestTwo::test_inner", { exact: true }).click();
+  await expect(page.locator(".xterm-rows")).toContainText("-m pytest 'code/test_pick.py::TestTwo::test_inner'", { timeout: 15_000 });
+});
