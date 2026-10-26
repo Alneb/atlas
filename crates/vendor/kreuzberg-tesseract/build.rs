@@ -356,7 +356,8 @@ mod build_tesseract {
         let project_dir = custom_out_dir.clone();
         let third_party_dir = project_dir.join("third_party");
 
-        let leptonica_dir = if third_party_dir.join("leptonica").exists() {
+        // Atlas: a folder without its CMakeLists.txt (a CI cache restored without the sources) is fetched again
+        let leptonica_dir = if source_present(&third_party_dir.join("leptonica")) {
             eprintln!("Using existing leptonica source");
             third_party_dir.join("leptonica")
         } else {
@@ -364,7 +365,8 @@ mod build_tesseract {
             download_and_extract(&third_party_dir, &leptonica_url(), "leptonica")
         };
 
-        let tesseract_dir = if third_party_dir.join("tesseract").exists() {
+        // Atlas: a folder without its CMakeLists.txt (a CI cache restored without the sources) is fetched again
+        let tesseract_dir = if source_present(&third_party_dir.join("tesseract")) {
             eprintln!("Using existing tesseract source");
             third_party_dir.join("tesseract")
         } else {
@@ -1349,7 +1351,8 @@ Installation instructions:
             }
         };
 
-        let leptonica_dir = if third_party_dir.join("leptonica").exists() {
+        // Atlas: a folder without its CMakeLists.txt (a CI cache restored without the sources) is fetched again
+        let leptonica_dir = if source_present(&third_party_dir.join("leptonica")) {
             eprintln!("Using existing leptonica source");
             third_party_dir.join("leptonica")
         } else {
@@ -1357,7 +1360,8 @@ Installation instructions:
             download_and_extract(&third_party_dir, &leptonica_url(), "leptonica")
         };
 
-        let tesseract_dir = if third_party_dir.join("tesseract").exists() {
+        // Atlas: a folder without its CMakeLists.txt (a CI cache restored without the sources) is fetched again
+        let tesseract_dir = if source_present(&third_party_dir.join("tesseract")) {
             eprintln!("Using existing tesseract source");
             third_party_dir.join("tesseract")
         } else {
@@ -1709,6 +1713,19 @@ Installation instructions:
         }
 
         link_name_to_use
+    }
+
+    /// Atlas: a library's source folder is usable only with its CMakeLists.txt; an incomplete one is removed so it is
+    /// downloaded again (a restored build cache can bring the folder back without the files).
+    fn source_present(dir: &std::path::Path) -> bool {
+        if dir.join("CMakeLists.txt").exists() {
+            return true;
+        }
+        if dir.exists() {
+            eprintln!("{} has no CMakeLists.txt: fetched again", dir.display());
+            let _ = std::fs::remove_dir_all(dir);
+        }
+        false
     }
 }
 

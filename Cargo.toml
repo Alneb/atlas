@@ -28,8 +28,9 @@ reqwest = { version = "0.12", default-features = false, features = ["json"] }
 # kreuzberg-tesseract 4.10.4 (the OCR plugin's engine) takes any zip >= 7 for its build script, which then picked zip 9
 # (brought by pdf_oxide's office_oxide), where `ZipFile::mangled_name` changed and the build script fails: a copy whose
 # build dependency is capped below 9 (crates/vendor/kreuzberg-tesseract/Cargo.toml, one line; its `authors` line left out
-# for the publish scan, as the other vendored crates; nothing else changed),
-# until upstream follows.
+# for the publish scan, as the other vendored crates), and whose build.rs takes a leptonica/tesseract source folder as
+# present only with its CMakeLists.txt (`source_present`: a CI cache restored the folders empty and cmake found no
+# project); nothing else changed, until upstream follows.
 [patch.crates-io]
 softbuffer = { path = "crates/vendor/softbuffer" }
 kreuzberg-tesseract = { path = "crates/vendor/kreuzberg-tesseract" }

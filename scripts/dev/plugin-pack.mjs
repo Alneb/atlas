@@ -104,7 +104,6 @@ function buildEngine(p, e, target, installed) {
     if (cc) env[`CC_${triple.replaceAll("-", "_")}`] = cc;
     else log(`${p.id}: no musl C compiler (musl-gcc) on PATH: a crate with C code will fail`);
   }
-  dropBrokenSourceCaches(e.targetDir);
   const cargo = ["build", "--release", "--manifest-path", e.manifest, "-p", e.crate, "--bin", e.bin, ...(triple ? ["--target", triple] : [])];
   log(`${p.id}: cargo ${cargo.join(" ")}`);
   // stderr kept as well as shown: on CI a failure's compiler errors become an annotation, readable without the log
@@ -122,20 +121,6 @@ function buildEngine(p, e, target, installed) {
   if (!target.endsWith("-windows")) chmodSync(join(out, exe), 0o755);
   log(`${p.id}: ${relative(root, join(out, exe))} (${(statSync(join(out, exe)).size / 1e6).toFixed(1)} MB)`);
   return join(out, exe);
-}
-
-/** The OCR engine's Tesseract build (kreuzberg-tesseract) keeps its C++ sources in `target/[<triple>/]kreuzberg-tesseract-cache`
- *  and reuses them whenever the folder is there; CI's restored cache can bring the folder back without the sources, and
- *  cmake then finds no project. Such a cache is removed, so the build fetches the sources again. */
-function dropBrokenSourceCaches(targetDir) {
-  if (!existsSync(targetDir)) return;
-  const roots = [targetDir, ...readdirSync(targetDir).map((d) => join(targetDir, d))];
-  for (const cache of roots.map((r) => join(r, "kreuzberg-tesseract-cache")).filter(existsSync)) {
-    const whole = ["leptonica", "tesseract"].every((lib) => existsSync(join(cache, "third_party", lib, "CMakeLists.txt")));
-    if (whole) continue;
-    log(`${relative(root, cache)}: its sources are incomplete, removed (the build fetches them again)`);
-    rmSync(cache, { recursive: true, force: true });
-  }
 }
 
 /** On GitHub Actions, a build's errors as an `::error` annotation (public, unlike the log): its `error` blocks, else its end. */
