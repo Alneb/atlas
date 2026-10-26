@@ -43,7 +43,7 @@ pub fn locate(root: &Path, rel: &str) -> Result<Found> {
         (root.join(PLUGINS_DIR).join(id), rest)
     };
     // the folder itself may be a link (a plugin checked out elsewhere); nothing inside may lead out of it
-    let base = base.canonicalize().map_err(|_| Error::NotFound(rel.into()))?;
+    let base = crate::paths::real(&base).map_err(|_| Error::NotFound(rel.into()))?;
     let path = crate::paths::safe_join(&base, rest)?;
     let meta = std::fs::metadata(&path).map_err(|_| Error::NotFound(rel.into()))?;
     if !meta.is_file() {

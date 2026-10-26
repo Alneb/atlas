@@ -2451,7 +2451,7 @@ atlas.serve()
         let built = std::process::Command::new(env!("CARGO")).args(["build", "-q", "-p", "atlas-catalog", "--bin", "catalog"]).current_dir(&ws).status().unwrap();
         assert!(built.success(), "cargo build -p atlas-catalog failed");
         let target = std::env::var_os("CARGO_TARGET_DIR").map(std::path::PathBuf::from).unwrap_or_else(|| ws.join("target"));
-        let engine = target.join("debug/catalog").canonicalize().unwrap();
+        let engine = target.join(format!("debug/catalog{}", std::env::consts::EXE_SUFFIX)).canonicalize().unwrap();
 
         // a web page and a stand-in Linkwarden that remembers what it was given
         let saved: Arc<std::sync::Mutex<Vec<serde_json::Value>>> = Arc::default();

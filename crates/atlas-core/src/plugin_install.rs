@@ -54,12 +54,12 @@ impl Source {
 
     /// The id a plugin from here gets when none is given: the last part of the path or address.
     fn default_id(&self) -> String {
-        // a path's own last part (`\` on Windows), an address's after its last `/` or `:`
+        // a path's own last part, an address's (or a Windows path given as a git source) after its last `/`, `\` or `:`
         let text = match self {
             Self::Folder(p) | Self::Archive(p) => p.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default(),
             Self::Git(u) => u.clone(),
         };
-        let last = text.trim_end_matches('/').rsplit(['/', ':']).next().unwrap_or_default();
+        let last = text.trim_end_matches('/').rsplit(['/', '\\', ':']).next().unwrap_or_default();
         let stem = [".git", ".tar.gz", ".tgz", ".tar", ".zip"].iter().fold(last, |s, e| s.strip_suffix(e).unwrap_or(s));
         stem.chars().map(|c| if c.is_ascii_alphanumeric() || c == '_' || c == '-' { c } else { '-' }).collect::<String>().trim_matches('-').to_string()
     }

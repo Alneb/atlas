@@ -494,7 +494,7 @@ mod tests {
     fn repo() -> (tempfile::TempDir, Workspace) {
         let d = tempfile::tempdir().unwrap();
         let r = d.path();
-        for a in [&["init", "-q"][..], &["config", "user.email", "t@t"], &["config", "user.name", "t"]] {
+        for a in [&["init", "-q"][..], &["config", "user.email", "t@t"], &["config", "user.name", "t"], &["config", "core.autocrlf", "false"]] {
             git_ok(r, a).unwrap();
         }
         std::fs::write(r.join("a.md"), "one\ntwo\nthree\nfour\nfive\nsix\nseven\neight\nnine\nten\n").unwrap();

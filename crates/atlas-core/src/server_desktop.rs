@@ -38,7 +38,7 @@ fn address_name(root: &Path) -> String {
 }
 
 fn canonical(root: &Path) -> PathBuf {
-    root.canonicalize().unwrap_or_else(|_| root.to_path_buf())
+    crate::paths::real(root).unwrap_or_else(|_| root.to_path_buf())
 }
 
 impl DesktopVaults {

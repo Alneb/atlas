@@ -8,7 +8,7 @@ pub fn safe_join(root: &Path, rel: &str) -> Result<PathBuf> {
     atlas_text::paths::safe_join(root, rel).map_err(Error::BadPath)
 }
 
-pub use atlas_text::paths::rel_path;
+pub use atlas_text::paths::{real, rel_path};
 
 #[cfg(test)]
 mod tests {

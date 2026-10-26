@@ -104,7 +104,7 @@ pub fn list(file: &Path) -> Vec<Vault> {
 
 /// Records that `root` was opened now (adds it, or moves it to the top).
 pub fn remember(file: &Path, root: &Path, now_ms: i64) -> Result<()> {
-    let root = root.canonicalize().map_err(|e| Error::BadPath(format!("{}: {e}", root.display())))?;
+    let root = crate::paths::real(root).map_err(|e| Error::BadPath(format!("{}: {e}", root.display())))?;
     let path = root.to_string_lossy().into_owned();
     let name = root.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_else(|| path.clone());
     let mut v = read(file);

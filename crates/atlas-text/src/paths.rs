@@ -42,6 +42,12 @@ pub fn safe_join(root: &Path, rel: &str) -> Result<PathBuf, String> {
     Ok(out)
 }
 
+/// `p` canonicalized, in the form every other program reads (no `\\?\` prefix on Windows: Python, git and a script's
+/// `cwd` name the folder as `C:\…`).
+pub fn real(p: &Path) -> std::io::Result<PathBuf> {
+    p.canonicalize().map(|r| plain(&r))
+}
+
 /// `p` without Windows' verbatim prefix: `canonicalize` there answers `\\?\C:\…`, which names the same folder as
 /// `C:\…` but never `starts_with` it. Elsewhere `p` itself.
 pub fn plain(p: &Path) -> PathBuf {

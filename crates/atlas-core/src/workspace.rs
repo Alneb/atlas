@@ -13,7 +13,7 @@ pub struct Workspace {
 impl Workspace {
     pub fn open(root: impl AsRef<Path>) -> Result<Self> {
         let root = root.as_ref();
-        let root = root.canonicalize().map_err(|e| Error::BadPath(format!("{}: {e}", root.display())))?;
+        let root = crate::paths::real(root).map_err(|e| Error::BadPath(format!("{}: {e}", root.display())))?;
         if !root.is_dir() {
             return Err(Error::BadPath(format!("{} is not a directory", root.display())));
         }

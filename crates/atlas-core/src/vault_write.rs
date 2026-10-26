@@ -127,7 +127,7 @@ fn guard_of(abs: &Path) -> Option<(Arc<dyn WriteGuard>, PathBuf)> {
 /// `abs` through its deepest existing ancestor's canonical path (a symlink, `..`, a non-canonical root).
 fn canonical(abs: &Path) -> Option<PathBuf> {
     let base = abs.ancestors().find(|a| a.exists())?;
-    Some(base.canonicalize().ok()?.join(abs.strip_prefix(base).ok()?))
+    Some(crate::paths::real(base).ok()?.join(abs.strip_prefix(base).ok()?))
 }
 
 /// `abs` relative to `root`, `/`-separated; the absolute path when it is elsewhere.

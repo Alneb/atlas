@@ -2,6 +2,7 @@
 use crate::api::Event;
 use crate::config::Config;
 use crate::{paths, walk, Error, Result};
+use notify::event::ModifyKind;
 use notify::{RecursiveMode, Watcher};
 use std::collections::{BTreeSet, HashSet};
 use std::path::{Path, PathBuf};
@@ -102,13 +103,30 @@ impl Drop for WatcherGuard {
 /// reacting to those fed a loop: an event made the UI list directories, which reported every
 /// listed directory as changed, forever (the "Files is very slow" bug).
 fn is_change(kind: &notify::EventKind) -> bool {
-    use notify::event::{MetadataKind, ModifyKind};
+    use notify::event::MetadataKind;
     use notify::EventKind as K;
     match kind {
         K::Create(_) | K::Remove(_) => true,
         K::Modify(ModifyKind::Metadata(MetadataKind::AccessTime)) => false,
         K::Modify(_) => true,
         K::Access(_) | K::Any | K::Other => false,
+    }
+}
+
+/// The vault's root as given and as the OS reports it: macOS's FSEvents names files by their canonical path
+/// (`/private/var/…` for a root under `/var`), so an event under either form is the vault's.
+#[derive(Clone)]
+struct Root {
+    given: PathBuf,
+    real: PathBuf,
+}
+
+impl Root {
+    fn new(given: &Path) -> Self {
+        Root { given: given.to_path_buf(), real: paths::real(given).unwrap_or_else(|_| given.to_path_buf()) }
+    }
+    fn rel(&self, p: &Path) -> Option<String> {
+        paths::rel_path(&self.given, p).or_else(|| paths::rel_path(&self.real, p))
     }
 }
 
@@ -119,11 +137,12 @@ pub fn spawn_watcher(root: &Path, cfg: Config, bus: EventBus) -> Result<WatcherG
     let root = root.to_path_buf();
     // the note index's change feed (vault_changes.rs): moved on in the callback itself, not after the 250 ms batch
     let feed = crate::vault_changes::Feed::new(&root, &cfg);
-    let (bump, cb_root, cb_cfg) = (feed.bump(), root.clone(), cfg.clone());
+    let named = Root::new(&root);
+    let (bump, cb_root, cb_cfg) = (feed.bump(), named.clone(), cfg.clone());
     let mut watcher = notify::recommended_watcher(move |res: notify::Result<notify::Event>| {
         let seen = |ev: &notify::Event| {
             is_change(&ev.kind)
-                && ev.paths.iter().any(|p| paths::rel_path(&cb_root, p).is_some_and(|r| !r.is_empty() && watchable(&cb_cfg, &r)))
+                && ev.paths.iter().any(|p| cb_root.rel(p).is_some_and(|r| !r.is_empty() && watchable(&cb_cfg, &r)))
         };
         // an error or a queue overflow may hide a change: counted as one
         if res.as_ref().map_or(true, |ev| ev.need_rescan() || seen(ev)) {
@@ -165,12 +184,18 @@ pub fn spawn_watcher(root: &Path, cfg: Config, bus: EventBus) -> Result<WatcherG
                         continue;
                     }
                 };
+                // Windows also reports a folder as modified when a file in it changes: the file's own event says it
+                let touched = matches!(ev.kind, notify::EventKind::Modify(ModifyKind::Any | ModifyKind::Data(_) | ModifyKind::Metadata(_)));
                 for path in ev.paths {
-                    let Some(rel) = paths::rel_path(&root, &path) else { continue };
+                    let Some(rel) = named.rel(&path) else { continue };
                     if rel.is_empty() || !watchable(&cfg, &rel) {
                         continue;
                     }
+                    let path = root.join(&rel); // the root's own form, as `watched` and add_tree know it
                     if path.is_dir() {
+                        if touched {
+                            continue;
+                        }
                         if !add_tree(&root, &cfg, &path, &mut watched, &mut watcher) {
                             feed.missed();
                         }
@@ -229,6 +254,20 @@ fn add_tree(root: &Path, cfg: &Config, dir: &Path, watched: &mut HashSet<PathBuf
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// An event named by the canonical path (macOS's FSEvents under a symlinked temp folder) is still the vault's.
+    #[cfg(unix)]
+    #[test]
+    fn an_event_under_the_roots_real_path_is_the_vaults() {
+        let d = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(d.path().join("real/notes")).unwrap();
+        std::os::unix::fs::symlink(d.path().join("real"), d.path().join("link")).unwrap();
+        let root = Root::new(&d.path().join("link"));
+        let real = d.path().canonicalize().unwrap().join("real");
+        assert_eq!(root.rel(&real.join("notes/a.md")).as_deref(), Some("notes/a.md"));
+        assert_eq!(root.rel(&d.path().join("link/notes/a.md")).as_deref(), Some("notes/a.md"));
+        assert_eq!(root.rel(&d.path().join("elsewhere/a.md")), None);
+    }
 
     /// An installed plugin's files are watched, also in a plugin folder created after the start
     /// (`atlas plugin update` replaces the folder); `.atlas/trash` is not.
