@@ -22,20 +22,20 @@ atlas-plugin = { path = "../../../../crates/atlas-plugin" }
 serde_json = { workspace = true }
 serde = { workspace = true }
 regex = "1"
-toml = "0.9"
+toml = "1.1"
 tar = "0.4"
 flate2 = "1"
-sha2 = "0.10"
+sha2 = "0.11"
 pdf_oxide = "0.3.78"
 csv = "1"
-calamine = { version = "0.36", default-features = false }
+calamine = { version = "0.37", default-features = false }
 serde_yaml = "0.9"
 unicode-normalization = "0.1"
 rsa = { version = "0.9", features = ["sha2"] }
-base64 = "0.22"
+base64 = "0.23"
 rust_decimal = { version = "1", default-features = false, features = ["std"] }
 chrono = { version = "0.4", default-features = false, features = ["std"] }
 
 [dev-dependencies]
 tempfile = "3"
-rand = "0.8"
+rand = "0.10"

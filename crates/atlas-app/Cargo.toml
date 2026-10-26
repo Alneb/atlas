@@ -35,9 +35,9 @@ webkit2gtk = "2.0"
 # the touchpad pinch caught before WebKit zooms the page with it (main.rs `pinch_to_wheel`)
 gtk = "0.18"
 # the web tabs' messages (webtab.rs): the page's posted strings
-javascriptcore-rs = "1"
+javascriptcore-rs = "2"
 # WebKit's content filter store (browser.rs: ad blocking), which the Rust bindings do not cover
 webkit2gtk-sys = { version = "2.0", features = ["v2_24"] }
-gio-sys = "0.18"
-glib-sys = "0.18"
-gobject-sys = "0.18"
+gio-sys = "0.22"
+glib-sys = "0.22"
+gobject-sys = "0.22"
