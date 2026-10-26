@@ -42,3 +42,26 @@ test("or this one kept, the other version to the trash", async ({ page, request 
   await expect.poll(() => read(request, COPY)).toBeNull();
   expect(await read(request, NOTE)).toBe("# Apart\n\nkept here\n");
 });
+
+test("or compared side by side, a choice per difference", async ({ page, request }, info) => {
+  const same = Array.from({ length: 12 }, (_, i) => `line ${i + 1}`).join("\n");
+  await request.put("/api/file", { headers: H, data: { path: NOTE, text: `# Apart\n\nmine first\n${same}\nmine last\n` } });
+  await request.put("/api/file", { headers: H, data: { path: COPY, text: `# Apart\n\nphone first\n${same}\nphone last\n` } });
+  await openNote(page);
+  await page.getByTestId("sync-copy").getByRole("button", { name: "Compare…" }).click();
+  const dlg = page.getByTestId("sync-compare");
+  await expect(dlg).toContainText("2 differences");
+  await expect(dlg.locator(".fold")).toHaveText("8 lines the same");
+  const diffs = dlg.locator(".diff");
+  await expect(diffs).toHaveCount(2);
+  await diffs.nth(0).locator(".side.theirs").click();
+  await diffs.nth(1).getByRole("button", { name: "Both" }).click();
+  for (const theme of ["light", "dark"]) {
+    await page.evaluate((t) => document.documentElement.setAttribute("data-theme", t), theme);
+    await dlg.screenshot({ path: info.outputPath(`compare-${theme}.png`) });
+  }
+  await dlg.getByRole("button", { name: "Use this" }).click();
+  await expect(dlg).toHaveCount(0);
+  await expect.poll(() => read(request, NOTE), { timeout: 15_000 }).toBe(`# Apart\n\nphone first\n${same}\nmine last\nphone last\n`);
+  await expect.poll(() => read(request, COPY)).toBeNull();
+});

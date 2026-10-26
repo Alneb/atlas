@@ -394,7 +394,7 @@
       </span>
     </div>
   {/if}
-  {#if isMarkdown(path)}<SyncCopies {path} take={(text) => { ed?.setDoc(text); markDirty(); schedule(text); }} />{/if}
+  {#if isMarkdown(path)}<SyncCopies {path} mine={current} take={(text) => { ed?.setDoc(text); markDirty(); schedule(text); }} />{/if}
   {#if recovered !== null}
     <div class="banner banner-warn" role="alert">
       <span>Unsaved changes to <strong>{shownPath(path)}</strong> were kept from last time.</span>

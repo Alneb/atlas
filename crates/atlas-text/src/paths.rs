@@ -2,7 +2,7 @@
 //! not via `..`, absolute paths, or symlinks. Shared by the core (paths.rs wraps it) and the plugin engines.
 use std::path::{Component, Path, PathBuf};
 
-/// Resolve a client path (`a/b.md`, `""` = root) inside `root` (which must be canonical).
+/// Resolve a client path (`a/b.md`, `""` = root) inside `root` (canonical is fastest: another is canonicalized on a miss).
 /// The target need not exist (PUT creates files), but its deepest existing ancestor must
 /// canonicalize to somewhere under `root`.
 /// The error is the reason, with the path: `"../x": `..` is not allowed`.
@@ -26,7 +26,9 @@ pub fn safe_join(root: &Path, rel: &str) -> Result<PathBuf, String> {
     loop {
         match probe.canonicalize() {
             Ok(real) => {
-                if !plain(&real).starts_with(&root) {
+                // A root given uncanonical (Windows' short `RUNNER~1` temp names) is canonicalized only on a miss.
+                let real = plain(&real);
+                if !real.starts_with(&root) && !root.canonicalize().is_ok_and(|r| real.starts_with(plain(&r))) {
                     return Err(bad("resolves outside the workspace"));
                 }
                 break;

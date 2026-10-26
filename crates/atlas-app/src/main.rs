@@ -150,7 +150,7 @@ fn capture_window(root: PathBuf) -> anyhow::Result<()> {
                 }
             }
         })
-        .build(tauri::generate_context!())?
+        .build(context())?
         .run(move |_app, event| {
             if let tauri::RunEvent::Exit = event {
                 if let Some(s) = own.take() {
@@ -186,13 +186,19 @@ fn remote_window(url: tauri::Url) -> anyhow::Result<()> {
                 .map(|w| fit_to_screen(&w))?;
             Ok(())
         })
-        .build(tauri::generate_context!())?
+        .build(context())?
         .run(|_, _| {});
     Ok(())
 }
 
 /// A window larger than its screen's free area (a 1366×768 laptop, a 1280×800 tablet) is shrunk into it and centred,
 /// so no edge or title bar starts off screen. A screen with room keeps the size asked for.
+/// The app's context, expanded once: on macOS each expansion embeds Info.plist under one symbol, so a second one fails
+/// to link.
+fn context() -> tauri::Context {
+    tauri::generate_context!()
+}
+
 fn fit_to_screen(window: &tauri::WebviewWindow) {
     let (Ok(Some(monitor)), Ok(size)) = (window.current_monitor(), window.outer_size()) else { return };
     let area = monitor.work_area().size;
@@ -224,7 +230,7 @@ fn browse_window(url: tauri::Url, root: PathBuf) -> anyhow::Result<()> {
             browser::open(app.handle(), url, open_outside);
             Ok(())
         })
-        .build(tauri::generate_context!())?
+        .build(context())?
         .run(|_, _| {});
     Ok(())
 }
@@ -324,7 +330,7 @@ fn main() -> anyhow::Result<()> {
             })?;
             Ok(())
         })
-        .build(tauri::generate_context!())?
+        .build(context())?
         .run(move |_app, event| {
             if let tauri::RunEvent::Exit = event {
                 if let Some(mut d) = dev.take() {

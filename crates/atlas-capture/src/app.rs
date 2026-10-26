@@ -381,7 +381,8 @@ impl Capture {
         // the window as tall as what it holds: it grows for a list and shrinks back
         // Asked again while the window is not that size yet: an ask made before the compositor's first
         // configure is overridden by it (Wayland) — a few times only, should the compositor refuse.
-        let want = (bottom + MARGIN.bottom).ceil();
+        // never under HEIGHT, the size it opens at: a smaller font (no Inter, no Noto) would jump on the first frame
+        let want = (bottom + MARGIN.bottom).ceil().max(HEIGHT);
         let have = ctx.screen_rect().height();
         if (want - self.asked).abs() > 0.5 {
             self.asked = want;

@@ -1,7 +1,8 @@
 <script lang="ts">
   // The other device's version of a note that Syncthing kept beside it (`name.sync-conflict-<date>-<time>-<device>.md`)
   // and the core could not merge: both changed the same lines (core sync_merge.rs; DESIGN-mirror-v2.md §4). Said on the
-  // note, with the three ways out: look at it beside this one, keep this one, or take the other.
+  // note, with the ways out: compare the two line by line and choose per difference, look at it beside this one, keep
+  // this one, or take the other.
   import { onMount } from "svelte";
   import { api } from "../lib/api";
   import { on } from "../lib/bus";
@@ -10,8 +11,9 @@
   import { shownPath } from "../lib/paths";
   import { toast } from "../lib/state.svelte";
   import { errText } from "../lib/text";
+  import SyncCompare from "./SyncCompare.svelte";
 
-  let { path, take }: { path: string; take: (text: string) => void } = $props();
+  let { path, mine, take }: { path: string; mine: () => string; take: (text: string) => void } = $props();
 
   let copies = $state<string[]>([]);
   const dir = $derived(path.includes("/") ? path.slice(0, path.lastIndexOf("/")) : "");
@@ -40,6 +42,18 @@
     await keepThis(copy);
   }
 
+  let comparing = $state<{ copy: string; mine: string; theirs: string } | null>(null);
+  async function compare(copy: string) {
+    const theirs = await readText(copy);
+    if (theirs === null) return toast(`Could not read ${shownPath(copy)}`, "", "error");
+    comparing = { copy, mine: mine(), theirs };
+  }
+  async function useMerged(copy: string, text: string) {
+    comparing = null;
+    take(text);
+    await keepThis(copy);
+  }
+
   onMount(() => {
     look(0);
     const off = on("fs", (e) => { if (e.paths.some((p) => pattern.test(p.slice(p.lastIndexOf("/") + 1)))) look(); });
@@ -51,9 +65,15 @@
   <div class="banner banner-warn" role="alert" data-testid="sync-copy">
     <span>Another device changed the same lines of this note while the two were apart. Its version is kept as <strong>{shownPath(copy)}</strong>.</span>
     <span class="banner-actions">
+      <button class="btn btn-ghost" onclick={() => void compare(copy)} title="The two versions line by line: choose for each difference">Compare…</button>
       <button class="btn btn-ghost" onclick={() => openPath(copy, undefined, { beside: true })}>Show it beside</button>
       <button class="btn btn-ghost" onclick={() => void keepThis(copy)} title="The other version goes to the trash">Keep this one</button>
       <button class="btn primary" onclick={() => void takeOther(copy)} title="This note's text becomes the other version's; the copy goes to the trash">Take the other</button>
     </span>
   </div>
 {/each}
+
+{#if comparing}
+  {@const c = comparing}
+  <SyncCompare title={shownPath(path)} mine={c.mine} theirs={c.theirs} oncancel={() => (comparing = null)} onapply={(t) => void useMerged(c.copy, t)} />
+{/if}

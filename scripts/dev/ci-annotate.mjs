@@ -53,15 +53,23 @@ function failingTests(lines) {
   return out;
 }
 
-/** Playwright's summary lines: `  1) [chromium] › tests/x.spec.ts:12:3 › a test`. */
+/** Playwright's summary lines: `  1) [chromium] › tests/x.spec.ts:12:3 › a test` (the project only when there are several). */
 function failingSpecs(lines) {
   const out = [];
   lines.forEach((l, i) => {
-    const m = /^\s+\d+\) \[[^\]]+\] › (.+?):(\d+):\d+ › (.+)$/.exec(l);
+    const m = /^\s+\d+\) (?:\[[^\]]+\] › )?(.+?):(\d+):\d+ › (.+?)\s*$/.exec(l);
     if (m) out.push({ title: `e2e ${m[3]}`.slice(0, 200), body: lines.slice(i, i + 30).join("\n"), file: `ui/${m[1]}`, line: +m[2] });
   });
   // the same test is listed again under "flaky"/"failed" at the end: keep its first, detailed entry
   return out.filter((f, i) => out.findIndex((g) => g.title === f.title) === i);
+}
+
+/** gate.sh's PASS/FAIL table, first: which stages failed, even those whose failure has no shape above. */
+function gateVerdict(lines) {
+  const at = lines.lastIndexOf("[gate] ===== verdict =====");
+  if (at < 0) return [];
+  const table = lines.slice(at + 1).filter((l) => /^(PASS|FAIL)\s|^\[gate\] failed stages/.test(l));
+  return [{ title: "gate verdict", body: table.join("\n") }];
 }
 
 function annotate(findings, tail) {
@@ -83,7 +91,7 @@ child.on("error", (e) => { console.log(`::error title=${prop(`${cmd} did not sta
 child.on("close", (code, signal) => {
   if (code !== 0) {
     const lines = plain(text).split(/\r?\n/);
-    annotate([...compileErrors(lines), ...buildScripts(lines), ...failingTests(lines), ...failingSpecs(lines)], lines.slice(-40).join("\n"));
+    annotate([...gateVerdict(lines), ...compileErrors(lines), ...buildScripts(lines), ...failingTests(lines), ...failingSpecs(lines)], lines.slice(-40).join("\n"));
   }
   process.exit(code ?? (signal ? 1 : 0));
 });
