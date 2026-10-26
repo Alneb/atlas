@@ -391,8 +391,16 @@ async fn answer_terminal_queries(ws: &mut Ws, chunk: &[u8]) {
 /// Reads binary frames until `want` shows up (10 s at most); returns everything read. A timeout says what did come,
 /// so a failure on another system shows the terminal's own output.
 async fn read_until(ws: &mut Ws, want: &str) -> String {
+    match try_read_until(ws, want, Duration::from_secs(10)).await {
+        Ok(out) => out,
+        Err(tail) => panic!("{want:?} within 10 s; the terminal's last output {tail:?}"),
+    }
+}
+
+/// `read_until` without the panic: everything read, or the output's end when `want` did not come within `wait`.
+async fn try_read_until(ws: &mut Ws, want: &str, wait: Duration) -> Result<String, String> {
     let mut out = String::new();
-    let found = tokio::time::timeout(Duration::from_secs(10), async {
+    let found = tokio::time::timeout(wait, async {
         while let Some(Ok(m)) = ws.next().await {
             if let Message::Binary(b) = m {
                 answer_terminal_queries(ws, &b).await;
@@ -407,8 +415,21 @@ async fn read_until(ws: &mut Ws, want: &str) -> String {
     .await;
     // the end is what tells why (a CI annotation keeps only the message's start)
     let tail: String = out.chars().rev().take(1500).collect::<Vec<_>>().into_iter().rev().collect();
-    assert!(matches!(found, Ok(true)), "{want:?} within 10 s; the terminal's last output {tail:?}");
-    out
+    if matches!(found, Ok(true)) { Ok(out) } else { Err(tail) }
+}
+
+/// Types `line` until `want` comes back (three tries): a terminal just taken over can still drop the first keys
+/// (Windows' PowerShell after ConPTY's repaint), and an `echo` typed twice is harmless.
+async fn type_until(ws: &mut Ws, line: &str, want: &str) -> String {
+    let mut tail = String::new();
+    for _ in 0..3 {
+        ws.send(Message::Binary(typed(line).into())).await.unwrap();
+        match try_read_until(ws, want, Duration::from_secs(5)).await {
+            Ok(out) => return out,
+            Err(t) => tail = t,
+        }
+    }
+    panic!("{want:?} after typing it three times; the terminal's last output {tail:?}");
 }
 
 /// Reads until the terminal has been quiet for a moment (at most 3 s): a terminal taken over redraws its screen
@@ -445,8 +466,7 @@ async fn a_terminal_outlives_a_page_reload_and_ends_when_its_tab_closes() {
     let replay = read_until(&mut ws, "before42").await;
     assert!(replay.contains("before42"), "the recent output comes back: {replay}");
     settle(&mut ws).await;
-    ws.send(Message::Binary(typed(r#"echo "again={PID}=""#).into())).await.unwrap();
-    let again = read_until(&mut ws, &format!("again={pid}=")).await;
+    let again = type_until(&mut ws, r#"echo "again={PID}=""#, &format!("again={pid}=")).await;
     assert!(again.contains(&format!("again={pid}=")), "the same shell: {again}");
 
     // the tab is closed: "end" kills it, and the key starts a new shell next time

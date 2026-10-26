@@ -106,8 +106,13 @@ function buildEngine(p, e, target, installed) {
   }
   const cargo = ["build", "--release", "--manifest-path", e.manifest, "-p", e.crate, "--bin", e.bin, ...(triple ? ["--target", triple] : [])];
   log(`${p.id}: cargo ${cargo.join(" ")}`);
-  const r = spawnSync("cargo", cargo, { stdio: "inherit", env });
-  if (r.status !== 0) throw new Error(`${p.id}: cargo build failed for ${target} (exit ${r.status})`);
+  // stderr kept as well as shown: on CI a failure's compiler errors become an annotation, readable without the log
+  const r = spawnSync("cargo", cargo, { stdio: ["inherit", "inherit", "pipe"], env, encoding: "utf8", maxBuffer: 64 << 20 });
+  process.stderr.write(r.stderr ?? "");
+  if (r.status !== 0) {
+    annotate(`${p.id} engine (${target})`, r.stderr ?? "");
+    throw new Error(`${p.id}: cargo build failed for ${target} (exit ${r.status})`);
+  }
   const exe = e.bin + (target.endsWith("-windows") ? ".exe" : "");
   const built = join(e.targetDir, ...(triple ? [triple] : []), "release", exe);
   const out = join(p.dir, "bin", target);
@@ -118,19 +123,29 @@ function buildEngine(p, e, target, installed) {
   return join(out, exe);
 }
 
+/** On GitHub Actions, a build's errors as an `::error` annotation (public, unlike the log): its `error` blocks, else its end. */
+function annotate(title, stderr) {
+  if (!process.env.GITHUB_ACTIONS) return;
+  const errors = stderr.split(/\n(?=\S)/).filter((b) => /^error/.test(b)).join("\n");
+  const text = (errors || stderr).slice(-3000);
+  const esc = (t) => t.replaceAll("%", "%25").replaceAll("\r", "%0D").replaceAll("\n", "%0A");
+  console.log(`::error title=${esc(title).replaceAll(",", "%2C").replaceAll(":", "%3A")}::${esc(text)}`);
+}
+
 function engines(o) {
   const target = o.target ?? hostTarget();
   const only = o.only ? new Set(o.only.split(",")) : null;
   const installed = installedRustTargets();
   const failed = [];
   for (const p of plugins().filter((p) => !only || only.has(p.id))) {
-    const e = engineOf(p);
-    if (!e) continue;
     try {
+      const e = engineOf(p);
+      if (!e) continue;
       buildEngine(p, e, target, installed);
     } catch (err) {
       failed.push(`${p.id}: ${err.message}`);
       log(`FAILED ${err.message}`);
+      if (!/cargo build failed/.test(err.message)) annotate(`${p.id} engine (${target})`, err.message);
       if (!o.keepGoing) break;
     }
   }
