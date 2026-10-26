@@ -1,7 +1,8 @@
 # The Ubuntu libraries Atlas builds against (Tauri / WebKitGTK, the capture box's Wayland and D-Bus), in one place for
 # every job. apt installs them as usual, but the .deb files it fetched are kept in the Actions cache, so a later run
 # downloads only what changed. (A cached-packages action restored files instead of installing them, and lost
-# glib-2.0.pc; this keeps apt doing the installing.)
+# glib-2.0.pc; this keeps apt doing the installing.) A stalled mirror times out in 30 s and is retried, and the
+# calling step has its own limit: a hung apt once held a release's Linux job for its whole hour.
 name: System libraries
 description: apt-get install of Atlas's build libraries, with the downloaded .debs cached between runs
 inputs:
@@ -21,8 +22,8 @@ runs:
         mkdir -p ~/.cache/apt-debs
         echo "[apt] $(ls ~/.cache/apt-debs | wc -l) cached .debs"
         sudo cp ~/.cache/apt-debs/*.deb /var/cache/apt/archives/ 2>/dev/null || true
-        sudo apt-get update -o Acquire::Retries=3
-        sudo apt-get install -y --no-install-recommends -o Acquire::Retries=3 -o APT::Keep-Downloaded-Packages=true \
+        sudo apt-get update -o Acquire::Retries=3 -o Acquire::http::Timeout=30
+        sudo apt-get install -y --no-install-recommends -o Acquire::Retries=3 -o Acquire::http::Timeout=30 -o APT::Keep-Downloaded-Packages=true \
           libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev \
           libdbus-1-dev libxkbcommon-dev libwayland-dev libssl-dev pkg-config build-essential ${{ inputs.extra }}
         cp /var/cache/apt/archives/*.deb ~/.cache/apt-debs/ 2>/dev/null || true

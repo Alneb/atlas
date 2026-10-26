@@ -23,6 +23,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/system-libs
+        timeout-minutes: 15
         with:
           extra: rpm
       - uses: dtolnay/rust-toolchain@stable
