@@ -5,7 +5,7 @@
 //! is to be read in Settings before it runs.
 use crate::plugins::{self, Permissions, PLUGINS_DIR};
 use crate::{vault_write, Error, Result};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 use ts_rs::TS;
 
@@ -19,16 +19,27 @@ pub enum Source {
     Folder(PathBuf),
     Git(String),
     Archive(PathBuf),
+    /// An archive's web address (a release asset): downloaded, then unpacked like [`Source::Archive`].
+    Download(String),
 }
 
+const ARCHIVES: [&str; 4] = [".zip", ".tar.gz", ".tgz", ".tar"];
+/// What release archives are called (`atlas-plugin-<id>.tar.gz`, scripts/dev/plugin-pack.mjs): the id is the rest.
+const RELEASE_PREFIX: &str = "atlas-plugin-";
+
 impl Source {
-    /// By shape: an address or `…​.git` is git; `.zip`, `.tar.gz`, `.tgz`, `.tar` an archive; else a folder.
+    /// By shape: a web address of a `.zip`, `.tar.gz`, `.tgz` or `.tar` is a download; any other address or `…​.git`
+    /// is git; such a file an archive; else a folder.
     pub fn parse(s: &str) -> Self {
         let t = s.trim();
         let l = t.to_ascii_lowercase();
-        if l.starts_with("http://") || l.starts_with("https://") || l.starts_with("git@") || l.starts_with("ssh://") || l.ends_with(".git") {
+        let web = l.starts_with("http://") || l.starts_with("https://");
+        let archive = |path: &str| ARCHIVES.iter().any(|e| path.ends_with(e));
+        if web && archive(l.split(['?', '#']).next().unwrap_or_default()) {
+            Self::Download(t.to_string())
+        } else if web || l.starts_with("git@") || l.starts_with("ssh://") || l.ends_with(".git") {
             Self::Git(t.to_string())
-        } else if [".zip", ".tar.gz", ".tgz", ".tar"].iter().any(|e| l.ends_with(e)) {
+        } else if archive(&l) {
             Self::Archive(PathBuf::from(t))
         } else {
             Self::Folder(PathBuf::from(t))
@@ -40,6 +51,7 @@ impl Source {
             Self::Folder(_) => "folder",
             Self::Git(_) => "git",
             Self::Archive(_) => "archive",
+            Self::Download(_) => "download",
         }
     }
 
@@ -48,7 +60,7 @@ impl Source {
     fn recorded(&self) -> String {
         match self {
             Self::Folder(p) | Self::Archive(p) => std::path::absolute(p).unwrap_or_else(|_| p.clone()).to_string_lossy().into_owned(),
-            Self::Git(u) => u.clone(),
+            Self::Git(u) | Self::Download(u) => u.clone(),
         }
     }
 
@@ -58,9 +70,11 @@ impl Source {
         let text = match self {
             Self::Folder(p) | Self::Archive(p) => p.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default(),
             Self::Git(u) => u.clone(),
+            Self::Download(u) => u.split(['?', '#']).next().unwrap_or_default().to_string(),
         };
         let last = text.trim_end_matches('/').rsplit(['/', '\\', ':']).next().unwrap_or_default();
         let stem = [".git", ".tar.gz", ".tgz", ".tar", ".zip"].iter().fold(last, |s, e| s.strip_suffix(e).unwrap_or(s));
+        let stem = stem.strip_prefix(RELEASE_PREFIX).unwrap_or(stem);
         stem.chars().map(|c| if c.is_ascii_alphanumeric() || c == '_' || c == '-' { c } else { '-' }).collect::<String>().trim_matches('-').to_string()
     }
 }
@@ -146,15 +160,46 @@ fn fetch(source: &Source, work: &Path) -> Result<Option<String>> {
             if !p.is_file() {
                 return Err(Error::NotFound(p.display().to_string()));
             }
-            vault_write::cache::mkdir(work)?;
-            if p.to_string_lossy().to_ascii_lowercase().ends_with(".zip") {
-                run(std::process::Command::new("unzip").arg("-q").arg(p).arg("-d").arg(work), "unzip")?;
-            } else {
-                run(std::process::Command::new("tar").arg("-xf").arg(p).arg("-C").arg(work), "tar")?;
-            }
+            unpack(p, work)?;
+            Ok(None)
+        }
+        Source::Download(url) => {
+            let name = url.split(['?', '#']).next().unwrap_or_default().rsplit('/').next().unwrap_or("plugin.tar.gz");
+            let file = work.with_file_name(format!("{}-{name}", work.file_name().unwrap_or_default().to_string_lossy()));
+            let got = download(url, &file).and_then(|_| unpack(&file, work));
+            let _ = vault_write::cache::remove_file(&file);
+            got?;
             Ok(None)
         }
     }
+}
+
+/// Unpacks an archive into `work`. On macOS the quarantine mark of a downloaded archive would stop the plugin's
+/// programs from starting, so it is taken off what was unpacked (the plugin is installed off: a person switches it on).
+fn unpack(archive: &Path, work: &Path) -> Result<()> {
+    vault_write::cache::mkdir(work)?;
+    if archive.to_string_lossy().to_ascii_lowercase().ends_with(".zip") {
+        run(std::process::Command::new("unzip").arg("-q").arg(archive).arg("-d").arg(work), "unzip")?;
+    } else {
+        run(std::process::Command::new("tar").arg("-xf").arg(archive).arg("-C").arg(work), "tar")?;
+    }
+    if cfg!(target_os = "macos") {
+        let _ = std::process::Command::new("xattr").args(["-dr", "com.apple.quarantine"]).arg(work).output();
+    }
+    Ok(())
+}
+
+/// Fetches `url` into `to` (redirects followed: a release's `latest/download/…` address is one).
+fn download(url: &str, to: &Path) -> Result<()> {
+    let client = reqwest::blocking::Client::builder()
+        .user_agent(concat!("atlas/", env!("CARGO_PKG_VERSION")))
+        .timeout(std::time::Duration::from_secs(300))
+        .build()
+        .map_err(|e| Error::CommandFailed(format!("download: {e}")))?;
+    let res = client.get(url).send().and_then(|r| r.error_for_status()).map_err(|e| Error::CommandFailed(format!("download {url}: {e}")))?;
+    let bytes = res.bytes().map_err(|e| Error::CommandFailed(format!("download {url}: {e}")))?;
+    vault_write::cache::write(to, &bytes)?;
+    Ok(())
 }
 
 fn stamp() -> String {
@@ -230,6 +275,81 @@ pub fn install(root: &Path, source: &Source, id: Option<&str>, replace: bool) ->
     result
 }
 
+/// A plugin a release offers (its `plugins.json`, written by scripts/dev/plugin-pack.mjs), as "Install a plugin" lists it.
+#[derive(Debug, Clone, Serialize, TS)]
+#[ts(export)]
+pub struct Available {
+    pub id: String,
+    pub title: String,
+    #[ts(optional)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub version: Option<String>,
+    /// `stable` or `beta` (docs/guides/PLUGIN-MATURITY.md).
+    pub tier: String,
+    /// The archive's address: what installing it fetches, and what an update fetches again.
+    pub url: String,
+    /// Whether it runs where this vault is served: no engine, or one built for this platform.
+    pub runs_here: bool,
+    /// The version installed in this vault (empty: one without a version), none when it is not.
+    #[ts(optional)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub installed: Option<String>,
+}
+
+#[derive(Deserialize)]
+struct IndexEntry {
+    id: String,
+    title: String,
+    version: Option<String>,
+    tier: String,
+    file: String,
+    platforms: Platforms,
+}
+
+/// `"any"` (plain files) or the platforms an engine was built for.
+#[derive(Deserialize)]
+#[serde(untagged)]
+enum Platforms {
+    Any(AnyWord),
+    Built(Vec<String>),
+}
+
+/// Only the word `"any"`: another string is an index this Atlas does not read, not a plugin for every platform.
+#[derive(Deserialize)]
+enum AnyWord {
+    #[serde(rename = "any")]
+    Any,
+}
+
+/// The plugins the release at `index` (a plugins.json address) offers, marked with what this vault has.
+pub fn available(root: &Path, index: &str) -> Result<Vec<Available>> {
+    if index.trim().is_empty() {
+        return Ok(Vec::new());
+    }
+    let work = root.join(format!(".atlas/cache/plugin-index-{}-{}.json", std::process::id(), stamp()));
+    let got = download(index, &work).and_then(|_| Ok(std::fs::read_to_string(&work)?));
+    let _ = vault_write::cache::remove_file(&work);
+    let entries: Vec<IndexEntry> = serde_json::from_str(&got?).map_err(|e| Error::BadRequest(format!("{index}: not a plugin index: {e}")))?;
+    let base = index.rsplit_once('/').map(|(b, _)| b).unwrap_or(index);
+    let here = plugins::target();
+    let have = plugins::list(root);
+    Ok(entries
+        .into_iter()
+        .map(|e| Available {
+            runs_here: match &e.platforms {
+                Platforms::Any(_) => true,
+                Platforms::Built(list) => list.contains(&here),
+            },
+            installed: have.iter().find(|p| p.id == e.id).map(|p| p.version.clone().unwrap_or_default()),
+            url: format!("{base}/{}", e.file),
+            id: e.id,
+            title: e.title,
+            version: e.version,
+            tier: e.tier,
+        })
+        .collect())
+}
+
 /// Installs again from where the plugin came (`.source`).
 pub fn update(root: &Path, id: &str) -> Result<Installed> {
     if !plugins::valid_id(id) {
@@ -289,6 +409,12 @@ mod tests {
         assert_eq!(Source::parse("https://example.org/me/atlas-dice.git").default_id(), "atlas-dice");
         assert_eq!(Source::parse("git@example.org:me/My Dice").default_id(), "My-Dice");
         assert_eq!(Source::parse("/x/dice v2.tar.gz").default_id(), "dice-v2");
+        // a release asset: downloaded, and named without the archives' prefix
+        let latest = "https://example.org/me/atlas/releases/latest/download/atlas-plugin-dice.tar.gz";
+        assert_eq!(Source::parse(latest), Source::Download(latest.into()));
+        assert_eq!(Source::parse(latest).default_id(), "dice");
+        assert_eq!(Source::parse("https://example.org/dice.zip?token=x").default_id(), "dice");
+        assert_eq!(Source::parse("https://example.org/me/dice"), Source::Git("https://example.org/me/dice".into()));
     }
 
     #[test]
@@ -369,5 +495,58 @@ mod tests {
         let got = install(vault.path(), &Source::parse(&tar.to_string_lossy()), None, false).unwrap();
         assert_eq!((got.id.as_str(), got.version.as_deref()), ("dice", Some("1.0.0")), "named by the archive");
         assert!(vault.path().join(PLUGINS_DIR).join("dice/main.js").is_file());
+    }
+
+    /// Serves `body` once on a local port; returns the port.
+    fn serve_once(body: Vec<u8>) -> u16 {
+        let server = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = server.local_addr().unwrap().port();
+        std::thread::spawn(move || {
+            use std::io::{Read, Write};
+            let (mut c, _) = server.accept().unwrap();
+            let mut req = [0u8; 4096];
+            let _ = c.read(&mut req);
+            let _ = c.write_all(format!("HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n", body.len()).as_bytes());
+            let _ = c.write_all(&body);
+        });
+        port
+    }
+
+    /// A release's index: each archive's address beside it, whether it runs here, and what the vault already has.
+    #[test]
+    fn a_release_index_lists_what_runs_here_and_what_is_installed() {
+        let (vault, elsewhere) = (tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap());
+        source(elsewhere.path(), "1.0.0");
+        install(vault.path(), &Source::Folder(elsewhere.path().join("dice-plugin")), Some("dice"), false).unwrap();
+        let index = serde_json::json!([
+            {"id": "dice", "title": "Dice", "version": "1.1.0", "tier": "beta", "file": "atlas-plugin-dice.tar.gz", "platforms": "any", "size": 1, "sha256": "x"},
+            {"id": "nowhere", "title": "Nowhere", "version": null, "tier": "stable", "file": "atlas-plugin-nowhere.tar.gz", "platforms": ["sparc-plan9"], "size": 1, "sha256": "x"},
+        ]);
+        let port = serve_once(index.to_string().into_bytes());
+        let got = available(vault.path(), &format!("http://127.0.0.1:{port}/releases/latest/download/plugins.json")).unwrap();
+        assert_eq!(got.len(), 2);
+        assert_eq!(got[0].url, format!("http://127.0.0.1:{port}/releases/latest/download/atlas-plugin-dice.tar.gz"));
+        assert_eq!((got[0].runs_here, got[0].installed.as_deref()), (true, Some("1.0.0")));
+        assert_eq!((got[1].runs_here, got[1].installed.as_deref()), (false, None));
+        assert!(available(vault.path(), "").unwrap().is_empty(), "no index set: nothing offered");
+    }
+
+    /// A release asset's address: fetched (here from a one-shot local server), unpacked, and kept as the source.
+    #[test]
+    fn an_archive_address_is_downloaded_and_installed() {
+        let (vault, elsewhere) = (tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap());
+        source(elsewhere.path(), "1.2.0");
+        let tar = elsewhere.path().join("pack.tar.gz");
+        assert!(std::process::Command::new("tar").arg("-czf").arg(&tar).arg("-C").arg(elsewhere.path()).arg("dice-plugin").status().unwrap().success());
+        let port = serve_once(std::fs::read(&tar).unwrap());
+        let url = format!("http://127.0.0.1:{port}/download/atlas-plugin-dice.tar.gz");
+        let got = install(vault.path(), &Source::parse(&url), None, false).unwrap();
+        assert_eq!((got.id.as_str(), got.version.as_deref()), ("dice", Some("1.2.0")));
+        let dir = vault.path().join(PLUGINS_DIR).join("dice");
+        assert!(dir.join("main.js").is_file());
+        let kept = std::fs::read_to_string(dir.join(SOURCE_FILE)).unwrap();
+        assert!(kept.contains("kind = \"download\"") && kept.contains(&url), "{kept}");
+        let left: Vec<_> = std::fs::read_dir(vault.path().join(".atlas/cache")).unwrap().flatten().map(|e| e.file_name()).collect();
+        assert!(left.is_empty(), "the download and the work folder are gone: {left:?}");
     }
 }

@@ -474,9 +474,32 @@ Strip the transport's prefix from an error before showing it (`POST /api/…: 50
 
 A **side tool** (`atlas.shell.sideTool`) gets the same heading (its title, in the side panel's small caps) and margins as the built-in tools; draw only the content.
 
+### Compiled helpers and release archives
+
+A plugin whose helper is a Rust crate keeps it in `engine/` (its `Cargo.toml`); `scripts/dev/plugin-pack.mjs` builds
+every such engine and packs every plugin, so no plugin carries a build script of its own (its `engine/build.sh` is one
+line calling it):
+
+- `node scripts/dev/plugin-pack.mjs engines [--target <arch>-<os>] [--only id,…] [--keep-going]` builds the crate's
+  binary (the one the `run` line names, when it has several) into `bin/<arch>-<os>/`. Targets: `x86_64-linux` and
+  `aarch64-linux` (static, musl; a crate with C++ inside says `[package.metadata.atlas] libc = "gnu"` and is built on
+  an old glibc instead), `x86_64-macos`, `aarch64-macos`, `x86_64-windows`. Default: this machine.
+- `node scripts/dev/plugin-pack.mjs pack [--out dir] [--bins dir]` makes one `atlas-plugin-<id>.tar.gz` per plugin of
+  `plugins/stable` and `plugins/beta`: its tracked files without its sources (`engine/`, `ui/`), plus every platform's
+  `bin/` that was built, in one archive for every desktop. Beside them, `plugins.json` lists each one's id, title,
+  version, tier, platforms (`"any"` for a plugin with no engine) and sha256.
+
+CI builds the engines on Linux (x86_64 and arm64), macOS (both) and Windows, packs them, and keeps the archives as the
+run's artifact `plugins`; a release attaches them (`.github/workflows/packages.yml`). Atlas installs an archive from a
+file or from its web address; `atlas-plugin-<id>.tar.gz` installs as `<id>`, and an address such as
+`https://github.com/<owner>/atlas/releases/latest/download/atlas-plugin-<id>.tar.gz` is kept, so `atlas plugin
+update <id>` fetches the newest release. Public release files need no sign-in or token. On macOS the download's
+quarantine mark is taken off the unpacked files (the plugin is installed switched off, as any).
+
 ## From a terminal
 
-`atlas plugin list` · `atlas plugin install <from> [--id name] [--on]` · `atlas plugin update <id>` · `atlas plugin remove <id>` · `atlas cmd plugin.<plugin id>.<command id>` runs one of its commands.
+`atlas plugin list` · `atlas plugin install <from> [--id name] [--on]` (`<from>`: a folder, a git address, a `.zip` /
+`.tar.gz` file or its web address) · `atlas plugin update <id>` · `atlas plugin remove <id>` · `atlas cmd plugin.<plugin id>.<command id>` runs one of its commands.
 
 ## What is promised to stay
 

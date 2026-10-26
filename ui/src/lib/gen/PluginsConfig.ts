@@ -21,4 +21,9 @@ oidc_client_id: string,
 /**
  * The redirect address registered for that client (`https://localhost/atlas`).
  */
-oidc_redirect: string, };
+oidc_redirect: string, 
+/**
+ * Where "Install a plugin" finds the released plugins: a `plugins.json` with the `atlas-plugin-<id>.tar.gz`
+ * archives beside it (a release's files need no sign-in). Empty: none offered.
+ */
+release_index: string, };

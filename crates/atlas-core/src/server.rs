@@ -425,6 +425,11 @@ struct PluginFrom {
     id: Option<String>,
 }
 
+/// What the configured release offers ([plugins] release_index), for "Install a plugin".
+async fn plugins_available_get(State(st): S) -> Result<Json<Vec<crate::plugin_install::Available>>> {
+    Ok(Json(with_ws(&st, move |ws| crate::plugin_install::available(ws.root(), &ws.config()?.plugins.release_index)).await?))
+}
+
 /// Copies a plugin into the vault (a folder, a git address or an archive); it arrives switched off.
 async fn plugin_install_post(State(st): S, Json(req): Json<PluginFrom>) -> Result<Json<crate::plugin_install::Installed>> {
     Ok(Json(with_ws(&st, move |ws| crate::plugin_install::install(ws.root(), &crate::plugin_install::Source::parse(&req.from), req.id.as_deref(), false)).await?))
@@ -1945,6 +1950,7 @@ fn router(state: Arc<AppState>) -> Router {
         .route("/api/plugins/{id}/data", post(plugin_data_post))
         .route("/api/plugins/{id}/settings", put(plugin_settings_put))
         .route("/api/plugins/install", post(plugin_install_post))
+        .route("/api/plugins/available", get(plugins_available_get))
         .route("/api/plugins/{id}/update", post(plugin_update_post))
         .route("/api/plugins/{id}/remove", post(plugin_remove_post))
         .route("/api/plugins/{id}/fetch", post(plugin_fetch_post))

@@ -1,6 +1,7 @@
 # Every package, in one place: on Linux the AppImage, deb, rpm (Tauri's bundler) and a Flatpak (packaging/flatpak),
 # plus the `atlas` CLI; on macOS an ad-hoc-signed .dmg, on Windows an NSIS installer (unsigned:
-# docs/decisions/PORTING-windows-macos.md); the three Android APKs. CI calls it on every push and pull request (its
+# docs/decisions/PORTING-windows-macos.md); the three Android APKs; the plugins as archives, their engines built
+# for every desktop (scripts/dev/plugin-pack.mjs). CI calls it on every push and pull request (its
 # artifacts), release.yml on a tag `v*` (the draft release); it can also be started by hand.
 name: Packages
 
@@ -107,6 +108,83 @@ jobs:
           bundle: atlas.flatpak
           manifest-path: packaging/flatpak/io.github.alneb.Atlas.yml
           cache-key: flatpak-${{ github.sha }}
+
+  # every plugin's Rust engine, built on each desktop platform (scripts/dev/plugin-pack.mjs); a platform an engine
+  # does not build on yet is reported (red) without holding the rest back: the archives say which platforms they carry
+  plugin-engines:
+    name: plugin engines (${{ matrix.target }})
+    runs-on: ${{ matrix.os }}
+    continue-on-error: true
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Linux on an old glibc (22.04), for the engines that cannot be static
+          - { os: ubuntu-22.04, target: x86_64-linux, rust: "x86_64-unknown-linux-musl,x86_64-unknown-linux-gnu" }
+          - { os: ubuntu-22.04-arm, target: aarch64-linux, rust: "aarch64-unknown-linux-musl,aarch64-unknown-linux-gnu" }
+          - { os: macos-latest, target: aarch64-macos, rust: aarch64-apple-darwin }
+          - { os: macos-latest, target: x86_64-macos, rust: x86_64-apple-darwin }
+          - { os: windows-latest, target: x86_64-windows, rust: x86_64-pc-windows-msvc }
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.rust }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: engines-${{ matrix.target }}
+          workspaces: |
+            . -> target
+            plugins/beta/dav/engine -> target
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      # musl's C compiler (ring, SQLite) and cmake (Tesseract, in the OCR engine)
+      - name: Build tools (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update -o Acquire::http::Timeout=30 && sudo apt-get install -y --no-install-recommends -o Acquire::http::Timeout=30 musl-tools cmake
+        timeout-minutes: 10
+      - name: The engines
+        shell: bash
+        run: node scripts/dev/plugin-pack.mjs engines --target ${{ matrix.target }} --keep-going
+      # the marker keeps the artifact's root at plugins/ (an artifact keeps the paths below its files' common folder),
+      # so it holds <tier>/<id>/bin/<target>/ even when one engine alone was built
+      - name: Marker
+        if: always()
+        shell: bash
+        run: echo "${{ matrix.target }}" > plugins/engines-${{ matrix.target }}.txt
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: engines-${{ matrix.target }}
+          path: |
+            plugins/engines-${{ matrix.target }}.txt
+            plugins/*/*/bin/${{ matrix.target }}/
+          if-no-files-found: warn
+
+  # one atlas-plugin-<id>.tar.gz per plugin, every platform's engine inside, and plugins.json
+  plugins:
+    needs: plugin-engines
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: engines-*
+          merge-multiple: true
+          path: bins
+      - name: The archives
+        run: node scripts/dev/plugin-pack.mjs pack --out target/dist/plugins --bins bins
+      - uses: actions/upload-artifact@v7
+        with:
+          name: plugins
+          path: target/dist/plugins/
+          if-no-files-found: error
 
   android:
     name: android (the three APKs)

@@ -161,7 +161,7 @@ impl PluginsConfig {
 }
 
 /// Plugins: the vault's own (`.atlas/plugins/<id>/`) and the built-in ones (`library`).
-#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, TS, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS, JsonSchema)]
 #[serde(default)]
 #[ts(export)]
 pub struct PluginsConfig {
@@ -175,6 +175,18 @@ pub struct PluginsConfig {
     pub oidc_client_id: String,
     /// The redirect address registered for that client (`https://localhost/atlas`).
     pub oidc_redirect: String,
+    /// Where "Install a plugin" finds the released plugins: a `plugins.json` with the `atlas-plugin-<id>.tar.gz`
+    /// archives beside it (a release's files need no sign-in). Empty: none offered.
+    pub release_index: String,
+}
+
+/// The project's latest release.
+pub const RELEASE_INDEX: &str = "https://github.com/Alneb/atlas/releases/latest/download/plugins.json";
+
+impl Default for PluginsConfig {
+    fn default() -> Self {
+        Self { off: Vec::new(), oidc_issuer: String::new(), oidc_client_id: String::new(), oidc_redirect: String::new(), release_index: RELEASE_INDEX.into() }
+    }
 }
 
 /// Code intelligence (language servers): completion, hover, diagnostics, go to definition (F12),

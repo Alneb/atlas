@@ -57,3 +57,59 @@ test("install from a folder (off, permissions said), switch on, update keeping s
   await expect(cell).toHaveCount(0);
   expect(await read(request, ".atlas/plugins/carried/plugin.toml")).toBe("");
 });
+
+// A release's plugins (scripts/dev/plugin-pack.mjs: plugins.json beside atlas-plugin-<id>.tar.gz), served here by a
+// local stand-in for the release's download address: listed in "Install…", installed from the archive's address.
+test("Install… lists the release's plugins and installs one from its archive's address", async ({ page, request }) => {
+  const { createServer } = await import("node:http");
+  const { execFileSync } = await import("node:child_process");
+  const { readFileSync } = await import("node:fs");
+  const dir = mkdtempSync(join(tmpdir(), "atlas-release-"));
+  mkdirSync(join(dir, "released"));
+  writeFileSync(join(dir, "released", "plugin.toml"), 'title = "Released"\nversion = "2.0.0"\n');
+  writeFileSync(join(dir, "released", "main.js"), "export function register() {}\n");
+  execFileSync("tar", ["-czf", join(dir, "atlas-plugin-released.tar.gz"), "-C", dir, "released"]);
+  const index = [
+    { id: "released", title: "Released", version: "2.0.0", tier: "beta", file: "atlas-plugin-released.tar.gz", platforms: "any", size: 1, sha256: "x" },
+    { id: "elsewhere", title: "Elsewhere only", version: "1.0.0", tier: "stable", file: "atlas-plugin-elsewhere.tar.gz", platforms: ["sparc-plan9"], size: 1, sha256: "x" },
+  ];
+  const server = createServer((req, res) => {
+    if (req.url === "/dl/plugins.json") return res.end(JSON.stringify(index));
+    if (req.url === "/dl/atlas-plugin-released.tar.gz") return res.end(readFileSync(join(dir, "atlas-plugin-released.tar.gz")));
+    res.statusCode = 404; res.end();
+  });
+  await new Promise<void>((ok) => server.listen(0, "127.0.0.1", ok));
+  const port = (server.address() as { port: number }).port;
+  const d = await (await request.get("/api/config", { headers: H })).json();
+  const before = d.config.plugins.release_index;
+  d.config.plugins.release_index = `http://127.0.0.1:${port}/dl/plugins.json`;
+  expect((await request.put("/api/config", { headers: H, data: d.config })).ok()).toBeTruthy();
+  try {
+    await page.goto("/");
+    await page.getByText("Finish the GW notes.").waitFor();
+    await page.keyboard.press("F1");
+    await page.keyboard.type("Settings");
+    await page.getByTestId("palette").getByText("Settings", { exact: true }).first().click();
+    await page.getByRole("button", { name: /Plugins & automation/ }).first().click();
+    await page.getByRole("button", { name: "Install…" }).click();
+    const palette = page.getByTestId("palette");
+    await expect(palette.getByText("Released 2.0.0", { exact: true })).toBeVisible();
+    await expect(palette.getByText(/not built for this computer/)).toBeVisible();
+    await expect(palette.getByText(/installed/), "neither is in this vault yet").toHaveCount(0);
+    for (const theme of ["dark", "light"] as const) {
+      await page.evaluate((t) => { document.documentElement.dataset.theme = t; }, theme);
+      await page.screenshot({ path: `test-results/plugin-release-${theme}.png` });
+    }
+    await palette.getByText("Released 2.0.0", { exact: true }).click();
+    await expect(page.getByText("Installed Released")).toBeVisible();
+    await expect(page.getByRole("switch", { name: "Plugin Released" })).toHaveAttribute("aria-checked", "false");
+    const source = await read(request, ".atlas/plugins/released/.source");
+    expect(source).toContain('kind = "download"');
+    expect(source).toContain(`/dl/atlas-plugin-released.tar.gz`);
+  } finally {
+    d.config.plugins.release_index = before;
+    await request.put("/api/config", { headers: H, data: d.config });
+    await request.post("/api/plugins/released/remove", { headers: H });
+    server.close();
+  }
+});

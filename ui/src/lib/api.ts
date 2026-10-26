@@ -265,6 +265,8 @@ export const api = {
   pluginFetch: (id: string, req: PluginFetchRequest) => request<PluginFetchResponse>("POST", `/api/plugins/${encodeURIComponent(id)}/fetch`, { body: req }),
   /** A plugin's media address (core plugin_media.rs): the ticket the core keeps its headers under, secrets filled in. */
   pluginMedia: (id: string, req: { url: string; headers?: PluginFetchRequest["headers"] }) => request<{ src: string; ticket: string }>("POST", `/api/plugins/${encodeURIComponent(id)}/media`, { body: req }),
+  /** The plugins the configured release offers ([plugins] release_index), marked with what this vault has. */
+  availablePlugins: () => request<import("./gen/Available").Available[]>("GET", "/api/plugins/available"),
   /** Copy a plugin into the vault (a folder, a git address, an archive); it arrives switched off. */
   installPlugin: (from: string, id?: string) => request<import("./gen/Installed").Installed>("POST", "/api/plugins/install", { body: { from, id } }),
   updatePlugin: (id: string) => request<import("./gen/Installed").Installed>("POST", `/api/plugins/${encodeURIComponent(id)}/update`),

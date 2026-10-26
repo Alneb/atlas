@@ -39,3 +39,5 @@ jobs:
             artifacts/atlas-macOS/**/*.dmg
             artifacts/atlas-Windows/**/*.exe
             artifacts/android-apks/**/*.apk
+            artifacts/plugins/*.tar.gz
+            artifacts/plugins/plugins.json

@@ -7,9 +7,9 @@ license.workspace = true
 authors.workspace = true
 repository.workspace = true
 
-# Built into the plugin's bin/<target>/ by build.sh, like the catalog's engine. Tesseract and Leptonica are compiled
-# into it (kreuzberg-tesseract, static); each language's model (a few MB) is fetched once through the core into the
-# plugin's cache; nothing leaves the machine after that.
+# Built into the plugin's bin/<target>/ by scripts/dev/plugin-pack.mjs, like the catalog's engine. Tesseract and
+# Leptonica are compiled into it (kreuzberg-tesseract, static); each language's model (a few MB) is fetched once
+# through the core into the plugin's cache; nothing leaves the machine after that.
 [[bin]]
 name = "ocr"
 path = "src/main.rs"
@@ -19,3 +19,7 @@ atlas-plugin = { path = "../../../../crates/atlas-plugin" }
 serde_json = { workspace = true }
 kreuzberg-tesseract = "4.10.4"
 image = { version = "0.25", default-features = false, features = ["png", "jpeg", "webp", "gif", "bmp"] }
+
+# Linux: built against glibc, not musl (Tesseract is C++), on an old distribution so it runs on newer ones
+[package.metadata.atlas]
+libc = "gnu"

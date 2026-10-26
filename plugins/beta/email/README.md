@@ -65,9 +65,9 @@ the list and reader take turns when the reader would be too narrow, and below 70
 
 ## Building
 
-- Engine: `bash plugins/beta/email/engine/build.sh` → `bin/x86_64-linux/email` (ignored by git, as every plugin's helper), static (musl-gcc,
-  static-pie, 14 MB) since 1.1; without musl-gcc, `ATLAS_EMAIL_CONTAINER=1` builds in a podman Alpine container,
-  else a build for this machine only.
+- Engine: `bash plugins/beta/email/engine/build.sh` → `bin/x86_64-linux/email` (ignored by git, as every plugin's
+  helper), static (musl-gcc, static-pie, 14 MB) since 1.1; without the musl target, a build for this machine only.
+  Releases carry it for Linux, macOS and Windows (`scripts/dev/plugin-pack.mjs`, `atlas-plugin-email.tar.gz`).
 - Pane: `node scripts/dev/plugin-ui.mjs plugins/beta/email` → `view.js`, `main.js`, `ui-lib/`.
 - Engine checks on a copy of a real index: `cargo run --release -p atlas-email --example reparse -- <copy of index.sqlite>`
   (bodies read again with the current parser, split conversations joined), `--example text -- <file.eml>` (what the

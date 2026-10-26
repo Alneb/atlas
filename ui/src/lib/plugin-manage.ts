@@ -3,12 +3,13 @@
 // defaults, and switching, installing, updating, removing it (replaced or removed folders go to .atlas/trash/).
 import { errText } from "./text";
 import { api } from "./api";
-import { pick } from "./palette.svelte";
+import { pick, type PickItem } from "./palette.svelte";
 import { toast } from "./state.svelte";
 import { settings } from "./settings.svelte";
 import { loadPlugins, setPluginOn, type Plugin } from "./plugins.svelte";
 import type { Platform } from "./gen/Platform";
 import type { Support } from "./gen/Support";
+import type { Available } from "./gen/Available";
 
 export const isOff = (id: string): boolean => (settings.config?.plugins.off ?? []).includes(id);
 export const pluginDir = (id: string): string => `.atlas/plugins/${id}`;
@@ -47,11 +48,32 @@ export function changedSettings(p: Plugin): { key: string; label: string; value:
   });
 }
 
+/** The release's plugins as picker rows: the ones not here first, by tier; what does not run here or is installed says so. */
+async function releaseRows(): Promise<PickItem[]> {
+  let offered: Available[];
+  try { offered = await api.availablePlugins(); }
+  catch (e) { return [{ value: "", title: "The release's plugins could not be read", detail: errText(e), section: "From the release" }]; }
+  const order = (a: Available) => (a.installed !== undefined ? 2 : 0) + (a.tier === "stable" ? 0 : 1);
+  return [...offered].sort((a, b) => order(a) - order(b) || a.title.localeCompare(b.title)).map((a) => ({
+    value: a.url,
+    title: `${a.title}${a.version ? ` ${a.version}` : ""}`,
+    detail: [
+      a.tier,
+      a.installed !== undefined ? `installed${a.installed ? ` (${a.installed})` : ""}: update it from its page` : "",
+      a.runs_here ? "" : "not built for this computer",
+    ].filter(Boolean).join(" · "),
+    icon: "plugin" as const,
+    section: a.tier === "stable" ? "From the release · stable" : "From the release · beta",
+  }));
+}
+
 export function installPlugin(): void {
   pick({
-    placeholder: "Install a plugin from… a folder, a git address, or a .zip / .tar.gz file", tag: "Install", icon: "plugin", items: [],
+    placeholder: "Install a plugin: one from the release, or type a folder, a git address, a .zip / .tar.gz file or its web address",
+    tag: "Install", icon: "plugin", items: releaseRows,
     typed: (t) => `Copy the plugin at ${t} into this vault`,
     onpick: async (from) => {
+      if (!from.trim()) return;
       try {
         const r = await api.installPlugin(from.trim());
         await loadPlugins();
