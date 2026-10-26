@@ -7,11 +7,10 @@ import { indentLess, indentMore, insertTab } from "@codemirror/commands";
 import { indentUnit } from "@codemirror/language";
 import { acceptCompletion, closeCompletion, completionStatus, currentCompletions, selectedCompletionIndex, moveCompletionSelection, hasNextSnippetField, hasPrevSnippetField } from "@codemirror/autocomplete";
 import type { TaskCompletion } from "./md-complete";
-import { latexOwnsTab } from "./latex-suite";
+import { latexOwnsTab, latexTakesTab } from "./latex-suite";
 
-// a completion list open: Tab and Shift+Tab walk it, Enter takes the entry — over a snippet's
-// expansion, tabout and indentation, but never over a snippet's own fields: inside \frac{…}{…}
-// Tab still goes to the next field, list or no list
+// a completion list open: Tab and Shift+Tab walk it, Enter takes the entry — over indentation, but never in math or
+// over a snippet's own fields: inside \frac{…}{…} Tab still goes to the next field, list or no list
 // A Tab typed while the list is still on its way (the task fields and [[ links ask the core) waits
 // for it (≤ 250 ms) instead of indenting under it — the list then never showed ("the tab and the
 // autocompletion are still kind of broken"); no list: the key goes on to snippets and indentation.
@@ -44,7 +43,9 @@ export const untouchedTaskList = (v: EditorView) =>
 // what Tab does to an open list: walk it (notes: Tab moves down, Enter takes it) or take
 // the entry (code, as VS Code: with one entry, walking did nothing at all)
 const walkList = (down: boolean, take = false) => (v: EditorView): boolean => {
-  if (replaying || (down ? hasNextSnippetField : hasPrevSnippetField)(v.state)) return false;
+  // in math Tab is LaTeX's (stops, tabout, triggers) and a list there is taken with Enter — but a `\command`'s list is
+  // walked; a snippet's stops always win
+  if (replaying || (down ? hasNextSnippetField : hasPrevSnippetField)(v.state) || latexTakesTab(v)) return false;
   // a list on screen is "pending" while any source still answers (a language server re-asked at every key):
   // it is there to walk all the same — waiting for "active" closed it and indented instead
   const shown = (view: EditorView) => currentCompletions(view.state).length > 0;

@@ -81,6 +81,29 @@ Errors are worded for the user: 401 → "app password rejected: … check them i
 
 RustiCal at `https://cal.example.org`, no Authelia at nginx for DAV; devices use Basic + an **app token** made on RustiCal's web page (sign in through Authelia → App tokens). Settings → Calendar → Accounts → Add account: name `home`, address `https://cal.example.org/caldav/` (the top `https://cal.example.org/` also works, through the well-known redirect), user name = the Authelia user name, app password = the token, Test; then *New events go to* among every account's calendars. Contacts are found at `/carddav/` on the same server. RustiCal shows a read-only "birthdays" calendar per address book; hide it with its box if unwanted.
 
+## Instant updates (WebDAV Push through ntfy)
+
+A calendar changed on another device shows here at once instead of at the next check. The server must speak
+WebDAV Push (bitfireAT's draft, as DAVx5 uses it; RustiCal does), and an ntfy server is the go-between, because the
+server can't reach a desktop but can reach ntfy (`engine/src/push.rs`):
+
+1. Settings → Calendar → *Instant updates through ntfy* names your own ntfy server (empty: the Notifications plugin's
+   server, so one ntfy serves the vault); *ntfy user* and *password* (or an *access token*) sign in as a user
+   who may read `up…` topics (ntfy's UnifiedPush topics, which anyone may publish to and only the user reads).
+2. With each regular round the engine asks every calendar whether it offers Web Push (`P:transports` in a PROPFIND)
+   and subscribes the ones that do: `POST` of a `push-register` with the push resource `https://<ntfy>/up<12
+   random>?up=1`, a fresh P-256 key and auth secret, for 7 days; renewed a day before the end. A calendar that
+   offers nothing is asked again a day later. The topic, the subscription's address and the key are kept in the
+   engine's cache (`push` table); turning push off removes the subscriptions from the server.
+3. One JSON stream from ntfy for all the topics (`/<t1>,<t2>/json`, signed in with the user and password, else the token); a message on a topic syncs
+   that calendar's account at once and the pane redraws (`changed`). The message is encrypted to the subscription's
+   key and not read: its arrival is the signal. A new stream replaces the old one when the topics change; a broken
+   one is retried after 5 s, doubling to 5 min.
+4. The regular check stays (the draft asks for it; it covers ntfy or the server being down).
+
+RustiCal refuses a `property-update` trigger given only a depth (400 "Missing field"), so only content changes are
+asked for. Checked against RustiCal (`tests/push.rs`).
+
 ## Not done (follow-ups)
 
 - Sending the iTIP REPLY is Email's (it sends the mail, then calls `import_invite`); following a `METHOD:CANCEL` by itself — deliberately not automatic: the user decides.
@@ -93,6 +116,10 @@ RustiCal at `https://cal.example.org`, no Authelia at nginx for DAV; devices use
 - `tests/server.rs` and `tests/calendar.rs` — against a real server, with a throwaway account (`DAV_TEST_URL` + `DAV_TEST_USER` + `DAV_TEST_PASSWORD`; skipped without) and, for `calendar.rs`, a second principal on the same server (`DAV_TEST_USER2` + `DAV_TEST_PASSWORD2`: `rustical principals create bob` and an app token for it):
   - RustiCal, in rootless podman: `podman run -d -p 127.0.0.1:48099:4000 -v $PWD/data:/var/lib/rustical:Z -e RUSTICAL_DATA_STORE__SQLITE__DB_URL=/var/lib/rustical/db.sqlite3 -e RUSTICAL_HTTP__BIND=0.0.0.0:4000 ghcr.io/lennart-k/rustical:latest`, a principal and a token with `rustical principals create alice` and `rustical principals app-token create --name test alice` (same image, `--entrypoint /usr/local/bin/rustical`, the same volume and DB variable), then `DAV_TEST_URL=http://127.0.0.1:48099/ DAV_TEST_USER=alice DAV_TEST_PASSWORD=<token> cargo test`;
   - Radicale for `server.rs`: `DAV_TEST_PYTHON=v/bin/python cargo test --test server` (it starts it on a free port).
+  - `tests/push.rs` (WebDAV Push): the same RustiCal variables, with RustiCal able to reach this machine's 127.0.0.1
+    (podman `--network host`, `RUSTICAL_HTTP__BIND=127.0.0.1:48099`): a calendar subscribed (the server answers its
+    subscription's address), a second round asking nothing, an event put and the server's encrypted push arriving at
+    the calendar's topic on a stand-in ntfy within seconds, then push switched off removing the subscription.
   - `server.rs` checks the first tools (discovery, add / unchanged / updated, invites kept, removal) and the helper over a vault with the **1.0 flat settings** (read as the card `calendar`, `migrate`'s plan), the important note put on the server while the mail note beside it and its `.ics` are not, `push_notes` off skipping. `calendar.rs` checks the Calendar's methods in process, with two accounts: both read and grouped (`calendars`, `suggest_calendars` labels `second · Other`), a calendar without colour taking its card's, `add_event` into the second account by id, an event made in the first moved to the second (there on its server, gone from the first's) and undone back, `remove_event` finding the calendar by UID, a card's Test with a wrong typed password and with the kept one, a refused password failing only its own account (`account_status`: main ok, second error); then, as before: the first pull (calendars and a subscription served by the test), a weekly series made in Toronto time keeping 10:00 across DST, a second pull doing nothing (ctag), "this" moved then undone, "following" deleted and the server agreeing after a pull, the subscription and an important note in one range, a 304 on the second fetch, `test_subscription`, an invitation's conflicts, `import_invite` added → unchanged → updated, `invite_status` with only the ics, quick add, search, the agenda, contacts from a CardDAV address book.
 - `ui/tests/example-calendar-pane.spec.ts` (Playwright, the debug engine, an `.ics` served by the spec, two account cards without passwords): the week shows a floating 10:00 at 10:00, keys switch to month and agenda, the card of a read-only event has no Edit, hiding a calendar takes its events away, quick add previews what the engine read in French and Spanish, the key sheet; each account under its own heading with "not set up" on it, `account_status` saying "no app password yet".
 - `node scripts/dev/plugin-ui.mjs --check plugins/beta/dav`: svelte-check with warnings as errors, and the committed `view.js` / `main.js` / `ui-lib/` current.

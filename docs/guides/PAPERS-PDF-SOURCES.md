@@ -1,6 +1,6 @@
 # PDF sources for papers — how a plugin finds a paper's PDF
 
-A generic way to add PDF downloaders to papers (2026-10-18). When a paper is added
+A generic way to add PDF downloaders to papers. When a paper is added
 (the catalog's `paper` kind: a DOI or an arXiv id captured anywhere, the Library's Add, an agent), the core's papers
 feature first tries its own open-access sources — arXiv, OpenAlex, Unpaywall (with `[refs] email`). When none has a
 PDF, **catalog-papers asks the PDF sources other plugins contribute**, one after the other, until one attaches a PDF.
@@ -46,14 +46,14 @@ The result shows in the capture's notice: "PDF from Europe PMC", or "No PDF foun
 
 ## Built in: the open-access indexes
 
-Before any plugin's source is asked, catalog-papers ("Catalog · Science" since 2026-10-19) tries arXiv, then OpenAlex
+Before any plugin's source is asked, catalog-papers ("Catalog · Science") tries arXiv, then OpenAlex
 and Unpaywall, then the indexes of its `indexes` setting in order: Semantic Scholar (`openAccessPdf`), Europe PMC
 (full-text links that are open: `availabilityCode` OA or F, never subscription ones) and CORE (only with its free API
 key, the plugin's `core_key` secret, sent by the core as `Authorization: Bearer …`). Each index is asked only when the
 copies before it failed (`remote::open_access_pdfs`, lazy; test
 `the_other_indexes_come_after_in_the_settings_order_and_only_when_the_ones_before_had_nothing`).
 
-These three were the `papers-open-access` plugin (Python helper, 2026-10-18), folded into the engine on 2026-10-19
+These three were the `papers-open-access` plugin (Python helper), folded into the engine
 when science became one subplugin of the catalog. A
 vault that had it installed removes it (`atlas plugin remove papers-open-access`); its settings were the defaults.
 A new source is still a plugin of its own, on the contract above.

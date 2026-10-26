@@ -1,13 +1,13 @@
 # Quick capture from anywhere on the desktop
 
-The goal (2026-10-14): a global KDE shortcut that opens a well-integrated, unobtrusive floating box to write something quickly, making capture easy, with completions. About vaults: a capture should be able to go to the work vault or the personal one.
+The goal: a global KDE shortcut that opens a well-integrated, unobtrusive floating box to write something quickly, making capture easy, with completions. About vaults: a capture should be able to go to the work vault or the personal one.
 
 ## What there is
 
-**A small native box above everything** — `atlas-capture` (crate `crates/atlas-capture`, drawn with egui; no web view). The first box rendered too slowly, and the capture box must not use WebKit (2026-10-14). Starting a WebKit view was what made the old box slow; the native one is on screen at once.
+**A small native box above everything** — `atlas-capture` (crate `crates/atlas-capture`, drawn with egui; no web view). The first box rendered too slowly, and the capture box must not use WebKit. Starting a WebKit view was what made the old box slow; the native one is on screen at once.
 
 - **Keys.** Type; **Enter** writes it and the box is gone (after showing where it went, `log/2026-10-14.md:7`, for two thirds of a second); **Esc** closes it, nothing written; **another window taking the focus** closes it too (only once it had the focus: a new window may start unfocused). **Super+V** opens the vault list, **Super+↑ / Super+↓** switch vault (Super is Atlas's key, docs/guides/KEYS.md; Alt+V and Alt+↑/↓, the first keys, still work). The footer shows the keys: `Super+V` beside the vault pill when there are several vaults, `↑↓ Tab move · Enter take · Esc back` while a list is open.
-- **What it looks like.** Atlas's colours (`look.rs`: the tokens of `ui/src/styles/tokens.css`, dark or light as the vault's `ui.theme`), the desktop's UI font (Inter when installed, else Noto Sans), Atlas's "A" tile, the text line, a hairline, then the footer: what the text will become once there is text ("a to-do, due tomorrow", "a line in today's log · mentions Friday"), the vault as a pill (a click lists the known vaults), and the two keys as quiet chips. Little guides on an empty box (see "Finished" below), no empty space below (*"too much space below"*), but not bare either (*"this is too simple now"*).
+- **What it looks like.** Atlas's colours (`look.rs`: the tokens of `ui/src/styles/tokens.css`, dark or light as the vault's `ui.theme`), the desktop's UI font (Inter when installed, else Noto Sans), Atlas's "A" tile, the text line, a hairline, then the footer: what the text will become once there is text ("a to-do, due tomorrow", "a line in today's log · mentions Friday"), the vault as a pill (a click lists the known vaults), and the two keys as quiet chips. Little guides on an empty box (see "Finished" below), no empty space below, but not bare either.
 - **Completions.** `[[` a note's name, `#` a tag, `@` a day (`@today`, `@tomorrow`, `@mon`…`@sun`, `@+3d`), and on a to-do (`[] `, `todo `) the Obsidian Tasks fields — one letter of a field's first word is enough (`d` → due, `h` → high priority…); after a date field the dates by name. ↑ ↓ choose, Tab or Enter take, Esc closes the list. The list grows the window. The lists are the same as the web boxes' (`ui/src/lib/task-complete.ts`, `textarea-complete.ts`), copied in `complete.rs` — **change both** (tests on each side).
 - **Where it writes.** Through the Atlas open on that vault (`vaults::running_server`), so its window updates and one core runs the vault's schedules; with none open, straight to the files (`capture::capture`), as `atlas capture` does. An Atlas that is listed but takes no connection (it crashed or is closing) counts as none: the capture goes to the files, never lost. Once the request has been sent, a failure is shown instead of writing again, since that Atlas may already have written it (`send.rs` `Post`). Days are read by one function for both (`capture::day_of`).
 - **Which vault.** The one named on the command line or by `ATLAS_WORKSPACE`, else the one opened last, then the other known ones.
@@ -15,11 +15,11 @@ The goal (2026-10-14): a global KDE shortcut that opens a well-integrated, unobt
 
 **The older box** — the desktop app as `atlas-app --capture` showing `capture.html` (its own small bundle) or `/#capture` (`ui/src/CaptureWindow.svelte`) — stays for `ATLAS_CAPTURE=webview`, and the page also works in a browser at `/#capture`.
 
-**Lessons from making it** (2026-10-14): a window built with `resizable(false)` is pinned to its first size on Wayland, so the completion list was cut off; a transparent window was drawn white by the compositor (no rounded corners); a border drawn on the window's edge is half clipped (it is drawn 1 px inside). The test windows opened on the user's screen caught their typing — **do not open windows on the user's screen without asking**.
+**Lessons from making it**: a window built with `resizable(false)` is pinned to its first size on Wayland, so the completion list was cut off; a transparent window was drawn white by the compositor (no rounded corners); a border drawn on the window's edge is half clipped (it is drawn 1 px inside). Test windows opened on a desktop in use caught what was being typed there — **never open test windows on a desktop in use without asking**.
 
 **Completions in the capture box of Today** (the web page): the same short forms and lists, `ui/src/lib/textarea-complete.ts` (a Svelte action for any plain text box). Test: `capture-hints.spec.ts`.
 
-## Finished (2026-10-15)
+## Finished
 
 What was still missing: a completion list for tasks; the links list was cut off by the window and its borders looked wrong; too much space below; no small guides; and rendering was still too slow.
 
@@ -30,7 +30,7 @@ What was still missing: a completion list for tasks; the links list was cut off 
 - **Little guides** on an empty box: `[]` to-do · `@fri` date · `[[` link · `#` tag. Read in the transcript, "and no little guides" came right after "are the modals done?": a complaint that there were none (this file used to read it the other way).
 - **Border:** a crisp one-pixel edge inside the window, checked pixel by pixel. The corners stay square: rounded corners need a transparent window, and "the borders look weird" was said about the earlier rounded version.
 - **The web capture page and Today's box** have the same layout and guides. Every list row has an icon, and the list fits the window: it flips above the box when there is more room there, then scrolls. A CSS selector that painted every row's icon in the accent colour (instead of only the chosen row's) was fixed.
-- **The shortcut:** `packaging/kde-shortcut.sh`, called from install.sh. It sets Meta+Shift+C (or `ATLAS_CAPTURE_KEY`) only when Atlas Capture has no key yet and the key is free everywhere. A dry run on a copy of the user's `kglobalshortcutsrc` kept their existing Meta+T. It has not been run on the user's config.
+- **The shortcut:** `packaging/kde-shortcut.sh`, called from install.sh. It sets Meta+Shift+C (or `ATLAS_CAPTURE_KEY`) only when Atlas Capture has no key yet and the key is free everywhere. A dry run on a copy of a real `kglobalshortcutsrc` kept its existing Meta+T. It has not been run on a real config.
 
 **How the native box was checked: never on a real desktop session.** In a nested `kwin_wayland --virtual` on a private D-Bus (`scripts/dev/capture/look.sh` with `shot.py` and `xtype.py`), with screenshots through KWin's screenshot API and real keys typed through the nested Xwayland. Every state (empty, typing, task fields, `[[` list, vault menu) was looked at in dark and light. A full keyboard run wrote `- [ ] pay the rent 📅 2026-10-15 [[Hamiltonian]] ok` into the second vault, and opening a second box closed the first.
 
@@ -39,7 +39,7 @@ What was still missing: a completion list for tasks; the links list was cut off 
 - A nested KWin crash started KDE's crash handler (drkonqi) twice; both were stopped at once.
 - Always use a private bus and `KDE_DEBUG=1`.
 
-## Floating lists and the app's card (2026-10-15)
+## Floating lists and the app's card
 
 The capture window needed a redesign closer to the app's look, and the completion list should float instead of resizing the window.
 
@@ -51,11 +51,11 @@ The capture window needed a redesign closer to the app's look, and the completio
 
 **X11 keeps the growing box.** Off Wayland (or with `ATLAS_CAPTURE_FLOAT=0`) the window is the box, opaque, and grows for a list as before: X11 has no alpha without a compositor's ARGB visual, and the keyboard check (`look.sh keys`, XTEST through Xwayland) runs that path.
 
-**Checked.** Headless: `floating_a_list_opens_under_the_card_and_the_window_keeps_its_size` (the list under the card, inside the room, no size asked of the window, the pointer regions). In a hidden `kwin_wayland --virtual` (`look.sh shots`): every state in dark and light — the card stays where it is, the task list floats below it. `look.sh keys` (X11 path): a to-do with a date, a link, the vault menu, Enter — written as before. **Not seen on the user's screen**, and the click-through was not exercised in the hidden KWin (no Wayland pointer injection there). One oddity: after `look.sh shots` the nested KWin did not exit by itself once (killed by PID); the script's exit trap is the suspect, not the box.
+**Checked.** Headless: `floating_a_list_opens_under_the_card_and_the_window_keeps_its_size` (the list under the card, inside the room, no size asked of the window, the pointer regions). In a hidden `kwin_wayland --virtual` (`look.sh shots`): every state in dark and light — the card stays where it is, the task list floats below it. `look.sh keys` (X11 path): a to-do with a date, a link, the vault menu, Enter — written as before. **Not seen on a real desktop**, and the click-through was not exercised in the hidden KWin (no Wayland pointer injection there). One oddity: after `look.sh shots` the nested KWin did not exit by itself once (killed by PID); the script's exit trap is the suspect, not the box.
 
 ## Setting it up (once)
 
-On the development machine (looked at 2026-10-14): nothing is bound to *Atlas Capture* yet; `Meta+A` already opens Atlas itself; `Meta+Space`, `Meta+Shift+C` and `Meta+C` were free. Suggested: **Meta+Shift+C** for the floating box.
+On the development machine: nothing is bound to *Atlas Capture* yet; `Meta+A` already opens Atlas itself; `Meta+Space`, `Meta+Shift+C` and `Meta+C` were free. Suggested: **Meta+Shift+C** for the floating box.
 
 
 `packaging/install.sh` installs the launcher `atlas-quick-capture` and the menu entry **Atlas Capture**. Then, in KDE: System Settings → Keyboard → Shortcuts → Add New → Application → *Atlas Capture*, and give it a key.
@@ -71,7 +71,7 @@ The menu entry starts the launcher by its full path (`~/.local/bin/atlas-quick-c
 - **Another vault.** `POST /api/capture` takes `vault: <path>`: accepted only for a folder in the list of known vaults (`~/.config/atlas/vaults.toml`), and written straight into that vault's files (`capture::capture`), whether or not an Atlas is open there (an open one notices the file change).
 - **The app's first keys.** `ui/src/main.ts` imports both the app and the capture page up front and mounts one. A first version imported the chosen one with `await import(…)`; the app then mounted a moment later and a key pressed right after the page loaded was lost (a smoke test caught it).
 
-## From the phone (2026-10-14: the route taken)
+## From the phone (the route taken)
 
 The wish: a blazing fast way to capture things on the phone. The route that needs nothing new on the phone and nothing new on the server: **ntfy**, which many self-hosted servers already run.
 
@@ -89,11 +89,11 @@ The wish: a blazing fast way to capture things on the phone. The route that need
 - The phone (roadmap 4.4) and the web clippers (4.5) are separate pieces.
 
 
-## It crashed on every normal close (fixed 2026-10-15)
+## It crashed on every normal close (fixed)
 
 The capture box closed normally but a crash notification followed. `coredumpctl` had a SIGSEGV of `atlas-capture` for each close. The faulting thread was smithay-clipboard's worker (egui's Wayland clipboard) destroying its `zwp_primary_selection_device_manager` proxy, while the main thread joined it from `drop(Shown)` at the end of `window::run`. winit's `run_app` takes the event loop **by value**: when it returns, the Wayland connection is already closed, and the clipboard tidied up its objects on that dead connection. Fix: `ApplicationHandler::exiting` drops the window, with egui's state and clipboard, while the loop and the connection still exist. Checked in a hidden KWin, with KWin's scripting closing the window (`workspace.windowList()` → `closeWindow()`): the installed build ended with signal 11, the fixed one with status 0 (and no `atlas-capture` core dump since).
 
-## Besides the text: the page, the clipboard, the screenshots (2026-10-16)
+## Besides the text: the page, the clipboard, the screenshots
 
 The desktop box offers a screenshot or the clipboard too, and the last screenshot taken, not only a new one; a picture can be viewed bigger; and in a browser (or YouTube) the page's address is copied automatically.
 
@@ -118,7 +118,7 @@ A row of chips under the text (`src/extras.rs`, drawn at the text's left edge, i
 - Not done: the browser's address when the history has no entry yet for a page opened seconds ago (Firefox writes visits at once; a page still loading has no title); X11 sessions take the screen with the box in it (no hiding there).
 
 
-## The screen taken before you ask; plainer chips (2026-10-16, later)
+## The screen taken before you ask; plainer chips
 
 The desktop box's UX is as simple as possible: the screenshot is taken before the chip appears, so it is faster, and discarded if not wanted.
 
@@ -128,7 +128,7 @@ The desktop box's UX is as simple as possible: the screenshot is taken before th
 - `atlas-capture --context` also takes the window's picture and says how long it took; `ATLAS_CAPTURE_KEEP=1` keeps the pictures to look at.
 
 
-## What is playing (2026-10-17)
+## What is playing
 
 Feature parity with the Android capture box. The phone offered the song or
 video playing; the desktop box now does too: a **Playing** chip (Super+M, offered off, last in the row as in the
@@ -146,7 +146,7 @@ hooks (catalog, OCR) act on them; with no Atlas open the capture is written stra
 capture the phone made reaches the desktop — and the next Atlas to serve the vault runs the hooks on it first (385aa2f).
 
 
-## What the catalog will make of it (2026-10-17)
+## What the catalog will make of it
 
 The status line under the text says, as it is typed, what the catalog will file — "a line in today's log · catalogued
 as a film" (an album, a paper, a web page…): the vault's catalog plugins' own `recognize` patterns, matched in the box

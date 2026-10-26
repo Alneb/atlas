@@ -579,7 +579,7 @@ pub struct CommandInfo {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub origin: Option<CommandOrigin>,
-    /// Default keybinding, e.g. `Ctrl+Alt+C`.
+    /// Default keybinding, e.g. `Super+C`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub keys: Option<String>,

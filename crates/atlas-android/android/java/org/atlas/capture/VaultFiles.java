@@ -113,7 +113,7 @@ abstract class VaultFiles {
         OnServer s = new OnServer(c, vault);
         JSONArray out = new JSONArray();
         try {
-            JSONArray all = new JSONArray(new String(s.get("/api/plugins"), StandardCharsets.UTF_8));
+            JSONArray all = new JSONArray(new String(s.get("/api/plugins?platform=android"), StandardCharsets.UTF_8));
             JSONObject cfg = new JSONObject(new String(s.get("/api/config"), StandardCharsets.UTF_8)).optJSONObject("config");
             JSONArray offList = cfg == null || cfg.optJSONObject("plugins") == null ? null : cfg.optJSONObject("plugins").optJSONArray("off");
             Set<String> off = new HashSet<>();
@@ -124,8 +124,12 @@ abstract class VaultFiles {
                 // a plugin built into this app runs here, natively, whatever the server makes of its manifest (an older
                 // server refusing a newer one turned Notepad off: drawings fell back to Excalidraw); only `off` stops it
                 boolean builtIn = NativePlugins.byId(id) != null;
-                String why = builtIn ? null : androidWhy(p);
-                boolean on = !off.contains(id) && (p.isNull("error") || builtIn) && why == null;
+                // the core's one rule (plugins::blocked, its requires included) as Android sees it; an older server says
+                // only the plugin's own platforms
+                boolean told = p.has("blocked");
+                String blocked = told && !p.isNull("blocked") ? p.optString("blocked") : null;
+                String why = builtIn || off.contains(id) ? null : told ? blocked : androidWhy(p);
+                boolean on = builtIn ? !off.contains(id) : told ? blocked == null : !off.contains(id) && p.isNull("error") && why == null;
                 out.put(new JSONObject().put("id", id).put("off", off.contains(id)).put("why", why == null ? JSONObject.NULL : why).put("title", p.isNull("title") ? id : p.optString("title", id)).put("description", SettingsPages.text(p, "description")).put("phone", p.optBoolean("phone")).put("on", on).put("settings", p.optJSONObject("settings") != null ? p.optJSONObject("settings") : new JSONObject())
                     .put("fields", p.optJSONArray("fields") != null ? p.optJSONArray("fields") : new JSONArray()));
                 off.remove(id);

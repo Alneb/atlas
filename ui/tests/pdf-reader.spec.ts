@@ -2,6 +2,7 @@ import { test, expect, type Page } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { WS } from "../playwright.config";
+import { writePdf } from "./fixtures/pdf";
 
 // The reader (lib/pdf-reader.ts, lib/pdf-tools.ts) on each engine (lib/pdf-engine.ts: PDFium, pdf.js): a generated
 // three-page PDF with text, a link to its last page, a web link and an outline — its text layer, find, a highlight
@@ -40,12 +41,7 @@ function makePdf(): string {
     const body = text(lines), extra = i === 0 ? `/Annots[${annots.join(" ")}]` : "";
     objs.push(`<</Type/Page/Parent 2 0 R/MediaBox[0 0 612 792]/Resources<</Font<</F1 3 0 R>>>>/Contents ${page(i) + 1} 0 R${extra}>>`, `<</Length ${body.length}>>\nstream\n${body}\nendstream`);
   });
-  let out = "%PDF-1.4\n";
-  const at: number[] = [];
-  objs.forEach((o, i) => { at.push(out.length); out += `${i + 1} 0 obj\n${o}\nendobj\n`; });
-  const xref = out.length;
-  out += `xref\n0 ${objs.length + 1}\n0000000000 65535 f \n${at.map((n) => `${String(n).padStart(10, "0")} 00000 n \n`).join("")}`;
-  return `${out}trailer\n<</Size ${objs.length + 1}/Root 1 0 R>>\nstartxref\n${xref}\n%%EOF\n`;
+  return writePdf(objs);
 }
 
 test.beforeAll(async ({ request }) => {

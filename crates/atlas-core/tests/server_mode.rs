@@ -143,7 +143,7 @@ async fn one_server_several_vaults_one_sign_in() {
     let list: serde_json::Value = get("/v/work/api/vaults".into()).send().await.unwrap().json().await.unwrap();
     let urls: Vec<_> = list["vaults"].as_array().unwrap().iter().map(|v| v["url"].as_str().unwrap().to_string()).collect();
     assert_eq!(urls, ["/v/notes/", "/v/work/"]);
-    assert_eq!(list["current"].as_str().unwrap(), b.path().to_string_lossy());
+    assert_eq!(list["current"].as_str().unwrap(), atlas_core::paths::real(b.path()).unwrap().to_string_lossy(), "the vault's own path (macOS: /private/var…)");
     let open = http.post(format!("{base}/v/work/api/vaults/open")).header("x-atlas", "1").header("cookie", &session).json(&serde_json::json!({ "path": "/etc" })).send().await.unwrap();
     assert_eq!(open.status(), StatusCode::BAD_REQUEST);
     // the phone's capture-only token reaches a vault's capture, and nothing else of it

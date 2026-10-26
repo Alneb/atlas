@@ -4,17 +4,31 @@ Pure: no files, no Atlas — the helper reads and writes, `test_convert.py` chec
 Notes becomes an Excalidraw drawing; pages as in ui/src/lib/draw-pages.ts.
 """
 import hashlib
+import math
 import random
 
 PAGE_WIDTH = 794  # scene units: an Atlas page (draw-pages.ts PAGE.width); a Boox page is 1860 px wide
 GAP = 48
-# Excalidraw's freedraw is ~strokeWidth × 4.25 × sin(π/4) × 2 ≈ 6 × strokeWidth across at mid pressure; a Boox
-# thickness is the full width in page px — so this many strokeWidth per px keeps the line's look
-FREEDRAW_PER_PX = 1 / 6.0
 SIMPLIFY = 0.35  # page px: points closer than this to the line through their neighbours are dropped
-# the Boox pen → the notepad pen whose crisp outline fits it (ui/src/lib/draw-ink.ts); the rest draw as a fountain
-PEN = {"fountain": "fountain", "brush": "fountain", "calligraphy-latin": "fountain", "calligraphy-asia": "fountain",
-       "pencil-path": "ballpoint", "charcoal": "ballpoint", "square": "ballpoint", "marker": "highlighter"}
+# knote2's ShapeFactory.SHAPE_* (its decompiled constants) → openink's pen (crates/vendor/openink-stroke pen.rs codes:
+# ballpoint 0, fountain 1, brush 2, marker 3, square 4, pencil 5, charcoal 6) — what Atlas's Boox Notepad draws with.
+# 2 PENCIL and 3 OILY are knote2's near-constant pens (openink's ballpoint); 4 FOUNTAIN and 5 (FOUNTAIN_V2's shape)
+# thin with pressure; 22 CHARCOAL is pencil or charcoal by a texture the KSync tree doesn't carry: charcoal;
+# 60/61 calligraphy are flat nibs like the square pen.
+OPENINK = {2: 0, 3: 0, 4: 1, 5: 1, 15: 3, 21: 2, 22: 6, 47: 4, 60: 4, 61: 4}
+MARKER = 3
+
+
+def web_pen(pen):
+    """The web notepad's pen closest to openink's (Stroke.java webPen; ui/src/lib/draw-ink.ts INK)."""
+    return "ballpoint" if pen == 0 else "highlighter" if pen == MARKER else "fountain"
+
+
+def outline(pen, mean_pressure):
+    """How many strokeWidths across the web draws a stroke (Stroke.java outline, draw-ink.ts outline): so a stroke's
+    strokeWidth is its openink width over this, and the Boox Notepad reads the width back as strokeWidth × this."""
+    thinning = 0 if pen in (0, MARKER) else 0.6
+    return 2 * 4.25 * math.sin(math.pi / 2 * (0.5 - thinning * (0.5 - mean_pressure)))
 
 
 # typed text: Excalidraw's plain sans (Nunito; no bold or italic there) at its usual line height
@@ -97,23 +111,29 @@ def convert(doc, title, updated=0):
             pts = _simplify(pts, SIMPLIFY)
             x0, y0 = pts[0][0] * k, pts[0][1] * k + y
             rel = [[round(p[0] * k - x0, 2), round(p[1] * k + y - y0, 2)] for p in pts]
-            if len(rel) == 1:
-                rel.append([rel[0][0] + 0.01, rel[0][1]])  # a dot: Excalidraw needs two points
+            pressures = [round(max(0.05, min(1.0, float(p[2]))), 3) for p in pts]
+            times = [round(float(p[3]), 1) if len(p) > 3 else i * 4.0 for i, p in enumerate(pts)]
+            if len(rel) == 1:  # a dot: Excalidraw needs two points
+                rel.append([rel[0][0] + 0.01, rel[0][1]])
+                pressures.append(pressures[0])
+                times.append(times[0])
             xs, ys = [p[0] for p in rel], [p[1] for p in rel]
-            pressures = [max(0.05, min(1.0, float(p[2]))) for p in pts]
-            if len(pressures) < len(rel):
-                pressures.append(pressures[-1])
-            pen = PEN.get(st["pen"], "fountain")
+            pen = OPENINK.get(st.get("shapeType"), 1)
+            width = (st.get("thickness") or 3.0) * k  # knote2's nominal width (full pressure), in scene units
+            mean = sum(pressures) / len(pressures)
             elements.append({
                 "id": _id(doc["id"], page["id"], st["id"]), "type": "freedraw", "x": round(x0, 2), "y": round(y0, 2),
                 "width": round(max(xs) - min(xs), 2), "height": round(max(ys) - min(ys), 2), "angle": 0,
                 "strokeColor": st.get("color") or "#000000", "backgroundColor": "transparent", "fillStyle": "solid",
-                "strokeWidth": round(max(0.2, (st.get("thickness") or 3.0) * k * FREEDRAW_PER_PX), 3),
-                "strokeStyle": "solid", "roughness": 0, "opacity": max(1, min(100, round((st.get("alpha") or 1) * (35 if pen == "highlighter" else 100)))),
+                "strokeWidth": round(max(0.05, width / outline(pen, mean)), 3),
+                "strokeStyle": "solid", "roughness": 0, "opacity": max(1, min(100, round((st.get("alpha") or 1) * (50 if pen == MARKER else 100)))),
                 "groupIds": [], "frameId": frame_id, "roundness": None, "seed": rnd.randrange(1, 2**31), "version": 1,
                 "versionNonce": rnd.randrange(1, 2**31), "isDeleted": False, "boundElements": None, "updated": updated,
                 "link": None, "locked": False, "points": rel, "pressures": pressures, "simulatePressure": False,
-                "lastCommittedPoint": rel[-1], "customData": {"atlasPen": pen},
+                "lastCommittedPoint": rel[-1],
+                # as the Boox Notepad saves a stroke (Stroke.java element): openink's pen and each point's time, no
+                # config (the pen's knote2 defaults at this width); no tilt: the KSync tree's is not decoded yet
+                "customData": {"atlasPen": web_pen(pen), "openink": {"pen": pen, "t": times}},
             })
             strokes += 1
         for t in page.get("texts", []):  # typed text (ksync_text.attach): wraps in its Boox box's width

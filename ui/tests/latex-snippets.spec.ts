@@ -97,3 +97,42 @@ test("a snippet whose trigger starts another one waits a key, so the longer one 
   await page.keyboard.press("Tab");
   await expect(last).toHaveText("$5\\text{kVA}+3\\text{kV}+2\\text{kV}$");
 });
+
+// A snippet expanded in another's stop hands Tab back to the outer one when its own stops are done (the outer
+// \frac's denominator, not the middle of `}{`); Tab with no stops leaves the bracket the caret is in, from anywhere in
+// it; a letters-only trigger never cuts a command short (`hbar`, `\langle` with an `ang` snippet); `bra` waits while
+// `braket` is still being typed; a function replacement's own `const` survives the file being read.
+test("Tab walks nested snippets in order and leaves brackets; commands are never cut short", async ({ page }) => {
+  await page.goto("/");
+  await page.getByText("Finish the GW notes.").waitFor();
+  await page.keyboard.press("Control+p");
+  await page.keyboard.type("tabstops.md");
+  await expect(page.getByTestId("palette").getByText("tabstops", { exact: true }).first()).toBeVisible();
+  await page.keyboard.press("Enter");
+  await page.locator(".cm-content").click();
+  await page.keyboard.press("Escape");
+  await page.keyboard.type("Go");
+  const last = page.locator(".cm-line").last();
+  await page.keyboard.type("mk"); // → $|$
+  await page.keyboard.type("fraca");
+  await page.keyboard.type("fracb");
+  await page.keyboard.press("Tab");
+  await page.keyboard.type("c");
+  await page.keyboard.press("Tab"); // out of the inner \frac, still in the outer numerator
+  await page.keyboard.type("+");
+  await page.keyboard.press("Tab"); // the outer denominator
+  await page.keyboard.type("d");
+  await page.keyboard.press("Tab");
+  await expect(last).toHaveText("$\\frac{a\\frac{b}{c}+}{d}$");
+  await page.keyboard.type(" (x+y)");
+  for (let i = 0; i < 3; i++) await page.keyboard.press("ArrowLeft");
+  await page.keyboard.press("Tab"); // from the middle of ( … ): after it
+  await page.keyboard.type(" hbar \\langle bra\\psi");
+  await page.keyboard.press("Tab");
+  await page.keyboard.type("braketa");
+  await page.keyboard.press("Tab");
+  await page.keyboard.type("b");
+  await page.keyboard.press("Tab");
+  await page.keyboard.type("iden3");
+  await expect(last).toHaveText("$\\frac{a\\frac{b}{c}+}{d} (x+y) \\hbar \\langle \\bra{\\psi} \\braket{ a | b } I_3$");
+});

@@ -8,7 +8,7 @@ import convert  # noqa: E402
 
 
 def stroke(sid, pts, pen="fountain", **kw):
-    return {"id": sid, "shapeType": 5, "pen": pen, "reference": False, "color": "#000000", "alpha": 1.0,
+    return {"id": sid, "shapeType": kw.pop("shapeType", 5), "pen": pen, "reference": False, "color": "#000000", "alpha": 1.0,
             "thickness": 5.9, "zorder": 0, "matrix": None, "points": pts, **kw}
 
 
@@ -20,7 +20,9 @@ DOC = {"id": "doc-1", "pages": [
         {"id": "geo", "shapeType": 40, "pen": None, "reference": False, "points": []},
     ]},
     {"id": "p2", "index": 2, "width": 1860, "height": 2480, "strokes": [
-        stroke("dot", [[930, 1240, 0.5, 0]], pen="marker"),
+        stroke("dot", [[930, 1240, 0.5, 0]], pen="marker", shapeType=15),
+        stroke("old-fountain", [[100, 900, 0.3, 0], [300, 900, 0.9, 30]], pen="pencil-path", shapeType=4),
+        stroke("pencil", [[100, 1000, 0.3, 0], [300, 1000, 0.9, 30]], pen="pencil-path", shapeType=2),
         stroke("gone", [[1, 1, 0.5, 0], [50, 50, 0.5, 9]], removed=True),
     ], "texts": [{"id": "t1", "text": "Kitaev chain\nMajoranas", "zorder": 0, "rect": [186, 248, 930, 300],
                   "size": 75.0, "color": "#000000", "alpha": 1.0}]},
@@ -41,16 +43,30 @@ class Convert(unittest.TestCase):
     def test_strokes_keep_pressure_and_belong_to_their_page(self):
         s1 = next(e for e in self.els if e["type"] == "freedraw" and e["frameId"] == self.els[0]["id"])
         self.assertEqual(s1["pressures"][:2], [0.2, 0.5])
-        self.assertEqual(s1["customData"], {"atlasPen": "fountain"})
+        self.assertEqual(s1["customData"], {"atlasPen": "fountain", "openink": {"pen": 1, "t": [0.0, 8.0, 16.0, 24.0]}})
         k = convert.PAGE_WIDTH / 1860
         self.assertAlmostEqual(s1["x"], 100 * k, places=1)
 
     def test_references_dropped_text_counted_dots_kept(self):
         # the reference is a copy, the erased stroke is gone, the text shape is drawn from page["texts"]
-        self.assertEqual(self.n, {"strokes": 2, "texts": 1, "skipped": 1})  # the geometric shape: not converted
+        self.assertEqual(self.n, {"strokes": 4, "texts": 1, "skipped": 1})  # the geometric shape: not converted
         dot = [e for e in self.els if e["type"] == "freedraw" and e["customData"]["atlasPen"] == "highlighter"][0]
         self.assertEqual(len(dot["points"]), 2)
-        self.assertEqual(dot["opacity"], 35)
+        self.assertEqual(dot["opacity"], 50, "the marker as the Boox Notepad saves it")
+        self.assertEqual(dot["customData"]["openink"]["pen"], convert.MARKER)
+
+    def test_knote2_pens_become_openinks_and_the_width_reads_back(self):
+        by = {e["id"]: e for e in self.els if e["type"] == "freedraw"}
+        old, pencil = by[convert._id("doc-1", "p2", "old-fountain")], by[convert._id("doc-1", "p2", "pencil")]
+        self.assertEqual((old["customData"]["openink"]["pen"], old["customData"]["atlasPen"]), (1, "fountain"), "4 is knote2's fountain")
+        self.assertEqual((pencil["customData"]["openink"]["pen"], pencil["customData"]["atlasPen"]), (0, "ballpoint"), "2 is its constant pencil")
+        # the Boox Notepad reads the width as strokeWidth × outline (Stroke.java from): knote2's width, scaled to the page
+        k = convert.PAGE_WIDTH / 1860
+        for e in (old, pencil):
+            mean = sum(e["pressures"]) / len(e["pressures"])
+            back = e["strokeWidth"] * convert.outline(e["customData"]["openink"]["pen"], mean)
+            self.assertAlmostEqual(back, 5.9 * k, places=2)
+        self.assertGreater(old["strokeWidth"] * 0 + convert.outline(1, 0.9), convert.outline(1, 0.3), "a firm fountain is wider")
 
     def test_a_text_box_in_its_place_and_width_on_its_page(self):
         t = next(e for e in self.els if e["type"] == "text")

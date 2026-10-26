@@ -10,6 +10,8 @@ pub const CALDAV: &str = "urn:ietf:params:xml:ns:caldav";
 pub const APPLE: &str = "http://apple.com/ns/ical/";
 pub const CS: &str = "http://calendarserver.org/ns/";
 pub const CARDDAV: &str = "urn:ietf:params:xml:ns:carddav";
+/// WebDAV Push (bitfireAT's draft: RustiCal, DAVx5)
+pub const PUSH: &str = "https://bitfire.at/webdav-push";
 
 /// An element: its namespace, local name, attributes (by local name), text and children.
 #[derive(Debug, Default, Clone, PartialEq)]

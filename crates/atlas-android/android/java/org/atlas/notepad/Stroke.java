@@ -227,8 +227,9 @@ final class Stroke extends Item {
         return s;
     }
 
-    /** A freedraw as a stroke: its openink samples and config when a Boox wrote it, else its points and pressures with
-     *  the closest pen (a stroke from Excalidraw or Atlas's web notepad, approximated). Null when it has no points. */
+    /** A freedraw as a stroke: its openink samples and config when a Boox wrote it; its openink pen at that pen's
+     *  defaults when only the pen is named (imported from Boox Notes); else its points and pressures with the closest
+     *  pen (a stroke from Excalidraw or Atlas's web notepad, approximated). Null when it has no points. */
     static Stroke from(JSONObject e, Host host, float density) {
         JSONArray pts = e.optJSONArray("points");
         if (pts == null || pts.length() == 0) return null;
@@ -261,8 +262,10 @@ final class Stroke extends Item {
             s.cfg = new float[cfg.length() >= 8 ? 8 : 6]; // 6: a drawing from before dpi/minWidth (read as 300 dpi, 0.001)
             for (int i = 0; i < s.cfg.length; i++) s.cfg[i] = (float) cfg.optDouble(i);
         } else {
+            // the pen named (the Boox Notes importer writes openink's pen and times, no config), else the web pen's nearest
             String web = custom != null ? custom.optString("atlasPen") : "";
-            s.pen = "ballpoint".equals(web) ? 0 : "highlighter".equals(web) ? HIGHLIGHTER : 1;
+            s.pen = oi != null && oi.has("pen") ? Math.max(0, Math.min(Host.PENS.length - 1, oi.optInt("pen", 1)))
+                : "ballpoint".equals(web) ? 0 : "highlighter".equals(web) ? HIGHLIGHTER : 1;
             s.cfg = sceneDefaults(host, s.pen, density);
             s.cfg[0] = (float) e.optDouble("strokeWidth", 1) * s.outline();
         }

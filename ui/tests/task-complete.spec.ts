@@ -76,6 +76,7 @@ test("a field by name, then a day as typed; the list draws icons and plain names
   await page.keyboard.press("Tab"); await page.keyboard.press("Enter");
   await expect(list).toContainText("every week");
   await page.keyboard.type("every mo", { delay: 25 });
+  await expect(list.locator("li[aria-selected]")).toContainText("every month"); // a slow machine: the list catches up first
   await page.waitForTimeout(150);
   await page.keyboard.press("Enter");
   await expect.poll(() => text(page)).toBe(`# Todo\n\n- [ ] pay the rent 📅 ${iso} ⏫ 🔁 every month `);

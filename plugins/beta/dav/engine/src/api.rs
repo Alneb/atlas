@@ -6,6 +6,7 @@ use crate::edit::{self, Change, Scope};
 use crate::ics::{self, Event, When};
 use crate::invite;
 use crate::pull;
+use crate::push;
 use crate::quick;
 use crate::recur::{self, Instance, Range};
 use crate::store::{Kind, Object, Source, Store};
@@ -188,27 +189,10 @@ fn pull_all(p: &Value, force: bool) -> (bool, Vec<String>) {
     let every = conf::refresh_minutes(&s) * 60;
     for card in cards.iter().filter(|c| c.filled()) {
         let due = force || lock(&e.accounts).get(&card.name).and_then(|a| a.tried).is_none_or(|t| t.elapsed().as_secs() as i64 >= every);
-        if !due {
-            continue;
-        }
-        lock(&e.accounts).entry(card.name.clone()).or_default().busy = true;
-        let r = Client::new(&card.account).and_then(|c| pull::caldav(&e.store, &c, &card.name));
-        let mut st = lock(&e.accounts);
-        let a = st.entry(card.name.clone()).or_default();
-        a.busy = false;
-        a.tried = Some(Instant::now()); // a failure waits for the next interval too
-        match r {
-            Ok(r) => {
-                changed_any |= r.changed;
-                errors.extend(r.errors.iter().map(|x| format!("{}: {x}", card.name)));
-                a.synced = Some(SystemTime::now());
-                a.error = r.errors.first().cloned();
-            }
-            Err(err) => {
-                eprintln!("dav: {}: sync: {err}", card.name);
-                errors.push(format!("{}: {err}", card.name));
-                a.error = Some(err.to_string());
-            }
+        if due {
+            let (changed, errs) = pull_card(card);
+            changed_any |= changed;
+            errors.extend(errs);
         }
     }
     let r = pull::subscriptions(&e.store, &conf::subscriptions(&s), force);
@@ -220,12 +204,68 @@ fn pull_all(p: &Value, force: bool) -> (bool, Vec<String>) {
     (changed_any, errors)
 }
 
+/// One account's calendars brought up to date now; its state kept for Settings. Errors named by the account.
+fn pull_card(card: &Card) -> (bool, Vec<String>) {
+    let e = engine();
+    lock(&e.accounts).entry(card.name.clone()).or_default().busy = true;
+    let r = Client::new(&card.account).and_then(|c| pull::caldav(&e.store, &c, &card.name));
+    let mut st = lock(&e.accounts);
+    let a = st.entry(card.name.clone()).or_default();
+    a.busy = false;
+    a.tried = Some(Instant::now()); // a failure waits for the next interval too
+    match r {
+        Ok(r) => {
+            a.synced = Some(SystemTime::now());
+            a.error = r.errors.first().cloned();
+            (r.changed, r.errors.iter().map(|x| format!("{}: {x}", card.name)).collect())
+        }
+        Err(err) => {
+            eprintln!("dav: {}: sync: {err}", card.name);
+            a.error = Some(err.to_string());
+            (false, vec![format!("{}: {err}", card.name)])
+        }
+    }
+}
+
+/// WebDAV Push's round (push.rs), after each regular one: the calendars subscribed through the ntfy server Settings
+/// names, and the stream from it kept open; a message syncs that calendar's account at once.
+fn push_round() {
+    let p = json!({});
+    let s = conf::settings(&p);
+    let server = conf::push_server(&s);
+    let e = engine();
+    let cards: Vec<Card> = conf::accounts(&s, &p).into_iter().filter(|c| c.filled()).collect();
+    let clients: Vec<(String, Client)> = cards.iter().filter_map(|c| Client::new(&c.account).ok().map(|cl| (c.name.clone(), cl))).collect();
+    let calendars: Vec<(String, &Client, Url)> = e
+        .store
+        .sources()
+        .into_iter()
+        .filter_map(|src| {
+            let (_, client) = clients.iter().find(|(n, _)| src.account.as_deref() == Some(n.as_str()))?;
+            Some((src.id.clone(), client, dir_of(&src).ok()?))
+        })
+        .collect();
+    let topics = push::keep(&e.store, &server, &calendars);
+    let login = push::Login::of(&conf::text(&s, "push_user"), &conf::secret(&p, "push_password").unwrap_or_default(), &conf::secret(&p, "push_token").unwrap_or_default());
+    push::listen(&server, login, topics.into_iter().map(|(t, _)| t).collect(), |topic| {
+        let e = engine();
+        let Some(account) = e.store.push_source(topic).and_then(|id| e.store.source(&id)).and_then(|s| s.account) else { return };
+        let p = json!({});
+        let Some(card) = conf::accounts(&conf::settings(&p), &p).into_iter().find(|c| c.name == account) else { return };
+        let _one = lock(&e.pulling);
+        if pull_card(&card).0 {
+            changed();
+        }
+    });
+}
+
 fn watch(p: Value) -> Res {
     let e = engine();
     if !e.watching.swap(true, Ordering::SeqCst) {
         std::thread::spawn(|| loop {
             // settings asked of Atlas each time: a change in Settings reaches the next round
             let _ = pull_all(&json!({}), false);
+            push_round();
             std::thread::sleep(std::time::Duration::from_secs(60));
         });
     }
@@ -962,7 +1002,10 @@ fn account_states(s: &Value, p: &Value) -> HashMap<String, Status> {
             } else if let Some(e) = &a.error {
                 say(State::Error, e.clone())
             } else if let Some(t) = a.synced {
-                say(State::Ok, format!("{} · synced {}", plural(n, "calendar"), ago(t)))
+                // calendars of this account subscribed for WebDAV Push (push.rs)
+                let pushed = engine().store.of_account(&c.name).iter().filter(|x| engine().store.push_row(&x.id).is_some_and(|r| !r.topic.is_empty())).count();
+                let instant = if pushed > 0 { format!(" · instant updates for {}", plural(pushed, "calendar")) } else { String::new() };
+                say(State::Ok, format!("{} · synced {}{instant}", plural(n, "calendar"), ago(t)))
             } else {
                 say(State::Warn, "not synced yet".into())
             };

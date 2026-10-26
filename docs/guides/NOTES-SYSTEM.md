@@ -47,7 +47,7 @@ Notes nested under the note their `by` property links to: a hierarchy made of pr
 ### Notes from templates
 A template is a plain note in the templates folder (`[notes] templates`, default `templates/`). In it `{{date}}`, `{{time}}` and `{{title}}` are filled in — the syntax of Obsidian's core Templates plugin, a deliberately small subset.
 
-- **New note from a template…** (Ctrl+Alt+N): choose the template, type the name; the note is created in the folder of the file in front of you and opened.
+- **New note from a template…** (Super+N): choose the template, type the name; the note is created in the folder of the file in front of you and opened.
 - **Quick open creates**: Ctrl+P, a name that no file has → "Create note “…”" (offered only once the search has answered, so Enter typed early never creates what was about to be found).
 - A new note **never replaces a file**: a taken name gets " 2", " 3"… (`create_new` in the core).
 - `POST /api/note/new {template?, title, dir?, text?}` → `{path, line}`. Code: `crates/atlas-core/src/notes.rs`, `ui/src/lib/notes-system.ts`.
@@ -75,7 +75,7 @@ The starter kit follows the same idea: its one loose note, `Start here.md`, is w
 Tests: `a_new_note_goes_to_its_templates_folder_then_beside_the_open_note_then_to_the_notes_folder` (core), `notes-system.spec.ts` (the kit's note and a new note are in `notes/`, nothing at the root).
 
 ### Capture as notes
-`[notes] capture = "log"` (the default: a timestamped bullet in today's log, as before) or `"note"`: every capture (Ctrl+Alt+C, the capture box, `atlas capture "…"`) becomes a note of its own in `[notes] inbox` (default `inbox/`), made from `[notes] capture_template` (default `fleeting`; built in when the vault has no such template), named by its first line. Those notes are what a `review` block with `filters: 'type == "fleeting"'` shows. Settings → Notes has the three settings.
+`[notes] capture = "log"` (the default: a timestamped bullet in today's log, as before) or `"note"`: every capture (Super+C, the capture box, `atlas capture "…"`) becomes a note of its own in `[notes] inbox` (default `inbox/`), made from `[notes] capture_template` (default `fleeting`; built in when the vault has no such template), named by its first line. Those notes are what a `review` block with `filters: 'type == "fleeting"'` shows. Settings → Notes has the three settings.
 
 ### What is not a note
 The note index (backlinks, graph, Bases, tasks, and so every block above) leaves out:

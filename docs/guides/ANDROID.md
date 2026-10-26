@@ -1,6 +1,6 @@
 # Atlas on the phone — the capture app
 
-The requirements (2026-10-15): a native Rust app for Android, built without downloading the whole Android SDK; the app is simple — the capture part, a small UI to find the vault, and plugins. It must be very fast and reachable by a shortcut like the screenshot one, offering the last screen as a screenshot, the clipboard, typed text, or all of them; sharing files into it stays important. Android came first.
+The requirements: a native Rust app for Android, built without downloading the whole Android SDK; the app is simple — the capture part, a small UI to find the vault, and plugins. It must be very fast and reachable by a shortcut like the screenshot one, offering the last screen as a screenshot, the clipboard, typed text, or all of them; sharing files into it stays important. Android came first.
 
 ## What it is
 
@@ -27,7 +27,7 @@ adb install -r target/dist/android/atlas-capture.apk   # the phone with USB debu
 
 The script: `cargo build -p atlas-android --target aarch64-linux-android --release` with the NDK's `aarch64-linux-android26-clang` as linker → `llvm-strip` → `aapt2 link` of `crates/atlas-android/android/AndroidManifest.xml` against `android.jar` → the `.so` zipped in as `lib/arm64-v8a/` → `zipalign` → `apksigner` (key `local/toolchains/atlas-debug.keystore`, made once). Android 8.0 (API 26) and newer.
 
-## The plan for the next session (decided 2026-10-15, ~00:10)
+## The plan for the rework
 
 Two runs on the phone showed that the text line was not a normal Android text box (some keyboard features did not work), that the box sat under the notification bar and looked poor, lacked most of the planned features, and had no icon. The chosen way on: **Android widgets + Rust core, looking like a modern Android app**, keeping the desktop's visual style, with the screens in Java.
 
@@ -41,7 +41,7 @@ So the egui box (what is in `crates/atlas-android` now) is a stepping stone, rep
 
 ## Where it stands, and what comes next
 
-1. **Now — it runs on a real phone** (2026-10-15, 23:46, from a screenshot): the box draws, the keyboard came up and the capture was written. What the first run showed, and what changed:
+1. **Now — it runs on a real phone** (from a screenshot): the box draws, the keyboard came up and the capture was written. What the first run showed, and what changed:
    - it drew under the status bar: Android 15 forces a target-35 app edge to edge → the APK targets API 34 until the box reads the bars' size;
    - the desktop's one-line footer squeezed into 360 points ran into itself → below 520 points the footer stacks in two rows (the guides; then the vault and a **Save** button), no keycaps (`app.rs` `footer`, test `a_phone_stacks_the_footer_and_saves_with_a_button`);
    - the keyboard is asked for when the box opens and on every tap (`window::SHOW_KEYBOARD`, set to `AndroidApp::show_soft_input`);
@@ -53,12 +53,12 @@ So the egui box (what is in `crates/atlas-android` now) is a stepping stone, rep
 6. **Plugins**: captures that a plugin should treat are written as waiting and processed by the desktop or the server when they arrive (Syncthing), or sent to the server at once with a capture token (docs/guides/SERVER.md); later, plugins on the phone itself (QuickJS).
 
 
-## Started (2026-10-16, ~00:40) — where the rework stands
+## Started — where the rework stands
 
 Done, in Rust (the shared half):
 - `atlas-capture` has a `window` feature (default). Without it the crate is only what a capture means: `complete` (completions, `Names::load(root)`, `what_it_becomes`), `icons` (`Icon::ALL`, `svg(icon)` → SVG path data per stroke, for the phone's vector drawables; new icons Image, Clipboard, Server, Close), `send` (writing). The egui painting moved to `icon_paint.rs`.
 - The egui stepping stone's hooks are gone from the desktop box: `window::SHOW_KEYBOARD`, `CONTENT_AREA`, `region_none.rs`, the `phone` flag and the narrow two-row footer (and their two tests).
-- **The Rust half of the phone app is written** (2026-10-16): `src/phone.rs` (prepare, suggest with UTF-16 offsets, describe, save, attach, find_vaults; host test `offsets_are_utf16_and_vaults_are_found`) and `src/glue.rs` (the 6 `Java_org_atlas_capture_Core_*` functions, checked exported by `llvm-nm` on the aarch64 build). **The Java screen is written (2026-10-16, 00:15)**: `Core`, `Look`, `Vaults`, `CaptureActivity` (the card above the keyboard, a real EditText whose keyboard action saves, completions as rows, tappable guides, what it becomes, the vault pill → known vaults + found ones + "Allow access to your folders" + "Keep captures in the app", the clipboard chip, the draft, insets for target 35, shared text). build-apk.sh: javac → d8, aapt2 compile of `android/res` + the generated icons, link -R; APK 1.1 MB, classes.dex + the .so, launcher = CaptureActivity, adaptive icon. **Not run on a phone yet.** Then (00:25): the quick-settings tile `CaptureTile` ("Capture") and `ScreenService` (accessibility, `canTakeScreenshot`, no window content): the tile → shade dismissed → 350 ms → `takeScreenshot` → PNG in the cache → the box with a **Screen** chip (thumbnail; tap to include; attached beside today's log note on save, `![[Screen … .png]]` under the line). Without the service, a "Screen · set up" chip opens the accessibility settings; the accessibility button / gesture does the same as the tile. APK 1.2 MB. Then shared files: SEND / SEND_MULTIPLE of any type → each stream copied into the cache (its display name) → a chip, on by default, × to take it off → attached on save like the screen. Then the server as a destination: the vault menu's "Send to an Atlas server…" (a vault's address `https://host/v/notes` + a `capture` token) → `Server.java` posts `/api/capture` and `/api/attach` (now allowed to capture tokens, never overwriting). Not tried against a running server from the phone. Also done: the res generator (`cargo run -p atlas-android --bin android-res -- <res>` → 18 `drawable/ic_*.xml` from `icons::svg`) and the launcher icon (`android/res/mipmap-*`: PNGs + adaptive foreground at 66 % on `#1f2229`, monochrome layer); both pass `aapt2 compile`. Next: the Java below, then build-apk.sh (javac, d8, aapt2 compile + link -R, the generator).
+- **The Rust half of the phone app is written**: `src/phone.rs` (prepare, suggest with UTF-16 offsets, describe, save, attach, find_vaults; host test `offsets_are_utf16_and_vaults_are_found`) and `src/glue.rs` (the 6 `Java_org_atlas_capture_Core_*` functions, checked exported by `llvm-nm` on the aarch64 build). **The Java screen is written**: `Core`, `Look`, `Vaults`, `CaptureActivity` (the card above the keyboard, a real EditText whose keyboard action saves, completions as rows, tappable guides, what it becomes, the vault pill → known vaults + found ones + "Allow access to your folders" + "Keep captures in the app", the clipboard chip, the draft, insets for target 35, shared text). build-apk.sh: javac → d8, aapt2 compile of `android/res` + the generated icons, link -R; APK 1.1 MB, classes.dex + the .so, launcher = CaptureActivity, adaptive icon. **Not run on a phone yet.** Then: the quick-settings tile `CaptureTile` ("Capture") and `ScreenService` (accessibility, `canTakeScreenshot`, no window content): the tile → shade dismissed → 350 ms → `takeScreenshot` → PNG in the cache → the box with a **Screen** chip (thumbnail; tap to include; attached beside today's log note on save, `![[Screen … .png]]` under the line). Without the service, a "Screen · set up" chip opens the accessibility settings; the accessibility button / gesture does the same as the tile. APK 1.2 MB. Then shared files: SEND / SEND_MULTIPLE of any type → each stream copied into the cache (its display name) → a chip, on by default, × to take it off → attached on save like the screen. Then the server as a destination: the vault menu's "Send to an Atlas server…" (a vault's address `https://host/v/notes` + a `capture` token) → `Server.java` posts `/api/capture` and `/api/attach` (now allowed to capture tokens, never overwriting). Not tried against a running server from the phone. Also done: the res generator (`cargo run -p atlas-android --bin android-res -- <res>` → 18 `drawable/ic_*.xml` from `icons::svg`) and the launcher icon (`android/res/mipmap-*`: PNGs + adaptive foreground at 66 % on `#1f2229`, monochrome layer); both pass `aapt2 compile`. Next: the Java below, then build-apk.sh (javac, d8, aapt2 compile + link -R, the generator).
 
 Next, decided in detail:
 - **Rust (`crates/atlas-android`)**: depend on `atlas-capture` with `default-features = false`, `atlas-core`, `serde_json`, `chrono`, and `jni = "0.21"` (already in Cargo.lock) for Android only; drop winit. `src/phone.rs` holds plain functions, testable on the host; `src/jni.rs` wraps each in `catch_unwind` and passes strings (JSON for structures). Class `org.atlas.capture.Core`:
@@ -101,9 +101,9 @@ Next, decided in detail:
 - No phone connected over adb (`adb devices` empty): every check on a device is done by hand.
 
 
-**Works on a real phone** (2026-10-16). Next: hook it up, run the full app on Android as well, and make the UI truly mobile-friendly and fast.
+**Works on a real phone**. Next: hook it up, run the full app on Android as well, and make the UI truly mobile-friendly and fast.
 
-## The last screenshot, pictures shown, and the page address (2026-10-16, ~03:30)
+## The last screenshot, pictures shown, and the page address
 
 Asked for: offer the last screenshot taken, not only a new one; show shared pictures (a shared image did not show); make a picture viewable bigger; and in a browser (or YouTube) copy the page's address automatically.
 
@@ -116,7 +116,7 @@ Asked for: offer the last screenshot taken, not only a new one; show shared pict
 - Built: APK 1.2 MB (`target/dist/android/atlas-capture.apk`), no warnings but javac's deprecation note (MediaStore `DATA` on API ≤ 28). **Not run on a phone** (none on adb): installed by hand. After installing, the accessibility service may need turning off and on once for the new "read window content" ability.
 
 
-## Two apps, the full app, signing in (2026-10-16, ~08:30–10:00)
+## Two apps, the full app, signing in
 
 Two versions were asked for: one with just the capture, where opening the app normally (not through the accessibility options) shows a normal app to configure it; and one that keeps the capture but is also a port of the desktop app, native where possible, knowing most features matter less on a phone. Then the sign-in (docs/guides/SERVER.md, "Signing in a phone").
 
@@ -132,20 +132,20 @@ Two versions were asked for: one with just the capture, where opening the app no
   - A vault on a server: the phone app reads folder vaults (synced to the phone); for a server vault it offers the server's pages in the browser (the web UI's phone layout, docs/guides/MOBILE.md).
 - **Rust**: `src/md.rs` — a note as blocks with inline spans (frontmatter, headings, paragraphs, items with depth/marker/task/line, quotes and callouts, fenced code, `$$` math, pictures, rules; `**`, `*`/`_` (not inside words, not around spaces), `` ` ``, `$`, `~~`, `==`, `#tags`, `[[target|alias]]`, `[text](url)`), tested; `src/vault.rs` — `Core.call(json)`: one closed enum of calls (`tree`, `note`, `write` with `baseMtime`, `search`, `today`, `tick`, `resolve`), answers in JSON; a new call is a new variant, the JNI glue never changes; `atlas_core::links::Resolver` (made public) resolves `[[links]]` as Obsidian does, cached per vault for a minute or until a write.
 - **Signing in to a server** (`SignIn`, `SignedInActivity`, `SignInWebActivity`, `VaultChoice.signIn`): the address only, then the app looks at what answers and offers the ways in that fit — the browser (Atlas's `/auth/app` in Chrome: the gate with the security key, then Atlas hands back its token and the gate's session; docs/guides/SERVER.md), in the app (a WebView keeping the gate's cookies; a password and a one-time code), or by hand (a token, an optional generic header). The OIDC path written first was removed. Requests (`Server.headers`): Atlas's token in `x-atlas-token` (and as Bearer for older servers), the gate's session and the WebView's cookies, the optional header; a redirect is never followed with the data, and a sign-in page instead of JSON says "sign in again". **The apps had no INTERNET permission until now**: sending to a server could not have worked on the phone before.
-- **Checking without a phone**: `get-toolchain.sh --emulator` fetches Google's emulator and an Android 15 x86_64 image into `local/toolchains/` (~2 GB, checksums checked); `build-apk.sh --emulator` adds the x86_64 library to the APKs; `run-emulator.sh start | shot <png> | stop` makes a phone-sized virtual device by hand (no avdmanager; the system's adb linked as platform-tools), boots it headless and installs the APKs. One heavy job at a time: the emulator takes 4 cores and 3 GB. `run-emulator.sh plugin <package> <plugin id> <file>` makes a test vault inside the app (the image's root shell), puts the file in its `drawings/`, points the app at it and opens the native plugin on it — e.g. `plugin org.atlas.boox notepad my.excalidraw`; write with a simulated pen: `adb -s emulator-5580 shell input stylus swipe …` or `input stylus motionevent DOWN|MOVE|UP x y` (a finger pans). The GPU mode defaults to `swangle_indirect`: `swiftshader_indirect` segfaulted in qemu's RenderThread on this host (2026-10-17); `ATLAS_EMU_RAM=2048` when memory is short.
+- **Checking without a phone**: `get-toolchain.sh --emulator` fetches Google's emulator and an Android 15 x86_64 image into `local/toolchains/` (~2 GB, checksums checked); `build-apk.sh --emulator` adds the x86_64 library to the APKs; `run-emulator.sh start | shot <png> | stop` makes a phone-sized virtual device by hand (no avdmanager; the system's adb linked as platform-tools), boots it headless and installs the APKs. One heavy job at a time: the emulator takes 4 cores and 3 GB. `run-emulator.sh plugin <package> <plugin id> <file>` makes a test vault inside the app (the image's root shell), puts the file in its `drawings/`, points the app at it and opens the native plugin on it — e.g. `plugin org.atlas.boox notepad my.excalidraw`; write with a simulated pen: `adb -s emulator-5580 shell input stylus swipe …` or `input stylus motionevent DOWN|MOVE|UP x y` (a finger pans). The GPU mode defaults to `swangle_indirect`: `swiftshader_indirect` segfaulted in qemu's RenderThread on the development host; `ATLAS_EMU_RAM=2048` when memory is short.
 
 
-**Two sign-in bugs fixed (2026-10-17)**:
+**Two sign-in bugs fixed**:
 - **The ways in were never drawn.** `VaultChoice.offer` built an `AlertDialog` with both `setMessage(…)` and `setItems(…)`; Android shows only the message when both are set, so behind Authelia the dialog said *"A sign-in stands in front of this server…"* and offered nothing but Cancel. Now `VaultChoice.choose` puts the explanation and the ways in (`Look.row`s: **Sign in here** — password, one-time code; **Sign in in the browser** — security key; **A token or a header…**; **Look again** when nothing answered) in one custom view. Never combine `setMessage` with `setItems` / `setSingleChoiceItems` in this app.
 - **The Boox app's token went to the wrong app.** All full editions asked the server as `app=atlas`, so `/auth/app` sent the token to `org.atlas.app://signed-in`, the plain Atlas app's address, not `org.atlas.boox`'s. Now `SignIn.app` names the edition (`boox`, server.rs `APPS` knows it, test `behind_a_gate_the_phone_gets_the_gates_cookies`) for the browser path; the in-app path (`SignInWebActivity`) asks by scope only (`SignIn.scopeApp`) and catches any `org.atlas.*://signed-in` redirect itself (`SignIn.isReturn`), so it also works against a server deployed before `boox` existed. A refusal (`?error=`) is now shown, not silently closed.
 
 
 **"I hand the token but it does not work" (the phone's browser sign-in)** — what is known: an Authelia gate answers anything without its session cookie with a 302 to its sign-in host (`auth.example.org`), an Atlas token or not (checked with curl); its sessions there last 2 weeks / 3 days idle / 1 month with Remember me, so expiry is not the cause. Changed: (1) `Server.headers` sends `Authorization: Bearer <atlas token>` only when no gate cookie goes with the request — Authelia's authz endpoint reads an `Authorization` header as credentials of its own and can refuse the request despite a valid session cookie; Atlas reads `x-atlas-token`. (2) `Server.verify` right after either sign-in probes `/api/auth/me` with what the phone now sends and says the outcome in a toast and `adb logcat -s AtlasSignIn` — "signed in", "the sign-in in front still sends this phone to sign in — cookies: <names>" (never values), "Atlas refused the token", or "did not answer". Not reproduced here (no Authelia credentials on this machine): the toast on the phone is the next evidence.
 
-- **Found from the phone's report** (logcat, 2026-10-17): the vault's page loaded but every `/assets/…` script went to Authelia — `plantGate` had set the browser sign-in's cookie without a Path, so Android scoped it to `/v/`. Now `Path=/` for the site, re-planted whenever a server vault opens; a page that never gets ready on a server offers the sign-in; the page reloads after a sign-in (`AtlasActivity.RELOAD`).
+- **Found from the phone's report** (logcat): the vault's page loaded but every `/assets/…` script went to Authelia — `plantGate` had set the browser sign-in's cookie without a Path, so Android scoped it to `/v/`. Now `Path=/` for the site, re-planted whenever a server vault opens; a page that never gets ready on a server offers the sign-in; the page reloads after a sign-in (`AtlasActivity.RELOAD`).
 - **Security keys on Android**: a browser must hand WebAuthn to Android's credential service — Vanadium does on a phone (checked: it works). The Boox (Android 15, Authnkey enabled) has Fennec F-Droid 149 (default; no FIDO there) and an old Chromium 111 (before Chromium's third-party passkey providers, ~118). "Sign in in the browser" now opens a chooser (`SignIn.atlasInBrowser`), so a capable browser (Cromite, Chrome, Brave) can be picked without changing the default. The Boox's browser path also needs the server's Atlas rebuilt (`app=boox`).
 
-**The capture box's choices, reworked (2026-10-17)**:
+**The capture box's choices, reworked**:
 - **Why a picture "only deselected" or "disappeared"**: a picture was a 20 × 26 dp thumbnail inside a chip; nearly every tap landed on the chip, which toggled a screenshot off and *removed* a shared image (`if (p.removable) pieces.remove(p)`).
 - **Pictures are tiles now** (`CaptureActivity.tile`, 72 dp high, their own row above the chips): a tap opens the picture large (`view`) with big buttons — **Add to capture / Leave out**, **Remove** (only for what was shared or drawn here), a tap on the picture closes; a corner badge (✓ / +) toggles without opening. Left-out pictures are dimmed. A file that is not a picture is a chip that toggles — nothing disappears at a tap any more.
 - **No sideways scrolling**: the chips wrap onto lines (`Flow.java`, a small wrapping `ViewGroup`; no AndroidX); labels cut at 36 characters on one line.
@@ -175,7 +175,7 @@ Two versions were asked for: one with just the capture, where opening the app no
 - Test: `eink.spec.ts` "a palm while the pen writes neither undoes nor moves the page; pen strokes are kept crisp".
 
 
-## Next for the full app: Obsidian's basics, the code editor, plugin blocks (asked 2026-10-16; proposed, not built)
+## Next for the full app: Obsidian's basics, the code editor, plugin blocks (proposed, not built)
 
 The request: atlas.apk needs Obsidian's basics (wikilinks, tasks, Bases), code-editor basics, and ideally the blocks plugins render (Runs and others) and the capture plugins, perhaps with a small JS engine; plugin blocks may run JS if well integrated.
 
@@ -188,7 +188,7 @@ What is there: wikilinks (followed, resolved as Obsidian does), tasks (ticked, T
 **What cannot come**: plugin helpers that are programs (`data = "python3 …"`, the SSH plugin's binary) — a phone runs no Python; such plugins would say so and offer the server's version (the same vault on an Atlas server runs them there).
 
 
-## The native shell (2026-10-16)
+## The native shell
 
 The app had become a pure WebView, without access to native settings, and the mobile web view needed work. Chosen: a **native shell, the web for notes**; Home, Files and Search are not tabs — only actual files are tabs.
 
@@ -219,7 +219,7 @@ The app had become a pure WebView, without access to native settings, and the mo
 - **The Notepad's own full screen and page mode** (native): a different thing from the app's fullscreen above — the Notepad screen has its own (the page island's ⛶ hides its islands and panel too), and shows one page at a time filling the screen by default. (plugins/beta/notepad/README.md).
 
 
-## What is playing, clean links, the in-app core locked (2026-10-16)
+## What is playing, clean links, the in-app core locked
 
 - **The capture box offers what is playing** (`Playing.java`, `MediaListener.java`): a chip with the song or video of the system's media sessions — the address found by shape, else, for a YouTube app, YouTube's own search (*· link by search*). Needs notification access once: Settings → *Capture quickly* → **What is playing**. YouTube and YT Music captures must carry their URL (they go on to TubeArchivist or a music downloader).
 - **Shared links lose their tracking parameters** (`Links.java`: `si`, `igsh`, `utm_*`, `fbclid`, `gclid`, `feature=share…`); a browser's address read from the screen too.
@@ -240,7 +240,7 @@ After trying atlas-boox.apk: the + was nice as quick capture, but the capture be
 
 ## A server's vault shows the app's own interface
 
-A server vault on the Boox worked but used the server's JavaScript, so the file explorer was the desktop's, not the Android view (2026-10-17). Decided: the app brings its own interface, while the server may still provide plugins' JavaScript; app and server check UI versions and warn; and the app no longer downloads the server's 20 MB of JS.
+A server vault on the Boox worked but used the server's JavaScript, so the file explorer was the desktop's, not the Android view. Decided: the app brings its own interface, while the server may still provide plugins' JavaScript; app and server check UI versions and warn; and the app no longer downloads the server's 20 MB of JS.
 
 - **How**: `AtlasActivity.ownUi` (in `shouldInterceptRequest`) answers every GET to the server's host from the app's own interface — `Core.uiFile` (JNI) → `atlas_core::server::ui_file`, the very lookup `atlas serve` uses (installed UI, then the built-in one; a page address is `index.html` told its prefix through `window.__ATLAS_API__`). Not intercepted: `/api/…` (notes, data, **plugins' code** — the server's), `/auth/…`, `/login`, and anything the app does not carry. Same origin as before, so Authelia's cookie and Atlas's session work unchanged.
 - **Versions**: `atlas_core::server::API_LEVEL` (bumped whenever the interface starts relying on a server call or answer an older server lacks) and `GET /api/version` → `{version, api, ui}` (`ui`: the hash of the interface's index). `AtlasActivity.checkVersion` compares the server's with `Core.version()` on opening a server vault and says once per server version: older server (API lower, or no `/api/version` at all — 404), or newer server (update the app). Logged as `versions: app …, server …` (AtlasPage).
@@ -253,7 +253,7 @@ A server vault on the Boox worked but used the server's JavaScript, so the file 
 For YouTube and YT Music the URL matters: it is passed on to TubeArchivist or another app that downloads music into the music library. The catalog already does the hand-off (a catalogued video → TubeArchivist's `archive`, anything → the Downloader's `send`: `[contributes.catalog] links`); the phone's captures only went to the day's log. Now, on a **server vault**, when the capture carries an address (the browser's page, what is playing, or one in the text: `CaptureActivity.links()`), a chip **Catalogue it** appears (off until chosen). Saving then also calls the server's `POST /api/plugins/catalog/tools/add {text: url}` for each address, after the capture itself succeeded; the status line ends with `catalogued: <note names>` or why not. A capture-only token (the capture app's) may not call plugin tools (`auth::CAPTURE_PATHS`): the box then says to catalogue from the full app. A capture kept offline (Outbox) is not catalogued later — said here as a known gap.
 
 
-## The reader app, the mirror, the Library tab (2026-10-20)
+## The reader app, the mirror, the Library tab
 
 - **Open with → Atlas** (`OpenWithActivity`, `AndroidManifest.atlas.xml`): a book, a comic or a PDF from another app
   (a file manager, a download, a mail) — EPUB, MOBI/AZW, FB2, PDF, CBZ — is copied into the app's own folder `Opened/`
@@ -274,7 +274,7 @@ For YouTube and YT Music the URL matters: it is passed on to TubeArchivist or an
   a new notebook's pages the screen's shape.
 
 
-## What is on screen: YouTube, Spotify, Letterboxd, Wikipedia (2026-10-21)
+## What is on screen: YouTube, Spotify, Letterboxd, Wikipedia
 
 The goal: recognise the YouTube video, the Spotify song, the Letterboxd page or the Wikipedia article on screen, inside
 their apps too. A capture from the tile or the
@@ -314,6 +314,6 @@ m.wikipedia, the Wikipedia app with and without its web root, the Letterboxd app
 Spotify apps, Spotify and Letterboxd in a browser, an unknown app, canonical addresses, slugs, the og:title year, the
 summary's address, the search page's first video, thumbnails) on the desktop JVM, no device. `build-apk.sh` runs it before
 compiling the app, so a broken recogniser fails the build. The network halves were checked once by hand from the desktop
-(2026-10-21: `Dune`+2021 → `film/dune-2021/`, `Dune: Part Two`+2024 → `film/dune-part-two/`, Harakiri's summary → its
+(`Dune`+2021 → `film/dune-2021/`, `Dune: Part Two`+2024 → `film/dune-part-two/`, Harakiri's summary → its
 `/wiki/` page, YouTube's search → `dQw4w9WgXcQ`). **Not yet seen on a phone**: the view trees above are shaped from the
 apps' known layouts, not dumped from a real phone — the first real captures in each app are the check.

@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
+import { writePdf } from "./fixtures/pdf";
 
 // Glance mode (lib/where.svelte.ts): every page tells the vault's live room `.atlas/cache/where` what it shows; one
 // following another opens the same file, full screen, and moves when the other turns a PDF's page. Esc stops it.
@@ -11,12 +12,7 @@ function pdf(): string {
     const body = `BT /F1 24 Tf 72 700 Td (Glance page ${i + 1}) Tj ET`;
     objs.push(`<</Type/Page/Parent 2 0 R/MediaBox[0 0 612 792]/Resources<</Font<</F1 3 0 R>>>>/Contents ${page(i) + 1} 0 R>>`, `<</Length ${body.length}>>\nstream\n${body}\nendstream`);
   }
-  let out = "%PDF-1.4\n";
-  const at: number[] = [];
-  objs.forEach((o, i) => { at.push(out.length); out += `${i + 1} 0 obj\n${o}\nendobj\n`; });
-  const xref = out.length;
-  out += `xref\n0 ${objs.length + 1}\n0000000000 65535 f \n${at.map((n) => `${String(n).padStart(10, "0")} 00000 n \n`).join("")}`;
-  return `${out}trailer\n<</Size ${objs.length + 1}/Root 1 0 R>>\nstartxref\n${xref}\n%%EOF\n`;
+  return writePdf(objs);
 }
 const atlas = (p: Page) => ({
   open: (path: string) => p.evaluate((x) => (window as unknown as { __atlas: { open(p: string): void } }).__atlas.open(x), path),

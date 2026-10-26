@@ -1,6 +1,6 @@
 # UI style — the rules Atlas's interface is built and reviewed against
 
-The UI matters, and its rules come from reading on style (2026-10-13). What was read: Anthropic's design fundamentals for pages (the `artifact-design` skill), Vercel's *Web Interface Guidelines* (vercel.com/design/guidelines), and Butterick's *Practical Typography* ("Typography in ten minutes"). This file keeps the parts that apply to a desktop workspace app, phrased as checks. Every visible change is judged against them **from a screenshot**, in both themes.
+The UI matters, and its rules come from reading on style. What was read: Anthropic's design fundamentals for pages (the `artifact-design` skill), Vercel's *Web Interface Guidelines* (vercel.com/design/guidelines), and Butterick's *Practical Typography* ("Typography in ten minutes"). This file keeps the parts that apply to a desktop workspace app, phrased as checks. Every visible change is judged against them **from a screenshot**, in both themes.
 
 ## 1. Use the system that exists
 - Colors, radii, shadows, fonts and sizes come from `ui/src/styles/tokens.css`. No literal colors in components; a new need becomes a token.

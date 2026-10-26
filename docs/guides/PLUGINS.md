@@ -1,6 +1,6 @@
 # Plugins — special-purpose views live with the workspace, not in Atlas
 
-Added 2026-10-06. The Runs tab was too specific: code that applies to nothing else is hard to maintain in the main
+The Runs tab was too specific: code that applies to nothing else is hard to maintain in the main
 app, so it was decoupled. Where it lives: **as a plugin in the vault that uses it** (a research vault with simulation runs).
 
 ## Before / after
@@ -43,7 +43,7 @@ dir = "runs"
   Each plugin becomes a palette command (`plugin.<id>`), a rail button after the built-ins, and a `plugin`
   pane (`{ kind: "plugin", id, title, icon }` — title/icon travel in the spec so restored layouts label the tab).
 
-## API v2 — the shared context and the data substrate (2026-10-07, docs/guides/MALLEABLE.md R3)
+## API v2 — the shared context and the data substrate (docs/guides/MALLEABLE.md R3)
 Additive; v1 plugins keep working.
 - `context()` → a snapshot of what the user is looking at: `active` / `open` panes, the editor `selection`
   (path, lines, text), the caret's `section` (`{ path, heading, line }`), and `hover` (`{ path, line?, source }`).
@@ -61,8 +61,8 @@ core for `atlas mcp`) and `ui/src/lib/plugins.svelte.ts`. Tested by `ui/tests/co
 ## Iterating
 Edit `view.js`, `view.css` or the data script and an open plugin pane remounts by itself (fs events under the
 plugin folder, 250 ms debounce; a fresh blob URL per load defeats module caching); editing `plugin.toml`
-reloads the list (new shortcut, title, icon). No Atlas rebuild, ever — "easy to iterate" for the user and for
-any Claude session, which can write a plugin as files.
+reloads the list (new shortcut, title, icon). No Atlas rebuild, ever — easy to iterate on, by hand or by
+any agent session, which can write a plugin as files.
 
 This needs the core to watch the plugin folders: `.atlas` is a dot-folder, which the vault walk skips, so at first nothing under `.atlas/plugins/<id>/` sent an event and edits applied only after a restart. `events.rs` now watches every folder under `.atlas` except `cache/` and `trash/` (`all_dirs`, test `plugin_folders_are_watched`). On the UI side (`watchPlugins`): a `main.js` / `view.js` / `.css` / `.json` change re-runs the plugin's main; a `plugin.toml` change, or a plugin folder appearing or going, reloads the list; a change to the helper's own script (`.py`, `.sh`, `.rb`, `.pl`, `.lua`, …) stops the helper, and the next call starts the new code. That drops the helper's state (the SSH plugin's open sessions; its shared ssh connection survives, it belongs to ssh). Only the Rust core needs a rebuild.
 
@@ -80,7 +80,7 @@ Do not open a workspace you did not create without reading its `.atlas/`.
 - The vault's `.gitignore` ignores `runs/` anywhere; `!/.atlas/plugins/runs/` re-includes the plugin folder.
 
 
-## v3 — pieces, not apps (2026-10-08)
+## v3 — pieces, not apps
 In short:
 - `main.js` with `export function register(atlas)` runs at startup and **again on every save**. It registers blocks
   (`registerBlock("runs.plot", (host, {options, note, props}) => cleanup, {title?, options?})` — `options` lists the block's options as form fields, `{ key, label, hint?, kind }` with `kind` one of `text`, `number`, `toggle`, `list` (comma-separated, written as a YAML list) or `choice` (with `choices: [...]`); a page then offers "Options…" for the block), commands (`registerCommand`) and entity
@@ -103,7 +103,7 @@ Zotero moves to a plugin as well, and the leftmost panel separates the core icon
 | part of the Library | how it is gated |
 |---|---|
 | the command "Library (papers)" and its shortcut | the action carries `plugin: "library"`; `allCommands()` drops such actions while the plugin is off, so the palette, the key bindings and toolbars lose it together |
-| the toolbar button | the `plugins` word of a toolbar draws the built-in plugins that are on, then the vault's plugins, in the same row as the app's own buttons (until 2026-10-14 a divider set them apart; write `divider` in the toolbar for one). The default sidebar no longer lists `ui.library` among the core tools (a toolbar file that still names it keeps that one button, not two) |
+| the toolbar button | the `plugins` word of a toolbar draws the built-in plugins that are on, then the vault's plugins, in the same row as the app's own buttons (a divider used to set them apart; write `divider` in the toolbar for one). The default sidebar no longer lists `ui.library` among the core tools (a toolbar file that still names it keeps that one button, not two) |
 | `@` and `\cite{` completion | `citing()` in `editor/create.ts` |
 | the Zotero browser connector (a listening port) | `server.rs`: started only if `refs.connector` and the plugin is on |
 
@@ -114,7 +114,7 @@ Zotero moves to a plugin as well, and the leftmost panel separates the core icon
 **Adding another built-in plugin**: one entry in `BUILTINS`, `plugin: "<id>"` on its actions, and a `builtinOn("<id>")` check wherever it hooks into the editor or the core. Tests: `ui/tests/library-plugin.spec.ts`, `a_vault_atlas_creates_starts_without_the_library…` (core).
 
 
-## v4 — hooks into the frame (begun 2026-10-14)
+## v4 — hooks into the frame
 
 **Start from an example** (`plugins/`; copy a folder into a vault's `.atlas/plugins/`):
 
@@ -123,8 +123,8 @@ Zotero moves to a plugin as well, and the leftmost panel separates the core icon
 | `wordcount/` | the smallest: one block with an option, one command, one row in the editor's menu |
 | `ttrpg/` | most of the page side, with no helper and no network: two fences (stat block, dice buttons), a block fed by a Bases query, commands, a status cell, a menu row, three declared settings, a note created in its own folder. Installed and used as it is by `example-ttrpg.spec.ts` |
 | `run-tools/` | buttons above code files (`atlas.editor.toolbar`) that run the file in the terminal (`atlas.terminal.run`): Python with the nearest `.venv` or a set interpreter (a conda line works), Rust through the nearest `Cargo.toml` (run, test, clippy), LaTeX (build, open the PDF beside); two declared settings. Used as it is by `example-run-tools.spec.ts` |
-| ~~`clip/`~~ | removed 2026-10-19 — the catalog does it: **Add to the catalog…** (any link; catalog-web reads the page, catalog-youtube a video), captures of a bare address, and Linkwarden through **Catalog · Linkwarden** (which also has the **Links** panel) |
-| `ntfy/` | send text to a phone through an ntfy server: "ntfy: send to my phone…", or the selection from the editor's menu; server, topic and an optional token (a secret) as settings. And the other way: with an *inbox* topic set, a helper (`listen.py`) keeps the subscription open and every message sent there from the phone is captured into today's log (`atlas.capture`). Tested against a stand-in server (`example-ntfy.spec.ts`), not the user's own |
+| ~~`clip/`~~ | removed — the catalog does it: **Add to the catalog…** (any link; catalog-web reads the page, catalog-youtube a video), captures of a bare address, and Linkwarden through **Catalog · Linkwarden** (which also has the **Links** panel) |
+| `ntfy/` | send text to a phone through an ntfy server: "ntfy: send to my phone…", or the selection from the editor's menu; server, topic and an optional token (a secret) as settings. And the other way: with an *inbox* topic set, a helper (`listen.py`) keeps the subscription open and every message sent there from the phone is captured into today's log (`atlas.capture`). Tested against a stand-in server (`example-ntfy.spec.ts`), not a real one |
 | `memos/` | a line or the selection to a memos server as a new memo (token as a secret, visibility as a choice). The API shape is memos' documented v1 (`POST /api/v1/memos`); tested against a stand-in (`example-memos.spec.ts`) |
 | `paperless/` | a `paperless.search` block: the Paperless-ngx documents matching its `query`, each a link into Paperless (token as a secret). Tested against a stand-in (`example-paperless.spec.ts`) |
 | `immich/` | an `immich.recent` block: the latest photos as thumbnails, each downloaded by the core into the plugin's cache (`fetch` with `saveTo`) and shown with `fileUrl` — the API key never reaches the page. Tested against a stand-in (`example-immich.spec.ts`) |
@@ -142,9 +142,9 @@ Built so far:
 
 - **`atlas.shell.menu(where, fn)`** — rows in the app's right-click menus. `where` is `"file"` (the file tree), `"tab"` (a tab or a pin in the left bar), `"editor"` (the text), `"block"` (a block's menu on a page) or `"terminal"` (the terminal's "+" menu, under Shell and Claude session: the SSH plugin puts one row per host there). `fn(target)` returns the rows for what was clicked, or nothing; `target` is `{ path, dir }` for a file, `{ path?, kind }` for a tab, `{ path, selection }` for the editor, `{ type, note }` for a block. A row is `{ label, run, icon?, hint?, detail?, danger?, disabled? }` (`icon`: an app icon name, ignored when unknown). Plugin rows come after the app's, under a separator; a builder that throws loses only its own rows (the error is in the console). Undone on reload and switch-off like every registration. Code: `ui/src/lib/plugin-menus.ts` (the lists and `pluginMenu(place, target)`), one `...pluginMenu(…)` in each of the four menu builders. Test: `plugin-menus.spec.ts`. Example: `plugins/examples/wordcount/main.js`.
 - **`atlas.shell.statusItem({ id, text, title?, run? })`** — a cell in the status bar, left of the vim mode. With `run` it is a button. It returns `{ set(text, title?), remove() }`; the cell goes away on reload or switch-off. Text longer than 28 characters is cut with an ellipsis: a status cell is a word or a number, not a sentence. Code: `ui/src/lib/plugin-status.svelte.ts` (the list) and `StatusBar.svelte` (draws it). Same test.
-- **Installing, updating, removing — always a copy in the vault.** Decided 2026-10-14: plugins are copied into each vault. A plugin lives in the vault that uses it, `.atlas/plugins/<id>/`; there is no machine-wide plugin folder. So a vault is complete on its own, travels with its plugins, and its git tracks them.
+- **Installing, updating, removing — always a copy in the vault.** Plugins are copied into each vault. A plugin lives in the vault that uses it, `.atlas/plugins/<id>/`; there is no machine-wide plugin folder. So a vault is complete on its own, travels with its plugins, and its git tracks them.
   - `atlas plugin install <folder | git address | .zip / .tar.gz> [--id name] [--on]`, or **Install…** in Settings → Plugins & automation. A folder is copied (without `.git`, `node_modules`, `target`, `__pycache__`); a git address is cloned and its `.git` dropped (it is a copy, not a checkout); an archive is unpacked (one top folder is fine). The manifest must be one this Atlas reads **before** anything in the vault changes. The id is the last part of the path or address unless `--id` says otherwise.
-  - **It arrives switched off** — the setting is written *before* the plugin's folder appears, so a running Atlas never starts it, not even for a moment (it did, until a spec caught it on 2026-10-14) — and the answer says what it may do ("It may talk to …"): read it, then switch it on. `--on` skips that for a plugin you wrote.
+  - **It arrives switched off** — the setting is written *before* the plugin's folder appears, so a running Atlas never starts it, not even for a moment (it did, until a spec caught it) — and the answer says what it may do ("It may talk to …"): read it, then switch it on. `--on` skips that for a plugin you wrote.
   - `atlas plugin update <id>` (or the ↻ button): installs again from where it came — written by the install into `.atlas/plugins/<id>/.source` (`kind`, `from`, the date, the git commit). **The vault's own `[settings]` are kept** over the new manifest's; it stays on or off as it was; a running helper is stopped first. The copy it replaces goes to `.atlas/trash/<time>/.atlas/plugins/<id>/`.
   - `atlas plugin remove <id>` (or ✕): the folder moves to `.atlas/trash/`. **Nothing is ever deleted** by these commands.
   - `atlas plugin list`: each plugin, on / off / broken, its version, what it may do, and where it was installed from (so `atlas plugin update <id>` can be run on it).
@@ -159,7 +159,7 @@ Built so far:
   - **Its life** (`crates/atlas-core/src/helper.rs`): started by the first call, with the vault as its folder and `$ATLAS_ROOT`, `$ATLAS_PLUGIN_DIR`, `$ATLAS_PLUGIN_CACHE` (a folder of its own under `.atlas/cache/plugins/<id>/`, for large results: write a file there and answer with its path) set; in its own process group. When it exits, the calls waiting on it fail with the reason (nothing hangs) and the next call starts a new one. One that has been started five times in ten minutes is left stopped ("crashed") with a message pointing at its log, until `restart`. It is stopped when the plugin is switched off and when Atlas exits. A call that gets no answer in time fails; the helper is not killed for it.
   - **Honest limits:** started lazily only (no "start with the plugin" yet); a request cannot be cancelled; a helper that listens on a network port does not have to declare it yet.
   - Tests: `a_helper_stays_alive_between_calls_sends_events_and_is_restarted_after_it_dies`, `a_helper_that_keeps_dying_is_left_stopped` (core, with a 15-line Python helper); `plugin-helper.spec.ts` (from a plugin: two calls answered by one process, an event reaching the page, stopped with its plugin).
-- **What a plugin may do is shown.** Settings → Plugins & automation writes under each plugin, in plain words, what its manifest asks for outside the page: "May talk to links.example.org · keep secrets (outside the vault) · run a program of its own." It is a list to read, enforced by the core for the network and secrets; **it is not a sandbox** (decided 2026-10-14): a plugin's JavaScript runs in the app's page. Read a vault's `.atlas/plugins/` before opening a vault that is not yours.
+- **What a plugin may do is shown.** Settings → Plugins & automation writes under each plugin, in plain words, what its manifest asks for outside the page: "May talk to links.example.org · keep secrets (outside the vault) · run a program of its own." It is a list to read, enforced by the core for the network and secrets; **it is not a sandbox**: a plugin's JavaScript runs in the app's page. Read a vault's `.atlas/plugins/` before opening a vault that is not yours.
 - **`atlas.fetch(url, init?)` — the network, through the core.** The request is made by the core (`crates/atlas-core/src/plugin_net.rs`, `POST /api/plugins/{id}/fetch`), not by the page: no CORS, a timeout (30 s; `timeout` in seconds, at most 300), a size limit (8 MB as text), and **only to hosts the manifest lists**:
   ```toml
   [permissions]

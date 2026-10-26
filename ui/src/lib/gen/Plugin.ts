@@ -54,6 +54,11 @@ phone: boolean,
  */
 not_here?: string, 
 /**
+ * Why it cannot run in this vault (`blocked`: off, broken, not for the platform asked about, or a plugin it requires
+ * so), filled by `GET /api/plugins` for the clients that do not work it out themselves (the phone app). None: it runs.
+ */
+blocked?: string, 
+/**
  * Set when the manifest does not parse: the plugin is listed (so the user sees why), not loaded.
  */
 error?: string, 

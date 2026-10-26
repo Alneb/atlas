@@ -358,6 +358,10 @@ pub struct Plugin {
     /// Why it does not run where this core runs (its `platforms` entry for `Platform::current()` is `no`).
     #[ts(optional)]
     pub not_here: Option<String>,
+    /// Why it cannot run in this vault (`blocked`: off, broken, not for the platform asked about, or a plugin it requires
+    /// so), filled by `GET /api/plugins` for the clients that do not work it out themselves (the phone app). None: it runs.
+    #[ts(optional)]
+    pub blocked: Option<String>,
     /// Set when the manifest does not parse: the plugin is listed (so the user sees why), not loaded.
     #[ts(optional)]
     pub error: Option<String>,
@@ -390,6 +394,7 @@ impl Plugin {
             platforms: Vec::new(),
             phone: false,
             not_here: None,
+            blocked: None,
             permissions: Permissions::default(),
             has_helper: false,
             from: None,
@@ -599,6 +604,7 @@ pub fn list(root: &Path) -> Vec<Plugin> {
                     parts: parts_of(&m),
                     phone: support(&platforms_of(&m), Platform::Android) != Support::No,
                     not_here: not_on(&m.title, &platforms_of(&m), Platform::current()),
+                    blocked: None,
                     platforms: platforms_of(&m),
                     opens: opens_and_claims(&m),
                     agents: m.agents.clone(),
@@ -659,6 +665,19 @@ fn not_on(title: &str, all: &[Compat], platform: Platform) -> Option<String> {
 
 fn support(all: &[Compat], platform: Platform) -> Support {
     all.iter().find(|c| c.platform == platform).map_or(Support::Untested, |c| c.support)
+}
+
+/// The list as `platform` sees it (the phone app asking a server's core): each plugin's `not_here` for that platform,
+/// then its `blocked` with the vault's `off` list.
+pub fn as_seen_from(mut list: Vec<Plugin>, off: &[String], platform: Platform) -> Vec<Plugin> {
+    for p in &mut list {
+        p.not_here = not_on(&p.title, &p.platforms, platform);
+    }
+    let reasons: Vec<Option<String>> = list.iter().map(|p| blocked(&list, off, &p.id)).collect();
+    for (p, why) in list.iter_mut().zip(reasons) {
+        p.blocked = why;
+    }
+    list
 }
 
 /// Why plugin `id` cannot run with these plugins and this `off` list: itself off or broken, not for this system, or a
@@ -1045,5 +1064,16 @@ mod tests {
         assert_eq!(blocked(&all, &[], "not-here").unwrap(), format!("Not here does not run on {}: needs CUPS", Platform::current().name()));
         assert!(blocked(&all, &[], "on-it").unwrap().starts_with("needs not-here: Not here does not run on"));
         assert!(get("bad").error.as_deref().unwrap_or("").contains("plan9"), "an unknown platform is a manifest error");
+
+        // as the phone app sees a server's list: Android's word, and a plugin needing one that can't run there blocked
+        plugin(t.path(), "needs-phone", "title = \"Needs phone\"\nphone = true\nrequires = [\"phone\"]\n");
+        plugin(t.path(), "needs-plain", "title = \"Needs plain\"\nphone = true\nrequires = [\"plain\"]\n");
+        let seen = as_seen_from(list(t.path()), &["said".into()], Platform::Android);
+        let why = |id: &str| seen.iter().find(|p| p.id == id).unwrap().blocked.clone();
+        assert_eq!(why("phone"), None);
+        assert_eq!(why("needs-phone"), None);
+        assert_eq!(why("plain").as_deref(), Some("Plain does not run on Android: not made for the phone app"));
+        assert!(why("needs-plain").unwrap().starts_with("needs plain: "), "the requires chain counts on the phone too");
+        assert_eq!(why("said").as_deref(), Some("Said is switched off"));
     }
 }

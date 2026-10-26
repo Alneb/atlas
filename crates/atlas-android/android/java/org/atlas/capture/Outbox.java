@@ -87,7 +87,7 @@ final class Outbox {
                     File f = new File(d, files.getString(0));
                     JSONObject a = Server.attach(server, token, f);
                     if (a.has("error")) { stopped = true; note(d, o, a, server, down); break; }
-                    text = text + "\n" + Links.thumbnail(a.getString("embed"));
+                    text = text + "\n" + a.getString("embed");
                     files.remove(0);
                     f.delete();
                     write(d, o.put("text", text).put("files", files));

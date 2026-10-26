@@ -2,9 +2,12 @@
 //! client (no client secret lives in a vault):
 //! 1. `start` reads the provider's endpoints (`<issuer>/.well-known/openid-configuration`) and makes the sign-in address;
 //! 2. the page shows it (`atlas.signIn`) and hands back the address the provider sent the browser to;
-//! 3. `finish` trades the code for tokens, kept as the plugin's secret `oauth.<name>` (outside the vault, never sent to a page);
+//! 3. `finish` trades the code for tokens, kept once per provider in `@signin` (outside the vault, never sent to a page)
+//!    and shared by every plugin: a plugin's secret `oauth.<name>` only names the provider it signed in with;
 //! 4. `atlas.fetch` fills a header `{ oauth: name }` with `Bearer <access token>`, refreshed when it is about to expire.
 //!
+//! `ready` gets a token with no click when it can: the vault's provider already signed in (another plugin did), or a
+//! kept gate session (the door's cookie) that the provider takes for a silent `prompt=none` sign-in.
 //! Every address the provider gives must be one the plugin may reach (`[permissions] net`), like any of its requests.
 //! The provider is the plugin's `issuer`, else the one the service names in its 401 (`resource`: RFC 9728's
 //! `WWW-Authenticate: Bearer resource_metadata=…`), else the vault's (`[plugins] oidc_issuer`); likewise the client.
@@ -69,9 +72,9 @@ pub struct OauthStatus {
     pub renews: bool,
 }
 
-/// The secret's content (JSON in the plugin's secret `oauth.<name>`).
+/// A provider's tokens, kept once in `@signin` as `oidc.<key>` and used by every plugin that signed in with it.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-struct Kept {
+struct Tokens {
     access: String,
     #[serde(default)]
     refresh: String,
@@ -79,12 +82,36 @@ struct Kept {
     expires: u64,
     token_endpoint: String,
     client_id: String,
+    /// The provider's address, for Settings and for matching the vault's `oidc_issuer` (empty in tokens moved from a plugin).
+    #[serde(default)]
+    issuer: String,
+    /// When the provider last answered with tokens (unix seconds): the keep-alive renews long-unused ones.
+    #[serde(default)]
+    renewed: u64,
+}
+
+/// A plugin's secret `oauth.<name>`: the provider it signed in with, or (kept before tokens were shared) its own tokens.
+#[derive(Serialize, Deserialize)]
+#[serde(untagged)]
+enum Link {
+    To { provider: String },
+    Own(Tokens),
+}
+
+/// The sign-ins' section of the secrets store (service_signin's): no plugin can read it.
+const SECTION: &str = "@signin";
+
+/// A provider's key in `@signin`: its token endpoint, hashed to a plain name.
+fn provider_key(token_endpoint: &str) -> String {
+    let h = Sha256::digest(token_endpoint.trim().trim_end_matches('/').as_bytes());
+    format!("oidc.{}", h.iter().take(8).map(|b| format!("{b:02x}")).collect::<String>())
 }
 
 /// A sign-in between `start` and `finish`, found again by its `state`.
 struct Pending {
     plugin: String,
     name: String,
+    issuer: String,
     verifier: String,
     token_endpoint: String,
     client_id: String,
@@ -255,7 +282,7 @@ pub fn start(root: &Path, id: &str, s: &OauthStart, vault: &crate::config::Plugi
         .append_pair("code_challenge_method", "S256");
     let mut p = pending().lock().unwrap_or_else(|e| e.into_inner());
     p.retain(|_, v| v.made.elapsed() < PENDING_FOR);
-    p.insert(state, Pending { plugin: id.into(), name: s.name.clone(), verifier, token_endpoint: token.to_string(), client_id, redirect: redirect.clone(), made: Instant::now() });
+    p.insert(state, Pending { plugin: id.into(), name: s.name.clone(), issuer: issuer.trim().trim_end_matches('/').into(), verifier, token_endpoint: token.to_string(), client_id, redirect: redirect.clone(), made: Instant::now() });
     Ok(OauthStarted { url: url.to_string(), redirect })
 }
 
@@ -276,56 +303,201 @@ pub fn finish(secrets: &Store, id: &str, address: &str) -> Result<String> {
     };
     let form = [("grant_type", "authorization_code"), ("code", code), ("redirect_uri", &p.redirect), ("client_id", &p.client_id), ("code_verifier", &p.verifier)];
     let v = answer(client()?.post(&p.token_endpoint).form(&form).send().map_err(|e| Error::BadRequest(format!("oauth: {}: {e}", p.token_endpoint)))?, "the code")?;
-    keep(secrets, id, &p.name, &v, &p.token_endpoint, &p.client_id, "")?;
+    let tokens = share(secrets, &v, &p.token_endpoint, &p.client_id, &p.issuer, "")?;
+    link(secrets, id, &p.name, &provider_key(&tokens.token_endpoint))?;
     Ok(p.name)
 }
 
-/// The token answer, kept; a refresh that brings no new refresh token keeps the old one.
-fn keep(secrets: &Store, id: &str, name: &str, v: &serde_json::Value, token_endpoint: &str, client_id: &str, old_refresh: &str) -> Result<Kept> {
+/// The token answer, kept as the provider's (shared); a refresh that brings no new refresh token keeps the old one.
+fn share(secrets: &Store, v: &serde_json::Value, token_endpoint: &str, client_id: &str, issuer: &str, old_refresh: &str) -> Result<Tokens> {
     let access = v["access_token"].as_str().ok_or_else(|| Error::BadRequest("oauth: the provider sent no access_token".into()))?;
-    let kept = Kept {
+    let t = Tokens {
         access: access.into(),
         refresh: v["refresh_token"].as_str().unwrap_or(old_refresh).into(),
         expires: v["expires_in"].as_u64().map(|s| now() + s).unwrap_or(0),
         token_endpoint: token_endpoint.into(),
         client_id: client_id.into(),
+        issuer: issuer.into(),
+        renewed: now(),
     };
-    secrets.set(id, &secret_of(name)?, &serde_json::to_string(&kept).map_err(|e| Error::Other(e.into()))?)?;
-    Ok(kept)
+    secrets.set(SECTION, &provider_key(token_endpoint), &serde_json::to_string(&t).map_err(|e| Error::Other(e.into()))?)?;
+    Ok(t)
 }
 
-fn kept(secrets: &Store, id: &str, name: &str) -> Result<Option<Kept>> {
-    Ok(secrets.get(id, &secret_of(name)?)?.and_then(|t| serde_json::from_str(&t).ok()))
+fn link(secrets: &Store, id: &str, name: &str, provider: &str) -> Result<()> {
+    secrets.set(id, &secret_of(name)?, &serde_json::to_string(&Link::To { provider: provider.into() }).map_err(|e| Error::Other(e.into()))?)
+}
+
+fn shared(secrets: &Store, provider: &str) -> Result<Option<Tokens>> {
+    Ok(secrets.get(SECTION, provider)?.and_then(|t| serde_json::from_str(&t).ok()))
+}
+
+/// The provider plugin `id`'s sign-in `name` uses, and its tokens. A plugin's own tokens from before sharing move to
+/// the shared place on the way.
+fn linked(secrets: &Store, id: &str, name: &str) -> Result<Option<(String, Tokens)>> {
+    let Some(raw) = secrets.get(id, &secret_of(name)?)? else { return Ok(None) };
+    match serde_json::from_str::<Link>(&raw) {
+        Ok(Link::To { provider }) => Ok(shared(secrets, &provider)?.map(|t| (provider, t))),
+        Ok(Link::Own(t)) => {
+            let key = provider_key(&t.token_endpoint);
+            let issuer = t.issuer.clone();
+            let mut answer = serde_json::json!({ "access_token": t.access, "refresh_token": t.refresh });
+            if t.expires != 0 {
+                answer["expires_in"] = t.expires.saturating_sub(now()).into();
+            }
+            let t = share(secrets, &answer, &t.token_endpoint, &t.client_id, &issuer, "")?;
+            link(secrets, id, name, &key)?;
+            Ok(Some((key, t)))
+        }
+        Err(_) => Ok(None),
+    }
+}
+
+/// Usable: still valid, or able to renew itself.
+fn fresh_or_renewable(t: &Tokens) -> bool {
+    t.expires == 0 || t.expires > now() + RENEW_BEFORE || !t.refresh.is_empty()
+}
+
+/// One renewal at a time: a provider rotating refresh tokens (Authelia) refuses one used twice.
+fn renewing() -> &'static Mutex<()> {
+    static R: OnceLock<Mutex<()>> = OnceLock::new();
+    R.get_or_init(Default::default)
+}
+
+/// The provider's tokens renewed with its refresh token; the rotated one kept.
+fn renew(secrets: &Store, provider: &str) -> Result<Tokens> {
+    let _one = renewing().lock().unwrap_or_else(|e| e.into_inner());
+    let t = shared(secrets, provider)?.ok_or_else(|| Error::BadRequest("oauth: the sign-in is gone: sign in again".into()))?;
+    if t.expires != 0 && t.expires > now() + RENEW_BEFORE && now().saturating_sub(t.renewed) < 60 {
+        return Ok(t); // renewed by another plugin while this one waited
+    }
+    if t.refresh.is_empty() {
+        return Err(Error::BadRequest("oauth: the sign-in has ended (no refresh token): sign in again".into()));
+    }
+    let form = [("grant_type", "refresh_token"), ("refresh_token", t.refresh.as_str()), ("client_id", t.client_id.as_str())];
+    let v = answer(client()?.post(&t.token_endpoint).form(&form).send().map_err(|e| Error::BadRequest(format!("oauth: {}: {e}", t.token_endpoint)))?, "renewing the sign-in")?;
+    share(secrets, &v, &t.token_endpoint, &t.client_id, &t.issuer, &t.refresh)
+}
+
+/// Before a fetch with `{ oauth: name }`: can sign-in `name` give a token? When the plugin has none yet it takes the
+/// vault's provider's, if signed in already; otherwise a silent sign-in through a kept gate session is tried (the
+/// provider's own page never shown). False: the page offers the sign-in window.
+pub fn ready(root: &Path, secrets: &Store, id: &str, name: &str, resource: &str) -> Result<bool> {
+    if linked(secrets, id, name)?.is_some_and(|(_, t)| fresh_or_renewable(&t)) {
+        return Ok(true);
+    }
+    let vault = crate::config::Config::load(root).map(|c| c.plugins).unwrap_or_default();
+    let issuer = vault.oidc_issuer.trim().trim_end_matches('/');
+    if !issuer.is_empty() {
+        for key in secrets.names(SECTION)?.into_iter().filter(|k| k.starts_with("oidc.")) {
+            if shared(secrets, &key)?.is_some_and(|t| t.issuer == issuer && fresh_or_renewable(&t)) {
+                link(secrets, id, name, &key)?;
+                return Ok(true);
+            }
+        }
+    }
+    Ok(silent(root, secrets, id, name, resource, &vault).unwrap_or_else(|e| {
+        eprintln!("atlas: a silent sign-in for {id} ({name}): {e}");
+        false
+    }))
+}
+
+/// The authorization request with `prompt=none` and the kept gate cookie for the provider's host: a provider that
+/// knows the session (Authelia's portal shares its cookie with its OpenID side) answers the redirect with a code at
+/// once. Anything else (`login_required`, no cookie kept, a page) is false.
+fn silent(root: &Path, secrets: &Store, id: &str, name: &str, resource: &str, vault: &crate::config::PluginsConfig) -> Result<bool> {
+    let perm = crate::plugins::permissions(root, id)?;
+    let ask = OauthStart { name: name.into(), issuer: None, resource: vault.oidc_issuer.trim().is_empty().then(|| resource.to_string()), client_id: None, scopes: None, redirect: None };
+    let started = start(root, id, &ask, vault)?;
+    let mut url = reqwest::Url::parse(&started.url).map_err(|e| Error::Other(e.into()))?;
+    url.query_pairs_mut().append_pair("prompt", "none");
+    let Some(cookie) = crate::plugin_net::kept_cookie(&perm, secrets, &url, &Default::default())? else { return Ok(false) };
+    let r = client()?.get(url).header(reqwest::header::COOKIE, cookie).send().map_err(|e| Error::BadRequest(format!("oauth: {e}")))?;
+    let to = r.headers().get(reqwest::header::LOCATION).and_then(|v| v.to_str().ok()).unwrap_or_default();
+    if !r.status().is_redirection() || !to.starts_with(&started.redirect) || !to.contains("code=") {
+        return Ok(false);
+    }
+    finish(secrets, id, to)?;
+    Ok(true)
 }
 
 /// Step 4: a current access token for sign-in `name`, renewed first when it is (nearly) out of date.
-/// Whether sign-in `name` can give a token: kept, and either still valid or able to renew itself.
-pub fn usable(secrets: &Store, id: &str, name: &str) -> Result<bool> {
-    Ok(kept(secrets, id, name)?.is_some_and(|k| k.expires == 0 || k.expires > now() + RENEW_BEFORE || !k.refresh.is_empty()))
-}
-
 pub fn access_token(secrets: &Store, id: &str, name: &str) -> Result<String> {
-    let k = kept(secrets, id, name)?.ok_or_else(|| Error::BadRequest(format!("oauth: plugin {id} is not signed in to {name:?}: sign in first")))?;
-    if k.expires == 0 || k.expires > now() + RENEW_BEFORE {
-        return Ok(k.access);
+    let (provider, t) = linked(secrets, id, name)?.ok_or_else(|| Error::BadRequest(format!("oauth: plugin {id} is not signed in to {name:?}: sign in first")))?;
+    if t.expires == 0 || t.expires > now() + RENEW_BEFORE {
+        return Ok(t.access);
     }
-    if k.refresh.is_empty() {
-        return Err(Error::BadRequest(format!("oauth: the sign-in {name:?} has ended (no refresh token): sign in again")));
-    }
-    let form = [("grant_type", "refresh_token"), ("refresh_token", k.refresh.as_str()), ("client_id", k.client_id.as_str())];
-    let v = answer(client()?.post(&k.token_endpoint).form(&form).send().map_err(|e| Error::BadRequest(format!("oauth: {}: {e}", k.token_endpoint)))?, "renewing the sign-in")?;
-    Ok(keep(secrets, id, name, &v, &k.token_endpoint, &k.client_id, &k.refresh)?.access)
+    Ok(renew(secrets, &provider)?.access)
 }
 
 pub fn status(secrets: &Store, id: &str, name: &str) -> Result<OauthStatus> {
-    Ok(match kept(secrets, id, name)? {
-        Some(k) => OauthStatus { signed_in: k.expires == 0 || k.expires > now() || !k.refresh.is_empty(), expires: k.expires, renews: !k.refresh.is_empty() },
+    Ok(match linked(secrets, id, name)? {
+        Some((_, t)) => OauthStatus { signed_in: t.expires == 0 || t.expires > now() || !t.refresh.is_empty(), expires: t.expires, renews: !t.refresh.is_empty() },
         None => OauthStatus { signed_in: false, expires: 0, renews: false },
     })
 }
 
+/// The plugin stops using the provider; the provider's sign-in stays for the others (Settings forgets it).
 pub fn sign_out(secrets: &Store, id: &str, name: &str) -> Result<bool> {
     secrets.delete(id, &secret_of(name)?)
+}
+
+/// A provider's sign-in, as Settings lists it (no token).
+#[derive(Debug, Clone, Serialize, TS)]
+#[ts(export)]
+pub struct OidcSignin {
+    /// Its key, to forget it by.
+    pub key: String,
+    /// The provider's address (empty for one kept before it was recorded: then its token endpoint).
+    pub issuer: String,
+    /// Unix seconds the access token lasts to; 0 when the provider did not say.
+    #[ts(type = "number")]
+    pub expires: u64,
+    pub renews: bool,
+    /// Unix seconds the provider last answered.
+    #[ts(type = "number")]
+    pub renewed: u64,
+    /// The plugins signed in with it.
+    pub plugins: Vec<String>,
+}
+
+/// Every provider signed in, with the plugins that use it (`ids`: the vault's plugins).
+pub fn providers(secrets: &Store, ids: &[String]) -> Result<Vec<OidcSignin>> {
+    let mut out = Vec::new();
+    for key in secrets.names(SECTION)?.into_iter().filter(|k| k.starts_with("oidc.")) {
+        let Some(t) = shared(secrets, &key)? else { continue };
+        let mut plugins = Vec::new();
+        for id in ids {
+            for n in secrets.names(id).unwrap_or_default().into_iter().filter_map(|n| n.strip_prefix("oauth.").map(String::from)) {
+                if linked(secrets, id, &n).ok().flatten().is_some_and(|(p, _)| p == key) && !plugins.contains(id) {
+                    plugins.push(id.clone());
+                }
+            }
+        }
+        let issuer = if t.issuer.is_empty() { t.token_endpoint.clone() } else { t.issuer.clone() };
+        out.push(OidcSignin { key, issuer, expires: t.expires, renews: !t.refresh.is_empty(), renewed: t.renewed, plugins });
+    }
+    Ok(out)
+}
+
+pub fn forget(secrets: &Store, key: &str) -> Result<bool> {
+    if !key.starts_with("oidc.") {
+        return Err(Error::BadRequest(format!("oauth: {key:?} is not a provider's sign-in")));
+    }
+    secrets.delete(SECTION, key)
+}
+
+/// Refresh tokens end unused (Authelia: 30 days) and rotate on use: a provider not used for a week is renewed, so a
+/// sign-in outlives a quiet month. Called by the sign-ins' keep-alive.
+pub fn keep_alive(secrets: &Store) {
+    const QUIET: u64 = 7 * 86400;
+    for key in secrets.names(SECTION).unwrap_or_default().into_iter().filter(|k| k.starts_with("oidc.")) {
+        if shared(secrets, &key).ok().flatten().is_some_and(|t| !t.refresh.is_empty() && now().saturating_sub(t.renewed) > QUIET) {
+            if let Err(e) = renew(secrets, &key) {
+                eprintln!("atlas: keeping the OpenID sign-in {key}: {e}");
+            }
+        }
+    }
 }
 
 #[cfg(test)]
@@ -354,12 +526,23 @@ mod tests {
     }
 
     /// A stand-in server answering whole HTTP responses in order (made knowing its port); returns what it was sent.
-    fn serve(answers: impl FnOnce(u16) -> Vec<String> + Send + 'static) -> (u16, std::thread::JoinHandle<Vec<String>>) {
+    fn serve(answers: impl FnOnce(u16) -> Vec<String>) -> (u16, std::thread::JoinHandle<Vec<String>>) {
+        serve_with(move |port| {
+            let all = answers(port);
+            let n = all.len();
+            let mut queue = all.into_iter();
+            (n, move |_: &str| queue.next().unwrap())
+        })
+    }
+
+    /// The same, for `n` requests, each answer made from the request it answers.
+    fn serve_with<F: FnMut(&str) -> String + Send + 'static>(make: impl FnOnce(u16) -> (usize, F)) -> (u16, std::thread::JoinHandle<Vec<String>>) {
         let l = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
         let port = l.local_addr().unwrap().port();
+        let (n, mut answer) = make(port);
         let t = std::thread::spawn(move || {
             let mut seen = Vec::new();
-            for answer in answers(port) {
+            for _ in 0..n {
                 let (mut s, _) = l.accept().unwrap();
                 let mut r = BufReader::new(s.try_clone().unwrap());
                 let mut head = String::new();
@@ -373,8 +556,9 @@ mod tests {
                 let len = head.lines().find_map(|l| l.to_ascii_lowercase().strip_prefix("content-length:").map(|n| n.trim().parse::<usize>().unwrap())).unwrap_or(0);
                 let mut b = vec![0; len];
                 r.read_exact(&mut b).unwrap();
-                seen.push(head + &String::from_utf8_lossy(&b));
-                s.write_all(answer.as_bytes()).unwrap();
+                let req = head + &String::from_utf8_lossy(&b);
+                s.write_all(answer(&req).as_bytes()).unwrap();
+                seen.push(req);
             }
             seen
         });
@@ -482,7 +666,10 @@ mod tests {
         // 30 s left is inside the renewal margin: the next use renews, and keeps the refresh token the answer lacked
         assert_eq!(access_token(&secrets, "net", "authelia").unwrap(), "acc-2");
         assert_eq!(access_token(&secrets, "net", "authelia").unwrap(), "acc-2", "fresh now: no request");
-        assert!(secrets.get("net", "oauth.authelia").unwrap().unwrap().contains("ref-1"));
+        assert!(!secrets.get("net", "oauth.authelia").unwrap().unwrap().contains("ref-1"), "the plugin keeps only a link");
+        let listed = providers(&secrets, &["net".into()]).unwrap();
+        assert_eq!((listed.len(), listed[0].plugins.as_slice(), listed[0].issuer.as_str()), (1, ["net".to_string()].as_slice(), format!("http://127.0.0.1:{port}").as_str()));
+        assert!(secrets.get(SECTION, &listed[0].key).unwrap().unwrap().contains("ref-1"), "the provider's tokens, shared");
 
         let seen = server.join().unwrap();
         assert!(seen[1].contains("grant_type=authorization_code") && seen[1].contains("code=the-code") && seen[1].contains("code_verifier="), "{}", seen[1]);
@@ -490,6 +677,95 @@ mod tests {
 
         assert!(sign_out(&secrets, "net", "authelia").unwrap());
         assert!(access_token(&secrets, "net", "authelia").unwrap_err().to_string().contains("sign in first"));
+        assert_eq!(providers(&secrets, &["net".into()]).unwrap()[0].plugins.len(), 0, "the provider stays for other plugins");
         assert!(secret_of("../x").is_err());
+    }
+
+    /// The vault's provider, its client and redirect, in the vault's config.
+    fn vault_provider(root: &Path, port: u16) {
+        std::fs::write(root.join(".atlas/config.toml"), format!("[plugins]\noidc_issuer = \"http://127.0.0.1:{port}/\"\noidc_client_id = \"atlas\"\noidc_redirect = \"https://localhost/atlas\"\n")).unwrap();
+    }
+
+    /// A query parameter of the request line `GET /path?… HTTP/1.1`.
+    fn param(req: &str, key: &str) -> String {
+        let target = req.split_whitespace().nth(1).unwrap();
+        reqwest::Url::parse(&format!("http://x{target}")).unwrap().query_pairs().find(|(k, _)| k == key).map(|(_, v)| v.into_owned()).unwrap_or_default()
+    }
+
+    #[test]
+    fn a_kept_gate_session_signs_in_silently_and_a_second_plugin_shares_the_token() {
+        let (vault, sdir) = (tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap());
+        let secrets = Store::in_dir(sdir.path(), vault.path());
+        plugin(vault.path(), "127.0.0.1");
+        // the gate's session, kept from a door sign-in
+        let cookie = crate::service_signin::Cookie { name: "authelia_session".into(), value: "sess".into(), domain: "127.0.0.1".into(), host_only: true, path: "/".into(), secure: false, expires: None };
+        crate::service_signin::keep(&secrets, "127.0.0.1", vec![cookie]).unwrap();
+        // discovery, then the authorization request answered with a code (the session is known), then the token
+        let (port, server) = serve_with(|port| {
+            let mut n = 0;
+            (3, move |req: &str| {
+                n += 1;
+                match n {
+                    1 => json(&discovery(port)),
+                    2 => format!("HTTP/1.1 302 Found\r\nLocation: https://localhost/atlas?code=silent&state={}\r\nContent-Length: 0\r\nConnection: close\r\n\r\n", param(req, "state")),
+                    _ => json(r#"{"access_token":"acc","refresh_token":"ref","expires_in":3600}"#),
+                }
+            })
+        });
+        vault_provider(vault.path(), port);
+        assert!(ready(vault.path(), &secrets, "net", "svc", "http://127.0.0.1/api").unwrap());
+        assert_eq!(access_token(&secrets, "net", "svc").unwrap(), "acc");
+        let seen = server.join().unwrap();
+        assert_eq!(param(&seen[1], "prompt"), "none");
+        assert!(seen[1].contains("authelia_session=sess"), "the gate's cookie went with it: {}", seen[1]);
+        assert!(seen[2].contains("code=silent"), "{}", seen[2]);
+
+        // another plugin of the vault: the provider's token, no request at all
+        let d = vault.path().join(".atlas/plugins/other");
+        std::fs::create_dir_all(&d).unwrap();
+        std::fs::write(d.join("plugin.toml"), "title = \"Other\"\n[permissions]\nnet = [\"127.0.0.1\"]\nsecrets = true\n").unwrap();
+        assert!(ready(vault.path(), &secrets, "other", "authelia", "http://127.0.0.1/x").unwrap());
+        assert_eq!(access_token(&secrets, "other", "authelia").unwrap(), "acc");
+        assert_eq!(providers(&secrets, &["net".into(), "other".into()]).unwrap()[0].plugins, ["net", "other"]);
+    }
+
+    #[test]
+    fn a_provider_that_wants_its_page_leaves_the_sign_in_to_the_window() {
+        let (vault, sdir) = (tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap());
+        let secrets = Store::in_dir(sdir.path(), vault.path());
+        plugin(vault.path(), "127.0.0.1");
+        let cookie = crate::service_signin::Cookie { name: "authelia_session".into(), value: "old".into(), domain: "127.0.0.1".into(), host_only: true, path: "/".into(), secure: false, expires: None };
+        crate::service_signin::keep(&secrets, "127.0.0.1", vec![cookie]).unwrap();
+        let (port, server) = serve_with(|port| {
+            let mut n = 0;
+            (2, move |req: &str| {
+                n += 1;
+                if n == 1 { json(&discovery(port)) } else { format!("HTTP/1.1 302 Found\r\nLocation: https://localhost/atlas?error=login_required&state={}\r\nContent-Length: 0\r\nConnection: close\r\n\r\n", param(req, "state")) }
+            })
+        });
+        vault_provider(vault.path(), port);
+        assert!(!ready(vault.path(), &secrets, "net", "svc", "http://127.0.0.1/api").unwrap());
+        server.join().unwrap();
+        // no gate session at all: nothing is asked of the provider beyond its discovery
+        let (vault, sdir) = (tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap());
+        let secrets = Store::in_dir(sdir.path(), vault.path());
+        plugin(vault.path(), "127.0.0.1");
+        let (port, server) = serve(|port| vec![json(&discovery(port))]);
+        vault_provider(vault.path(), port);
+        assert!(!ready(vault.path(), &secrets, "net", "svc", "http://127.0.0.1/api").unwrap());
+        assert_eq!(server.join().unwrap().len(), 1);
+    }
+
+    #[test]
+    fn a_plugins_own_tokens_from_before_move_to_the_shared_place() {
+        let (vault, sdir) = (tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap());
+        let secrets = Store::in_dir(sdir.path(), vault.path());
+        secrets.set("net", "oauth.old", r#"{"access":"a","refresh":"r","expires":0,"token_endpoint":"https://auth.example.org/api/oidc/token","client_id":"atlas"}"#).unwrap();
+        assert_eq!(access_token(&secrets, "net", "old").unwrap(), "a");
+        assert!(secrets.get("net", "oauth.old").unwrap().unwrap().contains("provider"));
+        let p = &providers(&secrets, &["net".into()]).unwrap()[0];
+        assert_eq!((p.issuer.as_str(), p.renews, p.plugins.as_slice()), ("https://auth.example.org/api/oidc/token", true, ["net".to_string()].as_slice()));
+        assert!(forget(&secrets, &p.key).unwrap());
+        assert!(forget(&secrets, "door.x").is_err(), "only a provider's sign-in");
     }
 }

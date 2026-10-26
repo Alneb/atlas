@@ -23,14 +23,6 @@ final class Links {
         return out.toString();
     }
 
-    private static final Pattern PICTURE = Pattern.compile("^!\\[\\[([^\\]|]+\\.(?:png|jpe?g|webp|gif|avif|jxl|heic))\\]\\]$", Pattern.CASE_INSENSITIVE);
-
-    /** A picture's embed as a capture writes it: a thumbnail, `![[Screen….png|240]]`; any other embed as it was. */
-    static String thumbnail(String embed) {
-        Matcher m = embed == null ? null : PICTURE.matcher(embed);
-        return m != null && m.matches() ? "![[" + m.group(1) + "|240]]" : embed;
-    }
-
     private static String clean(String url) {
         int q = url.indexOf('?');
         if (q < 0) return url;

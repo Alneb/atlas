@@ -72,6 +72,11 @@ class NotifyTest(unittest.TestCase):
     def settings(self, **kw):
         return {"settings": {"server": self.url, "topics": "server", "folder": "notifications", **kw}, "secrets": {}}
 
+    def test_the_sign_in_is_a_user_and_password_else_a_token(self):
+        self.assertEqual(notify.auth({"settings": {"user": "me"}, "secrets": {"password": "pw", "token": "tk"}}), {"Authorization": "Basic bWU6cHc="})
+        self.assertEqual(notify.auth({"settings": {}, "secrets": {"token": "tk"}}), {"Authorization": "Bearer tk"})
+        self.assertEqual(notify.auth({"settings": {}, "secrets": {}}), {})
+
     def test_messages_are_filed_by_source_newest_first_and_never_twice(self):
         Stand.topics["server"] = [
             {"id": "a1", "time": 1761354000, "title": "Backup done", "message": "2.1 GB", "tags": ["backups"], "priority": 3},

@@ -10,9 +10,9 @@ Atlas has one app icon and one browser-tab icon. Both are drawn as SVG in `packa
 | `packaging/icon/atlas-glyph.svg` | The same drawing without the tile: white on transparent. | Android's adaptive foreground and its themed (monochrome) layer |
 | `packaging/icon/favicon.svg` | **The browser-tab icon.** `[[ globe ]]`: double wikilink brackets around the same globe, on the same tile. | Browser tabs, for the server (local or remote) and the Vite dev server |
 
-Why two marks: the app icon has fine detail (the map's folds and the dotted route) that blurs at 16–32 px. The bracketed globe stays crisp at 16 px and rhymes with the app icon (the same globe and the same tile), so the user chose it for the tab.
+Why two marks: the app icon has fine detail (the map's folds and the dotted route) that blurs at 16–32 px. The bracketed globe stays crisp at 16 px and rhymes with the app icon (the same globe and the same tile), so it was chosen for the tab.
 
-The meaning, in the user's terms: an *atlas* is a book of maps, and in topology it is a set of charts that cover a manifold, each chart a patch carried onto a flat map. The globe and its map are that chart. The route ending on a note, and the `[[ ]]` of the favicon, stand for "everything is linkable" (`docs/PHILOSOPHY.md`).
+The meaning: an *atlas* is a book of maps, and in topology it is a set of charts that cover a manifold, each chart a patch carried onto a flat map. The globe and its map are that chart. The route ending on a note, and the `[[ ]]` of the favicon, stand for "everything is linkable" (`docs/PHILOSOPHY.md`).
 
 The map is hidden behind the globe with an SVG **mask**, not by painting the globe's inside in the tile colour. That keeps the glyph transparent there, which Android's monochrome layer needs, and the tile's gradient shows through the globe exactly.
 

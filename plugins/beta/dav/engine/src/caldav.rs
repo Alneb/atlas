@@ -65,6 +65,8 @@ pub struct Resp {
     pub body: String,
     /// where the answer came from after redirects
     pub url: Url,
+    /// the `Location` header of an answer that is not a redirect (a push subscription's address)
+    pub location: Option<String>,
 }
 
 /// A calendar collection on the server.
@@ -197,7 +199,7 @@ fn network_why(e: &reqwest::Error) -> String {
 
 fn propfind_body(props: &str) -> String {
     format!(
-        r#"<?xml version="1.0" encoding="utf-8"?><d:propfind xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav" xmlns:a="http://apple.com/ns/ical/" xmlns:cs="http://calendarserver.org/ns/" xmlns:card="urn:ietf:params:xml:ns:carddav"><d:prop>{props}</d:prop></d:propfind>"#
+        r#"<?xml version="1.0" encoding="utf-8"?><d:propfind xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav" xmlns:a="http://apple.com/ns/ical/" xmlns:cs="http://calendarserver.org/ns/" xmlns:card="urn:ietf:params:xml:ns:carddav" xmlns:p="https://bitfire.at/webdav-push"><d:prop>{props}</d:prop></d:propfind>"#
     )
 }
 
@@ -302,8 +304,9 @@ impl Client {
                 return Err(DavError::Auth { host: Self::host(&at) });
             }
             let etag = r.headers().get("etag").and_then(|e| e.to_str().ok()).map(str::to_string);
+            let location = r.headers().get("location").and_then(|e| e.to_str().ok()).map(str::to_string);
             let body = r.text().unwrap_or_default();
-            return Ok(Resp { status, etag, body, url: at });
+            return Ok(Resp { status, etag, body, url: at, location });
         }
         Err(DavError::Status { what: format!("{method} {}", url.path()), code: 310, body: "too many redirects".into() })
     }

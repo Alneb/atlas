@@ -1,6 +1,6 @@
 # Tasks, Atlas's way
 
-Atlas does not recreate all of Obsidian's Tasks plugin (2026-10-14). Wanted: **priority and recurrence read by the views, and a flexible task block (filters, grouping, sorting, done / not done, by file or tag)**; not wanted: a port of the Obsidian Tasks plugin's query language. This is that.
+Atlas does not recreate all of Obsidian's Tasks plugin. Wanted: **priority and recurrence read by the views, and a flexible task block (filters, grouping, sorting, done / not done, by file or tag)**; not wanted: a port of the Obsidian Tasks plugin's query language. This is that.
 
 A task is a checkbox line in any note. Nothing is stored anywhere else: what a task is, when it is due, how often it repeats — all of it is the text of its line.
 
@@ -31,18 +31,18 @@ Code: `crates/atlas-core/src/tasks.rs` (`parse`, with its tests).
 
 What is offered while a task is typed is decided in one place, `crates/atlas-core/src/task_suggest.rs`, for the note editor (`taskSource` in `ui/src/lib/editor/md-complete.ts`), the capture box on the Home page (`ui/src/lib/textarea-complete.ts`, through `GET /api/tasks/suggest`) and the quick-capture window (`crates/atlas-capture`, which links the crate). The three behave the same; only Enter differs in meaning (a new line in a note, *save* in a box), and in all three the ⏎ row comes first so Enter keeps that meaning.
 
-The rules are Obsidian Tasks' own, read from an installed copy of the plugin (`<vault>/.obsidian/plugins/obsidian-tasks-plugin/main.js`, its `CU` / `NU` / `FU` suggesters) with the user's settings (`autoSuggestInEditor` on, `autoSuggestMinMatch` 0, `autoSuggestMaxItems` 20, emoji format, created date on):
+The rules are Obsidian Tasks' own, read from an installed copy of the plugin (`<vault>/.obsidian/plugins/obsidian-tasks-plugin/main.js`, its `CU` / `NU` / `FU` suggesters) with a real vault's settings (`autoSuggestInEditor` on, `autoSuggestMinMatch` 0, `autoSuggestMaxItems` 20, emoji format, created date on):
 
 - **On a task line the list is always there** (`[editor] task_suggest = "always"`, the default; Obsidian's "minimum match 0"). The fields, in Obsidian's order and words: due date, start date, scheduled date, high / medium / low / highest / lowest priority, recurring (repeat), created today (and Atlas's "done today"). A field the line has is not offered again; one priority takes the others away.
 - **The last word typed filters by "contains"** (as Obsidian: "du" brings due date *and* scheduled date), plus Atlas's synonyms (deadline, urgent, someday…). Nothing matched: every field, appended at the caret (a space first after a word).
-- **⏎ first, always.** Obsidian lets Enter take a matching field; typing *"fix the low"* + Enter became 🔽 and made no new line (2026-10-14), so in Atlas Enter is a new line (in a note) or *save* (in a box) until Tab or ↓ moves onto a field.
+- **⏎ first, always.** Obsidian lets Enter take a matching field; typing *"fix the low"* + Enter became 🔽 and made no new line, so in Atlas Enter is a new line (in a note) or *save* (in a box) until Tab or ↓ moves onto a field.
 - **Tab**: on a list of matching fields, Tab walks it; on the full list (nothing matched, `browsing` in the answer) Tab indents the task, as in Obsidian. **Escape** on a list still at ⏎ closes it and reaches vim at once (with the list on every task line, two Escapes would otherwise be the rule).
 - **After 📅 / ⏳ / 🛫 (or `@word`)**: the days — today, tomorrow, the next six weekdays, next week, in two weeks, next month, next year — and what is typed read as a date ("next fri", "in 3 days", "+2w"), written `YYYY-MM-DD`. After 🔁: the rules Atlas can step.
 - **`@`** on a task line is the task's: a bare `@` opens the fields (and is replaced by the one taken), `@tom` the days. Citations still come from `[@key` there; a bare `@` cites only off task lines (`citeSource`). A bare `@` used to list the days mixed with the vault's citation keys, which read as a random set of words.
 - **Short forms in a note** (`[editor] task_short_forms`, on): `[] `, `todo `, `TODO ` at the start of a line (or after a list's `- `) become `- [ ] `, as the capture boxes read them (`capture::starts_as_task` is the one rule for the boxes). **Backspace** after a task's box takes one step: `- [ ] ` → `- ` → nothing (CodeMirror's `deleteMarkupBackward` removed it all at once).
 - `[editor] task_suggest = "match"`: only a matching word (or `@`) opens the list; `"off"`: only Ctrl+Space.
 
-Checked: `task_suggest.rs` tests (Obsidian's order, contains, the bare `@`, capture vs editor), `atlas-capture` `complete.rs` tests, `task-complete.spec.ts` (always on, Tab indents, one Escape, `[]` / `TODO`, Backspace steps, `@` without citations), `capture-hints.spec.ts` (the Home box offers the same fields). Reproduced first read-only in WebKit on the user's vault: no list ever appeared while typing `- [ ] buy milk`.
+Checked: `task_suggest.rs` tests (Obsidian's order, contains, the bare `@`, capture vs editor), `atlas-capture` `complete.rs` tests, `task-complete.spec.ts` (always on, Tab indents, one Escape, `[]` / `TODO`, Backspace steps, `@` without citations), `capture-hints.spec.ts` (the Home box offers the same fields). Reproduced first read-only in WebKit on a real vault: no list ever appeared while typing `- [ ] buy milk`.
 
 ## Ticking
 

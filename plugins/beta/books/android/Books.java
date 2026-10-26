@@ -14,7 +14,11 @@ public final class Books implements NativePlugin {
 
     @Override public View view(Host host, String path) {
         BooksScreen s = new BooksScreen(host);
-        s.read(path);
+        // `x.pdf#page=3` (a link to a page, Obsidian's form): that page, not where the book was left
+        int hash = path.indexOf("#page=");
+        int page = 0;
+        if (hash > 0) { try { page = Integer.parseInt(path.substring(hash + 6).replaceAll("[^0-9].*", "")); } catch (NumberFormatException e) { /* none */ } path = path.substring(0, hash); }
+        s.read(path, page);
         return s;
     }
 }

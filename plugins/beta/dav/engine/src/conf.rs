@@ -204,6 +204,23 @@ pub fn color_for(s: &Value, name: &str, id: &str) -> Option<String> {
 }
 
 /// Minutes between CalDAV syncs.
+/// The ntfy server calendars push their changes through (push.rs): the Calendar's own setting, else the one the
+/// Notifications plugin already uses (one ntfy for the vault); neither: no push, the regular check only.
+pub fn push_server(s: &Value) -> String {
+    let own = text(s, "push_server");
+    let t = if own.is_empty() && serving() { notifications_server() } else { own };
+    let t = t.trim_end_matches('/');
+    if t.is_empty() || t.contains("://") { t.to_string() } else { format!("https://{t}") }
+}
+
+/// The Notifications plugin's ntfy server, when it is installed and on in this vault.
+fn notifications_server() -> String {
+    match Atlas::new().get("/api/plugins") {
+        Ok(Value::Array(all)) => all.iter().find(|x| x["id"] == "notifications").map(|n| text(&n["settings"], "server")).unwrap_or_default(),
+        _ => String::new(),
+    }
+}
+
 pub fn refresh_minutes(s: &Value) -> i64 {
     s["refresh"].as_i64().unwrap_or(5).max(1)
 }

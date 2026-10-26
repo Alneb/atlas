@@ -45,7 +45,8 @@ snap: boolean,
  */
 shapes: ShapeRecogniser, 
 /**
- * Scribble back and forth over strokes (as Boox Notes does) and they are erased instead of the scribble kept.
+ * Scribble back and forth over strokes (as Boox Notes does) and they are erased instead of the scribble kept
+ * (the Boox's notepad).
  */
 scribble: boolean, 
 /**
@@ -61,15 +62,16 @@ width: PenWidth,
  */
 color: PenColor, 
 /**
- * Eraser. Whole strokes: a touch takes the stroke; part of strokes: only where the eraser passes.
+ * Eraser (the Boox's notepad). Whole strokes: a touch takes the stroke; part of strokes: only where the eraser
+ * passes.
  */
 eraser: EraserMode, 
 /**
- * Shape at the start.
+ * Shape at the start (the Boox's notepad).
  */
 shape: StartShape, 
 /**
- * Text size at the start.
+ * Text size at the start (the Boox's notepad).
  */
 text_size: TextSize, 
 /**

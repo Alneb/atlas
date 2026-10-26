@@ -10,6 +10,7 @@ pub mod edit;
 pub mod ics;
 pub mod invite;
 pub mod pull;
+pub mod push;
 pub mod quick;
 pub mod recur;
 pub mod store;

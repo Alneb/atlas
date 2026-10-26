@@ -1,6 +1,7 @@
 // Sign-ins to the services plugins reach (core service_signin.rs, docs/design/SERVICE-SIGNIN.md). When a plugin's request
 // meets a gate (Authelia, Authentik…) the core says so; this offers the sign-in once per host and minute. The desktop
-// app catches `/signin/door` and shows the gate's page in a window; a browser lands on a page explaining why not.
+// app catches `/signin/door` and shows the gate's page in a window, the phone app signs in in its own; a browser lands on
+// a page explaining why not.
 // A service that wants an OpenID token (`token`) gets the plugin's sign-in, its provider found from the service.
 import { errText } from "./text";
 import { on } from "./bus";
@@ -8,11 +9,13 @@ import { api, apiBase } from "./api";
 import { signIn } from "./signin";
 import { toast } from "./state.svelte";
 import type { Needed } from "./gen/Needed";
+import { nativeSignInDoor } from "./native-shell.svelte";
 
 const offered = new Map<string, number>();
 const QUIET_MS = 60_000;
 
 export function openServiceSignin(page: string): void {
+  if (nativeSignInDoor(page)) return; // the phone app: its own window, the session handed to the in-app core
   window.open(`${apiBase()}/signin/door?url=${encodeURIComponent(page)}`, "_blank");
 }
 

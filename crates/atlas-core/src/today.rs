@@ -222,10 +222,6 @@ impl<S: PartialEq, V: Clone> PerFile<S, V> {
     }
 }
 
-/// Files modified within [`CHANGED_WINDOW`] of `now`, newest first.
-pub fn recent_changes(root: &Path, cfg: &Config, now: SystemTime) -> Vec<Changed> {
-    changed_since(root, &found(root, cfg), cfg, now)
-}
 
 /// Each thing once, under the path that stands for it (a file and its companion note are one: companion::stands_for);
 /// `items` newest first, so the newest of a thing's files gives its time.

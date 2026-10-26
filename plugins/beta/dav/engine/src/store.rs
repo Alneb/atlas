@@ -91,6 +91,17 @@ pub struct Store {
     db: Mutex<Connection>,
 }
 
+/// A calendar's push subscription (push.rs): its ntfy topic (empty: the calendar offers no push, asked again at
+/// `expires`), the subscription's address on the server, its end, and its private key.
+#[derive(Debug, Clone, PartialEq)]
+pub struct PushRow {
+    pub source: String,
+    pub topic: String,
+    pub location: String,
+    pub expires: i64,
+    pub key: String,
+}
+
 fn err(e: rusqlite::Error) -> String {
     format!("the calendar cache: {e}")
 }
@@ -123,7 +134,9 @@ impl Store {
              CREATE INDEX IF NOT EXISTS objects_uid ON objects(uid);
              CREATE INDEX IF NOT EXISTS objects_lo ON objects(source, lo);
              CREATE TABLE IF NOT EXISTS contacts (book TEXT NOT NULL, href TEXT NOT NULL, etag TEXT, name TEXT NOT NULL,
-               emails TEXT NOT NULL, org TEXT, PRIMARY KEY (book, href));",
+               emails TEXT NOT NULL, org TEXT, PRIMARY KEY (book, href));
+             CREATE TABLE IF NOT EXISTS push (source TEXT PRIMARY KEY, topic TEXT NOT NULL, location TEXT NOT NULL,
+               expires INTEGER NOT NULL, key TEXT NOT NULL);",
         )
         .map_err(err)?;
         c.execute_batch(&format!("PRAGMA user_version = {SCHEMA}")).map_err(err)?;
@@ -132,6 +145,36 @@ impl Store {
 
     fn db(&self) -> std::sync::MutexGuard<'_, Connection> {
         self.db.lock().unwrap_or_else(|p| p.into_inner())
+    }
+
+    // ----- push subscriptions
+
+    pub fn push_rows(&self) -> Vec<PushRow> {
+        let db = self.db();
+        let Ok(mut q) = db.prepare("SELECT source, topic, location, expires, key FROM push") else { return Vec::new() };
+        q.query_map([], |r| Ok(PushRow { source: r.get(0)?, topic: r.get(1)?, location: r.get(2)?, expires: r.get(3)?, key: r.get(4)? }))
+            .map(|rows| rows.flatten().collect())
+            .unwrap_or_default()
+    }
+
+    pub fn push_row(&self, source: &str) -> Option<PushRow> {
+        self.push_rows().into_iter().find(|r| r.source == source)
+    }
+
+    pub fn push_put(&self, r: &PushRow) {
+        let _ = self.db().execute(
+            "INSERT OR REPLACE INTO push (source, topic, location, expires, key) VALUES (?1, ?2, ?3, ?4, ?5)",
+            rusqlite::params![r.source, r.topic, r.location, r.expires, r.key],
+        );
+    }
+
+    pub fn push_remove(&self, source: &str) {
+        let _ = self.db().execute("DELETE FROM push WHERE source = ?1", [source]);
+    }
+
+    /// The calendar a push topic belongs to.
+    pub fn push_source(&self, topic: &str) -> Option<String> {
+        self.push_rows().into_iter().find(|r| !r.topic.is_empty() && r.topic == topic).map(|r| r.source)
     }
 
     // ----- sources

@@ -17,6 +17,7 @@ public final class Notepad implements NativePlugin {
     @Override public View view(Host host, String path) {
         // `x.excalidraw#Page 2` (a link to a page): the drawing, opened at that page
         int hash = path.indexOf('#');
+        if (hash > 0 && path.toLowerCase(java.util.Locale.ROOT).substring(0, hash).endsWith(".pdf")) { host.openPlugin("books", path); return new View(host.activity()); } // the reader, at `#page=N`
         if (hash > 0) {
             View v = view(host, path.substring(0, hash));
             if (v instanceof NotepadView) ((NotepadView) v).startAt = path.substring(hash + 1);

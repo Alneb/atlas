@@ -132,7 +132,7 @@ async fn http_api_end_to_end() {
     let (s, v) = t.get("/api/workspace").await;
     assert_eq!(s, StatusCode::OK);
     let info: WorkspaceInfo = serde_json::from_value(v).unwrap();
-    assert_eq!(Path::new(&info.root), t.root().canonicalize().unwrap());
+    assert_eq!(Path::new(&info.root), atlas_core::paths::real(t.root()).unwrap());
     assert_eq!(info.config.log_dir, "notes/log"); // the default since 958d51e
     // the real vault's config is what is copied (with `runs` added): it may anchor the entry at the root (`/runs`)
     assert!(info.config.ignore.iter().any(|p| p.trim_start_matches('/') == "runs"));
@@ -244,7 +244,7 @@ async fn http_api_end_to_end() {
     let cmds: Vec<CommandInfo> = serde_json::from_value(v).unwrap();
     assert!(cmds
         .iter()
-        .any(|c| c.id == "capture" && c.source == CommandSource::Builtin && c.keys.as_deref() == Some("Ctrl+Alt+C")));
+        .any(|c| c.id == "capture" && c.source == CommandSource::Builtin && c.keys.as_deref() == Some("Super+C")));
     assert!(cmds.iter().any(|c| c.id == "sum" && c.source == CommandSource::Script));
     let (s, v) = t.send(reqwest::Method::POST, "/api/cmd/sum", json!({"args": {"a": 2, "b": 40}})).await;
     assert_eq!(s, StatusCode::OK, "{v}");
@@ -358,7 +358,7 @@ async fn pty_shell_session() {
         while let Some(Ok(m)) = ws.next().await {
             if let Message::Binary(b) = m {
                 out.push_str(&String::from_utf8_lossy(&b));
-                if out.contains("hi atlas42") && out.contains(&*t.root().canonicalize().unwrap().to_string_lossy()) {
+                if out.contains("hi atlas42") && out.contains(&*atlas_core::paths::real(t.root()).unwrap().to_string_lossy()) {
                     break;
                 }
             }

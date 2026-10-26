@@ -1,11 +1,15 @@
 import { test, expect } from "@playwright/test";
 
 // Settings → Accounts, "Sign-ins for plugins" (components/settings/SigninsPanel.svelte, core service_signin.rs): each
-// kept sign-in with the plugins it is sent for, and a sign-in started ahead of any plugin from a typed address.
+// kept sign-in with the plugins it is sent for, a sign-in started ahead of any plugin from a typed address, and the
+// OpenID providers signed in (plugin_oauth.rs), one shared by the plugins that use it.
 test("a kept sign-in says which plugins it is sent for; one can be started from an address", async ({ page }) => {
   await page.route("**/api/signin/doors", (route) => route.fulfill({ json: [
     { host: "links.example.org", at: 1761354000, cookies: 2, renewed: 1761400000, ended: false, plugins: ["linkwarden", "jellyfin"] },
     { host: "old.example.net", at: 1761354000, cookies: 1, ended: true, plugins: [] },
+  ] }));
+  await page.route("**/api/signin/tokens", (route) => route.fulfill({ json: [
+    { key: "oidc.0123456789abcdef", issuer: "https://auth.example.org", expires: 1761357600, renews: true, renewed: 1761354000, plugins: ["immich", "paperless"] },
   ] }));
   await page.addInitScript(() => { (window as unknown as { opened: string[] }).opened = []; window.open = ((u: string) => { (window as unknown as { opened: string[] }).opened.push(u); return null; }) as typeof window.open; });
   await page.goto("/");
@@ -18,6 +22,9 @@ test("a kept sign-in says which plugins it is sent for; one can be started from 
   await expect(panel.locator("li").nth(0)).toContainText("for linkwarden, jellyfin");
   await expect(panel.locator("li").nth(1)).toContainText("ended");
   await expect(panel.locator("li").nth(1)).toContainText("no plugin names it yet");
+  const provider = panel.locator("li", { hasText: "auth.example.org" });
+  await expect(provider).toContainText("renews itself");
+  await expect(provider).toContainText("for immich, paperless");
   await panel.getByLabel("Sign in at a service's address").fill("media.example.org");
   await panel.getByRole("button", { name: "Sign in", exact: true }).click();
   await expect.poll(() => page.evaluate(() => (window as unknown as { opened: string[] }).opened)).toEqual([expect.stringContaining("/signin/door?url=https%3A%2F%2Fmedia.example.org")]);

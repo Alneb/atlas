@@ -99,23 +99,38 @@ pub fn mirror(vault: &Path, mirror: &str, cookies: &str) -> Value {
         atlas_core::vaults::remember(&list, vault, chrono::Utc::now().timestamp_millis())?;
         let path = vault.canonicalize()?.to_string_lossy().into_owned();
         atlas_core::vaults::set_mirror(&list, &path, Some(mirror).filter(|m| !m.trim().is_empty()))?;
-        let Some(host) = reqwest::Url::parse(mirror).ok().and_then(|u| u.host_str().map(str::to_string)) else { return Ok(()) };
-        let domain = gate_domain(&host);
-        let jar: Vec<atlas_core::service_signin::Cookie> = cookies
-            .split(';')
-            .filter_map(|kv| kv.split_once('='))
-            .map(|(k, v)| atlas_core::service_signin::Cookie { name: k.trim().into(), value: v.trim().into(), domain: domain.clone(), host_only: false, path: "/".into(), secure: true, expires: None })
-            .filter(|c| !c.name.is_empty())
-            .collect();
-        if !jar.is_empty() {
-            atlas_core::service_signin::keep(&atlas_core::secrets::Store::for_vault(vault), &host, jar)?;
-        }
+        keep_cookies(vault, mirror, cookies)?;
         // the running core's writes ask the server for leases from now on (DESIGN-mirror-v2.md §2, step 6): serve ran
         // before the list had the mirror
         atlas_core::mirror_guard::install_for_mirror(&atlas_core::Workspace::open(vault)?);
         Ok(())
     };
     match run() {
+        Ok(()) => json!({ "ok": true }),
+        Err(e) => json!({ "error": format!("{e:#}") }),
+    }
+}
+
+/// This app's cookies for `url` (`a=b; c=d`, as the WebView keeps them after a sign-in) kept as the in-app core's
+/// sign-in to that host — the store the desktop's sign-in window fills — so plugins on the phone pass the same gate.
+fn keep_cookies(vault: &Path, url: &str, cookies: &str) -> anyhow::Result<()> {
+    let Some(host) = reqwest::Url::parse(url).ok().and_then(|u| u.host_str().map(str::to_string)) else { return Ok(()) };
+    let domain = gate_domain(&host);
+    let jar: Vec<atlas_core::service_signin::Cookie> = cookies
+        .split(';')
+        .filter_map(|kv| kv.split_once('='))
+        .map(|(k, v)| atlas_core::service_signin::Cookie { name: k.trim().into(), value: v.trim().into(), domain: domain.clone(), host_only: false, path: "/".into(), secure: true, expires: None })
+        .filter(|c| !c.name.is_empty())
+        .collect();
+    if !jar.is_empty() {
+        atlas_core::service_signin::keep(&atlas_core::secrets::Store::for_vault(vault), &host, jar)?;
+    }
+    Ok(())
+}
+
+/// A door sign-in made in the app's own window (a plugin met a gate, SignInWebActivity): kept for the in-app core.
+pub fn keep_signin(vault: &Path, url: &str, cookies: &str) -> Value {
+    match keep_cookies(vault, url, cookies) {
         Ok(()) => json!({ "ok": true }),
         Err(e) => json!({ "error": format!("{e:#}") }),
     }

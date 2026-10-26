@@ -271,8 +271,24 @@ async fn raw_put(State(st): S, Query(q): Query<RawPut>, body: Bytes) -> Result<J
     Ok(Json(written))
 }
 
-async fn plugins_get(State(st): S) -> Result<Json<Vec<crate::plugins::Plugin>>> {
-    Ok(Json(with_ws(&st, |ws| Ok(crate::plugins::list(ws.root()))).await?))
+#[derive(serde::Deserialize)]
+struct PluginsQuery {
+    /// `android`: each plugin's `not_here` and `blocked` as the phone app sees them (it runs a server vault's plugins
+    /// itself); any platform: `blocked` filled. None: the list as this core sees it.
+    platform: Option<crate::platform::Platform>,
+}
+
+async fn plugins_get(State(st): S, Query(q): Query<PluginsQuery>) -> Result<Json<Vec<crate::plugins::Plugin>>> {
+    Ok(Json(
+        with_ws(&st, move |ws| {
+            let list = crate::plugins::list(ws.root());
+            Ok(match q.platform {
+                Some(p) => crate::plugins::as_seen_from(list, &ws.config()?.plugins.off, p),
+                None => list,
+            })
+        })
+        .await?,
+    ))
 }
 
 /// What the plugins that can run contribute to plugin `id` (`[contributes.<id>]`), by contributing plugin.
@@ -374,6 +390,19 @@ async fn signin_door_delete(State(st): S, UrlPath(host): UrlPath<String>) -> Res
     Ok(Json(with_ws(&st, move |ws| crate::service_signin::forget(&crate::secrets::Store::for_vault(ws.root()), &host)).await?))
 }
 
+/// The OpenID providers signed in (plugin_oauth.rs), shared by the plugins: which, until when, used by whom.
+async fn signin_tokens_get(State(st): S) -> Result<Json<Vec<crate::plugin_oauth::OidcSignin>>> {
+    Ok(Json(with_ws(&st, |ws| {
+        let ids: Vec<String> = crate::plugins::list(ws.root()).into_iter().map(|p| p.id).collect();
+        crate::plugin_oauth::providers(&crate::secrets::Store::for_vault(ws.root()), &ids)
+    })
+    .await?))
+}
+
+async fn signin_token_delete(State(st): S, UrlPath(key): UrlPath<String>) -> Result<Json<bool>> {
+    Ok(Json(with_ws(&st, move |ws| crate::plugin_oauth::forget(&crate::secrets::Store::for_vault(ws.root()), &key)).await?))
+}
+
 /// Where the page sends a service sign-in: the desktop app catches this address and opens the gate's page in a
 /// window of its own (crates/atlas-app `door_target`). A browser lands here, and is told why nothing more happens.
 async fn signin_door_page() -> Response {
@@ -435,11 +464,6 @@ async fn plugin_helper_post(State(st): S, UrlPath(id): UrlPath<String>, Json(c):
         let allowed = crate::plugins::permissions(ws.root(), &id)?.secrets;
         crate::plugin_tools::keep_secrets(&crate::secrets::Store::for_vault(ws.root()), &id, allowed, answer)
     }).await?))
-}
-
-/// The tools the switched-on plugins offer to agents (`atlas mcp`).
-async fn plugin_tools_get(State(st): S) -> Result<Json<Vec<crate::plugin_tools::Tool>>> {
-    Ok(Json(with_ws(&st, |ws| Ok(crate::plugin_tools::list(ws.root(), &ws.config()?))).await?))
 }
 
 /// Runs a plugin's tool in the window's helper — the one the page uses, so sessions are shared.
@@ -1928,7 +1952,6 @@ fn router(state: Arc<AppState>) -> Router {
         .route("/plugin-files/{rev}/{*path}", get(plugin_file_get))
         .route("/api/plugins/{id}/contributions", get(plugin_contributions_get))
         .route("/api/plugins/{id}/helper", get(plugin_helper_get).post(plugin_helper_post))
-        .route("/api/plugins/tools", get(plugin_tools_get))
         // `terminals_survive`: this core keeps a terminal running across a page reload (pty.rs);
         // an older one killed them, and the page then asks before reloading
         .route("/api/ui/build", get(|| async { Json(serde_json::json!({ "build": crate::ui_files::build(), "terminals_survive": true })) }))
@@ -1953,6 +1976,8 @@ fn router(state: Arc<AppState>) -> Router {
         .route("/api/signin/door", post(signin_door_post))
         .route("/api/signin/doors", get(signin_doors_get))
         .route("/api/signin/doors/{host}", delete(signin_door_delete))
+        .route("/api/signin/tokens", get(signin_tokens_get))
+        .route("/api/signin/tokens/{key}", delete(signin_token_delete))
         .route("/signin/door", get(signin_door_page))
         .route("/api/events", get(events_ws))
         .route("/api/live", get(live_ws))
@@ -2451,7 +2476,7 @@ atlas.serve()
         let built = std::process::Command::new(env!("CARGO")).args(["build", "-q", "-p", "atlas-catalog", "--bin", "catalog"]).current_dir(&ws).status().unwrap();
         assert!(built.success(), "cargo build -p atlas-catalog failed");
         let target = std::env::var_os("CARGO_TARGET_DIR").map(std::path::PathBuf::from).unwrap_or_else(|| ws.join("target"));
-        let engine = target.join(format!("debug/catalog{}", std::env::consts::EXE_SUFFIX)).canonicalize().unwrap();
+        let engine = crate::paths::real(&target.join(format!("debug/catalog{}", std::env::consts::EXE_SUFFIX))).unwrap();
 
         // a web page and a stand-in Linkwarden that remembers what it was given
         let saved: Arc<std::sync::Mutex<Vec<serde_json::Value>>> = Arc::default();
@@ -2473,7 +2498,7 @@ atlas.serve()
             let mut manifest = std::fs::read_to_string(plugins.join(id).join("plugin.toml")).unwrap();
             if id == "catalog" {
                 manifest = manifest.replace("run = \"\\\"${ATLAS_PLUGIN_BIN:-$ATLAS_PLUGIN_DIR/bin/$ATLAS_PLUGIN_TARGET}/catalog\\\"\"", &format!("run = {:?}", engine.to_string_lossy()));
-                assert!(manifest.contains(&*engine.to_string_lossy()), "the helper line moved: {manifest}");
+                assert!(!manifest.contains("$ATLAS_PLUGIN_TARGET}/catalog"), "the helper line moved: {manifest}");
             }
             if id == "catalog-linkwarden" {
                 manifest = format!("{manifest}\n[settings]\naddress = \"http://{addr}\"\n");

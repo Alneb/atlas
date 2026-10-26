@@ -69,6 +69,14 @@ pub extern "system" fn Java_org_atlas_capture_Core_mirror(mut env: JNIEnv, _: JC
     ret(&mut env, move || crate::serve::mirror(Path::new(&v), &m, &c).to_string())
 }
 
+/// A sign-in to a service's gate made in the app (serve.rs `keep_signin`), for the in-app core's plugins: `{ok}` or `{error}`.
+#[cfg(feature = "full")]
+#[no_mangle]
+pub extern "system" fn Java_org_atlas_capture_Core_keepSignin(mut env: JNIEnv, _: JClass, vault: JString, url: JString, cookies: JString) -> jstring {
+    let (v, u, c) = (arg(&mut env, &vault), arg(&mut env, &url), arg(&mut env, &cookies));
+    ret(&mut env, move || crate::serve::keep_signin(Path::new(&v), &u, &c).to_string())
+}
+
 /// A JPEG XL for the native plugins (image.rs): `[width, height, ARGB…]`, or null when it is not one.
 #[no_mangle]
 pub extern "system" fn Java_org_atlas_capture_Core_decodeJxl(env: JNIEnv, _: JClass, bytes: jni::objects::JByteArray) -> jni::sys::jintArray {

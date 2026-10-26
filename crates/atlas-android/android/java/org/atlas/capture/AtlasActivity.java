@@ -521,6 +521,17 @@ public final class AtlasActivity extends Activity {
         return w;
     }
 
+    /** A service's gate signed in in the app's window (Web.signIn), the session given to the in-app core, which sends it
+     *  with its plugins' requests there. A server's vault: its core signs in on the server, not here. */
+    private void signInDoor(String url) {
+        String vault = shown;
+        if (vault == null || Server.is(vault)) { startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url))); return; }
+        Web.signIn(this, url, () -> new Thread(() -> {
+            String said = Core.keepSignin(vault, url, Web.cookies(this, url));
+            if (said.contains("\"error\"")) android.util.Log.w("AtlasSignin", url + ": " + said);
+        }).start());
+    }
+
     /** The page's side of the shell (native-shell.svelte.ts). Called on the WebView's thread: everything goes to the main one. */
     private final class Bridge {
         @JavascriptInterface public void ready() { runOnUiThread(AtlasActivity.this::pageReady); }
@@ -536,6 +547,8 @@ public final class AtlasActivity extends Activity {
             return String.valueOf(nativeFor(path) != null);
         }
         /** `path` may name a place in the file after `#` (a drawing's `#Page 2`): the plugin is chosen by the file, handed all. */
+        /** service-signin.ts: a plugin met a service's gate. */
+        @JavascriptInterface public void signInDoor(String url) { runOnUiThread(() -> AtlasActivity.this.signInDoor(url)); }
         @JavascriptInterface public void openNative(String path) { runOnUiThread(() -> { NativePlugin p = nativeFor(path.split("#", 2)[0]); if (p != null) PluginActivity.start(AtlasActivity.this, p.id(), path); }); }
         /** lib/eink.ts's automatic refreshes: the calm one, no flash (Look.calmRefresh). */
         @JavascriptInterface public void einkRefresh() { runOnUiThread(() -> Look.calmRefresh(web)); }

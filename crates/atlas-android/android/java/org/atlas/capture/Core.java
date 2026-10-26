@@ -59,6 +59,9 @@ final class Core {
      *  core after serve(): files stay read and written in the folder; the core reaches the server for the live rooms
      *  and the leases (docs/design/DESIGN-mirror-v2.md). */
     static native String mirror(String vault, String mirror, String cookies);
+    /** A sign-in to a service's gate made in the app (a plugin met it): its cookies given to the in-app core, which sends
+     *  them with its plugins' requests there, as the desktop's sign-in window does. */
+    static native String keepSignin(String vault, String url, String cookies);
     /** `{version, api, ui}` of the interface the app carries (full app only). */
     static native String version();
     /** After a native screen saved drawing `rel` (vault path) with `scene` (its JSON): its companion note brought up to

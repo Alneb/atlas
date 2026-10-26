@@ -1,10 +1,10 @@
 # Templates — Atlas's own template language
 
-Atlas has its own dynamic templates built in instead of Templater (2026-10-17): a powerful template engine, and templates are never linked and never offered in `[[` suggestions.
+Atlas has its own dynamic templates built in instead of Templater: a powerful template engine, and templates are never linked and never offered in `[[` suggestions.
 
 A template is a plain Markdown note in the templates folder (`[notes] templates`, default `templates/`). Atlas fills it in when a note is made from it: **New… → *name* note**, "New note from a template…", captures as notes (`[notes] capture_template`), the agent tool `atlas_new_note`, reading notes for papers. The engine is `crates/atlas-template` (shared by the core and the catalog's helper); it reads values and never runs code, so a template from anywhere is safe to use.
 
-The syntax is a superset of Obsidian's core Templates plugin (`{{date}}`, `{{time}}`, `{{title}}`, `{{date:YYYY-MM-DD}}`), so existing templates keep working. Templater's `<% tp.… %>` tags that the user's templates use (`tp.file.title`, `tp.date.now`, `tp.file.creation_date`, `tp.file.cursor()`, `tp.file.move(...)` for the folder) are still understood after the `{{…}}` pass, for old templates; `<%* … %>` scripts are never run and stay visible.
+The syntax is a superset of Obsidian's core Templates plugin (`{{date}}`, `{{time}}`, `{{title}}`, `{{date:YYYY-MM-DD}}`), so existing templates keep working. Templater's `<% tp.… %>` tags that templates commonly use (`tp.file.title`, `tp.date.now`, `tp.file.creation_date`, `tp.file.cursor()`, `tp.file.move(...)` for the folder) are still understood after the `{{…}}` pass, for old templates; `<%* … %>` scripts are never run and stay visible.
 
 ## Tags
 
@@ -154,7 +154,7 @@ A provider that fails is logged and its tags stay as written.
 The **Weather** plugin (`plugins/beta/weather`, Open-Meteo, no key) is the first: `{{weather.summary}}`
 ("10 °C, lluvia ligera, 4 °C / 12 °C"), `city`, `region`, `country`, `temperature`, `feels_like`, `condition`, `min`,
 `max`, `rain`, `humidity`, `wind`, `sunrise`, `sunset` — the place from its setting, else this machine's address;
-descriptions in English or Spanish. A daily template written for Atlas, as the user's Templater one did:
+descriptions in English or Spanish. A daily template written for Atlas, as a Templater one would:
 
 ```markdown
 ---
@@ -168,7 +168,7 @@ El tiempo en {{weather.city}}: {{weather.condition}}, {{weather.temperature}}{{#
 ```
 
 Day and month names follow the vault's `[editor] date_names` (`spanish`: "sáb.", "octubre"). A note's file keeps a
-title's trailing dot ("2026-10-17 sáb." → `2026-10-17 sáb..md`, as Obsidian names the user's days).
+title's trailing dot ("2026-10-17 sáb." → `2026-10-17 sáb..md`, as Obsidian names such days).
 
 ### The vault's own values
 

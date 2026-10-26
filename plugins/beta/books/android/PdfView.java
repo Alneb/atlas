@@ -60,8 +60,12 @@ final class PdfView extends FrameLayout implements NativePlugin.Back {
     private final android.view.ScaleGestureDetector pinch;
     private View pagesTab, notesTab, settingsTab;
 
-    PdfView(BooksScreen screen, String path) {
+    /** The page a link asked for (0: where the book was left). */
+    private final int startAt;
+
+    PdfView(BooksScreen screen, String path, int startAt) {
         super(screen.getContext());
+        this.startAt = startAt;
         this.screen = screen;
         this.host = screen.host;
         this.look = host.look();
@@ -178,7 +182,7 @@ final class PdfView extends FrameLayout implements NativePlugin.Back {
             }
             ink.open(InkStore.marks(host, path, s)); // the PDF's note: the desktop's marks and these are one store
             bars.slider.setMax(Math.max(0, s.length - 1));
-            show(Math.max(1, Math.min(s.length, e.optInt("spine", 0) + 1)));
+            show(Math.max(1, Math.min(s.length, startAt > 0 ? startAt : e.optInt("spine", 0) + 1)));
         });
     }
 

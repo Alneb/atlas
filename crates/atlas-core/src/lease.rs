@@ -25,9 +25,14 @@ pub enum Why<H> {
     Behind { last: Option<H> },
 }
 
+/// How long Syncthing gets to carry a reported write to the server before the table trusts the server's disk again.
+pub const SETTLE: Duration = Duration::from_secs(120);
+
 struct Entry<H> {
     /// the last content written by anyone (`None`: absent)
     version: Option<H>,
+    /// when a device reported `version` (`None`: read from the server's disk)
+    reported: Option<Instant>,
     holder: Option<(Holder, Instant)>,
 }
 
@@ -45,16 +50,28 @@ impl<H> Default for Leases<H> {
 impl<H: Clone + Eq> Leases<H> {
     /// May `holder`, whose copy of `path` is `have`, write it for up to `hold`? A path never seen takes the server's own
     /// copy (`disk_now`) as its last version. Asking again while holding renews.
+    ///
+    /// The table can fall behind the files: a write made while the server was unreachable never reports its version,
+    /// yet Syncthing carries it over. So a settled version (read from disk, or reported over [`SETTLE`] ago) yields to
+    /// the server's disk when that equals the asker's copy, as a path never seen would.
     pub fn ask(&self, path: &str, holder: &str, have: Option<H>, disk_now: impl FnOnce() -> Option<H>, hold: Duration, now: Instant) -> Answer<H> {
         let mut table = self.table.lock().expect("leases");
-        let e = table.entry(path.to_string()).or_insert_with(|| Entry { version: disk_now(), holder: None });
+        let mut disk_now = Some(disk_now);
+        let e = table.entry(path.to_string()).or_insert_with(|| Entry { version: disk_now.take().and_then(|f| f()), reported: None, holder: None });
         if let Some((other, until)) = &e.holder {
             if other != holder && *until > now {
                 return Answer::Wait(Why::HeldBy(other.clone()));
             }
         }
         if have != e.version {
-            return Answer::Wait(Why::Behind { last: e.version.clone() });
+            let settled = e.reported.is_none_or(|at| now.saturating_duration_since(at) >= SETTLE);
+            match disk_now.filter(|_| settled).map(|f| f()) {
+                Some(disk) if disk == have => {
+                    e.version = disk;
+                    e.reported = None;
+                }
+                _ => return Answer::Wait(Why::Behind { last: e.version.clone() }),
+            }
         }
         e.holder = Some((holder.to_string(), now + hold));
         Answer::Granted
@@ -67,6 +84,7 @@ impl<H: Clone + Eq> Leases<H> {
         match table.get_mut(path) {
             Some(e) if e.holder.as_ref().is_some_and(|(h, _)| h == holder) => {
                 e.version = version;
+                e.reported = Some(Instant::now());
                 e.holder = None;
                 true
             }
@@ -113,5 +131,18 @@ mod tests {
         assert_eq!(l.version("a.md"), Some(None));
         // the holder asking again renews instead of waiting on itself
         assert_eq!(l.ask("a.md", "server", None, || unreachable!(), HOLD, later), Answer::Granted);
+    }
+
+    #[test]
+    fn a_settled_version_yields_to_the_disk_that_matches_the_asker() {
+        let l = Leases::<u32>::default();
+        let t = Instant::now();
+        // known as 1; the desktop then wrote 2 offline and Syncthing carried it: the server's disk and the desktop agree
+        assert_eq!(l.ask("a.md", "server", Some(1), || Some(1), HOLD, t), Answer::Granted);
+        assert!(l.done("a.md", "server", Some(1)));
+        assert_eq!(l.ask("a.md", "desktop", Some(2), || Some(2), HOLD, t), Answer::Wait(Why::Behind { last: Some(1) }), "1 was just reported");
+        let later = t + SETTLE + Duration::from_secs(1);
+        assert_eq!(l.ask("a.md", "phone", Some(3), || Some(2), HOLD, later), Answer::Wait(Why::Behind { last: Some(1) }), "the disk is not the phone's copy");
+        assert_eq!(l.ask("a.md", "desktop", Some(2), || Some(2), HOLD, later), Answer::Granted);
     }
 }

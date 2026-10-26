@@ -62,7 +62,7 @@ impl BuiltinId {
     pub fn meta(self) -> (&'static str, &'static str, Option<&'static str>, &'static str) {
         match self {
             Self::Capture => {
-                ("capture", "Capture to today's log", Some("Ctrl+Alt+C"), "Append a timestamped line to today's log")
+                ("capture", "Capture to today's log", Some("Super+C"), "Append a timestamped line to today's log")
             }
             Self::Open => ("open", "Open file", None, "Open a workspace file in a pane (optionally at a line)"),
             Self::Notify => ("notify", "Notify", None, "Show a notification in the UI"),

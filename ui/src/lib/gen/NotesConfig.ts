@@ -7,7 +7,7 @@ import type { TemplateRule } from "./TemplateRule";
  */
 export type NotesConfig = { 
 /**
- * What capture (Ctrl+Alt+C, `atlas capture`) writes: a bullet in today's log, or a note of its own.
+ * What capture (Super+C, the capture box, `atlas capture`) writes: a bullet in today's log, or a note of its own.
  */
 capture: CaptureMode, 
 /**

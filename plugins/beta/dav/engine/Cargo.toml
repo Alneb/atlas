@@ -36,6 +36,9 @@ regex = "1"
 rusqlite = { version = "0.32", features = ["bundled"] }
 chrono-tz = "0.10"
 rrule = "0.14"
+# WebDAV Push (push.rs): the subscription's P-256 key, random topics and secrets
+p256 = { version = "0.13", default-features = false, features = ["arithmetic", "std"] }
+getrandom = "0.2"
 
 [profile.release]
 opt-level = "s"

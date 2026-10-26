@@ -147,7 +147,9 @@ pub async fn tick(ws: &Workspace, bus: &EventBus, helpers: Option<&crate::helper
         };
         let summary: String = summary.trim().lines().last().unwrap_or("").chars().take(300).collect();
         log_line(&cache, &format!("{id} {}: {summary}", if ok { "ok" } else { "FAILED" }));
-        if !ok {
+        // once per failure, not per run: a job every 5 min that keeps failing the same way (a cluster not connected)
+        // notified every 5 min; again when it fails for another reason, or fails anew after working
+        if !ok && recs.get(&id).is_none_or(|prev| prev.ok || prev.summary != summary) {
             bus.publish(Event::Notify { title: format!("{} failed (scheduled)", job.title()), body: Some(summary.clone()) });
         }
         recs.insert(id, ScheduledRun { time: Mtime(Local::now().timestamp_millis() as u64), ok, summary });
@@ -219,5 +221,29 @@ mod tests {
         let first = r["stamp"].time;
         tick(&ws, &bus, None, Local::now()).await; // not due again for 2 h
         assert_eq!(records(&ws.cache_dir())["stamp"].time, first);
+    }
+
+    #[tokio::test]
+    async fn a_job_failing_the_same_way_notifies_once() {
+        let d = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(d.path().join(".atlas/commands")).unwrap();
+        let cmd = d.path().join(".atlas/commands/poll.toml");
+        let write = |why: &str| std::fs::write(&cmd, format!("title = \"Poll\"\nrun = \"echo {why}; exit 1\"\nschedule = \"every 1m\"\n")).unwrap();
+        write("not connected");
+        let ws = Workspace::open(d.path()).unwrap();
+        let bus = EventBus::default();
+        let mut rx = bus.subscribe();
+        let at = |m: i64| Local::now() + chrono::Duration::minutes(m);
+        for m in [0, 2, 4] {
+            tick(&ws, &bus, None, at(m)).await;
+        }
+        write("host unknown"); // another reason: said again
+        tick(&ws, &bus, None, at(6)).await;
+        let mut said = vec![];
+        while let Ok(Event::Notify { body, .. }) = rx.try_recv() {
+            said.push(body.unwrap_or_default());
+        }
+        assert_eq!(said.len(), 2, "{said:?}");
+        assert!(said[1].contains("host unknown"), "{said:?}");
     }
 }

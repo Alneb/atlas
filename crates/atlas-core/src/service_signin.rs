@@ -146,13 +146,15 @@ pub fn with_users(store: &Store, plugins: &[(String, Vec<String>)]) -> Result<Ve
 const KEEP_ALIVE: std::time::Duration = std::time::Duration::from_secs(6 * 3600);
 
 /// Every kept door visited once in a while with its cookies, so the gate's idle limit never ends the session between
-/// uses; a cookie the gate renews is kept, a session the gate no longer takes is marked ended (not forgotten). The
+/// uses (and the OpenID sign-ins renewed when long unused, `plugin_oauth::keep_alive`); a cookie the gate renews is kept, a session the gate no longer takes is marked ended (not forgotten). The
 /// first visit a minute after start.
 pub fn spawn_keep_alive(root: std::path::PathBuf) -> tokio::task::JoinHandle<()> {
     tokio::spawn(async move {
         tokio::time::sleep(std::time::Duration::from_secs(60)).await;
         loop {
             let store = Store::for_vault(&root);
+            let tokens = store.clone();
+            let _ = tokio::task::spawn_blocking(move || crate::plugin_oauth::keep_alive(&tokens)).await;
             for (host, ended) in entries(&store).unwrap_or_default().into_iter().map(|(h, e)| (h, e.ended)) {
                 if !ended {
                     if let Err(e) = touch(&store, &host).await {

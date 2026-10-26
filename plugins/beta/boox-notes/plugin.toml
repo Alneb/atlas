@@ -5,7 +5,7 @@
 title = "Boox Notes"
 description = "import the Boox Notes app's notes as Excalidraw drawings: a page per page, strokes with their pressure; a drawing edited since its import is never overwritten"
 icon = "edit"
-version = "0.1.0"
+version = "0.2.0"
 api = 4
 
 [helper]

@@ -86,8 +86,11 @@ public final class Host {
     /** The note of PDF `pdf`, made when it has none: a Library paper's own reading note, else one of the same shape
      *  beside it (reading_note::for_pdf). Its vault path. Never on the UI thread. */
     /** `path`'s live room on the vault's server (LiveSocket), as this device ("Boox" on an Onyx, else "phone"); null for a
-     *  vault on this device. Close it with the file. */
+     *  vault on this device, and when the vault has live editing off (`[editor] live`, as the desktop's panes read it).
+     *  Close it with the file. */
     public LiveSocket live(String path, LiveSocket.Listener on) {
+        try { if (!VaultFiles.config(activity, vault).getJSONObject("config").getJSONObject("editor").optBoolean("live", true)) return null; }
+        catch (Exception e) { /* unread: the default, on */ }
         String me = android.os.Build.MANUFACTURER != null && android.os.Build.MANUFACTURER.toLowerCase(java.util.Locale.ROOT).contains("onyx") ? "Boox" : "phone";
         return LiveSocket.join(activity, vault, path, me, on);
     }

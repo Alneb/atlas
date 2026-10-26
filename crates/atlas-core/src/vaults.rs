@@ -265,7 +265,7 @@ mod tests {
         let phd = d.path().join("Work");
         std::fs::create_dir_all(&phd).unwrap();
         remember(&file, &phd, 1).unwrap();
-        let path = phd.canonicalize().unwrap().to_string_lossy().into_owned();
+        let path = crate::paths::real(&phd).unwrap().to_string_lossy().into_owned();
         set_mirror(&file, &path, Some("https://atlas.example.org/v/notes/")).unwrap();
         remember(&file, &phd, 2).unwrap();
         assert_eq!(list(&file)[0].mirror.as_deref(), Some("https://atlas.example.org/v/notes/"), "reopening keeps it");
@@ -288,7 +288,7 @@ mod tests {
         remember_server(&file, "https://atlas.example.org/v/notes/", 200).unwrap();
         let l = list(&file);
         assert_eq!((l[0].name.as_str(), l[0].url.as_deref(), l[0].missing), ("atlas.example.org · notes", Some("https://atlas.example.org/v/notes/"), false));
-        assert_eq!(to_open(None, &file), Some(a.canonicalize().unwrap()), "a window without a folder opens the last folder, not the server");
+        assert_eq!(to_open(None, &file), Some(crate::paths::real(&a).unwrap()), "a window without a folder opens the last folder, not the server");
     }
 
     #[test]

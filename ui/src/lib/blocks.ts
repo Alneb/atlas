@@ -71,7 +71,6 @@ export function registerBlock(b: Block): () => void {
   changed(b.type);
   return () => { if (registry.get(b.type) === b) { registry.delete(b.type); changed(b.type); } };
 }
-export const blockTypes = () => [...registry.keys(), ...rowViewTypes()];
 export const allBlocks = () => [...registry.values()];
 export const getBlock = (type: string) => registry.get(type);
 /** The form fields of a block type: its own, a built-in's, or the row views' shared ones. */

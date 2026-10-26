@@ -15,7 +15,7 @@ they appear in the palette without recompiling Atlas.
 | `pdf_annotations.py PDF` | highlights (with the text under them), text notes, ink → the paper's reading note `<citekey>.md` (`refs/papers/<key>/`, made with its head if missing) or `<name>.notes.md`, inside `<!-- atlas:annotations -->` markers | replaces only its own block |
 | `refs_bib.py REFS OUT.bib` | BibTeX from `info.yaml` (type + field maps) | derived file, header says do-not-edit |
 
-## Measured on real data (2026-10-05)
+## Measured on real data
 - Vault `~/.obsidian`: 246 candidate notes → **80 likely, 2 unsure**, 164 left out. Spot checks:
   a group-meeting note (ALL-CAPS + LaTeX, all-null frontmatter) 3.6 ✓ in; `fermi_hubbard_summary` 10 ✓;
   movies / recipes / music out ✓. Trial migration into a scratch workspace: 80 notes + 61 attachments,
@@ -43,11 +43,11 @@ they appear in the palette without recompiling Atlas.
 > `refs_bib.py` is superseded by Atlas's library (`refs.rs` writes the same BibTeX after every add; verified identical on the 54 real entries). Kept for scripting without the app.
 
 
-`runs_index.py` was removed (2026-10-06): the indexer now lives with the research workspace as the Runs plugin's `<vault>/.atlas/plugins/runs/index.py` (same rules, series sampling, cache; `--md` for the table) — see [PLUGINS.md](PLUGINS.md). The rows above document its rules.
+`runs_index.py` was removed: the indexer now lives with the research workspace as the Runs plugin's `<vault>/.atlas/plugins/runs/index.py` (same rules, series sampling, cache; `--md` for the table) — see [PLUGINS.md](PLUGINS.md). The rows above document its rules.
 
 
 
-## zotero_sync.py (2026-10-06, replaces zotero_import.py)
+## zotero_sync.py (replaces zotero_import.py)
 One-way **sync**, Zotero → `refs/papers` (Zotero is only read; a locked database is read from a checked copy).
 Finds the library by Zotero's own `extensions.zotero.dataDir` (desktop and flatpak profiles; the real one can live in a custom folder, not the stale copy in
 `<vault>/refs/zotero` the importer used). Per field, a

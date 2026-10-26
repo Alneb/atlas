@@ -64,7 +64,7 @@ is the manifest's `api` (the current one is 12; an older number still loads, sin
 | print | stable | ✓ 4 / 1 | ✓ | ✓ | ✓ | ✓ | ~ | ✓ | ✓ | ✓ 9 | ✓ | – | 0.2.0 | a note waits silently while Export makes its PDF beyond the first notice (6); 1.0 (12) |
 | run-tools | stable | ~ 0 / 2 | ✓ | ✓ | ✓ | ✓ | ~ | ✓ | ✓ | 4 | ✓ | ✓ | 0.2.0 | 1.0 (12) |
 | email | beta | ✓ 73 / 2 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ 12 | ✓ | ✗ | ✓ 1.1.1 | saved notes, rules and attachments written through the API, not `std::fs::write` (11) — then the strongest candidate |
-| dav (Calendar) | beta | ✓ 50 / 1 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ 12 | ✓ | ✓ | ✓ 1.1.0 | a review by someone who did not write it; it meets every criterion on paper |
+| dav (Calendar) | beta | ✓ 54 / 1 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ 12 | ✓ | ✓ | ✓ 1.2.0 | a review by someone who did not write it; it meets every criterion on paper |
 | finance | beta | ~ 70 / 0 | ✓ | ✓ | ~ | ✓ | ✓ | ✓ | ✗ | 9 | ✓ | ✗ | 0.1.0 | an end-to-end spec (1); neutral default currencies (4); journal and archive writes through the API (11); platforms (8); 1.0 (12) |
 | export | beta | ✓ 5 / 0 | ✓ | ✓ | ✓ | ✓ | ~ | ✓ | ~ | ✓ 9 | ✓ | ~ | 0.1.0 | an end-to-end spec (1); progress shown but an export cannot be stopped (6); tried only on Linux (8); the `.tex` / `.pdf` written to disk, not through the API, which has no binary write (11); 1.0 (12) |
 | catalog | beta | ✓ 40 / 2 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | 4 | ✓ | ✓ | 0.5.4 | 1.0 (12) |

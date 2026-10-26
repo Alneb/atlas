@@ -10,7 +10,7 @@ Agents use the MCP before touching files directly. An agent working in a vault r
 
 > **If it is about this vault's work, it lives in this vault's `.atlas/` (or is a page/note in the vault). If every vault would want it, it belongs in Atlas's core.**
 
-Runs of a physics code, lecture notes, a reading workflow, a personal habit tracker: vault. A new kind of block every vault could use, a setting, a fix to rendering: core (then read `DEVELOPING.md` in the Atlas repo, `~/Projects/atlas/docs/`). When unsure, build it in the vault first; moving a working plugin into the core later is easy, the reverse is not. Never put vault-specific code in the core — the user asked for exactly this separation, more than once.
+Runs of a physics code, lecture notes, a reading workflow, a personal habit tracker: vault. A new kind of block every vault could use, a setting, a fix to rendering: core (then read `DEVELOPING.md` in the Atlas repo, `~/Projects/atlas/docs/`). When unsure, build it in the vault first; moving a working plugin into the core later is easy, the reverse is not. Never put vault-specific code in the core: the separation is deliberate.
 
 Two more boundaries:
 - **Notes are the user's knowledge; agent files are not.** Never write memories, session logs or plans into `notes/`, `log/` or other note folders, and never put the user's knowledge into `docs/memory/`. **Write into the user's notes only when the user explicitly asks for that piece of writing** (a report, a note, an edit they name) — never on your own initiative, and never add `[[links]]` from their notes to agent files. The vault says which files are the agent's with `[editor] index_exclude` in `.atlas/config.toml` (default `docs/memory`; a vault whose whole `docs/` is the agent's sets `["/docs", "/AGENTS.md", "/CLAUDE.md"]`): Atlas leaves those out of links, backlinks, the graph, `[[` completion, Bases, tasks, quick open, the activity list and search (the Search pane's Claude switch includes them); they show only in the file tree.
@@ -21,14 +21,14 @@ Two more boundaries:
 | you want to… | use | file(s) | skill needed |
 |---|---|---|---|
 | change a behaviour or the look within what exists | a setting | `.atlas/config.toml` (or Settings, Ctrl+,) | none |
-| rebind or add a shortcut | keys | `.atlas/keys.toml` (`"command.id" = "Ctrl+Alt+X"`, `""` unbinds) | none |
+| rebind or add a shortcut | keys | `.atlas/keys.toml` (`"command.id" = "Super+X"`, `""` unbinds) | none |
 | restyle something | a CSS snippet | `.atlas/snippets/<name>.css` | a little CSS |
 | a screen made of existing blocks | a page | `<Name>.page` (arrange it by hand in the app) | none / YAML |
 | the same tabs for a task, one keystroke away | a workspace | `.atlas/workspaces/<name>.json` (save it from the app) | none |
 | keep a file, heading, search, command or web page at hand | a bookmark (or a pin) | `.atlas/bookmarks.yaml` (Ctrl+Alt+B adds one) | none / YAML |
 | change what the sidebar shows: its buttons, an outline or a calendar in it | the sidebar's page | `.atlas/sidebar.page` ("Sidebar: arrange its blocks…") | none / YAML |
 | a table / board over notes' properties | a base | `<name>.base` | YAML |
-| the same start for a kind of note | a template | `templates/<kind>.md` (`{{date}}`, `{{time}}`, `{{title}}`; Ctrl+Alt+N uses it) | none |
+| the same start for a kind of note | a template | `templates/<kind>.md` (`{{date}}`, `{{time}}`, `{{title}}`; Super+N uses it) | none |
 | an inbox to go through, next steps of projects, a hierarchy by `up:` | the `review` block, `from: next-actions`, the `tree` view | in a page or a note (`NOTES-SYSTEM.md`; "Starter kit: add…" copies a working set) | YAML |
 | live data inside a note | a block in the note | ```` ```view ```` fence with YAML | YAML |
 | a computed value inside a sentence; data under a heading that blocks and formulas below it use | an inline expression; a section property | `` `= note.budget - section.cost` ``; `cost:: 40` | a little JavaScript |

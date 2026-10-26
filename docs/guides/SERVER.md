@@ -1,6 +1,6 @@
 # Server mode — serving a vault to other machines and the phone
 
-A server mode (2026-10-15): Atlas served from a server with authentication, a sign-in page of its own, and apps — the Android client above all — able to connect to it. Both ways of signing in (its own password and Authelia in front) work, chosen by configuration, and the server's settings are in Settings.
+A server mode: Atlas served from a server with authentication, a sign-in page of its own, and apps — the Android client above all — able to connect to it. Both ways of signing in (its own password and Authelia in front) work, chosen by configuration, and the server's settings are in Settings.
 
 ## Start it
 
@@ -88,7 +88,7 @@ A token made by the CLI reaches a running server when it starts again; one made 
 
 In the proxy's site for Atlas, forward-auth to Authelia as for the other services, and pass `Remote-User` through; then `auth = "proxy"` (or `"both"` to keep the password for the LAN) and the proxy's address in `trusted_proxies`. Atlas never sees the user's Authelia password or security key.
 
-## Signing in a phone (or any app), whatever is in front (2026-10-16)
+## Signing in a phone (or any app), whatever is in front
 
 Everything, the Android app included, signs in through Authelia (or a similar gate, autodetected) for both the remote Atlas server and every plugin, with YubiKey / FIDO2 support, and without an API bypass in the gate.
 

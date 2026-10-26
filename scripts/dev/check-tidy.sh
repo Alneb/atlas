@@ -14,3 +14,5 @@ if [ -n "$stray" ]; then
   exit 1
 fi
 echo "[tidy] findings: 0"
+# and no generated type outlives its Rust type (ts-rs never removes one)
+node scripts/dev/check-gen.mjs || exit 1

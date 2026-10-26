@@ -845,7 +845,7 @@ public final class CaptureActivity extends Activity {
             try {
                 JSONObject a = new JSONObject(Core.attach(vault, new File(shot).getName(), shot));
                 if (a.has("error")) return a.toString();
-                text = text + "\n" + Links.thumbnail(a.getString("embed"));
+                text = text + "\n" + a.getString("embed");
             } catch (Exception e) { /* the text alone */ }
         }
         return Core.save(vault, text);
@@ -890,7 +890,7 @@ public final class CaptureActivity extends Activity {
         while (!r.has("error") && !left.isEmpty()) {
             JSONObject a = Server.attach(server, token, new File(left.get(0)));
             if (a.has("error")) { r = a; break; }
-            text = text + "\n" + Links.thumbnail(a.optString("embed"));
+            text = text + "\n" + a.optString("embed");
             left.remove(0);
         }
         if (!r.has("error")) r = Server.capture(server, token, text);

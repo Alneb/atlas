@@ -119,6 +119,8 @@ export const api = {
   /** Sign-ins to services kept for the plugins (service_signin.rs): hosts and dates, never a cookie. */
   serviceSignins: () => request<import("./gen/Kept").Kept[]>("GET", "/api/signin/doors"),
   forgetServiceSignin: (host: string) => request<boolean>("DELETE", `/api/signin/doors/${encodeURIComponent(host)}`),
+  oidcSignins: () => request<import("./gen/OidcSignin").OidcSignin[]>("GET", "/api/signin/tokens"),
+  forgetOidcSignin: (key: string) => request<boolean>("DELETE", `/api/signin/tokens/${encodeURIComponent(key)}`),
   /** Settings → AI agents (agents.rs): this machine's agents, each with its own token; 400 on a server (device tokens there). */
   agents: () => request<AgentsState>("GET", "/api/agents"),
   allowAgent: (name: string) => request<{ token: string; mcp: unknown }>("POST", "/api/agents", { body: { name } }),

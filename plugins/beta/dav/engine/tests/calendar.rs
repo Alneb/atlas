@@ -123,7 +123,7 @@ fn the_calendar_against_a_real_server() {
     assert!(st["main"]["text"].as_str().unwrap().contains("synced just now"), "{st:#}");
 
     // several accounts: both read, each calendar under its own account, written and moved across them
-    if second.is_some() {
+    if let Some((u2, _)) = &second {
         assert!(ids.contains(&cal2.as_str()), "{ids:?}");
         let other = src["sources"].as_array().unwrap().iter().find(|s| s["id"] == cal2.as_str()).unwrap();
         assert_eq!((other["account"].as_str(), other["shown_color"].as_str()), (Some("second"), Some("#22c55e")), "the account's colour for a calendar without one");
@@ -156,7 +156,6 @@ fn the_calendar_against_a_real_server() {
         assert_eq!((gone["removed"].as_bool(), gone["calendar"].as_str()), (Some(true), Some(cal2.as_str())), "{gone:#}");
         call("delete", p(json!({ "calendar": cal, "href": made["href"], "uid": made["uid"], "scope": "all" })));
         // a card's Test, with a wrong password typed, and with the kept one
-        let (u2, _) = second.as_ref().unwrap();
         let bad = call("test_account", p(json!({ "record": { "name": "second", "url": format!("{base}/caldav/"), "user": u2, "password": "wrong" } })));
         assert_eq!(bad["ok"], false, "{bad:#}");
         assert!(bad["text"].as_str().unwrap().contains("app password rejected"), "{bad:#}");

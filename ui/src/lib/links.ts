@@ -2,7 +2,7 @@
 // note, where clicking creates them.
 import { resolveRel } from "./paths";
 import { resolveLink, vaultReady } from "./vault";
-import { open, openDrawingAt, openPath } from "./dock";
+import { openDrawingAt, openPath, openPdfAt } from "./dock";
 import { placeOf } from "./pdf-place";
 import { anchorLine, MARK_ID } from "./note-anchor";
 import { api } from "./api";
@@ -23,7 +23,7 @@ export async function openWikilink(target: string, fromPath: string, opts: { bes
   const place = placeOf(target);
   const section = target.split("|")[0].split("#").slice(1).join("#").trim(); // a drawing's page: `#Page 2`, `#^frame=…`
   if (/\.excalidraw(\.md)?$/i.test(path) && section) openDrawingAt(path, section, opts);
-  else if (/\.pdf$/i.test(path) && place.page) open({ kind: "pdf", path, page: place.page, ...(place.quote ? { quote: place.quote } : {}), ...(place.annotation ? { annotation: place.annotation } : {}) }, opts);
+  else if (/\.pdf$/i.test(path) && place.page) openPdfAt(path, place.page, { ...(place.quote ? { quote: place.quote } : {}), ...(place.annotation ? { annotation: place.annotation } : {}) }, opts);
   else if (/\.md$/i.test(path) && section) await openNoteAt(path, section, opts);
   else openPath(path, undefined, { ...opts, ...(section ? { anchor: section } : {}) }); // a plugin's pane gets the anchor
 }
@@ -35,7 +35,7 @@ async function openNoteAt(path: string, section: string, opts: { beside?: boolea
   if (section.startsWith("^") && MARK_ID.test(id)) {
     const pdf = (await api.pdfOfNote(path).catch(() => null))?.pdf;
     const mark = pdf ? (await api.pdfMarks(pdf).catch(() => null))?.marks.find((m) => m.id === id) : undefined;
-    if (pdf && mark) { open({ kind: "pdf", path: pdf, page: mark.page, annotation: id }, opts); return; }
+    if (pdf && mark) { openPdfAt(pdf, mark.page, { annotation: id }, opts); return; }
   }
   const text = await api.file(path).then((f) => f.text, () => null);
   openPath(path, text == null ? undefined : anchorLine(text, section), { ...opts, anchor: section });

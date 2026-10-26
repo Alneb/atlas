@@ -1,6 +1,6 @@
 # Atlas on a phone: the web UI's phone layout
 
-After the phone capture app worked (2026-10-16), the next goals: hook it up, run the full app on Android as well, and make the UI truly mobile-friendly and fast.
+After the phone capture app worked, the next goals: hook it up, run the full app on Android as well, and make the UI truly mobile-friendly and fast.
 
 This file is about the third part: the web UI (`ui/`) used on a phone's screen — a phone's browser opening an Atlas server (docs/guides/SERVER.md), or one day the app itself on Android. The capture app is docs/ANDROID.md.
 
@@ -8,7 +8,7 @@ This file is about the third part: the web UI (`ui/`) used on a phone's screen �
 
 Nothing for narrow screens: the desktop shell (a side bar or the rail, dockview's split groups with 30 px tabs, a status bar) at any width. On a 390 px phone the side bar alone took two thirds of the screen.
 
-## The phone layout (first step, 2026-10-16)
+## The phone layout (first step)
 
 - **When**: the window is at most 720 px wide (`PHONE_QUERY` in `ui/src/lib/phone.svelte.ts`; a CSS media query, so a narrow desktop window gets it too — the desktop layout does not fit there either). `<html class="phone">` is set for CSS anywhere.
 - **One pane at a time**: the existing fullscreen (lib/fullscreen.svelte.ts) — the active tab's group maximized, following the keys and the taps, the side bar / rail / status bar hidden (not unmounted, so nothing reloads). `attachPhone` keeps it held while narrow (a restored layout or a new tab re-holds it) and lets go once wide again: the desktop layout comes back as it was.
@@ -19,7 +19,7 @@ Nothing for narrow screens: the desktop shell (a side bar or the rail, dockview'
 
 ## The phone guidelines followed (Material 3 and Apple's HIG, as they apply here)
 
-The mobile web UI stays useful for the browser version and keeps getting work, following the phone UX/UI design guidelines and knowing most features matter less on a phone (2026-10-16). What those guidelines say, and what it means for Atlas:
+The mobile web UI stays useful for the browser version and keeps getting work, following the phone UX/UI design guidelines and knowing most features matter less on a phone. What those guidelines say, and what it means for Atlas:
 
 - **Few places, always at hand**: a bottom navigation bar of 3–5 destinations, each an icon and a short label, the current one marked → Home, Files, Search, Tabs, Commands (`PhoneBar`). Everything else is a command (the palette), not a button.
 - **Where am I, how do I go back**: a top app bar with the screen's name and Back → `PhoneTop` (the active tab's title; Back is the app's own back history, `navigate(-1)`, shown only when it goes somewhere).
@@ -34,7 +34,7 @@ The mobile web UI stays useful for the browser version and keeps getting work, f
 
 A read-only WebKit probe on the real vault (`scripts/dev/webkit-probe.mjs`'s `readOnlyPage`, 390×844, the build in `ui/dist`): phone class on, the bottom bar there, no left bar or icon strip, no sideways scroll; Home, the Tabs sheet (the 8 open tabs, × to close), Files and Search as full panes; then widened to 1400×860: the bottom bar gone, the desktop layout back, the side tools back in the left bar. Screenshots in both themes (the light one with the vault's own inline colours cleared).
 
-## The second pass (2026-10-16)
+## The second pass
 
 Reported from the phone app: the notes renderer still had problems — PDFs and some blocks did not render correctly in Settings and in the app, and links were hard to tap. Checked with a Playwright phone probe (412×860, touch, both themes; with and without a fake `AtlasNative` bridge for the app's view) on a demo vault holding a PDF, a picture, a calendar view, tasks, a callout, a table, code, a Base and note embeds.
 
@@ -45,7 +45,7 @@ Reported from the phone app: the notes renderer still had problems — PDFs and 
 - **Embeds** (every width, not only phones): `![[x.pdf]]` mounts the PDF viewer in place (520 px; `#page=N` opens there) and `![[Note]]` / `![[Note#Heading]]` the note or only that section, as Obsidian does (`lib/embeds.ts`, `NoteBlock`'s `section`); before, both were link chips. Notes embedding notes stop two levels deep; a missing target keeps the chip. Test: `tests/embeds.spec.ts`.
 - **The tabs sheet** closes on Escape; a tap leaves no focus ring on the bottom bar.
 
-## The shape audit (2026-10-16)
+## The shape audit
 
 The main risk on a phone is things stretched by the change of shape; everything must look right. A screenshot shows one place; the phone has dozens, and both themes. So `scripts/dev/phone-audit.mjs` opens each place on a phone-shaped **Chromium** (Android's WebView is Chromium; the desktop's WebKit is not what the phone runs) and judges every visible element by its shape, not by a list of components:
 
@@ -73,7 +73,7 @@ node scripts/dev/phone-audit.mjs --url http://127.0.0.1:7790/ --vault <copy> --o
 
 ## Next (not done)
 
-- ~~Touch sizes inside the panes~~ — **done** (2026-10-18; Android's 48 dp minimum, and a CSS px is a dp in the WebView): the note's format bar 44 × 48 px; the path crumbs 44 px tall; icon buttons stay 40 px to the eye but take taps 4 px above and below (an invisible `::after` strip, never sideways onto a neighbour; not on `.tipped` buttons, whose `::after` is their tooltip). (The file tree's rows are 40 px on a phone already; context menus' rows 44 px since.)
+- ~~Touch sizes inside the panes~~ — **done** (Android's 48 dp minimum, and a CSS px is a dp in the WebView): the note's format bar 44 × 48 px; the path crumbs 44 px tall; icon buttons stay 40 px to the eye but take taps 4 px above and below (an invisible `::after` strip, never sideways onto a neighbour; not on `.tipped` buttons, whose `::after` is their tooltip). (The file tree's rows are 40 px on a phone already; context menus' rows 44 px since.)
 - ~~The keyboard~~ — **done**: `--keyboard` (lib/phone.svelte.ts, from `visualViewport`) is how much of the bottom the on-screen keyboard covers; the toasts, the capture button and the tabs sheet sit above it. In the app's WebView (`adjustResize`) it stays 0: the WebView itself shrinks.
 - ~~Swipes~~ — between files: **done in the app** (a fling on the native top bar, docs/guides/ANDROID.md); from the left edge: dropped — the edges are the system's Back gesture on Android and in a phone's browser. In a phone's browser the same swipe on `PhoneTop` (spec `phone-back.spec.ts`).
 - **Back** — **done** (`lib/back.ts`): open overlays register how they close; the app's system Back closes them first (`atlasShell.dismiss`), and in a phone's browser one guard history entry makes the system Back close an overlay, then go back a place (`navigate(-1)`), and only then leave Atlas (before, Back left Atlas at once: the app kept no browser history). Spec `phone-back.spec.ts`.
@@ -90,10 +90,10 @@ node scripts/dev/phone-audit.mjs --url http://127.0.0.1:7790/ --vault <copy> --o
   Typing stays within three frames even at 6×; opening a very big note is the one wait near a second (its first
   render), and Files grows with the throttle (the folder's rows). Nothing here needs work now; the spec is there to
   measure again after a change to the editor or the phone views.
-- The Tauri app on Android, and what "hook it up" means: open questions (2026-10-16).
+- The Tauri app on Android, and what "hook it up" means: open questions.
 
 
-## Files and Search on a phone (2026-10-17)
+## Files and Search on a phone
 
 Files and Search get their own phone views instead of the desktop's, designed for normal phones and for the Boox.
 

@@ -21,9 +21,10 @@ final class BooksScreen extends FrameLayout implements NativePlugin.Back {
         setBackgroundColor(host.look().bg);
     }
 
-    /** A book: a PDF a page at a time (PdfView, the same ink as Notepad's), any other reflowed (ReaderView). */
-    void read(String path) {
-        View r = path.toLowerCase(java.util.Locale.ROOT).endsWith(".pdf") ? new PdfView(this, path) : new ReaderView(this, path);
+    /** A book: a PDF a page at a time (PdfView, the same ink as Notepad's) at `page` (0: where it was left), any other
+     *  reflowed (ReaderView). */
+    void read(String path, int page) {
+        View r = path.toLowerCase(java.util.Locale.ROOT).endsWith(".pdf") ? new PdfView(this, path, page) : new ReaderView(this, path);
         addView(r, new LayoutParams(-1, -1));
         r.requestFocus(); // the volume keys
         if (host.eink()) post(host::einkRefresh); // a whole new screen: no ghost of the last one

@@ -144,7 +144,7 @@
         dirty = true;
         clearTimeout(timer);
         timer = window.setTimeout(save, 1000);
-      }, { pen: notepadStyle(), onFullscreen: () => void toggleFullscreen(), path: spec.path, live: settings.config?.editor.live ?? true, onPeers: (n) => (peers = n), perRow: perRow(), pageMode: notepadStyle() && pageMode() });
+      }, { pen: notepadStyle(), onFullscreen: () => void toggleFullscreen(), path: spec.path, live: settings.config?.editor.live ?? true, onPeers: (n) => (peers = n), perRow: perRow(), pageMode: notepadStyle() && pageMode(), draw: settings.config?.draw });
       pad = d.notepad ?? null;
       if (spec.page) d.showPage(spec.page); // opened from a page's embed
       else { const at = await lastPage(spec.path); if (at) d.showPage(`^frame=${at}`); } // else where it was last shown

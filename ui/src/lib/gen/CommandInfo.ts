@@ -10,7 +10,7 @@ export type CommandInfo = { id: string, title: string,
  */
 file?: string, origin?: CommandOrigin, 
 /**
- * Default keybinding, e.g. `Ctrl+Alt+C`.
+ * Default keybinding, e.g. `Super+C`.
  */
 keys?: string, source: CommandSource, description?: string, 
 /**

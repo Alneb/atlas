@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { writePdf } from "./fixtures/pdf";
 
 // PDF pages are drawn by PDFium in its worker (lib/pdf-pages.ts), the reader's included (lib/pdf-reader.ts): a PDF
 // whose first page is turned (/Rotate 90, left half red, right half blue: red on top once turned) and whose others are
@@ -25,12 +26,7 @@ function makePdf(pages: Page[]): string {
     objs.push(`<</Type/Page/Parent 2 0 R/MediaBox[0 0 200 260]${rotate ? `/Rotate ${rotate}` : ""}/Contents ${content} 0 R>>`, `<</Length ${draw.length}>>\nstream\n${draw}\nendstream`);
   }
   objs[1] = `<</Type/Pages/Kids[${kids.join(" ")}]/Count ${pages.length}>>`;
-  let out = "%PDF-1.4\n";
-  const at: number[] = [];
-  objs.forEach((o, i) => { at.push(out.length); out += `${i + 1} 0 obj\n${o}\nendobj\n`; });
-  const xref = out.length;
-  out += `xref\n0 ${objs.length + 1}\n0000000000 65535 f \n${at.map((n) => `${String(n).padStart(10, "0")} 00000 n \n`).join("")}`;
-  return `${out}trailer\n<</Size ${objs.length + 1}/Root 1 0 R>>\nstartxref\n${xref}\n%%EOF\n`;
+  return writePdf(objs);
 }
 
 test.beforeAll(async ({ request }) => {

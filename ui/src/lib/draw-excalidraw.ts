@@ -14,7 +14,8 @@ import { api as server } from "./api";
 import { nativePen, penOver, type NativeSample } from "./pen-target";
 import { fillLinked, isLinkedFile } from "./linked-pages";
 import { extent, heldAtEnd, SNAP_MIN, wireToSkeleton } from "./pen-shapes";
-import { fingerGestures, paperCss, remember, remembered, PAPERS, PENS, TOOL, type NoteTool, type Paper, type PenKind } from "./draw-notepad";
+import { fingerGestures, paperCss, remember, remembered, startColor, startWidth, webPen, PAPERS, PENS, TOOL, type NoteTool, type Paper, type PenKind } from "./draw-notepad";
+import type { DrawConfig } from "./gen/DrawConfig";
 
 (window as unknown as { EXCALIDRAW_ASSET_PATH: string }).EXCALIDRAW_ASSET_PATH = new URL("excalidraw/", document.baseURI).toString();
 
@@ -76,6 +77,8 @@ export interface DrawOptions {
   /** the other devices' names, when they change */ onPeers?: (names: string[]) => void;
   /** pages side by side for a drawing that has no second row yet (the notepad plugin's `per_row`; 4) */ perRow?: number;
   /** one page at a time, the view held on it (the notepad plugin's `page_mode`; on) */ pageMode?: boolean;
+  /** the vault's `[draw]` (Settings → Drawing): the pen, paper, width and colour at the start, snapping and its
+   *  recogniser — the same values the Boox's Notepad starts from (NotepadView.java) */ draw?: DrawConfig;
 }
 
 /** E-ink pen defaults ("the lines are too thick", again at 1): draw-notepad.ts WIDTHS' "Fine", under
@@ -167,8 +170,13 @@ export async function mountDrawing(host: HTMLElement, json: string, theme: "dark
   // the other devices with this drawing open: changes and pointers both ways (draw-live.ts)
   const live = opts.path && opts.live !== false ? (await import("./draw-live")).liveDrawing(opts.path, lib, () => api, opts.onPeers) : null;
   // the freedraw stroke the pen just made, given every sample it sent instead of Excalidraw's one a frame
-  let kind = remembered<PenKind>("pen", Object.keys(PENS) as PenKind[], "fountain");
-  let paper = remembered<Paper>("paper", PAPERS, "blank");
+  // the pen in hand when the notepad last closed (Settings' "remember the pen"), else Settings' pen; a new page's paper
+  // is Settings', as on the Boox
+  const draw = opts.draw;
+  const startPen = webPen(draw?.pen ?? "fountain");
+  let kind = draw?.remember_pen === false ? startPen : remembered<PenKind>("pen", Object.keys(PENS) as PenKind[], startPen);
+  let paper: Paper = draw?.paper ?? "blank";
+  const penState = { ...PEN_STATE, currentItemStrokeWidth: PEN_STATE.currentItemStrokeWidth * startWidth(draw?.width), currentItemStrokeColor: startColor(draw?.color) };
   const ink = opts.pen ? nativeInk(host, () => kind, (samples) => fromPen(samples), (samples) => live?.drafting(samples && samples.length > 1 ? penStroke(samples) : null)) : { sync() {}, off() {} };
   // the notepad (pen mode): its toolbar follows what is picked, fingers move the page (draw-notepad.ts)
   const watchers = new Set<(s: NoteState) => void>();
@@ -244,7 +252,7 @@ export async function mountDrawing(host: HTMLElement, json: string, theme: "dark
   };
   /** A paper picked here: this device's for drawings without pages, and the page on screen's own (so a Boox shows it). */
   const setPaper = (p: Paper) => {
-    paper = p; remember("paper", p); noted = "";
+    paper = p; noted = "";
     api?.updateScene({ appState: { viewBackgroundColor: p === "blank" ? "#ffffff" : "transparent" } });
     if (api) {
       const st = api.getAppState(), els = api.getSceneElements();
@@ -334,8 +342,8 @@ export async function mountDrawing(host: HTMLElement, json: string, theme: "dark
     const ink = () => put(freedrawOf(samples, pts));
     // the pen held still at the end: a shape, as Notepad snaps it (pen-shapes.ts; the core's recogniser, the phone's own)
     const timed = pts.map((p, i) => ({ x: p.x, y: p.y, t: samples[i].t }));
-    if (heldAtEnd(timed, st.zoom.value) && extent(timed) * st.zoom.value >= SNAP_MIN) {
-      void server.penShape(timed.flatMap((p) => [p.x, p.y, p.t])).then(({ wire }) => {
+    if (draw?.snap !== false && heldAtEnd(timed, st.zoom.value) && extent(timed) * st.zoom.value >= SNAP_MIN) {
+      void server.penShape(timed.flatMap((p) => [p.x, p.y, p.t]), draw?.shapes !== "atlas").then(({ wire }) => {
         const shape = wireToSkeleton(wire);
         if (!shape) return ink();
         put({ ...shape, lastCommittedPoint: null, startBinding: null, endBinding: null, startArrowhead: shape.startArrowhead ?? null, endArrowhead: shape.endArrowhead ?? null });
@@ -350,7 +358,7 @@ export async function mountDrawing(host: HTMLElement, json: string, theme: "dark
     const pick = () => {
       if (!api) return void requestAnimationFrame(pick);
       api.setActiveTool({ type: "freedraw" });
-      api.updateScene({ appState: { currentItemStrokeWidth: PEN_STATE.currentItemStrokeWidth * PENS[kind].widthTimes, currentItemOpacity: PENS[kind].opacity } });
+      api.updateScene({ appState: { currentItemStrokeWidth: penState.currentItemStrokeWidth * PENS[kind].widthTimes, currentItemOpacity: PENS[kind].opacity } });
       if (paper !== "blank") setPaper(paper); else note(api.getAppState() as unknown as Seen); // this device's paper (a file's own background otherwise)
       // setActiveTool lands with React's next render: the pen is told now rather than read back too early
       ink.sync({ ...api.getAppState(), activeTool: { type: "freedraw" } });
@@ -402,7 +410,7 @@ export async function mountDrawing(host: HTMLElement, json: string, theme: "dark
         // pages stay where they are: frames
         // locked, as the notepad keeps them; what is on them moves as before
         // a cornered canvas opens at its corner (fitting its long edges would show it from far away)
-        initialData: { elements: initial.elements.map((e) => (e.type === "frame" && !e.locked ? { ...e, locked: true } : e)), appState: { ...initial.appState, theme: current, frameRendering: FRAMES, ...(opts.pen ? PEN_STATE : {}), ...(cornered ? { scrollX: CORNER, scrollY: CORNER, zoom: { value: 1 as never } } : {}) }, files: initial.files, scrollToContent: !cornered },
+        initialData: { elements: initial.elements.map((e) => (e.type === "frame" && !e.locked ? { ...e, locked: true } : e)), appState: { ...initial.appState, theme: current, frameRendering: FRAMES, ...(opts.pen ? penState : {}), ...(cornered ? { scrollX: CORNER, scrollY: CORNER, zoom: { value: 1 as never } } : {}) }, files: initial.files, scrollToContent: !cornered },
         theme: current,
         autoFocus: true, // keyboard-first: R / P / T work as soon as the pane opens
         excalidrawAPI: (a: Api) => (api = a),

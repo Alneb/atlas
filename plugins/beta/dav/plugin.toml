@@ -7,7 +7,7 @@
 title = "Calendar"
 description = "your calendars in a pane: month, week, day, agenda; several CalDAV accounts and ICS subscriptions; invitations from Email; contacts"
 icon = "calendar"
-version = "1.1.0"
+version = "1.2.0"
 rail = true          # a button for the Calendar pane (view.js)
 api = 12             # Settings v2: account cards (status, Test, presets), hidden / advanced fields, a drawn section
 
@@ -111,6 +111,33 @@ kind = "number"
 default = 5
 group = "Sync"
 hint = "a check that finds nothing new costs one small request per calendar"
+
+[[setting]]
+key = "push_server"
+label = "Instant updates through ntfy"
+kind = "text"
+group = "Sync"
+hint = "your own ntfy server (https://ntfy.example.org): a calendar whose server offers WebDAV Push (RustiCal does) tells it of each change, and the calendar updates at once. Empty: the Notifications plugin's server when it is set up, else only the regular check. Your calendar server must be able to publish to up… topics on it"
+
+[[setting]]
+key = "push_user"
+label = "ntfy user"
+kind = "text"
+group = "Sync"
+hint = "the ntfy user that may read up… topics, with its password below (or leave it empty and give a token). Empty user, password and token: the Notifications plugin's sign-in is not shared, so give it here too"
+
+[[setting]]
+key = "push_password"
+label = "ntfy password"
+kind = "secret"
+group = "Sync"
+
+[[setting]]
+key = "push_token"
+label = "ntfy access token"
+kind = "secret"
+group = "Sync"
+hint = "instead of a user and password; empty when ntfy lets anyone read"
 
 [[setting]]
 key = "push_notes"

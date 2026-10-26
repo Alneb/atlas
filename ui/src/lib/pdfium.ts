@@ -57,12 +57,6 @@ export async function pdfiumArea(path: string, page: number, area: Area, signal?
   return toBitmap(await ask({ op: "area", url: fileUrl(path), page: page - 1, area }, signal));
 }
 
-/** How many pages `path` has. */
-export async function pdfiumPageCount(path: string): Promise<number> {
-  const r = await ask({ op: "count", url: fileUrl(path) });
-  if (!("pages" in r)) throw new Error("PDFium sent no count");
-  return r.pages;
-}
 
 /** The document's page sizes and outline. */
 export async function pdfiumInfo(path: string): Promise<DocInfo> {

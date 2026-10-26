@@ -162,15 +162,6 @@ fn write_bytes(ws: &Workspace, rel: &str, bytes: &[u8], guard: Guard) -> Result<
     Ok(FileWritten { mtime: Mtime::of(&std::fs::metadata(&path)?)?, written, template: None })
 }
 
-/// Bytes plus a guessed content type, for PDFs/images.
-pub fn read_raw(ws: &Workspace, rel: &str) -> Result<(Vec<u8>, String)> {
-    let path = ws.resolve(rel)?;
-    if !path.is_file() {
-        return Err(Error::NotFound(rel.into()));
-    }
-    let mime = mime_guess::from_path(&path).first_or_octet_stream().essence_str().to_string();
-    Ok((std::fs::read(&path)?, mime))
-}
 
 /// Bytes `start..=end` of a raw file (an HTTP `Range`), the file's length and its type: a PDF viewer reads
 /// a 70 MB book by pieces instead of waiting for all of it. `end` is clamped to the file.

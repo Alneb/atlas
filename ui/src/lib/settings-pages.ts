@@ -69,7 +69,7 @@ export const PAGES: PageDef[] = [
     next: [{ label: "Put a live view in a note", why: "A ```view block (calendar, list, table) over the note's own tasks or a folder.", run: "settings.viewHelp" }],
   },
   {
-    id: "today", title: "Home & Today", icon: "today", blurb: "The first screen, the daily log, your focus file and the activity feed. Capture (Ctrl+Alt+C) adds a line to today's log, a note in notes/log that starts with its date as properties, or from the daily log template; the Weather plugin adds the day's weather to it.",
+    id: "today", title: "Home & Today", icon: "today", blurb: "The first screen, the daily log, your focus file and the activity feed. Capture (Super+C) adds a line to today's log, a note in notes/log that starts with its date as properties, or from the daily log template; the Weather plugin adds the day's weather to it.",
     fields: ["home", "focus", "log_dir", "log_folders", "log_template", "activity.*"],
     features: ["ui.today", "ui.capture", "ui.focusFile"],
     next: [{ label: "Reshape the home screen", why: "Home is a .page file: rows and columns of blocks you add, move or remove.", run: "settings.editHome" }],

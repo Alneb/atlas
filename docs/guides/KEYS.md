@@ -4,7 +4,7 @@ The idea: Super+E opens a command bar that runs commands and also searches and o
 
 Every key can be changed in Settings → Keyboard (it writes `.atlas/keys.toml`); this page is about the defaults (`keys` and `alsoKeys` on the actions in `ui/src/lib/actions.ts`, `notes-system.ts`, `tabs.svelte.ts`).
 
-## Applied on 2026-10-14 — only additions, nothing taken away (superseded by "Decided" below)
+## Applied first — only additions, nothing taken away (superseded by "Decided" below)
 
 A command keeps its Ctrl key and gains a second one. Nothing that worked stopped working.
 
@@ -25,13 +25,13 @@ A command keeps its Ctrl key and gains a second one. Nothing that worked stopped
 
 **Capture mode**: `+` as the first character makes the bar a capture box — tag "Capture", the capture box's completions on its input (task fields as in a note, `[[` notes, `#tags`, `@days`; `textarea-complete.ts`, now also on an `<input>` with a `when`), one row saying what the text becomes ("a to-do, due tomorrow"; a written `📅 date` is read too), Enter captures, Backspace on the empty box goes back to the commands. Also the command **Capture in the bar**. Test: `command-bar.spec.ts`.
 
-**It also captures**: whatever is typed, the last row is "Capture “…”" — Enter on it (or a click) writes it to today's log exactly as the capture box would (`[] ` a to-do, `@tomorrow` a date). Test in `command-bar.spec.ts`. On the user's desktop Super+E is free (KDE has the file manager on Super+Shift+E there), so once Atlas is restarted on the new build it reaches the bar.
+**It also captures**: whatever is typed, the last row is "Capture “…”" — Enter on it (or a click) writes it to today's log exactly as the capture box would (`[] ` a to-do, `@tomorrow` a date). Test in `command-bar.spec.ts`. On the development desktop Super+E is free (KDE has the file manager on Super+Shift+E there), so once Atlas is restarted on the new build it reaches the bar.
 
 **The command bar is one bar** (`components/Palette.svelte`, mode "all"): commands first, then headings of the open note, then files by name, and — new — **lines of notes that hold the words typed** ("In notes", from three letters on, eight lines; the Search tool has them all). Enter opens the line; Ctrl+Enter opens it beside. `>` limits it to commands, `#` to headings. Test: `command-bar.spec.ts`.
 
-**A warning about Super that cannot be fixed inside Atlas:** the desktop sees a Super key first. On KDE Plasma, Super+E opens the file manager, Super+L locks the screen, Super+D shows the desktop, Super+1…9 switch tasks, Super+Tab switches activities, and more. A key the desktop takes never reaches Atlas — nothing breaks, the key just does what the desktop says, and the Ctrl key for the same command still works. To give Super+E to Atlas: System Settings → Keyboard → Shortcuts, search the key, remove it there. That is why the Super keys above avoid the ones KDE uses by default except Super+E, which the user asked for by name. **Not checked on the user's desktop.**
+**A warning about Super that cannot be fixed inside Atlas:** the desktop sees a Super key first. On KDE Plasma, Super+E opens the file manager, Super+L locks the screen, Super+D shows the desktop, Super+1…9 switch tasks, Super+Tab switches activities, and more. A key the desktop takes never reaches Atlas — nothing breaks, the key just does what the desktop says, and the Ctrl key for the same command still works. To give Super+E to Atlas: System Settings → Keyboard → Shortcuts, search the key, remove it there. That is why the Super keys above avoid the ones KDE uses by default except Super+E, chosen on purpose. **Not checked on a real desktop session.**
 
-## Two vim modes (2026-10-14)
+## Two vim modes
 
 Two vim modes: the classic one, and one where Visual mode leaves Ctrl+X / Y / C and the other usual keys alone while still feeling like vim.
 
@@ -42,11 +42,11 @@ Settings → Writing → **Vim keys** (`[editor] vim_keys`):
 
 How (`desktopKeys` in `ui/src/lib/editor/create.ts`, placed before vim in the editor's extensions): copy, cut and paste must be the *browser's* (it owns the clipboard), so the key has to pass vim untouched — and the vim library has no "skip this key". Its key handler returns at once when the editor has no vim state; so the state is put aside for that one key event and put back in a microtask. Undo, redo and select-all are CodeMirror's own commands. The setting is read at each key press: switching it needs no restart. Test: `vim-desktop-keys.spec.ts` (both modes). **Not checked in the desktop window** (WebKitGTK), where the clipboard sometimes behaves differently from Chromium.
 
-## A formatting bar, for when the keys are not in the fingers yet (2026-10-14)
+## A formatting bar, for when the keys are not in the fingers yet
 
 Settings → Writing → **Format bar** (`[editor] format_bar`, off by default): a row of buttons above a note — **B**, *I*, `<>` · H, •, 1., ☐, ❝ · Link, Table. Each does what the key does, with the same function (`formatNote` in `ui/src/lib/editor/md-format.ts`), and the keyboard stays in the text (a button does not take the selection). H cycles # → ## → ### → none; •, 1. and ❝ switch the line's start on and off (a list item becomes a numbered one, not both); Table puts a 2 × 2 table under the caret's line with the first header selected. A button's tooltip names its key where it has one. Component: `ui/src/components/FormatBar.svelte`. Test: `format-bar.spec.ts`. Looked at in both themes.
 
-## Decided (2026-10-14) — Super is Atlas's key, Ctrl is for text
+## Decided — Super is Atlas's key, Ctrl is for text
 
 The rule: Super is the main key for the app, Ctrl is for the classic things (text editing and the like), and nothing conflicts with KDE, whose bindings can be read; the old Ctrl+Shift / Ctrl+Alt app keys were dropped. Every Super key was checked against KDE's **active** bindings (`kglobalshortcutsrc` in the config folder, first field of each entry). KDE keeps Super alone (the launcher), Super+A (launches Atlas), D, L, R, T, W, Tab, Return, Backspace, the digits and Shift+A/E/I/P/Q/T, so none of those is used.
 
@@ -54,7 +54,7 @@ The rule: Super is the main key for the app, Ctrl is for the classic things (tex
 |---|---|---|
 | command bar | **Super+E**, F1 | Ctrl+K (outside notes), Ctrl+E, Ctrl+Shift+P |
 | open file | **Super+P**, Ctrl+P | Ctrl+P |
-| search the vault | **Ctrl+Shift+F** | (Super+F until 2026-10-15; now fullscreen) |
+| search the vault | **Ctrl+Shift+F** | (formerly Super+F; now fullscreen) |
 | new note from a template | **Super+N**, Alt+N | Ctrl+Alt+N |
 | capture | **Super+C** | Ctrl+Alt+C |
 | Claude terminal | **Super+K** | Ctrl+Alt+K |
@@ -65,8 +65,8 @@ The rule: Super is the main key for the app, Ctrl is for the classic things (tex
 | library · problems · commands pane | **Super+Shift+L** · **Super+M** · **Super+Shift+K** | Ctrl+Shift+L · Ctrl+Shift+M · Ctrl+Shift+K |
 | drawing · left bar · settings | **Super+Shift+D** · **Super+S** · **Super+,** | Ctrl+Alt+D · Ctrl+Alt+S · Ctrl+, |
 | home · back / forward | Super+H · Super+[ / ] | (unchanged) |
-| capture box: the vault list · the vault before / after | **Super+V** · **Super+↑ / ↓** (2026-10-15; shown in the box's footer) | Alt+V · Alt+↑ / ↓ (still work) |
-| capture box: take the screen · the last screenshot · the clipboard · the page you were on | **Super+S** · **Super+Shift+S** · **Super+C** · **Super+U** (2026-10-16; in the chips, or their hover note) | — (the box is its own window: Atlas's Super+S / Super+C do not apply there; KDE binds none of them) |
+| capture box: the vault list · the vault before / after | **Super+V** · **Super+↑ / ↓** (shown in the box's footer) | Alt+V · Alt+↑ / ↓ (still work) |
+| capture box: take the screen · the last screenshot · the clipboard · the page you were on | **Super+S** · **Super+Shift+S** · **Super+C** · **Super+U** (in the chips, or their hover note) | — (the box is its own window: Atlas's Super+S / Super+C do not apply there; KDE binds none of them) |
 | browsing window: the page in the desktop's browser | **Super+Shift+O** (Super+O is the outline) | Ctrl+Shift+O (never released) |
 | terminal copy / paste | **Ctrl+Shift+C / V** (Konsole's) | — |
 | close the tab | **Super+Q**, Ctrl+W (Ctrl+W stays the shell's in a terminal; Super+Q closes the terminal tab too) | Ctrl+W |
@@ -93,7 +93,7 @@ Before, `indentWithTab` indented the whole line from anywhere in it. A list on s
 
 **Super in the desktop app.** WebKitGTK on Wayland can report Super+E with `metaKey` false. `superOf(e)` in `ui/src/lib/keys.ts` also counts a Super key seen going down (until it goes up or the window blurs) and the "Super"/"OS" modifier state; every check uses it, never `e.metaKey` alone. Test: the WebKitGTK case is simulated in `command-bar.spec.ts`. Still to confirm by hand in the desktop window after a restart.
 
-## Clashes are shown (2026-10-14)
+## Clashes are shown
 
 Settings → Keyboard marks, in red beside the command, a key that another command also has **in the same place** ("same key as Git") — only one of the two would ever run. A key that means one thing in notes and another elsewhere (Ctrl+K: link in a note, the command bar outside) is not a clash; that is the design. The default keys have none: a test fails if a new default ever collides (`key-clashes.spec.ts`; `keyClashes()` in `ui/src/lib/keymap.svelte.ts`).
 

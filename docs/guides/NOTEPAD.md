@@ -1,7 +1,7 @@
 # Notepad — pen drawings on the Boox, natively
 
 Excalidraw on the Boox should look like the native app as far as possible — or Atlas has its own app that saves in the
-Excalidraw file format (2026-10-17) — with feature parity with Boox Notes, plus the best of Rnote, Excalidraw and the
+Excalidraw file format — with feature parity with Boox Notes, plus the best of Rnote, Excalidraw and the
 Obsidian Excalidraw plugin, for a seamless fit with Atlas. This is that app: a native screen of the Atlas apps (Java, `crates/atlas-android/android/java/org/atlas/notepad/`) that opens `.excalidraw` files on an e-ink screen (a Boox, or the Boox app
 anywhere); a phone and the desktop keep Excalidraw. It is part of the app itself, not a plugin: always there on an
 e-ink screen, its settings in Settings → Drawing (`[draw]`) on every device (docs/refactor/REFACTOR-notepad-into-core.md).
@@ -100,7 +100,7 @@ only everywhere, each name a long-press tooltip.
 - **Pages → Open in Excalidraw (all its tools)**: the drawing in the web editor this once (fills, stroke styles,
   fonts, the library, frames), for what the pen screen does not do.
 
-## Shapes, arrows, the palm, the screen (2026-10-18)
+## Shapes, arrows, the palm, the screen
 
 - **Regular shapes**: whatever recogniser answers, its shape goes through `crates/atlas-android/src/regular.rs` — a box with
   sides within 15 % becomes a square, an ellipse with axes within 18 % a circle, a triangle with sides within 20 %

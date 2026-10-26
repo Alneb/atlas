@@ -105,11 +105,6 @@ public final class OnscreenTest {
         List<String> none = Arrays.asList();
         eq("offline or unknown: unchanged", null, Onscreen.resolve(new Onscreen.Found(Onscreen.Site.SPOTIFY, null, "x", "x", null, null, false), none).url);
 
-        // a capture's picture as a thumbnail
-        eq("thumbnail", "![[Screen 2026-10-21 093900.png|240]]", Links.thumbnail("![[Screen 2026-10-21 093900.png]]"));
-        eq("drawing embed kept", "![[Drawing.excalidraw]]", Links.thumbnail("![[Drawing.excalidraw]]"));
-        eq("sized embed kept", "![[a.png|600]]", Links.thumbnail("![[a.png|600]]"));
-
         System.out.println((ran - failed) + "/" + ran + " checks passed");
         if (failed > 0) System.exit(1);
     }

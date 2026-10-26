@@ -77,7 +77,7 @@ pub enum CaptureMode {
 #[serde(default)]
 #[ts(export)]
 pub struct NotesConfig {
-    /// What capture (Ctrl+Alt+C, `atlas capture`) writes: a bullet in today's log, or a note of its own.
+    /// What capture (Super+C, the capture box, `atlas capture`) writes: a bullet in today's log, or a note of its own.
     pub capture: CaptureMode,
     /// Folder for captured notes (when capture makes notes).
     pub inbox: String,
@@ -655,7 +655,8 @@ pub struct DrawConfig {
     pub notepad: bool,
     /// The pages a new drawing gets. Ask: chosen each time from the list.
     pub page_format: PageFormat,
-    // ── the Boox's notepad (e-ink screens; org.atlas.notepad) ──
+    // ── the notepad: the Boox's (org.atlas.notepad) and the desktop's pen mode (draw-excalidraw.ts) start from the
+    // same pen, paper, width, colour, snapping and recogniser; scribble, eraser, shape and text size are the Boox's ──
     /// Pen at the start (knote2's pens, Boox Notes'); the pen menu changes it while drawing.
     pub pen: NotepadPen,
     /// Paper of a new page.
@@ -666,7 +667,8 @@ pub struct DrawConfig {
     /// Shape recogniser. openink: boox_5c_re's trained one (lines, boxes, ellipses, triangles, polygons, arcs,
     /// arrows); atlas: the earlier one (lines, boxes, ellipses, triangles).
     pub shapes: ShapeRecogniser,
-    /// Scribble back and forth over strokes (as Boox Notes does) and they are erased instead of the scribble kept.
+    /// Scribble back and forth over strokes (as Boox Notes does) and they are erased instead of the scribble kept
+    /// (the Boox's notepad).
     pub scribble: bool,
     /// A drawing opens with the pen, width and colour in hand when the notepad last closed; off: the defaults below.
     pub remember_pen: bool,
@@ -674,11 +676,12 @@ pub struct DrawConfig {
     pub width: PenWidth,
     /// Colour at the start.
     pub color: PenColor,
-    /// Eraser. Whole strokes: a touch takes the stroke; part of strokes: only where the eraser passes.
+    /// Eraser (the Boox's notepad). Whole strokes: a touch takes the stroke; part of strokes: only where the eraser
+    /// passes.
     pub eraser: EraserMode,
-    /// Shape at the start.
+    /// Shape at the start (the Boox's notepad).
     pub shape: StartShape,
-    /// Text size at the start.
+    /// Text size at the start (the Boox's notepad).
     pub text_size: TextSize,
     /// A notebook shows one page filling the screen: the fingers zoom into it but never out of it or past its edges; a
     /// swipe from a side or the arrows turn it. Off: the canvas pans and zooms freely.

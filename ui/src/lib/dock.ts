@@ -432,6 +432,13 @@ export function openDrawingAt(path: string, page: string, opts: { beside?: boole
   open({ kind: "excalidraw", path, page }, opts);
 }
 
+/** A PDF at a page (`[[x.pdf#page=3]]`, a mark): the phone app's native reader when it opens PDFs (handed
+ *  `path#page=N`, Obsidian's form), else the PDF pane there — `extra` the quote or mark it shows. */
+export function openPdfAt(path: string, page: number, extra: { quote?: string; annotation?: string } = {}, opts: { beside?: boolean } = {}): void {
+  if (openNative(`${path}#page=${page}`)) return;
+  open({ kind: "pdf", path, page, ...extra }, opts);
+}
+
 /** A tab put back as it was (the phone app's restored tabs, at the page's start): in the page, behind what is shown —
  *  never a native viewer opened over the screen, never brought to the front over the view the app asked for. */
 export function restorePath(path: string): void {

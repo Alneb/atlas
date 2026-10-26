@@ -9,6 +9,7 @@ send  — a message to the phone: through the Apprise API when its address is se
 
 Standard library only (it runs on the phone's Python too).
 """
+import base64
 import datetime as dt
 import json
 import os
@@ -44,11 +45,20 @@ def _keep_since(topic, mid):
         print(f"notifications: cannot keep the last id of {topic}: {e}", file=sys.stderr, flush=True)
 
 
-def poll(server, topic, token):
+def auth(params):
+    """ntfy's sign-in as a request header: a user and password (Basic), else an access token (Bearer), else none."""
+    s, sec = params.get("settings") or {}, params.get("secrets") or {}
+    user, password, token = str(s.get("user") or "").strip(), sec.get("password") or "", sec.get("token") or ""
+    if user:
+        return {"Authorization": "Basic " + base64.b64encode(f"{user}:{password}".encode()).decode()}
+    return {"Authorization": f"Bearer {token}"} if token else {}
+
+
+def poll(server, topic, headers):
     """The messages of `topic` since the last one kept (ntfy keeps them for hours), oldest first."""
     since = _since(topic) or "12h"
     url = f"{server.rstrip('/')}/{urllib.parse.quote(topic, safe='')}/json?poll=1&since={urllib.parse.quote(since)}"
-    req = urllib.request.Request(url, headers={"Authorization": f"Bearer {token}"} if token else {})
+    req = urllib.request.Request(url, headers=headers)
     out = []
     with urllib.request.urlopen(req, timeout=30) as res:
         for line in res:
@@ -126,13 +136,13 @@ def sync(params):
     s = params.get("settings") or {}
     server = str(s.get("server") or "https://ntfy.sh")
     folder = str(s.get("folder") or "notifications")
-    token = (params.get("secrets") or {}).get("token") or ""
+    headers = auth(params)
     topics = [t.strip() for t in str(s.get("topics") or "").split(",") if t.strip()]
     inbox = str(s.get("inbox") or "").strip()
     new, loud, problems, captured = 0, [], [], 0
     for topic in topics:
         try:
-            msgs = poll(server, topic, token)
+            msgs = poll(server, topic, headers)
         except Exception as e:  # noqa: BLE001 — said in the answer and the log; the other topics go on
             problems.append(f"{topic}: {e}")
             continue
@@ -149,7 +159,7 @@ def sync(params):
             _keep_since(topic, msgs[-1].get("id", ""))
     if inbox:
         try:
-            msgs = poll(server, inbox, token)
+            msgs = poll(server, inbox, headers)
             for m in msgs:
                 if (m.get("message") or "").strip():
                     atlas.capture(m["message"])
@@ -177,9 +187,8 @@ def send(params):
         topic = str(s.get("phone_topic") or "").strip()
         if not topic:
             raise RuntimeError("set the Apprise address or your phone's topic first: Settings → Notifications")
-        token = (params.get("secrets") or {}).get("token") or ""
         url = f"{str(s.get('server') or 'https://ntfy.sh').rstrip('/')}/{urllib.parse.quote(topic, safe='')}?{urllib.parse.urlencode({'title': title})}"
-        req = urllib.request.Request(url, data=text.encode("utf-8"), method="POST", headers={"Authorization": f"Bearer {token}"} if token else {})
+        req = urllib.request.Request(url, data=text.encode("utf-8"), method="POST", headers=auth(params))
     with urllib.request.urlopen(req, timeout=30) as res:
         res.read()
     return {"sent": True, "through": "apprise" if apprise else "ntfy"}

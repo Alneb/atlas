@@ -1,6 +1,6 @@
 # Settings — pages, features, and the next rung
 
-Rebuilt 2026-10-08. Before it, Settings was one long scrolling form generated from the config
+Settings was rebuilt. Before it, it was one long scrolling form generated from the config
 schema with a filter on top. Settings badly needed improving.
 What hurt most:
 - **Not enough control**, in all four of: look, keybindings, pane and feature behaviour, plugins and automation.
@@ -130,7 +130,7 @@ would cycle):
   boxes with a "default" placeholder.
 
 
-## The Settings pass of 2026-10-19
+## A Settings pass
 After a day of features, Settings had fallen behind: many new things were not in it. An audit listed what was missing; this pass:
 - **Labels by path.** `fieldLabel(path)` in `settings-pages.ts` looks up `FIELD_LABELS` by the dotted path first,
   then falls back to `human(key)`. Keys alone collided (`notes.dir` and `draw.dir` were both "Folder") or read badly
@@ -141,7 +141,7 @@ After a day of features, Settings had fallen behind: many new things were not in
     `type: log` as properties and the day as a heading, now in the vault's date names (Spanish when
     `editor.date_names` says so; it was always English). A named template that is missing falls back, so a capture
     never fails over it.
-  - `web.open_links = "tab"` (the new default): what links already did since 2026-10-19 — a tab of Atlas when the
+  - `web.open_links = "tab"` (the new default): what links already did — a tab of Atlas when the
     site allows framing, else a browsing window — but now a choice. `window` and `browser` skip the tab
     (`web-links.ts`); the app treats `tab` as `window` for what it opens (`main.rs`).
   - `draw.page_format`: `ask` (default) or one of the formats of "New drawing" (A4, A4 landscape, A5, Letter, Boox,

@@ -222,14 +222,14 @@ pub fn fetch(root: &Path, secrets: &Store, id: &str, req: &FetchRequest) -> Resu
         .build()
         .map_err(|e| Error::Other(e.into()))?;
     let asked = url.clone();
-    // the OpenID sign-in a header asks for (`{ oauth: name }`): not made yet, or ended → said, before anything is sent
+    // the OpenID sign-in a header asks for (`{ oauth: name }`): made silently when it can be, else said before anything is sent
     let oauth = req.headers.values().find_map(|v| match v {
         HeaderValue::Oauth { oauth } => Some(oauth.clone()),
         _ => None,
     });
     let token_needed = |name: &str| crate::service_signin::Needed::Token { host: asked.host_str().unwrap_or_default().to_ascii_lowercase(), name: name.into(), page: asked.to_string() };
     if let Some(name) = oauth.as_deref().filter(|_| perm.secrets) {
-        if !crate::plugin_oauth::usable(secrets, id, name)? {
+        if !crate::plugin_oauth::ready(root, secrets, id, name, asked.as_str())? {
             return Ok(FetchResponse { status: 401, ok: false, headers: BTreeMap::new(), text: String::new(), saved: None, url: asked.to_string(), signin: Some(token_needed(name)) });
         }
     }

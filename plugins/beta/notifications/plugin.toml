@@ -6,14 +6,14 @@ title = "Notifications"
 description = "your server's notifications (ntfy, Apprise), a note per source"
 phone = true
 icon = "bell"
-version = "0.1.0"
+version = "0.2.0"
 api = 13
 
 [helper]
 run = "python3 -u \"$ATLAS_PLUGIN_DIR/notify.py\""
 
 [permissions]
-secrets = true       # the ntfy access token
+secrets = true       # the ntfy sign-in: a password or an access token
 
 [[setting]]
 key = "server"
@@ -52,16 +52,27 @@ kind = "text"
 hint = "the Apprise API's notify address (…/notify/<key>): Atlas's own messages go out through it; empty: ntfy"
 
 [[setting]]
+key = "user"
+label = "ntfy user"
+kind = "text"
+hint = "for a server that asks you to sign in (its own users, deny-all by default): your ntfy user name, with its password below; or leave it empty and give a token"
+
+[[setting]]
+key = "password"
+label = "ntfy password"
+kind = "secret"
+
+[[setting]]
 key = "token"
 label = "ntfy access token"
 kind = "secret"
-hint = "only for protected topics"
+hint = "instead of a user and password; empty for open topics"
 
 [[tool]]
 name = "sync"
 description = "Read what arrived on the kept ntfy topics since the last time and file it in the notes, one per source; captures what the phone sent to the inbox topic."
 input = {}
-secrets = ["token"]
+secrets = ["token", "password"]
 schedule = "every 5m"
 timeout_secs = 60
 
@@ -69,7 +80,7 @@ timeout_secs = 60
 name = "send"
 description = "Send a short message to the user's phone (through Apprise when set, else their ntfy topic). Use it when the user asks to be told or reminded on their phone, e.g. when a long job ends."
 input = { text = "string", title = { type = "string", description = "the notification's title (default: Atlas)", optional = true } }
-secrets = ["token"]
+secrets = ["token", "password"]
 timeout_secs = 40
 
 # where it runs (PLUGIN-API.md, "Platforms"); a platform not named is untested (Android: only with `phone = true`)

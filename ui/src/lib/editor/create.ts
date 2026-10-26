@@ -15,6 +15,7 @@ import { indentOnInput, LanguageDescription } from "@codemirror/language";
 import { languages } from "@codemirror/language-data";
 import { searchKeymap, highlightSelectionMatches, search } from "@codemirror/search";
 import { acceptCompletion, clearSnippet, closeCompletion, completionStatus } from "@codemirror/autocomplete";
+import { clearStops } from "./tabstops";
 import { vim, getCM } from "@replit/codemirror-vim";
 import { bodyStart, redecorate } from "../../vendor/obsidian-web/live-preview.js";
 import { onHighlightLanguage } from "../highlight";
@@ -105,6 +106,7 @@ export function createEditor(o: EditorOptions): AtlasEditor {
     Prec.highest(keymap.of([{ key: "Enter", run: (v) => completionStatus(v.state) === "active" && acceptCompletion(v) }])),
     Prec.highest(keymap.of([{ key: "Escape", run: (v) => {
       clearSnippet(v);
+      clearStops(v);
       if (completionStatus(v.state) === "pending" || untouchedTaskList(v)) closeCompletion(v);
       return false;
     } }, { key: "Mod-Shift-v", run: (v) => { stashVisual(v); return false; } },

@@ -157,7 +157,8 @@ returns the state PUT into a live server on a real vault.
 22. **VS Code themes** (`ui.vscode_theme`, `/api/theme/vscode`): colors → tokens, tokenColors → `--syn-*`
     by VS Code scope matching; WCAG contrast floor on text/icon/scrollbar tokens.
 23. **LaTeX Suite** (`ui/src/lib/editor/latex-suite.ts`, `/api/snippets`): user's own snippet file;
-    tab stops renumbered (+1) because LaTeX Suite's `$0` is the first stop, CodeMirror's the last.
+    tab stops are the editor's own (`tabstops.ts`: LaTeX Suite's numbering, `$0` first; a stack of snippets, so one
+    expanded inside another's stop returns to it), not CodeMirror's `snippet()`, which keeps one snippet at a time.
 24. **Library** (`refs.rs`, `/api/refs`, `/api/refs/add`, `/api/refs/bibtex`): `refs/papers/<key>/info.yaml`;
     add by DOI (Crossref) / arXiv (+PDF); `refs.bib` rewritten after each add — byte-identical to the
     former `scripts/vault/refs_bib.py` on the 54 real entries.

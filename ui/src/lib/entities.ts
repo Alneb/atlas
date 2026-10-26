@@ -3,7 +3,6 @@
 // the editor does not (editor/mentions.ts draws the chips).
 import { api } from "./api";
 import { on } from "./bus";
-import { openPath } from "./dock";
 import { openReadingNote } from "./papers";
 import type { Paper } from "./gen/Paper";
 
@@ -57,6 +56,3 @@ export async function resolveEntity(id: string): Promise<Entity | null> {
   const p = providers.find((x) => id.startsWith(x.prefix));
   return p ? p.get(id.slice(p.prefix.length)) : null;
 }
-/** A plugin entity that is a file. */
-export const fileEntity = (title: string, path: string, subtitle?: string, props?: Record<string, string>): Entity =>
-  ({ title, subtitle, props, open: () => openPath(path) });

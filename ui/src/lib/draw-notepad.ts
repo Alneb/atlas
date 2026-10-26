@@ -2,6 +2,10 @@
 // pans, two pinch-zoom and pan together, a two-finger tap undoes, a three-finger tap redoes (the Boox notes app's
 // gestures). Excalidraw's own touch handling is kept away from fingers here: its pinch only works on the canvas with
 // no tool in the way, and in pen mode a finger falls through to the tool. Pure scene arithmetic is exported for tests.
+import type { NotepadPen } from "./gen/NotepadPen";
+import type { PenColor } from "./gen/PenColor";
+import type { PenWidth } from "./gen/PenWidth";
+
 
 /** What a notepad toolbar picks; Excalidraw's own tool names behind them. */
 export type NoteTool = "pen" | "eraser" | "select" | "hand" | "text" | "rectangle" | "ellipse" | "arrow" | "line" | "image";
@@ -152,6 +156,21 @@ export function paperCss(paper: Paper, v: View, dpr = 1): { backgroundImage: str
   }[paper];
   const pos = paper === "dots" ? at(step, step / 2) : at(step, w / 2);
   return { backgroundImage: image, backgroundSize: `${step}px ${step}px`, backgroundPosition: paper === "grid" ? `${pos}, ${pos}` : pos };
+}
+
+/** Settings' pen (`[draw] pen`, knote2's seven) as the web notepad's nearest (Stroke.java webPen). */
+export function webPen(pen: NotepadPen): PenKind {
+  return pen === "ballpoint" ? "ballpoint" : pen === "marker" ? "highlighter" : "fountain";
+}
+
+/** Settings' start width as a factor of the pen's (NotepadView.java WIDTH_STEPS: 1.25× apart). */
+export function startWidth(w: PenWidth | undefined): number {
+  return { thin: 0.64, normal: 1, thick: 1.56, "very thick": 2.44 }[w ?? "normal"];
+}
+
+/** Settings' start colour (NotepadView.java COLORS, Excalidraw's palette). */
+export function startColor(c: PenColor | undefined): string {
+  return { black: "#000000", "dark grey": "#495057", "light grey": "#adb5bd", red: "#e03131", blue: "#1971c2", green: "#2f9e44", orange: "#f08c00", purple: "#9c36b5" }[c ?? "black"];
 }
 
 /** This device's last choices (pen, paper): a convenience, so anything going wrong here only forgets them. */

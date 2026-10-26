@@ -1,8 +1,8 @@
 # Language servers (slice 1b: code intelligence)
 
-Built 2026-10-06 (slice 1b of the plan: LSP via lsp-client).
+Built as slice 1b of the plan: LSP via lsp-client.
 
-## What the user gets
+## What you get
 In any code file whose language has a server: completion from the server, hover docs, diagnostics
 (squiggles + gutter), signature help, **F12** go to definition (opens the target file in a tab; files
 outside the workspace — std lib, site-packages — show a toast instead), **F2** rename, **Shift+Alt+F**
@@ -19,7 +19,7 @@ format, **Shift+F12** references. Markdown notes are never sent to a server.
   pyflakes/pycodestyle, so **no lint diagnostics**; the system `/usr/bin/pylsp` gave 3 diagnostics after
   2.8 s but resolves imports against the system Python. Installing basedpyright (`uv tool install
   basedpyright`) would give both (its auto-detection picks it first); it was installed, see below.
-- Installed on this machine (2026-10-06): rust-analyzer, pylsp, clangd, basedpyright, texlab.
+- Installed on the development machine: rust-analyzer, pylsp, clangd, basedpyright, texlab.
 
 ## How it works
 - `crates/atlas-core/src/lsp.rs`: `GET /api/lsp` → per language its extensions, the resolved command (or
@@ -62,7 +62,7 @@ format, **Shift+F12** references. Markdown notes are never sent to a server.
 - Verified on the UX copy: texlab completes `\begin{equ` → `equation` in 0.5 s (UX journey step).
 
 
-## Checked again on 2026-10-13: what completes, and a server that does not start
+## Checked again: what completes, and a server that does not start
 
 Autocompletion of code inside code files. Tried on a scratch vault with the real servers of this machine (a second core on its own port; `[editor] vim` on, so the probe opens a line with `Go` first — typing straight away ran vim commands and looked like "no completion"):
 

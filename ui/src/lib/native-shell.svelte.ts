@@ -26,11 +26,20 @@ interface Bridge {
   /** "true" when a native plugin of the app opens this vault path (docs/refactor/REFACTOR-native-plugins.md) */
   nativeOpens?(path: string): string;
   openNative?(path: string): void;
+  /** a service's gate, signed in in the app's own window and handed to the in-app core (service-signin.ts) */
+  signInDoor?(url: string): void;
   /** the app's own readers with a place of their own (Books, Manga): `[{ plugin, title }]`, and opening one */
 }
 
 const bridge = (globalThis as unknown as { AtlasNative?: Bridge }).AtlasNative;
 export const nativeShell = { on: !!bridge };
+
+/** The app signs in to a service's gate itself (a browser tab can't hand its cookies over); false without that app. */
+export function nativeSignInDoor(url: string): boolean {
+  if (!bridge?.signInDoor) return false;
+  bridge.signInDoor(url);
+  return true;
+}
 
 /** A tab as the app needs it: `file` tabs are listed; the others are the one view. */
 export interface NativeTab { id: string; title: string; path: string | null; icon: string; active: boolean; file: boolean }
