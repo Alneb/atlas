@@ -2,7 +2,8 @@
 //! can be: a program and its arguments, quoted with `"…"` or `'…'`, `\` escapes, `$VAR`, `${VAR}`, `${VAR:-default}`
 //! and a leading `~/` — the shape every plugin line has. Windows has no `sh`, so this is how Atlas starts them there;
 //! one parser serves every OS. A line using more of the shell (pipes, `&&`, `if`, redirects, `$(…)`) is
-//! [`Launch::Shell`]: `sh -c` on Unix, and on Windows the `sh` of Git for Windows when it is on the PATH.
+//! [`Launch::Shell`]: `sh -c` on Unix, and on Windows the `sh` of Git for Windows when it is on the PATH. [`plan`] is the
+//! one decision; processes (`command`) and terminal tabs (pty.rs) are both built from it.
 //!
 //! Unlike `sh`, an expanded variable is never split into words (a path with spaces stays one argument).
 use std::ffi::OsString;
@@ -134,9 +135,16 @@ fn is_name(s: &str) -> bool {
     s.chars().next().is_some_and(|c| c.is_ascii_alphabetic() || c == '_') && s.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
 }
 
-/// A process for `line`, run in `cwd`, with `env` set and visible to the line's own `$VAR`s (before the process
-/// environment). Err: the line needs a shell this machine does not have, in words.
-pub fn command(line: &str, cwd: &Path, env: &[(String, OsString)]) -> Result<tokio::process::Command, String> {
+/// What starts a line: the program and its arguments (`sh -c` and the line when it needs a shell).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Plan {
+    pub program: PathBuf,
+    pub args: Vec<String>,
+}
+
+/// How `line` starts in `cwd`, its `$VAR`s read from `env` before the process environment: the one decision behind
+/// [`command`] and a terminal tab's command (pty.rs). Err: the line needs a shell this machine does not have, in words.
+pub fn plan(line: &str, cwd: &Path, env: &[(String, OsString)]) -> Result<Plan, String> {
     let lookup = |name: &str| {
         env.iter().find(|(k, _)| k == name).map(|(_, v)| v.to_string_lossy().into_owned()).or_else(|| std::env::var(name).ok())
     };
@@ -146,23 +154,23 @@ pub fn command(line: &str, cwd: &Path, env: &[(String, OsString)]) -> Result<tok
         }
         other => other,
     };
-    let mut cmd = match launch {
-        Launch::Direct { program, args } => {
-            let mut c = tokio::process::Command::new(program_path(&program, cwd));
-            c.args(args);
-            c
-        }
+    match launch {
+        Launch::Direct { program, args } => Ok(Plan { program: program_path(&program, cwd), args }),
         Launch::Shell { line, why } => {
             let sh = if cfg!(windows) { find_on_path("sh") } else { Some(PathBuf::from("sh")) };
             let Some(sh) = sh else {
                 return Err(format!("this command uses {why}, which needs a POSIX shell: install Git for Windows (its sh) or write the line as a program and its arguments"));
             };
-            let mut c = tokio::process::Command::new(sh);
-            c.arg("-c").arg(line);
-            c
+            Ok(Plan { program: sh, args: vec!["-c".into(), line] })
         }
-    };
-    cmd.current_dir(cwd).envs(env.iter().map(|(k, v)| (k, v)));
+    }
+}
+
+/// A process for `line` ([`plan`]), run in `cwd`, with `env` set.
+pub fn command(line: &str, cwd: &Path, env: &[(String, OsString)]) -> Result<tokio::process::Command, String> {
+    let Plan { program, args } = plan(line, cwd, env)?;
+    let mut cmd = tokio::process::Command::new(program);
+    cmd.args(args).current_dir(cwd).envs(env.iter().map(|(k, v)| (k, v)));
     Ok(cmd)
 }
 

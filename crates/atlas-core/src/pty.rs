@@ -9,6 +9,7 @@ use futures_util::{SinkExt, StreamExt};
 use portable_pty::{native_pty_system, CommandBuilder, PtySize};
 use std::collections::{HashMap, VecDeque};
 use std::io::{Read, Write};
+use std::path::Path;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -20,7 +21,7 @@ fn command(ws: &Workspace, q: &PtyQuery) -> anyhow::Result<CommandBuilder> {
         None => ws.root().to_path_buf(),
     };
     let mut cmd = match q.preset {
-        _ if q.command.is_some() => command_line(q.command.as_deref().unwrap_or_default()),
+        _ if q.command.is_some() => command_line(q.command.as_deref().unwrap_or_default(), &cwd)?,
         // an agent tab is always a plugin's agent (agent_terminals.rs): `agent` names it; a tab of the old "claude"
         // preset (a saved layout, Super+K) takes the `claude` agent, else the first one a plugin declares
         PtyPreset::Claude => {
@@ -85,27 +86,13 @@ fn which(name: &str) -> bool {
     std::env::var_os("PATH").is_some_and(|p| std::env::split_paths(&p).any(|d| crate::platform::run_line::executable(&d.join(name)).is_some()))
 }
 
-/// A tab that runs one command line: `sh -c` on Unix; on Windows the line as a program and its arguments
-/// (platform/run_line.rs), or through cmd when it needs a shell.
-fn command_line(line: &str) -> CommandBuilder {
-    if !cfg!(windows) {
-        let mut cmd = CommandBuilder::new("/bin/sh");
-        cmd.args(["-c", line]);
-        return cmd;
-    }
-    use crate::platform::run_line::{parse, Launch};
-    match parse(line, &|v| std::env::var(v).ok()) {
-        Launch::Direct { program, args } => {
-            let mut cmd = CommandBuilder::new(program);
-            cmd.args(args);
-            cmd
-        }
-        Launch::Shell { line, .. } => {
-            let mut cmd = CommandBuilder::new(std::env::var("COMSPEC").unwrap_or_else(|_| "cmd.exe".into()));
-            cmd.args(["/C", &line]);
-            cmd
-        }
-    }
+/// A tab that runs one command line, started as every command line is (platform/run_line.rs): a program and its
+/// arguments, or `sh -c` (on Windows Git's) when the line needs a shell.
+fn command_line(line: &str, cwd: &Path) -> anyhow::Result<CommandBuilder> {
+    let plan = crate::platform::run_line::plan(line, cwd, &[]).map_err(anyhow::Error::msg)?;
+    let mut cmd = CommandBuilder::new(plan.program);
+    cmd.args(plan.args);
+    Ok(cmd)
 }
 
 /// Every word of a command line or a value through `expand_home`.
@@ -144,7 +131,8 @@ const REPLAY: usize = 1024 * 1024;
 
 /// One running terminal: its program, the pty's two ends, the recent output, and its watchers.
 pub struct Pty {
-    master: Mutex<Box<dyn portable_pty::MasterPty + Send>>,
+    /// None once closed (Windows, after the program ended: [`Pty::close_when_done`]).
+    master: Mutex<Option<Box<dyn portable_pty::MasterPty + Send>>>,
     child: Mutex<Box<dyn portable_pty::Child + Send + Sync>>,
     input: std::sync::mpsc::Sender<Vec<u8>>,
     /// Recent output and the live feed, under one lock so a new watcher misses nothing in between.
@@ -178,7 +166,7 @@ impl Pty {
             }
         });
         let pty = Arc::new(Pty {
-            master: Mutex::new(pair.master),
+            master: Mutex::new(Some(pair.master)),
             child: Mutex::new(child),
             input,
             out: Mutex::new((VecDeque::new(), broadcast::channel(1024).0)),
@@ -196,11 +184,27 @@ impl Pty {
             }
             let _ = feed.out.lock().unwrap().1.send(Out::Exited); // the program ended, the pty closed
         });
+        if cfg!(windows) {
+            Self::close_when_done(Arc::clone(&pty));
+        }
         Ok(pty)
     }
 
     fn resize(&self, cols: u16, rows: u16) {
-        let _ = self.master.lock().unwrap().resize(PtySize { cols, rows, pixel_width: 0, pixel_height: 0 });
+        if let Some(m) = self.master.lock().unwrap().as_ref() {
+            let _ = m.resize(PtySize { cols, rows, pixel_width: 0, pixel_height: 0 });
+        }
+    }
+
+    /// ConPTY keeps its output open after the program ends, so the read above never ends by itself; closing the
+    /// pseudo console once the program is gone flushes the rest and ends it, in order (Unix needs none of this).
+    fn close_when_done(pty: Arc<Self>) {
+        std::thread::spawn(move || {
+            while !pty.exited() {
+                std::thread::sleep(Duration::from_millis(100));
+            }
+            pty.master.lock().unwrap().take();
+        });
     }
 
     async fn kill(self: Arc<Self>) {

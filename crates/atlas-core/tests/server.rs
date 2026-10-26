@@ -344,21 +344,39 @@ async fn events_and_origin_check() {
     t.stop().await;
 }
 
+/// A terminal tab's shell, in its own words: a plain POSIX sh (independent of the user's zsh config), PowerShell on
+/// Windows. `SUM` is 6*7, so the output differs from the echoed input; `PID` is the shell's process id.
+#[cfg(not(windows))]
+mod shell {
+    pub const SUM: &str = "$((6*7))";
+    pub const PID: &str = "$$";
+}
+#[cfg(windows)]
+mod shell {
+    pub const SUM: &str = "$(6*7)";
+    pub const PID: &str = "$PID";
+}
+
+/// One line typed into a terminal: `{SUM}` and `{PID}` in the shell's own syntax, then Enter.
+fn typed(line: &str) -> Vec<u8> {
+    format!("{}\r", line.replace("{SUM}", shell::SUM).replace("{PID}", shell::PID)).into_bytes()
+}
+
 #[tokio::test(flavor = "multi_thread")]
 async fn pty_shell_session() {
-    // A plain POSIX shell keeps the test independent of the user's zsh config.
     std::env::set_var("SHELL", "/bin/sh");
     let t = T::start().await;
     let mut ws = ws_connect(t.port(), "/api/pty?preset=shell&cols=100&rows=30", None).await.unwrap();
     ws.send(Message::Text(r#"{"resize":[120,40]}"#.into())).await.unwrap();
-    // `$((6*7))` makes the output differ from the echoed input.
-    ws.send(Message::Binary(b"echo hi atlas$((6*7)); pwd\r".to_vec().into())).await.unwrap();
+    ws.send(Message::Binary(typed(r#"echo "hi atlas{SUM}"; pwd"#).into())).await.unwrap();
+    // the folder's own name: the shells write the whole path each their way
+    let here = t.root().file_name().unwrap().to_string_lossy().into_owned();
     let out = tokio::time::timeout(Duration::from_secs(10), async {
         let mut out = String::new();
         while let Some(Ok(m)) = ws.next().await {
             if let Message::Binary(b) = m {
                 out.push_str(&String::from_utf8_lossy(&b));
-                if out.contains("hi atlas42") && out.contains(&*atlas_core::paths::real(t.root()).unwrap().to_string_lossy()) {
+                if out.contains("hi atlas42") && out.contains(&here) {
                     break;
                 }
             }
@@ -399,7 +417,7 @@ async fn a_terminal_outlives_a_page_reload_and_ends_when_its_tab_closes() {
     let t = T::start().await;
     let url = "/api/pty?preset=shell&cols=100&rows=30&key=terminal:shell:1";
     let mut ws = ws_connect(t.port(), url, None).await.unwrap();
-    ws.send(Message::Binary(b"echo pid=$$=; echo before$((6*7))\r".to_vec().into())).await.unwrap();
+    ws.send(Message::Binary(typed(r#"echo "pid={PID}="; echo "before{SUM}""#).into())).await.unwrap();
     let out = read_until(&mut ws, "before42").await;
     let pid = out.split("pid=").filter_map(|s| s.split('=').next()).find(|p| !p.is_empty() && p.chars().all(|c| c.is_ascii_digit())).expect("the shell's pid").to_string();
     drop(ws); // the page reloads: the socket goes without a word
@@ -407,7 +425,7 @@ async fn a_terminal_outlives_a_page_reload_and_ends_when_its_tab_closes() {
     let mut ws = ws_connect(t.port(), url, None).await.unwrap();
     let replay = read_until(&mut ws, "before42").await;
     assert!(replay.contains("before42"), "the recent output comes back: {replay}");
-    ws.send(Message::Binary(b"echo again=$$=\r".to_vec().into())).await.unwrap();
+    ws.send(Message::Binary(typed(r#"echo "again={PID}=""#).into())).await.unwrap();
     let again = read_until(&mut ws, &format!("again={pid}=")).await;
     assert!(again.contains(&format!("again={pid}=")), "the same shell: {again}");
 
@@ -415,14 +433,14 @@ async fn a_terminal_outlives_a_page_reload_and_ends_when_its_tab_closes() {
     ws.send(Message::Text(r#""end""#.into())).await.unwrap();
     let _ = tokio::time::timeout(Duration::from_secs(5), async { while let Some(Ok(m)) = ws.next().await { if matches!(m, Message::Close(_)) { break } } }).await;
     let gone = tokio::time::timeout(Duration::from_secs(5), async {
-        while std::path::Path::new(&format!("/proc/{pid}")).exists() {
+        while atlas_core::platform::proc::pid_alive(pid.parse().unwrap()) {
             tokio::time::sleep(Duration::from_millis(50)).await;
         }
     })
     .await;
     assert!(gone.is_ok(), "the shell {pid} was killed");
     let mut ws = ws_connect(t.port(), url, None).await.unwrap();
-    ws.send(Message::Binary(b"echo new=$$=\r".to_vec().into())).await.unwrap();
+    ws.send(Message::Binary(typed(r#"echo "new={PID}=""#).into())).await.unwrap();
     let fresh = read_until(&mut ws, "new=").await;
     assert!(!fresh.contains(&format!("new={pid}=")) && !fresh.contains("before42"), "a new shell: {fresh}");
     ws.send(Message::Text(r#""end""#.into())).await.unwrap();
@@ -434,6 +452,7 @@ async fn a_terminal_outlives_a_page_reload_and_ends_when_its_tab_closes() {
 #[tokio::test(flavor = "multi_thread")]
 async fn pty_command_runs_directly_and_says_when_it_exited() {
     let t = T::start().await;
+    // `echo` is no program: the line goes to sh (on Windows Git's), as every command line does
     let mut ws = ws_connect(t.port(), "/api/pty?command=echo%20done%24((6*7))&cols=80&rows=24", None).await.unwrap();
     let (out, close) = tokio::time::timeout(Duration::from_secs(10), async {
         let mut out = String::new();
