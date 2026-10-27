@@ -134,7 +134,16 @@ pub fn settle(ws: &Workspace, copy: &str) -> crate::Result<Settled> {
     let (Ok(theirs), Ok(ours)) = (String::from_utf8(theirs), String::from_utf8(ours)) else {
         return Ok(Settled::Left("not text".into()));
     };
-    let base = std::fs::read_to_string(mirror_guard::base_path(ws.root(), &orig)).ok();
+    let base_file = mirror_guard::base_path(ws.root(), &orig);
+    // the base is the copy's ancestor only if the copy was edited after it: Syncthing keeps the copy's own time, and a
+    // copy older than the base (one left from before the last leased write) would undo everything written since
+    let modified = |p: &Path| std::fs::metadata(p).and_then(|m| m.modified()).ok();
+    if let (Some(b), Some(c)) = (modified(&base_file), modified(&ws.resolve(copy)?)) {
+        if c < b {
+            return Ok(Settled::Left("older than the last version kept here".into()));
+        }
+    }
+    let base = std::fs::read_to_string(base_file).ok();
     let marks = pdf_marks::has_block(&ours) || pdf_marks::has_block(&theirs);
     let merged = match (base, marks) {
         // a note with PDF marks: its text by lines, its marks mark by mark (with no base, only when the text agrees)
@@ -287,6 +296,25 @@ mod tests {
         assert_eq!(all_copies(d.path()), vec![copy.to_string()]);
         std::fs::write(d.path().join(copy), "a (here)\nb\nc (there)\n").unwrap();
         assert_eq!(settle(&ws, copy).unwrap(), Settled::Same);
+    }
+
+    #[test]
+    fn a_copy_older_than_the_base_is_left_never_merged_over_the_file() {
+        // a config written through the mirror long after an old conflict copy: merging against that base made the
+        // copy's few lines replace the whole file
+        let d = tempfile::tempdir().unwrap();
+        let ws = Workspace::open(d.path()).unwrap();
+        let copy = ".atlas/config.sync-conflict-20261017-045849-J3SZH65.toml";
+        let (full, old) = ("[ui]\ntheme = \"light\"\nside_panel = \"sidebar\"\n[editor]\nvim_keys = \"desktop\"\n", "[ui]\nside_panel = \"sidebar\"\n");
+        std::fs::create_dir_all(d.path().join(".atlas/cache/sync-base/.atlas")).unwrap();
+        std::fs::write(d.path().join(".atlas/config.toml"), full).unwrap();
+        std::fs::write(d.path().join(".atlas/cache/sync-base/.atlas/config.toml"), full).unwrap();
+        std::fs::write(d.path().join(copy), old).unwrap();
+        let week_ago = std::time::SystemTime::now() - std::time::Duration::from_secs(7 * 86400);
+        std::fs::File::options().write(true).open(d.path().join(copy)).unwrap().set_modified(week_ago).unwrap();
+        assert!(matches!(settle(&ws, copy).unwrap(), Settled::Left(_)));
+        assert_eq!(std::fs::read_to_string(d.path().join(".atlas/config.toml")).unwrap(), full, "the file is untouched");
+        assert!(d.path().join(copy).exists(), "the copy stays for the user");
     }
 
     #[test]

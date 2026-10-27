@@ -1,6 +1,6 @@
 import { defineConfig, type Plugin } from "vite";
 import { svelte } from "@sveltejs/vite-plugin-svelte";
-import { cpSync, existsSync, createReadStream } from "node:fs";
+import { cpSync, existsSync, createReadStream, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join, resolve, normalize } from "node:path";
 
 // Offline app: libraries that fetch assets at runtime get them from the app itself — from
@@ -51,12 +51,28 @@ const API = process.env.ATLAS_API ?? "http://127.0.0.1:7717";
 // a locked core (DESIGN-local-lock.md) takes its key: the dev proxy signs every request with it
 const KEY = process.env.ATLAS_API_KEY;
 
+// The stamp of the core's types this interface was built against (ui/src/lib/gen, generated from the Rust): a core
+// serves an installed interface only when its own stamp matches (ui_files.rs), so a new interface never reaches an
+// older core. FNV-1a 64 over each file's name and bytes, sorted — crates/atlas-core/build.rs computes the same.
+function coreTypes(dir = resolve(__dirname, "src/lib/gen")): string {
+  let h = 0xcbf29ce484222325n;
+  const eat = (bytes: Uint8Array) => { for (const b of bytes) h = ((h ^ BigInt(b)) * 0x100000001b3n) & 0xffffffffffffffffn; };
+  for (const f of readdirSync(dir).filter((f) => f.endsWith(".ts")).sort()) { eat(Buffer.from(`${f}\0`)); eat(readFileSync(join(dir, f))); eat(Buffer.from([0])); }
+  return h.toString(16).padStart(16, "0");
+}
+const coreTypesStamp = (): Plugin => ({
+  name: "atlas-core-types",
+  apply: "build",
+  writeBundle(options) { writeFileSync(join(options.dir ?? resolve(__dirname, "dist"), "core-types"), coreTypes()); },
+});
+
 export default defineConfig({
   plugins: [
     svelte(),
     nodeAssets("pdfjs", "/pdfjs", "pdfjs-dist", ["cmaps", "standard_fonts", "wasm", "iccs"]),
     nodeAssets("excalidraw", "/excalidraw", "@excalidraw/excalidraw/dist/prod", ["fonts"]),
     inkStroke(),
+    coreTypesStamp(),
   ],
   // the dev server pre-bundles Excalidraw: the same rewrite there
   optimizeDeps: { rolldownOptions: { plugins: [{ name: "atlas-ink-stroke-deps", transform: (code: string, id: string) => rewriteInk(code, id)?.code ?? null }] } },

@@ -5,10 +5,20 @@
 //! is one); `atlas serve` and the tests keep the UI built into the program, the one being tested.
 use std::path::{Component, Path, PathBuf};
 
-/// The folder `$ATLAS_UI_DIR` names, when it holds an `index.html`.
+/// The stamp of the types this core speaks (build.rs); an interface built against others is not served.
+pub const CORE_TYPES: &str = env!("ATLAS_CORE_TYPES");
+
+/// The folder `$ATLAS_UI_DIR` names, when it holds an `index.html` built for this core: an interface installed for a
+/// newer (or older) core would misread its answers, so the window keeps the one built into the program until restarted.
 pub fn dir() -> Option<PathBuf> {
     let d = PathBuf::from(std::env::var_os("ATLAS_UI_DIR")?);
-    d.join("index.html").is_file().then_some(d)
+    (d.join("index.html").is_file() && fits(&d)).then_some(d)
+}
+
+/// Whether the interface in `d` was built against this core's types (`core-types`, written by its build). The Vite
+/// dev server's folder has no stamp and is always taken.
+fn fits(d: &Path) -> bool {
+    std::fs::read_to_string(d.join("core-types")).map_or(true, |s| s.trim() == CORE_TYPES)
 }
 
 /// Where `packaging/install.sh` puts the UI: `$XDG_DATA_HOME/atlas/ui` (`~/.local/share/atlas/ui`).
@@ -52,5 +62,15 @@ mod tests {
         assert_eq!(get(d.path(), "assets/a.js").unwrap().1, "text/javascript");
         assert!(get(d.path(), "../etc/passwd").is_none());
         assert!(get(d.path(), "/etc/passwd").is_none());
+    }
+
+    #[test]
+    fn an_interface_built_for_other_core_types_is_not_taken() {
+        let d = tempfile::tempdir().unwrap();
+        assert!(fits(d.path()), "no stamp: taken");
+        std::fs::write(d.path().join("core-types"), format!("{CORE_TYPES}\n")).unwrap();
+        assert!(fits(d.path()));
+        std::fs::write(d.path().join("core-types"), "0123456789abcdef").unwrap();
+        assert!(!fits(d.path()));
     }
 }
