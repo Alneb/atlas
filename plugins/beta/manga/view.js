@@ -6,7 +6,8 @@
 import { suwayomi, isRemote, PAGE_W } from "./suwayomi.js";
 
 const PICTURE = /\.(jpe?g|png|webp|gif|avif|bmp)$/i;
-const ZIP = /\.cbz$/i;
+const ZIP = /\.cb[zr7t]$/i; // a chapter archive; only a .cbz is read in the page, the others made into one (helper.py)
+const CBZ = /\.cbz$/i;
 const READING = "reading.json"; // the older place file: read once, the note is written from then on
 
 // ---- where you are, in the series' note: reading_chapter · reading_page · last_read
@@ -133,7 +134,8 @@ export default function mount(host, atlas) {
       const pics = (await entries(ch.slice(0, -1))).filter((e) => !e.dir && PICTURE.test(e.name)).map((e) => e.path).sort(natural);
       return { count: pics.length, url: (i) => atlas.thumbUrl(pics[i], PAGE_W), done() {} };
     }
-    const buf = await (await fetch(await atlas.fileUrl(ch))).arrayBuffer();
+    const cbz = CBZ.test(ch) ? ch : (await atlas.helper.call("as_cbz", { path: ch }, { timeout: 600 })).path;
+    const buf = await (await fetch(await atlas.fileUrl(cbz))).arrayBuffer();
     const list = zipEntries(buf), made = new Map();
     return {
       count: list.length,

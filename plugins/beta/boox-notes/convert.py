@@ -35,6 +35,7 @@ def outline(pen, mean_pressure):
 SANS = 6
 LINE = 1.25
 TEXT_SHAPES = {6, 16, 29}  # NoteShapeType text kinds, read by ksync_text.py
+UNIVERSAL = 40  # the line and shape tools' geometry, read by ksync_shapes.py
 
 
 CHAR_EM = 0.55  # Nunito's mean character width in em: the wrap Excalidraw redoes exactly once the text is edited
@@ -86,8 +87,8 @@ def _simplify(pts, eps):
 
 
 def convert(doc, title, updated=0):
-    """→ (scene dict, {"strokes", "skipped"}). Pages stacked top to bottom in their Boox order."""
-    elements, skipped, strokes, texts = [], 0, 0, 0
+    """→ (scene dict, {"strokes", "texts", "shapes", "skipped"}). Pages stacked top to bottom in their Boox order."""
+    elements, skipped, strokes, texts, shapes = [], 0, 0, 0, 0
     rnd = random.Random(doc["id"])
     y = 0.0
     for n, page in enumerate(doc["pages"], 1):
@@ -103,8 +104,9 @@ def convert(doc, title, updated=0):
         })
         for st in page.get("strokes", []):
             pts = [p for p in st.get("points", []) if p[0] == p[0] and p[1] == p[1]]  # NaN-free
-            # not lost: a reference is a copy shown on another page, a removed shape was erased, text is page["texts"]
-            elsewhere = st.get("reference") or st.get("removed") or st.get("shapeType") in TEXT_SHAPES
+            # not lost: a reference is a copy shown on another page, a removed shape was erased, text is page["texts"],
+            # geometry page["shapes"]
+            elsewhere = st.get("reference") or st.get("removed") or st.get("shapeType") in TEXT_SHAPES | {UNIVERSAL}
             if elsewhere or not st.get("pen") or len(pts) < 1:
                 skipped += 0 if elsewhere else 1
                 continue
@@ -154,6 +156,20 @@ def convert(doc, title, updated=0):
                 "lineHeight": LINE,
             })
             texts += 1
+        for g in page.get("shapes", []):  # lines, polygons, ovals (ksync_shapes.attach)
+            el = _geometry(g, k, y)
+            if el is None:
+                skipped += 1
+                continue
+            elements.append({
+                **el, "id": _id(doc["id"], page["id"], g["id"], "shape"), "strokeColor": g.get("color") or "#000000",
+                "backgroundColor": "transparent", "fillStyle": "solid", "strokeWidth": round(max(0.5, g["width"] * k), 2),
+                "strokeStyle": "solid", "roughness": 0, "opacity": max(1, min(100, round((g.get("alpha") or 1) * 100))),
+                "groupIds": [], "frameId": frame_id, "seed": rnd.randrange(1, 2**31), "version": 1,
+                "versionNonce": rnd.randrange(1, 2**31), "isDeleted": False, "boundElements": None, "updated": updated,
+                "link": None, "locked": False,
+            })
+            shapes += 1
         y += h * k + GAP
     scene = {
         "type": "excalidraw", "version": 2, "source": f"atlas boox-notes {doc['id']}",
@@ -161,6 +177,26 @@ def convert(doc, title, updated=0):
         "appState": {"viewBackgroundColor": "#ffffff", "currentItemRoughness": 0},
         "files": {},
         # what was made from what: the importer reads it back to tell its own file from one edited since
-        "atlas": {"boox": {"document": doc["id"], "title": title, "updated": updated, "strokes": strokes, "texts": texts, "skipped": skipped}},
+        "atlas": {"boox": {"document": doc["id"], "title": title, "updated": updated, "strokes": strokes, "texts": texts, "shapes": shapes, "skipped": skipped}},
     }
-    return scene, {"strokes": strokes, "texts": texts, "skipped": skipped}
+    return scene, {"strokes": strokes, "texts": texts, "shapes": shapes, "skipped": skipped}
+
+
+def _geometry(g, k, y):
+    """A ksync_shapes shape in page px → the Excalidraw element's own fields at scale `k`, page top `y`; None when
+    its kind is not converted."""
+    if g["kind"] == "line":
+        pts = [[p[0] * k, p[1] * k + y] for p in g["points"]]
+        x0, y0 = pts[0]
+        rel = [[round(px - x0, 2), round(py - y0, 2)] for px, py in pts]
+        xs, ys = [p[0] for p in rel], [p[1] for p in rel]
+        return {"type": "line", "x": round(x0, 2), "y": round(y0, 2), "width": round(max(xs) - min(xs), 2),
+                "height": round(max(ys) - min(ys), 2), "angle": 0, "roundness": None, "points": rel,
+                "lastCommittedPoint": None, "startBinding": None, "endBinding": None, "startArrowhead": None,
+                "endArrowhead": None}
+    if g["kind"] == "ellipse":
+        (cx, cy), (w, h) = g["center"], g["size"]
+        return {"type": "ellipse", "x": round((cx - w / 2) * k, 2), "y": round((cy - h / 2) * k + y, 2),
+                "width": round(w * k, 2), "height": round(h * k, 2), "angle": round(g["angle"] % (2 * math.pi), 4),
+                "roundness": {"type": 2}}
+    return None

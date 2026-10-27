@@ -38,7 +38,7 @@ impl Lock {
 }
 
 pub struct LocalLock {
-    key: String,
+    key: crate::auth::LocalKeyFile,
     codes: Mutex<HashMap<String, Instant>>,
 }
 
@@ -47,12 +47,11 @@ impl LocalLock {
     /// ([`crate::auth::local_key_file`]), so the CLI and `atlas mcp` need nothing more.
     pub fn new(port: u16, fixed: Option<String>) -> anyhow::Result<Self> {
         let key = fixed.unwrap_or_else(|| format!("atl_{}", crate::auth::random_hex(32)));
-        crate::auth::write_private(&crate::auth::local_key_file(port), key.as_bytes())?;
-        Ok(LocalLock { key, codes: Mutex::default() })
+        Ok(LocalLock { key: crate::auth::LocalKeyFile::write(port, key)?, codes: Mutex::default() })
     }
 
     pub fn key(&self) -> &str {
-        &self.key
+        self.key.key()
     }
 
     /// The request carries this run's key, by any of its three ways.
@@ -60,7 +59,7 @@ impl LocalLock {
         let bearer = h.get(header::AUTHORIZATION).and_then(|v| v.to_str().ok()).and_then(|v| v.strip_prefix("Bearer "));
         let token = h.get(crate::auth::TOKEN_HEADER).and_then(|v| v.to_str().ok());
         let cookie = crate::auth::cookie(h, COOKIE);
-        let found = [bearer, token, cookie.as_deref()].into_iter().flatten().any(|k| same(k.trim(), &self.key));
+        let found = [bearer, token, cookie.as_deref()].into_iter().flatten().any(|k| same(k.trim(), self.key()));
         found
     }
 
@@ -80,7 +79,7 @@ impl LocalLock {
 
     /// The cookie a redeemed code sets: the key itself, out of the page's scripts' reach, never sent to another site.
     pub fn cookie(&self) -> String {
-        format!("{COOKIE}={}; Path=/; HttpOnly; SameSite=Strict", self.key)
+        format!("{COOKIE}={}; Path=/; HttpOnly; SameSite=Strict", self.key())
     }
 }
 
@@ -95,7 +94,7 @@ mod tests {
     use axum::http::HeaderValue;
 
     fn lock() -> LocalLock {
-        LocalLock { key: "atl_k".into(), codes: Mutex::default() }
+        LocalLock { key: crate::auth::LocalKeyFile::unwritten("atl_k"), codes: Mutex::default() }
     }
     fn with(name: &str, value: &str) -> HeaderMap {
         let mut h = HeaderMap::new();

@@ -145,6 +145,8 @@ def matrix_of(s):
     ref = (s.get("connectionBean") or {}).get("shapeReferenceBean") if isinstance(s.get("connectionBean"), dict) else None
     if ref and ref.get("matrixValues"):
         m = ref["matrixValues"]
+    if isinstance(m, dict):  # Atlas fix: knote2 writes {"values": [...]}; read as a list, every lasso move was lost
+        m = m.get("values")
     return m if isinstance(m, list) and len(m) == 9 else None
 
 
@@ -154,35 +156,38 @@ def apply(m, x, y):
     return m[0] * x + m[1] * y + m[2], m[3] * x + m[4] * y + m[5]
 
 
-# --- pages: the newest virtual/page/pb file lists them, field 4 (float) is the 1-based index ---
+# --- pages: the virtual/page/pb files list them, field 4 (float) is the 1-based index, field 5 = 1 a deleted page ---
 
-def page_list(doc_dir):
+def page_list(doc_dir, deleted=False):
+    # Atlas fix: each file is a delta (the pages added or changed then), not the whole list — merge them all, the
+    # newest record of a page winning; keeping only the newest file put the earlier pages last and out of order.
+    # A page whose newest record has field 5 = 1 was deleted in Notes: left out (`deleted=True`: only those).
     vp = os.path.join(doc_dir, "virtual", "page", "pb")
-    best = None
+    by_id = {}
     for f in sorted(os.listdir(vp)) if os.path.isdir(vp) else []:
-        pages = []
-        stamp = 0
         for num, wt, v in fields(open(os.path.join(vp, f), "rb").read()):
             if num != 1:
                 continue
-            p = {}
+            p, stamp = {}, 0
             for n2, w2, v2 in fields(v):
                 if n2 == 1:
                     p["id"] = v2.decode()
                 elif n2 == 3:
-                    stamp = max(stamp, v2)
+                    stamp = v2
                 elif n2 == 4 and w2 == 5:
                     p["index"] = as_f32(v2)
+                elif n2 == 5 and w2 == 0:
+                    p["deleted"] = v2 == 1
                 elif n2 == 6:
                     r = json.loads(v2)  # where the page sits on the document canvas
                     p["origin"] = [r["left"], r["top"]]
                 elif n2 == 8:
                     r = json.loads(v2)
                     p["width"], p["height"] = r["right"] - r["left"], r["bottom"] - r["top"]
-            pages.append(p)
-        if best is None or stamp > best[0]:
-            best = (stamp, pages)
-    return sorted(best[1], key=lambda p: p.get("index", 0)) if best else []
+            if "id" in p and (p["id"] not in by_id or stamp >= by_id[p["id"]][0]):
+                by_id[p["id"]] = (stamp, p)
+    pages = [p for _, p in by_id.values() if p.get("deleted", False) == deleted]
+    return sorted(pages, key=lambda p: p.get("index", 0))
 
 
 def decode_document(root, doc_id, keep_removed=False):
@@ -207,7 +212,7 @@ def decode_document(root, doc_id, keep_removed=False):
         print(f"[ksync] {doc_id}: {len(removed)} removed (erased/deleted) shapes skipped", file=sys.stderr)
         latest = {k: s for k, s in latest.items() if k not in removed}
     pages = page_list(doc_dir)
-    known = {p["id"] for p in pages}
+    known = {p["id"] for p in pages} | {p["id"] for p in page_list(doc_dir, deleted=True)}  # a deleted page's shapes go with it
     for page_id in sorted({k[0] for k in latest} - known):  # pages with shapes but no layout entry
         pages.append({"id": page_id, "index": None})
     cache = {}

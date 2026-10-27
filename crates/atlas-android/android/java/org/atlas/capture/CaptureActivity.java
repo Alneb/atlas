@@ -349,12 +349,19 @@ public final class CaptureActivity extends Activity {
         t.setOrientation(LinearLayout.VERTICAL);
         t.setGravity(Gravity.CENTER);
         t.setMinimumWidth(look.dp(64));
+        t.setMinimumHeight(look.dp(TILE)); // at least the pictures' height; taller when a large font needs it
         t.setPadding(look.dp(10), 0, look.dp(10), 0);
         t.setBackground(look.pressable(look.hover, 8, look.border));
         ImageView i = iconView("pen", look.muted);
         i.setLayoutParams(lp(look.dp(20), look.dp(20), 0, 0, 0, look.dp(4)));
         t.addView(i);
-        t.addView(look.label(this, "Draw", 12.5f, look.text));
+        TextView word = look.label(this, "Draw", 12.5f, look.text);
+        word.setSingleLine(true); // a large font wrapped it to "Dra" over a hidden "w"
+        // the row measured the tile at its minimum, cutting the word at 200 % font: the word's own width sets it
+        int wide = (int) Math.ceil(word.getPaint().measureText("Draw"));
+        word.setMinWidth(wide);
+        t.setMinimumWidth(Math.max(look.dp(64), wide + look.dp(20)));
+        t.addView(word);
         t.setContentDescription("Draw");
         t.setOnClickListener(v -> draw(null));
         return t;
@@ -761,7 +768,7 @@ public final class CaptureActivity extends Activity {
         if (seen != null) addChip(seenOn, seenOn ? "check" : "note", (app != null ? app + ": " : "On screen: ") + seen, v -> { seenOn = !seenOn; drawChips(); refresh(); });
         if (vault != null && Server.is(vault) && !links().isEmpty())
             addChip(catalogOn, catalogOn ? "check" : "tag", "Catalogue it", v -> { catalogOn = !catalogOn; drawChips(); });
-        shots.addView(drawTile(), lp(-2, look.dp(TILE), 0, 0, look.dp(8), 0)); // Draw beside the pictures
+        shots.addView(drawTile(), lp(-2, -2, 0, 0, look.dp(8), 0)); // Draw beside the pictures
         ((View) shots.getParent()).setVisibility(View.VISIBLE);
         chips.setVisibility(chips.getChildCount() > 0 ? View.VISIBLE : View.GONE);
     }
@@ -828,16 +835,28 @@ public final class CaptureActivity extends Activity {
         if ((t.isEmpty() && on.isEmpty()) || vault == null || saving) return;
         saving = true;
         if (t.isEmpty()) t = on.get(0).label;
-        final String typed = t, to = vault, token = vaults.token(vault);
+        final String typed = t, to = vault, mirror = Server.is(vault) ? null : vaults.mirror(vault);
+        final String token = vaults.token(mirror != null ? mirror : vault);
         catalogLinks = catalogOn ? links() : java.util.Collections.emptyList();
         final java.util.List<String> attach = new java.util.ArrayList<>();
         for (Piece p : on) attach.add(p.file.getPath());
         status.setText("Saving…");
         new Thread(() -> {
-            // a folder is written by the in-app core, mirrored or not (docs/design/DESIGN-mirror-v2.md: every write local)
-            String r = Server.is(to) ? toServer(to, token, typed, attach) : toFolder(to, typed, attach);
+            String r = Server.is(to) ? toServer(to, token, typed, attach)
+                : mirror != null ? toMirror(to, mirror, token, typed, attach)
+                : toFolder(to, typed, attach);
             ui.post(() -> saved(r));
         }).start();
+    }
+
+    /** A mirrored folder's capture goes to the server first, so the other devices have it at once (Syncthing brings
+     *  it back here); only when the server cannot be reached does the in-app core write it (DESIGN-android.md). */
+    private String toMirror(String folder, String server, String token, String text, java.util.List<String> attach) {
+        Sent s = send(server, token, text, attach);
+        if (!s.answer.optBoolean("retry")) return s.answer.toString();
+        // the files already sent stay embedded (they arrive with Syncthing); the rest are attached here
+        String here = toFolder(folder, s.text, s.left);
+        try { return new JSONObject(here).put("here", s.answer.optString("error")).toString(); } catch (Exception e) { return here; }
     }
 
     private static String toFolder(String vault, String text, java.util.List<String> attach) {
@@ -880,9 +899,14 @@ public final class CaptureActivity extends Activity {
         return "catalogued: " + String.join(", ", made);
     }
 
-    /** To a server; when it cannot be reached (or wants a sign-in), the capture waits in the Outbox — behind older ones,
-     *  so captures arrive in the order they were made. */
-    private String toServer(String server, String token, String text, java.util.List<String> attach) {
+    /** What a send to a server came to: its answer, the text with the embeds of the files it took, the files left. */
+    private static final class Sent {
+        final JSONObject answer; final String text; final java.util.List<String> left;
+        Sent(JSONObject answer, String text, java.util.List<String> left) { this.answer = answer; this.text = text; this.left = left; }
+    }
+
+    /** The files, then the text, to a server — behind captures still in its Outbox, so they arrive in the order made. */
+    private Sent send(String server, String token, String text, java.util.List<String> attach) {
         java.util.List<String> left = new java.util.ArrayList<>(attach);
         JSONObject r = new JSONObject();
         if (Outbox.waiting(this, server) > 0) Outbox.send(this);
@@ -897,12 +921,18 @@ public final class CaptureActivity extends Activity {
         if (!r.has("error") && catalogOn) {
             try { r.put("catalog", catalogue(server, token, catalogLinks)); } catch (Exception e) { /* the capture stands */ }
         }
-        if (!r.optBoolean("retry")) return r.toString();
+        return new Sent(r, text, left);
+    }
+
+    /** To a server vault; when it cannot be reached (or wants a sign-in), the capture waits in the Outbox. */
+    private String toServer(String server, String token, String text, java.util.List<String> attach) {
+        Sent s = send(server, token, text, attach);
+        if (!s.answer.optBoolean("retry")) return s.answer.toString();
         try {
-            Outbox.keep(this, server, text, left, catalogOn ? catalogLinks : java.util.Collections.emptyList()); // catalogued when sent
-            return new JSONObject().put("queued", r.optString("error")).toString();
+            Outbox.keep(this, server, s.text, s.left, catalogOn ? catalogLinks : java.util.Collections.emptyList()); // catalogued when sent
+            return new JSONObject().put("queued", s.answer.optString("error")).toString();
         } catch (Exception e) {
-            return r.toString(); // not even kept: said as the error it is
+            return s.answer.toString(); // not even kept: said as the error it is
         }
     }
 
@@ -925,7 +955,8 @@ public final class CaptureActivity extends Activity {
             status.setTextColor(later ? look.text : look.green);
             status.setText(later
                 ? "Kept on the phone: sent to " + Vaults.name(vault) + " when it answers (" + o.getString("queued") + ")"
-                : "Saved to " + Vaults.name(vault) + " · " + o.optString("path") + ":" + o.optInt("line") + (o.has("catalog") ? " · " + o.optString("catalog") : ""));
+                : "Saved to " + Vaults.name(vault) + " · " + o.optString("path") + ":" + o.optInt("line") + (o.has("catalog") ? " · " + o.optString("catalog") : "")
+                    + (o.has("here") ? " · written on the phone, the server did not answer (" + o.optString("here") + ")" : ""));
             vaults.keepDraft("");
             edit.setText("");
             // kept offline: the phone may say when it went out — asked here, the first time it matters (Android 13+)

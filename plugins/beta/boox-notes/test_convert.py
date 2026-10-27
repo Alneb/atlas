@@ -1,6 +1,8 @@
 """convert.py on a decoded note shaped as ksync.decode_document returns it: `python3 test_convert.py`."""
+import json
 import os
 import sys
+import tempfile
 import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -18,6 +20,12 @@ DOC = {"id": "doc-1", "pages": [
         stroke("ref", [[10, 10, 0.5, 0], [20, 20, 0.5, 5]], reference=True),
         {"id": "txt", "shapeType": 16, "pen": None, "reference": False, "points": []},
         {"id": "geo", "shapeType": 40, "pen": None, "reference": False, "points": []},
+    ], "shapes": [
+        {"id": "axis", "zorder": 0, "color": "#ff6163", "alpha": 1.0, "width": 3.6, "kind": "line", "closed": False,
+         "points": [[186, 1000], [930, 1000]]},
+        {"id": "oval", "zorder": 0, "color": "#000000", "alpha": 1.0, "width": 3.6, "kind": "ellipse",
+         "center": [930, 1240], "size": [400, 200], "angle": 0.5},
+        {"id": "star", "zorder": 0, "color": "#000000", "alpha": 1.0, "width": 3.6, "kind": "other", "geometry": "Star"},
     ]},
     {"id": "p2", "index": 2, "width": 1860, "height": 2480, "strokes": [
         stroke("dot", [[930, 1240, 0.5, 0]], pen="marker", shapeType=15),
@@ -49,7 +57,8 @@ class Convert(unittest.TestCase):
 
     def test_references_dropped_text_counted_dots_kept(self):
         # the reference is a copy, the erased stroke is gone, the text shape is drawn from page["texts"]
-        self.assertEqual(self.n, {"strokes": 4, "texts": 1, "skipped": 1})  # the geometric shape: not converted
+        # the UNIVERSAL stroke entry is drawn from page["shapes"]; the unknown "Star" kind is the one not converted
+        self.assertEqual(self.n, {"strokes": 4, "texts": 1, "shapes": 2, "skipped": 1})
         dot = [e for e in self.els if e["type"] == "freedraw" and e["customData"]["atlasPen"] == "highlighter"][0]
         self.assertEqual(len(dot["points"]), 2)
         self.assertEqual(dot["opacity"], 50, "the marker as the Boox Notepad saves it")
@@ -89,6 +98,50 @@ class Convert(unittest.TestCase):
 
 
 
+    def test_lines_and_ovals_where_the_boox_drew_them(self):
+        k = convert.PAGE_WIDTH / 1860
+        line = next(e for e in self.els if e["type"] == "line")
+        self.assertEqual((line["x"], line["y"]), (round(186 * k, 2), round(1000 * k, 2)))
+        self.assertEqual(line["points"], [[0, 0], [round(744 * k, 2), 0]])
+        self.assertEqual((line["strokeColor"], line["strokeWidth"]), ("#ff6163", round(3.6 * k, 2)))
+        oval = next(e for e in self.els if e["type"] == "ellipse")
+        self.assertAlmostEqual(oval["x"] + oval["width"] / 2, 930 * k, places=1)  # turned about its centre
+        self.assertAlmostEqual(oval["width"], 400 * k, places=1)
+        self.assertEqual(oval["angle"], 0.5)
+
+
+class Shapes(unittest.TestCase):
+    MOVED = {"values": [0.75, 0.0, 100.0, 0.0, 0.75, 259.0, 0.0, 0.0, 1.0]}  # as knote2 writes it: a dict
+
+    def universal(self, geometry, sub="", **kw):
+        fc = {"features": [{"geometry": geometry, "properties": {"subType": sub}}]}
+        return {"uniqueId": "u", "shapeType": 40, "thickness": 4.0, "color": -16777216, "matrixValues": self.MOVED,
+                "extra": {"featureCollection": json.dumps(fc)}, **kw}
+
+    def test_the_lassos_matrix_is_read_in_knote2s_form(self):
+        import ksync
+        self.assertEqual(ksync.matrix_of({"matrixValues": self.MOVED}), self.MOVED["values"])
+        self.assertEqual(ksync.apply(ksync.matrix_of({"matrixValues": self.MOVED}), 232, 1340), (274.0, 1264.0))
+
+    def test_a_line_a_polygon_and_an_oval_on_the_page(self):
+        import ksync_shapes as ks
+        line = ks.shape_of(self.universal({"type": "LineString", "coordinates": [[0, 0], [100, 0]]}))
+        self.assertEqual((line["kind"], line["points"], line["width"]), ("line", [[100.0, 259.0], [175.0, 259.0]], 3.0))
+        box = ks.shape_of(self.universal({"type": "Polygon", "coordinates": [[[0, 0], [10, 0]], [[10, 0], [10, 10]], [[10, 10], [0, 0]]]}))
+        self.assertTrue(box["closed"])
+        self.assertEqual(box["points"][0], box["points"][-1])
+        self.assertEqual(len(box["points"]), 4)
+        oval = ks.shape_of(self.universal({"type": "MultiPoint", "coordinates": [[0, 0], [200, 100]]}, sub="Oval"))
+        self.assertEqual((oval["kind"], oval["center"], oval["size"], oval["angle"]), ("ellipse", [175.0, 296.5], [150.0, 75.0], 0.0))
+
+    def test_erased_and_unknown_shapes(self):
+        import ksync_shapes as ks
+        self.assertIsNone(ks.shape_of(self.universal({"type": "LineString", "coordinates": [[0, 0], [1, 1]]}, shapeStatus=1)))
+        self.assertIsNone(ks.shape_of({"shapeType": 5}))
+        self.assertEqual(ks.shape_of(self.universal({"type": "Point", "coordinates": [0, 0]}))["kind"], "other")
+        self.assertEqual(ks.shape_of({"uniqueId": "x", "shapeType": 40})["kind"], "other")  # no geometry at all
+
+
 class Text(unittest.TestCase):
     def test_html_becomes_lines(self):
         import ksync_text
@@ -107,12 +160,27 @@ class Text(unittest.TestCase):
         self.assertIsNone(ksync_text.text_of({**live, "text": "<p> </p>"}))  # empty
         self.assertEqual(ksync_text.text_of({**live, "text": None, "richText": "rich"})["text"], "rich")
 
+    def test_a_rich_text_page_reads_its_resource(self):
+        import ksync_text
+        with tempfile.TemporaryDirectory() as doc_dir:
+            os.makedirs(os.path.join(doc_dir, "resource", "data"))
+            prose = {"content": {"type": "doc", "content": [
+                {"type": "paragraph", "content": [{"type": "text", "text": "Okay these are"}, {"type": "hard_break"},
+                                                  {"type": "text", "text": "test notes"}]},
+                {"type": "paragraph", "content": [{"type": "text", "text": "second"}]}]}}
+            with open(os.path.join(doc_dir, "resource", "data", "r.html"), "w") as f:
+                json.dump(prose, f)
+            page = {"uniqueId": "p", "shapeType": 29, "boundingRect": {"left": 0, "top": 0, "right": 1860, "bottom": 2480},
+                    "resource": {"relativePath": "/r.html"}, "createArgs": {"dpi": 320.0}, "extra": {"textContent": ""}}
+            t = ksync_text.text_of(page, doc_dir)
+            self.assertEqual(t["text"], "Okay these are\ntest notes\nsecond")
+            self.assertEqual((t["rect"][:2], t["size"]), ([56.0, 56.0], 32.0))  # CSS padding and size at 320 dpi
+            self.assertIsNone(ksync_text.text_of(page))  # no folder to read it from
+
 
 # --- the whole way: a KSync tree on disk (KNOTE2.md's format) → ksync → convert → the helper's import -------------
 
-import json  # noqa: E402
 import struct  # noqa: E402
-import tempfile  # noqa: E402
 import zipfile  # noqa: E402
 
 
@@ -160,6 +228,22 @@ def ksync_tree(root, doc="d0c", page="0" * 36, shape="5" * 36, rev="r1"):
     index = shape.encode().ljust(36) + struct.pack(">ii", 0, len(data)) + erased.encode() + struct.pack(">ii", len(data), len(gone))
     data += gone
     open(os.path.join(pts, f"{page}#{rev}#points"), "wb").write(data + index + struct.pack(">i", len(data)))
+
+
+class Pages(unittest.TestCase):
+    def test_page_files_are_deltas_and_a_deleted_page_goes(self):
+        import ksync
+        rec = lambda pid, idx, stamp, gone=False: _field(1, _field(1, pid) + _field(3, stamp) + _field(4, float(idx))
+                                                         + (_field(5, 1) if gone else b""))
+        with tempfile.TemporaryDirectory() as doc_dir:
+            vp = os.path.join(doc_dir, "virtual", "page", "pb")
+            os.makedirs(vp)
+            # as Notes writes them: each file only the pages added or changed then
+            open(os.path.join(vp, "a"), "wb").write(rec("one", 1, 1) + rec("two", 2, 2))
+            open(os.path.join(vp, "b"), "wb").write(rec("three", 3, 3) + rec("extra", 4, 4))
+            open(os.path.join(vp, "c"), "wb").write(rec("extra", 4, 5, gone=True))
+            self.assertEqual([p["id"] for p in ksync.page_list(doc_dir)], ["one", "two", "three"])
+            self.assertEqual([p["id"] for p in ksync.page_list(doc_dir, deleted=True)], ["extra"])
 
 
 class FromDisk(unittest.TestCase):

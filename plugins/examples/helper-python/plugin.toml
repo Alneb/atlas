@@ -4,7 +4,7 @@
 title = "Word stats"
 description = "counts the words of every note in a helper process (an example of [helper])"
 icon = "chart"
-version = "0.1.0"
+version = "0.1.1"
 api = 4
 
 [helper]

@@ -412,6 +412,11 @@ final class PdfView extends FrameLayout implements NativePlugin.Back {
 
     private void clearSelect() { selFrom = selTo = -1; selecting = barOwed = false; hideSelBar(); sheet.invalidate(); }
 
+    /** A touch on the selection's bar is the bar's (finger or pen): else the page took it and cleared the selection. */
+    private boolean overSelBar(MotionEvent e) {
+        return selBar != null && e.getX() >= selBar.getLeft() && e.getX() < selBar.getRight() && e.getY() >= selBar.getTop() && e.getY() < selBar.getBottom();
+    }
+
     private void hideSelBar() { if (selBar != null) { removeView(selBar); selBar = null; } }
 
     /** What to do with the words: marked (as the desktop marks them, into the PDF's note), copied, or let go. */
@@ -582,7 +587,7 @@ final class PdfView extends FrameLayout implements NativePlugin.Back {
     private boolean multi;
 
     @Override public boolean dispatchTouchEvent(MotionEvent e) {
-        if (bars.dispatch(e) || penBar.over(e.getX(), e.getY())) return super.dispatchTouchEvent(e);
+        if (bars.dispatch(e) || penBar.over(e.getX(), e.getY()) || overSelBar(e)) return super.dispatchTouchEvent(e);
         if (ink.take(e)) return true; // the pen: ink, a note, or its tap handed back (tapped); a palm moves nothing
         pinch.onTouchEvent(e);
         if (ink.writing() && ink.penNear() && !pinch.isInProgress()) return true; // the hand that writes: no turn, no menu

@@ -177,7 +177,7 @@ fn remote_window(url: tauri::Url) -> anyhow::Result<()> {
         .setup(move |app| {
             WebviewWindowBuilder::new(app, "main", WebviewUrl::External(url))
                 .title(format!("Atlas — {host}"))
-                .inner_size(1400.0, 900.0)
+                .inner_size(MAIN_SIZE.width, MAIN_SIZE.height)
                 .on_new_window(|to, _| {
                     open_outside(to.as_str());
                     tauri::webview::NewWindowResponse::Deny
@@ -199,9 +199,14 @@ fn context() -> tauri::Context {
     tauri::generate_context!()
 }
 
+/// The main window's size, made smaller by `fit_to_screen` on a screen that cannot hold it.
+const MAIN_SIZE: tauri::LogicalSize<f64> = tauri::LogicalSize::new(1400.0, 900.0);
+
+/// Fits `MAIN_SIZE` into the monitor's work area (95 %). Compared with the size asked for: the window's own size is
+/// 0×0 until it is mapped (Wayland), and a window bigger than the screen opens cut off there (a 1366×768 laptop).
 fn fit_to_screen(window: &tauri::WebviewWindow) {
-    let (Ok(Some(monitor)), Ok(size)) = (window.current_monitor(), window.outer_size()) else { return };
-    let area = monitor.work_area().size;
+    let Ok(Some(monitor)) = window.current_monitor() else { return };
+    let (size, area) = (MAIN_SIZE.to_physical::<u32>(monitor.scale_factor()), monitor.work_area().size);
     if size.width <= area.width && size.height <= area.height {
         return;
     }
@@ -259,6 +264,11 @@ fn main() -> anyhow::Result<()> {
     gtk::glib::set_prgname(Some("atlas"));
     // `atlas-app [folder]` is the app; `atlas-app --capture [folder]` the quick-capture box
     let args: Vec<std::ffi::OsString> = std::env::args_os().skip(1).collect();
+    #[cfg(target_os = "linux")]
+    if args.first().is_some_and(|a| a == web_filters::CONVERT_FLAG) {
+        let out = args.get(1).map(PathBuf::from).ok_or_else(|| anyhow::anyhow!("{} <rules.json>", web_filters::CONVERT_FLAG))?;
+        return Ok(web_filters::convert_main(&out)?);
+    }
     let folder = args.iter().find(|a| !a.to_string_lossy().starts_with("--")).map(PathBuf::from);
     if args.iter().any(|a| a == "--capture") {
         return capture_window(vault_to_open(folder)?);
@@ -307,7 +317,7 @@ fn main() -> anyhow::Result<()> {
             let vault_bg = vault.clone();
             let main = WebviewWindowBuilder::new(app, "main", WebviewUrl::External(url))
                 .title("Atlas")
-                .inner_size(1400.0, 900.0)
+                .inner_size(MAIN_SIZE.width, MAIN_SIZE.height)
                 .on_navigation(move |to| off_app.stay(to))
                 // window.open: WebKitGTK opens nothing without a handler. A sign-in page that returns to a
                 // localhost address gets a window of ours (it catches that address); a web page a browsing window

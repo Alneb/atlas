@@ -13,7 +13,7 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::collections::HashMap;
 use std::net::{IpAddr, SocketAddr};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
@@ -211,14 +211,68 @@ pub struct Auth {
     state_file: PathBuf,
     stored: Mutex<Stored>,
     failures: Mutex<HashMap<IpAddr, (u32, SystemTime)>>,
-    /// The hash of this run's local key ([`local_key_file`]): the `atlas` CLI on this machine, as the owner.
-    local: Mutex<Option<String>>,
+    /// This run's local key ([`LocalKeyFile`]) and its hash: the `atlas` CLI on this machine, as the owner.
+    local: Mutex<Option<(String, LocalKeyFile)>>,
 }
 
 /// Where a server-mode core leaves the key the `atlas` CLI of this machine signs in with: the user's runtime
 /// folder (memory, owner-only, never synced — unlike the vault), named by the port.
 pub fn local_key_file(port: u16) -> PathBuf {
     crate::platform::dirs::atlas(crate::platform::dirs::Base::Runtime).join(format!("server-{port}.key"))
+}
+
+/// A run's key in [`local_key_file`], the one writer of it (a locked desktop core and a server-mode core alike). Removed
+/// when the run ends, unless a later run on that port has written its own; writing one prunes the files of runs that
+/// ended without removing theirs (nothing listens on their port any more).
+pub struct LocalKeyFile {
+    path: PathBuf,
+    key: String,
+}
+
+impl LocalKeyFile {
+    pub fn write(port: u16, key: String) -> anyhow::Result<Self> {
+        let path = local_key_file(port);
+        prune_dead_keys(port);
+        write_private(&path, key.as_bytes())?;
+        Ok(LocalKeyFile { path, key })
+    }
+
+    pub fn key(&self) -> &str {
+        &self.key
+    }
+
+    /// A key with no file behind it, for unit tests of what holds one.
+    #[cfg(test)]
+    pub(crate) fn unwritten(key: &str) -> Self {
+        LocalKeyFile { path: PathBuf::new(), key: key.into() }
+    }
+}
+
+impl Drop for LocalKeyFile {
+    fn drop(&mut self) {
+        if std::fs::read_to_string(&self.path).is_ok_and(|k| k == self.key) {
+            let _ = crate::vault_write::outside::remove_file(&self.path);
+        }
+    }
+}
+
+/// Every other `server-<port>.key` whose port no longer answers on this machine: its run is over. The CLI reaches a
+/// core through 127.0.0.1 only, so a key no loopback port answers for can serve nobody.
+fn prune_dead_keys(own: u16) {
+    let Some(dir) = local_key_file(own).parent().map(Path::to_path_buf) else { return };
+    let Ok(entries) = std::fs::read_dir(&dir) else { return };
+    for e in entries.flatten() {
+        let name = e.file_name();
+        let port = name.to_str().and_then(|n| n.strip_prefix("server-")?.strip_suffix(".key")?.parse::<u16>().ok());
+        let Some(port) = port.filter(|p| *p != own) else { continue };
+        let alive = ["127.0.0.1", "[::1]"].iter().any(|h| {
+            let addr = format!("{h}:{port}").parse().expect("a loopback address");
+            std::net::TcpStream::connect_timeout(&addr, Duration::from_millis(200)).is_ok()
+        });
+        if !alive {
+            let _ = crate::vault_write::outside::remove_file(&e.path());
+        }
+    }
 }
 
 /// The key the core on `port` left for this machine's user (a locked or server-mode core), if any.
@@ -315,9 +369,8 @@ impl Auth {
 
     /// A new local key for this run, written to [`local_key_file`] (owner-only).
     pub fn make_local_key(&self, port: u16) -> anyhow::Result<()> {
-        let key = format!("atl_{}", random_hex(32));
-        write_private(&local_key_file(port), key.as_bytes())?;
-        *self.local.lock().unwrap() = Some(sha256(&key));
+        let file = LocalKeyFile::write(port, format!("atl_{}", random_hex(32)))?;
+        *self.local.lock().unwrap() = Some((sha256(file.key()), file));
         Ok(())
     }
 
@@ -452,7 +505,7 @@ impl Auth {
         let own = h.get(TOKEN_HEADER).and_then(|v| v.to_str().ok());
         if let Some(token) = bearer.or(own) {
             let hash = sha256(token.trim());
-            if self.local.lock().unwrap().as_deref() == Some(hash.as_str()) {
+            if self.local.lock().unwrap().as_ref().is_some_and(|(h, _)| *h == hash) {
                 return Some(Who::Device { name: "this machine".into(), scope: Scope::Full });
             }
             let mut st = self.stored.lock().unwrap();
@@ -556,6 +609,28 @@ mod tests {
 
     const LAN: &str = "192.168.1.20:5000";
     const PROXY: &str = "10.0.0.2:4000";
+
+    #[test]
+    fn a_runs_key_file_goes_with_the_run_and_takes_dead_runs_files_along() {
+        let port_of = |l: &std::net::TcpListener| l.local_addr().unwrap().port();
+        let (live, ours) = (std::net::TcpListener::bind("127.0.0.1:0").unwrap(), std::net::TcpListener::bind("127.0.0.1:0").unwrap());
+        let dead = port_of(&std::net::TcpListener::bind("127.0.0.1:0").unwrap()); // closed again at once
+        for p in [port_of(&live), dead] {
+            write_private(&local_key_file(p), b"atl_other").unwrap();
+        }
+        let file = LocalKeyFile::write(port_of(&ours), "atl_ours".into()).unwrap();
+        assert_eq!(local_key(port_of(&ours)).as_deref(), Some("atl_ours"));
+        assert!(local_key_file(port_of(&live)).exists(), "a run still listening keeps its key");
+        assert!(!local_key_file(dead).exists(), "a run that is over loses its key");
+        // a later run on the port wrote its own: ours ending leaves it
+        write_private(&local_key_file(port_of(&ours)), b"atl_later").unwrap();
+        drop(file);
+        assert_eq!(local_key(port_of(&ours)).as_deref(), Some("atl_later"));
+        let again = LocalKeyFile::write(port_of(&ours), "atl_ours".into()).unwrap();
+        drop(again);
+        assert!(!local_key_file(port_of(&ours)).exists(), "the run's own key goes with it");
+        std::fs::remove_file(local_key_file(port_of(&live))).unwrap();
+    }
 
     fn auth(mode: AuthMode, dir: &tempfile::TempDir) -> Auth {
         let settings = ServerSettings {

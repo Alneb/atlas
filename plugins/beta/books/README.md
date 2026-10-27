@@ -29,3 +29,8 @@
   screen (the web pane is used in the apps), removing a highlight from the reader (delete it in the note).
 - Test: `ui/tests/example-books.spec.ts` (an EPUB built in the test: library, paging, contents with an anchor, the book's
   CSS kept and its script not run, the saved place).
+- **DjVu**: a `.djvu` book of the library opens as a PDF the helper (`helper.py`, `as_pdf`) made once with djvulibre's
+  `ddjvu -format=pdf` into the plugin's cache (`.atlas/cache/plugins/books/<hash>.pdf`, keyed by path, size and time),
+  in the app's PDF viewer — the same way the Manga plugin makes a `.cbr` into a `.cbz`. The vault's file is never
+  touched. No `ddjvu` (the phone, a machine without djvulibre): the reader says to install it. Marks made on the
+  converted PDF are the cache copy's, not the DjVu's. Test: `python3 test_helper.py` (a DjVu made with `c44`).

@@ -13,7 +13,6 @@ import os
 import re
 import shutil
 import subprocess
-import sys
 from pathlib import Path
 
 ROOT = Path(os.environ.get("ATLAS_ROOT") or ".").resolve()
@@ -306,17 +305,7 @@ def export(params: dict) -> dict:
 METHODS = {"export": export}
 
 
-def main() -> None:
-    for line in sys.stdin:
-        msg = json.loads(line)
-        if "id" not in msg:
-            continue  # a reply to a call of ours: this helper makes none
-        try:
-            answer = {"id": msg["id"], "result": METHODS[msg["method"]](msg.get("params") or {})}
-        except Exception as e:  # the page shows the text
-            answer = {"id": msg["id"], "error": str(e) if isinstance(e, (RuntimeError, ValueError)) else f"{type(e).__name__}: {e}"}
-        print(json.dumps(answer), flush=True)
-
-
 if __name__ == "__main__":
-    main()
+    import atlas_plugin  # Atlas puts it on PYTHONPATH; imported here so the tests load the file without it
+
+    atlas_plugin.serve(METHODS)

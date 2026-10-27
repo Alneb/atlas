@@ -9,6 +9,7 @@
   import { applies, newCard, secretHint, type Card, type OptionField, type RecordsField } from "../../lib/block-options";
   import { accountLists, cardsOf, recordsField, refreshStatus, saveCards, statusOf, summaryOf, testAccount, type AccountList } from "../../lib/accounts.svelte";
   import { runPluginCommand } from "../../lib/plugins.svelte";
+  import { on } from "../../lib/bus";
   import { isIconName } from "../../lib/icons";
   import { isOff } from "../../lib/plugin-manage";
   import { settingsNav, pluginPageId } from "../../lib/settings-nav.svelte";
@@ -19,8 +20,16 @@
   // the records field of each list, with its secrets' names (asked once per plugin reload)
   let forms = $state<Record<string, RecordsField>>({});
   const keyOf = (l: AccountList) => `${l.plugin.id}/${l.setting.key}`;
-  $effect(() => { for (const l of lists) void recordsField(l).then((f) => (forms[keyOf(l)] = f)); });
-  onMount(() => { for (const l of accountLists(only)) void refreshStatus(l); });
+  const reload = (l: AccountList) => void recordsField(l).then((f) => (forms[keyOf(l)] = f));
+  $effect(() => { for (const l of lists) reload(l); });
+  // a sign-in finishing later (in the browser) keeps a secret: its card shows it set, and its status is asked again
+  onMount(() => {
+    for (const l of accountLists(only)) void refreshStatus(l);
+    return on("plugin", (e) => {
+      if (e.event !== "secrets") return;
+      for (const l of lists) if (l.plugin.id === e.plugin) { reload(l); void refreshStatus(l); }
+    });
+  });
 
   // the card open for editing: which list, its form copy, and whether it is new
   let editing = $state<{ key: string; card: Card; fresh: boolean } | null>(null);

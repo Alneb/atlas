@@ -36,7 +36,8 @@ native() { # native <app> → $work/lib-<app>/<abi>/libatlas_android.so
     "$bin/llvm-strip" -o "$work/lib-$1-$abi/lib/$abi/libatlas_android.so" "$repo/target/$triple/$([ $profile = release ] && echo android || echo debug)/libatlas_android.so"
     # PDFium for the PDF reader (docs/design/DESIGN-pdfium-android.md; scripts/dev/fetch-pdfium.sh puts it in local/);
     # without it the reader keeps PdfRenderer
-    pdfium=$(ls "$repo"/local/pdfium/*-"${abi/arm64-v8a/android-arm64}"/lib/libpdfium.so 2>/dev/null | tail -1)
+    case $abi in arm64-v8a) pdf_abi=android-arm64 ;; x86_64) pdf_abi=android-x64 ;; *) pdf_abi=$abi ;; esac # pdfium-binaries' names
+    pdfium=$(ls "$repo"/local/pdfium/*-"$pdf_abi"/lib/libpdfium.so 2>/dev/null | tail -1 || true) # none: ls fails, and pipefail must not end the build
     if [ -n "$pdfium" ]; then cp "$pdfium" "$work/lib-$1-$abi/lib/$abi/libpdfium.so"; echo "[apk]   PDFium ($abi): $(du -h "$pdfium" | cut -f1)"
     else echo "[apk]   no PDFium for $abi (bash scripts/dev/fetch-pdfium.sh): the PDF reader keeps PdfRenderer"; fi
   done
@@ -114,10 +115,13 @@ for app in $apps; do
     grep -q 'package="org.atlas.boox"' "$manifest" && grep -q 'android:scheme="org.atlas.boox"' "$manifest" && ! grep -q 'org.atlas.app.photos' "$manifest" || { echo "[apk] the Boox manifest was not made (the full app's changed shape)" >&2; exit 1; }
   fi
   echo "[apk] 3/4 $name: linked with $(basename "$manifest"), the library and the code in, aligned"
-  # a new version number every build (minutes since 1970) and the commit in its name, so the phone sees an update
+  # a new version number every build (minutes since 1970) and the commit in its name, so the phone sees an update;
+  # the name starts with the manifest's (scripts/dev/release-version.mjs sets it)
+  vname=$(grep -o 'android:versionName="[^"]*"' "$manifest" | cut -d'"' -f2)
+  [ -n "$vname" ] || { echo "[apk] no android:versionName in $(basename "$manifest")" >&2; exit 1; }
   assets=; [ -d "$work/assets-$app-$abi" ] && assets="-A $work/assets-$app-$abi"
   "$bt/aapt2" link -o "$work/$name.apk" -R "$work/res.zip" $assets -0 zip --auto-add-overlay --manifest "$manifest" -I "$jar" --min-sdk-version $api --target-sdk-version 35 \
-    --replace-version --version-code $(( $(date +%s) / 60 )) --version-name "0.1.0-$(git -C "$repo" rev-parse --short HEAD)"
+    --replace-version --version-code $(( $(date +%s) / 60 )) --version-name "$vname-$(git -C "$repo" rev-parse --short HEAD)"
   cp "$work/classes.dex" "$work/lib-$app-$abi/" && (cd "$work/lib-$app-$abi" && zip -q -r "../$name.apk" lib classes.dex)
   "$bt/zipalign" -P 16 -f 4 "$work/$name.apk" "$work/$name-aligned.apk"
   echo "[apk] 4/4 $name: signed (a key of this machine, made once in local/toolchains/)"

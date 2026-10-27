@@ -51,8 +51,12 @@ export function attachNativeShell(): () => void {
   // the phone's text size scales the whole interface, boxes with their words (base.css; the WebView's text zoom is off)
   const font = Math.min(1.3, Math.max(0.85, Number(bridge.fontScale?.() ?? 1) || 1));
   document.documentElement.style.setProperty("--system-font", String(font));
+  // the app's orders that put something in front, counted: one still loading when a later one came gives way (Home
+  // looks its document up first; a Files tapped meanwhile was then covered by Home a moment later)
+  let asked = 0;
+  const front = <A extends unknown[], R>(f: (...a: A) => R) => (...a: A): R => { asked += 1; return f(...a); };
   (globalThis as unknown as { atlasShell: unknown }).atlasShell = {
-    open: (path: string, line?: number) => openPath(path, line || undefined),
+    open: front((path: string, line?: number) => openPath(path, line || undefined)),
     /** the tabs the app kept for this vault, back behind the shown view (AtlasActivity.pageReady) */
     restore: (path: string) => restorePath(path),
     /** AtlasActivity's PenCatcher: a stroke caught natively over the drawing (pen-target.ts). */
@@ -61,17 +65,17 @@ export function attachNativeShell(): () => void {
     penDraft: (json: string | null) => deliverPenDraft(json),
     /** a `[[note]]` link followed from vault file `from` (a native screen's element link: Notepad), resolved as the
      *  desktop's drawing pane resolves it */
-    link: (link: string, from: string) => {
+    link: front((link: string, from: string) => {
       const target = wikiTarget(link) ?? link.trim();
       if (target) openPath(resolveOrBeside(target, from.includes("/") ? from.slice(0, from.lastIndexOf("/")) : ""));
-    },
+    }),
     // the vault's home document (`home` in its config: Home.page), as the desktop opens it; Today when it has none
-    home: () => void import("./actions").then((m) => m.openHome()),
-    view: (kind: "files" | "search" | "settings" | "graph" | "outline" | "library" | "libraries" | "commands" | "git") => open({ kind }),
-    plugin: (id: string, arg?: string) => open({ kind: "plugin", id, arg }),
+    home: front(() => { const mine = asked; void import("./actions").then((m) => m.openHome(() => asked === mine)); }),
+    view: front((kind: "files" | "search" | "settings" | "graph" | "outline" | "library" | "libraries" | "commands" | "git") => open({ kind })),
+    plugin: front((id: string, arg?: string) => open({ kind: "plugin", id, arg })),
     /** a plugin's settings form (the app's "Built into this app": it may have just added the plugin to the vault) */
     pluginSettings: async (id: string) => { await loadPlugins(); await openPluginSettings(id); },
-    activate: (id: string) => activate(id),
+    activate: front((id: string) => activate(id)),
     close: (id: string) => closeTab(id),
     back: () => navigate(-1),
     /** a command by id (the + → "ui.new") */
@@ -92,7 +96,7 @@ export function attachNativeShell(): () => void {
     },
     /** JSON [{id, title, isDefault}]: the views that can open `path` ("Open with…") */
     openers: (path: string) => JSON.stringify(openersFor(path).map(({ id, title, isDefault }) => ({ id, title, isDefault }))),
-    openWith: (path: string, id: string) => { const o = openersFor(path).find((x) => x.id === id); if (o) open(o.spec(path)); },
+    openWith: front((path: string, id: string) => { const o = openersFor(path).find((x) => x.id === id); if (o) open(o.spec(path)); }),
   };
   const stop = $effect.root(() => {
     $effect(() => {

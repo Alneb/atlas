@@ -1,9 +1,9 @@
 // Boox Notes → Atlas drawings: the commands; the work is the helper's (helper.py, convert.py).
 export function register(atlas) {
   const say = (r) => {
-    const bits = [`${r.made.length} drawing${r.made.length === 1 ? "" : "s"} written (${r.strokes} strokes${r.texts ? `, ${r.texts} texts` : ""})`];
+    const bits = [`${r.made.length} drawing${r.made.length === 1 ? "" : "s"} written (${r.strokes} strokes${r.texts ? `, ${r.texts} texts` : ""}${r.shapes ? `, ${r.shapes} shapes` : ""})`];
     if (r.kept.length) bits.push(`${r.kept.length} kept: edited since their import`);
-    if (r.skipped) bits.push(`${r.skipped} shapes or pictures not converted`);
+    if (r.skipped) bits.push(`${r.skipped} pictures or shapes not converted`);
     if (r.failed.length) bits.push(`${r.failed.length} could not be read: ${r.failed.slice(0, 2).join("; ")}`);
     atlas.toast("Boox Notes", bits.join(" · "), r.failed.length ? "error" : "success");
     if (r.made.length === 1) atlas.open(r.made[0]);

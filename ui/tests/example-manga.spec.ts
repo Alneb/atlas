@@ -5,6 +5,7 @@ import { crc32, deflateRawSync, deflateSync } from "node:zlib";
 import { WS } from "../playwright.config";
 import { installZipPlugin } from "./fixtures/plugins";
 import { createServer, type Server } from "node:http";
+import { execFileSync } from "node:child_process";
 // @ts-expect-error a plugin's module is plain JavaScript, loaded as the page loads it
 import { said } from "../../plugins/beta/manga/suwayomi.js";
 
@@ -44,7 +45,7 @@ function cbz(pages: [string, Buffer, boolean][]): Buffer {
 test.beforeAll(() => {
   installZipPlugin(); // view.js imports ../zip/zip.js
   mkdirSync(PLUGIN, { recursive: true });
-  for (const f of ["plugin.toml", "main.js", "view.js", "suwayomi.js"]) copyFileSync(new URL(`../../plugins/beta/manga/${f}`, import.meta.url), join(PLUGIN, f));
+  for (const f of ["plugin.toml", "main.js", "view.js", "suwayomi.js", "helper.py"]) copyFileSync(new URL(`../../plugins/beta/manga/${f}`, import.meta.url), join(PLUGIN, f));
   const series = join(WS, "manga/Blue Period");
   rmSync(join(WS, "manga"), { recursive: true, force: true });
   mkdirSync(series, { recursive: true });
@@ -98,6 +99,31 @@ test("manga: the library, a series, a .cbz read in the page, and where you are s
   await expect(pane.getByRole("button", { name: "Continue" })).toBeVisible();
   await expect.poll(() => progress()["Chapter 10.cbz"]).toBeUndefined(); // unread, from its first page
   expect(errs).toEqual([]);
+});
+
+test("a .cb7 chapter (as a .cbr): made once into a cached .cbz by the helper, read like one", async ({ page }) => {
+  let bsdtar = true;
+  try { execFileSync("bsdtar", ["--version"]); } catch { bsdtar = false; }
+  test.skip(!bsdtar, "bsdtar not installed");
+  const src = join(WS, "manga-src"), series = join(WS, "manga/Saga");
+  mkdirSync(src, { recursive: true }); mkdirSync(series, { recursive: true });
+  writeFileSync(join(src, "02.png"), png(120)); writeFileSync(join(src, "01.png"), png(60)); writeFileSync(join(src, "info.txt"), "not a page");
+  execFileSync("bsdtar", ["--format", "7zip", "-cf", join(series, "Chapter 1.cb7"), "-C", src, "."]);
+  rmSync(src, { recursive: true, force: true });
+  try {
+    await page.goto("/");
+    await page.getByText("Finish the GW notes.").waitFor();
+    await page.keyboard.press("F1");
+    await page.keyboard.type("Manga: library");
+    await page.getByTestId("palette").getByText("Manga: library", { exact: true }).first().click();
+    const pane = page.locator(".manga");
+    await pane.locator(".m-card", { hasText: "Saga" }).click();
+    await expect(pane.locator(".m-ch .m-ch-name")).toHaveText(["Chapter 1"]);
+    await pane.getByRole("button", { name: "Start" }).click();
+    await expect(pane.locator(".m-num")).toHaveText("1 / 2"); // the two pictures, the text file left out
+    await expect(pane.locator(".m-page")).toHaveAttribute("src", /^blob:/);
+    expect(readFileSync(join(series, "Chapter 1.cb7")).subarray(0, 2).toString("latin1")).toBe("7z"); // untouched
+  } finally { rmSync(series, { recursive: true, force: true }); }
 });
 
 test("a chapter's marks: in the series' note, a block per chapter, drawn over its page", async ({ page }) => {

@@ -465,11 +465,18 @@ async fn plugin_helper_post(State(st): S, UrlPath(id): UrlPath<String>, Json(c):
         blocking(move || crate::plugin_tools::with_secrets(ws.root(), &crate::secrets::Store::for_vault(ws.root()), &id, c.params)).await?
     };
     let answer = st.helpers.call(&id, &c.method, params, timeout).await?;
-    let ws = st.ws.clone();
-    Ok(Json(blocking(move || {
+    let kept = answer.get("_secrets").is_some_and(|s| s.as_object().is_some_and(|m| !m.is_empty()));
+    let (ws, plugin) = (st.ws.clone(), id.clone());
+    let answer = blocking(move || {
         let allowed = crate::plugins::permissions(ws.root(), &id)?.secrets;
         crate::plugin_tools::keep_secrets(&crate::secrets::Store::for_vault(ws.root()), &id, allowed, answer)
-    }).await?))
+    })
+    .await?;
+    // a sign-in kept (or dropped) a secret: Settings shows which ones are set, so it is told
+    if kept {
+        st.bus.publish(Event::Plugin { plugin, event: "secrets".into(), data: serde_json::Value::Null });
+    }
+    Ok(Json(answer))
 }
 
 /// Runs a plugin's tool in the window's helper — the one the page uses, so sessions are shared.

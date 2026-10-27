@@ -83,6 +83,9 @@ public final class AtlasActivity extends Activity {
     private static final long READY_WAIT_MS = 20_000; // then a page that never said "ready" is shown anyway
     private final ArrayDeque<Runnable> waiting = new ArrayDeque<>();
     private final ArrayDeque<Screen> history = new ArrayDeque<>();
+    /** The Back stack Android kept when it made the activity again (onSaveInstanceState), for its vault: taken by the
+     *  first step into the file that was in front, instead of Home under it. */
+    private String keptHistory, keptHistoryOf;
     private Screen at = new Screen(Kind.HOME, "");
     private String asked;         // the place a launcher shortcut asked for, taken on resume
     private JSONArray tabs = new JSONArray();
@@ -97,7 +100,41 @@ public final class AtlasActivity extends Activity {
         setContentView(frame());
         Shortcuts.publish(this, look);
         asked = getIntent().getStringExtra(Shortcuts.PLACE);
+        if (state != null) { keptHistory = state.getString("history"); keptHistoryOf = state.getString("historyOf"); }
     }
+
+    /** Only a file in front has a Back stack (the app's own places start afresh); its tab ids die with the page, so a
+     *  file is gone back to by its path (backOut). */
+    @Override
+    protected void onSaveInstanceState(Bundle out) {
+        super.onSaveInstanceState(out);
+        if (shown == null || at.kind != Kind.NOTE || history.isEmpty()) return;
+        JSONArray list = new JSONArray();
+        for (Screen s : history) {
+            try { list.put(new JSONObject().put("kind", s.kind.name()).put("arg", s.arg).put("path", s.path)); } catch (Exception e) { /* not kept */ }
+        }
+        out.putString("history", list.toString());
+        out.putString("historyOf", shown);
+    }
+
+    /** The kept Back stack, once, when it belongs to `vault`. */
+    private ArrayDeque<Screen> takeKeptHistory(String vault) {
+        String json = vault.equals(keptHistoryOf) ? keptHistory : null;
+        keptHistory = keptHistoryOf = null;
+        if (json == null) return null;
+        ArrayDeque<Screen> out = new ArrayDeque<>();
+        try {
+            JSONArray list = new JSONArray(json);
+            for (int i = 0; i < list.length(); i++) {
+                JSONObject o = list.getJSONObject(i);
+                Screen s = new Screen(Kind.valueOf(o.getString("kind")), o.isNull("arg") ? null : o.getString("arg"));
+                s.path = o.isNull("path") ? null : o.getString("path");
+                out.addLast(s);
+            }
+        } catch (Exception e) { return null; } // a stack of an older build: Back from Home, as before
+        return out.isEmpty() ? null : out;
+    }
+    private ArrayDeque<Screen> resumedHistory; // from takeKeptHistory: waits for the step into the resumed file
 
     /** A launcher shortcut while the app runs (Shortcuts: Search, Files): the place, over what is on screen. A native
      *  plugin's "open this note" (OPEN): the page opens it. */
@@ -358,6 +395,7 @@ public final class AtlasActivity extends Activity {
         web.setVisibility(View.GONE);
         ((FrameLayout) place.getParent()).addView(web, 1, new FrameLayout.LayoutParams(-1, -1));
         go(new Screen(Kind.HOME, ""), false);
+        resumedHistory = resumeTo != null ? takeKeptHistory(vault) : null;
         if (resumeTo == null) { // not a file in front: the app's place it was at
             for (Kind k : new Kind[] { Kind.LIBRARY, Kind.FILES, Kind.SEARCH }) if (k.name().equals(was)) go(new Screen(k, ""), false);
         }
@@ -803,7 +841,9 @@ public final class AtlasActivity extends Activity {
         // opened from it, then returns to it — and within Settings, from a page to its index
         boolean settingsPage = s.kind == Kind.SETTINGS && at.kind == Kind.SETTINGS && !String.valueOf(s.arg).equals(String.valueOf(at.arg));
         if (s.kind != Kind.NOTE && !settingsPage) history.clear();
+        else if (keep && resumedHistory != null && s.kind == Kind.NOTE) { history.clear(); history.addAll(resumedHistory); }
         else if (keep) history.push(at);
+        resumedHistory = null; // the first step after a resume takes it, or nothing does
         at = s;
         placeTab = activeTab(); // the page may still report it once before showing the new place
         // Library, Files, Search remembered too: a vault opened again by itself (the phone turning to its night theme

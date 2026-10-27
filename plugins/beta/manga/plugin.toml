@@ -6,10 +6,14 @@ title = "Manga"
 description = "a manga and comics library and reader like Mihon: series, chapters, read from where you left, right-to-left, webtoon, e-ink paging"
 phone = true # runs in the phone apps too (only plugins marked so start there)
 icon = "file"
-version = "0.5.0"
+version = "0.6.1"
 api = 4
-claims = ["*.cbz"]                     # a .cbz opens here on a click (API 7); .cbr is RAR, which the web side cannot read
+claims = ["*.cbz", "*.cbr", "*.cb7", "*.cbt"] # opens here on a click (API 7); all but .cbz made into one first (helper.py)
 requires = ["zip"]                     # its zip reader is the Zip archives plugin's (../zip/zip.js), shared with the other reader
+
+# .cbr (RAR), .cb7, .cbt: unpacked once by the machine's bsdtar / unrar / unar into a cached .cbz
+[helper]
+run = "python3 -u \"$ATLAS_PLUGIN_DIR/helper.py\""
 
 # the user's Suwayomi (its address a setting): any server, as the vault's settings name it
 [permissions]

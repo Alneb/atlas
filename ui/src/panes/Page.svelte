@@ -303,6 +303,8 @@
   .row { display: grid; gap: 16px; align-items: start; margin-bottom: 16px; position: relative; }
   .col { display: flex; flex-direction: column; gap: 16px; min-width: 0; position: relative; }
   @container (max-width: 760px) { .row { grid-template-columns: 1fr !important; } .inner { padding: 28px 18px 48px; } }
+  /* narrow (a phone): the tools take their own line; laid over the page they covered the greeting at a large font */
+  @container (max-width: 760px) { .tools { position: static; justify-content: flex-end; margin: -16px -8px 6px 0; } }
   .pb { min-width: 0; position: relative; }
   .pb.card { background: var(--bg-alt); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 16px 18px; }
   .pb h2 { font-size: calc(12px * var(--ui-scale, 1)); font-weight: 600; text-transform: uppercase; letter-spacing: .07em; color: var(--text-muted); margin: 0 0 8px; }

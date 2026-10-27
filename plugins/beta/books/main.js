@@ -48,7 +48,8 @@ export function register(atlas) {
       const path = b.source ? await atlas.files.local(b.source, b.place, b.path) : b.path;
       if (atlas.openNative?.(path)) return;
       if (/\.epub$/i.test(path)) atlas.openView(path, { title: item.title, icon: "file-text" });
-      else atlas.open(path); // a PDF, a DjVu…: the app's own viewer
+      else if (/\.djvu$/i.test(path)) atlas.open((await atlas.helper.call("as_pdf", { path }, { timeout: 1800 })).path); // made once into a PDF (helper.py)
+      else atlas.open(path); // a PDF: the app's own viewer
     } catch (e) { atlas.toast("Books", `${item.title}: ${e.message ?? e}`, "error"); }
   }
 }

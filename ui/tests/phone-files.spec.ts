@@ -67,3 +67,21 @@ test("the phone's Home is the vault's home document (`home` in its config), as o
   await page.evaluate(() => (window as unknown as { atlasShell: { home(): void } }).atlasShell.home());
   await expect(page.locator(".dv-active-group .cm-content")).toContainText("shown on the phone too");
 });
+
+test("Files tapped while Home is still being looked up stays Files", async ({ page, request }) => {
+  // the app's start: Home asked, then Files tapped before the home document came back
+  await put(request, "Home.md", "# home\n\nthe vault's home document\n");
+  let release = () => {};
+  const held = new Promise<void>((r) => { release = r; });
+  await page.route("**/api/home", async (route) => { await held; await route.continue(); });
+  await page.evaluate(() => {
+    const shell = (window as unknown as { atlasShell: Shell & { home(): void } }).atlasShell;
+    shell.home();
+    shell.view("files");
+  });
+  await expect(page.locator(".pf")).toBeVisible();
+  release();
+  await page.waitForResponse("**/api/home");
+  await page.waitForTimeout(300); // Home's open would have landed by now
+  await expect(page.locator(".pf")).toBeVisible();
+});

@@ -98,6 +98,12 @@ What the columns rest on:
   a platform not named is `untested`; Android only with `phone = true`), and Settings shows them on the plugin's row.
   Most say `linux = "works"` and leave the rest untested until tried there (print: Windows `no`, no CUPS). A plugin
   meets 8 when its README agrees with its manifest.
+  **A server, headless** (`node scripts/dev/helpers-headless.mjs`): every bundled helper (30) is started by `atlas serve` in an empty environment — no
+  `DISPLAY`, Wayland, D-Bus or desktop session, `PATH=/usr/bin:/bin` — and asked for a method it does not have; each
+  started and listed its methods. The only desktop program any helper calls is the email engine's `xdg-open` for an
+  Outlook sign-in, which falls back to showing the address and code. That is the server's precondition, not its
+  verdict: `server` stays `untested` until a plugin's own work is done on one (and print, ocr's screen capture and
+  claude act on the core machine's printers, screen and accounts — criterion 7).
 - **11:** the Rust engines of email, finance and catalog-papers write vault files with `std::fs::write`; ssh keeps its
   working copies' index with it. Everything else writes through Atlas's API.
 

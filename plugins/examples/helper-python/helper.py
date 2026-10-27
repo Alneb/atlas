@@ -42,6 +42,8 @@ METHODS = {"count": count}
 for line in sys.stdin:
     msg = json.loads(line)
     try:
+        if msg.get("method") not in METHODS:
+            raise LookupError(f"no method {msg.get('method')!r} (has: {', '.join(METHODS)})")
         answer = {"id": msg["id"], "result": METHODS[msg["method"]](msg.get("params") or {})}
     except Exception as e:  # an error is an answer too: the call fails in the page with this text
         answer = {"id": msg["id"], "error": f"{type(e).__name__}: {e}"}

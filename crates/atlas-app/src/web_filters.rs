@@ -83,10 +83,50 @@ pub fn convert(lists: &[String]) -> Vec<adblock::content_blocking::CbRule> {
 
 /// The rules for the configured lists; None when blocking is off or no list could be had.
 pub fn rules(cfg: &WebConfig) -> Result<Option<Rules>> {
-    rules_with(cfg, &cache_dir(), &http_get)
+    rules_with(cfg, &cache_dir(), &http_get, &convert_apart)
 }
 
-fn rules_with(cfg: &WebConfig, dir: &Path, fetch: &dyn Fn(&str) -> Result<String>) -> Result<Option<Rules>> {
+/// Converts `lists` into WebKit rules at `path`, atomically; → how many rules.
+pub fn write_rules(lists: &[String], path: &Path) -> Result<usize> {
+    let rules = convert(lists);
+    let json = serde_json::to_string(&rules).map_err(|e| atlas_core::Error::Other(e.into()))?;
+    let part = path.with_extension("part");
+    std::fs::write(&part, &json)?;
+    std::fs::rename(&part, path)?;
+    Ok(rules.len())
+}
+
+/// The flag that makes `atlas-app` the converter (main.rs): lists on stdin, `\0`-separated; the count on stdout.
+pub const CONVERT_FLAG: &str = "--convert-web-filters";
+
+/// `write_rules` in a child `atlas-app`: the conversion's ~30 MB of small allocations stayed in glibc's arenas for
+/// the rest of the run (malloc_trim cannot return pages they fragment); a process that exits gives them all back.
+fn convert_apart(lists: &[String], path: &Path) -> Result<usize> {
+    use std::io::Write;
+    use std::process::{Command, Stdio};
+    let mut child = Command::new(std::env::current_exe()?).arg(CONVERT_FLAG).arg(path).stdin(Stdio::piped()).stdout(Stdio::piped()).spawn()?;
+    child.stdin.take().expect("piped").write_all(lists.join("\0").as_bytes())?; // dropped here: EOF
+    let out = child.wait_with_output()?;
+    let said = String::from_utf8_lossy(&out.stdout);
+    match said.trim().parse() {
+        Ok(n) if out.status.success() => Ok(n),
+        _ => Err(atlas_core::Error::BadRequest(format!("the filter converter failed ({}): {}", out.status, said.trim()))),
+    }
+}
+
+/// The child's side of `convert_apart`.
+pub fn convert_main(path: &Path) -> Result<()> {
+    use std::io::Read;
+    let mut all = String::new();
+    std::io::stdin().read_to_string(&mut all)?;
+    let lists: Vec<String> = all.split('\0').map(str::to_string).collect();
+    println!("{}", write_rules(&lists, path)?);
+    Ok(())
+}
+
+type Convert<'a> = &'a dyn Fn(&[String], &Path) -> Result<usize>;
+
+fn rules_with(cfg: &WebConfig, dir: &Path, fetch: &dyn Fn(&str) -> Result<String>, convert: Convert) -> Result<Option<Rules>> {
     if !cfg.block_ads {
         return Ok(None);
     }
@@ -104,15 +144,13 @@ fn rules_with(cfg: &WebConfig, dir: &Path, fetch: &dyn Fn(&str) -> Result<String
     if path.exists() {
         return Ok(Some(Rules { id, path, count: None, report }));
     }
-    let rules = convert(&texts);
-    let json = serde_json::to_string(&rules).map_err(|e| atlas_core::Error::Other(e.into()))?;
     std::fs::create_dir_all(dir)?;
     // only the current rule set is kept
     for old in std::fs::read_dir(dir)?.flatten().filter(|e| e.file_name().to_string_lossy().starts_with("rules-")) {
         let _ = std::fs::remove_file(old.path());
     }
-    std::fs::write(&path, &json)?;
-    Ok(Some(Rules { id, path, count: Some(rules.len()), report }))
+    let count = convert(&texts, &path)?;
+    Ok(Some(Rules { id, path, count: Some(count), report }))
 }
 
 #[cfg(test)]
@@ -137,7 +175,7 @@ mod tests {
         let cfg = WebConfig { filter_lists: vec!["https://lists.example/easylist.txt".into()], ..WebConfig::default() };
         let calls = std::cell::Cell::new(0);
         let fetch = |_: &str| -> Result<String> { calls.set(calls.get() + 1); Ok(LIST.to_string()) };
-        let r = rules_with(&cfg, dir.path(), &fetch).unwrap().expect("rules");
+        let r = rules_with(&cfg, dir.path(), &fetch, &write_rules).unwrap().expect("rules");
         let json = std::fs::read_to_string(&r.path).unwrap();
         assert!(json.contains("ads\\\\.example\\\\.com") && json.contains("\"block\""), "network rule: {json}");
         assert!(json.contains(".banner-ad") && json.contains("css-display-none"), "cosmetic rule: {json}");
@@ -145,7 +183,7 @@ mod tests {
         assert!(!json.contains("abort-on-property-read"), "uBlock scriptlets have no WebKit form");
         assert_eq!(r.report, ["https://lists.example/easylist.txt: fetched"]);
         // the second time: the kept copy, the same rules (the window reuses what it compiled)
-        let again = rules_with(&cfg, dir.path(), &fetch).unwrap().unwrap();
+        let again = rules_with(&cfg, dir.path(), &fetch, &write_rules).unwrap().unwrap();
         assert_eq!((calls.get(), again.id.as_str(), again.report[0].ends_with("kept")), (1, r.id.as_str(), true));
         assert_eq!((r.count, again.count), (Some(6), None), "converted once, then the kept conversion");
         // the network gone and the list too old: the old copy still blocks
@@ -154,11 +192,11 @@ mod tests {
             std::fs::File::options().write(true).open(f.path()).unwrap().set_modified(SystemTime::now() - MAX_AGE * 2).unwrap();
         }
         let offline = |_: &str| -> Result<String> { Err(atlas_core::Error::BadRequest("offline".into())) };
-        let stale = rules_with(&cfg, dir.path(), &offline).unwrap().unwrap();
+        let stale = rules_with(&cfg, dir.path(), &offline, &write_rules).unwrap().unwrap();
         assert!(stale.report[0].contains("not refreshed") && stale.report[0].contains("offline") && stale.id == r.id, "{:?}", stale.report);
         // off, or nothing to be had: no rules
-        assert!(rules_with(&WebConfig { block_ads: false, ..cfg.clone() }, dir.path(), &fetch).unwrap().is_none());
+        assert!(rules_with(&WebConfig { block_ads: false, ..cfg.clone() }, dir.path(), &fetch, &write_rules).unwrap().is_none());
         let nowhere = WebConfig { filter_lists: vec!["https://nowhere.example/x.txt".into()], ..cfg };
-        assert!(rules_with(&nowhere, dir.path(), &offline).unwrap().is_none());
+        assert!(rules_with(&nowhere, dir.path(), &offline, &write_rules).unwrap().is_none());
     }
 }

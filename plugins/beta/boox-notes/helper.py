@@ -15,6 +15,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import atlas_plugin as atlas  # noqa: E402  (Atlas puts it on PYTHONPATH)
 import convert  # noqa: E402
 import ksync  # noqa: E402
+import ksync_shapes  # noqa: E402
 import ksync_text  # noqa: E402
 
 CACHE = os.path.join(os.environ.get("ATLAS_PLUGIN_CACHE", "."), "imports.json")
@@ -87,12 +88,14 @@ def import_notes(params):
     root = _root(params)
     folder = ((params.get("settings") or {}).get("folder") or "boox").strip().strip("/")
     ids = params.get("ids") or sorted(os.listdir(os.path.join(root, "document")))
-    mem, made, kept, failed, strokes, texts, skipped = _memory(), [], [], [], 0, 0, 0
+    mem, made, kept, failed, strokes, texts, shapes, skipped = _memory(), [], [], [], 0, 0, 0, 0
     for i, d in enumerate(ids, 1):
         atlas.event("progress", {"done": i - 1, "of": len(ids), "note": d})
         try:
             doc = ksync.decode_document(root, d)
-            ksync_text.attach(root, doc)
+            latest = ksync_text.latest(root, d)
+            ksync_text.attach(root, doc, latest)
+            ksync_shapes.attach(root, doc, latest)
             title = _title(_created(root, d), d)
             scene, n = convert.convert(doc, title, updated=int(time.time() * 1000))
             text = json.dumps(scene, separators=(",", ":"))
@@ -111,12 +114,13 @@ def import_notes(params):
             made.append(path)
             strokes += n["strokes"]
             texts += n["texts"]
+            shapes += n["shapes"]
             skipped += n["skipped"]
         except Exception as e:  # one broken note never stops the rest; said in the result
             failed.append(f"{d}: {e}")
     _remember(mem)
     atlas.event("progress", {"done": len(ids), "of": len(ids)})
-    return {"made": made, "kept": kept, "failed": failed, "strokes": strokes, "texts": texts, "skipped": skipped}
+    return {"made": made, "kept": kept, "failed": failed, "strokes": strokes, "texts": texts, "shapes": shapes, "skipped": skipped}
 
 
 if __name__ == "__main__":

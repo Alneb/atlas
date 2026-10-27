@@ -95,7 +95,7 @@ the library lives on the web side only.
 
 ## A `.cbz` opens here on a click
 
-`claims = ["*.cbz"]` (plugin API 7; it was only "Open with…"): a `.cbz` clicked in the file tree, linked or picked in the palette opens in the web reader, unless a vault rule (Settings → Files & search → Open with) names another view. `.cbr` (RAR) is not claimed: the web side reads zip only.
+`claims = ["*.cbz"]` (plugin API 7; it was only "Open with…"): a `.cbz` clicked in the file tree, linked or picked in the palette opens in the web reader, unless a vault rule (Settings → Files & search → Open with) names another view. `.cbr` (RAR), `.cb7` and `.cbt` are claimed too: the page reads zip only, so the helper (`helper.py`, `as_cbz`) unpacks such an archive once — a tar by Python itself (any platform with Python 3.12, or a backport of its safe `data` filter), the rest with what the machine has: `bsdtar` (libarchive), `unrar`, `unar`, tried in that order — and writes its pictures as a stored `.cbz` in the plugin's cache (`.atlas/cache/plugins/manga/<hash>.cbz`, keyed by path, size and time, so a changed archive is made again); the reader opens that. The vault's file is never touched. No such program (the phone): the reader says which to install. In a series these archives are chapters like a `.cbz`. Tests: `python3 test_helper.py` (7z and tar, a tar with no program at all; a RAR goes through the same path, checked by hand on a real one).
 
 ## The web side and JPEG XL
 

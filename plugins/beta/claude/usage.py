@@ -7,7 +7,6 @@ too). One JSON object per line (docs/guides/PLUGIN-API.md, "helper")."""
 import glob
 import json
 import os
-import sys
 import time
 import tomllib
 import urllib.request
@@ -223,15 +222,7 @@ def account_folders(_p):
 METHODS = {"usage": usage, "commands": commands, "account_folders": account_folders}
 
 
-def serve():
-    for line in sys.stdin:
-        req = json.loads(line)
-        try:
-            answer = {"id": req["id"], "result": METHODS[req["method"]](req.get("params") or {})}
-        except Exception as e:  # noqa: BLE001
-            answer = {"id": req["id"], "error": f"{type(e).__name__}: {e}"}
-        print(json.dumps(answer), flush=True)
-
-
 if __name__ == "__main__":
-    serve()
+    import atlas_plugin  # Atlas puts it on PYTHONPATH; imported here so the file loads without it
+
+    atlas_plugin.serve(METHODS)

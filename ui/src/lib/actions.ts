@@ -53,8 +53,9 @@ export interface Action {
  *  Resolved once per session: the first screen must not wait on a request twice. */
 let home: Promise<{ path: string | null; title: string | null }> | null = null;
 export const homeDoc = () => (home ??= api.home().then((h) => ({ path: h.path ?? null, title: h.title ?? null }), () => ({ path: null, title: null })));
-export async function openHome(): Promise<void> {
+export async function openHome(still: () => boolean = () => true): Promise<void> {
   const { path, title } = await homeDoc();
+  if (!still()) return; // something else was asked for while the home document was looked up
   const spec: PaneSpec = !path ? { kind: "today" } : path.endsWith(".page") ? { kind: "page", path, title: title ?? undefined } : { kind: "editor", path };
   setHomeSpec(spec); // Home is an app, not a tab (lib/apps.svelte.ts)
   open(spec);
