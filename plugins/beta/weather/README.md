@@ -18,7 +18,7 @@ Today's weather for templates, Today's greeting and the day's log, from Open-Met
 
 ## Needs
 
-Python 3 on the machine running Atlas's server (`helper.py`). The network: `api.open-meteo.com`,
+Nothing installed: the helper is JavaScript run inside Atlas's core (`helper.js`, built from `helper/helper.ts`). The network: `api.open-meteo.com`,
 `geocoding-api.open-meteo.com`, and `api.seeip.org` when no place is set.
 
 ## Platforms
@@ -27,4 +27,5 @@ Linux works; Android works (`phone = true`); macOS, Windows and a server are unt
 
 ## Tests
 
-`python3 test_helper.py` (Open-Meteo's answers, cut down).
+`node scripts/dev/plugin-ui.mjs --check plugins/beta/weather` — types, the committed `helper.js` current, and
+`helper/helper.test.ts` (Open-Meteo's answers, cut down, through the SDK's node harness).

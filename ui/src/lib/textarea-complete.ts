@@ -7,7 +7,7 @@
 // native box (crates/atlas-capture). Nothing here knows about the editor.
 import { settings } from "./settings.svelte";
 import { api } from "./api";
-import { captureDays } from "./capture-hints.svelte";
+import { captureDays, describeCapture, settled } from "./capture-hints.svelte";
 import type { IconName } from "./panes";
 import { taskSuggestions, taskIconEl, rowIconEl, type TaskSuggestion } from "./task-complete";
 
@@ -49,7 +49,7 @@ async function candidates(o: Open): Promise<string[]> {
 }
 
 /** `when`: the list is offered only while it says so (the command bar is a capture box only in its capture mode). */
-export function complete(box: HTMLTextAreaElement | HTMLInputElement, opts: { when?: () => boolean } = {}): { destroy(): void } {
+export function complete(box: HTMLTextAreaElement | HTMLInputElement, opts: { when?: () => boolean; vault?: () => string | undefined } = {}): { destroy(): void } {
   const list = document.createElement("ul");
   list.className = "ta-complete";
   list.setAttribute("role", "listbox");
@@ -110,7 +110,9 @@ export function complete(box: HTMLTextAreaElement | HTMLInputElement, opts: { wh
       const before = box.value.slice(0, caret);
       const mode = settings.config?.editor.task_suggest ?? "always"; // as in a note
       // a to-do in capture's spellings: the core says (capture.rs `starts_as_task`)
-      const todo = mode !== "off" && (await api.describeCapture(box.value).catch(() => null))?.task;
+      // asked once typing settles, of the vault the box writes to; the hint line's request for the same text is this one
+      if (mode !== "off" && !(await settled(() => my === seq))) return;
+      const todo = mode !== "off" && (await describeCapture(box.value, opts.vault?.()).catch(() => null))?.task;
       if (my !== seq) return;
       const t = todo ? await taskSuggestions(before.slice(before.lastIndexOf("\n") + 1), { browse: mode === "always", keepEnter: true }) : null;
       if (my !== seq) return; // a later key already asked again

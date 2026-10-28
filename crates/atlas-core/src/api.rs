@@ -451,6 +451,98 @@ pub struct CaptureResult {
     pub line: u32,
 }
 
+/// What became of a capture (captures.rs), read from its file: the box, a `→ [[note]]`, a note's properties.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "lowercase")]
+#[ts(export)]
+pub enum CaptureState {
+    /// Not triaged yet: a plain `- HH:MM …` line, or an inbox note with no `review: done`.
+    Open,
+    /// An open task (`- [ ] …`).
+    Task,
+    /// A ticked box (`[x]`, or any status but ` ` and `-`).
+    Done,
+    /// Filed into a note: `… → [[note]]`, or a note's `filed:`.
+    Filed,
+    /// Seen and let go: `[-]` (Obsidian Tasks' cancelled), or a note's `review: done`.
+    Dismissed,
+}
+
+/// Where a capture lives.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "lowercase")]
+#[ts(export)]
+pub enum CaptureKind {
+    /// A line of a day's log.
+    Line,
+    /// A note of the inbox folder (`[notes] capture = "note"`).
+    Note,
+}
+
+/// One capture, as `GET /api/captures` lists it.
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[ts(export)]
+pub struct CaptureItem {
+    pub kind: CaptureKind,
+    pub path: String,
+    /// 1-based line in `path`; 0 for a note.
+    pub line: u32,
+    /// YYYY-MM-DD: the log's day, a note's `created:` (else its file time).
+    pub day: String,
+    /// HH:MM when the line has its time.
+    #[ts(optional)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub time: Option<String>,
+    /// What was captured: the line without box, time and filing link; a note's first line.
+    pub text: String,
+    pub state: CaptureState,
+    /// The note it was filed into (its name, as the link says).
+    #[ts(optional)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub filed: Option<String>,
+    /// The whole line as read, sent back with a triage so an edited line is never overwritten ("" for a note).
+    pub source: String,
+}
+
+/// `GET /api/captures`.
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[ts(export)]
+pub struct CaptureList {
+    /// Newest first, at most `captures::MAX_LISTED`.
+    pub items: Vec<CaptureItem>,
+    /// How many are still open (all of them, listed or not).
+    pub open: u32,
+    pub total: u32,
+}
+
+/// One triage answer.
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[serde(tag = "kind", rename_all = "lowercase")]
+#[ts(export)]
+pub enum TriageAction {
+    /// Make it an open task (`- [ ] HH:MM …`).
+    Task,
+    /// Tick it (a task ticks as every tick does).
+    Done,
+    Dismiss,
+    /// Back to an untriaged capture: the box and the filing link taken off.
+    Reopen,
+    /// Add it to the note at `note` (a vault path, made when missing) and link the capture to it.
+    File { note: String },
+}
+
+/// `POST /api/captures/triage`.
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[ts(export)]
+pub struct TriageRequest {
+    pub path: String,
+    pub line: u32,
+    /// The line as the view read it ([`CaptureItem::source`]).
+    #[serde(default)]
+    pub source: String,
+    pub action: TriageAction,
+}
+
 /// `POST /api/log/today`: today's log, made from the log template when it was not there yet.
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
 #[ts(export)]
@@ -707,6 +799,71 @@ pub enum FocusPane {
     Editor,
 }
 
+/// How much a notice matters (Apprise's types): a failure reaches the system even while Atlas is being looked at.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "lowercase")]
+#[ts(export)]
+pub enum NoticeLevel {
+    #[default]
+    Info,
+    Success,
+    Warning,
+    Failure,
+}
+
+/// What a notice says, and what delivery to the system needs (docs/design/DESIGN-notifications.md): everything past
+/// the title is optional, so a producer says only what it knows.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, TS)]
+#[ts(export)]
+pub struct Notice {
+    pub title: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub body: Option<String>,
+    /// Who says it: `atlas`, a plugin's id, a notifications source (the system's group, a mute's key).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub source: Option<String>,
+    /// None: info.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub level: Option<NoticeLevel>,
+    /// A vault path or an address opened by a click on the system notification.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub open: Option<String>,
+    /// A later notice with the same id replaces the earlier one ("3 new mails" updated, never stacked).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub id: Option<String>,
+}
+
+impl Notice {
+    pub fn new(title: impl Into<String>) -> Self {
+        Self { title: title.into(), ..Self::default() }
+    }
+    pub fn body(mut self, body: impl Into<String>) -> Self {
+        self.body = Some(body.into());
+        self
+    }
+    pub fn source(mut self, source: impl Into<String>) -> Self {
+        self.source = Some(source.into());
+        self
+    }
+    pub fn level(mut self, level: NoticeLevel) -> Self {
+        self.level = Some(level);
+        self
+    }
+    pub fn open(mut self, open: impl Into<String>) -> Self {
+        self.open = Some(open.into());
+        self
+    }
+    pub fn id(mut self, id: impl Into<String>) -> Self {
+        self.id = Some(id.into());
+        self
+    }
+}
+
 /// Server → client messages on `WS /api/events`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
 #[serde(tag = "type", rename_all = "lowercase")]
@@ -727,12 +884,8 @@ pub enum Event {
         #[ts(optional)]
         line: Option<u32>,
     },
-    Notify {
-        title: String,
-        #[serde(default, skip_serializing_if = "Option::is_none")]
-        #[ts(optional)]
-        body: Option<String>,
-    },
+    /// A notice: a toast on every open page, and a system notification when nobody is looking (notify.rs).
+    Notify(Notice),
     Focus {
         pane: FocusPane,
     },

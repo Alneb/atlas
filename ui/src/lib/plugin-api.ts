@@ -20,7 +20,7 @@ import type { NativeSample, PenOptions } from "./pen-target";
 import type { EmbedRender } from "./embed-registry";
 import type { Live, LiveHandlers } from "./live";
 
-export const PLUGIN_API_VERSION = 14;
+export const PLUGIN_API_VERSION = 17;
 
 /** What a plugin's view gets. Kept small and stable: plugins outlive app refactors. */
 export interface PluginApi {
@@ -212,7 +212,12 @@ export interface PluginApi {
   /** The shell terminal: `run(command)` types the command there and enters it (the terminal is opened when there
    *  is none), so the user sees the command and its output — what a "Run" button should do. Resolves false when
    *  no terminal became ready. `open(command, title?)` runs it in a new terminal tab of its own (an ssh session). */
-  terminal: { run(command: string): Promise<boolean>; open(command: string, title?: string): Promise<boolean> };
+  terminal: {
+    run(command: string): Promise<boolean>; open(command: string, title?: string): Promise<boolean>;
+    /** What words the terminal's shell reads — `posix` (sh, bash, zsh, fish…), `powershell` or `cmd` — so a command
+     *  typed into it is quoted for it (API 17). The shell of the machine the terminal runs on, a server's too. */
+    shell(): Promise<"posix" | "powershell" | "cmd">;
+  };
   /** The file explorer (lib/file-sources.svelte.ts). `source(def)`: this plugin's places (hosts, servers) in it, one
    *  source per plugin, its local copies in `.atlas/remote/<plugin id>/`; `explore({ source?, place?, path? })` opens it
    *  there (default: this plugin's source). `list` / `local`: any source's folder, and a vault path to open one of its

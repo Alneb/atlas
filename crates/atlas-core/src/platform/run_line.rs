@@ -282,16 +282,18 @@ mod tests {
     #[test]
     fn every_bundled_plugin_line_is_direct() {
         let plugins = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../plugins");
-        let mut seen = 0;
+        let (mut seen, mut js) = (0, 0);
         for e in walkdir::WalkDir::new(&plugins).into_iter().flatten().filter(|e| e.file_name() == "plugin.toml") {
             let text = std::fs::read_to_string(e.path()).unwrap();
             let doc: toml::Value = toml::from_str(&text).unwrap();
             let helper = doc.get("helper").and_then(|h| h.get("run"));
+            js += usize::from(doc.get("helper").and_then(|h| h.get("js")).is_some());
             for line in [helper, doc.get("data")].into_iter().flatten().filter_map(|v| v.as_str()) {
                 seen += 1;
                 assert!(matches!(parse(line, &vars), Launch::Direct { .. }), "{}: {line:?} needs a shell", e.path().display());
             }
         }
-        assert!(seen >= 20, "found only {seen} plugin run lines under {}", plugins.display());
+        // helpers move from run lines to `js` (run in the core, no line at all): the walk must still find them all
+        assert!(seen + js >= 25, "found only {seen} run lines and {js} JS helpers under {}", plugins.display());
     }
 }

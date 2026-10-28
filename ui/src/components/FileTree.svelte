@@ -10,10 +10,13 @@
   import { fileIcon } from "../lib/panes";
   import type { TreeEntry } from "../lib/types";
   import Icon from "./Icon.svelte";
+  import ContextMenu, { type MenuItem } from "./ContextMenu.svelte";
   import { LETTER } from "../lib/gitstatus.svelte";
   import { settings } from "../lib/settings.svelte";
   import { shownEntries, treeView } from "../lib/tree-view.svelte";
   import { activeRow, changeOf, openDirs, revealed, setOpen } from "../lib/file-tree.svelte";
+  import { joinPath, openExplorer, sources, type FileSource } from "../lib/file-sources.svelte";
+  import { busy, listFolder, listed, openRemote, placesOf, remoteKey, remoteOpen, servers, setRemoteOpen, sortEntries, wantPlaces } from "../lib/remote-tree.svelte";
 
   let { roots, version, scroller }: { roots: TreeEntry[]; version: number; scroller: HTMLElement | undefined } = $props();
 
@@ -42,7 +45,10 @@
     });
   });
 
-  type Row = { kind: "entry"; e: TreeEntry; depth: number; open: boolean } | { kind: "empty"; depth: number; key: string };
+  // a server's row (lib/remote-tree): its source's group, a place, or a folder or file in it
+  type Remote = { kind: "remote"; key: string; src: FileSource; place: string; dir: string; name: string; folder: boolean; depth: number; open: boolean; group?: boolean; title?: string };
+  type Row = { kind: "entry"; e: TreeEntry; depth: number; open: boolean } | { kind: "empty"; depth: number; key: string; text?: string } | Remote;
+  const keyOf = (r: Row) => (r.kind === "entry" ? r.e.path : r.key);
   /** Every row of the tree as it unfolds now, top to bottom; and the open folders drawn whose entries are not here yet. */
   const walked = $derived.by(() => {
     const out: Row[] = [];
@@ -60,8 +66,57 @@
       }
     };
     walk(shownEntries(roots), 0);
-    return { rows: out, want };
+    const remote: RemoteWant = [];
+    for (const src of servers()) walkServer(src, out, remote);
+    return { rows: out, want, remote };
   });
+  /** Folders of servers drawn open and not listed yet. */
+  type RemoteWant = [FileSource, string, string][];
+  function walkServer(src: FileSource, out: Row[], want: RemoteWant) {
+    const places = placesOf.get(src.id) ?? [];
+    if (!places.length) return; // nothing set up: no group (Settings adds a server)
+    const gk = remoteKey(src.id), gOpen = remoteOpen.has(gk);
+    out.push({ kind: "remote", key: gk, src, place: "", dir: "", name: src.title, folder: true, depth: 0, open: gOpen, group: true });
+    if (!gOpen) return;
+    for (const p of places) {
+      const pk = remoteKey(src.id, p.id), pOpen = remoteOpen.has(pk);
+      out.push({ kind: "remote", key: pk, src, place: p.id, dir: "", name: p.title, folder: true, depth: 1, open: pOpen, title: p.detail });
+      if (pOpen) walkFolder(src, p.id, "", 2, out, want);
+    }
+  }
+  function walkFolder(src: FileSource, place: string, path: string, depth: number, out: Row[], want: RemoteWant) {
+    const l = listed.get(remoteKey(src.id, place, path));
+    if (!l) { want.push([src, place, path]); return; }
+    if ("error" in l) { out.push({ kind: "empty", depth, key: `${remoteKey(src.id, place, path)}
+!`, text: l.error }); return; }
+    const shown = sortEntries(l.entries.filter((e) => treeView.showAll || !e.name.startsWith(".")));
+    if (!shown.length) out.push({ kind: "empty", depth, key: `${remoteKey(src.id, place, path)}
+.` });
+    for (const e of shown) {
+      const sub = joinPath(l.path || path, e.name);
+      const folder = e.kind === "dir", k = remoteKey(src.id, place, sub), open = folder && remoteOpen.has(k);
+      out.push({ kind: "remote", key: k, src, place, dir: l.path || path, name: e.name, folder, depth, open });
+      if (open) walkFolder(src, place, sub, depth + 1, out, want);
+    }
+  }
+  $effect(() => { void sources.list.length; wantPlaces(); });
+  $effect(() => { for (const [src, place, path] of walked.remote) void listFolder(src, place, path); });
+  // a server row's own menu (the vault's, Files.svelte, acts on data-path rows): open it, or go there in the explorer,
+  // where a server's files are renamed, uploaded and deleted
+  let menu = $state<{ x: number; y: number; items: MenuItem[] } | null>(null);
+  function remoteMenu(e: MouseEvent, r: Remote) {
+    e.preventDefault();
+    e.stopPropagation();
+    const at = r.group ? undefined : r.depth === 1 ? "" : r.folder ? joinPath(r.dir, r.name) : r.dir;
+    const items: MenuItem[] = [];
+    if (!r.folder) items.push({ label: "Open", icon: "file", run: () => toggleRemote(r) });
+    items.push({ label: "Show in the explorer", icon: "folder-open", run: () => openExplorer(r.src.id, r.place, at || undefined) });
+    menu = { x: e.clientX, y: e.clientY, items };
+  }
+  function toggleRemote(r: Remote) {
+    if (!r.folder) { void openRemote(r.src, r.place, r.dir, r.name); return; }
+    setRemoteOpen(r.key, !r.open);
+  }
   const rows = $derived(walked.rows);
   const wanted = $derived(walked.want);
 
@@ -106,30 +161,36 @@
   // comes back to it when it is drawn again (it had nowhere else to go).
   let focusPath = $state("");
   let kept = false; // the tree had the focus and lost it only because its row left the window
-  const rowEl = (path: string) => listEl?.querySelector<HTMLElement>(`.row[data-path="${CSS.escape(path)}"]`) ?? null;
+  const rowEl = (key: string) => listEl?.querySelector<HTMLElement>(`.row[data-key="${CSS.escape(key)}"]`) ?? null;
   function focusRow(i: number) {
     const r = rows[Math.max(0, Math.min(rows.length - 1, i))];
-    if (!r || r.kind !== "entry" || !scroller) return;
+    if (!r || r.kind === "empty" || !scroller) return;
     const y = rows.indexOf(r) * rowH;
     if (y < scroller.scrollTop) scroller.scrollTop = y;
     else if (y + rowH > scroller.scrollTop + scroller.clientHeight) scroller.scrollTop = y + rowH - scroller.clientHeight;
-    focusPath = r.e.path;
-    requestAnimationFrame(() => rowEl(r.e.path)?.focus());
+    focusPath = keyOf(r);
+    requestAnimationFrame(() => rowEl(keyOf(r))?.focus());
   }
   function onKey(e: KeyboardEvent) {
-    const path = (e.target as HTMLElement).closest<HTMLElement>(".row")?.dataset.path;
-    const i = rows.findIndex((r) => r.kind === "entry" && r.e.path === path);
+    const key = (e.target as HTMLElement).closest<HTMLElement>(".row")?.dataset.key;
+    const i = rows.findIndex((r) => r.kind !== "empty" && keyOf(r) === key);
     if (i < 0) return;
-    const r = rows[i] as Extract<Row, { kind: "entry" }>, step = (d: number) => { let k = i + d; while (rows[k]?.kind === "empty") k += d; return k; };
+    const r = rows[i] as Exclude<Row, { kind: "empty" }>, step = (d: number) => { let k = i + d; while (rows[k]?.kind === "empty") k += d; return k; };
+    const folder = r.kind === "entry" ? r.e.kind === "dir" : r.folder;
+    const fold = (open: boolean) => (r.kind === "entry" ? setOpen(r.e.path, open) : setRemoteOpen(r.key, open));
     let to: number | null = null;
     if (e.key === "ArrowDown") to = step(1);
     else if (e.key === "ArrowUp") to = step(-1);
     else if (e.key === "Home") to = 0;
     else if (e.key === "End") to = rows.length - 1;
-    else if (e.key === "ArrowRight" && r.e.kind === "dir") { if (!r.open) setOpen(r.e.path, true); else to = step(1); }
+    else if (e.key === "ArrowRight" && folder) { if (!r.open) fold(true); else to = step(1); }
     else if (e.key === "ArrowLeft") {
-      if (r.e.kind === "dir" && r.open) setOpen(r.e.path, false);
-      else { const up = r.e.path.slice(0, r.e.path.lastIndexOf("/")); to = up ? rows.findIndex((x) => x.kind === "entry" && x.e.path === up) : null; }
+      if (folder && r.open) fold(false);
+      else { // up: the nearest row above that is shallower
+        let k = i - 1;
+        while (k >= 0 && (rows[k].kind === "empty" || rows[k].depth >= r.depth)) k--;
+        to = r.depth > 0 && k >= 0 ? k : null;
+      }
     } else return;
     e.preventDefault();
     if (to !== null && to >= 0) focusRow(to);
@@ -140,7 +201,7 @@
     const el = rowEl(focusPath);
     if (el && (document.activeElement === document.body || !document.activeElement)) { el.focus({ preventScroll: true }); kept = false; }
   });
-  function focusIn(e: FocusEvent) { focusPath = (e.target as HTMLElement).closest<HTMLElement>(".row")?.dataset.path ?? focusPath; kept = false; }
+  function focusIn(e: FocusEvent) { focusPath = (e.target as HTMLElement).closest<HTMLElement>(".row")?.dataset.key ?? focusPath; kept = false; }
   // leaving for nothing (the row unmounted) keeps the claim; leaving for something else gives it up
   function focusOut(e: FocusEvent) { kept = !e.relatedTarget; }
   /** The row of `path` given the focus again (after a dialog about it closed). */
@@ -160,16 +221,32 @@
 
 <!-- svelte-ignore a11y_no_noninteractive_element_interactions (the keys belong to the row buttons inside) -->
 <ul class="tree-rows" bind:this={listEl} onkeydown={onKey} onfocusin={focusIn} onfocusout={focusOut} style:padding-top="{first * rowH}px" style:padding-bottom="{(rows.length - last) * rowH}px">
-  {#each rows.slice(first, last) as r (r.kind === "entry" ? r.e.path : r.key)}
+  {#each rows.slice(first, last) as r (keyOf(r))}
     {#if r.kind === "empty"}
-      <li class="empty" style:padding-left="{22 + r.depth * 14}px">empty</li>
+      <li class="empty" class:why={!!r.text} style:padding-left="{22 + r.depth * 14}px" title={r.text}>{r.text ?? "empty"}</li>
+    {:else if r.kind === "remote"}
+      <!-- a server's row: no data-path (the vault's menus and drops act on data-path rows only) -->
+      <li>
+        <button class="row" class:is-dir={r.folder} class:group={r.group} style:padding-left="{8 + r.depth * 14}px" onclick={() => toggleRemote(r)} oncontextmenu={(e) => remoteMenu(e, r)}
+          title={r.title ?? (r.group ? `${r.name}: your servers (Settings → ${r.name})` : r.folder ? r.name : `${r.name} — fetched from ${r.src.title} when opened`)} data-key={r.key}>
+          {#if r.folder}
+            <span class="chev" class:open={r.open}><Icon name="chevron" size={12} /></span>
+            <span class="ico dir" class:server={r.group || r.depth === 1}><Icon name={r.group ? r.src.icon : r.depth === 1 ? "server" : r.open ? "folder-open" : "folder"} size={15} /></span>
+          {:else}
+            <span class="chev"></span>
+            <span class="ico"><Icon name={fileIcon(r.name)} size={15} /></span>
+          {/if}
+          <span class="name">{r.name}</span>
+          {#if busy.has(r.key) || (r.depth === 1 && busy.has(remoteKey(r.src.id, r.place, "")))}<span class="spin"></span>{/if}
+        </button>
+      </li>
     {:else}
       {@const entry = r.e}
       {@const change = showGit ? changeOf(entry.path, entry.kind === "dir") : undefined}
       {@const opensNote = entry.kind === "dir" && !!entry.note}
       <li>
         <button class="row git-{change ?? 'clean'}" class:active={activeRow.has(entry.path) || (opensNote && activeRow.has(entry.note!))} class:is-dir={entry.kind === "dir"} class:ignored={entry.ignored}
-          style:padding-left="{8 + r.depth * 14}px" onclick={(e) => toggle(e, entry, r.open)} title={entry.path} data-path={entry.path} draggable="true">
+          style:padding-left="{8 + r.depth * 14}px" onclick={(e) => toggle(e, entry, r.open)} title={entry.path} data-path={entry.path} data-key={entry.path} draggable="true">
           {#if entry.kind === "dir"}
             <span class="chev" class:open={r.open}><Icon name="chevron" size={12} /></span>
             <span class="ico dir" class:note={opensNote}><Icon name={opensNote ? "file-text" : r.open ? "folder-open" : "folder"} size={15} /></span>
@@ -188,6 +265,7 @@
     {/if}
   {/each}
 </ul>
+{#if menu}<ContextMenu x={menu.x} y={menu.y} items={menu.items} onclose={() => (menu = null)} />{/if}
 
 <style>
   ul { list-style: none; margin: 0; padding: 0; }
@@ -217,6 +295,11 @@
   .row.git-modified .name, .row.git-modified .glet, .row.git-modified .gdot, .row.git-renamed .name, .row.git-renamed .glet, .row.git-renamed .gdot { color: var(--yellow); }
   .row.git-added .name, .row.git-added .glet, .row.git-added .gdot, .row.git-untracked .name, .row.git-untracked .glet, .row.git-untracked .gdot { color: var(--green); }
   .row.git-deleted .name, .row.git-deleted .glet, .row.git-deleted .gdot, .row.git-conflicted .name, .row.git-conflicted .glet, .row.git-conflicted .gdot { color: var(--red); }
+  /* the servers' group: set apart from the vault's rows above it by a line (no margin: the window counts rows of one height) */
+  .row.group { border-radius: 0; box-shadow: inset 0 1px 0 var(--border); }
+  .row.group .name { color: var(--text-muted); font-weight: 600; font-size: calc(11.5px * var(--ui-scale, 1)); text-transform: uppercase; letter-spacing: .04em; }
+  .ico.dir.server { color: var(--text-faint); opacity: 1; }
+  .empty.why { font-style: normal; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-right: 8px; }
   .row.ignored { opacity: .68; } /* dimmed, still legible (UX audit: icons at .5 fell below 2.5:1) */
   .row.ignored:hover { opacity: .85; }
 </style>

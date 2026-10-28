@@ -50,7 +50,7 @@ test("a plugin's helper answers calls from one process, sends an event, and Sett
 
   // Settings names what this plugin may do outside the page
   await run("Settings");
-  await page.getByRole("button", { name: /Plugins & automation/ }).first().click();
+  await page.getByRole("button", { name: "Plugins", exact: true }).first().click();
   await expect(page.locator('[data-plugin-may="helpy"]')).toHaveText("May run a program of its own.");
 
   // switched off: the program is stopped

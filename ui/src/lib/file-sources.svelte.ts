@@ -11,6 +11,9 @@ import { onPluginEvent } from "./plugin-events";
 import { pick } from "./palette.svelte";
 import { isIconName } from "./icons";
 import { vaultFiles, vaultReady } from "./vault";
+import { exists } from "./vault-files";
+import { basename } from "./paths";
+import { rel } from "./time";
 import type { IconName } from "./panes";
 
 export type EntryKind = "dir" | "file" | "link";
@@ -112,7 +115,35 @@ export function addSource(src: FileSource): () => void {
 /** A plugin's source, checked at the door: a plugin is JavaScript, its mistakes are told here, not deep in the explorer. */
 export function pluginSource(plugin: { id: string; title: string }, s: Partial<Omit<FileSource, "id" | "icon">> & { icon?: string }): FileSource {
   for (const k of ["places", "list", "local"] as const) if (typeof s[k] !== "function") throw new Error(`files.source: “${k}” is missing (places, list and local are needed)`);
-  return { ...(s as Omit<FileSource, "id" | "icon">), id: plugin.id, title: s.title ?? plugin.title, icon: s.icon && isIconName(s.icon) ? s.icon : "server" };
+  const title = s.title ?? plugin.title;
+  return { ...(s as Omit<FileSource, "id" | "icon">), id: plugin.id, title, icon: s.icon && isIconName(s.icon) ? s.icon : "server", local: keptCopies(plugin.id, title, s.local!) };
+}
+
+// Each remote file's last local copy ("source\nplace\npath" → its vault path, when fetched), kept between runs: with the
+// server out of reach (offline, the VPN down) the copy fetched before opens, said so, for every source and every caller
+const KEPT = "atlas.remote.kept", MAX_KEPT = 2000;
+type Kept = Record<string, { local: string; at: number }>;
+const kept: Kept = (() => { try { return JSON.parse(localStorage.getItem(KEPT) ?? "{}") as Kept; } catch { return {}; } })();
+function keepKept(): void {
+  const keys = Object.keys(kept);
+  if (keys.length > MAX_KEPT) for (const k of keys.sort((a, b) => kept[a].at - kept[b].at).slice(0, keys.length - MAX_KEPT)) delete kept[k];
+  try { localStorage.setItem(KEPT, JSON.stringify(kept)); } catch { /* full: kept for this run */ }
+}
+function keptCopies(id: string, title: string, local: FileSource["local"]): FileSource["local"] {
+  return async (place, path) => {
+    const key = listingKey(id, place, path);
+    try {
+      const at = await local(place, path);
+      kept[key] = { local: at, at: Date.now() };
+      keepKept();
+      return at;
+    } catch (e) {
+      const k = kept[key];
+      if (!k || !(await exists(k.local))) throw e;
+      toast(`Not fetched from ${title}`, `${why(e)} — ${basename(path)} opened from the copy fetched ${rel(k.at)}.`, "error", 9000);
+      return k.local;
+    }
+  };
 }
 
 /** The explorer at a place of a source (default: the vault's top folder); a tab already there comes forward. */

@@ -142,7 +142,8 @@ function taskLists(state: StateCore): void {
   for (let i = 2; i < toks.length; i++) {
     const inline = toks[i];
     if (inline.type !== "inline" || toks[i - 1].type !== "paragraph_open" || toks[i - 2].type !== "list_item_open") continue;
-    const m = /^\[([ xX])\]\s/.exec(inline.content);
+    // any one status, as Obsidian reads it: ` ` open, anything else closed (`x`, `-` cancelled, `/`…), kept as `data-task`
+    const m = /^\[([^\]\n\\])\]\s/.exec(inline.content);
     if (!m || !inline.children?.length) continue;
     const first = inline.children[0];
     if (first.type !== "text" || !first.content.startsWith(m[0].slice(0, 3))) continue;
@@ -150,10 +151,11 @@ function taskLists(state: StateCore): void {
     const box = new state.Token("html_inline", "", 0);
     const checked = m[1] !== " ";
     // data-line: the to-do's 0-based line in the rendered text, so a view that knows its file can tick it (Markdown.svelte)
-    box.content = `<input type="checkbox" class="task-checkbox" data-line="${toks[i - 2].map?.[0] ?? -1}" disabled${checked ? " checked" : ""}>`;
+    box.content = `<input type="checkbox" class="task-checkbox" data-task="${state.md.utils.escapeHtml(m[1])}" data-line="${toks[i - 2].map?.[0] ?? -1}" disabled${checked ? " checked" : ""}>`;
     inline.children.unshift(box);
     toks[i - 2].attrJoin("class", `task-list-item${checked ? " is-checked" : ""}`);
-    // mark the parent list too, so its bullets can be dropped
+    toks[i - 2].attrSet("data-task", m[1]);
+    // mark the parent list too (Obsidian's class; its items keep their own bullets)
     for (let j = i - 3; j >= 0; j--) {
       if (toks[j].type === "bullet_list_open" || toks[j].type === "ordered_list_open") {
         if (toks[j].level === toks[i - 2].level - 1) { toks[j].attrJoin("class", "contains-task-list"); break; }

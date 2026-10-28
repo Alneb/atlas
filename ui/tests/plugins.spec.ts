@@ -2,7 +2,7 @@ import { test, expect } from "@playwright/test";
 
 // The plugin system with a fixture plugin (nothing runs-specific: that plugin lives in its workspace).
 const H = { "x-atlas": "1" };
-const MANIFEST = 'title = "Hello"\nrail = true\ndescription = "fixture plugin"\nicon = "table"\nkeys = "Ctrl+Alt+H"\ndata = "python3 \\"$ATLAS_PLUGIN_DIR/data.py\\""\n[settings]\ngreeting = "hi"\n';
+const MANIFEST = 'title = "Hello"\nrail = true\ndescription = "fixture plugin"\nicon = "table"\nkeys = "Ctrl+Alt+H"\ndata = "python3 \\"$ATLAS_PLUGIN_DIR/data.py\\""\n';
 const DATA = 'import json, sys\nreq = json.load(sys.stdin)\nprint(json.dumps({"items": [req["settings"]["greeting"], "two"], "args": req["args"]}))\n';
 const view = (label: string) => `export default async function mount(host, atlas) {
   const d = await atlas.data({ from: "view" });
@@ -14,6 +14,7 @@ const put = (request: import("@playwright/test").APIRequestContext, path: string
   request.put("/api/file", { headers: H, data: { path, text } });
 
 test.beforeAll(async ({ request }) => {
+  await put(request, ".atlas/plugin-settings/hello.toml", 'greeting = "hi"\n'); // the vault's values, never in the manifest
   await put(request, ".atlas/plugins/hello/plugin.toml", MANIFEST);
   await put(request, ".atlas/plugins/hello/data.py", DATA);
   await put(request, ".atlas/plugins/hello/view.js", view("Hello plugin"));

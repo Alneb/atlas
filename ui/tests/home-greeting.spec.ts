@@ -10,7 +10,8 @@ const HOME = readFileSync(new URL("../../plugins/beta/home/main.js", import.meta
 test.beforeAll(async ({ request }) => {
   await put(request, ".atlas/plugins/greet-test/plugin.toml", 'title = "Greet test"\napi = 4\n');
   await put(request, ".atlas/plugins/greet-test/main.js", 'export function register(atlas) { atlas.shell.greetingItem({ id: "sky", icon: "⛅", text: "12 °C · Oslo", order: 1 }); }\n');
-  await put(request, ".atlas/plugins/home/plugin.toml", 'title = "Home"\napi = 4\n\n[settings]\nlanguage = "en"\n');
+  await put(request, ".atlas/plugins/home/plugin.toml", 'title = "Home"\napi = 4\n');
+  await put(request, ".atlas/plugin-settings/home.toml", 'language = "en"\n'); // the vault's values, never in the manifest
   await put(request, ".atlas/plugins/home/main.js", HOME);
   await put(request, "notes/map/Physics.md", "# Physics\n");
   await put(request, "notes/map/Optics.md", "---\ntopics: [\"[[Physics]]\"]\n---\n# Optics\n");

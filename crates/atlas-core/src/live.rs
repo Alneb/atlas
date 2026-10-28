@@ -16,8 +16,11 @@ const MAX_MESSAGE: usize = 4 << 20;
 /// A message from the room itself, not from a device: every device hears it.
 const ROOM: u64 = 0;
 
+/// What a room carries: who said it (a peer, or [`ROOM`]) and the message.
+type Said = (u64, String);
+
 struct Room {
-    tx: broadcast::Sender<(u64, String)>,
+    tx: broadcast::Sender<Said>,
     /// in the order they came: the first is the writer
     members: Vec<u64>,
 }
@@ -29,13 +32,14 @@ pub struct Rooms {
 }
 
 impl Rooms {
-    /// A new device in `path`'s room: its id, the room's channel, and who writes.
-    fn join(&self, path: &str) -> (u64, broadcast::Sender<(u64, String)>, u64) {
+    /// A new device in `path`'s room: its id, the room's channel, already listening, and who writes. Subscribed under
+    /// the rooms' lock, so a writer leaving right after is heard (else the room would wait on a writer that is gone).
+    fn join(&self, path: &str) -> (u64, broadcast::Sender<Said>, broadcast::Receiver<Said>, u64) {
         let peer = self.next.fetch_add(1, Ordering::Relaxed) + 1;
         let mut rooms = self.rooms.lock().expect("rooms");
         let room = rooms.entry(path.to_string()).or_insert_with(|| Room { tx: broadcast::channel(256).0, members: Vec::new() });
         room.members.push(peer);
-        (peer, room.tx.clone(), room.members[0])
+        (peer, room.tx.clone(), room.tx.subscribe(), room.members[0])
     }
 
     /// `peer` left: the room goes with its last device; the writer leaving hands the room to the next.
@@ -73,8 +77,7 @@ fn stamped(peer: u64, message: &str) -> String {
 
 /// One device in `path`'s room until its socket closes.
 pub async fn session(mut socket: WebSocket, rooms: std::sync::Arc<Rooms>, path: String, name: String) {
-    let (peer, tx, writer) = rooms.join(&path);
-    let mut rx = tx.subscribe();
+    let (peer, tx, mut rx, writer) = rooms.join(&path);
     let hello = serde_json::json!({ "t": "hello", "peer": peer, "others": tx.receiver_count() - 1, "writer": writer }).to_string();
     let _ = tx.send((peer, stamped(peer, &serde_json::json!({ "t": "join", "name": name }).to_string())));
     if socket.send(Message::Text(hello.into())).await.is_ok() {
@@ -111,16 +114,17 @@ mod tests {
     #[test]
     fn a_room_lives_while_a_device_is_in_it_and_its_first_device_writes() {
         let rooms = Rooms::default();
-        let (a, tx, w) = rooms.join("d.excalidraw");
+        let (a, _tx, mut rx, w) = rooms.join("d.excalidraw");
         assert_eq!(w, a, "alone: the writer");
-        let mut rx = tx.subscribe();
-        let (b, _, w) = rooms.join("d.excalidraw");
+        let (b, _, _, w) = rooms.join("d.excalidraw");
         assert_ne!(a, b);
         assert_eq!((w, rooms.count("d.excalidraw")), (a, 2), "the first stays the writer");
         rooms.leave("d.excalidraw", b);
         assert!(rx.try_recv().is_err(), "a reader leaving changes nothing");
-        let (c, _, _) = rooms.join("d.excalidraw");
+        let (c, _, mut heard, _) = rooms.join("d.excalidraw");
         rooms.leave("d.excalidraw", a);
+        // c joined before a left: it hears the handover even though its session had not started listening yet
+        assert_eq!(heard.try_recv().unwrap().0, ROOM, "the newcomer hears it is the writer");
         let (from, said) = rx.try_recv().unwrap();
         let said: serde_json::Value = serde_json::from_str(&said).unwrap();
         assert_eq!((from, said), (ROOM, serde_json::json!({ "t": "writer", "peer": c })), "the writer left: the next one");

@@ -22,7 +22,8 @@ const main = (word: string) => `export function register(atlas) {
 test.beforeAll(async ({ request }) => {
   await put(request, ".atlas/plugins/demo/plugin.toml", 'title = "Demo"\n');
   await put(request, ".atlas/plugins/demo/main.js", main("hello"));
-  await put(request, ".atlas/plugins/demo2/plugin.toml", 'title = "Demo two"\n[settings]\ncolor = "teal"\n');
+  await put(request, ".atlas/plugins/demo2/plugin.toml", 'title = "Demo two"\n');
+  await put(request, ".atlas/plugin-settings/demo2.toml", 'color = "teal"\n'); // the vault's values, never in the manifest
   await put(request, "notes/run-note.md", "---\nrun: runs/r1\n---\n# A run\n\n```view\ntype: demo.hello\nwho: you\n```\n\n```view\ntype: demo.pair\n```\n");
 });
 

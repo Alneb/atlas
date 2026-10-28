@@ -26,8 +26,8 @@ test.beforeAll(async ({ request }) => {
   server = spawn("python3", [fileURLToPath(new URL("../../scripts/vault/tests/fake_copyparty.py", import.meta.url)), ROOT, "s3cret"], { stdio: ["ignore", "pipe", "inherit"] });
   const { port } = await new Promise<{ port: number }>((ok) => createInterface({ input: server.stdout! }).once("line", (l) => ok(JSON.parse(l))));
   await put(request, `${DIR}/main.js`, example("main.js"));
-  await put(request, `${DIR}/plugin.toml`, `${example("plugin.toml")}\n[settings]\n\n[[settings.servers]]\nname = "nas"\nurl = "http://127.0.0.1:${port}/hdd1/"\n`);
-  await put(request, ".atlas/plugin-settings/copyparty.toml", ""); // this run's values are the manifest's above, not what another spec saved
+  await put(request, `${DIR}/plugin.toml`, example("plugin.toml"));
+  await put(request, ".atlas/plugin-settings/copyparty.toml", `[[servers]]\nname = "nas"\nurl = "http://127.0.0.1:${port}/hdd1/"\n`); // the vault's values, never in the manifest
   await request.put(`/api/plugins/copyparty/secrets/${encodeURIComponent("servers.nas.password")}`, { headers: H, data: { value: "s3cret" } });
 });
 test.afterAll(async ({ request }) => {
@@ -135,8 +135,8 @@ test("Books lists a server folder's books beside the vault's, and a server's boo
   const BOOKS = ".atlas/plugins/books";
   installZipPlugin(); // Books requires it
   for (const f of ["main.js", "view.js", "shared/marks.js"]) await put(request, `${BOOKS}/${f}`, books(f));
-  await put(request, `${BOOKS}/plugin.toml`, `${books("plugin.toml")}\n[settings]\nfolder = "books-remote-spec"\n\n[[settings.remote]]\nserver = "nas"\nfolder = "/Physics/Books"\n`);
-  await put(request, ".atlas/plugin-settings/books.toml", "");
+  await put(request, `${BOOKS}/plugin.toml`, books("plugin.toml"));
+  await put(request, ".atlas/plugin-settings/books.toml", 'folder = "books-remote-spec"\n\n[[remote]]\nserver = "nas"\nfolder = "/Physics/Books"\n');
   await request.put("/api/file", { headers: H, data: { path: "books-remote-spec/Local Tales.epub", text: "PK not a book either\n" } });
   try {
     await page.goto("/");

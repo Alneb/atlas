@@ -77,17 +77,23 @@ async function apply(): Promise<void> {
   if (!loading) return; // never listed: the first listing will be current
   await loading;
   if (everything || fresh.size > MOST_ASKED) return void refreshVault();
-  const dropUnder = (p: string) => { for (const f of [...all]) if (f === p || f.startsWith(`${p}/`)) remove(f); };
-  for (const g of gone) dropUnder(g);
+  dropUnder(gone);
   try {
     const asked = [...fresh];
     const lists = await Promise.all(asked.map((under) => api.files({ under })));
     // what is at or under an asked path is its answer: a folder moved away answers nothing, even without a `gone`
-    asked.forEach((p, i) => { dropUnder(p); for (const f of lists[i]) add(f); });
+    dropUnder(new Set(asked));
+    lists.forEach((l) => { for (const f of l) add(f); });
   } catch { return void refreshVault(); }
   listeners.forEach((fn) => fn());
 }
 
+/** Every known file at or under one of `paths`, removed in one pass over the list (a big delete is not paths × files). */
+function dropUnder(paths: ReadonlySet<string>): void {
+  if (!paths.size) return;
+  const under = (f: string) => { for (let p = f; ; p = p.slice(0, p.lastIndexOf("/"))) { if (paths.has(p)) return true; if (!p.includes("/")) return false; } };
+  for (const f of [...all]) if (under(f)) remove(f);
+}
 
 /**
  * The workspace path a link points at, or null when nothing matches.

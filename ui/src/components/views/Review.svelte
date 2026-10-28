@@ -1,5 +1,6 @@
 <script lang="ts">
   import { errText } from "../../lib/text";
+  import { reloadOnChange } from "../../lib/reload-on-change";
   import { shownName, shownPath } from "../../lib/paths";
   import { superOf } from "../../lib/keys";
   // The `review` block (docs/guides/NOTES-SYSTEM.md): notes waiting to be looked at, one at a time — an inbox
@@ -12,7 +13,6 @@
   import { parse as parseYaml, stringify } from "yaml";
   import { api } from "../../lib/api";
   import { queryRows, type Row } from "../../lib/base-rows";
-  import { on } from "../../lib/bus";
   import { openPath } from "../../lib/dock";
   import { pick } from "../../lib/palette.svelte";
   import Markdown from "../Markdown.svelte";
@@ -56,9 +56,7 @@
   });
   onMount(() => {
     void load();
-    let t: ReturnType<typeof setTimeout> | undefined;
-    const off = on("fs", (e) => { if (!e.paths.length || e.paths.some((p) => p.endsWith(".md"))) { clearTimeout(t); t = setTimeout(load, 600); } });
-    return () => { off(); clearTimeout(t); };
+    return reloadOnChange(() => void load(), { wait: 600, wants: (p) => p.endsWith(".md") });
   });
 
   /** One answer: write the properties, and show the next note at once (the file event confirms). */

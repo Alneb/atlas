@@ -7,7 +7,7 @@
   import PlatformChips from "./PlatformChips.svelte";
   import FormFields from "../FormFields.svelte";
   import { applies, shown, store, type FormValue } from "../../lib/block-options";
-  import { formFields, loadSuggestions, runSettingsAction, savePluginSettings, secretNames } from "../../lib/plugin-settings.svelte";
+  import { formFields, loadSuggestions, openPluginSettingsText, runSettingsAction, savePluginSettings, secretNames } from "../../lib/plugin-settings.svelte";
   import { changedSettings, isOff, mayOf, partsOf, pluginDir, removePlugin, switchPlugin, updatePlugin } from "../../lib/plugin-manage";
   import { pluginOn, pluginBlocked, pluginSpec, plugins, type Plugin } from "../../lib/plugins.svelte";
   import { pluginLog, clearPluginLog } from "../../lib/plugin-log.svelte";
@@ -91,8 +91,7 @@
     <div class="acts">
       {#if pluginOn(p) && p.view}<button class="btn" onclick={() => open(pluginSpec(p))}><Icon name="panel-right" size={13} /> Open</button>{/if}
       {#if p.from}<button class="btn" onclick={() => void updatePlugin(p)}><Icon name="refresh" size={13} /> Update</button>{/if}
-      <button class="btn" title="The manifest, and the settings as text" onclick={() => openPath(`${pluginDir(p.id)}/plugin.toml`)}><Icon name="settings" size={13} /> plugin.toml</button>
-      <button class="btn" onclick={() => { const f = p.main ?? p.view; if (f) openPath(f); }}><Icon name="edit" size={13} /> Code</button>
+      {#if p.fields.length}<button class="btn" title="The values this page writes: .atlas/plugin-settings/{p.id}.toml" onclick={() => void openPluginSettingsText(p)}><Icon name="file-text" size={13} /> Settings file</button>{/if}
       <button class="btn danger" title="Its folder moves to .atlas/trash/" onclick={() => removePlugin(p)}><Icon name="close" size={13} /> Remove</button>
     </div>
     {#if problem}<p class="err">{problem}</p>{/if}
@@ -122,7 +121,8 @@
     {/if}
   </form>{:else if !hasAccounts && !drawn.length}<p class="where">It has no settings of its own (<code>[[setting]]</code> in its plugin.toml).</p>{/if}
   {#each drawn.filter((d) => d.place !== "before") as d (d.id)}<PluginSection plugin={p} section={d} />{/each}
-
+  <!-- for whoever writes plugins: what it is made of, out of the way of its settings -->
+  <p class="where source">Its source: <button class="link" title="What the plugin is, declares and asks for" onclick={() => openPath(`${pluginDir(p.id)}/plugin.toml`)}>plugin.toml</button>{#if p.main ?? p.view} · <button class="link" onclick={() => { const f = p.main ?? p.view; if (f) openPath(f); }}>{(p.main ?? p.view ?? "").split("/").pop()}</button>{/if}</p>
 </div>
 
 <style>
@@ -145,6 +145,8 @@
   .btn.primary kbd { font: inherit; font-weight: 400; opacity: .75; font-size: .85em; }
   .err { margin: 4px 0 0; color: var(--red); }
   .form { background: var(--bg); border: 1px solid var(--border); border-radius: 12px; padding: 6px 18px 14px; display: flex; flex-direction: column; gap: 12px; }
+  .source { margin-top: 18px; }
+  .source .link { color: var(--accent); }
   .where { margin: 0; color: var(--text-faint); font-size: calc(12px * var(--ui-scale, 1)); }
   .savebar { position: sticky; bottom: 12px; align-self: center; display: flex; align-items: center; gap: 10px; padding: 8px 10px 8px 16px;
     background: var(--bg-elev); border: 1px solid var(--border-strong); border-radius: 10px; box-shadow: 0 8px 28px rgba(0, 0, 0, .3); }

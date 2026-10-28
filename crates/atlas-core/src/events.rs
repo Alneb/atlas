@@ -12,7 +12,7 @@ use std::time::Duration;
 use tokio::sync::broadcast;
 
 #[derive(Clone)]
-pub struct EventBus(broadcast::Sender<Event>, broadcast::Sender<Captured>, broadcast::Sender<Vec<String>>);
+pub struct EventBus(broadcast::Sender<Event>, broadcast::Sender<Captured>, broadcast::Sender<Vec<String>>, broadcast::Sender<crate::api::Notice>);
 
 /// A capture just written, from any door (the app, the phone, the desktop box, an agent): what the server's capture
 /// hooks act on (capture_hooks.rs). A channel of its own, so a hook never counts as a UI listening on the bus.
@@ -25,7 +25,7 @@ pub struct Captured {
 
 impl Default for EventBus {
     fn default() -> Self {
-        Self(broadcast::channel(256).0, broadcast::channel(64).0, broadcast::channel(256).0)
+        Self(broadcast::channel(256).0, broadcast::channel(64).0, broadcast::channel(256).0, broadcast::channel(64).0)
     }
 }
 
@@ -49,15 +49,26 @@ impl EventBus {
         self.2.subscribe()
     }
 
+    /// Every notice, for the system's notifications (notify.rs): a channel of its own, so the notifier never counts as
+    /// a UI reached.
+    pub fn on_notice(&self) -> broadcast::Receiver<crate::api::Notice> {
+        self.3.subscribe()
+    }
+
     /// Number of listeners reached; an error when no UI is connected, so `atlas open` can say so.
     pub fn emit(&self, ev: Event) -> Result<usize> {
+        if let Event::Notify(n) = &ev {
+            let _ = self.3.send(n.clone());
+        }
         self.0.send(ev).map_err(|_| Error::CommandFailed("no Atlas UI is connected to receive it".into()))
     }
 
     /// Fire-and-forget (fs changes with nobody listening are not an error).
     pub fn publish(&self, ev: Event) {
-        if let Event::Fs { paths } = &ev {
-            let _ = self.2.send(paths.clone());
+        match &ev {
+            Event::Fs { paths } => drop(self.2.send(paths.clone())),
+            Event::Notify(n) => drop(self.3.send(n.clone())),
+            _ => {}
         }
         let _ = self.0.send(ev);
     }

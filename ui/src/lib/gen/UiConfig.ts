@@ -97,4 +97,13 @@ awake_tabs: number,
  * The libraries the Library page shows, in this order (`drawings`, `references`, `catalog`…: the core's and the
  * vault's plugins'). Empty: every one the vault has. A work vault might keep `["drawings", "references"]`.
  */
-libraries: Array<string>, };
+libraries: Array<string>, 
+/**
+ * The apps at the top of the left bar (Home, the Library, plugins' panes with `rail = true`) put first, in this
+ * order, by key (`home`, a built-in's or a plugin's id); the others follow in their own order.
+ */
+apps_order: Array<string>, 
+/**
+ * Apps not shown at the top of the left bar (same keys); they still open from the palette and their keys.
+ */
+apps_hidden: Array<string>, };

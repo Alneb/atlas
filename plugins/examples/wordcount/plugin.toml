@@ -4,9 +4,13 @@ title = "Word count"
 description = "a block that counts the words of the note it is in"
 phone = true # runs in the phone apps too (only plugins marked so start there)
 
-[settings]
-# read in main.js as atlas.plugin.settings.goal; editable in Settings → Plugins
-goal = 500
+# read in main.js as atlas.plugin.settings.goal; the vault's value lives in .atlas/plugin-settings/wordcount.toml
+# (Settings → Plugins writes it), never in this manifest: a field's `default` stands in until then
+[[setting]]
+key = "goal"
+label = "Daily goal (words)"
+kind = "number"
+default = 500
 
 # where it runs (PLUGIN-API.md, "Platforms"); a platform not named is untested (Android: only with `phone = true`)
 [platforms]

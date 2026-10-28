@@ -27,7 +27,7 @@ test("the example run tools: Run above a Python file runs it in the terminal", a
   await expect(bar.getByRole("button", { name: "Test" })).toBeVisible();
   await bar.getByRole("button", { name: "Run", exact: true }).click();
   const term = page.locator(".xterm-rows");
-  await expect(term, "the command is there to read").toContainText("python3 'code/answer.py'", { timeout: 15_000 });
+  await expect(term, "the command is there to read").toContainText("python3 code/answer.py", { timeout: 15_000 });
   await expect(term, "and so is what it printed").toContainText("the answer is 42", { timeout: 15_000 });
 });
 
@@ -45,5 +45,27 @@ test("Test offers the file's tests, and runs the one chosen", async ({ page, req
   await expect(palette.getByText("All tests in this file")).toBeVisible();
   await expect(palette.getByText("test_one", { exact: true })).toBeVisible();
   await palette.getByText("TestTwo::test_inner", { exact: true }).click();
-  await expect(page.locator(".xterm-rows")).toContainText("-m pytest 'code/test_pick.py::TestTwo::test_inner'", { timeout: 15_000 });
+  await expect(page.locator(".xterm-rows")).toContainText("-m pytest code/test_pick.py::TestTwo::test_inner", { timeout: 15_000 });
+});
+
+// The words each shell reads back, and what the project files name (main.js's pure part, imported as it is).
+test("commands are written for the terminal's shell, and the project's files are read", async () => {
+  const m = await import(new URL("../../plugins/stable/run-tools/main.js", import.meta.url).href);
+  expect(m.quote("a b")).toBe("'a b'");
+  expect(m.quote("it's", "powershell")).toBe("'it''s'");
+  expect(m.quote("x\"y", "cmd")).toBe("\"x\"\"y\"");
+  expect(m.quote("code/a.py")).toBe("code/a.py");
+  expect(m.line("powershell", "C:\\py env\\python.exe", "x.py")).toBe("& 'C:\\py env\\python.exe' x.py");
+  expect(m.venvPython("powershell", "proj\\.venv")).toBe("proj\\.venv\\Scripts\\python.exe");
+  expect(m.venvPython("posix", ".venv")).toBe(".venv/bin/python");
+  expect(m.makeTargets("all: x\n.PHONY: all\nbuild:\n\tcc\nCC := gcc\n%.o: %.c\ntest:")).toEqual(["all", "build", "test"]);
+  expect(m.justRecipes("build:\n  cargo b\ntest arg=\"x\":\n  t\nset shell := [\"bash\"]\n")).toEqual(["build", "test"]);
+  expect(m.npmScripts('{"scripts":{"dev":"vite","test":"vitest"}}')).toEqual(["dev", "test"]);
+  expect(m.testsIn("a.go", "func TestA(t *testing.T) {}\nfunc helper() {}")).toEqual(["TestA"]);
+  expect(m.testsIn("a.test.js", "test(\"one thing\", () => {})\n  it('two', f)")).toEqual(["one thing", "two"]);
+  // LaTeX: a chapter builds its document, by its own word or the main.tex above it
+  expect(m.texRoot("thesis/ch/one.tex", "% !TEX root = ../main.tex\n\\chapter{x}")).toBe("thesis/main.tex");
+  expect(m.isDocument("% x\n\\documentclass{article}")).toBe(true);
+  expect(m.isDocument("\\chapter{a}")).toBe(false);
+  expect(m.LATEX).toContain("-lualatex");
 });

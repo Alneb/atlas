@@ -4,7 +4,7 @@ title = "copyparty"
 description = "your copyparty file servers in the explorer: browse, open, edit, upload, download"
 icon = "server"
 phone = true # runs in the phone apps too (the books of the server's folders, the explorer's servers)
-version = "0.3.4"
+version = "0.3.5"
 api = 4
 
 [permissions]

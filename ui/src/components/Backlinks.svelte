@@ -2,14 +2,15 @@
   // "Linked mentions" footer under a note (Obsidian's backlinks): the notes that link to it,
   // grouped by note, each with its line. Hidden when nothing links here.
   import { errText } from "../lib/text";
+  import { reloadOnChange } from "../lib/reload-on-change";
   import { shownName } from "../lib/paths";
   import { onMount } from "svelte";
   import { api } from "../lib/api";
-  import { on } from "../lib/bus";
   import { openPath } from "../lib/dock";
   import { toast } from "../lib/state.svelte";
   import type { Backlink } from "../lib/types";
   import Icon from "./Icon.svelte";
+  let box = $state<HTMLElement>();
 
   let { path }: { path: string } = $props();
   let links = $state<Backlink[]>([]);
@@ -56,19 +57,13 @@
 
   onMount(() => {
     void load();
-    let t: ReturnType<typeof setTimeout> | undefined;
-    const off = on("fs", (e) => {
-      // the note's own saves never change who links to it (the core leaves a note's links to itself out)
-      if (!e.paths.some((p) => /\.md$/i.test(p) && p !== path)) return;
-      clearTimeout(t);
-      t = setTimeout(load, 600);
-    });
-    return () => { off(); clearTimeout(t); };
+    // the note's own saves never change who links to it (the core leaves a note's links to itself out)
+    return reloadOnChange(() => void load(), { wait: 600, wants: (p) => /\.md$/i.test(p) && p !== path, host: () => box });
   });
 </script>
 
 {#if links.length || unlinked.length}
-  <section class="backlinks" class:open={expanded}>
+  <section class="backlinks" class:open={expanded} bind:this={box}>
     <button class="head" onclick={toggle} aria-expanded={expanded}>
       <Icon name={expanded ? "chevron-down" : "chevron"} size={12} />
       <Icon name="link" size={13} />

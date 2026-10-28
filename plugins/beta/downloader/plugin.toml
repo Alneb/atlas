@@ -6,8 +6,8 @@
 title = "Downloader"
 description = "captured songs (and anything else you choose) sent to your download service"
 icon = "download"
-version = "0.1.0"
-api = 4
+version = "0.2.0"
+api = 16
 
 [permissions]
 net = ["*"]
@@ -51,7 +51,8 @@ label = "Token (optional)"
 kind = "secret"
 
 [helper]
-run = "python3 -u \"$ATLAS_PLUGIN_DIR/helper.py\""
+js = "helper.js"                   # run in the core (QuickJS), built from helper/helper.ts
+idle = "10m"                       # it only answers: stopped when unused, started again by the next call
 
 [[tool]]
 name = "send"

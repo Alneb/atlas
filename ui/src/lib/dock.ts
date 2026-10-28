@@ -397,6 +397,10 @@ export function open(spec: PaneSpec, opts: { activate?: boolean; beside?: boolea
     ...((opts.beside && besideActive()) || placement(specZone(spec))),
   } as AddPanelOptions<PaneSpec>);
   setOpening(null);
+  // a pane added to a hidden tool panel (a new shell, an SSH session while Ctrl+J hid the terminals) shows it, as
+  // asking again for an open one does; added in the background it stays hidden, its always-rendered content too
+  if (opts.activate !== false) reveal(panel.group);
+  else if (!panel.group.api.isVisible) setContentVisible(panel.group, false);
   return panel.api;
 }
 

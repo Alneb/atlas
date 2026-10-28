@@ -6,13 +6,14 @@ title = "Notifications"
 description = "your server's notifications (ntfy, Apprise), a note per source"
 phone = true
 icon = "bell"
-version = "0.2.0"
-api = 13
+version = "0.3.0"
+api = 16
 
 [helper]
-run = "python3 -u \"$ATLAS_PLUGIN_DIR/notify.py\""
+js = "helper.js"                  # TypeScript in helper/, run in the core (QuickJS): no Python, on the phone too
 
 [permissions]
+net = ["*"]          # the ntfy server and the Apprise address are settings: any host
 secrets = true       # the ntfy sign-in: a password or an access token
 
 [[setting]]

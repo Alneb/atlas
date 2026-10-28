@@ -16,6 +16,14 @@ export function save(key: string, value: unknown): void {
   }
 }
 
+/** A plain string kept as is (not JSON): what a page's inline script reads before the app loads (`atlas.theme`). */
+export function loadRaw(key: string): string | null {
+  try { return localStorage.getItem(key); } catch { return null; }
+}
+export function saveRaw(key: string, value: string): void {
+  try { localStorage.setItem(key, value); } catch { /* storage unavailable */ }
+}
+
 export function drop(key: string): void {
   try { localStorage.removeItem(key); } catch { /* ignore */ }
 }

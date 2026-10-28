@@ -18,8 +18,8 @@ Library (`catalog`).
 
 ## Needs
 
-An Audiobookshelf server, the Library plugin (`requires = ["catalog"]`), and Python 3 on the machine running Atlas's
-server (`helper.py`; standard library only). Requests go through Atlas's core, which adds the token.
+An Audiobookshelf server and the Library plugin (`requires = ["catalog"]`). The helper runs inside Atlas's core
+(`helper.js`, built from `helper/helper.ts`); nothing to install. Requests go through the core, which adds the token.
 
 ## Platforms
 
@@ -27,4 +27,4 @@ Linux works; the others are untested; not in the phone app.
 
 ## Tests
 
-`python3 test_helper.py` (Audiobookshelf's answers, cut down).
+`node scripts/dev/plugin-ui.mjs --check plugins/beta/catalog-audiobookshelf` (Audiobookshelf's answers, cut down).

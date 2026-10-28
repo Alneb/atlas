@@ -46,7 +46,7 @@
     const o = { ...opts };
     const query = q.trim();
     clearTimeout(timer);
-    if (!query) { res = null; return; }
+    if (!query) { ++seq; res = null; busy = false; return; } // a search still answering is now stale
     timer = setTimeout(async () => {
       const my = ++seq;
       busy = true;

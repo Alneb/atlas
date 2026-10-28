@@ -70,7 +70,7 @@ test("a plugin's rows in the tab, editor and file menus, and its cell in the sta
   await page.keyboard.press("F1");
   await page.keyboard.type("Settings");
   await page.getByTestId("palette").getByText("Settings", { exact: true }).first().click();
-  await page.getByRole("button", { name: /Plugins & automation/ }).first().click();
+  await page.getByRole("button", { name: "Plugins", exact: true }).first().click();
   // the list counts them; the plugin's own page lists them
   await page.getByRole("button", { name: "2 problems since Atlas started" }).click();
   const log = page.locator('[data-plugin-log="menus"]');

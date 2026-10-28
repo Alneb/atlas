@@ -18,8 +18,8 @@ Library (`catalog`); it works through the catalog's capture and "Add to the cata
 
 ## Needs
 
-The Library plugin (`requires = ["catalog"]`) and Python 3 on the machine running Atlas's server (the helper,
-`helper.py`; standard library only). Requests go through Atlas's core.
+The Catalog plugin (`requires = ["catalog"]`); nothing installed: the helper is JavaScript run inside Atlas's core
+(`helper.js`, built from `helper/helper.ts`). Requests go through Atlas's core.
 
 ## Platforms
 
@@ -27,4 +27,4 @@ Linux works; the others are untested; not in the phone app.
 
 ## Tests
 
-`python3 test_helper.py` (TMDB's answers, cut down).
+`node scripts/dev/plugin-ui.mjs --check plugins/beta/catalog-tmdb` (`helper/helper.test.ts`, offline).

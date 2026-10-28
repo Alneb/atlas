@@ -5,8 +5,8 @@
 title = "Catalog · Linkwarden"
 description = "every catalogued link also saved in Linkwarden, in its library's collection"
 icon = "link"
-version = "0.2.0"
-api = 4
+version = "0.3.0"
+api = 16
 requires = ["catalog"]
 
 [permissions]
@@ -32,7 +32,8 @@ kind = "list"
 default = ["atlas"]
 
 [helper]
-run = "python3 -u \"$ATLAS_PLUGIN_DIR/helper.py\""
+js = "helper.js"                   # run in the core (QuickJS), built from helper/helper.ts
+idle = "10m"                       # it only answers: stopped when unused, started again by the next call
 
 [[tool]]
 name = "save"

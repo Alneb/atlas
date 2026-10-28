@@ -38,7 +38,9 @@
     grip.setPointerCapture(e.pointerId);
     const move = (m: PointerEvent) => sizeSide(start + from - m.clientY, room());
     grip.addEventListener("pointermove", move);
-    grip.addEventListener("pointerup", () => grip.removeEventListener("pointermove", move), { once: true });
+    const end = () => { grip.removeEventListener("pointermove", move); grip.removeEventListener("pointerup", end); grip.removeEventListener("pointercancel", end); };
+    grip.addEventListener("pointerup", end);
+    grip.addEventListener("pointercancel", end); // a touch taken over by the system ends the drag too
   }
   function nudge(e: KeyboardEvent) {
     if (e.key !== "ArrowUp" && e.key !== "ArrowDown") return;

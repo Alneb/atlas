@@ -67,6 +67,14 @@ error?: string,
  */
 requires: Array<string>, 
 /**
+ * The oldest version of each required plugin it works with, where `requires` names one (`"0.5"`).
+ */
+requires_versions: { [key in string]: string }, 
+/**
+ * The roles it fills (`provides`), as `provider` finds them.
+ */
+provides: Array<string>, 
+/**
  * The AI agents it declares (`[[agent]]`): the terminal + menu and the palette offer a session of each.
  */
 agents: Array<AgentDecl>, 

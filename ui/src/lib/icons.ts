@@ -5,6 +5,7 @@ const P: Record<IconName, string> = {
   user: '<circle cx="12" cy="8" r="4"/><path d="M4.5 20.5a7.5 7.5 0 0 1 15 0"/>',
   plugin: '<path d="M9 3.5v4M15 3.5v4"/><path d="M6 7.5h12v4a6 6 0 0 1-12 0z"/><path d="M12 17.5v3"/>',
   today: '<rect x="3" y="4.5" width="18" height="16.5" rx="2.5"/><path d="M8 2.5v4M16 2.5v4M3 10h18"/><path d="M8.5 15l2.3 2.3L15.5 12.8"/>',
+  home: '<path d="M3.5 10.5 12 3.5l8.5 7"/><path d="M5.5 9v10a2 2 0 0 0 2 2h9a2 2 0 0 0 2-2V9"/><path d="M10 21v-5.5h4V21"/>',
   files: '<path d="M4 6.5A2.5 2.5 0 0 1 6.5 4h3.3l2 2.2h5.7A2.5 2.5 0 0 1 20 8.7v8.8a2.5 2.5 0 0 1-2.5 2.5h-11A2.5 2.5 0 0 1 4 17.5z"/>',
   search: '<circle cx="11" cy="11" r="6.5"/><path d="m20 20-4.3-4.3"/>',
   lecture: '<path d="M2.5 6.5 12 3l9.5 3.5L12 10z"/><path d="M6 8.3v5.2c0 1.4 2.7 3 6 3s6-1.6 6-3V8.3"/><path d="M21.5 6.5v6"/>',

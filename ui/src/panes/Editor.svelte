@@ -5,6 +5,7 @@
   import { errText } from "../lib/text";
   import { inPhoneApp } from "../lib/eink";
   import { shownName, shownPath } from "../lib/paths";
+  import { keepRecovery as rescueCopy, recoveryPath } from "../lib/recovery";
   import { openLintPanel } from "@codemirror/lint";
   import { workspaceSymbols } from "../lib/editor/lsp";
   import { settings } from "../lib/settings.svelte";
@@ -72,7 +73,7 @@
   const markDirty = () => setDirty(panel.id, current() !== saved);
   // "dont autosave code files, but keep a temporary one just in case"
   const autosave = () => isMarkdown(path) || (settings.config?.editor.autosave_code ?? false);
-  const RECOVERY = `.atlas/cache/recovery/${path}`;
+  const RECOVERY = recoveryPath(path);
   let parked = false; // the tab is going away with unsaved text (park)
   let blameOn = false; // git blame shown beside the lines (toggleBlame)
   let rescued = false; // text that could not be saved was put in the recovery copy (rescue)
@@ -155,8 +156,7 @@
   /** The tab closed with text that could not be saved: kept in the recovery copy, offered back when the note opens. */
   function rescue(text: string) {
     rescued = true;
-    void api.putFile(RECOVERY, text).catch(() => {});
-    toast(`${shownPath(path)} could not be saved`, "Its text is kept: open the note again to get it back.", "error", 12000);
+    void rescueCopy(path, text, "Its text is kept: open the note again to get it back.");
   }
 
   /** Shared live with the other devices that open the note (in a mirrored vault, the core splices the room to the server's). */

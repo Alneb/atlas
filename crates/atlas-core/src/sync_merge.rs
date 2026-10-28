@@ -3,6 +3,7 @@
 //! and the other as `name.sync-conflict-<date>-<time>-<device>.ext`. The core merges the two against the base (the last
 //! version both had, kept by mirror_guard.rs at each leased write) line by line, writes the result (with a lease) and
 //! moves the conflict copy to `.atlas/trash/`. Only when both sides changed the same lines is it left for the user.
+use crate::api::{Notice, NoticeLevel};
 use crate::events::EventBus;
 use crate::{mirror_guard, pdf_marks, vault_write, Workspace};
 use std::path::Path;
@@ -103,8 +104,11 @@ pub enum Settled {
     Merged,
     /// the copy said what the file says: trashed
     Same,
-    /// left for the user (both changed the same lines, no base, not text, or the write was refused for now)
+    /// left for the user (both changed the same lines, no base, not text, the file gone)
     Left(String),
+    /// merged, but the write was refused for now (another device holds the lease, or this copy is behind: the other
+    /// side's core is likely settling the same copy): tried again a little later, the user not told yet
+    Later(String),
 }
 
 /// The settled copy into `.atlas/trash/<stamp>/` (synced like the vault: the other device sees it there too), never the
@@ -123,7 +127,9 @@ fn by_lines(rel: &str) -> bool {
 pub fn settle(ws: &Workspace, copy: &str) -> crate::Result<Settled> {
     let Some(orig) = original_of(copy) else { return Ok(Settled::Left("not a conflict copy".into())) };
     let read = |rel: &str| std::fs::read(ws.resolve(rel)?).map_err(crate::Error::from);
-    let (theirs, ours) = (read(copy)?, read(&orig).unwrap_or_default());
+    let theirs = read(copy)?;
+    // the file deleted or renamed since: merging into nothing would bring it back with half its text
+    let Ok(ours) = read(&orig) else { return Ok(Settled::Left(format!("{orig} is not there any more"))) };
     if theirs == ours {
         to_trash(ws, copy)?;
         return Ok(Settled::Same);
@@ -156,7 +162,7 @@ pub fn settle(ws: &Workspace, copy: &str) -> crate::Result<Settled> {
         Merged::Clashed => Ok(Settled::Left("both sides changed the same lines".into())),
         Merged::Clean(text) => {
             if let Err(e) = vault_write::write(&ws.resolve(&orig)?, text.as_bytes()) {
-                return Ok(Settled::Left(format!("the merge was not written yet: {e}")));
+                return Ok(Settled::Later(format!("the merge was not written yet: {e}")));
             }
             to_trash(ws, copy)?;
             Ok(Settled::Merged)
@@ -185,42 +191,78 @@ fn all_copies(root: &Path) -> Vec<String> {
         .collect()
 }
 
-/// Settles `copy` and logs what was done; `Some(why)` when it is left for the user.
-fn settle_logged(ws: &Workspace, copy: &str) -> Option<String> {
+/// Settles `copy` and logs what was done; `None` when nothing is left to do.
+fn settle_logged(ws: &Workspace, copy: &str) -> Option<Settled> {
     match settle(ws, copy) {
         Ok(Settled::Merged) => eprintln!("atlas: sync: {copy} merged into {}", original_of(copy).unwrap_or_default()),
         Ok(Settled::Same) => eprintln!("atlas: sync: {copy} was the same text; trashed"),
-        Ok(Settled::Left(why)) => return Some(why),
+        Ok(left @ (Settled::Left(_) | Settled::Later(_))) => return Some(left),
         Err(e) => eprintln!("atlas: sync: {copy}: {e}"),
     }
     None
 }
 
-/// A copy that arrived while Atlas runs: the user is told at once (the two versions side by side in its note).
-fn settle_arrived(ws: &Workspace, bus: &EventBus, copy: &str) {
-    let Some(why) = settle_logged(ws, copy) else { return };
+/// How often, and how far apart, a merge whose write was refused is tried again before the user is told.
+const RETRIES: u32 = 6;
+const RETRY_AFTER: std::time::Duration = std::time::Duration::from_secs(5);
+
+/// The user is told of a copy left for them (the two versions side by side in its note).
+fn tell(bus: &EventBus, copy: &str, why: &str) {
     eprintln!("atlas: sync: {copy} left for the user: {why}");
     let orig = original_of(copy).unwrap_or_default();
-    bus.publish(crate::api::Event::Notify {
-        title: format!("{orig}: two versions to settle"),
-        body: Some(format!("Syncthing kept the other device's version as {copy} ({why}). Keep what you want in {orig}, then delete the copy.")),
+    let notice = Notice::new(format!("{orig}: two versions to settle"))
+        .body(format!("Syncthing kept the other device's version as {copy} ({why}). Keep what you want in {orig}, then delete the copy."));
+    bus.publish(crate::api::Event::Notify(notice.source("sync").level(NoticeLevel::Warning).open(orig.as_str()).id(format!("sync:{copy}"))));
+}
+
+/// A copy that arrived while Atlas runs: settled, or the user told at once; `Some` when it is to be tried again.
+fn settle_arrived(ws: &Workspace, bus: &EventBus, copy: &str) -> Option<String> {
+    match settle_logged(ws, copy)? {
+        Settled::Later(_) => Some(copy.to_string()),
+        Settled::Left(why) => {
+            tell(bus, copy, &why);
+            None
+        }
+        Settled::Merged | Settled::Same => None,
+    }
+}
+
+/// A refused merge, again after [`RETRY_AFTER`] — unless the copy went meanwhile (the other side's core settled it and
+/// Syncthing brought that over). Out of tries, the user is told.
+fn retry_later(ws: Workspace, bus: EventBus, copy: String, tries: u32) {
+    tokio::spawn(async move {
+        tokio::time::sleep(RETRY_AFTER).await;
+        let (w, c) = (ws.clone(), copy.clone());
+        let again = tokio::task::spawn_blocking(move || if w.root().join(&c).is_file() { settle_logged(&w, &c) } else { None }).await;
+        match again {
+            Ok(Some(Settled::Later(_))) if tries > 1 => retry_later(ws, bus, copy, tries - 1),
+            Ok(Some(Settled::Later(why) | Settled::Left(why))) => tell(&bus, &copy, &why),
+            _ => {}
+        }
     });
 }
 
 /// The copies found at start, mostly older than the bases a merge needs: the ones left make one line and one notice,
-/// not one each (each note still shows its copies side by side when opened).
-fn settle_found(ws: &Workspace, bus: &EventBus) {
-    let left: Vec<String> = all_copies(ws.root()).into_iter().filter(|c| settle_logged(ws, c).is_some()).collect();
+/// not one each (each note still shows its copies side by side when opened). Returns the ones to try again.
+fn settle_found(ws: &Workspace, bus: &EventBus) -> Vec<String> {
+    let (mut left, mut later) = (Vec::new(), Vec::new());
+    for c in all_copies(ws.root()) {
+        match settle_logged(ws, &c) {
+            Some(Settled::Later(_)) => later.push(c),
+            Some(_) => left.push(c),
+            None => {}
+        }
+    }
     if left.is_empty() {
-        return;
+        return later;
     }
     let some = left.iter().take(5).cloned().collect::<Vec<_>>().join(", ");
     let more = if left.len() > 5 { format!(" and {} more", left.len() - 5) } else { String::new() };
     eprintln!("atlas: sync: {} conflict copies left for the user (no base or the same lines changed): {some}{more}", left.len());
-    bus.publish(crate::api::Event::Notify {
-        title: format!("{} Syncthing conflict copies to settle", left.len()),
-        body: Some(format!("{some}{more}. Each note shows its copy side by side when opened; keep what you want, then delete the copy.")),
-    });
+    let notice = Notice::new(format!("{} Syncthing conflict copies to settle", left.len()))
+        .body(format!("{some}{more}. Each note shows its copy side by side when opened; keep what you want, then delete the copy."));
+    bus.publish(crate::api::Event::Notify(notice.source("sync").level(NoticeLevel::Warning).id("sync:copies")));
+    later
 }
 
 /// Watches the vault for conflict copies (and settles the ones already there) for as long as the vault is served.
@@ -228,7 +270,8 @@ pub fn spawn(ws: Workspace, bus: EventBus) -> tokio::task::JoinHandle<()> {
     let mut rx = bus.on_fs();
     tokio::spawn(async move {
         let (first, b) = (ws.clone(), bus.clone());
-        let _ = tokio::task::spawn_blocking(move || settle_found(&first, &b)).await;
+        let later = tokio::task::spawn_blocking(move || settle_found(&first, &b)).await.unwrap_or_default();
+        later.into_iter().for_each(|c| retry_later(ws.clone(), bus.clone(), c, RETRIES));
         loop {
             let paths = match rx.recv().await {
                 Ok(paths) => paths,
@@ -239,8 +282,9 @@ pub fn spawn(ws: Workspace, bus: EventBus) -> tokio::task::JoinHandle<()> {
             if copies.is_empty() {
                 continue;
             }
-            let (ws, b) = (ws.clone(), bus.clone());
-            let _ = tokio::task::spawn_blocking(move || copies.iter().filter(|c| ws.root().join(c).is_file()).for_each(|c| settle_arrived(&ws, &b, c))).await;
+            let (w, b) = (ws.clone(), bus.clone());
+            let later = tokio::task::spawn_blocking(move || copies.iter().filter(|c| w.root().join(c).is_file()).filter_map(|c| settle_arrived(&w, &b, c)).collect::<Vec<_>>()).await;
+            later.unwrap_or_default().into_iter().for_each(|c| retry_later(ws.clone(), bus.clone(), c, RETRIES));
         }
     })
 }
@@ -333,6 +377,43 @@ mod tests {
         let note = std::fs::read_to_string(d.path().join("x.md")).unwrap();
         assert_eq!(pdf_marks::read(&note).live().len(), 2, "{note}");
         assert!(note.starts_with("# x\n\nmy words\n"), "{note}");
+    }
+
+    #[test]
+    fn a_copy_of_a_file_gone_since_is_left_not_merged_into_an_empty_one() {
+        let d = tempfile::tempdir().unwrap();
+        let ws = Workspace::open(d.path()).unwrap();
+        let copy = "log.sync-conflict-20261020-231529-H3IIIUW.md";
+        std::fs::create_dir_all(d.path().join(".atlas/cache/sync-base")).unwrap();
+        std::fs::write(d.path().join(".atlas/cache/sync-base/log.md"), "a\nb\n").unwrap();
+        std::fs::write(d.path().join(copy), "a\nb\n").unwrap(); // the base: "ours" (no file) would win as an empty text
+        assert!(matches!(settle(&ws, copy).unwrap(), Settled::Left(_)));
+        assert!(!d.path().join("log.md").exists(), "not brought back");
+        assert!(d.path().join(copy).exists());
+    }
+
+    #[test]
+    fn a_merge_whose_write_is_refused_for_now_is_tried_again_not_left() {
+        struct Behind;
+        impl vault_write::WriteGuard for Behind {
+            fn before(&self, _: &str, _: &vault_write::WriteKind, _: Option<vault_write::ContentHash>) -> crate::Result<()> {
+                Err(crate::Error::Conflict { current: None })
+            }
+            fn after(&self, _: &str, _: &vault_write::WriteKind, _: Option<vault_write::ContentHash>) {}
+        }
+        let d = tempfile::tempdir().unwrap();
+        let ws = Workspace::open(d.path()).unwrap();
+        let copy = "log.sync-conflict-20261020-231529-H3IIIUW.md";
+        std::fs::create_dir_all(d.path().join(".atlas/cache/sync-base")).unwrap();
+        std::fs::write(d.path().join(".atlas/cache/sync-base/log.md"), "a\nb\n").unwrap();
+        std::fs::write(d.path().join("log.md"), "a (here)\nb\n").unwrap();
+        std::fs::write(d.path().join(copy), "a\nb\nc (there)\n").unwrap();
+        ws.set_write_guard(std::sync::Arc::new(Behind));
+        let got = settle(&ws, copy);
+        ws.clear_write_guard();
+        assert!(matches!(got.unwrap(), Settled::Later(_)));
+        assert!(d.path().join(copy).exists());
+        assert_eq!(std::fs::read_to_string(d.path().join("log.md")).unwrap(), "a (here)\nb\n");
     }
 
     #[test]

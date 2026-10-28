@@ -6,8 +6,8 @@
 title = "OCR"
 description = "the text in captured screenshots, read on this machine and kept under them"
 icon = "image"
-version = "0.2.0"
-api = 4
+version = "0.2.1"
+api = 15
 
 [permissions]
 net = ["raw.githubusercontent.com"]
@@ -15,6 +15,7 @@ net = ["raw.githubusercontent.com"]
 [helper]
 # built by engine/build.sh: one binary per platform
 run = "\"$ATLAS_PLUGIN_DIR/bin/$ATLAS_PLUGIN_TARGET/ocr\""
+idle = "10m"                       # it only answers: stopped when unused, started again by the next call
 
 [[tool]]
 name = "read"

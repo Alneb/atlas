@@ -46,6 +46,7 @@ pub struct Config {
     pub plugins: PluginsConfig,
     pub notes: NotesConfig,
     pub web: WebConfig,
+    pub notifications: NotificationsConfig,
 }
 
 /// What the keys every other program uses do while vim is on.
@@ -344,6 +345,11 @@ pub struct UiConfig {
     /// The libraries the Library page shows, in this order (`drawings`, `references`, `catalog`…: the core's and the
     /// vault's plugins'). Empty: every one the vault has. A work vault might keep `["drawings", "references"]`.
     pub libraries: Vec<String>,
+    /// The apps at the top of the left bar (Home, the Library, plugins' panes with `rail = true`) put first, in this
+    /// order, by key (`home`, a built-in's or a plugin's id); the others follow in their own order.
+    pub apps_order: Vec<String>,
+    /// Apps not shown at the top of the left bar (same keys); they still open from the palette and their keys.
+    pub apps_hidden: Vec<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS, JsonSchema)]
@@ -627,6 +633,32 @@ pub enum WebLinks {
     Browser,
 }
 
+/// When a notice (a failed schedule, a filed capture, a conflict copy, a plugin's word) also reaches the system's
+/// notifications, outside Atlas's window.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, TS, JsonSchema)]
+#[serde(rename_all = "lowercase")]
+#[ts(export)]
+pub enum SystemNotices {
+    /// Never: notices are only Atlas's own toasts.
+    Off,
+    /// Only failures (a scheduled job, a capture hook), whether or not Atlas is being looked at.
+    Failures,
+    /// When no window of Atlas is visible and focused, and failures always.
+    #[default]
+    Away,
+    /// Every notice, also while you are looking at Atlas.
+    Always,
+}
+
+/// Notices (docs/design/DESIGN-notifications.md).
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, TS, JsonSchema)]
+#[serde(default)]
+#[ts(export)]
+pub struct NotificationsConfig {
+    /// When a notice also shows as a system notification (the desktop's, the phone's).
+    pub system: SystemNotices,
+}
+
 /// The web: links, and ad blocking in Atlas's browsing windows (docs/design/WEB-WINDOWS.md).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS, JsonSchema)]
 #[serde(default)]
@@ -888,13 +920,14 @@ impl Default for Config {
             plugins: PluginsConfig::default(),
             notes: NotesConfig::default(),
             web: WebConfig::default(),
+            notifications: NotificationsConfig::default(),
         }
     }
 }
 
 impl Default for UiConfig {
     fn default() -> Self {
-        Self { theme: Theme::System, vscode_theme: String::new(), accent: String::new(), ui_font: String::new(), font_size: 14, gpu_rendering: GpuRendering::Auto, css_snippets_off: Vec::new(), tabs: TabsLayout::Vertical, side_panel: SidePanelPlace::Dock, motion: Motion::default(), eink: Eink::Auto, eink_refresh: EinkRefresh::Often, restore_layout: true, tab_preview: true, tab_switcher: TabSwitcher::Glance, sleep_after_min: 10, awake_tabs: 8, libraries: Vec::new() }
+        Self { theme: Theme::System, vscode_theme: String::new(), accent: String::new(), ui_font: String::new(), font_size: 14, gpu_rendering: GpuRendering::Auto, css_snippets_off: Vec::new(), tabs: TabsLayout::Vertical, side_panel: SidePanelPlace::Dock, motion: Motion::default(), eink: Eink::Auto, eink_refresh: EinkRefresh::Often, restore_layout: true, tab_preview: true, tab_switcher: TabSwitcher::Glance, sleep_after_min: 10, awake_tabs: 8, libraries: Vec::new(), apps_order: Vec::new(), apps_hidden: Vec::new() }
     }
 }
 

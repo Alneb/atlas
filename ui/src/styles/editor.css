@@ -94,7 +94,9 @@
 .markdown .cm-list-6 { padding-left: 168px !important; }
 .markdown .cm-list-mark { display: inline-block; width: 28px; box-sizing: border-box; text-align: right; padding-right: 9px; color: var(--text-faint); text-indent: 0; }
 .markdown .cm-list-mark-ordered { color: var(--text-muted); font-variant-numeric: tabular-nums; }
-.markdown .cm-task-mark { margin-right: .5em; text-indent: 0; vertical-align: baseline; }
+/* a task's box in the bullet's 28px column, ending where a bullet ends (9px before the text): a list mixing to-dos and
+   plain items keeps one text edge */
+.markdown .cm-task-mark { margin: 0 9px 0 calc(19px - 1em); text-indent: 0; vertical-align: baseline; }
 .markdown .cm-line:has(.cm-task-mark:checked) { color: var(--text-muted); }
 
 /* blocks rendered by markdown-it inside the editor (tables, fences, $$, embeds) */
@@ -175,8 +177,18 @@
   background: var(--bg); border: 2px solid var(--accent); box-sizing: border-box; }
 .cm-log-time { position: absolute; left: 4px; width: 48px; text-align: right; font-size: .82em; font-variant-numeric: tabular-nums;
   color: var(--text-muted); font-weight: 500; line-height: inherit; }
-/* an untimed item (a to-do) on the timeline: a small filled dot, no time */
+/* an untimed item on the timeline: a small filled dot, no time */
 .cm-log-entry.cm-log-untimed::after { left: 61px; top: calc(var(--dot) - 3px); width: 6px; height: 6px; border: 0; background: color-mix(in srgb, var(--accent) 45%, transparent); }
+/* a task on the timeline: its box takes the dot's place (centred on the line, at the dot's height); its text at the
+   entries' edge */
+.cm-log-entry:has(.cm-task-mark)::after { display: none; }
+.markdown .cm-log-entry .cm-task-mark { position: absolute; left: calc(64px - .5em); top: calc(var(--dot) - .5em); margin: 0; transform: none;
+  background: var(--bg); }
+.markdown .cm-log-entry .cm-task-mark:checked { background: var(--accent); }
+/* a dismissed capture ([-], Obsidian Tasks' cancelled): struck through and quiet, its box a dash */
+.markdown .cm-line:has(.cm-task-mark[data-task="-"]) { text-decoration: line-through; text-decoration-color: var(--text-faint); }
+.markdown .cm-task-mark[data-task="-"]:checked { background: var(--text-faint); border-color: var(--text-faint); }
+.markdown .cm-task-mark[data-task="-"]:checked::after { width: .5em; height: 0; border-width: 0 0 2px 0; transform: none; }
 /* an entry's own lines under it (a capture's picture, its file): on the timeline, the embeds as thumbnails */
 .markdown .cm-line.cm-log-more { position: relative; padding-left: 86px !important; text-indent: 0; padding-bottom: 3px; }
 .cm-log-more::before { content: ""; position: absolute; left: 63px; top: 0; bottom: 0; width: 2px; background: color-mix(in srgb, var(--accent) 30%, transparent); }

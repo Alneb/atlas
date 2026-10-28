@@ -161,7 +161,7 @@
     const events = connectEvents(emit, (s) => (app.conn = s));
     const offs = [
       on("open", (e) => openPath(e.path, e.line)),
-      on("notify", (e) => toast(e.title, e.body)),
+      on("notify", (e) => toast(e.title, e.body, e.level === "failure" ? "error" : e.level === "success" ? "success" : "info")),
       on("focus", (e) => focusPane(e.pane)),
       on("fs", (e) => e.paths.forEach(invalidate)),
       on("fs", (e) => { if (e.paths.includes(settings.path)) loadSettings().catch(() => {}); }),

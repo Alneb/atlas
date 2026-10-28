@@ -1,24 +1,40 @@
-# Run tools for code files: buttons in the bar above a Python, Rust or LaTeX file that run it in
-# the terminal — where the output is, and where ↑ runs it again. Copy into a vault's .atlas/plugins/.
+# Run tools for code files: buttons in the bar above a code file that run, test or build it in the terminal —
+# where the output is, and where ↑ runs it again. What a file gets comes from the file and the project around it.
 title = "Run tools"
-description = "Run / test buttons above Python, Rust and LaTeX files"
+description = "Run, test, build and project tasks above code files: Python, Rust, Go, JavaScript / TypeScript, C / C++, Julia, shell, LaTeX"
 icon = "terminal"
-version = "0.2.0"
-api = 4
+version = "0.3.0"
+api = 17             # atlas.terminal.shell(): each command written for the terminal's own shell
 
 [[setting]]
 key = "python"
 label = "Python"
 kind = "text"
-hint = "the interpreter to run .py files with; empty: the vault's Python environment (Python: choose the environment), else a .venv beside the file or above it, else python3. For conda: conda run -n myenv python"
+hint = "the interpreter for .py files, typed as it is; empty: the vault's Python environment (Python: choose the environment), else uv when a uv.lock is above the file, else a .venv beside or above it, else python3 (python on Windows). For conda: conda run -n myenv python"
+
+[[setting]]
+key = "node"
+label = "Node"
+kind = "text"
+hint = "the program that runs .js / .ts files (and their tests); empty: node"
+
+[[setting]]
+key = "julia"
+label = "Julia"
+kind = "text"
+hint = "the program that runs .jl files; empty: julia"
 
 [[setting]]
 key = "latex"
 label = "LaTeX"
 kind = "text"
-hint = "the command that builds a .tex file"
-default = "latexmk -pdf -interaction=nonstopmode"
+hint = "the command that builds a .tex file (the whole document: its % !TEX root, else the nearest main.tex above a chapter); -cd and the file are added, -pvc for Watch, -c for Clean"
+default = "latexmk -lualatex -interaction=nonstopmode -file-line-error -synctex=1"
 
 # where it runs (PLUGIN-API.md, "Platforms"); a platform not named is untested (Android: only with `phone = true`)
 [platforms]
 linux = "works"
+macos = { support = "untested", why = "the same POSIX commands as on Linux" }
+windows = { support = "untested", why = "commands written for PowerShell or cmd (quoting, .venv\\Scripts\\python.exe); not tried on Windows yet" }
+android = { support = "no", why = "the phone app has no shell terminal" }
+server = { support = "untested", why = "the terminal runs on the server, so the server must have the tools" }

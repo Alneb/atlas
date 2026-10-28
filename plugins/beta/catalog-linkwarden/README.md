@@ -18,8 +18,8 @@ your Linkwarden. A subplugin of the Library (`catalog`).
 
 ## Needs
 
-A Linkwarden server, the Library plugin (`requires = ["catalog"]`), and Python 3 on the machine running Atlas's server
-(`helper.py`). Requests go through Atlas's core, which adds the token.
+A Linkwarden server and the Catalog plugin (`requires = ["catalog"]`); nothing installed: the helper is JavaScript run
+inside Atlas's core (`helper.js`, built from `helper/helper.ts`). Requests go through Atlas's core, which adds the token.
 
 ## Platforms
 
@@ -27,4 +27,5 @@ Linux works; the others are untested; not in the phone app.
 
 ## Tests
 
-`ui/tests/example-links.spec.ts` (the block).
+`ui/tests/example-links.spec.ts` (the block); `node scripts/dev/plugin-ui.mjs --check plugins/beta/catalog-linkwarden`
+(what Linkwarden is sent: `helper/helper.test.ts`).

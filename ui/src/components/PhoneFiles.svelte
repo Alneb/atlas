@@ -15,6 +15,8 @@
   import { app } from "../lib/state.svelte";
   import type { TreeEntry } from "../lib/types";
   import Icon from "./Icon.svelte";
+  import { openExplorer } from "../lib/file-sources.svelte";
+  import { placesOf, servers, wantPlaces } from "../lib/remote-tree.svelte";
 
   let { oncontext, onnewfile, onnewfolder }: { oncontext: (e: MouseEvent) => void; onnewfile: (dir: string) => void; onnewfolder: (dir: string) => void } = $props();
 
@@ -51,6 +53,10 @@
   // Back goes up a folder before it leaves Files (lib/back.ts)
   // only while Files is on screen: it stays mounted behind an open note, where Back is the note's (lib/back.ts)
   $effect(() => { if (dir || trail.length) { void dir; return closable(() => (dir = trail.pop() ?? parentOf(dir)), () => onScreen(root)); } });
+
+  // the servers (copyparty, SSH) under the vault's top folder, each place a row into the explorer there (lib/remote-tree)
+  $effect(() => { void servers().length; wantPlaces(); });
+  const serverPlaces = $derived(servers().flatMap((s) => (placesOf.get(s.id) ?? []).map((p) => ({ s, p }))));
 
   // a files list shows the real names, extensions too
   const label = (e: TreeEntry) => e.name;
@@ -104,6 +110,16 @@
       </button>
     {/each}
     {#if !error && !sorted.length}<p class="empty">This folder is empty.</p>{/if}
+    {#if !dir && serverPlaces.length}
+      <p class="group">Servers</p>
+      {#each serverPlaces as { s, p } (`${s.id}\n${p.id}`)}
+        <button class="row" onclick={() => openExplorer(s.id, p.id)} title={p.detail}>
+          <span class="icon"><Icon name="server" size={22} /></span>
+          <span class="words"><span class="name">{p.title}</span><span class="detail">{s.title}{p.detail ? ` · ${p.detail}` : ""}</span></span>
+          <span class="go"><Icon name="chevron" size={16} /></span>
+        </button>
+      {/each}
+    {/if}
   </div>
 </div>
 
@@ -132,5 +148,6 @@
   .name { font-size: calc(16px * var(--ui-scale, 1)); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .detail { font-size: calc(13px * var(--ui-scale, 1)); color: var(--text-faint); }
   .go { color: var(--text-faint); flex: none; }
+  .group { margin: 18px 12px 4px; font-size: calc(13px * var(--ui-scale, 1)); font-weight: 600; color: var(--text-faint); text-transform: uppercase; letter-spacing: .04em; }
   .empty { padding: 32px 16px; text-align: center; color: var(--text-faint); }
 </style>

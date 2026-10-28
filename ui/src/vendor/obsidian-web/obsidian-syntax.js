@@ -404,3 +404,28 @@ export const obsidianMarkdown = [
   Icon,
   obsidianHighlighting,
 ];
+
+/**
+ * Atlas: a task box with any one status, as Obsidian reads it -- `[-]` (cancelled), `[/]`, `[>]`… -- and not only
+ * GFM's `[ ]` / `[x]`. Gives the same `Task` / `TaskMarker` nodes as GFM's TaskList, so it needs GFM's nodes (the
+ * editor's `markdownLanguage`) and runs before it.
+ */
+class AnyTaskParser {
+  nextLine() { return false; }
+  finish(cx, leaf) {
+    cx.addLeafElement(leaf, cx.elt("Task", leaf.start, leaf.start + leaf.content.length, [
+      cx.elt("TaskMarker", leaf.start, leaf.start + 3),
+      ...cx.parser.parseInline(leaf.content.slice(3), leaf.start + 3),
+    ]));
+    return true;
+  }
+}
+export const AnyTaskStatus = {
+  parseBlock: [{
+    name: "AnyTaskStatus",
+    before: "TaskList",
+    leaf(cx, leaf) {
+      return /^\[[^ xX\]\n\\]\][ \t]/.test(leaf.content) && cx.parentType().name == "ListItem" ? new AnyTaskParser() : null;
+    },
+  }],
+};

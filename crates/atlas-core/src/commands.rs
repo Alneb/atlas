@@ -276,7 +276,7 @@ pub async fn run(ws: &Workspace, bus: &EventBus, cmd: Command) -> Result<Value> 
                 let n = bus.emit(Event::Open { path: ws.rel(&abs), line })?;
                 Ok(json!({ "delivered": n }))
             }
-            Builtin::Notify { title, body } => Ok(json!({ "delivered": bus.emit(Event::Notify { title, body })? })),
+            Builtin::Notify { title, body } => Ok(json!({ "delivered": bus.emit(Event::Notify(crate::api::Notice { title, body, ..Default::default() }))? })),
             Builtin::Focus { pane } => Ok(json!({ "delivered": bus.emit(Event::Focus { pane })? })),
             Builtin::Today {} => {
                 let ws = ws.clone();

@@ -31,8 +31,12 @@ shares.
 JPEG; pictures always, videos and PDFs when the server has the tools for them) and keeps it in the plugin's cache;
 when copyparty answers with an icon instead, the file's own icon shows.
 
-A gateway in front of copyparty (Authelia) answers with its sign-in page: the listing says the folder "did not answer
-with a folder listing". The user's server is reached over the VPN with no sign-in.
+A gateway in front of copyparty (Authelia and the like): Atlas offers its sign-in, and the listing (and a save) waits
+for it — "sign in to <host> first" — instead of failing (0.3.5); once signed in, open the folder again.
+
+**Also in the tree** and **offline**: the servers show under the vault's rows in the side panel (and on the phone's
+Files), folded until opened; a file opened before opens from the copy fetched last time when the server is out of
+reach, with a notice. Both are Atlas's, for every file source (DEVELOPING.md, the explorer).
 
 Tests: `ui/tests/example-copyparty.spec.ts` against `scripts/vault/tests/fake_copyparty.py` (the same calls on a local folder,
 with a password, an address naming a folder of the server, names with accents and spaces).

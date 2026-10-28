@@ -10,6 +10,13 @@
   import type { Kept } from "../../lib/gen/Kept";
   import type { OidcSignin } from "../../lib/gen/OidcSignin";
   import { openServiceSignin } from "../../lib/service-signin";
+  import { leaves } from "../../lib/settings-schema";
+  import { settings } from "../../lib/settings.svelte";
+  import SettingField from "./SettingField.svelte";
+
+  // the provider plugins sign in with: the config fields only this panel shows (settings-pages.ts HIDDEN)
+  const OIDC = ["plugins.oidc_issuer", "plugins.oidc_client_id", "plugins.oidc_redirect"];
+  const oidc = $derived.by(() => { void settings.schema; const all = leaves(); return OIDC.flatMap((p) => { const s = all.get(p); return s ? [{ path: p, schema: s }] : []; }); });
 
   let kept = $state<Kept[]>([]);
   let tokens = $state<OidcSignin[]>([]);
@@ -65,6 +72,7 @@
       {/each}
     </ul>
   {:else if !error}<p class="muted">None yet — the first plugin that needs a token asks once.</p>{/if}
+  {#each oidc as f (f.path)}<SettingField path={f.path} schema={f.schema} />{/each}
   <form class="ahead" onsubmit={(e) => { e.preventDefault(); signInAt(); }}>
     <input placeholder="links.example.org — a service behind the sign-in" bind:value={address} aria-label="Sign in at a service's address" />
     <button class="btn" type="submit" disabled={!address.trim()}>Sign in</button>

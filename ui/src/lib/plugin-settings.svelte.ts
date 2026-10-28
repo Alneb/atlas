@@ -7,6 +7,7 @@ import { toast } from "./state.svelte";
 import { plugins, loadPlugins, runPluginCommand, type Plugin } from "./plugins.svelte";
 import { secretHint, type OptionField } from "./block-options";
 import { openSettingsAt, pluginPageId } from "./settings-nav.svelte";
+import { openPath } from "./dock";
 import type { SettingField } from "./gen/SettingField";
 
 /** The group `advanced = true` fields fold into, closed, at the end of the form. */
@@ -19,6 +20,19 @@ export async function openPluginSettings(id: string): Promise<void> {
   const p = plugins.list.find((x) => x.id === id);
   if (!p) return toast("Settings", `No plugin ${id} in this vault.`, "error");
   openSettingsAt(pluginPageId(id));
+}
+
+/** Where a vault keeps a plugin's settings values (core: plugins.rs SETTINGS_DIR) — not its plugin.toml, which is the
+ *  plugin's own manifest and only holds the starting values. */
+export const pluginSettingsFile = (id: string) => `.atlas/plugin-settings/${id}.toml`;
+
+/** The settings as text: the vault's file, made (empty, with a line saying what it is) the first time it is asked for. */
+export async function openPluginSettingsText(p: Plugin): Promise<void> {
+  const path = pluginSettingsFile(p.id);
+  try {
+    if (!(await api.exists(path))) await api.putFile(path, `# ${p.title}'s settings in this vault (Settings → Plugins → ${p.title} writes here; a key missing takes the plugin's default)\n`);
+    openPath(path);
+  } catch (e) { toast(`${p.title}: settings not opened`, errText(e), "error"); }
 }
 
 /** The names of a plugin's stored secrets (never their values). */

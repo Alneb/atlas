@@ -66,7 +66,7 @@ test("a plugin's declared settings are a form; saving writes plugin.toml and the
   await page.keyboard.press("F1");
   await page.keyboard.type("Settings");
   await page.getByTestId("palette").getByText("Settings", { exact: true }).first().click();
-  await page.getByRole("button", { name: /Plugins & automation/ }).first().click();
+  await page.getByRole("button", { name: "Plugins", exact: true }).first().click();
   await expect(page.locator("li", { hasText: "Dice" }).getByText("v0.2.0")).toBeVisible();
   await page.getByRole("button", { name: "Settings of Dice" }).click();
   const form = page.getByRole("form", { name: /Dice — settings/ });
@@ -94,7 +94,7 @@ test("a plugin's declared settings are a form; saving writes plugin.toml and the
 
   await expect(cell, "the plugin was reloaded with the new values").toHaveText("d12 dnd5e loud");
   // its row in the list names what was changed, not the defaults (2026-10-20: every value printed made a paragraph per plugin)
-  await page.getByRole("button", { name: /Plugins & automation/ }).first().click();
+  await page.getByRole("button", { name: "Plugins", exact: true }).first().click();
   const row = page.locator("li", { hasText: "Dice" }).locator(".props");
   await expect(row).toContainText(/Announce every roll\s*on/);
   await expect(row).not.toContainText("dnd5e");

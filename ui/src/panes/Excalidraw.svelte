@@ -11,8 +11,7 @@
   import type { PaneProps } from "../lib/dock";
   import { setDirty } from "../lib/dock";
   import { api, ApiError } from "../lib/api";
-  import { shownPath } from "../lib/paths";
-  import { toast } from "../lib/state.svelte";
+  import { keepRecovery, recoveryPath } from "../lib/recovery";
   import { settings } from "../lib/settings.svelte";
   import { on } from "../lib/bus";
   import { fullscreen, toggleFullscreen } from "../lib/fullscreen.svelte";
@@ -110,9 +109,7 @@
 
   /** The pane closed with strokes that could not be saved: the whole drawing kept beside the vault's recovery copies. */
   function rescue(text: string) {
-    const to = `.atlas/cache/recovery/${spec.path}`;
-    void api.putFile(to, text).catch(() => {});
-    toast(`${shownPath(spec.path)} could not be saved`, `The drawing is kept in ${to}.`, "error", 12000);
+    void keepRecovery(spec.path, text, `The drawing is kept in ${recoveryPath(spec.path)}.`);
   }
 
   async function reload() {

@@ -414,19 +414,22 @@ class ListMarkWidget extends WidgetType {
 
 /** A task checkbox, matching the reader's `li > input[type=checkbox]`. */
 class TaskMarkWidget extends WidgetType {
-  constructor(checked, toggle) {
+  // Atlas: the status as written (` `, `x`, `-`…), on the box as `data-task` the way the reader marks it
+  constructor(status, toggle) {
     super();
-    this.checked = checked;
+    this.status = status;
+    this.checked = status !== " ";
     this.toggle = toggle;
   }
   eq(other) {
-    return other.checked === this.checked;
+    return other.status === this.status;
   }
   toDOM(view) {
     const box = document.createElement("input");
     box.type = "checkbox";
     box.checked = this.checked;
     box.className = "cm-task-mark";
+    box.dataset.task = this.status;
     // Toggling is an edit, and the edit has to go through the document rather
     // than the DOM -- letting the box flip on its own would show a state the
     // markdown does not have. (Atlas: a click now makes that edit, `[ ]` ↔ `[x]`.)
@@ -1094,10 +1097,11 @@ export function buildDecorations(state, ranges, options = {}) {
         if (name === "TaskMarker") {
           const item = node.node.parent;
           if (item && !revealed(state, item.from, item.to)) {
-            const checked = /[xX]/.test(state.doc.sliceString(node.from, node.to));
+            // Atlas: any status but a space is a closed box, as Obsidian draws it (`[-]`, `[/]`…)
+            const status = state.doc.sliceString(node.from + 1, node.from + 2) || " ";
             let to = node.to;
             if (state.doc.sliceString(to, to + 1) === " ") to++;
-            add(node.from, to, Decoration.replace({ widget: new TaskMarkWidget(checked, opts.toggleTask) }));
+            add(node.from, to, Decoration.replace({ widget: new TaskMarkWidget(status, opts.toggleTask) }));
           }
           return;
         }

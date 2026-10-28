@@ -2,12 +2,13 @@
   // A live search as a block (`type: search, q: …`) in a note or a .page: the toolsmith drafts one for
   // a search you keep running; results re-run as files change. Click opens at the line.
   import { errText } from "../../lib/text";
+  import { reloadOnChange } from "../../lib/reload-on-change";
   import { shownPath } from "../../lib/paths";
   import { onMount } from "svelte";
   import { api } from "../../lib/api";
-  import { on } from "../../lib/bus";
   import { openPath } from "../../lib/dock";
   import type { SearchResult } from "../../lib/types";
+  let box = $state<HTMLElement>();
 
   let { src }: { src: string } = $props();
   const query = $derived((/^\s*q:\s*(.+)$/m.exec(src)?.[1] ?? "").trim().replace(/^["'](.*)["']$/, "$1"));
@@ -20,13 +21,11 @@
   }
   onMount(() => {
     void load();
-    let t: ReturnType<typeof setTimeout> | undefined;
-    const off = on("fs", () => { clearTimeout(t); t = setTimeout(load, 800); });
-    return () => { off(); clearTimeout(t); };
+    return reloadOnChange(() => void load(), { wait: 800, host: () => box });
   });
 </script>
 
-<div class="search-block">
+<div class="search-block" bind:this={box}>
   <div class="head">Search <b>“{query}”</b>{#if res} · {res.files.length} files, {res.lines.length} lines{/if}</div>
   {#if error}<p class="view-error">{error}</p>
   {:else if res}

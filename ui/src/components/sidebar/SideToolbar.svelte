@@ -2,7 +2,7 @@
   // The `toolbar` block: a row of buttons, each a command (lib/toolbar.ts). In a collapsed sidebar
   // it stands as a column of icons.
   import type { BlockHost } from "../../lib/blocks";
-  import { sideWide } from "../../lib/sidebar.svelte";
+  import { sideWide, sidebar } from "../../lib/sidebar.svelte";
   import { toolItems, toolTip } from "../../lib/toolbar";
   import { SIDE_COMMANDS } from "../../lib/side-panel.svelte";
   import { sideTools, toolId } from "../../lib/side-tools.svelte";
@@ -14,8 +14,10 @@
   // Files … Git and the plugins' side tools are the row on top of the side panel (SideHead.svelte), so the
   // default footer does not list them (a sidebar page that does keeps them). Collapsed to icons that row is
   // not drawn: the tools stand here, first.
-  const tools = $derived(wide ? [] : toolItems([...SIDE_COMMANDS], undefined, { ids: SIDE_COMMANDS, add: sideTools.map((t) => ({ icon: t.icon, label: t.title, run: () => openSide(toolId(t.type)) })) }));
-  const list = $derived([...tools, ...(tools.length ? ["divider" as const] : []), ...toolItems(items, wide ? undefined : SIDE_COMMANDS)]);
+  const tools = $derived(wide ? [] : toolItems([...SIDE_COMMANDS], { after: { ids: SIDE_COMMANDS, add: sideTools.map((t) => ({ icon: t.icon, label: t.title, run: () => openSide(toolId(t.type)) })) } }));
+  // in the sidebar with its `pins` block the apps are tiles already: an older file's `plugins` / ui.today add nothing
+  const appsShown = $derived(host === "side" && sidebar.blocks.some((b) => b.type === "pins"));
+  const list = $derived([...tools, ...(tools.length ? ["divider" as const] : []), ...toolItems(items, { skip: wide ? undefined : SIDE_COMMANDS, appsShown })]);
 </script>
 
 <div class="side-toolbar" class:wide role="toolbar">

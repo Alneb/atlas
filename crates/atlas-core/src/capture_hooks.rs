@@ -4,7 +4,7 @@
 //! user a notice; `{ skipped }` (a plain thought) changes nothing. The capture itself never waits for a hook.
 //! Also `on = "fs"`: called with `{ paths }` for each batch of files the watcher saw change (the Syncthing plugin asks
 //! Syncthing to scan them at once, DESIGN-mirror-v2.md §5); the batches that come while one call runs are joined.
-use crate::api::Event;
+use crate::api::{Event, Notice, NoticeLevel};
 use crate::events::{Captured, EventBus};
 use crate::helper::Helpers;
 use crate::Workspace;
@@ -52,9 +52,9 @@ async fn run(ws: &Workspace, bus: &EventBus, helpers: &Helpers, c: Captured) {
                     bus.publish(Event::Fs { paths: vec![c.path.clone()] });
                 }
                 let said = v.get("notice").and_then(Value::as_str).map(str::to_string).unwrap_or_else(|| format!("Filed as {note}"));
-                bus.publish(Event::Notify { title: said, body: None });
+                bus.publish(Event::Notify(Notice::new(said).source(plugin.as_str()).level(NoticeLevel::Success).open(note)));
             }
-            Err(e) => bus.publish(Event::Notify { title: format!("{plugin} could not file the capture"), body: Some(e.to_string()) }),
+            Err(e) => bus.publish(Event::Notify(Notice::new(format!("{plugin} could not file the capture")).body(e.to_string()).source(plugin.as_str()).level(NoticeLevel::Failure).open(c.path.as_str()))),
         }
     }
 }
@@ -112,25 +112,19 @@ pub fn log_made(ws: Workspace, helpers: Helpers, path: String) {
     });
 }
 
-/// `[[name]]` of a note path: its file name without `.md` (Obsidian finds it by name).
-fn wikilink(note: &str) -> String {
-    let name = note.rsplit('/').next().unwrap_or(note);
-    format!("[[{}]]", name.strip_suffix(".md").unwrap_or(name))
-}
-
-/// Adds ` → [[note]]` to the capture's line, if that line still holds the capture and does not link it yet. The
-/// capture's own line, written a moment ago by the capture path (PHILOSOPHY §2); anything else is left alone.
+/// Adds ` → [[note]]` to the capture's line (captures::link_line), if that line still holds the capture and does not
+/// link it yet. The capture's own line, written a moment ago by the capture path (PHILOSOPHY §2); anything else is left alone.
 fn link_line(root: &Path, c: &Captured, note: &str) -> bool {
     let file = root.join(&c.path);
     let Ok(text) = std::fs::read_to_string(&file) else { return false };
     let first = c.text.lines().map(str::trim).find(|l| !l.is_empty()).unwrap_or("");
-    let link = wikilink(note);
     let mut lines: Vec<String> = text.split('\n').map(str::to_string).collect();
     let Some(line) = lines.get_mut((c.line as usize).saturating_sub(1)) else { return false };
-    if first.is_empty() || !line.contains(first) || line.contains(&link) {
+    if first.is_empty() || !line.contains(first) {
         return false;
     }
-    line.push_str(&format!(" → {link}"));
+    let Some(linked) = crate::captures::link_line(line, note) else { return false };
+    *line = linked;
     crate::vault_write::write(&file, lines.join("\n").as_bytes()).is_ok()
 }
 

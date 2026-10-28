@@ -142,7 +142,7 @@ export function updateSettings(mut: (c: WorkspaceConfig) => void): Promise<void>
 }
 
 /** Settings writes from buttons/keys: failures become a toast instead of an unhandled rejection. */
-function change(label: string, mut: (c: WorkspaceConfig) => void): void {
+export function change(label: string, mut: (c: WorkspaceConfig) => void): void {
   updateSettings(mut).catch((err) => toast(`${label}: not saved`, errText(err), "error"));
 }
 export const toggleTheme = () => change("Theme", (c) => { c.ui.theme = app.theme === "dark" ? "light" : "dark"; });

@@ -23,17 +23,6 @@ pub fn balances(l: &Ledger, until: Option<NaiveDate>) -> Balances {
     out
 }
 
-/// `prefix` and everything under it, summed into it (Expenses:Food = Food + Food:Groceries + …).
-pub fn rolled_up(b: &Balances, prefix: &str) -> BTreeMap<Commodity, Decimal> {
-    let mut out = BTreeMap::new();
-    for (_, m) in b.iter().filter(|(a, _)| a.is_under(prefix)) {
-        for (c, q) in m {
-            *out.entry(c.clone()).or_default() += *q;
-        }
-    }
-    out
-}
-
 #[derive(Debug, Clone)]
 pub struct RegisterRow<'a> {
     pub txn: &'a Txn,

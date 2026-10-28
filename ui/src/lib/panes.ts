@@ -142,7 +142,7 @@ export function paneTitle(s: PaneSpec): string {
 }
 
 export type IconName =
-  | "today" | "files" | "search" | "lecture" | "command" | "file" | "file-code" | "file-text" | "pdf"
+  | "today" | "home" | "files" | "search" | "lecture" | "command" | "file" | "file-code" | "file-text" | "pdf"
   | "image" | "terminal" | "claude" | "globe" | "mail" | "folder" | "folder-open" | "chevron" | "close" | "edit" | "trash"
   | "eye" | "check" | "circle" | "commit" | "clock" | "sun" | "moon" | "plus" | "minus" | "refresh" | "zoom"
   | "settings" | "git" | "panel-bottom" | "panel-right" | "chevron-down" | "table" | "library" | "copy" | "link" | "outline" | "plugin" | "chart"

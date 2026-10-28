@@ -30,16 +30,27 @@ pub const CALL_TIMEOUT: Duration = Duration::from_secs(60);
 /// Started this many times within [`CRASH_WINDOW`], it is left stopped until asked to restart.
 const CRASH_LIMIT: usize = 5;
 const CRASH_WINDOW: Duration = Duration::from_secs(600);
+/// The shortest `[helper] idle` honoured: a helper is not started and stopped between two clicks.
+const IDLE_FLOOR: Duration = Duration::from_secs(60);
+/// How often an idle helper is looked at, at the most.
+const IDLE_TICK: Duration = Duration::from_millis(if cfg!(test) { 20 } else { 15_000 });
 
 type Reply = oneshot::Sender<std::result::Result<Value, String>>;
 
+/// Where the core's lines to a helper go: a process's stdin, or a JS helper's context (js_helper.rs).
+enum Input {
+    Pipe { stdin: tokio::sync::Mutex<tokio::process::ChildStdin>, pid: Option<u32> },
+    Js(crate::js_helper::Handle),
+}
+
 struct Running {
-    stdin: tokio::sync::Mutex<tokio::process::ChildStdin>,
+    input: Input,
     waiting: Mutex<HashMap<u64, Reply>>,
     next: AtomicU64,
-    pid: Option<u32>,
     /// plugin.toml's mtime when it started: an update rewrites it, and the next call starts the new helper
     stamp: Option<std::time::SystemTime>,
+    /// when a call last went to it or an answer came back (`[helper] idle`)
+    used: Mutex<Instant>,
 }
 
 impl Running {
@@ -51,9 +62,19 @@ impl Running {
     }
 
     fn kill(&self) {
-        if let Some(pid) = self.pid {
+        match &self.input {
             // the whole group: a helper started through `sh -c` is the shell's child
-            crate::platform::proc::stop_group(pid, crate::platform::proc::Stop::Ask);
+            Input::Pipe { pid: Some(pid), .. } => crate::platform::proc::stop_group(*pid, crate::platform::proc::Stop::Ask),
+            Input::Pipe { pid: None, .. } => {}
+            Input::Js(h) => h.stop(),
+        }
+    }
+
+    /// One protocol line to the helper.
+    async fn send(&self, line: &str) -> std::io::Result<()> {
+        match &self.input {
+            Input::Pipe { stdin, .. } => stdin.lock().await.write_all(format!("{line}\n").as_bytes()).await,
+            Input::Js(h) => h.send(line),
         }
     }
 }
@@ -153,7 +174,22 @@ impl Helpers {
                 "plugin {id}: its helper stopped {CRASH_LIMIT} times in ten minutes and is left stopped — see .atlas/cache/plugins/{id}.log, then restart it"
             )));
         }
-        let run = plugins::helper_command(&self.root, id)?;
+        let r = match plugins::helper_program(&self.root, id)? {
+            plugins::HelperProgram::Command(run) => self.start_process(id, &run, stamp, now)?,
+            plugins::HelperProgram::Js(file) => self.start_js(id, file, stamp, now)?,
+        };
+        slot.running = Some(r.clone());
+        slot.starts.push(now);
+        match plugins::helper_idle(&self.root, id) {
+            Ok(Some(idle)) => self.stop_when_idle(id, &r, idle.max(IDLE_FLOOR)),
+            Ok(None) => {}
+            Err(why) => log(&self.root, id, &format!("[atlas] {why}")),
+        }
+        Ok(r)
+    }
+
+    /// `[helper] run`: the program, its stdout read for answers, its stderr into the log.
+    fn start_process(&self, id: &str, run: &str, stamp: Option<std::time::SystemTime>, now: Instant) -> Result<Arc<Running>> {
         let dir = self.root.join(plugins::PLUGINS_DIR).join(id);
         let cache = self.root.join(".atlas/cache/plugins").join(id);
         crate::vault_write::cache::mkdir(&cache)?;
@@ -165,7 +201,7 @@ impl Helpers {
         ];
         // the core's address and the plugin's key: helper_api.rs
         env.extend(crate::helper_api::env(&self.root, id).into_iter().map(|(k, v)| (k.to_string(), std::ffi::OsString::from(v))));
-        let mut cmd = crate::platform::run_line::command(&run, &self.root, &env).map_err(|e| Error::CommandFailed(format!("plugin {id}: helper: {e}")))?;
+        let mut cmd = crate::platform::run_line::command(run, &self.root, &env).map_err(|e| Error::CommandFailed(format!("plugin {id}: helper: {e}")))?;
         cmd.stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::piped()).kill_on_drop(true);
         crate::platform::proc::own_group(&mut cmd);
         let mut child = cmd.spawn().map_err(|e| Error::CommandFailed(format!("plugin {id}: helper: {e}")))?;
@@ -173,9 +209,8 @@ impl Helpers {
         let (Some(stdin), Some(stdout), Some(stderr)) = (stdin, stdout, stderr) else {
             return Err(Error::CommandFailed(format!("plugin {id}: helper: no pipes")));
         };
-        let r = Arc::new(Running { stdin: tokio::sync::Mutex::new(stdin), waiting: Mutex::default(), next: AtomicU64::new(1), pid: child.id(), stamp });
-        slot.running = Some(r.clone());
-        slot.starts.push(now);
+        let input = Input::Pipe { stdin: tokio::sync::Mutex::new(stdin), pid: child.id() };
+        let r = Arc::new(Running { input, waiting: Mutex::default(), next: AtomicU64::new(1), stamp, used: Mutex::new(now) });
         log(&self.root, id, &format!("[atlas] helper started: {run}"));
 
         // stderr → the plugin's log
@@ -195,19 +230,70 @@ impl Helpers {
             }
             let status = child.wait().await.map(|s| s.to_string()).unwrap_or_else(|e| e.to_string());
             let _ = tokio::time::timeout(Duration::from_secs(1), errs).await; // its last words logged first
-            log(&me.root, &pid, &format!("[atlas] helper exited: {status}"));
-            mine.fail_all(&format!("the helper exited ({status}) — its log: {}", log_tail(&me.root, &pid)));
-            // only if it is still the one in the slot (a restart may have put a new one there)
-            let mut slots = me.slots.lock().unwrap();
-            if let Some(s) = slots.get_mut(&pid) {
-                if s.running.as_ref().is_some_and(|cur| Arc::ptr_eq(cur, &mine)) {
-                    s.running = None;
-                }
-            }
-            drop(slots);
-            me.bus.publish(Event::Plugin { plugin: pid.clone(), event: "helper:exit".into(), data: json!({ "status": status }) });
+            me.ended(&pid, &mine, &status);
         });
         Ok(r)
+    }
+
+    /// `[helper] js`: the script in a QuickJS context of its own; its lines read as a process's stdout would be.
+    fn start_js(&self, id: &str, file: PathBuf, stamp: Option<std::time::SystemTime>, now: Instant) -> Result<Arc<Running>> {
+        let name = file.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+        let (handle, mut outs) = crate::js_helper::start(&self.root, id, file, crate::js_helper::LIMITS).map_err(|e| Error::CommandFailed(format!("plugin {id}: helper: {e}")))?;
+        let r = Arc::new(Running { input: Input::Js(handle), waiting: Mutex::default(), next: AtomicU64::new(1), stamp, used: Mutex::new(now) });
+        log(&self.root, id, &format!("[atlas] helper started: {name} (JavaScript, in the core)"));
+        let (me, pid, mine) = (self.clone(), id.to_string(), r.clone());
+        tokio::spawn(async move {
+            let mut status = "ended".to_string();
+            while let Some(out) = outs.recv().await {
+                match out {
+                    crate::js_helper::Out::Line(l) => me.incoming(&pid, &mine, &l),
+                    crate::js_helper::Out::Log(l) => log(&me.root, &pid, &l),
+                    crate::js_helper::Out::Exit(why) => status = why,
+                }
+            }
+            me.ended(&pid, &mine, &status);
+        });
+        Ok(r)
+    }
+
+    /// Helper `r` is gone: its calls fail with the reason, its slot is freed, the page is told.
+    fn ended(&self, id: &str, r: &Arc<Running>, status: &str) {
+        log(&self.root, id, &format!("[atlas] helper exited: {status}"));
+        r.fail_all(&format!("the helper exited ({status}) — its log: {}", log_tail(&self.root, id)));
+        // only if it is still the one in the slot (a restart may have put a new one there)
+        let mut slots = self.slots.lock().unwrap();
+        if let Some(s) = slots.get_mut(id) {
+            if s.running.as_ref().is_some_and(|cur| Arc::ptr_eq(cur, r)) {
+                s.running = None;
+            }
+        }
+        drop(slots);
+        self.bus.publish(Event::Plugin { plugin: id.to_string(), event: "helper:exit".into(), data: json!({ "status": status }) });
+    }
+
+    /// Stops helper `r` once it has had no call for `idle` and none is waiting; the next call starts it again.
+    fn stop_when_idle(&self, id: &str, r: &Arc<Running>, idle: Duration) {
+        let (me, id, mine) = (self.clone(), id.to_string(), Arc::downgrade(r));
+        tokio::spawn(async move {
+            loop {
+                tokio::time::sleep((idle / 4).max(IDLE_TICK)).await;
+                let Some(r) = mine.upgrade() else { return }; // exited or replaced
+                if !r.waiting.lock().unwrap().is_empty() || r.used.lock().unwrap().elapsed() < idle {
+                    continue;
+                }
+                let mut slots = me.slots.lock().unwrap();
+                let current = slots.get(&id).and_then(|s| s.running.as_ref()).is_some_and(|cur| Arc::ptr_eq(cur, &r));
+                if current {
+                    slots.remove(&id); // not a crash: its starts are forgotten with the slot
+                }
+                drop(slots);
+                if current {
+                    log(&me.root, &id, &format!("[atlas] helper stopped: no call for {}s ([helper] idle)", idle.as_secs()));
+                    r.kill();
+                }
+                return;
+            }
+        });
     }
 
     /// One line from the helper.
@@ -227,11 +313,11 @@ impl Helpers {
                         (n, status, body)
                     }
                 };
-                let line = format!("{}\n", json!({ "reply": n, "status": status, "body": body }));
-                let _ = r.stdin.lock().await.write_all(line.as_bytes()).await;
+                let _ = r.send(&json!({ "reply": n, "status": status, "body": body }).to_string()).await;
             });
         } else if let Some(n) = msg.get("id").and_then(Value::as_u64) {
             let Some(tx) = r.waiting.lock().unwrap().remove(&n) else { return };
+            *r.used.lock().unwrap() = Instant::now();
             let answer = match msg.remove("error") {
                 Some(Value::Null) | None => Ok(msg.remove("result").unwrap_or(Value::Null)),
                 Some(Value::String(s)) => Err(s),
@@ -249,11 +335,11 @@ impl Helpers {
     /// Ask the helper of plugin `id` and wait for its answer.
     pub async fn call(&self, id: &str, method: &str, params: Value, timeout: Duration) -> Result<Value> {
         let r = self.running(id)?;
+        *r.used.lock().unwrap() = Instant::now();
         let n = r.next.fetch_add(1, Ordering::Relaxed);
         let (tx, rx) = oneshot::channel();
         r.waiting.lock().unwrap().insert(n, tx);
-        let line = format!("{}\n", json!({ "id": n, "method": method, "params": params }));
-        let wrote = { r.stdin.lock().await.write_all(line.as_bytes()).await };
+        let wrote = r.send(&json!({ "id": n, "method": method, "params": params }).to_string()).await;
         if let Err(e) = wrote {
             // the helper is gone: its exit, with the log's last lines, comes through `rx` once noticed
             return match tokio::time::timeout(Duration::from_secs(2), rx).await {
@@ -270,6 +356,7 @@ impl Helpers {
             Ok(Err(_)) => Err(Error::CommandFailed(format!("plugin {id}: {method}: the helper went away"))),
             Err(_) => {
                 r.waiting.lock().unwrap().remove(&n);
+                *r.used.lock().unwrap() = Instant::now(); // its idle time counts from the call's end
                 Err(Error::CommandFailed(format!("plugin {id}: {method}: no answer in {}s", timeout.as_secs())))
             }
         }
@@ -380,6 +467,67 @@ for line in sys.stdin:
         std::fs::write(t.path().join(".atlas/plugins/h/plugin.toml"), "title = \"H\"\n").unwrap();
         let e = h.call("h", "echo", Value::Null, CALL_TIMEOUT).await.unwrap_err().to_string();
         assert!(e.contains("[helper]"), "{e}");
+    }
+
+    /// `[helper] idle`: stopped after that long with no call (never in the middle of one), started again by the next.
+    #[tokio::test]
+    async fn an_idle_helper_is_stopped_and_started_again_by_the_next_call() {
+        let t = vault();
+        let h = Helpers::new(t.path(), EventBus::default());
+        h.call("h", "echo", json!(1), CALL_TIMEOUT).await.unwrap();
+        let r = h.running("h").unwrap();
+        h.stop_when_idle("h", &r, Duration::from_millis(150));
+        // a call in flight longer than the idle time keeps it
+        let e = h.call("h", "silent", Value::Null, Duration::from_millis(300)).await.unwrap_err().to_string();
+        assert!(e.contains("no answer"), "{e}");
+        assert_eq!(h.state("h"), "running", "not stopped while a call waited");
+        tokio::time::sleep(Duration::from_millis(400)).await;
+        assert_eq!(h.state("h"), "stopped");
+        assert_eq!(h.call("h", "echo", json!(2), CALL_TIMEOUT).await.unwrap()["calls"], 1, "a new process");
+        let log = std::fs::read_to_string(t.path().join(".atlas/cache/plugins/h.log")).unwrap();
+        assert!(log.contains("[helper] idle"), "{log}");
+
+        std::fs::write(t.path().join(".atlas/plugins/h/plugin.toml"), "title = \"H\"\n[helper]\nrun = \"true\"\nidle = \"10m\"\n").unwrap();
+        assert_eq!(plugins::helper_idle(t.path(), "h"), Ok(Some(Duration::from_secs(600))));
+        std::fs::write(t.path().join(".atlas/plugins/h/plugin.toml"), "title = \"H\"\n[helper]\nrun = \"true\"\nidle = \"soon\"\n").unwrap();
+        assert!(plugins::helper_idle(t.path(), "h").unwrap_err().contains("not a length"));
+    }
+
+    /// `[helper] js`: the same calls, events, failures and idle stop as a process, from a script run in the core.
+    #[tokio::test]
+    async fn a_js_helper_is_called_like_a_process_and_stopped_when_idle() {
+        let t = tempfile::tempdir().unwrap();
+        let d = t.path().join(".atlas/plugins/j");
+        std::fs::create_dir_all(&d).unwrap();
+        std::fs::write(d.join("plugin.toml"), "title = \"J\"\n[helper]\njs = \"helper.js\"\n").unwrap();
+        std::fs::write(
+            d.join("helper.js"),
+            r#"let n = 0;
+atlas.method("echo", (p) => ({ got: p, calls: ++n }));
+atlas.method("notify", () => { atlas.event("ping", { n: ++n }); return null; });
+atlas.method("fail", () => { throw new atlas.AtlasError("no such thing"); });
+atlas.method("spin", () => { for (;;) {} });"#,
+        )
+        .unwrap();
+        let bus = EventBus::default();
+        let mut events = bus.subscribe();
+        let h = Helpers::new(t.path(), bus);
+        assert_eq!(h.call("j", "echo", json!(1), CALL_TIMEOUT).await.unwrap(), json!({ "got": 1, "calls": 1 }));
+        h.call("j", "notify", Value::Null, CALL_TIMEOUT).await.unwrap();
+        assert_eq!(events.recv().await.unwrap(), Event::Plugin { plugin: "j".into(), event: "ping".into(), data: json!({ "n": 2 }) });
+        assert!(h.call("j", "fail", Value::Null, CALL_TIMEOUT).await.unwrap_err().to_string().ends_with("plugin j: fail: no such thing"));
+
+        let r = h.running("j").unwrap();
+        h.stop_when_idle("j", &r, Duration::from_millis(100));
+        drop(r);
+        tokio::time::sleep(Duration::from_millis(300)).await;
+        assert_eq!(h.state("j"), "stopped");
+        assert_eq!(h.call("j", "echo", json!(2), CALL_TIMEOUT).await.unwrap()["calls"], 1, "a new context");
+        let log = std::fs::read_to_string(t.path().join(".atlas/cache/plugins/j.log")).unwrap();
+        assert!(log.contains("helper.js (JavaScript, in the core)") && log.contains("[helper] idle"), "{log}");
+
+        std::fs::write(d.join("plugin.toml"), "title = \"J\"\n[helper]\njs = \"../x.js\"\n").unwrap();
+        assert!(h.call("j", "echo", json!(3), CALL_TIMEOUT).await.unwrap_err().to_string().contains("inside the plugin's folder"));
     }
 
     /// An update rewrites plugin.toml under a running helper: the next call gets the new helper, not the old one.

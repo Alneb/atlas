@@ -3,7 +3,7 @@
 //! recorded in `.atlas/cache/schedule.json` (last run per command) and `schedule.log`, and a failure
 //! notifies the UI. `[automation] run_schedules = false` turns it off.
 use crate::api::Mtime;
-use crate::api::{Event, ScheduledRun};
+use crate::api::{Event, Notice, NoticeLevel, ScheduledRun};
 use crate::commands::{run_script, scripts, ScriptCommand, SCRIPT_TIMEOUT};
 use crate::events::EventBus;
 use crate::{vault_write, Workspace};
@@ -31,18 +31,24 @@ impl FromStr for Schedule {
         if let Some(t) = s.strip_prefix("daily") {
             return NaiveTime::parse_from_str(t.trim(), "%H:%M").map(Schedule::Daily).map_err(|_| bad());
         }
-        let n = s.strip_prefix("every").ok_or_else(bad)?.trim();
-        let (num, unit) = n.split_at(n.find(|c: char| !c.is_ascii_digit()).ok_or_else(bad)?);
-        let k: u64 = num.parse().map_err(|_| bad())?;
-        let secs = match unit.trim() {
-            "m" | "min" | "mins" | "minutes" => 60,
-            "h" | "hour" | "hours" => 3600,
-            "d" | "day" | "days" => 86_400,
-            _ => return Err(bad()),
-        };
+        let d = span(s.strip_prefix("every").ok_or_else(bad)?).ok_or_else(bad)?;
         // a floor of 5 minutes: a scheduler is not a busy loop
-        (k > 0).then(|| Schedule::Every(Duration::from_secs((k * secs).max(300)))).ok_or_else(bad)
+        Ok(Schedule::Every(d.max(Duration::from_secs(300))))
     }
+}
+
+/// A length in the schedule's words (`30m`, `2 hours`, `1d`); None when it is not one, or zero.
+pub fn span(s: &str) -> Option<Duration> {
+    let n = s.trim();
+    let (num, unit) = n.split_at(n.find(|c: char| !c.is_ascii_digit())?);
+    let k: u64 = num.parse().ok().filter(|k| *k > 0)?;
+    let secs = match unit.trim() {
+        "m" | "min" | "mins" | "minutes" => 60,
+        "h" | "hour" | "hours" => 3600,
+        "d" | "day" | "days" => 86_400,
+        _ => return None,
+    };
+    Some(Duration::from_secs(k * secs))
 }
 
 impl Schedule {
@@ -150,7 +156,7 @@ pub async fn tick(ws: &Workspace, bus: &EventBus, helpers: Option<&crate::helper
         // once per failure, not per run: a job every 5 min that keeps failing the same way (a cluster not connected)
         // notified every 5 min; again when it fails for another reason, or fails anew after working
         if !ok && recs.get(&id).is_none_or(|prev| prev.ok || prev.summary != summary) {
-            bus.publish(Event::Notify { title: format!("{} failed (scheduled)", job.title()), body: Some(summary.clone()) });
+            bus.publish(Event::Notify(Notice::new(format!("{} failed (scheduled)", job.title())).body(summary.clone()).source("schedule").level(NoticeLevel::Failure).id(format!("schedule:{id}"))));
         }
         recs.insert(id, ScheduledRun { time: Mtime(Local::now().timestamp_millis() as u64), ok, summary });
     }
@@ -240,8 +246,8 @@ mod tests {
         write("host unknown"); // another reason: said again
         tick(&ws, &bus, None, at(6)).await;
         let mut said = vec![];
-        while let Ok(Event::Notify { body, .. }) = rx.try_recv() {
-            said.push(body.unwrap_or_default());
+        while let Ok(Event::Notify(n)) = rx.try_recv() {
+            said.push(n.body.unwrap_or_default());
         }
         assert_eq!(said.len(), 2, "{said:?}");
         assert!(said[1].contains("host unknown"), "{said:?}");

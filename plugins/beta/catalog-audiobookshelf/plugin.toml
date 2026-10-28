@@ -5,8 +5,8 @@
 title = "Catalog · Audiobookshelf"
 description = "your Audiobookshelf audiobooks as book notes, and the audiobook beside any book you catalogue"
 icon = "book"
-version = "0.1.0"
-api = 4
+version = "0.2.0"
+api = 16
 requires = ["catalog"]
 
 [permissions]
@@ -33,7 +33,8 @@ default = "[[read]]"
 hint = "the status a book you finished listening to gets (as your vault writes it); empty: left as it is"
 
 [helper]
-run = "python3 -u \"$ATLAS_PLUGIN_DIR/helper.py\""
+js = "helper.js"                   # runs inside Atlas's core (QuickJS); built from helper/helper.ts
+idle = "10m"                       # it only answers: stopped when unused, started again by the next call
 
 [[tool]]
 name = "lookup"

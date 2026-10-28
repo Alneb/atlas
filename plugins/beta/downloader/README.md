@@ -22,7 +22,7 @@ For MeTube, for example: address `https://dl.example.org/add`, method POST, body
 ## Needs
 
 A download service, the Library plugin (whose filed things it receives; the manifest does not `require` it), and
-Python 3 on the machine running Atlas's server (`helper.py`; standard library only).
+Nothing installed: the helper is JavaScript run inside Atlas's core (`helper.js`, built from `helper/helper.ts`).
 
 ## Platforms
 
@@ -30,4 +30,4 @@ Linux works; the others are untested; not in the phone app.
 
 ## Tests
 
-`python3 test_helper.py` (the request the settings make, and what is left alone).
+`node scripts/dev/plugin-ui.mjs --check plugins/beta/downloader` (the request the settings make, and what is left alone: `helper/helper.test.ts`).

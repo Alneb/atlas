@@ -58,13 +58,18 @@ impl<L: LeaseLink> LeaseGuard<L> {
         std::fs::read(self.root.join(rel)).ok().map(|b| ContentHash::of(&b))
     }
 
-    /// One path's lease. A change that replaces or removes content is computed from this copy, so a copy behind the last
-    /// version fails at once (`Conflict`: the caller reads again) — never written over the newer one. A change that only
-    /// adds (an append, a new file) waits for Syncthing to bring the last version, then goes on top of it.
-    fn take(&self, rel: &str, adds: bool) -> Result<()> {
+    /// One path's lease. A change that replaces or removes content is computed from this copy as it was when the change
+    /// began (`start`), so a copy behind the last version — or one Syncthing changed while this write waited for another
+    /// device's lease — fails at once (`Conflict`: the caller reads again), never written over the newer one. A change
+    /// that only adds (an append, a new file) waits for Syncthing to bring the last version, then goes on top of it.
+    fn take(&self, rel: &str, adds: bool, start: Option<ContentHash>) -> Result<()> {
         let until = Instant::now() + self.patience;
         loop {
-            let why = match self.link.ask(rel, self.disk(rel)) {
+            let have = self.disk(rel);
+            if !adds && have != start {
+                return Err(Error::Conflict { current: None });
+            }
+            let why = match self.link.ask(rel, have) {
                 Ok(Answer::Granted) => {
                     self.granted.lock().unwrap_or_else(|e| e.into_inner()).insert(rel.to_string());
                     return Ok(());
@@ -87,6 +92,13 @@ impl<L: LeaseLink> LeaseGuard<L> {
             }
         }
     }
+
+    /// Hands back a lease taken for a change that did not happen: the content is what it was, so that is the version.
+    fn release(&self, rel: &str) {
+        if self.granted.lock().unwrap_or_else(|e| e.into_inner()).remove(rel) {
+            self.link.done(rel, self.disk(rel));
+        }
+    }
 }
 
 impl<L> LeaseGuard<L> {
@@ -100,11 +112,25 @@ impl<L> LeaseGuard<L> {
         let now = self.root.join(rel);
         let kept = match std::fs::metadata(&now) {
             Ok(m) if m.is_file() && m.len() <= BASE_MAX => crate::vault_write::cache::copy(&now, &base),
+            Ok(m) if m.is_dir() => Ok(()), // a folder's bases are its files' (moved along by `move_bases`)
+            _ if base.is_dir() => crate::vault_write::cache::remove_dir_all(&base),
             _ if base.exists() => crate::vault_write::cache::remove_file(&base),
             _ => Ok(()),
         };
         if let Err(e) = kept {
             eprintln!("atlas: mirror: no base kept for {rel}: {e}");
+        }
+    }
+}
+
+impl<L> LeaseGuard<L> {
+    /// A rename takes its bases along (a folder's: every file's in it), so a moved note still merges against its base.
+    fn move_bases(&self, from: &str, to: &str) {
+        let (a, b) = (base_path(&self.root, from), base_path(&self.root, to));
+        if a.exists() && !b.exists() {
+            if let Err(e) = crate::vault_write::cache::rename(&a, &b) {
+                eprintln!("atlas: mirror: the base of {from} was not moved to {to}: {e}");
+            }
         }
     }
 }
@@ -124,10 +150,14 @@ fn leased(rel: &str, kind: &WriteKind) -> Vec<(String, bool)> {
 }
 
 impl<L: LeaseLink> WriteGuard for LeaseGuard<L> {
-    fn before(&self, rel: &str, kind: &WriteKind, _current: Option<ContentHash>) -> Result<()> {
-        // `_current` is not enough: a wait re-reads the disk, which Syncthing changes meanwhile
-        for (path, adds) in leased(rel, kind) {
-            self.take(&path, adds)?;
+    fn before(&self, rel: &str, kind: &WriteKind, current: Option<ContentHash>) -> Result<()> {
+        let paths = leased(rel, kind);
+        for (i, (path, adds)) in paths.iter().enumerate() {
+            // `current` is `rel`'s; a rename's destination only adds
+            if let Err(e) = self.take(path, *adds, if path == rel { current } else { None }) {
+                paths[..i].iter().for_each(|(p, _)| self.release(p)); // a rename's source, taken before its destination failed
+                return Err(e);
+            }
         }
         Ok(())
     }
@@ -137,6 +167,7 @@ impl<L: LeaseLink> WriteGuard for LeaseGuard<L> {
             WriteKind::Rename { to } => {
                 self.link.done(rel, None);
                 self.link.done(to, new);
+                self.move_bases(rel, to);
                 self.keep_base(rel);
                 self.keep_base(to);
             }
@@ -147,6 +178,10 @@ impl<L: LeaseLink> WriteGuard for LeaseGuard<L> {
                 }
             }
         }
+    }
+
+    fn abort(&self, rel: &str, kind: &WriteKind) {
+        leased(rel, kind).iter().for_each(|(p, _)| self.release(p));
     }
 }
 
@@ -231,12 +266,20 @@ impl Remote {
         let url = reqwest::Url::parse(&format!("{}api/lease/{what}", self.mirror)).map_err(|e| Unreachable(e.to_string()))?;
         let cookie = crate::service_signin::cookie_header(&self.store, &url).ok().flatten();
         std::thread::spawn(move || {
-            let client = reqwest::blocking::Client::builder()
-                .redirect(reqwest::redirect::Policy::none())
-                .connect_timeout(Duration::from_secs(3))
-                .timeout(Duration::from_secs(8))
-                .build()
-                .map_err(|e| Unreachable(e.to_string()))?;
+            // one client for every call: its kept connection spares each write two TCP + TLS handshakes; made (and, being
+            // static, never dropped) off the async runtime, where a blocking client may not start or end
+            static CLIENT: std::sync::OnceLock<std::result::Result<reqwest::blocking::Client, String>> = std::sync::OnceLock::new();
+            let client = CLIENT
+                .get_or_init(|| {
+                    reqwest::blocking::Client::builder()
+                        .redirect(reqwest::redirect::Policy::none())
+                        .connect_timeout(Duration::from_secs(3))
+                        .timeout(Duration::from_secs(8))
+                        .build()
+                        .map_err(|e| e.to_string())
+                })
+                .as_ref()
+                .map_err(|e| Unreachable(e.clone()))?;
             let mut req = client.post(url).header("x-atlas", "1").json(&body);
             if let Some(c) = cookie {
                 req = req.header("cookie", c);
@@ -335,6 +378,11 @@ mod tests {
         }
     }
 
+    /// What the funnel hands `before`: the file's hash as the change begins.
+    fn now(dir: &Path, rel: &str) -> Option<ContentHash> {
+        std::fs::read(dir.join(rel)).ok().map(|b| ContentHash::of(&b))
+    }
+
     fn setup() -> (tempfile::TempDir, tempfile::TempDir, Arc<Leases<ContentHash>>, Arc<Mutex<bool>>) {
         let (server, desktop) = (tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap());
         for d in [&server, &desktop] {
@@ -349,11 +397,11 @@ mod tests {
         let srv = LeaseGuard::new(server.path(), Shared(leases.clone(), server.path().into(), "server", offline.clone())).quick();
         let desk = LeaseGuard::new(desktop.path(), Shared(leases.clone(), server.path().into(), "desktop", offline.clone())).quick();
         // the desktop writes v2; the server's copy is still v1 (Syncthing has not carried it)
-        desk.before("log.md", &WriteKind::Write, None).unwrap();
+        desk.before("log.md", &WriteKind::Write, now(desktop.path(), "log.md")).unwrap();
         std::fs::write(desktop.path().join("log.md"), "v2\n").unwrap();
         desk.after("log.md", &WriteKind::Write, Some(ContentHash::of(b"v2\n")));
         // the server's own save, computed from v1, must not land on top of v2
-        assert!(matches!(srv.before("log.md", &WriteKind::Write, None), Err(Error::Conflict { .. })));
+        assert!(matches!(srv.before("log.md", &WriteKind::Write, now(server.path(), "log.md")), Err(Error::Conflict { .. })));
         // an append waits; Syncthing brings v2 meanwhile, and it goes on top
         let p = server.path().join("log.md");
         let syncthing = std::thread::spawn(move || {
@@ -369,11 +417,11 @@ mod tests {
         let (server, desktop, leases, offline) = setup();
         let srv = LeaseGuard::new(server.path(), Shared(leases.clone(), server.path().into(), "server", offline.clone())).quick();
         let desk = LeaseGuard::new(desktop.path(), Shared(leases.clone(), server.path().into(), "desktop", offline.clone())).quick();
-        desk.before("log.md", &WriteKind::Write, None).unwrap(); // held, never handed back
+        desk.before("log.md", &WriteKind::Write, now(desktop.path(), "log.md")).unwrap(); // held, never handed back
         let e = srv.before("log.md", &WriteKind::Append, None).unwrap_err().to_string();
         assert!(e.contains("being written by desktop"), "{e}");
         *offline.lock().unwrap() = true;
-        srv.before("log.md", &WriteKind::Write, None).expect("no server: written here only");
+        srv.before("log.md", &WriteKind::Write, now(server.path(), "log.md")).expect("no server: written here only");
     }
 
     #[test]
@@ -381,7 +429,7 @@ mod tests {
         let (server, _desktop, leases, offline) = setup();
         let srv = LeaseGuard::new(server.path(), Shared(leases.clone(), server.path().into(), "server", offline)).quick();
         let to = WriteKind::Rename { to: "old/log.md".into() };
-        srv.before("log.md", &to, None).unwrap();
+        srv.before("log.md", &to, now(server.path(), "log.md")).unwrap();
         srv.after("log.md", &to, Some(ContentHash::of(b"v1\n")));
         assert_eq!(leases.version("log.md"), Some(None));
         assert_eq!(leases.version("old/log.md"), Some(Some(ContentHash::of(b"v1\n"))));
@@ -391,15 +439,82 @@ mod tests {
     fn a_leased_write_keeps_its_base_and_an_offline_one_does_not() {
         let (server, desktop, leases, offline) = setup();
         let desk = LeaseGuard::new(desktop.path(), Shared(leases, server.path().into(), "desktop", offline.clone())).quick();
-        desk.before("log.md", &WriteKind::Write, None).unwrap();
+        desk.before("log.md", &WriteKind::Write, now(desktop.path(), "log.md")).unwrap();
         std::fs::write(desktop.path().join("log.md"), "v2\n").unwrap();
         desk.after("log.md", &WriteKind::Write, Some(ContentHash::of(b"v2\n")));
         assert_eq!(std::fs::read_to_string(base_path(desktop.path(), "log.md")).unwrap(), "v2\n");
         *offline.lock().unwrap() = true;
-        desk.before("log.md", &WriteKind::Write, None).unwrap();
+        desk.before("log.md", &WriteKind::Write, now(desktop.path(), "log.md")).unwrap();
         std::fs::write(desktop.path().join("log.md"), "offline\n").unwrap();
         desk.after("log.md", &WriteKind::Write, Some(ContentHash::of(b"offline\n")));
         assert_eq!(std::fs::read_to_string(base_path(desktop.path(), "log.md")).unwrap(), "v2\n", "the base stays the shared version");
+    }
+
+    #[test]
+    fn a_save_waiting_on_anothers_lease_never_lands_on_the_version_syncthing_brought_meanwhile() {
+        let (server, desktop, leases, offline) = setup();
+        let srv = LeaseGuard::new(server.path(), Shared(leases.clone(), server.path().into(), "server", offline.clone())).quick();
+        let mut desk = LeaseGuard::new(desktop.path(), Shared(leases.clone(), server.path().into(), "desktop", offline.clone())).quick();
+        desk.patience = Duration::from_secs(5);
+        // the server holds log.md and writes v2; Syncthing brings v2 here while the desktop's save (made from v1) waits
+        srv.before("log.md", &WriteKind::Write, Some(ContentHash::of(b"v1\n"))).unwrap();
+        let (s, d, l) = (server.path().to_path_buf(), desktop.path().to_path_buf(), leases.clone());
+        let other = std::thread::spawn(move || {
+            std::thread::sleep(Duration::from_millis(50));
+            std::fs::write(s.join("log.md"), "v2\n").unwrap();
+            l.done("log.md", "server", Some(ContentHash::of(b"v2\n")));
+            std::fs::write(d.join("log.md"), "v2\n").unwrap(); // Syncthing
+        });
+        let got = desk.before("log.md", &WriteKind::Write, Some(ContentHash::of(b"v1\n")));
+        other.join().unwrap();
+        assert!(matches!(got, Err(Error::Conflict { .. })), "a save computed from v1 must not overwrite v2: {got:?}");
+    }
+
+    #[test]
+    fn a_failed_write_hands_its_lease_back_and_keeps_no_base() {
+        let (server, desktop, leases, offline) = setup();
+        let srv = LeaseGuard::new(server.path(), Shared(leases.clone(), server.path().into(), "server", offline.clone())).quick();
+        let desk = LeaseGuard::new(desktop.path(), Shared(leases.clone(), server.path().into(), "desktop", offline.clone())).quick();
+        let v1 = Some(ContentHash::of(b"v1\n"));
+        desk.before("log.md", &WriteKind::Write, v1).unwrap();
+        desk.abort("log.md", &WriteKind::Write); // the disk was full, say
+        srv.before("log.md", &WriteKind::Write, v1).expect("free at once, not after HOLD");
+        srv.after("log.md", &WriteKind::Write, v1);
+        // a later offline write on the desktop is not mistaken for a leased one (no base from it)
+        *offline.lock().unwrap() = true;
+        desk.before("log.md", &WriteKind::Write, v1).unwrap();
+        std::fs::write(desktop.path().join("log.md"), "offline\n").unwrap();
+        desk.after("log.md", &WriteKind::Write, Some(ContentHash::of(b"offline\n")));
+        assert!(!base_path(desktop.path(), "log.md").exists());
+    }
+
+    #[test]
+    fn a_rename_whose_destination_is_held_hands_the_source_back() {
+        let (server, desktop, leases, offline) = setup();
+        let srv = LeaseGuard::new(server.path(), Shared(leases.clone(), server.path().into(), "server", offline.clone())).quick();
+        let desk = LeaseGuard::new(desktop.path(), Shared(leases.clone(), server.path().into(), "desktop", offline.clone())).quick();
+        srv.before("new.md", &WriteKind::Create, None).unwrap(); // held by the server
+        let mv = WriteKind::Rename { to: "new.md".into() };
+        assert!(desk.before("log.md", &mv, Some(ContentHash::of(b"v1\n"))).is_err());
+        srv.before("log.md", &WriteKind::Append, None).expect("the source was handed back");
+    }
+
+    #[test]
+    fn a_renamed_folder_takes_its_files_bases_along() {
+        let (server, desktop, leases, offline) = setup();
+        let desk = LeaseGuard::new(desktop.path(), Shared(leases, server.path().into(), "desktop", offline)).quick();
+        std::fs::create_dir_all(desktop.path().join("a")).unwrap();
+        std::fs::create_dir_all(server.path().join("a")).unwrap();
+        std::fs::write(desktop.path().join("a/n.md"), "x\n").unwrap();
+        std::fs::write(server.path().join("a/n.md"), "x\n").unwrap();
+        desk.before("a/n.md", &WriteKind::Write, Some(ContentHash::of(b"x\n"))).unwrap();
+        desk.after("a/n.md", &WriteKind::Write, Some(ContentHash::of(b"x\n")));
+        let mv = WriteKind::Rename { to: "b".into() };
+        desk.before("a", &mv, None).unwrap();
+        std::fs::rename(desktop.path().join("a"), desktop.path().join("b")).unwrap();
+        desk.after("a", &mv, None);
+        assert_eq!(std::fs::read_to_string(base_path(desktop.path(), "b/n.md")).unwrap(), "x\n");
+        assert!(!base_path(desktop.path(), "a").exists());
     }
 
     #[test]

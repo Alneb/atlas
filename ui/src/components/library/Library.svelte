@@ -129,8 +129,9 @@
   // Shift-click a run from the last one clicked, Ctrl+A all shown, Esc none
   let picked = $state<string[]>([]);
   let anchor: string | null = null;
-  const pickedItems = $derived.by(() => { const set = new Set(picked); return sorted.filter((i) => set.has(i.id)); });
-  const isPicked = (i: LibraryItem) => (picked.length > 1 ? picked.includes(i.id) : sheet?.id === i.id);
+  const pickedSet = $derived(new Set(picked));
+  const pickedItems = $derived(sorted.filter((i) => pickedSet.has(i.id)));
+  const isPicked = (i: LibraryItem) => (picked.length > 1 ? pickedSet.has(i.id) : sheet?.id === i.id);
   function click(e: MouseEvent, i: LibraryItem) {
     if (e.ctrlKey || e.metaKey) {
       const base = picked.length ? picked : sel ? [sel.id] : [];

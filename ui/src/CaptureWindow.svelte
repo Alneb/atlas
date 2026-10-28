@@ -71,7 +71,7 @@
     <span class="tile" aria-hidden="true">A</span>
     <!-- the list hangs from this box (textarea-complete.ts), not from the whole window -->
     <div class="field">
-      <textarea bind:this={box} bind:value={text} {onkeydown} use:complete rows="1" placeholder="Capture a thought, a to-do, a link…" aria-label="Capture" disabled={phase === "saved"} data-testid="capture"></textarea>
+      <textarea bind:this={box} bind:value={text} {onkeydown} use:complete={{ vault: () => vault || undefined }} rows="1" placeholder="Capture a thought, a to-do, a link…" aria-label="Capture" disabled={phase === "saved"} data-testid="capture"></textarea>
     </div>
   </div>
   <footer>

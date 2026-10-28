@@ -5,8 +5,8 @@ title = "Weather"
 description = "today's weather for templates: {{weather.summary}}, {{weather.city}}, {{weather.max}}…"
 icon = "sun"
 phone = true # runs in the phone apps too: its page side and helper work there
-version = "0.3.2"
-api = 4
+version = "0.4.0"
+api = 16
 
 [permissions]
 net = ["api.open-meteo.com", "geocoding-api.open-meteo.com", "api.seeip.org"]
@@ -25,7 +25,8 @@ choices = ["en", "es"]
 default = "en"
 
 [helper]
-run = "python3 -u \"$ATLAS_PLUGIN_DIR/helper.py\""
+js = "helper.js"                   # run in the core (QuickJS), built from helper/helper.ts
+idle = "10m"                       # it only answers: stopped when unused, started again by the next call
 
 [[tool]]
 name = "now"

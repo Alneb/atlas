@@ -66,5 +66,6 @@ export function taskTextWithChips(text: string): { title: string; chips: Chip[] 
   const chips = chipsOf(text);
   let title = "", at = 0;
   for (const c of chips) { title += text.slice(at, c.from); at = c.to; }
-  return { title: (title + text.slice(at)).replace(/\s{2,}/g, " ").trim(), chips };
+  // a captured task's time (`- [ ] 09:05 …`) is when it was written, not part of what it says
+  return { title: (title + text.slice(at)).replace(/\s{2,}/g, " ").trim().replace(/^\d{1,2}:\d{2}(?: |$)/, ""), chips };
 }

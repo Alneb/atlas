@@ -19,5 +19,6 @@ first, in `notifications/` (the folder is a setting). A source is the message's 
 Checked every 5 minutes on the server (the `sync` tool's schedule) and while a window is open, so nothing is missed
 while you are away (ntfy keeps messages for hours; the last id per topic is kept in the plugin's cache).
 
-Runs on Linux, macOS, Windows and the phone (Python's standard library only). Tests: `python3 -m unittest
-test_notify` (a stand-in ntfy server).
+Runs on Linux, macOS, Windows and the phone: the helper is TypeScript (`helper/helper.ts`, built into `helper.js`) run
+by the core itself, so no Python is needed. Tests: `node scripts/dev/plugin-ui.mjs --check plugins/beta/notifications`
+(a stand-in ntfy and an in-memory vault). The last id read per topic is kept in `.atlas/cache/notifications.json`.

@@ -58,7 +58,7 @@
     const p = plugins.list.find((x) => x.id === spec.id);
     if (!p) { error = `No plugin "${spec.id}" in .atlas/plugins/.`; return; }
     if (p.error) { error = p.error; return; }
-    if (!pluginOn(p)) { error = `"${p.title}" is switched off (Settings → Plugins & automation).`; return; }
+    if (!pluginOn(p)) { error = `"${p.title}" is switched off (Settings → Plugins).`; return; }
     try {
       const mod = await loadView(p);
       if (mine !== generation) return;

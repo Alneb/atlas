@@ -123,7 +123,7 @@ test("+ in the bar is a capture box with the box's completions; Enter captures",
   await expect(page.getByText("Captured").first()).toBeVisible();
   const d = new Date(), day = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
   const log = await (await request.get(`/api/file?path=log/${day}.md`, { headers: { "x-atlas": "1" } })).json();
-  expect(log.text).toMatch(/- \[ \] water the qqplants 📅 \d{4}-\d{2}-\d{2}/);
+  expect(log.text).toMatch(/- \[ \] \d{2}:\d{2} water the qqplants 📅 \d{4}-\d{2}-\d{2}/);
   // Backspace on the empty box: back to the commands
   await page.keyboard.press("Meta+e");
   await page.keyboard.type("+");

@@ -17,7 +17,7 @@ download there, and its note links the archived copy (the `tubearchivist:` prope
 ## Needs
 
 A TubeArchivist server, the Library plugin (whose videos it receives; the manifest does not `require` it), and
-Python 3 on the machine running Atlas's server (`helper.py`).
+Nothing installed: the helper is JavaScript run inside Atlas's core (`helper.js`, built from `helper/helper.ts`).
 
 ## Platforms
 
@@ -25,4 +25,4 @@ Linux works; the others are untested; not in the phone app.
 
 ## Tests
 
-`python3 test_helper.py` (the request TubeArchivist gets, and what is left alone).
+`node scripts/dev/plugin-ui.mjs --check plugins/beta/tubearchivist` (the request TubeArchivist gets, and what is left alone: `helper/helper.test.ts`).

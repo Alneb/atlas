@@ -19,7 +19,8 @@ It fits the dynamic-documents rework by following docs/guides/MALLEABLE.md:
 ## Shape
 ```
 Settings pane (panes/Settings.svelte)
-├── sidebar: search box, one button per page (with "N changed" badges), "Edit the file"
+├── sidebar: search box, Accounts, then the pages in groups — General, Working, Connections, Plugins (the list,
+│            Automation, each plugin's own page), Advanced (PAGES[].group, GROUPS) — with "N changed" badges
 └── main: the current page, or search results across all pages
      SettingsPage (components/settings/SettingsPage.svelte)
      ├── header: title + one-line blurb
@@ -78,9 +79,10 @@ grouped by page, include matching **features** (with Try), and the box is focuse
 | Drawing | draw.* (folder, Rnote commands, notepad, **a new drawing's pages**) | new drawing, export as SVG | — | — |
 | Terminal & agents | terminal.* | terminal, panel, Claude, send to Claude, move panel, new shell | — | — |
 | Keyboard | — | — | every command grouped (Atlas / plugins / workspace / server), filter, "only with a shortcut", rebind in place | turn a shell line into a command |
-| Plugins & automation | automation.*, sign-in provider / client id / return address | commands | toolsmith drafts (Keep / Dismiss), plugins (on/off, open, edit settings and view), sign-ins, workspace commands (schedule, origin, shortcut) | write a plugin; make a block |
+| Plugins | — | — | plugins (on/off, open, its page, its settings file, update, remove, install, new) | write a plugin; make a block |
+| Automation | automation.* | commands | toolsmith drafts (Keep / Dismiss), workspace commands (schedule, origin, shortcut) | turn a shell line into a command |
 | AI agents | — | — | agents allowed through `atlas mcp`, each with its own token | — |
-| Advanced | gpu rendering | — | — | — |
+| Advanced | gpu rendering | — | the settings file (Edit the file) | — |
 
 ## New config (all optional, defaults unchanged)
 - `[ui] accent = "#rrggbb"`: derives `--accent`, `--accent-strong`, `--accent-soft`, `--accent-sel`, `--link`,
@@ -128,6 +130,20 @@ would cycle):
 - A Settings page as a block shares the config with the pane: editing in either saves to the same file at once.
 - Suggestions (fonts, Claude installs) load lazily and slowly (font scan). Until they arrive, those fields are text
   boxes with a "default" placeholder.
+- **One place per thing.** A panel appears on one page only, and a field a panel edits is in `HIDDEN` so it is not
+  placed again as a row: the plugins' sign-ins and the OpenID provider fields (`plugins.oidc_*`) are Accounts' only
+  (SigninsPanel draws the fields). A page's `group` is required, so a new page cannot land outside the nav's order.
+- **A plugin's file buttons open its settings file** (`.atlas/plugin-settings/<id>.toml`, the one its page writes);
+  its manifest and code are links at the foot of its page, for whoever writes plugins.
+
+## The reorganization
+Settings had grown page by page: Plugins and automation shared one page while every plugin was also its own page
+under a second "Plugins" heading, the OpenID sign-ins showed three times (Accounts, the same panel on that page, its
+three fields there), "Edit the file" stood loose at the nav's foot, and a plugin's row had a manifest icon beside its
+settings gear that looked like settings. Now: Accounts on top (every sign-in); General (Overview, Appearance,
+Keyboard); Working (Writing, Home & Today, Code, Files & search, Web, References & PDF, Drawing, Terminal & agents);
+Connections (AI agents, Server); Plugins (the list, Automation, then each plugin's page, built-ins first); Advanced
+(the settings file, rendering — on every host now, the rendering field only where it does something, by `x-hosts`).
 
 
 ## A Settings pass

@@ -7,8 +7,8 @@
 title = "Catalog · TMDB"
 description = "films and series: search, details, posters, credits"
 icon = "film"
-version = "0.2.0"
-api = 4
+version = "0.3.0"
+api = 16
 requires = ["catalog"]
 
 [permissions]
@@ -29,7 +29,8 @@ default = "en-US"
 hint = "titles and overviews in this language when TMDB has them (es-ES, fr-FR…)"
 
 [helper]
-run = "python3 -u \"$ATLAS_PLUGIN_DIR/helper.py\""
+js = "helper.js"                   # run in the core (QuickJS), built from helper/helper.ts
+idle = "10m"                       # it only answers: stopped when unused, started again by the next call
 
 [[tool]]
 name = "search"

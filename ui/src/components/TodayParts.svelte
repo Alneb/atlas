@@ -57,7 +57,11 @@
     if (!d || !show("activity")) return; // each Home block is its own instance: only the activity one asks
     try { const a = await api.activity(d); if (d === shownDay) dayAct = a; } catch { dayAct = null; }
   }
-  $effect(() => { void shownDay; void today; void loadActivity(); }); // and again whenever Today refreshes (a file saved)
+  $effect(() => { void shownDay; void today; void loadActivity(); });
+  // the captures still to triage (captures.rs), on the log card: counted again whenever Today refreshes
+  let untriaged = $state(0);
+  $effect(() => { void today; if (show("log")) void api.captures().then((l) => { untriaged = l.open; }, () => {}); });
+  const openCaptures = () => open({ kind: "block", src: "type: captures\n", doc: "", title: "Captures" }); // and again whenever Today refreshes (a file saved)
   const shiftDay = (d: string, n: number) => { const t = new Date(`${d}T12:00:00`); t.setDate(t.getDate() + n); return localDay(t); };
   const created = $derived(dayAct?.created ?? []);
   let createdAll = $state(false), changedAll = $state(false);
@@ -117,8 +121,12 @@
     } catch { days = {}; }
   }
   async function showDay(d: string | null) {
-    viewDay = d && d !== today?.date ? d : null;
-    if (viewDay) pastText = await api.file(days[viewDay] ?? "").then((f) => f.text, () => "");
+    const want = (viewDay = d && d !== today?.date ? d : null);
+    if (!want) return;
+    const path = days[want];
+    // stepping fast: only the read of the day still shown lands (an older answer would put its text under this heading)
+    const text = path ? await api.file(path).then((f) => f.text, () => "") : "";
+    if (viewDay === want) pastText = text;
   }
   async function step(dir: -1 | 1) {
     if (!Object.keys(days).length) await loadDays();
@@ -330,6 +338,7 @@
         <section class="card">
           <div class="card-head">
             <h2>{viewDay ? `Log — ${dayLabel(viewDay)}` : "Today's log"}</h2>
+            {#if untriaged}<button class="triage-pill" onclick={openCaptures} title="Every capture still to triage: make it a task, file it into a note, dismiss it" data-testid="untriaged">{untriaged} to triage</button>{/if}
             <!-- one row of icons: open the day's note (made from the template when missing), then the days -->
             <span class="day-nav">
               {#if viewDay}<button class="link today-btn" onclick={() => showDay(null)}>Today</button>{/if}
@@ -501,16 +510,24 @@
 
   :global(.focus-md), :global(.log-md) { font-size: calc(14.5px * var(--ui-scale, 1)); }
   :global(.log-md ul) { padding-left: 1.1em; }
+  .triage-pill { margin-left: 8px; padding: 1px 9px; border-radius: 999px; font-size: calc(11.5px * var(--ui-scale, 1)); font-variant-numeric: tabular-nums;
+    color: var(--accent-strong, var(--accent)); background: color-mix(in srgb, var(--accent) 12%, transparent); border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent); }
+  .triage-pill:hover { background: color-mix(in srgb, var(--accent) 22%, transparent); }
   /* the day's log (lib/log-entries.ts): the time in a muted column, the text beside it, pictures as thumbnails */
   :global(.log-md ul.log-entries) { padding-left: 0; list-style: none; }
-  :global(.markdown.log-md li.log-entry) { position: relative; padding: 3px 0 3px 3.6em; line-height: 1.45; }
+  /* time | marker | text: a capture's dot and a task's box share the marker column, every text starts at one edge */
+  :global(.markdown.log-md li.log-entry) { position: relative; padding: 3px 0 3px 5.2em; line-height: 1.45; --mark: 4.3em; --row: calc(3px + .725em); }
+  :global(.markdown.log-md li.log-entry:not(.task-list-item)::before) { content: ""; position: absolute; left: calc(var(--mark) - 4px); top: calc(var(--row) - 4px);
+    width: 8px; height: 8px; border-radius: 50%; border: 2px solid color-mix(in srgb, var(--accent) 70%, transparent); box-sizing: border-box; }
+  :global(.markdown.log-md li.log-entry.log-untimed:not(.task-list-item)::before) { width: 6px; height: 6px; left: calc(var(--mark) - 3px); top: calc(var(--row) - 3px); border: 0; background: color-mix(in srgb, var(--accent) 45%, transparent); }
   :global(.log-md li.log-entry + li.log-entry) { border-top: 1px solid color-mix(in srgb, var(--border) 60%, transparent); }
   :global(.log-md .log-time) { position: absolute; left: 0; top: 3px; width: 3.6em; padding-top: .14em; text-align: right; white-space: nowrap;
     font-size: .8em; font-variant-numeric: tabular-nums; color: var(--text-faint); }
   :global(.log-md li.log-entry img.embed-img) { display: inline-block; vertical-align: top; width: auto !important; max-width: min(140px, 100%); max-height: 140px;
     margin: 4px 6px 2px 0; border: 1px solid var(--border); border-radius: var(--radius-sm); cursor: zoom-in; }
   :global(.log-md li.log-entry .file-card) { margin: 4px 0 2px; padding: .25em .65em; font-size: .88em; }
-  :global(.markdown.log-md li.log-entry.task-list-item input.task-checkbox) { margin: 0 .45em 0 0; }
+  :global(.markdown.log-md li.log-entry.task-list-item input.task-checkbox) { position: absolute; left: calc(var(--mark) - .5em); top: calc(var(--row) - .5em); margin: 0; transform: none;
+    font-size: inherit; } /* the li's em: --mark is in it */
   :global(.log-md a.log-url) { display: inline-block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: bottom; }
 
   .tasks, .activity { list-style: none; margin: 0; padding: 0; }

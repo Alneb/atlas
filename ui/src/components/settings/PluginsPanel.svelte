@@ -4,12 +4,12 @@
   import Icon from "../Icon.svelte";
   import PlatformChips from "./PlatformChips.svelte";
   import { pluginLog } from "../../lib/plugin-log.svelte";
-  import { openPluginSettings } from "../../lib/plugin-settings.svelte";
-  import { open, openPath } from "../../lib/dock";
+  import { openPluginSettings, openPluginSettingsText } from "../../lib/plugin-settings.svelte";
+  import { open } from "../../lib/dock";
   import { BUILTINS } from "../../lib/builtin-plugins";
   import { openSettingsAt } from "../../lib/settings-nav.svelte";
   import { plugins, pluginOn, pluginBlocked, pluginSpec, loadPlugins } from "../../lib/plugins.svelte";
-  import { changedSettings, installPlugin, isOff, mayOf, partsOf, pluginDir, removePlugin, switchPlugin, updatePlugin } from "../../lib/plugin-manage";
+  import { changedSettings, installPlugin, isOff, mayOf, partsOf, removePlugin, switchPlugin, updatePlugin } from "../../lib/plugin-manage";
   import { onMount } from "svelte";
 
   let { onnew, onblock }: { onnew: () => void; onblock: () => void } = $props();
@@ -19,7 +19,7 @@
 
 <section class="settings-panel plugins">
   <h3>Plugins <span class="n">{BUILTINS.length + plugins.list.length}</span></h3>
-  <p class="desc">Folders in <code>.atlas/plugins/</code>: a view (<code>view.js</code>), an optional data script, settings in <code>plugin.toml</code>. They reload when saved.</p>
+  <p class="desc">Folders in <code>.atlas/plugins/</code>: a view (<code>view.js</code>), an optional data script, their settings in <code>.atlas/plugin-settings/</code> (its page writes them). They reload when saved.</p>
   <ul>
     <!-- built in: shipped with Atlas, not for every vault; the same switch as a vault plugin -->
     {#each BUILTINS as b (b.id)}
@@ -53,8 +53,8 @@
         {#if pluginOn(p) && p.view}<button class="icon-btn" title="Open" aria-label="Open {p.title}" onclick={() => open(pluginSpec(p))}><Icon name="panel-right" size={13} /></button>{/if}
         {#if p.fields.length}<button class="btn small" aria-label="Settings of {p.title}" onclick={() => void openPluginSettings(p.id)}>Settings…</button>{/if}
         {#if p.from}<button class="icon-btn" title="Update from {p.from}" aria-label="Update {p.title}" onclick={() => void updatePlugin(p)}><Icon name="refresh" size={13} /></button>{/if}
-        <button class="icon-btn" title="Edit plugin.toml (the manifest, and the settings as text)" aria-label="Edit {p.title} settings" onclick={() => openPath(`${pluginDir(p.id)}/plugin.toml`)}><Icon name="settings" size={13} /></button>
-        <button class="icon-btn" title="Edit the code ({p.main ? "main.js" : "view.js"})" aria-label="Edit {p.title} code" onclick={() => { const f = p.main ?? p.view; if (f) openPath(f); }}><Icon name="edit" size={13} /></button>
+        <!-- its settings file, the one its page writes (never the manifest: that and the code are on its page) -->
+        {#if p.fields.length}<button class="icon-btn" title="Its settings file (.atlas/plugin-settings/{p.id}.toml)" aria-label="Edit {p.title} settings file" onclick={() => void openPluginSettingsText(p)}><Icon name="file-text" size={13} /></button>{/if}
         <button class="icon-btn" title="Remove from this vault (to .atlas/trash/)" aria-label="Remove {p.title}" onclick={() => removePlugin(p)}><Icon name="close" size={13} /></button>
         </span>
       </li>

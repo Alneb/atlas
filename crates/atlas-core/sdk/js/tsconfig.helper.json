@@ -1,0 +1,19 @@
+{
+  "//": "The base of every plugin's helper/tsconfig.json (scripts/dev/plugin-ui.mjs type-checks with it). Paths here are relative to this file.",
+  "compilerOptions": {
+    "target": "es2023",
+    "lib": ["es2023"],
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "strict": true,
+    "noEmit": true,
+    "noUnusedLocals": true,
+    "skipLibCheck": true,
+    "isolatedModules": true,
+    "allowJs": true,
+    "checkJs": false,
+    "types": ["node"],
+    "typeRoots": ["../../../../ui/node_modules/@types"],
+    "paths": { "atlas-helper/testing": ["./testing.ts"], "atlas-helper": ["./atlas-helper.d.ts"] }
+  }
+}

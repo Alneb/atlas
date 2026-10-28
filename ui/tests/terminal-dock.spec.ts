@@ -67,3 +67,20 @@ test("closing the last editor tab and opening one keeps the layout", async ({ pa
   await sidebar.getByRole("button", { name: "Dock terminal at the bottom" }).click();
   await expect.poll(async () => (await box(".xterm")).x).toBeLessThan(files.x + files.width - 20);
 });
+
+// A new shell (or a plugin's, as SSH opens one) while the terminal panel is hidden shows the panel with it, as asking
+// again for an open terminal does: it used to be added to the hidden panel and stay out of sight.
+test("a new terminal opened while the panel is hidden brings the panel back", async ({ page }) => {
+  await page.goto("/");
+  await page.getByText("Finish the GW notes.").waitFor();
+  const btn = page.getByTestId("sidebar").locator(".group-head", { hasText: "Terminal" }).getByRole("button", { name: /the terminal panel/ });
+  await btn.click();
+  await expect(page.locator(".xterm").first()).toBeVisible();
+  await btn.click(); // hidden, its shell still running
+  await expect(page.locator(".xterm").first()).toBeHidden();
+  await page.keyboard.press("F1");
+  await page.keyboard.type("New shell terminal");
+  await page.getByTestId("palette").getByText("New shell terminal").first().click();
+  await expect(page.locator(".xterm").last()).toBeVisible();
+  await expect(page.locator(".xterm")).toHaveCount(2);
+});

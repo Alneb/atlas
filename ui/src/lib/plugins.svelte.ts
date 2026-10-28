@@ -4,7 +4,7 @@
 // plugin-specific code. This module starts, reloads and watches them; the list and the ledger of registrations are
 // plugin-registry.svelte.ts, commands plugin-commands.ts, what a plugin is handed plugin-host-api.svelte.ts.
 import { errText } from "./text";
-import { api } from "./api";
+import { api, forgetRoles } from "./api";
 import { getDock } from "./dock-instance";
 import { on } from "./bus";
 import { toast } from "./state.svelte";
@@ -17,7 +17,7 @@ import { onSettings } from "./settings.svelte";
 import { logPlugin } from "./plugin-log.svelte";
 import { pluginFileUrl } from "./plugin-files";
 import type { PluginApi } from "./plugin-api";
-import { depth, disposeAll, own, ownerIds, pluginOn, plugins, starting, type Plugin } from "./plugin-registry.svelte";
+import { depth, disposeAll, inPhoneApp, own, ownerIds, pluginOn, plugins, starting, type Plugin } from "./plugin-registry.svelte";
 import { registerActions } from "./plugin-commands";
 import { INIT_ID, pluginApi } from "./plugin-host-api.svelte";
 
@@ -96,17 +96,20 @@ let listed = false; // the vault's list was read (a failed read must not close e
 // a layout restored after the plugins loaded
 addEventListener("atlas-layout", () => { if (listed) closeOrphanViews(); });
 
+const told = new Set<string>();
 export async function loadPlugins(): Promise<void> {
   let known = false;
   try {
-    plugins.list = await api.plugins();
+    plugins.list = await api.plugins(inPhoneApp ? "android" : undefined);
+    forgetRoles();
     known = true;
   } catch { plugins.list = []; }
   plugins.loaded = true;
   registerActions(plugins.list);
   listed = known;
   if (known) closeOrphanViews();
-  for (const p of plugins.list) if (p.error) toast(`Plugin ${p.id} not loaded`, p.error, "error", 9000);
+  // each broken manifest said once, not again with every re-read of the list (a plugin switched on or off)
+  for (const p of plugins.list) if (p.error && !told.has(`${p.id}\n${p.error}`)) { told.add(`${p.id}\n${p.error}`); toast(`Plugin ${p.id} not loaded`, p.error, "error", 9000); }
   for (const id of ownerIds()) if (id !== INIT.id && !plugins.list.some((p) => p.id === id)) disposeAll(id); // deleted plugins
   // a meta plugin's main.js runs before its subplugins' (they may use what it registers), level by level
   const levels = new Map<number, Plugin[]>();
@@ -118,7 +121,7 @@ export async function loadPlugins(): Promise<void> {
 // `.atlas/init.js` (docs/guides/MALLEABLE.md rung 8): the workspace's own startup script — `register(atlas)`
 // with the plugin API, no manifest, reloaded on save. A plugin without the ceremony.
 const INIT_PATH = ".atlas/init.js";
-const INIT: Plugin = { id: INIT_ID, title: "init.js", main: INIT_PATH, rail: false, opens: [], claims: [], has_data: false, settings: {}, fields: [], platforms: [], phone: true, permissions: { net: [], secrets: false }, has_helper: false, requires: [], parts: [], agents: [] };
+const INIT: Plugin = { id: INIT_ID, title: "init.js", main: INIT_PATH, rail: false, opens: [], claims: [], has_data: false, settings: {}, fields: [], platforms: [], phone: true, permissions: { net: [], secrets: false }, has_helper: false, requires: [], requires_versions: {}, provides: [], parts: [], agents: [] };
 async function startInit(): Promise<void> {
   // asked, not fetched: a missing init.js must not log a 404 on every start
   if (await exists(INIT_PATH)) await startMain(INIT);
@@ -135,7 +138,8 @@ export function watchPlugins(): () => void {
     const now = c.plugins.off.join("\n");
     if (now === offList) return;
     offList = now;
-    if (plugins.loaded) { registerActions(plugins.list); for (const p of plugins.list) void startMain(p); void startInit(); }
+    // what can run now is the core's answer (`blocked`), so the list is read again rather than worked out here
+    if (plugins.loaded) void loadPlugins();
   });
   const timers = new Map<string, ReturnType<typeof setTimeout>>();
   const offFs = on("fs", (e) => {

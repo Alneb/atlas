@@ -35,7 +35,7 @@ test("the Library is a plugin: an app at the top of the bar, gone when switched 
 
   // Settings → Plugins lists it, with the same switch as a vault plugin
   await page.keyboard.press("Meta+,");
-  await page.getByRole("navigation", { name: "Settings pages" }).getByRole("button", { name: /^Plugins & automation/ }).click();
+  await page.getByRole("navigation", { name: "Settings pages" }).getByRole("button", { name: "Plugins", exact: true }).click();
   const sw = page.getByRole("switch", { name: "Plugin Library" });
   await expect(sw).toHaveAttribute("aria-checked", "false");
   await sw.click();

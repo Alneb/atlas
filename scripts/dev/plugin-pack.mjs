@@ -6,7 +6,7 @@
 //       Default target: this machine. --keep-going builds the others when one fails, and still exits non-zero.
 //   node scripts/dev/plugin-pack.mjs pack [--out target/dist/plugins] [--bins <dir>]
 //       one atlas-plugin-<id>.tar.gz per plugin of plugins/stable and plugins/beta: its tracked files without the
-//       sources (engine/, ui/), plus every platform's bin/ found (in the repo, or under --bins, laid out as
+//       sources (engine/, ui/, helper/), plus every platform's bin/ found (in the repo, or under --bins, laid out as
 //       <tier>/<id>/bin/<target>/, as CI's engine artifacts are), and plugins.json, the index of them all.
 // Atlas installs such an archive from a file or its web address (plugin_install.rs).
 import { execFileSync, spawnSync } from "node:child_process";
@@ -163,7 +163,7 @@ function shippedFiles(p) {
     .split("\0")
     .filter(Boolean)
     .map((f) => relative(rel, f))
-    .filter((f) => !/^(engine|ui)\//.test(f));
+    .filter((f) => !/^(engine|ui|helper)\//.test(f));
 }
 
 function sha256(file) {

@@ -13,7 +13,6 @@ import { mount, unmount, type Component } from "svelte";
 import { parse as parseYaml } from "yaml";
 import type { DockviewPanelApi } from "dockview-core";
 import { api } from "./api";
-import { on } from "./bus";
 import { open, type PaneProps } from "./dock";
 import { iconSvg } from "./icons";
 import { paneComponents } from "./pane-components";
@@ -24,6 +23,7 @@ import type { ViewRow } from "./gen/ViewRow";
 import { lineOf, scopeAt, type Props } from "./section-props";
 import TodayParts, { type TodayPart } from "../components/TodayParts.svelte";
 import { IMAGE_RE } from "./paths";
+import { reloadOnChange } from "./reload-on-change";
 
 /** Where a block is drawn: inside a note, on a page, alone in a tab, or in the sidebar. */
 export type BlockHost = "note" | "page" | "tab" | "side";
@@ -119,6 +119,7 @@ for (const [p, title] of Object.entries(TODAY_PARTS)) registerBlock(svelteBlock(
 registerBlock(lazyBlock("settings", "Settings page", () => import("../components/settings/SettingsBlock.svelte"), (c) => ({ src: c.src })));
 registerBlock(lazyBlock("search", "Saved search", () => import("../components/views/SearchBlock.svelte"), (c) => ({ src: c.src })));
 registerBlock({ ...lazyBlock("review", "Review (notes waiting, one at a time)", () => import("../components/views/Review.svelte"), (c) => ({ src: c.src, doc: c.doc })), icon: "check", card: true });
+registerBlock({ ...lazyBlock("captures", "Captures (every capture, to triage)", () => import("../components/views/Captures.svelte"), (c) => ({ src: c.src })), icon: "inbox", card: true });
 registerBlock(lazyBlock("tags", "Tags (every tag, its notes)", () => import("../components/views/Tags.svelte"), () => ({})));
 registerBlock(lazyBlock("vaults", "Vaults (new, open, switch)", () => import("../components/views/VaultsBlock.svelte"), () => ({})));
 registerBlock(lazyBlock("suggestions", "Drafted for you", () => import("../components/ToolDrafts.svelte"), () => ({ compact: true })));
@@ -219,7 +220,6 @@ const lastRows = new Map<string, { type: string; rows: ViewRow[] }>();
 function mountRows(body: HTMLElement, doc: string, src: string): () => void {
   const key = `${doc}\n${src}`;
   let clean = () => {};
-  let t: ReturnType<typeof setTimeout> | undefined;
   let shown = ""; // what THIS element draws (the shared cache may be newer than it)
   const draw = (r: { type: string; rows: ViewRow[] }) => {
     shown = JSON.stringify(r);
@@ -238,10 +238,8 @@ function mountRows(body: HTMLElement, doc: string, src: string): () => void {
     } catch (e) { message(body, "view-error", errText(e)); }
   };
   void load();
-  const off = on("fs", (e) => {
-    if (!e.paths.length || e.paths.some((p) => p.endsWith(".md") || p.endsWith(".base"))) { clearTimeout(t); t = setTimeout(load, 400); }
-  });
-  return () => { off(); clean(); clearTimeout(t); };
+  const off = reloadOnChange(() => void load(), { wait: 400, wants: (p) => p.endsWith(".md") || p.endsWith(".base"), host: () => body });
+  return () => { off(); clean(); };
 }
 
 /** Draws one block (its YAML `src`, in the context of document `doc`) into `el`; returns the cleanup.

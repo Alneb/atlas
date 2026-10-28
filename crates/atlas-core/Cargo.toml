@@ -56,10 +56,18 @@ grep-searcher = "0.1.17"
 grep-regex = "0.1.14"
 grep-matcher = "0.1.9"
 gix = { version = "0.90.0", default-features = false, features = ["status", "sha1"] }
+# plugins' JavaScript helpers, run in the core (js_helper.rs): QuickJS, one context per plugin
+rquickjs = { version = "0.14", default-features = false, features = ["std"] }
+# their heavy primitives, natively (js_native.rs): HTML selection, CSV
+scraper = "0.27"
+csv = "1"
 
 # the few OS calls of platform/proc.rs (is a pid alive, the host name)
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"
+# rquickjs ships no prebuilt bindings for Android: generated there (libclang on the build machine, the NDK's sysroot)
+[target.'cfg(target_os = "android")'.dependencies]
+rquickjs = { version = "0.14", default-features = false, features = ["std", "bindgen"] }
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_System_Threading"] }
 

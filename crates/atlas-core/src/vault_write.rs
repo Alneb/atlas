@@ -79,6 +79,8 @@ pub trait WriteGuard: Send + Sync {
     fn before(&self, rel: &str, kind: &WriteKind, current: Option<ContentHash>) -> Result<()>;
     /// `new`: the hash of what is on disk now (`None` after a removal, or for a folder).
     fn after(&self, rel: &str, kind: &WriteKind, new: Option<ContentHash>);
+    /// `before` allowed the change but it failed: what `before` took is handed back (a lease would stay held otherwise).
+    fn abort(&self, _rel: &str, _kind: &WriteKind) {}
 }
 
 /// The default: every write allowed, nothing to tell.
@@ -105,9 +107,6 @@ impl Workspace {
     /// Back to [`NoGuard`].
     pub fn clear_write_guard(&self) {
         GUARDS.write().unwrap_or_else(|e| e.into_inner()).retain(|(r, _)| r != self.root());
-    }
-    pub fn write_guard(&self) -> Arc<dyn WriteGuard> {
-        guard_of(self.root()).map_or_else(|| Arc::new(NoGuard) as Arc<dyn WriteGuard>, |(g, _)| g)
     }
 }
 
@@ -167,13 +166,20 @@ fn run_guarded<T>(abs: &Path, kind: impl FnOnce(&dyn Fn(&Path) -> String) -> Wri
     let rel = rel_of(&root, abs);
     let kind = kind(&|p| rel_of(&root, p));
     guard.before(&rel, &kind, hash_file(abs)?)?;
-    let out = op()?;
-    let new = match hashed {
-        Some(p) if p.is_file() => hash_file(p)?,
-        _ => None,
-    };
-    guard.after(&rel, &kind, new);
-    Ok(out)
+    let done = op().and_then(|out| match hashed {
+        Some(p) if p.is_file() => Ok((out, hash_file(p)?)),
+        _ => Ok((out, None)),
+    });
+    match done {
+        Ok((out, new)) => {
+            guard.after(&rel, &kind, new);
+            Ok(out)
+        }
+        Err(e) => {
+            guard.abort(&rel, &kind);
+            Err(e)
+        }
+    }
 }
 
 /// A change made by something else (an outside program: `gio trash`, `git`), still asked of and told to the guard.
@@ -485,6 +491,33 @@ mod tests {
         assert_eq!(got[7], format!("after n/a.md Rename {{ to: \"b.md\" }} {abcd}"));
         assert_eq!(got[9], "after b.md Remove ");
         assert!(got[10].starts_with("before sub/") && got[10].contains("Mkdir"), "{got:?}");
+        ws.clear_write_guard();
+    }
+
+    #[derive(Default)]
+    struct Aborts(Mutex<Vec<String>>);
+    impl WriteGuard for Aborts {
+        fn before(&self, _: &str, _: &WriteKind, _: Option<ContentHash>) -> Result<()> {
+            Ok(())
+        }
+        fn after(&self, rel: &str, _: &WriteKind, _: Option<ContentHash>) {
+            self.0.lock().unwrap().push(format!("after {rel}"));
+        }
+        fn abort(&self, rel: &str, _: &WriteKind) {
+            self.0.lock().unwrap().push(format!("abort {rel}"));
+        }
+    }
+
+    #[test]
+    fn a_failed_change_hands_back_what_before_took() {
+        let d = tempfile::tempdir().unwrap();
+        let ws = Workspace::open(d.path()).unwrap();
+        let log = Arc::new(Aborts::default());
+        ws.set_write_guard(log.clone());
+        // a move of a file that is not there fails in the IO, after the guard allowed it
+        assert!(rename(&ws.resolve("gone.md").unwrap(), &ws.resolve("b.md").unwrap()).is_err());
+        write(&ws.resolve("a.md").unwrap(), b"x").unwrap();
+        assert_eq!(*log.0.lock().unwrap(), vec!["abort gone.md".to_string(), "after a.md".to_string()]);
         ws.clear_write_guard();
     }
 

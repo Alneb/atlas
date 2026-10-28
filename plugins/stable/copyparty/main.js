@@ -24,6 +24,8 @@ export function register(atlas) {
   async function call(name, vpath, query = "", init = {}) {
     const pw = (await atlas.secrets.has(secret(name))) ? { pw: { secret: secret(name) } } : {};
     const r = await atlas.fetch(url(name, vpath, query), { timeout: 120, ...init, headers: { ...pw, ...init.headers } });
+    // a sign-in in front of the server (Authelia…): Atlas offers it; the explorer waits for it instead of an error
+    if (r.signin) throw Object.assign(new Error(`${name}: sign in to ${r.signin.host} first (Atlas offers it), then open it again`), { waiting: true });
     if (r.status === 401 || r.status === 403) throw new Error(`${name}: not allowed (${r.status}) — a password in Settings → copyparty, or the VPN?`);
     if (!r.ok) throw new Error(`${name}: ${r.status} ${plain(await r.text())}`);
     return r;
@@ -84,7 +86,10 @@ export function register(atlas) {
   atlas.files.source({
     title: "copyparty", icon: "server",
     places: async () => servers().map((s) => ({ id: s.name, title: s.name, detail: s.url })),
-    list: async (name, path) => { const at = path || "/"; return { path: at, ...(await cachedLs(name, at)) }; },
+    list: async (name, path) => {
+      const at = path || "/";
+      try { return { path: at, ...(await cachedLs(name, at)) }; } catch (e) { if (e.waiting) return { waiting: e.message }; throw e; }
+    },
     local: async (name, path) => {
       const e = await stat(name, path);
       if (!e) throw new Error(`${path} is not on ${name} (any more)`);
@@ -95,7 +100,8 @@ export function register(atlas) {
     save: async (local, force) => {
       const seen = copies[local];
       if (!seen) throw new Error(`${local} is not a copy of a copyparty file: open it again from the explorer`);
-      const now = await stat(seen.server, seen.path);
+      let now;
+      try { now = await stat(seen.server, seen.path); } catch (e) { if (e.waiting) return { waiting: e.message }; throw e; }
       if (now && !force && (now.modified !== seen.ts || now.size !== seen.sz)) return { changed: `${seen.path} changed on ${seen.server} since it was opened here` };
       await put(seen.server, seen.path, local, true);
       forget(seen.server, parentOf(seen.path));

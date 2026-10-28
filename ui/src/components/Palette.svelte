@@ -81,7 +81,7 @@
     const query = q.trim();
     const mode = palette.mode;
     clearTimeout(ft);
-    if (!palette.open || (mode !== "all" && mode !== "files") || !query || query.startsWith("#") || query.startsWith(">")) { fileHits = []; lineHits = []; return; }
+    if (!palette.open || (mode !== "all" && mode !== "files") || !query || query.startsWith("#") || query.startsWith(">")) { ++fseq; fileHits = []; lineHits = []; return; } // one still answering is now stale
     ft = setTimeout(async () => {
       const my = ++fseq;
       busy = true;

@@ -8,9 +8,10 @@
 title = "Catalog · Science"
 description = "everything science: papers by DOI or arXiv id into References, with metadata, the open-access PDF (arXiv, OpenAlex, Unpaywall, Semantic Scholar, Europe PMC, CORE), refs.bib and the Zotero connector"
 icon = "book"
-version = "0.4.1"
-api = 4
-requires = ["catalog"]
+version = "0.4.2"
+api = 16
+provides = ["references"]                 # the role the core and the page ask for (not this id)
+# no `requires`: References stands alone; its [contributes.catalog] patterns count only where the catalog runs
 
 [permissions]
 # the indexes (Crossref, arXiv, OpenAlex, Unpaywall, Semantic Scholar, Europe PMC, CORE), and wherever they say a

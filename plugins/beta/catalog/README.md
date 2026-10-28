@@ -2,7 +2,7 @@
 
 Anything you capture — a link, a DOI, an arXiv id, an ISBN, an IMDb id — is recognised, looked up in every source the
 switched-on `catalog-*` plugins offer, and written as one note of its kind (a film, an album, a book, a paper, a web
-page…) in that kind's library. It shows up as the Library app in the left bar, as tabs of the Libraries page, as
+page…) in that kind's library. It shows up as the Catalog app in the left bar (hidden or moved like any app: its right-click, or Settings → Appearance), as tabs of the Libraries page, as
 blocks inside notes, and as the command "Add to the catalog…".
 
 ## What it does
@@ -23,7 +23,7 @@ blocks inside notes, and as the command "Add to the catalog…".
 - **Blocks**: `catalog.library` (a collection as shelves, a covers grid or a table, with search, filters and sort),
   `catalog.item` (the top of a catalogued note: cover, key fields, shelf chips, a five-star rating, buttons to the
   services that hold it, Refresh), `catalog.collections` (every collection as a tile, with a capture box that
-  previews before adding), `catalog.app` (the Library app).
+  previews before adding), `catalog.app` (the Catalog app).
 - **From every capture**: a link or identifier captured anywhere (the capture box, the phone, an agent) is filed as
   `add` does; plain words are left alone.
 - **Tools** for agents and other plugins: `add`, `capture`, `preview` (what `add` would do, writing nothing),
@@ -39,8 +39,6 @@ that plugin's piece, never the whole catalog. See `docs/guides/PLUGIN-API.md`, "
 
 ## Settings
 
-- **The Library app in the left bar** (on): every kind as covers or a table; off in a vault whose library is another
-  view.
 - **File links from every capture** (on): a link, DOI, ISBN or IMDb id captured anywhere becomes its note, and the
   capture links to it.
 

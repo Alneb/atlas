@@ -16,8 +16,8 @@ const example = (f: string) => readFileSync(fileURLToPath(new URL(`../../plugins
 test.beforeAll(async ({ request }) => {
   await put(request, `${DIR}/main.js`, example("main.js"));
   // no hosts read from the machine's own ssh config
-  await put(request, `${DIR}/plugin.toml`, example("plugin.toml").replace(/^run = .*$/m, `run = "${HELPER}"`).replace("[helper]", `[settings]\nconfig = "no-such-ssh-config"\n\n[helper]`));
-  await put(request, ".atlas/plugin-settings/ssh.toml", ""); // this run's values are the manifest's above, not what another spec saved
+  await put(request, `${DIR}/plugin.toml`, example("plugin.toml").replace(/^run = .*$/m, `run = "${HELPER}"`));
+  await put(request, ".atlas/plugin-settings/ssh.toml", 'config = "no-such-ssh-config"\n'); // the vault's values, never in the manifest
 });
 test.afterAll(async ({ request }) => {
   await put(request, `${DIR}/main.js`, "export function register() {}\n");

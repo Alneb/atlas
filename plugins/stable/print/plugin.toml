@@ -4,11 +4,12 @@
 title = "Print"
 description = "print a file, or a note as its exported PDF, with CUPS (lp)"
 icon = "file"
-version = "0.2.0"
-api = 9
+version = "0.2.1"
+api = 15
 
 [helper]
 run = "python3 -u \"$ATLAS_PLUGIN_DIR/helper.py\""
+idle = "10m"                       # it only answers: stopped when unused, started again by the next call
 
 [[setting]]
 key = "printer"

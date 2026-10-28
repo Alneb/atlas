@@ -93,9 +93,14 @@ struct Manifest {
     /// ssh_open and ssh_run, never ssh in your own shell"): added to `atlas mcp`'s instructions while the plugin is on.
     #[serde(default)]
     for_agents: Option<String>,
-    /// Plugins this one builds on (`["catalog"]`): it is not loaded while one of them is missing, broken or off.
+    /// Plugins this one builds on (`["catalog"]`, or with the oldest version each works with:
+    /// `{ catalog = ">=0.5" }`): it is not loaded while one of them is missing, broken, off or older.
     #[serde(default)]
-    requires: Vec<String>,
+    requires: Requires,
+    /// Roles it fills (`["references"]`): the core and the page ask for a role (`provider`), never for a plugin's id,
+    /// so another plugin can take its place.
+    #[serde(default)]
+    provides: Vec<String>,
     /// `[[agent]]`: AI agents whose terminals this plugin declares (agent_terminals.rs).
     #[serde(default, rename = "agent")]
     agents: Vec<crate::agent_terminals::AgentDecl>,
@@ -112,6 +117,35 @@ struct Manifest {
 }
 
 impl Manifest {
+}
+
+/// `requires`, as a list of ids or a table of id → oldest version (`">=0.5"`, as `needs` reads it).
+#[derive(Debug, Clone, Deserialize)]
+#[serde(untagged)]
+enum Requires {
+    Ids(Vec<String>),
+    Versions(std::collections::BTreeMap<String, String>),
+}
+
+impl Default for Requires {
+    fn default() -> Self {
+        Requires::Ids(Vec::new())
+    }
+}
+
+impl Requires {
+    fn ids(&self) -> Vec<String> {
+        match self {
+            Requires::Ids(v) => v.clone(),
+            Requires::Versions(m) => m.keys().cloned().collect(),
+        }
+    }
+    fn versions(&self) -> std::collections::BTreeMap<String, String> {
+        match self {
+            Requires::Ids(_) => Default::default(),
+            Requires::Versions(m) => m.iter().map(|(k, v)| (k.clone(), v.trim().trim_start_matches(">=").trim().trim_start_matches('v').to_string())).collect(),
+        }
+    }
 }
 
 /// `[android]`.
@@ -136,11 +170,16 @@ struct AndroidManifest {
 #[serde(deny_unknown_fields)]
 struct HelperManifest {
     /// Shell command (cwd = the vault; `$ATLAS_PLUGIN_DIR`, `$ATLAS_PLUGIN_CACHE`, `$ATLAS_ROOT` set).
-    run: String,
+    run: Option<String>,
+    /// A JavaScript file of the plugin run inside the core instead of a program (js_helper.rs). One of `run` and `js`.
+    js: Option<String>,
     /// When the helper starts: at its first call (the default), or with the vault (`"open"`: it listens for
     /// something itself, as catalog-papers' Zotero Connector does).
     #[serde(default)]
     start: HelperStart,
+    /// Stopped after this long with no call (`"10m"`, the schedule's words), started again by the next one: for a
+    /// helper that only answers and keeps nothing running. Unset: it runs until Atlas stops.
+    idle: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Deserialize)]
@@ -161,15 +200,40 @@ pub fn helpers_started_with_vault(root: &Path, off: &[String]) -> Vec<String> {
         .collect()
 }
 
-/// The command that starts plugin `id`'s helper.
-pub fn helper_command(root: &Path, id: &str) -> Result<String> {
+/// What runs as a plugin's helper.
+#[derive(Debug, Clone, PartialEq)]
+pub enum HelperProgram {
+    /// `[helper] run`: a command line, started as a process.
+    Command(String),
+    /// `[helper] js`: a script of the plugin's folder, run in the core.
+    Js(std::path::PathBuf),
+}
+
+/// What starts plugin `id`'s helper.
+pub fn helper_program(root: &Path, id: &str) -> Result<HelperProgram> {
     if !valid_id(id) {
         return Err(Error::BadRequest(format!("bad plugin id {id:?}")));
     }
-    read_manifest(root, id)?
-        .helper
-        .map(|h| h.run)
-        .ok_or_else(|| Error::BadRequest(format!("plugin {id} has no helper: add [helper] run = \"…\" to its plugin.toml")))
+    let h = read_manifest(root, id)?.helper.ok_or_else(|| Error::BadRequest(format!("plugin {id} has no helper: add [helper] js = \"helper.js\" (or run = \"…\") to its plugin.toml")))?;
+    match (h.run, h.js) {
+        (Some(run), None) => Ok(HelperProgram::Command(run)),
+        (None, Some(js)) => {
+            let rel = js.trim().trim_start_matches("./");
+            if rel.is_empty() || rel.starts_with('/') || rel.split(['/', '\\']).any(|p| p == "..") {
+                return Err(Error::BadRequest(format!("plugin {id}: [helper] js = {js:?}: a file inside the plugin's folder")));
+            }
+            Ok(HelperProgram::Js(root.join(PLUGINS_DIR).join(id).join(rel)))
+        }
+        (Some(_), Some(_)) => Err(Error::BadRequest(format!("plugin {id}: [helper] has both run and js: one of them"))),
+        (None, None) => Err(Error::BadRequest(format!("plugin {id}: [helper] needs run = \"…\" or js = \"helper.js\""))),
+    }
+}
+
+/// How long plugin `id`'s helper may sit with no call before it is stopped (`[helper] idle`); None: it stays.
+/// Err: the words are not a length (the helper then stays, and its log says why).
+pub fn helper_idle(root: &Path, id: &str) -> std::result::Result<Option<std::time::Duration>, String> {
+    let Some(words) = read_manifest(root, id).ok().and_then(|m| m.helper?.idle) else { return Ok(None) };
+    crate::schedule::span(&words).map(Some).ok_or_else(|| format!("[helper] idle = {words:?} is not a length (`10m`, `1h`): the helper stays running"))
 }
 
 /// `[permissions]`: what a plugin may do through the core. Nothing unless it is written here, and
@@ -222,9 +286,12 @@ pub fn permissions(root: &Path, id: &str) -> Result<Permissions> {
 /// `atlas.pane`, `atlas.anchor`) and `registerEmbed`; v8 `atlas.live.join` and `atlas.pane.close`; v9 `atlas.assetUrl`
 /// (a plugin's own files by URL, plugin_files.rs); v10 `atlas.trash`; v11 `atlas.files.thumb`; v12 Settings v2: accounts
 /// (`account = {…}` on a records field), `advanced` / `hidden` fields, `atlas.plugin.registerSettingsSection`; v13
-/// `atlas.templates`, `atlas.newNote`, `atlas.applyTemplate`; v14 `atlas.marks`, `atlas.marksSvg`. The page's number
-/// must be the same (a test holds it).
-pub const API_VERSION: u32 = 14;
+/// `atlas.templates`, `atlas.newNote`, `atlas.applyTemplate`; v14 `atlas.marks`, `atlas.marksSvg`; v15 `[helper] idle`; v16
+/// `[helper] js` (a JavaScript helper run in the core, js_helper.rs), roles, versioned `requires`, `exports`; v17
+/// `atlas.terminal.shell()` (the terminal's shell, from /api/version).
+/// The page's number must be the same (a test holds it). A manifest with a key this Atlas does not know and an `api`
+/// above it is refused with "update Atlas", not with the parser's error (`read_manifest`).
+pub const API_VERSION: u32 = 17;
 
 /// `"1.2.3"` → `[1, 2, 3]` (missing parts are 0; anything after a non-digit part is ignored).
 fn version_parts(v: &str) -> [u64; 3] {
@@ -367,6 +434,10 @@ pub struct Plugin {
     pub error: Option<String>,
     /// The plugins it builds on (`requires`): loaded only while all of them are.
     pub requires: Vec<String>,
+    /// The oldest version of each required plugin it works with, where `requires` names one (`"0.5"`).
+    pub requires_versions: std::collections::BTreeMap<String, String>,
+    /// The roles it fills (`provides`), as `provider` finds them.
+    pub provides: Vec<String>,
     /// The AI agents it declares (`[[agent]]`): the terminal + menu and the palette offer a session of each.
     pub agents: Vec<crate::agent_terminals::AgentDecl>,
     /// What it adds that is not a pane or a script, in words for Settings: its scheduled runs, its capture hook,
@@ -401,6 +472,8 @@ impl Plugin {
             version: None,
             error: None,
             requires: Vec::new(),
+            requires_versions: Default::default(),
+            provides: Vec::new(),
             agents: Vec::new(),
             parts: Vec::new(),
         }
@@ -489,7 +562,14 @@ pub fn valid_id(id: &str) -> bool {
 
 fn read_manifest(root: &Path, id: &str) -> Result<Manifest> {
     let text = std::fs::read_to_string(root.join(PLUGINS_DIR).join(id).join("plugin.toml"))?;
-    let mut m: Manifest = toml::from_str(&text).map_err(|e| Error::BadRequest(format!("{PLUGINS_DIR}/{id}/plugin.toml: {e}")))?;
+    let mut m: Manifest = toml::from_str(&text).map_err(|e| {
+        // a newer plugin's keys are unknown here: say "update Atlas", not the parser's complaint about them
+        let api = toml::from_str::<toml::Table>(&text).ok().and_then(|t| t.get("api")?.as_integer());
+        match api.filter(|a| *a > i64::from(API_VERSION)) {
+            Some(a) => Error::BadRequest(format!("written for plugin API {a}; this Atlas has {API_VERSION} — update Atlas")),
+            None => Error::BadRequest(format!("{PLUGINS_DIR}/{id}/plugin.toml: {e}")),
+        }
+    })?;
     // the vault's settings file over the manifest's own [settings] (key by key: a value added to the manifest later,
     // by hand, still counts until the next save moves it into the file)
     if let Some(own) = settings_file_values(root, id)? {
@@ -547,6 +627,46 @@ pub fn move_settings_out(root: &Path, id: &str) -> Result<()> {
     Ok(())
 }
 
+/// Every plugin's manifest `[settings]` moved to its settings file ([`move_settings_out`]), at the vault's start; a
+/// manifest that cannot be moved is said on stderr and left as it is.
+pub fn move_all_settings_out(root: &Path) {
+    let Ok(dirs) = std::fs::read_dir(root.join(PLUGINS_DIR)) else { return };
+    for id in dirs.flatten().filter(|e| e.path().is_dir()).filter_map(|e| e.file_name().into_string().ok()).filter(|id| valid_id(id)) {
+        if let Err(e) = move_settings_out(root, &id) {
+            eprintln!("atlas: plugin {id}: its [settings] stay in plugin.toml: {e}");
+        }
+    }
+}
+
+/// A plugin's settings file that still holds `rail` (the catalog's old switch for its app tile): `false` becomes the
+/// plugin's id in `[ui] apps_hidden`, then the key leaves the file — one list hides every app, built-in or plugin.
+/// The config is written first, so a failure leaves the old switch where it was; runs at every start, a no-op after.
+pub fn hide_legacy_rails(root: &Path) {
+    let Ok(dirs) = std::fs::read_dir(root.join(SETTINGS_DIR)) else { return };
+    for name in dirs.flatten().filter_map(|e| e.file_name().into_string().ok()) {
+        let Some(id) = name.strip_suffix(".toml").filter(|id| valid_id(id)) else { continue };
+        if let Err(e) = hide_legacy_rail(root, id) {
+            eprintln!("atlas: plugin {id}: its `rail` setting stays: {e}");
+        }
+    }
+}
+
+fn hide_legacy_rail(root: &Path, id: &str) -> Result<()> {
+    let rel = settings_rel(id);
+    let text = std::fs::read_to_string(root.join(&rel))?;
+    let mut file: toml_edit::DocumentMut = text.parse().map_err(|e| Error::BadRequest(format!("{rel}: {e}")))?;
+    let Some(shown) = file.get("rail").map(|v| v.as_bool()) else { return Ok(()) };
+    if shown == Some(false) {
+        let mut cfg = crate::config::Config::load(root)?;
+        if !cfg.ui.apps_hidden.iter().any(|a| a == id) {
+            cfg.ui.apps_hidden.push(id.to_string());
+            crate::config::Config::save(root, &cfg)?;
+        }
+    }
+    file.remove("rail");
+    write_settings_file(root, id, &file.to_string())
+}
+
 /// A section the vault's config once kept for what is now plugin `id` (`[refs]` → catalog-papers) becomes the plugin's
 /// starting values: each key its settings file lacks is copied in; keys it has win, so this runs at every start and
 /// changes nothing after the first. The config's section is left where it is. Nothing when the
@@ -596,9 +716,8 @@ pub fn list(root: &Path) -> Vec<Plugin> {
                     ..Plugin::unloaded(id)
                 },
                 Ok(m) => Plugin {
-                    // a vault may hide the plugin's app tile: its setting `rail` (a switch the plugin declares) wins over
-                    // the manifest — the catalog's Library app is one vault's, not another's
-                    rail: m.settings.get("rail").and_then(toml::Value::as_bool).unwrap_or(m.rail),
+                    // the manifest's: whether a vault shows the tile is `[ui] apps_hidden`, one list for every app
+                    rail: m.rail,
                     // first, while the manifest is whole: the fields below take it apart
                     settings: serde_json::to_value(settings_with_defaults(&m)).unwrap_or(Value::Null),
                     parts: parts_of(&m),
@@ -608,7 +727,9 @@ pub fn list(root: &Path) -> Vec<Plugin> {
                     platforms: platforms_of(&m),
                     opens: opens_and_claims(&m),
                     agents: m.agents.clone(),
-                    requires: m.requires.clone(),
+                    requires: m.requires.ids(),
+                    requires_versions: m.requires.versions(),
+                    provides: provides_of(&id, &m.provides),
                     view: module(root, &id, m.view, "view.js"),
                     main: module(root, &id, m.main, "main.js"),
                     claims: m.claims,
@@ -698,11 +819,35 @@ pub fn blocked(plugins: &[Plugin], off: &[String], id: &str) -> Option<String> {
             return Some(why.clone());
         }
         seen.push(id.to_string());
-        let why = p.requires.iter().find_map(|r| walk(plugins, off, r, seen).map(|w| format!("needs {r}: {w}")));
+        let why = p.requires.iter().find_map(|r| {
+            walk(plugins, off, r, seen).map(|w| format!("needs {r}: {w}")).or_else(|| {
+                let min = p.requires_versions.get(r)?;
+                let has = plugins.iter().find(|q| &q.id == r)?.version.clone().unwrap_or_else(|| "0".into());
+                (version_parts(&has) < version_parts(min)).then(|| format!("needs {r} {min} or newer; this vault has {has}"))
+            })
+        });
         seen.pop();
         why
     }
     walk(plugins, off, id, &mut Vec::new())
+}
+
+/// The roles the first-party plugins filled before manifests said so: a vault's older copy (no `provides` key) keeps
+/// working until it is updated. Drop once no copy in use predates `provides` (API 16).
+const LEGACY_ROLES: [(&str, &str); 2] = [("catalog", "catalog"), ("catalog-papers", "references")];
+
+fn provides_of(id: &str, declared: &[String]) -> Vec<String> {
+    if !declared.is_empty() {
+        return declared.to_vec();
+    }
+    LEGACY_ROLES.iter().filter(|(p, _)| *p == id).map(|(_, r)| r.to_string()).collect()
+}
+
+/// The plugin that fills `role` (`provides`) and can run, the first by id when several do; None: no plugin does.
+pub fn provider<'a>(plugins: &'a [Plugin], off: &[String], role: &str) -> Option<&'a Plugin> {
+    let mut all: Vec<&Plugin> = plugins.iter().filter(|p| p.provides.iter().any(|r| r == role)).collect();
+    all.sort_by(|a, b| a.id.cmp(&b.id));
+    all.into_iter().find(|p| blocked(plugins, off, &p.id).is_none())
 }
 
 /// The `[contributes.<target>]` tables of every plugin that can run, by plugin id, as JSON — what a meta plugin
@@ -972,6 +1117,10 @@ mod tests {
         let p = list(t.path()).remove(0);
         assert_eq!((p.title.as_str(), p.main), ("From the future", None), "named, not loaded");
         assert!(p.error.unwrap().contains("needs Atlas 99.0"));
+        // a key added by a later API is unknown here: the reason is the API, not the parser's complaint
+        plugin(t.path(), "future", "title = \"F\"\napi = 99\n[helper]\nrun = \"true\"\nlater = 1\n");
+        let e = list(t.path()).remove(0).error.unwrap();
+        assert!(e.contains("plugin API 99") && e.contains("update Atlas"), "{e}");
     }
 
     #[tokio::test]
@@ -1009,6 +1158,47 @@ mod tests {
             "sync every 6h", "reads every capture", "{{weather}} in templates", "4 tools for agents",
             "fills in book, science_book for catalog", "recognises its links for catalog", "finds PDFs for catalog-papers",
         ]);
+    }
+
+    #[test]
+    fn an_old_rail_switch_becomes_the_vaults_hidden_apps_and_leaves_the_settings_file() {
+        let t = tempfile::tempdir().unwrap();
+        let dir = t.path().join(SETTINGS_DIR);
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::create_dir_all(t.path().join(".atlas")).unwrap();
+        std::fs::write(t.path().join(crate::config::CONFIG_FILE), "# mine\n[ui]\ntheme = \"light\"\n").unwrap();
+        std::fs::write(dir.join("catalog.toml"), "# this vault's library is References\nrail = false\non_capture = true\n").unwrap();
+        std::fs::write(dir.join("email.toml"), "rail = true\n").unwrap();
+        hide_legacy_rails(t.path());
+        let cfg = crate::config::Config::load(t.path()).unwrap();
+        assert_eq!((cfg.ui.apps_hidden, cfg.ui.theme), (vec!["catalog".to_string()], crate::config::Theme::Light));
+        let config = std::fs::read_to_string(t.path().join(crate::config::CONFIG_FILE)).unwrap();
+        assert!(config.starts_with("# mine\n"), "comments kept: {config}");
+        let catalog = std::fs::read_to_string(dir.join("catalog.toml")).unwrap();
+        assert!(!catalog.contains("rail") && catalog.contains("on_capture = true"), "{catalog}");
+        assert!(!std::fs::read_to_string(dir.join("email.toml")).unwrap().contains("rail"), "a shown tile needs no key either");
+        hide_legacy_rails(t.path()); // again: nothing left to do, nothing doubled
+        assert_eq!(crate::config::Config::load(t.path()).unwrap().ui.apps_hidden.len(), 1);
+    }
+
+    #[test]
+    fn a_required_plugin_older_than_asked_blocks_and_a_role_finds_its_provider() {
+        let t = tempfile::tempdir().unwrap();
+        plugin(t.path(), "catalog", "title = \"Catalog\"\nversion = \"0.4.2\"\nprovides = [\"catalog\"]\n");
+        plugin(t.path(), "old-ok", "title = \"A\"\nrequires = { catalog = \">=0.4\" }\n");
+        plugin(t.path(), "new-src", "title = \"B\"\nrequires = { catalog = \">= 0.5\" }\n");
+        plugin(t.path(), "papers-a", "title = \"P\"\nprovides = [\"references\"]\n");
+        plugin(t.path(), "papers-b", "title = \"Q\"\nprovides = [\"references\"]\n");
+        let all = list(t.path());
+        assert_eq!(all.iter().find(|p| p.id == "old-ok").unwrap().requires, ["catalog"], "the table's keys are the ids");
+        assert_eq!(blocked(&all, &[], "old-ok"), None);
+        assert_eq!(blocked(&all, &[], "new-src").as_deref(), Some("needs catalog 0.5 or newer; this vault has 0.4.2"));
+        assert_eq!(provider(&all, &[], "catalog").map(|p| p.id.as_str()), Some("catalog"));
+        assert_eq!(provider(&all, &[], "references").map(|p| p.id.as_str()), Some("papers-a"), "the first by id");
+        assert_eq!(provider(&all, &["papers-a".into()], "references").map(|p| p.id.as_str()), Some("papers-b"), "one off: the next");
+        assert!(provider(&all, &[], "nothing").is_none());
+        let seen = as_seen_from(all, &[], Platform::current());
+        assert!(seen.iter().find(|p| p.id == "new-src").unwrap().blocked.as_deref().unwrap().contains("0.5 or newer"), "the list carries the reason");
     }
 
     #[test]

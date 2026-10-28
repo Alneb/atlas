@@ -43,7 +43,7 @@ test("Ctrl+L cycles a line through to-do and done; a quick capture can be a task
   expect(r.ok()).toBeTruthy();
   const { path } = await r.json();
   const log = await request.get(`/api/file?path=${encodeURIComponent(path)}`, { headers: H }).then((x) => x.json());
-  expect(log.text).toMatch(/^- \[ \] water the plants @\d{4}-\d{2}-\d{2}$/m);
+  expect(log.text).toMatch(/^- \[ \] \d{2}:\d{2} water the plants @\d{4}-\d{2}-\d{2}$/m);
 });
 
 // "the tasks completion only works in the home capture box, not in notes": a box in a note ticks the way Home's

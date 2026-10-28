@@ -7,6 +7,7 @@ import type { FilesConfig } from "./FilesConfig";
 import type { LatexConfig } from "./LatexConfig";
 import type { LspConfig } from "./LspConfig";
 import type { NotesConfig } from "./NotesConfig";
+import type { NotificationsConfig } from "./NotificationsConfig";
 import type { PdfConfig } from "./PdfConfig";
 import type { PluginsConfig } from "./PluginsConfig";
 import type { TerminalConfig } from "./TerminalConfig";
@@ -55,4 +56,4 @@ vim: boolean, ui: UiConfig, editor: EditorConfig, terminal: TerminalConfig, file
 /**
  * The LaTeX plugin (built in; switched off with the other plugins): snippets while typing math, `.tex` files.
  */
-latex: LatexConfig, automation: AutomationConfig, plugins: PluginsConfig, notes: NotesConfig, web: WebConfig, };
+latex: LatexConfig, automation: AutomationConfig, plugins: PluginsConfig, notes: NotesConfig, web: WebConfig, notifications: NotificationsConfig, };

@@ -7,16 +7,34 @@ import type { CaptureHint } from "./gen/CaptureHint";
 
 const NONE: CaptureHint = { task: false, due: null, says: "" };
 
-/** The core's hint for `text()`, kept current as it changes (an answer for an older text is dropped). Call it while a
- *  component starts; `vault()`: the vault written to, when it is not this window's. */
+/** How long typing must pause before the core is asked: not one request per key. */
+const SETTLE_MS = 120;
+let last: { key: string; hint: Promise<CaptureHint> } | null = null;
+/** The core's hint for one text in one vault. The hint line and the to-do list ask about the same text together: one
+ *  request answers both. */
+export function describeCapture(text: string, vault?: string): Promise<CaptureHint> {
+  const key = `${vault ?? ""}\n${text}`;
+  if (last?.key !== key) {
+    const hint = api.describeCapture(text, vault);
+    last = { key, hint };
+    hint.catch(() => { if (last?.key === key) last = null; });
+  }
+  return last.hint;
+}
+
+/** Waits for typing to settle; false when another key came meanwhile (`still()` says whether this ask is the latest). */
+export const settled = (still: () => boolean) => new Promise<boolean>((r) => setTimeout(() => r(still()), SETTLE_MS));
+
+/** The core's hint for `text()`, kept current as it changes (asked once typing settles; an answer for an older text is
+ *  dropped). Call it while a component starts; `vault()`: the vault written to, when it is not this window's. */
 export function captureHint(text: () => string, vault?: () => string | undefined): { readonly current: CaptureHint } {
   let hint = $state(NONE);
+  let seq = 0;
   $effect(() => {
-    const t = text(), v = vault?.();
+    const t = text(), v = vault?.(), my = ++seq;
     if (!t.trim()) { hint = NONE; return; }
-    let live = true;
-    api.describeCapture(t, v).then((h) => { if (live) hint = h; }, () => {});
-    return () => { live = false; };
+    void settled(() => my === seq).then((ok) => { if (ok) void describeCapture(t, v).then((h) => { if (my === seq) hint = h; }, () => {}); });
+    return () => { if (my === seq) seq++; };
   });
   return { get current() { return hint; } };
 }

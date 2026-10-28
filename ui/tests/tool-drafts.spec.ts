@@ -12,7 +12,7 @@ test("drafted tools: one line until opened; sibling folders are one suggestion",
   await page.goto("/");
   await page.getByText("Finish the GW notes.").waitFor();
   await page.keyboard.press("Meta+,");
-  await page.getByRole("navigation", { name: "Settings pages" }).getByRole("button", { name: /^Plugins & automation/ }).click();
+  await page.getByRole("navigation", { name: "Settings pages" }).getByRole("button", { name: /^Automation/ }).click();
   const drafts = page.locator(".drafts").first();
   const line = drafts.locator(".summary");
   // the line names the first suggestion and why; the section says what suggestions are (2026-10-18: "what is this")

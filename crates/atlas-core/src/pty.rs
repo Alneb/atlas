@@ -82,6 +82,20 @@ fn login_shell() -> String {
     std::env::var("SHELL").unwrap_or_else(|_| "/bin/sh".into())
 }
 
+/// What words a terminal tab's shell reads (`posix`, `powershell` or `cmd`), for a plugin that types a command into it
+/// (`atlas.terminal.shell()`): quoting and paths differ.
+pub fn shell_kind() -> &'static str {
+    let shell = login_shell().to_ascii_lowercase();
+    let name = shell.rsplit(['/', '\\']).next().unwrap_or(&shell);
+    if name.starts_with("pwsh") || name.starts_with("powershell") {
+        "powershell"
+    } else if name.starts_with("cmd") {
+        "cmd"
+    } else {
+        "posix"
+    }
+}
+
 fn which(name: &str) -> bool {
     std::env::var_os("PATH").is_some_and(|p| std::env::split_paths(&p).any(|d| crate::platform::run_line::executable(&d.join(name)).is_some()))
 }

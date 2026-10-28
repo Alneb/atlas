@@ -8,7 +8,9 @@
   import { basename, shownName } from "../../lib/paths";
   import { side, sideWide, pinTiles, onListKey, openMenu, dragStart, dragEnd, acceptDrag, pinsOver, pinsDrop, middleClose, monogram } from "../../lib/sidebar.svelte";
   import { tabs, activate, closeTab } from "../../lib/tabs.svelte";
-  import { appLaunchers, type AppTile } from "../../lib/apps.svelte";
+  import { appLaunchers, moveApp, setAppHidden, type AppTile } from "../../lib/apps.svelte";
+  import { openSettingsAt } from "../../lib/settings-nav.svelte";
+  import type { MenuItem } from "../ContextMenu.svelte";
   import Icon from "../Icon.svelte";
 
   let { host }: { host: BlockHost } = $props();
@@ -17,7 +19,7 @@
   /** the launchers, then any other open app (a plugin's pane on an account or a host) */
   const apps = $derived.by((): AppTile[] => {
     const l = appLaunchers();
-    const more = tabs.apps.filter((t) => !l.some((a) => a.ids.includes(t.id))).map((t): AppTile => ({ ids: [t.id], title: t.title, icon: t.icon, open: () => activate(t.id) }));
+    const more = tabs.apps.filter((t) => !l.some((a) => a.ids.includes(t.id))).map((t): AppTile => ({ key: t.id, ids: [t.id], title: t.title, icon: t.icon, open: () => activate(t.id) }));
     return [...l, ...more];
   });
   /** the tile's open tab: the shown one first, else any */
@@ -25,10 +27,22 @@
   const isActive = (a: AppTile) => a.ids.includes(tabs.active ?? "");
   const go = (a: AppTile) => { const id = openId(a); if (id) activate(id); else a.open(); };
   const appTip = (a: AppTile) => `${a.title}${a.keys ? ` · ${a.keys}` : ""}${openId(a) ? "" : " (opens it)"}`;
+  /** Its tab's Close, then where the tile sits (`[ui] apps_order` / `apps_hidden`, also in Settings → Appearance). */
   function appMenu(e: MouseEvent, a: AppTile): void {
     e.preventDefault();
-    const id = openId(a);
-    if (id) side.menu = atPointer(e, [{ label: `Close ${a.title}`, icon: "close", run: () => closeTab(id) }]);
+    const id = openId(a), launcher = appLaunchers().some((l) => l.key === a.key), i = apps.indexOf(a);
+    const items: MenuItem[] = id ? [{ label: `Close ${a.title}`, icon: "close", run: () => closeTab(id) }] : [];
+    if (launcher) {
+      if (items.length) items.push("sep");
+      items.push(
+        { label: "Move earlier", icon: wide ? "arrow-left" : "arrow-up", disabled: i <= 0, run: () => moveApp(a.key, -1) },
+        { label: "Move later", icon: wide ? "arrow-right" : "arrow-down", disabled: !appLaunchers().some((l, j) => j > i && l.key !== a.key), run: () => moveApp(a.key, 1) },
+        { label: `Hide ${a.title} from the bar`, detail: "it still opens from the palette and its keys", icon: "eye", run: () => setAppHidden(a.key, true) },
+        "sep",
+        { label: "Arrange the apps…", icon: "settings", run: () => openSettingsAt("appearance") },
+      );
+    }
+    if (items.length) side.menu = atPointer(e, items);
   }
 </script>
 

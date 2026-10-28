@@ -11,6 +11,8 @@ import { emitPluginEvent, type PluginEvent } from "./plugin-events";
 import type { VaultList } from "./gen/VaultList";
 import type { Plugin } from "./gen/Plugin";
 import type { CaptureHint } from "./gen/CaptureHint";
+import type { CaptureList } from "./gen/CaptureList";
+import type { TriageRequest } from "./gen/TriageRequest";
 import type { CaptureDay } from "./gen/CaptureDay";
 
 declare global {
@@ -63,13 +65,14 @@ function signInThroughBridge(page: string): void {
 // Every call goes to this vault's own core (apiBase): a mirrored vault's writes are local, and the core asks the server
 // for a lease first (core mirror_guard.rs; docs/design/DESIGN-mirror-v2.md). `base: ""` is the desktop's own core
 // whatever vault the page shows (ownCore).
-async function request<T>(method: string, path: string, opts: { query?: Query; body?: unknown; base?: string } = {}): Promise<T> {
+async function request<T>(method: string, path: string, opts: { query?: Query; body?: unknown; base?: string; signal?: AbortSignal } = {}): Promise<T> {
   const headers: Record<string, string> = { "x-atlas": "1" };
   if (opts.body !== undefined) headers["content-type"] = "application/json";
   const res = await fetch(url(path, opts.query, opts.base), {
     method,
     headers,
     body: opts.body === undefined ? undefined : JSON.stringify(opts.body),
+    signal: opts.signal,
   });
   const text = await res.text();
   let data: unknown = undefined;
@@ -87,14 +90,21 @@ async function request<T>(method: string, path: string, opts: { query?: Query; b
 }
 
 
-/** The references library's plugin, and a call to its helper (typed: the answers are the core's Paper shapes). */
-const PAPERS = "catalog-papers";
-const papers = <T>(method: string, params?: unknown, timeout?: number): Promise<T> =>
-  request<T>("POST", `/api/plugins/${PAPERS}/helper`, { body: { method, params: params ?? null, timeout_secs: timeout } });
-/** Is the plugin in this vault, with its helper? Asked before listing: a missing helper answers 404, which the
- *  browser logs on every start of a vault without it (as a missing init.js would). */
-const papersHere = (): Promise<boolean> =>
-  api.plugins().then((ps) => ps.some((p) => p.id === PAPERS && p.has_helper && !p.error));
+/** The references library: whichever plugin can run and `provides = ["references"]` (catalog-papers ships it), asked
+ *  by role, never by id; found once per plugin list (`forgetRoles` when it changes). */
+let references: Promise<string | null> | null = null;
+export const forgetRoles = (): void => { references = null; };
+const referencesPlugin = (): Promise<string | null> =>
+  (references ??= api.plugins().then((ps) => ps.find((p) => p.provides.includes("references") && p.has_helper && !p.blocked)?.id ?? null, () => null));
+/** A call to its helper (typed: the answers are the core's Paper shapes). */
+const papers = async <T>(method: string, params?: unknown, timeout?: number): Promise<T> => {
+  const id = await referencesPlugin();
+  if (!id) throw new Error("No references plugin is on: switch on Catalog · Papers (or another plugin that provides references) in Settings → Plugins");
+  return request<T>("POST", `/api/plugins/${id}/helper`, { body: { method, params: params ?? null, timeout_secs: timeout } });
+};
+/** Is there one? Asked before listing: a missing helper answers 404, which the browser logs on every start of a vault
+ *  without it (as a missing init.js would). */
+const papersHere = (): Promise<boolean> => referencesPlugin().then((id) => id !== null);
 
 /** A call to the desktop's own core, whatever vault this page shows (a server vault's page goes through its bridge). */
 export const ownCore = <T>(method: string, path: string, body?: unknown): Promise<T> => request<T>(method, path, { body, base: "" });
@@ -103,14 +113,21 @@ export const api = {
   vaults: () => request<VaultList>("GET", "/api/vaults"),
   /** This window's vault becomes the one the capture box starts on. */
   vaultActive: () => request<void>("POST", "/api/vaults/active"),
-  plugins: () => request<Plugin[]>("GET", "/api/plugins"),
+  /** `blocked` filled by the core (the one rule); `android`: as the phone app sees them. */
+  plugins: (platform?: "android") => request<Plugin[]>("GET", "/api/plugins", { query: { platform } }),
   /** What a capture's text will become (capture.rs `describe`), for `vault` when it is not this window's. */
   describeCapture: (text: string, vault?: string) => request<CaptureHint>("POST", "/api/capture/describe", { body: { text, vault } }),
   captureDays: () => request<CaptureDay[]>("GET", "/api/capture/days"),
+  /** Every capture and its state (captures.rs). */
+  captures: () => request<CaptureList>("GET", "/api/captures"),
+  /** One triage answer; 409 when the line changed since it was listed. */
+  triageCapture: (req: TriageRequest) => request<void>("POST", "/api/captures/triage", { body: req }),
   /** Files opened lately (the usage journal), then changed lately: `limit` in all. */
   recent: (limit: number) => request<string[]>("GET", "/api/recent", { query: { limit } }),
   pluginData: (id: string, args?: unknown) => request<unknown>("POST", `/api/plugins/${encodeURIComponent(id)}/data`, { body: args }),
   me: () => request<Me>("GET", "/api/auth/me"),
+  /** The core: its version, plugin API, interface build and its terminal's shell (`posix`, `powershell`, `cmd`). */
+  version: () => request<{ version: string; api: number; ui: string; shell?: "posix" | "powershell" | "cmd" }>("GET", "/api/version"),
   /** A locked local core's one-time link for another window (local_lock.rs); 400 when the core is open. */
   localLink: () => request<{ url: string }>("POST", "/api/local/link"),
   signOut: () => request<void>("POST", "/api/auth/logout"),
@@ -205,7 +222,7 @@ export const api = {
   // docs/refactor/REFACTOR-references-plugin.md): these call it
   refsPdf: async (name: string, data: Blob) => {
     // the PDF into the plugin's cache, then filed by the helper (which removes the upload)
-    const path = `.atlas/cache/plugins/${PAPERS}/import-${Date.now()}-${name.replace(/[^\w.-]+/g, "_")}`;
+    const path = `.atlas/cache/plugins/${(await referencesPlugin()) ?? "references"}/import-${Date.now()}-${name.replace(/[^\w.-]+/g, "_")}`;
     const res = await fetch(url("/api/fs/upload", { path }), { method: "POST", headers: { "x-atlas": "1" }, body: data });
     if (!res.ok) throw new ApiError(res.status, `${await res.text()}`);
     return papers<import("./types").PaperAdded>("import", { path, name });
@@ -278,7 +295,9 @@ export const api = {
   updatePlugin: (id: string) => request<import("./gen/Installed").Installed>("POST", `/api/plugins/${encodeURIComponent(id)}/update`),
   removePlugin: (id: string) => request<{ to: string }>("POST", `/api/plugins/${encodeURIComponent(id)}/remove`),
   /** Ask a plugin's helper process (started by the first call) and wait for its answer. */
-  pluginHelper: (id: string, method: string, params?: unknown, timeout_secs?: number) => request<unknown>("POST", `/api/plugins/${encodeURIComponent(id)}/helper`, { body: { method, params: params ?? null, timeout_secs } }),
+  // the core answers within timeout_secs (default 60); the page gives up a little later, so a request lost to a core
+  // restart or a sleep never leaves a plugin waiting for ever
+  pluginHelper: (id: string, method: string, params?: unknown, timeout_secs?: number) => request<unknown>("POST", `/api/plugins/${encodeURIComponent(id)}/helper`, { body: { method, params: params ?? null, timeout_secs }, signal: AbortSignal.timeout(((timeout_secs ?? 60) + 15) * 1000) }),
   pluginHelperState: (id: string) => request<{ state: "stopped" | "running" | "crashed" }>("GET", `/api/plugins/${encodeURIComponent(id)}/helper`),
   stopPluginHelper: (id: string) => request<{ state: string }>("POST", `/api/plugins/${encodeURIComponent(id)}/helper/stop`),
   pluginSecretNames: (id: string) => request<string[]>("GET", `/api/plugins/${encodeURIComponent(id)}/secrets`),
@@ -362,10 +381,21 @@ export function connectEvents(onEvent: (e: ServerEvent) => void, onState: (s: Co
   let stopped = false;
   let timer: ReturnType<typeof setTimeout> | undefined;
 
+  // the core shows a notice as a system notification only when no page is looked at (core notify.rs): this page says
+  // whether it is visible and focused, on connecting and on every change
+  const looked = () => typeof document !== "undefined" && document.visibilityState === "visible" && document.hasFocus();
+  const report = () => { if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ seen: looked() })); };
+  const watching = typeof window !== "undefined";
+  if (watching) {
+    document.addEventListener("visibilitychange", report);
+    window.addEventListener("focus", report);
+    window.addEventListener("blur", report);
+  }
+
   const open = () => {
     onState("connecting");
     ws = new WebSocket(wsUrl("/api/events"));
-    ws.onopen = () => { delay = 400; onState("open"); };
+    ws.onopen = () => { delay = 400; onState("open"); report(); };
     ws.onmessage = (m) => {
       if (typeof m.data !== "string") return;
       try { onEvent(JSON.parse(m.data) as ServerEvent); }
@@ -381,7 +411,14 @@ export function connectEvents(onEvent: (e: ServerEvent) => void, onState: (s: Co
   };
   open();
   return {
-    close() { stopped = true; clearTimeout(timer); ws?.close(); },
+    close() {
+      stopped = true; clearTimeout(timer); ws?.close();
+      if (watching) {
+        document.removeEventListener("visibilitychange", report);
+        window.removeEventListener("focus", report);
+        window.removeEventListener("blur", report);
+      }
+    },
   };
 }
 

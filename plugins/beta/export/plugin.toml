@@ -4,11 +4,12 @@
 title = "Export"
 description = "a note to LaTeX and PDF (pandoc + latexmk), papers cited from the vault's .bib"
 icon = "file"
-version = "0.1.1"
-api = 9
+version = "0.1.2"
+api = 15
 
 [helper]
 run = "python3 -u \"$ATLAS_PLUGIN_DIR/helper.py\""
+idle = "10m"                       # it only answers: stopped when unused, started again by the next call
 
 [[setting]]
 key = "folder"

@@ -70,11 +70,14 @@ html.phone .markdown a::after, html.phone .markdown .cm-link::after, html.phone 
 .markdown li { margin: .18em 0; }
 .markdown li::marker { color: var(--text-faint); }
 .markdown ol > li::marker { color: var(--text-muted); font-variant-numeric: tabular-nums; }
-.markdown ul.contains-task-list { list-style: none; padding-left: .3em; }
-/* hanging indent, not flex: under flex each bare text run and inline element became its own column */
-.markdown li.task-list-item { padding-left: 1.55em; }
-.markdown li.task-list-item input.task-checkbox { margin: 0 .55em 0 -1.55em; }
+/* a task's box where its bullet would be (Obsidian): the list keeps its indent, so to-dos and plain items mixed in
+   one list share one text edge. Hanging, not flex: under flex each bare text run became its own column */
+.markdown li.task-list-item { list-style: none; }
+.markdown li.task-list-item input.task-checkbox { margin: 0 .5em 0 -1.5em; }
 .markdown li.task-list-item.is-checked { color: var(--text-muted); text-decoration: line-through; text-decoration-color: var(--text-faint); }
+/* [-] (Obsidian Tasks' cancelled; a dismissed capture): a dash in a quiet box */
+.markdown input.task-checkbox[data-task="-"]:checked { background: var(--text-faint); border-color: var(--text-faint); }
+.markdown input.task-checkbox[data-task="-"]:checked::after { width: .5em; height: 0; border-width: 0 0 2px 0; transform: none; }
 .markdown input.task-checkbox, .markdown .cm-task-mark {
   appearance: none; -webkit-appearance: none; width: 1em; height: 1em; flex: none; margin: 0; border: 1.5px solid var(--text-faint);
   border-radius: 4px; transform: translateY(.15em); background: transparent; display: inline-grid; place-content: center; cursor: default;

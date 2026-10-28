@@ -271,6 +271,8 @@ export const actions: Action[] = [
   { id: "ui.capture", title: "Capture to today's log", keys: "Super+C", run: focusCapture },
   // the bar as a capture box, wherever one is: the same completions (task fields, [[notes, #tags, @days)
   { id: "ui.capture-bar", title: "Capture in the bar", run: () => openPalette("capture") },
+  // every capture by day, to triage (components/views/Captures.svelte): the `captures` block alone in a tab
+  { id: "ui.captures", title: "Captures: triage what was captured", icon: "inbox", run: () => { open({ kind: "block", src: "type: captures\n", doc: "", title: "Captures" }); } },
   // New…: every kind of new thing, each placed by its kind; the phone app's + opens it
   { id: "ui.new", title: "New… (a note, from a template, a drawing, or what a plugin adds)", icon: "plus", label: "New…", run: () => void import("./new-thing").then((m) => m.newThing()) },
   { id: "ui.browse", title: "Browse the web… (an address, or words to search)", icon: "globe", label: "Browse", keys: "Super+Shift+B", run: browse },

@@ -93,6 +93,8 @@ fn first_date(s: &str) -> Option<(NaiveDate, usize)> {
 
 /// Reads a task's text (what follows the checkbox).
 pub fn parse(text: &str) -> Task {
+    // a captured task's time (`- [ ] 09:05 …`, capture.rs) says when it was written, not what it is
+    let text = crate::captures::stamp(text).map_or(text, |(_, rest)| rest);
     // cut the text at every marker: the piece after a marker is that field's value
     let mut cuts: Vec<(usize, usize, Field)> = Vec::new();
     for (m, f) in MARKERS {

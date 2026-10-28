@@ -26,7 +26,7 @@ test("the overview maps areas to pages; a page has features to try and its optio
   await expect(feats.getByRole("button", { name: /AI agent terminal/ })).toContainText("Super");
   await expect(page.getByText("Where the terminal panel docks")).toBeVisible();
   // every page reachable from the sidebar draws without an error
-  for (const name of ["Appearance", "Writing", "Home & Today", "Code", "Files & search", "References & PDF", "Drawing", "Keyboard", "Plugins & automation", "Advanced"]) {
+  for (const name of ["Appearance", "Writing", "Home & Today", "Code", "Files & search", "References & PDF", "Drawing", "Keyboard", "Plugins", "Automation", "Advanced"]) {
     await nav(page).getByRole("button", { name: new RegExp(`^${name.replace(/[&]/g, "\\$&")}`) }).click();
     await expect(page.locator("main article h2")).toContainText(name);
   }
@@ -80,7 +80,7 @@ test("a plugin switched off in Settings loses its command and button", async ({ 
   await request.put("/api/file", { headers: H, data: { path: ".atlas/plugins/offable/view.js", text: "export default (host) => { host.textContent = 'offable'; };\n" } });
   await openSettings(page);
   await expect(page.getByRole("button", { name: "Offable", exact: true })).toBeVisible(); // rail
-  await nav(page).getByRole("button", { name: "Plugins & automation" }).click();
+  await nav(page).getByRole("button", { name: "Plugins", exact: true }).click();
   const sw = page.getByRole("switch", { name: "Plugin Offable" });
   await expect(sw).toHaveAttribute("aria-checked", "true");
   await sw.click();

@@ -1,0 +1,29 @@
+# Kiwix: your kiwix-serve's offline library (Wikipedia, Wiktionary, Stack Exchange sites, DevDocs… as .zim archives)
+# searched from a pane of Atlas. An article opens as a web page (a tab, as `[web] open_links` says); Save captures its
+# address, which the catalog files as a note (catalog-web) — the archive itself stays on the server.
+title = "Kiwix"
+description = "search your Kiwix server's offline library (Wikipedia, dictionaries, docs) and open or save an article"
+icon = "library"
+version = "0.1.0"
+api = 4
+phone = true # runs in the phone apps too
+rail = true
+
+[permissions]
+net = ["*"] # the server is a setting: any host
+
+[[setting]]
+key = "server"
+label = "Kiwix address"
+kind = "text"
+hint = "the address you open kiwix-serve at: https://wiki.example.org"
+
+[[setting]]
+key = "books"
+label = "Books to offer"
+kind = "text"
+hint = "words a book's name or title must contain, comma-separated (wikipedia, wiktionary); empty: every book of the server"
+
+# where it runs (PLUGIN-API.md, "Platforms"); a platform not named is untested (Android: only with `phone = true`)
+[platforms]
+linux = "works"

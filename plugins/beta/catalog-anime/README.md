@@ -10,8 +10,7 @@ subplugin of the Library (`catalog`).
 
 ## Needs
 
-The Library plugin (`requires = ["catalog"]`) and Python 3 on the machine running Atlas's server (`helper.py`;
-standard library only). Requests go through Atlas's core to `graphql.anilist.co` and `api.mangadex.org`.
+The Catalog plugin (`requires = ["catalog"]`); nothing installed: the helper is JavaScript run inside Atlas's core (`helper.js`, built from `helper/helper.ts`). Requests go through Atlas's core to `graphql.anilist.co` and `api.mangadex.org`.
 
 ## Platforms
 
@@ -19,4 +18,4 @@ Linux works; the others are untested; not in the phone app.
 
 ## Tests
 
-`python3 test_helper.py` (AniList's and MangaDex's answers, cut down).
+`node scripts/dev/plugin-ui.mjs --check plugins/beta/catalog-anime` (`helper/helper.test.ts`, offline).

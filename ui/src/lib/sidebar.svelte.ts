@@ -77,8 +77,8 @@ export function initSidebar(): () => void {
 /** The activity rail (horizontal tabs): the apps, the side panel's tools, then every toolbar's buttons. */
 export const railItems = (): ToolEntry[][] => [
   appLaunchers().map((a): ToolEntry => ({ icon: a.icon, label: a.title, keys: a.keys, run: a.open })),
-  toolItems([...SIDE_COMMANDS], undefined, { ids: SIDE_COMMANDS, add: sideTools.map((t) => ({ icon: t.icon, label: t.title, run: () => openSide(toolId(t.type)) })) }),
-  ...sidebar.blocks.filter((b) => b.type === "toolbar").map((b) => toolItems(b.options.items, SIDE_COMMANDS)),
+  toolItems([...SIDE_COMMANDS], { after: { ids: SIDE_COMMANDS, add: sideTools.map((t) => ({ icon: t.icon, label: t.title, run: () => openSide(toolId(t.type)) })) } }),
+  ...sidebar.blocks.filter((b) => b.type === "toolbar").map((b) => toolItems(b.options.items, { skip: SIDE_COMMANDS, appsShown: true })),
 ];
 
 // --- state shared by the sidebar's blocks ---------------------------------------------------------------

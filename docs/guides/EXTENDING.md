@@ -116,7 +116,7 @@ export function register(atlas) {
 
 ### A plugin
 
-Someone else's plugin is copied into the vault with `atlas plugin install <folder | git address | archive>` (or Settings → Plugins & automation → Install…); it arrives switched off, with what it may do listed. `atlas plugin update <id>` keeps your settings; `atlas plugin remove <id>` moves it to `.atlas/trash/`.
+Someone else's plugin is copied into the vault with `atlas plugin install <folder | git address | archive>` (or Settings → Plugins → Install…); it arrives switched off, with what it may do listed. `atlas plugin update <id>` keeps your settings; `atlas plugin remove <id>` moves it to `.atlas/trash/`.
 ```
 .atlas/plugins/habits/
   plugin.toml      title = "Habits"            (only `title` is required)
@@ -149,7 +149,7 @@ Name a plugin's blocks `<plugin id>.<name>`: a dotted type waits for its plugin 
 - files: `open` (`{ beside: true }` opens next to the active tab), `openTable`, `readText`, `createFile`, `fileUrl`, `thumbUrl`, `table`, `onFilesChanged`
 - notes as data: `noteProps`, `writeProperty`, `query` (Bases YAML over all notes)
 - what the user is looking at: `context`, `onContext`, `hover`
-- the quickest start: **Settings → Plugins & automation → New block** asks for a name and writes `.atlas/plugins/<name>/` with a manifest and a `main.js` holding one working block (`<name>.block`, with one option and its form field), opens the code, and the block is usable at once
+- the quickest start: **Settings → Plugins → New block** asks for a name and writes `.atlas/plugins/<name>/` with a manifest and a `main.js` holding one working block (`<name>.block`, with one option and its form field), opens the code, and the block is usable at once
 - contributions: `registerBlock` (a third argument `{ title, options: [{ key: "goal", label: "Goal", kind: "number" }] }` names the block and gives it an Options… form in pages), `registerView` (a row view), `registerCommand`, `registerEntities` (an `@prefix:` mention kind), `registerSuggestion`
 - a program of your own, kept running: `[helper] run = "…"` in `plugin.toml`, then `await helper.call("method", params)` and `helper.on("event", fn)` — JSON lines on its stdin / stdout, any language
 - the network: `fetch(url, { headers: { Authorization: { secret: "token", prefix: "Bearer " } } })` — through the core, to hosts listed in `plugin.toml` (`[permissions] net = [...]`); `secrets.set / get / has / delete`
@@ -163,7 +163,7 @@ Examples to copy from: in the Atlas repository, `plugins/examples/wordcount/` (a
 
 ## Checking your work
 
-- Everything above reloads on save: look at the app (or `http://localhost:5173` in the dev loop). A broken plugin shows its error as a toast and in Settings → Plugins & automation; a broken page shows its error in place.
+- Everything above reloads on save: look at the app (or `http://localhost:5173` in the dev loop). A broken plugin shows its error as a toast and in Settings → Plugins; a broken page shows its error in place.
 - The app's own log of UI errors: `.atlas/cache/ui.log`.
 - From a terminal: `atlas cmd <id>` runs a command; `atlas open <file>` opens a file in the running window; `atlas mcp` gives an agent the same commands as tools.
 - Try changes on a **copy** of the vault when they type into notes (the editor autosaves).

@@ -298,7 +298,7 @@ async fn events_and_origin_check() {
         loop {
             if let Some(Ok(Message::Text(t))) = ev.next().await {
                 let e: Event = serde_json::from_str(&t).unwrap();
-                if matches!(e, Event::Notify { .. }) {
+                if matches!(e, Event::Notify(_)) {
                     return e;
                 }
             }
@@ -306,7 +306,7 @@ async fn events_and_origin_check() {
     })
     .await
     .unwrap();
-    assert_eq!(msg, Event::Notify { title: "run finished".into(), body: Some("U=8".into()) });
+    assert_eq!(msg, Event::Notify(atlas_core::api::Notice::new("run finished").body("U=8")));
 
     // The desktop app's sign-in window hands back the address it ended on; the page hears it.
     let back = "https://localhost/?code=abc&state=s1";

@@ -9,17 +9,19 @@
   import OverviewPanel from "./OverviewPanel.svelte";
   import PreviewPanel from "./PreviewPanel.svelte";
   import SnippetsPanel from "./SnippetsPanel.svelte";
+  import AppsPanel from "./AppsPanel.svelte";
   import TemplatesPanel from "./TemplatesPanel.svelte";
   import KeysPanel from "./KeysPanel.svelte";
   import PluginsPanel from "./PluginsPanel.svelte";
   import ScriptsPanel from "./ScriptsPanel.svelte";
-  import SigninsPanel from "./SigninsPanel.svelte";
   import OpenWithPanel from "./OpenWithPanel.svelte";
   import ServerPanel from "./ServerPanel.svelte";
   import AgentsPanel from "./AgentsPanel.svelte";
   import { allCommands, keysOf } from "../../lib/keymap.svelte";
   import { chordLabel } from "../../lib/keys";
   import { pageDef, type Placed, type NextRung } from "../../lib/settings-pages";
+  import { settings } from "../../lib/settings.svelte";
+  import { openPath } from "../../lib/dock";
   import { newSnippet, newPlugin, newBlock, editHome, copyViewExample } from "../../lib/settings-actions";
   import type { Schema } from "../../lib/settings-schema";
 
@@ -63,15 +65,19 @@
   {#each def?.panels ?? [] as panel (panel)}
     {#if panel === "overview"}<OverviewPanel {pages} {go} />
     {:else if panel === "preview"}<PreviewPanel />
+    {:else if panel === "apps"}<AppsPanel />
     {:else if panel === "snippets"}<SnippetsPanel onnew={() => (naming = "snippet")} />
     {:else if panel === "templates"}<TemplatesPanel />
     {:else if panel === "keys"}<KeysPanel />
     {:else if panel === "plugins"}<PluginsPanel onnew={() => (naming = "plugin")} onblock={() => (naming = "block")} />
-    {:else if panel === "signins"}<SigninsPanel />
     {:else if panel === "scripts"}<ScriptsPanel />
     {:else if panel === "openwith"}<OpenWithPanel />
     {:else if panel === "server"}<ServerPanel />
     {:else if panel === "agents"}<AgentsPanel />
+    {:else if panel === "file"}
+      <section class="panel"><h3>The settings file</h3>
+        <p class="what">Every page here writes <code>{settings.path}</code>, and a change made in the file shows here at once. Your comments in it are kept.</p>
+        <button class="btn" onclick={() => openPath(settings.path)}><Icon name="edit" size={13} /> Edit the file</button></section>
     {:else if panel === "drafts"}
       <section class="panel"><h3>Suggested tools</h3>
         <p class="what">Atlas looks through your vault for things you do again and again — a folder of notes that all look alike, the same steps repeated — and drafts a small tool for each: a command, a page or a block. Nothing is created until you press Keep, and what Keep writes is a plain file you can edit or delete.</p>

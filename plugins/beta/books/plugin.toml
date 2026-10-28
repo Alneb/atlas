@@ -4,14 +4,15 @@ title = "Books"
 description = "an EPUB library and reader: your font, size and margins; paged (always on e-ink) or scrolled; the table of contents; read from where you left on any device"
 phone = true # runs in the phone apps too (only plugins marked so start there)
 icon = "file-text"
-version = "0.10.1"
-api = 4
+version = "0.10.2"
+api = 15
 claims = ["*.epub"]                    # an .epub opens here on a click (API 7: the default editor; "Open with…" offers it too)
 requires = ["zip"]                     # its zip reader is the Zip archives plugin's (../zip/zip.js), shared with the other reader
 
 # a DjVu book: made once into a PDF in the cache by the machine's ddjvu (djvulibre), opened in the app's PDF viewer
 [helper]
 run = "python3 -u \"$ATLAS_PLUGIN_DIR/helper.py\""
+idle = "10m"                       # it only answers: stopped when unused, started again by the next call
 
 [android]                              # the native reader in the Atlas apps (docs/design/DESIGN-native-book-reader.md)
 main = "org.atlas.plugins.books.Books"

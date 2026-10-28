@@ -233,16 +233,26 @@ impl<H: Host> Engine<H> {
         if let Some(k) = &pick.kind {
             all.retain(|c| &c.kind == k);
         }
-        let at = match &pick.ids {
+        let mut candidate = match &pick.ids {
             // the one the card picked: it shares an ID with the choice
-            Some(ids) => all.iter().position(|c| c.ids.iter().any(|(k, v)| ids.get(k) == Some(v))).ok_or("the chosen thing is no longer among the matches")?,
+            Some(ids) => match all.iter().position(|c| c.ids.iter().any(|(k, v)| ids.get(k) == Some(v))) {
+                Some(at) => all.remove(at),
+                // a caller that knows the thing's IDs and kind (a sync: an Audiobookshelf item, a Letterboxd film) whose
+                // words no search finds again: filed from those IDs, which the kind's sources are asked by
+                None => match &pick.kind {
+                    Some(k) if reg.kinds.get(k).is_some() => {
+                        say.say(Stage::Recognise, format!("a {k} by its IDs ({})", show_ids(ids)));
+                        Candidate { kind: k.clone(), url: None, ids: ids.clone(), by: Vec::new(), label: None }
+                    }
+                    _ => return Err("the chosen thing is no longer among the matches".into()),
+                },
+            },
             None if all.is_empty() => return Err(match &pick.kind {
                 Some(k) => format!("the text is not a {k}"),
                 None => "nothing to catalogue: no link, identifier or search result any source knows".into(),
             }),
-            None => 0,
+            None => all.remove(0),
         };
-        let mut candidate = all.remove(at);
         let mut kind = reg.kinds.get(&candidate.kind).ok_or_else(|| format!("{} is recognised but no plugin or vault file declares that kind", candidate.kind))?;
         let mut signin = Vec::new();
         let mut got = self.fetch(reg, kind, &candidate, &[], &mut signin, say);
@@ -905,6 +915,12 @@ mod tests {
         e.host.files.borrow_mut().remove("Films/Dune, Lynch's.md");
         let r = e.add("Dune", &lynch).unwrap();
         assert_eq!(r.result.path, "Films/Dune (1984).md");
+
+        // a sync knowing the kind and IDs of something the words no longer find: filed by its IDs; without the kind, not
+        let synced = Ids::from([(IdName::new("tmdb"), "693134".to_string())]);
+        let r = e.add("Dune", &Pick { kind: Some(KindName::new("movie")), ids: Some(synced.clone()), ..Pick::default() }).unwrap();
+        assert_eq!((r.result.path.as_str(), e.host.props(&r.result.path).unwrap()["tmdb"].clone()), ("Films/Dune (2021).md", json!("693134")));
+        assert!(e.add("Dune", &Pick { ids: Some(synced), ..Pick::default() }).unwrap_err().contains("no longer among the matches"));
     }
 
     #[test]

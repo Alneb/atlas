@@ -16,7 +16,7 @@ const LABELS: &[(&str, &str)] = &[
     ("ui_font", "Interface font"), ("font_size", "Text size"), ("min_size", "Minimum size"), ("off", "Switched off"),
     ("index_exclude", "Agent files (kept apart from your notes)"), ("side_panel", "Side panel: where it sits"),
     ("restore_layout", "Reopen the last tabs at start"), ("tab_preview", "Preview a tab on hover"), ("link_preview", "Preview a link on hover"),
-    ("tab_switcher", "Ctrl+Tab"), ("libraries", "Libraries shown"), ("properties", "Properties"), ("properties_spec", "Property spec (file)"),
+    ("tab_switcher", "Ctrl+Tab"), ("libraries", "Libraries shown"), ("apps_order", "Apps: order in the left bar"), ("apps_hidden", "Apps: hidden from the left bar"), ("properties", "Properties"), ("properties_spec", "Property spec (file)"),
     ("dir", "Folder"), ("templates", "Templates folder"), ("template_rules", "Templates by name or folder"),
     ("default_template", "Default template (a plain note starts from it)"), ("strict_line_breaks", "Strict line breaks"),
 ];
@@ -34,6 +34,7 @@ const FIELD_LABELS: &[(&str, &str)] = &[
     ("lsp.language", "Servers' message language"), ("lsp.inlay_hints", "Inlay hints"), ("lsp.python_env", "Python environment"),
     ("latex.snippets", "Snippets while typing math"), ("latex.snippets_file", "Snippets file"), ("latex.variables_file", "Snippet variables file"),
     ("draw.page_format", "A new drawing's pages"), ("web.open_links", "Web links open in"), ("pdf.export_on_save", "Export annotations on save"),
+    ("notifications.system", "System notifications"),
 ];
 
 /// Where Settings runs (the web's `hostOf`): this machine's app, a server's vault through it, the phone apps, a

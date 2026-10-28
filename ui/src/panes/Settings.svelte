@@ -5,10 +5,9 @@
   // placed by lib/settings-pages.ts, so a new config field shows up with no UI work. Search spans all pages.
   import { onMount } from "svelte";
   import { settings, loadSuggestions } from "../lib/settings.svelte";
-  import { openPath } from "../lib/dock";
   import { load, save } from "../lib/prefs";
   import { leaves, sectionDescription, isModified, fieldTitle, sectionTitle, shownOn } from "../lib/settings-schema";
-  import { placeFields, hostOf, pageDef } from "../lib/settings-pages";
+  import { placeFields, GROUPS, hostOf, pageDef } from "../lib/settings-pages";
   import { nativeShell } from "../lib/native-shell.svelte";
   import { apiBase } from "../lib/api";
   import { me, loadMe } from "../lib/me.svelte";
@@ -105,16 +104,19 @@
     <button class="nav accounts" class:on={!words.length && accounts} onclick={() => go(ACCOUNTS)} aria-current={!words.length && accounts ? "page" : undefined}>
       <span class="ico acc"><Icon name="user" size={14} /></span> <span>Accounts</span>{#if accountTrouble}<b class="bad" title="An account has a problem"></b>{:else if accountCount}<i>{accountCount}</i>{/if}
     </button>
-    <h2 class="group">Atlas</h2>
-    {#each pages.filter((p) => !p.plugin) as p (p.page)}
-      {@const n = changedIn(p.fields)}
-      <button class="nav" class:on={!words.length && p.page === page?.page} onclick={() => go(p.page)} aria-current={!words.length && p.page === page?.page ? "page" : undefined}>
-        <span class="ico"><Icon name={p.icon} size={14} /></span> <span>{p.title}</span>{#if n}<i title="{n} changed">{n}</i>{/if}
-      </button>
-    {/each}
-    {#if pluginPages.length || builtinPages.length}
-      <h2 class="group">Plugins</h2>
-      <!-- built-in plugins' pages first: their fields come from the config schema like the core's -->
+    <!-- the groups in their order (settings-pages.ts GROUPS); under Plugins the list and Automation, then each plugin's
+         own page: the built-ins' first (their fields come from the config schema like the core's) -->
+    {#each GROUPS as g (g.id)}
+      {@const own = pages.filter((p) => !p.plugin && p.group === g.id)}
+      {#if own.length || g.id === "plugins"}
+      <h2 class="group">{g.title}</h2>
+      {#each own as p (p.page)}
+        {@const n = changedIn(p.fields)}
+        <button class="nav" class:on={!words.length && p.page === page?.page} onclick={() => go(p.page)} aria-current={!words.length && p.page === page?.page ? "page" : undefined}>
+          <span class="ico"><Icon name={p.icon} size={14} /></span> <span>{p.title}</span>{#if n}<i title="{n} changed">{n}</i>{/if}
+        </button>
+      {/each}
+      {#if g.id === "plugins"}
       {#each builtinPages as p (p.page)}
         {@const n = changedIn(p.fields)}
         <button class="nav plugin" class:on={!words.length && p.page === page?.page} class:off={isOff(p.plugin ?? "")} onclick={() => go(p.page)} aria-current={!words.length && p.page === page?.page ? "page" : undefined}>
@@ -126,10 +128,9 @@
           <span class="ico plug"><Icon name={pluginIcon(p)} size={14} /></span> <span>{p.title}</span>{#if pluginTrouble(p)}<b class="bad" title="It has a problem"></b>{/if}
         </button>
       {/each}
-    {/if}
-    <div class="foot">
-      <button class="nav" onclick={() => openPath(settings.path)} title="{settings.path} — your comments in it are kept"><Icon name="edit" size={14} /> <span>Edit the file</span></button>
-    </div>
+      {/if}
+      {/if}
+    {/each}
   </nav>
 
   <main bind:this={body}>
@@ -175,7 +176,6 @@
   .group { margin: 14px 10px 4px; font-size: calc(10.5px * var(--ui-scale, 1)); letter-spacing: .07em; text-transform: uppercase; color: var(--text-faint); font-weight: 600; }
   .nav.plugin.off { opacity: .55; }
   .nav i { font-style: normal; font-size: calc(10.5px * var(--ui-scale, 1)); color: var(--accent); background: var(--accent-soft); border-radius: 999px; padding: 0 6px; }
-  .foot { margin-top: auto; padding-top: 10px; border-top: 1px solid var(--border); }
   main { flex: 1; min-width: 0; overflow-y: auto; padding: 28px max(24px, calc(50% - 420px)) 80px; }
   h1 { margin: 0 10px 10px; font-size: calc(17px * var(--ui-scale, 1)); color: var(--heading); letter-spacing: -.01em; }
   .muted { color: var(--text-muted); }

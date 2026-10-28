@@ -33,7 +33,7 @@ test("a subplugin contributes to its meta plugin and is not loaded while the met
   expect(await (await request.get("/api/plugins/meta/contributions", { headers: H })).json()).toEqual({});
 
   await page.keyboard.press("Meta+,");
-  await nav(page).getByRole("button", { name: "Plugins & automation" }).click();
+  await nav(page).getByRole("button", { name: "Plugins", exact: true }).click();
   await expect(page.getByText("Not loaded — needs meta: Meta is switched off")).toBeVisible();
   await page.getByRole("switch", { name: "Plugin Meta", exact: true }).click();
   await expect(rail).toBeVisible();

@@ -8,6 +8,7 @@
   // previews as its own view — and Split, a second explorer beside this one to drag between.
   import { onMount, untrack } from "svelte";
   import { basename } from "../lib/paths";
+  import { vaultReady, vaultFiles, onVaultChange } from "../lib/vault";
   import { atPointer, below, type MenuAt } from "../lib/menu";
   import type { PaneProps } from "../lib/dock";
   import { open, openPath } from "../lib/dock";
@@ -90,17 +91,20 @@
     const kept = q ? base.filter((e) => e.name.toLowerCase().includes(q)) : base;
     return [...kept].sort((a, c) => dir(a) - dir(c) || (sort.desc ? -1 : 1) * key(a, c) || collator.compare(a.name, c.name));
   });
-  // every file under this folder, read once per folder while "below" is on (the vault's file list: no walk)
+  // every file under this folder while "below" is on: from the vault's file index (lib/vault), not asked per keystroke
+  const wantBelow = $derived(deep && isVault && !!filter.trim());
   $effect(() => {
-    const path = loc.path, want = deep && isVault && !!filter.trim();
-    if (!want) { underHere = null; return; }
+    const path = loc.path;
+    if (!wantBelow) { underHere = null; return; }
     let gone = false;
-    void api.files().then((all) => {
+    const fill = () => {
       if (gone) return;
       const pre = path ? `${path}/` : "";
-      underHere = all.filter((p) => p.startsWith(pre)).map((p) => ({ name: p.slice(pre.length), kind: "file" as const }));
-    }, () => { if (!gone) underHere = []; });
-    return () => { gone = true; };
+      underHere = [...vaultFiles()].filter((p) => p.startsWith(pre)).map((p) => ({ name: p.slice(pre.length), kind: "file" as const }));
+    };
+    void vaultReady().then(fill);
+    const off = onVaultChange(fill);
+    return () => { gone = true; off(); };
   });
   /** The selected file drawn in `el` as a note embeds it; again when the selection moves. */
   function previewOf(el: HTMLElement, path: string | null) {

@@ -18,7 +18,7 @@ import { foldGutter, foldNodeProp, foldKeymap } from "@codemirror/language";
 import { autocompletion } from "@codemirror/autocomplete";
 import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
 import type { MarkdownConfig } from "@lezer/markdown";
-import { obsidianMarkdown } from "../../vendor/obsidian-web/obsidian-syntax.js";
+import { obsidianMarkdown, AnyTaskStatus } from "../../vendor/obsidian-web/obsidian-syntax.js";
 import { livePreview, bodyStart } from "../../vendor/obsidian-web/live-preview.js";
 import { renderMathInto } from "../math";
 import { highlightCode } from "../highlight";
@@ -102,7 +102,7 @@ export function noteExtensions(path: string, viewRef: { view: EditorView | null 
   return {
     head: liveKeys,
     body: [
-      markdown({ base: markdownLanguage, extensions: [...obsidianMarkdown, obsidianFolds], addKeymap: false, htmlTagLanguage: noteHtml() }),
+      markdown({ base: markdownLanguage, extensions: [...obsidianMarkdown, obsidianFolds, AnyTaskStatus], addKeymap: false, htmlTagLanguage: noteHtml() }),
       Prec.high(keymap.of([{ key: "Enter", run: continueList }, { key: "Backspace", run: backspaceMarkup }])),
       taskShortForms,
       liveField,

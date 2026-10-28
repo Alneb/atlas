@@ -161,7 +161,8 @@ fn with_dates(text: &str, today: chrono::NaiveDate) -> String {
         .join(" ")
 }
 
-/// `- HH:MM first line`, or `- [ ] first line` for a capture written as a task ([`as_task`]);
+/// `- HH:MM first line`, or `- [ ] HH:MM first line` for a capture written as a task ([`as_task`]): every capture
+/// carries its time, so the log draws one timeline and captures.rs finds each one by its shape;
 /// continuation lines indented 2 spaces (blank ones left empty). A line repeating one already written is dropped: a
 /// share sends its title and its address, often the same URL twice (2026-10-21, PhysRevB.91.085116 logged twice).
 pub fn format_entry(text: &str, now: NaiveDateTime) -> Result<String> {
@@ -173,7 +174,7 @@ pub fn format_entry(text: &str, now: NaiveDateTime) -> Result<String> {
     let mut lines = text.lines();
     let first = lines.next().unwrap_or_default().trim_end();
     let mut out = match as_task(first) {
-        Some(task) => format!("- [ ] {}\n", with_dates(task, now.date())),
+        Some(task) => format!("- [ ] {} {}\n", now.format("%H:%M"), with_dates(task, now.date())),
         None => format!("- {} {first}\n", now.format("%H:%M")),
     };
     let mut seen = vec![first.trim()];
@@ -299,10 +300,19 @@ fn append_to_log(root: &Path, cfg: &Config, text: &str, now: NaiveDateTime) -> R
     Ok(CaptureResult { path: rel, line: lines_before as u32 + 1 })
 }
 
+/// The heading of a day's log section, in the date names Atlas writes.
+const LOG_HEADING: &str = r"(?i)^##\s+(log|registro|bit[aá]cora)\s*$";
+
+/// Whether `line` is that heading (captures.rs reads a log's captures under it).
+pub fn is_log_heading(line: &str) -> bool {
+    static RE: std::sync::LazyLock<regex::Regex> = std::sync::LazyLock::new(|| regex::Regex::new(LOG_HEADING).expect("valid"));
+    RE.is_match(line)
+}
+
 /// Where a run of ```view blocks closing the note starts, when a `## Log` heading comes before it: a capture is written
 /// above them, so the log stays the log's last section.
 fn tail_blocks(text: &str) -> Option<usize> {
-    let log = regex::Regex::new(r"(?mi)^##\s+(log|registro|bit[aá]cora)\s*$").ok()?.find(text)?.end();
+    let log = regex::Regex::new(&format!("(?m){LOG_HEADING}")).ok()?.find(text)?.end();
     let tail = regex::Regex::new(r"(?:\n```view\n(?:[^`]|`[^`]|``[^`])*?\n```[ \t]*\n?\s*)+\z").ok()?.find(&text[log..])?;
     Some(log + tail.start())
 }
@@ -420,8 +430,11 @@ mod tests {
     fn a_capture_written_as_a_task_is_a_task() {
         let now = at(9, 5); // 2026-06-01 is a Monday in `at`? the weekday is read from the date itself
         for typed in ["[] call Ana", "[ ] call Ana", "- [ ] call Ana", "todo call Ana", "TODO: call Ana", "t: call Ana"] {
-            assert_eq!(format_entry(typed, now).unwrap(), "- [ ] call Ana\n", "{typed}");
-            assert_eq!(crate::today::parse_task(format_entry(typed, now).unwrap().trim_end()), Some("call Ana"));
+            assert_eq!(format_entry(typed, now).unwrap(), "- [ ] 09:05 call Ana\n", "{typed}");
+            let entry = format_entry(typed, now).unwrap();
+            let line = crate::captures::parse_line(entry.trim_end()).unwrap();
+            assert_eq!((line.time, line.text, line.state()), (Some("09:05"), "call Ana", crate::api::CaptureState::Task));
+            assert!(crate::today::parse_task(entry.trim_end()).is_some(), "still a task everywhere tasks are read");
         }
         assert!(format_entry("todos are fine", now).unwrap().starts_with("- 09:05 todos are fine"));
         for typed in ["[] ", "[ ] x", "- [ ] x", "todo ", "TODO call", "Todo: x", "t: x"] {
@@ -432,9 +445,9 @@ mod tests {
         }
         let d = now.date();
         let next = |n: i64| (d + chrono::Duration::days(n)).format("%Y-%m-%d").to_string();
-        assert_eq!(format_entry("[] pay rent @tomorrow", now).unwrap(), format!("- [ ] pay rent @{}\n", next(1)));
-        assert_eq!(format_entry("[] pay rent @+3d now", now).unwrap(), format!("- [ ] pay rent @{} now\n", next(3)));
-        assert_eq!(format_entry("[] mail @ana", now).unwrap(), "- [ ] mail @ana\n");
+        assert_eq!(format_entry("[] pay rent @tomorrow", now).unwrap(), format!("- [ ] 09:05 pay rent @{}\n", next(1)));
+        assert_eq!(format_entry("[] pay rent @+3d now", now).unwrap(), format!("- [ ] 09:05 pay rent @{} now\n", next(3)));
+        assert_eq!(format_entry("[] mail @ana", now).unwrap(), "- [ ] 09:05 mail @ana\n");
     }
 
     #[test]

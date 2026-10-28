@@ -4,16 +4,17 @@
   // The same list is `tag:<name>` in quick open and in the Search pane (core: tags.rs). Right-click: rename a tag in
   // every note, nested ones with it.
   import { errText } from "../../lib/text";
+  import { reloadOnChange } from "../../lib/reload-on-change";
   import { shownName } from "../../lib/paths";
   import { onMount } from "svelte";
   import { api } from "../../lib/api";
-  import { on } from "../../lib/bus";
   import { openPath } from "../../lib/dock";
   import type { TagCount } from "../../lib/gen/TagCount";
   import { atPointer, type MenuAt } from "../../lib/menu";
   import { toast } from "../../lib/state.svelte";
   import ContextMenu from "../ContextMenu.svelte";
   import InputDialog from "../InputDialog.svelte";
+  let box = $state<HTMLElement>();
 
   let tags = $state<TagCount[] | null>(null);
   let open = $state<string | null>(null);
@@ -49,13 +50,11 @@
 
   onMount(() => {
     void load();
-    let t: ReturnType<typeof setTimeout> | undefined;
-    const off = on("fs", (e) => { if (e.paths.some((p) => p.endsWith(".md"))) { clearTimeout(t); t = setTimeout(load, 1200); } });
-    return () => { off(); clearTimeout(t); };
+    return reloadOnChange(() => void load(), { wait: 1200, wants: (p) => p.endsWith(".md"), host: () => box });
   });
 </script>
 
-<div class="tags-block" aria-label="Tags">
+<div class="tags-block" aria-label="Tags" bind:this={box}>
   {#if error}<p class="view-error">{error}</p>
   {:else if tags === null}<p class="muted">Reading tags…</p>
   {:else if !tags.length}<p class="muted">No tags yet. Write <code>#topic</code> in a note, or <code>tags: [topic]</code> in its properties; <code>#topic/part</code> nests.</p>

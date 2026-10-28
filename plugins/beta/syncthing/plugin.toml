@@ -5,8 +5,8 @@
 title = "Syncthing"
 description = "asks Syncthing to sync a file the moment it changes, instead of after its own delay"
 icon = "refresh"
-version = "0.1.1"
-api = 4
+version = "0.1.2"
+api = 15
 
 [permissions]
 net = ["127.0.0.1", "localhost"]
@@ -33,6 +33,7 @@ hint = "empty: the Syncthing folder that holds this vault, found by its path"
 
 [helper]
 run = "python3 -u \"$ATLAS_PLUGIN_DIR/helper.py\""
+idle = "10m"                       # it only answers: stopped when unused, started again by the next call
 
 [[tool]]
 name = "scan"

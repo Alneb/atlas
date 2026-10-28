@@ -14,9 +14,9 @@ Working examples to copy from, in `plugins/`: `wordcount/` (smallest), `ttrpg/` 
   anything else               a data script, a helper, styles, pictures
 ```
 
-Everything a plugin registers is undone when it reloads or is switched off; you never clean up registrations yourself. A function you hand to Atlas may throw: the failure is written to the plugin's log (Settings → Plugins & automation → "N problems") and costs only that one row, block or key.
+Everything a plugin registers is undone when it reloads or is switched off; you never clean up registrations yourself. A function you hand to Atlas may throw: the failure is written to the plugin's log (Settings → Plugins → "N problems") and costs only that one row, block or key.
 
-Get one: **Settings → Plugins & automation → New block / New plugin** writes a working one; `atlas plugin install <folder | git address | archive>` copies someone else's in (switched off until you switch it on).
+Get one: **Settings → Plugins → New block / New plugin** writes a working one; `atlas plugin install <folder | git address | archive>` copies someone else's in (switched off until you switch it on).
 
 ## The manifest — `plugin.toml`
 
@@ -28,7 +28,7 @@ version = "0.1.0"                     # shown
 api = 4                               # the plugin API it was written for
 needs = ">=0.1"                       # the oldest Atlas it works with (older: listed with the reason, not loaded)
 keys = "Ctrl+Alt+R"                   # default key for its pane
-rail = true                           # a button for its pane
+rail = true                           # a tile for its pane among the apps atop the left bar (a vault may hide or move it: [ui] apps_hidden / apps_order)
 view = "view.js"                      # default when the file exists
 main = "main.js"                      # default when the file exists
 opens = ["*.tsv", "runs/**"]          # files its pane offers to open ("Open with…")
@@ -72,6 +72,8 @@ secrets = true
 run = "python3 -u \"$ATLAS_PLUGIN_DIR/helper.py\""
 start = "open"                        # optional: start it with the vault (it listens for something itself);
                                       # default "call": at the first call
+idle = "10m"                          # optional (API 15): stopped after this long with no call, started again by
+                                      # the next — for a helper that only answers; unset: it runs until Atlas stops
 
 [[tool]]                              # offered to agents (`atlas mcp`) as <plugin id>_<name>; needs [helper]
 name = "open"
@@ -124,15 +126,28 @@ A plugin can be built on another (the catalog and its `catalog-*` sources):
 ```toml
 title = "TMDB"
 requires = ["catalog"]            # not loaded while catalog is missing, broken or off (Settings says why)
+# or, with the oldest version of each it works with (API 16):  requires = { catalog = ">=0.5" }
 
 [contributes.catalog]             # any TOML: the core does not read it, it hands it to `catalog`
 recognize = [{ pattern = "themoviedb\\.org/movie/(\\d+)", kind = "movie", id = "tmdb" }]
 sources = [{ kind = "movie", tool = "lookup" }]
 ```
 
-- Contributing is **optional**: a plugin with only `[contributes.catalog]` (a service's own plugin, such as Jellyfin or TubeArchivist) runs whether or not the catalog does, and its table is simply unused while the catalog is off. A subplugin that is nothing without its meta plugin says `requires = ["catalog"]` (before that, contributing implied requiring). A requirement at any depth counts (`plugins::blocked`, `pluginBlocked` in the page). A blocked plugin's main.js, pane, commands and tools are all off, and the plugins it requires start before it.
+- Contributing is **optional**: a plugin with only `[contributes.catalog]` (a service's own plugin, such as Jellyfin or TubeArchivist) runs whether or not the catalog does, and its table is simply unused while the catalog is off. A subplugin that is nothing without its meta plugin says `requires = ["catalog"]` (before that, contributing implied requiring). A requirement at any depth counts, and an installed version older than the table asks for blocks as a missing one does ("needs catalog 0.5 or newer; this vault has 0.4.2"). The rule lives in the core only (`plugins::blocked`): `GET /api/plugins` fills each plugin's `blocked` (`?platform=android` as the phone app sees them), and the page reads it (`pluginBlocked`), re-reading the list when `[plugins] off` changes. A blocked plugin's main.js, pane, commands and tools are all off, and the plugins it requires start before it.
 - A catalog source with no program of its own can be read by the catalog's engine: `engine = "clip"` `{ url }` → a web page's `kind`, `ids`, `fields` (title, site, author, published, updated, description, keywords, language, reading time, cover, journal, and a film's, a record's or a book's own: director, cast, artist, pages…) and readable `text` as Markdown (clip.rs) — the catalog's `catalog-web` is a manifest pointing at it.
 - The meta plugin reads what every plugin that can run contributes to it: `GET /api/plugins/<its id>/contributions` → `{ "<plugin id>": <its table as JSON>, … }` — from its helper over the pipe (`atlas.get(…)`, `Atlas::get`) or from its page (`fetch`). The shape of the table is the meta plugin's to check and document.
+
+### Roles — `provides`
+
+The core and the page never name a plugin to get something done; they name a **role**, and whichever plugin can run and
+`provides` it answers (the first by id when several do; `plugins::provider`):
+
+```toml
+provides = ["references"]         # catalog-papers: the references library (citations, PDFs, Zotero)
+```
+
+Roles in use: `catalog` (the capture box's hint, and the target of `[contributes.catalog]`), `references` (the papers
+library the page's citations and PDF import call). A vault can swap one plugin for another that provides the same role.
 
 ### Settings
 
@@ -282,7 +297,7 @@ Every `register…` / `on…` returns a function that undoes it (rarely needed).
 | `atlas.open(path, line?, { beside? })` / `openTable(path)` | open in a tab |
 | `atlas.openNative(path)` (v6) | hand `path` to the phone app's own reader (a native plugin whose `opens` takes it: an `.epub`, a `.cbz`, a chapter folder, `suwayomi:<id>/<name>`); `true` when the app took it, `false` on the desktop or in a browser — show it in the page then. A library stays the page's on the phone too; only its reader is native (Books' and Manga's Read) |
 | `atlas.onFilesChanged((paths) => …)` | any change on disk, also from other programs |
-| `atlas.files.source({ title, icon?, places, list, local, save?, mkdir?, rename?, remove?, upload?, download?, onPlaces?, thumb?, hideEmpty? })` | your places (hosts, servers) in Atlas's explorer, one source per plugin; a remote file opens from its local copy in `.atlas/remote/<your id>/` and every save of it comes to `save(local, force)` → `{ saved }` / `{ changed }` / `{ waiting }`; `thumb(place, path, width)` → image bytes (a `Blob`), a vault path of an image (e.g. the `saved` of an `atlas.fetch`), or `null`, for the Thumbnails view; `hideEmpty: true` hides the source's group while it has no places. Examples: `ssh`, `copyparty` |
+| `atlas.files.source({ title, icon?, places, list, local, save?, mkdir?, rename?, remove?, upload?, download?, onPlaces?, thumb?, hideEmpty? })` | your places (hosts, servers) in Atlas's explorer, one source per plugin; a remote file opens from its local copy in `.atlas/remote/<your id>/` and every save of it comes to `save(local, force)` → `{ saved }` / `{ changed }` / `{ waiting }`; `thumb(place, path, width)` → image bytes (a `Blob`), a vault path of an image (e.g. the `saved` of an `atlas.fetch`), or `null`, for the Thumbnails view; `hideEmpty: true` hides the source's group while it has no places. Offline comes free: Atlas remembers each copy your `local` returned, and when a later `local` throws (the server out of reach) it opens that copy instead and says so — don't keep a copy map of your own for that. Your places also show in the vault's tree (folded until opened, listed through `list`, opened through `local`); a `list` or `save` that meets a sign-in answers `{ waiting }` rather than throwing. Examples: `ssh`, `copyparty` |
 | `atlas.files.explore({ source?, place?, path? })` | open the explorer there (default: your source) |
 | `atlas.files.list(source, place, path)` / `atlas.files.local(source, place, path)` | any file source's folder (`{ path, entries }`), and a vault path to open one of its files (a fresh local copy of a remote one): another plugin's server read as the explorer reads it — Books' server folders through copyparty. Rejects when that source's plugin is off |
 | `atlas.plugin.registerSettingsSection({ id, title, hint?, place?, mount })` (v12) | a section the plugin draws on its page in Settings (Settings, "Accounts, folded fields and sections you draw") |
@@ -307,7 +322,7 @@ Every `register…` / `on…` returns a function that undoes it (rarely needed).
 | `atlas.registerLibrary(source)` | The same `LibrarySource` as one of the vault's libraries: a tab of Atlas's Libraries page (the phone's **Library** in its bottom bar), shown as the vault's `[ui] libraries` says. Returns its removal; feature-detect it (`atlas.registerLibrary?.(…)`). The catalog registers its Library as "Catalog" |
 
 ### A file's editor — `claims` and `atlas.pane` (v7)
-A plugin with a pane (`view.js`) becomes the view a file type opens in on a click (the file tree, a link, the palette) with `claims = ["*.epub"]` in its manifest. Which view a plain open uses, first that applies: the vault's `[files] open_with` for the extension, a plugin's claim (enabled plugins only; two claiming the same file: the first to load), Atlas's built-in viewer. Settings → Files & search → Open with lists the rules and, under them, what each enabled plugin claims; Settings → Plugins & automation says "opens *.epub by default" under the plugin. In the pane:
+A plugin with a pane (`view.js`) becomes the view a file type opens in on a click (the file tree, a link, the palette) with `claims = ["*.epub"]` in its manifest. Which view a plain open uses, first that applies: the vault's `[files] open_with` for the extension, a plugin's claim (enabled plugins only; two claiming the same file: the first to load), Atlas's built-in viewer. Settings → Files & search → Open with lists the rules and, under them, what each enabled plugin claims; Settings → Plugins says "opens *.epub by default" under the plugin. In the pane:
 
 ```js
 export default function mount(host, atlas) {
@@ -358,10 +373,11 @@ export default function mount(host, atlas) {
 | `await atlas.fetch(url, { method?, headers?, body?, timeout?, saveTo? })` | a request made by the core to a host listed in `[permissions] net`; → `{ status, ok, headers, url, saved?, text(), json() }`. A header may be `{ secret: "token", prefix: "Bearer " }`; `saveTo` writes the body to the plugin's cache folder (`saveIn: "remote"`: to the local copies of remote files, `.atlas/remote/<id>/`, which the explorer opens); `bodyFile: <vault path>` sends that file's bytes as the body (an upload). A sign-in in front of the service (Authelia, Authentik…) comes back as `signin: { kind: "door", host, page }` with `ok: false`: Atlas has offered the sign-in and sends it with later requests to hosts your `net` names. With a header `{ oauth: name }` whose sign-in is not made yet (nothing is sent then), or that the service refuses with a `Bearer` 401, the answer carries `signin: { kind: "token", host, name, page }`: Atlas offers the OpenID sign-in, its provider found from the service — so a plugin can just send `{ oauth: "svc" }` and retry once signed in |
 | `await atlas.media(url, { headers? })` | an address to play (`<audio src>`, `<video src>`) for media on a server that wants your secret on every request: the core keeps the headers — `{ secret: "token", prefix: "Bearer " }` filled in by the core, never in the page — under a random ticket for a day and answers `/media/<ticket>` by asking the server with them, the player's `Range` passed through (seeking) and the bytes streamed. Same hosts as `fetch` (`[permissions] net`). Core: `plugin_media.rs`; the Audiobooks plugin plays Audiobookshelf with it |
 | `atlas.secrets.get / set / delete / has (name)` | this plugin's secrets in this vault, kept outside the vault (`[permissions] secrets = true`). `get` answers only the plugin's helper: a page is refused (a secret's value never reaches a page — let `fetch` fill it in, or use it in the helper, which gets the secrets with each call as `params.secrets`) |
-| `await atlas.oauth.signIn(name, { issuer?, resource?, clientId?, redirect?, scopes? })` | an OpenID Connect sign-in (Authelia as an OIDC provider, or any other): authorization code + PKCE as a public client. The provider is `issuer`; else the one the service at `resource` names when asked without a token (its 401's `WWW-Authenticate: Bearer resource_metadata=…`, RFC 9728, or its `/.well-known/oauth-protected-resource`); else the vault's (Settings → Plugins & automation, `[plugins] oidc_issuer`). `clientId` and `redirect` fall back to the vault's `oidc_client_id` / `oidc_redirect`, so one client registered at Authelia serves every plugin. A service behind a sign-in *door* (a redirect to the portal) is said to be one: sign in to it with `atlas.signIn` instead; the provider's page opens in the desktop's sign-in window, the tokens stay with the core, once per provider and shared by every plugin of the vault (the plugin's secret `oauth.<name>` only names the provider): a second plugin asking `{ oauth: name }` takes the vault's provider's token with no click, and with a gate session kept (a door signed in) the core gets a first token silently (`prompt=none`), so the window shows only when the provider insists. Then a header `{ oauth: name }` in `fetch` is `Bearer <access token>`, renewed by the core with the refresh token (scope `offline_access`, the default with `openid`). `oauth.status(name)` → `{ signed_in, expires, renews }`; `oauth.signOut(name)`; in a browser the page opens in a tab and never comes back by itself: let the user paste the address it ended on into `oauth.finish(address)`. Needs `secrets = true` and the provider's host in `net`. Since API 4 of 2026-10-17 — test `atlas.oauth` before using it |
+| `await atlas.oauth.signIn(name, { issuer?, resource?, clientId?, redirect?, scopes? })` | an OpenID Connect sign-in (Authelia as an OIDC provider, or any other): authorization code + PKCE as a public client. The provider is `issuer`; else the one the service at `resource` names when asked without a token (its 401's `WWW-Authenticate: Bearer resource_metadata=…`, RFC 9728, or its `/.well-known/oauth-protected-resource`); else the vault's (Settings → Plugins, `[plugins] oidc_issuer`). `clientId` and `redirect` fall back to the vault's `oidc_client_id` / `oidc_redirect`, so one client registered at Authelia serves every plugin. A service behind a sign-in *door* (a redirect to the portal) is said to be one: sign in to it with `atlas.signIn` instead; the provider's page opens in the desktop's sign-in window, the tokens stay with the core, once per provider and shared by every plugin of the vault (the plugin's secret `oauth.<name>` only names the provider): a second plugin asking `{ oauth: name }` takes the vault's provider's token with no click, and with a gate session kept (a door signed in) the core gets a first token silently (`prompt=none`), so the window shows only when the provider insists. Then a header `{ oauth: name }` in `fetch` is `Bearer <access token>`, renewed by the core with the refresh token (scope `offline_access`, the default with `openid`). `oauth.status(name)` → `{ signed_in, expires, renews }`; `oauth.signOut(name)`; in a browser the page opens in a tab and never comes back by itself: let the user paste the address it ended on into `oauth.finish(address)`. Needs `secrets = true` and the provider's host in `net`. Since API 4 of 2026-10-17 — test `atlas.oauth` before using it |
 | `await atlas.helper.call(method, params?, { timeout? })` | ask the `[helper]` program; `helper.on(event, fn)`, `helper.state()`, `helper.restart()` |
 | `await atlas.terminal.run(command)` | type a command into the shell terminal and enter it (opened when there is none): the user sees the command and its output. `false` when no terminal became ready |
 | `await atlas.terminal.open(command, title?)` | a terminal tab of its own running the command directly (`sh -c`, no interactive shell: no rc files, no login banner); the tab closes when the command ends. For a session (ssh) or a prompt the user must answer |
+| `await atlas.terminal.shell()` (API 17) | what words the terminal's shell reads: `"posix"` (sh, bash, zsh, fish…), `"powershell"` or `"cmd"` — the shell of the machine the terminal runs on (a server's too), so a command typed with `run` is quoted for it. Run tools is the example |
 | `atlas.other(id)` | another plugin's `settings` and `data(args)`; `null` when absent or off |
 
 ## The helper's protocol
@@ -378,7 +394,7 @@ A tool call arrives as a request for its `method`, with the agent's arguments pl
 
 A tool that must make something happen **in the user's window** (open a tab, show a panel) cannot do it from the helper: it prints an event with an id, the page's `atlas.helper.on` listener does the work and calls a helper method with that id to say it is done, and only then does the tool answer. With no page listening (Atlas closed: `atlas mcp` then runs the helper itself) nobody answers, and the tool says so after a few seconds instead of claiming success. The SSH plugin's `ssh_terminal` is the example: `terminal` → a `tab` event → `atlas.terminal.open` → `tab_opened {id, ok}`.
 
-stderr and non-JSON lines go to `.atlas/cache/plugins/<id>.log`. Environment: `ATLAS_ROOT` (the vault, also the working folder), `ATLAS_PLUGIN_DIR`, `ATLAS_PLUGIN_CACHE`, `ATLAS_PLUGIN_TARGET`, `ATLAS_PLUGIN_ID`, and `PYTHONPATH` led by the `atlas_plugin` library (below). A helper may also **call the core back** over the same pipe (below). Started by the first call; restarted by the next call after it exits; left stopped after five starts in ten minutes; stopped with the plugin and with Atlas.
+stderr and non-JSON lines go to `.atlas/cache/plugins/<id>.log`. Environment: `ATLAS_ROOT` (the vault, also the working folder), `ATLAS_PLUGIN_DIR`, `ATLAS_PLUGIN_CACHE`, `ATLAS_PLUGIN_TARGET`, `ATLAS_PLUGIN_ID`, and `PYTHONPATH` led by the `atlas_plugin` library (below). A helper may also **call the core back** over the same pipe (below). Started by the first call; restarted by the next call after it exits; left stopped after five starts in ten minutes; stopped with the plugin and with Atlas, and — with `[helper] idle` — after that long with no call and none waiting (never under a call; at least a minute; not counted as a crash). Give `idle` to a helper that keeps nothing running between calls (a lookup, a conversion): each one idle costs a process's memory. A helper that listens (mail, push, a connector) leaves it out.
 
 ### Calling Atlas back — `atlas_plugin` (Python) and `atlas-plugin` (Rust)
 
@@ -434,6 +450,41 @@ run = "\"$ATLAS_PLUGIN_DIR/bin/$ATLAS_PLUGIN_TARGET/helper\""
 ```
 
 Build Linux helpers **static** (`cargo build --target x86_64-unknown-linux-musl`, or `-static` for C/C++): the same file then runs on the desktop and in the server's container (Debian, an older glibc than a desktop's), wherever the vault is served. Keep the executable bit (installing from a folder, an archive or git keeps it). On Android, a phone may run programs only from inside the app's APK: there the helpers are compiled into atlas.apk (`crates/atlas-android/helpers/`) and found by name on `PATH`, with `python3` among them (docs/guides/ANDROID.md, "Python and helpers"). The test `helper::a_compiled_helper_runs_like_a_script` builds one with `rustc`.
+
+### JavaScript helpers — `[helper] js` (API 16)
+
+```toml
+[helper]
+js = "helper.js"          # run inside the core by QuickJS: no process, no Python, the same on the phone
+```
+
+A helper may instead be a script the core runs itself: one QuickJS context per plugin, on a thread of its own,
+speaking the same protocol as a process helper (the global `atlas` turns each call into those lines). The repo's
+plugins write it in TypeScript, `helper/helper.ts`, and commit the build: `node scripts/dev/plugin-ui.mjs <plugin>`
+builds `helper.js`; `--check` type-checks it, checks the build is current and runs `helper/*.test.ts` in node against
+a stand-in core (`import { harness } from "atlas-helper/testing"`: `harness.web`, `harness.api`, `harness.zips`). The
+types are `crates/atlas-core/sdk/js/atlas-helper.d.ts`.
+
+- **Methods**: `atlas.method(name, fn)` / `atlas.methods({…})`; `fn(params)` returns (or resolves to) the answer.
+- **Files and the core**: `read`, `write`, `files`, `tree`, `search`, `today`, `capture`, `secret`, `setSecret`,
+  `get` / `post` / `put` / `del` / `call` for any endpoint; errors are `AtlasError` (`.status`).
+- **The web**: `fetch(url, {method, headers, body, timeout, every, missing, waits})` → text (`null` for a `missing`
+  status), `fetchJson`, `fetchResponse` (the whole answer), `download` (streamed into the plugin's cache), within
+  `[permissions] net`. A header may be `{ secret: "token", prefix: "Bearer " }`, filled in by the core.
+- **Native primitives** (done in Rust, one call each): `html.select`, `html.unescape`, `csv.parse`, `zip.list`,
+  `zip.read`, `hash.sha256`; `url.quote`, `url.resolve`, `text.title` in script.
+- **Programs** (API 17): `await atlas.exec(program, args, { stdin, cwd, timeout })` → `{ status, stdout, stderr }`
+  (`timedOut`, `truncated` when so). Only a program the manifest names, `[permissions] exec = ["pandoc"]`, found on
+  the PATH (a path is refused), started with no shell, `cwd` inside the vault (default the vault), killed with its
+  children after `timeout` seconds (default 60, at most 600), each output kept to 8 MB. Where the program is not
+  installed (the phone) it throws, saying so: test for it and degrade. Only the helper's script reaches it, never a
+  page.
+- **What QuickJS lacks**: no `fetch`, `URL`, `TextEncoder`, `btoa`, no Node modules; `console` and timers come from the
+  core. The node harness removes them too, so a helper leaning on Node fails its tests.
+- **Limits**: 128 MB of memory per context, 5 s of CPU per turn (a call and the promise jobs it starts); past them
+  the call fails and the next one starts the helper again.
+
+Design and measurements: docs/design/DESIGN-js-helpers.md.
 
 ## Native Android side (`[android]`)
 

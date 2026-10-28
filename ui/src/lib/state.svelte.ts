@@ -1,7 +1,7 @@
 // App-wide reactive state (Svelte 5 runes). Mutate fields; never reassign the objects.
 import type { ConnState } from "./api";
 import type { Workspace } from "./types";
-import { load, KEYS } from "./prefs";
+import { load, loadRaw, saveRaw, KEYS } from "./prefs";
 
 export type Theme = "dark" | "light";
 export interface Problems { errors: number; warnings: number }
@@ -9,7 +9,8 @@ export interface Problems { errors: number; warnings: number }
 export const app = $state({
   workspace: null as Workspace | null,
   conn: "connecting" as ConnState,
-  theme: load<Theme>(KEYS.theme, "dark"),
+  // raw, not JSON: index.html and capture.html paint it before the app loads
+  theme: (loadRaw(KEYS.theme) === "light" ? "light" : "dark") as Theme,
   vimEnabled: load<boolean>(KEYS.vim, true),
   /** Mode of the most recently focused editor: "NORMAL", "INSERT", … or "" when vim is off. */
   vimMode: "",
@@ -23,7 +24,7 @@ export const app = $state({
 export function paintTheme(t: Theme): void {
   app.theme = t;
   document.documentElement.dataset.theme = t;
-  try { localStorage.setItem(KEYS.theme, t); } catch { /* ignore */ }
+  saveRaw(KEYS.theme, t);
 }
 
 // --- toasts ------------------------------------------------------------------------------------

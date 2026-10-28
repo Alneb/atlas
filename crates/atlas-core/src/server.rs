@@ -275,18 +275,16 @@ async fn raw_put(State(st): S, Query(q): Query<RawPut>, body: Bytes) -> Result<J
 #[derive(serde::Deserialize)]
 struct PluginsQuery {
     /// `android`: each plugin's `not_here` and `blocked` as the phone app sees them (it runs a server vault's plugins
-    /// itself); any platform: `blocked` filled. None: the list as this core sees it.
+    /// itself). None: as this core's own platform sees them.
     platform: Option<crate::platform::Platform>,
 }
 
 async fn plugins_get(State(st): S, Query(q): Query<PluginsQuery>) -> Result<Json<Vec<crate::plugins::Plugin>>> {
     Ok(Json(
         with_ws(&st, move |ws| {
+            // `blocked` always filled: the core's rule is the only one (the page and the phone read it, never redo it)
             let list = crate::plugins::list(ws.root());
-            Ok(match q.platform {
-                Some(p) => crate::plugins::as_seen_from(list, &ws.config()?.plugins.off, p),
-                None => list,
-            })
+            Ok(crate::plugins::as_seen_from(list, &ws.config()?.plugins.off, q.platform.unwrap_or_else(crate::platform::Platform::current)))
         })
         .await?,
     ))
@@ -643,6 +641,18 @@ async fn capture_post(State(st): S, Json(req): Json<CaptureRequest>) -> Result<J
         })
         .await?,
     ))
+}
+
+/// Every capture and its state (captures.rs): the Captures block, the untriaged count on Home.
+async fn captures_get(State(st): S) -> Result<Json<crate::api::CaptureList>> {
+    Ok(Json(with_ws(&st, |ws| Ok(crate::captures::list(ws.root(), &ws.config()?))).await?))
+}
+
+/// One triage answer, written into the capture's file (and the note it is filed into); open editors are told.
+async fn captures_triage(State(st): S, Json(req): Json<crate::api::TriageRequest>) -> Result<StatusCode> {
+    let paths = with_ws(&st, move |ws| crate::captures::triage(ws.root(), &ws.config()?, &req, chrono::Local::now().naive_local())).await?;
+    st.bus.publish(Event::Fs { paths });
+    Ok(StatusCode::NO_CONTENT)
 }
 
 async fn note_new(State(st): S, Json(mut req): Json<NewNote>) -> Result<Json<NewNoteResult>> {
@@ -1046,15 +1056,21 @@ async fn vaults_mirror_post(State(st): S, Json(q): Json<crate::vaults::MirrorReq
 /// `POST /api/lease/ask` (DESIGN-mirror-v2.md §2): may a device mirroring this server vault write `path` now?
 async fn lease_ask(State(st): S, Json(q): Json<crate::mirror_guard::AskBody>) -> Result<Json<crate::mirror_guard::AnswerBody>> {
     let (root, path) = leased_path(&st, &q.path, &q.holder)?;
-    let disk = move || std::fs::read(&root).ok().map(|b| vault_write::ContentHash::of(&b));
-    let answer = st.leases.ask(&path, &q.holder, q.have, disk, crate::mirror_guard::HOLD, std::time::Instant::now());
+    // off the async runtime: hashing the server's copy (a PDF, say) reads the whole file
+    let leases = st.leases.clone();
+    let answer = blocking(move || {
+        let disk = move || std::fs::read(&root).ok().map(|b| vault_write::ContentHash::of(&b));
+        Ok(leases.ask(&path, &q.holder, q.have, disk, crate::mirror_guard::HOLD, std::time::Instant::now()))
+    })
+    .await?;
     Ok(Json(answer.into()))
 }
 
 /// `POST /api/lease/done`: the device wrote `path` (now `version`) and lets it go.
 async fn lease_done(State(st): S, Json(q): Json<crate::mirror_guard::DoneBody>) -> Result<StatusCode> {
     let (_, path) = leased_path(&st, &q.path, &q.holder)?;
-    st.leases.done(&path, &q.holder, q.version);
+    let leases = st.leases.clone();
+    blocking(move || Ok(leases.done(&path, &q.holder, q.version))).await?; // it keeps the table on disk
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -1069,7 +1085,9 @@ fn leased_path(st: &AppState, path: &str, holder: &str) -> Result<(PathBuf, Stri
     }
     let abs = st.ws.resolve(path)?;
     st.leasing.call_once(|| crate::mirror_guard::install_on_server(&st.ws, st.leases.clone()));
-    Ok((abs, path.trim_start_matches('/').to_string()))
+    // the table's key is the path as the server's own writes name it (`./a.md`, `a//b.md` would be a second, unheld entry)
+    let key = st.ws.rel(&abs);
+    Ok((abs, key))
 }
 
 /// A window of this vault took the focus: it is the one opened last, so the capture box starts on it.
@@ -1372,8 +1390,10 @@ async fn events_ws(State(st): S, upgrade: WebSocketUpgrade) -> Response {
     upgrade.on_upgrade(move |socket| forward_events(socket, rx))
 }
 
+/// The bus to one page; the page says on it whether it is looked at (`{"seen": …}`, notify.rs).
 async fn forward_events(mut socket: WebSocket, mut rx: tokio::sync::broadcast::Receiver<Event>) {
     use tokio::sync::broadcast::error::RecvError;
+    let page = crate::notify::Presence::global().join();
     loop {
         tokio::select! {
             ev = rx.recv() => match ev {
@@ -1386,6 +1406,11 @@ async fn forward_events(mut socket: WebSocket, mut rx: tokio::sync::broadcast::R
             },
             msg = socket.recv() => match msg {
                 Some(Ok(Message::Close(_))) | None | Some(Err(_)) => break,
+                Some(Ok(Message::Text(t))) => {
+                    if let Ok(s) = serde_json::from_str::<crate::notify::Seen>(&t) {
+                        page.seen(s.seen);
+                    }
+                }
                 Some(Ok(_)) => {}
             },
         }
@@ -1507,7 +1532,7 @@ pub const API_LEVEL: u32 = 2;
 /// `{version, api, ui}`: this program's version, its API_LEVEL and an id of its interface build (the hash of its index).
 pub fn version_info() -> serde_json::Value {
     let ui = ui_file("index.html", "").map(|(d, _)| crate::auth::sha256(&String::from_utf8_lossy(&d))[..12].to_string()).unwrap_or_default();
-    serde_json::json!({ "version": env!("CARGO_PKG_VERSION"), "api": API_LEVEL, "ui": ui })
+    serde_json::json!({ "version": env!("CARGO_PKG_VERSION"), "api": API_LEVEL, "ui": ui, "shell": crate::pty::shell_kind() })
 }
 
 fn host_ok(headers: &HeaderMap) -> bool {
@@ -2012,6 +2037,8 @@ fn router(state: Arc<AppState>) -> Router {
         .route("/api/capture", post(capture_post))
         .route("/api/capture/describe", post(capture_describe))
         .route("/api/capture/days", get(capture_days))
+        .route("/api/captures", get(captures_get))
+        .route("/api/captures/triage", post(captures_triage))
         .route("/api/log/today", post(today_log_post))
         .route("/api/note/new", post(note_new))
         .route("/api/note/templates", get(note_templates))
@@ -2158,6 +2185,8 @@ struct VaultRun {
     scheduler: tokio::task::JoinHandle<()>,
     hooks: tokio::task::JoinHandle<()>,
     merges: tokio::task::JoinHandle<()>,
+    /// A local vault's notices to the system (notify.rs); a server's reach devices through the notifications plugin.
+    notices: Option<tokio::task::JoinHandle<()>>,
 }
 
 impl ServerHandle {
@@ -2199,6 +2228,9 @@ impl ServerHandle {
             v.scheduler.abort();
             v.hooks.abort();
             v.merges.abort();
+            if let Some(n) = &v.notices {
+                n.abort();
+            }
         }
         let r = (&mut self.task).await;
         self.remove_server_file();
@@ -2406,6 +2438,9 @@ fn start_vault(root: &std::path::Path, port: u16, auth: Option<Arc<crate::auth::
     let scheduler = crate::schedule::spawn(ws.clone(), bus.clone(), helpers.clone());
     let hooks = crate::capture_hooks::spawn(ws.clone(), bus.clone(), helpers.clone());
     let merges = crate::sync_merge::spawn(ws.clone(), bus.clone()); // Syncthing's conflict copies merged (DESIGN-mirror-v2 §4)
+    let notices = served.is_none().then(|| crate::notify::spawn(ws.clone(), bus.clone(), crate::notify::Presence::global(), crate::notify::platform()));
+    // a server's lease table outlives a restart (lease.rs `kept_in`); a desktop's core keeps none
+    let leases = Arc::new(if served.is_some() { crate::lease::Leases::kept_in(ws.cache_dir().join("leases.json")) } else { Default::default() });
     // the sign-ins kept for plugins visited now and then, so a gate's idle limit never ends them between uses
     let _keep_alive = crate::service_signin::spawn_keep_alive(ws.root().to_path_buf());
     let state = Arc::new(AppState {
@@ -2422,7 +2457,7 @@ fn start_vault(root: &std::path::Path, port: u16, auth: Option<Arc<crate::auth::
         live: Default::default(),
         media: Default::default(),
         desktop: Default::default(),
-        leases: Default::default(),
+        leases,
         leasing: std::sync::Once::new(),
     });
     if state.served.is_none() {
@@ -2434,12 +2469,15 @@ fn start_vault(root: &std::path::Path, port: u16, auth: Option<Arc<crate::auth::
     if let Err(e) = crate::plugins::adopt_config_section(state.ws.root(), "refs", "catalog-papers") {
         eprintln!("atlas: [refs] → catalog-papers settings: {e}");
     }
+    // settings values never live in a manifest: an older vault's `[settings]` move to .atlas/plugin-settings/ (once)
+    crate::plugins::move_all_settings_out(state.ws.root());
+    crate::plugins::hide_legacy_rails(state.ws.root());
     for id in crate::plugins::helpers_started_with_vault(state.ws.root(), &off) {
         if let Err(e) = state.helpers.start(&id) {
             eprintln!("atlas: plugin {id}: its helper did not start with the vault: {e}");
         }
     }
-    Ok((routes, VaultRun { server_file, _watcher: watcher, scheduler, hooks, merges }, state))
+    Ok((routes, VaultRun { server_file, _watcher: watcher, scheduler, hooks, merges, notices }, state))
 }
 
 #[cfg(test)]
@@ -2528,6 +2566,36 @@ atlas.serve()
         assert_eq!(std::fs::read_to_string(root.join("notes/From helper.md")).unwrap(), "# Hi\npipe\n");
         state.helpers.stop_all();
     }
+
+    /// The same through a JavaScript helper run in the core (js_helper.rs): the API, another plugin's secrets closed, and
+    /// `fetch` refused a host its manifest does not list (plugin_net.rs, the one check every helper goes through).
+    #[tokio::test(flavor = "multi_thread")]
+    async fn a_js_helper_calls_the_core_back_and_reaches_only_its_hosts() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path().join("vault");
+        let plug = root.join(".atlas/plugins/jsback");
+        std::fs::create_dir_all(&plug).unwrap();
+        std::fs::write(plug.join("plugin.toml"), "title = \"Back\"\n[permissions]\nnet = [\"api.example.org\"]\n[helper]\njs = \"helper.js\"\n").unwrap();
+        std::fs::write(
+            plug.join("helper.js"),
+            r##"atlas.method("roundtrip", async (p) => {
+  await atlas.write("notes/From js.md", "# Hi\n" + p.word + "\n");
+  const back = await atlas.read("notes/From js.md");
+  const other = await atlas.get("/api/plugins/other/secrets/token").then(() => "read", (e) => e.status);
+  const web = await atlas.fetch("https://elsewhere.example.net/", { waits: [] }).then(() => "fetched", (e) => e.message);
+  return { back, other, web };
+});
+"##,
+        )
+        .unwrap();
+        let (_routes, _run, state) = start_vault(&root, 0, None, None, None, "").unwrap();
+        let got = state.helpers.call("jsback", "roundtrip", serde_json::json!({ "word": "js" }), std::time::Duration::from_secs(20)).await.unwrap();
+        assert_eq!(got["back"], "# Hi\njs\n");
+        assert_eq!(got["other"], 403, "another plugin's secrets stay closed: {got}");
+        assert!(got["web"].as_str().unwrap().contains("may not reach elsewhere.example.net"), "{got}");
+        assert_eq!(state.helpers.state("jsback"), "running");
+        state.helpers.stop_all();
+    }
     /// The catalog end to end with its real helpers: the compiled engine (plugins/beta/catalog) and the Python
     /// Linkwarden helper, a page served here, read by the engine (its clip.rs, the page fetched through the core) for
     /// `catalog-web`'s clip source (`engine = "clip"`), written as a note,
@@ -2566,8 +2634,10 @@ atlas.serve()
                 assert!(!manifest.contains("$ATLAS_PLUGIN_TARGET}/catalog"), "the helper line moved: {manifest}");
             }
             if id == "catalog-linkwarden" {
-                manifest = format!("{manifest}\n[settings]\naddress = \"http://{addr}\"\n");
-                std::fs::copy(plugins.join(id).join("helper.py"), to.join("helper.py")).unwrap();
+                // its helper runs in the core (helper.js); the vault's value in its own settings file
+                std::fs::create_dir_all(root.join(".atlas/plugin-settings")).unwrap();
+                std::fs::write(root.join(".atlas/plugin-settings/catalog-linkwarden.toml"), format!("address = \"http://{addr}\"\n")).unwrap();
+                std::fs::copy(plugins.join(id).join("helper.js"), to.join("helper.js")).unwrap();
             }
             std::fs::write(to.join("plugin.toml"), manifest).unwrap();
         }

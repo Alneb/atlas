@@ -23,7 +23,8 @@ fn patterns(root: &Path, cfg: &Config) -> Patterns {
         }
     }
     let all = crate::plugins::list(root);
-    let on = all.iter().any(|p| p.id == "catalog") && crate::plugins::blocked(&all, &cfg.plugins.off, "catalog").is_none();
+    // the role, not a plugin's id: whichever plugin `provides = ["catalog"]` (its contributions are `[contributes.catalog]`)
+    let on = crate::plugins::provider(&all, &cfg.plugins.off, "catalog").is_some();
     let mut out = vec![];
     if on {
         for (_, t) in crate::plugins::contributions(root, &cfg.plugins.off, "catalog").unwrap_or_default() {
