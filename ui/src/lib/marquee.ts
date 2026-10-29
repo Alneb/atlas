@@ -31,7 +31,8 @@ export function marquee(node: HTMLElement, opts: MarqueeOpts) {
     o.pick(ids, start.add);
   }
 
-  const ignored = (e: MouseEvent) => e.button !== 0 || !!(e.target as HTMLElement).closest("input, textarea, select, a, [contenteditable]");
+  // a draggable item is moved by its own drag (a card onto a shelf): the rectangle starts only off it
+  const ignored = (e: MouseEvent) => e.button !== 0 || !!(e.target as HTMLElement).closest("input, textarea, select, a, [contenteditable], [draggable=true]");
   // the press itself must not start the browser's text selection: it ran on past the list over the whole app
   function mousedown(e: MouseEvent) {
     if (ignored(e) || (e.offsetX > node.clientWidth && e.target === node)) return;

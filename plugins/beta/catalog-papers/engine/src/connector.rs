@@ -334,7 +334,7 @@ impl<H: Host> Connector<H> {
             n += 1;
             name = format!("{key}-{n}.{ext}");
         }
-        if let Err(e) = std::fs::write(dir.join(&name), body) {
+        if let Err(e) = atlas_plugin::write_file(dir.join(&name), body) {
             return Response::text(500, e.to_string());
         }
         let mut m = entry::read(&dir).unwrap_or_default();

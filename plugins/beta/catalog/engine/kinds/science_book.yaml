@@ -1,4 +1,4 @@
-# A science book (physics, mathematics, a textbook…) kept apart from the other books. catalog-books says which is which from the
+# A science book (physics, mathematics, a textbook…) kept apart from the other books. catalog-open's books source says which is which from the
 # book's subjects; a vault moves the library with its own .atlas/kinds/science_book.yaml (e.g. next to its papers).
 name: science_book
 label: Science book

@@ -77,7 +77,7 @@ pub fn append_note(dir: &Path, text: &str) -> Result<(), String> {
     if old.contains(text.trim()) {
         return Ok(());
     }
-    std::fs::write(&path, format!("{}\n\n{}\n", old.trim_end(), text.trim())).map_err(|e| format!("{}: {e}", path.display()))
+    atlas_plugin::write_file(&path, format!("{}\n\n{}\n", old.trim_end(), text.trim()).as_bytes()).map_err(|e| e.to_string())
 }
 
 /// (Zotero's name, the note's): the note's `type` is its kind of note (literature), `date` when it was made, `tags`
@@ -148,7 +148,7 @@ pub fn write(made: &dyn Companion, dir: &Path, m: &Mapping) -> Result<(), String
         text = remove_property(&text, note_name(k));
     }
     if text != before {
-        std::fs::write(&path, text).map_err(|e| format!("{}: {e}", path.display()))?;
+        atlas_plugin::write_file(&path, text.as_bytes()).map_err(|e| e.to_string())?;
     }
     match std::fs::remove_file(dir.join(LEGACY)) {
         Err(e) if e.kind() != std::io::ErrorKind::NotFound => Err(format!("{}: {e}", dir.join(LEGACY).display())),

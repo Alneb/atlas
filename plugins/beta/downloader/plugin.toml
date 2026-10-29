@@ -1,23 +1,34 @@
 # A downloader for the catalog: the address of a captured thing (a YouTube Music song, a video, an album page) handed
-# to a service on the user's server that downloads it into a library. Which service is not fixed, so the request is set here:
-# where, which method, and the body with {url}, {kind}, {title}, {artist}, {id} filled in (MeTube: POST /add
-# {"url": "{url}", "quality": "best", "format": "mp3"}; a yt-dlp web UI; your own). Behind Authelia, Atlas offers the
-# sign-in (docs/design/SERVICE-SIGNIN.md).
+# to a service on the user's server that downloads it into a library. A preset says which: MeTube, TubeArchivist (the
+# video archive; the note then links the archived copy), or a request set by hand (where, which method, and a body with
+# {url}, {kind}, {title}, {artist}, {id} filled in). Behind Authelia, Atlas offers the sign-in
+# (docs/design/SERVICE-SIGNIN.md).
 title = "Downloader"
-description = "captured songs (and anything else you choose) sent to your download service"
+description = "captured songs and videos sent to your download service: MeTube, TubeArchivist or your own"
 icon = "download"
-version = "0.2.0"
-api = 16
+version = "0.3.0"
+api = 19
+# TubeArchivist was its own plugin: a vault that had it keeps its address, token and switch, as this plugin's preset
+[replaces]
+tubearchivist = { set = { preset = "TubeArchivist", kinds = ["video"] } }
 
 [permissions]
-net = ["*"]
+net = ["*"]          # the user's own server, wherever it is
 secrets = true
 
 [[setting]]
+key = "preset"
+label = "Service"
+kind = "choice"
+choices = ["custom", "MeTube", "TubeArchivist"]
+default = "custom"
+hint = "MeTube and TubeArchivist need only their address (and TubeArchivist its API token); custom: the request below"
+
+[[setting]]
 key = "address"
-label = "Request address"
+label = "Address"
 kind = "text"
-hint = "https://music-dl.example.org/add — {url}, {id}… may appear in it"
+hint = "the service's address (https://tube.example.org); custom: the request's, where {url}, {id}… may appear"
 
 [[setting]]
 key = "method"
@@ -25,6 +36,7 @@ label = "Method"
 kind = "choice"
 choices = ["POST", "GET", "PUT"]
 default = "POST"
+when = { preset = "custom" }
 
 [[setting]]
 key = "body"
@@ -32,23 +44,41 @@ label = "Body (JSON)"
 kind = "text"
 default = "{\"url\": \"{url}\"}"
 hint = "{url} {kind} {title} {artist} {id} are filled in"
-
-[[setting]]
-key = "kinds"
-label = "Kinds to send"
-kind = "list"
-default = ["song"]
+when = { preset = "custom" }
 
 [[setting]]
 key = "header"
 label = "Token header (optional)"
 kind = "text"
 hint = "e.g. Authorization or X-Api-Key"
+when = { preset = "custom" }
 
 [[setting]]
 key = "token"
 label = "Token (optional)"
 kind = "secret"
+hint = "TubeArchivist: Settings → Integrations → API token; custom: sent in the header above"
+
+[[setting]]
+key = "kinds"
+label = "Kinds to send"
+kind = "list"
+default = ["song"]
+hint = "the catalog kinds handed over (song, video, album…); TubeArchivist takes YouTube videos and songs"
+
+[[setting]]
+key = "auto"
+label = "Send every captured thing"
+kind = "toggle"
+default = true
+hint = "off: only what a kind's rule asks for (links: { downloader: { send: true } })"
+
+[[setting]]
+key = "answer"
+label = "Property it writes"
+kind = "text"
+hint = "the note property that says it was sent; empty: downloaded (TubeArchivist: tubearchivist, the archived copy's address). A note that has it is not sent again"
+group = "More"
 
 [helper]
 js = "helper.js"                   # run in the core (QuickJS), built from helper/helper.ts
@@ -56,8 +86,8 @@ idle = "10m"                       # it only answers: stopped when unused, start
 
 [[tool]]
 name = "send"
-description = "Send a catalogued thing's address to the download service set in Settings → Downloader."
-input = { kind = "string", ids = "object?", path = "string?", props = "object?", options = "object?" }
+description = "Send a catalogued thing's address to the download service set in Settings → Downloader (MeTube, TubeArchivist or a request set by hand)."
+input = { kind = "string", ids = "object?", path = "string?", props = "object?", note = "object?", options = "object?" }
 secrets = ["token"]
 
 [contributes.catalog]

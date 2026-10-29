@@ -8,4 +8,9 @@ export type AutomationConfig = {
  * Run workspace commands that have a `schedule` (e.g. `daily 03:00`) while Atlas is open.
  * Results: the Commands pane and `.atlas/cache/schedule.log`; failures notify.
  */
-run_schedules: boolean, };
+run_schedules: boolean, 
+/**
+ * The computers that run them, by host name; empty: every computer that opens the vault. A vault synced to
+ * several computers runs a schedule on one, so two never write its output at once (Syncthing conflict copies).
+ */
+schedules_on: Array<string>, };

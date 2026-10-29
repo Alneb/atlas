@@ -185,9 +185,9 @@ fn register_json(l: &Ledger, account: &str) -> Value {
     json!({ "account": account, "rows": rows })
 }
 
-/// The statements inbox: a dry run (the report and counts) or, with `write`, the import itself. Binary files (the
-/// originals, the archives) are read and written on this machine's copy of the vault (ATLAS_ROOT): the helper runs
-/// beside the vault; text goes through the core so open tabs and the mirror follow.
+/// The statements inbox: a dry run (the report and counts) or, with `write`, the import itself. The originals are read
+/// from this machine's copy of the vault (ATLAS_ROOT: the helper runs beside it); everything written, the archives'
+/// bytes too, goes through the core, so the index, open tabs and the mirror follow.
 fn import_run(p: &Value, write: bool) -> Result<Value, atlas_plugin::Error> {
     let folder = folder(p);
     let root = PathBuf::from(std::env::var("ATLAS_ROOT").map_err(|_| error("ATLAS_ROOT is not set"))?);
@@ -206,9 +206,7 @@ fn import_run(p: &Value, write: bool) -> Result<Value, atlas_plugin::Error> {
             atlas.write(path, text)?;
         }
         for (path, bytes) in &out.archives {
-            let target = root.join(path);
-            std::fs::create_dir_all(target.parent().unwrap()).map_err(|e| error(e.to_string()))?;
-            std::fs::write(&target, bytes).map_err(|e| error(format!("{path}: {e}")))?;
+            atlas.write_bytes(path, bytes)?;
         }
         for f in &out.consumed {
             atlas.post(&format!("/api/fs/trash?path={}", atlas_plugin::q(f)), &json!({}))?;
@@ -311,7 +309,6 @@ fn downloads_dir(p: &Value) -> PathBuf {
 /// statements inbox: what "Fetch from the bank's site" waits for while the user downloads in their browser.
 fn take_downloads(p: &Value) -> Result<Value, atlas_plugin::Error> {
     let folder_name = folder(p);
-    let root = PathBuf::from(std::env::var("ATLAS_ROOT").map_err(|_| error("ATLAS_ROOT is not set"))?);
     let dir = downloads_dir(p);
     let since = std::time::UNIX_EPOCH + std::time::Duration::from_secs(p["since"].as_u64().unwrap_or(0));
     let vault = Vault(Atlas::new());
@@ -332,9 +329,7 @@ fn take_downloads(p: &Value) -> Result<Value, atlas_plugin::Error> {
         match finance::statement::detect(&presets, &bytes, &finance::statement::pdf::text).first() {
             Some(preset) => {
                 let rel = format!("{folder_name}/statements/inbox/{name}");
-                let target = root.join(&rel);
-                std::fs::create_dir_all(target.parent().unwrap()).map_err(|e| error(e.to_string()))?;
-                std::fs::write(&target, &bytes).map_err(|e| error(format!("{rel}: {e}")))?;
+                Atlas::new().write_bytes(&rel, &bytes)?;
                 std::fs::remove_file(&path).map_err(|e| error(format!("{name}: {e}")))?;
                 taken.push(json!({ "name": name, "preset": preset.name }));
             }

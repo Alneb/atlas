@@ -4,7 +4,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { harness, Status } from "atlas-helper/testing";
-import { auth, muted, sendWith, syncWith, type Message, type Net, type Vault } from "./helper";
+import { auth, muted, oneAtATime, sendWith, syncWith, type Message, type Net, type Vault } from "./helper";
 
 /** ntfy: each topic's messages, `since=<id>` honoured as the real one does; the POSTs made. */
 function ntfy(topics: Record<string, Message[]>) {
@@ -120,4 +120,31 @@ test("through the core: the poll is fetched, the note written and the last id ke
   assert.ok(harness.asked[0].url.endsWith("/server/json?poll=1&since=old1"), "the Python helper's last id is carried over");
   assert.ok(files["notifications/server.md"].includes("hello"));
   assert.deepEqual(JSON.parse(files[".atlas/cache/test.json"]), { since: { server: "n1" } });
+});
+
+test("two syncs at once run one after the other, a failed one not stopping the next", async () => {
+  const order: string[] = [];
+  const slow = oneAtATime(async (name: string) => {
+    order.push(`${name} starts`);
+    await new Promise((r) => setTimeout(r, name === "a" ? 20 : 1));
+    order.push(`${name} ends`);
+    if (name === "a") throw new Error("a failed");
+    return name;
+  });
+  const [a, b] = await Promise.allSettled([slow("a"), slow("b")]);
+  assert.deepEqual(order, ["a starts", "a ends", "b starts", "b ends"]);
+  assert.equal(a.status, "rejected");
+  assert.deepEqual(b, { status: "fulfilled", value: "b" });
+});
+
+test("a sync that found something says it to the pages", async () => {
+  harness.reset();
+  harness.api = (verb) => {
+    if (verb === "GET") throw new Status(404, "none");
+    return {};
+  };
+  harness.web = () => `${JSON.stringify({ event: "message", id: "e1", time: 1761357000, message: "hi" })}\n`;
+  await harness.call("sync", settings({ topics: "events" }));
+  const ev = harness.events.find((e) => e.event === "synced");
+  assert.equal((ev?.data as { new?: number })?.new, 1, JSON.stringify(harness.events));
 });

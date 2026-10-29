@@ -228,6 +228,11 @@
     csv: Object.freeze({ parse: (text, o = {}) => native("csv.parse", { text: String(text ?? ""), header: Boolean(o.header), delimiter: o.delimiter ?? "," }) }),
     zip: Object.freeze({ list: (path) => native("zip.list", { path }), read: (path, name) => native("zip.read", { path, name }) }),
     hash: Object.freeze({ sha256: (text) => native("hash.sha256", { text: String(text) }) }),
+    convert: Object.freeze({
+      comicToCbz: (path) => native("convert.cbz", { path }),
+      djvuToPdf: (path) => native("convert.pdf", { path }),
+      typstPdf: (path, to, o = {}) => native("convert.typst", { path, to, ...(o.source === undefined ? {} : { source: String(o.source) }), ...(o.fence ? { fence: true } : {}) }),
+    }),
   });
 })(globalThis.__host);
 delete globalThis.__host;

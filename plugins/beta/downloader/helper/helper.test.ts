@@ -1,4 +1,4 @@
-// The request the settings make, and what is left alone.
+// The request the settings make (custom and MeTube), what is left alone, and what is not sent twice.
 import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import { harness, Reply, Status } from "atlas-helper/testing";
@@ -37,4 +37,20 @@ test("other kinds are left alone, a bad body is said before sending, a failure s
   assert.equal(harness.asked.length, 0);
   harness.web = () => new Reply(500, "boom");
   await assert.rejects(harness.call("send", P), /answered 500: boom/);
+});
+
+test("MeTube: its /add with the address, mp3 for a song", async () => {
+  await harness.call("send", { ...P, settings: { preset: "MeTube", address: "https://metube.example.org/", kinds: ["song"] } });
+  const sent = harness.asked[0];
+  assert.equal(sent.url, "https://metube.example.org/add");
+  assert.deepEqual(JSON.parse(String(sent.body)), { url: "https://music.youtube.com/watch?v=fHiGbolFFGw", quality: "best", format: "mp3" });
+});
+
+test("a note that has its answer already is not sent again (a catalog Update), and the answer property can be renamed", async () => {
+  assert.deepEqual(await harness.call("send", { ...P, note: { downloaded: "requested" } }), {});
+  assert.equal(harness.asked.length, 0);
+  const r = await harness.call("send", { ...P, settings: { ...S, answer: "queued" }, note: { downloaded: "requested" } });
+  assert.deepEqual(r, { fields: { queued: "requested" } }, "another property: sent");
+  assert.deepEqual(await harness.call("send", { ...P, settings: { ...S, answer: "queued" }, note: { queued: "requested" } }), {});
+  assert.equal(harness.asked.length, 1);
 });

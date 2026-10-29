@@ -7,7 +7,7 @@ import { fileURLToPath } from "node:url";
 // The example memos plugin installed as it is, against a stand-in memos server.
 const H = { "x-atlas": "1" };
 const put = (r: APIRequestContext, path: string, text: string) => r.put("/api/file", { headers: H, data: { path, text } });
-const example = (f: string) => readFileSync(fileURLToPath(new URL(`../../plugins/beta/memos/${f}`, import.meta.url)), "utf8");
+const example = (f: string) => readFileSync(fileURLToPath(new URL(`../../plugins/examples/memos/${f}`, import.meta.url)), "utf8");
 let server: Server, port = 0;
 const got: { url: string; auth: string; body: { content: string; visibility: string } }[] = [];
 

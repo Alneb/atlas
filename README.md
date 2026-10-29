@@ -23,78 +23,101 @@
 
 <sub>A demo vault (<code>scripts/dev/readme-shots.mjs</code> builds it and takes these shots).</sub>
 
-## The idea in four lines
+## The idea
 
-- **Everything is a file.** A vault is a folder. Notes are Markdown. Papers, mails, drawings, runs and tables are
-  files too. Atlas keeps its own settings, pages and plugins in one `.atlas/` folder. Nothing lives only in a database
-  or on a server, and the vault stays readable in Obsidian.
-- **Everything can be linked.** Anything that is not Markdown gets a *companion note*, made for you. The note holds the
-  thing's metadata as properties and a block that shows the thing itself. You link it with `[[wikilinks]]`, search it,
-  tag it and list it in Bases like any note. Citing a paper is linking to its note.
-- **Integrations are plugins.** Mail, calendars, the library catalogue, file servers, finance and AI agents are all
-  plugins. The core stays generic: files, blocks, search, the settings form, terminals and one MCP server any agent
-  can use. ([docs/PHILOSOPHY.md](docs/PHILOSOPHY.md))
+- **Everything is a file.** A vault is a folder. Notes are Markdown; papers, mail, drawings, runs and tables are files
+  too. Atlas keeps its own settings, pages and plugins in one `.atlas/` folder. Nothing lives only in a database or on
+  a server, and the vault stays readable in Obsidian.
+- **Everything can be linked.** Anything that is not Markdown gets a *companion note*, made for you: the thing's
+  metadata as properties and a block that shows the thing itself. You link it with `[[wikilinks]]`, search it, tag it
+  and list it in Bases like any note. Citing a paper is linking to its note.
+- **Integrations are plugins.** Mail, calendars, the catalogue, file servers, finance and AI agents are plugins. The
+  core stays generic: files, blocks, search, the settings form, terminals, and one MCP server any agent can use
+  ([docs/PHILOSOPHY.md](docs/PHILOSOPHY.md)).
 - **Automation proposes, you decide.** Nothing irreversible happens without a yes, deleted things go to
-  `.atlas/trash/`, and long jobs report what they are doing.
+  `.atlas/trash/`, and long jobs say what they are doing.
 
 ## What it does
 
 **Writing and thinking**
-- **Notes** with live preview: wikilinks, embeds, callouts, LaTeX with snippets and footnotes. Bases tables
-  and cards read Obsidian's `.base` files. Tasks follow the Tasks plugin's format (priorities, dates, repeats).
-  Templates and inline expressions are supported too.
+- **Notes** with live preview: wikilinks, embeds, callouts, LaTeX with snippets, footnotes. Bases tables and cards
+  read Obsidian's `.base` files. Tasks follow the Tasks plugin's format (priorities, dates, repeats). Templates and
+  inline expressions.
 - **A Today page and a daily log.** Captures land there as one line each, from any device.
 - **Pages of blocks** you arrange by hand: a home screen, an inbox, a dashboard. The left bar is one too.
-- **Tables**: CSV, TSV and Excel files open as a spreadsheet. You can edit cells, write formulas, filter, sort, group
-  with sub-totals and plot. Named views are kept in the file's note and can be embedded anywhere
-  (`![[x.csv#view=Name]]`).
+- **Tables**: CSV, TSV and Excel files open as a spreadsheet — edit cells, formulas, filters, sorting, groups with
+  sub-totals, plots. Named views are kept in the file's note and can be embedded anywhere (`![[x.csv#view=Name]]`).
 - **Drawings**: Excalidraw files with their own note. On a pen tablet a stroke becomes the shape it was meant as.
 
 **Reading and research**
-- **Papers**: a library synced from Zotero, one note per paper, and citations as `[[citekey]]`.
-- **PDFs** are rendered by PDFium (pdf.js stays as a backup). Highlights, underlines and ink live in the PDF's note,
-  and the PDF itself is never rewritten.
-- **A catalogue** of what you read, watch and listen to: books, films and series, music, anime, videos, web pages and
-  papers. Each item is a note, filled in by source plugins (TMDB, Open Library, MusicBrainz, Wikipedia, YouTube,
-  Letterboxd, Audiobookshelf, Linkwarden…). A pasted link is recognised and filed.
-- **Books, comics and audiobooks** readers. An offline Wikipedia through kiwix-serve.
+- **The Library page**: one page, one tab per library the vault has — References (papers, books, theses), Drawings,
+  and those the plugins add (films and series, music, books, comics, audiobooks…). Search, sort, groups and tags at
+  the side, a list or covers, the selected item's details and actions at the right.
+- **References**: one folder and one note per paper, added by DOI or arXiv id with its metadata and open-access PDF,
+  a `refs.bib` kept current, the Zotero browser extension answered, citations as `[[citekey]]`.
+- **PDFs** rendered by PDFium (pdf.js as a backup). Highlights, underlines and ink live in the PDF's note; the PDF
+  itself is never rewritten.
+- **A catalogue** of what you read, watch and listen to: a pasted link, ISBN or IMDb id is recognised, looked up in the
+  source plugins (TMDB, Open Library, MusicBrainz, AniList, Wikipedia, YouTube, Audiobookshelf…) and filed as a note
+  of its kind; Linkwarden and download services can be told about it.
+- **Readers** for EPUB books and comics (also natively on Android and e-ink), and an offline Wikipedia through
+  kiwix-serve.
 
 **Communication and life admin**
-- **Mail**: a full client with a Rust engine (IMAP, SMTP, OAuth sign-in), three panes, and remote images blocked by
-  default. The server is the store. A mail becomes a note only when you save it.
-- **Calendars and contacts** over CalDAV and CardDAV, with push.
-- **Finance**: a plain-text journal of your own, bank imports (OFX and others), categories and a baseline budget.
-- **Notifications**: ntfy, Apprise and system notifications.
+- **Mail**: a full client with a Rust engine (IMAP, SMTP, OAuth sign-in), three panes, Gmail's keys, rules, remote
+  images blocked by default. The server is the store; a mail becomes a note only when you save it.
+- **Calendars and contacts** over CalDAV and CardDAV, several accounts, invitations answered from the mail, push.
+- **Finance**: a plain-text journal of your own, booked investment lots, bank-balance assertions, statement imports
+  and bank feeds, a baseline budget.
+- **Notifications**: your server's ntfy / Apprise messages filed as notes, and messages to your phone.
 
 **Code and machines**
-- **Code**: language servers, find and replace, formatting, problems, Run and Test buttons, git changes in the
-  gutter, blame and staging, two vim modes.
+- **Code**: language servers, find and replace, formatting, problems, Run and Test buttons, git changes in the gutter,
+  blame and staging, two vim modes.
 - **Terminals** beside your notes. AI coding agents see what you are looking at through Atlas's MCP server, which is
-  open to any agent. Plugins can offer their own tools to agents too.
-- **Other machines' files in your tree**: SSH hosts and copyparty servers appear under the vault's own folders. A file
-  you opened before still opens from its kept copy when the server is out of reach.
+  open to any agent; plugins offer their own tools to agents too.
+- **Other machines' files in your tree**: SSH hosts and copyparty servers appear in the explorer beside the vault's
+  folders. A file you opened before still opens from its kept copy when the server is out of reach.
 - **Web pages as tabs**, with ad blocking (Linux).
 
 **Everywhere**
-- **Capture from anywhere**: the command bar (Super+E), a global quick-capture window that opens at once, the share
-  sheet and a screenshot shortcut on Android. Captures made offline are kept and sent later.
+- **Capture from anywhere**: the command bar, a global quick-capture window that opens at once, the share sheet and a
+  screenshot shortcut on Android. Captures made offline are kept and sent later. Plugins act on captures: a link is
+  catalogued, a screenshot's text is read, money becomes a transaction to review.
 - **Server mode**: serve your vaults to a browser or the phone, with a password or a sign-in proxy (Authelia,
   Authentik…) in front.
-- **Mirrors**: a vault on the laptop or the phone can mirror a vault on your server. Every device writes its own copy.
-  The server hands out one writer at a time per file, so synchronisation (for example with Syncthing) never produces
-  conflicts. When copies made offline do diverge, the core merges them.
+- **Mirrors**: a vault on the laptop or the phone can mirror a vault on your server. The server hands out one writer
+  at a time per file, so synchronisation (for example with Syncthing) does not produce conflicts; copies made offline
+  that diverge are merged by the core.
 
 ## On which devices
 
 | | |
 |---|---|
 | **Linux** | The desktop app (AppImage, `.deb`, `.rpm`, Flatpak) and the `atlas` CLI. |
-| **macOS, Windows** | Builds come from the same workflow (`.dmg`, NSIS installer). They are not yet signed or notarized and are less tried. On Windows, plugins that need a shell use Git for Windows' `sh`. Ad blocking and web tabs are Linux-only for now. |
-| **Android** | Three APKs: **Atlas** (the full app, with the core running inside it), **Atlas for Boox** (the same app, tuned for e-ink and the Boox pen) and **Atlas capture** (just the capture box). |
+| **macOS, Windows** | Built by the same workflow (`.dmg`, NSIS installer); not yet signed or notarized, and less tried. On Windows, plugins that need a shell use Git for Windows' `sh`. Ad blocking and web tabs are Linux-only for now. |
+| **Android** | Three APKs: **Atlas** (the full app, with the core inside it), **Atlas for Boox** (the same app tuned for e-ink and the Boox pen) and **Atlas capture** (just the capture box). |
 | **A server** | `atlas serve` or the Docker image. Every folder in `./vaults` becomes a vault. |
 
-Each plugin states where it works, in its manifest's `[platforms]`. Settings shows why a plugin is unavailable on the
+Each plugin states where it works in its manifest's `[platforms]`, and Settings says why a plugin is unavailable on the
 system you are on.
+
+## Plugins
+
+Plugins live in `plugins/stable/` (used every day and holding up; their settings and files change only with a migration) and
+`plugins/beta/` (they work, and may still change). [docs/guides/PLUGIN-MATURITY.md](docs/guides/PLUGIN-MATURITY.md)
+says what each tier promises and where each plugin stands. Each plugin's folder has a README.
+
+| Area | Plugins |
+|---|---|
+| Mail, calendar, people | [Email](plugins/stable/email), [Calendar (dav)](plugins/stable/dav), [Notifications](plugins/beta/notifications) |
+| Catalogue and references | [Catalog](plugins/beta/catalog) and its sources: [Science / References](plugins/beta/catalog-papers), [TMDB](plugins/beta/catalog-tmdb), [Open sources](plugins/beta/catalog-open) (books, music, manga and anime, YouTube, Wikipedia), [Linkwarden](plugins/beta/catalog-linkwarden); services told about catalogued things: [Downloader](plugins/beta/downloader) (MeTube, TubeArchivist or your own) |
+| Reading | [Books](plugins/beta/books), [Manga](plugins/beta/manga), [Kiwix](plugins/beta/kiwix), [OCR](plugins/beta/ocr), [Rnote](plugins/beta/rnote) |
+| Writing and output | [Export](plugins/beta/export) (LaTeX / PDF), [Print](plugins/beta/print), [Weather](plugins/beta/weather), [Today](plugins/beta/today) (the greeting, the day's log, the vault's map) |
+| Machines and files | [SSH](plugins/stable/ssh), [copyparty](plugins/beta/copyparty), [Run tools](plugins/beta/run-tools), [Syncthing](plugins/beta/syncthing) |
+| Money | [Finance](plugins/beta/finance) |
+| Agents | [Claude](plugins/beta/claude) |
+| To copy from (`plugins/examples/`, not released) | [Word count](plugins/examples/wordcount) (the smallest plugin), [Word stats](plugins/examples/helper-python) (a plugin with a helper), [TTRPG](plugins/examples/ttrpg) (most of the page side), small integrations: [memos](plugins/examples/memos), [FreshRSS](plugins/examples/freshrss), [Immich](plugins/examples/immich), [Jellyfin](plugins/examples/jellyfin), [Paperless](plugins/examples/paperless) |
 
 ## How it is built
 
@@ -108,18 +131,19 @@ system you are on.
 │ tasks, templates, git, PDFs, the mirror, the server, the MCP server, and the │
 │ plugin host (settings, secrets, network permissions, scheduled tools)        │
 └──────────┬──────────────────────────────────────────────┬────────────────────┘
-           │ JSON over a pipe                             │ in-process
-   plugin helpers (Python or Rust programs)        the desktop app (Tauri), the CLI,
-   + each plugin's page side in JavaScript         the Android app (JNI), the capture box
+           │ JSON over a pipe, or in-process (QuickJS)     │ in-process
+   plugin helpers (JavaScript, Python or Rust)      the desktop app (Tauri), the CLI,
+   + each plugin's page side in JavaScript          the Android app (JNI), the capture box
 ```
 
-- **One core everywhere.** The desktop app, the server and the Android app all run the same Rust core, and the page
-  talks to it over HTTP in each case. A feature is built once and reaches every device.
-- **Plugins** have a page side in plain JavaScript (`main.js`, optionally a `view.js` built from Svelte) that reloads
-  when saved. They can also have a *helper*: a long-running program, either Python with only the standard library or
-  a compiled Rust program, that speaks JSON over a pipe and can call the core back on that same pipe. A plugin
-  declares its settings, secrets, network hosts, agent tools and schedules in `plugin.toml`. Atlas draws the settings
-  page from those declarations and enforces the rest. ([docs/guides/PLUGIN-API.md](docs/guides/PLUGIN-API.md))
+- **One core everywhere.** The desktop app, the server and the Android app run the same Rust core, and the page talks
+  to it over HTTP in each case. A feature is built once and reaches every device.
+- **Plugins** have a page side in JavaScript (`main.js`, optionally a `view.js` pane, either one possibly built from
+  Svelte) that reloads when saved. They can also have a *helper*: JavaScript run inside the core by QuickJS (the same
+  on the phone), or a long-running program — Python with only the standard library, or a compiled Rust program — that
+  speaks JSON over a pipe and can call the core back on that same pipe. A plugin declares its settings, secrets,
+  network hosts, agent tools, schedules and what it requires or provides in `plugin.toml`; Atlas draws the settings
+  page from those declarations and enforces the rest ([docs/guides/PLUGIN-API.md](docs/guides/PLUGIN-API.md)).
 - **Extending without touching this repository**: commands, templates, pages, CSS snippets and plugins can all live
   in a vault's `.atlas/` folder ([docs/guides/EXTENDING.md](docs/guides/EXTENDING.md)).
 
@@ -147,7 +171,7 @@ system you are on.
 [latest release](https://github.com/Alneb/atlas/releases), or build from source (below).
 
 **Android.** The APKs are attached to each release. They are signed with the project's key, so later versions install
-as updates. ([docs/guides/ANDROID.md](docs/guides/ANDROID.md))
+as updates ([docs/guides/ANDROID.md](docs/guides/ANDROID.md)).
 
 **Server (Docker).** Every folder in `./vaults` becomes a vault at `http://<host>:7700/v/<folder>/`:
 
@@ -172,9 +196,10 @@ bash packaging/install.sh                         # build and install the deskto
 bash scripts/dev/gate.sh                          # every check: secrets scan, Rust tests, lints, types, build, end-to-end
 ```
 
-The end-to-end tests need Playwright's Chromium once: `npx --prefix ui playwright install chromium`. The Android
-toolchain is downloaded into `local/` by `crates/atlas-android/get-toolchain.sh`, and `build-apk.sh` builds the APKs
-with neither Gradle nor Android Studio.
+The end-to-end tests need Playwright's Chromium once: `npx --prefix ui playwright install chromium`. Plugins with a
+compiled helper build it with their own `engine/build.sh`; plugins with a Svelte pane or a TypeScript helper are built
+with `node scripts/dev/plugin-ui.mjs plugins/<tier>/<id>`. The Android toolchain is downloaded into `local/` by
+`crates/atlas-android/get-toolchain.sh`, and `build-apk.sh` builds the APKs with neither Gradle nor Android Studio.
 
 ## Documentation
 
@@ -185,6 +210,7 @@ with neither Gradle nor Android Studio.
 | [docs/guides/KEYS.md](docs/guides/KEYS.md) | The keyboard |
 | [docs/guides/EXTENDING.md](docs/guides/EXTENDING.md) | Extending Atlas from inside a vault |
 | [docs/guides/PLUGIN-API.md](docs/guides/PLUGIN-API.md) | Writing a plugin |
+| [docs/guides/PLUGIN-MATURITY.md](docs/guides/PLUGIN-MATURITY.md) | What beta and stable promise, plugin by plugin |
 | [docs/guides/SERVER.md](docs/guides/SERVER.md) | Running a server |
 | [docs/guides/DEVELOPING.md](docs/guides/DEVELOPING.md) | How the app itself is changed |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | The core, the API and the UI |
@@ -192,9 +218,9 @@ with neither Gradle nor Android Studio.
 
 ## Status
 
-Atlas is young and used every day by its author, on a desktop, a phone, a Boox tablet and a home server. Expect rough
-edges, settings that still move, and plugins at different levels of polish: `plugins/stable/` keeps its promises,
-`plugins/beta/` may still change. Changes are listed in [docs/CHANGELOG.md](docs/CHANGELOG.md).
+Atlas is young and used every day by its author, on a desktop, a phone, an e-ink tablet and a home server. Expect
+rough edges, settings that still move, and plugins at different levels of polish: `plugins/stable/` keeps its
+promises, `plugins/beta/` may still change. Changes are listed in [docs/CHANGELOG.md](docs/CHANGELOG.md).
 
 ## Contributing
 

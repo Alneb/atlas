@@ -1,0 +1,17 @@
+# A plugin with a helper: JavaScript the core runs for it and keeps running (docs/guides/PLUGIN-API.md, "JavaScript
+# helpers"): work that should not wait for a window, a cache shared by every window. Copy this folder into a vault's
+# .atlas/plugins/ and run "Word stats: count".
+title = "Word stats"
+description = "counts the words of every note in a JavaScript helper (an example of [helper] js)"
+icon = "chart"
+version = "0.2.0"
+api = 16
+phone = true
+
+[helper]
+js = "helper.js"                   # run in the core (QuickJS): no program to install, the same on every platform
+idle = "10m"                       # stopped when unused, started again by the next call (its cache then starts empty)
+
+# where it runs (PLUGIN-API.md, "Platforms"); a platform not named is untested (Android: only with `phone = true`)
+[platforms]
+linux = "works"

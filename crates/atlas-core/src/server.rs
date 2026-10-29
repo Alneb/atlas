@@ -455,12 +455,18 @@ struct HelperCall {
 }
 
 /// `atlas.helper.call`: asks the plugin's helper (started now if it is not running) and waits.
+/// `{id}` of a plugin route that acts: an id, or `@role` (plugins::resolve).
+async fn plugin_named(st: &AppState, named: String) -> Result<String> {
+    with_ws(st, move |ws| crate::plugins::resolve(ws.root(), &ws.config()?.plugins.off, &named)).await
+}
+
 async fn plugin_helper_post(State(st): S, UrlPath(id): UrlPath<String>, Json(c): Json<HelperCall>) -> Result<Json<serde_json::Value>> {
+    let id = plugin_named(&st, id).await?;
     let timeout = c.timeout_secs.map(std::time::Duration::from_secs).unwrap_or(crate::helper::CALL_TIMEOUT);
-    // the plugin's secrets go with the call from the core (as with a tool's), so a page never holds them
+    // settings and secrets go with the call from the core (as with a tool's), so a page never holds the secrets
     let params = {
         let (ws, id) = (st.ws.clone(), id.clone());
-        blocking(move || crate::plugin_tools::with_secrets(ws.root(), &crate::secrets::Store::for_vault(ws.root()), &id, c.params)).await?
+        blocking(move || crate::plugin_tools::page_call_params(ws.root(), &ws.config()?, &crate::secrets::Store::for_vault(ws.root()), &id, c.params)).await?
     };
     let answer = st.helpers.call(&id, &c.method, params, timeout).await?;
     let kept = answer.get("_secrets").is_some_and(|s| s.as_object().is_some_and(|m| !m.is_empty()));
@@ -479,6 +485,7 @@ async fn plugin_helper_post(State(st): S, UrlPath(id): UrlPath<String>, Json(c):
 
 /// Runs a plugin's tool in the window's helper — the one the page uses, so sessions are shared.
 async fn plugin_tool_post(State(st): S, UrlPath((id, name)): UrlPath<(String, String)>, body: Bytes) -> Result<Json<serde_json::Value>> {
+    let id = plugin_named(&st, id).await?;
     let args = if body.is_empty() { serde_json::Value::Null } else { serde_json::from_slice(&body).map_err(|e| Error::BadRequest(e.to_string()))? };
     let cfg = with_ws(&st, |ws| ws.config()).await?;
     let store = crate::secrets::Store::for_vault(st.ws.root());
@@ -772,6 +779,19 @@ async fn pdf_marks_post(State(st): S, Query(q): Query<PdfQuery>, Json(ops): Json
         st.bus.publish(Event::Fs { paths: vec![n.clone()] });
     }
     Ok(Json(marks))
+}
+
+#[derive(serde::Deserialize)]
+struct TypstFence {
+    /// the note it is in: pictures are named from its folder
+    #[serde(default)]
+    path: String,
+    source: String,
+}
+
+/// A ```typst fence drawn by the core's Typst (typst_doc.rs): its pages as SVG, or Typst's errors.
+async fn typst_svg_post(State(st): S, Json(f): Json<TypstFence>) -> Result<Json<crate::typst_doc::TypstDrawn>> {
+    Ok(Json(with_ws(&st, move |ws| Ok(crate::typst_doc::draw(ws.root(), &f.path, &f.source))).await?))
 }
 
 #[derive(serde::Deserialize)]
@@ -2072,6 +2092,7 @@ fn router(state: Arc<AppState>) -> Router {
         .route("/api/pdf-marks", get(pdf_marks_get).post(pdf_marks_post))
         .route("/api/pdf-of-note", get(pdf_of_note_get))
         .route("/api/pdf-export", post(pdf_export_post))
+        .route("/api/typst/svg", post(typst_svg_post))
         .route("/api/backlinks", get(backlinks_get))
         .route("/api/link-targets", get(link_targets_get))
         .route("/api/base", get(base_get))
@@ -2471,6 +2492,8 @@ fn start_vault(root: &std::path::Path, port: u16, auth: Option<Arc<crate::auth::
     }
     // settings values never live in a manifest: an older vault's `[settings]` move to .atlas/plugin-settings/ (once)
     crate::plugins::move_all_settings_out(state.ws.root());
+    // a merged plugin copied in by hand takes over the settings of the plugins it replaces (plugin_install.rs)
+    crate::plugin_install::adopt_all_replaced(state.ws.root());
     crate::plugins::hide_legacy_rails(state.ws.root());
     for id in crate::plugins::helpers_started_with_vault(state.ws.root(), &off) {
         if let Err(e) = state.helpers.start(&id) {
@@ -2598,7 +2621,7 @@ atlas.serve()
     }
     /// The catalog end to end with its real helpers: the compiled engine (plugins/beta/catalog) and the Python
     /// Linkwarden helper, a page served here, read by the engine (its clip.rs, the page fetched through the core) for
-    /// `catalog-web`'s clip source (`engine = "clip"`), written as a note,
+    /// its own clip source (`engine = "clip"`, the "read_pages" setting), written as a note,
     /// saved to a stand-in Linkwarden in the library's collection; the same link again finds the same note.
     #[tokio::test(flavor = "multi_thread")]
     async fn the_catalog_turns_a_link_into_a_note_and_a_linkwarden_link_with_its_real_helpers() {
@@ -2619,11 +2642,11 @@ atlas.serve()
         let addr = listener.local_addr().unwrap();
         tokio::spawn(async move { axum::serve(listener, site).await.unwrap() });
 
-        // the vault: the three plugins as shipped, the engine run from where cargo built it
+        // the vault: the two plugins as shipped, the engine run from where cargo built it
         let dir = tempfile::tempdir().unwrap();
         let root = dir.path().join("vault");
         let plugins = ws.join("plugins/beta"); // the catalog and its subplugins are beta
-        for id in ["catalog", "catalog-web", "catalog-linkwarden"] {
+        for id in ["catalog", "catalog-linkwarden"] {
             let to = root.join(".atlas/plugins").join(id);
             std::fs::create_dir_all(&to).unwrap();
             let mut manifest = std::fs::read_to_string(plugins.join(id).join("plugin.toml")).unwrap();

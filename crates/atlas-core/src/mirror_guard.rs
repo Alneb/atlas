@@ -101,16 +101,28 @@ impl<L: LeaseLink> LeaseGuard<L> {
     }
 }
 
+impl<L: LeaseLink> LeaseGuard<L> {
+    /// A leased path written (now `version`; `None`: gone): the lease handed back and the base kept. A path written with
+    /// the server unreachable holds no lease, so nothing is handed back — a second call to a server that just failed
+    /// would only add its timeout to the write.
+    fn finish(&self, rel: &str, version: Option<ContentHash>) {
+        if self.granted.lock().unwrap_or_else(|e| e.into_inner()).remove(rel) {
+            self.link.done(rel, version);
+            self.keep_base(rel);
+        }
+    }
+}
+
 impl<L> LeaseGuard<L> {
     /// After a leased write the content here is the last version, which Syncthing carries to the server unopposed:
     /// the base of the next conflict, should one ever happen offline. Best effort — a lost base only means a merge asks.
+    /// Nothing in `.atlas/trash/` is merged, so it keeps none.
     fn keep_base(&self, rel: &str) {
-        if !self.granted.lock().unwrap_or_else(|e| e.into_inner()).remove(rel) {
-            return;
-        }
         let base = base_path(&self.root, rel);
         let now = self.root.join(rel);
+        let trashed = rel.starts_with(".atlas/trash/");
         let kept = match std::fs::metadata(&now) {
+            Ok(_) if trashed => Ok(()),
             Ok(m) if m.is_file() && m.len() <= BASE_MAX => crate::vault_write::cache::copy(&now, &base),
             Ok(m) if m.is_dir() => Ok(()), // a folder's bases are its files' (moved along by `move_bases`)
             _ if base.is_dir() => crate::vault_write::cache::remove_dir_all(&base),
@@ -127,6 +139,9 @@ impl<L> LeaseGuard<L> {
     /// A rename takes its bases along (a folder's: every file's in it), so a moved note still merges against its base.
     fn move_bases(&self, from: &str, to: &str) {
         let (a, b) = (base_path(&self.root, from), base_path(&self.root, to));
+        if to.starts_with(".atlas/trash/") {
+            return; // the source keeps no base once gone (`keep_base`): the trash is never merged
+        }
         if a.exists() && !b.exists() {
             if let Err(e) = crate::vault_write::cache::rename(&a, &b) {
                 eprintln!("atlas: mirror: the base of {from} was not moved to {to}: {e}");
@@ -165,18 +180,11 @@ impl<L: LeaseLink> WriteGuard for LeaseGuard<L> {
     fn after(&self, rel: &str, kind: &WriteKind, new: Option<ContentHash>) {
         match kind {
             WriteKind::Rename { to } => {
-                self.link.done(rel, None);
-                self.link.done(to, new);
                 self.move_bases(rel, to);
-                self.keep_base(rel);
-                self.keep_base(to);
+                self.finish(rel, None);
+                self.finish(to, new);
             }
-            _ => {
-                for (path, _) in leased(rel, kind) {
-                    self.link.done(&path, new);
-                    self.keep_base(&path);
-                }
-            }
+            _ => leased(rel, kind).iter().for_each(|(path, _)| self.finish(path, new)),
         }
     }
 
@@ -515,6 +523,43 @@ mod tests {
         desk.after("a", &mv, None);
         assert_eq!(std::fs::read_to_string(base_path(desktop.path(), "b/n.md")).unwrap(), "x\n");
         assert!(!base_path(desktop.path(), "a").exists());
+    }
+
+    #[test]
+    fn an_offline_write_hands_nothing_back_and_a_trashed_file_keeps_no_base() {
+        /// A server that never answers, counting the calls made to it.
+        struct Down(Arc<Mutex<usize>>);
+        impl LeaseLink for Down {
+            fn ask(&self, _: &str, _: Option<ContentHash>) -> std::result::Result<Answer<ContentHash>, Unreachable> {
+                *self.0.lock().unwrap() += 1;
+                Err(Unreachable("offline".into()))
+            }
+            fn done(&self, _: &str, _: Option<ContentHash>) {
+                *self.0.lock().unwrap() += 1;
+            }
+        }
+        let (_server, desktop, leases, offline) = setup();
+        let calls = Arc::new(Mutex::new(0));
+        let desk = LeaseGuard::new(desktop.path(), Down(calls.clone())).quick();
+        desk.before("log.md", &WriteKind::Write, now(desktop.path(), "log.md")).unwrap();
+        desk.after("log.md", &WriteKind::Write, Some(ContentHash::of(b"v2\n")));
+        let mv = WriteKind::Rename { to: "b.md".into() };
+        desk.before("log.md", &mv, now(desktop.path(), "log.md")).unwrap();
+        desk.after("log.md", &mv, None);
+        assert_eq!(*calls.lock().unwrap(), 3, "one ask per path, no `done` after an ask that failed");
+        // a note moved to the trash under a lease: the trash is never merged, so no base for it
+        let desk = LeaseGuard::new(desktop.path(), Shared(leases, desktop.path().into(), "desktop", offline)).quick();
+        std::fs::write(desktop.path().join("log.md"), "v1\n").unwrap();
+        desk.before("log.md", &WriteKind::Write, now(desktop.path(), "log.md")).unwrap();
+        desk.after("log.md", &WriteKind::Write, Some(ContentHash::of(b"v1\n")));
+        assert!(base_path(desktop.path(), "log.md").exists());
+        let trash = WriteKind::Rename { to: ".atlas/trash/20261029-120000/log.md".into() };
+        desk.before("log.md", &trash, now(desktop.path(), "log.md")).unwrap();
+        std::fs::create_dir_all(desktop.path().join(".atlas/trash/20261029-120000")).unwrap();
+        std::fs::rename(desktop.path().join("log.md"), desktop.path().join(".atlas/trash/20261029-120000/log.md")).unwrap();
+        desk.after("log.md", &trash, Some(ContentHash::of(b"v1\n")));
+        assert!(!base_path(desktop.path(), ".atlas/trash/20261029-120000/log.md").exists());
+        assert!(!base_path(desktop.path(), "log.md").exists(), "nor is the source's kept");
     }
 
     #[test]

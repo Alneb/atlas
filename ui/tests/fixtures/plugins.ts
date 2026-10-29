@@ -6,14 +6,6 @@ import { WS } from "../../playwright.config";
 
 const REPO = fileURLToPath(new URL("../../..", import.meta.url));
 
-/** The Zip archives library plugin (plugins/beta/zip), which Books and Manga import (`../zip/zip.js`, `requires`).
- *  Copied in and never removed: the specs that need it run in parallel against one vault. */
-export function installZipPlugin(): void {
-  const dir = join(WS, ".atlas/plugins/zip");
-  mkdirSync(dir, { recursive: true });
-  for (const f of ["plugin.toml", "zip.js"]) copyFileSync(new URL(`../../../plugins/beta/zip/${f}`, import.meta.url), join(dir, f));
-}
-
 /** Rust's `ARCH-OS`, the folder a plugin's helper is looked up in (`plugins::target()` in the core). */
 const TARGET = `${({ x64: "x86_64", arm64: "aarch64" } as Record<string, string>)[process.arch] ?? process.arch}-${process.platform}`;
 
@@ -22,7 +14,7 @@ const TARGET = `${({ x64: "x86_64", arm64: "aarch64" } as Record<string, string>
 export function installEmailPlugin(): string {
   const built = spawnSync("cargo", ["build", "-q", "-p", "atlas-email", "--bin", "email"], { cwd: REPO, stdio: "inherit" });
   if (built.status !== 0) throw new Error("cannot build the email engine");
-  const plugin = join(REPO, "plugins/beta/email"), dir = join(WS, ".atlas/plugins/email");
+  const plugin = join(REPO, "plugins/stable/email"), dir = join(WS, ".atlas/plugins/email");
   rmSync(dir, { recursive: true, force: true });
   for (const f of ["plugin.toml", "view.js", "main.js", "ui-lib"]) cpSync(join(plugin, f), join(dir, f), { recursive: true });
   mkdirSync(join(dir, "bin", TARGET), { recursive: true });

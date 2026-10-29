@@ -4,9 +4,9 @@
 title = "SSH"
 description = "your ssh hosts: connect, run a command, browse files (SFTP), copy a file, mount"
 icon = "terminal"
-version = "0.8.0"
+version = "0.9.0"
 api = 4
-# what an agent reads first (atlas mcp's instructions): the user saw Claude run ssh in its own shell instead (2026-10-19)
+# what an agent reads first (atlas mcp's instructions): without it an agent tends to run ssh in its own shell
 for_agents = "For anything on the user's ssh hosts, use these tools, never ssh, scp or sftp in your own shell: ssh_hosts to see them, ssh_open then ssh_run for commands (one shared connection per host; a passphrase or 2FA is asked of the user once, in Atlas, and everything you run is visible to them), ssh_terminal for a tab the user works in. Your own `ssh host` cannot answer a 2FA prompt and the user cannot see what it does."
 
 # remote shells kept open for agents (atlas mcp) and the page, one shared connection per host (engine/src/sessions.rs)

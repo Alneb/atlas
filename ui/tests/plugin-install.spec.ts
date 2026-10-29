@@ -53,7 +53,7 @@ test("install from a folder (off, permissions said), switch on, update keeping s
 
   await page.getByRole("button", { name: "Remove Carried" }).click();
   await page.getByTestId("palette").getByText("Remove Carried", { exact: true }).click();
-  await expect(page.getByText("Removed Carried")).toBeVisible();
+  await expect(page.getByText("Removed Carried")).toBeVisible({ timeout: 15_000 }); // after the folder is moved and the plugins reloaded: slow on a CI runner
   await expect(cell).toHaveCount(0);
   expect(await read(request, ".atlas/plugins/carried/plugin.toml")).toBe("");
 });

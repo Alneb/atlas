@@ -2,7 +2,8 @@
 //! language (a Python script, a compiled program) can ask the core for things, over the helper's own pipe rather than
 //! a web interface.
 //!
-//! The helper writes `{"call": n, "verb": "GET", "path": "/api/file?path=a.md", "body": …}` on its stdout; the core runs
+//! The helper writes `{"call": n, "verb": "GET", "path": "/api/file?path=a.md", "body": …}` on its stdout (a file's bytes
+//! as `"bytes": "<base64>"` in place of `body`, for `PUT /api/raw`: a PDF, an attachment); the core runs
 //! it through the vault's own router **in-process** (no socket, no port, no key: the pipe is the identity) and writes
 //! `{"reply": n, "status": 200, "body": …}` to the helper's stdin. So a helper reaches exactly the API the pages use —
 //! one implementation of every file, note and search operation — on the machine running the server. The libraries:
@@ -61,7 +62,15 @@ pub struct Call {
     pub n: u64,
     pub verb: axum::http::Method,
     pub path: String,
-    pub body: Option<serde_json::Value>,
+    pub body: CallBody,
+}
+
+/// What a call sends: JSON for the API's own routes, a file's bytes for `/api/raw` — one or the other.
+#[derive(Debug, PartialEq)]
+pub enum CallBody {
+    Empty,
+    Json(serde_json::Value),
+    Bytes(Vec<u8>),
 }
 
 impl Call {
@@ -79,7 +88,19 @@ impl Call {
         if !path.starts_with("/api/") {
             return Some(Err((n, format!("path {path:?}: a call reaches the API only (/api/…)"))));
         }
-        Some(Ok(Call { n, verb, path, body: msg.get("body").cloned().filter(|b| !b.is_null()) }))
+        let body = match (msg.get("bytes").and_then(|b| b.as_str()), msg.get("body").filter(|b| !b.is_null())) {
+            (Some(_), Some(_)) => return Some(Err((n, "a call sends `body` or `bytes`, not both".into()))),
+            (Some(b64), None) => {
+                use base64::Engine;
+                match base64::engine::general_purpose::STANDARD.decode(b64) {
+                    Ok(b) => CallBody::Bytes(b),
+                    Err(e) => return Some(Err((n, format!("bytes: not base64 ({e})")))),
+                }
+            }
+            (None, Some(j)) => CallBody::Json(j.clone()),
+            (None, None) => CallBody::Empty,
+        };
+        Some(Ok(Call { n, verb, path, body }))
     }
 }
 
@@ -105,6 +126,10 @@ mod tests {
         assert!(Call::parse(&m(json!({"id": 1, "result": 2}))).is_none(), "an answer is not a call");
         assert!(Call::parse(&m(json!({"call": 4, "path": "/login"}))).unwrap().is_err());
         assert!(Call::parse(&m(json!({"call": 5, "verb": "PATCH", "path": "/api/file"}))).unwrap().is_err());
+        let raw = Call::parse(&m(json!({"call": 6, "verb": "PUT", "path": "/api/raw?path=a.pdf", "bytes": "JVBERg=="}))).unwrap().unwrap();
+        assert_eq!(raw.body, CallBody::Bytes(b"%PDF".to_vec()), "a file's bytes, base64 on the pipe");
+        assert!(Call::parse(&m(json!({"call": 7, "path": "/api/raw", "bytes": "x", "body": {}}))).unwrap().is_err(), "not both");
+        assert!(Call::parse(&m(json!({"call": 8, "path": "/api/raw", "bytes": "!!"}))).unwrap().is_err());
     }
 
     #[test]

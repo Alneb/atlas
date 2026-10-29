@@ -246,6 +246,8 @@ export const api = {
   /** "Export with marks": `x (marked).pdf` beside the PDF, its marks as real annotations (core pdf_export.rs). */
   exportPdfMarks: (pdf: string, mode: import("./gen/PdfExportMode").PdfExportMode = "annotations") =>
     request<import("./gen/PdfExported").PdfExported>("POST", "/api/pdf-export", { query: { pdf, mode } }),
+  /** A ```typst fence drawn by the core (typst_doc.rs): its pages as SVG, or Typst's errors. */
+  typstSvg: (path: string, source: string) => request<import("./gen/TypstDrawn").TypstDrawn>("POST", "/api/typst/svg", { body: { path, source } }),
   pdfOfNote: (note: string) => request<{ pdf: string | null }>("GET", "/api/pdf-of-note", { query: { note } }),
   /** Changes a PDF's marks (its note made with the first one); the marks after. */
   changePdfMarks: (pdf: string, ops: import("./gen/Op").Op[]) => request<import("./gen/PdfMarks").PdfMarks>("POST", "/api/pdf-marks", { query: { pdf }, body: ops }),

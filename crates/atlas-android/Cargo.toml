@@ -21,8 +21,6 @@ full = []
 atlas-capture = { path = "../atlas-capture", default-features = false }
 atlas-core.workspace = true
 serde_json.workspace = true
-# PDFium (libpdfium.so in the APK) loaded at run time: the PDF reader's text, find and links (src/pdfium.rs)
-libloading = "0.8"
 serde = { version = "1", features = ["derive"] }
 anyhow.workspace = true
 tokio.workspace = true

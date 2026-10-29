@@ -51,7 +51,7 @@ impl OneOrMany {
     pub fn has(&self, k: &KindName) -> bool {
         match self {
             OneOrMany::One(x) => x == k || x.as_str() == "*",
-            OneOrMany::Many(xs) => xs.contains(k),
+            OneOrMany::Many(xs) => xs.iter().any(|x| x == k || x.as_str() == "*"),
         }
     }
 }
@@ -135,11 +135,10 @@ fn fifty() -> i32 {
 #[serde(deny_unknown_fields)]
 pub struct LinkSpec {
     pub kind: OneOrMany,
-    /// the plugin's `[[tool]]`: input `{ kind, ids, path, props }` → `{ fields?, url? }`
+    /// the plugin's `[[tool]]`: input `{ kind, library, folder, ids, path, props, note, options }` (`props` what the sources
+    /// said, `note` the note's properties as they stand: a link already done — a download asked for — answers in step)
+    /// → `{ fields?, url? }`
     pub tool: String,
-    /// how often to sync on its own: `"30m"`, `"6h"`, `"1d"`; none = only when asked
-    #[serde(default)]
-    pub every: Option<String>,
 }
 
 /// A compiled pattern with its plugin.

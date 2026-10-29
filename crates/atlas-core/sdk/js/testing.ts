@@ -22,6 +22,8 @@ export const harness = {
   set zips(z: Record<string, Record<string, string>>) { state.zips = z; },
   /** `atlas.exec`: the result for each run (throw to refuse it). */
   set exec(fn: (program: string, args: string[], opts: { stdin?: string; cwd?: string; timeout?: number; locale?: "C" }) => ExecResult | Promise<ExecResult>) { state.exec = fn as typeof state.exec; },
+  /** Native ops done in the core (`atlas.convert.*`, `atlas.hash.*`): the answer for each (throw to fail it). */
+  set native(fn: (op: string, args: any) => unknown) { state.native = fn; },
   /** The `atlas.exec` runs asked, in order. */
   get ran() { return state.ran; },
   /** The fetch requests made, in order. */

@@ -5,7 +5,6 @@ import { readFileSync, mkdirSync, writeFileSync, existsSync, rmSync } from "node
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { WS } from "../playwright.config";
-import { installZipPlugin } from "./fixtures/plugins";
 
 // The copyparty example plugin: a copyparty server's files in the shared explorer. The server is
 // a stand-in (scripts/vault/tests/fake_copyparty.py) with a password; the address names a folder of it (…/hdd1), as the user's does.
@@ -14,7 +13,7 @@ const DIR = ".atlas/plugins/copyparty";
 const ROOT = `${WS}-copyparty`;
 const put = (r: APIRequestContext, path: string, text: string) => r.put("/api/file", { headers: H, data: { path, text } });
 const read = async (r: APIRequestContext, path: string) => { const res = await r.get(`/api/file?path=${encodeURIComponent(path)}`, { headers: H }); return res.ok() ? ((await res.json()) as { text: string }).text : null; };
-const example = (f: string) => readFileSync(fileURLToPath(new URL(`../../plugins/stable/copyparty/${f}`, import.meta.url)), "utf8");
+const example = (f: string) => readFileSync(fileURLToPath(new URL(`../../plugins/beta/copyparty/${f}`, import.meta.url)), "utf8");
 let server: ChildProcess;
 
 test.beforeAll(async ({ request }) => {
@@ -133,7 +132,6 @@ test("Books lists a server folder's books beside the vault's, and a server's boo
   writeFileSync(join(ROOT, "hdd1/Physics/Books/.hist/Hidden Copy.epub"), "PK\n");
   const books = (f: string) => readFileSync(fileURLToPath(new URL(`../../plugins/beta/books/${f}`, import.meta.url)), "utf8");
   const BOOKS = ".atlas/plugins/books";
-  installZipPlugin(); // Books requires it
   for (const f of ["main.js", "view.js", "shared/marks.js"]) await put(request, `${BOOKS}/${f}`, books(f));
   await put(request, `${BOOKS}/plugin.toml`, books("plugin.toml"));
   await put(request, ".atlas/plugin-settings/books.toml", 'folder = "books-remote-spec"\n\n[[remote]]\nserver = "nas"\nfolder = "/Physics/Books"\n');

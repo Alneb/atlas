@@ -3,8 +3,8 @@ import { shownName } from "../src/lib/paths";
 import { readFileSync } from "node:fs";
 import { deflateSync } from "node:zlib";
 
-// The catalog's collections (docs/design/DESIGN-collections.md): a collection's index page shows its base as shelves (one per
-// status, in the kind's order), as covers and as a table; dragging a cover onto another shelf moves it there; the item
+// The catalog's collections (docs/design/DESIGN-collections.md): a collection's index page is the Library page over its base,
+// its shelves (one per status, in the kind's order) at the side; dragging a cover onto another shelf moves it there; the item
 // block at the top of a note shows its fields, its shelf chips, stars and the services it points at. Rows come from the
 // base through Atlas's Bases engine, so these are the same files Obsidian reads.
 const H = { "x-atlas": "1" };
@@ -52,53 +52,49 @@ async function open(page: Page, name: string) {
 // the plugin goes with the spec: left installed without its helper it asks for one on every later page
 test.afterAll(async ({ request }) => { await request.post("/api/fs/trash?path=.atlas/plugins/catalog", { headers: H }); });
 
-test("a collection's index page shows its shelves, covers and table, and a cover dragged to another shelf moves there", async ({ page, request }) => {
+test("a collection's index page is the Library page over its base: shelves in the kind's order, a cover dragged to another shelf moves there", async ({ page, request }) => {
   await vault(request);
   await page.goto("/");
   await page.getByText("Finish the GW notes.").waitFor();
   await open(page, "Films.md");
 
-  const shelf = (name: string) => page.locator(".cat-shelf").filter({ has: page.locator("h4", { hasText: name }) });
-  await expect(shelf("To watch").locator(".cat-card")).toHaveCount(2);
-  await expect(shelf("Watching").locator(".cat-card")).toHaveCount(1);
-  await expect(shelf("Watched").locator(".cat-card")).toHaveCount(2);
-  await expect(shelf("Dropped")).toContainText("Drop a cover here.");
-  // the shelves keep the kind's order, not the alphabet's
-  await expect(page.locator(".cat-shelf h4")).toHaveText([/^To watch/, /^Watching/, /^Watched/, /^Dropped/]);
-  await expect(shelf("Watched").locator("img.cat-cover").first()).toBeVisible();
-  await expect(page.locator(".cat-bar .count")).toHaveText("5 items");
+  const lib = page.locator('.library[data-source^="catalog.base."]');
+  const shelf = (name: string) => lib.locator(".side .item", { hasText: name });
+  // the shelves keep the kind's order, not the alphabet's; an empty one stays, as a place to drop onto
+  await expect(lib.locator(".side .item .n")).toHaveText(["All items", "To watch", "Watching", "Watched", "Dropped"]);
+  await expect(shelf("To watch").locator(".c")).toHaveText("2");
+  await expect(shelf("Watching").locator(".c")).toHaveText("1");
+  await expect(shelf("Dropped").locator(".c")).toHaveText("0");
+  await expect(lib.locator(".card")).toHaveCount(5);
+  await expect(lib.locator(".card", { hasText: "Dune" }).locator("img")).toBeVisible();
+  await expect(lib.locator(".card", { hasText: "Arrival" })).toContainText("2016 · Denis Villeneuve");
 
   await page.emulateMedia({ colorScheme: "light" }); // judged in both themes (docs/guides/UI-STYLE.md)
   await page.screenshot({ path: "test-results/catalog-shelves-light.png" });
   await page.emulateMedia({ colorScheme: "dark" });
   await page.screenshot({ path: "test-results/catalog-shelves-dark.png" });
 
-  // drag Past Lives from Watching up to To watch: its note's status changes, the shelves follow
-  await shelf("Watching").locator(".cat-card", { hasText: "Past Lives" }).dragTo(shelf("To watch").locator(".cat-row"));
-  await expect(shelf("To watch").locator(".cat-card")).toHaveCount(3);
+  // drag Past Lives onto To watch at the side: its note's status changes, the shelves follow
+  await lib.locator(".card", { hasText: "Past Lives" }).dragTo(shelf("To watch"));
+  await expect(shelf("To watch").locator(".c")).toHaveText("3");
   const status = async () => (await request.get(`/api/file?path=${encodeURIComponent("Films/Past Lives.md")}`, { headers: H }).then((r) => r.json())).text;
   expect(await status()).toMatch(/status: ["']?\[\[to-watch\]\]["']?/);
-  // and without dragging: right-click a cover → Move to shelf
-  await shelf("To watch").locator(".cat-card", { hasText: "Past Lives" }).click({ button: "right" });
-  await page.getByRole("menuitem", { name: "Watched" }).click();
-  await expect(shelf("Watched").locator(".cat-card")).toHaveCount(3);
-  expect(await status()).toMatch(/status: ["']?\[\[watched\]\]["']?/);
+  // and without dragging: the shelf chosen in its card
+  await lib.locator(".card", { hasText: "Past Lives" }).click();
+  await lib.locator(".detail").getByRole("radio", { name: "Watched" }).click();
+  await expect.poll(status).toMatch(/status: ["']?\[\[watched\]\]["']?/);
+  await expect(shelf("Watched").locator(".c")).toHaveText("3");
 
-  // covers, with the shelves as filter chips; then the table, sorted by a header click
-  await page.locator(".cat-seg button", { hasText: "Covers" }).click();
-  await expect(page.locator(".cat-grid .cat-card")).toHaveCount(5);
-  await page.locator(".cat-chip", { hasText: "To watch" }).click();
-  await expect(page.locator(".cat-grid .cat-card")).toHaveCount(2); // Moonrise Kingdom, Perfect Days
-  await page.screenshot({ path: "test-results/catalog-covers-dark.png" });
-  await page.locator(".cat-seg button", { hasText: "Table" }).click();
-  await page.locator(".cat-table th", { hasText: "year" }).click();
-  await expect(page.locator(".cat-table tbody tr").first()).toContainText("Moonrise Kingdom");
-
-  // search narrows every layout
-  await page.locator(".cat-bar input").fill("villeneuve");
-  await expect(page.locator(".cat-table tbody tr")).toHaveCount(0); // the chip still says "To watch"
-  await page.locator(".cat-chip", { hasText: "To watch" }).click();
-  await expect(page.locator(".cat-table tbody tr")).toHaveCount(2);
+  // a shelf narrows the list; search narrows it further; the list layout sorted by year
+  await shelf("To watch").click();
+  await expect(lib.locator(".card")).toHaveCount(2); // Moonrise Kingdom, Perfect Days
+  await lib.locator(".search").fill("wenders");
+  await expect(lib.locator(".card")).toHaveCount(1);
+  await lib.locator(".search").fill("");
+  await lib.getByRole("radio", { name: "List" }).click();
+  await lib.getByRole("button", { name: "Sort by" }).click();
+  await page.getByRole("option", { name: "Sort: Year" }).click();
+  await expect(lib.locator(".row .t")).toHaveText(["Perfect Days", "Moonrise Kingdom"]); // the newest first
 });
 
 test("a catalogued note opens with its item block: fields, shelf chips, stars and the services it points at", async ({ page, request }) => {

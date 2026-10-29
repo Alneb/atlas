@@ -47,7 +47,7 @@ native() { # native <app> → $work/lib-<app>/<abi>/libatlas_android.so
 }
 for app in $apps; do echo "[apk] 1/4 the native library for $app ($abis, API $api, $profile)"; native "$app"; done
 # the plugins' engines (the catalog's), for the full apps: Android runs no program from the vault (/sdcard is noexec,
-# the app's data W^X), so they ship inside the APK as libhelper_<name>.so (python_for below packs helpers/<abi>/*), linked
+# the app's data W^X), so they ship inside the APK as libhelper_<name>.so (helpers_for below packs helpers/<abi>/*), linked
 # into the app's bin/ on the PATH (Helpers.link) — a plugin's `run` finds them through $ATLAS_PLUGIN_BIN
 engines() {
   for pair in $abis; do
@@ -62,31 +62,16 @@ engines() {
 }
 case " $apps " in *" atlas "*|*" boox "*) engines ;; esac
 
-# The full app's Python (docs/guides/ANDROID.md, "Python and helpers"): python.org's
-# Android build — libpython and its libraries beside ours, our launcher (python/launcher.c) as the `python3` program, the
-# standard library as an asset the app unpacks — and the plugin helpers compiled for Android (helpers/<abi>/<name>).
-PYV=3.14.0
-python_for() { # python_for <app> <arch:abi>
-  local app=$1; shift
-  local arch=${1%%:*} abi=${1#*:} d=$tc/python-android
-  local tgz=$d/python-$PYV-$arch-linux-android.tar.gz px=$d/$arch
-  mkdir -p "$d"
-  [ -f "$tgz" ] || curl -fL --retry 3 -o "$tgz" "https://www.python.org/ftp/python/$PYV/python-$PYV-$arch-linux-android.tar.gz"
-  [ -d "$px/prefix" ] || { mkdir -p "$px"; tar -xzf "$tgz" -C "$px"; }
+# The plugin engines compiled for Android (helpers/<abi>/<name>), beside our library as libhelper_<name>.so. No Python:
+# every first-party helper a phone runs is JavaScript in the core (docs/guides/ANDROID.md).
+helpers_for() { # helpers_for <app> <arch:abi>
+  local app=$1 abi=${2#*:}
   local out=$work/lib-$app-$abi/lib/$abi
-  "$bin/$arch-linux-android$api-clang" -O2 -fPIE -pie -I"$px/prefix/include/python${PYV%.*}" "$repo/crates/atlas-android/python/launcher.c" \
-    -L"$px/prefix/lib" -lpython${PYV%.*} -Wl,-rpath,'$ORIGIN' -o "$out/libpython3exe.so"
-  cp "$px"/prefix/lib/libpython${PYV%.*}.so "$px"/prefix/lib/lib*_python.so "$out/"
-  "$bin/llvm-strip" "$out/libpython3exe.so"
-  # the standard library (no tests, no GUI toolkits, no bytecode) — the app unpacks it on first start, per ABI
-  mkdir -p "$work/assets-$app-$abi"
-  (cd "$px/prefix/lib" && zip -q -r -X "$work/assets-$app-$abi/python-$abi.zip" "python${PYV%.*}" -x "*/test/*" "*/idlelib/*" "*/tkinter/*" "*/turtledemo/*" "*/__pycache__/*" "*/ensurepip/*")
   for h in "$repo/crates/atlas-android/helpers/$abi"/*; do
     [ -f "$h" ] && cp "$h" "$out/libhelper_$(basename "$h").so" && echo "[apk]   helper $(basename "$h") ($abi)"
   done
-  echo "[apk]   python $PYV for $abi: $(du -sh "$work/assets-$app-$abi/python-$abi.zip" | cut -f1) of standard library"
 }
-for app in $apps; do full_app "$app" && for pair in $abis; do python_for "$app" "$pair"; done; done
+for app in $apps; do full_app "$app" && for pair in $abis; do helpers_for "$app" "$pair"; done; done
 
 echo "[apk] 2/4 the Java screen (javac → d8) and the resources (the icons generated from the desktop box's paths)"
 # the plain-Java logic first (the screen recognisers, the capture's addresses): a wrong guess fails the build, not the phone

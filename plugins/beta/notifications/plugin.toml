@@ -6,8 +6,11 @@ title = "Notifications"
 description = "your server's notifications (ntfy, Apprise), a note per source"
 phone = true
 icon = "bell"
-version = "0.3.0"
-api = 16
+version = "0.4.0"
+api = 19
+# the ntfy plugin's sending and inbox are this plugin's: a vault that had it keeps its server, topics and token
+[replaces]
+ntfy = { rename = { topic = "phone_topic" } }
 
 [helper]
 js = "helper.js"                  # TypeScript in helper/, run in the core (QuickJS): no Python, on the phone too

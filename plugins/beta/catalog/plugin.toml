@@ -2,16 +2,21 @@
 # source the switched-on catalog-* plugins offer, written as one note of its kind and kept in step with the services
 # that hold it (Linkwarden, Jellyfin, Zotero…). The work runs in its helper on the server; docs/REFACTOR-catalog.md.
 title = "Catalog"                 # not "Library": the built-in Library tile is the page its libraries are tabs of
-rail = true                 # the Catalog app (view.js → main.js catalog.app): every kind, as covers or a table
+rail = false                # one Library: its kinds are tabs of the built-in Libraries page; the every-kind view (view.js →
+                            # main.js catalog.app) stays a block and a command, not a second tile
 description = "anything you capture, recognised, enriched and filed in its library"
 phone = true # runs in the phone apps too (only plugins marked so start there)
 icon = "grid" # not References' library icon (a vault may show both)
-version = "0.5.7"
-api = 16
+version = "0.6.0"
+api = 19
 provides = ["catalog"]                 # the role the core and the page ask for (not this id)
 
+# Catalog · Web pages is now the "read_pages" setting: a vault that had it switched off gets the setting off
+[replaces]
+catalog-web = { if_off = { read_pages = false } }
+
 [permissions]
-net = ["*"] # the pages a link points to, read for catalog-web (clip.rs: fetched through the core's fetch)
+net = ["*"] # the pages a link points to, read for the "read_pages" source (clip.rs: fetched through the core's fetch)
 
 [helper]
 # built by engine/build.sh: one static binary per platform
@@ -31,6 +36,13 @@ description = "After every capture (any app): a link or identifier in it is cata
 input = { text = "string", path = "string?", line = "integer?" }
 timeout_secs = 120
 on = "capture"
+
+[[setting]]
+key = "read_pages"
+label = "Read the page a link points to"
+kind = "toggle"
+default = true
+hint = "what a web page says about itself (title, author, date, cover, its kind, the IDs it names) and its readable text, a source for every kind; off: a link is filed from its address and the other sources only"
 
 [[setting]]
 key = "on_capture"

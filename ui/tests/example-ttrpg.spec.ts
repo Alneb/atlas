@@ -2,13 +2,13 @@ import { test, expect, type APIRequestContext } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
-// The example plugin of the repo (plugins/beta/ttrpg/) is real code, not documentation that
+// The example plugin of the repo (plugins/examples/ttrpg/) is real code, not documentation that
 // rots: it is installed into the test vault as it is and used — stat block, dice, the initiative
 // block, a session note in its folder, its settings form.
 const H = { "x-atlas": "1" };
 const put = (r: APIRequestContext, path: string, text: string) => r.put("/api/file", { headers: H, data: { path, text } });
 const read = async (r: APIRequestContext, path: string) => ((await (await r.get(`/api/file?path=${encodeURIComponent(path)}`, { headers: H })).json()) as { text?: string }).text ?? "";
-const example = (f: string) => readFileSync(fileURLToPath(new URL(`../../plugins/beta/ttrpg/${f}`, import.meta.url)), "utf8");
+const example = (f: string) => readFileSync(fileURLToPath(new URL(`../../plugins/examples/ttrpg/${f}`, import.meta.url)), "utf8");
 
 test.beforeAll(async ({ request }) => {
   await put(request, ".atlas/plugins/ttrpg-example/main.js", example("main.js"));

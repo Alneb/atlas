@@ -1,0 +1,241 @@
+# Email: a mail client (docs/design/DESIGN-mail-ui.md, docs/refactor/REFACTOR-email-rust.md). The engine (engine/,
+# Rust) keeps a local index of the servers (IMAP, kept live with IDLE) so the pane answers at once, parses, threads
+# and renders mail, sends (SMTP), and writes a conversation as a note only when asked (or by a rule). The pane
+# (ui/, Svelte): three panes, conversations, search with operators, Gmail's keys, snooze, send later, rules.
+# IMAP/SMTP with a password, or Outlook / Microsoft 365 with OAuth2. Claude reads through `atlas mcp` ([[tool]]
+# below), asking first as each card says.
+title = "Email"
+description = "mail: conversations, search, fast triage, a composer, rules; saved notes; IMAP/SMTP or Outlook (OAuth2), several accounts"
+icon = "mail"
+version = "1.2.1"
+rail = true          # a button for the Email pane (view.js)
+api = 12
+
+[helper]
+# built by engine/build.sh: one static binary per platform (it also runs in the server's container)
+run = "\"$ATLAS_PLUGIN_DIR/bin/$ATLAS_PLUGIN_TARGET/email\""
+
+[permissions]
+secrets = true   # passwords, and Outlook's refresh tokens: in Atlas's secret store, not the vault
+# Outlook's sign-in (login.microsoftonline.com) and one-click unsubscribe (any list's own address)
+net = ["*"]
+
+# The accounts: one card each in Settings → Accounts (and on Email's page), written here
+# as [[settings.accounts]]. A card's secrets are kept as accounts.<name>.password / .oauth_refresh.
+[[setting]]
+key = "accounts"
+label = "Accounts"
+kind = "records"
+add = "Add account"
+hint = "The first one is the main one: used when a block or a tool names no account."
+actions = [{ label = "Sign in to Outlook", command = "signin", when = { auth = "outlook" } }]
+list_actions = [{ label = "Import from Thunderbird…", command = "thunderbird" }]
+# Settings → Accounts: each card with its state, Test before saving, and ready-made servers to start from
+account = { kind = "Mail", summary = "{user} · {imap_host}", status = "account_status", test = "test_account", presets = [
+  { label = "Gmail", hint = "with an app password (Google account → Security → App passwords)", values = { auth = "password", imap_host = "imap.gmail.com", imap_port = 993, smtp_host = "smtp.gmail.com", smtp_port = 465, security = "ssl" } },
+  { label = "Outlook / Microsoft 365", hint = "a university or work account: sign in on Microsoft's page", values = { auth = "outlook", flow = "automatic" } },
+  { label = "iCloud", hint = "with an app-specific password", values = { auth = "password", imap_host = "imap.mail.me.com", imap_port = 993, smtp_host = "smtp.mail.me.com", smtp_port = 587, security = "ssl" } },
+  { label = "Fastmail", hint = "with an app password", values = { auth = "password", imap_host = "imap.fastmail.com", imap_port = 993, smtp_host = "smtp.fastmail.com", smtp_port = 465, security = "ssl" } },
+] }
+fields = [
+  { key = "name", label = "Name", kind = "text", hint = "short, to name the account in a block or a tool: udes, gmail (letters, digits, . @ - _)" },
+  { key = "auth", label = "Sign-in", kind = "choice", choices = ["password", "outlook"], default = "password", hint = "outlook: Microsoft 365 / Outlook.com, which refuse passwords" },
+  { key = "user", label = "Address / user name", kind = "text" },
+  { key = "from", label = "From", kind = "text", hint = "Name <address> on mail you send (default: the user name)" },
+  { key = "password", label = "Password", kind = "secret", when = { auth = "password" }, hint = "an app password where the provider has them (Gmail)" },
+  { key = "imap_host", label = "IMAP server", kind = "text", group = "Servers", when = { auth = "password" } },
+  { key = "imap_port", label = "IMAP port", kind = "number", group = "Servers", when = { auth = "password" }, hint = "993 (TLS) unless security is starttls / none (143)" },
+  { key = "smtp_host", label = "SMTP server", kind = "text", group = "Servers", when = { auth = "password" }, hint = "empty: the IMAP server" },
+  { key = "smtp_port", label = "SMTP port", kind = "number", group = "Servers", when = { auth = "password" }, hint = "465 = TLS from the start; anything else (587) = STARTTLS" },
+  { key = "security", label = "Security", kind = "choice", choices = ["ssl", "starttls", "none"], default = "ssl", group = "Servers", when = { auth = "password" } },
+  { key = "client_id", label = "Application (client) ID", kind = "text", group = "Outlook", when = { auth = "outlook" }, hint = "empty: Thunderbird's public ID (many organisations allow it); or an app your organisation registered (README.md)" },
+  { key = "flow", label = "Sign-in flow", kind = "choice", choices = ["automatic", "window", "code"], default = "automatic", group = "Outlook", when = { auth = "outlook" }, hint = "automatic: Microsoft's page opens in your own browser (already signed in to your university there) and Atlas catches the answer by itself; window: the page in a window of Atlas; code: type a copied code at microsoft.com/devicelogin" },
+  { key = "tenant", label = "Tenant", kind = "text", default = "common", group = "Outlook", when = { auth = "outlook" }, hint = "common, organizations, or your organisation's domain / tenant id" },
+  { key = "oauth_refresh", label = "Outlook sign-in", kind = "secret", readonly = true, when = { auth = "outlook" }, hint = "kept by “Sign in to Outlook”" },
+  { key = "aliases", label = "Other addresses", kind = "longtext", hint = "identities to send from and to recognise as you: one per line, Name <address>" },
+  { key = "signature", label = "Signature", kind = "longtext", hint = "put under what you write, after a “-- ” line (above a quoted reply); empty: none" },
+  { key = "claude", label = "Claude may read it", kind = "choice", choices = ["ask", "always", "never"], default = "ask", hint = "through atlas mcp (email_inbox, email_read): ask — Atlas asks you each time, in its window; sending always needs your own yes in Claude Code" },
+]
+
+[[setting]]
+key = "layout"
+group = "Reading"
+label = "Layout"
+kind = "choice"
+choices = ["three", "below", "full"]
+default = "three"
+hint = "three: folders, list and reader side by side; below: the reader under the list; full: the list, then the message over it. The pane also changes it (and keeps it per vault); a narrow pane shows one column at a time"
+
+[[setting]]
+key = "density"
+group = "Reading"
+label = "Rows"
+kind = "choice"
+choices = ["comfortable", "compact"]
+default = "comfortable"
+hint = "comfortable: two lines with a preview; compact: one line each"
+
+[[setting]]
+key = "split_inbox"
+group = "Reading"
+label = "Split inbox"
+kind = "toggle"
+default = false
+hint = "the inbox in three tabs — People, Newsletters, Notifications — by each message's headers (a list's, a machine's, a person's)"
+
+[[setting]]
+key = "mark_read"
+group = "Reading"
+label = "Mark read when opened"
+kind = "toggle"
+default = true
+hint = "in the Email pane; the inbox block and Claude's tools never mark anything"
+
+[[setting]]
+key = "save_important"
+group = "Triage"
+label = "Keep important mail as notes"
+kind = "toggle"
+default = true
+hint = "a conversation marked important (i, a star, a rule's `important`, Claude) is saved into the mail folder at once, with its files, and grows as replies arrive (invitations reach the Calendar when you answer them, through its tools)"
+
+[[setting]]
+key = "after_action"
+group = "Triage"
+label = "After archiving or deleting"
+kind = "choice"
+choices = ["next", "list"]
+default = "next"
+hint = "next: the next conversation opens; list: back to the list"
+
+[[setting]]
+key = "undo_send"
+group = "Triage"
+label = "Undo send (seconds)"
+kind = "number"
+default = 10
+hint = "how long a sent mail waits, with an Undo, before it leaves"
+
+[[setting]]
+key = "remote_images"
+group = "Reading"
+label = "Remote pictures"
+kind = "toggle"
+default = false
+hint = "off (as Thunderbird): a mail's web pictures and tracking pixels are not loaded; each mail offers to show them, or always for its sender"
+
+[[setting]]
+key = "notify"
+group = "Triage"
+label = "Notices of new mail"
+kind = "toggle"
+default = true
+
+[[setting]]
+key = "check_every"
+group = "Sync"
+label = "Check every folder every (minutes)"
+kind = "number"
+default = 5
+hint = "the inbox is live (IDLE: new mail shows at once); the other folders are checked this often"
+
+[[setting]]
+key = "prefetch"
+group = "Sync"
+advanced = true
+label = "Messages read ahead"
+kind = "number"
+default = 300
+hint = "the newest messages of each account fetched whole after each check: they open at once, offline too, and their text is searchable"
+
+[[setting]]
+key = "cache_mb"
+group = "Sync"
+advanced = true
+label = "Message cache (MB)"
+kind = "number"
+default = 2048
+hint = "the fetched messages kept in the index; the oldest go first"
+
+[[setting]]
+key = "keep_folder"
+group = "Saved notes"
+label = "Folder for saved mail"
+kind = "text"
+default = "mail"
+hint = "<folder>/<account>/<mail folder>/<date> <subject>.md (Save as note); rules in <folder>/rules.md, templates in <folder>/templates/"
+
+[[tool]]
+name = "inbox"
+description = "The user's newest emails (headers only: uid, from, to, subject, date, seen). Read-only."
+input = { account = { type = "string", description = "an account name from email_accounts (default: the main account)", optional = true }, limit = { type = "integer", description = "how many (default 20)", optional = true }, unseen = { type = "boolean", description = "only unread ones", optional = true }, folder = { type = "string", description = "IMAP folder (default INBOX)", optional = true } }
+method = "agent_list"   # asks the user first, as the card says (engine api.rs, consent)
+secrets = ["*"]
+
+[[tool]]
+name = "read"
+description = "One email in full by its uid (from email_inbox): text and its attachments (name, type, size, part). Read one with email_attachment. Read-only: it is not marked as read."
+input = { uid = "string", folder = "string?", account = "string?" }
+method = "agent_get"
+secrets = ["*"]
+
+[[tool]]
+name = "attachment"
+description = "One attachment of an email (uid from email_inbox; part or name from email_read). Text (txt, csv, json, ics, tex, bib, markdown, html…) comes back as its text; anything else (a PDF, a picture, an office file) is saved and its absolute path given: read that file with your own file reader. Read-only: the mail is not marked as read."
+input = { uid = "string", part = { type = "integer", description = "the attachment's part, from email_read", optional = true }, name = { type = "string", description = "its file name, when no part is given", optional = true }, folder = "string?", account = "string?" }
+method = "agent_attachment"
+secrets = ["*"]
+
+[[tool]]
+name = "send"
+description = "Send an email from the user's account. Only when the user explicitly asked for this exact email to be sent; show them the text first."
+input = { to = "string", subject = "string", text = "string", cc = "string?", account = { type = "string", description = "the account to send from (default: the main account)", optional = true }, in_reply_to = { type = "string", description = "Message-ID of the mail answered", optional = true }, files = { type = "array", description = "vault paths of files to attach (25 MB in all)", optional = true } }
+method = "agent_send"
+secrets = ["*"]
+
+# the importance mark (README.md): the pane's keys i / n and this tool all run the engine's set_importance
+[[tool]]
+name = "mark"
+method = "set_importance"
+description = "Mark one email important, not important, or neither. This changes the user's mailbox: use it only when the user asked for this marking. important=false (the default) moves the message to the account's \"Not important\" folder (made if missing) and unflags it; important=true flags it (\\Flagged: Outlook's flag, Gmail's star), moves it back to INBOX if it was in \"Not important\", and keeps the conversation as a note in the vault at once (mail/<account>/…, Settings → Email → Keep important mail); clear=true removes both marks (unflagged, back to INBOX from \"Not important\"). For a standing wish (\"my supervisor's mail is always important\") add a rule with email_add_rule instead. Returns important, flagged, the folder it is in now, its uid and Message-ID."
+input = { uid = { type = "string", description = "the message's uid in `folder` (from email_inbox)", optional = true }, message_id = { type = "string", description = "or its Message-ID, instead of uid", optional = true }, folder = { type = "string", description = "the IMAP folder it is in now (default INBOX; \"Not important\" for one marked so)", optional = true }, account = { type = "string", description = "an account name from email_accounts (default: the main account)", optional = true }, important = { type = "boolean", description = "false (default): not important; true: important", optional = true }, clear = { type = "boolean", description = "true: neither mark (overrides important)", optional = true } }
+secrets = ["*"]
+
+[[tool]]
+name = "rules"
+method = "agent_rules"
+description = "The user's mail rules (mail/rules.md): each a search in the Email pane's language and what to do with new inbox mail that matches. Read-only."
+secrets = ["*"]
+
+[[tool]]
+name = "add_rule"
+method = "agent_add_rule"
+description = "Adds a mail rule, run on new inbox mail from now on (and, with apply_now, on the inbox's mail now). Use it when the user states a standing wish: \"my supervisors are always important\" → when = \"from:veronique.tremblay@uni.example,other@uni.example\" (look the addresses up with email_inbox / email_read first; one rule per person is fine), actions = [\"important\"]. `when` is the search language: from: to: cc: subject: list: has:attachment label: before: after: larger:, \"phrases\", -word; several terms must all match; commas in from: to: cc: label: mean any of them. Actions: important (starred and kept as a note), not-important (out of the inbox), move <folder>, archive, trash, spam, read, star, label <name>, save (kept as a note), notify, stop. A rule with the same `when` is replaced. Say to the user what you added."
+input = { when = "string", actions = { type = "array", description = "what to do, in order: e.g. [\"important\"], [\"label Bills\", \"save\"]" }, apply_now = { type = "boolean", description = "also run it on the inbox's newest 500 messages now (default false)", optional = true } }
+secrets = ["*"]
+
+[[tool]]
+name = "remove_rule"
+method = "agent_remove_rule"
+description = "Removes the mail rule whose search is exactly `when` (from email_rules). Only when the user asked for it."
+input = { when = "string" }
+secrets = ["*"]
+
+[[tool]]
+name = "thunderbird"
+description = "The mail accounts configured in the user's Thunderbird (normal, flatpak or snap install): servers, ports, user names, sign-in kind. No passwords."
+
+[[tool]]
+name = "thunderbird_mail"
+description = "Mail that Thunderbird keeps on this computer for an account (a POP account's, gone from the server) and that its mail notes do not have, by Message-ID: listed (dry, the default), or kept as notes like fetched mail with dry=false."
+input = { account = { type = "string", description = "an account name from email_accounts", optional = true }, dry = { type = "boolean", description = "only list (default true)", optional = true } }
+timeout_secs = 600
+
+[[tool]]
+name = "accounts"
+method = "agent_accounts"
+description = "The user's email accounts in Atlas (names to pass as `account`; the first is the main one). No secrets."
+
+# where it runs (PLUGIN-API.md, "Platforms"); a platform not named is untested (Android: only with `phone = true`)
+[platforms]
+linux = "works"

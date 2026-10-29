@@ -1,12 +1,12 @@
-// Manga — the library pane on the desktop and the web, the same library and reading.json as the Android screens
-// (android/Library.java): each folder of the library folder is a series, its .cbz files or picture folders the chapters,
+// Manga — the series and reader pane on the desktop and the web (the library is the Libraries page's Comics, main.js),
+// over the same files as the Android screens (android/Library.java): each folder of the library folder is a series, its .cbz files or picture folders the chapters,
 // and where you are is in the series' note (its folder's own `<series>/<name>.md`), so the phone and the desktop carry
-// on from each other. Screens as Mihon's: Library (covers, unread counts) → Series (Continue, chapters) →
+// on from each other. Screens as Mihon's: Series (Continue, chapters) →
 // Reader (paged right to left / left to right / vertical, or webtoon). A .cbz is unzipped here, in the page.
 import { suwayomi, isRemote, PAGE_W } from "./suwayomi.js";
 
 const PICTURE = /\.(jpe?g|png|webp|gif|avif|bmp)$/i;
-const ZIP = /\.cb[zr7t]$/i; // a chapter archive; only a .cbz is read in the page, the others made into one (helper.py)
+const ZIP = /\.cb[zr7t]$/i; // a chapter archive; only a .cbz is read in the page, the others made into one (helper/helper.ts)
 const CBZ = /\.cbz$/i;
 const READING = "reading.json"; // the older place file: read once, the note is written from then on
 
@@ -46,11 +46,9 @@ export function natural(a, b) {
 /** Library.name: a chapter's key in reading.json, its last path segment (a folder keeps its "/"). */
 export const nameOf = (ch) => ch.slice(ch.lastIndexOf("/", ch.length - 2) + 1);
 // ---- a .cbz, read in the page: the central directory, then each picture inflated on demand -----------------
-// the zip itself: the Zip archives plugin's, shared with Books (manifest `requires = ["zip"]`)
-import { zipIndex, zipBlob } from "../zip/zip.js";
-/** The zip's pictures, in reading order → [{ name, method, size, at }]. */
-export function zipEntries(buf) {
-  return [...zipIndex(buf)].filter(([name]) => PICTURE.test(name) && !name.includes("__MACOSX")).map(([name, e]) => ({ name, ...e })).sort((a, b) => natural(a.name, b.name));
+/** The zip's pictures, in reading order → [{ name, method, size, at }]; `index` is `atlas.zip.index(buf)`. */
+export function zipEntries(index) {
+  return [...index].filter(([name]) => PICTURE.test(name) && !name.includes("__MACOSX")).map(([name, e]) => ({ name, ...e })).sort((a, b) => natural(a.name, b.name));
 }
 
 export default function mount(host, atlas) {
@@ -59,13 +57,14 @@ export default function mount(host, atlas) {
   const root = el("div", "manga");
   root.tabIndex = 0;
   host.append(style(), root);
-  const stack = []; // the screens under the one shown: Back (Escape, Backspace) goes down one
+  const stack = []; // the screens under the one shown: Back (Escape, Backspace) goes down one, from the series to the library
   let leave = () => {}; // the shown screen's cleanup (object URLs, observers)
   let gone = false;
 
   const show = (draw) => { leave(); leave = () => {}; root.replaceChildren(); leave = draw() ?? (() => {}); root.focus({ preventScroll: true }); };
   const push = (screen) => { stack.push(screen); show(screen); };
-  const back = () => { if (stack.length > 1) { stack.pop(); show(stack.at(-1)); } };
+  const toLibrary = () => atlas.openLibrary("comics");
+  const back = () => { if (stack.length > 1) { stack.pop(); show(stack.at(-1)); } else toLibrary(); };
 
   // ---- the library on disk ------------------------------------------------------------------------------
   const entries = (dir) => atlas.list(dir).catch(() => []);
@@ -136,68 +135,17 @@ export default function mount(host, atlas) {
     }
     const cbz = CBZ.test(ch) ? ch : (await atlas.helper.call("as_cbz", { path: ch }, { timeout: 600 })).path;
     const buf = await (await fetch(await atlas.fileUrl(cbz))).arrayBuffer();
-    const list = zipEntries(buf), made = new Map();
+    const list = zipEntries(atlas.zip.index(buf)), made = new Map();
     return {
       count: list.length,
-      url(i) { if (!made.has(i)) made.set(i, zipBlob(buf, list[i]).then((b) => URL.createObjectURL(b))); return made.get(i); },
+      url(i) { if (!made.has(i)) made.set(i, atlas.zip.blob(buf, list[i]).then((b) => URL.createObjectURL(b))); return made.get(i); },
       done() { for (const p of made.values()) void p.then((u) => URL.revokeObjectURL(u)); made.clear(); },
     };
   }
   /** A cover: the series' cover.* picture (Mihon's convention), else its first chapter's first page. */
-  async function cover(s) {
-    if (s.remote) return suw.cover(s);
-    if (s.dir) {
-      const own = (await entries(s.path)).find((e) => !e.dir && /^cover\.(jpe?g|png|webp)$/i.test(e.name));
-      if (own) return atlas.thumbUrl(own.path, 300);
-    }
-    const ch = s.chapters[0];
-    if (ch.endsWith("/")) {
-      const first = (await entries(ch.slice(0, -1))).filter((e) => !e.dir && PICTURE.test(e.name)).map((e) => e.path).sort(natural)[0];
-      return first ? atlas.thumbUrl(first, 300) : null;
-    }
-    const p = await pages(ch);
-    return p.count ? p.url(0) : null; // kept for the pane's life: the grid shows it again on Back
-  }
+  const cover = (s) => (s.remote ? suw.cover(s) : coverOf(atlas, s));
   const covers = new Map(); // series path → Promise<url | null>
-  const coverOf = (s) => { if (!covers.has(s.path)) covers.set(s.path, cover(s).catch(() => null)); return covers.get(s.path); };
-
-  // ---- Library ------------------------------------------------------------------------------------------
-  function library() {
-    const head = el("div", "m-bar");
-    head.append(el("div", "m-title", "Library"));
-    const grid = el("div", "m-grid");
-    root.append(head, grid);
-    grid.append(el("div", "atlas-empty", "Reading the library…"));
-    const seen = new IntersectionObserver((xs) => { for (const x of xs) if (x.isIntersecting) { seen.unobserve(x.target); x.target.load(); } }, { root, rootMargin: "300px" });
-    void scan().then(async (all) => {
-      if (gone) return;
-      grid.replaceChildren();
-      if (remoteTrouble) grid.append(el("div", "atlas-notice", `Suwayomi: ${remoteTrouble}`));
-      if (!all.length && !remoteTrouble) {
-        const n = el("div", "atlas-notice");
-        n.append(el("strong", "", "No series yet. "), `Put a folder per series in “${folder}/” (its chapters as .cbz files or folders of pictures), or change the folder in the plugin's settings.`);
-        const a = el("div", "actions"), b = el("button", "atlas-btn", "Settings…");
-        b.onclick = () => atlas.plugin.openSettings();
-        a.append(b); n.append(a); grid.replaceWith(n);
-        return;
-      }
-      for (const s of all) {
-        const card = el("button", "m-card");
-        card.title = s.title;
-        const pic = el("div", "m-cover"), img = el("img");
-        img.alt = "";
-        const badge = el("span", "m-badge");
-        pic.append(img, badge);
-        card.append(pic, el("div", "m-name", s.title));
-        card.load = () => void coverOf(s).then((u) => { if (u) img.src = u; });
-        card.onclick = () => void ready(s).then(() => push(() => series(s)), (e) => atlas.toast("Manga", `${s.title}: ${e.message ?? e}`, "error"));
-        grid.append(card);
-        seen.observe(card);
-        void reading(s).then((r) => { const n = unread(s, r); badge.textContent = n ? String(n) : ""; badge.hidden = !n; });
-      }
-    });
-    return () => seen.disconnect();
-  }
+  const coverFor = (s) => { if (!covers.has(s.path)) covers.set(s.path, cover(s).catch(() => null)); return covers.get(s.path); };
 
   // ---- Series -------------------------------------------------------------------------------------------
   /** SeriesView.resume: the chapter last read if unfinished, else the first unread one, else the first. */
@@ -210,12 +158,13 @@ export default function mount(host, atlas) {
   function series(s) {
     const head = el("div", "m-bar");
     const backBtn = el("button", "atlas-btn", "‹ Library");
-    backBtn.onclick = back;
+    backBtn.title = "The comics, on the Libraries page";
+    backBtn.onclick = toLibrary;
     head.append(backBtn, el("div", "m-title", s.title));
     const top = el("div", "m-series"), pic = el("div", "m-cover big"), img = el("img"), side = el("div", "m-side");
     img.alt = "";
     pic.append(img);
-    void coverOf(s).then((u) => { if (u) img.src = u; });
+    void coverFor(s).then((u) => { if (u) img.src = u; });
     const count = el("div", "m-count"), go = el("button", "atlas-btn primary");
     side.append(el("h2", "", s.title), count, go);
     top.append(pic, side);
@@ -400,7 +349,6 @@ export default function mount(host, atlas) {
   // what the pane was opened on: a .cbz ("Open with…") reads it at once, its series under it
   if (atlas.path && ZIP.test(atlas.path)) {
     const dir = atlas.path.slice(0, atlas.path.lastIndexOf("/"));
-    stack.push(library);
     void chapters(dir).then((list) => {
       const inSeries = list.includes(atlas.path);
       const s = inSeries ? { path: dir, title: dir.split("/").pop(), chapters: list, dir: true } : { path: atlas.path, title: atlas.path.split("/").pop().replace(ZIP, ""), chapters: [atlas.path], dir: false };
@@ -408,12 +356,16 @@ export default function mount(host, atlas) {
       void reading(s).then((r) => push(() => reader(s, s.chapters.indexOf(atlas.path), isRead(r, atlas.path) ? 0 : pageOf(r, atlas.path))));
     });
   } else if (atlas.arg) { // a series of the Libraries page's Comics
-    stack.push(library);
     void scan().then((all) => {
       const s = all.find((x) => x.path === atlas.arg);
-      if (s) void ready(s).then(() => push(() => series(s))); else show(library);
+      if (s) void ready(s).then(() => push(() => series(s)));
+      else root.append(el("div", "atlas-notice", remoteTrouble ? `Suwayomi: ${remoteTrouble}` : `No series “${atlas.arg}” any more.`));
     });
-  } else push(library);
+  } else {
+    // no series (a tab kept from an older version): the library is the Libraries page's
+    toLibrary();
+    atlas.pane?.close();
+  }
   return () => { gone = true; leave(); };
 }
 
@@ -423,13 +375,9 @@ function style() {
   .manga { position: relative; height: 100%; overflow: auto; outline: none; background: var(--bg); color: var(--text); font-size: calc(13px * var(--ui-scale, 1)); }
   .manga .m-bar { display: flex; align-items: center; gap: 10px; padding: 8px 14px; border-bottom: 1px solid var(--border); position: sticky; top: 0; background: var(--bg); z-index: 2; }
   .manga .m-title { font-weight: 600; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .manga .m-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 14px; padding: 14px; }
-  .manga .m-card { display: flex; flex-direction: column; gap: 6px; text-align: left; background: none; border: 0; padding: 0; color: inherit; font: inherit; cursor: pointer; }
   .manga .m-cover { position: relative; aspect-ratio: 2 / 3; border-radius: 8px; overflow: hidden; background: var(--bg-elev); box-shadow: 0 0 0 1px var(--border); }
   .manga .m-cover img { width: 100%; height: 100%; object-fit: cover; display: block; }
   .manga .m-cover img:not([src]) { visibility: hidden; }
-  .manga .m-badge { position: absolute; top: 6px; left: 6px; min-width: 1.6em; padding: 0 5px; border-radius: 6px; background: var(--accent); color: var(--accent-fg, #fff); font-weight: 600; text-align: center; font-size: .9em; }
-  .manga .m-name { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; line-height: 1.3; }
   .manga .m-series { display: flex; gap: 18px; padding: 18px; align-items: flex-end; }
   .manga .m-cover.big { width: 140px; flex: none; }
   .manga .m-side h2 { margin: 0 0 6px; font-size: 1.35em; }
@@ -470,6 +418,18 @@ export async function chaptersOf(atlas, path) {
 }
 
 /** The library folder's series: each folder holding chapters, and each loose .cbz. */
+/** A vault series' cover: its folder's own cover picture, else its first chapter's first page (a .cbz's drawn by the
+ *  core's thumbnails). */
+export async function coverOf(atlas, s) {
+  const list = (dir) => atlas.list(dir).catch(() => []);
+  const own = s.dir && (await list(s.path)).find((e) => !e.dir && /^cover\.(jpe?g|png|webp)$/i.test(e.name));
+  if (own) return atlas.thumbUrl(own.path, 300);
+  const ch = s.chapters[0];
+  if (!ch.endsWith("/")) return CBZ.test(ch) ? atlas.thumbUrl(ch, 300) : null;
+  const first = (await list(ch.slice(0, -1))).filter((e) => !e.dir && PICTURE.test(e.name)).map((e) => e.path).sort(natural)[0];
+  return first ? atlas.thumbUrl(first, 300) : null;
+}
+
 export async function seriesIn(atlas, folder) {
   const out = [];
   if (atlas.exists && !(await atlas.exists(folder))) return out; // a vault with only Suwayomi: no 404 for the folder

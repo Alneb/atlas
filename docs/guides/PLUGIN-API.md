@@ -2,7 +2,7 @@
 
 For someone writing a plugin. This page says **what exists and how to call it**; why each piece is the way it is, and how it is built, is in [PLUGINS.md](PLUGINS.md) ("v4"). The source of truth is the interface `PluginApi` in `ui/src/lib/plugin-api.ts`: if this page and that file disagree, the file is right and this page needs fixing.
 
-Working examples to copy from, in `plugins/`: `wordcount/` (smallest), `ttrpg/` (most of the page side), `helper-python/` (a helper process), `run-tools/` (Run / Test above code files), `clip/` (a web page into a note, and Linkwarden), `ntfy/` (to and from the phone), `memos/` (a line to a memos server), `ssh/` (a pane per host — the Files pane over sftp — opened with `openView`), `email/` (a full pane: folders, list, reading view, replies).
+Working examples to copy from, in `plugins/`: `examples/wordcount/` (smallest), `examples/ttrpg/` (most of the page side), `examples/helper-js/` (a helper the core runs), `examples/memos/` (a line to a memos server), `examples/freshrss/`, `examples/immich/`, `examples/jellyfin/` and `examples/paperless/` (a block over a service's API, its key kept by the core), `beta/run-tools/` (Run / Test above code files), `beta/notifications/` (to and from the phone, a JavaScript helper), `stable/ssh/` (a pane per host — the Files pane over sftp — opened with `openView`), `stable/email/` (a full pane: folders, list, reading view, replies).
 
 ## A plugin is a folder
 
@@ -88,7 +88,7 @@ on = "capture"                        # optional: called with { text, path, line
 template = "weather"                  # optional: answers {{weather.…}} in a note made from a template (below)
 ```
 
-A plugin's modules (`main.js`, `view.js`) are loaded from their own URL, so they import as any web module does: by a relative path, statically or with `import()`, and a sibling plugin's file as `../zip/zip.js` — see "A plugin's own files by URL" below. Since API 9 modules load by URL, so dynamic imports and `import.meta.url` work too.
+A plugin's modules (`main.js`, `view.js`) are loaded from their own URL, so they import as any web module does: by a relative path, statically or with `import()`, and a sibling plugin's file as `../charts/charts.js` — see "A plugin's own files by URL" below. Since API 9 modules load by URL, so dynamic imports and `import.meta.url` work too.
 
 An unknown key is an error shown in Settings (a typo should be seen), not ignored.
 
@@ -134,8 +134,8 @@ recognize = [{ pattern = "themoviedb\\.org/movie/(\\d+)", kind = "movie", id = "
 sources = [{ kind = "movie", tool = "lookup" }]
 ```
 
-- Contributing is **optional**: a plugin with only `[contributes.catalog]` (a service's own plugin, such as Jellyfin or TubeArchivist) runs whether or not the catalog does, and its table is simply unused while the catalog is off. A subplugin that is nothing without its meta plugin says `requires = ["catalog"]` (before that, contributing implied requiring). A requirement at any depth counts, and an installed version older than the table asks for blocks as a missing one does ("needs catalog 0.5 or newer; this vault has 0.4.2"). The rule lives in the core only (`plugins::blocked`): `GET /api/plugins` fills each plugin's `blocked` (`?platform=android` as the phone app sees them), and the page reads it (`pluginBlocked`), re-reading the list when `[plugins] off` changes. A blocked plugin's main.js, pane, commands and tools are all off, and the plugins it requires start before it.
-- A catalog source with no program of its own can be read by the catalog's engine: `engine = "clip"` `{ url }` → a web page's `kind`, `ids`, `fields` (title, site, author, published, updated, description, keywords, language, reading time, cover, journal, and a film's, a record's or a book's own: director, cast, artist, pages…) and readable `text` as Markdown (clip.rs) — the catalog's `catalog-web` is a manifest pointing at it.
+- Contributing is **optional**: a plugin with only `[contributes.catalog]` (a service's own plugin, such as Downloader or Linkwarden) runs whether or not the catalog does, and its table is simply unused while the catalog is off. A subplugin that is nothing without its meta plugin says `requires = ["catalog"]` (before that, contributing implied requiring). A requirement at any depth counts, and an installed version older than the table asks for blocks as a missing one does ("needs catalog 0.5 or newer; this vault has 0.4.2"). The rule lives in the core only (`plugins::blocked`): `GET /api/plugins` fills each plugin's `blocked` (`?platform=android` as the phone app sees them), and the page reads it (`pluginBlocked`), re-reading the list when `[plugins] off` changes. A blocked plugin's main.js, pane, commands and tools are all off, and the plugins it requires start before it.
+- A catalog source with no program of its own can be read by the catalog's engine: `engine = "clip"` `{ url }` → a web page's `kind`, `ids`, `fields` (title, site, author, published, updated, description, keywords, language, reading time, cover, journal, and a film's, a record's or a book's own: director, cast, artist, pages…) and readable `text` as Markdown (clip.rs) — the catalog reads every linked page with it itself (its "Read the page a link points to" setting; it was the Catalog · Web pages plugin, a manifest pointing at it).
 - The meta plugin reads what every plugin that can run contributes to it: `GET /api/plugins/<its id>/contributions` → `{ "<plugin id>": <its table as JSON>, … }` — from its helper over the pipe (`atlas.get(…)`, `Atlas::get`) or from its page (`fetch`). The shape of the table is the meta plugin's to check and document.
 
 ### Roles — `provides`
@@ -147,8 +147,39 @@ The core and the page never name a plugin to get something done; they name a **r
 provides = ["references"]         # catalog-papers: the references library (citations, PDFs, Zotero)
 ```
 
-Roles in use: `catalog` (the capture box's hint, and the target of `[contributes.catalog]`), `references` (the papers
-library the page's citations and PDF import call). A vault can swap one plugin for another that provides the same role.
+Roles in use: `catalog` (the capture box's hint, the target of `[contributes.catalog]`, what OCR, Audiobookshelf and
+Letterboxd file through), `references` (the papers library the page's citations and PDF import call), `pdf-export`
+(Export: the PDF Print prints a note as). A vault can swap one plugin for another that provides the same role.
+
+A plugin calls another by its role too: **`/api/plugins/@<role>/tools/<tool>`** and **`/api/plugins/@<role>/helper`**
+reach whichever plugin fills the role (`plugins::resolve`; a 404 says no plugin that can run provides it), with that
+plugin's own settings and secrets put in by the core — `atlas.post("/api/plugins/@catalog/tools/add", …)`, never
+`/api/plugins/catalog/…`.
+
+### One plugin in place of others — `replaces` (API 19)
+
+When plugins are merged into one, a vault that had them keeps what it set:
+
+```toml
+replaces = ["catalog-anime", "catalog-books"]                  # their settings carried over as they are
+# or, per plugin, how its settings come over:
+[replaces]
+ntfy = { rename = { topic = "phone_topic" } }                   # a setting (or secret) whose name changed
+catalog-web = { if_off = { read_pages = false } }               # a plugin folded into a setting: off there, the setting off here
+tubearchivist = { set = { preset = "TubeArchivist" } }          # values added with its settings: which mode it was
+```
+
+- When the plugin is installed (`atlas plugin install`, Settings) and at every start of the vault, for each plugin it
+  replaces (plugin_install.rs `adopt_replaced`): each key of that plugin's settings file (`.atlas/plugin-settings/<old>.toml`),
+  renamed, that the new plugin's file lacks is copied in, then the `set` values; keys the new plugin has win, and the
+  first plugin listed wins over the next. Its secrets are copied under their (renamed) names where the new plugin has
+  none. A replaced plugin the vault had switched off gives its `if_off` values (a plugin folded into a setting:
+  Catalog · Web pages became the catalog's `read_pages`). Its settings file and its folder go to `.atlas/trash/`, and its id leaves `[plugins] off`.
+- Switched off: a plugin new to the vault starts off, as every install does; at a start (a merged plugin copied in by
+  hand, with no settings file yet) it is switched off when every plugin it replaces that the vault had was off. A
+  plugin the vault already used is never switched off by what it absorbs.
+- Nothing happens for a plugin the vault never had, so the key stays in a manifest for good; the adoption is said on
+  the terminal (and by `atlas plugin install`).
 
 ### Settings
 
@@ -164,7 +195,7 @@ library the page's citations and PDF import call). A vault can swap one plugin f
   (`atlas.helper.on("settings:renamed", ({ key, from, to }) => …)`) so it can move what it keeps by the name (Email moves
   `mail/<old>/` and its fetch progress).
 - A records field is saved whole: send the full list, in order (the first card is the main one).
-- `atlas.plugin.saveSettings(values)` saves as the form does: declared keys, a records field as its list, `null` to take a key out — also a key no longer declared, which is how a new version moves old settings (`plugins/beta/email/`: flat settings and `accounts.json` become cards; secrets are renamed with `atlas.secrets`). It resolves once the plugin was reloaded with them, so **do not await it inside `register`** (call it from a command, or start it there without awaiting). `atlas.plugin.openSettings()` opens the form.
+- `atlas.plugin.saveSettings(values)` saves as the form does: declared keys, a records field as its list, `null` to take a key out — also a key no longer declared, which is how a new version moves old settings (`plugins/stable/email/`: flat settings and `accounts.json` become cards; secrets are renamed with `atlas.secrets`). It resolves once the plugin was reloaded with them, so **do not await it inside `register`** (call it from a command, or start it there without awaiting). `atlas.plugin.openSettings()` opens the form.
 - A card's button saves the form first, then calls your command's `run({ setting, record })`; a list button `run({ setting })`. Commands run from the palette get no argument.
 
 #### Accounts, folded fields and sections you draw (v12, Settings v2)
@@ -203,7 +234,7 @@ atlas.plugin.registerSettingsSection?.({ id: "rules", title: "Rules", hint: "Wha
   } });
 ```
 
-`place`: `"before"` or `"after"` (default) the generated settings. Settings a section changes go through `ctx.save`, so the settings file stays the one truth (Settings as text, Claude's view of the settings). Email draws its rules there (`plugins/beta/email/ui/src/main.ts`).
+`place`: `"before"` or `"after"` (default) the generated settings. Settings a section changes go through `ctx.save`, so the settings file stays the one truth (Settings as text, Claude's view of the settings). Email draws its rules there (`plugins/stable/email/ui/src/main.ts`).
 
 ## A pane in Svelte — `ui/` built by `scripts/dev/plugin-ui.mjs`
 
@@ -238,16 +269,17 @@ const { pdf } = await import("./lib/heavy.js");                                 
 - `atlas.assetUrl("fonts/")` (ending in `/`) is the folder's address: a base for a library that fetches its own files (Excalidraw's `window.EXCALIDRAW_ASSET_PATH`, pdf.js's `cMapUrl`).
 - Only the plugin's own folder: a path with `..`, a hidden part (`.git`) or a link leading out of the folder is refused (by `assetUrl`, and by the core whatever the URL). `.atlas/init.js` is served too (so it may import `./plugins/<id>/x.js`), nothing else of `.atlas/`.
 - **Modules are loaded the same way**, so a module's `import.meta.url` is its address and every relative import resolves as in a browser — static, dynamic, a worker's, `new URL("./x", import.meta.url)`. The `<rev>` part changes whenever a file under `.atlas/plugins/` changes (a page keeps an imported module for its life): an edited module runs on the plugin's next load (at once: the plugin reloads on the save). Files are revalidated on each page load (`no-cache` + ETag: an unchanged one costs a 304).
-- **Sharing a module between plugins** — one copy of a library for every plugin that needs it: put it in a *library plugin* (a folder with a `plugin.toml` and the module; no pane, no `main.js`) and import it by its path beside yours, declaring it:
+- **Sharing a module between plugins** — one copy of a library for every plugin that needs it: put it in a *library plugin* (a folder with a `plugin.toml` and the module; no pane, no `main.js`) that names the files others may import, and import one by its path beside yours, declaring it:
 
   ```toml
-  requires = ["zip"]       # Books and Manga: blocked (and Settings says why) while the Zip archives plugin is missing or off
+  exports = ["charts.js"]  # in the library plugin "charts" (API 18): its files other plugins may import; Settings shows "offers charts.js to other plugins"
+  requires = ["charts"]    # in each plugin using it: blocked (and Settings says why) while "charts" is missing or off
   ```
   ```js
-  import { zipIndex, zipBlob } from "../zip/zip.js";   // plugins/beta/zip: zipIndex(buf) → Map(name → entry), zipBlob(buf, entry, type?) → Blob
+  import { lineChart } from "../charts/charts.js";
   ```
 
-  Plugins sit side by side in `.atlas/plugins/` as they do in the repo's `plugins/<tier>/`, so the same import works in the page, in node (a spec importing `view.js`) and on an older Atlas (API < 9 rewrote relative imports itself). A library's own change reaches the plugins that import it when they next reload. There are no bare specifiers (`"atlas:zip"`): a module of the core's own that plugins may use is offered on `atlas` (`atlas.editor.codemirror`), and the core carries no plugin's library (PHILOSOPHY.md §3).
+  Plugins sit side by side in `.atlas/plugins/` as they do in the repo's `plugins/<tier>/`, so the same import works in the page, in node (a spec importing `view.js`) and on an older Atlas (API < 9 rewrote relative imports itself). A library's own change reaches the plugins that import it when they next reload. Anything not in `exports` is the library's own business and may change in any version: a plugin that reaches into another's folder for a file that plugin does not export, or without `requires`, fails the repository's test (`shipped_plugins_import_only_what_another_exports` in plugins.rs, which resolves every relative import of a plugin's page modules). There are no bare specifiers (`"atlas:zip"`): a module of the core's own that plugins may use is offered on `atlas` (`atlas.editor.codemirror`; `atlas.zip`, which was a library plugin until reading a zip in the page proved a core need of every reader), and the core carries no plugin's library (PHILOSOPHY.md §3).
 - `atlas.fileUrl(path)` stays the way to show a *vault* file (a picture of a note, a book): it is read through the API and handed over as a `blob:` URL.
 
 
@@ -319,7 +351,7 @@ Every `register…` / `on…` returns a function that undoes it (rarely needed).
 | `atlas.registerSuggestion(provider)` | offer a view for the section under the caret |
 | `atlas.mountBlock(host, block, notePath?)` | draw any block inside yours |
 | `atlas.plot(host, { x, ys, xLabel?, yLabels? })` | Atlas's plot |
-| `atlas.mountLibrary(host, source)` | Atlas's library page (the one References is) over your items: `source` is a `LibrarySource` (`ui/src/lib/library.ts`) — `load()` → items, `detail(item)` → fields, actions, links, a choice; optional tabs, groups, layouts (`list`, `covers`), sorts, an add box, a file watch. Returns the cleanup. The catalog's Library app is one |
+| `atlas.mountLibrary(host, source)` | Atlas's library page (the one References is) over your items: `source` is a `LibrarySource` (`ui/src/lib/library.ts`) — `load()` → items, `detail(item)` → fields, actions, links, a choice; optional tabs, groups (`groupOrder`: listed first in that order, kept when empty; `regroup(items, group)`: cards dragged onto a group go there), layouts (`list`, `covers`), sorts, an add box, a file watch. Returns the cleanup. The catalog's Library app is one |
 | `atlas.registerLibrary(source)` | The same `LibrarySource` as one of the vault's libraries: a tab of Atlas's Libraries page (the phone's **Library** in its bottom bar), shown as the vault's `[ui] libraries` says. Returns its removal; feature-detect it (`atlas.registerLibrary?.(…)`). The catalog registers its Library as "Catalog" |
 
 ### A file's editor — `claims` and `atlas.pane` (v7)
@@ -359,13 +391,16 @@ export default function mount(host, atlas) {
 | `atlas.shell.statusItem({ id, text, title?, run? })` | a cell in the status bar → `{ set(text, title?), remove() }` |
 | `atlas.shell.greetingItem({ id, text, icon?, title?, order?, run? })` | a chip under the date in Today's greeting (the Weather plugin's sky and place, the Home plugin's week, moon and what is due), lower `order` first → `{ set(text, title?), remove() }` |
 | `atlas.shell.sideTool({ id, title, icon?, mount })` | a tool in the side panel, with a command "Side panel: <title>" |
-| `atlas.pick({ placeholder, items, typed?, onpick })` | ask the user to choose or type, in the palette; returns a function that closes it if it is still showing |
-| `atlas.signIn(url, back)` | an OAuth sign-in page whose answer comes back to `back` (a localhost address such as `https://localhost`): the desktop app shows it in a window of its own and resolves with the address it ended on (`?code=…` or `?error=…`); in a browser it opens a tab and never resolves, so keep a way to paste that address (plugins/beta/email) |
+| `atlas.pick({ placeholder, items, typed?, onpick, oncancel? })` | ask the user to choose or type, in the palette; `oncancel` runs when it closes with nothing chosen (Escape, a click outside, another chooser in its place), so an `await`ed choice always settles; returns a function that closes it if it is still showing |
+| `atlas.signIn(url, back)` | an OAuth sign-in page whose answer comes back to `back` (a localhost address such as `https://localhost`): the desktop app shows it in a window of its own and resolves with the address it ended on (`?code=…` or `?error=…`); in a browser it opens a tab and never resolves, so keep a way to paste that address (plugins/stable/email) |
 | `atlas.signInReturned?.(back)` | in a browser, the address a sign-in to `back` came back to while no tab was waiting for it (the one that asked was closed or reloaded): kept 30 minutes by the server's return page and handed out once; check it when the pane opens. Test for it: absent before the server keeps returns |
 | `atlas.toast(title, body?, kind?)` | a notification |
 | `atlas.eink.on` / `atlas.eink.refresh()` | whether the e-ink mode is on; one full refresh of the screen against ghosts (on a Boox Onyx's own, elsewhere a black-white flash) — e.g. a reader's page turn |
 | `atlas.eink.pen(host, take, opts?)` (v5) | the phone app's native pen over `host` (on a Boox: the firmware's instant line, and every sample of each stroke) — `take([{clientX, clientY, pressure}, …])` per stroke, in the page's CSS px; `opts`: `active()` (wanted now?), `top` (a strip left to the fingers), `line()` → `[width, onyxStyle]` (0 pencil, 1 brush, 2 marker). Returns `{ sync(), off() }`, or `null` where there is no native pen (read pointer events there). One holder at a time (`ui/src/lib/pen-target.ts`). The book reader's pen highlights use it |
 | `atlas.openView(arg?, { title?, icon?, beside? })` | open the plugin's pane (`view.js`) in a tab, or show the one already open on that `arg`. Each `arg` is a tab of its own, kept in the layout; the pane reads it as `atlas.arg`. `title` names the tab, `icon` is an app icon name |
+| `atlas.openLibrary(id?)` (API 19) | open the Libraries page at a library (`registerLibrary`'s id; the catalog's are `catalog.<group>`, such as `catalog.films-series`), or at the last one seen there: a plugin's "library" command goes here rather than drawing a list of its own |
+| `atlas.openDialog(arg?, { title?, width?, height? })` (API 20) | the plugin's pane (view.js) in a popup over the app instead of a tab, for a moment rather than a place (Export's and Print's dialogs): the same module and API, `atlas.arg` = `arg`; `atlas.pane.close()`, Escape, Back and the ✕ close it; resolves when it closes |
+| `atlas.zip.index(buf)`, `atlas.zip.blob(buf, entry, type?)` (API 20) | a zip read in the page — an EPUB or a CBZ a reader fetched: name → entry, then one entry's bytes as a Blob (stored or deflated), without a request per page (Books, Manga) |
 
 ### Reach outside the page
 | | |
@@ -375,7 +410,7 @@ export default function mount(host, atlas) {
 | `await atlas.media(url, { headers? })` | an address to play (`<audio src>`, `<video src>`) for media on a server that wants your secret on every request: the core keeps the headers — `{ secret: "token", prefix: "Bearer " }` filled in by the core, never in the page — under a random ticket for a day and answers `/media/<ticket>` by asking the server with them, the player's `Range` passed through (seeking) and the bytes streamed. Same hosts as `fetch` (`[permissions] net`). Core: `plugin_media.rs`; the Audiobooks plugin plays Audiobookshelf with it |
 | `atlas.secrets.get / set / delete / has (name)` | this plugin's secrets in this vault, kept outside the vault (`[permissions] secrets = true`). `get` answers only the plugin's helper: a page is refused (a secret's value never reaches a page — let `fetch` fill it in, or use it in the helper, which gets the secrets with each call as `params.secrets`) |
 | `await atlas.oauth.signIn(name, { issuer?, resource?, clientId?, redirect?, scopes? })` | an OpenID Connect sign-in (Authelia as an OIDC provider, or any other): authorization code + PKCE as a public client. The provider is `issuer`; else the one the service at `resource` names when asked without a token (its 401's `WWW-Authenticate: Bearer resource_metadata=…`, RFC 9728, or its `/.well-known/oauth-protected-resource`); else the vault's (Settings → Plugins, `[plugins] oidc_issuer`). `clientId` and `redirect` fall back to the vault's `oidc_client_id` / `oidc_redirect`, so one client registered at Authelia serves every plugin. A service behind a sign-in *door* (a redirect to the portal) is said to be one: sign in to it with `atlas.signIn` instead; the provider's page opens in the desktop's sign-in window, the tokens stay with the core, once per provider and shared by every plugin of the vault (the plugin's secret `oauth.<name>` only names the provider): a second plugin asking `{ oauth: name }` takes the vault's provider's token with no click, and with a gate session kept (a door signed in) the core gets a first token silently (`prompt=none`), so the window shows only when the provider insists. Then a header `{ oauth: name }` in `fetch` is `Bearer <access token>`, renewed by the core with the refresh token (scope `offline_access`, the default with `openid`). `oauth.status(name)` → `{ signed_in, expires, renews }`; `oauth.signOut(name)`; in a browser the page opens in a tab and never comes back by itself: let the user paste the address it ended on into `oauth.finish(address)`. Needs `secrets = true` and the provider's host in `net`. Since API 4 of 2026-10-17 — test `atlas.oauth` before using it |
-| `await atlas.helper.call(method, params?, { timeout? })` | ask the `[helper]` program; `helper.on(event, fn)`, `helper.state()`, `helper.restart()` |
+| `await atlas.helper.call(method, params?, { timeout? })` | ask the `[helper]` program; the core adds `params.settings` (the plugin's saved settings, defaults filled in, unless the page sends its own) and `params.secrets`, as for a tool, and refuses while the plugin is off or blocked; `helper.on(event, fn)`, `helper.state()`, `helper.restart()` |
 | `await atlas.terminal.run(command)` | type a command into the shell terminal and enter it (opened when there is none): the user sees the command and its output. `false` when no terminal became ready |
 | `await atlas.terminal.open(command, title?)` | a terminal tab of its own running the command directly (`sh -c`, no interactive shell: no rc files, no login banner); the tab closes when the command ends. For a session (ssh) or a prompt the user must answer |
 | `await atlas.terminal.shell()` (API 17) | what words the terminal's shell reads: `"posix"` (sh, bash, zsh, fish…), `"powershell"` or `"cmd"` — the shell of the machine the terminal runs on (a server's too), so a command typed with `run` is quoted for it. Run tools is the example |
@@ -408,7 +443,7 @@ helper → Atlas   {"call": 4, "verb": "GET", "path": "/api/file?path=notes/a.md
 Atlas → helper   {"reply": 4, "status": 200, "body": {"path": "notes/a.md", "text": "…", "mtime": …}}
 ```
 
-`verb` is GET, POST, PUT or DELETE; `path` must start with `/api/`; `body` is JSON. `status` is the API's own (a 4xx carries `{"error": "why"}`). A request from the core can arrive while a call waits for its reply: the libraries keep it and answer it next. What a helper reaches: everything a signed-in page may, **except another plugin's secrets** (403; `helper_api::may`). In server mode it acts as the vault's owner. Where nothing serves the vault (`atlas mcp` running a helper with Atlas closed) a call is answered 503.
+`verb` is GET, POST, PUT or DELETE; `path` must start with `/api/`; `body` is JSON — or, in its place, `"bytes": "<base64>"`, a file's bytes for `PUT /api/raw?path=…` (a PDF, an attachment, a picture). `status` is the API's own (a 4xx carries `{"error": "why"}`). A request from the core can arrive while a call waits for its reply: the libraries keep it and answer it next. What a helper reaches: everything a signed-in page may, **except another plugin's secrets** (403; `helper_api::may`). In server mode it acts as the vault's owner. Where nothing serves the vault (`atlas mcp` running a helper with Atlas closed) a call is answered 503.
 
 **Python** — `import atlas_plugin as atlas` (the core writes the library to `<vault>/.atlas/cache/sdk/python/` and puts it first on the helper's `PYTHONPATH`; standard library only; source `crates/atlas-core/sdk/python/atlas_plugin.py`):
 
@@ -431,7 +466,7 @@ Also: `files(index=False)`, `tree(folder)`, `today()`, `capture(text)`, `set_sec
 
 **The web**: `atlas.fetch(url, headers=…, every=1.0, missing=(404,))` → the page's text through the core's fetch (only the manifest's `net` hosts), `None` for a `missing` status; `atlas.fetch_json(url, …)` parses it. It paces itself (at most one request to a host every `every` seconds: MusicBrainz asks 1, arXiv 3, Wikipedia ~0.25) and waits out a busy answer (429, 502–504) or a dropped connection, after 2 s and 6 s, before raising `AtlasError("<host> answered N")`. Use it instead of `post("/api/plugins/<id>/fetch", …)` by hand. (A 1000-capture run once lost 320 Wikipedia and 22 arXiv lookups to 429s without it.)
 
-**Rust** — the `atlas-plugin` crate (`crates/atlas-plugin`; only std and serde_json, so a static musl build stays small): `Atlas::new()` with `read`, `write`, `files`, `tree`, `search`, `capture`, `secret`, `set_secret`, `get` / `post` / `put` / `call(Verb, …)`; `Methods::add(name, |params| …)` and `serve(methods)`; `event(name, data)`. A whole helper is `crates/atlas-plugin/examples/notes-count.rs`.
+**Rust** — the `atlas-plugin` crate (`crates/atlas-plugin`; only std and serde_json, so a static musl build stays small): `Atlas::new()` with `read`, `write`, `write_bytes`, `files`, `tree`, `search`, `capture`, `secret`, `set_secret`, `get` / `post` / `put` / `call(Verb, …)`; `Methods::add(name, |params| …)` and `serve(methods)`; `event(name, data)`. An engine that works on the vault's own paths (absolute, under `ATLAS_ROOT`) writes with `atlas_plugin::write_file(path, bytes)` and `move_path(from, to)` instead of `std::fs`: through Atlas when Atlas started it (the search index, the mirror and open tabs follow; a move rewrites the links), straight to the disk in a test, a run by hand, for `.atlas/cache/`, and when Atlas answers 503. A whole helper is `crates/atlas-plugin/examples/notes-count.rs`.
 
 Data scripts (`data = …`) cannot call back: their stdout is their result. A plugin that needs the core from its script makes it a helper.
 
@@ -473,7 +508,13 @@ types are `crates/atlas-core/sdk/js/atlas-helper.d.ts`.
   status), `fetchJson`, `fetchResponse` (the whole answer), `download` (streamed into the plugin's cache), within
   `[permissions] net`. A header may be `{ secret: "token", prefix: "Bearer " }`, filled in by the core.
 - **Native primitives** (done in Rust, one call each): `html.select`, `html.unescape`, `csv.parse`, `zip.list`,
-  `zip.read`, `hash.sha256`; `url.quote`, `url.resolve`, `text.title` in script.
+  `zip.read`, `hash.sha256`, and (API 19) `convert.comicToCbz(path)` / `convert.djvuToPdf(path)`: a comic archive (zip,
+  tar, 7z; a RAR through the machine's bsdtar, unar or unrar) or a DjVu book (djvu-rs, its text kept) made once into a
+  `.cbz` / PDF in the plugin's cache, → that copy's vault-relative path (`crates/atlas-core/src/convert.rs`; Manga and
+  Books use them); (API 20) `convert.typstPdf(path, to, { source?, fence? })`: the vault's `.typ` at `path` — or
+  `source` standing at that path, its pictures read beside it — compiled by the core's Typst into the PDF `to` (a vault
+  path), → `to`; `fence: true` sizes the page to what it holds, as a ```typst fence is drawn (`typst_doc.rs`; Export
+  uses it); `url.quote`, `url.resolve`, `text.title` in script.
 - **Programs** (API 17): `await atlas.exec(program, args, { stdin, cwd, timeout, locale })` → `{ status, stdout, stderr }`
   (`timedOut`, `truncated` when so). Only a program the manifest names, `[permissions] exec = ["pandoc"]`, found on
   the PATH (a path is refused), started with no shell, `cwd` inside the vault (default the vault), killed with its

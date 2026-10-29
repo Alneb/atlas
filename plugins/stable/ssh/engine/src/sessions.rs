@@ -196,8 +196,8 @@ fn open_named(s: &Settings, host: &str, name: &str) -> Answer {
     }
     let mut made = start(name, host, s)?;
     if made.is_err() && !s.connected(host) {
-        if !ssh::login(s, host, CALL_WAIT, "Claude (Atlas) for a shell there") {
-            return Ok(json!({ "waiting_for_login": host, "message": format!("The user is logging in to {host} in an Atlas terminal tab (passphrase / 2FA). Call ssh_open again in a moment.") }));
+        if !ssh::login(s, host, CALL_WAIT, ssh::Asker::Background("a shell session (an agent or another plugin)")) {
+            return Ok(json!({ "waiting_for_login": host, "message": format!("{host} needs the user to log in (passphrase / 2FA): Atlas offered it in its status bar. Call ssh_open again once connected.") }));
         }
         made = start(name, host, s)?;
     }

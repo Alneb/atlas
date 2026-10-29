@@ -165,6 +165,9 @@ fn plugin_action(ws: &Workspace, action: PluginAction) -> Result<()> {
         if let Some(old) = &r.replaced {
             println!("  the copy it replaced is in {old}");
         }
+        if !r.adopted.is_empty() {
+            println!("  took over the plugins it replaces (settings and secrets kept); moved to the trash: {}", r.adopted.join(", "));
+        }
     };
     match action {
         PluginAction::Install { from, id, on } => {

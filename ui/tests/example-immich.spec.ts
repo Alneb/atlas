@@ -10,7 +10,7 @@ import { WS } from "../playwright.config";
 // thumbnails, each fetched by the core into the plugin's cache (`saveTo`) with the key it keeps.
 const H = { "x-atlas": "1" };
 const put = (r: APIRequestContext, path: string, text: string) => r.put("/api/file", { headers: H, data: { path, text } });
-const example = (f: string) => readFileSync(fileURLToPath(new URL(`../../plugins/beta/immich/${f}`, import.meta.url)), "utf8");
+const example = (f: string) => readFileSync(fileURLToPath(new URL(`../../plugins/examples/immich/${f}`, import.meta.url)), "utf8");
 // the smallest PNG there is: one pixel
 const PIXEL = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=", "base64");
 let server: Server, port = 0;

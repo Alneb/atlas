@@ -7,7 +7,7 @@ import { fileURLToPath } from "node:url";
 // The example Jellyfin plugin installed as it is, against a stand-in: the last things watched.
 const H = { "x-atlas": "1" };
 const put = (r: APIRequestContext, path: string, text: string) => r.put("/api/file", { headers: H, data: { path, text } });
-const example = (f: string) => readFileSync(fileURLToPath(new URL(`../../plugins/beta/jellyfin/${f}`, import.meta.url)), "utf8");
+const example = (f: string) => readFileSync(fileURLToPath(new URL(`../../plugins/examples/jellyfin/${f}`, import.meta.url)), "utf8");
 let server: Server, port = 0;
 const asked: { url: string; token: string }[] = [];
 

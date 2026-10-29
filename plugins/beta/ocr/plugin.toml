@@ -6,8 +6,8 @@
 title = "OCR"
 description = "the text in captured screenshots, read on this machine and kept under them"
 icon = "image"
-version = "0.2.1"
-api = 15
+version = "0.2.2"
+api = 20
 
 [permissions]
 net = ["raw.githubusercontent.com"]

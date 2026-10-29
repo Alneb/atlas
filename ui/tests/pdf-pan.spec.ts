@@ -1,14 +1,19 @@
 import { test, expect } from "@playwright/test";
+import { mkdirSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
+import { WS } from "../playwright.config";
+import { textPdf } from "./fixtures/pdf";
 
 // A PDF dragged with the mouse: the select tool drags the page from its
 // blank parts (lib/pdf-pan.ts), the middle button drags anywhere.
 test("a PDF is dragged with the mouse: left button on its blank parts, middle button anywhere", async ({ page }) => {
+  // its own PDF: the vault's first one may be another spec's stand-in that does not render
+  const pdf = "pdfs/pan.pdf";
+  mkdirSync(join(WS, "pdfs"), { recursive: true });
+  writeFileSync(join(WS, pdf), textPdf([1, 2, 3].map((n) => ({ lines: [`Page ${n}`] }))));
   await page.goto("/");
   await page.getByText("Finish the GW notes.").waitFor();
-  const files = await page.evaluate(async () => (await (await fetch("/api/files", { headers: { "x-atlas": "1" } })).json()) as string[]);
-  const pdf = files.find((f) => f.endsWith(".pdf"));
-  test.skip(!pdf, "no PDF in the test vault");
-  await page.evaluate((p) => (window as unknown as { __atlas: { open(p: string): void } }).__atlas.open(p), pdf!);
+  await page.evaluate((p) => (window as unknown as { __atlas: { open(p: string): void } }).__atlas.open(p), pdf);
   const viewer = page.locator(".atlas-pane-pdf .viewer-container").first();
   await expect(viewer.locator(".page").first()).toBeVisible({ timeout: 15_000 });
   const room = await viewer.evaluate((el) => el.scrollHeight - el.clientHeight);

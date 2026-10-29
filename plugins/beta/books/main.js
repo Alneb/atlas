@@ -1,4 +1,4 @@
-// Books — the web side's entry: a command opening the library pane (view.js), and the Libraries page's Books: the
+// Books — the web side's entry: the Libraries page's E-books and a command opening it; the reader is view.js. The
 // vault's books and those in folders of a server (the `remote` setting). An .epub opens in the pane by "Open with…" (plugin.toml `opens`).
 import { BOOK, booksIn, remoteBooks, remoteFolders, bookFacts } from "./view.js";
 
@@ -9,7 +9,8 @@ const folders = (path, top) => {
 };
 
 export function register(atlas) {
-  atlas.registerCommand({ id: "library", title: "Books: library", run: () => atlas.openView("", { title: "Books", icon: "file-text" }) });
+  // the library is the Libraries page's E-books tab, the one place books are listed; the pane is the reader
+  atlas.registerCommand({ id: "library", title: "Books: library", run: () => atlas.openLibrary("books") });
   const covers = [];
   atlas.registerLibrary?.({
     // "E-books": the files read here; the catalog's Books is the book notes (two libraries named alike were two "Books" tabs)
@@ -27,7 +28,7 @@ export function register(atlas) {
         // copyparty's thumbnail — asked only when the card comes near the view; an older Atlas: read from the EPUB here
         cover: atlas.files?.thumb ? () => atlas.files.thumb(b.source ?? "vault", b.place ?? "", b.path).catch(() => null)
           : !b.source && /\.epub$/i.test(b.path) ? async () => {
-            const f = await bookFacts(await atlas.fileUrl(b.path)).catch(() => null);
+            const f = await bookFacts(await atlas.fileUrl(b.path), atlas.zip).catch(() => null);
             if (f?.cover) covers.push(f.cover);
             return f?.cover ?? null;
           } : undefined,
@@ -48,7 +49,7 @@ export function register(atlas) {
       const path = b.source ? await atlas.files.local(b.source, b.place, b.path) : b.path;
       if (atlas.openNative?.(path)) return;
       if (/\.epub$/i.test(path)) atlas.openView(path, { title: item.title, icon: "file-text" });
-      else if (/\.djvu$/i.test(path)) atlas.open((await atlas.helper.call("as_pdf", { path }, { timeout: 1800 })).path); // made once into a PDF (helper.py)
+      else if (/\.djvu$/i.test(path)) atlas.open((await atlas.helper.call("as_pdf", { path }, { timeout: 1800 })).path); // made once into a PDF (helper/helper.ts)
       else atlas.open(path); // a PDF: the app's own viewer
     } catch (e) { atlas.toast("Books", `${item.title}: ${e.message ?? e}`, "error"); }
   }

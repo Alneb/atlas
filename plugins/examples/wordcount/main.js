@@ -4,6 +4,9 @@
 //                                 type: wordcount.count
 //                                 ```
 // or in a page / the sidebar:     - [{view: wordcount.count}]
+/** A note's words, its frontmatter left out. */
+const countWords = (text) => text.replace(/^---[\s\S]*?\n---/, "").split(/\s+/).filter(Boolean).length;
+
 export function register(atlas) {
   // A block is a function that draws into `host` and returns its cleanup.
   // Name it `<plugin id>.<name>`: a dotted type waits for its plugin and redraws when it changes.
@@ -11,7 +14,7 @@ export function register(atlas) {
     const goal = Number(block.options.goal ?? atlas.plugin.settings.goal ?? 0);
     const draw = async () => {
       if (!block.note.endsWith(".md")) { host.textContent = "Put this block in a note."; return; }
-      const words = (await atlas.readText(block.note)).replace(/^---[\s\S]*?\n---/, "").split(/\s+/).filter(Boolean).length;
+      const words = countWords(await atlas.readText(block.note));
       host.textContent = goal ? `${words} of ${goal} words` : `${words} words`;
       // the app's CSS variables keep a plugin in step with the theme
       host.style.color = goal && words >= goal ? "var(--accent)" : "var(--text-muted)";
@@ -33,7 +36,7 @@ export function register(atlas) {
     run: async () => {
       const path = atlas.context().active?.path;
       if (!path?.endsWith(".md")) return atlas.toast("Word count", "Open a note first.");
-      const words = (await atlas.readText(path)).split(/\s+/).filter(Boolean).length;
+      const words = countWords(await atlas.readText(path));
       atlas.toast("Word count", `${words} words in ${path}`);
     },
   });

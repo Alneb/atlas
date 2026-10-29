@@ -41,7 +41,7 @@
     catch (e) { error = errText(e); }
   }
 
-  const groups = $derived(counted(items, (i) => i.groups));
+  const groups = $derived(counted(items, (i) => i.groups, source.groupOrder));
   // groups named as paths (a server's folders) are a tree: the top ones open at first
   const isTree = $derived(groups.some(([g]) => g.includes(GROUP_SEP)));
   let opened = $state<string[]>([]), closed = $state<string[]>([]);
@@ -124,6 +124,29 @@
     await load();
     if (id) selId = id;
   }
+
+  // items dragged onto a group at the side go there (source.regroup): the picked ones when the dragged card is one of them
+  const MOVE_TYPE = "text/x-atlas-library";
+  let dropOn = $state<string | null>(null);
+  function dragItem(e: DragEvent, i: LibraryItem) {
+    const ids = picked.length > 1 && pickedSet.has(i.id) ? picked : [i.id];
+    e.dataTransfer?.setData(MOVE_TYPE, JSON.stringify(ids));
+    if (e.dataTransfer) e.dataTransfer.effectAllowed = "move";
+  }
+  const groupDrop = (name: string) => ({
+    ondragover: (e: DragEvent) => { if (source.regroup && e.dataTransfer?.types.includes(MOVE_TYPE)) { e.preventDefault(); dropOn = name; } },
+    ondragleave: () => { if (dropOn === name) dropOn = null; },
+    ondrop: async (e: DragEvent) => {
+      const ids: string[] = JSON.parse(e.dataTransfer?.getData(MOVE_TYPE) || "[]");
+      if (!source.regroup || !ids.length) return;
+      e.preventDefault();
+      e.stopPropagation(); // not the page's file drop
+      dropOn = null;
+      try { await source.regroup(items.filter((i) => ids.includes(i.id)), name); }
+      catch (err) { toast("Not moved", errText(err), "error"); }
+      await load();
+    },
+  });
 
   // several picked, as in a file manager: a drag draws a rectangle (lib/marquee.ts), Ctrl-click adds or takes one,
   // Shift-click a run from the last one clicked, Ctrl+A all shown, Esc none
@@ -241,7 +264,7 @@
             {/each}
           {:else}
             {#each groups as [name, c] (name)}
-              <button class="item" class:on={isScope("group", name)} onclick={() => (scope = { kind: "group", name })} title={name}><Icon name="folder" size={14} /><span class="n">{name}</span><span class="c">{c}</span></button>
+              <button class="item" class:on={isScope("group", name)} class:drop={dropOn === name} onclick={() => (scope = { kind: "group", name })} title={name} {...groupDrop(name)}><Icon name="folder" size={14} /><span class="n">{name}</span><span class="c">{c}</span></button>
             {/each}
           {/if}
         {/if}
@@ -260,13 +283,13 @@
     <div class="list" class:covers={layout === "covers"} bind:this={list} use:marquee={{ pick: dragPick }}>
       {#each sorted as i (i.id)}
         {#if layout === "covers"}
-          <button class="card" class:sel={isPicked(i)} data-pick={i.id} onclick={(e) => click(e, i)} ondblclick={() => source.open?.(i)} title={i.sub}>
+          <button class="card" class:sel={isPicked(i)} data-pick={i.id} draggable={source.regroup ? "true" : undefined} ondragstart={(e) => dragItem(e, i)} onclick={(e) => click(e, i)} ondblclick={() => source.open?.(i)} title={i.sub}>
             <LibraryCover cover={i.cover} title={i.title} />
             <span class="t">{@html richTitle(i.title)}</span>
             {#if i.sub}<span class="m">{i.sub}</span>{/if}
           </button>
         {:else}
-          <button class="row" class:sel={isPicked(i)} data-pick={i.id} onclick={(e) => click(e, i)} ondblclick={() => source.open?.(i)}>
+          <button class="row" class:sel={isPicked(i)} data-pick={i.id} draggable={source.regroup ? "true" : undefined} ondragstart={(e) => dragItem(e, i)} onclick={(e) => click(e, i)} ondblclick={() => source.open?.(i)}>
             <span class="t">{@html richTitle(i.title)}</span>
             {#if i.sub}<span class="m">{i.sub}</span>{/if}
             {#if i.flags?.length}<span class="flags">{#each i.flags as f (f.label)}<span class="flag" class:red={f.tone === "red"}>{f.label}</span>{/each}</span>{/if}
@@ -371,6 +394,7 @@
   .item { display: flex; align-items: center; gap: 7px; width: 100%; padding: 4px 8px; border-radius: var(--radius-sm); color: var(--text); text-align: left; font-size: calc(12.5px * var(--ui-scale, 1)); }
   .item:hover { background: var(--bg-hover); }
   .item.on { background: var(--accent-soft); color: var(--heading); box-shadow: inset 2px 0 0 var(--accent); }
+  .item.drop { outline: 2px dashed var(--accent); outline-offset: -2px; background: var(--accent-soft); }
   .item .n { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .c { color: var(--text-faint); font-size: .85em; font-variant-numeric: tabular-nums; }
   .hash { color: var(--text-faint); width: 14px; text-align: center; }

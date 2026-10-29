@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# PDFium for the phone's PDF reader (docs/design/DESIGN-pdfium-android.md): pdfium-binaries' prebuilt libpdfium.so for
+# PDFium for the core (PDF covers) and the phone's PDF reader (docs/design/DESIGN-pdfium-android.md): pdfium-binaries' prebuilt libpdfium.so for
 # the APK (android-arm64; android-x64 for the emulator's x86_64 APK) and the same build for the host tests
 # (linux-x64), into local/pdfium/ (never committed).
 # Pinned release and checksums; a download that does not match is refused. Re-runnable: a folder already there stays.
@@ -11,7 +11,8 @@ declare -A sums=(
   [android-x64]=772870e7ed846097d779aa0163f8abfd08a13257e16edf0e1cd1a364f11c8c3c
   [linux-x64]=588577cf52dabc1a444988bac841920df54cc2f141801424de97ab04f4fbb935
 )
-for abi in android-arm64 android-x64 linux-x64; do
+# the ABIs asked (all by default): `fetch-pdfium.sh linux-x64` for the desktop install alone
+for abi in ${@:-android-arm64 android-x64 linux-x64}; do
   dir="$root/local/pdfium/$release-$abi"
   if [ -f "$dir/lib/libpdfium.so" ]; then echo "[pdfium] $abi: already in local/pdfium"; continue; fi
   tmp=$(mktemp -d); trap 'rm -rf "$tmp"' EXIT

@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/atlas-core", "crates/atlas", "crates/atlas-capture", "crates/atlas-android", "crates/atlas-pen", "crates/atlas-plugin", "crates/atlas-text", "plugins/beta/catalog/engine", "plugins/beta/catalog-papers/engine", "plugins/stable/ssh/engine", "plugins/beta/ocr/engine", "plugins/beta/finance/engine", "plugins/beta/email/engine", "plugins/beta/syncthing/engine", "crates/atlas-template", "crates/atlas-app"]
+members = ["crates/atlas-core", "crates/atlas", "crates/atlas-capture", "crates/atlas-android", "crates/atlas-pen", "crates/atlas-plugin", "crates/atlas-text", "plugins/beta/catalog/engine", "plugins/beta/catalog-papers/engine", "plugins/stable/ssh/engine", "plugins/beta/ocr/engine", "plugins/beta/finance/engine", "plugins/stable/email/engine", "plugins/beta/syncthing/engine", "plugins/beta/claude/engine", "crates/atlas-template", "crates/atlas-app"]
 
 [workspace.package]
 version = "0.1.1"

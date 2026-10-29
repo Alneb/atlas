@@ -2,22 +2,21 @@ import { test, expect, type Page } from "@playwright/test";
 import { copyFileSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { WS } from "../playwright.config";
-import { installZipPlugin } from "./fixtures/plugins";
 
 // A plugin's own files by URL (core plugin_files.rs, lib/plugin-files.ts; PLUGIN-API.md "A plugin's own files", API 9):
 // its modules load from `/plugin-files/<rev>/<vault path>`, so a static, a dynamic and a worker's relative import, a
-// sibling plugin's module (`../zip/zip.js`), a picture and a font by `atlas.assetUrl` all load; an edited module runs
+// sibling plugin's module (`../assets-lib/shared.js`), a picture and a font by `atlas.assetUrl` all load; an edited module runs
 // its new code; nothing leads out of the folder; and the same under a server vault's `/v/<name>/`.
 const ID = "assets-probe";
 const DIR = join(WS, ".atlas/plugins", ID);
 const PNG = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
 const VIEW = `import { word } from "./lib/word.js";
-import { zipIndex } from "../zip/zip.js";
+import { shared } from "../assets-lib/shared.js";
 export default async function mount(host, atlas) {
   const out = (k, v) => { const p = document.createElement("p"); p.className = "probe-" + k; p.textContent = String(v); host.append(p); };
   out("static", word);
   out("dynamic", (await import("./lib/lazy.js")).lazy);
-  out("zip", typeof zipIndex);
+  out("zip", typeof shared);
   const img = new Image();
   img.src = atlas.assetUrl("pics/dot.png");
   out("img", await img.decode().then(() => img.naturalWidth, () => "failed"));
@@ -27,7 +26,7 @@ export default async function mount(host, atlas) {
   out("worker", await new Promise((ok) => { w.onmessage = (e) => ok(e.data); w.onerror = () => ok("failed"); }));
   w.terminate();
   let escape = "allowed";
-  try { atlas.assetUrl("../zip/zip.js"); } catch { escape = "refused"; }
+  try { atlas.assetUrl("../assets-lib/shared.js"); } catch { escape = "refused"; }
   out("escape", escape);
   out("folder", atlas.assetUrl("fonts/").endsWith("/fonts/")); // a base URL for a library that fetches its own files
   out("meta", new URL(import.meta.url).pathname);
@@ -36,7 +35,10 @@ export default async function mount(host, atlas) {
 const word = (w: string) => writeFileSync(join(DIR, "lib/word.js"), `export const word = ${JSON.stringify(w)};\n`);
 
 test.beforeAll(() => {
-  installZipPlugin();
+  // a library plugin beside it, whose module it imports as a sibling (`exports`)
+  mkdirSync(join(WS, ".atlas/plugins/assets-lib"), { recursive: true });
+  writeFileSync(join(WS, ".atlas/plugins/assets-lib/plugin.toml"), `title = "Assets library"\napi = 18\nexports = ["shared.js"]\n`);
+  writeFileSync(join(WS, ".atlas/plugins/assets-lib/shared.js"), "export function shared() {}\n");
   mkdirSync(join(DIR, "lib"), { recursive: true });
   mkdirSync(join(DIR, "pics"), { recursive: true });
   mkdirSync(join(DIR, "fonts"), { recursive: true });
@@ -99,5 +101,5 @@ test("under a server vault's /v/<name>/, every file of the plugin is asked there
   await expect(pane.locator(".probe-font")).toHaveText("loaded");
   await expect(pane.locator(".probe-meta")).toHaveText(new RegExp(`^/v/probe/plugin-files/[0-9a-z]+/\\.atlas/plugins/${ID}/view\\.js$`));
   for (const f of ["view.js", "lib/word.js", "lib/lazy.js", "worker.js", "pics/dot.png", "fonts/probe.woff2"]) expect(asked, f).toContain(`.atlas/plugins/${ID}/${f}`);
-  expect(asked).toContain(".atlas/plugins/zip/zip.js");
+  expect(asked).toContain(".atlas/plugins/assets-lib/shared.js");
 });

@@ -2,15 +2,15 @@ import { test, expect, type APIRequestContext } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { shownName } from "../src/lib/paths";
 
-// A day's log, made pretty: the Daily plugin's header block — the day in words, the
+// A day's log, made pretty: the Today plugin's header block — the day in words, the
 // weather the Weather plugin noted, how much was captured, the days around it — and each line's time as a chip.
 const H = { "x-atlas": "1" };
 const put = (request: APIRequestContext, path: string, text: string) => request.put("/api/file", { headers: H, data: { path, text } });
-const dir = "../../plugins/beta/daily";
+const dir = "../../plugins/beta/today";
 
 test.beforeAll(async ({ request }) => {
-  await put(request, ".atlas/plugins/daily/plugin.toml", readFileSync(new URL(`${dir}/plugin.toml`, import.meta.url), "utf8"));
-  await put(request, ".atlas/plugins/daily/main.js", readFileSync(new URL(`${dir}/main.js`, import.meta.url), "utf8"));
+  await put(request, ".atlas/plugins/today/plugin.toml", readFileSync(new URL(`${dir}/plugin.toml`, import.meta.url), "utf8"));
+  for (const f of ["daily.js", "home.js", "main.js"]) await put(request, `.atlas/plugins/today/${f}`, readFileSync(new URL(`${dir}/${f}`, import.meta.url), "utf8"));
   await put(request, "notes/daily-tasks.md", "# Tasks\n\n- [ ] send the draft 📅 2020-01-02\n- [x] book the room ✅ 2020-01-02\n- [ ] later 📅 2020-02-01\n");
   await put(request, "log/2020-01-01.md", "---\ndate: 2020-01-01\ntype: log\n---\n# Wednesday, 1 January 2020\n\n## Log\n- 08:00 a first day\n");
   await put(request, "log/2020-01-02.md", "---\ndate: 2020-01-02\ntype: log\nweather: ⛅ Partly cloudy, 3°C · Oslo\n---\n# Thursday, 2 January 2020\n\n```view\ntype: daily.header\n```\n\n## Journal\n\n## Log\n- 09:05 coffee and the Hubbard notes\n- [ ] 10:30 call the lab\n");

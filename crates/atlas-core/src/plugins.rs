@@ -101,12 +101,21 @@ struct Manifest {
     /// so another plugin can take its place.
     #[serde(default)]
     provides: Vec<String>,
+    /// Its files other plugins may import (`["zip.js"]`, paths inside its folder): an importer names this plugin in
+    /// `requires` and imports only these (`foreign_imports`).
+    #[serde(default)]
+    exports: Vec<String>,
+    /// The plugins it takes the place of (`["catalog-anime", …]`, or `{ ntfy = { rename = { topic = "phone_topic" } } }`
+    /// to rename settings on the way, `set = { preset = "x" }` to add values with them): their settings and secrets
+    /// carried over, their folders to the trash (plugin_install.rs `adopt_replaced`).
+    #[serde(default)]
+    replaces: Replaces,
     /// `[[agent]]`: AI agents whose terminals this plugin declares (agent_terminals.rs).
     #[serde(default, rename = "agent")]
     agents: Vec<crate::agent_terminals::AgentDecl>,
     /// `[contributes.<plugin id>]`: tables for another plugin (a meta plugin's subplugins), which the core does not
-    /// read — it hands them to that plugin (`contributions`). Contributing is optional: a service's own plugin (Jellyfin,
-    /// TubeArchivist) keeps working with the meta plugin off, its table simply unused. `requires` is the hard dependency.
+    /// read — it hands them to that plugin (`contributions`). Contributing is optional: a service's own plugin (Downloader,
+    /// Linkwarden) keeps working with the meta plugin off, its table simply unused. `requires` is the hard dependency.
     #[serde(default)]
     contributes: std::collections::BTreeMap<String, toml::Table>,
     /// `[android]`: the plugin's native side, compiled into the Atlas apps (docs/refactor/REFACTOR-native-plugins.md,
@@ -146,6 +155,61 @@ impl Requires {
             Requires::Versions(m) => m.iter().map(|(k, v)| (k.clone(), v.trim().trim_start_matches(">=").trim().trim_start_matches('v').to_string())).collect(),
         }
     }
+}
+
+/// `replaces`, as a list of ids or a table of id → how its settings come over.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(untagged)]
+enum Replaces {
+    Ids(Vec<String>),
+    Renamed(std::collections::BTreeMap<String, CarryOver>),
+}
+
+/// How one replaced plugin's settings come over: keys that changed name, values added with them, and values set when
+/// the vault had it switched off (a plugin folded into a setting: off there is the setting off here).
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct CarryOver {
+    #[serde(default)]
+    rename: std::collections::BTreeMap<String, String>,
+    #[serde(default)]
+    set: toml::Table,
+    #[serde(default)]
+    if_off: toml::Table,
+}
+
+impl Default for Replaces {
+    fn default() -> Self {
+        Replaces::Ids(Vec::new())
+    }
+}
+
+/// One plugin a manifest replaces: the settings (and secrets) whose name changed, old name → new name, and the values
+/// set when its settings are carried (a merged plugin's `preset` saying which of its modes the old plugin was).
+#[derive(Debug, Clone, PartialEq)]
+pub struct Replaced {
+    pub id: String,
+    pub renames: std::collections::BTreeMap<String, String>,
+    pub set: toml::Table,
+    /// set when the vault had the replaced plugin switched off
+    pub if_off: toml::Table,
+}
+
+impl Replaced {
+    /// The name `key` of the old plugin has in the new one.
+    pub fn renamed<'a>(&'a self, key: &'a str) -> &'a str {
+        self.renames.get(key).map_or(key, String::as_str)
+    }
+}
+
+/// What the installed plugin `id` replaces (`replaces`), valid ids other than its own; empty when it does not parse.
+pub fn replaces(root: &Path, id: &str) -> Vec<Replaced> {
+    let Ok(m) = read_manifest(root, id) else { return Vec::new() };
+    let all: Vec<Replaced> = match m.replaces {
+        Replaces::Ids(ids) => ids.into_iter().map(|id| Replaced { id, renames: Default::default(), set: Default::default(), if_off: Default::default() }).collect(),
+        Replaces::Renamed(t) => t.into_iter().map(|(id, c)| Replaced { id, renames: c.rename, set: c.set, if_off: c.if_off }).collect(),
+    };
+    all.into_iter().filter(|r| valid_id(&r.id) && r.id != id).collect()
 }
 
 /// `[android]`.
@@ -290,11 +354,15 @@ pub fn permissions(root: &Path, id: &str) -> Result<Permissions> {
 /// (a plugin's own files by URL, plugin_files.rs); v10 `atlas.trash`; v11 `atlas.files.thumb`; v12 Settings v2: accounts
 /// (`account = {…}` on a records field), `advanced` / `hidden` fields, `atlas.plugin.registerSettingsSection`; v13
 /// `atlas.templates`, `atlas.newNote`, `atlas.applyTemplate`; v14 `atlas.marks`, `atlas.marksSvg`; v15 `[helper] idle`; v16
-/// `[helper] js` (a JavaScript helper run in the core, js_helper.rs), roles, versioned `requires`, `exports`; v17
-/// `atlas.terminal.shell()` (the terminal's shell, from /api/version).
+/// `[helper] js` (a JavaScript helper run in the core, js_helper.rs), roles, versioned `requires`; v17
+/// `atlas.terminal.shell()` (the terminal's shell, from /api/version); v18 `exports` (a library plugin's importable files);
+/// v19 `replaces` (a merged plugin takes over the settings and secrets of those it replaces), `atlas.openLibrary(id?)`
+/// (the Libraries page at a library), `{setting:key}` in a contributed table (filled from the contributor's settings);
+/// v20 `atlas.openDialog` (a pane in a popup), `atlas.zip` (the page's zip reader), `atlas.convert.typstPdf` in helpers,
+/// `/api/plugins/@<role>/…` (a plugin called by its role), `replaces` with `if_off`.
 /// The page's number must be the same (a test holds it). A manifest with a key this Atlas does not know and an `api`
 /// above it is refused with "update Atlas", not with the parser's error (`read_manifest`).
-pub const API_VERSION: u32 = 17;
+pub const API_VERSION: u32 = 20;
 
 /// `"1.2.3"` → `[1, 2, 3]` (missing parts are 0; anything after a non-digit part is ignored).
 fn version_parts(v: &str) -> [u64; 3] {
@@ -510,6 +578,7 @@ fn opens_and_claims(m: &Manifest) -> Vec<String> {
 fn parts_of(m: &Manifest) -> Vec<String> {
     let mut out: Vec<String> = m.agents.iter().map(|a| format!("{} sessions in the terminal", a.title)).collect();
     if !m.claims.is_empty() { out.push(format!("opens {} by default", m.claims.join(", "))); }
+    if !m.exports.is_empty() { out.push(format!("offers {} to other plugins", m.exports.join(", "))); }
     for t in &m.tools {
         if let Some(when) = &t.schedule { out.push(format!("{} {when}", t.name)); }
         if t.on.as_deref() == Some("capture") { out.push("reads every capture".into()); }
@@ -656,6 +725,58 @@ pub fn move_settings_out(root: &Path, id: &str) -> Result<()> {
     doc.remove("settings");
     crate::vault_write::write(&crate::paths::safe_join(root, &rel)?, doc.to_string().as_bytes())?;
     Ok(())
+}
+
+/// The settings file of plugin `r` carried into `to`'s (a plugin that replaces it): each key, renamed by `r`, that `to`'s
+/// file lacks is copied, then `r`'s `set` values; keys it has win. Returns whether `r` had a settings file (it is left
+/// where it is).
+pub fn carry_settings(root: &Path, r: &Replaced, to: &str) -> Result<bool> {
+    move_settings_out(root, &r.id)?;
+    let Ok(text) = std::fs::read_to_string(root.join(settings_rel(&r.id))) else { return Ok(false) };
+    let old: toml_edit::DocumentMut = text.parse().map_err(|e| Error::BadRequest(format!("{}: {e}", settings_rel(&r.id))))?;
+    let current = std::fs::read_to_string(root.join(settings_rel(to))).unwrap_or_default();
+    let mut file: toml_edit::DocumentMut = current.parse().map_err(|e| Error::BadRequest(format!("{}: {e}", settings_rel(to))))?;
+    let mut added = false;
+    for (k, v) in old.iter() {
+        let k = r.renamed(k);
+        if !file.contains_key(k) {
+            file.insert(k, v.clone());
+            added = true;
+        }
+    }
+    added |= set_missing(&mut file, &r.set, &format!("replaces.{}.set", r.id))?;
+    if added {
+        write_settings_file(root, to, &file.to_string())?;
+    }
+    Ok(true)
+}
+
+/// `values` into a settings file where it has no such key → whether any went in.
+fn set_missing(file: &mut toml_edit::DocumentMut, values: &toml::Table, origin: &str) -> Result<bool> {
+    let mut added = false;
+    for (k, v) in values {
+        if !file.contains_key(k) {
+            let v = v.to_string().parse::<toml_edit::Value>().map_err(|e| Error::BadRequest(format!("{origin}.{k}: {e}")))?;
+            file.insert(k, toml_edit::value(v));
+            added = true;
+        }
+    }
+    Ok(added)
+}
+
+/// A replaced plugin the vault had switched off: its `if_off` values into plugin `to`'s settings (keys it has win).
+pub fn settings_if_off(root: &Path, r: &Replaced, to: &str) -> Result<()> {
+    let current = std::fs::read_to_string(root.join(settings_rel(to))).unwrap_or_default();
+    let mut file: toml_edit::DocumentMut = current.parse().map_err(|e| Error::BadRequest(format!("{}: {e}", settings_rel(to))))?;
+    if set_missing(&mut file, &r.if_off, &format!("replaces.{}.if_off", r.id))? {
+        write_settings_file(root, to, &file.to_string())?;
+    }
+    Ok(())
+}
+
+/// Where plugin `id`'s settings file is, relative to the vault.
+pub fn settings_path(id: &str) -> String {
+    settings_rel(id)
 }
 
 /// Every plugin's manifest `[settings]` moved to its settings file ([`move_settings_out`]), at the vault's start; a
@@ -882,6 +1003,13 @@ pub fn provider<'a>(plugins: &'a [Plugin], off: &[String], role: &str) -> Option
     all.into_iter().find(|p| blocked(plugins, off, &p.id).is_none())
 }
 
+/// A plugin named in an API path: its id, or `@role` for the plugin that fills that role (`/api/plugins/@catalog/tools/add`),
+/// so plugins call each other by what they do, never by id. An unfilled role is a 404 saying which.
+pub fn resolve(root: &Path, off: &[String], named: &str) -> Result<String> {
+    let Some(role) = named.strip_prefix('@') else { return Ok(named.to_string()) };
+    provider(&list(root), off, role).map(|p| p.id.clone()).ok_or_else(|| Error::NotFound(format!("no plugin that can run provides the role {role:?}")))
+}
+
 /// The `[contributes.<target>]` tables of every plugin that can run, by plugin id, as JSON — what a meta plugin
 /// (`target`) builds itself from. A plugin that cannot run contributes nothing.
 pub fn contributions(root: &Path, off: &[String], target: &str) -> Result<serde_json::Map<String, Value>> {
@@ -898,10 +1026,32 @@ pub fn contributions(root: &Path, off: &[String], target: &str) -> Result<serde_
         // An unreadable manifest of another plugin never breaks the target's list.
         let Ok(mut m) = read_manifest(root, &p.id) else { continue };
         if let Some(t) = m.contributes.remove(target) {
-            out.insert(p.id.clone(), serde_json::to_value(t).map_err(|e| Error::Other(e.into()))?);
+            let mut v = serde_json::to_value(t).map_err(|e| Error::Other(e.into()))?;
+            with_own_settings(&mut v, &p.settings);
+            out.insert(p.id.clone(), v);
         }
     }
     Ok(out)
+}
+
+/// `{setting:key}` in a contributed table's strings → the contributor's setting (`folder = "{setting:dir}"`: the kind
+/// lives where the plugin's own setting says). A key that is not a plain value is left as written.
+fn with_own_settings(v: &mut Value, settings: &Value) {
+    match v {
+        Value::String(s) if s.contains("{setting:") => {
+            let re = regex::Regex::new(r"\{setting:([A-Za-z0-9_-]+)\}").expect("static");
+            *s = re
+                .replace_all(s, |c: &regex::Captures| match settings.get(&c[1]) {
+                    Some(Value::String(x)) => x.clone(),
+                    Some(x @ (Value::Number(_) | Value::Bool(_))) => x.to_string(),
+                    _ => c[0].to_string(),
+                })
+                .into_owned();
+        }
+        Value::Array(a) => a.iter_mut().for_each(|x| with_own_settings(x, settings)),
+        Value::Object(o) => o.values_mut().for_each(|x| with_own_settings(x, settings)),
+        _ => {}
+    }
 }
 
 /// Run the plugin's data script with `{settings, args}` on stdin; its JSON stdout is the result.
@@ -1002,6 +1152,78 @@ mod tests {
             }
         }
         assert!(n > 10, "only {n} plugins found under {}", repo.display());
+    }
+
+    /// The page modules of a plugin folder that import from another plugin's folder: (importing file, plugin, path in
+    /// it). Relative specifiers only, resolved against the importing file; sources the page never loads are skipped.
+    fn foreign_imports(dir: &Path) -> Vec<(String, String, String)> {
+        let spec = regex::Regex::new(r#"(?:\bfrom|\bimport)\s*\(?\s*["'](\.\.?/[^"']+)["']"#).unwrap();
+        let skip = ["engine", "helper", "ui", "node_modules", "bin", "tests"];
+        let mut out = Vec::new();
+        let files = walkdir::WalkDir::new(dir).into_iter().filter_entry(|e| e.depth() == 0 || !skip.contains(&e.file_name().to_str().unwrap_or("")));
+        for f in files.flatten().filter(|f| f.path().extension().is_some_and(|x| x == "js" || x == "mjs")) {
+            let text = std::fs::read_to_string(f.path()).unwrap_or_default();
+            let rel = f.path().strip_prefix(dir).unwrap();
+            for c in spec.captures_iter(&text) {
+                // the specifier's path from the plugin's folder: each `..` that climbs out of it reaches a sibling plugin
+                let mut at: Vec<String> = rel.parent().into_iter().flat_map(|p| p.iter()).map(|s| s.to_string_lossy().into_owned()).collect();
+                let mut out_of = false;
+                for part in c[1].split('/') {
+                    match part {
+                        "." | "" => {}
+                        ".." if at.is_empty() => out_of = true,
+                        ".." => { at.pop(); }
+                        p => at.push(p.to_string()),
+                    }
+                }
+                if out_of && at.len() >= 2 && dir.file_name().is_none_or(|own| own != at[0].as_str()) {
+                    out.push((rel.to_string_lossy().into_owned(), at[0].clone(), at[1..].join("/")));
+                }
+            }
+        }
+        out
+    }
+
+    /// A shipped plugin imports another's file only through `requires` and that plugin's `exports`.
+    #[test]
+    fn shipped_plugins_import_only_what_another_exports() {
+        let repo = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../plugins");
+        let mut manifests = std::collections::BTreeMap::new();
+        for tier in std::fs::read_dir(&repo).unwrap().flatten() {
+            for p in std::fs::read_dir(tier.path()).into_iter().flatten().flatten() {
+                let Ok(text) = std::fs::read_to_string(p.path().join("plugin.toml")) else { continue };
+                manifests.insert(p.file_name().to_string_lossy().into_owned(), (p.path(), toml::from_str::<Manifest>(&text).unwrap()));
+            }
+        }
+        // none does today (the zip reader moved into the core); the scan itself is tested on a fixture below
+        let mut wrong = Vec::new();
+        for (id, (dir, m)) in &manifests {
+            for (file, to, path) in foreign_imports(dir) {
+                if !m.requires.ids().contains(&to) {
+                    wrong.push(format!("{id}/{file} imports {to}/{path} without `requires = [\"{to}\"]`"));
+                } else if !manifests.get(&to).is_some_and(|(_, t)| t.exports.contains(&path)) {
+                    wrong.push(format!("{id}/{file} imports {to}/{path}, which {to} does not list in `exports`"));
+                }
+            }
+        }
+        assert!(wrong.is_empty(), "{}", wrong.join("\n"));
+    }
+
+    #[test]
+    fn foreign_imports_are_those_that_leave_the_plugins_folder() {
+        let t = tempfile::tempdir().unwrap();
+        let d = t.path().join("books");
+        std::fs::create_dir_all(d.join("lib")).unwrap();
+        std::fs::create_dir_all(d.join("ui")).unwrap();
+        std::fs::write(d.join("view.js"), "import { zipIndex } from \"../zip/zip.js\";\nimport x from './lib/x.js';\nconst m = await import('../zip/more/y.js');\n").unwrap();
+        std::fs::write(d.join("lib/x.js"), "import { a } from \"../view.js\";\nimport \"../../zip/zip.js\";\n").unwrap();
+        std::fs::write(d.join("ui/src.js"), "import '../../other/z.js';\n").unwrap();
+        let mut got = foreign_imports(&d);
+        got.sort();
+        let want = [("lib/x.js", "zip", "zip.js"), ("view.js", "zip", "more/y.js"), ("view.js", "zip", "zip.js")];
+        assert_eq!(got, want.map(|(a, b, c)| (a.to_string(), b.to_string(), c.to_string())));
+        plugin(t.path(), "zip", "title = \"Zip\"\nexports = [\"zip.js\"]\n");
+        assert!(list(t.path())[0].parts.contains(&"offers zip.js to other plugins".to_string()));
     }
 
     #[test]
@@ -1229,6 +1451,10 @@ mod tests {
         assert_eq!(provider(&all, &[], "references").map(|p| p.id.as_str()), Some("papers-a"), "the first by id");
         assert_eq!(provider(&all, &["papers-a".into()], "references").map(|p| p.id.as_str()), Some("papers-b"), "one off: the next");
         assert!(provider(&all, &[], "nothing").is_none());
+        // a route's `@role`: the plugin that fills it; a plain id as it is
+        assert_eq!(resolve(t.path(), &["papers-a".into()], "@references").unwrap(), "papers-b");
+        assert_eq!(resolve(t.path(), &[], "catalog").unwrap(), "catalog");
+        assert!(matches!(resolve(t.path(), &[], "@nothing"), Err(Error::NotFound(_))));
         let seen = as_seen_from(all, &[], Platform::current());
         assert!(seen.iter().find(|p| p.id == "new-src").unwrap().blocked.as_deref().unwrap().contains("0.5 or newer"), "the list carries the reason");
     }
@@ -1258,6 +1484,20 @@ mod tests {
         assert_eq!(c["catalog-tmdb"]["sources"][0]["tool"], "lookup");
         let c = contributions(t.path(), &["catalog-tmdb".into()], "catalog").unwrap();
         assert_eq!(c.keys().collect::<Vec<_>>(), ["jellyfin"], "a switched-off subplugin contributes nothing");
+    }
+
+    /// A contributed table may name the contributor's own setting: the kind lives where that setting says.
+    #[test]
+    fn a_contribution_reads_its_plugins_settings() {
+        let t = tempfile::tempdir().unwrap();
+        plugin(t.path(), "catalog", "title = \"Catalog\"\n");
+        plugin(t.path(), "refs", "title = \"Refs\"\n[[setting]]\nkey = \"dir\"\nkind = \"text\"\ndefault = \"refs/papers\"\n[[contributes.catalog.kinds]]\nname = \"paper\"\nfolder = \"{setting:dir}\"\nnote_name = \"{citekey}/{citekey}\"\nother = \"{setting:none}\"\n");
+        let kind = |c: &serde_json::Map<String, Value>| c["refs"]["kinds"][0].clone();
+        let c = contributions(t.path(), &[], "catalog").unwrap();
+        assert_eq!((kind(&c)["folder"].as_str(), kind(&c)["note_name"].as_str(), kind(&c)["other"].as_str()), (Some("refs/papers"), Some("{citekey}/{citekey}"), Some("{setting:none}")));
+        std::fs::create_dir_all(t.path().join(SETTINGS_DIR)).unwrap();
+        std::fs::write(t.path().join(SETTINGS_DIR).join("refs.toml"), "dir = \"papers\"\n").unwrap();
+        assert_eq!(kind(&contributions(t.path(), &[], "catalog").unwrap())["folder"], "papers");
     }
 
     #[test]

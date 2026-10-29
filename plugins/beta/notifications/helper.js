@@ -191,14 +191,32 @@
 			return `${d.getFullYear()}-${two(d.getMonth() + 1)}-${two(d.getDate())}`;
 		}
 	};
+	/** `fn` run after every call before it has ended: two syncs at once (the schedule and a page's "Check now") would poll
+	*  from the same kept id and file the same messages twice. */
+	function oneAtATime(fn) {
+		let last = Promise.resolve();
+		return (a) => {
+			const run = last.then(() => fn(a), () => fn(a));
+			last = run.catch(() => void 0);
+			return run;
+		};
+	}
 	atlas.methods({
-		sync: (p) => syncWith(net, vault, p),
+		sync: oneAtATime(async (p) => {
+			const r = await syncWith(net, vault, p);
+			if (r.new) atlas.event("synced", {
+				new: r.new,
+				loud: r.loud
+			});
+			return r;
+		}),
 		send: (p) => sendWith(net, p)
 	});
 	//#endregion
 	exports.auth = auth;
 	exports.lineOf = lineOf;
 	exports.muted = muted;
+	exports.oneAtATime = oneAtATime;
 	exports.sendWith = sendWith;
 	exports.sourceOf = sourceOf;
 	exports.syncWith = syncWith;

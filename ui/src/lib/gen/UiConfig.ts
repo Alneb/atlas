@@ -94,8 +94,9 @@ sleep_after_min: number,
  */
 awake_tabs: number, 
 /**
- * The libraries the Library page shows, in this order (`drawings`, `references`, `catalog`…: the core's and the
- * vault's plugins'). Empty: every one the vault has. A work vault might keep `["drawings", "references"]`.
+ * The libraries the Library page shows, in this order, by id: the core's `drawings` and `references`, a plugin's
+ * own (`books`, `manga`…), the catalog's one per group of kinds (`catalog.films-series`, `catalog.music`…). Empty:
+ * every one the vault has. Settings → Appearance → Libraries lists them all with a switch and a place.
  */
 libraries: Array<string>, 
 /**

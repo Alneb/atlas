@@ -111,6 +111,12 @@ export interface AtlasHelper {
   /** A zip file of the vault (a vault-relative path): its entries, one entry's text. */
   zip: { list(path: string): { name: string; size: number; dir: boolean }[]; read(path: string, name: string): string };
   hash: { sha256(text: string): string };
+  /** Native: a vault file the page cannot read made once into one it can, in this plugin's cache (→ that copy's
+   *  vault-relative path): a comic archive (zip, tar, 7z; RAR through bsdtar/unar/unrar) into a .cbz, a DjVu book into a
+   *  PDF with its text. Throws with the reason.
+   *  `typstPdf` (API 20): the vault's `.typ` at `path` — or `source` standing there, its pictures read beside it —
+   *  compiled by the core's Typst into the PDF `to` (a vault path) → `to`; `fence`: the page sized to what it holds. */
+  convert: { comicToCbz(path: string): string; djvuToPdf(path: string): string; typstPdf(path: string, to: string, o?: { source?: string; fence?: boolean }): string };
 }
 
 declare global {

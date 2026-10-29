@@ -20,7 +20,7 @@ final class Core {
     static native int[] decodeJxl(byte[] bytes);
     /** A built-in plugin's form from the manifest the app carries: {fields, settings} or {error}. */
     static native String pluginForm(String manifest);
-    /** PDFium (crates/atlas-android/src/pdfium.rs), through Pdfium.java: "" once libpdfium.so at `lib` is loaded, else why. */
+    /** PDFium (crates/atlas-core/src/pdfium.rs), through Pdfium.java: "" once libpdfium.so at `lib` is loaded, else why. */
     static native String pdfiumInit(String lib);
     /** Each page's width, height in points, pair after pair. Throws IllegalArgumentException with why. */
     static native float[] pdfiumPages(String pdf);

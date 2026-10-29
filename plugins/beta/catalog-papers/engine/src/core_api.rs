@@ -139,7 +139,7 @@ impl Companion for CoreApi {
             return Ok(());
         }
         let today = chrono::Local::now().format("%Y-%m-%d").to_string();
-        std::fs::write(&note, entry::plain_note(key, &title, &today)).map_err(|e| format!("{}: {e}", note.display()))
+        atlas_plugin::write_file(&note, entry::plain_note(key, &title, &today).as_bytes()).map_err(|e| e.to_string())
     }
 }
 

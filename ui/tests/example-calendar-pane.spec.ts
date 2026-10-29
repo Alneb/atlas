@@ -6,11 +6,11 @@ import { createServer, type Server } from "node:http";
 import { fileURLToPath } from "node:url";
 import { WS } from "../playwright.config";
 
-// The Calendar pane (plugins/beta/dav: the Rust engine and the Svelte pane, docs/refactor/REFACTOR-calendar.md) on a
+// The Calendar pane (plugins/stable/dav: the Rust engine and the Svelte pane, docs/refactor/REFACTOR-calendar.md) on a
 // public ICS subscription served here, and two CalDAV account cards with no password (nothing is asked of a server):
 // the views, the keys, quick add read by the engine, the event card, each account under its own heading with its
 // problem said. The engine runs as a debug build (built here), as the catalog's helper does.
-const PLUGIN = fileURLToPath(new URL("../../plugins/beta/dav", import.meta.url));
+const PLUGIN = fileURLToPath(new URL("../../plugins/stable/dav", import.meta.url));
 const pad = (n: number) => String(n).padStart(2, "0");
 const ymd = (d: Date) => `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}`;
 const today = new Date();

@@ -65,8 +65,19 @@ export function register(atlas) {
   // a terminal on a host (the "+" menu): a shell there, logging in in that tab when needed
   const terminalOn = async (h) => atlas.terminal.open(await sshLine(h), h.name);
   const runOn = async (h, command) => atlas.terminal.open(await sshLine(h, command), `${h.name}: ${command}`);
-  // a session (Claude's) needs a passphrase or 2FA: a tab of its own where the user answers, only then
-  atlas.helper.on("login", (d) => { atlas.toast(`SSH: log in to ${d.host}`, "Answer the passphrase / 2FA in the new terminal tab."); void atlas.terminal.open(d.command, `${d.host}: log in`); });
+  // the user asked (Connect, Files) and the host wants a passphrase or 2FA: a tab of its own where they answer
+  const loginTab = (d) => atlas.terminal.open(d.command, `${d.host}: log in`);
+  atlas.helper.on("login", (d) => { atlas.toast(`SSH: log in to ${d.host}`, "Answer the passphrase / 2FA in the new terminal tab."); void loginTab(d); });
+  // something in the background (an agent's session, another plugin's polling) needs it: offered once, never a tab
+  // popping up by itself; the cell goes when the host connects
+  const offers = new Map();
+  atlas.helper.on("login_needed", (d) => {
+    if (offers.has(d.host)) return;
+    const item = atlas.shell.statusItem({ id: `login-${d.host}`, text: "", run: () => { void loginTab(d); } });
+    item.set(`ssh: log in to ${d.host}`, `${d.why} needs ${d.host}: click to log in (passphrase / 2FA)`);
+    offers.set(d.host, item);
+    atlas.toast(`SSH: ${d.host} needs a login`, `For ${d.why}. Click "ssh: log in to ${d.host}" in the status bar when you are ready.`);
+  });
   // an agent's ssh_terminal: a tab for the user, then the answer the helper waits for
   atlas.helper.on("tab", async (d) => {
     let ok = false;
@@ -78,6 +89,7 @@ export function register(atlas) {
   let up = [], cell = null;  // the cell exists only while a host is connected
   const show = (list) => {
     up = Array.isArray(list) ? list : [];
+    for (const h of up) { offers.get(h)?.remove(); offers.delete(h); }
     if (!up.length) { cell?.remove(); cell = null; return; }
     cell ??= atlas.shell.statusItem({ id: "connections", text: "", run: () => openShell() });
     cell.set(`ssh: ${up.join(", ")}`, `Connected: ${up.join(", ")} (click: open a shell, no password)`);

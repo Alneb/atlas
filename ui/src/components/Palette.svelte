@@ -6,7 +6,7 @@
   import { tick } from "svelte";
   import { api } from "../lib/api";
   import { Newest } from "../lib/newest";
-  import { palette, closePalette, type PickItem } from "../lib/palette.svelte";
+  import { palette, closePalette, pickChosen, type PickItem } from "../lib/palette.svelte";
   import { open, openPath, activeEditorId, getDock } from "../lib/dock";
   import { recentFiles } from "../lib/recent";
   import { createNote } from "../lib/notes-system";
@@ -191,6 +191,7 @@
   function choose(it: Item | undefined, beside = false) {
     if (!it) return;
     if (it.key.startsWith("c:")) api.usage({ kind: "command", id: it.key.slice(2) });
+    if (palette.mode === "pick") pickChosen();
     closePalette();
     void (beside && it.beside ? it.beside() : it.run());
   }

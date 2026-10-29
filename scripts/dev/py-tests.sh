@@ -21,6 +21,7 @@ suite() { # name, folder, unittest arguments…
 (cd "$root" && cargo build --quiet -p atlas-ssh) || echo "[py] could not build atlas-ssh: the SSH tests will fail"
 suite scripts/vault "$root/scripts/vault" discover -s tests
 suite sdk/python "$root/crates/atlas-core/sdk/python" test_atlas_plugin
+shopt -s nullglob # no plugin keeps a Python test now and then: none is not a failure
 for f in "$root"/plugins/*/*/test_*.py; do
   suite "${f#"$root"/}" "$(dirname "$f")" "$(basename "$f" .py)"
 done

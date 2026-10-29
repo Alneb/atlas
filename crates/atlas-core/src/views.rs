@@ -331,14 +331,19 @@ pub async fn from_plugin(ws: &Workspace, helpers: &crate::helper::Helpers, src: 
     Some(run.await)
 }
 
-/// A tool's answer as rows, by its shape: an array of objects, or the first array in an object (`{events: […]}`). A
+/// A tool's answer as rows, by its shape: an array of objects, or an object's array — `items`, `rows` or `events` when it
+/// has one, else its longest array (`{calendars: [2], events: [40]}` rows the events). A
 /// row's title is its `title`, `summary` or `name`; its date the first ten characters of `date`, `start` or `due`
 /// (`2026-10-22T10:00` → the day); its `path` (or a `source` that is a note) opens it; every other plain field is a prop.
 fn plugin_rows(v: &serde_json::Value) -> Vec<ViewRow> {
     use serde_json::Value;
     let items = match v {
         Value::Array(a) => a.as_slice(),
-        Value::Object(o) => o.values().find_map(Value::as_array).map_or(&[][..], Vec::as_slice),
+        Value::Object(o) => ["items", "rows", "events"]
+            .iter()
+            .find_map(|k| o.get(*k).and_then(Value::as_array))
+            .or_else(|| o.values().filter_map(Value::as_array).max_by_key(|a| a.len()))
+            .map_or(&[][..], Vec::as_slice),
         _ => &[],
     };
     let text = |x: &Value| match x {
@@ -392,6 +397,11 @@ mod tests {
         assert_eq!(rows[0].path.as_deref(), Some("notes/course.md"), "its source note");
         assert_eq!((rows[1].path.as_deref(), rows[1].done), (Some("notes/paper.md"), Some(false)));
         assert_eq!(rows[2].date, None);
+        // several arrays: the named one, else the longest — never whichever key sorts first
+        let two = serde_json::json!({ "calendars": [{ "name": "A" }, { "name": "B" }], "events": [{ "summary": "Exam" }] });
+        assert_eq!(plugin_rows(&two)[0].title, "Exam");
+        let unnamed = serde_json::json!({ "a": [{ "name": "x" }], "b": [{ "name": "y" }, { "name": "z" }] });
+        assert_eq!(plugin_rows(&unnamed).len(), 2);
         // A file-reading evaluation never calls a tool.
         let d = tempfile::tempdir().unwrap();
         assert!(matches!(evaluate(&Workspace::open(d.path()).unwrap(), "x.md", "from: plugin:dav/events"), Err(Error::BadRequest(_))));

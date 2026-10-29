@@ -76,9 +76,9 @@ The menu entry starts the launcher by its full path (`~/.local/bin/atlas-quick-c
 The wish: a blazing fast way to capture things on the phone. The route that needs nothing new on the phone and nothing new on the server: **ntfy**, which many self-hosted servers already run.
 
 - On the phone: the ntfy app, a topic of one's own (say `atlas-inbox`). To capture: open the app and type into that topic — or, from any app, **Share → ntfy → atlas-inbox**, which sends a link or a text in two taps. A home-screen shortcut to the topic makes it one tap to the box.
-- In Atlas: the example plugin `plugins/beta/ntfy/` copied into the vault, its **Topic to capture from** set to that topic (and the token, if the topic is protected). Its helper keeps the subscription open; every message becomes a capture in today's log — or a to-do with `[] `, a dated one with `@tomorrow`, exactly as typed in the capture box. A captured address alone is also clipped into a note when the clip example is installed too.
-- **While Atlas is closed** messages wait in ntfy (for as long as the server's cache keeps them). The helper keeps the id of the last message it captured (in the plugin's cache folder) and, when it starts again, asks ntfy for everything since (`?since=<id>`): what was sent meanwhile is captured then, and nothing twice. Not tested end to end (the stand-in server ignores `since`).
-- **Not checked on a real phone or server** — only against a stand-in in `example-ntfy.spec.ts`.
+- In Atlas: the Notifications plugin (`plugins/beta/notifications/`), its **Topic to capture from** set to that topic (and the token, if the topic is protected). Its `sync` polls the topic every 5 minutes (the core's schedule) and when a page starts; every message becomes a capture in today's log — or a to-do with `[] `, a dated one with `@tomorrow`, exactly as typed in the capture box. A captured address alone is filed by the catalog when it runs.
+- **While Atlas is closed** messages wait in ntfy (for as long as the server's cache keeps them). The helper keeps the id of the last message it captured (in the vault's cache) and asks ntfy for everything since (`?poll=1&since=<id>`): what was sent meanwhile is captured then, and nothing twice (one sync at a time).
+- **Not checked on a real phone or server** — only against a stand-in in `example-notifications.spec.ts` and the helper's unit tests.
 
 ## Not done, and not checked
 

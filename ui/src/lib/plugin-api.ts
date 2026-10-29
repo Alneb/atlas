@@ -20,7 +20,7 @@ import type { NativeSample, PenOptions } from "./pen-target";
 import type { EmbedRender } from "./embed-registry";
 import type { Live, LiveHandlers } from "./live";
 
-export const PLUGIN_API_VERSION = 17;
+export const PLUGIN_API_VERSION = 20;
 
 /** What a plugin's view gets. Kept small and stable: plugins outlive app refactors. */
 export interface PluginApi {
@@ -40,6 +40,16 @@ export interface PluginApi {
   /** Open the plugin's pane (view.js) in a tab, or focus it when one is open on the same `arg`. Each `arg`
    *  (a string: JSON-encode more) is a tab of its own, kept in the layout; the pane reads it as `atlas.arg`. */
   openView(arg?: string, opts?: { title?: string; icon?: string; beside?: boolean }): void;
+  /** (v20) The plugin's pane (view.js) in a popup over the app instead of a tab — a dialog (Export, Print): the same
+   *  module and API, `atlas.arg` = `arg`, `atlas.pane.close()` closes it, as do Escape, Back and its ✕. Resolves when it
+   *  closes; asked again while it is open, the same one. `width`/`height` in px (shrunk to the window). */
+  openDialog(arg?: string, opts?: { title?: string; width?: number; height?: number }): Promise<void>;
+  /** (v20) Zip archives read in the page — a reader that fetched an EPUB or a CBZ: `index(buf)` → name → entry,
+   *  `blob(buf, entry, type?)` → that entry's bytes (stored or deflated). */
+  zip: { index(buf: ArrayBuffer): Map<string, import("./zip").ZipEntry>; blob(buf: ArrayBuffer, entry: import("./zip").ZipEntry, type?: string): Promise<Blob> };
+  /** Open the Libraries page at one library (`registerLibrary`'s id, a catalog's `catalog.films-series`…), or at the
+   *  last one seen there. A plugin's "library" command goes here, so a library is one place (API 19). */
+  openLibrary(id?: string): void;
   /** Run the plugin's data script (`data = …` in plugin.toml) with `args`; resolves to its JSON. */
   data(args?: unknown): Promise<unknown>;
   /** `{ beside: true }`: next to the active tab (the other split, or a new one on the right)

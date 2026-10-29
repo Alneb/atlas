@@ -1,5 +1,5 @@
 //! Git integration: classified log, commit details, status, diff, stage/unstage, commit.
-//! Shells out to `git`.
+//! Shells out to `git`; where git is not installed, every read is done in process instead (git_read.rs, gix).
 use crate::api::{
     Blame, BlameCommit, Change, CommandOrigin, Commit, CommitBy, CommitDetail, CommitKind, FileStat, GitRepo, GitStatus, Mtime, Patch, StatusEntry,
 };
@@ -33,6 +33,28 @@ impl GitStatus {
 
 /// What a newcomer without git is told, instead of the system's "No such file or directory".
 const NO_GIT: &str = "git is not installed on this computer: the Git panel, a note's history and the commits in Activity need it (install git from the system's packages)";
+
+/// Whether the git program runs here (asked once).
+fn has_git() -> bool {
+    static HAS: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *HAS.get_or_init(|| !matches!(git(Path::new("."), &["--version"]), Err(e) if e.kind() == std::io::ErrorKind::NotFound))
+}
+
+/// A commit read in process, as the log lists it.
+fn listed(r: crate::git_read::Read, marks: &[(String, Vec<String>)]) -> Commit {
+    let files: Vec<String> = r.files.into_iter().map(|f| f.0).collect();
+    let (by, agent, kind) = classify(&r.author, &r.body, &files, marks);
+    Commit { hash: r.hash.chars().take(7).collect(), subject: r.subject, time: Mtime(r.time.max(0) as u64 * 1000), by, agent, kind, files: files.len() as u32 }
+}
+
+/// A git date as the log takes it (`yesterday`, `@<seconds>`) in unix seconds, for the in-process log.
+fn since_secs(since: &str) -> Option<i64> {
+    use chrono::{Duration, Local, TimeZone};
+    match since {
+        "yesterday" => Local.from_local_datetime(&(Local::now().date_naive() - Duration::days(1)).and_hms_opt(0, 0, 0)?).earliest().map(|t| t.timestamp()),
+        s => s.strip_prefix('@')?.parse().ok(),
+    }
+}
 
 /// git could not be started.
 fn not_started(e: std::io::Error) -> Error {
@@ -84,6 +106,12 @@ fn classify(author: &str, body: &str, files: &[String], marks: &[(String, Vec<St
 
 /// Who added `rel` (its first commit) and when; None when untracked or not a repo.
 pub fn file_origin(root: &Path, rel: &str) -> Option<CommandOrigin> {
+    if !has_git() {
+        let all = crate::git_read::commits(root, None, None, 0, usize::MAX, true).ok()?;
+        let first = all.into_iter().rfind(|c| c.files.iter().any(|(p, ch)| p == rel && *ch == Change::Added))?;
+        let (by, agent, _) = classify(&first.author, &first.body, &[], &agent_marks(root));
+        return Some(CommandOrigin { by, agent, time: Mtime(first.time.max(0) as u64 * 1000) });
+    }
     let out = git(root, &["log", "--diff-filter=A", "--format=%x1e%an%x1f%ct%x1f%b", "--", rel]).ok()?;
     let text = String::from_utf8_lossy(&out.stdout);
     let first = text.split('\x1e').rfind(|r| !r.trim().is_empty())?;
@@ -119,6 +147,11 @@ fn parse_log(text: &str, marks: &[(String, Vec<String>)]) -> Vec<Commit> {
 
 /// Recent commits, newest first. `since` is a git date (`yesterday`); empty when not a repo.
 pub fn log(root: &Path, since: Option<&str>, skip: u32, limit: u32) -> Vec<Commit> {
+    if !has_git() {
+        let marks = agent_marks(root);
+        let read = crate::git_read::commits(root, since.and_then(since_secs), None, skip as usize, limit as usize, true).unwrap_or_default();
+        return read.into_iter().map(|r| listed(r, &marks)).collect();
+    }
     let (skip, limit) = (format!("--skip={skip}"), format!("--max-count={limit}"));
     let mut args = vec!["log", LOG_FORMAT, "--name-only", &skip, &limit];
     let since_arg;
@@ -155,6 +188,12 @@ fn cut(mut patch: String) -> Patch {
 
 pub fn commit_detail(root: &Path, hash: &str) -> Result<CommitDetail> {
     check_hash(hash)?;
+    if !has_git() {
+        let (r, files, patch) = crate::git_read::commit_detail(root, hash)?;
+        let names: Vec<String> = files.iter().map(|f| f.path.clone()).collect();
+        let (by, agent, kind) = classify(&r.author, &r.body, &names, &agent_marks(root));
+        return Ok(CommitDetail { hash: r.hash, subject: r.subject, body: r.body, author: r.author, time: Mtime(r.time.max(0) as u64 * 1000), by, agent, kind, files, patch: cut(patch) });
+    }
     let head = git_ok(root, &["show", "-s", "--format=%H%x1f%s%x1f%ct%x1f%an%x1f%b", hash])?;
     let mut f = head.splitn(5, '\x1f');
     let bad = || Error::BadRequest(format!("unreadable commit {hash}"));
@@ -278,6 +317,18 @@ pub struct Births {
 }
 
 pub fn births(root: &Path, since: i64, until: i64) -> Option<Births> {
+    if !has_git() {
+        let mut added = std::collections::HashMap::new();
+        for c in crate::git_read::commits(root, Some(since), Some(until), 0, usize::MAX, true).ok()? {
+            for (p, ch) in c.files {
+                if ch == Change::Added {
+                    added.entry(p).or_insert(c.time); // newest first: keep the first seen, as below
+                }
+            }
+        }
+        let tracked = crate::git_read::tracked(root).ok()?;
+        return (!tracked.is_empty() || !added.is_empty()).then(|| Births { tracked: tracked.into_iter().collect(), added });
+    }
     let tracked = git_ok(root, &["ls-files", "-z"]).ok()?;
     let log = git_ok(root, &["log", "--relative", "--diff-filter=A", "--name-only", "--format=%x01%at", &format!("--since=@{since}"), &format!("--until=@{until}")]).ok()?;
     let mut added = std::collections::HashMap::new();
@@ -323,6 +374,9 @@ fn status_now(root: &Path) -> Result<GitStatus> {
 
 /// Working-tree diff of one file (`staged` = index vs HEAD). Untracked files diff against nothing.
 pub fn diff(root: &Path, rel: &str, staged: bool) -> Result<Patch> {
+    if !has_git() {
+        return Ok(cut(crate::git_read::diff(root, rel, staged)?));
+    }
     let mut args = vec!["diff", "--no-color"];
     if staged {
         args.push("--cached");
@@ -342,6 +396,9 @@ pub fn diff(root: &Path, rel: &str, staged: bool) -> Result<Patch> {
 
 /// Who last changed each line of `rel` (`git blame --porcelain`); unsaved lines count as the file on disk has them.
 pub fn blame(root: &Path, rel: &str) -> Result<Blame> {
+    if !has_git() {
+        return crate::git_read::blame(root, rel);
+    }
     match git_ok(root, &["blame", "--porcelain", "--", rel]) {
         Ok(text) => Ok(read_blame(&text)),
         // outside a repository, or a file git does not know: no history to show

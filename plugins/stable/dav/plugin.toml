@@ -1,0 +1,239 @@
+# Calendar (plugin id `dav`): CalDAV accounts (any CalDAV server, as many as
+# wanted), ICS subscriptions and CardDAV contacts, in a pane of its own (docs/design/DESIGN-calendar.md, README.md,
+# docs/refactor/REFACTOR-calendar-accounts.md). The engine (engine/, Rust) keeps a local cache synced behind, expands
+# recurrences in the user's zone, writes to any calendar of any account, reads quick-add text, files the invitations
+# Email hands it (`import_invite`) and answers Email's address book. It never reads mail; notes marked
+# `important: true` with `due:` / `event:` are shown, and put on the server, only when switched on.
+title = "Calendar"
+description = "your calendars in a pane: month, week, day, agenda; several CalDAV accounts and ICS subscriptions; invitations from Email; contacts"
+icon = "calendar"
+version = "1.2.2"
+rail = true          # a button for the Calendar pane (view.js)
+api = 12             # Settings v2: account cards (status, Test, presets), hidden / advanced fields, a drawn section
+
+[helper]
+# built by engine/build.sh: one static binary per platform (it also runs in the server's container)
+run = "\"${ATLAS_PLUGIN_BIN:-$ATLAS_PLUGIN_DIR/bin/$ATLAS_PLUGIN_TARGET}/dav\""
+
+[permissions]
+secrets = true   # each account's app password (accounts.<name>.password), in Atlas's secret store, never in the vault
+
+# ----- Accounts first: one card per CalDAV server / user, written as [[accounts]] in .atlas/plugin-settings/dav.toml
+[[setting]]
+key = "accounts"
+label = "Accounts"
+kind = "records"
+add = "Add account"
+hint = "One card per calendar server and user: your own server, a university's Nextcloud, a shared team account. Each one's calendars are read and can be written to; contacts come from the same accounts."
+actions = [{ label = "Test", command = "test-account" }]
+list_actions = [{ label = "Sync now", command = "sync-now" }]
+account = { kind = "Calendar", summary = "{user} · {url}", status = "account_status", test = "test_account", presets = [
+  { label = "RustiCal", hint = "an app token from its web page → App tokens", values = { url = "https://cal.example.org/caldav/" } },
+  { label = "Nextcloud", hint = "an app password from Settings → Security → Devices & sessions", values = { url = "https://cloud.example.org/remote.php/dav/" } },
+] }
+fields = [
+  { key = "name", label = "Name", kind = "text", hint = "short: it starts each calendar's id (home/personal). Letters, digits, . @ - _" },
+  { key = "url", label = "Server address", kind = "text", hint = "https://cal.example.org/caldav/ (RustiCal), https://host/remote.php/dav/ (Nextcloud); the server's top often works too" },
+  { key = "user", label = "User name", kind = "text" },
+  { key = "password", label = "App password", kind = "secret", hint = "an app password made on the server (RustiCal: its web page → App tokens), not your sign-in password" },
+  { key = "color", label = "Colour", kind = "text", hint = "#hex for this account's calendars that have no colour of their own; empty: picked from the name" },
+]
+
+[[setting]]
+key = "calendar"
+label = "New events go to"
+kind = "text"
+suggest = "suggest_calendars"
+hint = "a calendar of any account (offered once an account is saved). Empty: the first account's first calendar. The pane remembers the one you used last; invitations and Claude's events go here unless they say otherwise"
+
+[[setting]]
+key = "subscriptions"
+label = "Subscriptions"
+kind = "records"
+add = "Subscribe to a calendar"
+hint = "public calendars by address (https:// or webcal://): holidays, a seminar series. Read-only; fetched again only when they changed"
+actions = [{ label = "Test", command = "test-subscription" }]
+fields = [
+  { key = "name", label = "Name", kind = "text", hint = "short: holidays, seminars (letters, digits, . @ - _)" },
+  { key = "url", label = "Address", kind = "text", hint = "the .ics address; webcal:// works" },
+  { key = "color", label = "Colour", kind = "text", hint = "#hex; empty: one is picked" },
+  { key = "refresh", label = "Fetch every (minutes)", kind = "number", default = 60 },
+]
+
+# ----- The pane
+[[setting]]
+key = "default_view"
+label = "Opens on"
+kind = "choice"
+choices = ["week", "month", "workweek", "day", "agenda", "year"]
+default = "week"
+group = "The pane"
+hint = "then the pane remembers the last view you chose"
+
+[[setting]]
+key = "week_start"
+label = "Weeks start on"
+kind = "choice"
+choices = ["locale", "monday", "sunday", "saturday"]
+default = "locale"
+group = "The pane"
+
+[[setting]]
+key = "time_format"
+label = "Clock"
+kind = "choice"
+choices = ["24h", "12h"]
+default = "24h"
+group = "The pane"
+hint = "times are always your local time"
+
+[[setting]]
+key = "day_start"
+label = "Day view starts at (hour)"
+kind = "number"
+default = 8
+group = "The pane"
+
+[[setting]]
+key = "show_notes"
+label = "Show important notes"
+kind = "toggle"
+default = false
+group = "The pane"
+hint = "notes with important: true and a due: or event: date, as a calendar of their own (mail is never read)"
+
+# ----- Sync
+[[setting]]
+key = "refresh"
+advanced = true
+label = "Check the servers every (minutes)"
+kind = "number"
+default = 5
+group = "Sync"
+hint = "a check that finds nothing new costs one small request per calendar"
+
+[[setting]]
+key = "push_server"
+label = "Instant updates through ntfy"
+kind = "text"
+group = "Sync"
+hint = "your own ntfy server (https://ntfy.example.org): a calendar whose server offers WebDAV Push (RustiCal does) tells it of each change, and the calendar updates at once. Empty: the Notifications plugin's server when it is set up, else only the regular check. Your calendar server must be able to publish to up… topics on it"
+
+[[setting]]
+key = "push_user"
+label = "ntfy user"
+kind = "text"
+group = "Sync"
+hint = "the ntfy user that may read up… topics, with its password below (or leave it empty and give a token). Empty user, password and token: the Notifications plugin's sign-in is not shared, so give it here too"
+
+[[setting]]
+key = "push_password"
+label = "ntfy password"
+kind = "secret"
+group = "Sync"
+
+[[setting]]
+key = "push_token"
+label = "ntfy access token"
+kind = "secret"
+group = "Sync"
+hint = "instead of a user and password; empty when ntfy lets anyone read"
+
+[[setting]]
+key = "push_notes"
+label = "Put important notes on the server"
+kind = "toggle"
+default = false
+group = "Sync"
+hint = "when a note with important: true and due: / event: changes, its date is written to the calendar new events go to. Mail is never read: invitations come from Email when you answer them"
+
+[[setting]]
+key = "folders"
+advanced = true
+label = "Only notes in these folders"
+kind = "list"
+group = "Sync"
+hint = "empty: the whole vault"
+
+[[setting]]
+key = "past_days"
+advanced = true
+label = "Skip dates older than (days)"
+kind = "number"
+default = 30
+group = "Sync"
+
+# ----- Kept by the pane and the "Calendars" section (main.ts): never in the form
+[[setting]]
+key = "hidden"
+label = "Hidden calendars"
+kind = "list"
+hidden = true
+hint = "calendar ids, written by the pane's checkboxes"
+
+[[setting]]
+key = "colors"
+label = "Calendar colours"
+kind = "list"
+hidden = true
+hint = "id: #hex, written by the pane's colour menu"
+
+[[tool]]
+name = "calendars"
+description = "The user's calendars, grouped by account (several CalDAV accounts): each calendar's id (pass it as `calendar` to the other tools, e.g. \"home/personal\"), name, whether it may be written, its colour; the default calendar new events go to; the ICS subscriptions; each account's state (ok / error and why)."
+input = {}
+secrets = ["*"]
+
+[[tool]]
+name = "events"
+description = "Events between two days (default: today to 30 days on), every repeat expanded, times in the user's local zone (2026-11-04T10:00:00-05:00; all-day events as dates, end exclusive): uid, summary, start, end, all_day, location, description, calendar (its id), calendar_name, source (the note or mail an event came from). Every visible calendar of every account and every subscription, or only `calendar`."
+input = { from = { type = "string", description = "first day, YYYY-MM-DD (default today)", optional = true }, to = { type = "string", description = "last day, YYYY-MM-DD (default from + 30 days)", optional = true }, calendar = { type = "string", description = "a calendar id from dav_calendars (or its name when only one calendar has it); default: every visible one", optional = true } }
+secrets = ["*"]
+
+[[tool]]
+name = "agenda"
+description = "Today's events and the next days' (default: today only), in the user's local time, from every visible calendar of every account: each with day, time (\"10:00\" or \"all day\"), line (\"10:00 Group meeting\"), summary, start, end, location, calendar (id), calendar_name."
+input = { days = { type = "integer", description = "how many days from today (default 1)", optional = true } }
+secrets = ["*"]
+
+[[tool]]
+name = "add_event"
+description = "Adds an event to one of the user's calendars — for dates the user wants tracked (a deadline, a meeting, an exam you read in a mail or a note). Idempotent: the UID comes from `source` (+ `key`), so adding the same thing again updates it instead of duplicating it. start: YYYY-MM-DD (all-day) or YYYY-MM-DDTHH:MM (local wall-clock time; add Z or +01:00 for an exact instant). end: optional (all-day: the last day, inclusive; timed: default one hour). Answers the calendar's id it went to."
+input = { title = "string", start = "string", end = "string?", all_day = "boolean?", description = "string?", location = "string?", source = { type = "string", description = "where the date comes from: the vault path of the note, or the mail's Message-ID (from email_read) — gives the stable UID" }, key = { type = "string", description = "tells several events of one source apart (deadline, meeting); empty for the source's one event", optional = true }, uid = { type = "string", description = "update this existing event instead (from dav_events)", optional = true }, calendar = { type = "string", description = "a calendar id from dav_calendars (any account's); default: the one Settings names for new events", optional = true } }
+secrets = ["*"]
+
+[[tool]]
+name = "remove_event"
+description = "Removes an event from the user's calendars by its UID (from dav_events or dav_add_event); the calendar it is in is found by itself. Only when the user asked for it to be removed."
+input = { uid = "string", calendar = { type = "string", description = "a calendar id, when the UID is in several", optional = true } }
+secrets = ["*"]
+
+[[tool]]
+name = "import_invite"
+description = "Files a meeting invitation the user answered into their calendar: their answer (PARTSTAT) on their ATTENDEE line, METHOD dropped, the mail's Message-ID kept as the event's source; a cancellation (METHOD:CANCEL) marks the calendar's copy cancelled. A copy already in any account's calendar is updated there; else it goes to `calendar` or the default. Answers the UID, the calendar's id, status (added / updated / unchanged) and the first occurrence's start and end in local time. Only after the user answered the invitation. (Email calls this when the user answers; the Calendar never reads mail.)"
+input = { ics = { type = "string", description = "the invitation's calendar text (the mail's text/calendar part or .ics)" }, source = { type = "string", description = "the mail's Message-ID" }, partstat = { type = "string", description = "the user's answer: ACCEPTED, TENTATIVE or DECLINED", optional = true }, attendee = { type = "string", description = "the user's address as invited", optional = true }, calendar = { type = "string", description = "a calendar id (default: the one for new events)", optional = true } }
+secrets = ["*"]
+
+[[tool]]
+name = "invite_status"
+description = "Whether an invitation is already in one of the user's calendars, the user's answer there (partstat), its start and end in local time, and the events it overlaps in every visible calendar (conflicts: summary, start, end, calendar). Read-only."
+input = { ics = { type = "string", description = "the invitation's calendar text" }, attendee = { type = "string", description = "the user's address as invited", optional = true } }
+secrets = ["*"]
+
+[[tool]]
+name = "contacts"
+description = "The user's contacts from the CardDAV address books of every account: name, e-mail addresses, organisation. q filters by name, address or organisation."
+input = { q = { type = "string", description = "part of a name, address or organisation (empty: all)", optional = true }, limit = { type = "integer", description = "at most (default 20)", optional = true } }
+secrets = ["*"]
+
+[[tool]]
+name = "sync"
+description = "Puts the vault's important notes on the calendar new events go to: notes marked important: true with a due: or event: date (never mail, never calendar files). Runs by itself after notes change when Settings switches it on; called with no paths it reads every note in the folders. Answers what was added, updated, unchanged, skipped."
+input = { paths = { type = "array", description = "only these vault paths (Atlas passes the changed ones)", optional = true } }
+secrets = ["*"]
+timeout_secs = 300
+on = "fs"
+
+# where it runs (PLUGIN-API.md, "Platforms"); a platform not named is untested (Android: only with `phone = true`)
+[platforms]
+linux = "works"

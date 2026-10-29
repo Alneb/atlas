@@ -1,0 +1,31 @@
+# Today, drawn: the greeting's chips (the week, the moon, what is due), the top of a day's log (`daily.header`: the day
+# in words, the weather the Weather plugin noted, the day's events and tasks, the days before and after), and two
+# blocks that give the vault a shape (`home.map`, its topics as a tree; `home.areas`, its top folders). Everything is
+# read from the notes; nothing is written.
+title = "Today"
+description = "the greeting's week, moon and what is due; the top of a day's log; a map and the areas of the vault"
+icon = "today"
+version = "0.3.0"
+api = 19
+phone = true
+# it was two plugins, Daily and Home: a vault that had them keeps their settings (one language now)
+replaces = ["home", "daily"]
+
+[[setting]]
+key = "language"
+label = "Language"
+kind = "choice"
+choices = ["auto", "en", "es", "fr"]
+default = "auto"
+hint = "of the date and the chips; auto: this device's language (the chips' words are English or Spanish)"
+
+[[setting]]
+key = "by"
+label = "Map: the property notes hang from"
+kind = "text"
+default = "topics"
+hint = "the links that make the vault's tree (topics, up, parent…)"
+
+# where it runs (PLUGIN-API.md, "Platforms"); a platform not named is untested (Android: only with `phone = true`)
+[platforms]
+linux = "works"

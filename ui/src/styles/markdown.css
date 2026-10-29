@@ -197,7 +197,7 @@ html.phone .markdown a::after, html.phone .markdown .cm-link::after, html.phone 
 .markdown .drawing-edit { position: absolute; top: 6px; right: 6px; opacity: 0; transition: opacity .12s; font-size: .8em; padding: 2px 8px; border-radius: 999px; background: var(--bg-elev); border: 1px solid var(--border); color: var(--text-muted); cursor: pointer; }
 .markdown .drawing-embed:hover .drawing-edit, .markdown .drawing-edit:focus-visible { opacity: 1; }
 
-/* A mail kept as a note (plugins/beta/email, `html_block`): its own HTML, drawn as the mail laid it out — its
+/* A mail kept as a note (plugins/stable/email, `html_block`): its own HTML, drawn as the mail laid it out — its
    layout tables are not the note's data tables (no grid, no header shading), its paragraphs keep the mail's spacing,
    and it never widens the pane. */
 /* always on a light sheet, as mail apps draw HTML mail in a dark theme: a mail sets its own (dark) text colours */

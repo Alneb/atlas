@@ -13,8 +13,8 @@ static PATTERNS: LazyLock<Mutex<HashMap<PathBuf, (Instant, Patterns)>>> = LazyLo
 const FRESH: Duration = Duration::from_secs(30);
 static LINK: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"https?://\S+").expect("static"));
 
-/// The patterns of the catalog plugins that can run in this vault (none when the catalog is off), read again after
-/// FRESH so a plugin switched on shows up.
+/// The patterns of the catalog plugins that can run in this vault (none when the catalog is off, or its
+/// `on_capture` setting — "File links from every capture" — is false), read again after FRESH so a change shows up.
 fn patterns(root: &Path, cfg: &Config) -> Patterns {
     let mut cache = PATTERNS.lock().unwrap();
     if let Some((at, p)) = cache.get(root) {
@@ -24,7 +24,7 @@ fn patterns(root: &Path, cfg: &Config) -> Patterns {
     }
     let all = crate::plugins::list(root);
     // the role, not a plugin's id: whichever plugin `provides = ["catalog"]` (its contributions are `[contributes.catalog]`)
-    let on = crate::plugins::provider(&all, &cfg.plugins.off, "catalog").is_some();
+    let on = crate::plugins::provider(&all, &cfg.plugins.off, "catalog").is_some_and(|p| p.settings.get("on_capture") != Some(&serde_json::Value::Bool(false)));
     let mut out = vec![];
     if on {
         for (_, t) in crate::plugins::contributions(root, &cfg.plugins.off, "catalog").unwrap_or_default() {
@@ -79,5 +79,15 @@ mod tests {
         assert_eq!(kind_of(d.path(), &cfg, "https://example.org/post").as_deref(), Some("article"));
         assert_eq!(kind_of(d.path(), &cfg, "buy milk"), None);
         assert_eq!((kind_words("movie"), kind_words("album"), kind_words("article")), ("a film".into(), "an album".into(), "a web page".into()));
+    }
+
+    /// With "File links from every capture" off the catalog files nothing from a capture, so the box promises nothing.
+    #[test]
+    fn no_hint_while_the_catalog_files_nothing_from_captures() {
+        let d = tempfile::tempdir().unwrap();
+        let p = d.path().join(".atlas/plugins/catalog");
+        std::fs::create_dir_all(&p).unwrap();
+        std::fs::write(p.join("plugin.toml"), "title = \"Catalog\"\nprovides = [\"catalog\"]\n[settings]\non_capture = false\n").unwrap();
+        assert_eq!(kind_of(d.path(), &Config::default(), "https://example.org/post"), None);
     }
 }

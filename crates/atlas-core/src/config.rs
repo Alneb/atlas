@@ -281,11 +281,21 @@ pub struct AutomationConfig {
     /// Run workspace commands that have a `schedule` (e.g. `daily 03:00`) while Atlas is open.
     /// Results: the Commands pane and `.atlas/cache/schedule.log`; failures notify.
     pub run_schedules: bool,
+    /// The computers that run them, by host name; empty: every computer that opens the vault. A vault synced to
+    /// several computers runs a schedule on one, so two never write its output at once (Syncthing conflict copies).
+    pub schedules_on: Vec<String>,
 }
 
 impl Default for AutomationConfig {
     fn default() -> Self {
-        Self { run_schedules: true }
+        Self { run_schedules: true, schedules_on: Vec::new() }
+    }
+}
+
+impl AutomationConfig {
+    /// Whether the computer named `host` runs the schedules.
+    pub fn schedules_here(&self, host: &str) -> bool {
+        self.run_schedules && (self.schedules_on.is_empty() || self.schedules_on.iter().any(|h| h.trim().eq_ignore_ascii_case(host)))
     }
 }
 
@@ -342,8 +352,9 @@ pub struct UiConfig {
     pub sleep_after_min: u32,
     /// The tabs seen last never sleep, however long unseen: switching among these stays instant.
     pub awake_tabs: u32,
-    /// The libraries the Library page shows, in this order (`drawings`, `references`, `catalog`…: the core's and the
-    /// vault's plugins'). Empty: every one the vault has. A work vault might keep `["drawings", "references"]`.
+    /// The libraries the Library page shows, in this order, by id: the core's `drawings` and `references`, a plugin's
+    /// own (`books`, `manga`…), the catalog's one per group of kinds (`catalog.films-series`, `catalog.music`…). Empty:
+    /// every one the vault has. Settings → Appearance → Libraries lists them all with a switch and a place.
     pub libraries: Vec<String>,
     /// The apps at the top of the left bar (Home, the Library, plugins' panes with `rail = true`) put first, in this
     /// order, by key (`home`, a built-in's or a plugin's id); the others follow in their own order.

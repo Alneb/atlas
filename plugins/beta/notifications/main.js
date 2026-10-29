@@ -1,8 +1,9 @@
 // Notifications (docs/design/DESIGN-notifications.md): the server's messages, a note per source in the folder set
-// (newest first). The helper's `sync` files them — every 5 minutes on the server, and here when the page starts and
-// every 5 minutes while it is open — and answers the new ones from sources not muted, which become toasts. The bell
-// in the status bar counts what is unread; opening a source's note reads it. A source is muted from its note's
-// `muted:` (true, or a date), here with "Notifications: mute a source…".
+// (newest first). The helper's `sync` files them — every 5 minutes by the core's schedule, once when the page starts,
+// and on "Check now" — and says what it found as a `synced` event, whose loud messages (sources not muted) become
+// toasts here. The bell in the status bar counts what is unread; opening a source's note reads it. A source is muted
+// from its note's `muted:` (true, or a date), here with "Notifications: mute a source…". "Send to my phone" (a command,
+// the editor menu) goes through the helper's `send`, as the agents' `notifications_send` tool does.
 export function register(atlas) {
   const folder = () => String(atlas.plugin.settings.folder || "notifications").replace(/\/+$/, "");
   const isNote = (path) => path?.startsWith(`${folder()}/`) && path.endsWith(".md");
@@ -17,15 +18,26 @@ export function register(atlas) {
     for (const p of await notes()) n += Number((await atlas.noteProps(p).catch(() => ({}))).unread) || 0;
     bell.set(n ? `🔔 ${n}` : "🔔", n ? `${n} unread notification${n === 1 ? "" : "s"}` : "Notifications");
   }
+  // whoever ran the sync (the schedule, this page, another window): its loud messages are toasted once, here
+  const unhear = atlas.helper.on("synced", (a) => {
+    for (const m of (a?.loud ?? []).slice(-5)) atlas.toast(`${m.source}: ${m.title}`, m.text, "info", { run: () => atlas.open(m.path) });
+    void count();
+  });
   async function sync(quiet) {
     try {
       const r = await atlas.helper.call("sync", {}, { timeout: 60 });
       const a = r.result ?? r;
-      for (const m of (a.loud ?? []).slice(-5)) atlas.toast(`${m.source}: ${m.title}`, m.text, "info", { run: () => atlas.open(m.path) });
       if (!quiet && !a.new) atlas.toast("Notifications", a.problems?.length ? a.problems.join("; ") : "nothing new");
     } catch (e) { if (!quiet) atlas.toast("Notifications", String(e.message ?? e), "error"); }
     void count();
   }
+  async function send(text, title) {
+    try {
+      const r = await atlas.helper.call("send", { text, title: title || "Atlas" });
+      atlas.toast("Sent to your phone", `through ${(r.result ?? r).through}`, "success");
+    } catch (e) { atlas.toast("Not sent", String(e.message ?? e).replace(/^\w+Error: /, ""), "error"); }
+  }
+  const from = () => atlas.context().active?.path?.split("/").pop()?.replace(/\.(md|page)$/, ""); // a note or a page, by its name
   async function list() {
     const items = await Promise.all((await notes()).map(async (p) => {
       const props = await atlas.noteProps(p).catch(() => ({}));
@@ -61,13 +73,10 @@ export function register(atlas) {
   } });
   atlas.registerCommand({ id: "send", title: "Notifications: send to my phone…", run: () => atlas.pick({
     placeholder: "What to send to your phone…", tag: "Phone", items: [], typed: (t) => `Send “${t}”`,
-    onpick: async (text) => {
-      try { const r = await atlas.helper.call("send", { text }); atlas.toast("Sent to your phone", `through ${(r.result ?? r).through}`, "success"); }
-      catch (e) { atlas.toast("Not sent", String(e.message ?? e), "error"); }
-    },
+    onpick: (text) => void send(text, from()),
   }) });
+  atlas.shell.menu("editor", (t) => ((t.selection ?? "").trim() ? [{ label: "Send the selection to my phone", icon: "arrow-up", run: () => send(t.selection.trim(), from()) }] : []));
 
-  void sync(true);
-  const every = setInterval(() => void sync(true), 5 * 60 * 1000);
-  return () => clearInterval(every);
+  void sync(true); // then the core's schedule, every 5 minutes; its findings arrive as `synced`
+  return unhear;
 }

@@ -37,8 +37,15 @@ schemars = { version = "1", features = ["preserve_order"] }
 toml_edit = "0.25.15"
 serde_yaml = "0.9"
 regex = "1"
+# PDFium loaded at run time (src/pdfium.rs): covers here, the phone reader's pages, text, find and links
+libloading = "0.8"
 image = { version = "0.25", default-features = false, features = ["png", "jpeg", "webp"] }
-zip = { version = "8", default-features = false, features = ["deflate"] } # an EPUB's cover (thumbs.rs)
+zip = { version = "8", default-features = false, features = ["deflate"] } # an EPUB's cover (thumbs.rs), comics (convert.rs)
+# comic archives and DjVu books made readable (convert.rs), pure Rust so the phone does it too
+tar = "0.4"
+flate2 = "1"
+sevenz-rust2 = { version = "0.24", default-features = false, features = ["bzip2", "ppmd", "deflate"] }
+djvu-rs = { version = "0.43", default-features = false, features = ["std", "pdf"] }
 # JPEG XL thumbnails (src/thumbs.rs): pure Rust, so the phone's build needs no C either
 jxl-oxide = "0.12"
 reqwest = { workspace = true, features = ["blocking", "rustls-tls", "stream"] }
@@ -55,12 +62,20 @@ tokio-tungstenite = { version = "0.28", features = ["rustls-tls-webpki-roots"] }
 grep-searcher = "0.1.17"
 grep-regex = "0.1.14"
 grep-matcher = "0.1.9"
-gix = { version = "0.90.0", default-features = false, features = ["status", "sha1"] }
+gix = { version = "0.90.0", default-features = false, features = ["status", "sha1", "revision", "blob-diff", "blame", "index"] }
+# unified diffs of the in-process git reads (git_read.rs)
+similar = "2"
 # plugins' JavaScript helpers, run in the core (js_helper.rs): QuickJS, one context per plugin
 rquickjs = { version = "0.14", default-features = false, features = ["std"] }
 # their heavy primitives, natively (js_native.rs): HTML selection, CSV
 scraper = "0.27"
 csv = "1"
+# Typst (typst_doc.rs): ```typst fences as SVG, a vault .typ into a PDF (the Export plugin); fonts embedded + the machine's
+typst = "0.15.1"
+typst-layout = "0.15.1"
+typst-svg = "0.15.1"
+typst-pdf = "0.15.1"
+typst-kit = { version = "0.15.1", default-features = false, features = ["embedded-fonts", "scan-fonts"] }
 
 # the few OS calls of platform/proc.rs (is a pid alive, the host name)
 [target.'cfg(unix)'.dependencies]
@@ -76,5 +91,6 @@ windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_System_
 
 [dev-dependencies]
 tempfile = "3"
+sevenz-rust2 = { version = "0.24", default-features = false, features = ["compress", "util"] } # a .cb7 made in a test
 reqwest = { workspace = true, features = ["blocking", "rustls-tls"] }
 tokio-tungstenite = "0.28"

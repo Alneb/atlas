@@ -66,7 +66,7 @@ export const PAGES: PageDef[] = [
   },
   {
     id: "appearance", title: "Appearance", group: "general", icon: "sun", blurb: "Colours, fonts, sizes, how tabs are shown and where the side panel sits; e-ink screens (a Boox) get pure black on white. A split shows two tabs side by side; a tab outside it shows alone and a click on the pair brings both back. Super+F puts one tab over the whole window. Changes apply as you make them.",
-    fields: ["ui.theme", "ui.accent", "ui.vscode_theme", "ui.font_size", "ui.ui_font", "ui.motion", "ui.eink", "ui.eink_refresh", "ui.tabs", "ui.side_panel", "ui.restore_layout", "ui.tab_preview", "ui.tab_switcher", "ui.sleep_after_min", "ui.awake_tabs", "ui.libraries",
+    fields: ["ui.theme", "ui.accent", "ui.vscode_theme", "ui.font_size", "ui.ui_font", "ui.motion", "ui.eink", "ui.eink_refresh", "ui.tabs", "ui.side_panel", "ui.restore_layout", "ui.tab_preview", "ui.tab_switcher", "ui.sleep_after_min", "ui.awake_tabs",
       "editor.prose_font", "editor.prose_font_size", "editor.prose_line_height", "editor.prose_width",
       "editor.code_font", "editor.code_font_size", "editor.inline_title"],
     features: ["ui.theme", "ui.zoomIn", "ui.zoomOut", "ui.zoomReset", "ui.zoomAllIn", "ui.zoomAllOut", "ui.zoomAllReset", "ui.sidePanel", "ui.sidePanel.move", "ui.fullscreen", "ui.resetLayout"], panels: ["preview", "apps", "snippets"],
@@ -149,7 +149,7 @@ export const PAGES: PageDef[] = [
 ];
 
 /** Fields edited by a custom panel, never as a raw row. */
-export const HIDDEN = new Set(["ui.css_snippets_off", "ui.apps_order", "ui.apps_hidden", "plugins.off", "files.open_with",
+export const HIDDEN = new Set(["ui.css_snippets_off", "ui.apps_order", "ui.apps_hidden", "ui.libraries", "plugins.off", "files.open_with",
   // Accounts → Sign-ins for plugins edits these (components/settings/SigninsPanel.svelte)
   "plugins.oidc_issuer", "plugins.oidc_client_id", "plugins.oidc_redirect"]);
 

@@ -1,27 +1,49 @@
-# Claude usage
+# Claude
 
-A status-bar cell — **Claude 42 %** — with how much of the Claude plan's limits is used by the Claude Code account Atlas runs Claude as: its session (5-hour) limit in the bar (⚠ from **Warn from**, 80 %), its limits with when they reset on hover, and a notice once per 5-hour window when the session limit passes the warning. A click (or **Claude: show usage**) looks again at once. Asked by the user on 2026-10-15: *"also you should write an usage indicator into the app when using claude"*.
+Claude Code as one of Atlas's AI agents, and your Claude plan's usage in the status bar.
 
-**Where the numbers come from.** The same request as `claude-acc usage` and Claude Code's session hooks (`~/.claude/hooks/usagelib.py`): `GET https://api.anthropic.com/api/oauth/usage` with the account's own access token, read from its `.credentials.json` at each look — `$CLAUDE_CONFIG_DIR`, `~/.claude` and every `~/.claude-switch/**/.credentials.json`. Each account is named by its **email**, read from Claude Code's own `.claude.json` beside the credentials (`~/.claude.json` for `~/.claude`); an account without one is named by its folder ("default", "personal"). The token is never stored or sent anywhere else. The limits are read shape-based from `limits[]` (a kind the API adds later appears by itself), else from the older `five_hour` / `seven_day` blocks. Answers are cached 90 s per account in the helper (`usage.py`); the bar asks every **Look every** minutes (2). An account that cannot be read (offline, signed out) says why on hover; the others are still shown.
+## What it adds
 
-**For Claude.** The `[[tool]]` `usage` is offered through `atlas mcp` as `claude_usage`: an agent can see the plan's state without reading credentials itself.
+- **An agent** (`[[agent]]`): Claude Code sessions in Atlas's terminal (the terminal's "+" menu, Super+K). Each tab
+  resumes its own conversation (`--session-id` / `--resume`), runs the command and account of the settings, and can
+  receive the editor's selection as `@path#Lfrom-to`. Commits by Claude are recognised by their co-author line.
+- **A status cell** — "Claude 42 %" — with the share of the 5-hour session limit used by the account Atlas runs Claude
+  as, every limit with its reset time on hover, ⚠ from the warning level, and a notice once per window when the
+  session limit passes it (remembered across restarts). A click, or **Claude: show usage**, looks again at once.
+- **The tool `usage`** (`claude_usage` through `atlas mcp`): the plan's limits in percent with their reset times, for
+  the current account or, with `all = true`, every account found on this computer. No secrets in the answer.
 
-Tests: `scripts/vault/tests/test_claude_usage_plugin.py` (accounts found by shape, limits from `limits[]` and from the old blocks, an error per account, the cache).
+The numbers come from the same usage endpoint Claude Code itself uses, with the account's own access token read from
+its credentials file at each look; the token is never stored or sent anywhere else. Answers are cached for 90 seconds;
+when a look fails, the last numbers are shown with their age.
 
+## Settings
 
-**Which account**: the cell shows the account Atlas's Claude sessions run as — the vault's `[terminal] claude_account`, else `$CLAUDE_CONFIG_DIR`, else `~/.claude` (`usage.py` `in_use`) — not the one that has used the most; it is marked ▸ on hover, where the others stay, and every account still warns past **Warn at**. **429 Too Many Requests**: the usage endpoint refuses a second poller, and Claude Code's session hooks already ask after every tool call; so the plugin first reads the hooks' own per-account copy (`/tmp/claude_usage_5h_<account>.json`, `~/.claude/hooks/usagelib.py`) when it is under 90 s old, and when a look fails it shows the last numbers known, dated ("as of 4 min ago"), instead of an error.
+- **Command** (`claude`): what a session runs — `claude`, a path, or a wrapper; commands found on the machine are
+  offered.
+- **Account folder** (optional): a Claude Code configuration folder (`CLAUDE_CONFIG_DIR`) to run as another account;
+  folders found are offered. Empty: Claude Code's own.
+- **Look every (minutes)** (2): how often the usage is asked at most; 0: only on "Claude: show usage".
+- **Warn from (%)** (80).
 
-**Only the current account; one notice per window**.
-- `usage.py` `usage` now answers for the current account only (`in_use`): one request instead of one per account, and no 401/429 lines for accounts the user is not using. The discovery of `~/.claude-switch` accounts stays, but as an option — the tool's `{"all": true}` lists every account found, and with no claude-switch installed (or a configured folder with no sign-in) the current account is still asked, or says "not signed in (no …/.credentials.json)".
-- **Why the notices repeated.** The endpoint's `resets_at` moves by a fraction of a second on every request (`2026-10-15T20:29:59.686378+00:00`, then `….846544` three seconds later). The "already announced" key held `resets_at`, so every look (each 2 min) was a new limit and toasted again — for every account over the line, and once more after every restart since the set lived in memory.
-- **Now** (`main.js` `announce`): the key is `folder:kind` without the time, and holds the window's end. A limit is announced when it passes **Warn from**, not again until that window has ended, and re-armed when it falls below (a new window starts near 0 %). The record is kept in `localStorage` (`atlas.claude.warned`), so a restart does not repeat it; numbers that are hours old (`stale`) never announce. Only the current account announces.
-- Tests: `scripts/vault/tests/test_claude_usage_plugin.py` — `test_without_claude_switch_only_the_current_account_is_asked`, and `NoticeTest`, which runs `main.js` under node with a fake `atlas`: ten looks with jittering reset times, a restart, a new window, stale numbers and another account give 1, 1, 2, 2, 2 notices (the old code: 10, 11, 12, 13, 14).
+## How it fits
 
+No requirements. Agents reach Atlas through `atlas mcp` with a token of their own (Settings → AI agents); this plugin
+is how Claude Code is started inside Atlas.
 
-**Atlas as Claude Code's MCP server, with a token of its own**. On a locked Atlas, `atlas mcp` gets in only with an agent's token (Settings → AI agents, core `agents.rs`). The core shows only the generic MCP entry (`atlas mcp` with `ATLAS_AGENT_TOKEN`); Claude Code takes it in with:
+## Needs
 
-```sh
-claude mcp add atlas --scope user -e ATLAS_AGENT_TOKEN=atl_… -- atlas mcp
-```
+Claude Code installed and signed in on the machine running Atlas's core. The usage helper is a small program of the
+plugin's own (Rust, `engine/`, built into `bin/<target>/` by `engine/build.sh`): it reads Claude Code's credentials and
+the session hooks' cache, outside the vault, and asks the usage endpoint through Atlas's fetch
+(`net = ["api.anthropic.com"]`); the token is read at each look and sent nowhere else.
 
-(or the entry pasted into a project's `.mcp.json`). This lives here and not in the core because how an agent registers an MCP server is that agent's business. When agents become plugins, this line becomes the Claude plugin's `[[agent]] mcp_add`, and Settings → AI agents shows it beside the token.
+## Platforms
+
+Linux works; the others are untested. It reads the account of the machine the core runs on, so on a served vault it
+reports the server's account.
+
+## Status
+
+Beta. Tests: `cargo test -p atlas-claude` (accounts found by shape, their addresses, the account in use, limits from
+both answer shapes). No end-to-end spec.

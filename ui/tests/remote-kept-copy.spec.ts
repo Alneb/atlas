@@ -13,7 +13,7 @@ const H = { "x-atlas": "1" };
 const DIR = ".atlas/plugins/copyparty";
 const ROOT = `${WS}-copyparty-offline`;
 const put = (r: APIRequestContext, path: string, text: string) => r.put("/api/file", { headers: H, data: { path, text } });
-const example = (f: string) => readFileSync(fileURLToPath(new URL(`../../plugins/stable/copyparty/${f}`, import.meta.url)), "utf8");
+const example = (f: string) => readFileSync(fileURLToPath(new URL(`../../plugins/beta/copyparty/${f}`, import.meta.url)), "utf8");
 let server: ChildProcess | undefined;
 
 test.beforeAll(async ({ request }) => {

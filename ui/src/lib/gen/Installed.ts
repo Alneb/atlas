@@ -9,4 +9,8 @@ replaced?: string,
 /**
  * Installed plugins start switched off.
  */
-on: boolean, };
+on: boolean, 
+/**
+ * What the plugins it replaces (`replaces`) left, moved to the trash: their folders and settings files.
+ */
+adopted: Array<string>, };

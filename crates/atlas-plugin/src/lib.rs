@@ -163,8 +163,19 @@ impl Atlas {
 
     /// One call to the API: `path` as the pages use it (`/api/file?path=…`); the JSON answer (`Null` when empty).
     pub fn call(&self, verb: Verb, path: &str, body: Option<&Value>) -> Result<Value> {
+        self.exchange(verb, path, ("body", json!(body)))
+    }
+
+    /// A call whose body is a file's bytes (`PUT /api/raw`), base64 on the pipe.
+    fn call_bytes(&self, verb: Verb, path: &str, bytes: &[u8]) -> Result<Value> {
+        self.exchange(verb, path, ("bytes", Value::String(base64(bytes))))
+    }
+
+    fn exchange(&self, verb: Verb, path: &str, (key, body): (&str, Value)) -> Result<Value> {
         let n = NEXT.fetch_add(1, Ordering::Relaxed) + 1;
-        send(&json!({ "call": n, "verb": verb.as_str(), "path": path, "body": body }));
+        let mut msg = json!({ "call": n, "verb": verb.as_str(), "path": path });
+        msg[key] = body;
+        send(&msg);
         // the core's requests read meanwhile are kept for `serve`
         let Some(line) = PIPE.next(Want::Reply(n), &stdin_line) else { return fail("Atlas closed the pipe") };
         let msg: Value = serde_json::from_str(&line).unwrap_or(Value::Null);
@@ -200,6 +211,11 @@ impl Atlas {
     /// Writes a text file of the vault (made with its folders when new); the open tabs follow.
     pub fn write(&self, path: &str, text: &str) -> Result<()> {
         self.put("/api/file", &json!({ "path": path, "text": text })).map(drop)
+    }
+
+    /// Writes any file of the vault as its bytes (a PDF, an attachment, a picture), made with its folders when new.
+    pub fn write_bytes(&self, path: &str, bytes: &[u8]) -> Result<()> {
+        self.call_bytes(Verb::Put, &format!("/api/raw?path={}", q(path)), bytes).map(drop)
     }
 
     /// Every file's path; `index`: only what search indexes.
@@ -238,6 +254,65 @@ impl Atlas {
     pub fn set_secret(&self, name: &str, value: &str) -> Result<()> {
         self.put(&self.secret_path(name)?, &json!({ "value": value })).map(drop)
     }
+}
+
+// ---- writing the vault's files (PLUGIN-MATURITY.md, criterion 11) ----------------------------------------------
+
+/// `path` from the vault's top when a helper Atlas started writes it: inside ATLAS_ROOT and not a cache. Through Atlas
+/// the search index, the mirror and the open tabs follow; anything else (a test, a run by hand, a cache) is written
+/// straight to the disk.
+fn through_atlas(path: &std::path::Path) -> Option<String> {
+    std::env::var("ATLAS_PLUGIN_ID").ok().filter(|id| !id.is_empty())?;
+    let root = std::path::PathBuf::from(std::env::var_os("ATLAS_ROOT")?);
+    let rel = path.strip_prefix(&root).ok()?;
+    let rel = rel.components().map(|c| c.as_os_str().to_string_lossy()).collect::<Vec<_>>().join("/");
+    (!rel.is_empty() && !rel.starts_with(".atlas/cache/")).then_some(rel)
+}
+
+/// Writes a file of the vault (an absolute path; its folders made when new), through Atlas when Atlas started this
+/// program — and straight to the disk when Atlas answers that it is not serving the vault (`atlas mcp`).
+pub fn write_file(path: impl AsRef<std::path::Path>, bytes: &[u8]) -> Result<()> {
+    let path = path.as_ref();
+    if let Some(rel) = through_atlas(path) {
+        match Atlas::new().write_bytes(&rel, bytes) {
+            Err(e) if e.status == Some(503) => {}
+            done => return done,
+        }
+    }
+    let io = |e: std::io::Error| error(format!("cannot write {}: {e}", path.display()));
+    if let Some(dir) = path.parent() {
+        std::fs::create_dir_all(dir).map_err(io)?;
+    }
+    std::fs::write(path, bytes).map_err(io)
+}
+
+/// Moves a file or folder of the vault (absolute paths), through Atlas as [`write_file`] does: the links to it follow.
+pub fn move_path(from: impl AsRef<std::path::Path>, to: impl AsRef<std::path::Path>) -> Result<()> {
+    let (from, to) = (from.as_ref(), to.as_ref());
+    if let (Some(a), Some(b)) = (through_atlas(from), through_atlas(to)) {
+        match Atlas::new().post("/api/fs/move", &json!({ "from": a, "to": b })) {
+            Err(e) if e.status == Some(503) => {}
+            done => return done.map(drop),
+        }
+    }
+    let io = |e: std::io::Error| error(format!("cannot move {}: {e}", from.display()));
+    if let Some(dir) = to.parent() {
+        std::fs::create_dir_all(dir).map_err(io)?;
+    }
+    std::fs::rename(from, to).map_err(io)
+}
+
+/// Standard base64 with padding (the pipe is JSON lines).
+fn base64(b: &[u8]) -> String {
+    const A: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    let mut out = String::with_capacity(b.len().div_ceil(3) * 4);
+    for c in b.chunks(3) {
+        let n = (c[0] as u32) << 16 | (*c.get(1).unwrap_or(&0) as u32) << 8 | *c.get(2).unwrap_or(&0) as u32;
+        for i in 0..4 {
+            out.push(if i <= c.len() { A[(n >> (18 - 6 * i) & 63) as usize] as char } else { '=' });
+        }
+    }
+    out
 }
 
 /// Percent-encodes a query or path part.
@@ -359,6 +434,26 @@ pub fn error(why: impl Into<String>) -> Error {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn without_atlas_a_file_is_written_to_the_disk_with_its_folders() {
+        // no ATLAS_PLUGIN_ID in a test: the disk, as in a run by hand
+        let d = std::env::temp_dir().join(format!("atlas-plugin-test-{}", std::process::id()));
+        write_file(d.join("a/b/x.md"), b"hi").unwrap();
+        assert_eq!(std::fs::read(d.join("a/b/x.md")).unwrap(), b"hi");
+        move_path(d.join("a/b"), d.join("c/b")).unwrap();
+        assert!(d.join("c/b/x.md").is_file());
+        assert_eq!(through_atlas(&d.join("c/b/x.md")), None);
+        std::fs::remove_dir_all(d).unwrap();
+    }
+
+    #[test]
+    fn base64_as_the_core_reads_it() {
+        assert_eq!(base64(b"%PDF"), "JVBERg==");
+        assert_eq!(base64(b"ab"), "YWI=");
+        assert_eq!(base64(b"abc"), "YWJj");
+        assert_eq!(base64(b""), "");
+    }
 
     #[test]
     fn a_request_line_gets_its_answer_or_the_reason() {

@@ -3,7 +3,6 @@ import { copyFileSync, mkdirSync, readFileSync, rmSync, writeFileSync, existsSyn
 import { join } from "node:path";
 import { crc32, deflateRawSync } from "node:zlib";
 import { WS } from "../playwright.config";
-import { installZipPlugin } from "./fixtures/plugins";
 
 // The books plugin (plugins/beta/books/view.js): an EPUB built here (EPUB 3: container, package, nav,
 // two chapters, a stylesheet), read in the page — the library, the reader, the contents, a link inside the book,
@@ -42,10 +41,9 @@ const EPUB = zip([
 ]);
 
 test.beforeAll(() => {
-  installZipPlugin(); // view.js imports ../zip/zip.js
   mkdirSync(PLUGIN, { recursive: true });
   mkdirSync(join(PLUGIN, "shared"), { recursive: true }); // view.js imports shared/marks.js
-  for (const f of ["plugin.toml", "main.js", "view.js", "shared/marks.js"]) copyFileSync(new URL(`../../plugins/beta/books/${f}`, import.meta.url), join(PLUGIN, f));
+  for (const f of ["plugin.toml", "main.js", "view.js", "shared/marks.js", "helper.js"]) copyFileSync(new URL(`../../plugins/beta/books/${f}`, import.meta.url), join(PLUGIN, f));
   rmSync(join(WS, "books"), { recursive: true, force: true });
   mkdirSync(join(WS, "books/physics"), { recursive: true });
   writeFileSync(join(WS, "books/physics/quantum.epub"), EPUB);
@@ -83,11 +81,15 @@ test("books: the library, an EPUB read in the page, paged, its contents and link
   await page.keyboard.press("F1");
   await page.keyboard.type("Books: library");
   await page.getByTestId("palette").getByText("Books: library", { exact: true }).first().click();
-  const pane = page.locator(".books");
-  const card = pane.locator(".b-card", { hasText: "Quantum Notes" }); // the title from the package, not the file name
-  await expect(card).toContainText("A. Author");
+  // the library is the Libraries page's E-books; the pane is only the reader
+  const libs = page.locator(".libraries");
+  const openBook = async () => {
+    await libs.locator(".card", { hasText: "quantum" }).first().click();
+    await libs.locator(".detail").getByRole("button", { name: "Read" }).click();
+  };
   await page.screenshot({ path: test.info().outputPath("library.png") });
-  await card.click();
+  await openBook();
+  const pane = page.locator(".books");
   const book = pane.frameLocator("iframe.b-frame");
   await expect(book.locator("h1")).toHaveText("One");
   await expect(pane.locator(".b-where")).toHaveText(/^1 \/ \d+ · chapter 1 of 2$/); // paged: several pages
@@ -123,7 +125,7 @@ test("books: the library, an EPUB read in the page, paged, its contents and link
   await expect(book.locator("mark.atlas-hl")).toHaveText("Paragraph 1"); // "Paragraph 1 " squashed: the trailing space dropped
   // back to the library and in again: where you left
   await pane.getByRole("button", { name: "‹ Library" }).click();
-  await pane.locator(".b-card", { hasText: "Quantum Notes" }).click();
+  await openBook();
   await expect(pane.frameLocator("iframe.b-frame").locator("h1")).toHaveText("Two");
   await expect(pane.frameLocator("iframe.b-frame").locator("mark.atlas-hl")).toHaveText("Paragraph 1"); // marked again from the note
 
@@ -141,7 +143,7 @@ test("books: the library, an EPUB read in the page, paged, its contents and link
   await pane.getByRole("button", { name: "Highlight" }).click();
   await expect(book.locator("mark.atlas-hl")).toHaveText(["Paragraph 1", "superconducting qubits"]);
   await pane.getByRole("button", { name: "‹ Library" }).click();
-  await pane.locator(".b-card", { hasText: "Quantum Notes" }).click();
+  await openBook();
   await expect(book.locator("mark.atlas-hl")).toHaveText(["Paragraph 1", "superconducting qubits"]);
 
   // search the whole book: every chapter's hits, a click opens the chapter at the page of the find, marked

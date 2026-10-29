@@ -1,5 +1,6 @@
 // What a plugin is handed (`register(atlas)`, a pane's `api`): the PluginApi of plugin-api.ts, built for one plugin.
 // Every registration goes through `own`, so it is undone when the plugin reloads or is switched off.
+import { zipIndex, zipBlob } from "./zip";
 import { mount, unmount } from "svelte";
 import { frontmatterOf } from "./property-model";
 import type { Extension } from "@codemirror/state";
@@ -92,6 +93,10 @@ export function pluginApi(p: Plugin, at: PaneAt = {}): PluginApi {
       if (!p.view) throw new Error(`plugin ${p.id} has no pane (no view.js)`);
       open({ ...pluginSpec(p), ...(opts.title ? { title: opts.title } : {}), ...(opts.icon ? { icon: opts.icon } : {}), ...(arg !== undefined ? { arg: String(arg) } : {}) }, { beside: opts.beside });
     },
+    // the dialog's module loads when first asked for (it imports the pane machinery: a cycle closed at run time only)
+    openDialog: (arg, opts = {}) => import("./plugin-dialog").then((m) => m.openPluginDialog(p, arg === undefined ? undefined : String(arg), opts)),
+    zip: { index: zipIndex, blob: zipBlob },
+    openLibrary: (id) => open({ kind: "libraries", ...(id ? { at: id } : {}) }),
     data: (args) => pluginData(p.id, args),
     open: (path, line, opts) => openPath(path, line, opts),
     openNative: (path) => openNative(String(path)),

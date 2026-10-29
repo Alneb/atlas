@@ -198,14 +198,18 @@ impl<H: Host> Engine<H> {
         let mut say = Narration::default();
         let reg = self.load(&mut say);
         let props = self.host.props(path)?;
-        let (kind, ids) = reg
-            .kinds
+        // by its `type` first, as the Libraries list it (a note moved out of its kind's folder is still that kind),
+        // then by the kind's folder
+        let typed = props.get("type").and_then(Value::as_str).map(type_word);
+        let in_folder = |k: &Kind| folders(k, &reg.rules).iter().any(|f| path.starts_with(&format!("{f}/")));
+        let kinds: Vec<&Kind> = reg.kinds.iter().map(|(k, _)| k).collect();
+        let (kind, ids) = kinds
             .iter()
-            .map(|(k, _)| k)
-            .filter(|k| folders(k, &reg.rules).iter().any(|f| path.starts_with(&format!("{f}/"))))
-            .map(|k| (k, k.ids_in(&props)))
+            .filter(|k| typed.as_deref() == Some(k.note_type().to_lowercase().as_str()))
+            .chain(kinds.iter().filter(|k| in_folder(k)))
+            .map(|k| (*k, k.ids_in(&props)))
             .find(|(_, ids)| !ids.is_empty())
-            .ok_or_else(|| format!("{path} is not a note of any kind the catalog knows (no kind's folder with its IDs)"))?;
+            .ok_or_else(|| format!("{path} is not a note of any kind the catalog knows (no kind of its type or folder with its IDs)"))?;
         let kind = kind.clone();
         say.say(Stage::Recognise, format!("{path}: a {} ({})", kind.label(), show_ids(&ids)));
         let candidate = Candidate { kind: kind.name.clone(), url: None, ids, by: Vec::new(), label: None };
@@ -448,10 +452,9 @@ impl<H: Host> Engine<H> {
                 let input = json!({ "kind": kind.name, "ids": p.merged.ids, "fields": p.merged.fields, "url": p.candidate.url, "exists": p.exists.then_some(&p.path) });
                 let v = self.host.tool(plugin, tool, input).map_err(|e| format!("{plugin} could not add it: {e}"))?;
                 let path = v.get("path").and_then(Value::as_str).map(str::to_string).unwrap_or_else(|| p.path.clone());
+                // the plugin keeps these notes and their folder (References: refs.bib, the papers' folders), so the
+                // catalog writes no collection files (base, index) into it
                 say.say(Stage::Write, format!("handed to {plugin} ({tool}), which keeps these notes: {path}"));
-                if !p.exists {
-                    crate::collection::ensure(&self.host, kind, say)?;
-                }
                 Ok((path, Outcome::Delegated))
             }
             Writer::Catalog if p.exists => {
@@ -546,6 +549,8 @@ impl<H: Host> Engine<H> {
         if matches!(kind.writer, Writer::Plugin { .. }) {
             return; // the owning feature syncs its own notes
         }
+        // the note as it stands: a link whose answer is already there (a download asked for) can say it is in step
+        let note = self.host.props(path).unwrap_or_default();
         for l in reg.links_for(&kind.name) {
             let choice = placement.links.get(&l.plugin);
             if choice.is_some_and(|c| !c.on()) {
@@ -554,7 +559,7 @@ impl<H: Host> Engine<H> {
             }
             let options = choice.map(|c| c.options()).unwrap_or_else(|| json!({}));
             // `library`: the kind's name for people (a Linkwarden collection by default); `folder`: where the note is
-            let input = json!({ "kind": kind.name, "library": kind.label(), "folder": placement.folder, "ids": m.ids, "path": path, "props": m.fields, "options": options });
+            let input = json!({ "kind": kind.name, "library": kind.label(), "folder": placement.folder, "ids": m.ids, "path": path, "props": m.fields, "note": note, "options": options });
             match self.host.tool(&l.plugin, &l.spec.tool, input) {
                 Ok(v) if v.get("signin").is_some() => {
                     say.problem(Stage::Sync, format!("{}: the service wants a sign-in first", l.plugin));
@@ -653,6 +658,13 @@ fn named_as(path: &str, props: &Fields, fields: &Fields) -> bool {
         v => v.as_str().map(str::to_string).into_iter().collect::<Vec<_>>(),
     });
     titles.map(|t| plain(&t)).any(|t| !t.is_empty() && mine.contains(&t))
+}
+
+/// A note's `type` as the Libraries compare it (main.js `linkText`): a link's shown text (`[[Film|Movie]]` → `movie`).
+fn type_word(t: &str) -> String {
+    let t = t.trim();
+    let inner = t.strip_prefix("[[").and_then(|x| x.strip_suffix("]]")).unwrap_or(t);
+    inner.rsplit('|').next().unwrap_or(inner).trim().to_lowercase()
 }
 
 fn show_ids(ids: &Ids) -> String {
@@ -945,6 +957,9 @@ mod tests {
         assert_eq!(r.result.outcome, Outcome::Updated);
         let text = e.host.files.borrow()["Films/Antidisturbios (2020).md"].clone();
         assert!(text.contains("\n\nSeis antidisturbios…\n\n## Review\n\nMine.\n") && !text.contains("riot police."), "{text}");
+        // moved out of its kind's folder, it is still a film by its `type` (as the Libraries list it)
+        e.host.files.borrow_mut().insert("projects/x/Riot.md".into(), "---\ntype: movie\nletterboxd: riot-police\n---\n".into());
+        assert_eq!(e.refresh("projects/x/Riot.md").unwrap().result.kind.as_str(), "movie");
 
         // an old hand-written note without IDs, named as the film: a capture adds to it instead of making a twin
         e.host.files.borrow_mut().insert("Films/Los Domingos.md".into(), "---\ntype: movie\nrating: 4\nyear: 2024\ntitle:\n---\nmy notes\n".into());

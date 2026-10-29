@@ -227,7 +227,7 @@ fn on_capture(atlas: &Atlas, reader: &mut Reader, p: &Value) -> Result<Value> {
     let filed = if p.pointer("/settings/to_catalog").and_then(Value::as_bool) == Some(false) {
         None
     } else {
-        atlas.post("/api/plugins/catalog/tools/capture", &json!({ "text": all, "path": note })).ok().filter(|v| v.get("path").is_some())
+        atlas.post("/api/plugins/@catalog/tools/capture", &json!({ "text": all, "path": note })).ok().filter(|v| v.get("path").is_some())
     };
     Ok(match filed {
         Some(v) => json!({ "path": v["path"], "notice": format!("{said}; {}", v["notice"].as_str().unwrap_or("filed")) }),

@@ -7,7 +7,7 @@ import { fileURLToPath } from "node:url";
 import { WS } from "../playwright.config";
 import { installEmailPlugin } from "./fixtures/plugins";
 
-// The Email pane (plugins/beta/email: the Rust engine and the Svelte pane, docs/refactor/REFACTOR-email-rust.md)
+// The Email pane (plugins/stable/email: the Rust engine and the Svelte pane, docs/refactor/REFACTOR-email-rust.md)
 // against the engine's stand-in server (engine/src/fake.rs, the `fake-mail` binary: IMAP and SMTP on 127.0.0.1, three
 // messages in the inbox) — never a real account. It writes what it holds to state.json and what it was sent to
 // sent/<n>.eml, which is what these tests read back.

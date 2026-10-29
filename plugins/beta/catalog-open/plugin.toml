@@ -1,0 +1,106 @@
+# The catalog's keyless sources in one plugin: manga and anime (AniList, MyAnimeList, MangaDex), books (Open Library by
+# ISBN, Open Library or Goodreads), music (MusicBrainz from any music link), YouTube and YouTube Music (oEmbed, the clean
+# address), and Wikipedia pages filed as what they describe. None needs an account; `sources` says which are used.
+title = "Catalog · Open sources"
+description = "manga, anime, books, music, YouTube and Wikipedia for the catalog, with no account"
+icon = "globe"
+version = "0.3.0"
+api = 19
+requires = ["catalog"]
+# it was five plugins: a vault that had them keeps their settings (`replaces`, PLUGIN-API.md)
+replaces = ["catalog-anime", "catalog-books", "catalog-music", "catalog-wikipedia", "catalog-youtube"]
+
+[permissions]
+net = ["graphql.anilist.co", "api.mangadex.org", "openlibrary.org", "musicbrainz.org", "www.youtube.com", "*.wikipedia.org"]
+
+[helper]
+js = "helper.js"                   # run in the core (QuickJS), built from helper/helper.ts
+idle = "10m"                       # it only answers: stopped when unused, started again by the next call
+
+[[setting]]
+key = "sources"
+label = "Sources"
+kind = "list"
+default = ["anime", "books", "music", "wikipedia", "youtube"]
+hint = "the sources used, among anime, books, music, wikipedia and youtube; one left out is never asked"
+
+[[setting]]
+key = "contact"
+label = "Contact for Wikipedia"
+kind = "text"
+hint = "an email or web address Wikipedia may reach you at; Wikimedia throttles programs that give none (optional)"
+
+[[tool]]
+name = "anime"
+description = "A manga's or anime's details from AniList by its AniList, MyAnimeList or MangaDex id: title, original title, author or studio, year, chapters, volumes or episodes, status, genres, description, cover."
+input = { kind = "string", ids = "object?", url = "string?" }
+
+[[tool]]
+name = "books"
+description = "A book's details from Open Library by ISBN or Open Library id: title, authors, year, pages, publisher, subjects, description, cover."
+input = { kind = "string", ids = "object?", url = "string?", hints = "object?" }
+
+[[tool]]
+name = "music"
+description = "An album's, song's or artist's details from MusicBrainz: by its MusicBrainz id, by the link it was captured from, or by the artist and title a page gave."
+input = { kind = "string", ids = "object?", url = "string?", hints = "object?" }
+
+[[tool]]
+name = "youtube"
+description = "A YouTube video's or YouTube Music song's title, channel or artist, thumbnail and clean address."
+input = { kind = "string", ids = "object?", url = "string?" }
+
+[[tool]]
+name = "wikipedia"
+description = "What a Wikipedia page is about (film, series, album, song, book, manga, artist), with the identifiers its links give."
+input = { text = "string", url = "string?" }
+
+[contributes.catalog]
+recognize = [
+  # manga and anime
+  { pattern = "(?i)anilist\\.co/manga/(\\d+)", kind = "manga", id = "anilist" },
+  { pattern = "(?i)anilist\\.co/anime/(\\d+)", kind = "anime", id = "anilist" },
+  { pattern = "(?i)myanimelist\\.net/manga/(\\d+)", kind = "manga", id = "myanimelist" },
+  { pattern = "(?i)myanimelist\\.net/anime/(\\d+)", kind = "anime", id = "myanimelist" },
+  { pattern = "(?i)mangadex\\.org/title/([0-9a-f-]{36})", kind = "manga", id = "mangadex" },
+  # books
+  { pattern = "(?i)\\bISBN(?:-1[03])?:?\\s*([\\dX](?:[\\d\\- ]{8,15})[\\dX])\\b", kind = "book", id = "isbn" },
+  { pattern = "(?:^|[^\\d-])(97[89](?:-?\\d){10})(?:$|[^\\d-])", kind = "book", id = "isbn" },
+  { pattern = "(?i)openlibrary\\.org/works/(OL\\d+W)", kind = "book", id = "openlibrary" },
+  { pattern = "(?i)openlibrary\\.org/books/(OL\\d+M)", kind = "book", id = "ol_edition" },
+  { pattern = "(?i)goodreads\\.com/(?:[a-z]+/)?book/show/(\\d+)", kind = "book", id = "goodreads" },
+  # music
+  { pattern = "(?i)open\\.spotify\\.com/(?:intl-[a-z]+/)?album/(\\w+)", kind = "album", id = "spotify" },
+  { pattern = "(?i)open\\.spotify\\.com/(?:intl-[a-z]+/)?track/(\\w+)", kind = "song", id = "spotify" },
+  { pattern = "(?i)open\\.spotify\\.com/(?:intl-[a-z]+/)?artist/(\\w+)", kind = "artist", id = "spotify" },
+  { pattern = "(?i)([\\w-]+\\.bandcamp\\.com/album/[\\w-]+)", kind = "album", id = "bandcamp" },
+  { pattern = "(?i)([\\w-]+\\.bandcamp\\.com/track/[\\w-]+)", kind = "song", id = "bandcamp" },
+  { pattern = "(?i)musicbrainz\\.org/release-group/([0-9a-f-]{36})", kind = "album", id = "musicbrainz" },
+  { pattern = "(?i)musicbrainz\\.org/recording/([0-9a-f-]{36})", kind = "song", id = "musicbrainz" },
+  { pattern = "(?i)musicbrainz\\.org/artist/([0-9a-f-]{36})", kind = "artist", id = "musicbrainz" },
+  { pattern = "(?i)musicbrainz\\.org/release/([0-9a-f-]{36})", kind = "album", id = "mb_release" },
+  { pattern = "(?i)music\\.apple\\.com/[a-z]{2}/album/[^\\s?]+/(\\d+)\\?(?:[^\\s]*&)?i=(\\d+)", kind = "song", id = "apple" },
+  { pattern = "(?i)music\\.apple\\.com/[a-z]{2}/album/[^\\s?]+/(\\d+)(?:$|[^\\d?])", kind = "album", id = "apple" },
+  { pattern = "(?i)deezer\\.com/(?:[a-z]{2}/)?album/(\\d+)", kind = "album", id = "deezer" },
+  { pattern = "(?i)deezer\\.com/(?:[a-z]{2}/)?track/(\\d+)", kind = "song", id = "deezer" },
+  { pattern = "(?i)tidal\\.com/(?:browse/)?album/(\\d+)", kind = "album", id = "tidal" },
+  { pattern = "(?i)tidal\\.com/(?:browse/)?track/(\\d+)", kind = "song", id = "tidal" },
+  { pattern = "(?i)discogs\\.com/(?:[\\w-]+/)?master/(\\d+)", kind = "album", id = "discogs" },
+  { pattern = "(?i)music\\.youtube\\.com/playlist\\?list=(OLAK5uy_[\\w-]+)", kind = "album", id = "ytmusic_album" },
+  # YouTube and YouTube Music (the video and song kinds are the catalog's; a vault reshapes them in .atlas/kinds/)
+  { pattern = "(?i)music\\.youtube\\.com/watch\\?(?:[^\\s#]*&)?v=([\\w-]{11})", kind = "song", id = "youtube" },
+  { pattern = "(?i)(?:^|[^.\\w])(?:www\\.|m\\.)?youtube\\.com/(?:watch\\?(?:[^\\s#]*&)?v=|shorts/|live/|embed/)([\\w-]{11})", kind = "video", id = "youtube" },
+  { pattern = "(?i)youtu\\.be/([\\w-]{11})", kind = "video", id = "youtube" },
+]
+# a Wikipedia link matches no pattern: the recognizer is asked then
+recognizers = [{ tool = "wikipedia" }]
+sources = [
+  { kind = ["manga", "anime"], tool = "anime", priority = 65, needs = ["anilist", "myanimelist", "mangadex"] },
+  { kind = ["book", "science_book"], tool = "books", priority = 65, needs = ["isbn", "openlibrary", "ol_edition", "goodreads"] },
+  { kind = ["album", "song", "artist"], tool = "music", priority = 65, needs = ["musicbrainz", "mb_release", "url"] },
+  { kind = ["video", "song"], tool = "youtube", priority = 60, needs = ["youtube"] },
+]
+
+# where it runs (PLUGIN-API.md, "Platforms"); a platform not named is untested (Android: only with `phone = true`)
+[platforms]
+linux = "works"

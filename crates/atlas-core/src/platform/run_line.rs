@@ -294,7 +294,8 @@ mod tests {
                 assert!(matches!(parse(line, &vars), Launch::Direct { .. }), "{}: {line:?} needs a shell", e.path().display());
             }
         }
-        // helpers move from run lines to `js` (run in the core, no line at all): the walk must still find them all
-        assert!(seen + js >= 25, "found only {seen} run lines and {js} JS helpers under {}", plugins.display());
+        // helpers move from run lines to `js` (run in the core, no line at all): the walk must still find them all (fewer
+        // since the keyless catalog sources, ntfy and TubeArchivist were merged into other plugins)
+        assert!(seen + js >= 20, "found only {seen} run lines and {js} JS helpers under {}", plugins.display());
     }
 }

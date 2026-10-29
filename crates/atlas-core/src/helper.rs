@@ -373,11 +373,17 @@ async fn answer_call(routes: Option<axum::Router>, id: &str, c: crate::helper_ap
     let Some(routes) = routes else {
         return (503, json!({ "error": "Atlas is not serving this vault here (atlas mcp started the helper): start Atlas to call it back" }));
     };
-    let mut req = axum::http::Request::builder().method(c.verb).uri(&c.path).header("content-type", "application/json");
+    use crate::helper_api::CallBody;
+    let kind = if matches!(c.body, CallBody::Bytes(_)) { "application/octet-stream" } else { "application/json" };
+    let mut req = axum::http::Request::builder().method(c.verb).uri(&c.path).header("content-type", kind);
     if let Some(ext) = req.extensions_mut() {
         ext.insert(crate::helper_api::Caller(id.to_string()));
     }
-    let body = c.body.map_or_else(axum::body::Body::empty, |b| axum::body::Body::from(b.to_string()));
+    let body = match c.body {
+        CallBody::Empty => axum::body::Body::empty(),
+        CallBody::Json(j) => axum::body::Body::from(j.to_string()),
+        CallBody::Bytes(b) => axum::body::Body::from(b),
+    };
     let Ok(req) = req.body(body) else { return (400, json!({ "error": format!("not a request: {}", c.path) })) };
     let res = match routes.oneshot(req).await {
         Ok(r) => r,

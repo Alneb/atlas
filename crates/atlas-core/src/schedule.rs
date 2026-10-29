@@ -1,7 +1,7 @@
 //! Scheduled workspace commands: a manifest's `schedule = "daily 03:00"`, `"every 2h"`, `"every 30m"`
 //! or `"hourly"`. They run while an Atlas server is up (the app or `atlas serve`); each run is
 //! recorded in `.atlas/cache/schedule.json` (last run per command) and `schedule.log`, and a failure
-//! notifies the UI. `[automation] run_schedules = false` turns it off.
+//! notifies the UI. `[automation] run_schedules = false` turns it off; `schedules_on` names the computers that run them.
 use crate::api::Mtime;
 use crate::api::{Event, Notice, NoticeLevel, ScheduledRun};
 use crate::commands::{run_script, scripts, ScriptCommand, SCRIPT_TIMEOUT};
@@ -113,7 +113,7 @@ impl Job {
 /// where the vault's helpers are (`helpers`: a served vault).
 pub async fn tick(ws: &Workspace, bus: &EventBus, helpers: Option<&crate::helper::Helpers>, now: DateTime<Local>) {
     let Ok(cfg) = ws.config() else { return };
-    if !cfg.automation.run_schedules {
+    if !cfg.automation.schedules_here(&crate::platform::proc::hostname()) {
         return;
     }
     let cache = ws.cache_dir();
@@ -227,6 +227,28 @@ mod tests {
         let first = r["stamp"].time;
         tick(&ws, &bus, None, Local::now()).await; // not due again for 2 h
         assert_eq!(records(&ws.cache_dir())["stamp"].time, first);
+    }
+
+    #[test]
+    fn a_synced_vaults_schedules_run_on_the_computers_named() {
+        let mut a = crate::config::AutomationConfig::default();
+        assert!(a.schedules_here("alice-desktop") && a.schedules_here(""), "none named: every computer, as before");
+        a.schedules_on = vec!["Alice-Desktop".into()];
+        assert!(a.schedules_here("alice-desktop"), "host names compare without case");
+        assert!(!a.schedules_here("alice-laptop"), "the other computer leaves the generated files to it");
+        a.run_schedules = false;
+        assert!(!a.schedules_here("alice-desktop"), "off is off");
+    }
+
+    #[tokio::test]
+    async fn a_computer_not_named_runs_no_schedule() {
+        let d = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(d.path().join(".atlas/commands")).unwrap();
+        std::fs::write(d.path().join(".atlas/commands/stamp.toml"), "title = \"Stamp\"\nrun = \"echo stamped\"\nschedule = \"every 2h\"\n").unwrap();
+        std::fs::write(d.path().join(".atlas/config.toml"), "[automation]\nschedules_on = [\"no-such-host.example.org\"]\n").unwrap();
+        let ws = Workspace::open(d.path()).unwrap();
+        tick(&ws, &EventBus::default(), None, Local::now()).await;
+        assert!(records(&ws.cache_dir()).is_empty());
     }
 
     #[tokio::test]

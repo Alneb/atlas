@@ -3,7 +3,6 @@ import { copyFileSync, mkdirSync, readFileSync, rmSync, writeFileSync, existsSyn
 import { join } from "node:path";
 import { crc32, deflateRawSync, deflateSync } from "node:zlib";
 import { WS } from "../playwright.config";
-import { installZipPlugin } from "./fixtures/plugins";
 import { createServer, type Server } from "node:http";
 import { execFileSync } from "node:child_process";
 // @ts-expect-error a plugin's module is plain JavaScript, loaded as the page loads it
@@ -43,9 +42,8 @@ function cbz(pages: [string, Buffer, boolean][]): Buffer {
 }
 
 test.beforeAll(() => {
-  installZipPlugin(); // view.js imports ../zip/zip.js
   mkdirSync(PLUGIN, { recursive: true });
-  for (const f of ["plugin.toml", "main.js", "view.js", "suwayomi.js", "helper.py"]) copyFileSync(new URL(`../../plugins/beta/manga/${f}`, import.meta.url), join(PLUGIN, f));
+  for (const f of ["plugin.toml", "main.js", "view.js", "suwayomi.js", "helper.js"]) copyFileSync(new URL(`../../plugins/beta/manga/${f}`, import.meta.url), join(PLUGIN, f));
   const series = join(WS, "manga/Blue Period");
   rmSync(join(WS, "manga"), { recursive: true, force: true });
   mkdirSync(series, { recursive: true });
@@ -62,12 +60,14 @@ test("manga: the library, a series, a .cbz read in the page, and where you are s
   await page.keyboard.press("F1");
   await page.keyboard.type("Manga: library");
   await page.getByTestId("palette").getByText("Manga: library", { exact: true }).first().click();
-  const pane = page.locator(".manga");
-  const card = pane.locator(".m-card", { hasText: "Blue Period" });
-  await expect(card.locator(".m-badge")).toHaveText("2"); // two chapters, none read
-  await expect(card.locator("img")).toHaveAttribute("src", /^blob:/); // the cover: chapter 9's first page
+  // the library is the Libraries page's Comics; a series opens in the pane
+  const card = page.locator(".libraries .card", { hasText: "Blue Period" });
+  await expect(card.locator(".m")).toHaveText("2 chapters");
+  await expect.poll(() => card.locator("img").evaluate((i: HTMLImageElement) => i.naturalWidth)).toBeGreaterThan(0); // chapter 9's first page, by the core
   await page.screenshot({ path: test.info().outputPath("library.png") });
   await card.click();
+  await page.locator(".libraries .detail").getByRole("button", { name: "Read" }).click();
+  const pane = page.locator(".manga");
   // natural order: 9 before 10
   await expect(pane.locator(".m-ch .m-ch-name")).toHaveText(["Chapter 9", "Chapter 10"]);
   await pane.getByRole("button", { name: "Start" }).click();
@@ -116,8 +116,10 @@ test("a .cb7 chapter (as a .cbr): made once into a cached .cbz by the helper, re
     await page.keyboard.press("F1");
     await page.keyboard.type("Manga: library");
     await page.getByTestId("palette").getByText("Manga: library", { exact: true }).first().click();
+    // the series are the Libraries page's Comics; a series opens in the pane
+    await page.locator(".libraries .card", { hasText: "Saga" }).first().click();
+    await page.locator(".libraries .detail").getByRole("button", { name: "Read" }).click();
     const pane = page.locator(".manga");
-    await pane.locator(".m-card", { hasText: "Saga" }).click();
     await expect(pane.locator(".m-ch .m-ch-name")).toHaveText(["Chapter 1"]);
     await pane.getByRole("button", { name: "Start" }).click();
     await expect(pane.locator(".m-num")).toHaveText("1 / 2"); // the two pictures, the text file left out
@@ -138,8 +140,10 @@ test("a chapter's marks: in the series' note, a block per chapter, drawn over it
   await page.keyboard.press("F1");
   await page.keyboard.type("Manga: library");
   await page.getByTestId("palette").getByText("Manga: library", { exact: true }).first().click();
+  // the series are the Libraries page's Comics; a series opens in the pane
+  await page.locator(".libraries .card", { hasText: "Blue Period" }).first().click();
+  await page.locator(".libraries .detail").getByRole("button", { name: "Read" }).click();
   const pane = page.locator(".manga");
-  await pane.locator(".m-card", { hasText: "Blue Period" }).click();
   await pane.locator(".m-ch", { hasText: "Chapter 9" }).click();
   const mark = pane.locator('.m-ink [data-mark="m-mangaa01"] rect');
   await expect(pane.locator(".m-num")).toHaveText(/^\d \/ 3$/);
@@ -170,8 +174,10 @@ test("manga on e-ink: a refresh asked on each page turn (flash_every = 1)", asyn
   await page.keyboard.press("F1");
   await page.keyboard.type("Manga: library");
   await page.getByTestId("palette").getByText("Manga: library", { exact: true }).first().click();
+  // the series are the Libraries page's Comics; a series opens in the pane
+  await page.locator(".libraries .card", { hasText: "Blue Period" }).first().click();
+  await page.locator(".libraries .detail").getByRole("button", { name: "Read" }).click();
   const pane = page.locator(".manga");
-  await pane.locator(".m-card", { hasText: "Blue Period" }).click();
   await pane.locator(".m-ch", { hasText: "Chapter 9" }).click();
   await expect(pane.locator(".m-num")).toHaveText(/^\d \/ 3$/);
   const flashes = () => page.evaluate(() => (window as unknown as { flashes: number }).flashes);
@@ -226,13 +232,15 @@ test("Suwayomi: its library beside the vault's, a chapter read from it, where yo
     await page.keyboard.press("F1");
     await page.keyboard.type("Manga: library");
     await page.getByTestId("palette").getByText("Manga: library", { exact: true }).first().click();
-    const pane = page.locator(".manga");
-    await expect(pane.locator(".m-card", { hasText: "Blue Period" })).toBeVisible(); // the vault's
-    const blame = pane.locator(".m-card", { hasText: "BLAME!" });
-    await expect(blame.locator(".m-badge")).toHaveText("2"); // the server's unread count
+    const libs = page.locator(".libraries");
+    await expect(libs.locator(".card", { hasText: "Blue Period" })).toBeVisible(); // the vault's
+    const blame = libs.locator(".card", { hasText: "BLAME!" });
+    await expect(blame.locator(".m")).toHaveText("2 unread"); // the server's unread count
     await expect(blame.locator("img")).toHaveAttribute("src", /^blob:/); // its cover, from the server
     await expect.poll(() => blame.locator("img").evaluate((i: HTMLImageElement) => i.naturalWidth)).toBe(3); // decoded: PNG by now
     await blame.click();
+    await libs.locator(".detail").getByRole("button", { name: "Read" }).click();
+    const pane = page.locator(".manga");
     await expect(pane.locator(".m-ch .m-ch-name")).toHaveText(["Chapter 001 - The Net's Offspring", "Chapter 002 - Fifteen Billion"]);
     await pane.getByRole("button", { name: "Start" }).click();
     await expect(pane.locator(".m-num")).toHaveText("1 / 3");
@@ -241,14 +249,6 @@ test("Suwayomi: its library beside the vault's, a chapter read from it, where yo
     await expect(pane.locator(".m-num")).toHaveText("2 / 3");
     await expect.poll(() => marks.at(-1)).toEqual({ id: 9597, page: 1, read: false }); // where you are, on the server
 
-    // the Libraries page: Comics, the vault's and the server's
-    await page.keyboard.press("F1");
-    await page.keyboard.type("Libraries");
-    await page.getByTestId("palette").getByText("Libraries (drawings, references, films, comics…)").click();
-    const libs = page.locator(".libraries");
-    await libs.getByRole("tab", { name: "Comics" }).click();
-    await expect(libs.locator(".library .t", { hasText: "BLAME!" })).toBeVisible();
-    await expect(libs.locator(".library .t", { hasText: "Blue Period" })).toBeVisible();
   } finally {
     await request.put("/api/file", { headers: { "x-atlas": "1" }, data: { path: ".atlas/plugin-settings/manga.toml", text: "" } });
     server.close();

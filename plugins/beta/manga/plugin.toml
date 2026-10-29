@@ -6,14 +6,13 @@ title = "Manga"
 description = "a manga and comics library and reader like Mihon: series, chapters, read from where you left, right-to-left, webtoon, e-ink paging"
 phone = true # runs in the phone apps too (only plugins marked so start there)
 icon = "file"
-version = "0.6.2"
-api = 15
-claims = ["*.cbz", "*.cbr", "*.cb7", "*.cbt"] # opens here on a click (API 7); all but .cbz made into one first (helper.py)
-requires = ["zip"]                     # its zip reader is the Zip archives plugin's (../zip/zip.js), shared with the other reader
+version = "0.8.0"
+api = 20
+claims = ["*.cbz", "*.cbr", "*.cb7", "*.cbt"] # opens here on a click (API 7); all but .cbz made into one first (helper/helper.ts)
 
-# .cbr (RAR), .cb7, .cbt: unpacked once by the machine's bsdtar / unrar / unar into a cached .cbz
+# .cbr, .cb7, .cbt: unpacked once by the core into a cached .cbz (zip, tar, 7z itself; RAR by bsdtar / unar / unrar)
 [helper]
-run = "python3 -u \"$ATLAS_PLUGIN_DIR/helper.py\""
+js = "helper.js"                   # run in the core (QuickJS), built from helper/helper.ts
 idle = "10m"                       # it only answers: stopped when unused, started again by the next call
 
 # the user's Suwayomi (its address a setting): any server, as the vault's settings name it

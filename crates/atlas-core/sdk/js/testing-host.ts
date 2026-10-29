@@ -27,6 +27,8 @@ export const state = {
   /** What `atlas.exec` answers: the program's result, or throw for a refusal. */
   exec: (program: string, _args: string[], _opts: { stdin?: string; cwd?: string; timeout?: number; locale?: "C" }): ExecResult => { throw new Error(`exec: no answer for ${program} (set harness.exec)`); },
   /** The runs asked, in order. */
+  /** Native ops the fake core does not do itself (`atlas.convert`, `atlas.hash`): the test's answer. */
+  native: undefined as undefined | ((op: string, args: any) => unknown),
   ran: [] as { program: string; args: string[]; stdin?: string; cwd?: string; timeout?: number; locale?: "C" }[],
   waiting: new Map<number, { resolve: (v: unknown) => void; reject: (e: Error) => void }>(),
 };
@@ -106,6 +108,7 @@ const receive = (msg: object) => (globalThis as any).__atlas_receive(JSON.string
       if (!(a.name in z)) throw new Error(`zip: ${a.name}: specified file not found in archive`);
       return JSON.stringify(z[a.name]);
     }
+    if (state.native) return JSON.stringify(state.native(op, a));
     throw new Error(`atlas.${op} runs in the core: test it with cargo test (js_native.rs)`);
   },
   send(line: string) {

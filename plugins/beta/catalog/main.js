@@ -1,5 +1,5 @@
 // The catalog's blocks (docs/design/DESIGN-collections.md), drawn from the vault's files:
-//   catalog.library      a collection's base as shelves, a covers grid or a table, with search, filters and sort
+//   catalog.library      a collection's index page: its base on the generic Library page, shelves at the side (drag to move)
 //   catalog.item         the top of a catalogued note: cover, key fields, shelf chips, rating, the services holding it
 //   catalog.collections  every collection as a tile, and a box to capture into them (preview first, then add)
 // Rows come from Atlas's Bases engine (atlas.query over the collection's .base), so the files stay Obsidian's.
@@ -85,38 +85,11 @@ function style() {
 /* a press on a card, a header or a field must not put the text caret in the block (the editor would show its source) */
 .cat, .cat-item { user-select: none; -webkit-user-select: none; }
 .cat input, .cat-capture input { user-select: text; -webkit-user-select: text; }
-.cat-bar { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 0 0 10px; }
-.cat-bar input { flex: 1 1 160px; min-width: 120px; padding: 5px 9px; border: 1px solid var(--border); border-radius: var(--radius-sm, 6px); background: var(--bg); color: var(--text); font: inherit; }
-.cat-bar .count { color: var(--text-faint); font-size: .85em; margin-left: auto; }
-.cat-seg { display: inline-flex; border: 1px solid var(--border); border-radius: var(--radius-sm, 6px); overflow: hidden; }
-.cat-seg button, .cat-chip, .cat-btn { font: inherit; font-size: .85em; border: 0; background: var(--bg-alt); color: var(--text-muted); padding: 4px 9px; cursor: pointer; }
-.cat-seg button + button { border-left: 1px solid var(--border); }
-.cat-seg button.on, .cat-chip.on { background: var(--accent-soft); color: var(--accent-strong, var(--accent)); }
 .cat-chip, .cat-btn { border: 1px solid var(--border); border-radius: 999px; }
 .cat-btn { border-radius: var(--radius-sm, 6px); }
-.cat-chip:hover, .cat-btn:hover, .cat-seg button:hover { background: var(--bg-hover); color: var(--text); }
-.cat-shelf { margin: 0 0 16px; }
-.cat-shelf h4 { display: flex; gap: 8px; align-items: baseline; margin: 0 0 6px; font-size: .95em; color: var(--heading, var(--text)); }
-.cat-shelf h4 span { color: var(--text-faint); font-weight: normal; font-size: .9em; }
-.cat-row { display: grid; grid-auto-flow: column; grid-auto-columns: 128px; gap: 12px; overflow-x: auto; padding: 2px 2px 8px; scroll-snap-type: x proximity; }
-.cat-row.drop { outline: 2px dashed var(--accent); outline-offset: 2px; border-radius: var(--radius-sm, 6px); }
-.cat-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(128px, 1fr)); gap: 14px 12px; }
-.cat-card { display: flex; flex-direction: column; gap: 4px; cursor: pointer; scroll-snap-align: start; min-width: 0; }
+.cat-chip:hover, .cat-btn:hover { background: var(--bg-hover); color: var(--text); }
 .cat-cover { aspect-ratio: 2 / 3; width: 100%; border-radius: var(--radius-sm, 6px); background: var(--bg-alt); border: 1px solid var(--border); object-fit: cover; display: grid; place-items: center; color: var(--text-faint); font-size: 1.6em; overflow: hidden; transition: transform .12s var(--ease, ease), box-shadow .12s; }
 .cat-initial { font-size: 2.4em; font-weight: 650; border-color: transparent; }
-.cat-card:hover .cat-cover { transform: translateY(-2px); box-shadow: var(--shadow-sm); }
-.cat-card b { font-size: .88em; font-weight: 600; line-height: 1.25; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
-.cat-card small { color: var(--text-faint); font-size: .78em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.cat-table { width: 100%; border-collapse: collapse; font-size: calc(13px * var(--ui-scale, 1)); line-height: 1.35; }
-.cat-table td.short { white-space: nowrap; width: 1%; }
-.cat-table td.long > span { display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-.cat-table th { text-align: left; font-weight: 600; color: var(--text-muted); border-bottom: 1px solid var(--border-strong, var(--border)); padding: 4px 8px; cursor: pointer; white-space: nowrap; }
-.cat-table td { border-bottom: 1px solid var(--border); padding: 5px 8px; vertical-align: top; }
-.cat-table tr:hover td { background: var(--bg-hover); cursor: pointer; }
-.cat-menu { position: fixed; z-index: 1000; min-width: 160px; display: flex; flex-direction: column; padding: 4px; background: var(--bg-elev, var(--bg)); border: 1px solid var(--border-strong, var(--border)); border-radius: var(--radius-sm, 6px); box-shadow: var(--shadow-pop); }
-.cat-menu small { color: var(--text-faint); padding: 3px 8px; font-size: .78em; }
-.cat-menu button { font: inherit; text-align: left; border: 0; background: none; color: var(--text); padding: 5px 8px; border-radius: 4px; cursor: pointer; }
-.cat-menu button:hover, .cat-menu button:focus { background: var(--bg-hover); outline: none; }
 .cat-empty, .cat-err { color: var(--text-faint); margin: 6px 0; }
 .cat-err { color: var(--red); }
 .cat-item { display: grid; grid-template-columns: 150px 1fr; gap: 18px; padding: 12px; border: 1px solid var(--border); border-radius: var(--radius-sm, 8px); background: var(--bg-alt); }
@@ -140,7 +113,7 @@ function style() {
 .cat-capture input { flex: 1; padding: 7px 10px; border: 1px solid var(--border); border-radius: var(--radius-sm, 6px); background: var(--bg); color: var(--text); font: inherit; }
 .cat-preview { border: 1px solid var(--accent); border-radius: var(--radius-sm, 8px); padding: 10px; margin: 0 0 14px; display: grid; grid-template-columns: 90px 1fr; gap: 12px; }
 .cat-preview .steps { color: var(--text-faint); font-size: .8em; margin: 6px 0 0; padding-left: 16px; }
-@media (max-width: 560px) { .cat-item { grid-template-columns: 1fr; } .cat-item .cat-cover { max-height: 300px; justify-self: center; width: 60%; } .cat-row { grid-auto-columns: 108px; } }
+@media (max-width: 560px) { .cat-item { grid-template-columns: 1fr; } .cat-item .cat-cover { max-height: 300px; justify-self: center; width: 60%; } }
 `;
   document.head.append(s);
 }
@@ -188,192 +161,79 @@ function coverBox(atlas, cell, title, path) {
 }
 
 // ---- catalog.library ----------------------------------------------------------------------------------------------
+// A collection's index page: the generic Library page (atlas.mountLibrary) over the rows of the collection's base, so
+// it reads the same files Obsidian does and needs no helper. The block's options say which property is the shelf
+// (`group`, in the order of `shelves`), the cover and the key fields; a card dragged onto a shelf at the side, or
+// the shelf chosen in its card, is written to the note as a link.
 function libraryBlock(atlas) {
   return (host, block) => {
-    style();
     const o = block.options ?? {};
-    const basePath = String(o.base ?? "").trim();
-    const state = { layout: String(o.layout ?? "grid"), q: "", facet: null, sort: null, desc: false };
-    const shelvesOrder = (Array.isArray(o.shelves) ? o.shelves : []).map(String);
-    const coverKey = o.cover ? String(o.cover) : null;
-    const keyFields = (Array.isArray(o.key) ? o.key : []).map(String);
-    const group = o.group ? String(o.group) : null;
-    let data = null;
-    let gone = false;
+    const base = String(o.base ?? "").trim();
+    if (!base) { style(); host.replaceChildren(el("p", "cat-err", "This library has no base: add `base: Films/Films.base` to its options.")); return; }
+    return atlas.mountLibrary(host, baseSource(atlas, base, block.note, o));
+  };
+}
 
-    if (!basePath) { host.replaceChildren(el("p", "cat-err", "This library has no base: add `base: Films/Films.base` to its options.")); return; }
-
-    const load = async () => {
-      const yaml = await atlas.readText(basePath);
-      const r = await atlas.query(yaml, block.note);
-      // the view for the layout: Shelves / Covers / Table when the base has them, else its first
-      const pick = (name) => r.views.find((v) => v.name === name) ?? r.views[0];
-      data = { shelves: pick("Shelves"), covers: pick("Covers"), table: pick("Table") };
-    };
-
-    const colIndex = (view, key) => view.columns.findIndex((c) => c.key === key || c.id === key || c.id === `note.${key}`);
-    const rowsOf = (view) => {
-      const q = state.q.toLowerCase();
-      let rows = view.rows.filter((r) => !q || r.cells.some((c) => cellText(c).toLowerCase().includes(q)));
-      if (state.facet) rows = rows.filter((r) => linkText(r.group ?? cellText(r.cells[colIndex(view, group)])) === state.facet);
-      if (state.sort !== null) {
-        const i = state.sort;
-        rows = [...rows].sort((a, b) => cellText(a.cells[i]).localeCompare(cellText(b.cells[i]), undefined, { numeric: true }) * (state.desc ? -1 : 1));
-      }
-      return rows;
-    };
-
-    const card = (view, row) => {
-      const c = el("div", "cat-card");
-      const title = cellText(row.cells[0]) || row.path.split("/").pop().replace(/\.md$/, "");
-      const ci = coverKey ? colIndex(view, coverKey) : -1;
-      c.append(coverBox(atlas, ci >= 0 ? row.cells[ci] : null, title, row.path), el("b", "", title));
-      const sub = keyFields.slice(0, 2).map((k) => { const i = colIndex(view, k); return i >= 0 ? cellText(row.cells[i]) : ""; }).filter(Boolean).join(" · ");
-      if (sub) c.append(el("small", "", sub));
-      c.title = keyFields.map((k) => { const i = colIndex(view, k); const t = i >= 0 ? cellText(row.cells[i]) : ""; return t ? `${human(k)}: ${t}` : ""; }).filter(Boolean).join("\n");
-      c.onclick = () => atlas.open(row.path);
-      c.draggable = !!group;
-      c.ondragstart = (e) => e.dataTransfer?.setData("text/atlas-catalog", row.path);
-      // the same move without dragging: right-click (or the context-menu key) → a shelf
-      if (group) c.oncontextmenu = (e) => { e.preventDefault(); shelfMenu(c, row.path); };
-      return c;
-    };
-
-    const move = (path, name) => atlas.writeProperty(path, group, `[[${name}]]`).then(refresh, (err) => atlas.toast("Not moved", String(err?.message ?? err), "error"));
-    const shelfMenu = (anchor, path) => {
-      document.querySelector(".cat-menu")?.remove();
-      const m = el("div", "cat-menu");
-      m.setAttribute("role", "menu");
-      m.append(el("small", "", "Move to shelf"));
-      for (const s of shelvesOrder) {
-        const b = el("button", "", human(s));
-        b.setAttribute("role", "menuitem");
-        b.onclick = () => { m.remove(); void move(path, s); };
-        m.append(b);
-      }
-      const r = anchor.getBoundingClientRect();
-      m.style.left = `${Math.min(r.left + 8, innerWidth - 180)}px`;
-      m.style.top = `${Math.min(r.top + 24, innerHeight - 40 - 30 * shelvesOrder.length)}px`;
-      document.body.append(m);
-      setTimeout(() => document.addEventListener("pointerdown", (e) => { if (!m.contains(e.target)) m.remove(); }, { once: true }));
-      m.querySelector("button")?.focus();
-    };
-
-    const shelves = (view) => {
-      const by = new Map();
-      for (const row of rowsOf(view)) {
-        const g = linkText(row.group ?? cellText(row.cells[colIndex(view, group)])) || "";
-        if (!by.has(g)) by.set(g, []);
-        by.get(g).push(row);
-      }
-      const names = [...shelvesOrder, ...[...by.keys()].filter((g) => !shelvesOrder.includes(g)).sort()];
-      const out = el("div");
-      for (const name of names) {
-        const rows = by.get(name) ?? [];
-        // an empty shelf of the kind's own order stays as a place to drop onto; others only when they hold something
-        if (!rows.length && !shelvesOrder.includes(name)) continue;
-        const sec = el("section", "cat-shelf");
-        const h = el("h4", "", name ? human(name) : "No shelf");
-        h.append(el("span", "", String(rows.length)));
-        const row = el("div", "cat-row");
-        rows.forEach((r) => row.append(card(view, r)));
-        if (!rows.length) row.append(el("p", "cat-empty", "Drop a cover here."));
-        if (group && name) {
-          row.ondragover = (e) => { e.preventDefault(); row.classList.add("drop"); };
-          row.ondragleave = () => row.classList.remove("drop");
-          row.ondrop = (e) => {
-            e.preventDefault();
-            row.classList.remove("drop");
-            const path = e.dataTransfer?.getData("text/atlas-catalog");
-            if (path) void move(path, name);
-          };
-        }
-        sec.append(h, row);
-        out.append(sec);
-      }
-      return out;
-    };
-
-    const grid = (view) => { const g = el("div", "cat-grid"); rowsOf(view).forEach((r) => g.append(card(view, r))); return g; };
-
-    const table = (view) => {
-      const t = el("table", "cat-table");
-      const head = el("tr");
-      view.columns.forEach((c, i) => {
-        const th = el("th", "", c.label + (state.sort === i ? (state.desc ? " ▾" : " ▴") : ""));
-        th.onclick = () => { state.desc = state.sort === i ? !state.desc : false; state.sort = i; draw(); };
-        head.append(th);
+function baseSource(atlas, base, note, o) {
+  const group = o.group ? String(o.group) : null;
+  const shelves = (Array.isArray(o.shelves) ? o.shelves : []).map(String);
+  const keys = (Array.isArray(o.key) ? o.key : []).map(String);
+  const cover = o.cover ? String(o.cover) : null;
+  const name = base.split("/").pop().replace(/\.base$/, "");
+  let view = null; // the base's first view, from the last load
+  const at = (key) => view.columns.findIndex((c) => c.key === key || c.id === key || c.id === `note.${key}`);
+  const cell = (row, key) => { const i = key ? at(key) : -1; return i >= 0 ? cellText(row.cells[i]) : ""; };
+  const rows = new Map(); // a note's path → its row
+  const raw = (shelf) => shelves.find((sh) => human(sh) === shelf) ?? shelf;
+  const move = (path, shelf) => atlas.writeProperty(path, group, `[[${raw(shelf)}]]`);
+  return {
+    id: `catalog.base.${slug(base)}`, title: name, icon: "library", noun: "items",
+    async load() {
+      view = (await atlas.query(await atlas.readText(base), note)).views[0];
+      rows.clear();
+      return view.rows.map((row) => {
+        rows.set(row.path, row);
+        const title = cellText(row.cells[0]) || row.path.split("/").pop().replace(/\.md$/, "");
+        const shelf = group ? linkText(row.group ?? cell(row, group)) : "";
+        const c = cover ? row.cells[at(cover)] : null;
+        const set = c && cellText(c).trim() && cellText(c).trim() !== "null";
+        const rating = Number(cell(row, "rating"));
+        return {
+          id: row.path, note: row.path, title,
+          sub: keys.slice(0, 2).map((k) => cell(row, k)).filter(Boolean).join(" · "),
+          cover: async () => { const x = set ? c : await noteCover(atlas, row.path); return !x ? null : x.t === "link" && x.path ? x.path : cellText(x).trim() || null; },
+          flags: rating > 0 ? [{ label: `★ ${rating}` }] : [],
+          groups: shelf ? [human(shelf)] : [],
+          text: [row.path, ...row.cells.map(cellText)].join(" "),
+          sort: { title, ...Object.fromEntries(keys.map((k) => [k, Number(cell(row, k)) || cell(row, k)])) },
+        };
       });
-      t.append(el("thead"), el("tbody"));
-      t.tHead.append(head);
-      for (const r of rowsOf(view)) {
-        const tr = el("tr");
-        // a short value (a year, a status) keeps one line; a long one (authors, a title) at most two
-        r.cells.forEach((c) => { const text = cellText(c); const td = el("td", String(text).length <= 14 ? "short" : "long"); td.append(el("span", "", text)); tr.append(td); });
-        tr.onclick = () => atlas.open(r.path);
-        t.tBodies[0].append(tr);
-      }
-      return t;
-    };
-
-    const bar = (view) => {
-      const b = el("div", "cat-bar");
-      const search = el("input");
-      search.placeholder = "Search this collection…";
-      search.value = state.q;
-      search.oninput = () => { state.q = search.value; drawBody(); };
-      const seg = el("div", "cat-seg");
-      for (const [id, label] of [["shelves", "Shelves"], ["grid", "Covers"], ["table", "Table"]]) {
-        if (id === "shelves" && !group) continue;
-        const btn = el("button", state.layout === id ? "on" : "", label);
-        btn.onclick = () => { state.layout = id; state.sort = null; draw(); };
-        seg.append(btn);
-      }
-      b.append(search, seg);
-      // the shelves as filter chips (in the grid and the table)
-      if (group && state.layout !== "shelves") {
-        const values = [...new Set(view.rows.map((r) => linkText(r.group ?? cellText(r.cells[colIndex(view, group)]))).filter(Boolean))];
-        for (const v of [...shelvesOrder.filter((s) => values.includes(s)), ...values.filter((v) => !shelvesOrder.includes(v))]) {
-          const chip = el("button", `cat-chip${state.facet === v ? " on" : ""}`, human(v));
-          chip.onclick = () => { state.facet = state.facet === v ? null : v; drawBody(); draw(); };
-          b.append(chip);
-        }
-      }
-      b.append(el("span", "count", `${view.count} ${view.count === 1 ? "item" : "items"}`));
-      return b;
-    };
-
-    let body = el("div");
-    const viewFor = () => (state.layout === "shelves" ? data.shelves : state.layout === "table" ? data.table : data.covers);
-    const drawBody = () => {
-      const view = viewFor();
-      const next = view.rows.length
-        ? state.layout === "shelves" ? shelves(view) : state.layout === "table" ? table(view) : grid(view)
-        : el("p", "cat-empty", "Nothing here yet: capture something of this kind and it lands here.");
-      body.replaceWith(next);
-      body = next;
-    };
-    const draw = () => {
-      if (gone || !data) return;
-      const root = own(el("div", "cat"));
-      body = el("div");
-      root.append(bar(viewFor()), body);
-      host.replaceChildren(root);
-      drawBody();
-    };
-    const refresh = () => load().then(draw, (e) => { if (!gone) host.replaceChildren(el("p", "cat-err", `The library could not be read: ${e?.message ?? e}`)); });
-
-    host.replaceChildren(el("p", "cat-empty", "Loading the collection…"));
-    void refresh();
-    // the collection's folder changed (a capture, an edit, another program): read again, at most every 400 ms
-    const folder = basePath.split("/").slice(0, -1).join("/");
-    let timer = 0;
-    const off = atlas.onFilesChanged((paths) => {
-      if (!paths.some((p) => p === basePath || p.startsWith(`${folder}/`))) return;
-      clearTimeout(timer);
-      timer = setTimeout(() => void refresh(), 400);
-    });
-    return () => { gone = true; clearTimeout(timer); off?.(); };
+    },
+    groupsTitle: "Shelves",
+    // the kind's shelves in its order, an empty one kept as a place to drop onto
+    groupOrder: shelves.map(human),
+    layouts: o.layout === "table" ? ["list", "covers"] : ["covers", "list"],
+    sorts: [{ id: "title", label: "title" }, ...keys.map((k) => ({ id: k, label: human(k), desc: k === "year" || k === "rating" }))],
+    search: `Search ${name.toLowerCase()}…`,
+    empty: "Nothing here yet: capture something of this kind and it lands here.",
+    detail(item) {
+      const row = rows.get(item.id);
+      const now = group ? linkText(cell(row, group)) : "";
+      return {
+        title: item.title,
+        lines: item.sub ? [{ text: item.sub }] : [],
+        fields: view.columns.map((c, i) => [c, cellText(row.cells[i])]).slice(1).filter(([c, v]) => v && ![cover, group].includes(c.key) && !keys.slice(0, 2).includes(c.key)).map(([c, v]) => [c.label, v]),
+        actions: [{ label: "Open note", icon: "edit", primary: true, run: () => atlas.open(item.id) }],
+        choice: group && shelves.length ? { label: "Shelf", options: shelves.map((sh) => ({ label: human(sh), on: sh === now, run: () => move(item.id, human(sh)) })) } : undefined,
+      };
+    },
+    regroup: group ? async (items, shelf) => { for (const i of items) await move(i.id, shelf); } : undefined,
+    // the collection's folder changed (a capture, an edit, another program)
+    watch: (reload) => {
+      const folder = base.split("/").slice(0, -1).join("/");
+      return atlas.onFilesChanged((paths) => { if (paths.some((p) => p === base || p.startsWith(`${folder}/`))) reload(); });
+    },
+    open: (item) => atlas.open(item.id),
   };
 }
 
@@ -564,9 +424,8 @@ const typeOf = (k) => String(k.type ?? k.name).toLowerCase();
 const kindTitle = (k) => k.library?.title ?? k.label ?? human(k.name);
 
 // Which library a kind is a tab of: its kind file's `library.in` ("Music"), else where the catalog's own kinds go (a
-// vault's kind files were copied before `in` existed), else a library of its own. Papers are References' (the
-// user, 2026-10-21: "libraries should be well separated … each library can have its tabs like refs which has papers
-// books etc"; "in phd keep the references the main one").
+// vault's kind files were copied before `in` existed), else a library of its own. Libraries stay separate, each with
+// its tabs; papers are a tab of References.
 const IN = {
   movie: "Films & Series", show: "Films & Series", series: "Films & Series",
   album: "Music", artist: "Music", song: "Music",
@@ -590,7 +449,8 @@ function librarySource(atlas, title = null) {
   const found = new Map(); // a note's path → { k, row }
   const value = (row, prop) => { const i = data.at(prop); return i >= 0 ? row.cells[i] : null; };
   const titleOfRow = (row) => cellText(value(row, "title")) || row.path.split("/").pop().replace(/\.md$/, "");
-  const mine = (k) => title === null || libraryOf(k) === title;
+  // References' kinds (papers) are written by References only (refs.bib, their folders): never in a catalog library
+  const mine = (k) => (title === null ? libraryOf(k) !== "References" : libraryOf(k) === title);
   // the kind's cover property, else the usual ones or the note's first picture (noteCover)
   const coverOf = (k, row) => async () => {
     const cell = k.library?.cover ? value(row, vaultName(k, k.library.cover)) : null;
@@ -642,6 +502,14 @@ function librarySource(atlas, title = null) {
     // its kinds with notes, the biggest first (an empty kind is no filter; adding by a link finds its kind itself)
     tabs: () => (data?.kinds ?? []).filter((x) => x.rows.length).sort((a, b) => b.rows.length - a.rows.length || kindTitle(a.k).localeCompare(kindTitle(b.k))).map((x) => ({ id: x.k.name, title: kindTitle(x.k) })),
     groupsTitle: "Shelves",
+    // a card dragged onto a shelf: written to its kind's shelf property, as a link (a kind with no shelves is left)
+    async regroup(items, shelf) {
+      for (const i of items) {
+        const { k } = found.get(i.id) ?? {};
+        const g = k?.library?.group;
+        if (g) await atlas.writeProperty(i.id, vaultName(k, g), `[[${(k.library.shelves ?? []).find((sh) => human(sh) === shelf) ?? shelf}]]`);
+      }
+    },
     layouts: ["covers", "list"],
     sorts: [{ id: "added", label: "date added", desc: true }, { id: "title", label: "title" }, { id: "year", label: "year", desc: true }, { id: "rating", label: "rating", desc: true }],
     search: `Search ${title ? title.toLowerCase() : "the library"}…`,
@@ -685,10 +553,9 @@ function librarySource(atlas, title = null) {
     add: {
       placeholder: `Add ${first === "Library" ? "a" : `to ${first.toLowerCase()}:`} link, ISBN or title`, busy: "Adding…",
       async run(text) {
-        const done = await atlas.helper.call("add", { text }, { timeout: 120 });
-        if (!done.result?.path) throw new Error("nothing was recognised in it");
-        atlas.toast("Added", done.result.path, "success");
-        return done.result.path;
+        const path = await addChoosing(atlas, text);
+        if (path) atlas.toast("Added", path, "success");
+        return path;
       },
     },
     watch: (reload) => atlas.onFilesChanged((paths) => {
@@ -701,6 +568,28 @@ function librarySource(atlas, title = null) {
 
 /** A property's value as one line to edit (a list joined by commas, a link by its words). */
 const fieldText = (v) => (Array.isArray(v) ? v.map((x) => linkText(String(x))).join(", ") : v == null ? "" : linkText(String(v)));
+
+/** Adds what `text` names. Words several things match are offered to choose from first (the collections box's
+ *  choice, as a picker), then the one picked is added by its IDs. The added note's path; null: nothing chosen. */
+async function addChoosing(atlas, text) {
+  const r = await atlas.helper.call("preview", { text }, { timeout: 120 });
+  const p = r.result ?? r;
+  let pick = {};
+  if (p.searched && (p.others ?? []).length) {
+    const all = [p.candidate, ...p.others];
+    const at = await new Promise((done) => atlas.pick({
+      placeholder: `Several things match “${text}” — which one?`, tag: "Catalog", icon: "library",
+      items: all.map((c, i) => ({ value: String(i), title: c.label ?? human(c.kind), detail: `${human(c.kind)} · ${Object.entries(c.ids ?? {}).map(([k, v]) => `${k} ${v}`).join(", ")}` })),
+      onpick: (v) => done(v == null ? null : all[Number(v)]),
+      oncancel: () => done(null),
+    }));
+    if (!at) return null;
+    pick = { kind: at.kind, ids: at.ids };
+  }
+  const done = await atlas.helper.call("add", { text, ...pick }, { timeout: 120 });
+  if (!done.result?.path) throw new Error("nothing was recognised in it");
+  return done.result.path;
+}
 
 /** What a note is about, as plain text: its text without frontmatter, blocks, embeds and headings, links by their
  *  words (a film's description, an album's own lines). */
@@ -749,13 +638,12 @@ export function register(atlas) {
   atlas.registerCommand({
     id: "add", title: "Add to the catalog…",
     run: () => atlas.pick({
-      placeholder: "A link, DOI, arXiv id or ISBN…", tag: "Catalog", icon: "library", items: [], typed: (t) => `Add ${t}`,
+      placeholder: "A link, DOI, arXiv id, ISBN or title…", tag: "Catalog", icon: "library", items: [], typed: (t) => `Add ${t}`,
       onpick: async (text) => {
         if (!text?.trim()) return;
         try {
-          const done = await atlas.helper.call("add", { text: text.trim() }, { timeout: 120 });
-          if (done.result?.path) { atlas.open(done.result.path); atlas.toast("Added", done.result.path, "success"); }
-          else atlas.toast("Not added", "nothing was recognised in it", "error");
+          const path = await addChoosing(atlas, text.trim());
+          if (path) { atlas.open(path); atlas.toast("Added", path, "success"); }
         } catch (err) { atlas.toast("Not added", String(err?.message ?? err), "error"); }
       },
     }),

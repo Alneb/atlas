@@ -8,8 +8,8 @@
 title = "Catalog · Science"
 description = "everything science: papers by DOI or arXiv id into References, with metadata, the open-access PDF (arXiv, OpenAlex, Unpaywall, Semantic Scholar, Europe PMC, CORE), refs.bib and the Zotero connector"
 icon = "book"
-version = "0.4.2"
-api = 16
+version = "0.4.4"
+api = 19
 provides = ["references"]                 # the role the core and the page ask for (not this id)
 # no `requires`: References stands alone; its [contributes.catalog] patterns count only where the catalog runs
 
@@ -111,7 +111,7 @@ sources = [{ kind = "paper", tool = "lookup", priority = 70, needs = ["doi", "ar
 name = "paper"
 label = "Paper"
 type = "Literature"
-folder = "refs/papers"
+folder = "{setting:dir}"                # where References keeps them (the `dir` setting), filled in by the core (API 19)
 note_name = "{citekey}/{citekey}"
 ids = [{ id = "doi", property = "source", prefix = "https://doi.org/" }, { id = "arxiv", property = "source", prefix = "https://arxiv.org/abs/" }]
 writer = { by = "plugin", plugin = "catalog-papers", tool = "add" }

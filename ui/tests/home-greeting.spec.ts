@@ -2,17 +2,17 @@ import { test, expect, type APIRequestContext } from "@playwright/test";
 import { readFileSync } from "node:fs";
 
 // Home:
-// plugins add chips under the date (`atlas.shell.greetingItem`); Activity lists what was made; the Home plugin's map.
+// plugins add chips under the date (`atlas.shell.greetingItem`); Activity lists what was made; the Today plugin's map.
 const H = { "x-atlas": "1" };
 const put = (r: APIRequestContext, path: string, text: string) => r.put("/api/file", { headers: H, data: { path, text } });
-const HOME = readFileSync(new URL("../../plugins/beta/home/main.js", import.meta.url), "utf8");
+const today = (f: string) => readFileSync(new URL(`../../plugins/beta/today/${f}`, import.meta.url), "utf8");
 
 test.beforeAll(async ({ request }) => {
   await put(request, ".atlas/plugins/greet-test/plugin.toml", 'title = "Greet test"\napi = 4\n');
   await put(request, ".atlas/plugins/greet-test/main.js", 'export function register(atlas) { atlas.shell.greetingItem({ id: "sky", icon: "⛅", text: "12 °C · Oslo", order: 1 }); }\n');
-  await put(request, ".atlas/plugins/home/plugin.toml", 'title = "Home"\napi = 4\n');
-  await put(request, ".atlas/plugin-settings/home.toml", 'language = "en"\n'); // the vault's values, never in the manifest
-  await put(request, ".atlas/plugins/home/main.js", HOME);
+  await put(request, ".atlas/plugins/today/plugin.toml", 'title = "Today"\napi = 4\n');
+  await put(request, ".atlas/plugin-settings/today.toml", 'language = "en"\n'); // the vault's values, never in the manifest
+  for (const f of ["home.js", "daily.js", "main.js"]) await put(request, `.atlas/plugins/today/${f}`, today(f)); // main.js last: it imports the others
   await put(request, "notes/map/Physics.md", "# Physics\n");
   await put(request, "notes/map/Optics.md", "---\ntopics: [\"[[Physics]]\"]\n---\n# Optics\n");
   await put(request, "notes/map/Lasers.md", "---\ntopics: [\"[[Physics]]\", \"[[Optics]]\"]\n---\n# Lasers\n");
@@ -20,7 +20,7 @@ test.beforeAll(async ({ request }) => {
   await put(request, "notes/map/Mechanics.md", "---\ntopics: [\"[[Physics]]\"]\n---\n# Mechanics\n");
 });
 test.afterAll(async ({ request }) => {
-  for (const p of ["greet-test", "home"]) await request.post(`/api/fs/trash?path=.atlas/plugins/${p}`, { headers: H });
+  for (const p of ["greet-test", "today"]) await request.post(`/api/fs/trash?path=.atlas/plugins/${p}`, { headers: H });
   await request.post("/api/fs/trash?path=notes/map", { headers: H });
 });
 

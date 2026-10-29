@@ -152,7 +152,7 @@ fn connect(p: &Value) -> Answer {
     if s.bring_up(&host) {
         return Ok(json!({ "connected": host }));
     }
-    ssh::login(&s, &host, Duration::ZERO, "you (Connect)");
+    ssh::login(&s, &host, Duration::ZERO, ssh::Asker::User("you (Connect)"));
     Ok(json!({ "waiting_for_login": host, "message": format!("Log in to {host} in the terminal tab that opened (passphrase / 2FA); it closes once connected.") }))
 }
 
@@ -176,6 +176,7 @@ fn watch() {
         let up = up_hosts(&s);
         if last.as_ref() != Some(&up) {
             for h in up.iter().filter(|h| !last.as_ref().is_some_and(|l| l.contains(h))) {
+                ssh::connected(h);
                 let argv = s.subsystem_argv(h);
                 std::thread::spawn(move || wire::warm(&argv));
             }
@@ -193,7 +194,7 @@ fn files(work: fn(&[String], &Value) -> Answer) -> impl Fn(&Value) -> Answer {
         let s = Settings::of(p);
         let host = host(p, "a name from the ssh config, or user@host[:port]")?;
         if !s.bring_up(&host) {
-            ssh::login(&s, &host, Duration::ZERO, "Atlas's explorer to browse files there");
+            ssh::login(&s, &host, Duration::ZERO, ssh::Asker::User("Atlas's explorer to browse files there"));
             return Ok(json!({ "waiting_for_login": host, "message": format!("Log in to {host} in the terminal tab that opened (passphrase / 2FA).") }));
         }
         work(&s.sftp_argv(&host), p)

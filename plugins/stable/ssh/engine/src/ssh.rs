@@ -196,30 +196,55 @@ pub fn token() -> String {
 }
 
 static LOGINS: LazyLock<Mutex<HashMap<String, Instant>>> = LazyLock::new(Default::default);
+/// Hosts whose login was offered to the user for a background caller, until they connect: one offer per disconnection.
+static OFFERED: LazyLock<Mutex<HashSet<String>>> = LazyLock::new(Default::default);
 
-/// Asks the page (once per LOGIN_WAIT) for the login tab on `host`, then waits up to `wait` for the connection: true
-/// once it is up. ControlPersist keeps it after the tab's `ssh … true` returns, so the tab closes; AddKeysToAgent spares
-/// the key's passphrase on a later reconnect (2FA is asked again).
-pub fn login(s: &Settings, host: &str, wait: Duration, why: &str) -> bool {
-    {
-        let mut logins = LOGINS.lock().unwrap_or_else(|e| e.into_inner());
-        if logins.get(host).is_none_or(|&until| until < Instant::now()) {
-            logins.insert(host.to_string(), Instant::now() + LOGIN_WAIT);
-            match login_script(s, host, why) {
-                Ok(path) => atlas_plugin::event("login", json!({ "host": host, "command": format!("sh {}", shell::quote(&path.to_string_lossy())) })),
-                Err(e) => eprintln!("atlas-ssh: the login script could not be written: {e}"),
+/// Who wants the login, and why (shown in the login tab).
+pub enum Asker<'a> {
+    /// A click of the user's (Connect, the Files pane): the login tab opens at once.
+    User(&'a str),
+    /// An agent's session, another plugin's polling: the user is offered the login once (a notice and a status-bar
+    /// cell to click) instead of a terminal tab popping up by itself every few minutes.
+    Background(&'a str),
+}
+
+/// Asks the page for the login on `host` (a tab for the user, at most once per LOGIN_WAIT; an offer for a background
+/// caller, once until connected), then waits up to `wait` for the connection: true once it is up. ControlPersist keeps
+/// it after the tab's `ssh … true` returns, so the tab closes; AddKeysToAgent spares the key's passphrase on a later
+/// reconnect (2FA is asked again).
+pub fn login(s: &Settings, host: &str, wait: Duration, asker: Asker) -> bool {
+    let (event, why) = match asker {
+        Asker::User(why) => {
+            let mut logins = LOGINS.lock().unwrap_or_else(|e| e.into_inner());
+            let fresh = logins.get(host).is_none_or(|&until| until < Instant::now());
+            if fresh {
+                logins.insert(host.to_string(), Instant::now() + LOGIN_WAIT);
             }
+            (fresh.then_some("login"), why)
+        }
+        Asker::Background(why) => (OFFERED.lock().unwrap_or_else(|e| e.into_inner()).insert(host.to_string()).then_some("login_needed"), why),
+    };
+    if let Some(event) = event {
+        match login_script(s, host, why) {
+            Ok(path) => atlas_plugin::event(event, json!({ "host": host, "why": why, "command": format!("sh {}", shell::quote(&path.to_string_lossy())) })),
+            Err(e) => eprintln!("atlas-ssh: the login script could not be written: {e}"),
         }
     }
     let end = Instant::now() + wait;
     while Instant::now() < end {
         if s.connected(host) {
-            LOGINS.lock().unwrap_or_else(|e| e.into_inner()).remove(host);
+            connected(host);
             return true;
         }
         std::thread::sleep(Duration::from_millis(1500));
     }
     false
+}
+
+/// `host` is up: a later drop asks again.
+pub fn connected(host: &str) {
+    LOGINS.lock().unwrap_or_else(|e| e.into_inner()).remove(host);
+    OFFERED.lock().unwrap_or_else(|e| e.into_inner()).remove(host);
 }
 
 /// The login tab's script: who asks and why, then `ssh … true` until it connects (Enter tries again, Ctrl+C gives up).

@@ -2,12 +2,12 @@ import { test, expect, type APIRequestContext } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
-// The example plugin plugins/stable/run-tools/ installed as it is: its Run button above a Python
+// The example plugin plugins/beta/run-tools/ installed as it is: its Run button above a Python
 // file types the command into the terminal (`atlas.editor.toolbar` + `atlas.terminal.run`) and the
 // output is there to read.
 const H = { "x-atlas": "1" };
 const put = (r: APIRequestContext, path: string, text: string) => r.put("/api/file", { headers: H, data: { path, text } });
-const example = (f: string) => readFileSync(fileURLToPath(new URL(`../../plugins/stable/run-tools/${f}`, import.meta.url)), "utf8");
+const example = (f: string) => readFileSync(fileURLToPath(new URL(`../../plugins/beta/run-tools/${f}`, import.meta.url)), "utf8");
 
 test.beforeAll(async ({ request }) => {
   await put(request, "code/answer.py", "print('the answer is', 6 * 7)\n");
@@ -50,7 +50,7 @@ test("Test offers the file's tests, and runs the one chosen", async ({ page, req
 
 // The words each shell reads back, and what the project files name (main.js's pure part, imported as it is).
 test("commands are written for the terminal's shell, and the project's files are read", async () => {
-  const m = await import(new URL("../../plugins/stable/run-tools/main.js", import.meta.url).href);
+  const m = await import(new URL("../../plugins/beta/run-tools/main.js", import.meta.url).href);
   expect(m.quote("a b")).toBe("'a b'");
   expect(m.quote("it's", "powershell")).toBe("'it''s'");
   expect(m.quote("x\"y", "cmd")).toBe("\"x\"\"y\"");

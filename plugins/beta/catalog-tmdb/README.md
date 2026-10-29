@@ -1,30 +1,33 @@
 # Catalog · TMDB
 
-Films and series for the catalog, from The Movie Database: search, details, posters and credits. A subplugin of the
-Library (`catalog`); it works through the catalog's capture and "Add to the catalog…".
+Films and series for the catalog, from The Movie Database: a themoviedb.org link is recognised; a bare title
+("Dune 2021") is searched and the matches offered to pick from; details come with the credits (director, cast),
+genres, poster, runtime and the other IDs (IMDb, TVDB). A film whose language the vault keeps originals in (the kind's
+`original_title`) also gets its title in that language.
 
-- A themoviedb.org film or series link is recognised.
-- A bare title ("Dune 2021") is searched and the matches offered to pick from — never filed on a guess.
-- Details: title, year, overview, genres, director and cast, poster, runtime and the other IDs (IMDb, TVDB).
-- A film in a language the vault keeps originals in (`original_title: [es]` in its kind) also gets its title in that
-  language.
-- Works without a key, from themoviedb.org's own pages; with a token the API is used, which is faster and adds the
-  IMDb and TVDB ids.
+## What it adds
+
+- `[contributes.catalog]`: patterns for `themoviedb.org/movie/<id>` (film) and `themoviedb.org/tv/<id>` (series); a
+  recogniser (the `search` tool, asked when no pattern matched); a source for `movie` and `show` (the `details` tool,
+  priority 70, needs a TMDB or IMDb id).
+- Tools: `search` (titles matching the words, a year narrowing it) and `details`.
 
 ## Settings
 
-- **API Read Access Token** (optional, a secret): themoviedb.org → Settings → API.
+- **API Read Access Token** (optional, a secret): without it the film and series pages on themoviedb.org are read.
+  With it (themoviedb.org → Settings → API) answers are faster and include the IMDb and TVDB ids.
 - **Language** (`en-US`): titles and overviews in this language when TMDB has them (`es-ES`, `fr-FR`…).
 
-## Needs
+## How it fits
 
-The Catalog plugin (`requires = ["catalog"]`); nothing installed: the helper is JavaScript run inside Atlas's core
-(`helper.js`, built from `helper/helper.ts`). Requests go through Atlas's core.
+`requires = ["catalog"]`. Works alongside Letterboxd and Wikipedia for films; IMDb links are recognised by
+`catalog-letterboxd`.
 
 ## Platforms
 
-Linux works; the others are untested; not in the phone app.
+Linux works; the others are untested. The helper is JavaScript run inside Atlas's core.
 
-## Tests
+## Status
 
-`node scripts/dev/plugin-ui.mjs --check plugins/beta/catalog-tmdb` (`helper/helper.test.ts`, offline).
+Beta. Unit tests in `helper/helper.test.ts` (`node scripts/dev/plugin-ui.mjs --check plugins/beta/catalog-tmdb`).
+A search with several matches can be picked from only in the `catalog.collections` block for now.

@@ -9,7 +9,7 @@ import { fileURLToPath } from "node:url";
 const H = { "x-atlas": "1" };
 const put = (r: APIRequestContext, path: string, text: string) => r.put("/api/file", { headers: H, data: { path, text } });
 const read = async (r: APIRequestContext, path: string) => ((await (await r.get(`/api/file?path=${encodeURIComponent(path)}`, { headers: H })).json()) as { text?: string }).text ?? "";
-const example = (f: string) => readFileSync(fileURLToPath(new URL(`../../plugins/beta/freshrss/${f}`, import.meta.url)), "utf8");
+const example = (f: string) => readFileSync(fileURLToPath(new URL(`../../plugins/examples/freshrss/${f}`, import.meta.url)), "utf8");
 let server: Server, port = 0;
 const bodies: string[] = [];
 

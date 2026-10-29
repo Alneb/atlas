@@ -1,6 +1,6 @@
 -- A ```tikz block → the tikzpicture itself, as raw LaTeX: the PDF gets the vector figure TeX draws. The block's leading
 -- \usetikzlibrary{…} / \usepackage[…]{…} lines go to the preamble, after \usepackage{tikz}. Other output formats keep
--- the block as code. Used by the Export plugin (helper.py) and usable by any `pandoc --lua-filter tikz.lua`.
+-- the block as code. Used by the Export plugin (helper/helper.ts, the LaTeX road) and usable by any `pandoc --lua-filter tikz.lua`.
 -- Same reading of a block as Atlas's own drawing of it (ui/src/lib/tikz.ts, parseTikz).
 
 local libraries, packages, seen, used = {}, {}, {}, false

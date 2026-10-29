@@ -15,10 +15,32 @@ use std::path::Path;
 const PENDING_EVERY: std::time::Duration = std::time::Duration::from_secs(60);
 
 pub fn spawn(ws: Workspace, bus: EventBus, helpers: Helpers) -> tokio::task::JoinHandle<()> {
-    let mut rx = bus.on_captured();
+    let mut captured = bus.on_captured();
     let fs = spawn_fs(ws.clone(), bus.clone(), helpers.clone());
+    // the bus keeps 64 captures; a hook may take minutes (a slow lookup), so a forwarder that does nothing else moves
+    // them into an unbounded queue at once, and the hooks work through that — a burst is filed late, never skipped
+    let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<Captured>();
+    let forward = {
+        let bus = bus.clone();
+        tokio::spawn(async move {
+            loop {
+                match captured.recv().await {
+                    Ok(c) => {
+                        if tx.send(c).is_err() {
+                            return;
+                        }
+                    }
+                    Err(tokio::sync::broadcast::error::RecvError::Lagged(n)) => bus.publish(Event::Notify(
+                        Notice::new(format!("{n} captures were not handed to the plugins")).body("They are in their notes; only the catalog's filing (and other capture hooks) skipped them.").level(NoticeLevel::Failure),
+                    )),
+                    Err(_) => return,
+                }
+            }
+        })
+    };
     tokio::spawn(async move {
         let _fs = Stops(fs); // the fs hooks end with these (the vault stopped)
+        let _forward = Stops(forward);
         // what was captured while no Atlas served the vault (capture::capture_unserved), or on the phone: at start, then
         // every minute, as Syncthing brings other devices' files in. The phone leaves them to the desktop.
         let mut sweep = tokio::time::interval(PENDING_EVERY);
@@ -30,9 +52,8 @@ pub fn spawn(ws: Workspace, bus: EventBus, helpers: Helpers) -> tokio::task::Joi
                     }
                 }
                 got = rx.recv() => match got {
-                    Ok(c) => run(&ws, &bus, &helpers, c).await,
-                    Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => continue,
-                    Err(_) => return,
+                    Some(c) => run(&ws, &bus, &helpers, c).await,
+                    None => return,
                 },
             }
         }

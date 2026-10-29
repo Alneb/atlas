@@ -20,7 +20,15 @@ fn frontmatter(text: &str) -> Fields {
 impl Host for Core {
     fn contributions(&self) -> Result<Map<String, Value>, Fail> {
         let v = self.0.get("/api/plugins/catalog/contributions").map_err(why)?;
-        Ok(v.as_object().cloned().unwrap_or_default())
+        let mut out = v.as_object().cloned().unwrap_or_default();
+        // the page a link points to, read by this engine: one more (low-priority) source for every kind, unless the
+        // "Read the page a link points to" setting is off (it was the Catalog · Web pages plugin)
+        let plugins = self.0.get("/api/plugins").unwrap_or_default();
+        let mine = plugins.as_array().into_iter().flatten().find(|p| p["id"] == "catalog");
+        if mine.is_none_or(|p| p["settings"]["read_pages"] != false) {
+            out.entry("catalog").or_insert_with(|| json!({ "sources": [{ "kind": "*", "engine": "clip", "priority": 10, "needs": ["url"] }] }));
+        }
+        Ok(out)
     }
 
     fn vault_kinds(&self) -> Result<Vec<(String, String)>, Fail> {
@@ -51,7 +59,7 @@ impl Host for Core {
     }
 
     fn clip(&self, input: Value) -> Result<Value, Fail> {
-        // a page read here (catalog-web's source), fetched through the core's fetch
+        // a page read here (the catalog's own page source), fetched through the core's fetch
         let url = input.get("url").and_then(Value::as_str).ok_or("clip: no url")?;
         let clip = atlas_catalog::clip::fetch(url, |u, cookie| {
             let mut headers = json!({ "accept": "text/html,application/xhtml+xml,*/*;q=0.8" });

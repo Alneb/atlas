@@ -1,0 +1,33 @@
+# A tabletop RPG plugin: an example that uses most of what a plugin can do, with no helper program
+# and no network — only files and JavaScript. Copy this folder into a vault's .atlas/plugins/.
+title = "TTRPG"
+description = "stat blocks, dice, session notes, an initiative list"
+phone = true # runs in the phone apps too (only plugins marked so start there)
+icon = "table"
+version = "0.1.0"
+api = 4
+
+# Settings → Plugins shows a form for these; the code reads atlas.plugin.settings.
+[[setting]]
+key = "sessions"
+label = "Folder for session notes"
+kind = "text"
+hint = "a new session note is created here"
+default = "campaigns/sessions"
+
+[[setting]]
+key = "die"
+label = "The die rolled when none is named"
+kind = "choice"
+choices = ["d20", "d6", "d100"]
+default = "d20"
+
+[[setting]]
+key = "loud"
+label = "Show every roll as a notification"
+kind = "toggle"
+default = true
+
+# where it runs (PLUGIN-API.md, "Platforms"); a platform not named is untested (Android: only with `phone = true`)
+[platforms]
+linux = "works"

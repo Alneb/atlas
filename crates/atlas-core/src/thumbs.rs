@@ -28,6 +28,14 @@ pub fn thumbnail(ws: &Workspace, rel: &str, w: u32) -> Result<(Vec<u8>, &'static
     } else if is_epub(rel) {
         // the book's own cover, once: the page unzipped the whole book for it each time
         image::load_from_memory(&epub_cover(&src)?).map_err(bad(rel))?
+    } else if is_cbz(rel) {
+        // a comic chapter's first page: a series' cover in the Libraries page, a .cbz's in the explorer
+        let page = cbz_first_page(&src)?;
+        if jxl_head(&page) {
+            image::DynamicImage::ImageRgba8(decode_jxl(&page)?)
+        } else {
+            image::load_from_memory(&page).map_err(bad(rel))?
+        }
     } else {
         let reader = image::ImageReader::open(&src)?.with_guessed_format()?;
         let format = reader.format();
@@ -57,26 +65,70 @@ pub const PDF_COVER_W: u32 = 640;
 
 /// A PDF's first page as a JPEG in the cache, drawn by poppler's `pdftoppm` when missing or older than the PDF — on the
 /// server, as the PDF arrives (pdf_text.rs runs it with the text), not by every page that shows it. Without poppler (a phone) it fails, and the page draws the cover itself.
+/// Failures are remembered, so a pass over the vault (after every search) does not try each PDF again: no renderer
+/// for the life of the process (installing poppler counts after a restart), a PDF that could not be drawn until it
+/// changes (a `.failed` marker beside where its cover would be).
 pub fn pdf_cover(cache_dir: &Path, rel: &str, pdf: &Path) -> Result<std::path::PathBuf> {
+    static NO_RENDERER: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
     let out = cache_path(cache_dir, rel, PDF_COVER_W, "jpg");
-    if fresh(&out, std::fs::metadata(pdf)?.modified()?) {
+    let changed = std::fs::metadata(pdf)?.modified()?;
+    if fresh(&out, changed) {
         return Ok(out);
     }
+    let failed = out.with_extension("failed");
+    if NO_RENDERER.load(std::sync::atomic::Ordering::Relaxed) {
+        return Err(Error::NotFound(format!("{rel}: no PDF renderer here (pdftoppm)")));
+    }
+    if fresh(&failed, changed) {
+        return Err(Error::BadRequest(format!("{rel}: its first page could not be drawn (tried before)")));
+    }
     let _ = crate::vault_write::cache::mkdir(out.parent().expect("a cache file has a folder"));
+    if crate::pdfium::ready() {
+        return match pdfium_cover(pdf).and_then(|jpg| crate::vault_write::cache::write(&out, &jpg).map_err(|e| e.to_string())) {
+            Ok(()) => {
+                let _ = crate::vault_write::cache::remove_file(&failed);
+                Ok(out)
+            }
+            Err(e) => {
+                let _ = crate::vault_write::cache::write(&failed, b"");
+                Err(Error::BadRequest(format!("{rel}: its first page could not be drawn ({e})")))
+            }
+        };
+    }
     let base = out.with_extension("drawing"); // pdftoppm adds ".jpg"
     let w = PDF_COVER_W.to_string();
     let mut cmd = std::process::Command::new("pdftoppm");
     cmd.args(["-jpeg", "-jpegopt", "quality=85", "-f", "1", "-l", "1", "-singlefile", "-scale-to-x", &w, "-scale-to-y", "-1"]).arg(pdf).arg(&base);
-    let ok = crate::platform::host::std_command(cmd)
-        .and_then(|mut c| c.stderr(std::process::Stdio::null()).status())
-        .map_err(|e| Error::NotFound(format!("{rel}: no PDF renderer here (pdftoppm: {e})")))?
-        .success();
+    let ok = match crate::platform::host::std_command(cmd).and_then(|mut c| c.stderr(std::process::Stdio::null()).status()) {
+        Ok(status) => status.success(),
+        Err(e) => {
+            NO_RENDERER.store(true, std::sync::atomic::Ordering::Relaxed);
+            return Err(Error::NotFound(format!("{rel}: no PDF renderer here (pdftoppm: {e})")));
+        }
+    };
     let drawn = base.with_extension("drawing.jpg");
     if !ok || crate::vault_write::cache::rename(&drawn, &out).is_err() {
         let _ = crate::vault_write::cache::remove_file(&drawn);
+        let _ = crate::vault_write::cache::write(&failed, b"");
         return Err(Error::BadRequest(format!("{rel}: its first page could not be drawn")));
     }
+    let _ = crate::vault_write::cache::remove_file(&failed);
     Ok(out)
+}
+
+/// The first page drawn by PDFium, PDF_COVER_W wide, as a JPEG.
+fn pdfium_cover(pdf: &Path) -> std::result::Result<Vec<u8>, String> {
+    let drawn = (|| {
+        let (pw, ph) = *crate::pdfium::pages(pdf)?.first().ok_or("no pages")?;
+        let (w, h) = (PDF_COVER_W, ((PDF_COVER_W as f32 * ph / pw.max(1.0)).round() as u32).clamp(1, PDF_COVER_W * 4));
+        Ok::<_, String>((w, h, crate::pdfium::render(pdf, 1, w, h, 0, true)?))
+    })();
+    crate::pdfium::close();
+    let (w, h, rgba) = drawn?;
+    let img = image::RgbaImage::from_raw(w, h, rgba).ok_or("a short bitmap")?;
+    let mut jpg = vec![];
+    image::DynamicImage::ImageRgba8(img).to_rgb8().write_to(&mut std::io::Cursor::new(&mut jpg), image::ImageFormat::Jpeg).map_err(|e| e.to_string())?;
+    Ok(jpg)
 }
 
 fn is_epub(rel: &str) -> bool {
@@ -120,6 +172,44 @@ fn epub_cover(epub: &Path) -> Result<Vec<u8>> {
     let mut out = Vec::new();
     zip.by_name(&named).map_err(|_| none())?.take(20 << 20).read_to_end(&mut out)?;
     Ok(out)
+}
+
+fn is_cbz(rel: &str) -> bool {
+    rel.to_ascii_lowercase().ends_with(".cbz")
+}
+
+/// The first picture of a comic archive, in the reader's order (natural: "2.png" before "10.png"); macOS's
+/// `__MACOSX/` copies left out.
+fn cbz_first_page(cbz: &Path) -> Result<Vec<u8>> {
+    use std::io::Read;
+    let none = || Error::NotFound(format!("{}: no page", cbz.display()));
+    let mut zip = zip::ZipArchive::new(std::fs::File::open(cbz)?).map_err(|_| none())?;
+    let picture = |n: &str| { let n = n.to_ascii_lowercase(); [".jpg", ".jpeg", ".png", ".webp", ".gif", ".jxl", ".avif", ".bmp"].iter().any(|e| n.ends_with(e)) };
+    let first = (0..zip.len())
+        .filter_map(|i| zip.by_index(i).ok().map(|f| f.name().to_string()))
+        .filter(|n| picture(n) && !n.starts_with("__MACOSX/"))
+        .min_by(|a, b| natural(a, b))
+        .ok_or_else(none)?;
+    let mut out = Vec::new();
+    zip.by_name(&first).map_err(|_| none())?.take(40 << 20).read_to_end(&mut out)?;
+    Ok(out)
+}
+
+/// Names compared with their numbers as numbers.
+fn natural(a: &str, b: &str) -> std::cmp::Ordering {
+    fn parts(s: &str) -> Vec<(u64, String)> {
+        let mut out = Vec::new();
+        let mut rest = s;
+        while !rest.is_empty() {
+            let digits = rest.chars().next().is_some_and(|c| c.is_ascii_digit());
+            let end = rest.find(|c: char| c.is_ascii_digit() != digits).unwrap_or(rest.len());
+            let (head, tail) = rest.split_at(end);
+            out.push(if digits { (head.parse().unwrap_or(u64::MAX), String::new()) } else { (0, head.to_lowercase()) });
+            rest = tail;
+        }
+        out
+    }
+    parts(a).cmp(&parts(b))
 }
 
 /// The quoted value after `key` (`full-path="OEBPS/x.opf"` → `OEBPS/x.opf`), searching from `from`.
@@ -168,7 +258,11 @@ fn is_jxl(path: &Path) -> bool {
     use std::io::Read;
     let mut head = [0u8; 12];
     let n = std::fs::File::open(path).and_then(|mut f| f.read(&mut head)).unwrap_or(0);
-    head[..n].starts_with(&[0xff, 0x0a]) || head[..n] == *b"\0\0\0\x0cJXL \r\n\x87\n"
+    jxl_head(&head[..n])
+}
+
+fn jxl_head(b: &[u8]) -> bool {
+    b.starts_with(&[0xff, 0x0a]) || b.starts_with(b"\0\0\0\x0cJXL \r\n\x87\n")
 }
 
 /// A JPEG XL's first frame in sRGB, as RGBA (the phone's native plugins use it too: atlas-android `image.rs`).
@@ -236,6 +330,27 @@ mod tests {
     }
 
     #[test]
+    fn a_comic_chapters_cover_is_its_first_page_in_natural_order() {
+        use std::io::Write;
+        let d = tempfile::tempdir().unwrap();
+        let png = |w: u32| {
+            let mut c = std::io::Cursor::new(Vec::new());
+            image::DynamicImage::new_rgb8(w, 10).write_to(&mut c, image::ImageFormat::Png).unwrap();
+            c.into_inner()
+        };
+        let mut z = zip::ZipWriter::new(std::fs::File::create(d.path().join("Chapter 1.cbz")).unwrap());
+        let opt = zip::write::SimpleFileOptions::default();
+        for (name, w) in [("10.png", 70), ("__MACOSX/._1.png", 80), ("2.png", 90), ("info.txt", 0)] {
+            z.start_file(name, opt).unwrap();
+            z.write_all(&if w > 0 { png(w) } else { b"x".to_vec() }).unwrap();
+        }
+        z.finish().unwrap();
+        let ws = Workspace::open(d.path()).unwrap();
+        let (bytes, _) = thumbnail(&ws, "Chapter 1.cbz", 300).unwrap();
+        assert_eq!(image::load_from_memory(&bytes).unwrap().width(), 90, "2.png, before 10.png");
+    }
+
+    #[test]
     fn a_pdfs_cover_is_drawn_once_by_the_core_and_kept() {
         if std::process::Command::new("pdftoppm").arg("-v").output().is_err() {
             eprintln!("no pdftoppm here: skipped");
@@ -252,6 +367,33 @@ mod tests {
         assert_eq!(pdf_cover(&cache, "paper.pdf", &pdf).unwrap(), cover);
         assert_eq!(std::fs::metadata(&cover).unwrap().modified().unwrap(), drawn, "kept, not drawn again");
         assert!(pdf_cover(&cache, "x.pdf", &d.path().join("missing.pdf")).is_err());
+
+        // a PDF that cannot be drawn is tried once, then not again until it changes
+        let broken = d.path().join("broken.pdf");
+        std::fs::write(&broken, "not a pdf").unwrap();
+        assert!(pdf_cover(&cache, "broken.pdf", &broken).unwrap_err().to_string().contains("could not be drawn"));
+        assert!(pdf_cover(&cache, "broken.pdf", &broken).unwrap_err().to_string().contains("tried before"));
+        std::thread::sleep(std::time::Duration::from_millis(20));
+        std::fs::write(&broken, "still not a pdf").unwrap();
+        assert!(!pdf_cover(&cache, "broken.pdf", &broken).unwrap_err().to_string().contains("tried before"), "changed: tried again");
+    }
+
+    /// With PDFium (the host build fetched into local/pdfium) the cover needs no poppler.
+    #[test]
+    fn pdfium_draws_a_cover_without_poppler() {
+        let lib = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../local/pdfium/8086-linux-x64/lib/libpdfium.so");
+        if !lib.exists() || crate::pdfium::init(&lib).is_err() {
+            eprintln!("no local/pdfium/8086-linux-x64 (scripts/dev/fetch-pdfium.sh): skipped");
+            return;
+        }
+        let d = tempfile::tempdir().unwrap();
+        let pdf = d.path().join("paper.pdf");
+        std::fs::write(&pdf, "%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj\n3 0 obj<</Type/Page/Parent 2 0 R/MediaBox[0 0 200 300]>>endobj\ntrailer<</Root 1 0 R>>\n%%EOF\n").unwrap();
+        let jpg = pdfium_cover(&pdf).unwrap();
+        assert_eq!(image::load_from_memory(&jpg).unwrap().height(), PDF_COVER_W * 3 / 2, "page 1 at the cover's width");
+        let cover = pdf_cover(&d.path().join(".atlas/cache"), "paper.pdf", &pdf).unwrap();
+        assert!(cover.is_file());
+        assert!(pdfium_cover(&d.path().join("missing.pdf")).is_err());
     }
 
     #[test]

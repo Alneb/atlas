@@ -2,7 +2,8 @@
 // sync — what arrived on the kept ntfy topics since the last time (`?poll=1&since=<id>`, one id kept per topic) is
 //        filed in a note per source — the message's first tag (Apprise's: backups, updates…), else the topic — newest
 //        first; what came to the inbox topic is captured. Runs every 5 minutes on the server (`schedule`) and when a
-//        page asks. Answers what is new and which sources are loud (not muted).
+//        page asks, one sync at a time. Answers what is new and which sources are loud (not muted), and says it to
+//        the pages as a `synced` event.
 // send — a message to the phone: through the Apprise API when its address is set, else to the phone's ntfy topic.
 // The logic takes its transport, so helper.test.ts runs it against a stand-in ntfy.
 import type { Params } from "atlas-helper";
@@ -205,7 +206,23 @@ const vault: Vault = {
   },
 };
 
+/** `fn` run after every call before it has ended: two syncs at once (the schedule and a page's "Check now") would poll
+ *  from the same kept id and file the same messages twice. */
+export function oneAtATime<A, R>(fn: (a: A) => Promise<R>): (a: A) => Promise<R> {
+  let last: Promise<unknown> = Promise.resolve();
+  return (a) => {
+    const run = last.then(() => fn(a), () => fn(a));
+    last = run.catch(() => undefined);
+    return run;
+  };
+}
+
 atlas.methods({
-  sync: (p) => syncWith(net, vault, p),
+  // the pages hear what a sync found, whoever started it (the schedule, mostly): they toast it and count the bell
+  sync: oneAtATime(async (p: Params) => {
+    const r = await syncWith(net, vault, p);
+    if (r.new) atlas.event("synced", { new: r.new, loud: r.loud });
+    return r;
+  }),
   send: (p) => sendWith(net, p),
 });

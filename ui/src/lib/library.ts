@@ -80,6 +80,10 @@ export interface LibrarySource {
   tabs?: LibraryTab[] | (() => LibraryTab[]);
   /** The side's heading over the groups ("Collections", "Shelves"). */
   groupsTitle?: string;
+  /** Groups listed first, in this order, and shown even when empty (a kind's shelves, a place to drop onto). */
+  groupOrder?: string[];
+  /** Items dragged onto a group at the side go there (a film to another shelf); the page loads again after. */
+  regroup?(items: LibraryItem[], group: string): Promise<void>;
   /** How items are drawn; the first is the default, more than one gives a switch. */
   layouts: ("list" | "covers")[];
   /** Sort orders; the first is the default. `desc`: biggest / newest first. */
@@ -122,7 +126,6 @@ export function matches(item: LibraryItem, q: string): boolean {
   return q.toLowerCase().split(/\s+/).filter(Boolean).every((w) => hay.includes(w));
 }
 
-/** Counts by name, alphabetical: the side's groups and tags. */
 /** A group named as a path (`Server › Books › QFT`): the side shows such groups as a folder tree. */
 export const GROUP_SEP = " › ";
 export const inGroup = (groups: string[] | undefined, name: string): boolean => (groups ?? []).some((g) => g === name || g.startsWith(name + GROUP_SEP));
@@ -145,8 +148,11 @@ export function groupTree(groups: [string, number][], open: ReadonlySet<string>)
   return rows.filter((r) => { const parts = r.path.split(GROUP_SEP); return parts.slice(0, -1).every((_, d) => open.has(parts.slice(0, d + 1).join(GROUP_SEP))); });
 }
 
-export function counted(items: LibraryItem[], pick: (i: LibraryItem) => string[] | undefined): [string, number][] {
+/** Counts by name, alphabetical: the side's groups and tags. `first`: names put before the rest, in their order, kept
+ *  at 0 when nothing is in them. */
+export function counted(items: LibraryItem[], pick: (i: LibraryItem) => string[] | undefined, first: string[] = []): [string, number][] {
   const n = new Map<string, number>();
   for (const i of items) for (const x of pick(i) ?? []) n.set(x, (n.get(x) ?? 0) + 1);
-  return [...n].sort((a, b) => a[0].localeCompare(b[0]));
+  const rest = [...n].filter(([x]) => !first.includes(x)).sort((a, b) => a[0].localeCompare(b[0]));
+  return [...first.map((x): [string, number] => [x, n.get(x) ?? 0]), ...rest];
 }

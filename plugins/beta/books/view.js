@@ -1,5 +1,5 @@
-// Books — an EPUB library and reader (docs/design/DESIGN-pen-eink-reader.md). Library (covers, titles,
-// authors, how far) → Reader: the book's chapters reflowed in your typography inside a sandboxed frame (a book's own
+// Books — the EPUB reader (docs/design/DESIGN-pen-eink-reader.md); the library is the Libraries page's E-books
+// (main.js). The book's chapters reflowed in your typography inside a sandboxed frame (a book's own
 // scripts never run), paged by columns (always on e-ink) or scrolled, the table of contents, read from where you left.
 // Where you are is in the book's note (`quantum.epub` → `quantum.md`, beside its highlights): progress, reading_chapter,
 // reading_at, last_read — the same properties the native reader writes, so the phone and the desktop carry on from each
@@ -8,8 +8,6 @@ const EPUB = /\.epub$/i;
 const READING = "reading.json";
 const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; };
 
-// the zip itself: the Zip archives plugin's, shared with Manga (manifest `requires = ["zip"]`)
-import { zipIndex, zipBlob } from "../zip/zip.js";
 
 /** `rel` resolved against the folder of `base` (zip paths: no leading slash, "a/../b" folded, #fragment kept apart). */
 export function resolve(base, rel) {
@@ -64,11 +62,12 @@ export const { markPassages, occurrences, markFound } = globalThis.atlasMarks;
 const { textMap, wrap } = globalThis.atlasMarks;
 
 // ---- an EPUB: its package (metadata, manifest, spine) and table of contents ---------------------------------
-/** → { title, author, spine: [path], toc: [{ label, path, frag, depth }], cover: path | null, text(path), blob(path) } */
-export async function openEpub(buf) {
-  const zip = zipIndex(buf);
+/** → { title, author, spine: [path], toc: [{ label, path, frag, depth }], cover: path | null, text(path), blob(path) };
+ *  `z` is the app's zip reader (`atlas.zip`). */
+export async function openEpub(buf, z) {
+  const zip = z.index(buf);
   const file = (path) => { const e = zip.get(path); if (!e) throw new Error(`missing in the EPUB: ${path}`); return e; };
-  const text = async (path) => (await zipBlob(buf, file(path))).text();
+  const text = async (path) => (await z.blob(buf, file(path))).text();
   const xml = async (path) => new DOMParser().parseFromString(await text(path), "application/xml");
   const container = await xml("META-INF/container.xml");
   const opfPath = container.querySelector("rootfile")?.getAttribute("full-path");
@@ -115,7 +114,7 @@ export async function openEpub(buf) {
   const typeOf = (path) => [...items.values()].find((i) => i.path === path)?.type ?? "";
   return {
     title: meta("title"), author: meta("creator"), spine, toc, cover,
-    has: (path) => zip.has(path), text, blob: (path) => zipBlob(buf, file(path), typeOf(path)),
+    has: (path) => zip.has(path), text, blob: (path) => z.blob(buf, file(path), typeOf(path)),
   };
 }
 
@@ -212,8 +211,8 @@ export const remoteFolders = (S) => (Array.isArray(S.remote) ? S.remote : [])
   .filter((r) => r.place);
 
 /** An EPUB's title, author and cover (an object URL, null when it has none), read from the book itself. */
-export async function bookFacts(url) {
-  const book = await openEpub(await (await fetch(url)).arrayBuffer());
+export async function bookFacts(url, z) {
+  const book = await openEpub(await (await fetch(url)).arrayBuffer(), z);
   const cover = book.cover && book.has(book.cover) ? URL.createObjectURL(await book.blob(book.cover)) : null;
   return { title: book.title, author: book.author, cover };
 }
@@ -226,12 +225,10 @@ export default function mount(host, atlas) {
   const root = el("div", "books");
   root.tabIndex = 0;
   host.append(style(), root);
-  const stack = [];
   let leave = () => {};
   let gone = false;
   const show = (draw) => { leave(); leave = () => {}; root.replaceChildren(); leave = draw() ?? (() => {}); root.focus({ preventScroll: true }); };
-  const push = (screen) => { stack.push(screen); show(screen); };
-  const back = () => { if (stack.length > 1) { stack.pop(); show(stack.at(-1)); } };
+  const toLibrary = () => atlas.openLibrary("books");
 
   // ---- where you are: one file per library, read again before each write (another device may have written) ----
   // Where you are lives in the book's note, as the native reader writes it (android/Shelf.java): progress: 42% · reading_chapter: 4 ·
@@ -253,12 +250,6 @@ export default function mount(host, atlas) {
     } catch { /* no note yet */ }
     return (await oldReading()).books?.[book];
   };
-  /** `{ books: { <path>: entry } }` for the library's list. */
-  const reading = async (books) => {
-    const out = {};
-    await Promise.all(books.map(async (b) => { const e = await entryOf(b.path); if (e) out[b.path] = e; }));
-    return { books: out };
-  };
   let writes = Promise.resolve();
   const saveAt = (book, spine, at) => {
     writes = writes.then(async () => {
@@ -273,50 +264,9 @@ export default function mount(host, atlas) {
 
   const opened = new Map(); // path → Promise<book>
   const load = (path) => {
-    if (!opened.has(path)) opened.set(path, Promise.resolve(atlas.fileUrl(path)).then((u) => fetch(u)).then((r) => r.arrayBuffer()).then(openEpub));
+    if (!opened.has(path)) opened.set(path, Promise.resolve(atlas.fileUrl(path)).then((u) => fetch(u)).then((r) => r.arrayBuffer()).then((b) => openEpub(b, atlas.zip)));
     return opened.get(path);
   };
-  const scan = () => booksIn(atlas, folder);
-
-  // ---- Library ------------------------------------------------------------------------------------------
-  function library() {
-    const head = el("div", "b-bar");
-    head.append(el("div", "b-title", "Books"));
-    const grid = el("div", "b-grid");
-    root.append(head, grid);
-    grid.append(el("div", "atlas-empty", "Reading the library…"));
-    const covers = [];
-    void scan().then(async (all) => [all, await reading(all)]).then(([all, r]) => {
-      if (gone) return;
-      grid.replaceChildren();
-      if (!all.length) {
-        const n = el("div", "atlas-notice");
-        n.append(el("strong", "", "No books yet. "), `Put .epub files in “${folder}/”, or change the folder in the plugin's settings.`);
-        const a = el("div", "actions"), b = el("button", "atlas-btn", "Settings…");
-        b.onclick = () => atlas.plugin.openSettings();
-        a.append(b); n.append(a); grid.replaceWith(n);
-        return;
-      }
-      all.sort((a, b) => (r.books?.[b.path]?.updated ?? "").localeCompare(r.books?.[a.path]?.updated ?? "") || a.name.localeCompare(b.name));
-      for (const b of all) {
-        const card = el("button", "b-card");
-        const pic = el("div", "b-cover"), img = el("img"), name = el("div", "b-name", b.name), who = el("div", "b-who", "");
-        img.alt = "";
-        pic.append(img);
-        const pos = r.books?.[b.path];
-        if (pos) pic.append(el("span", "b-badge", "reading"));
-        card.append(pic, name, who);
-        card.onclick = () => push(() => reader(b.path));
-        grid.append(card);
-        void load(b.path).then(async (book) => {
-          if (book.title) name.textContent = book.title;
-          who.textContent = book.author;
-          if (book.cover && book.has(book.cover)) { const u = URL.createObjectURL(await book.blob(book.cover)); covers.push(u); img.src = u; }
-        }).catch(() => { who.textContent = "cannot be read"; });
-      }
-    });
-    return () => { for (const u of covers) URL.revokeObjectURL(u); };
-  }
 
   // ---- Reader -------------------------------------------------------------------------------------------
   // `anchor`: a link's `#Chapter 3` (atlas.anchor, API 7) — that entry of the contents instead of where you were
@@ -328,8 +278,8 @@ export default function mount(host, atlas) {
     const hlBtn = el("button", "atlas-btn", "Highlight");
     hlBtn.title = "Keep the selected passage in the book's note (beside the book)";
     hlBtn.disabled = true;
-    backBtn.onclick = back;
-    if (stack.length < 2) backBtn.hidden = true; // opened straight from a file
+    backBtn.title = "The books, on the Libraries page";
+    backBtn.onclick = toLibrary;
     bar.append(backBtn, title, where, hlBtn, findBtn, tocBtn);
     const frame = el("iframe", "b-frame");
     frame.setAttribute("sandbox", "allow-same-origin"); // the book's own scripts never run
@@ -347,7 +297,7 @@ export default function mount(host, atlas) {
     let book = null, spine = 0, made = [], turns = 0, chapterReady = Promise.resolve();
     const doc = () => frame.contentDocument;
     const width = () => frame.clientWidth;
-    const pages = () => (paged ? Math.max(1, Math.round(doc().documentElement.scrollWidth / width())) : 1);
+    const pages = () => (paged ? Math.max(1, Math.round((doc()?.documentElement?.scrollWidth ?? width()) / width())) : 1);
     const fraction = () => {
       const d = doc()?.documentElement;
       if (!d) return 0;
@@ -386,24 +336,39 @@ export default function mount(host, atlas) {
       made = [];
       spine = Math.max(0, Math.min(book.spine.length - 1, i));
       const html = await chapterHtml(book, book.spine[spine], made);
-      chapterReady = new Promise((done) => { frame.onload = () => done(); });
+      opening = true;
+      chapterReady = new Promise((done) => frame.addEventListener("load", () => done(), { once: true }));
       frame.srcdoc = html.replace(/<\/head>/i, `<style>${typography()}</style></head>`);
       await chapterReady;
       const d = doc();
-      d.addEventListener("keydown", keys);
-      d.addEventListener("click", click);
-      d.addEventListener("selectionchange", () => { hlBtn.disabled = !squash(d.getSelection()?.toString() ?? ""); });
-      void readNote().then((md) => markPassages(d, highlightsIn(md)));
-      d.defaultView?.addEventListener("scroll", () => { say(); remember(); }, { passive: true });
       await d.fonts?.ready;
       const target = frag && d.getElementById(frag);
       if (target && paged) d.documentElement.scrollLeft = Math.floor(target.offsetLeft / width()) * width();
       else if (target) target.scrollIntoView();
-      else if (paged) d.documentElement.scrollLeft = Math.round((at < 0 ? 1 : at) * (pages() - 1)) * width();
-      else d.documentElement.scrollTop = (at < 0 ? 1 : at) * (d.documentElement.scrollHeight - d.documentElement.clientHeight);
+      else scrollToFraction(at);
+      opening = false;
       say();
       remember();
     }
+    /** Scrolls the chapter to a fraction of it (negative: its end). */
+    function scrollToFraction(at) {
+      const d = doc();
+      if (paged) d.documentElement.scrollLeft = Math.round((at < 0 ? 1 : at) * (pages() - 1)) * width();
+      else d.documentElement.scrollTop = (at < 0 ? 1 : at) * (d.documentElement.scrollHeight - d.documentElement.clientHeight);
+    }
+    // every load of the frame wires its page: the first one of a chapter, and the reload a srcdoc frame does when its
+    // tab is moved in the page (back from the Library), which would otherwise lose the keys, the marks and the place
+    let opening = false, lastAt = 0;
+    frame.addEventListener("load", () => {
+      const d = doc();
+      if (!d?.body || !frame.srcdoc) return; // the empty frame before the first chapter
+      d.addEventListener("keydown", keys);
+      d.addEventListener("click", click);
+      d.addEventListener("selectionchange", () => { hlBtn.disabled = !squash(d.getSelection()?.toString() ?? ""); });
+      void readNote().then((md) => markPassages(d, highlightsIn(md)));
+      d.defaultView?.addEventListener("scroll", () => { lastAt = fraction(); say(); remember(); }, { passive: true });
+      if (!opening) void Promise.resolve(d.fonts?.ready).then(() => { scrollToFraction(lastAt); say(); });
+    });
     const readNote = async () => atlas.readText(await noteOf(path)).catch(() => "");
     /** The selection kept in the book's note (made with the book's properties the first time) and marked here. */
     async function highlight() {
@@ -545,7 +510,6 @@ export default function mount(host, atlas) {
       else if (["ArrowRight", "PageDown", " "].includes(e.key)) { e.preventDefault(); turn(1); }
       else if (["ArrowLeft", "PageUp"].includes(e.key)) { e.preventDefault(); turn(-1); }
       else if ((e.key === "Escape" || e.key === "Backspace") && (!toc.hidden || !finder.hidden)) { toc.hidden = true; finder.hidden = true; }
-      else if (e.key === "Escape" || e.key === "Backspace") back();
     }
     /** A link inside the book is followed inside it; a tap at the sides turns the page (paged). */
     function click(e) {
@@ -584,18 +548,22 @@ export default function mount(host, atlas) {
         frame.replaceWith(el("div", "atlas-notice", `This book cannot be read: ${e.message ?? e}`));
       }
     })();
-    const resize = new ResizeObserver(() => { if (book && paged && doc()) { const f = fraction(); doc().documentElement.scrollLeft = Math.round(f * (pages() - 1)) * width(); say(); } });
+    const resize = new ResizeObserver(() => { if (book && paged && doc()?.documentElement) { const f = fraction(); doc().documentElement.scrollLeft = Math.round(f * (pages() - 1)) * width(); say(); } });
     resize.observe(frame);
     return () => { clearTimeout(saving); if (book) saveAt(path, spine, fraction()); resize.disconnect(); pen?.off(); root.removeEventListener("keydown", keys); for (const u of made) URL.revokeObjectURL(u); };
   }
 
-  if (atlas.path && EPUB.test(atlas.path)) {
-    stack.push(library);
-    push(() => reader(atlas.path, atlas.anchor));
+  // the book: the file opened with the pane ("Open with…", a link), or the Libraries page's (`openView(path)`)
+  const book = [atlas.path, atlas.arg].find((p) => p && EPUB.test(p));
+  if (book) {
+    show(() => reader(book, atlas.anchor));
     // a later link to the book at another chapter, while it is open here (API 7)
-    atlas.pane?.onAnchor((a) => { stack[stack.length - 1] = () => reader(atlas.path, a); show(stack.at(-1)); });
+    atlas.pane?.onAnchor((a) => show(() => reader(book, a)));
+  } else {
+    // no book (a tab kept from an older version): the library is the Libraries page's
+    toLibrary();
+    atlas.pane?.close();
   }
-  else push(library);
   return () => { gone = true; leave(); };
 }
 
@@ -606,13 +574,6 @@ function style() {
   .books .b-bar { display: flex; align-items: center; gap: 10px; padding: 8px 14px; border-bottom: 1px solid var(--border); background: var(--bg); flex: none; }
   .books .b-title { font-weight: 600; font-size: 1.1em; flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .books .b-where { color: var(--text-muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
-  .books .b-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(calc(130px * var(--ui-scale, 1)), 1fr)); gap: 18px; padding: 18px; overflow: auto; }
-  .books .b-card { display: flex; flex-direction: column; gap: 6px; text-align: left; background: none; border: 0; padding: 0; color: inherit; cursor: pointer; }
-  .books .b-cover { position: relative; aspect-ratio: 2 / 3; border-radius: 6px; overflow: hidden; background: var(--bg-elev); box-shadow: 0 0 0 1px var(--border); }
-  .books .b-cover img { width: 100%; height: 100%; object-fit: cover; display: block; }
-  .books .b-badge { position: absolute; top: 6px; left: 6px; padding: 0 6px; border-radius: 6px; background: var(--accent); color: var(--accent-fg, #fff); font-size: .85em; }
-  .books .b-name { font-weight: 600; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; line-height: 1.3; }
-  .books .b-who { color: var(--text-muted); font-size: .92em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .books .b-frame { flex: 1; min-height: 0; width: 100%; border: 0; background: var(--bg); }
   .books .b-toc { position: absolute; top: 46px; right: 0; bottom: 0; width: min(380px, 100%); overflow: auto; background: var(--bg); border-left: 1px solid var(--border); padding: 6px 0; z-index: 3; }
   .books .b-entry { display: block; width: 100%; text-align: left; background: none; border: 0; padding: 9px 12px; color: inherit; font-size: 1.05em; cursor: pointer; }

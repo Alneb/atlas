@@ -6,15 +6,19 @@ plugin stands today.
 
 ## What the two words promise
 
-- **Beta**: it works for the people who wrote it, on their setup. Its settings, files and tools may still change
-  between versions without a migration, and it may assume things about the vault or the machine.
-- **Stable**: it works for anyone who follows its README. Its settings and the files it writes change only with a
-  migration (or a note in the changelog), it is tested, and its failures tell the user what went wrong.
+- **Stable**: two things at once. *Features*: it does the whole job it is for, with nothing important missing or
+  half-built. *Stability*: it holds up in real, regular use without surprises, and its settings and the files it
+  writes change only with a migration (or a note in the changelog).
+- **Beta**: one of the two is not there yet: features still missing or being rebuilt, or not enough real use to
+  know it holds up. Its settings, files and tools may still change.
 
-A plugin is promoted with a pull request that moves its folder (`git mv plugins/beta/x plugins/stable/x`), ticks every
-criterion below in the description, and updates the table at the end of this page.
+**Features and stability decide the folder, not the checklist below.** A plugin is moved (`git mv plugins/beta/x
+plugins/stable/x`) when it is complete for its purpose and has been relied on without surprises, and moved back when
+a rebuild makes it new code again. The twelve criteria are what a stable plugin should also have; for each plugin the
+table says which are missing, as its to-do list. A stable plugin with gaps there (ssh) is still stable; a beta plugin
+that ticks every box on paper is not promoted by that alone.
 
-## The criteria for stable
+## The checklist (what a stable plugin should also have)
 
 Each criterion can be checked by someone who did not write the plugin.
 
@@ -55,37 +59,33 @@ Each criterion can be checked by someone who did not write the plugin.
 Measured for 0.1.0 from each plugin's code, manifest and tests; READMEs (2) and platforms (8) brought up to date since: every plugin has a README, and those written with the platforms model say what their manifest declares. A cell is **✓** met, **~** partly met or not yet
 reviewed by hand, **✗** not met, **–** does not apply. Column numbers are the criteria above. "Tests" is
 *unit / e2e*: Python `test_*.py` files or Rust `#[test]`s in the plugin, then specs in `ui/tests/` that load it. "API"
-is the manifest's `api` (the current one is 15; an older number still loads, since each version only adds calls).
+is the manifest’s `api` (the current one is 20; an older number still loads, since each version only adds calls).
 
 | Plugin | Tier | 1 Tests | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 API | 10 | 11 | 12 Version | What it still needs for stable |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| email | stable | ✓ 73 / 2 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | 12 | ✓ | ✓ | ✓ 1.2.1 | nothing on the checklist |
+| dav (Calendar) | stable | ✓ 54 / 1 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | 12 | ✓ | ✓ | ✓ 1.2.2 | nothing on the checklist |
 | ssh | stable | ✓ 8 / 2 | ✓ | ✓ | ✓ | ✓ | ✓ | ~ | ✗ | 4 | ✓ | ~ | 0.8.0 | declare Linux-only (8); the remote-file index through the API (11); 1.0 (12) |
-| copyparty | stable | ~ 0 / 2 | ✓ | ✓ | ✓ | ~ | – | ✓ | ✗ | 4 | ✓ | ✓ | 0.3.5 | unit tests (1); platforms in the README (8); 1.0 (12) |
-| print | stable | ✓ 4 / 1 | ✓ | ✓ | ✓ | ✓ | ~ | ✓ | ✓ | 15 | ✓ | – | 0.2.1 | a note waits silently while Export makes its PDF beyond the first notice (6); 1.0 (12) |
-| run-tools | stable | ~ 0 / 2 | ✓ | ✓ | ✓ | ✓ | ~ | ✓ | ✓ | 4 | ✓ | ✓ | 0.2.0 | 1.0 (12) |
-| email | beta | ✓ 73 / 2 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ 12 | ✓ | ✗ | ✓ 1.1.1 | saved notes, rules and attachments written through the API, not `std::fs::write` (11) — then the strongest candidate |
-| dav (Calendar) | beta | ✓ 54 / 1 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ 12 | ✓ | ✓ | ✓ 1.2.0 | a review by someone who did not write it; it meets every criterion on paper |
-| finance | beta | ~ 70 / 0 | ✓ | ✓ | ~ | ✓ | ✓ | ✓ | ✗ | 9 | ✓ | ✗ | 0.1.0 | an end-to-end spec (1); neutral default currencies (4); journal and archive writes through the API (11); platforms (8); 1.0 (12) |
-| export | beta | ✓ 5 / 0 | ✓ | ✓ | ✓ | ✓ | ~ | ✓ | ~ | 15 | ✓ | ~ | 0.1.2 | an end-to-end spec (1); progress shown but an export cannot be stopped (6); tried only on Linux (8); the `.tex` / `.pdf` written to disk, not through the API, which has no binary write (11); 1.0 (12) |
+| print | beta | ✓ 4 / 1 | ✓ | ✓ | ✓ | ✓ | ~ | ✓ | ✓ | 20 | ✓ | – | 0.5.0 | real use of the new dialog; 1.0 (12) |
+| run-tools | beta | ~ 0 / 2 | ✓ | ✓ | ✓ | ✓ | ~ | ✓ | ✓ | 17 | ✓ | ✓ | 0.3.0 | real use; unit tests (1); 1.0 (12) |
+| copyparty | beta | ~ 0 / 2 | ✓ | ✓ | ✓ | ~ | – | ✓ | ✗ | 4 | ✓ | ✓ | 0.3.5 | real use; unit tests (1); platforms in the README (8); 1.0 (12) |
+| finance | beta | ~ 70 / 0 | ✓ | ✓ | ~ | ✓ | ✓ | ✓ | ✗ | 9 | ✓ | ✓ | 0.1.2 | an end-to-end spec (1); neutral default currencies (4); platforms (8); 1.0 (12) |
+| export | beta | ✓ 5 / 1 | ✓ | ✓ | ✓ | ✓ | ~ | ✓ | ~ | 20 | ✓ | ✓ | 1.0.0 | real use of the rebuild (Typst, the dialog); an export cannot be stopped (6); tried only on Linux (8) |
 | catalog | beta | ✓ 40 / 2 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | 16 | ✓ | ✓ | 0.5.6 | 1.0 (12) |
-| catalog-papers | beta | ~ 28 / 0 | ✓ | ✓ | ✓ | ~ | ✓ | ✓ | ✓ | 16 | ✓ | ✗ | 0.4.2 | an end-to-end spec (1); notes and PDFs written through the API (11); errors surfaced in the pane (5) |
+| catalog-papers | beta | ~ 28 / 0 | ✓ | ✓ | ✓ | ~ | ✓ | ✓ | ✓ | 16 | ✓ | ✓ | 0.4.4 | an end-to-end spec (1); errors surfaced in the pane (5) |
 | books | beta | ~ 0 / 2 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ~ | 15 | ✓ | ✓ | 0.10.2 | unit tests (1); platforms in the README (8); 1.0 (12) |
 | notepad | beta | ✗ 0 / 0 | ✓ | ✓ | ✓ | ✓ | ✓ | ~ | ~ | 4 | ✓ | ✓ | 0.4.0 | tests (1); its Boox-only parts declared (8) |
 | rnote | beta | ~ 0 / 2 | ✓ | ✓ | ✓ | ✓ | – | ✓ | ✓ | 7 | ✓ | ✓ | 0.3.0 | unit tests (1); 1.0 (12) — it converts in the page, with no `rnote-cli` |
 | ocr | beta | ~ 6 / 0 | ✓ | ✓ | ✓ | ~ | ~ | ✓ | ✓ | 15 | ✓ | ✓ | 0.2.1 | an end-to-end spec (1); progress for long pages (6) |
 | claude | beta | ✗ 0 / 0 | ✓ | ✓ | ✓ | ✓ | – | ~ | ✗ | 4 | ✓ | ✓ | 0.5.0 | tests (1); says it reads the account on the core's machine (7, 8) |
-| home | beta | ~ 0 / 1 | ✓ | ✓ | ✓ | ~ | – | ✓ | ✓ | 4 | ✓ | ✓ | 0.2.0 | unit tests (1) |
-| daily | beta | ~ 0 / 1 | ✓ | ✓ | ✓ | ~ | – | ✓ | ✓ | 4 | ✓ | ✓ | 0.1.3 | unit tests (1) |
+| today | beta | ~ 0 / 2 | ✓ | ✓ | ✓ | ~ | – | ✓ | ✓ | 19 | ✓ | ✓ | 0.3.0 | unit tests (1) |
 | weather | beta | ~ 1 / 0 | ✓ | ✓ | ✓ | ~ | – | ✓ | ✓ | 15 | ✓ | ✓ | 0.3.3 | an end-to-end spec (1) |
-| notifications | beta | ~ 3 / 0 | ✓ | ✓ | ✓ | ✓ | – | ✓ | ✓ | 13 | ✓ | ✓ | 0.1.0 | an end-to-end spec (1); the Apprise hook into Atlas (DESIGN-notifications.md step 1) |
-| ntfy | beta | ✓ 1 / 1 | ✓ | ✓ | ✓ | ✓ | – | ✓ | ✓ | 4 | ✓ | ✓ | 0.2.0 | superseded by notifications (its send and inbox are there); kept until vaults switch |
-| syncthing, downloader, tubearchivist | beta | ~ 1 / 0 | ✓ | ✓ | ✓ | ~ | ~ | ✓ | ✓ | 4 | ✓ | ✓ | 0.1.x | end-to-end specs against a stub (1); progress for long transfers (6) |
-| catalog-anime, -books, -music, -tmdb, -wikipedia, -youtube, -audiobookshelf | beta | ~ 1 / 0 each | ✓ | ✓ | ✓ | ~ | – | ✓ | ✓ | 15 | ✓ | ✓ | 0.1–0.2 | one shared end-to-end spec for the catalog's sources (1) |
-| catalog-web | beta | ✗ 0 / 0 | ✓ | ✓ | ✓ | ~ | – | ✓ | ✓ | 4 | ✓ | ✓ | 0.1.0 | tests (1) |
+| notifications | beta | ~ 3 / 0 | ✓ | ✓ | ✓ | ✓ | – | ✓ | ✓ | 19 | ✓ | ✓ | 0.4.0 | an end-to-end spec (1); the Apprise hook into Atlas (DESIGN-notifications.md step 1) |
+| syncthing, downloader | beta | ~ 1 / 0 | ✓ | ✓ | ✓ | ~ | ~ | ✓ | ✓ | 4 | ✓ | ✓ | 0.1.x | end-to-end specs against a stub (1); progress for long transfers (6) |
+| catalog-open, catalog-tmdb, audiobookshelf | beta | ~ 1 / 0 each | ✓ | ✓ | ✓ | ~ | – | ✓ | ✓ | 15 | ✓ | ✓ | 0.1–0.2 | one shared end-to-end spec for the catalog's sources (1) |
 | catalog-linkwarden | beta | ~ 0 / 1 | ✓ | ✓ | ✓ | ✓ | – | ✓ | ✓ | 15 | ✓ | ✓ | 0.2.1 | unit tests (1) |
 | kiwix | beta | ~ 0 / 1 | ✓ | ✓ | ✓ | ✓ | – | ✓ | ~ | 4 | ✓ | ✓ | 0.1.0 | unit tests (1); tried on the phone (8); 1.0 (12) |
-| freshrss, immich, jellyfin, memos, paperless | beta | ~ 0 / 1 each | ✓ | ✓ | ✓ | ~ | – | ✓ | ✓ | 4 | ✓ | ✓ | 0.1.0 | unit tests (1) |
-| zip | beta | ✗ 0 / 0 | ✓ | ✓ | ✓ | ~ | ~ | ✓ | ✓ | 4 | ✓ | ✓ | 0.1.0 | tests (1) |
+| freshrss, immich, jellyfin, memos, paperless, ttrpg | example | ~ 0 / 1 each | ✓ | ✓ | ✓ | ~ | – | ✓ | ✓ | 4 | ✓ | ✓ | 0.1.0 | unit tests (1) |
 
 What the columns rest on:
 - **4:** finance defaults its currencies to `EUR, CAD, USD, XAU, BTC` with EUR as the base; a neutral default
@@ -104,7 +104,11 @@ What the columns rest on:
   Outlook sign-in, which falls back to showing the address and code. That is the server's precondition, not its
   verdict: `server` stays `untested` until a plugin's own work is done on one (and print, ocr's screen capture and
   claude act on the core machine's printers, screen and accounts — criterion 7).
-- **11:** the Rust engines of email, finance and catalog-papers write vault files with `std::fs::write`; ssh keeps its
-  working copies' index with it. Everything else writes through Atlas's API.
+- **11:** the Rust engines of email, finance and catalog-papers write vault files with `atlas_plugin::write_file` /
+  `move_path` (through Atlas when it started them; a call carries a file's bytes as base64). What is still direct, on
+  purpose: finance's command-line subcommands (`finance <command> <folder>`, run with no Atlas), catalog-papers' empty
+  entry folder made to reserve a citekey, its old `entry.json` removed once moved into the note, and the snapshot it
+  copies into `.atlas/trash/` before a fold. ssh keeps its working copies' index on disk. Everything else writes
+  through Atlas's API.
 
 A plugin that serves one person's setup more than anyone's is kept out of the repository until it is made general.

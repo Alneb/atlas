@@ -212,11 +212,19 @@ pub async fn call(root: &Path, cfg: &Config, helpers: &Helpers, secrets: &Store,
     keep_secrets(secrets, id, perms.secrets, answer)
 }
 
-/// A page's helper call with the plugin's secrets added as `params.secrets` (every one it keeps, when it may keep
-/// secrets; a page's own `secrets` field is replaced, never trusted). Non-object params are passed as they are.
-pub fn with_secrets(root: &Path, secrets: &Store, id: &str, params: Value) -> Result<Value> {
+/// A page's helper call as a tool's gets it: refused while the plugin is off or blocked; `params.settings` the plugin's
+/// (defaults filled in) unless the page sent its own; `params.secrets` every one it keeps, when it may keep secrets (a
+/// page's own `secrets` field is replaced, never trusted). Non-object params are passed as they are.
+pub fn page_call_params(root: &Path, cfg: &Config, secrets: &Store, id: &str, params: Value) -> Result<Value> {
+    if let Some(why) = crate::plugins::blocked(&crate::plugins::list(root), &cfg.plugins.off, id) {
+        return Err(Error::BadRequest(format!("plugin {id} cannot run: {why}")));
+    }
     let params = if params.is_null() { Value::Object(Map::new()) } else { params };
     let Value::Object(mut m) = params else { return Ok(params) };
+    if !m.contains_key("settings") {
+        let (_, _, settings) = crate::plugins::tool_parts(root, id)?;
+        m.insert("settings".into(), serde_json::to_value(settings).unwrap_or(Value::Null));
+    }
     let mut given = Map::new();
     if crate::plugins::permissions(root, id)?.secrets {
         for s in secrets.names(id)? {
@@ -283,5 +291,25 @@ mod tests {
         assert_eq!(out, json!({ "ok": 1 }));
         assert_eq!(store.get("mail", "refresh").unwrap().as_deref(), Some("r1"));
         assert!(keep_secrets(&store, "mail", false, json!({ "_secrets": { "x": "y" } })).is_err());
+    }
+
+    /// A page's helper call gets what a tool's gets: the saved settings (unless it sends its own) and the secrets;
+    /// a switched-off plugin's helper is not started for a page either.
+    #[test]
+    fn a_page_call_carries_settings_and_secrets_and_is_refused_while_off() {
+        let dir = tempfile::tempdir().unwrap();
+        let p = dir.path().join(".atlas/plugins/bell");
+        std::fs::create_dir_all(&p).unwrap();
+        std::fs::write(p.join("plugin.toml"), "title = \"Bell\"\n[helper]\nrun = \"true\"\n[permissions]\nsecrets = true\n[[setting]]\nkey = \"server\"\nkind = \"text\"\ndefault = \"https://ntfy.example.org\"\n").unwrap();
+        let store = Store::in_dir(&dir.path().join("secrets"), dir.path());
+        store.set("bell", "token", "t1").unwrap();
+        let mut cfg = Config::default();
+        let got = page_call_params(dir.path(), &cfg, &store, "bell", json!({ "secrets": { "token": "forged" } })).unwrap();
+        assert_eq!(got["settings"]["server"], "https://ntfy.example.org");
+        assert_eq!(got["secrets"], json!({ "token": "t1" }));
+        let own = page_call_params(dir.path(), &cfg, &store, "bell", json!({ "settings": { "server": "typed" } })).unwrap();
+        assert_eq!(own["settings"], json!({ "server": "typed" }), "a form's unsaved values are what it tests");
+        cfg.plugins.off.push("bell".into());
+        assert!(page_call_params(dir.path(), &cfg, &store, "bell", Value::Null).is_err());
     }
 }

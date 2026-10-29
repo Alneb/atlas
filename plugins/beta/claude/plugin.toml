@@ -4,8 +4,8 @@
 title = "Claude"
 description = "Claude Code sessions in the terminal, and the plan's usage (5-hour session, week) in the status bar"
 icon = "claude"
-version = "0.5.1"
-api = 4
+version = "0.6.0"
+api = 16
 
 [[agent]]
 id = "claude"
@@ -34,8 +34,12 @@ kind = "text"
 suggest = "account_folders"
 hint = "a Claude Code configuration folder (CLAUDE_CONFIG_DIR), to run as another account: ~/.claude-switch/accounts/personal; empty: Claude Code's own"
 
+[permissions]
+net = ["api.anthropic.com"]       # the usage endpoint, asked through the core's fetch
+
 [helper]
-run = "python3 -u \"$ATLAS_PLUGIN_DIR/usage.py\""
+# built by engine/build.sh (Rust): it reads Claude Code's own files outside the vault, which a JavaScript helper cannot
+run = "\"$ATLAS_PLUGIN_DIR/bin/$ATLAS_PLUGIN_TARGET/claude\""
 
 [[setting]]
 key = "every"

@@ -1,31 +1,25 @@
-# Word count (minimal example)
+# Word count (example)
 
-A minimal plugin: a block, a command and a right-click menu row in about thirty lines of JavaScript, live as soon as
-the folder is copied into a vault's `.atlas/plugins/wordcount/` and reloaded on every save.
+The smallest working plugin: a block, a command, an editor menu row and one setting, in about 50 lines of JavaScript
+with no build step. Copy the folder to `<vault>/.atlas/plugins/wordcount/` and it is live; it reloads on every save.
 
-- The `wordcount.count` block shows the words of the note it is in (frontmatter left out), against a goal when one is
-  set; it turns the accent colour once the goal is reached.
-- The command "Word count: how far is this note from the goal?" says how many words the open note has.
-- In the editor's right-click menu, "Word count: N selected" copies the number of selected words.
-- Its comments show the conventions: a block named `<plugin id>.<name>`, options as form fields, the theme's CSS
-  variables, a cleanup returned by the block.
+## What it adds
 
-```view
-type: wordcount.count
-```
+- **The block `wordcount.count`**: the words of the note it is in (frontmatter left out), against a goal; redrawn when
+  the note is saved. Option: **Goal**.
+- **The command** "Word count: how far is this note from the goal?".
+- **Editor menu**: "Word count: N selected", which copies the number.
 
 ## Settings
 
-- **goal** (500): the words to reach; a block's own `goal` option overrides it.
+- **Daily goal (words)** (500): read as `atlas.plugin.settings.goal`; the vault's value lives in
+  `.atlas/plugin-settings/wordcount.toml`.
 
-## Needs
+## What it shows a plugin author
 
-Nothing.
+`register(atlas)`, `registerBlock` with options, `onFilesChanged` as a block's cleanup, `registerCommand`,
+`shell.menu`, and the app's CSS variables. docs/guides/PLUGIN-API.md has the rest.
 
 ## Platforms
 
-Linux works; Android works (`phone = true`); macOS, Windows and a server are untested.
-
-## Tests
-
-None yet.
+Linux works; Android works (`phone = true`).

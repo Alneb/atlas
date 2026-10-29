@@ -19,6 +19,8 @@ export interface PickRequest {
   onpick(value: string, isNew: boolean): void | Promise<void>;
   /** The box starts with this typed (a rename: the current name). */
   seed?: string;
+  /** Closed with nothing chosen (Escape, a click outside, another chooser in its place). */
+  oncancel?(): void;
 }
 
 /** `q` (the text in the box) and `sel` (the highlighted row) live here, not in the component: every
@@ -38,6 +40,8 @@ export function openPalette(mode: Exclude<PaletteMode, "pick">, seed = ""): void
 let picks = 0; // which chooser is showing: palette.pick is a proxy of the request, never the request itself
 /** Returns a function that closes this chooser if it is still the one showing. */
 export function pick(req: PickRequest): () => void {
+  cancelWaiting();
+  waiting = req;
   const mine = ++picks;
   palette.pick = req;
   palette.mode = "pick";
@@ -47,3 +51,10 @@ export function pick(req: PickRequest): () => void {
   return () => { if (palette.open && palette.mode === "pick" && picks === mine) palette.open = false; };
 }
 export function closePalette(): void { palette.open = false; }
+
+// the chooser showing, until a value is chosen (pickChosen) or the palette closes without one (its oncancel)
+let waiting: PickRequest | null = null;
+function cancelWaiting(): void { const r = waiting; waiting = null; r?.oncancel?.(); }
+/** Palette.svelte, as a chooser's row runs: the choice was made, so its closing is no cancel. */
+export function pickChosen(): void { waiting = null; }
+$effect.root(() => { $effect(() => { if (!palette.open) cancelWaiting(); }); });

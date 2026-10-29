@@ -1,36 +1,57 @@
-# Books — an EPUB library and reader
+# Books
 
+An EPUB reader in your own typography, paged (always on an e-ink screen) or scrolled, that carries on from where you
+left on any device; and the **E-books** library of the Libraries page: the books of a vault folder and of folders on
+your file server. A `.epub` anywhere in the vault opens in it on a click.
 
-- **Library**: every `.epub` under the library folder (setting `folder`, default `books/`, subfolders included), with
-  its cover, title and author from the book's package; the books you read most recently first.
-- **Reader**: the book's chapters reflowed in your typography (font, size, line height, side margins, justified) inside a
-  **sandboxed frame** — a book's own scripts never run, its stylesheets and pictures come along (as blob URLs, also the
-  `url(...)`s inside its CSS). **Paged** by CSS columns (always on e-ink, with a full refresh every few pages, as Mihon's
-  "flash on page change") or **scrolled**; arrows / Page Up / Page Down / Space / taps on the sides turn pages and run on
-  into the next or previous chapter. **Contents** from the EPUB 3 nav (or the EPUB 2 NCX), with nesting and `#anchors`;
-  links inside the book are followed inside it, web links open outside.
-- **Where you are**: `<folder>/reading.json` — `{ books: { <path>: { spine, at, updated } }, last }` (`at`: how far into
-  the chapter, 0–1) — read again before each write, so another device's progress is kept; the phone and the desktop
-  carry on from each other (same shape as the manga plugin's).
-- **A click opens it here** (`claims = ["*.epub"]`, plugin API 7): an `.epub` anywhere in the vault opens straight in the reader from the file tree, a link or the palette (a vault rule in Settings → Files & search → Open with wins); `[[book.epub#Chapter 3]]` opens at that entry of the contents.
-- **Highlights → the book's note** (docs/PHILOSOPHY.md §1, a companion note for what is not Markdown): select a passage,
-  **Highlight** — it is appended to `<book>.md` beside the book (made the first time with `book: [[x.epub]]`, title and
-  author as properties, a "Highlights" heading) as `> passage` / `> — <chapter label>, chapter N`. The note is yours:
-  write around the quotes, link it, search it; the reader only appends, and marks every quoted passage when a chapter
-  opens (also across elements; on e-ink an underline instead of a tint). Reflowed text has no fixed pages, which is why
-  annotations are anchored to the text, not to positions.
-- **Search the book** (**Search**, or `/` / Ctrl+F in the reader): every place the words occur, in every chapter (any
-  case, whitespace as one space), listed under the chapter's name with a line around each; a click opens that chapter
-  at the page of the find, marked (`mark.atlas-found`, outlined on e-ink). Each chapter's text is read once per opening
-  (`chapterDoc` + `textMap`, the same text the reader shows, so the n-th find in the list is the n-th in the page).
-- Two highlights in one paragraph are both marked: passages are wrapped from the last to the first (wrapping splits
-  the text, and front to back the second was looked for where the text had been).
-- Not yet: pen ink over a book (reflowed text moves under it: ink needs fixed pages — PDFs, comics), a native Android
-  screen (the web pane is used in the apps), removing a highlight from the reader (delete it in the note).
-- Test: `ui/tests/example-books.spec.ts` (an EPUB built in the test: library, paging, contents with an anchor, the book's
-  CSS kept and its script not run, the saved place).
-- **DjVu**: a `.djvu` book of the library opens as a PDF the helper (`helper.py`, `as_pdf`) made once with djvulibre's
-  `ddjvu -format=pdf` into the plugin's cache (`.atlas/cache/plugins/books/<hash>.pdf`, keyed by path, size and time),
-  in the app's PDF viewer — the same way the Manga plugin makes a `.cbr` into a `.cbz`. The vault's file is never
-  touched. No `ddjvu` (the phone, a machine without djvulibre): the reader says to install it. Marks made on the
-  converted PDF are the cache copy's, not the DjVu's. Test: `python3 test_helper.py` (a DjVu made with `c44`).
+## What it adds
+
+- **The reader** (the plugin's pane; `claims = ["*.epub"]`): the book's chapters reflowed in your typography inside a
+  sandboxed frame (a book's own scripts never run; its styles and pictures come along), paged by columns or scrolled;
+  keys, taps and the e-ink refresh turn pages and run on into the next chapter. **Contents** from the EPUB's navigation,
+  nested, with anchors: `[[book.epub#Chapter 3]]` opens at that entry. **Search the book** (`/`, Ctrl+F): every place
+  the words occur, by chapter.
+- **The book's note**: `book.epub` → `book.md` beside it, made through Atlas's companion-note rule (`book: [[…]]`,
+  title, author). It keeps where you are (`progress`, `reading_chapter`, `reading_at`, `last_read` — the same
+  properties the phone's native reader writes) and your **highlights**, appended as quotes under "Highlights" with the
+  chapter; quoted passages are marked when the chapter opens. An older `<folder>/reading.json` is still read for a book
+  not yet moved.
+- **The E-books library** (Libraries page, id `books`): the vault's EPUB, PDF and DjVu files under the library folder
+  and the books in the server folders of the **Folders on a server** setting, grouped by folder; covers from Atlas's
+  thumbnails (or the server's). A server's book is fetched when opened.
+- **DjVu**: made once into a PDF in the plugin's cache by Atlas's core (djvu-rs: the pages as they are, the book's
+  OCR text kept, so it can be searched and selected) and opened in Atlas's PDF viewer; the vault's file is never touched.
+- **On the phone**: a native reader (`android/`, `[android]` in the manifest) opens EPUB, MOBI, AZW/AZW3, PRC, FB2;
+  the library stays the page's, and hands a book over with `atlas.openNative`.
+- The command **Books: library** opens the E-books library; the reader's **‹ Library** goes back there. The pane is only
+  the reader: books are listed in one place.
+
+## Settings
+
+- **Library folder** (`books`): every book in it (EPUB, PDF, MOBI, AZW3, FB2, TXT; subfolders too).
+- **Folders on a server** (cards): **Server** (its name in copyparty's settings), **Folder** on it (`/data/Books`),
+  **Through** (the plugin whose file source reaches it; empty: copyparty).
+- The reader: **Font** (serif, sans-serif, the book's own, the app's), **Text size (px)** (19), **Line height**
+  (1.55), **Side margins (px)** (28), **Justified text** (on), **Turning** (paged, scrolled).
+- Used by the phone's native reader only: **Page colours**, **Text weight**, **Space between paragraphs**,
+  **First-line indent**, **Hyphenation**, **The book's own styles**, **Tap zones**, **Inverted taps**, **Volume keys
+  turn pages**, **Full e-ink refresh every N pages**, and **Your reading themes** (saved from the reader's Aa sheet).
+
+## How it fits
+
+- The EPUB is read in the page with the app's own zip reader (`atlas.zip`, plugin API 20).
+- Server folders are read through another plugin's file source (copyparty by default).
+- The catalog's **Books** library is a different list: catalogued book notes in `notes/books/`, not files.
+
+## Needs
+
+Nothing: EPUB is read in the page, DjVu converted by the core (the helper, `helper/helper.ts`, runs inside it).
+
+## Platforms
+
+Linux works; Android works (`phone = true`, with the native reader); macOS, Windows and a server are untested.
+
+## Status
+
+Beta. Tests: `ui/tests/example-books.spec.ts` (an EPUB built in the test: opened from E-books, paging, contents, styles
+kept and scripts not run, the saved place) and the core's `convert::tests` (DjVu). Ink over a reflowed book is not supported (it needs fixed pages).

@@ -1,32 +1,37 @@
 # Syncthing
 
-Asks Syncthing to sync a file the moment it changes, instead of after its own watcher delay (10 seconds by default).
-It has no pane: it works by itself once switched on.
+Asks Syncthing to sync a file the moment it changes, instead of after Syncthing's own watcher delay (10 seconds by
+default). The fewer seconds two copies of a vault differ, the rarer the conflict copies a mirrored vault has to merge.
+It has no pane: once switched on it works by itself.
 
-- Every batch of files the vault's watcher sees change is handed to Syncthing's REST API
-  (`POST /rest/db/scan?folder=<id>&sub=<path>`), so a save reaches the other devices in about a second.
-- The fewer seconds two copies differ, the rarer conflict copies are.
-- The Syncthing folder holding the vault is found by its path (the deepest one), and the API key is read from
-  Syncthing's own config when none is set.
+## What it adds
+
+- **A changed-files hook** (`on = "fs"`): each batch of paths the vault's watcher sees change — Atlas's own writes and
+  any other program's — is handed to Syncthing's REST API (`POST /rest/db/scan?folder=<id>&sub=<path>`). Batches that
+  arrive while one call runs are joined into the next.
+- **The tool `scan`** `{ paths }`.
+- The Syncthing folder holding the vault is found by its path (the deepest one), and the API key is read from this
+  computer's Syncthing configuration when none is set.
 
 ## Settings
 
 - **Syncthing's address** (`http://127.0.0.1:8384`): its web interface.
-- **API key** (a secret): Syncthing → Actions → Settings → API Key; empty reads it from this computer's Syncthing
-  config (`~/.config/syncthing` or `~/.local/state/syncthing`).
-- **Folder ID**: empty finds the folder that holds the vault.
+- **API key** (a secret): Syncthing → Actions → Settings → API Key; empty: read from the local Syncthing configuration.
+- **Folder ID**: empty: the Syncthing folder that holds this vault.
+
+## How it fits
+
+No requirements. Useful with mirrored vaults (docs/guides/SERVER.md); the core's mirror merges what still conflicts.
 
 ## Needs
 
-Syncthing running on the same machine as Atlas's server, syncing the vault's folder. Nothing else: the helper is a
-small static Rust program (`engine/`, built into `bin/<target>/syncthing` by `bash engine/build.sh`) that reaches
-Syncthing through Atlas's own fetch (`[permissions] net`: 127.0.0.1, localhost).
+Syncthing running on the machine where Atlas's core runs (the network permission is only `127.0.0.1` and
+`localhost`). The helper is built by `bash engine/build.sh` (Rust; not committed).
 
 ## Platforms
 
-Linux works; the others are untested; not in the phone app.
+Linux works; the others are untested.
 
-## Tests
+## Status
 
-`cargo test -p atlas-syncthing` (offline: the folder found by path, the key read from the config, one scan per path,
-a machine without Syncthing skipped quietly, a wrong key a failure).
+Beta. Unit tests in the engine (`cargo test`); no end-to-end spec against a stand-in Syncthing yet.

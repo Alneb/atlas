@@ -93,6 +93,8 @@ pub struct Installed {
     pub replaced: Option<String>,
     /// Installed plugins start switched off.
     pub on: bool,
+    /// What the plugins it replaces (`replaces`) left, moved to the trash: their folders and settings files.
+    pub adopted: Vec<String>,
 }
 
 fn run(cmd: &mut std::process::Command, what: &str) -> Result<()> {
@@ -178,13 +180,12 @@ fn fetch(source: &Source, work: &Path) -> Result<Option<String>> {
     }
 }
 
-/// Unpacks an archive into `work`. On macOS the quarantine mark of a downloaded archive would stop the plugin's
+/// Unpacks an archive into `work` (paths that would leave it refused). On macOS the quarantine mark of a downloaded archive would stop the plugin's
 /// programs from starting, so it is taken off what was unpacked (the plugin is installed off: a person switches it on).
 fn unpack(archive: &Path, work: &Path) -> Result<()> {
     vault_write::cache::mkdir(work)?;
-    if archive.to_string_lossy().to_ascii_lowercase().ends_with(".zip") {
-        run(std::process::Command::new("unzip").arg("-q").arg(archive).arg("-d").arg(work), "unzip")?;
-    } else {
+    // zip and tar(.gz) in process, the same on every system (programs' modes kept); another compression by tar
+    if !crate::convert::unpack_whole(archive, work).map_err(|e| Error::CommandFailed(format!("unpacking the plugin: {e}")))? {
         run(std::process::Command::new("tar").arg("-xf").arg(archive).arg("-C").arg(work), "tar")?;
     }
     if cfg!(target_os = "macos") {
@@ -212,15 +213,74 @@ fn stamp() -> String {
 
 /// Moves a plugin folder to the vault's trash; returns where (relative to the vault).
 fn to_trash(root: &Path, id: &str) -> Result<String> {
+    path_to_trash(root, &format!("{PLUGINS_DIR}/{id}"))
+}
+
+/// Moves `rel` (a file or folder of the vault) to the vault's trash, keeping its path under the trash's stamp.
+fn path_to_trash(root: &Path, rel: &str) -> Result<String> {
     // two removals in one second (an update, then a removal) each get a place of their own
     let now = stamp();
-    let rel = (0..1000)
-        .map(|n| format!(".atlas/trash/{now}{}/{PLUGINS_DIR}/{id}", if n == 0 { String::new() } else { format!("-{n}") }))
+    let to = (0..1000)
+        .map(|n| format!(".atlas/trash/{now}{}/{rel}", if n == 0 { String::new() } else { format!("-{n}") }))
         .find(|r| !root.join(r).exists())
         .ok_or_else(|| Error::BadRequest("the trash is full for this second".into()))?;
-    let dest = root.join(&rel);
-    vault_write::rename(&root.join(PLUGINS_DIR).join(id), &dest)?;
-    Ok(rel)
+    vault_write::rename(&root.join(rel), &root.join(&to))?;
+    Ok(to)
+}
+
+/// Plugin `id` takes the place of those it `replaces`: each one's settings carried into its own (renamed where the
+/// manifest says; its keys win), its secrets copied where it has none of that name, its settings file and folder moved
+/// to the trash, its id taken out of `[plugins] off`. When the vault had replaced plugins and every one was off, `id`
+/// is switched off too — only while `id` is `fresh` (new to this vault), never a plugin the vault already used. Returns
+/// what went to the trash; a vault with none of them is left as it is, so this runs at every start.
+pub fn adopt_replaced(root: &Path, secrets: &crate::secrets::Store, id: &str, fresh: bool) -> Result<Vec<String>> {
+    let off = crate::workspace::Workspace::open(root)?.config()?.plugins.off;
+    let mut trashed = Vec::new();
+    let mut had = Vec::new();
+    for r in plugins::replaces(root, id) {
+        let folder = root.join(PLUGINS_DIR).join(&r.id);
+        if folder.is_dir() {
+            had.push(off.contains(&r.id));
+            if off.contains(&r.id) {
+                plugins::settings_if_off(root, &r, id)?;
+            }
+        }
+        if plugins::carry_settings(root, &r, id)? {
+            trashed.push(path_to_trash(root, &plugins::settings_path(&r.id))?);
+        }
+        for name in secrets.names(&r.id)? {
+            let new = r.renamed(&name);
+            if secrets.get(id, new)?.is_none() {
+                if let Some(v) = secrets.get(&r.id, &name)? {
+                    secrets.set(id, new, &v)?;
+                }
+            }
+        }
+        if folder.is_dir() {
+            trashed.push(to_trash(root, &r.id)?);
+        }
+        if off.contains(&r.id) {
+            set_off(root, &r.id, false)?;
+        }
+    }
+    if fresh && !had.is_empty() && had.iter().all(|was_off| *was_off) {
+        set_off(root, id, true)?;
+    }
+    Ok(trashed)
+}
+
+/// [`adopt_replaced`] for every plugin of the vault, at its start: a merged plugin copied in by hand (not installed)
+/// takes over too. "Fresh" there means the vault has no settings file for it yet. Failures are said on stderr.
+pub fn adopt_all_replaced(root: &Path) {
+    let secrets = crate::secrets::Store::for_vault(root);
+    for p in plugins::list(root).into_iter().filter(|p| p.error.is_none()) {
+        let fresh = !root.join(plugins::settings_path(&p.id)).exists();
+        match adopt_replaced(root, &secrets, &p.id, fresh) {
+            Ok(moved) if !moved.is_empty() => eprintln!("atlas: plugin {} took over what it replaces; moved to the trash: {}", p.id, moved.join(", ")),
+            Ok(_) => {}
+            Err(e) => eprintln!("atlas: plugin {}: taking over the plugins it replaces failed: {e}", p.id),
+        }
+    }
 }
 
 /// `[plugins] off` of the vault's config: `id` in it or out of it (comments kept).
@@ -273,7 +333,8 @@ pub fn install(root: &Path, source: &Source, id: Option<&str>, replace: bool) ->
         // sees the folder first would start it for a moment (it did, in the tests)
         let on = if replaced.is_none() { set_off(root, &id, true).map(|_| false)? } else { !crate::workspace::Workspace::open(root)?.config()?.plugins.off.contains(&id) };
         vault_write::rename(&from, &dest)?;
-        Ok(Installed { id, title: m.title, version: m.version, permissions: m.permissions, has_helper: m.has_helper, replaced, on })
+        let adopted = adopt_replaced(root, &crate::secrets::Store::for_vault(root), &id, replaced.is_none())?;
+        Ok(Installed { id, title: m.title, version: m.version, permissions: m.permissions, has_helper: m.has_helper, replaced, on, adopted })
     })();
     let _ = vault_write::cache::remove_dir_all(&work);
     result
@@ -467,6 +528,74 @@ mod tests {
         std::fs::write(src.join("plugin.toml"), "titel = \"typo\"\n").unwrap();
         assert!(install(root, &Source::Folder(src), Some("bad"), false).is_err());
         assert!(!root.join(PLUGINS_DIR).join("bad").exists());
+    }
+
+    /// A merged plugin takes over those it `replaces`: settings (renamed) and secrets carried, folders and settings files
+    /// to the trash, their ids out of `off`; it starts off only when every one it replaces was off.
+    #[test]
+    fn a_merged_plugin_takes_over_the_plugins_it_replaces() {
+        let (vault, keys) = (tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap());
+        let root = vault.path();
+        let secrets = crate::secrets::Store::in_dir(keys.path(), root);
+        let put = |rel: &str, text: &str| {
+            std::fs::create_dir_all(root.join(rel).parent().unwrap()).unwrap();
+            std::fs::write(root.join(rel), text).unwrap();
+        };
+        put(&format!("{PLUGINS_DIR}/ntfy/plugin.toml"), "title = \"ntfy\"\n");
+        put(&format!("{PLUGINS_DIR}/tube/plugin.toml"), "title = \"Tube\"\n");
+        put(".atlas/plugin-settings/ntfy.toml", "topic = \"mine\"\nserver = \"https://push.example.org\"\n");
+        put(".atlas/plugin-settings/tube.toml", "address = \"https://tube.example.org\"\n");
+        put(".atlas/plugin-settings/merged.toml", "server = \"https://kept.example.org\"\n");
+        put(".atlas/config.toml", "[plugins]\noff = [\"ntfy\", \"tube\"]\n");
+        secrets.set("tube", "token", "t1").unwrap();
+        put(&format!("{PLUGINS_DIR}/merged/plugin.toml"), "title = \"Merged\"\n[replaces]\nntfy = { rename = { topic = \"phone_topic\" } }\ntube = { set = { preset = \"Tube\" } }\n");
+
+        let moved = adopt_replaced(root, &secrets, "merged", true).unwrap();
+        assert_eq!(moved.len(), 4, "two folders and two settings files: {moved:?}");
+        assert!(moved.iter().all(|m| root.join(m).exists()), "in the trash, not gone");
+        assert!(!root.join(PLUGINS_DIR).join("ntfy").exists() && !root.join(".atlas/plugin-settings/tube.toml").exists());
+        let t: toml::Table = toml::from_str(&std::fs::read_to_string(root.join(".atlas/plugin-settings/merged.toml")).unwrap()).unwrap();
+        assert_eq!(t["phone_topic"].as_str(), Some("mine"), "renamed on the way");
+        assert_eq!(t["server"].as_str(), Some("https://kept.example.org"), "the new plugin's own value wins");
+        assert_eq!(t["address"].as_str(), Some("https://tube.example.org"));
+        assert_eq!(t["preset"].as_str(), Some("Tube"), "`set` comes with the plugin's settings");
+        assert_eq!(secrets.get("merged", "token").unwrap().as_deref(), Some("t1"), "the secret carried over");
+        let off = crate::workspace::Workspace::open(root).unwrap().config().unwrap().plugins.off;
+        assert_eq!(off, ["merged"], "the old ids leave `off`; every replaced one was off, so the fresh plugin is off");
+        assert!(adopt_replaced(root, &secrets, "merged", true).unwrap().is_empty(), "a second start changes nothing");
+
+        // a plugin the vault already used is never switched off by what it absorbs
+        put(&format!("{PLUGINS_DIR}/ntfy/plugin.toml"), "title = \"ntfy\"\n");
+        put(".atlas/config.toml", "[plugins]\noff = [\"ntfy\"]\n");
+        adopt_replaced(root, &secrets, "merged", false).unwrap();
+        assert!(crate::workspace::Workspace::open(root).unwrap().config().unwrap().plugins.off.is_empty());
+    }
+
+    /// A plugin folded into a setting (`if_off`): the vault that had it off gets the setting off; one that had it on
+    /// keeps the setting's default.
+    #[test]
+    fn a_plugin_folded_into_a_setting_carries_its_off_state() {
+        let (vault, keys) = (tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap());
+        let root = vault.path();
+        let secrets = crate::secrets::Store::in_dir(keys.path(), root);
+        let put = |rel: &str, text: &str| {
+            std::fs::create_dir_all(root.join(rel).parent().unwrap()).unwrap();
+            std::fs::write(root.join(rel), text).unwrap();
+        };
+        let catalog = format!("{PLUGINS_DIR}/catalog/plugin.toml");
+        put(&catalog, "title = \"Catalog\"\n[replaces]\ncatalog-web = { if_off = { read_pages = false } }\n");
+        put(&format!("{PLUGINS_DIR}/catalog-web/plugin.toml"), "title = \"Web\"\n");
+        put(".atlas/config.toml", "[plugins]\noff = [\"catalog-web\"]\n");
+        adopt_replaced(root, &secrets, "catalog", false).unwrap();
+        let t: toml::Table = toml::from_str(&std::fs::read_to_string(root.join(".atlas/plugin-settings/catalog.toml")).unwrap()).unwrap();
+        assert_eq!(t["read_pages"].as_bool(), Some(false));
+        assert!(!root.join(PLUGINS_DIR).join("catalog-web").exists(), "its folder to the trash");
+
+        std::fs::remove_file(root.join(".atlas/plugin-settings/catalog.toml")).unwrap();
+        put(&format!("{PLUGINS_DIR}/catalog-web/plugin.toml"), "title = \"Web\"\n");
+        put(".atlas/config.toml", "");
+        adopt_replaced(root, &secrets, "catalog", false).unwrap();
+        assert!(!root.join(".atlas/plugin-settings/catalog.toml").exists(), "on: nothing to write, the default stands");
     }
 
     #[test]

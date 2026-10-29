@@ -11,6 +11,12 @@ echo "[install] building UI";            npm --prefix "$root/ui" run build >/dev
 # window reloads into a new one on its own — no restart for interface changes (ui_files.rs).
 echo "[install] installing the UI";      ui_dest="${XDG_DATA_HOME:-$HOME/.local/share}/atlas/ui"
 mkdir -p "$ui_dest.new" && cp -r "$root/ui/dist/." "$ui_dest.new/" && rm -rf "$ui_dest" && mv "$ui_dest.new" "$ui_dest"
+# PDFium (~/.local/share/atlas/lib): the core draws PDF covers with it, no poppler needed (crates/atlas-core/src/pdfium.rs)
+if [ "$(uname -sm)" = "Linux x86_64" ]; then
+  bash "$root/scripts/dev/fetch-pdfium.sh" linux-x64 >/dev/null
+  install -Dm644 "$root/local/pdfium/8086-linux-x64/lib/libpdfium.so" "${XDG_DATA_HOME:-$HOME/.local/share}/atlas/lib/libpdfium.so"
+  echo "[install] PDFium in ${XDG_DATA_HOME:-$HOME/.local/share}/atlas/lib"
+fi
 bin="${CARGO_HOME:-$HOME/.cargo}/bin" # where cargo install puts the binaries
 echo "[install] installing atlas CLI";   cargo install --quiet --locked --path "$root/crates/atlas"
 echo "[install] installing atlas-app";   cargo install --quiet --locked --path "$root/crates/atlas-app"

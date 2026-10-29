@@ -21,7 +21,7 @@ fn running() -> &'static Mutex<HashMap<PathBuf, (u16, atlas_core::server::Server
 /// this app (local_lock.rs: every app on a phone reaches 127.0.0.1); `open` is a fresh one-time address that gives the
 /// app's WebView the key's cookie, `key` what the app's native screens send (`x-atlas-token`) on their own calls. `home`: the app's own folder, Atlas's
 /// home there (its settings, the list of vaults, caches) — a phone has no `$HOME` an app may write. `env`: what the
-/// plugin helpers the core starts need (PATH with `python3` and the helpers, PYTHONHOME; the app's Helpers.java).
+/// plugin helpers the core starts need (PATH with the plugin engines; the app's Helpers.java).
 pub fn serve(vault: &Path, home: &Path, env: &Value) -> Value {
     // one start at a time: two calls for one vault would both start a server (one leaked)
     static STARTING: Mutex<()> = Mutex::new(());

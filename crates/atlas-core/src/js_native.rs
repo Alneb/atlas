@@ -1,6 +1,6 @@
 //! The heavy primitives of a JavaScript helper, done natively (docs/design/DESIGN-plugin-runtimes.md): QuickJS
 //! interprets, so parsing HTML, CSV or a zip in script would be slow and written once per plugin. Each is one
-//! synchronous call, `__host.native(op, json)` → json, behind `atlas.html` / `atlas.csv` / `atlas.zip` / `atlas.hash`
+//! synchronous call, `__host.native(op, json)` → json, behind `atlas.html` / `atlas.csv` / `atlas.zip` / `atlas.hash` / `atlas.convert`
 //! (sdk/js/prelude.js). Files are the vault's (a vault-relative path, checked by `paths::safe_join`), or the plugin's
 //! own cache for `cache.head`.
 use serde_json::{json, Value};
@@ -22,9 +22,21 @@ pub fn call(root: &Path, id: &str, op: &str, args: &Value) -> Result<Value, Stri
             use sha2::Digest;
             Ok(json!(sha2::Sha256::digest(s("text").as_bytes()).iter().map(|b| format!("{b:02x}")).collect::<String>()))
         }
+        "convert.cbz" => crate::convert::comic_to_cbz(root, id, s("path")).map(Value::from),
+        "convert.pdf" => crate::convert::djvu_to_pdf(root, id, s("path")).map(Value::from),
+        "convert.typst" => convert_typst(root, args),
         "cache.head" => cache_head(root, id, s("name"), args.get("bytes").and_then(Value::as_u64).unwrap_or(8)),
-        other => Err(format!("no native {other:?} (html.select, html.unescape, csv.parse, zip.list, zip.read, hash.sha256, cache.head)")),
+        other => Err(format!("no native {other:?} (html.select, html.unescape, csv.parse, zip.list, zip.read, hash.sha256, convert.cbz, convert.pdf, convert.typst, cache.head)")),
     }
+}
+
+/// A vault `.typ` (or `source` standing at that path, its pictures read beside it) compiled into a vault PDF; `fence`:
+/// sized to what it holds, as a ```typst fence is drawn.
+fn convert_typst(root: &Path, args: &Value) -> Result<Value, String> {
+    let s = |k: &str| args.get(k).and_then(Value::as_str).unwrap_or_default();
+    let source = args.get("source").and_then(Value::as_str);
+    let fence = args.get("fence").and_then(Value::as_bool).unwrap_or(false);
+    crate::typst_doc::to_pdf(root, s("path"), s("to"), source, fence).map(Value::from)
 }
 
 fn vault_file(root: &Path, rel: &str) -> Result<std::path::PathBuf, String> {

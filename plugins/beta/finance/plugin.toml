@@ -7,7 +7,7 @@
 title = "Finance"
 description = "your money as a plain-text ledger: accounts, funds, budgets and bank imports, checked against the bank's own balances"
 icon = "chart"
-version = "0.1.1"
+version = "0.1.2"
 api = 9
 rail = true
 

@@ -1,58 +1,57 @@
-# Export — a note to LaTeX and PDF
+# Export
 
-"Export to PDF" and "Export to LaTeX" in a note's right-click menu (file tree and tab) and in the palette ("Export the
-open note to PDF / LaTeX"). The note is only read; what is made goes under the exports folder, at the note's own path:
-`notes/reports/x.md` → `exports/notes/reports/x.tex` and `x.pdf`. The PDF opens when it is ready.
+A note to a document someone else reads: a PDF (through Typst or LaTeX), LaTeX or Typst source, or Word. **Export…**
+opens a dialog with the options on the left and a preview of the document on the right; the note is only read, and
+the result goes under the exports folder at the note's own path (`notes/reports/x.md` → `exports/notes/reports/x.pdf`).
 
-## How
+## What it adds
 
-1. The helper (`helper.py`) translates the note into plain pandoc Markdown (below).
-2. **pandoc** writes the `.tex` (a standalone LaTeX document), with `tikz.lua` turning ```` ```tikz ```` blocks into
-   LaTeX. The preamble goes in as metadata (`header-includes`), not `-H`: pandoc drops the metadata's
-   `header-includes` when `-H` is given, and the filter adds TikZ there.
-3. **latexmk** compiles that same `.tex` with the chosen engine, running **biber** for the bibliography. LaTeX's own
-   files (`.aux`, `.log`, `.bbl`…) stay in `.atlas/cache/plugins/export/build/`, never in the vault.
-
-So the `.tex` you get is the document the PDF was made from, and it compiles on its own beside the vault: pictures and
-the `.bib` are named by paths relative to it.
-
-## What a note becomes
-
-| In the note | In the LaTeX |
-|---|---|
-| frontmatter `title`, `author`, `date`, `subtitle` | the title block; with no `title`, the first `# Heading` (taken out of the text), else the file name |
-| `[[citekey]]`, `[[citekey\|text]]` — a link to a paper whose key is in the `.bib` | `\cite{citekey}`, and a bibliography at the end (biblatex, the style from the settings) |
-| `[[note]]`, `[[note\|alias]]`, `[[note#Heading]]` | the alias, else the note's name (or the heading) as text |
-| `![[plot.png\|600]]` and an italic line under it (`*Figure 1. The spectral function.*`) | a numbered figure with that caption ("Figure 1." dropped: LaTeX numbers them), the width from the pixels, and `plot.pdf` instead when it sits beside the `.png` (a sharper vector plot) |
-| `![[note]]`, `![[note#Heading]]` | that note's text, or that section of it, inlined (three levels deep at most) |
-| `> [!note] Title` callouts | a quote with the title in bold |
-| `==marked==` | `\hl{marked}` (soul) |
-| a ```` ```tikz ```` block: optional `\usetikzlibrary{…}` / `\usepackage[…]{…}` lines, then `\begin{tikzpicture} … \end{tikzpicture}` | the `tikzpicture` itself (centred), so the PDF has the vector figure; `\usepackage{tikz}`, those packages and one `\usetikzlibrary{…}` with every library asked for go in the preamble (`tikz.lua`, a pandoc Lua filter any `pandoc --lua-filter tikz.lua` can use). Atlas draws the same block in the note |
-| `%%comments%%`, ` ^block-ids`, `view` / `base` / `tasks` / `dataview` / `query` blocks | left out: nothing to print |
-| `$…$`, `$$…$$`, tables, code, lists, headings | pandoc's own (with `# ` as the title, `## ` sections become `\section`) |
-
-Code (fenced blocks and `inline code`) is never touched. Pictures and notes are found as Obsidian finds them: beside
-the note, from the vault's top, else the file of that name with the shortest path. What is not found is listed in a
-notice after the export, and the export goes on.
+- **Export…** in a note's right-click menu (file tree and tab) and the command **Export the open note…**: a dialog over
+  the app (a tab in an app older than plugin API 20).
+- **The dialog**:
+  - *Format* — **PDF (Typst)**: compiled by the Typst built into Atlas, fast, no TeX; the preview follows the options
+    as you change them. **PDF (LaTeX)**: pandoc writes the `.tex` (kept beside the PDF), latexmk compiles it; the
+    preview is made with **Preview**. **LaTeX source**, **Typst source**, **Word (.docx)**. A format whose programs
+    are missing is shown greyed, saying what it needs.
+  - *Document* — title, subtitle, author, date (from the note's properties, else its first heading, else its name;
+    changed for this export only), table of contents, numbered sections.
+  - *Page* — paper (A4, US Letter), font size, margins, one or two columns, language, font.
+  - *References* (when the note links papers) — the `.bib`, the citation style (numeric, author–year, alphabetic,
+    physics), each written in the format's own way (biblatex, Typst's bibliography, citeproc for Word).
+  - *LaTeX* — engine, an extra preamble `.tex`. *Typst* — a preamble `.typ` (set and show rules).
+  - *Where* — the exports folder; open the result when done.
+  - Ctrl+Enter exports. The choices are saved as the plugin's settings, so the next export starts from them.
+- **What a note becomes**: `[[citekey]]` → a citation when the key is in the `.bib`; other wikilinks → their alias or
+  name; `![[picture|600]]` with an italic line under it → a numbered figure (a `.pdf` beside the `.png` is used
+  instead, for a sharper plot); `![[note]]` / `![[note#Heading]]` → that text inlined (three levels at most); callouts
+  → quotes with a bold title; `==marked==` → highlighted; ```` ```tikz ```` → the picture on the LaTeX road
+  (`tikz.lua`, a pandoc Lua filter usable on its own), code elsewhere; ```` ```typst ```` → the picture on the Typst
+  road, a PDF picture made by Atlas's Typst on the LaTeX road, code in Word; comments, block ids and query blocks left
+  out.
+- LaTeX's own files (`.aux`, `.log`, `.bbl`…) stay in `.atlas/cache/plugins/export/build/`; previews in
+  `.atlas/cache/plugins/export/preview/`.
 
 ## Settings
 
-Exports folder (`exports`), LaTeX engine (`lualatex`, `xelatex`, `pdflatex`), and under LaTeX: the bibliography (empty:
-`refs/refs.bib`, else the one `.bib` at the top or in `refs/`), the biblatex style (`numeric-comp`; `phys`,
-`authoryear`…), the font size, the language, and an extra preamble — a `.tex` of the vault `\input` into every export
-(packages, macros).
+The dialog's starting choices: format, exports folder, open when done; table of contents, numbered sections; paper,
+font size, margins, columns, language, font; bibliography, citation style; LaTeX engine and preamble; Typst preamble.
+
+## How it fits
+
+**Print** uses it to print a note as a PDF (through the PDF road chosen here). The bibliography is a setting of its
+own rather than the references plugin's, which it only matches by default.
 
 ## Needs
 
-- **pandoc** (2.19 or newer) and a TeX distribution with **latexmk** and **biber** (TeX Live, MiKTeX) on the machine
-  running Atlas's server — with a remote vault, on the server. A missing program is named in the error.
-- Python 3.9+ (standard library only).
-- Linux; on macOS and Windows it should work with the same programs installed, but has not been tried there.
+pandoc (3.0 or newer) on the machine running Atlas's core (a served vault: the server) for every format; for PDF
+(LaTeX), a TeX distribution with latexmk and biber. PDF (Typst) needs nothing more: Typst is part of Atlas.
 
-## Limits
+## Platforms
 
-- The `.tex` and `.pdf` are written straight to the vault's disk: the helper API has no way to write a binary file yet.
-  Atlas's watcher still sees them (the index, the mirror). Each export replaces the previous one of the same note.
-- Drawings, PDFs and Bases embedded in a note are left out (named in a notice).
+Linux works; the others are untested.
 
-Tests: `python3 test_export.py` (the translation on a throwaway vault; a real export when pandoc and latexmk are installed).
+## Status
+
+Beta. Tests: `node scripts/dev/plugin-ui.mjs --check plugins/beta/export` (the translation and each format's calls,
+the programs faked); `ui/tests/example-export.spec.ts` (the dialog, a real Typst export when pandoc is installed). An
+export cannot be stopped; drawings, PDFs and Bases embedded in a note are left out (named in the dialog).
