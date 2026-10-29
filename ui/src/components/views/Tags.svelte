@@ -5,7 +5,7 @@
   // every note, nested ones with it.
   import { errText } from "../../lib/text";
   import { reloadOnChange } from "../../lib/reload-on-change";
-  import { shownName } from "../../lib/paths";
+  import { shownName, basename } from "../../lib/paths";
   import { onMount } from "svelte";
   import { api } from "../../lib/api";
   import { openPath } from "../../lib/dock";
@@ -31,7 +31,7 @@
     notes = [];
     try { notes = (await api.search(`tag:${tag}`)).files; } catch (e) { error = errText(e); }
   }
-  const leaf = (t: string) => t.slice(t.lastIndexOf("/") + 1);
+  const leaf = (t: string) => basename(t);
   const depth = (t: string) => t.split("/").length - 1;
   const name = shownName;
   let menu = $state<MenuAt | null>(null);

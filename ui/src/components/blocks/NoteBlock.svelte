@@ -1,9 +1,9 @@
 <script lang="ts">
   // A note (or a piece of markdown text) shown rendered inside a page; "open as a tab" edits the note.
   import { onMount } from "svelte";
+  import { reloadOnChange } from "../../lib/reload-on-change";
   import { sectionOf } from "../../lib/note-anchor";
   import { api } from "../../lib/api";
-  import { on } from "../../lib/bus";
   import Markdown from "../Markdown.svelte";
 
   // `section`: only that heading and what is under it (`![[Note#Heading]]`, as Obsidian embeds it)
@@ -14,7 +14,7 @@
   onMount(() => {
     if (!path) return;
     void load();
-    return on("fs", (e) => { if (e.paths.includes(path)) void load(); });
+    return reloadOnChange(() => void load(), { wait: 0, wants: (p) => p === path });
   });
 </script>
 

@@ -2,7 +2,7 @@
 // when that file changes on disk or the setting names another one. `null` until loaded or when the
 // vault has none (the panel then guesses kinds from the values).
 import { api } from "./api";
-import { on } from "./bus";
+import { reloadOnChange } from "./reload-on-change";
 import { onSettings } from "./settings.svelte";
 import type { PropertySpecs } from "./types";
 
@@ -32,5 +32,5 @@ export function watchPropertySpec(): void {
     const p = cfg.editor.properties_spec.trim();
     if (p !== path) { path = p; void load(); }
   });
-  on("fs", (e) => { if (path && e.paths.some((x) => x === path || x.endsWith(`/${path}`))) void load(); });
+  reloadOnChange(() => void load(), { wait: 0, wants: (x) => !!path && (x === path || x.endsWith(`/${path}`)) });
 }

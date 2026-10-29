@@ -1,5 +1,6 @@
 // Where a context menu opens: the one shape every owner of a <ContextMenu> keeps (null while closed).
-import type { MenuItem } from "../components/ContextMenu.svelte";
+import { mount, unmount } from "svelte";
+import ContextMenu, { type MenuItem } from "../components/ContextMenu.svelte";
 
 export type MenuAt = { x: number; y: number; items: MenuItem[] };
 
@@ -10,4 +11,9 @@ export const atPointer = (e: MouseEvent, items: MenuItem[]): MenuAt => ({ x: e.c
 export function below(e: MouseEvent, items: MenuItem[], gap = 2): MenuAt {
   const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
   return { x: r.left, y: r.bottom + gap, items };
+}
+
+/** Opens the menu at `at` from code outside a component (the editor's widgets); `onclose` after it is gone. */
+export function popMenu(at: MenuAt, onclose?: () => void): void {
+  const m = mount(ContextMenu, { target: document.body, props: { ...at, onclose: () => { void unmount(m); onclose?.(); } } });
 }

@@ -10,7 +10,7 @@ const put = (r: APIRequestContext, path: string, text: string) => r.put("/api/fi
 const example = (f: string) => readFileSync(fileURLToPath(new URL(`../../plugins/stable/print/${f}`, import.meta.url)), "utf8");
 
 test.beforeAll(async ({ request }) => {
-  for (const f of ["main.js", "plugin.toml", "helper.py"]) await put(request, `.atlas/plugins/print/${f}`, example(f));
+  for (const f of ["main.js", "plugin.toml", "helper.js"]) await put(request, `.atlas/plugins/print/${f}`, example(f));
 });
 test.afterAll(async ({ request }) => { await put(request, ".atlas/plugins/print/main.js", "export function register() {}\n"); });
 

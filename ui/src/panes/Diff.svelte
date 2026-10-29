@@ -2,10 +2,10 @@
   // Working-tree (or staged) diff of one file; follows the file as it changes on disk. Hunks can be
   // staged / discarded (unstaged view) or unstaged (staged view) one at a time.
   import { errText } from "../lib/text";
+  import { reloadOnChange } from "../lib/reload-on-change";
   import { shownPath } from "../lib/paths";
   import { onMount } from "svelte";
   import { api } from "../lib/api";
-  import { on } from "../lib/bus";
   import type { Patch } from "../lib/types";
   import type { PaneProps } from "../lib/dock";
   import { openPath } from "../lib/dock";
@@ -27,7 +27,7 @@
 
   onMount(() => {
     void load();
-    return on("fs", (e) => { if (!e.paths.length || e.paths.includes(spec.path)) void load(); });
+    return reloadOnChange(() => void load(), { wait: 0, wants: (p) => p === spec.path });
   });
 </script>
 

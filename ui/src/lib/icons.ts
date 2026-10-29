@@ -98,6 +98,17 @@ const P: Record<IconName, string> = {
   minus: '<path d="M5 12h14"/>',
   refresh: '<path d="M20 11.5A8 8 0 0 0 6 6.6L4 8.5M4 4v4.5h4.5M4 12.5A8 8 0 0 0 18 17.4l2-1.9M20 20v-4.5h-4.5"/>',
   zoom: '<circle cx="11" cy="11" r="6.5"/><path d="m20 20-4.3-4.3M8.5 11h5M11 8.5v5"/>',
+  // the readers' own (the Boox reader's bars draw the same, from atlas_capture::icons)
+  contents: '<path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.5" cy="6" r="1"/><circle cx="4.5" cy="12" r="1"/><circle cx="4.5" cy="18" r="1"/>',
+  pages: '<rect x="7" y="3" width="13" height="15" rx="2"/><path d="M4 7v11.5A2.5 2.5 0 0 0 6.5 21H16"/>',
+  bookmark: '<path d="M18 21l-6-4-6 4V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2z"/>',
+  notes: '<path d="M16 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V8z"/><path d="M15 3v4a2 2 0 0 0 2 2h4M7.5 13h7M7.5 17h4"/>',
+  text: '<path d="M6 4h12"/><path d="M12 4v16"/>',
+  underline: '<path d="M6.5 4v6a5.5 5.5 0 0 0 11 0V4"/><path d="M4.5 20.5h15"/>',
+  strike: '<path d="M16 5.5c-.8-1.3-2.3-2-4.2-2-2.6 0-4.3 1.4-4.3 3.3 0 1.4.8 2.4 2.5 3.2"/><path d="M8 17.5c.8 1.6 2.3 2.5 4.3 2.5 2.7 0 4.5-1.5 4.5-3.6 0-.9-.3-1.7-1-2.4"/><path d="M3.5 12h17"/>',
+  sticky: '<path d="M15.5 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V8.5z"/><path d="M15 3v6h6"/>',
+  crop: '<path d="M6 2.5V16a2 2 0 0 0 2 2h13.5"/><path d="M18 21.5V8a2 2 0 0 0-2-2H2.5"/>',
+  stamp: '<path d="m12 2.5 2.9 5.9 6.6 1-4.8 4.6 1.1 6.5L12 17.4l-5.8 3.1 1.1-6.5-4.8-4.6 6.6-1z"/>',
 };
 
 export const isIconName = (s: string): s is IconName => Object.hasOwn(P, s);

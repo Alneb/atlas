@@ -5,9 +5,10 @@
   //   type: captures
   //   show: open        # open (default: still to triage) | tasks | all
   import { onMount } from "svelte";
+  import { listVault } from "../../lib/vault";
+  import { reloadOnChange } from "../../lib/reload-on-change";
   import { parse as parseYaml } from "yaml";
   import { api } from "../../lib/api";
-  import { on } from "../../lib/bus";
   import { openPath } from "../../lib/dock";
   import { md } from "../../lib/markdown";
   import { pick } from "../../lib/palette.svelte";
@@ -59,9 +60,7 @@
   }
   onMount(() => {
     void load();
-    let t: ReturnType<typeof setTimeout> | undefined;
-    const off = on("fs", (e) => { if (!e.paths.length || e.paths.some((p) => p.endsWith(".md"))) { clearTimeout(t); t = setTimeout(load, 400); } });
-    return () => { off(); clearTimeout(t); };
+    return reloadOnChange(() => void load(), { wait: 400, wants: (p) => p.endsWith(".md") });
   });
 
   async function triage(c: CaptureItem, action: TriageAction) {
@@ -77,7 +76,7 @@
     const dir = (settings.config?.notes.dir ?? "notes").replace(/\/+$/, "");
     pick({
       placeholder: `File “${c.text.slice(0, 60)}” into…`, tag: "Note", icon: "file-text",
-      items: async () => (await api.files()).filter((p) => /\.md$/i.test(p) && p !== c.path).map((p) => ({ value: p, title: shownName(p), detail: shownPath(p) })),
+      items: async () => (await listVault()).filter((p) => /\.md$/i.test(p) && p !== c.path).map((p) => ({ value: p, title: shownName(p), detail: shownPath(p) })),
       typed: (t) => `New note “${t}”`,
       onpick: (v, isNew) => triage(c, { kind: "file", note: isNew ? `${dir ? `${dir}/` : ""}${v.replace(/\.md$/i, "")}.md` : v }),
     });

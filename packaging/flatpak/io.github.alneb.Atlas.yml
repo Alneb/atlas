@@ -3,7 +3,7 @@
 # The GNOME runtime carries WebKitGTK 4.1, which the desktop app (Tauri) draws with.
 app-id: io.github.alneb.Atlas
 runtime: org.gnome.Platform
-runtime-version: "47"
+runtime-version: "50"
 sdk: org.gnome.Sdk
 command: atlas-app
 finish-args:
@@ -15,7 +15,8 @@ finish-args:
   - --filesystem=home        # vaults are ordinary folders, anywhere in the home folder
   - --talk-name=org.freedesktop.Notifications
   - --talk-name=org.freedesktop.secrets
-  # lets a terminal reach the host with `flatpak-spawn --host` (inside the sandbox its shell is the runtime's)
+  # what a vault runs (plugin helpers, vault commands, atlas.exec, terminals, language servers) is the user's and
+  # starts on the host with `flatpak-spawn --host` (crates/atlas-core/src/platform/host.rs)
   - --talk-name=org.freedesktop.Flatpak
 modules:
   - name: atlas

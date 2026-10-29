@@ -8,6 +8,8 @@ import type {
 } from "./types";
 
 import { emitPluginEvent, type PluginEvent } from "./plugin-events";
+
+import { basename } from "./paths";
 import type { VaultList } from "./gen/VaultList";
 import type { Plugin } from "./gen/Plugin";
 import type { CaptureHint } from "./gen/CaptureHint";
@@ -316,7 +318,7 @@ export const api = {
     const r = await request<import("./gen/Moved").Moved | null>("POST", "/api/fs/move", { body: { from, to } });
     emitPluginEvent({ type: "file:rename", from, to });
     if (r?.links) {
-      const n = r.notes.length, show = r.notes.slice(0, 6).map((p) => p.split("/").pop()!.replace(/\.md$/i, "")).join(", ");
+      const n = r.notes.length, show = r.notes.slice(0, 6).map((p) => basename(p).replace(/\.md$/i, "")).join(", ");
       void import("./state.svelte").then((m) => m.toast(`${r.links} link${r.links === 1 ? "" : "s"} updated in ${n} note${n === 1 ? "" : "s"}`, `${show}${n > 6 ? ` and ${n - 6} more` : ""}`, "success"));
     }
     return r;

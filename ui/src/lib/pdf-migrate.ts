@@ -5,6 +5,7 @@
 // its page frames, erased strokes) goes to the trash too. Running it again adds nothing twice: a mark already in the
 // note (the same id, or the same kind, page and place) is left alone.
 import { api } from "./api";
+import { listVault } from "./vault";
 import { confirmDialog } from "./confirm";
 import { engine } from "./pdf-engine";
 import { convert, pagesOf, placeKey, type Converted, type Space } from "./pdf-ink-to-marks";
@@ -26,7 +27,7 @@ async function plan(drawing: string): Promise<Plan | null> {
 }
 
 export async function migratePdfMarks(): Promise<void> {
-  const files = new Set(await api.files());
+  const files = new Set(await listVault());
   const drawings = [...files].filter((f) => /\.pdf\.excalidraw$/i.test(f) && files.has(f.replace(/\.excalidraw$/i, "")));
   if (!drawings.length) { toast("No older PDF drawings to move: every PDF's marks are in its note"); return; }
   toast(`Reading ${drawings.length} PDF drawing${drawings.length === 1 ? "" : "s"}…`);

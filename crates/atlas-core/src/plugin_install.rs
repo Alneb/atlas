@@ -150,8 +150,12 @@ fn fetch(source: &Source, work: &Path) -> Result<Option<String>> {
             Ok(None)
         }
         Source::Git(url) => {
-            run(std::process::Command::new("git").args(["clone", "--quiet", "--depth", "1", "--", url]).arg(work), "git clone")?;
-            let out = std::process::Command::new("git").arg("-C").arg(work).args(["rev-parse", "HEAD"]).output()?;
+            let mut clone = std::process::Command::new("git");
+            clone.args(["clone", "--quiet", "--depth", "1", "--", url]).arg(work);
+            run(&mut crate::platform::host::std_command(clone)?, "git clone")?;
+            let mut head = std::process::Command::new("git");
+            head.arg("-C").arg(work).args(["rev-parse", "HEAD"]);
+            let out = crate::platform::host::std_command(head)?.output()?;
             let commit = String::from_utf8_lossy(&out.stdout).trim().to_string();
             let _ = vault_write::cache::remove_dir_all(&work.join(".git")); // a copy, not a checkout: the vault's own git tracks it
             Ok(Some(commit).filter(|c| !c.is_empty()))

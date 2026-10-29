@@ -5,6 +5,7 @@
 // (crates/atlas-core/src/signin_return.rs, the same channel name), and keeps it in localStorage (the same key) for a
 // tab that was not waiting: `returned`. Callers keep pasting as the last resort.
 import { on } from "./bus";
+import { drop, load } from "./prefs";
 
 type Waiter = { back: string; done: (url: string) => void; fail: (e: Error) => void };
 const waiting = new Set<Waiter>();
@@ -12,9 +13,10 @@ const KEPT = "atlas-signin-return"; // signin_return.rs KEPT
 const KEEP_MS = 30 * 60_000;
 
 function kept(): { url: string; at: number } | null {
-  try { const k = JSON.parse(localStorage.getItem(KEPT) ?? "null"); return k && typeof k.url === "string" ? k : null; } catch { return null; }
+  const k = load<{ url?: unknown; at: number } | null>(KEPT, null);
+  return k && typeof k.url === "string" ? (k as { url: string; at: number }) : null;
 }
-function forget(url: string) { try { if (kept()?.url === url) localStorage.removeItem(KEPT); } catch { /* no storage */ } }
+function forget(url: string) { if (kept()?.url === url) drop(KEPT); }
 
 /** The address a sign-in to `back` came back to while no tab was waiting for it (kept 30 minutes); taken once. */
 export function returned(back: string): string | null {

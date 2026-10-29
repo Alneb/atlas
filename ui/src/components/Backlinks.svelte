@@ -2,8 +2,9 @@
   // "Linked mentions" footer under a note (Obsidian's backlinks): the notes that link to it,
   // grouped by note, each with its line. Hidden when nothing links here.
   import { errText } from "../lib/text";
+  import { loadRaw, saveRaw } from "../lib/prefs";
   import { reloadOnChange } from "../lib/reload-on-change";
-  import { shownName } from "../lib/paths";
+  import { shownName, basename } from "../lib/paths";
   import { onMount } from "svelte";
   import { api } from "../lib/api";
   import { openPath } from "../lib/dock";
@@ -19,11 +20,11 @@
   let expanded = $state(readOpen());
 
   function readOpen(): boolean {
-    try { return localStorage.getItem(KEY) === "1"; } catch { return false; } // folded until asked
+    return loadRaw(KEY) === "1"; // folded until asked
   }
   function toggle() {
     expanded = !expanded;
-    try { localStorage.setItem(KEY, expanded ? "1" : "0"); } catch { /* per-viewer nicety only */ }
+    saveRaw(KEY, expanded ? "1" : "0");
   }
 
   async function load() {
@@ -47,7 +48,7 @@
     for (const l of links) if (l.relation) m.set(l.relation, (m.get(l.relation) ?? new Set()).add(l.source));
     return [...m].map(([relation, set]) => ({ relation, notes: [...set].sort() })).sort((a, b) => a.relation.localeCompare(b.relation));
   });
-  const stem = (p: string) => (p.split("/").pop() ?? p).replace(/\.md$/i, ""); // a link target
+  const stem = (p: string) => basename(p).replace(/\.md$/i, ""); // a link target
   const folder = (p: string) => (p.includes("/") ? p.slice(0, p.lastIndexOf("/")) : "");
   /** The context split around its links (or after a frontmatter `key: `) for highlighting. */
   const parts = (s: string) => {

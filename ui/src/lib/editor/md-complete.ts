@@ -1,6 +1,7 @@
 // Obsidian/Notion-style typing aids for markdown: `[[` / `![[` link completion (files, then
 // `#heading`), and a `/` slash menu of blocks. Each is a CodeMirror completion source.
 import { snippet, startCompletion, type Completion, type CompletionContext, type CompletionResult } from "@codemirror/autocomplete";
+import { noteHeadings } from "../note-anchor";
 import { api } from "../api";
 import { taskSuggestions, type TaskSuggestion } from "../task-complete";
 import { deleteMarkupBackward, insertNewlineContinueMarkupCommand } from "@codemirror/lang-markdown";
@@ -99,7 +100,7 @@ async function placesIn(note: string, after: string, from: number, closing: stri
     const blocks = [...text.matchAll(/^(.*?)\s\^([\w-]+)\s*$/gm)].map((b) => ({ label: `^${b[2]}`, detail: b[1].trim().slice(0, 60), type: "block", apply: `^${b[2]}${closing}` }));
     return { from, options: blocks, validFor: /^\^?[\w-]*$/ };
   }
-  const heads = [...text.matchAll(/^#{1,6}\s+(.+?)\s*#*$/gm)].map((h) => h[1]);
+  const heads = noteHeadings(text.split("\n")).map((h) => h.text);
   return { from, options: heads.map((h) => ({ label: h, type: "heading", apply: h + closing })), validFor: /^[^\]\n]*$/ };
 }
 

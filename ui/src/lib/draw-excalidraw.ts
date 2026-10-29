@@ -1,6 +1,7 @@
 // Excalidraw (a React component) mounted inside a Svelte pane. Scenes are plain `.excalidraw` JSON;
 // fonts are served offline under /excalidraw/ (vite.config.ts), never from a CDN.
 import { compactJson, shrinkFiles } from "./draw-compact";
+import { basename } from "./paths";
 import { createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import "@excalidraw/excalidraw/index.css";
@@ -534,11 +535,11 @@ export async function mountDrawing(host: HTMLElement, json: string, theme: "dark
             pick({
               placeholder: "Link the selection to which note?", tag: "Link", icon: "link",
               items: async () => (await server.files()).filter((f) => /\.md$/i.test(f) && !/\.excalidraw\.md$/i.test(f))
-                .map((f) => ({ value: f, title: f.slice(f.lastIndexOf("/") + 1).replace(/\.md$/i, ""), detail: f.includes("/") ? f.slice(0, f.lastIndexOf("/")) : "" })),
+                .map((f) => ({ value: f, title: basename(f).replace(/\.md$/i, ""), detail: f.includes("/") ? f.slice(0, f.lastIndexOf("/")) : "" })),
               typed: (t) => `Link to a new note “${t}”`,
               onpick: (v) => {
                 if (!api) return;
-                const name = v.slice(v.lastIndexOf("/") + 1).replace(/\.md$/i, "");
+                const name = basename(v).replace(/\.md$/i, "");
                 const ids = api.getAppState().selectedElementIds;
                 api.updateScene({ elements: api.getSceneElements().map((e) => (ids[e.id] ? lib.newElementWith(e, { link: `[[${name}]]` }) : e)) });
               },

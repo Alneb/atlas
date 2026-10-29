@@ -7,7 +7,7 @@
 //   const w = await harness.call("now", { settings: { place: "Oslo" } });
 import { state, Reply, Status, type Answer } from "./testing-host";
 import "./prelude.js";
-import type { FetchRequest } from "./atlas-helper";
+import type { ExecResult, FetchRequest } from "./atlas-helper";
 
 export { Reply, Status };
 
@@ -20,6 +20,10 @@ export const harness = {
   set api(fn: (verb: string, path: string, body: any) => unknown) { state.api = fn; },
   /** The vault's zip files for `atlas.zip`: path → entry name → its text. */
   set zips(z: Record<string, Record<string, string>>) { state.zips = z; },
+  /** `atlas.exec`: the result for each run (throw to refuse it). */
+  set exec(fn: (program: string, args: string[], opts: { stdin?: string; cwd?: string; timeout?: number; locale?: "C" }) => ExecResult | Promise<ExecResult>) { state.exec = fn as typeof state.exec; },
+  /** The `atlas.exec` runs asked, in order. */
+  get ran() { return state.ran; },
   /** The fetch requests made, in order. */
   get asked() { return state.asked; },
   get events() { return state.events; },
@@ -35,6 +39,7 @@ export const harness = {
   /** Forgets what was asked, sent and logged. */
   reset() {
     state.asked.length = 0;
+    state.ran.length = 0;
     state.events.length = 0;
     state.logs.length = 0;
   },

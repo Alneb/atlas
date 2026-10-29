@@ -42,6 +42,8 @@ pub enum Out {
 
 enum In {
     Line(String),
+    /// An `atlas.exec` run ended: the script's run number and its answer (js_exec.rs), as JSON.
+    Exec(u64, String),
     Stop,
 }
 
@@ -72,19 +74,26 @@ impl Drop for Handle {
 
 /// Starts plugin `id`'s helper from `file` on a thread of its own. Its lines come out of the receiver, which ends with
 /// one [`Out::Exit`].
-pub fn start(root: &std::path::Path, id: &str, file: PathBuf, limits: Limits) -> std::io::Result<(Handle, UnboundedReceiver<Out>)> {
+/// `exec`: the programs its manifest lets it run (`[permissions] exec`).
+pub fn start(root: &std::path::Path, id: &str, file: PathBuf, limits: Limits, exec: Vec<String>) -> std::io::Result<(Handle, UnboundedReceiver<Out>)> {
     let (tx, rx) = mpsc::channel();
     let (out, outs) = unbounded_channel();
     let stop = Arc::new(AtomicBool::new(false));
-    let (root, id, halt) = (root.to_path_buf(), id.to_string(), stop.clone());
+    let (root, id, halt, inbox) = (root.to_path_buf(), id.to_string(), stop.clone(), tx.clone());
     std::thread::Builder::new().name(format!("js-helper:{id}")).stack_size(8 << 20).spawn(move || {
-        let status = match Engine::new(&root, &id, limits, out.clone(), halt) {
+        let status = match Engine::new(&root, &id, limits, out.clone(), halt, Exec { allowed: exec, inbox }) {
             Ok(engine) => engine.run(&file, rx),
             Err(e) => format!("the JavaScript engine did not start: {e}"),
         };
         let _ = out.send(Out::Exit(status));
     })?;
     Ok((Handle { tx, stop }, outs))
+}
+
+/// What `atlas.exec` may run, and where a finished run's answer goes (the engine's own inbox: one more turn).
+pub(crate) struct Exec {
+    allowed: Vec<String>,
+    inbox: mpsc::Sender<In>,
 }
 
 /// Why a turn ended the helper.
@@ -107,7 +116,7 @@ pub(crate) struct Engine {
 }
 
 impl Engine {
-    pub(crate) fn new(root: &std::path::Path, id: &str, limits: Limits, out: UnboundedSender<Out>, stop: Arc<AtomicBool>) -> rquickjs::Result<Self> {
+    pub(crate) fn new(root: &std::path::Path, id: &str, limits: Limits, out: UnboundedSender<Out>, stop: Arc<AtomicBool>, exec: Exec) -> rquickjs::Result<Self> {
         let rt = Runtime::new()?;
         rt.set_memory_limit(limits.memory);
         rt.set_max_stack_size(1 << 20);
@@ -134,13 +143,26 @@ impl Engine {
                 heap.borrow_mut().push(Reverse((Instant::now() + Duration::from_millis(ms.max(0.0) as u64), n as u64)));
             })?)?;
             // the heavy primitives, natively (js_native.rs): JSON in, JSON out, a thrown Error on failure
-            let (root, me) = (root.to_path_buf(), id.to_string());
+            let (vault, me) = (root.to_path_buf(), id.to_string());
             host.set("native", Function::new(ctx.clone(), move |ctx: Ctx<'_>, op: String, args: String| -> rquickjs::Result<String> {
                 let args = serde_json::from_str(&args).unwrap_or(serde_json::Value::Null);
-                match crate::js_native::call(&root, &me, &op, &args) {
+                match crate::js_native::call(&vault, &me, &op, &args) {
                     Ok(v) => Ok(v.to_string()),
                     Err(why) => Err(rquickjs::Exception::throw_message(&ctx, &why)),
                 }
+            })?)?;
+            // a program run off the context's thread; its answer comes back as a turn (`__atlas_exec`), so the
+            // script's other calls and timers go on meanwhile
+            let (root, Exec { allowed, inbox }) = (root.to_path_buf(), exec);
+            host.set("exec", Function::new(ctx.clone(), move |n: f64, ask: String| {
+                let (n, root, allowed, inbox) = (n as u64, root.clone(), allowed.clone(), inbox.clone());
+                std::thread::spawn(move || {
+                    let answer = serde_json::from_str::<crate::js_exec::Run>(&ask)
+                        .map_err(|e| format!("exec: {e}"))
+                        .and_then(|run| crate::js_exec::check(&root, &allowed, &run).and_then(|(exe, cwd)| crate::js_exec::run(&exe, &cwd, &run)))
+                        .unwrap_or_else(|why| serde_json::json!({ "error": why }));
+                    let _ = inbox.send(In::Exec(n, answer.to_string()));
+                });
             })?)?;
             ctx.globals().set("__host", host)?;
             Ok(())
@@ -163,6 +185,13 @@ impl Engine {
                 return Err(format!("{file}: {why}"));
             }
         }
+        Ok(())
+    }
+
+    /// An `atlas.exec` run's answer, to the promise the script holds for it.
+    fn exec_ended(&self, n: u64, answer: &str) -> Result<(), Fatal> {
+        let failed = self.turn(|ctx| ctx.globals().get::<_, Function>("__atlas_exec")?.call::<_, ()>((n as f64, answer)))?;
+        self.uncaught(failed);
         Ok(())
     }
 
@@ -264,6 +293,7 @@ impl Engine {
             };
             let step = match got {
                 Ok(In::Line(line)) => self.receive(&line),
+                Ok(In::Exec(n, answer)) => self.exec_ended(n, &answer),
                 Ok(In::Stop) | Err(mpsc::RecvTimeoutError::Disconnected) => return "stopped".into(),
                 Err(mpsc::RecvTimeoutError::Timeout) => Ok(()),
             };
@@ -284,7 +314,7 @@ mod tests {
         let t = tempfile::tempdir().unwrap();
         let file = t.path().join("helper.js");
         std::fs::write(&file, code).unwrap();
-        let (h, rx) = start(t.path(), "demo", file, limits).unwrap();
+        let (h, rx) = start(t.path(), "demo", file, limits, vec!["sh".into()]).unwrap();
         (h, rx, t)
     }
 
@@ -349,6 +379,25 @@ mod tests {
         assert_eq!(line(&mut rx, &mut logs).await, json!({ "id": 6, "result": "waited" }));
         drop(h);
         assert_eq!(exit(&mut rx).await, "stopped");
+    }
+
+    /// `atlas.exec`: a program its manifest names runs off the context's thread, so a call waiting on it does not hold
+    /// up the next; one it does not name is refused with the reason.
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn exec_runs_a_named_program_while_the_helper_answers_other_calls() {
+        let (h, mut rx, _t) = helper(r#"
+            atlas.method("run", (p) => atlas.exec("sh", ["-c", p.cmd], { stdin: p.stdin }));
+            atlas.method("echo", (p) => p);
+            atlas.method("denied", () => atlas.exec("cat"));
+        "#, LIMITS);
+        let mut logs = vec![];
+        h.send(r#"{"id":1,"method":"run","params":{"cmd":"cat; sleep 0.3; echo done >&2; exit 4","stdin":"in"}}"#).unwrap();
+        h.send(r#"{"id":2,"method":"echo","params":"meanwhile"}"#).unwrap();
+        assert_eq!(line(&mut rx, &mut logs).await, json!({ "id": 2, "result": "meanwhile" }), "answered while the program runs");
+        assert_eq!(line(&mut rx, &mut logs).await, json!({ "id": 1, "result": { "status": 4, "stdout": "in", "stderr": "done\n" } }));
+        h.send(r#"{"id":3,"method":"denied"}"#).unwrap();
+        assert!(line(&mut rx, &mut logs).await["error"].as_str().unwrap().contains("not in the manifest's [permissions] exec (sh)"));
     }
 
     /// `atlas.read` and `atlas.fetch*` are calls back (`{"call"}`), answered by the core (`{"reply"}`).
@@ -445,7 +494,7 @@ mod tests {
     #[test]
     fn an_idle_context_is_small() {
         let (out, _rx) = unbounded_channel();
-        let e = Engine::new(std::path::Path::new("."), "demo", LIMITS, out, Arc::default()).unwrap();
+        let e = Engine::new(std::path::Path::new("."), "demo", LIMITS, out, Arc::default(), Exec { allowed: vec![], inbox: mpsc::channel().0 }).unwrap();
         e.load("helper.js", ECHO).unwrap();
         let used = e.memory();
         println!("an idle JS helper context: {} KB", used / 1024);

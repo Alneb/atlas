@@ -1,6 +1,7 @@
 // Workspace settings (.atlas/config.toml via /api/config): loaded at start, reloaded when the
 // file changes on disk, applied live (CSS variables, theme, editors, terminals).
 import { errText } from "./text";
+import { load, save } from "./prefs";
 import { einkOn, inPhoneApp, setEinkRefresh } from "./eink";
 import { api } from "./api";
 import type { PropertiesView, WorkspaceConfig } from "./types";
@@ -109,10 +110,9 @@ export async function loadSettings(): Promise<void> {
   let d: Awaited<ReturnType<typeof api.config>>;
   try {
     d = await api.config();
-    try { localStorage.setItem(cacheKey(), JSON.stringify(d)); } catch { /* full or blocked: only the offline look is lost */ }
+    save(cacheKey(), d); // full or blocked: only the offline look is lost
   } catch (err) {
-    let kept: typeof d | null = null;
-    try { kept = JSON.parse(localStorage.getItem(cacheKey()) ?? "null"); } catch { /* none */ }
+    const kept = load<typeof d | null>(cacheKey(), null);
     if (!kept?.config) throw err;
     if (!settings.config) { settings.config = kept.config; apply(kept.config); } // looks right; writes still need the server
     throw err;

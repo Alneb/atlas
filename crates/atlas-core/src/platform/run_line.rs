@@ -169,9 +169,10 @@ pub fn plan(line: &str, cwd: &Path, env: &[(String, OsString)]) -> Result<Plan, 
 /// A process for `line` ([`plan`]), run in `cwd`, with `env` set.
 pub fn command(line: &str, cwd: &Path, env: &[(String, OsString)]) -> Result<tokio::process::Command, String> {
     let Plan { program, args } = plan(line, cwd, env)?;
-    let mut cmd = tokio::process::Command::new(program);
+    let mut cmd = std::process::Command::new(program);
     cmd.args(args).current_dir(cwd).envs(env.iter().map(|(k, v)| (k, v)));
-    Ok(cmd)
+    // a line is the vault's, so in a Flatpak it runs on the host, among the user's programs (host.rs)
+    super::host::std_command(cmd).map(tokio::process::Command::from).map_err(|e| format!("could not start it on the host: {e}"))
 }
 
 /// The program to start. On Unix the name as written (the OS searches PATH). On Windows, a name is looked up

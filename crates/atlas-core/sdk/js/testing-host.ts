@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 // The core's side of a JS helper, faked for node tests (testing.ts): set before prelude.js runs. Separate from testing.ts
 // because imports run in order, and the prelude must find `__host` already there.
-import type { FetchRequest } from "./atlas-helper";
+import type { ExecResult, FetchRequest } from "./atlas-helper";
 
 export type Answer = string | object | null | Reply;
 /** An explicit answer: a status, a body, headers (`reply(429, "", { "retry-after": "0" })`). */
@@ -24,6 +24,10 @@ export const state = {
   logs: [] as string[],
   /** The vault's zip files: path → entry name → its text. */
   zips: {} as Record<string, Record<string, string>>,
+  /** What `atlas.exec` answers: the program's result, or throw for a refusal. */
+  exec: (program: string, _args: string[], _opts: { stdin?: string; cwd?: string; timeout?: number; locale?: "C" }): ExecResult => { throw new Error(`exec: no answer for ${program} (set harness.exec)`); },
+  /** The runs asked, in order. */
+  ran: [] as { program: string; args: string[]; stdin?: string; cwd?: string; timeout?: number; locale?: "C" }[],
   waiting: new Map<number, { resolve: (v: unknown) => void; reject: (e: Error) => void }>(),
 };
 
@@ -86,6 +90,12 @@ const receive = (msg: object) => (globalThis as any).__atlas_receive(JSON.string
   id: "test",
   log: (line: string) => state.logs.push(line),
   timer: () => { throw new Error("node has its own timers"); },
+  exec: (n: number, ask: string) => {
+    const a = JSON.parse(ask);
+    state.ran.push(a);
+    void Promise.resolve().then(() => state.exec(a.program, a.args ?? [], a)).then((r) => r, (e: Error) => ({ error: e.message }))
+      .then((r) => setImmediate(() => (globalThis as any).__atlas_exec(n, JSON.stringify(r))));
+  },
   native: (op: string, args: string) => {
     const a = JSON.parse(args);
     if (op === "html.unescape") return JSON.stringify(unescapeForTests(a.text));

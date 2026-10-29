@@ -339,6 +339,13 @@ fn main() -> anyhow::Result<()> {
                 .build()?;
             fit_to_screen(&main);
             paint_before_page(&main, &vault_bg);
+            // a click on one of Atlas's system notifications brings this window forward (the page opens its note)
+            let forward = main.clone();
+            atlas_core::notify::on_click(move || {
+                let _ = forward.show();
+                let _ = forward.unminimize();
+                let _ = forward.set_focus();
+            });
             // WebKitGTK silently drops a window.open that no fresh click started — and a plugin's sign-in
             // opens its page only after its helper has answered. Every request still goes through on_new_window.
             #[cfg(target_os = "linux")]

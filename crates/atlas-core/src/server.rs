@@ -2438,7 +2438,7 @@ fn start_vault(root: &std::path::Path, port: u16, auth: Option<Arc<crate::auth::
     let scheduler = crate::schedule::spawn(ws.clone(), bus.clone(), helpers.clone());
     let hooks = crate::capture_hooks::spawn(ws.clone(), bus.clone(), helpers.clone());
     let merges = crate::sync_merge::spawn(ws.clone(), bus.clone()); // Syncthing's conflict copies merged (DESIGN-mirror-v2 §4)
-    let notices = served.is_none().then(|| crate::notify::spawn(ws.clone(), bus.clone(), crate::notify::Presence::global(), crate::notify::platform()));
+    let notices = served.is_none().then(|| crate::notify::spawn(ws.clone(), bus.clone(), crate::notify::Presence::global(), crate::notify::platform(&bus)));
     // a server's lease table outlives a restart (lease.rs `kept_in`); a desktop's core keeps none
     let leases = Arc::new(if served.is_some() { crate::lease::Leases::kept_in(ws.cache_dir().join("leases.json")) } else { Default::default() });
     // the sign-ins kept for plugins visited now and then, so a gate's idle limit never ends them between uses

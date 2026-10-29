@@ -9,7 +9,7 @@
   import { openPalette } from "../../lib/palette.svelte";
   import { settings } from "../../lib/settings.svelte";
   import {
-    side, sideWide, tabGroups, flatIds, onListKey, onFilterKey, openMenu, startRename, finishRename,
+    side, sideWide, rowGlide, tabGroups, flatIds, onListKey, onFilterKey, openMenu, startRename, finishRename,
     dragStart, dragEnd, acceptDrag, rowOver, halfOver, rowDrop, groupDrop, middleClose, monogram,
   } from "../../lib/sidebar.svelte";
   import { app } from "../../lib/state.svelte";
@@ -131,7 +131,7 @@
         </div>
       {/if}
       <!-- rows slide to their new place (a move, a drop, a close) instead of jumping -->
-      {#each sec.rest as e (e.t.id)}<div class="slide" animate:flip={{ duration: 160 }}>{@render tabRow(e.g, e.t, false)}</div>{/each}
+      {#each sec.rest as e (e.t.id)}<div class="slide" animate:flip={{ duration: rowGlide() }}>{@render tabRow(e.g, e.t, false)}</div>{/each}
       <!-- the room under the last row takes a drop too: the tab goes to the end of the section -->
       {#if wide && side.dragId && sec.groups.length}
         <div class="end-drop" class:on={side.end === sec.zone} role="presentation" ondragenter={acceptDrag}

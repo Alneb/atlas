@@ -6,7 +6,7 @@
   import { bytes, errText, shortWhen } from "../lib/text";
   import { onMount } from "svelte";
   import { api } from "../lib/api";
-  import { on } from "../lib/bus";
+  import { reloadOnChange } from "../lib/reload-on-change";
   import { openPath } from "../lib/dock";
   import { fileIcon } from "../lib/panes";
   import { closable, onScreen } from "../lib/back";
@@ -63,8 +63,7 @@
 
   onMount(() => {
     // the list shows one folder, with times and sizes: only a change in that folder redraws it
-    let t: ReturnType<typeof setTimeout> | undefined;
-    const off = on("fs", (e) => { if (!e.paths.length || e.paths.some((p) => parentOf(p) === dir)) { clearTimeout(t); t = setTimeout(list, 400); } });
+    const off = reloadOnChange(() => void list(), { wait: 400, wants: (p) => parentOf(p) === dir });
     const reveal = (e: Event) => {
       const path = (e as CustomEvent<string>).detail;
       goTo(parentOf(path));
@@ -72,7 +71,7 @@
       setTimeout(() => document.querySelector(`.pf .row[data-path="${CSS.escape(path)}"]`)?.scrollIntoView({ block: "center" }), 250);
     };
     window.addEventListener("atlas-active-file", reveal);
-    return () => { off(); clearTimeout(t); window.removeEventListener("atlas-active-file", reveal); };
+    return () => { off(); window.removeEventListener("atlas-active-file", reveal); };
   });
 </script>
 

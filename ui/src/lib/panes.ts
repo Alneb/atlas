@@ -150,7 +150,8 @@ export type IconName =
   | "calendar" | "flag" | "repeat" | "chevrons-up" | "chevrons-down" | "return" | "hash" | "sigma" | "inbox" | "bell" | "server" | "grid" | "rows"
   | "pen" | "headphones" | "ballpoint" | "highlighter" | "eraser" | "pointer" | "hand" | "redo" | "maximize" | "sliders"
   | "folder-tree" | "move-out" | "move-in" | "external-link" | "user"
-  | "bold" | "italic" | "code" | "heading" | "list" | "list-ordered" | "list-todo" | "quote";
+  | "bold" | "italic" | "code" | "heading" | "list" | "list-ordered" | "list-todo" | "quote"
+  | "contents" | "pages" | "bookmark" | "notes" | "text" | "underline" | "strike" | "sticky" | "crop" | "stamp";
 
 export function paneIcon(s: PaneSpec): IconName {
   switch (s.kind) {

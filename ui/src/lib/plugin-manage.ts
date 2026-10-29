@@ -6,7 +6,7 @@ import { api } from "./api";
 import { pick, type PickItem } from "./palette.svelte";
 import { toast } from "./state.svelte";
 import { settings } from "./settings.svelte";
-import { loadPlugins, setPluginOn, type Plugin } from "./plugins.svelte";
+import { loadPlugins, pluginOn, plugins, setPluginOn, type Plugin } from "./plugins.svelte";
 import type { Platform } from "./gen/Platform";
 import type { Support } from "./gen/Support";
 import type { Available } from "./gen/Available";
@@ -23,6 +23,7 @@ export function mayOf(perm: Plugin["permissions"] | undefined, helper: boolean):
   return [
     perm?.net?.includes("*") ? "talk to any server on the network" : perm?.net?.length ? `talk to ${perm.net.join(", ")}` : "",
     perm?.secrets ? "keep secrets (outside the vault)" : "",
+    perm?.exec?.length ? `run ${perm.exec.join(", ")}` : "",
     helper ? "run a program of its own" : "",
   ].filter(Boolean).join(" · ");
 }
@@ -30,9 +31,19 @@ export function mayOf(perm: Plugin["permissions"] | undefined, helper: boolean):
 export const PLATFORM_NAMES: Record<Platform, string> = { linux: "Linux", macos: "macOS", windows: "Windows", android: "Android", server: "Server" };
 export const SUPPORT_WORDS: Record<Support, string> = { works: "works", untested: "untested", no: "does not run" };
 
-/** What it adds to Atlas, as a list of words. */
+/** What it adds to Atlas, as a list of words — with what it gives the plugins that run (`gives`). */
 export const partsOf = (p: Plugin): string[] =>
-  [p.view && "a pane", p.main && "blocks / commands", p.has_data && "a data script", p.rail && "a button at the top of the bar", ...(p.parts ?? [])].filter((x): x is string => !!x);
+  [p.view && "a pane", p.main && "blocks / commands", p.has_data && "a data script", p.rail && "a button at the top of the bar", ...(p.parts ?? []),
+    ...giftsOf(p).filter((g) => g.runs).map((g) => `${g.what.join(", ")} for ${g.title}`)].filter((x): x is string => !!x);
+
+/** What `p` gives each plugin it contributes to (`[contributes.<id>]`), and whether that plugin is here and runs: a
+ *  plugin's page says what turning the other one on would add. */
+export function giftsOf(p: Plugin): { to: string; title: string; what: string[]; here: boolean; runs: boolean }[] {
+  return (p.gives ?? []).map((g) => {
+    const to = plugins.list.find((x) => x.id === g.to);
+    return { to: g.to, title: to?.title ?? g.to, what: g.what, here: !!to, runs: !!to && pluginOn(to) };
+  });
+}
 
 // a list of records (cards) is counted, not printed: the form shows them
 const fmt = (v: unknown) => (typeof v === "string" ? v : Array.isArray(v) && v.some((x) => x && typeof x === "object") ? `${v.length} card${v.length === 1 ? "" : "s"}` : JSON.stringify(v));

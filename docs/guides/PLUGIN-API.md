@@ -67,6 +67,7 @@ fields = [
 [permissions]                         # nothing outside the page unless it is written here
 net = ["links.example.org", "*.arxiv.org"]   # or ["*"]: any host
 secrets = true
+exec = ["pandoc"]                     # programs a JavaScript helper may run (atlas.exec): by name, on the PATH
 
 [helper]                              # a program of its own, kept running
 run = "python3 -u \"$ATLAS_PLUGIN_DIR/helper.py\""
@@ -462,7 +463,7 @@ A helper may instead be a script the core runs itself: one QuickJS context per p
 speaking the same protocol as a process helper (the global `atlas` turns each call into those lines). The repo's
 plugins write it in TypeScript, `helper/helper.ts`, and commit the build: `node scripts/dev/plugin-ui.mjs <plugin>`
 builds `helper.js`; `--check` type-checks it, checks the build is current and runs `helper/*.test.ts` in node against
-a stand-in core (`import { harness } from "atlas-helper/testing"`: `harness.web`, `harness.api`, `harness.zips`). The
+a stand-in core (`import { harness } from "atlas-helper/testing"`: `harness.web`, `harness.api`, `harness.zips`, `harness.exec` with the runs asked in `harness.ran`). The
 types are `crates/atlas-core/sdk/js/atlas-helper.d.ts`.
 
 - **Methods**: `atlas.method(name, fn)` / `atlas.methods({…})`; `fn(params)` returns (or resolves to) the answer.
@@ -473,10 +474,11 @@ types are `crates/atlas-core/sdk/js/atlas-helper.d.ts`.
   `[permissions] net`. A header may be `{ secret: "token", prefix: "Bearer " }`, filled in by the core.
 - **Native primitives** (done in Rust, one call each): `html.select`, `html.unescape`, `csv.parse`, `zip.list`,
   `zip.read`, `hash.sha256`; `url.quote`, `url.resolve`, `text.title` in script.
-- **Programs** (API 17): `await atlas.exec(program, args, { stdin, cwd, timeout })` → `{ status, stdout, stderr }`
+- **Programs** (API 17): `await atlas.exec(program, args, { stdin, cwd, timeout, locale })` → `{ status, stdout, stderr }`
   (`timedOut`, `truncated` when so). Only a program the manifest names, `[permissions] exec = ["pandoc"]`, found on
   the PATH (a path is refused), started with no shell, `cwd` inside the vault (default the vault), killed with its
-  children after `timeout` seconds (default 60, at most 600), each output kept to 8 MB. Where the program is not
+  children after `timeout` seconds (default 60, at most 600), each output kept to 8 MB; `locale: "C"` makes it
+  answer in English (LC_ALL, LANG), the only environment a script may set. Where the program is not
   installed (the phone) it throws, saying so: test for it and degrade. Only the helper's script reaches it, never a
   page.
 - **What QuickJS lacks**: no `fetch`, `URL`, `TextEncoder`, `btoa`, no Node modules; `console` and timers come from the

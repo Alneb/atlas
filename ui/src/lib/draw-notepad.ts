@@ -3,6 +3,7 @@
 // gestures). Excalidraw's own touch handling is kept away from fingers here: its pinch only works on the canvas with
 // no tool in the way, and in pen mode a finger falls through to the tool. Pure scene arithmetic is exported for tests.
 import type { NotepadPen } from "./gen/NotepadPen";
+import { loadRaw, saveRaw } from "./prefs";
 import type { PenColor } from "./gen/PenColor";
 import type { PenWidth } from "./gen/PenWidth";
 
@@ -175,6 +176,7 @@ export function startColor(c: PenColor | undefined): string {
 
 /** This device's last choices (pen, paper): a convenience, so anything going wrong here only forgets them. */
 export function remembered<T extends string>(key: string, allowed: readonly T[], fallback: T): T {
-  try { const v = localStorage.getItem(`atlas.draw.${key}`) as T | null; return v && allowed.includes(v) ? v : fallback; } catch { return fallback; }
+  const v = loadRaw(`atlas.draw.${key}`) as T | null;
+  return v && allowed.includes(v) ? v : fallback;
 }
-export function remember(key: string, v: string): void { try { localStorage.setItem(`atlas.draw.${key}`, v); } catch { /* private window */ } }
+export function remember(key: string, v: string): void { saveRaw(`atlas.draw.${key}`, v); }

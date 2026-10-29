@@ -65,12 +65,10 @@ pub fn pdf_cover(cache_dir: &Path, rel: &str, pdf: &Path) -> Result<std::path::P
     let _ = crate::vault_write::cache::mkdir(out.parent().expect("a cache file has a folder"));
     let base = out.with_extension("drawing"); // pdftoppm adds ".jpg"
     let w = PDF_COVER_W.to_string();
-    let ok = std::process::Command::new("pdftoppm")
-        .args(["-jpeg", "-jpegopt", "quality=85", "-f", "1", "-l", "1", "-singlefile", "-scale-to-x", &w, "-scale-to-y", "-1"])
-        .arg(pdf)
-        .arg(&base)
-        .stderr(std::process::Stdio::null())
-        .status()
+    let mut cmd = std::process::Command::new("pdftoppm");
+    cmd.args(["-jpeg", "-jpegopt", "quality=85", "-f", "1", "-l", "1", "-singlefile", "-scale-to-x", &w, "-scale-to-y", "-1"]).arg(pdf).arg(&base);
+    let ok = crate::platform::host::std_command(cmd)
+        .and_then(|mut c| c.stderr(std::process::Stdio::null()).status())
         .map_err(|e| Error::NotFound(format!("{rel}: no PDF renderer here (pdftoppm: {e})")))?
         .success();
     let drawn = base.with_extension("drawing.jpg");

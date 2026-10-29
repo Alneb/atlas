@@ -12,4 +12,9 @@ net: Array<string>,
 /**
  * May keep secrets (`atlas.secrets`, a header filled in from one).
  */
-secrets: boolean, };
+secrets: boolean, 
+/**
+ * Programs a JavaScript helper may run with `atlas.exec` (`["pandoc"]`): by name, found on the PATH, no shell
+ * (js_exec.rs).
+ */
+exec: Array<string>, };

@@ -2,8 +2,9 @@
 // this computer or from the vault (asks before replacing). Each takes `Here`, the tab as it is at that moment, and says
 // how it went in the tab's status line; panes/Explorer.svelte only wires them to buttons, keys, menus and drops.
 import { basename, shownName, shownPath } from "../paths";
+import { listVault } from "../vault";
 import { openPath } from "../dock";
-import { api, ApiError } from "../api";
+import { ApiError } from "../api";
 import { pick } from "../palette.svelte";
 import { toast } from "../state.svelte";
 import { joinPath, parentPath, why, receive, chooseVaultFolder, downloadInto, sourceOf, type Entry, type FileSource } from "../file-sources.svelte";
@@ -120,7 +121,7 @@ export async function putFiles(h: Here, files: File[], dir = h.loc.path, replace
 
 /** A file of this vault, picked from the palette, onto this (remote) folder. */
 export async function uploadVaultFile(h: Here): Promise<void> {
-  const files = await api.files().catch(() => [] as string[]);
+  const files = await listVault();
   pick({ placeholder: `A file of this vault to put in ${h.loc.path || "/"} on ${h.title}…`, tag: h.title, icon: "arrow-up",
     items: files.map((f) => ({ value: f, title: shownName(f), detail: shownPath(f) })), onpick: (f) => void putVaultFile(h, f) });
 }

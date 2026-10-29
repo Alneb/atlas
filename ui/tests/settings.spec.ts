@@ -80,7 +80,7 @@ test("a plugin switched off in Settings loses its command and button", async ({ 
   await request.put("/api/file", { headers: H, data: { path: ".atlas/plugins/offable/view.js", text: "export default (host) => { host.textContent = 'offable'; };\n" } });
   await openSettings(page);
   await expect(page.getByRole("button", { name: "Offable", exact: true })).toBeVisible(); // rail
-  await nav(page).getByRole("button", { name: "Plugins", exact: true }).click();
+  await nav(page).getByRole("button", { name: /^Plugins( \d+)?$/ }).click();
   const sw = page.getByRole("switch", { name: "Plugin Offable" });
   await expect(sw).toHaveAttribute("aria-checked", "true");
   await sw.click();

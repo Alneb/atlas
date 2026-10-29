@@ -9,7 +9,7 @@ test("a block made from the template works in a note straight away", async ({ pa
   await page.goto("/");
   await page.getByText("Finish the GW notes.").waitFor();
   await page.keyboard.press("Meta+,");
-  await page.getByRole("navigation", { name: "Settings pages" }).getByRole("button", { name: "Plugins", exact: true }).click();
+  await page.getByRole("navigation", { name: "Settings pages" }).getByRole("button", { name: /^Plugins( \d+)?$/ }).click();
   await page.getByRole("button", { name: "New block", exact: true }).click();
   await page.keyboard.type("Reading streak");
   await page.keyboard.press("Enter");

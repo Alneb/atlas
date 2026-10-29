@@ -12,7 +12,7 @@ import { parseDocument, parse as parseYaml, stringify, type Document } from "yam
 import type { Action } from "./actions";
 import { api } from "./api";
 import { blockTab, paneBlockType } from "./blocks";
-import { on } from "./bus";
+import { reloadOnChange } from "./reload-on-change";
 import { context } from "./context.svelte";
 import { getDock, open, openPath } from "./dock";
 import { addCommands, allCommands, setCommands } from "./keymap.svelte";
@@ -275,5 +275,5 @@ export function initBookmarks(): () => void {
     drop(KEYS.pins);
     if (legacy.length && !pins.length) void savePins(legacy);
   });
-  return on("fs", (e) => { if (!e.paths.length || e.paths.includes(BOOKMARKS_FILE)) void loadFile(); });
+  return reloadOnChange(() => void loadFile(), { wait: 0, wants: (p) => p === BOOKMARKS_FILE });
 }

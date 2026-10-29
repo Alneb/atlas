@@ -238,7 +238,9 @@ impl Helpers {
     /// `[helper] js`: the script in a QuickJS context of its own; its lines read as a process's stdout would be.
     fn start_js(&self, id: &str, file: PathBuf, stamp: Option<std::time::SystemTime>, now: Instant) -> Result<Arc<Running>> {
         let name = file.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
-        let (handle, mut outs) = crate::js_helper::start(&self.root, id, file, crate::js_helper::LIMITS).map_err(|e| Error::CommandFailed(format!("plugin {id}: helper: {e}")))?;
+        // the programs it may run (`[permissions] exec`); an unreadable manifest gives it none
+        let exec = plugins::tool_parts(&self.root, id).map(|(_, p, _)| p.exec).unwrap_or_default();
+        let (handle, mut outs) = crate::js_helper::start(&self.root, id, file, crate::js_helper::LIMITS, exec).map_err(|e| Error::CommandFailed(format!("plugin {id}: helper: {e}")))?;
         let r = Arc::new(Running { input: Input::Js(handle), waiting: Mutex::default(), next: AtomicU64::new(1), stamp, used: Mutex::new(now) });
         log(&self.root, id, &format!("[atlas] helper started: {name} (JavaScript, in the core)"));
         let (me, pid, mine) = (self.clone(), id.to_string(), r.clone());

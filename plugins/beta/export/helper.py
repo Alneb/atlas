@@ -221,6 +221,13 @@ def translate(note: Path, vault: Vault, out_dir: Path, keys: set[str]) -> tuple[
 
 # --- writing and compiling ------------------------------------------------------------------------------------------
 
+def header_metadata(lines: list[str]) -> str:
+    """The preamble as a pandoc metadata file (`header-includes`, one raw LaTeX block) rather than `-H`: pandoc drops
+    the metadata's `header-includes` when `-H` is given, and tikz.lua adds its packages there."""
+    body = "\n".join("    " + l for l in "\n".join(lines).splitlines())
+    return f"header-includes:\n  - |\n    ```{{=latex}}\n{body}\n    ```\n"
+
+
 def run(cmd: list[str], cwd: Path, timeout: int) -> subprocess.CompletedProcess:
     if not shutil.which(cmd[0]):
         raise RuntimeError(f"{cmd[0]} is not installed on the machine running Atlas")
@@ -265,12 +272,13 @@ def export(params: dict) -> dict:
             t.warnings.append(f"preamble not found: {extra}")
 
     CACHE.mkdir(parents=True, exist_ok=True)
-    src, head, tail = CACHE / "note.md", CACHE / "header.tex", CACHE / "after.tex"
+    src, head, tail = CACHE / "note.md", CACHE / "header.yaml", CACHE / "after.tex"
     src.write_text(md, encoding="utf-8")
-    head.write_text("\n".join(header) + "\n", encoding="utf-8")
+    head.write_text(header_metadata(header), encoding="utf-8")
     tail.write_text("\\printbibliography\n" if t.cited and bib else "", encoding="utf-8")
     shift = ["--shift-heading-level-by=-1"] if not re.search(r"^# ", md, re.M) and re.search(r"^## ", md, re.M) else []
-    cmd = ["pandoc", str(src), "-f", "markdown", "-t", "latex", "-s", "-o", str(tex), "-H", str(head), "-A", str(tail),
+    cmd = ["pandoc", str(src), "-f", "markdown", "-t", "latex", "-s", "-o", str(tex), "--metadata-file", str(head),
+           "-A", str(tail), "--lua-filter", str(Path(__file__).with_name("tikz.lua")),
            "-V", "geometry:margin=2.4cm", "-V", f"fontsize={s.get('fontsize') or '11pt'}", "-V", "colorlinks=true",
            "-V", f"lang={s.get('lang') or 'en'}", *shift]
     for k, v in meta.items():

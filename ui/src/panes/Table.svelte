@@ -6,6 +6,7 @@
   // hidden columns, grouping) are saved in the file's companion note, a `table-views` block (lib/csv/views.ts), for every
   // device. Grouped by a column, the rows come group by group and a panel gives each group's sub-totals (GroupPanel).
   import { onMount } from "svelte";
+  import * as prefsStore from "../lib/prefs";
   import { errText } from "../lib/text";
   import { shownPath } from "../lib/paths";
   import { superOf } from "../lib/keys";
@@ -70,8 +71,8 @@
   type Prefs = { widths: Record<string, number>; hidden: string[]; frozen: number; order: string[] };
   const prefKey = () => `atlas.table.view:${spec.path}`;
   let prefs = $state<Prefs>({ widths: {}, hidden: [], frozen: 0, order: [] });
-  function loadPrefs() { try { prefs = { ...prefs, ...JSON.parse(localStorage.getItem(prefKey()) ?? "{}") }; } catch { /* none kept */ } }
-  function savePrefs() { try { localStorage.setItem(prefKey(), JSON.stringify(prefs)); } catch { /* private window */ } }
+  function loadPrefs() { prefs = { ...prefs, ...prefsStore.load(prefKey(), {}) }; }
+  function savePrefs() { prefsStore.save(prefKey(), prefs); }
   /** a column's name made unique by its occurrence ("col", "col") */
   const keys = $derived(sheet ? sheet.header.map((h, i) => `${h}\u0000${sheet.header.slice(0, i).filter((x) => x === h).length}`) : []);
   const cols = $derived.by(() => {

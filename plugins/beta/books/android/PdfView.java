@@ -100,7 +100,7 @@ final class PdfView extends FrameLayout implements NativePlugin.Back {
         bars.action("note", "The book's note", () -> background(() -> { String n = Shelf.noteOf(host, path); post(() -> host.openInWeb(n)); }));
         bars.action("duplicate", "Export a copy with the marks inside", this::exportWithMarks);
         bars.action("search", "Find in this PDF", this::askFind);
-        pagesTab = bars.tab("contents", "Pages", this::pagesPanel);
+        pagesTab = bars.tab("pages", "Pages", this::pagesPanel);
         bars.tab("pen", "Pen", this::penTools);
         notesTab = bars.tab("notes", "Notes", this::notesPanel);
         settingsTab = bars.tab("settings", "Settings", this::settingsPanel);

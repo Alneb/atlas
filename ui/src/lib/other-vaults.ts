@@ -3,6 +3,7 @@
 // `.atlas/remote/vaults/<name>/…`, and each save of the copy goes back (refused when the file changed there meanwhile),
 // as a remote file does (file-sources.svelte.ts).
 import { api, apiBase, ApiError } from "./api";
+import { basename } from "./paths";
 import { addSource, joinPath, parentPath, REMOTE, IMAGE, type FileSource, type Entry, type Place } from "./file-sources.svelte";
 import type { TreeEntry } from "./gen/TreeEntry";
 
@@ -67,7 +68,7 @@ export const otherVaults: FileSource = {
   remove: async (place, path) => `Moved to ${(await (await call(place, "POST", "/api/fs/trash", { path })).json()).to} in ${nameOf(place)}`,
   upload: async (place, local, dir, replace) => {
     try {
-      await call(place, "POST", "/api/fs/upload", { path: joinPath(dir, local.split("/").pop()!), ...(replace ? { replace: "true" } : {}) }, await api.raw(local));
+      await call(place, "POST", "/api/fs/upload", { path: joinPath(dir, basename(local)), ...(replace ? { replace: "true" } : {}) }, await api.raw(local));
     } catch (e) { if (e instanceof ApiError && e.status === 409) return "exists"; throw e; }
     return "done";
   },

@@ -3,6 +3,7 @@
 // to every expression and block below that heading, and the note's frontmatter to all of them.
 // Pure text in, plain data out: used by expressions, by blocks (`ctx.props()`) and by tests.
 import { parse as parseYaml } from "yaml";
+import { FENCE, HEADING } from "./note-anchor";
 
 export type Props = Record<string, unknown>;
 export interface Task { text: string; done: boolean; line: number; due?: string }
@@ -16,9 +17,7 @@ interface Section { level: number; heading: string; start: number; end: number; 
 // (a space must follow the `::` — `std::vector` in a sentence is not a property)
 const LINE_FIELD = /^\s*(?:[-*+]\s+(?:\[.\]\s+)?)?([\p{L}_][\p{L}\p{N}_ /-]*?)::(?:[ \t]+(.*))?$/u;
 const BRACKET_FIELD = /[[(]([\p{L}_][\p{L}\p{N}_ /-]*?)::[ \t]+([^\])]*)[\])]/gu;
-const HEADING = /^(#{1,6})\s+(.*?)\s*#*\s*$/;
 const TASK = /^\s*[-*+]\s+\[(.)\]\s+(.*)$/;
-const FENCE = /^\s*(```|~~~)/;
 
 /** `3` → 3, `true` → true, anything else stays text (a date, a `[[link]]`, a sentence). */
 export function fieldValue(raw: string): unknown {

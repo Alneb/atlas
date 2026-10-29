@@ -1,4 +1,4 @@
-// Print — CUPS through the helper (helper.py: `lp`): a note prints as the document the Export plugin makes of it,
+// Print — CUPS through the helper (helper/helper.ts: `lp`, run by the core): a note prints as the document the Export plugin makes of it,
 // any other file as it is; the job id or the reason it failed comes back as a notice.
 export function register(atlas) {
   const print = async (path) => {

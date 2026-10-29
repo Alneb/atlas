@@ -12,6 +12,10 @@ export type { FetchRequest, FetchResponse, HeaderValue };
 export type Params = Record<string, unknown> & { settings?: Record<string, unknown>; secrets?: Record<string, string> };
 export type Method = (params: Params) => unknown | Promise<unknown>;
 
+/** What `atlas.exec` answers: the exit status (null when killed past its time: `timedOut`), and the output as text,
+ *  each stream kept to 8 MB (`truncated` past it). */
+export interface ExecResult { status: number | null; stdout: string; stderr: string; timedOut?: true; truncated?: true }
+
 export interface FetchOptions {
   method?: string;
   /** A header's value: text, `{ secret: "token", prefix: "Bearer " }`, or `{ oauth: "name" }` — filled in by the core. */
@@ -78,6 +82,12 @@ export interface AtlasHelper {
   /** This plugin's secret, or null when unset. */
   secret(name: string): Promise<string | null>;
   setSecret(name: string, value: string): Promise<unknown>;
+
+  /** Runs a program the manifest names (`[permissions] exec = ["pandoc"]`), with no shell, found on the PATH, in the
+   *  vault or a folder of it (`cwd`), for at most `timeout` seconds (60 by default, 600 at most). Rejects when it is not
+   *  named, not installed (the phone has none) or its folder is outside the vault. `locale: "C"`: it answers in English
+   *  whatever the machine's language, for output the script reads. */
+  exec(program: string, args?: string[], opts?: { stdin?: string; cwd?: string; timeout?: number; locale?: "C" }): Promise<ExecResult>;
 
   /** A page's text through the core (only the manifest's `[permissions] net` hosts); null for a `missing` status. */
   fetch(url: string, opts?: FetchOptions): Promise<string | null>;

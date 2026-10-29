@@ -2,12 +2,12 @@
 // pointer, the note keys, the language server). Shift+right-click keeps the browser's menu
 // (spelling suggestions live there). One list builder, so a new entry is one line.
 import { chooseVault } from "../vaults";
-import { mount, unmount } from "svelte";
 import { selectAll } from "@codemirror/commands";
 import { EditorView } from "@codemirror/view";
 import type { Extension } from "@codemirror/state";
 import { LSPPlugin, findReferences, formatDocument, jumpToDefinition, jumpToImplementation, jumpToTypeDefinition, renameSymbol, showSignatureHelp } from "@codemirror/lsp-client";
-import ContextMenu, { type MenuItem } from "../../components/ContextMenu.svelte";
+import type { MenuItem } from "../../components/ContextMenu.svelte";
+import { atPointer, popMenu } from "../menu";
 import { keysOf } from "../keymap.svelte";
 import { toast } from "../state.svelte";
 import { formatNote } from "./md-format";
@@ -81,10 +81,7 @@ export function editorMenu(o: EditorMenuOptions): Extension {
       // a right-click outside the selection moves the caret there, as everywhere
       const pos = view.posAtCoords({ x: e.clientX, y: e.clientY }), sel = view.state.selection.main;
       if (pos !== null && (pos < sel.from || pos > sel.to)) view.dispatch({ selection: { anchor: pos } });
-      const m = mount(ContextMenu, { target: document.body, props: {
-        x: e.clientX, y: e.clientY, items: items(view, target, o),
-        onclose: () => { void unmount(m); view.focus(); },
-      } });
+      popMenu(atPointer(e, items(view, target, o)), () => view.focus());
       return true;
     },
   });

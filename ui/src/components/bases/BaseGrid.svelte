@@ -14,6 +14,7 @@
   import { reorder } from "../../lib/base-drag";
   import { context, setHover } from "../../lib/context.svelte";
   import { groupRows } from "../../lib/base-groups";
+  import { RowWindow } from "../../lib/windowed.svelte";
   import type { BaseView } from "../../lib/gen/BaseView";
   import type { BaseRow } from "../../lib/gen/BaseRow";
   import type { BaseCell } from "../../lib/gen/BaseCell";
@@ -128,9 +129,19 @@
   const isEditing = (r: BaseRow, i: number) => editing?.path === r.path && editing.col === i;
   const cellKey = (e: KeyboardEvent, r: BaseRow, i: number) => { if ((e.key === "Enter" || e.key === "F2") && !isEditing(r, i)) { e.preventDefault(); activate(r, i); } };
   const asBool = (c: BaseCell): BaseCell => (c.t === "null" ? { t: "bool", value: false } : c);
+
+  // --- the window: a group's title and a row are one height (32px), and only those around the view are drawn; a view
+  // over every note of a vault has thousands, each a cell per column. 100 beyond each side: a usual view is drawn whole
+  type Line = { kind: "group"; title: string; n: number } | { kind: "row"; r: BaseRow };
+  const lines = $derived(groups.flatMap((g): Line[] => [...(g.title !== null ? [{ kind: "group" as const, title: g.title, n: g.rows.length }] : []), ...g.rows.map((r) => ({ kind: "row" as const, r }))]));
+  let scroller = $state<HTMLElement>();
+  const win = new RowWindow(100, 32);
+  $effect(() => win.follow(scroller));
+  const { first, last } = $derived(win.range(lines.length));
+  $effect(() => { void lines.length; win.measure(scroller?.querySelector<HTMLElement>("tbody tr:not(.pad, .group)")); });
 </script>
 
-<div class="scroll">
+<div class="scroll" bind:this={scroller}>
   <table style:width="max(100%, {total}px)">
     <colgroup>
       {#each view.columns as c (c.id)}<col style:width="{widthOf(c)}px" />{/each}
@@ -157,11 +168,12 @@
       </tr>
     </thead>
     <tbody>
-      {#each groups as g (g.title)}
-      {#if g.title !== null}
-        <tr class="group"><td colspan={view.columns.length + 1}><span class="g-name">{g.title}</span><span class="g-n">{g.rows.length}</span></td></tr>
-      {/if}
-      {#each g.rows as r (r.path)}
+      {#if first}<tr class="pad" aria-hidden="true"><td colspan={view.columns.length + 1} style:height="{first * win.rowH}px"></td></tr>{/if}
+      {#each lines.slice(first, last) as l (l.kind === "row" ? l.r.path : `group:${l.title}`)}
+      {#if l.kind === "group"}
+        <tr class="group"><td colspan={view.columns.length + 1}><span class="g-name">{l.title}</span><span class="g-n">{l.n}</span></td></tr>
+      {:else}
+        {@const r = l.r}
         <tr class:lit={lit(r.path)} onmouseenter={() => hoverIn(r.path)} onmouseleave={hoverOut}>
           {#each r.cells as c, i (i)}
             {@const kind = editable(r, i) ? cellKind(r, i) : null}
@@ -181,8 +193,9 @@
           {/each}
           <td class="add-col"></td>
         </tr>
+      {/if}
       {/each}
-      {/each}
+      {#if last < lines.length}<tr class="pad" aria-hidden="true"><td colspan={view.columns.length + 1} style:height="{(lines.length - last) * win.rowH}px"></td></tr>{/if}
       {#if !view.rows.length}
         <tr><td class="empty" colspan={view.columns.length + 1}>No notes match this view. Change its filters, or add a note with “New”.</td></tr>
       {/if}
@@ -234,7 +247,9 @@
   th.add-col button { display: grid; place-items: center; width: 28px; height: 28px; border-radius: var(--radius-sm); color: var(--text-faint); }
   th.add-col button:hover { background: var(--bg-hover); color: var(--text); }
   .empty { color: var(--text-faint); padding: 14px 10px; white-space: normal; }
-  tr.group td { position: sticky; left: 0; height: 30px; background: var(--bg-alt); font-weight: 600; color: var(--heading, var(--text)); }
+  tr.pad td { padding: 0; border: 0; }
+  /* a group's title is a row's height: the window counts lines of one height */
+  tr.group td { position: sticky; left: 0; height: 32px; background: var(--bg-alt); font-weight: 600; color: var(--heading, var(--text)); }
   .g-n { margin-left: 8px; color: var(--text-faint); font-weight: 400; font-size: .88em; font-variant-numeric: tabular-nums; }
   tfoot td { position: sticky; bottom: 0; background: var(--bg); border-bottom: 0; border-top: 1px solid var(--border); padding: 0; height: 28px; }
   .sum { display: flex; align-items: baseline; justify-content: flex-end; gap: 6px; width: 100%; height: 100%; padding: 0 10px; font: inherit; font-size: .88em; color: var(--text-faint); }

@@ -145,6 +145,23 @@
   // The heavy primitives, natively (js_native.rs): JSON in, JSON out.
   const native = (op, args) => JSON.parse(host.native(op, JSON.stringify(args)));
 
+  // A program the manifest names (`[permissions] exec`), run by the core with no shell, off this thread (js_exec.rs):
+  // `{status, stdout, stderr}` (status null and `timedOut` when killed, `truncated` past 8 MB); a refusal rejects.
+  const runs = new Map();
+  let lastRun = 0;
+  function exec(program, args = [], opts = {}) {
+    return new Promise((resolve, reject) => {
+      const n = ++lastRun;
+      runs.set(n, { resolve, reject });
+      host.exec(n, JSON.stringify({ program, args: args.map(String), stdin: opts.stdin, cwd: opts.cwd, timeout: opts.timeout, locale: opts.locale }));
+    });
+  }
+  globalThis.__atlas_exec = (n, answer) => {
+    const r = runs.get(n), a = JSON.parse(answer);
+    runs.delete(n);
+    if (r) a.error ? r.reject(new Error(a.error)) : r.resolve(a);
+  };
+
   async function dispatch(id, name, params) {
     const fn = methods[name];
     if (typeof fn !== "function") {
@@ -198,6 +215,7 @@
     capture: (text) => post("/api/capture", { text }),
     secret: async (name) => (await get(`${plugin}/secrets/${encodeURIComponent(name)}`)).value ?? null,
     setSecret: (name, value) => put(`${plugin}/secrets/${encodeURIComponent(name)}`, { value }),
+    exec,
     fetch: fetchText,
     fetchJson,
     fetchResponse,

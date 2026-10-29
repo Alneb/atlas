@@ -25,23 +25,23 @@ test("Settings → Server is not listed outside server mode", async ({ page }) =
 
 // Server settings appear only on a server, Advanced (the GPU render options) only on the desktop
 // (settings-pages.ts `only`, hostOf)
-test("Server shows only in a browser on the server's page; Advanced only on this machine", async ({ page }) => {
+test("Server shows only in a browser on the server's page; Advanced (the settings file) everywhere", async ({ page }) => {
   const nav = page.getByRole("navigation", { name: "Settings pages" });
   const open = async () => { await page.goto("/"); await page.getByText("Finish the GW notes.").waitFor(); await page.keyboard.press("Meta+,"); await expect(nav.getByRole("button", { name: "Appearance" })).toBeVisible(); };
   await open(); // this machine: Advanced, no Server
   await expect(nav.getByRole("button", { name: "Advanced" })).toBeVisible();
   await expect(nav.getByRole("button", { name: "Server" })).toHaveCount(0);
   await page.route("**/api/auth/me", (r) => r.fulfill({ json: { server: true, via: "proxy", user: "u", signOut: false } }));
-  await open(); // a browser on the server: Server, no Advanced
+  await open(); // a browser on the server: Server, and Advanced with the file (its GPU field is the desktop's only)
   await expect(nav.getByRole("button", { name: "Server" })).toBeVisible();
-  await expect(nav.getByRole("button", { name: "Advanced" })).toHaveCount(0);
+  await expect(nav.getByRole("button", { name: "Advanced" })).toBeVisible();
   await page.addInitScript(() => { (window as unknown as { AtlasNative: unknown }).AtlasNative = { ready() {}, tabs() {} }; });
   await page.goto("/");
   await page.waitForFunction(() => "atlasShell" in window);
   await page.evaluate(() => (window as unknown as { atlasShell: { view(k: string): void } }).atlasShell.view("settings"));
-  await expect(nav.getByRole("button", { name: "Appearance" })).toBeVisible(); // the phone, a server's vault: neither
+  await expect(nav.getByRole("button", { name: "Appearance" })).toBeVisible(); // the phone, a server's vault: no Server
   await expect(nav.getByRole("button", { name: "Server" })).toHaveCount(0);
-  await expect(nav.getByRole("button", { name: "Advanced" })).toHaveCount(0);
+  await expect(nav.getByRole("button", { name: "Advanced" })).toBeVisible();
 });
 
 test("Settings → Server: the password, a phone's token shown once and revoked, AI agents off by default", async ({ page }) => {

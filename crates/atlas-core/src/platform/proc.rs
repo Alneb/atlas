@@ -46,6 +46,20 @@ pub fn own_group(cmd: &mut tokio::process::Command) {
     cmd.creation_flags(flags::CREATE_NEW_PROCESS_GROUP | flags::CREATE_NO_WINDOW);
 }
 
+/// [`own_group`] for a blocking `std::process::Command` (a run on a thread of its own: js_exec.rs).
+pub fn own_group_blocking(cmd: &mut std::process::Command) {
+    #[cfg(unix)]
+    {
+        use std::os::unix::process::CommandExt;
+        cmd.process_group(0);
+    }
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        cmd.creation_flags(flags::CREATE_NEW_PROCESS_GROUP | flags::CREATE_NO_WINDOW);
+    }
+}
+
 /// How [`stop_group`] ends a group.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Stop {

@@ -2,18 +2,17 @@
 // on file events, so `[[note]]` and `![[pic.png]]` resolve synchronously while rendering.
 // Same rules as the core's links.rs: explicit path (from the root for wikilinks, from the note for
 // markdown links), then by file name — same folder first, then the shortest path.
-import { dirOf } from "./paths";
+import { dirOf, basename, resolveRel } from "./paths";
 import { isAgentFile } from "./agent-files";
 import { api } from "./api";
 import { isBookkeeping, on } from "./bus";
-import { resolveRel } from "./markdown";
 
 let all = new Set<string>();
 let byName = new Map<string, string[]>();
 let loading: Promise<void> | null = null;
 const listeners = new Set<() => void>();
 
-const nameOf = (f: string) => f.slice(f.lastIndexOf("/") + 1).toLowerCase();
+const nameOf = (f: string) => basename(f).toLowerCase();
 
 function index(files: string[]): void {
   all = new Set();
@@ -38,6 +37,8 @@ export function refreshVault(): Promise<void> {
   return loading;
 }
 export const vaultReady = (): Promise<void> => loading ?? refreshVault();
+/** Every file of the vault, from the live index (no request once it is loaded): for pickers and one-off scans. */
+export const listVault = (): Promise<string[]> => vaultReady().then(() => [...all]);
 /** Every file of the vault, as last listed (after `vaultReady`). */
 export const vaultFiles = (): ReadonlySet<string> => all;
 export function onVaultChange(fn: () => void): () => void { listeners.add(fn); return () => listeners.delete(fn); }
@@ -104,7 +105,7 @@ export function resolveLink(target: string, fromDir: string, wiki = true): strin
   try { t = decodeURI(t); } catch { /* keep as written */ }
   if (!t) return null;
   if (t.startsWith("/")) t = t.slice(1);
-  const name = t.slice(t.lastIndexOf("/") + 1);
+  const name = basename(t);
   // `x.excalidraw` names the vault's `x.excalidraw.md` (Obsidian appends .md when the file is a note)
   const cands = name.includes(".") ? [t, `${t}.md`] : [`${t}.md`, t];
   for (const c of cands) {
@@ -115,7 +116,7 @@ export function resolveLink(target: string, fromDir: string, wiki = true): strin
   if (!wiki) return null;
   const fromAgent = isAgentFile(fromDir);
   for (const c of cands) {
-    const n = c.slice(c.lastIndexOf("/") + 1).toLowerCase();
+    const n = basename(c).toLowerCase();
     const suffix = `/${c.toLowerCase()}`;
     // a note's `[[name]]` never lands on one of the agent's files (they link among themselves)
     const hits = (byName.get(n) ?? []).filter((p) => (!c.includes("/") || p.toLowerCase().endsWith(suffix)) && (fromAgent || !isAgentFile(p)));

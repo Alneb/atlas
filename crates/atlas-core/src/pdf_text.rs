@@ -70,7 +70,9 @@ fn oxide_text(abs: &Path) -> Option<String> {
 
 /// The text by `pdftotext`, when it is installed.
 fn pdftotext(abs: &Path) -> Option<String> {
-    let o = std::process::Command::new("pdftotext").args(["-enc", "UTF-8", "-q"]).arg(abs).arg("-").stderr(std::process::Stdio::null()).output().ok()?;
+    let mut cmd = std::process::Command::new("pdftotext");
+    cmd.args(["-enc", "UTF-8", "-q"]).arg(abs).arg("-");
+    let o = crate::platform::host::std_command(cmd).ok()?.stderr(std::process::Stdio::null()).output().ok()?;
     o.status.success().then(|| String::from_utf8_lossy(&o.stdout).into_owned())
 }
 

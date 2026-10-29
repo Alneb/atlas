@@ -7,7 +7,7 @@
 title = "Email"
 description = "mail: conversations, search, fast triage, a composer, rules; saved notes; IMAP/SMTP or Outlook (OAuth2), several accounts"
 icon = "mail"
-version = "1.1.2"
+version = "1.2.0"
 rail = true          # a button for the Email pane (view.js)
 api = 12
 
@@ -174,9 +174,16 @@ secrets = ["*"]
 
 [[tool]]
 name = "read"
-description = "One email in full by its uid (from email_inbox): text and attachment names. Read-only: it is not marked as read."
+description = "One email in full by its uid (from email_inbox): text and its attachments (name, type, size, part). Read one with email_attachment. Read-only: it is not marked as read."
 input = { uid = "string", folder = "string?", account = "string?" }
 method = "agent_get"
+secrets = ["*"]
+
+[[tool]]
+name = "attachment"
+description = "One attachment of an email (uid from email_inbox; part or name from email_read). Text (txt, csv, json, ics, tex, bib, markdown, html…) comes back as its text; anything else (a PDF, a picture, an office file) is saved and its absolute path given: read that file with your own file reader. Read-only: the mail is not marked as read."
+input = { uid = "string", part = { type = "integer", description = "the attachment's part, from email_read", optional = true }, name = { type = "string", description = "its file name, when no part is given", optional = true }, folder = "string?", account = "string?" }
+method = "agent_attachment"
 secrets = ["*"]
 
 [[tool]]

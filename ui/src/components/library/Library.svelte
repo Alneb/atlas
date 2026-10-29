@@ -389,6 +389,9 @@
   .row:hover { background: var(--bg-hover); }
   .row.sel { background: var(--accent-soft); box-shadow: inset 2px 0 0 var(--accent); }
   .card { display: flex; flex-direction: column; gap: 4px; text-align: left; padding: 4px; border-radius: var(--radius-sm); min-width: 0; }
+  /* a library of thousands: items out of view are not laid out or painted (still in the page, for the marquee and keys) */
+  .row { content-visibility: auto; contain-intrinsic-size: auto 52px; }
+  .card { content-visibility: auto; contain-intrinsic-size: auto 230px; }
   .card:hover { background: var(--bg-hover); }
   .card.sel { background: var(--accent-soft); box-shadow: 0 0 0 2px var(--accent); }
   .card .t { font-size: .92em; white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; }

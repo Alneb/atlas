@@ -69,7 +69,21 @@ fn command(ws: &Workspace, q: &PtyQuery) -> anyhow::Result<CommandBuilder> {
     cmd.env("TERM", "xterm-256color");
     cmd.env("COLORTERM", "truecolor");
     cmd.env("ATLAS_ROOT", ws.root());
-    Ok(cmd)
+    on_host(cmd)
+}
+
+/// In a Flatpak, a terminal is the user's shell or program on the host (platform/host.rs), else `cmd` as it is.
+fn on_host(cmd: CommandBuilder) -> anyhow::Result<CommandBuilder> {
+    if !crate::platform::host::sandboxed() {
+        return Ok(cmd);
+    }
+    let argv = cmd.get_argv();
+    let env: Vec<(std::ffi::OsString, std::ffi::OsString)> = cmd.iter_extra_env_as_str().map(|(k, v)| (k.into(), v.into())).collect();
+    let (program, args) = crate::platform::host::wrap_terminal(argv, cmd.get_cwd().map(Path::new), &env)?;
+    let mut out = CommandBuilder::new(program);
+    out.args(args);
+    out.set_controlling_tty(false); // the host's shell takes the pty (host.rs)
+    Ok(out)
 }
 
 /// The user's shell for a terminal tab: `$SHELL` (else `/bin/sh`); on Windows PowerShell 7, else Windows
@@ -78,6 +92,11 @@ fn login_shell() -> String {
     if cfg!(windows) {
         let found = ["pwsh", "powershell"].iter().find(|p| which(p));
         return found.map(|p| p.to_string()).unwrap_or_else(|| std::env::var("COMSPEC").unwrap_or_else(|_| "cmd.exe".into()));
+    }
+    if crate::platform::host::sandboxed() {
+        if let Some(s) = crate::platform::host::shell() {
+            return s;
+        }
     }
     std::env::var("SHELL").unwrap_or_else(|_| "/bin/sh".into())
 }

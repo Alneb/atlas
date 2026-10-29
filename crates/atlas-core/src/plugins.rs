@@ -246,6 +246,9 @@ pub struct Permissions {
     pub net: Vec<String>,
     /// May keep secrets (`atlas.secrets`, a header filled in from one).
     pub secrets: bool,
+    /// Programs a JavaScript helper may run with `atlas.exec` (`["pandoc"]`): by name, found on the PATH, no shell
+    /// (js_exec.rs).
+    pub exec: Vec<String>,
 }
 
 /// What running one of plugin `id`'s tools needs: its tools, permissions and settings (with defaults).
@@ -441,8 +444,20 @@ pub struct Plugin {
     /// The AI agents it declares (`[[agent]]`): the terminal + menu and the palette offer a session of each.
     pub agents: Vec<crate::agent_terminals::AgentDecl>,
     /// What it adds that is not a pane or a script, in words for Settings: its scheduled runs, its capture hook,
-    /// its template values, its tools for agents, what it gives another plugin (`[contributes]`).
+    /// its template values, its tools for agents.
     pub parts: Vec<String>,
+    /// What it gives other plugins (`[contributes.<id>]`): part of what it adds while that plugin runs, and what it
+    /// would add while that plugin is off or missing.
+    pub gives: Vec<Gift>,
+}
+
+/// What a plugin gives another (`[contributes.<to>]`), in words for Settings.
+#[derive(Debug, Clone, PartialEq, Serialize, TS)]
+#[ts(export)]
+pub struct Gift {
+    /// The plugin it is for.
+    pub to: String,
+    pub what: Vec<String>,
 }
 
 impl Plugin {
@@ -476,6 +491,7 @@ impl Plugin {
             provides: Vec::new(),
             agents: Vec::new(),
             parts: Vec::new(),
+            gives: Vec::new(),
         }
     }
 }
@@ -504,22 +520,37 @@ fn parts_of(m: &Manifest) -> Vec<String> {
         1 => out.push("1 tool for agents".into()),
         n => out.push(format!("{n} tools for agents")),
     }
-    for (target, table) in &m.contributes {
-        let kinds: Vec<String> = table.get("sources").and_then(|v| v.as_array()).into_iter().flatten()
-            .filter_map(|src| src.get("kind"))
-            .flat_map(|k| match k {
-                toml::Value::String(s) => vec![s.clone()],
-                toml::Value::Array(a) => a.iter().filter_map(|x| x.as_str().map(str::to_string)).collect(),
-                _ => Vec::new(),
-            })
-            .fold(Vec::new(), |mut seen, k| { if !seen.contains(&k) { seen.push(k); } seen });
-        if kinds.iter().any(|k| k == "*") { out.push(format!("fills in any kind for {target}")); }
-        else if !kinds.is_empty() { out.push(format!("fills in {} for {target}", kinds.join(", "))); }
-        if table.get("recognize").and_then(|v| v.as_array()).is_some_and(|a| !a.is_empty()) { out.push(format!("recognises its links for {target}")); }
-        if table.get("kinds").and_then(|v| v.as_array()).is_some_and(|a| !a.is_empty()) { out.push(format!("adds kinds to {target}")); }
-        if table.get("pdf_sources").and_then(|v| v.as_array()).is_some_and(|a| !a.is_empty()) { out.push(format!("finds PDFs for {target}")); }
-    }
     out
+}
+
+/// `gives` of a manifest: per `[contributes.<to>]` table, what it gives in words ("recognises its links", "finds
+/// PDFs"); a table that says nothing known is left out.
+fn gives_of(m: &Manifest) -> Vec<Gift> {
+    let arr = |t: &toml::Table, k: &str| t.get(k).and_then(|v| v.as_array()).filter(|a| !a.is_empty()).cloned();
+    m.contributes
+        .iter()
+        .filter_map(|(to, table)| {
+            let mut what = Vec::new();
+            let kinds: Vec<String> = arr(table, "sources").into_iter().flatten()
+                .filter_map(|src| src.get("kind").cloned())
+                .flat_map(|k| match k {
+                    toml::Value::String(s) => vec![s],
+                    toml::Value::Array(a) => a.iter().filter_map(|x| x.as_str().map(str::to_string)).collect(),
+                    _ => Vec::new(),
+                })
+                .fold(Vec::new(), |mut seen, k| { if !seen.contains(&k) { seen.push(k); } seen });
+            if kinds.iter().any(|k| k == "*") { what.push("fills in any kind".to_string()); }
+            else if !kinds.is_empty() { what.push(format!("fills in {}", kinds.join(", "))); }
+            if arr(table, "recognize").is_some() { what.push("recognises its links".into()); }
+            if let Some(kinds) = arr(table, "kinds") {
+                // a kind by its label, else its name
+                let names: Vec<&str> = kinds.iter().filter_map(|k| k.get("label").or_else(|| k.get("name")).and_then(|v| v.as_str())).collect();
+                what.push(if names.is_empty() { "adds kinds".into() } else { format!("adds {}", names.join(", ")) });
+            }
+            if arr(table, "pdf_sources").is_some() { what.push("finds PDFs".into()); }
+            (!what.is_empty()).then(|| Gift { to: to.clone(), what })
+        })
+        .collect()
 }
 
 /// The `from` of the `.source` file an install leaves in a plugin's folder.
@@ -721,6 +752,7 @@ pub fn list(root: &Path) -> Vec<Plugin> {
                     // first, while the manifest is whole: the fields below take it apart
                     settings: serde_json::to_value(settings_with_defaults(&m)).unwrap_or(Value::Null),
                     parts: parts_of(&m),
+                    gives: gives_of(&m),
                     phone: support(&platforms_of(&m), Platform::Android) != Support::No,
                     not_here: not_on(&m.title, &platforms_of(&m), Platform::current()),
                     blocked: None,
@@ -1152,12 +1184,12 @@ mod tests {
             "[contributes.catalog]\nrecognize = [{ pattern = \"x\", kind = \"book\", id = \"abs\" }]\n",
             "sources = [{ kind = [\"book\", \"science_book\"], tool = \"lookup\" }, { kind = \"book\", tool = \"sync\" }]\n",
             "[contributes.catalog-papers]\npdf_sources = [{ tool = \"lookup\" }]\n",
+            "[contributes.nothing-known]\nfoo = 1\n",
         ));
         let p = list(t.path()).into_iter().find(|p| p.id == "abs").unwrap();
-        assert_eq!(p.parts, [
-            "sync every 6h", "reads every capture", "{{weather}} in templates", "4 tools for agents",
-            "fills in book, science_book for catalog", "recognises its links for catalog", "finds PDFs for catalog-papers",
-        ]);
+        assert_eq!(p.parts, ["sync every 6h", "reads every capture", "{{weather}} in templates", "4 tools for agents"]);
+        let gift = |to: &str, what: &[&str]| Gift { to: to.into(), what: what.iter().map(|w| w.to_string()).collect() };
+        assert_eq!(p.gives, [gift("catalog", &["fills in book, science_book", "recognises its links"]), gift("catalog-papers", &["finds PDFs"])]);
     }
 
     #[test]

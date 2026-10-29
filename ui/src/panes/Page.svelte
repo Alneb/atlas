@@ -1,5 +1,7 @@
 <script lang="ts">
   import { errText } from "../lib/text";
+  import { listVault } from "../lib/vault";
+  import { reloadOnChange } from "../lib/reload-on-change";
   import { below, type MenuAt } from "../lib/menu";
   import { shownName, shownPath } from "../lib/paths";
   import { superOf } from "../lib/keys";
@@ -9,7 +11,6 @@
   import { onMount } from "svelte";
   import type { Document } from "yaml";
   import { api, ApiError } from "../lib/api";
-  import { on } from "../lib/bus";
   import { open, type PaneProps } from "../lib/dock";
   import { allBlocks, getBlock, mountBlock, optionFields } from "../lib/blocks";
   import BlockOptions from "../components/BlockOptions.svelte";
@@ -119,7 +120,7 @@
   function pickFile(match: RegExp | true, then: (path: string) => void): void {
     pick({
       placeholder: "Which file…", tag: "File", icon: "file",
-      items: async () => (await api.files()).filter((p) => match === true || match.test(p)).map((p) => ({ value: p, title: shownName(p), detail: shownPath(p) })),
+      items: async () => (await listVault()).filter((p) => match === true || match.test(p)).map((p) => ({ value: p, title: shownName(p), detail: shownPath(p) })),
       onpick: then,
     });
   }
@@ -218,9 +219,7 @@
 
   onMount(() => {
     void load();
-    let t: ReturnType<typeof setTimeout> | undefined;
-    const off = on("fs", (e) => { if (e.paths.includes(path)) { clearTimeout(t); t = setTimeout(load, 150); } });
-    return () => { off(); clearTimeout(t); };
+    return reloadOnChange(() => void load(), { wait: 150, wants: (p) => p === path });
   });
 </script>
 

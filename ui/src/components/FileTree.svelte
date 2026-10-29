@@ -17,6 +17,7 @@
   import { activeRow, changeOf, openDirs, revealed, setOpen } from "../lib/file-tree.svelte";
   import { joinPath, openExplorer, sources, type FileSource } from "../lib/file-sources.svelte";
   import { busy, listFolder, listed, openRemote, placesOf, remoteKey, remoteOpen, servers, setRemoteOpen, sortEntries, wantPlaces } from "../lib/remote-tree.svelte";
+  import { RowWindow } from "../lib/windowed.svelte";
 
   let { roots, version, scroller }: { roots: TreeEntry[]; version: number; scroller: HTMLElement | undefined } = $props();
 
@@ -121,37 +122,24 @@
   const wanted = $derived(walked.want);
 
   // --- the window: rows of one height, those in view (and a screen around) drawn ---
-  let rowH = $state(26);
-  let top = $state(0);
-  let height = $state(800);
-  $effect(() => {
-    const el = scroller;
-    if (!el) return;
-    const onScroll = () => { top = el.scrollTop; };
-    const ro = new ResizeObserver(() => { height = el.clientHeight || height; top = el.scrollTop; });
-    el.addEventListener("scroll", onScroll, { passive: true });
-    ro.observe(el);
-    return () => { el.removeEventListener("scroll", onScroll); ro.disconnect(); };
-  });
   // rows drawn beyond the screen on each side: scrolling stays drawn, and a folder of a usual size opened at the top is
   // there whole (±20 left rows a click away out of the page — the tree specs' rows, and find-in-page); ~200 rows at
   // most whatever the vault, against 2 258 for the whole tree after a day
-  const MARGIN = 100;
-  const first = $derived(Math.max(0, Math.floor(top / rowH) - MARGIN));
-  const last = $derived(Math.min(rows.length, Math.ceil((top + height) / rowH) + MARGIN));
+  const win = new RowWindow(100);
+  $effect(() => win.follow(scroller));
+  const { first, last } = $derived(win.range(rows.length));
   let listEl = $state<HTMLElement>();
-  // the row height as the theme draws it (a phone's rows are taller)
-  $effect(() => { void rows.length; const r = listEl?.querySelector<HTMLElement>(".row"); if (r?.offsetHeight) rowH = r.offsetHeight; });
+  $effect(() => { void rows.length; win.measure(listEl?.querySelector<HTMLElement>(".row")); });
 
   // follow the active file: once its row exists, scroll it to the middle — only while the tree is shown; a tree shown
   // later (its height comes) and the same file asked for again (revealed.n) scroll to it then
   let centred = "";
   $effect(() => {
     const p = revealed.path, ask = `${p}#${revealed.n}`, i = rows.findIndex((r) => r.kind === "entry" && r.e.path === p);
-    if (!p || ask === centred || i < 0 || !height || !scroller?.clientHeight) return;
+    if (!p || ask === centred || i < 0 || !win.height || !scroller?.clientHeight) return;
     centred = ask;
-    const y = i * rowH;
-    if (y < scroller.scrollTop || y > scroller.scrollTop + scroller.clientHeight - rowH) scroller.scrollTop = Math.max(0, y - scroller.clientHeight / 2);
+    const y = i * win.rowH;
+    if (y < scroller.scrollTop || y > scroller.scrollTop + scroller.clientHeight - win.rowH) scroller.scrollTop = Math.max(0, y - scroller.clientHeight / 2);
   });
 
   const showGit = $derived(settings.config?.files.git_status ?? true);
@@ -165,9 +153,9 @@
   function focusRow(i: number) {
     const r = rows[Math.max(0, Math.min(rows.length - 1, i))];
     if (!r || r.kind === "empty" || !scroller) return;
-    const y = rows.indexOf(r) * rowH;
+    const y = rows.indexOf(r) * win.rowH;
     if (y < scroller.scrollTop) scroller.scrollTop = y;
-    else if (y + rowH > scroller.scrollTop + scroller.clientHeight) scroller.scrollTop = y + rowH - scroller.clientHeight;
+    else if (y + win.rowH > scroller.scrollTop + scroller.clientHeight) scroller.scrollTop = y + win.rowH - scroller.clientHeight;
     focusPath = keyOf(r);
     requestAnimationFrame(() => rowEl(keyOf(r))?.focus());
   }
@@ -220,7 +208,7 @@
 </script>
 
 <!-- svelte-ignore a11y_no_noninteractive_element_interactions (the keys belong to the row buttons inside) -->
-<ul class="tree-rows" bind:this={listEl} onkeydown={onKey} onfocusin={focusIn} onfocusout={focusOut} style:padding-top="{first * rowH}px" style:padding-bottom="{(rows.length - last) * rowH}px">
+<ul class="tree-rows" bind:this={listEl} onkeydown={onKey} onfocusin={focusIn} onfocusout={focusOut} style:padding-top="{first * win.rowH}px" style:padding-bottom="{(rows.length - last) * win.rowH}px">
   {#each rows.slice(first, last) as r (keyOf(r))}
     {#if r.kind === "empty"}
       <li class="empty" class:why={!!r.text} style:padding-left="{22 + r.depth * 14}px" title={r.text}>{r.text ?? "empty"}</li>

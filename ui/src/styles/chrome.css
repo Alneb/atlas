@@ -22,6 +22,16 @@
 .table-views-head { color: var(--text-faint); font-size: calc(12px * var(--ui-scale, 1)); margin-bottom: 4px; }
 .table-views-row { display: flex; gap: 10px; align-items: baseline; padding: 2px 0; }
 .table-views-row > span { color: var(--text-muted); font-family: var(--font-mono); font-size: calc(12px * var(--ui-scale, 1)); }
+/* a ```tikz picture (lib/tikz-fence.ts), sized in em by the fence so TeX's 10 pt text matches the note's. Dark theme:
+   the picture inverted with its hues kept, so black ink turns light, white fills near the page and pale fills under
+   text turn dark; the cached SVG stays one for both themes */
+.tikz-figure { display: flex; justify-content: center; margin: .6em 0; overflow-x: auto; }
+.tikz-figure > svg { max-width: 100%; height: auto; overflow: visible; }
+:root:not([data-theme="light"]) .tikz-figure > svg { filter: invert(.9) hue-rotate(180deg); }
+.tikz-figure[data-state="drawing"] { color: var(--text-faint); font-size: calc(12px * var(--ui-scale, 1)); padding: 8px; }
+.tikz-figure[data-state="error"] { display: block; border: 1px solid var(--red); border-radius: var(--radius-lg); background: var(--bg-elev); padding: 8px 12px; }
+.tikz-error-title { color: var(--red); font-weight: 600; font-size: calc(13px * var(--ui-scale, 1)); margin-bottom: 4px; }
+.tikz-error-log { margin: 0; white-space: pre-wrap; font-family: var(--font-mono); font-size: calc(12px * var(--ui-scale, 1)); color: var(--text); }
 .block-pop:hover { color: var(--text); background: var(--bg-hover); }
 .view-wait { color: var(--text-faint); margin: 0; padding: 4px 8px; }
 @media (prefers-reduced-motion: reduce) { .block-pop { transition: none; } }

@@ -5,6 +5,7 @@
 // code, a book in its plugin's reader — the "Open with" default) is that view, the rest a card that opens it. Editor
 // widgets and reading views alike, as bases.ts does for `.base`.
 import { embedOptions, fileIcon } from "./panes";
+import { basename } from "./paths";
 import { mountBlock, paneBlockType } from "./blocks";
 import { openWikilink, resolveWikilink } from "./links";
 import { openersFor, resolveSpec } from "./openers";
@@ -44,7 +45,7 @@ function card(el: HTMLElement, path: string): void {
   icon.className = "file-card-icon";
   icon.innerHTML = iconSvg(fileIcon(path), 18);
   const name = document.createElement("span");
-  name.textContent = path.split("/").pop() ?? path;
+  name.textContent = basename(path);
   a.append(icon, name);
   el.replaceChildren(a);
 }

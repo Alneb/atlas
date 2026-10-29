@@ -22,7 +22,7 @@ test("a broken manifest, a plugin for a newer Atlas and a throwing main.js are e
   await page.getByText("Finish the GW notes.").waitFor();
   await expect(page.locator('.status [data-cell="future:x"]'), "the plugin for a newer Atlas did not run").toHaveCount(0);
   await page.keyboard.press("Meta+,");
-  await page.getByRole("button", { name: "Plugins", exact: true }).first().click();
+  await page.getByRole("button", { name: /^Plugins( \d+)?$/ }).first().click();
   const row = (title: string) => page.locator("li", { has: page.locator("b", { hasText: new RegExp(`^${title}$`) }) });
   await expect(row("typo")).toContainText("titel");
   await expect(row("Future")).toContainText("needs Atlas 99.0");

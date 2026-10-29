@@ -3,6 +3,7 @@
   // The Today pane shows them all; each is also a view type for ```view blocks (the home document,
   // any note), so `parts` picks which. Data comes from the shared, cached today-store.
   import { errText } from "../lib/text";
+  import { listVault } from "../lib/vault";
   import { shownName } from "../lib/paths";
   import { localDay } from "../lib/local-day";
   import { greetingChips } from "../lib/plugin-greeting.svelte";
@@ -113,7 +114,7 @@
   async function loadDays() {
     try {
       const found: Record<string, string> = {};
-      for (const p of await api.files()) {
+      for (const p of await listVault()) {
         const m = /(?:^|\/)(\d{4}-\d{2}-\d{2})\.md$/.exec(p);
         if (m && (!logRoot || p.startsWith(`${logRoot}/`))) found[m[1]] = p;
       }

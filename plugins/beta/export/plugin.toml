@@ -1,10 +1,11 @@
 # Export a note to LaTeX and PDF: pandoc writes the .tex, latexmk compiles that same file, a paper linked as [[citekey]]
-# becomes \cite{citekey} with the bibliography from the vault's .bib (biblatex + biber). Needs pandoc and a TeX
-# distribution with latexmk on the machine running Atlas. Copy into a vault's .atlas/plugins/.
+# becomes \cite{citekey} with the bibliography from the vault's .bib (biblatex + biber), a ```tikz block its tikzpicture
+# (tikz.lua). Needs pandoc and a TeX distribution with latexmk on the machine running Atlas. Copy into a vault's
+# .atlas/plugins/.
 title = "Export"
 description = "a note to LaTeX and PDF (pandoc + latexmk), papers cited from the vault's .bib"
 icon = "file"
-version = "0.1.2"
+version = "0.2.0"
 api = 15
 
 [helper]

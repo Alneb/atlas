@@ -1,9 +1,10 @@
 <script lang="ts">
   // Workspace search (/api/search): filename hits + ripgrep line hits; Enter/click opens at line.
   // Replace (VS Code): the hits preview the change; files can be left out; one confirm, then disk.
-  import { errText, escapeHtml } from "../lib/text";
+  import { errText, escapeHtml, escapeRegExp } from "../lib/text";
   import { onMount } from "svelte";
   import { api } from "../lib/api";
+  import { Newest } from "../lib/newest";
   import { openPath } from "../lib/dock";
   import { fileIcon } from "../lib/panes";
   import { shownName, shownPath } from "../lib/paths";
@@ -22,7 +23,6 @@
   let error = $state("");
   let input: HTMLInputElement;
   let sel = $state(0);
-  let seq = 0;
 
   type Row = { path: string; line?: number; text?: string };
   const rows = $derived<Row[]>(res ? [...res.files.slice(0, 50).map((path) => ({ path })), ...res.lines.map((l) => ({ path: l.path, line: l.line, text: l.text }))] : []);
@@ -39,26 +39,25 @@
 
   // line-search options (VS Code's Aa / ab / .*); read in the effect, so a toggle re-runs the search
   let opts = $state({ case: false, word: false, regex: false, agent: false });
-  let timer: ReturnType<typeof setTimeout> | undefined;
+  const searches = new Newest(180);
   let rerun = $state(0); // bumped after a replace: same query, new results
   $effect(() => {
     void rerun;
     const o = { ...opts };
     const query = q.trim();
-    clearTimeout(timer);
-    if (!query) { ++seq; res = null; busy = false; return; } // a search still answering is now stale
-    timer = setTimeout(async () => {
-      const my = ++seq;
+    if (!query) { searches.stop(); res = null; busy = false; return; } // a search still answering is now stale
+    searches.run(async (still) => {
       busy = true;
       try {
         const r = await api.search(query, o);
-        if (my === seq) { res = r; sel = 0; error = ""; }
+        if (still()) { res = r; sel = 0; error = ""; }
       } catch (err) {
-        if (my === seq) error = errText(err);
+        if (still()) error = errText(err);
       } finally {
-        if (my === seq) busy = false;
+        if (still()) busy = false;
       }
-    }, 180);
+    });
+    return () => searches.stop();
   });
 
   const esc = escapeHtml;
@@ -67,7 +66,7 @@
   const matcher = $derived.by(() => {
     const query = q.trim();
     if (!query) return null;
-    let src = opts.regex ? query : query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    let src = opts.regex ? query : escapeRegExp(query);
     if (opts.word) src = `\\b(?:${src})\\b`;
     const insensitive = !opts.case && !/\p{Lu}/u.test(query);
     try { return new RegExp(src, insensitive ? "gi" : "g"); } catch { return null; }

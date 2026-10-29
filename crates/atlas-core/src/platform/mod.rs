@@ -1,7 +1,8 @@
 //! Where Linux, macOS and Windows differ (docs/design/DESIGN-desktop-ports.md): folders, processes, opening things
-//! outside Atlas, and starting a command line. Every caller goes through here; nothing else in the core branches on
+//! outside Atlas, starting a command line, and (in a Flatpak) starting it on the host. Every caller goes through here; nothing else in the core branches on
 //! the operating system.
 pub mod dirs;
+pub mod host;
 pub mod open;
 pub mod proc;
 pub mod run_line;

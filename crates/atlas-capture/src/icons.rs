@@ -80,17 +80,18 @@ pub enum Icon {
     Minimize,
     /// the phone app's bottom bar: the vault's libraries
     Library,
+    Pointer,
 }
 
 impl Icon {
-    pub const ALL: [Icon; 59] = [
+    pub const ALL: [Icon; 60] = [
         Icon::Return, Icon::Calendar, Icon::Clock, Icon::Flag, Icon::Plus, Icon::Check, Icon::ChevronsUp, Icon::ChevronsDown, Icon::Repeat,
         Icon::Note, Icon::Tag, Icon::Vault, Icon::ArrowUp, Icon::ArrowDown, Icon::Image, Icon::Clipboard, Icon::Server, Icon::Close,
         Icon::Link, Icon::Search, Icon::Settings, Icon::Today, Icon::Back, Icon::More, Icon::Tabs, Icon::Chevron, Icon::Command,
         Icon::Music, Icon::Pen, Icon::Undo, Icon::Redo, Icon::Eraser, Icon::Lasso, Icon::Shapes, Icon::Pages, Icon::Grid, Icon::Menu, Icon::ChevronLeft,
         Icon::Text, Icon::Line, Icon::Arrow, Icon::Rectangle, Icon::Ellipse, Icon::Diamond, Icon::Triangle, Icon::Axes, Icon::AxesFull,
         Icon::Duplicate, Icon::Trash, Icon::Palette, Icon::Cut, Icon::Contents, Icon::Bookmark, Icon::Highlighter, Icon::TypeSize,
-        Icon::Notes, Icon::Maximize, Icon::Minimize, Icon::Library,
+        Icon::Notes, Icon::Maximize, Icon::Minimize, Icon::Library, Icon::Pointer,
     ];
 }
 
@@ -138,14 +139,14 @@ pub(crate) fn prims(icon: Icon) -> &'static [Prim] {
         Icon::Music => &[Path("M9 18V5.5l11-2V16"), Circle(6.5, 18.0, 2.5), Circle(17.5, 16.0, 2.5)],
         Icon::More => &[Circle(12.0, 5.5, 0.9), Circle(12.0, 12.0, 0.9), Circle(12.0, 18.5, 0.9)],
         Icon::Tabs => &[Rect(4.0, 7.0, 13.0, 13.0, 2.0), Path("M8 4h9.5A2.5 2.5 0 0 1 20 6.5V16")],
-        Icon::Pen => &[Path("M4 20h4L18.5 9.5a2.83 2.83 0 1 0-4-4L4 16v4"), Path("m13.5 6.5 4 4")],
-        Icon::Undo => &[Path("M9 14 5 10l4-4"), Path("M5 10h11a4 4 0 1 1 0 8h-1")],
-        Icon::Redo => &[Path("m15 14 4-4-4-4"), Path("M19 10H8a4 4 0 1 0 0 8h1")],
-        Icon::Eraser => &[Path("M19 20H8.5l-4.2-4.3a1 1 0 0 1 0-1.4l10-10a1 1 0 0 1 1.4 0l5 5a1 1 0 0 1 0 1.4L11.5 20"), Path("M18 13.3 11.7 7")],
+        Icon::Pen => &[Path("M16.5 3.5a2.1 2.1 0 0 1 3 3L8 18l-4 1 1-4z"), Path("m14.5 5.5 3 3")],
+        Icon::Undo => &[Path("M9 14 4 9l5-5"), Path("M4 9h10.5a5.5 5.5 0 0 1 0 11H11")],
+        Icon::Redo => &[Path("m15 14 5-5-5-5"), Path("M20 9H9.5a5.5 5.5 0 0 0 0 11H13")],
+        Icon::Eraser => &[Path("m7 21-4.3-4.3a1.5 1.5 0 0 1 0-2.1l9.9-9.9a1.5 1.5 0 0 1 2.1 0l5.6 5.6a1.5 1.5 0 0 1 0 2.1L13 21"), Path("M7 21h14M5.5 12.5l6 6")],
         Icon::Lasso => &[Path("M7 22a5 5 0 0 1-2-4"), Path("M3.3 14A7 7 0 0 1 3 12c0-4.4 4-8 9-8s9 3.6 9 8-4 8-9 8a10 10 0 0 1-3-.5"), Circle(5.0, 16.0, 2.0)],
         Icon::Shapes => &[Path("M8.3 10a.7.7 0 0 1-.6-1.1l3.7-6a.7.7 0 0 1 1.2 0l3.7 6a.7.7 0 0 1-.6 1.1z"), Rect(3.0, 14.0, 7.0, 7.0, 1.0), Circle(17.5, 17.5, 3.5)],
         Icon::Pages => &[Rect(7.0, 3.0, 13.0, 15.0, 2.0), Path("M4 7v11.5A2.5 2.5 0 0 0 6.5 21H16")],
-        Icon::Grid => &[Rect(3.0, 3.0, 18.0, 18.0, 2.0), Path("M3 9h18M3 15h18M9 3v18M15 3v18")],
+        Icon::Grid => &[Rect(4.0, 4.0, 6.5, 6.5, 1.5), Rect(13.5, 4.0, 6.5, 6.5, 1.5), Rect(4.0, 13.5, 6.5, 6.5, 1.5), Rect(13.5, 13.5, 6.5, 6.5, 1.5)],
         Icon::Text => &[Path("M6 4h12"), Path("M12 4v16")],
         Icon::Menu => &[Path("M4 6h16M4 12h16M4 18h16")],
         Icon::Line => &[Path("M5 19 19 5")],
@@ -157,15 +158,16 @@ pub(crate) fn prims(icon: Icon) -> &'static [Prim] {
         Icon::Axes => &[Path("M5 20V3.5M5 20h15.5"), Path("m2.5 6 2.5-2.5L7.5 6M18 17.5l2.5 2.5-2.5 2.5"), Path("M9 18.5v3M13 18.5v3M3.5 15h3M3.5 11h3")],
         Icon::AxesFull => &[Path("M12 3v18M3 12h18"), Path("m9.5 5.5 2.5-2.5 2.5 2.5M18.5 9.5 21 12l-2.5 2.5"), Path("M7 10.5v3M16 10.5v3M10.5 7h3M10.5 16h3")],
         Icon::Duplicate => &[Rect(8.0, 8.0, 13.0, 13.0, 2.0), Path("M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3")],
-        Icon::Trash => &[Path("M3.5 6.5h17M9 6.5V4.5a1.5 1.5 0 0 1 1.5-1.5h3A1.5 1.5 0 0 1 15 4.5v2"), Path("M5.5 6.5 6.5 19a2 2 0 0 0 2 2h7a2 2 0 0 0 2-2l1-12.5M10 11v6M14 11v6")],
+        Icon::Trash => &[Path("M4 6.5h16M9.5 6.5V4.5h5v2"), Path("M6.5 6.5l1 13a1.5 1.5 0 0 0 1.5 1.5h6a1.5 1.5 0 0 0 1.5-1.5l1-13"), Path("M10 10.5v6.5M14 10.5v6.5")],
         Icon::Palette => &[Path("M12 21a9 9 0 1 1 9-9c0 2.5-2 3.5-4 3.5h-2a2 2 0 0 0-1.5 3.3c.6.7.3 2.2-1.5 2.2z"), Circle(7.5, 11.0, 1.2), Circle(10.5, 7.0, 1.2), Circle(15.5, 8.0, 1.2)],
         Icon::Contents => &[Path("M9 6h11M9 12h11M9 18h11"), Circle(4.5, 6.0, 1.0), Circle(4.5, 12.0, 1.0), Circle(4.5, 18.0, 1.0)],
         Icon::Library => &[Path("M5 4.5h3.5v15H5zM10.5 4.5H14v15h-3.5z"), Path("m16 5.2 3.3-.9 3.2 14.6-3.3.9z")],
+        Icon::Pointer => &[Path("m4 4 7 17 2.5-7.5L21 11z")],
         Icon::Bookmark => &[Path("M18 21l-6-4-6 4V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2z")],
-        Icon::Highlighter => &[Path("m9 11-6 6v3h9l3-3"), Path("m22 12-4.6 4.6a2 2 0 0 1-2.8 0l-5.2-5.2a2 2 0 0 1 0-2.8L14 4")],
+        Icon::Highlighter => &[Path("m9 11-5 5v3.5h3.5l5-5"), Path("m9 11 6.5-6.5a2 2 0 0 1 3 0l1 1a2 2 0 0 1 0 3L13 15z"), Path("M14 20.5h7")],
         Icon::TypeSize => &[Path("m2.5 18 5-12 5 12M4.4 13.5h6.2"), Path("M15 18l3-7.5 3 7.5M16.1 15.3h3.8")],
         Icon::Notes => &[Path("M16 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V8z"), Path("M15 3v4a2 2 0 0 0 2 2h4M7.5 13h7M7.5 17h4")],
-        Icon::Maximize => &[Path("M8 3H5a2 2 0 0 0-2 2v3M21 8V5a2 2 0 0 0-2-2h-3M3 16v3a2 2 0 0 0 2 2h3M16 21h3a2 2 0 0 0 2-2v-3")],
+        Icon::Maximize => &[Path("M8 3.5H5A1.5 1.5 0 0 0 3.5 5v3M20.5 8V5A1.5 1.5 0 0 0 19 3.5h-3M16 20.5h3a1.5 1.5 0 0 0 1.5-1.5v-3M3.5 16v3A1.5 1.5 0 0 0 5 20.5h3")],
         Icon::Minimize => &[Path("M8 3v3a2 2 0 0 1-2 2H3M21 8h-3a2 2 0 0 1-2-2V3M3 16h3a2 2 0 0 1 2 2v3M16 21v-3a2 2 0 0 1 2-2h3")],
         Icon::Cut => &[Circle(6.0, 6.5, 3.0), Circle(6.0, 17.5, 3.0), Path("M20 4 8.5 15M14.5 13.5 20 20M8.5 9 11 11.5")],
     }
@@ -185,4 +187,43 @@ pub fn svg(icon: Icon) -> Vec<String> {
             ),
         })
         .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// One look: an icon the web set (ui/src/lib/icons.ts) also has is the same drawing here, element for element.
+    #[test]
+    fn the_icons_the_web_also_has_are_the_same() {
+        let ts = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/../../ui/src/lib/icons.ts")).unwrap();
+        let attr = |el: &str, k: &str| -> String {
+            let at = el.find(&format!(" {k}=\"")).map(|i| i + k.len() + 3).unwrap_or_else(|| panic!("{k} in {el}"));
+            el[at..at + el[at..].find('"').unwrap()].to_string()
+        };
+        let num = |s: String| s.parse::<f32>().unwrap();
+        let mut differ = Vec::new();
+        for icon in Icon::ALL {
+            let name = format!("{icon:?}").chars().enumerate().fold(String::new(), |mut s, (i, c)| {
+                if c.is_uppercase() && i > 0 { s.push('-'); }
+                s.push(c.to_ascii_lowercase());
+                s
+            });
+            let key = [format!("\n  {name}: '"), format!("\n  \"{name}\": '")].into_iter().find_map(|k| ts.find(&k).map(|i| i + k.len()));
+            let Some(at) = key else { continue };
+            let web = &ts[at..at + ts[at..].find('\'').unwrap()];
+            let theirs: Vec<String> = web.split("/>").filter(|e| !e.trim().is_empty()).map(|el| {
+                if el.starts_with("<path") { attr(el, "d") }
+                else if el.starts_with("<circle") { format!("c{} {} {}", num(attr(el, "cx")), num(attr(el, "cy")), num(attr(el, "r"))) }
+                else { format!("r{} {} {} {} {}", num(attr(el, "x")), num(attr(el, "y")), num(attr(el, "width")), num(attr(el, "height")), num(attr(el, "rx"))) }
+            }).collect();
+            let ours: Vec<String> = prims(icon).iter().map(|p| match *p {
+                Prim::Path(d) => d.to_string(),
+                Prim::Circle(x, y, r) => format!("c{x} {y} {r}"),
+                Prim::Rect(x, y, w, h, r) => format!("r{x} {y} {w} {h} {r}"),
+            }).collect();
+            if ours != theirs { differ.push(name); }
+        }
+        assert!(differ.is_empty(), "drawn differently here and in ui/src/lib/icons.ts: {differ:?}");
+    }
 }

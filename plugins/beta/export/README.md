@@ -7,7 +7,9 @@ open note to PDF / LaTeX"). The note is only read; what is made goes under the e
 ## How
 
 1. The helper (`helper.py`) translates the note into plain pandoc Markdown (below).
-2. **pandoc** writes the `.tex` (a standalone LaTeX document).
+2. **pandoc** writes the `.tex` (a standalone LaTeX document), with `tikz.lua` turning ```` ```tikz ```` blocks into
+   LaTeX. The preamble goes in as metadata (`header-includes`), not `-H`: pandoc drops the metadata's
+   `header-includes` when `-H` is given, and the filter adds TikZ there.
 3. **latexmk** compiles that same `.tex` with the chosen engine, running **biber** for the bibliography. LaTeX's own
    files (`.aux`, `.log`, `.bbl`…) stay in `.atlas/cache/plugins/export/build/`, never in the vault.
 
@@ -25,6 +27,7 @@ the `.bib` are named by paths relative to it.
 | `![[note]]`, `![[note#Heading]]` | that note's text, or that section of it, inlined (three levels deep at most) |
 | `> [!note] Title` callouts | a quote with the title in bold |
 | `==marked==` | `\hl{marked}` (soul) |
+| a ```` ```tikz ```` block: optional `\usetikzlibrary{…}` / `\usepackage[…]{…}` lines, then `\begin{tikzpicture} … \end{tikzpicture}` | the `tikzpicture` itself (centred), so the PDF has the vector figure; `\usepackage{tikz}`, those packages and one `\usetikzlibrary{…}` with every library asked for go in the preamble (`tikz.lua`, a pandoc Lua filter any `pandoc --lua-filter tikz.lua` can use). Atlas draws the same block in the note |
 | `%%comments%%`, ` ^block-ids`, `view` / `base` / `tasks` / `dataview` / `query` blocks | left out: nothing to print |
 | `$…$`, `$$…$$`, tables, code, lists, headings | pandoc's own (with `# ` as the title, `## ` sections become `\section`) |
 

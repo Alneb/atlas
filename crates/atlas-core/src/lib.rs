@@ -24,6 +24,7 @@ pub mod git;
 pub mod git_read;
 pub mod helper;
 pub mod helper_api;
+pub mod js_exec;
 pub mod js_helper;
 pub mod js_native;
 pub mod home;

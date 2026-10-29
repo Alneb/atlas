@@ -5,6 +5,7 @@
   // Command palette / quick open / URL prompt / generic picker — one fuzzy list, keyboard-first.
   import { tick } from "svelte";
   import { api } from "../lib/api";
+  import { Newest } from "../lib/newest";
   import { palette, closePalette, type PickItem } from "../lib/palette.svelte";
   import { open, openPath, activeEditorId, getDock } from "../lib/dock";
   import { recentFiles } from "../lib/recent";
@@ -75,20 +76,18 @@
   const captureNow = (text: string) => void api.capture(text).then((r) => toast("Captured", `${shownPath(r.path)}:${r.line}`, "success"), (e) => toast("Not captured", errText(e), "error"));
 
   // file search (server-side filename match), debounced
-  let ft: ReturnType<typeof setTimeout> | undefined;
-  let fseq = 0;
+  const fileSearches = new Newest(110);
   $effect(() => {
     const query = q.trim();
     const mode = palette.mode;
-    clearTimeout(ft);
-    if (!palette.open || (mode !== "all" && mode !== "files") || !query || query.startsWith("#") || query.startsWith(">")) { ++fseq; fileHits = []; lineHits = []; return; } // one still answering is now stale
-    ft = setTimeout(async () => {
-      const my = ++fseq;
+    if (!palette.open || (mode !== "all" && mode !== "files") || !query || query.startsWith("#") || query.startsWith(">")) { fileSearches.stop(); fileHits = []; lineHits = []; busy = false; return; } // one still answering is now stale
+    fileSearches.run(async (still) => {
       busy = true;
-      try { const r = await api.search(query); if (my === fseq) { fileHits = r.files; lineHits = r.lines; hitsFor = query; } }
-      catch { if (my === fseq) { fileHits = []; lineHits = []; } }
-      finally { if (my === fseq) { busy = false; answered = query; } }
-    }, 110);
+      try { const r = await api.search(query); if (still()) { fileHits = r.files; lineHits = r.lines; hitsFor = query; } }
+      catch { if (still()) { fileHits = []; lineHits = []; } }
+      finally { if (still()) { busy = false; answered = query; } }
+    });
+    return () => fileSearches.stop();
   });
 
   function score<T>(items: T[], text: (t: T) => string, query: string): { item: T; score: number; hl: number[] }[] {
@@ -106,7 +105,7 @@
     // rank by basename first, full path as tiebreak
     return paths
       .map((p) => {
-        const base = p.split("/").pop() ?? p;
+        const base = basename(p);
         const mb = fuzzy(query, base), mp = fuzzy(query, p);
         const s = Math.max(mb ? mb.score + 50 : -Infinity, mp ? mp.score : -Infinity);
         return { p, base, s: query ? s : 0, hl: mb?.indices ?? [] };

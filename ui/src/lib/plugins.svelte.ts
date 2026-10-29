@@ -121,7 +121,7 @@ export async function loadPlugins(): Promise<void> {
 // `.atlas/init.js` (docs/guides/MALLEABLE.md rung 8): the workspace's own startup script — `register(atlas)`
 // with the plugin API, no manifest, reloaded on save. A plugin without the ceremony.
 const INIT_PATH = ".atlas/init.js";
-const INIT: Plugin = { id: INIT_ID, title: "init.js", main: INIT_PATH, rail: false, opens: [], claims: [], has_data: false, settings: {}, fields: [], platforms: [], phone: true, permissions: { net: [], secrets: false }, has_helper: false, requires: [], requires_versions: {}, provides: [], parts: [], agents: [] };
+const INIT: Plugin = { id: INIT_ID, title: "init.js", main: INIT_PATH, rail: false, opens: [], claims: [], has_data: false, settings: {}, fields: [], platforms: [], phone: true, permissions: { net: [], secrets: false, exec: [] }, has_helper: false, requires: [], requires_versions: {}, provides: [], parts: [], gives: [], agents: [] };
 async function startInit(): Promise<void> {
   // asked, not fetched: a missing init.js must not log a 404 on every start
   if (await exists(INIT_PATH)) await startMain(INIT);

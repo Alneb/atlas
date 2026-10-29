@@ -6,6 +6,9 @@ export const errText = (e: unknown): string => String(e instanceof Error ? e.mes
 /** The reason alone, without the API's "VERB /path: 500 " in front (lib/api.ts writes that prefix). */
 export const errReason = (e: unknown): string => errText(e).replace(/^\w+ \S+: \d+ /, "");
 
+/** `s` matched literally inside a RegExp. */
+export const escapeRegExp = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
 /** Text made safe inside HTML: `&`, `<`, `>` and `"` escaped. */
 export const escapeHtml = (s: string): string => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
 

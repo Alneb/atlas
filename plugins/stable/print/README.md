@@ -17,9 +17,11 @@ more `lp` options added as they are (`-o fit-to-page -o page-ranges=1-3`).
 ## Needs
 
 - CUPS (`lp`, `lpstat`) on the machine running Atlas's server — with a remote vault, the server prints. CUPS answers
-  in the machine's language; the helper reads it in English (`LC_ALL=C`).
-- Python 3.9+ (standard library) and, for notes, the Export plugin (pandoc + a TeX distribution).
+  in the machine's language; the helper reads it in English (`atlas.exec` with `locale: "C"`).
+- Nothing else: the helper is JavaScript, run by Atlas's core (`[permissions] exec = ["lp", "lpstat"]`). For notes,
+  the Export plugin (pandoc + a TeX distribution).
 - Linux and macOS (both ship CUPS); Windows has no `lp` and is not supported.
 
-Tests: `python3 test_print.py` (fake `lp` / `lpstat` first on the PATH: no job reaches a real printer) and
+Tests: `node scripts/dev/plugin-ui.mjs --check plugins/stable/print` (helper/helper.test.ts, CUPS faked by the SDK's
+harness: no job reaches a real printer) and
 `ui/tests/example-print.spec.ts` (a printer that does not exist: the reason shown as a notice).

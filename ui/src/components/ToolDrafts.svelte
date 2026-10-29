@@ -3,10 +3,10 @@
   // files it would write. Keep writes them (reversible: they are plain files in git); Dismiss hides it.
   // Shown in Settings → Automation and as the `suggestions` block of a .page / ```view.
   import { errText } from "../lib/text";
+  import { reloadOnChange } from "../lib/reload-on-change";
   import { onMount } from "svelte";
   import { api } from "../lib/api";
   import { openPath } from "../lib/dock";
-  import { on } from "../lib/bus";
   import { toast } from "../lib/state.svelte";
   import type { ToolDraft } from "../lib/gen/ToolDraft";
   import Icon from "./Icon.svelte";
@@ -39,10 +39,8 @@
 
   onMount(() => {
     void load();
-    let t: ReturnType<typeof setTimeout> | undefined;
     // notes changing can make or settle a draft; debounce the miner
-    const off = on("fs", (e) => { if (e.paths.some((p) => p.endsWith(".md") || p.endsWith(".base"))) { clearTimeout(t); t = setTimeout(load, 1500); } });
-    return () => { off(); clearTimeout(t); };
+    return reloadOnChange(() => void load(), { wait: 1500, wants: (p) => p.endsWith(".md") || p.endsWith(".base") });
   });
 </script>
 

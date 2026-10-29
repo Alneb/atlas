@@ -23,7 +23,7 @@
   let tip = $state(""); // the hovered note, for the caption (the layout arrays are not reactive)
   let count = $state({ nodes: 0, edges: 0 });
 
-  type N = { i: number; x: number; y: number; vx: number; vy: number; deg: number; name: string; path: string };
+  type N = { i: number; x: number; y: number; vx: number; vy: number; deg: number; name: string; path: string; /** its folder's colour (PALETTE index) */ hue: number };
   let nodes: N[] = [];
   let edges: [number, number][] = [];
   let adj: Set<number>[] = [];
@@ -57,11 +57,15 @@
       const p = graph!.nodes[g].path;
       const prev = old.get(p);
       const a = (i / keep.length) * Math.PI * 2, r = 40 + Math.sqrt(keep.length) * 12;
-      return prev ? { ...prev, i } : { i, x: Math.cos(a) * r, y: Math.sin(a) * r, vx: 0, vy: 0, deg: 0, name: shownName(p), path: p };
+      // a kept node keeps its place, not its degree (counted again below)
+      return prev ? { ...prev, i, deg: 0 } : { i, x: Math.cos(a) * r, y: Math.sin(a) * r, vx: 0, vy: 0, deg: 0, name: shownName(p), path: p, hue: 0 };
     });
     edges = graph.edges.filter(([a, b]) => remap.has(a) && remap.has(b)).map(([a, b]) => [remap.get(a)!, remap.get(b)!]);
     adj = nodes.map(() => new Set());
     for (const [a, b] of edges) { adj[a].add(b); adj[b].add(a); nodes[a].deg++; nodes[b].deg++; }
+    // a colour per top folder, worked out here once, not on every frame
+    const folders = new Map([...new Set(nodes.map((n) => top(n.path)))].sort().map((f, k) => [f, k % PALETTE.length]));
+    for (const n of nodes) n.hue = folders.get(top(n.path)) ?? 0;
     count = { nodes: nodes.length, edges: edges.length };
     heat = 1;
     kick();
@@ -121,18 +125,22 @@
     const q = filter.trim().toLowerCase();
     const match = (n: N) => !q || n.path.toLowerCase().includes(q);
     const lit = (i: number) => hover === null || i === hover || adj[hover]?.has(i);
-    const folders = [...new Set(nodes.map((n) => top(n.path)))].sort();
     const col = themeColours();
     c.lineWidth = 1 / view.k;
-    for (const [a, b] of edges) {
-      const on = hover !== null && (a === hover || b === hover);
-      c.strokeStyle = on ? col.accent : col.border;
-      c.globalAlpha = on ? 0.9 : hover === null ? 0.5 : 0.15;
-      c.beginPath(); c.moveTo(nodes[a].x, nodes[a].y); c.lineTo(nodes[b].x, nodes[b].y); c.stroke();
-    }
+    // the edges in two strokes: the hovered note's, and all the others
+    const edgePath = (want: boolean) => {
+      c.beginPath();
+      for (const [a, b] of edges) {
+        if ((hover !== null && (a === hover || b === hover)) !== want) continue;
+        c.moveTo(nodes[a].x, nodes[a].y); c.lineTo(nodes[b].x, nodes[b].y);
+      }
+    };
+    edgePath(false);
+    c.strokeStyle = col.border; c.globalAlpha = hover === null ? 0.5 : 0.15; c.stroke();
+    if (hover !== null) { edgePath(true); c.strokeStyle = col.accent; c.globalAlpha = 0.9; c.stroke(); }
     for (const n of nodes) {
       c.globalAlpha = (lit(n.i) ? 1 : 0.18) * (match(n) ? 1 : 0.2);
-      c.fillStyle = col.palette[Math.max(0, folders.indexOf(top(n.path))) % PALETTE.length];
+      c.fillStyle = col.palette[n.hue];
       c.beginPath(); c.arc(n.x, n.y, 3 + Math.sqrt(n.deg) * 1.6, 0, Math.PI * 2); c.fill();
     }
     // labels: the hovered note and its neighbours, or every note when zoomed in

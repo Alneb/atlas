@@ -5,12 +5,12 @@
   // this one, or take the other.
   import { onMount } from "svelte";
   import { api } from "../lib/api";
-  import { on } from "../lib/bus";
   import { openPath } from "../lib/dock";
   import { readText } from "../lib/vault-files";
-  import { shownPath } from "../lib/paths";
+  import { reloadOnChange } from "../lib/reload-on-change";
+  import { shownPath, basename } from "../lib/paths";
   import { toast } from "../lib/state.svelte";
-  import { errText } from "../lib/text";
+  import { errText, escapeRegExp } from "../lib/text";
   import SyncCompare from "./SyncCompare.svelte";
 
   let { path, mine, take }: { path: string; mine: () => string; take: (text: string) => void } = $props();
@@ -19,17 +19,14 @@
   const dir = $derived(path.includes("/") ? path.slice(0, path.lastIndexOf("/")) : "");
   /** `notes/log.md` → the pattern of its copies' names (`log.sync-conflict-20261020-231529-H3IIIUW.md`). */
   const pattern = $derived.by(() => {
-    const name = path.slice(path.lastIndexOf("/") + 1), dot = name.lastIndexOf(".");
+    const name = basename(path), dot = name.lastIndexOf(".");
     const [stem, ext] = dot > 0 ? [name.slice(0, dot), name.slice(dot)] : [name, ""];
-    const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const esc = escapeRegExp;
     return new RegExp(`^${esc(stem)}\\.sync-conflict-\\d{8}-\\d{6}-[A-Za-z0-9]+${esc(ext)}$`);
   });
 
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  /** Looked for a moment after a change: the core merges most copies at once, and those need no word. */
-  function look(after = 2000) {
-    clearTimeout(timer);
-    timer = setTimeout(() => void api.tree(dir).then((l) => { copies = l.filter((e) => e.kind === "file" && pattern.test(e.name)).map((e) => e.path); }, () => {}), after);
+  function look() {
+    void api.tree(dir).then((l) => { copies = l.filter((e) => e.kind === "file" && pattern.test(e.name)).map((e) => e.path); }, () => {});
   }
 
   async function keepThis(copy: string) {
@@ -55,9 +52,9 @@
   }
 
   onMount(() => {
-    look(0);
-    const off = on("fs", (e) => { if (e.paths.some((p) => pattern.test(p.slice(p.lastIndexOf("/") + 1)))) look(); });
-    return () => { off(); clearTimeout(timer); };
+    look();
+    // looked for a moment after a change: the core merges most copies at once, and those need no word
+    return reloadOnChange(look, { wait: 2000, wants: (p) => pattern.test(basename(p)) });
   });
 </script>
 

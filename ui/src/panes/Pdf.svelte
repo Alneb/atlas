@@ -1,5 +1,6 @@
 <script module lang="ts">
   import { releaseCanvases } from "../lib/release-canvases";
+  import { load, loadRaw, save, saveRaw } from "../lib/prefs";
   import { superOf } from "../lib/keys";
   let lastUsed: HTMLElement | null = null; // the PDF pane the pointer was last in (see onWin below)
 </script>
@@ -66,15 +67,13 @@
   let outlineOpen = $state(false);
   let side = $state<"outline" | "pages" | "marks">("outline");
   let current = $state(1);
-  let dark = $state(loadPref("atlas.pdf.dark") === "1");
+  let dark = $state(loadRaw("atlas.pdf.dark") === "1");
   let outline = $state.raw<OutlineItem[]>([]);
   // older marks, in the PDF's companion drawing: shown and erasable until moved into the note (`atlas pdf-marks migrate`)
   let marks: MarksView | null = null;
   let findInput = $state<HTMLInputElement | null>(null);
 
   // per-viewer conveniences (which page, which zoom, dark pages): browser storage, never required
-  function loadPref(k: string): string | null { try { return localStorage.getItem(k); } catch { return null; } }
-  function savePref(k: string, v: string): void { try { localStorage.setItem(k, v); } catch { /* private window */ } }
   const posKey = () => `atlas.pdf.pos:${spec.path}`;
   let posTimer = 0;
   function rememberPosition() {
@@ -82,19 +81,20 @@
     clearTimeout(posTimer);
     posTimer = window.setTimeout(() => {
       if (!r || !container?.clientWidth) return;
-      savePref(posKey(), JSON.stringify({ page: r.page, scale: String(r.zoom) }));
+      const at = r.where();
+      save(posKey(), { page: at.page, y: at.y, scale: String(r.zoom) });
       if (panel.isActive) tellWhere({ path: spec.path, page: r.page }); // the page, for a device that follows this one
     }, 400);
   }
   /** The page and zoom this PDF was left at (the zoom saved as "page-width", "page-fit" or a number). */
-  function savedPosition(): { page?: number; zoom?: Zoom } {
+  function savedPosition(): { page?: number; y?: number | null; zoom?: Zoom } {
     try {
-      const pos = JSON.parse(loadPref(posKey()) ?? "{}") as { page?: number; scale?: string };
+      const pos = load<{ page?: number; y?: number | null; scale?: string }>(posKey(), {});
       const z = pos.scale === "page-width" || pos.scale === "page-fit" ? pos.scale : Number(pos.scale) > 0 ? Number(pos.scale) : undefined;
-      return { ...(pos.page ? { page: pos.page } : {}), ...(z !== undefined ? { zoom: z } : {}) };
+      return { ...(pos.page ? { page: pos.page, y: typeof pos.y === "number" ? pos.y : null } : {}), ...(z !== undefined ? { zoom: z } : {}) };
     } catch { return {}; }
   }
-  function toggleDark() { dark = !dark; savePref("atlas.pdf.dark", dark ? "1" : "0"); }
+  function toggleDark() { dark = !dark; saveRaw("atlas.pdf.dark", dark ? "1" : "0"); }
   function toggleSide(which: "outline" | "pages" | "marks") { if (outlineOpen && side === which) outlineOpen = false; else { side = which; outlineOpen = true; } }
 
   function flash(s: string, ms = 2500) { status = s; setTimeout(() => { if (status === s) status = ""; }, ms); }
@@ -253,7 +253,7 @@
   async function openViewer(): Promise<void> {
     try {
       const was = savedPosition();
-      const reader = await openReader(container, spec.path, await engine(engineName), { zoom: was.zoom ?? openZoom(), page: spec.page ?? was.page });
+      const reader = await openReader(container, spec.path, await engine(engineName), { zoom: was.zoom ?? openZoom(), page: spec.page ?? was.page, y: spec.page ? null : was.y });
       if (disposed) { reader.destroy(); return; }
       r = reader;
       pages = reader.pages;
@@ -290,9 +290,13 @@
     // width — refitting then re-laid out every page on each tab switch
     let fittedAt = 0;
     const offPan = attachPan(container, () => tool === "select" && !erasing);
+    let hidden = false;
     const ro = new ResizeObserver(() => {
       const w = container.clientWidth;
-      if (!w || w === fittedAt) return;
+      if (!w) { hidden = true; return; }
+      // back from a background tab at the same width: its pages drawn again (they could come back white)
+      if (hidden) { hidden = false; if (w === fittedAt) { r?.shown(); return; } }
+      if (w === fittedAt) return;
       fittedAt = w;
       r?.refit();
     });
@@ -311,47 +315,47 @@
 <div class="pdf-pane" {onkeydown} onpointerdown={markUsed} bind:this={paneEl}>
   <div class="toolbar">
     <button class="icon-btn" class:on={outlineOpen && side === "outline"} title="Outline" aria-label="Outline" onclick={() => toggleSide("outline")} disabled={!outline.length}>
-      <svg viewBox="0 0 16 16" width="15" height="15"><path d="M2 3.5h12M5 8h9M5 12.5h9" stroke="currentColor" stroke-width="1.4" fill="none" stroke-linecap="round"/></svg>
+      <Icon name="contents" size={15} />
     </button>
     <button class="icon-btn" class:on={outlineOpen && side === "pages"} title="Pages" aria-label="Pages" onclick={() => toggleSide("pages")} disabled={!pages}>
-      <svg viewBox="0 0 16 16" width="15" height="15"><rect x="2.5" y="2" width="4.5" height="5.5" rx="1" fill="none" stroke="currentColor" stroke-width="1.3"/><rect x="9" y="2" width="4.5" height="5.5" rx="1" fill="none" stroke="currentColor" stroke-width="1.3"/><rect x="2.5" y="9" width="4.5" height="5.5" rx="1" fill="none" stroke="currentColor" stroke-width="1.3"/><rect x="9" y="9" width="4.5" height="5.5" rx="1" fill="none" stroke="currentColor" stroke-width="1.3"/></svg>
+      <Icon name="pages" size={15} />
     </button>
     <button class="icon-btn" class:on={outlineOpen && side === "marks"} title="Marks: every highlight, post-it, clip and bookmark, kept in the PDF's note" aria-label="Marks" onclick={() => toggleSide("marks")} disabled={!pages}>
-      <svg viewBox="0 0 16 16" width="15" height="15"><path d="M4 2h8v12l-4-3-4 3z" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/><path d="M6 5.5h4M6 8h4" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>{#if markList.length}<span class="count">{markList.length}</span>{/if}
+      <Icon name="notes" size={15} />{#if markList.length}<span class="count">{markList.length}</span>{/if}
     </button>
     <span class="title" title={spec.path}><Icon name="pdf" size={14} /><span class="name">{shownName(spec.path)}</span>{#if engineName !== "pdfium"}<span class="engine faint small" title="Read by {ENGINE_LABEL[engineName]} (Settings → PDF → engine)">{ENGINE_LABEL[engineName]}</span>{/if}</span>
     <span class="spacer"></span>
 
     <div class="tools" role="toolbar" aria-label="Annotation tools">
       <button class="tool" class:on={tool === "select"} title="Select (V)" onclick={() => pick("select")}>
-        <svg viewBox="0 0 16 16" width="15" height="15"><path d="M3 2l9 6-4 1-2 4z" fill="currentColor"/></svg>
+        <Icon name="pointer" size={15} />
       </button>
       <button class="tool" class:on={tool === "highlight"} title="Highlight (H): select text to mark it; H over a selection marks it at once" onclick={() => pick("highlight")}>
-        <svg viewBox="0 0 16 16" width="15" height="15"><path d="M9.5 2.5l4 4-6 6H3.5v-4z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><path d="M2 14.5h12" stroke="currentColor" stroke-width="1.6"/></svg>
+        <Icon name="highlighter" size={15} />
       </button>
       <button class="tool" class:on={tool === "underline"} title="Underline (U): select text to underline it" aria-label="Underline" onclick={() => pick("underline")}>
-        <svg viewBox="0 0 16 16" width="15" height="15"><path d="M4.5 2.5v5a3.5 3.5 0 0 0 7 0v-5" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><path d="M3 14h10" stroke="currentColor" stroke-width="1.6"/></svg>
+        <Icon name="underline" size={15} />
       </button>
       <button class="tool" class:on={tool === "strike"} title="Strike through (X): select text to strike it" aria-label="Strike through" onclick={() => pick("strike")}>
-        <svg viewBox="0 0 16 16" width="15" height="15"><path d="M11.5 4.5c-.5-1.3-1.8-2-3.5-2-2 0-3.5 1-3.5 2.6 0 3.6 7 1.8 7 5.3 0 1.6-1.5 2.6-3.5 2.6-1.8 0-3.1-.8-3.6-2.1" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/><path d="M2 8h12" stroke="currentColor" stroke-width="1.4"/></svg>
+        <Icon name="strike" size={15} />
       </button>
       <button class="tool" class:on={tool === "ink"} title="Pen / stylus (P)" onclick={() => pick("ink")}>
-        <svg viewBox="0 0 16 16" width="15" height="15"><path d="M2.5 13.5c2-1 3-4 5-6s4-3 6-5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+        <Icon name="pen" size={15} />
       </button>
       <button class="tool" class:on={tool === "text"} title="Text note (T)" onclick={() => pick("text")}>
-        <svg viewBox="0 0 16 16" width="15" height="15"><path d="M3 3.5h10M8 3.5v9.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+        <Icon name="text" size={15} />
       </button>
       <button class="tool" class:on={tool === "postit"} title="Post-it (N): click a place; over a highlight it is that passage's" aria-label="Post-it" onclick={() => pick("postit")}>
-        <svg viewBox="0 0 16 16" width="15" height="15"><path d="M2.5 2.5h11v7l-4 4h-7z M13.5 9.5h-4v4" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>
+        <Icon name="sticky" size={15} />
       </button>
       <button class="tool" class:on={tool === "clip"} title="Clip an area (C): drag a box around a figure or an equation" aria-label="Clip an area" onclick={() => pick("clip")}>
-        <svg viewBox="0 0 16 16" width="15" height="15"><rect x="2.5" y="3.5" width="11" height="9" fill="none" stroke="currentColor" stroke-width="1.4" stroke-dasharray="2.5 1.8"/></svg>
+        <Icon name="crop" size={15} />
       </button>
       <button class="tool" class:on={tool === "stamp"} title="Stamp (M): ✓ ? ! ★ where you click" aria-label="Stamp" onclick={() => pick("stamp")}>
-        <svg viewBox="0 0 16 16" width="15" height="15"><path d="M8 1.8l1.9 3.9 4.3.6-3.1 3 .7 4.3L8 11.6l-3.8 2 .7-4.3-3.1-3 4.3-.6z" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg>
+        <Icon name="stamp" size={15} />
       </button>
-      <button class="tool" class:on={bookmarked} title="Bookmark this page (B)" aria-label="Bookmark this page" aria-pressed={bookmarked} onclick={() => void toggleBookmark()}>
-        <svg viewBox="0 0 16 16" width="15" height="15"><path d="M4 2h8v12l-4-3-4 3z" fill={bookmarked ? "currentColor" : "none"} stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>
+      <button class="tool fill" class:on={bookmarked} title="Bookmark this page (B)" aria-label="Bookmark this page" aria-pressed={bookmarked} onclick={() => void toggleBookmark()}>
+        <Icon name="bookmark" size={15} />
       </button>
       <button class="tool" class:on={erasing} title="Eraser (E): a saved mark taken out where you click" aria-label="Eraser" aria-pressed={erasing} onclick={() => erase()}>
         <Icon name="eraser" size={15} />
@@ -452,6 +456,7 @@
   .tool { display: grid; place-items: center; width: 26px; height: 24px; border-radius: calc(var(--radius-sm) - 2px); color: var(--text-muted); }
   .tool:hover { background: var(--bg-hover); color: var(--text); }
   .tool.on, .icon-btn.on { background: var(--accent-soft, var(--bg-hover)); color: var(--accent); }
+  .tool.fill.on :global(path) { fill: currentColor; }
   .swatch { width: 16px; height: 16px; border-radius: 50%; border: 2px solid transparent; margin: 0 1px; }
   .swatch.on { border-color: var(--text); }
   .thick { width: 70px; margin-left: 4px; accent-color: var(--accent); }

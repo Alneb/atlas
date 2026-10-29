@@ -5,7 +5,7 @@
 title = "Syncthing"
 description = "asks Syncthing to sync a file the moment it changes, instead of after its own delay"
 icon = "refresh"
-version = "0.1.2"
+version = "0.2.0"
 api = 15
 
 [permissions]
@@ -32,7 +32,8 @@ kind = "text"
 hint = "empty: the Syncthing folder that holds this vault, found by its path"
 
 [helper]
-run = "python3 -u \"$ATLAS_PLUGIN_DIR/helper.py\""
+# built by engine/build.sh: one static binary per platform (Rust); Syncthing reached through the core's fetch
+run = "\"$ATLAS_PLUGIN_DIR/bin/$ATLAS_PLUGIN_TARGET/syncthing\""
 idle = "10m"                       # it only answers: stopped when unused, started again by the next call
 
 [[tool]]

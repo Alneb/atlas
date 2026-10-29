@@ -18,8 +18,9 @@ It has no pane: it works by itself once switched on.
 
 ## Needs
 
-Syncthing running on the same machine as Atlas's server, syncing the vault's folder, and Python 3 there (`helper.py`;
-standard library only).
+Syncthing running on the same machine as Atlas's server, syncing the vault's folder. Nothing else: the helper is a
+small static Rust program (`engine/`, built into `bin/<target>/syncthing` by `bash engine/build.sh`) that reaches
+Syncthing through Atlas's own fetch (`[permissions] net`: 127.0.0.1, localhost).
 
 ## Platforms
 
@@ -27,4 +28,5 @@ Linux works; the others are untested; not in the phone app.
 
 ## Tests
 
-`python3 test_helper.py` (offline: the folder found by path, the key read from the config, one scan per path).
+`cargo test -p atlas-syncthing` (offline: the folder found by path, the key read from the config, one scan per path,
+a machine without Syncthing skipped quietly, a wrong key a failure).

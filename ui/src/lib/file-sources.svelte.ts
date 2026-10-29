@@ -3,6 +3,7 @@
 // A remote file opens from its local copy, `.atlas/remote/<plugin>/…`, in the same editor or viewer as any
 // file, and every save of that copy goes back through its source (`save`). docs/REFACTOR-explorer.md.
 import { errText } from "./text";
+import { load, save } from "./prefs";
 import { api } from "./api";
 import { app, toast } from "./state.svelte";
 import { open, openPath } from "./dock";
@@ -123,11 +124,11 @@ export function pluginSource(plugin: { id: string; title: string }, s: Partial<O
 // server out of reach (offline, the VPN down) the copy fetched before opens, said so, for every source and every caller
 const KEPT = "atlas.remote.kept", MAX_KEPT = 2000;
 type Kept = Record<string, { local: string; at: number }>;
-const kept: Kept = (() => { try { return JSON.parse(localStorage.getItem(KEPT) ?? "{}") as Kept; } catch { return {}; } })();
+const kept: Kept = load<Kept>(KEPT, {});
 function keepKept(): void {
   const keys = Object.keys(kept);
   if (keys.length > MAX_KEPT) for (const k of keys.sort((a, b) => kept[a].at - kept[b].at).slice(0, keys.length - MAX_KEPT)) delete kept[k];
-  try { localStorage.setItem(KEPT, JSON.stringify(kept)); } catch { /* full: kept for this run */ }
+  save(KEPT, kept); // full: kept for this run
 }
 function keptCopies(id: string, title: string, local: FileSource["local"]): FileSource["local"] {
   return async (place, path) => {
@@ -187,7 +188,7 @@ export const vaultSource: FileSource = {
   },
   remove: async (_place, path) => `Moved to ${(await api.trash(path)).to}`,
   upload: async (_place, local, dir, replace) => {
-    const to = joinPath(dir, local.split("/").pop()!);
+    const to = joinPath(dir, basename(local));
     if (to === local) return "done";
     try { await api.upload(to, await api.raw(local), replace); } catch (e) { if (/409/.test(String(e))) return "exists"; throw e; }
     return "done";

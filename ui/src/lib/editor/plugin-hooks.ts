@@ -9,6 +9,7 @@ import { Decoration, EditorView, ViewPlugin, WidgetType, type DecorationSet, typ
 import type { Completion, CompletionContext, CompletionResult, CompletionSource } from "@codemirror/autocomplete";
 import { matches, parseChord, type Chord } from "../keys";
 import { guard, logPlugin } from "../plugin-log.svelte";
+import { escapeRegExp } from "../text";
 
 export type Where = "note" | "code" | "all";
 const applies = (where: Where | undefined, md: boolean) => !where || where === "all" || (where === "note") === md;
@@ -58,7 +59,7 @@ const add = <T>(set: Set<T>, item: T, changed?: () => void) => { set.add(item); 
 const WORD = /[\w-]{2,}$/;
 export function registerCompletion(plugin: string, spec: CompletionSpec): () => void {
   const t = spec.trigger;
-  const trigger = t === undefined ? WORD : new RegExp(`(?:${typeof t === "string" ? t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") : t.source})$`, typeof t === "string" ? "" : t.flags.replace(/[gy]/g, ""));
+  const trigger = t === undefined ? WORD : new RegExp(`(?:${typeof t === "string" ? escapeRegExp(t) : t.source})$`, typeof t === "string" ? "" : t.flags.replace(/[gy]/g, ""));
   return add(completions, { plugin, spec, trigger });
 }
 export function registerEditorKey(plugin: string, chord: string, run: (t: EditorTouch) => boolean | void, where?: Where): () => void {

@@ -4,7 +4,7 @@
   // Type, Enter: written to today's log (or as a note, as that vault's settings say), and the
   // window is gone. Esc: gone, nothing written. No tabs, no dock: nothing of the app is mounted.
   import { errText } from "./lib/text";
-  import { shownPath } from "./lib/paths";
+  import { shownPath, basename } from "./lib/paths";
   import { onMount } from "svelte";
   import { api } from "./lib/api";
   import { captureHint } from "./lib/capture-hints.svelte";
@@ -23,9 +23,9 @@
   const others = $derived.by(() => {
     if (!vaults) return [];
     const known = vaults.vaults.filter((v) => !v.missing && v.path !== vaults!.current);
-    return [{ name: vaults.current.split("/").pop() ?? vaults.current, path: vaults.current }, ...known.map((v) => ({ name: v.name, path: v.path }))];
+    return [{ name: basename(vaults.current), path: vaults.current }, ...known.map((v) => ({ name: v.name, path: v.path }))];
   });
-  const nameOf = (path: string) => others.find((v) => v.path === path)?.name ?? path.split("/").pop() ?? path;
+  const nameOf = (path: string) => others.find((v) => v.path === path)?.name ?? basename(path);
 
   /** The desktop app closes the window when it is sent here (crates/atlas-app: on_navigation); a browser tab simply stays. */
   const close = () => { location.href = "/__atlas_close"; };

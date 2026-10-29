@@ -1,7 +1,7 @@
 <script lang="ts">
   // File tree over /api/tree, lazily expanded; open folders refresh on fs events.
   import { VAULT_DRAG } from "../lib/explorer/drag";
-  import { dirOf } from "../lib/paths";
+  import { dirOf, basename } from "../lib/paths";
   import { atPointer, type MenuAt } from "../lib/menu";
   import { errText } from "../lib/text";
   import { onMount, untrack } from "svelte";
@@ -61,7 +61,7 @@
   let backTo = "";
   function rename(path: string) {
     backTo = path;
-    const name = path.split("/").pop() ?? path;
+    const name = basename(path);
     dialog = { title: `Rename ${name}`, value: name, submit: (to) => {
       if (to === name) return;
       backTo = join(parentOf(path), to);
@@ -124,7 +124,7 @@
     e.preventDefault();
     // no-ops: the same folder, or a folder into itself / its own subfolder
     if (parentOf(from) === dir || dir === from || dir.startsWith(from + "/")) return;
-    const to = join(dir, from.split("/").pop()!);
+    const to = join(dir, basename(from));
     moveTo(from, to).then(() => toast("Moved", `${from} → ${to}`), fail("Could not move"));
   }
 

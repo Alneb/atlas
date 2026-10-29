@@ -6,8 +6,10 @@
 // "new line" row Enter is the box's own again. Every row is icon, name, hint — the same rows as the
 // native box (crates/atlas-capture). Nothing here knows about the editor.
 import { settings } from "./settings.svelte";
+import { basename } from "./paths";
 import { api } from "./api";
-import { captureDays, describeCapture, settled } from "./capture-hints.svelte";
+import { captureDays, describeCapture, SETTLE_MS } from "./capture-hints.svelte";
+import { Newest } from "./newest";
 import type { IconName } from "./panes";
 import { taskSuggestions, taskIconEl, rowIconEl, type TaskSuggestion } from "./task-complete";
 
@@ -30,7 +32,7 @@ export function tokenAt(text: string, caret: number): Open | null {
 }
 
 let notes: Promise<string[]> | null = null, tags: Promise<string[]> | null = null;
-const stem = (p: string) => (p.split("/").pop() ?? p).replace(/\.md$/i, "");
+const stem = (p: string) => basename(p).replace(/\.md$/i, "");
 async function candidates(o: Open): Promise<string[]> {
   const q = o.typed.toLowerCase();
   if (o.kind === "day") {
@@ -55,7 +57,8 @@ export function complete(box: HTMLTextAreaElement | HTMLInputElement, opts: { wh
   list.setAttribute("role", "listbox");
   list.hidden = true;
   box.after(list);
-  let open: Open | null = null, items: string[] = [], sel = 0, seq = 0;
+  let open: Open | null = null, items: string[] = [], sel = 0;
+  const looks = new Newest(SETTLE_MS);
   let task: { start: number; items: TaskSuggestion[] } | null = null; // task fields / dates, when those are offered
 
   const close = () => { open = null; task = null; list.hidden = true; };
@@ -105,24 +108,24 @@ export function complete(box: HTMLTextAreaElement | HTMLInputElement, opts: { wh
   window.addEventListener("resize", follow);
   async function look() {
     if (opts.when && !opts.when()) return close();
-    const caret = box.selectionStart ?? 0, o = tokenAt(box.value, caret), my = ++seq;
+    const caret = box.selectionStart ?? 0, o = tokenAt(box.value, caret), still = looks.ask();
     if (!o) {
       const before = box.value.slice(0, caret);
       const mode = settings.config?.editor.task_suggest ?? "always"; // as in a note
       // a to-do in capture's spellings: the core says (capture.rs `starts_as_task`)
       // asked once typing settles, of the vault the box writes to; the hint line's request for the same text is this one
-      if (mode !== "off" && !(await settled(() => my === seq))) return;
+      if (mode !== "off" && !(await looks.settle(still))) return;
       const todo = mode !== "off" && (await describeCapture(box.value, opts.vault?.()).catch(() => null))?.task;
-      if (my !== seq) return;
+      if (!still()) return;
       const t = todo ? await taskSuggestions(before.slice(before.lastIndexOf("\n") + 1), { browse: mode === "always", keepEnter: true }) : null;
-      if (my !== seq) return; // a later key already asked again
+      if (!still()) return; // a later key already asked again
       if (!t) return close();
       open = null; task = { start: caret - t.replace, items: t.items }; items = t.items.map((x) => x.label); sel = 0;
       return draw();
     }
     task = null;
     const all = await candidates(o);
-    if (my !== seq) return; // a later key already asked again
+    if (!still()) return; // a later key already asked again
     // typed out in full already (`@tomorrow`): nothing to offer, and Enter must stay the box's own
     if (all.some((c) => c.toLowerCase() === o.typed.toLowerCase())) return close();
     const found = all.slice(0, MOST);

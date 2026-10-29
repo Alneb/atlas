@@ -7,6 +7,7 @@
   // preview of the selected file at the right — drawn as a note embeds it (lib/embeds.ts), so every kind of file
   // previews as its own view — and Split, a second explorer beside this one to drag between.
   import { onMount, untrack } from "svelte";
+  import { loadRaw, saveRaw } from "../lib/prefs";
   import { basename } from "../lib/paths";
   import { vaultReady, vaultFiles, onVaultChange } from "../lib/vault";
   import { atPointer, below, type MenuAt } from "../lib/menu";
@@ -54,8 +55,8 @@
 
   // List or Thumbnails: remembered in this browser (one choice for every explorer tab)
   const VIEW = "atlas.explorer.view";
-  let view = $state<"list" | "thumbs">((() => { try { return localStorage.getItem(VIEW) === "thumbs" ? "thumbs" : "list"; } catch { return "list"; } })());
-  const setView = (v: typeof view) => { view = v; try { localStorage.setItem(VIEW, v); } catch { /* for this run */ } };
+  let view = $state<"list" | "thumbs">(loadRaw(VIEW) === "thumbs" ? "thumbs" : "list");
+  const setView = (v: typeof view) => { view = v; saveRaw(VIEW, v); };
   let sort = $state<{ by: "name" | "size" | "modified"; desc: boolean }>({ by: "name", desc: false });
   // the filter: names containing it, here; with `deep` ("Below"), every file under this folder (the vault's own list)
   let filter = $state("");
@@ -64,8 +65,8 @@
   let underHere = $state<Entry[] | null>(null);
   // the preview at the right: remembered in this browser, as the view is
   const PREVIEW = "atlas.explorer.preview";
-  let preview = $state((() => { try { return localStorage.getItem(PREVIEW) === "1"; } catch { return false; } })());
-  const setPreview = (v: boolean) => { preview = v; try { localStorage.setItem(PREVIEW, v ? "1" : "0"); } catch { /* for this run */ } };
+  let preview = $state(loadRaw(PREVIEW) === "1");
+  const setPreview = (v: boolean) => { preview = v; saveRaw(PREVIEW, v ? "1" : "0"); };
   let typing = $state(false);
   let menu = $state<MenuAt | null>(null);
   let dropDir = $state<string | null>(null);
@@ -487,6 +488,9 @@
   .col.size { text-align: right; }
   .arrow { margin-left: 4px; }
   .x-row { position: relative; min-height: 28px; border-radius: var(--radius-sm); cursor: default; user-select: none; }
+  /* a folder of thousands: rows out of view are not laid out or painted (still in the page, for keys and find) */
+  .x-row { content-visibility: auto; contain-intrinsic-size: auto 28px; }
+  .list.thumbs .x-row { contain-intrinsic-size: auto 150px; }
   .x-row:hover { background: var(--bg-hover); }
   .x-row.sel { background: var(--accent-soft); }
   .x-row.drop-into { box-shadow: inset 0 0 0 1px var(--accent); }

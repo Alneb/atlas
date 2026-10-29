@@ -1,9 +1,9 @@
 <script lang="ts" module>
-  import { api } from "../../lib/api";
-  // workspace paths for file / folder pickers: fetched once per Settings visit
+  import { listVault } from "../../lib/vault";
+  // workspace paths for file / folder pickers: from the vault's live index, folders worked out once per Settings visit
   let paths: Promise<{ files: string[]; folders: string[] }> | null = null;
   export function workspacePaths(): Promise<{ files: string[]; folders: string[] }> {
-    return (paths ??= api.files().then((files) => {
+    return (paths ??= listVault().then((files) => {
       const folders = new Set<string>();
       for (const f of files) { const parts = f.split("/"); for (let i = 1; i < parts.length; i++) folders.add(parts.slice(0, i).join("/")); }
       return { files, folders: [...folders].sort() };

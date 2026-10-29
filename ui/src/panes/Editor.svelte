@@ -39,6 +39,8 @@
   import { hostOf, mirrorState, signInToMirror, type MirrorState } from "../lib/mirror";
   import { chooseVault } from "../lib/vaults";
   import { readText } from "../lib/vault-files";
+  import type { Text } from "@codemirror/state";
+  import { noteHeadings } from "../lib/note-anchor";
   /** Vim, as the setting says — never in the mobile apps or on a phone's screen: a touch keyboard has no Escape, and normal mode ate the taps. */
   const vimHere = () => app.vimEnabled && !nativeShell.on && !phone.on;
 
@@ -48,6 +50,8 @@
 
   let host: HTMLDivElement;
   let ed: AtlasEditor | null = null;
+  // the last headings() answer and the text it was read from (one scan per version of the text)
+  let headCache: { doc: Text; heads: { level: number; text: string; line: number }[] } | null = null;
   let status = $state<"loading" | "ready" | "error">("loading");
   let loadError = $state("");
   let conflict = $state(false);
@@ -283,28 +287,27 @@
         },
         headings: () => {
           if (!ed) return [];
-          const out: { level: number; text: string; line: number }[] = [];
+          // asked on every caret move: scanned once per version of the text (a doc is immutable, so its identity is
+          // the version)
           const doc = ed.view.state.doc;
-          if (/\.tex$/i.test(path)) {
-            // LaTeX sectioning → outline levels (\part = 1 … \subparagraph = 7)
-            const LV: Record<string, number> = { part: 1, chapter: 2, section: 3, subsection: 4, subsubsection: 5, paragraph: 6, subparagraph: 7 };
-            for (let i = 1; i <= doc.lines; i++) {
-              const m = /^\s*\\(part|chapter|section|subsection|subsubsection|paragraph|subparagraph)\*?(?:\[[^\]]*\])?\{(.*)\}/.exec(doc.line(i).text);
-              if (m) out.push({ level: LV[m[1]], text: m[2].trim(), line: i });
-            }
-            return out;
-          }
-          if (!isMarkdown(path)) return [];
-          let fence = false;
-          for (let i = 1; i <= doc.lines; i++) {
-            const t = doc.line(i).text;
-            if (/^(```|~~~)/.test(t)) fence = !fence;
-            const m = !fence && /^(#{1,6})\s+(.*)$/.exec(t);
-            if (m) out.push({ level: m[1].length, text: m[2].trim(), line: i });
-          }
-          return out;
+          if (headCache?.doc !== doc) headCache = { doc, heads: scanHeadings(doc) };
+          return headCache.heads.slice();
         },
       });
+      function scanHeadings(doc: Text): { level: number; text: string; line: number }[] {
+        const out: { level: number; text: string; line: number }[] = [];
+        if (/\.tex$/i.test(path)) {
+          // LaTeX sectioning → outline levels (\part = 1 … \subparagraph = 7)
+          const LV: Record<string, number> = { part: 1, chapter: 2, section: 3, subsection: 4, subsubsection: 5, paragraph: 6, subparagraph: 7 };
+          for (let i = 1; i <= doc.lines; i++) {
+            const m = /^\s*\\(part|chapter|section|subsection|subsubsection|paragraph|subparagraph)\*?(?:\[[^\]]*\])?\{(.*)\}/.exec(doc.line(i).text);
+            if (m) out.push({ level: LV[m[1]], text: m[2].trim(), line: i });
+          }
+          return out;
+        }
+        if (!isMarkdown(path)) return [];
+        return noteHeadings(doc.iterLines()).map((h) => ({ level: h.level, text: h.text, line: h.i + 1 }));
+      }
       if (panel.isActive) {
         // loaded late (the home note at startup): take the focus only if nobody else has it — the
         // palette or a search box opened meanwhile keeps its keys (vim would read them as commands)

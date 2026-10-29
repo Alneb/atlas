@@ -1,7 +1,7 @@
 // CSS snippets (docs/guides/MALLEABLE.md, rung 2): every `.atlas/snippets/*.css` applies live — on save,
 // with no reload — unless `[ui] css_snippets_off` names it. Settings lists them with switches.
 import { api } from "./api";
-import { on } from "./bus";
+import { reloadOnChange } from "./reload-on-change";
 import { onSettings, settings } from "./settings.svelte";
 import type { CssSnippet } from "./gen/CssSnippet";
 
@@ -27,8 +27,7 @@ export async function reloadCssSnippets(): Promise<void> {
 
 export function initCssSnippets(): void {
   void reloadCssSnippets();
-  let t: ReturnType<typeof setTimeout> | undefined;
-  on("fs", (e) => { if (e.paths.some((p) => p.startsWith(".atlas/snippets/"))) { clearTimeout(t); t = setTimeout(reloadCssSnippets, 150); } });
+  reloadOnChange(() => void reloadCssSnippets(), { wait: 150, wants: (p) => p.startsWith(".atlas/snippets/") });
   onSettings(() => apply());
 }
 

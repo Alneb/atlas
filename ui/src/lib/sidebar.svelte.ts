@@ -11,7 +11,7 @@ import { fullscreen } from "./fullscreen.svelte";
 import { tick } from "svelte";
 import type { Action } from "./actions";
 import { api } from "./api";
-import { on } from "./bus";
+import { reloadOnChange } from "./reload-on-change";
 import { focusPanel, open, openSide } from "./dock";
 import { appLaunchers } from "./apps.svelte";
 import { SIDE_COMMANDS } from "./side-panel.svelte";
@@ -71,7 +71,7 @@ export const sidebarActions: Action[] = [
 
 export function initSidebar(): () => void {
   void load();
-  return on("fs", (e) => { if (!e.paths.length || e.paths.includes(SIDEBAR_FILE)) void load(); });
+  return reloadOnChange(() => void load(), { wait: 0, wants: (p) => p === SIDEBAR_FILE });
 }
 
 /** The activity rail (horizontal tabs): the apps, the side panel's tools, then every toolbar's buttons. */
@@ -237,6 +237,13 @@ export function dragStart(e: DragEvent, id: string): void {
   side.dragId = id;
   if (tabs.open.includes(id)) startDrag(e, id); else e.dataTransfer?.setData("text/plain", id); // a resting pin: reorder only
 }
+/** The rows glide to their new places only after a tab was dropped somewhere (a reorder the eye follows). Every
+ *  other change — a tab closed, opened, retitled — moves them at once: a sliding row put the next close button under
+ *  the pointer mid-way, and the list seemed to shake. */
+let glideUntil = 0;
+const glide = () => { glideUntil = Date.now() + 400; };
+export const rowGlide = (): number => (Date.now() < glideUntil ? 160 : 0);
+
 export function dragEnd(): void { side.dragId = null; side.mark = null; side.pinMark = null; side.into = null; side.end = null; endDrag(); }
 /** WebKit (the desktop app) allows a drop only where `dragenter` was accepted as well as `dragover`. */
 export function acceptDrag(e: DragEvent): void { if (side.dragId) e.preventDefault(); }
@@ -265,7 +272,7 @@ export function rowDrop(e: DragEvent, g: TabGroup, t: TabItem): void {
   if (!id || !mark) return;
   e.preventDefault();
   if (isPinned(id)) unpin(id);
-  if (tabs.open.includes(id) && id !== t.id) moveTabBeside(id, t.id, mark.after);
+  if (tabs.open.includes(id) && id !== t.id) { glide(); moveTabBeside(id, t.id, mark.after); }
   dragEnd();
 }
 export function groupDrop(e: DragEvent, g: TabGroup): void {
@@ -273,7 +280,7 @@ export function groupDrop(e: DragEvent, g: TabGroup): void {
   if (!id) return;
   e.preventDefault();
   if (isPinned(id)) unpin(id);
-  if (tabs.open.includes(id)) { moveTabToEnd(id, g.id); activate(id); }
+  if (tabs.open.includes(id)) { glide(); moveTabToEnd(id, g.id); activate(id); }
   dragEnd();
 }
 export function pinsOver(e: DragEvent): void {

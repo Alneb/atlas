@@ -14,16 +14,15 @@ use std::time::{Duration, Instant};
 pub const MAX_PATCH: usize = 1 << 20;
 
 fn git(root: &Path, args: &[&str]) -> std::io::Result<Output> {
-    Command::new("git")
-        .arg("-C")
+    let mut cmd = Command::new("git");
+    cmd.arg("-C")
         .arg(root)
         .args(args)
         .env("LC_ALL", "C")
         .env("GIT_TERMINAL_PROMPT", "0")
         // status / diff never rewrite .git/index in passing (as editors do): no lock fights, no write per look
-        .env("GIT_OPTIONAL_LOCKS", "0")
-        .stdin(Stdio::null())
-        .output()
+        .env("GIT_OPTIONAL_LOCKS", "0");
+    crate::platform::host::std_command(cmd)?.stdin(Stdio::null()).output()
 }
 
 impl GitStatus {
@@ -431,8 +430,9 @@ pub fn apply(root: &Path, patch: &str, cached: bool, reverse: bool) -> Result<()
     if reverse {
         cmd.arg("--reverse");
     }
-    let mut child = cmd
-        .arg("-")
+    cmd.arg("-");
+    let mut child = crate::platform::host::std_command(cmd)
+        .map_err(not_started)?
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -461,16 +461,14 @@ pub fn sync(root: &Path, way: Sync) -> Result<String> {
         Sync::Pull => &["pull", "--ff-only"],
         Sync::Push => &["push"],
     };
-    let out = Command::new("git")
-        .arg("-C")
+    let mut cmd = Command::new("git");
+    cmd.arg("-C")
         .arg(root)
         .args(args)
         .env("LC_ALL", "C")
         .env("GIT_TERMINAL_PROMPT", "0")
-        .env("GIT_SSH_COMMAND", std::env::var("GIT_SSH_COMMAND").unwrap_or_else(|_| "ssh -o BatchMode=yes".into()))
-        .stdin(Stdio::null())
-        .output()
-        .map_err(not_started)?;
+        .env("GIT_SSH_COMMAND", std::env::var("GIT_SSH_COMMAND").unwrap_or_else(|_| "ssh -o BatchMode=yes".into()));
+    let out = crate::platform::host::std_command(cmd).and_then(|mut c| c.stdin(Stdio::null()).output()).map_err(not_started)?;
     let text = format!("{}{}", String::from_utf8_lossy(&out.stdout), String::from_utf8_lossy(&out.stderr));
     if !out.status.success() {
         return Err(Error::BadRequest(format!("git {}: {}", args[0], text.trim())));

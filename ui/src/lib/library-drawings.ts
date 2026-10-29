@@ -8,9 +8,9 @@ import { movedTabs } from "./gone-files";
 import { toast } from "./state.svelte";
 import { queryRows, type Row } from "./base-rows";
 import { vaultFiles, vaultReady } from "./vault";
-import { shownName } from "./paths";
+import { shownName, basename } from "./paths";
 import type { LibraryItem, LibrarySource } from "./library";
-import { errText } from "./text";
+import { errText, escapeRegExp } from "./text";
 
 const DRAWING = /\.excalidraw$/i;
 /** `chap.pdf.excalidraw`: a file's ink, which belongs to that file (drawing_note.rs `ink_of`). An extension has a
@@ -58,8 +58,8 @@ const obsidianDrawings = () => [...vaultFiles()].filter((p) => OBSIDIAN.test(p) 
 /** Links naming `x.excalidraw.md` itself retargeted to `x.excalidraw` in the notes that link it; Obsidian's
  *  usual `[[x.excalidraw]]` needs nothing. Each note written over the version read. → links changed. */
 async function retarget(md: string, to: string): Promise<number> {
-  const old = md.split("/").pop()!, now = to.split("/").pop()!;
-  const esc = old.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const old = basename(md), now = basename(to);
+  const esc = escapeRegExp(old);
   // inside [[…]] (any folder before it, a #heading or |alias after) or a markdown link's (…)
   const re = new RegExp(`(\\[\\[(?:[^\\]|#]*/)?)${esc}(?=[\\]|#])|(\\]\\((?:[^)]*/)?)${esc.replace(/ /g, "(?: |%20)")}(?=[)#])`, "g");
   const sources = [...new Set((await api.backlinks(md).catch(() => null))?.links.map((l) => l.source) ?? [])];
@@ -90,7 +90,7 @@ async function fromObsidian(): Promise<void> {
       await api.trash(md);
       done++;
     } catch (e) {
-      left.push(`${shownName(md.split("/").pop()!)}: ${errText(e)}`);
+      left.push(`${shownName(basename(md))}: ${errText(e)}`);
     }
   }
   toast(`${done} Obsidian drawing${done === 1 ? "" : "s"} converted`, [left.length ? `Left as they are:\n${left.join("\n")}` : "The old files are in the Trash.", relinked ? `${relinked} link${relinked === 1 ? "" : "s"} to them now name the new drawing.` : ""].filter(Boolean).join(" "), left.length ? "error" : "success");
@@ -101,14 +101,14 @@ async function remove(path: string, quiet = false): Promise<void> {
   const note = noteOf(path);
   const own = await api.file(note).then((f) => f.text.includes(`[[${path.split("/").pop()}]]`), () => false);
   await Promise.all([api.trash(path), own ? api.trash(note) : null]);
-  if (!quiet) toast("Moved to the Trash", shownName(path.split("/").pop()!));
+  if (!quiet) toast("Moved to the Trash", shownName(basename(path)));
 }
 
 /** Several to the Trash at once, six at a time, one notice (one by one, each with its own, felt slow). */
 async function removeMany(paths: string[]): Promise<void> {
   const queue = [...paths], failed: string[] = [];
   await Promise.all(Array.from({ length: Math.min(6, queue.length) }, async () => {
-    for (let p = queue.shift(); p; p = queue.shift()) await remove(p, true).catch((e) => failed.push(`${shownName(p.split("/").pop()!)}: ${errText(e)}`));
+    for (let p = queue.shift(); p; p = queue.shift()) await remove(p, true).catch((e) => failed.push(`${shownName(basename(p))}: ${errText(e)}`));
   }));
   const done = paths.length - failed.length;
   toast(`${done} drawing${done === 1 ? "" : "s"} moved to the Trash`, failed.length ? `Left:\n${failed.join("\n")}` : "", failed.length ? "error" : "success");
@@ -133,14 +133,14 @@ export function drawingsSource(): LibrarySource {
         const pages = Number(row?.pages) || 0;
         const changed = String(row?.["file.mtime"] ?? row?.mtime ?? "");
         items.push({
-          id: path, note: path, title: shownName(path.split("/").pop()!),
+          id: path, note: path, title: shownName(basename(path)),
           sub: [folder, pages > 1 ? `${pages} pages` : ""].filter(Boolean).join(" · "),
           cover: coverOf(path, changed),
           tab: folder.split("/")[0] || "",
           groups: [...names(row?.project), ...names(row?.topics)],
           tags: names(row?.tags),
           text: [path, ...names(row?.project), ...names(row?.topics), ...names(row?.tags)].join(" "),
-          sort: { title: shownName(path.split("/").pop()!), changed },
+          sort: { title: shownName(basename(path)), changed },
         });
       }
       tops = [...new Set(items.map((i) => i.tab ?? ""))].sort();
@@ -164,7 +164,7 @@ export function drawingsSource(): LibrarySource {
           // its properties are its note's: set there, they become the filters at the side
           { label: "Properties", icon: "file-text", title: "The drawing's note: its tags, project and topics are this library's filters", run: () => openPath(noteOf(item.id)) },
           // managed here as in the file explorer: its note goes with it (the core's move, drawing_note.rs `moved`)
-          { label: "Rename", icon: "edit", edit: { fields: [{ key: "name", label: "Name", value: shownName(item.id.split("/").pop()!) }], save: (v) => rename(item.id, v.name) } },
+          { label: "Rename", icon: "edit", edit: { fields: [{ key: "name", label: "Name", value: shownName(basename(item.id)) }], save: (v) => rename(item.id, v.name) } },
           { label: "Delete", icon: "close", danger: true, confirm: { title: `Move ${item.title} to the Trash?`, hint: "Its note goes with it; both can be taken back from the Trash.", button: "Delete" }, run: () => remove(item.id) },
         ],
       };

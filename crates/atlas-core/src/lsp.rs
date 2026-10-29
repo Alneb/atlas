@@ -72,6 +72,9 @@ fn find_exe(name: &str, root: &Path) -> Option<PathBuf> {
     if name.contains('/') {
         return crate::platform::run_line::executable(&root.join(crate::pty::expand_home(name))); // join keeps an absolute path as is
     }
+    if let Some(p) = crate::platform::host::find(name) {
+        return Some(p); // in a Flatpak: the host's server (it runs there)
+    }
     let home = crate::platform::dirs::home();
     let extra = home.iter().flat_map(|h| [h.join(".cargo/bin"), h.join(".local/bin")]);
     std::env::var_os("PATH")
@@ -157,7 +160,7 @@ async fn run(mut socket: WebSocket, ws: &Workspace, lang: LspLang) -> anyhow::Re
     let log = crate::vault_write::cache::file(&ws.cache_dir().join(format!("lsp-{}.log", lang.name())))?;
     let cfg = ws.config()?;
     let locale = cfg.lsp.language.clone();
-    let mut cmd = tokio::process::Command::new(&argv[0]);
+    let mut cmd = std::process::Command::new(&argv[0]);
     // the Python server sees the vault's environment's packages (python_env.rs)
     if lang == LspLang::Python {
         if let Some(env) = crate::python_env::chosen(&cfg, ws.root()) {
@@ -169,9 +172,8 @@ async fn run(mut socket: WebSocket, ws: &Workspace, lang: LspLang) -> anyhow::Re
         let lang_only = locale.split(['_', '.']).next().unwrap_or("en").to_string();
         cmd.env("LC_ALL", &locale).env("LC_MESSAGES", &locale).env("LANG", &locale).env("LANGUAGE", lang_only);
     }
-    let mut child = cmd
-        .args(&argv[1..])
-        .current_dir(ws.root())
+    cmd.args(&argv[1..]).current_dir(ws.root());
+    let mut child = tokio::process::Command::from(crate::platform::host::std_command(cmd)?)
         .stdin(std::process::Stdio::piped())
         .stdout(std::process::Stdio::piped())
         .stderr(log)

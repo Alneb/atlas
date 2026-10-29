@@ -7,7 +7,7 @@
 import { errText } from "./text";
 import type { Action } from "./actions";
 import { api, apiBase, vaultScoped } from "./api";
-import { on } from "./bus";
+import { reloadOnChange } from "./reload-on-change";
 import { applyLayout, currentLayout, onLayoutChange } from "./dock";
 import { fullscreen } from "./fullscreen.svelte";
 import { addCommands, setCommands } from "./keymap.svelte";
@@ -136,5 +136,5 @@ async function syncCommands(): Promise<void> {
 export function initWorkspaces(): () => void {
   addCommands(fixed);
   void syncCommands();
-  return on("fs", (e) => { if (e.paths.some((p) => p.startsWith(`${DIR}/`))) void syncCommands(); });
+  return reloadOnChange(() => void syncCommands(), { wait: 0, wants: (p) => p.startsWith(`${DIR}/`) });
 }

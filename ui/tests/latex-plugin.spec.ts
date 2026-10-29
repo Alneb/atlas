@@ -44,7 +44,7 @@ test("switched off, LaTeX has no snippets and no route; its page sits under Plug
   await expect(entry).toHaveClass(/off/);
   await entry.click();
   await expect(page.getByText("Snippets file", { exact: true })).toBeVisible();
-  await nav.getByRole("button", { name: "Plugins", exact: true }).click();
+  await nav.getByRole("button", { name: /^Plugins( \d+)?$/ }).click();
   await page.getByRole("switch", { name: "Plugin LaTeX" }).click();
   await expect(entry).not.toHaveClass(/off/);
   expect((await request.get("/api/snippets", { headers: H })).status()).toBe(200);

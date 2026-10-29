@@ -106,6 +106,8 @@
 .markdown .cm-rendered-block > :last-child { margin-bottom: 0; }
 /* a hint that the block is clickable, not a highlight: the accent tint read as "selected" */
 .markdown .cm-rendered-block:hover { background: var(--bg-hover); }
+/* an editable table is clicked into its cells, not its source: no "click to show the source" band */
+.markdown .cm-rendered-block:has(.table-edit-box):hover { background: none; }
 .markdown .cm-rendered-block pre, .markdown .cm-rendered-block .table-wrap { margin: .3em 0; }
 
 .markdown .cm-frontmatter { font-family: var(--font-mono); font-size: .78em; color: var(--text-muted); line-height: 1.55; }

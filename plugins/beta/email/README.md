@@ -50,7 +50,7 @@ engine in Rust (`engine/`), the pane in Svelte (`ui/`).
   plugin; archive / star / snooze / reply on hover or by key (j k e s h u r Enter c) with Undo, replies written inline
   with Undo send — the side tool, the unread count in the status bar, notices of new
   mail, "Email: send this note…", Thunderbird import (accounts; local mail as notes, after asking).
-- **Claude** (through `atlas mcp`): `email_inbox`, `email_read` (read-only; each asks first unless the card says
+- **Claude** (through `atlas mcp`): `email_inbox`, `email_read`, `email_attachment` (an attachment: text as its text, a PDF, picture or office file saved and its path given for the agent to read; read-only; each asks first unless the card says
   *always*), `email_send` (only a mail the user asked for), `email_mark`, `email_rules`, `email_add_rule`,
   `email_remove_rule`, `email_accounts`, `email_thunderbird*`.
 - **With the Calendar plugin** (`plugins/beta/dav`): invitations answered and filed, CardDAV contacts in the address

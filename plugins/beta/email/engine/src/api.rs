@@ -67,6 +67,7 @@ pub fn table() -> Vec<(&'static str, Method)> {
         ("thunderbird_mail", thunderbird_mail),
         ("agent_list", agent_list),
         ("agent_get", agent_get),
+        ("agent_attachment", agent_attachment),
         ("agent_send", agent_send),
         ("set_importance", set_importance),
         ("agent_accounts", agent_accounts),
@@ -1008,9 +1009,53 @@ fn agent_get(m: &Arc<Mail>, p: &Value) -> Result<Value, String> {
     let list = |ps: &[Person]| ps.iter().map(Person::display).collect::<Vec<_>>().join(", ");
     Ok(json!({
         "uid": x.uid.to_string(), "from": list(&x.from), "to": list(&x.to), "cc": list(&x.cc), "subject": x.subject, "date": iso(x.date),
-        "message_id": format!("<{}>", x.message_id), "text": b.text, "attachments": b.attachments.iter().filter(|a| !a.inline).map(|a| json!({ "name": a.name, "type": a.mime, "size": a.size })).collect::<Vec<_>>(),
+        "message_id": format!("<{}>", x.message_id), "text": b.text, "attachments": b.attachments.iter().filter(|a| !a.inline).map(|a| json!({ "name": a.name, "type": a.mime, "size": a.size, "part": a.part })).collect::<Vec<_>>(),
         "invite": b.invite,
     }))
+}
+
+/// Text an agent is given as it is (larger ones are cut and said so); anything else is a file it reads itself.
+const AGENT_TEXT_MAX: usize = 200_000;
+
+/// Whether an attachment is text an agent reads inline: text/*, and the textual application types.
+fn texty(mime: &str, name: &str) -> bool {
+    let mime = mime.to_ascii_lowercase();
+    mime.starts_with("text/")
+        || ["application/json", "application/xml", "application/csv", "application/x-tex", "application/ics", "application/x-yaml", "application/yaml"].contains(&mime.as_str())
+        || mime.ends_with("+json")
+        || mime.ends_with("+xml")
+        || (mime == "application/octet-stream" && [".txt", ".md", ".csv", ".tsv", ".json", ".tex", ".bib", ".ics", ".vcf", ".yaml", ".yml", ".toml", ".log", ".py", ".rs", ".js", ".ts"].iter().any(|e| name.to_ascii_lowercase().ends_with(e)))
+}
+
+/// An agent's `email_attachment`: one attachment of a message (by its `part` from email_read, else its `name`). Text
+/// comes back as `text`; anything else (a PDF, a picture, an office file) is written to the plugin's cache and its
+/// `path` (absolute) given, for the agent to open with its own reader. Read-only, asked first like email_read.
+fn agent_attachment(m: &Arc<Mail>, p: &Value) -> Result<Value, String> {
+    let want = p.get("part").and_then(Value::as_u64).map(|n| n.to_string()).unwrap_or_else(|| s(p, "name").to_string());
+    let acc = consent(m, s(p, "account"), &format!("an attachment ({want}) of the message uid {}", p.get("uid").map(|u| u.to_string()).unwrap_or_default()))?;
+    let x = find_msg(m, &acc.name, p)?;
+    let raw = m.rt.block_on(sync::body(m, x.id))?;
+    let b = parse::body(&raw).ok_or("cannot read the message")?;
+    let files: Vec<&parse::Attachment> = b.attachments.iter().filter(|a| !a.inline).collect();
+    let a = match p.get("part").and_then(Value::as_u64) {
+        Some(n) => files.iter().find(|a| u64::from(a.part) == n),
+        None => files.iter().find(|a| a.name == s(p, "name")).or_else(|| files.iter().find(|a| a.name.eq_ignore_ascii_case(s(p, "name")))),
+    }
+    .ok_or_else(|| format!("no such attachment; it has: {}", if files.is_empty() { "none".to_string() } else { files.iter().map(|a| format!("{} (part {})", a.name, a.part)).collect::<Vec<_>>().join(", ") }))?;
+    let (bytes, _, mime) = parse::part_bytes(&raw, a.part).ok_or("that file is no longer in the message")?;
+    if texty(&mime, &a.name) {
+        let text = String::from_utf8_lossy(&bytes);
+        let cut = text.len() > AGENT_TEXT_MAX;
+        let mut end = AGENT_TEXT_MAX.min(text.len());
+        while !text.is_char_boundary(end) {
+            end -= 1;
+        }
+        return Ok(json!({ "name": a.name, "type": mime, "size": bytes.len(), "text": &text[..end], "truncated": cut }));
+    }
+    let saved = attachment(m, &json!({ "id": x.id, "part": a.part, "name": a.name }))?;
+    let rel = saved["path"].as_str().unwrap_or_default();
+    let abs = if std::path::Path::new(rel).is_absolute() { std::path::PathBuf::from(rel) } else { m.root.join(rel) };
+    Ok(json!({ "name": a.name, "type": mime, "size": bytes.len(), "path": abs.to_string_lossy(), "vault_path": rel, "note": "not text: read the file at path (a PDF, a picture or an office file) with your own file reader" }))
 }
 
 /// Claude's `email_send`: only when the user asked for this exact mail (the tool's description says so).
@@ -1173,6 +1218,38 @@ mod tests {
         call_(&m, "consent_answer", json!({ "id": id, "allow": "" }));
         assert!(asker.join().unwrap().unwrap_err().contains("said no"));
         assert_eq!(m.index.role("fake", "inbox").unwrap().unread, 2, "nothing marked read");
+    }
+
+    #[test]
+    fn an_agent_reads_an_attachment_as_text_or_gets_its_file() {
+        let (m, _s, events, _d) = harness(true);
+        call_(&m, "sync", json!({}));
+        let ask = |p: Value| {
+            let m2 = m.clone();
+            let before = events.lock().unwrap().iter().filter(|(n, _)| n == "consent").count();
+            let t = std::thread::spawn(move || {
+                let f = table().into_iter().find(|(n, _)| *n == "agent_attachment").unwrap().1;
+                call(&m2, f, &p)
+            });
+            let id = loop {
+                let ev = events.lock().unwrap();
+                let ids: Vec<String> = ev.iter().filter(|(n, _)| n == "consent").map(|(_, d)| d["id"].as_str().unwrap().to_string()).collect();
+                if ids.len() > before {
+                    break ids[before].clone();
+                }
+                drop(ev);
+                std::thread::sleep(Duration::from_millis(20));
+            };
+            call_(&m, "consent_answer", json!({ "id": id, "allow": "once" }));
+            t.join().unwrap()
+        };
+        let r = ask(json!({ "uid": "2", "name": "notes.txt" })).unwrap();
+        assert_eq!(r["name"], "notes.txt");
+        assert!(!r["text"].as_str().unwrap().is_empty(), "a text attachment comes back as its text: {r}");
+        assert!(r.get("path").is_none());
+        let e = ask(json!({ "uid": "2", "name": "nothing.pdf" })).unwrap_err();
+        assert!(e.contains("notes.txt"), "a wrong name lists what there is: {e}");
+        assert!(!texty("application/pdf", "a.pdf") && texty("text/csv", "a.csv") && texty("application/octet-stream", "x.bib"));
     }
 
     #[test]

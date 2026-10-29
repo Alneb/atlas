@@ -5,7 +5,8 @@ import { join, resolve, normalize } from "node:path";
 
 // Offline app: libraries that fetch assets at runtime get them from the app itself — from
 // node_modules in dev, copied into dist on build. pdf.js (the backup PDF engine): cMaps / fonts / wasm under /pdfjs/;
-// Excalidraw: its hand-drawn fonts under /excalidraw/ (window.EXCALIDRAW_ASSET_PATH).
+// Excalidraw: its hand-drawn fonts under /excalidraw/ (window.EXCALIDRAW_ASSET_PATH). TikZJax (lib/tikz.ts): TeX's
+// WebAssembly, its format, the TeX files it reads and the Computer Modern fonts under /tikzjax/.
 function nodeAssets(name: string, mount: string, pkgDir: string, dirs: string[]): Plugin {
   const root = resolve(__dirname, "node_modules", pkgDir);
   return {
@@ -71,6 +72,7 @@ export default defineConfig({
     svelte(),
     nodeAssets("pdfjs", "/pdfjs", "pdfjs-dist", ["cmaps", "standard_fonts", "wasm", "iccs"]),
     nodeAssets("excalidraw", "/excalidraw", "@excalidraw/excalidraw/dist/prod", ["fonts"]),
+    nodeAssets("tikzjax", "/tikzjax", "@drgrice1/tikzjax/dist", ["run-tex.js", "tex.wasm.gz", "core.dump.gz", "tex_files", "fonts", "fonts.css"]),
     inkStroke(),
     coreTypesStamp(),
   ],

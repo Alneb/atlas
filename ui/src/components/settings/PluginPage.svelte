@@ -8,10 +8,11 @@
   import FormFields from "../FormFields.svelte";
   import { applies, shown, store, type FormValue } from "../../lib/block-options";
   import { formFields, loadSuggestions, openPluginSettingsText, runSettingsAction, savePluginSettings, secretNames } from "../../lib/plugin-settings.svelte";
-  import { changedSettings, isOff, mayOf, partsOf, pluginDir, removePlugin, switchPlugin, updatePlugin } from "../../lib/plugin-manage";
+  import { changedSettings, giftsOf, isOff, mayOf, partsOf, pluginDir, removePlugin, switchPlugin, updatePlugin } from "../../lib/plugin-manage";
   import { pluginOn, pluginBlocked, pluginSpec, plugins, type Plugin } from "../../lib/plugins.svelte";
   import { pluginLog, clearPluginLog } from "../../lib/plugin-log.svelte";
   import { open, openPath } from "../../lib/dock";
+  import { openSettingsAt, pluginPageId } from "../../lib/settings-nav.svelte";
   import { isIconName } from "../../lib/icons";
   import { accountLists } from "../../lib/accounts.svelte";
   import { sections } from "../../lib/settings-sections.svelte";
@@ -85,6 +86,11 @@
     {#if p.description}<p class="desc">{p.description}</p>{/if}
     <dl>
       <dt>Adds</dt><dd>{partsOf(p).join(" · ") || "nothing yet"}</dd>
+      {#each giftsOf(p).filter((g) => !g.runs) as g (g.to)}
+        <!-- what it would add to a plugin that is off or not installed (a [contributes.<id>] table) -->
+        <dt>With {g.title}</dt>
+        <dd data-plugin-gift={g.to}>{g.what.join(" · ")} — {#if g.here}<button class="link" onclick={() => openSettingsAt(pluginPageId(g.to))}>{g.title} is off</button>{:else}{g.title} is not installed{/if}</dd>
+      {/each}
       {#if may}<dt>May</dt><dd data-plugin-may={p.id}>{may}</dd>{/if}
       <dt>Runs on</dt><dd><PlatformChips {p} /></dd>
     </dl>

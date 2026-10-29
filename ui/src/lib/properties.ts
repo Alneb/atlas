@@ -3,6 +3,7 @@
 // shape), links and tags as pills, collapsible like Obsidian's. Read-only: a click outside a link
 // reveals the YAML. The panel at the right (`= panel`) edits them: components/PropertiesPanel.svelte.
 import { escapeHtml } from "./text";
+import { loadRaw, saveRaw } from "./prefs";
 import { resolveLink } from "./vault";
 import { kindOf, parseYaml, scalarText, WIKI } from "./property-model";
 import { propertySpec } from "./property-spec.svelte";
@@ -43,7 +44,7 @@ function valueHtml(v: unknown, kind: PropertyKind, dir: string): string {
   return items.map(one).join("");
 }
 
-let collapsed = (() => { try { return localStorage.getItem("atlas.properties.collapsed") === "1"; } catch { return false; } })();
+let collapsed = loadRaw("atlas.properties.collapsed") === "1";
 
 /** Build the table. `onLink(target)` opens a link; a YAML error shows the error, not an empty box. */
 export function propertiesElement(yamlText: string, dir: string, onLink: (target: string) => void): HTMLElement {
@@ -61,7 +62,7 @@ export function propertiesElement(yamlText: string, dir: string, onLink: (target
   host.querySelector(".prop-head")!.addEventListener("click", (e) => {
     e.stopPropagation();
     collapsed = !collapsed;
-    try { localStorage.setItem("atlas.properties.collapsed", collapsed ? "1" : "0"); } catch { /* per-viewer nicety */ }
+    saveRaw("atlas.properties.collapsed", collapsed ? "1" : "0");
     for (const el of document.querySelectorAll(".note-properties")) el.classList.toggle("is-collapsed", collapsed);
     host.querySelector(".prop-head")!.setAttribute("aria-expanded", String(!collapsed));
   });

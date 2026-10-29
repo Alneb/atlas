@@ -3,7 +3,9 @@
 // (code-extensions.ts: its language, its server…). Links clicked: link-clicks.ts. Wiring follows obsidian-web's
 // editor.js; the textarea-adapter glue is deliberately not ported.
 import { installImagePeek } from "../image-peek";
+import { basename } from "../paths";
 import type { Problems } from "../state.svelte";
+import { SELECTION_TEXT_MAX } from "../context.svelte";
 import { ansiColors } from "./ansi";
 import { latexSuite } from "./latex-suite";
 import "./md-format"; // registers the note keys' formatter (registry.noteFormat)
@@ -152,7 +154,7 @@ export function createEditor(o: EditorOptions): AtlasEditor {
       }
       if (o.onSelection && (u.selectionSet || (u.focusChanged && u.view.hasFocus))) {
         const { from, to } = u.state.selection.main, d = u.state.doc;
-        o.onSelection({ from_line: d.lineAt(from).number, to_line: d.lineAt(to).number, text: d.sliceString(from, to) });
+        o.onSelection({ from_line: d.lineAt(from).number, to_line: d.lineAt(to).number, text: d.sliceString(from, Math.min(to, from + SELECTION_TEXT_MAX)) });
       }
     }),
     editorMenu({ path: o.path, markdown: md, onOpenLink: o.onOpenLink }),
@@ -188,7 +190,7 @@ export function createEditor(o: EditorOptions): AtlasEditor {
   }
   view.scrollDOM.addEventListener("scroll", keep, { passive: true });
   // Code languages load lazily (language-data splits one chunk per language).
-  const desc = md ? null : LanguageDescription.matchFilename(languages, o.path.split("/").pop() ?? o.path);
+  const desc = md ? null : LanguageDescription.matchFilename(languages, basename(o.path));
   desc?.load().then((support) => { if (!destroyed) view.dispatch({ effects: lang.reconfigure(support) }); },
     (err) => console.warn("[atlas] language load failed", o.path, err));
   if (!md) void lspFor(o.path).then((x) => { if (x && !destroyed) view.dispatch({ effects: lspSlot.reconfigure(x) }); },

@@ -5,7 +5,8 @@
 import { api } from "./api";
 import type { EditorSelection, PaneRef, UiState } from "./types";
 
-const MAX_TEXT = 20_000; // the contract caps selection text at 20 kB
+/** The contract caps selection text at 20 kB; the editor slices no more than this from its document. */
+export const SELECTION_TEXT_MAX = 20_000;
 
 /** The heading the caret is under (Embark: views and formulas default to this subtree). */
 export interface Section { path: string; heading: string; line: number }
@@ -54,7 +55,7 @@ export function setPanes(active: PaneRef | undefined, open: PaneRef[]): void {
 export const currentSelection = () => context.selection;
 
 export function setSelection(s: EditorSelection, section?: Section): void {
-  context.selection = { ...s, text: s.text.length > MAX_TEXT ? s.text.slice(0, MAX_TEXT) : s.text };
+  context.selection = { ...s, text: s.text.length > SELECTION_TEXT_MAX ? s.text.slice(0, SELECTION_TEXT_MAX) : s.text };
   context.section = section;
   changed();
 }

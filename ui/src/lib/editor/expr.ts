@@ -5,8 +5,7 @@
 import { Prec, RangeSetBuilder, type Extension } from "@codemirror/state";
 import { Decoration, EditorView, ViewPlugin, WidgetType, type DecorationSet, type ViewUpdate } from "@codemirror/view";
 import { syntaxTree } from "@codemirror/language";
-import { mount, unmount } from "svelte";
-import ContextMenu from "../../components/ContextMenu.svelte";
+import { atPointer, popMenu } from "../menu";
 import { exprOf, renderExpr } from "../expr";
 
 const FIELD = /^(\s*(?:[-*+]\s+(?:\[.\]\s+)?)?)([\p{L}_][\p{L}\p{N}_ /-]*?::)(?=\s|$)/u;
@@ -36,14 +35,11 @@ function menu(e: MouseEvent, el: HTMLElement, view: EditorView): void {
   const value = el.dataset.value ?? "";
   // where the formula is now (the text before it may have changed since the widget was drawn)
   const at = () => { const n = syntaxTree(view.state).resolveInner(view.posAtDOM(el), 1); return n.name === "InlineCode" ? n : n.parent?.name === "InlineCode" ? n.parent : null; };
-  const m = mount(ContextMenu, { target: document.body, props: {
-    x: e.clientX, y: e.clientY, onclose: () => void unmount(m),
-    items: [
-      { label: "Copy value", icon: "copy", run: () => void navigator.clipboard.writeText(value).catch(() => {}) },
-      { label: "Freeze as text (replace the formula)", icon: "check", run: () => { const n = at(); if (n && value) view.dispatch({ changes: { from: n.from, to: n.to, insert: value } }); } },
-      { label: "Edit the formula", icon: "edit", run: () => { const n = at(); if (n) { view.dispatch({ selection: { anchor: n.from + 1 } }); view.focus(); } } },
-    ],
-  } });
+  popMenu(atPointer(e, [
+    { label: "Copy value", icon: "copy", run: () => void navigator.clipboard.writeText(value).catch(() => {}) },
+    { label: "Freeze as text (replace the formula)", icon: "check", run: () => { const n = at(); if (n && value) view.dispatch({ changes: { from: n.from, to: n.to, insert: value } }); } },
+    { label: "Edit the formula", icon: "edit", run: () => { const n = at(); if (n) { view.dispatch({ selection: { anchor: n.from + 1 } }); view.focus(); } } },
+  ]));
 }
 
 function build(view: EditorView, path: string): DecorationSet {

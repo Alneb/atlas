@@ -54,6 +54,12 @@ export interface Reader {
   zoomBy(f: number, origin?: { x: number; y: number }): void;
   /** Fits again after the view's size changed (a preset zoom only). */
   refit(): void;
+  /** The view is shown again after being hidden (a background tab): its pages drawn anew — a hidden page's canvas can
+   *  come back blank, and nothing else (no scroll, no new width) would draw it. */
+  shown(): void;
+  /** Where the reading is: the page, and `y` the height on it at the view's top (PDF points from its bottom, as
+   *  `goto` takes it), so coming back lands on the same line, not the page's top. */
+  where(): { page: number; y: number | null };
   rotate(): void;
   setSpread(on: boolean): void;
   on<K extends keyof Events>(k: K, fn: Handler<K>): () => void;
@@ -119,7 +125,7 @@ function width100(text: string): number {
 const release = (c: HTMLCanvasElement | null) => { if (c) { c.width = c.height = 0; c.remove(); } }; // WebKit keeps a dropped canvas drawn
 
 /** `path` read by `eng` alone, every page, text, link and match of this opening. */
-export async function openReader(container: HTMLElement, path: string, eng: PdfEngine, start: { zoom: Zoom; page?: number }): Promise<Reader> {
+export async function openReader(container: HTMLElement, path: string, eng: PdfEngine, start: { zoom: Zoom; page?: number; y?: number | null }): Promise<Reader> {
   addStyle();
   const info: DocInfo = await eng.info(path);
   const root = container.querySelector<HTMLElement>(".pdfViewer") ?? container.appendChild(Object.assign(document.createElement("div"), { className: "pdfViewer" }));
@@ -447,6 +453,15 @@ export async function openReader(container: HTMLElement, path: string, eng: PdfE
     pages: info.pages,
     outline: info.outline,
     get page() { return current; },
+    shown() {
+      for (const v of views) if (v.canvas) v.drawnKey = "";
+      update();
+    },
+    where() {
+      if (turns || !views.length) return { page: current, y: null };
+      const [, h] = size(current);
+      return { page: current, y: Math.round((h - (container.scrollTop - tops[current - 1] + 10) / (scale * PX)) * 10) / 10 };
+    },
     get scale() { return scale; },
     get zoom() { return zoom; },
     get rotation() { return turns * 90; },
@@ -597,7 +612,7 @@ export async function openReader(container: HTMLElement, path: string, eng: PdfE
   layout();
   scale = scaleFor(zoom, start.page ?? 1);
   layout();
-  reader.goto(start.page ?? 1);
+  reader.goto(start.page ?? 1, start.y);
   fittedWidth = container.clientWidth;
   return reader;
 }
