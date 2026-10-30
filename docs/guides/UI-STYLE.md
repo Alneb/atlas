@@ -1,6 +1,6 @@
 # UI style — the rules Atlas's interface is built and reviewed against
 
-The UI matters, and its rules come from reading on style. What was read: Anthropic's design fundamentals for pages (the `artifact-design` skill), Vercel's *Web Interface Guidelines* (vercel.com/design/guidelines), and Butterick's *Practical Typography* ("Typography in ten minutes"). This file keeps the parts that apply to a desktop workspace app, phrased as checks. Every visible change is judged against them **from a screenshot**, in both themes.
+The UI matters, and its rules come from reading on style. What was read: Anthropic's design fundamentals for pages (the `artifact-design` skill), Vercel's *Web Interface Guidelines* (vercel.com/design/guidelines), Butterick's *Practical Typography* ("Typography in ten minutes"), and the desktop human interface guidelines of GNOME (developer.gnome.org/hig) and KDE (develop.kde.org/hig), the two desktops Atlas mostly runs on (§9). This file keeps the parts that apply to a desktop workspace app, phrased as checks. Every visible change is judged against them **from a screenshot**, in both themes.
 
 ## 1. Use the system that exists
 - Colors, radii, shadows, fonts and sizes come from `ui/src/styles/tokens.css`. No literal colors in components; a new need becomes a token.
@@ -20,6 +20,8 @@ The UI matters, and its rules come from reading on style. What was read: Anthrop
 
 ## 3. Hierarchy and surfaces
 - A border, a fill, a radius and a shadow each say "this is a separate object". Use them **by role**, not on every block; the same card around everything flattens the page.
+- A block on a page (Home, a `.page`) is set apart by its fill alone (`--card-bg`); `--card-border` is transparent
+  except on e-ink, where a fill does not show. A border around every block is the "same card everywhere" look (§8).
 - Nested radii are concentric: a child's radius is never larger than its parent's.
 - Shadows are layered (ambient + direct); borders are semi-transparent tokens so they stay crisp on any surface.
 - Summary before detail. State is shown in form as well as number (a chip, a dot, a stripe), never by color alone.
@@ -55,3 +57,27 @@ The UI matters, and its rules come from reading on style. What was read: Anthrop
 
 ## 8. What to avoid
 The looks that read as generated: everything centered, the same rounded card everywhere, an accent stripe on every card, emoji as section markers, gradients as decoration.
+
+## 9. From the GNOME and KDE guidelines
+What they add to the above, as checks. Where the two disagree, Atlas keeps one rule.
+- **Capitalisation: sentence case everywhere** (buttons, headings, menus, tooltips). GNOME wants title case on
+  buttons and headings, KDE on most labels; Atlas has always written sentence case, and one rule beats two.
+- **Labels**: a button starts with its verb ("Show info", not "Info"; "Apply", not "Yes"), no longer than
+  "Configure keyboard shortcuts". No final period in a label or a one-sentence text. Avoid acronyms where a word
+  does ("link", not "URL"); "Delete" only for removing from disk, and Atlas's deletions go to the trash.
+- **Placeholders**: an example when a label names the field, else a short imperative; never ending with "…" when
+  it is not a search box. A placeholder fits its field whole (clipped text is a bug, §6).
+- **Dialogs**: one to three buttons; a confirmation has exactly two, Cancel first and the specific verb last
+  ("Move to trash", never "OK"); Enter takes the verb unless it destroys, Esc cancels; focus starts on the control
+  used first. A destructive action prefers Undo in a toast to a confirmation.
+- **Toasts**: one event, not a state (a state is a banner or a status); a short sentence-case title; a button only
+  when it is directly about the message (Undo); near the bottom, never over what they speak of.
+- **Empty views**: an icon, one line on why it is empty, and the action that fills it (KDE's placeholder message).
+- **Progress**: anything over a second shows progress — determinate when the amount is known.
+- **Settings apply at once**, without a restart; no page or section named "Advanced" (a sub-page instead); a
+  switch is not a substitute for a design decision.
+- **Spacing** in steps: none between a title and its subtitle, small between related items, large between
+  groups and at a pane's edge. Text over images or textures is avoided.
+- **Text measure**: multi-sentence help ≤ 85 characters a line (≈ 450 px).
+- **Typography**: the real characters — × for dimensions, – for ranges, − for minus, a thin space before units.
+- **Light, dark, and the system**: both themes and "follow the system"; check high contrast too.

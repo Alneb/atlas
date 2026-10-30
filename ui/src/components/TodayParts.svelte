@@ -498,7 +498,7 @@
   .greet-chip .gi { font-size: 1.05em; line-height: 1; }
   .today-date { font-size: calc(30px * var(--ui-scale, 1)); font-weight: 650; letter-spacing: -.02em; color: var(--heading); margin: 0; }
 
-  .card { background: var(--bg-alt); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 16px 18px; margin-bottom: 16px; }
+  .card { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: var(--radius-lg); padding: 16px 18px; margin-bottom: 16px; }
   .day-nav { display: inline-flex; align-items: center; gap: 2px; }
   .day-nav .icon-btn { font-size: calc(17px * var(--ui-scale, 1)); line-height: 1; }
   .day-nav .icon-btn:disabled { opacity: .35; }

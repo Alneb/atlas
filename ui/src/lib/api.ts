@@ -126,6 +126,8 @@ export const api = {
   triageCapture: (req: TriageRequest) => request<void>("POST", "/api/captures/triage", { body: req }),
   /** Files opened lately (the usage journal), then changed lately: `limit` in all. */
   recent: (limit: number) => request<string[]>("GET", "/api/recent", { query: { limit } }),
+  /** The ids of the commands run lately (the usage journal), newest first. */
+  recentCommands: (limit: number) => request<string[]>("GET", "/api/recent/commands", { query: { limit } }),
   pluginData: (id: string, args?: unknown) => request<unknown>("POST", `/api/plugins/${encodeURIComponent(id)}/data`, { body: args }),
   me: () => request<Me>("GET", "/api/auth/me"),
   /** The core: its version, plugin API, interface build and its terminal's shell (`posix`, `powershell`, `cmd`). */

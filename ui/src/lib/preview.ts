@@ -1,7 +1,7 @@
 // Hover previews: resting the pointer on a link in a note — [[wikilink]], [text](url), the reading view's
 // links — or on a tab in the left bar shows what it leads to in a small card: a note rendered, a
 // picture, a PDF's first page, a code file's first lines, a web address. A tab shows itself as last
-// seen (any kind: Settings, a Base, a PDF at its page; a terminal as its last lines). One installer for the whole
+// seen (Settings, a Base, a PDF at its page; a terminal as its last lines; a note or a text file as its text). One installer for the whole
 // window (like image-peek.ts): an element says what it points at through `targetOf`; the card stays
 // while the pointer is on it, so a long preview can be scrolled.
 import { dirOf, shownName, IMAGE_RE } from "./paths";
@@ -81,7 +81,9 @@ export async function drawPreview(card: HTMLElement, t: PreviewTarget, width = C
       body.append(pre);
       return;
     }
-    const mini = el && miniature(el, width);
+    // a note or a text file is read as a link's preview is: its pane shrunk to the card is text too small to read
+    const readable = !!t.path && TEXT.test(t.path);
+    const mini = !readable && el && miniature(el, width);
     if (mini) { head.textContent = t.title; body.classList.add("preview-mini"); body.append(mini); return; }
     return drawPreview(card, t.path ? { kind: "file", path: t.path, title: t.title } : { kind: "pane", title: t.title, detail: t.detail });
   }

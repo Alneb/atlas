@@ -994,6 +994,12 @@ async fn recent_get(State(st): S, Query(q): Query<RecentQuery>) -> Result<Json<V
     Ok(Json(with_ws(&st, move |ws| crate::usage::recent(&ws, limit)).await?))
 }
 
+/// The commands run lately (`usage::commands`): the palette's first commands.
+async fn recent_commands_get(State(st): S, Query(q): Query<RecentQuery>) -> Result<Json<Vec<String>>> {
+    let limit = q.limit.unwrap_or(8).min(50);
+    Ok(Json(with_ws(&st, move |ws| Ok(crate::usage::commands(&ws, limit))).await?))
+}
+
 /// The usage journal (`usage.rs`): the UI reports file opens, acted-on searches and commands.
 async fn usage_post(State(st): S, Json(e): Json<crate::usage::UsageEvent>) -> Result<StatusCode> {
     with_ws(&st, move |ws| crate::usage::record(&ws, e)).await?;
@@ -2131,6 +2137,7 @@ fn router(state: Arc<AppState>) -> Router {
         .route("/api/css-snippets", get(css_snippets_get))
         .route("/api/home", get(home_get))
         .route("/api/recent", get(recent_get))
+        .route("/api/recent/commands", get(recent_commands_get))
         .route("/api/vaults", get(vaults_get))
         .route("/api/vaults/open", post(vaults_open_post))
         .route("/api/vaults/forget", post(vaults_forget_post))

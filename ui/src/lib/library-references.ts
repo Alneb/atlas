@@ -112,7 +112,7 @@ export function referencesSource(): LibrarySource {
       };
     },
     add: {
-      placeholder: "Add by DOI, arXiv id or URL — or drop a PDF", busy: "Adding…",
+      placeholder: "DOI, arXiv id or link — or drop a PDF", busy: "Adding…",
       async run(text) {
         const r = await api.refsAdd(text);
         toast(r.created ? `Added ${r.paper.key}` : `Already in the library: ${r.paper.key}`, r.paper.title + (r.created && r.pdf ? " · PDF downloaded" : ""), r.created ? "success" : "info");

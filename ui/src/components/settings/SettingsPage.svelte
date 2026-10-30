@@ -131,7 +131,7 @@
      not pills of every width wrapping into a ragged block (eleven of them on Appearance) */
   .features { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 6px; }
   /* the whole name (a command's title is what it does: cut, it said nothing), its keys under it */
-  .feature { position: relative; display: flex; flex-direction: column; justify-content: center; align-items: flex-start; gap: 4px; min-width: 0; padding: 7px 44px 7px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--bg-alt); text-align: left; }
+  .feature { position: relative; display: flex; flex-direction: column; justify-content: flex-start; align-items: flex-start; /* titles of a row on one line, whatever their neighbours hold */ gap: 4px; min-width: 0; padding: 7px 44px 7px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--bg-alt); text-align: left; }
   .feature:hover { border-color: var(--accent); }
   .feature .t { min-width: 0; color: var(--text); line-height: 1.3; }
   .feature .d { margin-top: -3px; color: var(--text-faint); font-size: .88em; line-height: 1.3; }

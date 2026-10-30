@@ -60,7 +60,8 @@ test("connecting a bank: a filtered list, the consent's address pasted back, the
   // step 0: the key, kept as a secret through a file chooser
   const chooser = page.waitForEvent("filechooser");
   await page.getByRole("button", { name: /Choose the key file|Replace the key/ }).click();
-  await (await chooser).setFiles({ name: "app.pem", mimeType: "text/plain", buffer: Buffer.from("-----BEGIN PRIVATE KEY-----\nfake\n-----END PRIVATE KEY-----\n") });
+  const pem = "-----BEGIN PRIVATE KEY-----\nfake\n-----END PRIVATE KEY-----\n"; // scan:allow (a fake key: the page checks only its shape)
+  await (await chooser).setFiles({ name: "app.pem", mimeType: "text/plain", buffer: Buffer.from(pem) });
 
   // step 1: the country's banks, narrowed by typing
   await page.getByRole("button", { name: "Connect a bank" }).click();

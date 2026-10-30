@@ -112,7 +112,7 @@
         const done = (options: Record<string, unknown> = {}) => { place(newBlock(type, options)); void save(); };
         if (b?.file) setTimeout(() => pickFile(b.file!, (p) => done({ path: p })), 0); // after this palette closes
         else if (type === "text") done({ text: "Write here." });
-        else if (type === "web") setTimeout(() => pick({ placeholder: "Address (https://…)", tag: "Web page", icon: "globe", items: [], typed: (t) => `Show ${t}`, onpick: (url) => done({ url }) }), 0);
+        else if (type === "web") setTimeout(() => pick({ placeholder: "Address (https://…)", tag: "Web page", icon: "globe", items: [], typed: (t) => `Show ${t}`, typedAs: { section: "", icon: "globe" }, onpick: (url) => done({ url }) }), 0);
         else done(b ? {} : { from: "tasks" });
       },
     });
@@ -164,7 +164,7 @@
     return there?.type === b.type ? there : undefined;
   }
   function ask(placeholder: string, tag: string, then: (v: string) => void, clear?: string): void {
-    pick({ placeholder, tag, icon: "edit", items: clear ? [{ value: "", title: clear }] : [], typed: (t) => `Use “${t}”`, onpick: then });
+    pick({ placeholder, tag, icon: "edit", items: clear ? [{ value: "", title: clear }] : [], typed: (t) => `Use “${t}”`, typedAs: { section: "", icon: "edit" }, onpick: then });
   }
   function blockMenu(e: MouseEvent, b: PageBlock): void {
     const at = findBlock(page, b.id);
@@ -305,7 +305,7 @@
   /* narrow (a phone): the tools take their own line; laid over the page they covered the greeting at a large font */
   @container (max-width: 760px) { .tools { position: static; justify-content: flex-end; margin: -16px -8px 6px 0; } }
   .pb { min-width: 0; position: relative; }
-  .pb.card { background: var(--bg-alt); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 16px 18px; }
+  .pb.card { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: var(--radius-lg); padding: 16px 18px; }
   .pb h2 { font-size: calc(12px * var(--ui-scale, 1)); font-weight: 600; text-transform: uppercase; letter-spacing: .07em; color: var(--text-muted); margin: 0 0 8px; }
   .pb[data-block="base"] { padding: 10px; }
   .content { min-width: 0; }

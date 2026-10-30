@@ -33,6 +33,7 @@
   let adj: Set<number>[] = [];
   let view = { x: 0, y: 0, k: 1 };
   let heat = 1; // the layout cools down, then stops (no CPU when nothing moves)
+  const FEW = 40; // up to this many notes, every name is drawn
   let moved = false; // the reader panned or zoomed: the view is theirs, not fitted again
   let raf = 0;
 
@@ -159,12 +160,13 @@
       c.fillStyle = col.palette[n.hue];
       c.beginPath(); c.arc(n.x, n.y, 3 + Math.sqrt(n.deg) * 1.6, 0, Math.PI * 2); c.fill();
     }
-    // labels: the hovered note and its neighbours, or every note when zoomed in
+    // labels: the hovered note and its neighbours, or every note when zoomed in or when there are few enough to read
+    // (a graph of unnamed dots says nothing)
     c.font = `${12 / view.k}px ${col.font}`;
     c.fillStyle = col.text;
     c.textAlign = "center";
     for (const n of nodes) {
-      const show = hover !== null ? lit(n.i) : view.k > 1.6 || (q && match(n));
+      const show = hover !== null ? lit(n.i) : view.k > 1.6 || nodes.length <= FEW || (q && match(n));
       if (!show) continue;
       c.globalAlpha = match(n) ? 1 : 0.3;
       c.fillText(n.name, n.x, n.y - (6 + Math.sqrt(n.deg) * 1.6));

@@ -377,7 +377,7 @@
   input:focus { outline: none; border-color: var(--accent); }
   .search { flex: 1; min-width: 220px; }
   .add { display: flex; gap: 6px; }
-  .add input { width: 240px; }
+  .add input { width: 270px; } /* the placeholder whole (clipped text is a bug) */
   .seg { display: inline-flex; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); overflow: hidden; }
   .seg button { padding: 4px 10px; color: var(--text-muted); }
   .seg button.on { background: var(--accent-soft); color: var(--accent); }

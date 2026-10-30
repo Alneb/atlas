@@ -77,3 +77,11 @@ test("in a phone's browser, a sideways swipe on the top bar shows the next tab, 
   await swipe(20); // too short: nothing
   await expect(page.locator(".phone-top .title")).toContainText("plover");
 });
+
+// An app (Home, Library) is not one of the groups' tabs: the top bar names it all the same, not "Atlas".
+test("the phone's top bar names an open app as it names a note", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.locator(".phone-bar")).toBeVisible();
+  await page.locator(".phone-bar button", { hasText: "Home" }).click();
+  await expect(page.locator(".phone-top .title")).toHaveText("Home");
+});

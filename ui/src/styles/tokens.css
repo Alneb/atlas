@@ -24,6 +24,9 @@ html.phone:not(.native-shell) { --fab-room: 72px; }
   --bg-app: #101216;
   --bg: #16181d;
   --bg-alt: #1a1d23;
+  /* a block on a page (Home, a .page): set apart by its fill alone — a border on every block flattens the page */
+  --card-bg: #1c1f26;
+  --card-border: transparent;
   --bg-elev: #1f2229;
   --bg-hover: rgba(255, 255, 255, .045);
   --bg-active: rgba(255, 255, 255, .08);
@@ -67,6 +70,8 @@ html.phone:not(.native-shell) { --fab-room: 72px; }
   --bg-app: #eceef2;
   --bg: #ffffff;
   --bg-alt: #f8f9fb;
+  --card-bg: #f4f5f8;
+  --card-border: transparent;
   --bg-elev: #ffffff;
   --bg-hover: rgba(15, 23, 42, .045);
   --bg-active: rgba(15, 23, 42, .075);
@@ -108,6 +113,7 @@ html.phone:not(.native-shell) { --fab-room: 72px; }
    as flat fills, no translucency (dither), no shadows (a frame instead), colours dark enough for a 16-grey screen. */
 :root.eink {
   --bg-app: #ffffff; --bg: #ffffff; --bg-alt: #ffffff; --bg-elev: #ffffff;
+  --card-bg: #ffffff; --card-border: var(--border); /* a fill does not show on e-ink: the line does */
   --bg-hover: transparent; --bg-active: #e4e4e4;
   --border: #5a5a5a; --border-strong: #000000; /* darker than light mode's: a 1 px grey line breaks up on the panel */
   --text: #000000; --text-muted: #1f1f1f; --text-faint: #3a3a3a; --heading: #000000;

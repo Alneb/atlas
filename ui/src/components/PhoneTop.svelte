@@ -4,9 +4,12 @@
   import { canNavigate, navigate } from "../lib/dock";
   import { openPalette } from "../lib/palette.svelte";
   import { activate, tabOrder, tabs } from "../lib/tabs.svelte";
+  import { allApps } from "../lib/apps.svelte";
   import Icon from "./Icon.svelte";
 
-  const shown = $derived(tabs.groups.flatMap((g) => g.tabs).find((t) => t.active) ?? null);
+  // an open app (Home, Library…) is not among the groups' tabs: named as its tile in the bar is
+  const tab = $derived([...tabs.groups.flatMap((g) => g.tabs), ...tabs.apps].find((t) => t.active) ?? null);
+  const shown = $derived(tab && { title: allApps().find((a) => a.ids.includes(tab.id))?.title ?? tab.title });
   // read again when the active tab changes, so Back is shown only when it goes somewhere
   const back = $derived(shown ? canNavigate(-1) : false);
 

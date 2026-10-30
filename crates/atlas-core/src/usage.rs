@@ -79,6 +79,23 @@ pub fn opened(root: &Path, cfg: &Config, limit: usize) -> Vec<String> {
     out
 }
 
+/// The commands run lately (`GET /api/recent/commands`: the palette lists them first), newest first, once each, at
+/// most `limit`.
+pub fn commands(ws: &Workspace, limit: usize) -> Vec<String> {
+    let mut out: Vec<String> = Vec::new();
+    for e in read(ws).into_iter().rev() {
+        if out.len() >= limit {
+            break;
+        }
+        if let UsageEvent::Command { id } = e.event {
+            if !out.contains(&id) {
+                out.push(id);
+            }
+        }
+    }
+    out
+}
+
 /// The files to come back to (`GET /api/recent`: the palette, the phone's Home): [`opened`], then the ones changed
 /// lately to fill up to `limit`.
 pub fn recent(ws: &Workspace, limit: usize) -> Result<Vec<String>> {
@@ -114,5 +131,17 @@ mod recent_tests {
         assert_eq!(&r[..3], ["b.md", "a.md", "c.md"], "opened newest first, once each; then the rest by change: {r:?}");
         assert!(!r.contains(&"gone.md".to_string()));
         assert_eq!(recent(&ws, 1).unwrap(), ["b.md"]);
+    }
+
+    #[test]
+    fn commands_are_the_ones_run_lately_newest_first_once_each() {
+        let t = tempfile::tempdir().unwrap();
+        let ws = Workspace::open(t.path()).unwrap();
+        for id in ["a", "b", "a", "c"] {
+            record(&ws, UsageEvent::Command { id: id.into() }).unwrap();
+        }
+        record(&ws, UsageEvent::Open { path: "x.md".into() }).unwrap();
+        assert_eq!(commands(&ws, 10), ["c", "a", "b"]);
+        assert_eq!(commands(&ws, 2), ["c", "a"]);
     }
 }

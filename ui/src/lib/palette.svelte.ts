@@ -18,8 +18,11 @@ export interface PickRequest {
   tag: string;
   icon?: IconName;
   items: PickItem[] | (() => Promise<PickItem[]>);
-  /** Offer the typed text as a new value ("New course “X”"); returns that row's title. */
-  typed?: (text: string) => string;
+  /** Offer the typed text as a new value ("New course “X”"); returns that row's title, or null when the text offers
+   *  nothing (a rename to the same name). */
+  typed?: (text: string) => string | null;
+  /** That row's heading and icon when it is not a new thing ("New", +): a rename's row is the rename itself. */
+  typedAs?: { section: string; icon: IconName };
   onpick(value: string, isNew: boolean): void | Promise<void>;
   /** The box starts with this typed (a rename: the current name). */
   seed?: string;

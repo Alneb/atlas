@@ -10,14 +10,18 @@ import { errText } from "./text";
 export function renameFile(path: string): void {
   const slash = path.lastIndexOf("/"), dir = slash < 0 ? "" : path.slice(0, slash + 1), name = path.slice(slash + 1);
   const ext = /\.md$/i.test(name) ? ".md" : "";
+  /** The file's new name: no folder separators; a note keeps its .md (outside the explorer it has none). */
+  const target = (typed: string) => {
+    const to = typed.trim().replace(/[\\/]/g, "-");
+    return !to || !ext || to.toLowerCase().endsWith(ext) ? to : to + ext;
+  };
   pick({
     placeholder: `New name for ${name}`, tag: "Rename", icon: "edit", items: [], seed: ext ? name.slice(0, -ext.length) : name,
-    typed: (t) => `Rename to ${t.trim()}${ext && !t.trim().toLowerCase().endsWith(ext) ? ext : ""}`,
+    // the name as it stands offers nothing to do
+    typed: (t) => { const to = target(t); return to && to !== name ? `Rename to ${to}` : null; }, typedAs: { section: "", icon: "edit" },
     onpick: async (typed) => {
-      let to = typed.trim().replace(/[\\/]/g, "-");
-      if (!to) return;
-      if (ext && !to.toLowerCase().endsWith(ext)) to += ext; // a note keeps its .md (outside the explorer it has none)
-      if (to === name) return;
+      const to = target(typed);
+      if (!to || to === name) return;
       try {
         const follow = movedTabs(path, dir + to);
         await api.move(path, dir + to);

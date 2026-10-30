@@ -10,7 +10,7 @@
   import { Newest } from "../lib/newest";
   import { palette, closePalette, pickChosen, captureText, type PickItem } from "../lib/palette.svelte";
   import { open, openPath, activeEditorId, getDock } from "../lib/dock";
-  import { recentFiles } from "../lib/recent";
+  import { recentFiles, recentCommands, rememberCommand } from "../lib/recent";
   import { createNote } from "../lib/notes-system";
   import { editors } from "../lib/registry";
   import { fuzzy, highlightMatch } from "../lib/fuzzy";
@@ -119,6 +119,9 @@
     return query ? out.sort((a, b) => b.score - a.score) : out;
   }
 
+  /** Where a command stands among the ones run lately; the rest after them, in their order (the sort is stable). */
+  const ranAt = (ran: string[], id: string) => { const i = ran.indexOf(id); return i < 0 ? ran.length : i; };
+
   /** `tag:name` asks the core for a tag's notes: its answer is the list, not something to match by name. */
   const tagQuery = (q: string) => /^tag:/i.test(q.trim());
   const titledItems = (): Item[] => titledHits.map((t) => ({
@@ -160,7 +163,8 @@
           run: () => req.onpick(p.value, false),
         }));
         const exact = picks.some((p) => p.title.toLowerCase() === query.toLowerCase() || p.value === query);
-        if (req.typed && query && !exact) ranked.push({ key: "p:new", section: "New", title: req.typed(query), icon: "plus", score: -1, hl: [], run: () => req.onpick(query, true) });
+        const offer = req.typed && query && !exact ? req.typed(query) : null;
+        if (offer) ranked.push({ key: "p:new", section: req.typedAs?.section ?? "New", title: offer, icon: req.typedAs?.icon ?? "plus", score: -1, hl: [], run: () => req.onpick(query, true) });
         return ranked;
       }
       case "files": {
@@ -175,9 +179,12 @@
       case "all": {
         if (query.startsWith("#")) return headingItems(query.slice(1).trim());
         const cq = query.startsWith(">") ? query.slice(1).trim() : query;
-        const cmds = score(allCommands(), (c) => c.title, cq)
+        // the palette's own command is no use from inside it; with nothing typed, the ones run lately lead
+        const ran = cq ? [] : recentCommands();
+        const cmds = score(allCommands().filter((c) => c.id !== "ui.palette"), (c) => c.title, cq)
+          .sort((a, b) => ranAt(ran, a.item.id) - ranAt(ran, b.item.id))
           .slice(0, query ? 12 : 50)
-          .map(({ item: c, score: s, hl }) => ({ key: `c:${c.id}`, section: "Commands", title: c.title, detail: c.description ?? (c.source === "script" ? "script" : undefined), keys: c.keys, icon: "command" as IconName, score: s, hl, run: c.run }));
+          .map(({ item: c, score: s, hl }) => ({ key: `c:${c.id}`, section: ran.includes(c.id) ? "Recent commands" : "Commands", title: c.title, detail: c.description ?? (c.source === "script" ? "script" : undefined), keys: c.keys, icon: "command" as IconName, score: s, hl, run: c.run }));
         if (query.startsWith(">")) return cmds;
         const files = query ? fileItems(fileHits, tagQuery(query) ? "" : query, tagQuery(query) ? "Notes with this tag" : "Files") : fileItems(recentFiles().slice(0, 6), "", "Recent files");
         const heads = query ? headingItems(query).slice(0, 5) : [];
@@ -214,7 +221,7 @@
 
   function choose(it: Item | undefined, beside = false) {
     if (!it) return;
-    if (it.key.startsWith("c:")) api.usage({ kind: "command", id: it.key.slice(2) });
+    if (it.key.startsWith("c:")) { api.usage({ kind: "command", id: it.key.slice(2) }); rememberCommand(it.key.slice(2)); }
     if (palette.mode === "pick") pickChosen();
     closePalette();
     void (beside && it.beside ? it.beside() : it.run());
@@ -258,7 +265,8 @@
             {#if it.keys}<span class="kbd-group keys-only">{#each chordLabel(it.keys) as k}<kbd>{k}</kbd>{/each}</span>{/if}
           </button>
         {:else}
-          <div class="none">{q.trim() ? (busy ? "Searching…" : "No matches") : palette.mode === "url" ? "Type an address" : "Start typing"}</div>
+          <!-- a chooser that takes typed text and has nothing to offer for it yet (a rename to the same name) asks again -->
+          <div class="none">{palette.mode === "pick" && palette.pick?.typed ? palette.pick.placeholder : q.trim() ? (busy ? "Searching…" : "No matches") : palette.mode === "url" ? "Type an address" : "Start typing"}</div>
         {/each}
       </div>
       <div class="foot">

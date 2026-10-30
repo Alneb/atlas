@@ -44,6 +44,9 @@ test("links and left-bar tabs preview what they lead to", async ({ page, request
   await page.getByTestId("sidebar").locator(".tab", { hasText: "peek" }).hover();
   await expect(card).toBeVisible();
   await expect(card).toContainText("Last line.");
+  // a note's tab reads as its text, never its pane shrunk past reading
+  await expect(card.locator(".preview-body.markdown")).toBeVisible();
+  await expect(card.locator(".preview-mini")).toHaveCount(0);
   await page.getByTestId("sidebar").locator(".tab", { hasText: "peek" }).click();
   await expect(card).toBeHidden();
 });
