@@ -49,6 +49,14 @@ export function restoreVisual(v: EditorView): void {
   queueMicrotask(() => { const cm = getCM(v); if (cm?.state.vim?.insertMode) Vim.exitInsertMode(cm as never); });
 }
 
+/** Vim back in normal mode with the caret at `at` (when a selection made for it, not by vim, put it in visual mode). */
+export function leaveVisual(v: EditorView, at: number): void {
+  const cm = getCM(v);
+  if (!cm?.state.vim?.visualMode) return;
+  Vim.exitVisualMode(cm as never);
+  v.dispatch({ selection: { anchor: at } });
+}
+
 // The second vim mode (`[editor] vim_keys = "desktop"`): the six keys every other program uses
 // do what they do everywhere, in normal, visual and insert mode. Copy, cut and paste are the
 // browser's own — the key must simply not be taken by vim, and vim's key handler has no "skip this

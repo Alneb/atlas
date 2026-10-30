@@ -113,6 +113,6 @@
   .plugin-host { flex: 1; min-height: 0; overflow: auto; }
   /* a view drawn as a block (view.js → mountBlock) is a tab already: no "open as a tab" button, which also sat past the edge */
   .plugin-host > :global(.block-pop) { display: none; }
-  .plugin-error { margin: 18px; padding: 12px 14px; border: 1px solid var(--danger, #e06c75); border-radius: var(--radius); }
+  .plugin-error { margin: 18px; padding: 12px 14px; border: 1px solid var(--red); border-radius: var(--radius); }
   .plugin-error pre { white-space: pre-wrap; font: 12px var(--font-mono, monospace); margin: 8px 0; }
 </style>

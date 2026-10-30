@@ -1,4 +1,4 @@
-import { $ as e, A as t, B as n, C as r, D as i, E as a, F as o, G as s, H as c, I as l, J as u, K as d, L as f, M as p, N as m, O as h, P as g, Q as _, R as v, S as y, T as b, U as x, V as S, W as C, X as w, Y as T, Z as E, _ as D, a as O, at as k, b as A, c as j, ct as M, d as N, dt as P, et as F, f as I, ft as L, g as ee, gt as te, h as R, ht as z, i as B, it as V, k as H, l as U, lt as W, m as ne, mt as re, n as ie, nt as ae, o as G, ot as K, p as oe, pt as se, q, r as ce, rt as J, s as le, st as Y, t as ue, tt as de, u as fe, ut as X, v as pe, w as Z, x as me, y as Q, z as he } from "./ui-lib/layout.js";
+import { $ as e, A as t, B as n, C as r, D as i, E as a, F as o, G as s, H as c, I as l, J as u, K as d, L as f, M as p, N as m, O as h, P as g, Q as _, R as v, S as y, T as b, U as x, V as S, W as C, X as w, Y as T, Z as E, _ as D, a as O, at as k, b as A, c as j, ct as M, d as N, dt as ee, et as P, f as F, ft as I, g as te, gt as ne, h as L, ht as R, i as z, it as B, k as V, l as H, lt as U, m as W, mt as re, n as ie, nt as ae, o as G, ot as K, p as oe, pt as se, q, r as ce, rt as J, s as le, st as Y, t as ue, tt as de, u as fe, ut as X, v as pe, w as Z, x as me, y as Q, z as he } from "./ui-lib/layout.js";
 //#region plugins/stable/dav/ui/src/store.svelte.ts
 var ge = "notes", _e = (e) => {
 	try {
@@ -12,126 +12,126 @@ var ge = "notes", _e = (e) => {
 	} catch {}
 }, ye = class {
 	atlas;
-	#e = W(Y([]));
+	#e = U(Y([]));
 	get sources() {
 		return e(this.#e);
 	}
 	set sources(e) {
 		M(this.#e, e, !0);
 	}
-	#t = W(Y([]));
+	#t = U(Y([]));
 	get accounts() {
 		return e(this.#t);
 	}
 	set accounts(e) {
 		M(this.#t, e, !0);
 	}
-	#n = W(Y([]));
+	#n = U(Y([]));
 	get events() {
 		return e(this.#n);
 	}
 	set events(e) {
 		M(this.#n, e, !0);
 	}
-	#r = W("week");
+	#r = U("week");
 	get view() {
 		return e(this.#r);
 	}
 	set view(e) {
 		M(this.#r, e, !0);
 	}
-	#i = W(Y(D(/* @__PURE__ */ new Date())));
+	#i = U(Y(D(/* @__PURE__ */ new Date())));
 	get cursor() {
 		return e(this.#i);
 	}
 	set cursor(e) {
 		M(this.#i, e, !0);
 	}
-	#a = W(!0);
+	#a = U(!0);
 	get loading() {
 		return e(this.#a);
 	}
 	set loading(e) {
 		M(this.#a, e, !0);
 	}
-	#o = W(!1);
+	#o = U(!1);
 	get syncing() {
 		return e(this.#o);
 	}
 	set syncing(e) {
 		M(this.#o, e, !0);
 	}
-	#s = W("");
+	#s = U("");
 	get error() {
 		return e(this.#s);
 	}
 	set error(e) {
 		M(this.#s, e, !0);
 	}
-	#c = W(!0);
+	#c = U(!0);
 	get configured() {
 		return e(this.#c);
 	}
 	set configured(e) {
 		M(this.#c, e, !0);
 	}
-	#l = W(null);
+	#l = U(null);
 	get write() {
 		return e(this.#l);
 	}
 	set write(e) {
 		M(this.#l, e, !0);
 	}
-	#u = W(Y(_e("last")));
+	#u = U(Y(_e("last")));
 	get last() {
 		return e(this.#u);
 	}
 	set last(e) {
 		M(this.#u, e, !0);
 	}
-	#d = W(Y([]));
+	#d = U(Y([]));
 	get hidden() {
 		return e(this.#d);
 	}
 	set hidden(e) {
 		M(this.#d, e, !0);
 	}
-	#f = W(Y({}));
+	#f = U(Y({}));
 	get colors() {
 		return e(this.#f);
 	}
 	set colors(e) {
 		M(this.#f, e, !0);
 	}
-	#p = W(Y([]));
+	#p = U(Y([]));
 	get toasts() {
 		return e(this.#p);
 	}
 	set toasts(e) {
 		M(this.#p, e, !0);
 	}
-	#m = W(null);
+	#m = U(null);
 	get results() {
 		return e(this.#m);
 	}
 	set results(e) {
 		M(this.#m, e, !0);
 	}
-	#h = W("");
+	#h = U("");
 	get query() {
 		return e(this.#h);
 	}
 	set query(e) {
 		M(this.#h, e, !0);
 	}
-	#g = W(Y(/* @__PURE__ */ new Date()));
+	#g = U(Y(/* @__PURE__ */ new Date()));
 	get now() {
 		return e(this.#g);
 	}
 	set now(e) {
 		M(this.#g, e, !0);
 	}
-	#_ = W(!1);
+	#_ = U(!1);
 	get narrow() {
 		return e(this.#_);
 	}
@@ -156,7 +156,7 @@ var ge = "notes", _e = (e) => {
 		return me(this.settings.week_start);
 	}
 	get h12() {
-		return U(this.settings.time_format);
+		return H(this.settings.time_format);
 	}
 	get showNotes() {
 		return this.settings.show_notes === !0;
@@ -174,26 +174,26 @@ var ge = "notes", _e = (e) => {
 				let e = pe(t, this.first);
 				return {
 					from: e,
-					to: B(e, 6)
+					to: z(e, 6)
 				};
 			}
 			case "workweek": {
 				let e = pe(t, 1);
 				return {
 					from: e,
-					to: B(e, 4)
+					to: z(e, 4)
 				};
 			}
 			case "month": {
 				let e = pe(new Date(t.getFullYear(), t.getMonth(), 1), this.first);
 				return {
 					from: e,
-					to: B(e, 41)
+					to: z(e, 41)
 				};
 			}
 			case "agenda": return {
 				from: t,
-				to: B(t, 59)
+				to: z(t, 59)
 			};
 			case "year": return {
 				from: new Date(t.getFullYear(), 0, 1),
@@ -203,7 +203,7 @@ var ge = "notes", _e = (e) => {
 	}
 	days() {
 		let { from: e, to: t } = this.range(), n = [];
-		for (let r = e; r <= t; r = B(r, 1)) n.push(r);
+		for (let r = e; r <= t; r = z(r, 1)) n.push(r);
 		return n;
 	}
 	colorOf(e) {
@@ -249,7 +249,7 @@ var ge = "notes", _e = (e) => {
 			let t = await G(this.atlas, "refresh", { force: e }, 300);
 			await this.loadSources(), t.changed && await this.load(!0), t.errors.length && this.toast(t.errors[0], "error");
 		} catch (e) {
-			this.toast(e.message, "error");
+			this.error ||= e.message;
 		} finally {
 			this.syncing = !1;
 		}
@@ -265,11 +265,11 @@ var ge = "notes", _e = (e) => {
 	}
 	step(e) {
 		let t = this.cursor, n = {
-			day: () => B(t, e),
-			week: () => B(t, 7 * e),
-			workweek: () => B(t, 7 * e),
+			day: () => z(t, e),
+			week: () => z(t, 7 * e),
+			workweek: () => z(t, 7 * e),
 			month: () => O(new Date(t.getFullYear(), t.getMonth(), 1), e),
-			agenda: () => B(t, 30 * e),
+			agenda: () => z(t, 30 * e),
 			year: () => new Date(t.getFullYear() + e, t.getMonth(), 1)
 		}[this.shown()]();
 		this.go(n);
@@ -472,7 +472,7 @@ var ge = "notes", _e = (e) => {
 		let t = j(e), n = le(e);
 		return e.all_day ? {
 			start: y(t),
-			end: y(B(n, -1))
+			end: y(z(n, -1))
 		} : {
 			start: A(t),
 			end: A(n)
@@ -508,7 +508,7 @@ function $(e, n) {
 	f(e, Se);
 	let r = Z(n, "size", 3, 16), i = Z(n, "title", 3, "");
 	var a = xe(), o = k(a);
-	F(() => {
+	P(() => {
 		t(a, "width", r()), t(a, "height", r()), t(a, "aria-hidden", i() ? void 0 : "true"), t(a, "role", i() ? "img" : void 0), t(a, "aria-label", i() || void 0), t(o, "d", be[n.name] ?? be.calendar);
 	}), s(e, a);
 }
@@ -520,13 +520,13 @@ var Ce = q("<span class=\"h svelte-1jq00cd\"> </span>"), we = q("<button> </butt
 };
 function ze(n, r) {
 	se(r, !0), f(n, Re);
-	let i = W(Y(/* @__PURE__ */ new Date()));
+	let i = U(Y(/* @__PURE__ */ new Date()));
 	de(() => {
 		M(i, new Date(r.cal.cursor.getFullYear(), r.cal.cursor.getMonth(), 1), !0);
 	});
 	let a = X(() => {
 		let t = pe(e(i), r.cal.first);
-		return Array.from({ length: 42 }, (e, n) => B(t, n));
+		return Array.from({ length: 42 }, (e, n) => z(t, n));
 	}), c = X(() => e(a).slice(0, 7).map((e) => e.toLocaleDateString(void 0, { weekday: "narrow" }))), u = (e) => {
 		let t = r.cal.range();
 		return e >= t.from && e <= t.to;
@@ -543,7 +543,7 @@ function ze(n, r) {
 		"#a855f7",
 		"#6366f1",
 		"#64748b"
-	], g = W(null), _ = X(() => [...r.cal.byAccount().map((e) => ({
+	], g = U(null), _ = X(() => [...r.cal.byAccount().map((e) => ({
 		title: e.account.name,
 		error: e.account.error ?? void 0,
 		items: e.items
@@ -559,28 +559,28 @@ function ze(n, r) {
 	$(J(T), {
 		name: "plus",
 		size: 15
-	}), re(), z(T);
-	var D = K(T, 2), A = J(D), j = J(A), N = k(j, !0), P = K(j, 2);
-	$(J(P), {
+	}), re(), R(T);
+	var D = K(T, 2), A = J(D), j = J(A), N = k(j, !0), ee = K(j, 2);
+	$(J(ee), {
 		name: "back",
 		size: 14
-	}), z(P);
-	var I = K(P, 2);
-	$(J(I), {
+	}), R(ee);
+	var F = K(ee, 2);
+	$(J(F), {
 		name: "right",
 		size: 14
-	}), z(I), z(A);
-	var ee = K(A, 2), te = J(ee);
-	v(te, 17, () => e(c), he, (t, n) => {
+	}), R(F), R(A);
+	var te = K(A, 2), ne = J(te);
+	v(ne, 17, () => e(c), he, (t, n) => {
 		var r = Ce(), i = k(r, !0);
-		F(() => x(i, e(n))), s(t, r);
+		P(() => x(i, e(n))), s(t, r);
 	});
-	var H = K(te, 2);
-	v(H, 17, () => e(a), (e) => e.getTime(), (t, n) => {
+	var V = K(ne, 2);
+	v(V, 17, () => e(a), (e) => e.getTime(), (t, n) => {
 		var a = we();
 		let o;
 		var c = k(a, !0);
-		F((e, t, n, r, i) => {
+		P((e, t, n, r, i) => {
 			o = l(a, 1, "d svelte-1jq00cd", null, o, {
 				other: e,
 				today: t,
@@ -589,34 +589,34 @@ function ze(n, r) {
 			}), x(c, i);
 		}, [
 			() => e(n).getMonth() !== e(i).getMonth(),
-			() => R(e(n), r.cal.now),
+			() => L(e(n), r.cal.now),
 			() => u(e(n)),
 			() => e(p).has(m(e(n))),
 			() => e(n).getDate()
 		]), E("click", a, () => r.cal.go(e(n))), s(t, a);
-	}), z(ee), z(D);
-	var U = K(D, 2), ne = (e) => {
-		var t = Ee(), n = K(V(t), 2), i = J(n), a = J(i, !0), o = K(a), c = (e) => {
+	}), R(te), R(D);
+	var H = K(D, 2), W = (e) => {
+		var t = Ee(), n = K(B(t), 2), i = J(n), a = J(i, !0), o = K(a), c = (e) => {
 			var t = Te();
 			E("click", t, () => r.cal.atlas.plugin.openSettings()), s(e, t);
 		};
 		S(o, (e) => {
 			r.cal.configured || e(c);
-		}), z(i), z(n), F(() => x(a, r.cal.configured ? "Reading the server…" : "No account yet.")), s(e, t);
+		}), R(i), R(n), P(() => x(a, r.cal.configured ? r.cal.error ? "Not read: see the message beside." : "Reading the server…" : "No account yet.")), s(e, t);
 	};
-	S(U, (t) => {
-		e(y) && t(ne);
+	S(H, (t) => {
+		e(y) && t(W);
 	});
-	var ie = K(U, 2);
+	var ie = K(H, 2);
 	v(ie, 17, () => e(_), (e) => e.title, (n, i) => {
-		var a = d(), c = V(a), u = (n) => {
-			var a = Fe(), c = V(a), u = J(c, !0), d = K(u), f = (n) => {
+		var a = d(), c = B(a), u = (n) => {
+			var a = Fe(), c = B(a), u = J(c, !0), d = K(u), f = (n) => {
 				var r = De();
-				F(() => t(r, "title", e(i).error)), s(n, r);
+				P(() => t(r, "title", e(i).error)), s(n, r);
 			};
 			S(d, (t) => {
 				e(i).error && t(f);
-			}), z(c);
+			}), R(c);
 			var p = K(c, 2);
 			v(p, 21, () => e(i).items, (e) => e.id, (n, i) => {
 				var a = Ne(), c = J(a), u = J(c);
@@ -627,10 +627,10 @@ function ze(n, r) {
 				}, _ = X(() => !r.cal.isHidden(e(i).id, e(i).name));
 				S(p, (t) => {
 					e(_) && t(m);
-				}), z(u);
+				}), R(u);
 				var y = K(u, 2), b = k(y, !0), w = K(y, 2), T = (n) => {
 					var r = De();
-					F(() => t(r, "title", e(i).error)), s(n, r);
+					P(() => t(r, "title", e(i).error)), s(n, r);
 				};
 				S(w, (t) => {
 					e(i).error && t(T);
@@ -640,33 +640,33 @@ function ze(n, r) {
 					$(J(t), {
 						name: "rss",
 						size: 12
-					}), z(t), s(e, t);
+					}), R(t), s(e, t);
 				}, A = (e) => {
 					var t = Ae();
 					s(e, t);
 				};
 				S(D, (t) => {
 					e(i).kind === "ics" ? t(O) : e(i).writable || t(A, 1);
-				}), z(c);
+				}), R(c);
 				var j = K(c, 2), N = J(j);
-				let P;
-				z(j);
-				var I = K(j, 2), L = (n) => {
+				let ee;
+				R(j);
+				var F = K(j, 2), I = (n) => {
 					var a = Me();
 					v(a, 20, () => h, (e) => e, (n, a) => {
 						var c = je();
 						let l;
-						F((e) => {
+						P((e) => {
 							t(c, "aria-selected", e), t(c, "aria-label", a), l = o(c, "", l, { "--c": a });
 						}, [() => r.cal.colorOf(e(i).id) === a]), E("click", c, () => {
 							r.cal.setColor(e(i).id, a), M(g, null);
 						}), s(n, c);
-					}), z(a), s(n, a);
+					}), R(a), s(n, a);
 				};
-				S(I, (t) => {
-					e(g) === e(i).id && t(L);
-				}), z(a), F((n, r, a, s, p) => {
-					t(c, "aria-checked", n), t(c, "title", r), d = l(u, 1, "box svelte-1jq00cd", null, d, { off: a }), f = o(u, "", f, { "--c": s }), x(b, e(i).name), t(j, "aria-label", `Colour of ${e(i).name ?? ""}`), P = o(N, "", P, { "--c": p });
+				S(F, (t) => {
+					e(g) === e(i).id && t(I);
+				}), R(a), P((n, r, a, s, p) => {
+					t(c, "aria-checked", n), t(c, "title", r), d = l(u, 1, "box svelte-1jq00cd", null, d, { off: a }), f = o(u, "", f, { "--c": s }), x(b, e(i).name), t(j, "aria-label", `Colour of ${e(i).name ?? ""}`), ee = o(N, "", ee, { "--c": p });
 				}, [
 					() => !r.cal.isHidden(e(i).id, e(i).name),
 					() => C(e(i)),
@@ -676,8 +676,8 @@ function ze(n, r) {
 				]), E("click", c, () => r.cal.toggle(e(i).id, e(i).name)), E("click", j, () => M(g, e(g) === e(i).id ? null : e(i).id, !0)), s(n, a);
 			}, (t) => {
 				var n = Pe(), r = k(n, !0);
-				F(() => x(r, e(i).error ?? "Reading the server…")), s(t, n);
-			}), z(p), F(() => {
+				P(() => x(r, e(i).error ?? "Reading the server…")), s(t, n);
+			}), R(p), P(() => {
 				t(c, "title", e(i).error ?? e(i).title), x(u, e(i).title);
 			}), s(n, a);
 		};
@@ -686,7 +686,7 @@ function ze(n, r) {
 		}), s(n, a);
 	});
 	var ae = K(ie, 2), G = (n) => {
-		var i = Ie(), a = K(V(i), 2), c = J(a), u = J(c), d = J(u);
+		var i = Ie(), a = K(B(i), 2), c = J(a), u = J(c), d = J(u);
 		let f, p;
 		var m = J(d), h = (e) => {
 			var t = Oe();
@@ -694,7 +694,7 @@ function ze(n, r) {
 		}, g = X(() => !r.cal.isHidden(ge, "Notes"));
 		S(m, (t) => {
 			e(g) && t(h);
-		}), z(d), re(2), z(u), z(c), z(a), F((e, n, r) => {
+		}), R(d), re(2), R(u), R(c), R(a), P((e, n, r) => {
 			t(u, "aria-checked", e), f = l(d, 1, "box svelte-1jq00cd", null, f, { off: n }), p = o(d, "", p, { "--c": r });
 		}, [
 			() => !r.cal.isHidden(ge, "Notes"),
@@ -709,12 +709,12 @@ function ze(n, r) {
 	$(J(oe), {
 		name: "plus",
 		size: 13
-	}), re(), z(oe), z(w), F((e) => x(N, e), [() => e(i).toLocaleDateString(void 0, {
+	}), re(), R(oe), R(w), P((e) => x(N, e), [() => e(i).toLocaleDateString(void 0, {
 		month: "long",
 		year: "numeric"
 	})]), E("click", T, function(...e) {
 		r.oncreate?.apply(this, e);
-	}), E("click", P, () => M(i, O(e(i), -1), !0)), E("click", I, () => M(i, O(e(i), 1), !0)), E("click", oe, () => r.cal.atlas.plugin.openSettings()), s(n, w), L();
+	}), E("click", ee, () => M(i, O(e(i), -1), !0)), E("click", F, () => M(i, O(e(i), 1), !0)), E("click", oe, () => r.cal.atlas.plugin.openSettings()), s(n, w), I();
 }
 w(["click"]);
 //#endregion
@@ -725,15 +725,15 @@ var Be = q("<button title=\"Open this day\"><span class=\"wd svelte-16enfn0\"> <
 };
 function $e(n, i) {
 	se(i, !0), f(n, Qe);
-	let a = W(void 0), c = W(void 0), u = X(() => i.days.map((e) => ue(i.cal.events, e))), d = X(() => ie(i.cal.events, i.days)), p = X(() => Math.max(1, ...e(d).map((e) => e.row + 1))), m = Array.from({ length: 24 }, (e, t) => t), h = (e) => e === 0 ? "" : i.cal.h12 ? new Date(2e3, 0, 1, e).toLocaleTimeString(void 0, {
+	let a = U(void 0), c = U(void 0), u = X(() => i.days.map((e) => ue(i.cal.events, e))), d = X(() => ie(i.cal.events, i.days)), p = X(() => Math.max(1, ...e(d).map((e) => e.row + 1))), m = Array.from({ length: 24 }, (e, t) => t), h = (e) => e === 0 ? "" : i.cal.h12 ? new Date(2e3, 0, 1, e).toLocaleTimeString(void 0, {
 		hour: "numeric",
 		hour12: !0
 	}) : String(e).padStart(2, "0"), g = X(() => i.cal.now.getHours() * 60 + i.cal.now.getMinutes()), y = (e) => i.selected !== null && i.selected.uid === e.uid && i.selected.rid === e.rid && i.selected.calendar === e.calendar, C = (e) => e.color ?? i.cal.colorOf(e.calendar);
 	r(() => {
-		let t = Number(i.cal.settings.day_start ?? 8), n = i.days.some((e) => R(e, i.cal.now)) ? Math.max(0, e(g) / 60 - 2) : t;
+		let t = Number(i.cal.settings.day_start ?? 8), n = i.days.some((e) => L(e, i.cal.now)) ? Math.max(0, e(g) / 60 - 2) : t;
 		e(a) && (e(a).scrollTop = Math.max(0, n * 48 - 8));
 	});
-	let w = W(null), T = (e) => Math.round(e / 15) * 15;
+	let w = U(null), T = (e) => Math.round(e / 15) * 15;
 	function O(t) {
 		let n = e(c).getBoundingClientRect();
 		return {
@@ -784,7 +784,7 @@ function $e(n, i) {
 		} else r.to = Math.max(r.from + 15, T(n.min));
 		M(w, { ...r }, !0);
 	}
-	async function P(t) {
+	async function ee(t) {
 		let n = e(w);
 		if (M(w, null), document.body.style.userSelect = "", !n) return;
 		let r = (e, t) => new Date(i.days[e].getFullYear(), i.days[e].getMonth(), i.days[e].getDate(), 0, t);
@@ -811,38 +811,38 @@ function $e(n, i) {
 			from_start: o.start
 		}, u, n.kind === "move" ? "Moved" : "Resized");
 	}
-	function ee(t) {
+	function te(t) {
 		e(w) && t.key === "Escape" && (M(w, null), document.body.style.userSelect = "", t.stopPropagation());
 	}
-	function te(e, t) {
+	function ne(e, t) {
 		if (e.target.closest(".bar")) return;
 		let n = i.days[t];
-		i.oncreate(D(n), B(D(n), 1), !0, e.currentTarget.getBoundingClientRect());
+		i.oncreate(D(n), z(D(n), 1), !0, e.currentTarget.getBoundingClientRect());
 	}
-	var V = Ze();
-	_("keydown", ae, ee);
-	let H;
-	var U = J(V), ne = J(U);
-	ne.textContent = Intl.DateTimeFormat().resolvedOptions().timeZone.split("/").pop()?.replace("_", " ");
-	var re = K(ne, 2);
+	var B = Ze();
+	_("keydown", ae, te);
+	let V;
+	var H = J(B), W = J(H);
+	W.textContent = Intl.DateTimeFormat().resolvedOptions().timeZone.split("/").pop()?.replace("_", " ");
+	var re = K(W, 2);
 	v(re, 17, () => i.days, he, (t, n) => {
 		var r = Be();
 		let a;
 		var o = J(r), c = k(o, !0), u = K(o, 2), d = k(u, !0);
-		z(r), F((e, t, n) => {
+		R(r), P((e, t, n) => {
 			a = l(r, 1, "dayhead svelte-16enfn0", null, a, { today: e }), x(c, t), x(d, n);
 		}, [
-			() => R(e(n), i.cal.now),
+			() => L(e(n), i.cal.now),
 			() => e(n).toLocaleDateString(void 0, { weekday: "short" }),
 			() => e(n).getDate()
 		]), E("click", r, () => i.cal.go(e(n), "day")), s(t, r);
-	}), z(U);
-	var G = K(U, 2);
+	}), R(H);
+	var G = K(H, 2);
 	let oe;
 	var q = K(J(G), 2), ce = J(q);
 	v(ce, 17, () => i.days, he, (e, t, n) => {
 		var r = Ve();
-		o(r, "", {}, { "grid-column": n + 1 }), E("click", r, (e) => te(e, n)), E("keydown", r, () => {}), s(e, r);
+		o(r, "", {}, { "grid-column": n + 1 }), E("click", r, (e) => ne(e, n)), E("keydown", r, () => {}), s(e, r);
 	});
 	var Y = K(ce, 2);
 	v(Y, 17, () => e(d), (e) => e.e.calendar + e.e.uid + (e.e.rid ?? "") + e.from, (n, r) => {
@@ -851,12 +851,12 @@ function $e(n, i) {
 		var d = J(a), f = (e) => {
 			var t = He();
 			s(e, t);
-		}, p = X(() => I(e(r).e));
+		}, p = X(() => F(e(r).e));
 		S(d, (t) => {
 			e(p) && t(f);
 		});
 		var m = K(d, 1, !0);
-		z(a), F((n, i) => {
+		R(a), P((n, i) => {
 			c = l(a, 1, "bar ev svelte-16enfn0", null, c, {
 				sel: n,
 				clipl: e(r).clippedStart,
@@ -868,16 +868,16 @@ function $e(n, i) {
 				"grid-row": e(r).row + 1
 			}), x(m, e(r).e.summary || "(no title)");
 		}, [() => y(e(r).e), () => C(e(r).e)]), E("click", a, (t) => i.onselect(e(r).e, t.currentTarget.getBoundingClientRect())), s(n, a);
-	}), z(q), z(G);
+	}), R(q), R(G);
 	var de = K(G, 2), fe = J(de), pe = J(fe);
 	v(pe, 20, () => m, (e) => e, (e, t) => {
 		var n = We();
 		let r;
 		var i = k(n, !0);
-		F((e) => {
+		P((e) => {
 			r = o(n, "", r, { top: `${t * 48}px` }), x(i, e);
 		}, [() => h(t)]), s(e, n);
-	}), z(pe);
+	}), R(pe);
 	var Z = K(pe, 2);
 	v(Z, 21, () => i.days, he, (n, r, a) => {
 		var c = Xe();
@@ -889,7 +889,7 @@ function $e(n, i) {
 			let u, d;
 			var f = J(c), p = k(f, !0), m = K(f, 2), h = k(m), g = K(m, 2), _ = (t) => {
 				var n = Ge(), i = k(n, !0);
-				F(() => x(i, e(r).e.location)), s(t, n);
+				P(() => x(i, e(r).e.location)), s(t, n);
 			};
 			S(g, (t) => {
 				!e(a) && e(r).e.location && t(_);
@@ -900,7 +900,7 @@ function $e(n, i) {
 			};
 			S(v, (t) => {
 				e(r).e.writable && !e(r).endsAfter && t(b);
-			}), z(c), F((n, i, s, f, m, g) => {
+			}), R(c), P((n, i, s, f, m, g) => {
 				u = l(c, 1, "ev svelte-16enfn0", null, u, {
 					sel: n,
 					short: e(a),
@@ -932,7 +932,7 @@ function $e(n, i) {
 			var n = Je();
 			let r;
 			var a = J(n), c = k(a, !0), l = K(a, 2), u = k(l);
-			z(n), F((t, i, a) => {
+			R(n), P((t, i, a) => {
 				r = o(n, "", r, {
 					"--c": t,
 					top: `${e(w).from / 60 * 48}px`,
@@ -952,20 +952,20 @@ function $e(n, i) {
 		var h = K(p, 2), _ = (t) => {
 			var n = Ye();
 			let r;
-			F(() => r = o(n, "", r, { top: `${e(g) / 60 * 48}px` })), s(t, n);
-		}, b = X(() => R(e(r), i.cal.now));
+			P(() => r = o(n, "", r, { top: `${e(g) / 60 * 48}px` })), s(t, n);
+		}, b = X(() => L(e(r), i.cal.now));
 		S(h, (t) => {
 			e(b) && t(_);
-		}), z(c), F((e, t) => d = l(c, 1, "col svelte-16enfn0", null, d, {
+		}), R(c), P((e, t) => d = l(c, 1, "col svelte-16enfn0", null, d, {
 			today: e,
 			weekend: t
-		}), [() => R(e(r), i.cal.now), () => e(r).getDay() === 0 || e(r).getDay() === 6]), E("pointerdown", c, (e) => A(e, "create")), s(n, c);
-	}), z(Z), b(Z, (e) => M(c, e), () => e(c)), z(fe), z(de), b(de, (e) => M(a, e), () => e(a)), z(V), F(() => {
-		H = o(V, "", H, {
+		}), [() => L(e(r), i.cal.now), () => e(r).getDay() === 0 || e(r).getDay() === 6]), E("pointerdown", c, (e) => A(e, "create")), s(n, c);
+	}), R(Z), b(Z, (e) => M(c, e), () => e(c)), R(fe), R(de), b(de, (e) => M(a, e), () => e(a)), R(B), P(() => {
+		V = o(B, "", V, {
 			"--n": i.days.length,
 			"--hour": "48px"
 		}), oe = o(G, "", oe, { "--rows": e(p) });
-	}), E("pointermove", Z, N), E("pointerup", Z, P), _("pointercancel", Z, () => M(w, null)), s(n, V), L();
+	}), E("pointermove", Z, N), E("pointerup", Z, ee), _("pointercancel", Z, () => M(w, null)), s(n, B), I();
 }
 w([
 	"click",
@@ -999,15 +999,15 @@ function lt(n, r) {
 		};
 	}
 	function m(e, t) {
-		e.target.closest("button") || r.oncreate(D(t), B(D(t), 1), !0, e.currentTarget.getBoundingClientRect());
+		e.target.closest("button") || r.oncreate(D(t), z(D(t), 1), !0, e.currentTarget.getBoundingClientRect());
 	}
 	var h = st();
 	let g;
 	var _ = J(h);
 	v(_, 21, () => e(i)[0] ?? [], (e) => e.getDay(), (t, n) => {
 		var r = et(), i = k(r, !0);
-		F((e) => x(i, e), [() => e(n).toLocaleDateString(void 0, { weekday: "short" })]), s(t, r);
-	}), z(_);
+		P((e) => x(i, e), [() => e(n).toLocaleDateString(void 0, { weekday: "short" })]), s(t, r);
+	}), R(_);
 	var y = K(_, 2);
 	v(y, 21, () => e(i), he, (n, i) => {
 		let f = X(() => p(e(i)));
@@ -1017,7 +1017,7 @@ function lt(n, r) {
 			let d;
 			o(u, "", {}, { "grid-column": c + 1 });
 			var f = J(u), p = k(f, !0);
-			z(u), F((e, n, r, i, a) => {
+			R(u), P((e, n, r, i, a) => {
 				d = l(u, 1, "cell svelte-13jyj5s", null, d, {
 					other: e,
 					today: n,
@@ -1025,7 +1025,7 @@ function lt(n, r) {
 				}), t(u, "aria-label", `New event on ${i ?? ""}`), x(p, a);
 			}, [
 				() => e(i).getMonth() !== e(a),
-				() => R(e(i), r.cal.now),
+				() => L(e(i), r.cal.now),
 				() => e(i).getDay() === 0 || e(i).getDay() === 6,
 				() => e(i).toLocaleDateString(),
 				() => e(i).getDate() === 1 ? e(i).toLocaleDateString(void 0, {
@@ -1039,7 +1039,7 @@ function lt(n, r) {
 			var a = nt();
 			let d, f;
 			var p = k(a, !0);
-			F((n, r) => {
+			P((n, r) => {
 				d = l(a, 1, "bar svelte-13jyj5s", null, d, {
 					sel: n,
 					clipl: e(i).clippedStart,
@@ -1053,12 +1053,12 @@ function lt(n, r) {
 		});
 		var y = K(_, 2);
 		v(y, 17, () => e(f).cells, he, (n, a, p) => {
-			var m = at(), h = V(m);
+			var m = at(), h = B(m);
 			v(h, 19, () => e(a).timed, (e) => d(e), (n, i, a) => {
 				var d = rt();
 				let m, h;
 				var g = K(J(d)), _ = k(g, !0), v = K(g), y = k(v, !0);
-				z(d), F((n, r, s, c) => {
+				R(d), P((n, r, s, c) => {
 					m = l(d, 1, "line svelte-13jyj5s", null, m, {
 						sel: n,
 						cancel: e(i).status === "CANCELLED"
@@ -1078,7 +1078,7 @@ function lt(n, r) {
 				var n = it();
 				let c;
 				var l = k(n);
-				F(() => {
+				P(() => {
 					c = o(n, "", c, {
 						"grid-column": p + 1,
 						"grid-row": e(f).used + 2 + e(a).timed.length
@@ -1088,8 +1088,8 @@ function lt(n, r) {
 			S(g, (t) => {
 				e(a).more > 0 && t(_);
 			}), s(n, m);
-		}), z(h), s(n, h);
-	}), z(y), z(h), F(() => g = o(h, "", g, { "--rows": e(i).length })), s(n, h), L();
+		}), R(h), s(n, h);
+	}), R(y), R(h), P(() => g = o(h, "", g, { "--rows": e(i).length })), s(n, h), I();
 }
 w(["click", "keydown"]);
 //#endregion
@@ -1113,7 +1113,7 @@ function vt(t, n) {
 			}));
 		}
 		let e = [];
-		for (let t = n.from; t <= n.to; t = B(t, 1)) {
+		for (let t = n.from; t <= n.to; t = z(t, 1)) {
 			let r = ce(n.events, t).sort((e, t) => Number(!e.all_day) - Number(!t.all_day) || j(e).getTime() - j(t).getTime());
 			r.length && e.push({
 				day: t,
@@ -1125,11 +1125,11 @@ function vt(t, n) {
 	function u(e, t) {
 		if (e.all_day) return "All day";
 		let r = j(e), i = le(e);
-		return `${R(r, t) ? Q(r, n.cal.h12) : "…"} – ${R(i, t) || i.getTime() - D(t).getTime() <= 864e5 && i.getHours() === 0 && i.getMinutes() === 0 ? Q(i, n.cal.h12) : "…"}`;
+		return `${L(r, t) ? Q(r, n.cal.h12) : "…"} – ${L(i, t) || i.getTime() - D(t).getTime() <= 864e5 && i.getHours() === 0 && i.getMinutes() === 0 ? Q(i, n.cal.h12) : "…"}`;
 	}
 	var d = gt(), p = J(d), m = (e) => {
 		var t = ut(), n = k(t, !0);
-		F(() => x(n, r() ? "No event matches." : "Nothing in the coming days.")), s(e, t);
+		P(() => x(n, r() ? "No event matches." : "Nothing in the coming days.")), s(e, t);
 	};
 	S(p, (t) => {
 		e(i).length || t(m);
@@ -1139,24 +1139,24 @@ function vt(t, n) {
 		var i = ht();
 		let d;
 		var f = J(i), p = J(f), m = k(p, !0), h = K(p, 2), g = J(h, !0), _ = K(g, 2, !0);
-		z(h), z(f);
+		R(h), R(f);
 		var y = K(f, 2);
 		v(y, 21, () => e(r).evs, (e) => e.calendar + e.uid + (e.rid ?? ""), (t, i) => {
 			var d = mt(), f = J(d);
 			let p, m;
 			var h = K(J(f), 2), g = k(h, !0), _ = K(h, 2), v = J(_, !0), y = K(v), b = (t) => {
 				var n = dt(), r = k(n);
-				F(() => x(r, ` · ${e(i).location ?? ""}`)), s(t, n);
+				P(() => x(r, ` · ${e(i).location ?? ""}`)), s(t, n);
 			};
 			S(y, (t) => {
 				e(i).location && t(b);
-			}), z(_);
+			}), R(_);
 			var C = K(_, 2), w = (e) => {
 				var t = ft();
 				$(J(t), {
 					name: "repeat",
 					size: 13
-				}), z(t), s(e, t);
+				}), R(t), s(e, t);
 			};
 			S(C, (t) => {
 				e(i).recurring && t(w);
@@ -1166,13 +1166,13 @@ function vt(t, n) {
 				$(J(t), {
 					name: "note",
 					size: 13
-				}), z(t), s(e, t);
-			}, O = X(() => I(e(i)));
+				}), R(t), s(e, t);
+			}, O = X(() => F(e(i)));
 			S(T, (t) => {
 				e(O) && t(D);
 			});
 			var A = K(T, 2), j = k(A, !0);
-			z(f), z(d), F((t, n, r) => {
+			R(f), R(d), P((t, n, r) => {
 				p = l(f, 1, "row svelte-zo3qq8", null, p, {
 					sel: t,
 					cancel: e(i).status === "CANCELLED"
@@ -1182,10 +1182,10 @@ function vt(t, n) {
 				() => a(e(i)),
 				() => u(e(i), e(r).day)
 			]), E("click", f, (t) => n.onselect(e(i), t.currentTarget.getBoundingClientRect())), s(t, d);
-		}), z(y), z(i), F((e, t, n, r) => {
+		}), R(y), R(i), P((e, t, n, r) => {
 			d = l(i, 1, "day svelte-zo3qq8", null, d, { today: e }), x(m, t), x(g, n), x(_, r);
 		}, [
-			() => R(e(r).day, n.cal.now),
+			() => L(e(r).day, n.cal.now),
 			() => e(r).day.getDate(),
 			() => e(r).day.toLocaleDateString(void 0, { weekday: "short" }),
 			() => e(r).day.toLocaleDateString(void 0, {
@@ -1193,7 +1193,7 @@ function vt(t, n) {
 				year: e(r).day.getFullYear() === n.cal.now.getFullYear() ? void 0 : "numeric"
 			})
 		]), E("click", f, () => n.cal.go(e(r).day, "day")), s(t, i);
-	}), z(d), s(t, d), L();
+	}), R(d), s(t, d), I();
 }
 w(["click"]);
 //#endregion
@@ -1206,32 +1206,32 @@ function Tt(n, r) {
 	se(r, !0), f(n, wt);
 	let i = X(() => r.cal.cursor.getFullYear()), a = X(() => {
 		let t = /* @__PURE__ */ new Map();
-		for (let n = new Date(e(i), 0, 1); n.getFullYear() === e(i); n = B(n, 1)) t.set(n.toDateString(), ce(r.cal.events, n).length);
+		for (let n = new Date(e(i), 0, 1); n.getFullYear() === e(i); n = z(n, 1)) t.set(n.toDateString(), ce(r.cal.events, n).length);
 		return t;
 	}), c = X(() => Math.max(1, ...e(a).values()));
 	function u(t) {
 		let n = pe(new Date(e(i), t, 1), r.cal.first);
-		return Array.from({ length: 42 }, (e, t) => B(n, t));
+		return Array.from({ length: 42 }, (e, t) => z(n, t));
 	}
-	let p = X(() => Array.from({ length: 7 }, (e, t) => B(pe(/* @__PURE__ */ new Date(), r.cal.first), t).toLocaleDateString(void 0, { weekday: "narrow" })));
+	let p = X(() => Array.from({ length: 7 }, (e, t) => z(pe(/* @__PURE__ */ new Date(), r.cal.first), t).toLocaleDateString(void 0, { weekday: "narrow" })));
 	var m = Ct();
 	v(m, 20, () => Array.from({ length: 12 }, (e, t) => t), (e) => e, (n, f) => {
 		var m = St(), h = J(m), g = k(h, !0), _ = K(h, 2), y = J(_);
 		v(y, 17, () => e(p), he, (t, n) => {
 			var r = yt(), i = k(r, !0);
-			F(() => x(i, e(n))), s(t, r);
+			P(() => x(i, e(n))), s(t, r);
 		});
 		var b = K(y, 2);
 		v(b, 17, () => u(f), (e) => e.getTime(), (n, i) => {
 			let u = X(() => e(i).getMonth() === f ? e(a).get(e(i).toDateString()) ?? 0 : 0);
-			var p = d(), m = V(p), h = (n) => {
+			var p = d(), m = B(p), h = (n) => {
 				var a = bt();
 				let d, f;
 				var p = k(a, !0);
-				F((n, r, i) => {
+				P((n, r, i) => {
 					d = l(a, 1, "d svelte-18a11kl", null, d, { today: n }), t(a, "title", `${r ?? ""}: ${e(u) ?? ""} event${e(u) === 1 ? "" : "s"}`), f = o(a, "", f, { "--k": e(u) / e(c) }), x(p, i);
 				}, [
-					() => R(e(i), r.cal.now),
+					() => L(e(i), r.cal.now),
 					() => e(i).toLocaleDateString(),
 					() => e(i).getDate()
 				]), E("click", a, () => r.cal.go(e(i), "day")), s(n, a);
@@ -1242,8 +1242,8 @@ function Tt(n, r) {
 			S(m, (t) => {
 				e(g) ? t(h) : t(_, -1);
 			}), s(n, p);
-		}), z(_), z(m), F((e) => x(g, e), [() => new Date(e(i), f, 1).toLocaleDateString(void 0, { month: "long" })]), E("click", h, () => r.cal.go(new Date(e(i), f, 1), "month")), s(n, m);
-	}), z(m), s(n, m), L();
+		}), R(_), R(m), P((e) => x(g, e), [() => new Date(e(i), f, 1).toLocaleDateString(void 0, { month: "long" })]), E("click", h, () => r.cal.go(new Date(e(i), f, 1), "month")), s(n, m);
+	}), R(m), s(n, m), I();
 }
 w(["click"]);
 //#endregion
@@ -1261,7 +1261,7 @@ function At(n, r) {
 	let C;
 	var w = K(b, 2), T = J(w), E = (e) => {
 		var t = Et(), n = k(t, !0), r = {};
-		F((e) => {
+		P((e) => {
 			x(n, e), r !== (r = i()) && (t.value = (t.__value = r) ?? "");
 		}, [() => g(i())]), s(e, t);
 	}, D = X(() => i() && !e(u).some((e) => e.items.some((e) => e.id === i())));
@@ -1270,19 +1270,19 @@ function At(n, r) {
 	});
 	var O = K(T);
 	v(O, 17, () => e(u), (e) => e.account.name, (n, r) => {
-		var i = d(), a = V(i), o = (n) => {
+		var i = d(), a = B(i), o = (n) => {
 			var i = Dt();
 			v(i, 21, () => e(r).items, (e) => e.id, (t, n) => {
 				var r = Et(), i = k(r, !0), a = {};
-				F(() => {
+				P(() => {
 					x(i, e(n).name), a !== (a = e(n).id) && (r.value = (r.__value = a) ?? "");
 				}), s(t, r);
-			}), z(i), F(() => t(i, "label", e(r).account.name)), s(n, i);
+			}), R(i), P(() => t(i, "label", e(r).account.name)), s(n, i);
 		}, c = (t) => {
-			var n = d(), i = V(n);
+			var n = d(), i = B(n);
 			v(i, 17, () => e(r).items, (e) => e.id, (t, n) => {
 				var r = Et(), i = k(r, !0), a = {};
-				F(() => {
+				P(() => {
 					x(i, e(n).name), a !== (a = e(n).id) && (r.value = (r.__value = a) ?? "");
 				}), s(t, r);
 			}), s(t, n);
@@ -1290,9 +1290,9 @@ function At(n, r) {
 		S(a, (t) => {
 			e(h) ? t(o) : t(c, -1);
 		}), s(n, i);
-	}), z(w), m(w), z(_), F((e) => {
+	}), R(w), m(w), R(_), P((e) => {
 		y = l(_, 1, "pick svelte-zssqw9", null, y, { compact: c() }), C = o(b, "", C, { "--c": e }), w.disabled = a(), t(w, "title", i());
-	}, [() => i() ? r.cal.colorOf(i()) : "transparent"]), p(w, i), s(n, _), L();
+	}, [() => i() ? r.cal.colorOf(i()) : "transparent"]), p(w, i), s(n, _), I();
 }
 //#endregion
 //#region plugins/stable/dav/ui/src/Popover.svelte
@@ -1302,7 +1302,7 @@ var jt = q("<button class=\"tool svelte-id2g6u\" title=\"Edit (e)\"><!></button>
 };
 function qt(n, i) {
 	se(i, !0), f(n, Kt);
-	let a = Z(i, "e", 3, null), c = Z(i, "draft", 3, null), u = W(void 0), d = W(""), p = W(Y(i.cal.newCalendar() ?? "")), m = W(void 0), g = W(Y({
+	let a = Z(i, "e", 3, null), c = Z(i, "draft", 3, null), u = U(void 0), d = U(""), p = U(Y(i.cal.newCalendar() ?? "")), m = U(void 0), g = U(Y({
 		left: 0,
 		top: 0
 	}));
@@ -1329,7 +1329,7 @@ function qt(n, i) {
 			calendar: e(p) || void 0
 		});
 	}
-	let C = X(() => a() ? I(a()) : null), w = X(() => c() ? c().all_day ? `${c().start.toLocaleDateString(void 0, {
+	let C = X(() => a() ? F(a()) : null), w = X(() => c() ? c().all_day ? `${c().start.toLocaleDateString(void 0, {
 		weekday: "long",
 		day: "numeric",
 		month: "long"
@@ -1341,17 +1341,17 @@ function qt(n, i) {
 	var D = Gt();
 	let O;
 	var A = J(D), j = (n) => {
-		var r = Ut(), c = V(r), u = J(c), d = (e) => {
-			var t = jt(), n = V(t);
+		var r = Ut(), c = B(r), u = J(c), d = (e) => {
+			var t = jt(), n = B(t);
 			$(J(n), {
 				name: "pen",
 				size: 15
-			}), z(n);
+			}), R(n);
 			var r = K(n, 2);
 			$(J(r), {
 				name: "trash",
 				size: 15
-			}), z(r), E("click", n, function(...e) {
+			}), R(r), E("click", n, function(...e) {
 				i.onedit?.apply(this, e);
 			}), E("click", r, () => {
 				i.onclose(), i.cal.remove(a());
@@ -1364,7 +1364,7 @@ function qt(n, i) {
 		$(J(f), {
 			name: "x",
 			size: 15
-		}), z(f), z(c);
+		}), R(f), R(c);
 		var p = K(c, 2), m = J(p);
 		let h;
 		var g = K(m, 2), _ = J(g);
@@ -1376,7 +1376,7 @@ function qt(n, i) {
 				size: 12
 			});
 			var r = K(n);
-			z(t), F((e) => x(r, ` ${e ?? ""}`), [() => ne(a().rrule) || "Repeats"]), s(e, t);
+			R(t), P((e) => x(r, ` ${e ?? ""}`), [() => W(a().rrule) || "Repeats"]), s(e, t);
 		};
 		S(O, (e) => {
 			a().recurring && e(A);
@@ -1387,8 +1387,8 @@ function qt(n, i) {
 		};
 		S(j, (e) => {
 			a().status === "CANCELLED" && e(M);
-		}), z(g), z(p);
-		var N = K(p, 2), P = (n) => {
+		}), R(g), R(p);
+		var N = K(p, 2), ee = (n) => {
 			var r = Ft(), i = J(r);
 			$(i, {
 				name: "pin",
@@ -1396,21 +1396,21 @@ function qt(n, i) {
 			});
 			var o = K(i), c = (e) => {
 				var n = Pt(), r = k(n, !0);
-				F(() => {
+				P(() => {
 					t(n, "href", a().location), x(r, a().location);
 				}), s(e, n);
 			}, l = X(() => /^https?:\/\//.test(a().location)), u = (e) => {
 				var t = T();
-				F(() => x(t, a().location)), s(e, t);
+				P(() => x(t, a().location)), s(e, t);
 			};
 			S(o, (t) => {
 				e(l) ? t(c) : t(u, -1);
-			}), z(r), s(n, r);
+			}), R(r), s(n, r);
 		};
 		S(N, (e) => {
-			a().location && e(P);
+			a().location && e(ee);
 		});
-		var I = K(N, 2), L = (t) => {
+		var F = K(N, 2), I = (t) => {
 			var n = zt(), r = J(n);
 			$(r, {
 				name: "people",
@@ -1418,7 +1418,7 @@ function qt(n, i) {
 			});
 			var i = K(r, 2), o = J(i), c = (e) => {
 				var t = It(), n = J(t);
-				re(), z(t), F(() => x(n, `${a().organizer.name ?? a().organizer.email ?? ""} `)), s(e, t);
+				re(), R(t), P(() => x(n, `${a().organizer.name ?? a().organizer.email ?? ""} `)), s(e, t);
 			};
 			S(o, (e) => {
 				a().organizer && e(c);
@@ -1426,78 +1426,78 @@ function qt(n, i) {
 			var u = K(o, 2);
 			v(u, 17, () => (a().attendees ?? []).slice(0, 8), (e) => e.email, (t, n) => {
 				var r = Lt(), i = J(r), a = K(i), o = k(a, !0);
-				z(r), F((t, r) => {
+				R(r), P((t, r) => {
 					x(i, `${e(n).name ?? e(n).email ?? ""} `), l(a, 1, `ps ps-${t ?? ""}`, "svelte-id2g6u"), x(o, r);
 				}, [() => (e(n).partstat ?? "needs-action").toLowerCase(), () => (e(n).partstat ?? "NEEDS-ACTION").toLowerCase().replace("needs-action", "no answer")]), s(t, r);
 			});
 			var d = K(u, 2), f = (e) => {
 				var t = Rt(), n = k(t);
-				F(() => x(n, `and ${(a().attendees?.length ?? 0) - 8} more`)), s(e, t);
+				P(() => x(n, `and ${(a().attendees?.length ?? 0) - 8} more`)), s(e, t);
 			};
 			S(d, (e) => {
 				(a().attendees?.length ?? 0) > 8 && e(f);
-			}), z(i), z(n), s(t, n);
+			}), R(i), R(n), s(t, n);
 		};
-		S(I, (e) => {
-			(a().organizer || a().attendees?.length) && e(L);
+		S(F, (e) => {
+			(a().organizer || a().attendees?.length) && e(I);
 		});
-		var te = K(I, 2), R = (e) => {
+		var ne = K(F, 2), L = (e) => {
 			var t = Bt(), n = J(t);
 			$(n, {
 				name: "text",
 				size: 14
 			});
 			var r = K(n), i = k(r, !0);
-			z(t), F(() => x(i, a().description)), s(e, t);
+			R(t), P(() => x(i, a().description)), s(e, t);
 		};
-		S(te, (e) => {
-			a().description && e(R);
+		S(ne, (e) => {
+			a().description && e(L);
 		});
-		var B = K(te, 2), H = J(B);
-		$(H, {
+		var z = K(ne, 2), V = J(z);
+		$(V, {
 			name: "calendar",
 			size: 14
 		});
-		var U = K(H);
-		z(B);
-		var W = K(B, 2), ie = (t) => {
+		var H = K(V);
+		R(z);
+		var U = K(z, 2), ie = (t) => {
 			var n = Vt();
 			$(J(n), {
 				name: "note",
 				size: 14
-			}), re(), z(n), E("click", n, () => {
+			}), re(), R(n), E("click", n, () => {
 				i.cal.atlas.open(e(C)), i.onclose();
 			}), s(t, n);
 		};
-		S(W, (t) => {
+		S(U, (t) => {
 			e(C) && t(ie);
 		});
-		var ae = K(W, 2), G = (e) => {
+		var ae = K(U, 2), G = (e) => {
 			var n = Ht(), r = J(n);
 			$(r, {
 				name: "link",
 				size: 14
 			});
 			var i = K(r), o = k(i, !0);
-			z(n), F(() => {
+			R(n), P(() => {
 				t(i, "href", a().url), x(o, a().url);
 			}), s(e, n);
 		};
 		S(ae, (e) => {
 			a().url && e(G);
-		}), F((e, t) => {
-			h = o(m, "", h, { "--c": e }), y = l(_, 1, "svelte-id2g6u", null, y, { cancel: a().status === "CANCELLED" }), x(b, a().summary || "(no title)"), x(D, t), x(U, `${a().calendar_name ?? ""}${a().writable ? "" : " · read-only"}`);
-		}, [() => a().color ?? i.cal.colorOf(a().calendar), () => ee(a(), i.cal.h12)]), E("click", f, function(...e) {
+		}), P((e, t) => {
+			h = o(m, "", h, { "--c": e }), y = l(_, 1, "svelte-id2g6u", null, y, { cancel: a().status === "CANCELLED" }), x(b, a().summary || "(no title)"), x(D, t), x(H, `${a().calendar_name ?? ""}${a().writable ? "" : " · read-only"}`);
+		}, [() => a().color ?? i.cal.colorOf(a().calendar), () => te(a(), i.cal.h12)]), E("click", f, function(...e) {
 			i.onclose?.apply(this, e);
 		}), s(n, r);
 	}, N = (t) => {
-		var n = Wt(), r = V(n), a = J(r);
+		var n = Wt(), r = B(n), a = J(r);
 		$(J(a), {
 			name: "x",
 			size: 15
-		}), z(a), z(r);
+		}), R(a), R(r);
 		var o = K(r, 2);
-		H(o), b(o, (e) => M(m, e), () => e(m));
+		V(o), b(o, (e) => M(m, e), () => e(m));
 		var c = K(o, 2), l = k(c, !0), u = K(c, 2), f = J(u);
 		$(f, {
 			name: "calendar",
@@ -1521,9 +1521,9 @@ function qt(n, i) {
 		};
 		S(g, (t) => {
 			e(p) ? t(_) : t(v, -1);
-		}), z(u);
+		}), R(u);
 		var C = K(u, 2), D = J(C), O = K(D, 2);
-		z(C), F(() => {
+		R(C), P(() => {
 			x(l, e(w)), O.disabled = !e(p);
 		}), E("click", a, function(...e) {
 			i.onclose?.apply(this, e);
@@ -1533,12 +1533,12 @@ function qt(n, i) {
 	};
 	S(A, (e) => {
 		a() ? e(j) : c() && e(N, 1);
-	}), z(D), b(D, (e) => M(u, e), () => e(u)), F(() => {
+	}), R(D), b(D, (e) => M(u, e), () => e(u)), P(() => {
 		t(D, "aria-label", a() ? a().summary : "New event"), O = o(D, "", O, {
 			left: `${e(g).left ?? ""}px`,
 			top: `${e(g).top ?? ""}px`
 		});
-	}), s(n, D), L();
+	}), s(n, D), I();
 }
 w(["click", "keydown"]);
 //#endregion
@@ -1560,20 +1560,20 @@ function tn(n, a) {
 		description: o()?.description ?? "",
 		rrule: o()?.rrule ?? "",
 		calendar: o()?.calendar ?? (l() || a.cal.newCalendar()) ?? ""
-	}), d = W(void 0), g = W("");
+	}), d = U(void 0), g = U("");
 	r(() => e(d)?.focus());
 	let _ = X(() => {
 		let e = oe(/* @__PURE__ */ new Date(`${u.sday}T12:00`));
 		return u.rrule && !e.some((e) => e.value === u.rrule) && e.push({
 			value: u.rrule,
-			label: ne(u.rrule) || u.rrule
+			label: W(u.rrule) || u.rrule
 		}), e;
 	}), y = X(() => a.cal.writable());
 	function C() {
 		return {
 			start: u.all_day ? u.sday : `${u.sday}T${u.stime}`,
 			end: u.all_day ? (() => {
-				let e = B(/* @__PURE__ */ new Date(`${u.eday}T12:00`), 1);
+				let e = z(/* @__PURE__ */ new Date(`${u.eday}T12:00`), 1);
 				return `${e.getFullYear()}-${String(e.getMonth() + 1).padStart(2, "0")}-${String(e.getDate()).padStart(2, "0")}`;
 			})() : `${u.eday}T${u.etime}`
 		};
@@ -1622,17 +1622,17 @@ function tn(n, a) {
 			u.etime = `${String(Math.min(23, e + 1)).padStart(2, "0")}:${String(t).padStart(2, "0")}`;
 		}
 	}
-	var A = $t(), j = V(A), N = K(j, 2), I = J(N), ee = J(I), te = k(ee, !0), R = K(ee, 2);
-	$(J(R), { name: "x" }), z(R), z(I);
-	var U = K(I, 2);
-	H(U), b(U, (e) => M(d, e), () => e(d));
-	var ie = K(U, 2), ae = J(ie);
+	var A = $t(), j = B(A), N = K(j, 2), F = J(N), te = J(F), ne = k(te, !0), L = K(te, 2);
+	$(J(L), { name: "x" }), R(L), R(F);
+	var H = K(F, 2);
+	V(H), b(H, (e) => M(d, e), () => e(d));
+	var ie = K(H, 2), ae = J(ie);
 	$(ae, { name: "clock" });
 	var G = K(ae, 2), q = J(G);
-	H(q);
+	V(q);
 	var ce = K(q, 2), le = (e) => {
 		var t = Jt();
-		H(t), E("change", t, () => {
+		V(t), E("change", t, () => {
 			u.stime = D(u.stime, "09:00"), O();
 		}), h(t, () => u.stime, (e) => u.stime = e), s(e, t);
 	};
@@ -1641,28 +1641,28 @@ function tn(n, a) {
 	});
 	var ue = K(ce, 4), de = (e) => {
 		var t = Yt();
-		H(t), E("change", t, () => u.etime = D(u.etime, "10:00")), h(t, () => u.etime, (e) => u.etime = e), s(e, t);
+		V(t), E("change", t, () => u.etime = D(u.etime, "10:00")), h(t, () => u.etime, (e) => u.etime = e), s(e, t);
 	};
 	S(ue, (e) => {
 		u.all_day || e(de);
 	});
 	var fe = K(ue, 2);
-	H(fe);
+	V(fe);
 	var pe = K(fe, 2), me = J(pe);
-	H(me), re(), z(pe), z(G), z(ie);
+	V(me), re(), R(pe), R(G), R(ie);
 	var Q = K(ie, 2), he = J(Q);
 	$(he, { name: "repeat" });
 	var ge = K(he, 2);
 	v(ge, 21, () => e(_), (e) => e.value, (t, n) => {
 		var r = Xt(), i = k(r, !0), a = {};
-		F(() => {
+		P(() => {
 			x(i, e(n).label), a !== (a = e(n).value) && (r.value = (r.__value = a) ?? "");
 		}), s(t, r);
-	}), z(ge), m(ge), z(Q);
+	}), R(ge), m(ge), R(Q);
 	var _e = K(Q, 2), ve = J(_e);
 	$(ve, { name: "pin" });
 	var ye = K(ve);
-	H(ye), z(_e);
+	V(ye), R(_e);
 	var be = K(_e, 2), xe = J(be);
 	$(xe, { name: "calendar" });
 	var Se = K(xe, 2);
@@ -1683,12 +1683,12 @@ function tn(n, a) {
 			}
 		});
 	}
-	z(be);
+	R(be);
 	var Ce = K(be, 2), we = (e) => {
 		var t = Zt(), n = J(t);
 		$(n, { name: "people" });
 		var r = K(n), i = k(r, !0);
-		z(t), F((e) => x(i, e), [() => o().attendees.map((e) => e.name ?? e.email).join(", ")]), s(e, t);
+		R(t), P((e) => x(i, e), [() => o().attendees.map((e) => e.name ?? e.email).join(", ")]), s(e, t);
 	};
 	S(Ce, (e) => {
 		o()?.attendees?.length && e(we);
@@ -1696,24 +1696,24 @@ function tn(n, a) {
 	var Te = K(Ce, 2), Ee = J(Te);
 	$(Ee, { name: "text" });
 	var De = K(Ee);
-	P(De), z(Te);
+	ee(De), R(Te);
 	var Oe = K(Te, 2), ke = k(Oe), Ae = K(Oe, 2), je = (t) => {
 		var n = Qt(), r = k(n, !0);
-		F(() => x(r, e(g))), s(t, n);
+		P(() => x(r, e(g))), s(t, n);
 	};
 	S(Ae, (t) => {
 		e(g) && t(je);
 	});
 	var Me = K(Ae, 2), Ne = K(J(Me), 2), Pe = K(Ne, 2);
-	z(Me), z(N), F((n) => {
-		t(N, "aria-label", o() ? "Edit event" : "New event"), x(te, o() ? "Edit event" : "New event"), x(ke, `Times in your zone: ${Intl.DateTimeFormat().resolvedOptions().timeZone ?? ""}${n ?? ""}`), Pe.disabled = !e(y).length;
+	R(Me), R(N), P((n) => {
+		t(N, "aria-label", o() ? "Edit event" : "New event"), x(ne, o() ? "Edit event" : "New event"), x(ke, `Times in your zone: ${Intl.DateTimeFormat().resolvedOptions().timeZone ?? ""}${n ?? ""}`), Pe.disabled = !e(y).length;
 	}, [() => o()?.tzid && o().tzid !== Intl.DateTimeFormat().resolvedOptions().timeZone ? ` · written in ${o().tzid}` : ""]), E("click", j, function(...e) {
 		a.onclose?.apply(this, e);
-	}), E("keydown", N, T), E("click", R, function(...e) {
+	}), E("keydown", N, T), E("click", L, function(...e) {
 		a.onclose?.apply(this, e);
-	}), h(U, () => u.summary, (e) => u.summary = e), E("change", q, O), h(q, () => u.sday, (e) => u.sday = e), h(fe, () => u.eday, (e) => u.eday = e), i(me, () => u.all_day, (e) => u.all_day = e), p(ge, () => u.rrule, (e) => u.rrule = e), h(ye, () => u.location, (e) => u.location = e), h(De, () => u.description, (e) => u.description = e), E("click", Ne, function(...e) {
+	}), h(H, () => u.summary, (e) => u.summary = e), E("change", q, O), h(q, () => u.sday, (e) => u.sday = e), h(fe, () => u.eday, (e) => u.eday = e), i(me, () => u.all_day, (e) => u.all_day = e), p(ge, () => u.rrule, (e) => u.rrule = e), h(ye, () => u.location, (e) => u.location = e), h(De, () => u.description, (e) => u.description = e), E("click", Ne, function(...e) {
 		a.onclose?.apply(this, e);
-	}), E("click", Pe, w), s(n, A), L();
+	}), E("click", Pe, w), s(n, A), I();
 }
 w([
 	"click",
@@ -1742,10 +1742,10 @@ function sn(n, r) {
 			e(i).undo && t(f);
 		});
 		var p = K(d, 2);
-		z(a), F(() => {
+		R(a), P(() => {
 			o = l(a, 1, "toast svelte-osdry5", null, o, { error: e(i).kind === "error" }), t(a, "role", e(i).kind === "error" ? "alert" : "status"), x(u, e(i).text);
 		}), E("click", p, () => r.cal.dismiss(e(i).id)), s(n, a);
-	}), z(i), s(n, i), L();
+	}), R(i), s(n, i), I();
 }
 w(["click"]);
 //#endregion
@@ -1919,8 +1919,8 @@ var pn = q("<kbd class=\"svelte-17nm084\"> </kbd>"), mn = q("<div class=\"row sv
 function vn(t, n) {
 	se(n, !0), f(t, _n);
 	let r = [...new Set(ln.map((e) => e.group))];
-	var i = gn(), a = V(i), o = K(a, 2), c = J(o), l = K(J(c));
-	z(c);
+	var i = gn(), a = B(i), o = K(a, 2), c = J(o), l = K(J(c));
+	R(c);
 	var u = K(c, 2);
 	v(u, 20, () => r, (e) => e, (t, n) => {
 		var r = hn(), i = J(r), a = k(i, !0), o = K(i, 2);
@@ -1928,27 +1928,27 @@ function vn(t, n) {
 			var r = mn(), i = J(r), a = k(i, !0), o = K(i);
 			v(o, 20, () => fn(e(n).keys), (e) => e, (e, t) => {
 				var n = pn(), r = k(n, !0);
-				F(() => x(r, t)), s(e, n);
-			}), z(o), z(r), F(() => x(a, e(n).title)), s(t, r);
-		}), z(r), F(() => x(a, n)), s(t, r);
-	}), z(u), re(2), z(o), E("click", a, function(...e) {
+				P(() => x(r, t)), s(e, n);
+			}), R(o), R(r), P(() => x(a, e(n).title)), s(t, r);
+		}), R(r), P(() => x(a, n)), s(t, r);
+	}), R(u), re(2), R(o), E("click", a, function(...e) {
 		n.onclose?.apply(this, e);
 	}), E("click", l, function(...e) {
 		n.onclose?.apply(this, e);
-	}), s(t, i), L();
+	}), s(t, i), I();
 }
 w(["click"]);
 //#endregion
 //#region plugins/stable/dav/ui/src/App.svelte
-var yn = q("<button class=\"tool svelte-1i74804\" title=\"Side panel (s)\" aria-label=\"Side panel\"><!></button>"), bn = q("<span class=\"spin svelte-1i74804\" aria-label=\"Working\"></span>"), xn = q("<option> </option>"), Sn = q("<select class=\"vsel svelte-1i74804\" aria-label=\"View\"></select>"), Cn = q("<button> </button>"), wn = q("<div class=\"seg svelte-1i74804\" role=\"group\" aria-label=\"View\"></div>"), Tn = q("<button class=\"tool svelte-1i74804\" title=\"Sync now (r)\" aria-label=\"Sync\"><!></button> <button class=\"tool svelte-1i74804\" title=\"All commands (Ctrl+K)\" aria-label=\"All commands\"><!></button>", 1), En = q("<span class=\"qprev svelte-1i74804\"><b class=\"svelte-1i74804\"> </b> </span>"), Dn = q("<div class=\"quick svelte-1i74804\"><!> <input placeholder=\"lunch with Ana tomorrow 13:00 · examen 15 nov · réunion lundi à 10h @ D3\" aria-label=\"Quick add\" class=\"svelte-1i74804\"/> <!> <!> <button class=\"atlas-btn primary\">Add</button></div>"), On = q("<aside class=\"side svelte-1i74804\" aria-label=\"Calendars\"><!></aside>"), kn = q("<div class=\"atlas-notice error\"> <div class=\"actions\"><button class=\"atlas-btn\">Try again</button><button class=\"atlas-btn\">Settings…</button></div></div>"), An = q("<div class=\"atlas-notice\">No calendar account yet: add one in Settings (its server address, user name and app password; as many as you have) — or subscribe to a public calendar there.<div class=\"actions\"><button class=\"atlas-btn primary\">Settings…</button></div></div>"), jn = q("<button class=\"fab svelte-1i74804\" aria-label=\"New event\" title=\"New event (c)\"><!></button>"), Mn = q("<div class=\"popscrim svelte-1i74804\" role=\"presentation\"></div> <!>", 1), Nn = q("<div tabindex=\"-1\" role=\"application\" aria-label=\"Calendar\"><header class=\"top svelte-1i74804\"><!> <button class=\"atlas-btn today svelte-1i74804\" title=\"Today (t)\">Today</button> <div class=\"nav svelte-1i74804\"><button class=\"tool svelte-1i74804\" title=\"Previous (k)\" aria-label=\"Previous\"><!></button> <button class=\"tool svelte-1i74804\" title=\"Next (j)\" aria-label=\"Next\"><!></button></div> <h1 class=\"svelte-1i74804\"> </h1> <!> <span class=\"grow svelte-1i74804\"></span> <div><!> <input placeholder=\"Search events\" aria-label=\"Search events\" class=\"svelte-1i74804\"/></div> <!> <button class=\"tool svelte-1i74804\" title=\"Quick add in words (q)\" aria-label=\"Quick add\"><!></button> <!></header> <!> <div class=\"body svelte-1i74804\"><!> <main class=\"view svelte-1i74804\"><!> <!></main></div> <!> <!> <!> <!> <!></div>"), Pn = {
+var yn = q("<button class=\"tool svelte-1i74804\" title=\"Side panel (s)\" aria-label=\"Side panel\"><!></button>"), bn = q("<span class=\"spin svelte-1i74804\" aria-label=\"Working\"></span>"), xn = q("<option> </option>"), Sn = q("<select class=\"vsel svelte-1i74804\" aria-label=\"View\"></select>"), Cn = q("<button> </button>"), wn = q("<div class=\"seg svelte-1i74804\" role=\"group\" aria-label=\"View\"></div>"), Tn = q("<button class=\"tool svelte-1i74804\" title=\"Sync now (r)\" aria-label=\"Sync\"><!></button> <button class=\"tool svelte-1i74804\" title=\"All commands (Ctrl+K)\" aria-label=\"All commands\"><!></button>", 1), En = q("<span class=\"qprev svelte-1i74804\"><b class=\"svelte-1i74804\"> </b> </span>"), Dn = q("<div class=\"quick svelte-1i74804\"><!> <input placeholder=\"lunch with Ana tomorrow 13:00 · examen 15 nov · réunion lundi à 10h @ D3\" aria-label=\"Quick add\" class=\"svelte-1i74804\"/> <!> <!> <button class=\"atlas-btn primary\">Add</button></div>"), On = q("<aside class=\"side svelte-1i74804\" aria-label=\"Calendars\"><!></aside>"), kn = q("<div class=\"atlas-notice error\"> <div class=\"actions\"><button class=\"atlas-btn\">Try again</button><button class=\"atlas-btn\">Settings…</button></div></div>"), An = q("<div class=\"atlas-notice\">No calendar account yet: add one in Settings (its server address, user name and app password; as many as you have) — or subscribe to a public calendar there.<div class=\"actions\"><button class=\"atlas-btn primary\">Settings…</button></div></div>"), jn = q("<button class=\"fab svelte-1i74804\" aria-label=\"New event\" title=\"New event (c)\"><!></button>"), Mn = q("<div class=\"popscrim svelte-1i74804\" role=\"presentation\"></div> <!>", 1), Nn = q("<div tabindex=\"-1\" role=\"application\" aria-label=\"Calendar\"><header class=\"top svelte-1i74804\"><!> <button class=\"atlas-btn today svelte-1i74804\" title=\"Today (t)\">Today</button> <div class=\"nav svelte-1i74804\"><button class=\"tool svelte-1i74804\" title=\"Previous (k)\" aria-label=\"Previous\"><!></button> <button class=\"tool svelte-1i74804\" title=\"Next (j)\" aria-label=\"Next\"><!></button></div> <h1 class=\"svelte-1i74804\"> </h1> <!> <span class=\"grow svelte-1i74804\"></span> <div><!> <input aria-label=\"Search events\" class=\"svelte-1i74804\"/></div> <!> <button class=\"tool svelte-1i74804\" title=\"Quick add in words (q)\" aria-label=\"Quick add\"><!></button> <!></header> <!> <div class=\"body svelte-1i74804\"><!> <main class=\"view svelte-1i74804\"><!> <!></main></div> <!> <!> <!> <!> <!></div>"), Pn = {
 	hash: "svelte-1i74804",
 	code: ".calendar.svelte-1i74804:focus {outline:none;}.calendar.svelte-1i74804 {position:relative;height:100%;display:grid;grid-template-rows:auto auto 1fr;color:var(--text);background:var(--bg);font-size:calc(14px * var(--ui-scale, 1));container-type:inline-size;overflow:hidden;}.top.svelte-1i74804 {grid-row:1;display:flex;align-items:center;gap:8px;padding:8px 12px;border-bottom:1px solid var(--border);min-width:0;}h1.svelte-1i74804 {margin:0 0 0 4px;font-size:1.2em;font-weight:600;color:var(--heading);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:6em;flex:0 1 auto;}.nav.svelte-1i74804 {display:flex;}.grow.svelte-1i74804 {flex:1;}.today.svelte-1i74804 {flex:none;}.tool.svelte-1i74804 {all:unset;cursor:pointer;padding:6px;border-radius:var(--radius-sm);color:var(--text-muted);display:grid;place-items:center;min-width:24px;min-height:24px;flex:none;}.tool.svelte-1i74804:hover {background:var(--bg-hover);color:var(--text);}.tool.svelte-1i74804:focus-visible, .seg.svelte-1i74804 button:where(.svelte-1i74804):focus-visible, .fab.svelte-1i74804:focus-visible {outline:2px solid var(--accent);outline-offset:-2px;}.search.svelte-1i74804 {display:flex;align-items:center;gap:6px;background:var(--bg-hover);border:1px solid transparent;border-radius:var(--radius);padding:0 8px;color:var(--text-faint);width:200px;flex:0 1 auto;min-width:70px;}.search.svelte-1i74804:focus-within, .search.on.svelte-1i74804 {border-color:var(--accent);background:var(--bg);color:var(--text);}.search.svelte-1i74804 input:where(.svelte-1i74804) {all:unset;flex:1;min-width:0;padding:6px 0;color:var(--text);}.search.svelte-1i74804 input:where(.svelte-1i74804)::placeholder {color:var(--text-faint);}.seg.svelte-1i74804 {display:flex;border:1px solid var(--border-strong);border-radius:var(--radius-sm);overflow:hidden;flex:none;}.seg.svelte-1i74804 button:where(.svelte-1i74804) {all:unset;cursor:pointer;padding:4px 10px;font-size:0.86em;color:var(--text-muted);}.seg.svelte-1i74804 button:where(.svelte-1i74804) + button:where(.svelte-1i74804) {border-left:1px solid var(--border);}.seg.svelte-1i74804 button:where(.svelte-1i74804):hover {background:var(--bg-hover);color:var(--text);}.seg.svelte-1i74804 button.on:where(.svelte-1i74804) {background:var(--accent-soft);color:var(--accent-strong);font-weight:600;}.vsel.svelte-1i74804 {appearance:none;-webkit-appearance:none;font:inherit;color:var(--text);background-color:var(--bg);border:1px solid var(--border-strong);border-radius:var(--radius-sm);padding:4px 26px 4px 8px;flex:none;background-image:linear-gradient(45deg, transparent 50%, var(--text-muted) 50%), linear-gradient(135deg, var(--text-muted) 50%, transparent 50%);background-position:calc(100% - 14px) 50%, calc(100% - 9px) 50%;background-size:5px 5px;background-repeat:no-repeat;}.spin.svelte-1i74804 {width:12px;height:12px;border-radius:50%;border:2px solid var(--border-strong);border-top-color:var(--accent); animation: svelte-1i74804-spin 0.8s linear infinite;flex:none;}\n  @keyframes svelte-1i74804-spin { to { transform: rotate(360deg); } }\n  @media (prefers-reduced-motion: reduce) {.spin.svelte-1i74804 { animation: none;} }.quick.svelte-1i74804 {grid-row:2;display:flex;align-items:center;gap:10px;padding:8px 14px;border-bottom:1px solid var(--border);background:var(--bg-alt);color:var(--accent-strong);min-width:0;flex-wrap:wrap;}.quick.svelte-1i74804 input:where(.svelte-1i74804) {all:unset;flex:1 1 260px;min-width:0;color:var(--text);font-size:1.02em;padding:4px 0;}.quick.svelte-1i74804 input:where(.svelte-1i74804)::placeholder {color:var(--text-faint);}.qprev.svelte-1i74804 {color:var(--text-muted);font-size:0.9em;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}.qprev.svelte-1i74804 b:where(.svelte-1i74804) {color:var(--text);}.body.svelte-1i74804 {grid-row:3;display:flex;min-height:0;}.side.svelte-1i74804 {flex:none;width:248px;border-right:1px solid var(--border);background:var(--bg-alt);min-height:0;}.view.svelte-1i74804 {flex:1;min-width:0;min-height:0;position:relative;display:flex;flex-direction:column;}.view.svelte-1i74804 > * {flex:1;min-height:0;}.view.svelte-1i74804 > .atlas-notice {flex:none;margin:10px 14px;}.popscrim.svelte-1i74804 {position:absolute;inset:0;z-index:49;}.fab.svelte-1i74804 {all:unset;cursor:pointer;position:absolute;right:18px;bottom:22px;z-index:40;width:52px;height:52px;border-radius:16px;display:grid;place-items:center;background:var(--accent);color:var(--accent-fg);box-shadow:var(--shadow-md, 0 6px 18px rgba(0,0,0,.3));}.narrow.svelte-1i74804 .top:where(.svelte-1i74804) {flex-wrap:wrap;row-gap:6px;padding:8px;}.narrow.svelte-1i74804 h1:where(.svelte-1i74804) {order:10;flex-basis:100%;margin:0;font-size:1.05em;}.narrow.svelte-1i74804 .search:where(.svelte-1i74804) {width:auto;flex:1 1 60px;min-width:60px;}\n  @container (max-width: 1100px) {.seg.svelte-1i74804 button:where(.svelte-1i74804) {padding:4px 7px;} }"
 };
 function Fn(i, o) {
 	se(o, !0), f(i, Pn);
-	let c = new ye(o.atlas), u = W(1200), p = W(void 0), C = W(!0), w = W(!1), T = W(void 0), O = W(""), j = W(!1), N = W(""), P = W(void 0), I = W(null), ee = W(""), R = W(null), U = W(null), ne = X(() => e(u) < 700), re = X(() => !e(ne) && e(u) >= 900 && e(C)), ie = X(() => c.shown());
+	let c = new ye(o.atlas), u = U(1200), p = U(void 0), C = U(!0), w = U(!1), T = U(void 0), O = U(""), j = U(!1), N = U(""), ee = U(void 0), F = U(null), te = U(""), L = U(null), H = U(null), W = X(() => e(u) < 700), re = X(() => !e(W) && e(u) >= 900 && e(C)), ie = X(() => c.shown());
 	de(() => {
-		c.narrow !== e(ne) && (c.narrow = e(ne), c.load());
+		c.narrow !== e(W) && (c.narrow = e(W), c.load());
 	});
 	let oe = [
 		["day", "Day"],
@@ -1957,19 +1957,19 @@ function Fn(i, o) {
 		["month", "Month"],
 		["agenda", "Agenda"],
 		["year", "Year"]
-	], q = X(() => e(R)?.e ?? null), ce = () => e(p)?.getBoundingClientRect() ?? new DOMRect(0, 0, e(u), 800);
+	], q = X(() => e(L)?.e ?? null), ce = () => e(p)?.getBoundingClientRect() ?? new DOMRect(0, 0, e(u), 800);
 	function le(e, t) {
-		M(R, {
+		M(L, {
 			e,
 			at: t
-		}, !0), M(U, null);
+		}, !0), M(H, null);
 	}
 	function Y(e, t, n, r) {
 		if (!c.newCalendar()) {
 			c.toast(c.configured ? "No calendar of your accounts takes new events (all read-only?)" : "Add a calendar account in Settings first", "error");
 			return;
 		}
-		M(R, {
+		M(L, {
 			draft: {
 				start: e,
 				end: t,
@@ -1980,31 +1980,31 @@ function Fn(i, o) {
 	}
 	function ue() {
 		let e = new Date(c.cursor), t = /* @__PURE__ */ new Date(), n = new Date(e.getFullYear(), e.getMonth(), e.getDate(), t.getHours() + 1, 0);
-		M(U, {
+		M(H, {
 			start: A(n),
 			end: A(new Date(n.getTime() + 36e5)),
 			allDay: !1
-		}, !0), M(R, null);
+		}, !0), M(L, null);
 	}
-	function fe(t = e(R)?.e) {
+	function fe(t = e(L)?.e) {
 		if (!t) return;
 		if (!t.writable) {
 			c.toast(`${t.calendar_name || "This calendar"} is read-only`, "error");
 			return;
 		}
 		let n = ye.fields(t);
-		M(U, {
+		M(H, {
 			e: t,
 			start: n.start,
 			end: n.end,
 			allDay: t.all_day
-		}, !0), M(R, null);
+		}, !0), M(L, null);
 	}
 	function pe(t, n) {
-		let r = e(R)?.draft;
-		r && (M(U, r.all_day ? {
+		let r = e(L)?.draft;
+		r && (M(H, r.all_day ? {
 			start: y(r.start),
-			end: y(B(r.end, -1)),
+			end: y(z(r.end, -1)),
 			allDay: !0,
 			title: t,
 			calendar: n
@@ -2014,19 +2014,19 @@ function Fn(i, o) {
 			allDay: !1,
 			title: t,
 			calendar: n
-		}, !0), M(R, null));
+		}, !0), M(L, null));
 	}
 	function Z() {
 		if (e(w)) {
 			M(w, !1);
 			return;
 		}
-		if (e(U)) {
-			M(U, null);
+		if (e(H)) {
+			M(H, null);
 			return;
 		}
-		if (e(R)) {
-			M(R, null);
+		if (e(L)) {
+			M(L, null);
 			return;
 		}
 		if (e(j)) {
@@ -2043,7 +2043,7 @@ function Fn(i, o) {
 				value: y(/* @__PURE__ */ new Date()),
 				title: "Today"
 			}, {
-				value: y(B(/* @__PURE__ */ new Date(), 7)),
+				value: y(z(/* @__PURE__ */ new Date(), 7)),
 				title: "In a week"
 			}],
 			typed: (e) => `Go to “${e}”`,
@@ -2075,15 +2075,15 @@ function Fn(i, o) {
 		});
 	}
 	function ge() {
-		M(j, !0), M(ee, c.newCalendar() ?? "", !0), M(R, null), setTimeout(() => e(P)?.focus(), 0);
+		M(j, !0), M(te, c.newCalendar() ?? "", !0), M(L, null), setTimeout(() => e(ee)?.focus(), 0);
 	}
 	let _e = {
 		create: ue,
 		quick: ge,
 		edit: () => fe(),
 		remove: () => {
-			let t = e(R)?.e;
-			t?.writable && (M(R, null), c.remove(t));
+			let t = e(L)?.e;
+			t?.writable && (M(L, null), c.remove(t));
 		},
 		focusSearch: () => {
 			e(T)?.focus(), e(T)?.select();
@@ -2103,37 +2103,37 @@ function Fn(i, o) {
 			"meta"
 		].includes(t.key.toLowerCase())) return;
 		let r = dn.get(un(t));
-		r && (r.id !== "delete" && r.id !== "edit" || e(R)?.e) && (t.preventDefault(), t.stopPropagation(), r.run(c, _e));
+		r && (r.id !== "delete" && r.id !== "edit" || e(L)?.e) && (t.preventDefault(), t.stopPropagation(), r.run(c, _e));
 	}
 	let be;
 	function xe() {
 		clearTimeout(be), be = setTimeout(async () => {
 			if (!e(N).trim()) {
-				M(I, null);
+				M(F, null);
 				return;
 			}
 			try {
-				M(I, await G(o.atlas, "quick", { text: e(N) }), !0);
+				M(F, await G(o.atlas, "quick", { text: e(N) }), !0);
 			} catch {
-				M(I, null);
+				M(F, null);
 			}
 		}, 120);
 	}
 	async function Se() {
 		if (!e(N).trim()) return;
-		let t = e(I) ?? await G(o.atlas, "quick", { text: e(N) });
-		M(j, !1), M(N, ""), M(I, null), await c.create({
+		let t = e(F) ?? await G(o.atlas, "quick", { text: e(N) });
+		M(j, !1), M(N, ""), M(F, null), await c.create({
 			summary: t.title || "(no title)",
 			start: t.start,
 			end: t.end,
 			all_day: t.all_day,
 			rrule: t.rrule,
 			location: t.location,
-			calendar: e(ee) || void 0
+			calendar: e(te) || void 0
 		}) && c.go(/* @__PURE__ */ new Date(`${t.start.slice(0, 10)}T12:00`));
 	}
 	let Ce = X(() => {
-		let t = e(I);
+		let t = e(F);
 		if (!t) return "";
 		let n = new Date(t.all_day ? `${t.start}T00:00` : t.start), r = new Date(t.all_day ? `${t.end}T00:00` : t.end), i = n.toLocaleDateString(void 0, {
 			weekday: "short",
@@ -2166,18 +2166,18 @@ function Fn(i, o) {
 	let De;
 	var Oe = J(Ee), ke = J(Oe), Ae = (t) => {
 		var n = yn();
-		$(J(n), { name: "menu" }), z(n), E("click", n, () => M(C, !e(C))), s(t, n);
+		$(J(n), { name: "menu" }), R(n), E("click", n, () => M(C, !e(C))), s(t, n);
 	};
 	S(ke, (t) => {
-		e(ne) || t(Ae);
+		e(W) || t(Ae);
 	});
 	var je = K(ke, 2), Me = K(je, 2), Ne = J(Me);
-	$(J(Ne), { name: "back" }), z(Ne);
+	$(J(Ne), { name: "back" }), R(Ne);
 	var Pe = K(Ne, 2);
-	$(J(Pe), { name: "right" }), z(Pe), z(Me);
+	$(J(Pe), { name: "right" }), R(Pe), R(Me);
 	var Fe = K(Me, 2), Ie = k(Fe, !0), Le = K(Fe, 2), Re = (e) => {
 		var n = bn();
-		F(() => t(n, "title", c.syncing ? "Syncing with the server" : "Reading")), s(e, n);
+		P(() => t(n, "title", c.syncing ? "Syncing with the server" : "Reading")), s(e, n);
 	};
 	S(Le, (e) => {
 		(c.loading || c.syncing) && e(Re);
@@ -2190,48 +2190,48 @@ function Fn(i, o) {
 		size: 15
 	});
 	var Ue = K(He, 2);
-	H(Ue), b(Ue, (e) => M(T, e), () => e(T)), z(Be);
+	V(Ue), b(Ue, (e) => M(T, e), () => e(T)), R(Be);
 	var We = K(Be, 2), Ge = (t) => {
 		var n = Sn();
 		v(n, 21, () => oe, ([e, t]) => e, (t, n) => {
-			var r = X(() => te(e(n), 2));
+			var r = X(() => ne(e(n), 2));
 			let i = () => e(r)[0], a = () => e(r)[1];
 			var o = xn(), c = k(o, !0), l = {};
-			F(() => {
+			P(() => {
 				x(c, a()), l !== (l = i()) && (o.value = (o.__value = l) ?? "");
 			}), s(t, o);
-		}), z(n);
+		}), R(n);
 		var r;
-		m(n), F(() => {
+		m(n), P(() => {
 			r !== (r = c.view) && (n.value = (n.__value = r) ?? "", g(n, r));
 		}), E("change", n, (e) => c.setView(e.currentTarget.value)), s(t, n);
 	}, Ke = (n) => {
 		var r = wn();
 		v(r, 21, () => oe, ([e, t]) => e, (n, r) => {
-			var i = X(() => te(e(r), 2));
+			var i = X(() => ne(e(r), 2));
 			let a = () => e(i)[0], o = () => e(i)[1];
 			var u = Cn();
 			let d;
 			var f = k(u, !0);
-			F((e) => {
+			P((e) => {
 				t(u, "title", `${o() ?? ""} (${e ?? ""})`), d = l(u, 1, "svelte-1i74804", null, d, { on: c.view === a() }), x(f, o());
 			}, [() => ln.find((e) => e.id === a())?.keys?.split(",")[0]]), E("click", u, () => c.setView(a())), s(n, u);
-		}), z(r), s(n, r);
+		}), R(r), s(n, r);
 	};
 	S(We, (t) => {
 		e(u) < 980 ? t(Ge) : t(Ke, -1);
 	});
 	var qe = K(We, 2);
-	$(J(qe), { name: "sparkle" }), z(qe);
+	$(J(qe), { name: "sparkle" }), R(qe);
 	var Je = K(qe, 2), Ye = (e) => {
-		var t = Tn(), n = V(t);
-		$(J(n), { name: "refresh" }), z(n);
+		var t = Tn(), n = B(t);
+		$(J(n), { name: "refresh" }), R(n);
 		var r = K(n, 2);
-		$(J(r), { name: "keyboard" }), z(r), E("click", n, () => c.sync(!0)), E("click", r, he), s(e, t);
+		$(J(r), { name: "keyboard" }), R(r), E("click", n, () => c.sync(!0)), E("click", r, he), s(e, t);
 	};
 	S(Je, (t) => {
-		e(ne) || t(Ye);
-	}), z(Oe);
+		e(W) || t(Ye);
+	}), R(Oe);
 	var Xe = K(Oe, 2), Ze = (t) => {
 		var n = Dn(), r = J(n);
 		$(r, {
@@ -2239,15 +2239,15 @@ function Fn(i, o) {
 			size: 15
 		});
 		var i = K(r, 2);
-		H(i), b(i, (e) => M(P, e), () => e(P));
+		V(i), b(i, (e) => M(ee, e), () => e(ee));
 		var a = K(i, 2), o = (t) => {
 			var n = En(), r = J(n), i = k(r, !0), a = K(r);
-			z(n), F(() => {
-				x(i, e(I).title || "(no title)"), x(a, ` · ${e(Ce) ?? ""}${e(I).rrule ? " · repeats" : ""}${e(I).location ? ` · ${e(I).location}` : ""}`);
+			R(n), P(() => {
+				x(i, e(F).title || "(no title)"), x(a, ` · ${e(Ce) ?? ""}${e(F).rrule ? " · repeats" : ""}${e(F).location ? ` · ${e(F).location}` : ""}`);
 			}), s(t, n);
 		};
 		S(a, (t) => {
-			e(I) && t(o);
+			e(F) && t(o);
 		});
 		var l = K(a, 2), u = (t) => {
 			At(t, {
@@ -2256,18 +2256,18 @@ function Fn(i, o) {
 				},
 				compact: !0,
 				get value() {
-					return e(ee);
+					return e(te);
 				},
 				set value(e) {
-					M(ee, e, !0);
+					M(te, e, !0);
 				}
 			});
 		};
 		S(l, (t) => {
-			e(ee) && t(u);
+			e(te) && t(u);
 		});
 		var d = K(l, 2);
-		z(n), F((e) => d.disabled = e, [() => !e(N).trim()]), E("input", i, xe), E("keydown", i, (e) => {
+		R(n), P((e) => d.disabled = e, [() => !e(N).trim()]), E("input", i, xe), E("keydown", i, (e) => {
 			e.key === "Enter" ? (e.preventDefault(), Se()) : e.key === "Escape" && (e.stopPropagation(), M(j, !1));
 		}), h(i, () => e(N), (e) => M(N, e)), E("click", d, Se), s(t, n);
 	};
@@ -2281,17 +2281,17 @@ function Fn(i, o) {
 				return c;
 			},
 			oncreate: ue
-		}), z(t), s(e, t);
+		}), R(t), s(e, t);
 	};
 	S(et, (t) => {
 		e(re) && t(tt);
 	});
 	var nt = K(et, 2), rt = J(nt), it = (e) => {
 		var t = kn(), n = J(t, !0), r = K(n), i = J(r), a = K(i);
-		z(r), z(t), F(() => x(n, c.error)), E("click", i, () => c.load()), E("click", a, () => o.atlas.plugin.openSettings()), s(e, t);
+		R(r), R(t), P(() => x(n, c.error)), E("click", i, () => c.load()), E("click", a, () => o.atlas.plugin.openSettings()), s(e, t);
 	}, at = (e) => {
 		var t = An(), n = K(J(t)), r = k(n);
-		z(t), E("click", r, () => o.atlas.plugin.openSettings()), s(e, t);
+		R(t), E("click", r, () => o.atlas.plugin.openSettings()), s(e, t);
 	};
 	S(rt, (e) => {
 		c.error ? e(it) : !c.configured && !c.sources.length && e(at, 1);
@@ -2363,7 +2363,7 @@ function Fn(i, o) {
 			return c;
 		} });
 	}, ft = (t) => {
-		var r = d(), i = V(r);
+		var r = d(), i = B(r);
 		n(i, () => e(ie) + c.range().from.getTime(), (t) => {
 			{
 				let n = X(() => c.days());
@@ -2385,22 +2385,22 @@ function Fn(i, o) {
 	};
 	S(ot, (t) => {
 		c.results ? t(st) : e(ie) === "month" ? t(ct, 1) : e(ie) === "agenda" ? t(ut, 2) : e(ie) === "year" ? t(dt, 3) : t(ft, -1);
-	}), z(nt), z(Qe);
+	}), R(nt), R(Qe);
 	var pt = K(Qe, 2), mt = (e) => {
 		var t = jn();
 		$(J(t), {
 			name: "plus",
 			size: 22
-		}), z(t), E("click", t, ue), s(e, t);
+		}), R(t), E("click", t, ue), s(e, t);
 	};
 	S(pt, (t) => {
-		e(ne) && t(mt);
+		e(W) && t(mt);
 	});
 	var ht = K(pt, 2), gt = (t) => {
-		var r = Mn(), i = V(r), a = K(i, 2);
-		n(a, () => e(R), (t) => {
+		var r = Mn(), i = B(r), a = K(i, 2);
+		n(a, () => e(L), (t) => {
 			{
-				let n = X(() => e(R).e ?? null), r = X(() => e(R).draft ?? null), i = X(ce);
+				let n = X(() => e(L).e ?? null), r = X(() => e(L).draft ?? null), i = X(ce);
 				qt(t, {
 					get cal() {
 						return c;
@@ -2412,24 +2412,24 @@ function Fn(i, o) {
 						return e(r);
 					},
 					get at() {
-						return e(R).at;
+						return e(L).at;
 					},
 					get box() {
 						return e(i);
 					},
 					onedit: () => fe(),
 					onmore: pe,
-					onclose: () => M(R, null)
+					onclose: () => M(L, null)
 				});
 			}
-		}), E("click", i, () => M(R, null)), s(t, r);
+		}), E("click", i, () => M(L, null)), s(t, r);
 	};
 	S(ht, (t) => {
-		e(R) && t(gt);
+		e(L) && t(gt);
 	});
 	var _t = K(ht, 2), yt = (t) => {
 		{
-			let n = X(() => e(U).e ?? null), r = X(() => e(U).title ?? ""), i = X(() => e(U).calendar ?? "");
+			let n = X(() => e(H).e ?? null), r = X(() => e(H).title ?? ""), i = X(() => e(H).calendar ?? "");
 			tn(t, {
 				get cal() {
 					return c;
@@ -2438,13 +2438,13 @@ function Fn(i, o) {
 					return e(n);
 				},
 				get start() {
-					return e(U).start;
+					return e(H).start;
 				},
 				get end() {
-					return e(U).end;
+					return e(H).end;
 				},
 				get allDay() {
-					return e(U).allDay;
+					return e(H).allDay;
 				},
 				get title() {
 					return e(r);
@@ -2452,12 +2452,12 @@ function Fn(i, o) {
 				get calendar() {
 					return e(i);
 				},
-				onclose: () => M(U, null)
+				onclose: () => M(H, null)
 			});
 		}
 	};
 	S(_t, (t) => {
-		e(U) && t(yt);
+		e(H) && t(yt);
 	});
 	var bt = K(_t, 2), xt = (e) => {
 		vn(e, { onclose: () => M(w, !1) });
@@ -2466,13 +2466,13 @@ function Fn(i, o) {
 		e(w) && t(xt);
 	}), sn(K(bt, 2), { get cal() {
 		return c;
-	} }), z(Ee), b(Ee, (e) => M(p, e), () => e(p)), F((n, r) => {
-		De = l(Ee, 1, "calendar svelte-1i74804", null, De, { narrow: e(ne) }), t(Fe, "title", n), x(Ie, r), Ve = l(Be, 1, "search svelte-1i74804", null, Ve, { on: !!e(O) });
+	} }), R(Ee), b(Ee, (e) => M(p, e), () => e(p)), P((n, r) => {
+		De = l(Ee, 1, "calendar svelte-1i74804", null, De, { narrow: e(W) }), t(Fe, "title", n), x(Ie, r), Ve = l(Be, 1, "search svelte-1i74804", null, Ve, { on: !!e(O) }), t(Ue, "placeholder", e(W) ? "" : "Search events");
 	}, [() => c.title(), () => c.title()]), E("pointerdown", Ee, (t) => {
 		t.target.closest("input, textarea, select, button, [tabindex='0']") || e(p)?.focus({ preventScroll: !0 });
 	}), E("click", je, () => c.today()), E("click", Ne, () => c.step(-1)), E("click", Pe, () => c.step(1)), E("input", Ue, Te), E("keydown", Ue, (t) => {
 		t.key === "Escape" && (M(O, ""), c.search(""), e(T)?.blur());
-	}), h(Ue, () => e(O), (e) => M(O, e)), E("click", qe, ge), a(Ee, "clientWidth", (e) => M(u, e)), s(i, Ee), L();
+	}), h(Ue, () => e(O), (e) => M(O, e)), E("click", qe, ge), a(Ee, "clientWidth", (e) => M(u, e)), s(i, Ee), I();
 }
 w([
 	"pointerdown",

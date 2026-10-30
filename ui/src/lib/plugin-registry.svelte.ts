@@ -10,6 +10,8 @@ import { updateSettings } from "./settings.svelte";
 export type { Plugin };
 
 /** Inside the phone app (its bridge, as native-shell.svelte.ts reads it; not imported: that module imports this one). */
+/** The id of `.atlas/init.js`, run as a plugin without a folder (plugins.svelte.ts). */
+export const INIT_ID = "init";
 export const inPhoneApp = !!(globalThis as unknown as { AtlasNative?: unknown }).AtlasNative;
 
 export const plugins = $state({ list: [] as Plugin[], loaded: false, /** main.js failures, by plugin id */ errors: {} as Record<string, string> });

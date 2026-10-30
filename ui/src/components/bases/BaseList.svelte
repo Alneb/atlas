@@ -1,7 +1,8 @@
 <script lang="ts">
   // A Bases view as a list (Obsidian's list view, and a table too narrow for its columns): one row per note — its name,
-  // the other values faint after it, a date at the end. Click opens the note.
+  // the other values faint after it, a date at the end (in the table's words). Click opens the note.
   import Icon from "../Icon.svelte";
+  import CellValue from "./CellValue.svelte";
   import { openPath } from "../../lib/dock";
   import { shownName } from "../../lib/paths";
   import { context, setHover } from "../../lib/context.svelte";
@@ -41,7 +42,7 @@
       <Icon name={/\.md$/i.test(r.path) ? "file-text" : "file"} size={14} />
       <span class="lead">{text(first) || shownName(r.path)}</span>
       {#if rest.length}<span class="rest">{rest.join(" · ")}</span>{/if}
-      {#if when}<span class="when">{text(when)}</span>{/if}
+      {#if when}<span class="when"><CellValue cell={when} /></span>{/if}
     </button></li>
   {/each}
   {/each}
@@ -50,6 +51,7 @@
 
 <style>
   .rows { list-style: none; margin: 0; padding: 0 2px 4px; overflow: auto; min-height: 0; flex: 1; }
+  .rows > li { margin: 0; } /* inside a note, not the markdown list's spacing */
   .row { display: flex; align-items: center; gap: 8px; width: 100%; padding: 6px 8px; border-radius: 6px; font: inherit; color: var(--text); text-align: left; min-width: 0; }
   .row:hover, .row.lit { background: var(--bg-hover); }
   .row :global(.icon) { color: var(--text-faint); flex: none; }

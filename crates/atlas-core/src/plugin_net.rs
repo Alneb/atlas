@@ -168,11 +168,7 @@ pub const REMOTE: &str = ".atlas/remote";
 
 /// Copies of remote files are not the vault's history: the folder carries a `.gitignore` of its own.
 fn remote_ignored(root: &Path) -> Result<()> {
-    let ignore = root.join(REMOTE).join(".gitignore");
-    if !ignore.exists() {
-        crate::vault_write::write(&ignore, "# local copies of remote files (SSH, copyparty…): not part of the vault's history\n*\n".as_bytes())?;
-    }
-    Ok(())
+    crate::vault_write::ignored_folder(&root.join(REMOTE), "local copies of remote files (SSH, copyparty…)")
 }
 
 /// One request for plugin `id`. Blocking: call it from a blocking task.

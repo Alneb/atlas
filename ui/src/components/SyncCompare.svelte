@@ -1,7 +1,7 @@
 <script lang="ts">
   // A note and the other device's version of it side by side: the shared lines folded, each differing run with a
   // choice (this one, the other, both). "Use this" hands back the text so composed.
-  import { closable } from "../lib/back";
+  import Dialog from "./Dialog.svelte";
   import { compose, runs, type Side } from "../lib/line-merge";
 
   let { title, mine, theirs, onapply, oncancel }: {
@@ -12,7 +12,6 @@
   const diffs = $derived(rs.filter((r) => "mine" in r).length);
   // svelte-ignore state_referenced_locally -- one choice per differing run, all "mine" at first
   let choice = $state<Side[]>(Array(rs.filter((r) => "mine" in r).length).fill("mine"));
-  $effect(() => closable(oncancel));
 
   /** A shared run shows its first and last lines around the differences; the middle is folded. */
   const CONTEXT = 2;
@@ -20,12 +19,8 @@
   const all = (s: Side) => (choice = choice.map(() => s));
 </script>
 
-<!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
-<div class="backdrop" onclick={oncancel}>
-  <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-  <div class="dialog" role="dialog" aria-modal="true" aria-label="Compare: {title}" data-testid="sync-compare" tabindex="-1"
-    onclick={(e) => e.stopPropagation()}
-    onkeydown={(e) => { if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); oncancel(); } }}>
+<Dialog label="Compare: {title}" onclose={oncancel} center testid="sync-compare">
+  <div class="dialog">
     <header>
       <strong>{title}</strong>
       <span class="muted">{diffs} {diffs === 1 ? "difference" : "differences"}</span>
@@ -59,11 +54,10 @@
       <button class="btn primary" onclick={() => onapply(compose(rs, choice))} title="This note becomes the text chosen; the other version goes to the trash">Use this</button>
     </footer>
   </div>
-</div>
+</Dialog>
 
 <style>
-  .backdrop { position: fixed; inset: 0; z-index: 100; background: rgba(0, 0, 0, .35); display: grid; place-items: center; padding: 16px; }
-  .dialog { width: min(1100px, 100%); max-height: 86vh; display: flex; flex-direction: column; background: var(--bg-elev); border: 1px solid var(--border-strong); border-radius: 10px; box-shadow: 0 18px 50px rgba(0, 0, 0, .45); }
+  .dialog { width: min(1100px, 100%); max-height: 86vh; display: flex; flex-direction: column; background: var(--bg-elev); border: 1px solid var(--border-strong); border-radius: 10px; box-shadow: var(--shadow-pop); }
   header, footer { display: flex; align-items: center; gap: 10px; padding: 10px 14px; flex-wrap: wrap; }
   header { border-bottom: 1px solid var(--border); }
   footer { border-top: 1px solid var(--border); justify-content: flex-end; }

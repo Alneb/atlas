@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { keysOf } from "../lib/keymap.svelte";
+  import { tipFor } from "../lib/keymap.svelte";
   // Bottom status bar: workspace (horizontal tabs only), the plugins' cells, vim mode (click toggles vim), server connection.
   import { app } from "../lib/state.svelte";
   import { toggleVim } from "../lib/settings.svelte";
@@ -23,7 +23,7 @@
     {:else}<span class="cell" title={c.title} data-cell={c.key}>{c.text}</span>{/if}
   {/each}
   {#if app.problems}
-    <button class="problems" class:bad={app.problems.errors > 0} onclick={showProblems} title="Problems in this file ({keysOf('ui.problems') ?? 'no key'})"
+    <button class="problems" class:bad={app.problems.errors > 0} onclick={showProblems} title={tipFor("Problems in this file", "ui.problems")}
       aria-label="Problems: {plural(app.problems.errors, 'error')}, {plural(app.problems.warnings, 'warning')}">
       <Icon name="error" size={12} />{app.problems.errors}<Icon name="warning" size={12} />{app.problems.warnings}
     </button>

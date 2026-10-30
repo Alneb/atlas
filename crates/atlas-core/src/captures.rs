@@ -2,7 +2,7 @@
 //! day's log (in its `## Log` section when it has one) or a note of the inbox folder. Its state is read from the file
 //! itself — the box (`[ ]` task, `[x]` done, `[-]` dismissed), a trailing `→ [[note]]` (filed), a note's `review:` and
 //! `filed:` properties — and changed only through [`triage`], so the files stay the whole truth.
-use crate::api::{CaptureItem, CaptureKind, CaptureList, CaptureState, TriageAction, TriageRequest};
+use crate::api::{CaptureItem, CaptureKind, CaptureList, CaptureState, CaptureUndo, TriageAction, TriageRequest};
 use crate::config::Config;
 use crate::{frontmatter, paths, vault_write, walk, Error, Result};
 use chrono::NaiveDateTime;
@@ -242,6 +242,26 @@ pub fn triage(root: &Path, cfg: &Config, req: &TriageRequest, now: NaiveDateTime
     Ok(touched)
 }
 
+/// A capture taken back (the Captured notice's Undo): its bullet and the lines under it leave the log, or its note goes
+/// to the trash. As triage, only while the bullet is still what was written; changed meanwhile, nothing is touched.
+pub fn undo(ws: &crate::workspace::Workspace, req: &CaptureUndo) -> Result<Vec<String>> {
+    let Some(source) = &req.source else {
+        crate::files::trash(ws, &req.path)?;
+        return Ok(vec![req.path.clone()]);
+    };
+    let abs = paths::safe_join(ws.root(), &req.path)?;
+    let text = std::fs::read_to_string(&abs).map_err(|_| Error::NotFound(req.path.clone()))?;
+    let mut lines: Vec<String> = text.split('\n').map(str::to_string).collect();
+    let idx = (req.line as usize).checked_sub(1).ok_or(Error::Conflict { current: None })?;
+    if lines.get(idx) != Some(source) {
+        return Err(Error::Conflict { current: None });
+    }
+    let more = continuation(&lines, idx).len();
+    lines.drain(idx..=idx + more);
+    vault_write::write(&abs, lines.join("\n").as_bytes())?;
+    Ok(vec![req.path.clone()])
+}
+
 /// A line's trailing filing link taken off (`… → [[a|b]]`).
 fn strip_link(line: &str) -> String {
     match line.rfind(" → [[") {
@@ -413,6 +433,29 @@ mod tests {
         let stale = TriageRequest { path: p.into(), line: 12, source: "- 09:12 something else".into(), action: TriageAction::Dismiss };
         assert!(matches!(triage(d.path(), &cfg, &stale, now()), Err(Error::Conflict { .. })));
         assert!(read().contains("- 09:12 check the tail"));
+    }
+
+    #[test]
+    fn a_capture_is_taken_back_while_it_is_as_written() {
+        let (d, mut cfg) = vault();
+        cfg.log_folders = "YYYY/MM-MMMM".into(); // the seeded log's folders, so the capture lands in it
+        let ws = crate::workspace::Workspace::open(d.path()).unwrap();
+        let p = "notes/log/2026/10-October/2026-10-27.md";
+        let read = || std::fs::read_to_string(d.path().join(p)).unwrap();
+        let r = crate::capture::capture_at(d.path(), &cfg, "the board\n![[board.png]]", now()).unwrap();
+        assert_eq!((r.path.as_str(), r.source.as_deref()), (p, Some("- 21:40 the board")));
+        let undo = |r: &crate::api::CaptureResult| CaptureUndo { path: r.path.clone(), line: r.line, source: r.source.clone() };
+        assert_eq!(undo(&r).source.as_deref(), read().split('\n').nth(r.line as usize - 1));
+        // edited meanwhile: nothing touched
+        std::fs::write(d.path().join(p), read().replace("- 21:40 the board", "- 21:40 the whiteboard")).unwrap();
+        assert!(matches!(super::undo(&ws, &undo(&r)), Err(Error::Conflict { .. })));
+        std::fs::write(d.path().join(p), read().replace("- 21:40 the whiteboard", "- 21:40 the board")).unwrap();
+        super::undo(&ws, &undo(&r)).unwrap();
+        assert_eq!(read(), LOG, "the bullet and the picture under it gone, nothing else");
+        // a capture that is a note of its own goes to the trash
+        let note = CaptureUndo { path: "inbox/A thought.md".into(), line: 5, source: None };
+        super::undo(&ws, &note).unwrap();
+        assert!(!d.path().join("inbox/A thought.md").exists());
     }
 
     #[test]

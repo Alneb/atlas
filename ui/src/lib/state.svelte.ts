@@ -31,7 +31,9 @@ export function paintTheme(t: Theme): void {
 export type ToastKind = "info" | "success" | "error";
 /** `count`: how many times the same notice came (shown once, with ×n); `life`: how long it shows, which restarts with
  *  each repeat (`shown` counts them, so the time-left line starts again). */
-export interface Toast { id: number; title: string; body?: string; kind: ToastKind; run?: () => void; count: number; life: number; shown: number }
+/** A button on a notice ("Open", "Undo"); running it closes the notice. */
+export interface ToastAction { label: string; run: () => void }
+export interface Toast { id: number; title: string; body?: string; kind: ToastKind; actions: ToastAction[]; count: number; life: number; shown: number }
 export const toasts = $state<Toast[]>([]);
 let toastSeq = 0;
 const MAX_TOASTS = 5;
@@ -43,11 +45,12 @@ function arm(id: number, ms: number) {
   timers.set(id, { t: setTimeout(() => dismissToast(id), ms), left: ms, since: Date.now() });
 }
 
-/** `run`: what a click on the notice does (a new mail opens that mail), besides closing it; it then stays longer. An
- *  error stays longer too (it has more to read). The same notice again is counted on the one shown, not stacked. */
-export function toast(title: string, body?: string, kind: ToastKind = "info", ms = 4500, run?: () => void): void {
-  const life = run ? Math.max(ms, 9000) : kind === "error" ? Math.max(ms, 8000) : ms;
-  const same = !run && toasts.find((t) => !t.run && t.title === title && t.body === body && t.kind === kind);
+/** `act`: the notice's buttons (a new mail's Open, a capture's Undo); a notice with one stays longer, and so does an
+ *  error (it has more to read). The same notice again is counted on the one shown, not stacked. */
+export function toast(title: string, body?: string, kind: ToastKind = "info", ms = 4500, act?: ToastAction | ToastAction[]): void {
+  const actions = act ? [act].flat() : [];
+  const life = actions.length ? Math.max(ms, 9000) : kind === "error" ? Math.max(ms, 8000) : ms;
+  const same = !actions.length && toasts.find((t) => !t.actions.length && t.title === title && t.body === body && t.kind === kind);
   if (same) {
     same.count++;
     same.shown++;
@@ -56,7 +59,7 @@ export function toast(title: string, body?: string, kind: ToastKind = "info", ms
     return;
   }
   const id = ++toastSeq;
-  toasts.push({ id, title, body, kind, run, count: 1, life, shown: 1 });
+  toasts.push({ id, title, body, kind, actions, count: 1, life, shown: 1 });
   arm(id, life);
   while (toasts.length > MAX_TOASTS) dismissToast(toasts[0].id);
 }

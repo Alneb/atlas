@@ -14,7 +14,7 @@ export function fuzzy(query: string, text: string): Match | null {
     return { score: 1000 - at + (isBoundary(text, at) ? 200 : 0) - (t.length - q.length) * 0.5, indices };
   }
   const indices: number[] = [];
-  let score = 0, ti = 0, run = 0;
+  let score = 0, ti = 0, run = 0, strays = 0;
   for (let qi = 0; qi < q.length; qi++) {
     const ch = q[qi];
     if (ch === " ") continue;
@@ -22,11 +22,15 @@ export function fuzzy(query: string, text: string): Match | null {
     for (let k = ti; k < t.length; k++) if (t[k] === ch) { found = k; break; }
     if (found < 0) return null;
     run = indices.length && found === indices[indices.length - 1] + 1 ? run + 1 : 0;
+    if (run === 0 && !isBoundary(text, found)) strays++;
     score += 10 + run * 15 + (isBoundary(text, found) ? 30 : 0) - Math.min(found - ti, 10);
     indices.push(found);
     ti = found + 1;
   }
-  return { score: score - t.length * 0.2, indices };
+  // letters picked from the middles of words read as noise ("tasks" in "export a copy with its marks"): a few are
+  // abbreviations ("hmpg" → Home.page), more are not a match
+  if (strays > Math.max(2, Math.floor(q.replace(/ /g, "").length / 2))) return null;
+  return { score: score - strays * 25 - t.length * 0.2, indices };
 }
 
 /** Wrap matched characters in <mark> for display (input is escaped). */

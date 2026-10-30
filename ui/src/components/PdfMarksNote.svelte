@@ -118,12 +118,12 @@
   .quote:hover, .line:hover { background: var(--bg-hover); }
   .struck { text-decoration: line-through; }
   .under { text-decoration: underline; }
-  .postit { margin-left: 11px; padding: 3px 8px; background: color-mix(in srgb, #FFE066 28%, var(--bg)); border-radius: 3px; font-size: 0.95em; }
+  .postit { margin-left: 11px; padding: 3px 8px; background: color-mix(in srgb, #FFE066 28%, var(--bg)); border-radius: 3px; font-size: 0.95em; } /* literal: the highlighter's yellow */
   .line { display: flex; gap: 8px; }
   .kind { font-weight: 600; min-width: 4.5em; color: var(--text-muted); }
   .tags { display: flex; gap: 4px; margin-left: 11px; }
   .tag { font-size: 0.85em; color: var(--accent); }
   .clip, .ink { display: flex; flex-direction: column; gap: 2px; align-items: flex-start; }
-  .clip canvas { max-width: 100%; height: auto; border: 1px dashed var(--border); background: #fff; }
-  .ink canvas { width: 130px; height: auto; border: 1px solid var(--border); background: #fff; }
+  .clip canvas { max-width: 100%; height: auto; border: 1px dashed var(--border); background: #fff; } /* literal: paper */
+  .ink canvas { width: 130px; height: auto; border: 1px solid var(--border); background: #fff; } /* literal: paper */
 </style>

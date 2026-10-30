@@ -123,7 +123,7 @@ test("a split is one row of the tab list, fullscreen keeps it, and its button un
   const row = sidebar.getByTestId("split-row");
   await expect(row.locator(".tab")).toHaveCount(2);
   await expect(page.locator(".cm-editor:visible")).toHaveCount(2);
-  await expect(sidebar.locator(".group-head", { hasText: /Editor \d/ }), "one Editor section, not one per split").toHaveCount(0);
+  await expect(sidebar.locator(".group-head", { hasText: /Tabs \d/ }), "one Tabs section, not one per split").toHaveCount(0);
 
   await page.locator(".cm-editor:visible").first().locator(".cm-content").click();
   await page.keyboard.press("F11");

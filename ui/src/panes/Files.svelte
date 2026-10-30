@@ -1,6 +1,6 @@
 <script lang="ts">
   // File tree over /api/tree, lazily expanded; open folders refresh on fs events.
-  import { VAULT_DRAG } from "../lib/explorer/drag";
+  import { VAULT_DRAG, dragRow } from "../lib/explorer/drag";
   import { dirOf, basename } from "../lib/paths";
   import { atPointer, type MenuAt } from "../lib/menu";
   import { errText } from "../lib/text";
@@ -104,11 +104,9 @@
   const rowOf = (e: Event) => (e.target as HTMLElement).closest<HTMLElement>(".row[data-path]");
   const dirAt = (row: HTMLElement | null) => (!row ? "" : row.classList.contains("is-dir") ? row.dataset.path! : parentOf(row.dataset.path!));
   function onDragStart(e: DragEvent) {
-    const path = rowOf(e)?.dataset.path;
+    const row = rowOf(e), path = row?.dataset.path;
     if (!path || !e.dataTransfer) return;
-    e.dataTransfer.setData(VAULT_DRAG, path);
-    e.dataTransfer.setData("text/plain", path); // dropped on a terminal or a note: the path
-    e.dataTransfer.effectAllowed = "move";
+    dragRow(e.dataTransfer, { vault: true, path, dir: row!.classList.contains("is-dir") });
   }
   function onDragOver(e: DragEvent) {
     if (!e.dataTransfer?.types.includes(VAULT_DRAG)) return;

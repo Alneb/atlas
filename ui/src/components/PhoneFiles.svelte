@@ -103,7 +103,7 @@
         <span class="icon"><Icon name={e.kind === "dir" ? "folder" : fileIcon(e.path)} size={22} /></span>
         <span class="words">
           <span class="name">{label(e)}</span>
-          <span class="detail">{e.kind === "dir" ? "Folder" : [shortWhen(e.modified), bytes(e.size)].filter(Boolean).join(" · ")}</span>
+          <span class="detail">{[shortWhen(e.modified), e.kind === "dir" ? "" : bytes(e.size)].filter(Boolean).join(" · ")}</span>
         </span>
         {#if e.kind === "dir"}<span class="go"><Icon name="chevron" size={16} /></span>{/if}
       </button>

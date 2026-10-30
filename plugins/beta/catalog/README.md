@@ -3,7 +3,7 @@
 Anything you capture — a link, a DOI, an arXiv id, an ISBN, an IMDb id — is recognised, looked up in every source the
 switched-on source plugins offer, and written as one note of its kind (a film, an album, a book, a video, a web page…)
 in that kind's folder. The notes stay yours: a later refresh changes only the properties the catalog owns. The
-catalog's notes then show as libraries on Atlas's **Libraries** page (Films & Series, Music, Anime & Manga, Books,
+catalog's notes then show as libraries on Atlas's **Libraries** page (Films & Series with anime, Music, Comics, Books,
 Videos, Web pages), each kind a tab.
 
 The work runs in a helper (Rust) that reaches Atlas back through its pipe; the page side draws blocks and registers the

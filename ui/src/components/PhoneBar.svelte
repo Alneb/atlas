@@ -49,7 +49,7 @@
   /* a tap leaves no focus ring (it showed as two bars beside the button); a keyboard's focus still shows */
   .phone-bar button:focus:not(:focus-visible) { outline: none; box-shadow: none; }
   .count { min-width: 22px; height: 21px; padding: 0 5px; border: 1.75px solid currentColor; border-radius: 6px; display: grid; place-items: center; font-size: 11.5px; font-weight: 600; }
-  .scrim { position: fixed; inset: 0; background: rgb(0 0 0 / .35); z-index: 60; }
+  .scrim { position: fixed; inset: 0; background: var(--scrim); z-index: 60; }
   .sheet { position: fixed; left: 0; right: 0; bottom: calc(56px + env(safe-area-inset-bottom, 0px) + var(--keyboard, 0px)); max-height: 65vh; overflow: auto; z-index: 61;
     background: var(--bg-elev); border-top: 1px solid var(--border-strong); border-radius: 16px 16px 0 0; padding: 6px 8px 10px; box-shadow: var(--shadow-sm); }
   .grip { width: 36px; height: 4px; border-radius: 2px; background: var(--border-strong); margin: 4px auto 8px; }

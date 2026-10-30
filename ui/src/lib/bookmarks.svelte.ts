@@ -21,7 +21,7 @@ import { pick, type PickItem } from "./palette.svelte";
 import { paneIcon, paneId, paneTitle, type IconName, type PaneSpec } from "./panes";
 import { drop, KEYS, load } from "./prefs";
 import { toast } from "./state.svelte";
-import { readText } from "./vault-files";
+import { exists, readText } from "./vault-files";
 
 export const BOOKMARKS_FILE = ".atlas/bookmarks.yaml";
 const HEADER = `# Bookmarks of this vault (Atlas reads and writes this file; edit it freely).
@@ -153,7 +153,17 @@ export async function openBookmark(b: Bookmark): Promise<void> {
   if (t.kind === "command") {
     const c = allCommands().find((x) => x.id === t.id);
     if (c) await c.run(); else toast("That command is gone", `${t.id} (in ${BOOKMARKS_FILE})`, "error");
-  } else if (t.kind === "file") openPath(t.path, t.heading ? await headingLine(t.path, t.heading) : undefined);
+  } else if (t.kind === "file") {
+    // a moved or deleted file would open as a blank new note: say so, and offer to drop the bookmark
+    if (!(await exists(t.path))) {
+      toast("The bookmarked file is gone", `${t.path} was moved or deleted`, "error", 9000,
+        [{ label: "Remove bookmark", run: () => void removeBookmark(b) }, { label: "Edit the bookmarks file", run: () => void editBookmarks() }]);
+      return;
+    }
+    const line = t.heading ? await headingLine(t.path, t.heading) : undefined;
+    if (t.heading && line === undefined) toast("Heading not found", `“${t.heading}” is no longer in ${shownName(t.path)}: opened at the top`);
+    openPath(t.path, line);
+  }
   else { const s = bookmarkSpec(b); if (s) open(s); }
 }
 

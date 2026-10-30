@@ -2,7 +2,7 @@
 // editors, talking to atlas-core's `/api/lsp/{lang}` relay (which runs the server in the workspace).
 import { errText } from "../text";
 import { LSPClient, LSPPlugin, Workspace, findReferences, formatDocument, jumpToDefinition, jumpToImplementation, languageServerExtensions, renameSymbol, signatureKeymap, type Transport, type WorkspaceFile } from "@codemirror/lsp-client";
-import { Prec, type Extension, type Text } from "@codemirror/state";
+import { ChangeSet, Prec, type Extension, type Text } from "@codemirror/state";
 import { keymap, type EditorView } from "@codemirror/view";
 import { forEachDiagnostic } from "@codemirror/lint";
 import { api, lspSocket } from "../api";
@@ -32,10 +32,12 @@ function languageId(lang: LspLang, e: string): string {
   }
 }
 
-type File = WorkspaceFile & { view: EditorView; doc: Text };
+/** `views`: every editor showing the file (a tab and its remount, a split); the server follows `view`, the newest.
+ *  `stale`: the followed view changed, so the next sync sends its whole text (its edits are not relative to `doc`). */
+type File = WorkspaceFile & { view: EditorView; views: EditorView[]; doc: Text; stale: boolean };
 
-/** Like the library's default workspace (one view per file, tolerated when a file is reopened),
- *  plus `displayFile`: a definition in another workspace file opens it in an Atlas tab. */
+/** Like the library's default workspace, with every view of a file counted (the file closes for the server only
+ *  with its last view), plus `displayFile`: a definition in another workspace file opens it in an Atlas tab. */
 class AtlasWorkspace extends Workspace {
   files: File[] = [];
   private versions: Record<string, number> = Object.create(null);
@@ -47,8 +49,11 @@ class AtlasWorkspace extends Workspace {
     const out = [];
     for (const file of this.files) {
       const plugin = LSPPlugin.get(file.view);
-      if (!plugin || plugin.unsyncedChanges.empty) continue;
-      out.push({ changes: plugin.unsyncedChanges, file, prevDoc: file.doc });
+      if (!plugin || (!file.stale && plugin.unsyncedChanges.empty)) continue;
+      const doc = file.view.state.doc;
+      const changes = file.stale ? ChangeSet.of({ from: 0, to: file.doc.length, insert: doc }, file.doc.length) : plugin.unsyncedChanges;
+      file.stale = false;
+      out.push({ changes, file, prevDoc: file.doc });
       file.doc = file.view.state.doc;
       file.version = this.next(file.uri);
       plugin.clear();
@@ -58,17 +63,27 @@ class AtlasWorkspace extends Workspace {
 
   openFile(uri: string, languageId: string, view: EditorView) {
     const had = this.getFile(uri) as File | null;
-    if (had) { had.view = view; return; } // same file in a second tab: follow the newest view
-    const file = { uri, languageId, version: this.next(uri), doc: view.state.doc, view, getView: () => file.view };
+    if (had) { had.views.push(view); this.follow(had, view); return; } // same file in a second view: follow the newest
+    const file: File = { uri, languageId, version: this.next(uri), doc: view.state.doc, view, views: [view], stale: false, getView: () => file.view };
     this.files.push(file);
     this.client.didOpen(file);
   }
 
   closeFile(uri: string, view: EditorView) {
     const file = this.getFile(uri) as File | null;
-    if (!file || file.view !== view) return;
+    if (!file) return;
+    file.views = file.views.filter((v) => v !== view);
+    if (file.views.length) { if (file.view === view) this.follow(file, file.views[file.views.length - 1]); return; }
     this.files = this.files.filter((f) => f !== file);
     this.client.didClose(uri);
+  }
+
+  private follow(file: File, view: EditorView) {
+    if (file.view === view) return;
+    file.view = view;
+    LSPPlugin.get(view)?.clear(); // what it collected while not followed is covered by the check below
+    file.stale = file.doc.toString() !== view.state.doc.toString(); // an unchanged text needs no resend
+    if (!file.stale) file.doc = view.state.doc;
   }
 
   async displayFile(uri: string): Promise<EditorView | null> {

@@ -22,14 +22,21 @@
   let error = $state("");
 
   async function load() {
-    try { tags = await api.tags(); error = ""; if (open) notes = (await api.search(`tag:${open}`)).files; }
+    try {
+      tags = await api.tags(); error = "";
+      const o = open;
+      if (o) { const files = (await api.search(`tag:${o}`)).files; if (open === o) notes = files; }
+    }
     catch (e) { error = errText(e); }
   }
   async function toggle(tag: string) {
     if (open === tag) { open = null; return; }
     open = tag;
     notes = [];
-    try { notes = (await api.search(`tag:${tag}`)).files; } catch (e) { error = errText(e); }
+    try {
+      const files = (await api.search(`tag:${tag}`)).files;
+      if (open === tag) { notes = files; error = ""; } // a slower answer for a tag clicked before must not list under this one
+    } catch (e) { if (open === tag) error = errText(e); }
   }
   const leaf = (t: string) => basename(t);
   const depth = (t: string) => t.split("/").length - 1;
@@ -55,20 +62,22 @@
 </script>
 
 <div class="tags-block" aria-label="Tags" bind:this={box}>
-  {#if error}<p class="view-error">{error}</p>
+  {#if tags === null && error}<p class="view-error">{error}</p>
   {:else if tags === null}<p class="muted">Reading tags…</p>
   {:else if !tags.length}<p class="muted">No tags yet. Write <code>#topic</code> in a note, or <code>tags: [topic]</code> in its properties; <code>#topic/part</code> nests.</p>
   {:else}
+    <!-- a failed read is said above the last good list, not in its place -->
+    {#if error}<p class="view-error">{error}</p>{/if}
     <ul>
       {#each tags as t (t.tag)}
         <li>
-          <button class="tag" class:on={open === t.tag} style:padding-left="{6 + depth(t.tag) * 14}px" aria-expanded={open === t.tag} title="#{t.tag}" onclick={() => toggle(t.tag)}
+          <button class="tag-row" class:on={open === t.tag} style:padding-left="{6 + depth(t.tag) * 14}px" aria-expanded={open === t.tag} title="#{t.tag}" onclick={() => toggle(t.tag)}
             oncontextmenu={(e) => { e.preventDefault(); menu = atPointer(e, [{ label: "Rename tag…", icon: "edit", detail: "in every note, the tags nested under it too", run: () => (renaming = t.tag) }]); }}>
             <span class="hash">#</span><span class="n">{leaf(t.tag)}</span><span class="c">{t.notes}</span>
           </button>
           {#if open === t.tag}
             <ul class="notes">
-              {#each notes as p (p)}<li><button class="note" title={p} onclick={() => openPath(p)}>{name(p)}</button></li>{/each}
+              {#each notes as p (p)}<li><button class="note" title={p} onclick={() => openPath(p)}><span class="n">{name(p)}</span></button></li>{/each}
             </ul>
           {/if}
         </li>
@@ -84,9 +93,10 @@
 <style>
   .tags-block { font-size: calc(13px * var(--ui-scale, 1)); }
   ul { list-style: none; margin: 0; padding: 0; }
-  .tag, .note { display: flex; align-items: center; gap: 4px; width: 100%; padding: 3px 6px; border-radius: var(--radius-sm); text-align: left; color: var(--text); }
-  .tag:hover, .note:hover { background: var(--bg-hover); }
-  .tag.on { background: var(--accent-soft); }
+  /* not `.tag`: inside a note that is the markdown tag pill (markdown.css) */
+  .tag-row, .note { display: flex; align-items: center; gap: 4px; width: 100%; padding: 3px 6px; border-radius: var(--radius-sm); text-align: left; color: var(--text); }
+  .tag-row:hover, .note:hover { background: var(--bg-hover); }
+  .tag-row.on { background: var(--accent-soft); }
   .hash { color: var(--text-faint); }
   .n { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .c { color: var(--text-faint); font-size: .86em; font-variant-numeric: tabular-nums; }

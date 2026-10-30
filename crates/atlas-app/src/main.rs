@@ -120,7 +120,10 @@ fn capture_window(root: PathBuf) -> anyhow::Result<()> {
             let handle = app.handle().clone();
             WebviewWindowBuilder::new(app, "capture", WebviewUrl::External(url))
                 .title("Atlas capture")
-                .inner_size(620.0, 132.0)
+                // OS file drops reach the page's own `drop` (the editor, the explorer, the capture popup); Tauri's
+                // handler would take them first (on Windows the page then never sees a dropped file)
+                .disable_drag_drop_handler()
+                .inner_size(620.0, 160.0) // the capture box of one line, and room under it for a list
                 .resizable(false)
                 .decorations(false)
                 .always_on_top(true)
@@ -177,6 +180,9 @@ fn remote_window(url: tauri::Url) -> anyhow::Result<()> {
         .setup(move |app| {
             WebviewWindowBuilder::new(app, "main", WebviewUrl::External(url))
                 .title(format!("Atlas — {host}"))
+                // OS file drops reach the page's own `drop` (the editor, the explorer, the capture popup); Tauri's
+                // handler would take them first (on Windows the page then never sees a dropped file)
+                .disable_drag_drop_handler()
                 .inner_size(MAIN_SIZE.width, MAIN_SIZE.height)
                 .on_new_window(|to, _| {
                     open_outside(to.as_str());
@@ -317,6 +323,9 @@ fn main() -> anyhow::Result<()> {
             let vault_bg = vault.clone();
             let main = WebviewWindowBuilder::new(app, "main", WebviewUrl::External(url))
                 .title("Atlas")
+                // OS file drops reach the page's own `drop` (the editor, the explorer, the capture popup); Tauri's
+                // handler would take them first (on Windows the page then never sees a dropped file)
+                .disable_drag_drop_handler()
                 .inner_size(MAIN_SIZE.width, MAIN_SIZE.height)
                 .on_navigation(move |to| off_app.stay(to))
                 // window.open: WebKitGTK opens nothing without a handler. A sign-in page that returns to a

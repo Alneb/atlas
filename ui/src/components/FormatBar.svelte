@@ -3,7 +3,7 @@
   // does — the same functions (lib/editor/md-format.ts) — and hands the keyboard back to the text.
   import type { EditorView } from "@codemirror/view";
   import { formatNote } from "../lib/editor/md-format";
-  import { keysOf } from "../lib/keymap.svelte";
+  import { tipFor } from "../lib/keymap.svelte";
   import type { MdFormat } from "../lib/registry";
   import type { IconName } from "../lib/panes";
   import Icon from "./Icon.svelte";
@@ -38,7 +38,7 @@
     {#each group as b (b.kind)}
       <!-- mousedown is stopped so the text keeps its selection while the button is pressed -->
       <button onmousedown={(e) => e.preventDefault()} onclick={() => run(b.kind)} aria-label={b.title}
-        title={b.command && keysOf(b.command) ? `${b.title} · ${keysOf(b.command)}` : b.title}><Icon name={b.icon} size={16} /></button>
+        title={b.command ? tipFor(b.title, b.command) : b.title}><Icon name={b.icon} size={16} /></button>
     {/each}
   {/each}
 </div>

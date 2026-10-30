@@ -87,6 +87,10 @@ async function openSettings(page: import("@playwright/test").Page) {
 
 test("accounts: listed with their status, tested unsaved, saved alone, added from a preset", async ({ page, request }) => {
   await openSettings(page);
+  // opened from elsewhere: its own entry is the lit one, scrolled into sight (Plugins' list runs below the fold)
+  const lit = page.locator('.atlas-pane-settings nav [aria-current="page"]');
+  await expect(lit).toHaveText(/Hosts/);
+  await expect(lit).toBeInViewport();
   // the plugin's page: its accounts above the form, which shows neither them nor the hidden field; advanced folded
   const list = page.locator('[data-accounts="hosts/servers"]');
   await expect(list.locator(".acct")).toHaveCount(2);

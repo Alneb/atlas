@@ -32,12 +32,16 @@ export const busy = new SvelteSet<string>();
 
 // by the source itself: a plugin started again (its settings saved) brings a new one, asked anew
 const watched = new WeakSet<FileSource>();
+/** Each place once: a plugin may name one twice (an SSH host both in ~/.ssh/config and in Settings), and a place's
+ *  id keys its rows in the trees. */
+const firstOfEach = (ps: Place[]) => ps.filter((p, i) => ps.findIndex((q) => q.id === p.id) === i);
+
 /** The places of every server source, asked once each (again when the source says they changed). */
 export function wantPlaces(): void {
   for (const s of servers()) {
     if (watched.has(s)) continue;
     watched.add(s);
-    const get = () => void s.places().then((ps) => placesOf.set(s.id, ps), () => placesOf.set(s.id, []));
+    const get = () => void s.places().then((ps) => placesOf.set(s.id, firstOfEach(ps)), () => placesOf.set(s.id, []));
     get();
     s.onPlaces?.(get);
   }

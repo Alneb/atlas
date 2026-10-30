@@ -4,14 +4,19 @@
   // own file by the core (`POST /api/captures/triage`); this only lists and asks.
   //   type: captures
   //   show: open        # open (default: still to triage) | tasks | all
-  import { onMount } from "svelte";
+  // By keyboard: j/k (or ↑/↓) move, t task, f file, d dismiss, x done, u reopen, Enter opens; the focus stays in place
+  // as triaged rows leave the list, so a run of keys clears it.
+  import { onMount, tick } from "svelte";
   import { listVault } from "../../lib/vault";
   import { reloadOnChange } from "../../lib/reload-on-change";
   import { parse as parseYaml } from "yaml";
   import { api } from "../../lib/api";
   import { openPath } from "../../lib/dock";
-  import { md } from "../../lib/markdown";
+  import { renderInlineMarkdown } from "../../lib/markdown";
   import { pick } from "../../lib/palette.svelte";
+  import { openQuickCapture } from "../../lib/quick-capture.svelte";
+  import { keysOf } from "../../lib/keymap.svelte";
+  import { chordLabel } from "../../lib/keys";
   import { shownName, shownPath } from "../../lib/paths";
   import { followRenderedLink } from "../../lib/rendered-links";
   import { settings } from "../../lib/settings.svelte";
@@ -47,6 +52,9 @@
   });
 
   const key = (c: CaptureItem) => `${c.path}:${c.line}`;
+  const indexOf = $derived(new Map(shown.map((c, i) => [key(c), i])));
+  let at = $state(0); // the row the keys act on (the one in the Tab order)
+  let list = $state<HTMLElement>();
   const dayLabel = (d: string) => (d ? new Date(`${d}T12:00:00`).toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short", year: "numeric" }) : "Undated");
   const STATE: Record<CaptureState, { label: string; icon: IconName | null }> = {
     open: { label: "To triage", icon: null }, task: { label: "Task", icon: null }, done: { label: "Done", icon: "check" },
@@ -63,13 +71,38 @@
     return reloadOnChange(() => void load(), { wait: 400, wants: (p) => p.endsWith(".md") });
   });
 
-  async function triage(c: CaptureItem, action: TriageAction) {
+  /** Moves the keys' row to `i` (clamped) and focuses it. */
+  async function focusAt(i: number) {
+    at = Math.max(0, Math.min(i, shown.length - 1));
+    await tick();
+    list?.querySelector<HTMLElement>(`[data-i="${at}"]`)?.focus();
+  }
+  function onkeydown(e: KeyboardEvent) {
+    if (e.ctrlKey || e.metaKey || e.altKey || (e.target as HTMLElement).closest("input, textarea, [contenteditable]")) return;
+    const c = shown[at];
+    if (!c) return;
+    const can = { open: c.state === "open", live: c.state === "open" || c.state === "task" };
+    const k = e.key;
+    if (k === "j" || k === "ArrowDown") void focusAt(at + 1);
+    else if (k === "k" || k === "ArrowUp") void focusAt(at - 1);
+    else if (k === "Enter") openPath(c.path, c.line || undefined);
+    else if (k === "t" && can.open) void triage(c, { kind: "task" }, true);
+    else if (k === "f" && can.live) fileInto(c);
+    else if (k === "d" && can.live) void triage(c, { kind: "dismiss" }, true);
+    else if (k === "x" && c.state === "task") void triage(c, { kind: "done" }, true);
+    else if (k === "u" && !can.live) void triage(c, { kind: "reopen" }, true);
+    else return;
+    e.preventDefault();
+  }
+
+  async function triage(c: CaptureItem, action: TriageAction, byKey = false) {
     busy = new Set(busy).add(key(c));
     try { await api.triageCapture({ path: c.path, line: c.line, source: c.source, action }); }
     catch (e) { toast("Could not triage the capture", /409/.test(String(e)) ? "The line changed since it was listed — shown again as it is now." : errText(e), "error"); }
     busy.delete(key(c));
     busy = new Set(busy);
     await load();
+    if (byKey) await focusAt(at); // the next capture has moved into this place
   }
   /** "File into…": an existing note, or a new one named as typed (in the notes folder). */
   function fileInto(c: CaptureItem) {
@@ -89,7 +122,8 @@
   }
 </script>
 
-<section class="captures" aria-label="Captures" data-testid="captures">
+<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+<section class="captures" aria-label="Captures" data-testid="captures" {onkeydown}>
   <header>
     <span class="label">Captures</span>
     <div class="tabs" role="tablist">
@@ -100,13 +134,20 @@
   </header>
   {#if error}<p class="view-error">{error}</p>
   {:else if loaded && !shown.length}
-    <p class="empty">{show === "open" ? "Nothing to triage: every capture has found its place." : show === "tasks" ? "No open tasks among the captures." : "Nothing captured yet."}</p>
+    <p class="empty">{show === "open" ? "Nothing to triage: every capture has found its place." : show === "tasks" ? "No open tasks among the captures." : "Nothing captured yet."}
+      <!-- the next step, not a dead end: capturing is what fills this list -->
+      <button class="link" onclick={() => openQuickCapture()}>Capture something</button>{#if keysOf("ui.capture")}<kbd class="keys-only">{chordLabel(keysOf("ui.capture")!).join(" ")}</kbd>{/if}</p>
   {:else}
+    <p class="keys" aria-hidden="true"><kbd>j</kbd><kbd>k</kbd> move · <kbd>t</kbd> task · <kbd>f</kbd> file · <kbd>d</kbd> dismiss · <kbd>x</kbd> done · <kbd>u</kbd> reopen · <kbd>Enter</kbd> open</p>
+    <div class="list" bind:this={list}>
     {#each byDay as g (g.day)}
       <h3 class="day">{dayLabel(g.day)}</h3>
       <ul>
         {#each g.rows as c (key(c))}
-          <li class="row st-{c.state}" class:busy={busy.has(key(c))} data-state={c.state}>
+          {@const i = indexOf.get(key(c)) ?? 0}
+          <!-- svelte-ignore a11y_no_noninteractive_tabindex (the row is the list's keys' target: j/k, t, f, d) -->
+          <li class="row st-{c.state}" class:busy={busy.has(key(c))} data-state={c.state} data-i={i} tabindex={i === Math.min(at, shown.length - 1) ? 0 : -1}
+            onfocus={(e) => { if (e.target === e.currentTarget) at = i; }}>
             <span class="time">{c.time ?? ""}</span>
             <span class="mark" title={STATE[c.state].label}>
               {#if c.state === "task"}<button class="box" aria-label="Mark done: {c.text}" title="Done" onclick={() => triage(c, { kind: "done" })}></button>
@@ -116,7 +157,7 @@
             <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
             <span class="text" title={where(c)} onclick={(e) => onTextClick(e, c)}>
               {#if c.kind === "note"}<Icon name="inbox" size={12} />{/if}
-              {@html md.renderInline(c.text)}
+              {@html renderInlineMarkdown(c.text)}
               {#if c.filed}<span class="filed">→ {c.filed}</span>{/if}
             </span>
             <span class="acts">
@@ -134,11 +175,12 @@
         {/each}
       </ul>
     {/each}
+    </div>
   {/if}
 </section>
 
 <style>
-  .captures { display: flex; flex-direction: column; gap: 2px; font-size: calc(14px * var(--ui-scale, 1)); }
+  .captures { display: flex; flex-direction: column; gap: 2px; font-size: calc(14px * var(--ui-scale, 1)); container-type: inline-size; }
   header { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 4px; }
   .label { font-size: calc(11px * var(--ui-scale, 1)); font-weight: 600; letter-spacing: .07em; text-transform: uppercase; color: var(--text-muted); }
   .tabs { display: flex; gap: 4px; margin-left: auto; }
@@ -167,5 +209,12 @@
   .act { display: inline-flex; align-items: center; gap: 4px; min-height: 24px; padding: 0 8px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--bg); color: var(--text); font-size: calc(12px * var(--ui-scale, 1)); }
   .act:hover { background: var(--bg-hover); border-color: var(--border-strong); }
   .empty { margin: 6px 0; color: var(--text-muted); }
-  @media (max-width: 560px) { .row { grid-template-columns: 3em 1.2em minmax(0, 1fr); } .acts { grid-column: 3; opacity: 1; } }
+  .empty .link { margin: 0 6px 0 8px; }
+  .row:focus-visible { outline: 2px solid color-mix(in srgb, var(--accent) 60%, transparent); outline-offset: 1px; border-radius: var(--radius-sm); }
+  /* always laid out, shown while the list has the keys: appearing must not move the rows under a click */
+  .keys { visibility: hidden; margin: 0 0 2px; color: var(--text-faint); font-size: calc(11.5px * var(--ui-scale, 1)); }
+  .captures:focus-within .keys { visibility: visible; }
+  .keys kbd { font-family: var(--font-mono); font-size: .9em; border: 1px solid var(--border); border-radius: 4px; padding: 0 4px; margin-right: 2px; background: var(--bg); }
+  /* the block's own width, not the window's: a note's column or a page's card is narrow on a wide screen */
+  @container (max-width: 560px) { .row { grid-template-columns: 3em 1.2em minmax(0, 1fr); } .acts { grid-column: 3; opacity: 1; } }
 </style>

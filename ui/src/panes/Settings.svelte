@@ -35,6 +35,7 @@
   let filter = $state("");
   let body = $state<HTMLElement>();
   let search = $state<HTMLInputElement>();
+  let navEl = $state<HTMLElement>();
 
   const fields = $derived.by(() => { void settings.schema; return leaves(); });
   const host = $derived(hostOf({ server: !!me.info?.server, phone: nativeShell.on, path: apiBase() }));
@@ -46,7 +47,15 @@
   // every plugin has a page (its problems, actions); the bar lists those with settings
   const plugin = $derived(current.startsWith("plugin:") ? plugins.list.find((p) => pluginPageId(p.id) === current) : undefined);
   const accounts = $derived(current === ACCOUNTS);
-  const page = $derived(plugin || accounts ? undefined : (pages.find((p) => p.page === current) ?? pages[0]));
+  // a plugin's page before the plugins load: nothing yet, not Overview (a plugin since removed: Overview)
+  const page = $derived(plugin || accounts || (current.startsWith("plugin:") && !plugins.loaded) ? undefined : (pages.find((p) => p.page === current) ?? pages[0]));
+  // the lit entry in sight: a page opened from elsewhere may sit below the fold (Plugins' list is long)
+  // (and again once laid out, a frame after the pane's kept scroll is put back: lib/pane-scroll.ts)
+  const showLit = () => requestAnimationFrame(() => requestAnimationFrame(() => navEl?.querySelector(".nav.on")?.scrollIntoView({ block: "nearest" })));
+  $effect(() => { void [plugin, page, pluginPages]; showLit(); });
+  $effect(() => { if (!navEl) return; const ro = new ResizeObserver(showLit); ro.observe(navEl); return () => ro.disconnect(); });
+  // a plugin with no settings has no entry of its own: the Plugins page it is opened from stays lit
+  const navOn = (id: string): boolean => !words.length && (id === page?.page || (id === "plugins" && !!plugin && !plugin.fields.length));
   const accountCount = $derived(accountLists().reduce((n, l) => n + (Array.isArray(l.plugin.settings?.[l.setting.key]) ? (l.plugin.settings[l.setting.key] as unknown[]).length : 0), 0));
   // an account in trouble shows on the Accounts entry: a red dot, without opening the page
   const accountTrouble = $derived(Object.values(statuses).some((m) => Object.values(m).some((x) => x.state === "error")));
@@ -82,6 +91,14 @@
       return opts.length || feats.length ? [{ page: p, opts, feats }] : [];
     });
   });
+  // the search box by keyboard: Esc empties it (VS Code), ↓ or Enter goes to the first option found
+  function searchKeys(e: KeyboardEvent) {
+    if (e.key === "Escape" && filter) { e.preventDefault(); e.stopPropagation(); filter = ""; }
+    else if ((e.key === "ArrowDown" || e.key === "Enter") && words.length) {
+      const first = body?.querySelector<HTMLElement>(".hit :is(input, select, textarea, button):not(.hit-h):not([disabled])");
+      if (first) { e.preventDefault(); first.focus(); }
+    }
+  }
   const changedIn = (fs: string[]) => fs.filter(isModified).length;
 
   // the accounts' statuses once the plugins are known, for the sidebar's dot
@@ -90,17 +107,17 @@
 
   onMount(() => {
     forgetPaths();
-    if (!phone.on) search?.focus(); // typing right away searches (VS Code); on a phone that would raise the keyboard
+    if (!phone.on) search?.focus({ preventScroll: true }); // typing right away searches (VS Code); on a phone that would raise the keyboard
     loadSuggestions().catch(() => {});
     void loadMe();
     if (!plugins.loaded) void loadPlugins();
   });
 </script>
 
-<div class="settings" class:phone={phone.on} class:reading={reading || words.length > 0}>
-  <nav aria-label="Settings pages">
+<div class="settings" class:phone={phone.on} class:reading={reading && !words.length} class:searching={words.length > 0}>
+  <nav aria-label="Settings pages" bind:this={navEl}>
     <h1>Settings</h1>
-    <input class="filter" placeholder="Search settings…" bind:this={search} bind:value={filter} spellcheck="false" aria-label="Search settings" />
+    <input class="filter" placeholder="Search settings…" bind:this={search} bind:value={filter} onkeydown={searchKeys} spellcheck="false" aria-label="Search settings" />
     <button class="nav accounts" class:on={!words.length && accounts} onclick={() => go(ACCOUNTS)} aria-current={!words.length && accounts ? "page" : undefined}>
       <span class="ico acc"><Icon name="user" size={14} /></span> <span>Accounts</span>{#if accountTrouble}<b class="bad" title="An account has a problem"></b>{:else if accountCount}<i>{accountCount}</i>{/if}
     </button>
@@ -112,14 +129,14 @@
       <h2 class="group">{g.title}</h2>
       {#each own as p (p.page)}
         {@const n = changedIn(p.fields)}
-        <button class="nav" class:on={!words.length && p.page === page?.page} onclick={() => go(p.page)} aria-current={!words.length && p.page === page?.page ? "page" : undefined}>
+        <button class="nav" class:on={navOn(p.page)} onclick={() => go(p.page)} aria-current={navOn(p.page) ? "page" : undefined}>
           <span class="ico"><Icon name={p.icon} size={14} /></span> <span>{p.title}</span>{#if n}<i title="{n} changed">{n}</i>{/if}
         </button>
       {/each}
       {#if g.id === "plugins"}
       {#each builtinPages as p (p.page)}
         {@const n = changedIn(p.fields)}
-        <button class="nav plugin" class:on={!words.length && p.page === page?.page} class:off={isOff(p.plugin ?? "")} onclick={() => go(p.page)} aria-current={!words.length && p.page === page?.page ? "page" : undefined}>
+        <button class="nav plugin" class:on={navOn(p.page)} class:off={isOff(p.plugin ?? "")} onclick={() => go(p.page)} aria-current={navOn(p.page) ? "page" : undefined}>
           <span class="ico plug"><Icon name={p.icon} size={14} /></span> <span>{p.title}</span>{#if n}<i title="{n} changed">{n}</i>{/if}
         </button>
       {/each}
@@ -138,7 +155,8 @@
     {#if !settings.config || !settings.schema}
       <p class="muted">Loading…</p>
     {:else if words.length}
-      <p class="muted">{hits.reduce((n, h) => n + h.opts.length, 0)} options match “{filter}”</p>
+      {@const n = hits.reduce((n, h) => n + h.opts.length, 0)}
+      <p class="muted">{n} {n === 1 ? "option matches" : "options match"} “{filter}”</p>
       {#each hits as h (h.page.page)}
         <section class="hit">
           <button class="hit-h" onclick={() => go(h.page.page)}><Icon name={h.page.icon} size={14} /> {h.page.title} →</button>
@@ -165,7 +183,7 @@
   .nav { display: flex; gap: 10px; align-items: center; padding: 5px 8px; border-radius: 8px; color: var(--text); text-align: left; }
   /* each entry's icon on a small tile, as System Settings does: the eye finds an area by its colour and shape */
   .nav .ico { flex: none; display: grid; place-items: center; width: 24px; height: 24px; border-radius: 6px; color: var(--text-muted); background: var(--bg-elev); border: 1px solid var(--border); }
-  .ico.acc { color: #fff; border-color: transparent; background: linear-gradient(160deg, var(--accent), color-mix(in srgb, var(--accent) 55%, #000)); }
+  .ico.acc { color: var(--accent-fg); border-color: transparent; background: var(--accent); }
   .ico.plug { color: var(--accent); background: var(--accent-soft); border-color: transparent; }
   .nav.on .ico:not(.acc) { color: var(--accent); border-color: var(--accent); }
   .nav.accounts { margin-bottom: 4px; padding-block: 7px; font-weight: 600; }
@@ -195,6 +213,11 @@
   .phone main { display: none; padding: 8px 16px 96px; }
   .phone.reading nav { display: none; }
   .phone.reading main { display: block; }
+  /* searching on a phone: the box stays above its results (hiding the list hid the box being typed in) */
+  .phone.searching { flex-direction: column; }
+  .phone.searching nav { flex: none; overflow: visible; padding-bottom: 0; }
+  .phone.searching :is(.nav, .group) { display: none; }
+  .phone.searching main { display: block; flex: 1; }
   .flip { display: grid; transform: rotate(180deg); }
   .phone .all { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; color: var(--accent); font-weight: 600; }
 </style>

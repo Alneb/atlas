@@ -74,7 +74,7 @@
 
 <style>
   .suggest { position: fixed; z-index: 60; max-height: 260px; overflow-y: auto; margin: 0; padding: 4px; list-style: none;
-    background: var(--bg-elev); border: 1px solid var(--border); border-radius: var(--radius-sm); box-shadow: 0 6px 20px rgb(0 0 0 / .18);
+    background: var(--bg-elev); border: 1px solid var(--border); border-radius: var(--radius-sm); box-shadow: var(--shadow-pop);
     font-size: calc(12.5px * var(--ui-scale, 1)); }
   li { display: flex; align-items: baseline; gap: 8px; padding: 4px 8px; border-radius: 4px; cursor: pointer; color: var(--text); }
   li.at { background: var(--accent-soft); }

@@ -63,8 +63,26 @@ pub fn icon_name(icon: atlas_capture::icons::Icon) -> String {
     out
 }
 
-pub fn describe(text: &str) -> String {
-    complete::what_it_becomes(None, text)
+/// What the text becomes in `vault` (its capture mode, its catalog's patterns), as the desktop box says it; no vault
+/// chosen yet: the words every vault shares.
+pub fn describe(vault: Option<&Path>, text: &str) -> String {
+    let cfg = vault.and_then(config_of);
+    complete::what_it_becomes(vault.zip(cfg.as_ref()), text)
+}
+
+/// The vault's settings, read again at most every few seconds: the hint asks on every keystroke, on the UI thread.
+fn config_of(vault: &Path) -> Option<atlas_core::config::Config> {
+    type Kept = Option<(PathBuf, std::time::Instant, atlas_core::config::Config)>;
+    static KEPT: Mutex<Kept> = Mutex::new(None);
+    let mut kept = KEPT.lock().unwrap();
+    if let Some((p, at, cfg)) = kept.as_ref() {
+        if p == vault && at.elapsed() < std::time::Duration::from_secs(5) {
+            return Some(cfg.clone());
+        }
+    }
+    let cfg = atlas_core::Workspace::open(vault).and_then(|ws| ws.config()).ok()?;
+    *kept = Some((vault.to_path_buf(), std::time::Instant::now(), cfg.clone()));
+    Some(cfg)
 }
 
 /// Writes the capture: `{path, line}` or `{error}`.

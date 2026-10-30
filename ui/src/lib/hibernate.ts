@@ -57,6 +57,9 @@ export function register(s: Sleeper): SleeperHandle {
 }
 
 const neverSleeps = (k: PaneKind) => k === "terminal";
+/** A tab restored in the background starts asleep: mounted when first shown, not at startup (a layout with many tabs
+ *  loaded every one of them — a graph, Settings, plugins — before the shown one was drawn). */
+export const startsAsleep = (k: PaneKind): boolean => !neverSleeps(k);
 /** Costs a process of its own: never kept awake for being among the last seen. */
 const ownProcess = (k: PaneKind) => k === "web";
 const ageLimit = (k: PaneKind, afterMs: number) => (k === "editor" ? 3 * afterMs : afterMs);

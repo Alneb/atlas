@@ -68,7 +68,7 @@ test("a copyparty server in the explorer: browse, open and save back, make, rena
   const notice = page.getByText(/changed on nas since it was opened here/);
   await expect(notice).toBeVisible({ timeout: 15_000 });
   expect(readFileSync(join(ROOT, "hdd1/Physics/readme.md"), "utf8")).toContain("someone else");
-  await notice.click();
+  await page.locator(".toast", { has: notice }).getByRole("button", { name: "Save over it" }).click();
   await expect.poll(() => readFileSync(join(ROOT, "hdd1/Physics/readme.md"), "utf8")).toContain("Edited in Atlas. Again.");
 
   // a new folder, a rename (copyparty's move names the target from its own root), an upload from the computer
@@ -122,6 +122,22 @@ const JPEG = "/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAoHBwgHBgoICAgLCgoLDhgQDg0NDh0VFh
 // Books' remote folders: the plugin's `remote`
 // setting names a folder of a copyparty server; the Libraries page's Books lists its books beside the vault's, and
 // Read fetches the book through copyparty's file source (atlas.files.local) into its local copy and opens it.
+// A plugin started again (its settings saved) replaces its file source: the server is listed once, not once per start
+// (the old source stayed: the list keeps a proxy of each source, which indexOf(source) never found).
+test("a plugin started again lists its server once", async ({ page, request }) => {
+  await page.goto("/");
+  await page.getByText("Finish the GW notes.").waitFor();
+  const settings = await read(request, ".atlas/plugin-settings/copyparty.toml");
+  await put(request, ".atlas/plugin-settings/copyparty.toml", `${settings}\n`); // saved again: the plugin restarts
+  await page.waitForTimeout(1500);
+  await page.keyboard.press("F1");
+  await page.keyboard.type("the explorer");
+  await page.keyboard.press("Enter");
+  const places = page.locator(".explorer .place", { hasText: "nas" });
+  await expect(places.first()).toBeVisible();
+  await expect(places).toHaveCount(1);
+});
+
 test("Books lists a server folder's books beside the vault's, and a server's book opens from its local copy", async ({ page, request }) => {
   test.setTimeout(60_000);
   mkdirSync(join(ROOT, "hdd1/Physics/Books/Shelf"), { recursive: true });

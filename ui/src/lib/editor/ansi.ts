@@ -100,7 +100,10 @@ export function ansiColors() {
     decorations: DecorationSet;
     constructor(view: EditorView) { this.on = hasAnsi(view.state.doc); this.decorations = this.on ? build(view) : Decoration.none; }
     update(u: ViewUpdate) {
-      if (u.docChanged) this.on = hasAnsi(u.state.doc);
+      // once on it stays on (build finds nothing then); off, only the inserted text can bring a code in
+      if (u.docChanged && !this.on) u.changes.iterChangedRanges((_fA, _tA, fB, tB) => {
+        this.on ||= u.state.doc.sliceString(Math.max(0, fB - 1), tB + 1).includes("\x1b[");
+      });
       if (this.on && (u.docChanged || u.viewportChanged || u.selectionSet)) this.decorations = build(u.view);
       else if (!this.on) this.decorations = Decoration.none;
     }

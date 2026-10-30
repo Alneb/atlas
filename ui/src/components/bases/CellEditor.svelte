@@ -85,7 +85,9 @@
 
 <style>
   .cell-editor { display: flex; align-items: center; gap: 4px; min-width: 0; width: 100%; }
-  .cell-editor.list { flex-wrap: wrap; }
+  /* a list's chips float over the cell, wrapping downwards: the row keeps its height (the table's window counts on it) */
+  .cell-editor.list { flex-wrap: wrap; position: absolute; top: 0; left: 0; z-index: 3; min-width: 100%; width: max-content; max-width: 360px; min-height: 100%;
+    padding: 4px 6px; background: var(--bg-elev); border: 1px solid var(--accent); border-radius: var(--radius-sm); box-shadow: var(--shadow-pop); }
   .cell-edit { flex: 1; min-width: 60px; width: 100%; height: 24px; font: inherit; color: var(--text); background: var(--bg); border: 1px solid var(--accent); border-radius: var(--radius-sm); padding: 0 6px; }
   .list .cell-edit { border: 0; background: transparent; padding: 0 2px; }
   .cell-edit:focus { outline: none; }

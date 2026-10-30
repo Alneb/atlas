@@ -36,7 +36,10 @@ export function allApps(): AppTile[] {
   const vault = plugins.list.filter((p) => pluginOn(p) && p.rail && p.view).map((p): AppTile => ({
     key: p.id, ids: [paneId(pluginSpec(p))], title: p.title, icon: p.icon && isIconName(p.icon) ? p.icon : "plugin", keys: cmd(`plugin.${p.id}`)?.keys, command: `plugin.${p.id}`, open: () => void cmd(`plugin.${p.id}`)?.run(),
   }));
-  return [{ key: "home", ids: [...new Set([home.id, "today"])], title: "Home", icon: "home", keys: homeCmd?.keys, command: "ui.today", open: () => void homeCmd?.run() }, ...builtins, ...vault];
+  const capCmd = cmd("ui.capture");
+  // Capture is a popup, never a tab: its id names no pane, so the tile only ever opens it
+  const capture: AppTile = { key: "capture", ids: ["quick-capture"], title: "Capture", icon: "plus", keys: capCmd?.keys, command: "ui.capture", open: () => void capCmd?.run() };
+  return [{ key: "home", ids: [...new Set([home.id, "today"])], title: "Home", icon: "home", keys: homeCmd?.keys, command: "ui.today", open: () => void homeCmd?.run() }, capture, ...builtins, ...vault];
 }
 
 /** `apps` in the vault's order: the keys of `[ui] apps_order` first, as listed, then the rest as they came. */

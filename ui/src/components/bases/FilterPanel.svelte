@@ -35,7 +35,8 @@
   {#if scope === "all"}
     <FilterGroup group={asGroup(base)} {props} {typeOf} onchange={(g) => onedit({ op: "base_filters", filters: topFilter(g) })} />
   {:else}
-    <FilterGroup group={asGroup(view)} {props} {typeOf} onchange={(g) => onedit({ op: "filters", filters: topFilter(g) })} />
+    <FilterGroup group={asGroup(view)} {props} {typeOf} onchange={(g) => onedit({ op: "filters", filters: topFilter(g) })}
+      empty={countConditions(base) ? "No filters of its own: the view shows every note the filters of all views let in." : "No filters: every note is in."} />
   {/if}
 {/key}
 

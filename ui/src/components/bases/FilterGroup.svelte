@@ -9,13 +9,15 @@
   import { subGroup, toFilter, type FieldType, type Group, type GroupOp } from "../../lib/base-filter";
   import type { Filter } from "../../lib/gen/Filter";
 
-  let { group, props, typeOf, onchange, onremove, depth = 0 }: {
+  let { group, props, typeOf, onchange, onremove, depth = 0, empty = "No filters: every note is in." }: {
     group: Group;
     props: { id: string; label: string }[];
     typeOf: (id: string) => FieldType;
     onchange: (g: Group) => void;
     onremove?: () => void;
     depth?: number;
+    /** what an empty top group says */
+    empty?: string;
   } = $props();
 
   const OPS: { value: GroupOp; label: string }[] = [
@@ -51,7 +53,7 @@
     {#each pending as id (id)}
       <FilterCondition expr={null} {props} {typeOf} onchange={(e) => settle(id, e)} onremove={() => (pending = pending.filter((p) => p !== id))} />
     {/each}
-    {#if !group.items.length && !pending.length}<p class="empty">No filters: every note {depth ? "passes this group" : "is in"}.</p>{/if}
+    {#if !group.items.length && !pending.length}<p class="empty">{depth ? "No filters: every note passes this group." : empty}</p>{/if}
   </div>
   <div class="foot">
     <button type="button" class="add" onclick={() => (pending = [...pending, next++])}><Icon name="plus" size={12} /> Add filter</button>

@@ -202,12 +202,12 @@
 <style>
   .accounts { display: flex; flex-direction: column; gap: 18px; }
   .top { display: flex; gap: 14px; align-items: flex-start; }
-  .tile { flex: none; display: grid; place-items: center; width: 44px; height: 44px; border-radius: 11px; color: #fff; background: linear-gradient(160deg, var(--accent), color-mix(in srgb, var(--accent) 55%, #000)); }
+  .tile { flex: none; display: grid; place-items: center; width: 44px; height: 44px; border-radius: 11px; color: var(--accent-fg); background: var(--accent); }
   .what { flex: 1; min-width: 0; }
   h2 { margin: 0; font-size: calc(22px * var(--ui-scale, 1)); color: var(--heading); letter-spacing: -.015em; }
   .what p { margin: 4px 0 0; color: var(--text-muted); line-height: 1.45; }
   .addwrap { position: relative; flex: none; }
-  .menu { position: absolute; right: 0; top: calc(100% + 6px); z-index: 5; width: 290px; max-height: 60vh; overflow-y: auto; padding: 6px; border: 1px solid var(--border-strong); border-radius: 10px; background: var(--bg-elev); box-shadow: 0 12px 32px rgb(0 0 0 / .28); }
+  .menu { position: absolute; right: 0; top: calc(100% + 6px); z-index: 5; width: 290px; max-height: 60vh; overflow-y: auto; padding: 6px; border: 1px solid var(--border-strong); border-radius: 10px; background: var(--bg-elev); box-shadow: var(--shadow-pop); }
   .mh { display: flex; gap: 6px; align-items: center; margin: 8px 8px 4px; font-size: calc(11px * var(--ui-scale, 1)); font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--text-faint); }
   .mh span { text-transform: none; letter-spacing: 0; font-weight: 400; }
   .menu button { display: flex; flex-direction: column; align-items: flex-start; gap: 1px; width: 100%; padding: 6px 10px; border-radius: 6px; text-align: left; color: var(--text); }
@@ -222,7 +222,7 @@
   .acct + .acct { border-top: 1px solid var(--border); }
   .row { display: flex; align-items: center; gap: 12px; width: 100%; padding: 10px 14px; text-align: left; }
   button.row:hover { background: var(--bg-hover); }
-  .avatar { flex: none; display: grid; place-items: center; width: 32px; height: 32px; border-radius: 50%; font-weight: 700; color: #fff; background: hsl(var(--h) 55% 48%); }
+  .avatar { flex: none; display: grid; place-items: center; width: 32px; height: 32px; border-radius: 50%; font-weight: 700; color: var(--accent-fg); background: hsl(var(--h) 55% 48%); } /* literal: a hue per account */
   .who { flex: 1; min-width: 0; display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; }
   .who b { min-width: 0; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); font-weight: 600; }
   .main { font-style: normal; font-size: calc(10.5px * var(--ui-scale, 1)); color: var(--accent); border: 1px solid var(--accent); border-radius: 999px; padding: 0 6px; }

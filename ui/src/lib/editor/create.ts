@@ -10,12 +10,13 @@ import { ansiColors } from "./ansi";
 import { latexSuite } from "./latex-suite";
 import "./md-format"; // registers the note keys' formatter (registry.noteFormat)
 import { settings, onSettings } from "../settings.svelte";
-import { EditorState, Compartment, Prec, Transaction, type Extension } from "@codemirror/state";
+import { EditorState, Compartment, Prec, Transaction, type Extension, type ChangeSet, type Text } from "@codemirror/state";
 import { EditorView, keymap, drawSelection, dropCursor, rectangularSelection, highlightActiveLine, highlightSpecialChars } from "@codemirror/view";
 import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
 import { indentOnInput, LanguageDescription } from "@codemirror/language";
 import { languages } from "@codemirror/language-data";
 import { searchKeymap, highlightSelectionMatches, search } from "@codemirror/search";
+import { findPanel } from "./find-panel";
 import { acceptCompletion, clearSnippet, closeCompletion, completionStatus } from "@codemirror/autocomplete";
 import { clearStops } from "./tabstops";
 import { vim, getCM } from "@replit/codemirror-vim";
@@ -29,9 +30,10 @@ import { pluginCompletions, pluginHooks } from "./plugin-hooks";
 import { atlasTheme } from "./theme";
 import { defineEx, exHooks, modeLabel, stashVisual, restoreVisual, desktopKeys, type VimModeLabel } from "./vim-glue";
 import { tabKey, untouchedTaskList } from "./tab-keys";
-import { placeOf, keepPlace, placeIn } from "./places";
+import { placeOf, keepPlace, topIn, type Place } from "./places";
 import { noteExtensions, mdOptions } from "./note-extensions";
 import { codeExtensions, codeOptions, countProblems, openReplace } from "./code-extensions";
+import { setDiagnosticsEffect } from "@codemirror/lint";
 import { latexSnippetsOn, texCite } from "./completion-sources";
 import { linkClicks } from "./link-clicks";
 import { blameExtension } from "./blame";
@@ -54,7 +56,8 @@ export interface EditorOptions {
    *  `typed`: by the user (an input, a paste, an undo, the properties panel…), not set by the program (a load, a reload
    *  from disk); `keys`: only characters typed or deleted, which may be read a moment later (anything else, a panel's
    *  edit, is read back by what made it at once). */
-  onChange?: (typed: boolean, keys: boolean) => void;
+  /** `edit`: the text before, the changes, the text after (to carry derived data over an edit). */
+  onChange?: (typed: boolean, keys: boolean, edit: { before: Text; changes: ChangeSet; after: Text }) => void;
   onVimMode?: (mode: VimModeLabel) => void;
   onSave?: () => void;
   onQuit?: () => void;
@@ -96,7 +99,8 @@ export function createEditor(o: EditorOptions): AtlasEditor {
   const blameSlot = new Compartment();
   const md = isMarkdown(o.path);
   const viewRef: { view: EditorView | null } = { view: null };
-  let lastProblems: Problems = { errors: 0, warnings: 0 };
+  // null until a checker (the language server) has reported on the file: "No problems" only once something looked
+  let lastProblems: Problems | null = null;
   const mdx = md ? noteExtensions(o.path, viewRef, o.onOpenLink) : null;
 
   const extensions: Extension[] = [
@@ -129,28 +133,32 @@ export function createEditor(o: EditorOptions): AtlasEditor {
     history(),
     drawSelection(),
     dropCursor(),
+    // several cursors (Ctrl+D, Ctrl+Shift+L, Alt+click, a rectangle): off unless a state allows it
+    EditorState.allowMultipleSelections.of(true),
     rectangularSelection(),
     highlightSpecialChars(),
     highlightActiveLine(),
     highlightSelectionMatches(),
     indentOnInput(),
     search({ top: true }),
+    findPanel(),
     // Tab is the editor's (without a binding the key walked out of it): see tabKey
     keymap.of([...defaultKeymap, ...historyKeymap, ...searchKeymap, tabKey(md)]),
-    md ? [mdx!.body, codeOpts.of(mdOptions(settings.config))] : codeExtensions(lang, codeOpts, lspSlot, settings.config),
+    md ? [mdx!.body, codeOpts.of(mdOptions(settings.config))] : codeExtensions(lang, codeOpts, lspSlot, settings.config, o.doc),
     blameSlot.of([]),
     // \cite{ in LaTeX: the Library next to texlab's own completions
     /\.tex$/i.test(o.path) ? [texCite, mathPreview(() => settings.config?.editor.math_preview ?? true, true)] : [],
     EditorView.updateListener.of((u) => {
       if (u.docChanged) {
         const user = u.transactions.filter((t) => t.docChanged && t.annotation(Transaction.userEvent) !== undefined);
-        o.onChange?.(user.length > 0, user.length > 0 && user.every((t) => t.isUserEvent("input.type") || t.isUserEvent("delete")));
+        o.onChange?.(user.length > 0, user.length > 0 && user.every((t) => t.isUserEvent("input.type") || t.isUserEvent("delete")),
+          { before: u.startState.doc, changes: u.changes, after: u.state.doc });
       }
       if (u.focusChanged && u.view.hasFocus) o.onFocus?.();
       if (u.selectionSet) keep(); // the place it is left at (places.ts)
-      if (!md && o.onProblems && u.transactions.some((t) => t.effects.length)) {
+      if (!md && o.onProblems && u.transactions.some((t) => t.effects.some((e) => e.is(setDiagnosticsEffect)))) {
         const p = countProblems(u.state);
-        if (p.errors !== lastProblems.errors || p.warnings !== lastProblems.warnings) { lastProblems = p; o.onProblems(p); }
+        if (p.errors !== lastProblems?.errors || p.warnings !== lastProblems?.warnings) { lastProblems = p; o.onProblems(p); }
       }
       if (o.onSelection && (u.selectionSet || (u.focusChanged && u.view.hasFocus))) {
         const { from, to } = u.state.selection.main, d = u.state.doc;
@@ -178,8 +186,15 @@ export function createEditor(o: EditorOptions): AtlasEditor {
   viewRef.view = view;
   let destroyed = false;
   // the place is read while the view is on screen (a closing tab is detached before it is destroyed), written later
-  let last: ReturnType<typeof placeIn> | null = null;
-  const read = () => { if (view.dom.isConnected) last = placeIn(view); };
+  let last: Place | null = null;
+  // the caret now (a tab closed at once keeps it); the top line in the view's measure phase, as reading the scroll
+  // position inside an update forces a layout on every key
+  const readKey = {};
+  const read = () => {
+    if (!view.dom.isConnected) return;
+    last = { head: view.state.selection.main.head, top: last?.top ?? view.viewport.from };
+    view.requestMeasure({ key: readKey, read: (v) => { if (v.dom.isConnected && last) last = { ...last, top: topIn(v) }; } });
+  };
   keep = () => { read(); clearTimeout(keepTimer); keepTimer = setTimeout(() => { if (!destroyed && last) keepPlace(o.path, last); }, 500); };
   if (left) {
     // after the first layout, and again once rendered blocks have their heights
@@ -230,6 +245,7 @@ export function createEditor(o: EditorOptions): AtlasEditor {
       o.onVimMode?.(mode);
     },
     setDoc(text) {
+      text = text.replace(/\r\n?/g, "\n"); // as the editor holds it: a CRLF file reloaded unchanged is no change
       const cur = view.state.doc.toString();
       if (cur === text) return;
       const head = Math.min(view.state.selection.main.head, text.length);
@@ -243,7 +259,7 @@ export function createEditor(o: EditorOptions): AtlasEditor {
     },
     vimMode: () => mode,
     setBlame: (b, open) => view.dispatch({ effects: blameSlot.reconfigure(b ? blameExtension(b, open) : []) }),
-    problems: () => (md ? null : countProblems(view.state)),
+    problems: () => (md || !lastProblems ? null : countProblems(view.state)),
     destroy() {
       read();
       if (last) keepPlace(o.path, last);

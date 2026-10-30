@@ -281,7 +281,7 @@
               <div class="search">
                 <Icon name="search" size={15} />
                 <input bind:this={searchBox} bind:value={searchText} oninput={typed} onkeydown={(e) => { if (e.key === "Enter") { e.preventDefault(); searchServer(); } else if (e.key === "Escape") { searchText = ""; mail.search(""); searchBox?.blur(); } else if (e.key === "ArrowDown") { searchBox?.blur(); } }}
-                  placeholder="Search mail  (from: to: subject: has:attachment is:unread before:…)" aria-label="Search mail" />
+                  placeholder="Search mail…" aria-label="Search mail" title="Words, or from: to: subject: has:attachment is:unread before: after:" />
                 {#if searchText}<button class="tool" onclick={() => { searchText = ""; mail.search(""); }} aria-label="Clear the search"><Icon name="x" size={14} /></button>{/if}
               </div>
               <button class="tool" onclick={() => COMMANDS.find((c) => c.id === "refresh")?.run(mail, ui)} title="Check for new mail (⇧G)"><Icon name="refresh" /></button>

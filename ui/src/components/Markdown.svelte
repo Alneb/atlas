@@ -17,7 +17,9 @@
   const dir = $derived(path.includes("/") ? path.slice(0, path.lastIndexOf("/")) : "");
   // re-render when the file list changes: embeds and unresolved-link styling depend on it
   let vaultTick = $state(0);
-  $effect(() => { void vaultReady(); return onVaultChange(() => vaultTick++); });
+  // hydrate only once the file index is in: before it, embeds resolve to a guess beside the note (a 404)
+  let listed = $state(false);
+  $effect(() => { void vaultReady().then(() => (listed = true)); return onVaultChange(() => vaultTick++); });
   $effect(() => onHighlightLanguage(() => vaultTick++)); // a fence's language arrived: drawn highlighted
   const html = $derived((void vaultTick, renderMarkdown(stripFrontmatter(text), { dir })));
   let el: HTMLDivElement;
@@ -26,7 +28,7 @@
     void html;
     if (el && tickable && path) el.querySelectorAll<HTMLInputElement>("input.task-checkbox:not(:checked)").forEach((b) => { b.disabled = false; b.title = "Tick it"; });
     if (el && log) markLogEntries(el);
-    if (!el) return;
+    if (!el || !listed) return;
     return hydrateRendered(el, path, { compact, exprText: text }); // undone on a re-render and when the view goes, not while its tab is hidden
   });
 

@@ -47,7 +47,7 @@
 
   {#if noAccount}
     <h3>Calendars</h3>
-    <ul><li class="none">{cal.configured ? "Reading the server…" : "No account yet."}{#if !cal.configured}<button class="link" onclick={() => cal.atlas.plugin.openSettings()}>Set it up…</button>{/if}</li></ul>
+    <ul><li class="none">{cal.configured ? (cal.error ? "Not read: see the message beside." : "Reading the server…") : "No account yet."}{#if !cal.configured}<button class="link" onclick={() => cal.atlas.plugin.openSettings()}>Set it up…</button>{/if}</li></ul>
   {/if}
   {#each groups as g (g.title)}
     {#if g.items.length || (g.title !== "Subscriptions")}

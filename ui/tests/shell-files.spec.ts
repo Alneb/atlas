@@ -100,7 +100,7 @@ test("quick open: Ctrl+Enter opens the file beside the active tab instead of ove
   await expect(palette.getByText("open beside")).toBeVisible();
   await page.keyboard.press("Control+Enter");
   const split = side.getByTestId("split-row"); // the two halves: one row of the one Editor section (Zen)
-  await expect(side.locator(".group-head")).toHaveText(["Terminal", "Editor"]);
+  await expect(side.locator(".group-head")).toHaveText(["Terminal", "Tabs"]);
   await expect(split.locator(".tab")).toHaveCount(2);
   await expect(split.locator(".tab.active")).toHaveText(/related/);
   await expect(page.locator(".cm-editor.cm-focused", { hasText: "Related" })).toBeVisible(); // the new note takes the keys once loaded

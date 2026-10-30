@@ -21,7 +21,7 @@ const AHEAD = 1, KEEP = 3;
 const LAYERS_KEPT = 40;
 export const MIN_SCALE = 0.25, MAX_SCALE = 6;
 
-interface Events { page: number; scale: { scale: number; zoom: Zoom }; drawn: number; layers: number; find: { current: number; total: number } }
+interface Events { page: number; scale: { scale: number; zoom: Zoom }; drawn: number; layers: number; find: { current: number; total: number; done: boolean } }
 type Handler<K extends keyof Events> = (e: Events[K]) => void;
 
 /** A page's text in shown space (y down, its /Rotate applied), cut into runs; its links and annotations. */
@@ -82,6 +82,8 @@ export interface Reader {
   /** Page n's box and /Rotate: what `toShown` needs to place a page-space mark (lib/pdf-geom.ts). */
   space(n: number): Promise<{ view: Box; rotate: number }>;
   pieces(n: number): Promise<TextPiece[]>;
+  /** Page n's size in points, before the reader's rotation (known for every page when the document opens). */
+  pageSize(n: number): [number, number];
   /** Page n's element (`.page`), and the box over it that turns with the page (marks and ink are laid there). */
   pageLayer(n: number): HTMLElement | null;
   destroy(): void;
@@ -102,13 +104,13 @@ function addStyle(): void {
 .pdfViewer .textLayer, .pdfViewer .linkLayer, .pdfViewer .findLayer { position: absolute; inset: 0; }
 .pdfViewer .textLayer { line-height: 1; overflow: hidden; z-index: 2; }
 .pdfViewer .textLayer span, .pdfViewer .textLayer br { color: transparent; position: absolute; white-space: pre; cursor: text; transform-origin: 0 0; font-family: sans-serif; }
-.pdfViewer .textLayer ::selection { background: rgba(0, 100, 255, .28); }
+.pdfViewer .textLayer ::selection { background: color-mix(in srgb, var(--accent) 30%, transparent); }
 .pdfViewer .findLayer { pointer-events: none; z-index: 1; }
-.pdfViewer .findLayer > div { position: absolute; background: rgba(255, 200, 0, .4); border-radius: 2px; }
-.pdfViewer .findLayer > div.selected { background: rgba(255, 120, 0, .6); }
+.pdfViewer .findLayer > div { position: absolute; background: color-mix(in srgb, var(--yellow) 45%, transparent); border-radius: 2px; }
+.pdfViewer .findLayer > div.selected { background: color-mix(in srgb, var(--orange) 65%, transparent); }
 .pdfViewer .linkLayer { pointer-events: none; z-index: 4; }
 .pdfViewer .linkLayer > a { position: absolute; pointer-events: auto; }
-.pdfViewer .linkLayer > a:hover { background: rgba(0, 100, 255, .08); }
+.pdfViewer .linkLayer > a:hover { background: var(--accent-soft); }
 .pdfViewer .linkLayer > [data-annotation-id] { position: absolute; pointer-events: none; }
 ` }));
 }
@@ -210,6 +212,7 @@ export async function openReader(container: HTMLElement, path: string, eng: PdfE
   function pageIndexAt(y: number): number {
     let lo = 0, hi = views.length - 1;
     while (lo < hi) { const mid = (lo + hi + 1) >> 1; if (tops[mid] <= y) lo = mid; else hi = mid - 1; }
+    while (lo > 0 && tops[lo - 1] === tops[lo]) lo--; // two pages side by side: the left one
     return lo;
   }
 
@@ -384,7 +387,9 @@ export async function openReader(container: HTMLElement, path: string, eng: PdfE
     });
   }
   const repaintFind = () => { for (const v of views) if (v.built) paintFind(v); };
-  const findCount = () => emit("find", { current: at + 1, total: matches.length });
+  // `done`: every page searched — until then no match yet is not "no match"
+  let findDone = true;
+  const findCount = () => emit("find", { current: at + 1, total: matches.length, done: findDone });
   function showMatch(): void {
     const m = matches[at];
     if (!m) return;
@@ -476,7 +481,8 @@ export async function openReader(container: HTMLElement, path: string, eng: PdfE
     },
     setZoom(z) { zoom = z; rescale(scaleFor(z)); },
     zoomBy(f, origin) {
-      zoom = Math.round(Math.min(MAX_SCALE, Math.max(MIN_SCALE, scale * f)) * 100) / 100;
+      // not rounded: a slow pinch's steps are smaller than a percent, and rounding undid each one
+      zoom = Math.min(MAX_SCALE, Math.max(MIN_SCALE, scale * f));
       const r = container.getBoundingClientRect();
       rescale(zoom, origin ? origin.x - r.left : undefined, origin ? origin.y - r.top : undefined);
     },
@@ -525,21 +531,24 @@ export async function openReader(container: HTMLElement, path: string, eng: PdfE
         return;
       }
       searching?.abort();
-      query = q; matches = []; at = -1;
+      query = q; matches = []; at = -1; findDone = !q;
       repaintFind(); findCount();
       if (!q) return;
       const ctl = (searching = new AbortController()), from = current;
       void (async () => {
         for (let page: number | null = 1; page !== null && !ctl.signal.aborted;) {
           const r: Awaited<ReturnType<PdfEngine["find"]>> | null = await eng.find(path, q, page, false, ctl.signal).catch(() => null);
-          if (!r || ctl.signal.aborted) return;
+          if (ctl.signal.aborted) return;
+          if (!r) break; // a page that could not be searched ends the search with what was found
           matches.push(...r.matches);
           // the first match at or after the page being read is the one shown
           if (at < 0) { const i = matches.findIndex((m) => m.page >= from); if (i >= 0) { at = i; showMatch(); } }
           findCount();
           page = r.next;
         }
-        if (!ctl.signal.aborted && at < 0 && matches.length) { at = 0; showMatch(); }
+        if (ctl.signal.aborted) return;
+        if (at < 0 && matches.length) { at = 0; showMatch(); }
+        findDone = true; findCount();
         repaintFind();
       })();
     },
@@ -597,6 +606,7 @@ export async function openReader(container: HTMLElement, path: string, eng: PdfE
     async space(n) { const { view, rotate } = (await textOfPage(n)).layers; return { view, rotate }; },
     async pieces(n) { return piecesOf((await textOfPage(n)).layers); },
     pageLayer(n) { return views[n - 1]?.layer ?? null; },
+    pageSize: (n) => size(n, true),
     destroy() {
       gone = true;
       searching?.abort();

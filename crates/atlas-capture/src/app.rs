@@ -1,6 +1,7 @@
 //! The box itself: its state, its keys, and one frame of drawing — independent of the window, so
 //! the tests drive it with synthetic input (`egui::Context::run`) exactly as the window does.
 use crate::complete::{self, suggest, Names, Suggestion};
+use crate::draft::Drafts;
 use crate::extras::{Extras, Kind, Part};
 use crate::icons::Icon;
 use crate::look::{self, Palette, POP_PAD, ROW};
@@ -37,6 +38,8 @@ pub enum Phase {
     Sending,
     Saved(String, Instant),
     Failed(String),
+    /// sent, but no answer came back: it may be in the log already, so only Ctrl+Enter sends it again
+    Unsure(String),
 }
 
 /// What hangs under the text: nothing, the completions, or the vault menu — never two at once.
@@ -59,12 +62,14 @@ pub struct Capture {
     pub text: String,
     /// What the text will become, for the vault chosen: (text, vault, words), remembered until either changes
     said: std::cell::RefCell<Option<(String, Option<PathBuf>, String)>>,
+    /// the chosen vault's settings, read once per vault rather than on every key
+    settings: std::cell::RefCell<Option<(PathBuf, Option<atlas_core::config::Config>)>>,
     /// The Super key is held (set by the window from winit: egui does not report Super on Linux). Super is Atlas's key
     /// for its own actions, Ctrl the text's (docs/guides/KEYS.md).
     pub super_key: bool,
     vaults: Vec<Vault>,
     vault: usize,
-    phase: Arc<Mutex<Phase>>,
+    pub(crate) phase: Arc<Mutex<Phase>>,
     /// (generation, names): the generation moves on each load, so the open list is asked again
     names: Arc<Mutex<(u64, Names)>>,
     names_seen: u64,
@@ -92,6 +97,8 @@ pub struct Capture {
     pub hit: Vec<Rect>,
     /// Besides the text: the page you were on, the clipboard, the screenshots (extras.rs).
     pub extras: Extras,
+    /// The unsent text, kept per vault (draft.rs); none in tests unless one asks.
+    drafts: Option<Drafts>,
 }
 
 impl Capture {
@@ -121,6 +128,32 @@ impl Capture {
             hit: Vec::new(),
             extras: Extras::default(),
             said: Default::default(),
+            settings: Default::default(),
+            drafts: None,
+        }
+    }
+
+    /// Keeps the unsent text in `drafts`; an empty box starts with the vault's draft from last time.
+    pub fn with_drafts(mut self, mut drafts: Drafts) -> Self {
+        if self.text.trim().is_empty() {
+            if let Some(text) = self.vault().and_then(|v| drafts.load(&v.path)) {
+                self.caret = text.chars().count();
+                self.caret_to = Some(self.caret);
+                self.text = text;
+            }
+        }
+        self.drafts = Some(drafts);
+        self
+    }
+
+    /// The draft follows the text and the vault chosen; once saved it is gone.
+    fn keep_draft(&mut self) {
+        let Some(drafts) = self.drafts.as_mut() else { return };
+        if matches!(*self.phase.lock().unwrap(), Phase::Saved(..)) {
+            return drafts.clear();
+        }
+        if let Some(v) = self.vaults.get(self.vault) {
+            drafts.keep(&v.path, &self.text);
         }
     }
 
@@ -130,8 +163,12 @@ impl Capture {
         let root = self.vault().map(|v| v.path.clone());
         let mut memo = self.said.borrow_mut();
         if memo.as_ref().is_none_or(|(t, r, _)| *t != self.text || *r != root) {
-            let cfg = root.as_ref().and_then(|r| atlas_core::Workspace::open(r).and_then(|ws| ws.config()).ok());
-            let says = complete::what_it_becomes(root.as_deref().zip(cfg.as_ref()), &self.text);
+            let mut kept = self.settings.borrow_mut();
+            if let Some(r) = root.as_ref().filter(|r| kept.as_ref().is_none_or(|(k, _)| k != *r)) {
+                *kept = Some((r.clone(), atlas_core::Workspace::open(r).and_then(|ws| ws.config()).ok()));
+            }
+            let cfg = kept.as_ref().filter(|(k, _)| Some(k) == root.as_ref()).and_then(|(_, c)| c.as_ref());
+            let says = complete::what_it_becomes(root.as_deref().zip(cfg), &self.text);
             *memo = Some((self.text.clone(), root, says));
         }
         memo.as_ref().map(|(_, _, s)| s.clone()).unwrap_or_default()
@@ -188,19 +225,26 @@ impl Capture {
         self.popup = Popup::Closed;
     }
 
-    fn send(&mut self, ctx: &egui::Context) {
+    /// `again`: sent even after an unsure send (Ctrl+Enter), which a plain Enter would not repeat.
+    fn send(&mut self, ctx: &egui::Context, again: bool) {
         let typed = self.text.trim().to_string();
         let parts = self.extras.parts();
-        if (typed.is_empty() && parts.is_empty()) || !matches!(*self.phase.lock().unwrap(), Phase::Typing | Phase::Failed(_)) {
+        let may = match *self.phase.lock().unwrap() {
+            Phase::Typing | Phase::Failed(_) => true,
+            Phase::Unsure(_) => again,
+            Phase::Sending | Phase::Saved(..) => false,
+        };
+        if (typed.is_empty() && parts.is_empty()) || !may {
             return;
         }
         let Some(Vault { name, path }) = self.vault().cloned() else { return };
         *self.phase.lock().unwrap() = Phase::Sending;
         let (phase, ctx) = (self.phase.clone(), ctx.clone());
         std::thread::spawn(move || {
-            let next = match compose(&path, typed, parts).and_then(|text| send::capture(&path, &text)) {
+            let next = match compose(&path, typed, parts).map_err(send::NotSaved::from).and_then(|text| send::capture(&path, &text)) {
                 Ok((file, line)) => Phase::Saved(format!("{name} · {file}:{line}"), Instant::now()),
-                Err(e) => Phase::Failed(e.to_string()),
+                Err(e @ send::NotSaved::Unsure(_)) => Phase::Unsure(e.to_string()),
+                Err(e @ send::NotSaved::No(_)) => Phase::Failed(e.to_string()),
             };
             *phase.lock().unwrap() = next;
             ctx.request_repaint();
@@ -256,7 +300,7 @@ impl Capture {
                     // the "new line" row: Enter is the box's own
                     Popup::Complete { items, sel } if items[*sel].new_line => {
                         self.popup = Popup::Closed;
-                        self.send(ctx);
+                        self.send(ctx, false);
                     }
                     Popup::Complete { .. } => self.take(),
                     Popup::Vaults { sel } => self.choose_vault(*sel),
@@ -269,8 +313,10 @@ impl Capture {
             let _ = pressed(Modifiers::NONE, Key::Tab) || pressed(Modifiers::SHIFT, Key::Tab);
             if pressed(Modifiers::NONE, Key::Escape) {
                 close(ctx, "Esc");
+            } else if pressed(Modifiers::COMMAND, Key::Enter) {
+                self.send(ctx, true);
             } else if pressed(Modifiers::NONE, Key::Enter) {
-                self.send(ctx);
+                self.send(ctx, false);
             }
         }
         // besides the text: Super+S the screen, Super+Shift+S the last screenshot, Super+C the clipboard, Super+U the page,
@@ -367,6 +413,7 @@ impl Capture {
             ctx.request_repaint_after(left);
         }
         self.keys(ctx);
+        self.keep_draft();
         let p = look::palette(ctx);
         if self.floating {
             return self.floating_frame(ctx, p);
@@ -458,7 +505,7 @@ impl Capture {
                 .frame(false)
                 .margin(egui::Margin::symmetric(0.0, 2.0))
                 .font(FontId::proportional(look::TEXT))
-                .hint_text(egui::RichText::new("Capture a thought, a to-do, a link…").color(p.faint))
+                .hint_text(egui::RichText::new(atlas_core::capture::PROMPT).color(p.faint))
                 .lock_focus(true)
                 .show(ui)
         });
@@ -639,6 +686,7 @@ impl Capture {
         match &*self.phase.lock().unwrap() {
             Phase::Saved(to, _) => drop(ui.label(egui::RichText::new(format!("Saved to {to}")).size(look::SMALL).color(p.green))),
             Phase::Failed(why) => drop(ui.label(egui::RichText::new(format!("Not saved: {why}")).size(look::SMALL).color(p.red))),
+            Phase::Unsure(why) => drop(ui.label(egui::RichText::new(format!("{why} · Ctrl+Enter sends it again")).size(look::SMALL).color(p.red))),
             Phase::Sending => look::note(ui, p, "Saving…"),
             Phase::Typing if self.extras.failed().is_some() => {
                 drop(ui.label(egui::RichText::new(self.extras.failed().unwrap_or_default()).size(look::SMALL).color(p.red)))
@@ -647,20 +695,13 @@ impl Capture {
             // (move, take, back) need the row (the vault list's hints ran over them)
             Phase::Typing if self.text.trim().is_empty() && matches!(self.popup, Popup::Complete { .. } | Popup::Vaults { .. }) => {}
             Phase::Typing if self.text.trim().is_empty() => {
-                // (shown, what it starts the text with, what it is, an example)
-                const GUIDES: [(&str, &str, &str, &str); 4] = [
-                    ("[]", "[] ", "to-do", "A to-do — [] pay the rent @fri · todo: call Ada"),
-                    ("@fri", "@", "date", "A date — @today, @tomorrow, @fri, @+3d, @2026-11-02 (on a to-do: when it is due)"),
-                    ("[[", "[[", "link", "A link to a note — [[ then a few letters of its name"),
-                    ("#", "#", "tag", "A tag — #idea, #physics"),
-                ];
                 let mut clicked = None;
-                for (i, (shown, starts, what, tip)) in GUIDES.into_iter().enumerate() {
+                for (i, atlas_core::capture::Guide { shown, starts, what, tip }) in atlas_core::capture::GUIDES.iter().enumerate() {
                     if i > 0 {
                         ui.add_space(4.0);
                     }
                     if look::code(ui, p, shown).on_hover_text(format!("{tip}\nClick to start with it")).clicked() {
-                        clicked = Some(starts);
+                        clicked = Some(*starts);
                     }
                     look::note(ui, p, what);
                 }

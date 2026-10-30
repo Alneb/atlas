@@ -43,7 +43,7 @@
     try {
       const r = await call<{ path: string; removed: string }>(atlas, "txn_delete", { path: txn.path, line: txn.line, text: txn.text });
       const what = `${txn.payee} · ${txn.date}`;
-      atlas.toast("Deleted", `${what} — click to undo`, "info", { run: () => void call(atlas, "txn_restore", { path: r.path, text: r.removed }).then(() => atlas.toast("Restored", what, "success")).catch((e) => atlas.toast("Not restored", (e as Error).message, "error")) });
+      atlas.toast("Deleted", what, "info", { label: "Undo", run: () => void call(atlas, "txn_restore", { path: r.path, text: r.removed }).then(() => atlas.toast("Restored", what, "success")).catch((e) => atlas.toast("Not restored", (e as Error).message, "error")) });
       onsaved();
     } catch (e) { error = (e as Error).message; } finally { busy = false; }
   }

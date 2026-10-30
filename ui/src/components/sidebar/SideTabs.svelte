@@ -4,7 +4,7 @@
   import type { BlockHost } from "../../lib/blocks";
   import { below } from "../../lib/menu";
   import { open, nextTerminalN, dockTerminal, toggleTerminalPanel } from "../../lib/dock";
-  import { keysOf } from "../../lib/keymap.svelte";
+  import { keysOf, tipFor } from "../../lib/keymap.svelte";
   import type { PaneZone } from "../../lib/panes";
   import { openPalette } from "../../lib/palette.svelte";
   import { settings } from "../../lib/settings.svelte";
@@ -43,7 +43,7 @@
   type Entry = { g: TabGroup; t: TabItem };
   type Section = { zone: PaneZone; label: string; groups: TabGroup[]; visible: boolean; split: Entry[]; rest: Entry[] };
   const RANK: Record<PaneZone, number> = { side: 0, bottom: 1, main: 2 };
-  const LABEL: Record<PaneZone, string> = { side: "Side panel", bottom: "Terminal", main: "Editor" };
+  const LABEL: Record<PaneZone, string> = { side: "Side panel", bottom: "Terminal", main: "Tabs" };
   const sections = $derived.by((): Section[] => {
     const zones = [...new Set(groups.map((g) => g.zone))].sort((a, b) => RANK[a] - RANK[b]);
     const out = zones.map((zone): Section => {
@@ -53,7 +53,7 @@
         : zone === "main" && splitPair.ids.length > 1 ? gs.flatMap((g) => g.tabs.filter((t) => splitPair.ids.includes(t.id)).map((t) => ({ g, t }))) : [];
       const inSplit = new Set(split.map((e) => e.t.id));
       return { zone, label: LABEL[zone], groups: gs, visible: shown.length > 0, split, rest: gs.flatMap((g) => g.tabs.filter((t) => !inSplit.has(t.id)).map((t) => ({ g, t }))) };
-    }).filter((x) => x.split.length || x.rest.length || x.zone !== "main"); // only an app (Home) open: no bare "Editor"
+    }).filter((x) => x.split.length || x.rest.length || x.zone !== "main"); // only an app (Home) open: no bare "Tabs"
     // the terminal keeps its heading (and its buttons) in its place with nothing open
     if (wide && !side.filter && !out.some((x) => x.zone === "bottom")) out.unshift({ zone: "bottom", label: LABEL.bottom, groups: [], visible: false, split: [], rest: [] });
     return out;
@@ -112,7 +112,7 @@
     </button>
 
   {:else}
-    <button class="side-tool tipped new-tab-icon" onclick={() => openPalette("files")} aria-label="Open a file" data-tip="Open a file · {keysOf('ui.quickOpen') ?? ''}"><Icon name="plus" size={16} /></button>
+    <button class="side-tool tipped new-tab-icon" onclick={() => openPalette("files")} aria-label="Open a file" data-tip={tipFor("Open a file", "ui.quickOpen")}><Icon name="plus" size={16} /></button>
   {/if}
 
   {#if side.filtering && wide}

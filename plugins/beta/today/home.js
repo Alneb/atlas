@@ -101,10 +101,11 @@ export function registerHome(atlas, language) {
   const W = () => WORDS[lang()];
 
   if (atlas.shell.greetingItem) {
+    const icon = (name, older) => (atlas.version >= 21 ? name : older); // app icons in chips since API 21
     const now = new Date(), { week, yday } = weekOf(now), moon = moonOf(now);
-    atlas.shell.greetingItem({ id: "week", icon: "📅", text: `${W().week} ${week} · ${W().day} ${yday}`, order: 30 });
+    atlas.shell.greetingItem({ id: "week", icon: icon("calendar", "📅"), text: `${W().week} ${week} · ${W().day} ${yday}`, order: 30 });
     atlas.shell.greetingItem({ id: "moon", icon: MOONS[moon.phase], text: W().moon[moon.phase], title: `${moon.lit} %`, order: 31 });
-    const due = atlas.shell.greetingItem({ id: "due", icon: "☑", text: "…", order: 20 });
+    const due = atlas.shell.greetingItem({ id: "due", icon: icon("check", "☑"), text: "…", order: 20 });
     const count = async (when) => ((await atlas.view(`type: task-list\nfrom: tasks\ndue: ${when}`)).rows ?? []).filter((r) => !r.done).length;
     void Promise.all([count("today"), count("overdue")]).then(([today, over]) => {
       due.set([today ? W().due(today) : W().free, over ? W().over(over) : ""].filter(Boolean).join(" · "));

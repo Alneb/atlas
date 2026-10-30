@@ -1,21 +1,51 @@
 //! Writing a capture: through the Atlas open on that vault (its window updates, and one core runs the
 //! vault's schedules), else straight to the files — what `atlas capture` does.
-use anyhow::{anyhow, bail, Context, Result};
+use anyhow::{anyhow, Context, Result};
 use std::io::{Read, Write};
 use std::path::Path;
 
+/// Why a capture was not saved, and whether sending it again could write it twice.
+#[derive(Debug)]
+pub enum NotSaved {
+    /// nothing was written: it can be sent again
+    No(anyhow::Error),
+    /// the request reached the open Atlas but no answer came back: it may be in the log already
+    Unsure(anyhow::Error),
+}
+
+impl std::fmt::Display for NotSaved {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            NotSaved::No(e) => write!(f, "{e:#}"),
+            NotSaved::Unsure(e) => write!(f, "maybe saved — look in today's log before sending again ({e:#})"),
+        }
+    }
+}
+
+impl From<anyhow::Error> for NotSaved {
+    fn from(e: anyhow::Error) -> Self {
+        NotSaved::No(e)
+    }
+}
+
+impl From<atlas_core::Error> for NotSaved {
+    fn from(e: atlas_core::Error) -> Self {
+        NotSaved::No(e.into())
+    }
+}
+
 /// → (path, line) of what was written. An Atlas that is listed as serving the vault but takes no connection (it
 /// crashed, or is closing) is passed by: the files are written directly, so the capture is never lost. Once the
-/// request is sent, a failure is said instead — the open Atlas may have written it already.
-pub fn capture(root: &Path, text: &str) -> Result<(String, u64)> {
+/// request is sent, a failure is `Unsure` instead — the open Atlas may have written it already.
+pub fn capture(root: &Path, text: &str) -> std::result::Result<(String, u64), NotSaved> {
     if let Some(base) = atlas_core::vaults::running_server(root) {
         let body = serde_json::json!({ "args": { "text": text } }).to_string();
         match post(&base, "/api/cmd/capture", &body) {
             Err(Post::Unreachable) => {} // to the files below
-            Err(Post::Failed(e)) => return Err(e),
+            Err(Post::Failed(e)) => return Err(NotSaved::Unsure(e)),
             Ok(v) => {
                 if v["ok"].as_bool() != Some(true) {
-                    bail!("{}", v["error"].as_str().unwrap_or("the open Atlas refused it"));
+                    return Err(anyhow!("{}", v["error"].as_str().unwrap_or("the open Atlas refused it")).into());
                 }
                 let r = &v["result"];
                 return Ok((r["path"].as_str().unwrap_or("").to_string(), r["line"].as_u64().unwrap_or(0)));

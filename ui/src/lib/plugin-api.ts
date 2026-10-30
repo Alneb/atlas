@@ -20,7 +20,7 @@ import type { NativeSample, PenOptions } from "./pen-target";
 import type { EmbedRender } from "./embed-registry";
 import type { Live, LiveHandlers } from "./live";
 
-export const PLUGIN_API_VERSION = 20;
+export const PLUGIN_API_VERSION = 21;
 
 /** What a plugin's view gets. Kept small and stable: plugins outlive app refactors. */
 export interface PluginApi {
@@ -82,8 +82,8 @@ export interface PluginApi {
   thumbUrl(path: string, width?: number): Promise<string>;
   /** Called with the changed paths on every file event; returns the unsubscribe function. */
   onFilesChanged(fn: (paths: string[]) => void): () => void;
-  /** `options.run`: what a click on the notice does (open what it is about). */
-  toast(title: string, body?: string, kind?: "info" | "success" | "error", options?: { run?: () => void }): void;
+  /** `options.run`: the notice's button (`options.label`, "Open" by default), e.g. open what it is about. */
+  toast(title: string, body?: string, kind?: "info" | "success" | "error", options?: { run?: () => void; label?: string }): void;
   /** The e-ink mode (lib/eink.ts): whether it is on, and one full refresh against ghosts (a reader's page turn).
    *  `pen(host, take, opts)` (v5): the phone app's native pen over `host` (pen-target.ts — the firmware's quick line,
    *  every sample of each stroke to `take` in client CSS px); `sync()` after what `opts` reads changes, `off()` to give
@@ -282,7 +282,8 @@ export interface PluginApi {
     sideTool(t: { id: string; title: string; icon?: string; mount(host: HTMLElement): void | (() => void) }): () => void;
     /** A cell in the status bar (a button when it has `run`). `set` changes its text; gone on reload or `remove()`. */
     statusItem(it: { id: string; text: string; title?: string; run?: () => void | Promise<void> }): { set(text: string, title?: string): void; remove(): void };
-    /** A chip under the date in Today's greeting (the weather, the week…): `icon` an emoji or a short symbol, `order`
+    /** A chip under the date in Today's greeting (the weather, the week…): `icon` one of the app's icon names
+     *  (`calendar`, `check`, `sun`, `moon`…; drawn like the rest of the interface; since v21) or an emoji / short symbol, `order`
      *  where it goes (lower first; default 50), a button when it has `run`. Gone on reload or `remove()`. */
     greetingItem(it: { id: string; text: string; icon?: string; title?: string; order?: number; run?: () => void | Promise<void> }): { set(text: string, title?: string): void; remove(): void };
   };

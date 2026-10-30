@@ -32,6 +32,12 @@ test("plugins put chips under the date; Activity says what was made; the map is 
   await expect(chips.locator(".greet-chip").first()).toHaveText("⛅12 °C · Oslo");
   await expect(chips).toContainText(/Week \d+ · day \d+/);
   await expect(chips).toContainText(/due today|nothing due today/);
+  // the week's chip draws the app's calendar icon (API 21), not an emoji
+  await expect(chips.locator(".greet-chip", { hasText: /Week \d+/ }).locator("svg")).toHaveCount(1);
+  // Focus: the file's own "# Focus" is not repeated under the card's label
+  const focus = page.locator(".card", { has: page.getByRole("heading", { name: "Focus", exact: true }) });
+  await expect(focus).toContainText("Finish the GW notes.");
+  await expect(focus.locator(".focus-md h1")).toHaveCount(0);
 
   // Activity: what was made first, what else changed beside it, day by day
   const activity = page.locator(".card", { has: page.getByRole("heading", { name: /^Activity/ }) });

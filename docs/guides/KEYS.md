@@ -56,7 +56,7 @@ The rule: Super is the main key for the app, Ctrl is for the classic things (tex
 | open file | **Super+P**, Ctrl+P | Ctrl+P |
 | search the vault | **Ctrl+Shift+F** | (formerly Super+F; now fullscreen) |
 | new note from a template | **Super+N**, Alt+N | Ctrl+Alt+N |
-| capture | **Super+C** | Ctrl+Alt+C |
+| capture: a popup over the current pane (the editor's selection in it; Enter saves, Esc keeps a draft); also **Super+E** twice, carrying what was typed in the bar, and the top bar's Capture tile | **Super+C** | Ctrl+Alt+C |
 | Claude terminal | **Super+K** | Ctrl+Alt+K |
 | terminal panel | **Super+J** (focus: Ctrl+`) | Ctrl+J |
 | side panel | **Super+B** | Ctrl+B (outside notes), Ctrl+Alt+E |

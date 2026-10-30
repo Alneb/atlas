@@ -60,7 +60,8 @@
     try { await navigator.clipboard.writeText(link); flash(sel.length ? "Link to the selected passage copied" : `Link to page ${current || 1} copied`); }
     catch { flash(link, 8000); }
   }
-  const rotate = () => r?.rotate();
+  let rotation = $state(0);
+  const rotate = () => { r?.rotate(); rotation = r?.rotation ?? 0; };
   const toggleSpread = () => { spread = !spread; r?.setSpread(spread); };
   let findQ = $state("");
   let findInfo = $state("");
@@ -147,6 +148,11 @@
   // the marks are drawn again after a save: the bar finds its mark once they are
   const placeBarSoon = () => { requestAnimationFrame(placeBar); setTimeout(placeBar, 250); };
   const unpick = () => tools?.select(null);
+  /** A mark clicked in the Marks list: its page shown, the mark picked (its bar) and blinking. */
+  function pickFromList(m: Mark, y: number | null) {
+    r?.goto(m.page, y);
+    void marks?.flash(m.id).then((ok) => { if (ok && tool === "select" && !erasing) { tools?.select(m.id); placeBarSoon(); } });
+  }
   const editPicked = (next: Mark) => { void tools?.edit(next); };
   function deletePicked() {
     if (!picked || !tools) return;
@@ -180,7 +186,9 @@
   const zoom = (f: number) => r?.zoomBy(f);
   // the label: fit the width, again: the whole page
   const fitWidth = () => r?.setZoom(r.zoom === "page-width" ? "page-fit" : "page-width");
-  const goto = (n: number) => r?.goto(Math.max(1, Math.min(n, pages)));
+  // the box shows the page reached: clamped, or the same page when nothing changed (no "page" event then)
+  const goto = (n: number) => { r?.goto(Math.max(1, Math.min(n, pages))); pageInput = String(r?.page ?? current); };
+  const gotoTyped = () => { const n = Number(pageInput); if (Number.isFinite(n) && n >= 1) goto(n); else pageInput = String(current); };
   /** A link's words selected, or its annotation flashed: a PDF annotation's id, or one of the note's marks (`m-…`). */
   function mark(page: number, at: { quote?: string; annotation?: string }) {
     if (at.quote) void r?.selectWords(page, at.quote);
@@ -188,6 +196,8 @@
     else if (at.annotation) void r?.flashAnnotation(page, at.annotation);
   }
   const runFind = (again = false, back = false) => r?.find(findQ, { again, back });
+  /** The bar closed with its matches; the keys go back to this pane (its input, which had them, is gone). */
+  function closeFind() { findOpen = false; findQ = ""; runFind(); lastUsed = paneEl; }
   const jump = (o: OutlineItem) => { if (o.page !== null) r?.goto(o.page + 1, o.y); };
 
   async function undo() {
@@ -209,6 +219,7 @@
     if (picked && (e.key === "Delete" || e.key === "Backspace")) { e.preventDefault(); e.stopPropagation(); deletePicked(); return; }
     if (picked && e.key === "Escape") { e.preventDefault(); e.stopPropagation(); unpick(); return; }
     const k = e.key.toLowerCase();
+    if (k === "escape" && findOpen && tool === "select" && !erasing) { e.preventDefault(); closeFind(); return; }
     // a text mark's key marks the selection at once, else picks that tool
     const textMark = ({ h: "highlight", u: "underline", x: "strike" } as const)[k as "h" | "u" | "x"];
     if (textMark) { void tools?.markSelection(textMark).then((done) => { if (!done) pick(textMark); }); }
@@ -234,9 +245,19 @@
     r.zoomBy(Math.exp(-px / 300), { x: e.clientX, y: e.clientY });
   }
 
-  // Keys typed with nothing focused go to the PDF pane used last (a click on a page leaves the focus on <body>).
+  // Keys typed with nothing focused go to the PDF pane used last (a press on a page normally focuses its scroll box).
   let paneEl: HTMLDivElement;
-  const markUsed = () => { lastUsed = paneEl; };
+  /** The keys to the pages (PageDown, Ctrl+=) when nobody holds them: nothing focused, or only the dock around this pane. */
+  const takeFreeKeys = () => {
+    const a = document.activeElement;
+    if (!a || a === document.body || (a !== paneEl && a.contains(paneEl))) { lastUsed = paneEl; container?.focus({ preventScroll: true }); }
+  };
+  const markUsed = (e: PointerEvent) => {
+    lastUsed = paneEl;
+    // a press on the pages gives them the keys (PageDown scrolls them, Ctrl+= zooms them, not the tab's text), also
+    // when a tool's press prevents the default focus move
+    if (container.contains(e.target as Node) && !container.contains(document.activeElement)) container.focus({ preventScroll: true });
+  };
   $effect(() => {
     // keys with nothing focused, or the dock's wrapper around this pane (a click on the page focuses it): this pane's
     const onWin = (e: KeyboardEvent) => {
@@ -263,9 +284,10 @@
       marks = attachPdfMarks(reader, spec.path, marksChanged);
       tools = attachTools(container, reader, marks, { saved, failed: (e) => flash(`Not saved: ${errText(e)}`, 6000), selected: (m) => { picked = m; placeBar(); } });
       pick(tool, false);
+      if (panel.isActive) takeFreeKeys();
       reader.on("page", (n) => { pageInput = String(n); current = n; rememberPosition(); seeBookmark(); });
       reader.on("scale", ({ scale, zoom: z }) => { scaleLabel = labelOf(z, scale); rememberPosition(); });
-      reader.on("find", ({ current: c, total }) => { findInfo = total ? `${c}/${total}` : "0"; });
+      reader.on("find", ({ current: c, total, done }) => { findInfo = total ? `${c}/${total}` : done ? "No match" : "…"; });
       // a link's page, words and annotation, used once: a restored layout must not jump back
       if (spec.page) {
         mark(spec.page, spec);
@@ -286,6 +308,7 @@
   onMount(() => {
     void openViewer();
     pdfPages.set(panel.id, (n, at) => { goto(n); if (at) mark(n, at); });
+    const offActive = panel.onDidActiveChange((e) => { if (e.isActive && r) requestAnimationFrame(takeFreeKeys); });
     // refit on a real width change only: a background tab leaves the page (width 0) and comes back at the same
     // width — refitting then re-laid out every page on each tab switch
     let fittedAt = 0;
@@ -303,7 +326,7 @@
     ro.observe(container);
     return () => {
       disposed = true;
-      marks?.stop(); offPan(); pdfPages.delete(panel.id); ro.disconnect(); clearTimeout(posTimer); clearTimeout(exportTimer);
+      marks?.stop(); offPan(); offActive.dispose(); pdfPages.delete(panel.id); ro.disconnect(); clearTimeout(posTimer); clearTimeout(exportTimer);
       const reader = r;
       void (tools?.destroy() ?? Promise.resolve()).finally(() => reader?.destroy());
       releaseCanvases(container);
@@ -379,7 +402,7 @@
     <span class="sep"></span>
     {#if pages}
       <span class="pager">
-        <input class="page-in" bind:value={pageInput} onkeydown={(e) => { if (e.key === "Enter") goto(Number(pageInput) || 1); }} aria-label="Page" />
+        <input class="page-in" bind:value={pageInput} onkeydown={(e) => { if (e.key === "Enter") gotoTyped(); }} onblur={() => (pageInput = String(current))} aria-label="Page" />
         <span class="faint">/ {pages}</span>
       </span>
       <button class="icon-btn" title="Zoom out" onclick={() => zoom(1 / 1.15)}><Icon name="minus" size={14} /></button>
@@ -391,7 +414,7 @@
     <button class="icon-btn" class:on={spread} title="Two pages side by side" aria-label="Two pages" onclick={toggleSpread}><Icon name="library" size={14} /></button>
     <button class="icon-btn" class:on={dark} title="Dark pages (D)" aria-label="Dark pages" onclick={toggleDark}><Icon name="moon" size={14} /></button>
     <button class="icon-btn" title="Copy a link to this page — or to the selected text — to paste in a note ([[…#page=…]])" aria-label="Copy link" onclick={copyLink}><Icon name="link" size={14} /></button>
-    <button class="icon-btn" title="Find (Ctrl+F)" onclick={() => { findOpen = !findOpen; if (findOpen) requestAnimationFrame(() => findInput?.focus()); }}><Icon name="search" size={14} /></button>
+    <button class="icon-btn" title="Find (Ctrl+F)" onclick={() => { if (findOpen) closeFind(); else { findOpen = true; requestAnimationFrame(() => findInput?.focus()); } }}><Icon name="search" size={14} /></button>
     <span class="sep"></span>
     <button class="icon-btn" title="This paper's note (its <citekey>.md), beside the PDF" aria-label="Paper's note" onclick={() => void notesBeside(spec.path)}><Icon name="file-text" size={14} /></button>
     <button class="icon-btn" title="Export a copy with the marks inside, as annotations any PDF reader shows — x (marked).pdf, beside this one. Shift+click: drawn into the pages, for printing — x (marked, flat).pdf" aria-label="Export with marks" onclick={(e) => void exportWithMarks(spec.path, e.shiftKey ? "flat" : "annotations")}><Icon name="pdf" size={14} /></button>
@@ -400,7 +423,7 @@
 
   {#if findOpen}
     <div class="findbar">
-      <input bind:this={findInput} bind:value={findQ} placeholder="Find in document" oninput={() => runFind()} onkeydown={(e) => { if (e.key === "Enter") runFind(true, e.shiftKey); if (e.key === "Escape") { findOpen = false; findQ = ""; runFind(); } }} />
+      <input bind:this={findInput} bind:value={findQ} placeholder="Find in document" aria-label="Find in document" oninput={() => runFind()} onkeydown={(e) => { if (e.key === "Enter") runFind(true, e.shiftKey); if (e.key === "Escape") closeFind(); }} />
       <span class="faint small">{findQ ? findInfo : ""}</span>
       <button class="icon-btn" title="Previous (Shift+Enter)" onclick={() => runFind(true, true)}>↑</button>
       <button class="icon-btn" title="Next (Enter)" onclick={() => runFind(true)}>↓</button>
@@ -415,15 +438,15 @@
         {/each}
       </nav>
     {:else if outlineOpen && side === "pages" && pages}
-      <PdfThumbs {pages} path={spec.path} engine={engineName} {current} {dark} onpick={goto} />
+      <PdfThumbs {pages} path={spec.path} engine={engineName} {current} {dark} {rotation} sizeOf={(n) => r?.pageSize(n) ?? [612, 792]} onpick={goto} />
     {:else if outlineOpen && side === "marks"}
-      <PdfMarksList marks={markList} {current} onpick={(n, y) => r?.goto(n, y)} />
+      <PdfMarksList marks={markList} {current} onpick={pickFromList} />
     {/if}
     <div class="viewer-wrap" bind:this={wrap}>
       {#if picked && barAt}
         <PdfMarkBar mark={picked} at={barAt} onrecolor={(hex) => editPicked(recoloured(picked!, hex))} onreword={(t) => editPicked(reworded(picked!, t))} ondelete={deletePicked} onclose={unpick} />
       {/if}
-      <div class="viewer-container" onscroll={() => { if (picked) placeBar(); }} class:inking={tool === "ink"} class:noting={tool === "text" || tool === "postit" || tool === "clip" || tool === "stamp"} class:can-pan={tool === "select" && !erasing} class:erasing class:dark bind:this={container} onwheel={pinch} onclickcapture={eraseClick}>
+      <div class="viewer-container" tabindex="-1" onscroll={() => { if (picked) placeBar(); }} class:inking={tool === "ink"} class:noting={tool === "text" || tool === "postit" || tool === "clip" || tool === "stamp"} class:can-pan={tool === "select" && !erasing} class:erasing class:dark bind:this={container} onwheel={pinch} onclickcapture={eraseClick}>
         <div class="pdfViewer"></div>
       </div>
       {#if error}
@@ -480,7 +503,7 @@
   .ol-item:hover { background: var(--bg-hover); color: var(--text); }
   .viewer-wrap { position: relative; flex: 1; min-width: 0; }
   /* the reader scrolls this box (lib/pdf-reader.ts) */
-  .viewer-container { position: absolute; inset: 0; overflow: auto; background: var(--pdf-bg); }
+  .viewer-container { position: absolute; inset: 0; overflow: auto; background: var(--pdf-bg); outline: none; }
   .icon-btn .count { font-size: 10px; margin-left: 2px; color: var(--text-faint); }
   .tool.stamp { font-size: 13px; font-weight: 700; min-width: 22px; }
   .viewer-container.inking { touch-action: none; } /* stylus strokes are not scroll gestures */
@@ -492,7 +515,7 @@
   .viewer-container.can-pan :global(.pdfViewer .page), .viewer-container.can-pan :global(.textLayer) { cursor: grab; }
   .viewer-container.can-pan :global(.textLayer span) { cursor: text; }
   .viewer-container:global(.panning), .viewer-container:global(.panning) :global(*) { cursor: grabbing !important; user-select: none; }
-  .viewer-container :global(.pdfViewer .page) { margin: 14px auto; border: none; box-shadow: 0 1px 3px rgba(0,0,0,.25), 0 8px 24px rgba(0,0,0,.18); border-radius: 2px; }
+  .viewer-container :global(.pdfViewer .page) { margin: 14px auto; border: none; box-shadow: 0 1px 3px rgba(0,0,0,.25), 0 8px 24px rgba(0,0,0,.18); border-radius: 2px; } /* literal: a sheet of paper */
   /* dark reading: invert the rendered page (Zotero/Okular-style); annotation layers keep their colours */
   .viewer-container.dark :global(.pdfViewer .page .canvasWrapper) { filter: invert(.88) hue-rotate(180deg); }
   /* a link's annotation (#annotation=…), pointed at once it is drawn */
@@ -501,6 +524,6 @@
   .viewer-container :global(.atlas-flash) { animation: atlas-flash 1.6s ease-out 2; border-radius: 2px; }
   @keyframes -global-atlas-flash { 0%, 40% { box-shadow: 0 0 0 3px var(--accent), 0 0 18px 4px var(--accent); } 100% { box-shadow: 0 0 0 3px transparent; } }
   .overlay { position: absolute; inset: 0; }
-  .status { position: absolute; bottom: 14px; left: 50%; transform: translateX(-50%); background: var(--bg-elev); border: 1px solid var(--border); border-radius: 999px; padding: 5px 14px; font-size: calc(12.5px * var(--ui-scale, 1)); color: var(--text); box-shadow: 0 6px 20px rgba(0,0,0,.25); pointer-events: none; }
+  .status { position: absolute; bottom: 14px; left: 50%; transform: translateX(-50%); background: var(--bg-elev); border: 1px solid var(--border); border-radius: 999px; padding: 5px 14px; font-size: calc(12.5px * var(--ui-scale, 1)); color: var(--text); box-shadow: var(--shadow-pop); pointer-events: none; }
   .viewer-container.erasing :global(.page) { cursor: crosshair; }
 </style>

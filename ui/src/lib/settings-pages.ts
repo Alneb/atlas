@@ -135,7 +135,7 @@ export const PAGES: PageDef[] = [
     next: [{ label: "Turn a shell line into a command", why: "A command gets a palette entry, a shortcut and an optional schedule.", run: "ui.commands" }],
   },
   {
-    id: "agents", title: "AI agents", group: "connections", icon: "command", blurb: "Claude Code and other agents drive Atlas through `atlas mcp`. Each one you allow gets a token of its own, which you can revoke alone.",
+    id: "agents", title: "AI agents", group: "connections", icon: "claude", blurb: "Claude Code and other agents drive Atlas through `atlas mcp`. Each one you allow gets a token of its own, which you can revoke alone.",
     fields: [], features: [], panels: ["agents"], only: ["app"],
   },
   {

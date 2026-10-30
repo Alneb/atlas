@@ -12,6 +12,9 @@ export function attachPan(container: HTMLElement, selecting: () => boolean): () 
     const middle = e.button === 1;
     if (!middle && (e.button !== 0 || !selecting() || (e.target as Element).closest(OWN))) return;
     e.preventDefault(); // no text selection starting, no autoscroll / X11 paste
+    // …which also keeps the focus where it was (the find box, another pane's editor): moved as a click would move it
+    const host = container.closest<HTMLElement>("[tabindex]");
+    if (host) host.focus({ preventScroll: true }); else (document.activeElement as HTMLElement | null)?.blur?.();
     drag = { id: e.pointerId, x: e.clientX, y: e.clientY, left: container.scrollLeft, top: container.scrollTop };
     container.setPointerCapture(e.pointerId);
     container.classList.add("panning");

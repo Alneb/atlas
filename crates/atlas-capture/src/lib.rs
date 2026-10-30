@@ -5,6 +5,8 @@
 pub mod app;
 pub mod complete;
 #[cfg(feature = "window")]
+pub mod draft;
+#[cfg(feature = "window")]
 pub mod context;
 #[cfg(feature = "window")]
 pub mod extras;

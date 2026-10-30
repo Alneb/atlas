@@ -42,6 +42,7 @@ export const untouchedTaskList = (v: EditorView) =>
   completionStatus(v.state) === "active" && (currentCompletions(v.state)[selectedCompletionIndex(v.state) ?? -1] as TaskCompletion | undefined)?.task?.icon === "new_line";
 // what Tab does to an open list: walk it (notes: Tab moves down, Enter takes it) or take
 // the entry (code, as VS Code: with one entry, walking did nothing at all)
+// `take`: a code file's (Tab takes the entry; no wait for a list not yet shown)
 const walkList = (down: boolean, take = false) => (v: EditorView): boolean => {
   // in math Tab is LaTeX's (stops, tabout, triggers) and a list there is taken with Enter — but a `\command`'s list is
   // walked; a snippet's stops always win
@@ -53,7 +54,9 @@ const walkList = (down: boolean, take = false) => (v: EditorView): boolean => {
   const act = (view: EditorView) => (take && down ? acceptCompletion(view) : moveCompletionSelection(down)(view));
   if (status === "active" && browsingTasks(v)) return false;
   if (status === "active") return act(v);
-  if (status !== "pending" || latexOwnsTab(v)) return false;
+  // code (VS Code): no list on screen, Tab indents at once — a language server asked at every key kept a list
+  // "pending", and a key typed during the wait dropped the Tab
+  if (status !== "pending" || take || latexOwnsTab(v)) return false;
   const t0 = performance.now(), doc = v.state.doc;
   let frames = 0; // frames the list has been open: a later source's answer would reset the selection
   const settle = () => {
@@ -71,4 +74,4 @@ const walkList = (down: boolean, take = false) => (v: EditorView): boolean => {
   return true;
 };
 export const completionTab = Prec.highest(keymap.of([{ key: "Tab", run: walkList(true) }, { key: "Shift-Tab", run: walkList(false) }]));
-export const codeCompletionTab = Prec.highest(keymap.of([{ key: "Tab", run: walkList(true, true) }, { key: "Shift-Tab", run: walkList(false) }]));
+export const codeCompletionTab = Prec.highest(keymap.of([{ key: "Tab", run: walkList(true, true) }, { key: "Shift-Tab", run: walkList(false, true) }]));

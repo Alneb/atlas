@@ -11,7 +11,7 @@ const shot = (page: Page, name: string) => page.screenshot({ path: `${SHOTS}/${n
 
 const side = (page: Page) => page.getByTestId("sidebar");
 const row = (page: Page, text: string) => side(page).locator(".tab", { hasText: shownName(text) }); // a note reads without ".md"
-const rowTitles = (page: Page) => side(page).locator('.group[aria-label^="Editor"]').first().locator(".tab-title").allInnerTexts();
+const rowTitles = (page: Page) => side(page).locator('.group[aria-label^="Tabs"]').first().locator(".tab-title").allInnerTexts();
 const activeRow = (page: Page) => side(page).locator(".tab.active, .pin.active");
 /** Home (Today) is an app at the top, not a row (2026-10-17) */
 const homeOn = (page: Page) => side(page).getByTestId("apps").locator(".app.active[aria-label=Home]");
@@ -75,7 +75,7 @@ test("vertical tabs: open, find, pin, drag to reorder, middle-click close, split
   // split right from the menu: one Editor section, the two halves one split row (Zen)
   await row(page, "FOCUS.md").click({ button: "right" });
   await page.getByRole("menuitem", { name: "Split right" }).click();
-  await expect(side(page).locator(".group-head")).toHaveText(["Terminal", "Editor"]);
+  await expect(side(page).locator(".group-head")).toHaveText(["Terminal", "Tabs"]);
   await expect(side(page).getByTestId("split-row").locator(".tab")).toHaveCount(2);
   await expect(page.locator(".dv-groupview")).toHaveCount(2);
   await shot(page, "05-split");
@@ -101,7 +101,7 @@ test("vertical tabs: open, find, pin, drag to reorder, middle-click close, split
   await expect(side(page).locator(".pin")).toHaveCount(1);
   await page.keyboard.press("Meta+s"); // expand again
   await expect(pins.locator(".pin", { hasText: "hubbard" })).toBeVisible();
-  await expect(side(page).locator(".group-head")).toHaveText(["Terminal", "Editor"]);
+  await expect(side(page).locator(".group-head")).toHaveText(["Terminal", "Tabs"]);
   await expect(side(page).getByTestId("split-row").locator(".tab", { hasText: "FOCUS" })).toHaveCount(1);
   await expect(row(page, "run.py")).toHaveCount(1);
   await shot(page, "08-restored");

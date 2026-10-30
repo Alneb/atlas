@@ -6,7 +6,7 @@
   // Source control: branch, staged / unstaged changes (click → diff, +/− to stage, ↺ to discard),
   // commit box, pull / push (only when pressed; push asks), and the full history (you vs Claude,
   // housekeeping dimmed or hidden per settings).
-  import { onMount } from "svelte";
+  import { onMount, tick } from "svelte";
   import { api } from "../lib/api";
   import { open } from "../lib/dock";
   import { settings, updateSettings } from "../lib/settings.svelte";
@@ -47,9 +47,27 @@
     log = reset ? page : [...log, ...page];
     more = page.length === PAGE;
   }
+  /** Where the keys are in a change list, to bring them back near there once an action took the row away. */
+  function focusSpot() {
+    const had = root?.contains(document.activeElement) ? document.activeElement as HTMLElement : null;
+    const row = had?.closest("li"), list = row?.parentElement;
+    return { had, group: list?.getAttribute("data-group"), at: row && list ? [...list.children].indexOf(row) : -1 };
+  }
+  /** The row now at that place gets the keys (its button named `action …`), else `fallback`; never the page. */
+  async function refocus(spot: ReturnType<typeof focusSpot>, action: string, fallback: string) {
+    if (!spot.had) return;
+    await tick();
+    if (spot.had.isConnected) return void spot.had.focus(); // the row stayed (a cancel, a failure)
+    const rows = root?.querySelectorAll<HTMLElement>(`ul[data-group="${spot.group}"] > .entry`) ?? [];
+    const next = rows[Math.min(Math.max(spot.at, 0), rows.length - 1)]?.querySelector<HTMLElement>(`button[aria-label^="${action} "]`);
+    (next ?? root?.querySelector<HTMLElement>(fallback))?.focus();
+  }
   async function stage(paths: string[], on: boolean) {
+    const spot = focusSpot();
     try { await api.gitStage(paths, on); await refreshStatus(); }
-    catch (e) { toast(on ? "Stage failed" : "Unstage failed", errText(e), "error"); }
+    catch (e) { toast(on ? "Stage failed" : "Unstage failed", errText(e), "error"); return; }
+    // the list emptied: staged → write the message; unstaged → the file, back under Changes
+    await refocus(spot, on ? "Stage" : "Unstage", on ? ".commit-box textarea" : `button[aria-label="Stage ${CSS.escape(paths[0])}"]`);
   }
   async function commit() {
     if (!message.trim() || !staged.length || busy) return;
@@ -65,11 +83,12 @@
     } finally { busy = false; }
   }
   // --- discard / pull / push: each behind the user's click, the irreversible ones behind a confirm
-  let ask = $state<{ title: string; hint: string; confirm: string; run: () => Promise<void> } | null>(null);
+  let ask = $state<{ title: string; hint: string; confirm: string; run: () => Promise<void>; spot?: ReturnType<typeof focusSpot> } | null>(null);
   const failed = (what: string) => (e: unknown) => toast(what, errText(e), "error", 12000);
   function discard(paths: string[]) {
     const one = paths.length === 1 ? paths[0] : `${paths.length} files`;
     ask = { title: `Discard the changes to ${one}?`, confirm: "Discard", hint: "Back to the last staged / committed version (new files go to the Trash). A copy is kept in .atlas/cache/discarded/.",
+      spot: focusSpot(), // taken before the dialog has the keys
       run: async () => { const r = await api.gitDiscard(paths); toast("Discarded", `A copy is in ${r.kept}`); await refreshStatus(); } };
   }
   let syncing = $state<"" | "pull" | "push">("");
@@ -139,13 +158,13 @@
       {#if staged.length}
         <div class="group-head"><span>Staged</span><span class="count">{staged.length}</span>
           <button class="icon-btn" title="Unstage all" onclick={() => stage(staged.map((e) => e.path), false)}><Icon name="minus" size={13} /></button></div>
-        <ul>{#each staged as e (e.path)}{@render entryRow(e, true)}{/each}</ul>
+        <ul data-group="staged">{#each staged as e (e.path)}{@render entryRow(e, true)}{/each}</ul>
       {/if}
       <div class="group-head"><span>Changes</span><span class="count">{unstaged.length}</span>
         {#if unstaged.length}<button class="icon-btn" title="Discard all changes" aria-label="Discard all changes" onclick={() => discard(unstaged.map((e) => e.path))}><Icon name="undo" size={13} /></button>
           <button class="icon-btn" title="Stage all" onclick={() => stage(unstaged.map((e) => e.path), true)}><Icon name="plus" size={13} /></button>{/if}</div>
       {#if unstaged.length}
-        <ul>{#each unstaged as e (e.path)}{@render entryRow(e, false)}{/each}</ul>
+        <ul data-group="changes">{#each unstaged as e (e.path)}{@render entryRow(e, false)}{/each}</ul>
       {:else}
         <p class="faint small pad">Working tree clean.</p>
       {/if}
@@ -165,7 +184,8 @@
 
 {#if ask}
   <InputDialog title={ask.title} hint={ask.hint} confirm={ask.confirm}
-    onsubmit={() => { const a = ask!; ask = null; a.run().catch(failed(`${a.confirm} failed`)); }} oncancel={() => (ask = null)} />
+    onsubmit={() => { const a = ask!; ask = null; a.run().catch(failed(`${a.confirm} failed`)).finally(() => { if (a.spot) void refocus(a.spot, "Discard changes to", ".commit-box textarea"); }); }}
+    oncancel={() => { const spot = ask?.spot; ask = null; if (spot) void refocus(spot, "Discard changes to", ".commit-box textarea"); }} />
 {/if}
 
 <style>
@@ -185,7 +205,7 @@
   .entry { display: grid; grid-template-columns: minmax(0, 1fr) auto auto 18px; align-items: center; gap: 4px; border-radius: var(--radius-sm); }
   .entry:hover { background: var(--bg-hover); }
   .entry .act { opacity: 0; }
-  .entry:hover .act { opacity: 1; }
+  .entry:hover .act, .entry:focus-within .act { opacity: 1; } /* reached by Tab too, never invisible while focused */
   .name { display: flex; gap: 6px; align-items: baseline; min-width: 0; padding: 3px 6px; text-align: left; font-size: calc(13px * var(--ui-scale, 1)); }
   /* a long name is cut, never drawn under the buttons; the folder gives way first */
   .base { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 4ch; }

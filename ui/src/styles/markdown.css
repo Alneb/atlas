@@ -34,13 +34,13 @@ html.phone .markdown a::after, html.phone .markdown .cm-link::after, html.phone 
 .markdown .atlas-hover-link { background: var(--accent-soft); border-radius: 3px; box-shadow: 0 0 0 2px var(--accent-soft); }
 .markdown .embed-chip { display: inline-flex; padding: .1em .55em; border: 1px solid var(--border-strong); border-radius: 6px; border-bottom-width: 1px; font-size: .9em; }
 /* a video player written in a note (a clipped YouTube video; lib/markdown.ts lets only players through) */
-.markdown iframe { display: block; width: min(100%, 720px); aspect-ratio: 16 / 9; height: auto; border: 0; border-radius: 8px; margin: .5em 0; background: #000; }
+.markdown iframe { display: block; width: min(100%, 720px); aspect-ratio: 16 / 9; height: auto; border: 0; border-radius: 8px; margin: .5em 0; background: #000; } /* literal: a video's letterbox */
 /* any file embedded (lib/embeds.ts): a card that opens it, a sound or a video played in place */
 .markdown .file-card { display: inline-flex; align-items: center; gap: 8px; padding: .45em .8em; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-elev); color: var(--text); text-decoration: none; }
 .markdown .file-card:hover { border-color: var(--border-strong); background: var(--bg-hover); }
 .markdown .file-card-icon { display: inline-flex; color: var(--text-faint); }
 .markdown .embed-audio { display: block; width: min(100%, 480px); margin: .4em 0; }
-.markdown .embed-video { display: block; max-width: 100%; max-height: 480px; margin: .4em 0; border-radius: 6px; background: #000; }
+.markdown .embed-video { display: block; max-width: 100%; max-height: 480px; margin: .4em 0; border-radius: 6px; background: #000; } /* literal: a video's letterbox */
 
 .markdown strong, .markdown .cm-strong { font-weight: 650; color: var(--heading); }
 .markdown em, .markdown .cm-em { font-style: italic; }
@@ -78,12 +78,13 @@ html.phone .markdown a::after, html.phone .markdown .cm-link::after, html.phone 
 /* [-] (Obsidian Tasks' cancelled; a dismissed capture): a dash in a quiet box */
 .markdown input.task-checkbox[data-task="-"]:checked { background: var(--text-faint); border-color: var(--text-faint); }
 .markdown input.task-checkbox[data-task="-"]:checked::after { width: .5em; height: 0; border-width: 0 0 2px 0; transform: none; }
-.markdown input.task-checkbox, .markdown .cm-task-mark {
+/* `.atlas-check`: the same box for a task's checkbox outside a note (blocks' task lists) */
+.markdown input.task-checkbox, .markdown .cm-task-mark, input.atlas-check {
   appearance: none; -webkit-appearance: none; width: 1em; height: 1em; flex: none; margin: 0; border: 1.5px solid var(--text-faint);
   border-radius: 4px; transform: translateY(.15em); background: transparent; display: inline-grid; place-content: center; cursor: default;
 }
-.markdown input.task-checkbox:checked, .markdown .cm-task-mark:checked { background: var(--accent); border-color: var(--accent); }
-.markdown input.task-checkbox:checked::after, .markdown .cm-task-mark:checked::after {
+.markdown input.task-checkbox:checked, .markdown .cm-task-mark:checked, input.atlas-check:checked { background: var(--accent); border-color: var(--accent); }
+.markdown input.task-checkbox:checked::after, .markdown .cm-task-mark:checked::after, input.atlas-check:checked::after {
   content: ""; width: .5em; height: .28em; border: solid var(--bg); border-width: 0 0 2px 2px; transform: translateY(-.06em) rotate(-45deg);
 }
 
@@ -167,7 +168,7 @@ html.phone .markdown a::after, html.phone .markdown .cm-link::after, html.phone 
 .note-properties a.prop-pill { color: var(--link, var(--accent)); }
 .note-properties .prop-tag { color: var(--accent); background: var(--accent-soft); border-color: transparent; }
 .note-properties .prop-empty { color: var(--text-faint); font-style: italic; }
-.note-properties .prop-error { color: var(--danger, #e06c75); }
+.note-properties .prop-error { color: var(--red); }
 
 /* unresolved [[links]] are dimmed, as in Obsidian */
 .markdown a.internal-link.is-unresolved { opacity: .6; }
@@ -201,8 +202,8 @@ html.phone .markdown a::after, html.phone .markdown .cm-link::after, html.phone 
    layout tables are not the note's data tables (no grid, no header shading), its paragraphs keep the mail's spacing,
    and it never widens the pane. */
 /* always on a light sheet, as mail apps draw HTML mail in a dark theme: a mail sets its own (dark) text colours */
-.markdown .email-html { font-size: .95em; line-height: 1.45; overflow-x: auto; overflow-wrap: anywhere; background: #fff; color: #1f2328; padding: 14px 18px; border-radius: var(--radius); border: 1px solid var(--border); color-scheme: light; }
-.markdown .email-html a { color: #1a5fd0; }
+.markdown .email-html { font-size: .95em; line-height: 1.45; overflow-x: auto; overflow-wrap: anywhere; background: #fff; color: #1f2328; padding: 14px 18px; border-radius: var(--radius); border: 1px solid var(--border); color-scheme: light; } /* literal: a mail is drawn as its sender made it */
+.markdown .email-html a { color: #1a5fd0; } /* literal: a mail is drawn as its sender made it */
 .markdown .email-html p { margin: 0 0 .4em; }
 .markdown .email-html table { border-collapse: collapse; width: auto; max-width: 100%; font-size: inherit; }
 .markdown .email-html th, .markdown .email-html td { padding: 0; border: 0; background: none; color: inherit; font-weight: inherit; line-height: inherit; }
@@ -214,7 +215,7 @@ html.phone .markdown a::after, html.phone .markdown .cm-link::after, html.phone 
 .embed-open {
   position: fixed; z-index: 40; width: 24px; height: 24px; display: grid; place-items: center; padding: 0;
   border: 1px solid var(--border); border-radius: 6px; background: var(--bg-elev); color: var(--text-muted);
-  cursor: pointer; opacity: .9; box-shadow: 0 1px 3px rgb(0 0 0 / .12);
+  cursor: pointer; opacity: .9; box-shadow: var(--shadow-sm);
 }
 .embed-open:hover { color: var(--text); opacity: 1; }
 .embed-open[hidden] { display: none; }

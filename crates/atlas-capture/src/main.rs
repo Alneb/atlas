@@ -1,7 +1,7 @@
 //! `atlas-capture [vault]`: the global quick-capture box (docs/guides/CAPTURE.md), drawn natively with egui —
 //! no web view to start, so it is on screen at once. Type, Enter: written like `atlas capture` (through
 //! the Atlas open on that vault, so its window updates; else straight to the files). Esc, or another
-//! window taking the focus: gone, nothing written. Super+V (or a click on the vault) its list, Super+↑ / Super+↓
+//! window taking the focus: gone, nothing written, the text kept as the vault's draft for the next open (draft.rs). Super+V (or a click on the vault) its list, Super+↑ / Super+↓
 //! the vault before / after (Alt as well). Completions: `[[` a note, `#` a tag, `@` a day, and on a to-do the task fields (the
 //! core's `task_suggest`, as in the editor).
 use atlas_capture::app::{Capture, Theme, Vault};
@@ -20,6 +20,12 @@ fn main() -> anyhow::Result<()> {
     let theme = vaults.first().map_or(Theme::System, |v| theme_of(&v.path));
     // ATLAS_CAPTURE_TEXT: start with this typed; ATLAS_CAPTURE_MENU: with the vault menu open (screenshots, tests)
     let mut cap = Capture::new(vaults, std::env::var("ATLAS_CAPTURE_TEXT").unwrap_or_default(), theme).started_at(t0);
+    // ATLAS_CAPTURE_DRAFTS: another draft folder ("off": none, for screenshots)
+    match std::env::var("ATLAS_CAPTURE_DRAFTS").ok().as_deref() {
+        Some("off") => {}
+        Some(dir) => cap = cap.with_drafts(atlas_capture::draft::Drafts::at(dir.into())),
+        None => cap = cap.with_drafts(atlas_capture::draft::Drafts::at(atlas_capture::draft::Drafts::default_dir())),
+    }
     if std::env::var_os("ATLAS_CAPTURE_MENU").is_some() {
         cap.open_vault_menu();
     }

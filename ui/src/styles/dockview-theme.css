@@ -32,7 +32,7 @@
   --dv-floating-titlebar-background-color: var(--bg-alt);
   --dv-floating-titlebar-border-bottom: 1px solid var(--border);
   --dv-tab-group-color-grey: var(--text-faint); --dv-tab-group-color-blue: var(--accent); --dv-tab-group-color-red: var(--red);
-  --dv-tab-group-color-yellow: var(--yellow); --dv-tab-group-color-green: var(--green); --dv-tab-group-color-pink: #f0a3c8;
+  --dv-tab-group-color-yellow: var(--yellow); --dv-tab-group-color-green: var(--green); --dv-tab-group-color-pink: #f0a3c8; /* literal: no pink token */
   --dv-tab-group-color-purple: var(--purple); --dv-tab-group-color-cyan: var(--cyan); --dv-tab-group-color-orange: var(--orange);
   --dv-tab-group-chip-padding: 4px 8px; --dv-tab-group-chip-border-radius: 6px; --dv-tab-group-chip-font-size: calc(11px * var(--ui-scale, 1));
   --dv-tab-group-line-height: 2px; --dv-tab-group-line-opacity: .6;
@@ -56,7 +56,7 @@
 /* groups are cards on the app's ground: the dock itself paints nothing, or its colour shows in the
    gaps and behind every rounded corner (white squares around the cards in the light theme) */
 .dockview-theme-atlas .dv-dockview { background-color: transparent; }
-.dockview-theme-atlas .dv-groupview { border-radius: var(--radius-lg); overflow: hidden; border: 1px solid var(--border); box-shadow: 0 1px 0 rgba(0,0,0,.04); }
+.dockview-theme-atlas .dv-groupview { border-radius: var(--radius-lg); overflow: hidden; border: 1px solid var(--border); box-shadow: var(--shadow-sm); }
 .dockview-theme-atlas .dv-groupview.dv-active-group { border-color: var(--border-strong); }
 /* always-rendered panes (terminal, PDF) float over their card: same rounding, or their square
    background covers the card's corners and the active outline looks broken */
@@ -113,3 +113,5 @@
 /* `clip`, not `hidden`: a hidden box can still be scrolled by focus()/scrollIntoView, which shifted
    whole views sideways (glitched edges, the rail cut off). clip forbids any scrolling. */
 .dockview-theme-atlas .dv-view, .dockview-theme-atlas .dv-split-view-container, .dockview-theme-atlas .dv-grid-view { overflow: clip; }
+/* every pane ends above the phone's floating button, so the last of anything scrolled can come out from under it */
+.dv-content-container { padding-bottom: var(--fab-room); box-sizing: border-box; }

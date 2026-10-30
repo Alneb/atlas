@@ -50,7 +50,7 @@ test("in the editor: the property set in the panel brings the template's missing
   await field.fill("movie");
   await field.press("Enter");
   await expect.poll(() => read(page, "notes/Heat.md"), { timeout: 10000 }).toBe("---\nkind: movie\ndirector:\nrating:\n---\nSeen last night.\n\n## Review\n");
-  await page.getByText("Template “movie” applied").click(); // the notice's click undoes it
+  await page.locator(".toast", { hasText: "Template “movie” applied" }).getByRole("button", { name: "Undo" }).click();
   await expect.poll(() => read(page, "notes/Heat.md"), { timeout: 10000 }).toBe("---\nkind: movie\n---\nSeen last night.\n");
 });
 

@@ -31,7 +31,7 @@ body {
   font-feature-settings: "cv02", "cv03", "cv04", "cv11", "calt";
 }
 button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
-button:focus-visible, a:focus-visible, input:focus-visible { outline: 2px solid color-mix(in srgb, var(--accent) 60%, transparent); outline-offset: 1px; }
+button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible, [role="tab"]:focus-visible, [tabindex]:not([tabindex="-1"]):focus-visible { outline: 2px solid color-mix(in srgb, var(--accent) 60%, transparent); outline-offset: 1px; }
 code, kbd, pre, .mono { font-family: var(--font-mono); }
 ::selection { background: var(--accent-sel); }
 
@@ -130,9 +130,9 @@ body.atlas-resizing iframe, body.atlas-resizing .xterm { pointer-events: none; }
 :root.eink .excalidraw *:not(svg, svg *), :root.eink [data-testid="notepad-bar"] *:not(svg, svg *) { border-width: 1px !important; }
 :root.eink .excalidraw svg[stroke-width="1.75"], :root.eink [data-testid="notepad-bar"] svg[stroke-width="1.75"] { stroke-width: 1.75; }
 :root.eink a, :root.eink .cm-link, :root.eink .cm-hmd-internal-link, :root.eink .md a { text-decoration: underline; }
-:root.eink ::selection { background: #000000; color: #ffffff; }
-:root.eink :focus-visible { outline: 2px solid #000000; outline-offset: 1px; }
+:root.eink ::selection { background: #000000; color: #ffffff; } /* literal: e-ink is pure black on white */
+:root.eink :focus-visible { outline: 2px solid #000000; outline-offset: 1px; } /* literal: e-ink is pure black on white */
 /* the full refresh's veil (lib/eink.ts): black, then white, over everything for a few frames */
-.eink-flash { position: fixed; inset: 0; z-index: 2147483647; background: #000000; pointer-events: none; }
+.eink-flash { position: fixed; inset: 0; z-index: 2147483647; background: #000000; pointer-events: none; } /* literal: the e-ink refresh flash */
 /* a hover that paints a fill is a refresh of its own, and on a pen or a finger it stays behind */
 :root.eink *:hover { box-shadow: none !important; }

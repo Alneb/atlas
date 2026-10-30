@@ -141,7 +141,7 @@ test("the explorer browses a host's files, opens and edits one, downloads, uploa
   const notice = page.getByText(/changed on iq since it was opened here/);
   await expect(notice).toBeVisible({ timeout: 15_000 });
   expect(readFileSync(join(SFTP_ROOT, "cluster.md"), "utf8")).toContain("Someone else changed this");
-  await notice.click();
+  await page.locator(".toast", { has: notice }).getByRole("button", { name: "Save over it" }).click();
   await expect.poll(() => readFileSync(join(SFTP_ROOT, "cluster.md"), "utf8")).toContain("Edited in Atlas. Again.");
 
   // a picture opens in the image viewer, from its copy too

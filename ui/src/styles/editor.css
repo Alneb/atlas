@@ -40,6 +40,8 @@
 .cm-panel.cm-search input, .cm-panel.cm-search button, .cm-textfield, .cm-button {
   font: inherit; font-size: calc(12.5px * var(--ui-scale, 1)); background: var(--bg-elev); color: var(--text); border: 1px solid var(--border-strong); border-radius: var(--radius-sm); padding: 3px 8px; background-image: none;
 }
+.cm-panel.cm-search .cm-search-count { color: var(--text-muted); font-variant-numeric: tabular-nums; min-width: 6em; }
+.cm-panel.cm-search .cm-search-count.none { color: var(--red); }
 .cm-panel.cm-search label { color: var(--text-muted); display: inline-flex; gap: 4px; align-items: center; }
 .cm-panel.cm-search [name=close] { color: var(--text-faint); font-size: calc(16px * var(--ui-scale, 1)); border: 0; background: none; }
 .cm-vim-panel, .cm-panel.cm-vim-panel { font-family: var(--font-mono); font-size: calc(13px * var(--ui-scale, 1)); padding: 4px 12px; background: var(--bg-alt); }
@@ -106,8 +108,9 @@
 .markdown .cm-rendered-block > :last-child { margin-bottom: 0; }
 /* a hint that the block is clickable, not a highlight: the accent tint read as "selected" */
 .markdown .cm-rendered-block:hover { background: var(--bg-hover); }
-/* an editable table is clicked into its cells, not its source: no "click to show the source" band */
-.markdown .cm-rendered-block:has(.table-edit-box):hover { background: none; }
+/* an editable table or an embedded base is clicked into its cells, not its source, and draws its own frame: no
+   "click to show the source" band around it */
+.markdown .cm-rendered-block:has(.table-edit-box, .base.embedded):hover { background: none; }
 .markdown .cm-rendered-block pre, .markdown .cm-rendered-block .table-wrap { margin: .3em 0; }
 
 .markdown .cm-frontmatter { font-family: var(--font-mono); font-size: .78em; color: var(--text-muted); line-height: 1.55; }

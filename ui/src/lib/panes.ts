@@ -38,7 +38,7 @@ export type PaneSpec =
   // restored layout can label the tab before the plugin list has loaded
   | { kind: "plugin"; id: string; title?: string; icon?: string; /** the file it was opened with (Open with…) */ path?: RelPath; /** what the pane shows (a host, an account): `atlas.openView(arg)`; one tab per value */ arg?: string; /** the link's `#…` it was opened at (`atlas.anchor`); not part of its id */ anchor?: string }
   // any block (lib/blocks.ts) alone in a tab: its YAML and the document whose context it reads
-  | { kind: "block"; src: string; doc: RelPath; title?: string };
+  | { kind: "block"; src: string; doc: RelPath; title?: string; /** the tab's icon, an IconName (default: a chart) */ icon?: string };
 
 export type PaneKind = PaneSpec["kind"];
 
@@ -144,7 +144,7 @@ export function paneTitle(s: PaneSpec): string {
 export type IconName =
   | "today" | "home" | "files" | "search" | "lecture" | "command" | "file" | "file-code" | "file-text" | "pdf"
   | "image" | "terminal" | "claude" | "globe" | "mail" | "folder" | "folder-open" | "chevron" | "close" | "edit" | "trash"
-  | "eye" | "check" | "circle" | "commit" | "clock" | "sun" | "moon" | "plus" | "minus" | "refresh" | "zoom"
+  | "eye" | "check" | "circle" | "commit" | "clock" | "sun" | "moon" | "plus" | "minus" | "more" | "refresh" | "zoom"
   | "settings" | "git" | "panel-bottom" | "panel-right" | "chevron-down" | "table" | "library" | "copy" | "link" | "outline" | "plugin" | "chart"
   | "error" | "warning" | "undo" | "arrow-up" | "arrow-down" | "arrow-left" | "arrow-right" | "pin" | "panel-left"
   | "calendar" | "flag" | "repeat" | "chevrons-up" | "chevrons-down" | "return" | "hash" | "sigma" | "inbox" | "bell" | "server" | "grid" | "rows"
@@ -179,7 +179,7 @@ export function paneIcon(s: PaneSpec): IconName {
     case "commands": return "command";
     case "graph": return "link";
     case "plugin": return s.icon && isIconName(s.icon) ? s.icon : "plugin";
-    case "block": return "chart";
+    case "block": return s.icon && isIconName(s.icon) ? s.icon : "chart";
   }
 }
 

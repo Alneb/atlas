@@ -4,10 +4,11 @@
   // neighbours; click opens it; wheel zooms, drag pans; "Local" shows only the active note's
   // neighbourhood; the filter dims what does not match. Colour = top-level folder.
   import { onMount } from "svelte";
+  import { errText } from "../lib/text";
   import { shownName, shownPath } from "../lib/paths";
   import { api } from "../lib/api";
   import { on } from "../lib/bus";
-  import { openPath } from "../lib/dock";
+  import { getDock, openPath } from "../lib/dock";
   import { editors, lastEditorId } from "../lib/registry";
   import type { PaneProps } from "../lib/dock";
   import type { Graph } from "../lib/types";
@@ -18,10 +19,13 @@
   let graph = $state<Graph | null>(null);
   let filter = $state("");
   let local = $state(false);
+  let orphans = $state(true); // notes with no link at all; turned off, the linked ones are not lost among them
   let depth = $state(1);
   let hover = $state<number | null>(null);
   let tip = $state(""); // the hovered note, for the caption (the layout arrays are not reactive)
   let count = $state({ nodes: 0, edges: 0 });
+  let noActive = $state(false); // Local is on but no note is open: the whole graph is shown, and the header says why
+  let failed = $state("");
 
   type N = { i: number; x: number; y: number; vx: number; vy: number; deg: number; name: string; path: string; /** its folder's colour (PALETTE index) */ hue: number };
   let nodes: N[] = [];
@@ -29,27 +33,38 @@
   let adj: Set<number>[] = [];
   let view = { x: 0, y: 0, k: 1 };
   let heat = 1; // the layout cools down, then stops (no CPU when nothing moves)
+  let moved = false; // the reader panned or zoomed: the view is theirs, not fitted again
   let raf = 0;
 
   // colour group = the note's own folder (top-level folders lump every note together)
   const top = (p: string) => (p.includes("/") ? p.slice(0, p.lastIndexOf("/")) : "·");
 
+  const activePath = () => { const id = lastEditorId(); return id ? editors.get(id)?.path : undefined; };
+  let centre: string | undefined; // the note Local was last drawn around
+
+  const clampDepth = (d: number) => Math.max(1, Math.min(4, Math.round(d) || 1)); // the field's min/max bind only its arrows
+
   /** The subgraph to show: everything, or the neighbourhood of the active note (Local). */
   function build() {
     if (!graph) return;
     let keep = graph.nodes.map((_, i) => i);
+    noActive = false;
     if (local) {
-      const id = lastEditorId();
-      const path = id ? editors.get(id)?.path : undefined;
+      const path = activePath();
+      centre = path;
       const start = graph.nodes.findIndex((n) => n.path === path);
       if (start >= 0) {
         const nb: Set<number>[] = graph.nodes.map(() => new Set());
         for (const [a, b] of graph.edges) { nb[a].add(b); nb[b].add(a); }
         const seen = new Set([start]);
         let frontier = [start];
-        for (let d = 0; d < depth; d++) frontier = frontier.flatMap((i) => [...nb[i]].filter((j) => !seen.has(j) && seen.add(j)));
+        for (let d = 0; d < clampDepth(depth); d++) frontier = frontier.flatMap((i) => [...nb[i]].filter((j) => !seen.has(j) && seen.add(j)));
         keep = [...seen];
-      }
+      } else noActive = true;
+    }
+    if (!orphans) {
+      const linked = new Set(graph.edges.flat());
+      keep = keep.filter((g) => linked.has(g));
     }
     const remap = new Map(keep.map((g, i) => [g, i]));
     const old = new Map(nodes.map((n) => [n.path, n]));
@@ -67,6 +82,7 @@
     const folders = new Map([...new Set(nodes.map((n) => top(n.path)))].sort().map((f, k) => [f, k % PALETTE.length]));
     for (const n of nodes) n.hue = folders.get(top(n.path)) ?? 0;
     count = { nodes: nodes.length, edges: edges.length };
+    hover = null; tip = ""; // indices changed: a hovered index would point at another note
     heat = 1;
     kick();
   }
@@ -161,8 +177,17 @@
   function frame() {
     raf = 0;
     if (!shown()) return;
-    if (heat > 0.02) { for (let k = 0; k < 2; k++) stepLayout(); kick(); }
+    // the camera follows the layout as it spreads (a big vault takes seconds), until the reader takes over
+    if (heat > 0.02) { for (let k = 0; k < 2; k++) stepLayout(); kick(); if (!moved) fit(); }
     draw();
+  }
+  /** The whole drawing in the pane (a layout can settle off the centre: orphans ring the linked notes). */
+  function fit() {
+    if (!nodes.length || !wrap) return;
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    for (const n of nodes) { x0 = Math.min(x0, n.x); y0 = Math.min(y0, n.y); x1 = Math.max(x1, n.x); y1 = Math.max(y1, n.y); }
+    const k = Math.min(1.5, Math.max(0.15, Math.min(wrap.clientWidth / (x1 - x0 + 80), wrap.clientHeight / (y1 - y0 + 80))));
+    view = { x: -((x0 + x1) / 2) * k, y: -((y0 + y1) / 2) * k, k };
   }
   function kick() { if (!raf) raf = requestAnimationFrame(frame); }
 
@@ -182,7 +207,7 @@
     if (drag) {
       const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
       if (Math.abs(dx) + Math.abs(dy) > 2) drag.moved = true;
-      view.x += dx; view.y += dy; drag.x = e.clientX; drag.y = e.clientY;
+      view.x += dx; view.y += dy; drag.x = e.clientX; drag.y = e.clientY; moved ||= drag.moved;
       kick();
       return;
     }
@@ -201,13 +226,23 @@
     e.preventDefault();
     const k = Math.min(6, Math.max(0.15, view.k * (e.deltaY < 0 ? 1.12 : 1 / 1.12)));
     const r = canvas.getBoundingClientRect(), mx = e.clientX - r.left - r.width / 2, my = e.clientY - r.top - r.height / 2;
-    view.x = mx - ((mx - view.x) / view.k) * k; view.y = my - ((my - view.y) / view.k) * k; view.k = k;
+    view.x = mx - ((mx - view.x) / view.k) * k; view.y = my - ((my - view.y) / view.k) * k; view.k = k; moved = true;
     kick();
   }
 
-  async function load() { graph = await api.graph(); build(); }
+  async function load() {
+    try { graph = await api.graph(); failed = ""; build(); }
+    catch (e) { failed = errText(e); }
+  }
+  /** Enter in the filter opens the best match: the name itself, else the first note it highlights. */
+  function openMatch() {
+    const q = filter.trim().toLowerCase();
+    if (!q) return;
+    const hit = nodes.find((n) => n.name.toLowerCase() === q) ?? nodes.find((n) => n.path.toLowerCase().includes(q));
+    if (hit) openPath(hit.path);
+  }
 
-  $effect(() => { void local; void depth; build(); });
+  $effect(() => { void local; void depth; void orphans; build(); });
   $effect(() => { void filter; kick(); });
 
   onMount(() => {
@@ -224,24 +259,31 @@
       if (!shown()) { stale = true; return; }
       clearTimeout(t); t = setTimeout(load, 800);
     });
-    return () => { ro.disconnect(); ro2.disconnect(); off(); clearTimeout(t); if (raf) cancelAnimationFrame(raf); };
+    // Local follows the note in front of the reader
+    const sub = getDock()?.onDidActivePanelChange(() => { if (local) setTimeout(() => { if (activePath() !== centre) build(); }, 50); });
+    return () => { ro.disconnect(); ro2.disconnect(); off(); sub?.dispose(); clearTimeout(t); if (raf) cancelAnimationFrame(raf); };
   });
 </script>
 
 <div class="graph-pane">
   <header>
     <span class="title">Graph</span>
-    <span class="meta">{count.nodes} notes · {count.edges} links</span>
-    <input class="filter" placeholder="Highlight notes by name or folder…" bind:value={filter} spellcheck="false" aria-label="Filter notes" />
+    <span class="meta">{count.nodes} note{count.nodes === 1 ? "" : "s"} · {count.edges} link{count.edges === 1 ? "" : "s"}</span>
+    <input class="filter" placeholder="Highlight notes by name or folder… (Enter opens)" bind:value={filter} spellcheck="false" aria-label="Filter notes"
+      onkeydown={(e) => { if (e.key === "Enter") { e.preventDefault(); openMatch(); } else if (e.key === "Escape" && filter) { e.preventDefault(); e.stopPropagation(); filter = ""; } }} />
+    <label class="toggle" title="Notes that link nowhere and that nothing links to"><input type="checkbox" bind:checked={orphans} /> Orphans</label>
     <label class="toggle"><input type="checkbox" bind:checked={local} /> Local (active note)</label>
-    {#if local}<label class="toggle">depth <input type="number" min="1" max="4" bind:value={depth} aria-label="Depth" /></label>{/if}
-    <button class="btn" onclick={() => { view = { x: 0, y: 0, k: 1 }; heat = 1; kick(); }}>Re-center</button>
+    {#if local && noActive}<span class="hint">no note open: showing all</span>{/if}
+    {#if local}<label class="toggle">depth <input type="number" min="1" max="4" bind:value={depth} aria-label="Depth" onchange={() => (depth = clampDepth(depth))} /></label>{/if}
+    <button class="btn" onclick={() => { moved = false; fit(); kick(); }} title="The whole graph in view">Fit</button>
   </header>
   <div class="canvas-wrap" bind:this={wrap}>
     <!-- svelte-ignore a11y_no_static_element_interactions -->
     <canvas bind:this={canvas} onmousedown={down} onmousemove={move} onmouseup={up} onmouseleave={() => { drag = null; hover = null; tip = ""; kick(); }} onwheel={wheel}
       aria-label="Graph of {count.nodes} notes" data-testid="graph-canvas"></canvas>
     {#if tip}<div class="tip">{tip}</div>{/if}
+    {#if failed}<p class="empty">The graph could not be read: {failed}</p>
+    {:else if graph && !count.nodes}<p class="empty">{graph.nodes.length ? "No note here: turn on Orphans, or open a note with links for Local." : "No notes yet: write a note, and link it to another with [[its name]]."}</p>{/if}
   </div>
 </div>
 
@@ -249,7 +291,7 @@
   .graph-pane { height: 100%; display: flex; flex-direction: column; background: var(--bg); }
   header { display: flex; align-items: center; gap: 12px; padding: 8px 12px; border-bottom: 1px solid var(--border); flex-wrap: wrap; font-size: calc(12.5px * var(--ui-scale, 1)); }
   .title { color: var(--heading); font-weight: 600; }
-  .meta { color: var(--text-muted); }
+  .meta, .hint { color: var(--text-muted); }
   .filter { flex: 1; min-width: 180px; font: inherit; color: var(--text); background: var(--bg-elev); border: 1px solid var(--border-strong); border-radius: var(--radius-sm); padding: 4px 8px; }
   .filter:focus { outline: none; border-color: var(--accent); }
   .toggle { display: inline-flex; gap: 5px; align-items: center; color: var(--text-muted); }
@@ -259,5 +301,6 @@
   .canvas-wrap { position: relative; flex: 1; min-height: 0; }
   canvas { position: absolute; inset: 0; width: 100%; height: 100%; cursor: grab; }
   canvas:active { cursor: grabbing; }
+  .empty { position: absolute; inset: 0; display: grid; place-items: center; margin: 0; padding: 24px; text-align: center; color: var(--text-muted); font-size: calc(13px * var(--ui-scale, 1)); pointer-events: none; }
   .tip { position: absolute; left: 12px; bottom: 10px; font-size: calc(12px * var(--ui-scale, 1)); color: var(--text-muted); background: var(--bg-elev); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 3px 8px; pointer-events: none; }
 </style>

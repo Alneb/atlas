@@ -50,9 +50,11 @@ export const inlayHints = ViewPlugin.fromClass(class {
     const doc = view.state.doc, { from, to } = view.viewport;
     const list = await p.client.request<unknown, Hint[] | null>("textDocument/inlayHint", { textDocument: { uri: p.uri }, range: { start: p.toPosition(from), end: p.toPosition(to) } }).catch(() => null);
     if (n !== this.asked || !list || view.state.doc !== doc) return; // a newer ask, or the text changed meanwhile
-    const marks = list.map((h) => {
+    // a server may answer for an older version of the text (or a wrong line): such a hint is dropped, never thrown on
+    const marks = list.filter((h) => h.position.line < doc.lines).map((h) => {
       const text = typeof h.label === "string" ? h.label : h.label.map((x) => x.value).join("");
-      return Decoration.widget({ widget: new HintWidget(text, !!h.paddingLeft, !!h.paddingRight), side: 1 }).range(Math.min(doc.length, p.fromPosition(h.position)));
+      const line = doc.line(h.position.line + 1);
+      return Decoration.widget({ widget: new HintWidget(text, !!h.paddingLeft, !!h.paddingRight), side: 1 }).range(Math.min(line.to, line.from + h.position.character));
     });
     this.hints = Decoration.set(marks, true);
     view.dispatch({});

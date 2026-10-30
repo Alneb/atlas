@@ -33,7 +33,7 @@ a click.
 ## How it fits
 
 - Archives are read in the page with the app's own zip reader (`atlas.zip`, plugin API 20).
-- The catalog's **Anime & Manga** library is a different list: catalogued manga notes, not the files you read.
+- The catalog's **Comics** library is a different list: catalogued manga notes, not the files you read.
 
 ## Needs
 

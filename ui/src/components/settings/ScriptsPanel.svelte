@@ -4,10 +4,17 @@
   import { allCommands, keymap, loadKeymap } from "../../lib/keymap.svelte";
   import { open, openPath } from "../../lib/dock";
   import { rel } from "../../lib/time";
+  import { gitTree, knowRepo } from "../../lib/gitstatus.svelte";
   import ShortcutButton from "../ShortcutButton.svelte";
+  import Icon from "../Icon.svelte";
 
   const scripts = $derived.by(() => { void keymap.server; void keymap.overrides; return allCommands().filter((c) => c.source === "script"); });
-  onMount(() => { if (!keymap.loaded) void loadKeymap(); });
+  onMount(() => { if (!keymap.loaded) void loadKeymap(); knowRepo(); });
+  // its schedule and last run, and who added it (git's answer; outside git, nobody to name)
+  const sub = (c: (typeof scripts)[number]) => [
+    c.schedule && `${c.schedule}${c.lastRun ? ` · last ${rel(c.lastRun.time)} ${c.lastRun.ok ? "ok" : "failed"}` : ""}`,
+    c.origin ? `by ${c.origin.by === "agent" ? (c.origin.agent ?? "an agent") : "you"}` : gitTree.repo === "repo" && "not committed yet",
+  ].filter(Boolean).join(" · ");
 </script>
 
 <section class="settings-panel scripts">
@@ -18,7 +25,7 @@
       <li>
         <div class="main">
           <button class="t" onclick={() => c.file && openPath(c.file)} title="Edit {c.file}">{c.title}</button>
-          <span class="sub">{#if c.schedule}⏱ {c.schedule}{#if c.lastRun} · last {rel(c.lastRun.time)} {c.lastRun.ok ? "ok" : "failed"}{/if} · {/if}{c.origin ? `by ${c.origin.by === "agent" ? (c.origin.agent ?? "an agent") : "you"}` : "not committed yet"}</span>
+          <span class="sub">{#if c.schedule}<Icon name="clock" size={11} /> {/if}{sub(c)}</span>
         </div>
         <ShortcutButton cmd={c} />
       </li>

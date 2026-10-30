@@ -4,6 +4,7 @@
   // cell opens its editor (CellEditor.svelte), a checkbox toggles at once, a note's name opens it. Every change is
   // written through the core (`onedit` for the `.base`, `onwrite` for a note's property). Rows come in groups when the
   // view has a `groupBy`; the footer holds each column's summary (click it to choose one).
+  import { tick } from "svelte";
   import Icon from "../Icon.svelte";
   import ContextMenu, { type MenuItem } from "../ContextMenu.svelte";
   import InputDialog from "../InputDialog.svelte";
@@ -127,6 +128,12 @@
     editing = { path: r.path, col: i };
   }
   const isEditing = (r: BaseRow, i: number) => editing?.path === r.path && editing.col === i;
+  /** Closing the editor by a key (Enter, Escape) gives the focus back to its cell; a click elsewhere keeps it there. */
+  function closeEditor() {
+    const cell = (document.activeElement as HTMLElement | null)?.closest<HTMLElement>("td.editing");
+    editing = null;
+    if (cell) void tick().then(() => cell.focus());
+  }
   const cellKey = (e: KeyboardEvent, r: BaseRow, i: number) => { if ((e.key === "Enter" || e.key === "F2") && !isEditing(r, i)) { e.preventDefault(); activate(r, i); } };
   const asBool = (c: BaseCell): BaseCell => (c.t === "null" ? { t: "bool", value: false } : c);
 
@@ -181,7 +188,7 @@
               tabindex={kind ? 0 : undefined} aria-label={kind ? `${view.columns[i].label} of ${r.path}` : undefined}
               onclick={() => activate(r, i)} onkeydown={(e) => cellKey(e, r, i)} ondblclick={() => { if (!kind && view.columns[i].id !== "file.name") openPath(r.path); }}>
               {#if isEditing(r, i) && kind}
-                <CellEditor {kind} value={r.values[i]} label={view.columns[i].label} oncommit={(v) => onwrite(r.path, view.columns[i].key!, v)} onclose={() => (editing = null)} />
+                <CellEditor {kind} value={r.values[i]} label={view.columns[i].label} oncommit={(v) => onwrite(r.path, view.columns[i].key!, v)} onclose={closeEditor} />
               {:else if view.columns[i].id === "file.name" && c.t === "link"}
                 <span class="name"><Icon name={c.path && !/\.md$/i.test(c.path) ? "file" : "file-text"} size={14} /><CellValue cell={c} /></span>
               {:else if kind === "bool"}
@@ -229,17 +236,22 @@
   .head { display: flex; align-items: center; gap: 4px; width: 100%; height: 30px; padding: 0 10px; color: var(--text-muted); font: inherit; font-weight: 600; font-size: .9em; text-align: left; }
   .head:hover { color: var(--text); background: var(--bg-hover); }
   .head .label { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+  /* the header and the footer clip their cells: their focus rings go inside */
+  .head:focus-visible, .sum:focus-visible { outline-offset: -2px; }
   .head :global(.icon) { flex: none; color: var(--accent); }
   .resize { position: absolute; top: 0; right: 0; width: 6px; height: 100%; cursor: col-resize; z-index: 2; }
   .resize:hover { background: var(--accent); opacity: .5; }
   td { padding: 0 10px; height: 32px; color: var(--text); }
   td.editable { cursor: text; }
   td.editable:hover { background: var(--bg-hover); }
-  td.editing { padding: 2px 4px; overflow: visible; white-space: normal; }
-  td:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+  td.editing { position: relative; padding: 2px 4px; overflow: visible; white-space: normal; }
+  /* inside the cell (the row clips it); `.editable` outweighs the global [tabindex] ring */
+  td.editable:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
   td.num { text-align: right; }
   tbody tr:hover td { background: var(--bg-hover); }
   tbody tr.lit td { background: var(--accent-soft); }
+  /* the footer's top edge is the last row's: one line, not two */
+  tbody tr:last-child td { border-bottom: 0; }
   .name { display: inline-flex; align-items: center; gap: 8px; min-width: 0; max-width: 100%; }
   .name :global(.icon) { flex: none; color: var(--text-faint); }
   .name :global(.link) { color: var(--text); font-weight: 500; }
@@ -252,6 +264,8 @@
   tr.group td { position: sticky; left: 0; height: 32px; background: var(--bg-alt); font-weight: 600; color: var(--heading, var(--text)); }
   .g-n { margin-left: 8px; color: var(--text-faint); font-weight: 400; font-size: .88em; font-variant-numeric: tabular-nums; }
   tfoot td { position: sticky; bottom: 0; background: var(--bg); border-bottom: 0; border-top: 1px solid var(--border); padding: 0; height: 28px; }
+  /* no column lines in the footer: unsummarised it is not read as one more, empty row */
+  tfoot td + td { border-left: 0; }
   .sum { display: flex; align-items: baseline; justify-content: flex-end; gap: 6px; width: 100%; height: 100%; padding: 0 10px; font: inherit; font-size: .88em; color: var(--text-faint); }
   .sum.left { justify-content: flex-start; }
   .sum:not(.set) .sum-kind { opacity: 0; }

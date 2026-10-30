@@ -58,7 +58,11 @@
   let dialog = $state<{ title: string; value: string; submit: (v: string) => void } | null>(null);
   let pane = $state<HTMLDivElement>();
   /** the keyboard back to the grid (after a menu or a dialog), so Ctrl+S, Ctrl+Z and the arrows reach it */
-  const focusGrid = () => requestAnimationFrame(() => pane?.querySelector<HTMLElement>(".grid-scroll")?.focus());
+  // only when nothing has it: a menu item that opens a dialog ("Save this view as…") leaves the focus there
+  const focusGrid = () => requestAnimationFrame(() => {
+    if (document.activeElement && document.activeElement !== document.body) return;
+    pane?.querySelector<HTMLElement>(".grid-scroll")?.focus();
+  });
 
   // a new object at each edit (the rows change in place; the same object would tell no one)
   const sheet = $derived(edit ? { ...edit.sheet, version: edit.version } : null);

@@ -14,6 +14,7 @@
   import { libraryChoices, libraryHidden, setLibraryHidden, moveLibrary } from "../../lib/libraries.svelte";
   import TemplatesPanel from "./TemplatesPanel.svelte";
   import KeysPanel from "./KeysPanel.svelte";
+  import { renderInlineMarkdown } from "../../lib/markdown";
   import PluginsPanel from "./PluginsPanel.svelte";
   import ScriptsPanel from "./ScriptsPanel.svelte";
   import OpenWithPanel from "./OpenWithPanel.svelte";
@@ -48,15 +49,17 @@
 <article class="page" class:embedded data-page={page.page}>
   <header>
     <h2><Icon name={page.icon} size={18} /> {page.title}</h2>
-    {#if page.blurb}<p class="blurb">{page.blurb}</p>{/if}
+    {#if page.blurb}<p class="blurb">{@html renderInlineMarkdown(page.blurb)}</p>{/if}
   </header>
 
   {#if features.length}
     <section class="features" aria-label="What you can do here">
       {#each features as a (a.id)}
         {@const k = keysOf(a.id)}
+        {@const [, name, detail] = /^(.*?)\s*(?:\((.*)\))?$/.exec(a.title) ?? [, a.title]}
         <button class="feature" onclick={() => void a.run()} title="{a.title} — try it">
-          <span class="t">{a.title}</span>
+          <span class="t">{name}</span>
+          {#if detail}<span class="d">{detail}</span>{/if}
           {#if k}<span class="k keys-only">{#each chordLabel(k) as c}<kbd>{c}</kbd>{/each}</span>{/if}
           <span class="try">Try</span>
         </button>
@@ -86,7 +89,7 @@
         <button class="btn" onclick={() => openPath(settings.path)}><Icon name="edit" size={13} /> Edit the file</button></section>
     {:else if panel === "drafts"}
       <section class="panel"><h3>Suggested tools</h3>
-        <p class="what">Atlas looks through your vault for things you do again and again — a folder of notes that all look alike, the same steps repeated — and drafts a small tool for each: a command, a page or a block. Nothing is created until you press Keep, and what Keep writes is a plain file you can edit or delete.</p>
+        <p class="what">Atlas looks through your vault for things you do again and again — a folder of notes that all look alike, two notes you open together, a search you keep running — and drafts a small tool for each: a table of the folder, a page with both notes, a page with the live search. Nothing is created until you press Keep, and what Keep writes is a plain file you can edit or delete.</p>
         <ToolDrafts /></section>
     {/if}
   {/each}
@@ -126,12 +129,14 @@
   h3 { margin: 4px 0; }
   /* an even grid of rows — the name at the left (two lines at most: the whole in its tooltip), the keys at the right —
      not pills of every width wrapping into a ragged block (eleven of them on Appearance) */
-  .features { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 6px; }
-  .feature { display: flex; gap: 8px; align-items: center; min-width: 0; padding: 6px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--bg-alt); text-align: left; }
+  .features { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 6px; }
+  /* the whole name (a command's title is what it does: cut, it said nothing), its keys under it */
+  .feature { position: relative; display: flex; flex-direction: column; justify-content: center; align-items: flex-start; gap: 4px; min-width: 0; padding: 7px 44px 7px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--bg-alt); text-align: left; }
   .feature:hover { border-color: var(--accent); }
-  .feature .t { flex: 1; min-width: 0; color: var(--text); line-height: 1.3; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; }
+  .feature .t { min-width: 0; color: var(--text); line-height: 1.3; }
+  .feature .d { margin-top: -3px; color: var(--text-faint); font-size: .88em; line-height: 1.3; }
   .feature .k { flex: none; }
-  .feature .try { color: var(--accent); font-size: .85em; font-weight: 600; opacity: 0; transition: opacity .1s; }
+  .feature .try { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); color: var(--accent); font-size: .85em; font-weight: 600; opacity: 0; transition: opacity .1s; }
   .feature:hover .try, .feature:focus-visible .try { opacity: 1; }
   kbd { font-family: var(--font-mono); font-size: calc(10.5px * var(--ui-scale, 1)); padding: 0 4px; border-radius: 4px; border: 1px solid var(--border-strong); background: var(--bg-elev); color: var(--text-muted); margin-left: 2px; }
   .fields, :global(.settings-panel), .panel { padding: 6px 18px 8px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg); }

@@ -13,8 +13,9 @@ const span = (min) => (min >= 60 ? `${Math.floor(min / 60)} h ${String(min % 60)
 export function register(atlas) {
   if (!atlas.shell.greetingItem) return; // an older Atlas
   const es = String(atlas.plugin.settings.language ?? "en") === "es";
+  const sunIcon = (day) => (atlas.version >= 21 ? (day ? "sun" : "moon") : day ? "🌅" : "🌙"); // app icons since API 21
   const now = atlas.shell.greetingItem({ id: "now", text: "…", icon: "🌡", order: 10, title: es ? "El tiempo" : "The weather" });
-  const sun = atlas.shell.greetingItem({ id: "sun", text: "", icon: "🌅", order: 11 });
+  const sun = atlas.shell.greetingItem({ id: "sun", text: "", icon: sunIcon(true), order: 11 });
   sun.remove(); // shown once the times are known
 
   let sunChip = null;
@@ -31,7 +32,7 @@ export function register(atlas) {
       const left = minutesTo(w.sunset);
       const light = left > 0 ? ` · ${span(left)} ${es ? "de luz" : "of light"}` : "";
       sunChip?.remove();
-      sunChip = atlas.shell.greetingItem({ id: "sun", text: `↑${w.sunrise} ↓${w.sunset}${light}`, icon: left > 0 ? "🌅" : "🌙", order: 11,
+      sunChip = atlas.shell.greetingItem({ id: "sun", text: `↑${w.sunrise} ↓${w.sunset}${light}`, icon: sunIcon(left > 0), order: 11,
         title: es ? "Salida y puesta del sol" : "Sunrise and sunset" });
     }
   }

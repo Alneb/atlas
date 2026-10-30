@@ -10,7 +10,7 @@ import { errText } from "./text";
 import { superOf } from "./keys";
 import { app } from "./state.svelte";
 import { keepScroll, type ScrollKeeper } from "./pane-scroll";
-import { register, type SleeperHandle } from "./hibernate";
+import { register, startsAsleep, type SleeperHandle } from "./hibernate";
 import { getDock } from "./dock-instance";
 
 export interface PaneProps<K extends PaneKind> { spec: SpecOf<K>; panel: DockviewPanelApi }
@@ -26,11 +26,13 @@ export const setOpening = (id: string | null): void => { opening = id; };
  *  (dropped if it is not one: better lost than typed into another note). */
 function holdKeys(): { release(into: EventTarget | Element | null): void } {
   let text = "";
+  // the focus the shortcut was pressed in (Home's capture box): keys typed there now are the new pane's
+  const before = document.activeElement;
   const grab = (e: KeyboardEvent) => {
     if (e.key.length !== 1 || e.ctrlKey || superOf(e) || e.altKey) return;
-    // a text field already has the focus (the palette, opened while the pane loads): the keys are its
+    // a text field focused since (the palette, opened while the pane loads): the keys are its
     const a = document.activeElement as HTMLElement | null;
-    if (a && (a instanceof HTMLInputElement || a instanceof HTMLTextAreaElement || a.isContentEditable)) return;
+    if (a && a !== before && (a instanceof HTMLInputElement || a instanceof HTMLTextAreaElement || a.isContentEditable)) return;
     e.preventDefault();
     e.stopPropagation();
     text += e.key;
@@ -82,6 +84,17 @@ export class SveltePane implements IContentRenderer {
     // opened active (a shortcut, a click) while its code still loads: hold the characters typed meanwhile, so they
     // reach the pane instead of whatever had the focus (Today's capture box got "colour" meant for Search — depth audit)
     this.spec = p.params as PaneSpec;
+    if (opening !== api.id && startsAsleep(this.kind)) {
+      // a layout being restored says which tab of a group shows only once it is in: decide then
+      queueMicrotask(() => {
+        if (this.disposed || this.instance || this.asleep) return;
+        // a panel restored after its group's active one is still marked visible until its group runs its events
+        (getDock()?.getPanel(api.id) as unknown as { runEvents?(): void } | undefined)?.runEvents?.();
+        if (api.isVisible) this.mountNow(this.spec!, null);
+        else { this.asleep = true; this.element.classList.add("asleep"); }
+      });
+      return;
+    }
     this.mountNow(this.spec, opening === api.id ? holdKeys() : null);
   }
   private mountNow(spec: PaneSpec, held: ReturnType<typeof holdKeys> | null): void {

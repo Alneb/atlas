@@ -2,10 +2,8 @@
 // Atlas's renderers, Obsidian's folds, list continuation, the typing aids and their completions, files pasted or
 // dropped saved beside the note, and the settings-driven options (heading folds, typewriter scrolling).
 import { dirOf, shownName } from "../paths";
-import { errText } from "../text";
 import { noteHtml } from "./big-html";
-import { api } from "../api";
-import { toast } from "../state.svelte";
+import { attachFiles, filesOf } from "../attach";
 import { wikilinkSource, slashSource, citeSource, taskSource, continueList, backspaceMarkup, taskShortForms, type TaskCompletion } from "./md-complete";
 import { taskIconEl } from "../task-complete";
 import { taskChips } from "./task-chips";
@@ -125,17 +123,17 @@ export function noteExtensions(path: string, viewRef: { view: EditorView | null 
             view.dispatch({ changes: { from: sel.from, to: sel.to, insert: `[${text}](${url})` } });
             return true;
           }
-          const files = [...(e.clipboardData?.files ?? [])];
+          const files = filesOf(e.clipboardData);
           if (!files.length) return false;
           e.preventDefault();
-          void attachFiles(view, path, files, view.state.selection.main.head);
+          void attachAt(view, path, files, view.state.selection.main.head);
           return true;
         },
         drop: (e, view) => {
-          const files = [...(e.dataTransfer?.files ?? [])];
+          const files = filesOf(e.dataTransfer);
           if (!files.length) return false;
           e.preventDefault();
-          void attachFiles(view, path, files, view.posAtCoords({ x: e.clientX, y: e.clientY }) ?? view.state.selection.main.head);
+          void attachAt(view, path, files, view.posAtCoords({ x: e.clientX, y: e.clientY }) ?? view.state.selection.main.head);
           return true;
         },
       }),
@@ -164,22 +162,11 @@ export function noteExtensions(path: string, viewRef: { view: EditorView | null 
   };
 }
 
-/** Obsidian's name for clipboard images, which arrive as a bare "image.png". */
-function attachmentName(f: File): string {
-  if (f.name && !/^image\.\w+$/.test(f.name)) return f.name;
-  const d = new Date(), p = (n: number) => String(n).padStart(2, "0");
-  const ext = (f.type.split("/")[1] || "png").replace("jpeg", "jpg").replace("svg+xml", "svg");
-  return `Pasted image ${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}.${ext}`;
-}
-
-async function attachFiles(view: EditorView, notePath: string, files: File[], at: number): Promise<void> {
-  const embeds: string[] = [];
-  for (const f of files) {
-    try { embeds.push((await api.attach(notePath, attachmentName(f), f)).embed); }
-    catch (err) { toast(`Could not attach ${f.name || "the pasted file"}`, errText(err), "error"); }
-  }
-  if (!embeds.length) return;
-  const insert = embeds.join("\n");
+/** The files' embeds (lib/attach.ts) inserted at `at`, the caret after them. */
+async function attachAt(view: EditorView, notePath: string, files: File[], at: number): Promise<void> {
+  const done = await attachFiles(notePath, files);
+  if (!done.length) return;
+  const insert = done.map((a) => a.embed).join("\n");
   view.dispatch({ changes: { from: at, insert }, selection: { anchor: at + insert.length } });
 }
 

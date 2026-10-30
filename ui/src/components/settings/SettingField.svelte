@@ -154,7 +154,7 @@
   input:focus, textarea:focus { outline: none; border-color: var(--accent); }
   .hint { color: var(--text-faint); font-size: calc(11px * var(--ui-scale, 1)); }
   .switch { width: 38px; height: 22px; border-radius: 11px; background: var(--border-strong); position: relative; transition: background .15s; }
-  .switch span { position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%; background: var(--bg); transition: transform .15s; box-shadow: 0 1px 2px rgb(0 0 0 / .25); }
+  .switch span { position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%; background: var(--bg); transition: transform .15s; box-shadow: var(--shadow-sm); }
   .switch.on { background: var(--accent); }
   .switch.on span { transform: translateX(16px); }
   .seg { display: inline-flex; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); overflow: hidden; }

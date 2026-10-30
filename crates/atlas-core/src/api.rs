@@ -449,6 +449,19 @@ pub struct CaptureResult {
     pub path: String,
     /// 1-based line of the new bullet (log mode) or of the captured text (note mode).
     pub line: u32,
+    /// The bullet as written (log mode), for `POST /api/capture/undo`; none when the capture is a note of its own.
+    #[serde(default)]
+    pub source: Option<String>,
+}
+
+/// `POST /api/capture/undo`: a capture just made, taken back, if it is still as it was written ([`CaptureResult`]).
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[ts(export)]
+pub struct CaptureUndo {
+    pub path: String,
+    pub line: u32,
+    #[serde(default)]
+    pub source: Option<String>,
 }
 
 /// What became of a capture (captures.rs), read from its file: the box, a `→ [[note]]`, a note's properties.

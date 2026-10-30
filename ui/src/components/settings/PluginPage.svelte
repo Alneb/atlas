@@ -135,7 +135,7 @@
   .plugin-page { max-width: 820px; margin: 0 auto; display: flex; flex-direction: column; gap: 18px; }
   header { display: flex; flex-direction: column; gap: 6px; }
   .title { display: flex; align-items: center; gap: 14px; }
-  .tile { flex: none; display: grid; place-items: center; width: 44px; height: 44px; border-radius: 11px; color: #fff; background: linear-gradient(160deg, var(--accent), color-mix(in srgb, var(--accent) 55%, #000)); box-shadow: 0 2px 8px color-mix(in srgb, var(--accent) 30%, transparent); }
+  .tile { flex: none; display: grid; place-items: center; width: 44px; height: 44px; border-radius: 11px; color: var(--accent-fg); background: var(--accent); }
   .tile.off { filter: grayscale(1); opacity: .6; }
   h2 { margin: 0; flex: 1; font-size: calc(22px * var(--ui-scale, 1)); color: var(--heading); letter-spacing: -.015em; }
   .meta { margin: 0; color: var(--text-faint); font-size: calc(12px * var(--ui-scale, 1)); font-family: var(--font-mono); overflow-wrap: anywhere; }
@@ -155,7 +155,7 @@
   .source .link { color: var(--accent); }
   .where { margin: 0; color: var(--text-faint); font-size: calc(12px * var(--ui-scale, 1)); }
   .savebar { position: sticky; bottom: 12px; align-self: center; display: flex; align-items: center; gap: 10px; padding: 8px 10px 8px 16px;
-    background: var(--bg-elev); border: 1px solid var(--border-strong); border-radius: 10px; box-shadow: 0 8px 28px rgba(0, 0, 0, .3); }
+    background: var(--bg-elev); border: 1px solid var(--border-strong); border-radius: 10px; box-shadow: var(--shadow-pop); }
   .savebar span { color: var(--text-muted); }
   .savebar.saved { color: var(--green, #3fb950); gap: 6px; padding: 8px 16px; font-weight: 600; animation: fade 2s ease-in forwards; }
   @keyframes fade { 70% { opacity: 1; } 100% { opacity: 0; } }

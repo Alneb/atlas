@@ -188,7 +188,7 @@
     <span class="grow"></span>
     <div class="search" class:on={!!searchText}>
       <Icon name="search" size={15} />
-      <input bind:this={searchBox} bind:value={searchText} oninput={searched} placeholder="Search events" aria-label="Search events"
+      <input bind:this={searchBox} bind:value={searchText} oninput={searched} placeholder={narrow ? "" : "Search events"} aria-label="Search events"
         onkeydown={(e) => { if (e.key === "Escape") { searchText = ""; void cal.search(""); searchBox?.blur(); } }} />
     </div>
     {#if width < 980}

@@ -66,7 +66,7 @@
 /* History signs (lib/nav-signs.ts): the swipe's arrow at an edge, the pill after a step */
 .nav-edge { position: fixed; top: 50%; z-index: 90; width: 44px; height: 44px; margin-top: -22px; border-radius: 50%;
   display: grid; place-items: center; font-size: 20px; pointer-events: none;
-  background: var(--bg-elev); color: var(--text-muted); border: 1px solid var(--border-strong); box-shadow: var(--shadow, 0 4px 16px rgba(0,0,0,.25));
+  background: var(--bg-elev); color: var(--text-muted); border: 1px solid var(--border-strong); box-shadow: var(--shadow-pop);
   opacity: calc(.25 + .75 * var(--k, 0)); transition: transform 60ms linear, background 120ms, color 120ms; }
 .nav-edge[data-side="left"] { left: 10px; transform: translateX(calc(-60px + 60px * var(--k, 0))) scale(calc(.7 + .3 * var(--k, 0))); }
 .nav-edge[data-side="right"] { right: 10px; transform: translateX(calc(60px - 60px * var(--k, 0))) scale(calc(.7 + .3 * var(--k, 0))); }
@@ -74,13 +74,13 @@
 .nav-edge[data-blocked="true"] { color: var(--text-faint); opacity: .35; }
 .nav-pill { position: fixed; left: 50%; bottom: 44px; z-index: 90; transform: translateX(-50%); pointer-events: none;
   padding: 5px 12px; border-radius: 999px; font-size: 12px; white-space: nowrap; max-width: 70vw; overflow: hidden; text-overflow: ellipsis;
-  background: var(--bg-elev); color: var(--text); border: 1px solid var(--border-strong); box-shadow: var(--shadow, 0 4px 16px rgba(0,0,0,.25)); }
+  background: var(--bg-elev); color: var(--text); border: 1px solid var(--border-strong); box-shadow: var(--shadow-pop); }
 .nav-pill.show { animation: nav-pill-in 160ms ease-out; }
 @keyframes nav-pill-in { from { opacity: 0; transform: translate(-50%, 6px); } to { opacity: 1; transform: translate(-50%, 0); } }
 .nav-edge[hidden], .nav-pill[hidden] { display: none; }
 /* lib/preview.ts: what a link or a left-bar tab leads to, while the pointer rests on it */
 .hover-preview { position: fixed; z-index: 90; max-height: 300px; overflow: auto; border-radius: var(--radius, 8px); background: var(--bg-elev);
-  border: 1px solid var(--border-strong); box-shadow: 0 10px 32px rgba(0,0,0,.28); font-size: calc(13px * var(--ui-scale, 1)); color: var(--text); }
+  border: 1px solid var(--border-strong); box-shadow: var(--shadow-pop); font-size: calc(13px * var(--ui-scale, 1)); color: var(--text); }
 .hover-preview .preview-head { position: sticky; top: 0; padding: 6px 12px; background: var(--bg-elev); border-bottom: 1px solid var(--border);
   color: var(--text-muted); font-size: calc(11.5px * var(--ui-scale, 1)); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .hover-preview .preview-body { padding: 8px 12px 12px; }
@@ -98,7 +98,7 @@
 /* lib/tab-glance.ts: Ctrl+Tab over the focused split's tabs, most recent first — a strip of names over the top; the pane
    behind shows the chosen tab itself */
 .tab-glance { position: fixed; z-index: 96; left: 50%; top: 56px; transform: translateX(-50%); max-width: 92vw; display: flex; gap: 6px; padding: 8px;
-  overflow-x: auto; border-radius: 12px; background: var(--bg-elev); border: 1px solid var(--border-strong); box-shadow: 0 12px 36px rgba(0,0,0,.35); }
+  overflow-x: auto; border-radius: 12px; background: var(--bg-elev); border: 1px solid var(--border-strong); box-shadow: var(--shadow-pop); }
 .tab-glance .glance-card { flex: none; max-width: 220px; min-width: 120px; border-radius: 8px; border: 2px solid transparent; background: var(--bg); padding: 6px 10px; }
 .tab-glance .glance-card.chosen { border-color: var(--accent); }
 .tab-glance .glance-title { font-size: calc(12.5px * var(--ui-scale, 1)); color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -107,7 +107,7 @@
 
 /* lib/image-peek.ts: a picture shown large while Ctrl is held over it */
 .image-peek { position: fixed; inset: 0; margin: auto; z-index: 95; max-width: 86vw; max-height: 86vh; object-fit: contain; pointer-events: none;
-  border-radius: 8px; background: var(--bg-elev); box-shadow: 0 12px 48px rgba(0,0,0,.45); border: 1px solid var(--border-strong); }
+  border-radius: 8px; background: var(--bg-elev); box-shadow: var(--shadow-pop); border: 1px solid var(--border-strong); }
 /* vertical tabs: the side column's header is the side panel's row of tools (SideHead.svelte), not tabs */
 .dockview-theme-atlas .atlas-side-group .dv-tabs-container,
 .dockview-theme-atlas .atlas-side-group .dv-void-container,

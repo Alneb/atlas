@@ -63,11 +63,11 @@
 
 <style>
   .bar { position: absolute; z-index: 20; display: flex; align-items: center; gap: 4px; padding: 4px 6px; max-width: min(520px, calc(100% - 16px));
-    background: var(--bg-elev); border: 1px solid var(--border-strong); border-radius: var(--radius-sm); box-shadow: var(--shadow-md, 0 4px 14px rgb(0 0 0 / 0.18));
+    background: var(--bg-elev); border: 1px solid var(--border-strong); border-radius: var(--radius-sm); box-shadow: var(--shadow-pop);
     font-size: calc(12px * var(--ui-scale, 1)); color: var(--text-muted); transform: translateX(-50%); white-space: nowrap; }
   .kind { color: var(--text); font-weight: 500; padding: 0 2px; }
   .sep { width: 1px; height: 16px; background: var(--border); margin: 0 2px; flex: none; }
-  .swatch { width: 16px; height: 16px; border-radius: 50%; border: 1px solid rgb(0 0 0 / 0.15); flex: none; }
+  .swatch { width: 16px; height: 16px; border-radius: 50%; border: 1px solid var(--border-strong); flex: none; }
   .swatch.on { box-shadow: 0 0 0 2px var(--bg-elev), 0 0 0 3.5px var(--accent); }
   .words { display: inline-flex; align-items: center; gap: 4px; min-width: 0; max-width: 220px; padding: 2px 6px; border-radius: 4px; color: var(--text); }
   .words span { overflow: hidden; text-overflow: ellipsis; }

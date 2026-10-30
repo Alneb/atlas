@@ -4,4 +4,8 @@ export type CaptureResult = { path: string,
 /**
  * 1-based line of the new bullet (log mode) or of the captured text (note mode).
  */
-line: number, };
+line: number, 
+/**
+ * The bullet as written (log mode), for `POST /api/capture/undo`; none when the capture is a note of its own.
+ */
+source: string | null, };

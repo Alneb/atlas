@@ -106,8 +106,7 @@ public final class CaptureActivity extends Activity {
         at.setMargins(look.dp(10), 0, look.dp(10), look.dp(10));
         root.addView(column, at);
         setContentView(root);
-        String shared = sharedText(getIntent());
-        edit.setText(shared != null ? shared : vaults.draft());
+        edit.setText(Shares.underDraft(vaults.draft(), sharedText(getIntent())));
         edit.setSelection(edit.length());
         column.setTranslationY(look.dp(24));
         column.setAlpha(0f);
@@ -578,15 +577,16 @@ public final class CaptureActivity extends Activity {
         card.addView(chips, lp(-1, -2, look.dp(32), look.dp(8), 0, 0));
         // the guides wrap (a Flow of chip + word pairs): at a large font size the last ones went off the card
         guides = new Flow(this, look.dp(10), look.dp(4));
-        String[][] forms = {{"[] ", "to-do"}, {"@", "date"}, {"[[", "link"}, {"#", "tag"}};
+        // {shown, starts, what}: atlas_core::capture::GUIDES (atlas-capture's tests compare)
+        String[][] forms = {{"[]", "[] ", "to-do"}, {"@fri", "@", "date"}, {"[[", "[[", "link"}, {"#", "#", "tag"}};
         for (String[] f : forms) {
             LinearLayout pair = new LinearLayout(this);
             pair.setGravity(Gravity.CENTER_VERTICAL);
-            TextView c = look.code(this, f[0].trim());
+            TextView c = look.code(this, f[0]);
             c.setMinHeight(look.dp(28));
-            c.setOnClickListener(v -> insert(f[0]));
+            c.setOnClickListener(v -> insert(f[1]));
             pair.addView(c, lp(-2, -2, 0, 0, look.dp(4), 0));
-            pair.addView(look.label(this, f[1], 12.5f, look.muted));
+            pair.addView(look.label(this, f[2], 12.5f, look.muted));
             guides.addView(pair);
         }
         status = look.label(this, "", 12.5f, look.muted);
@@ -605,9 +605,10 @@ public final class CaptureActivity extends Activity {
         pill.setCompoundDrawablePadding(look.dp(6));
         pill.setPadding(look.dp(10), 0, look.dp(12), 0);
         pill.setBackground(look.pressable(look.hover, 15, look.border));
-        // a tap: the next vault, as Super+V on the desktop; held: the list
-        pill.setOnClickListener(v -> nextVault(1));
-        pill.setOnLongClickListener(v -> { toggleVaults(); return true; });
+        // a tap: the list, as a click on the desktop (a stray tap never moves the capture to another vault); held: the
+        // next vault, as Super+V
+        pill.setOnClickListener(v -> toggleVaults());
+        pill.setOnLongClickListener(v -> { nextVault(1); return true; });
         foot.addView(pill, lp(-2, look.dp(40), look.dp(32), 0, 0, 0));
         foot.addView(new View(this), new LinearLayout.LayoutParams(0, 1, 1f));
         save = look.label(this, "Save", 15, look.accentFg);
@@ -625,7 +626,7 @@ public final class CaptureActivity extends Activity {
         boolean empty = t.trim().isEmpty() && !clipOn && !linkOn && !seenOn && !playingOn && onPieces().isEmpty();
         guides.setVisibility(t.trim().isEmpty() ? View.VISIBLE : View.GONE);
         status.setVisibility(t.trim().isEmpty() ? View.GONE : View.VISIBLE);
-        if (!saving) { status.setTextColor(look.muted); status.setText(Core.describe(t)); }
+        if (!saving) { status.setTextColor(look.muted); status.setText(Core.describe(vault == null ? "" : vault, t)); }
         pill.setText(vault == null ? "Choose a vault" : Vaults.name(vault));
         save.setAlpha(empty || vault == null ? 0.45f : 1f);
         if (vault != null) completions(t);
@@ -794,6 +795,8 @@ public final class CaptureActivity extends Activity {
         new android.app.AlertDialog.Builder(this).setView(sv).setPositiveButton("Close", null).show();
     }
 
+    /** A note's path without `.md`, as the desktop's boxes show where a capture went (paths.ts shownPath). */
+    private static String shownPath(String p) { return p.endsWith(".md") ? p.substring(0, p.length() - 3) : p; }
     private static String shorten(String s, int n) { return s.length() > n ? s.substring(0, n) + "…" : s; }
 
     /** A Markdown link shown by its title, a bare address by its host and path. */
@@ -955,7 +958,7 @@ public final class CaptureActivity extends Activity {
             status.setTextColor(later ? look.text : look.green);
             status.setText(later
                 ? "Kept on the phone: sent to " + Vaults.name(vault) + " when it answers (" + o.getString("queued") + ")"
-                : "Saved to " + Vaults.name(vault) + " · " + o.optString("path") + ":" + o.optInt("line") + (o.has("catalog") ? " · " + o.optString("catalog") : "")
+                : "Saved to " + Vaults.name(vault) + " · " + shownPath(o.optString("path")) + ":" + o.optInt("line") + (o.has("catalog") ? " · " + o.optString("catalog") : "")
                     + (o.has("here") ? " · written on the phone, the server did not answer (" + o.optString("here") + ")" : ""));
             vaults.keepDraft("");
             edit.setText("");
@@ -983,11 +986,8 @@ public final class CaptureActivity extends Activity {
 
     private static String sharedText(Intent i) {
         if (i == null || !Intent.ACTION_SEND.equals(i.getAction())) return null;
-        CharSequence t = i.getCharSequenceExtra(Intent.EXTRA_TEXT);
-        String subject = i.getStringExtra(Intent.EXTRA_SUBJECT);
-        if (t == null) return subject;
         // the core takes the share-tracking parameters off every capture (atlas_text::links)
-        return subject != null && !t.toString().contains(subject) ? subject + "\n" + t : t.toString();
+        return Shares.text(i.getStringExtra(Intent.EXTRA_SUBJECT), i.getCharSequenceExtra(Intent.EXTRA_TEXT));
     }
 
     /** A file the capture can carry; its thumbnail decoded once, small. */

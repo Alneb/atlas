@@ -63,3 +63,36 @@ test("a tikz fence draws as an SVG, a broken one shows TeX's error, the source s
   const text = await request.get("/api/file?path=notes/tikz-loop.md", { headers: H }).then((r) => r.json()).then((j) => j.text as string);
   expect(text, "drawing never touches the note").toContain("fit=(a)(b)(c)");
 });
+
+// tikz-feynman, served from src/vendor/tex-extra: vertices placed by hand (its automatic layout needs LuaTeX)
+const FEYNMAN = String.raw`\usepackage{tikz-feynman}
+\begin{tikzpicture}
+\begin{feynman}
+\vertex (a1) {\(e^{-}\)};
+\vertex [below=2cm of a1] (a2) {\(e^{+}\)};
+\vertex [below right=1cm and 1.5cm of a1] (b);
+\vertex [right=1.5cm of b] (c);
+\vertex [above right=1cm and 1.5cm of c] (d1) {\(\mu^{-}\)};
+\vertex [below right=1cm and 1.5cm of c] (d2) {\(\mu^{+}\)};
+\diagram* {
+  (a1) -- [fermion] (b) -- [fermion] (a2),
+  (b) -- [photon, edge label=\(\gamma\)] (c),
+  (d2) -- [fermion] (c) -- [fermion] (d1),
+};
+\end{feynman}
+\end{tikzpicture}`;
+
+test("a Feynman diagram (tikz-feynman) draws as an SVG", async ({ page, request }) => {
+  test.setTimeout(120_000);
+  await put(request, "notes/feynman.md", `# Annihilation\n\n\`\`\`tikz\n${FEYNMAN}\n\`\`\`\n`);
+  await page.goto("/");
+  await page.getByText("Finish the GW notes.").waitFor();
+  await page.keyboard.press("Control+p");
+  await page.keyboard.type("feynman");
+  await expect(page.getByTestId("palette").getByText("feynman", { exact: true }).first()).toBeVisible();
+  await page.keyboard.press("Enter");
+  const fig = page.locator(".cm-content .tikz-figure");
+  await expect(fig).toHaveAttribute("data-state", /done|error/, { timeout: 90_000 });
+  expect(await fig.getAttribute("data-state"), await fig.innerText()).toBe("done");
+  expect(await fig.locator("svg").evaluate((s) => s.getBoundingClientRect().width), "a real picture").toBeGreaterThan(150);
+});

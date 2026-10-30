@@ -52,10 +52,10 @@ test("dropping a PDF on the Library adds an entry with the file", async ({ page,
   // 2026-10-15); the PDF's "Note" puts the paper's note in a split beside it
   await lib.locator(".detail").getByRole("button", { name: "Read" }).click();
   const side = page.getByTestId("sidebar");
-  await expect(side.locator(".group-head")).toHaveText(["Terminal", "Editor"]);
+  await expect(side.locator(".group-head")).toHaveText(["Terminal", "Tabs"]);
   await page.locator(".pdf-pane, .dv-active-group").getByRole("button", { name: "Paper's note", exact: true }).first().click();
   // one Editor section; the two halves of the split are one row (Zen's split view), the note's half active
-  await expect(side.locator(".group-head")).toHaveText(["Terminal", "Editor"]);
+  await expect(side.locator(".group-head")).toHaveText(["Terminal", "Tabs"]);
   const split = side.getByTestId("split-row");
   await expect(split.locator(".tab").first()).toContainText(".pdf");
   await expect(split.locator(".tab.active")).toHaveText(/^\s*dropped\s*$/); // the note is named after the citekey

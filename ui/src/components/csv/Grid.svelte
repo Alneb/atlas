@@ -255,7 +255,7 @@
   td.formula { color: var(--accent); }
   .wl { color: var(--link, var(--accent)); text-decoration: underline; text-decoration-color: color-mix(in srgb, currentColor 40%, transparent); cursor: pointer; }
   .wl:hover { text-decoration-color: currentColor; }
-  td.error { color: var(--danger, #e03131); }
+  td.error { color: var(--red); }
   .dir { margin-left: 4px; font-size: .8em; color: var(--accent); }
   .more { position: absolute; right: 8px; top: 3px; width: 18px; height: 18px; padding: 0; border-radius: 4px; color: var(--text-faint); opacity: 0; line-height: 1; }
   tr.names th:hover .more, .more:focus-visible { opacity: 1; }

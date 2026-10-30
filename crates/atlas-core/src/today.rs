@@ -230,14 +230,18 @@ impl<S: PartialEq, V: Clone> PerFile<S, V> {
 }
 
 
-/// Each thing once, under the path that stands for it (a file and its companion note are one: companion::stands_for);
-/// `items` newest first, so the newest of a thing's files gives its time.
-fn per_thing<T>(root: &Path, items: &mut Vec<T>, path: impl Fn(&mut T) -> &mut String) {
+/// Each thing once, under the path that stands for it (a file and its companion note are one: companion::stands_for),
+/// that `keep` accepts, the first [`MAX_CHANGED`]; `items` newest first, so the newest of a thing's files gives its
+/// time. Stops there: a thing's path reads its file, and a sync or a checkout can touch thousands at once.
+fn per_thing<T>(root: &Path, items: &mut Vec<T>, path: impl Fn(&mut T) -> &mut String, keep: impl Fn(&str) -> bool) {
     let mut seen = std::collections::HashSet::new();
     items.retain_mut(|it| {
+        if seen.len() >= MAX_CHANGED {
+            return false;
+        }
         let p = path(it);
         *p = crate::companion::stands_for(root, p);
-        seen.insert(p.clone())
+        keep(p) && seen.insert(p.clone())
     });
 }
 
@@ -249,8 +253,7 @@ fn changed_since(root: &Path, files: &[Found], cfg: &Config, now: SystemTime) ->
         .filter_map(|f| (f.meta.modified().ok()? >= since).then(|| Some(Changed { path: f.rel.clone(), mtime: Mtime::of(&f.meta).ok()? }))?)
         .collect();
     out.sort_by(|a, b| b.mtime.cmp(&a.mtime).then_with(|| a.path.cmp(&b.path)));
-    per_thing(root, &mut out, |c| &mut c.path);
-    out.truncate(MAX_CHANGED);
+    per_thing(root, &mut out, |c| &mut c.path, |_| true);
     out
 }
 
@@ -276,9 +279,7 @@ pub fn day_activity(root: &Path, cfg: &Config, day: chrono::NaiveDate) -> DayAct
         })
         .collect();
     changed.sort_by(|a, b| b.mtime.cmp(&a.mtime).then_with(|| a.path.cmp(&b.path)));
-    per_thing(root, &mut changed, |c| &mut c.path);
-    changed.retain(|c| !made.contains(c.path.as_str())); // a thing made that day is listed as made
-    changed.truncate(MAX_CHANGED);
+    per_thing(root, &mut changed, |c| &mut c.path, |p| !made.contains(p)); // a thing made that day is listed as made
     DayActivity { day: day.format("%Y-%m-%d").to_string(), created, changed }
 }
 
@@ -321,8 +322,7 @@ fn created_between(root: &Path, files: &[Found], cfg: &Config, start: DateTime<L
         })
         .collect();
     out.sort_by(|a, b| b.created.cmp(&a.created).then_with(|| a.path.cmp(&b.path)));
-    per_thing(root, &mut out, |c| &mut c.path);
-    out.truncate(MAX_CHANGED);
+    per_thing(root, &mut out, |c| &mut c.path, |_| true);
     out
 }
 

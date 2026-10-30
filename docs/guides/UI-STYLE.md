@@ -4,7 +4,12 @@ The UI matters, and its rules come from reading on style. What was read: Anthrop
 
 ## 1. Use the system that exists
 - Colors, radii, shadows, fonts and sizes come from `ui/src/styles/tokens.css`. No literal colors in components; a new need becomes a token.
+  `scripts/dev/check-styles.mjs` (the gate's `tidy` stage) fails on a literal colour in a component's `<style>` or a
+  stylesheet; a line that must keep one (paper is white, a highlighter yellow, e-ink pure black) says why with a
+  `/* literal: … */` comment. Dialogs, menus and popovers cast `--shadow-pop`, small raised things `--shadow-sm`.
 - Sizes scale with `--ui-scale` (`calc(12px * var(--ui-scale, 1))`), as everywhere else.
+- A task's checkbox outside a note (a block's task list) takes `class="atlas-check"`: the note's own box
+  (`markdown.css`), never the browser's, so a task looks the same in a note, a block and a page.
 - Fonts: Inter for the interface, the user's prose font for notes, JetBrains Mono for code and data.
 
 ## 2. Typography (Butterick)
@@ -40,6 +45,8 @@ The UI matters, and its rules come from reading on style. What was read: Anthrop
 - Flex/grid with `gap`, not per-element margins. `min-width: 0` on anything holding long text.
 - Content sets heights; text that can outgrow its box wraps or scrolls inside it — clipped text is a bug.
 - Only useful scrollbars. Blocks adapt to their container width (container queries), since any block can sit in a narrow column.
+- On a phone the floating capture button covers the bottom right of the screen: every pane already ends above it
+  (`--fab-room`, applied once to dockview's content container). Something fixed to a pane's bottom keeps clear of it the same way.
 
 ## 7. Words
 - Name things as the user knows them (a *note*, a *page*, a *block*), not as the code does.

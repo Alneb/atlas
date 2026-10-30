@@ -1,12 +1,14 @@
 <script lang="ts">
   import { errText } from "../lib/text";
   import { closable } from "../lib/back";
+  import { holdFocus, trapTab } from "../lib/focus-return";
   import { allCommands, loadKeymap } from "../lib/keymap.svelte";
   // Command palette / quick open / URL prompt / generic picker — one fuzzy list, keyboard-first.
   import { tick } from "svelte";
   import { api } from "../lib/api";
+  import { besides, titledNotes, type Titled } from "../lib/titled-notes";
   import { Newest } from "../lib/newest";
-  import { palette, closePalette, pickChosen, type PickItem } from "../lib/palette.svelte";
+  import { palette, closePalette, pickChosen, captureText, type PickItem } from "../lib/palette.svelte";
   import { open, openPath, activeEditorId, getDock } from "../lib/dock";
   import { recentFiles } from "../lib/recent";
   import { createNote } from "../lib/notes-system";
@@ -14,11 +16,13 @@
   import { fuzzy, highlightMatch } from "../lib/fuzzy";
   import { chordLabel, superOf } from "../lib/keys";
   import { fileIcon, type IconName } from "../lib/panes";
-  import { basename, shownName, shownPath } from "../lib/paths";
+  import { basename, shownName } from "../lib/paths";
   import { toast } from "../lib/state.svelte";
   import { complete } from "../lib/textarea-complete";
   import { captureHint } from "../lib/capture-hints.svelte";
   import Icon from "./Icon.svelte";
+  import CaptureGuides from "./CaptureGuides.svelte";
+  import { PROMPT } from "../lib/capture-guides";
 
   /** `beside`: what Ctrl+Enter does instead (a file opens next to the active tab, not over it). */
   interface Item { key: string; section: string; title: string; /** a file row's file */ path?: string; detail?: string; keys?: string; icon: IconName; score: number; hl: number[]; run: () => void | Promise<void>; beside?: () => void }
@@ -38,20 +42,33 @@
   /** the text the search last finished for, found or failed: the capture row waits for it */
   let answered = $state("");
   let fileHits = $state<string[]>([]);
+  let titledHits = $state<Titled[]>([]); // notes found by their title (titled-notes.ts)
   /** the text `fileHits` answers: "nothing matches" is only known once the search for it came back */
   let hitsFor = $state("");
   /** lines of notes holding the words typed: the bar is also the quick search ("In notes") */
   let lineHits = $state<{ path: string; line: number; text: string }[]>([]);
   let busy = $state(false);
+  /** Enter typed before the search answered this query (it waits 110 ms, then the core), with nothing to choose yet:
+   *  runs the first hit when it comes
+   *  (never "Create note": what was about to be found is not made twice). Typing on forgets it. */
+  let enterPending = $state<{ q: string; beside: boolean } | null>(null);
+  $effect(() => {
+    const p = enterPending;
+    if (!p || (palette.open && p.q === q && answered !== p.q.trim())) return;
+    enterPending = null;
+    const first = items[0];
+    if (palette.open && p.q === q && first && first.key !== "f:new") choose(first, p.beside);
+  });
 
   const placeholder = $derived(
     palette.mode === "files" ? "Open file by name…" :
     palette.mode === "pick" ? palette.pick?.placeholder ?? "Pick one…" :
     palette.mode === "url" ? "URL to open in a web pane…" :
-    palette.mode === "capture" ? "Capture a thought, a to-do, a link…" : "Type a command, a file, or # for headings…",
+    palette.mode === "capture" ? PROMPT : "Type a command, a file, or # for headings…",
   );
 
   $effect(() => { if (palette.open) return closable(closePalette); }); // a phone's Back closes it (lib/back.ts)
+  $effect(() => { if (palette.open) return holdFocus(); }); // closed, the focus goes back where it was
 
   // per open: take the keyboard, refresh what is listed (no state is reset here — see palette.svelte.ts)
   $effect(() => {
@@ -73,18 +90,21 @@
   // the capture row's words (the core's), asked only while a capture row can show
   const captureHintNow = captureHint(() => (palette.open && (palette.mode === "capture" || palette.mode === "all") && !q.trim().startsWith(">") ? q.trim() : ""));
   const captureWhat = () => captureHintNow.current.says;
-  const captureNow = (text: string) => void api.capture(text).then((r) => toast("Captured", `${shownPath(r.path)}:${r.line}`, "success"), (e) => toast("Not captured", errText(e), "error"));
+  const captureNow = captureText;
 
   // file search (server-side filename match), debounced
   const fileSearches = new Newest(110);
   $effect(() => {
     const query = q.trim();
     const mode = palette.mode;
-    if (!palette.open || (mode !== "all" && mode !== "files") || !query || query.startsWith("#") || query.startsWith(">")) { fileSearches.stop(); fileHits = []; lineHits = []; busy = false; return; } // one still answering is now stale
+    if (!palette.open || (mode !== "all" && mode !== "files") || !query || query.startsWith("#") || query.startsWith(">")) { fileSearches.stop(); fileHits = []; lineHits = []; titledHits = []; busy = false; return; } // one still answering is now stale
     fileSearches.run(async (still) => {
       busy = true;
-      try { const r = await api.search(query); if (still()) { fileHits = r.files; lineHits = r.lines; hitsFor = query; } }
-      catch { if (still()) { fileHits = []; lineHits = []; } }
+      try {
+        const [r, t] = await Promise.all([api.search(query), titledNotes(query)]);
+        if (still()) { fileHits = r.files; lineHits = r.lines; hitsFor = query; titledHits = besides(t, r.files); }
+      }
+      catch { if (still()) { fileHits = []; lineHits = []; titledHits = []; } }
       finally { if (still()) { busy = false; answered = query; } }
     });
     return () => fileSearches.stop();
@@ -101,6 +121,10 @@
 
   /** `tag:name` asks the core for a tag's notes: its answer is the list, not something to match by name. */
   const tagQuery = (q: string) => /^tag:/i.test(q.trim());
+  const titledItems = (): Item[] => titledHits.map((t) => ({
+    key: `t:${t.path}`, section: "By title", title: t.title, detail: shownName(t.path), icon: fileIcon(t.path), score: 0, hl: [],
+    run: () => openPath(t.path), beside: () => openPath(t.path, undefined, { beside: true }),
+  }));
   function fileItems(paths: string[], query: string, section: string): Item[] {
     // rank by basename first, full path as tiebreak
     return paths
@@ -146,7 +170,7 @@
         // has answered, so Enter typed early never creates what was about to be found
         const called = (f: Item) => !!f.path && [basename(f.path), shownName(f.path)].some((n) => n.toLowerCase() === query.toLowerCase());
         const create: Item[] = hitsFor !== query || found.some(called) || /[\\/]/.test(query) ? [] : [{ key: "f:new", section: "New", title: `Create note “${query}”`, icon: "plus", score: -1, hl: [], run: () => createNote(query) }];
-        return [...found, ...create];
+        return [...found, ...titledItems(), ...create];
       }
       case "all": {
         if (query.startsWith("#")) return headingItems(query.slice(1).trim());
@@ -168,10 +192,10 @@
         // search has answered: before, the capture row was the only one, and an Enter typed early wrote a file's name
         // into today's log instead of opening the file
         const capture: Item[] = query && !query.startsWith(">") && answered === query ? [{
-          key: "cap", section: "Capture", title: `Capture “${query}”`, detail: `${captureWhat()} — or start with + to capture with completions`, icon: "plus", score: -2, hl: [],
+          key: "cap", section: "Capture", title: `Capture “${query}”`, detail: `${captureWhat()} — or press Super+E again`, icon: "plus", score: -2, hl: [],
           run: () => captureNow(query),
         }] : [];
-        return query ? [...cmds.slice(0, 8), ...heads, ...files, ...lines, ...capture] : [...files, ...cmds];
+        return query ? [...cmds.slice(0, 8), ...heads, ...files, ...titledItems(), ...lines, ...capture] : [...files, ...cmds];
       }
     }
   });
@@ -199,9 +223,13 @@
   function onkeydown(e: KeyboardEvent) {
     if (e.key === "ArrowDown" || (e.ctrlKey && e.key === "n")) { e.preventDefault(); palette.sel = (sel + 1) % Math.max(1, items.length); scroll(); }
     else if (e.key === "ArrowUp" || (e.ctrlKey && e.key === "p" && palette.mode !== "files")) { e.preventDefault(); palette.sel = (sel - 1 + items.length) % Math.max(1, items.length); scroll(); }
-    else if (e.key === "Enter") { e.preventDefault(); choose(items[sel], e.ctrlKey || superOf(e)); }
+    else if (e.key === "Enter") { e.preventDefault(); if (!items[sel] && q.trim() && answered !== q.trim()) enterPending = { q, beside: e.ctrlKey || superOf(e) }; else choose(items[sel], e.ctrlKey || superOf(e)); }
     else if (e.key === "Escape") { e.preventDefault(); closePalette(); }
     else if (e.key === "Backspace" && palette.mode === "capture" && !palette.q) { e.preventDefault(); palette.mode = "all"; }
+  }
+  function framekeys(e: KeyboardEvent & { currentTarget: HTMLElement }) {
+    if (e.key === "Escape" && !e.defaultPrevented) { e.preventDefault(); closePalette(); }
+    else trapTab(e, e.currentTarget);
   }
   function scroll() { void tick().then(() => listEl?.querySelector(".item.sel")?.scrollIntoView({ block: "nearest" })); }
 </script>
@@ -209,7 +237,8 @@
 {#if palette.open}
   <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
   <div class="scrim" onclick={closePalette}>
-    <div class="palette" role="dialog" tabindex="-1" aria-label="Command palette" onclick={(e) => e.stopPropagation()} data-testid="palette">
+    <!-- Tab walks the box and its rows, never out to the page behind the scrim; Esc closes from a row as from the box -->
+    <div class="palette" role="dialog" aria-modal="true" tabindex="-1" aria-label="Command palette" onclick={(e) => e.stopPropagation()} onkeydown={framekeys} data-testid="palette">
       <div class="field">
         <Icon name={palette.mode === "pick" ? palette.pick?.icon ?? "command" : palette.mode === "url" ? "globe" : palette.mode === "files" ? "file" : palette.mode === "capture" ? "plus" : "command"} size={16} />
         <input bind:this={input} bind:value={palette.q} {onkeydown} {placeholder} spellcheck="false" autocomplete="off" aria-label={placeholder}
@@ -235,7 +264,7 @@
       <div class="foot">
         <span class="keys-only"><kbd>↑</kbd><kbd>↓</kbd> move</span><span class="keys-only"><kbd>Enter</kbd> run</span>{#if items[sel]?.beside}<span class="keys-only"><kbd>Ctrl</kbd><kbd>Enter</kbd> open beside</span>{/if}<span class="keys-only"><kbd>Esc</kbd> close</span>
         {#if palette.mode === "all"}<span class="faint"><kbd>#</kbd> headings · <kbd>&gt;</kbd> commands only · <kbd>+</kbd> capture</span>{/if}
-        {#if palette.mode === "capture"}<span class="faint"><kbd>[]</kbd> a to-do · <kbd>@tomorrow</kbd> a date · <kbd>[[</kbd> a note · <kbd>⌫</kbd> back to commands</span>{/if}
+        {#if palette.mode === "capture"}<span class="faint">{#if !q.trim()}<CaptureGuides box={input} /> · {/if}<kbd>⌫</kbd> back to commands</span>{/if}
       </div>
     </div>
   </div>
@@ -258,7 +287,10 @@
   .item.sel { background: var(--bg-active); }
   .item.sel .ico { color: var(--accent); }
   .ico { color: var(--text-faint); display: inline-flex; }
-  .title { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: none; max-width: 60%; }
+  /* a title takes the row; beside a detail it keeps 60% of it (on a phone all it needs: the detail goes first) */
+  .title { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 0 1 auto; min-width: 0; }
+  .title:has(+ .detail) { flex: none; max-width: 60%; }
+  :global(html.phone) .title:has(+ .detail) { flex: 0 1 auto; max-width: none; }
   .title :global(mark) { background: none; color: var(--accent-strong); font-weight: 600; }
   .detail { color: var(--text-faint); font-size: calc(12px * var(--ui-scale, 1)); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1; min-width: 0; }
   .item .kbd-group { margin-left: auto; flex: none; }

@@ -74,7 +74,7 @@
   svg { flex: none; color: var(--text-muted); }
   .menu { position: absolute; z-index: 50; top: calc(100% + 4px); left: 0; min-width: 100%; max-width: 460px; max-height: 300px; overflow: auto;
     margin: 0; padding: 4px; list-style: none; background: var(--bg-elev); border: 1px solid var(--border-strong); border-radius: var(--radius-sm);
-    box-shadow: 0 10px 30px rgba(0, 0, 0, .35); }
+    box-shadow: var(--shadow-pop); }
   li { display: flex; flex-direction: column; gap: 1px; padding: 5px 9px; border-radius: 4px; cursor: pointer; color: var(--text); font-size: calc(13px * var(--ui-scale, 1)); }
   li.on { background: var(--bg-hover); }
   li.cur .l { color: var(--accent); font-weight: 600; }

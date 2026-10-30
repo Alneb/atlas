@@ -27,8 +27,7 @@ export function keepPlace(path: string, p: Place): void {
   save(KEY, places);
 }
 
-/** The view's place: the caret, and the start of the line block at the scroller's top edge. */
-export function placeIn(view: EditorView): Place {
-  const top = view.lineBlockAtHeight(view.scrollDOM.scrollTop - view.documentPadding.top).from;
-  return { head: view.state.selection.main.head, top };
+/** The start of the line block at the scroller's top edge (reads the layout: call it in a measure phase). */
+export function topIn(view: EditorView): number {
+  return view.lineBlockAtHeight(view.scrollDOM.scrollTop - view.documentPadding.top).from;
 }

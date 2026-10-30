@@ -198,6 +198,19 @@
     if (!isVault) items.push({ label: "A file of this vault…", icon: "files", run: () => run(act.uploadVaultFile) });
     menu = below(ev, items);
   }
+  /** The bar's less-used buttons as one menu: what a narrow pane (a phone) shows instead of three rows of buttons. */
+  function moreMenu(ev: MouseEvent): void {
+    const items: MenuItem[] = [];
+    if (isVault) items.push({ label: deep ? "Filter this folder only" : "Filter every folder below too", icon: "search", run: () => (deep = !deep) });
+    items.push({ label: treeView.showAll ? "Hide hidden files" : "Show hidden files", icon: "eye", run: toggleShowAll });
+    if (src?.mkdir) items.push({ label: "New folder", icon: "folder", run: () => (editing = { kind: "new" }) });
+    if (src && (src.upload || isVault)) {
+      items.push({ label: "Upload from this computer…", icon: "arrow-up", run: () => fileInput?.click() });
+      if (!isVault) items.push({ label: "Upload a file of this vault…", icon: "files", run: () => run(act.uploadVaultFile) });
+    }
+    items.push({ label: "Refresh", hint: "F5", icon: "refresh", run: () => void b.reload() });
+    menu = below(ev, items);
+  }
   /** The places as a menu: what the narrow pane shows instead of the column (hidden under 620 px). */
   function placesMenu(ev: MouseEvent): void {
     const items: MenuItem[] = [];
@@ -257,7 +270,7 @@
   // ---- dragging -------------------------------------------------------------------------------------
   function dragStart(ev: DragEvent, e: Entry): void {
     const path = joinPath(loc.path, e.name);
-    if (ev.dataTransfer) dragRow(ev.dataTransfer, isVault ? { vault: true, path } : { vault: false, source: loc.source, place: loc.place, path, dir: e.kind === "dir" });
+    if (ev.dataTransfer) dragRow(ev.dataTransfer, isVault ? { vault: true, path, dir: e.kind === "dir" } : { vault: false, source: loc.source, place: loc.place, path, dir: e.kind === "dir" });
   }
   const dirUnder = (ev: DragEvent) => {
     const row = (ev.target as HTMLElement).closest<HTMLElement>(".x-row[data-dir]");
@@ -341,17 +354,18 @@
       {/if}
       <input class="filter" bind:this={filterEl} bind:value={filter} placeholder="Filter…" aria-label="Filter this folder" spellcheck="false"
         onkeydown={(e) => { e.stopPropagation(); if (e.key === "Escape") { filter = ""; focusList(); } else if (e.key === "Enter" || e.key === "ArrowDown") { e.preventDefault(); focusList(); } }} />
-      {#if isVault}<button class="btn" class:on={deep} aria-pressed={deep} title="Search every folder under this one, not only this folder" onclick={() => (deep = !deep)}>Below</button>{/if}
-      <button class="btn" class:on={treeView.showAll} aria-pressed={treeView.showAll} title="Hidden files: dotfiles, companions (a mail's files, a PDF's ink), notes with shown: false — the same in the sidebar tree (Ctrl+H)" onclick={toggleShowAll}>Hidden</button>
+      {#if isVault}<button class="btn roomy" class:on={deep} aria-pressed={deep} title="Search every folder under this one, not only this folder" onclick={() => (deep = !deep)}>Below</button>{/if}
+      <button class="btn roomy" class:on={treeView.showAll} aria-pressed={treeView.showAll} title="Hidden files: dotfiles, companions (a mail's files, a PDF's ink), notes with shown: false — the same in the sidebar tree (Ctrl+H)" onclick={toggleShowAll}>Hidden</button>
       <div class="seg" role="group" aria-label="View">
         <button class="icon-btn" class:on={view === "list"} aria-pressed={view === "list"} title="List: names, sizes and dates" aria-label="List" onclick={() => setView("list")}><Icon name="rows" size={14} /></button>
         <button class="icon-btn" class:on={view === "thumbs"} aria-pressed={view === "thumbs"} title="Thumbnails: pictures, the first page of PDFs" aria-label="Thumbnails" onclick={() => setView("thumbs")}><Icon name="grid" size={14} /></button>
       </div>
-      {#if src?.mkdir}<button class="btn" title="Make a folder here" onclick={() => (editing = { kind: "new" })}>New folder</button>{/if}
-      {#if src && (src.upload || isVault)}<button class="btn" title="Put files into this folder" onclick={uploadMenu}>Upload…</button>{/if}
-      <button class="btn" class:on={preview} aria-pressed={preview} title="Show the selected file at the right" onclick={() => setPreview(!preview)}>Preview</button>
-      <button class="btn" title="Another explorer beside this one, to drag files between" onclick={split}>Split</button>
-      <button class="icon-btn" title="Refresh (F5)" aria-label="Refresh" onclick={() => void b.reload()}><Icon name="refresh" size={14} /></button>
+      {#if src?.mkdir}<button class="btn roomy" title="Make a folder here" onclick={() => (editing = { kind: "new" })}>New folder</button>{/if}
+      {#if src && (src.upload || isVault)}<button class="btn roomy" title="Put files into this folder" onclick={uploadMenu}>Upload…</button>{/if}
+      <button class="btn roomy wide" class:on={preview} aria-pressed={preview} title="Show the selected file at the right" onclick={() => setPreview(!preview)}>Preview</button>
+      <button class="btn roomy wide" title="Another explorer beside this one, to drag files between" onclick={split}>Split</button>
+      <button class="icon-btn roomy" title="Refresh (F5)" aria-label="Refresh" onclick={() => void b.reload()}><Icon name="refresh" size={14} /></button>
+      <button class="icon-btn more-btn" title="More: hidden files, new folder, upload, refresh" aria-label="More" onclick={moreMenu}><Icon name="more" size={14} /></button>
     </div>
     {#if confirm}
       {@const c = confirm}
@@ -475,7 +489,7 @@
   .btn { display: inline-flex; align-items: center; min-height: 26px; padding: 0 9px; border-radius: var(--radius-sm); border: 1px solid var(--border); color: var(--text-muted); flex: none; white-space: nowrap; }
   .btn:hover { color: var(--text); background: var(--bg-hover); border-color: var(--border-strong); }
   .btn.on { color: var(--accent); border-color: var(--accent); }
-  .btn.danger { color: #fff; background: var(--red); border-color: var(--red); }
+  .btn.danger { color: var(--accent-fg); background: var(--red); border-color: var(--red); }
   .btn:focus-visible, .icon-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
   .confirm { display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: var(--bg-elev); border-bottom: 1px solid var(--border); flex: none; }
   .confirm span { flex: 1; min-width: 0; }
@@ -493,6 +507,9 @@
   .list.thumbs .x-row { contain-intrinsic-size: auto 150px; }
   .x-row:hover { background: var(--bg-hover); }
   .x-row.sel { background: var(--accent-soft); }
+  /* the keys' place is the selected row, not a frame round the whole list (base.css's focus ring) */
+  .list.list:focus-visible { outline: none; }
+  .list:focus-visible .x-row.sel { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 60%, transparent); }
   .x-row.drop-into { box-shadow: inset 0 0 0 1px var(--accent); }
   .name { display: flex; align-items: center; gap: 8px; min-width: 0; color: var(--text-faint); }
   .x-row.dir .name { color: var(--accent); }
@@ -501,7 +518,7 @@
   .when { color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
   /* the row's buttons float over its right end while the pointer is on it: no column of their own to collide with */
   .acts { position: absolute; right: 4px; top: 50%; transform: translateY(-50%); display: flex; gap: 2px; padding: 1px; visibility: hidden;
-    border-radius: var(--radius-sm); background: var(--bg-elev); box-shadow: 0 0 0 1px var(--border), 0 2px 6px rgb(0 0 0 / .15); }
+    border-radius: var(--radius-sm); background: var(--bg-elev); box-shadow: 0 0 0 1px var(--border), var(--shadow-sm); }
   .x-row:hover .acts { visibility: visible; }
   .acts button { min-height: 22px; padding: 0 7px; border-radius: var(--radius-sm); color: var(--text-muted); }
   .acts button:hover { color: var(--text); background: var(--bg-active); }
@@ -530,6 +547,9 @@
   .pic { position: relative; display: flex; align-items: center; justify-content: center; width: 100%; aspect-ratio: 4 / 3; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--bg-elev); overflow: hidden; }
   .pic img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; opacity: 0; }
   :global(.x-row.has-thumb) .pic img { opacity: 1; background: var(--bg-elev); }
+  /* a text file's first lines (explorer-thumbs.ts): a page in miniature, fading out at the bottom */
+  .pic :global(.excerpt) { position: absolute; inset: 0; padding: 7px 8px; background: var(--bg-elev); color: var(--text-muted); font-size: 8.5px; line-height: 1.35;
+    white-space: pre-wrap; overflow-wrap: anywhere; text-align: left; overflow: hidden; mask-image: linear-gradient(to bottom, var(--text) 70%, transparent); }
   @container (max-width: 820px) { .head, .x-row { grid-template-columns: minmax(0, 1fr) 6em; } .when { display: none; } .head .modified { display: none; } }
   .filter { width: 140px; min-width: 70px; font: inherit; color: var(--text); background: var(--bg-elev); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 3px 8px; min-height: 26px; outline: none; flex: 0 1 140px; }
   .filter:focus { border-color: var(--accent); }
@@ -542,6 +562,9 @@
   @container (max-width: 760px) { .preview { display: none; } }
   .places-btn { display: none; }
   @container (max-width: 700px) { .places-btn { display: inline-flex; } }
+  /* a phone: the bar is one line, the rest in More (Preview and Split need room the pane has not got) */
+  .more-btn { display: none; }
+  @container (max-width: 560px) { .bar .roomy { display: none; } .more-btn { display: inline-flex; } .bar > .filter { flex: 1 1 60px; width: auto; } }
 
   /* a finger's targets: rows and buttons ~40 px; the row's hover buttons never show (long press: its menu) */
   @media (pointer: coarse) {

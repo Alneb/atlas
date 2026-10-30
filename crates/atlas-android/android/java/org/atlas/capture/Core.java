@@ -8,8 +8,8 @@ final class Core {
     static native void prepare(String vault);
     /** The completions at the caret (UTF-16): [{label, detail, icon, insert, from, to, more, newLine}]. */
     static native String suggest(String vault, String text, int caret);
-    /** What the text becomes once saved: "a to-do, due Friday". */
-    static native String describe(String text);
+    /** What the text becomes once saved in the vault ("" before one is chosen): "a to-do, due Friday". */
+    static native String describe(String vault, String text);
     /** Writes the capture: {path, line} or {error}. */
     static native String save(String vault, String text);
     /** Copies a file beside today's log note: {path, embed} or {error}. */

@@ -429,7 +429,7 @@ const kindTitle = (k) => k.library?.title ?? k.label ?? human(k.name);
 const IN = {
   movie: "Films & Series", show: "Films & Series", series: "Films & Series",
   album: "Music", artist: "Music", song: "Music",
-  anime: "Anime & Manga", manga: "Anime & Manga",
+  anime: "Films & Series", manga: "Comics", // anime is television, manga are comics
   book: "Books", science_book: "Books", audiobook: "Books",
   video: "Videos", article: "Web pages", webpage: "Web pages", clip: "Web pages",
   paper: "References",

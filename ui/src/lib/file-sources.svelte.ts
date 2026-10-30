@@ -14,6 +14,7 @@ import { isIconName } from "./icons";
 import { vaultFiles, vaultReady } from "./vault";
 import { exists } from "./vault-files";
 import { basename } from "./paths";
+import { excerptOf } from "./excerpt";
 import { rel } from "./time";
 import type { IconName } from "./panes";
 
@@ -60,10 +61,16 @@ export interface FileSource {
   hideEmpty?: boolean;
   /** Called when the places change (a host connected): the explorer redraws them. */
   onPlaces?(fn: () => void): () => void;
-  /** A picture of the file for the explorer's Thumbnails view, about `width` px wide: image bytes, or the vault path of
-   *  an image (thumbnailed by the core); null when there is none (the file's icon shows). */
-  thumb?(place: string, path: string, width: number): Promise<Blob | string | null>;
+  /** A picture of the file for the explorer's Thumbnails view, about `width` px wide: image bytes, the vault path of
+   *  an image (thumbnailed by the core), or a text file's first lines; null when there is none (the file's icon shows). */
+  thumb?(place: string, path: string, width: number): Promise<Blob | string | Excerpt | null>;
 }
+
+/** A text file's first lines, drawn as text on its tile (themed and sharp, unlike a picture of them). */
+export type Excerpt = { text: string };
+const TEXT_THUMB = /\.(md|markdown|txt|tex|bib|org|rst|csv|py|rs|js|mjs|ts|json|toml|ya?ml|sh|zsh|c|h|cpp|hpp|jl|lua|go|java)$/i;
+const EXCERPT_BYTES = 1200;
+
 
 export const REMOTE = ".atlas/remote/";
 /** Pictures the core can thumbnail (`/api/thumb`): IMAGE_RE (paths.ts) without the drawn kinds (svg, ico). */
@@ -91,7 +98,7 @@ async function saveBack(src: FileSource, path: string): Promise<void> {
   try {
     const r = await go(false);
     if ("waiting" in r) toast(`Not saved to ${src.title}`, `${r.waiting} Then save again.`, "error", 9000);
-    else if ("changed" in r) toast(`Not saved to ${src.title}`, `${r.changed}. Click to save over it.`, "error", 12000, () => void go(true).then((again) => toast("Saved", "saved" in again ? again.saved : path, "success"), (e) => toast(`Not saved to ${src.title}`, why(e), "error")));
+    else if ("changed" in r) toast(`Not saved to ${src.title}`, `${r.changed}.`, "error", 12000, { label: "Save over it", run: () => void go(true).then((again) => toast("Saved", "saved" in again ? again.saved : path, "success"), (e) => toast(`Not saved to ${src.title}`, why(e), "error")) });
     else toast("Saved", r.saved, "success");
   } catch (e) { toast(`Not saved to ${src.title}`, why(e), "error", 9000); }
 }
@@ -105,9 +112,11 @@ export function addSource(src: FileSource): () => void {
   const offSave = src.save ? onPluginEvent(src.id, "file:save", ({ path }) => { if (path.startsWith(`${REMOTE}${src.id}/`)) return saveBack(src, path); }) : () => {};
   const remove = () => {
     offSave();
-    const i = sources.list.indexOf(src);
+    if (removers.get(src.id) !== remove) return; // replaced already: the newer source stays
+    removers.delete(src.id);
+    // by id: the list holds a proxy of each source ($state), never `src` itself, so indexOf(src) found nothing
+    const i = sources.list.findIndex((s) => s.id === src.id);
     if (i >= 0) sources.list.splice(i, 1);
-    if (removers.get(src.id) === remove) removers.delete(src.id);
   };
   removers.set(src.id, remove);
   return remove;
@@ -195,6 +204,10 @@ export const vaultSource: FileSource = {
   },
   thumb: async (_place, path, width) => {
     if (IMAGE.test(path)) return path;
+    if (TEXT_THUMB.test(path)) {
+      const head = await api.rawHead(path, EXCERPT_BYTES);
+      return { text: excerptOf(head.text, head.whole) };
+    }
     if (!/\.(pdf|epub)$/i.test(path)) return null;
     // the core's picture — a PDF's first page, an EPUB's cover — made once and kept in .atlas/cache/thumbs (thumbs.rs);
     // a PDF is drawn here only where the core cannot (no poppler: a phone)

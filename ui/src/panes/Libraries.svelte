@@ -15,7 +15,7 @@
   const list = $derived(shownLibraries());
   let chosen = $state(load<string>(LAST, ""));
   $effect(() => { if (spec.at) chosen = spec.at; }); // opened (again) at one
-  const current = $derived(list.find((e) => e.id === chosen) ?? list[0]);
+  const current = $derived(list.find((e) => e.id === chosen || e.members?.includes(chosen)) ?? list[0]);
   let source = $state<LibrarySource | null>(null);
   let error = $state("");
 

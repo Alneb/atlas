@@ -1,21 +1,21 @@
 <script lang="ts">
-  import { keysOf } from "../lib/keymap.svelte";
+  import { tipFor } from "../lib/keymap.svelte";
   // The bar above a code file (`[editor] code_bar`): what one reaches for in an IDE — find, replace,
   // go to line, format, the file's problems — and the tools plugins add for this file (run, build,
   // test: `atlas.editor.toolbar`). Each built-in button runs the same command as its key.
   import type { EditorView } from "@codemirror/view";
   import { codeTools } from "../lib/editor/create";
-  import { app } from "../lib/state.svelte";
+  import { toast, type Problems } from "../lib/state.svelte";
   import { showProblems } from "../lib/actions";
   import { allCommands } from "../lib/keymap.svelte";
   import { searchRequest } from "../lib/registry";
   import { codeToolsVersion, pluginCodeTools } from "../lib/plugin-code-tools";
 
-  let { view, path }: { view: () => EditorView | null; path: string } = $props();
+  // this file's problems (null: no checker has reported), not the focused file's: two code tabs side by side differ
+  let { view, path, problems }: { view: () => EditorView | null; path: string; problems: Problems | null } = $props();
   let version = $state(codeToolsVersion.n);
   $effect(() => { const l = () => (version = codeToolsVersion.n); codeToolsVersion.listeners.add(l); return () => void codeToolsVersion.listeners.delete(l); });
   const extra = $derived((void version, pluginCodeTools(path)));
-  const problems = $derived(app.problems);
   const on = (f: (v: EditorView) => unknown) => () => { const v = view(); if (v) { f(v); } };
   // "Replace in files" is a command of the app: the bar runs the command, so its key and the button stay one thing
   // what is selected (one line of it) is what one wants to replace: it is handed to the Search pane
@@ -24,7 +24,12 @@
     if (sel.trim() && !sel.includes("\n")) searchRequest.q = sel;
     void allCommands().find((c) => c.id === "ui.replace")?.run();
   };
-  const format = () => { const v = view(); if (v && !codeTools.format(v)) v.focus(); };
+  const format = () => {
+    const v = view();
+    if (!v) return;
+    if (!codeTools.format(v)) toast("Nothing formats this file", "Format asks the file's language server, and none runs for it (Settings → Code).");
+    v.focus();
+  };
 </script>
 
 <div class="code-bar" role="toolbar" aria-label="Code tools" data-testid="code-bar">
@@ -32,12 +37,12 @@
   {#if extra.length}<span class="gap"></span>{/if}
   <button class="tool" title="Find in this file · Ctrl+F" onclick={on(codeTools.find)}>Find</button>
   <button class="tool" title="Find and replace in this file · Ctrl+H" onclick={on(codeTools.replace)}>Replace</button>
-  <button class="tool" title="Find and replace across the vault, with a preview of every change · Ctrl+Shift+H" onclick={inFiles}>In files…</button>
+  <button class="tool" title={tipFor("Find and replace across the vault, with a preview of every change", "ui.replace")} onclick={inFiles}>In files…</button>
   <button class="tool" title="Go to a line · Ctrl+G" onclick={on(codeTools.gotoLine)}>Line…</button>
   <span class="gap"></span>
   <button class="tool" title="Format the file with its language server · Shift+Alt+F" onclick={format}>Format</button>
   {#if problems}
-    <button class="tool" class:bad={problems.errors > 0} class:warn={!problems.errors && problems.warnings > 0} title="Problems in this file · {keysOf('ui.problems') ?? ''}" onclick={showProblems}>
+    <button class="tool" class:bad={problems.errors > 0} class:warn={!problems.errors && problems.warnings > 0} title={tipFor("Problems in this file", "ui.problems")} onclick={showProblems}>
       {problems.errors + problems.warnings ? `${problems.errors} error${problems.errors === 1 ? "" : "s"} · ${problems.warnings} warning${problems.warnings === 1 ? "" : "s"}` : "No problems"}
     </button>
   {/if}

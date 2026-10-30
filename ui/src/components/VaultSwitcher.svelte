@@ -3,7 +3,7 @@
   // it is (a folder, a server, started already, its mirror) and what can be done to it; then opening a folder, making a
   // vault, reaching a server. A folder and its copy on a server are one row (docs/design/DESIGN-mirror-v2.md).
   import Icon from "./Icon.svelte";
-  import { closable } from "../lib/back";
+  import Dialog from "./Dialog.svelte";
   import { errText } from "../lib/text";
   import { toast } from "../lib/state.svelte";
   import { askFolder, askServer, forgetVault, openVault, setMirror, vaultListing, type VaultEntry } from "../lib/vaults";
@@ -32,7 +32,8 @@
     } catch (e) { failed = errText(e); }
   }
   $effect(() => { void load(); });
-  $effect(() => closable(onclose));
+  // Esc, Back or the scrim while linking a mirror steps back out of it first
+  const back = () => { if (linking) linking = null; else onclose(); };
   $effect(() => { input?.focus(); });
 
   const typedPath = $derived(/^(\/|~|[A-Za-z]:\\|https?:\/\/)/.test(query.trim()) ? query.trim() : "");
@@ -55,7 +56,7 @@
 
   function key(ev: KeyboardEvent) {
     const n = shown.length + (typedPath ? 1 : 0);
-    if (ev.key === "Escape") { ev.preventDefault(); ev.stopPropagation(); if (linking) linking = null; else onclose(); }
+    if (ev.key === "Escape") { ev.preventDefault(); ev.stopPropagation(); back(); }
     else if (linking) return;
     else if (ev.key === "ArrowDown") { ev.preventDefault(); sel = n ? (sel + 1) % n : 0; }
     else if (ev.key === "ArrowUp") { ev.preventDefault(); sel = n ? (sel - 1 + n) % n : 0; }
@@ -96,11 +97,8 @@
 
 <!-- the keys at the window: a row removed takes the focus with it -->
 <svelte:window onkeydown={key} />
-<!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
-<div class="backdrop" onclick={onclose}>
-  <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-  <div class="dialog" role="dialog" aria-modal="true" aria-label="Switch vault" data-testid="vault-switcher" tabindex="-1"
-    onclick={(e) => e.stopPropagation()}>
+<Dialog label="Switch vault" onclose={back} testid="vault-switcher">
+  <div class="dialog">
     <div class="search">
       <Icon name="search" size={15} />
       <input bind:this={input} bind:value={query} placeholder="Switch vault — type a name, or a folder or server address" spellcheck="false" aria-label="Search vaults" />
@@ -177,12 +175,11 @@
       </div>
     {/if}
   </div>
-</div>
+</Dialog>
 
 <style>
-  .backdrop { position: fixed; inset: 0; z-index: 100; background: rgba(0, 0, 0, .35); display: grid; place-items: start center; padding-top: 9vh; overflow: auto; }
   .dialog { width: min(640px, calc(100vw - 32px)); max-height: 78vh; display: flex; flex-direction: column; background: var(--bg-elev); border: 1px solid var(--border-strong);
-    border-radius: 12px; box-shadow: 0 18px 50px rgba(0, 0, 0, .45); overflow: hidden; outline: none; }
+    border-radius: var(--radius-lg); box-shadow: var(--shadow-pop); overflow: hidden; outline: none; }
   .search { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-bottom: 1px solid var(--border); color: var(--text-muted); }
   .search input { flex: 1; font: inherit; font-size: calc(15px * var(--ui-scale, 1)); color: var(--text); background: transparent; border: 0; outline: none; padding: 4px 0; }
   .rows { list-style: none; margin: 0; padding: 6px; overflow: auto; flex: 1; }
@@ -198,16 +195,16 @@
   .badges { display: flex; gap: 4px; flex-wrap: wrap; justify-content: flex-end; }
   .badge { font-size: calc(11px * var(--ui-scale, 1)); color: var(--text-muted); border: 1px solid var(--border); border-radius: 999px; padding: 1px 8px; white-space: nowrap; }
   .badge.here { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 45%, transparent); }
-  .badge.warm { color: var(--success, #3a9a5b); border-color: color-mix(in srgb, var(--success, #3a9a5b) 40%, transparent); }
-  .badge.bad { color: var(--error, #d0463b); border-color: color-mix(in srgb, var(--error, #d0463b) 40%, transparent); }
-  .badge.mirror.online { color: var(--success, #3a9a5b); }
+  .badge.warm { color: var(--green); border-color: color-mix(in srgb, var(--green) 40%, transparent); }
+  .badge.bad { color: var(--red); border-color: color-mix(in srgb, var(--red) 40%, transparent); }
+  .badge.mirror.online { color: var(--green); }
   .badge.mirror.offline { opacity: .6; }
-  .badge.mirror.signin { color: var(--warning, #c08a1e); }
+  .badge.mirror.signin { color: var(--orange); }
   .acts { display: none; gap: 4px; padding-right: 8px; }
   .row.sel .acts, .row:focus-within .acts { display: flex; }
   .act { font: inherit; font-size: calc(12px * var(--ui-scale, 1)); color: var(--text-muted); background: transparent; border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 3px 8px; cursor: pointer; }
   .act:hover { color: var(--text); border-color: var(--border-strong); }
-  .act.danger { color: var(--error, #d0463b); border-color: var(--error, #d0463b); }
+  .act.danger { color: var(--red); border-color: var(--red); }
   .link { flex-basis: 100%; display: flex; flex-direction: column; gap: 8px; margin: 0 10px 10px 38px; padding: 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); }
   .link p { margin: 0; font-size: calc(12.5px * var(--ui-scale, 1)); color: var(--text-muted); line-height: 1.45; }
   .link input { font: inherit; color: var(--text); background: var(--bg-elev); border: 1px solid var(--border-strong); border-radius: var(--radius-sm); padding: 6px 9px; outline: none; }

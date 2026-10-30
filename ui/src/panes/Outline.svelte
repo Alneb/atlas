@@ -40,10 +40,21 @@
     const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
     mark = e.clientY < r.top + r.height / 2 ? i : i + 1;
   }
+  /** Click / Enter: to the heading in its editor, which takes the keys. */
+  function jump(h: Head) { getDock()?.getPanel(editorId!)?.api.setActive(); ed?.gotoLine(h.line); ed?.focus(); }
+  // ↑/↓/Home/End walk the headings, Esc goes back to the editor, Alt+↑/↓ moves the section
   function onKey(e: KeyboardEvent, i: number) {
-    if (!e.altKey || (e.key !== "ArrowUp" && e.key !== "ArrowDown")) return;
-    e.preventDefault();
-    void move(moveBy(heads, lines(), i, e.key === "ArrowUp" ? -1 : 1));
+    const rows = [...(list?.querySelectorAll<HTMLElement>(".head") ?? [])];
+    const to = (j: number) => { e.preventDefault(); rows[Math.max(0, Math.min(rows.length - 1, j))]?.focus(); };
+    if (e.altKey && (e.key === "ArrowUp" || e.key === "ArrowDown")) {
+      e.preventDefault();
+      void move(moveBy(heads, lines(), i, e.key === "ArrowUp" ? -1 : 1));
+    } else if (e.altKey || e.ctrlKey || e.metaKey) return;
+    else if (e.key === "ArrowDown") to(i + 1);
+    else if (e.key === "ArrowUp") to(i - 1);
+    else if (e.key === "Home") to(0);
+    else if (e.key === "End") to(rows.length - 1);
+    else if (e.key === "Escape") { e.preventDefault(); getDock()?.getPanel(editorId!)?.api.setActive(); ed?.focus(); }
   }
 
   onMount(() => {
@@ -65,17 +76,17 @@
     {#if !ed}
       <p class="faint small pad">Open a note or a .tex file to see its outline.</p>
     {:else if !heads.length}
-      <p class="faint small pad">No headings yet.</p>
+      <p class="faint small pad">No headings yet: {#if /\.tex$/i.test(ed.path)}a <code>\section{"{…}"}</code>{:else}a line starting with <code>#</code>{/if} makes one.</p>
     {:else}
       {#each heads as h, i (h.line)}
         <button class="head" style:padding-left="{8 + (h.level - minLevel) * 14}px" class:top={h.level === minLevel}
           class:moving={drag === i} class:before={mark === i} class:after={mark === heads.length && i === heads.length - 1}
-          data-line={h.line} draggable="true" title="Line {h.line} — drag, or Alt+↑/↓, to move the section"
+          data-line={h.line} draggable="true" title={`${h.text}\nLine ${h.line} — drag, or Alt+↑/↓, to move the section`}
           ondragstart={(e) => { drag = i; e.dataTransfer?.setData("text/plain", h.text); }}
           ondragover={(e) => over(e, i)} ondragend={() => (drag = mark = null)}
           ondrop={(e) => { e.preventDefault(); if (drag !== null && mark !== null) void move(moveBefore(heads, lines(), drag, mark)); }}
           onkeydown={(e) => onKey(e, i)}
-          onclick={() => { getDock()?.getPanel(editorId!)?.api.setActive(); ed?.gotoLine(h.line); ed?.focus(); }}>
+          onclick={() => jump(h)}>
           <Icon name="outline" size={12} /><span>{h.text}</span>
         </button>
       {/each}

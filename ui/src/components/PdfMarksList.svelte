@@ -1,8 +1,8 @@
 <script lang="ts">
   // The PDF pane's Marks tab: the note's marks (lib/pdf-marks.ts) by page, filtered by kind or #tag; a post-it on a
-  // highlight sits under it; a click goes to the mark's place.
+  // highlight sits under it; a click goes to the mark's place and points it out.
   import { STAMPS, type Mark, type MarkKind } from "../lib/pdf-marks";
-  let { marks, current, onpick }: { marks: readonly Mark[]; current: number; onpick: (page: number, y: number | null) => void } = $props();
+  let { marks, current, onpick }: { marks: readonly Mark[]; current: number; onpick: (m: Mark, y: number | null) => void } = $props();
 
   const LABEL: Partial<Record<MarkKind, string>> = {
     highlight: "Highlights", underline: "Underlines", strike: "Struck", "text-box": "Text", postit: "Post-its", ink: "Pen",
@@ -13,6 +13,8 @@
   const live = $derived(marks.filter((m) => m.kind !== "deleted"));
   const kinds = $derived([...new Set(live.map((m) => m.kind))]);
   const tags = $derived([...new Set(live.flatMap((m) => m.tags ?? []))].sort());
+  // the last mark of a filtered kind or tag gone: its chip goes, and so does the filter (else an empty list, no way out)
+  $effect(() => { if (kind && !kinds.some((k) => k === kind)) kind = null; if (tag && !tags.includes(tag)) tag = null; });
   /** A post-it on a passage is listed under it, not on its own (unless filtered for: it is what is asked). */
   const ownerOf = (m: Mark) => (m.kind === "postit" && m.on && live.some((o) => o.id === m.on) ? m.on : null);
   const shown = $derived(live.filter((m) => (!kind || m.kind === kind) && (!tag || (m.tags ?? []).includes(tag)) && (kind === "postit" || tag || !ownerOf(m))));
@@ -58,12 +60,12 @@
     {#each pages as p (p)}
       <div class="page-head" class:current={p === current}>Page {p}</div>
       {#each shown.filter((m) => m.page === p) as m (m.id)}
-        <button class="mark" data-kind={m.kind} onclick={() => onpick(m.page, topOf(m))}>
+        <button class="mark" data-kind={m.kind} onclick={() => onpick(m, topOf(m))}>
           <span class="dot" style:background={m.color ?? "#FFE066"}></span>
           <span class="words" class:struck={m.kind === "strike"} class:under={m.kind === "underline"}>{words(m)}</span>
         </button>
         {#each notesOn(m.id) as n (n.id)}
-          <button class="mark note" data-kind="postit" onclick={() => onpick(n.page, topOf(n))}><span class="words">{words(n)}</span></button>
+          <button class="mark note" data-kind="postit" onclick={() => onpick(n, topOf(n))}><span class="words">{words(n)}</span></button>
         {/each}
       {/each}
     {/each}

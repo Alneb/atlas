@@ -5,7 +5,7 @@
   import { app } from "../lib/state.svelte";
   import VaultBadge from "./VaultBadge.svelte";
   import { getBlock, mountBlock } from "../lib/blocks";
-  import { keysOf } from "../lib/keymap.svelte";
+  import { keysOf, tipFor } from "../lib/keymap.svelte";
   import { blockSrc, type PageBlock } from "../lib/page-doc";
   import { sidebar, side, sideCollapsed, sideWide, takeKeyboard, SIDEBAR_FILE } from "../lib/sidebar.svelte";
   import { tabs, setSidebarWidth, toggleSidebar } from "../lib/tabs.svelte";
@@ -95,7 +95,7 @@
       <!-- in fullscreen the bar stays icons, so the button opens it over the page and closes it again (it used to do
            nothing there) -->
       <button class="icon-btn collapse tipped" onclick={(e) => { e.stopPropagation(); if (fullscreen.on) { if (side.held) release(); else hold(); return; } toggleSidebar(); side.peek = false; }} aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-        data-tip="{collapsed ? 'Keep the sidebar open' : 'Collapse to icons'} · {keysOf('ui.sidebar') ?? ''}" data-testid="sidebar-toggle">
+        data-tip={tipFor(collapsed ? "Keep the sidebar open" : "Collapse to icons", "ui.sidebar")} data-testid="sidebar-toggle">
         <Icon name="panel-left" size={16} />
       </button>
     </header>

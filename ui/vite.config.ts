@@ -1,6 +1,7 @@
 import { defineConfig, type Plugin } from "vite";
 import { svelte } from "@sveltejs/vite-plugin-svelte";
-import { cpSync, existsSync, createReadStream, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, createReadStream, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { gzipSync } from "node:zlib";
 import { join, resolve, normalize } from "node:path";
 
 // Offline app: libraries that fetch assets at runtime get them from the app itself — from
@@ -25,6 +26,30 @@ function nodeAssets(name: string, mount: string, pkgDir: string, dirs: string[])
         const src = join(root, d);
         if (existsSync(src)) cpSync(src, join(out, mount.replace(/^\//, ""), d), { recursive: true });
       }
+    },
+  };
+}
+
+// TeX packages TikZJax does not ship (tikz-feynman and what it loads; src/vendor/tex-extra/README.md), kept as plain text
+// in the repository and served gzipped beside TikZJax's own, as TeX in the page asks for them: /tikzjax/tex_files/<f>.gz.
+function texExtra(): Plugin {
+  const dir = resolve(__dirname, "src/vendor/tex-extra/tex_files"), mount = "/tikzjax/tex_files/";
+  const files = () => (existsSync(dir) ? readdirSync(dir) : []);
+  return {
+    name: "atlas-tex-extra",
+    configureServer(server) {
+      server.middlewares.use((req, res, next) => {
+        const url = decodeURIComponent((req.url ?? "").split("?")[0]);
+        const name = url.startsWith(mount) && url.endsWith(".gz") ? url.slice(mount.length, -3) : "";
+        if (!name || !files().includes(name)) return next();
+        res.setHeader("Content-Type", "application/gzip");
+        res.end(gzipSync(readFileSync(join(dir, name))));
+      });
+    },
+    writeBundle(options) {
+      const out = join(options.dir ?? resolve(__dirname, "dist"), mount);
+      mkdirSync(out, { recursive: true });
+      for (const f of files()) writeFileSync(join(out, `${f}.gz`), gzipSync(readFileSync(join(dir, f))));
     },
   };
 }
@@ -73,6 +98,7 @@ export default defineConfig({
     nodeAssets("pdfjs", "/pdfjs", "pdfjs-dist", ["cmaps", "standard_fonts", "wasm", "iccs"]),
     nodeAssets("excalidraw", "/excalidraw", "@excalidraw/excalidraw/dist/prod", ["fonts"]),
     nodeAssets("tikzjax", "/tikzjax", "@drgrice1/tikzjax/dist", ["run-tex.js", "tex.wasm.gz", "core.dump.gz", "tex_files", "fonts", "fonts.css"]),
+    texExtra(),
     inkStroke(),
     coreTypesStamp(),
   ],

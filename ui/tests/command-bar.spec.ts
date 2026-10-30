@@ -93,8 +93,8 @@ test("the command bar also captures what was typed", async ({ page, request }) =
   await palette.getByText("Capture “a thought from the bar qqz”").click();
   await expect(page.getByText("Captured").first()).toBeVisible();
   const d = new Date(), day = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-  const log = await (await request.get(`/api/file?path=log/${day}.md`, { headers: { "x-atlas": "1" } })).json();
-  expect(log.text).toContain("a thought from the bar qqz");
+  const log = async () => ((await (await request.get(`/api/file?path=log/${day}.md`, { headers: { "x-atlas": "1" } })).json()).text ?? "") as string;
+  await expect.poll(log).toContain("a thought from the bar qqz");
 });
 
 
@@ -165,4 +165,16 @@ test("> in the file finder turns it into the commands", async ({ page }) => {
   await expect(palette.locator(".mode-tag")).toHaveText("Commands");
   await expect(palette.getByRole("textbox")).toHaveValue(">Settings");
   await expect(palette.getByTestId("palette-item").first()).toContainText("Settings");
+});
+
+test("Enter typed before the file search answers opens the first hit when it comes", async ({ page }) => {
+  await page.goto("/");
+  await page.getByText("Finish the GW notes.").waitFor();
+  // a slow search (a big vault, a busy core): the answer comes after the Enter
+  await page.route("**/api/search?*", async (r) => { await new Promise((ok) => setTimeout(ok, 800)); await r.fallback(); });
+  await page.keyboard.press("Control+p");
+  await page.keyboard.type("hubbard");
+  await page.keyboard.press("Enter");
+  await expect(page.locator(".cm-content")).toContainText("Energy");
+  await expect(page.getByTestId("palette")).toHaveCount(0);
 });

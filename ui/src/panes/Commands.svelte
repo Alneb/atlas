@@ -4,13 +4,14 @@
   // Commands & shortcuts: every command (Atlas's own and the workspace's scripts), where each script
   // came from (you or Claude, from git), its shortcut (click → press keys → saved to .atlas/keys.toml),
   // run it and see its output, and create a new one — recurring work becomes a button, no Claude needed.
-  import { onMount } from "svelte";
+  import { onMount, tick } from "svelte";
   import { api } from "../lib/api";
   import { openPath } from "../lib/dock";
   import { allCommands, keymap, loadKeymap, type Cmd } from "../lib/keymap.svelte";
   import ShortcutButton from "../components/ShortcutButton.svelte";
   import { toast } from "../lib/state.svelte";
   import { rel } from "../lib/time";
+  import { gitTree, knowRepo } from "../lib/gitstatus.svelte";
   import type { PaneProps } from "../lib/dock";
 
   let { panel: _panel }: PaneProps<"commands"> = $props();
@@ -22,6 +23,11 @@
   let creating = $state(false);
   let form = $state({ title: "", run: "", description: "", schedule: "" });
   let fresh = $state<string | null>(null);
+  let newBtn = $state<HTMLButtonElement>();
+  /** Closes the form; the keys go back to the button that opened it, not to the page. */
+  function closeForm() { creating = false; newBtn?.focus(); }
+  let titleInput = $state<HTMLInputElement>();
+  async function toggleForm() { creating = !creating; await tick(); titleInput?.focus(); }
 
   const cmds = $derived.by(() => {
     void keymap.overrides; void keymap.server; // re-derive when the keymap reloads
@@ -36,7 +42,7 @@
 
   function origin(c: Cmd): string {
     if (!c.file) return "";
-    if (!c.origin) return "not committed yet";
+    if (!c.origin) return gitTree.repo === "repo" ? "not committed yet" : ""; // outside git there is no "who"
     return `added by ${c.origin.by === "agent" ? (c.origin.agent ?? "an agent") : "you"} · ${rel(c.origin.time)}`;
   }
 
@@ -63,7 +69,7 @@
     } catch (e) { toast("Could not create the command", errText(e), "error"); }
   }
 
-  onMount(() => { void loadKeymap(); });
+  onMount(() => { void loadKeymap(); knowRepo(); });
 </script>
 
 {#snippet row(c: Cmd)}
@@ -72,12 +78,12 @@
       <div class="title">{c.title}</div>
       <div class="sub">
         <code>{c.id}</code>
-        {#if c.description}<span class="desc">{c.description}</span>{/if}
         {#if c.file}<span class="origin" class:claude={c.origin?.by === "agent"}>{origin(c)}</span>{/if}
         {#if c.schedule}
-          <span class="sched" title="Runs by itself while Atlas is open (.atlas/cache/schedule.log)">⏱ {c.schedule}{#if c.lastRun} · last {rel(c.lastRun.time)} <b class:bad={!c.lastRun.ok}>{c.lastRun.ok ? "ok" : "failed"}</b>{:else} · not run yet{/if}</span>
+          <span class="sched" title="Runs by itself while Atlas is open (.atlas/cache/schedule.log)"><Icon name="clock" size={11} /> {c.schedule}{#if c.lastRun} · last {rel(c.lastRun.time)} <b class:bad={!c.lastRun.ok}>{c.lastRun.ok ? "ok" : "failed"}</b>{:else} · not run yet{/if}</span>
         {/if}
       </div>
+      {#if c.description}<div class="desc" title={c.description}>{c.description}</div>{/if}
       {#if output[c.id]}<pre class="out" class:err={!output[c.id].ok}>{output[c.id].text}</pre>{/if}
     </div>
     <div class="side">
@@ -91,25 +97,27 @@
 <div class="commands">
   <header>
     <h1><Icon name="command" size={18} /> Commands</h1>
-    <input class="filter" placeholder="Filter commands, ids, shortcuts…" bind:value={q} spellcheck="false" aria-label="Filter commands" />
-    <button class="btn primary" onclick={() => (creating = !creating)}><Icon name="plus" size={14} /> New command</button>
+    <input class="filter" placeholder="Filter commands, ids, shortcuts…" bind:value={q} spellcheck="false" aria-label="Filter commands"
+      onkeydown={(e) => { if (e.key === "Escape" && q) { e.preventDefault(); e.stopPropagation(); q = ""; } }} />
+    <button class="btn primary" bind:this={newBtn} onclick={toggleForm}><Icon name="plus" size={14} /> New command</button>
   </header>
   <div class="body">
     {#if creating}
-      <form class="new" onsubmit={(e) => { e.preventDefault(); void create(); }}>
+      <!-- svelte-ignore a11y_no_noninteractive_element_interactions (Esc from any of its fields closes it) -->
+      <form class="new" onsubmit={(e) => { e.preventDefault(); void create(); }} onkeydown={(e) => { if (e.key === "Escape") { e.preventDefault(); closeForm(); } }}>
         <p class="hint">A command is a shell command line run in the workspace folder; it lands in <code>.atlas/commands/</code>, shows in the command bar ({keysOf('ui.palette') ?? 'Super+E'}) and can get a shortcut. Its output appears here.</p>
-        <label>Title <input bind:value={form.title} placeholder="Papers: rebuild refs.bib" required /></label>
+        <label>Title <input bind:this={titleInput} bind:value={form.title} placeholder="Papers: rebuild refs.bib" required /></label>
         <label>Command line <input class="mono" bind:value={form.run} placeholder={"python3 projects/x/make_figs.py && echo done"} required spellcheck="false" /></label>
         <label>Description <input bind:value={form.description} placeholder="What it does, in one line (optional)" /></label>
         <label>Schedule <input bind:value={form.schedule} placeholder="optional — daily 03:00 · every 2h · hourly (runs while Atlas is open)" spellcheck="false" /></label>
-        <div class="row-btns"><button class="btn primary" disabled={!form.title.trim() || !form.run.trim()}>Create</button><button type="button" class="btn" onclick={() => (creating = false)}>Cancel</button></div>
+        <div class="row-btns"><button class="btn primary" disabled={!form.title.trim() || !form.run.trim()}>Create</button><button type="button" class="btn" onclick={closeForm}>Cancel</button></div>
       </form>
     {/if}
     <h2>Workspace scripts <span class="n">{scripts.length}</span></h2>
-    <p class="hint">Recurring jobs as buttons. Who added each one comes from git — the ones Claude wrote are yours to keep, edit or delete.</p>
-    <ul>{#each scripts as c (c.id)}{@render row(c)}{:else}<li class="empty">No scripts yet — “New command” makes one.</li>{/each}</ul>
+    <p class="hint">Recurring jobs as buttons. Who added each one comes from git — the ones an agent wrote are yours to keep, edit or delete.</p>
+    <ul>{#each scripts as c (c.id)}{@render row(c)}{:else}<li class="empty">{q.trim() ? `No script matches “${q.trim()}”.` : "No scripts yet — “New command” makes one."}</li>{/each}</ul>
     <h2>Atlas <span class="n">{atlas.length}</span></h2>
-    <ul>{#each atlas as c (c.id)}{@render row(c)}{/each}</ul>
+    <ul>{#each atlas as c (c.id)}{@render row(c)}{:else}<li class="empty">No command matches “{q.trim()}”.</li>{/each}</ul>
   </div>
 </div>
 
@@ -136,7 +144,10 @@
   .title { color: var(--heading); font-weight: 550; }
   .sub { display: flex; gap: 10px; flex-wrap: wrap; align-items: baseline; font-size: calc(12px * var(--ui-scale, 1)); color: var(--text-muted); margin-top: 2px; }
   .sub code { color: var(--text-faint); font-size: .95em; }
-  .origin { color: var(--text-muted); }
+  /* id, origin and schedule on one line, the description under it: every row has the same shape */
+  .desc { margin-top: 3px; font-size: calc(12.5px * var(--ui-scale, 1)); color: var(--text-muted); overflow-wrap: anywhere;
+    display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .origin { color: var(--text-faint); }
   .origin.claude { color: var(--accent); }
   .sched { color: var(--text-muted); }
   .sched b { font-weight: 600; color: var(--green); }

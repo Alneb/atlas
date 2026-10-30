@@ -797,10 +797,13 @@ function At(r, i) {
 					line: i.txn.line,
 					text: i.txn.text
 				}), t = `${i.txn.payee} · ${i.txn.date}`;
-				i.atlas.toast("Deleted", `${t} — click to undo`, "info", { run: () => void I(i.atlas, "txn_restore", {
-					path: e.path,
-					text: e.removed
-				}).then(() => i.atlas.toast("Restored", t, "success")).catch((e) => i.atlas.toast("Not restored", e.message, "error")) }), i.onsaved();
+				i.atlas.toast("Deleted", t, "info", {
+					label: "Undo",
+					run: () => void I(i.atlas, "txn_restore", {
+						path: e.path,
+						text: e.removed
+					}).then(() => i.atlas.toast("Restored", t, "success")).catch((e) => i.atlas.toast("Not restored", e.message, "error"))
+				}), i.onsaved();
 			} catch (e) {
 				T(O, e.message, !0);
 			} finally {

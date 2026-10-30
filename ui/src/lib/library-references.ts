@@ -13,6 +13,8 @@ import type { LibraryItem, LibrarySource } from "./library";
 // Zotero's item types grouped as a reader thinks of them (2026-10-18: books, theses and lecture notes are references too)
 const typeOf = (p: Paper) =>
   p.kind === "book" || p.kind === "bookSection" ? "book" : p.kind === "thesis" ? "thesis" : p.kind === "manuscript" || p.kind === "report" ? "notes" : "paper";
+/** Zotero's item type in words: `journalArticle` → `journal article`. */
+const typeWords = (kind: string) => kind.replace(/([a-z])([A-Z])/g, "$1 $2").toLowerCase();
 const lastNames = (p: Paper) => {
   const n = p.authors.map((a) => a.split(",")[0].trim());
   return n.length > 3 ? `${n[0]} et al.` : n.join(", ");
@@ -66,7 +68,7 @@ export function referencesSource(): LibrarySource {
     detail(i) {
       const p = paper(i);
       return {
-        kind: `${p.kind}${p.year ? ` · ${p.year}` : ""}`,
+        kind: `${typeWords(p.kind)}${p.year ? ` · ${p.year}` : ""}`,
         title: p.title,
         lines: [{ text: p.authors.join("; ") }, ...(p.venue ? [{ text: p.venue, muted: true }] : [])],
         actions: [

@@ -4,4 +4,4 @@ folder: notes/anime  # under notes/: the top level holds kinds of file, not topi
 ids: [{ id: anilist }, { id: myanimelist }, { id: url, property: source }]
 properties: [studio, year, episodes, genres, original_title, aka, cover]
 body: description
-library: { in: "Anime & Manga", title: Anime, layout: shelves, group: status, shelves: [to-watch, watching, watched, dropped], cover: cover, key: [studio, year], icon: tv }
+library: { in: "Films & Series", title: Anime, layout: shelves, group: status, shelves: [to-watch, watching, watched, dropped], cover: cover, key: [studio, year], icon: tv }

@@ -204,7 +204,7 @@ impl Helpers {
         let mut cmd = crate::platform::run_line::command(run, &self.root, &env).map_err(|e| Error::CommandFailed(format!("plugin {id}: helper: {e}")))?;
         cmd.stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::piped()).kill_on_drop(true);
         crate::platform::proc::own_group(&mut cmd);
-        let mut child = cmd.spawn().map_err(|e| Error::CommandFailed(format!("plugin {id}: helper: {e}")))?;
+        let mut child = cmd.spawn().map_err(|e| Error::CommandFailed(format!("plugin {id}: helper: {}", spawn_failed(run, &e))))?;
         let (stdin, stdout, stderr) = (child.stdin.take(), child.stdout.take(), child.stderr.take());
         let (Some(stdin), Some(stdout), Some(stderr)) = (stdin, stdout, stderr) else {
             return Err(Error::CommandFailed(format!("plugin {id}: helper: no pipes")));
@@ -401,6 +401,40 @@ impl Drop for Running {
     }
 }
 
+/// Why a helper did not start, in words: a missing program is a plugin without its build for this computer, not
+/// "No such file or directory (os error 2)".
+fn spawn_failed(run: &str, e: &std::io::Error) -> String {
+    if e.kind() != std::io::ErrorKind::NotFound {
+        return e.to_string();
+    }
+    let target = plugins::target();
+    let line = shell_defaults(&run.replace('"', "")).replace("$ATLAS_PLUGIN_DIR/", "").replace("$ATLAS_PLUGIN_TARGET", &target);
+    let program = line.split_whitespace().next().unwrap_or_default();
+    format!("its program {program} is not on this computer (the plugin has no build for {target}, or was copied without it): reinstall it from Settings → Plugins")
+}
+
+/// A run line as a person reads it: every `${NAME:-default}` its default (the variable is unset unless overridden).
+fn shell_defaults(line: &str) -> String {
+    let mut out = String::new();
+    let mut rest = line;
+    while let Some(at) = rest.find("${") {
+        out.push_str(&rest[..at]);
+        let after = &rest[at + 2..];
+        match (after.find(":-"), after.find('}')) {
+            (Some(d), Some(end)) if d < end && after[..d].chars().all(|c| c.is_ascii_alphanumeric() || c == '_') => {
+                out.push_str(&after[d + 2..end]);
+                rest = &after[end + 1..];
+            }
+            _ => {
+                out.push_str("${");
+                rest = after;
+            }
+        }
+    }
+    out.push_str(rest);
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -424,6 +458,20 @@ for line in sys.stdin:
     elif m["method"] == "silent":
         pass
 "#;
+
+    #[test]
+    fn a_missing_program_is_named_not_an_os_error() {
+        let gone = std::io::Error::from(std::io::ErrorKind::NotFound);
+        let said = spawn_failed("\"$ATLAS_PLUGIN_DIR/bin/$ATLAS_PLUGIN_TARGET/email\" --serve", &gone);
+        assert!(said.starts_with(&format!("its program bin/{}/email is not on this computer", plugins::target())), "{said}");
+        assert!(!said.contains("os error"));
+        // a run line with a shell default (the dav and email manifests): the default is what was looked for
+        let said = spawn_failed("\"${ATLAS_PLUGIN_BIN:-$ATLAS_PLUGIN_DIR/bin/$ATLAS_PLUGIN_TARGET}/dav\" serve", &gone);
+        assert!(said.starts_with(&format!("its program bin/{}/dav is not on this computer", plugins::target())), "{said}");
+        assert_eq!(shell_defaults("a ${X} ${Y:-b}/c ${bad name:-z}"), "a ${X} b/c ${bad name:-z}");
+        let other = std::io::Error::from(std::io::ErrorKind::PermissionDenied);
+        assert_eq!(spawn_failed("x", &other), other.to_string());
+    }
 
     fn vault() -> tempfile::TempDir {
         let t = tempfile::tempdir().unwrap();

@@ -13,8 +13,8 @@ export function register(atlas) {
   atlas.registerCommand({ id: "library", title: "Books: library", run: () => atlas.openLibrary("books") });
   const covers = [];
   atlas.registerLibrary?.({
-    // "E-books": the files read here; the catalog's Books is the book notes (two libraries named alike were two "Books" tabs)
-    id: "books", title: "E-books", icon: "file-text", noun: "books",
+    // "E-books": the files read here, a tab of the one Books library beside the catalog's book notes (subject "books")
+    id: "books", title: "E-books", subject: "books", icon: "file-text", noun: "books",
     async load() {
       for (const u of covers.splice(0)) URL.revokeObjectURL(u);
       const S = atlas.plugin.settings ?? {};

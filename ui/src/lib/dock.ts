@@ -537,7 +537,8 @@ export function sideIdOf(spec: PaneSpec | undefined): SideId | null {
 export function sideSpec(id: SideId): PaneSpec {
   if (!id.startsWith(TOOL)) return { kind: id as SideKind };
   const type = id.slice(TOOL.length);
-  return { kind: "block", src: `type: ${type}\n`, doc: "", title: sideTools.find((t) => t.type === type)?.title };
+  const tool = sideTools.find((t) => t.type === type);
+  return { kind: "block", src: `type: ${type}\n`, doc: "", title: tool?.title, icon: tool?.icon };
 }
 /** Shows a side tool where the side panel is: in the left bar, or as a tab of the side column. */
 export const openSide = (id: SideId): void => { open(sideSpec(id)); };

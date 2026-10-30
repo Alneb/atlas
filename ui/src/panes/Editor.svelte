@@ -40,7 +40,9 @@
   import { chooseVault } from "../lib/vaults";
   import { readText } from "../lib/vault-files";
   import type { Text } from "@codemirror/state";
+  import type { Problems } from "../lib/state.svelte";
   import { noteHeadings } from "../lib/note-anchor";
+  import { mapHeadings } from "../lib/editor/heading-map";
   /** Vim, as the setting says — never in the mobile apps or on a phone's screen: a touch keyboard has no Escape, and normal mode ate the taps. */
   const vimHere = () => app.vimEnabled && !nativeShell.on && !phone.on;
 
@@ -56,6 +58,7 @@
   let loadError = $state("");
   let conflict = $state(false);
   let isNew = $state(false);
+  let problems = $state<Problems | null>(null); // this file's counts, for its own code bar (app.problems: the focused file's)
   let docText = $state(""); // what the properties panel reads; set on every change of the text
   let live: LiveNote | null = null; // the note shared with the other devices that have it open (lib/note-live.ts)
   let livePeers = $state<string[]>([]);
@@ -73,6 +76,13 @@
   let inflight: Promise<void> | null = null;
   let behindTries = 0; // a writer's saves refused while its copy is behind (save)
 
+  // Line endings: the editor's lines are "\n"-joined, so a CRLF file's save (even of no change) rewrote every ending.
+  // Everything here is "\n" text (saved, current, templates, recovery); the file's own endings go back only on writing it.
+  let crlf = false;
+  const lf = (t: string) => t.replace(/\r\n/g, "\n");
+  /** A text read from the file: its endings remembered, given as "\n" text. */
+  const fromDisk = (t: string) => { const nl = t.indexOf("\n"); crlf = nl > 0 && t[nl - 1] === "\r"; return crlf ? lf(t) : t; };
+  const toDisk = (t: string) => (crlf ? t.replace(/\n/g, "\r\n") : t);
   const current = () => ed?.view.state.doc.toString() ?? saved;
   const markDirty = () => setDirty(panel.id, current() !== saved);
   // "dont autosave code files, but keep a temporary one just in case"
@@ -102,10 +112,10 @@
     let again = false;
     inflight = (async () => {
       try {
-        const res = await api.putFile(path, text, force || isNew ? undefined : mtime, true);
+        const res = await api.putFile(path, toDisk(text), force || isNew ? undefined : mtime, true);
         mtime = res.mtime;
         saved = text;
-        if (res.template?.text !== undefined) void applyTemplate(res.template.template, res.template.added, res.template.text, text);
+        if (res.template?.text !== undefined) void applyTemplate(res.template.template, res.template.added, lf(res.template.text), text);
         if (!autosave()) keepRecovery(true);
         else if (rescued) { rescued = false; void api.putFile(RECOVERY, "").catch(() => {}); }
         if (ed) void refreshGitGutter(ed.view, path); // what differs from git changed with this save
@@ -123,7 +133,7 @@
         // the file was only touched (Syncthing rewrote what we last saved, a new mtime on the same text): ours goes on top
         if (err instanceof ApiError && err.status === 409) {
           const f = await api.file(path).catch(() => null);
-          if (f && f.text === saved) { mtime = f.mtime; again = true; return; }
+          if (f && lf(f.text) === saved) { mtime = f.mtime; again = true; return; }
           conflict = true;
         } else toast(`Could not save ${shownPath(path)}`, errText(err), "error");
         if (closing !== undefined) rescue(text);
@@ -145,16 +155,16 @@
       base = current();
       const again = await api.mergeTemplate(path, name, base).catch(() => null);
       if (!again?.text || !ed || current() !== base) return;
-      merged = again.text;
+      merged = lf(again.text);
     }
     const change = diff(base, merged);
     if (!change) return;
     ed.view.dispatch({ changes: change, userEvent: "input.template" });
-    toast(`Template “${name}” applied`, `Added ${added.join(", ")} · click to undo`, "info", 9000, () => {
+    toast(`Template “${name}” applied`, `Added ${added.join(", ")}`, "info", 9000, { label: "Undo", run: () => {
       if (!ed || current() !== merged) return;
       const back = diff(merged, base);
       if (back) ed.view.dispatch({ changes: back, userEvent: "input.template" });
-    });
+    } });
   }
 
   /** The tab closed with text that could not be saved: kept in the recovery copy, offered back when the note opens. */
@@ -195,8 +205,8 @@
     try {
       const f = await api.file(path);
       mtime = f.mtime;
-      saved = f.text;
-      ed?.setDoc(f.text);
+      saved = fromDisk(f.text);
+      ed?.setDoc(saved);
       conflict = false;
       markDirty();
     } catch (err) {
@@ -215,7 +225,7 @@
       try {
         // links and embeds resolve against the workspace file list: have it before the first render
         const [f] = await Promise.all([api.file(path), vaultReady()]);
-        text = f.text;
+        text = fromDisk(f.text);
         mtime = f.mtime;
       } catch (err) {
         if (err instanceof ApiError && err.status === 404) isNew = true;
@@ -230,10 +240,16 @@
         path,
         vim: vimHere(),
         line: spec.line,
-        onChange: (typed, keys) => schedule(undefined, typed, keys),
+        onChange: (typed, keys, edit) => {
+          if (headCache?.doc === edit.before) {
+            const heads = mapHeadings(headCache.heads, edit.before, edit.changes, edit.after);
+            headCache = heads && { doc: edit.after, heads };
+          }
+          schedule(undefined, typed, keys);
+        },
         onVimMode: (m) => { if (panel.isActive) app.vimMode = m; },
         onFocus: () => { app.vimMode = ed?.vimMode() ?? ""; app.problems = ed?.problems() ?? null; noteEditorActive(panel.id); },
-        onProblems: (p) => { if (panel.isActive) app.problems = p; },
+        onProblems: (p) => { problems = p; if (panel.isActive) app.problems = p; },
         onSelection: (s) => {
           // the section around the caret: the last heading at or above it (shared context, R3)
           const h = editors.get(panel.id)?.headings().filter((x) => x.line <= s.from_line).pop();
@@ -315,7 +331,9 @@
         const asked = openIntent.path === path && Date.now() - openIntent.t < 5000;
         // the app on a phone or a Boox: a note opens to be read; the keyboard comes with a tap in the text (it covered
         // half the screen at every open)
-        if (!inPhoneApp() && (asked || !a || a === document.body || host.contains(a))) ed.view.focus();
+        // asked for, it still leaves a menu or a dialog the user opened while its code loaded
+        const elsewhere = a instanceof HTMLElement && !!a.closest('[role="menu"], [role="dialog"]');
+        if (!inPhoneApp() && ((asked && !elsewhere) || !a || a === document.body || host.contains(a))) ed.view.focus();
         app.vimMode = ed.vimMode();
         noteEditorActive(panel.id);
       }
@@ -325,14 +343,14 @@
       if (!e.paths.some((p) => p === path || p.endsWith(`/${path}`))) return;
       if (inflight || !ed) return;
       // shared live: the others' edits arrive as edits, not as a reload of the file under the shared text
-      if (live && live.others() > 0) { void api.file(path).then((f) => { mtime = f.mtime; saved = f.text === current() ? f.text : saved; markDirty(); }, () => {}); return; }
+      if (live && live.others() > 0) { void api.file(path).then((f) => { mtime = f.mtime; saved = lf(f.text) === current() ? lf(f.text) : saved; markDirty(); }, () => {}); return; }
       const dirty = current() !== saved;
       void api.file(path).then((f) => {
-        if (f.mtime === mtime || f.text === current()) { mtime = f.mtime; return; }
+        if (f.mtime === mtime || lf(f.text) === current()) { mtime = f.mtime; return; }
         if (dirty) { conflict = true; return; } // our next save would 409 anyway: say so now
         mtime = f.mtime;
-        saved = f.text;
-        ed?.setDoc(f.text);
+        saved = fromDisk(f.text);
+        ed?.setDoc(saved);
         markDirty();
       }, () => {});
     });
@@ -434,7 +452,7 @@
     <div class="new-file-hint">New file — it is created on the first save.</div>
   {/if}
   {#if isMarkdown(path) && status !== "error" && (settings.config?.editor.format_bar ?? false)}<FormatBar view={() => ed?.view ?? null} />{/if}
-  {#if !isMarkdown(path) && status === "ready" && (settings.config?.editor.code_bar ?? true)}<CodeBar view={() => ed?.view ?? null} {path} />{/if}
+  {#if !isMarkdown(path) && status === "ready" && (settings.config?.editor.code_bar ?? true)}<CodeBar view={() => ed?.view ?? null} {path} {problems} />{/if}
   {#if drawn}<div class="note-view" bind:this={viewHost}></div>{/if}
   <div class="editor-row">
     <div class="editor-host" bind:this={host}></div>

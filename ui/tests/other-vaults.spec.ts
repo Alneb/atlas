@@ -65,7 +65,7 @@ test("another vault's files in the explorer: browsed, a note edited and saved ba
   const notice = page.getByText(/changed in second since it was opened here/);
   await expect(notice).toBeVisible({ timeout: 15_000 });
   expect(readFileSync(file, "utf8")).toContain("Changed in the second vault itself.");
-  await notice.click();
+  await page.locator(".toast", { has: notice }).getByRole("button", { name: "Save over it" }).click();
   await expect.poll(() => readFileSync(file, "utf8")).toContain("Edited from the first. Again.");
 
 });

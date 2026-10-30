@@ -12,8 +12,12 @@
   --font-mono: "JetBrains Mono", "Atlas Term Symbols", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
   --radius-sm: 6px; --radius: 8px; --radius-lg: 12px; --radius-xl: 14px;
   --rail-w: 54px; --status-h: 26px;
+  --fab-room: 0px; /* the room the phone's floating capture button needs under scrolled content */
   --ease: cubic-bezier(.2, .8, .2, 1);
 }
+
+/* the button (PhoneTop.svelte): 56 px tall, 16 px above the bottom bar; none in the phone app, whose bars are native */
+html.phone:not(.native-shell) { --fab-room: 72px; }
 
 :root, [data-theme="dark"] {
   color-scheme: dark;

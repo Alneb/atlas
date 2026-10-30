@@ -4,7 +4,8 @@ import { escapeHtml } from "./text";
 import MarkdownIt from "markdown-it";
 import type { StateInline, StateBlock, StateCore } from "markdown-it";
 import { mathToString } from "./math";
-import { highlightToHtml, onHighlightLanguage } from "./highlight";
+import { highlightToHtml } from "./highlight";
+import { onRendererArrived } from "./lazy-render";
 import DOMPurify from "dompurify";
 import { resolveRel, shownName, IMAGE_RE } from "./paths";
 import { onVaultChange, resolveLink, resolveOrBeside } from "./vault";
@@ -361,6 +362,12 @@ export function sanitizeHtml(html: string, dir?: string): string {
   try { return DOMPurify.sanitize(html, PURIFY) as string; } finally { purifyEnv = {}; }
 }
 
+/** One line of Markdown as sanitized inline HTML (a capture, a task's text): raw HTML in it goes through the same
+ *  purifier as a note's, so a clipped page's frame or script never runs in a list. */
+export function renderInlineMarkdown(text: string): string {
+  return DOMPurify.sanitize(md.renderInline(text), PURIFY) as string;
+}
+
 export function renderMarkdown(text: string, env: MdEnv = {}): string {
   const html = md.render(stripComments(text), env as Parameters<typeof md.render>[1]);
   purifyEnv = env;
@@ -374,7 +381,7 @@ export function renderMarkdown(text: string, env: MdEnv = {}): string {
 function memo(limit: number, make: (source: string, dir?: string) => string): (source: string, dir?: string) => string {
   const cache = new Map<string, string>();
   onVaultChange(() => cache.clear());
-  onHighlightLanguage(() => cache.clear()); // a fence drawn plain before its language had loaded
+  onRendererArrived(() => cache.clear()); // math or a fence drawn plain before its renderer had loaded
   let strict: boolean | undefined; // the line-break rule its HTML was made with
   onSettings((c) => { if (c.editor.strict_line_breaks !== strict) { strict = c.editor.strict_line_breaks; cache.clear(); } });
   return (source, dir) => {

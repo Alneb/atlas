@@ -6,6 +6,30 @@ use crate::{paths, vault_write, Error, Result};
 use chrono::NaiveDateTime;
 use std::path::Path;
 
+/// Every capture box's empty-box prompt. Mirrored in `ui/src/lib/capture-guides.ts` and `CaptureActivity.java`
+/// (atlas-capture's tests fail when a mirror differs).
+pub const PROMPT: &str = "Capture a thought, a to-do, a link…";
+
+/// One short form a capture can start with, as the boxes show it while they are empty.
+pub struct Guide {
+    /// What the chip reads.
+    pub shown: &'static str,
+    /// What a click on the chip puts in the box.
+    pub starts: &'static str,
+    /// The word beside the chip.
+    pub what: &'static str,
+    /// The chip's tooltip: the form with examples.
+    pub tip: &'static str,
+}
+
+/// The short forms, in the order every box shows them (mirrored like [`PROMPT`]).
+pub const GUIDES: [Guide; 4] = [
+    Guide { shown: "[]", starts: "[] ", what: "to-do", tip: "A to-do — [] pay the rent @fri · todo: call Ada" },
+    Guide { shown: "@fri", starts: "@", what: "date", tip: "A date — @today, @tomorrow, @fri, @+3d, @2026-11-02 (on a to-do: when it is due)" },
+    Guide { shown: "[[", starts: "[[", what: "link", tip: "A link to a note — [[ then a few letters of its name" },
+    Guide { shown: "#", starts: "#", what: "tag", tip: "A tag — #idea, #physics" },
+];
+
 pub fn capture(root: &Path, cfg: &Config, text: &str) -> Result<CaptureResult> {
     capture_at(root, cfg, text, chrono::Local::now().naive_local())
 }
@@ -60,7 +84,7 @@ pub fn take_pending(root: &Path) -> Vec<crate::events::Captured> {
 
 /// A capture meant as a task, in any of the quick spellings: `[] x`, `[ ] x`, `- [ ] x`, `todo x`,
 /// `todo: x`, `t: x` (any case) → `x`.
-fn as_task(first: &str) -> Option<&str> {
+pub(crate) fn as_task(first: &str) -> Option<&str> {
     let s = first.trim_start();
     let s = s.strip_prefix(['-', '*', '+']).map(str::trim_start).unwrap_or(s);
     for box_ in ["[ ]", "[]"] {
@@ -175,7 +199,8 @@ pub fn format_entry(text: &str, now: NaiveDateTime) -> Result<String> {
     let first = lines.next().unwrap_or_default().trim_end();
     let mut out = match as_task(first) {
         Some(task) => format!("- [ ] {} {}\n", now.format("%H:%M"), with_dates(task, now.date())),
-        None => format!("- {} {first}\n", now.format("%H:%M")),
+        // a line too: `@fri` becomes its date, as the box said ("mentions Friday")
+        None => format!("- {} {}\n", now.format("%H:%M"), with_dates(first, now.date())),
     };
     let mut seen = vec![first.trim()];
     for l in lines {
@@ -221,7 +246,7 @@ pub fn capture_at(root: &Path, cfg: &Config, text: &str, now: NaiveDateTime) -> 
                 values: None,
             };
             let r = crate::notes::new_note_at(root, cfg, &req, now)?;
-            Ok(CaptureResult { path: r.path, line: r.line })
+            Ok(CaptureResult { path: r.path, line: r.line, source: None })
         }
     }
 }
@@ -288,7 +313,7 @@ fn append_to_log(root: &Path, cfg: &Config, text: &str, now: NaiveDateTime) -> R
         let line = head.lines().count() as u32 + 1;
         let out = format!("{head}\n{entry}\n{}", tail.trim_start_matches('\n'));
         vault_write::write(&path, out.as_bytes())?;
-        return Ok(CaptureResult { path: rel, line });
+        return Ok(CaptureResult { path: rel, line, source: Some(first_line(&entry)) });
     }
     let lines_before = text.lines().count();
     let prefix = match made {
@@ -297,7 +322,11 @@ fn append_to_log(root: &Path, cfg: &Config, text: &str, now: NaiveDateTime) -> R
         false => String::new(),
     };
     vault_write::append(&path, format!("{prefix}{entry}").as_bytes())?;
-    Ok(CaptureResult { path: rel, line: lines_before as u32 + 1 })
+    Ok(CaptureResult { path: rel, line: lines_before as u32 + 1, source: Some(first_line(&entry)) })
+}
+
+fn first_line(entry: &str) -> String {
+    entry.split('\n').next().unwrap_or_default().to_string()
 }
 
 /// The heading of a day's log section, in the date names Atlas writes.
@@ -448,6 +477,8 @@ mod tests {
         assert_eq!(format_entry("[] pay rent @tomorrow", now).unwrap(), format!("- [ ] 09:05 pay rent @{}\n", next(1)));
         assert_eq!(format_entry("[] pay rent @+3d now", now).unwrap(), format!("- [ ] 09:05 pay rent @{} now\n", next(3)));
         assert_eq!(format_entry("[] mail @ana", now).unwrap(), "- [ ] 09:05 mail @ana\n");
+        assert_eq!(format_entry("lunch with Ana @tomorrow", now).unwrap(), format!("- 09:05 lunch with Ana @{}\n", next(1)), "a line's day too");
+        assert_eq!(format_entry("ask @ana\n@tomorrow below", now).unwrap(), "- 09:05 ask @ana\n  @tomorrow below\n", "the first line only");
     }
 
     #[test]

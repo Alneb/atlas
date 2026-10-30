@@ -245,5 +245,5 @@
   .host :global(.atlas-draw-full) { width: 2.25rem; height: 2.25rem; border-radius: 8px; border: 1px solid var(--border); background: var(--bg-elev); color: var(--text); font-size: 1.1rem; }
   .banner { padding: 6px 12px; background: var(--bg-elev); border-bottom: 1px solid var(--border); font-size: calc(12.5px * var(--ui-scale, 1)); color: var(--text); }
   .banner button { color: var(--accent); text-decoration: underline; }
-  .banner.err { color: var(--danger, #e66); }
+  .banner.err { color: var(--red); }
 </style>

@@ -179,6 +179,8 @@ export const api = {
   /** Today's log, made from the log template when it is not there yet. */
   todayLog: () => request<{ path: string; created: boolean }>("POST", "/api/log/today"),
   /** `vault`: capture into another known vault than this window's (the quick-capture window). */
+  /** A capture just made, taken back while still as written (the Captured notice's Undo). */
+  captureUndo: (r: CaptureResult) => request<void>("POST", "/api/capture/undo", { body: { path: r.path, line: r.line, source: r.source } }),
   capture: (text: string, vault?: string) => request<CaptureResult>("POST", "/api/capture", { body: vault ? { text, vault } : { text } }).then((r) => { emitPluginEvent({ type: "capture", path: r.path, text }); return r; }),
   /** A new note, optionally from a template; never replaces a file. */
   templates: () => request<import("./gen/TemplateInfo").TemplateInfo[]>("GET", "/api/note/templates"),
@@ -208,6 +210,14 @@ export const api = {
     const res = await fetch(url("/api/raw", { path }), { headers: { "x-atlas": "1" } });
     if (!res.ok) throw new ApiError(res.status, `GET /api/raw: ${res.status}`);
     return res.blob();
+  },
+  /** A file's first `n` bytes as text, and whether that is all of it (an empty file: an error, there is no range). */
+  rawHead: async (path: RelPath, n: number): Promise<{ text: string; whole: boolean }> => {
+    const res = await fetch(url("/api/raw", { path }), { headers: { "x-atlas": "1", range: `bytes=0-${n - 1}` } });
+    if (!res.ok) throw new ApiError(res.status, `GET /api/raw: ${res.status}`);
+    const bytes = new Uint8Array(await res.arrayBuffer());
+    const total = Number(res.headers.get("content-range")?.split("/")[1] ?? bytes.length);
+    return { text: new TextDecoder().decode(bytes.subarray(0, n)), whole: total <= n };
   },
   rawUrl: (path: RelPath) => url("/api/raw", { path }),
   /** What the user is looking at, for Claude via `atlas mcp` (atlas_context). */

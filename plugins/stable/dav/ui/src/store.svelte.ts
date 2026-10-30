@@ -128,7 +128,7 @@ export class Cal {
       await this.loadSources();
       if (r.changed) await this.load(true);
       if (r.errors.length) this.toast(r.errors[0], "error");
-    } catch (e) { this.toast((e as Error).message, "error"); }
+    } catch (e) { this.error ||= (e as Error).message; } // the view's notice (Try again, Settings…), not a second copy in a toast
     finally { this.syncing = false; }
   }
 

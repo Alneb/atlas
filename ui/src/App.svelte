@@ -9,6 +9,8 @@
   import { onMount } from "svelte";
   import { apiBase } from "./lib/api";
   import { installPreviews } from "./lib/preview";
+  import { loadMath } from "./lib/math";
+  import { loadHighlight } from "./lib/highlight";
   import { api, connectEvents } from "./lib/api";
   import { watchServiceSignins } from "./lib/service-signin";
   import { emit, on } from "./lib/bus";
@@ -20,7 +22,8 @@
   import { paneComponents as components } from "./lib/pane-components";
   import type { FocusTarget } from "./lib/types";
   import { editors, lastEditorId, parkAll } from "./lib/registry";
-  import { focusCapture, openHome, shellTerminal, claudeTerminal } from "./lib/actions";
+  import { homeDoc, openHome, shellTerminal, claudeTerminal } from "./lib/actions";
+  import { openQuickCapture } from "./lib/quick-capture.svelte";
   import { matches } from "./lib/keys";
   import { palette, openPalette } from "./lib/palette.svelte";
   import { app, toast, paintTheme } from "./lib/state.svelte";
@@ -47,6 +50,7 @@
   import "./lib/sidebar-blocks";
   import StatusBar from "./components/StatusBar.svelte";
   import Palette from "./components/Palette.svelte";
+  import QuickCapture from "./components/QuickCapture.svelte";
   import Toasts from "./components/Toasts.svelte";
   import { startWhere } from "./lib/where.svelte";
 
@@ -55,10 +59,11 @@
   // shortcuts: defaults, `.atlas/keys.toml` overrides and script keys, all from one keymap
   const bound = $derived(bindings());
 
-  /** Is the key for a pane matching `sel`? Inside it, or focus is nowhere (the pane redrew what held
+  /** Is the key for a pane matching `sel`? Inside it (or on its dock wrapper), or focus is nowhere (the pane redrew what held
    *  it) and it is the active pane. */
   function keeps(sel: string, target: HTMLElement | null): boolean {
-    if (target !== document.body) return !!target?.closest?.(sel);
+    // the dock's wrapper (`dv-content-container`) holds the focus after a click on a tab: the pane is inside it
+    if (target !== document.body) return !!target?.closest?.(sel) || (!!target?.matches?.(".dv-content-container") && !!target.querySelector(sel));
     return !!getDock()?.activePanel?.view.content.element.querySelector(sel);
   }
 
@@ -81,7 +86,7 @@
 
   function focusPane(p: FocusTarget): void {
     switch (p) {
-      case "today": focusCapture(); break;
+      case "today": openQuickCapture(); break;
       case "files": open({ kind: "files" }); break;
       case "search": open({ kind: "search" }); break;
       case "commands": openPalette("all"); break;
@@ -106,6 +111,7 @@
     if (document.hasFocus()) active(); // a switch loads the vault's page in a window that has the focus already
     paintTheme(app.theme); // cached choice first (no flash), then the real settings
     const settled = loadSettings().catch((err) => toast("Settings not loaded", errText(err), "error"));
+    if (!nativeShell.on) void homeDoc(); // asked now, beside the settings: openHome finds it answered
     const dock = initDock(dockEl, components);
     attachTabs(dock);
     // "if no tab is open home should open automatically" — in the phone app its native Home does that
@@ -125,7 +131,7 @@
     // is always there. `home = ""` brings back the classic Today pane.
     let stopLayout = () => {};
     // the phone app keeps its own tabs (the layout file is the desktop's: neither read nor written there)
-    if (!nativeShell.on) void settled
+    const started = nativeShell.on ? Promise.resolve() : settled
       .then(() => loadShellPrefs(settings.config?.ui.restore_layout !== false))
       .then(() => restoreLayout(settings.config?.ui.restore_layout !== false))
       .catch(() => false)
@@ -140,8 +146,16 @@
     initCssSnippets();
     // the side panes' code, fetched once the app is idle: a shortcut then mounts its pane at once,
     // instead of the keys typed right after it landing in whatever had the focus (depth audit)
-    const warm = () => { for (const k of ["search", "files", "outline", "git", "editor"] as const) void components[k]().catch(() => {}); };
-    if ("requestIdleCallback" in window) requestIdleCallback(warm, { timeout: 3000 }); else setTimeout(warm, 1500);
+    // …and the renderers a note's math and code wait for (math.ts, highlight.ts), kept off the start's path
+    const warm = () => {
+      for (const k of ["search", "files", "outline", "git", "editor"] as const) void components[k]().catch(() => {});
+      void loadMath().catch(() => {});
+      loadHighlight();
+    };
+    // a while after Home opened: in the start's own idle gaps (waiting on the core) they delayed Home, and the
+    // editor's code they bring (CodeMirror) is what Home does not need
+    const idle = () => { if ("requestIdleCallback" in window) requestIdleCallback(warm, { timeout: 3000 }); else warm(); };
+    void started.catch(() => {}).then(() => setTimeout(idle, 1500));
     void loadPlugins();
     // introspection for automation and the UX audit: what exists, by the app's own account
     (window as unknown as { __atlas: unknown }).__atlas = {
@@ -216,6 +230,7 @@
   {#if phone.on && !nativeShell.on}<PhoneBar />{/if}
 </div>
 <Palette />
+<QuickCapture />
 <Toasts />
 
 <style>

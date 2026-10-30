@@ -36,9 +36,9 @@ function offer(plugin: string, s: Needed): void {
   offered.set(key, Date.now());
   switch (s.kind) {
     case "door":
-      return toast(`Sign in to ${s.host}`, `${plugin} met a sign-in in front of it. Click to sign in; Atlas keeps it for the plugins.`, "info", 15_000, () => openServiceSignin(s.page));
+      return toast(`Sign in to ${s.host}`, `${plugin} met a sign-in in front of it. Atlas keeps the sign-in for the plugins.`, "info", 15_000, { label: "Sign in", run: () => openServiceSignin(s.page) });
     case "token":
-      return toast(`Sign in to ${s.host}`, `${plugin} needs an OpenID sign-in there. Click to sign in; the token stays with Atlas.`, "info", 15_000, () => void tokenSignin(plugin, s.name, s.page));
+      return toast(`Sign in to ${s.host}`, `${plugin} needs an OpenID sign-in there. The token stays with Atlas.`, "info", 15_000, { label: "Sign in", run: () => void tokenSignin(plugin, s.name, s.page) });
   }
 }
 

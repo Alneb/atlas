@@ -277,19 +277,39 @@ fn parse_status(text: &str) -> GitStatus {
 const STATUS_FRESH: Duration = Duration::from_millis(1500);
 /// A vault's root → when an answer was made, and the answer.
 type Shared<T> = LazyLock<Mutex<HashMap<PathBuf, (Instant, T)>>>;
-static STATUS: Shared<GitStatus> = LazyLock::new(Mutex::default);
+/// The answer also keeps the index's stamp it was made against.
+static STATUS: Shared<(Option<IndexStamp>, GitStatus)> = LazyLock::new(Mutex::default);
+
+/// The index file's modification time and size: `git add`, `commit`, `reset`… run outside Atlas rewrite it, and touch
+/// no watched file (`.git/` is not watched), so this is what tells the shared status it is stale.
+type IndexStamp = (std::time::SystemTime, u64);
+fn index_stamp(root: &Path) -> Option<IndexStamp> {
+    // the repository may sit above the vault; a linked worktree's `.git` is a file naming its git dir
+    let dot = root.ancestors().map(|d| d.join(".git")).find(|g| g.exists())?;
+    let dir = if dot.is_dir() {
+        dot
+    } else {
+        let named = std::fs::read_to_string(&dot).ok()?;
+        let gd = PathBuf::from(named.strip_prefix("gitdir:")?.trim());
+        if gd.is_absolute() { gd } else { dot.parent()?.join(gd) }
+    };
+    let m = std::fs::metadata(dir.join("index")).ok()?;
+    Some((m.modified().ok()?, m.len()))
+}
 
 /// The working tree's status, shared for [`STATUS_FRESH`]: the lock is held while git runs, so pages asking at the
 /// same moment wait for the one run instead of starting their own.
 pub fn status(root: &Path) -> Result<GitStatus> {
     let mut cache = STATUS.lock().unwrap();
-    if let Some((at, st)) = cache.get(root) {
-        if at.elapsed() < STATUS_FRESH {
+    let stamp = index_stamp(root);
+    if let Some((at, (made_on, st))) = cache.get(root) {
+        if at.elapsed() < STATUS_FRESH && *made_on == stamp {
             return Ok(st.clone());
         }
     }
     let st = status_now(root)?;
-    cache.insert(root.to_path_buf(), (Instant::now(), st.clone()));
+    // stamped after: `git status` may refresh the index itself, which is no change of the user's
+    cache.insert(root.to_path_buf(), (Instant::now(), (index_stamp(root), st.clone())));
     Ok(st)
 }
 

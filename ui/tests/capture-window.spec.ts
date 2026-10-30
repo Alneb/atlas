@@ -18,7 +18,7 @@ test("the capture window: only the box, its hints, Enter saves into today's log 
   await expect(box).toBeFocused();
   await expect(page.getByTestId("sidebar"), "none of the app is there").toHaveCount(0);
   // the little guides: what the short forms do
-  await expect(page.getByTestId("capture-what")).toHaveText(/\[\]\s*to-do\s*@fri\s*date\s*\[\[\s*link\s*#\s*tag/);
+  await expect(page.getByTestId("capture-guides")).toHaveText(/\[\]\s*to-do\s*@fri\s*date\s*\[\[\s*link\s*#\s*tag/);
   await box.fill("[] ring the lab @tomorrow");
   await expect(page.getByTestId("capture-what")).toHaveText("a to-do, due tomorrow");
   // what is sent is a plain line: a to-do would join Today's open tasks, which other specs count (a shared vault)
@@ -57,16 +57,16 @@ test("the capture window: Esc closes without writing; another vault can be chose
 });
 
 // "there is still no modal for tasks in the capture, and the modal for links is cut off by the window":
-// the desktop window is 620×132; every list stays inside it, and a to-do gets the editor's task fields.
+// the desktop window is 620×160; every list stays inside it, and a to-do gets the editor's task fields.
 test("the capture window's lists: task fields with their icons, links, never past the window's edge", async ({ page }) => {
-  await page.setViewportSize({ width: 620, height: 132 });
+  await page.setViewportSize({ width: 620, height: 160 });
   await page.goto("/#capture");
   const box = page.getByTestId("capture"), list = page.locator(".ta-complete");
   await expect(box).toBeFocused();
   const inside = async () => {
     const r = (await list.boundingBox())!;
     expect(r.y, "not above the window").toBeGreaterThanOrEqual(0);
-    expect(r.y + r.height, "not below the window").toBeLessThanOrEqual(132);
+    expect(r.y + r.height, "not below the window").toBeLessThanOrEqual(160);
     expect(r.x + r.width, "not past its right edge").toBeLessThanOrEqual(620);
   };
   await page.keyboard.type("[] pay the rent d");

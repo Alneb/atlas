@@ -96,6 +96,7 @@ const P: Record<IconName, string> = {
   moon: '<path d="M20 14.5A8.5 8.5 0 1 1 9.5 4a6.6 6.6 0 0 0 10.5 10.5z"/>',
   plus: '<path d="M12 5v14M5 12h14"/>',
   minus: '<path d="M5 12h14"/>',
+  more: '<circle cx="12" cy="5.5" r="0.9"/><circle cx="12" cy="12" r="0.9"/><circle cx="12" cy="18.5" r="0.9"/>',
   refresh: '<path d="M20 11.5A8 8 0 0 0 6 6.6L4 8.5M4 4v4.5h4.5M4 12.5A8 8 0 0 0 18 17.4l2-1.9M20 20v-4.5h-4.5"/>',
   zoom: '<circle cx="11" cy="11" r="6.5"/><path d="m20 20-4.3-4.3M8.5 11h5M11 8.5v5"/>',
   // the readers' own (the Boox reader's bars draw the same, from atlas_capture::icons)

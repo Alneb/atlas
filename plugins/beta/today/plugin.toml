@@ -5,7 +5,7 @@
 title = "Today"
 description = "the greeting's week, moon and what is due; the top of a day's log; a map and the areas of the vault"
 icon = "today"
-version = "0.3.0"
+version = "0.3.1"
 api = 19
 phone = true
 # it was two plugins, Daily and Home: a vault that had them keeps their settings (one language now)

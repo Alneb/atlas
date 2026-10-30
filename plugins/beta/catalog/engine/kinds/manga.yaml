@@ -5,4 +5,4 @@ ids: [{ id: anilist }, { id: mangadex }, { id: myanimelist }, { id: url, propert
 properties: [author, year, publication, chapters, volumes, genres, original_title, aka, cover]
 as_links: [author]
 body: description
-library: { in: "Anime & Manga", title: Manga, layout: shelves, group: status, shelves: [to-read, reading, read, dropped], cover: cover, key: [author, year], icon: book }
+library: { in: "Comics", title: Manga, layout: shelves, group: status, shelves: [to-read, reading, read, dropped], cover: cover, key: [author, year], icon: book }

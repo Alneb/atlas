@@ -1,6 +1,6 @@
 //! The box driven headless: frames run with synthetic keys and text (`egui::Context::run`), as the
 //! window runs them, and what it asks of the window (its size, closing) read from the output.
-use crate::app::{Capture, Popup, Theme, Vault, FLOAT_HEIGHT, FLOAT_WIDTH, HEIGHT, WIDTH};
+use crate::app::{Capture, Phase, Popup, Theme, Vault, FLOAT_HEIGHT, FLOAT_WIDTH, HEIGHT, WIDTH};
 use crate::complete::Names;
 use egui::{self, Event, Key, Modifiers, ViewportCommand, ViewportId};
 use std::path::PathBuf;
@@ -424,4 +424,90 @@ fn a_capture_goes_to_the_files_when_the_listed_atlas_does_not_answer() {
     let text = std::fs::read_to_string(root.join(&path)).unwrap();
     assert!(text.contains("kept anyway"), "{text:?}");
     std::fs::remove_dir_all(&root).unwrap();
+}
+
+#[test]
+fn the_text_comes_back_after_the_box_closed_unsent_and_goes_once_saved() {
+    let vaults = two_vaults();
+    let dir = std::env::temp_dir().join(format!("atlas-capture-drafts-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    let reopen = |vaults: Vec<Vault>| {
+        let mut h = Harness::new(vec![], "");
+        h.cap = Capture::new(vaults, String::new(), Theme::Light).with_drafts(crate::draft::Drafts::at(dir.clone()));
+        h.cap.prepare(&h.ctx);
+        h.frame(vec![]);
+        h
+    };
+    let mut h = reopen(vaults.clone());
+    h.typed("call the lab");
+    h.focused = Some(false);
+    h.frame(vec![]);
+    assert!(h.closed(), "a notification took the focus");
+    let mut h = reopen(vaults.clone());
+    assert_eq!(h.cap.text, "call the lab", "back on the next open");
+    // the other vault: the draft moves with the text
+    h.cap.super_key = true;
+    h.frame(vec![Event::Key { key: Key::V, physical_key: None, pressed: true, repeat: false, modifiers: Modifiers::NONE }, Event::Text("v".into())]);
+    h.cap.super_key = false;
+    assert_eq!(h.cap.vault().unwrap().name, "Personal");
+    h.frame(vec![]);
+    assert_eq!(reopen(vaults.clone()).cap.text, "", "no longer the first vault's");
+    let mut personal = reopen(vec![vaults[1].clone(), vaults[0].clone()]);
+    assert_eq!(personal.cap.text, "call the lab");
+    personal.key(Key::Enter, Modifiers::NONE);
+    for _ in 0..100 {
+        personal.frame(vec![]);
+        if std::fs::read_dir(&dir).map_or(true, |mut d| d.next().is_none()) {
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(20));
+    }
+    assert_eq!(reopen(vec![vaults[1].clone()]).cap.text, "", "saved: no draft");
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+// An open Atlas that took the request and never answered may have written it: the box says so and a plain Enter does
+// not send it a second time (Ctrl+Enter does).
+#[test]
+fn a_capture_sent_but_unanswered_is_unsure_and_enter_does_not_repeat_it() {
+    let root = std::env::temp_dir().join(format!("atlas-capture-unsure-{}", std::process::id()));
+    std::fs::create_dir_all(root.join(".atlas/cache")).unwrap();
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let port = listener.local_addr().unwrap().port();
+    // takes the request, then hangs up without a word
+    let server = std::thread::spawn(move || {
+        let (mut s, _) = listener.accept().unwrap();
+        let _ = std::io::Read::read(&mut s, &mut [0u8; 4096]);
+    });
+    let file = serde_json::json!({ "port": port, "pid": std::process::id(), "root": root.to_string_lossy(), "path": "" });
+    std::fs::write(root.join(".atlas/cache/server.json"), file.to_string()).unwrap();
+    let err = crate::send::capture(&root, "maybe twice").expect_err("no answer");
+    server.join().unwrap();
+    assert!(matches!(err, crate::send::NotSaved::Unsure(_)), "{err}");
+    let written: Vec<_> = std::fs::read_dir(&root).unwrap().flatten().filter(|e| e.file_name() != ".atlas").collect();
+    assert!(written.is_empty(), "not written to the files as well: {written:?}");
+    std::fs::remove_dir_all(&root).unwrap();
+
+    let mut h = Harness::new(two_vaults(), "maybe twice");
+    *h.cap.phase.lock().unwrap() = Phase::Unsure(err.to_string());
+    h.key(Key::Enter, Modifiers::NONE);
+    assert!(matches!(*h.cap.phase.lock().unwrap(), Phase::Unsure(_)), "Enter does not send it again");
+}
+
+/// The web boxes and the phone copy the core's prompt and guides (they cannot call it for a constant): a word changed
+/// on one side only fails here.
+#[test]
+fn every_capture_box_shows_the_cores_words() {
+    use atlas_core::capture::{GUIDES, PROMPT};
+    let web = include_str!("../../../ui/src/lib/capture-guides.ts");
+    let phone = include_str!("../../atlas-android/android/java/org/atlas/capture/CaptureActivity.java");
+    let quoted = |s: &str| format!("\"{s}\"");
+    assert!(web.contains(&quoted(PROMPT)), "capture-guides.ts: PROMPT");
+    assert!(phone.contains(&format!("setHint({})", quoted(PROMPT))), "CaptureActivity: the hint");
+    for g in &GUIDES {
+        let entry = format!("{{ shown: {}, starts: {}, what: {}, tip: {} }}", quoted(g.shown), quoted(g.starts), quoted(g.what), quoted(g.tip));
+        assert!(web.contains(&entry), "capture-guides.ts lacks {entry}");
+        let row = format!("{{{}, {}, {}}}", quoted(g.shown), quoted(g.starts), quoted(g.what));
+        assert!(phone.contains(&row), "CaptureActivity lacks {row}");
+    }
 }

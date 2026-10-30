@@ -34,6 +34,7 @@ pub fn open(app: &AppHandle, url: tauri::Url, outside: fn(&str)) {
         .title(url.host_str().unwrap_or("Web"))
         .inner_size(1180.0, 860.0)
         .initialization_script(KEYS)
+        .disable_drag_drop_handler() // a file dropped on a web page reaches it (an upload, a mail's attachment)
         .on_document_title_changed(|w, title| {
             let _ = w.set_title(&if title.is_empty() { "Web".into() } else { title });
         })

@@ -53,7 +53,9 @@ let snippetSource = "";
 function apply(c: WorkspaceConfig): void {
   const root = document.documentElement;
   const src = `${c.latex.snippets_file}\u0000${c.latex.variables_file}`;
-  if (src !== snippetSource) { snippetSource = src; void import("./editor/latex-suite").then((m) => m.reloadSnippets()); }
+  // a change of the snippet files reloads them; the first settings need not: the editor loads them with its first
+  // LaTeX suite (latexSuite), and importing it here put CodeMirror on the start's path
+  if (src !== snippetSource) { const changed = snippetSource !== ""; snippetSource = src; if (changed) void import("./editor/latex-suite").then((m) => m.reloadSnippets()); }
   void syncVscodeTheme(c.ui.vscode_theme);
   // the theme setting decides dark or light ("system": the desktop's); a VS Code theme dresses the
   // side it was made for and leaves the other to Atlas's own palette

@@ -175,7 +175,7 @@ pub fn read_raw_range(ws: &Workspace, rel: &str, start: u64, end: u64) -> Result
     let mut f = std::fs::File::open(&path)?;
     let len = f.metadata()?.len();
     let end = end.min(len.saturating_sub(1));
-    if start > end {
+    if start > end || len == 0 {
         return Err(Error::BadRequest(format!("range {start}-{end} outside a file of {len} bytes")));
     }
     f.seek(SeekFrom::Start(start))?;

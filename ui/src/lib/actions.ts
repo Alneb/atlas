@@ -1,12 +1,13 @@
 // Built-in UI actions: one table drives the palette, the global keymap and the key hints.
 import type { BuiltinId } from "./builtin-plugins";
+import { openCaptures, openQuickCapture } from "./quick-capture.svelte";
 import { errText } from "./text";
 import { renameFile } from "./rename-file";
 import { shownName } from "./paths";
 import { api } from "./api";
 import { toggleProperties } from "./properties-panel.svelte";
 import { open, focusOrOpen, focusPanel, nextTerminalN, closeActive, resetLayout, openPath, toggleTerminalPanel, toggleSidePanel, focusTerminalPanel, navigate, historyList } from "./dock";
-import { capture, drawingExports, editors, lastEditorId, noteFormat, searchRequest, terminals, type TerminalHandle } from "./registry";
+import { drawingExports, editors, lastEditorId, noteFormat, searchRequest, terminals, type TerminalHandle } from "./registry";
 import { getDock } from "./dock-instance";
 import { agentsOn, fillSelection } from "./agents";
 import { context, currentSelection } from "./context.svelte";
@@ -81,14 +82,6 @@ export function webAddress(text: string): string | null {
   return !/\s/.test(t) && /^[\w-]+(\.[\w-]+)+(:\d+)?(\/.*)?$/.test(t) ? `https://${t}` : null;
 }
 
-export function focusCapture(): void {
-  void openHome();
-  // Home / Today may be mounting right now; its box registers on mount. When it is already there, focus
-  // synchronously: a key typed in the frame after the shortcut must not go elsewhere (depth audit).
-  const tryFocus = (n: number) => { if (!capture.focus() && n > 0) setTimeout(() => tryFocus(n - 1), 50); };
-  if (capture.focus()) return;
-  requestAnimationFrame(() => tryFocus(60)); // the home note's editor loads first (up to ~3 s)
-}
 
 /** The active drawing as an SVG beside it — on demand, never on every save. */
 async function exportDrawing(): Promise<void> {
@@ -268,11 +261,11 @@ export const actions: Action[] = [
   { id: "ui.history", title: "History: the tabs visited, to go back to one…", run: () => historyList() },
   { id: "ui.forward", title: "Go forward", keys: "Super+]", run: () => navigate(1) },
   { id: "ui.today", title: "Home (your home document)", icon: "today", label: "Home", keys: "Super+H", run: () => void openHome() },
-  { id: "ui.capture", title: "Capture to today's log", keys: "Super+C", run: focusCapture },
+  { id: "ui.capture", title: "Capture (a popup over the current pane)", keys: "Super+C", run: () => openQuickCapture() },
   // the bar as a capture box, wherever one is: the same completions (task fields, [[notes, #tags, @days)
   { id: "ui.capture-bar", title: "Capture in the bar", run: () => openPalette("capture") },
   // every capture by day, to triage (components/views/Captures.svelte): the `captures` block alone in a tab
-  { id: "ui.captures", title: "Captures: triage what was captured", icon: "inbox", run: () => { open({ kind: "block", src: "type: captures\n", doc: "", title: "Captures" }); } },
+  { id: "ui.captures", title: "Captures: triage what was captured", icon: "inbox", run: openCaptures },
   // New…: every kind of new thing, each placed by its kind; the phone app's + opens it
   { id: "ui.new", title: "New… (a note, from a template, a drawing, or what a plugin adds)", icon: "plus", label: "New…", run: () => void import("./new-thing").then((m) => m.newThing()) },
   { id: "ui.browse", title: "Browse the web… (an address, or words to search)", icon: "globe", label: "Browse", keys: "Super+Shift+B", run: browse },

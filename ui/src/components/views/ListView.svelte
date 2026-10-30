@@ -10,7 +10,7 @@
 <ul class="list" class:table>
   {#each rows as r (`${r.path}:${r.line ?? ""}:${r.title}`)}
     <li class:done={r.done}>
-      {#if r.done !== null}<input type="checkbox" checked={r.done} disabled={r.done} aria-label="Done: {r.title}" onchange={() => ontick(r)} />{/if}
+      {#if r.done !== null}<input type="checkbox" class="atlas-check" checked={r.done} disabled={r.done} aria-label="Done: {r.title}" onchange={() => ontick(r)} />{/if}
       <button class="title" onclick={() => r.path && openPath(r.path, r.line ?? undefined)} title={r.path ?? ""}>{r.title}</button>
       {#if r.props.note}<span class="of" title="The note this task is in">{r.props.note}</span>{/if}
       {#if r.date}<span class="date">{r.date}</span>{/if}
@@ -29,5 +29,4 @@
   .of { color: var(--text-muted); font-size: .88em; white-space: nowrap; max-width: 40%; overflow: hidden; text-overflow: ellipsis; }
   .date, .path { color: var(--text-faint); font-size: .88em; font-variant-numeric: tabular-nums; white-space: nowrap; }
   .empty { color: var(--text-faint); padding: 6px 10px; margin: 0; }
-  input { accent-color: var(--accent); }
 </style>

@@ -3,8 +3,14 @@
 import { api } from "./api";
 import { isBookkeeping, on } from "./bus";
 import type { Change } from "./gen/Change";
+import type { GitRepo } from "./gen/GitRepo";
 
-export const gitTree = $state({ files: {} as Record<string, Change>, dirs: {} as Record<string, Change> });
+export const gitTree = $state({ files: {} as Record<string, Change>, dirs: {} as Record<string, Change>, repo: null as GitRepo | null });
+
+/** Whether the vault is a git repository, asked once (what says "not committed yet" needs to know). */
+export function knowRepo(): void {
+  if (gitTree.repo === null) void refreshGitTree();
+}
 
 // a folder shows the most important change below it
 const RANK: Record<Change, number> = { conflicted: 5, deleted: 4, modified: 3, renamed: 2, added: 1, untracked: 0 };
@@ -12,6 +18,7 @@ const RANK: Record<Change, number> = { conflicted: 5, deleted: 4, modified: 3, r
 let lastTree = "";
 export async function refreshGitTree(): Promise<void> {
   const st = await api.gitStatus().catch(() => null);
+  if (st) gitTree.repo = st.repo;
   const key = JSON.stringify(st?.entries ?? []);
   if (key === lastTree) return; // the same answer: nothing redrawn
   lastTree = key;

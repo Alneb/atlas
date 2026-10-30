@@ -1,8 +1,11 @@
 <script lang="ts">
   // A panel anchored under the button that opened it (Obsidian's toolbar menus): moved to <body> so no pane or editor
   // widget clips it, kept inside the window, closed by Escape, a click outside (not on its button) or a phone's Back.
+  // Being at the end of <body>, Tab would never reach it: it takes the focus when it opens and keeps Tab inside.
   import type { Snippet } from "svelte";
+  import { tick } from "svelte";
   import { closable } from "../lib/back";
+  import { FOCUSABLE, trapTab } from "../lib/focus-return";
 
   let { anchor, label, onclose, children, width = 380 }: {
     anchor: HTMLElement;
@@ -49,17 +52,20 @@
     window.addEventListener("keydown", key);
     window.addEventListener("resize", onResize);
     const off = closable(onclose);
+    void tick().then(() => { if (!node.contains(document.activeElement)) (node.querySelector<HTMLElement>(FOCUSABLE) ?? node).focus({ preventScroll: true }); });
     return () => {
       document.removeEventListener("mousedown", outside, true);
       window.removeEventListener("keydown", key);
       window.removeEventListener("resize", onResize);
       off();
+      // closed by whatever path (Esc caught by another handler, Back, a choice made): the focus goes back to its button
+      if (node.contains(document.activeElement) && anchor.isConnected) anchor.focus({ preventScroll: true });
       node.remove();
     };
   });
 </script>
 
-<div class="popover" role="dialog" aria-label={label} bind:this={el}
+<div class="popover" role="dialog" aria-label={label} tabindex="-1" bind:this={el} onkeydown={(e) => trapTab(e, e.currentTarget)}
   style:left={at ? `${at.left}px` : "-9999px"} style:top={at ? `${at.top}px` : "0"}
   style:width="min({width}px, calc(100vw - {2 * EDGE}px))" style:max-height={at ? `${at.maxH}px` : undefined}>
   {@render children()}
@@ -68,5 +74,5 @@
 <style>
   .popover { position: fixed; z-index: 60; display: flex; flex-direction: column; overflow: auto; padding: 8px;
     background: var(--bg-elev); border: 1px solid var(--border-strong); border-radius: var(--radius-lg, 10px); box-shadow: var(--shadow-pop);
-    font-family: var(--font-ui); font-size: calc(12.5px * var(--ui-scale, 1)); color: var(--text); }
+    font-family: var(--font-ui); font-size: calc(12.5px * var(--ui-scale, 1)); color: var(--text); outline: none; }
 </style>

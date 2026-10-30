@@ -91,7 +91,7 @@ test("the tab list's headings keep one order: terminal, then the editors", async
   await page.goto("/");
   await page.getByText("Finish the GW notes.").waitFor();
   const heads = () => page.getByTestId("sidebar").locator(".group-head > span:first-child").allTextContents();
-  const want = await heads(); // "Editor" only when a document is open (Home is an app, not a tab)
+  const want = await heads(); // "Tabs" only when a document is open (Home is an app, not a tab)
   expect(want[0]).toBe("Terminal");
   expect(want).not.toContain("Side panel");
   for (const key of ["Meta+j", "Meta+Shift+F", "Meta+j", "Meta+Shift+F"]) {

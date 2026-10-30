@@ -193,6 +193,16 @@ pub fn write(abs: &Path, bytes: &[u8]) -> Result<()> {
     run(abs, |_| WriteKind::Write, Some(abs), || raw::atomic(abs, raw::Replace::Always, |f| Ok(f.write_all(bytes)?)).map(|_| ()))
 }
 
+/// A folder of Atlas's own that is not the vault's history (caches, local copies of remote files): it carries a
+/// `.gitignore` of `*`, written once, so git and the Git pane leave it out without the vault's own rules.
+pub fn ignored_folder(dir: &Path, why: &str) -> Result<()> {
+    let ignore = dir.join(".gitignore");
+    if !ignore.exists() {
+        write(&ignore, format!("# {why}: not part of the vault's history\n*\n").as_bytes())?;
+    }
+    Ok(())
+}
+
 /// [`write`] with the content streamed in by `fill` (a download); an error from `fill` leaves the old file as it was.
 pub fn write_with(abs: &Path, fill: impl FnOnce(&mut std::fs::File) -> Result<()>) -> Result<()> {
     run(abs, |_| WriteKind::Write, Some(abs), || raw::atomic(abs, raw::Replace::Always, fill).map(|_| ()))

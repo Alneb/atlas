@@ -56,3 +56,53 @@ test("captures are listed by day and triaged in their own lines: a task, dismiss
   await expect.poll(() => read(request, LOG)).toContain("\n- 11:00 seed thought gamma\n");
   expect(await read(request, LOG)).toContain("## Journal\n- not a capture\n");
 });
+
+// Triage by keyboard: a row clicked takes the keys; d dismisses, t makes a to-do, x ticks it — and the focus stays in
+// place as each answered row moves on, so a run of keys clears the list.
+test("captures are triaged by keyboard, the focus staying in place", async ({ page, request }) => {
+  const LOG2 = "log/2020-03-04.md";
+  await put(request, LOG2, "---\ndate: 2020-03-04\ntype: log\n---\n# Wednesday, 4 March 2020\n\n## Log\n- 09:00 keyed one\n- 09:10 keyed two\n");
+  await page.goto("/");
+  await page.getByText("Finish the GW notes.").waitFor();
+  await page.keyboard.press("Control+p");
+  await page.keyboard.type(">Captures: triage");
+  await page.keyboard.press("Enter");
+  const view = page.getByTestId("captures");
+  const row = (t: string) => view.locator(".row", { hasText: t });
+  await row("keyed two").locator(".time").click();
+  await expect(row("keyed two")).toBeFocused();
+  await expect(view.locator(".keys")).toBeVisible();
+  await page.keyboard.press("d");
+  await expect(row("keyed two")).toHaveCount(0); // gone from "To triage"
+  await expect(row("keyed one"), "the next capture took its place, and the focus").toBeFocused();
+  await page.keyboard.press("t");
+  await expect.poll(() => read(request, LOG2)).toContain("- [ ] 09:00 keyed one");
+  expect(await read(request, LOG2)).toContain("- [-] 09:10 keyed two");
+  await view.getByRole("tab", { name: /Tasks/ }).click();
+  await row("keyed one").locator(".time").click();
+  await page.keyboard.press("x");
+  await expect.poll(() => read(request, LOG2)).toMatch(/- \[x\] 09:00 keyed one/);
+  await request.post(`/api/fs/trash?path=${encodeURIComponent(LOG2)}`, { headers: H });
+});
+
+// A clipped page's raw HTML in a capture (a frame of a site that takes over the window it is framed in, a script)
+// is sanitized in the list as in a note: the list stays, nothing runs.
+test("a capture holding a frame or a script is listed without running it", async ({ page, request }) => {
+  const log = "log/2020-03-04.md";
+  await put(request, log, '---\ndate: 2020-03-04\ntype: log\n---\n## Log\n- 09:00 clip <iframe src="/api/raw?path=x"></iframe><img src="x" onerror="window.__ran=1"> kept\n');
+  try {
+    await page.goto("/");
+    await page.getByText("Finish the GW notes.").waitFor();
+    const url = page.url();
+    await page.keyboard.press("Control+p");
+    await page.keyboard.type(">Captures: triage");
+    await page.keyboard.press("Enter");
+    const view = page.getByTestId("captures");
+    await expect(view.locator("li.row", { hasText: "clip" })).toContainText("kept");
+    await expect(view.locator("iframe")).toHaveCount(0);
+    expect(await page.evaluate(() => (window as { __ran?: number }).__ran)).toBeUndefined();
+    expect(page.url()).toBe(url);
+  } finally {
+    await request.post(`/api/fs/trash?path=${encodeURIComponent(log)}`, { headers: H });
+  }
+});

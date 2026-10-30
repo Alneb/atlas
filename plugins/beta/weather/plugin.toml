@@ -5,7 +5,7 @@ title = "Weather"
 description = "today's weather for templates: {{weather.summary}}, {{weather.city}}, {{weather.max}}…"
 icon = "sun"
 phone = true # runs in the phone apps too: its page side and helper work there
-version = "0.4.0"
+version = "0.4.1"
 api = 16
 
 [permissions]

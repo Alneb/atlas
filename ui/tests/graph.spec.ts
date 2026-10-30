@@ -13,6 +13,12 @@ test("graph of notes: counts, local neighbourhood of the active note, hover show
   await expect(pane.locator(".meta")).toHaveText(/[1-9]\d* notes · [1-9]\d* links/); // loaded, not the initial 0
   const links = Number((await pane.locator(".meta").textContent())!.match(/(\d+) links/)![1]);
   expect(links).toBeGreaterThanOrEqual(4); // related→hubbard, journal→hubbard, l1/l2→Topic
+  // Orphans off: only notes with a link, the links all kept
+  const all = Number((await pane.locator(".meta").textContent())!.match(/(\d+) notes/)![1]);
+  await pane.getByLabel("Orphans").uncheck();
+  await expect(pane.locator(".meta")).toHaveText(new RegExp(` notes · ${links} links`));
+  expect(Number((await pane.locator(".meta").textContent())!.match(/(\d+) notes/)![1])).toBeLessThan(all);
+  await pane.getByLabel("Orphans").check();
   // Local: hubbard.md and the two notes that link to it
   await pane.getByLabel("Local (active note)").check();
   await expect(pane.locator(".meta")).toHaveText("3 notes · 2 links");

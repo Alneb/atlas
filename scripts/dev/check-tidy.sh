@@ -16,3 +16,5 @@ fi
 echo "[tidy] findings: 0"
 # and no generated type outlives its Rust type (ts-rs never removes one)
 node scripts/dev/check-gen.mjs || exit 1
+# and no literal colour in a component's style (UI-STYLE.md §1)
+node scripts/dev/check-styles.mjs || exit 1

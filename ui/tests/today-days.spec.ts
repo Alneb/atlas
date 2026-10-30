@@ -38,6 +38,8 @@ test("ticking a task on Today writes [x] in its note and drops it from the list"
   await page.goto("/");
   await page.getByText("Finish the GW notes.").waitFor();
   const box = page.getByRole("button", { name: "Mark done: tick me from Today" });
+  // its source is the note's name, without a line number that reads as a time ("2026-10-28:15")
+  await expect(page.locator(".task-li", { has: box }).locator(".task-src")).toHaveText("tick");
   await box.click();
   await expect(box).toHaveCount(0);
   const text = (await (await request.get("/api/file?path=notes/tick.md", { headers: h })).json()).text;

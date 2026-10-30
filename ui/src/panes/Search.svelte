@@ -4,6 +4,7 @@
   import { errText, escapeHtml, escapeRegExp } from "../lib/text";
   import { onMount } from "svelte";
   import { api } from "../lib/api";
+  import { besides, titledNotes } from "../lib/titled-notes";
   import { Newest } from "../lib/newest";
   import { openPath } from "../lib/dock";
   import { fileIcon } from "../lib/panes";
@@ -19,6 +20,7 @@
   // svelte-ignore state_referenced_locally -- a pane's spec is fixed for its lifetime
   let q = $state(spec.q ?? "");
   let res = $state<SearchResult | null>(null);
+  let titles = $state(new Map<string, string>()); // a file found by its title → that title
   let busy = $state(false);
   let error = $state("");
   let input: HTMLInputElement;
@@ -49,8 +51,9 @@
     searches.run(async (still) => {
       busy = true;
       try {
-        const r = await api.search(query, o);
-        if (still()) { res = r; sel = 0; error = ""; }
+        const [r, all] = await Promise.all([api.search(query, o), titledNotes(query)]);
+        const t = besides(all, r.files); // notes found by their title: after the names, one list for the keys
+        if (still()) { titles = new Map(t.map((x) => [x.path, x.title])); res = { ...r, files: [...r.files, ...t.map((x) => x.path)] }; sel = 0; error = ""; }
       } catch (err) {
         if (still()) error = errText(err);
       } finally {
@@ -103,7 +106,8 @@
   const capped = $derived((res?.lines.length ?? 0) >= 200);
   function toggleReplace(on = !replacing) {
     replacing = on;
-    if (on) requestAnimationFrame(() => replaceInput?.focus());
+    // with nothing searched yet, the search comes first
+    if (on) requestAnimationFrame(() => (q.trim() ? replaceInput : input)?.focus());
   }
   function exclude(path: string) {
     const next = new Set(excluded);
@@ -152,7 +156,7 @@
 <div class="side-pane search-pane">
   <div class="search-box">
     <button class="opt toggle" class:on={replacing} aria-pressed={replacing} title="Replace in files (Ctrl+Shift+H)" aria-label="Toggle replace" onclick={() => toggleReplace()}><Icon name="chevron" size={12} /></button>
-    <input bind:this={input} bind:value={q} {onkeydown} placeholder="Search files and text…" spellcheck="false" aria-label="Search" />
+    <input bind:this={input} bind:value={q} {onkeydown} placeholder="Search…" spellcheck="false" aria-label="Search" />
     {#if busy}<span class="spin"></span>{/if}
     <span class="opts">
       <button class="opt" class:on={opts.case} aria-pressed={opts.case} title="Match case" aria-label="Match case" onclick={() => (opts.case = !opts.case)}>Aa</button>
@@ -176,7 +180,7 @@
         <div class="group-label">Files <span class="n">{res.files.length}</span></div>
         {#each res.files.slice(0, 50) as f, i (f)}
           <button class="hit file-hit" class:sel={sel === i} data-idx={i} onclick={() => go({ path: f })} onmouseenter={() => (sel = i)}>
-            <Icon name={fileIcon(f)} size={14} /><span class="fname">{shownName(f)}</span><span class="fdir">{f.includes("/") ? f.slice(0, f.lastIndexOf("/")) : ""}</span>
+            <Icon name={fileIcon(f)} size={14} />{#if titles.has(f)}<span class="fname">{titles.get(f)}</span><span class="fdir">{shownName(f)}</span>{:else}<span class="fname">{shownName(f)}</span><span class="fdir">{f.includes("/") ? f.slice(0, f.lastIndexOf("/")) : ""}</span>{/if}
           </button>
         {/each}
       {/if}
@@ -197,7 +201,7 @@
       {/if}
       {#if !res.files.length && !res.lines.length}<p class="faint small pad">No results for “{q}”.</p>{/if}
     {:else}
-      <p class="faint small pad">Type to search the workspace.<span class="keys-only"> <kbd>↑</kbd><kbd>↓</kbd> to move, <kbd>Enter</kbd> to open.</span></p>
+      <p class="faint small pad">Type to search the names and the text of every file.<span class="keys-only keys-line"><kbd>↑</kbd> <kbd>↓</kbd> to move, <kbd>Enter</kbd> to open</span></p>
     {/if}
   </div>
 </div>
@@ -213,6 +217,7 @@
     background: var(--bg-elev); border: 1px solid var(--border-strong); color: var(--text-faint); transition: border-color .15s, box-shadow .15s; }
   .search-box:focus-within { border-color: color-mix(in srgb, var(--accent) 55%, transparent); box-shadow: 0 0 0 3px var(--accent-soft); }
   .search-box input { flex: 1; min-width: 0; border: 0; outline: 0; background: transparent; color: var(--text); font: inherit; font-size: calc(13px * var(--ui-scale, 1)); }
+  .keys-line { display: block; margin-top: 4px; }
   .opts { display: inline-flex; gap: 2px; margin-left: auto; }
   .opt { font-family: var(--font-mono); font-size: calc(11.5px * var(--ui-scale, 1)); padding: 1px 5px; border-radius: 4px; color: var(--text-muted); border: 1px solid transparent; }
   :global(html.phone) .opt { min-width: 36px; min-height: 36px; font-size: 14px; }

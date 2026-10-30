@@ -44,7 +44,9 @@ Build first: `npm run build && (cd .. && cargo build -p atlas)`. ~5–7 min for 
 5. **Raw HTML not rendered** (`<sup>nd</sup>`, `<u>`, 20 `<img src="data:…base64">` in two lecture notes).
    Reader: markdown-it `html: true`, output sanitized with **DOMPurify** (scripts, handlers, `<style>` and frames
    go — the page holds the API that runs commands); local `<img src>` gets `data-src` and is fetched with the API
-   header like other images. Editor: inline `HTMLTag` nodes — paired inline elements (`u sup sub b i em strong
+   header like other images. One line shown outside a note (a capture in the Captures list, a task's text on Today)
+   goes through `renderInlineMarkdown`, the same purifier: never `md.renderInline` straight into `{@html}` (a clipped
+   page's frame there once loaded a site whose script took over the whole window). Editor: inline `HTMLTag` nodes — paired inline elements (`u sup sub b i em strong
    mark s del kbd small span font …`) hide their tags and mark the content with the real element
    (`Decoration.mark({ tagName })`, safe `style`/`color`/`title` only) until the caret enters; void elements
    (`<img>`, `<br>`) become a widget with sanitized HTML; HTML blocks render through the reader.

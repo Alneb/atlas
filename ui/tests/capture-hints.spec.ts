@@ -6,8 +6,11 @@ test("the capture box names its short forms and says what the text will become",
   await page.goto("/");
   await page.getByText("Finish the GW notes.").waitFor();
   const box = page.getByTestId("capture"), what = page.getByTestId("capture-what");
-  await expect(what).toContainText("makes a to-do");
-  await expect(what).toContainText("@tomorrow");
+  // the same four guides as every other box (lib/capture-guides.ts); a click starts the text with one
+  await expect(what).toHaveText(/\[\]\s*to-do\s*@fri\s*date\s*\[\[\s*link\s*#\s*tag/);
+  await what.getByRole("button", { name: "@fri" }).click();
+  await expect(box).toHaveValue("@");
+  await expect(box).toBeFocused();
   await box.fill("an idea about the bath");
   await expect(what).toHaveText("a line in today's log");
   await box.fill("[] call Ana @tomorrow");
@@ -75,23 +78,109 @@ test("the box's [[ list leaves out the agent's files and is drawn over the next 
   await box.fill("");
 });
 
-// "super c does not work" (2026-10-15): a second capture box (another page with a capture block) that went
-// away cleared Super+C's one slot while the Home page's box was still there.
-test("Super+C reaches the Home box after another page's capture box was closed", async ({ page, request }) => {
+// The capture popup over any pane (components/QuickCapture.svelte): Super+C opens it over the note being edited, with no
+// navigation, the editor's selection in it; Enter saves to the day's log and closes. Super+E twice carries what was
+// typed in the command bar into it; Esc keeps a draft for the next time.
+test("Super+C and Super+E twice open the capture popup over the current pane, Enter saves it", async ({ page, request }) => {
   const H = { "x-atlas": "1" };
-  await request.put("/api/file", { headers: H, data: { path: "notes/second.page", text: "title: Second\nrows:\n  - [capture]\n" } });
   await page.goto("/");
   await page.getByText("Finish the GW notes.").waitFor();
-  await request.post("/api/cmd/open", { headers: H, data: { args: { path: "notes/second.page" } } });
-  await expect(page.getByTestId("sidebar").locator(".tab", { hasText: "Second" })).toBeVisible();
-  await expect(page.getByTestId("capture").first()).toBeVisible();
-  // closing it shows Home again: Home's box registers, then the closed page's box unregisters (it used to
-  // clear the one slot after Home had taken it)
-  await page.getByTestId("sidebar").locator(".tab", { hasText: "Second" }).getByRole("button", { name: /Close/ }).click();
-  await expect(page.getByTestId("sidebar").locator(".tab", { hasText: "Second" })).toHaveCount(0);
   await request.post("/api/cmd/open", { headers: H, data: { args: { path: "notes/hubbard.md" } } });
-  await expect(page.locator(".cm-content:visible").first()).toBeVisible();
-  await page.locator(".cm-content:visible").first().click();
+  const cm = page.locator(".cm-content:visible").first();
+  await expect(cm).toBeVisible();
+  await cm.click();
   await page.keyboard.press("Meta+c");
-  await expect(page.getByTestId("capture")).toBeFocused();
+  const box = page.getByTestId("quick-capture");
+  await expect(box).toBeFocused();
+  await expect(page.locator(".cm-content:visible").first()).toBeVisible(); // still over the note: nothing navigated
+  await box.fill("[] call the lab @tomorrow");
+  await expect(page.getByRole("dialog", { name: "Capture" }).locator(".where")).not.toHaveText("to today's log");
+  await expect(page.getByRole("button", { name: "To-do" })).toHaveAttribute("aria-pressed", "true");
+  for (const scheme of ["light", "dark"] as const) { // judged in both themes (docs/guides/UI-STYLE.md)
+    await page.emulateMedia({ colorScheme: scheme });
+    await page.screenshot({ path: test.info().outputPath(`capture-popup-${scheme}.png`) });
+  }
+  await page.keyboard.press("Enter");
+  await expect(box).toHaveCount(0);
+  await expect(page.getByText(/^Captured/).first()).toBeVisible();
+  // Super+E, a few words, Super+E again: the popup with them; Esc keeps them as a draft
+  await page.keyboard.press("Meta+e");
+  await page.keyboard.type("an idea about vortices");
+  await page.keyboard.press("Meta+e");
+  await expect(box).toHaveValue("an idea about vortices");
+  await page.keyboard.press("Escape");
+  await expect(box).toHaveCount(0);
+  await page.keyboard.press("Meta+c");
+  await expect(box).toHaveValue("an idea about vortices");
+  await box.fill("");
+  await page.keyboard.press("Escape");
+});
+
+// The command bar closes before its capture answers: a failure brings the text back in the capture popup (its draft).
+test("a capture from the command bar that fails comes back in the capture popup", async ({ page }) => {
+  await page.goto("/");
+  await page.getByText("Finish the GW notes.").waitFor();
+  await page.route(/\/api\/capture$/, (r) => r.fulfill({ status: 500, contentType: "application/json", body: JSON.stringify({ error: "the disk is full" }) }));
+  await page.keyboard.press("Meta+e");
+  await page.keyboard.type("+ a thought not to lose");
+  await page.keyboard.press("Enter");
+  await expect(page.getByText(/^Not captured/).first()).toBeVisible();
+  const box = page.getByTestId("quick-capture");
+  await expect(box).toHaveValue("a thought not to lose");
+  await page.unroute(/\/api\/capture$/);
+  await box.fill("");
+  await page.keyboard.press("Escape");
+});
+
+// A picture pasted or dropped into the popup goes beside today's log, its embed into the text; Enter saves both.
+test("a picture pasted into the capture popup is attached beside today's log and embedded in the capture", async ({ page, request }) => {
+  const H = { "x-atlas": "1" };
+  await page.goto("/");
+  await page.getByText("Finish the GW notes.").waitFor();
+  await page.keyboard.press("Meta+c");
+  const box = page.getByTestId("quick-capture");
+  await box.fill("the whiteboard after the meeting");
+  await box.evaluate((el) => {
+    const b64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
+    const dt = new DataTransfer();
+    dt.items.add(new File([Uint8Array.from(atob(b64), (c) => c.charCodeAt(0))], "image.png", { type: "image/png" }));
+    el.dispatchEvent(new ClipboardEvent("paste", { clipboardData: dt, bubbles: true, cancelable: true }));
+  });
+  await expect(box).toHaveValue(/^the whiteboard after the meeting\n!\[\[Pasted image \d{14}\.png(\|\d+)?\]\]$/);
+  const thumb = page.getByLabel("Attached pictures").locator("img");
+  await expect(thumb).toHaveCount(1);
+  await expect.poll(() => thumb.evaluate((i: HTMLImageElement) => i.complete && i.naturalWidth > 0)).toBe(true); // served, not broken
+  for (const scheme of ["light", "dark"] as const) {
+    await page.emulateMedia({ colorScheme: scheme });
+    await page.screenshot({ path: test.info().outputPath(`capture-popup-picture-${scheme}.png`) });
+  }
+  await page.keyboard.press("Enter");
+  await expect(box).toHaveCount(0);
+  const log = (await (await request.post("/api/log/today", { headers: H })).json()).path as string;
+  const text = () => request.get(`/api/file?path=${encodeURIComponent(log)}`, { headers: H }).then((r) => r.json()).then((j) => j.text as string);
+  await expect.poll(text).toMatch(/the whiteboard after the meeting\n {2}!\[\[Pasted image \d{14}\.png(\|\d+)?\]\]/);
+  // the capture and its picture out of today's log again: later specs' Home would draw it (a 404 in their console)
+  await request.put("/api/file", { headers: H, data: { path: log, text: (await text()).replace(/^.*the whiteboard after the meeting\n(?: {2}.*\n?)*/m, "") } });
+});
+
+// The thumbnail's × takes the embed out of the text (the file stays beside the log).
+test("a pasted picture's thumbnail takes its embed out of the capture", async ({ page }) => {
+  await page.goto("/");
+  await page.getByText("Finish the GW notes.").waitFor();
+  await page.keyboard.press("Meta+c");
+  const box = page.getByTestId("quick-capture");
+  await box.fill("one line");
+  await box.evaluate((el) => {
+    const b64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
+    const dt = new DataTransfer();
+    dt.items.add(new File([Uint8Array.from(atob(b64), (c) => c.charCodeAt(0))], "image.png", { type: "image/png" }));
+    el.dispatchEvent(new ClipboardEvent("paste", { clipboardData: dt, bubbles: true, cancelable: true }));
+  });
+  const thumbs = page.getByLabel("Attached pictures");
+  await thumbs.locator("figure").hover();
+  await thumbs.getByRole("button").click();
+  await expect(box).toHaveValue("one line");
+  await expect(thumbs).toHaveCount(0);
+  await expect(box).toBeFocused();
+  await page.keyboard.press("Escape");
 });

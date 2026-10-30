@@ -44,9 +44,9 @@
 </div>
 
 <style>
-  .cover { width: 100%; aspect-ratio: 2 / 3; object-fit: cover; border-radius: var(--radius-sm); background: var(--bg-alt); box-shadow: 0 1px 3px rgba(0, 0, 0, .2); }
+  .cover { width: 100%; aspect-ratio: 2 / 3; object-fit: cover; border-radius: var(--radius-sm); background: var(--bg-alt); box-shadow: var(--shadow-sm); }
   .cover.big { aspect-ratio: auto; max-height: 280px; width: auto; max-width: 100%; margin-bottom: 10px; }
   .tile { display: grid; place-items: center; font-size: 2.2em; font-weight: 600; box-shadow: none;
-    background: hsl(var(--hue) 32% 50% / .22); color: hsl(var(--hue) 40% 42%); }
+    background: hsl(var(--hue) 32% 50% / .22); color: hsl(var(--hue) 40% 42%); } /* literal: a hue per title */
   .wrap { width: 100%; min-height: 1px; }
 </style>

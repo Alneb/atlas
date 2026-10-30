@@ -2,7 +2,7 @@
   // Today's parts — greeting, capture box (Enter sends), focus, today's log, open tasks, activity.
   // The Today pane shows them all; each is also a view type for ```view blocks (the home document,
   // any note), so `parts` picks which. Data comes from the shared, cached today-store.
-  import { errText } from "../lib/text";
+  import { errText, escapeRegExp } from "../lib/text";
   import { listVault } from "../lib/vault";
   import { shownName } from "../lib/paths";
   import { localDay } from "../lib/local-day";
@@ -12,19 +12,23 @@
   import { api } from "../lib/api";
   import { app, toast } from "../lib/state.svelte";
   import { open, openPath } from "../lib/dock";
+  import { openCaptures } from "../lib/quick-capture.svelte";
   import { settings } from "../lib/settings.svelte";
   import CommitRow from "../components/CommitRow.svelte";
   import { capture } from "../lib/registry";
   import { inPhoneApp } from "../lib/eink";
   import { captureHint } from "../lib/capture-hints.svelte";
   import { complete } from "../lib/textarea-complete";
-  import { md } from "../lib/markdown";
-  import { chipEl, taskTextWithChips } from "../lib/task-chips";
+  import { renderInlineMarkdown } from "../lib/markdown";
+  import { chipEl, sayDate, taskTextWithChips } from "../lib/task-chips";
   import type { Today } from "../lib/types";
   import type { DockviewPanelApi } from "dockview-core";
   import { todayData, refreshToday, useToday } from "../lib/today-store.svelte";
   import Markdown from "../components/Markdown.svelte";
   import Icon from "../components/Icon.svelte";
+  import { isIconName } from "../lib/icons";
+  import CaptureGuides from "../components/CaptureGuides.svelte";
+  import { PROMPT, landedAt } from "../lib/capture-guides";
 
   export type TodayPart = "greeting" | "capture" | "focus" | "log" | "tasks" | "activity";
   const ALL: TodayPart[] = ["greeting", "capture", "focus", "log", "tasks", "activity"];
@@ -62,7 +66,6 @@
   // the captures still to triage (captures.rs), on the log card: counted again whenever Today refreshes
   let untriaged = $state(0);
   $effect(() => { void today; if (show("log")) void api.captures().then((l) => { untriaged = l.open; }, () => {}); });
-  const openCaptures = () => open({ kind: "block", src: "type: captures\n", doc: "", title: "Captures" }); // and again whenever Today refreshes (a file saved)
   const shiftDay = (d: string, n: number) => { const t = new Date(`${d}T12:00:00`); t.setDate(t.getDate() + n); return localDay(t); };
   const created = $derived(dayAct?.created ?? []);
   let createdAll = $state(false), changedAll = $state(false);
@@ -208,7 +211,7 @@
       const res = await api.capture(value);
       text = "";
       const n = ++confirmSeq;
-      confirm = { msg: `Saved to ${res.path}:${res.line}`, n };
+      confirm = { msg: `Saved to ${landedAt(res)}`, n };
       setTimeout(() => { if (confirm?.n === n) confirm = null; }, 2600);
       autosize();
       void refresh();
@@ -236,13 +239,24 @@
   }
 
 
-  const inline = (s: string) => md.renderInline(s); // task text arrives without the checkbox
+  const inline = renderInlineMarkdown; // task text arrives without the checkbox
   /** A task's fields as chips after its text (lib/task-chips.ts), not as Obsidian's emoji. */
   function chips(host: HTMLElement, text: string) {
     const draw = (t: string) => host.replaceChildren(...(settings.config?.editor.task_chips === false ? [] : taskTextWithChips(t).chips.map(chipEl)));
     draw(text);
     return { update: draw };
   }
+  /** Where a task lives, as read: a day's log by its day ("yesterday", "Wed 28 Oct"), another note by its name; the
+   *  line stays in the tooltip ("2026-10-28:15" read as a time). */
+  // a day log is named by its date: said as the log of that day, so the date does not read as a due date
+  const sourceOf = (path: string) => { const n = shownName(path); return /^\d{4}-\d{2}-\d{2}$/.test(n) ? `log · ${sayDate(n).text}` : n; };
+  /** The focus file without the title that repeats the card's ("# Focus"), and "" when nothing else is written yet
+   *  (comments and blank lines only). */
+  const focusBody = (text: string, path: string) => {
+    const body = text.replace(new RegExp(`^\\s*#\\s+(focus|${escapeRegExp(shownName(path))})\\s*\\n`, "i"), "");
+    return body.replace(/<!--[\s\S]*?-->/g, "").trim() ? body : "";
+  };
+  const focusText = $derived(today ? focusBody(today.focus.text ?? "", today.focus.path) : "");
   const titleOf = (t: string) => (settings.config?.editor.task_chips === false ? t : taskTextWithChips(t).title);
 
   onMount(() => {
@@ -257,14 +271,19 @@
     // time Home showed
     // (the app on a phone or a Boox: its pen hovers, so the media query alone said "a mouse" there)
     const touchOnly = inPhoneApp() || matchMedia("(hover: none) and (pointer: coarse)").matches;
-    const claim = () => requestAnimationFrame(() => {
-      if (touchOnly) return;
+    // …and never after a key or click since it was asked: Ctrl+Shift+F at startup opened Search, whose box may not
+    // hold the focus yet that frame — the query then went into this box
+    let acted = false;
+    const act = () => (acted = true);
+    const claim = () => { acted = false; requestAnimationFrame(() => {
+      if (touchOnly || acted) return;
       const a = document.activeElement;
       if (!a || a === document.body || (a.classList.contains("cm-content") && box?.closest(".cm-editor")?.contains(a))) box?.focus();
-    });
+    }); };
+    addEventListener("keydown", act, true); addEventListener("pointerdown", act, true);
     claim();
     const offActive = panel?.onDidActiveChange((e) => { if (e.isActive) { void refresh(); claim(); } });
-    return () => { offActive?.dispose(); offCapture(); };
+    return () => { offActive?.dispose(); offCapture(); removeEventListener("keydown", act, true); removeEventListener("pointerdown", act, true); };
   });
 </script>
 
@@ -277,8 +296,8 @@
       {#if greetingChips.length}
         <div class="greet-chips">
           {#each greetingChips as c (c.key)}
-            {#if c.run}<button class="greet-chip" title={c.title} onclick={() => void c.run?.()}>{#if c.icon}<span class="gi">{c.icon}</span>{/if}{c.text}</button>
-            {:else}<span class="greet-chip" title={c.title}>{#if c.icon}<span class="gi">{c.icon}</span>{/if}{c.text}</span>{/if}
+            {#if c.run}<button class="greet-chip" title={c.title} onclick={() => void c.run?.()}>{#if c.icon && isIconName(c.icon)}<Icon name={c.icon} size={13} />{:else if c.icon}<span class="gi">{c.icon}</span>{/if}{c.text}</button>
+            {:else}<span class="greet-chip" title={c.title}>{#if c.icon && isIconName(c.icon)}<Icon name={c.icon} size={13} />{:else if c.icon}<span class="gi">{c.icon}</span>{/if}{c.text}</span>{/if}
           {/each}
         </div>
       {/if}
@@ -294,7 +313,7 @@
         use:complete
         oninput={autosize}
         rows="1"
-        placeholder="Capture a thought, a todo, a link…"
+        placeholder={PROMPT}
         aria-label="Capture to today's log"
         data-testid="capture"
       ></textarea>
@@ -304,7 +323,7 @@
         {:else}
           <!-- what the text will become, or — while the box is empty — the short forms that exist -->
           <span class="what" data-testid="capture-what">
-            {#if !text.trim()}<code>[] </code> or <code>todo </code> makes a to-do · <code>@tomorrow</code> <code>@fri</code> <code>@+3d</code> a date
+            {#if !text.trim()}<CaptureGuides {box} />
             {:else}{hint.current.says}{/if}
           </span>
           <span class="hint keys-only"><kbd>Enter</kbd> to save · <kbd>Shift</kbd><kbd>Enter</kbd> new line</span>
@@ -327,8 +346,10 @@
               <button class="icon-btn" title="Edit {today.focus.path}" onclick={() => openPath(today!.focus.path)}><Icon name="edit" size={15} /></button>
             {/if}
           </div>
-          {#if today?.focus.text}
-            <Markdown text={today.focus.text} path={today.focus.path} class="focus-md" />
+          {#if focusText}
+            <Markdown text={focusText} path={today!.focus.path} class="focus-md" />
+          {:else if today?.focus.text}
+            <p class="empty">Nothing written in it yet. <button class="link" onclick={() => openPath(today!.focus.path)}>Write what matters now</button></p>
           {:else if today}
             <p class="empty">No <code>{today.focus.path}</code> yet. <button class="link" onclick={() => openPath(today!.focus.path)}>Write one</button> — it's yours; Atlas only shows it.</p>
           {/if}
@@ -372,7 +393,7 @@
                   <button class="task-box" aria-label="Mark done: {t.text}" title="Mark done (writes [x] in {t.path})" onclick={() => markDone(t)}></button>
                   <button class="task" onclick={() => openPath(t.path, t.line)} title="{t.path}:{t.line}">
                     <span class="task-text">{@html inline(titleOf(t.text))}<span class="task-chips" use:chips={t.text}></span></span>
-                    <span class="task-src">{shownName(t.path)}:{t.line}</span>
+                    <span class="task-src">{sourceOf(t.path)}</span>
                   </button>
                 </li>
               {/each}
@@ -411,7 +432,7 @@
             {#if created.length}
               <ul class="activity changed">
                 {#each createdAll ? created : created.slice(0, 8) as f (f.path)}
-                  <li><button class="changed-row" onclick={() => openPath(f.path)} title={f.path}><Icon name={/\.md$/i.test(f.path) ? "file-text" : "file"} size={14} /><span class="path">{shownName(f.path)}{#if f.path.includes("/")} <span class="n">· {f.path.slice(0, f.path.lastIndexOf("/"))}</span>{/if}</span><span class="when">{madeAt(f.created)}</span></button></li>
+                  <li><button class="changed-row" onclick={() => openPath(f.path)} title={f.path}><Icon name={/\.md$/i.test(f.path) ? "file-text" : "file"} size={14} /><span class="path">{shownName(f.path)}{#if f.path.includes("/")}{" "}<span class="n">· {f.path.slice(0, f.path.lastIndexOf("/"))}</span>{/if}</span><span class="when">{madeAt(f.created)}</span></button></li>
                 {/each}
               </ul>
               {#if created.length > 8}<button class="link more" onclick={() => (createdAll = !createdAll)}>{createdAll ? "Show fewer" : `Show all ${created.length}`}</button>{/if}
@@ -493,7 +514,6 @@
     font: inherit; font-size: calc(15.5px * var(--ui-scale, 1)); line-height: 1.55; padding: 12px 14px 6px; min-height: 48px; }
   .capture textarea::placeholder { color: var(--text-faint); }
   .capture-foot .what { margin-right: auto; color: var(--text-faint); }
-  .capture-foot .what code { font-family: var(--font-mono); font-size: .92em; color: var(--text-muted); background: var(--bg-hover); border-radius: 4px; padding: 0 4px; white-space: pre; }
   .capture-foot { display: flex; justify-content: flex-end; padding: 2px 12px 9px; min-height: 30px; align-items: center; font-size: calc(12px * var(--ui-scale, 1)); }
   .hint { color: var(--text-faint); }
   .capture-ok { color: var(--green); display: inline-flex; align-items: center; gap: 5px; animation: fade-in .18s ease-out; }
@@ -511,7 +531,8 @@
 
   :global(.focus-md), :global(.log-md) { font-size: calc(14.5px * var(--ui-scale, 1)); }
   :global(.log-md ul) { padding-left: 1.1em; }
-  .triage-pill { margin-left: 8px; padding: 1px 9px; border-radius: 999px; font-size: calc(11.5px * var(--ui-scale, 1)); font-variant-numeric: tabular-nums;
+  /* beside the title; the day's icons stay on the right */
+  .triage-pill { margin: 0 auto 0 8px; padding: 1px 9px; border-radius: 999px; font-size: calc(11.5px * var(--ui-scale, 1)); font-variant-numeric: tabular-nums;
     color: var(--accent-strong, var(--accent)); background: color-mix(in srgb, var(--accent) 12%, transparent); border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent); }
   .triage-pill:hover { background: color-mix(in srgb, var(--accent) 22%, transparent); }
   /* the day's log (lib/log-entries.ts): the time in a muted column, the text beside it, pictures as thumbnails */
@@ -542,6 +563,7 @@
   .task-box:hover { border-color: var(--accent); background: var(--accent-soft); }
   .task-text { overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
   .task-text :global(code) { font-size: .9em; }
+  .task-text :global(a) { color: var(--link); text-decoration: none; }
   .task-chips:not(:empty) { margin-left: 4px; }
   .task-src { color: var(--text-faint); font-size: calc(10.5px * var(--ui-scale, 1)); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .more { margin-top: 6px; font-size: calc(12.5px * var(--ui-scale, 1)); }

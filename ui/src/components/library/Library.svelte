@@ -186,7 +186,9 @@
     selId = sorted[i].id;
     picked = [selId];
     anchor = selId;
-    requestAnimationFrame(() => list?.querySelector(".row.sel, .card.sel")?.scrollIntoView({ block: "nearest" }));
+    // a row that held the focus hands it on: the ring and the selection stay one row
+    const had = !!list?.contains(document.activeElement);
+    requestAnimationFrame(() => { const el = list?.querySelector<HTMLElement>(".row.sel, .card.sel"); el?.scrollIntoView({ block: "nearest" }); if (had) el?.focus(); });
   }
   function onKey(e: KeyboardEvent) {
     if ((e.target as HTMLElement).closest("input, select, textarea")) return;
@@ -280,7 +282,7 @@
         {/if}
       </nav>
     {/if}
-    <div class="list" class:covers={layout === "covers"} bind:this={list} use:marquee={{ pick: dragPick }}>
+    <div class="list" class:covers={layout === "covers"} class:empty-list={!items.length} bind:this={list} use:marquee={{ pick: dragPick }}>
       {#each sorted as i (i.id)}
         {#if layout === "covers"}
           <button class="card" class:sel={isPicked(i)} data-pick={i.id} draggable={source.regroup ? "true" : undefined} ondragstart={(e) => dragItem(e, i)} onclick={(e) => click(e, i)} ondblclick={() => source.open?.(i)} title={i.sub}>
@@ -346,6 +348,9 @@
         <!-- the links to it, as under a note -->
         {#if sel.note}<div class="links-bar">{#key sel.note}<Backlinks path={sel.note} />{/key}</div>{/if}
       </aside>
+    {:else if !narrow && items.length}
+      <!-- the detail's column says what goes there, rather than standing blank -->
+      <aside class="detail none" aria-label="Details"><p>Pick one of the {source.noun} to see it here.<span class="keys-only"><br />↑ ↓ move, Enter opens.</span></p></aside>
     {/if}
   </div>
 </div>
@@ -388,6 +393,8 @@
   .hint { color: var(--text-faint); font-weight: 400; }
   .body { flex: 1; min-height: 0; display: grid; grid-template-columns: 210px minmax(300px, 1.15fr) minmax(280px, 1fr); }
   .body.bare { grid-template-columns: minmax(300px, 1.4fr) minmax(280px, 1fr); }
+  .list.empty-list { grid-column: span 2; } /* nothing to list: its words get the detail's column too */
+  .detail.none { display: grid; place-content: center; text-align: center; color: var(--text-faint); }
   .side { overflow: auto; border-right: 1px solid var(--border); padding: 8px 6px; background: var(--bg-alt); display: flex; flex-direction: column; gap: 1px; }
   .side h4, .side .h4 { display: flex; align-items: center; gap: 4px; margin: 12px 8px 4px; padding: 0; font-size: calc(10.5px * var(--ui-scale, 1)); font-weight: 600; text-transform: uppercase; letter-spacing: .07em; color: var(--text-muted); text-align: left; }
   .side .h4:hover { color: var(--text); }
@@ -400,7 +407,7 @@
   .hash { color: var(--text-faint); width: 14px; text-align: center; }
   .tagitem { color: var(--text-muted); }
   .tag.coll { display: inline-flex; gap: 4px; align-items: center; color: var(--text); }
-  .list { overflow: auto; border-right: 1px solid var(--border); padding: 6px; position: relative; user-select: none; -webkit-user-select: none; }
+  .list { overflow: hidden auto; /* the grid wraps: a horizontal offset only ever hid the first column */ border-right: 1px solid var(--border); padding: 6px; position: relative; user-select: none; -webkit-user-select: none; }
   .list :global(.marquee) { position: absolute; z-index: 2; pointer-events: none; border: 1px solid var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); border-radius: 2px; }
   .tree-row { display: flex; align-items: center; min-width: 0; }
   .tree-row .item { flex: 1; min-width: 0; }
@@ -425,8 +432,10 @@
   .flags { grid-column: 2; grid-row: 1 / span 2; display: flex; gap: 4px; align-items: center; }
   .flag { font-size: calc(11px * var(--ui-scale, 1)); padding: 1px 6px; border-radius: 999px; background: var(--bg-hover); color: var(--text-muted); }
   .flag.red { color: var(--red); background: color-mix(in srgb, var(--red) 14%, transparent); }
-  .detail { overflow: auto; padding: 18px 22px 40px; }
-  .links-bar { position: sticky; bottom: -40px; margin: 18px -22px -40px; display: flex; flex-direction: column; max-height: 50vh; }
+  /* a column, so the linked mentions sit at the bottom however short the item's card is */
+  .detail { overflow: auto; padding: 18px 22px 40px; display: flex; flex-direction: column; }
+  .detail > :global(*) { flex-shrink: 0; }
+  .links-bar { position: sticky; bottom: -40px; margin: auto -22px -40px; padding-top: 18px; display: flex; flex-direction: column; max-height: 50vh; }
   .links-bar :global(.backlinks) { max-height: 50vh; }
   .kind { text-transform: uppercase; letter-spacing: .07em; font-size: calc(11px * var(--ui-scale, 1)); color: var(--text-faint); }
   h2 { margin: 4px 0 6px; font-size: calc(19px * var(--ui-scale, 1)); color: var(--heading); line-height: 1.3; }
@@ -463,7 +472,7 @@
   .narrow .side .item.on { box-shadow: none; border-color: color-mix(in srgb, var(--accent) 45%, transparent); }
   .narrow .list { flex: 1; border-right: 0; }
   .narrow .list.covers { grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 12px 10px; padding: 10px 12px; }
-  .scrim { position: absolute; inset: 0; z-index: 6; background: rgb(0 0 0 / .35); border: 0; padding: 0; cursor: default; }
+  .scrim { position: absolute; inset: 0; z-index: 6; background: var(--scrim); border: 0; padding: 0; cursor: default; }
   .narrow .detail { position: absolute; left: 0; right: 0; bottom: 0; z-index: 7; max-height: 80%; padding: 18px 16px calc(24px + env(safe-area-inset-bottom, 0px));
     background: var(--bg-elev); border-top: 1px solid var(--border-strong); border-radius: 14px 14px 0 0; box-shadow: var(--shadow-pop); }
   .narrow .detail :global(.cover.big) { max-height: 180px; }

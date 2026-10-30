@@ -650,6 +650,13 @@ async fn capture_post(State(st): S, Json(req): Json<CaptureRequest>) -> Result<J
     ))
 }
 
+/// A capture just made, taken back (captures.rs `undo`); open editors are told.
+async fn capture_undo(State(st): S, Json(req): Json<crate::api::CaptureUndo>) -> Result<StatusCode> {
+    let paths = with_ws(&st, move |ws| crate::captures::undo(&ws, &req)).await?;
+    st.bus.publish(Event::Fs { paths });
+    Ok(StatusCode::NO_CONTENT)
+}
+
 /// Every capture and its state (captures.rs): the Captures block, the untriaged count on Home.
 async fn captures_get(State(st): S) -> Result<Json<crate::api::CaptureList>> {
     Ok(Json(with_ws(&st, |ws| Ok(crate::captures::list(ws.root(), &ws.config()?))).await?))
@@ -2055,6 +2062,7 @@ fn router(state: Arc<AppState>) -> Router {
         .route("/api/plugins/{id}/oauth/{name}", get(plugin_oauth_status).delete(plugin_oauth_delete))
         .route("/api/tasks/suggest", get(tasks_suggest))
         .route("/api/capture", post(capture_post))
+        .route("/api/capture/undo", post(capture_undo))
         .route("/api/capture/describe", post(capture_describe))
         .route("/api/capture/days", get(capture_days))
         .route("/api/captures", get(captures_get))
@@ -2436,6 +2444,10 @@ fn start_vault(root: &std::path::Path, port: u16, auth: Option<Arc<crate::auth::
             None
         }
     };
+    // the caches are rebuilt from the vault: git and the Git pane leave them out
+    if let Err(e) = crate::vault_write::ignored_folder(&ws.cache_dir(), "Atlas's caches, rebuilt from the vault") {
+        eprintln!("atlas: {}: {e}", ws.cache_dir().display());
+    }
     let server_file = ws.cache_dir().join("server.json");
     let sf = ServerFile { port, pid: std::process::id(), root: ws.root().to_string_lossy().into_owned(), path: prefix.to_string() };
     vault_write::cache::write(&server_file, serde_json::to_string_pretty(&sf)?.as_bytes())?;

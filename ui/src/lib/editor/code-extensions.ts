@@ -1,5 +1,5 @@
 // What a code file's editor adds to the shared base (create.ts): its language (loaded lazily), its language server's
-// slot, brackets, folds, the settings-driven gutters (line numbers, git, indent guides, minimap), the tool bar's
+// slot, its indentation (indent.ts), brackets, folds, the settings-driven gutters (line numbers, git, indent guides, minimap), the tool bar's
 // commands (components/CodeBar.svelte) and the problem counts.
 import { Compartment, Prec, type EditorState, type Extension } from "@codemirror/state";
 import { EditorView, keymap, crosshairCursor, highlightActiveLineGutter, lineNumbers } from "@codemirror/view";
@@ -15,6 +15,7 @@ import type { Problems } from "../state.svelte";
 import { gitGutter } from "./git-gutter";
 import { atlasHighlight } from "./highlight-style";
 import { codeCompletionTab } from "./tab-keys";
+import { codeIndent } from "./indent";
 
 /** Settings-driven code options; reconfigured live when the config changes. */
 export function codeOptions(c: WorkspaceConfig | null): Extension {
@@ -28,8 +29,9 @@ export function codeOptions(c: WorkspaceConfig | null): Extension {
   ];
 }
 
-export function codeExtensions(lang: Compartment, opts: Compartment, lsp: Compartment, cfg: WorkspaceConfig | null): Extension {
+export function codeExtensions(lang: Compartment, opts: Compartment, lsp: Compartment, cfg: WorkspaceConfig | null, doc: string): Extension {
   return [
+    codeIndent(doc), // ahead of the language's: the file's own indentation wins
     lsp.of([]),
     opts.of(codeOptions(cfg)),
     foldGutter({ openText: "▾", closedText: "▸" }),

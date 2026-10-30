@@ -29,9 +29,9 @@ pub extern "system" fn Java_org_atlas_capture_Core_suggest(mut env: JNIEnv, _: J
 }
 
 #[no_mangle]
-pub extern "system" fn Java_org_atlas_capture_Core_describe(mut env: JNIEnv, _: JClass, text: JString) -> jstring {
-    let t = arg(&mut env, &text);
-    ret(&mut env, move || phone::describe(&t))
+pub extern "system" fn Java_org_atlas_capture_Core_describe(mut env: JNIEnv, _: JClass, vault: JString, text: JString) -> jstring {
+    let (v, t) = (arg(&mut env, &vault), arg(&mut env, &text));
+    ret(&mut env, move || phone::describe(Some(Path::new(&v)).filter(|_| !v.is_empty()), &t))
 }
 
 #[no_mangle]

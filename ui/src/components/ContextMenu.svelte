@@ -63,7 +63,7 @@
 </div>
 
 <style>
-  .menu { position: fixed; z-index: 90; min-width: 200px; max-width: min(360px, calc(100vw - 12px)); max-height: calc(100vh - 12px); overflow-y: auto; padding: 4px; background: var(--bg-elev); border: 1px solid var(--border-strong); border-radius: 8px; box-shadow: 0 12px 34px rgba(0, 0, 0, .4); opacity: 0; }
+  .menu { position: fixed; z-index: 90; min-width: 200px; max-width: min(360px, calc(100vw - 12px)); max-height: calc(100vh - 12px); overflow-y: auto; padding: 4px; background: var(--bg-elev); border: 1px solid var(--border-strong); border-radius: 8px; box-shadow: var(--shadow-pop); opacity: 0; }
   .menu.placed { opacity: 1; } /* opacity, not visibility: a hidden row cannot take the focus */
   button { display: flex; align-items: center; gap: 9px; width: 100%; padding: 5px 10px; border-radius: 5px; text-align: left; color: var(--text); font-size: calc(13px * var(--ui-scale, 1)); }
   button:focus, button:focus-visible { background: var(--bg-hover); outline: none; }

@@ -124,3 +124,9 @@ export async function setKey(id: string, keys: string | null): Promise<void> {
 export function keysOf(id: string): string | undefined {
   return allCommands().find((c) => c.id === id)?.keys;
 }
+
+/** A control's tooltip: what it does, then the key of the command it runs ("Search · Super+F"); no key, the text alone. */
+export function tipFor(text: string, id: string): string {
+  const k = keysOf(id);
+  return k ? `${text} · ${k}` : text;
+}

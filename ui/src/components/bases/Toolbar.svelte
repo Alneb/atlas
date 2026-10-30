@@ -99,7 +99,7 @@
   <button type="button" class="tool" class:on={pop?.which === "props"} aria-expanded={pop?.which === "props"} aria-label="Properties" title="Properties shown as columns" onclick={(e) => toggle("props", e)}>
     <Icon name="list" size={13} />{#if !compact}<span>Properties</span>{/if}
   </button>
-  <button type="button" class="new" onclick={onnew} title="New note in this view (its filters fill the folder and properties)"><Icon name="plus" size={12} /> New</button>
+  <button type="button" class="new" class:compact onclick={onnew} aria-label="New" title="New note in this view (its filters fill the folder and properties)"><Icon name="plus" size={12} />{#if !compact} New{/if}</button>
 </div>
 
 {#if pop}
@@ -137,5 +137,6 @@
   .tool[aria-expanded="true"] { background: var(--accent-soft); }
   .badge { font-size: .8em; font-variant-numeric: tabular-nums; background: var(--accent-soft); color: var(--accent); padding: 0 6px; border-radius: 99px; line-height: 16px; }
   .new { display: inline-flex; align-items: center; gap: 4px; height: 28px; padding: 0 10px; margin-left: 4px; border-radius: var(--radius-sm); border: 1px solid var(--border-strong); color: var(--text); }
+  .new.compact { padding: 0 7px; }
   .new:hover { background: var(--bg-hover); }
 </style>

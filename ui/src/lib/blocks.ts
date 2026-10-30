@@ -119,7 +119,7 @@ const TODAY_PARTS: Record<TodayPart, string> = { greeting: "Greeting", capture: 
 const dayOfDoc = (doc?: string) => /(\d{4}-\d{2}-\d{2})[^/]*\.md$/.exec(doc ?? "")?.[1];
 for (const [p, title] of Object.entries(TODAY_PARTS)) registerBlock(svelteBlock(p, title, TodayParts as Component<never>, (c) => ({ parts: [p], day: p === "activity" ? dayOfDoc(c.doc) : undefined })));
 registerBlock(lazyBlock("settings", "Settings page", () => import("../components/settings/SettingsBlock.svelte"), (c) => ({ src: c.src })));
-registerBlock(lazyBlock("search", "Saved search", () => import("../components/views/SearchBlock.svelte"), (c) => ({ src: c.src })));
+registerBlock(lazyBlock("search", "Saved search", () => import("../components/views/SearchBlock.svelte"), (c) => ({ src: c.src, doc: c.doc })));
 registerBlock({ ...lazyBlock("review", "Review (notes waiting, one at a time)", () => import("../components/views/Review.svelte"), (c) => ({ src: c.src, doc: c.doc })), icon: "check", card: true });
 registerBlock({ ...lazyBlock("captures", "Captures (every capture, to triage)", () => import("../components/views/Captures.svelte"), (c) => ({ src: c.src })), icon: "inbox", card: true });
 registerBlock(lazyBlock("tags", "Tags (every tag, its notes)", () => import("../components/views/Tags.svelte"), () => ({})));

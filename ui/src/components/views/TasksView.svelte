@@ -28,7 +28,7 @@
   {#each withHeads as { r, head } (`${r.path}:${r.line ?? ""}:${r.title}`)}
     {#if head !== null}<li class="head"><span>{head}</span><span class="n">{count(head)}</span></li>{/if}
     <li class="task" class:done={r.done} data-priority={r.props.priority ?? "normal"}>
-      <input type="checkbox" checked={r.done ?? false} disabled={r.done ?? false} aria-label="Done: {r.title}" onchange={() => ontick(r)} />
+      <input type="checkbox" class="atlas-check" checked={r.done ?? false} disabled={r.done ?? false} aria-label="Done: {r.title}" onchange={() => ontick(r)} />
       <!-- always there, so titles line up whether or not a task has a priority -->
       <span class="pri" title={r.props.priority ? `Priority: ${r.props.priority}` : undefined}>{PRIORITY[r.props.priority ?? ""] ?? ""}</span>
       <button class="title" onclick={() => r.path && openPath(r.path, r.line ?? undefined)} title="{r.path}:{r.line}">{r.title}</button>
@@ -62,5 +62,4 @@
   .date.soon { color: var(--accent); }
   .date.late { color: var(--red); }
   .empty { color: var(--text-faint); padding: 6px 10px; margin: 0; }
-  input { accent-color: var(--accent); }
 </style>

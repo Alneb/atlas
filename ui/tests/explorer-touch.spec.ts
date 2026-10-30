@@ -25,6 +25,15 @@ test("touch: a tap goes into a folder and opens a file; narrow, the places are a
   await expect(page.getByRole("menuitem").first()).toBeVisible();
   await page.keyboard.press("Escape");
 
+  // a phone: the bar is one line, its less-used buttons in More
+  const bar = pane.locator(".bar");
+  await expect(bar.getByRole("button", { name: "New folder" })).toBeHidden();
+  const mids = await bar.locator(":scope > :visible:not(.crumbs)").evaluateAll((els) => els.map((e) => { const r = e.getBoundingClientRect(); return (r.top + r.bottom) / 2; }));
+  expect(Math.max(...mids) - Math.min(...mids), "one line of controls").toBeLessThan(12);
+  await bar.getByRole("button", { name: "More" }).tap();
+  await expect(page.getByRole("menuitem", { name: "New folder" })).toBeVisible();
+  await page.keyboard.press("Escape");
+
   await row("tapped.md").tap();
   await expect(page.getByText("opened by a tap")).toBeVisible();
 });

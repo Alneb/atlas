@@ -15,7 +15,6 @@ export function openPluginDialog(p: Plugin, arg: string | undefined, opts: Dialo
   const key = `${p.id}\n${arg ?? ""}`;
   const already = open.get(key);
   if (already) return already;
-  const was = document.activeElement as HTMLElement | null;
   const host = document.body.appendChild(document.createElement("div"));
   const shown = new Promise<void>((resolve) => {
     let app: ReturnType<typeof mount> | null = null;
@@ -26,7 +25,6 @@ export function openPluginDialog(p: Plugin, arg: string | undefined, opts: Dialo
       void unmount(a);
       host.remove();
       open.delete(key);
-      was?.focus?.();
       resolve();
     };
     app = mount(PluginDialog, { target: host, props: { plugin: p, arg, title: opts.title ?? p.title, width: opts.width, height: opts.height, onclose: close } });

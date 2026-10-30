@@ -92,7 +92,7 @@ long|a long thought that goes on and on, past the end of the line, to see how th
       while IFS= read -r state; do
         [ -n "$state" ] || continue
         name=${state%%|*} text=${state#*|}
-        if [ "$name" = vaults ]; then ATLAS_CAPTURE_MENU=1 "$bin" "$vault" >/dev/null 2>&1 & else ATLAS_CAPTURE_TEXT="$text" "$bin" "$vault" >/dev/null 2>&1 & fi
+        if [ "$name" = vaults ]; then ATLAS_CAPTURE_DRAFTS=off ATLAS_CAPTURE_MENU=1 "$bin" "$vault" >/dev/null 2>&1 & else ATLAS_CAPTURE_DRAFTS=off ATLAS_CAPTURE_TEXT="$text" "$bin" "$vault" >/dev/null 2>&1 & fi
         sleep 1.2; shot "$out/$theme-$name.png"; kill $! 2>/dev/null; wait $! 2>/dev/null
         echo "[look] $out/$theme-$name.png $(magick identify -format '%wx%h' "$out/$theme-$name.png")"
       done <<< "$states"

@@ -13,7 +13,7 @@ export async function exportWithMarks(pdf: string, mode: PdfExportMode = "annota
     const what = n ? `${n} mark${n === 1 ? "" : "s"} written in` : "no marks yet: a plain copy";
     const extra = [r.skipped ? `${r.skipped} on pages the PDF lacks, left out` : "", r.rewritten ? "the original is encrypted, so the copy is a decrypted rewrite" : ""].filter(Boolean).join("; ");
     // a click on the notice opens the copy
-    toast("Exported with marks", `${r.path.split("/").pop()}: ${what}${extra ? ` (${extra})` : ""}.`, "success", 8000, () => void openWikilink(r.path, pdf));
+    toast("Exported with marks", `${r.path.split("/").pop()}: ${what}${extra ? ` (${extra})` : ""}.`, "success", 8000, { label: "Open", run: () => void openWikilink(r.path, pdf) });
   } catch (e) {
     toast("Export with marks", `Could not export: ${errText(e)}`, "error");
   }

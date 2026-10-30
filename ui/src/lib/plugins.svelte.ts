@@ -17,14 +17,27 @@ import { onSettings } from "./settings.svelte";
 import { logPlugin } from "./plugin-log.svelte";
 import { pluginFileUrl } from "./plugin-files";
 import type { PluginApi } from "./plugin-api";
-import { depth, disposeAll, inPhoneApp, own, ownerIds, pluginOn, plugins, starting, type Plugin } from "./plugin-registry.svelte";
+import { depth, disposeAll, INIT_ID, inPhoneApp, own, ownerIds, pluginOn, plugins, starting, type Plugin } from "./plugin-registry.svelte";
 import { registerActions } from "./plugin-commands";
-import { INIT_ID, pluginApi } from "./plugin-host-api.svelte";
+import type { PaneAt } from "./plugin-host-api.svelte";
 
 export * from "./plugin-api";
 export { plugins, pluginBlocked, pluginOn, pluginSpec, pluginData, setPluginOn, type Plugin } from "./plugin-registry.svelte";
 export { runPluginCommand } from "./plugin-commands";
-export { pluginApi, noteProps, type ContextSnapshot, type PaneAt, type PluginFileSource } from "./plugin-host-api.svelte";
+export type { ContextSnapshot, PaneAt, PluginFileSource } from "./plugin-host-api.svelte";
+
+// What a plugin is handed is fetched with the first plugin's code, not at start: it carries CodeMirror
+// (`atlas.editor.codemirror`), ~300 KB the start does not need otherwise.
+type Host = typeof import("./plugin-host-api.svelte");
+let host: Host | null = null;
+let hostLoading: Promise<Host> | null = null;
+const loadHost = (): Promise<Host> => (hostLoading ??= import("./plugin-host-api.svelte").then((m) => (host = m)));
+
+/** The API a plugin is handed; its module is loaded with the plugin's own (`loadView`, main.js). */
+export function pluginApi(p: Plugin, at?: PaneAt): PluginApi {
+  if (!host) throw new Error("the plugin API is not loaded yet: loadView first");
+  return host.pluginApi(p, at);
+}
 
 /** Run a plugin's main.js `register(atlas)` (after undoing its previous registrations). */
 // the newest start of each plugin: a start overtaken while it fetched main.js (switched off, reloaded) stops there
@@ -56,7 +69,7 @@ async function startMainNow(p: Plugin): Promise<void> {
   } else if (p.claims.length) logPlugin(p.id, "claims", new Error("`claims` needs a pane (view.js) to open the files in"));
   if (!p.main) return;
   try {
-    const mod = await importModule(p.main);
+    const [mod] = await Promise.all([importModule(p.main), loadHost()]);
     if (starts.get(p.id) !== run || !pluginOn(p)) return;
     if (typeof mod.register !== "function") throw new Error("main.js has no `export function register(atlas)`");
     const r = await mod.register(pluginApi(p));
@@ -79,7 +92,8 @@ async function importModule(path: string): Promise<any> {
 /** The plugin's pane module (`view.js`). */
 export async function loadView(p: Plugin): Promise<{ default: (host: HTMLElement, api: PluginApi) => void | (() => void) | Promise<void | (() => void)> }> {
   if (!p.view) throw new Error(`plugin ${p.id} has no pane (no view.js)`);
-  return importModule(p.view);
+  const [mod] = await Promise.all([importModule(p.view), loadHost()]);
+  return mod;
 }
 
 /** A plugin's view left open from another time (a saved layout, another vault's) whose plugin is not in this vault or

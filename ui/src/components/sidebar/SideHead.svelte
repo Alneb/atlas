@@ -4,7 +4,7 @@
   // place". The tools are not tabs: they are this row, never rows of the tab list.
   import { openSide, toggleSidePanel } from "../../lib/dock";
   import { atPointer, below } from "../../lib/menu";
-  import { keysOf } from "../../lib/keymap.svelte";
+  import { keysOf, tipFor } from "../../lib/keymap.svelte";
   import { paneIcon, paneTitle, type IconName } from "../../lib/panes";
   import { SIDE_KINDS, sideInBar, sidePanel, placeSidePanel, type SideId } from "../../lib/side-panel.svelte";
   import { sideTools, toolId } from "../../lib/side-tools.svelte";
@@ -78,7 +78,7 @@
   </div>
   {#if hidden.length}<button class="icon-btn add tipped" onclick={moreMenu} aria-haspopup="menu" aria-label="More tools" data-tip="More tools ({hidden.length})"><Icon name="plus" size={15} /></button>{/if}
   <button class="icon-btn small-btn tipped" class:off={!shown} onclick={toggleSidePanel} aria-label="{shown ? 'Hide' : 'Show'} the side panel"
-    data-tip="{shown ? 'Hide' : 'Show'} the side panel · {keysOf('ui.sidePanel') ?? ''}"><Icon name={shown ? "minus" : "chevron-down"} size={13} /></button>
+    data-tip={tipFor(`${shown ? "Hide" : "Show"} the side panel`, "ui.sidePanel")}><Icon name={shown ? "minus" : "chevron-down"} size={13} /></button>
   {#if inBar}
     <button class="icon-btn small-btn tipped" onclick={() => placeSidePanel("dock")} aria-label="Side panel beside the editors" data-tip="Move the side panel out of the bar, beside the editors"><Icon name="move-out" size={13} /></button>
   {:else}

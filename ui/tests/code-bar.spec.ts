@@ -43,7 +43,7 @@ test("a code tab has a tool bar: find, go to line, a plugin's Run for its files;
   expect(picked.length).toBeGreaterThan(0);
   await bar.getByRole("button", { name: "In files…" }).click();
   await expect(page.getByPlaceholder(/Replace/i).first(), "replace across the vault, from the bar").toBeVisible();
-  await expect(page.getByPlaceholder("Search files and text…")).toHaveValue(picked);
+  await expect(page.locator(".search-pane .search-box input")).toHaveValue(picked);
   await page.locator(".cm-content").first().click(); // back in the file
 
   // the plugin's tool is there for a .py file, first in the bar, and runs

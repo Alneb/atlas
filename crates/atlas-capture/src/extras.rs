@@ -108,7 +108,11 @@ impl Extras {
         });
         self.job(|offer| {
             let what = match context::clipboard() {
-                Some(Clip::Text(t)) => What::Text(t),
+                // a copied link goes on the capture's line, as the page does; other text under it
+                Some(Clip::Text(t)) => match link_alone(&t) {
+                    Some(url) => What::Link(Page { url, title: String::new() }),
+                    None => What::Text(t),
+                },
                 Some(Clip::Image(p)) => What::Picture(p),
                 None => return,
             };
@@ -325,6 +329,13 @@ fn put(found: &Mutex<Found>, o: Offer) {
     f.thumbs.extend(thumb);
 }
 
+/// The text when it is one web address and nothing else (spaces around it aside).
+fn link_alone(t: &str) -> Option<String> {
+    let t = t.trim();
+    let rest = t.strip_prefix("https://").or_else(|| t.strip_prefix("http://"))?;
+    (!rest.is_empty() && !t.contains(char::is_whitespace)).then(|| t.to_string())
+}
+
 fn label(k: Kind) -> &'static str {
     match k {
         Kind::Link => "Page",
@@ -452,6 +463,17 @@ mod tests {
         let mut x = x;
         x.toggle(Kind::Clipboard);
         assert!(x.parts().contains(&Part::Below("copied".into())));
+    }
+
+    #[test]
+    fn a_copied_link_alone_goes_on_the_line() {
+        assert_eq!(link_alone("  https://a.org/x?y=1\n").as_deref(), Some("https://a.org/x?y=1"));
+        assert_eq!(link_alone("see https://a.org/"), None, "words around it: text, under the line");
+        assert_eq!(link_alone("https://"), None);
+        assert_eq!(link_alone("ftp://a.org/"), None);
+        let x = Extras::default();
+        x.offer(Offer { kind: Kind::Clipboard, what: What::Link(Page { url: "https://a.org/".into(), title: String::new() }), on: true });
+        assert_eq!(x.parts(), [Part::Inline("https://a.org/".into())]);
     }
 
     #[test]

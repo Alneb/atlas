@@ -4,7 +4,7 @@ title = "Books"
 description = "an EPUB library and reader: your font, size and margins; paged (always on e-ink) or scrolled; the table of contents; read from where you left on any device"
 phone = true # runs in the phone apps too (only plugins marked so start there)
 icon = "file-text"
-version = "0.12.0"
+version = "0.12.1"
 api = 20
 claims = ["*.epub"]                    # an .epub opens here on a click (API 7: the default editor; "Open with…" offers it too)
 

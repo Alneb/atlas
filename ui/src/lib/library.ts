@@ -73,6 +73,8 @@ export interface LibrarySource {
   icon: IconName;
   /** "references": the side's "All references", the empty text. */
   noun: string;
+  /** What it is a library of, when its title does not say (lib/libraries.svelte.ts): same-subject libraries show as one. */
+  subject?: string;
   load(): Promise<LibraryItem[]>;
   /** Tabs above the list, shown when more than one holds items; a function is asked after each load (the catalog's
    *  kinds are known only then). `always`: shown empty too — a kind of thing the library can hold, its first one added
@@ -155,4 +157,54 @@ export function counted(items: LibraryItem[], pick: (i: LibraryItem) => string[]
   for (const i of items) for (const x of pick(i) ?? []) n.set(x, (n.get(x) ?? 0) + 1);
   const rest = [...n].filter(([x]) => !first.includes(x)).sort((a, b) => a[0].localeCompare(b[0]));
   return [...first.map((x): [string, number] => [x, n.get(x) ?? 0]), ...rest];
+}
+
+/** One library made of several sources about the same thing (the catalog's book notes and the e-books read here): each
+ *  source's tabs become tabs of the one page (a source without tabs, one tab under its own title), its items keep
+ *  their own detail, opening and moving; what is about the page (add, drop, tools) comes from the sources that have it. */
+export function mergeSources(id: string, title: string, icon: IconName, parts: LibrarySource[]): LibrarySource {
+  const own = new Map<string, { part: LibrarySource; item: LibraryItem }>();
+  const sep = "␟";
+  const owner = (item: LibraryItem) => own.get(item.id);
+  const declared = (p: LibrarySource) => (typeof p.tabs === "function" ? p.tabs() : p.tabs) ?? [];
+  const tabsOf = (p: LibrarySource, i: number): LibraryTab[] => {
+    const t = declared(p);
+    return t.length ? t.map((x) => ({ ...x, id: `${i}${sep}${x.id}` })) : [{ id: `${i}${sep}`, title: p.title }];
+  };
+  const byPart = (items: LibraryItem[]) => {
+    const m = new Map<LibrarySource, LibraryItem[]>();
+    for (const it of items) { const o = owner(it); if (o) m.set(o.part, [...(m.get(o.part) ?? []), o.item]); }
+    return m;
+  };
+  const union = <T>(xs: T[][], key: (x: T) => string) => { const seen = new Set<string>(); return xs.flat().filter((x) => !seen.has(key(x)) && !!seen.add(key(x))); };
+  const with_ = <K extends keyof LibrarySource>(k: K) => parts.find((p) => p[k]);
+  return {
+    id, title, icon,
+    noun: parts[0].noun,
+    async load() {
+      own.clear();
+      const lists = await Promise.all(parts.map((p) => p.load().catch(() => [] as LibraryItem[])));
+      return lists.flatMap((items, i) => items.map((item) => {
+        const merged = { ...item, id: `${i}${sep}${item.id}`, tab: `${i}${sep}${declared(parts[i]).length ? item.tab ?? "" : ""}` };
+        own.set(merged.id, { part: parts[i], item });
+        return merged;
+      }));
+    },
+    tabs: () => parts.flatMap(tabsOf),
+    groupsTitle: parts.map((p) => p.groupsTitle).find(Boolean),
+    groupOrder: union(parts.map((p) => p.groupOrder ?? []), (x) => x),
+    regroup: parts.some((p) => p.regroup) ? async (items, group) => { for (const [p, xs] of byPart(items)) await p.regroup?.(xs, group); } : undefined,
+    layouts: union(parts.map((p) => p.layouts), (x) => x),
+    sorts: union(parts.map((p) => p.sorts), (s) => s.id),
+    search: parts[0].search,
+    empty: parts.map((p) => p.empty).join(" "),
+    detail: (item) => { const o = owner(item); return o ? o.part.detail(o.item) : { title: item.title, actions: [] }; },
+    add: with_("add")?.add,
+    drop: with_("drop")?.drop,
+    tools: parts.some((p) => p.tools) ? async () => (await Promise.all(parts.map((p) => p.tools?.() ?? []))).flat() : undefined,
+    watch: (reload) => { const offs = parts.map((p) => p.watch?.(reload)); return () => offs.forEach((f) => f?.()); },
+    keys: Object.assign({}, ...parts.map((p) => Object.fromEntries(Object.entries(p.keys ?? {}).map(([k, run]) => [k, (item: LibraryItem) => { const o = owner(item); if (o?.part === p) run(o.item); }])))),
+    open: (item) => { const o = owner(item); o?.part.open?.(o.item); },
+    many: (items) => { const m = byPart(items); if (m.size !== 1) return []; const [[p, xs]] = [...m]; return p.many?.(xs) ?? []; },
+  };
 }

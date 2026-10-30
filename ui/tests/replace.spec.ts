@@ -8,6 +8,7 @@ test("replace across files: preview, exclude a file, confirm, written to disk", 
   const text = (f: string) => request.get(`/api/file?path=${f}`, { headers: H }).then((r) => r.json()).then((j) => j.text);
   await page.goto("/");
   await page.keyboard.press("Control+Shift+h");
+  await expect(page.getByRole("textbox", { name: "Search", exact: true }), "nothing searched yet: the search box first").toBeFocused();
   await page.getByRole("textbox", { name: "Search", exact: true }).fill("colour");
   await page.getByLabel("Replace with").fill("color");
   await expect(page.locator(".line-hit .new").first()).toHaveText("color");

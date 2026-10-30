@@ -58,7 +58,7 @@
         <span class="muted">That is <code>atlas mcp</code> with <code>ATLAS_AGENT_TOKEN</code> set to the token; an agent's plugin says how that agent takes it in.</span>
       </div>
     {/if}
-    <div class="actions"><input placeholder="Agent name (the agent and machine it is for)" aria-label="Agent name" bind:value={name} onkeydown={(e) => e.key === "Enter" && name.trim() && void allow()} />
+    <div class="actions"><input placeholder="e.g. Claude on the laptop" title="Name it after the agent and the machine it is for" aria-label="Agent name" bind:value={name} onkeydown={(e) => e.key === "Enter" && name.trim() && void allow()} />
       <button class="btn" disabled={!name.trim()} onclick={() => void allow()}>Allow an agent</button><span class="msg">{msg}</span></div>
     <p class="muted">An agent may do what you can through Atlas, but never allow or revoke agents. Kept in <code>{st.file}</code> (hashes only), for every vault on this machine.</p>
   {/if}

@@ -48,11 +48,9 @@ import { open, openNative, openPath, openSide } from "./dock";
 import { guard, logPlugin } from "./plugin-log.svelte";
 import { pluginAssetUrl } from "./plugin-files";
 import { PLUGIN_API_VERSION, type PluginApi, type PluginPane } from "./plugin-api";
-import { own, pluginData, pluginOn, pluginSpec, plugins, type Plugin } from "./plugin-registry.svelte";
+import { INIT_ID, own, pluginData, pluginOn, pluginSpec, plugins, type Plugin } from "./plugin-registry.svelte";
 import { addCommand } from "./plugin-commands";
 
-/** The id of `.atlas/init.js`, run as a plugin without a folder (plugins.svelte.ts). */
-export const INIT_ID = "init";
 
 /** A file as a plugin names it: a vault path as it is, else a link's target ("[[x.png]]", "x.png") resolved as a link is.
  *  `./vault` loaded when first needed: imported up front it closes a cycle and the app does not start. */
@@ -111,7 +109,7 @@ export function pluginApi(p: Plugin, at: PaneAt = {}): PluginApi {
     thumbUrl: async (path, width) => thumbUrl(await vaultPath(path), width),
     onFilesChanged: (fn) => on("fs", (e) => fn(e.paths)),
     eink: { get on() { return document.documentElement.classList.contains("eink"); }, refresh: () => void import("./eink").then((m) => m.einkRefresh()), pen: penOver },
-    toast: (title, body, kind = "info", options) => toast(title, body, kind, undefined, options?.run && (() => { try { options.run!(); } catch (e) { logPlugin(p.id, "toast", e); } })),
+    toast: (title, body, kind = "info", options) => toast(title, body, kind, undefined, options?.run && { label: options.label ?? "Open", run: () => { try { options.run!(); } catch (e) { logPlugin(p.id, "toast", e); } } }),
     context: snapshot,
     onContext: (fn) => onContext(() => fn(snapshot())),
     hover: (path, line) => setHover(path ? { path, line, source: `plugin:${p.id}` } : null),
@@ -150,7 +148,7 @@ export function pluginApi(p: Plugin, at: PaneAt = {}): PluginApi {
       }, (e) => logPlugin(p.id, "library", e));
       return () => { gone = true; if (app) void unmount(app); };
     },
-    registerLibrary: (source) => own(p.id, addLibrary({ id: source.id, title: source.title, icon: isIconName(source.icon) ? source.icon : "library", by: p.id, source: () => ({ ...source, icon: isIconName(source.icon) ? source.icon : "library" }) })),
+    registerLibrary: (source) => own(p.id, addLibrary({ id: source.id, title: source.title, icon: isIconName(source.icon) ? source.icon : "library", by: p.id, subject: source.subject, source: () => ({ ...source, icon: isIconName(source.icon) ? source.icon : "library" }) })),
     table: (path) => loadTable(path),
     plot: (host, d) => {
       const app = mount(Plot, { target: host, props: { x: d.x, ys: d.ys, xLabel: d.xLabel ?? "", yLabels: d.yLabels ?? d.ys.map((_, i) => `y${i + 1}`) } });
