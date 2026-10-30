@@ -122,8 +122,12 @@ public final class Look {
     }
 
     /** A 40 dp look on a 48 dp touch target: the view is 48 dp tall, its background inset 4 dp above and below. */
-    public Drawable target(Drawable look) {
-        return new android.graphics.drawable.InsetDrawable(look, 0, dp(4), 0, dp(4));
+    public Drawable target(Drawable look) { return target(look, 40); }
+
+    /** A look `drawn` dp tall on a 48 dp touch target (Material's chips: 32 in 48). */
+    public Drawable target(Drawable look, float drawn) {
+        int inset = dp((48 - drawn) / 2);
+        return new android.graphics.drawable.InsetDrawable(look, 0, inset, 0, inset);
     }
 
     public TextView label(Context c, String s, float sp, int color) {
@@ -215,9 +219,9 @@ public final class Look {
     public TextView button(Context c, String s, boolean primary) {
         TextView b = label(c, s, 15, primary ? accentFg : text);
         b.setGravity(Gravity.CENTER);
-        b.setMinHeight(dp(44));
+        b.setMinHeight(dp(48)); // Material's 40 dp button in a 48 dp touch target
         b.setPadding(dp(18), 0, dp(18), 0);
-        b.setBackground(pressable(primary ? accent : 0x00000000, 10, primary ? 0 : borderStrong));
+        b.setBackground(target(pressable(primary ? accent : 0x00000000, 10, primary ? 0 : borderStrong)));
         return b;
     }
 

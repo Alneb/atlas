@@ -83,7 +83,7 @@ public final class ReaderBars {
         bottom.addView(info);
         slider = new SeekBar(c);
         slider.setPadding(look.dp(18), look.dp(6), look.dp(18), look.dp(6));
-        bottom.addView(slider, new LinearLayout.LayoutParams(-1, look.dp(44)));
+        bottom.addView(slider, new LinearLayout.LayoutParams(-1, look.dp(48)));
         View rule = new View(c);
         rule.setBackgroundColor(look.border);
         bottom.addView(rule, new LinearLayout.LayoutParams(-1, look.eink ? look.dp(1) : Math.max(1, look.dp(0.5f))));
@@ -274,9 +274,9 @@ public final class ReaderBars {
         TextView b = look.label(c, s, 20, look.text);
         b.setGravity(Gravity.CENTER);
         b.setContentDescription(what);
-        b.setBackground(look.pressable(0, 22, look.borderStrong));
+        b.setBackground(look.pressable(0, 24, look.borderStrong));
         b.setOnClickListener(v -> run.run());
-        b.setLayoutParams(new LinearLayout.LayoutParams(look.dp(48), look.dp(44)));
+        b.setLayoutParams(new LinearLayout.LayoutParams(look.dp(48), look.dp(48)));
         return b;
     }
 
@@ -340,9 +340,9 @@ public final class ReaderBars {
             boolean on = i == chosen;
             TextView b = look.label(c, names[i], 14, on ? look.accentFg : look.text);
             b.setGravity(Gravity.CENTER);
-            b.setBackground(look.pressable(on ? look.accent : 0, 10, on ? look.accent : look.borderStrong));
+            b.setBackground(look.target(look.pressable(on ? look.accent : 0, 10, on ? look.accent : look.borderStrong))); // 40 dp drawn, 48 dp to touch
             b.setOnClickListener(v -> pick.accept(k));
-            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, look.dp(44), 1);
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, look.dp(48), 1);
             if (i > 0) lp.setMarginStart(look.dp(6));
             row.addView(b, lp);
         }

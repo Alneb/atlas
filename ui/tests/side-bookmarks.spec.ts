@@ -2,6 +2,7 @@ import { test, expect } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { WS } from "../playwright.config";
+import { runCommand } from "./open";
 
 const H = { "x-atlas": "1" };
 const FILE = ".atlas/bookmarks.yaml";
@@ -30,4 +31,17 @@ test("Bookmarks: a gone file is reported (and can be removed), a gone heading is
   } finally {
     await put("pins: []\nbookmarks: []\n");
   }
+});
+
+// With none kept, "Bookmarks: open…" offers adding one instead of a row Enter does nothing on.
+test("Bookmarks: open… with none kept leads into adding one", async ({ page, request }) => {
+  await request.put("/api/file", { headers: H, data: { path: FILE, text: "pins: []\nbookmarks: []\n" } });
+  await page.goto("/");
+  await page.getByText("Finish the GW notes.").waitFor();
+  await runCommand(page, "Bookmarks: open", "Bookmarks: open…");
+  const bar = page.getByTestId("palette");
+  await expect(bar.locator(".item.sel")).toContainText("No bookmarks yet: add one…");
+  await page.keyboard.press("Enter");
+  await expect(bar.getByRole("textbox")).toHaveAttribute("placeholder", /^Bookmark this tab or heading/);
+  await page.keyboard.press("Escape");
 });

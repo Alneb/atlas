@@ -96,8 +96,8 @@ public final class PenBar {
     private ImageView cell(boolean on) {
         ImageView b = new ImageView(c);
         b.setScaleType(ImageView.ScaleType.CENTER);
-        b.setBackground(look.pressable(on ? look.accentSoft : 0, 22, on && look.eink ? look.borderStrong : 0));
-        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(look.dp(44), look.dp(44));
+        b.setBackground(look.pressable(on ? look.accentSoft : 0, 24, on && look.eink ? look.borderStrong : 0));
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(look.dp(48), look.dp(48)); // Android's smallest touch target
         lp.leftMargin = lp.rightMargin = look.dp(1);
         b.setLayoutParams(lp);
         return b;

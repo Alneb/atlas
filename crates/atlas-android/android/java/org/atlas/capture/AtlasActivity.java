@@ -218,8 +218,8 @@ public final class AtlasActivity extends Activity {
         LinearLayout.LayoutParams bp = new LinearLayout.LayoutParams(look.dp(28), look.dp(28));
         bp.setMargins(look.dp(10), 0, look.dp(6), 0);
         top.addView(brand, bp);
-        title = look.label(this, "Atlas", 18, look.text);
-        title.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
+        title = look.label(this, "Atlas", 20, look.text); // Material's top app bar: a 64 dp bar, its title medium weight
+        title.setTypeface(MEDIUM);
         title.setSingleLine(true);
         title.setEllipsize(android.text.TextUtils.TruncateAt.END);
         title.setPaddingRelative(look.dp(4), 0, 0, 0);
@@ -239,7 +239,7 @@ public final class AtlasActivity extends Activity {
         tabsButton.addView(count, cp);
         top.addView(tabsButton);
         top.addView(iconButton("more", "More options", this::menu));
-        root.addView(top, new LinearLayout.LayoutParams(-1, look.dp(52)));
+        root.addView(top, new LinearLayout.LayoutParams(-1, look.dp(64)));
         swipeBetweenFiles(top);
         topBar = top;
         topLine = hairline();
@@ -292,7 +292,7 @@ public final class AtlasActivity extends Activity {
             icon.setImageDrawable(look.icon(this, items[i][0], look.muted));
             icon.setScaleType(ImageView.ScaleType.CENTER);
             pill.addView(icon, new FrameLayout.LayoutParams(-1, -1));
-            item.addView(pill, new LinearLayout.LayoutParams(look.dp(56), look.dp(30)));
+            item.addView(pill, new LinearLayout.LayoutParams(look.dp(64), look.dp(32)));
             TextView b = look.label(this, items[i][1], 12, look.muted);
             // the labels follow the font size up to 1.3×: larger, "Settings" filled its slot and the bar clipped the pill
             float scale = getResources().getConfiguration().fontScale;
@@ -327,6 +327,9 @@ public final class AtlasActivity extends Activity {
         if (Build.VERSION.SDK_INT < 30) root.setFitsSystemWindows(true);
         return root;
     }
+
+    /** Material's medium weight: the top bar's title, the current place in the navigation bar. */
+    private static final android.graphics.Typeface MEDIUM = android.graphics.Typeface.create("sans-serif-medium", android.graphics.Typeface.NORMAL);
 
     /** An icon-only button: `label` is what TalkBack says and what a long press shows (it has no text of its own);
      *  48 dp square, Android's smallest touch target (core app quality, Touch_Target_Size). */
@@ -880,8 +883,8 @@ public final class AtlasActivity extends Activity {
         for (int i = 0; i < order.length; i++) {
             boolean on = order[i] == at.kind;
             tabsOfBar[i].setTextColor(on ? look.text : look.muted);
-            tabsOfBar[i].setTypeface(on ? android.graphics.Typeface.DEFAULT_BOLD : android.graphics.Typeface.DEFAULT);
-            pills[i].setBackground(on ? look.round(look.accentSoft, 15, 0) : null);
+            tabsOfBar[i].setTypeface(on ? MEDIUM : android.graphics.Typeface.DEFAULT);
+            pills[i].setBackground(on ? look.round(look.accentSoft, 16, 0) : null);
             ((ImageView) ((FrameLayout) pills[i]).getChildAt(0)).getDrawable().setTint(on ? look.accent : look.muted);
         }
         String name = shown == null ? "Atlas" : Vaults.name(shown);

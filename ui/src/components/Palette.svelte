@@ -64,7 +64,7 @@
     palette.mode === "files" ? "Open file by name…" :
     palette.mode === "pick" ? palette.pick?.placeholder ?? "Pick one…" :
     palette.mode === "url" ? "URL to open in a web pane…" :
-    palette.mode === "capture" ? PROMPT : "Type a command, a file, or # for headings…",
+    palette.mode === "capture" ? PROMPT : "Type a command or a file…",
   );
 
   $effect(() => { if (palette.open) return closable(closePalette); }); // a phone's Back closes it (lib/back.ts)

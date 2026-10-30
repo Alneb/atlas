@@ -469,7 +469,7 @@ public final class CaptureActivity extends Activity {
         bar.addView(eraserTool, lp(look.dp(48), look.dp(48), 0, 0, look.dp(4), 0));
         bar.addView(undo, lp(-2, look.dp(48), 0, 0, look.dp(2), 0));
         bar.addView(clear, lp(-2, look.dp(48), 0, 0, look.dp(8), 0));
-        bar.addView(done, lp(-2, look.dp(40), 0, 0, 0, 0));
+        bar.addView(done, lp(-2, look.dp(48), 0, 0, 0, 0));
         Runnable state = () -> {
             boolean empty = pen.isEmpty();
             for (TextView b : new TextView[] {undo, clear, done}) { b.setEnabled(!empty); b.setAlpha(empty ? 0.4f : 1f); }
@@ -574,20 +574,29 @@ public final class CaptureActivity extends Activity {
         shots = new LinearLayout(this);
         scroll.addView(shots);
         card.addView(scroll, lp(-1, -2, look.dp(32), look.dp(10), 0, 0));
-        chips = new Flow(this, look.dp(6), look.dp(6));
-        card.addView(chips, lp(-1, -2, look.dp(32), look.dp(8), 0, 0));
+        chips = new Flow(this, look.dp(6), 0); // rows apart by the chips' own 48 dp targets
+        card.addView(chips, lp(-1, -2, look.dp(32), 0, 0, 0));
         // the guides wrap (a Flow of chip + word pairs): at a large font size the last ones went off the card
-        guides = new Flow(this, look.dp(10), look.dp(4));
+        guides = new Flow(this, look.dp(2), 0); // the pairs carry their own padding
         // {shown, starts, what}: atlas_core::capture::GUIDES (atlas-capture's tests compare)
         String[][] forms = {{"[]", "[] ", "to-do"}, {"@fri", "@", "date"}, {"[[", "[[", "link"}, {"#", "#", "tag"}};
         for (String[] f : forms) {
+            // the chip and its word are one button, 48 dp tall: the chip alone was a 28 dp target
             LinearLayout pair = new LinearLayout(this);
             pair.setGravity(Gravity.CENTER_VERTICAL);
+            pair.setMinimumHeight(look.dp(48));
+            pair.setPadding(look.dp(4), 0, look.dp(6), 0);
+            pair.setBackground(look.pressable(0, 8, 0));
+            pair.setContentDescription("Insert " + f[2] + ": " + f[1].trim());
+            pair.setOnClickListener(v -> insert(f[1]));
             TextView c = look.code(this, f[0]);
             c.setMinHeight(look.dp(28));
-            c.setOnClickListener(v -> insert(f[1]));
+            c.setClickable(false);
+            c.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
             pair.addView(c, lp(-2, -2, 0, 0, look.dp(4), 0));
-            pair.addView(look.label(this, f[2], 12.5f, look.muted));
+            TextView word = look.label(this, f[2], 12.5f, look.muted);
+            word.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+            pair.addView(word);
             guides.addView(pair);
         }
         status = look.label(this, "", 12.5f, look.muted);
@@ -783,7 +792,7 @@ public final class CaptureActivity extends Activity {
         t.setEllipsize(android.text.TextUtils.TruncateAt.END);
         c.addView(t);
         c.setOnLongClickListener(v -> { whole(text); return true; });
-        chips.addView(c, lp(-2, look.dp(32), 0, 0, 0, 0));
+        chips.addView(c, lp(-2, look.dp(48), 0, 0, 0, 0));
     }
 
     /** A long press on a shortened piece: all of it, selectable (a link to copy, a long clipboard). */
@@ -817,7 +826,7 @@ public final class CaptureActivity extends Activity {
         LinearLayout c = new LinearLayout(this);
         c.setGravity(Gravity.CENTER_VERTICAL);
         c.setPadding(look.dp(8), 0, look.dp(12), 0);
-        c.setBackground(look.pressable(on ? look.accentSoft : look.hover, 15, on ? look.accent : look.border));
+        c.setBackground(look.target(look.pressable(on ? look.accentSoft : look.hover, 15, on ? look.accent : look.border), 32)); // 32 dp drawn, 48 dp to touch
         c.setOnClickListener(tap);
         return c;
     }

@@ -251,12 +251,13 @@ function askOpen(): void {
     placeholder: "Open a bookmark…", tag: "Bookmarks", icon: "pin",
     items: [
       ...list.map((b, i) => ({ value: `open:${i}`, title: bookmarkTitle(b), detail: bookmarkDetail(b), icon: bookmarkIcon(b), section: "Bookmarks" })),
-      ...(list.length ? [] : [{ value: "", title: "No bookmarks yet", detail: "Run “Bookmark: add…” on a tab, a heading or a search" }]),
+      ...(list.length ? [] : [{ value: "add", title: "No bookmarks yet: add one…", detail: "this tab, a heading or a search", icon: "plus" as const }]),
       ...list.map((b, i) => ({ value: `remove:${i}`, title: `Remove ${bookmarkTitle(b)}`, icon: "close" as const, section: "Manage" })),
       { value: "edit", title: "Edit the bookmarks file", detail: BOOKMARKS_FILE, icon: "edit" as const, section: "Manage" },
     ],
     onpick: (v) => {
       if (v === "edit") return void editBookmarks();
+      if (v === "add") return askAdd();
       const [what, i] = v.split(":");
       const b = list[Number(i)];
       if (b && what === "open") void openBookmark(b);
