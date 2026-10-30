@@ -166,13 +166,18 @@ export interface MarksView {
 export function attachPdfMarks(reader: Reader, pdf: string, changed: (marks: readonly Mark[]) => void = () => {}): MarksView {
   let state: PdfMarks = { note: null, marks: [] }, gone = false;
   const dir = pdf.includes("/") ? pdf.slice(0, pdf.lastIndexOf("/") + 1) : "";
+  let flashing: { id: string; until: number } | null = null; // the CSS animation: 2 × 1.6 s
   const place = async (n: number) => {
     const layer = reader.pageLayer(n);
     if (!layer || gone) return;
     const space = await reader.space(n).catch(() => null);
     if (!space || gone) return;
     layer.querySelector(":scope > svg.atlas-marks")?.remove();
-    if (state.marks.some((m) => m.page === n)) layer.append(pageSvg(state.marks, n, space));
+    if (!state.marks.some((m) => m.page === n)) return;
+    const svg = pageSvg(state.marks, n, space);
+    // a redraw (the page drawn after flash scrolled to it) keeps a flash still running
+    if (flashing && Date.now() < flashing.until) svg.querySelector(`[data-mark="${flashing.id}"]`)?.classList.add("atlas-flash-mark");
+    layer.append(svg);
   };
   // only pages the reader has drawn (the rest get theirs on "drawn"): a far page's place would load its text
   const drawn = (n: number) => !!reader.pageLayer(n)?.parentElement?.querySelector("canvas");
@@ -206,6 +211,7 @@ export function attachPdfMarks(reader: Reader, pdf: string, changed: (marks: rea
           g.classList.remove("atlas-flash-mark");
           void g.getBoundingClientRect(); // the animation again when the same link is followed twice
           g.classList.add("atlas-flash-mark");
+          flashing = { id, until: Date.now() + 3200 };
           return true;
         }
         await new Promise((r) => setTimeout(r, 100));
