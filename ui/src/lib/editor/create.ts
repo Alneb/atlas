@@ -2,12 +2,12 @@
 // selection callbacks, where it was left), plus a note's (note-extensions.ts: the live preview…) or a code file's
 // (code-extensions.ts: its language, its server…). Links clicked: link-clicks.ts. Wiring follows obsidian-web's
 // editor.js; the textarea-adapter glue is deliberately not ported.
+import { diff } from "../frontmatter-edit";
 import { installImagePeek } from "../image-peek";
 import { basename } from "../paths";
 import type { Problems } from "../state.svelte";
 import { SELECTION_TEXT_MAX } from "../context.svelte";
 import { ansiColors } from "./ansi";
-import { latexSuite } from "./latex-suite";
 import "./md-format"; // registers the note keys' formatter (registry.noteFormat)
 import { settings, onSettings } from "../settings.svelte";
 import { EditorState, Compartment, Prec, Transaction, type Extension, type ChangeSet, type Text } from "@codemirror/state";
@@ -18,7 +18,6 @@ import { languages } from "@codemirror/language-data";
 import { searchKeymap, highlightSelectionMatches, search } from "@codemirror/search";
 import { findPanel } from "./find-panel";
 import { acceptCompletion, clearSnippet, closeCompletion, completionStatus } from "@codemirror/autocomplete";
-import { clearStops } from "./tabstops";
 import { vim, getCM } from "@replit/codemirror-vim";
 import { bodyStart, redecorate } from "../../vendor/obsidian-web/live-preview.js";
 import { onHighlightLanguage } from "../highlight";
@@ -34,7 +33,7 @@ import { placeOf, keepPlace, topIn, type Place } from "./places";
 import { noteExtensions, mdOptions } from "./note-extensions";
 import { codeExtensions, codeOptions, countProblems, openReplace } from "./code-extensions";
 import { setDiagnosticsEffect } from "@codemirror/lint";
-import { latexSnippetsOn, texCite } from "./completion-sources";
+import { texCite } from "./completion-sources";
 import { linkClicks } from "./link-clicks";
 import { blameExtension } from "./blame";
 import type { Blame } from "../gen/Blame";
@@ -73,8 +72,8 @@ export interface EditorOptions {
 export interface AtlasEditor {
   view: EditorView;
   setVim(on: boolean): void;
-  /** Replace the whole document (reload from disk) keeping the caret roughly in place. */
-  setDoc(text: string): void;
+  /** Make the document this text (a reload from disk), changing only what differs. */
+  setDoc(text: string, opts?: { keepUndo?: boolean }): void;
   gotoLine(line: number): void;
   vimMode(): VimModeLabel;
   /** Error / warning counts, or null for a note (no language server). */
@@ -112,7 +111,6 @@ export function createEditor(o: EditorOptions): AtlasEditor {
     Prec.highest(keymap.of([{ key: "Enter", run: (v) => completionStatus(v.state) === "active" && acceptCompletion(v) }])),
     Prec.highest(keymap.of([{ key: "Escape", run: (v) => {
       clearSnippet(v);
-      clearStops(v);
       if (completionStatus(v.state) === "pending" || untouchedTaskList(v)) closeCompletion(v);
       return false;
     } }, { key: "Mod-Shift-v", run: (v) => { stashVisual(v); return false; } },
@@ -129,7 +127,6 @@ export function createEditor(o: EditorOptions): AtlasEditor {
     ]),
     atlasTheme,
     ansiColors(), // before highlightSpecialChars: a hidden ESC [ … m is not drawn as a special character
-    md || /\.tex$/i.test(o.path) ? latexSuite({ tex: !md, enabled: latexSnippetsOn }) : [],
     history(),
     drawSelection(),
     dropCursor(),
@@ -244,12 +241,13 @@ export function createEditor(o: EditorOptions): AtlasEditor {
       mode = on ? "NORMAL" : "";
       o.onVimMode?.(mode);
     },
-    setDoc(text) {
+    setDoc(text, opts) {
       text = text.replace(/\r\n?/g, "\n"); // as the editor holds it: a CRLF file reloaded unchanged is no change
-      const cur = view.state.doc.toString();
-      if (cur === text) return;
-      const head = Math.min(view.state.selection.main.head, text.length);
-      view.dispatch({ changes: { from: 0, to: cur.length, insert: text }, selection: { anchor: head } });
+      const change = diff(view.state.doc.toString(), text);
+      if (!change) return;
+      // only what differs: the caret, the folds, the scroll position and the problems' marks stay where they were.
+      // What another program wrote is not a step of this editor's undo (`keepUndo`: what the person chose to bring in).
+      view.dispatch({ changes: change, annotations: opts?.keepUndo ? [] : [Transaction.addToHistory.of(false)] });
     },
     gotoLine(line) {
       const doc = view.state.doc;

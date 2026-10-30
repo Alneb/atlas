@@ -101,7 +101,7 @@ pub fn on_click(f: impl Fn() + Send + Sync + 'static) {
 
 static CLICKED: std::sync::OnceLock<Box<dyn Fn() + Send + Sync>> = std::sync::OnceLock::new();
 
-#[cfg_attr(not(all(target_os = "linux", not(target_os = "android"))), allow(dead_code))]
+#[cfg_attr(not(any(windows, all(target_os = "linux", not(target_os = "android")))), allow(dead_code))]
 fn clicked() {
     if let Some(f) = CLICKED.get() {
         f();
@@ -130,8 +130,9 @@ pub fn set_platform(make: impl Fn() -> Box<dyn Notifier> + Send + Sync + 'static
     let _ = SHELL_NOTIFIER.set(Box::new(make));
 }
 
-/// The platform's notifier: the shell's own if it gave one; the desktop's notification server on Linux (a click
-/// publishes `Open` for the notice's note on `bus`); elsewhere, until its step of the design is built, the log.
+/// The platform's notifier: the shell's own if it gave one; the desktop's notification server on Linux, toasts on
+/// Windows (a click publishes `Open` for the notice's note on `bus`); elsewhere, until its step of the design is
+/// built, the log.
 pub fn platform(bus: &EventBus) -> Box<dyn Notifier> {
     if let Some(make) = SHELL_NOTIFIER.get() {
         return make();
@@ -140,6 +141,11 @@ pub fn platform(bus: &EventBus) -> Box<dyn Notifier> {
     match linux::DBus::connect(bus.clone()) {
         Ok(n) => return Box::new(n),
         Err(e) => eprintln!("atlas: no system notifications (the session's notification server: {e}); notices go to the log"),
+    }
+    #[cfg(windows)]
+    match toast::Toasts::open(bus.clone()) {
+        Ok(n) => return Box::new(n),
+        Err(e) => eprintln!("atlas: no system notifications (Windows toasts: {e}); notices go to the log"),
     }
     let _ = bus;
     Box::new(LogNotifier { next: AtomicU64::new(0) })
@@ -301,6 +307,145 @@ mod linux {
             };
             assert_eq!(opened, "notes/backup.md");
             assert!(events.try_recv().is_err(), "the other program's click opened nothing");
+        }
+    }
+}
+
+/// Windows toasts through WinRT. An app with no MSIX package has an identity only once this user's registry names it
+/// (`AppUserModelId\<id>`): done at start, needing no installer step, so a portable `atlas.exe` shows them too. The
+/// click is the toast's `Activated` event, which needs the process alive; the core is, as long as a vault is served.
+#[cfg(windows)]
+mod toast {
+    use super::{Notice, Notifier};
+    use crate::api::Event;
+    use crate::events::EventBus;
+    use std::collections::VecDeque;
+    use std::sync::atomic::{AtomicU32, Ordering};
+    use std::sync::Mutex;
+    use windows::core::HSTRING;
+    use windows::Foundation::TypedEventHandler;
+    use windows::UI::Notifications::{ToastNotification, ToastNotificationManager, ToastNotifier, ToastTemplateType};
+
+    /// The same as the Tauri bundle's identifier, so Windows groups the toasts under one app.
+    const APP_ID: &str = "dev.atlas.app";
+    /// A tag or a group is at most 64 characters to Windows; longer fails the whole toast.
+    const GROUP_MAX: usize = 64;
+    /// The toasts whose clicks are still awaited: their handlers live as long as they do.
+    const KEPT: usize = 32;
+
+    /// One notifier per vault, one identity per app: a process-wide counter, or one vault's toast would replace
+    /// another's with the same tag.
+    static NEXT: AtomicU32 = AtomicU32::new(1);
+
+    pub struct Toasts {
+        notifier: ToastNotifier,
+        bus: EventBus,
+        kept: Mutex<VecDeque<ToastNotification>>,
+    }
+
+    impl Toasts {
+        /// Names the app to Windows and opens its toast notifier.
+        pub fn open(bus: EventBus) -> Result<Self, String> {
+            register()?;
+            let notifier = ToastNotificationManager::CreateToastNotifierWithId(&HSTRING::from(APP_ID)).map_err(|e| e.to_string())?;
+            Ok(Self { notifier, bus, kept: Mutex::default() })
+        }
+    }
+
+    impl Notifier for Toasts {
+        fn show(&self, n: &Notice, replaces: Option<u32>) -> Result<u32, String> {
+            let handle = replaces.unwrap_or_else(|| NEXT.fetch_add(1, Ordering::Relaxed));
+            let toast = toast_of(n, handle).map_err(|e| e.to_string())?;
+            let (bus, open) = (self.bus.clone(), super::opens(n).map(str::to_string));
+            toast
+                .Activated(&TypedEventHandler::new(move |_, _| {
+                    super::clicked();
+                    if let Some(path) = open.clone() {
+                        bus.publish(Event::Open { path, line: None });
+                    }
+                    Ok(())
+                }))
+                .map_err(|e| e.to_string())?;
+            self.notifier.Show(&toast).map_err(|e| e.to_string())?;
+            let mut kept = self.kept.lock().unwrap();
+            kept.push_back(toast);
+            if kept.len() > KEPT {
+                kept.pop_front();
+            }
+            Ok(handle)
+        }
+    }
+
+    /// The toast of a notice. Title and body go in as text nodes, so `<` and `&` in them are text, never markup. The
+    /// tag says which earlier toast it replaces; the group folds a source's burst.
+    fn toast_of(n: &Notice, handle: u32) -> windows::core::Result<ToastNotification> {
+        let xml = ToastNotificationManager::GetTemplateContent(ToastTemplateType::ToastText02)?;
+        let lines = xml.GetElementsByTagName(&HSTRING::from("text"))?;
+        for (i, line) in [n.title.clone(), super::body_of(n)].iter().enumerate() {
+            lines.Item(i as u32)?.AppendChild(&xml.CreateTextNode(&HSTRING::from(line))?)?;
+        }
+        let toast = ToastNotification::CreateToastNotification(&xml)?;
+        toast.SetTag(&HSTRING::from(handle.to_string()))?;
+        let group: String = n.source.as_deref().unwrap_or("atlas").chars().take(GROUP_MAX).collect();
+        toast.SetGroup(&HSTRING::from(group))?;
+        Ok(toast)
+    }
+
+    /// `HKCU\Software\Classes\AppUserModelId\<id>`: the name and the icon Windows shows above a toast. Set at every
+    /// start, as the icon's file may have moved; this user's own hive, so no elevation.
+    fn register() -> Result<(), String> {
+        use windows_sys::Win32::Foundation::ERROR_SUCCESS;
+        use windows_sys::Win32::System::Registry::{RegCloseKey, RegCreateKeyExW, RegSetValueExW, HKEY, HKEY_CURRENT_USER, KEY_SET_VALUE, REG_OPTION_NON_VOLATILE, REG_SZ};
+        let wide = |s: &str| s.encode_utf16().chain([0]).collect::<Vec<u16>>();
+        let path = wide(&format!("Software\\Classes\\AppUserModelId\\{APP_ID}"));
+        let mut key: HKEY = std::ptr::null_mut();
+        // SAFETY: the strings are NUL-terminated and outlive the calls; the key is closed below
+        let made = unsafe { RegCreateKeyExW(HKEY_CURRENT_USER, path.as_ptr(), 0, std::ptr::null(), REG_OPTION_NON_VOLATILE, KEY_SET_VALUE, std::ptr::null(), &mut key, std::ptr::null_mut()) };
+        if made != ERROR_SUCCESS {
+            return Err(format!("the registry refused the app's name (error {made})"));
+        }
+        let set = |name: &str, value: &str| {
+            let (name, value) = (wide(name), wide(value));
+            // SAFETY: the length is the value's own, in bytes, its NUL included
+            let done = unsafe { RegSetValueExW(key, name.as_ptr(), 0, REG_SZ, value.as_ptr().cast(), (value.len() * 2) as u32) };
+            if done == ERROR_SUCCESS { Ok(()) } else { Err(format!("the registry refused a value of the app's name (error {done})")) }
+        };
+        let mut named = set("DisplayName", "Atlas");
+        match icon() {
+            Ok(file) => named = named.and(set("IconUri", &file.to_string_lossy())),
+            Err(e) => eprintln!("atlas: toasts without the icon: {e}"), // the toast still shows
+        }
+        // SAFETY: opened above, closed once
+        unsafe { RegCloseKey(key) };
+        named
+    }
+
+    /// The icon as a file: Windows reads it from a path, and the program's own is inside the exe.
+    fn icon() -> Result<std::path::PathBuf, String> {
+        let dir = crate::platform::dirs::atlas(crate::platform::dirs::Base::Cache);
+        let file = dir.join("toast-icon.png");
+        std::fs::create_dir_all(&dir).and_then(|_| std::fs::write(&file, include_bytes!("../../atlas-app/icons/128x128.png"))).map_err(|e| e.to_string())?;
+        Ok(file)
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+
+        // Shows nothing: only builds the toast. CI's Windows has the real WinRT classes and must pass; Wine has none.
+        #[test]
+        fn a_toast_says_title_and_body_as_text_and_carries_tag_and_group() {
+            let n = Notice::new("a < b & c").body("line").source("x".repeat(GROUP_MAX + 9));
+            let toast = match toast_of(&n, 7) {
+                Ok(t) => t,
+                Err(e) if std::env::var_os("CI").is_none() => return eprintln!("skipped: no WinRT toasts here (Wine?): {e}"),
+                Err(e) => panic!("{e}"),
+            };
+            let xml = toast.Content().unwrap().GetXml().unwrap().to_string();
+            assert!(xml.contains("a &lt; b &amp; c"), "{xml}");
+            assert!(xml.contains(">line<"), "{xml}");
+            assert_eq!(toast.Tag().unwrap().to_string(), "7");
+            assert_eq!(toast.Group().unwrap().to_string().len(), GROUP_MAX);
         }
     }
 }

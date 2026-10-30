@@ -310,7 +310,10 @@ impl Imap {
                     self.sel = None;
                     self.send(&format!("{tag} OK done"))?;
                 }
-                "LIST" if self.s.hang_up_on_list.fetch_update(std::sync::atomic::Ordering::SeqCst, std::sync::atomic::Ordering::SeqCst, |n| n.checked_sub(1)).is_ok() => return Ok(()),
+                "LIST" if self.s.hang_up_on_list.load(std::sync::atomic::Ordering::SeqCst) > 0 => {
+                    self.s.hang_up_on_list.fetch_sub(1, std::sync::atomic::Ordering::SeqCst);
+                    return Ok(());
+                }
                 "LIST" | "LSUB" => {
                     let names: Vec<(String, &'static str)> = self.s.store.lock().unwrap().folders.iter().map(|(n, f)| (n.clone(), f.special)).collect();
                     for (n, sp) in names {

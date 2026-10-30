@@ -10,7 +10,7 @@ import type { Command } from "@codemirror/view";
 import { library } from "../entities";
 import { builtinOn } from "../builtin-plugins";
 import { resolveWikilink } from "../links";
-import { mathMode } from "./latex-suite";
+import { mathMode } from "./math-context";
 import type { LinkTarget, Paper } from "../types";
 import { settings } from "../settings.svelte";
 import { localDay } from "../local-day";

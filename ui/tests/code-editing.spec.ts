@@ -41,6 +41,34 @@ test("Enter and Tab indent by the file's own unit: four spaces, two, or a tab", 
   await expect.poll(() => text(page)).toBe("int f() {\n\treturn 1;\n\t\tx;\n}\n");
 });
 
+test("Tab goes to the next indent stop, not one unit further", async ({ page }) => {
+  await edit(page, "code_edit/stops.py", "def f():\n    pass\nab\n", 2);
+  await page.keyboard.press("Tab");
+  await page.keyboard.insertText("c");
+  await expect.poll(() => text(page), "from column 2 of a four-space file, two spaces").toBe("def f():\n    pass\nab  c\n");
+});
+
+test("a file another program changes keeps the caret and the scroll, and undo does not bring its old text back", async ({ page }) => {
+  const lines = Array.from({ length: 300 }, (_, i) => `line ${i}`);
+  await edit(page, "code_edit/reload.py", lines.join("\n") + "\n", 0);
+  const scroller = page.locator(".code-cm:visible .cm-scroller").first();
+  await scroller.evaluate((el) => { el.scrollTop = 3000; });
+  const top = await scroller.evaluate((el) => el.scrollTop);
+  expect(top).toBeGreaterThan(2000);
+
+  lines[1] = "second";
+  await page.request.put("/api/file", { headers: H, data: { path: "code_edit/reload.py", text: lines.join("\n") + "\n" } });
+  await expect.poll(() => text(page)).toContain("\nsecond\n");
+  expect(Math.abs(await scroller.evaluate((el) => el.scrollTop) - top), "the view did not move").toBeLessThan(2);
+
+  await page.keyboard.insertText("Z"); // the caret stayed at the end of line 0
+  await expect.poll(() => text(page)).toContain("line 0Z\nsecond\n");
+  await page.keyboard.press("Escape");
+  await page.keyboard.press("u");
+  await page.keyboard.press("u");
+  await expect.poll(() => text(page), "undo takes back the typing, not the other program's change").toContain("line 0\nsecond\n");
+});
+
 test("Tab right after a letter indents even while the server is asked for completions", async ({ page }) => {
   await edit(page, "code_edit/fast.py", "x = 1\n", 0);
   await page.keyboard.press("Enter");

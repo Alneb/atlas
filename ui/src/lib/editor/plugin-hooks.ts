@@ -4,7 +4,7 @@
 // use, so a plugin registering, changing or leaving needs no rebuild of the editor; only the
 // decorations and the raw extensions are pushed to open editors. Every plugin function runs
 // through `guard`: a failure is a line in that plugin's log and costs nothing else.
-import { Compartment, EditorState, Prec, StateEffect, type Extension, type Range } from "@codemirror/state";
+import { Compartment, EditorState, Facet, Prec, StateEffect, type Extension, type Range } from "@codemirror/state";
 import { Decoration, EditorView, ViewPlugin, WidgetType, type DecorationSet, type ViewUpdate } from "@codemirror/view";
 import type { Completion, CompletionContext, CompletionResult, CompletionSource } from "@codemirror/autocomplete";
 import { matches, parseChord, type Chord } from "../keys";
@@ -16,13 +16,25 @@ const applies = (where: Where | undefined, md: boolean) => !where || where === "
 
 // --- the plain shapes plugins see (they survive a change of the editor library) -----------------------
 
-export interface CompletionItem { label: string; detail?: string; /** what is written (default: the label) */ insert?: string; kind?: string }
+export interface CompletionItem {
+  label: string; detail?: string; /** what is written (default: the label) */ insert?: string; kind?: string;
+  /** Does the writing itself, instead of `insert`: a snippet with stops. */
+  apply?(view: EditorView, from: number, to: number): void;
+  /** The panel beside the list when this entry is selected. */
+  info?(): HTMLElement;
+}
+/** Where a completion is asked. `view`, `pos`, `explicit` (asked for by hand) go with the editor library. */
+export interface CompletionAt { path: string; line: number; before: string; word: string; view: EditorView; pos: number; explicit: boolean }
+/** A list, with `from` when it replaces something other than what the trigger matched. */
+export type CompletionAnswer = CompletionItem[] | { items: CompletionItem[]; from: number } | null | undefined;
 export interface CompletionSpec {
   where?: Where;
   /** Offer only when the text before the caret ends like this; what it matched is what an item replaces.
    *  Without it: after a word of two letters or more, and the word is replaced. */
   trigger?: RegExp | string;
-  complete(at: { path: string; line: number; before: string; word: string }): CompletionItem[] | null | undefined | Promise<CompletionItem[] | null | undefined>;
+  /** Synchronous, so a list closes as soon as it no longer applies (completion-gate.ts); default: the trigger alone. */
+  applies?(at: { path: string; before: string; view: EditorView; pos: number; explicit: boolean }): boolean;
+  complete(at: CompletionAt): CompletionAnswer | Promise<CompletionAnswer>;
 }
 /** What a key handler gets: the place, and the two edits nearly every key wants. */
 export interface EditorTouch { path: string; line: number; selection: string; replace(text: string): void; insert(text: string): void }
@@ -82,13 +94,30 @@ export function registerExtension(plugin: string, ext: Extension): () => void {
   return add(raws, { plugin, ext }, pushRaw);
 }
 
+// --- Tab ------------------------------------------------------------------------------------------------
+
+/** A plugin that does something with Tab of its own, and says when the completion list must leave it alone. */
+export interface TabClaim {
+  /** With a list on screen: Tab is the plugin's, the list is taken with Enter. */
+  overList(view: EditorView): boolean;
+  /** With a list still on its way: Tab does not wait for it. */
+  whileAsking(view: EditorView): boolean;
+}
+const tabClaims = new Set<{ plugin: string; claim: TabClaim }>();
+export const registerTabClaim = (plugin: string, claim: TabClaim) => add(tabClaims, { plugin, claim });
+export const tabOverList = (v: EditorView) => [...tabClaims].some((c) => guard(c.plugin, "tab claim", () => c.claim.overList(v), false));
+export const tabWhileAsking = (v: EditorView) => [...tabClaims].some((c) => guard(c.plugin, "tab claim", () => c.claim.whileAsking(v), false));
+
+/** The file an editor shows. */
+export const editorPath = Facet.define<string, string>({ combine: (v) => v[0] ?? "" });
+
 // --- completion -----------------------------------------------------------------------------------------
 
 /** Does any plugin's completion answer here? Its trigger decides, or asking for the list by hand. */
 export function pluginCompletionApplies(ctx: CompletionContext, md: boolean): boolean {
   if (ctx.explicit) return [...completions].some((c) => applies(c.spec.where, md));
   const line = ctx.state.doc.lineAt(ctx.pos), before = line.text.slice(0, ctx.pos - line.from);
-  return [...completions].some((c) => applies(c.spec.where, md) && c.trigger.test(before));
+  return [...completions].some((c) => applies(c.spec.where, md) && c.trigger.test(before) && (!c.spec.applies || !ctx.view || guard(c.plugin, "completion", () => c.spec.applies!({ path: ctx.state.facet(editorPath), before, view: ctx.view!, pos: ctx.pos, explicit: false }), false)));
 }
 
 export function pluginCompletions(path: string, md: boolean): CompletionSource {
@@ -101,12 +130,14 @@ export function pluginCompletions(path: string, md: boolean): CompletionSource {
       const hit = c.trigger.exec(before);
       if (!hit && !ctx.explicit) continue;
       const word = hit?.[0] ?? "";
-      const items = await guard(c.plugin, "completion", () => Promise.resolve(c.spec.complete({ path, line: line.number, before, word })), Promise.resolve(null));
+      const at: CompletionAt = { path, line: line.number, before, word, view: ctx.view!, pos: ctx.pos, explicit: ctx.explicit };
+      const answer = await guard(c.plugin, "completion", () => Promise.resolve(c.spec.complete(at)), Promise.resolve(null));
+      const items = Array.isArray(answer) ? answer : answer?.items;
       if (ctx.aborted || !items?.length) continue;
-      from = Math.min(from, ctx.pos - word.length);
+      from = Math.min(from, Array.isArray(answer) || !answer ? ctx.pos - word.length : answer.from);
       // without a trigger the word typed is a filter on the labels; with one, the plugin decided what fits
       const fits = (label: string) => c.spec.trigger !== undefined || label.toLowerCase().includes(word.toLowerCase());
-      for (const it of items) if (it && typeof it.label === "string" && fits(it.label)) options.push({ label: it.label, detail: it.detail, apply: it.insert ?? it.label, type: it.kind });
+      for (const it of items) if (it && typeof it.label === "string" && fits(it.label)) options.push({ label: it.label, detail: it.detail, info: it.info, apply: it.apply ? (view: EditorView, _c: Completion, f: number, t: number) => it.apply!(view, f, t) : it.insert ?? it.label, type: it.kind });
     }
     return options.length ? { from, options, filter: false } : null;
   };
@@ -192,6 +223,7 @@ export function pluginHooks(path: string, md: boolean): Extension {
     destroy(): void { live.delete(this.view); }
   }, { decorations: (v) => v.decorations });
   return [
+    editorPath.of(path),
     Prec.highest(EditorView.domEventHandlers({
       keydown: (e, view) => {
         for (const k of keys) {

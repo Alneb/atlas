@@ -1187,6 +1187,9 @@ async fn snippets_get(State(st): S) -> Result<Json<Snippets>> {
     Ok(Json(
         with_ws(&st, |ws| {
             let l = ws.config()?.latex;
+            if !l.snippets {
+                return Ok(Snippets { sources: vec![], variables: String::new() }); // switched off: the Snippets plugin reads none
+            }
             crate::snippets::load(ws.root(), &l.snippets_file, &l.variables_file)
         })
         .await?,

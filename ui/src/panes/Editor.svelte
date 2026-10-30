@@ -429,13 +429,13 @@
       </span>
     </div>
   {/if}
-  {#if isMarkdown(path)}<SyncCopies {path} mine={current} take={(text) => { ed?.setDoc(text); markDirty(); schedule(text); }} />{/if}
+  {#if isMarkdown(path)}<SyncCopies {path} mine={current} take={(text) => { ed?.setDoc(text, { keepUndo: true }); markDirty(); schedule(text); }} />{/if}
   {#if recovered !== null}
     <div class="banner banner-warn" role="alert">
       <span>Unsaved changes to <strong>{shownPath(path)}</strong> were kept from last time.</span>
       <span class="banner-actions">
         <button class="btn btn-ghost" onclick={() => { recovered = null; rescued = false; void api.putFile(RECOVERY, "").catch(() => {}); }}>Discard them</button>
-        <button class="btn primary" onclick={() => { ed?.setDoc(recovered ?? ""); recovered = null; markDirty(); }}>Restore</button>
+        <button class="btn primary" onclick={() => { ed?.setDoc(recovered ?? "", { keepUndo: true }); recovered = null; markDirty(); }}>Restore</button>
       </span>
     </div>
   {/if}

@@ -36,7 +36,7 @@ import { LOG_ENTRY, logLines } from "./log-lines";
 import { pluginCompletions, pluginCompletionApplies } from "./plugin-hooks";
 import { gatedCompletion, syncSource } from "./completion-gate";
 import { completionTab } from "./tab-keys";
-import { citing, mdSymbols, snippetsMd } from "./completion-sources";
+import { citing, mdSymbols } from "./completion-sources";
 
 // Fold like Obsidian: headings and lists only. lang-markdown makes every multi-line block foldable,
 // which put arrows beside ordinary paragraphs; lists inside the frontmatter are YAML, not lists.
@@ -145,7 +145,6 @@ export function noteExtensions(path: string, viewRef: { view: EditorView | null 
         { applies: (ctx) => citing() && citeApplies(ctx), answer: citeSource(true) },
         entitySource,
         { applies: (ctx) => pluginCompletionApplies(ctx, true), answer: pluginCompletions(path, true) },
-        syncSource(snippetsMd),
         syncSource(mdSymbols),
       ], {
         icons: false,

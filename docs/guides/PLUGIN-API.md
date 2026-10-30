@@ -344,6 +344,9 @@ Every `register…` / `on…` returns a function that undoes it (rarely needed).
 |---|---|
 | `atlas.registerBlock("id.name", (host, block) => cleanup, { title?, options? })` | a block for ```` ```view ```` in notes and for pages; `block`: `options`, `note`, `src`, `props()` |
 | `atlas.editor.registerFence("statblock", (host, { source, path, props }) => cleanup)` | draws every ```` ```statblock ```` fence |
+| `atlas.editor.place(view, pos?)` (v22) | what a place is: `{ kind: "math", form, textArg }`, `{ kind: "text" }` or `{ kind: "code", lang }`. It scans the text: ask when something needs it, not on every key |
+| `atlas.editor.claimTab({ overList(view), whileAsking(view) })` (v22) | Tab has a job of yours here: over a completion list on screen, or while one is on its way |
+| `atlas.editor.path(view)` · `atlas.editor.drawMath(host, source, block?)` (v22) | the file an editor shows · a formula, drawn with the app's math |
 | `atlas.registerEmbed(patterns, (host, embed) => cleanup)` (v7) | draws `![[file]]` for these files: `patterns` an extension (`"epub"`, `".excalidraw.md"`), a glob (`"maps/*.json"`) or a list of them; `embed`: `path` (resolved as a link is), `anchor` (after `#`), `options` (after `\|`, split: `["600", "center"]`), `width` (`\|600` as px), `note` (the note it is in), `compact` (a card on Home: draw small), `open()` (as a click on its link). May be async. Asked before the core's own embeds — the newest registration wins, so a plugin can take over the core's drawing embed; pictures stay the core's. Drawn embeds are drawn again when the registration comes, changes (a reload) or goes (switched off) |
 | `atlas.registerView(type, render)` | a row view (rows come from the block's `from:`) |
 | `atlas.registerNoteView(name, { title, types?, render })` | a kind of note drawn the plugin's way (a mail note as the mail): a note whose `view` property is `name`, or whose `type` is in `types`, opens drawn by `render(host, { path, text, props, showNote })` → cleanup (again on each change of its text); the pane's "Show as note" / "Show as <title>" switches (ui/src/lib/note-views.svelte.ts) |
@@ -598,4 +601,4 @@ quarantine mark is taken off the unpacked files (the plugin is installed switche
 
 ## What is promised to stay
 
-Every name on this page, with these shapes; the helper protocol; the manifest keys. Not promised: `atlas.editor.extension` (it follows the editor library), the app's CSS classes, the DOM around a block.
+Every name on this page, with these shapes; the helper protocol; the manifest keys. `atlas.editor.extension` and `codemirror` follow the editor library, not Atlas. Not promised: the app's CSS classes, the DOM around a block.

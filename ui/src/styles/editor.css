@@ -29,7 +29,7 @@
 .cm-blame-new:hover { color: var(--text-faint); text-decoration: none; }
 .cm-activeLineGutter { background: transparent; color: var(--accent-strong); font-weight: 600; }
 /* code files: ligatures, breathing room, a quiet active line with an accent edge */
-.code-cm .cm-content { padding-left: 6px; font-variant-ligatures: contextual; font-feature-settings: "calt", "liga"; }
+.code-cm .cm-content { font-variant-ligatures: contextual; font-feature-settings: "calt", "liga"; }
 .code-cm .cm-activeLine { background: color-mix(in srgb, var(--accent) 5%, transparent); box-shadow: inset 2px 0 0 color-mix(in srgb, var(--accent) 55%, transparent); }
 .code-cm .cm-gutters { padding-right: 2px; }
 .cm-foldGutter .cm-gutterElement { color: var(--text-faint); padding: 0 4px; cursor: pointer; }
@@ -131,7 +131,7 @@
 .markdown .cm-inline-html img { max-width: 100%; vertical-align: middle; }
 
 /* code files */
-.code-cm .cm-content { padding: 10px 0 40vh; }
+.code-cm .cm-content { padding: 10px 0 40vh 6px; } /* the left: a little room from the gutter */
 
 /* List lines hang their bullet with a negative text-indent, which inline-block children INHERIT:
    an inline formula in a list item drew its glyph that far to the left, over the previous word, and a task's

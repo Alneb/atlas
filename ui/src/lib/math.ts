@@ -45,6 +45,7 @@ const macros: Record<string, string> = {
   "\\bra": "\\left\\langle#1\\right|",
   "\\braket": "\\left\\langle#1\\right\\rangle",
   "\\Tr": "\\operatorname{Tr}",
+  "\\mbox": "\\text{#1}", // standard LaTeX and MathJax's; KaTeX has no such command and drew it as an error
 };
 
 const opts = (displayMode: boolean): KatexOptions => ({

@@ -24,7 +24,7 @@ const NOTES: Record<string, string> = {
   "mdr/table.md": "Units\n\n| Quantity | Condensed | Optical |\n| --- | --- | --- |\n| Lattice | 0.5 nm | 500 nm |\nThe advantages of optical lattices is that a is large and can be resolved with microscopes, the timescales are much easier to access but it really needs to be very cold, which is the whole point of this long line.\n",
   "mdr/props.md": "---\ndate: 2025-04-18 21:09\ntopics:\n- '[[Condensed Matter]]'\ntags: [physics, rg]\ndraft: true\nempty:\n---\nBody.\n",
   // MathJax habits: \\newcommand over a built-in, _ inside \\text
-  "mdr/katex.md": "$\\newcommand{\\div}[1]{\\nabla \\cdot #1}$\n\nThen $\\div{E}$ and $\\text{Nb_3Ge}$.\n",
+  "mdr/katex.md": "$\\newcommand{\\div}[1]{\\nabla \\cdot #1}$\n\nThen $\\div{E}$ and $\\text{Nb_3Ge}$ and $k_{\\mbox{\\tiny B}}T$.\n",
   // Obsidian Excalidraw plugin drawing (`x.excalidraw` → `x.excalidraw.md`, LZString compressed-json)
   "mdr/drawn.md": "A sketch\n\n![[mdr-sketch.excalidraw|center]]\n\nAfter.\n",
   // a notebook's page: `#Page 2` embeds that frame only
@@ -145,7 +145,7 @@ test("frontmatter shows as Obsidian-style properties (`[editor] properties = inl
   await expect(props.locator(".prop-rows")).toBeVisible();
 });
 
-test("KaTeX accepts MathJax habits (\\newcommand over a built-in, _ in \\text)", async ({ page }) => {
+test("KaTeX accepts MathJax habits (\\newcommand over a built-in, _ in \\text, \\mbox)", async ({ page }) => {
   const ed = await open(page, "mdr/katex.md");
   await expect(ed.locator(".cm-math-inline").first()).toBeVisible();
   await expect(ed.locator(".katex-error")).toHaveCount(0);

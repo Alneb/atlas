@@ -20,7 +20,7 @@ import type { NativeSample, PenOptions } from "./pen-target";
 import type { EmbedRender } from "./embed-registry";
 import type { Live, LiveHandlers } from "./live";
 
-export const PLUGIN_API_VERSION = 21;
+export const PLUGIN_API_VERSION = 22;
 
 /** What a plugin's view gets. Kept small and stable: plugins outlive app refactors. */
 export interface PluginApi {
@@ -258,11 +258,22 @@ export interface PluginApi {
     registerDecoration(pattern: RegExp, render: (m: RegExpExecArray) => DecorationSpec | null | undefined | void): () => void;
     /** Buttons in the bar above a code file: `fn({ path })` → `[{ label, title?, run }]` for that file (run, build, test). */
     toolbar(fn: (file: { path: string }) => CodeTool[] | null | undefined | void): () => void;
-    /** The escape hatch: a raw CodeMirror 6 extension. Unstable: it follows the editor library, not Atlas.
+    /** A raw CodeMirror 6 extension: it follows the editor library, not Atlas.
      *  Build it from `codemirror` below — the app's own copies of the library, the only ones the editor accepts. */
     extension(ext: unknown): () => void;
-    /** The editor library's modules as Atlas loaded them: `@codemirror/state` and `@codemirror/view`. */
-    codemirror: { state: typeof import("@codemirror/state"); view: typeof import("@codemirror/view") };
+    /** The editor library's modules as Atlas loaded them. */
+    codemirror: { state: typeof import("@codemirror/state"); view: typeof import("@codemirror/view"); language: { syntaxTree: typeof import("@codemirror/language").syntaxTree } };
+    /** (v22) Tab has a job of the plugin's here: `overList` with a completion list on screen, `whileAsking` with one on its way. */
+    claimTab(claim: import("./editor/plugin-hooks").TabClaim): () => void;
+    /** (v22) What the place at `pos` (default: the caret) is: math (and which, and whether in a text-like argument
+     *  such as `\\text{}`), text, or code (and its language). Scans the text: not on every key. */
+    place(view: import("@codemirror/view").EditorView, pos?: number): import("./editor/math-context").Place;
+    /** (v22) The file an editor shows. */
+    path(view: import("@codemirror/view").EditorView): string;
+    /** (v22) Draws a formula with the app's math. */
+    drawMath(host: HTMLElement, source: string, block?: boolean): void;
+    /** (v22) The snippet files of `[latex] snippets_file` / `variables_file`, as text, for the plugin that reads them. */
+    legacySnippets(): Promise<{ sources: string[]; variables: string }>;
   };
   /** (v8) A file's live room (core live.rs): the devices with it open send each other what changes as it happens, and
    *  one of them saves it (`writes()`; in a mirrored vault the room is the server's). Left when the plugin unloads. */

@@ -360,10 +360,11 @@ pub fn permissions(root: &Path, id: &str) -> Result<Permissions> {
 /// (the Libraries page at a library), `{setting:key}` in a contributed table (filled from the contributor's settings);
 /// v20 `atlas.openDialog` (a pane in a popup), `atlas.zip` (the page's zip reader), `atlas.convert.typstPdf` in helpers,
 /// `/api/plugins/@<role>/…` (a plugin called by its role), `replaces` with `if_off`; v21 a greeting chip's `icon` may
-/// be one of the app's icon names.
+/// be one of the app's icon names; v22 `atlas.editor` `claimTab`, `place`, `path`, `drawMath`, `legacySnippets`,
+/// `codemirror.language`, a completion's `applies`, `apply`, `info` and `from`.
 /// The page's number must be the same (a test holds it). A manifest with a key this Atlas does not know and an `api`
 /// above it is refused with "update Atlas", not with the parser's error (`read_manifest`).
-pub const API_VERSION: u32 = 21;
+pub const API_VERSION: u32 = 22;
 
 /// `"1.2.3"` → `[1, 2, 3]` (missing parts are 0; anything after a non-digit part is ignored).
 fn version_parts(v: &str) -> [u64; 3] {

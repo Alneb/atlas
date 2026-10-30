@@ -6,6 +6,9 @@ import { frontmatterOf } from "./property-model";
 import type { Extension } from "@codemirror/state";
 import * as cmState from "@codemirror/state";
 import * as cmView from "@codemirror/view";
+import { syntaxTree } from "@codemirror/language";
+import { placeAt } from "./editor/math-context";
+import { renderMathInto } from "./math";
 import { errText } from "./text";
 import { on } from "./bus";
 import { returned, signIn } from "./signin";
@@ -228,7 +231,12 @@ export function pluginApi(p: Plugin, at: PaneAt = {}): PluginApi {
       registerDecoration: (pattern, render) => own(p.id, hooks.registerDecoration(p.id, pattern, render)),
       toolbar: (fn) => own(p.id, registerCodeTools(p.id, fn)),
       extension: (ext) => own(p.id, hooks.registerExtension(p.id, ext as Extension)),
-      codemirror: { state: cmState, view: cmView },
+      codemirror: { state: cmState, view: cmView, language: { syntaxTree } },
+      claimTab: (claim) => own(p.id, hooks.registerTabClaim(p.id, claim)),
+      place: (view, pos) => placeAt(view.state, pos ?? view.state.selection.main.head, view.state.facet(hooks.editorPath)),
+      path: (view) => view.state.facet(hooks.editorPath),
+      drawMath: (host, source, block = false) => renderMathInto(host, String(source), block),
+      legacySnippets: () => api.snippets(),
     },
     pen: { shape: (xyt) => api.penShape(xyt) },
     live: {

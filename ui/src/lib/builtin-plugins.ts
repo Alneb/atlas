@@ -35,8 +35,8 @@ export const BUILTINS: Builtin[] = [
   {
     // the core keeps rendering $…$ in notes (Obsidian fidelity); everything about typing LaTeX is this plugin's
     id: "latex", title: "LaTeX", icon: "sigma", page: "latex",
-    description: "Typing LaTeX: LaTeX Suite snippets in math (your snippet file, Tab stops, Tab out of brackets), LaTeX symbol and snippet completions, and .tex files. Math in notes is rendered either way.",
-    parts: "snippets · Tab stops · LaTeX completions · /api/snippets",
+    description: "Typing LaTeX: symbol completions and .tex files. Snippets are the Snippets plugin's; while a vault has not converted its old snippet file, that plugin reads the file named here. Math in notes is rendered either way.",
+    parts: "LaTeX completions · /api/snippets",
   },
 ];
 

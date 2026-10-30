@@ -156,9 +156,9 @@ returns the state PUT into a live server on a real vault.
 21. **CodeMirror chrome is a theme extension** (`ui/src/lib/editor/theme.ts`): the base theme beats plain CSS.
 22. **VS Code themes** (`ui.vscode_theme`, `/api/theme/vscode`): colors → tokens, tokenColors → `--syn-*`
     by VS Code scope matching; WCAG contrast floor on text/icon/scrollbar tokens.
-23. **LaTeX Suite** (`ui/src/lib/editor/latex-suite.ts`, `/api/snippets`): user's own snippet file;
-    tab stops are the editor's own (`tabstops.ts`: LaTeX Suite's numbering, `$0` first; a stack of snippets, so one
-    expanded inside another's stop returns to it), not CodeMirror's `snippet()`, which keeps one snippet at a time.
+23. **Snippets** (`plugins/beta/snippets/`, a plugin; `ui/src/lib/editor/math-context.ts` tells it where the caret is): JavaScript
+    modules in `.atlas/snippets/`, an old LaTeX Suite file through `/api/snippets` until converted; tab stops on a stack, so a
+    snippet in another's stop hands Tab back; nothing fires in text-like arguments or in an ordinary word being typed.
 24. **Library** (`refs.rs`, `/api/refs`, `/api/refs/add`, `/api/refs/bibtex`): `refs/papers/<key>/info.yaml`;
     add by DOI (Crossref) / arXiv (+PDF); `refs.bib` rewritten after each add — byte-identical to the
     former `scripts/vault/refs_bib.py` on the 54 real entries.

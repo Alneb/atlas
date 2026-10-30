@@ -139,7 +139,7 @@ export const PAGES: PageDef[] = [
     fields: [], features: [], panels: ["agents"], only: ["app"],
   },
   {
-    id: "latex", title: "LaTeX", group: "plugins", icon: "sigma", plugin: "latex", blurb: "Typing LaTeX, in a note's math and in .tex files: LaTeX Suite snippets from your file (Obsidian's format — your snippets and variables files), Tab through a snippet's stops, Tab out of a bracket, LaTeX symbols and snippets offered as you type. Its language server (texlab) is under Code. Switched off in Settings → Plugins, all of it goes; math in notes is still rendered.",
+    id: "latex", title: "LaTeX", group: "plugins", icon: "sigma", plugin: "latex", blurb: "Typing LaTeX, in a note's math and in .tex files: symbol completions, and the old LaTeX Suite snippet files, which the Snippets plugin reads until a vault converts them. Math in notes is drawn either way.",
     fields: ["latex.*"], features: [],
   },
   {

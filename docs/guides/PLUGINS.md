@@ -116,7 +116,7 @@ Obsidian fidelity needs it in every vault. On by default. While it is off:
 
 | part of LaTeX | how it is gated |
 |---|---|
-| LaTeX Suite snippets, their Tab stops and Tab out of brackets | `latexSnippetsOn()` (`editor/completion-sources.ts`: the plugin on *and* `[latex] snippets`), the one test `latexSuite({ enabled })` and the snippet completions read |
+| Snippets, their Tab stops and Tab out of brackets | the Snippets plugin (`plugins/beta/snippets/`), not this one; while a vault has not converted its old file, the plugin reads it through `/api/snippets`, and `[latex] snippets` off means none |
 | LaTeX symbol completions (notes' math, `.tex`) | the same file's `ofLatex` wrapper: a source of the plugin answers nothing while it is off |
 | `GET /api/snippets` | in the core's group of LaTeX routes: 404 "the LaTeX plugin is switched off in this vault" |
 | its settings `[latex] snippets`, `snippets_file`, `variables_file` | its page in Settings, listed under Plugins (dimmed while off) |

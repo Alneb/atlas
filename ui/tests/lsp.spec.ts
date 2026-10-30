@@ -83,6 +83,23 @@ test("in code Tab takes the server's completion; without a list it indents at th
   await expect(list).toBeHidden();
 });
 
+// A `$` in a code file is not math: it must not hand Tab to the LaTeX snippets, away from the list.
+test("in code Tab takes the completion after a dollar sign on the line", async ({ page, request }) => {
+  await request.put("/api/file", { headers: { "x-atlas": "1" }, data: { path: "projects/lsp_dollar.py", text: "def f():\n    pass\n" } });
+  await page.goto("/");
+  await page.getByText("Finish the GW notes.").waitFor();
+  await request.post("/api/cmd/open", { headers: { "x-atlas": "1" }, data: { args: { path: "projects/lsp_dollar.py" } } });
+  const text = () => page.evaluate(() => (window as any).__atlas.editor().text as string);
+  await page.locator(".cm-line", { hasText: "pass" }).click();
+  if (await page.locator(".cm-fat-cursor").count()) await page.keyboard.press("o"); else { await page.keyboard.press("End"); await page.keyboard.press("Enter"); }
+  await page.keyboard.type('x = "$" + fa');
+  const list = page.locator(".cm-tooltip-autocomplete");
+  await expect(list).toContainText("fake_completion", { timeout: 8000 });
+  await page.waitForTimeout(150);
+  await page.keyboard.press("Tab");
+  await expect.poll(text).toContain('x = "$" + fake_completion');
+});
+
 // Symbols in the project (workspace/symbol): the server's list in the chooser, with kind and place; the one chosen
 // opens at its line.
 test("go to a symbol in the project: the server's symbols, the chosen one opened at its line", async ({ page, request }, info) => {
