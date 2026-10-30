@@ -22,6 +22,8 @@ export async function register(atlas: PluginApi) {
   atlas.editor.extension(engine.extension);
   atlas.editor.claimTab(engine.claim);
   await reload();
+  // not awaited: the plugin works with its short list until the dictionaries arrive
+  void engine.loadWords().catch((e) => console.warn("snippets: the word list did not load, only the short one holds:", e));
 
   // a snippet file changed, or which old file is meant: read again
   atlas.onFilesChanged((paths) => { if (paths.some((p) => p.startsWith(`${FOLDER}/`) || p === ".atlas/config.toml")) void reload(); });

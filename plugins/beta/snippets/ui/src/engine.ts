@@ -8,6 +8,8 @@ import type { Place } from "../../../../../ui/src/lib/editor/math-context";
 import type { At, Compiled, Loaded } from "./format";
 import { makeStops, parseStops } from "./stops";
 import { WORDS } from "./words";
+import { nextPlace, prevPlace } from "./brackets";
+import { SortedWords } from "./sorted-words";
 
 const TAIL = 120; // only the text just before the caret can hold a trigger
 
@@ -26,14 +28,14 @@ const COMMANDS = ("langle rangle lvert rvert lVert rVert lfloor rfloor lceil rce
 class Dictionary {
   private list: string[];
   private set: Set<string>;
-  constructor(words: string[]) { this.set = new Set(words); this.list = [...this.set].sort(); }
-  has(w: string) { return this.set.has(w); }
+  constructor(words: string[], private big: SortedWords | null) { this.set = new Set(words); this.list = [...this.set].sort(); }
+  has(w: string) { return this.set.has(w) || !!this.big?.has(w); }
   /** A word that starts with `w` and goes on. */
   grows(w: string) {
     let lo = 0, hi = this.list.length;
     while (lo < hi) { const m = (lo + hi) >> 1; if (this.list[m] < w) lo = m + 1; else hi = m; }
     if (this.list[lo] === w) lo++;
-    return !!this.list[lo]?.startsWith(w);
+    return !!this.list[lo]?.startsWith(w) || !!this.big?.grows(w);
   }
 }
 
@@ -41,36 +43,6 @@ class Dictionary {
 function coreOf(m: RegExpExecArray): string {
   const last = m.length > 1 ? m[m.length - 1] : undefined;
   return last && m[0].endsWith(last) ? last : m[0];
-}
-
-// a delimiter after \left / \right: a bracket, `.`, `|`, or a command (\{, \langle, \rvert…)
-const DELIM = /^(?:\\[A-Za-z]+|\\.|[^A-Za-z\s])/;
-const OPENS = /^\\(?:langle|lvert|lVert|lfloor|lceil|lbrace)(?![A-Za-z])/, CLOSES = /^\\(?:rangle|rvert|rVert|rfloor|rceil|rbrace)(?![A-Za-z])/;
-
-/** Where Tab leaves the innermost bracket around `head`: after its closing `}`, `)`, `]`, `\right)`, `\rangle`…, and straight
- *  into a `{…}`, `^{…}` or `_{…}` that follows (`\frac{a}{b}`'s second argument); with no bracket open, out of the `$`/`$$`. */
-export function taboutTarget(text: string, head: number): number | null {
-  let depth = 0;
-  for (let i = head; i < text.length && i < head + 4000; ) {
-    const rest = text.slice(i, i + 16);
-    let close = 0;
-    if (rest.startsWith("\\left")) { depth++; i += 5 + (DELIM.exec(text.slice(i + 5, i + 20))?.[0].length ?? 0); continue; }
-    if (rest.startsWith("\\right")) close = 6 + (DELIM.exec(text.slice(i + 6, i + 20))?.[0].length ?? 0);
-    else if (OPENS.test(rest) || rest.startsWith("\\{")) { depth++; i += rest.startsWith("\\{") ? 2 : OPENS.exec(rest)![0].length; continue; }
-    else if (CLOSES.test(rest)) close = CLOSES.exec(rest)![0].length;
-    else if (rest.startsWith("\\}")) close = 2;
-    else if (rest[0] === "\\") { i += /^\\(?:[A-Za-z]+|.)/.exec(rest)?.[0].length ?? 1; continue; }
-    else if ("{([".includes(rest[0])) { depth++; i++; continue; }
-    else if ("})]".includes(rest[0])) close = 1;
-    else if (rest[0] === "$") return depth ? null : i + (rest[1] === "$" ? 2 : 1); // the formula ends: out of it
-    if (close) {
-      if (depth--) { i += close; continue; }
-      const after = i + close, next = text.slice(after, after + 2);
-      return next[0] === "{" ? after + 1 : /^[\^_]\{/.test(next) ? after + 2 : after;
-    }
-    i++;
-  }
-  return null;
 }
 
 export function makeEngine(atlas: PluginApi) {
@@ -81,14 +53,24 @@ export function makeEngine(atlas: PluginApi) {
 
   let SNIPPETS: Compiled[] = [];
   let KNOWN: string[] = COMMANDS;
-  let DICT = new Dictionary(WORDS);
+  let DICT = new Dictionary(WORDS, null);
+  let OWN: string[] = [], BIG: SortedWords | null = null;
+  /** The spelling dictionaries (`words.txt`, beside the plugin), fetched once: until they come the short list holds. */
+  async function loadWords(): Promise<number> {
+    const answer = await fetch(atlas.assetUrl("words.txt"));
+    if (!answer.ok) throw new Error(`words.txt: ${answer.status}`);
+    BIG = new SortedWords(await answer.text());
+    DICT = new Dictionary([...WORDS, ...OWN], BIG);
+    return BIG.size;
+  }
   let anyCode = false;
 
   /** Takes what was loaded; open editors use it at the next key. */
   function use(l: Loaded): void {
     SNIPPETS = l.snippets;
     KNOWN = [...new Set([...COMMANDS, ...l.known])];
-    DICT = new Dictionary([...WORDS, ...l.words]);
+    OWN = l.words;
+    DICT = new Dictionary([...WORDS, ...OWN], BIG);
     anyCode = l.snippets.some((s) => s.code && s.langs !== null);
   }
 
@@ -340,20 +322,27 @@ export function makeEngine(atlas: PluginApi) {
     return typed === "{" && stops.active(view.state) && /[_^]\{$/.test(view.state.sliceDoc(Math.max(0, at - 2), at)) && view.state.sliceDoc(at, at + 1) === "}";
   }
 
-  /** Where Tab would leave to from the caret (a document position), or null. */
+  /** Where Tab would go from the caret (a document position), or null. */
   function taboutFrom(view: EditorView): number | null {
     const { head } = view.state.selection.main;
     // the formula may span lines ($$ … $$): from the caret to a little past it is enough to find its bracket
-    const text = view.state.doc.sliceString(head, Math.min(view.state.doc.length, view.state.doc.lineAt(head).to + 4000));
-    const to = taboutTarget(text, 0);
+    const to = nextPlace(view.state.doc.sliceString(head, Math.min(view.state.doc.length, view.state.doc.lineAt(head).to + 4000)));
     return to === null ? null : head + to;
   }
 
-  function tabout(view: EditorView): boolean {
-    const to = taboutFrom(view);
+  function moveTo(view: EditorView, to: number | null): boolean {
     if (to === null) return false;
     view.dispatch({ selection: { anchor: to }, scrollIntoView: true });
     return true;
+  }
+
+  const tabout = (view: EditorView) => moveTo(view, taboutFrom(view));
+
+  /** Shift+Tab in math: the way Tab came. */
+  function tabBack(view: EditorView): boolean {
+    const { head } = view.state.selection.main, start = Math.max(0, head - 4000);
+    const to = prevPlace(view.state.doc.sliceString(start, head));
+    return moveTo(view, to === null ? null : start + to);
   }
 
   /** Tab right after a waiting trigger expands it. */
@@ -377,8 +366,9 @@ export function makeEngine(atlas: PluginApi) {
     overList(view: EditorView): boolean {
       if (waiting.has(view) || stops.active(view.state)) return true;
       const head = view.state.selection.main.head;
-      // a `\command` being typed: its list is walked (`\ga` → \gamma, \Gamma)
-      if (/\\[A-Za-z]*$/.test(view.state.sliceDoc(Math.max(0, head - 40), head))) return false;
+      // a `\command` being typed: its list is walked (`\ga` → \gamma, \Gamma); a whole one is done, Tab moves on
+      const command = /\\([A-Za-z]*)$/.exec(view.state.sliceDoc(Math.max(0, head - 40), head));
+      if (command && !KNOWN.includes(command[1])) return false;
       return inMath(view);
     },
     whileAsking: (view: EditorView): boolean => waiting.has(view) || stops.active(view.state) || inMath(view),
@@ -408,7 +398,7 @@ export function makeEngine(atlas: PluginApi) {
         if (out !== null && out <= end!) return tabout(view);
         return stops.next(view) || (math && tabout(view));
       },
-      shift: (view) => stops.prev(view),
+      shift: (view) => stops.prev(view) || (runsHere(view) && view.state.selection.main.empty && inMath(view) && tabBack(view)),
     }])),
   ];
 
@@ -426,5 +416,5 @@ export function makeEngine(atlas: PluginApi) {
     } finally { view.destroy(); }
   }
 
-  return { extension, claim, use, simulate, insert: stops.insert, snippets: () => SNIPPETS, fits, placeOf };
+  return { extension, claim, use, loadWords, simulate, insert: stops.insert, snippets: () => SNIPPETS, fits, placeOf };
 }

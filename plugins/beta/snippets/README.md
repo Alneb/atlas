@@ -52,3 +52,12 @@ The conversion mends rules known to misfire, as one batch, and lists each change
 
 Ready sets, switched on in Settings and never copied into your files: automatic spacing, matrices by size, sequences, smart
 min and max, derivatives by their letters, aligning a selection, colouring a selection, electrical units, small helpers in text.
+
+## Tab in math
+
+Tab goes to the next place to type, one bracket at a time: into the next `(`, `[`, `{`, `\left(`, `\langle`; out of the one that closes next, and straight into a bracket right after it (`\frac{a}{b}`, `(a)(b)`, `x^{a}_{b}`); out of the formula at its end. Shift+Tab goes back the same way. A snippet's own stops come first, and a whole `\command` no longer stops at the completion list.
+
+## The word list
+
+`words.txt` holds about 660,000 English and Spanish words with their inflections, made from the Hunspell dictionaries by `scripts/dev/snippets-words.mjs`: en_US from SCOWL (permissive), es_ES from the RLA-ES project (used under MPL 1.1). Words under four letters stay out, as they are usually products in math (`dpi` is `d\pi`); `ui/src/words.ts` has the short ones and the field's terms. A vault adds its own with `words([...])`.
+

@@ -107,3 +107,16 @@ test("the conversion mends the misfires as a batch and says so", () => {
   expect(dropped.length).toBeGreaterThanOrEqual(4);
   expect(renumber("\\sum_{${0:i}=${1:1}}^{${2:N}} $3")).toBe("\\sum_{${1:i}=${2:1}}^{${3:N}} $0");
 });
+
+test("Tab walks a formula's brackets, Shift+Tab walks back", async ({ page }) => {
+  await math(page, "tabwalk", "(a");
+  await page.keyboard.press("Tab"); // out of the bracket the editor closed
+  await page.keyboard.type("+(b");
+  await page.keyboard.press("Shift+Tab"); // before its `(`
+  await page.keyboard.press("Shift+Tab"); // into the first bracket, from its end
+  await page.keyboard.type("1");
+  await page.keyboard.press("Tab");
+  await page.keyboard.press("Tab"); // into the next bracket
+  await page.keyboard.type("2");
+  await expect(page.locator(".cm-content:visible").first()).toContainText("(a1)+(2b)");
+});
