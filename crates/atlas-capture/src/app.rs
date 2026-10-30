@@ -319,8 +319,8 @@ impl Capture {
                 self.send(ctx, false);
             }
         }
-        // besides the text: Super+S the screen, Super+Shift+S the last screenshot, Super+C the clipboard, Super+U the page,
-        // Super+M what is playing
+        // besides the text: Super+S the screen, Super+Shift+S the last screenshot, Super+C the clipboard, Super+Q the
+        // selection, Super+U the page, Super+M what is playing
         let extra = if !sup {
             None
         } else if pressed(Modifiers::SHIFT, Key::S) {
@@ -329,6 +329,8 @@ impl Capture {
             Some(Kind::Screen)
         } else if pressed(Modifiers::NONE, Key::C) {
             Some(Kind::Clipboard)
+        } else if pressed(Modifiers::NONE, Key::Q) {
+            Some(Kind::Selection)
         } else if pressed(Modifiers::NONE, Key::U) {
             Some(Kind::Link)
         } else if pressed(Modifiers::NONE, Key::M) {

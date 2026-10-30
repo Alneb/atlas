@@ -699,7 +699,7 @@ fn settings_file_values(root: &Path, id: &str) -> Result<Option<toml::Table>> {
 /// Writes a plugin's settings file (a table of values, as TOML).
 fn write_settings_file(root: &Path, id: &str, text: &str) -> Result<()> {
     let path = crate::paths::safe_join(root, &settings_rel(id))?;
-    let head = format!("# Settings of the plugin {id}, as Settings → Plugins & automation writes them (secrets are kept outside the vault).\n");
+    let head = format!("# Settings of the plugin {id}, as Settings → Plugins writes them (secrets are kept outside the vault).\n");
     crate::vault_write::write(&path, format!("{head}{}", text.trim_start_matches(&head)).as_bytes())
 }
 

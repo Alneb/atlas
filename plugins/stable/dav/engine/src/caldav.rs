@@ -27,7 +27,7 @@ pub enum DavError {
 impl fmt::Display for DavError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            DavError::Auth { host } => write!(f, "app password rejected: {host} refused the user name or app password (401). Check the account in Settings → Plugins & automation → Calendar → Accounts"),
+            DavError::Auth { host } => write!(f, "app password rejected: {host} refused the user name or app password (401). Check the account in Settings → Plugins → Calendar → Accounts"),
             DavError::Network { host, why } => write!(f, "cannot reach {host}: {why}"),
             DavError::Status { what, code, body } => {
                 let more = if body.is_empty() { String::new() } else { format!(" ({body})") };
@@ -238,7 +238,7 @@ impl Client {
     pub fn new(acc: &Account) -> Result<Client> {
         let (url, user) = (acc.url.trim(), acc.user.trim());
         if url.is_empty() || user.is_empty() || acc.password.is_empty() {
-            return Err(DavError::Setup("the account is not set up: fill in its server address, user name and app password in Settings → Plugins & automation → Calendar → Accounts".into()));
+            return Err(DavError::Setup("the account is not set up: fill in its server address, user name and app password in Settings → Plugins → Calendar → Accounts".into()));
         }
         let with_scheme = if url.contains("://") { url.to_string() } else { format!("https://{url}") };
         let base = Url::parse(&with_scheme)

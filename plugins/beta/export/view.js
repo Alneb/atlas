@@ -93,7 +93,9 @@ export default function mount(host, atlas) {
   const previewBtn = el("button", { textContent: "Preview" });
   const go = el("button", { className: "primary", textContent: "Export" });
   const close = el("button", { textContent: "Close" });
-  const side = el("div", { className: "ex-side" }, [form, el("div", { className: "ex-foot" }, [status, warns, el("div", { className: "ex-go" }, [close, previewBtn, go])])]);
+  // shown while an export runs: stops the helper, which ends the program it is waiting on (pandoc, latexmk)
+  const stop = el("button", { textContent: "Stop", hidden: true, title: "Stop this export (the next one starts afresh)" });
+  const side = el("div", { className: "ex-side" }, [form, el("div", { className: "ex-foot" }, [status, warns, el("div", { className: "ex-go" }, [close, stop, previewBtn, go])])]);
   const label = el("p", { className: "ex-preview-label" });
   const shown = el("div");
   const preview = el("div", { className: "ex-preview" }, [label, shown]);
@@ -115,7 +117,7 @@ export default function mount(host, atlas) {
   const live = () => previewFormat() === "pdf-typst";
 
   let unmount = () => {};
-  let generation = 0;
+  let generation = 0, stopped = false;
   const offProgress = atlas.helper.on("progress", (d) => { if (d?.stage !== "done" && d?.text) say(`${d.text}…`); });
   async function make(previewOnly) {
     const mine = ++generation;
@@ -123,7 +125,7 @@ export default function mount(host, atlas) {
     if (!roads[f]) { say(`${f}: not available here`, true); return; }
     preview.classList.add("busy");
     previewBtn.disabled = true;
-    if (!previewOnly) go.disabled = true;
+    if (!previewOnly) { go.disabled = true; stop.hidden = false; }
     try {
       const r = await atlas.helper.call("export", { path, format: f, options: options(), settings: s, preview: previewOnly }, { timeout: 600 });
       if (mine !== generation) return;
@@ -143,9 +145,9 @@ export default function mount(host, atlas) {
         if (openAfter.checked) atlas.open(made);
       }
     } catch (e) {
-      if (mine === generation) say(String(e?.message ?? e), true);
+      if (mine === generation) say(stopped ? "Stopped" : String(e?.message ?? e), !stopped);
     } finally {
-      if (mine === generation) { preview.classList.remove("busy"); go.disabled = !roads[format]; previewBtn.disabled = false; }
+      if (mine === generation) { preview.classList.remove("busy"); go.disabled = !roads[format]; previewBtn.disabled = false; stop.hidden = true; stopped = false; }
     }
   }
   let timer;
@@ -162,6 +164,7 @@ export default function mount(host, atlas) {
 
   previewBtn.onclick = () => void make(true);
   go.onclick = () => void make(false);
+  stop.onclick = () => { stopped = true; say("Stopping…"); void atlas.helper.restart(); };
   close.onclick = () => atlas.pane?.close();
   host.addEventListener("keydown", (e) => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); go.click(); } });
 
@@ -182,5 +185,6 @@ export default function mount(host, atlas) {
     changed();
   }, (e) => say(String(e?.message ?? e), true));
 
-  return () => { clearTimeout(timer); offProgress?.(); unmount(); host.replaceChildren(); host.classList.remove("ex"); };
+  // closed while exporting: the export is stopped, not left building a file nobody waits for
+  return () => { if (!stop.hidden) void atlas.helper.restart(); clearTimeout(timer); offProgress?.(); unmount(); host.replaceChildren(); host.classList.remove("ex"); };
 }

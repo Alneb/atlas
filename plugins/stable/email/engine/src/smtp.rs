@@ -87,7 +87,7 @@ pub async fn send(acc: &Account, token: Option<String>, from: &str, to: &[String
         }
         Auth::Password(pw) if !auths.is_empty() => {
             if pw.is_empty() {
-                return Err(format!("no password for {} yet: set it in Settings → Plugins & automation → Email", acc.name));
+                return Err(format!("no password for {} yet: set it in Settings → Plugins → Email", acc.name));
             }
             if auths.iter().any(|a| a == "PLAIN") || !auths.iter().any(|a| a == "LOGIN") {
                 c.expect(&format!("AUTH PLAIN {}", b64(&format!("\0{}\0{pw}", acc.user))), 235, "the user name or password").await?;

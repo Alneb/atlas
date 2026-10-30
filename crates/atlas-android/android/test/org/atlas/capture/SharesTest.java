@@ -11,6 +11,8 @@ public final class SharesTest {
         eq(Shares.underDraft("call the lab\n", "https://example.org/x"), "call the lab\nhttps://example.org/x", "under the draft");
         eq(Shares.underDraft("  ", "https://example.org/x"), "https://example.org/x", "no draft: the share");
         eq(Shares.underDraft("call the lab", null), "call the lab", "no share: the draft");
+        eq(Shares.quote("spin liquid\n\nground state\n"), "> spin liquid\n>\n> ground state", "selected text: a quote");
+        eq(Shares.quote("  "), null, "nothing selected: nothing");
         System.out.println("SharesTest: ok");
     }
 }

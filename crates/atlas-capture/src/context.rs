@@ -43,6 +43,8 @@ pub enum Clip {
     Text(String),
     /// A picture on the clipboard (a screenshot copied, an image copied from a page), written to a file.
     Image(PathBuf),
+    /// Files copied in a file manager (`text/uri-list`): the files themselves, where they are.
+    Files(Vec<PathBuf>),
 }
 
 /// Where this box keeps what it takes (the screen, a copied picture): the session's runtime folder, removed on exit.
@@ -364,25 +366,146 @@ fn walk(dir: &Path, depth: usize, out: &mut Vec<History>) {
     }
 }
 
-/// The clipboard (Wayland, `wl-paste`): a picture when it holds one, else its text.
+/// The clipboard (`wl-paste` on Wayland, `xclip` on X11): a picture when it holds one, else copied files, else its text.
 pub fn clipboard() -> Option<Clip> {
-    std::env::var_os("WAYLAND_DISPLAY")?;
-    let types = run(Command::new("wl-paste").arg("--list-types"), Duration::from_millis(600)).ok()?;
-    let types = String::from_utf8_lossy(&types);
-    if types.lines().any(|t| t.trim() == "image/png") {
-        let png = run(Command::new("wl-paste").args(["--type", "image/png"]), Duration::from_millis(1500)).ok()?;
+    let board = Board::here(Sel::Clipboard)?;
+    let types = board.types()?;
+    let types: Vec<&str> = types.lines().map(str::trim).collect();
+    if let Some((mime, ext)) = PICTURES.iter().find(|(m, _)| types.contains(m)) {
+        let bytes = board.read(Some(mime), Duration::from_millis(1500)).ok()?;
         let dir = scratch();
         std::fs::create_dir_all(&dir).ok()?;
-        let file = dir.join(format!("Clipboard {}.png", chrono::Local::now().format("%Y-%m-%d %H%M%S")));
-        std::fs::write(&file, png).ok()?;
+        let file = dir.join(format!("Clipboard {}.{ext}", chrono::Local::now().format("%Y-%m-%d %H%M%S")));
+        std::fs::write(&file, bytes).ok()?;
         return Some(Clip::Image(file));
     }
-    if types.lines().any(|t| t.starts_with("text/") || t.trim() == "UTF8_STRING" || t.trim() == "STRING") {
-        let text = run(Command::new("wl-paste").args(["--no-newline", "--type", "text"]), Duration::from_millis(600)).ok()?;
-        let text = String::from_utf8_lossy(&text).trim().to_string();
-        return (!text.is_empty()).then_some(Clip::Text(text));
+    if types.contains(&"text/uri-list") {
+        let list = board.read(Some("text/uri-list"), Duration::from_millis(600)).ok()?;
+        let files = local_files(&String::from_utf8_lossy(&list));
+        if !files.is_empty() {
+            return Some(Clip::Files(files));
+        }
     }
-    None
+    board.text(&types).map(Clip::Text)
+}
+
+/// The text last selected in any window (the primary selection, pasted by a middle click), when there is some.
+pub fn selection() -> Option<String> {
+    let board = Board::here(Sel::Primary)?;
+    let types = board.types()?;
+    board.text(&types.lines().map(str::trim).collect::<Vec<_>>())
+}
+
+/// The picture types taken, best first, with the file's extension.
+const PICTURES: [(&str, &str); 4] = [("image/png", "png"), ("image/jpeg", "jpg"), ("image/webp", "webp"), ("image/gif", "gif")];
+/// A picture of a type the clipboard gives (by its extension).
+pub fn is_picture(p: &Path) -> bool {
+    let ext = p.extension().map(|e| e.to_string_lossy().to_ascii_lowercase()).unwrap_or_default();
+    ext == "jpeg" || PICTURES.iter().any(|(_, e)| *e == ext)
+}
+/// The text types, best first: X11 names them exactly (`xclip` does no matching), Wayland apps the MIME way.
+const TEXTS: [&str; 5] = ["text/plain;charset=utf-8", "UTF8_STRING", "text/plain", "STRING", "TEXT"];
+/// A copied file bigger than this is not offered: it is read whole and copied beside the day's log.
+const FILE_MAX: u64 = 64 << 20;
+
+/// Which of the desktop's two selections.
+#[derive(Clone, Copy)]
+enum Sel {
+    /// what was copied (Ctrl+C)
+    Clipboard,
+    /// what was last selected (a middle click pastes it)
+    Primary,
+}
+
+/// Who reads a selection: `wl-paste` on Wayland, `xclip` on X11.
+#[derive(Clone, Copy)]
+enum Board {
+    Wayland(Sel),
+    X11(Sel),
+}
+
+impl Board {
+    fn here(sel: Sel) -> Option<Board> {
+        if std::env::var_os("WAYLAND_DISPLAY").is_some() {
+            Some(Board::Wayland(sel))
+        } else {
+            std::env::var_os("DISPLAY").map(|_| Board::X11(sel))
+        }
+    }
+
+    /// The types offered, one per line.
+    fn types(self) -> Option<String> {
+        Some(String::from_utf8_lossy(&self.read(None, Duration::from_millis(600)).ok()?).into_owned())
+    }
+
+    /// Its text, by the best text type among `types`; none when empty.
+    fn text(self, types: &[&str]) -> Option<String> {
+        let kind = TEXTS.iter().find(|t| types.contains(t))?;
+        let text = self.read(Some(kind), Duration::from_millis(600)).ok()?;
+        let text = String::from_utf8_lossy(&text).trim().to_string();
+        (!text.is_empty()).then_some(text)
+    }
+
+    /// The content of one type, or (`None`) the list of types.
+    fn read(self, mime: Option<&str>, limit: Duration) -> Result<Vec<u8>> {
+        let mut cmd = match self {
+            Board::Wayland(sel) => {
+                let mut c = Command::new("wl-paste");
+                if matches!(sel, Sel::Primary) {
+                    c.arg("--primary");
+                }
+                match mime {
+                    None => c.arg("--list-types"),
+                    Some(m) => c.args(["--no-newline", "--type", m]),
+                };
+                c
+            }
+            Board::X11(sel) => {
+                let mut c = Command::new("xclip");
+                let name = if matches!(sel, Sel::Primary) { "primary" } else { "clipboard" };
+                c.args(["-selection", name, "-o", "-t", mime.unwrap_or("TARGETS")]);
+                c
+            }
+        };
+        run(&mut cmd, limit)
+    }
+}
+
+/// The local files of a `text/uri-list` (RFC 2483: one address a line, `#` comments): the `file://` ones that exist and
+/// are not too big to attach; any other address is left out.
+fn local_files(list: &str) -> Vec<PathBuf> {
+    list.lines()
+        .map(str::trim)
+        .filter(|l| !l.starts_with('#'))
+        .filter_map(|l| l.strip_prefix("file://"))
+        .map(|l| l.strip_prefix("localhost").unwrap_or(l))
+        .filter(|l| l.starts_with('/'))
+        .map(|l| PathBuf::from(unescape(l)))
+        .filter(|p| p.metadata().is_ok_and(|m| m.is_file() && m.len() <= FILE_MAX))
+        .collect()
+}
+
+/// `%XX` escapes undone (a file manager writes a space as `%20`); a broken escape is kept as written.
+fn unescape(s: &str) -> std::ffi::OsString {
+    let b = s.as_bytes();
+    let (mut out, mut i) = (Vec::with_capacity(b.len()), 0);
+    while i < b.len() {
+        let hex = |c: u8| (c as char).to_digit(16);
+        match (b[i], b.get(i + 1).copied().and_then(hex), b.get(i + 2).copied().and_then(hex)) {
+            (b'%', Some(h), Some(l)) => {
+                out.push((h * 16 + l) as u8);
+                i += 3;
+            }
+            (c, ..) => {
+                out.push(c);
+                i += 1;
+            }
+        }
+    }
+    #[cfg(unix)]
+    return std::os::unix::ffi::OsStringExt::from_vec(out);
+    #[cfg(not(unix))]
+    return String::from_utf8_lossy(&out).into_owned().into();
 }
 
 /// The newest picture in the screenshots folder, when it was taken in the last `within`.
@@ -516,6 +639,20 @@ fn run(cmd: &mut Command, limit: Duration) -> Result<Vec<u8>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn copied_files_are_the_local_ones_that_exist() {
+        let dir = std::env::temp_dir().join(format!("atlas-uri-list-{}", std::process::id()));
+        std::fs::create_dir_all(dir.join("a b")).unwrap();
+        let file = dir.join("a b").join("Ré sumé.pdf");
+        std::fs::write(&file, b"%PDF").unwrap();
+        let url = format!("file://{}", dir.join("a%20b").join("R%C3%A9%20sum%C3%A9.pdf").display());
+        let list = format!("# copied\r\n{url}\r\nfile://localhost{}\r\nhttps://example.org/x.pdf\r\nfile://{}\r\nfile://{}\r\n",
+            file.display(), dir.join("gone.txt").display(), dir.display());
+        assert_eq!(local_files(&list), [file.clone(), file]); // the folder and the missing file left out
+        assert_eq!(unescape("100%25 %zz"), "100% %zz");
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
 
     #[test]
     fn a_caption_finds_its_page_and_nothing_else() {

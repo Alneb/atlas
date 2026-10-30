@@ -1402,13 +1402,26 @@ async fn live_ws(State(st): S, Query(q): Query<LiveQuery>, upgrade: WebSocketUpg
     let mirror = st.served.is_none().then(|| crate::mirror_guard::mirror_of(st.ws.root())).flatten();
     let store = crate::secrets::Store::for_vault(st.ws.root());
     Ok(upgrade.on_upgrade(move |socket| async move {
-        if let Some(m) = mirror {
-            let url = reqwest::Url::parse_with_params(&format!("{m}api/live"), [("path", q.path.as_str()), ("name", name.as_str())]);
-            if let Some(up) = match url { Ok(u) => crate::remote_bridge::connect(&store, u.as_str()).await, Err(_) => None } {
-                return crate::remote_bridge::splice(socket, up).await;
-            }
+        let Some(m) = mirror else { return crate::live::session(socket, rooms, q.path, name, std::future::pending()).await };
+        let url = reqwest::Url::parse_with_params(&format!("{m}api/live"), [("path", q.path.as_str()), ("name", name.as_str())]).ok();
+        let Some(url) = url.map(String::from) else { return crate::live::session(socket, rooms, q.path, name, std::future::pending()).await };
+        if let Some(up) = crate::remote_bridge::connect(&store, &url).await {
+            return crate::remote_bridge::splice(socket, up).await;
         }
-        crate::live::session(socket, rooms, q.path, name).await
+        // the server's room did not answer: this core's room for now, asking the server again (10 s, doubling to 5 min);
+        // when it answers the session ends and the page reconnects into the server's room — never two rooms for long
+        let back = async move {
+            let mut wait = std::time::Duration::from_secs(10);
+            loop {
+                tokio::time::sleep(wait).await;
+                if let Some(mut probe) = crate::remote_bridge::connect(&store, &url).await {
+                    let _ = probe.close(None).await;
+                    return;
+                }
+                wait = (wait * 2).min(std::time::Duration::from_secs(300));
+            }
+        };
+        crate::live::session(socket, rooms, q.path, name, back).await
     }))
 }
 

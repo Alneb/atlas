@@ -41,4 +41,5 @@ Linux works; macOS untested (CUPS ships with it); Windows no (no `lp`); a server
 
 Stable tier. Unit tests in `helper/helper.test.ts` (`node scripts/dev/plugin-ui.mjs --check plugins/beta/print`) and
 an end-to-end spec (the dialog, then lp refusing a printer that does not exist). A note's PDF can take a while to
-build (the dialog says so meanwhile), and a print cannot be stopped.
+build (the dialog says so meanwhile); closing the dialog then stops it (the helper restarts on the next call). A print
+sent to the printer is the printer's to cancel.

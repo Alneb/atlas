@@ -75,6 +75,7 @@ fn print_context() -> anyhow::Result<()> {
         }
     }
     println!("clipboard: {:?}", context::clipboard());
+    println!("selection: {:?}", context::selection());
     println!("last screenshot (30 min): {:?}", context::last_screenshot(std::time::Duration::from_secs(30 * 60)));
     if std::env::var_os("ATLAS_CAPTURE_KEEP").is_none() {
         let _ = std::fs::remove_dir_all(context::scratch()); // ATLAS_CAPTURE_KEEP=1: kept, to look at the pictures

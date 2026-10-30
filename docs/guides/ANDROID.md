@@ -100,6 +100,7 @@ Next, decided in detail:
 
     Without it, a "Screen · set up" chip opens the accessibility settings.
   - **Share**: SEND and SEND_MULTIPLE (`*/*`). Text goes into the box; streams are copied to the cache and attached on save.
+  - **Selected text**: PROCESS_TEXT (`text/plain`), "Capture" in any app's text-selection menu; the text goes into the box as a quote (`> …`, `Shares.quote`), as the desktop box's Selection chip.
 - **build-apk.sh**:
   - `javac -source 17 -target 17 -cp android.jar` → `d8 --lib android.jar --min-api 26` → `classes.dex`;
   - `aapt2 compile` of `res/` + `aapt2 link -R`, then `classes.dex` and `lib/` zipped in;

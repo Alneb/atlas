@@ -34,6 +34,12 @@
         <category android:name="android.intent.category.DEFAULT" />
         <data android:mimeType="*/*" />
       </intent-filter>
+      <!-- text selected in any app: "Capture" in its selection menu, the text as a quote -->
+      <intent-filter android:label="Capture">
+        <action android:name="android.intent.action.PROCESS_TEXT" />
+        <category android:name="android.intent.category.DEFAULT" />
+        <data android:mimeType="text/plain" />
+      </intent-filter>
     </activity>
     <!-- signing in to a server (docs/guides/ANDROID.md, "Signing in"): the browser comes back to the app's own address -->
     <activity android:name=".SignedInActivity" android:exported="true" android:launchMode="singleTask" android:theme="@android:style/Theme.Translucent.NoTitleBar">

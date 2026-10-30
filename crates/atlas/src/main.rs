@@ -177,7 +177,7 @@ fn plugin_action(ws: &Workspace, action: PluginAction) -> Result<()> {
                 inst::set_off(root, &r.id, false)?;
                 println!("  switched on");
             } else {
-                println!("  it is switched off: switch it on in Settings → Plugins & automation (or install with --on)");
+                println!("  it is switched off: switch it on in Settings → Plugins (or install with --on)");
             }
         }
         PluginAction::Update { id } => {

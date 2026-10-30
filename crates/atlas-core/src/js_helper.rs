@@ -153,13 +153,14 @@ impl Engine {
             })?)?;
             // a program run off the context's thread; its answer comes back as a turn (`__atlas_exec`), so the
             // script's other calls and timers go on meanwhile
-            let (root, Exec { allowed, inbox }) = (root.to_path_buf(), exec);
+            // the helper stopped (a Stop in its page, switched off): its programs are ended too
+            let (root, Exec { allowed, inbox }, halt) = (root.to_path_buf(), exec, stop.clone());
             host.set("exec", Function::new(ctx.clone(), move |n: f64, ask: String| {
-                let (n, root, allowed, inbox) = (n as u64, root.clone(), allowed.clone(), inbox.clone());
+                let (n, root, allowed, inbox, halt) = (n as u64, root.clone(), allowed.clone(), inbox.clone(), halt.clone());
                 std::thread::spawn(move || {
                     let answer = serde_json::from_str::<crate::js_exec::Run>(&ask)
                         .map_err(|e| format!("exec: {e}"))
-                        .and_then(|run| crate::js_exec::check(&root, &allowed, &run).and_then(|(exe, cwd)| crate::js_exec::run(&exe, &cwd, &run)))
+                        .and_then(|run| crate::js_exec::check(&root, &allowed, &run).and_then(|(exe, cwd)| crate::js_exec::run(&exe, &cwd, &run, &halt)))
                         .unwrap_or_else(|why| serde_json::json!({ "error": why }));
                     let _ = inbox.send(In::Exec(n, answer.to_string()));
                 });

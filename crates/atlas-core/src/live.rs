@@ -75,8 +75,10 @@ fn stamped(peer: u64, message: &str) -> String {
     format!(r#"{{"from":{peer},"m":{message}}}"#)
 }
 
-/// One device in `path`'s room until its socket closes.
-pub async fn session(mut socket: WebSocket, rooms: std::sync::Arc<Rooms>, path: String, name: String) {
+/// One device in `path`'s room until its socket closes or `until` ends (then the socket is closed and the page, which
+/// reconnects, joins again: how a pane that fell back to this room moves to the server's).
+pub async fn session(mut socket: WebSocket, rooms: std::sync::Arc<Rooms>, path: String, name: String, until: impl std::future::Future<Output = ()>) {
+    tokio::pin!(until);
     let (peer, tx, mut rx, writer) = rooms.join(&path);
     let hello = serde_json::json!({ "t": "hello", "peer": peer, "others": tx.receiver_count() - 1, "writer": writer }).to_string();
     let _ = tx.send((peer, stamped(peer, &serde_json::json!({ "t": "join", "name": name }).to_string())));
@@ -98,6 +100,10 @@ pub async fn session(mut socket: WebSocket, rooms: std::sync::Arc<Rooms>, path: 
                     Some(Ok(Message::Close(_))) | None | Some(Err(_)) => break,
                     Some(Ok(_)) => {}
                 },
+                () = &mut until => {
+                    let _ = socket.send(Message::Close(None)).await;
+                    break;
+                }
             }
         }
     }

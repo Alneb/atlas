@@ -21,6 +21,8 @@ const HIDE_FIRST: Duration = Duration::from_millis(160);
 pub enum Kind {
     Link,
     Clipboard,
+    /// the text last selected anywhere (the primary selection), as a quote
+    Selection,
     Last,
     Screen,
     /// the song or video playing (MPRIS), last: after the screen and the link
@@ -32,6 +34,7 @@ impl Kind {
         match self {
             Kind::Link => "Super+U",
             Kind::Clipboard => "Super+C",
+            Kind::Selection => "Super+Q",
             Kind::Last => "Super+Shift+S",
             Kind::Screen => "Super+S",
             Kind::Playing => "Super+M",
@@ -44,6 +47,8 @@ pub enum What {
     Link(Page),
     Text(String),
     Picture(PathBuf),
+    /// Files copied in a file manager: each attached beside the day's log as it is.
+    Files(Vec<PathBuf>),
 }
 
 /// One thing the box offers to add; the ones `on` go with the capture.
@@ -114,9 +119,21 @@ impl Extras {
                     None => What::Text(t),
                 },
                 Some(Clip::Image(p)) => What::Picture(p),
+                // one copied picture shows as one (its thumbnail); any other files as their names
+                Some(Clip::Files(f)) => match <[PathBuf; 1]>::try_from(f) {
+                    Ok([p]) if context::is_picture(&p) => What::Picture(p),
+                    Ok([p]) => What::Files(vec![p]),
+                    Err(f) => What::Files(f),
+                },
                 None => return,
             };
             offer(Offer { kind: Kind::Clipboard, what, on: false });
+        });
+        // the selection, off like the clipboard: it may be old (put() drops it when it is what was copied)
+        self.job(|offer| {
+            if let Some(t) = context::selection() {
+                offer(Offer { kind: Kind::Selection, what: What::Text(t), on: false });
+            }
         });
         // what is playing, offered off as on the phone: a YouTube video's link goes to the catalog with the capture
         self.job(|offer| {
@@ -210,10 +227,12 @@ impl Extras {
             .offers
             .iter()
             .filter(|o| o.on)
-            .map(|o| match (&o.what, o.kind) {
-                (What::Link(p), _) => Part::Inline(p.markdown()),
-                (What::Text(t), _) => Part::Below(t.clone()),
-                (What::Picture(p), k) => Part::File { path: p.clone(), label: label(k) },
+            .flat_map(|o| match (&o.what, o.kind) {
+                (What::Link(p), _) => vec![Part::Inline(p.markdown())],
+                (What::Text(t), Kind::Selection) => vec![Part::Below(quote(t))],
+                (What::Text(t), _) => vec![Part::Below(t.clone())],
+                (What::Picture(p), k) => vec![Part::File { path: p.clone(), label: label(k) }],
+                (What::Files(f), k) => f.iter().map(|p| Part::File { path: p.clone(), label: label(k) }).collect(),
             })
             .collect()
     }
@@ -253,7 +272,9 @@ impl Extras {
     fn text_of(&self, o: &Offer) -> String {
         match &o.what {
             What::Link(page) => short(if page.title.is_empty() { &page.url } else { &page.title }, 60),
-            What::Text(t) if o.kind == Kind::Clipboard => short(t, 60),
+            What::Text(t) if matches!(o.kind, Kind::Clipboard | Kind::Selection) => short(t, 60),
+            What::Files(f) if f.len() == 1 => short(&f[0].file_name().unwrap_or_default().to_string_lossy(), 60),
+            What::Files(f) => format!("{} files", f.len()),
             _ if o.kind == Kind::Screen && self.hidden() => "Taking the screen…".to_string(),
             _ => label(o.kind).to_string(),
         }
@@ -297,6 +318,8 @@ impl Extras {
                 Kind::Link => Icon::Link,
                 Kind::Clipboard if o.on => Icon::Check,
                 Kind::Clipboard => Icon::Clipboard,
+                Kind::Selection if o.on => Icon::Check,
+                Kind::Selection => Icon::Note,
                 Kind::Last | Kind::Screen => Icon::Image,
                 Kind::Playing => Icon::Music,
             };
@@ -326,6 +349,9 @@ fn put(found: &Mutex<Found>, o: Offer) {
     f.offers.retain(|x| x.kind != o.kind);
     f.offers.push(o);
     f.offers.sort_by_key(|x| x.kind);
+    // text selected and then copied is in both: offered once, as the clipboard
+    let copied = f.offers.iter().find(|x| x.kind == Kind::Clipboard).map(|x| x.what.clone());
+    f.offers.retain(|x| x.kind != Kind::Selection || copied.as_ref() != Some(&x.what));
     f.thumbs.extend(thumb);
 }
 
@@ -336,10 +362,16 @@ fn link_alone(t: &str) -> Option<String> {
     (!rest.is_empty() && !t.contains(char::is_whitespace)).then(|| t.to_string())
 }
 
+/// Text as a Markdown quote, line by line.
+fn quote(t: &str) -> String {
+    t.lines().map(|l| if l.trim().is_empty() { ">".to_string() } else { format!("> {l}") }).collect::<Vec<_>>().join("\n")
+}
+
 fn label(k: Kind) -> &'static str {
     match k {
         Kind::Link => "Page",
         Kind::Clipboard => "Clipboard",
+        Kind::Selection => "Selection",
         Kind::Last => "Last screenshot",
         Kind::Screen => "Screen",
         Kind::Playing => "Playing",
@@ -474,6 +506,24 @@ mod tests {
         let x = Extras::default();
         x.offer(Offer { kind: Kind::Clipboard, what: What::Link(Page { url: "https://a.org/".into(), title: String::new() }), on: true });
         assert_eq!(x.parts(), [Part::Inline("https://a.org/".into())]);
+    }
+
+    #[test]
+    fn the_selection_is_a_quote_unless_it_was_copied() {
+        let x = Extras::default();
+        x.offer(Offer { kind: Kind::Selection, what: What::Text("spin liquid\n\nground state".into()), on: true });
+        assert_eq!(x.parts(), [Part::Below("> spin liquid\n>\n> ground state".into())]);
+        x.offer(Offer { kind: Kind::Clipboard, what: What::Text("spin liquid\n\nground state".into()), on: true });
+        assert_eq!(x.parts(), [Part::Below("spin liquid\n\nground state".into())], "once, as the clipboard");
+    }
+
+    #[test]
+    fn copied_files_each_go_beside_the_log() {
+        let x = Extras::default();
+        x.offer(Offer { kind: Kind::Clipboard, what: What::Files(vec!["/home/u/a.pdf".into(), "/home/u/b.csv".into()]), on: true });
+        let file = |p: &str| Part::File { path: p.into(), label: "Clipboard" };
+        assert_eq!(x.parts(), [file("/home/u/a.pdf"), file("/home/u/b.csv")]);
+        assert!(context::is_picture(Path::new("/home/u/Photo.JPEG")) && !context::is_picture(Path::new("/home/u/a.pdf")));
     }
 
     #[test]

@@ -65,9 +65,9 @@ fn on_path(name: &str) -> Option<PathBuf> {
     std::env::split_paths(&std::env::var_os("PATH")?).flat_map(|dir| exts.iter().map(move |e| dir.join(format!("{name}{e}")))).find(|p| p.is_file())
 }
 
-/// Runs it to the end or the time limit: `{status, stdout, stderr}` (status null when killed), the output as text
-/// (invalid UTF-8 replaced), each kept to [`MAX_OUTPUT`] with `truncated` saying so.
-pub fn run(exe: &Path, cwd: &Path, r: &Run) -> Result<Value, String> {
+/// Runs it to the end, the time limit or `halt` (its helper stopped): `{status, stdout, stderr}` (status null when killed,
+/// with `timedOut` or `stopped`), the output as text (invalid UTF-8 replaced), each kept to [`MAX_OUTPUT`] with `truncated`.
+pub fn run(exe: &Path, cwd: &Path, r: &Run, halt: &std::sync::atomic::AtomicBool) -> Result<Value, String> {
     let name = &r.program;
     let mut cmd = Command::new(exe);
     cmd.args(&r.args).current_dir(cwd);
@@ -103,10 +103,11 @@ pub fn run(exe: &Path, cwd: &Path, r: &Run) -> Result<Value, String> {
     let err = drain(child.stderr.take().map(|p| Box::new(p) as Box<dyn Read + Send>));
     let limit = Duration::from_secs(r.timeout.unwrap_or(DEFAULT_SECS).clamp(1, MAX_SECS));
     let t0 = Instant::now();
+    let halted = || halt.load(std::sync::atomic::Ordering::Relaxed);
     let status = loop {
         match child.try_wait().map_err(|e| format!("exec: {name}: {e}"))? {
             Some(s) => break Some(s),
-            None if t0.elapsed() > limit => {
+            None if t0.elapsed() > limit || halted() => {
                 // the whole group: a child of the program holding the pipes would keep the readers waiting
                 crate::platform::proc::stop_group(child.id(), crate::platform::proc::Stop::Kill);
                 let _ = child.wait();
@@ -121,7 +122,7 @@ pub fn run(exe: &Path, cwd: &Path, r: &Run) -> Result<Value, String> {
     let ((stdout, more_out), (stderr, more_err)) = (out.join().unwrap_or_default(), err.join().unwrap_or_default());
     let mut v = json!({ "status": status.and_then(|s| s.code()), "stdout": stdout, "stderr": stderr });
     if status.is_none() {
-        v["timedOut"] = json!(true);
+        v[if halted() { "stopped" } else { "timedOut" }] = json!(true);
     }
     if more_out || more_err {
         v["truncated"] = json!(true);
@@ -156,7 +157,7 @@ mod tests {
         let allowed = vec!["sh".to_string()];
         let go = |r: Run| {
             let (exe, cwd) = check(dir.path(), &allowed, &r).unwrap();
-            run(&exe, &cwd, &r).unwrap()
+            run(&exe, &cwd, &r, &std::sync::atomic::AtomicBool::new(false)).unwrap()
         };
         let v = go(Run { stdin: Some("from stdin".into()), cwd: Some("sub".into()), ..ask("sh", &["-c", "cat; echo; basename \"$PWD\"; echo oops >&2; exit 3"]) });
         assert_eq!(v, json!({ "status": 3, "stdout": "from stdin\nsub\n", "stderr": "oops\n" }));
@@ -166,6 +167,23 @@ mod tests {
         let t0 = Instant::now();
         let v = go(Run { timeout: Some(1), ..ask("sh", &["-c", "sleep 30"]) });
         assert_eq!((v["status"].clone(), v["timedOut"].clone()), (Value::Null, json!(true)));
+        assert!(t0.elapsed() < Duration::from_secs(10));
+    }
+
+    #[test]
+    fn a_run_ends_when_its_helper_stops() {
+        let dir = tempfile::tempdir().unwrap();
+        let r = ask("sh", &["-c", "sleep 30"]);
+        let (exe, cwd) = check(dir.path(), &["sh".to_string()], &r).unwrap();
+        let halt = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let h = halt.clone();
+        std::thread::spawn(move || {
+            std::thread::sleep(Duration::from_millis(200));
+            h.store(true, std::sync::atomic::Ordering::Relaxed);
+        });
+        let t0 = Instant::now();
+        let v = run(&exe, &cwd, &r, &halt).unwrap();
+        assert_eq!((v["status"].clone(), v["stopped"].clone(), v.get("timedOut")), (Value::Null, json!(true), None));
         assert!(t0.elapsed() < Duration::from_secs(10));
     }
 }

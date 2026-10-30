@@ -183,7 +183,7 @@ fn answer(r: reqwest::blocking::Response, what: &str) -> Result<serde_json::Valu
 /// The plugin's value, else the vault's; neither is an error naming both.
 fn either(own: &Option<String>, vault: &str, what: &str, key: &str) -> Result<String> {
     own.as_deref().map(str::trim).filter(|v| !v.is_empty()).or(Some(vault.trim()).filter(|v| !v.is_empty())).map(String::from).ok_or_else(|| {
-        Error::BadRequest(format!("oauth: no {what}: the plugin names none and Settings → Plugins & automation has none ([plugins] {key})"))
+        Error::BadRequest(format!("oauth: no {what}: the plugin names none and Settings → Accounts → Sign-ins for plugins has none ([plugins] {key})"))
     })
 }
 

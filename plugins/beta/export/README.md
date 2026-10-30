@@ -53,5 +53,6 @@ Linux works; the others are untested.
 ## Status
 
 Beta. Tests: `node scripts/dev/plugin-ui.mjs --check plugins/beta/export` (the translation and each format's calls,
-the programs faked); `ui/tests/example-export.spec.ts` (the dialog, a real Typst export when pandoc is installed). An
-export cannot be stopped; drawings, PDFs and Bases embedded in a note are left out (named in the dialog).
+the programs faked); `ui/tests/example-export.spec.ts` (the dialog, a real Typst export when pandoc is installed). A
+running export has **Stop** (it stops the helper, which ends pandoc or latexmk; closing the dialog does the same);
+drawings, PDFs and Bases embedded in a note are left out (named in the dialog).

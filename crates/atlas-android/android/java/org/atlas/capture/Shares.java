@@ -11,6 +11,14 @@ final class Shares {
         return subject != null && !t.contains(subject) ? subject + "\n" + t : t;
     }
 
+    /** Selected text as a Markdown quote, line by line (`extras::quote` on the desktop); null when there is none. */
+    static String quote(CharSequence text) {
+        if (text == null || text.toString().trim().isEmpty()) return null;
+        StringBuilder out = new StringBuilder();
+        for (String l : text.toString().trim().split("\n", -1)) out.append(out.length() > 0 ? "\n" : "").append(l.trim().isEmpty() ? ">" : "> " + l);
+        return out.toString();
+    }
+
     /** A share never replaces an unsent draft (leaving would then save over it): it goes under the draft. */
     static String underDraft(String draft, String shared) {
         if (shared == null) return draft;

@@ -518,7 +518,8 @@ types are `crates/atlas-core/sdk/js/atlas-helper.d.ts`.
 - **Programs** (API 17): `await atlas.exec(program, args, { stdin, cwd, timeout, locale })` → `{ status, stdout, stderr }`
   (`timedOut`, `truncated` when so). Only a program the manifest names, `[permissions] exec = ["pandoc"]`, found on
   the PATH (a path is refused), started with no shell, `cwd` inside the vault (default the vault), killed with its
-  children after `timeout` seconds (default 60, at most 600), each output kept to 8 MB; `locale: "C"` makes it
+  children after `timeout` seconds (default 60, at most 600) or when the helper is stopped (`atlas.helper.restart()`, the
+  plugin switched off; then `stopped`), each output kept to 8 MB; `locale: "C"` makes it
   answer in English (LC_ALL, LANG), the only environment a script may set. Where the program is not
   installed (the phone) it throws, saying so: test for it and degrade. Only the helper's script reaches it, never a
   page.

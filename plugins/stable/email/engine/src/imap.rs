@@ -156,7 +156,7 @@ impl Imap {
         let session = match &acc.auth {
             Auth::Password(pw) => {
                 if pw.is_empty() {
-                    return Err(format!("no password for {} yet: set it in Settings → Plugins & automation → Email", acc.name));
+                    return Err(format!("no password for {} yet: set it in Settings → Plugins → Email", acc.name));
                 }
                 tokio::time::timeout(TIMEOUT, client.login(&acc.user, pw))
                     .await
@@ -763,7 +763,7 @@ fn refused(host: &str, why: &str) -> String {
         return format!("Gmail refused the password ({why}): Gmail wants an app password (myaccount.google.com → Security → App passwords)");
     }
     if l.contains("auth") || l.contains("login") || l.contains("credential") || l.contains("password") {
-        return format!("{host} refused the user name or password ({why}): check them in Settings → Plugins & automation → Email");
+        return format!("{host} refused the user name or password ({why}): check them in Settings → Plugins → Email");
     }
     format!("{host} refused the sign-in: {why}")
 }

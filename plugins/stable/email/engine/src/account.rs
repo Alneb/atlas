@@ -112,7 +112,7 @@ pub fn pick(params: &Value) -> Result<Account, String> {
         cards.iter().position(|c| s(c, "name") == want)
     };
     let i = i.ok_or_else(|| {
-        if want.is_empty() { "no mail account yet: add one in Settings → Plugins & automation → Email".to_string() } else { format!("no account named {want}") }
+        if want.is_empty() { "no mail account yet: add one in Settings → Plugins → Email".to_string() } else { format!("no account named {want}") }
     })?;
     of_card(params, &cards[i], i == 0)
 }
@@ -152,7 +152,7 @@ fn of_card(params: &Value, c: &Value, main: bool) -> Result<Account, String> {
         )
     };
     if imap.host.is_empty() || user.is_empty() {
-        return Err(format!("set the account {name} first: its address and IMAP server (Settings → Plugins & automation → Email)"));
+        return Err(format!("set the account {name} first: its address and IMAP server (Settings → Plugins → Email)"));
     }
     let from = Some(s(c, "from")).filter(|f| !f.is_empty()).map(String::from).unwrap_or_else(|| user.clone());
     let aliases = s(c, "aliases").split([',', '\n']).map(str::trim).filter(|a| !a.is_empty()).map(String::from).collect();

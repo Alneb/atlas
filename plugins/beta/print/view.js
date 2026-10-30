@@ -55,14 +55,14 @@ export default function mount(host, atlas) {
   ]);
   host.append(style, preview, side);
 
-  let pdf = null;
+  let pdf = null, preparing = true;
   let unmount = () => {};
   const say = (text, err = false) => { status.textContent = text; status.classList.toggle("err", err); };
   atlas.helper.call("printers", {}, { timeout: 30 }).then((list) => {
     for (const p of list) if (![...printer.options].some((o) => o.value === p.value)) printer.append(el("option", { value: p.value, textContent: p.label }));
     printer.value = String(s.printer ?? "");
   }, (e) => say(String(e?.message ?? e), true));
-  atlas.helper.call("prepare", { path }, { timeout: 600 }).then((r) => {
+  atlas.helper.call("prepare", { path }, { timeout: 600 }).finally(() => { preparing = false; }).then((r) => {
     pdf = r.pdf;
     preview.replaceChildren();
     unmount = atlas.mountBlock(preview, { type: "text", text: `![[${pdf}]]` }, path);
@@ -86,5 +86,6 @@ export default function mount(host, atlas) {
     }
   };
   cancel.onclick = () => atlas.pane?.close();
-  return () => { unmount(); host.replaceChildren(); host.classList.remove("pr"); };
+  // closed while the PDF is still being made: that is stopped (the helper restarts on the next call)
+  return () => { if (preparing) void atlas.helper.restart(); unmount(); host.replaceChildren(); host.classList.remove("pr"); };
 }
