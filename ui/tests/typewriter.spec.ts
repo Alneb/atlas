@@ -1,4 +1,5 @@
 import { test, expect, type APIRequestContext } from "@playwright/test";
+import { openFile } from "./open";
 
 // Typewriter scrolling ([editor] typewriter): the line being written stays at mid-height of the pane.
 const H = { "x-atlas": "1" };
@@ -14,10 +15,7 @@ test("with typewriter scrolling the caret's line stays in the middle of the pane
   await setTypewriter(request, true);
   await page.goto("/");
   await page.getByText("Finish the GW notes.").waitFor();
-  await page.keyboard.press("Control+p");
-  await page.keyboard.type("long.md");
-  await expect(page.getByTestId("palette").getByText("long", { exact: true }).first()).toBeVisible();
-  await page.keyboard.press("Enter");
+  await openFile(page, "long.md");
   await page.locator(".cm-content").click();
   await page.keyboard.press("Escape");
   await page.keyboard.type("80Gohere"); // vim: line 80, a new line under it, typing

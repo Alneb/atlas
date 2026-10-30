@@ -36,3 +36,24 @@ test("middle click: a link opens beside and the note is unchanged; a tab closes"
   const end = await request.get("/api/file?path=mid/source.md", { headers: H }).then((r) => r.json()) as { text: string };
   expect(end.text, "the selection was not pasted on closing").toBe(text);
 });
+
+// The guard drops a paste only right after a stray middle click; with none yet, a paste in the page's first half
+// second went too (a capture's pasted picture lost on a fast machine). The page's clock is held at its start.
+test("a paste in the page's first moments is not taken for a middle click's", async ({ page }) => {
+  await page.clock.install({ time: new Date("2026-10-01T09:00:00") });
+  await page.clock.pauseAt(new Date("2026-10-01T09:00:00"));
+  await page.goto("/");
+  await page.getByText("Finish the GW notes.").waitFor();
+  const got = await page.evaluate(() => {
+    const t = document.body.appendChild(document.createElement("textarea"));
+    let seen = false;
+    t.addEventListener("paste", () => (seen = true));
+    const dt = new DataTransfer();
+    dt.setData("text/plain", "hello");
+    t.dispatchEvent(new ClipboardEvent("paste", { clipboardData: dt, bubbles: true, cancelable: true }));
+    t.remove();
+    return { seen, now: performance.now() };
+  });
+  expect(got.now, "the clock is held near the page's start").toBeLessThan(500);
+  expect(got.seen).toBe(true);
+});

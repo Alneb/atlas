@@ -1,12 +1,10 @@
 import { test, expect } from "@playwright/test";
+import { openFile } from "./open";
 
 test("a note lists the notes that link to it, and a mention jumps to its line", async ({ page }) => {
   await page.goto("/");
   await page.getByText("Finish the GW notes.").waitFor();
-  await page.keyboard.press("Control+p");
-  await page.keyboard.type("hubbard.md");
-  await expect(page.getByTestId("palette").getByText("hubbard", { exact: true }).first()).toBeVisible();
-  await page.keyboard.press("Enter");
+  await openFile(page, "hubbard.md");
   const bl = page.locator(".backlinks");
   await expect(bl.locator(".head")).toContainText("Linked mentions 2");
   if (!(await bl.locator(".list").isVisible())) await bl.locator(".head").click(); // folded by default
@@ -21,10 +19,7 @@ test("unlinked mentions: the note's name in another note, linked with one click"
   const h = { "x-atlas": "1" };
   await page.goto("/");
   await page.getByText("Finish the GW notes.").waitFor();
-  await page.keyboard.press("Control+p");
-  await page.keyboard.type("Topic.md");
-  await expect(page.getByTestId("palette").getByText("Topic", { exact: true }).first()).toBeVisible();
-  await page.keyboard.press("Enter");
+  await openFile(page, "Topic.md");
   const bl = page.locator(".backlinks");
   await expect(bl.locator(".head")).toContainText("unlinked 1");
   if (!(await bl.locator(".list").isVisible())) await bl.locator(".head").click();

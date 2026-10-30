@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { openFile } from "./open";
 
 // A web picture arrives after the editor has measured its lines. The gutter below it (fold arrows)
 // must follow: found by the render audit in long web clips ("fold arrow off its line").
@@ -13,10 +14,7 @@ test("fold arrows stay on their lines when a picture loads late", async ({ page,
     await route.fulfill({ contentType: "image/svg+xml", body: SVG });
   });
   await page.goto("/");
-  await page.keyboard.press("Control+p");
-  await page.keyboard.type("late-image.md");
-  await expect(page.getByTestId("palette").getByText("late-image", { exact: true }).first()).toBeVisible();
-  await page.keyboard.press("Enter");
+  await openFile(page, "late-image.md");
   const img = page.locator("img.cm-embed-image");
   await expect.poll(() => served).toBe(true);
   await expect.poll(() => img.evaluate((el) => el.getBoundingClientRect().height)).toBeGreaterThan(400);

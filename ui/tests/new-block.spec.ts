@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { openFile } from "./open";
 
 // Settings → Plugins → "New block": a plugin folder with one block from a template, live at once —
 // usable in a note without a restart (docs/guides/EXTENDING.md).
@@ -18,9 +19,6 @@ test("a block made from the template works in a note straight away", async ({ pa
   const toml = await request.get("/api/file?path=.atlas/plugins/reading-streak/plugin.toml", { headers: H }).then((r) => r.json());
   expect(toml.text).toContain('title = "Reading streak"');
 
-  await page.keyboard.press("Control+p");
-  await page.keyboard.type("uses-block.md");
-  await expect(page.getByTestId("palette").getByText("uses-block", { exact: true }).first()).toBeVisible();
-  await page.keyboard.press("Enter");
+  await openFile(page, "uses-block.md");
   await expect(page.locator(".cm-content")).toContainText("Hi there — 1 properties in notes/uses-block.md");
 });

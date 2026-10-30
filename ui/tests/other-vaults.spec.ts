@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
+import { openFile } from "./open";
 import { spawn, type ChildProcess } from "node:child_process";
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -79,10 +80,7 @@ test("a vault switch in this window starts the other vault's tabs: this vault's 
   });
   await page.goto("/");
   await page.getByText("Finish the GW notes.").waitFor();
-  await page.keyboard.press("Control+p");
-  await page.keyboard.type("paste.md");
-  await expect(page.getByTestId("palette").getByText("paste", { exact: true }).first()).toBeVisible();
-  await page.keyboard.press("Enter");
+  await openFile(page, "paste.md");
   await expect(page.locator(".cm-content")).toContainText("A figure goes here");
   await page.waitForTimeout(800); // the layout saved (400 ms after a change)
 

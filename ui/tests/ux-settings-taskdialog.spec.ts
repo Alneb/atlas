@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { openFile } from "./open";
 
 // The task dialog by keyboard: the priority is one radio group — one Tab stop, arrows change it.
 const H = { "x-atlas": "1" };
@@ -7,10 +8,7 @@ test("the priority radios are one Tab stop, and the arrows move the choice", asy
   await request.put("/api/file", { headers: H, data: { path: "notes/ux-task-keys.md", text: "# Plain\n\n<!-- atlas:no-tasks -->\n- [ ] pay rent ⏫ #home\n" } });
   await page.goto("/");
   await page.getByText("Finish the GW notes.").waitFor();
-  await page.keyboard.press("Control+p");
-  await page.keyboard.type("ux-task-keys.md");
-  await expect(page.getByTestId("palette").getByText("ux-task-keys", { exact: true }).first()).toBeVisible();
-  await page.keyboard.press("Enter");
+  await openFile(page, "ux-task-keys.md");
   await page.locator(".cm-content").getByText("pay rent").click({ button: "right" });
   await page.getByRole("menuitem", { name: "Task…" }).click();
   const dialog = page.getByTestId("task-dialog");

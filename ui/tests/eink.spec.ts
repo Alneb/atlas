@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { shownName } from "../src/lib/paths";
+import { openFile } from "./open";
 import { outline } from "../src/lib/draw-ink";
 
 // The e-ink mode against ghosting (lib/eink.ts): black on white with nothing moving, and a full refresh (the
@@ -24,10 +24,7 @@ async function open(page: Page, refresh: "often" | "navigation" | "manual") {
 }
 const flashes = (page: Page) => page.evaluate(() => (window as unknown as { flashes: number }).flashes);
 async function openNote(page: Page, name: string) {
-  await page.keyboard.press("Control+p");
-  await page.keyboard.type(name);
-  await expect(page.getByTestId("palette").getByText(shownName(name), { exact: true }).first()).toBeVisible();
-  await page.keyboard.press("Enter");
+  await openFile(page, name);
   await expect(page.locator(".cm-content").first()).toBeVisible();
 }
 
@@ -158,7 +155,7 @@ test("e-ink in the Boox app: Onyx's instant ink is placed over the drawing while
 });
 
 // "if i click on more or paper in the toolbar, then i cannot click on the menu that appears i can only draw on top"
-// (2026-10-20): a menu open over the drawing gives the pen back to the page (pen-target.ts holdPen), so it takes a tap
+// A menu open over the drawing gives the pen back to the page (pen-target.ts holdPen), so it takes a tap
 test("e-ink in the Boox app: the toolbar's menus take the pen's taps — the instant ink off while one is open", async ({ page }) => {
   await open(page, "manual");
   await page.evaluate(() => {
@@ -183,7 +180,7 @@ test("e-ink in the Boox app: the toolbar's menus take the pen's taps — the ins
   expect(await page.evaluate(() => localStorage.getItem("atlas.draw.pages-held"))).toBe("off");
 });
 
-// "there should also be a zen mode there where the tab is hidden" (2026-10-20): the page alone, a corner button back
+// Zen mode hides the tab: the page alone, a corner button back
 test("e-ink: zen leaves the page alone — the toolbar and the app hidden — and its corner button brings them back", async ({ page }) => {
   await open(page, "manual");
   await page.keyboard.press("Meta+Shift+d"); await page.getByTestId("palette").getByText("Infinite canvas", { exact: true }).click();

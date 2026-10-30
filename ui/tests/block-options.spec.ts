@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { openFile } from "./open";
 
 // A block's options as a form (docs/guides/PAGES.md): the page's block menu → "Options…" draws the fields
 // the block declares; saving writes them into the `.page` file, an emptied field leaves the file.
@@ -8,10 +9,7 @@ test("a block's options are edited in a form and land in the page file", async (
   await request.put("/api/file", { headers: H, data: { path: "Opt.page", text: "# keep me\ntitle: Opt\nrows:\n  - [{ view: list, from: tasks, title: Tasks }]\n  - [{ view: terminal }]\n  - [greeting]\n" } });
   const text = () => request.get("/api/file?path=Opt.page", { headers: H }).then((r) => r.json()).then((j) => j.text as string);
   await page.goto("/");
-  await page.keyboard.press("Control+p");
-  await page.keyboard.type("Opt.page");
-  await expect(page.getByTestId("palette").getByText("Opt", { exact: true }).first()).toBeVisible();
-  await page.keyboard.press("Enter");
+  await openFile(page, "Opt.page");
   const pane = page.locator(".atlas-pane-page .page");
   await expect(pane.locator('[data-block="list"]')).toContainText("check the sign of t");
   await pane.getByRole("button", { name: "Arrange" }).click();

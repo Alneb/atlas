@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { shownName } from "../src/lib/paths";
+import { openFile } from "./open";
 
 // "Close other tabs" and "Close all tabs" leave terminals open, Home opens when no tab is left, and Super+F is
 // fullscreen.
@@ -8,10 +8,7 @@ test("Close all tabs keeps the terminals, and Home comes back when nothing is op
   await page.getByText("Finish the GW notes.").waitFor();
   const sidebar = page.getByTestId("sidebar");
   for (const f of ["journal.md", "notes/hubbard.md"]) {
-    await page.keyboard.press("Control+p");
-    await page.keyboard.type(f);
-    await expect(page.getByTestId("palette").getByText(shownName(f)).first()).toBeVisible();
-    await page.keyboard.press("Enter");
+    await openFile(page, f);
     await expect(page.locator(".cm-editor:visible").first()).toBeVisible();
   }
   await page.keyboard.press("Control+`");

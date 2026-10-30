@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { openFile } from "./open";
 const H = { "x-atlas": "1" };
 
 // docs/guides/MALLEABLE.md R4 (Embark's mentions): `[@key]` is a chip for a Library paper — hover shows the
@@ -7,10 +8,7 @@ test("@citekey mentions: chip, hover card, missing key, click opens the reading 
   await request.put("/api/file", { headers: H, data: { path: "notes/reading.md", text: "# Reading\n\nAs [@anderson1972more] argued; see also @nosuchpaper2001.\n\nmail me@example.org\n" } });
   await page.goto("/");
   await page.getByText("Finish the GW notes.").waitFor();
-  await page.keyboard.press("Control+p");
-  await page.keyboard.type("reading.md");
-  await expect(page.getByTestId("palette").getByText("reading", { exact: true }).first()).toBeVisible();
-  await page.keyboard.press("Enter");
+  await openFile(page, "reading.md");
   const chip = page.locator('.cm-content .atlas-mention[data-mention="anderson1972more"]');
   await expect(chip).toBeVisible();
   await expect(page.locator('.cm-content .atlas-mention[data-mention="nosuchpaper2001"]')).toHaveClass(/is-missing/);

@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { openFile } from "./open";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { WS } from "../playwright.config";
@@ -32,10 +33,7 @@ test("a PDF and a note's section are embedded, not shown as links", async ({ pag
   // written beside the core, not through it: wait until the vault's index has it, as a link resolves against that
   await expect.poll(async () => ((await (await request.get("/api/files", { headers: H })).json()) as string[]).includes("embeds/tiny.pdf")).toBe(true);
   await page.goto("/");
-  await page.keyboard.press("Control+p");
-  await page.keyboard.type("Host");
-  await expect(page.getByTestId("palette").getByText("Host", { exact: true }).first()).toBeVisible();
-  await page.keyboard.press("Enter");
+  await openFile(page, "Host");
   const note = page.locator(".note-embed").first();
   await expect(note).toContainText("only this part");
   await expect(note).not.toContainText("not this");
@@ -54,10 +52,7 @@ test("any file embeds: a table drawn, a sound played, the rest a card", async ({
   await request.put("/api/file", { headers: H, data: { path: "embeds/Shelf of files.md", text: "# Shelf of files\n\n![[embeds/runs.tsv]]\n\n![[embeds/beep.ogg]]\n\n![[embeds/data.zip]]\n" } });
   await expect.poll(async () => ((await (await request.get("/api/files", { headers: H })).json()) as string[]).includes("embeds/data.zip")).toBe(true);
   await page.goto("/");
-  await page.keyboard.press("Control+p");
-  await page.keyboard.type("Shelf of files");
-  await expect(page.getByTestId("palette").getByText("Shelf of files", { exact: true }).first()).toBeVisible();
-  await page.keyboard.press("Enter");
+  await openFile(page, "Shelf of files");
   await expect(page.locator(".file-embed.atlas-block").first()).toContainText("-1.2", { timeout: 15000 });
   await expect(page.locator(".file-embed audio.embed-audio")).toHaveCount(1);
   const zip = page.locator(".file-embed .file-card");

@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { openFile } from "./open";
 import { shownName } from "../src/lib/paths";
 
 // "Embed in note…" (the plan's phase 1): a tab's menu puts that pane as a live block into the note
@@ -10,10 +11,7 @@ test("a tab's menu embeds its pane in the note last written in", async ({ page, 
   await page.goto("/");
   await page.getByText("Finish the GW notes.").waitFor();
   for (const name of ["journal.md", "embed-here.md"]) {
-    await page.keyboard.press("Control+p");
-    await page.keyboard.type(name);
-    await expect(page.getByTestId("palette").getByText(shownName(name), { exact: true }).first()).toBeVisible();
-    await page.keyboard.press("Enter");
+    await openFile(page, name);
     await expect(page.getByTestId("sidebar").locator(".tab", { hasText: shownName(name) })).toHaveCount(1);
     await page.waitForTimeout(300);
   }

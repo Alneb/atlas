@@ -1,16 +1,14 @@
 import { test, expect } from "@playwright/test";
+import { openFile } from "./open";
 
-// "improve the touchscreen behavion everywhere" (2026-10-18): a long press is a right click (lib/touch.ts) — a tab's menu
+// Touch screens everywhere: a long press is a right click (lib/touch.ts) — a tab's menu
 // opens under the finger — and the targets grow to a finger's size on a touch screen (styles/touch.css).
 test.use({ hasTouch: true });
 
 test("a long press on a tab opens its menu, as a right click does", async ({ page }) => {
   await page.goto("/");
   await page.getByText("Finish the GW notes.").waitFor();
-  await page.keyboard.press("Control+p");
-  await page.keyboard.type("journal.md");
-  await expect(page.getByTestId("palette").getByText("journal", { exact: true }).first()).toBeVisible();
-  await page.keyboard.press("Enter");
+  await openFile(page, "journal.md");
   const row = page.getByTestId("sidebar").locator(".tab", { hasText: "journal" });
   await expect(row).toBeVisible();
   const b = (await row.boundingBox())!;

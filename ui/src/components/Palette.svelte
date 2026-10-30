@@ -97,7 +97,7 @@
   $effect(() => {
     const query = q.trim();
     const mode = palette.mode;
-    if (!palette.open || (mode !== "all" && mode !== "files") || !query || query.startsWith("#") || query.startsWith(">")) { fileSearches.stop(); fileHits = []; lineHits = []; titledHits = []; busy = false; return; } // one still answering is now stale
+    if (!palette.open || (mode !== "all" && mode !== "files") || !query || query.startsWith("#") || query.startsWith(">")) { fileSearches.stop(); fileHits = []; lineHits = []; titledHits = []; hitsFor = ""; busy = false; return; } // one still answering is now stale; the same query typed again waits for its own answer (else "Create note" shows before the file is found)
     fileSearches.run(async (still) => {
       busy = true;
       try {

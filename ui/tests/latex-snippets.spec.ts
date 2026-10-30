@@ -6,10 +6,7 @@ test("LaTeX Suite snippets expand in markdown math (auto, tab stops, regex, vari
   {
     await page.goto("/");
     await page.getByText("Finish the GW notes.").waitFor();
-    await page.keyboard.press("Control+p");
-    await page.keyboard.type("hubbard.md");
-    await expect(page.getByTestId("palette").getByText("hubbard", { exact: true }).first()).toBeVisible();
-    await page.keyboard.press("Enter");
+    await openFile(page, "hubbard.md");
     await page.locator(".cm-content").click();
     await page.keyboard.press("Escape");
     await page.keyboard.type("Go"); // vim: new line at the end, insert mode
@@ -52,10 +49,7 @@ test("in a .tex file math snippets fire only in math; visual snippets wrap the s
 test("snippet triggers are offered as completions in math, not in prose", async ({ page }) => {
   await page.goto("/");
   await page.getByText("Finish the GW notes.").waitFor();
-  await page.keyboard.press("Control+p");
-  await page.keyboard.type("hubbard.md");
-  await expect(page.getByTestId("palette").getByText("hubbard", { exact: true }).first()).toBeVisible();
-  await page.keyboard.press("Enter");
+  await openFile(page, "hubbard.md");
   await page.locator(".cm-content").click();
   await page.keyboard.press("Escape");
   await page.keyboard.type("Go");
@@ -81,10 +75,7 @@ test("snippet triggers are offered as completions in math, not in prose", async 
 test("a snippet whose trigger starts another one waits a key, so the longer one can be typed", async ({ page }) => {
   await page.goto("/");
   await page.getByText("Finish the GW notes.").waitFor();
-  await page.keyboard.press("Control+p");
-  await page.keyboard.type("hubbard.md");
-  await expect(page.getByTestId("palette").getByText("hubbard", { exact: true }).first()).toBeVisible();
-  await page.keyboard.press("Enter");
+  await openFile(page, "hubbard.md");
   await page.locator(".cm-content").click();
   await page.keyboard.press("Escape");
   await page.keyboard.type("Go");
@@ -106,10 +97,7 @@ test("a snippet whose trigger starts another one waits a key, so the longer one 
 test("Tab walks nested snippets in order and leaves brackets; commands are never cut short", async ({ page }) => {
   await page.goto("/");
   await page.getByText("Finish the GW notes.").waitFor();
-  await page.keyboard.press("Control+p");
-  await page.keyboard.type("tabstops.md");
-  await expect(page.getByTestId("palette").getByText("tabstops", { exact: true }).first()).toBeVisible();
-  await page.keyboard.press("Enter");
+  await openFile(page, "tabstops.md");
   await page.locator(".cm-content").click();
   await page.keyboard.press("Escape");
   await page.keyboard.type("Go");

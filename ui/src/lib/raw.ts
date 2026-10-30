@@ -70,7 +70,8 @@ export function invalidate(path: string): void {
   for (const [k, p] of cache) {
     if (k !== path && !k.startsWith(`${path}\u0000`)) continue; // the file and its thumbnails
     cache.delete(k);
-    p.then((u) => URL.revokeObjectURL(u), () => {});
+    // later, not now: an <img> handed the URL just before the change (a pasted picture's own write) is still loading it
+    p.then((u) => setTimeout(() => URL.revokeObjectURL(u), 30_000), () => {});
   }
 }
 

@@ -1,25 +1,25 @@
-import { $ as e, A as t, B as n, C as r, D as i, E as a, F as o, G as s, H as c, I as l, J as u, K as d, L as f, M as p, N as m, O as h, P as g, Q as _, R as v, S as y, T as b, U as x, V as S, W as C, X as w, Y as T, Z as E, _ as D, a as O, b as k, c as A, d as j, et as M, f as N, g as P, h as F, i as I, j as L, k as R, l as z, m as B, n as V, nt as H, o as U, p as ee, q as W, r as G, s as K, t as q, tt as J, u as Y, v as X, w as te, x as Z, y as ne, z as re } from "./ui-lib/Spending.js";
+import { $ as e, A as t, B as n, C as r, D as i, E as a, F as o, G as s, H as c, I as l, J as u, K as d, L as f, M as p, N as m, O as h, P as g, Q as _, R as v, S as y, T as b, U as x, V as S, W as C, X as w, Y as T, Z as E, _ as D, a as O, b as k, c as A, d as j, et as M, f as N, g as P, h as F, i as I, j as L, k as R, l as z, m as B, n as V, nt as ee, o as H, p as U, q as W, r as te, s as G, t as K, tt as q, u as J, v as Y, w as ne, x as X, y as re, z as Z } from "./ui-lib/Spending.js";
 //#region plugins/beta/finance/ui/src/model.ts
-var ie = (e) => e.split(":")[0], ae = (e) => e.split(":").slice(0, 2).join(":"), Q = (e) => j(e.v);
-function oe(e) {
+var ie = (e) => e.split(":")[0], ae = (e) => e.split(":").slice(0, 2).join(":"), oe = (e) => j(e.v);
+function se(e) {
 	let t = e.legs.filter((t) => ie(t.account) !== "Equity" || e.legs.every((e) => ie(e.account) === "Equity"));
 	return {
-		from: t.filter((e) => Q(e) < 0 || e.v === null && e.amount.startsWith("-")),
-		to: t.filter((e) => Q(e) > 0 || e.v === null && !e.amount.startsWith("-"))
+		from: t.filter((e) => oe(e) < 0 || e.v === null && e.amount.startsWith("-")),
+		to: t.filter((e) => oe(e) > 0 || e.v === null && !e.amount.startsWith("-"))
 	};
 }
-var se = (e) => oe(e).to.reduce((e, t) => e + Q(t), 0);
-function ce(e) {
-	let t = $(e);
-	if (t === "transfer" || t === "other") return se(e);
+var Q = (e) => se(e).to.reduce((e, t) => e + oe(t), 0);
+function $(e) {
+	let t = le(e);
+	if (t === "transfer" || t === "other") return Q(e);
 	let n = t === "spend" ? "Expenses" : "Income";
-	return -e.legs.filter((e) => ie(e.account) === n).reduce((e, t) => e + Q(t), 0);
+	return -e.legs.filter((e) => ie(e.account) === n).reduce((e, t) => e + oe(t), 0);
 }
-function le(e) {
-	let t = [...new Set(e.map((e) => K(e.account)))];
+function ce(e) {
+	let t = [...new Set(e.map((e) => G(e.account)))];
 	return t.length <= 1 ? t[0] ?? "—" : `${t[0]} + ${t.length - 1}`;
 }
-function $(e) {
+function le(e) {
 	let t = new Set(e.legs.map((e) => ie(e.account)));
 	return t.has("Expenses") ? "spend" : t.has("Income") ? "income" : [...t].every((e) => e === "Assets" || e === "Liabilities") ? "transfer" : "other";
 }
@@ -30,7 +30,7 @@ function ue(e) {
 		let t = /^([<>])(\d+(?:[.,]\d+)?)$/.exec(e);
 		if (t) {
 			let e = Number(t[2].replace(",", "."));
-			return (n) => t[1] === ">" ? se(n) > e : se(n) < e;
+			return (n) => t[1] === ">" ? Q(n) > e : Q(n) < e;
 		}
 		return /^\d{4}(-\d{2}){0,2}$/.test(e) ? (t) => t.date.startsWith(e) : (t) => fe(t).includes(e);
 	});
@@ -91,7 +91,7 @@ var ge = (e, t) => {
 };
 function _e(e, t) {
 	let n = /* @__PURE__ */ new Map();
-	for (let r of e) for (let e of r.legs) ie(e.account) === t && n.set(ae(e.account), (n.get(ae(e.account)) ?? 0) + (t === "Income" ? -Q(e) : Q(e)));
+	for (let r of e) for (let e of r.legs) ie(e.account) === t && n.set(ae(e.account), (n.get(ae(e.account)) ?? 0) + (t === "Income" ? -oe(e) : oe(e)));
 	return n;
 }
 function ve(e, t = "Expenses") {
@@ -116,7 +116,7 @@ function ve(e, t = "Expenses") {
 function ye(e, t) {
 	let n = /* @__PURE__ */ new Map();
 	for (let r of e) {
-		let e = r.legs.filter((e) => ae(e.account) === t).reduce((e, t) => e + Q(t), 0);
+		let e = r.legs.filter((e) => ae(e.account) === t).reduce((e, t) => e + oe(t), 0);
 		if (!e) continue;
 		let i = n.get(r.payee) ?? n.set(r.payee, {
 			total: 0,
@@ -173,7 +173,7 @@ var Ce = o("<path role=\"presentation\"><title> </title></path><rect class=\"nod
 	code: ".flow.svelte-11eix8t {min-width:0;}svg.svelte-11eix8t {display:block;overflow:visible;}.band.svelte-11eix8t {opacity:0.32;transition:opacity 120ms;}.band.svelte-11eix8t:hover {opacity:0.6;}.band.dim.svelte-11eix8t {opacity:0.12;}.node.pick.svelte-11eix8t {cursor:pointer;}.mid.svelte-11eix8t {fill:var(--text-faint);}.lab.svelte-11eix8t {font-size:12px;}.lab.svelte-11eix8t .n:where(.svelte-11eix8t) {fill:var(--text);font-weight:500;}.lab.svelte-11eix8t .v:where(.svelte-11eix8t) {fill:var(--text-muted);font-variant-numeric:tabular-nums;}\n  @media (prefers-reduced-motion: reduce) {.band.svelte-11eix8t {transition:none;} }"
 };
 function ke(r, i) {
-	e(i, !0), te(r, Oe);
+	e(i, !0), ne(r, Oe);
 	let a = w(640), o = E(() => Math.max(i.flow.ins.length, i.flow.outs.length)), c = E(() => Math.max(200, n(o) * 30)), l = E(() => Math.min(170, n(a) * .28)), u = E(() => n(l)), f = E(() => n(a) / 2 - 5), m = E(() => n(a) - n(l) - 10), g = w(null);
 	function x(e) {
 		let t = n(c) - 6 * Math.max(0, e.length - 1), r = 0;
@@ -213,7 +213,7 @@ function ke(r, i) {
 	}), P = (e, t, n, r, i, a) => {
 		let o = (e + r) / 2;
 		return `M${e},${t}C${o},${t} ${o},${i} ${r},${i}L${r},${i + a}C${o},${i + a} ${o},${t + n} ${e},${t + n}Z`;
-	}, F = (e) => e.includes(":") ? K(e) : e, I = (e) => `${Math.round(e / (i.flow.total || 1) * 100)}%`, L = (e) => e === "Saved" || e === "From savings" ? "var(--fin-saved)" : e.startsWith("Income") ? "var(--fin-income)" : i.color(e);
+	}, F = (e) => e.includes(":") ? G(e) : e, I = (e) => `${Math.round(e / (i.flow.total || 1) * 100)}%`, L = (e) => e === "Saved" || e === "From savings" ? "var(--fin-saved)" : e.startsWith("Income") ? "var(--fin-income)" : i.color(e);
 	var R = De(), z = C(R), V = (e) => {
 		var r = Te(), o = C(r);
 		b(o, 19, () => n(O), (e) => e.k, (e, r, a) => {
@@ -221,13 +221,13 @@ function ke(r, i) {
 			var c = Ce(), l = s(c);
 			let m, h;
 			var _ = C(l), v = d(_);
-			J(l);
+			q(l);
 			var b = W(l);
 			D(b, "width", 10);
 			let x;
 			var w = W(b), O = C(w), k = d(O, !0), A = W(O), M = d(A, !0);
-			J(w), S((e, i, o, s, c, d, f, p) => {
-				m = y(l, 0, "band svelte-11eix8t", null, m, { dim: n(g) && n(g) !== n(r).k }), D(l, "d", e), h = Z(l, "", h, { fill: i }), t(v, `${o ?? ""}: ${s ?? ""} (${c ?? ""})`), D(b, "x", n(u)), D(b, "y", n(r).y), D(b, "height", n(r).h), x = Z(b, "", x, { fill: d }), D(w, "x", n(u) - 8), D(w, "y", n(j)[n(a)]), t(k, f), t(M, p);
+			q(w), S((e, i, o, s, c, d, f, p) => {
+				m = y(l, 0, "band svelte-11eix8t", null, m, { dim: n(g) && n(g) !== n(r).k }), D(l, "d", e), h = X(l, "", h, { fill: i }), t(v, `${o ?? ""}: ${s ?? ""} (${c ?? ""})`), D(b, "x", n(u)), D(b, "y", n(r).y), D(b, "height", n(r).h), x = X(b, "", x, { fill: d }), D(w, "x", n(u) - 8), D(w, "y", n(j)[n(a)]), t(k, f), t(M, p);
 			}, [
 				() => P(n(u) + 10, n(r).y, n(r).h, n(f), n(o).y, n(o).h),
 				() => L(n(r).k),
@@ -237,7 +237,7 @@ function ke(r, i) {
 				() => L(n(r).k),
 				() => F(n(r).k),
 				() => i.format(n(r).v)
-			]), re("pointerenter", l, () => T(g, n(r).k, !0)), re("pointerleave", l, () => T(g, null)), p(e, c);
+			]), Z("pointerenter", l, () => T(g, n(r).k, !0)), Z("pointerleave", l, () => T(g, null)), p(e, c);
 		});
 		var l = W(o);
 		b(l, 19, () => n(k), (e) => e.k, (e, r, a) => {
@@ -245,14 +245,14 @@ function ke(r, i) {
 			var c = we(), l = s(c);
 			let u, h;
 			var _ = C(l), b = d(_);
-			J(l);
+			q(l);
 			var x = W(l);
 			let w;
 			D(x, "width", 10);
 			let O;
 			var k = W(x), A = C(k), j = d(A, !0), R = W(A), z = d(R);
-			J(k), S((e, i, o, s, c, d, f, p, _, v) => {
-				u = y(l, 0, "band svelte-11eix8t", null, u, { dim: n(g) && n(g) !== n(r).k }), D(l, "d", e), h = Z(l, "", h, { fill: i }), t(b, `${o ?? ""}: ${s ?? ""} (${c ?? ""})`), w = y(x, 0, "node svelte-11eix8t", null, w, { pick: d }), D(x, "x", n(m)), D(x, "y", n(r).y), D(x, "height", n(r).h), O = Z(x, "", O, { fill: f }), D(k, "x", n(m) + 10 + 8), D(k, "y", n(M)[n(a)]), t(j, p), t(z, `${_ ?? ""} · ${v ?? ""}`);
+			q(k), S((e, i, o, s, c, d, f, p, _, v) => {
+				u = y(l, 0, "band svelte-11eix8t", null, u, { dim: n(g) && n(g) !== n(r).k }), D(l, "d", e), h = X(l, "", h, { fill: i }), t(b, `${o ?? ""}: ${s ?? ""} (${c ?? ""})`), w = y(x, 0, "node svelte-11eix8t", null, w, { pick: d }), D(x, "x", n(m)), D(x, "y", n(r).y), D(x, "height", n(r).h), O = X(x, "", O, { fill: f }), D(k, "x", n(m) + 10 + 8), D(k, "y", n(M)[n(a)]), t(j, p), t(z, `${_ ?? ""} · ${v ?? ""}`);
 			}, [
 				() => P(n(f) + 10, n(o).y, n(o).h, n(m), n(r).y, n(r).h),
 				() => L(n(r).k),
@@ -264,19 +264,19 @@ function ke(r, i) {
 				() => F(n(r).k),
 				() => i.format(n(r).v),
 				() => I(n(r).v)
-			]), re("pointerenter", l, () => T(g, n(r).k, !0)), re("pointerleave", l, () => T(g, null)), v("click", x, () => n(r).k.startsWith("Expenses") && i.onpick?.(n(r).k)), p(e, c);
+			]), Z("pointerenter", l, () => T(g, n(r).k, !0)), Z("pointerleave", l, () => T(g, null)), v("click", x, () => n(r).k.startsWith("Expenses") && i.onpick?.(n(r).k)), p(e, c);
 		});
 		var h = W(l);
-		D(h, "width", 10), J(r), S((e) => {
+		D(h, "width", 10), q(r), S((e) => {
 			D(r, "width", n(a)), D(r, "height", e), D(h, "x", n(f)), D(h, "y", n(N).top), D(h, "height", n(N).h);
 		}, [() => Math.max(n(c), ...n(j), ...n(M)) + 10]), p(e, r);
-	}, H = (e) => {
+	}, ee = (e) => {
 		var t = Ee();
 		p(e, t);
 	};
 	h(z, (e) => {
-		i.flow.total > 0 ? e(V) : e(H, -1);
-	}), J(R), B(R, "clientWidth", (e) => T(a, e)), p(r, R), _();
+		i.flow.total > 0 ? e(V) : e(ee, -1);
+	}), q(R), B(R, "clientWidth", (e) => T(a, e)), p(r, R), _();
 }
 f(["click"]);
 //#endregion
@@ -286,7 +286,7 @@ var Ae = o("<line class=\"grid svelte-1indv8k\"></line><text class=\"tick svelte
 	code: ".chart.svelte-1indv8k {position:relative;min-width:0;}svg.svelte-1indv8k {display:block;touch-action:none;}.grid.svelte-1indv8k {stroke:var(--border);stroke-width:1;}.tick.svelte-1indv8k {fill:var(--text-faint);font-size:11px;font-variant-numeric:tabular-nums;}.line.svelte-1indv8k {fill:none;stroke:var(--accent);stroke-width:2;stroke-linejoin:round;stroke-linecap:round;}.area.svelte-1indv8k {fill:var(--accent-soft);}.cross.svelte-1indv8k {stroke:var(--text-faint);stroke-width:1;stroke-dasharray:3 3;}.dot.svelte-1indv8k {fill:var(--accent);stroke:var(--bg-elev);stroke-width:2;}.tip.svelte-1indv8k {position:absolute;pointer-events:none;display:flex;flex-direction:column;padding:6px 10px;border-radius:var(--radius-sm);background:var(--bg-elev);border:1px solid var(--border-strong);box-shadow:var(--shadow-sm);font-size:0.85em;color:var(--text-muted);white-space:nowrap;}.tip.svelte-1indv8k b:where(.svelte-1indv8k) {color:var(--text);font-variant-numeric:tabular-nums;font-size:1.1em;}.table.svelte-1indv8k {margin-top:4px;font-size:0.82em;color:var(--text-muted);}.table.svelte-1indv8k summary:where(.svelte-1indv8k) {cursor:pointer;}.table.svelte-1indv8k table:where(.svelte-1indv8k) {border-collapse:collapse;margin-top:4px;}.table.svelte-1indv8k td:where(.svelte-1indv8k) {padding:1px 12px 1px 0;font-variant-numeric:tabular-nums;}"
 };
 function ze(r, i) {
-	e(i, !0), te(r, Re);
+	e(i, !0), ne(r, Re);
 	let a = w(600), o = {
 		l: 64,
 		r: 12,
@@ -352,13 +352,13 @@ function ze(r, i) {
 		};
 		h(O, (e) => {
 			n(c) !== null && e(j);
-		}), J(l);
+		}), q(l);
 		var N = W(l, 2), P = (e) => {
 			var r = Ne();
 			let o;
 			var s = C(r), l = d(s, !0), u = W(s, 2), f = d(u, !0);
-			J(r), S((e, n, i, a) => {
-				o = Z(r, "", o, {
+			q(r), S((e, n, i, a) => {
+				o = X(r, "", o, {
 					left: e,
 					top: n
 				}), t(l, i), t(f, a);
@@ -378,19 +378,19 @@ function ze(r, i) {
 		var F = W(N, 2), I = W(C(F), 2), L = C(I);
 		b(L, 21, () => i.points, (e) => e.month, (e, r) => {
 			var a = Pe(), o = C(a), s = d(o, !0), c = W(o), l = d(c, !0);
-			J(a), S((e, n) => {
+			q(a), S((e, n) => {
 				t(s, e), t(l, n);
 			}, [() => A(n(r).month), () => i.format(n(r).value)]), p(e, a);
-		}), J(L), J(I), J(F), S(() => {
+		}), q(L), q(I), q(F), S(() => {
 			D(l, "width", n(a)), D(w, "d", n(x)), D(E, "d", n(y));
-		}), v("pointermove", l, M), re("pointerleave", l, () => T(c, null)), p(e, r);
+		}), v("pointermove", l, M), Z("pointerleave", l, () => T(c, null)), p(e, r);
 	}, I = (e) => {
 		var t = Ie();
 		p(e, t);
 	};
 	h(P, (e) => {
 		i.points.length > 1 ? e(F) : e(I, -1);
-	}), J(N), B(N, "clientWidth", (e) => T(a, e)), p(r, N), _();
+	}), q(N), B(N, "clientWidth", (e) => T(a, e)), p(r, N), _();
 }
 f(["pointermove"]);
 //#endregion
@@ -400,7 +400,7 @@ var Be = g("<span class=\"faint svelte-1jy18fz\"> </span>"), Ve = g("<span> </sp
 	code: ".capture.svelte-1jy18fz {display:grid;gap:4px;}input.svelte-1jy18fz {width:100%;box-sizing:border-box;font:inherit;font-size:1.05em;padding:8px 10px;color:var(--text);background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-sm);outline:none;}input.svelte-1jy18fz:focus {border-color:var(--accent);}.hint.svelte-1jy18fz {min-height:1.4em;font-variant-numeric:tabular-nums;color:var(--text);}.unsure.svelte-1jy18fz {font-style:italic;}.faint.svelte-1jy18fz {color:var(--text-faint);}"
 };
 function Ge(r, i) {
-	e(i, !0), te(r, We);
+	e(i, !0), ne(r, We);
 	let a = w(""), o = w(null), c = w(!1), l, u = 0;
 	function f() {
 		clearTimeout(l);
@@ -457,7 +457,7 @@ function Ge(r, i) {
 	};
 	h(D, (e) => {
 		n(o)?.hint ? e(O) : n(o)?.skipped ? e(k, 1) : e(A, -1);
-	}), J(x), J(g), S(() => E = y(x, 1, "hint svelte-1jy18fz", null, E, { off: !n(o)?.hint })), v("input", b, f), v("keydown", b, (e) => {
+	}), q(x), q(g), S(() => E = y(x, 1, "hint svelte-1jy18fz", null, E, { off: !n(o)?.hint })), v("input", b, f), v("keydown", b, (e) => {
 		e.key === "Enter" ? (e.preventDefault(), m()) : e.key === "Escape" && (T(a, ""), T(o, null));
 	}), F(b, () => n(a), (e) => T(a, e)), p(r, g), _();
 }
@@ -469,7 +469,7 @@ var Ke = g("<div class=\"atlas-notice error\"> </div>"), qe = g("<div class=\"at
 	code: "h3.svelte-16ysgc {margin:0 0 10px;font-size:0.82em;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-muted);font-weight:600;}.faint.svelte-16ysgc {color:var(--text-faint);font-weight:400;text-transform:none;letter-spacing:0;}.head.svelte-16ysgc {margin:0 0 10px;color:var(--text-muted);}.head.svelte-16ysgc b:where(.svelte-16ysgc) {color:var(--text);font-variant-numeric:tabular-nums;}.good.svelte-16ysgc {color:var(--green);}.bad.svelte-16ysgc {color:var(--red);font-weight:600;}.warm.svelte-16ysgc {color:var(--yellow);font-weight:600;}table.svelte-16ysgc {width:100%;border-collapse:collapse;margin-bottom:12px;font-variant-numeric:tabular-nums;}th.svelte-16ysgc {text-align:left;font-weight:500;color:var(--text-faint);font-size:0.85em;padding:2px 8px;border-bottom:1px solid var(--border);}td.svelte-16ysgc {padding:4px 8px;border-bottom:1px solid var(--border);vertical-align:top;}.n.svelte-16ysgc {text-align:right;width:4.5em;}td.svelte-16ysgc .name:where(.svelte-16ysgc) {display:block;}td.svelte-16ysgc .faint:where(.svelte-16ysgc) {font-size:0.85em;overflow-wrap:anywhere;}.actions.svelte-16ysgc {display:flex;gap:8px;align-items:center;flex-wrap:wrap;}pre.svelte-16ysgc {white-space:pre-wrap;overflow-wrap:anywhere;font-size:0.85em;color:var(--text-muted);max-height:420px;overflow:auto;background:var(--bg);padding:10px;border-radius:var(--radius-sm);}\n  @media (max-width: 700px) {th.svelte-16ysgc:nth-child(4), td.svelte-16ysgc:nth-child(4), th.svelte-16ysgc:nth-child(5), td.svelte-16ysgc:nth-child(5), th.svelte-16ysgc:nth-child(6), td.svelte-16ysgc:nth-child(6) {display:none;} }"
 };
 function at(r, i) {
-	e(i, !0), te(r, it);
+	e(i, !0), ne(r, it);
 	let o = w(null), c = w(!1), u = w(""), f = w(!1);
 	async function g(e = !1) {
 		T(c, !0);
@@ -484,7 +484,7 @@ function at(r, i) {
 	g();
 	let x = E(() => n(o)?.statements.reduce((e, t) => e + t.off, 0) ?? 0), O = E(() => n(o)?.statements.reduce((e, t) => e + t.checks, 0) ?? 0), k = E(() => n(o) ? n(o).files.length - new Set(n(o).statements.map((e) => e.source)).size : 0);
 	var A = rt(), j = s(A), M = W(C(j)), N = d(M);
-	J(j);
+	q(j);
 	var P = W(j, 2), F = (e) => {
 		var r = Ke(), i = d(r, !0);
 		S(() => t(i, n(u))), p(e, r);
@@ -516,7 +516,7 @@ function at(r, i) {
 		};
 		h(P, (e) => {
 			n(k) > 0 && e(F);
-		}), J(i);
+		}), q(i);
 		var I = W(i, 2);
 		b(I, 17, () => n(o).errors, a, (e, r) => {
 			var i = Ke(), a = d(i, !0);
@@ -525,7 +525,7 @@ function at(r, i) {
 		var L = W(I, 2), R = W(C(L));
 		b(R, 21, () => n(o).statements, (e) => e.note, (e, r) => {
 			var i = $e(), a = C(i), o = C(a), s = d(o, !0), c = W(o), l = d(c, !0);
-			J(a);
+			q(a);
 			var u = W(a), f = d(u, !0), m = W(u);
 			let g;
 			var _ = d(m, !0), v = W(m), b = d(v, !0), x = W(v), w = d(x, !0), T = W(x), E = d(T, !0), O = W(T), k = C(O), A = (e) => {
@@ -540,30 +540,30 @@ function at(r, i) {
 			};
 			h(k, (e) => {
 				n(r).checks ? n(r).off ? e(j, 1) : e(M, -1) : e(A);
-			}), J(O), J(i), S(() => {
+			}), q(O), q(i), S(() => {
 				D(i, "title", `${n(r).account} · ${n(r).source}`), t(s, n(r).note), t(l, n(r).source), t(f, n(r).rows), g = y(m, 1, "n svelte-16ysgc", null, g, { warm: n(r).new > 0 }), t(_, n(r).new), t(b, n(r).known), t(w, n(r).paired || ""), t(E, n(r).skipped || "");
 			}), p(e, i);
-		}), J(R), J(L);
-		var z = W(L, 2), B = C(z), V = d(B, !0), H = W(B, 2), U = W(H, 2), ee = d(U), G = W(U, 2), K = (e) => {
+		}), q(R), q(L);
+		var z = W(L, 2), B = C(z), V = d(B, !0), ee = W(B, 2), H = W(ee, 2), U = d(H), te = W(H, 2), G = (e) => {
 			var t = et();
 			p(e, t);
 		};
-		h(G, (e) => {
-			n(o).errors.length && e(K);
-		}), J(z);
-		var q = W(z, 2), Y = (e) => {
+		h(te, (e) => {
+			n(o).errors.length && e(G);
+		}), q(z);
+		var K = W(z, 2), J = (e) => {
 			var r = tt(), i = d(r, !0);
 			S(() => t(i, n(o).report)), p(e, r);
 		};
-		h(q, (e) => {
-			n(f) && e(Y);
+		h(K, (e) => {
+			n(f) && e(J);
 		}), S(() => {
-			t(_, n(o).files.length), t(E, n(o).statements.length), t(j, n(o).new), B.disabled = n(c) || n(o).errors.length > 0, t(V, n(c) ? "Working…" : n(o).new ? `Import ${n(o).new} transactions` : "File the statements"), H.disabled = n(c), t(ee, `${n(f) ? "Hide" : "Show"} the report`);
-		}), v("click", B, () => g(!0)), v("click", H, () => g()), v("click", U, () => T(f, !n(f))), p(e, r);
+			t(_, n(o).files.length), t(E, n(o).statements.length), t(j, n(o).new), B.disabled = n(c) || n(o).errors.length > 0, t(V, n(c) ? "Working…" : n(o).new ? `Import ${n(o).new} transactions` : "File the statements"), ee.disabled = n(c), t(U, `${n(f) ? "Hide" : "Show"} the report`);
+		}), v("click", B, () => g(!0)), v("click", ee, () => g()), v("click", H, () => T(f, !n(f))), p(e, r);
 	};
 	h(P, (e) => {
 		n(u) ? e(F) : n(o) ? n(o).files.length ? e(z, -1) : e(R, 2) : e(L, 1);
-	}), S((e) => t(N, `${e ?? ""}/statements/inbox/`), [() => U(i.atlas)]), p(r, A), _();
+	}), S((e) => t(N, `${e ?? ""}/statements/inbox/`), [() => H(i.atlas)]), p(r, A), _();
 }
 f(["click"]);
 //#endregion
@@ -573,7 +573,7 @@ var ot = g("<span> </span>"), st = g("<small class=\"svelte-jdlm6a\"> </small>")
 	code: ".overview.svelte-jdlm6a {display:flex;flex-direction:column;gap:16px;max-width:1180px;}.hero.svelte-jdlm6a {display:flex;flex-wrap:wrap;gap:12px 40px;align-items:flex-end;padding:4px 2px 8px;}.big.svelte-jdlm6a {display:flex;flex-direction:column;gap:2px;margin-right:auto;}.k.svelte-jdlm6a {font-size:0.78em;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-muted);font-weight:600;}.big.svelte-jdlm6a .n:where(.svelte-jdlm6a) {font-size:2.3em;font-weight:650;color:var(--heading);font-variant-numeric:tabular-nums;line-height:1.1;}.deltas.svelte-jdlm6a {display:flex;gap:14px;font-size:0.9em;color:var(--text-muted);flex-wrap:wrap;}.stat.svelte-jdlm6a {display:flex;flex-direction:column;gap:2px;}.stat.svelte-jdlm6a .n:where(.svelte-jdlm6a) {font-size:1.35em;font-weight:600;font-variant-numeric:tabular-nums;color:var(--text);}.stat.svelte-jdlm6a small:where(.svelte-jdlm6a) {font-size:0.7em;color:var(--text-muted);font-weight:500;}.up.svelte-jdlm6a {color:var(--green) !important;}.down.svelte-jdlm6a {color:var(--red) !important;}.link.svelte-jdlm6a {all:unset;cursor:pointer;border-bottom:1px dashed var(--border-strong);}.link.svelte-jdlm6a:hover {color:var(--accent) !important;}.link.svelte-jdlm6a:focus-visible {outline:2px solid var(--accent);}.attention.svelte-jdlm6a {display:flex;flex-wrap:wrap;gap:8px;padding:10px 12px;border-radius:var(--radius);background:var(--highlight-bg);}.attention.svelte-jdlm6a button:where(.svelte-jdlm6a) {all:unset;cursor:pointer;padding:3px 10px;border-radius:999px;background:var(--bg-elev);border:1px solid var(--border-strong);font-size:0.9em;}.attention.svelte-jdlm6a button:where(.svelte-jdlm6a):hover {border-color:var(--accent);}.attention.svelte-jdlm6a button:where(.svelte-jdlm6a):focus-visible {outline:2px solid var(--accent);}.attention.svelte-jdlm6a .err:where(.svelte-jdlm6a) {color:var(--red);}.attention.svelte-jdlm6a span:where(.svelte-jdlm6a) {font-size:0.9em;align-self:center;}.panel.svelte-jdlm6a {background:var(--bg-elev);border:1px solid var(--border);border-radius:var(--radius-lg);padding:14px 16px;min-width:0;}.panel.svelte-jdlm6a header:where(.svelte-jdlm6a) {display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px;}h3.svelte-jdlm6a {margin:0;font-size:0.78em;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-muted);font-weight:600;}.seg.svelte-jdlm6a {display:flex;flex-wrap:wrap;border:1px solid var(--border-strong);border-radius:var(--radius);overflow:hidden;}.seg.svelte-jdlm6a button:where(.svelte-jdlm6a) {all:unset;cursor:pointer;padding:4px 9px;font-size:0.85em;color:var(--text-muted);}.seg.svelte-jdlm6a button:where(.svelte-jdlm6a) + button:where(.svelte-jdlm6a) {border-left:1px solid var(--border);}.seg.svelte-jdlm6a button:where(.svelte-jdlm6a):hover {background:var(--bg-hover);color:var(--text);}.seg.svelte-jdlm6a button.on:where(.svelte-jdlm6a) {background:var(--accent-soft);color:var(--accent-strong);font-weight:600;}.seg.svelte-jdlm6a button:where(.svelte-jdlm6a):focus-visible {outline:2px solid var(--accent);outline-offset:-2px;}select.svelte-jdlm6a {font:inherit;font-size:0.88em;color:var(--text);background:var(--bg);border:1px solid var(--border-strong);border-radius:var(--radius-sm);padding:3px 6px;}.two.svelte-jdlm6a {display:grid;grid-template-columns:minmax(0, 3fr) minmax(0, 2fr);gap:16px;}\n  @container (max-width: 820px) {.two.svelte-jdlm6a {grid-template-columns:minmax(0, 1fr);} }.accts.svelte-jdlm6a {list-style:none;margin:0;padding:0;}.accts.svelte-jdlm6a button:where(.svelte-jdlm6a) {all:unset;box-sizing:border-box;cursor:pointer;width:100%;display:flex;justify-content:space-between;gap:12px;padding:7px 4px;border-bottom:1px solid var(--border);}.accts.svelte-jdlm6a button:where(.svelte-jdlm6a):hover {background:var(--bg-hover);}.accts.svelte-jdlm6a button:where(.svelte-jdlm6a):focus-visible {outline:2px solid var(--accent);outline-offset:-2px;}.accts.svelte-jdlm6a .v:where(.svelte-jdlm6a) {font-family:var(--font-mono);font-size:0.9em;font-variant-numeric:tabular-nums;text-align:right;}"
 };
 function yt(r, i) {
-	e(i, !0), te(r, vt);
+	e(i, !0), ne(r, vt);
 	let o = N(i, "period", 15), l = w(u(i.summary.units.find((e) => e.unit === i.summary.unit) ?? {
 		unit: i.summary.unit,
 		name: i.summary.unit,
@@ -592,10 +592,10 @@ function yt(r, i) {
 	let g = E(() => (n(f) ?? i.summary.net_worth).map((e) => ({
 		month: e.month,
 		value: j(e.total)
-	}))), x = E(() => n(g).at(-1)?.value ?? 0), O = (e) => n(g).at(-1 - e)?.value, P = (e, t = !1) => A(e, n(l), { whole: t }), F = (e) => e === void 0 ? null : n(x) - e, L = E(() => i.rows.filter((e) => ge(e, o()))), R = (e) => [...e.values()].reduce((e, t) => e + t, 0), B = E(() => R(_e(n(L), "Expenses"))), V = E(() => R(_e(n(L), "Income"))), U = E(() => be(n(L))), ee = E(() => i.rows.filter((e) => e.tags.includes("guess")).length), G = E(() => i.diags.filter((e) => e.severity === "error")), q = E(() => i.summary.accounts.filter((e) => e.account.startsWith("Assets") && !e.closed && Object.values(e.balances).some((e) => Math.abs(j(e)) > .005))), Y = (e) => z(e, i.cur, { whole: !0 });
-	var X = _t(), Z = C(X), ne = C(Z), re = W(C(ne), 2), ie = d(re, !0), ae = W(re, 2);
+	}))), x = E(() => n(g).at(-1)?.value ?? 0), O = (e) => n(g).at(-1 - e)?.value, P = (e, t = !1) => A(e, n(l), { whole: t }), F = (e) => e === void 0 ? null : n(x) - e, L = E(() => i.rows.filter((e) => ge(e, o()))), R = (e) => [...e.values()].reduce((e, t) => e + t, 0), B = E(() => R(_e(n(L), "Expenses"))), V = E(() => R(_e(n(L), "Income"))), H = E(() => be(n(L))), U = E(() => i.rows.filter((e) => e.tags.includes("guess")).length), te = E(() => i.diags.filter((e) => e.severity === "error")), K = E(() => i.summary.accounts.filter((e) => e.account.startsWith("Assets") && !e.closed && Object.values(e.balances).some((e) => Math.abs(j(e)) > .005))), J = (e) => z(e, i.cur, { whole: !0 });
+	var Y = _t(), X = C(Y), re = C(X), Z = W(C(re), 2), ie = d(Z, !0), ae = W(Z, 2);
 	b(ae, 20, () => [[1, "since last month"], [12, "in a year"]], ([e, t]) => e, (e, r) => {
-		var i = E(() => H(r, 2));
+		var i = E(() => ee(r, 2));
 		let a = () => n(i)[0], o = () => n(i)[1], c = E(() => F(O(Number(a()))));
 		var u = m(), f = s(u), g = (e) => {
 			var r = ot();
@@ -611,12 +611,12 @@ function yt(r, i) {
 		h(f, (e) => {
 			n(c) !== null && e(g);
 		}), p(e, u);
-	}), J(ae), J(ne);
-	var Q = W(ne, 2), oe = C(Q), se = d(oe), ce = W(oe), le = d(ce, !0);
-	J(Q);
-	var $ = W(Q, 2), ue = W(C($)), de = d(ue, !0);
-	J($);
-	var fe = W($, 2), pe = C(fe), me = d(pe, !0), he = W(pe);
+	}), q(ae), q(re);
+	var oe = W(re, 2), se = C(oe), Q = d(se), $ = W(se), ce = d($, !0);
+	q(oe);
+	var le = W(oe, 2), ue = W(C(le)), de = d(ue, !0);
+	q(le);
+	var fe = W(le, 2), pe = C(fe), me = d(pe, !0), he = W(pe);
 	let ve;
 	var ye = C(he, !0), xe = W(ye), Se = (e) => {
 		var r = st(), i = d(r);
@@ -624,40 +624,40 @@ function yt(r, i) {
 	};
 	h(xe, (e) => {
 		n(V) > 0 && e(Se);
-	}), J(he), J(fe), J(Z);
-	var Ce = W(Z, 2), we = (e) => {
+	}), q(he), q(fe), q(X);
+	var Ce = W(X, 2), we = (e) => {
 		var r = ft(), o = C(r), s = (e) => {
 			var n = ct(), r = C(n), a = d(r, !0);
-			M(), J(n), S(() => t(a, i.summary.review)), v("click", n, () => i.ontab("review")), p(e, n);
+			M(), q(n), S(() => t(a, i.summary.review)), v("click", n, () => i.ontab("review")), p(e, n);
 		};
 		h(o, (e) => {
 			i.summary.review && e(s);
 		});
 		var c = W(o, 2), l = (e) => {
 			var r = lt(), a = C(r), o = d(a, !0);
-			M(), J(r), S(() => t(o, n(ee))), v("click", r, () => i.onshow("#guess")), p(e, r);
+			M(), q(r), S(() => t(o, n(U))), v("click", r, () => i.onshow("#guess")), p(e, r);
 		};
 		h(c, (e) => {
-			n(ee) && e(l);
+			n(U) && e(l);
 		});
 		var u = W(c, 2);
-		b(u, 17, () => n(G).slice(0, 3), a, (e, r) => {
+		b(u, 17, () => n(te).slice(0, 3), a, (e, r) => {
 			var a = ut(), o = d(a, !0);
 			S(() => t(o, n(r).message)), v("click", a, () => i.atlas.open(n(r).path, n(r).line)), p(e, a);
 		});
 		var f = W(u, 2), m = (e) => {
 			var r = dt(), i = d(r);
-			S(() => t(i, `and ${n(G).length - 3} more errors`)), p(e, r);
+			S(() => t(i, `and ${n(te).length - 3} more errors`)), p(e, r);
 		};
 		h(f, (e) => {
-			n(G).length > 3 && e(m);
+			n(te).length > 3 && e(m);
 		});
 		var g = W(f, 2);
 		b(g, 17, () => i.summary.sources.filter((e) => e.error), (e) => e.path, (e, r) => {
 			var a = ut(), o = d(a);
 			S(() => t(o, `${n(r).bank ?? ""}: ${n(r).error ?? ""}`)), v("click", a, () => i.ontab("sources")), p(e, a);
-		}), J(r), p(e, r);
-	}, Te = E(() => i.summary.review || n(G).length || n(ee) || i.summary.sources.some((e) => e.error));
+		}), q(r), p(e, r);
+	}, Te = E(() => i.summary.review || n(te).length || n(U) || i.summary.sources.some((e) => e.error));
 	h(Ce, (e) => {
 		n(Te) && e(we);
 	});
@@ -669,16 +669,16 @@ function yt(r, i) {
 		S(() => {
 			D(i, "aria-checked", o().name === n(r).name), a = y(i, 1, "svelte-jdlm6a", null, a, { on: o().name === n(r).name }), t(s, n(r).name);
 		}), v("click", i, () => o(n(r))), p(e, i);
-	}), J(Oe), J(De), ke(W(De, 2), {
+	}), q(Oe), q(De), ke(W(De, 2), {
 		get flow() {
-			return n(U);
+			return n(H);
 		},
 		get color() {
 			return i.color;
 		},
-		format: Y,
+		format: J,
 		onpick: (e) => i.onshow(e.toLowerCase())
-	}), J(Ee);
+	}), q(Ee);
 	var Ae = W(Ee, 2), je = C(Ae), Me = C(je), Ne = W(C(Me), 2), Pe = (e) => {
 		var r = ht();
 		b(r, 21, () => i.summary.units, (e) => e.unit, (e, r) => {
@@ -686,23 +686,23 @@ function yt(r, i) {
 			S(() => {
 				k(i, n(r).unit === n(l).unit), t(a, n(r).name), o !== (o = n(r).name) && (i.__value = o);
 			}), p(e, i);
-		}), J(r), v("change", r, (e) => T(l, i.summary.units[e.currentTarget.selectedIndex], !0)), p(e, r);
+		}), q(r), v("change", r, (e) => T(l, i.summary.units[e.currentTarget.selectedIndex], !0)), p(e, r);
 	};
 	h(Ne, (e) => {
 		i.summary.units.length > 1 && e(Pe);
-	}), J(Me), ze(W(Me, 2), {
+	}), q(Me), ze(W(Me, 2), {
 		get points() {
 			return n(g);
 		},
 		format: P
-	}), J(je);
+	}), q(je);
 	var Fe = W(je, 2), Ie = W(C(Fe), 2);
-	b(Ie, 21, () => n(q), (e) => e.account, (e, r) => {
+	b(Ie, 21, () => n(K), (e) => e.account, (e, r) => {
 		var a = gt(), o = C(a), s = C(o), c = d(s, !0), l = W(s), u = d(l, !0);
-		J(o), J(a), S((e, n) => {
+		q(o), q(a), S((e, n) => {
 			t(c, e), t(u, n);
-		}, [() => K(n(r).account), () => Object.entries(n(r).balances).filter(([, e]) => Math.abs(j(e)) > .005).map(([e, t]) => /^[A-Z]{3}$/.test(e) ? z(j(t), e) : `${j(t)} ${e}`).join(" · ")]), v("click", o, () => i.onaccount(n(r).account)), p(e, a);
-	}), J(Ie), J(Fe), J(Ae);
+		}, [() => G(n(r).account), () => Object.entries(n(r).balances).filter(([, e]) => Math.abs(j(e)) > .005).map(([e, t]) => /^[A-Z]{3}$/.test(e) ? z(j(t), e) : `${j(t)} ${e}`).join(" · ")]), v("click", o, () => i.onaccount(n(r).account)), p(e, a);
+	}), q(Ie), q(Fe), q(Ae);
 	var Le = W(Ae, 2), Re = C(Le);
 	Ge(C(Re), {
 		get atlas() {
@@ -711,7 +711,7 @@ function yt(r, i) {
 		get onchange() {
 			return i.onchange;
 		}
-	}), J(Re);
+	}), q(Re);
 	var Be = W(Re, 2);
 	at(C(Be), {
 		get atlas() {
@@ -720,17 +720,17 @@ function yt(r, i) {
 		get onchange() {
 			return i.onchange;
 		}
-	}), J(Be), J(Le), J(X), S((e, r, i, a) => {
-		t(ie, e), t(se, `${o().name ?? ""}: spent`), t(le, r), t(de, i), t(me, n(V) >= n(B) ? "saved" : "drawn from savings"), ve = y(he, 1, "n svelte-jdlm6a", null, ve, {
+	}), q(Be), q(Le), q(Y), S((e, r, i, a) => {
+		t(ie, e), t(Q, `${o().name ?? ""}: spent`), t(ce, r), t(de, i), t(me, n(V) >= n(B) ? "saved" : "drawn from savings"), ve = y(he, 1, "n svelte-jdlm6a", null, ve, {
 			up: n(V) > n(B),
 			down: n(V) < n(B)
 		}), t(ye, a);
 	}, [
 		() => P(n(x), !0),
-		() => Y(n(B)),
-		() => Y(n(V)),
-		() => Y(Math.abs(n(V) - n(B)))
-	]), v("click", ce, () => i.ontab("spending")), p(r, X), _();
+		() => J(n(B)),
+		() => J(n(V)),
+		() => J(Math.abs(n(V) - n(B)))
+	]), v("click", $, () => i.ontab("spending")), p(r, Y), _();
 }
 f(["click", "change"]);
 //#endregion
@@ -740,7 +740,7 @@ var bt = g("<b class=\"svelte-ht6n60\"> </b>"), xt = g("<div class=\"route svelt
 	code: ".editor.svelte-ht6n60 {display:flex;flex-direction:column;gap:12px;padding:16px 18px;background:var(--bg-elev);border-left:1px solid var(--border);height:100%;overflow:auto;min-width:0;box-sizing:border-box;outline:none;}header.svelte-ht6n60 {display:flex;align-items:center;justify-content:space-between;}h2.svelte-ht6n60 {margin:0;font-size:1.05em;color:var(--heading);}h3.svelte-ht6n60 {margin:4px 0 0;font-size:0.78em;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-muted);font-weight:600;}h3.svelte-ht6n60 .faint:where(.svelte-ht6n60) {text-transform:none;letter-spacing:0;font-weight:400;}.faint.svelte-ht6n60 {color:var(--text-faint);}.x.svelte-ht6n60 {all:unset;cursor:pointer;width:28px;height:28px;display:grid;place-items:center;border-radius:var(--radius-sm);color:var(--text-muted);font-size:1.2em;}.x.svelte-ht6n60:hover:not(:disabled) {background:var(--bg-hover);color:var(--text);}.x.svelte-ht6n60:focus-visible {outline:2px solid var(--accent);}.x.svelte-ht6n60:disabled {opacity:0.35;cursor:default;}.route.svelte-ht6n60 {display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:var(--radius);background:var(--accent-soft);flex-wrap:wrap;}.route.svelte-ht6n60 .side:where(.svelte-ht6n60) {display:flex;flex-direction:column;gap:2px;min-width:0;}.route.svelte-ht6n60 b:where(.svelte-ht6n60) {font-weight:600;overflow-wrap:anywhere;}.arrow.svelte-ht6n60 {color:var(--accent);font-size:1.2em;}.fields.svelte-ht6n60 {display:grid;grid-template-columns:1fr 1fr;gap:10px;}.fields.svelte-ht6n60 .wide:where(.svelte-ht6n60) {grid-column:1 / -1;}label.svelte-ht6n60 {display:flex;flex-direction:column;gap:4px;font-size:0.82em;color:var(--text-muted);min-width:0;}input.svelte-ht6n60, select.svelte-ht6n60 {font:inherit;font-size:1.1em;color:var(--text);background:var(--bg);border:1px solid var(--border-strong);border-radius:var(--radius-sm);padding:6px 8px;min-width:0;}input.svelte-ht6n60:focus-visible, select.svelte-ht6n60:focus-visible {outline:2px solid var(--accent);outline-offset:-1px;}.postings.svelte-ht6n60 {display:flex;flex-direction:column;gap:6px;}.posting.svelte-ht6n60 {display:grid;grid-template-columns:minmax(0, 1fr) 9.5em 28px;gap:6px;align-items:center;}.amt.svelte-ht6n60 {font-family:var(--font-mono);text-align:right;font-variant-numeric:tabular-nums;}.add.svelte-ht6n60 {align-self:flex-start;}.balance.svelte-ht6n60 {margin:0;font-size:0.88em;color:var(--green);}.balance.bad.svelte-ht6n60 {color:var(--red);}.meta.svelte-ht6n60 {display:grid;grid-template-columns:max-content minmax(0, 1fr);gap:4px 12px;margin:0;font-size:0.88em;}.meta.svelte-ht6n60 dt:where(.svelte-ht6n60) {color:var(--text-muted);}.meta.svelte-ht6n60 dd:where(.svelte-ht6n60) {margin:0;overflow-wrap:anywhere;font-family:var(--font-mono);font-size:0.95em;}footer.svelte-ht6n60 {display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:auto;padding-top:8px;border-top:1px solid var(--border);}.where.svelte-ht6n60 {margin-left:auto;font-size:0.82em;}.danger.svelte-ht6n60 {color:var(--red);}"
 };
 function At(r, i) {
-	e(i, !0), te(r, kt);
+	e(i, !0), ne(r, kt);
 	let o = () => ({
 		date: (/* @__PURE__ */ new Date()).toISOString().slice(0, 10),
 		status: "*",
@@ -757,7 +757,7 @@ function At(r, i) {
 	}), f = () => i.txn ? xe(i.txn) : o(), m = u(f()), g = w(u(f().tags.map((e) => `#${e}`).join(" "))), x = w(!1), O = w(""), k = E(() => Se(m)), A = E(() => n(k).bad.length === 0 && (n(k).open || n(k).left.size === 0)), j = E(() => JSON.stringify({
 		...m,
 		tags: R()
-	}) !== JSON.stringify(f())), M = E(() => i.txn?.meta ?? []), N = E(() => i.txn ? oe(i.txn) : null), L = w(void 0);
+	}) !== JSON.stringify(f())), M = E(() => i.txn?.meta ?? []), N = E(() => i.txn ? se(i.txn) : null), L = w(void 0);
 	c(() => {
 		i.txn || n(L)?.focus();
 	});
@@ -788,7 +788,7 @@ function At(r, i) {
 			}
 		}
 	}
-	async function U() {
+	async function H() {
 		if (i.txn && !n(x)) {
 			T(x, !0), T(O, "");
 			try {
@@ -811,51 +811,51 @@ function At(r, i) {
 			}
 		}
 	}
-	function G(e) {
+	function te(e) {
 		e.key === "Escape" && (e.stopPropagation(), i.onclose()), e.key === "Enter" && (e.ctrlKey || e.metaKey) && (e.preventDefault(), V());
 	}
-	var q = Ot(), Y = C(q), Z = C(Y), re = d(Z, !0), ie = W(Z, 2);
-	J(Y);
-	var ae = W(Y, 2), Q = (e) => {
+	var K = Ot(), J = C(K), X = C(J), Z = d(X, !0), ie = W(X, 2);
+	q(J);
+	var ae = W(J, 2), oe = (e) => {
 		var r = xt(), i = C(r);
 		b(i, 21, () => n(N).from, (e) => e.account, (e, r) => {
 			var i = bt(), a = d(i, !0);
-			S((e) => t(a, e), [() => K(n(r).account)]), p(e, i);
-		}), J(i);
+			S((e) => t(a, e), [() => G(n(r).account)]), p(e, i);
+		}), q(i);
 		var a = W(i, 4);
 		b(a, 21, () => n(N).to, (e) => e.account, (e, r) => {
 			var i = bt(), a = d(i, !0);
-			S((e) => t(a, e), [() => K(n(r).account)]), p(e, i);
-		}), J(a), J(r), p(e, r);
+			S((e) => t(a, e), [() => G(n(r).account)]), p(e, i);
+		}), q(a), q(r), p(e, r);
 	};
 	h(ae, (e) => {
-		n(N) && e(Q);
+		n(N) && e(oe);
 	});
-	var se = W(ae, 2), ce = C(se), le = W(C(ce));
-	P(le), ee(le, (e) => T(L, e), () => n(L)), J(ce);
-	var $ = W(ce, 2), ue = W(C($)), de = C(ue);
+	var Q = W(ae, 2), $ = C(Q), ce = W(C($));
+	P(ce), U(ce, (e) => T(L, e), () => n(L)), q($);
+	var le = W($, 2), ue = W(C(le)), de = C(ue);
 	de.value = de.__value = "*";
 	var fe = W(de);
-	fe.value = fe.__value = "!", J(ue), ne(ue), J($);
-	var pe = W($, 2), me = W(C(pe));
-	P(me), J(pe);
+	fe.value = fe.__value = "!", q(ue), re(ue), q(le);
+	var pe = W(le, 2), me = W(C(pe));
+	P(me), q(pe);
 	var he = W(pe, 2), ge = W(C(he));
-	P(ge), J(he);
+	P(ge), q(he);
 	var _e = W(he, 2), ve = W(C(_e));
-	P(ve), J(_e), J(se);
-	var ye = W(se, 4), be = C(ye);
+	P(ve), q(_e), q(Q);
+	var ye = W(Q, 4), be = C(ye);
 	b(be, 17, () => m.postings, a, (e, t, r) => {
 		var i = St(), a = C(i);
 		P(a);
 		var o = W(a, 2);
 		P(o);
 		var s = W(o, 2);
-		J(i), S(() => {
+		q(i), S(() => {
 			D(o, "placeholder", n(k).open && !n(t).amount ? "the rest" : "-12.40 EUR"), s.disabled = m.postings.length <= 2;
 		}), F(a, () => n(t).account, (e) => n(t).account = e), F(o, () => n(t).amount, (e) => n(t).amount = e), v("click", s, () => m.postings.splice(r, 1)), p(e, i);
 	});
 	var Ce = W(be, 2);
-	J(ye);
+	q(ye);
 	var we = W(ye, 2);
 	let Te;
 	var Ee = C(we), De = (e) => {
@@ -870,17 +870,17 @@ function At(r, i) {
 	};
 	h(Ee, (e) => {
 		n(k).bad.length ? e(De) : n(A) ? e(Oe, 1) : e(ke, -1);
-	}), J(we);
+	}), q(we);
 	var Ae = W(we, 2), je = (e) => {
 		var r = wt(), i = W(s(r), 2);
 		b(i, 21, () => n(M), ([e, t]) => e + t, (e, r) => {
-			var i = E(() => H(n(r), 2));
+			var i = E(() => ee(n(r), 2));
 			let a = () => n(i)[0], o = () => n(i)[1];
 			var c = Ct(), l = s(c), u = d(l, !0), f = W(l), m = d(f, !0);
 			S(() => {
 				t(u, a()), t(m, o());
 			}), p(e, c);
-		}), J(i), p(e, r);
+		}), q(i), p(e, r);
 	};
 	h(Ae, (e) => {
 		n(M).length && e(je);
@@ -894,34 +894,34 @@ function At(r, i) {
 	});
 	var Pe = W(Me, 2), Fe = C(Pe), Ie = d(Fe, !0), Le = W(Fe, 2), Re = (e) => {
 		var t = Et(), r = s(t), a = W(r, 2);
-		S(() => a.disabled = n(x)), v("click", r, () => i.atlas.open(i.txn.path, i.txn.line)), v("click", a, U), p(e, t);
+		S(() => a.disabled = n(x)), v("click", r, () => i.atlas.open(i.txn.path, i.txn.line)), v("click", a, H), p(e, t);
 	};
 	h(Le, (e) => {
 		i.txn && e(Re);
 	});
 	var ze = W(Le, 2), Be = d(ze, !0);
-	J(Pe);
+	q(Pe);
 	var Ve = W(Pe, 2);
 	b(Ve, 20, () => i.accounts, (e) => e, (e, t) => {
 		var n = Dt(), r = {};
 		S(() => {
 			r !== (r = t) && (n.value = (n.__value = r) ?? "");
 		}), p(e, n);
-	}), J(Ve);
+	}), q(Ve);
 	var He = W(Ve, 2);
 	b(He, 20, () => i.payees, (e) => e, (e, t) => {
 		var n = Dt(), r = {};
 		S(() => {
 			r !== (r = t) && (n.value = (n.__value = r) ?? "");
 		}), p(e, n);
-	}), J(He), J(q), S((e, r) => {
-		D(q, "aria-label", i.txn ? "Edit transaction" : "New transaction"), t(re, i.txn ? "Transaction" : "New transaction"), Te = y(we, 1, "balance svelte-ht6n60", null, Te, { bad: !n(A) }), Fe.disabled = e, t(Ie, n(x) ? "Saving…" : i.txn ? "Save" : "Add"), t(Be, r);
-	}, [() => n(x) || !n(A) || !m.payee.trim() || !!i.txn && !n(j), () => i.txn ? `${i.txn.path.split("/").pop()}:${i.txn.line}` : `goes to journal/${m.date.slice(0, 4)}.fin`]), v("keydown", q, G), v("click", ie, function(...e) {
+	}), q(He), q(K), S((e, r) => {
+		D(K, "aria-label", i.txn ? "Edit transaction" : "New transaction"), t(Z, i.txn ? "Transaction" : "New transaction"), Te = y(we, 1, "balance svelte-ht6n60", null, Te, { bad: !n(A) }), Fe.disabled = e, t(Ie, n(x) ? "Saving…" : i.txn ? "Save" : "Add"), t(Be, r);
+	}, [() => n(x) || !n(A) || !m.payee.trim() || !!i.txn && !n(j), () => i.txn ? `${i.txn.path.split("/").pop()}:${i.txn.line}` : `goes to journal/${m.date.slice(0, 4)}.fin`]), v("keydown", K, te), v("click", ie, function(...e) {
 		i.onclose?.apply(this, e);
-	}), F(le, () => m.date, (e) => m.date = e), X(ue, () => m.status, (e) => m.status = e), F(me, () => m.payee, (e) => m.payee = e), F(ge, () => m.narration, (e) => m.narration = e), F(ve, () => n(g), (e) => T(g, e)), v("click", Ce, () => m.postings.push({
+	}), F(ce, () => m.date, (e) => m.date = e), Y(ue, () => m.status, (e) => m.status = e), F(me, () => m.payee, (e) => m.payee = e), F(ge, () => m.narration, (e) => m.narration = e), F(ve, () => n(g), (e) => T(g, e)), v("click", Ce, () => m.postings.push({
 		account: "",
 		amount: ""
-	})), v("click", Fe, V), p(r, q), _();
+	})), v("click", Fe, V), p(r, K), _();
 }
 f(["keydown", "click"]);
 //#endregion
@@ -931,7 +931,7 @@ var jt = g("<button role=\"radio\"> </button>"), Mt = g("<button class=\"link sv
 	code: ".tx.svelte-aipwz8 {display:grid;grid-template-columns:minmax(0, 1fr);gap:0;height:100%;min-height:0;}.tx.with.svelte-aipwz8 {grid-template-columns:minmax(0, 1fr) min(460px, 45%);}.main.svelte-aipwz8 {display:flex;flex-direction:column;min-width:0;min-height:0;padding-right:12px;}.bar.svelte-aipwz8 {display:flex;gap:8px;align-items:center;flex-wrap:wrap;}.search.svelte-aipwz8 {flex:1;min-width:220px;font:inherit;color:var(--text);background:var(--bg);border:1px solid var(--border-strong);border-radius:var(--radius);padding:8px 10px;}.search.svelte-aipwz8:focus-visible {outline:2px solid var(--accent);outline-offset:-1px;}.seg.svelte-aipwz8 {display:flex;border:1px solid var(--border-strong);border-radius:var(--radius);overflow:hidden;}.seg.svelte-aipwz8 button:where(.svelte-aipwz8) {all:unset;cursor:pointer;padding:6px 10px;font-size:0.9em;color:var(--text-muted);}.seg.svelte-aipwz8 button:where(.svelte-aipwz8) + button:where(.svelte-aipwz8) {border-left:1px solid var(--border);}.seg.svelte-aipwz8 button:where(.svelte-aipwz8):hover {background:var(--bg-hover);color:var(--text);}.seg.svelte-aipwz8 button.on:where(.svelte-aipwz8) {background:var(--accent-soft);color:var(--accent-strong);font-weight:600;}.seg.svelte-aipwz8 button:where(.svelte-aipwz8):focus-visible {outline:2px solid var(--accent);outline-offset:-2px;}.count.svelte-aipwz8 {margin:10px 0 6px;color:var(--text-muted);font-size:0.88em;display:flex;gap:8px;align-items:baseline;flex-wrap:wrap;}.count.svelte-aipwz8 b:where(.svelte-aipwz8) {color:var(--text);font-variant-numeric:tabular-nums;}.link.svelte-aipwz8 {all:unset;cursor:pointer;color:var(--accent);}.list.svelte-aipwz8 {overflow:auto;min-height:0;flex:1;outline:none;}.month.svelte-aipwz8 {position:sticky;top:0;z-index:1;background:var(--bg);padding:10px 8px 4px;font-size:0.78em;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-muted);font-weight:600;border-bottom:1px solid var(--border);}.row.svelte-aipwz8 {all:unset;box-sizing:border-box;cursor:pointer;display:grid;grid-template-columns:4.2em minmax(0, 1.3fr) minmax(0, 1.2fr) 8.5em;gap:12px;align-items:center;width:100%;padding:7px 8px;border-bottom:1px solid var(--border);min-height:40px;}.row.svelte-aipwz8:hover {background:var(--bg-hover);}.row.sel.svelte-aipwz8 {box-shadow:inset 2px 0 0 var(--accent);background:var(--bg-hover);}.row.open.svelte-aipwz8 {background:var(--accent-soft);}.row.svelte-aipwz8:focus-visible {outline:2px solid var(--accent);outline-offset:-2px;}.date.svelte-aipwz8 {color:var(--text-muted);font-size:0.88em;font-variant-numeric:tabular-nums;}.who.svelte-aipwz8 {display:flex;flex-direction:column;min-width:0;}.payee.svelte-aipwz8 {font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}.note.svelte-aipwz8 {color:var(--text-faint);font-size:0.85em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}.chip.svelte-aipwz8 {display:inline-block;margin-left:6px;padding:0 6px;border-radius:999px;background:var(--tag-bg);color:var(--tag-color);font-size:0.75em;font-weight:500;vertical-align:1px;}.chip.warn.svelte-aipwz8 {background:var(--highlight-bg);color:var(--text);}.route.svelte-aipwz8 {display:flex;gap:6px;align-items:baseline;min-width:0;font-size:0.88em;color:var(--text-muted);}.route.svelte-aipwz8 .from:where(.svelte-aipwz8), .route.svelte-aipwz8 .to:where(.svelte-aipwz8) {white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;}.route.svelte-aipwz8 .to:where(.svelte-aipwz8) {color:var(--text);flex:1;}.arr.svelte-aipwz8 {color:var(--text-faint);}.amt.svelte-aipwz8 {text-align:right;font-family:var(--font-mono);font-variant-numeric:tabular-nums;font-size:0.92em;}.amt.in.svelte-aipwz8 {color:var(--green);}.amt.moved.svelte-aipwz8 {color:var(--text-muted);}.more.svelte-aipwz8 {margin:10px auto;display:block;}\n  @container (max-width: 640px) {.row.svelte-aipwz8 {grid-template-columns:3.6em minmax(0, 1fr) 7em;}.route.svelte-aipwz8 {display:none;} }"
 };
 function Ht(r, a) {
-	e(a, !0), te(r, Vt);
+	e(a, !0), ne(r, Vt);
 	let o = N(a, "query", 15, ""), u = N(a, "open", 15, null), f = [
 		["all", "All"],
 		["spend", "Spending"],
@@ -939,8 +939,8 @@ function Ht(r, a) {
 		["transfer", "Transfers"]
 	], g = w("all"), O = w(200), k = w(0), A = w(void 0), j = w(void 0), M = E(() => {
 		let e = ue(o());
-		return a.rows.filter((t) => (n(g) === "all" || $(t) === n(g)) && e(t));
-	}), I = E(() => n(M).reduce((e, t) => e + ($(t) === "transfer" || $(t) === "other" ? 0 : ce(t)), 0)), L = E(() => n(M).slice(0, n(O))), R = E(() => [...new Set(a.rows.map((e) => e.payee))].sort());
+		return a.rows.filter((t) => (n(g) === "all" || le(t) === n(g)) && e(t));
+	}), I = E(() => n(M).reduce((e, t) => e + (le(t) === "transfer" || le(t) === "other" ? 0 : $(t)), 0)), L = E(() => n(M).slice(0, n(O))), R = E(() => [...new Set(a.rows.map((e) => e.payee))].sort());
 	c(() => {
 		o(), n(g), T(O, 200), T(k, 0);
 	});
@@ -951,10 +951,10 @@ function Ht(r, a) {
 		month: "long",
 		year: "numeric"
 	});
-	function U(e) {
+	function H(e) {
 		T(k, Math.max(0, Math.min(n(M).length - 1, e)), !0), n(k) >= n(O) && T(O, n(k) + 50), queueMicrotask(() => n(j)?.querySelector(`[data-i="${n(k)}"]`)?.scrollIntoView({ block: "nearest" }));
 	}
-	function G(e) {
+	function te(e) {
 		if (e.ctrlKey || e.metaKey || e.altKey) return;
 		let t = e.target.closest("input, textarea, select, [role=dialog]");
 		if (e.key === "/" && !t) {
@@ -965,16 +965,16 @@ function Ht(r, a) {
 			e.key === "Escape" && e.target === n(A) && (o(""), n(A)?.blur());
 			return;
 		}
-		e.key === "j" || e.key === "ArrowDown" ? (e.preventDefault(), U(n(k) + 1), u() && u() !== "new" && u(n(M)[n(k)])) : e.key === "k" || e.key === "ArrowUp" ? (e.preventDefault(), U(n(k) - 1), u() && u() !== "new" && u(n(M)[n(k)])) : e.key === "Enter" && n(M)[n(k)] ? (e.preventDefault(), u(n(M)[n(k)])) : e.key === "n" ? (e.preventDefault(), u("new")) : e.key === "Escape" && u() && u(null);
+		e.key === "j" || e.key === "ArrowDown" ? (e.preventDefault(), H(n(k) + 1), u() && u() !== "new" && u(n(M)[n(k)])) : e.key === "k" || e.key === "ArrowUp" ? (e.preventDefault(), H(n(k) - 1), u() && u() !== "new" && u(n(M)[n(k)])) : e.key === "Enter" && n(M)[n(k)] ? (e.preventDefault(), u(n(M)[n(k)])) : e.key === "n" ? (e.preventDefault(), u("new")) : e.key === "Escape" && u() && u(null);
 	}
-	var K = Bt();
-	re("keydown", x, G);
-	let q;
-	var Y = C(K), X = C(Y), Z = C(X);
-	P(Z), ee(Z, (e) => T(A, e), () => n(A));
-	var ne = W(Z, 2);
-	b(ne, 21, () => f, ([e, t]) => e, (e, r) => {
-		var i = E(() => H(n(r), 2));
+	var G = Bt();
+	Z("keydown", x, te);
+	let K;
+	var J = C(G), Y = C(J), X = C(Y);
+	P(X), U(X, (e) => T(A, e), () => n(A));
+	var re = W(X, 2);
+	b(re, 21, () => f, ([e, t]) => e, (e, r) => {
+		var i = E(() => ee(n(r), 2));
 		let a = () => n(i)[0], o = () => n(i)[1];
 		var s = jt();
 		let c;
@@ -982,10 +982,10 @@ function Ht(r, a) {
 		S(() => {
 			D(s, "aria-checked", n(g) === a()), c = y(s, 1, "svelte-aipwz8", null, c, { on: n(g) === a() }), t(l, o());
 		}), v("click", s, () => T(g, a(), !0)), p(e, s);
-	}), J(ne);
-	var ie = W(ne, 2);
-	J(X);
-	var ae = W(X, 2), Q = C(ae), se = d(Q, !0), de = W(Q), fe = W(de), pe = (e) => {
+	}), q(re);
+	var ie = W(re, 2);
+	q(Y);
+	var ae = W(Y, 2), oe = C(ae), Q = d(oe, !0), de = W(oe), fe = W(de), pe = (e) => {
 		var r = l();
 		S((e) => t(r, `· net ${e ?? ""}`), [() => z(n(I), a.cur, { sign: !0 })]), p(e, r);
 	};
@@ -998,10 +998,10 @@ function Ht(r, a) {
 	};
 	h(me, (e) => {
 		o() && e(he);
-	}), J(ae);
+	}), q(ae);
 	var ge = W(ae, 2), _e = C(ge);
 	b(_e, 19, () => n(L), (e) => e.path + ":" + e.line, (e, r, i) => {
-		let o = E(() => oe(n(r))), c = E(() => $(n(r)));
+		let o = E(() => se(n(r))), c = E(() => le(n(r)));
 		var l = Lt(), f = s(l), m = (e) => {
 			var i = Nt(), a = d(i, !0);
 			S((e) => t(a, e), [() => V(n(r).date)]), p(e, i);
@@ -1026,33 +1026,33 @@ function Ht(r, a) {
 			S(() => {
 				i = y(r, 1, "chip svelte-aipwz8", null, i, { warn: n === "guess" }), t(a, `#${n ?? ""}`);
 			}), p(e, r);
-		}), J(j);
+		}), q(j);
 		var I = W(j, 2), R = (e) => {
 			var i = It(), a = d(i, !0);
 			S(() => t(a, n(r).narration)), p(e, i);
 		};
 		h(I, (e) => {
 			n(r).narration && e(R);
-		}), J(A);
-		var H = W(A, 2), U = C(H), ee = d(U, !0), G = W(U, 2), K = d(G, !0);
-		J(H);
-		var q = W(H, 2);
-		let Y;
-		var X = d(q);
-		J(_), S((e, a, o, s, l) => {
+		}), q(A);
+		var ee = W(A, 2), H = C(ee), U = d(H, !0), te = W(H, 2), G = d(te, !0);
+		q(ee);
+		var K = W(ee, 2);
+		let J;
+		var Y = d(K);
+		q(_), S((e, a, o, s, l) => {
 			x = y(_, 1, "row svelte-aipwz8", null, x, {
 				sel: n(i) === n(k),
 				open: u() !== "new" && u()?.path === n(r).path && u()?.line === n(r).line
-			}), D(_, "data-i", n(i)), D(_, "aria-selected", n(i) === n(k)), t(O, e), t(M, n(r).payee), t(ee, a), t(K, o), Y = y(q, 1, "amt svelte-aipwz8", null, Y, {
+			}), D(_, "data-i", n(i)), D(_, "aria-selected", n(i) === n(k)), t(O, e), t(M, n(r).payee), t(U, a), t(G, o), J = y(K, 1, "amt svelte-aipwz8", null, J, {
 				in: s,
 				moved: n(c) === "transfer"
-			}), t(X, `${n(c) === "transfer" ? "⇄ " : ""}${l ?? ""}`);
+			}), t(Y, `${n(c) === "transfer" ? "⇄ " : ""}${l ?? ""}`);
 		}, [
 			() => B(n(r).date),
-			() => le(n(o).from),
-			() => le(n(o).to),
-			() => n(c) !== "transfer" && ce(n(r)) > 0,
-			() => z(ce(n(r)), a.cur, { sign: n(c) !== "transfer" })
+			() => ce(n(o).from),
+			() => ce(n(o).to),
+			() => n(c) !== "transfer" && $(n(r)) > 0,
+			() => z($(n(r)), a.cur, { sign: n(c) !== "transfer" })
 		]), v("click", _, () => {
 			T(k, n(i), !0), u(n(r));
 		}), p(e, l);
@@ -1066,8 +1066,8 @@ function Ht(r, a) {
 	};
 	h(ve, (e) => {
 		n(M).length > n(O) && e(ye);
-	}), J(ge), ee(ge, (e) => T(j, e), () => n(j)), J(Y);
-	var be = W(Y, 2), xe = (e) => {
+	}), q(ge), U(ge, (e) => T(j, e), () => n(j)), q(J);
+	var be = W(J, 2), xe = (e) => {
 		var t = m(), r = s(t);
 		i(r, () => u() === "new" ? "new" : u().path + ":" + u().line + u().text, (e) => {
 			{
@@ -1095,9 +1095,9 @@ function Ht(r, a) {
 	};
 	h(be, (e) => {
 		u() && e(xe);
-	}), J(K), S((e) => {
-		q = y(K, 1, "tx svelte-aipwz8", null, q, { with: !!u() }), t(se, e), t(de, ` ${n(M).length === 1 ? "transaction" : "transactions"}`);
-	}, [() => n(M).length.toLocaleString()]), F(Z, o), v("click", ie, () => u("new")), p(r, K), _();
+	}), q(G), S((e) => {
+		K = y(G, 1, "tx svelte-aipwz8", null, K, { with: !!u() }), t(Q, e), t(de, ` ${n(M).length === 1 ? "transaction" : "transactions"}`);
+	}, [() => n(M).length.toLocaleString()]), F(X, o), v("click", ie, () => u("new")), p(r, G), _();
 }
 f(["click"]);
 //#endregion
@@ -1107,7 +1107,7 @@ var Ut = o("<line class=\"grid svelte-19iowyp\"></line><text class=\"tick svelte
 	code: ".bars.svelte-19iowyp {position:relative;min-width:0;}svg.svelte-19iowyp {display:block;}.grid.svelte-19iowyp {stroke:var(--border);}.tick.svelte-19iowyp {fill:var(--text-faint);font-size:11px;font-variant-numeric:tabular-nums;}.hit.svelte-19iowyp {fill:transparent;}.m.svelte-19iowyp {cursor:pointer;}.m.svelte-19iowyp:hover .hit:where(.svelte-19iowyp) {fill:var(--bg-hover);}.m.dim.svelte-19iowyp path:where(.svelte-19iowyp) {opacity:0.4;}.tip.svelte-19iowyp {position:absolute;top:0;pointer-events:none;display:flex;flex-direction:column;padding:6px 10px;border-radius:var(--radius-sm);background:var(--bg-elev);border:1px solid var(--border-strong);box-shadow:var(--shadow-sm);font-size:0.85em;color:var(--text-muted);white-space:nowrap;}.tip.svelte-19iowyp b:where(.svelte-19iowyp) {color:var(--text);font-variant-numeric:tabular-nums;}"
 };
 function Xt(r, i) {
-	e(i, !0), te(r, Yt);
+	e(i, !0), ne(r, Yt);
 	let a = N(i, "fill", 3, "var(--accent)"), o = N(i, "selected", 3, null), c = w(600), l = {
 		l: 56,
 		r: 4,
@@ -1156,12 +1156,12 @@ function Xt(r, i) {
 			var t = Wt();
 			let i;
 			S((e) => {
-				D(t, "d", e), i = Z(t, "", i, { fill: a() });
+				D(t, "d", e), i = X(t, "", i, { fill: a() });
 			}, [() => `M${n(f)},${k(0)}V${k(n(r).value) + 3}q0,-3 3,-3h${n(O) - 6}q3,0 3,3V${k(0)}Z`]), p(e, t);
 		};
 		h(w, (e) => {
 			n(r).value > 0 && e(M);
-		}), J(g);
+		}), q(g);
 		var N = W(g), F = (e) => {
 			var i = Gt();
 			D(i, "y", 144);
@@ -1177,14 +1177,14 @@ function Xt(r, i) {
 				sel: e,
 				dim: t
 			}), D(b, "x", l.l + n(c) * n(x)), D(b, "y", l.t), D(b, "width", n(x)), D(b, "height", 150 - l.t - l.b);
-		}, [() => P(n(r).month), () => !!o() && !P(n(r).month)]), re("pointerenter", g, () => T(u, n(c), !0)), re("pointerleave", g, () => T(u, null)), v("click", g, () => i.onpick?.(n(r).month)), p(e, m);
-	}), J(I);
+		}, [() => P(n(r).month), () => !!o() && !P(n(r).month)]), Z("pointerenter", g, () => T(u, n(c), !0)), Z("pointerleave", g, () => T(u, null)), v("click", g, () => i.onpick?.(n(r).month)), p(e, m);
+	}), q(I);
 	var z = W(I, 2), V = (e) => {
 		var r = qt();
 		let a;
 		var o = C(r), s = d(o, !0), f = W(o, 2), m = d(f, !0);
-		J(r), S((e, n, i) => {
-			a = Z(r, "", a, { left: e }), t(s, n), t(m, i);
+		q(r), S((e, n, i) => {
+			a = X(r, "", a, { left: e }), t(s, n), t(m, i);
 		}, [
 			() => `${Math.min(l.l + n(u) * n(x) + n(x), n(c) - 150)}px`,
 			() => (/* @__PURE__ */ new Date(`${i.months[n(u)].month}-01T12:00:00`)).toLocaleDateString(void 0, {
@@ -1196,7 +1196,7 @@ function Xt(r, i) {
 	};
 	h(z, (e) => {
 		n(u) !== null && e(V);
-	}), J(F), S(() => D(I, "width", n(c))), B(F, "clientWidth", (e) => T(c, e)), p(r, F), _();
+	}), q(F), S(() => D(I, "width", n(c))), B(F, "clientWidth", (e) => T(c, e)), p(r, F), _();
 }
 f(["click"]);
 //#endregion
@@ -1206,7 +1206,7 @@ var Zt = g("<button role=\"radio\"> </button>"), Qt = g("<span class=\"chip svel
 	code: ".spend.svelte-qqjett {display:flex;flex-direction:column;gap:18px;max-width:980px;}.bar.svelte-qqjett {display:flex;gap:8px;align-items:center;flex-wrap:wrap;}.seg.svelte-qqjett {display:flex;flex-wrap:wrap;border:1px solid var(--border-strong);border-radius:var(--radius);overflow:hidden;}.seg.svelte-qqjett button:where(.svelte-qqjett) {all:unset;cursor:pointer;padding:6px 10px;font-size:0.9em;color:var(--text-muted);}.seg.svelte-qqjett button:where(.svelte-qqjett) + button:where(.svelte-qqjett) {border-left:1px solid var(--border);}.seg.svelte-qqjett button:where(.svelte-qqjett):hover {background:var(--bg-hover);color:var(--text);}.seg.svelte-qqjett button.on:where(.svelte-qqjett) {background:var(--accent-soft);color:var(--accent-strong);font-weight:600;}.seg.svelte-qqjett button:where(.svelte-qqjett):focus-visible {outline:2px solid var(--accent);outline-offset:-2px;}.chip.svelte-qqjett {padding:3px 10px;border-radius:999px;background:var(--accent-soft);color:var(--accent-strong);font-size:0.88em;font-weight:600;}h3.svelte-qqjett {margin:0 0 8px;font-size:0.78em;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-muted);font-weight:600;display:flex;gap:8px;align-items:baseline;flex-wrap:wrap;}.faint.svelte-qqjett {color:var(--text-faint);text-transform:none;letter-spacing:0;font-weight:400;}.link.svelte-qqjett {all:unset;cursor:pointer;color:var(--accent);text-transform:none;letter-spacing:0;font-weight:400;}.link.svelte-qqjett:focus-visible {outline:2px solid var(--accent);}.cats.svelte-qqjett {list-style:none;margin:0;padding:0;}.cats.svelte-qqjett li:where(.svelte-qqjett) {border-bottom:1px solid var(--border);}.cat.svelte-qqjett {all:unset;box-sizing:border-box;cursor:pointer;width:100%;display:grid;grid-template-columns:10px minmax(7em, 1fr) minmax(80px, 2fr) 7.5em 3em 9.5em;gap:10px;align-items:center;padding:8px 6px;}.cat.svelte-qqjett:hover {background:var(--bg-hover);}.cat.svelte-qqjett:focus-visible {outline:2px solid var(--accent);outline-offset:-2px;}.open.svelte-qqjett .cat:where(.svelte-qqjett) {background:var(--bg-hover);}.swatch.svelte-qqjett {width:10px;height:10px;border-radius:3px;}.name.svelte-qqjett {font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}.track.svelte-qqjett {position:relative;height:10px;background:var(--bg-hover);border-radius:3px;}.fill.svelte-qqjett {position:absolute;inset:0 auto 0 0;border-radius:3px;}.usual.svelte-qqjett {position:absolute;top:-3px;bottom:-3px;width:2px;background:var(--text);border-radius:1px;}.v.svelte-qqjett, .pct.svelte-qqjett, .vs.svelte-qqjett {text-align:right;font-variant-numeric:tabular-nums;}.v.svelte-qqjett {font-family:var(--font-mono);font-size:0.92em;}.pct.svelte-qqjett {color:var(--text-muted);font-size:0.88em;}.vs.svelte-qqjett {color:var(--text-faint);font-size:0.82em;}.vs.up.svelte-qqjett {color:var(--red);}.vs.down.svelte-qqjett {color:var(--green);}.who.svelte-qqjett {padding:4px 6px 12px 26px;display:flex;flex-direction:column;gap:8px;align-items:flex-start;}table.svelte-qqjett {border-collapse:collapse;width:100%;max-width:560px;font-size:0.9em;}th.svelte-qqjett {text-align:left;color:var(--text-muted);font-weight:500;font-size:0.85em;padding:2px 8px 4px 0;}td.svelte-qqjett {padding:3px 8px 3px 0;border-top:1px solid var(--border);}.n.svelte-qqjett {text-align:right;font-variant-numeric:tabular-nums;}\n  @container (max-width: 700px) {.cat.svelte-qqjett {grid-template-columns:10px minmax(6em, 1fr) minmax(60px, 1fr) 7em;}.pct.svelte-qqjett, .vs.svelte-qqjett {display:none;} }"
 };
 function cn(r, i) {
-	e(i, !0), te(r, sn);
+	e(i, !0), ne(r, sn);
 	let a = N(i, "period", 15), o = w(null), s = (e, t = !1) => z(e, i.cur, { whole: t }), c = E(() => ve(i.rows)), l = E(() => n(c).map((e) => ({
 		month: e.month,
 		value: n(o) ? e.by.get(n(o)) ?? 0 : e.total
@@ -1231,25 +1231,25 @@ function cn(r, i) {
 		S(() => {
 			D(i, "aria-checked", a().name === n(r).name), o = y(i, 1, "svelte-qqjett", null, o, { on: a().name === n(r).name }), t(s, n(r).name);
 		}), v("click", i, () => a(n(r))), p(e, i);
-	}), J(M);
+	}), q(M);
 	var P = W(M, 2), F = (e) => {
 		var n = Qt(), r = d(n, !0);
 		S(() => t(r, a().name)), p(e, n);
 	}, I = E(() => !i.periods.some((e) => e.name === a().name));
 	h(P, (e) => {
 		n(I) && e(F);
-	}), J(j);
-	var L = W(j, 2), R = C(L), B = C(R), V = W(B), U = d(V, !0), ee = W(V), G = (e) => {
+	}), q(j);
+	var L = W(j, 2), R = C(L), B = C(R), V = W(B), H = d(V, !0), U = W(V), te = (e) => {
 		var t = $t();
 		v("click", t, () => T(o, null)), p(e, t);
 	};
-	h(ee, (e) => {
-		n(o) && e(G);
-	}), J(R);
-	var q = W(R, 2);
+	h(U, (e) => {
+		n(o) && e(te);
+	}), q(R);
+	var K = W(R, 2);
 	{
 		let e = E(() => n(o) ? i.color(n(o)) : "var(--accent)");
-		Xt(q, {
+		Xt(K, {
 			get months() {
 				return n(l);
 			},
@@ -1263,12 +1263,12 @@ function cn(r, i) {
 			onpick: k
 		});
 	}
-	J(L);
-	var Y = W(L, 2), X = C(Y), ne = C(X), re = W(ne), ie = d(re, !0);
-	J(X);
-	var ae = W(X, 2);
+	q(L);
+	var J = W(L, 2), Y = C(J), re = C(Y), Z = W(re), ie = d(Z, !0);
+	q(Y);
+	var ae = W(Y, 2);
 	b(ae, 21, () => n(m), ([e, t]) => e, (e, r) => {
-		var a = E(() => H(n(r), 2));
+		var a = E(() => ee(n(r), 2));
 		let c = () => n(a)[0], l = () => n(a)[1], m = E(() => O(c()) * n(f)), _ = E(() => n(o) === c());
 		var w = rn();
 		let k;
@@ -1280,42 +1280,42 @@ function cn(r, i) {
 			var t = en();
 			let r;
 			S((e, n) => {
-				D(t, "title", `usual: ${e ?? ""}`), r = Z(t, "", r, { left: n });
+				D(t, "title", `usual: ${e ?? ""}`), r = X(t, "", r, { left: n });
 			}, [() => s(n(m)), () => `${Math.min(100, n(m) / n(x) * 100)}%`]), p(e, t);
 		};
 		h(R, (e) => {
 			n(m) > 0 && e(z);
-		}), J(F);
-		var B = W(F, 2), V = d(B, !0), U = W(B, 2), ee = d(U), G = W(U, 2);
-		let q;
-		var Y = d(G, !0);
-		J(A);
-		var X = W(A, 2), te = (e) => {
+		}), q(F);
+		var B = W(F, 2), V = d(B, !0), H = W(B, 2), U = d(H), te = W(H, 2);
+		let K;
+		var J = d(te, !0);
+		q(A);
+		var Y = W(A, 2), ne = (e) => {
 			var r = nn(), a = C(r), o = W(C(a));
 			b(o, 21, () => ye(n(u), c()).slice(0, 12), (e) => e.payee, (e, r) => {
 				var a = tn(), o = C(a), l = C(o), u = d(l, !0);
-				J(o);
+				q(o);
 				var f = W(o), m = d(f, !0), h = W(f), g = d(h, !0);
-				J(a), S((e) => {
+				q(a), S((e) => {
 					t(u, n(r).payee), t(m, n(r).count), t(g, e);
 				}, [() => s(n(r).total)]), v("click", l, () => i.onshow(`${c().toLowerCase()} ${n(r).payee.toLowerCase().split(/\s+/)[0]}`)), p(e, a);
-			}), J(o), J(a);
+			}), q(o), q(a);
 			var l = W(a, 2), f = d(l);
-			J(r), S((e) => t(f, `All ${e ?? ""} transactions`), [() => K(c())]), v("click", l, () => i.onshow(c().toLowerCase())), p(e, r);
+			q(r), S((e) => t(f, `All ${e ?? ""} transactions`), [() => G(c())]), v("click", l, () => i.onshow(c().toLowerCase())), p(e, r);
 		};
-		h(X, (e) => {
-			n(_) && e(te);
-		}), J(w), S((e, r, i, a, o, s) => {
-			k = y(w, 1, "svelte-qqjett", null, k, { open: n(_) }), D(A, "aria-expanded", n(_)), M = Z(j, "", M, { background: e }), t(P, r), L = Z(I, "", L, {
+		h(Y, (e) => {
+			n(_) && e(ne);
+		}), q(w), S((e, r, i, a, o, s) => {
+			k = y(w, 1, "svelte-qqjett", null, k, { open: n(_) }), D(A, "aria-expanded", n(_)), M = X(j, "", M, { background: e }), t(P, r), L = X(I, "", L, {
 				width: `${l() / n(x) * 100}%`,
 				background: i
-			}), t(V, a), t(ee, `${o ?? ""}%`), q = y(G, 1, "vs svelte-qqjett", null, q, {
+			}), t(V, a), t(U, `${o ?? ""}%`), K = y(te, 1, "vs svelte-qqjett", null, K, {
 				up: n(m) > 0 && l() > n(m) * 1.15,
 				down: n(m) > 0 && l() < n(m) * .85
-			}), t(Y, s);
+			}), t(J, s);
 		}, [
 			() => i.color(c()),
-			() => K(c()),
+			() => G(c()),
 			() => i.color(c()),
 			() => s(l()),
 			() => Math.round(l() / (n(g) || 1) * 100),
@@ -1324,10 +1324,10 @@ function cn(r, i) {
 	}, (e) => {
 		var t = an();
 		p(e, t);
-	}), J(ae), J(Y), J(A), S((e, r, i) => {
-		t(B, `${e ?? ""} by month `), t(U, n(o) ? "" : "click a month to look at it"), t(ne, `${a().name ?? ""}: ${r ?? ""} spent `), t(ie, i);
+	}), q(ae), q(J), q(A), S((e, r, i) => {
+		t(B, `${e ?? ""} by month `), t(H, n(o) ? "" : "click a month to look at it"), t(re, `${a().name ?? ""}: ${r ?? ""} spent `), t(ie, i);
 	}, [
-		() => n(o) ? K(n(o)) : "Spending",
+		() => n(o) ? G(n(o)) : "Spending",
 		() => s(n(g)),
 		() => n(f) > 1 ? `· ${s(n(g) / n(f))} a month` : ""
 	]), p(r, A), _();
@@ -1340,7 +1340,7 @@ var ln = g("<div class=\"atlas-notice error\"> <div class=\"actions\"><button cl
 	code: ".review.svelte-12excp {outline:none;display:grid;grid-template-columns:minmax(0, 1fr);gap:4px;}.keys.svelte-12excp {color:var(--text-faint);font-size:0.9em;margin-bottom:6px;}kbd.svelte-12excp {font-family:var(--font-mono);font-size:0.85em;padding:0 4px;border:1px solid var(--border);border-radius:3px;margin-right:2px;}.txn.svelte-12excp {padding:8px 10px;border-radius:var(--radius);border:1px solid transparent;}.txn.svelte-12excp:hover {background:var(--bg-hover);}.txn.sel.svelte-12excp {border-color:var(--accent);background:var(--accent-soft);}.line1.svelte-12excp {display:flex;align-items:center;gap:10px;min-height:26px;}.date.svelte-12excp {color:var(--text-muted);font-variant-numeric:tabular-nums;white-space:nowrap;}.payee.svelte-12excp {font-weight:600;white-space:nowrap;}.line1.svelte-12excp > .faint:where(.svelte-12excp) {overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;}.bank.svelte-12excp {font-style:italic;}.grow.svelte-12excp {flex:1;}.faint.svelte-12excp {color:var(--text-faint);}.cat.svelte-12excp {all:unset;cursor:pointer;padding:2px 10px;border-radius:999px;background:var(--bg-hover);color:var(--text-muted);}.cat.unknown.svelte-12excp {box-shadow:inset 0 0 0 1px var(--yellow);}.cat.guess.svelte-12excp {box-shadow:inset 0 0 0 1px var(--accent);font-style:italic;}.cat.guess.sure.svelte-12excp {font-style:normal;}.why.svelte-12excp {font-size:0.85em;margin:2px 0 0;}.cat.svelte-12excp:hover {color:var(--text);}.posts.svelte-12excp {display:flex;flex-wrap:wrap;gap:4px 16px;font-size:0.92em;font-variant-numeric:tabular-nums;margin-top:2px;}"
 };
 function wn(r, i) {
-	e(i, !0), te(r, Cn);
+	e(i, !0), ne(r, Cn);
 	let o = w(u([])), c = w(0), l = w(""), f = w(!0), m = w(void 0);
 	async function g() {
 		try {
@@ -1423,7 +1423,7 @@ function wn(r, i) {
 		if (!t) return i.atlas.toast("Nothing to categorize", "every posting of this transaction is an account");
 		let n = t.split(":")[0], r = i.known.filter((e) => e.startsWith(`${n}:`) && !e.endsWith(":Unknown")).map((e) => ({
 			value: e,
-			title: K(e),
+			title: G(e),
 			detail: e
 		}));
 		i.atlas.pick({
@@ -1454,16 +1454,16 @@ function wn(r, i) {
 	}
 	var L = { load: g }, R = Sn(), z = C(R), B = (e) => {
 		var r = ln(), i = C(r, !0), a = W(i), o = d(a);
-		J(r), S(() => t(i, n(l))), v("click", o, g), p(e, r);
+		q(r), S(() => t(i, n(l))), v("click", o, g), p(e, r);
 	}, V = (e) => {
 		var t = un();
 		p(e, t);
-	}, U = (e) => {
+	}, H = (e) => {
 		var t = dn();
 		p(e, t);
-	}, G = (e) => {
+	}, te = (e) => {
 		var r = xn(), i = s(r), l = W(C(i), 12);
-		J(i);
+		q(i);
 		var u = W(i, 2);
 		b(u, 19, () => n(o), (e) => e.path + e.line, (e, r, i) => {
 			let o = E(() => O(n(r)));
@@ -1482,14 +1482,14 @@ function wn(r, i) {
 				var o = d(i);
 				S((e) => {
 					a = y(i, 1, "cat guess svelte-12excp", null, a, { sure: n(r).guess.sure }), D(i, "title", `${n(r).guess.why ?? ""} — Enter takes it, c chooses another`), t(o, `${e ?? ""}?`);
-				}, [() => K(n(r).guess.to)]), v("click", i, () => P(n(r))), p(e, i);
+				}, [() => G(n(r).guess.to)]), v("click", i, () => P(n(r))), p(e, i);
 			}, R = E(() => n(o) && n(o).account.endsWith(":Unknown") && n(r).guess), z = (e) => {
 				var i = mn();
 				let a;
 				var s = d(i, !0);
 				S((e, n) => {
 					a = y(i, 1, "cat svelte-12excp", null, a, { unknown: e }), t(s, n);
-				}, [() => n(o).account.endsWith(":Unknown"), () => K(n(o).account)]), v("click", i, () => P(n(r))), p(e, i);
+				}, [() => n(o).account.endsWith(":Unknown"), () => G(n(o).account)]), v("click", i, () => P(n(r))), p(e, i);
 			};
 			h(I, (e) => {
 				n(R) ? e(L) : n(o) && e(z, 1);
@@ -1508,37 +1508,37 @@ function wn(r, i) {
 			};
 			h(B, (e) => {
 				n(i) === n(c) && e(V);
-			}), J(f);
-			var U = W(f, 2), ee = (e) => {
+			}), q(f);
+			var H = W(f, 2), U = (e) => {
 				var i = _n(), a = d(i, !0);
 				S(() => t(a, n(r).guess.why)), p(e, i);
-			}, G = E(() => n(i) === n(c) && n(r).guess && n(o)?.account.endsWith(":Unknown"));
-			h(U, (e) => {
-				n(G) && e(ee);
+			}, te = E(() => n(i) === n(c) && n(r).guess && n(o)?.account.endsWith(":Unknown"));
+			h(H, (e) => {
+				n(te) && e(U);
 			});
-			var q = W(U, 2), Y = C(q);
-			b(Y, 17, () => n(r).postings.filter((e) => e !== n(o) || e.amount), a, (e, r) => {
+			var K = W(H, 2), J = C(K);
+			b(J, 17, () => n(r).postings.filter((e) => e !== n(o) || e.amount), a, (e, r) => {
 				var i = vn(), a = C(i), o = d(a, !0), s = W(a);
-				J(i), S((e) => {
+				q(i), S((e) => {
 					t(o, e), t(s, ` ${n(r).amount ?? "" ?? ""}`);
-				}, [() => K(n(r).account)]), p(e, i);
+				}, [() => G(n(r).account)]), p(e, i);
 			});
-			var X = W(Y, 2);
-			b(X, 17, () => n(r).meta.filter(([e]) => e === "bank"), a, (e, r) => {
-				var i = E(() => H(n(r), 2));
+			var Y = W(J, 2);
+			b(Y, 17, () => n(r).meta.filter(([e]) => e === "bank"), a, (e, r) => {
+				var i = E(() => ee(n(r), 2));
 				let a = () => n(i)[1];
 				var o = yn(), s = d(o);
 				S((e) => {
 					D(o, "title", a()), t(s, `“${e ?? ""}”`);
 				}, [() => x(a())]), p(e, o);
-			}), J(q), J(l), S(() => {
+			}), q(K), q(l), S(() => {
 				u = y(l, 1, "txn svelte-12excp", null, u, { sel: n(i) === n(c) }), D(l, "aria-selected", n(i) === n(c)), t(g, n(r).date), t(w, n(r).payee);
 			}), v("click", l, () => T(c, n(i), !0)), p(e, l);
 		}), S(() => t(l, ` open in the journal · ${n(o).length ?? ""} left`)), p(e, r);
 	};
 	return h(z, (e) => {
-		n(l) ? e(B) : n(f) ? e(V, 1) : n(o).length ? e(G, -1) : e(U, 2);
-	}), J(R), ee(R, (e) => T(m, e), () => n(m)), v("keydown", R, F), p(r, R), _(L);
+		n(l) ? e(B) : n(f) ? e(V, 1) : n(o).length ? e(te, -1) : e(H, 2);
+	}), q(R), U(R, (e) => T(m, e), () => n(m)), v("keydown", R, F), p(r, R), _(L);
 }
 f(["keydown", "click"]);
 //#endregion
@@ -1548,7 +1548,7 @@ var Tn = g("<span class=\"faint svelte-48f9vs\">*</span>"), En = g("<div class=\
 	code: ".grid.svelte-48f9vs {display:grid;grid-template-columns:repeat(auto-fit, minmax(340px, 1fr));gap:14px;}.card.svelte-48f9vs {background:var(--bg-elev);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px;min-width:0;}.wide.svelte-48f9vs {grid-column:1 / -1;}h3.svelte-48f9vs {margin:0 0 10px;font-size:0.82em;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-muted);font-weight:600;}.faint.svelte-48f9vs {color:var(--text-faint);font-weight:400;text-transform:none;letter-spacing:0;}.mrow.svelte-48f9vs {display:grid;grid-template-columns:5.5em 1fr 5em;gap:8px;align-items:center;padding:2px 0;}.mname.svelte-48f9vs {color:var(--text-muted);font-variant-numeric:tabular-nums;}.pair.svelte-48f9vs {line-height:0;}.pair.svelte-48f9vs span:where(.svelte-48f9vs) {display:inline-block;height:6px;vertical-align:top;}.in.svelte-48f9vs {background:var(--green);opacity:0.8;border-radius:3px 0 0 3px;}.out.svelte-48f9vs {background:var(--accent);opacity:0.8;border-radius:3px 0 0 3px;}.hatch.svelte-48f9vs {opacity:0.35;border-radius:0 3px 3px 0;background-image:repeating-linear-gradient(45deg, transparent 0 2px, var(--bg-elev) 2px 4px);}.rate.svelte-48f9vs {text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap;}.rate.neg.svelte-48f9vs {color:var(--red);}.legend.svelte-48f9vs {margin-top:8px;font-size:0.85em;}.sw.svelte-48f9vs {display:inline-block;width:10px;height:6px;border-radius:2px;margin:0 2px 0 6px;}.rec.svelte-48f9vs {all:unset;cursor:pointer;display:grid;grid-template-columns:1fr auto;gap:0 10px;padding:5px 8px;border-radius:var(--radius-sm);}.rec.svelte-48f9vs:hover {background:var(--bg-hover);}.payee.svelte-48f9vs {overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}.num.svelte-48f9vs {text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap;}.num.income.svelte-48f9vs {color:var(--green);}.next.svelte-48f9vs {grid-column:1 / -1;font-size:0.85em;}"
 };
 function jn(r, i) {
-	e(i, !0), te(r, An);
+	e(i, !0), ne(r, An);
 	function a(e) {
 		let t = Math.round(j(e.usual)), n = [{
 			value: `${t} ${i.cur}`,
@@ -1560,7 +1560,7 @@ function jn(r, i) {
 			detail: `back to the usual month (${z(t, i.cur, { whole: !0 })})`
 		}] : []];
 		i.atlas.pick({
-			placeholder: `Monthly target for ${K(e.account)} (e.g. 250)`,
+			placeholder: `Monthly target for ${G(e.account)} (e.g. 250)`,
 			tag: "Finance",
 			items: n,
 			typed: (e) => `Pin ${/[A-Za-z]/.test(e) ? e : `${e} ${i.cur}`} a month`,
@@ -1571,7 +1571,7 @@ function jn(r, i) {
 						account: e.account,
 						target: n
 					});
-					i.atlas.toast(n ? "Target pinned" : "Target unpinned", `${K(e.account)}: ${n || "the usual month"} (${t.path})`), i.onchange();
+					i.atlas.toast(n ? "Target pinned" : "Target unpinned", `${G(e.account)}: ${n || "the usual month"} (${t.path})`), i.onchange();
 				} catch (e) {
 					i.atlas.toast("Not pinned", e.message, "error");
 				}
@@ -1580,7 +1580,7 @@ function jn(r, i) {
 	}
 	let o = E(() => i.budget.months.slice(0, 12)), s = E(() => Math.max(1, ...n(o).map((e) => Math.max(j(e.income) + j(e.unknown_in), j(e.spent) + j(e.unknown_out))))), c = E(() => i.budget.recurring.filter((e) => j(e.per_month) > 0).reduce((e, t) => e + j(t.per_month), 0)), u = E(() => -i.budget.recurring.filter((e) => j(e.per_month) < 0).reduce((e, t) => e + j(t.per_month), 0)), f = (e) => e.rate ?? e.rate_all;
 	var m = kn(), g = C(m), x = C(g);
-	q(x, {
+	K(x, {
 		get budget() {
 			return i.budget;
 		},
@@ -1588,7 +1588,7 @@ function jn(r, i) {
 			return i.cur;
 		},
 		onpin: a
-	}), J(g);
+	}), q(g);
 	var w = W(g, 2), T = W(C(w), 2);
 	b(T, 17, () => n(o), (e) => e.month, (e, r) => {
 		let a = E(() => j(n(r).income)), o = E(() => j(n(r).spent)), c = E(() => f(n(r)));
@@ -1600,7 +1600,7 @@ function jn(r, i) {
 		let T;
 		var O = W(w);
 		let k;
-		J(g);
+		q(g);
 		var A = W(g, 2);
 		let M;
 		var N = C(A, !0), P = W(N), F = (e) => {
@@ -1609,10 +1609,10 @@ function jn(r, i) {
 		};
 		h(P, (e) => {
 			n(r).rate === null && n(r).rate_all !== null && e(F);
-		}), J(A), J(l), S((e, i, c, u, d, f, p, h, g) => {
-			D(l, "title", `${e ?? ""}: income ${i ?? ""} (+${c ?? ""} uncategorised), spent ${u ?? ""} (+${d ?? ""} uncategorised)`), t(m, n(r).month), v = Z(_, "", v, { width: `${100 * n(a) / n(s)}%` }), x = Z(b, "", x, { width: f }), T = Z(w, "", T, { width: `${100 * n(o) / n(s)}%` }), k = Z(O, "", k, { width: p }), M = y(A, 1, "rate svelte-48f9vs", null, M, { neg: h }), t(N, g);
+		}), q(A), q(l), S((e, i, c, u, d, f, p, h, g) => {
+			D(l, "title", `${e ?? ""}: income ${i ?? ""} (+${c ?? ""} uncategorised), spent ${u ?? ""} (+${d ?? ""} uncategorised)`), t(m, n(r).month), v = X(_, "", v, { width: `${100 * n(a) / n(s)}%` }), x = X(b, "", x, { width: f }), T = X(w, "", T, { width: `${100 * n(o) / n(s)}%` }), k = X(O, "", k, { width: p }), M = y(A, 1, "rate svelte-48f9vs", null, M, { neg: h }), t(N, g);
 		}, [
-			() => Y(n(r).month),
+			() => J(n(r).month),
 			() => z(n(a), i.cur),
 			() => z(j(n(r).unknown_in), i.cur),
 			() => z(n(o), i.cur),
@@ -1622,34 +1622,34 @@ function jn(r, i) {
 			() => n(c) !== null && j(n(c)) < 0,
 			() => n(c) === null ? "—" : `${Math.round(j(n(c)) * 100)} %`
 		]), p(e, l);
-	}), M(2), J(w);
+	}), M(2), q(w);
 	var O = W(w, 2), k = C(O), A = W(C(k)), N = C(A), P = W(N), F = (e) => {
 		var r = l();
 		S((e) => t(r, `, ${e ?? ""} in`), [() => z(n(u), i.cur, { whole: !0 })]), p(e, r);
 	};
 	h(P, (e) => {
 		n(u) > 0 && e(F);
-	}), J(A), J(k);
+	}), q(A), q(k);
 	var L = W(k, 2);
 	b(L, 17, () => i.budget.recurring, (e) => e.path + e.line, (e, r) => {
 		var a = Dn(), o = C(a), s = C(o, !0), c = W(s), l = d(c);
-		J(o);
+		q(o);
 		var u = W(o, 2);
 		let f;
 		var m = C(u, !0), h = W(m), g = d(h);
-		J(u);
+		q(u);
 		var _ = W(u, 2), b = d(_);
-		J(a), S((e, i, o) => {
+		q(a), S((e, i, o) => {
 			D(a, "title", `${n(r).count ?? ""} times, last ${n(r).last ?? ""}`), t(s, n(r).payee), t(l, `· ${e ?? ""}`), f = y(u, 1, "num svelte-48f9vs", null, f, { income: i }), t(m, o), t(g, ` ${n(r).period ?? ""}`), t(b, `next ${n(r).next ?? ""}`);
 		}, [
-			() => K(n(r).account),
+			() => G(n(r).account),
 			() => j(n(r).amount) < 0,
 			() => z(Math.abs(j(n(r).amount)), i.cur)
 		]), v("click", a, () => i.atlas.open(n(r).path, n(r).line)), p(e, a);
 	}, (e) => {
 		var t = On();
 		p(e, t);
-	}), J(O), J(m), S((e) => t(N, `${e ?? ""} a month out`), [() => z(n(c), i.cur, { whole: !0 })]), p(r, m), _();
+	}), q(O), q(m), S((e) => t(N, `${e ?? ""} a month out`), [() => z(n(c), i.cur, { whole: !0 })]), p(r, m), _();
 }
 f(["click"]);
 //#endregion
@@ -1659,7 +1659,7 @@ var Mn = g("<div class=\"atlas-notice error\"> <div class=\"actions\"><button cl
 	code: ".grid.svelte-aqy484 {display:grid;grid-template-columns:repeat(auto-fit, minmax(340px, 1fr));gap:14px;}.card.svelte-aqy484 {background:var(--bg-elev);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px;min-width:0;}.wide.svelte-aqy484 {grid-column:1 / -1;}h3.svelte-aqy484 {margin:0 0 10px;font-size:0.82em;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-muted);font-weight:600;}.faint.svelte-aqy484 {color:var(--text-faint);font-weight:400;text-transform:none;letter-spacing:0;}.small.svelte-aqy484 {font-size:0.85em;}.tiles.svelte-aqy484 {display:grid;grid-template-columns:repeat(auto-fit, minmax(150px, 1fr));gap:10px;}.tile.svelte-aqy484 {display:flex;flex-direction:column;gap:2px;padding:4px 6px;color:var(--text-muted);}.tile.svelte-aqy484 .n:where(.svelte-aqy484) {font-size:1.5em;font-weight:650;color:var(--text);font-variant-numeric:tabular-nums;}.pos.svelte-aqy484 {color:var(--green) !important;}.neg.svelte-aqy484 {color:var(--red) !important;}.hold.svelte-aqy484 {all:unset;cursor:pointer;display:grid;grid-template-columns:1fr auto auto 7em;gap:2px 14px;padding:6px 8px;border-radius:var(--radius-sm);width:100%;box-sizing:border-box;}.hold.svelte-aqy484:hover {background:var(--bg-hover);}.hold.svelte-aqy484 .small:where(.svelte-aqy484) {grid-column:1 / -1;}.num.svelte-aqy484 {text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap;}.lots.svelte-aqy484 {margin:0 0 8px 16px;border-collapse:collapse;font-variant-numeric:tabular-nums;font-size:0.92em;}.lots.svelte-aqy484 th:where(.svelte-aqy484) {text-align:left;font-weight:500;color:var(--text-faint);padding:2px 10px;}.lots.svelte-aqy484 td:where(.svelte-aqy484) {padding:2px 10px;border-top:1px solid var(--border);}.realised.svelte-aqy484 {display:flex;flex-wrap:wrap;gap:4px 16px;margin-top:8px;font-variant-numeric:tabular-nums;}.fx.svelte-aqy484 {padding:4px 0 10px;border-bottom:1px solid var(--border);}.fx.svelte-aqy484:last-child {border-bottom:0;}.fxhead.svelte-aqy484 {display:flex;flex-wrap:wrap;gap:6px 18px;align-items:baseline;}.plot.svelte-aqy484 {margin-top:8px;max-width:980px;}.quotes.svelte-aqy484 {display:flex;flex-wrap:wrap;gap:4px 18px;margin-bottom:10px;font-variant-numeric:tabular-nums;}\n  @media (max-width: 700px) {.hold.svelte-aqy484 {grid-template-columns:1fr auto;} }"
 };
 function Kn(o, c) {
-	e(c, !0), te(o, Gn);
+	e(c, !0), ne(o, Gn);
 	let l = w(null), u = w(""), f = w(!1), g = w(null);
 	async function x() {
 		try {
@@ -1690,41 +1690,41 @@ function Kn(o, c) {
 			yLabels: [c.cur]
 		}) };
 	}
-	var R = { load: x }, B = m(), V = s(B), H = (e) => {
+	var R = { load: x }, B = m(), V = s(B), ee = (e) => {
 		var r = Mn(), i = C(r, !0), a = W(i), o = d(a);
-		J(r), S(() => t(i, n(u))), v("click", o, x), p(e, r);
-	}, U = (e) => {
+		q(r), S(() => t(i, n(u))), v("click", o, x), p(e, r);
+	}, H = (e) => {
 		var t = Nn();
 		p(e, t);
-	}, ee = (e) => {
+	}, U = (e) => {
 		var o = Wn(), u = C(o), _ = C(u), x = C(_), w = d(x, !0);
-		M(), J(_);
+		M(), q(_);
 		var E = W(_, 2), I = C(E);
 		let R;
 		var B = d(I, !0);
-		M(), J(E);
-		var V = W(E, 2), H = C(V);
-		let U;
-		var ee = d(H, !0);
-		M(), J(V);
-		var G = W(V, 2), q = C(G), Y = d(q, !0);
-		M(), J(G), J(u);
-		var X = W(u, 2), te = W(C(X), 2);
-		b(te, 17, () => n(l).holdings, (e) => e.account + e.commodity, (e, r) => {
+		M(), q(E);
+		var V = W(E, 2), ee = C(V);
+		let H;
+		var U = d(ee, !0);
+		M(), q(V);
+		var te = W(V, 2), K = C(te), J = d(K, !0);
+		M(), q(te), q(u);
+		var Y = W(u, 2), ne = W(C(Y), 2);
+		b(ne, 17, () => n(l).holdings, (e) => e.account + e.commodity, (e, r) => {
 			var i = In(), o = s(i), l = C(o), u = C(l, !0), f = W(u), m = d(f);
-			J(l);
+			q(l);
 			var _ = W(l, 2), x = d(_), w = W(_, 2), E = d(w, !0), D = W(w, 2);
 			let O;
 			var k = d(D, !0), A = W(D, 2), M = d(A, !0);
-			J(o);
+			q(o);
 			var N = W(o, 2), I = (e) => {
 				var i = Fn(), o = W(C(i));
 				b(o, 21, () => n(r).lots, a, (e, r) => {
 					var i = Pn(), a = C(i), o = d(a, !0), s = W(a), c = d(s, !0), l = W(s), u = d(l, !0);
-					J(i), S((e) => {
+					q(i), S((e) => {
 						t(o, n(r).date), t(c, e), t(u, n(r).cost ?? "unknown");
 					}, [() => P(n(r).units)]), p(e, i);
-				}), J(o), J(i), p(e, i);
+				}), q(o), q(i), p(e, i);
 			};
 			h(N, (e) => {
 				n(g) === n(r).commodity && e(I);
@@ -1734,7 +1734,7 @@ function Kn(o, c) {
 					pos: s
 				}), t(k, c), t(M, l);
 			}, [
-				() => K(n(r).account),
+				() => G(n(r).account),
 				() => P(n(r).units),
 				() => n(r).value ? z(j(n(r).value), c.cur) : "no price",
 				() => j(n(r).gain) < 0,
@@ -1746,28 +1746,28 @@ function Kn(o, c) {
 			var t = Ln();
 			p(e, t);
 		});
-		var Z = W(te, 2), ne = (e) => {
+		var X = W(ne, 2), re = (e) => {
 			var r = zn(), i = C(r);
 			b(i, 17, () => n(l).realised, (e) => e.year, (e, r) => {
 				var i = Rn(), a = C(i), o = d(a, !0), s = W(a);
-				J(i), S((e) => {
+				q(i), S((e) => {
 					t(o, n(r).year), t(s, ` ${e ?? ""}`);
 				}, [() => z(j(n(r).gain), c.cur, { sign: !0 })]), p(e, i);
-			}), M(), J(r), p(e, r);
+			}), M(), q(r), p(e, r);
 		};
-		h(Z, (e) => {
-			n(l).realised.length && e(ne);
-		}), J(X);
-		var re = W(X, 2), ie = C(re), ae = W(C(ie)), Q = d(ae);
-		J(ie);
-		var oe = W(ie, 2);
-		b(oe, 17, () => n(l).currencies, (e) => e.currency, (e, a) => {
+		h(X, (e) => {
+			n(l).realised.length && e(re);
+		}), q(Y);
+		var Z = W(Y, 2), ie = C(Z), ae = W(C(ie)), oe = d(ae);
+		q(ie);
+		var se = W(ie, 2);
+		b(se, 17, () => n(l).currencies, (e) => e.currency, (e, a) => {
 			var o = Vn(), l = C(o), u = C(l), f = C(u), g = d(f, !0);
-			J(u);
+			q(u);
 			var _ = W(u, 2), v = d(_, !0), b = W(_, 2), x = d(b, !0), w = W(b, 2);
 			let T;
 			var E = d(w, !0);
-			J(l);
+			q(l);
 			var O = W(l, 2), k = (e) => {
 				var t = m(), o = s(t);
 				i(o, () => n(a).history, (e) => {
@@ -1777,7 +1777,7 @@ function Kn(o, c) {
 			};
 			h(O, (e) => {
 				n(a).history.length > 1 && e(k);
-			}), J(o), S((e, n, r, i, a, o) => {
+			}), q(o), S((e, n, r, i, a, o) => {
 				t(g, e), t(v, n), t(x, r), T = y(w, 1, "num svelte-aqy484", null, T, {
 					neg: i,
 					pos: a
@@ -1793,20 +1793,20 @@ function Kn(o, c) {
 		}, (e) => {
 			var n = Hn(), r = d(n);
 			S(() => t(r, `Everything is in ${c.cur ?? ""}.`)), p(e, n);
-		}), J(re);
-		var se = W(re, 2), ce = W(C(se), 2);
-		b(ce, 21, () => n(l).prices, (e) => e.base + e.quote, (e, r) => {
+		}), q(Z);
+		var Q = W(Z, 2), $ = W(C(Q), 2);
+		b($, 21, () => n(l).prices, (e) => e.base + e.quote, (e, r) => {
 			var i = Un(), a = C(i), o = d(a, !0), s = W(a), c = W(s), l = d(c, !0);
-			J(i), S((e) => {
+			q(i), S((e) => {
 				D(i, "title", `${n(r).base ?? ""} in ${n(r).quote ?? ""}`), t(o, n(r).base), t(s, ` ${e ?? ""} ${n(r).quote ?? ""} `), t(l, n(r).date);
 			}, [() => j(n(r).price).toLocaleString(void 0, { maximumFractionDigits: 4 })]), p(e, i);
-		}), J(ce);
-		var le = W(ce, 2), $ = d(le, !0);
-		J(se), J(o), S((e, r, i, a) => {
+		}), q($);
+		var ce = W($, 2), le = d(ce, !0);
+		q(Q), q(o), S((e, r, i, a) => {
 			t(w, e), R = y(I, 1, "n svelte-aqy484", null, R, {
 				neg: n(k) - n(A) < 0,
 				pos: n(k) - n(A) > 0
-			}), t(B, r), U = y(H, 1, "n svelte-aqy484", null, U, { pos: n(N) > 0 }), t(ee, i), t(Y, a), t(Q, `money held in other currencies, in ${c.cur ?? ""}`), le.disabled = n(f), t($, n(f) ? "Fetching…" : "Update prices");
+			}), t(B, r), H = y(ee, 1, "n svelte-aqy484", null, H, { pos: n(N) > 0 }), t(U, i), t(J, a), t(oe, `money held in other currencies, in ${c.cur ?? ""}`), ce.disabled = n(f), t(le, n(f) ? "Fetching…" : "Update prices");
 		}, [
 			() => z(n(k), c.cur, { whole: !0 }),
 			() => z(n(k) - n(A), c.cur, {
@@ -1818,148 +1818,134 @@ function Kn(o, c) {
 				whole: !0
 			}),
 			() => n(l).xirr === null ? "—" : `${(n(l).xirr * 100).toFixed(1)} %`
-		]), v("click", le, O), p(e, o);
+		]), v("click", ce, O), p(e, o);
 	};
 	return h(V, (e) => {
-		n(u) ? e(H) : n(l) ? e(ee, -1) : e(U, 1);
+		n(u) ? e(ee) : n(l) ? e(U, -1) : e(H, 1);
 	}), p(o, B), _(R);
 }
 f(["click"]);
 //#endregion
 //#region plugins/beta/finance/ui/src/Sources.svelte
-var qn = g("<button class=\"atlas-btn\">Renew</button>"), Jn = g("<div class=\"atlas-notice error\"> </div>"), Yn = g("<div class=\"src svelte-er8fe7\"><button class=\"name svelte-er8fe7\"> <span class=\"faint svelte-er8fe7\"> </span></button> <span> </span> <span class=\"faint svelte-er8fe7\"> </span> <!> <div class=\"accts faint svelte-er8fe7\"> </div> <!></div>"), Xn = g("<div class=\"atlas-empty\"> </div>"), Zn = g("<option> </option>"), Qn = g("(<a target=\"_blank\" rel=\"noopener\">open it</a> if no tab appeared)", 1), $n = g("<div class=\"paste svelte-er8fe7\"><span> <!>. It comes back here by itself; if it does not, paste the address it ended on:</span> <input class=\"svelte-er8fe7\"/> <button class=\"atlas-btn primary\">Finish</button></div>"), er = g("<span class=\"faint svelte-er8fe7\"> </span>"), tr = g("<button class=\"site svelte-er8fe7\"><b> </b><!></button>"), nr = g("<p> <button class=\"atlas-btn\">Stop</button></p>"), rr = g("<p class=\"faint svelte-er8fe7\"> </p>"), ir = g("<section class=\"card wide svelte-er8fe7\"><h3 class=\"svelte-er8fe7\">From the bank's site <span class=\"faint svelte-er8fe7\"> </span></h3> <div class=\"sites svelte-er8fe7\"></div> <!> <!></section>"), ar = g(": <code class=\"svelte-er8fe7\"> </code>", 1), or = g("<div class=\"grid svelte-er8fe7\"><section class=\"card wide svelte-er8fe7\"><h3 class=\"svelte-er8fe7\">Banks <span class=\"faint svelte-er8fe7\">read through Enable Banking with your consent; on the server, four times a day at most</span></h3> <!> <div class=\"actions svelte-er8fe7\"><button class=\"atlas-btn primary\"> </button> <select aria-label=\"Country\" class=\"svelte-er8fe7\"></select> <button class=\"atlas-btn\"> </button></div> <!> <!></section> <!> <section class=\"card wide svelte-er8fe7\"><h3 class=\"svelte-er8fe7\">Enable Banking <span class=\"faint svelte-er8fe7\">what connecting needs</span></h3> <ol class=\"setup svelte-er8fe7\"><li>An application at <b>enablebanking.com</b> (free for your own accounts) and its id in <button class=\"link svelte-er8fe7\">Settings</button><!>.</li> <li>Its redirect address, the server's https address, in Settings too<!>.</li> <li>Its private key (the .pem the control panel gave): <button class=\"atlas-btn\"> </button> <span class=\"faint svelte-er8fe7\">kept as a secret of the plugin, outside the vault</span></li></ol> <p class=\"faint svelte-er8fe7\">Desjardins (Canada) has no such access yet: fetch its PDF statements from its site above.</p></section></div>"), sr = {
+var qn = g("<button class=\"atlas-btn\">Renew</button>"), Jn = g("<div class=\"atlas-notice error\"> </div>"), Yn = g("<div class=\"src svelte-er8fe7\"><button class=\"name svelte-er8fe7\"> <span class=\"faint svelte-er8fe7\"> </span></button> <span> </span> <span class=\"faint svelte-er8fe7\"> </span> <!> <div class=\"accts faint svelte-er8fe7\"> </div> <!></div>"), Xn = g("<div class=\"atlas-empty\"> </div>"), Zn = g("<option> </option>"), Qn = g("<span class=\"faint svelte-er8fe7\"> </span>"), $n = g("<button class=\"site svelte-er8fe7\"><b> </b><!></button>"), er = g("<span class=\"faint svelte-er8fe7\">No bank matches.</span>"), tr = g("<div class=\"step svelte-er8fe7\" role=\"group\" aria-label=\"Choose a bank\"><div class=\"steps faint svelte-er8fe7\"><b class=\"svelte-er8fe7\">1 Bank</b> · 2 Consent · 3 Accounts</div> <input aria-label=\"Bank\" class=\"svelte-er8fe7\"/> <div class=\"banks svelte-er8fe7\"></div> <button class=\"atlas-btn svelte-er8fe7\">Cancel</button></div>"), nr = g("<label class=\"link-row svelte-er8fe7\"><span class=\"svelte-er8fe7\"> </span> <select class=\"svelte-er8fe7\"><option>not now</option><!></select></label>"), rr = g("<div class=\"step svelte-er8fe7\" role=\"group\" aria-label=\"Link the accounts\"><div class=\"steps faint svelte-er8fe7\">1 Bank · 2 Consent · <b class=\"svelte-er8fe7\">3 Accounts</b></div> <p class=\"svelte-er8fe7\"> <!></p> <!> <button class=\"atlas-btn primary svelte-er8fe7\">Done</button></div>"), ir = g("(<a target=\"_blank\" rel=\"noopener\">open it</a> if no tab appeared)", 1), ar = g("<div class=\"paste svelte-er8fe7\"><span class=\"steps faint svelte-er8fe7\">1 Bank · <b class=\"svelte-er8fe7\">2 Consent</b> · 3 Accounts</span> <span> <!>. It comes back here by itself; if it does not, paste the address it ended on:</span> <input class=\"svelte-er8fe7\"/> <button class=\"atlas-btn primary\">Finish</button></div>"), or = g("<p> <button class=\"atlas-btn\">Stop</button></p>"), sr = g("<p class=\"faint svelte-er8fe7\"> </p>"), cr = g("<section class=\"card wide svelte-er8fe7\"><h3 class=\"svelte-er8fe7\">From the bank's site <span class=\"faint svelte-er8fe7\"> </span></h3> <div class=\"sites svelte-er8fe7\"></div> <!> <!></section>"), lr = g(": <code class=\"svelte-er8fe7\"> </code>", 1), ur = g("<div class=\"grid svelte-er8fe7\"><section class=\"card wide svelte-er8fe7\"><h3 class=\"svelte-er8fe7\">Banks <span class=\"faint svelte-er8fe7\">read through Enable Banking with your consent; on the server, four times a day at most</span></h3> <!> <div class=\"actions svelte-er8fe7\"><button class=\"atlas-btn primary\"> </button> <select aria-label=\"Country\" class=\"svelte-er8fe7\"></select> <button class=\"atlas-btn\"> </button></div> <!> <!> <!> <!></section> <!> <section class=\"card wide svelte-er8fe7\"><h3 class=\"svelte-er8fe7\">Enable Banking <span class=\"faint svelte-er8fe7\">what connecting needs</span></h3> <ol class=\"setup svelte-er8fe7\"><li>An application at <b>enablebanking.com</b> (free for your own accounts) and its id in <button class=\"link svelte-er8fe7\">Settings</button><!>.</li> <li>Its redirect address, the server's https address, in Settings too<!>.</li> <li>Its private key (the .pem the control panel gave): <button class=\"atlas-btn\"> </button> <span class=\"faint svelte-er8fe7\">kept as a secret of the plugin, outside the vault</span></li></ol> <p class=\"faint svelte-er8fe7\">Desjardins (Canada) has no such access yet: fetch its PDF statements from its site above.</p></section></div>"), dr = {
 	hash: "svelte-er8fe7",
-	code: ".grid.svelte-er8fe7 {display:grid;gap:14px;}.card.svelte-er8fe7 {background:var(--bg-elev);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px;min-width:0;}h3.svelte-er8fe7 {margin:0 0 10px;font-size:0.82em;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-muted);font-weight:600;}.faint.svelte-er8fe7 {color:var(--text-faint);font-weight:400;text-transform:none;letter-spacing:0;}.bad.svelte-er8fe7 {color:var(--red);}.src.svelte-er8fe7 {display:flex;flex-wrap:wrap;gap:4px 16px;align-items:baseline;padding:6px 0;border-bottom:1px solid var(--border);}.src.svelte-er8fe7 .name:where(.svelte-er8fe7) {all:unset;cursor:pointer;font-weight:600;}.accts.svelte-er8fe7 {flex-basis:100%;font-size:0.88em;}.actions.svelte-er8fe7, .paste.svelte-er8fe7 {display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px;}.paste.svelte-er8fe7 input:where(.svelte-er8fe7), select.svelte-er8fe7 {font:inherit;color:var(--text);background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-sm);padding:5px 8px;}.paste.svelte-er8fe7 input:where(.svelte-er8fe7) {flex:1;min-width:240px;}.setup.svelte-er8fe7 {margin:0;padding-left:1.4em;display:grid;gap:6px;}.setup.svelte-er8fe7 li.done:where(.svelte-er8fe7)::marker {color:var(--green);}.setup.svelte-er8fe7 li.done:where(.svelte-er8fe7) {color:var(--text-muted);}.link.svelte-er8fe7 {all:unset;cursor:pointer;color:var(--accent);}code.svelte-er8fe7 {font-size:0.9em;}.sites.svelte-er8fe7 {display:flex;flex-wrap:wrap;gap:8px;}.site.svelte-er8fe7 {all:unset;cursor:pointer;display:flex;flex-direction:column;gap:2px;padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius-sm);}.site.svelte-er8fe7:hover {background:var(--bg-hover);border-color:var(--accent);}.site.svelte-er8fe7 .faint:where(.svelte-er8fe7) {font-size:0.85em;}"
+	code: ".grid.svelte-er8fe7 {display:grid;gap:14px;}.card.svelte-er8fe7 {background:var(--bg-elev);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px;min-width:0;}h3.svelte-er8fe7 {margin:0 0 10px;font-size:0.82em;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-muted);font-weight:600;}.faint.svelte-er8fe7 {color:var(--text-faint);font-weight:400;text-transform:none;letter-spacing:0;}.bad.svelte-er8fe7 {color:var(--red);}.src.svelte-er8fe7 {display:flex;flex-wrap:wrap;gap:4px 16px;align-items:baseline;padding:6px 0;border-bottom:1px solid var(--border);}.src.svelte-er8fe7 .name:where(.svelte-er8fe7) {all:unset;cursor:pointer;font-weight:600;}.accts.svelte-er8fe7 {flex-basis:100%;font-size:0.88em;}.actions.svelte-er8fe7, .paste.svelte-er8fe7 {display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px;}.paste.svelte-er8fe7 input:where(.svelte-er8fe7), select.svelte-er8fe7 {font:inherit;color:var(--text);background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-sm);padding:5px 8px;}.paste.svelte-er8fe7 input:where(.svelte-er8fe7) {flex:1;min-width:240px;}.setup.svelte-er8fe7 {margin:0;padding-left:1.4em;display:grid;gap:6px;}.setup.svelte-er8fe7 li.done:where(.svelte-er8fe7)::marker {color:var(--green);}.setup.svelte-er8fe7 li.done:where(.svelte-er8fe7) {color:var(--text-muted);}.link.svelte-er8fe7 {all:unset;cursor:pointer;color:var(--accent);}code.svelte-er8fe7 {font-size:0.9em;}.sites.svelte-er8fe7 {display:flex;flex-wrap:wrap;gap:8px;}.site.svelte-er8fe7 {all:unset;cursor:pointer;display:flex;flex-direction:column;gap:2px;padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius-sm);}.site.svelte-er8fe7:hover {background:var(--bg-hover);border-color:var(--accent);}.site.svelte-er8fe7 .faint:where(.svelte-er8fe7) {font-size:0.85em;}.step.svelte-er8fe7 {display:grid;gap:8px;margin-top:12px;padding:10px 12px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg);}.steps.svelte-er8fe7 {font-size:0.85em;}.steps.svelte-er8fe7 b:where(.svelte-er8fe7) {color:var(--text);}.step.svelte-er8fe7 input:where(.svelte-er8fe7) {font:inherit;color:var(--text);background:var(--bg-elev);border:1px solid var(--border);border-radius:var(--radius-sm);padding:5px 8px;}.banks.svelte-er8fe7 {display:flex;flex-wrap:wrap;gap:8px;max-height:260px;overflow:auto;}.step.svelte-er8fe7 > .atlas-btn:where(.svelte-er8fe7) {justify-self:start;}.step.svelte-er8fe7 p:where(.svelte-er8fe7) {margin:0;}.link-row.svelte-er8fe7 {display:flex;gap:10px;align-items:center;flex-wrap:wrap;}.link-row.svelte-er8fe7 span:where(.svelte-er8fe7) {min-width:200px;}"
 };
-function cr(r, i) {
-	e(i, !0), te(r, sr);
-	let a = N(i, "assets", 19, () => []), o = w(null), l = w("ES"), f = w(u([])), m = w(null), g = w(""), x = w(""), O = w(""), k = E(() => String(i.atlas.plugin.settings.bank_app_id ?? "")), A = E(() => String(i.atlas.plugin.settings.bank_redirect ?? ""));
+function fr(r, i) {
+	e(i, !0), ne(r, dr);
+	let a = N(i, "assets", 19, () => []), o = w(null), f = w("ES"), m = w(u([])), g = w(!1), x = w(""), O = E(() => n(m).filter((e) => e.name.toLowerCase().includes(n(x).trim().toLowerCase()))), k = w(null), A = w(""), j = w(""), L = w(""), R = E(() => String(i.atlas.plugin.settings.bank_app_id ?? "")), z = E(() => String(i.atlas.plugin.settings.bank_redirect ?? ""));
 	c(() => {
 		i.atlas.secrets.has("enable_banking_key").then((e) => T(o, e, !0)).catch(() => T(o, !1));
 	});
-	async function j(e, t) {
-		T(x, e, !0), T(O, "");
+	async function B(e, t) {
+		T(j, e, !0), T(L, "");
 		try {
 			return await t();
 		} catch (e) {
-			T(O, e.message, !0);
+			T(L, e.message, !0);
 		} finally {
-			T(x, "");
+			T(j, "");
 		}
 	}
-	async function L() {
+	async function V() {
 		let e = document.createElement("input");
 		e.type = "file", e.accept = ".pem,.key,.txt", e.onchange = async () => {
 			let t = e.files?.[0];
 			if (!t) return;
 			let n = await t.text();
 			if (!/BEGIN (RSA )?PRIVATE KEY/.test(n)) {
-				T(O, `${t.name} is not a PEM private key`);
+				T(L, `${t.name} is not a PEM private key`);
 				return;
 			}
 			await i.atlas.secrets.set("enable_banking_key", n.trim()), T(o, !0), i.atlas.toast("Key kept", "the application's private key is a secret of the finance plugin, outside the vault");
 		}, e.click();
 	}
-	async function R() {
-		let e = await j("list", () => I(i.atlas, "bank_list", { country: n(l) }));
-		e && (T(f, e.banks, !0), i.atlas.pick({
-			placeholder: `Bank in ${n(l)}`,
-			tag: "Finance",
-			items: n(f).map((e) => ({
-				value: e.name,
-				title: e.name,
-				detail: e.days ? `consent up to ${e.days} days` : ""
-			})),
-			onpick: (e) => void B(e)
-		}));
+	async function ee() {
+		let e = await B("list", () => I(i.atlas, "bank_list", { country: n(f) }));
+		e && (T(m, e.banks, !0), T(x, ""), T(g, !0));
 	}
-	let z = w("");
+	let U = w("");
 	c(() => {
-		let e = n(A) && i.atlas.signInReturned?.(n(A));
-		e && (T(g, e, !0), V());
+		let e = n(z) && i.atlas.signInReturned?.(n(z));
+		e && (T(A, e, !0), G());
 	});
-	async function B(e) {
-		let t = await j("connect", () => I(i.atlas, "bank_connect", {
+	async function te(e) {
+		T(g, !1);
+		let t = await B("connect", () => I(i.atlas, "bank_connect", {
 			bank: e,
-			country: n(l)
+			country: n(f)
 		}));
 		if (!t?.url) return;
-		T(m, {
+		T(k, {
 			bank: e,
-			country: n(l)
-		}, !0), T(z, t.url, !0);
-		let r = await i.atlas.signIn(t.url, n(A)).catch(() => "");
-		r && (T(g, r, !0), await V());
+			country: n(f)
+		}, !0), T(U, t.url, !0);
+		let r = await i.atlas.signIn(t.url, n(z)).catch(() => "");
+		r && (T(A, r, !0), await G());
 	}
-	async function V() {
-		let e = n(g).trim();
-		if (!e || n(x) === "finish") return;
-		T(g, "");
-		let t = await j("finish", () => I(i.atlas, "bank_finish", {
+	async function G() {
+		let e = n(A).trim();
+		if (!e || n(j) === "finish") return;
+		T(A, "");
+		let t = await B("finish", () => I(i.atlas, "bank_finish", {
 			address: e,
-			...n(m) ?? {}
+			...n(k) ?? {}
 		}));
-		T(m, null), T(z, ""), t && (i.atlas.toast("Connected", `${t.bank}: ${t.accounts} accounts, consent until ${t.until ?? "?"}`), i.onchange(), H(t.unlinked));
+		T(k, null), T(U, ""), t && (T(K, `${t.bank}: ${t.accounts} accounts, consent until ${t.until ?? "?"}`), T(J, t.unlinked, !0), T(X, Object.fromEntries(t.unlinked.map((e) => [e.uid, ""])), !0), i.onchange());
 	}
-	function H(e) {
-		let [t, ...n] = e;
-		t && i.atlas.pick({
-			placeholder: `Which account is ${t.name ?? "this"}${t.currency ? ` (${t.currency})` : ""}${t.iban ? ` …${t.iban.slice(-4)}` : ""}?`,
-			tag: "Finance",
-			items: a().map((e) => ({
-				value: e,
-				title: e
-			})),
-			onpick: async (e) => {
-				await j("link", () => I(i.atlas, "bank_link", {
-					account: e,
-					uid: t.uid
-				})) !== void 0 && i.atlas.toast("Linked", `${t.name ?? t.uid} → ${e}`), H(n);
-			}
-		});
+	let K = w(""), J = w(u([])), X = w(u({})), Z = (e) => `${e.name ?? "account"}${e.currency ? ` (${e.currency})` : ""}${e.iban ? ` …${e.iban.slice(-4)}` : ""}`;
+	async function ie() {
+		for (let e of n(J)) {
+			let t = n(X)[e.uid];
+			if (t && await B("link", () => I(i.atlas, "bank_link", {
+				account: t,
+				uid: e.uid
+			})) === void 0) return;
+		}
+		T(J, [], !0), T(K, ""), i.onchange();
 	}
-	async function ee() {
-		let e = await j("sync", () => I(i.atlas, "bank_sync", {}));
+	async function ae() {
+		let e = await B("sync", () => I(i.atlas, "bank_sync", {}));
 		e && (i.atlas.toast("Synced", e.summary ?? e.skipped ?? ""), i.onchange());
 	}
-	let G = w(u([])), K = w(null), q = w(null), Y = w(u([]));
+	let oe = w(u([])), se = w(null), Q = w(null), $ = w(u([]));
 	c(() => {
 		I(i.atlas, "banks").then((e) => {
-			T(G, e.banks, !0), T(K, e.downloads, !0);
+			T(oe, e.banks, !0), T(se, e.downloads, !0);
 		}).catch(() => {});
 	});
-	let Z;
-	c(() => () => clearInterval(Z));
-	function re(e) {
+	let ce;
+	c(() => () => clearInterval(ce));
+	function le(e) {
 		window.open(e.url, "_blank", "noopener");
 		let t = Math.floor(Date.now() / 1e3) - 5;
-		T(q, {
+		T(Q, {
 			name: e.name,
 			until: Date.now() + 6e5
-		}, !0), T(Y, [], !0), clearInterval(Z), Z = setInterval(async () => {
-			if (!n(q) || Date.now() > n(q).until) {
-				clearInterval(Z), T(q, null);
+		}, !0), T($, [], !0), clearInterval(ce), ce = setInterval(async () => {
+			if (!n(Q) || Date.now() > n(Q).until) {
+				clearInterval(ce), T(Q, null);
 				return;
 			}
 			try {
 				let e = await I(i.atlas, "downloads", { since: t });
-				e.taken.length && (T(Y, [...n(Y), ...e.taken.map((e) => `${e.name} (${e.preset})`)], !0), i.atlas.toast("Statement taken", e.taken.map((e) => e.name).join(", ") + " → the inbox"), i.onchange());
+				e.taken.length && (T($, [...n($), ...e.taken.map((e) => `${e.name} (${e.preset})`)], !0), i.atlas.toast("Statement taken", e.taken.map((e) => e.name).join(", ") + " → the inbox"), i.onchange());
 			} catch (e) {
-				T(O, e.message, !0), clearInterval(Z), T(q, null);
+				T(L, e.message, !0), clearInterval(ce), T(Q, null);
 			}
 		}, 3e3);
 	}
-	let ie = (e) => e ? Math.round(((/* @__PURE__ */ new Date(`${e}T12:00:00`)).getTime() - Date.now()) / 864e5) : null;
-	var ae = or(), Q = C(ae), oe = W(C(Q), 2);
-	b(oe, 17, () => i.sources, (e) => e.path, (e, r) => {
-		let a = E(() => ie(n(r).until));
+	let ue = (e) => e ? Math.round(((/* @__PURE__ */ new Date(`${e}T12:00:00`)).getTime() - Date.now()) / 864e5) : null;
+	var de = ur(), fe = C(de), pe = W(C(fe), 2);
+	b(pe, 17, () => i.sources, (e) => e.path, (e, r) => {
+		let a = E(() => ue(n(r).until));
 		var o = Yn(), s = C(o), c = C(s, !0), l = W(c), u = d(l);
-		J(s);
+		q(s);
 		var f = W(s, 2);
 		let m;
 		var g = d(f, !0), _ = W(f, 2), b = d(_, !0), x = W(_, 2), w = (e) => {
 			var t = qn();
-			v("click", t, () => B(n(r).bank)), p(e, t);
+			v("click", t, () => te(n(r).bank)), p(e, t);
 		};
 		h(x, (e) => {
 			n(a) !== null && n(a) < 14 && e(w);
@@ -1970,15 +1956,15 @@ function cr(r, i) {
 		};
 		h(O, (e) => {
 			n(r).error && e(k);
-		}), J(o), S((e) => {
+		}), q(o), S((e) => {
 			t(c, n(r).bank), t(u, `· ${n(r).country ?? ""}`), m = y(f, 1, "faint svelte-er8fe7", null, m, { bad: n(a) !== null && n(a) < 14 }), t(g, n(a) === null ? "consent: unknown" : n(a) < 0 ? `consent ended ${n(r).until}` : `consent ${n(a)} days left`), t(b, n(r).synced ? `synced ${n(r).synced}` : "never synced"), t(D, e);
 		}, [() => n(r).accounts.map((e) => `${e.name || "account"} ${e.iban ? `…${e.iban.slice(-4)}` : ""}`).join(" · ")]), v("click", s, () => i.atlas.open(n(r).path)), p(e, o);
 	}, (e) => {
 		var n = Xn(), r = d(n);
-		S((e) => t(r, `No bank connected. Statements dropped into ${e ?? ""}/statements/inbox/ always work (Overview → Statements).`), [() => U(i.atlas)]), p(e, n);
+		S((e) => t(r, `No bank connected. Statements dropped into ${e ?? ""}/statements/inbox/ always work (Overview → Statements).`), [() => H(i.atlas)]), p(e, n);
 	});
-	var se = W(oe, 2), ce = C(se), le = d(ce, !0), $ = W(ce, 2);
-	b($, 20, () => [
+	var me = W(pe, 2), he = C(me), ge = d(he, !0), _e = W(he, 2);
+	b(_e, 20, () => [
 		"ES",
 		"FR",
 		"PT",
@@ -1994,103 +1980,155 @@ function cr(r, i) {
 		S(() => {
 			t(i, n), a !== (a = n) && (r.__value = a);
 		}), p(e, r);
-	}), J($), ne($);
-	var ue = W($, 2), de = d(ue, !0);
-	J(se);
-	var fe = W(se, 2), pe = (e) => {
-		var r = $n(), i = C(r), a = C(i), o = W(a), c = (e) => {
-			var t = Qn(), r = W(s(t));
-			M(), S(() => D(r, "href", n(z))), p(e, t);
+	}), q(_e), re(_e);
+	var ve = W(_e, 2), ye = d(ve, !0);
+	q(me);
+	var be = W(me, 2), xe = (e) => {
+		var r = tr(), i = W(C(r), 2);
+		P(i);
+		var a = W(i, 2);
+		b(a, 21, () => n(O), (e) => e.name, (e, r) => {
+			var i = $n(), a = C(i), o = d(a, !0), s = W(a), c = (e) => {
+				var i = Qn(), a = d(i);
+				S(() => t(a, `consent up to ${n(r).days ?? ""} days`)), p(e, i);
+			};
+			h(s, (e) => {
+				n(r).days && e(c);
+			}), q(i), S(() => t(o, n(r).name)), v("click", i, () => te(n(r).name)), p(e, i);
+		}, (e) => {
+			var t = er();
+			p(e, t);
+		}), q(a);
+		var o = W(a, 2);
+		q(r), S(() => D(i, "placeholder", `${n(m).length} banks in ${n(f)}: type to narrow`)), F(i, () => n(x), (e) => T(x, e)), v("click", o, () => T(g, !1)), p(e, r);
+	};
+	h(be, (e) => {
+		n(g) && e(xe);
+	});
+	var Se = W(be, 2), Ce = (e) => {
+		var r = rr(), i = W(C(r), 2), o = C(i), s = W(o), c = (e) => {
+			var t = l();
+			t.nodeValue = " These accounts name no ledger account yet: which is each?", p(e, t);
+		};
+		h(s, (e) => {
+			n(J).length && e(c);
+		}), q(i);
+		var u = W(i, 2);
+		b(u, 17, () => n(J), (e) => e.uid, (e, r) => {
+			var i = nr(), o = C(i), s = d(o, !0), c = W(o, 2), l = C(c);
+			l.value = l.__value = "";
+			var u = W(l);
+			b(u, 16, a, (e) => e, (e, n) => {
+				var r = Zn(), i = d(r, !0), a = {};
+				S(() => {
+					t(i, n), a !== (a = n) && (r.value = (r.__value = a) ?? "");
+				}), p(e, r);
+			}), q(c), re(c), q(i), S((e, n) => {
+				t(s, e), D(c, "aria-label", n);
+			}, [() => Z(n(r)), () => `Ledger account for ${Z(n(r))}`]), Y(c, () => n(X)[n(r).uid], (e) => n(X)[n(r).uid] = e), p(e, i);
+		});
+		var f = W(u, 2);
+		q(r), S(() => {
+			t(o, `Connected ${n(K) ?? ""}.`), f.disabled = n(j) === "link";
+		}), v("click", f, ie), p(e, r);
+	};
+	h(Se, (e) => {
+		n(K) && e(Ce);
+	});
+	var we = W(Se, 2), Te = (e) => {
+		var r = ar(), i = W(C(r), 2), a = C(i), o = W(a), c = (e) => {
+			var t = ir(), r = W(s(t));
+			M(), S(() => D(r, "href", n(U))), p(e, t);
 		};
 		h(o, (e) => {
-			n(z) && e(c);
-		}), M(), J(i);
+			n(U) && e(c);
+		}), M(), q(i);
 		var l = W(i, 2);
 		P(l);
 		var u = W(l, 2);
-		J(r), S((e) => {
-			t(a, `Opened ${n(m).bank ?? ""}'s consent page`), D(l, "placeholder", `${n(A)}?code=…`), u.disabled = e;
-		}, [() => !n(g).trim() || !!n(x)]), v("keydown", l, (e) => e.key === "Enter" && V()), F(l, () => n(g), (e) => T(g, e)), v("click", u, V), p(e, r);
+		q(r), S((e) => {
+			t(a, `Opened ${n(k).bank ?? ""}'s consent page`), D(l, "placeholder", `${n(z)}?code=…`), u.disabled = e;
+		}, [() => !n(A).trim() || !!n(j)]), v("keydown", l, (e) => e.key === "Enter" && G()), F(l, () => n(A), (e) => T(A, e)), v("click", u, G), p(e, r);
 	};
-	h(fe, (e) => {
-		n(m) && e(pe);
+	h(we, (e) => {
+		n(k) && e(Te);
 	});
-	var me = W(fe, 2), he = (e) => {
+	var Ee = W(we, 2), De = (e) => {
 		var r = Jn(), i = d(r, !0);
-		S(() => t(i, n(O))), p(e, r);
+		S(() => t(i, n(L))), p(e, r);
 	};
-	h(me, (e) => {
-		n(O) && e(he);
-	}), J(Q);
-	var ge = W(Q, 2), _e = (e) => {
-		var r = ir(), i = C(r), a = W(C(i)), o = d(a);
-		J(i);
+	h(Ee, (e) => {
+		n(L) && e(De);
+	}), q(fe);
+	var Oe = W(fe, 2), ke = (e) => {
+		var r = cr(), i = C(r), a = W(C(i)), o = d(a);
+		q(i);
 		var s = W(i, 2);
-		b(s, 21, () => n(G), (e) => e.url, (e, r) => {
-			var i = tr(), a = C(i), o = d(a, !0), s = W(a), c = (e) => {
-				var i = er(), a = d(i, !0);
+		b(s, 21, () => n(oe), (e) => e.url, (e, r) => {
+			var i = $n(), a = C(i), o = d(a, !0), s = W(a), c = (e) => {
+				var i = Qn(), a = d(i, !0);
 				S(() => t(a, n(r).hint)), p(e, i);
 			};
 			h(s, (e) => {
 				n(r).hint && e(c);
-			}), J(i), S(() => {
+			}), q(i), S(() => {
 				D(i, "title", n(r).url), t(o, n(r).name);
-			}), v("click", i, () => re(n(r))), p(e, i);
-		}), J(s);
+			}), v("click", i, () => le(n(r))), p(e, i);
+		}), q(s);
 		var c = W(s, 2), l = (e) => {
-			var r = nr(), i = C(r), a = W(i);
-			J(r), S(() => t(i, `Watching the downloads for ${n(q).name ?? ""}… `)), v("click", a, () => {
-				clearInterval(Z), T(q, null);
+			var r = or(), i = C(r), a = W(i);
+			q(r), S(() => t(i, `Watching the downloads for ${n(Q).name ?? ""}… `)), v("click", a, () => {
+				clearInterval(ce), T(Q, null);
 			}), p(e, r);
 		};
 		h(c, (e) => {
-			n(q) && e(l);
+			n(Q) && e(l);
 		});
 		var u = W(c, 2), f = (e) => {
-			var r = rr(), i = d(r);
-			S((e) => t(i, `Taken: ${e ?? ""}. Import them in Overview → Statements.`), [() => n(Y).join(", ")]), p(e, r);
+			var r = sr(), i = d(r);
+			S((e) => t(i, `Taken: ${e ?? ""}. Import them in Overview → Statements.`), [() => n($).join(", ")]), p(e, r);
 		};
 		h(u, (e) => {
-			n(Y).length && e(f);
-		}), J(r), S(() => t(o, `download as usual: what lands in ${n(K) ?? ""} and reads as a statement goes to the inbox`)), p(e, r);
+			n($).length && e(f);
+		}), q(r), S(() => t(o, `download as usual: what lands in ${n(se) ?? ""} and reads as a statement goes to the inbox`)), p(e, r);
 	};
-	h(ge, (e) => {
-		n(K) && e(_e);
+	h(Oe, (e) => {
+		n(se) && e(ke);
 	});
-	var ve = W(ge, 2), ye = W(C(ve), 2), be = C(ye);
-	let xe;
-	var Se = W(C(be), 3), Ce = W(Se), we = (e) => {
-		var r = ar(), i = W(s(r)), a = d(i, !0);
-		S(() => t(a, n(k))), p(e, r);
+	var Ae = W(Oe, 2), je = W(C(Ae), 2), Me = C(je);
+	let Ne;
+	var Pe = W(C(Me), 3), Fe = W(Pe), Ie = (e) => {
+		var r = lr(), i = W(s(r)), a = d(i, !0);
+		S(() => t(a, n(R))), p(e, r);
 	};
-	h(Ce, (e) => {
-		n(k) && e(we);
-	}), M(), J(be);
-	var Te = W(be, 2);
-	let Ee;
-	var De = W(C(Te)), Oe = (e) => {
-		var r = ar(), i = W(s(r)), a = d(i, !0);
-		S(() => t(a, n(A))), p(e, r);
+	h(Fe, (e) => {
+		n(R) && e(Ie);
+	}), M(), q(Me);
+	var Le = W(Me, 2);
+	let Re;
+	var ze = W(C(Le)), Be = (e) => {
+		var r = lr(), i = W(s(r)), a = d(i, !0);
+		S(() => t(a, n(z))), p(e, r);
 	};
-	h(De, (e) => {
-		n(A) && e(Oe);
-	}), M(), J(Te);
-	var ke = W(Te, 2);
-	let Ae;
-	var je = W(C(ke)), Me = d(je, !0);
-	M(2), J(ke), J(ye), M(2), J(ve), J(ae), S(() => {
-		ce.disabled = !!n(x) || !n(o) || !n(k) || !n(A), t(le, n(x) === "list" || n(x) === "connect" ? "Asking…" : "Connect a bank"), ue.disabled = !!n(x) || !i.sources.length, t(de, n(x) === "sync" ? "Syncing…" : "Sync now"), xe = y(be, 1, "svelte-er8fe7", null, xe, { done: !!n(k) }), Ee = y(Te, 1, "svelte-er8fe7", null, Ee, { done: !!n(A) }), Ae = y(ke, 1, "svelte-er8fe7", null, Ae, { done: !!n(o) }), t(Me, n(o) ? "Replace the key" : "Choose the key file");
-	}), v("click", ce, R), X($, () => n(l), (e) => T(l, e)), v("click", ue, ee), v("click", Se, () => i.atlas.plugin.openSettings()), v("click", je, L), p(r, ae), _();
+	h(ze, (e) => {
+		n(z) && e(Be);
+	}), M(), q(Le);
+	var Ve = W(Le, 2);
+	let He;
+	var Ue = W(C(Ve)), We = d(Ue, !0);
+	M(2), q(Ve), q(je), M(2), q(Ae), q(de), S(() => {
+		he.disabled = !!n(j) || !n(o) || !n(R) || !n(z), t(ge, n(j) === "list" || n(j) === "connect" ? "Asking…" : "Connect a bank"), ve.disabled = !!n(j) || !i.sources.length, t(ye, n(j) === "sync" ? "Syncing…" : "Sync now"), Ne = y(Me, 1, "svelte-er8fe7", null, Ne, { done: !!n(R) }), Re = y(Le, 1, "svelte-er8fe7", null, Re, { done: !!n(z) }), He = y(Ve, 1, "svelte-er8fe7", null, He, { done: !!n(o) }), t(We, n(o) ? "Replace the key" : "Choose the key file");
+	}), v("click", he, ee), Y(_e, () => n(f), (e) => T(f, e)), v("click", ve, ae), v("click", Pe, () => i.atlas.plugin.openSettings()), v("click", Ue, V), p(r, de), _();
 }
 f(["click", "keydown"]);
 //#endregion
 //#region plugins/beta/finance/ui/src/App.svelte
-var lr = g("<span class=\"badge svelte-1oymcr8\"> </span>"), ur = g("<button> <!></button>"), dr = g("<div class=\"atlas-notice error\"> <div class=\"actions\"><button class=\"atlas-btn\">Try again</button><button class=\"atlas-btn\">Settings…</button></div></div>"), fr = g("<div class=\"atlas-empty\">Reading the journal…</div>"), pr = g("<button> <span class=\"faint svelte-1oymcr8\"> </span></button>"), mr = g("<h3 class=\"svelte-1oymcr8\"> <button class=\"link svelte-1oymcr8\">as transactions</button></h3> <!>", 1), hr = g("<div class=\"atlas-empty\">Choose an account or a category: its postings with the running balance, newest first; a row opens the transaction.</div>"), gr = g("<div class=\"split svelte-1oymcr8\"><aside class=\"svelte-1oymcr8\"><h3 class=\"svelte-1oymcr8\">Accounts</h3> <!> <h3 class=\"svelte-1oymcr8\">Categories</h3> <!></aside> <main><!></main></div>"), _r = g("<div><header class=\"top svelte-1oymcr8\"><nav aria-label=\"Finance\" class=\"svelte-1oymcr8\"></nav> <button class=\"atlas-btn\">Settings…</button></header> <!></div>"), vr = {
+var pr = g("<span class=\"badge svelte-1oymcr8\"> </span>"), mr = g("<button> <!></button>"), hr = g("<div class=\"atlas-notice error\"> <div class=\"actions\"><button class=\"atlas-btn\">Try again</button><button class=\"atlas-btn\">Settings…</button></div></div>"), gr = g("<div class=\"atlas-empty\">Reading the journal…</div>"), _r = g("<button> <span class=\"faint svelte-1oymcr8\"> </span></button>"), vr = g("<h3 class=\"svelte-1oymcr8\"> <button class=\"link svelte-1oymcr8\">as transactions</button></h3> <!>", 1), yr = g("<div class=\"atlas-empty\">Choose an account or a category: its postings with the running balance, newest first; a row opens the transaction.</div>"), br = g("<div class=\"split svelte-1oymcr8\"><aside class=\"svelte-1oymcr8\"><h3 class=\"svelte-1oymcr8\">Accounts</h3> <!> <h3 class=\"svelte-1oymcr8\">Categories</h3> <!></aside> <main><!></main></div>"), xr = g("<div><header class=\"top svelte-1oymcr8\"><nav aria-label=\"Finance\" class=\"svelte-1oymcr8\"></nav> <button class=\"atlas-btn\">Settings…</button></header> <!></div>"), Sr = {
 	hash: "svelte-1oymcr8",
 	code: "\n  /* The categorical slots (dataviz reference palette, validated on --bg-elev in both themes) and the two flow ends. */.finance.svelte-1oymcr8 {--fin-c1: #3987e5;--fin-c2: #d95926;--fin-c3: #199e70;--fin-c4: #c98500;--fin-c5: #d55181;--fin-c6: #008300;--fin-c7: #9085e9;--fin-c8: #e66767;--fin-other: #6b7280;--fin-income: #3f8f6a;--fin-saved: #7d8590;}[data-theme=\"light\"] .finance.svelte-1oymcr8 {--fin-c1: #2a78d6;--fin-c2: #eb6834;--fin-c3: #1baf7a;--fin-c4: #eda100;--fin-c5: #e87ba4;--fin-c6: #008300;--fin-c7: #6250d6;--fin-c8: #e34948;--fin-other: #9ca3af;--fin-income: #2f9e5c;--fin-saved: #8c939f;}.finance.svelte-1oymcr8 {padding:14px 18px 28px;color:var(--text);font-size:calc(14px * var(--ui-scale, 1));container-type:inline-size;box-sizing:border-box;}.finance.full.svelte-1oymcr8 {height:100%;display:flex;flex-direction:column;padding-bottom:0;}.finance.full.svelte-1oymcr8 > :last-child {flex:1;min-height:0;}.top.svelte-1oymcr8 {display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:16px;flex-wrap:wrap;}nav.svelte-1oymcr8 {display:flex;gap:2px;background:var(--bg-hover);padding:3px;border-radius:var(--radius);flex-wrap:wrap;}nav.svelte-1oymcr8 button:where(.svelte-1oymcr8) {all:unset;cursor:pointer;padding:5px 12px;border-radius:var(--radius-sm);color:var(--text-muted);display:flex;gap:6px;align-items:center;min-height:24px;}nav.svelte-1oymcr8 button:where(.svelte-1oymcr8):hover {color:var(--text);}nav.svelte-1oymcr8 button.on:where(.svelte-1oymcr8) {background:var(--bg);color:var(--text);box-shadow:var(--shadow-sm);font-weight:500;}nav.svelte-1oymcr8 button:where(.svelte-1oymcr8):focus-visible {outline:2px solid var(--accent);outline-offset:-2px;}.badge.svelte-1oymcr8 {font-size:0.8em;padding:0 6px;border-radius:999px;background:var(--yellow);color:var(--bg);font-weight:600;}h3.svelte-1oymcr8 {margin:0 0 10px;font-size:0.78em;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-muted);font-weight:600;display:flex;gap:10px;align-items:baseline;}.faint.svelte-1oymcr8 {color:var(--text-faint);font-weight:400;text-transform:none;letter-spacing:0;}.link.svelte-1oymcr8 {all:unset;cursor:pointer;color:var(--accent);text-transform:none;letter-spacing:0;font-weight:400;}.split.svelte-1oymcr8 {display:grid;grid-template-columns:minmax(220px, 300px) minmax(0, 1fr);gap:18px;align-items:start;max-width:1180px;}aside.svelte-1oymcr8 {position:sticky;top:0;display:grid;gap:4px;}aside.svelte-1oymcr8 h3:where(.svelte-1oymcr8):not(:first-child) {margin-top:14px;}.cat.svelte-1oymcr8 {all:unset;cursor:pointer;display:flex;justify-content:space-between;padding:4px 8px;border-radius:var(--radius-sm);color:var(--text-muted);}.cat.svelte-1oymcr8:hover, .cat.on.svelte-1oymcr8 {background:var(--bg-hover);color:var(--text);}\n  @container (max-width: 700px) {.split.svelte-1oymcr8 {grid-template-columns:minmax(0, 1fr);}aside.svelte-1oymcr8 {position:static;} }"
 };
-function yr(r, i) {
-	e(i, !0), te(r, vr);
+function Cr(r, i) {
+	e(i, !0), ne(r, Sr);
 	let a = [
 		["overview", "Overview"],
 		["transactions", "Transactions"],
@@ -2100,14 +2138,14 @@ function yr(r, i) {
 		["review", "Review"],
 		["invest", "Investments"],
 		["sources", "Sources"]
-	], o = () => i.atlas.arg, l = w(u(a.find(([e]) => e === o())?.[0] ?? "overview")), f = w(null), m = w(u([])), g = w(""), k = w(u([])), A = w(""), j = w(u([])), M = w(""), N = w(null), P = w(void 0), F = w(void 0), L = E(() => O(i.atlas)), R = E(() => n(m)[0]?.date.slice(0, 7) ?? pe(/* @__PURE__ */ new Date())), z = E(() => he(n(R))), B = w(null), q = E(() => n(B) ?? n(z)[3]), Y = E(() => [..._e(n(m), "Expenses")].sort((e, t) => t[1] - e[1]).slice(0, 8).map(([e]) => e)), X = (e) => {
-		let t = n(Y).indexOf(ae(e));
+	], o = () => i.atlas.arg, l = w(u(a.find(([e]) => e === o())?.[0] ?? "overview")), f = w(null), m = w(u([])), g = w(""), k = w(u([])), A = w(""), j = w(u([])), M = w(""), N = w(null), P = w(void 0), F = w(void 0), L = E(() => O(i.atlas)), R = E(() => n(m)[0]?.date.slice(0, 7) ?? pe(/* @__PURE__ */ new Date())), z = E(() => he(n(R))), B = w(null), K = E(() => n(B) ?? n(z)[3]), J = E(() => [..._e(n(m), "Expenses")].sort((e, t) => t[1] - e[1]).slice(0, 8).map(([e]) => e)), Y = (e) => {
+		let t = n(J).indexOf(ae(e));
 		return t < 0 ? "var(--fin-other)" : `var(--fin-c${t + 1})`;
 	};
-	async function Z() {
+	async function X() {
 		try {
 			let [e, t] = await Promise.all([I(i.atlas, "summary"), I(i.atlas, "transactions")]);
-			if (T(f, e, !0), T(m, t.transactions, !0), T(g, ""), T(k, e.errors + e.warnings ? (await I(i.atlas, "check")).diagnostics : [], !0), n(A) && await ne(n(A), !1), n(N) && n(N) !== "new") {
+			if (T(f, e, !0), T(m, t.transactions, !0), T(g, ""), T(k, e.errors + e.warnings ? (await I(i.atlas, "check")).diagnostics : [], !0), n(A) && await re(n(A), !1), n(N) && n(N) !== "new") {
 				let e = n(N);
 				T(N, n(m).find((t) => t.path === e.path && t.line === e.line && t.text === e.text) ?? null, !0);
 			}
@@ -2115,20 +2153,20 @@ function yr(r, i) {
 			T(g, e.message, !0);
 		}
 	}
-	async function ne(e, t = !0) {
+	async function re(e, t = !0) {
 		T(A, e, !0), t && T(l, "accounts"), T(j, (await I(i.atlas, "register", { account: e })).rows, !0);
 	}
 	function ie(e) {
 		T(M, e, !0), T(N, null), T(l, "transactions");
 	}
-	function Q(e, t) {
+	function oe(e, t) {
 		let r = n(m).find((n) => n.path === e && n.line === t);
 		r ? (T(N, r, !0), T(l, "transactions")) : i.atlas.open(e, t);
 	}
-	Z();
-	let oe, se = (e) => !!e && e.startsWith(`${U(i.atlas)}/`), ce = () => {
-		clearTimeout(oe), oe = setTimeout(() => {
-			Z(), n(P)?.load(), n(F)?.load();
+	X();
+	let se, Q = (e) => !!e && e.startsWith(`${H(i.atlas)}/`), $ = () => {
+		clearTimeout(se), se = setTimeout(() => {
+			X(), n(P)?.load(), n(F)?.load();
 		}, 300);
 	};
 	c(() => {
@@ -2137,21 +2175,21 @@ function yr(r, i) {
 			"file:create",
 			"file:delete"
 		].map((e) => i.atlas.on(e, (e) => {
-			se(e.path) && ce();
+			Q(e.path) && $();
 		}));
 		return e.push(i.atlas.on("file:rename", (e) => {
 			let t = e;
-			(se(t.from) || se(t.to)) && ce();
+			(Q(t.from) || Q(t.to)) && $();
 		})), () => {
-			clearTimeout(oe), e.forEach((e) => e());
+			clearTimeout(se), e.forEach((e) => e());
 		};
 	}), c(() => {
 		if (n(l) !== "accounts" || n(A) || !n(f)) return;
 		let e = n(f).accounts.find((e) => !e.closed && Object.keys(e.balances).length);
-		e && ne(e.account, !1);
+		e && re(e.account, !1);
 	});
-	let le = E(() => (n(f)?.known ?? []).filter((e) => /^(Expenses|Income):[^:]+$/.test(e)));
-	function $(e) {
+	let ce = E(() => (n(f)?.known ?? []).filter((e) => /^(Expenses|Income):[^:]+$/.test(e)));
+	function le(e) {
 		if (e.ctrlKey || e.metaKey || e.altKey || e.target.closest("input, textarea, select, [role=dialog]")) return;
 		let t = [
 			"1",
@@ -2165,35 +2203,35 @@ function yr(r, i) {
 		].indexOf(e.key);
 		t >= 0 && (T(l, a[t][0], !0), e.preventDefault());
 	}
-	var ue = _r();
-	re("keydown", x, $);
+	var ue = xr();
+	Z("keydown", x, le);
 	let de;
 	var fe = C(ue), me = C(fe);
 	b(me, 23, () => a, ([e, t]) => e, (e, r, i) => {
-		var a = E(() => H(n(r), 2));
+		var a = E(() => ee(n(r), 2));
 		let o = () => n(a)[0], s = () => n(a)[1];
-		var c = ur();
+		var c = mr();
 		let u;
 		var m = C(c, !0), g = W(m), _ = (e) => {
-			var r = lr(), i = d(r, !0);
+			var r = pr(), i = d(r, !0);
 			S(() => t(i, n(f).review)), p(e, r);
 		};
 		h(g, (e) => {
 			o() === "review" && n(f)?.review && e(_);
-		}), J(c), S(() => {
+		}), q(c), S(() => {
 			D(c, "aria-current", n(l) === o() ? "page" : void 0), D(c, "title", `key ${n(i) + 1}`), u = y(c, 1, "svelte-1oymcr8", null, u, { on: n(l) === o() }), t(m, s());
 		}), v("click", c, () => T(l, o(), !0)), p(e, c);
-	}), J(me);
+	}), q(me);
 	var ge = W(me, 2);
-	J(fe);
+	q(fe);
 	var ve = W(fe, 2), ye = (e) => {
-		var r = dr(), a = C(r, !0), o = W(a), s = C(o), c = W(s);
-		J(o), J(r), S(() => t(a, n(g))), v("click", s, Z), v("click", c, () => i.atlas.plugin.openSettings()), p(e, r);
+		var r = hr(), a = C(r, !0), o = W(a), s = C(o), c = W(s);
+		q(o), q(r), S(() => t(a, n(g))), v("click", s, X), v("click", c, () => i.atlas.plugin.openSettings()), p(e, r);
 	}, be = (e) => {
-		var t = fr();
+		var t = gr();
 		p(e, t);
 	}, xe = (e) => {
-		var t = () => n(q), r = (e) => T(B, e, !0);
+		var t = () => n(K), r = (e) => T(B, e, !0);
 		yt(e, {
 			get atlas() {
 				return i.atlas;
@@ -2219,11 +2257,11 @@ function yr(r, i) {
 			get periods() {
 				return n(z);
 			},
-			color: X,
+			color: Y,
 			onshow: ie,
 			ontab: (e) => T(l, e, !0),
-			onaccount: (e) => ne(e),
-			onchange: Z
+			onaccount: (e) => re(e),
+			onchange: X
 		});
 	}, Se = (e) => {
 		Ht(e, {
@@ -2239,7 +2277,7 @@ function yr(r, i) {
 			get cur() {
 				return n(L);
 			},
-			onchange: Z,
+			onchange: X,
 			get query() {
 				return n(M);
 			},
@@ -2254,7 +2292,7 @@ function yr(r, i) {
 			}
 		});
 	}, Ce = (e) => {
-		var t = () => n(q), r = (e) => T(B, e, !0);
+		var t = () => n(K), r = (e) => T(B, e, !0);
 		cn(e, {
 			get rows() {
 				return n(m);
@@ -2271,32 +2309,32 @@ function yr(r, i) {
 			get periods() {
 				return n(z);
 			},
-			color: X,
+			color: Y,
 			onshow: ie
 		});
 	}, we = (e) => {
-		var r = gr(), i = C(r), a = W(C(i), 2);
-		G(a, {
+		var r = br(), i = C(r), a = W(C(i), 2);
+		te(a, {
 			get accounts() {
 				return n(f).accounts;
 			},
 			get cur() {
 				return n(L);
 			},
-			onpick: (e) => ne(e.account)
+			onpick: (e) => re(e.account)
 		});
 		var o = W(a, 4);
-		b(o, 16, () => n(le), (e) => e, (e, r) => {
-			var i = pr();
+		b(o, 16, () => n(ce), (e) => e, (e, r) => {
+			var i = _r();
 			let a;
 			var o = C(i, !0), s = W(o), c = d(s, !0);
-			J(i), S((e, s) => {
+			q(i), S((e, s) => {
 				a = y(i, 1, "cat svelte-1oymcr8", null, a, { on: n(A) === r }), t(o, e), t(c, s);
-			}, [() => K(r), () => r.split(":")[0]]), v("click", i, () => ne(r)), p(e, i);
-		}), J(i);
+			}, [() => G(r), () => r.split(":")[0]]), v("click", i, () => re(r)), p(e, i);
+		}), q(i);
 		var c = W(i, 2), l = C(c), u = (e) => {
-			var r = mr(), i = s(r), a = C(i), o = W(a);
-			J(i);
+			var r = vr(), i = s(r), a = C(i), o = W(a);
+			q(i);
 			var c = W(i, 2);
 			V(c, {
 				get rows() {
@@ -2305,15 +2343,15 @@ function yr(r, i) {
 				get account() {
 					return n(A);
 				},
-				onopen: (e) => Q(e.path, e.line)
+				onopen: (e) => oe(e.path, e.line)
 			}), S(() => t(a, `${n(A) ?? ""} `)), v("click", o, () => ie(n(A).toLowerCase())), p(e, r);
 		}, m = (e) => {
-			var t = hr();
+			var t = yr();
 			p(e, t);
 		};
 		h(l, (e) => {
 			n(A) ? e(u) : e(m, -1);
-		}), J(c), J(r), p(e, r);
+		}), q(c), q(r), p(e, r);
 	}, Te = (e) => {
 		jn(e, {
 			get atlas() {
@@ -2325,20 +2363,20 @@ function yr(r, i) {
 			get cur() {
 				return n(L);
 			},
-			onchange: Z
+			onchange: X
 		});
 	}, Ee = (e) => {
-		ee(wn(e, {
+		U(wn(e, {
 			get atlas() {
 				return i.atlas;
 			},
 			get known() {
 				return n(f).known;
 			},
-			onchange: Z
+			onchange: X
 		}), (e) => T(P, e, !0), () => n(P));
 	}, De = (e) => {
-		ee(Kn(e, {
+		U(Kn(e, {
 			get atlas() {
 				return i.atlas;
 			},
@@ -2349,7 +2387,7 @@ function yr(r, i) {
 	}, Oe = (e) => {
 		{
 			let t = E(() => n(f).known.filter((e) => e.startsWith("Assets:")));
-			cr(e, {
+			fr(e, {
 				get atlas() {
 					return i.atlas;
 				},
@@ -2359,23 +2397,23 @@ function yr(r, i) {
 				get assets() {
 					return n(t);
 				},
-				onchange: Z
+				onchange: X
 			});
 		}
 	};
 	h(ve, (e) => {
 		n(g) ? e(ye) : n(f) ? n(l) === "overview" ? e(xe, 2) : n(l) === "transactions" ? e(Se, 3) : n(l) === "spending" ? e(Ce, 4) : n(l) === "accounts" ? e(we, 5) : n(l) === "budget" ? e(Te, 6) : n(l) === "review" ? e(Ee, 7) : n(l) === "invest" ? e(De, 8) : e(Oe, -1) : e(be, 1);
-	}), J(ue), S(() => de = y(ue, 1, "finance svelte-1oymcr8", null, de, { full: n(l) === "transactions" })), v("click", ge, () => i.atlas.plugin.openSettings()), p(r, ue), _();
+	}), q(ue), S(() => de = y(ue, 1, "finance svelte-1oymcr8", null, de, { full: n(l) === "transactions" })), v("click", ge, () => i.atlas.plugin.openSettings()), p(r, ue), _();
 }
 f(["click"]);
 //#endregion
 //#region plugins/beta/finance/ui/src/view.ts
-function br(e, t) {
-	let n = R(yr, {
+function wr(e, t) {
+	let n = R(Cr, {
 		target: e,
 		props: { atlas: t }
 	});
 	return () => L(n);
 }
 //#endregion
-export { br as default };
+export { wr as default };

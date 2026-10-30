@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { openFile } from "./open";
 
 // Obsidian Tasks' "Create or
 // edit task" dialog on any note's line: a plain line becomes a task, a task's fields are edited in place.
@@ -9,10 +10,7 @@ test("the task dialog edits a task's fields in a plain note, and makes a task of
   await request.put("/api/file", { headers: H, data: { path: "notes/task-dialog.md", text: "# Plain\n\n<!-- atlas:no-tasks -->\n- [ ] pay rent ⏫ 📅 2026-11-01 #home\nwater the plants\n" } });
   await page.goto("/");
   await page.getByText("Finish the GW notes.").waitFor();
-  await page.keyboard.press("Control+p");
-  await page.keyboard.type("task-dialog.md");
-  await expect(page.getByTestId("palette").getByText("task-dialog", { exact: true }).first()).toBeVisible();
-  await page.keyboard.press("Enter");
+  await openFile(page, "task-dialog.md");
   const text = () => page.evaluate(() => (window as any).__atlas.editor().text as string);
 
   // an existing task: its fields are in the form

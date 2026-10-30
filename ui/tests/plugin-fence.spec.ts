@@ -1,4 +1,5 @@
 import { test, expect, type APIRequestContext } from "@playwright/test";
+import { openFile } from "./open";
 
 // Plugins v4, editor hooks (docs/refactor/REFACTOR-plugins-v4.md, 3.1): `atlas.editor.registerFence(name, render)`.
 // A ```statblock fence is drawn by the plugin in live preview; without the plugin it is the code block
@@ -24,10 +25,7 @@ test.afterAll(async ({ request }) => { await put(request, ".atlas/plugins/ttrpg/
 test("a plugin draws a fenced block; other fences stay code; it follows the plugin's edits", async ({ page, request }) => {
   await page.goto("/");
   await page.getByText("Finish the GW notes.").waitFor();
-  await page.keyboard.press("Control+p");
-  await page.keyboard.type("goblin.md");
-  await expect(page.getByTestId("palette").getByText("goblin", { exact: true }).first()).toBeVisible();
-  await page.keyboard.press("Enter");
+  await openFile(page, "goblin.md");
   const note = page.locator(".cm-content");
   // no plugin code yet: the fence is a code block like any other
   await expect(note.locator("pre.hljs", { hasText: "hp: 7" })).toBeVisible();

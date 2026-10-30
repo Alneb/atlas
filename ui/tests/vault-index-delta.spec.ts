@@ -1,4 +1,5 @@
 import { test, expect, type APIRequestContext } from "@playwright/test";
+import { openFile } from "./open";
 
 // The page's list of every file (lib/vault.ts, what links resolve against) follows file events without fetching the
 // whole list again: a new file or folder is asked for alone (`/api/files?under=`), a removal drops what was under it.
@@ -11,10 +12,7 @@ test("a new file, a new folder and a removal reach the links without listing the
   await request.put("/api/file", { headers: H, data: { path: "Delta.page", text: "title: Delta\nrows:\n  - [{note: notes/delta-host.md}]\n" } });
   await page.goto("/");
   await page.getByText("Finish the GW notes.").waitFor();
-  await page.keyboard.press("Control+p");
-  await page.keyboard.type("Delta.page");
-  await expect(page.getByTestId("palette").getByText("Delta", { exact: true }).first()).toBeVisible();
-  await page.keyboard.press("Enter");
+  await openFile(page, "Delta.page");
   const unresolved = page.locator(".internal-link.is-unresolved", { hasText: /delta-/ });
   await expect(unresolved).toHaveCount(2);
 

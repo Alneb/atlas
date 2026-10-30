@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { openFile } from "./open";
 import { shownName } from "../src/lib/paths";
 
 // "ctrl + + magnifies everything not just one of the tabs": Ctrl++ / Ctrl+- / Ctrl+0 zoom the tab
@@ -10,10 +11,7 @@ test("Ctrl++ zooms the tab it is pressed in, not the others; Ctrl+0 puts it back
   await page.goto("/");
   await page.getByText("Finish the GW notes.").waitFor();
   for (const name of ["journal.md", "paste.md"]) {
-    await page.keyboard.press("Control+p");
-    await page.keyboard.type(name);
-    await expect(page.getByTestId("palette").getByText(shownName(name), { exact: true }).first()).toBeVisible();
-    await page.keyboard.press("Enter");
+    await openFile(page, name);
     await expect(page.getByTestId("sidebar").locator(".tab", { hasText: shownName(name) })).toHaveCount(1);
     await page.waitForTimeout(300);
   }
@@ -57,10 +55,7 @@ test("Ctrl+Alt++ and Ctrl+Alt+- zoom everything, Ctrl+Alt+0 resets", async ({ pa
 test("zoom glides: the size lands after a picture-scale, and Ctrl+wheel zooms the pane under the pointer", async ({ page }) => {
   await page.goto("/");
   await page.getByText("Finish the GW notes.").waitFor();
-  await page.keyboard.press("Control+p");
-  await page.keyboard.type("journal.md");
-  await expect(page.getByTestId("palette").getByText("journal", { exact: true }).first()).toBeVisible();
-  await page.keyboard.press("Enter");
+  await openFile(page, "journal.md");
   const content = page.locator(".cm-content:visible").first();
   await expect(content).toBeVisible();
   const size = () => content.evaluate((el) => parseFloat(getComputedStyle(el).fontSize));

@@ -24,7 +24,7 @@ mod desktop;
 #[derive(RustEmbed)]
 #[folder = "../../ui/dist"]
 // on a phone, not Excalidraw's Chinese handwriting font (12.8 MB of the 35 MB bundle; a drawing's CJK text falls back
-// to a system font there) — the user chose it to make the APK smaller (2026-10-16)
+// to a system font there) — left out to make the APK smaller
 #[cfg_attr(target_os = "android", exclude = "excalidraw/fonts/Xiaolai/*")]
 struct Dist;
 
@@ -313,6 +313,7 @@ async fn plugin_settings_put(State(st): S, UrlPath(id): UrlPath<String>, Json(va
     for (key, from, to) in renamed {
         st.bus.publish(Event::Plugin { plugin: plugin.clone(), event: "settings:renamed".into(), data: serde_json::json!({ "key": key, "from": from, "to": to }) });
     }
+    crate::capture_hooks::started(st.ws.clone(), st.bus.clone(), st.helpers.clone(), Some(plugin));
     Ok(())
 }
 
@@ -430,12 +431,16 @@ async fn plugins_available_get(State(st): S) -> Result<Json<Vec<crate::plugin_in
 
 /// Copies a plugin into the vault (a folder, a git address or an archive); it arrives switched off.
 async fn plugin_install_post(State(st): S, Json(req): Json<PluginFrom>) -> Result<Json<crate::plugin_install::Installed>> {
-    Ok(Json(with_ws(&st, move |ws| crate::plugin_install::install(ws.root(), &crate::plugin_install::Source::parse(&req.from), req.id.as_deref(), false)).await?))
+    let got = with_ws(&st, move |ws| crate::plugin_install::install(ws.root(), &crate::plugin_install::Source::parse(&req.from), req.id.as_deref(), false)).await?;
+    crate::capture_hooks::started(st.ws.clone(), st.bus.clone(), st.helpers.clone(), Some(got.id.clone()));
+    Ok(Json(got))
 }
 
 async fn plugin_update_post(State(st): S, UrlPath(id): UrlPath<String>) -> Result<Json<crate::plugin_install::Installed>> {
     st.helpers.stop(&id); // its program is replaced with the rest
-    Ok(Json(with_ws(&st, move |ws| crate::plugin_install::update(ws.root(), &id)).await?))
+    let got = with_ws(&st, move |ws| crate::plugin_install::update(ws.root(), &id)).await?;
+    crate::capture_hooks::started(st.ws.clone(), st.bus.clone(), st.helpers.clone(), Some(got.id.clone()));
+    Ok(Json(got))
 }
 
 /// To the vault's trash; the answer says where.

@@ -41,10 +41,7 @@ test("a plugin reads the shared context, queries notes and writes a property", a
   await page.keyboard.press("Control+Alt+y");
   const pane = page.locator(".ctx");
   await expect(pane.locator(".n")).toHaveText("2");
-  await page.keyboard.press("Control+p");
-  await page.keyboard.type("hov-b.md");
-  await expect(page.getByTestId("palette").getByText("hov-b", { exact: true }).first()).toBeVisible();
-  await page.keyboard.press("Enter");
+  await openFile(page, "hov-b.md");
   // the note must have loaded and taken the caret before it is hidden: an editor that finishes loading
   // behind another tab reports no selection (this raced in full runs)
   await expect(page.locator(".cm-editor.cm-focused")).toBeVisible();

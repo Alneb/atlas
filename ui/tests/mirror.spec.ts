@@ -1,4 +1,5 @@
 import { test, expect, type Route } from "@playwright/test";
+import { openFile } from "./open";
 import { realpathSync, writeFileSync } from "node:fs";
 import { WS } from "../playwright.config";
 
@@ -22,10 +23,7 @@ async function open(page: import("@playwright/test").Page, up: boolean): Promise
   await page.route("**/remote/mirror.invalid/v/ws/api/file**", (r) => { calls++; return answer(r, { error: "not asked" }); });
   await page.goto("/");
   await page.getByText("Finish the GW notes.").waitFor();
-  await page.keyboard.press("Control+p");
-  await page.keyboard.type("mirrored.md");
-  await expect(page.getByTestId("palette").getByText("mirrored", { exact: true }).first()).toBeVisible();
-  await page.keyboard.press("Enter");
+  await openFile(page, "mirrored.md");
   return { mirrorFileCalls: () => calls };
 }
 

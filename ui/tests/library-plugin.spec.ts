@@ -14,7 +14,7 @@ test.afterEach(async ({ request }) => { await setOff(request, []); });
 test("the Library is a plugin: an app at the top of the bar, gone when switched off", async ({ page, request }) => {
   await page.goto("/");
   await page.getByText("Finish the GW notes.").waitFor();
-  // the apps at the top of the bar (2026-10-17): Home first, then the built-in plugins that are on
+  // the apps at the top of the bar: Home first, then the built-in plugins that are on
   const bar = page.getByTestId("sidebar").getByTestId("apps");
   const lib = bar.getByRole("button", { name: /^Library/ });
   await expect(lib).toHaveCount(1);
@@ -45,7 +45,7 @@ test("the Library is a plugin: an app at the top of the bar, gone when switched 
   await expect(page.locator(`[data-testid=apps] .app.open[aria-label^="Library"]`)).toHaveCount(1);
 });
 
-// "the old references is still there" (2026-10-21): a layout saved with the old References pane (`library`) beside the
+// An old References pane is not shown twice: a layout saved with the old References pane (`library`) beside the
 // Library page (`libraries`) showed two tiles; the old one is folded into the page when the layout is read.
 test("an old layout's References pane becomes the one Library page", async ({ page, context, request }) => {
   await page.goto("/");

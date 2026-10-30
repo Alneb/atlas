@@ -53,7 +53,7 @@ test("Ctrl+. offers the server's code actions and applies the one chosen", async
   await expect(page.locator(".cm-line").first()).toHaveText("print(1)");
 });
 
-// "the tab is kind of broken with code autocompletion" (2026-10-15): in code Tab takes the entry, as in
+// Tab with code completion: in code Tab takes the entry, as in
 // VS Code (walking a one-entry list did nothing); without a list it types an indent at the caret.
 test("in code Tab takes the server's completion; without a list it indents at the caret", async ({ page }) => {
   await page.goto("/");

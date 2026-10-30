@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { openFile } from "./open";
 
 // Pictures in a note: shown while their link is being written (caret inside), large while Ctrl is
 // held over them (lib/image-peek.ts), opened in a tab of their own by a click.
@@ -10,10 +11,7 @@ test("a picture shows while its link is written, grows with Ctrl, opens on a cli
   await request.put("/api/file", { headers: H, data: { path: "notes/peek.md", text: "# Peek\n\n![[peek-pic.svg]]\n\nend\n" } });
   await page.goto("/");
   await page.getByText("Finish the GW notes.").waitFor();
-  await page.keyboard.press("Control+p");
-  await page.keyboard.type("peek.md");
-  await expect(page.getByTestId("palette").getByText("peek", { exact: true }).first()).toBeVisible();
-  await page.keyboard.press("Enter");
+  await openFile(page, "peek.md");
   const img = page.locator(".cm-content img.cm-embed-image").first();
   await expect(img).toBeVisible();
 

@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { openFile } from "./open";
 
 // docs/guides/PAGES.md: a page is arranged by hand — add, move (menu or drag), remove, undo — and every
 // gesture is one write of the `.page` file, whose comments and other keys survive.
@@ -8,10 +9,7 @@ test("arrange a page by hand: the file follows every gesture", async ({ page, re
   await request.put("/api/file", { headers: H, data: { path: "Arr.page", text: "# my desk: keep this comment\ntitle: Arr\nrows:\n  - [greeting]\n  - [focus]\n" } });
   const text = () => request.get("/api/file?path=Arr.page", { headers: H }).then((r) => r.json()).then((j) => j.text as string);
   await page.goto("/");
-  await page.keyboard.press("Control+p");
-  await page.keyboard.type("Arr.page");
-  await expect(page.getByTestId("palette").getByText("Arr", { exact: true }).first()).toBeVisible();
-  await page.keyboard.press("Enter");
+  await openFile(page, "Arr.page");
   const pane = page.locator(".atlas-pane-page .page");
   await expect(pane.locator('[data-block="greeting"]')).toBeVisible();
 
@@ -54,10 +52,7 @@ test("a block that shows a file asks which one; older shorthands still read", as
   await request.put("/api/file", { headers: H, data: { path: "Arr2.page", text: "title: Arr2\nrows:\n  - [{ note: FOCUS.md, title: Focus file }, { text: \"**hello** there\" }]\n" } });
   const text = () => request.get("/api/file?path=Arr2.page", { headers: H }).then((r) => r.json()).then((j) => j.text as string);
   await page.goto("/");
-  await page.keyboard.press("Control+p");
-  await page.keyboard.type("Arr2.page");
-  await expect(page.getByTestId("palette").getByText("Arr2", { exact: true }).first()).toBeVisible();
-  await page.keyboard.press("Enter");
+  await openFile(page, "Arr2.page");
   const pane = page.locator(".atlas-pane-page .page");
   await expect(pane.locator('[data-block="note"]')).toContainText("Finish the GW notes.");
   await expect(pane.locator('[data-block="text"] strong')).toHaveText("hello");

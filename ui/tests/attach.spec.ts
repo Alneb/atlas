@@ -1,13 +1,11 @@
 import { test, expect } from "@playwright/test";
+import { openFile } from "./open";
 
 test("pasting an image saves it beside the note and embeds it", async ({ page, request }) => {
   const h = { "x-atlas": "1" };
   await page.goto("/");
   await page.getByText("Finish the GW notes.").waitFor();
-  await page.keyboard.press("Control+p");
-  await page.keyboard.type("paste.md");
-  await expect(page.getByTestId("palette").getByText("paste", { exact: true }).first()).toBeVisible();
-  await page.keyboard.press("Enter");
+  await openFile(page, "paste.md");
   // the note must be loaded first: as the suite's first test the server is cold (flaky otherwise)
   await expect(page.locator(".cm-content")).toContainText("A figure goes here");
   await page.locator(".cm-content").click();

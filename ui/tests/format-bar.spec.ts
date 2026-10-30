@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
+import { openFile } from "./open";
 
 // "A classic formatting bar for markdown (bold, lists, headings, link, table, to-do), optional":
 // `[editor] format_bar`. Off by default; on, its buttons do what the keys do and the text keeps the keys.
@@ -14,10 +15,7 @@ async function note(page: Page, bar: boolean) {
   });
   await page.goto("/");
   await page.getByText("Finish the GW notes.").waitFor();
-  await page.keyboard.press("Control+p");
-  await page.keyboard.type("hubbard.md");
-  await expect(page.getByTestId("palette").getByText("hubbard", { exact: true }).first()).toBeVisible();
-  await page.keyboard.press("Enter");
+  await openFile(page, "hubbard.md");
   await page.locator(".cm-content").click();
   await page.keyboard.press("Escape");
 }

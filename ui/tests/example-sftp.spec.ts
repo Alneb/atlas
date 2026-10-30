@@ -1,4 +1,5 @@
 import { test, expect, type APIRequestContext, type Page } from "@playwright/test";
+import { openFile, runCommand } from "./open";
 import { readFileSync, existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { basename, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -26,17 +27,6 @@ test.afterAll(async ({ request }) => {
   await request.post("/api/plugins/ssh/helper/stop", { headers: H });
 });
 
-async function command(page: Page, text: string, title: string) {
-  const palette = page.getByTestId("palette");
-  await expect(async () => {
-    if (await palette.isVisible()) await page.keyboard.press("Escape");
-    await page.keyboard.press("F1");
-    await expect(palette.getByRole("textbox")).toBeFocused({ timeout: 1000 });
-    await page.keyboard.type(text);
-    await expect(palette.getByText(title, { exact: true }).first()).toBeVisible({ timeout: 1000 });
-    await page.keyboard.press("Enter");
-  }).toPass({ timeout: 15_000 });
-}
 async function choose(page: Page, text: string, row: string | RegExp) {
   const palette = page.getByTestId("palette");
   await expect(palette.getByRole("textbox")).toBeFocused();
@@ -53,7 +43,7 @@ test("the explorer browses a host's files, opens and edits one, downloads, uploa
   await page.getByText("Finish the GW notes.").waitFor();
   await expect.poll(() => page.evaluate(() => (window as unknown as { __atlas: { commands(): { id: string }[] } }).__atlas.commands().some((c) => c.id === "plugin.ssh.files")), { timeout: 15_000 }).toBe(true);
 
-  await command(page, "SSH: browse files", "SSH: browse files on… (SFTP)");
+  await runCommand(page, "SSH: browse files", "SSH: browse files on… (SFTP)");
   await choose(page, "iq", "iq");
   const pane = page.locator(".explorer");
   await expect(page.getByTestId("sidebar").locator(".tab", { hasText: "(iq)" })).toBeVisible();
@@ -168,15 +158,12 @@ test("slow link: the app stays responsive while a folder listing waits", async (
     const tick = (t: number) => { w.gaps.push(t - last); last = t; requestAnimationFrame(tick); };
     requestAnimationFrame(tick);
   });
-  await command(page, "SSH: browse files", "SSH: browse files on… (SFTP)");
+  await runCommand(page, "SSH: browse files", "SSH: browse files on… (SFTP)");
   await choose(page, "iq", "iq");
   const t0 = Date.now();
   await page.waitForTimeout(500);
   const t1 = Date.now();
-  await page.keyboard.press("Control+p");
-  await page.keyboard.type("FOCUS.md");
-  await expect(page.getByTestId("palette").getByText("FOCUS", { exact: true }).first()).toBeVisible();
-  await page.keyboard.press("Enter");
+  await openFile(page, "FOCUS.md");
   await expect(page.locator(".dv-active-group .cm-editor")).toContainText("Finish the GW notes.");
   const other = Date.now() - t1;
   await page.getByTestId("sidebar").locator(".tab", { hasText: "(iq)" }).click();

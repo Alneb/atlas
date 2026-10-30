@@ -4,6 +4,7 @@
 //! user a notice; `{ skipped }` (a plain thought) changes nothing. The capture itself never waits for a hook.
 //! Also `on = "fs"`: called with `{ paths }` for each batch of files the watcher saw change (the Syncthing plugin asks
 //! Syncthing to scan them at once, DESIGN-mirror-v2.md §5); the batches that come while one call runs are joined.
+//! And `on = "start"` ([`started`]): once when the vault is served, again for a plugin whose settings were saved.
 use crate::api::{Event, Notice, NoticeLevel};
 use crate::events::{Captured, EventBus};
 use crate::helper::Helpers;
@@ -17,6 +18,7 @@ const PENDING_EVERY: std::time::Duration = std::time::Duration::from_secs(60);
 pub fn spawn(ws: Workspace, bus: EventBus, helpers: Helpers) -> tokio::task::JoinHandle<()> {
     let mut captured = bus.on_captured();
     let fs = spawn_fs(ws.clone(), bus.clone(), helpers.clone());
+    started(ws.clone(), bus.clone(), helpers.clone(), None);
     // the bus keeps 64 captures; a hook may take minutes (a slow lookup), so a forwarder that does nothing else moves
     // them into an unbounded queue at once, and the hooks work through that — a burst is filed late, never skipped
     let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<Captured>();
@@ -129,6 +131,23 @@ pub fn log_made(ws: Workspace, helpers: Helpers, path: String) {
         for (plugin, tool) in crate::plugin_tools::listening(ws.root(), &cfg, "log") {
             if let Err(e) = crate::plugin_tools::call(ws.root(), &cfg, &helpers, &store, &plugin, &tool, json!({ "text": "", "path": path, "line": 1 })).await {
                 eprintln!("atlas: {plugin}/{tool} on the new log: {e}");
+            }
+        }
+    });
+}
+
+/// The plugins' `on = "start"` tools, in the background: when the vault starts being served, and for one plugin when it
+/// is installed or updated or its settings are saved (`only`). For work a plugin would otherwise do inside its first hook (OCR fetching its models).
+pub fn started(ws: Workspace, bus: EventBus, helpers: Helpers, only: Option<String>) {
+    tokio::spawn(async move {
+        let Ok(cfg) = ws.config() else { return };
+        let store = crate::secrets::Store::for_vault(ws.root());
+        for (plugin, tool) in crate::plugin_tools::listening(ws.root(), &cfg, "start") {
+            if only.as_ref().is_some_and(|o| *o != plugin) {
+                continue;
+            }
+            if let Err(e) = crate::plugin_tools::call(ws.root(), &cfg, &helpers, &store, &plugin, &tool, json!({})).await {
+                bus.publish(Event::Notify(Notice::new(format!("{plugin}: “{tool}” failed")).body(e.to_string()).source(plugin.as_str()).level(NoticeLevel::Failure)));
             }
         }
     });

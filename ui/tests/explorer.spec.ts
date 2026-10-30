@@ -1,15 +1,9 @@
 import { test, expect, type Page } from "@playwright/test";
+import { runCommand } from "./open";
 
 // The explorer (panes/Explorer.svelte) on the vault: one explorer shared by the local
 // files, SSH hosts and copyparty servers, where files are edited, sent and downloaded. The SSH side of the same pane: example-sftp.spec.ts.
 const H = { "x-atlas": "1" };
-
-async function command(page: Page, text: string, title: string) {
-  await page.keyboard.press("F1");
-  await page.keyboard.type(text);
-  await expect(page.getByTestId("palette").getByText(title, { exact: true }).first()).toBeVisible();
-  await page.keyboard.press("Enter");
-}
 
 test("the vault in the explorer: browse, sort, upload from the computer, rename, open, move, trash", async ({ page, request }) => {
   await request.put("/api/file", { headers: H, data: { path: "explorer-test/alpha.md", text: "# Alpha\n\nfirst\n" } });
@@ -17,7 +11,7 @@ test("the vault in the explorer: browse, sort, upload from the computer, rename,
   await request.put("/api/file", { headers: H, data: { path: "explorer-test/inner/gamma.md", text: "# Gamma\n" } });
   await page.goto("/");
   await page.getByText("Finish the GW notes.").waitFor();
-  await command(page, "the explorer", "Files: the explorer (vault, SSH hosts, servers)");
+  await runCommand(page, "the explorer", "Files: the explorer (vault, SSH hosts, servers)");
   const pane = page.locator(".explorer");
   const row = (name: string) => pane.locator(".x-row", { has: page.locator(".label", { hasText: new RegExp(`^${name.replace(/[.[\]]/g, "\\$&")}$`) }) });
   await expect(pane.locator(".place.on")).toBeVisible(); // the vault, at the left
@@ -92,7 +86,7 @@ test("thumbnails: pictures and the first page of PDFs, by keys, remembered", asy
   await request.put("/api/file", { headers: H, data: { path: "thumbs-test/zz note.md", text: "# Note\n" } });
   await page.goto("/");
   await page.getByText("Finish the GW notes.").waitFor();
-  await command(page, "the explorer", "Files: the explorer (vault, SSH hosts, servers)");
+  await runCommand(page, "the explorer", "Files: the explorer (vault, SSH hosts, servers)");
   const pane = page.locator(".explorer");
   const row = (name: string) => pane.locator(".x-row", { has: page.locator(".label", { hasText: name }) });
   await row("thumbs-test").dblclick();
@@ -112,7 +106,7 @@ test("thumbnails: pictures and the first page of PDFs, by keys, remembered", asy
   // remembered: the next explorer opens in Thumbnails
   await page.reload();
   await page.getByText("Finish the GW notes.").waitFor();
-  await command(page, "the explorer", "Files: the explorer (vault, SSH hosts, servers)");
+  await runCommand(page, "the explorer", "Files: the explorer (vault, SSH hosts, servers)");
   await expect(page.locator(".explorer .list")).toHaveClass(/thumbs/);
   await page.locator(".explorer").getByRole("button", { name: "List" }).click();
   await expect(page.locator(".explorer .list")).not.toHaveClass(/thumbs/);

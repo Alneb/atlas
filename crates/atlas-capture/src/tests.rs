@@ -228,7 +228,7 @@ fn enter_on_the_new_line_row_saves_into_the_vault() {
 }
 
 // "in the desktop capture app also add the option for a screenshot or the clipboard" · "automatically copy the url"
-// (2026-10-16): the chosen chips go with the text — the page on its line, the picture beside today's note, embedded.
+// The chosen chips go with the text — the page on its line, the picture beside today's note, embedded.
 #[test]
 fn the_page_and_a_picture_go_with_the_capture() {
     use crate::extras::{Kind, Offer, What};
@@ -331,7 +331,7 @@ fn a_click_on_the_vault_opens_the_menu() {
 }
 
 // "when the autocomplete modal appears, y resizes, it show draw that modal floating without resizing the app"
-// (2026-10-15): floating (Wayland), the window keeps its size whatever opens; the list hangs under the card,
+// Floating (Wayland), the window keeps its size whatever opens; the list hangs under the card,
 // and only the card and the list take the pointer.
 #[test]
 fn floating_a_list_opens_under_the_card_and_the_window_keeps_its_size() {
@@ -381,7 +381,7 @@ fn paint_speed() {
     }
 }
 
-// "the atlas capture for desktop needs feature parity with the android one" (2026-10-17): what is playing, as the
+// The desktop capture matches the phone's: what is playing, as the
 // phone offers it — "Artist – Title", linked when the player gives a web address (a YouTube video in the browser).
 #[test]
 fn what_is_playing_is_offered_by_artist_and_title_with_its_web_address() {
@@ -394,7 +394,7 @@ fn what_is_playing_is_offered_by_artist_and_title_with_its_web_address() {
     assert_eq!(playing_page("", &[], ""), None);
 }
 
-// "the desktop capture: tooltips with keyboard shortcuts and suggestions like in the android app" (2026-10-17): a guide
+// The desktop capture's guides, as the phone app's: a guide
 // (`@fri`, `[[`…) is a click, as a tap on the phone: the text starts with it and its suggestions open.
 #[test]
 fn a_guide_clicked_starts_the_text_and_opens_its_suggestions() {

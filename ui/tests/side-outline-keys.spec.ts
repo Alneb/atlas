@@ -38,10 +38,7 @@ test("Outline: a note without headings says how to make one", async ({ page, req
   await request.put("/api/file", { headers: { "x-atlas": "1" }, data: { path: "notes/side-flat.md", text: "Just a line.\n" } });
   await page.goto("/");
   await page.getByText("Finish the GW notes.").waitFor();
-  await page.keyboard.press("Control+p");
-  await page.keyboard.type("side-flat.md");
-  await expect(page.getByTestId("palette").getByText("side-flat", { exact: true }).first()).toBeVisible();
-  await page.keyboard.press("Enter");
+  await openFile(page, "side-flat.md");
   await expect(page.locator(".cm-content")).toContainText("Just a line.");
   await page.keyboard.press("Meta+o");
   await expect(page.locator(".outline")).toContainText("No headings yet: a line starting with # makes one.");

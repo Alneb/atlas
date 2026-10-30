@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
+import { openFile } from "./open";
 
 // Obsidian's keys in a note: Ctrl+B bold, Ctrl+I italic, Ctrl+K link — toggles on the selection.
 // The app's own commands are on Super keys (Super+E / F1 the palette, Super+B the side panel), the
@@ -11,10 +12,7 @@ async function note(page: Page): Promise<void> {
   await page.request.put("/api/file", { headers: { "x-atlas": "1" }, data: { path: "notes/note-keys.md", text: "# Keys\n\nA line of text.\n" } });
   await page.goto("/");
   await page.getByText("Finish the GW notes.").waitFor();
-  await page.keyboard.press("Control+p");
-  await page.keyboard.type("note-keys.md");
-  await expect(page.getByTestId("palette").getByText("note-keys", { exact: true }).first()).toBeVisible();
-  await page.keyboard.press("Enter");
+  await openFile(page, "note-keys.md");
   await page.locator(".cm-content").click();
   await page.keyboard.press("Escape");
   await page.keyboard.type("Go"); // vim: a new last line, insert mode

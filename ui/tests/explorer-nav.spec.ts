@@ -1,4 +1,5 @@
 import { test, expect, type Page, type APIRequestContext } from "@playwright/test";
+import { runCommand } from "./open";
 
 // Getting around with the two explorers: "Show in the explorer" moves an explorer already open (and selects the file),
 // a note's breadcrumb opens the explorer at that folder, the explorer follows its folder renamed or deleted elsewhere,
@@ -13,12 +14,6 @@ async function start(page: Page) {
   await page.getByText("Finish the GW notes.").waitFor();
 }
 const openNote = (page: Page, path: string) => page.evaluate((p) => (window as any).__atlas.open(p), path);
-async function command(page: Page, text: string, title: string) {
-  await page.keyboard.press("F1");
-  await page.keyboard.type(text);
-  await expect(page.getByTestId("palette").getByText(title, { exact: true }).first()).toBeVisible();
-  await page.keyboard.press("Enter");
-}
 const xrow = (page: Page, name: string) => page.locator(".explorer .x-row", { has: page.locator(".label", { hasText: new RegExp(`^${name.replace(/[.[\]]/g, "\\$&")}$`) }) });
 const treeRow = (page: Page, path: string) => page.locator(`.tree .row[data-path="${path}"]`);
 
@@ -47,7 +42,7 @@ test("the explorer follows its folder deleted elsewhere, keeps its place after a
   await put(request, "nav-c/sub/x.md");
   for (const n of ["a.md", "b.md", "c.md"]) await put(request, `nav-d/${n}`);
   await start(page);
-  await command(page, "the explorer", "Files: the explorer (vault, SSH hosts, servers)");
+  await runCommand(page, "the explorer", "Files: the explorer (vault, SSH hosts, servers)");
   await xrow(page, "nav-c").dblclick();
   await xrow(page, "sub").dblclick();
   await expect(xrow(page, "x.md")).toBeVisible();
@@ -129,7 +124,7 @@ test("the tree folds back what it unfolded for the last file, follows the explor
   await expect(treeRow(page, "fold-a/deep")).toBeVisible();
   await expect(treeRow(page, "fold-a/deep/one.md")).toHaveCount(0);
   // the explorer in front: the tree marks its folder, not the last file
-  await command(page, "the explorer", "Files: the explorer (vault, SSH hosts, servers)");
+  await runCommand(page, "the explorer", "Files: the explorer (vault, SSH hosts, servers)");
   await xrow(page, "fold-h").dblclick();
   await expect(treeRow(page, "fold-h")).toHaveClass(/active/);
   await expect(treeRow(page, "fold-b/two.md")).toHaveCount(0); // its folder folded back too

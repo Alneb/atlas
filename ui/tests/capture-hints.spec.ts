@@ -45,7 +45,7 @@ test("the capture box completes a note's name, a tag and a day; Enter takes the 
 });
 
 
-// "make sure you fix these bugs in notes, but also in capture boxes … and that thay behave the same" (2026-10-15):
+// The capture box behaves as a note does:
 // a to-do in the box offers the task fields as a note does (Obsidian Tasks' list), with Enter still saving.
 test("a to-do in the capture box offers the task fields as in a note; Enter still saves", async ({ page }) => {
   await page.goto("/");

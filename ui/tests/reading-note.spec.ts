@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { openFile } from "./open";
 import { existsSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { WS } from "../playwright.config";
@@ -63,10 +64,7 @@ test("a library.paper block elsewhere names its paper by key; an unknown key say
   await request.put("/api/file", { headers: H, data: { path: "notes/cited.md", text: "# Cited\n\n```view\ntype: library.paper\nkey: anderson1972more\nhide_pdf: true\n```\n\n```view\ntype: library.paper\nkey: nosuch2001\n```\n" } });
   await page.goto("/");
   await page.getByText("Finish the GW notes.").waitFor();
-  await page.keyboard.press("Control+p");
-  await page.keyboard.type("cited.md");
-  await expect(page.getByTestId("palette").getByText("cited", { exact: true }).first()).toBeVisible();
-  await page.keyboard.press("Enter");
+  await openFile(page, "cited.md");
   const blocks = page.locator(".paper-block");
   await expect(blocks.first().locator(".title")).toHaveText("More Is Different");
   await expect(blocks.first().getByRole("link", { name: /doi:10\.1126/ })).toBeVisible();

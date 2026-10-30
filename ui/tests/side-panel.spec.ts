@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { openFile } from "./open";
 import { shownName } from "../src/lib/paths";
 
 // The side panel's two places (ui.side_panel): a dock column beside the editors, or the left bar,
@@ -71,10 +72,7 @@ test("in the left bar the side panel keeps its height as tabs open; its top edge
   const set = await height();
   expect(Math.abs(set - (start + 66)), "the arrow keys move it too").toBeLessThan(4);
   for (const name of ["journal.md", "ch1.tex", "ch2.tex", "run.py", "paste.md"]) {
-    await page.keyboard.press("Control+p");
-    await page.keyboard.type(name);
-    await expect(page.getByTestId("palette").getByText(shownName(name), { exact: true }).first()).toBeVisible();
-    await page.keyboard.press("Enter");
+    await openFile(page, name);
     await expect(sidebar.locator(".tab", { hasText: shownName(name) })).toHaveCount(1);
     await page.waitForTimeout(300); // the new editor takes the keys a moment after its tab shows
   }

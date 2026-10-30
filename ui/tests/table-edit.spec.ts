@@ -1,4 +1,5 @@
 import { test, expect, type APIRequestContext, type Page } from "@playwright/test";
+import { openFile } from "./open";
 import { caretIn, tableOps, alignOf, linesOf } from "../src/lib/editor/table-md";
 
 // Tables edited in place: a cell's own markdown
@@ -11,10 +12,7 @@ async function open(page: Page, request: APIRequestContext, text: string) {
   await request.put("/api/file", { headers: H, data: { path: NOTE, text } });
   await page.goto("/");
   await page.getByText("Finish the GW notes.").waitFor();
-  await page.keyboard.press("Control+p");
-  await page.keyboard.type("tabled.md");
-  await expect(page.getByTestId("palette").getByText("tabled", { exact: true }).first()).toBeVisible();
-  await page.keyboard.press("Enter");
+  await openFile(page, "tabled.md");
   const table = page.locator(".cm-content table.table-edit");
   await expect(table).toBeVisible();
   return table;

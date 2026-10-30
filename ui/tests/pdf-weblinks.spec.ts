@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { openFile } from "./open";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { WS } from "../playwright.config";
@@ -14,10 +15,7 @@ test("a web link inside a PDF opens a new window and leaves the app in place", a
   await page.goto("/");
   await page.getByText("Finish the GW notes.").waitFor();
   const app = page.url();
-  await page.keyboard.press("Control+p");
-  await page.keyboard.type("pdf-weblink.md");
-  await expect(page.getByTestId("palette").getByText("pdf-weblink", { exact: true }).first()).toBeVisible();
-  await page.keyboard.press("Enter");
+  await openFile(page, "pdf-weblink.md");
   await page.locator(".cm-content").getByText("the article PDF").click();
   const link = page.locator(".pdf-pane .annotationLayer a[href='https://example.org/article']").last();
   await expect(link).toBeAttached({ timeout: 20_000 });

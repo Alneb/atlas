@@ -4,7 +4,7 @@
 title = "Claude"
 description = "Claude Code sessions in the terminal, and the plan's usage (5-hour session, week) in the status bar"
 icon = "claude"
-version = "0.6.0"
+version = "0.7.0"
 api = 16
 
 [[agent]]

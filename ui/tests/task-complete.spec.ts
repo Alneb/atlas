@@ -100,8 +100,7 @@ test("a Tab typed before the list arrives waits for it and moves down; no indent
   await expect.poll(() => text(page)).toMatch(/\n\s+- \[ \] $/);
 });
 
-// "the suggester does not trigger … i just dont see the task suggester", "todo and [] do nothing", "trying to
-// delete a character deletes the whole task thing", "the @ … just shows a random set of keywords" (2026-10-15):
+// The task suggester shows on a to-do, Backspace deletes one character, and `@` offers the task's fields:
 // Obsidian Tasks' list on every task line, the capture box's short forms in a
 // note, Backspace one step at a time, and `@` the task's, not a citation.
 test("on a task line the fields are always offered, as in Obsidian Tasks; Tab there indents", async ({ page }) => {

@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { openFile } from "./open";
 import { copyFileSync, existsSync, mkdirSync, readdirSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { join } from "node:path";
@@ -17,10 +18,7 @@ test("a link to a PDF page opens there, and the PDF copies a link to where it is
   await context.grantPermissions(["clipboard-read", "clipboard-write"]);
   await page.goto("/");
   await page.getByText("Finish the GW notes.").waitFor();
-  await page.keyboard.press("Control+p");
-  await page.keyboard.type("pdf-link.md");
-  await expect(page.getByTestId("palette").getByText("pdf-link", { exact: true }).first()).toBeVisible();
-  await page.keyboard.press("Enter");
+  await openFile(page, "pdf-link.md");
   await page.locator(".cm-content").getByText("the third page").click();
   const pdf = page; // the PDF pane is the one in front
   await expect(pdf.getByRole("textbox", { name: "Page", exact: true })).toHaveValue("3", { timeout: 20_000 });
@@ -39,10 +37,7 @@ test("a link to an annotation opens its page and points at it", async ({ page, r
   await request.put("/api/file", { headers: H, data: { path: "notes/pdf-annot-link.md", text: `# Highlights\n\n- [[pdfs/annotated.pdf#page=3&annotation=${made}R|p.3]] — > of the model\n` } });
   await page.goto("/");
   await page.getByText("Finish the GW notes.").waitFor();
-  await page.keyboard.press("Control+p");
-  await page.keyboard.type("pdf-annot-link.md");
-  await expect(page.getByTestId("palette").getByText("pdf-annot-link", { exact: true }).first()).toBeVisible();
-  await page.keyboard.press("Enter");
+  await openFile(page, "pdf-annot-link.md");
   await page.locator(".cm-content").getByText("p.3").click();
   await expect(page.getByRole("textbox", { name: "Page", exact: true })).toHaveValue("3", { timeout: 20_000 });
   await expect(page.locator(`.pdf-pane .page[data-page-number="3"] [data-annotation-id="${made}R"].atlas-flash`)).toBeAttached();

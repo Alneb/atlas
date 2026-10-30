@@ -1,4 +1,5 @@
 import { test, expect, type APIRequestContext } from "@playwright/test";
+import { openFile } from "./open";
 import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { readFileSync } from "node:fs";
@@ -39,10 +40,7 @@ test("a FreshRSS block lists the unread articles; Save makes a note of one", asy
   await request.put("/api/plugins/freshrss/settings", { headers: H, data: { server: `http://127.0.0.1:${port}`, api_key: "fever-key" } });
   await page.goto("/");
   await page.getByText("Finish the GW notes.").waitFor();
-  await page.keyboard.press("Control+p");
-  await page.keyboard.type("feeds.md");
-  await expect(page.getByTestId("palette").getByText("feeds", { exact: true }).first()).toBeVisible();
-  await page.keyboard.press("Enter");
+  await openFile(page, "feeds.md");
   const row = page.locator(".cm-content li", { hasText: "Kondo physics today" });
   await expect(row).toBeVisible();
   expect(bodies[0]).toBe("api_key=fever-key");

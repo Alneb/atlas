@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
 
-// "very important disable vim completely on mobile apps" (2026-10-18): in the phone app (a fake AtlasNative bridge) a
+// No Vim on mobile: in the phone app (a fake AtlasNative bridge) a
 // note is plain typing even when the vault's setting has Vim on — `x` is a letter, not "delete a character".
 test.use({ viewport: { width: 412, height: 760 }, hasTouch: true });
 

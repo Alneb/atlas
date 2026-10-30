@@ -387,7 +387,7 @@ mod tests {
         assert_eq!((r["pdf"].as_bool(), r.get("notice")), (Some(false), None));
     }
 
-    /// gull2015quasiparticle (2026-10-21): PRL's copy stood behind its login, OpenAlex's open copy came — no sign-in
+    /// A PRL paper: PRL's copy stood behind its login, OpenAlex's open copy came — no sign-in
     /// offered. With only the publisher's copy, its sign-in is offered once, after every try.
     #[test]
     fn a_publishers_sign_in_is_offered_only_when_no_copy_came() {

@@ -110,7 +110,7 @@ test("records are cards: add, when, group, a secret per card, make main, save", 
   expect(text).not.toContain("1234");
   expect(await secret(request, "people.bob.pin"), "the card's secret, under its name").toBe("1234");
 
-  // opened again: saved cards are named by their title, the name can be changed (2026-10-18), the secret says it is set
+  // opened again: saved cards are named by their title, the name can be changed, the secret says it is set
   const again = await openForm(page);
   const bob2 = again.getByRole("group", { name: "bob" });
   await expect(bob2.getByLabel("Name")).toHaveValue("bob");

@@ -1,14 +1,11 @@
 import { test, expect, type Page } from "@playwright/test";
+import { openFile } from "./open";
 
-// "the app does not remember where you left the notes and always starts at the beginning" (2026-10-21): a file opens
-// at the caret and scroll it was left at (lib/editor/places.ts).
+// A file opens at the caret and scroll it was left at, not at its top (lib/editor/places.ts).
 const H = { "x-atlas": "1" };
 
 async function open(page: Page, name: string) {
-  await page.keyboard.press("Control+p");
-  await page.keyboard.type(`${name}.md`);
-  await expect(page.getByTestId("palette").getByText(name, { exact: true }).first()).toBeVisible();
-  await page.keyboard.press("Enter");
+  await openFile(page, `${name}.md`);
   await expect(page.locator(".dv-active-group .cm-editor.cm-focused")).toBeVisible();
 }
 

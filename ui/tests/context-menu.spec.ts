@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { openFile } from "./open";
 
 // "improve the right click modals in general, more responsive": the one menu component
 // (components/ContextMenu.svelte) — keys move in it, it stays inside the window, rows have icons.
@@ -6,10 +7,7 @@ test("a tab's menu: arrows and a letter move, it stays in a small window, Esc cl
   await page.setViewportSize({ width: 900, height: 420 });
   await page.goto("/");
   await page.getByText("Finish the GW notes.").waitFor();
-  await page.keyboard.press("Control+p");
-  await page.keyboard.type("journal.md");
-  await expect(page.getByTestId("palette").getByText("journal", { exact: true }).first()).toBeVisible();
-  await page.keyboard.press("Enter");
+  await openFile(page, "journal.md");
   const tab = page.getByTestId("sidebar").locator(".tab", { hasText: "journal" });
   await tab.click({ button: "right" });
   const menu = page.getByRole("menu"), focused = () => page.evaluate(() => (document.activeElement as HTMLElement | null)?.dataset.label ?? "");

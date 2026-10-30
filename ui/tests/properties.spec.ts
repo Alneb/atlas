@@ -42,7 +42,7 @@ test("by default a note's properties are hidden behind one line that opens the p
   await expect(page.getByTestId("properties-panel")).toHaveCount(0);
   await expect(ed.locator(".cm-content")).not.toContainText("physics");
   await expect(ed.locator(".cm-content")).toContainText("The body.");
-  // "properties only render as text not rich text … move them to a right panel and hide them by default" (2026-10-15):
+  // Properties are rich controls in a right panel, hidden by default:
   // the line opens the panel with its controls, the caret stays out of the YAML
   await chip.click();
   const panel = page.getByTestId("properties-panel");

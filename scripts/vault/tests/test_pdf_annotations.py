@@ -44,7 +44,7 @@ class ExportTest(unittest.TestCase):
         self.assertEqual(self.pa.place("a [draft].pdf", 2, None), "p.2")  # a name that would break the link
 
     def test_the_companion_drawings_marks_are_read_too(self):
-        # the desktop's PDF pane and the Boox write a PDF's marks to `x.pdf.excalidraw` (2026-10-20): a highlight keeps its
+        # the desktop's PDF pane and the Boox write a PDF's marks to `x.pdf.excalidraw`: a highlight keeps its
         # box in PDF points (y up), its passage read from under it; a text note; a page's pen marks
         doc = fitz.open(self.d / "h.pdf"); page = doc[0]; h = page.rect.height
         r = page.search_for("Hubbard model")[0]  # PyMuPDF's y-down rect → PDF points

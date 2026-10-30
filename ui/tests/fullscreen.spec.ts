@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { shownName } from "../src/lib/paths";
+import { openFile } from "./open";
 
 // "we need also a fullscreen mode for both the terminal and the main editor window": F11 gives the
 // tab that has the keys the whole window (lib/fullscreen.svelte.ts); F11 again puts the layout back.
@@ -14,10 +14,7 @@ const emptyOfBar = async (page: import("@playwright/test").Page) => {
 test("F11 gives the editor, then the terminal, the whole window, and puts the layout back", async ({ page }) => {
   await page.goto("/");
   await page.getByText("Finish the GW notes.").waitFor();
-  await page.keyboard.press("Control+p");
-  await page.keyboard.type("journal.md");
-  await expect(page.getByTestId("palette").getByText("journal", { exact: true }).first()).toBeVisible();
-  await page.keyboard.press("Enter");
+  await openFile(page, "journal.md");
   const editor = page.locator(".cm-editor:visible").first(), sidebar = page.getByTestId("sidebar");
   await expect(editor).toBeVisible();
   await page.keyboard.press("Control+`");
@@ -71,10 +68,7 @@ test("F11 gives the editor, then the terminal, the whole window, and puts the la
 test("fullscreen follows the keys: editor → terminal → editor stays fullscreen", async ({ page }) => {
   await page.goto("/");
   await page.getByText("Finish the GW notes.").waitFor();
-  await page.keyboard.press("Control+p");
-  await page.keyboard.type("journal.md");
-  await expect(page.getByTestId("palette").getByText("journal", { exact: true }).first()).toBeVisible();
-  await page.keyboard.press("Enter");
+  await openFile(page, "journal.md");
   const editor = page.locator(".cm-editor:visible").first(), sidebar = page.getByTestId("sidebar");
   await expect(editor).toBeVisible();
   await page.keyboard.press("Control+`"); // a terminal exists (and has the keys)…
@@ -105,16 +99,13 @@ test("fullscreen follows the keys: editor → terminal → editor stays fullscre
   await expect(term).toBeVisible();
 });
 
-// "fullscreen should keep that split, also a small button to unsplit them" (2026-10-17): two editors side by
+// Fullscreen keeps a split, and a small button unsplits it: two editors side by
 // side are one split row in the tab list; F11 keeps both on screen; the row's button makes them one editor again
 test("a split is one row of the tab list, fullscreen keeps it, and its button unsplits", async ({ page }) => {
   await page.goto("/");
   await page.getByText("Finish the GW notes.").waitFor();
   for (const f of ["journal.md", "paste.md"]) {
-    await page.keyboard.press("Control+p");
-    await page.keyboard.type(f);
-    await expect(page.getByTestId("palette").getByText(shownName(f), { exact: true }).first()).toBeVisible();
-    await page.keyboard.press("Enter");
+    await openFile(page, f);
     await expect(page.locator(".cm-editor:visible").first()).toBeVisible();
   }
   const sidebar = page.getByTestId("sidebar");

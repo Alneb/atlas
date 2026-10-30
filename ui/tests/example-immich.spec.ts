@@ -1,4 +1,5 @@
 import { test, expect, type APIRequestContext } from "@playwright/test";
+import { openFile } from "./open";
 import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { existsSync, readFileSync } from "node:fs";
@@ -41,10 +42,7 @@ test("an Immich block shows the latest photos, fetched by the core into the plug
   await request.put("/api/plugins/immich/settings", { headers: H, data: { server: `http://127.0.0.1:${port}`, key: "im-key" } });
   await page.goto("/");
   await page.getByText("Finish the GW notes.").waitFor();
-  await page.keyboard.press("Control+p");
-  await page.keyboard.type("photos-week.md");
-  await expect(page.getByTestId("palette").getByText("photos-week", { exact: true }).first()).toBeVisible();
-  await page.keyboard.press("Enter");
+  await openFile(page, "photos-week.md");
   const imgs = page.locator('.cm-content img[alt="beach.jpg"], .cm-content img[alt="lab.jpg"]');
   await expect(imgs).toHaveCount(2);
   expect(keys.every((k) => k === "im-key"), "the key on every request, put in by the core").toBe(true);

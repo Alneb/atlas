@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { openFile } from "./open";
 import { copyFileSync, mkdirSync, readFileSync, rmSync, writeFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { crc32, deflateRawSync } from "node:zlib";
@@ -181,10 +182,7 @@ test("books: an .epub opens in the reader on a click in the file tree, at the ch
   await expect(pane.locator(".b-title")).toHaveText("Quantum Notes");
   await page.screenshot({ path: test.info().outputPath("opened-from-tree.png") });
   // the link, while the book is open: the pane goes to that chapter (pane.onAnchor)
-  await page.keyboard.press("Control+p");
-  await page.keyboard.type("books-link.md");
-  await expect(page.getByTestId("palette").getByText("books-link", { exact: true }).first()).toBeVisible();
-  await page.keyboard.press("Enter");
+  await openFile(page, "books-link.md");
   await page.locator(".cm-content .cm-hmd-internal-link", { hasText: "at qubits" }).first().click({ modifiers: ["Control"] });
   await expect(page.locator(".books").frameLocator("iframe.b-frame").locator("h1")).toHaveText("One");
 });

@@ -1,4 +1,5 @@
 import { test, expect, type APIRequestContext } from "@playwright/test";
+import { openFile } from "./open";
 
 // Plugins v4, events (docs/refactor/REFACTOR-plugins-v4.md, 3.3): `atlas.on(type, fn)` — a tab opened on a
 // file, a save, a new note. A listener that throws breaks nothing and is in its plugin's log.
@@ -27,10 +28,7 @@ test("a plugin hears a file opened, saved and created; a broken listener harms n
   await expect(cell).toBeAttached();
   const title = () => cell.getAttribute("title").then(() => cell.evaluate((el) => el.textContent ?? ""));
 
-  await page.keyboard.press("Control+p");
-  await page.keyboard.type("events-note.md");
-  await expect(page.getByTestId("palette").getByText("events-note", { exact: true }).first()).toBeVisible();
-  await page.keyboard.press("Enter");
+  await openFile(page, "events-note.md");
   await expect.poll(title).toContain("file:open notes/events-note.md");
 
   await page.locator(".cm-content").click();

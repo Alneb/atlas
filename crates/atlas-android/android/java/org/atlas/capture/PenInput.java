@@ -23,8 +23,8 @@ public final class PenInput {
     /** The pen erasing: its eraser end, or its button held. */
     /** The pen's pressure as the Boox's own engine reads it — linear, raw/4095 — from what Android gives the app:
      *  Onyx's curve (surfaceflinger's "pen model 0x153", boox_5c_re openink-stroke sf.rs `SfPressure::map`:
-     *  `n < .15 ? 4n : min(1, (n − .135)^.2 + .17)`) undone. Measured in the user's strokes the curved value had a
-     *  median of .92 and a quarter at 1.0, so a soft and a firm stroke looked alike (2026-10-20); linear its median is
+     *  `n < .15 ? 4n : min(1, (n − .135)^.2 + .17)`) undone. Measured on real strokes the curved value had a
+     *  median of .92 and a quarter at 1.0, so a soft and a firm stroke looked alike; linear its median is
      *  ≈ .56. A curved 1.0 stays 1.0 (≈ .53 and above cannot be told apart from MotionEvents). */
     public static float linear(float curved) {
         if (!(curved > 0)) return 0;

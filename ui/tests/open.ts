@@ -18,3 +18,17 @@ export async function openFile(page: Page, name: string) {
   await expect(page.getByTestId("palette").locator(".item.sel")).toContainText(shownName(name));
   await page.keyboard.press("Enter");
 }
+
+// Runs a command through F1: typed, then Enter once the highlighted row is that command (as openFile, a row still
+// filtering in can be first while this one is visible). Retried while the app does not take F1 yet after a load.
+export async function runCommand(page: Page, text: string, title: string) {
+  const palette = page.getByTestId("palette");
+  await expect(async () => {
+    if (await palette.isVisible()) await page.keyboard.press("Escape");
+    await page.keyboard.press("F1");
+    await expect(palette.getByRole("textbox")).toBeFocused({ timeout: 1000 });
+    await page.keyboard.type(text);
+    await expect(palette.locator(".item.sel")).toContainText(title, { timeout: 2000 });
+  }).toPass({ timeout: 15_000 });
+  await page.keyboard.press("Enter");
+}

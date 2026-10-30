@@ -1,4 +1,5 @@
 import { test, expect, type APIRequestContext } from "@playwright/test";
+import { openFile } from "./open";
 import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { readFileSync } from "node:fs";
@@ -37,10 +38,7 @@ test("a Linkwarden block lists the links and searches them", async ({ page, requ
   await request.put("/api/plugins/catalog-linkwarden/settings", { headers: H, data: { address: `http://127.0.0.1:${port}`, token: "lw-token" } });
   await page.goto("/");
   await page.getByText("Finish the GW notes.").waitFor();
-  await page.keyboard.press("Control+p");
-  await page.keyboard.type("links.md");
-  await expect(page.getByTestId("palette").getByText("links", { exact: true }).first()).toBeVisible();
-  await page.keyboard.press("Enter");
+  await openFile(page, "links.md");
   await expect(page.getByRole("link", { name: "Kondo lattice review" })).toBeVisible({ timeout: 10_000 });
   await expect(page.getByRole("link", { name: "Recipe" })).toBeVisible();
   expect(asked.some((a) => a.includes("Bearer lw-token")), "the token is put in by the core").toBe(true);

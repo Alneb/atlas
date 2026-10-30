@@ -1,4 +1,5 @@
 import { test, expect, type APIRequestContext, type Page } from "@playwright/test";
+import { runCommand } from "./open";
 import { readFileSync, rmSync, mkdirSync, existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { spawn, spawnSync, type ChildProcess } from "node:child_process";
@@ -42,23 +43,11 @@ test.afterAll(async ({ request }) => {
   server?.kill();
 });
 
-async function command(page: Page, text: string, title: string) {
-  const palette = page.getByTestId("palette");
-  await expect(async () => {
-    if (await palette.isVisible()) await page.keyboard.press("Escape");
-    await page.keyboard.press("F1");
-    await expect(palette.getByRole("textbox")).toBeFocused({ timeout: 1000 });
-    await page.keyboard.type(text);
-    await expect(palette.getByText(title, { exact: true }).first()).toBeVisible({ timeout: 1000 });
-    await page.keyboard.press("Enter");
-  }).toPass({ timeout: 15_000 });
-}
-
 async function openPane(page: Page) {
   await page.goto("/");
   await page.getByText("Finish the GW notes.").waitFor();
   await expect.poll(() => page.evaluate(() => (window as unknown as { __atlas: { commands(): { id: string }[] } }).__atlas.commands().some((c) => c.id === "plugin.email.open")), { timeout: 20_000 }).toBe(true);
-  await command(page, "Email: open mail", "Email: open mail");
+  await runCommand(page, "Email: open mail", "Email: open mail");
   const mail = page.locator(".mail");
   await expect(mail).toBeVisible();
   return mail;
@@ -160,7 +149,7 @@ test("search with operators, an HTML mail drawn safely, and Save as note drawn a
   await expect(page.locator(".nv h1")).toHaveText("Newsletter with pictures");
 });
 
-// "and mcp should be able to read emails" · "with permission" (2026-10-15): an agent's read of an account whose card
+// MCP reads mail, with permission: an agent's read of an account whose card
 // says "ask" waits for the user's answer in the window; "always" is remembered on the card.
 test("Claude's read of an account asks in the window first; Always is kept on the card", async ({ page, request }) => {
   test.setTimeout(90_000);

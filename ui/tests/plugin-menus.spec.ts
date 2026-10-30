@@ -1,4 +1,5 @@
 import { test, expect, type APIRequestContext } from "@playwright/test";
+import { openFile } from "./open";
 
 // Plugins v4, shell hooks (docs/refactor/REFACTOR-plugins-v4.md, 3.2): `atlas.shell.menu(where, fn)` adds rows
 // to the app's right-click menus, after the app's own; a builder that throws loses only its rows.
@@ -25,10 +26,7 @@ test.afterAll(async ({ request }) => { await put(request, ".atlas/plugins/menus/
 test("a plugin's rows in the tab, editor and file menus, and its cell in the status bar", async ({ page }) => {
   await page.goto("/");
   await page.getByText("Finish the GW notes.").waitFor();
-  await page.keyboard.press("Control+p");
-  await page.keyboard.type("journal.md");
-  await expect(page.getByTestId("palette").getByText("journal", { exact: true }).first()).toBeVisible();
-  await page.keyboard.press("Enter");
+  await openFile(page, "journal.md");
   const menu = page.getByRole("menu");
 
   // tab: after the app's rows, with its icon and second line

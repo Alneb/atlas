@@ -310,6 +310,16 @@ fn main() {
             Ok(json!({ "text": text }))
         });
     }
+    {
+        // when the vault opens and when the settings change: the languages' models fetched then, not inside the first
+        // capture's hook, where every capture behind it would wait for the download
+        let (atlas, reader) = (atlas.clone(), reader.clone());
+        m.add("prepare", move |p| {
+            let languages = languages(&p);
+            reader.borrow_mut().engine(&atlas, &languages)?;
+            Ok(json!({ "languages": languages }))
+        });
+    }
     m.add("capture", move |p| on_capture(&atlas, &mut reader.borrow_mut(), &p));
     serve(m);
 }

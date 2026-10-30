@@ -1,4 +1,5 @@
 import { test, expect, type APIRequestContext, type Page } from "@playwright/test";
+import { openFile } from "./open";
 import { zip } from "./xlsx-fixture";
 
 // The table as a spreadsheet: edits saved in the file's own layout (only the edited row rewritten), undo, rows added and
@@ -252,10 +253,7 @@ test("a named view embedded in a note: `![[x.csv#view=Name]]` draws the table wi
   await request.put("/api/file", { headers: H, data: { path: "data/Prices.md", text: "# Prices\n\n![[data/stock.csv#view=Cheap]]\n" } });
   await page.goto("/");
   await page.getByText("Finish the GW notes.").waitFor();
-  await page.keyboard.press("Control+p");
-  await page.keyboard.type("Prices");
-  await expect(page.getByTestId("palette").getByText("Prices", { exact: true }).first()).toBeVisible();
-  await page.keyboard.press("Enter");
+  await openFile(page, "Prices");
   const embedded = page.locator(".file-embed .table-pane");
   await expect(embedded.getByText("2 / 3 rows")).toBeVisible({ timeout: 15000 });
   await expect(embedded.locator("tbody tr:not(.spacer)").locator("td:nth-child(2)")).toHaveText(["apple", "plum"]);

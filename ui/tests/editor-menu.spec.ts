@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
+import { openFile } from "./open";
 
 // "Context menus everywhere (… editor)": a right-click in the text opens the app's menu — the
 // clipboard, then the note keys — and Shift+right-click leaves the browser's own.
@@ -8,10 +9,7 @@ test("the editor's menu: copy and paste, bold on the selection, keys in it, focu
   await context.grantPermissions(["clipboard-read", "clipboard-write"]);
   await page.goto("/");
   await page.getByText("Finish the GW notes.").waitFor();
-  await page.keyboard.press("Control+p");
-  await page.keyboard.type("hubbard.md");
-  await expect(page.getByTestId("palette").getByText("hubbard", { exact: true }).first()).toBeVisible();
-  await page.keyboard.press("Enter");
+  await openFile(page, "hubbard.md");
   await page.locator(".cm-content").click();
   await page.keyboard.press("Escape");
   await page.keyboard.type("Gomenu word"); // vim: a new last line, insert mode

@@ -32,27 +32,60 @@ test.beforeAll(async ({ request }) => {
   await new Promise<void>((done) => server.listen(0, "127.0.0.1", done));
   port = (server.address() as AddressInfo).port;
   await put(request, ".atlas/plugins/notifications/helper.js", example("helper.js")); // its helper, run in the core
-  await put(request, ".atlas/plugins/notifications/main.js", example("main.js"));
+  for (const f of ["main.js", "sources.js", "send.js"]) await put(request, `.atlas/plugins/notifications/${f}`, example(f));
   await put(request, ".atlas/plugins/notifications/plugin.toml", example("plugin.toml"));
 });
 test.afterAll(async ({ request }) => {
   await put(request, ".atlas/plugins/notifications/main.js", "export function register() {}\n");
+  await request.post(`/api/fs/trash?path=${encodeURIComponent("notifications/backups.md")}`, { headers: H });
   await new Promise((done) => server.close(done));
 });
 
-test("Notifications sends a typed line to the phone's topic, with the token", async ({ page, request }) => {
+test("Send to my phone is a dialog: a title, the text, then sent through ntfy with the token", async ({ page, request }) => {
   await request.put("/api/plugins/notifications/settings", { headers: H, data: { server: `http://127.0.0.1:${port}`, phone_topic: "my-phone", token: "tk-1" } });
   await page.goto("/");
   await page.getByText("Finish the GW notes.").waitFor();
   await page.keyboard.press("F1");
   await page.keyboard.type("Notifications: send to my phone");
   await page.keyboard.press("Enter");
-  await expect(page.getByTestId("palette").getByRole("textbox")).toBeFocused();
+  const dialog = page.locator(".ntp");
+  await expect(dialog.getByRole("textbox", { name: "Text" })).toBeFocused({ timeout: 15_000 });
+  await expect(dialog.getByRole("textbox", { name: "Title" })).toHaveValue("Home"); // the active note's (or page's) name
   await page.keyboard.type("buy milk");
-  await page.keyboard.press("Enter");
+  for (const scheme of ["light", "dark"] as const) { // judged in both themes (docs/guides/UI-STYLE.md)
+    await page.emulateMedia({ colorScheme: scheme });
+    await page.screenshot({ path: test.info().outputPath(`notifications-send-${scheme}.png`) });
+  }
+  await page.keyboard.press("Control+Enter");
   await expect.poll(() => got.length).toBe(1);
   expect(got[0]).toMatchObject({ url: "/my-phone", title: "Home", auth: "Bearer tk-1", body: "buy milk" });
-  await expect(page.getByText("Sent to your phone")).toBeVisible();
+  await expect(dialog).toContainText("Sent, through ntfy.");
+  await dialog.getByRole("button", { name: "Done" }).click();
+  await expect(dialog).toHaveCount(0);
+});
+
+test("Mute a source… is a dialog: each source with its unread count, muted in place", async ({ page, request }) => {
+  await put(request, "notifications/backups.md", "---\nunread: 2\nmuted: false\n---\n## A message\n");
+  await page.goto("/");
+  await page.getByText("Finish the GW notes.").waitFor();
+  await page.keyboard.press("F1");
+  await page.keyboard.type("Notifications: mute a source");
+  await page.keyboard.press("Enter");
+  const row = page.locator(".nts li", { hasText: "backups" });
+  await expect(row).toContainText("2 unread", { timeout: 15_000 });
+  const mute = row.getByRole("combobox", { name: "Mute backups" });
+  await expect(mute).toHaveValue("off");
+  for (const scheme of ["light", "dark"] as const) {
+    await page.emulateMedia({ colorScheme: scheme });
+    await page.screenshot({ path: test.info().outputPath(`notifications-sources-${scheme}.png`) });
+  }
+  await mute.selectOption("7");
+  const week = new Date(Date.now() + 7 * 864e5).toISOString().slice(0, 10);
+  await expect(row).toContainText(`until ${week}`);
+  const text = async () => (await (await request.get(`/api/file?path=${encodeURIComponent("notifications/backups.md")}`, { headers: H })).json()).text as string;
+  await expect.poll(text).toContain(`muted: ${week}`);
+  await mute.selectOption("off");
+  await expect.poll(text).toContain("muted: false");
 });
 
 test("messages sent to the inbox topic from the phone become captures (the page's first sync polls it)", async ({ page, request }) => {

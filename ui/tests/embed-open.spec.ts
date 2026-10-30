@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { openFile } from "./open";
 
 // From an embed to the original: the ↗ over the embed under the pointer, and Ctrl+click in it.
 const H = { "x-atlas": "1" };
@@ -11,10 +12,7 @@ test.beforeAll(async ({ request }) => {
 async function openEmbedder(page: import("@playwright/test").Page) {
   await page.goto("/");
   await page.getByText("Finish the GW notes.").waitFor();
-  await page.keyboard.press("Control+p");
-  await page.keyboard.type("embedder.md");
-  await expect(page.getByTestId("palette").getByText("embedder", { exact: true }).first()).toBeVisible();
-  await page.keyboard.press("Enter");
+  await openFile(page, "embedder.md");
   const embed = page.locator(".cm-rendered-block .note-embed");
   await expect(embed).toContainText("the original part");
   return embed;

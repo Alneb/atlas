@@ -67,7 +67,7 @@ test("a two-finger swipe on a drawing pans it and never goes back", async ({ pag
   expect(await page.evaluate(() => getComputedStyle(document.documentElement).overscrollBehaviorX)).toBe("none"); // nor the browser's own
 });
 
-// "the pinch touchpad gesture zooms the whole app, that should not happen, specially in excalidraw" (2026-10-19): a pinch
+// A touchpad pinch never zooms the whole app (Excalidraw least of all): a pinch
 // (a wheel with Ctrl, or WebKit's gesture events) is cancelled at the window, after the view under it had it
 test("a pinch never zooms the app itself; a plain wheel is left alone", async ({ page }) => {
   await page.goto("/");

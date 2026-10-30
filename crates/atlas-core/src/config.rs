@@ -1017,7 +1017,7 @@ impl Config {
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => (Self::default(), String::new()),
             Err(e) => return Err(e.into()),
         };
-        // a vault from before the log moved under notes/ (2026-10-19) keeps writing where its logs are
+        // a vault from before the log moved under notes/ keeps writing where its logs are
         let set = text.lines().any(|l| l.trim_start().starts_with("log_dir"));
         if !set && c.log_dir == DEFAULT_LOG_DIR && root.join("log").is_dir() && !root.join(DEFAULT_LOG_DIR).exists() {
             c.log_dir = "log".into();
@@ -1137,7 +1137,7 @@ mod tests {
 
     #[test]
     fn a_page_format_taken_out_reads_as_a4() {
-        // A5 and Letter were removed (2026-10-20): a vault's setting naming them must still load
+        // A5 and Letter were removed: a vault's setting naming them must still load
         let dir = tempfile::tempdir().unwrap();
         std::fs::create_dir_all(dir.path().join(".atlas")).unwrap();
         for old in ["a5", "letter"] {

@@ -10,7 +10,7 @@ const LINK = "a, .cm-link, .cm-hmd-internal-link, .cm-url";
 const RIGHT_AFTER_MS = 500;
 
 export function guardMiddlePaste(): () => void {
-  let elsewhereAt = 0;
+  let elsewhereAt = -Infinity; // never yet: 0 would drop every paste in a page's first half second
   const elsewhere = (e: MouseEvent) => e.button === 1 && !(e.target instanceof Element && e.target.closest(PASTES_HERE) && !e.target.closest(LINK));
   const press = (e: MouseEvent) => { if (elsewhere(e)) elsewhereAt = performance.now(); };
   const up = (e: MouseEvent) => { if (elsewhere(e)) { elsewhereAt = performance.now(); e.preventDefault(); } };

@@ -1,13 +1,10 @@
 import { test, expect } from "@playwright/test";
-import { shownName } from "../src/lib/paths";
+import { openFile } from "./open";
 
 async function open(page: import("@playwright/test").Page, name: string, text: string) {
   await page.goto("/");
   await page.getByText("Finish the GW notes.").waitFor();
-  await page.keyboard.press("Control+p");
-  await page.keyboard.type(name);
-  await expect(page.getByTestId("palette").getByText(shownName(name), { exact: true }).first()).toBeVisible();
-  await page.keyboard.press("Enter");
+  await openFile(page, name);
   await expect(page.locator(".cm-content")).toContainText(text);
   await page.locator(".cm-content").click();
   await page.keyboard.press("Escape");

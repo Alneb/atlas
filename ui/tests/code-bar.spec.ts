@@ -1,5 +1,5 @@
 import { test, expect, type APIRequestContext } from "@playwright/test";
-import { shownName } from "../src/lib/paths";
+import { openFile } from "./open";
 
 // "a bar on top of that tab with this options": above a code file — find, replace, go to line,
 // format, problems — and the tools a plugin adds for the file (`atlas.editor.toolbar`). Not on notes.
@@ -21,13 +21,7 @@ test.afterAll(async ({ request }) => { await put(request, ".atlas/plugins/runtoo
 test("a code tab has a tool bar: find, go to line, a plugin's Run for its files; a note has none", async ({ page }) => {
   await page.goto("/");
   await page.getByText("Finish the GW notes.").waitFor();
-  const openFile = async (name: string) => {
-    await page.keyboard.press("Control+p");
-    await page.keyboard.type(name);
-    await expect(page.getByTestId("palette").getByText(shownName(name), { exact: true }).first()).toBeVisible();
-    await page.keyboard.press("Enter");
-  };
-  await openFile("bar_demo.py");
+  await openFile(page, "bar_demo.py");
   const bar = page.getByTestId("code-bar");
   await expect(bar).toBeVisible();
   await bar.getByRole("button", { name: "Find", exact: true }).click();
@@ -52,10 +46,10 @@ test("a code tab has a tool bar: find, go to line, a plugin's Run for its files;
   await expect(page.locator('.status [data-cell="runtool:ran"]')).toHaveText("ran code/bar_demo.py");
 
   // not offered for another kind of file; and a note has no code bar at all
-  await openFile("bar_demo.txt");
+  await openFile(page, "bar_demo.txt");
   const shown = page.locator('[data-testid="code-bar"]:visible'); // the tab in front (the other tab's bar is still in the page, hidden)
   await expect(shown.getByRole("button", { name: "Find", exact: true })).toBeVisible();
   await expect(shown.getByRole("button", { name: "Run" })).toHaveCount(0);
-  await openFile("hubbard.md");
+  await openFile(page, "hubbard.md");
   await expect(page.locator(".editor-pane.is-md").getByTestId("code-bar")).toHaveCount(0);
 });

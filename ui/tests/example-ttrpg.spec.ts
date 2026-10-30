@@ -1,4 +1,5 @@
 import { test, expect, type APIRequestContext } from "@playwright/test";
+import { openFile } from "./open";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
@@ -22,10 +23,7 @@ test.afterAll(async ({ request }) => { await put(request, ".atlas/plugins/ttrpg-
 test("the example TTRPG plugin: a stat block with dice, the initiative list, a session note in its folder", async ({ page, request }) => {
   await page.goto("/");
   await page.getByText("Finish the GW notes.").waitFor();
-  await page.keyboard.press("Control+p");
-  await page.keyboard.type("Ambush.md");
-  await expect(page.getByTestId("palette").getByText("Ambush", { exact: true }).first()).toBeVisible();
-  await page.keyboard.press("Enter");
+  await openFile(page, "Ambush.md");
   const note = page.locator(".cm-content");
 
   const card = note.locator('.fence-block[data-fence-name="statblock"]');

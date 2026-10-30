@@ -73,7 +73,7 @@ test("bookmarks: a tab, a saved search and a pin go to the bookmarks file; each 
 });
 
 test("the sidebar is a page: its file decides the blocks, a toolbar's buttons are command ids", async ({ page }) => {
-  // the default (2026-10-17): the apps (Home…) on top with the pins, then the tabs; ONE row at the bottom with
+  // the default: the apps (Home…) on top with the pins, then the tabs; ONE row at the bottom with
   // settings and general actions only — the side tools are the row on top of the side panel
   await expect(side(page).locator(".side-toolbar")).toHaveCount(1);
   const foot = side(page).locator(".sb-foot .side-toolbar");

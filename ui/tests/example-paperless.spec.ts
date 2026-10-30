@@ -1,4 +1,5 @@
 import { test, expect, type APIRequestContext } from "@playwright/test";
+import { openFile } from "./open";
 import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { readFileSync } from "node:fs";
@@ -33,10 +34,7 @@ test("a Paperless block lists the documents of its search, with links into Paper
   await request.put("/api/plugins/paperless/settings", { headers: H, data: { server: `http://127.0.0.1:${port}`, token: "pl-1" } });
   await page.goto("/");
   await page.getByText("Finish the GW notes.").waitFor();
-  await page.keyboard.press("Control+p");
-  await page.keyboard.type("papers-office.md");
-  await expect(page.getByTestId("palette").getByText("papers-office", { exact: true }).first()).toBeVisible();
-  await page.keyboard.press("Enter");
+  await openFile(page, "papers-office.md");
   const link = page.locator(".cm-content a", { hasText: "Invoice March" });
   await expect(link).toHaveAttribute("href", `http://127.0.0.1:${port}/documents/12/details`);
   await expect(page.locator(".cm-content a", { hasText: "Invoice April" })).toBeVisible();

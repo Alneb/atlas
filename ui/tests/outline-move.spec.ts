@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { openFile } from "./open";
 
 // Dragging a heading in the Outline moves its whole section (subsections included) in the note;
 // Alt+Up/Down on a heading does the same past its neighbour. One edit, so one undo.
@@ -9,10 +10,7 @@ test("a heading dragged in the outline takes its section along; Alt+arrows move 
   await request.put("/api/file", { headers: H, data: { path: "notes/move-me.md", text: NOTE } });
   await page.goto("/");
   await page.getByText("Finish the GW notes.").waitFor();
-  await page.keyboard.press("Control+p");
-  await page.keyboard.type("move-me.md");
-  await expect(page.getByTestId("palette").getByText("move-me", { exact: true }).first()).toBeVisible();
-  await page.keyboard.press("Enter");
+  await openFile(page, "move-me.md");
   await expect(page.locator(".cm-content")).toContainText("inside one");
   await page.keyboard.press("Meta+o");
   const head = (name: string) => page.locator(".outline .head", { hasText: name });

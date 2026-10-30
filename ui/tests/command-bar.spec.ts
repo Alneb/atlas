@@ -1,4 +1,5 @@
 import { test, expect, type APIRequestContext, type Page } from "@playwright/test";
+import { openFile } from "./open";
 import { mkdirSync, unlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { WS } from "../playwright.config";
@@ -69,10 +70,7 @@ test("from inside a terminal the shell keeps every non-Super key, and the bar st
 test("Ctrl+Q cycles a line: text, list item, to-do, text", async ({ page }) => {
   await page.goto("/");
   await page.getByText("Finish the GW notes.").waitFor();
-  await page.keyboard.press("Control+p");
-  await page.keyboard.type("bar-note.md");
-  await expect(page.getByTestId("palette").getByText("bar-note", { exact: true }).first()).toBeVisible();
-  await page.keyboard.press("Enter");
+  await openFile(page, "bar-note.md");
   await page.locator(".cm-content").click();
   await page.keyboard.press("Escape");
   await page.keyboard.type("Gobuy dice"); // vim: a new last line, insert mode
@@ -98,7 +96,7 @@ test("the command bar also captures what was typed", async ({ page, request }) =
 });
 
 
-// "super e needs an easy capture mode as well" (2026-10-15): `+` makes the bar a capture box — the task
+// Super+E has a capture mode too: `+` makes the bar a capture box — the task
 // fields, [[notes and @days are offered as in the Home box, Enter captures, Backspace on empty goes back.
 test("+ in the bar is a capture box with the box's completions; Enter captures", async ({ page, request }) => {
   await page.goto("/");

@@ -44,7 +44,8 @@ pub struct ToolManifest {
     #[serde(default)]
     pub template: Option<String>,
     /// `"capture"`: called with `{ text, path, line }` after every capture, from any door; `"log"`: today's log made;
-    /// `"fs"`: `{ paths }` of files that changed (capture_hooks.rs).
+    /// `"fs"`: `{ paths }` of files that changed; `"start"`: `{}` when the vault is served and when the plugin is
+    /// installed, updated or its settings saved (capture_hooks.rs).
     #[serde(default)]
     pub on: Option<String>,
 }

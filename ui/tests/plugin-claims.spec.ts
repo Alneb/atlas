@@ -1,4 +1,5 @@
 import { test, expect, type APIRequestContext, type Page } from "@playwright/test";
+import { openFile } from "./open";
 import { shownName } from "../src/lib/paths";
 
 // The editor contract and embeds (docs/refactor/REFACTOR-core-to-plugins.md, A1 and A2; docs/guides/PLUGIN-API.md):
@@ -81,10 +82,7 @@ test("a plugin's claim opens its files on a click; dirty, Ctrl+S and closing sav
   await expect.poll(() => read(request, "pe-book.lorem")).toBe("third words\n");
 
   // a link with an anchor: a new pane gets it as atlas.anchor; one already open hears it through pane.onAnchor
-  await page.keyboard.press("Control+p");
-  await page.keyboard.type("pe-links.md");
-  await expect(page.getByTestId("palette").getByText("pe-links", { exact: true }).first()).toBeVisible();
-  await page.keyboard.press("Enter");
+  await openFile(page, "pe-links.md");
   await page.locator(".cm-content .cm-hmd-internal-link", { hasText: "to chapter three" }).first().click({ modifiers: ["Control"] });
   await expect(pane.locator(".where")).toHaveText("pe-book.lorem @Chapter 3");
   expect(errs).toEqual([]);
@@ -113,10 +111,7 @@ test("the vault's open_with beats a plugin's claim; a plugin switched off claims
 test("an embed a plugin registers draws ![[file]] with its anchor and options, and follows the plugin's edits", async ({ page, request }) => {
   await page.goto("/");
   await page.getByText("Finish the GW notes.").waitFor();
-  await page.keyboard.press("Control+p");
-  await page.keyboard.type("pe-links.md");
-  await expect(page.getByTestId("palette").getByText("pe-links", { exact: true }).first()).toBeVisible();
-  await page.keyboard.press("Enter");
+  await openFile(page, "pe-links.md");
   const embed = page.locator(".cm-content .lorem-embed");
   await expect(embed).toHaveText("drawn pe-book.lorem #Part 2 300,center 300");
   await put(request, ".atlas/plugins/lorem/main.js", MAIN("redrawn"));

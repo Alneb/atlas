@@ -200,7 +200,7 @@ test("a new drawing asks its page format, then its paper, and starts with that p
   await expect.poll(() => { const s = JSON.parse(readFileSync(newest(), "utf8")); const f = s.elements.find((e: { type: string }) => e.type === "frame"); return f ? [f.width, f.height, f.locked, f.customData?.atlasTemplate] : null; }).toEqual([1059, 794, true, "lines"]);
 });
 
-// "the canvas with corder does not seem to work" (2026-10-20): it opens at its corner, and the view never goes left of
+// A canvas with a corner: it opens at its corner, and the view never goes left of
 // or above it
 test("a canvas with a corner opens at the corner and keeps the view right of and below it", async ({ page }) => {
   await page.goto("/");
@@ -221,7 +221,7 @@ test("a canvas with a corner opens at the corner and keeps the view right of and
 });
 
 // "if I draw outside of the page in the boox web app thats all okey, but in the desktop it appears below the background"
-// (2026-10-20): a page's stroke that runs past its edge is drawn there too — pages are sheets, not masks
+// A page's stroke that runs past its edge is drawn there too — pages are sheets, not masks
 test("a page's stroke running past the page's edge is drawn beyond it", async ({ page }) => {
   const base = { angle: 0, strokeColor: "#000000", backgroundColor: "transparent", fillStyle: "solid", strokeWidth: 4, strokeStyle: "solid", roughness: 0, opacity: 100, groupIds: [], roundness: null, seed: 1, version: 1, versionNonce: 1, isDeleted: false, boundElements: null, updated: 1, link: null, locked: false };
   const frame = { ...base, strokeWidth: 1, id: "p1", type: "frame", x: 0, y: 0, width: 400, height: 500, name: "Page 1", frameId: null, locked: true };

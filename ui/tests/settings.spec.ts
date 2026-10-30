@@ -1,4 +1,5 @@
 import { test, expect, type Page, type APIRequestContext } from "@playwright/test";
+import { openFile } from "./open";
 
 // Settings as pages (docs/guides/SETTINGS.md): an overview of what Atlas can do, a page per area with
 // features to try and options, search across pages, modified/reset, look options applied live,
@@ -67,10 +68,7 @@ test("a settings page is a block in a .page file", async ({ page, request }) => 
   await request.put("/api/file", { headers: H, data: { path: "notes/tune.page", text: "title: Tune\nrows:\n  - [{ view: settings, page: terminal }]\n" } });
   await page.goto("/");
   await page.getByText("Finish the GW notes.").waitFor();
-  await page.keyboard.press("Control+p");
-  await page.keyboard.type("tune.page");
-  await expect(page.getByTestId("palette").getByText("tune", { exact: true }).first()).toBeVisible();
-  await page.keyboard.press("Enter");
+  await openFile(page, "tune.page");
   await expect(page.locator(".settings-block").getByText("Where the terminal panel docks")).toBeVisible();
   await request.put("/api/file", { headers: H, data: { path: "notes/tune.page", text: "" } });
 });
@@ -142,7 +140,7 @@ test("the options of the last features are on their pages, named so they read; a
     await page.reload();
     await page.getByText("Finish the GW notes.").waitFor();
     await page.keyboard.press("Meta+Shift+D");
-    // "a5" was taken out (2026-10-20) and reads as A4: the size is not asked, the paper still is
+    // "a5" was taken out and reads as A4: the size is not asked, the paper still is
     await expect(page.getByPlaceholder("New drawing: its pages…")).toHaveCount(0);
     await page.getByTestId("palette").getByText("Blank", { exact: true }).click();
     await expect(page.locator(".excalidraw").first()).toBeVisible({ timeout: 20000 });

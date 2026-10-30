@@ -1,4 +1,5 @@
 import { test, expect, type APIRequestContext } from "@playwright/test";
+import { openFile } from "./open";
 
 // Plugins v3 (docs/refactor/REFACTOR-plugins-v3.md): main.js registers blocks and commands at startup, with no
 // pane and no rail button; editing it re-registers live (no rebuild); plugins build on each other.
@@ -31,10 +32,7 @@ test("a main.js plugin adds blocks and a command, no pane or rail; edits apply l
   await page.goto("/");
   await page.getByText("Finish the GW notes.").waitFor();
   await expect(page.getByRole("button", { name: "Demo", exact: true })).toHaveCount(0); // no rail button
-  await page.keyboard.press("Control+p");
-  await page.keyboard.type("run-note.md");
-  await expect(page.getByTestId("palette").getByText("run-note", { exact: true }).first()).toBeVisible();
-  await page.keyboard.press("Enter");
+  await openFile(page, "run-note.md");
   const hello = page.locator(".cm-content .demo").first();
   await expect(hello).toHaveText("hello you");
   await expect(hello).toHaveAttribute("data-run", "runs/r1"); // the note's frontmatter reached the block

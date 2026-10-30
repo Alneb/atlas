@@ -1,5 +1,5 @@
 import { test, expect, type Page, type APIRequestContext } from "@playwright/test";
-import { shownName } from "../src/lib/paths";
+import { openFile } from "./open";
 import { readFileSync } from "node:fs";
 import { deflateSync } from "node:zlib";
 
@@ -43,10 +43,7 @@ async function vault(request: APIRequestContext) {
 }
 
 async function open(page: Page, name: string) {
-  await page.keyboard.press("Control+p");
-  await page.keyboard.type(name);
-  await expect(page.getByTestId("palette").getByText(shownName(name), { exact: true }).first()).toBeVisible();
-  await page.keyboard.press("Enter");
+  await openFile(page, name);
 }
 
 // the plugin goes with the spec: left installed without its helper it asks for one on every later page

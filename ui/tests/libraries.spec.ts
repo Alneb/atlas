@@ -46,7 +46,7 @@ test("the Drawings library: every drawing with its note's properties as filters,
   await expect(page.locator(".dv-active-group .cm-editor")).toContainText(/Properties\s*4/); // drawing, pages, project, tags
 });
 
-// "i cannot manage the drawings in the library, i cannot rename them, delete them, create new ones" (2026-10-20): the
+// Drawings are managed in the library: the
 // detail renames (its note following it, the core's move) and deletes (its note too), the header makes a new one
 test("the Drawings library renames a drawing with its note, deletes one, and makes a new one", async ({ page }) => {
   await put(page, "libs2/old name.excalidraw", scene([rect("a", 0)]));
@@ -110,7 +110,7 @@ test("the Drawings library converts the Obsidian Excalidraw plugin's drawings in
   await expect(libs.locator(".library .t", { hasText: "Lecture 2025-11-21 14.37.13" })).toBeVisible();
 });
 
-// "dragging the mouse does not select text, that it does actual file selection" (2026-10-21): a drag draws a rectangle
+// Dragging selects files, not text: a drag draws a rectangle
 // that picks the items it touches; Ctrl+A picks all, Esc lets go; several picked offer what can be done with them
 test("a library picks items by dragging over them, as a file manager, never selecting text", async ({ page }) => {
   for (const n of ["one", "two", "three"]) await put(page, `libs4/pick ${n}.excalidraw`, scene([rect(n, 0)]));

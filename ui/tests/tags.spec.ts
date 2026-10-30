@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { openFile } from "./open";
 
 // Tags: frontmatter `tags:` and inline #tags, nested with "/". A `tags` block lists them with their
 // notes; `tag:<name>` in quick open (and the Search pane) lists a tag's notes.
@@ -11,10 +12,7 @@ test("the tags block nests tags and opens a tag's notes; tag: works in quick ope
   await put("Tags.page", "title: Tags\nrows:\n  - [tags]\n");
   await page.goto("/");
   await page.getByText("Finish the GW notes.").waitFor();
-  await page.keyboard.press("Control+p");
-  await page.keyboard.type("Tags.page");
-  await expect(page.getByTestId("palette").getByText("Tags", { exact: true }).first()).toBeVisible();
-  await page.keyboard.press("Enter");
+  await openFile(page, "Tags.page");
   const block = page.locator(".tags-block");
   const zoo = block.getByRole("button", { name: /zoology\s*2/ });
   await expect(zoo).toBeVisible();

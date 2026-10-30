@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { openFile } from "./open";
 import { execFileSync } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -20,10 +21,7 @@ test("Ctrl+. offers clangd's fix-it and applies it", async ({ page, request }) =
   test.skip(!has("clangd"), "clangd is not installed here");
   await request.put("/api/file", { headers: { "x-atlas": "1" }, data: { path: "projects/fixit.c", text: "int main(void) {\n  int x = 1\n  return x;\n}\n" } });
   await page.goto("/");
-  await page.keyboard.press("Control+p");
-  await page.keyboard.type("fixit.c");
-  await expect(page.getByTestId("palette").getByText("fixit.c").first()).toBeVisible();
-  await page.keyboard.press("Enter");
+  await openFile(page, "fixit.c");
   await expect(page.locator(".cm-lintRange-error")).not.toHaveCount(0, { timeout: 30_000 });
   // clangd puts "expected ';'" on the next token (the `return` below), as the caret's problem it is asked about
   await page.locator(".cm-line", { hasText: "return x;" }).click();

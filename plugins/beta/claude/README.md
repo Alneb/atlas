@@ -9,7 +9,8 @@ Claude Code as one of Atlas's AI agents, and your Claude plan's usage in the sta
   receive the editor's selection as `@path#Lfrom-to`. Commits by Claude are recognised by their co-author line.
 - **A status cell** — "Claude 42 %" — with the share of the 5-hour session limit used by the account Atlas runs Claude
   as, every limit with its reset time on hover, ⚠ from the warning level, and a notice once per window when the
-  session limit passes it (remembered across restarts). A click, or **Claude: show usage**, looks again at once.
+  session limit passes it (remembered across restarts). A click, or **Claude: show usage**, looks again at once and opens
+  the report: each account's limits as bars, red past the warning, with when each resets, the account in use first.
 - **The tool `usage`** (`claude_usage` through `atlas mcp`): the plan's limits in percent with their reset times, for
   the current account or, with `all = true`, every account found on this computer. No secrets in the answer.
 

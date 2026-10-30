@@ -7,10 +7,7 @@ import { openFile } from "./open";
 async function note(page: Page) {
   await page.goto("/");
   await page.getByText("Finish the GW notes.").waitFor();
-  await page.keyboard.press("Control+p");
-  await page.keyboard.type("hubbard.md");
-  await expect(page.getByTestId("palette").getByText("hubbard", { exact: true }).first()).toBeVisible();
-  await page.keyboard.press("Enter");
+  await openFile(page, "hubbard.md");
   await page.locator(".cm-content").click();
   await page.keyboard.press("Escape");
   await page.keyboard.type("Go"); // vim: a new last line, insert mode
@@ -34,8 +31,7 @@ test("the formula under the caret is drawn while it is typed, and goes when the 
   await expect(box, "the caret left the formula: it is drawn in the text again").toHaveCount(0);
 });
 
-// "it only works if you are inside the $$$$ it should work at the moment to move to that line and it changes to edit
-// mode" · "same for $ $ inline" (2026-10-19): drawn exactly when the source shows — the caret touching the formula,
+// A formula's source shows as soon as the caret reaches its line, display or inline: drawn exactly when the source shows — the caret touching the formula,
 // on its dollars too
 test("a formula is drawn as soon as its source shows: the caret on its dollars, display or inline", async ({ page }) => {
   await note(page);
@@ -50,8 +46,8 @@ test("a formula is drawn as soon as its source shows: the caret on its dollars, 
   await expect(block.locator(".katex"), "on the closing $$").toContainText("ma");
 });
 
-// "the rendered preview should not float, it should be like when we edit images, and only for $$$$ and \[\],
-// it can float for $$, but make sure the snippet autocompleter is on top" (2026-10-15)
+// The preview of display math ($$$$, \[\]) sits in the text as an edited image's does; inline math may float; the
+// snippet list stays on top
 test("display math is drawn in the text under it, inline math floats above its line, the list stays on top", async ({ page, request }) => {
   await note(page);
   await page.keyboard.type("$$\nE = mc^2\n$$");

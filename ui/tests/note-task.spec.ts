@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { openFile } from "./open";
 
 // "it takes too long to write the task syntax": Ctrl+L makes the line a to-do, then done, then open;
 // and a capture typed as `[] …` or `todo …` is a task in the day's log, not a timed line.
@@ -9,10 +10,7 @@ test("Ctrl+L cycles a line through to-do and done; a quick capture can be a task
   await request.put("/api/file", { headers: H, data: { path: "notes/todo-keys.md", text: "# Keys\n\nbuy milk\n- call Ana\n" } });
   await page.goto("/");
   await page.getByText("Finish the GW notes.").waitFor();
-  await page.keyboard.press("Control+p");
-  await page.keyboard.type("todo-keys.md");
-  await expect(page.getByTestId("palette").getByText("todo-keys", { exact: true }).first()).toBeVisible();
-  await page.keyboard.press("Enter");
+  await openFile(page, "todo-keys.md");
   await page.locator(".cm-content").getByText("buy milk").click();
   const text = () => page.evaluate(() => (window as any).__atlas.editor().text as string);
   await page.keyboard.press("Control+l");

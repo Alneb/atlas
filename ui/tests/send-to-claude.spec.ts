@@ -1,13 +1,11 @@
 import { test, expect } from "@playwright/test";
+import { openFile } from "./open";
 
 // the fixture's "Claude" is `cat` (playwright.config.ts): whatever is typed into it echoes back
 test("Ctrl+Alt+Enter types @file#lines for the selection into the Claude terminal", async ({ page }) => {
   await page.goto("/");
   await page.getByText("Finish the GW notes.").waitFor();
-  await page.keyboard.press("Control+p");
-  await page.keyboard.type("hubbard.md");
-  await expect(page.getByTestId("palette").getByText("hubbard", { exact: true }).first()).toBeVisible();
-  await page.keyboard.press("Enter");
+  await openFile(page, "hubbard.md");
   await expect(page.locator(".cm-content")).toContainText("Energy");
   await page.locator(".cm-line", { hasText: "Energy" }).click();
   await page.keyboard.press("Escape");
@@ -24,10 +22,7 @@ test("sending to Claude brings back a hidden terminal panel", async ({ page }) =
   await expect(page.locator(".xterm").first()).toBeVisible();
   await page.keyboard.press("Meta+j"); // hide the panel
   await expect(page.locator(".xterm").first()).toBeHidden();
-  await page.keyboard.press("Control+p");
-  await page.keyboard.type("hubbard.md");
-  await expect(page.getByTestId("palette").getByText("hubbard", { exact: true }).first()).toBeVisible();
-  await page.keyboard.press("Enter");
+  await openFile(page, "hubbard.md");
   await expect(page.locator(".cm-content")).toContainText("Energy");
   await page.locator(".cm-content").click();
   await page.keyboard.press("Control+Alt+Enter"); // no selection: the whole file
@@ -46,10 +41,7 @@ test.describe("a plugin's agent", () => {
   test("Ctrl+Alt+Enter opens the agent and types the selection in its pattern", async ({ page }) => {
     await page.goto("/");
     await page.getByText("Finish the GW notes.").waitFor();
-    await page.keyboard.press("Control+p");
-    await page.keyboard.type("hubbard.md");
-    await expect(page.getByTestId("palette").getByText("hubbard", { exact: true }).first()).toBeVisible();
-    await page.keyboard.press("Enter");
+    await openFile(page, "hubbard.md");
     await expect(page.locator(".cm-content")).toContainText("Energy");
     await page.locator(".cm-line", { hasText: "Energy" }).click();
     await page.keyboard.press("Escape");

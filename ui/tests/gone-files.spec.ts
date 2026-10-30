@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { openFile } from "./open";
 import { shownName } from "../src/lib/paths";
 
 // "when you delete a file the tab does not close": a tab closes with its file, however the file
@@ -13,10 +14,7 @@ test("a deleted file's tab closes; a file renamed in Files reopens under its new
   await page.getByText("Finish the GW notes.").waitFor();
   const sidebar = page.getByTestId("sidebar");
   for (const name of ["gone-a.md", "gone-b.md"]) {
-    await page.keyboard.press("Control+p");
-    await page.keyboard.type(name);
-    await expect(page.getByTestId("palette").getByText(shownName(name), { exact: true }).first()).toBeVisible();
-    await page.keyboard.press("Enter");
+    await openFile(page, name);
     await expect(sidebar.locator(".tab", { hasText: shownName(name) })).toHaveCount(1);
     await page.waitForTimeout(300);
   }

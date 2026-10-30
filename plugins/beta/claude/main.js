@@ -1,5 +1,17 @@
 // Claude usage in the status bar (README.md): "Claude 42 %" — the session limit of the account Atlas's Claude runs
-// as (the helper's `in_use`, engine/src/lib.rs) — and its limits on hover; a click looks again.
+// as (the helper's `in_use`, engine/src/lib.rs) — and its limits on hover; a click looks again and shows the report
+// (usage.js, a dialog: each account's limits as bars).
+
+/** When a limit's window ends, in words ("resets in 12 min", "resets at 14:30", "resets Mon 3 Nov"); "" if unknown. */
+export function resetText(iso) {
+  if (!iso) return "";
+  const d = new Date(iso), mins = Math.round((d.getTime() - Date.now()) / 60_000);
+  if (mins < 0) return "";
+  if (mins < 60) return `resets in ${mins} min`;
+  if (mins < 24 * 60) return `resets at ${d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
+  return `resets ${d.toLocaleDateString([], { weekday: "short", day: "numeric", month: "short" })}`;
+}
+
 export function register(atlas) {
   const cell = atlas.shell.statusItem({ id: "usage", text: "Claude …", title: "Claude usage", run: () => void look(true) });
   // A limit is announced once per window, also across restarts. The key leaves out resets_at: the endpoint moves it
@@ -15,14 +27,7 @@ export function register(atlas) {
     save();
     atlas.toast(`Claude: ${Math.round(l.percent)} % of the ${l.label} used`, `${a.name}${when(l.resets_at) ? ` — ${when(l.resets_at)}` : ""}`, "info");
   }
-  const when = (iso) => {
-    if (!iso) return "";
-    const d = new Date(iso), mins = Math.round((d.getTime() - Date.now()) / 60_000);
-    if (mins < 0) return "";
-    if (mins < 60) return `resets in ${mins} min`;
-    if (mins < 24 * 60) return `resets at ${d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
-    return `resets ${d.toLocaleDateString([], { weekday: "short", day: "numeric", month: "short" })}`;
-  };
+  const when = resetText;
   let looking = false;
   async function look(asked) {
     if (looking) return;
@@ -38,7 +43,9 @@ export function register(atlas) {
       if (!top) cell.set(accounts.some((a) => a.error) ? "Claude ?" : "Claude", lines.join("\n") || "No Claude account found on this computer");
       else cell.set(`${top.l.percent >= warn ? "⚠ " : ""}Claude ${Math.round(top.l.percent)} %${many ? ` · ${top.a.name}` : ""}`, lines.join("\n"));
       for (const { a, l } of sessions) if (a.current) announce(a, l, warn);
-      if (asked) atlas.toast("Claude usage", lines.join("\n"));
+      // tall enough for every account's limits without a scrollbar: a header, then one row per limit
+      if (asked && (atlas.version ?? 0) >= 23) void atlas.openDialog(undefined, { title: "Claude usage", width: 520, height: Math.min(640, 170 + accounts.reduce((h, a) => h + 64 + 46 * Math.max(1, a.limits.length), 0)), view: "usage.js" });
+      else if (asked) atlas.toast("Claude usage", lines.join("\n"));
     } catch (e) {
       cell.set("Claude ?", `Usage not read: ${e.message ?? e}`);
     } finally { looking = false; }

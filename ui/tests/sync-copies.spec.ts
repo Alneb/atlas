@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { openFile } from "./open";
 
 // Syncthing kept another device's version beside a note and the core could not merge it (no base here: as when both
 // changed the same lines; core sync_merge.rs, DESIGN-mirror-v2.md §4): the note says so, and settles it either way.
@@ -13,10 +14,7 @@ const read = async (request: import("@playwright/test").APIRequestContext, path:
 async function openNote(page: import("@playwright/test").Page) {
   await page.goto("/");
   await page.getByText("Finish the GW notes.").waitFor();
-  await page.keyboard.press("Control+p");
-  await page.keyboard.type("apart.md");
-  await expect(page.getByTestId("palette").getByText("apart", { exact: true }).first()).toBeVisible();
-  await page.keyboard.press("Enter");
+  await openFile(page, "apart.md");
 }
 
 test("the other device's version: taken into the note, the copy gone", async ({ page, request }) => {

@@ -37,7 +37,7 @@ test("a tab outside the split shows alone; the split row brings the pair back", 
   await expect.poll(visible).toBe(2);
 });
 
-// "an × on each half closes that half; and ends the split" (2026-10-19): the half's × in the split row, and the one in
+// An × on each half closes that half and ends the split: the half's × in the split row, and the one in
 // the corner of each half on screen, close that half's tab; the tabs behind it join the other half, one editor again.
 async function splitThree(page: Page, names: string[]): Promise<void> {
   for (const n of names) await page.request.put("/api/file", { headers: H, data: { path: `notes/${n}.md`, text: `# ${n}\n\nBody of ${n}\n` } });

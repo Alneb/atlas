@@ -1,4 +1,5 @@
 import { test, expect, type APIRequestContext } from "@playwright/test";
+import { openFile } from "./open";
 import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { readFileSync } from "node:fs";
@@ -32,10 +33,7 @@ test("a Jellyfin block lists the last things watched, newest first", async ({ pa
   await request.put("/api/plugins/jellyfin/settings", { headers: H, data: { server: `http://127.0.0.1:${port}`, user: "u1", token: "jf-1" } });
   await page.goto("/");
   await page.getByText("Finish the GW notes.").waitFor();
-  await page.keyboard.press("Control+p");
-  await page.keyboard.type("watched.md");
-  await expect(page.getByTestId("palette").getByText("watched", { exact: true }).first()).toBeVisible();
-  await page.keyboard.press("Enter");
+  await openFile(page, "watched.md");
   await expect(page.locator(".cm-content li").first()).toContainText("Dark — Secrets");
   await expect(page.locator(".cm-content li", { hasText: "Arrival" })).toContainText("2026-10-10");
   expect(asked[0].url.startsWith("/Users/u1/Items?Filters=IsPlayed")).toBe(true);

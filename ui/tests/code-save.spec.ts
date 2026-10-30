@@ -1,6 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 
-// "dont autosave code files, but keep a temporary one just in case" (2026-10-15): a code file is saved by
+// Code files are not autosaved: a code file is saved by
 // Ctrl+S only; meanwhile its text is kept in a recovery copy, offered back when the file is opened again.
 const H = { "x-atlas": "1" };
 const disk = async (page: Page, path: string) => ((await (await page.request.get(`/api/file?path=${encodeURIComponent(path)}`, { headers: H })).json()) as { text: string }).text;

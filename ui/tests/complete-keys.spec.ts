@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { openFile } from "./open";
 
 // "the autocompletion does not seem to work for greek letters" and "tab … with autocompletion it
 // should move down and enter works": in math, two letters list the commands that start with them;
@@ -9,10 +10,7 @@ test("Greek letters complete in math; Tab moves down the list, Enter accepts", a
   await request.put("/api/file", { headers: H, data: { path: "notes/greek.md", text: "# Greek\n\nprose\n" } });
   await page.goto("/");
   await page.getByText("Finish the GW notes.").waitFor();
-  await page.keyboard.press("Control+p");
-  await page.keyboard.type("greek.md");
-  await expect(page.getByTestId("palette").getByText("greek", { exact: true }).first()).toBeVisible();
-  await page.keyboard.press("Enter");
+  await openFile(page, "greek.md");
   await expect(page.locator(".cm-content")).toContainText("prose");
   await page.locator(".cm-content").getByText("prose").click();
   await page.keyboard.press("Escape");
@@ -36,7 +34,7 @@ test("Greek letters complete in math; Tab moves down the list, Enter accepts", a
   await expect(list.getByText("\\gamma", { exact: true })).toHaveCount(0);
 });
 
-// "tab works weird because it just tabs the whole line instead of adding a tab character" (2026-10-15):
+// Tab types a tab character rather than indenting the whole line:
 // Obsidian's Tab in a note, VS Code's in code.
 test("Tab types a tab at the caret in prose and indents a list item; in code it types an indent", async ({ page, request }) => {
   await request.put("/api/file", { headers: H, data: { path: "notes/tabs.md", text: "# Tabs\n\nabcdef\n- item\nline one\nline two\n" } });

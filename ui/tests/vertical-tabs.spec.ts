@@ -13,7 +13,7 @@ const side = (page: Page) => page.getByTestId("sidebar");
 const row = (page: Page, text: string) => side(page).locator(".tab", { hasText: shownName(text) }); // a note reads without ".md"
 const rowTitles = (page: Page) => side(page).locator('.group[aria-label^="Tabs"]').first().locator(".tab-title").allInnerTexts();
 const activeRow = (page: Page) => side(page).locator(".tab.active, .pin.active");
-/** Home (Today) is an app at the top, not a row (2026-10-17) */
+/** Home (Today) is an app at the top, not a row */
 const homeOn = (page: Page) => side(page).getByTestId("apps").locator(".app.active[aria-label=Home]");
 
 async function openFile(page: Page, q: string, name: string) {

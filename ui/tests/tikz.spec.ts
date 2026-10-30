@@ -1,4 +1,5 @@
 import { test, expect, type APIRequestContext } from "@playwright/test";
+import { openFile } from "./open";
 import { parseTikz, texError, uniqueIds } from "../src/lib/tikz";
 
 // ```tikz fences drawn in the page by TeX in WebAssembly (lib/tikz.ts, lib/tikz-fence.ts): a flowchart with the
@@ -47,10 +48,7 @@ test("a tikz fence draws as an SVG, a broken one shows TeX's error, the source s
   await put(request, "notes/tikz-loop.md", `# Loop\n\n\`\`\`tikz\n${FLOWCHART}\n\`\`\`\n\nBroken:\n\n\`\`\`tikz\n${BROKEN}\n\`\`\`\n\nUnknown package:\n\n\`\`\`tikz\n\\usepackage{siunitx}\n\\begin{tikzpicture}\\node {x};\\end{tikzpicture}\n\`\`\`\n\nlast line\n`);
   await page.goto("/");
   await page.getByText("Finish the GW notes.").waitFor();
-  await page.keyboard.press("Control+p");
-  await page.keyboard.type("tikz-loop");
-  await expect(page.getByTestId("palette").getByText("tikz-loop", { exact: true }).first()).toBeVisible();
-  await page.keyboard.press("Enter");
+  await openFile(page, "tikz-loop");
   const note = page.locator(".cm-content");
   const svg = note.locator('.tikz-figure[data-state="done"] svg');
   await expect(svg).toBeVisible({ timeout: 90_000 });
@@ -87,10 +85,7 @@ test("a Feynman diagram (tikz-feynman) draws as an SVG", async ({ page, request 
   await put(request, "notes/feynman.md", `# Annihilation\n\n\`\`\`tikz\n${FEYNMAN}\n\`\`\`\n`);
   await page.goto("/");
   await page.getByText("Finish the GW notes.").waitFor();
-  await page.keyboard.press("Control+p");
-  await page.keyboard.type("feynman");
-  await expect(page.getByTestId("palette").getByText("feynman", { exact: true }).first()).toBeVisible();
-  await page.keyboard.press("Enter");
+  await openFile(page, "feynman");
   const fig = page.locator(".cm-content .tikz-figure");
   await expect(fig).toHaveAttribute("data-state", /done|error/, { timeout: 90_000 });
   expect(await fig.getAttribute("data-state"), await fig.innerText()).toBe("done");

@@ -1,4 +1,5 @@
 import { test, expect, type APIRequestContext } from "@playwright/test";
+import { openFile } from "./open";
 
 // Tasks, Atlas's way (docs/guides/TASKS.md): a task's line is read for its fields (priority, due date,
 // recurrence, tags — the Obsidian Tasks syntax, by shape), and a `task-list` block filters, sorts and
@@ -46,10 +47,7 @@ test.beforeAll(async ({ request }) => {
 test("a task-list block groups by date, shows priority and recurrence, filters by tag; a recurring task ticked leaves its next", async ({ page, request }) => {
   await page.goto("/");
   await page.getByText("Finish the GW notes.").waitFor();
-  await page.keyboard.press("Control+p");
-  await page.keyboard.type("chores.md");
-  await expect(page.getByTestId("palette").getByText("chores", { exact: true }).first()).toBeVisible();
-  await page.keyboard.press("Enter");
+  await openFile(page, "chores.md");
   const blocks = page.locator(".cm-content .tasks");
   const first = blocks.nth(0);
 

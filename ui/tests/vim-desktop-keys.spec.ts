@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
+import { openFile } from "./open";
 
 // "make two vim modes, classic one, but also one where visual deos not interfere wuth crtl x y c etc
 // and it works in a normal way": `[editor] vim_keys = "desktop"`. The setting is served to the page
@@ -15,10 +16,7 @@ async function open(page: Page, vimKeys: "classic" | "desktop") {
   });
   await page.goto("/");
   await page.getByText("Finish the GW notes.").waitFor();
-  await page.keyboard.press("Control+p");
-  await page.keyboard.type("hubbard.md");
-  await expect(page.getByTestId("palette").getByText("hubbard", { exact: true }).first()).toBeVisible();
-  await page.keyboard.press("Enter");
+  await openFile(page, "hubbard.md");
   await page.locator(".cm-content").click();
   await page.keyboard.press("Escape");
 }

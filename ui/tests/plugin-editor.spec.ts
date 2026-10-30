@@ -1,4 +1,5 @@
 import { test, expect, type APIRequestContext, type Page } from "@playwright/test";
+import { openFile } from "./open";
 
 // Plugins v4, editor hooks (docs/guides/PLUGINS.md "v4"): a completion, a key, a paste handler, decorations
 // for a pattern, and the raw escape hatch — and a hook that throws costs nothing but a log line.
@@ -30,10 +31,7 @@ test("a plugin's completion, key, paste handler, decorations and raw extension i
   await context.grantPermissions(["clipboard-read", "clipboard-write"]);
   await page.goto("/");
   await page.getByText("Finish the GW notes.").waitFor();
-  await page.keyboard.press("Control+p");
-  await page.keyboard.type("hooks-note.md");
-  await expect(page.getByTestId("palette").getByText("hooks-note", { exact: true }).first()).toBeVisible();
-  await page.keyboard.press("Enter");
+  await openFile(page, "hooks-note.md");
   const note = page.locator(".cm-content");
 
   // decorations: a class on every match, a drawing in place of another; the raw extension's attribute

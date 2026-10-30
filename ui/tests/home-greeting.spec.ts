@@ -1,4 +1,5 @@
 import { test, expect, type APIRequestContext } from "@playwright/test";
+import { openFile } from "./open";
 import { readFileSync } from "node:fs";
 
 // Home:
@@ -56,20 +57,14 @@ test("plugins put chips under the date; Activity says what was made; the map is 
   await put(request, "log/2019-06-01.md", "---\ncreated: 2019-06-01\n---\n# Saturday\n\n```view\ntype: activity\n```\n");
   await put(request, "notes/made-that-day.md", "---\ncreated: 2019-06-01 10:00\n---\n# Made that day\n");
 
-  await page.keyboard.press("Control+p");
-  await page.keyboard.type("2019-06-01");
-  await expect(page.getByTestId("palette").getByText("2019-06-01", { exact: true }).first()).toBeVisible();
-  await page.keyboard.press("Enter");
+  await openFile(page, "2019-06-01");
   const day = page.locator(".card", { has: page.getByRole("heading", { name: "Made this day" }) });
   await expect(day.locator(".changed-row", { hasText: "made-that-day" })).toBeVisible();
   for (const f of ["log/2019-06-01.md", "notes/made-that-day.md"]) await request.post(`/api/fs/trash?path=${f}`, { headers: H });
 
   // the map, as a page block would draw it
   await put(request, "notes/map/Map.md", "# Map\n\n```view\ntype: home.map\nmin: 1\n```\n");
-  await page.keyboard.press("Control+p");
-  await page.keyboard.type("Map.md");
-  await expect(page.getByTestId("palette").getByText("Map", { exact: true }).first()).toBeVisible();
-  await page.keyboard.press("Enter");
+  await openFile(page, "Map.md");
   await expect(page.locator(".cm-content")).toContainText("Map");
   const map = page.locator(".home-map");
   await expect(map.locator(".row").first()).toContainText("Physics");
@@ -79,10 +74,7 @@ test("plugins put chips under the date; Activity says what was made; the map is 
 
   // the areas: the top folders as tiles, each with its latest notes
   await put(request, "notes/map/Areas.md", "# Areas\n\n```view\ntype: home.areas\nareas: 8\n```\n");
-  await page.keyboard.press("Control+p");
-  await page.keyboard.type("Areas.md");
-  await expect(page.getByTestId("palette").getByText("Areas", { exact: true }).first()).toBeVisible();
-  await page.keyboard.press("Enter");
+  await openFile(page, "Areas.md");
   const areas = page.locator(".home-areas");
   await expect(areas.locator(".area", { hasText: "notes" }).first()).toBeVisible();
   await expect(areas.locator(".area .head", { hasText: /^\.atlas/ })).toHaveCount(0);
