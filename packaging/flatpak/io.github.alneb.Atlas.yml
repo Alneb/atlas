@@ -1,5 +1,6 @@
 # Atlas as a Flatpak, from binaries already built (the Release workflow's `linux` job puts them in ./dist):
 #   flatpak-builder --user --install --force-clean build-dir packaging/flatpak/io.github.alneb.Atlas.yml
+# On a desktop, packaging/flatpak/build-local.sh compiles them inside the SDK first (the runtime's glibc) and installs.
 # The GNOME runtime carries WebKitGTK 4.1, which the desktop app (Tauri) draws with.
 app-id: io.github.alneb.Atlas
 runtime: org.gnome.Platform
