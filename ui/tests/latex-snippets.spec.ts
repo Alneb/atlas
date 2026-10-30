@@ -68,6 +68,7 @@ test("snippet triggers are offered as completions in math, not in prose", async 
   await page.keyboard.type("mk"); // → $|$
   await page.keyboard.type("su");
   await expect(menu.locator("li")).toHaveText([/sumk.*\\sum_\{k=/, /sumq.*\\sum_\{q\}/]);
+  await page.waitForTimeout(150); // CodeMirror ignores Enter for 75 ms after the list opens (interactionDelay)
   await page.keyboard.press("Enter");
   await page.keyboard.type("1");
   await page.keyboard.press("Tab");

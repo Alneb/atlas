@@ -1,16 +1,10 @@
 import { test, expect, type APIRequestContext } from "@playwright/test";
-import { shownName } from "../src/lib/paths";
+import { openFile } from "./open";
 
 // docs/refactor/REFACTOR-blocks.md: one registry. A pane (Library, an editor, a table file) is a block that
 // sits in a page or a note; any block opens as a tab of its own.
 const H = { "x-atlas": "1" };
 const put = (r: APIRequestContext, path: string, text: string) => r.put("/api/file", { headers: H, data: { path, text } });
-const openFile = async (page: import("@playwright/test").Page, name: string) => {
-  await page.keyboard.press("Control+p");
-  await page.keyboard.type(name);
-  await expect(page.getByTestId("palette").getByText(shownName(name), { exact: true }).first()).toBeVisible();
-  await page.keyboard.press("Enter");
-};
 
 test("panes embed in a page, and an embedded pane opens as its own tab", async ({ page, request }) => {
   await put(request, "Desk.page", "title: Desk\nrows:\n  - columns:\n      - [{ view: library, height: 300 }]\n      - [{ view: editor, path: notes/sub/related.md }]\n  - [{ view: file-table, path: data/sweep.tsv }]\n  - [{ view: pdf }]\n");

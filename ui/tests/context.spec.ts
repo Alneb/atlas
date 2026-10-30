@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { openFile } from "./open";
 const H = { "x-atlas": "1" };
 const put = (request: import("@playwright/test").APIRequestContext, path: string, text: string) =>
   request.put("/api/file", { headers: H, data: { path, text } });
@@ -11,10 +12,7 @@ test("hover sync between a note's links and an embedded base", async ({ page, re
   await put(request, "notes/hov-host.md", "# Hover\n\nSee [[hov-a]] and [[hov-b]].\n\n![[hov.base]]\n");
   await put(request, "db/hov.base", "filters: 'kind == \"hov\"'\nviews:\n  - type: table\n    name: H\n    order: [file.name]\n");
   await page.goto("/");
-  await page.keyboard.press("Control+p");
-  await page.keyboard.type("hov-host.md");
-  await expect(page.getByTestId("palette").getByText("hov-host", { exact: true }).first()).toBeVisible();
-  await page.keyboard.press("Enter");
+  await openFile(page, "hov-host.md");
   const rows = page.locator(".cm-content .base tbody tr");
   await expect(rows).toHaveCount(2);
   await rows.filter({ hasText: "hov-b" }).hover();

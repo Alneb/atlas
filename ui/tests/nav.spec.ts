@@ -1,15 +1,13 @@
 import { test, expect, type Page, type APIRequestContext } from "@playwright/test";
 import { shownName } from "../src/lib/paths";
+import { openFile as openInPalette } from "./open";
 
 // Back / forward like a browser: the mouse's side buttons and a horizontal two-finger swipe (nav-input.ts).
 const H = { "x-atlas": "1" };
 const put = (r: APIRequestContext, path: string, text: string) => r.put("/api/file", { headers: H, data: { path, text } });
 
 async function openFile(page: Page, name: string) {
-  await page.keyboard.press("Control+p");
-  await page.keyboard.type(name);
-  await expect(page.getByTestId("palette").getByText(shownName(name), { exact: true }).first()).toBeVisible();
-  await page.keyboard.press("Enter");
+  await openInPalette(page, name);
   await expect(page.locator(".dv-tab.dv-active-tab")).toContainText(shownName(name));
   await expect(page.locator(".dv-active-group .cm-editor.cm-focused")).toBeVisible(); // else the next Ctrl+P races the focus
 }
