@@ -31,8 +31,8 @@ own IMAP/SMTP accounts (a password) or Outlook / Microsoft 365 (OAuth2), several
 - **Search** with operators: `from: to: cc: subject: has:attachment is:unread|starred|snoozed list: label: in:
   account: before: after: older_than: newer_than: larger: smaller:`, phrases and `-word`.
 - **Rules** in `mail/rules.md` (one `email-rules` block): `<search> => <actions>` (move, archive, trash, spam, read,
-  star, important, not-important, label, save, notify, stop), run on new inbox mail; edited in the pane, by hand or
-  by an agent.
+  star, important, not-important, label, save, notify, stop), run on new inbox mail; edited in a dialog (the pane's
+  **Rules…**), in Settings → Email, by hand or by an agent.
 - **Elsewhere**: the `email.inbox` block (a triage card for Home), a side tool, the unread count in the status bar,
   notices of new mail, "Email: send this note…", Thunderbird import (accounts; local mail as notes, after asking).
 - **Tools for agents** (`atlas mcp`): `email_inbox`, `email_read`, `email_attachment`, `email_send` (only a mail the

@@ -7,8 +7,8 @@
   import { errText } from "../lib/text";
   import { loadView, pluginApi, type Plugin } from "../lib/plugins.svelte";
 
-  let { plugin, arg, title, width = 960, height = 680, onclose }: {
-    plugin: Plugin; arg?: string; title: string; width?: number; height?: number; onclose: () => void;
+  let { plugin, arg, view, title, width = 960, height = 680, onclose }: {
+    plugin: Plugin; arg?: string; view?: string; title: string; width?: number; height?: number; onclose: () => void;
   } = $props();
   let host: HTMLDivElement;
   let error = $state("");
@@ -18,14 +18,14 @@
     const pane = { setDirty: () => {}, onSave: () => () => {}, onAnchor: () => () => {}, close: () => onclose() };
     void (async () => {
       try {
-        const mod = await loadView(plugin);
+        const mod = await loadView(plugin, view);
         if (gone) return;
         if (typeof mod.default !== "function") throw new Error("the module has no default export function (host, atlas) => …");
         const r = await mod.default(host, pluginApi(plugin, { arg, pane }));
         if (gone) { if (typeof r === "function") r(); return; }
         cleanup = typeof r === "function" ? r : undefined;
       } catch (e) {
-        error = `${plugin.view}: ${errText(e)}`;
+        error = `${view ?? plugin.view}: ${errText(e)}`;
         console.error("[atlas] plugin dialog", plugin.id, e);
       }
     })();

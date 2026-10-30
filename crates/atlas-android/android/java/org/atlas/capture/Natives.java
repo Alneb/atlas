@@ -13,6 +13,16 @@ final class Natives {
         return NativePlugins.byId(id);
     }
 
+    /** The first screen other than `self` that opens `path` (its `#page=N` aside): what a screen hands a file over to
+     *  (the notepad a PDF, to the reader whose `[android] opens` covers it), never naming that plugin. */
+    static NativePlugin other(String self, String path) {
+        int hash = path.indexOf('#');
+        String file = hash > 0 ? path.substring(0, hash) : path;
+        for (NativePlugin p : CORE) if (!p.id().equals(self) && p.opens(file)) return p;
+        for (NativePlugin p : NativePlugins.ALL) if (!p.id().equals(self) && p.opens(file)) return p;
+        return null;
+    }
+
     /** The first screen that opens `path`: the app's own, then a plugin's that `running` lets through. */
     static NativePlugin forPath(String path, java.util.function.Predicate<String> running) {
         for (NativePlugin p : CORE) if (p.opens(path)) return p;

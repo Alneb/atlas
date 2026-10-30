@@ -5,8 +5,9 @@
   import type { Rule } from "./api";
   import type { RulesHost } from "./rules-host";
 
-  // `inline`: drawn in Settings' page, not as a sheet over the pane
-  let { mail, onclose = () => {}, inline = false }: { mail: RulesHost; onclose?: () => void; inline?: boolean } = $props();
+  // `frame`: in Settings' page, or alone in a dialog (the pane's Rules…, view.ts), which Save and Cancel close
+  let { mail, onclose = () => {}, frame }: { mail: RulesHost; onclose?: () => void; frame: "page" | "dialog" } = $props();
+  const inline = $derived(frame === "page");
   let rules = $state<Rule[]>([]);
   let path = $state("");
   let error = $state("");
@@ -33,21 +34,7 @@
   }
 </script>
 
-{#if inline}
-  <div class="inline">{@render body()}</div>
-{:else}
-<div class="scrim" role="presentation" onclick={onclose} onkeydown={(e) => e.key === "Escape" && onclose()}>
-  <div class="sheet" role="dialog" aria-modal="true" aria-label="Rules" tabindex="-1" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.stopPropagation()}>
-    <header>
-      <h2>Rules</h2>
-      <button class="x" onclick={onclose} aria-label="Close">×</button>
-    </header>
-    {@render body()}
-  </div>
-</div>
-{/if}
-
-{#snippet body()}
+<div class={frame}>
     <span class="faint">for new mail in an inbox · kept in <button class="link" onclick={() => { mail.atlas.open(path, undefined, { beside: true }); onclose(); }}>{path || "mail/rules.md"}</button></span>
     <p class="hint">When new mail matches the search, do the actions in order. A search is written as in the search box: <code>from:shop.example</code>, <code>subject:invoice has:attachment</code>, <code>list:physics</code>, <code>-from:boss</code>, several people at once: <code>from:ana@uni.example,bo@uni.example</code>. <b>important</b> stars it and keeps the conversation as a note at once; <b>not-important</b> moves it out of the inbox; <b>stop</b> keeps later rules from seeing it; <b>save</b> keeps the conversation as a note.</p>
     {#each rules as r, i (i)}
@@ -69,18 +56,14 @@
       {#if !inline}<button class="atlas-btn" onclick={onclose}>Cancel</button>{/if}
       <button class="atlas-btn primary" onclick={save} disabled={saving}>{inline ? "Save rules" : "Save"}</button>
     </footer>
-{/snippet}
+</div>
 
 <style>
-  .scrim { position: absolute; inset: 0; z-index: 60; background: rgba(0, 0, 0, 0.35); display: grid; place-items: center; padding: 16px; }
-  .inline { display: grid; gap: 10px; container-type: inline-size; }
-  .sheet { background: var(--bg-elev); border: 1px solid var(--border-strong); border-radius: var(--radius-lg); width: min(820px, 100%); max-height: 90%; overflow: auto; padding: 18px 22px; display: grid; gap: 10px; }
-  header { display: flex; gap: 12px; align-items: baseline; flex-wrap: wrap; }
-  h2 { margin: 0; font-size: 1.15em; }
+  .page { display: grid; gap: 10px; container-type: inline-size; }
+  .dialog { display: grid; gap: 10px; align-content: start; container-type: inline-size; padding: 14px 18px; height: 100%; box-sizing: border-box; overflow: auto; }
   .faint { color: var(--text-faint); font-size: 0.9em; }
   .hint { margin: 0; color: var(--text-muted); font-size: 0.9em; line-height: 1.5; }
   code { font-family: var(--font-mono); font-size: 0.9em; background: var(--bg-hover); padding: 0 4px; border-radius: 4px; }
-  .x { all: unset; cursor: pointer; margin-left: auto; font-size: 1.4em; color: var(--text-muted); padding: 0 6px; }
   .link { all: unset; cursor: pointer; color: var(--accent); }
   .rule { display: flex; gap: 8px; align-items: center; }
   .rule input { min-width: 0; background: var(--bg); color: var(--text); border: 1px solid var(--border-strong); border-radius: var(--radius-sm); padding: 6px 9px; font: inherit; }

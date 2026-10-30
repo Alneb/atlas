@@ -89,11 +89,20 @@ async function importModule(path: string): Promise<any> {
   return await import(/* @vite-ignore */ url);
 }
 
-/** The plugin's pane module (`view.js`). */
-export async function loadView(p: Plugin): Promise<{ default: (host: HTMLElement, api: PluginApi) => void | (() => void) | Promise<void | (() => void)> }> {
-  if (!p.view) throw new Error(`plugin ${p.id} has no pane (no view.js)`);
-  const [mod] = await Promise.all([importModule(p.view), loadHost()]);
+/** The plugin's pane module (`view.js`), or `module`, another module of its folder (`signin.js`) shaped the same way. */
+export async function loadView(p: Plugin, module?: string): Promise<{ default: (host: HTMLElement, api: PluginApi) => void | (() => void) | Promise<void | (() => void)> }> {
+  const path = module === undefined ? p.view : moduleOf(p, module);
+  if (!path) throw new Error(`plugin ${p.id} has no pane (no view.js)`);
+  const [mod] = await Promise.all([importModule(path), loadHost()]);
   return mod;
+}
+
+/** `module` inside the plugin's folder (beside its view.js / main.js); a path out of it, or not a .js, is refused. */
+function moduleOf(p: Plugin, module: string): string {
+  const base = p.view ?? p.main;
+  const clean = module.replace(/^\.\//, "");
+  if (!base || !/\.js$/.test(clean) || clean.split("/").some((s) => !s || s.startsWith("."))) throw new Error(`plugin ${p.id}: no module ${JSON.stringify(module)} in its folder`);
+  return `${base.slice(0, base.lastIndexOf("/") + 1)}${clean}`;
 }
 
 /** A plugin's view left open from another time (a saved layout, another vault's) whose plugin is not in this vault or

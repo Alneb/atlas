@@ -10,6 +10,7 @@ import { hydrateFences } from "./fences";
 import "./pdf-marks-fence"; // the core's own fence: a PDF's marks in its note
 import "./table-views-fence"; // the core's own fence: a table's saved views in its note
 import "./tikz-fence"; // the core's own fence: a ```tikz picture drawn by TeX in the page
+import "./ink-fence"; // the core's own fence: an Obsidian Ink block shown as a card for its file
 import "./typst-fence"; // and a ```typst block drawn by the core's Typst
 import { mount, unmount, type Component } from "svelte";
 import { parse as parseYaml } from "yaml";

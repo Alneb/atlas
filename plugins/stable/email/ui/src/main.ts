@@ -6,18 +6,15 @@ import Inbox from "./Inbox.svelte";
 import Rules from "./Rules.svelte";
 import NoteView from "./NoteView.svelte";
 import { askYes, call, type PluginApi } from "./api";
+import { openMail as openPane } from "./open-mail";
+import { standIn } from "./rules-host";
 import { signin } from "./signin";
 
 type Card = { name: string; auth?: string; user?: string; claude?: string };
 
 export function register(atlas: PluginApi) {
   const cards = () => ((atlas.plugin.settings.accounts as Card[] | undefined) ?? []).filter((c) => c?.name);
-  const openMail = (detail: Record<string, unknown> = {}) => {
-    (window as unknown as { __atlasEmailOpen?: unknown }).__atlasEmailOpen = detail;
-    atlas.openView(undefined, { title: "Email", icon: "mail" });
-    // an Email pane already open hears it now; a new one reads __atlasEmailOpen when it mounts
-    setTimeout(() => window.dispatchEvent(new CustomEvent("atlas-email:open", { detail })), 0);
-  };
+  const openMail = (detail: Record<string, unknown> = {}) => openPane(atlas, detail);
 
   atlas.registerCommand({ id: "open", title: "Email: open mail", run: () => openMail() });
   atlas.registerCommand({ id: "compose", title: "Email: new message", run: () => openMail({ compose: {} }) });
@@ -69,12 +66,7 @@ export function register(atlas: PluginApi) {
 
   // Settings → Email: the rules, edited where the other settings are (plugin API 12)
   atlas.plugin.registerSettingsSection?.({ id: "rules", title: "Rules", hint: "What happens to new mail by itself: important, archive, a label, kept as a note.", mount: (host) => {
-    const v = mount(Rules, { target: host, props: { inline: true, mail: {
-      call: (method: string, params: Record<string, unknown> = {}, timeout = 120) => call(atlas, method, params, timeout),
-      search: (q: string) => openMail({ search: q }),
-      toast: (text: string, kind: "info" | "success" | "error" = "info") => atlas.toast("Email", text, kind),
-      atlas: { open: (path: string, line?: number, opts?: { beside?: boolean }) => atlas.open(path, line, opts) },
-    } as never } });
+    const v = mount(Rules, { target: host, props: { frame: "page", mail: standIn(atlas) } });
     return () => unmount(v);
   } });
 

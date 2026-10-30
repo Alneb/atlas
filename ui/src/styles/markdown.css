@@ -193,7 +193,6 @@ html.phone .markdown a::after, html.phone .markdown .cm-link::after, html.phone 
 .markdown .view-block.own { border: 0; padding: 0; background: none; margin: .9em 0; }
 .markdown .view-block .view-loading { color: var(--text-faint); margin: 0; padding: 4px 8px; }
 .markdown .view-block .view-error { color: var(--red); margin: 0; padding: 4px 8px; }
-.markdown .ink-card { margin: .6em 0; padding: .55em .8em; border: 1px dashed var(--border-strong); border-radius: 6px; color: var(--text-muted); font-size: .92em; }
 .markdown .drawing-embed { position: relative; }
 .markdown .drawing-edit { position: absolute; top: 6px; right: 6px; opacity: 0; transition: opacity .12s; font-size: .8em; padding: 2px 8px; border-radius: 999px; background: var(--bg-elev); border: 1px solid var(--border); color: var(--text-muted); cursor: pointer; }
 .markdown .drawing-embed:hover .drawing-edit, .markdown .drawing-edit:focus-visible { opacity: 1; }

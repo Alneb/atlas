@@ -42,8 +42,9 @@ export interface PluginApi {
   openView(arg?: string, opts?: { title?: string; icon?: string; beside?: boolean }): void;
   /** (v20) The plugin's pane (view.js) in a popup over the app instead of a tab — a dialog (Export, Print): the same
    *  module and API, `atlas.arg` = `arg`, `atlas.pane.close()` closes it, as do Escape, Back and its ✕. Resolves when it
-   *  closes; asked again while it is open, the same one. `width`/`height` in px (shrunk to the window). */
-  openDialog(arg?: string, opts?: { title?: string; width?: number; height?: number }): Promise<void>;
+   *  closes; asked again while it is open, the same one. `width`/`height` in px (shrunk to the window). (v23) `view`:
+   *  another module of the plugin's folder (`signin.js`), shaped as view.js, so each dialog is a small module of its own. */
+  openDialog(arg?: string, opts?: { title?: string; width?: number; height?: number; view?: string }): Promise<void>;
   /** (v20) Zip archives read in the page — a reader that fetched an EPUB or a CBZ: `index(buf)` → name → entry,
    *  `blob(buf, entry, type?)` → that entry's bytes (stored or deflated). */
   zip: { index(buf: ArrayBuffer): Map<string, import("./zip").ZipEntry>; blob(buf: ArrayBuffer, entry: import("./zip").ZipEntry, type?: string): Promise<Blob> };

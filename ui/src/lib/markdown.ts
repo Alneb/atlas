@@ -7,7 +7,7 @@ import { mathToString } from "./math";
 import { highlightToHtml } from "./highlight";
 import { onRendererArrived } from "./lazy-render";
 import DOMPurify from "dompurify";
-import { resolveRel, shownName, IMAGE_RE } from "./paths";
+import { resolveRel, IMAGE_RE } from "./paths";
 import { onVaultChange, resolveLink, resolveOrBeside } from "./vault";
 import { onSettings } from "./settings.svelte";
 import { wikilinkAt } from "./wikilink-syntax";
@@ -230,19 +230,11 @@ function build() {
     const expr = /^=\s*\S/.test(t[i].content) ? t[i].content.replace(/^=\s*/, "") : null;
     return expr === null ? defaultCode(t, i, o, env, self) : `<code class="expr expr-wait" data-expr="${esc(expr)}" title="= ${esc(expr)}">…</code>`;
   };
-  // Obsidian Ink plugin blocks hold a pointer to a `.drawing` file, not content: show what they are
   const defaultFence = r.fence!;
   r.fence = (t, i, o, env, self) => {
     // a view block (docs/guides/MALLEABLE.md): drawn by lib/blocks.ts once mounted (hydrateBlocks)
     if (t[i].info.trim() === "view") return `<div class="view-block" data-src="${esc(t[i].content)}"><p class="view-loading">…</p></div>`;
-    if (!/^(handdrawn|handwritten)-ink$/.test(t[i].info.trim())) return defaultFence(t, i, o, env, self);
-    let file = "";
-    try { file = String(JSON.parse(t[i].content).filepath ?? ""); } catch { /* not JSON: shown as is */ }
-    const hit = file && resolveLink(file, dirOf(env) ?? "");
-    const what = t[i].info.startsWith("handdrawn") ? "drawing" : "handwriting";
-    return hit
-      ? `<div class="ink-card">Ink ${what}: <a class="internal-link" data-href="${esc(hit)}" href="#">${esc(shownName(file))}</a> (Ink plugin format — open to view)</div>`
-      : `<div class="ink-card is-missing">Ink ${what} <code>${esc(file || "?")}</code> — the file is not in this workspace (Obsidian Ink plugin).</div>`;
+    return defaultFence(t, i, o, env, self); // the Obsidian Ink blocks are a fence of their own (ink-fence.ts)
   };
   r.math_inline = (t, i) => (t[i].info ? `<span class="math-glue">${mathToString(t[i].content, false)}${md.utils.escapeHtml(t[i].info)}</span>` : mathToString(t[i].content, false));
   r.math_block = (t, i) => `<div class="math-display">${mathToString(t[i].content, true)}</div>\n`;

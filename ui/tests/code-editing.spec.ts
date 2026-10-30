@@ -75,7 +75,7 @@ test("Tab right after a letter indents even while the server is asked for comple
   await page.keyboard.insertText("a"); // asks the language server: the list is pending, not shown
   await page.keyboard.press("Tab");
   await page.keyboard.insertText("b"); // typed at once, before any list could come
-  await expect.poll(() => text(page)).toBe("x = 1\na    b\n");
+  await expect.poll(() => text(page), "to the next indent stop: three spaces from column 1").toBe("x = 1\na   b\n");
 });
 
 test("a language server's inlay hint for a line the file does not have is dropped, not thrown", async ({ page }) => {

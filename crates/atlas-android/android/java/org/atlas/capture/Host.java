@@ -279,6 +279,15 @@ public final class Host {
         activity.finish();
     }
 
+    /** `path` handed from screen `self` to the other one that opens it (Natives.other), in place of this one; none in
+     *  this app: the page's own view of it. */
+    public void openElsewhere(String self, String path) {
+        NativePlugin p = Natives.other(self, path);
+        if (p != null) { openPlugin(p.id(), path); return; }
+        openInWeb(path);
+        activity.finish();
+    }
+
     public void openInWeb(String path) {
         activity.startActivity(new Intent(activity, AtlasActivity.class).putExtra(AtlasActivity.OPEN, path).putExtra(AtlasActivity.WEB, true)
             .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP));

@@ -653,7 +653,7 @@ final class NotepadView extends LinearLayout implements NativePlugin.Back {
         });
         item(card, scene.pages.isEmpty() ? "The drawing as PNG" : "This page as PNG", false, () -> exported(new Exporter(this).png(Math.max(0, currentPage()))));
         item(card, "Open in Excalidraw (all its tools)", false, () -> { save(); host.openInWeb(path); host.activity().finish(); });
-        if (pdf != null) item(card, "The PDF in the reader", false, () -> { save(); host.openPlugin("books", pdf); }); // the same ink, read
+        if (pdf != null) item(card, "The PDF in the reader", false, () -> { save(); host.openElsewhere("notepad", pdf); }); // the same ink, read
     }
 
     /** The screen's four ways, the one in use marked, and full screen. */

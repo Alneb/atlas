@@ -25,6 +25,8 @@
 /* a ```tikz picture (lib/tikz-fence.ts), sized in em by the fence so TeX's 10 pt text matches the note's. Dark theme:
    the picture inverted with its hues kept, so black ink turns light, white fills near the page and pale fills under
    text turn dark; the cached SVG stays one for both themes */
+/* an Obsidian Ink block (lib/ink-fence.ts): a card for its file, in live preview and the reading view */
+.ink-card { margin: .6em 0; padding: .55em .8em; border: 1px dashed var(--border-strong); border-radius: 6px; color: var(--text-muted); font-size: .92em; font-family: var(--font-ui); }
 .tikz-figure { display: flex; justify-content: center; margin: .6em 0; overflow-x: auto; }
 .tikz-figure > svg { max-width: 100%; height: auto; overflow: visible; }
 :root:not([data-theme="light"]) .tikz-figure > svg { filter: invert(.9) hue-rotate(180deg); }

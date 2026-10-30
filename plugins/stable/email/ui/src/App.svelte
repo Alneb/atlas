@@ -10,7 +10,7 @@
   import Composer from "./Composer.svelte";
   import Toasts from "./Toasts.svelte";
   import Shortcuts from "./Shortcuts.svelte";
-  import Rules from "./Rules.svelte";
+  import { RULES_DIALOG } from "./rules-host";
   import Icon from "./Icon.svelte";
   import { Mail, type Kind, type Quick } from "./store.svelte";
   import { BY_KEY, COMMANDS, PREFIXES, keyOf, shown, type Ui } from "./keys";
@@ -33,7 +33,6 @@
   let width = $state(1200);
   let screen = $state<"side" | "list" | "reader">("list");
   let help = $state(false);
-  let rules = $state(false);
   let dark = $state(document.documentElement.dataset.theme !== "light");
   let searchBox: HTMLInputElement | undefined = $state();
   let reader: Reader | undefined = $state();
@@ -51,7 +50,7 @@
   // ----- the commands' helpers
 
   function back() {
-    if (help || rules) { help = rules = false; return; }
+    if (help) { help = false; return; }
     if (mail.checked.length) { mail.checked = []; return; }
     if (mail.openId !== null) { mail.close(); screen = "list"; return; }
     if (mail.query) { searchText = ""; mail.search(""); return; }
@@ -140,7 +139,8 @@
     focusSearch: () => { searchBox?.focus(); searchBox?.select(); },
     help: () => (help = !help),
     expandAll: (o) => reader?.expandAll(o),
-    rules: () => (rules = true),
+    // a dialog over the app (API 20); a tab of its own on an older one
+    rules: () => (typeof atlas.openDialog === "function" ? void atlas.openDialog(RULES_DIALOG, { title: "Rules", width: 860, height: 640 }) : atlas.openView(RULES_DIALOG, { title: "Email rules", icon: "mail" })),
     layout: chooseLayout,
   };
 
@@ -356,7 +356,6 @@
     </div>
   {/if}
   {#if help}<Shortcuts onclose={() => (help = false)} />{/if}
-  {#if rules}<Rules {mail} onclose={() => (rules = false)} />{/if}
   <Toasts {mail} />
   {#if pending}<div class="pending">{pending} …</div>{/if}
 </div>

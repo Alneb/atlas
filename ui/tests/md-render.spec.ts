@@ -187,7 +187,7 @@ test("![[x.excalidraw#Page 2]] draws that page only, and opens the drawing at it
 test("an Ink plugin block says what it is instead of showing its JSON", async ({ page }) => {
   const ed = await open(page, "mdr/ink.md");
   await expect(ed.locator(".ink-card.is-missing")).toContainText("2025.4.3 - 9.16am.drawing");
-  await expect(ed.getByText("versionAtEmbed")).toHaveCount(0);
+  await expect(ed.getByText("versionAtEmbed")).toBeHidden(); // the block's text stays in the note, out of sight
 });
 
 test("a plugin drawing opens in the Excalidraw pane and saves back into its compressed block", async ({ page, request }) => {

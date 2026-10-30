@@ -362,7 +362,7 @@ pub fn permissions(root: &Path, id: &str) -> Result<Permissions> {
 /// `/api/plugins/@<role>/…` (a plugin called by its role), `replaces` with `if_off`; v21 a greeting chip's `icon` may
 /// be one of the app's icon names; v22 `atlas.editor` `claimTab`, `place`, `path`, `drawMath`, `legacySnippets`,
 /// `codemirror.language`, a completion's `applies`, `apply`, `info` and `from`; v23 `atlas.writeBytes`, `atlas.tikz.png`, `atlas.confirm`,
-/// `atlas.input`.
+/// `atlas.input`, `openDialog`'s `view` (another module of the plugin).
 /// The page's number must be the same (a test holds it). A manifest with a key this Atlas does not know and an `api`
 /// above it is refused with "update Atlas", not with the parser's error (`read_manifest`).
 pub const API_VERSION: u32 = 23;

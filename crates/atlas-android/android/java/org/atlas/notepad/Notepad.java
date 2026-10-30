@@ -17,7 +17,7 @@ public final class Notepad implements NativePlugin {
     @Override public View view(Host host, String path) {
         // `x.excalidraw#Page 2` (a link to a page): the drawing, opened at that page
         int hash = path.indexOf('#');
-        if (hash > 0 && path.toLowerCase(java.util.Locale.ROOT).substring(0, hash).endsWith(".pdf")) { host.openPlugin("books", path); return new View(host.activity()); } // the reader, at `#page=N`
+        if (hash > 0 && path.toLowerCase(java.util.Locale.ROOT).substring(0, hash).endsWith(".pdf")) { host.openElsewhere(id(), path); return new View(host.activity()); } // the reader, at `#page=N`
         if (hash > 0) {
             View v = view(host, path.substring(0, hash));
             if (v instanceof NotepadView) ((NotepadView) v).startAt = path.substring(hash + 1);
@@ -27,7 +27,7 @@ public final class Notepad implements NativePlugin {
         // an older PDF companion drawing, not yet moved into the note: opened as it is
         if (low.endsWith(".pdf.excalidraw")) return new NotepadView(host, path, path.substring(0, path.length() - ".excalidraw".length()));
         if (!low.endsWith(".pdf")) return new NotepadView(host, path);
-        host.openPlugin("books", path); // one store for a PDF's ink and marks: its note, through the reader
+        host.openElsewhere(id(), path); // one store for a PDF's ink and marks: its note, through the reader
         return new View(host.activity());
     }
 }

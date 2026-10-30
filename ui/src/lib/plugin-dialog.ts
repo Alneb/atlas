@@ -7,12 +7,13 @@ import type { Plugin } from "./plugin-registry.svelte";
 
 const open = new Map<string, Promise<void>>();
 
-export interface DialogOptions { title?: string; width?: number; height?: number }
+/** `view`: another module of the plugin's folder (`signin.js`) instead of its view.js. */
+export interface DialogOptions { title?: string; width?: number; height?: number; view?: string }
 
-/** Shows the plugin's view.js in a dialog; resolves when it closes. */
+/** Shows the plugin's view.js, or `opts.view`, in a dialog; resolves when it closes. */
 export function openPluginDialog(p: Plugin, arg: string | undefined, opts: DialogOptions = {}): Promise<void> {
-  if (!p.view) throw new Error(`plugin ${p.id} has no pane (no view.js)`);
-  const key = `${p.id}\n${arg ?? ""}`;
+  if (!p.view && !opts.view) throw new Error(`plugin ${p.id} has no pane (no view.js)`);
+  const key = `${p.id}\n${opts.view ?? ""}\n${arg ?? ""}`;
   const already = open.get(key);
   if (already) return already;
   const host = document.body.appendChild(document.createElement("div"));
@@ -27,7 +28,7 @@ export function openPluginDialog(p: Plugin, arg: string | undefined, opts: Dialo
       open.delete(key);
       resolve();
     };
-    app = mount(PluginDialog, { target: host, props: { plugin: p, arg, title: opts.title ?? p.title, width: opts.width, height: opts.height, onclose: close } });
+    app = mount(PluginDialog, { target: host, props: { plugin: p, arg, view: opts.view, title: opts.title ?? p.title, width: opts.width, height: opts.height, onclose: close } });
   });
   open.set(key, shown);
   return shown;
