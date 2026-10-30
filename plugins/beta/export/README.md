@@ -25,7 +25,9 @@ the result goes under the exports folder at the note's own path (`notes/reports/
   name; `![[picture|600]]` with an italic line under it → a numbered figure (a `.pdf` beside the `.png` is used
   instead, for a sharper plot); `![[note]]` / `![[note#Heading]]` → that text inlined (three levels at most); callouts
   → quotes with a bold title; `==marked==` → highlighted; ```` ```tikz ```` → the picture on the LaTeX road
-  (`tikz.lua`, a pandoc Lua filter usable on its own), code elsewhere; ```` ```typst ```` → the picture on the Typst
+  (`tikz.lua`, a pandoc Lua filter usable on its own); on the Typst and Word roads a PNG drawn by the TeX in the page
+  (the same one that draws it in the note, its Computer Modern text inside) at the width TeX gave it, made by the
+  dialog before the export (Atlas 23 or newer; code before that); ```` ```typst ```` → the picture on the Typst
   road, a PDF picture made by Atlas's Typst on the LaTeX road, code in Word; comments, block ids and query blocks left
   out.
 - LaTeX's own files (`.aux`, `.log`, `.bbl`…) stay in `.atlas/cache/plugins/export/build/`; previews in

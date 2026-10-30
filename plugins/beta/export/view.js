@@ -118,6 +118,19 @@ export default function mount(host, atlas) {
 
   let unmount = () => {};
   let generation = 0, stopped = false;
+  // the note's ```tikz pictures (describe): the Typst and Word roads get them as PNGs the page's TeX draws, once each
+  let tikz = [];
+  const drawn = new Map(); // key → width in points
+  async function figures(f) {
+    if (f === "pdf-latex" || f === "tex" || !tikz.length || !atlas.tikz) return {};
+    for (const t of tikz) {
+      if (drawn.has(t.key)) continue;
+      say("Drawing the TikZ pictures…");
+      // a picture TeX cannot draw stays code, and the helper says so
+      try { const { png, width } = await atlas.tikz.png(t.source); await atlas.writeBytes(t.png, png); drawn.set(t.key, width); } catch { /* left as code */ }
+    }
+    return Object.fromEntries(drawn);
+  }
   const offProgress = atlas.helper.on("progress", (d) => { if (d?.stage !== "done" && d?.text) say(`${d.text}…`); });
   async function make(previewOnly) {
     const mine = ++generation;
@@ -127,7 +140,7 @@ export default function mount(host, atlas) {
     previewBtn.disabled = true;
     if (!previewOnly) { go.disabled = true; stop.hidden = false; }
     try {
-      const r = await atlas.helper.call("export", { path, format: f, options: options(), settings: s, preview: previewOnly }, { timeout: 600 });
+      const r = await atlas.helper.call("export", { path, format: f, options: options(), settings: s, preview: previewOnly, figures: await figures(f) }, { timeout: 600 });
       if (mine !== generation) return;
       warn(r.warnings);
       if (r.pdf && (previewOnly || f.startsWith("pdf"))) {
@@ -177,6 +190,7 @@ export default function mount(host, atlas) {
       formatList.append(el("label", { className: `ex-format${x.ok ? "" : " off"}` }, [radio, el("span", { textContent: x.label }), ...(x.needs ? [el("small", { textContent: `needs ${x.needs}` })] : [])]));
     }
     title.value = d.meta.title ?? ""; subtitle.value = d.meta.subtitle ?? ""; author.value = d.meta.author ?? ""; date.value = d.meta.date ?? "";
+    tikz = d.tikz ?? [];
     refs.hidden = !d.cited.length;
     if (d.cited.length && !bibliography.value) bibliography.placeholder = d.bib ?? "no .bib found";
     warn(d.warnings);

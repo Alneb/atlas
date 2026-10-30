@@ -3,7 +3,7 @@
 title = "Snippets"
 description = "triggers that expand as you type, in math, text and code; written in JavaScript, shown and checked in Settings"
 icon = "sigma"
-version = "0.1.0"
+version = "0.1.1"
 api = 22
 phone = true
 

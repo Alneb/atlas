@@ -1,10 +1,12 @@
 <script lang="ts">
   import Dialog from "./Dialog.svelte";
   // A small themed prompt (window.prompt is unthemed / unreliable in the desktop app).
-  let { title, value = "", hint = "", confirm = "", onsubmit, oncancel }: {
+  let { title, value = "", hint = "", confirm = "", danger = true, onsubmit, oncancel }: {
     title: string; value?: string; hint?: string;
     /** Confirmation only (no text field): the OK button's label, e.g. "Move to Trash". */
     confirm?: string;
+    /** The confirmation's button in red (deleting, discarding). */
+    danger?: boolean;
     onsubmit: (v: string) => void; oncancel: () => void;
   } = $props();
   // svelte-ignore state_referenced_locally -- the initial value only seeds the field
@@ -26,7 +28,7 @@
     {#if hint}<p class="hint">{hint}</p>{/if}
     <div class="btns"><button type="button" class="btn" onclick={oncancel}>Cancel</button>
       <!-- svelte-ignore a11y_autofocus -->
-      <button class="btn primary" class:danger={!!confirm} disabled={!confirm && !v.trim()} autofocus={!!confirm}>{confirm || "OK"}</button></div>
+      <button class="btn primary" class:danger={!!confirm && danger} disabled={!confirm && !v.trim()} autofocus={!!confirm}>{confirm || "OK"}</button></div>
   </form>
 </Dialog>
 

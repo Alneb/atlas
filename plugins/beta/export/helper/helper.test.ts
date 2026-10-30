@@ -49,6 +49,7 @@ const VAULT: Record<string, string> = {
   "figs/plot.png": "png",
   "figs/plot.pdf": "%PDF",
   "refs/refs.bib": "@article{hubbard1963,\n title={Electron correlations}\n}\n",
+  "notes/Fig.md": "# Fig\n\n```tikz\n\\begin{tikzpicture}\\draw (0,0) -- (1,1);\\end{tikzpicture}\n```\n",
 };
 const vault = { files: Object.keys(VAULT), read: async (p: string) => VAULT[p] };
 
@@ -144,4 +145,17 @@ test("the formats say what they need", async () => {
   harness.exec = (program) => { if (program === "latexmk") throw new Error("latexmk is not installed"); return { status: 0, stdout: "pandoc 3.7", stderr: "" }; };
   const f = await harness.call("formats");
   assert.deepEqual(f.filter((x: any) => !x.ok).map((x: any) => [x.id, x.needs]), [["pdf-latex", "latexmk (a TeX distribution)"]]);
+});
+
+test("a tikz picture: its source and key for the dialog; the PNG the dialog drew on the Typst and Word roads", async () => {
+  const d = await harness.call("describe", { path: "notes/Fig.md" });
+  assert.deepEqual(d.tikz.map((t: any) => [t.key, t.png]), [["abababababababab", ".atlas/cache/plugins/export/figures/abababababababab.png"]]);
+  assert.ok(d.tikz[0].source.includes("\\draw (0,0)"));
+  const drawn = await harness.call("export", { path: "notes/Fig.md", format: "typ", figures: { abababababababab: 72.5 } });
+  assert.ok(harness.ran[0].stdin!.includes("](<../../.atlas/cache/plugins/export/figures/abababababababab.png>){width=72.5pt}"), String(harness.ran[0].stdin));
+  assert.ok(!drawn.warnings.length, drawn.warnings.join());
+  harness.reset();
+  const left = await harness.call("export", { path: "notes/Fig.md", format: "docx" }); // the dialog drew nothing
+  assert.ok(harness.ran[0].stdin!.includes("```tikz"));
+  assert.ok(left.warnings.some((x: string) => /tikz picture is left as code/.test(x)));
 });

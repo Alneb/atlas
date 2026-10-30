@@ -6,7 +6,7 @@
   import InviteCard from "./InviteCard.svelte";
   import MailFrame from "./MailFrame.svelte";
   import Composer from "./Composer.svelte";
-  import { display, fullDate, hue, initials, size, who, when, type Attachment, type Message } from "./api";
+  import { askLine, askYes, display, fullDate, hue, initials, size, who, when, type Attachment, type Message } from "./api";
   import type { Mail } from "./store.svelte";
 
   let { mail, dark, narrow = false, onback, onpick }: { mail: Mail; dark: boolean; narrow?: boolean; onback: () => void; onpick: (kind: "move" | "label" | "snooze") => void } = $props();
@@ -53,7 +53,7 @@
     } catch (e) { mail.toast(`Cannot open ${a.name}: ${(e as Error).message}`, "error"); }
   }
   async function saveFile(m: Message, a: Attachment) {
-    const to = prompt(`Save ${a.name} into which vault folder?`, "attachments");
+    const to = await askLine(mail.atlas, `Save ${a.name} into which vault folder?`, "attachments");
     if (!to) return;
     try {
       const r = await mail.call<{ path: string }>("attachment", { id: m.id, part: a.part, name: a.name, to });
@@ -68,7 +68,7 @@
     mail.toast(`Pictures from ${addr} are shown from now on`);
   }
   async function unsubscribe() {
-    if (!unsub || !confirm(`Unsubscribe from ${unsub.from[0]?.name || unsub.from[0]?.addr}?`)) return;
+    if (!unsub || !(await askYes(mail.atlas, `Unsubscribe from ${unsub.from[0]?.name || unsub.from[0]?.addr}?`, { ok: "Unsubscribe" }))) return;
     try {
       const r = await mail.call<{ done?: string; open?: string }>("unsubscribe", { id: unsub.id });
       if (r.open) window.open(r.open, "_blank");

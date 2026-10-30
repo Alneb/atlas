@@ -1,7 +1,7 @@
 // The pane's state, one object every view reads (DESIGN-mail-ui §5): the accounts and folders, the list a view shows,
 // the cursor and the checked rows, the conversation open, the composers, and the actions — optimistic (the list
 // changes at once, the engine is asked behind), each one with an Undo and a rollback with the reason when it fails.
-import { call, setting, snoozeTimes, type Account, type Draft, type Folder, type Moved, type PluginApi, type Row, type Thread } from "./api";
+import { askYes, call, setting, snoozeTimes, type Account, type Draft, type Folder, type Moved, type PluginApi, type Row, type Thread } from "./api";
 
 export type ViewName = "inbox" | "unimportant" | "starred" | "snoozed" | "drafts" | "sent" | "scheduled" | "attachments" | "folder" | "all";
 export interface View { name: ViewName; account: string | null; folder: string | null; label: string }
@@ -289,9 +289,9 @@ export class Mail {
   }
 
   archive(rows = this.targets()) { return this.leave(rows, "Archived", (ids) => this.call("archive", { ids })); }
-  trash(rows = this.targets()) {
+  async trash(rows = this.targets()) {
     const inTrash = rows.every((r) => r.folder_role === "trash");
-    if (inTrash && !confirm(`Delete ${rows.length === 1 ? "this conversation" : `${rows.length} conversations`} for good? This cannot be undone.`)) return;
+    if (inTrash && !(await askYes(this.atlas, `Delete ${rows.length === 1 ? "this conversation" : `${rows.length} conversations`} for good? This cannot be undone.`, { ok: "Delete for good", danger: true }))) return;
     return this.leave(rows, inTrash ? "Deleted" : "Moved to Trash", (ids) => this.call("trash", { ids }));
   }
   spam(rows = this.targets()) {

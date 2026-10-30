@@ -566,7 +566,8 @@ public final class CaptureActivity extends Activity {
         close.setContentDescription("Close (the text stays as a draft)");
         if (Build.VERSION.SDK_INT >= 26) close.setTooltipText("Close");
         close.setOnClickListener(v -> finish());
-        row.addView(close, lp(look.dp(40), look.dp(40), look.dp(4), look.dp(-8), look.dp(-6), 0));
+        // 48 dp to the finger (Android's touch target), placed where the 40 dp one was
+        row.addView(close, lp(look.dp(48), look.dp(48), 0, look.dp(-12), look.dp(-10), 0));
         card.addView(row);
         HorizontalScrollView scroll = new HorizontalScrollView(this); // the pictures, large enough to see and to tap
         scroll.setHorizontalScrollBarEnabled(false);
@@ -604,18 +605,18 @@ public final class CaptureActivity extends Activity {
         pill.setCompoundDrawablesRelativeWithIntrinsicBounds(look.icon(this, "vault", look.muted), null, null, null);
         pill.setCompoundDrawablePadding(look.dp(6));
         pill.setPadding(look.dp(10), 0, look.dp(12), 0);
-        pill.setBackground(look.pressable(look.hover, 15, look.border));
+        pill.setBackground(look.target(look.pressable(look.hover, 15, look.border)));
         // a tap: the list, as a click on the desktop (a stray tap never moves the capture to another vault); held: the
         // next vault, as Super+V
         pill.setOnClickListener(v -> toggleVaults());
         pill.setOnLongClickListener(v -> { nextVault(1); return true; });
-        foot.addView(pill, lp(-2, look.dp(40), look.dp(32), 0, 0, 0));
+        foot.addView(pill, lp(-2, look.dp(48), look.dp(32), 0, 0, 0));
         foot.addView(new View(this), new LinearLayout.LayoutParams(0, 1, 1f));
         save = look.label(this, "Save", 15, look.accentFg);
         save.setGravity(Gravity.CENTER);
-        save.setBackground(look.pressable(look.accent, 9, 0));
+        save.setBackground(look.target(look.pressable(look.accent, 9, 0)));
         save.setOnClickListener(v -> save());
-        foot.addView(save, lp(look.dp(88), look.dp(40), 0, 0, 0, 0));
+        foot.addView(save, lp(look.dp(88), look.dp(48), 0, 0, 0, 0));
         card.addView(foot);
         return card;
     }

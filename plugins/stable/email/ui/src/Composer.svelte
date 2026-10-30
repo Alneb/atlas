@@ -6,7 +6,7 @@
   // asks once. Inline under a conversation, or a window of its own (pop out / full size).
   import Icon from "./Icon.svelte";
   import AddressField from "./AddressField.svelte";
-  import { parseWhen, setting, size, type FileRef } from "./api";
+  import { askLine, askYes, parseWhen, setting, size, type FileRef } from "./api";
   import type { Composer, Mail } from "./store.svelte";
 
   let { mail, c, inline = false, big = $bindable(false) }: { mail: Mail; c: Composer; inline?: boolean; big?: boolean } = $props();
@@ -71,8 +71,8 @@
     d.body = value.slice(0, start) + lines + value.slice(b);
     changed();
   }
-  function link() {
-    const url = prompt("Link to (address):", "https://");
+  async function link() {
+    const url = await askLine(mail.atlas, "Link to (address):", "https://");
     if (url) wrap("[", `](${url})`, "link text");
   }
   async function togglePreview() {
@@ -121,16 +121,16 @@
 
   const FORGOT = /\b(attached|attachment|attaching|enclosed|ci-joint|pi[eè]ce jointe|adjunto|te adjunto|anexo|allegato|anhang|angeh[aä]ngt)\b/i;
 
-  function check(): boolean {
+  async function check(): Promise<boolean> {
     if (!d.to.trim() && !d.cc.trim() && !d.bcc.trim()) { c.error = "Who is it for? Fill in To."; return false; }
-    if (!d.subject.trim() && !confirm("Send it without a subject?")) return false;
+    if (!d.subject.trim() && !(await askYes(mail.atlas, "Send it without a subject?", { ok: "Send" }))) return false;
     const own = d.body.split(/\n\s*>|\nOn .* wrote:/)[0];
-    if (FORGOT.test(own) && !d.files.length && !d.forward && !confirm("The text mentions an attachment, but nothing is attached. Send anyway?")) return false;
+    if (FORGOT.test(own) && !d.files.length && !d.forward && !(await askYes(mail.atlas, "The text mentions an attachment, but nothing is attached. Send anyway?", { ok: "Send anyway" }))) return false;
     return true;
   }
 
   async function send(at: number | null = null) {
-    if (!check()) return;
+    if (!(await check())) return;
     clearTimeout(timer);
     c.sending = true;
     const payload = { ...d, send_at: at };
@@ -178,7 +178,7 @@
   };
 
   async function discard() {
-    if ((c.dirty || d.draft) && (d.body.trim() || d.subject.trim()) && !confirm("Discard this message?")) return;
+    if ((c.dirty || d.draft) && (d.body.trim() || d.subject.trim()) && !(await askYes(mail.atlas, "Discard this message?", { ok: "Discard", danger: true }))) return;
     clearTimeout(timer);
     mail.closeComposer(c.key);
     if (d.draft) {

@@ -20,7 +20,7 @@ import type { NativeSample, PenOptions } from "./pen-target";
 import type { EmbedRender } from "./embed-registry";
 import type { Live, LiveHandlers } from "./live";
 
-export const PLUGIN_API_VERSION = 22;
+export const PLUGIN_API_VERSION = 23;
 
 /** What a plugin's view gets. Kept small and stable: plugins outlive app refactors. */
 export interface PluginApi {
@@ -70,6 +70,8 @@ export interface PluginApi {
    *  with a 409 `ApiError` when it changed on disk since — the editor's guard. For the plugin's own files (a
    *  `reading.json`): never rewrite the user's notes this way (docs/PHILOSOPHY.md §2). */
   writeText(path: string, text: string, opts?: { baseMtime?: number }): Promise<{ mtime: number }>;
+  /** (v23) Write bytes whole (a picture the plugin made), the same rule as `writeText`: the plugin's own files. */
+  writeBytes(path: string, data: Blob): Promise<void>;
   /** An object URL for a workspace file (images, PDFs) — fetched with the API header. */
   fileUrl(path: string): Promise<string>;
   /** (v9) The URL of a file of this plugin's own folder (`fonts/serif.woff2`, `cover.png`, `worker.js`) for anything
@@ -279,6 +281,17 @@ export interface PluginApi {
    *  one of them saves it (`writes()`; in a mirrored vault the room is the server's). Left when the plugin unloads. */
   live: {
     join(path: string, on: LiveHandlers): Live;
+  };
+  /** (v23) The app's own yes/no question (never `window.confirm`: unthemed, and blocked in some webviews): whether the
+   *  user said yes. `ok`: the button's label (default "OK"); `danger`: in red, for deleting or discarding. */
+  confirm(question: string, opts?: { ok?: string; hint?: string; danger?: boolean }): Promise<boolean>;
+  /** (v23) The app's own one-line question (never `window.prompt`): what was typed, trimmed, or null when cancelled. */
+  input(title: string, opts?: { value?: string; hint?: string }): Promise<string | null>;
+  /** (v23) The page's TeX (TikZJax, lib/tikz.ts): a ```tikz fence's source as a PNG with its fonts inside, `scale`
+   *  times its size (default 4), and its width in points as TeX set it — for a document without the web fonts. Throws
+   *  TeX's error. */
+  tikz: {
+    png(source: string, scale?: number): Promise<{ png: Blob; width: number }>;
   };
   /** (v8) The core's pen recogniser (atlas-pen, the phone's own): a held stroke as `[x, y, t, …]` (null breaks a line) →
    *  the shape's wire (`[]`: none), as the drawings snap a held stroke (lib/pen-shapes.ts). */

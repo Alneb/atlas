@@ -5,7 +5,7 @@ import { mount, unmount } from "svelte";
 import Inbox from "./Inbox.svelte";
 import Rules from "./Rules.svelte";
 import NoteView from "./NoteView.svelte";
-import { call, type PluginApi } from "./api";
+import { askYes, call, type PluginApi } from "./api";
 import { signin } from "./signin";
 
 type Card = { name: string; auth?: string; user?: string; claude?: string };
@@ -55,7 +55,7 @@ export function register(atlas: PluginApi) {
         const dry = await call<{ missing: Record<string, number>; note?: string }>(atlas, "thunderbird_mail", { account, dry: true }, 600);
         const n = Object.values(dry.missing ?? {}).reduce((a, b) => a + b, 0);
         if (!n) { atlas.toast("Email", dry.note ?? "Every local message is already a note."); return; }
-        if (!confirm(`${n} messages Thunderbird keeps for ${account} are in no note (${Object.entries(dry.missing).map(([f, k]) => `${f}: ${k}`).join(", ")}). Write them as notes?`)) return;
+        if (!(await askYes(atlas, `${n} messages Thunderbird keeps for ${account} are in no note (${Object.entries(dry.missing).map(([f, k]) => `${f}: ${k}`).join(", ")}). Write them as notes?`, { ok: "Write them" }))) return;
         const r = await call<{ saved: string[]; failed: string[] }>(atlas, "thunderbird_mail", { account, dry: false }, 1800);
         atlas.toast("Email", `${r.saved.length} kept as notes${r.failed.length ? `, ${r.failed.length} failed` : ""}.`, r.failed.length ? "error" : "success");
       } catch (e) { atlas.toast("Email", (e as Error).message, "error"); }

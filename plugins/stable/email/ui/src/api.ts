@@ -147,3 +147,10 @@ export function parseWhen(text: string, now = new Date()): number | null {
   return Math.floor(d.getTime() / 1000);
 }
 
+/** The app's own yes/no (`atlas.confirm`, API 23); the browser's on an older Atlas. */
+export const askYes = (atlas: PluginApi, question: string, opts?: { ok?: string; danger?: boolean }): Promise<boolean> =>
+  typeof atlas.confirm === "function" ? atlas.confirm(question, opts) : Promise.resolve(window.confirm(question));
+
+/** The app's own one-line question (`atlas.input`, API 23): the text, or null; the browser's on an older Atlas. */
+export const askLine = (atlas: PluginApi, title: string, value = ""): Promise<string | null> =>
+  typeof atlas.input === "function" ? atlas.input(title, { value }) : Promise.resolve(window.prompt(title, value)?.trim() || null);

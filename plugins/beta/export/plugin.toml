@@ -5,7 +5,7 @@
 title = "Export"
 description = "a note to PDF (Typst or LaTeX), LaTeX, Typst or Word, in a dialog with a preview"
 icon = "file"
-version = "1.0.0"
+version = "1.1.0"
 api = 20
 provides = ["pdf-export"]           # Print asks for a note's PDF by this role, not by this id
 

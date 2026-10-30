@@ -15,6 +15,7 @@ import { returned, signIn } from "./signin";
 import { blobUrl, thumbUrl } from "./raw";
 import { addNewKind } from "./new-thing";
 import { toast } from "./state.svelte";
+import { confirmDialog, inputDialog } from "./confirm";
 import { context, onContext, setHover } from "./context.svelte";
 import { registerView } from "./views";
 import { registerNoteView } from "./note-views.svelte";
@@ -106,6 +107,7 @@ export function pluginApi(p: Plugin, at: PaneAt = {}): PluginApi {
     exists: (path) => exists(String(path)),
     list: async (dir) => (await api.tree(dir)).map((e) => ({ name: e.name, path: e.path, dir: e.kind === "dir", ignored: e.ignored, ...(e.size === undefined ? {} : { size: e.size }), ...(e.modified === undefined ? {} : { mtime: e.modified }) })),
     writeText: async (path, text, opts) => ({ mtime: (await api.putFile(path, String(text), opts?.baseMtime)).mtime }),
+    writeBytes: (path, data) => api.upload(path, data, true),
     // a picture named the way a note names it ("poster.png", "[[Frances Ha.png]]") is found where it is, as a link is
     fileUrl: async (path) => blobUrl(await vaultPath(path)),
     assetUrl: (rel) => { if (p.id === INIT_ID) throw new Error("init.js has no folder of its own: assetUrl is a plugin's"); return pluginAssetUrl(p.id, rel); },
@@ -239,6 +241,10 @@ export function pluginApi(p: Plugin, at: PaneAt = {}): PluginApi {
       legacySnippets: () => api.snippets(),
     },
     pen: { shape: (xyt) => api.penShape(xyt) },
+    confirm: (question, opts) => confirmDialog(String(question), opts?.hint ?? "", opts?.ok ?? "OK", opts?.danger ?? false),
+    input: (title, opts) => inputDialog(String(title), opts?.value ?? "", opts?.hint ?? ""),
+    // loaded when asked: TeX and its sanitizer stay out of the start
+    tikz: { png: (source, scale) => import("./tikz").then((m) => m.tikzPng(String(source), scale)) },
     live: {
       join: (file, on) => {
         const room = joinLive(file, on);

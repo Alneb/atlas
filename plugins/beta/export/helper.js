@@ -269,6 +269,10 @@
 		}
 	};
 	const CACHE = ".atlas/cache/plugins/export";
+	/** Where the dialog leaves a ```tikz picture drawn by the page's TeX (`atlas.tikz.png`), by its key. */
+	const tikzPng = (key) => `${CACHE}/figures/${key}.png`;
+	/** A fence's key: the hash of its source, the same for the dialog (from `describe`) and the road. */
+	const keyOf = (source) => atlas.hash.sha256(source).slice(0, 16);
 	const PLUGIN = ".atlas/plugins/export";
 	const progress = (stage, text) => atlas.event("progress", {
 		stage,
@@ -346,14 +350,18 @@
 			read: (p) => atlas.read(p)
 		}, rel, outDir, keys);
 		if (t.cited.length && !bib) t.warnings.push("papers are cited but no .bib was found (the Bibliography option)");
+		const stem = rel.slice(rel.lastIndexOf("/") + 1).replace(/\.md$/i, "");
+		const figures = {};
+		for (const [k, w] of Object.entries(params.figures ?? {})) if (/^[0-9a-f]{16}$/.test(k) && Number(w) > 0) figures[k] = Number(w);
 		return {
 			rel,
 			outDir,
-			stem: rel.slice(rel.lastIndexOf("/") + 1).replace(/\.md$/i, ""),
+			stem,
 			o,
 			files,
 			bib,
-			t
+			t,
+			figures
 		};
 	}
 	/** The pandoc metadata block every road starts from: the title block, the page, the bibliography. */
@@ -411,14 +419,15 @@
 		for (const [i, f] of j.t.fences.entries()) if (f.lang === "typst" && road === "typst") out[i] = "```{=typst}\n" + f.source + "\n```";
 		else if (f.lang === "tikz" && road === "latex") out[i] = "```tikz\n" + f.source + "\n```";
 		else if (f.lang === "typst" && road === "latex") {
-			const pdf = `${CACHE}/figures/${atlas.hash.sha256(f.source).slice(0, 16)}.pdf`;
+			const pdf = `${CACHE}/figures/${keyOf(f.source)}.pdf`;
 			atlas.convert.typstPdf(`${dirname(j.rel) || "."}/.fence.typ`, pdf, {
 				source: f.source,
 				fence: true
 			});
 			out[i] = `![](<${relative(j.outDir, pdf)}>)`;
-		} else {
-			j.t.warnings.push(`a ${f.lang} picture is left as code: ${f.lang === "tikz" ? "only the LaTeX formats draw TikZ" : "Word has no Typst"}`);
+		} else if (f.lang === "tikz" && j.figures[keyOf(f.source)]) out[i] = `![](<${relative(j.outDir, tikzPng(keyOf(f.source)))}>){width=${j.figures[keyOf(f.source)].toFixed(1)}pt}`;
+		else {
+			j.t.warnings.push(`a ${f.lang} picture is left as code: ${f.lang === "tikz" ? "the TeX in the page did not draw it" : "Word has no Typst"}`);
 			out[i] = "```" + f.lang + "\n" + f.source + "\n```";
 		}
 		const md = j.t.markdown.replace(/<!--fence:(\d+)-->/g, (_, n) => out[Number(n)]);
@@ -536,11 +545,17 @@
 			...params,
 			options: {}
 		}, true);
+		const tikz = j.t.fences.filter((f) => f.lang === "tikz").map((f) => ({
+			key: keyOf(f.source),
+			source: f.source,
+			png: tikzPng(keyOf(f.source))
+		}));
 		return {
 			meta: j.t.meta,
 			cited: j.t.cited,
 			bib: j.bib,
 			fences: j.t.fences.map((f) => f.lang),
+			tikz,
 			warnings: j.t.warnings,
 			ext: EXT
 		};
@@ -552,5 +567,6 @@
 	});
 	//#endregion
 	exports.latexErrors = latexErrors;
+	exports.tikzPng = tikzPng;
 	return exports;
 })({});

@@ -6,6 +6,7 @@ import { convert } from "./convert";
 import { makeEngine } from "./engine";
 import type { Compiled } from "./format";
 import { CONVERTED, FOLDER, loadAll, type Read } from "./load";
+import { rank } from "./rank";
 import { mountSection } from "./settings";
 
 /** A body as a formula to show: stops give way to their placeholders. */
@@ -45,10 +46,11 @@ export async function register(atlas: PluginApi) {
       const fixed = engine.snippets().filter((s) => s.plain?.trim() && typeof s.body === "string" && !s.visual && engine.fits(s, place, at.view));
       // "x@a": the trigger starts where some snippet's name starts, not where the word does
       for (let i = 0; i <= Math.max(0, typed.length - (at.explicit ? 1 : 2)); i++) {
-        const prefix = typed.slice(i), lower = prefix.toLowerCase();
-        const found = fixed.filter((s) => (s.plain!.trim().startsWith(prefix) && s.plain!.trim() !== prefix) || (prefix.length >= 3 && s.name?.toLowerCase().includes(lower)));
-        if (!found.length) continue;
-        const items = found.sort((a, b) => a.plain!.length - b.plain!.length || a.plain!.localeCompare(b.plain!)).slice(0, 50).map((s): CompletionItem => {
+        const prefix = typed.slice(i);
+        const ranked = fixed.map((s) => [s, rank(s, prefix)] as const).filter(([, r]) => r !== null) as [Compiled, number][];
+        if (!ranked.length) continue;
+        const found = ranked.sort(([a, ra], [b, rb]) => ra - rb || a.plain!.length - b.plain!.length || a.plain!.localeCompare(b.plain!)).map(([s]) => s);
+        const items = found.slice(0, 50).map((s): CompletionItem => {
           const body = s.body as string;
           return {
             label: s.plain!.trim(), detail: s.name ?? body.replace(/\s+/g, " ").slice(0, 48), kind: "keyword",

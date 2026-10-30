@@ -158,6 +158,10 @@ export function makeEngine(atlas: PluginApi) {
     return false;
   };
 
+  /** A regex trigger that begins with a sign typed on purpose (`@alpha`, `;b`): never a word in the making, so it never
+   *  waits for one. A class (`([^\\])(hbar)`) also matches a space: such a trigger still waits. */
+  const signed = (s: Compiled) => !!s.regex && /^\(\?:[^\w\s\\()[\]{}.^$|?*+]/.test(s.regex.source);
+
   /** A trigger held back (`from`–`to`; `core`: where what it is about starts, `m`: a regex's match), and the caret after
    *  the keys that may still grow it into a longer one. */
   type Waiting = { s: Compiled; m: RegExpExecArray | null; from: number; to: number; core: number; at: number };
@@ -286,7 +290,7 @@ export function makeEngine(atlas: PluginApi) {
     }
     if (!hit) return false;
     const best = hit.s, core = hit.m ? coreOf(hit.m) : best.plain!;
-    if (autoOnly && typed && (SNIPPETS.some((t) => t !== best && growsInto(before, core, t) && usable(t)) || (/^[A-Za-z]+$/.test(core) && longer(word)))) {
+    if (autoOnly && typed && (SNIPPETS.some((t) => t !== best && growsInto(before, core, t) && usable(t)) || (/^[A-Za-z]+$/.test(core) && !signed(best) && longer(word)))) {
       const from = startOf(hit.len), end = head + typed.length;
       waiting.set(view, { s: best, m: hit.m, from, to: end, core: end - core.length, at: end });
       return false; // the key is typed as it is; the next one decides

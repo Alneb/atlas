@@ -328,8 +328,9 @@ mod toast {
 
     /// The same as the Tauri bundle's identifier, so Windows groups the toasts under one app.
     const APP_ID: &str = "dev.atlas.app";
-    /// A tag or a group is at most 64 characters to Windows; longer fails the whole toast.
-    const GROUP_MAX: usize = 64;
+    /// A tag or a group is at most 16 characters on older Windows (64 since 1703): a longer one is accepted when set
+    /// and refused when read back (CI's Windows Server). Sources are short (`sync`, a plugin's id).
+    const GROUP_MAX: usize = 16;
     /// The toasts whose clicks are still awaited: their handlers live as long as they do.
     const KEPT: usize = 32;
 

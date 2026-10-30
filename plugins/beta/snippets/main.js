@@ -533,8 +533,8 @@ function E(e) {
 }
 //#endregion
 //#region plugins/beta/snippets/ui/src/words.ts
-var D = "achieve achieved actors actually agree aligned all allow allowed allsec analogous anderson angle another app appear appears applications apply applying approach approaches appropriate approximation archive around assets assume atom atomic atoms auto automatically axis band bands bandwidth bare basically bastante become becomes been begins between bigger bipartite bottom bound boundary box branch branches brothers call called callout capture captures catalog cell challenges change changes changing closing coexistence coincide color colorblind comes command commands comment comments commit common commutation commute commutes compilation constant constants continuation continued contributors controlled copies copy copyright correct correction correlated correlation correlations corresponding corresponds cosas cost coveralls crossing cuando cumul cumulant cuprates custom cutoff damping decreasing dee deep degeneracy degenerate degrees design designed details determined detuned developing differ difference differences different difficult diffraction director directory distance eigenvectors either eliminate ellos enable entanglement equivalent escape essentially esto estoy exchange exist existing expand expanded expansion expect expected experimental experimentally experiments explain explicitly exponential exponentially exponents export expressed expression expressions factor factorized fall falls fill filled filling finally follow following follows formally formula formulas found fraction free freedom freely full fund fundamental funds further generators geometry grand ground hamiltonian hand handle happen happens historia history hopping hoppings important inbox include included includes including incomplete incompressible increase increases increasing infinite infinity info information install installation installed insulator insulators integer integral integrate integrated intensity inter interact interacting interaction interactions interesting interface interference intermediate internship into intro introduce introduction invariant inverse inversion irreps island jupytext karakeep keep keeps lands language languages letterboxd library limit machine macroscopic mapped matching maximum maxiter meeting menu meta metal metallic microscopic minimum missing mixing mode model models modern modes modificados modification modified modify modulation module moment momenta momentum mother much muchas mucho multiple multitext mundo music must muy need needed needs negative normal normalization normalized nublado nuestro null number numbers numerical numerically numpy occupancy occupation occupied onto operator operators opposite other otherwise parameter parameters parte particle particles particular partie partner partners parts phenomena photon pick pinned pip point points power preset principal principle produced produces product products propagating propagation properties property proportional proposed quadratic quasiparticle range rather readthedocs really repository reproduce restart retain second secret secrets section sector sectors see seed seems sees separate separated sets settings setup sign similar simple simulation simulations since single singlet singular small smaller smallest some something speed spin spins stand standard stands start started starting steps still stop stopped stops strange subbath subbaths subject submit subspace subtopic summer superconductor superconductors support suppressed sweep sweeps tanto that their them theme themes themselves then theory there therefore thermal these thesis they three toda today todo todos together tokens tol tolerance too tool tools top topic topics topology tot total touches toward tpi typical unchanged under understand understanding upper using usually valley vector vectors wavevector weather week well what whether will www".split(" "), O = /^(?:\\[A-Za-z]+|\\.|[^A-Za-z\s])/, k = /^\\(?:langle|lvert|lVert|lfloor|lceil|lbrace)(?![A-Za-z])/, A = /^\\(?:rangle|rvert|rVert|rfloor|rceil|rbrace)(?![A-Za-z])/, j = /^\\(begin|end)\{([A-Za-z]+\*?)\}/, ee = /^(?:equation|align|alignat|flalign|gather|multline|eqnarray|displaymath|math)\*?$/;
-function M(e) {
+var D = "achieve achieved actors actually agree aligned all allow allowed allsec analogous anderson angle another app appear appears applications apply applying approach approaches appropriate approximation archive around assets assume atom atomic atoms auto automatically axis band bands bandwidth bare basically bastante become becomes been begins between bigger bipartite bottom bound boundary box branch branches brothers call called callout capture captures catalog cell challenges change changes changing closing coexistence coincide color colorblind comes command commands comment comments commit common commutation commute commutes compilation constant constants continuation continued contributors controlled copies copy copyright correct correction correlated correlation correlations corresponding corresponds cosas cost coveralls crossing cuando cumul cumulant cuprates custom cutoff damping decreasing dee deep degeneracy degenerate degrees design designed details determined detuned developing differ difference differences different difficult diffraction director directory distance eigenvectors either eliminate ellos enable entanglement equivalent escape essentially esto estoy exchange exist existing expand expanded expansion expect expected experimental experimentally experiments explain explicitly exponential exponentially exponents export expressed expression expressions factor factorized fall falls fill filled filling finally follow following follows formally formula formulas found fraction free freedom freely full fund fundamental funds further generators geometry grand ground hamiltonian hand handle happen happens historia history hopping hoppings important inbox include included includes including incomplete incompressible increase increases increasing infinite infinity info information install installation installed insulator insulators integer integral integrate integrated intensity inter interact interacting interaction interactions interesting interface interference intermediate internship into intro introduce introduction invariant inverse inversion irreps island jupytext karakeep keep keeps lands language languages letterboxd library limit machine macroscopic mapped matching maximum maxiter meeting menu meta metal metallic microscopic minimum missing mixing mode model models modern modes modificados modification modified modify modulation module moment momenta momentum mother much muchas mucho multiple multitext mundo music must muy need needed needs negative normal normalization normalized nublado nuestro null number numbers numerical numerically numpy occupancy occupation occupied onto operator operators opposite other otherwise parameter parameters parte particle particles particular partie partner partners parts phenomena photon pick pinned pip point points power preset principal principle produced produces product products propagating propagation properties property proportional proposed quadratic quasiparticle range rather readthedocs really repository reproduce restart retain second secret secrets section sector sectors see seed seems sees separate separated sets settings setup sign similar simple simulation simulations since single singlet singular small smaller smallest some something speed spin spins stand standard stands start started starting steps still stop stopped stops strange subbath subbaths subject submit subspace subtopic summer superconductor superconductors support suppressed sweep sweeps tanto that their them theme themes themselves then theory there therefore thermal these thesis they three toda today todo todos together tokens tol tolerance too tool tools top topic topics topology tot total touches toward tpi typical unchanged under understand understanding upper using usually valley vector vectors wavevector weather week well what whether will www".split(" "), O = /^(?:\\[A-Za-z]+|\\.|[^A-Za-z\s])/, k = /^\\(?:langle|lvert|lVert|lfloor|lceil|lbrace)(?![A-Za-z])/, A = /^\\(?:rangle|rvert|rVert|rfloor|rceil|rbrace)(?![A-Za-z])/, j = /^\\(begin|end)\{([A-Za-z]+\*?)\}/, M = /^(?:equation|align|alignat|flalign|gather|multline|eqnarray|displaymath|math)\*?$/;
+function N(e) {
 	let t = [], n = (e, n, r) => (t.push({
 		from: e,
 		to: e + n,
@@ -542,19 +542,19 @@ function M(e) {
 	}), e + n);
 	for (let t = 0; t < e.length;) {
 		let r = e.slice(t, t + 32), i = r[0], a = i === "\\" ? j.exec(r) : null;
-		a ? t = ee.test(a[2]) ? n(t, a[0].length, "bound") : t + a[0].length : r.startsWith("\\left") && !/^\\left[A-Za-z]/.test(r) ? t = n(t, 5 + (O.exec(r.slice(5))?.[0].length ?? 0), "open") : r.startsWith("\\right") && !/^\\right[A-Za-z]/.test(r) ? t = n(t, 6 + (O.exec(r.slice(6))?.[0].length ?? 0), "close") : k.test(r) ? t = n(t, k.exec(r)[0].length, "open") : A.test(r) ? t = n(t, A.exec(r)[0].length, "close") : r.startsWith("\\{") ? t = n(t, 2, "open") : r.startsWith("\\}") ? t = n(t, 2, "close") : r.startsWith("\\[") || r.startsWith("\\(") || r.startsWith("\\]") || r.startsWith("\\)") ? t = n(t, 2, "bound") : i === "\\" ? t += /^\\(?:[A-Za-z]+|.|$)/s.exec(r)?.[0].length ?? 1 : "{([".includes(i) ? t = n(t, 1, "open") : "})]".includes(i) ? t = n(t, 1, "close") : i === "$" ? t = n(t, r[1] === "$" ? 2 : 1, "bound") : i === "\n" && /^\n[ \t]*\n/.test(r) ? t = n(t, 1, "wall") : t++;
+		a ? t = M.test(a[2]) ? n(t, a[0].length, "bound") : t + a[0].length : r.startsWith("\\left") && !/^\\left[A-Za-z]/.test(r) ? t = n(t, 5 + (O.exec(r.slice(5))?.[0].length ?? 0), "open") : r.startsWith("\\right") && !/^\\right[A-Za-z]/.test(r) ? t = n(t, 6 + (O.exec(r.slice(6))?.[0].length ?? 0), "close") : k.test(r) ? t = n(t, k.exec(r)[0].length, "open") : A.test(r) ? t = n(t, A.exec(r)[0].length, "close") : r.startsWith("\\{") ? t = n(t, 2, "open") : r.startsWith("\\}") ? t = n(t, 2, "close") : r.startsWith("\\[") || r.startsWith("\\(") || r.startsWith("\\]") || r.startsWith("\\)") ? t = n(t, 2, "bound") : i === "\\" ? t += /^\\(?:[A-Za-z]+|.|$)/s.exec(r)?.[0].length ?? 1 : "{([".includes(i) ? t = n(t, 1, "open") : "})]".includes(i) ? t = n(t, 1, "close") : i === "$" ? t = n(t, r[1] === "$" ? 2 : 1, "bound") : i === "\n" && /^\n[ \t]*\n/.test(r) ? t = n(t, 1, "wall") : t++;
 	}
 	return t;
 }
-function N(e) {
-	let t = M(e), n = t[0];
+function P(e) {
+	let t = N(e), n = t[0];
 	if (!n || n.kind === "wall") return null;
 	if (n.kind !== "close") return n.to;
 	let r = t[1], i = e.slice(n.to, r?.from ?? n.to);
 	return r?.kind === "open" && (i === "" || i === "^" || i === "_") ? r.to : n.to;
 }
-function P(e) {
-	let t = M(e), n = t[t.length - 1];
+function F(e) {
+	let t = N(e), n = t[t.length - 1];
 	if (!n || n.kind === "wall") return null;
 	if (n.kind !== "open") return n.from;
 	let r = +!!/[\^_]$/.test(e.slice(0, n.from)), i = n.from - r, a = t[t.length - 2];
@@ -562,7 +562,7 @@ function P(e) {
 }
 //#endregion
 //#region plugins/beta/snippets/ui/src/sorted-words.ts
-var te = class {
+var ee = class {
 	text;
 	constructor(e) {
 		this.text = e;
@@ -588,7 +588,7 @@ var te = class {
 	grows(e) {
 		return this.atOrAfter(e + "a").startsWith(e);
 	}
-}, ne = 120, re = "langle rangle lvert rvert lVert rVert lfloor rfloor lceil rceil hbar hslash ell nabla partial infty mathbb mathbf mathcal mathrm mathfrak mathscr mathit boldsymbol text textbf textit operatorname overline underline overbrace underbrace widehat widetilde hat bar tilde vec dot ddot sqrt frac dfrac tfrac binom left right bigl bigr sum prod int iint oint lim limsup liminf sup inf max min exp log ln sin cos tan cot sec csc sinh cosh tanh arcsin arccos arctan det dim ker deg gcd cdot cdots ldots vdots ddots times div pm mp leq geq neq approx equiv sim simeq propto cong to mapsto rightarrow leftarrow Rightarrow Leftarrow leftrightarrow Leftrightarrow uparrow downarrow forall exists in notin subset subseteq supset supseteq cup cap setminus emptyset varnothing wedge vee oplus otimes dagger quad qquad angle triangle top bot bra ket braket ketbra".split(" "), F = class {
+}, te = 120, ne = "langle rangle lvert rvert lVert rVert lfloor rfloor lceil rceil hbar hslash ell nabla partial infty mathbb mathbf mathcal mathrm mathfrak mathscr mathit boldsymbol text textbf textit operatorname overline underline overbrace underbrace widehat widetilde hat bar tilde vec dot ddot sqrt frac dfrac tfrac binom left right bigl bigr sum prod int iint oint lim limsup liminf sup inf max min exp log ln sin cos tan cot sec csc sinh cosh tanh arcsin arccos arctan det dim ker deg gcd cdot cdots ldots vdots ddots times div pm mp leq geq neq approx equiv sim simeq propto cong to mapsto rightarrow leftarrow Rightarrow Leftarrow leftrightarrow Leftrightarrow uparrow downarrow forall exists in notin subset subseteq supset supseteq cup cap setminus emptyset varnothing wedge vee oplus otimes dagger quad qquad angle triangle top bot bra ket braket ketbra".split(" "), I = class {
 	big;
 	list;
 	set;
@@ -607,20 +607,20 @@ var te = class {
 		return this.list[t] === e && t++, !!this.list[t]?.startsWith(e) || !!this.big?.grows(e);
 	}
 };
-function I(e) {
+function L(e) {
 	let t = e.length > 1 ? e[e.length - 1] : void 0;
 	return t && e[0].endsWith(t) ? t : e[0];
 }
-function L(e) {
-	let t = e.editor.codemirror, n = E(t), { EditorView: r, keymap: i } = t.view, { Prec: a } = t.state, o = [], s = re, c = new F(D, null), l = [], u = null;
+function re(e) {
+	let t = e.editor.codemirror, n = E(t), { EditorView: r, keymap: i } = t.view, { Prec: a } = t.state, o = [], s = ne, c = new I(D, null), l = [], u = null;
 	async function d() {
 		let t = await fetch(e.assetUrl("words.txt"));
 		if (!t.ok) throw Error(`words.txt: ${t.status}`);
-		return u = new te(await t.text()), c = new F([...D, ...l], u), u.size;
+		return u = new ee(await t.text()), c = new I([...D, ...l], u), u.size;
 	}
 	let f = !1;
 	function p(e) {
-		o = e.snippets, s = [.../* @__PURE__ */ new Set([...re, ...e.known])], l = e.words, c = new F([...D, ...l], u), f = e.snippets.some((e) => e.code && e.langs !== null);
+		o = e.snippets, s = [.../* @__PURE__ */ new Set([...ne, ...e.known])], l = e.words, c = new I([...D, ...l], u), f = e.snippets.some((e) => e.code && e.langs !== null);
 	}
 	let m = /* @__PURE__ */ new WeakMap(), h = (t, n) => m.get(t) ?? e.editor.place(t, n), g = (t) => m.has(t) || f || /\.(md|markdown|tex)$/i.test(e.editor.path(t)), _ = (t, n, r = "") => ({
 		before: n,
@@ -691,54 +691,54 @@ function L(e) {
 			if (i.endsWith(t) && e.endsWith(i)) return !0;
 		}
 		return !1;
-	}, O = /* @__PURE__ */ new WeakMap();
-	function k(e, t) {
-		let n = O.get(e);
-		return O.delete(e), n && n.at === t && e.state.sliceDoc(n.from, n.to) === (n.m ? n.m[0] : n.s.plain) ? n : null;
-	}
+	}, O = (e) => !!e.regex && /^\(\?:[^\w\s\\()[\]{}.^$|?*+]/.test(e.regex.source), k = /* @__PURE__ */ new WeakMap();
 	function A(e, t) {
+		let n = k.get(e);
+		return k.delete(e), n && n.at === t && e.state.sliceDoc(n.from, n.to) === (n.m ? n.m[0] : n.s.plain) ? n : null;
+	}
+	function j(e, t) {
 		let n = e.state.sliceDoc(t.to, t.at);
 		return C(e, t.s, t.m, t.from, t.at) ? (n && e.dispatch(e.state.replaceSelection(n)), !0) : !1;
 	}
-	let j = (e) => /[A-Za-z]+$/.exec(e)?.[0] ?? "";
-	function ee(e, t) {
+	let M = (e) => /[A-Za-z]+$/.exec(e)?.[0] ?? "";
+	function N(e, t) {
 		if (!/^[A-Za-z]+$/.test(t)) return !1;
-		let n = j(e);
+		let n = M(e);
 		return n.length > t.length && s.some((e) => e.startsWith(n));
 	}
-	function M(e, t) {
+	function re(e, t) {
 		if (!/^[A-Za-z]+$/.test(t)) return !1;
-		let n = j(e);
+		let n = M(e);
 		return e[e.length - n.length - 1] === "\\" || n.length > t.length && s.some((e) => e.startsWith(n));
 	}
-	function L(e, t) {
+	function ie(e, t) {
 		if (!/^[A-Za-z]+$/.test(t)) return !1;
-		let n = j(e);
+		let n = M(e);
 		if (n.length <= t.length || e[e.length - n.length - 1] === "\\") return !1;
 		let r = n.toLowerCase();
 		return c.has(r) || c.grows(r);
 	}
 	function R(e, t, n) {
 		if (/^[A-Za-z]$/.test(n)) return !1;
-		let r = e.state.doc.lineAt(t), i = j(e.state.doc.sliceString(Math.max(r.from, t - ne), t)).toLowerCase();
+		let r = e.state.doc.lineAt(t), i = M(e.state.doc.sliceString(Math.max(r.from, t - te), t)).toLowerCase();
 		return !i || c.has(i) || !c.grows(i) ? !1 : z(e, t, "", !0, !0);
 	}
 	function z(e, t, n, r, i = !1) {
 		if (!o.length) return !1;
-		let a = k(e, t);
+		let a = A(e, t);
 		if (!a && !i && n && R(e, t, n)) {
 			let t = e.state.selection.main.head;
 			return z(e, t, n, r) || e.dispatch(e.state.replaceSelection(n)), !0;
 		}
-		let l = e.state.doc.lineAt(t), u = e.state.doc.sliceString(Math.max(l.from, t - ne), t) + n, d, f = () => d ??= h(e, t), p = (e) => t + n.length - e, m = (e) => r === e.auto && !e.visual, g = (t, n) => !t.when || t.when(_(e, u.slice(0, u.length - n))), b = (t) => m(t) && v(t, f(), e), x = (e) => {
+		let l = e.state.doc.lineAt(t), u = e.state.doc.sliceString(Math.max(l.from, t - te), t) + n, d, f = () => d ??= h(e, t), p = (e) => t + n.length - e, m = (e) => r === e.auto && !e.visual, g = (t, n) => !t.when || t.when(_(e, u.slice(0, u.length - n))), b = (t) => m(t) && v(t, f(), e), x = (e) => {
 			if (!e.plain || !u.endsWith(e.plain)) return !1;
 			let t = u.length - e.plain.length;
-			return e.word && t > 0 && /[A-Za-z0-9]/.test(u[t - 1]) ? !1 : !M(u, e.plain) && (i || !L(u, e.plain));
+			return e.word && t > 0 && /[A-Za-z0-9]/.test(u[t - 1]) ? !1 : !re(u, e.plain) && (i || !ie(u, e.plain));
 		}, S = null;
 		for (let t of o) {
 			if (!m(t)) continue;
 			let n = t.regex ? t.regex.exec(u) : null;
-			if (t.regex ? !n || ee(u, I(n)) || !i && L(u, I(n)) : !x(t)) continue;
+			if (t.regex ? !n || N(u, L(n)) || !i && ie(u, L(n)) : !x(t)) continue;
 			let r = n ? n[0].length : t.plain.length;
 			if (v(t, f(), e) && g(t, r)) {
 				S = {
@@ -757,16 +757,16 @@ function L(e) {
 				len: t.plain.length
 			});
 		}
-		let T = j(u), E = p(T.length), D = (e) => !!e && !i && (s.some((t) => t.length > e.length && t.startsWith(e)) || c.grows(e.toLowerCase()));
+		let T = M(u), E = p(T.length), D = (e) => !!e && !i && (s.some((t) => t.length > e.length && t.startsWith(e)) || c.grows(e.toLowerCase()));
 		if (a && (!S || p(S.len) >= a.to)) {
 			let i = e.state.sliceDoc(a.core, t) + n, d = /^[A-Za-z]$/.test(n) && E <= a.core;
-			if (!S && (o.some((e) => w(u, i, e) && b(e)) || d && D(T))) return O.set(e, {
+			if (!S && (o.some((e) => w(u, i, e) && b(e)) || d && D(T))) return k.set(e, {
 				...a,
 				at: t + n.length
 			}), !1;
 			if (!S && d && c.has(T.toLowerCase())) return !1;
-			let f = j(e.state.sliceDoc(l.from, t));
-			if (!S && !d && f.length > (a.m ? I(a.m) : a.s.plain).length && c.has(f.toLowerCase())) return !1;
+			let f = M(e.state.sliceDoc(l.from, t));
+			if (!S && !d && f.length > (a.m ? L(a.m) : a.s.plain).length && c.has(f.toLowerCase())) return !1;
 			if (!S && d && s.includes(T)) {
 				if (u[u.length - T.length - 1] === "\\") return !1;
 				let n = y(a.s, a.m, _(e, ""));
@@ -780,24 +780,24 @@ function L(e) {
 					userEvent: "input.complete"
 				}), !0);
 			}
-			if (!A(e, a)) return !1;
+			if (!j(e, a)) return !1;
 			let p = e.state.selection.main.head;
 			return n && !z(e, p, n, r) && e.dispatch(e.state.replaceSelection(n)), !0;
 		}
 		if (!S) return !1;
-		let N = S.s, P = S.m ? I(S.m) : N.plain;
-		if (r && n && (o.some((e) => e !== N && w(u, P, e) && b(e)) || /^[A-Za-z]+$/.test(P) && D(T))) {
+		let P = S.s, F = S.m ? L(S.m) : P.plain;
+		if (r && n && (o.some((e) => e !== P && w(u, F, e) && b(e)) || /^[A-Za-z]+$/.test(F) && !O(P) && D(T))) {
 			let r = p(S.len), i = t + n.length;
-			return O.set(e, {
-				s: N,
+			return k.set(e, {
+				s: P,
 				m: S.m,
 				from: r,
 				to: i,
-				core: i - P.length,
+				core: i - F.length,
 				at: i
 			}), !1;
 		}
-		return C(e, N, S.m, p(S.len), t, n);
+		return C(e, P, S.m, p(S.len), t, n);
 	}
 	function B(e, t, n, r) {
 		let i = h(e, t), a = o.find((t) => t.visual && t.plain === r && v(t, i, e));
@@ -812,17 +812,17 @@ function L(e) {
 		}
 		return x(e, a, c, t, n, "", s), !0;
 	}
-	function V(e, t, n) {
+	function ae(e, t, n) {
 		return !")]}".includes(n) || e.state.sliceDoc(t, t + 1) !== n || h(e, t).kind !== "math" ? !1 : (e.dispatch({
 			selection: { anchor: t + 1 },
 			userEvent: "select"
 		}), !0);
 	}
-	function ie(e, t, r) {
+	function V(e, t, r) {
 		return r === "{" && n.active(e.state) && /[_^]\{$/.test(e.state.sliceDoc(Math.max(0, t - 2), t)) && e.state.sliceDoc(t, t + 1) === "}";
 	}
 	function H(e) {
-		let { head: t } = e.state.selection.main, n = N(e.state.doc.sliceString(t, Math.min(e.state.doc.length, e.state.doc.lineAt(t).to + 4e3)));
+		let { head: t } = e.state.selection.main, n = P(e.state.doc.sliceString(t, Math.min(e.state.doc.length, e.state.doc.lineAt(t).to + 4e3)));
 		return n === null ? null : t + n;
 	}
 	function U(e, t) {
@@ -833,24 +833,24 @@ function L(e) {
 	}
 	let W = (e) => U(e, H(e));
 	function G(e) {
-		let { head: t } = e.state.selection.main, n = Math.max(0, t - 4e3), r = P(e.state.doc.sliceString(n, t));
+		let { head: t } = e.state.selection.main, n = Math.max(0, t - 4e3), r = F(e.state.doc.sliceString(n, t));
 		return U(e, r === null ? null : n + r);
 	}
 	function K(e) {
-		let t = k(e, e.state.selection.main.head);
-		return !!t && A(e, t);
+		let t = A(e, e.state.selection.main.head);
+		return !!t && j(e, t);
 	}
 	function q(e, t, n, r) {
-		return r.length !== 1 || e.state.selection.ranges.length > 1 || !g(e) ? !1 : t === n ? ie(e, t, r) ? !0 : z(e, t, r, !0) || V(e, t, r) : B(e, t, n, r);
+		return r.length !== 1 || e.state.selection.ranges.length > 1 || !g(e) ? !1 : t === n ? V(e, t, r) ? !0 : z(e, t, r, !0) || ae(e, t, r) : B(e, t, n, r);
 	}
-	let J = (e) => h(e, e.state.selection.main.head).kind === "math", Y = {
+	let J = (e) => h(e, e.state.selection.main.head).kind === "math", oe = {
 		overList(e) {
-			if (O.has(e) || n.active(e.state)) return !0;
+			if (k.has(e) || n.active(e.state)) return !0;
 			let t = e.state.selection.main.head, r = /\\([A-Za-z]*)$/.exec(e.state.sliceDoc(Math.max(0, t - 40), t));
 			return r && !s.includes(r[1]) ? !1 : J(e);
 		},
-		whileAsking: (e) => O.has(e) || n.active(e.state) || J(e)
-	}, ae = [
+		whileAsking: (e) => k.has(e) || n.active(e.state) || J(e)
+	}, se = [
 		a.high(r.inputHandler.of((e, t, n, r) => q(e, t, n, r))),
 		n.extension,
 		a.highest(i.of([{
@@ -872,7 +872,7 @@ function L(e) {
 			shift: (e) => n.prev(e) || g(e) && e.state.selection.main.empty && J(e) && G(e)
 		}]))
 	];
-	function oe(e, i, a = "") {
+	function ce(e, i, a = "") {
 		let o = new r({ state: t.state.EditorState.create({
 			doc: a,
 			selection: { anchor: a.length },
@@ -894,11 +894,11 @@ function L(e) {
 		}
 	}
 	return {
-		extension: ae,
-		claim: Y,
+		extension: se,
+		claim: oe,
 		use: p,
 		loadWords: d,
-		simulate: oe,
+		simulate: ce,
 		insert: n.insert,
 		snippets: () => o,
 		fits: v,
@@ -907,14 +907,14 @@ function L(e) {
 }
 //#endregion
 //#region plugins/beta/snippets/ui/src/std.ts
-var R = /* @__PURE__ */ t({
-	align: () => U,
-	greek: () => z,
-	matrix: () => H,
-	operators: () => B,
-	sequence: () => W,
-	symbols: () => V
-}), z = "alpha beta gamma Gamma delta Delta epsilon varepsilon zeta eta theta vartheta Theta iota kappa lambda Lambda mu nu xi Xi omicron pi Pi varpi rho varrho sigma Sigma varsigma tau upsilon Upsilon phi Phi varphi chi psi Psi omega Omega".split(" "), B = "arcsin arccos arctan arccot arccsc arcsec sinh cosh tanh coth sech csch sin cos tan cot csc sec exp log ln det sum prod int iint iiint oint".split(" "), V = "parallel perp partial nabla hbar ell infty oplus ominus otimes square star dagger vee wedge subseteq subset supseteq supset emptyset exists nexists forall implies impliedby iff setminus neg lor land bigcup bigcap cdot times simeq approx quad qquad leq geq neq gg ll equiv sim propto rightarrow leftarrow Rightarrow Leftarrow leftrightarrow to mapsto cap cup dots vdots ddots langle rangle".split(" "), ie = {
+var ie = /* @__PURE__ */ t({
+	align: () => H,
+	greek: () => R,
+	matrix: () => V,
+	operators: () => z,
+	sequence: () => U,
+	symbols: () => B
+}), R = "alpha beta gamma Gamma delta Delta epsilon varepsilon zeta eta theta vartheta Theta iota kappa lambda Lambda mu nu xi Xi omicron pi Pi varpi rho varrho sigma Sigma varsigma tau upsilon Upsilon phi Phi varphi chi psi Psi omega Omega".split(" "), z = "arcsin arccos arctan arccot arccsc arcsec sinh cosh tanh coth sech csch sin cos tan cot csc sec exp log ln det sum prod int iint iiint oint".split(" "), B = "parallel perp partial nabla hbar ell infty oplus ominus otimes square star dagger vee wedge subseteq subset supseteq supset emptyset exists nexists forall implies impliedby iff setminus neg lor land bigcup bigcap cdot times simeq approx quad qquad leq geq neq gg ll equiv sim propto rightarrow leftarrow Rightarrow Leftarrow leftrightarrow to mapsto cap cup dots vdots ddots langle rangle".split(" "), ae = {
 	p: "pmatrix",
 	b: "bmatrix",
 	B: "Bmatrix",
@@ -922,44 +922,44 @@ var R = /* @__PURE__ */ t({
 	V: "Vmatrix",
 	m: "matrix"
 };
-function H(e, t, n = "p") {
-	let r = ie[n] ?? "pmatrix", i = 1;
+function V(e, t, n = "p") {
+	let r = ae[n] ?? "pmatrix", i = 1;
 	return `\\begin{${r}}\n${Array.from({ length: e }, () => Array.from({ length: t }, () => `\${${i++}}`).join(" & ")).join(" \\\\\n")}\n\\end{${r}}$0`;
 }
-function U(e) {
+function H(e) {
 	return `\\begin{align}\n${e.split("\n").map((e) => e.trim().replace(/^\$+|\$+$/g, "").trim()).filter(Boolean).map((e) => /(?<![\\<>!])=|\\(?:leq|geq|neq|approx|equiv|sim|simeq|implies|iff)(?![A-Za-z])/.test(e) ? e.replace(/(?<![\\<>!])=|\\(?:leq|geq|neq|approx|equiv|sim|simeq|implies|iff)(?![A-Za-z])/, (e) => `&${e}`) : `&${e}`).join(" \\\\\n")}\n\\end{align}$0`;
 }
-var W = (e, t) => `${e}_1 ${t} ${e}_2 ${t} \\cdots ${t} ${e}_{\${1:n}}$0`, G = [
+var U = (e, t) => `${e}_1 ${t} ${e}_2 ${t} \\cdots ${t} ${e}_{\${1:n}}$0`, W = [
 	{
 		id: "spacing",
 		title: "Automatic spacing",
 		description: "Bare names get their backslash, a letter after a command a space (\\sin x), a number after an operator a space (\\times 10), a digit after a Greek letter a subscript.",
-		entries: (e) => [e.commands(z, { digit: "subscript" }), e.commands([...B, ...V], { digit: "space" })]
+		entries: (e) => [e.commands(R, { digit: "subscript" }), e.commands([...z, ...B], { digit: "space" })]
 	},
 	{
 		id: "matrices",
 		title: "Matrices by size",
 		description: "33pmat, 24bmat: the size in the trigger, a stop in each cell. p b B v V for the brackets.",
-		entries: (e) => [e.math(/(\d)(\d)([pbBvV]?)mat/, (e) => H(+e[1], +e[2], e[3] || "p"), { name: "A matrix by size" })]
+		entries: (e) => [e.math(/(\d)(\d)([pbBvV]?)mat/, (e) => V(+e[1], +e[2], e[3] || "p"), { name: "A matrix by size" })]
 	},
 	{
 		id: "sequences",
 		title: "Sequences",
 		description: "xsum → x_1 + x_2 + … + x_n, xprod, xleq, and x1dots → x_1, x_2, …, x_n.",
 		entries: (e) => [
-			e.math(/([A-Za-z])sum/, (e) => W(e[1], "+"), {
+			e.math(/([A-Za-z])sum/, (e) => U(e[1], "+"), {
 				name: "A written-out sum",
 				priority: 1
 			}),
-			e.math(/([A-Za-z])prod/, (e) => W(e[1], "\\times"), {
+			e.math(/([A-Za-z])prod/, (e) => U(e[1], "\\times"), {
 				name: "A written-out product",
 				priority: 1
 			}),
-			e.math(/([A-Za-z])leq/, (e) => W(e[1], "\\leq"), {
+			e.math(/([A-Za-z])leq/, (e) => U(e[1], "\\leq"), {
 				name: "An ordered sequence",
 				priority: 1
 			}),
-			e.math(/([A-Za-z])1dots/, (e) => W(e[1], ","), {
+			e.math(/([A-Za-z])1dots/, (e) => U(e[1], ","), {
 				name: "A list",
 				priority: 1
 			})
@@ -985,7 +985,7 @@ var W = (e, t) => `${e}_1 ${t} ${e}_2 ${t} \\cdots ${t} ${e}_{\${1:n}}$0`, G = [
 		id: "align",
 		title: "Align a selection",
 		description: "Select lines of math and type A: each is aligned at its first relation, inside align.",
-		entries: (e) => [e.visual("A", (e, t) => U(t.selection), { name: "Align what is selected" })]
+		entries: (e) => [e.visual("A", (e, t) => H(t.selection), { name: "Align what is selected" })]
 	},
 	{
 		id: "colors",
@@ -1039,43 +1039,41 @@ var W = (e, t) => `${e}_1 ${t} ${e}_2 ${t} \\cdots ${t} ${e}_{\${1:n}}$0`, G = [
 			})
 		]
 	}
-], K = ".atlas/snippets", q = `${K}/converted.js`, J = {
+], G = ".atlas/snippets", K = `${G}/converted.js`, q = {
 	...i,
-	std: R
+	std: ie
 };
-async function Y(e, t, n) {
+async function J(e, t, n) {
 	let r = n.get(t);
 	if (r) return r;
 	let i = (async () => {
 		let r = await e.readText(t), i = t.slice(0, t.lastIndexOf("/")), a = [], o = 0;
 		for (let t of r.matchAll(/(\bfrom\s*|\bimport\s*\(?\s*)(["'])(\.\.?\/[^"']+)\2/g)) {
 			let s = new URL(t[3], `file:///${i}/`).pathname.slice(1);
-			a.push(r.slice(o, t.index), t[1], JSON.stringify(await Y(e, decodeURI(s), n))), o = t.index + t[0].length;
+			a.push(r.slice(o, t.index), t[1], JSON.stringify(await J(e, decodeURI(s), n))), o = t.index + t[0].length;
 		}
 		return a.push(r.slice(o)), URL.createObjectURL(new Blob(a, { type: "text/javascript" }));
 	})();
 	return n.set(t, i), i;
 }
-async function ae(e, t, n) {
+async function oe(e, t, n) {
 	let r = await import(
 		/* @vite-ignore */
-		await Y(e, t, n)
-), i = typeof r.default == "function" ? r.default(J) : r.default;
+		await J(e, t, n)
+), i = typeof r.default == "function" ? r.default(q) : r.default;
 	if (!Array.isArray(i)) throw Error("its default export gives no list of snippets");
 	return i.flat(Infinity);
 }
-async function oe(e) {
+async function se(e) {
 	let t = [], n = [], r = [];
-	try {
-		r = (await e.list(K)).filter((e) => !e.dir && e.name.endsWith(".js")).map((e) => e.path).sort();
-	} catch {}
+	await e.exists(".atlas/snippets").catch(() => !1) && (r = (await e.list(G).catch(() => [])).filter((e) => !e.dir && e.name.endsWith(".js")).map((e) => e.path).sort());
 	let a = /* @__PURE__ */ new Map(), o = [];
 	for (let i of r) if (/\bexport\s+default\b/.test(await e.readText(i).catch(() => ""))) {
 		o.push(i);
 		try {
 			t.push({
 				source: i,
-				entries: await ae(e, i, a)
+				entries: await oe(e, i, a)
 			});
 		} catch (e) {
 			n.push({
@@ -1084,7 +1082,7 @@ async function oe(e) {
 			});
 		}
 	}
-	let s = await e.editor.legacySnippets().catch(() => null), c = !!s?.sources.some((e) => e.trim()), l = c && !o.includes(q);
+	let s = await e.editor.legacySnippets().catch(() => null), c = !!s?.sources.some((e) => e.trim()), l = c && !o.includes(K);
 	if (l) {
 		let e = p(s);
 		t.push({
@@ -1093,7 +1091,7 @@ async function oe(e) {
 		}), n.push(...e.problems);
 	}
 	let d = String(e.plugin.settings.packs ?? "").split(",").map((e) => e.trim()).filter(Boolean);
-	for (let e of G) d.includes(e.id) && t.push({
+	for (let e of W) d.includes(e.id) && t.push({
 		source: `the ${e.title} pack`,
 		entries: e.entries(i)
 	});
@@ -1107,31 +1105,44 @@ async function oe(e) {
 	};
 }
 //#endregion
+//#region plugins/beta/snippets/ui/src/rank.ts
+var ce = (e, t) => {
+	let n = 0;
+	for (let r = 0; r < t.length && n < e.length; r++) t[r] === e[n] && (n === 0 && r > 0 && /[a-z]/.test(t[r - 1]) || n++);
+	return n === e.length;
+};
+function le(e, t) {
+	let n = e.plain.trim();
+	if (n.startsWith(t) && n !== t) return 0;
+	let r = t.toLowerCase(), i = e.name?.toLowerCase();
+	return t.length < 3 || !i ? null : i.includes(r) ? 1 : ce(r, i) ? 2 : null;
+}
+//#endregion
 //#region plugins/beta/snippets/ui/src/settings.ts
-var se = {
+var Y = {
 	kind: "math",
 	form: "inline",
 	textArg: !1
 }, X = 150, Z = (e, t = "", n) => {
 	let r = document.createElement(e);
 	return t && (r.style.cssText = t), n !== void 0 && (r.textContent = n), r;
-}, Q = "font-weight:600;margin:14px 0 6px;color:var(--text);", $ = "color:var(--text-muted);font-size:.92em;", ce = (e) => [
+}, Q = "font-weight:600;margin:14px 0 6px;color:var(--text);", $ = "color:var(--text-muted);font-size:.92em;", ue = (e) => [
 	e.math && (e.display && e.inline ? "math" : e.display ? "display math" : "inline math"),
 	e.text && "text",
 	e.code && (e.langs ? e.langs.join(", ") : "code")
 ].filter(Boolean).join(" · ");
-function le(e, t) {
+function de(e, t) {
 	let n = [...e.problems], r = /* @__PURE__ */ new Map();
 	for (let t of e.snippets) {
 		if (!t.plain || t.visual) continue;
-		let e = `${t.plain}\u0000${ce(t)}\u0000${t.auto}`, i = r.get(e);
+		let e = `${t.plain}\u0000${ue(t)}\u0000${t.auto}`, i = r.get(e);
 		i ? n.push({
 			source: t.source,
 			what: `“${t.shown}” never fires: an earlier one takes it (${i.source}).`
 		}) : r.set(e, t);
 	}
 	for (let r of e.snippets) for (let [e, i] of Object.entries(r.test ?? {})) {
-		let a = t.simulate(e, r.text ? { kind: "text" } : se);
+		let a = t.simulate(e, r.text ? { kind: "text" } : Y);
 		a !== i && n.push({
 			source: r.source,
 			what: `“${r.shown}”: typing ${e} gives ${a}, not ${i}.`
@@ -1139,49 +1150,92 @@ function le(e, t) {
 	}
 	return n;
 }
-function ue(e) {
+function fe(e) {
 	let t = [];
-	for (let n of D) e.simulate(`${n} `, se) !== `${n} ` && t.push(n);
+	for (let n of D) e.simulate(`${n} `, Y) !== `${n} ` && t.push(n);
 	return t;
 }
-function de(e, t) {
-	let { engine: n, ctx: r } = t, i = Z("div"), a = Z("div"), o = Z("div"), s = Z("div");
-	e.append(i, o, a, s);
-	let c = () => {
+var pe = [
+	{
+		label: "inline math",
+		place: Y
+	},
+	{
+		label: "display math",
+		place: {
+			kind: "math",
+			form: "display",
+			textArg: !1
+		}
+	},
+	{
+		label: "text",
+		place: { kind: "text" }
+	},
+	{
+		label: "code",
+		place: {
+			kind: "code",
+			lang: ""
+		}
+	}
+];
+function me(e, t) {
+	let n = Z("div", "display:flex;gap:8px;align-items:center;"), r = Z("input", "flex:1;min-width:0;");
+	r.placeholder = "Type keys, e.g. a/b or sr ; Tab: a tab stop", r.setAttribute("aria-label", "Try snippets");
+	let i = Z("select");
+	i.setAttribute("aria-label", "Typed in"), pe.forEach((e, t) => i.append(Object.assign(Z("option", "", e.label), { value: String(t) })));
+	let a = Z("code", "display:block;min-height:1.4em;margin-top:6px;padding:6px 8px;border-radius:6px;background:var(--bg-alt);color:var(--text);white-space:pre-wrap;");
+	a.dataset.testid = "snippet-try-out";
+	let o = () => {
+		try {
+			a.textContent = r.value ? t.simulate(r.value, pe[+i.value].place) : "", a.style.color = "var(--text)";
+		} catch (e) {
+			a.textContent = String(e.message ?? e), a.style.color = "var(--red)";
+		}
+	};
+	r.onkeydown = (e) => {
+		e.key !== "Tab" || e.shiftKey || (e.preventDefault(), r.setRangeText("	", r.selectionStart ?? r.value.length, r.selectionEnd ?? r.value.length, "end"), o());
+	}, r.oninput = o, i.onchange = o, n.append(r, i), e.append(Z("div", Q, "Try"), n, a);
+}
+function he(e, t) {
+	let { engine: n, ctx: r } = t, i = Z("div"), a = Z("div"), o = Z("div"), s = Z("div"), c = Z("div");
+	e.append(i, a, s, o, c), me(a, n);
+	let l = () => {
 		let e = t.read();
 		if (i.replaceChildren(), e.fromOldFile) {
 			let e = Z("div", "display:flex;gap:12px;align-items:center;padding:10px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg-alt);");
 			e.append(Z("div", "flex:1;", "These come from the old snippet file. Converting writes a JavaScript module beside it, with the known misfires mended and listed at its top. The old file is left as it was."));
 			let n = Z("button", "", "Convert");
-			n.className = "btn primary", n.onclick = () => void t.convert().then(c), e.append(n), i.append(e);
+			n.className = "btn primary", n.onclick = () => void t.convert().then(l), e.append(n), i.append(e);
 		} else e.modules.length || i.append(Z("div", $, "No snippets yet: put a JavaScript module in .atlas/snippets/, or switch on a pack."));
-		a.replaceChildren(Z("div", Q, "Packs"));
-		let l = new Set(String(r.settings().packs ?? "").split(",").map((e) => e.trim()).filter(Boolean));
-		for (let e of G) {
+		o.replaceChildren(Z("div", Q, "Packs"));
+		let a = new Set(String(r.settings().packs ?? "").split(",").map((e) => e.trim()).filter(Boolean));
+		for (let e of W) {
 			let n = Z("label", "display:flex;gap:10px;align-items:baseline;padding:3px 0;cursor:pointer;"), i = Z("input");
-			i.type = "checkbox", i.checked = l.has(e.id), i.setAttribute("aria-label", `Pack ${e.title}`), i.onchange = () => {
-				i.checked ? l.add(e.id) : l.delete(e.id), r.save({ packs: [...l].join(",") }).then(() => t.reload()).then(c);
+			i.type = "checkbox", i.checked = a.has(e.id), i.setAttribute("aria-label", `Pack ${e.title}`), i.onchange = () => {
+				i.checked ? a.add(e.id) : a.delete(e.id), r.save({ packs: [...a].join(",") }).then(() => t.reload()).then(l);
 			};
-			let o = Z("span");
-			o.append(Z("span", "", e.title), Z("span", `${$}margin-left:8px;`, e.description)), n.append(i, o), a.append(n);
+			let s = Z("span");
+			s.append(Z("span", "", e.title), Z("span", `${$}margin-left:8px;`, e.description)), n.append(i, s), o.append(n);
 		}
-		o.replaceChildren();
-		let u = le(e, n), d = (e) => {
-			if (o.replaceChildren(), e.length) {
-				o.append(Z("div", Q, `Problems (${e.length})`));
+		s.replaceChildren();
+		let u = de(e, n), d = (e) => {
+			if (s.replaceChildren(), e.length) {
+				s.append(Z("div", Q, `Problems (${e.length})`));
 				for (let t of e) {
 					let e = Z("div", "padding:2px 0;");
-					e.dataset.testid = "snippet-problem", e.append(Z("span", "color:var(--red);", t.what), Z("span", `${$}margin-left:8px;`, t.source)), o.append(e);
+					e.dataset.testid = "snippet-problem", e.append(Z("span", "color:var(--red);", t.what), Z("span", `${$}margin-left:8px;`, t.source)), s.append(e);
 				}
 			}
 		};
 		d(u), setTimeout(() => {
-			let e = ue(n);
+			let e = fe(n);
 			e.length && d([...u, {
 				source: "typed in math",
 				what: `${e.length} ordinary words change: ${e.slice(0, 40).join(", ")}${e.length > 40 ? "…" : ""}`
 			}]);
-		}, 0), s.replaceChildren(Z("div", Q, `Snippets (${e.snippets.length})`));
+		}, 0), c.replaceChildren(Z("div", Q, `Snippets (${e.snippets.length})`));
 		let f = Z("input", "width:100%;box-sizing:border-box;margin-bottom:8px;");
 		f.placeholder = "Search triggers, names, what they give…", f.setAttribute("aria-label", "Search snippets");
 		let p = Z("div", "display:grid;grid-template-columns:minmax(80px,1fr) minmax(0,2.4fr) auto;gap:3px 14px;align-items:baseline;"), m = () => {
@@ -1191,19 +1245,19 @@ function de(e, t) {
 				let t = typeof e.body == "string" ? e.body : "(computed)", n = Z("div", "min-width:0;");
 				e.name && n.append(Z("span", "", e.name), Z("span", `${$}margin-left:8px;`));
 				let r = Z("code", `${$}white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:${e.name ? "none" : "block"};`, t.replace(/\s+/g, " "));
-				n.append(r), p.append(Z("code", "color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;", e.shown), n, Z("div", $, `${e.auto ? "" : "Tab · "}${ce(e)}`));
+				n.append(r), p.append(Z("code", "color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;", e.shown), n, Z("div", $, `${e.auto ? "" : "Tab · "}${ue(e)}`));
 			}
 			n.length > X && p.append(Z("div", `${$}grid-column:1/-1;`, `and ${n.length - X} more: search to find them.`));
 		};
-		f.oninput = m, m(), s.append(f, p);
+		f.oninput = m, m(), c.append(f, p);
 	};
-	c();
+	l();
 }
 //#endregion
 //#region plugins/beta/snippets/ui/src/main.ts
-var fe = (e) => e.replace(/\$\{VISUAL\}/g, "x").replace(/\$\{\d+:((?:[^{}]|\{[^{}]*\})*)\}/g, "$1").replace(/\$\{\d+\}|\$\d+/g, "\\square ");
-async function pe(e) {
-	let t = L(e), n = null, r = async () => (n = await oe(e), t.use(n), n);
+var ge = (e) => e.replace(/\$\{VISUAL\}/g, "x").replace(/\$\{\d+:((?:[^{}]|\{[^{}]*\})*)\}/g, "$1").replace(/\$\{\d+\}|\$\d+/g, "\\square ");
+async function _e(e) {
+	let t = re(e), n = null, r = async () => (n = await se(e), t.use(n), n);
 	e.editor.extension(t.extension), e.editor.claimTab(t.claim), await r(), t.loadWords().catch((e) => console.warn("snippets: the word list did not load, only the short one holds:", e)), e.onFilesChanged((e) => {
 		e.some((e) => e.startsWith(".atlas/snippets/") || e === ".atlas/config.toml") && r();
 	});
@@ -1220,9 +1274,9 @@ async function pe(e) {
 		complete: (n) => {
 			let r = i(n.view, n.pos), a = n.word, o = t.snippets().filter((e) => e.plain?.trim() && typeof e.body == "string" && !e.visual && t.fits(e, r, n.view));
 			for (let r = 0; r <= Math.max(0, a.length - (n.explicit ? 1 : 2)); r++) {
-				let i = a.slice(r), s = i.toLowerCase(), c = o.filter((e) => e.plain.trim().startsWith(i) && e.plain.trim() !== i || i.length >= 3 && e.name?.toLowerCase().includes(s));
-				if (!c.length) continue;
-				let l = c.sort((e, t) => e.plain.length - t.plain.length || e.plain.localeCompare(t.plain)).slice(0, 50).map((n) => {
+				let i = a.slice(r), s = o.map((e) => [e, le(e, i)]).filter(([, e]) => e !== null);
+				if (!s.length) continue;
+				let c = s.sort(([e, t], [n, r]) => t - r || e.plain.length - n.plain.length || e.plain.localeCompare(n.plain)).map(([e]) => e).slice(0, 50).map((n) => {
 					let r = n.body;
 					return {
 						label: n.plain.trim(),
@@ -1231,13 +1285,13 @@ async function pe(e) {
 						apply: (e, i, a) => t.insert(e, r, i, a, "", n.legacyStops),
 						info: n.math ? () => {
 							let t = document.createElement("div");
-							return e.editor.drawMath(t, fe(r), !1), t;
+							return e.editor.drawMath(t, ge(r), !1), t;
 						} : void 0
 					};
 				});
 				return {
 					from: n.pos - a.length + r,
-					items: l
+					items: c
 				};
 			}
 			return null;
@@ -1249,7 +1303,7 @@ async function pe(e) {
 			e.toast("Snippets", "There is no old snippet file to convert here.", "info");
 			return;
 		}
-		let i = q;
+		let i = K;
 		if (n?.modules.includes(i)) {
 			e.toast("Snippets", `${i} is there already. Move it aside to convert again.`, "info");
 			return;
@@ -1266,7 +1320,7 @@ async function pe(e) {
 		title: "Your snippets",
 		place: "before",
 		hint: "What fires, where it fires, and what is wrong. Snippet files are JavaScript and run with what a plugin may do.",
-		mount: (i, o) => de(i, {
+		mount: (i, o) => he(i, {
 			atlas: e,
 			engine: t,
 			ctx: o,
@@ -1277,4 +1331,4 @@ async function pe(e) {
 	});
 }
 //#endregion
-export { pe as register };
+export { _e as register };

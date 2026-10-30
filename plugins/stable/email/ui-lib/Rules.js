@@ -2541,14 +2541,12 @@ function qi(e, t = /* @__PURE__ */ new Date()) {
 	}
 	return o.setHours(a[2] ? Number(a[2]) : 8, a[3] ? Number(a[3]) : 0, 0, 0), Math.floor(o.getTime() / 1e3);
 }
-//#endregion
-//#region plugins/stable/email/ui/src/MailFrame.svelte
-var Ji = /* @__PURE__ */ xr("<iframe class=\"frame svelte-lnhtx6\" title=\"The message\" sandbox=\"allow-same-origin allow-popups allow-popups-to-escape-sandbox\" scrolling=\"no\"></iframe>"), Yi = {
+var Ji = (e, t, n) => typeof e.confirm == "function" ? e.confirm(t, n) : Promise.resolve(window.confirm(t)), Yi = (e, t, n = "") => typeof e.input == "function" ? e.input(t, { value: n }) : Promise.resolve(window.prompt(t, n)?.trim() || null), Xi = /* @__PURE__ */ xr("<iframe class=\"frame svelte-lnhtx6\" title=\"The message\" sandbox=\"allow-same-origin allow-popups allow-popups-to-escape-sandbox\" scrolling=\"no\"></iframe>"), Zi = {
 	hash: "svelte-lnhtx6",
 	code: ".frame.svelte-lnhtx6 {display:block;width:100%;border:0;background:transparent;color-scheme:normal;}"
 };
-function Xi(e, t) {
-	Ke(t, !0), Yr(e, Yi);
+function Qi(e, t) {
+	Ke(t, !0), Yr(e, Zi);
 	let n = Oi(t, "plain", 3, !1), r = Oi(t, "remote", 3, !1), i = Oi(t, "dark", 3, !1), a = Oi(t, "prose", 3, ""), o = /* @__PURE__ */ P(void 0), s = /* @__PURE__ */ P(80), c = [
 		".gmail_quote",
 		"blockquote[type=cite]",
@@ -2662,7 +2660,7 @@ table{max-width:100%}
 		for (let n of Array.from(e.images)) n.addEventListener("load", t);
 		e.addEventListener("toggle", t, !0);
 	}
-	var v = Ji();
+	var v = Xi();
 	let y;
 	Ti(v, (e) => F(o, e), () => Y(o)), wn(() => {
 		$(v, "srcdoc", Y(g)), y = ri(v, "", y, { height: `${Y(s) ?? ""}px` });
@@ -2670,18 +2668,18 @@ table{max-width:100%}
 }
 //#endregion
 //#region plugins/stable/email/ui/src/Rules.svelte
-var Zi = /* @__PURE__ */ xr("<div class=\"rule svelte-1mt0jy7\"><input class=\"when svelte-1mt0jy7\" placeholder=\"from:newsletter@shop.example\" aria-label=\"When new mail matches\"/> <span class=\"arrow svelte-1mt0jy7\">→</span> <input class=\"acts svelte-1mt0jy7\" placeholder=\"move Newsletters, read\" aria-label=\"Do\" list=\"email-rule-actions\"/> <button class=\"tool svelte-1mt0jy7\" title=\"Show the mail it matches now\"><!></button> <button class=\"tool svelte-1mt0jy7\" title=\"Remove this rule\"><!></button></div>"), Qi = /* @__PURE__ */ xr("<p class=\"faint svelte-1mt0jy7\">No rules yet.</p>"), $i = /* @__PURE__ */ xr("<option></option>"), ea = /* @__PURE__ */ xr("<p class=\"error svelte-1mt0jy7\"> </p>"), ta = /* @__PURE__ */ xr("<button class=\"atlas-btn svelte-1mt0jy7\">Cancel</button>"), na = /* @__PURE__ */ xr("<span class=\"faint svelte-1mt0jy7\">for new mail in an inbox · kept in <button class=\"link svelte-1mt0jy7\"> </button></span> <p class=\"hint svelte-1mt0jy7\">When new mail matches the search, do the actions in order. A search is written as in the search box: <code class=\"svelte-1mt0jy7\">from:shop.example</code>, <code class=\"svelte-1mt0jy7\">subject:invoice has:attachment</code>, <code class=\"svelte-1mt0jy7\">list:physics</code>, <code class=\"svelte-1mt0jy7\">-from:boss</code>, several people at once: <code class=\"svelte-1mt0jy7\">from:ana@uni.example,bo@uni.example</code>. <b>important</b> stars it and keeps the conversation as a note at once; <b>not-important</b> moves it out of the inbox; <b>stop</b> keeps later rules from seeing it; <b>save</b> keeps the conversation as a note.</p> <!> <datalist id=\"email-rule-actions\"></datalist> <!> <footer class=\"svelte-1mt0jy7\"><button class=\"atlas-btn svelte-1mt0jy7\"><!> Add a rule</button> <span class=\"grow svelte-1mt0jy7\"></span> <!> <button class=\"atlas-btn primary svelte-1mt0jy7\"> </button></footer>", 1), ra = /* @__PURE__ */ xr("<div class=\"inline svelte-1mt0jy7\"><!></div>"), ia = /* @__PURE__ */ xr("<div class=\"scrim svelte-1mt0jy7\" role=\"presentation\"><div class=\"sheet svelte-1mt0jy7\" role=\"dialog\" aria-modal=\"true\" aria-label=\"Rules\" tabindex=\"-1\"><header class=\"svelte-1mt0jy7\"><h2 class=\"svelte-1mt0jy7\">Rules</h2> <button class=\"x svelte-1mt0jy7\" aria-label=\"Close\">×</button></header> <!></div></div>"), aa = {
+var $i = /* @__PURE__ */ xr("<div class=\"rule svelte-1mt0jy7\"><input class=\"when svelte-1mt0jy7\" placeholder=\"from:newsletter@shop.example\" aria-label=\"When new mail matches\"/> <span class=\"arrow svelte-1mt0jy7\">→</span> <input class=\"acts svelte-1mt0jy7\" placeholder=\"move Newsletters, read\" aria-label=\"Do\" list=\"email-rule-actions\"/> <button class=\"tool svelte-1mt0jy7\" title=\"Show the mail it matches now\"><!></button> <button class=\"tool svelte-1mt0jy7\" title=\"Remove this rule\"><!></button></div>"), ea = /* @__PURE__ */ xr("<p class=\"faint svelte-1mt0jy7\">No rules yet.</p>"), ta = /* @__PURE__ */ xr("<option></option>"), na = /* @__PURE__ */ xr("<p class=\"error svelte-1mt0jy7\"> </p>"), ra = /* @__PURE__ */ xr("<button class=\"atlas-btn svelte-1mt0jy7\">Cancel</button>"), ia = /* @__PURE__ */ xr("<span class=\"faint svelte-1mt0jy7\">for new mail in an inbox · kept in <button class=\"link svelte-1mt0jy7\"> </button></span> <p class=\"hint svelte-1mt0jy7\">When new mail matches the search, do the actions in order. A search is written as in the search box: <code class=\"svelte-1mt0jy7\">from:shop.example</code>, <code class=\"svelte-1mt0jy7\">subject:invoice has:attachment</code>, <code class=\"svelte-1mt0jy7\">list:physics</code>, <code class=\"svelte-1mt0jy7\">-from:boss</code>, several people at once: <code class=\"svelte-1mt0jy7\">from:ana@uni.example,bo@uni.example</code>. <b>important</b> stars it and keeps the conversation as a note at once; <b>not-important</b> moves it out of the inbox; <b>stop</b> keeps later rules from seeing it; <b>save</b> keeps the conversation as a note.</p> <!> <datalist id=\"email-rule-actions\"></datalist> <!> <footer class=\"svelte-1mt0jy7\"><button class=\"atlas-btn svelte-1mt0jy7\"><!> Add a rule</button> <span class=\"grow svelte-1mt0jy7\"></span> <!> <button class=\"atlas-btn primary svelte-1mt0jy7\"> </button></footer>", 1), aa = /* @__PURE__ */ xr("<div class=\"inline svelte-1mt0jy7\"><!></div>"), oa = /* @__PURE__ */ xr("<div class=\"scrim svelte-1mt0jy7\" role=\"presentation\"><div class=\"sheet svelte-1mt0jy7\" role=\"dialog\" aria-modal=\"true\" aria-label=\"Rules\" tabindex=\"-1\"><header class=\"svelte-1mt0jy7\"><h2 class=\"svelte-1mt0jy7\">Rules</h2> <button class=\"x svelte-1mt0jy7\" aria-label=\"Close\">×</button></header> <!></div></div>"), sa = {
 	hash: "svelte-1mt0jy7",
 	code: ".scrim.svelte-1mt0jy7 {position:absolute;inset:0;z-index:60;background:rgba(0, 0, 0, 0.35);display:grid;place-items:center;padding:16px;}.inline.svelte-1mt0jy7 {display:grid;gap:10px;container-type:inline-size;}.sheet.svelte-1mt0jy7 {background:var(--bg-elev);border:1px solid var(--border-strong);border-radius:var(--radius-lg);width:min(820px, 100%);max-height:90%;overflow:auto;padding:18px 22px;display:grid;gap:10px;}header.svelte-1mt0jy7 {display:flex;gap:12px;align-items:baseline;flex-wrap:wrap;}h2.svelte-1mt0jy7 {margin:0;font-size:1.15em;}.faint.svelte-1mt0jy7 {color:var(--text-faint);font-size:0.9em;}.hint.svelte-1mt0jy7 {margin:0;color:var(--text-muted);font-size:0.9em;line-height:1.5;}code.svelte-1mt0jy7 {font-family:var(--font-mono);font-size:0.9em;background:var(--bg-hover);padding:0 4px;border-radius:4px;}.x.svelte-1mt0jy7 {all:unset;cursor:pointer;margin-left:auto;font-size:1.4em;color:var(--text-muted);padding:0 6px;}.link.svelte-1mt0jy7 {all:unset;cursor:pointer;color:var(--accent);}.rule.svelte-1mt0jy7 {display:flex;gap:8px;align-items:center;}.rule.svelte-1mt0jy7 input:where(.svelte-1mt0jy7) {min-width:0;background:var(--bg);color:var(--text);border:1px solid var(--border-strong);border-radius:var(--radius-sm);padding:6px 9px;font:inherit;}.when.svelte-1mt0jy7 {flex:3;font-family:var(--font-mono);font-size:0.92em !important;}.acts.svelte-1mt0jy7 {flex:2;}.arrow.svelte-1mt0jy7 {color:var(--text-faint);}.tool.svelte-1mt0jy7 {all:unset;cursor:pointer;padding:6px;border-radius:var(--radius-sm);color:var(--text-muted);}.tool.svelte-1mt0jy7:hover {background:var(--bg-hover);color:var(--text);}footer.svelte-1mt0jy7 {display:flex;gap:8px;align-items:center;padding-top:6px;}footer.svelte-1mt0jy7 .atlas-btn:where(.svelte-1mt0jy7) {display:inline-flex;gap:6px;align-items:center;}.primary.svelte-1mt0jy7 {background:var(--accent) !important;color:var(--accent-fg) !important;border-color:transparent !important;}.grow.svelte-1mt0jy7 {flex:1;}.error.svelte-1mt0jy7 {color:var(--red);margin:0;}\n  @container (max-width: 600px) {.rule.svelte-1mt0jy7 {flex-wrap:wrap;}.when.svelte-1mt0jy7, .acts.svelte-1mt0jy7 {flex-basis:100%;}.arrow.svelte-1mt0jy7 {display:none;} }"
 };
-function oa(e, t) {
-	Ke(t, !0), Yr(e, aa);
+function ca(e, t) {
+	Ke(t, !0), Yr(e, sa);
 	let n = (e) => {
-		var n = na(), m = an(n), h = z(R(m)), g = on(h, !0);
+		var n = ia(), m = an(n), h = z(R(m)), g = on(h, !0);
 		D(m);
 		var _ = z(m, 4);
 		Hr(_, 17, () => Y(a), Rr, (e, t, n) => {
-			var r = Zi(), i = R(r);
+			var r = $i(), i = R(r);
 			mi(i);
 			var a = z(i, 4);
 			mi(a);
@@ -2696,17 +2694,17 @@ function oa(e, t) {
 				size: 15
 			}), D(s), D(r), wn((e) => hi(a, e), [() => Y(t).actions.join(", ")]), yi(i, () => Y(t).when, (e) => Y(t).when = e), X("input", a, (e) => Y(t).actions = e.currentTarget.value.split(",")), X("click", o, () => p(Y(t))), X("click", s, () => d(n)), Q(e, r);
 		}, (e) => {
-			Q(e, Qi());
+			Q(e, ea());
 		});
 		var v = z(_, 2);
 		Hr(v, 20, () => l, (e) => e, (e, t) => {
-			var n = $i(), r = {};
+			var n = ta(), r = {};
 			wn(() => {
 				r !== (r = t) && (n.value = (n.__value = r) ?? "");
 			}), Q(e, n);
 		}), D(v);
 		var y = z(v, 2), b = (e) => {
-			var t = ea(), n = on(t, !0);
+			var t = na(), n = on(t, !0);
 			wn(() => Ar(n, Y(s))), Q(e, t);
 		};
 		Lr(y, (e) => {
@@ -2718,7 +2716,7 @@ function oa(e, t) {
 			size: 14
 		}), De(), D(S);
 		var ee = z(S, 4), te = (e) => {
-			var t = ta();
+			var t = ra();
 			X("click", t, function(...e) {
 				r()?.apply(this, e);
 			}), Q(e, t);
@@ -2773,10 +2771,10 @@ function oa(e, t) {
 		t.mail.search(e.when), r()();
 	}
 	var m = Tr(), h = an(m), g = (e) => {
-		var t = ra(), r = R(t);
+		var t = aa(), r = R(t);
 		n(r), D(t), Q(e, t);
 	}, _ = (e) => {
-		var t = ia(), i = R(t), a = R(i), o = z(R(a), 2);
+		var t = oa(), i = R(t), a = R(i), o = z(R(a), 2);
 		D(a);
 		var s = z(a, 2);
 		n(s), D(i), D(t), X("click", t, function(...e) {
@@ -2795,4 +2793,4 @@ mr([
 	"keydown"
 ]);
 //#endregion
-export { P as $, Rr as A, X as B, si as C, Yr as D, ti as E, Q as F, vn as G, Y as H, Tr as I, an as J, Qt as K, xr as L, jr as M, Ar as N, Jr as O, Fr as P, F as Q, wr as R, $ as S, ri as T, ar as U, pr as V, wn as W, z as X, on as Y, Yt as Z, Oi as _, Vi as a, De as at, yi as b, qi as c, m as ct, Ui as d, ht as et, Ki as f, ki as g, Ni as h, Li as i, Ke as it, Lr as j, Hr as k, Ri as l, Ii as m, Xi as n, rt as nt, Wi as o, D as ot, Bi as p, R as q, Pi as r, qe as rt, Gi as s, d as st, oa as t, nt as tt, Fi as u, Ti as v, oi as w, mi as x, Ci as y, mr as z };
+export { Yt as $, Jr as A, wr as B, mi as C, ri as D, oi as E, Ar as F, ar as G, X as H, Fr as I, Qt as J, wn as K, Q as L, Rr as M, Lr as N, ti as O, jr as P, z as Q, Tr as R, yi as S, si as T, pr as U, mr as V, Y as W, an as X, R as Y, on as Z, Ni as _, Pi as a, qe as at, Ti as b, Wi as c, D as ct, Ri as d, F as et, Fi as f, Ii as g, Bi as h, Ji as i, rt as it, Hr as j, Yr as k, Gi as l, d as lt, Ki as m, Qi as n, ht as nt, Li as o, Ke as ot, Ui as p, vn as q, Yi as r, nt as rt, Vi as s, De as st, ca as t, P as tt, qi as u, m as ut, ki as v, $ as w, Ci as x, Oi as y, xr as z };

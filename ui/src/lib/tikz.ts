@@ -174,3 +174,50 @@ export async function renderTikz(source: string): Promise<TikzResult> {
   if (r.ok) { memory.set(key, r.svg); void store("readwrite", (s) => s.put(r.svg, key)); }
   return r;
 }
+
+// ---- a picture for a document: PNG, its fonts inside --------------------------------------------------------------
+
+/** The `font-family` names an SVG's text is set in (TikZJax's Computer Modern: `cmr10`, `cmmi10`…). */
+export function fontsOf(svg: string): string[] {
+  return [...new Set([...svg.matchAll(/font-family\s*[=:]\s*["']?([\w-]+)/g)].map((m) => m[1]))];
+}
+
+/** An SVG length in points (TikZJax writes `pt`; a bare number is CSS px). */
+export function lengthPt(v: string | null): number | null {
+  const m = /^\s*([\d.]+)\s*(pt|px|in|cm|mm|em)?\s*$/.exec(v ?? "");
+  if (!m) return null;
+  const n = Number(m[1]);
+  return n * ({ pt: 1, px: 0.75, in: 72, cm: 72 / 2.54, mm: 72 / 25.4, em: 10 }[m[2] ?? "px"] ?? 1);
+}
+
+const toDataUrl = (blob: Blob) => new Promise<string>((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result)); r.onerror = () => rej(r.error); r.readAsDataURL(blob); });
+
+/** A ```tikz fence's picture as a PNG for a document that has no Computer Modern web fonts (Typst, Word): the SVG
+ *  with its fonts inlined, drawn on a canvas `scale` times its size in CSS px. `width`: its width in points, as TeX
+ *  set it. Throws TeX's error. */
+export async function tikzPng(source: string, scale = 4): Promise<{ png: Blob; width: number }> {
+  const r = await renderTikz(source);
+  if (!r.ok) throw new Error(r.error);
+  const faces = await Promise.all(fontsOf(r.svg).map(async (f) => {
+    const res = await fetch(new URL(`fonts/${f}.woff2`, assets()));
+    return res.ok ? `@font-face{font-family:${f};src:url(${await toDataUrl(await res.blob())}) format("woff2")}` : "";
+  }));
+  // an SVG drawn as an image loads nothing from outside: its fonts must travel inside it
+  const svg = r.svg.replace(/<svg\b[^>]*>/, (open) => `${open}<style>${faces.join("")}</style>`);
+  const root = new DOMParser().parseFromString(svg, "image/svg+xml").documentElement;
+  const box = (root.getAttribute("viewBox") ?? "").split(/[\s,]+/).map(Number);
+  const width = lengthPt(root.getAttribute("width")) ?? box[2] ?? 100;
+  const height = lengthPt(root.getAttribute("height")) ?? box[3] ?? 100;
+  const img = new Image();
+  const url = URL.createObjectURL(new Blob([svg], { type: "image/svg+xml" }));
+  try {
+    img.src = url;
+    await img.decode();
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.ceil((width / 0.75) * scale);
+    canvas.height = Math.ceil((height / 0.75) * scale);
+    canvas.getContext("2d")!.drawImage(img, 0, 0, canvas.width, canvas.height);
+    const png = await new Promise<Blob>((res, rej) => canvas.toBlob((b) => (b ? res(b) : rej(new Error("the picture could not be drawn"))), "image/png"));
+    return { png, width };
+  } finally { URL.revokeObjectURL(url); }
+}

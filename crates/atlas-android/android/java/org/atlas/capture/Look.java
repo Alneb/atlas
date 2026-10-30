@@ -121,6 +121,11 @@ public final class Look {
         return new RippleDrawable(ColorStateList.valueOf(ripple), round(fill, radius, stroke), round(0xffffffff, radius, 0));
     }
 
+    /** A 40 dp look on a 48 dp touch target: the view is 48 dp tall, its background inset 4 dp above and below. */
+    public Drawable target(Drawable look) {
+        return new android.graphics.drawable.InsetDrawable(look, 0, dp(4), 0, dp(4));
+    }
+
     public TextView label(Context c, String s, float sp, int color) {
         TextView t = new TextView(c);
         t.setText(s);

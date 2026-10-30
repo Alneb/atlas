@@ -18,6 +18,10 @@ const STYLES: Record<string, { biblatex: string; typst: string }> = {
   physics: { biblatex: "phys", typst: "american-physics-society" },
 };
 const CACHE = ".atlas/cache/plugins/export";
+/** Where the dialog leaves a ```tikz picture drawn by the page's TeX (`atlas.tikz.png`), by its key. */
+export const tikzPng = (key: string) => `${CACHE}/figures/${key}.png`;
+/** A fence's key: the hash of its source, the same for the dialog (from `describe`) and the road. */
+const keyOf = (source: string) => atlas.hash.sha256(source).slice(0, 16);
 const PLUGIN = ".atlas/plugins/export";
 
 /** The dialog's choices; any left out come from the plugin's settings, then these defaults. */
@@ -62,7 +66,8 @@ function findBib(files: string[], setting: string): string | null {
   return bibs.find((f) => f === "refs/refs.bib") ?? bibs.find((f) => !f.includes("/")) ?? bibs.find((f) => /^refs\/[^/]+$/.test(f)) ?? null;
 }
 
-interface Job { rel: string; outDir: string; stem: string; o: Options; files: string[]; bib: string | null; t: Translated }
+/** `figures`: the tikz pictures the dialog drew, key → width in points. */
+interface Job { rel: string; outDir: string; stem: string; o: Options; files: string[]; bib: string | null; t: Translated; figures: Record<string, number> }
 
 async function prepare(params: Params, preview: boolean): Promise<Job> {
   const rel = String(params.path ?? "").trim().replace(/^\/+/, "");
@@ -77,7 +82,9 @@ async function prepare(params: Params, preview: boolean): Promise<Job> {
   const t = await translate({ files, read: (p) => atlas.read(p) }, rel, outDir, keys);
   if (t.cited.length && !bib) t.warnings.push("papers are cited but no .bib was found (the Bibliography option)");
   const stem = rel.slice(rel.lastIndexOf("/") + 1).replace(/\.md$/i, "");
-  return { rel, outDir, stem, o, files, bib, t };
+  const figures: Record<string, number> = {};
+  for (const [k, w] of Object.entries((params.figures ?? {}) as Record<string, unknown>)) if (/^[0-9a-f]{16}$/.test(k) && Number(w) > 0) figures[k] = Number(w);
+  return { rel, outDir, stem, o, files, bib, t, figures };
 }
 
 /** The pandoc metadata block every road starts from: the title block, the page, the bibliography. */
@@ -119,11 +126,14 @@ async function fences(j: Job, road: "latex" | "typst" | "docx"): Promise<string>
     else if (f.lang === "tikz" && road === "latex") out[i] = "```tikz\n" + f.source + "\n```"; // tikz.lua draws it
     else if (f.lang === "typst" && road === "latex") {
       // drawn by the core's Typst into a PDF picture the LaTeX includes
-      const pdf = `${CACHE}/figures/${atlas.hash.sha256(f.source).slice(0, 16)}.pdf`;
+      const pdf = `${CACHE}/figures/${keyOf(f.source)}.pdf`;
       atlas.convert.typstPdf(`${dirname(j.rel) || "."}/.fence.typ`, pdf, { source: f.source, fence: true });
       out[i] = `![](<${relative(j.outDir, pdf)}>)`;
+    } else if (f.lang === "tikz" && j.figures[keyOf(f.source)]) {
+      // drawn by the page's TeX as a PNG (the web fonts inside), at the width TeX gave it
+      out[i] = `![](<${relative(j.outDir, tikzPng(keyOf(f.source)))}>){width=${j.figures[keyOf(f.source)].toFixed(1)}pt}`;
     } else {
-      j.t.warnings.push(`a ${f.lang} picture is left as code: ${f.lang === "tikz" ? "only the LaTeX formats draw TikZ" : "Word has no Typst"}`);
+      j.t.warnings.push(`a ${f.lang} picture is left as code: ${f.lang === "tikz" ? "the TeX in the page did not draw it" : "Word has no Typst"}`);
       out[i] = "```" + f.lang + "\n" + f.source + "\n```";
     }
   }
@@ -216,7 +226,8 @@ async function exportNote(params: Params) {
 /** What the dialog shows before anything is made: the title block, whether papers are cited, which pictures. */
 async function describe(params: Params) {
   const j = await prepare({ ...params, options: {} }, true);
-  return { meta: j.t.meta, cited: j.t.cited, bib: j.bib, fences: j.t.fences.map((f) => f.lang), warnings: j.t.warnings, ext: EXT };
+  const tikz = j.t.fences.filter((f) => f.lang === "tikz").map((f) => ({ key: keyOf(f.source), source: f.source, png: tikzPng(keyOf(f.source)) }));
+  return { meta: j.t.meta, cited: j.t.cited, bib: j.bib, fences: j.t.fences.map((f) => f.lang), tikz, warnings: j.t.warnings, ext: EXT };
 }
 
 atlas.methods({ formats, describe, export: exportNote });

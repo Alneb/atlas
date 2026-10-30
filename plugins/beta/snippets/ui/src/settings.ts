@@ -50,10 +50,47 @@ function misfires(engine: ReturnType<typeof makeEngine>): string[] {
   return bad;
 }
 
+// the places a try can be typed in; `Tab` typed as \t walks the stops
+const PLACES: { label: string; place: Parameters<ReturnType<typeof makeEngine>["simulate"]>[1] }[] = [
+  { label: "inline math", place: MATH },
+  { label: "display math", place: { kind: "math", form: "display", textArg: false } },
+  { label: "text", place: { kind: "text" } },
+  { label: "code", place: { kind: "code", lang: "" } },
+];
+
+/** A box to type keys into, and what this vault's snippets make of them: the engine on a detached editor. */
+function mountTry(host: HTMLElement, engine: ReturnType<typeof makeEngine>) {
+  const row = el("div", "display:flex;gap:8px;align-items:center;");
+  const input = el("input", "flex:1;min-width:0;");
+  input.placeholder = "Type keys, e.g. a/b or sr ; Tab: a tab stop";
+  input.setAttribute("aria-label", "Try snippets");
+  const where = el("select");
+  where.setAttribute("aria-label", "Typed in");
+  PLACES.forEach((p, i) => where.append(Object.assign(el("option", "", p.label), { value: String(i) })));
+  const out = el("code", "display:block;min-height:1.4em;margin-top:6px;padding:6px 8px;border-radius:6px;background:var(--bg-alt);color:var(--text);white-space:pre-wrap;");
+  out.dataset.testid = "snippet-try-out";
+  const run = () => {
+    try { out.textContent = input.value ? engine.simulate(input.value, PLACES[+where.value].place) : ""; out.style.color = "var(--text)"; }
+    catch (e) { out.textContent = String((e as Error).message ?? e); out.style.color = "var(--red)"; }
+  };
+  // Tab in the box is typed as a tab, so a stop can be walked; Shift+Tab still leaves the box
+  input.onkeydown = (e) => {
+    if (e.key !== "Tab" || e.shiftKey) return;
+    e.preventDefault();
+    input.setRangeText("\t", input.selectionStart ?? input.value.length, input.selectionEnd ?? input.value.length, "end");
+    run();
+  };
+  input.oninput = run;
+  where.onchange = run;
+  row.append(input, where);
+  host.append(el("div", TITLE, "Try"), row, out);
+}
+
 export function mountSection(host: HTMLElement, o: { atlas: PluginApi; engine: ReturnType<typeof makeEngine>; ctx: SettingsSectionContext; read(): Read; reload(): Promise<Read>; convert(): Promise<void> }) {
   const { engine, ctx } = o;
-  const top = el("div"), packs = el("div"), problems = el("div"), list = el("div");
-  host.append(top, problems, packs, list);
+  const top = el("div"), tryBox = el("div"), packs = el("div"), problems = el("div"), list = el("div");
+  host.append(top, tryBox, problems, packs, list);
+  mountTry(tryBox, engine);
 
   const draw = () => {
     const read = o.read();

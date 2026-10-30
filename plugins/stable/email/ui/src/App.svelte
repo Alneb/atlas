@@ -14,7 +14,7 @@
   import Icon from "./Icon.svelte";
   import { Mail, type Kind, type Quick } from "./store.svelte";
   import { BY_KEY, COMMANDS, PREFIXES, keyOf, shown, type Ui } from "./keys";
-  import { parseWhen, snoozeTimes, type Folder, type PluginApi, type Row, type Template } from "./api";
+  import { askLine, parseWhen, snoozeTimes, type Folder, type PluginApi, type Row, type Template } from "./api";
 
   let { atlas }: { atlas: PluginApi } = $props();
   // svelte-ignore state_referenced_locally
@@ -225,7 +225,7 @@
     theme.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
     const newFolder = async (e: Event) => {
       const account = (e as CustomEvent<string>).detail;
-      const name = prompt(`A new folder in ${account}:`);
+      const name = await askLine(mail.atlas, `A new folder in ${account}:`);
       if (!name) return;
       try { await mail.call("folder_create", { account, name }); await mail.loadFolders(); mail.toast(`Folder “${name}” made`, "success"); }
       catch (err) { mail.toast(`No folder made: ${(err as Error).message}`, "error"); }

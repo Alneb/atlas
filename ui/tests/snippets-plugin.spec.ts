@@ -1,5 +1,7 @@
 import { test, expect, type Page } from "@playwright/test";
 import { convert, renumber } from "../../plugins/beta/snippets/ui/src/convert";
+import type { Compiled } from "../../plugins/beta/snippets/ui/src/format";
+import { rank } from "../../plugins/beta/snippets/ui/src/rank";
 
 // The Snippets plugin (plugins/beta/snippets): what must not fire, what comes back, a module of the new format beside the
 // old file (the fixture's, playwright.config.ts).
@@ -25,6 +27,8 @@ test("nothing fires inside a text-like argument, at any depth", async ({ page })
 });
 
 test("an ordinary word stays as typed; the same letters before another key are the snippet", async ({ page }) => {
+  // the fixture's old file has no `pi`: the test brings its own
+  await page.request.put("/api/file", { headers: H, data: { path: ".atlas/snippets/zz-pi.js", text: 'export default ({ math }) => [math("pi", "\\\\pi")];\n' } });
   const last = await math(page, "words", "photon number ");
   await expect(last).toHaveText("$photon number $");
   await page.keyboard.type("kpi+");
@@ -48,12 +52,13 @@ test("a { typed by habit after _ adds nothing", async ({ page }) => {
 
 test("a module of the new format works beside the old file: a place, a computed body, code by its language", async ({ page }) => {
   await page.request.put("/api/file", { headers: H, data: { path: ".atlas/snippets/zz-mod.js", text: `export default ({ math, text, code, std }) => [
-  math(/zq(\\d)(\\d)/, (m) => std.matrix(+m[1], +m[2], "b")),
+  math(/(\\d)(\\d)zqm/, (m) => std.matrix(+m[1], +m[2], "b")),
   text("zqt", "written $1 here", { auto: true }),
   code("py", "zqp", "print($1)$0", { auto: true }),
 ];\n` } });
-  const last = await math(page, "mod", "zq12");
-  await expect(last).toContainText("\\begin{bmatrix}");
+  // digits first: after a letter the old file's subscript rule (`q1` → `q_{1}`) takes them, as it would in any vault
+  await math(page, "mod", "12zqm");
+  await expect(page.locator(".cm-content:visible").first()).toContainText("\\begin{bmatrix}"); // on lines of its own
   // the old file still fires
   await page.keyboard.press("Control+End");
   await page.keyboard.type("\nmkx//");
@@ -84,6 +89,18 @@ test("the Settings page lists the snippets and offers the conversion", async ({ 
   await expect(page.getByLabel("Pack Matrices by size")).toBeVisible();
 });
 
+test("the Try box shows what the vault's snippets make of typed keys, by place", async ({ page }) => {
+  await page.goto("/");
+  await page.getByText("Finish the GW notes.").waitFor();
+  await page.keyboard.press("Meta+,");
+  await page.getByRole("navigation", { name: "Settings pages" }).getByRole("button", { name: /^Snippets/ }).click();
+  const out = page.getByTestId("snippet-try-out");
+  await page.getByLabel("Try snippets").fill("x//");
+  await expect(out).toContainText("\\frac{");
+  await page.getByLabel("Typed in").selectOption({ label: "text" });
+  await expect(out).toHaveText("x//");
+});
+
 test("the conversion mends the misfires as a batch and says so", () => {
   const src = `[
   // a comment
@@ -109,14 +126,25 @@ test("the conversion mends the misfires as a batch and says so", () => {
 });
 
 test("Tab walks a formula's brackets, Shift+Tab walks back", async ({ page }) => {
-  await math(page, "tabwalk", "(a");
-  await page.keyboard.press("Tab"); // out of the bracket the editor closed
-  await page.keyboard.type("+(b");
+  await math(page, "tabwalk", "(a)+(b)");
+  await page.keyboard.press("Shift+Tab"); // into the last bracket, at its end
+  await page.keyboard.type("!"); // not a digit: after a letter that is a subscript
   await page.keyboard.press("Shift+Tab"); // before its `(`
-  await page.keyboard.press("Shift+Tab"); // into the first bracket, from its end
-  await page.keyboard.type("1");
-  await page.keyboard.press("Tab");
-  await page.keyboard.press("Tab"); // into the next bracket
-  await page.keyboard.type("2");
-  await expect(page.locator(".cm-content:visible").first()).toContainText("(a1)+(2b)");
+  await page.keyboard.press("Shift+Tab"); // into the first bracket, at its end
+  await page.keyboard.type(",");
+  await page.keyboard.press("Tab"); // out of it
+  await page.keyboard.press("Tab"); // into the next one
+  await page.keyboard.type(";");
+  await expect(page.locator(".cm-content:visible").first()).toContainText("(a,)+(;b!)");
+});
+
+test("the list finds a snippet by its trigger's start, its name, or its name's letters in order", () => {
+  const s = (plain: string, name?: string) => ({ plain, name }) as Compiled;
+  const arrow = s("lra", "left right arrow");
+  expect(rank(arrow, "lr")).toBe(0);
+  expect(rank(arrow, "right")).toBe(1);
+  expect(rank(arrow, "lrar")).toBe(2);
+  expect(rank(arrow, "igar")).toBeNull(); // letters in order, but not from a word's start
+  expect(rank(arrow, "la")).toBeNull(); // under three letters: triggers only
+  expect(rank(s("sum"), "sum")).toBeNull(); // the whole trigger typed: it fires, nothing to list
 });

@@ -43,7 +43,8 @@ export interface Read extends Loaded { fromOldFile: boolean; modules: string[]; 
 export async function loadAll(atlas: PluginApi): Promise<Read> {
   const files: { source: string; entries: Entry[] }[] = [], problems: Problem[] = [];
   let names: string[] = [];
-  try { names = (await atlas.list(FOLDER)).filter((f) => !f.dir && f.name.endsWith(".js")).map((f) => f.path).sort(); } catch { /* no folder yet */ }
+  // asked first: listing a folder that is not there is a 404 in the page's console
+  if (await atlas.exists(FOLDER).catch(() => false)) names = (await atlas.list(FOLDER).catch(() => [])).filter((f) => !f.dir && f.name.endsWith(".js")).map((f) => f.path).sort();
   const seen = new Map<string, Promise<string>>(), modules: string[] = [];
   for (const path of names) {
     // a file with no `export default` is not of this format: an old array of snippets kept in the same folder
