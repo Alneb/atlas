@@ -126,9 +126,9 @@
 <section class="captures" aria-label="Captures" data-testid="captures" {onkeydown}>
   <header>
     <span class="label">Captures</span>
-    <div class="tabs" role="tablist">
+    <div class="tabs atlas-seg" role="tablist" aria-label="Which captures">
       {#each [["open", `To triage`, open], ["tasks", "Tasks", tasks], ["all", "All", items.length]] as const as [s, label, n] (s)}
-        <button role="tab" class="tab" class:on={show === s} aria-selected={show === s} onclick={() => (chosen = s)}>{label}<span class="n">{n}</span></button>
+        <button role="tab" class:on={show === s} aria-selected={show === s} onclick={() => (chosen = s)}>{label}<span class="n">{n}</span></button>
       {/each}
     </div>
   </header>
@@ -183,10 +183,7 @@
   .captures { display: flex; flex-direction: column; gap: 2px; font-size: calc(14px * var(--ui-scale, 1)); container-type: inline-size; }
   header { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 4px; }
   .label { font-size: calc(11px * var(--ui-scale, 1)); font-weight: 600; letter-spacing: .07em; text-transform: uppercase; color: var(--text-muted); }
-  .tabs { display: flex; gap: 4px; margin-left: auto; }
-  .tab { display: inline-flex; align-items: center; gap: 6px; padding: 2px 10px; min-height: 26px; border-radius: 999px; border: 1px solid var(--border); color: var(--text-muted); font-size: calc(12.5px * var(--ui-scale, 1)); }
-  .tab:hover { background: var(--bg-hover); color: var(--text); }
-  .tab.on { background: color-mix(in srgb, var(--accent) 14%, transparent); border-color: color-mix(in srgb, var(--accent) 45%, transparent); color: var(--text); }
+  .tabs { margin-left: auto; }
   .n { font-variant-numeric: tabular-nums; color: var(--text-faint); font-size: .92em; }
   .day { margin: 10px 0 2px; font-size: calc(12px * var(--ui-scale, 1)); font-weight: 600; color: var(--text-muted); letter-spacing: .02em; }
   ul { list-style: none; margin: 0; padding: 0; }

@@ -94,7 +94,7 @@
   .tools .icon-btn:hover { color: var(--text); }
   .tools .icon-btn.on { color: var(--accent); background: var(--bg-hover); }
   .add { flex: none; width: 28px; height: 28px; color: var(--text-muted); }
-  .small-btn { flex: none; width: 20px; height: 20px; color: var(--text-faint); }
+  .small-btn { color: var(--text-faint); }
   .small-btn.off { color: var(--accent); }
   .tipped::after { left: 0; top: calc(100% + 6px); transform: translateY(-2px); }
   .tipped:hover::after { transform: none; }

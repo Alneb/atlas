@@ -33,7 +33,7 @@ export function keepDraft(text: string): void { save(DRAFT, text); }
 /** Every capture door's notice: where it went, Open (the line in its note) and Undo (taken back, the text back in the
  *  popup to change and send again). */
 export function captured(r: CaptureResult, text: string): void {
-  toast("Captured", landedAt(r), "success", 4500, [
+  toast("Captured", `Saved to ${landedAt(r)}`, "success", 4500, [
     { label: "Open", run: () => openPath(r.path, r.line) },
     { label: "Undo", run: () => void api.captureUndo(r).then(() => { keepDraft(text); openQuickCapture(text); },
       (e) => toast("Not taken back", `${errText(e)} (it changed since, or moved)`, "error")) },

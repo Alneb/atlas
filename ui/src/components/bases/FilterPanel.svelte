@@ -23,7 +23,7 @@
   ]);
 </script>
 
-<div class="scopes" role="tablist" aria-label="Which notes the filter applies to">
+<div class="scopes atlas-seg" role="tablist" aria-label="Which notes the filter applies to">
   {#each tabs as t (t.id)}
     <button type="button" role="tab" class:on={scope === t.id} aria-selected={scope === t.id} onclick={() => (scope = t.id)}>
       {t.label}{#if t.n}<span class="n">{t.n}</span>{/if}
@@ -41,10 +41,8 @@
 {/key}
 
 <style>
-  .scopes { display: flex; gap: 2px; padding: 2px; border-radius: var(--radius-sm); background: var(--bg-alt); border: 1px solid var(--border); margin-bottom: 6px; }
-  .scopes button { flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 26px; border-radius: 5px; color: var(--text-muted); }
-  .scopes button:hover { color: var(--text); }
-  .scopes button.on { background: var(--bg-elev); color: var(--text); box-shadow: var(--shadow-sm, none); border: 1px solid var(--border); }
+  .scopes { width: auto; margin-bottom: 6px; }
+  .scopes button { flex: 1; height: 26px; }
   .n { font-size: .85em; font-variant-numeric: tabular-nums; color: var(--accent); background: var(--accent-soft); padding: 0 6px; border-radius: 99px; }
   .hint { margin: 0 0 8px; color: var(--text-faint); font-size: .92em; }
 </style>

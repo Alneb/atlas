@@ -287,7 +287,7 @@ export interface PluginApi {
    *  user said yes. `ok`: the button's label (default "OK"); `danger`: in red, for deleting or discarding. */
   confirm(question: string, opts?: { ok?: string; hint?: string; danger?: boolean }): Promise<boolean>;
   /** (v23) The app's own one-line question (never `window.prompt`): what was typed, trimmed, or null when cancelled. */
-  input(title: string, opts?: { value?: string; hint?: string }): Promise<string | null>;
+  input(title: string, opts?: { value?: string; hint?: string; ok?: string }): Promise<string | null>;
   /** (v23) The page's TeX (TikZJax, lib/tikz.ts): a ```tikz fence's source as a PNG with its fonts inside, `scale`
    *  times its size (default 4), and its width in points as TeX set it — for a document without the web fonts. Throws
    *  TeX's error. */

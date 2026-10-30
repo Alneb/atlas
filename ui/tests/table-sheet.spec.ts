@@ -177,6 +177,7 @@ test("a named view saved into the file's note, applied again after everything is
   await pane.getByRole("button", { name: "Views" }).click();
   await page.getByRole("menuitem", { name: "Save this view as…" }).click();
   await page.getByRole("dialog").locator("input").fill("Cheap");
+  await expect(page.getByRole("dialog").getByRole("button", { name: "Save", exact: true }), "the button says what it does, not OK").toBeVisible();
   await page.getByRole("dialog").locator("input").press("Enter"); // on the field: a page-level key could land elsewhere
   await expect(pane.getByRole("button", { name: "Cheap" })).toBeVisible();
   // in the companion note, as one block a view a line, columns by name

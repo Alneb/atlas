@@ -343,7 +343,7 @@
           <div class="card-head">
             <h2>Focus</h2>
             {#if today}
-              <button class="icon-btn" title="Edit {today.focus.path}" onclick={() => openPath(today!.focus.path)}><Icon name="edit" size={15} /></button>
+              <button class="icon-btn" title="Edit {today.focus.path}" aria-label="Edit the focus file" onclick={() => openPath(today!.focus.path)}><Icon name="edit" size={15} /></button>
             {/if}
           </div>
           {#if focusText}
@@ -421,11 +421,11 @@
               {#if !fixedDay}<button class="icon-btn" title="Git" aria-label="Git" onclick={() => open({ kind: "git" })}><Icon name="git" size={15} /></button>{/if}
             </span>
           </div>
-          <div class="act-tabs" role="tablist" aria-label="Activity">
-            <button role="tab" class="act-tab" class:on={actTab === "created"} aria-selected={actTab === "created"} onclick={() => (actTab = "created")}><Icon name="plus" size={12} />Created <span class="count">{created.length}</span></button>
-            <button role="tab" class="act-tab" class:on={actTab === "changed"} aria-selected={actTab === "changed"} onclick={() => (actTab = "changed")}><Icon name="clock" size={12} />Changed <span class="count">{dayAct?.changed.length ?? 0}</span></button>
+          <div class="act-tabs atlas-seg" role="tablist" aria-label="Activity">
+            <button role="tab" class:on={actTab === "created"} aria-selected={actTab === "created"} onclick={() => (actTab = "created")}>Created <span class="count">{created.length}</span></button>
+            <button role="tab" class:on={actTab === "changed"} aria-selected={actTab === "changed"} onclick={() => (actTab = "changed")}>Changed <span class="count">{dayAct?.changed.length ?? 0}</span></button>
             {#if onToday && !fixedDay && (mine.length || claude.length)}
-              <button role="tab" class="act-tab" class:on={actTab === "commits"} aria-selected={actTab === "commits"} onclick={() => (actTab = "commits")}><Icon name="git" size={12} />Commits <span class="count">{mine.length + claude.length}</span></button>
+              <button role="tab" class:on={actTab === "commits"} aria-selected={actTab === "commits"} onclick={() => (actTab = "commits")}>Commits <span class="count">{mine.length + claude.length}</span></button>
             {/if}
           </div>
           {#if actTab === "created"}
@@ -485,11 +485,7 @@
   .today-inner { max-width: 1080px; margin: 0 auto; padding: 40px 36px 64px; }
   .today-head { margin-bottom: 22px; }
   .eyebrow { font-size: calc(12.5px * var(--ui-scale, 1)); color: var(--text-faint); letter-spacing: .02em; margin-bottom: 4px; }
-  .act-tabs { display: flex; flex-wrap: wrap; gap: 6px; margin: 2px 0 10px; }
-  .act-tab { display: inline-flex; align-items: center; gap: 6px; font: inherit; font-size: calc(12.5px * var(--ui-scale, 1)); color: var(--text-muted);
-    background: transparent; border: 1px solid var(--border); border-radius: 999px; padding: 3px 10px; cursor: pointer; }
-  .act-tab:hover { color: var(--text); border-color: var(--border-strong); }
-  .act-tab.on { color: var(--heading); background: var(--accent-soft); border-color: transparent; }
+  .act-tabs { margin: 2px 0 10px; }
   .greet-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
   .greet-chip { display: inline-flex; align-items: center; gap: 6px; font: inherit; font-size: calc(12.5px * var(--ui-scale, 1)); color: var(--text-muted);
     background: var(--bg-alt); border: 1px solid var(--border); border-radius: 999px; padding: 3px 10px; white-space: nowrap; }
@@ -559,7 +555,8 @@
   .task:hover { background: var(--bg-hover); }
   .task-li { display: flex; align-items: baseline; gap: 4px; }
   .task-li .task { flex: 1; min-width: 0; }
-  .task-box { flex: none; width: 13px; height: 13px; margin: 0 2px 0 8px; border: 1.5px solid var(--text-faint); border-radius: 3px; transform: translateY(2px); }
+  .task-box { flex: none; position: relative; width: 13px; height: 13px; margin: 0 2px 0 8px; border: 1.5px solid var(--text-faint); border-radius: 3px; transform: translateY(2px); }
+  .task-box::before { content: ""; position: absolute; inset: -7px; } /* a 24 px target round the drawn box (UI-STYLE §4) */
   .task-box:hover { border-color: var(--accent); background: var(--accent-soft); }
   .task-text { overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
   .task-text :global(code) { font-size: .9em; }

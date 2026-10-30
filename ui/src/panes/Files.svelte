@@ -34,13 +34,13 @@
 
   // --- managing files: menu, dialogs ------------------------------------------------------------
   let menu = $state<MenuAt | null>(null);
-  let dialog = $state<{ title: string; value?: string; hint?: string; confirm?: string; submit: (v: string) => void } | null>(null);
+  let dialog = $state<{ title: string; value?: string; hint?: string; ok?: string; confirm?: string; submit: (v: string) => void } | null>(null);
   const parentOf = dirOf;
   const join = (dir: string, name: string) => (dir ? `${dir}/${name}` : name);
   const fail = (what: string) => (e: unknown) => toast(what, e instanceof Error && /409/.test(e.message) ? "Something with that name already exists." : errText(e), "error");
 
   function newFile(dir: string) {
-    dialog = { title: dir ? `New file in ${dir}/` : "New file", hint: "No extension → a note (.md)", submit: async (name) => {
+    dialog = { title: dir ? `New file in ${dir}/` : "New file", hint: "No extension → a note (.md)", ok: "Create", submit: async (name) => {
       const path = join(dir, /\.[a-z0-9]+$/i.test(name) ? name : `${name}.md`);
       const exists = await api.file(path).then(() => true, () => false);
       if (exists) { toast("Could not create the file", "Something with that name already exists.", "error"); return; }
@@ -48,7 +48,7 @@
     } };
   }
   function newFolder(dir: string) {
-    dialog = { title: dir ? `New folder in ${dir}/` : "New folder", submit: (name) => void api.mkdir(join(dir, name)).catch(fail("Could not create the folder")) };
+    dialog = { title: dir ? `New folder in ${dir}/` : "New folder", ok: "Create", submit: (name) => void api.mkdir(join(dir, name)).catch(fail("Could not create the folder")) };
   }
   /** Move or rename; the tabs that showed it follow to the new place (the old ones close: gone-files.ts). */
   async function moveTo(from: string, to: string): Promise<void> {
@@ -62,7 +62,7 @@
   function rename(path: string) {
     backTo = path;
     const name = basename(path);
-    dialog = { title: `Rename ${name}`, value: name, submit: (to) => {
+    dialog = { title: `Rename ${name}`, value: name, ok: "Rename", submit: (to) => {
       if (to === name) return;
       backTo = join(parentOf(path), to);
       void moveTo(path, backTo).then(() => setTimeout(() => tree?.refocus(backTo), 300), fail("Could not rename"));
@@ -189,7 +189,7 @@
 </div>
 {/if}
 {#if menu}<ContextMenu x={menu.x} y={menu.y} items={menu.items} onclose={() => (menu = null)} />{/if}
-{#if dialog}<InputDialog title={dialog.title} value={dialog.value} hint={dialog.hint} confirm={dialog.confirm}
+{#if dialog}<InputDialog title={dialog.title} value={dialog.value} hint={dialog.hint} ok={dialog.ok} confirm={dialog.confirm}
   onsubmit={(v) => { const d = dialog!; dialog = null; d.submit(v); }} oncancel={() => { dialog = null; if (backTo) tree?.refocus(backTo); }} />{/if}
 
 <style>

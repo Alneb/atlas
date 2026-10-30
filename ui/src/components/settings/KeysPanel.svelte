@@ -27,7 +27,7 @@
 
 <section class="settings-panel keys">
   <div class="bar">
-    <input placeholder="Find a command or a key (e.g. ctrl+shift)…" bind:value={q} spellcheck="false" aria-label="Filter shortcuts" />
+    <input placeholder="A command or a key: ctrl+shift" bind:value={q} spellcheck="false" aria-label="Filter shortcuts" />
     <label><input type="checkbox" bind:checked={onlyBound} /> only with a shortcut</label>
     <span class="n">{changed} changed from the defaults</span>
   </div>

@@ -161,7 +161,6 @@
   .group-head { margin: 8px -8px 0; } /* full width: its label on the bar's one left edge, like every heading */
   .group-head span:first-child { flex: 1; }
   .small-btn.off { color: var(--accent); }
-  .small-btn { width: 20px; height: 20px; }
   .group-sep { width: 20px; height: 1px; background: var(--border-strong); margin: 6px 0 2px; }
   .hidden-group .tab { opacity: .6; }
 

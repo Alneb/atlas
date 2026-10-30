@@ -55,7 +55,7 @@
   let anchor = $state<Cell>({ r: 0, c: 0 });
   let plotOn = $state(false);
   let menu = $state<{ x: number; y: number; items: MenuItem[] } | null>(null);
-  let dialog = $state<{ title: string; value: string; submit: (v: string) => void } | null>(null);
+  let dialog = $state<{ title: string; value: string; ok: string; submit: (v: string) => void } | null>(null);
   let pane = $state<HTMLDivElement>();
   /** the keyboard back to the grid (after a menu or a dialog), so Ctrl+S, Ctrl+Z and the arrows reach it */
   // only when nothing has it: a menu item that opens a dialog ("Save this view as…") leaves the focus there
@@ -204,7 +204,7 @@
   }
   function viewsMenu(e: MouseEvent) {
     const upsert = (v: TableView) => (vs: TableView[]) => vs.some((x) => x.name === v.name) ? vs.map((x) => (x.name === v.name ? v : x)) : [...vs, v];
-    const saveAs = () => ask("Save this view as", viewName, (n) => {
+    const saveAs = () => ask("Save this view as", viewName, "Save", (n) => {
       const name = n.trim();
       if (name) void changeViews(upsert(currentView(name)), `View “${name}” saved`).then(() => (viewName = name));
     });
@@ -317,7 +317,7 @@
     savePrefs();
   }
   const setHidden = (h: string[]) => { prefs.hidden = h; savePrefs(); };
-  const ask = (title: string, value: string, submit: (v: string) => void) => (dialog = { title, value, submit });
+  const ask = (title: string, value: string, ok: string, submit: (v: string) => void) => (dialog = { title, value, ok, submit });
 
   function headerMenu(e: MouseEvent, c: number) {
     if (!edit || !sheet) return;
@@ -335,7 +335,7 @@
       { label: pos < prefs.frozen ? "Unfreeze columns" : "Freeze up to here", detail: "kept in view when scrolling sideways", run: () => { prefs.frozen = pos < prefs.frozen ? 0 : pos + 1; savePrefs(); } },
       { label: "Fit width", run: () => resize(c, "fit") },
       ...changes(["sep",
-      { label: "Rename…", icon: "edit", run: () => ask("Rename column", sheet.header[c], (v) => v.trim() && ed.do({ kind: "rename", c, name: v.trim() })) },
+      { label: "Rename…", icon: "edit", run: () => ask("Rename column", sheet.header[c], "Rename", (v) => v.trim() && ed.do({ kind: "rename", c, name: v.trim() })) },
       { label: "Insert column left", icon: "plus", run: () => ed.do({ kind: "insertCol", at: c, name: "new" }) },
       { label: "Insert column right", icon: "plus", run: () => ed.do({ kind: "insertCol", at: c + 1, name: "new" }) },
       { label: "Delete column", icon: "minus", danger: true, disabled: sheet.header.length < 2, run: () => ed.do({ kind: "deleteCol", at: c }) }]),
@@ -434,7 +434,7 @@
   {/if}
 </div>
 {#if menu}<ContextMenu x={menu.x} y={menu.y} items={menu.items} onclose={() => { menu = null; focusGrid(); }} />{/if}
-{#if dialog}<InputDialog title={dialog.title} value={dialog.value} onsubmit={(v) => { const d = dialog!; dialog = null; d.submit(v); focusGrid(); }} oncancel={() => { dialog = null; focusGrid(); }} />{/if}
+{#if dialog}<InputDialog title={dialog.title} value={dialog.value} ok={dialog.ok} onsubmit={(v) => { const d = dialog!; dialog = null; d.submit(v); focusGrid(); }} oncancel={() => { dialog = null; focusGrid(); }} />{/if}
 
 <style>
   .table-pane { height: 100%; display: flex; flex-direction: column; background: var(--bg); }

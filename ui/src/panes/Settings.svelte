@@ -156,14 +156,14 @@
       <p class="muted">Loading…</p>
     {:else if words.length}
       {@const n = hits.reduce((n, h) => n + h.opts.length, 0)}
-      <p class="muted">{n} {n === 1 ? "option matches" : "options match"} “{filter}”</p>
+      {#if hits.length}<p class="muted">{n} {n === 1 ? "option matches" : "options match"} “{filter}”</p>{/if}
       {#each hits as h (h.page.page)}
         <section class="hit">
           <button class="hit-h" onclick={() => go(h.page.page)}><Icon name={h.page.icon} size={14} /> {h.page.title} →</button>
           {#each h.feats as a (a.id)}<button class="feat" onclick={() => void a.run()}>{a.title} <span>Try</span></button>{/each}
           {#each h.opts as path (path)}{@const s = fields.get(path)}{#if s}<SettingField {path} schema={s} />{/if}{/each}
         </section>
-      {:else}<p class="muted">Nothing matches. Try other words — descriptions are searched too.</p>{/each}
+      {:else}<p class="muted">No option matches “{filter}”. Try other words — descriptions are searched too.</p>{/each}
     {:else if accounts}
       <AccountsPage />
     {:else if plugin}

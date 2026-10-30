@@ -22,6 +22,8 @@ The UI matters, and its rules come from reading on style. What was read: Anthrop
 - A border, a fill, a radius and a shadow each say "this is a separate object". Use them **by role**, not on every block; the same card around everything flattens the page.
 - A block on a page (Home, a `.page`) is set apart by its fill alone (`--card-bg`); `--card-border` is transparent
   except on e-ink, where a fill does not show. A border around every block is the "same card everywhere" look (§8).
+- One choice among a few lists or scopes is the shared segmented control, `.atlas-seg` (`base.css`): one sunken
+  track, the chosen one raised — never loose pills that wrap. Navigation between places stays tabs.
 - Nested radii are concentric: a child's radius is never larger than its parent's.
 - Shadows are layered (ambient + direct); borders are semi-transparent tokens so they stay crisp on any surface.
 - Summary before detail. State is shown in form as well as number (a chip, a dot, a stripe), never by color alone.

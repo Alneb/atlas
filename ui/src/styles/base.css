@@ -46,6 +46,10 @@ kbd { display: inline-block; min-width: 1.6em; padding: 0 .4em; height: 1.55em; 
 .icon-btn { display: inline-grid; place-items: center; width: 26px; height: 26px; border-radius: var(--radius-sm); color: var(--text-faint); transition: background .12s, color .12s; }
 .icon-btn:hover { background: var(--bg-hover); color: var(--text); }
 .icon-btn.on { color: var(--accent); background: var(--accent-soft, var(--bg-hover)); } /* a toggle that is on */
+/* A control drawn smaller than the 24 px a pointer needs (a section head's 20 px buttons, a task's box) takes the
+   24 px all the same: an invisible ::before around it (::after is the tooltip's on .tipped), the layout untouched. */
+.icon-btn.small-btn { flex: none; width: 20px; height: 20px; position: relative; }
+.icon-btn.small-btn::before { content: ""; position: absolute; inset: -2px; }
 .btn { height: 28px; padding: 0 12px; border-radius: var(--radius-sm); font-size: calc(12.5px * var(--ui-scale, 1)); font-weight: 500; transition: background .12s, border-color .12s; }
 .btn-ghost { border: 1px solid var(--border-strong); }
 .btn-ghost:hover { background: var(--bg-hover); }
@@ -55,6 +59,15 @@ button.btn.primary { background: var(--accent); color: var(--accent-fg); border-
 button.btn.primary:hover:not(:disabled) { background: var(--accent-strong); }
 button.btn.primary:disabled { opacity: .45; cursor: default; }
 .link { color: var(--accent); }
+/* One choice among a few lists or scopes (Home's Activity, the Captures view, a Base's filter): a segmented control —
+   one sunken track, the chosen one raised; the line (`--card-border`) for e-ink, which has no shadow or tint. A
+   component adds only its layout (full width, its place). */
+.atlas-seg { display: flex; gap: 2px; width: fit-content; max-width: 100%; padding: 2px; background: var(--bg-app); border-radius: var(--radius-sm); }
+.atlas-seg > button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-width: 0; white-space: nowrap; font: inherit;
+  font-size: calc(12.5px * var(--ui-scale, 1)); color: var(--text-muted); background: transparent; border: none; border-radius: calc(var(--radius-sm) - 2px); padding: 3px 10px; cursor: pointer; }
+.atlas-seg > button:hover { color: var(--text); }
+.atlas-seg > button.on { color: var(--heading); background: var(--bg-elev); box-shadow: var(--shadow-sm); outline: 1px solid var(--card-border); }
+.atlas-seg .n, .atlas-seg .count { font-variant-numeric: tabular-nums; color: var(--text-faint); background: transparent; padding: 0; }
 .link:hover { text-decoration: underline; }
 
 .pane-empty { padding: 48px 24px; text-align: center; }

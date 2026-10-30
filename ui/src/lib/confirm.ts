@@ -4,7 +4,7 @@
 import { mount, unmount } from "svelte";
 import InputDialog from "../components/InputDialog.svelte";
 
-type Asked = { title: string; value?: string; hint?: string; confirm?: string; danger?: boolean };
+type Asked = { title: string; value?: string; hint?: string; ok?: string; confirm?: string; danger?: boolean };
 
 function ask<T>(props: Asked, yes: (v: string) => T, no: T): Promise<T> {
   return new Promise((done) => {
@@ -20,7 +20,7 @@ export function confirmDialog(title: string, hint: string, confirm: string, dang
   return ask({ title, hint, confirm, danger }, () => true, false);
 }
 
-/** The line typed (trimmed, never empty), or null when cancelled. */
-export function inputDialog(title: string, value = "", hint = ""): Promise<string | null> {
-  return ask<string | null>({ title, value, hint }, (v) => v, null);
+/** The line typed (trimmed, never empty), or null when cancelled. `ok`: the button's verb. */
+export function inputDialog(title: string, value = "", hint = "", ok = "OK"): Promise<string | null> {
+  return ask<string | null>({ title, value, hint, ok }, (v) => v, null);
 }

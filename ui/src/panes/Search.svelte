@@ -199,7 +199,10 @@
           {/each}
         {/each}
       {/if}
-      {#if !res.files.length && !res.lines.length}<p class="faint small pad">No results for “{q}”.</p>{/if}
+      <!-- an empty result says what to try next: the switches that narrowed it, else fewer words -->
+      {#if !res.files.length && !res.lines.length}<p class="faint small pad">No file has “{q}”. {opts.case || opts.word || opts.regex
+        ? `Try with ${[opts.case && "Match case", opts.word && "Whole word", opts.regex && "Regular expression"].filter(Boolean).join(", ")} off.`
+        : "Try fewer or shorter words."}</p>{/if}
     {:else}
       <p class="faint small pad">Type to search the names and the text of every file.<span class="keys-only keys-line"><kbd>↑</kbd> <kbd>↓</kbd> to move, <kbd>Enter</kbd> to open</span></p>
     {/if}
@@ -219,7 +222,7 @@
   .search-box input { flex: 1; min-width: 0; border: 0; outline: 0; background: transparent; color: var(--text); font: inherit; font-size: calc(13px * var(--ui-scale, 1)); }
   .keys-line { display: block; margin-top: 4px; }
   .opts { display: inline-flex; gap: 2px; margin-left: auto; }
-  .opt { font-family: var(--font-mono); font-size: calc(11.5px * var(--ui-scale, 1)); padding: 1px 5px; border-radius: 4px; color: var(--text-muted); border: 1px solid transparent; }
+  .opt { font-family: var(--font-mono); font-size: calc(11.5px * var(--ui-scale, 1)); min-height: 24px; padding: 1px 5px; border-radius: 4px; color: var(--text-muted); border: 1px solid transparent; }
   :global(html.phone) .opt { min-width: 36px; min-height: 36px; font-size: 14px; }
   .opt:hover { color: var(--text); background: var(--bg-hover); }
   .opt.on { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); }
@@ -237,7 +240,7 @@
   .txt { font-family: var(--font-mono); font-size: calc(11.8px * var(--ui-scale, 1)); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .txt :global(mark) { background: color-mix(in srgb, var(--yellow) 30%, transparent); color: var(--heading); border-radius: 2px; padding: 0 1px; }
   .pad { padding: 10px 10px; line-height: 1.6; }
-  .toggle { margin-left: -6px; display: inline-flex; padding: 2px; transition: transform .15s; }
+  .toggle { margin-left: -6px; display: inline-flex; align-items: center; justify-content: center; min-width: 24px; padding: 2px; transition: transform .15s; }
   .toggle.on { transform: rotate(90deg); }
   .replace-box { display: flex; gap: 6px; margin: 0 10px 6px; }
   .replace-box input { flex: 1; min-width: 0; height: 30px; padding: 0 10px; border-radius: var(--radius); background: var(--bg-elev); border: 1px solid var(--border-strong); color: var(--text); font: inherit; font-size: calc(13px * var(--ui-scale, 1)); outline: 0; }

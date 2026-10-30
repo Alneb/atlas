@@ -24,7 +24,7 @@ test("the capture window: only the box, its hints, Enter saves into today's log 
   // what is sent is a plain line: a to-do would join Today's open tasks, which other specs count (a shared vault)
   await box.fill("ring the lab went well");
   await page.keyboard.press("Enter");
-  await expect(page.getByTestId("capture-ok")).toContainText(`log/${localDay()}`);
+  await expect(page.getByTestId("capture-ok")).toContainText("today’s log");
   const log = await (await request.get(`/api/file?path=log/${localDay()}.md`, { headers: H })).json();
   expect(log.text).toContain("ring the lab went well");
   await expect.poll(() => closes.length, "it asked to be closed").toBe(1);

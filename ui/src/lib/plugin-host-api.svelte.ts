@@ -242,7 +242,7 @@ export function pluginApi(p: Plugin, at: PaneAt = {}): PluginApi {
     },
     pen: { shape: (xyt) => api.penShape(xyt) },
     confirm: (question, opts) => confirmDialog(String(question), opts?.hint ?? "", opts?.ok ?? "OK", opts?.danger ?? false),
-    input: (title, opts) => inputDialog(String(title), opts?.value ?? "", opts?.hint ?? ""),
+    input: (title, opts) => inputDialog(String(title), opts?.value ?? "", opts?.hint ?? "", opts?.ok ?? "OK"),
     // loaded when asked: TeX and its sanitizer stay out of the start
     tikz: { png: (source, scale) => import("./tikz").then((m) => m.tikzPng(String(source), scale)) },
     live: {

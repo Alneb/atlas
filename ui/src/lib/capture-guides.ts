@@ -1,6 +1,7 @@
 // What every capture box says, the same words everywhere: the empty box's prompt, the short forms shown while it is
 // empty, and where a capture landed. Mirrors atlas_core::capture::{PROMPT, GUIDES} (atlas-capture's tests compare).
-import { shownPath } from "./paths";
+import { shownName } from "./paths";
+import { localDay } from "./local-day";
 import type { CaptureResult } from "./gen/CaptureResult";
 
 export const PROMPT = "Capture a thought, a to-do, a link…";
@@ -14,8 +15,12 @@ export const GUIDES: readonly Guide[] = [
   { shown: "#", starts: "#", what: "tag", tip: "A tag — #idea, #physics" },
 ];
 
-/** Where a capture went, as every box and notice shows it: the shown path and its line. */
-export const landedAt = (r: Pick<CaptureResult, "path" | "line">): string => `${shownPath(r.path)}:${r.line}`;
+/** Where a capture went, as every box and notice shows it, in words: "today's log" (a day's log is the file named by
+ *  its day), else the note's name. A line number means nothing to a reader; Open goes to the line. */
+export function landedAt(r: Pick<CaptureResult, "path" | "line">, today = localDay()): string {
+  const name = shownName(r.path);
+  return name === today ? "today’s log" : /^\d{4}-\d{2}-\d{2}$/.test(name) ? `the log of ${name}` : name;
+}
 
 /** Starts an empty box with a short form, as if typed: `bind:value`, the completions and autosize all see the input. */
 export function startWith(box: HTMLTextAreaElement | HTMLInputElement | undefined, starts: string): void {
