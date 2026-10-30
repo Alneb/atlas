@@ -2,6 +2,7 @@
 //! box's own code (atlas-capture without its window, atlas-core). `phone` holds plain functions, tested here;
 //! `glue` hands them to Java through JNI as strings (JSON for structures), so the Java side stays thin.
 pub mod phone;
+pub mod text;
 pub mod image;
 pub mod ink;
 pub use atlas_core::pdfium; // PDFium is the core's (covers on every platform); the phone loads it from the APK

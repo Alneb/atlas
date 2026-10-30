@@ -21,6 +21,9 @@ public final class OnscreenTest {
     private static Onscreen.Found read(String pkg, Onscreen.Node... n) { return Onscreen.read(pkg, Arrays.asList(n)); }
 
     public static void main(String[] a) {
+        // the core's rule takes tracking parameters off (Core.untracked, tested in atlas-text links.rs): no native
+        // library on the desktop JVM, so a stand-in that leaves addresses as they are
+        Onscreen.untrack = s -> s;
         // Chrome on YouTube's mobile site: the bar without a scheme, the share's `si` and YouTube's `pp` gone
         Onscreen.Found f = read("com.android.chrome",
             t("m.youtube.com/watch?v=dQw4w9WgXcQ&si=AbC123xyz&pp=ygUJcmljayByb2xs", "com.android.chrome:id/url_bar"),
@@ -65,8 +68,8 @@ public final class OnscreenTest {
         eq("revanced is youtube", Onscreen.Site.YOUTUBE, Onscreen.ofPackage("app.revanced.android.youtube"));
         eq("youtube music", Onscreen.Site.YOUTUBE_MUSIC, Onscreen.ofPackage("com.google.android.apps.youtube.music"));
 
-        // Spotify in a browser: the country prefix and `si` gone, "song and lyrics by" said as the box does
-        f = read("com.android.chrome", t("open.spotify.com/intl-es/track/4cOdK2wGLETKBW3PvgPWqT?si=0f1e2d", "com.android.chrome:id/url_bar"),
+        // Spotify in a browser: the country prefix gone, "song and lyrics by" said as the box does
+        f = read("com.android.chrome", t("open.spotify.com/intl-es/track/4cOdK2wGLETKBW3PvgPWqT", "com.android.chrome:id/url_bar"),
             web("Never Gonna Give You Up - song and lyrics by Rick Astley | Spotify", null));
         eq("spotify web", "[Never Gonna Give You Up — Rick Astley](https://open.spotify.com/track/4cOdK2wGLETKBW3PvgPWqT)", f.markdown());
 
@@ -90,7 +93,10 @@ public final class OnscreenTest {
         eq("shorts", "https://www.youtube.com/shorts/abcdefghijk", Onscreen.canonical("https://m.youtube.com/shorts/abcdefghijk?feature=share"));
         eq("music", "https://music.youtube.com/watch?v=dQw4w9WgXcQ", Onscreen.canonical("https://music.youtube.com/watch?v=dQw4w9WgXcQ&list=RDAMVM"));
         eq("watch with v later", "https://www.youtube.com/watch?v=dQw4w9WgXcQ", Onscreen.canonical("https://www.youtube.com/watch?app=desktop&v=dQw4w9WgXcQ"));
-        eq("other site untouched", "https://example.com/a?b=1", Onscreen.canonical("https://example.com/a?b=1&utm_source=x"));
+        eq("other site untouched", "https://example.com/a?b=1", Onscreen.canonical("https://example.com/a?b=1"));
+        Onscreen.untrack = s -> s.replace("&utm_source=x", "");
+        eq("the core's untracking first", "https://example.com/a?b=1", Onscreen.canonical("https://example.com/a?b=1&utm_source=x"));
+        Onscreen.untrack = s -> s;
         eq("youtube unread count", "Some video", Onscreen.title(Onscreen.Site.YOUTUBE, "(3) Some video - YouTube", "https://www.youtube.com/watch?v=dQw4w9WgXcQ"));
 
         // looking up: the pieces that need no network

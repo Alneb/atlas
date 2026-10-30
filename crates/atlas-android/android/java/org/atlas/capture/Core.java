@@ -61,4 +61,26 @@ final class Core {
     static native byte[] penCharcoal(int pen, float[] config, float[] samples);
     /** 0 filled polygons, 1 the same at the marker's translucency, 2 dabs. */
     static native int penOutput(int pen);
+
+    // The core's text rules (crates/atlas-android/src/text.rs) instead of Java copies; "" stands for null both ways.
+    /** Addresses in `text` with their share-tracking parameters taken off (atlas-text links.rs). */
+    static native String untracked(String text);
+    /** A share's text, its subject first when the text does not hold it (atlas-capture share.rs). */
+    static native String shareText(String subject, String text);
+    /** Selected text as a Markdown quote; "" when there is none. */
+    static native String shareQuote(String text);
+    /** A share under an unsent draft, never over it. */
+    static native String underDraft(String draft, String shared);
+    /** A note's top-level properties as a JSON object of texts (atlas-text frontmatter.rs). */
+    static native String propsRead(String text);
+    /** `text` with the JSON object's keys set (a JSON null removes one); every other line as written. */
+    static native String propsSet(String text, String json);
+    /** A list property's items as a JSON array of texts. */
+    static native String propsList(String text, String key);
+    /** `text` with `key` a block list of the JSON array's items (none: removed). */
+    static native String propsSetList(String text, String key, String json);
+    /** A pen stroke's samples (x, y, pressure, tiltX, tiltY, t: six numbers each) as a PDF's note keeps them (pdf_marks.rs). */
+    static native String samplesEncode(double[] samples);
+    /** The samples back, six numbers each; none when unreadable. */
+    static native double[] samplesDecode(String text);
 }

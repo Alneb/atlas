@@ -229,7 +229,7 @@ impl Extras {
             .filter(|o| o.on)
             .flat_map(|o| match (&o.what, o.kind) {
                 (What::Link(p), _) => vec![Part::Inline(p.markdown())],
-                (What::Text(t), Kind::Selection) => vec![Part::Below(quote(t))],
+                (What::Text(t), Kind::Selection) => vec![Part::Below(crate::share::quote(t))],
                 (What::Text(t), _) => vec![Part::Below(t.clone())],
                 (What::Picture(p), k) => vec![Part::File { path: p.clone(), label: label(k) }],
                 (What::Files(f), k) => f.iter().map(|p| Part::File { path: p.clone(), label: label(k) }).collect(),
@@ -360,11 +360,6 @@ fn link_alone(t: &str) -> Option<String> {
     let t = t.trim();
     let rest = t.strip_prefix("https://").or_else(|| t.strip_prefix("http://"))?;
     (!rest.is_empty() && !t.contains(char::is_whitespace)).then(|| t.to_string())
-}
-
-/// Text as a Markdown quote, line by line.
-fn quote(t: &str) -> String {
-    t.lines().map(|l| if l.trim().is_empty() { ">".to_string() } else { format!("> {l}") }).collect::<Vec<_>>().join("\n")
 }
 
 fn label(k: Kind) -> &'static str {

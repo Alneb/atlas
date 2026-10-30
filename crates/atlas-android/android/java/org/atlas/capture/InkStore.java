@@ -76,6 +76,9 @@ public final class InkStore {
     /** A picture page's side in the marks' space: its places are fractions × 1000 (core pdf_marks.rs `holder`). */
     static final float PICTURE = 1000;
 
+    /** Six numbers a pen sample: x, y, pressure, tiltX, tiltY, t (Core.samplesEncode, pdf_marks.rs `Samples`). */
+    static final int SAMPLE = 6;
+
     /** A book of pictures' marks (a manga chapter: an archive, or a folder ending in `/`), pages numbered from 1: kept
      *  in its series' note, a block per chapter, by the core as a PDF's are. */
     public static Store pictures(Host host, String chapter) { return marks(host, chapter, null); }
@@ -118,17 +121,17 @@ public final class InkStore {
                         JSONArray strokes = m.optJSONArray("strokes");
                         for (int k = 0; strokes != null && k < strokes.length(); k++) {
                             JSONObject sj = strokes.optJSONObject(k);
-                            double[] smp = MarkSamples.decode(sj.optString("samples"));
-                            if (smp.length < 2 * MarkSamples.N) continue;
+                            double[] smp = Core.samplesDecode(sj.optString("samples"));
+                            if (smp.length < 2 * SAMPLE) continue;
                             Stroke st = new Stroke();
                             st.id = id + "#" + k;
                             st.width = (float) sj.optDouble("width", 1) / W;
                             st.color = color(sj.optString("color", m.optString("color", "#000000")));
                             st.opacity = (float) sj.optDouble("opacity", 1);
-                            int count = smp.length / MarkSamples.N;
+                            int count = smp.length / SAMPLE;
                             st.pts = new float[2 * count];
                             st.sm = new float[4 * count];
-                            for (int j = 0, q = 0, a = 0; j + MarkSamples.N <= smp.length; j += MarkSamples.N, q += 2, a += 4) {
+                            for (int j = 0, q = 0, a = 0; j + SAMPLE <= smp.length; j += SAMPLE, q += 2, a += 4) {
                                 st.pts[q] = (float) smp[j] / W; st.pts[q + 1] = (H - (float) smp[j + 1]) / H;
                                 st.sm[a] = (float) smp[j + 2]; st.sm[a + 1] = (float) smp[j + 3]; st.sm[a + 2] = (float) smp[j + 4]; st.sm[a + 3] = (float) smp[j + 5];
                             }
@@ -193,14 +196,14 @@ public final class InkStore {
                     for (Stroke st : e.getValue().strokes) if (st.id == null && st.pts != null && st.pts.length >= 4) {
                         st.id = ink.getString("id") + "#" + fresh.length();
                         newStrokes.add(st);
-                        double[] smp = new double[st.pts.length / 2 * MarkSamples.N];
+                        double[] smp = new double[st.pts.length / 2 * SAMPLE];
                         boolean has = st.sm != null && st.sm.length >= st.pts.length * 2;
-                        for (int q = 0, j = 0, a = 0; q + 1 < st.pts.length; q += 2, j += MarkSamples.N, a += 4) {
+                        for (int q = 0, j = 0, a = 0; q + 1 < st.pts.length; q += 2, j += SAMPLE, a += 4) {
                             smp[j] = st.pts[q] * W; smp[j + 1] = H - st.pts[q + 1] * H;
                             if (has) { smp[j + 2] = st.sm[a]; smp[j + 3] = st.sm[a + 1]; smp[j + 4] = st.sm[a + 2]; smp[j + 5] = st.sm[a + 3]; }
                             else { smp[j + 2] = 0.5; smp[j + 5] = q / 2 * 8; }
                         }
-                        JSONObject sj = new JSONObject().put("pen", "pen").put("width", st.width * W).put("samples", MarkSamples.encode(smp));
+                        JSONObject sj = new JSONObject().put("pen", "pen").put("width", st.width * W).put("samples", Core.samplesEncode(smp));
                         if (!st.plain()) sj.put("color", hex(st.color)).put("opacity", st.opacity);
                         fresh.put(sj);
                     }

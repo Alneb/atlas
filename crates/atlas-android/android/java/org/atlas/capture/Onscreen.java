@@ -156,9 +156,13 @@ final class Onscreen {
     private static final Pattern WIKI = Pattern.compile("^https?://([a-z-]+)\\.(?:m\\.)?wikipedia\\.org/(?:wiki/|api/rest_v1/page/mobile-html/)([^?#]+)(#\\S*)?", Pattern.CASE_INSENSITIVE);
     private static final Pattern SPOTIFY_INTL = Pattern.compile("^(https?://open\\.spotify\\.com/)intl-[a-z]+/", Pattern.CASE_INSENSITIVE);
 
+    /** The share-tracking parameters taken off an address: the core's rule (Core.untracked, atlas-text links.rs), the
+     *  one every capture passes through; a field so the desktop JVM's test, which has no native library, stands in. */
+    static java.util.function.UnaryOperator<String> untrack = s -> Core.untracked(s);
+
     /** The thing's own address, the way the catalog and the desktop know it: no tracking, no mobile host, no app-internal page. */
     static String canonical(String url) {
-        url = Links.untracked(url);
+        url = untrack.apply(url);
         Matcher m;
         if ((m = YT_MUSIC.matcher(url)).find()) return "https://music.youtube.com/watch?v=" + m.group(1);
         if ((m = YT_WATCH.matcher(url)).find()) return "https://www.youtube.com/watch?v=" + m.group(1) + time(m.group(2));

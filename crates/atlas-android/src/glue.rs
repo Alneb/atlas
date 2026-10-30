@@ -2,8 +2,9 @@
 //! and PDFium take and give float (or byte) arrays and throw IllegalArgumentException with why.
 use crate::phone;
 use crate::ink;
-use jni::objects::{JByteArray, JClass, JFloatArray, JString};
-use jni::sys::{jboolean, jbyteArray, jfloat, jfloatArray, jint, jstring};
+use crate::text;
+use jni::objects::{JByteArray, JClass, JDoubleArray, JFloatArray, JString};
+use jni::sys::{jboolean, jbyteArray, jdoubleArray, jfloat, jfloatArray, jint, jstring};
 use jni::JNIEnv;
 use std::path::Path;
 
@@ -119,6 +120,83 @@ pub extern "system" fn Java_org_atlas_capture_Core_uiFile(mut env: JNIEnv, _: JC
 #[no_mangle]
 pub extern "system" fn Java_org_atlas_capture_Core_version(mut env: JNIEnv, _: JClass) -> jstring {
     ret(&mut env, || atlas_core::server::version_info().to_string())
+}
+
+// ---- the core's text rules (text.rs), for the screens that kept copies: strings in and out, "" for null ----
+
+#[no_mangle]
+pub extern "system" fn Java_org_atlas_capture_Core_untracked(mut env: JNIEnv, _: JClass, t: JString) -> jstring {
+    let t = arg(&mut env, &t);
+    ret(&mut env, move || text::untracked(&t))
+}
+
+#[no_mangle]
+pub extern "system" fn Java_org_atlas_capture_Core_shareText(mut env: JNIEnv, _: JClass, subject: JString, t: JString) -> jstring {
+    let (s, t) = (arg(&mut env, &subject), arg(&mut env, &t));
+    ret(&mut env, move || text::share_text(&s, &t))
+}
+
+#[no_mangle]
+pub extern "system" fn Java_org_atlas_capture_Core_shareQuote(mut env: JNIEnv, _: JClass, t: JString) -> jstring {
+    let t = arg(&mut env, &t);
+    ret(&mut env, move || text::share_quote(&t))
+}
+
+#[no_mangle]
+pub extern "system" fn Java_org_atlas_capture_Core_underDraft(mut env: JNIEnv, _: JClass, draft: JString, shared: JString) -> jstring {
+    let (d, s) = (arg(&mut env, &draft), arg(&mut env, &shared));
+    ret(&mut env, move || text::under_draft(&d, &s))
+}
+
+#[no_mangle]
+pub extern "system" fn Java_org_atlas_capture_Core_propsRead(mut env: JNIEnv, _: JClass, t: JString) -> jstring {
+    let t = arg(&mut env, &t);
+    ret(&mut env, move || text::props_read(&t).to_string())
+}
+
+#[no_mangle]
+pub extern "system" fn Java_org_atlas_capture_Core_propsSet(mut env: JNIEnv, _: JClass, t: JString, set: JString) -> jstring {
+    let (t, set) = (arg(&mut env, &t), arg(&mut env, &set));
+    ret(&mut env, move || match serde_json::from_str::<serde_json::Map<String, serde_json::Value>>(&set) {
+        Ok(set) => text::props_set(&t, &set),
+        Err(_) => t, // a malformed request changes nothing
+    })
+}
+
+#[no_mangle]
+pub extern "system" fn Java_org_atlas_capture_Core_propsList(mut env: JNIEnv, _: JClass, t: JString, key: JString) -> jstring {
+    let (t, k) = (arg(&mut env, &t), arg(&mut env, &key));
+    ret(&mut env, move || serde_json::json!(text::props_list(&t, &k)).to_string())
+}
+
+#[no_mangle]
+pub extern "system" fn Java_org_atlas_capture_Core_propsSetList(mut env: JNIEnv, _: JClass, t: JString, key: JString, items: JString) -> jstring {
+    let (t, k, items) = (arg(&mut env, &t), arg(&mut env, &key), arg(&mut env, &items));
+    ret(&mut env, move || match serde_json::from_str::<Vec<String>>(&items) {
+        Ok(items) => text::props_set_list(&t, &k, &items),
+        Err(_) => t,
+    })
+}
+
+#[no_mangle]
+pub extern "system" fn Java_org_atlas_capture_Core_samplesEncode(mut env: JNIEnv, _: JClass, samples: JDoubleArray) -> jstring {
+    let n = env.get_array_length(&samples).unwrap_or(0).max(0) as usize;
+    let mut s = vec![0.0; n];
+    if env.get_double_array_region(&samples, 0, &mut s).is_err() {
+        s.clear();
+    }
+    ret(&mut env, move || text::samples_encode(&s))
+}
+
+#[no_mangle]
+pub extern "system" fn Java_org_atlas_capture_Core_samplesDecode(mut env: JNIEnv, _: JClass, t: JString) -> jdoubleArray {
+    let t = arg(&mut env, &t);
+    let out = std::panic::catch_unwind(move || text::samples_decode(&t)).unwrap_or_default();
+    let Ok(arr) = env.new_double_array(out.len() as i32) else { return std::ptr::null_mut() };
+    if env.set_double_array_region(&arr, 0, &out).is_err() {
+        return std::ptr::null_mut();
+    }
+    arr.into_raw()
 }
 
 // ---- the Boox pens (ink.rs): float arrays in and out; a refusal becomes IllegalArgumentException with its reason ----

@@ -13,6 +13,7 @@ pub mod extras;
 #[cfg(feature = "window")]
 mod icon_paint;
 pub mod icons;
+pub mod share;
 #[cfg(feature = "window")]
 mod look;
 #[cfg(feature = "window")]

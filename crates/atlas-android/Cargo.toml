@@ -20,6 +20,9 @@ full = []
 [dependencies]
 atlas-capture = { path = "../atlas-capture", default-features = false }
 atlas-core.workspace = true
+# the core's text rules the Java screens call (src/text.rs): links, a note's properties
+atlas-text.workspace = true
+serde_yaml = "0.9"
 serde_json.workspace = true
 serde = { version = "1", features = ["derive"] }
 anyhow.workspace = true

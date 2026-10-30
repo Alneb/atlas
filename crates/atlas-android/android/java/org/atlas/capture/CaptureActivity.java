@@ -106,7 +106,7 @@ public final class CaptureActivity extends Activity {
         at.setMargins(look.dp(10), 0, look.dp(10), look.dp(10));
         root.addView(column, at);
         setContentView(root);
-        edit.setText(Shares.underDraft(vaults.draft(), sharedText(getIntent())));
+        edit.setText(Core.underDraft(text(vaults.draft()), text(sharedText(getIntent()))));
         edit.setSelection(edit.length());
         column.setTranslationY(look.dp(24));
         column.setAlpha(0f);
@@ -997,11 +997,15 @@ public final class CaptureActivity extends Activity {
     private static String sharedText(Intent i) {
         if (i == null) return null;
         // text selected in another app (its selection menu): a quote, as the desktop box's selection chip
-        if (Intent.ACTION_PROCESS_TEXT.equals(i.getAction())) return Shares.quote(i.getCharSequenceExtra(Intent.EXTRA_PROCESS_TEXT));
+        if (Intent.ACTION_PROCESS_TEXT.equals(i.getAction())) return orNull(Core.shareQuote(text(i.getCharSequenceExtra(Intent.EXTRA_PROCESS_TEXT))));
         if (!Intent.ACTION_SEND.equals(i.getAction())) return null;
         // the core takes the share-tracking parameters off every capture (atlas_text::links)
-        return Shares.text(i.getStringExtra(Intent.EXTRA_SUBJECT), i.getCharSequenceExtra(Intent.EXTRA_TEXT));
+        return orNull(Core.shareText(text(i.getStringExtra(Intent.EXTRA_SUBJECT)), text(i.getCharSequenceExtra(Intent.EXTRA_TEXT))));
     }
+
+    /** Java's null as the core's "" (Core's text rules), and back. */
+    private static String text(CharSequence s) { return s == null ? "" : s.toString(); }
+    private static String orNull(String s) { return s == null || s.isEmpty() ? null : s; }
 
     /** A file the capture can carry; its thumbnail decoded once, small. */
     private static final class Piece {
