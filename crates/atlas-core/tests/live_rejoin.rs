@@ -41,7 +41,7 @@ async fn a_pane_in_the_fallback_room_moves_to_the_servers_once_it_answers() {
     let list = conf.path().join("vaults.toml");
     std::env::set_var("ATLAS_VAULTS", &list);
     atlas_core::vaults::remember(&list, desktop.path(), 0).unwrap();
-    let root = desktop.path().canonicalize().unwrap();
+    let root = atlas_core::paths::real(desktop.path()).unwrap(); // as the list stores it (no `\\?\` on Windows)
     atlas_core::vaults::set_mirror(&list, &root.to_string_lossy(), Some(&format!("http://127.0.0.1:{port}/"))).unwrap();
     let here = serve_on(root, Listen::Local(0, Lock::Open)).await.unwrap();
 
