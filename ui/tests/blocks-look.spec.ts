@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
+import { openFile } from "./open";
 
 // Blocks drawn inside a note look as they do on their own: the note's markdown styles stay out of them, and a block
 // lays itself out by its own width.
@@ -6,10 +7,7 @@ const H = { "x-atlas": "1" };
 
 async function openNote(page: Page, name: string) {
   await page.goto("/");
-  await page.keyboard.press("Control+p");
-  await page.keyboard.type(`${name}.md`);
-  await expect(page.getByTestId("palette").getByText(name, { exact: true }).first()).toBeVisible();
-  await page.keyboard.press("Enter");
+  await openFile(page, `${name}.md`);
 }
 
 test("a tags block in a note lists its tags as rows, not as the note's tag pills", async ({ page, request }) => {

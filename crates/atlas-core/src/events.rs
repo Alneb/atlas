@@ -322,7 +322,9 @@ mod tests {
         let bus = EventBus::default();
         let mut rx = bus.subscribe();
         let _g = spawn_watcher(d.path(), Config::default(), bus).unwrap();
-        std::thread::sleep(Duration::from_millis(150));
+        // FSEvents may replay what was made just before the stream began (the folders above): only reads may count
+        std::thread::sleep(Duration::from_millis(1000));
+        while rx.try_recv().is_ok() {}
         for _ in 0..5 {
             for e in std::fs::read_dir(d.path().join("notes")).unwrap() {
                 let _ = e.unwrap().metadata();
