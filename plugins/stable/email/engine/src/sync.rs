@@ -58,7 +58,12 @@ pub async fn account(m: &Mail, acc: &Account, only: Option<&[String]>) -> Result
         return Ok(Report::default());
     }
     m.event("status", json!({ "account": acc.name, "state": "syncing" }));
-    let r = account_inner(m, acc, only).await;
+    let mut r = account_inner(m, acc, only).await;
+    // servers hang up on idle or busy connections: a sync only asks what changed, so a new connection just goes on
+    if r.as_ref().is_err_and(|e| crate::imap::connection_lost(e)) {
+        m.drop_conns(&acc.name);
+        r = account_inner(m, acc, only).await;
+    }
     m.end_sync(&acc.name);
     match &r {
         Ok(rep) => {
@@ -120,7 +125,7 @@ async fn account_inner(m: &Mail, acc: &Account, only: Option<&[String]>) -> Resu
                     follow.extend(added.iter().chain(&flagged));
                 }
             }
-            Err(e) if e.contains("closed the connection") || e.contains("did not finish") => {
+            Err(e) if crate::imap::connection_lost(&e) => {
                 m.rt.spawn(c.logout());
                 return Err(e);
             }
@@ -396,6 +401,19 @@ mod tests {
         assert_eq!(rows[0].snippet, "Le séminaire est jeudi à 14 h.", "bodies prefetched");
         assert!(rows[1].has_attachments);
         assert!(events.lock().unwrap().iter().any(|(n, _)| n == "changed"));
+    }
+
+    #[test]
+    fn a_connection_the_server_drops_is_opened_again_and_the_sync_goes_on() {
+        let (m, s, _events, _d) = harness(true);
+        let acc = m.account(None).unwrap();
+        s.hang_up_on_list.store(1, std::sync::atomic::Ordering::SeqCst);
+        let rep = m.rt.block_on(account(&m, &acc, None)).unwrap();
+        assert_eq!(rep.added, 6);
+        // dropped again on the second try: said plainly, not retried for ever
+        s.hang_up_on_list.store(2, std::sync::atomic::Ordering::SeqCst);
+        let e = m.rt.block_on(account(&m, &acc, None)).unwrap_err();
+        assert!(crate::imap::connection_lost(&e), "{e}");
     }
 
     #[test]

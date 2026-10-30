@@ -15,6 +15,7 @@ import type { LinkTarget, Paper } from "../types";
 import { settings } from "../settings.svelte";
 import { localDay } from "../local-day";
 import { splitFrontmatter } from "../property-model";
+import type { GatedSource } from "./completion-gate";
 
 
 /** Enter in a list: the next item's marker; on an empty item, the list ends (Obsidian). CodeMirror's
@@ -50,11 +51,11 @@ export const taskShortForms = EditorView.inputHandler.of((view, from, to, text) 
 
 
 /** `[[name` → notes; `![[name` → any file; `[[note#head` → that note's headings. */
-export function wikilinkSource(fromPath: string) {
-  // synchronous "no" when there is no `[[` (the common case), so other menus never wait on it
-  return (ctx: CompletionContext): Promise<CompletionResult | null> | null => {
-    const m = ctx.matchBefore(/!?\[\[[^\]\n]*$/);
-    return m ? linkResult(ctx, m, fromPath) : null;
+const LINK_BEFORE = /!?\[\[[^\]\n]*$/;
+export function wikilinkSource(fromPath: string): GatedSource {
+  return {
+    applies: (ctx) => (settings.config?.editor.link_completion ?? true) && !!ctx.matchBefore(LINK_BEFORE),
+    answer: (ctx) => linkResult(ctx, ctx.matchBefore(LINK_BEFORE)!, fromPath),
   };
 }
 
@@ -141,6 +142,7 @@ const BLOCKS: Block[] = [
 
 /** `/` at the start of a line or after a space (outside math and code) opens the block menu. */
 export const slashSource = (ctx: CompletionContext): CompletionResult | null => {
+  if (!(settings.config?.editor.slash_menu ?? true)) return null;
   const m = ctx.matchBefore(/(?:^|\s)\/[\w-]*$/);
   if (!m) return null;
   const slash = m.text.lastIndexOf("/") + m.from;
@@ -193,9 +195,11 @@ const citeRow = (p: Paper, apply: (k: string) => string): Completion => ({
 
 /** `\cite{hub` / `\citep{a, hub` (notes and .tex) → the key. A note cites with a wikilink, `[[citekey]]` (linkResult); the
  *  `@key` completion was removed on 2026-10-15 ("i think you made a @ command to cite things, we shouldnt"). */
+const CITE_BEFORE = /\\(?:cite|citep|citet|citealt|autocite|parencite|textcite|footcite)\*?(?:\[[^\]]*\])*\{(?:[^}\s]*,\s*)*[^},\s]*$/;
+export const citeApplies = (ctx: CompletionContext): boolean => !!ctx.matchBefore(CITE_BEFORE);
 export function citeSource(_md: boolean) {
   return (ctx: CompletionContext): Promise<CompletionResult | null> | null => {
-    const tex = ctx.matchBefore(/\\(?:cite|citep|citet|citealt|autocite|parencite|textcite|footcite)\*?(?:\[[^\]]*\])*\{(?:[^}\s]*,\s*)*[^},\s]*$/);
+    const tex = ctx.matchBefore(CITE_BEFORE);
     if (tex) {
       const start = tex.from + tex.text.length - (/[^{,\s]*$/.exec(tex.text)?.[0].length ?? 0);
       const q = ctx.state.sliceDoc(start, ctx.pos);
@@ -212,12 +216,15 @@ export function citeSource(_md: boolean) {
 const TASK_LINE = /^\s*(?:[-*+]|\d+[.)])\s+\[.\]\s/;
 /** A task row carries its suggestion: the list draws its icon (`taskIcon` in create.ts). */
 export type TaskCompletion = Completion & { task: TaskSuggestion; browsing: boolean };
-export const taskSource = async (ctx: CompletionContext): Promise<CompletionResult | null> => {
-  const line = ctx.state.doc.lineAt(ctx.pos);
-  if (!TASK_LINE.test(line.text)) return null;
+export const taskSource: GatedSource = {
   // `[editor] task_suggest`: "always" is Obsidian Tasks with "minimum match 0"
+  applies: (ctx) => TASK_LINE.test(ctx.state.doc.lineAt(ctx.pos).text) && ((settings.config?.editor.task_suggest ?? "always") !== "off" || ctx.explicit),
+  answer: taskAnswer,
+};
+
+async function taskAnswer(ctx: CompletionContext): Promise<CompletionResult | null> {
+  const line = ctx.state.doc.lineAt(ctx.pos);
   const mode = settings.config?.editor.task_suggest ?? "always";
-  if (mode === "off" && !ctx.explicit) return null;
   const found = await taskSuggestions(line.text.slice(0, ctx.pos - line.from), { explicit: ctx.explicit, at: true, browse: mode === "always", keepEnter: true });
   if (!found || ctx.aborted) return null;
   const from = ctx.pos - found.replace;
@@ -229,4 +236,4 @@ export const taskSource = async (ctx: CompletionContext): Promise<CompletionResu
       if (it.more) requestAnimationFrame(() => startCompletion(view)); // straight on to the dates / the rules
     },
   })) };
-};
+}

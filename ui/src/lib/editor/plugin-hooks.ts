@@ -84,6 +84,13 @@ export function registerExtension(plugin: string, ext: Extension): () => void {
 
 // --- completion -----------------------------------------------------------------------------------------
 
+/** Does any plugin's completion answer here? Its trigger decides, or asking for the list by hand. */
+export function pluginCompletionApplies(ctx: CompletionContext, md: boolean): boolean {
+  if (ctx.explicit) return [...completions].some((c) => applies(c.spec.where, md));
+  const line = ctx.state.doc.lineAt(ctx.pos), before = line.text.slice(0, ctx.pos - line.from);
+  return [...completions].some((c) => applies(c.spec.where, md) && c.trigger.test(before));
+}
+
 export function pluginCompletions(path: string, md: boolean): CompletionSource {
   return async (ctx: CompletionContext): Promise<CompletionResult | null> => {
     const line = ctx.state.doc.lineAt(ctx.pos), before = line.text.slice(0, ctx.pos - line.from);

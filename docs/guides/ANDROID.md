@@ -326,3 +326,7 @@ compiling the app, so a broken recogniser fails the build. The network halves we
 (`Dune`+2021 → `film/dune-2021/`, `Dune: Part Two`+2024 → `film/dune-part-two/`, Harakiri's summary → its
 `/wiki/` page, YouTube's search → `dQw4w9WgXcQ`). **Not yet seen on a phone**: the view trees above are shaped from the
 apps' known layouts, not dumped from a real phone — the first real captures in each app are the check.
+
+## System notifications
+
+The core decides when a notice becomes a system notification (`crates/atlas-core/src/notify.rs`), on the phone as on the desktop. `crates/atlas-android/src/notices.rs` gives the core a notifier (`notify::set_platform`) that calls `Notices.java` over JNI: one channel per source, so Android's settings can mute a source; a click opens the notice's vault path through `AtlasActivity`. Android 13 and later ask for the permission once, when the app first opens.

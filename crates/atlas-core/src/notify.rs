@@ -108,9 +108,34 @@ fn clicked() {
     }
 }
 
-/// The platform's notifier: the desktop's notification server on Linux (a click publishes `Open` for the notice's
-/// note on `bus`); elsewhere, until its step of the design is built, the log.
+/// The body's length a notification shows comfortably.
+const BODY_MAX: usize = 240;
+
+/// What every notifier shows as the body.
+pub fn body_of(n: &Notice) -> String {
+    n.body.as_deref().unwrap_or("").chars().take(BODY_MAX).collect()
+}
+
+/// What a click on the notice opens: a vault path. An address is not opened.
+pub fn opens(n: &Notice) -> Option<&str> {
+    n.open.as_deref().filter(|o| !o.contains("://"))
+}
+
+type MakeNotifier = Box<dyn Fn() -> Box<dyn Notifier> + Send + Sync>;
+static SHELL_NOTIFIER: std::sync::OnceLock<MakeNotifier> = std::sync::OnceLock::new();
+
+/// A shell that reaches the system itself gives its notifier here, before the first vault is served: the phone, whose
+/// notifications are Java's (atlas-android, `notices.rs`).
+pub fn set_platform(make: impl Fn() -> Box<dyn Notifier> + Send + Sync + 'static) {
+    let _ = SHELL_NOTIFIER.set(Box::new(make));
+}
+
+/// The platform's notifier: the shell's own if it gave one; the desktop's notification server on Linux (a click
+/// publishes `Open` for the notice's note on `bus`); elsewhere, until its step of the design is built, the log.
 pub fn platform(bus: &EventBus) -> Box<dyn Notifier> {
+    if let Some(make) = SHELL_NOTIFIER.get() {
+        return make();
+    }
     #[cfg(all(target_os = "linux", not(target_os = "android")))]
     match linux::DBus::connect(bus.clone()) {
         Ok(n) => return Box::new(n),
@@ -132,8 +157,6 @@ mod linux {
 
     const DEST: &str = "org.freedesktop.Notifications";
     const PATH: &str = "/org/freedesktop/Notifications";
-    /// The body's length a notification server shows comfortably.
-    const BODY_MAX: usize = 240;
 
     pub struct DBus {
         conn: zbus::blocking::Connection,
@@ -178,10 +201,9 @@ mod linux {
 
     impl Notifier for DBus {
         fn show(&self, n: &Notice, replaces: Option<u32>) -> Result<u32, String> {
-            let body: String = n.body.as_deref().unwrap_or("").chars().take(BODY_MAX).collect();
-            // a click (`default`: the server's own click on the body) brings Atlas forward and opens a vault path; an
-            // address is not opened
-            let open = n.open.as_deref().filter(|o| !o.contains("://"));
+            let body = super::body_of(n);
+            // a click (`default`: the server's own click on the body) brings Atlas forward and opens a vault path
+            let open = super::opens(n);
             let actions = vec!["default", if open.is_some() { "Open" } else { "Show Atlas" }];
             let urgency: u8 = match n.level {
                 Some(NoticeLevel::Failure) => 2,
@@ -383,6 +405,14 @@ mod tests {
         assert!(d.offer(SystemNotices::Always, &Notice::new("other"), false, false));
         assert!(d.offer(SystemNotices::Always, &mails(3), false, false));
         assert_eq!(*seen.lock().unwrap(), vec![("1 new mails".into(), None), ("other".into(), None), ("3 new mails".into(), Some(1))]);
+    }
+
+    #[test]
+    fn every_notifier_shows_the_same_body_and_opens_only_vault_paths() {
+        let long = Notice::new("t").body("x".repeat(BODY_MAX + 9)).open("https://example.org/a");
+        assert_eq!(body_of(&long).chars().count(), BODY_MAX);
+        assert_eq!(opens(&long), None);
+        assert_eq!(opens(&Notice::new("t").open("notes/a.md")), Some("notes/a.md"));
     }
 
     #[test]

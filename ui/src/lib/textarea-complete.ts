@@ -110,6 +110,7 @@ export function complete(box: HTMLTextAreaElement | HTMLInputElement, opts: { wh
     if (opts.when && !opts.when()) return close();
     const caret = box.selectionStart ?? 0, o = tokenAt(box.value, caret), still = looks.ask();
     if (!o) {
+      if (open) close(); // the `[[` / `#` / `@` word has ended: its list goes now, not after the wait below
       const before = box.value.slice(0, caret);
       const mode = settings.config?.editor.task_suggest ?? "always"; // as in a note
       // a to-do in capture's spellings: the core says (capture.rs `starts_as_task`)

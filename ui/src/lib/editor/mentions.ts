@@ -7,6 +7,7 @@ import { Decoration, EditorView, ViewPlugin, hoverTooltip, type DecorationSet, t
 import { syntaxTree } from "@codemirror/language";
 import type { CompletionContext, CompletionResult } from "@codemirror/autocomplete";
 import { onLibraryChange, providers, resolveEntity } from "../entities";
+import type { GatedSource } from "./completion-gate";
 
 // `@` must start a word (e-mail addresses never match); a trailing `.` / `,` ends the key
 const MENTION = /(^|[\s(\[;])@([\w][\w:./-]*[\w])/g;
@@ -96,8 +97,14 @@ const card = hoverTooltip(async (view, pos) => {
 }, { hoverTime: 350 });
 
 /** Completion for plugin entities (`@run:` …); citekeys stay in md-complete's citeSource. */
-export async function entitySource(ctx: CompletionContext): Promise<CompletionResult | null> {
-  const m = ctx.matchBefore(/(?:^|[\s(\[;])@([\w-]+:)[\w:./-]*$/);
+const ENTITY_BEFORE = /(?:^|[\s(\[;])@([\w-]+:)[\w:./-]*$/;
+export const entitySource: GatedSource = {
+  applies: (ctx) => !!ctx.matchBefore(ENTITY_BEFORE),
+  answer: entityResult,
+};
+
+async function entityResult(ctx: CompletionContext): Promise<CompletionResult | null> {
+  const m = ctx.matchBefore(ENTITY_BEFORE);
   if (!m) return null;
   const p = providers.find((x) => x.prefix && x.prefix === /@([\w-]+:)/.exec(m.text)![1]);
   if (!p?.list) return null;

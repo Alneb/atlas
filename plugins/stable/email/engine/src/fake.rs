@@ -43,6 +43,8 @@ pub struct Store {
 pub struct Server {
     pub store: Mutex<Store>,
     pub changed: Condvar,
+    /// How many LISTs to answer by closing the connection (a server that hangs up).
+    pub hang_up_on_list: std::sync::atomic::AtomicUsize,
     pub moves: bool,
     pub imap_port: u16,
     pub smtp_port: u16,
@@ -151,6 +153,7 @@ pub fn start(dir: Option<PathBuf>, moves: bool) -> Arc<Server> {
     let server = Arc::new(Server {
         store: Mutex::new(Store { folders: seed(), modseq: 1, sent: 0, dir }),
         changed: Condvar::new(),
+        hang_up_on_list: Default::default(),
         moves,
         imap_port: imap.local_addr().unwrap().port(),
         smtp_port: smtp.local_addr().unwrap().port(),
@@ -307,6 +310,7 @@ impl Imap {
                     self.sel = None;
                     self.send(&format!("{tag} OK done"))?;
                 }
+                "LIST" if self.s.hang_up_on_list.fetch_update(std::sync::atomic::Ordering::SeqCst, std::sync::atomic::Ordering::SeqCst, |n| n.checked_sub(1)).is_ok() => return Ok(()),
                 "LIST" | "LSUB" => {
                     let names: Vec<(String, &'static str)> = self.s.store.lock().unwrap().folders.iter().map(|(n, f)| (n.clone(), f.special)).collect();
                     for (n, sp) in names {

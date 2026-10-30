@@ -58,6 +58,7 @@ pub extern "system" fn Java_org_atlas_capture_Core_findVaults(mut env: JNIEnv, _
 pub extern "system" fn Java_org_atlas_capture_Core_serve(mut env: JNIEnv, _: JClass, vault: JString, home: JString, vars: JString) -> jstring {
     let (v, h, e) = (arg(&mut env, &vault), arg(&mut env, &home), arg(&mut env, &vars));
     let vars: serde_json::Value = serde_json::from_str(&e).unwrap_or_default();
+    crate::notices::install(&mut env);
     ret(&mut env, move || crate::serve::serve(Path::new(&v), Path::new(&h), &vars).to_string())
 }
 

@@ -4,7 +4,7 @@
 import { dirOf, shownName } from "../paths";
 import { noteHtml } from "./big-html";
 import { attachFiles, filesOf } from "../attach";
-import { wikilinkSource, slashSource, citeSource, taskSource, continueList, backspaceMarkup, taskShortForms, type TaskCompletion } from "./md-complete";
+import { wikilinkSource, slashSource, citeSource, citeApplies, taskSource, continueList, backspaceMarkup, taskShortForms, type TaskCompletion } from "./md-complete";
 import { taskIconEl } from "../task-complete";
 import { taskChips } from "./task-chips";
 import { tickTaskLine } from "./task-tick";
@@ -13,7 +13,6 @@ import type { WorkspaceConfig } from "../types";
 import { Prec, type EditorState, type Extension } from "@codemirror/state";
 import { EditorView, keymap } from "@codemirror/view";
 import { foldGutter, foldNodeProp, foldKeymap } from "@codemirror/language";
-import { autocompletion } from "@codemirror/autocomplete";
 import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
 import type { MarkdownConfig } from "@lezer/markdown";
 import { obsidianMarkdown, AnyTaskStatus } from "../../vendor/obsidian-web/obsidian-syntax.js";
@@ -34,7 +33,8 @@ import { noteSuggestions } from "./suggest";
 import { expressions } from "./expr";
 import { mathPreview } from "./math-preview";
 import { LOG_ENTRY, logLines } from "./log-lines";
-import { pluginCompletions } from "./plugin-hooks";
+import { pluginCompletions, pluginCompletionApplies } from "./plugin-hooks";
+import { gatedCompletion, syncSource } from "./completion-gate";
 import { completionTab } from "./tab-keys";
 import { citing, mdSymbols, snippetsMd } from "./completion-sources";
 
@@ -138,17 +138,16 @@ export function noteExtensions(path: string, viewRef: { view: EditorView | null 
         },
       }),
       // Obsidian/Notion typing aids; each source checks its setting per call (live on/off)
-      autocompletion({
-        override: [
-          (ctx) => ((settings.config?.editor.link_completion ?? true) ? wikilinkSource(path)(ctx) : null),
-          (ctx) => ((settings.config?.editor.slash_menu ?? true) ? slashSource(ctx) : null),
-          taskSource,
-          (ctx) => (citing() ? citeSource(true)(ctx) : null),
-          entitySource,
-          pluginCompletions(path, true),
-          snippetsMd,
-          mdSymbols,
-        ],
+      gatedCompletion([
+        wikilinkSource(path),
+        syncSource(slashSource),
+        taskSource,
+        { applies: (ctx) => citing() && citeApplies(ctx), answer: citeSource(true) },
+        entitySource,
+        { applies: (ctx) => pluginCompletionApplies(ctx, true), answer: pluginCompletions(path, true) },
+        syncSource(snippetsMd),
+        syncSource(mdSymbols),
+      ], {
         icons: false,
         // a task field's row: the app's own icon before its plain name (no emoji in the list)
         addToOptions: [{ render: (c) => ("task" in c ? taskIconEl((c as TaskCompletion).task.icon) : null), position: 20 }],

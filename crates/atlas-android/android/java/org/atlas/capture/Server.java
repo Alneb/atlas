@@ -18,6 +18,9 @@ final class Server {
 
     private static Context app;
 
+    /** The app's context, for what the core calls back (Notices); null before init. */
+    static Context app() { return app; }
+
     /** Once, from the app: the sign-ins live in its preferences. */
     static void init(Context c) {
         app = c.getApplicationContext();

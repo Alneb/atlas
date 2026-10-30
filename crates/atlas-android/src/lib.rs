@@ -13,3 +13,5 @@ pub mod serve;
 mod glue;
 #[cfg(target_os = "android")]
 mod pen_reader;
+#[cfg(all(target_os = "android", feature = "full"))]
+mod notices;

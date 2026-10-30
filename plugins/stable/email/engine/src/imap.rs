@@ -191,12 +191,12 @@ impl Imap {
 
     /// Send a command and hand every answer up to its tagged one (which must be OK) to `each`.
     pub async fn raw_each(&mut self, cmd: &str, mut each: impl FnMut(&Response)) -> Result<(), String> {
-        let id = self.s.run_command(cmd).await.map_err(|e| format!("{}: {e}", first_word(cmd)))?;
+        let id = self.s.run_command(cmd).await.map_err(|e| failed(first_word(cmd), e))?;
         loop {
             let r = tokio::time::timeout(Duration::from_secs(120), self.s.read_response())
                 .await
                 .map_err(|_| format!("the server did not finish {} in 2 minutes", first_word(cmd)))?
-                .map_err(|e| format!("{}: {e}", first_word(cmd)))?
+                .map_err(|e| failed(first_word(cmd), e.into()))?
                 .ok_or_else(|| format!("the server closed the connection during {}", first_word(cmd)))?;
             let parsed = r.parsed();
             each(parsed);
@@ -516,6 +516,20 @@ impl Imap {
     }
 }
 
+/// What a failed command says. A connection that died reads the same however it died: a server that simply hangs up
+/// skips TLS's goodbye, which rustls reports as a sentence with a link to its manual, and the sync must recognise it.
+fn failed(cmd: &str, e: async_imap::error::Error) -> String {
+    match e {
+        async_imap::error::Error::Io(_) | async_imap::error::Error::ConnectionLost => format!("the server closed the connection during {cmd}"),
+        e => format!("{cmd}: {e}"),
+    }
+}
+
+/// The connection itself is gone or stuck (not one command refused): only a new connection can go on.
+pub fn connection_lost(e: &str) -> bool {
+    e.contains("closed the connection") || e.contains("did not finish")
+}
+
 fn first_word(cmd: &str) -> &str {
     let w = cmd.split_whitespace().next().unwrap_or(cmd);
     if w == "UID" { cmd.split_whitespace().take(2).last().unwrap_or(w) } else { w }
@@ -803,6 +817,15 @@ mod tests {
     fn uid_sets_are_compact() {
         assert_eq!(set(&[9, 1, 2, 3, 7, 10, 2]), "1:3,7,9:10");
         assert_eq!(set(&[5]), "5");
+    }
+
+    #[test]
+    fn a_server_hanging_up_over_tls_reads_as_a_lost_connection() {
+        let eof = std::io::Error::new(std::io::ErrorKind::UnexpectedEof, "peer closed connection without sending TLS close_notify: https://docs.rs/rustls/");
+        let said = failed("LIST", eof.into());
+        assert!(connection_lost(&said), "{said}");
+        assert!(!said.contains("rustls"), "{said}");
+        assert!(!connection_lost(&failed("LIST", async_imap::error::Error::Bad("no".into()))));
     }
 
     #[test]

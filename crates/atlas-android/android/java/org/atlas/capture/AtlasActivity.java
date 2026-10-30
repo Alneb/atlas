@@ -100,7 +100,16 @@ public final class AtlasActivity extends Activity {
         setContentView(frame());
         Shortcuts.publish(this, look);
         asked = getIntent().getStringExtra(Shortcuts.PLACE);
+        if (state == null) openAsked(getIntent()); // a notification's click with no window open
+        Notices.askOnce(this);
         if (state != null) { keptHistory = state.getString("history"); keptHistoryOf = state.getString("historyOf"); }
+    }
+
+    /** The vault path an intent asks to open (a plugin's "open this note", a notification's click). */
+    private void openAsked(Intent i) {
+        String path = i.getStringExtra(OPEN);
+        if (path != null && i.getBooleanExtra(WEB, false)) webOnce = path;
+        if (path != null) js("atlasShell.open(" + JSONObject.quote(path) + ")"); // js() waits for the page
     }
 
     /** Only a file in front has a Back stack (the app's own places start afresh); its tab ids die with the page, so a
@@ -144,9 +153,7 @@ public final class AtlasActivity extends Activity {
         setIntent(i);
         asked = i.getStringExtra(Shortcuts.PLACE);
         if (i.getBooleanExtra(RELOAD, false)) shown = null; // back from a sign-in: the vault's page again, now let in
-        String path = i.getStringExtra(OPEN);
-        if (path != null && i.getBooleanExtra(WEB, false)) webOnce = path;
-        if (path != null) js("atlasShell.open(" + JSONObject.quote(path) + ")"); // js() waits for the page
+        openAsked(i);
         String link = i.getStringExtra(LINK);
         if (link != null) js("atlasShell.link(" + JSONObject.quote(link) + "," + JSONObject.quote(String.valueOf(i.getStringExtra(LINK_FROM))) + ")");
     }
