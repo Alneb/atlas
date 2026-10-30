@@ -2470,9 +2470,10 @@ function Zi(e) {
 	}[t.FREQ] ?? t.FREQ?.toLowerCase(), r = Number(t.INTERVAL ?? 1), i = r > 1 ? `Every ${r} ${n}s` : `Every ${n}`;
 	return t.BYDAY && (i += ` on ${t.BYDAY.split(",").map((e) => e.slice(-2)).join(", ")}`), t.COUNT && (i += `, ${t.COUNT} times`), t.UNTIL && (i += `, until ${t.UNTIL.slice(0, 4)}-${t.UNTIL.slice(4, 6)}-${t.UNTIL.slice(6, 8)}`), i;
 }
+var Qi = JSON.stringify({ dialog: "new-event" });
 //#endregion
 //#region plugins/stable/dav/ui/src/layout.ts
-function Qi(e, t) {
+function $i(e, t) {
 	let n = ji(t).getTime(), r = Mi(ji(t), 1).getTime(), i = e.filter((e) => !Vi(e)).map((e) => ({
 		e,
 		s: zi(e).getTime(),
@@ -2507,7 +2508,7 @@ function Qi(e, t) {
 	}
 	return c(), a;
 }
-function $i(e, t) {
+function ea(e, t) {
 	if (!t.length) return [];
 	let n = ji(t[0]).getTime(), r = (e) => Math.round((e - n) / Ai), i = e.filter(Vi).map((e) => {
 		let t = zi(e).getTime(), n = Bi(e).getTime() - 1;
@@ -2529,7 +2530,7 @@ function $i(e, t) {
 		};
 	});
 }
-function ea(e, t) {
+function ta(e, t) {
 	let n = ji(t).getTime(), r = Mi(ji(t), 1).getTime();
 	return e.filter((e) => {
 		let t = zi(e).getTime(), i = Math.max(Bi(e).getTime(), t + 1);
@@ -2537,4 +2538,4 @@ function ea(e, t) {
 	});
 }
 //#endregion
-export { Q as $, fi as A, Pr as B, Di as C, _i as D, xi as E, $r as F, br as G, Er as H, Zr as I, _r as J, yr as K, Gr as L, ii as M, ri as N, gi as O, ni as P, or as Q, zr as R, Ii as S, Ci as T, Tr as U, Mr as V, Ar as W, cr as X, vr as Y, sr as Z, ji as _, Ni as a, rn as at, Li as b, zi as c, P as ct, Vi as d, tt as dt, xn as et, Yi as f, Ke as ft, qi as g, m as gt, Pi as h, Te as ht, Mi as i, nn as it, di as j, ui as k, Wi as l, N as lt, Zi as m, Ee as mt, $i as n, Xt as nt, ki as o, an as ot, Xi as p, Ge as pt, hr as q, ea as r, tn as rt, Bi as s, qt as st, Qi as t, hn as tt, Ji as u, pt as ut, Ui as v, Ei as w, Hi as x, Ki as y, Fr as z };
+export { or as $, ui as A, Fr as B, Ii as C, xi as D, Ci as E, ni as F, Ar as G, Mr as H, $r as I, hr as J, br as K, Zr as L, di as M, ii as N, _i as O, ri as P, sr as Q, Gr as R, Hi as S, Ei as T, Er as U, Pr as V, Tr as W, vr as X, _r as Y, cr as Z, qi as _, Te as _t, Mi as a, tn as at, Ki as b, Bi as c, an as ct, Ji as d, N as dt, Q as et, Vi as f, pt as ft, Pi as g, Ee as gt, Zi as h, Ge as ht, Qi as i, Xt as it, fi as j, gi as k, zi as l, qt as lt, Xi as m, Ke as mt, ea as n, xn as nt, Ni as o, nn as ot, Yi as p, tt as pt, yr as q, ta as r, hn as rt, ki as s, rn as st, $i as t, $n as tt, Wi as u, P as ut, ji as v, m as vt, Di as w, Li as x, Ui as y, zr as z };

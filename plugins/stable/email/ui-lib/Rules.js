@@ -2145,7 +2145,7 @@ function ci(t, n) {
 	if (!i || e(a)) {
 		var o = t.selectedIndex, s = n && i ? new Set(t.selectedOptions) : null;
 		for (var c of t.options) {
-			var l = di(c);
+			var l = fi(c);
 			si(c, i ? a.includes(l) : Zt(l, r));
 		}
 		if (n) {
@@ -2161,10 +2161,10 @@ function li(t, n, r = !1) {
 	if (t.multiple) {
 		if (n == null) return;
 		if (!e(n)) return Se();
-		for (var i of t.options) i.selected = n.includes(di(i));
+		for (var i of t.options) i.selected = n.includes(fi(i));
 		return;
 	}
-	for (i of t.options) if (Zt(di(i), n)) {
+	for (i of t.options) if (Zt(fi(i), n)) {
 		i.selected = !0;
 		return;
 	}
@@ -2172,7 +2172,7 @@ function li(t, n, r = !1) {
 }
 function ui(e) {
 	var t = new MutationObserver((t) => {
-		t.every(fi) || ("__defaultValue" in e && ci(e, !1), "__value" in e && li(e, e.__value));
+		t.every(pi) || ("__defaultValue" in e && ci(e, !1), "__value" in e && li(e, e.__value));
 	});
 	t.observe(e, {
 		childList: !0,
@@ -2183,10 +2183,33 @@ function ui(e) {
 		t.disconnect();
 	});
 }
-function di(e) {
-	return "__value" in e ? e.__value : e.value;
+function di(e, t, n = t) {
+	var r = /* @__PURE__ */ new WeakSet(), i = !0;
+	ot(e, "change", (t) => {
+		var i = t ? "[selected]" : ":checked", a;
+		if (e.multiple) a = [].map.call(e.querySelectorAll(i), fi);
+		else {
+			var o = e.querySelector(i) ?? e.querySelector("option:not([disabled])");
+			a = o && fi(o);
+		}
+		n(a), e.__value = a, M !== null && r.add(M);
+	}), bn(() => {
+		var a = t();
+		if (e === document.activeElement) {
+			var o = M;
+			if (r.has(o)) return;
+		}
+		if (li(e, a, i), i && a === void 0) {
+			var s = e.querySelector(":checked");
+			s !== null && (a = fi(s), n(a));
+		}
+		e.__value = a, i = !1;
+	});
 }
 function fi(e) {
+	return "__value" in e ? e.__value : e.value;
+}
+function pi(e) {
 	if (e.target.closest("selectedcontent") !== null) return !0;
 	if (e.type === "childList") {
 		var t = [...e.addedNodes, ...e.removedNodes];
@@ -2196,8 +2219,8 @@ function fi(e) {
 }
 //#endregion
 //#region ui/node_modules/svelte/src/internal/client/dom/elements/attributes.js
-var pi = Symbol("is custom element"), mi = Symbol("is html"), hi = he ? "link" : "LINK", gi = he ? "progress" : "PROGRESS";
-function _i(e) {
+var mi = Symbol("is custom element"), hi = Symbol("is html"), gi = he ? "link" : "LINK", _i = he ? "progress" : "PROGRESS";
+function vi(e) {
 	if (T) {
 		var t = !1, n = () => {
 			if (!t) {
@@ -2214,25 +2237,25 @@ function _i(e) {
 		e[pe] = n, A(n), it();
 	}
 }
-function vi(e, t) {
-	var n = yi(e);
-	n.value !== (n.value = t ?? void 0) && (e.value !== t || t === 0 && e.nodeName === gi) && (e.value = t ?? "");
+function yi(e, t) {
+	var n = bi(e);
+	n.value !== (n.value = t ?? void 0) && (e.value !== t || t === 0 && e.nodeName === _i) && (e.value = t ?? "");
 }
 function $(e, t, n, r) {
-	var i = yi(e);
-	T && (i[t] = e.getAttribute(t), t === "src" || t === "srcset" || t === "href" && e.nodeName === hi) || i[t] !== (i[t] = n) && (t === "loading" && (e[ce] = n), n == null ? e.removeAttribute(t) : typeof n != "string" && xi(e).has(t) ? e[t] = n : e.setAttribute(t, n));
+	var i = bi(e);
+	T && (i[t] = e.getAttribute(t), t === "src" || t === "srcset" || t === "href" && e.nodeName === gi) || i[t] !== (i[t] = n) && (t === "loading" && (e[ce] = n), n == null ? e.removeAttribute(t) : typeof n != "string" && Si(e).has(t) ? e[t] = n : e.setAttribute(t, n));
 }
-function yi(e) {
+function bi(e) {
 	return e[le] ??= {
-		[pi]: e.nodeName.includes("-"),
-		[mi]: e.namespaceURI === _e
+		[mi]: e.nodeName.includes("-"),
+		[hi]: e.namespaceURI === _e
 	};
 }
-var bi = /* @__PURE__ */ new Map();
-function xi(e) {
-	var t = e.getAttribute("is") || e.nodeName, n = bi.get(t);
+var xi = /* @__PURE__ */ new Map();
+function Si(e) {
+	var t = e.getAttribute("is") || e.nodeName, n = xi.get(t);
 	if (n) return n;
-	bi.set(t, n = /* @__PURE__ */ new Set());
+	xi.set(t, n = /* @__PURE__ */ new Set());
 	for (var r, i = e, a = Element.prototype; a !== i;) {
 		for (var s in r = o(i), r) r[s].set && s !== "innerHTML" && s !== "textContent" && s !== "innerText" && n.add(s);
 		i = l(i);
@@ -2241,34 +2264,34 @@ function xi(e) {
 }
 //#endregion
 //#region ui/node_modules/svelte/src/internal/client/dom/elements/bindings/input.js
-function Si(e, t, n = t) {
+function Ci(e, t, n = t) {
 	var r = /* @__PURE__ */ new WeakSet();
 	ot(e, "input", async (i) => {
 		var a = i ? e.defaultValue : e.value;
-		if (a = Ci(e) ? wi(a) : a, n(a), M !== null && r.add(M), await er(), a !== (a = t())) {
+		if (a = wi(e) ? Ti(a) : a, n(a), M !== null && r.add(M), await er(), a !== (a = t())) {
 			var o = e.selectionStart, s = e.selectionEnd, c = e.value.length;
 			if (e.value = a ?? "", s !== null) {
 				var l = e.value.length;
 				o === s && s === c && l > c ? (e.selectionStart = l, e.selectionEnd = l) : (e.selectionStart = o, e.selectionEnd = Math.min(s, l));
 			}
 		}
-	}), (T && e.defaultValue !== e.value || rr(t) == null && e.value) && (n(Ci(e) ? wi(e.value) : e.value), M !== null && r.add(M)), Sn(() => {
+	}), (T && e.defaultValue !== e.value || rr(t) == null && e.value) && (n(wi(e) ? Ti(e.value) : e.value), M !== null && r.add(M)), Sn(() => {
 		var n = t();
 		if (e === document.activeElement) {
 			var i = M;
 			if (r.has(i)) return;
 		}
-		Ci(e) && n === wi(e.value) || (e.type !== "date" || n || e.value) && n !== e.value && (e.value = n ?? "");
+		wi(e) && n === Ti(e.value) || (e.type !== "date" || n || e.value) && n !== e.value && (e.value = n ?? "");
 	});
 }
-function Ci(e) {
+function wi(e) {
 	var t = e.type;
 	return t === "number" || t === "range";
 }
-function wi(e) {
+function Ti(e) {
 	return e === "" ? null : +e;
 }
-var Ti = /* @__PURE__ */ new class e {
+var Ei = /* @__PURE__ */ new class e {
 	#e = /* @__PURE__ */ new WeakMap();
 	#t;
 	#n;
@@ -2292,28 +2315,28 @@ var Ti = /* @__PURE__ */ new class e {
 		});
 	}
 }({ box: "border-box" });
-function Ei(e, t, n) {
-	var r = Ti.observe(e, () => n(e[t]));
+function Di(e, t, n) {
+	var r = Ei.observe(e, () => n(e[t]));
 	bn(() => (rr(() => n(e[t])), r));
 }
 //#endregion
 //#region ui/node_modules/svelte/src/internal/client/dom/elements/bindings/this.js
-function Di(e, t) {
+function Oi(e, t) {
 	return e === t || e?.[ae] === t;
 }
-function Oi(e = qe(), t, n, r) {
+function ki(e = qe(), t, n, r) {
 	var i = k.r, a = K;
 	return bn(() => {
 		var o, s;
 		return Sn(() => {
 			o = s, s = r?.() || [], rr(() => {
-				Di(n(...s), e) || (t(e, ...s), o && Di(n(...o), e) && t(null, ...o));
+				Oi(n(...s), e) || (t(e, ...s), o && Oi(n(...o), e) && t(null, ...o));
 			});
 		}), () => {
 			let r = a;
 			for (; r !== i && r.parent !== null && r.parent.f & 33554432;) r = r.parent;
 			let o = () => {
-				s && Di(n(...s), e) && t(null, ...s);
+				s && Oi(n(...s), e) && t(null, ...s);
 			}, c = r.teardown;
 			r.teardown = () => {
 				o(), c?.();
@@ -2323,18 +2346,18 @@ function Oi(e = qe(), t, n, r) {
 }
 //#endregion
 //#region ui/node_modules/svelte/src/internal/client/reactivity/store.js
-var ki = !1;
-function Ai(e) {
-	var t = ki;
+var Ai = !1;
+function ji(e) {
+	var t = Ai;
 	try {
-		return ki = !1, [e(), ki];
+		return Ai = !1, [e(), Ai];
 	} finally {
-		ki = t;
+		Ai = t;
 	}
 }
 //#endregion
 //#region ui/node_modules/svelte/src/internal/client/reactivity/props.js
-function ji(e, t, n, r) {
+function Mi(e, t, n, r) {
 	var i = !0, o = !!(n & 8), s = !!(n & 16), c = r, l = !0, u = void 0, d = () => s && i ? (u ??= /* @__PURE__ */ dt(r), Z(u)) : (l && (l = !1, c = s ? rr(r) : r), c);
 	let f;
 	if (o) {
@@ -2342,7 +2365,7 @@ function ji(e, t, n, r) {
 		f = a(e, t)?.set ?? (p && t in e ? (n) => e[t] = n : void 0);
 	}
 	var m, h = !1;
-	o ? [m, h] = Ai(() => e[t]) : m = e[t], m === void 0 && r !== void 0 && (m = d(), f && (i && ze(t), f(m)));
+	o ? [m, h] = ji(() => e[t]) : m = e[t], m === void 0 && r !== void 0 && (m = d(), f && (i && ze(t), f(m)));
 	var g = i ? () => {
 		var n = e[t];
 		return n === void 0 ? d() : (l = !0, n);
@@ -2368,7 +2391,7 @@ function ji(e, t, n, r) {
 		return Ln && v || b.f & 16384 ? y.v : Z(y);
 	});
 }
-function Mi(e) {
+function Ni(e) {
 	k === null && Me("onMount"), _n(() => {
 		let t = rr(e);
 		if (typeof t == "function") return t;
@@ -2379,7 +2402,7 @@ function Mi(e) {
 typeof window < "u" && ((window.__svelte ??= {}).v ??= /* @__PURE__ */ new Set()).add("5");
 //#endregion
 //#region plugins/stable/email/ui/src/Icon.svelte
-var Ni = {
+var Pi = {
 	inbox: "M3 13h5l1.5 3h5L16 13h5M5 5h14l2 8v6H3v-6z",
 	star: "M12 3.5l2.6 5.4 5.9.8-4.3 4.1 1 5.9L12 17l-5.2 2.7 1-5.9L3.5 9.7l5.9-.8z",
 	clock: "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 7v5l3 2",
@@ -2421,21 +2444,21 @@ var Ni = {
 	lock: "M6 11h12v9H6zM8 11V8a4 4 0 0 1 8 0v3",
 	save: "M12 4v11M7 10l5 5 5-5M5 20h14",
 	keyboard: "M3 6h18v12H3zM7 10h.01M11 10h.01M15 10h.01M7 14h10"
-}, Pi = /* @__PURE__ */ Sr("<svg class=\"icon svelte-jfnn1v\" viewBox=\"0 0 24 24\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path></path></svg>"), Fi = {
+}, Fi = /* @__PURE__ */ Sr("<svg class=\"icon svelte-jfnn1v\" viewBox=\"0 0 24 24\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path></path></svg>"), Ii = {
 	hash: "svelte-jfnn1v",
 	code: ".icon.svelte-jfnn1v {flex:none;display:block;}"
 };
-function Ii(e, t) {
-	Yr(e, Fi);
-	let n = ji(t, "size", 3, 16), r = ji(t, "title", 3, ""), i = ji(t, "filled", 3, !1);
-	var a = Pi(), o = on(a);
+function Li(e, t) {
+	Yr(e, Ii);
+	let n = Mi(t, "size", 3, 16), r = Mi(t, "title", 3, ""), i = Mi(t, "filled", 3, !1);
+	var a = Fi(), o = on(a);
 	Cn(() => {
-		$(a, "width", n()), $(a, "height", n()), $(a, "fill", i() ? "currentColor" : "none"), $(a, "aria-hidden", r() ? void 0 : "true"), $(a, "role", r() ? "img" : void 0), $(a, "aria-label", r() || void 0), $(o, "d", Ni[t.name] ?? Ni.folder);
+		$(a, "width", n()), $(a, "height", n()), $(a, "fill", i() ? "currentColor" : "none"), $(a, "aria-hidden", r() ? void 0 : "true"), $(a, "role", r() ? "img" : void 0), $(a, "aria-label", r() || void 0), $(o, "d", Pi[t.name] ?? Pi.folder);
 	}), Tr(e, a);
 }
 //#endregion
 //#region plugins/stable/email/ui/src/api.ts
-async function Li(e, t, n = {}, r = 120) {
+async function Ri(e, t, n = {}, r = 120) {
 	try {
 		return await e.helper.call(t, {
 			...n,
@@ -2445,19 +2468,19 @@ async function Li(e, t, n = {}, r = 120) {
 		throw Error(String(e?.message ?? e).replace(/^.*?plugin [\w-]+: \w+: /, "").replace(/^.*?(method|error): /i, ""));
 	}
 }
-var Ri = (e, t, n) => e.plugin.settings[t] ?? n;
-function zi(e, t = []) {
+var zi = (e, t, n) => e.plugin.settings[t] ?? n;
+function Bi(e, t = []) {
 	return e ? t.includes(e.addr.toLowerCase()) ? "me" : e.name || e.addr.split("@")[0] : "(no sender)";
 }
-var Bi = (e) => e.name ? `${e.name} <${e.addr}>` : e.addr;
-function Vi(e, t) {
-	let n = e.map((e) => zi(e, t));
+var Vi = (e) => e.name ? `${e.name} <${e.addr}>` : e.addr;
+function Hi(e, t) {
+	let n = e.map((e) => Bi(e, t));
 	return n.length <= 3 ? n.join(", ") : `${n[0]} … ${n.slice(-2).join(", ")}`;
 }
-var Hi = (e) => new Date(e.getFullYear(), e.getMonth(), e.getDate()).getTime();
-function Ui(e) {
+var Ui = (e) => new Date(e.getFullYear(), e.getMonth(), e.getDate()).getTime();
+function Wi(e) {
 	if (!e) return "";
-	let t = /* @__PURE__ */ new Date(e * 1e3), n = /* @__PURE__ */ new Date(), r = (Hi(n) - Hi(t)) / 864e5;
+	let t = /* @__PURE__ */ new Date(e * 1e3), n = /* @__PURE__ */ new Date(), r = (Ui(n) - Ui(t)) / 864e5;
 	return r === 0 ? t.toLocaleTimeString(void 0, {
 		hour: "2-digit",
 		hourCycle: "h23",
@@ -2471,8 +2494,8 @@ function Ui(e) {
 		year: "numeric"
 	});
 }
-function Wi(e) {
-	let t = /* @__PURE__ */ new Date(e * 1e3), n = Gi(e);
+function Gi(e) {
+	let t = /* @__PURE__ */ new Date(e * 1e3), n = Ki(e);
 	return `${t.toLocaleString(void 0, {
 		weekday: "short",
 		day: "numeric",
@@ -2483,23 +2506,23 @@ function Wi(e) {
 		minute: "2-digit"
 	})}${n ? ` (${n})` : ""}`;
 }
-function Gi(e) {
+function Ki(e) {
 	let t = Date.now() / 1e3 - e;
 	return t < 0 ? "" : t < 60 ? "just now" : t < 3600 ? `${Math.floor(t / 60)} min ago` : t < 86400 ? `${Math.floor(t / 3600)} h ago` : t < 172800 ? "yesterday" : t < 604800 ? `${Math.floor(t / 86400)} days ago` : "";
 }
-function Ki(e) {
+function qi(e) {
 	return e < 1024 ? `${e} B` : e < 1048576 ? `${Math.round(e / 1024)} KB` : `${(e / 1024 / 1024).toFixed(1)} MB`;
 }
-function qi(e) {
+function Ji(e) {
 	let t = 0;
 	for (let n of e.toLowerCase()) t = (t * 31 + n.charCodeAt(0)) % 360;
 	return t;
 }
-var Ji = (e) => {
+var Yi = (e) => {
 	let t = (e?.name || e?.addr || "?").replace(/["']/g, "").trim().split(/[\s.@_-]+/).filter(Boolean);
 	return ((t[0]?.[0] ?? "?") + (t.length > 1 ? t[1][0] : "")).toUpperCase();
 };
-function Yi(e = /* @__PURE__ */ new Date()) {
+function Xi(e = /* @__PURE__ */ new Date()) {
 	let t = (e) => Math.floor(e.getTime() / 1e3), n = (e) => {
 		let t = new Date(e);
 		return t.setHours(8, 0, 0, 0), t;
@@ -2529,7 +2552,7 @@ function Yi(e = /* @__PURE__ */ new Date()) {
 	];
 	return r.getDate() === e.getDate() ? s : s.slice(1);
 }
-function Xi(e, t = /* @__PURE__ */ new Date()) {
+function Zi(e, t = /* @__PURE__ */ new Date()) {
 	let n = e.trim().toLowerCase(), r = n.match(/^(\d+)\s*(m|min|h|d|w)$/);
 	if (r) return Math.floor(t.getTime() / 1e3) + Number(r[1]) * {
 		m: 60,
@@ -2561,13 +2584,13 @@ function Xi(e, t = /* @__PURE__ */ new Date()) {
 	}
 	return o.setHours(a[2] ? Number(a[2]) : 8, a[3] ? Number(a[3]) : 0, 0, 0), Math.floor(o.getTime() / 1e3);
 }
-var Zi = (e, t, n) => typeof e.confirm == "function" ? e.confirm(t, n) : Promise.resolve(window.confirm(t)), Qi = (e, t, n = "") => typeof e.input == "function" ? e.input(t, { value: n }) : Promise.resolve(window.prompt(t, n)?.trim() || null), $i = /* @__PURE__ */ br("<iframe class=\"frame svelte-lnhtx6\" title=\"The message\" sandbox=\"allow-same-origin allow-popups allow-popups-to-escape-sandbox\" scrolling=\"no\"></iframe>"), ea = {
+var Qi = (e, t, n) => typeof e.confirm == "function" ? e.confirm(t, n) : Promise.resolve(window.confirm(t)), $i = (e, t, n = "") => typeof e.input == "function" ? e.input(t, { value: n }) : Promise.resolve(window.prompt(t, n)?.trim() || null), ea = /* @__PURE__ */ br("<iframe class=\"frame svelte-lnhtx6\" title=\"The message\" sandbox=\"allow-same-origin allow-popups allow-popups-to-escape-sandbox\" scrolling=\"no\"></iframe>"), ta = {
 	hash: "svelte-lnhtx6",
 	code: ".frame.svelte-lnhtx6 {display:block;width:100%;border:0;background:transparent;color-scheme:normal;}"
 };
-function ta(e, t) {
-	Ge(t, !0), Yr(e, ea);
-	let n = ji(t, "plain", 3, !1), r = ji(t, "remote", 3, !1), i = ji(t, "dark", 3, !1), a = ji(t, "prose", 3, ""), o = /* @__PURE__ */ P(void 0), s = /* @__PURE__ */ P(80), c = [
+function na(e, t) {
+	Ge(t, !0), Yr(e, ta);
+	let n = Mi(t, "plain", 3, !1), r = Mi(t, "remote", 3, !1), i = Mi(t, "dark", 3, !1), a = Mi(t, "prose", 3, ""), o = /* @__PURE__ */ P(void 0), s = /* @__PURE__ */ P(80), c = [
 		".gmail_quote",
 		"blockquote[type=cite]",
 		".yahoo_quoted",
@@ -2680,15 +2703,15 @@ table{max-width:100%}
 		for (let n of Array.from(e.images)) n.addEventListener("load", t);
 		e.addEventListener("toggle", t, !0);
 	}
-	var v = $i();
+	var v = ea();
 	let y;
-	Oi(v, (e) => F(o, e), () => Z(o)), Cn(() => {
+	ki(v, (e) => F(o, e), () => Z(o)), Cn(() => {
 		$(v, "srcdoc", Z(g)), y = oi(v, "", y, { height: `${Z(s) ?? ""}px` });
 	}), dr("load", v, _), lr(v), Tr(e, v), Ke();
 }
 //#endregion
 //#region plugins/stable/email/ui/src/open-mail.ts
-function na(e, t = {}) {
+function ra(e, t = {}) {
 	window.__atlasEmailOpen = t, e.openView(void 0, {
 		title: "Email",
 		icon: "mail"
@@ -2696,18 +2719,18 @@ function na(e, t = {}) {
 }
 //#endregion
 //#region plugins/stable/email/ui/src/rules-host.ts
-var ra = (e) => ({
-	call: (t, n = {}, r = 120) => Li(e, t, n, r),
-	search: (t) => na(e, { search: t }),
+var ia = (e) => ({
+	call: (t, n = {}, r = 120) => Ri(e, t, n, r),
+	search: (t) => ra(e, { search: t }),
 	toast: (t, n = "info") => e.toast("Email", t, n),
 	atlas: { open: (t, n, r) => e.open(t, n, r) }
-}), ia = JSON.stringify({ dialog: "rules" }), aa = /* @__PURE__ */ br("<div class=\"rule svelte-1mt0jy7\"><input class=\"when svelte-1mt0jy7\" placeholder=\"from:newsletter@shop.example\" aria-label=\"When new mail matches\"/> <span class=\"arrow svelte-1mt0jy7\">→</span> <input class=\"acts svelte-1mt0jy7\" placeholder=\"move Newsletters, read\" aria-label=\"Do\" list=\"email-rule-actions\"/> <button class=\"tool svelte-1mt0jy7\" title=\"Show the mail it matches now\"><!></button> <button class=\"tool svelte-1mt0jy7\" title=\"Remove this rule\"><!></button></div>"), oa = /* @__PURE__ */ br("<p class=\"faint svelte-1mt0jy7\">No rules yet.</p>"), sa = /* @__PURE__ */ br("<option></option>"), ca = /* @__PURE__ */ br("<p class=\"error svelte-1mt0jy7\"> </p>"), la = /* @__PURE__ */ br("<button class=\"atlas-btn svelte-1mt0jy7\">Cancel</button>"), ua = /* @__PURE__ */ br("<div><span class=\"faint svelte-1mt0jy7\">for new mail in an inbox · kept in <button class=\"link svelte-1mt0jy7\"> </button></span> <p class=\"hint svelte-1mt0jy7\">When new mail matches the search, do the actions in order. A search is written as in the search box: <code class=\"svelte-1mt0jy7\">from:shop.example</code>, <code class=\"svelte-1mt0jy7\">subject:invoice has:attachment</code>, <code class=\"svelte-1mt0jy7\">list:physics</code>, <code class=\"svelte-1mt0jy7\">-from:boss</code>, several people at once: <code class=\"svelte-1mt0jy7\">from:ana@uni.example,bo@uni.example</code>. <b>important</b> stars it and keeps the conversation as a note at once; <b>not-important</b> moves it out of the inbox; <b>stop</b> keeps later rules from seeing it; <b>save</b> keeps the conversation as a note.</p> <!> <datalist id=\"email-rule-actions\"></datalist> <!> <footer class=\"svelte-1mt0jy7\"><button class=\"atlas-btn svelte-1mt0jy7\"><!> Add a rule</button> <span class=\"grow svelte-1mt0jy7\"></span> <!> <button class=\"atlas-btn primary svelte-1mt0jy7\"> </button></footer></div>"), da = {
+}), aa = JSON.stringify({ dialog: "rules" }), oa = JSON.stringify({ dialog: "thunderbird" }), sa = /* @__PURE__ */ br("<div class=\"rule svelte-1mt0jy7\"><input class=\"when svelte-1mt0jy7\" placeholder=\"from:newsletter@shop.example\" aria-label=\"When new mail matches\"/> <span class=\"arrow svelte-1mt0jy7\">→</span> <input class=\"acts svelte-1mt0jy7\" placeholder=\"move Newsletters, read\" aria-label=\"Do\" list=\"email-rule-actions\"/> <button class=\"tool svelte-1mt0jy7\" title=\"Show the mail it matches now\"><!></button> <button class=\"tool svelte-1mt0jy7\" title=\"Remove this rule\"><!></button></div>"), ca = /* @__PURE__ */ br("<p class=\"faint svelte-1mt0jy7\">No rules yet.</p>"), la = /* @__PURE__ */ br("<option></option>"), ua = /* @__PURE__ */ br("<p class=\"error svelte-1mt0jy7\"> </p>"), da = /* @__PURE__ */ br("<button class=\"atlas-btn svelte-1mt0jy7\">Cancel</button>"), fa = /* @__PURE__ */ br("<div><span class=\"faint svelte-1mt0jy7\">for new mail in an inbox · kept in <button class=\"link svelte-1mt0jy7\"> </button></span> <p class=\"hint svelte-1mt0jy7\">When new mail matches the search, do the actions in order. A search is written as in the search box: <code class=\"svelte-1mt0jy7\">from:shop.example</code>, <code class=\"svelte-1mt0jy7\">subject:invoice has:attachment</code>, <code class=\"svelte-1mt0jy7\">list:physics</code>, <code class=\"svelte-1mt0jy7\">-from:boss</code>, several people at once: <code class=\"svelte-1mt0jy7\">from:ana@uni.example,bo@uni.example</code>. <b>important</b> stars it and keeps the conversation as a note at once; <b>not-important</b> moves it out of the inbox; <b>stop</b> keeps later rules from seeing it; <b>save</b> keeps the conversation as a note.</p> <!> <datalist id=\"email-rule-actions\"></datalist> <!> <footer class=\"svelte-1mt0jy7\"><button class=\"atlas-btn svelte-1mt0jy7\"><!> Add a rule</button> <span class=\"grow svelte-1mt0jy7\"></span> <!> <button class=\"atlas-btn primary svelte-1mt0jy7\"> </button></footer></div>"), pa = {
 	hash: "svelte-1mt0jy7",
 	code: ".page.svelte-1mt0jy7 {display:grid;gap:10px;container-type:inline-size;}.dialog.svelte-1mt0jy7 {display:grid;gap:10px;align-content:start;container-type:inline-size;padding:14px 18px;height:100%;box-sizing:border-box;overflow:auto;}.faint.svelte-1mt0jy7 {color:var(--text-faint);font-size:0.9em;}.hint.svelte-1mt0jy7 {margin:0;color:var(--text-muted);font-size:0.9em;line-height:1.5;}code.svelte-1mt0jy7 {font-family:var(--font-mono);font-size:0.9em;background:var(--bg-hover);padding:0 4px;border-radius:4px;}.link.svelte-1mt0jy7 {all:unset;cursor:pointer;color:var(--accent);}.rule.svelte-1mt0jy7 {display:flex;gap:8px;align-items:center;}.rule.svelte-1mt0jy7 input:where(.svelte-1mt0jy7) {min-width:0;background:var(--bg);color:var(--text);border:1px solid var(--border-strong);border-radius:var(--radius-sm);padding:6px 9px;font:inherit;}.when.svelte-1mt0jy7 {flex:3;font-family:var(--font-mono);font-size:0.92em !important;}.acts.svelte-1mt0jy7 {flex:2;}.arrow.svelte-1mt0jy7 {color:var(--text-faint);}.tool.svelte-1mt0jy7 {all:unset;cursor:pointer;padding:6px;border-radius:var(--radius-sm);color:var(--text-muted);}.tool.svelte-1mt0jy7:hover {background:var(--bg-hover);color:var(--text);}footer.svelte-1mt0jy7 {display:flex;gap:8px;align-items:center;padding-top:6px;}footer.svelte-1mt0jy7 .atlas-btn:where(.svelte-1mt0jy7) {display:inline-flex;gap:6px;align-items:center;}.primary.svelte-1mt0jy7 {background:var(--accent) !important;color:var(--accent-fg) !important;border-color:transparent !important;}.grow.svelte-1mt0jy7 {flex:1;}.error.svelte-1mt0jy7 {color:var(--red);margin:0;}\n  @container (max-width: 600px) {.rule.svelte-1mt0jy7 {flex-wrap:wrap;}.when.svelte-1mt0jy7, .acts.svelte-1mt0jy7 {flex-basis:100%;}.arrow.svelte-1mt0jy7 {display:none;} }"
 };
-function fa(e, t) {
-	Ge(t, !0), Yr(e, da);
-	let n = ji(t, "onclose", 3, () => {}), r = /* @__PURE__ */ mt(() => t.frame === "page"), i = /* @__PURE__ */ P(Yt([])), a = /* @__PURE__ */ P(""), o = /* @__PURE__ */ P(""), s = /* @__PURE__ */ P(!1), c = [
+function ma(e, t) {
+	Ge(t, !0), Yr(e, pa);
+	let n = Mi(t, "onclose", 3, () => {}), r = /* @__PURE__ */ mt(() => t.frame === "page"), i = /* @__PURE__ */ P(Yt([])), a = /* @__PURE__ */ P(""), o = /* @__PURE__ */ P(""), s = /* @__PURE__ */ P(!1), c = [
 		"important",
 		"not-important",
 		"archive",
@@ -2747,48 +2770,48 @@ function fa(e, t) {
 	async function f(e) {
 		t.mail.search(e.when), n()();
 	}
-	var p = ua(), m = rn(p), h = z(rn(m)), g = on(h, !0);
+	var p = fa(), m = rn(p), h = z(rn(m)), g = on(h, !0);
 	O(m);
 	var _ = z(m, 4);
 	Hr(_, 17, () => Z(i), Rr, (e, t, n) => {
-		var r = aa(), i = rn(r);
-		_i(i);
+		var r = sa(), i = rn(r);
+		vi(i);
 		var a = z(i, 4);
-		_i(a);
+		vi(a);
 		var o = z(a, 2);
-		Ii(rn(o), {
+		Li(rn(o), {
 			name: "search",
 			size: 15
 		}), O(o);
 		var s = z(o, 2);
-		Ii(rn(s), {
+		Li(rn(s), {
 			name: "trash",
 			size: 15
-		}), O(s), O(r), Cn((e) => vi(a, e), [() => Z(t).actions.join(", ")]), Si(i, () => Z(t).when, (e) => Z(t).when = e), fr("input", a, (e) => Z(t).actions = e.currentTarget.value.split(",")), fr("click", o, () => f(Z(t))), fr("click", s, () => u(n)), Tr(e, r);
+		}), O(s), O(r), Cn((e) => yi(a, e), [() => Z(t).actions.join(", ")]), Ci(i, () => Z(t).when, (e) => Z(t).when = e), fr("input", a, (e) => Z(t).actions = e.currentTarget.value.split(",")), fr("click", o, () => f(Z(t))), fr("click", s, () => u(n)), Tr(e, r);
 	}, (e) => {
-		Tr(e, oa());
+		Tr(e, ca());
 	});
 	var v = z(_, 2);
 	Hr(v, 20, () => c, (e) => e, (e, t) => {
-		var n = sa(), r = {};
+		var n = la(), r = {};
 		Cn(() => {
 			r !== (r = t) && (n.value = (n.__value = r) ?? "");
 		}), Tr(e, n);
 	}), O(v);
 	var y = z(v, 2), b = (e) => {
-		var t = ca(), n = on(t, !0);
+		var t = ua(), n = on(t, !0);
 		Cn(() => Ar(n, Z(o))), Tr(e, t);
 	};
 	Lr(y, (e) => {
 		Z(o) && e(b);
 	});
 	var x = z(y, 2), S = rn(x);
-	Ii(rn(S), {
+	Li(rn(S), {
 		name: "plus",
 		size: 14
 	}), Ee(), O(S);
 	var C = z(S, 4), ee = (e) => {
-		var t = la();
+		var t = da();
 		fr("click", t, function(...e) {
 			n()?.apply(this, e);
 		}), Tr(e, t);
@@ -2805,4 +2828,4 @@ function fa(e, t) {
 }
 pr(["click", "input"]);
 //#endregion
-export { an as $, oi as A, Tr as B, Oi as C, $ as D, _i as E, Rr as F, fr as G, br as H, Lr as I, rr as J, dr as K, jr as L, Yr as M, Jr as N, ui as O, Hr as P, rn as Q, Ar as R, ji as S, Si as T, Cr as U, wr as V, pr as W, _n as X, Cn as Y, Qt as Z, Yi as _, ta as a, mt as at, Ii as b, Li as c, Ke as ct, qi as d, O as dt, on as et, Ji as f, d as ft, Ki as g, Ri as h, na as i, P as it, ii as j, li as k, Bi as l, Ge as lt, Vi as m, ia as n, Yt as nt, Qi as o, tt as ot, Xi as p, m as pt, Z as q, ra as r, F as rt, Zi as s, nt as st, fa as t, z as tt, Wi as u, Ee as ut, Ui as v, Ei as w, Mi as x, zi as y, Fr as z };
+export { Qt as $, ui as A, Ar as B, Mi as C, vi as D, Ci as E, Jr as F, Cr as G, Tr as H, Hr as I, dr as J, pr as K, Rr as L, oi as M, ii as N, $ as O, Yr as P, _n as Q, Lr as R, Ni as S, Di as T, wr as U, Fr as V, br as W, rr as X, Z as Y, Cn as Z, qi as _, ra as a, F as at, Bi as b, Qi as c, tt as ct, Gi as d, Ge as dt, rn as et, Ji as f, Ee as ft, zi as g, Hi as h, m as ht, ia as i, Yt as it, li as j, di as k, Ri as l, nt as lt, Zi as m, d as mt, aa as n, on as nt, na as o, P as ot, Yi as p, O as pt, fr as q, oa as r, z as rt, $i as s, mt as st, ma as t, an as tt, Vi as u, Ke as ut, Xi as v, ki as w, Li as x, Wi as y, jr as z };

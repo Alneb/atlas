@@ -1,13 +1,11 @@
 import { test, expect } from "@playwright/test";
+import { openFile } from "./open";
 
 // CodeMirror's base theme silently beat our stylesheet (fallback font, white gutter in dark mode).
 test("code editor uses the configured font and the theme's gutter colour", async ({ page }) => {
   await page.goto("/");
   await page.getByText("Finish the GW notes.").waitFor();
-  await page.keyboard.press("Control+p");
-  await page.keyboard.type("run.py");
-  await expect(page.getByTestId("palette").getByText("run.py").first()).toBeVisible();
-  await page.keyboard.press("Enter");
+  await openFile(page, "run.py");
   await expect(page.locator(".cm-lineNumbers")).toBeVisible();
   await expect(page.locator(".cm-minimap-gutter")).toHaveCount(0); // editor.minimap default off (slow)
   const s = await page.evaluate(() => {

@@ -228,9 +228,10 @@ export async function openAsDrawing(atlas, path) {
   }
 }
 
-/** Every `.rnote` under `dir` (its folders too), each converted beside itself, nothing opened: what was made, found
- *  made before, and failed, said once at the end. The .rnote files stay. */
-export async function convertFolder(atlas, dir) {
+/** Every `.rnote` under `dir` (its folders too), each converted beside itself, nothing opened; the .rnote files stay.
+ *  `report({ path, n, of, out?, error? })` after each file (`n` of `of`; `out` = `{ path, made }`). Without `report`
+ *  (an app without dialogs) what was made, found made before, and failed is said once at the end in a toast. */
+export async function convertFolder(atlas, dir, report) {
   const todo = [], walk = async (d) => {
     for (const e of await atlas.list(d)) {
       if (e.dir) await walk(e.path);
@@ -238,14 +239,23 @@ export async function convertFolder(atlas, dir) {
     }
   };
   await walk(dir);
-  if (!todo.length) return atlas.toast("Rnote", `No Rnote files in ${dir || "the vault"}.`);
+  if (!todo.length && !report) return atlas.toast("Rnote", `No Rnote files in ${dir || "the vault"}.`);
   let made = 0, again = 0;
   const failed = [];
-  for (const p of todo) {
-    try { (await convertBeside(atlas, p)).made ? made++ : again++; } catch (e) { failed.push(`${p.split("/").pop()}: ${e instanceof Error ? e.message : String(e)}`); }
+  for (const [i, p] of todo.entries()) {
+    try {
+      const out = await convertBeside(atlas, p);
+      out.made ? made++ : again++;
+      report?.({ path: p, n: i + 1, of: todo.length, out });
+    } catch (e) {
+      const error = e instanceof Error ? e.message : String(e);
+      failed.push(`${p.split("/").pop()}: ${error}`);
+      report?.({ path: p, n: i + 1, of: todo.length, error });
+    }
   }
   const said = [`${made} drawing${made === 1 ? "" : "s"} made`, again ? `${again} made before` : "", failed.length ? `${failed.length} failed` : ""].filter(Boolean).join(", ");
-  atlas.toast(`Rnote: ${dir || "the vault"}`, failed.length ? `${said}\n${failed.join("\n")}` : said, failed.length ? "error" : "success");
+  if (!report) atlas.toast(`Rnote: ${dir || "the vault"}`, failed.length ? `${said}\n${failed.join("\n")}` : said, failed.length ? "error" : "success");
+  return { of: todo.length, made, again, failed: failed.length, said };
 }
 
 export function register(atlas) {
@@ -257,5 +267,7 @@ export function register(atlas) {
     return openAsDrawing(atlas, path);
   } });
   atlas.shell.menu("file", (t) => (isRnote(t.path) && !t.dir ? [{ label: "Open as a drawing (Excalidraw)", icon: "edit", run: () => openAsDrawing(atlas, t.path) }]
-    : t.dir ? [{ label: "Convert the Rnote files here to drawings", icon: "edit", run: () => convertFolder(atlas, t.path) }] : []));
+    : t.dir ? [{ label: "Convert the Rnote files here to drawings", icon: "edit", run: () => (atlas.version ?? 0) >= 23
+      ? atlas.openDialog(t.path, { title: `Rnote files in ${t.path || "the vault"}`, width: 560, height: 440, view: "convert.js" })
+      : convertFolder(atlas, t.path) }] : []));
 }

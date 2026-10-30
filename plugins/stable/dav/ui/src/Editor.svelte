@@ -7,8 +7,9 @@
   import CalendarPicker from "./CalendarPicker.svelte";
   import Icon from "./Icon.svelte";
 
-  let { cal, e = null, start, end, allDay, title = "", calendar = "", onclose }: {
-    cal: Cal; e?: Ev | null; start: string; end: string; allDay: boolean; title?: string; calendar?: string; onclose: () => void;
+  // frame "dialog": the app's dialog around it (its title bar, its scrim), so no sheet of its own
+  let { cal, e = null, start, end, allDay, title = "", calendar = "", frame = "sheet", onclose }: {
+    cal: Cal; e?: Ev | null; start: string; end: string; allDay: boolean; title?: string; calendar?: string; frame?: "sheet" | "dialog"; onclose: () => void;
   } = $props();
 
   // the form starts from the event (or the new slot) once; it is the user's after that
@@ -69,12 +70,14 @@
   }
 </script>
 
-<div class="scrim" role="presentation" onclick={onclose}></div>
-<div class="ed" role="dialog" aria-label={e ? "Edit event" : "New event"} aria-modal="true" tabindex="-1" onkeydown={key}>
-  <header>
-    <h2>{e ? "Edit event" : "New event"}</h2>
-    <button class="tool" onclick={onclose} aria-label="Close"><Icon name="x" /></button>
-  </header>
+{#if frame === "sheet"}<div class="scrim" role="presentation" onclick={onclose}></div>{/if}
+<div class="ed" class:bare={frame === "dialog"} role={frame === "sheet" ? "dialog" : "form"} aria-label={e ? "Edit event" : "New event"} aria-modal={frame === "sheet" ? "true" : undefined} tabindex="-1" onkeydown={key}>
+  {#if frame === "sheet"}
+    <header>
+      <h2>{e ? "Edit event" : "New event"}</h2>
+      <button class="tool" onclick={onclose} aria-label="Close"><Icon name="x" /></button>
+    </header>
+  {/if}
   <input bind:this={first} class="title" bind:value={f.summary} placeholder="Add a title" aria-label="Title" />
   <div class="row when">
     <Icon name="clock" />
@@ -110,6 +113,7 @@
 <style>
   .scrim { position: absolute; inset: 0; background: color-mix(in srgb, var(--bg) 55%, transparent); z-index: 70; }
   .ed { position: absolute; z-index: 71; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(620px, calc(100% - 24px)); max-height: calc(100% - 24px); overflow: auto; box-sizing: border-box; background: var(--bg-elev); border: 1px solid var(--border-strong); border-radius: var(--radius); box-shadow: var(--shadow-md, 0 10px 30px rgba(0,0,0,.3)); padding: 12px 18px 16px; display: grid; gap: 12px; }
+  .ed.bare { position: static; transform: none; width: auto; height: 100%; max-height: none; border: 0; border-radius: 0; box-shadow: none; background: var(--bg); padding: 16px; align-content: start; }
   header { display: flex; align-items: center; }
   h2 { flex: 1; margin: 0; font-size: 0.85em; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-faint); }
   .tool { all: unset; cursor: pointer; padding: 6px; border-radius: var(--radius-sm); color: var(--text-muted); display: grid; place-items: center; }

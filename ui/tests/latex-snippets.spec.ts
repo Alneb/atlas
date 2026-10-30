@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { openFile } from "./open";
 
 // snippet files come from the fixture's config.toml (playwright.config.ts)
 test("LaTeX Suite snippets expand in markdown math (auto, tab stops, regex, variables)", async ({ page }) => {
@@ -27,10 +28,7 @@ test("LaTeX Suite snippets expand in markdown math (auto, tab stops, regex, vari
 test("in a .tex file math snippets fire only in math; visual snippets wrap the selection", async ({ page }) => {
   await page.goto("/");
   await page.getByText("Finish the GW notes.").waitFor();
-  await page.keyboard.press("Control+p");
-  await page.keyboard.type("ch2.tex");
-  await expect(page.getByTestId("palette").getByText("ch2.tex").first()).toBeVisible();
-  await page.keyboard.press("Enter");
+  await openFile(page, "ch2.tex");
   await expect(page.locator(".cm-content")).toContainText("Text here.");
   await page.locator(".cm-content").click();
   await page.keyboard.press("Escape");

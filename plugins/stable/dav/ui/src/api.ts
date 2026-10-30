@@ -127,3 +127,6 @@ export function ruleText(r: string | undefined): string {
   if (p.UNTIL) s += `, until ${p.UNTIL.slice(0, 4)}-${p.UNTIL.slice(4, 6)}-${p.UNTIL.slice(6, 8)}`;
   return s;
 }
+
+/** The pane's arg that opens the new-event editor alone, in a dialog (view.ts). */
+export const NEW_EVENT_DIALOG = JSON.stringify({ dialog: "new-event" });

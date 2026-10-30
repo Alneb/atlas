@@ -4,7 +4,7 @@
 import { mount, unmount } from "svelte";
 import Upcoming from "./Upcoming.svelte";
 import CalendarsSection from "./CalendarsSection.svelte";
-import { call, type PluginApi } from "./api";
+import { NEW_EVENT_DIALOG, call, type PluginApi } from "./api";
 
 type Show = { date?: string; view?: string; quick?: boolean; create?: boolean };
 
@@ -24,7 +24,10 @@ export function register(atlas: PluginApi) {
 
   atlas.registerCommand({ id: "open", title: "Calendar: open", run: () => show() });
   atlas.registerCommand({ id: "today", title: "Calendar: today", run: () => show({ date: new Date().toISOString().slice(0, 10), view: "day" }) });
-  atlas.registerCommand({ id: "new", title: "Calendar: new event", run: () => show({ create: true }) });
+  // a moment, not the place: the editor in a dialog (API 20); the pane with its editor open on an older app
+  atlas.registerCommand({ id: "new", title: "Calendar: new event", run: () => (typeof atlas.openDialog === "function"
+    ? void atlas.openDialog(NEW_EVENT_DIALOG, { title: "New event", width: 640, height: 560 })
+    : show({ create: true })) });
   atlas.registerCommand({ id: "quick", title: "Calendar: quick add (in words)…", run: () => show({ quick: true }) });
   atlas.registerCommand({
     id: "sync",

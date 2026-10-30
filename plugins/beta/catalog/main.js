@@ -315,74 +315,87 @@ function itemBlock(atlas) {
 }
 
 // ---- catalog.collections ------------------------------------------------------------------------------------------
+/** The look-up-and-add form: what is pasted or typed recognised, its card (cover, collection, the sources asked),
+ *  several matches offered as chips, then Add (or Open, when it is already in). The collections block and the Add
+ *  dialog (add.js) are this one form. `ondone(path)`: the note added, or the one already there. */
+export function addBox(atlas, { ondone, text = "" }) {
+  style();
+  const box = el("div", "cat-add");
+  const capture = el("form", "cat-capture");
+  const input = el("input");
+  input.placeholder = "Paste a link, a DOI, an arXiv id, an ISBN… to file it in its collection";
+  const go = el("button", "cat-btn", "Look up");
+  go.type = "submit";
+  capture.append(input, go);
+  const preview = el("div");
+  box.append(capture, preview);
+
+  // words several things match: the card lists them, and the one picked is looked up and added by its IDs
+  const choices = (text, p) => {
+    const list = el("div", "cat-line");
+    list.append(el("small", "cat-empty", p.searched ? "Several things match — which one?" : "Or is it:"));
+    for (const c of [p.candidate, ...(p.others ?? [])]) {
+      const chosen = c === p.candidate;
+      const b = el("button", `cat-chip${chosen ? " on" : ""}`, c.label ?? `${human(c.kind)} ${Object.values(c.ids ?? {}).join(" ")}`);
+      b.onclick = () => { if (!chosen) void look(text, { kind: c.kind, ids: c.ids }); };
+      list.append(b);
+    }
+    return list;
+  };
+
+  const look = async (text, pick = {}) => {
+    preview.replaceChildren(el("p", "cat-empty", "Recognising and asking the sources…"));
+    try {
+      const r = await atlas.helper.call("preview", { text, ...pick }, { timeout: 120 });
+      const p = r.result ?? r;
+      const f = p.merged?.fields ?? {};
+      const card = el("div", "cat-preview");
+      card.append(coverBox(atlas, f.cover || f.poster ? { t: "text", value: String(f.cover || f.poster) } : null, f.title));
+      const info = el("div");
+      info.append(el("b", "", `${p.exists ? "Already in" : "Add to"} ${p.label}: ${f.title ?? text}`), el("div", "cat-empty", p.path));
+      const add = el("button", "cat-btn", p.exists ? "Open" : "Add");
+      add.onclick = async () => {
+        if (p.exists) return ondone(p.path);
+        add.disabled = true;
+        try {
+          const done = await atlas.helper.call("add", { text, kind: p.candidate?.kind, ids: p.searched ? p.candidate?.ids : undefined }, { timeout: 120 });
+          preview.replaceChildren();
+          input.value = "";
+          ondone(done.result?.path ?? p.path);
+        } catch (err) { atlas.toast("Not added", String(err?.message ?? err), "error"); add.disabled = false; }
+      };
+      const steps = el("ul", "steps");
+      (r.steps ?? []).slice(-6).forEach((s) => steps.append(el("li", "", s.explanation ?? String(s))));
+      const actions = el("div", "cat-line");
+      actions.append(add);
+      info.append(actions);
+      if (p.others?.length) info.append(choices(text, p));
+      info.append(steps);
+      card.append(info);
+      preview.replaceChildren(card);
+    } catch (err) { preview.replaceChildren(el("p", "cat-err", String(err?.message ?? err))); }
+  };
+
+  capture.onsubmit = (e) => {
+    e.preventDefault();
+    const text = input.value.trim();
+    if (text) void look(text);
+  };
+
+  if (text) { input.value = text; void look(text); }
+  box.input = input;
+  return box;
+}
+
 function collectionsBlock(atlas) {
   return (host, block) => {
     style();
     let gone = false;
     const root = own(el("div", "cat"));
-    const capture = el("form", "cat-capture");
-    const input = el("input");
-    input.placeholder = "Paste a link, a DOI, an arXiv id, an ISBN… to file it in its collection";
-    const go = el("button", "cat-btn", "Look up");
-    go.type = "submit";
-    capture.append(input, go);
-    const preview = el("div");
+    const box = addBox(atlas, { ondone: (path) => { atlas.open(path); void tilesDraw(); } });
     const tiles = el("div", "cat-tiles");
-    root.append(capture, preview, tiles);
+    root.append(box, tiles);
     host.replaceChildren(root);
-
-    // words several things match: the card lists them, and the one picked is looked up and added by its IDs
-    const choices = (text, p) => {
-      const list = el("div", "cat-line");
-      list.append(el("small", "cat-empty", p.searched ? "Several things match — which one?" : "Or is it:"));
-      for (const c of [p.candidate, ...(p.others ?? [])]) {
-        const chosen = c === p.candidate;
-        const b = el("button", `cat-chip${chosen ? " on" : ""}`, c.label ?? `${human(c.kind)} ${Object.values(c.ids ?? {}).join(" ")}`);
-        b.onclick = () => { if (!chosen) void look(text, { kind: c.kind, ids: c.ids }); };
-        list.append(b);
-      }
-      return list;
-    };
-
-    const look = async (text, pick = {}) => {
-      preview.replaceChildren(el("p", "cat-empty", "Recognising and asking the sources…"));
-      try {
-        const r = await atlas.helper.call("preview", { text, ...pick }, { timeout: 120 });
-        const p = r.result ?? r;
-        const f = p.merged?.fields ?? {};
-        const card = el("div", "cat-preview");
-        card.append(coverBox(atlas, f.cover || f.poster ? { t: "text", value: String(f.cover || f.poster) } : null, f.title));
-        const info = el("div");
-        info.append(el("b", "", `${p.exists ? "Already in" : "Add to"} ${p.label}: ${f.title ?? text}`), el("div", "cat-empty", p.path));
-        const add = el("button", "cat-btn", p.exists ? "Open" : "Add");
-        add.onclick = async () => {
-          if (p.exists) return atlas.open(p.path);
-          add.disabled = true;
-          try {
-            const done = await atlas.helper.call("add", { text, kind: p.candidate?.kind, ids: p.searched ? p.candidate?.ids : undefined }, { timeout: 120 });
-            atlas.open(done.result?.path ?? p.path);
-            preview.replaceChildren();
-            input.value = "";
-            void tilesDraw();
-          } catch (err) { atlas.toast("Not added", String(err?.message ?? err), "error"); add.disabled = false; }
-        };
-        const steps = el("ul", "steps");
-        (r.steps ?? []).slice(-6).forEach((s) => steps.append(el("li", "", s.explanation ?? String(s))));
-        const actions = el("div", "cat-line");
-        actions.append(add);
-        info.append(actions);
-        if (p.others?.length) info.append(choices(text, p));
-        info.append(steps);
-        card.append(info);
-        preview.replaceChildren(card);
-      } catch (err) { preview.replaceChildren(el("p", "cat-err", String(err?.message ?? err))); }
-    };
-
-    capture.onsubmit = (e) => {
-      e.preventDefault();
-      const text = input.value.trim();
-      if (text) void look(text);
-    };
 
     const tilesDraw = async () => {
       let list;
@@ -637,7 +650,7 @@ export function register(atlas) {
   // from anywhere: a link, DOI, arXiv id or ISBN into its library (what Clip's "Clip a web page…" did, for every kind)
   atlas.registerCommand({
     id: "add", title: "Add to the catalog…",
-    run: () => atlas.pick({
+    run: () => (atlas.version ?? 0) >= 23 ? atlas.openDialog(undefined, { title: "Add to the catalog", width: 640, height: 460, view: "add.js" }) : atlas.pick({
       placeholder: "A link, DOI, arXiv id, ISBN or title…", tag: "Catalog", icon: "library", items: [], typed: (t) => `Add ${t}`,
       onpick: async (text) => {
         if (!text?.trim()) return;

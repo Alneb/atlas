@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { openFile } from "./open";
 
 // A table over hundreds of notes draws only the rows around the view; the scrollbar is the whole table's, and the
 // last row is there once scrolled to.
@@ -13,10 +14,7 @@ test("a base's table draws only the rows in view, and scrolling reaches the last
   await request.put("/api/file", { headers: H, data: { path: "db/many.base", text: 'filters:\n  and:\n    - file.inFolder("db/many")\nviews:\n  - type: table\n    name: Many\n    order: [file.name, k]\n    sort:\n      - property: file.name\n        direction: ASC\n' } });
 
   await page.goto("/");
-  await page.keyboard.press("Control+p");
-  await page.keyboard.type("many.base");
-  await expect(page.getByTestId("palette").getByText("many.base").first()).toBeVisible();
-  await page.keyboard.press("Enter");
+  await openFile(page, "many.base");
   const pane = page.locator(".base-pane");
   await expect(pane.locator("tbody tr:not(.pad)").first()).toContainText("n000");
 

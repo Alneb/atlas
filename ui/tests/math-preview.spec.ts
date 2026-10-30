@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
+import { openFile } from "./open";
 
 // "preview latex formulas while i write them": with the caret in a formula, a box under it shows
 // the formula drawn, at every key — also before the closing $ is typed; a formula that does not
@@ -77,10 +78,7 @@ test("display math is drawn in the text under it, inline math floats above its l
   // a .tex file: \[ … \] is drawn in the text too
   await request.put("/api/file", { headers: { "x-atlas": "1" }, data: { path: "notes/eq.tex", text: "Text.\n\\[\n  a^2 + b^2\n\\]\nMore.\n" } });
   await page.keyboard.press("Escape"); await page.keyboard.press("Escape");
-  await page.keyboard.press("Control+p");
-  await page.keyboard.type("eq.tex");
-  await expect(page.getByTestId("palette").getByText("eq.tex").first()).toBeVisible();
-  await page.keyboard.press("Enter");
+  await openFile(page, "eq.tex");
   await page.locator(".cm-content:visible").first().getByText("a^2").click();
   await expect(page.locator(".cm-content:visible .cm-math-preview-block .katex")).toBeVisible();
 });

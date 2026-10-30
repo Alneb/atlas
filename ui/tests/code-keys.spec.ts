@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { openFile } from "./open";
 
 // "VS Code keys in code": in a code file the editing keys are the editor's — Ctrl+G goes to a line,
 // Ctrl+Shift+K deletes the line, Ctrl+Shift+L selects every occurrence. The app's commands live on
@@ -7,10 +8,7 @@ test("a code file keeps VS Code's editing keys; the app's Super keys still reach
   await request.put("/api/file", { headers: { "x-atlas": "1" }, data: { path: "projects/keys.py", text: "a = 1\nb = 2\nc = a + a\n" } });
   await page.goto("/");
   await page.getByText("Finish the GW notes.").waitFor();
-  await page.keyboard.press("Control+p");
-  await page.keyboard.type("keys.py");
-  await expect(page.getByTestId("palette").getByText("keys.py").first()).toBeVisible();
-  await page.keyboard.press("Enter");
+  await openFile(page, "keys.py");
   await page.locator(".code-cm .cm-line").first().click();
   const text = () => page.evaluate(() => (window as unknown as { __atlas: { editor(): { text: string } } }).__atlas.editor().text);
   await page.keyboard.press("Control+g");
@@ -36,10 +34,7 @@ test("Ctrl+D and Ctrl+Shift+L edit every occurrence; find counts its matches", a
   await request.put("/api/file", { headers: { "x-atlas": "1" }, data: { path: "projects/multi.py", text: "foo = 1\nfoo = 2\nbar = foo\n" } });
   await page.goto("/");
   await page.getByText("Finish the GW notes.").waitFor();
-  await page.keyboard.press("Control+p");
-  await page.keyboard.type("multi.py");
-  await expect(page.getByTestId("palette").getByText("multi.py").first()).toBeVisible();
-  await page.keyboard.press("Enter");
+  await openFile(page, "multi.py");
   await page.locator(".code-cm .cm-line").first().click();
   const text = () => page.evaluate(() => (window as unknown as { __atlas: { editor(): { text: string } } }).__atlas.editor().text);
   await page.keyboard.press("Control+Home");

@@ -18,3 +18,6 @@ export const standIn = (atlas: PluginApi): RulesHost => ({
 
 /** The pane's arg that opens the rules dialog (view.ts). */
 export const RULES_DIALOG = JSON.stringify({ dialog: "rules" });
+
+/** The pane's arg that opens the Thunderbird dialog (view.ts): its accounts as cards, its local mail as notes. */
+export const THUNDERBIRD_DIALOG = JSON.stringify({ dialog: "thunderbird" });

@@ -1,12 +1,10 @@
 import { test, expect } from "@playwright/test";
+import { openFile } from "./open";
 
 test("a code file talks to its language server: diagnostics, hover, completion", async ({ page }) => {
   await page.goto("/");
   await page.getByText("Finish the GW notes.").waitFor();
-  await page.keyboard.press("Control+p");
-  await page.keyboard.type("run.py");
-  await expect(page.getByTestId("palette").getByText("run.py").first()).toBeVisible();
-  await page.keyboard.press("Enter");
+  await openFile(page, "run.py");
   // the fake server flags `import` on line 1 as soon as the file opens
   await expect(page.locator(".cm-lintRange-warning")).toHaveCount(1, { timeout: 10000 });
   await page.locator(".cm-line", { hasText: "def energy" }).getByText("energy").hover();
@@ -25,10 +23,7 @@ test("F2 renames through the server, in the open file and in a closed one, with 
   await request.put("/api/file", { headers: H, data: { path: "projects/lsp_main.py", text: "old_name = 1\nprint(old_name)\n" } });
   await request.put("/api/file", { headers: H, data: { path: "projects/lsp_other.py", text: "old_name\n" } });
   await page.goto("/");
-  await page.keyboard.press("Control+p");
-  await page.keyboard.type("lsp_main.py");
-  await expect(page.getByTestId("palette").getByText("lsp_main.py").first()).toBeVisible();
-  await page.keyboard.press("Enter");
+  await openFile(page, "lsp_main.py");
   await expect(page.locator(".cm-lintRange-warning")).toHaveCount(1, { timeout: 10000 }); // the server is up
   await page.locator(".cm-line").first().click();
   await page.keyboard.press("Escape");
@@ -47,10 +42,7 @@ test("F2 renames through the server, in the open file and in a closed one, with 
 test("Ctrl+. offers the server's code actions and applies the one chosen", async ({ page, request }) => {
   await request.put("/api/file", { headers: { "x-atlas": "1" }, data: { path: "projects/lsp_fix.py", text: "import os\nprint(1)\n" } });
   await page.goto("/");
-  await page.keyboard.press("Control+p");
-  await page.keyboard.type("lsp_fix.py");
-  await expect(page.getByTestId("palette").getByText("lsp_fix.py").first()).toBeVisible();
-  await page.keyboard.press("Enter");
+  await openFile(page, "lsp_fix.py");
   await expect(page.locator(".cm-lintRange-warning")).toHaveCount(1, { timeout: 10000 });
   await page.locator(".cm-line").first().click();
   await page.keyboard.press("Control+.");
@@ -66,10 +58,7 @@ test("Ctrl+. offers the server's code actions and applies the one chosen", async
 test("in code Tab takes the server's completion; without a list it indents at the caret", async ({ page }) => {
   await page.goto("/");
   await page.getByText("Finish the GW notes.").waitFor();
-  await page.keyboard.press("Control+p");
-  await page.keyboard.type("run.py");
-  await expect(page.getByTestId("palette").getByText("run.py").first()).toBeVisible();
-  await page.keyboard.press("Enter");
+  await openFile(page, "run.py");
   await expect(page.locator(".cm-lintRange-warning")).toHaveCount(1, { timeout: 10000 });
   const text = () => page.evaluate(() => (window as any).__atlas.editor().text as string);
   await page.locator(".cm-line", { hasText: "def energy" }).click();
@@ -106,10 +95,7 @@ test("go to a symbol in the project: the server's symbols, the chosen one opened
   await request.put("/api/file", { headers: { "x-atlas": "1" }, data: { path: "projects/lsp_sym.py", text: "# shapes\n\nclass Lattice:\n    pass\n" } });
   await page.goto("/");
   await page.getByText("Finish the GW notes.").waitFor();
-  await page.keyboard.press("Control+p");
-  await page.keyboard.type("run.py");
-  await expect(page.getByTestId("palette").getByText("run.py").first()).toBeVisible();
-  await page.keyboard.press("Enter");
+  await openFile(page, "run.py");
   await expect(page.locator(".cm-lintRange-warning")).toHaveCount(1, { timeout: 10000 });
   await page.keyboard.press("F1");
   await expect(page.getByTestId("palette").getByRole("textbox")).toBeFocused();
@@ -140,10 +126,7 @@ for (const shown of [true, false]) {
     });
     await page.goto("/");
     await page.getByText("Finish the GW notes.").waitFor();
-    await page.keyboard.press("Control+p");
-    await page.keyboard.type("run.py");
-    await expect(page.getByTestId("palette").getByText("run.py").first()).toBeVisible();
-    await page.keyboard.press("Enter");
+    await openFile(page, "run.py");
     await expect(page.locator(".cm-lintRange-warning")).toHaveCount(1, { timeout: 10000 });
     const hint = page.locator(".cm-line", { hasText: "return" }).locator(".cm-inlay-hint");
     if (!shown) { await page.waitForTimeout(1200); await expect(hint).toHaveCount(0); return; }
@@ -164,10 +147,7 @@ test("Python: choose the environment — found in the vault, and the server runs
   await request.put("/api/file", { headers: H, data: { path: "simenv/.venv/bin/python3", text: "" } });
   await page.goto("/");
   await page.getByText("Finish the GW notes.").waitFor();
-  await page.keyboard.press("Control+p");
-  await page.keyboard.type("run.py");
-  await expect(page.getByTestId("palette").getByText("run.py").first()).toBeVisible();
-  await page.keyboard.press("Enter");
+  await openFile(page, "run.py");
   await expect(page.locator(".cm-lintRange-warning")).toHaveCount(1, { timeout: 10000 });
   const choose = async (name: string) => {
     await page.keyboard.press("F1");

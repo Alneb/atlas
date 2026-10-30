@@ -5,9 +5,9 @@ import { mount, unmount } from "svelte";
 import Inbox from "./Inbox.svelte";
 import Rules from "./Rules.svelte";
 import NoteView from "./NoteView.svelte";
-import { askYes, call, type PluginApi } from "./api";
+import { call, type PluginApi } from "./api";
 import { openMail as openPane } from "./open-mail";
-import { standIn } from "./rules-host";
+import { THUNDERBIRD_DIALOG, standIn } from "./rules-host";
 import { signin } from "./signin";
 
 type Card = { name: string; auth?: string; user?: string; claude?: string };
@@ -33,31 +33,12 @@ export function register(atlas: PluginApi) {
   } });
   atlas.registerCommand({ id: "accounts", title: "Email: accounts…", run: () => atlas.plugin.openSettings() });
   atlas.registerCommand({ id: "signin", title: "Email: sign in to Outlook…", run: (arg?: unknown) => void signin(atlas, (arg as { record?: Card })?.record) });
-  const importThunderbird = () => atlas.pick({
-    placeholder: "An account from Thunderbird — it becomes a card in Email's settings", tag: "Thunderbird",
-    items: async () => (await call<{ accounts: { user: string; name: string; imap_host: string; auth: string; profile: string }[] }>(atlas, "thunderbird")).accounts.map((a, i) => ({ value: String(i), title: a.user || a.name, detail: `${a.imap_host} · ${a.auth} · ${a.profile}` })),
-    onpick: async (i) => {
-      const card = (await call<{ accounts: { record: Card }[] }>(atlas, "thunderbird")).accounts[Number(i)].record;
-      try { await atlas.plugin.saveSettings({ accounts: [...cards(), card] }); } catch (e) { atlas.toast("Account not added", String((e as Error).message ?? e), "error"); return; }
-      atlas.toast("Account added", `${card.name}: ${card.auth === "outlook" ? "now “Sign in to Outlook” on its card" : "now type its password on its card (an app password for Gmail)"}.`, "success");
-      atlas.plugin.openSettings();
-    },
-  });
-  atlas.registerCommand({ id: "thunderbird", title: "Email: import an account from Thunderbird…", run: () => { importThunderbird(); } });
-  atlas.registerCommand({ id: "thunderbird-mail", title: "Email: keep Thunderbird's local mail as notes…", run: () => { atlas.pick({
-    placeholder: "Which account's local Thunderbird mail (a POP account's, gone from the server)?", tag: "Thunderbird",
-    items: cards().map((c) => ({ value: c.name, title: c.name, detail: c.user })),
-    onpick: async (account) => {
-      try {
-        const dry = await call<{ missing: Record<string, number>; note?: string }>(atlas, "thunderbird_mail", { account, dry: true }, 600);
-        const n = Object.values(dry.missing ?? {}).reduce((a, b) => a + b, 0);
-        if (!n) { atlas.toast("Email", dry.note ?? "Every local message is already a note."); return; }
-        if (!(await askYes(atlas, `${n} messages Thunderbird keeps for ${account} are in no note (${Object.entries(dry.missing).map(([f, k]) => `${f}: ${k}`).join(", ")}). Write them as notes?`, { ok: "Write them" }))) return;
-        const r = await call<{ saved: string[]; failed: string[] }>(atlas, "thunderbird_mail", { account, dry: false }, 1800);
-        atlas.toast("Email", `${r.saved.length} kept as notes${r.failed.length ? `, ${r.failed.length} failed` : ""}.`, r.failed.length ? "error" : "success");
-      } catch (e) { atlas.toast("Email", (e as Error).message, "error"); }
-    },
-  }); } });
+  // Thunderbird's accounts and local mail: one dialog over the app (API 20); a tab of its own on an older one
+  const thunderbird = () => (typeof atlas.openDialog === "function"
+    ? void atlas.openDialog(THUNDERBIRD_DIALOG, { title: "Import from Thunderbird", width: 640, height: 560 })
+    : atlas.openView(THUNDERBIRD_DIALOG, { title: "Thunderbird", icon: "mail" }));
+  atlas.registerCommand({ id: "thunderbird", title: "Email: import an account from Thunderbird…", run: thunderbird });
+  atlas.registerCommand({ id: "thunderbird-mail", title: "Email: keep Thunderbird's local mail as notes…", run: thunderbird });
   // one listener however often the plugin is loaded again (a stale one would start a second sign-in)
   const w = window as unknown as { __atlasEmailSignin?: EventListener };
   if (w.__atlasEmailSignin) window.removeEventListener("atlas-email:signin", w.__atlasEmailSignin);

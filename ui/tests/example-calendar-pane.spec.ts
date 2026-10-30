@@ -125,3 +125,34 @@ test("each account has its own heading in the side panel, with why it does not s
   });
   expect(JSON.stringify(status)).toContain("no app password yet");
 });
+
+test("Calendar: new event is a dialog with the pane's editor, the calendar not opened; saved through the engine", async ({ page }) => {
+  // one writable calendar, answered here for the engine (the cards point at no server); `create` recorded
+  const created: Record<string, unknown>[] = [];
+  await page.route("**/api/plugins/dav/helper", async (route) => {
+    const body = route.request().postDataJSON() as { method: string; params: Record<string, unknown> };
+    if (body.method === "watch") return route.fulfill({ json: { sources: [{ id: "home/personal", kind: "caldav", account: "home", url: "http://127.0.0.1:9/caldav/personal/", name: "Personal", writable: true, synced: 0 }], write: "home/personal", accounts: [], configured: true } });
+    if (body.method === "create") { created.push(body.params); return route.fulfill({ json: { undo: 1 } }); }
+    if (body.method === "range") return route.fulfill({ json: { events: [] } });
+    return route.continue();
+  });
+  await page.goto("/");
+  await page.getByText("Finish the GW notes.").waitFor();
+  await expect.poll(() => page.evaluate(() => (window as unknown as { __atlas: { commands(): { id: string }[] } }).__atlas.commands().some((c) => c.id === "plugin.dav.new")), { timeout: 20_000 }).toBe(true);
+  await page.keyboard.press("F1");
+  await page.keyboard.type("Calendar: new event");
+  await page.keyboard.press("Enter");
+  const form = page.getByRole("form", { name: "New event" });
+  await expect(form.getByRole("textbox", { name: "Title" })).toBeFocused({ timeout: 15_000 });
+  await expect(page.locator(".calendar")).toHaveCount(0); // a moment, not the place
+  await page.keyboard.type("Lab meeting");
+  for (const scheme of ["light", "dark"] as const) { // judged in both themes (docs/guides/UI-STYLE.md)
+    await page.emulateMedia({ colorScheme: scheme });
+    await page.screenshot({ path: `test-results/calendar-new-event-${scheme}.png` });
+  }
+  await form.getByRole("button", { name: "Save" }).click();
+  await expect(form).toHaveCount(0);
+  await expect.poll(() => created.length).toBe(1);
+  expect(created[0]).toMatchObject({ summary: "Lab meeting", calendar: "home/personal", all_day: false });
+  await expect(page.locator(".toast", { hasText: "Added “Lab meeting”" })).toBeVisible();
+});

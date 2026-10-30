@@ -1,4 +1,5 @@
 import { test, expect, type APIRequestContext } from "@playwright/test";
+import { openFile } from "./open";
 import { execFileSync } from "node:child_process";
 import { changedLines } from "../src/lib/editor/patch-lines";
 import { WS } from "../playwright.config";
@@ -23,10 +24,7 @@ test("changed and new lines of a tracked code file are marked; saving updates th
   await put(request, "code/gutter.py", "a = 1\nb = 20\nc = 3\nd = 4\n");
   await page.goto("/");
   await page.getByText("Finish the GW notes.").waitFor();
-  await page.keyboard.press("Control+p");
-  await page.keyboard.type("gutter.py");
-  await expect(page.getByTestId("palette").getByText("gutter.py").first()).toBeVisible();
-  await page.keyboard.press("Enter");
+  await openFile(page, "gutter.py");
   const gutter = page.locator(".cm-git-gutter");
   await expect(gutter.locator(".cm-git-changed")).toHaveCount(1);
   await expect(gutter.locator(".cm-git-added")).toHaveCount(1);

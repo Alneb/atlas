@@ -1,4 +1,5 @@
 import { test, expect, type APIRequestContext, type Page } from "@playwright/test";
+import { openFile } from "./open";
 
 // A base edited as in Obsidian's Bases: the toolbar's Filter (two scopes), Sort and Properties popovers, the view menu,
 // the table's header (drag, resize, menu) and its cells edited in place — each written to the `.base` or to the note at
@@ -9,10 +10,7 @@ const text = (r: APIRequestContext, f: string) => r.get(`/api/file?path=${encode
 
 async function openBase(page: Page, name: string) {
   await page.goto("/");
-  await page.keyboard.press("Control+p");
-  await page.keyboard.type(name);
-  await expect(page.getByTestId("palette").getByText(name).first()).toBeVisible();
-  await page.keyboard.press("Enter");
+  await openFile(page, name);
   return page.locator(".base-pane");
 }
 

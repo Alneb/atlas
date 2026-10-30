@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
+import { openFile } from "./open";
 import { copyFileSync, mkdirSync, readFileSync, existsSync, readdirSync, rmSync, utimesSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { gzipSync } from "node:zlib";
@@ -14,7 +15,7 @@ test.beforeAll(() => {
   writeRnote();
   const plugin = join(WS, ".atlas/plugins/rnote");
   mkdirSync(plugin, { recursive: true });
-  for (const f of ["plugin.toml", "main.js", "view.js"]) copyFileSync(new URL(`../../plugins/beta/rnote/${f}`, import.meta.url), join(plugin, f));
+  for (const f of ["plugin.toml", "main.js", "view.js", "convert.js"]) copyFileSync(new URL(`../../plugins/beta/rnote/${f}`, import.meta.url), join(plugin, f));
 });
 
 test.afterAll(() => rmSync(join(WS, ".atlas/plugins/rnote"), { recursive: true, force: true }));
@@ -137,10 +138,7 @@ test("an .rnote opens as the Excalidraw drawing converted from it, the strokes' 
   const t = track(page);
   await page.goto("/");
   await page.getByText("Finish the GW notes.").waitFor();
-  await page.keyboard.press("Control+p");
-  await page.keyboard.type("derivation.rnote");
-  await expect(page.getByTestId("palette").getByText("derivation.rnote").first()).toBeVisible();
-  await page.keyboard.press("Enter");
+  await openFile(page, "derivation.rnote");
   await expect(page.locator(".draw-pane canvas").first()).toBeVisible({ timeout: 15_000 });
   const out = join(WS, "notes/drawings/derivation.excalidraw");
   await expect.poll(() => existsSync(out)).toBe(true);
@@ -247,7 +245,7 @@ test("a page's stroke running past the page's edge is drawn beyond it", async ({
 });
 
 
-test("a folder's Rnote files converted at once from its menu, each beside itself, again only counted", async ({ page }) => {
+test("a folder's Rnote files converted at once from its menu in a dialog, each beside itself, again only counted", async ({ page }) => {
   const stroke = { brushstroke: { path: { start: { pos: [0, 0], pressure: 0.5 }, segments: [{ lineto: { end: { pos: [40, 40], pressure: 0.5 } } }] },
     style: { smooth: { stroke_width: 2, stroke_color: { r: 0, g: 0, b: 0, a: 1 } } } } };
   const doc = gzipSync(JSON.stringify({ version: "0.11.0", data: { engine_snapshot: { document: {}, stroke_components: [{ value: stroke, version: 1 }] } } }));
@@ -263,12 +261,17 @@ test("a folder's Rnote files converted at once from its menu, each beside itself
       await page.getByRole("menuitem", { name: "Convert the Rnote files here to drawings" }).click();
     };
     await convert();
-    await expect(page.locator(".toast", { hasText: "Rnote: rnotes" })).toContainText("2 drawings made");
+    const dialog = page.locator(".rnc");
+    await expect(dialog.locator(".rnc-said")).toHaveText("2 drawings made.");
+    for (const f of ["a.rnote", "sub/b.rnote"]) await expect(dialog.locator("li", { hasText: f }).locator(".what")).toHaveText("made");
     expect(existsSync(join(WS, "rnotes/a.excalidraw")) && existsSync(join(WS, "rnotes/sub/b.excalidraw"))).toBe(true);
     expect(existsSync(join(WS, "rnotes/a.rnote"))).toBe(true); // inputs: kept
-    await page.locator(".toast", { hasText: "Rnote: rnotes" }).getByRole("button", { name: "Close" }).click();
+    await dialog.getByRole("button", { name: "Close" }).click();
+    await expect(dialog).toHaveCount(0);
     await convert();
-    await expect(page.locator(".toast", { hasText: "Rnote: rnotes" })).toContainText("0 drawings made, 2 made before");
+    await expect(dialog.locator(".rnc-said")).toHaveText("0 drawings made, 2 made before.");
+    await dialog.locator("li", { hasText: "a.rnote" }).click(); // a line opens its drawing
+    await expect(page.locator(".draw-pane canvas.interactive")).toBeVisible({ timeout: 15_000 });
   } finally {
     rmSync(join(WS, "rnotes"), { recursive: true, force: true });
   }

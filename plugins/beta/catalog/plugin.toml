@@ -7,7 +7,7 @@ rail = false                # one Library: its kinds are tabs of the built-in Li
 description = "anything you capture, recognised, enriched and filed in its library"
 phone = true # runs in the phone apps too (only plugins marked so start there)
 icon = "grid" # not References' library icon (a vault may show both)
-version = "0.6.1"
+version = "0.7.0"
 api = 19
 provides = ["catalog"]                 # the role the core and the page ask for (not this id)
 

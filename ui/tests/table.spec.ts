@@ -1,12 +1,10 @@
 import { test, expect } from "@playwright/test";
+import { openFile } from "./open";
 
 test("TSV opens as a sortable, filterable table", async ({ page }) => {
   await page.goto("/");
   await page.getByText("Finish the GW notes.").waitFor();
-  await page.keyboard.press("Control+p");
-  await page.keyboard.type("sweep.tsv");
-  await expect(page.getByTestId("palette").getByText("sweep.tsv").first()).toBeVisible();
-  await page.keyboard.press("Enter");
+  await openFile(page, "sweep.tsv");
   const pane = page.locator(".table-pane");
   await expect(pane.locator("th", { hasText: "E_kin" })).toBeVisible();
   await expect(pane.getByText("3 rows · 3 columns · tab-separated")).toBeVisible();
@@ -22,10 +20,7 @@ test("table cells: click selects, arrows move, shift extends, Ctrl+C copies TSV"
   await context.grantPermissions(["clipboard-read", "clipboard-write"]);
   await page.goto("/");
   await page.getByText("Finish the GW notes.").waitFor();
-  await page.keyboard.press("Control+p");
-  await page.keyboard.type("sweep.tsv");
-  await expect(page.getByTestId("palette").getByText("sweep.tsv").first()).toBeVisible();
-  await page.keyboard.press("Enter");
+  await openFile(page, "sweep.tsv");
   const pane = page.locator(".table-pane");
   await pane.locator("td", { hasText: "3.0" }).click();
   await page.keyboard.press("ArrowRight");
@@ -39,10 +34,7 @@ test("table cells: click selects, arrows move, shift extends, Ctrl+C copies TSV"
 test("Plot: numeric columns against each other, with a hover readout", async ({ page }) => {
   await page.goto("/");
   await page.getByText("Finish the GW notes.").waitFor();
-  await page.keyboard.press("Control+p");
-  await page.keyboard.type("sweep.tsv");
-  await expect(page.getByTestId("palette").getByText("sweep.tsv").first()).toBeVisible();
-  await page.keyboard.press("Enter");
+  await openFile(page, "sweep.tsv");
   const pane = page.locator(".table-pane");
   await pane.getByRole("button", { name: "Plot" }).click();
   const plot = pane.locator(".plot svg");

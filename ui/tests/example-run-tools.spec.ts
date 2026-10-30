@@ -1,4 +1,5 @@
 import { test, expect, type APIRequestContext } from "@playwright/test";
+import { openFile } from "./open";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
@@ -19,10 +20,7 @@ test.afterAll(async ({ request }) => { await put(request, ".atlas/plugins/run-to
 test("the example run tools: Run above a Python file runs it in the terminal", async ({ page }) => {
   await page.goto("/");
   await page.getByText("Finish the GW notes.").waitFor();
-  await page.keyboard.press("Control+p");
-  await page.keyboard.type("answer.py");
-  await expect(page.getByTestId("palette").getByText("answer.py").first()).toBeVisible();
-  await page.keyboard.press("Enter");
+  await openFile(page, "answer.py");
   const bar = page.getByTestId("code-bar");
   await expect(bar.getByRole("button", { name: "Test" })).toBeVisible();
   await bar.getByRole("button", { name: "Run", exact: true }).click();
@@ -36,10 +34,7 @@ test("Test offers the file's tests, and runs the one chosen", async ({ page, req
   await put(request, "code/test_pick.py", "def test_one():\n    assert True\n\nclass TestTwo:\n    def test_inner(self):\n        assert True\n");
   await page.goto("/");
   await page.getByText("Finish the GW notes.").waitFor();
-  await page.keyboard.press("Control+p");
-  await page.keyboard.type("test_pick.py");
-  await expect(page.getByTestId("palette").getByText("test_pick.py").first()).toBeVisible();
-  await page.keyboard.press("Enter");
+  await openFile(page, "test_pick.py");
   await page.getByTestId("code-bar").getByRole("button", { name: "Test" }).click();
   const palette = page.getByTestId("palette");
   await expect(palette.getByText("All tests in this file")).toBeVisible();

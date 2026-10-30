@@ -1,86 +1,86 @@
-import { $ as e, A as t, C as n, F as r, G as i, H as a, K as o, L as s, R as c, S as l, U as u, V as d, W as f, X as p, Z as m, _ as h, at as g, c as _, ct as v, et as y, f as b, ft as x, h as S, ht as C, i as w, it as T, j as E, k as D, l as O, lt as k, o as A, ot as j, pt as M, q as N, r as P, rt as F, st as I, u as L, ut as R, y as z } from "./ui-lib/layout.js";
+import { A as e, C as t, G as n, H as r, I as i, J as a, K as o, M as s, Q as c, R as l, U as u, W as d, Z as f, _t as p, a as m, at as h, b as g, ct as _, d as v, dt as y, et as b, ft as x, g as S, ht as C, i as w, j as T, l as E, lt as D, mt as O, nt as k, ot as A, p as j, q as M, r as N, s as P, st as F, u as I, ut as L, v as R, w as z, z as B } from "./ui-lib/layout.js";
 //#region plugins/stable/dav/ui/src/Upcoming.svelte
-var B = N("<div class=\"atlas-notice error\"> <div class=\"actions\"><button class=\"atlas-btn\">Settings…</button></div></div>"), V = N("<div class=\"atlas-empty\">Reading the calendar…</div>"), H = N("<div class=\"atlas-empty\">Nothing.</div>"), U = N("<button class=\"ev svelte-10ncuqf\"><span class=\"bar svelte-10ncuqf\" aria-hidden=\"true\"></span> <span class=\"t svelte-10ncuqf\"> </span> <span class=\"s svelte-10ncuqf\"> </span></button>"), ee = N("<button class=\"more svelte-10ncuqf\"> </button>"), te = N("<section class=\"svelte-10ncuqf\"><button class=\"day svelte-10ncuqf\"> </button> <!> <!> <!></section>"), ne = N("<div class=\"up svelte-10ncuqf\"><!></div>"), re = {
+var V = a("<div class=\"atlas-notice error\"> <div class=\"actions\"><button class=\"atlas-btn\">Settings…</button></div></div>"), H = a("<div class=\"atlas-empty\">Reading the calendar…</div>"), U = a("<div class=\"atlas-empty\">Nothing.</div>"), W = a("<button class=\"ev svelte-10ncuqf\"><span class=\"bar svelte-10ncuqf\" aria-hidden=\"true\"></span> <span class=\"t svelte-10ncuqf\"> </span> <span class=\"s svelte-10ncuqf\"> </span></button>"), ee = a("<button class=\"more svelte-10ncuqf\"> </button>"), te = a("<section class=\"svelte-10ncuqf\"><button class=\"day svelte-10ncuqf\"> </button> <!> <!> <!></section>"), ne = a("<div class=\"up svelte-10ncuqf\"><!></div>"), re = {
 	hash: "svelte-10ncuqf",
 	code: ".up.svelte-10ncuqf {display:grid;gap:8px;container-type:inline-size;}section.svelte-10ncuqf {display:grid;gap:1px;}.day.svelte-10ncuqf {all:unset;cursor:pointer;font-size:0.75em;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-faint);font-weight:600;padding:2px 0;}.day.svelte-10ncuqf:hover {color:var(--text);}.ev.svelte-10ncuqf, .more.svelte-10ncuqf {all:unset;box-sizing:border-box;cursor:pointer;display:flex;align-items:center;gap:8px;padding:3px 6px;border-radius:var(--radius-sm);min-width:0;}.ev.svelte-10ncuqf:hover, .more.svelte-10ncuqf:hover {background:var(--bg-hover);}.ev.svelte-10ncuqf:focus-visible, .day.svelte-10ncuqf:focus-visible, .more.svelte-10ncuqf:focus-visible {outline:2px solid var(--accent);outline-offset:-1px;}.bar.svelte-10ncuqf {width:3px;align-self:stretch;border-radius:2px;background:var(--c);flex:none;}.t.svelte-10ncuqf {width:4.6em;flex:none;color:var(--text-muted);font-variant-numeric:tabular-nums;font-size:0.9em;}.s.svelte-10ncuqf {flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}.more.svelte-10ncuqf {color:var(--text-muted);font-size:0.85em;}"
 };
-function W(a, f) {
-	M(f, !0), s(a, re);
-	let p = k(I([])), E = k(""), D = k(!1), N = Math.max(1, Math.min(31, Number(f.options.days ?? 7) || 7)), L = h(/* @__PURE__ */ new Date()), W = R(() => O(f.atlas.plugin.settings.time_format));
+function G(e, n) {
+	C(n, !0), l(e, re);
+	let a = y(D([])), s = y(""), u = y(!1), f = Math.max(1, Math.min(31, Number(n.options.days ?? 7) || 7)), v = R(/* @__PURE__ */ new Date()), w = x(() => I(n.atlas.plugin.settings.time_format));
 	async function G() {
 		try {
-			let e = await A(f.atlas, "range", {
-				from: l(L),
-				to: l(w(L, N - 1)),
-				notes: f.atlas.plugin.settings.show_notes !== !1
+			let e = await P(n.atlas, "range", {
+				from: t(v),
+				to: t(m(v, f - 1)),
+				notes: n.atlas.plugin.settings.show_notes !== !1
 			}, 30);
-			v(p, e.events, !0), v(E, "");
+			L(a, e.events, !0), L(s, "");
 		} catch (e) {
-			v(E, e.message, !0);
+			L(s, e.message, !0);
 		}
-		v(D, !0);
+		L(u, !0);
 	}
-	n(() => (G(), A(f.atlas, "watch", {}, 30).then(G, () => {}), f.atlas.helper.on("changed", () => void G())));
-	let K = R(() => Array.from({ length: N }, (e, t) => w(L, t)).map((t) => ({
-		d: t,
-		evs: P(e(p), t).sort((e, t) => Number(!e.all_day) - Number(!t.all_day) || _(e).getTime() - _(t).getTime())
-	})).filter((e, t) => t < 2 || e.evs.length)), q = (e) => S(e, L) ? "Today" : S(e, w(L, 1)) ? "Tomorrow" : e.toLocaleDateString(void 0, {
+	z(() => (G(), P(n.atlas, "watch", {}, 30).then(G, () => {}), n.atlas.helper.on("changed", () => void G())));
+	let K = x(() => Array.from({ length: f }, (e, t) => m(v, t)).map((e) => ({
+		d: e,
+		evs: N(b(a), e).sort((e, t) => Number(!e.all_day) - Number(!t.all_day) || E(e).getTime() - E(t).getTime())
+	})).filter((e, t) => t < 2 || e.evs.length)), q = (e) => S(e, v) ? "Today" : S(e, m(v, 1)) ? "Tomorrow" : e.toLocaleDateString(void 0, {
 		weekday: "long",
 		day: "numeric",
 		month: "short"
 	});
-	function J(e, t) {
-		let n = e ? b(e) : null;
-		n ? f.atlas.open(n) : f.onopen(l(t));
+	function J(e, r) {
+		let i = e ? j(e) : null;
+		i ? n.atlas.open(i) : n.onopen(t(r));
 	}
-	var Y = ne(), X = F(Y), Z = (t) => {
-		var n = B(), r = F(n, !0), a = j(r), o = g(a);
-		C(n), y(() => u(r, e(E))), m("click", o, () => f.atlas.plugin.openSettings()), i(t, n);
+	var Y = ne(), X = h(Y), Z = (e) => {
+		var t = V(), r = h(t, !0), i = _(r), a = F(i);
+		p(t), k(() => d(r, b(s))), c("click", a, () => n.atlas.plugin.openSettings()), o(e, t);
 	}, Q = (e) => {
-		var t = V();
-		i(e, t);
-	}, $ = (n) => {
-		var a = o(), s = T(a);
-		c(s, 17, () => e(K), (e) => e.d.getTime(), (n, a) => {
-			var o = te(), s = F(o), l = g(s, !0), f = j(s, 2), p = (e) => {
-				var t = H();
-				i(e, t);
+		var t = H();
+		o(e, t);
+	}, $ = (e) => {
+		var t = M(), n = A(t);
+		B(n, 17, () => b(K), (e) => e.d.getTime(), (e, t) => {
+			var n = te(), a = h(n), s = F(a, !0), l = _(a, 2), u = (e) => {
+				var t = U();
+				o(e, t);
 			};
-			d(f, (t) => {
-				e(a).evs.length || t(p);
+			r(l, (e) => {
+				b(t).evs.length || e(u);
 			});
-			var h = j(f, 2);
-			c(h, 17, () => e(a).evs.slice(0, 6), (e) => e.calendar + e.uid + (e.rid ?? ""), (n, o) => {
-				var s = U();
-				let c;
-				var l = j(F(s), 2), d = g(l, !0), f = j(l, 2), p = g(f, !0);
-				C(s), y((n) => {
-					t(s, "title", e(o).calendar_name), c = r(s, "", c, { "--c": e(o).color ?? "var(--accent)" }), u(d, n), u(p, e(o).summary || "(no title)");
-				}, [() => e(o).all_day ? "all day" : z(_(e(o)), e(W))]), m("click", s, () => J(e(o), e(a).d)), i(n, s);
+			var f = _(l, 2);
+			B(f, 17, () => b(t).evs.slice(0, 6), (e) => e.calendar + e.uid + (e.rid ?? ""), (e, n) => {
+				var r = W();
+				let a;
+				var s = _(h(r), 2), l = F(s, !0), u = _(s, 2), f = F(u, !0);
+				p(r), k((e) => {
+					T(r, "title", b(n).calendar_name), a = i(r, "", a, { "--c": b(n).color ?? "var(--accent)" }), d(l, e), d(f, b(n).summary || "(no title)");
+				}, [() => b(n).all_day ? "all day" : g(E(b(n)), b(w))]), c("click", r, () => J(b(n), b(t).d)), o(e, r);
 			});
-			var v = j(h, 2), b = (t) => {
-				var n = ee(), r = g(n);
-				y(() => u(r, `+${e(a).evs.length - 6} more`)), m("click", n, () => J(null, e(a).d)), i(t, n);
+			var m = _(f, 2), v = (e) => {
+				var n = ee(), r = F(n);
+				k(() => d(r, `+${b(t).evs.length - 6} more`)), c("click", n, () => J(null, b(t).d)), o(e, n);
 			};
-			d(v, (t) => {
-				e(a).evs.length > 6 && t(b);
-			}), C(o), y((e) => u(l, e), [() => q(e(a).d)]), m("click", s, () => J(null, e(a).d)), i(n, o);
-		}), i(n, a);
+			r(m, (e) => {
+				b(t).evs.length > 6 && e(v);
+			}), p(n), k((e) => d(s, e), [() => q(b(t).d)]), c("click", a, () => J(null, b(t).d)), o(e, n);
+		}), o(e, t);
 	};
-	d(X, (t) => {
-		e(E) ? t(Z) : e(D) ? t($, -1) : t(Q, 1);
-	}), C(Y), i(a, Y), x();
+	r(X, (e) => {
+		b(s) ? e(Z) : b(u) ? e($, -1) : e(Q, 1);
+	}), p(Y), o(e, Y), O();
 }
-p(["click"]);
+f(["click"]);
 //#endregion
 //#region plugins/stable/dav/ui/src/CalendarsSection.svelte
-var G = N("<p class=\"none svelte-1ajrurb\"> </p>"), K = N("<p class=\"none svelte-1ajrurb\">No calendar yet: add an account above, then they show here.</p>"), q = N("<span class=\"ro svelte-1ajrurb\">· read-only</span>"), J = N("<button class=\"pc svelte-1ajrurb\" role=\"radio\"></button>"), Y = N("<li class=\"svelte-1ajrurb\"><label class=\"svelte-1ajrurb\"><input type=\"checkbox\"/> <span class=\"sq svelte-1ajrurb\"></span> <!></label> <code class=\"svelte-1ajrurb\"> </code> <span class=\"pal svelte-1ajrurb\" role=\"radiogroup\"></span></li>"), X = N("<h4 class=\"svelte-1ajrurb\"> </h4> <ul class=\"svelte-1ajrurb\"></ul>", 1), Z = N("<!> <!>", 1), Q = {
+var K = a("<p class=\"none svelte-1ajrurb\"> </p>"), q = a("<p class=\"none svelte-1ajrurb\">No calendar yet: add an account above, then they show here.</p>"), J = a("<span class=\"ro svelte-1ajrurb\">· read-only</span>"), Y = a("<button class=\"pc svelte-1ajrurb\" role=\"radio\"></button>"), X = a("<li class=\"svelte-1ajrurb\"><label class=\"svelte-1ajrurb\"><input type=\"checkbox\"/> <span class=\"sq svelte-1ajrurb\"></span> <!></label> <code class=\"svelte-1ajrurb\"> </code> <span class=\"pal svelte-1ajrurb\" role=\"radiogroup\"></span></li>"), Z = a("<h4 class=\"svelte-1ajrurb\"> </h4> <ul class=\"svelte-1ajrurb\"></ul>", 1), Q = a("<!> <!>", 1), $ = {
 	hash: "svelte-1ajrurb",
 	code: "h4.svelte-1ajrurb {margin:10px 0 4px;font-size:0.78em;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-faint);}ul.svelte-1ajrurb {list-style:none;margin:0;padding:0;display:grid;gap:4px;}li.svelte-1ajrurb {display:flex;align-items:center;gap:10px;flex-wrap:wrap;min-width:0;}label.svelte-1ajrurb {display:flex;align-items:center;gap:8px;flex:1 1 12em;min-width:0;color:var(--text);}.sq.svelte-1ajrurb {width:12px;height:12px;border-radius:4px;background:var(--c);flex:none;}.ro.svelte-1ajrurb {color:var(--text-faint);}code.svelte-1ajrurb {color:var(--text-faint);font-size:0.8em;}.pal.svelte-1ajrurb {display:flex;gap:4px;}.pc.svelte-1ajrurb {all:unset;cursor:pointer;width:16px;height:16px;border-radius:50%;background:var(--c);}.pc[aria-checked=\"true\"].svelte-1ajrurb {box-shadow:0 0 0 2px var(--bg-elev, var(--bg)), 0 0 0 4px var(--c);}.pc.svelte-1ajrurb:focus-visible {outline:2px solid var(--accent);outline-offset:2px;}.none.svelte-1ajrurb {color:var(--text-faint);margin:4px 0;}"
 };
-function $(a, o) {
-	M(o, !0), s(a, Q);
-	let l = [
+function ie(t, n) {
+	C(n, !0), l(t, $);
+	let a = [
 		"#3b82f6",
 		"#0ea5e9",
 		"#14b8a6",
@@ -91,80 +91,80 @@ function $(a, o) {
 		"#ec4899",
 		"#a855f7",
 		"#64748b"
-	], f = k(I([])), p = k(I([])), h = k(""), _ = k(I([])), b = k(I({}));
-	function S() {
-		let e = o.ctx.settings();
-		v(_, (e.hidden ?? []).slice(), !0), v(b, Object.fromEntries((e.colors ?? []).flatMap((e) => {
+	], u = y(D([])), f = y(D([])), m = y(""), g = y(D([])), S = y(D({}));
+	function w() {
+		let e = n.ctx.settings();
+		L(g, (e.hidden ?? []).slice(), !0), L(S, Object.fromEntries((e.colors ?? []).flatMap((e) => {
 			let t = e.lastIndexOf(":");
 			return t > 0 ? [[e.slice(0, t).trim(), e.slice(t + 1).trim()]] : [];
 		})), !0);
 	}
-	n(() => {
-		S(), o.ctx.call("sources", {}, 30).then((e) => {
+	z(() => {
+		w(), n.ctx.call("sources", {}, 30).then((e) => {
 			let t = e;
-			v(f, t.sources, !0), v(p, t.accounts ?? [], !0);
-		}, (e) => v(h, String(e?.message ?? e), !0));
+			L(u, t.sources, !0), L(f, t.accounts ?? [], !0);
+		}, (e) => L(m, String(e?.message ?? e), !0));
 	});
-	let w = R(() => [...e(p).map((t) => ({
-		title: t.name,
-		items: e(f).filter((e) => e.account === t.name)
+	let E = x(() => [...b(f).map((e) => ({
+		title: e.name,
+		items: b(u).filter((t) => t.account === e.name)
 	})), {
 		title: "Subscriptions",
-		items: e(f).filter((e) => e.kind === "ics")
-	}].filter((e) => e.items.length)), O = (t) => !e(_).includes(t.id) && !e(_).includes(t.name), A = (t) => e(b)[t.id] ?? e(b)[t.name] ?? t.shown_color ?? t.color ?? L(t.id);
-	function N(t) {
-		v(_, O(t) ? [...e(_), t.id] : e(_).filter((e) => e !== t.id && e !== t.name), !0), o.ctx.save({ hidden: e(_) });
+		items: b(u).filter((e) => e.kind === "ics")
+	}].filter((e) => e.items.length)), j = (e) => !b(g).includes(e.id) && !b(g).includes(e.name), M = (e) => b(S)[e.id] ?? b(S)[e.name] ?? e.shown_color ?? e.color ?? v(e.id);
+	function N(e) {
+		L(g, j(e) ? [...b(g), e.id] : b(g).filter((t) => t !== e.id && t !== e.name), !0), n.ctx.save({ hidden: b(g) });
 	}
-	function P(t, n) {
-		let r = Object.fromEntries(Object.entries(e(b)).filter(([e]) => e !== t.name));
-		v(b, {
+	function P(e, t) {
+		let r = Object.fromEntries(Object.entries(b(S)).filter(([t]) => t !== e.name));
+		L(S, {
 			...r,
-			[t.id]: n
-		}, !0), o.ctx.save({ colors: Object.entries(e(b)).map(([e, t]) => `${e}: ${t}`) });
+			[e.id]: t
+		}, !0), n.ctx.save({ colors: Object.entries(b(S)).map(([e, t]) => `${e}: ${t}`) });
 	}
-	var z = Z(), B = T(z), V = (t) => {
-		var n = G(), r = g(n, !0);
-		y(() => u(r, e(h))), i(t, n);
+	var I = Q(), R = A(I), V = (e) => {
+		var t = K(), n = F(t, !0);
+		k(() => d(n, b(m))), o(e, t);
 	}, H = (e) => {
-		var t = K();
-		i(e, t);
+		var t = q();
+		o(e, t);
 	};
-	d(B, (t) => {
-		e(h) ? t(V) : e(w).length || t(H, 1);
+	r(R, (e) => {
+		b(m) ? e(V) : b(E).length || e(H, 1);
 	});
-	var U = j(B, 2);
-	c(U, 17, () => e(w), (e) => e.title, (n, a) => {
-		var o = X(), s = T(o), f = g(s, !0), p = j(s, 2);
-		c(p, 21, () => e(a).items, (e) => e.id, (n, a) => {
-			var o = Y(), s = F(o), f = F(s);
-			D(f);
-			var p = j(f, 2);
-			let h;
-			var _ = j(p, 1, !0), v = j(_), b = (e) => {
-				var t = q();
-				i(e, t);
+	var U = _(R, 2);
+	B(U, 17, () => b(E), (e) => e.title, (t, n) => {
+		var l = Z(), u = A(l), f = F(u, !0), m = _(u, 2);
+		B(m, 21, () => b(n).items, (e) => e.id, (t, n) => {
+			var l = X(), u = h(l), f = h(u);
+			e(f);
+			var m = _(f, 2);
+			let g;
+			var v = _(m, 1, !0), y = _(v), x = (e) => {
+				var t = J();
+				o(e, t);
 			};
-			d(v, (t) => {
-				e(a).writable || t(b);
-			}), C(s);
-			var x = j(s, 2), S = g(x, !0), w = j(x, 2);
-			c(w, 20, () => l, (e) => e, (n, o) => {
-				var s = J();
-				let c;
-				y((e) => {
-					t(s, "aria-checked", e), t(s, "aria-label", o), c = r(s, "", c, { "--c": o });
-				}, [() => A(e(a)) === o]), m("click", s, () => P(e(a), o)), i(n, s);
-			}), C(w), C(o), y((n, i) => {
-				E(f, n), h = r(p, "", h, { "--c": i }), u(_, e(a).name), u(S, e(a).id), t(w, "aria-label", `Colour of ${e(a).name ?? ""}`);
-			}, [() => O(e(a)), () => A(e(a))]), m("change", f, () => N(e(a))), i(n, o);
-		}), C(p), y(() => u(f, e(a).title)), i(n, o);
-	}), i(a, z), x();
+			r(y, (e) => {
+				b(n).writable || e(x);
+			}), p(u);
+			var S = _(u, 2), C = F(S, !0), w = _(S, 2);
+			B(w, 20, () => a, (e) => e, (e, t) => {
+				var r = Y();
+				let a;
+				k((e) => {
+					T(r, "aria-checked", e), T(r, "aria-label", t), a = i(r, "", a, { "--c": t });
+				}, [() => M(b(n)) === t]), c("click", r, () => P(b(n), t)), o(e, r);
+			}), p(w), p(l), k((e, t) => {
+				s(f, e), g = i(m, "", g, { "--c": t }), d(v, b(n).name), d(C, b(n).id), T(w, "aria-label", `Colour of ${b(n).name ?? ""}`);
+			}, [() => j(b(n)), () => M(b(n))]), c("change", f, () => N(b(n))), o(t, l);
+		}), p(m), k(() => d(f, b(n).title)), o(t, l);
+	}), o(t, I), O();
 }
-p(["change", "click"]);
+f(["change", "click"]);
 //#endregion
 //#region plugins/stable/dav/ui/src/main.ts
-function ie(e) {
-	let t = () => e.plugin.settings.accounts ?? [], n = () => t().some((e) => e.name && e.url && e.user) || !!(e.plugin.settings.url && e.plugin.settings.user), r = (t = {}) => {
+function ae(e) {
+	let t = () => e.plugin.settings.accounts ?? [], r = () => t().some((e) => e.name && e.url && e.user) || !!(e.plugin.settings.url && e.plugin.settings.user), i = (t = {}) => {
 		window.__atlasCalendarShow = t, e.openView(void 0, {
 			title: "Calendar",
 			icon: "calendar"
@@ -175,33 +175,37 @@ function ie(e) {
 	e.registerCommand({
 		id: "open",
 		title: "Calendar: open",
-		run: () => r()
+		run: () => i()
 	}), e.registerCommand({
 		id: "today",
 		title: "Calendar: today",
-		run: () => r({
+		run: () => i({
 			date: (/* @__PURE__ */ new Date()).toISOString().slice(0, 10),
 			view: "day"
 		})
 	}), e.registerCommand({
 		id: "new",
 		title: "Calendar: new event",
-		run: () => r({ create: !0 })
+		run: () => typeof e.openDialog == "function" ? void e.openDialog(w, {
+			title: "New event",
+			width: 640,
+			height: 560
+		}) : i({ create: !0 })
 	}), e.registerCommand({
 		id: "quick",
 		title: "Calendar: quick add (in words)…",
-		run: () => r({ quick: !0 })
+		run: () => i({ quick: !0 })
 	}), e.registerCommand({
 		id: "sync",
 		title: "Calendar: put important notes on the server",
 		run: async () => {
-			if (!n()) {
+			if (!r()) {
 				e.toast("Calendar", "Add a calendar account first.", "error"), e.plugin.openSettings();
 				return;
 			}
 			e.toast("Calendar", "Looking for important notes…");
 			try {
-				let t = await A(e, "sync", {}, 300), n = (t.events ?? []).filter((e) => e.outcome === "failed").map((e) => `${e.title}: ${e.why}`);
+				let t = await P(e, "sync", {}, 300), n = (t.events ?? []).filter((e) => e.outcome === "failed").map((e) => `${e.title}: ${e.why}`);
 				e.toast("Calendar", [t.summary, ...n.slice(0, 3)].join("\n"), n.length ? "error" : void 0);
 			} catch (t) {
 				e.toast("Calendar", t.message, "error");
@@ -212,8 +216,8 @@ function ie(e) {
 		title: "Calendar: test the accounts",
 		run: async () => {
 			try {
-				await A(e, "refresh", { force: !0 }, 300);
-				let t = await A(e, "calendars");
+				await P(e, "refresh", { force: !0 }, 300);
+				let t = await P(e, "calendars");
 				if (!t.accounts.length) {
 					e.toast("Calendar", "No account yet.", "error"), e.plugin.openSettings();
 					return;
@@ -234,8 +238,8 @@ function ie(e) {
 				return;
 			}
 			try {
-				let t = await A(e, "test_account", { record: n }, 60);
-				e.toast(String(n.name ?? "Account"), t.text, t.ok ? "success" : "error"), t.ok && A(e, "refresh", { force: !0 }, 300).catch(() => {});
+				let t = await P(e, "test_account", { record: n }, 60);
+				e.toast(String(n.name ?? "Account"), t.text, t.ok ? "success" : "error"), t.ok && P(e, "refresh", { force: !0 }, 300).catch(() => {});
 			} catch (t) {
 				e.toast("Calendar", t.message, "error");
 			}
@@ -245,7 +249,7 @@ function ie(e) {
 		title: "Calendar: sync now",
 		run: async () => {
 			try {
-				let t = await A(e, "refresh", { force: !0 }, 300);
+				let t = await P(e, "refresh", { force: !0 }, 300);
 				e.toast("Calendar", t.errors.length ? t.errors.join("\n") : "Every account and subscription is up to date.", t.errors.length ? "error" : "success");
 			} catch (t) {
 				e.toast("Calendar", t.message, "error");
@@ -261,31 +265,31 @@ function ie(e) {
 				return;
 			}
 			try {
-				let t = await A(e, "test_subscription", { record: n }, 60);
-				e.toast("Subscription", t.summary, "success"), A(e, "refresh", { force: !0 }, 120).catch(() => {});
+				let t = await P(e, "test_subscription", { record: n }, 60);
+				e.toast("Subscription", t.summary, "success"), P(e, "refresh", { force: !0 }, 120).catch(() => {});
 			} catch (t) {
 				e.toast("Subscription", t.message, "error");
 			}
 		}
 	}), e.helper.on("added", (t) => {
 		let n = t;
-		e.toast(n.outcome === "updated" ? "Updated in your calendar" : "Added to your calendar", `${n.title} — ${n.start}`, "info", { run: () => r({
+		e.toast(n.outcome === "updated" ? "Updated in your calendar" : "Added to your calendar", `${n.title} — ${n.start}`, "info", { run: () => i({
 			date: n.start.slice(0, 10),
 			view: "day"
 		}) });
-	}), e.registerBlock("dav.upcoming", (t, n) => {
-		let i = a(W, {
+	}), e.registerBlock("dav.upcoming", (t, r) => {
+		let a = u(G, {
 			target: t,
 			props: {
 				atlas: e,
-				options: n.options ?? {},
-				onopen: (e) => r({
+				options: r.options ?? {},
+				onopen: (e) => i({
 					date: e,
 					view: "day"
 				})
 			}
 		});
-		return () => f(i);
+		return () => n(a);
 	}, {
 		title: "Calendar: upcoming",
 		options: [{
@@ -294,7 +298,7 @@ function ie(e) {
 			kind: "number"
 		}]
 	}), e.plugin.settings.url && e.plugin.settings.user && !t().length && (async () => {
-		let t = await A(e, "migrate", {}, 60);
+		let t = await P(e, "migrate", {}, 60);
 		t.values && (await e.plugin.saveSettings(t.values), e.toast("Calendar", `Your calendar account is now the card “${t.name}” (Settings → Calendar → Accounts); add more there.`, "success"));
 	})().catch((t) => e.toast("Calendar: account not moved", String(t.message ?? t), "error")), e.helper.on("settings:renamed", (t) => {
 		let { key: n, from: r, to: i } = t;
@@ -306,24 +310,24 @@ function ie(e) {
 			colors: (o.colors ?? []).map(a)
 		}).catch((t) => e.toast("Calendar", `The renamed account's calendars kept their old ids: ${t.message}`, "error"));
 	});
-	let i = e.plugin.registerSettingsSection?.({
+	let a = e.plugin.registerSettingsSection?.({
 		id: "calendars",
 		title: "Calendars",
 		hint: "Which calendars the pane shows, and their colours.",
 		place: "before",
 		mount(e, t) {
-			let n = a($, {
+			let r = u(ie, {
 				target: e,
 				props: { ctx: t }
 			});
-			return () => f(n);
+			return () => n(r);
 		}
 	}), o = setTimeout(() => {
-		A(e, "watch", {}, 60).catch(() => {});
+		P(e, "watch", {}, 60).catch(() => {});
 	}, 5e3);
 	return () => {
-		clearTimeout(o), i?.();
+		clearTimeout(o), a?.();
 	};
 }
 //#endregion
-export { ie as register };
+export { ae as register };

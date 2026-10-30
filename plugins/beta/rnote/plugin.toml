@@ -2,7 +2,7 @@
 title = "Rnote"
 description = "open .rnote files as Excalidraw drawings: each is converted once, beside it (pen pressure, shapes, text, pictures); the .rnote stays"
 icon = "edit"
-version = "0.3.0"
+version = "0.4.0"
 api = 7
 # a click on an .rnote opens this plugin's view (view.js), which converts it and opens the drawing in its place
 claims = ["*.rnote"]
