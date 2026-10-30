@@ -1,15 +1,12 @@
 import { test, expect, type APIRequestContext, type Page } from "@playwright/test";
-import { shownName } from "../src/lib/paths";
+import { openFile } from "./open";
 const H = { "x-atlas": "1" };
 const text = (r: APIRequestContext, f: string) => r.get(`/api/file?path=${f}`, { headers: H }).then((x) => x.json()).then((j) => j.text as string);
 
 async function openWithClipboard(page: Page, request: APIRequestContext, f: string, body: string, clip: string) {
   await request.put("/api/file", { headers: H, data: { path: f, text: body } });
   await page.goto("/");
-  await page.keyboard.press("Control+p");
-  await page.keyboard.type(f.split("/").pop()!);
-  await expect(page.getByTestId("palette").getByText(shownName(f)).first()).toBeVisible();
-  await page.keyboard.press("Enter");
+  await openFile(page, f.split("/").pop()!);
   await page.locator(".cm-content").click();
   await page.evaluate((c) => navigator.clipboard.writeText(c), clip);
   await page.keyboard.press("Escape");

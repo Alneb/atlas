@@ -112,6 +112,8 @@ export default defineConfig({
   // One server, one workspace and one global /api/ui/state are shared by every test: parallel workers
   // overwrite each other's state (flaky "active pane" / 404s). Serial is deterministic and still fast.
   workers: 1,
+  // a shared CI runner is slower and noisier than a desktop: one retry there, reported as "flaky", never locally
+  retries: process.env.CI ? 1 : 0,
   timeout: 30_000,
   use: {
     baseURL: `http://127.0.0.1:${PORT}`,
