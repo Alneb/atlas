@@ -428,32 +428,11 @@ struct Thumb {
     large: egui::ColorImage,
 }
 
-/// PNG only (what Spectacle and the clipboard give); another format gets the icon instead.
+/// Any picture the clipboard or a screenshot tool gives (PNG, JPEG, WebP, GIF); another format gets the icon instead.
 fn thumb(path: &Path) -> Option<Thumb> {
-    let file = std::fs::File::open(path).ok()?;
-    let mut dec = png::Decoder::new(std::io::BufReader::new(file));
-    dec.set_transformations(png::Transformations::normalize_to_color8());
-    let mut reader = dec.read_info().ok()?;
-    let mut buf = vec![0; reader.output_buffer_size()];
-    let info = reader.next_frame(&mut buf).ok()?;
-    let (w, h) = (info.width as usize, info.height as usize);
-    let channels = match info.color_type {
-        png::ColorType::Rgba => 4,
-        png::ColorType::Rgb => 3,
-        png::ColorType::GrayscaleAlpha => 2,
-        png::ColorType::Grayscale => 1,
-        png::ColorType::Indexed => return None, // expanded by the transformations above; never here
-    };
-    let px = |i: usize| -> [u8; 4] {
-        let s = &buf[i * channels..i * channels + channels];
-        match channels {
-            4 => [s[0], s[1], s[2], s[3]],
-            3 => [s[0], s[1], s[2], 255],
-            2 => [s[0], s[0], s[0], s[1]],
-            _ => [s[0], s[0], s[0], 255],
-        }
-    };
-    let rgba: Vec<[u8; 4]> = (0..w * h).map(px).collect();
+    let img = image::ImageReader::open(path).ok()?.with_guessed_format().ok()?.decode().ok()?.to_rgba8();
+    let (w, h) = (img.width() as usize, img.height() as usize);
+    let rgba: Vec<[u8; 4]> = img.pixels().map(|p| p.0).collect();
     Some(Thumb { small: shrink(&rgba, w, h, 52.0, 28.0), large: shrink(&rgba, w, h, 440.0, 250.0) })
 }
 
@@ -484,6 +463,20 @@ fn shrink(rgba: &[[u8; 4]], w: usize, h: usize, max_w: f32, max_h: f32) -> egui:
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_jpeg_and_a_webp_get_a_thumbnail() {
+        let dir = std::env::temp_dir().join(format!("atlas-thumb-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let img = image::RgbImage::from_pixel(200, 100, image::Rgb([200, 40, 40]));
+        for name in ["shot.jpg", "shot.webp"] {
+            let path = dir.join(name);
+            img.save(&path).unwrap();
+            let t = thumb(&path).unwrap_or_else(|| panic!("{name} not decoded"));
+            assert_eq!(t.small.size, [52, 26], "{name}");
+        }
+        std::fs::remove_dir_all(&dir).ok();
+    }
 
     #[test]
     fn the_chosen_chips_become_parts() {

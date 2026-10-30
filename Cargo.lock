@@ -574,6 +574,7 @@ dependencies = [
  "dbus",
  "egui",
  "egui-winit",
+ "image",
  "png 0.17.16",
  "rusqlite",
  "serde_json",

@@ -18,7 +18,7 @@ required-features = ["window"]
 [features]
 default = ["window"]
 # the desktop's window; without it, only the capture logic the phone app shares (src/lib.rs)
-window = ["dep:egui", "dep:egui-winit", "dep:winit", "dep:softbuffer", "dep:wayland-client", "dep:wayland-backend", "dep:dbus", "dep:rusqlite", "dep:png"]
+window = ["dep:egui", "dep:egui-winit", "dep:winit", "dep:softbuffer", "dep:wayland-client", "dep:wayland-backend", "dep:dbus", "dep:rusqlite", "dep:png", "dep:image"]
 
 [dependencies]
 atlas-core.workspace = true
@@ -32,6 +32,7 @@ winit = { version = "0.30", optional = true, default-features = false, features 
 softbuffer = { version = "0.4", optional = true, default-features = false, features = ["wayland", "wayland-dlopen", "x11", "x11-dlopen"] }
 rusqlite = { version = "0.32", optional = true, features = ["bundled"] }
 png = { version = "0.17", optional = true }
+image = { version = "0.25", optional = true, default-features = false, features = ["png", "jpeg", "webp", "gif"] }
 
 # Wayland's input region and the desktop's context over D-Bus (region.rs, context.rs): Linux only; elsewhere the box
 # never floats and finds no context (docs/design/DESIGN-desktop-ports.md)

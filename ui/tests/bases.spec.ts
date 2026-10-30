@@ -1,12 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { shownName } from "../src/lib/paths";
-
-async function openFile(page: import("@playwright/test").Page, name: string) {
-  await page.keyboard.press("Control+p");
-  await page.keyboard.type(name);
-  await expect(page.getByTestId("palette").getByText(shownName(name), { exact: true }).first()).toBeVisible();
-  await page.keyboard.press("Enter");
-}
+import { openFile } from "./open";
 
 test("a note embedding ![[x.base]] shows the live table, scoped to the note (this.file)", async ({ page }, info) => {
   await page.goto("/");
@@ -63,10 +56,7 @@ test("click a Base cell to edit the note's property in place (frontmatter only)"
   const h = { "x-atlas": "1" };
   await page.goto("/");
   await page.getByText("Finish the GW notes.").waitFor();
-  await page.keyboard.press("Control+p");
-  await page.keyboard.type("all.base");
-  await expect(page.getByTestId("palette").getByText("all.base").first()).toBeVisible();
-  await page.keyboard.press("Enter");
+  await openFile(page, "all.base");
   const pane = page.locator(".base-pane");
   // the "Lectures" view shows file.name and date; date is a property, so editable
   const row = pane.locator("tbody tr", { hasText: "l2" });
@@ -97,10 +87,7 @@ test("bases: new note in the view, board with drag, hide and add a column", asyn
   await put("db/tasks/b.md", "---\nkind: task\nstatus: done\nprio: 2\n---\n");
   await put("db/tasks.base", "filters:\n  and:\n    - file.inFolder(\"db/tasks\")\n    - kind == \"task\"\nviews:\n  - type: table\n    name: Tasks\n    order: [file.name, status]\n");
   await page.goto("/");
-  await page.keyboard.press("Control+p");
-  await page.keyboard.type("tasks.base");
-  await expect(page.getByTestId("palette").getByText("tasks.base").first()).toBeVisible();
-  await page.keyboard.press("Enter");
+  await openFile(page, "tasks.base");
   const pane = page.locator(".base-pane");
   await expect(pane.locator("tbody tr")).toHaveCount(2);
 

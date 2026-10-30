@@ -1,4 +1,5 @@
 import { test, expect, type APIRequestContext, type Page } from "@playwright/test";
+import { openFile } from "./open";
 
 // A base's table and list read and move as one: the keyboard keeps its place through a cell's editor, and a date
 // in the list reads as the table writes it.
@@ -8,10 +9,7 @@ const text = (r: APIRequestContext, f: string) => r.get(`/api/file?path=${encode
 
 async function openBase(page: Page, name: string) {
   await page.goto("/");
-  await page.keyboard.press("Control+p");
-  await page.keyboard.type(name);
-  await expect(page.getByTestId("palette").getByText(name).first()).toBeVisible();
-  await page.keyboard.press("Enter");
+  await openFile(page, name);
   return page.locator(".base-pane");
 }
 
