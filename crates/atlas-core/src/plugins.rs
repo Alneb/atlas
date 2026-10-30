@@ -1178,7 +1178,9 @@ mod tests {
                     }
                 }
                 if out_of && at.len() >= 2 && dir.file_name().is_none_or(|own| own != at[0].as_str()) {
-                    out.push((rel.to_string_lossy().into_owned(), at[0].clone(), at[1..].join("/")));
+                    // `/` on every platform, as the specifiers are
+                    let file = rel.iter().map(|s| s.to_string_lossy()).collect::<Vec<_>>().join("/");
+                    out.push((file, at[0].clone(), at[1..].join("/")));
                 }
             }
         }
