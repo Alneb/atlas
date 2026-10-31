@@ -4,7 +4,7 @@
 // the last cell), Enter and ↑ / ↓ go down and up a row (out of the table past its edges), ← / → cross into the
 // next cell at a cell's edge, Escape gives up. "+" adds a row or a column, "−" removes one, a right-click inserts,
 // moves, aligns, sorts or deletes. The note's text stays the one source: every edit is a change of its table lines,
-// which the live preview then draws again (ui/src/vendor/obsidian-web/live-preview.js).
+// which the live preview then draws again (ui/src/lib/editor/live/live-preview.js).
 import type { EditorView } from "@codemirror/view";
 import type { MenuItem } from "../../components/ContextMenu.svelte";
 import { atPointer, popMenu } from "../menu";

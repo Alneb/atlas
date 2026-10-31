@@ -19,7 +19,7 @@ import { searchKeymap, highlightSelectionMatches, search } from "@codemirror/sea
 import { findPanel } from "./find-panel";
 import { acceptCompletion, clearSnippet, closeCompletion, completionStatus } from "@codemirror/autocomplete";
 import { vim, getCM } from "@replit/codemirror-vim";
-import { bodyStart, redecorate } from "../../vendor/obsidian-web/live-preview.js";
+import { bodyStart, redecorate } from "./live/live-preview.js";
 import { onHighlightLanguage } from "../highlight";
 import { onPropertySpec } from "../property-spec.svelte";
 import { lspFor, lspKeys } from "./lsp";

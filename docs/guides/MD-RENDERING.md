@@ -23,7 +23,7 @@ Build first: `npm run build && (cd .. && cargo build -p atlas)`. ~5–7 min for 
 ## Root causes and fixes
 1. **`$$` paired only at line ends** (Internship Porto: 9 KaTeX errors, every later formula desynced). Obsidian
    pairs `$$` wherever it sits: `…\ket{e} $$which in space…` closes mid-line with prose after it. Both parsers
-   now pair the same way — the editor's lezer `BlockMath` (`vendor/obsidian-web/obsidian-syntax.js`) and the
+   now pair the same way — the editor's lezer `BlockMath` (`lib/editor/live/obsidian-syntax.js`) and the
    reader's markdown-it rule (`lib/markdown.ts`). The node ends at the end of the closing line; trailing prose
    renders with the block (markdown-it emits it as a paragraph). `$$$$` (close + reopen on one line,
    Quantum Matter May 27th) stays ONE editor node, because a block replaced from mid-line cannot be drawn.

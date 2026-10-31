@@ -1,7 +1,7 @@
 // highlight.js: one highlighter for reading-view fences AND live-preview fences, so both agree.
 // Fetched on first use, off the start's path: a fence drawn before it arrived is plain, then drawn again (lazy-render.ts).
 import { onRendererArrived, rendererArrived } from "./lazy-render";
-import { createCodeHighlighter } from "../vendor/obsidian-web/highlight-code.js";
+import { createCodeHighlighter } from "./editor/live/highlight-code.js";
 
 type Hljs = typeof import("highlight.js/lib/common").default;
 let hljs: Hljs | null = null;

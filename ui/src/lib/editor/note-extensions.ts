@@ -1,4 +1,4 @@
-// What a note's editor adds to the shared base (create.ts): the live preview (vendored obsidian-web + KaTeX) with
+// What a note's editor adds to the shared base (create.ts): the live preview (live/live-preview.js + KaTeX) with
 // Atlas's renderers, Obsidian's folds, list continuation, the typing aids and their completions, files pasted or
 // dropped saved beside the note, and the settings-driven options (heading folds, typewriter scrolling).
 import { dirOf, shownName } from "../paths";
@@ -15,8 +15,8 @@ import { EditorView, keymap } from "@codemirror/view";
 import { foldGutter, foldNodeProp, foldKeymap } from "@codemirror/language";
 import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
 import type { MarkdownConfig } from "@lezer/markdown";
-import { obsidianMarkdown, AnyTaskStatus } from "../../vendor/obsidian-web/obsidian-syntax.js";
-import { livePreview, bodyStart } from "../../vendor/obsidian-web/live-preview.js";
+import { obsidianMarkdown, AnyTaskStatus } from "./live/obsidian-syntax.js";
+import { livePreview, bodyStart } from "./live/live-preview.js";
 import { renderMathInto } from "../math";
 import { highlightCode } from "../highlight";
 import { blockHtml, inlineHtml } from "../markdown";

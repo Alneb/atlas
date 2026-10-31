@@ -1,4 +1,4 @@
-// Hand-written types for the vendored live-preview.js (only the surface Atlas uses).
+// Hand-written types for live-preview.js (only the surface Atlas uses).
 import type { Extension, EditorState, StateEffectType, Text } from "@codemirror/state";
 import type { DecorationSet } from "@codemirror/view";
 

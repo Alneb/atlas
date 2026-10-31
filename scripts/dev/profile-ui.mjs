@@ -1,7 +1,9 @@
 // Where the interface spends its time, on the user's real vault, read-only. Chromium with its CPU profiler (CDP), against the RUNNING core:
 // API reads go through, every write is answered with `{}` (webkit-probe.mjs's rule), so typing in a note changes nothing.
 //
-//   node scripts/dev/profile-ui.mjs [--dist ui/dist] [--note path/in/vault.md] [--out dir]
+//   node scripts/dev/profile-ui.mjs [--dist ui/dist] [--note path/in/vault.md] [--out dir] [--cpu 4]
+//
+// --cpu N: Chromium's CPU throttling, N times slower (a busy or slow machine: what stays snappy under load).
 //
 // Scenarios, each timed and profiled on its own: start (load → Home drawn), quick open (Ctrl+P, a query), open a big
 // note, typing (per-key latency: keydown → the next frame), the command palette, switching tabs. For each it prints the
@@ -17,7 +19,7 @@ import { hot } from "./cpuprofile.mjs";
 const here = dirname(fileURLToPath(import.meta.url));
 const { chromium } = createRequire(join(here, "../../ui/package.json"))("playwright");
 const args = process.argv.slice(2), opt = (k, d) => { const i = args.indexOf(k); return i >= 0 ? args.splice(i, 2)[1] : d; };
-const distArg = opt("--dist"), dist = distArg && resolve(distArg), out = resolve(opt("--out", "/tmp/atlas-profile")), notePath = opt("--note");
+const distArg = opt("--dist"), cpu = Number(opt("--cpu", "1")), dist = distArg && resolve(distArg), out = resolve(opt("--out", "/tmp/atlas-profile")), notePath = opt("--note");
 const TYPES = { ".js": "text/javascript", ".css": "text/css", ".html": "text/html", ".svg": "image/svg+xml", ".woff2": "font/woff2", ".wasm": "application/wasm", ".json": "application/json" };
 const READS = /\/api\/(base\/query|view|link-mention|search)/;
 mkdirSync(out, { recursive: true });
@@ -37,6 +39,13 @@ await page.route("**/*", async (r) => {
 const cdp = await page.context().newCDPSession(page);
 await cdp.send("Profiler.enable");
 await cdp.send("Profiler.setSamplingInterval", { interval: 200 });
+if (cpu > 1) await cdp.send("Emulation.setCPUThrottlingRate", { rate: cpu });
+// the main thread's long tasks (> 50 ms: what a person feels as a stall), counted per scenario
+await page.addInitScript(() => {
+  window.__long = [];
+  try { new PerformanceObserver((l) => { for (const e of l.getEntries()) window.__long.push(e.duration); }).observe({ type: "longtask", buffered: true }); } catch { /* no longtask entries */ }
+});
+const longTasks = async () => page.evaluate(() => { const l = window.__long ?? []; window.__long = []; return l; }).catch(() => []);
 
 async function scenario(name, run) {
   await cdp.send("Profiler.start");
@@ -46,7 +55,9 @@ async function scenario(name, run) {
   const ms = Date.now() - t;
   const { profile } = await cdp.send("Profiler.stop");
   writeFileSync(join(out, `${name}.cpuprofile`), JSON.stringify(profile));
-  console.log(`\n== ${name}: ${ms} ms ${extra}\n${hot(profile)}`);
+  const long = await longTasks();
+  const stalls = long.length ? `long tasks: ${long.length}, worst ${Math.max(...long).toFixed(0)} ms, total ${long.reduce((a, b) => a + b, 0).toFixed(0)} ms` : "long tasks: none";
+  console.log(`\n== ${name}: ${ms} ms ${extra}\n${stalls}\n${hot(profile)}`);
 }
 const nextFrame = () => page.evaluate(() => new Promise((r) => requestAnimationFrame(() => setTimeout(r, 0))));
 

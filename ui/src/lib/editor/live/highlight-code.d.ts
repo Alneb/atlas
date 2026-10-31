@@ -1,4 +1,4 @@
-// Hand-written types for the vendored highlight-code.js.
+// Hand-written types for highlight-code.js.
 import type { CodeRange } from "./live-preview";
 interface HljsLike {
   getLanguage(name: string): unknown;

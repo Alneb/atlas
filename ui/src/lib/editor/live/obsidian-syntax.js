@@ -1,5 +1,5 @@
-// Vendored verbatim from obsidian-web: obsidian-web web/src/engine/cm/obsidian-syntax.js (git 521197e, copied 2026-10-05).
-// Do not edit here; fix upstream and re-copy. Types: ./obsidian-syntax.d.ts
+// Obsidian's markdown syntax for the editor's parser. Started in obsidian-web (web/src/engine/cm/obsidian-syntax.js),
+// now Atlas's own: changed here. Types: ./obsidian-syntax.d.ts
 
 // Obsidian-flavored Markdown syntax for the Lezer parser behind CodeMirror 6.
 //

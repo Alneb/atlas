@@ -1,5 +1,5 @@
-// Vendored verbatim from obsidian-web: web/src/engine/cm/live-preview.js (git 521197e, copied 2026-10-05).
-// Do not edit here; fix upstream and re-copy. Types: ./live-preview.d.ts
+// Obsidian-style live preview for the note editor. Started in obsidian-web (web/src/engine/cm/live-preview.js), now
+// Atlas's own: changed here. Types: ./live-preview.d.ts
 
 // Obsidian-style live preview for CodeMirror 6.
 //
@@ -964,7 +964,13 @@ export function buildDecorations(state, ranges, options = {}) {
   // an editor with no live preview at all. (Measured during development: a note
   // that matched 53 of 72 text runs against the read view dropped to 3.)
   const rendered = [];
+  // Only over the ranges asked for (the whole note on a full pass): a pass that redraws one block after a keystroke
+  // must not slice and look up every other block of a long note (Atlas: a 4.5 MB note of inlined pictures spent
+  // most of each key here). A block overlapping the edge is entered whole, as a full pass would.
+  const lo = Math.min(...ranges.map((r) => r.from)), hi = Math.max(...ranges.map((r) => r.to));
   syntaxTree(state).iterate({
+    from: lo,
+    to: hi,
     enter(node) {
       if (rendered.length && node.from < rendered[rendered.length - 1].to) return false;
       if (fmEnd && node.to <= fmEnd) return false;
@@ -1593,10 +1599,9 @@ const STRUCTURAL = /```|~~~|\$\$|<|^---|^\s*\|/m;
 function redecorate_(value, tr, opts) {
   if (tr.effects.some((e) => e.is(toggleCalloutFold) || e.is(redecorate))) return null;
   const state = tr.state, tree = syntaxTree(state), oldTreeFull = syntaxTree(tr.startState);
-  // the parser caught up (a tree changed with no edit), or the last pass drew from a partial parse, or this one would:
-  // everything again — a big note opens before it is parsed through, and only a full pass draws what came later
-  if (!tr.docChanged && oldTreeFull !== tree) return null;
-  if (tree.length < state.doc.length || oldTreeFull.length < tr.startState.doc.length) return null;
+  // the parser moved on with no edit (a big note is parsed in slices, more of it on a slow machine): only what it
+  // changed is drawn again
+  if (!tr.docChanged && oldTreeFull !== tree) return reparsed(value, oldTreeFull, state, tree, opts);
   const spans = [], oldSpans = [], oldTree = oldTreeFull;
   let structural = false;
   tr.changes.iterChanges((fromA, toA, fromB, toB, inserted) => {
@@ -1614,17 +1619,48 @@ function redecorate_(value, tr, opts) {
     from = Math.min(from, start ? start.from : state.doc.lineAt(a).from);
     to = Math.max(to, end ? end.to : state.doc.lineAt(b).to);
   }
-  if (from > to) return null;
+  // an edit past what is parsed yet: the full pass (it draws what is parsed; `reparsed` draws the rest as it comes)
+  if (from > to || to > tree.length) return null;
   from = state.doc.lineAt(from).from;
   to = state.doc.lineAt(to).to;
   // a heading touched (before or after the edit) can change what is drawn elsewhere — the inline title at the top
   // hides when the note's first heading says the same — so the whole note is drawn again
   if (touchesHeading(tree, from, to) || oldSpans.some(([a, b]) => touchesHeading(oldTree, a, b))) return null;
+  return finish(redraw(value.deco.map(tr.changes), state, from, to, opts));
+}
+/** `deco` with what lies in from..to dropped and drawn again from the state. */
+function redraw(deco, state, from, to, opts) {
   const fresh = buildDecorations(state, [{ from, to }], opts);
   const add = [];
   fresh.between(from, to, (f, t, v) => { add.push(v.range(f, t)); });
-  const deco = value.deco.map(tr.changes).update({ filterFrom: from, filterTo: to, filter: () => false, add, sort: true });
-  return finish(deco);
+  return deco.update({ filterFrom: from, filterTo: to, filter: () => false, add, sort: true });
+}
+/**
+ * The parser moved on with no edit: the top-level blocks the two trees agree on, from the start and from the end,
+ * keep their decorations; the region between them (what was newly parsed, or a block the last slice cut short) is
+ * drawn again. Before, every slice of a long note's parse redrew the whole note.
+ */
+function reparsed(value, oldTree, state, tree, opts) {
+  const a = topLevel(oldTree), b = topLevel(tree);
+  const same = (x, y) => x.from === y.from && x.to === y.to && x.name === y.name;
+  let i = 0;
+  while (i < a.length && i < b.length && same(a[i], b[i])) i++;
+  let j = 0;
+  while (j < a.length - i && j < b.length - i && same(a[a.length - 1 - j], b[b.length - 1 - j])) j++;
+  if (i === a.length && i === b.length && oldTree.length === tree.length) return value;
+  let from = i > 0 ? b[i - 1].to : 0;
+  let to = j > 0 ? b[b.length - j].from : state.doc.length;
+  if (from > to) [from, to] = [to, from];
+  from = state.doc.lineAt(from).from;
+  to = state.doc.lineAt(to).to;
+  if (touchesHeading(tree, from, to) || touchesHeading(oldTree, from, Math.min(to, oldTree.length))) return decorate(state, opts);
+  return finish(redraw(value.deco, state, from, to, opts));
+}
+/** The document's top-level blocks, in order. */
+function topLevel(tree) {
+  const out = [], c = tree.cursor();
+  if (c.firstChild()) do out.push({ from: c.from, to: c.to, name: c.name }); while (c.nextSibling());
+  return out;
 }
 function touchesHeading(tree, from, to) {
   let hit = false;
