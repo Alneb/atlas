@@ -10,7 +10,9 @@ export class FormulaError {
   toString() { return this.code; }
 }
 const err = (code: FormulaError["code"]) => new FormulaError(code);
-const NUM = /^\s*[-+]?(\d+\.?\d*|\.\d+)(e[-+]?\d+)?\s*$/i;
+// a Fortran exponent (`1.5D3`) is a number too, as the table reads it (parse.ts `toNum`)
+const NUM = /^\s*[-+]?(\d+\.?\d*|\.\d+)([ed][-+]?\d+)?\s*$/i;
+const toNumber = (t: string) => Number(t.trim().replace(/d/i, "e"));
 
 export const isFormula = (text: string) => text.startsWith("=") && text.length > 1;
 
@@ -33,7 +35,7 @@ type Node =
   | { t: "un"; op: "-" | "+"; a: Node } | { t: "bin"; op: string; a: Node; b: Node }
   | { t: "call"; name: string; args: Node[] } | { t: "bad"; e: FormulaError };
 
-const TOKEN = /\s*(?:(\d+\.?\d*(?:e[-+]?\d+)?|\.\d+(?:e[-+]?\d+)?)|("(?:[^"]|"")*")|(\$?[A-Za-z]{1,3}\$?\d+(?::\$?[A-Za-z]{1,3}\$?\d+)?)|([A-Za-z_][A-Za-z0-9_.]*)|(<>|<=|>=|[-+*/^&=<>(),:;%]))/y;
+const TOKEN = /\s*(?:(\d+\.?\d*(?:[eE][-+]?\d+)?|\.\d+(?:[eE][-+]?\d+)?)|("(?:[^"]|"")*")|(\$?[A-Za-z]{1,3}\$?\d+(?::\$?[A-Za-z]{1,3}\$?\d+)?)|([A-Za-z_][A-Za-z0-9_.]*)|(<>|<=|>=|[-+*/^&=<>(),:;%]))/y;
 
 /** The formula with every reference moved `dr` rows (a sheet written with its header as row 1: `dr` = 1), the rest
  *  as typed. A token the formula does not read is left alone. */
@@ -109,7 +111,7 @@ const num = (v: Value): number | FormulaError => {
   if (v === null || v === "") return 0;
   if (typeof v === "number") return v;
   if (typeof v === "boolean") return v ? 1 : 0;
-  return NUM.test(v) ? Number(v) : err("#VALUE!");
+  return NUM.test(v) ? toNumber(v) : err("#VALUE!");
 };
 const text = (v: Value): string => (v === null ? "" : typeof v === "boolean" ? (v ? "TRUE" : "FALSE") : typeof v === "number" ? format(v) : String(v));
 const truthy = (v: Value): boolean | FormulaError => (v instanceof FormulaError ? v : typeof v === "string" ? v !== "" && v.toUpperCase() !== "FALSE" : !!v);
@@ -130,12 +132,15 @@ export function formulas(rows: readonly (readonly string[])[]) {
     const key = `${r},${c}`;
     if (done.has(key)) return done.get(key)!;
     const t = raw(r, c) ?? "";
-    if (!isFormula(t)) return t === "" ? null : NUM.test(t) ? Number(t) : t;
+    if (!isFormula(t)) return t === "" ? null : NUM.test(t) ? toNumber(t) : t;
     if (busy.has(key)) return err("#CYCLE!");
     busy.add(key);
     let tree = trees.get(t);
     if (!tree) { tree = parse(t.slice(1)); trees.set(t, tree); }
-    const v = ev(tree);
+    let v: Value;
+    try { v = ev(tree); }
+    // a chain of thousands of cells, each reading the next, overflows the stack: that cell errs, the grid stays
+    catch { busy.delete(key); return err("#ERROR!"); }
     busy.delete(key);
     done.set(key, v);
     return v;
@@ -143,16 +148,18 @@ export function formulas(rows: readonly (readonly string[])[]) {
   const cellsOf = (n: Node): Value[] => {
     if (n.t !== "range") return [ev(n)];
     const out: Value[] = [];
-    for (let r = n.r0; r <= n.r1 && r < rows.length; r++) for (let c = n.c0; c <= n.c1; c++) out.push(value(r, c));
+    // only the cells a row has: past its end every cell is empty (`A1:ZZZ9` would walk 18 278 columns)
+    for (let r = n.r0; r <= n.r1 && r < rows.length; r++) for (let c = n.c0; c <= n.c1 && c < rows[r].length; c++) out.push(value(r, c));
     return out;
   };
-  /** the numbers among the arguments' cells (text and empty cells left out, as a spreadsheet's SUM does) */
+  /** the numbers among the arguments' cells (text and empty cells a reference reads are left out, as a spreadsheet's
+   *  SUM does; a value typed as an argument must be a number) */
   const numbers = (args: Node[]): number[] | FormulaError => {
     const out: number[] = [];
     for (const a of args) for (const v of cellsOf(a)) {
       if (v instanceof FormulaError) return v;
       if (typeof v === "number") out.push(v);
-      else if (a.t !== "range" && v !== null) { const x = num(v); if (x instanceof FormulaError) return x; out.push(x); }
+      else if (a.t !== "range" && a.t !== "ref" && v !== null) { const x = num(v); if (x instanceof FormulaError) return x; out.push(x); }
     }
     return out;
   };
@@ -160,8 +167,9 @@ export function formulas(rows: readonly (readonly string[])[]) {
     SUM: (a) => { const n = numbers(a); return n instanceof FormulaError ? n : n.reduce((s, x) => s + x, 0); },
     PRODUCT: (a) => { const n = numbers(a); return n instanceof FormulaError ? n : n.reduce((s, x) => s * x, 1); },
     AVERAGE: (a) => { const n = numbers(a); return n instanceof FormulaError ? n : n.length ? n.reduce((s, x) => s + x, 0) / n.length : err("#DIV/0!"); },
-    MIN: (a) => { const n = numbers(a); return n instanceof FormulaError ? n : n.length ? Math.min(...n) : 0; },
-    MAX: (a) => { const n = numbers(a); return n instanceof FormulaError ? n : n.length ? Math.max(...n) : 0; },
+    // a fold, not Math.min(...n): a long column spread as arguments overflows the stack
+    MIN: (a) => { const n = numbers(a); return n instanceof FormulaError ? n : n.length ? n.reduce((m, x) => (x < m ? x : m)) : 0; },
+    MAX: (a) => { const n = numbers(a); return n instanceof FormulaError ? n : n.length ? n.reduce((m, x) => (x > m ? x : m)) : 0; },
     MEDIAN: (a) => {
       const n = numbers(a);
       if (n instanceof FormulaError) return n;
@@ -172,11 +180,13 @@ export function formulas(rows: readonly (readonly string[])[]) {
     COUNT: (a) => a.flatMap(cellsOf).filter((v) => typeof v === "number").length,
     COUNTA: (a) => a.flatMap(cellsOf).filter((v) => v !== null && v !== "").length,
     ABS: (a) => one(a, Math.abs), SQRT: (a) => one(a, (x) => (x < 0 ? err("#VALUE!") : Math.sqrt(x))),
-    ROUND: (a) => two(a, (x, d) => { const f = 10 ** d; return Math.round(x * f) / f; }, 0),
+    // half away from zero, on the decimal the cell shows (1.005 → 1.01, -2.5 → -3), as a spreadsheet rounds
+    ROUND: (a) => two(a, (x, d) => { const f = 10 ** Math.trunc(d); return (Math.sign(x) * Math.round(Number((Math.abs(x) * f).toPrecision(15)))) / f; }, 0),
     POWER: (a) => two(a, (x, y) => x ** y), MOD: (a) => two(a, (x, y) => (y === 0 ? err("#DIV/0!") : x - y * Math.floor(x / y))),
     IF: (a) => { const c = truthy(ev(a[0])); return c instanceof FormulaError ? c : c ? (a[1] ? ev(a[1]) : true) : (a[2] ? ev(a[2]) : false); },
-    AND: (a) => { for (const v of a.flatMap(cellsOf)) { const t = truthy(v); if (t instanceof FormulaError || !t) return t; } return true; },
-    OR: (a) => { for (const v of a.flatMap(cellsOf)) { const t = truthy(v); if (t instanceof FormulaError || t) return t; } return false; },
+    // empty cells are left out, as a spreadsheet does
+    AND: (a) => { for (const v of a.flatMap(cellsOf)) { if (v === null) continue; const t = truthy(v); if (t instanceof FormulaError || !t) return t; } return true; },
+    OR: (a) => { for (const v of a.flatMap(cellsOf)) { if (v === null) continue; const t = truthy(v); if (t instanceof FormulaError || t) return t; } return false; },
     NOT: (a) => { const t = truthy(ev(a[0])); return t instanceof FormulaError ? t : !t; },
     CONCAT: (a) => { const vs = a.flatMap(cellsOf); return vs.find((v) => v instanceof FormulaError) ?? vs.map(text).join(""); },
     LEN: (a) => { const v = ev(a[0]); return v instanceof FormulaError ? v : text(v).length; },

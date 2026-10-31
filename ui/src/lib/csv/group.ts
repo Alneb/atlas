@@ -2,7 +2,7 @@
 // sum, mean, min and max of the numbers it holds. Groups are ordered by their value (numbers by size, text
 // naturally, blanks last), or by what the table's sort puts first when the sort is on the grouped column. Pure.
 import { compare } from "./filter";
-import { isNum } from "./parse";
+import { isNum, toNum } from "./parse";
 
 export interface Totals { n: number; sum: number; min: number; max: number }
 export interface Group {
@@ -26,8 +26,7 @@ export function measure(t: Totals | undefined, m: Measure): number | null {
 
 function add(totals: Map<number, Totals>, c: number, cell: string) {
   const v = cell.trim();
-  if (!isNum(v)) return;
-  const x = parseFloat(v);
+  const x = toNum(v);
   if (!Number.isFinite(x)) return;
   const t = totals.get(c);
   if (!t) totals.set(c, { n: 1, sum: x, min: x, max: x });
@@ -41,7 +40,7 @@ function add(totals: Map<number, Totals>, c: number, cell: string) {
 export function groupRows(rows: string[][], idx: number[], col: number, nums: number[], numeric: boolean, dir: 1 | -1 = 1): { groups: Group[]; all: Map<number, Totals> } {
   const by = new Map<string, Group>(), all = new Map<number, Totals>();
   for (const i of idx) {
-    const r = rows[i], key = (r[col] ?? "").trim(), fold = numeric && isNum(key) ? String(parseFloat(key)) : key.toLowerCase();
+    const r = rows[i], key = (r[col] ?? "").trim(), fold = numeric && isNum(key) ? String(toNum(key)) : key.toLowerCase();
     let g = by.get(fold);
     if (!g) by.set(fold, (g = { key, rows: [], totals: new Map() }));
     g.rows.push(i);

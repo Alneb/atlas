@@ -2,10 +2,12 @@
 // with the same delimiter, quoting and spacing, and comment lines stay where they were.
 import type { Layout, Sheet } from "./parse";
 
-/** One field as the layout writes it: quoted when it must be (or when the file quotes everything). */
-function field(v: string, l: Layout): string {
+/** One field as the layout writes it: quoted when it must be (or when the file quotes everything). `first`: it starts
+ *  the line, where the comment marker unquoted would make the row a comment when read back. */
+function field(v: string, l: Layout, first = false): string {
   if (l.delimiter === " ") return v.replace(/\s+/g, "_") || "-"; // whitespace columns cannot hold a blank
-  const must = v.includes(l.delimiter) || v.includes('"') || /[\r\n]/.test(v) || v !== v.trim();
+  const comment = first && !!l.comment && v.trimStart().startsWith(l.comment);
+  const must = comment || v.includes(l.delimiter) || v.includes('"') || /[\r\n]/.test(v) || v !== v.trim();
   return l.quoteAll || must ? `"${v.replace(/"/g, '""')}"` : v;
 }
 
@@ -16,7 +18,7 @@ export function rowText(cells: string[], l: Layout): string {
     cells.forEach((v, k) => { const f = field(v, l); out += " ".repeat(Math.max(k ? 1 : 0, l.columnEnds![k] - out.length - f.length)) + f; });
     return out;
   }
-  return cells.map((v) => field(v, l)).join(l.delimiter === " " ? " " : l.spaceAfter ? `${l.delimiter} ` : l.delimiter);
+  return cells.map((v, k) => field(v, l, k === 0)).join(l.delimiter === " " ? " " : l.spaceAfter ? `${l.delimiter} ` : l.delimiter);
 }
 
 export function writeSheet(s: Sheet): string {

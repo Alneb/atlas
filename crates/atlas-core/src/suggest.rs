@@ -69,14 +69,17 @@ fn base_draft(dir: &str, keys: &[String], props: &[&crate::note_props::Props], f
 
 fn folder_bases(ws: &Workspace) -> Result<Vec<ToolDraft>> {
     let cfg = ws.config()?;
-    let vault = links::vault(ws.root(), &cfg);
+    // the index's parses, by path: resolving every link (links::vault) would be work thrown away here
+    let index = links::scan(ws.root(), &cfg);
+    let mut notes: Vec<_> = index.parsed.iter().collect();
+    notes.sort_unstable_by_key(|(path, _)| *path);
     // what the existing bases already cover
     let bases: Vec<String> = crate::walk::files(ws.root(), &cfg)
         .filter(|(_, rel)| rel.ends_with(".base"))
         .filter_map(|(abs, _)| std::fs::read_to_string(abs).ok())
         .collect();
     let mut by_dir: BTreeMap<String, Vec<&crate::note_props::Props>> = BTreeMap::new();
-    for (path, parsed, _) in &vault.notes {
+    for (path, parsed) in notes {
         let Some((dir, _)) = path.rsplit_once('/') else { continue };
         if !parsed.props.is_empty() && !tool_written(&parsed.props) {
             by_dir.entry(dir.to_string()).or_default().push(&parsed.props);

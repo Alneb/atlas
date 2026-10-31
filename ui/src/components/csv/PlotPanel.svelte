@@ -6,6 +6,7 @@
   import Plot from "../Plot.svelte";
   import Histogram from "./Histogram.svelte";
   import Select from "../Select.svelte";
+  import { toNum } from "../../lib/csv/parse";
 
   const ROWNUM = -1;
   let { header, numeric, rows, selected }: { header: string[]; numeric: boolean[]; rows: string[][]; selected: string[][] | null } = $props();
@@ -20,7 +21,7 @@
 
   const numericCols = $derived(header.map((_, i) => i).filter((i) => numeric[i]));
   const data = $derived(onlySel && selected?.length ? selected : rows);
-  const col = (i: number) => (i === ROWNUM ? data.map((_, k) => k + 1) : data.map((r) => parseFloat(r[i])));
+  const col = (i: number) => (i === ROWNUM ? data.map((_, k) => k + 1) : data.map((r) => toNum(r[i] ?? "")));
   const varies = (v: number[]) => v.some((x) => Number.isFinite(x) && x !== v.find(Number.isFinite));
   const increasing = (v: number[]) => v.length > 2 && v.every((x, k) => k === 0 || x > v[k - 1]);
 

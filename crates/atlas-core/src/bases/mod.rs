@@ -405,7 +405,7 @@ pub fn evaluate(root: &Path, cfg: &Config, base_src: &str, this: Option<&str>) -
     let formulas: Vec<(String, Option<Expr>)> =
         base.formulas.iter().map(|(k, v)| (k.clone(), expr::parse(v).ok())).collect();
     // a formula may use another (`formula.x`), whatever their order: one pass per formula reaches the end of any chain
-    let passes = if base.formulas.values().any(|v| v.contains("formula.")) { formulas.len() } else { 1 };
+    let rounds = if base.formulas.values().any(|v| v.contains("formula.")) { formulas.len() } else { 1 };
 
     let views = base
         .views
@@ -415,7 +415,7 @@ pub fn evaluate(root: &Path, cfg: &Config, base_src: &str, this: Option<&str>) -
                 .iter()
                 .filter_map(|note| {
                     let mut ctx = Ctx { note, this: host, props: note.props(), formulas: BTreeMap::new() };
-                    for _ in 0..passes {
+                    for _ in 0..rounds {
                         for (name, e) in &formulas {
                             let v = e.as_ref().map_or(Val::Null, |e| expr::eval(e, &ctx));
                             ctx.formulas.insert(name.clone(), v);

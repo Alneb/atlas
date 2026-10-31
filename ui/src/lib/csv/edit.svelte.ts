@@ -30,17 +30,20 @@ export class SheetEdit {
   private future: { op: Op; id: number }[] = [];
   private nextId = 1;
   private savedId = 0;
+  /** the id of the last change dropped from the history: with every kept one undone, the table is there, not at 0 */
+  private floor = 0;
   constructor(public sheet: Sheet) {}
 
-  get dirty(): boolean { void this.version; return (this.past.at(-1)?.id ?? 0) !== this.savedId; }
+  private get at(): number { return this.past.at(-1)?.id ?? this.floor; }
+  get dirty(): boolean { void this.version; return this.at !== this.savedId; }
   get canUndo(): boolean { void this.version; return this.past.length > 0; }
   get canRedo(): boolean { void this.version; return this.future.length > 0; }
-  markSaved(): void { this.savedId = this.past.at(-1)?.id ?? 0; this.version++; }
+  markSaved(): void { this.savedId = this.at; this.version++; }
 
   /** A change made by the person: kept for undo, redo forgotten. */
   do(op: Op): void {
     this.past.push({ op: this.apply(op), id: this.nextId++ });
-    if (this.past.length > MAX_HISTORY) this.past.shift();
+    if (this.past.length > MAX_HISTORY) this.floor = this.past.shift()!.id;
     this.future = [];
     this.version++;
   }

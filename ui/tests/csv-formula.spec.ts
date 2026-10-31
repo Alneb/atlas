@@ -47,3 +47,19 @@ test("column letters and number display", () => {
   expect([colName(0), colName(25), colName(26), colName(27), colName(701), colName(702)]).toEqual(["A", "Z", "AA", "AB", "ZZ", "AAA"]);
   expect([format(0.1 + 0.2), format(1 / 3), format(1e20), format(-2)]).toEqual(["0.3", "0.3333333333", "100000000000000000000", "-2"]);
 });
+
+test("as a spreadsheet: exponents, text in references, rounding, empty cells, long columns and chains", () => {
+  expect(formulas([["=1E3+2e-1"]]).shown(0, 0), "an exponent is a number, not the cell E3").toBe("1000.2");
+  expect(formulas([["1.5D3", "=A1*2"]]).shown(0, 1), "a Fortran exponent in a cell").toBe("3000");
+  expect(formulas([["x", "4", "=SUM(A1,B1)", "=SUM(\"x\")"]]).shown(0, 2), "text a reference reads is left out").toBe("4");
+  expect(formulas([["x", "4", "=SUM(A1,B1)", "=SUM(\"x\")"]]).shown(0, 3), "text typed as an argument is not").toBe("#VALUE!");
+  expect(["=ROUND(-2.5)", "=ROUND(1.005,2)", "=ROUND(2.5)", "=ROUND(1234,-2)"].map((t) => formulas([[t]]).shown(0, 0))).toEqual(["-3", "1.01", "3", "1200"]);
+  expect(formulas([["1", "", "=AND(A1:B1)", "=OR(B1:B1)"]]).shown(0, 2), "an empty cell does not make AND false").toBe("TRUE");
+  expect(formulas([["1", "", "=AND(A1:B1)", "=OR(B1:B1)"]]).shown(0, 3)).toBe("FALSE");
+  const long = Array.from({ length: 200_000 }, (_, i) => [String(i)]);
+  long[0].push("=MAX(A1:A200000)");
+  expect(formulas(long).shown(0, 1), "a long column").toBe("199999");
+  expect(formulas([["=MIN(A2:ZZZ200000)"], ...long.slice(1)]).shown(0, 0), "a wide range").toBe("1");
+  const chain = Array.from({ length: 50_000 }, (_, i) => [i === 49_999 ? "1" : `=A${i + 2}+1`]);
+  expect(() => formulas(chain).shown(0, 0), "a chain deeper than the stack errs, the grid stays").not.toThrow();
+});

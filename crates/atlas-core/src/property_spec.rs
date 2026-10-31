@@ -103,9 +103,10 @@ const VALUES: usize = 40;
 
 /// Every property of the vault's notes, the most used first.
 pub fn known(root: &Path, cfg: &crate::config::Config) -> Vec<KnownProperty> {
-    let vault = crate::links::vault(root, cfg);
+    // the index's parses as they are: resolving every link (links::vault) would be work thrown away here
+    let index = crate::links::scan(root, cfg);
     let mut by: std::collections::HashMap<String, (u32, std::collections::HashMap<String, u32>)> = Default::default();
-    for (_, parsed, _) in &vault.notes {
+    for parsed in index.parsed.values() {
         for (key, v) in parsed.props.iter() {
             let entry = by.entry(key.to_string()).or_default();
             entry.0 += 1;

@@ -73,7 +73,8 @@ fn literal(s: &str) -> Option<Value> {
     match s {
         "true" => Some(Value::Bool(true)),
         "false" => Some(Value::Bool(false)),
-        _ => s.parse::<f64>().ok().map(|n| serde_yaml::to_value(n).unwrap_or(Value::Null)),
+        // `prio == 1` prefills `prio: 1`, not `1.0`
+        _ => s.parse::<i64>().map(Value::from).ok().or_else(|| s.parse::<f64>().ok().map(Value::from)),
     }
 }
 
@@ -90,7 +91,8 @@ pub fn new_row(root: &Path, cfg: &Config, base_rel: &str, base_src: &str, view: 
         for row in &v.rows {
             *count.entry(row.path.rsplit_once('/').map_or("", |(d, _)| d)).or_default() += 1;
         }
-        count.into_iter().max_by_key(|(_, n)| *n).map(|(d, _)| d.to_string())
+        // a tie goes to the first folder by name, not to the hash order
+        count.into_iter().max_by(|a, b| a.1.cmp(&b.1).then(b.0.cmp(a.0))).map(|(d, _)| d.to_string())
     });
     let folder = folder.unwrap_or_else(|| base_rel.rsplit_once('/').map_or(String::new(), |(d, _)| d.to_string()));
     let base: BaseFile = serde_yaml::from_str(base_src).map_err(|e| Error::BadRequest(format!("base: {e}")))?;
@@ -370,6 +372,8 @@ mod tests {
         assert_eq!(props, vec![("type".into(), Value::from("Task")), ("status".into(), Value::from("todo"))]);
         let (_, tagged) = prefill("filters: 'file.hasTag(\"paper\")'\nviews: [{type: table}]\n", None);
         assert_eq!(tagged, vec![("tags".into(), Value::Sequence(vec!["paper".into()]))]);
+        let (_, n) = prefill("filters: 'prio == 1'\nviews: [{type: table}]\n", None);
+        assert_eq!(n, vec![("prio".into(), Value::from(1))], "an integer stays one");
     }
 
     #[test]

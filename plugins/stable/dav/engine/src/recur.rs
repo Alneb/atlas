@@ -308,7 +308,9 @@ fn starts(master: &Component, frame: Frame, first: NaiveDateTime, lo: NaiveDateT
         Frame::Zoned(Zone::Tz(z)) => z.into(),
         _ => rrule::Tz::UTC,
     };
-    let at = |t: NaiveDateTime| rtz.from_local_datetime(&t).earliest();
+    // a wall-clock time a DST change skips (a range's midnight in Santiago or Havana) is the hour after, as Zone::instant
+    // takes it: none would leave the whole series out of that range
+    let at = |t: NaiveDateTime| rtz.from_local_datetime(&t).earliest().or_else(|| rtz.from_local_datetime(&(t + Duration::hours(1))).earliest());
     for line in master.props.iter().filter(|l| l.name == "RRULE") {
         // UNTIL is applied by hand: the crate wants it in UTC, calendars write it as a date or a floating time too
         let mut until = None;
@@ -369,6 +371,8 @@ pub fn expand(cal: &Component, range: Range, user: &Zone) -> Vec<Instance> {
         if e > s { s < range.to && e > range.from } else { s >= range.from && s < range.to }
     };
     let mut uids: Vec<String> = events.iter().filter_map(|e| e.text("UID")).collect();
+    // sorted first: a subscribed .ics may list an override away from its master, and a UID seen twice is expanded twice
+    uids.sort_unstable();
     uids.dedup();
     if uids.is_empty() {
         uids.push(String::new());
@@ -553,6 +557,8 @@ mod tests {
         assert_eq!(expand(&u, days("2026-11-04", "2026-11-04", &TORONTO), &TORONTO)[0].start, "2026-11-04T10:00:00-05:00");
         let x = cal("BEGIN:VEVENT\nUID:x\nSUMMARY:Daily\nDTSTART:20261102T090000Z\nRRULE:FREQ=DAILY;COUNT=3\nEND:VEVENT\nBEGIN:VEVENT\nUID:x\nRECURRENCE-ID:20261103T090000Z\nSTATUS:CANCELLED\nDTSTART:20261103T090000Z\nEND:VEVENT\n");
         assert_eq!(expand(&x, days("2026-11-01", "2026-11-30", &Zone::UTC), &Zone::UTC).len(), 2);
+        let apart = cal("BEGIN:VEVENT\nUID:x\nSUMMARY:Daily\nDTSTART:20261102T090000Z\nRRULE:FREQ=DAILY;COUNT=3\nEND:VEVENT\nBEGIN:VEVENT\nUID:y\nSUMMARY:Other\nDTSTART:20261105T090000Z\nEND:VEVENT\nBEGIN:VEVENT\nUID:x\nRECURRENCE-ID:20261103T090000Z\nSUMMARY:Daily, later\nDTSTART:20261103T120000Z\nEND:VEVENT\n");
+        assert_eq!(expand(&apart, days("2026-11-01", "2026-11-30", &Zone::UTC), &Zone::UTC).len(), 4, "an override away from its master: the series once");
     }
 
     #[test]
@@ -567,5 +573,15 @@ mod tests {
         assert_eq!(duration("PT1H30M"), Some(Duration::minutes(90)));
         assert_eq!(duration("P1W"), Some(Duration::weeks(1)));
         assert_eq!(duration("-PT15M"), Some(-Duration::minutes(15)));
+    }
+
+    #[test]
+    fn a_range_starting_at_a_midnight_dst_skips_still_shows_the_series() {
+        // Santiago's clocks go from 00:00 to 01:00 on 2026-09-06: that day's midnight does not exist there, and a
+        // zero-length series' window for the 7th starts a day before its midnight
+        let santiago = Zone::Tz(Tz::America__Santiago);
+        let c = cal("BEGIN:VEVENT\nUID:s\nSUMMARY:Seminar\nDTSTART;TZID=America/Santiago:20260902T100000\nRRULE:FREQ=DAILY;COUNT=10\nEND:VEVENT\n");
+        let got = expand(&c, days("2026-09-07", "2026-09-07", &santiago), &santiago);
+        assert_eq!(got.len(), 1, "{got:?}");
     }
 }

@@ -40,6 +40,14 @@ export interface Sheet {
 
 const NUM = /^[-+]?(\d+\.?\d*|\.\d+)([eEdD][-+]?\d+)?$|^[-+]?(inf|infinity|nan)$/i;
 export const isNum = (s: string) => NUM.test(s.trim());
+/** A cell's number as [`isNum`] reads it: a Fortran exponent (`1.5D3`, which `parseFloat` reads as 1.5) and `inf` /
+ *  `nan` in any case too; NaN for a cell that is not one. */
+export function toNum(s: string): number {
+  const t = s.trim();
+  if (!NUM.test(t)) return NaN;
+  if (/inf/i.test(t)) return t.startsWith("-") ? -Infinity : Infinity;
+  return /nan/i.test(t) ? NaN : Number(t.replace(/[dD]/, "e"));
+}
 const NAMES: Record<string, string> = { ",": "comma-separated", ";": "semicolon-separated", "\t": "tab-separated", "|": "pipe-separated", " ": "whitespace-separated" };
 
 /** A record: its fields and the text it spans. */
@@ -133,7 +141,8 @@ export function parseSheet(input: string, path = "", progress?: (done: number) =
     sample.some((r) => r.fields.length > 1);
   const clean = (f: string) => (spaceAfter && f.startsWith(" ") ? f.slice(1) : f);
   const quoteAll = sample.length > 0 && sample.every((r) => r.quoted.length > 0 && r.quoted.every(Boolean));
-  let rows = data.map((r) => r.fields.map(clean));
+  // a quoted field's spaces are its own: the one after the delimiter was dropped before its quote
+  let rows = data.map((r) => r.fields.map((f, k) => (r.quoted[k] ? f : clean(f))));
   let raw: (string | null)[] = data.map((r) => r.raw);
   const width = Math.max(1, ...rows.slice(0, 500).map((r) => r.length));
 
