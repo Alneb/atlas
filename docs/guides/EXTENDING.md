@@ -103,7 +103,7 @@ keys = "Ctrl+Alt+B"          # optional
 schedule = "daily 03:00"     # optional: "hourly", "every 2h", "daily HH:MM"
 timeout_secs = 120           # optional (default 30)
 ```
-Arguments arrive as JSON on stdin; stdout is the result (parsed as JSON when it parses). `$ATLAS_ROOT` is the vault. It appears in the palette at once, and `atlas cmd refs.bib` runs it from a terminal.
+Arguments arrive as JSON on stdin; stdout is the result (parsed as JSON when it parses). `$ATLAS_ROOT` is the vault. It appears in the palette at once, and `atlas cmd refs.bib` runs it from a terminal. A scheduled one that could do nothing this time (a server not reachable) prints `{"skipped": "why"}` and exits 0: logged, never a failure notice; `"notices": [{"title": …, "body": …, "level": "success", "open": "a/note.md"}]` in its answer become notices.
 
 ### The startup script
 ```js

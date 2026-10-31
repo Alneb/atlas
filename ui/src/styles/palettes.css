@@ -1,0 +1,77 @@
+/* Palettes (Settings → Appearance → Palette, `ui.palette`; lib/settings.svelte.ts sets <html data-palette>): colour
+   families over tokens.css, in light and dark. `ink` and `clay` share a warm paper and differ in the accent. They
+   outrank tokens.css's theme blocks by specificity; e-ink keeps its own black on white (:not(.eink)); an accent set in
+   Settings and a VS Code theme are inline styles on <html>, so they still win. */
+
+/* warm paper, light */
+:root:not(.eink)[data-theme="light"]:is([data-palette="ink"], [data-palette="clay"]) {
+  --bg-app: #ebe6dd;
+  --bg: #fbf9f4;
+  --bg-alt: #f5f1ea;
+  --card-bg: #f2ede4;
+  --bg-elev: #fffdf9;
+  --bg-hover: rgba(70, 50, 30, .05);
+  --bg-active: rgba(70, 50, 30, .085);
+  --border: rgba(70, 50, 30, .10);
+  --border-strong: rgba(70, 50, 30, .17);
+  --text: #2b2620;
+  --text-muted: #675e53;
+  --text-faint: #7f7569; /* ≥ 4:1 on --bg */
+  --heading: #1b1712;
+  --code-bg: #f1ece3;
+  --inline-code: #9c3f22;
+  --highlight-bg: rgba(226, 178, 60, .3);
+  --scrim: rgba(40, 30, 20, .26);
+  --shadow-sm: 0 1px 2px rgba(60, 40, 20, .06), 0 2px 8px rgba(60, 40, 20, .05);
+  --shadow-pop: 0 24px 60px rgba(60, 40, 20, .16), 0 4px 16px rgba(60, 40, 20, .08);
+  --term-bg: #fbf9f4;
+  --pdf-bg: #e6e0d6;
+  --paper-line: #dcd4c7;
+}
+
+/* warm paper, dark: a lamp-lit page rather than a blue-black screen */
+:root:not(.eink):not([data-theme="light"]):is([data-palette="ink"], [data-palette="clay"]) {
+  --bg-app: #141210;
+  --bg: #1b1815;
+  --bg-alt: #201d19;
+  --card-bg: #24201b;
+  --bg-elev: #26221d;
+  --bg-hover: rgba(255, 240, 220, .045);
+  --bg-active: rgba(255, 240, 220, .08);
+  --border: rgba(255, 240, 220, .07);
+  --border-strong: rgba(255, 240, 220, .12);
+  --text: #e5ddd0;
+  --text-muted: #a99f91;
+  --text-faint: #8a8073; /* ≥ 4:1 on --bg-elev */
+  --heading: #f4eee4;
+  --code-bg: #24201b;
+  --inline-code: #e9b195;
+  --scrim: rgba(8, 6, 4, .55);
+  --term-bg: #181512;
+  --term-black: #2c2823;
+  --ansi-black: #2c2823;
+  --pdf-bg: #100e0c;
+  --paper-line: #3d3830;
+}
+
+/* the accents */
+:root:not(.eink)[data-theme="light"][data-palette="ink"] {
+  --accent: #2f4b8f; --accent-fg: #ffffff; --accent-strong: #223a73;
+  --accent-soft: rgba(47, 75, 143, .1); --accent-sel: rgba(47, 75, 143, .2); --link: #2f4b8f;
+  --tag-bg: rgba(47, 75, 143, .1); --tag-color: #223a73;
+}
+:root:not(.eink):not([data-theme="light"])[data-palette="ink"] {
+  --accent: #93a9e2; --accent-fg: #14120f; --accent-strong: #b3c4ef;
+  --accent-soft: rgba(147, 169, 226, .12); --accent-sel: rgba(147, 169, 226, .24); --link: #9fb3e6;
+  --tag-bg: rgba(147, 169, 226, .13); --tag-color: #b3c4ef;
+}
+:root:not(.eink)[data-theme="light"][data-palette="clay"] {
+  --accent: #b0532c; --accent-fg: #ffffff; --accent-strong: #923f1c;
+  --accent-soft: rgba(176, 83, 44, .1); --accent-sel: rgba(176, 83, 44, .2); --link: #a24b25;
+  --tag-bg: rgba(176, 83, 44, .1); --tag-color: #923f1c;
+}
+:root:not(.eink):not([data-theme="light"])[data-palette="clay"] {
+  --accent: #e0906a; --accent-fg: #14120f; --accent-strong: #ecaa89;
+  --accent-soft: rgba(224, 144, 106, .12); --accent-sel: rgba(224, 144, 106, .24); --link: #e59a76;
+  --tag-bg: rgba(224, 144, 106, .13); --tag-color: #ecaa89;
+}

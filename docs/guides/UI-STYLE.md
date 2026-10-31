@@ -30,6 +30,18 @@ The UI matters, and its rules come from reading on style. What was read: Anthrop
 - Repeated things are identical: same padding, same edges, same place for the recurring control.
 - **The left bar has one left edge** (`--side-inset`, `base.css`): every heading label, every row's icon and the first tool/footer button start there; headings are the one `.side-head` (28 px in the bar, small caps, faint), icon buttons 28 px. A hint that is only useful during an action ("drop here to pin") appears during that action, floating, never as a standing box.
 
+### Palettes and shapes (Settings → Appearance)
+- **A palette** (`ui.palette`: `atlas`, `ink`, `clay`; `styles/palettes.css`) is a colour family over `tokens.css`, in
+  light and dark alike, set as `<html data-palette>`. It only redefines tokens; components never test the palette. E-ink
+  keeps its own; an accent set in Settings and a VS Code theme (inline on `<html>`) win over it.
+- **A shape** (`ui.shape`: `cards`, `paper`; `styles/shape-paper.css`) is how surfaces are drawn, set as
+  `<html data-shape>`. `cards` is the default described above; `paper` is one flat sheet: panes flush with 1 px rules
+  (the dock's gap, `lib/dock.ts`), square corners, a selected tab or row marked by an accent bar, section labels
+  followed by a rule. Every rule of a shape starts with `:root[data-shape="…"]`, so it outranks the scoped styles it
+  overrides and disappears with the setting. A new shape is one such file and one enum value.
+- **Note fonts:** Literata and Source Serif 4 are carried by the interface (`main.ts`) and offered first for
+  `editor.prose_font`; a serif body also sits better beside KaTeX's math.
+
 ## 4. Interaction (Vercel)
 - **Everything works from the keyboard**; every command has a palette entry and can take a shortcut.
 - Focus is always visible (`:focus-visible`), and it is managed: a pane opened by a shortcut receives the keys typed after it.

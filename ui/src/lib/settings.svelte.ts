@@ -60,6 +60,8 @@ function apply(c: WorkspaceConfig): void {
   const theme = eink ? "light" : c.ui.theme === "system" || inPhoneApp() ? (media?.matches ? "light" : "dark") : c.ui.theme;
   applyVscodeTheme(vscode && themeBase(vscode) === theme ? vscode : null);
   paintTheme(theme);
+  root.dataset.palette = c.ui.palette; // palettes.css
+  root.dataset.shape = c.ui.shape; // shape-paper.css
   app.vimEnabled = c.vim;
   const px = (n: number) => `${n}px`;
   const font = (name: string, fallback: string) => (name.trim() ? `"${name.trim()}", ${fallback}` : fallback);

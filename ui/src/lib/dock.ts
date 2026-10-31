@@ -185,9 +185,14 @@ class Watermark implements IWatermarkRenderer {
   init(): void {}
 }
 
+// the space between groups: cards float 6 px apart; on the paper shape (shape-paper.css) groups are flush and their
+// 1 px gap, showing the dock's colour, is the rule between them
+const dockTheme = (shape: string) => ({ name: "atlas", className: "dockview-theme-atlas", gap: shape === "paper" ? 1 : 6,
+  dndOverlayMounting: "relative" as const, dndPanelOverlay: "group" as const, dndTabIndicator: "line" as const });
+
 export function initDock(el: HTMLElement, components: PaneComponents): DockviewApi {
   const dock = createDockview(el, {
-    theme: { name: "atlas", className: "dockview-theme-atlas", gap: 6, dndOverlayMounting: "relative", dndPanelOverlay: "group", dndTabIndicator: "line" },
+    theme: dockTheme(""),
     createComponent: (o) => new SveltePane(components[o.name as PaneKind] as AnyLoader, o.name as PaneKind),
     createTabComponent: () => new AtlasTab(),
     defaultTabComponent: "atlas",
@@ -243,6 +248,8 @@ export function initDock(el: HTMLElement, components: PaneComponents): DockviewA
   let lastPos: string | undefined;
   onSettings(moveSidePanel);
   onWide(moveSidePanel);
+  let lastShape = "cards";
+  onSettings((c) => { if (c.ui.shape !== lastShape) dock.updateOptions({ theme: dockTheme(lastShape = c.ui.shape) }); });
   onSettings((c) => {
     if (lastPos !== undefined && lastPos !== c.terminal.position) placeTerminalPanel(c.terminal.position);
     lastPos = c.terminal.position;

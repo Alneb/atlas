@@ -3,6 +3,8 @@ import type { Eink } from "./Eink";
 import type { EinkRefresh } from "./EinkRefresh";
 import type { GpuRendering } from "./GpuRendering";
 import type { Motion } from "./Motion";
+import type { Palette } from "./Palette";
+import type { Shape } from "./Shape";
 import type { SidePanelPlace } from "./SidePanelPlace";
 import type { TabSwitcher } from "./TabSwitcher";
 import type { TabsLayout } from "./TabsLayout";
@@ -26,6 +28,16 @@ vscode_theme: string,
  * Accent colour (links, selection, buttons), as `#rrggbb`. Empty = the theme's own.
  */
 accent: string, 
+/**
+ * Colours, in light and dark alike: Atlas's own cool greys, or a warm paper with an ink-blue (`ink`) or a
+ * terracotta (`clay`) accent. The accent above and a VS Code theme still win over it.
+ */
+palette: Palette, 
+/**
+ * Shapes: `cards` (panes as rounded cards floating on the window) or `paper` (one flat sheet: panes flush,
+ * hairline rules between them, square corners, the selected tab or row marked by a bar).
+ */
+shape: Shape, 
 /**
  * Font for the interface (menus, panes, tabs). Empty = Inter.
  */

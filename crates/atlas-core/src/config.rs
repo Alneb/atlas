@@ -312,6 +312,12 @@ pub struct UiConfig {
     pub vscode_theme: String,
     /// Accent colour (links, selection, buttons), as `#rrggbb`. Empty = the theme's own.
     pub accent: String,
+    /// Colours, in light and dark alike: Atlas's own cool greys, or a warm paper with an ink-blue (`ink`) or a
+    /// terracotta (`clay`) accent. The accent above and a VS Code theme still win over it.
+    pub palette: Palette,
+    /// Shapes: `cards` (panes as rounded cards floating on the window) or `paper` (one flat sheet: panes flush,
+    /// hairline rules between them, square corners, the selected tab or row marked by a bar).
+    pub shape: Shape,
     /// Font for the interface (menus, panes, tabs). Empty = Inter.
     pub ui_font: String,
     /// Interface text size, in px (14 = default; everything scales with it).
@@ -430,6 +436,32 @@ pub enum EinkRefresh {
     Navigation,
     /// Only by the command "E-ink: clear the screen".
     Manual,
+}
+
+/// The interface's colour family (tokens.css, palettes.css); light or dark comes from the theme.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, TS, JsonSchema)]
+#[serde(rename_all = "lowercase")]
+#[ts(export)]
+pub enum Palette {
+    /// Atlas's own: cool greys, an indigo accent.
+    #[default]
+    Atlas,
+    /// Warm paper, a deep ink-blue accent.
+    Ink,
+    /// Warm paper, a terracotta accent.
+    Clay,
+}
+
+/// How panes and controls are drawn (shape-paper.css).
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, TS, JsonSchema)]
+#[serde(rename_all = "lowercase")]
+#[ts(export)]
+pub enum Shape {
+    /// Rounded cards floating on the window's background.
+    #[default]
+    Cards,
+    /// One flat sheet: flush panes, hairline rules, square corners.
+    Paper,
 }
 
 /// Short (≈120 ms) transitions and fades by default; e-ink screens and the system's reduced motion turn them off.
@@ -938,7 +970,7 @@ impl Default for Config {
 
 impl Default for UiConfig {
     fn default() -> Self {
-        Self { theme: Theme::System, vscode_theme: String::new(), accent: String::new(), ui_font: String::new(), font_size: 14, gpu_rendering: GpuRendering::Auto, css_snippets_off: Vec::new(), tabs: TabsLayout::Vertical, side_panel: SidePanelPlace::Dock, motion: Motion::default(), eink: Eink::Auto, eink_refresh: EinkRefresh::Often, restore_layout: true, tab_preview: true, tab_switcher: TabSwitcher::Glance, sleep_after_min: 10, awake_tabs: 8, libraries: Vec::new(), apps_order: Vec::new(), apps_hidden: Vec::new() }
+        Self { theme: Theme::System, vscode_theme: String::new(), accent: String::new(), palette: Palette::default(), shape: Shape::default(), ui_font: String::new(), font_size: 14, gpu_rendering: GpuRendering::Auto, css_snippets_off: Vec::new(), tabs: TabsLayout::Vertical, side_panel: SidePanelPlace::Dock, motion: Motion::default(), eink: Eink::Auto, eink_refresh: EinkRefresh::Often, restore_layout: true, tab_preview: true, tab_switcher: TabSwitcher::Glance, sleep_after_min: 10, awake_tabs: 8, libraries: Vec::new(), apps_order: Vec::new(), apps_hidden: Vec::new() }
     }
 }
 

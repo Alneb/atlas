@@ -43,6 +43,11 @@ pub fn fonts(mono: bool) -> Vec<Suggestion> {
     fams.into_iter().map(|f| Suggestion { value: f.clone(), label: f }).collect()
 }
 
+/// The serif fonts the interface carries itself (ui/src/main.ts), first for notes: they work on every device.
+fn bundled_prose() -> Vec<Suggestion> {
+    ["Literata", "Source Serif 4"].into_iter().map(|f| Suggestion { value: f.into(), label: format!("{f} (built in)") }).collect()
+}
+
 /// [`suggestions`] reused for 5 minutes: it lists every installed font and snippet file.
 pub fn suggestions_cached() -> Suggestions {
     use std::sync::Mutex;
@@ -78,6 +83,6 @@ pub fn suggestions() -> Suggestions {
         ("latex.variables_file".to_string(), vars),
         ("editor.code_font".to_string(), mono),
         ("ui.ui_font".to_string(), all.clone()),
-        ("editor.prose_font".to_string(), all),
+        ("editor.prose_font".to_string(), bundled_prose().into_iter().chain(all).collect()),
     ])
 }

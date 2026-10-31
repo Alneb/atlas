@@ -1,0 +1,46 @@
+/* The `paper` shape (Settings → Appearance → Shape, `ui.shape`; lib/settings.svelte.ts sets <html data-shape>): the
+   window is one flat sheet instead of cards on a ground. Panes sit flush, divided by hairlines (the dock's gap is 1 px
+   there, lib/dock.ts, and the dock's own colour is the line); corners are square; a selected tab or row is marked by a
+   bar at its edge instead of a raised pill; the left bar is a slightly darker margin of the same paper. Every rule here
+   starts with `:root[data-shape="paper"]`, so it outranks the components' scoped styles and is gone with the setting. */
+
+:root[data-shape="paper"] {
+  --radius-sm: 3px; --radius: 4px; --radius-lg: 5px; --radius-xl: 6px;
+  --bg-app: var(--bg-alt);
+  --shadow-sm: none;
+}
+
+/* the dock: flush to the left bar and the window's edges, its 1 px gaps drawn as rules */
+:root[data-shape="paper"] .dock-wrap > .dock { inset: 0; }
+:root[data-shape="paper"] .dockview-theme-atlas .dv-dockview { background-color: var(--border); }
+:root[data-shape="paper"] .dockview-theme-atlas .dv-groupview,
+:root[data-shape="paper"] .dockview-theme-atlas .dv-groupview.dv-active-group { border: 0; border-radius: 0; box-shadow: none; }
+:root[data-shape="paper"] .dockview-theme-atlas .dv-render-overlay { border-radius: 0; }
+:root[data-shape="paper"] .sidebar { border-right: 1px solid var(--border); }
+:root[data-shape="paper"] footer.status { background: var(--bg); border-top: 1px solid var(--border); }
+
+/* tabs in the left bar: a line of text, the open one marked by an accent bar, not a raised card */
+:root[data-shape="paper"] .tabs-list .tab { border-radius: 0 var(--radius) var(--radius) 0; }
+:root[data-shape="paper"] .tabs-list .tab.active { background: var(--bg-active); border-color: transparent; box-shadow: inset 2px 0 0 var(--accent); }
+:root[data-shape="paper"] .tabs-list .tab.active .tab-title { font-weight: 600; }
+
+/* horizontal tabs: the open one underlined in the accent */
+:root[data-shape="paper"] .dockview-theme-atlas .dv-tab.dv-active-tab { box-shadow: none; }
+:root[data-shape="paper"] .dockview-theme-atlas .dv-active-group .dv-tab.dv-active-tab::after { background: var(--accent); left: 0; right: 0; border-radius: 0; }
+
+/* section labels: small capitals followed by a hairline rule across the column */
+:root[data-shape="paper"] .sidebar .side-head .side-title { display: flex; align-items: center; gap: 8px; flex: 1; }
+:root[data-shape="paper"] .sidebar .side-head .side-title::after { content: ""; flex: 1; height: 1px; background: var(--border); }
+
+/* the command bar and other popovers: a sheet with a rule, not a floating bubble; the chosen row barred */
+:root[data-shape="paper"] .palette { border-radius: var(--radius-lg); box-shadow: 0 18px 48px rgba(0, 0, 0, .14), 0 0 0 1px var(--border-strong); border-color: transparent; }
+:root[data-shape="paper"] .palette .item.sel { box-shadow: inset 2px 0 0 var(--accent); border-radius: 0; }
+:root[data-shape="paper"] .palette .section { display: flex; align-items: center; gap: 8px; }
+:root[data-shape="paper"] .palette .section::after { content: ""; flex: 1; height: 1px; background: var(--border); }
+
+/* a note reads as a page: its format bar and path quiet until the pointer comes near */
+:root[data-shape="paper"] .format-bar { opacity: .55; transition: opacity .15s; border-bottom-color: transparent; }
+:root[data-shape="paper"] .format-bar:hover, :root[data-shape="paper"] .format-bar:focus-within { opacity: 1; }
+
+/* buttons: flat, a rule instead of a fill where they are secondary */
+:root[data-shape="paper"] .btn-ghost { border-color: var(--border-strong); background: transparent; }

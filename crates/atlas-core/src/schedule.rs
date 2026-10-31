@@ -2,6 +2,8 @@
 //! or `"hourly"`. They run while an Atlas server is up (the app or `atlas serve`); each run is
 //! recorded in `.atlas/cache/schedule.json` (last run per command) and `schedule.log`, and a failure
 //! notifies the UI. `[automation] run_schedules = false` turns it off; `schedules_on` names the computers that run them.
+//! `ATLAS_NO_SCHEDULE` (any value) keeps a server from running any: a core serving a copy of a vault (a probe, a
+//! profile) would otherwise run the vault's cluster polls and syncs on the same computer, and notify their failures.
 use crate::api::Mtime;
 use crate::api::{Event, Notice, NoticeLevel, ScheduledRun};
 use crate::commands::{run_script, scripts, ScriptCommand, SCRIPT_TIMEOUT};
@@ -148,11 +150,16 @@ pub async fn tick(ws: &Workspace, bus: &EventBus, helpers: Option<&crate::helper
             }
         };
         let (ok, summary) = match &out {
-            Ok(v) => (true, v.get("summary").and_then(Value::as_str).map(str::to_string).or_else(|| v.as_str().map(str::to_string)).unwrap_or_else(|| v.to_string())),
+            Ok(v) => (true, said(v)),
             Err(e) => (false, e.to_string()),
         };
         let summary: String = summary.trim().lines().last().unwrap_or("").chars().take(300).collect();
         log_line(&cache, &format!("{id} {}: {summary}", if ok { "ok" } else { "FAILED" }));
+        if let Ok(v) = &out {
+            for n in notices(v, &job) {
+                bus.publish(Event::Notify(n));
+            }
+        }
         // once per failure, not per run: a job every 5 min that keeps failing the same way (a cluster not connected)
         // notified every 5 min; again when it fails for another reason, or fails anew after working
         if !ok && recs.get(&id).is_none_or(|prev| prev.ok || prev.summary != summary) {
@@ -163,9 +170,41 @@ pub async fn tick(ws: &Workspace, bus: &EventBus, helpers: Option<&crate::helper
     let _ = vault_write::cache::write(&cache.join(STATE), serde_json::to_string_pretty(&recs).unwrap_or_default().as_bytes());
 }
 
+/// What a job's answer says for the log: `skipped` (it had nothing it could do, e.g. a cluster not connected: never a
+/// failure, never a notice), else its `summary`, else its text.
+fn said(v: &Value) -> String {
+    if let Some(why) = v.get("skipped").and_then(Value::as_str) {
+        return format!("skipped: {why}");
+    }
+    v.get("summary").and_then(Value::as_str).map(str::to_string).or_else(|| v.as_str().map(str::to_string)).unwrap_or_else(|| v.to_string())
+}
+
+/// The notices a job's answer asks for (`notices: [{title, body?, level?, open?, id?}]`, e.g. "a run finished"), each
+/// from the job's source; one that is not a notice is dropped with a log line.
+fn notices(v: &Value, job: &Job) -> Vec<Notice> {
+    let source = match job {
+        Job::Command(s) => s.id.clone(),
+        Job::Tool(t) => t.plugin.clone(),
+    };
+    let Some(list) = v.get("notices").and_then(Value::as_array) else { return vec![] };
+    list.iter()
+        .filter_map(|n| match serde_json::from_value::<Notice>(n.clone()) {
+            Ok(n) => Some(n.source(source.as_str())),
+            Err(e) => {
+                eprintln!("atlas: {source}: a scheduled answer's notice is not one ({e}): {n}");
+                None
+            }
+        })
+        .collect()
+}
+
 /// The scheduler loop (every 30 s) for a running server; aborted with the server.
 pub fn spawn(ws: Workspace, bus: EventBus, helpers: crate::helper::Helpers) -> tokio::task::JoinHandle<()> {
+    let off = std::env::var_os("ATLAS_NO_SCHEDULE").is_some();
     tokio::spawn(async move {
+        if off {
+            return;
+        }
         loop {
             tick(&ws, &bus, Some(&helpers), Local::now()).await;
             tokio::time::sleep(Duration::from_secs(30)).await;
@@ -249,6 +288,28 @@ mod tests {
         let ws = Workspace::open(d.path()).unwrap();
         tick(&ws, &EventBus::default(), None, Local::now()).await;
         assert!(records(&ws.cache_dir()).is_empty());
+    }
+
+    #[tokio::test]
+    async fn a_skipped_run_is_logged_quietly_and_an_answer_carries_its_notices() {
+        let d = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(d.path().join(".atlas/commands")).unwrap();
+        let cmd = d.path().join(".atlas/commands/runs.toml");
+        let answer = |json: &str| std::fs::write(&cmd, format!("title = \"Runs\"\nrun = '''echo '{json}''''\nschedule = \"every 1m\"\n")).unwrap();
+        answer(r#"{"skipped": "iq not connected"}"#);
+        let ws = Workspace::open(d.path()).unwrap();
+        let bus = EventBus::default();
+        let mut rx = bus.subscribe();
+        tick(&ws, &bus, None, Local::now()).await;
+        assert!(rx.try_recv().is_err(), "skipped: no notice");
+        let r = records(&ws.cache_dir());
+        assert!(r["runs"].ok && r["runs"].summary == "skipped: iq not connected", "{r:?}");
+        answer(r#"{"summary": "1 fetched", "notices": [{"title": "Run finished: a_1", "level": "success", "open": "runs/a_1/a_1.md"}, {"nope": 1}]}"#);
+        tick(&ws, &bus, None, Local::now() + chrono::Duration::minutes(6)).await;
+        let Ok(Event::Notify(n)) = rx.try_recv() else { panic!("the answer's notice") };
+        assert_eq!((n.title.as_str(), n.level, n.open.as_deref(), n.source.as_deref()), ("Run finished: a_1", Some(NoticeLevel::Success), Some("runs/a_1/a_1.md"), Some("runs")));
+        assert!(rx.try_recv().is_err(), "a malformed notice is dropped");
+        assert_eq!(records(&ws.cache_dir())["runs"].summary, "1 fetched");
     }
 
     #[tokio::test]

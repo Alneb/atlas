@@ -11,7 +11,7 @@ import { ansiColors } from "./ansi";
 import "./md-format"; // registers the note keys' formatter (registry.noteFormat)
 import { settings, onSettings } from "../settings.svelte";
 import { EditorState, Compartment, Prec, Transaction, type Extension, type ChangeSet, type Text } from "@codemirror/state";
-import { EditorView, keymap, drawSelection, dropCursor, rectangularSelection, highlightActiveLine, highlightSpecialChars } from "@codemirror/view";
+import { EditorView, keymap, dropCursor, rectangularSelection, highlightActiveLine, highlightSpecialChars } from "@codemirror/view";
 import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
 import { indentOnInput, LanguageDescription } from "@codemirror/language";
 import { languages } from "@codemirror/language-data";
@@ -27,6 +27,7 @@ import { mathPreview } from "./math-preview";
 import { editorMenu } from "./menu";
 import { pluginCompletions, pluginHooks } from "./plugin-hooks";
 import { atlasTheme } from "./theme";
+import { drawnSelection } from "./drawn-selection";
 import { defineEx, exHooks, modeLabel, stashVisual, restoreVisual, desktopKeys, type VimModeLabel } from "./vim-glue";
 import { tabKey, untouchedTaskList } from "./tab-keys";
 import { placeOf, keepPlace, topIn, type Place } from "./places";
@@ -128,7 +129,7 @@ export function createEditor(o: EditorOptions): AtlasEditor {
     atlasTheme,
     ansiColors(), // before highlightSpecialChars: a hidden ESC [ … m is not drawn as a special character
     history(),
-    drawSelection(),
+    drawnSelection(), // drawSelection() minus a rule that restyled the whole note on each focus change
     dropCursor(),
     // several cursors (Ctrl+D, Ctrl+Shift+L, Alt+click, a rectangle): off unless a state allows it
     EditorState.allowMultipleSelections.of(true),
