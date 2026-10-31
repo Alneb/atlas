@@ -312,8 +312,8 @@ pub struct UiConfig {
     pub vscode_theme: String,
     /// Accent colour (links, selection, buttons), as `#rrggbb`. Empty = the theme's own.
     pub accent: String,
-    /// Colours, in light and dark alike: Atlas's own cool greys, or a warm paper with an ink-blue (`ink`) or a
-    /// terracotta (`clay`) accent. The accent above and a VS Code theme still win over it.
+    /// Colours, in light and dark alike: Atlas's own cool greys, or a warm paper with ink-blue (`ink`) or
+    /// terracotta (`clay`) links and buttons. A colour set above and a VS Code theme still win over it.
     pub palette: Palette,
     /// Shapes: `cards` (panes as rounded cards floating on the window) or `paper` (one flat sheet: panes flush,
     /// hairline rules between them, square corners, the selected tab or row marked by a bar).
@@ -443,12 +443,12 @@ pub enum EinkRefresh {
 #[serde(rename_all = "lowercase")]
 #[ts(export)]
 pub enum Palette {
-    /// Atlas's own: cool greys, an indigo accent.
+    /// Atlas's own: cool greys, indigo links and buttons.
     #[default]
     Atlas,
-    /// Warm paper, a deep ink-blue accent.
+    /// Warm paper, deep ink-blue links and buttons.
     Ink,
-    /// Warm paper, a terracotta accent.
+    /// Warm paper, terracotta links and buttons.
     Clay,
 }
 

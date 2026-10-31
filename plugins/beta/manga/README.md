@@ -17,7 +17,13 @@ a click.
 - **Other archives**: `.cbr`, `.cb7`, `.cbt` are unpacked once by Atlas's core into a cached `.cbz` (zip, tar and 7z on
   every platform; a real RAR through the machine's `bsdtar`, `unar` or `unrar`).
 - **Suwayomi** (`suwayomi.js`): the server's library, chapters and pages through Atlas's fetch, and what you read
-  written back to the server. Behind a sign-in proxy, Atlas offers the sign-in.
+  written back to the server. Behind a sign-in proxy, Atlas offers the sign-in. What the server answered is kept: when
+  it cannot be reached, the library and a series' chapters are the ones last seen (grouped as "offline: as last seen"),
+  a chapter opened before reads from the kept pictures (a page is never downloaded twice), and where you are waits
+  and is sent with the server's next answer.
+  Its categories are folders under "Suwayomi" at the Comics side (Suwayomi › Weekly), its own Default left out.
+  A series' **New chapters?** asks the server to look at its source again; the command "Manga: look for new chapters
+  on Suwayomi" starts the server's update of the whole library (new chapters then show as unread counts).
 - **On the phone**: a native reader (`android/`) takes a chapter handed over with `atlas.openNative` — a vault `.cbz`,
   a folder of pictures, or a Suwayomi chapter. It fetches pages in parallel, decodes them at the screen's size (JPEG
   XL included), keeps a memory cache and works only on the pages near where you are. The library stays the page's.

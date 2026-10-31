@@ -6,7 +6,7 @@ import { WS } from "../playwright.config";
 import { createServer, type Server } from "node:http";
 import { execFileSync } from "node:child_process";
 // @ts-expect-error a plugin's module is plain JavaScript, loaded as the page loads it
-import { said } from "../../plugins/beta/manga/suwayomi.js";
+import { said, suwayomi, kept } from "../../plugins/beta/manga/suwayomi.js";
 
 // The manga plugin's web side (plugins/beta/manga/view.js): the library from the vault's manga/ folder, a series, and
 // a .cbz unzipped in the page; where you are written to the series' note (its folder's own), as the Android screens write it.
@@ -204,6 +204,7 @@ test("manga on e-ink: a refresh asked on each page turn (flash_every = 1)", asyn
 // where you are written back with updateChapter, and the Libraries page's Comics listing both.
 test("Suwayomi: its library beside the vault's, a chapter read from it, where you are written back", async ({ page, request }) => {
   const marks: { id: number; page: number; read: boolean }[] = [];
+  let fetched = false, updates = 0; // a source looked at again (fetchMangaAndChapters) finds a third chapter
   const server: Server = createServer((req, res) => {
     const url = req.url ?? "";
     // the cover as JPEG XL, as some sources serve it: no browser here decodes it, so it shows only through the core's
@@ -214,10 +215,14 @@ test("Suwayomi: its library beside the vault's, a chapter read from it, where yo
     req.on("data", (c) => (body += c));
     req.on("end", () => {
       const { query, variables } = JSON.parse(body) as { query: string; variables: Record<string, unknown> };
-      const data = query.includes("mangas(") ? { mangas: { nodes: [{ id: 6, title: "BLAME!", thumbnailUrl: "/api/v1/manga/6/thumbnail", user: { unreadCount: 2 } }] } }
+      const data = query.includes("mangas(") ? { mangas: { nodes: [{ id: 6, title: "BLAME!", thumbnailUrl: "/api/v1/manga/6/thumbnail", user: { unreadCount: 2 },
+          categories: { nodes: [{ name: "Default", default: true }, { name: "Weekly", default: false }] } }] } }
         : query.includes("chapters(") ? { chapters: { nodes: [
           { id: 9597, name: "Chapter 001 - The Net's Offspring", user: { isRead: false, lastPageRead: 0, lastReadAt: "0" } },
-          { id: 9598, name: "Chapter 002 - Fifteen Billion", user: { isRead: false, lastPageRead: 0, lastReadAt: "0" } }] } }
+          { id: 9598, name: "Chapter 002 - Fifteen Billion", user: { isRead: false, lastPageRead: 0, lastReadAt: "0" } },
+          ...(fetched ? [{ id: 9599, name: "Chapter 003 - The Electro-Fishers", user: { isRead: false, lastPageRead: 0, lastReadAt: "0" } }] : [])] } }
+        : query.includes("fetchMangaAndChapters") ? (fetched = true, { fetchMangaAndChapters: { clientMutationId: null } })
+        : query.includes("updateLibrary") ? (updates++, { updateLibrary: { clientMutationId: null } })
         : query.includes("fetchChapterPages") ? { fetchChapterPages: { pages: ["/api/v1/manga/6/chapter/1/page/0", "/api/v1/manga/6/chapter/1/page/1", "/api/v1/manga/6/chapter/1/page/2"] } }
         : query.includes("updateChapter") ? (marks.push(variables as never), { updateChapter: { chapter: { id: variables.id } } }) : null;
       res.writeHead(200, { "content-type": "application/json" });
@@ -238,6 +243,12 @@ test("Suwayomi: its library beside the vault's, a chapter read from it, where yo
     await expect(blame.locator(".m")).toHaveText("2 unread"); // the server's unread count
     await expect(blame.locator("img")).toHaveAttribute("src", /^blob:/); // its cover, from the server
     await expect.poll(() => blame.locator("img").evaluate((i: HTMLImageElement) => i.naturalWidth)).toBe(3); // decoded: PNG by now
+    // its Suwayomi categories as folders under "Suwayomi" at the side (Suwayomi's own Default left out)
+    await libs.getByRole("button", { name: "Open Suwayomi" }).click();
+    await libs.locator('button.item[title="Suwayomi › Weekly"]').click();
+    await expect(libs.locator(".card", { hasText: "Blue Period" })).toHaveCount(0);
+    await expect(blame).toBeVisible();
+    await expect(libs.locator('button.item[title="Suwayomi › Default"]')).toHaveCount(0);
     await blame.click();
     await libs.locator(".detail").getByRole("button", { name: "Read" }).click();
     const pane = page.locator(".manga");
@@ -248,6 +259,16 @@ test("Suwayomi: its library beside the vault's, a chapter read from it, where yo
     await page.keyboard.press("ArrowLeft");
     await expect(pane.locator(".m-num")).toHaveText("2 / 3");
     await expect.poll(() => marks.at(-1)).toEqual({ id: 9597, page: 1, read: false }); // where you are, on the server
+
+    // new chapters: the series asks the server to look at its source again; the library's update is a command
+    await page.keyboard.press("Escape");
+    await pane.getByRole("button", { name: "New chapters?" }).click();
+    await expect(pane.locator(".m-ch .m-ch-name")).toHaveCount(3);
+    await expect(page.getByText("1 new chapter of BLAME!")).toBeVisible();
+    await page.keyboard.press("F1");
+    await page.keyboard.type("Manga: look for new chapters");
+    await page.getByTestId("palette").getByText("Manga: look for new chapters on Suwayomi").first().click();
+    await expect.poll(() => updates).toBe(1);
 
   } finally {
     await request.put("/api/file", { headers: { "x-atlas": "1" }, data: { path: ".atlas/plugin-settings/manga.toml", text: "" } });
@@ -284,4 +305,54 @@ test("a Suwayomi error is one line, and a source gone says what to do", () => {
   const trace = "Exception while fetching data (/fetchChapterPages) : Source not installed: 1998944621602463790\n\nsuwayomi.tachidesk.manga.impl.util.source.StubSource$SourceNotInstalledException: Source not installed: 1998944621602463790\n\tat suwayomi.tachidesk.manga.impl.util.source.StubSource.getPageList(StubSource.kt:65)";
   expect(said(trace)).toBe("this series' source is not installed in Suwayomi (source 1998944621602463790): install its extension in Suwayomi's Extensions, or migrate the series to another source");
   expect(said("Exception while fetching data (/x) : boom\n\tat a.B.c(B.kt:1)")).toBe("Suwayomi: Exception while fetching data (/x) : boom");
+});
+
+// What the server answered is kept: with it unreachable the library and a series' chapters are the last ones seen, a
+// chapter opened before reads from the kept pictures without asking anything, and where you are waits and is sent
+// with the server's next answer (said once).
+test("pure: Suwayomi offline — the lists and pictures as kept, where you are sent when it answers", async () => {
+  const mem = new Map<string, string>(), storage = { getItem: (k: string) => mem.get(k) ?? null, setItem: (k: string, v: string) => void mem.set(k, v) };
+  let up = true;
+  const asked: string[] = [], marks: unknown[] = [], files = new Set<string>(), toasts: unknown[] = [];
+  const atlas = {
+    plugin: { id: "manga" },
+    async fetch(_url: string, o: { saveTo?: string; body?: { query: string; variables: Record<string, unknown> } } = {}) {
+      if (!up) throw new Error("connection refused");
+      if (o.saveTo) { const p = `.atlas/cache/plugins/manga/${o.saveTo}`; files.add(p); asked.push("picture"); return { ok: true, saved: p }; }
+      const { query, variables } = o.body!;
+      asked.push(query);
+      const data = query.includes("mangas(") ? { mangas: { nodes: [{ id: 6, title: "BLAME!", thumbnailUrl: "/t", user: { unreadCount: 2 } }] } }
+        : query.includes("chapters(") ? { chapters: { nodes: [{ id: 1, name: "One", user: { isRead: false, lastPageRead: 0, lastReadAt: "0" } }, { id: 2, name: "Two", user: {} }] } }
+        : query.includes("fetchChapterPages") ? { fetchChapterPages: { pages: ["/p0", "/p1"] } }
+        : (marks.push(variables), { updateChapter: {} });
+      return { ok: true, json: async () => ({ data }) };
+    },
+    exists: async (p: string) => files.has(p), thumbUrl: (p: string) => `thumb:${p}`, toast: (...a: unknown[]) => void toasts.push(a),
+  };
+  const client = () => suwayomi(atlas, "http://suwayomi.example.org/", kept("http://suwayomi.example.org", storage));
+  let suw = client();
+  const [series] = await suw.library();
+  await suw.chapters(series);
+  expect(await (await suw.pages(series.chapters[0])).url(0)).toBe("thumb:.atlas/cache/plugins/manga/suwayomi/1/0");
+
+  up = false; suw = client(); // a reload with the server gone
+  const [again] = await suw.library();
+  expect(again.title).toBe("BLAME!");
+  expect(suw.offline).toBe("connection refused");
+  await suw.chapters(again);
+  expect(again.chapters).toEqual(["suwayomi:1/One", "suwayomi:2/Two"]);
+  const before = asked.length;
+  expect(await (await suw.pages(again.chapters[0])).url(1)).toBe("thumb:.atlas/cache/plugins/manga/suwayomi/1/1"); // kept: nothing asked
+  expect(asked.length).toBe(before);
+  await expect(suw.pages(again.chapters[1])).rejects.toThrow("connection refused"); // never opened: nothing to read
+  await suw.mark(again.chapters[0], 1, false);
+  await suw.mark(again.chapters[1], 0, true);
+  expect(toasts).toHaveLength(1);
+  await suw.chapters(again);
+  expect(again.reading.chapters).toEqual({ One: { read: false, page: 1 }, Two: { read: true, page: 0 } }); // the places not sent yet
+
+  up = true; suw = client();
+  await suw.library();
+  await expect.poll(() => marks).toEqual([{ id: 1, page: 1, read: false }, { id: 2, page: 0, read: true }]);
+  await expect.poll(() => JSON.parse([...mem.values()][0]).marks).toEqual({});
 });

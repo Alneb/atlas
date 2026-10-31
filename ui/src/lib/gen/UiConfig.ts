@@ -29,8 +29,8 @@ vscode_theme: string,
  */
 accent: string, 
 /**
- * Colours, in light and dark alike: Atlas's own cool greys, or a warm paper with an ink-blue (`ink`) or a
- * terracotta (`clay`) accent. The accent above and a VS Code theme still win over it.
+ * Colours, in light and dark alike: Atlas's own cool greys, or a warm paper with ink-blue (`ink`) or
+ * terracotta (`clay`) links and buttons. A colour set above and a VS Code theme still win over it.
  */
 palette: Palette, 
 /**

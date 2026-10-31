@@ -6,7 +6,7 @@ title = "Manga"
 description = "a manga and comics library and reader like Mihon: series, chapters, read from where you left, right-to-left, webtoon, e-ink paging"
 phone = true # runs in the phone apps too (only plugins marked so start there)
 icon = "file"
-version = "0.8.0"
+version = "0.9.0"
 api = 20
 claims = ["*.cbz", "*.cbr", "*.cb7", "*.cbt"] # opens here on a click (API 7); all but .cbz made into one first (helper/helper.ts)
 

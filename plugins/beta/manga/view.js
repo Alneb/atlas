@@ -75,7 +75,7 @@ export default function mount(host, atlas) {
   async function scan() {
     const out = await seriesIn(atlas, folder);
     remoteTrouble = "";
-    if (suw.on) try { out.push(...(await suw.library()).sort((a, b) => natural(a.title, b.title))); } catch (e) { remoteTrouble = String(e.message ?? e); }
+    if (suw.on) try { out.push(...(await suw.library()).sort((a, b) => natural(a.title, b.title))); remoteTrouble = suw.offline; } catch (e) { remoteTrouble = String(e.message ?? e); }
     return out;
   }
   /** A Suwayomi series' chapters and where you are, asked of the server once it is opened. */
@@ -167,6 +167,21 @@ export default function mount(host, atlas) {
     void coverFor(s).then((u) => { if (u) img.src = u; });
     const count = el("div", "m-count"), go = el("button", "atlas-btn primary");
     side.append(el("h2", "", s.title), count, go);
+    if (s.remote) {
+      const fresh = el("button", "atlas-btn", "New chapters?");
+      fresh.title = "Ask Suwayomi to look for new chapters at this series' source";
+      fresh.onclick = async () => {
+        fresh.disabled = true; fresh.textContent = "Looking…";
+        try {
+          const n = await suw.refresh(s);
+          atlas.toast("Manga", n ? `${n} new chapter${n === 1 ? "" : "s"} of ${s.title}` : `No new chapters of ${s.title}`, n ? "success" : undefined);
+          if (n) { show(() => series(s)); return; }
+        } catch (e) { atlas.toast("Manga", String(e.message ?? e), "error"); }
+        fresh.disabled = false; fresh.textContent = "New chapters?";
+      };
+      side.append(fresh);
+    }
+    if (s.remote && suw.offline) side.append(el("div", "m-offline", `Suwayomi cannot be reached (${suw.offline}): the chapters as last seen; the ones opened before read from the copies kept.`));
     top.append(pic, side);
     const list = el("div", "m-chapters");
     root.append(head, top, list);
@@ -400,6 +415,7 @@ function style() {
   .manga .m-over.on { visibility: visible; }
   .manga .m-num { position: absolute; bottom: 6px; left: 50%; transform: translateX(-50%); padding: 1px 8px; border-radius: 6px; background: var(--bg-elev); color: var(--text-muted); font-size: .9em; pointer-events: none; }
   .manga .atlas-notice { margin: 18px; }
+  .manga .m-offline { color: var(--text-muted); font-size: .85em; max-width: 42ch; }
   `;
   return s;
 }

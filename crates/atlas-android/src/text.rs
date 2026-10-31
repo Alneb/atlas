@@ -32,7 +32,7 @@ const N: usize = 6;
 
 /// A stroke's samples, six numbers each, as every device stores them in a PDF's note.
 pub fn samples_encode(s: &[f64]) -> String {
-    Samples(s.chunks_exact(N).map(|c| Sample { x: c[0], y: c[1], pressure: c[2], tilt_x: c[3], tilt_y: c[4], t: c[5].max(0.0).round() as u32 }).collect())
+    Samples(s.as_chunks::<N>().0.iter().map(|c| Sample { x: c[0], y: c[1], pressure: c[2], tilt_x: c[3], tilt_y: c[4], t: c[5].max(0.0).round() as u32 }).collect())
         .encode()
 }
 
