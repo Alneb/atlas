@@ -202,43 +202,58 @@ fn with_status(line: &str, status: Option<char>) -> Option<String> {
 }
 
 /// One triage answer, written into the capture's own file (and the note it is filed into). The line must still be what
-/// the view showed (`source`): edited meanwhile, nothing is written and the view is told to read again.
+/// the view showed (`source`): edited meanwhile, nothing is written and the view is told to read again. The file is
+/// changed through `vault_write::modify`, so a capture appended meanwhile is kept; the filed entry is appended to its
+/// note after, with the log's lock let go (two filings across the same two notes would otherwise wait on each other).
 pub fn triage(root: &Path, cfg: &Config, req: &TriageRequest, now: NaiveDateTime) -> Result<Vec<String>> {
     let abs = paths::safe_join(root, &req.path)?;
-    let text = std::fs::read_to_string(&abs).map_err(|_| Error::NotFound(req.path.clone()))?;
     if req.line == 0 {
-        return triage_note(root, cfg, &abs, &req.path, &text, &req.action, now);
+        return triage_note(root, cfg, &abs, &req.path, &req.action, now);
     }
-    let mut lines: Vec<String> = text.split('\n').map(str::to_string).collect();
-    let idx = req.line as usize - 1;
-    let line = lines.get(idx).ok_or(Error::Conflict { current: None })?.clone();
-    if line != req.source {
-        return Err(Error::Conflict { current: None });
-    }
-    let c = parse_line(&line).ok_or_else(|| Error::BadRequest("that line is not a capture".into()))?;
+    let mut filed = None;
+    vault_write::modify(&abs, |text| {
+        let mut lines: Vec<String> = text.split('\n').map(str::to_string).collect();
+        let idx = req.line as usize - 1;
+        let line = lines.get(idx).ok_or(Error::Conflict { current: None })?.clone();
+        if line != req.source {
+            return Err(Error::Conflict { current: None });
+        }
+        let c = parse_line(&line).ok_or_else(|| Error::BadRequest("that line is not a capture".into()))?;
+        let next: Vec<String> = match &req.action {
+            TriageAction::Task => vec![with_status(&line, Some(' ')).unwrap_or(line.clone())],
+            // a task ticks the way every tick does (a recurring one leaves its next occurrence, `✅ day` with Tasks fields)
+            TriageAction::Done if c.status == Some(' ') => crate::today::tick_line(&line, now.date()).unwrap_or(vec![line.clone()]),
+            TriageAction::Done => vec![with_status(&line, Some('x')).unwrap_or(line.clone())],
+            TriageAction::Dismiss => vec![with_status(&line, Some('-')).unwrap_or(line.clone())],
+            TriageAction::Reopen => {
+                let open = with_status(&line, None).unwrap_or(line.clone());
+                let open = crate::today::without_done_date(&open);
+                vec![if c.filed.is_some() { strip_link(&open) } else { open }]
+            }
+            TriageAction::File { note } => {
+                let more = continuation(&lines, idx);
+                let day = log_day(cfg, &req.path);
+                filed = Some((note, filed_entry(c.text, &more, day.as_deref().map(wikilink).as_deref())));
+                vec![link_line(&line, note).unwrap_or(line.clone())]
+            }
+        };
+        lines.splice(idx..=idx, next);
+        Ok(lines.join("\n"))
+    })
+    .map_err(|e| missing_as(e, &req.path))?;
     let mut touched = vec![req.path.clone()];
-    let next: Vec<String> = match &req.action {
-        TriageAction::Task => vec![with_status(&line, Some(' ')).unwrap_or(line.clone())],
-        // a task ticks the way every tick does (a recurring one leaves its next occurrence, `✅ day` with Tasks fields)
-        TriageAction::Done if c.status == Some(' ') => crate::today::tick_line(&line, now.date()).unwrap_or(vec![line.clone()]),
-        TriageAction::Done => vec![with_status(&line, Some('x')).unwrap_or(line.clone())],
-        TriageAction::Dismiss => vec![with_status(&line, Some('-')).unwrap_or(line.clone())],
-        TriageAction::Reopen => {
-            let open = with_status(&line, None).unwrap_or(line.clone());
-            let open = crate::today::without_done_date(&open);
-            vec![if c.filed.is_some() { strip_link(&open) } else { open }]
-        }
-        TriageAction::File { note } => {
-            let more = continuation(&lines, idx);
-            let day = log_day(cfg, &req.path);
-            let entry = filed_entry(c.text, &more, day.as_deref().map(wikilink).as_deref());
-            touched.push(file_into(root, note, &entry)?);
-            vec![link_line(&line, note).unwrap_or(line.clone())]
-        }
-    };
-    lines.splice(idx..=idx, next);
-    vault_write::write(&abs, lines.join("\n").as_bytes())?;
+    if let Some((note, entry)) = filed {
+        touched.push(file_into(root, note, &entry)?);
+    }
     Ok(touched)
+}
+
+/// A file that is not there, said by its vault path.
+fn missing_as(e: Error, rel: &str) -> Error {
+    match e {
+        Error::NotFound(_) => Error::NotFound(rel.to_string()),
+        e => e,
+    }
 }
 
 /// A capture taken back (the Captured notice's Undo): its bullet and the lines under it leave the log, or its note goes
@@ -249,15 +264,17 @@ pub fn undo(ws: &crate::workspace::Workspace, req: &CaptureUndo) -> Result<Vec<S
         return Ok(vec![req.path.clone()]);
     };
     let abs = paths::safe_join(ws.root(), &req.path)?;
-    let text = std::fs::read_to_string(&abs).map_err(|_| Error::NotFound(req.path.clone()))?;
-    let mut lines: Vec<String> = text.split('\n').map(str::to_string).collect();
-    let idx = (req.line as usize).checked_sub(1).ok_or(Error::Conflict { current: None })?;
-    if lines.get(idx) != Some(source) {
-        return Err(Error::Conflict { current: None });
-    }
-    let more = continuation(&lines, idx).len();
-    lines.drain(idx..=idx + more);
-    vault_write::write(&abs, lines.join("\n").as_bytes())?;
+    vault_write::modify(&abs, |text| {
+        let mut lines: Vec<String> = text.split('\n').map(str::to_string).collect();
+        let idx = (req.line as usize).checked_sub(1).ok_or(Error::Conflict { current: None })?;
+        if lines.get(idx) != Some(source) {
+            return Err(Error::Conflict { current: None });
+        }
+        let more = continuation(&lines, idx).len();
+        lines.drain(idx..=idx + more);
+        Ok(lines.join("\n"))
+    })
+    .map_err(|e| missing_as(e, &req.path))?;
     Ok(vec![req.path.clone()])
 }
 
@@ -313,32 +330,44 @@ fn file_into(root: &Path, note: &str, entry: &str) -> Result<String> {
 }
 
 /// A note of the inbox triaged: its properties say what became of it; filed, its text is added to the other note;
-/// made a task, the task is a line of today's log that links it.
-fn triage_note(root: &Path, cfg: &Config, abs: &Path, rel: &str, text: &str, action: &TriageAction, now: NaiveDateTime) -> Result<Vec<String>> {
+/// made a task, the task is a line of today's log that links it. Each file is changed with no other's lock held.
+fn triage_note(root: &Path, cfg: &Config, abs: &Path, rel: &str, action: &TriageAction, now: NaiveDateTime) -> Result<Vec<String>> {
     use serde_yaml::Value;
     let s = |v: &str| Value::String(v.to_string());
+    let done = |text: &str, filed: Option<&str>| {
+        let t = match filed {
+            Some(f) => frontmatter::set_property(text, "filed", &s(&wikilink(f))),
+            None => text.to_string(),
+        };
+        frontmatter::set_property(&t, "review", &s("done"))
+    };
     let mut touched = vec![rel.to_string()];
-    let next = match action {
-        TriageAction::Dismiss | TriageAction::Done => frontmatter::set_property(text, "review", &s("done")),
-        TriageAction::Reopen => frontmatter::remove_property(&frontmatter::remove_property(text, "filed"), "review"),
+    match action {
+        TriageAction::Dismiss | TriageAction::Done => vault_write::modify(abs, |text| Ok(done(text, None))),
+        TriageAction::Reopen => vault_write::modify(abs, |text| Ok(frontmatter::remove_property(&frontmatter::remove_property(text, "filed"), "review"))),
         TriageAction::File { note } => {
-            let body = frontmatter::split(text).1.trim();
-            let mut lines = body.lines();
-            let first = lines.next().unwrap_or_default();
-            let more: Vec<String> = lines.map(|l| if l.is_empty() { String::new() } else { format!("  {l}") }).collect();
-            touched.push(file_into(root, note, &filed_entry(first, &more, Some(&wikilink(rel))))?);
-            let t = frontmatter::set_property(text, "filed", &s(&wikilink(note)));
-            frontmatter::set_property(&t, "review", &s("done"))
+            let mut entry = String::new();
+            vault_write::modify(abs, |text| {
+                let body = frontmatter::split(text).1.trim();
+                let mut lines = body.lines();
+                let first = lines.next().unwrap_or_default();
+                let more: Vec<String> = lines.map(|l| if l.is_empty() { String::new() } else { format!("  {l}") }).collect();
+                entry = filed_entry(first, &more, Some(&wikilink(rel)));
+                Ok(done(text, Some(note.as_str())))
+            })
+            .map_err(|e| missing_as(e, rel))?;
+            touched.push(file_into(root, note, &entry)?);
+            Ok(())
         }
         TriageAction::Task => {
-            let item = inbox_note(rel, text, None);
+            let text = std::fs::read_to_string(abs).map_err(|_| Error::NotFound(rel.to_string()))?;
+            let item = inbox_note(rel, &text, None);
             let r = crate::capture::capture_at(root, cfg, &format!("[ ] {} {}", item.text, wikilink(rel)), now)?;
             touched.push(r.path.clone());
-            let t = frontmatter::set_property(text, "filed", &s(&wikilink(&r.path)));
-            frontmatter::set_property(&t, "review", &s("done"))
+            vault_write::modify(abs, |text| Ok(done(text, Some(r.path.as_str()))))
         }
-    };
-    vault_write::write(abs, next.as_bytes())?;
+    }
+    .map_err(|e| missing_as(e, rel))?;
     Ok(touched)
 }
 

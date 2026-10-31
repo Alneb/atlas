@@ -202,6 +202,14 @@ pub fn modify(abs: &Path, edit: impl FnOnce(&str) -> Result<String>) -> Result<(
     Ok(())
 }
 
+/// `op` with `abs`'s [`modify`] lock held: a check of the file and a write that depends on it (a save on top of the
+/// mtime the editor read) with no `modify` or `append` of that file in between.
+pub fn locked<T>(abs: &Path, op: impl FnOnce() -> Result<T>) -> Result<T> {
+    let one = path_lock(abs);
+    let _held = one.lock().unwrap_or_else(|e| e.into_inner());
+    op()
+}
+
 /// The lock of one file's [`modify`]: kept while someone holds it, then dropped from the table.
 fn path_lock(abs: &Path) -> std::sync::Arc<std::sync::Mutex<()>> {
     static LOCKS: crate::key_lock::KeyLocks = crate::key_lock::KeyLocks::new();
@@ -243,7 +251,10 @@ pub fn create(abs: &Path, bytes: &[u8]) -> Result<Created> {
 }
 
 /// Add `bytes` at the end of `abs` (made, with its parents, when missing).
+/// Under the file's [`modify`] lock: an append never lands between a `modify`'s read and its write (and is lost).
 pub fn append(abs: &Path, bytes: &[u8]) -> Result<()> {
+    let one = path_lock(abs);
+    let _held = one.lock().unwrap_or_else(|e| e.into_inner());
     run(abs, |_| WriteKind::Append, Some(abs), || raw::append(abs, bytes))
 }
 
@@ -262,10 +273,17 @@ pub fn copy(from: &Path, to: &Path) -> Result<()> {
 pub fn link_or_copy(from: &Path, to: &Path) -> Result<()> {
     run(to, |_| WriteKind::Create, Some(to), || {
         raw::mkdir_parent(to)?;
-        if std::fs::hard_link(from, to).is_err() {
-            std::fs::copy(from, to)?;
+        match std::fs::hard_link(from, to) {
+            Ok(()) => Ok(()),
+            // made meanwhile (two first saves at once): kept — a copy over it would write into the linked original
+            Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => Ok(()),
+            // another file system, or no links there: a copy, made only if still missing
+            Err(_) => {
+                let mut out = std::fs::File::options().write(true).create_new(true).open(to)?;
+                std::io::copy(&mut std::fs::File::open(from)?, &mut out)?;
+                Ok(())
+            }
         }
-        Ok(())
     })
 }
 

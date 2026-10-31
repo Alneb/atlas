@@ -89,13 +89,28 @@ fn spawn_fs(ws: Workspace, bus: EventBus, helpers: Helpers) -> tokio::task::Join
     tokio::spawn(async move {
         loop {
             let mut paths = std::collections::BTreeSet::new();
-            match rx.recv().await {
-                Ok(p) => paths.extend(p),
-                Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => continue,
+            // no paths at all means "anything may have changed": events were dropped (here, or by the watcher)
+            let mut anything = match rx.recv().await {
+                Ok(p) => {
+                    let none = p.is_empty();
+                    paths.extend(p);
+                    none
+                }
+                Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => true,
                 Err(_) => return,
+            };
+            loop {
+                match rx.try_recv() {
+                    Ok(p) => {
+                        anything |= p.is_empty();
+                        paths.extend(p);
+                    }
+                    Err(tokio::sync::broadcast::error::TryRecvError::Lagged(_)) => anything = true,
+                    Err(_) => break,
+                }
             }
-            while let Ok(p) = rx.try_recv() {
-                paths.extend(p);
+            if anything {
+                paths.clear();
             }
             let Ok(cfg) = ws.config() else { continue };
             let tools = crate::plugin_tools::listening(ws.root(), &cfg, "fs");
@@ -166,16 +181,19 @@ fn holds(line: &str, text: &str) -> bool {
 /// Adds ` → [[note]]` to the capture's line (captures::link_line), if that line still holds the capture and does not
 /// link it yet. The capture's own line, written a moment ago by the capture path (PHILOSOPHY §2); anything else is left alone.
 fn link_line(root: &Path, c: &Captured, note: &str) -> bool {
-    let file = root.join(&c.path);
-    let Ok(text) = std::fs::read_to_string(&file) else { return false };
-    let mut lines: Vec<String> = text.split('\n').map(str::to_string).collect();
-    let Some(line) = lines.get_mut((c.line as usize).saturating_sub(1)) else { return false };
-    if !holds(line, &c.text) {
-        return false;
-    }
-    let Some(linked) = crate::captures::link_line(line, note) else { return false };
-    *line = linked;
-    crate::vault_write::write(&file, lines.join("\n").as_bytes()).is_ok()
+    let mut linked = false;
+    // through `modify`: a capture typed while the hook looked its page up is appended to the same log
+    let changed = crate::vault_write::modify(&root.join(&c.path), |text| {
+        let mut lines: Vec<String> = text.split('\n').map(str::to_string).collect();
+        let Some(line) = lines.get_mut((c.line as usize).saturating_sub(1)) else { return Ok(text.to_string()) };
+        let Some(with_link) = Some(&*line).filter(|l| holds(l, &c.text)).and_then(|l| crate::captures::link_line(l, note)) else {
+            return Ok(text.to_string());
+        };
+        *line = with_link;
+        linked = true;
+        Ok(lines.join("\n"))
+    });
+    changed.is_ok() && linked
 }
 
 #[cfg(test)]

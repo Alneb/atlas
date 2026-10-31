@@ -1151,7 +1151,7 @@ impl Config {
     /// being a project.
     pub fn index_excluded(&self, rel: &str) -> bool {
         let templates = self.notes.templates.trim_matches('/');
-        self.is_agent_file(rel) || (!templates.is_empty() && rel.starts_with(&format!("{templates}/")))
+        self.is_agent_file(rel) || (!templates.is_empty() && rel.strip_prefix(templates).is_some_and(|r| r.starts_with('/')))
     }
 }
 

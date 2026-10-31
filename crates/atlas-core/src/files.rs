@@ -135,6 +135,12 @@ fn write_bytes(ws: &Workspace, rel: &str, bytes: &[u8], guard: Guard) -> Result<
     if path == ws.root() || path.is_dir() {
         return Err(Error::BadRequest(format!("{rel} is a directory")));
     }
+    // the check and the write under the file's lock: a `modify` (a mark, a tick, a property) never lands between them
+    vault_write::locked(&path, || checked_write(&path, bytes, guard))
+}
+
+fn checked_write(path: &std::path::Path, bytes: &[u8], guard: Guard) -> Result<FileWritten> {
+    let path = path.to_path_buf();
     let existing = std::fs::metadata(&path).ok();
     match guard {
         Guard::None => {}
@@ -400,9 +406,21 @@ pub fn trash(ws: &Workspace, rel: &str) -> Result<String> {
     // tests never touch the user's desktop Trash (ATLAS_VAULT_TRASH: the e2e server, whose vault may sit on the home disk)
     if !cfg!(test) && std::env::var_os("ATLAS_VAULT_TRASH").is_none() {
         let kind = if p.is_dir() { vault_write::WriteKind::RemoveDir } else { vault_write::WriteKind::Remove };
-        let gio = || Ok(std::process::Command::new("gio").arg("trash").arg(&p).output().is_ok_and(|o| o.status.success()));
-        if vault_write::guarded(&p, kind, gio)? {
-            return Ok("the Trash".into());
+        // gio missing or failing is an error, not a success: the guard then hands the mirror's lease back with the file
+        // as it is, instead of telling the server it is gone (the vault's trash below would then be refused, and the
+        // path stay unwritable)
+        let gio_failed = std::cell::Cell::new(false);
+        let gio = || match std::process::Command::new("gio").arg("trash").arg(&p).output() {
+            Ok(o) if o.status.success() => Ok(()),
+            _ => {
+                gio_failed.set(true);
+                Err(Error::Other(anyhow::anyhow!("gio trash failed")))
+            }
+        };
+        match vault_write::guarded(&p, kind, gio) {
+            Ok(()) => return Ok("the Trash".into()),
+            Err(_) if gio_failed.get() => {}
+            Err(e) => return Err(e),
         }
     }
     // a second delete of the same path within the second gets its own folder (a rename would replace the first)

@@ -297,46 +297,41 @@ fn sized_pictures(text: &str, width: u32) -> String {
         .into_owned()
 }
 
-/// Appends (never rewrites, unless view blocks close the note) so a concurrent editor sees a plain mtime change. One
-/// capture at a time: two would each read the note and the second write would drop the first, or a new day's template
-/// be written twice.
+/// The entry added to the day's log. A new day's log is made only if still missing (the Today page may make it
+/// meanwhile; then the entry goes into that one); an existing one is changed through `vault_write::modify`, so a
+/// capture, a tick or a triage of the same log at the same moment never drops another's change.
 fn append_to_log(root: &Path, cfg: &Config, text: &str, now: NaiveDateTime) -> Result<CaptureResult> {
-    static ONE: std::sync::Mutex<()> = std::sync::Mutex::new(());
-    let _one = ONE.lock().unwrap_or_else(|e| e.into_inner());
-    let original = text;
     let entry = format_entry(&sized_pictures(text, cfg.notes.capture_thumbnail), now)?;
-    let date = now.format("%Y-%m-%d").to_string();
+    let source = Some(first_line(&entry));
     let rel = day_log(cfg, now.date());
     let path = paths::safe_join(root, &rel)?;
-    let existing = match std::fs::read_to_string(&path) {
-        Ok(s) => Some(s),
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => None,
-        Err(e) => return Err(e.into()),
-    };
-    // a new day: its template, or its date as properties (Bases, templates, the weather plugin find it) and a heading
-    let made = existing.is_none();
-    let text = existing.unwrap_or_else(|| crate::notes::daily_log_start(root, cfg, &date, now));
-    // blocks closing the day's note (```view … ``` after `## Log`, as the activity block): the entry goes above them
-    if let Some(at) = tail_blocks(&text) {
+    if !path.exists() {
+        // a new day: its template, or its date as properties (Bases, templates, the weather plugin find it) and a heading
+        let date = now.format("%Y-%m-%d").to_string();
+        let (out, line) = with_entry(&crate::notes::daily_log_start(root, cfg, &date, now), &entry);
+        if vault_write::create(&path, out.as_bytes())? == vault_write::Created::New {
+            return Ok(CaptureResult { path: rel, line, source });
+        }
+    }
+    let mut line = 0;
+    vault_write::modify(&path, |text| {
+        let (out, at) = with_entry(text, &entry);
+        line = at;
+        Ok(out)
+    })?;
+    Ok(CaptureResult { path: rel, line, source })
+}
+
+/// `text` with `entry` added, and the entry's line: above the blocks closing the day's note (```view … ``` after
+/// `## Log`, as the activity block), else at the end.
+fn with_entry(text: &str, entry: &str) -> (String, u32) {
+    if let Some(at) = tail_blocks(text) {
         let (head, tail) = text.split_at(at);
         let head = head.trim_end_matches('\n');
-        let line = head.lines().count() as u32 + 1;
-        let out = format!("{head}\n{entry}\n{}", tail.trim_start_matches('\n'));
-        vault_write::write(&path, out.as_bytes())?;
-        return Ok(CaptureResult { path: rel, line, source: Some(first_line(&entry)) });
-    }
-    let lines_before = text.lines().count();
-    if made {
-        // made only if still missing (the Today page may make it meanwhile): then the entry goes into that one
-        if vault_write::create(&path, format!("{text}{entry}").as_bytes())? == vault_write::Created::Taken {
-            drop(_one);
-            return append_to_log(root, cfg, original, now);
-        }
-        return Ok(CaptureResult { path: rel, line: lines_before as u32 + 1, source: Some(first_line(&entry)) });
+        return (format!("{head}\n{entry}\n{}", tail.trim_start_matches('\n')), head.lines().count() as u32 + 1);
     }
     let prefix = if !text.is_empty() && !text.ends_with('\n') { "\n" } else { "" };
-    vault_write::append(&path, format!("{prefix}{entry}").as_bytes())?;
-    Ok(CaptureResult { path: rel, line: lines_before as u32 + 1, source: Some(first_line(&entry)) })
+    (format!("{text}{prefix}{entry}"), text.lines().count() as u32 + 1)
 }
 
 fn first_line(entry: &str) -> String {

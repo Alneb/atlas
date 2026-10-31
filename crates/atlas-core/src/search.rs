@@ -43,25 +43,28 @@ pub fn search_with(root: &Path, cfg: &Config, q: &str, o: Opts) -> SearchResults
         lines.truncate(MAX_RESULTS - pdf.len());
         lines.extend(pdf);
     }
-    // a hit in a hidden note is its thing's (a drawing's note text → the drawing; companion::thing_of), as the names are
+    // a hit in a hidden note is its thing's (a drawing's note text → the drawing; companion::thing_of), as the names are;
+    // the notes' properties from the index (no note read for them; the watcher keeps it current without a walk)
+    let index = crate::links::snapshot(root, cfg);
+    let props = |rel: &str| index.parsed.get(rel).and_then(|p| p.props_whole());
     let mut things = std::collections::HashMap::new();
     for l in &mut lines {
-        let thing = things.entry(l.path.clone()).or_insert_with(|| crate::companion::thing_of(root, &l.path).filter(|t| !t.ends_with(".md")));
+        let thing = things.entry(l.path.clone()).or_insert_with(|| crate::companion::thing_in(root, &l.path, props).filter(|t| !t.ends_with(".md")));
         if let Some(t) = thing {
             l.path = t.clone();
         }
     }
     crate::pdf_text::catch_up(root, cfg);
-    SearchResults { files: if o.regex { Vec::new() } else { match_names(root, walked.into_iter().map(|(_, rel)| rel), q) }, lines }
+    SearchResults { files: if o.regex { Vec::new() } else { match_names(root, walked.into_iter().map(|(_, rel)| rel), q, props) }, lines }
 }
 
 /// Every whitespace token must appear (case-insensitive) in the path; basename hits rank first.
 pub fn match_files(root: &Path, cfg: &Config, q: &str, agent: bool) -> Vec<String> {
-    match_names(root, walk::files(root, cfg).filter(|(_, rel)| agent || !cfg.is_agent_file(rel)).map(|(_, rel)| rel), q)
+    match_names(root, walk::files(root, cfg).filter(|(_, rel)| agent || !cfg.is_agent_file(rel)).map(|(_, rel)| rel), q, |_| None)
 }
 
 /// [`match_files`] over paths already walked.
-fn match_names(root: &Path, paths: impl Iterator<Item = String>, q: &str) -> Vec<String> {
+fn match_names<'p>(root: &Path, paths: impl Iterator<Item = String>, q: &str, props: impl Fn(&str) -> Option<&'p crate::note_props::Props> + Copy) -> Vec<String> {
     let tokens: Vec<String> = q.split_whitespace().map(str::to_lowercase).collect();
     let mut hits: Vec<(bool, usize, String)> = paths
         .filter_map(|rel| {
@@ -78,7 +81,7 @@ fn match_names(root: &Path, paths: impl Iterator<Item = String>, q: &str) -> Vec
     // one hit per thing: a PDF's ink, a mail's attachment, a hidden note are their thing's hit (companion::thing_of)
     let mut seen = std::collections::HashSet::new();
     hits.into_iter()
-        .map(|(_, _, p)| crate::companion::thing_of(root, &p).unwrap_or(p))
+        .map(|(_, _, p)| crate::companion::thing_in(root, &p, props).unwrap_or(p))
         .filter(|p| seen.insert(p.clone()))
         .take(MAX_RESULTS)
         .collect()

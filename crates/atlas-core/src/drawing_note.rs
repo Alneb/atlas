@@ -157,7 +157,11 @@ pub fn moved(ws: &crate::Workspace, from: &str, to: &str) -> crate::Result<Optio
         return Ok(None);
     }
     let link = format!("[[{}]]", to.rsplit('/').next().unwrap_or(to));
-    crate::vault_write::write(&b, crate::frontmatter::set_property(&text, "drawing", &serde_yaml::Value::String(link)).as_bytes())?;
+    // made only if still free: a note written there since the check above is kept, and this one stays put
+    let moved = crate::frontmatter::set_property(&text, "drawing", &serde_yaml::Value::String(link));
+    if crate::vault_write::create(&b, moved.as_bytes())? == crate::vault_write::Created::Taken {
+        return Ok(None);
+    }
     crate::vault_write::remove_file(&a)?;
     Ok(Some(new))
 }

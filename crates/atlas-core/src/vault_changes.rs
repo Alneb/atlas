@@ -23,6 +23,9 @@ struct Shared {
     gen: AtomicU64,
     /// Every folder got its watch (inotify's limit can refuse one: then this vault is never trusted).
     whole: AtomicBool,
+    /// What the walk sees ([`walk::keep`]): a write Atlas makes elsewhere (a run's files in an ignored folder, its own
+    /// cache) leaves the generation alone, or every such write would make the next index request walk the vault.
+    walked: Config,
 }
 
 impl Shared {
@@ -51,6 +54,7 @@ impl Feed {
             key: walk_key(cfg),
             gen: AtomicU64::new(0),
             whole: AtomicBool::new(true),
+            walked: cfg.clone(),
         };
         s.changed();
         Feed(Arc::new(s))
@@ -84,8 +88,12 @@ impl Drop for Feed {
 
 /// Atlas changed `abs` itself (vault_write): told at once, not when the watcher's event arrives.
 pub(crate) fn touched(abs: &Path) {
-    for s in FEEDS.read().unwrap_or_else(|e| e.into_inner()).iter().filter(|s| abs.starts_with(&s.root)) {
-        s.changed();
+    let feeds = FEEDS.read().unwrap_or_else(|e| e.into_inner());
+    for s in feeds.iter() {
+        let Ok(rel) = abs.strip_prefix(&s.root) else { continue };
+        if crate::walk::keep(&s.walked, &rel.to_string_lossy()) {
+            s.changed();
+        }
     }
 }
 
@@ -124,6 +132,9 @@ mod tests {
         feed.bump().changed();
         assert_ne!(stamp(root, &cfg), Some(b), "the watcher's event");
         touched(Path::new("/elsewhere/x.md"));
+        let c = stamp(root, &cfg);
+        touched(&root.join(".atlas/cache/recent.json"));
+        assert_eq!(stamp(root, &cfg), c, "a write the walk never sees (Atlas's cache) changes nothing for the index");
         let mut other = cfg.clone();
         other.ignore.push("runs".into());
         assert_eq!(stamp(root, &other), None, "another configuration: the watcher's folders may not be the walk's");

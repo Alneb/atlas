@@ -84,6 +84,11 @@ pub fn entry_owner(root: &Path, rel: &str) -> Result<Option<String>> {
 /// `<name>.md`; a hidden note (`shown: false`) naming its thing (`drawing:`, `pdf:`, `book:`) → that thing. None: the
 /// file is a thing of its own. Search gives one hit per thing with it.
 pub fn thing_of(root: &Path, rel: &str) -> Option<String> {
+    thing_in(root, rel, |_| None)
+}
+
+/// [`thing_of`] with the notes' properties at hand (the links index's, `props`), so a note is not read for them.
+pub(crate) fn thing_in<'p>(root: &Path, rel: &str, props: impl Fn(&str) -> Option<&'p crate::note_props::Props>) -> Option<String> {
     let (dir, name) = rel.rsplit_once('/').map_or(("", rel), |(d, n)| (d, n));
     let at = |n: &str| if dir.is_empty() { n.to_string() } else { format!("{dir}/{n}") };
     for suffix in [".excalidraw", ".ink.json", ".md"] {
@@ -105,16 +110,27 @@ pub fn thing_of(root: &Path, rel: &str) -> Option<String> {
         }
     }
     if name.ends_with(".md") {
-        // the frontmatter only: this runs for every search hit and link suggestion, and a mail note can be long
-        let head = read_head(&root.join(rel), 16 * 1024)?;
-        let props: Mapping = split(&head).0.and_then(|f| serde_yaml::from_str(f).ok())?;
-        if props.get("shown").and_then(Value::as_bool) == Some(false) {
-            let link = ["drawing", "pdf", "book"].iter().find_map(|k| props.get(*k)?.as_str())?;
-            let target = link.trim().strip_prefix("[[")?.strip_suffix("]]")?.split('|').next()?.trim();
-            return root.join(at(target)).is_file().then(|| at(target));
-        }
+        let target = match props(rel) {
+            Some(p) => hidden_behind(|k| p.get(k))?,
+            None => {
+                // the frontmatter only: this runs for every search hit and link suggestion, and a mail note can be long
+                let head = read_head(&root.join(rel), 16 * 1024)?;
+                let p: Mapping = split(&head).0.and_then(|f| serde_yaml::from_str(f).ok())?;
+                hidden_behind(|k| p.get(k))?
+            }
+        };
+        return root.join(at(&target)).is_file().then(|| at(&target));
     }
     None
+}
+
+/// The file a note hidden behind its thing (`shown: false`) names in its `drawing`, `pdf` or `book` property.
+fn hidden_behind<'a>(get: impl Fn(&str) -> Option<&'a Value>) -> Option<String> {
+    if get("shown").and_then(Value::as_bool) != Some(false) {
+        return None;
+    }
+    let link = ["drawing", "pdf", "book"].iter().find_map(|k| get(k)?.as_str())?;
+    Some(link.trim().strip_prefix("[[")?.strip_suffix("]]")?.split('|').next()?.trim().to_string())
 }
 
 /// The first `max` bytes of a file as text (a character cut at the end dropped).
@@ -136,7 +152,12 @@ fn read_head(abs: &Path, max: u64) -> Option<String> {
 /// What stands for `rel` where each thing is listed once (Activity): a satellite's thing ([`thing_of`]); a file with a shown note (a book's, a manga series' entry
 /// note) → that note, what a click opens; a file whose note is hidden (a PDF's) → the file itself.
 pub fn stands_for(root: &Path, rel: &str) -> String {
-    if let Some(thing) = thing_of(root, rel) {
+    stands_for_in(root, rel, |_| None)
+}
+
+/// [`stands_for`] with the notes' properties at hand (as [`thing_in`]).
+pub(crate) fn stands_for_in<'p>(root: &Path, rel: &str, props: impl Fn(&str) -> Option<&'p crate::note_props::Props> + Copy) -> String {
+    if let Some(thing) = thing_in(root, rel, props) {
         return thing;
     }
     let (dir, name) = rel.rsplit_once('/').unwrap_or(("", rel));
@@ -144,7 +165,7 @@ pub fn stands_for(root: &Path, rel: &str) -> String {
     let beside = if dir.is_empty() { file_name(stem) } else { format!("{dir}/{}", file_name(stem)) };
     let note = entry_owner(root, rel).ok().flatten().or_else(|| root.join(&beside).is_file().then_some(beside));
     match note {
-        Some(n) if thing_of(root, &n).as_deref() != Some(rel) => n,
+        Some(n) if thing_in(root, &n, props).as_deref() != Some(rel) => n,
         _ => rel.to_string(),
     }
 }

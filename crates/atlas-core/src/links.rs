@@ -38,6 +38,13 @@ pub(crate) struct Parsed {
     words: crate::word_bloom::Words,
 }
 
+impl Parsed {
+    /// Its properties, when the note was read whole for them (a note above [`MAX_BYTES`] was not: it has none here).
+    pub fn props_whole(&self) -> Option<&crate::note_props::Props> {
+        (self.size <= MAX_BYTES).then_some(&self.props)
+    }
+}
+
 /// Notes larger than this give no unlinked mentions. The text itself is never kept: it was 39 of the index's 47 MB
 /// on a large real vault; [`unlinked`] reads it again from disk.
 const TEXT_BYTES: u64 = 1 << 20;

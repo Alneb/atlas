@@ -186,8 +186,14 @@ pub fn spawn_watcher(root: &Path, cfg: Config, bus: EventBus) -> Result<WatcherG
                 }
             }
             let (mut changed, mut gone) = (BTreeSet::new(), BTreeSet::new());
+            let mut rescan = false;
             for ev in batch {
                 let ev = match ev {
+                    // the kernel's queue overflowed: events were lost, folders made meanwhile have no watch
+                    Ok(ev) if ev.need_rescan() => {
+                        rescan = true;
+                        continue;
+                    }
                     Ok(ev) if is_change(&ev.kind) => ev,
                     Ok(_) => continue,
                     Err(e) => {
@@ -218,6 +224,16 @@ pub fn spawn_watcher(root: &Path, cfg: Config, bus: EventBus) -> Result<WatcherG
                     }
                     changed.insert(rel);
                 }
+            }
+            if rescan {
+                eprintln!("atlas: watcher: events were lost (queue overflow); every folder looked at again");
+                if !add_tree(&root, &cfg, &root, &mut watched, &mut watcher) {
+                    feed.missed();
+                }
+                feed.changed();
+                crate::git::files_changed(&root);
+                // no paths: anything may have changed (the pages and the core's listeners look again)
+                bus.publish(Event::Fs { paths: Vec::new() });
             }
             // still there at the end of the batch (deleted, then saved again): not gone
             gone.retain(|rel: &String| !root.join(rel).exists());

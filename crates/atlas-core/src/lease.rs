@@ -113,31 +113,50 @@ impl<H: Clone + Eq + Serialize + DeserializeOwned> Leases<H> {
     /// The table can fall behind the files: a write made while the server was unreachable never reports its version,
     /// yet Syncthing carries it over. So a settled version (read from disk, or reported over [`SETTLE`] ago) yields to
     /// the server's disk when that equals the asker's copy, as a path never seen would.
+    ///
+    /// `disk_now` hashes a file, so it runs outside the table's lock (a large PDF would hold up every write to the
+    /// vault): the answer is first sought without it, and sought again, on the table as it is then, when it needs it.
     pub fn ask(&self, path: &str, holder: &str, have: Option<H>, disk_now: impl FnOnce() -> Option<H>, hold: Duration, now: Instant) -> Answer<H> {
+        if let Some(answer) = self.decide(path, holder, &have, None, hold, now) {
+            return answer;
+        }
+        let disk = disk_now();
+        self.decide(path, holder, &have, Some(disk), hold, now).expect("decided with the disk read")
+    }
+
+    /// [`Leases::ask`]'s answer, None when it needs the server's copy and `disk` was not read.
+    fn decide(&self, path: &str, holder: &str, have: &Option<H>, disk: Option<Option<H>>, hold: Duration, now: Instant) -> Option<Answer<H>> {
         let mut table = self.table.lock().expect("leases");
-        let mut disk_now = Some(disk_now);
-        let e = table.entry(path.to_string()).or_insert_with(|| Entry { version: disk_now.take().and_then(|f| f()), past: Vec::new(), reported: None, holder: None });
+        let e = match table.entry(path.to_string()) {
+            std::collections::hash_map::Entry::Occupied(o) => o.into_mut(),
+            std::collections::hash_map::Entry::Vacant(v) => {
+                v.insert(Entry { version: disk.clone()?, past: Vec::new(), reported: None, holder: None })
+            }
+        };
         let holds = match &e.holder {
-            Some((other, until)) if *until > now && other != holder => return Answer::Wait(Why::HeldBy(other.clone())),
+            Some((other, until)) if *until > now && other != holder => return Some(Answer::Wait(Why::HeldBy(other.clone()))),
             Some((other, until)) => *until > now && other == holder,
             None => false,
         };
         // a holder renewing passes whatever its copy is: nobody else wrote meanwhile, so a difference is its own write
         // whose `done` was lost (a network blip), not a newer version it lacks
-        if have != e.version && !holds {
+        if *have != e.version && !holds {
             let settled = e.reported.is_none_or(|at| now.saturating_duration_since(at) >= SETTLE);
-            match disk_now.filter(|_| settled).map(|f| f()) {
+            if !settled {
+                return Some(Answer::Wait(Why::Behind { last: e.version.clone() }));
+            }
+            match disk? {
                 // a version this table saw replaced is a server disk still behind (Syncthing slow), not an offline write
-                Some(disk) if disk == have && !e.past.contains(&disk) => {
+                disk if disk == *have && !e.past.contains(&disk) => {
                     let was = std::mem::replace(&mut e.version, disk);
                     e.remember(was);
                     e.reported = None;
                 }
-                _ => return Answer::Wait(Why::Behind { last: e.version.clone() }),
+                _ => return Some(Answer::Wait(Why::Behind { last: e.version.clone() })),
             }
         }
         e.holder = Some((holder.to_string(), now + hold));
-        Answer::Granted
+        Some(Answer::Granted)
     }
 
     /// `holder` wrote `path` (now `version`; `None`: removed) and lets it go. From anyone else it is stale and ignored:
@@ -183,6 +202,19 @@ mod tests {
         assert_eq!(l.ask("log.md", "server", Some(2), || unreachable!(), HOLD, t), Answer::Granted);
         assert!(l.done("log.md", "server", Some(3)));
         assert_eq!(l.version("log.md"), Some(Some(3)));
+    }
+
+    #[test]
+    fn the_disk_is_read_outside_the_tables_lock() {
+        let l = Leases::<u32>::default();
+        let t = Instant::now();
+        // the table answers while a file is hashed (a large one held up every other path's write before)
+        let disk = || {
+            assert_eq!(l.version("other.md"), None);
+            Some(1)
+        };
+        assert_eq!(l.ask("big.pdf", "desktop", Some(1), disk, HOLD, t), Answer::Granted);
+        assert_eq!(l.version("big.pdf"), Some(Some(1)));
     }
 
     #[test]

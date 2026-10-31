@@ -41,6 +41,19 @@ pub struct LeaseGuard<L> {
     /// and whether two ever overlapped — two writes of one note (a save and a task tick) share the lease, and it is
     /// handed back once, by the last, with the version on disk then
     granted: Mutex<HashMap<String, Held>>,
+    /// Until when the server is taken as unreachable: writes meanwhile are made here only without asking (each ask
+    /// would wait for its timeout, seconds per autosave, on a network that drops the server's packets).
+    offline_until: Mutex<Option<Instant>>,
+}
+
+/// How long a server that did not answer is left alone.
+const OFFLINE_FOR: Duration = Duration::from_secs(30);
+
+thread_local! {
+    /// The leases the write in progress on this thread holds (vault root and path). A write runs `before`, its change
+    /// and `after` or `abort` on one thread (vault_write `run_guarded`), so its finish hands back only what it took —
+    /// not the lease of another write of the same path whose ask was granted while this one's found no server.
+    static MINE: std::cell::RefCell<Vec<PathBuf>> = const { std::cell::RefCell::new(Vec::new()) };
 }
 
 /// Where the base of a path is kept: the last version both copies had, what a conflict copy is merged against (§4).
@@ -53,7 +66,14 @@ const BASE_MAX: u64 = 2 * 1024 * 1024;
 
 impl<L: LeaseLink> LeaseGuard<L> {
     pub fn new(root: &Path, link: L) -> Self {
-        Self { root: root.to_path_buf(), link, patience: Duration::from_secs(20), poll: Duration::from_millis(250), granted: Mutex::default() }
+        Self {
+            root: root.to_path_buf(),
+            link,
+            patience: Duration::from_secs(20),
+            poll: Duration::from_millis(250),
+            granted: Mutex::default(),
+            offline_until: Mutex::default(),
+        }
     }
 
     #[cfg(test)]
@@ -78,16 +98,21 @@ impl<L: LeaseLink> LeaseGuard<L> {
             if !adds && have != start {
                 return Err(Error::Conflict { current: None });
             }
+            if self.offline_until.lock().unwrap_or_else(|e| e.into_inner()).is_some_and(|t| Instant::now() < t) {
+                return Ok(()); // the server just failed to answer: written here only, at once
+            }
             let why = match self.link.ask(rel, have) {
                 Ok(Answer::Granted) => {
                     let mut g = self.granted.lock().unwrap_or_else(|e| e.into_inner());
                     let held = g.entry(rel.to_string()).or_default();
                     held.writes += 1;
                     held.shared |= held.writes > 1;
+                    MINE.with(|m| m.borrow_mut().push(self.root.join(rel)));
                     return Ok(());
                 }
                 Err(Unreachable(e)) => {
-                    eprintln!("atlas: mirror: no lease for {rel} ({e}); written here only");
+                    eprintln!("atlas: mirror: no lease for {rel} ({e}); written here only, without asking for {}s", OFFLINE_FOR.as_secs());
+                    *self.offline_until.lock().unwrap_or_else(|e| e.into_inner()) = Some(Instant::now() + OFFLINE_FOR);
                     return Ok(());
                 }
                 Ok(Answer::Wait(why)) => why,
@@ -114,6 +139,14 @@ impl<L: LeaseLink> LeaseGuard<L> {
 
     /// One write of `rel` is over: `Some(shared)` when it was the last one holding the lease.
     fn last_out(&self, rel: &str) -> Option<bool> {
+        let key = self.root.join(rel);
+        let mine = MINE.with(|m| {
+            let mut m = m.borrow_mut();
+            m.iter().position(|p| *p == key).map(|i| m.remove(i)).is_some()
+        });
+        if !mine {
+            return None; // this write holds no lease (no server): another write's is not its to hand back
+        }
         let mut g = self.granted.lock().unwrap_or_else(|e| e.into_inner());
         let held = g.get_mut(rel)?;
         held.writes -= 1;

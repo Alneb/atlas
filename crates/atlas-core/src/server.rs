@@ -2493,8 +2493,15 @@ fn start_vault(root: &std::path::Path, port: u16, auth: Option<Arc<crate::auth::
     let mut fs_events = bus.on_fs();
     let pdf_ws = ws.clone();
     tokio::spawn(async move {
-        while let Ok(paths) = fs_events.recv().await {
-            if paths.iter().any(|p| p.to_ascii_lowercase().ends_with(".pdf")) {
+        use tokio::sync::broadcast::error::RecvError;
+        loop {
+            // fallen behind: the events missed may have named a PDF, so a refresh (it only does what is missing)
+            let pdf = match fs_events.recv().await {
+                Ok(paths) => paths.is_empty() || paths.iter().any(|p| p.to_ascii_lowercase().ends_with(".pdf")),
+                Err(RecvError::Lagged(_)) => true,
+                Err(RecvError::Closed) => break,
+            };
+            if pdf {
                 if let Ok(cfg) = pdf_ws.config() {
                     crate::pdf_text::refresh_in_background(pdf_ws.root(), &cfg);
                 }

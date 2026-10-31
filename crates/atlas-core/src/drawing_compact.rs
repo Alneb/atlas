@@ -86,12 +86,22 @@ pub fn compact_all(root: &Path, cfg: &Config, apply: bool) -> Result<Compacted> 
     let snap = format!(".atlas/trash/{}-drawings-before-compact", chrono::Local::now().format("%Y%m%d-%H%M%S"));
     let mut drawings = Vec::new();
     for (path, rel) in walk::files(root, cfg).filter(|(_, rel)| rel.ends_with(".excalidraw")) {
-        let Ok(text) = std::fs::read_to_string(&path) else { continue };
-        let Some(small) = compact(&text) else { continue };
-        drawings.push((rel.clone(), text.len() as u64, small.len() as u64));
-        if apply {
+        // through `modify`: a drawing open in Atlas saves on its own, and a save between the read and the write is kept
+        let mut sizes = None;
+        let done = crate::vault_write::modify(&path, |text| {
+            let Some(small) = compact(text) else { return Ok(text.to_string()) };
+            sizes = Some((text.len() as u64, small.len() as u64));
+            if !apply {
+                return Ok(text.to_string());
+            }
             crate::vault_write::copy(&path, &root.join(&snap).join(&rel))?;
-            crate::vault_write::write(&path, small.as_bytes())?;
+            Ok(small)
+        });
+        match (done, sizes) {
+            (Ok(()), Some((before, after))) => drawings.push((rel, before, after)),
+            (Ok(()), None) => {}
+            (Err(_), None) => {} // not text: not a drawing to compact
+            (Err(e), Some(_)) => return Err(e),
         }
     }
     let snapshot = (apply && !drawings.is_empty()).then_some(snap);

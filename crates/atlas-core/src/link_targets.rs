@@ -179,7 +179,7 @@ pub fn targets(root: &Path, cfg: &Config, q: &str, from: Option<&str>) -> Vec<Li
     let now = SystemTime::now();
     let mut hits: Vec<(Rank, LinkTarget)> = Vec::new();
     for rel in snap.files() {
-        if Some(rel.as_str()) == from || cfg.index_excluded(rel) || cfg.is_agent_file(rel) {
+        if Some(rel.as_str()) == from || cfg.index_excluded(rel) {
             continue;
         }
         let parsed = snap.parsed.get(rel);
@@ -220,12 +220,14 @@ pub fn targets(root: &Path, cfg: &Config, q: &str, from: Option<&str>) -> Vec<Li
         hits.push((key, LinkTarget { path: rel.clone(), link: link.to_string(), kind, alias: matched, title, near: is_near }));
     }
     hits.sort_by(|a, b| a.0.cmp(&b.0).then_with(|| a.1.path.cmp(&b.1.path)));
-    one_per_thing(root, hits.into_iter().take(MAX_TARGETS * 3).map(|(_, t)| t).collect())
+    one_per_thing(root, &snap, hits.into_iter().take(MAX_TARGETS * 3).map(|(_, t)| t).collect())
 }
 
 /// A file and its companion note are one target: the one that stands for both (companion::stands_for), where it ranks.
-fn one_per_thing(root: &Path, hits: Vec<LinkTarget>) -> Vec<LinkTarget> {
-    let stands: Vec<String> = hits.iter().map(|t| crate::companion::stands_for(root, &t.path)).collect();
+/// The notes' properties come from the index: up to 150 notes are asked per keystroke.
+fn one_per_thing(root: &Path, snap: &crate::links::Index, hits: Vec<LinkTarget>) -> Vec<LinkTarget> {
+    let props = |rel: &str| snap.parsed.get(rel).and_then(|p| p.props_whole());
+    let stands: Vec<String> = hits.iter().map(|t| crate::companion::stands_for_in(root, &t.path, props)).collect();
     let listed: std::collections::HashSet<&str> = hits.iter().zip(&stands).filter(|(t, s)| t.path == **s).map(|(_, s)| s.as_str()).collect();
     let mut seen = std::collections::HashSet::new();
     let keep: Vec<bool> = hits.iter().zip(&stands).map(|(t, s)| (t.path == *s || !listed.contains(s.as_str())) && seen.insert(s.clone())).collect();

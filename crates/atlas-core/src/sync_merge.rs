@@ -43,11 +43,7 @@ pub enum Merged {
 /// diff3, by lines: what only one side changed is taken from it, the same change on both sides once.
 pub fn merge3(base: &str, ours: &str, theirs: &str) -> Merged {
     let (b, o, t) = (lines(base), lines(ours), lines(theirs));
-    // notes are small; a quadratic alignment of a huge file is not worth the wait
-    if b.len().saturating_mul(o.len().max(t.len())) > 25_000_000 {
-        return Merged::Clashed;
-    }
-    let (mo, mt) = (matches(&b, &o), matches(&b, &t));
+    let (Some(mo), Some(mt)) = (matches(&b, &o), matches(&b, &t)) else { return Merged::Clashed };
     let mut out = String::new();
     let (mut pb, mut po, mut pt) = (0, 0, 0); // the next line of each not emitted yet
     // stable lines: a base line both sides kept, then the end of all three
@@ -75,8 +71,31 @@ fn lines(s: &str) -> Vec<&str> {
     s.split_inclusive('\n').collect()
 }
 
-/// For each line of `a`, the line of `b` it is matched to by a longest common subsequence.
-fn matches(a: &[&str], b: &[&str]) -> Vec<Option<usize>> {
+/// The most cells of the alignment table (4 bytes each) a merge spends on the lines that differ: a conflict touches a
+/// few lines of a note, so past this the files differ too much for a merge to be trusted anyway.
+const MAX_CELLS: usize = 4_000_000;
+
+/// For each line of `a`, the line of `b` it is matched to by a longest common subsequence; None when the lines that
+/// differ are too many to align ([`MAX_CELLS`]). The lines both share at the start and the end are matched as they
+/// are (always part of a longest one), so only the changed middle is aligned.
+fn matches(a: &[&str], b: &[&str]) -> Option<Vec<Option<usize>>> {
+    let pre = a.iter().zip(b).take_while(|(x, y)| x == y).count();
+    let suf = a[pre..].iter().rev().zip(b[pre..].iter().rev()).take_while(|(x, y)| x == y).count();
+    let (am, bm) = (&a[pre..a.len() - suf], &b[pre..b.len() - suf]);
+    if (am.len() + 1).saturating_mul(bm.len() + 1) > MAX_CELLS {
+        return None;
+    }
+    let mut out = vec![None; a.len()];
+    (0..pre).for_each(|i| out[i] = Some(i));
+    (0..suf).for_each(|k| out[a.len() - suf + k] = Some(b.len() - suf + k));
+    for (i, j) in aligned(am, bm).into_iter().enumerate() {
+        out[pre + i] = j.map(|j| pre + j);
+    }
+    Some(out)
+}
+
+/// [`matches`] by the full table.
+fn aligned(a: &[&str], b: &[&str]) -> Vec<Option<usize>> {
     let (n, m) = (a.len(), b.len());
     let mut lcs = vec![0u32; (n + 1) * (m + 1)];
     let at = |i: usize, j: usize| i * (m + 1) + j;
@@ -326,6 +345,9 @@ fn settle_found(ws: &Workspace, bus: &EventBus, told: &Told) -> Vec<String> {
     later
 }
 
+/// How often the whole vault is looked over for copies no event told of.
+const SWEEP: std::time::Duration = std::time::Duration::from_secs(600);
+
 /// Watches the vault for conflict copies (and settles the ones already there) for as long as the vault is served.
 pub fn spawn(ws: Workspace, bus: EventBus) -> tokio::task::JoinHandle<()> {
     let mut rx = bus.on_fs();
@@ -334,12 +356,25 @@ pub fn spawn(ws: Workspace, bus: EventBus) -> tokio::task::JoinHandle<()> {
         let (first, b, t) = (ws.clone(), bus.clone(), told.clone());
         let later = tokio::task::spawn_blocking(move || settle_found(&first, &b, &t)).await.unwrap_or_default();
         later.into_iter().for_each(|c| retry_later(ws.clone(), bus.clone(), told.clone(), c, RETRIES));
+        // the whole vault looked over again every while: copies in folders the watcher does not report (hidden ones,
+        // `[editor] ignore`d ones such as runs/) and copies whose events were dropped when this fell behind
+        let mut sweep = tokio::time::interval(SWEEP);
+        sweep.tick().await; // the first tick is now: the vault was just looked over
         loop {
-            let paths = match rx.recv().await {
-                Ok(paths) => paths,
-                Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => continue,
-                Err(_) => return,
+            let paths = tokio::select! {
+                got = rx.recv() => match got {
+                    Ok(paths) => paths,
+                    Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => Vec::new(),
+                    Err(_) => return,
+                },
+                _ = sweep.tick() => Vec::new(),
             };
+            if paths.is_empty() {
+                let (w, b, t) = (ws.clone(), bus.clone(), told.clone());
+                let later = tokio::task::spawn_blocking(move || settle_found(&w, &b, &t)).await.unwrap_or_default();
+                later.into_iter().for_each(|c| retry_later(ws.clone(), bus.clone(), told.clone(), c, RETRIES));
+                continue;
+            }
             let copies: Vec<String> = paths.into_iter().filter(|p| original_of(p).is_some() && in_vault_files(p)).collect();
             if copies.is_empty() {
                 continue;
@@ -379,6 +414,21 @@ mod tests {
         // its newline is a change of that line)
         assert_eq!(merge3("a\nb", "a (here)\nb", "a\nb\n"), Merged::Clashed);
         assert_eq!(merge3("", "x\n", ""), Merged::Clean("x\n".into()));
+    }
+
+    #[test]
+    fn trimmed_alignment_agrees_with_the_full_table() {
+        let a: Vec<String> = (0..300).map(|i| format!("l{}\n", i % 37)).collect();
+        let mut b = a.clone();
+        b.insert(150, "new\n".into());
+        b.remove(10);
+        b[200] = "changed\n".into();
+        let (a, b): (Vec<&str>, Vec<&str>) = (a.iter().map(String::as_str).collect(), b.iter().map(String::as_str).collect());
+        let count = |v: &Vec<Option<usize>>| v.iter().flatten().count();
+        assert_eq!(count(&aligned(&a, &b)), count(&matches(&a, &b).unwrap()));
+        let (x, y): (Vec<&str>, Vec<&str>) = ((0..5000).map(|_| "x\n").collect(), (0..5000).map(|_| "y\n").collect());
+        assert!(matches(&x, &y).is_none(), "too different to align");
+        assert_eq!(matches(&x, &x).unwrap().iter().flatten().count(), 5000, "the same: no table at all");
     }
 
     #[test]

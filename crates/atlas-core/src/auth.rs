@@ -346,6 +346,18 @@ fn password_ok(hash: &str, password: &str) -> bool {
     PasswordHash::new(hash).is_ok_and(|h| Argon2::default().verify_password(password.as_bytes(), &h).is_ok())
 }
 
+/// Whom wrong passwords are counted against: an IPv4 address, or an IPv6 address's /64 — one host usually has the
+/// whole /64 and could take a new address for every guess.
+fn guesser(ip: IpAddr) -> IpAddr {
+    match ip {
+        IpAddr::V6(v6) => match v6.to_ipv4_mapped() {
+            Some(v4) => IpAddr::V4(v4),
+            None => IpAddr::V6((u128::from(v6) & !((1u128 << 64) - 1)).into()),
+        },
+        v4 => v4,
+    }
+}
+
 /// The wait after `n` wrong passwords in a row: 1 s, 2 s, 4 s … up to [`MAX_WAIT`].
 fn wait_after(n: u32) -> Duration {
     Duration::from_secs(1u64 << n.saturating_sub(1).min(16)).min(MAX_WAIT)
@@ -548,23 +560,24 @@ impl Auth {
             return Err(Refused::PlainHttp);
         }
         let ip = self.client_ip(peer, h);
+        let from = guesser(ip);
         // the attempt is counted before the (slow) check, under one lock: guesses sent in parallel each find the wait
         // the one before them set, instead of all passing an empty table first
         let n = {
             let mut f = self.failures.lock().unwrap();
             f.retain(|_, (_, until)| *until + MAX_WAIT > now); // long-quiet addresses are forgotten
-            if let Some((_, until)) = f.get(&ip).filter(|(_, until)| *until > now) {
+            if let Some((_, until)) = f.get(&from).filter(|(_, until)| *until > now) {
                 return Err(Refused::Wait(until.duration_since(now).unwrap_or_default()));
             }
-            let n = f.get(&ip).map_or(0, |(n, _)| *n) + 1;
-            f.insert(ip, (n, now + wait_after(n)));
+            let n = f.get(&from).map_or(0, |(n, _)| *n) + 1;
+            f.insert(from, (n, now + wait_after(n)));
             n
         };
         if !password_ok(hash, password) {
             eprintln!("atlas: wrong password from {ip} ({n} in a row)");
             return Err(Refused::Wrong);
         }
-        self.failures.lock().unwrap().remove(&ip);
+        self.failures.lock().unwrap().remove(&from);
         let token = random_hex(32);
         let t = now_secs(now);
         let agent = h.get(header::USER_AGENT).and_then(|v| v.to_str().ok()).unwrap_or("").chars().take(200).collect();
@@ -702,6 +715,12 @@ mod tests {
         let other = headers(&[("x-forwarded-proto", "https"), ("x-forwarded-for", "198.51.100.7")]);
         assert!(a.sign_in_at(at(PROXY), &other, "correct horse", t0 + Duration::from_secs(1)).is_ok());
         assert_eq!((wait_after(1), wait_after(4), wait_after(30)), (Duration::from_secs(1), Duration::from_secs(8), MAX_WAIT));
+        // a new IPv6 address in the same /64 is the same guesser; another /64 is not
+        let v6 = |ip: &str| headers(&[("x-forwarded-proto", "https"), ("x-forwarded-for", ip)]);
+        assert_eq!(a.sign_in_at(at(PROXY), &v6("2001:db8:1:2::1"), "a", t0), Err(Refused::Wrong));
+        assert!(matches!(a.sign_in_at(at(PROXY), &v6("2001:db8:1:2::99"), "correct horse", t0), Err(Refused::Wait(_))));
+        assert!(a.sign_in_at(at(PROXY), &v6("2001:db8:1:3::1"), "correct horse", t0).is_ok());
+        assert_eq!(guesser("::ffff:192.0.2.1".parse().unwrap()), "192.0.2.1".parse::<IpAddr>().unwrap());
     }
 
     #[test]
