@@ -82,8 +82,13 @@ pub fn list_file() -> PathBuf {
 }
 
 fn read(file: &Path) -> Vec<Vault> {
+    read_checked(file).unwrap_or_default()
+}
+
+/// The list, or why it cannot be read (a hand edit gone wrong); none yet is an empty list.
+fn read_checked(file: &Path) -> std::result::Result<Vec<Vault>, String> {
     let text = std::fs::read_to_string(file).unwrap_or_default();
-    toml::from_str::<ListFile>(&text).map(|l| l.vault).unwrap_or_default()
+    toml::from_str::<ListFile>(&text).map(|l| l.vault).map_err(|e| e.to_string())
 }
 
 fn write(file: &Path, vaults: Vec<Vault>) -> Result<()> {
@@ -106,7 +111,16 @@ pub fn list(file: &Path) -> Vec<Vault> {
 /// focus noting its vault dropped a mirror set or a vault forgotten in another meanwhile.
 fn change(file: &Path, f: impl FnOnce(&mut Vec<Vault>) -> Result<()>) -> Result<()> {
     crate::vault_write::outside::locked(file, || {
-        let mut v = read(file);
+        let mut v = match read_checked(file) {
+            Ok(v) => v,
+            Err(e) => {
+                // written over, it would keep only this change: the unreadable list is kept beside it first
+                let kept = file.with_extension("toml.unreadable");
+                eprintln!("atlas: {} cannot be read ({e}); kept as {}, a new list started", file.display(), kept.display());
+                crate::vault_write::outside::write(&kept, &std::fs::read(file)?)?;
+                Vec::new()
+            }
+        };
         f(&mut v)?;
         write(file, v)
     })
@@ -287,6 +301,16 @@ mod tests {
         assert!(set_mirror(&file, "/not/listed", Some("https://a.example/v/x/")).is_err());
         set_mirror(&file, &path, None).unwrap();
         assert_eq!(list(&file)[0].mirror, None);
+    }
+
+    #[test]
+    fn an_unreadable_list_is_kept_aside_before_a_new_one_is_written() {
+        let d = tempfile::tempdir().unwrap();
+        let file = d.path().join("vaults.toml");
+        std::fs::write(&file, "[[vault]]\nname = \"Work\"\npath = \"/srv/Work\" last_opened = 1\n").unwrap();
+        remember(&file, d.path(), 2).unwrap();
+        assert_eq!(list(&file).len(), 1);
+        assert!(std::fs::read_to_string(d.path().join("vaults.toml.unreadable")).unwrap().contains("/srv/Work"), "the old list kept");
     }
 
     #[test]

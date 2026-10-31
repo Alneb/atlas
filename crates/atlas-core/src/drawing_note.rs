@@ -175,11 +175,20 @@ pub fn update(ws: &crate::Workspace, rel: &str, scene: &str) -> crate::Result<Op
     }
     let Ok(scene) = serde_json::from_str::<Value>(scene) else { return Ok(None) };
     let name = rel.rsplit('/').next().unwrap_or(rel);
-    let existing = std::fs::read_to_string(ws.resolve(&path)?).ok();
-    let Some(text) = note(name, &facts(&scene), existing.as_deref()) else { return Ok(None) };
-    let req = crate::api::FileWrite { path: path.clone(), text, base_mtime: None, only_new: false, apply_here: false };
-    crate::files::write_text(ws, &req)?;
-    Ok(Some(path))
+    let (abs, f) = (ws.resolve(&path)?, facts(&scene));
+    let mut wrote = false;
+    if abs.is_file() {
+        // under the note's `modify` lock, from the text as it is then: an edit of the note since is kept (a drawing
+        // saves often, its note may be open)
+        crate::vault_write::modify(&abs, |text| {
+            let next = note(name, &f, Some(text));
+            wrote = next.is_some();
+            Ok(next.unwrap_or_else(|| text.to_string()))
+        })?;
+    } else if let Some(text) = note(name, &f, None) {
+        wrote = crate::vault_write::create(&abs, text.as_bytes())? == crate::vault_write::Created::New;
+    }
+    Ok(wrote.then_some(path))
 }
 
 #[cfg(test)]

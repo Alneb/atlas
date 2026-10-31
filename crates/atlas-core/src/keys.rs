@@ -20,7 +20,13 @@ pub fn set(root: &Path, id: &str, keys: Option<&str>) -> Result<Keymap> {
         return Err(Error::BadRequest("bad command id".into()));
     }
     let path = root.join(KEYS_FILE);
-    let existing = std::fs::read_to_string(&path).ok();
+    // under the file's lock: two bindings set at once (two windows) both stay
+    crate::vault_write::locked(&path, || set_in(&path, id, keys))?;
+    load(root)
+}
+
+fn set_in(path: &Path, id: &str, keys: Option<&str>) -> Result<()> {
+    let existing = std::fs::read_to_string(path).ok();
     let mut doc: toml_edit::DocumentMut =
         existing.as_deref().unwrap_or("").parse().map_err(|e| Error::BadRequest(format!("{KEYS_FILE}: {e}")))?;
     match keys {
@@ -35,8 +41,7 @@ pub fn set(root: &Path, id: &str, keys: Option<&str>) -> Result<Keymap> {
     } else {
         ""
     };
-    crate::vault_write::write(&path, format!("{header}{doc}").as_bytes())?;
-    load(root)
+    crate::vault_write::write(path, format!("{header}{doc}").as_bytes())
 }
 
 #[cfg(test)]

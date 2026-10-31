@@ -91,7 +91,7 @@ impl Agents {
             // read again under the lock: only a token still there gets its use noted
             let _one = changing();
             let mut now_all = self.list();
-            let Some(j) = known(&now_all) else { return None };
+            let j = known(&now_all)?;
             now_all[j].last_used = Some(now);
             let _ = self.save(&now_all); // the agent is let in even if the note of it cannot be kept
         }

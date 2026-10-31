@@ -115,8 +115,15 @@ fn key_block(fm: &str, key: &str) -> Option<(usize, usize)> {
         let start = at;
         at += line.len();
         if is_key_line(line, key) {
-            while let Some(l) = lines.next_if(|l| l.starts_with([' ', '\t']) || l.starts_with("- ")) {
-                at += l.len();
+            // a blank line is the block's only when an indented one follows (a `|` text of two paragraphs)
+            let mut blank = 0;
+            while let Some(l) = lines.next_if(|l| l.trim().is_empty() || l.starts_with([' ', '\t']) || l.starts_with("- ") || l.trim_end() == "-") {
+                if l.trim().is_empty() {
+                    blank += l.len();
+                } else {
+                    at += blank + l.len();
+                    blank = 0;
+                }
             }
             return Some((start, at));
         }
@@ -178,5 +185,13 @@ mod tests {
         assert_eq!(mapping("---\r\ntags: [a]\r\n---\r\n").get("tags").and_then(Value::as_sequence).map(Vec::len), Some(1));
         assert!(mapping("---\n: : bad\n---\n").is_empty());
         assert_eq!(set_property("\u{feff}---\r\na: 1\r\n---\r\nbody", "b", &Value::from(2)), "\u{feff}---\r\na: 1\r\nb: 2\n---\r\nbody");
+    }
+
+    #[test]
+    fn a_text_of_two_paragraphs_is_one_block() {
+        let note = "---\nabstract: |\n  one\n\n  two\n\nyear: 2004\n---\nbody\n";
+        assert_eq!(set_property(note, "abstract", &Value::from("short")), "---\nabstract: short\n\nyear: 2004\n---\nbody\n");
+        assert_eq!(remove_property(note, "abstract"), "---\n\nyear: 2004\n---\nbody\n");
+        assert_eq!(set_property("---\ntags:\n-\n- a\nx: 1\n---\n", "tags", &Value::Null), "---\ntags:\nx: 1\n---\n");
     }
 }

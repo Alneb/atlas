@@ -217,19 +217,7 @@ fn stamp() -> String {
 
 /// Moves a plugin folder to the vault's trash; returns where (relative to the vault).
 fn to_trash(root: &Path, id: &str) -> Result<String> {
-    path_to_trash(root, &format!("{PLUGINS_DIR}/{id}"))
-}
-
-/// Moves `rel` (a file or folder of the vault) to the vault's trash, keeping its path under the trash's stamp.
-fn path_to_trash(root: &Path, rel: &str) -> Result<String> {
-    // two removals in one second (an update, then a removal) each get a place of their own
-    let now = stamp();
-    let to = (0..1000)
-        .map(|n| format!(".atlas/trash/{now}{}/{rel}", if n == 0 { String::new() } else { format!("-{n}") }))
-        .find(|r| !root.join(r).exists())
-        .ok_or_else(|| Error::BadRequest("the trash is full for this second".into()))?;
-    vault_write::rename(&root.join(rel), &root.join(&to))?;
-    Ok(to)
+    crate::files::to_vault_trash(root, &format!("{PLUGINS_DIR}/{id}"))
 }
 
 /// Plugin `id` takes the place of those it `replaces`: each one's settings carried into its own (renamed where the
@@ -250,7 +238,7 @@ pub fn adopt_replaced(root: &Path, secrets: &crate::secrets::Store, id: &str, fr
             }
         }
         if plugins::carry_settings(root, &r, id)? {
-            trashed.push(path_to_trash(root, &plugins::settings_path(&r.id))?);
+            trashed.push(crate::files::to_vault_trash(root, &plugins::settings_path(&r.id))?);
         }
         for name in secrets.names(&r.id)? {
             let new = r.renamed(&name);
@@ -290,7 +278,12 @@ pub fn adopt_all_replaced(root: &Path) {
 /// `[plugins] off` of the vault's config: `id` in it or out of it (comments kept).
 pub fn set_off(root: &Path, id: &str, off: bool) -> Result<()> {
     let path = root.join(".atlas/config.toml");
-    let text = std::fs::read_to_string(&path).unwrap_or_default();
+    // under the lock Settings saves take (Config::save): a switch and a save at once both stay
+    vault_write::locked(&path, || set_off_in(&path, id, off))
+}
+
+fn set_off_in(path: &Path, id: &str, off: bool) -> Result<()> {
+    let text = std::fs::read_to_string(path).unwrap_or_default();
     let mut doc: toml_edit::DocumentMut = text.parse().map_err(|e| Error::BadRequest(format!(".atlas/config.toml: {e}")))?;
     if !doc.contains_key("plugins") {
         doc["plugins"] = toml_edit::Item::Table(toml_edit::Table::new());
@@ -302,7 +295,7 @@ pub fn set_off(root: &Path, id: &str, off: bool) -> Result<()> {
         list.push(id.to_string());
     }
     table["off"] = toml_edit::value(list.into_iter().collect::<toml_edit::Array>());
-    vault_write::write(&path, doc.to_string().as_bytes())
+    vault_write::write(path, doc.to_string().as_bytes())
 }
 
 /// Installs (or, with `replace`, updates) a plugin. An update keeps the vault's own `[settings]`.

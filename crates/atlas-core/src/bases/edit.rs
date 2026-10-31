@@ -113,14 +113,20 @@ pub fn new_row(root: &Path, cfg: &Config, base_rel: &str, base_src: &str, view: 
             None => fm.push_str(&format!("{k}:\n")),
         }
     }
-    let dir = root.join(&folder);
-    let name = (0..1000)
-        .map(|i| if i == 0 { "Untitled.md".to_string() } else { format!("Untitled {i}.md") })
-        .find(|n| !dir.join(n).exists())
-        .ok_or_else(|| Error::BadRequest("too many Untitled notes".into()))?;
-    let rel = if folder.is_empty() { name } else { format!("{folder}/{name}") };
     let text = if fm.is_empty() { String::new() } else { format!("---\n{fm}---\n") };
-    crate::vault_write::write(&root.join(&rel), text.as_bytes())?;
+    // the first free name, taken atomically: two quick "+ New" never write one note; the folder (from the base's
+    // filters) stays in the vault
+    let folder = folder.trim_matches('/');
+    let mut made = None;
+    for i in 0..1000 {
+        let name = if i == 0 { "Untitled.md".to_string() } else { format!("Untitled {i}.md") };
+        let rel = if folder.is_empty() { name } else { format!("{folder}/{name}") };
+        if crate::vault_write::create(&crate::paths::safe_join(root, &rel)?, text.as_bytes())? == crate::vault_write::Created::New {
+            made = Some(rel);
+            break;
+        }
+    }
+    let rel = made.ok_or_else(|| Error::BadRequest("too many Untitled notes".into()))?;
     let r = evaluate(root, cfg, base_src, None);
     let v = view.and_then(|n| r.views.iter().find(|v| v.name == n)).or(r.views.first());
     let matches = v.is_some_and(|v| v.rows.iter().any(|row| row.path == rel));
@@ -377,6 +383,8 @@ mod tests {
         let text = std::fs::read_to_string(d.path().join(&r.path)).unwrap();
         assert_eq!(text, "---\ntype: Task\nstatus: todo\ndue:\n---\n");
         assert!(d.path().join("db/items/Untitled 1.md").exists(), "never overwrites");
+        let out = "filters: 'file.inFolder(\"../out\")'\nviews: [{type: table}]\n";
+        assert!(new_row(d.path(), &Config::default(), "db/items.base", out, None).is_err(), "a folder out of the vault is refused");
     }
 
     #[test]

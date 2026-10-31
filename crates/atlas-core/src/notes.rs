@@ -61,10 +61,12 @@ fn templater_tag(expr: &str, title: &str, now: NaiveDateTime) -> Option<String> 
 /// filing a day under `notes/periodic/YYYY/MM-MMMM/`. Anything else in the path: None (not guessed).
 fn templater_move_dir(template: &str, title: &str, now: NaiveDateTime) -> Option<String> {
     let at = template.find("tp.file.move(")?;
-    let arg = template[at + "tp.file.move(".len()..].split(')').next()?.trim();
-    let literal = if let Some(lit) = arg.strip_prefix('`') {
-        lit.strip_suffix('`')?.to_string()
+    let after = template[at + "tp.file.move(".len()..].trim_start();
+    // a literal is read to its closing backquote: `${tp.file.creation_date("YYYY")}` in it has its own `)`
+    let literal = if let Some(lit) = after.strip_prefix('`') {
+        lit[..lit.find('`')?].to_string()
     } else {
+        let arg = after.split(')').next()?.trim();
         // `let newPath = \`…\`;` … `tp.file.move(newPath)`
         let decl = template[..at].rfind(&format!("{arg} = `"))?;
         let rest = &template[decl + arg.len() + 4..];
@@ -91,7 +93,8 @@ fn templater(text: &str, title: &str, now: NaiveDateTime) -> (String, Option<u32
     while let Some(i) = rest.find("<%") {
         out.push_str(&rest[..i]);
         let tail = &rest[i..];
-        let Some(end) = tail.find("%>") else { out.push_str(tail); rest = ""; break };
+        // the close is looked for after the open: `<%>` is not an empty tag
+        let Some(end) = tail[2..].find("%>").map(|e| e + 2) else { out.push_str(tail); rest = ""; break };
         let tag = &tail[..end + 2];
         let inner = tag[2..tag.len() - 2].trim_start_matches(['-', '_']).trim_end_matches(['-', '_']);
         match (inner.starts_with('*'), templater_tag(inner, title, now)) {
@@ -118,11 +121,15 @@ fn fill(vault: Option<(&Path, &Config)>, template: &str, title: &str, now: Naive
         (None, _) => t,
     };
     let include = |name: &str| vault.and_then(|(root, cfg)| template_text(root, cfg, name).ok()).map(body);
-    // day and month names in the vault's language ("2026-10-17 sáb."), as its Bases and daily notes write them
-    let _names = vault.map(|(_, cfg)| crate::bases::dates::names(cfg.editor.date_names == crate::config::DateNames::Spanish));
     let ctx = crate::template::Ctx { title, now, values: values.clone(), include: &include, unknown: crate::template::Unknown::Keep };
     let r = crate::template::render(template, &ctx);
     (r.text, r.cursor)
+}
+
+/// Day and month names in the vault's language ("2026-10-17 sáb."), as its Bases and daily notes write them, for
+/// every date a template writes — `{{date:…}}`, Templater's tags and the folder `tp.file.move` names — while it lives.
+fn vault_names(cfg: &Config) -> crate::bases::dates::NamesGuard {
+    crate::bases::dates::names(cfg.editor.date_names == crate::config::DateNames::Spanish)
 }
 
 /// A day's log when no template is named (`log_template`): what the capture box always wrote, the heading now in
@@ -133,6 +140,7 @@ const DAILY_LOG: &str = "---\ndate: {{date}}\ntype: log\n---\n# {{date:dddd, D M
 /// `log_template`) filled in for it (its own properties dropped), else [`DAILY_LOG`].
 /// A named template that is missing falls back too, so a capture never fails over it.
 pub(crate) fn daily_log_start(root: &Path, cfg: &Config, date: &str, now: NaiveDateTime) -> String {
+    let _names = vault_names(cfg);
     let path = crate::capture::day_log(cfg, now.date());
     let chosen = crate::template_rules::choose(root, cfg, &crate::template_rules::Moment::Day { path: &path });
     let text = chosen.and_then(|c| template_text(root, cfg, &c.template).ok()).map(|t| take_own(&t).0);
@@ -146,6 +154,7 @@ pub(crate) fn daily_log_start(root: &Path, cfg: &Config, date: &str, now: NaiveD
 /// A template's text filled in for a note whose place is decided elsewhere (a paper's reading note):
 /// `{{…}}` and Templater tags, without its `create_in:` line.
 pub(crate) fn render_template(root: &Path, cfg: &Config, template: &str, title: &str, now: NaiveDateTime) -> String {
+    let _names = vault_names(cfg);
     templater(&fill(Some((root, cfg)), &take_create_in(template).0, title, now, &Map::new()).0, title, now).0
 }
 
@@ -270,6 +279,7 @@ struct Draft {
 }
 
 fn draft(root: &Path, cfg: &Config, template: Option<&str>, title: &str, body: Option<&str>, values: &Map<String, Value>, now: NaiveDateTime) -> Result<Draft> {
+    let _names = vault_names(cfg);
     let (template, create_in) = match template.filter(|t| !t.is_empty()) {
         Some(t) => take_create_in(&template_text(root, cfg, t)?),
         None => (String::new(), None),
@@ -444,6 +454,7 @@ pub fn templates(root: &Path, cfg: &Config) -> Result<Vec<TemplateInfo>> {
         Err(e) => return Err(e.into()),
     };
     let now = chrono::Local::now().naive_local();
+    let _names = vault_names(cfg); // the folders listed are those a note made now goes to
     let default = default_name(root, cfg);
     let mut applies = crate::template_rules::described(root, cfg);
     let mut out: Vec<TemplateInfo> = entries
@@ -600,6 +611,14 @@ mod tests {
         assert_eq!(r.path, "notes/periodic/2026/10-October/2026-10-13 Tue.md");
         assert_eq!(templater_move_dir("<%* await tp.file.move(`a/${tp.file.title}`) %>", "T", now()).as_deref(), Some("a"), "a literal path");
         assert_eq!(templater_move_dir("<%* await tp.file.move(somewhere()) %>", "T", now()), None, "a path it cannot read: not guessed");
+        let dated = "<%* await tp.file.move(`d/${tp.file.creation_date(\"MMMM\")}/${tp.file.title}`) %>";
+        assert_eq!(templater_move_dir(dated, "T", now()).as_deref(), Some("d/October"), "a literal with a call in it");
+        // a Spanish vault files the day under its own month name, as Obsidian does
+        let mut es = Config::default();
+        es.editor.date_names = crate::config::DateNames::Spanish;
+        let r = new_note_at(d.path(), &es, &NewNote { title: "2026-10-14 Wed".into(), ..req }, now()).unwrap();
+        assert_eq!(r.path, "notes/periodic/2026/10-octubre/2026-10-14 Wed.md");
+        assert_eq!(templater("a <%> b", "T", now()).0, "a <%> b", "an unclosed `<%>` is text, not a crash");
     }
 
     #[test]

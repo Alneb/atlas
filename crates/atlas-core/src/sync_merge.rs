@@ -135,8 +135,8 @@ pub enum Settled {
 /// The settled copy into `.atlas/trash/<stamp>/` (synced like the vault: the other device sees it there too), never the
 /// desktop's Trash.
 fn to_trash(ws: &Workspace, copy: &str) -> crate::Result<()> {
-    let stamp = chrono::Local::now().format("%Y%m%d-%H%M%S").to_string();
-    vault_write::rename(&ws.resolve(copy)?, &ws.root().join(".atlas/trash").join(stamp).join(copy))
+    ws.resolve(copy)?; // in the vault
+    crate::files::to_vault_trash(ws.root(), copy).map(drop)
 }
 
 /// Drawings merge element by element in their pane (Excalidraw.svelte `mergeTheirs`), not by lines.

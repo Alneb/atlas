@@ -79,7 +79,8 @@ pub struct Task {
     pub tags: Vec<String>,
 }
 
-fn first_date(s: &str) -> Option<(NaiveDate, usize)> {
+/// The first `YYYY-MM-DD` of `s` that is a real day and not inside a word, and where it starts.
+pub(crate) fn first_date(s: &str) -> Option<(NaiveDate, usize)> {
     let b = s.as_bytes();
     (0..b.len().saturating_sub(9)).find_map(|i| {
         // exactly `YYYY-MM-DD` (the date parser alone would also take a leading space and one-digit days)
@@ -498,6 +499,7 @@ mod tests {
         assert_eq!((t.title.as_str(), t.due), ("call Ana before lunch", Some(d("2026-10-12"))));
         let t = parse("run sweep due:: 2026-10-13 fast");
         assert_eq!((t.title.as_str(), t.due), ("run sweep fast", Some(d("2026-10-13"))));
+        assert_eq!(parse("v12026-10-12 and 2026-13-45").due, None, "not inside a word, and a real day");
         let t = parse("just do it");
         assert_eq!((t.title.as_str(), t.priority, t.date(), t.props().len()), ("just do it", Priority::Normal, None, 0));
         let t = parse("done thing ✅ 2026-10-01 ⏳ 2026-09-30");

@@ -31,9 +31,10 @@ pub fn ensure(ws: &Workspace) -> Result<Option<String>> {
     }
     let path = ws.resolve(&home)?;
     if !path.exists() {
-        // a `.page` (the default): the Today dashboard as a layout file; a `.md`: blocks in a note
+        // a `.page` (the default): the Today dashboard as a layout file; a `.md`: blocks in a note. Made only if still
+        // missing: two windows starting at once never replace one the user already changed
         let t = if home.ends_with(".page") { crate::page::HOME_TEMPLATE } else { MD_TEMPLATE };
-        crate::vault_write::write(&path, t.as_bytes())?;
+        let _ = crate::vault_write::create(&path, t.as_bytes())?;
     }
     Ok(Some(home))
 }

@@ -398,8 +398,8 @@ pub fn ready(root: &Path, secrets: &Store, id: &str, name: &str, resource: &str)
     }
     // a silent sign-in that did not work is not tried again for a while: each try is a discovery and a request to the
     // provider, and a polling plugin would make them on every fetch
-    static TRIED: std::sync::LazyLock<std::sync::Mutex<HashMap<(std::path::PathBuf, String, String), std::time::Instant>>> =
-        std::sync::LazyLock::new(Default::default);
+    type Tried = HashMap<(std::path::PathBuf, String, String), std::time::Instant>;
+    static TRIED: std::sync::LazyLock<std::sync::Mutex<Tried>> = std::sync::LazyLock::new(Default::default);
     let key = (root.to_path_buf(), id.to_string(), name.to_string());
     let recent = |at: &std::time::Instant| at.elapsed() < SILENT_AGAIN;
     if TRIED.lock().unwrap_or_else(|e| e.into_inner()).get(&key).is_some_and(recent) {

@@ -245,10 +245,9 @@ pub fn keep(ws: &Workspace, id: &str) -> Result<Vec<String>> {
     let mut paths = Vec::new();
     for f in &d.files {
         let abs = ws.resolve(&f.path)?;
-        if abs.exists() {
+        if crate::vault_write::create(&abs, f.text.as_bytes())? == crate::vault_write::Created::Taken {
             return Err(Error::Conflict { current: None });
         }
-        crate::vault_write::write(&abs, f.text.as_bytes())?;
         paths.push(f.path.clone());
     }
     Ok(paths)

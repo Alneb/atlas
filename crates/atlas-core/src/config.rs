@@ -1112,10 +1112,15 @@ impl Config {
 
     /// Writes only the keys whose value changed, into the existing file, keeping its comments and
     /// layout. The result is re-parsed before it replaces the file, so a bad write never lands.
+    /// Under the file's lock: two saves at once (two windows' Settings) each change the file as the other left it.
     pub fn save(root: &Path, new: &Config) -> anyhow::Result<()> {
         let path = root.join(CONFIG_FILE);
-        parsed::forget(&path);
-        let text = match std::fs::read_to_string(&path) {
+        crate::vault_write::locked(&path, || Ok(Self::save_now(root, &path, new)))?
+    }
+
+    fn save_now(root: &Path, path: &Path, new: &Config) -> anyhow::Result<()> {
+        parsed::forget(path);
+        let text = match std::fs::read_to_string(path) {
             Ok(t) => t,
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => String::new(),
             Err(e) => return Err(e.into()),
@@ -1131,7 +1136,7 @@ impl Config {
         let out = doc.to_string();
         let check = parse(&out)?.0;
         anyhow::ensure!(&check == new, "config did not round-trip; not written");
-        crate::vault_write::write(&path, out.as_bytes())?;
+        crate::vault_write::write(path, out.as_bytes())?;
         Ok(())
     }
 

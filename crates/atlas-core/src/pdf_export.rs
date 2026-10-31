@@ -248,7 +248,11 @@ impl Target {
         let mut contents = vec![Object::Reference(open)];
         match d.get(b"Contents").cloned() {
             Ok(Object::Array(list)) => contents.extend(list),
-            Ok(other @ Object::Reference(_)) => contents.push(other),
+            // a reference to an array of streams is spliced in: an array's entries must be the streams themselves
+            Ok(Object::Reference(r)) => match self.get(r)? {
+                Object::Array(list) => contents.extend(list),
+                _ => contents.push(Object::Reference(r)),
+            },
             _ => {}
         }
         contents.push(Object::Reference(ours));
@@ -675,12 +679,16 @@ mod tests {
 
     /// A two-page PDF (the second turned a quarter), its cross-reference table counted.
     fn two_pages() -> Vec<u8> {
-        let objs = [
+        pdf(&[
             "<< /Type /Catalog /Pages 2 0 R >>",
             "<< /Type /Pages /Kids [3 0 R 4 0 R] /Count 2 >>",
             "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] >>",
             "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Rotate 90 /Annots [] >>",
-        ];
+        ])
+    }
+
+    /// A PDF of these objects, numbered from 1 (the first the catalog).
+    fn pdf(objs: &[&str]) -> Vec<u8> {
         let mut out = String::from("%PDF-1.4\n");
         let mut at = vec![];
         for (i, o) in objs.iter().enumerate() {
@@ -805,6 +813,24 @@ mod tests {
         let last = page.get(b"Contents").unwrap().as_array().unwrap().last().unwrap().as_reference().unwrap();
         let first_line = String::from_utf8(doc.get_object(last).unwrap().as_stream().unwrap().content.clone()).unwrap().lines().nth(1).unwrap().to_string();
         assert!(first_line.starts_with("q 1 0 0 1 0 0 cm /AtlasMark0_0 Do Q"), "{first_line}");
+    }
+
+    #[test]
+    fn flat_splices_a_content_array_kept_as_an_object_of_its_own() {
+        let one = pdf(&[
+            "<< /Type /Catalog /Pages 2 0 R >>",
+            "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+            "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents 5 0 R >>",
+            "<< /Length 5 >>\nstream\n0 0 m\nendstream",
+            "[4 0 R]",
+        ]);
+        let marks = [mark("m-00000001", 1, Body::Stamp { at: [10.0, 10.0], stamp: Stamp::Star })];
+        let (out, _) = write_marks(one, &marks, Mode::Flat).unwrap();
+        let doc = Document::load_mem(&out).unwrap();
+        let page = doc.get_dictionary(doc.get_pages()[&1]).unwrap();
+        let parts = page.get(b"Contents").unwrap().as_array().unwrap();
+        assert_eq!(parts.len(), 3, "q, the page's own stream, the marks: {parts:?}");
+        assert!(parts.iter().all(|p| doc.get_object(p.as_reference().unwrap()).unwrap().as_stream().is_ok()), "every entry a stream");
     }
 
     #[test]

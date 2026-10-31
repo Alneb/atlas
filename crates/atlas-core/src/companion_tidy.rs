@@ -180,17 +180,18 @@ pub fn apply(ws: &Workspace, plan: &[Tidy]) -> Result<Option<String>> {
         }
         if let Tidy::ReadingNote { note, owner } = t {
             let (props, _) = parts(&std::fs::read_to_string(ws.resolve(note)?)?);
-            let owner_text = std::fs::read_to_string(ws.resolve(owner)?)?;
-            let merged = merge_reading(&props, &owner_text);
-            if merged != owner_text {
-                keep(owner)?;
-                crate::vault_write::write(&ws.resolve(owner)?, merged.as_bytes())?;
-            }
+            // through `modify`: a save of the owner meanwhile is merged into, not written over
+            crate::vault_write::modify(&ws.resolve(owner)?, |owner_text| {
+                let merged = merge_reading(&props, owner_text);
+                if merged != owner_text {
+                    keep(owner)?;
+                }
+                Ok(merged)
+            })?;
         }
         keep(t.path())?;
         if let Tidy::Hide { note } = t {
-            let text = std::fs::read_to_string(ws.resolve(note)?)?;
-            crate::vault_write::write(&ws.resolve(note)?, crate::frontmatter::set_property(&text, "shown", &Value::Bool(false)).as_bytes())?;
+            crate::vault_write::modify(&ws.resolve(note)?, |text| Ok(crate::frontmatter::set_property(text, "shown", &Value::Bool(false))))?;
             continue;
         }
         files::trash(ws, t.path())?;

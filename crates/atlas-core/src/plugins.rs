@@ -431,17 +431,18 @@ pub fn save_settings(root: &Path, secrets: &crate::secrets::Store, id: &str, val
         }
     }
     write_settings_file(root, id, &out.to_string())?;
-    for (name, text) in saved.set {
-        secrets.set(id, &name, &text)?;
-    }
-    for name in saved.forget {
-        secrets.delete(id, &name)?;
-    }
+    // a renamed card's secrets move first: one typed into it in the same save is newer and goes over them
     for (from, to) in &saved.moved {
         if let Some(v) = secrets.get(id, from)? {
             secrets.set(id, to, &v)?;
             secrets.delete(id, from)?;
         }
+    }
+    for (name, text) in saved.set {
+        secrets.set(id, &name, &text)?;
+    }
+    for name in saved.forget {
+        secrets.delete(id, &name)?;
     }
     Ok(saved.renamed)
 }
@@ -1401,7 +1402,10 @@ mod tests {
         assert_eq!(store.get("mail", "accounts.uni.password").unwrap().as_deref(), Some("pw"));
         assert_eq!(store.get("mail", "accounts.me@uni.example.org.password").unwrap(), None);
         assert!(!std::fs::read_to_string(t.path().join(SETTINGS_DIR).join("mail.toml")).unwrap().contains("renamed_from"));
-        save_settings(t.path(), &store, "mail", json!({ "accounts": [{ "name": "me@uni.example.org", "renamed_from": "uni", "user": "me" }, { "name": "home", "port": 143 }] }).as_object().unwrap()).unwrap();
+        // renamed back with a new password typed in the same save: the new one stays, not the one moved with the card
+        save_settings(t.path(), &store, "mail", json!({ "accounts": [{ "name": "me@uni.example.org", "renamed_from": "uni", "user": "me", "password": "pw2" }, { "name": "home", "port": 143 }] }).as_object().unwrap()).unwrap();
+        assert_eq!(store.get("mail", "accounts.me@uni.example.org.password").unwrap().as_deref(), Some("pw2"));
+        assert_eq!(store.get("mail", "accounts.uni.password").unwrap(), None);
         // the card removed: its secret goes with it
         save_settings(t.path(), &store, "mail", json!({ "accounts": [{ "name": "home" }] }).as_object().unwrap()).unwrap();
         assert_eq!(store.get("mail", "accounts.me@uni.example.org.password").unwrap(), None);

@@ -423,15 +423,21 @@ pub fn trash(ws: &Workspace, rel: &str) -> Result<String> {
             Err(e) => return Err(e),
         }
     }
-    // a second delete of the same path within the second gets its own folder (a rename would replace the first)
+    let to = to_vault_trash(ws.root(), rel.trim_matches('/'))?;
+    Ok(to.rsplit_once(&format!("/{}", rel.trim_matches('/'))).map_or(to.clone(), |(stamp, _)| stamp.to_string()))
+}
+
+/// Moves `rel` (a file or folder of the vault) to `.atlas/trash/<stamp>/<rel>` and says where, vault-relative: the one
+/// way anything goes to the vault's trash. A path this second already put there gets a stamp of its own (`-1`…): a
+/// rename would replace it.
+pub(crate) fn to_vault_trash(root: &std::path::Path, rel: &str) -> Result<String> {
     let now = chrono::Local::now().format("%Y%m%d-%H%M%S").to_string();
-    let (stamp, dest) = (0..)
-        .map(|n| if n == 0 { now.clone() } else { format!("{now}-{n}") })
-        .map(|stamp| { let dest = ws.root().join(".atlas/trash").join(&stamp).join(rel); (stamp, dest) })
-        .find(|(_, dest)| !dest.exists())
-        .expect("an unused name");
-    vault_write::rename(&p, &dest)?;
-    Ok(format!(".atlas/trash/{stamp}"))
+    let to = (0..1000)
+        .map(|n| if n == 0 { format!(".atlas/trash/{now}/{rel}") } else { format!(".atlas/trash/{now}-{n}/{rel}") })
+        .find(|to| !root.join(to).exists())
+        .ok_or_else(|| Error::BadRequest("the trash is full for this second".into()))?;
+    vault_write::rename(&root.join(rel), &root.join(&to))?;
+    Ok(to)
 }
 
 #[cfg(test)]
@@ -456,6 +462,10 @@ mod manage_tests {
         assert!(trash(&ws, "").is_err() && move_path(&ws, "../x", "y").is_err());
         assert!(trash(&ws, ".").is_err() && trash(&ws, "./").is_err(), "never the vault itself");
         assert!(move_path(&ws, ".", "elsewhere").is_err());
+        // the same path trashed twice in a second: both kept
+        let twice: Vec<String> = ["one", "two"].iter().map(|t| { std::fs::write(d.path().join("c.md"), t).unwrap(); to_vault_trash(d.path(), "c.md").unwrap() }).collect();
+        assert_ne!(twice[0], twice[1]);
+        assert_eq!([0, 1].map(|i| std::fs::read_to_string(d.path().join(&twice[i])).unwrap()), ["one", "two"]);
     }
 
     #[test]

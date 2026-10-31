@@ -217,9 +217,6 @@ pub fn create(root: &Path, c: &crate::api::NewCommand) -> Result<CommandInfo> {
         )));
     }
     let path = root.join(COMMANDS_DIR).join(format!("{id}.toml"));
-    if path.exists() {
-        return Err(Error::Conflict { current: None });
-    }
     let mut doc = toml_edit::DocumentMut::new();
     doc["title"] = toml_edit::value(title);
     if !c.description.trim().is_empty() {
@@ -233,7 +230,10 @@ pub fn create(root: &Path, c: &crate::api::NewCommand) -> Result<CommandInfo> {
         sc.parse::<crate::schedule::Schedule>().map_err(Error::BadRequest)?;
         doc["schedule"] = toml_edit::value(sc);
     }
-    crate::vault_write::write(&path, doc.to_string().as_bytes())?;
+    // made only if free: one of that id is never replaced, even by a second create at the same moment
+    if crate::vault_write::create(&path, doc.to_string().as_bytes())? == crate::vault_write::Created::Taken {
+        return Err(Error::Conflict { current: None });
+    }
     list(root).into_iter().find(|i| i.id == id).ok_or_else(|| Error::BadRequest("written but not loadable".into()))
 }
 

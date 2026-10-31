@@ -80,46 +80,9 @@ fn parse_from(s: Option<&str>, has_filters: bool) -> Result<From<'_>> {
     })
 }
 
-/// The first `YYYY-MM-DD` in a text, and the text without it (and without the 📅 / `due::` that
-/// introduced it).
-fn split_date(text: &str) -> (String, Option<String>) {
-    let b = text.as_bytes();
-    let at = (0..b.len().saturating_sub(9)).find(|&i| {
-        let d = |k: usize| b[i + k].is_ascii_digit();
-        d(0) && d(1) && d(2) && d(3) && b[i + 4] == b'-' && d(5) && d(6) && b[i + 7] == b'-' && d(8) && d(9)
-            && (i == 0 || !b[i - 1].is_ascii_alphanumeric())
-    });
-    let Some(i) = at else { return (text.trim().to_string(), None) };
-    let date = text[i..i + 10].to_string();
-    let mut title = format!("{}{}", &text[..i], &text[i + 10..]);
-    for marker in ["📅", "🗓️", "🗓", "[due::]", "due::", "@"] {
-        title = title.replace(marker, " ");
-    }
-    (title.split_whitespace().collect::<Vec<_>>().join(" "), Some(date))
-}
-
 /// Every checkbox of `lines` (open and done), outside code fences.
 fn tasks_in(path: &str, lines: &[&str], first_line: u32) -> Vec<ViewRow> {
-    let mut out = Vec::new();
-    let mut fence = false;
-    for (i, l) in lines.iter().enumerate() {
-        if l.trim_start().starts_with("```") || l.trim_start().starts_with("~~~") {
-            fence = !fence;
-            continue;
-        }
-        if fence {
-            continue;
-        }
-        let (text, done) = if let Some(t) = today::parse_task(l) {
-            (t, false)
-        } else if let Some(t) = today::done_task(l) {
-            (t, true)
-        } else {
-            continue;
-        };
-        out.push(task_row(path, first_line + i as u32, text, done));
-    }
-    out
+    today::task_lines(lines.iter().copied()).map(|(i, text, done)| task_row(path, first_line + i as u32, text, done)).collect()
 }
 
 /// A task as a row: its text without the fields, the date a calendar places it on, and the fields
@@ -247,7 +210,7 @@ fn notes(ws: &Workspace, note: &str, base_src: String, date_prop: &str) -> Resul
                 .collect();
             let date = props.get(date_prop).map(|d| d.chars().take(10).collect::<String>());
             let title = row.path.rsplit('/').next().unwrap_or(&row.path).trim_end_matches(".md").to_string();
-            ViewRow { path: Some(row.path), line: None, title, date: date.filter(|d| split_date(d).1.is_some()), done: None, props }
+            ViewRow { path: Some(row.path), line: None, title, date: date.filter(|d| crate::tasks::first_date(d).is_some()), done: None, props }
         })
         .collect())
 }
@@ -357,7 +320,7 @@ fn plugin_rows(v: &serde_json::Value) -> Vec<ViewRow> {
     };
     items.iter().filter_map(Value::as_object).map(|o| {
         let first = |keys: &[&str]| keys.iter().find_map(|k| o.get(*k).and_then(text).filter(|s| !s.is_empty()));
-        let date = first(&["date", "start", "due"]).and_then(|d| d.get(..10).filter(|d| split_date(d).1.is_some()).map(str::to_string));
+        let date = first(&["date", "start", "due"]).and_then(|d| d.get(..10).filter(|d| crate::tasks::first_date(d).is_some()).map(str::to_string));
         ViewRow {
             // An event made from a note names it as its `source`: the row opens that note.
             path: first(&["path"]).or_else(|| first(&["source"]).filter(|s| s.ends_with(".md"))),
@@ -408,14 +371,6 @@ mod tests {
         // A file-reading evaluation never calls a tool.
         let d = tempfile::tempdir().unwrap();
         assert!(matches!(evaluate(&Workspace::open(d.path()).unwrap(), "x.md", "from: plugin:dav/events"), Err(Error::BadRequest(_))));
-    }
-
-    #[test]
-    fn dates_are_found_by_shape_and_removed_from_the_title() {
-        assert_eq!(split_date("read Georges 1996 📅 2026-10-12"), ("read Georges 1996".into(), Some("2026-10-12".into())));
-        assert_eq!(split_date("run sweep due:: 2026-10-13 fast"), ("run sweep fast".into(), Some("2026-10-13".into())));
-        assert_eq!(split_date("no date here"), ("no date here".into(), None));
-        assert_eq!(split_date("v12026-10-12"), ("v12026-10-12".into(), None), "not inside a word");
     }
 
     #[test]

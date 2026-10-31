@@ -65,10 +65,7 @@ pub fn tick_task_on(text: &str, line: u32, day: chrono::NaiveDate) -> Option<Str
 pub fn tick_line(l: &str, day: chrono::NaiveDate) -> Option<Vec<String>> {
     // a CRLF note's line keeps its `\r`, on the next occurrence too
     let (l, cr) = l.strip_suffix('\r').map_or((l, ""), |l| (l, "\r"));
-    let i = l.find("[ ]").filter(|&i| {
-        l[..i].trim_start().starts_with(['-', '*', '+'])
-            || l[..i].trim_start().chars().next().is_some_and(|c| c.is_ascii_digit())
-    })?;
+    let i = checkbox(l).filter(|&i| &l[i..i + 3] == "[ ]")?;
     let mut ticked = format!("{}[x]{}", &l[..i], &l[i + 3..]);
     if crate::tasks::uses_fields(l) && !l.contains('✅') {
         ticked = format!("{} ✅ {}", ticked.trim_end(), day.format("%Y-%m-%d"));
@@ -76,13 +73,22 @@ pub fn tick_line(l: &str, day: chrono::NaiveDate) -> Option<Vec<String>> {
     Some(crate::tasks::next_occurrence(l, day).into_iter().chain([ticked]).map(|x| format!("{x}{cr}")).collect())
 }
 
+/// Where a list item's checkbox (`[ ]`, `[x]`…) starts: right after its `- `, `* `, `+ `, `1. ` or `1) `. A `[ ]`
+/// later in the text is text, never the box.
+fn checkbox(l: &str) -> Option<usize> {
+    let t = l.trim_start();
+    let after = t.strip_prefix(['-', '*', '+']).or_else(|| {
+        let n = t.trim_start_matches(|c: char| c.is_ascii_digit());
+        (n.len() < t.len()).then_some(n)?.strip_prefix(['.', ')'])
+    })?;
+    let at = after.trim_start_matches([' ', '\t']);
+    (at.len() < after.len() && at.starts_with('[') && at.get(2..3) == Some("]")).then(|| l.len() - at.len())
+}
+
 /// A done task line opened again: `[x]` → `[ ]`, and its `✅ date` taken off, as the Tasks plugin
 /// does. None when the line is not a done task.
 pub fn untick_line(l: &str) -> Option<String> {
-    let i = l.find("[x]").or_else(|| l.find("[X]")).filter(|&i| {
-        l[..i].trim_start().starts_with(['-', '*', '+'])
-            || l[..i].trim_start().chars().next().is_some_and(|c| c.is_ascii_digit())
-    })?;
+    let i = checkbox(l).filter(|&i| matches!(&l[i..i + 3], "[x]" | "[X]"))?;
     let open = format!("{}[ ]{}", &l[..i], &l[i + 3..]);
     Some(without_done_date(&open))
 }
@@ -146,22 +152,27 @@ fn tasks_in(abs: &Path, meta: &std::fs::Metadata) -> std::sync::Arc<Vec<(u32, St
     // Generated checklists (e.g. a migration review) opt out so they don't flood Today.
     let text = std::fs::read_to_string(abs).unwrap_or_default();
     if !text.contains(NO_TASKS_MARKER) {
-        let mut in_fence = false;
-        for (i, line) in text.lines().enumerate() {
-            // Checkboxes inside code fences are examples, not tasks.
-            if line.trim_start().starts_with("```") || line.trim_start().starts_with("~~~") {
-                in_fence = !in_fence;
-                continue;
-            }
-            let found = (!in_fence).then(|| parse_task(line).map(|t| (t, false)).or_else(|| done_task(line).map(|t| (t, true)))).flatten();
-            if let Some((t, done)) = found {
-                out.push((i as u32 + 1, t.to_string(), done));
-            }
-        }
+        out.extend(task_lines(text.lines()).map(|(i, t, done)| (i as u32 + 1, t.to_string(), done)));
     }
     let t = std::sync::Arc::new(out);
     lock(&TASKS).put(abs, stamp, meta.modified().ok(), t.clone());
     t
+}
+
+/// The task lines of `lines`: (index, text after the checkbox, done). Checkboxes inside code fences are examples, not
+/// tasks. The one reader of a note's tasks (Today, task and view blocks).
+pub(crate) fn task_lines<'a>(lines: impl Iterator<Item = &'a str>) -> impl Iterator<Item = (usize, &'a str, bool)> {
+    let mut in_fence = false;
+    lines.enumerate().filter_map(move |(i, line)| {
+        if line.trim_start().starts_with("```") || line.trim_start().starts_with("~~~") {
+            in_fence = !in_fence;
+            return None;
+        }
+        if in_fence {
+            return None;
+        }
+        parse_task(line).map(|t| (i, t, false)).or_else(|| done_task(line).map(|t| (i, t, true)))
+    })
 }
 
 /// A vault file and its metadata, from one walk: a day's page asks several things of the same files.
@@ -513,6 +524,10 @@ mod tests {
         assert_eq!(tick_task("- [x] done\n", 1), None);
         assert_eq!(tick_task("text [ ] not a task\n", 1), None);
         assert_eq!(tick_task("x\n", 9), None);
+        assert_eq!(tick_task("- [x] check [ ] notation\n", 1), None, "a box in the text is not the item's");
+        assert_eq!(untick_line("- [ ] fix [x] axis"), None);
+        assert_eq!(tick_task("2026 plan [ ] x\n", 1), None, "digits without `.` or `)` are no list item");
+        assert_eq!(tick_task("* \t[ ] tab\n", 1).as_deref(), Some("* \t[x] tab\n"));
     }
 
     #[test]
