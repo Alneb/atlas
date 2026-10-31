@@ -342,7 +342,9 @@ mod raw {
     /// Readable by this user only, written whole then renamed over the old one.
     pub fn private(abs: &Path, bytes: &[u8]) -> Result<()> {
         mkdir_parent(abs)?;
-        let tmp = abs.with_extension(format!("tmp-{}", std::process::id()));
+        // unique per write, not per process: two threads sharing one O_TRUNC temp file would interleave their bytes
+        let nanos = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_nanos();
+        let tmp = abs.with_extension(format!("tmp-{}-{nanos}", std::process::id()));
         let mut opts = std::fs::OpenOptions::new();
         opts.write(true).create(true).truncate(true);
         #[cfg(unix)]

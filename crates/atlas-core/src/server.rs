@@ -947,6 +947,11 @@ async fn task_tick(State(st): S, Json(t): Json<TaskRef>) -> Result<StatusCode> {
     with_ws(&st, move |ws| {
         let p = ws.resolve(&t.path)?;
         let text = std::fs::read_to_string(&p)?;
+        let want = t.text.as_deref().map(str::trim).filter(|w| !w.is_empty());
+        let at = text.split('\n').nth((t.line as usize).saturating_sub(1)).unwrap_or_default();
+        if want.is_some_and(|w| !at.contains(w)) {
+            return Err(Error::Conflict { current: None });
+        }
         let next = crate::today::tick_task(&text, t.line).ok_or(Error::Conflict { current: None })?;
         vault_write::write(&p, next.as_bytes())
     })

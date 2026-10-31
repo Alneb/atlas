@@ -75,8 +75,13 @@ pub fn take_pending(root: &Path) -> Vec<crate::events::Captured> {
     files.sort();
     let mut out = vec![];
     for f in files {
-        let Ok(text) = std::fs::read_to_string(&f) else { continue };
-        let _ = vault_write::remove_file(&f);
+        // moved aside first: a capture appended between reading and removing would be removed unread
+        let taking = f.with_extension("taking");
+        if f != taking && vault_write::rename(&f, &taking).is_err() {
+            continue;
+        }
+        let Ok(text) = std::fs::read_to_string(&taking) else { continue };
+        let _ = vault_write::remove_file(&taking);
         out.extend(text.lines().filter_map(|l| serde_json::from_str(l).ok()));
     }
     out
@@ -292,8 +297,13 @@ fn sized_pictures(text: &str, width: u32) -> String {
         .into_owned()
 }
 
-/// Appends (never rewrites) so a concurrent editor sees a plain mtime change.
+/// Appends (never rewrites, unless view blocks close the note) so a concurrent editor sees a plain mtime change. One
+/// capture at a time: two would each read the note and the second write would drop the first, or a new day's template
+/// be written twice.
 fn append_to_log(root: &Path, cfg: &Config, text: &str, now: NaiveDateTime) -> Result<CaptureResult> {
+    static ONE: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    let _one = ONE.lock().unwrap_or_else(|e| e.into_inner());
+    let original = text;
     let entry = format_entry(&sized_pictures(text, cfg.notes.capture_thumbnail), now)?;
     let date = now.format("%Y-%m-%d").to_string();
     let rel = day_log(cfg, now.date());
@@ -316,11 +326,15 @@ fn append_to_log(root: &Path, cfg: &Config, text: &str, now: NaiveDateTime) -> R
         return Ok(CaptureResult { path: rel, line, source: Some(first_line(&entry)) });
     }
     let lines_before = text.lines().count();
-    let prefix = match made {
-        true => text,
-        false if !text.is_empty() && !text.ends_with('\n') => "\n".into(),
-        false => String::new(),
-    };
+    if made {
+        // made only if still missing (the Today page may make it meanwhile): then the entry goes into that one
+        if vault_write::create(&path, format!("{text}{entry}").as_bytes())? == vault_write::Created::Taken {
+            drop(_one);
+            return append_to_log(root, cfg, &original, now);
+        }
+        return Ok(CaptureResult { path: rel, line: lines_before as u32 + 1, source: Some(first_line(&entry)) });
+    }
+    let prefix = if !text.is_empty() && !text.ends_with('\n') { "\n" } else { "" };
     vault_write::append(&path, format!("{prefix}{entry}").as_bytes())?;
     Ok(CaptureResult { path: rel, line: lines_before as u32 + 1, source: Some(first_line(&entry)) })
 }
@@ -341,8 +355,13 @@ pub fn is_log_heading(line: &str) -> bool {
 /// Where a run of ```view blocks closing the note starts, when a `## Log` heading comes before it: a capture is written
 /// above them, so the log stays the log's last section.
 fn tail_blocks(text: &str) -> Option<usize> {
-    let log = regex::Regex::new(&format!("(?m){LOG_HEADING}")).ok()?.find(text)?.end();
-    let tail = regex::Regex::new(r"(?:\n```view\n(?:[^`]|`[^`]|``[^`])*?\n```[ \t]*\n?\s*)+\z").ok()?.find(&text[log..])?;
+    static LOG: std::sync::LazyLock<regex::Regex> =
+        std::sync::LazyLock::new(|| regex::Regex::new(&format!("(?m){LOG_HEADING}")).expect("valid"));
+    static TAIL: std::sync::LazyLock<regex::Regex> = std::sync::LazyLock::new(|| {
+        regex::Regex::new(r"(?:\n```view\n(?:[^`]|`[^`]|``[^`])*?\n```[ \t]*\n?\s*)+\z").expect("valid")
+    });
+    let log = LOG.find(text)?.end();
+    let tail = TAIL.find(&text[log..])?;
     Some(log + tail.start())
 }
 

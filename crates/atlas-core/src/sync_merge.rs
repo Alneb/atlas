@@ -163,7 +163,12 @@ pub fn settle(ws: &Workspace, copy: &str) -> crate::Result<Settled> {
     match merged.unwrap_or(Merged::Clashed) {
         Merged::Clashed => Ok(Settled::Left("both sides changed the same lines".into())),
         Merged::Clean(text) => {
-            if let Err(e) = vault_write::write(&ws.resolve(&orig)?, text.as_bytes()) {
+            // the merge took a while: an edit saved meanwhile would be written over, so it waits for the next pass
+            let path = ws.resolve(&orig)?;
+            if std::fs::read(&path).ok().as_deref() != Some(ours.as_bytes()) {
+                return Ok(Settled::Later("the file changed while merging".into()));
+            }
+            if let Err(e) = vault_write::write(&path, text.as_bytes()) {
                 return Ok(Settled::Later(format!("the merge was not written yet: {e}")));
             }
             to_trash(ws, copy)?;

@@ -109,8 +109,8 @@
   /** day → its log file: found by name anywhere under the log folder (`log_folders` files them by year and month) */
   let days = $state<Record<string, string>>({});
   const logRoot = $derived((settings.config?.log_dir ?? "").replace(/\/+$/, ""));
-  async function markDone(t: { path: string; line: number }) {
-    try { await api.tickTask(t.path, t.line); await refresh(); }
+  async function markDone(t: { path: string; line: number; text?: string }) {
+    try { await api.tickTask(t.path, t.line, t.text); await refresh(); }
     catch (e) { toast("Could not tick the task", e instanceof Error && /409/.test(e.message) ? "The line changed — open the note." : String(e), "error"); }
   }
 

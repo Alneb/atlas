@@ -1,11 +1,26 @@
-# FreshRSS: the unread articles in a block; one into a note with a click. An example of a block
-# fed by atlas.fetch through FreshRSS's Fever API. Copy into a vault's .atlas/plugins/.
+# FreshRSS: the unread articles in a block; one into a note with a click. An example of a block fed by a JavaScript
+# helper (FreshRSS's Fever API, its key a form field the core fills in) whose methods are tools too. Copy into a
+# vault's .atlas/plugins/.
 title = "FreshRSS"
 description = "unread articles in a block, an article into a note"
 phone = true # runs in the phone apps too (only plugins marked so start there)
 icon = "globe"
-version = "0.1.0"
-api = 4
+version = "0.2.0"
+api = 16
+
+[helper]
+js = "helper.js"   # run in the core (QuickJS): the same on every platform, the phone too
+idle = "10m"
+
+[[tool]]
+name = "unread"
+description = "The user's unread FreshRSS articles, newest first: id, title, url. Read-only."
+input = { limit = "integer?" }
+
+[[tool]]
+name = "save"
+description = "Save one FreshRSS article (an id from freshrss_unread) as a note in the reading folder; answers its path. An existing note is not written over."
+input = { id = "string" }
 
 [permissions]
 net = ["*"]

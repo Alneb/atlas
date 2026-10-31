@@ -1664,6 +1664,10 @@ pub struct LinkMention {
 pub struct TaskRef {
     pub path: String,
     pub line: u32,
+    /// The task's text as the client saw it: when the line no longer holds it (an earlier tick shifted the lines), 409.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub text: Option<String>,
 }
 
 /// What a `[[` link can point at (link_targets.rs).

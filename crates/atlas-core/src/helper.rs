@@ -100,15 +100,32 @@ fn manifest_stamp(root: &Path, id: &str) -> Option<std::time::SystemTime> {
     std::fs::metadata(root.join(plugins::PLUGINS_DIR).join(id).join("plugin.toml")).and_then(|m| m.modified()).ok()
 }
 
-/// The log's last lines, for an error that would otherwise only say the helper is gone (a broken pipe).
+fn log_file(root: &Path, id: &str) -> std::path::PathBuf {
+    root.join(".atlas/cache/plugins").join(format!("{id}.log"))
+}
+
+/// A helper's log is kept to about this size: past it, it becomes `<id>.log.1` (the one before is dropped).
+const LOG_MAX: u64 = 2 * 1024 * 1024;
+
+/// The log's last lines, for an error that would otherwise only say the helper is gone (a broken pipe). Only its end is
+/// read.
 fn log_tail(root: &Path, id: &str) -> String {
-    let text = std::fs::read_to_string(root.join(".atlas/cache/plugins").join(format!("{id}.log"))).unwrap_or_default();
+    use std::io::{Read, Seek, SeekFrom};
+    let mut end = Vec::new();
+    if let Ok(mut f) = std::fs::File::open(log_file(root, id)) {
+        let len = f.metadata().map(|m| m.len()).unwrap_or(0);
+        let _ = f.seek(SeekFrom::Start(len.saturating_sub(8192))).and_then(|_| f.read_to_end(&mut end));
+    }
+    let text = String::from_utf8_lossy(&end);
     let lines: Vec<&str> = text.lines().collect();
     lines[lines.len().saturating_sub(5)..].join(" · ")
 }
 
 fn log(root: &Path, id: &str, line: &str) {
-    let file = root.join(".atlas/cache/plugins").join(format!("{id}.log"));
+    let file = log_file(root, id);
+    if std::fs::metadata(&file).is_ok_and(|m| m.len() > LOG_MAX) {
+        let _ = crate::vault_write::cache::rename(&file, &file.with_extension("log.1"));
+    }
     let _ = crate::vault_write::cache::append(&file, format!("{} {line}\n", chrono::Local::now().format("%Y-%m-%d %H:%M:%S")).as_bytes());
 }
 

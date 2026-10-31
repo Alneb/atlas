@@ -51,7 +51,8 @@ function unixOnly(dir) {
       else if (/\.(js|py|ts)$/.test(e.name)) {
         const t = readFileSync(p, "utf8");
         if (/\.venv\/bin\/|\/usr\/bin\/|\/tmp\//.test(t)) found.push(`${e.name}: a Unix path`);
-        if (/\\'\\\\''|'\\\\''/.test(t) || /replace\(\/'\/g/.test(t)) found.push(`${e.name}: POSIX shell quoting`);
+        // POSIX quoting is a finding unless the file asks the terminal which shell it has (quoting for that one)
+        if ((/\\'\\\\''|'\\\\''/.test(t) || /replace\(\/'\/g/.test(t)) && !/terminal\.shell\b/.test(t)) found.push(`${e.name}: POSIX shell quoting`);
         if (/\b(lpstat|xdg-open|notify-send)\b/.test(t)) found.push(`${e.name}: a Unix program`);
       }
     }

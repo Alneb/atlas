@@ -1042,8 +1042,9 @@ pub fn contributions(root: &Path, off: &[String], target: &str) -> Result<serde_
 fn with_own_settings(v: &mut Value, settings: &Value) {
     match v {
         Value::String(s) if s.contains("{setting:") => {
-            let re = regex::Regex::new(r"\{setting:([A-Za-z0-9_-]+)\}").expect("static");
-            *s = re
+            static RE: std::sync::LazyLock<regex::Regex> =
+                std::sync::LazyLock::new(|| regex::Regex::new(r"\{setting:([A-Za-z0-9_-]+)\}").expect("static"));
+            *s = RE
                 .replace_all(s, |c: &regex::Captures| match settings.get(&c[1]) {
                     Some(Value::String(x)) => x.clone(),
                     Some(x @ (Value::Number(_) | Value::Bool(_))) => x.to_string(),
@@ -1061,6 +1062,11 @@ fn with_own_settings(v: &mut Value, settings: &Value) {
 pub async fn data(root: &Path, id: &str, args: Value) -> Result<Value> {
     if !valid_id(id) {
         return Err(Error::BadRequest(format!("bad plugin id {id:?}")));
+    }
+    // like its tools and helper: a plugin switched off (a new one, not yet looked at) runs nothing
+    let off = crate::config::Config::load(root).map(|c| c.plugins.off).unwrap_or_default();
+    if let Some(why) = blocked(&list(root), &off, id) {
+        return Err(Error::BadRequest(format!("plugin {id} cannot run: {why}")));
     }
     let m = read_manifest(root, id)?;
     let settings = settings_with_defaults(&m);

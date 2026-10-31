@@ -27,8 +27,7 @@ test.beforeAll(async ({ request }) => {
   });
   await new Promise<void>((done) => server.listen(0, "127.0.0.1", done));
   port = (server.address() as AddressInfo).port;
-  await put(request, ".atlas/plugins/freshrss/main.js", example("main.js"));
-  await put(request, ".atlas/plugins/freshrss/plugin.toml", example("plugin.toml"));
+  for (const f of ["main.js", "helper.js", "plugin.toml"]) await put(request, `.atlas/plugins/freshrss/${f}`, example(f));
   await put(request, "notes/feeds.md", "# Feeds\n\n```view\ntype: freshrss.unread\n```\n\nend\n");
 });
 test.afterAll(async ({ request }) => {
@@ -46,4 +45,16 @@ test("a FreshRSS block lists the unread articles; Save makes a note of one", asy
   expect(bodies[0]).toBe("api_key=fever-key");
   await row.getByRole("button", { name: "Save" }).click();
   await expect.poll(() => read(request, "notes/reading/Kondo physics today.md")).toContain("The Kondo effect again.");
+});
+
+// The reading and saving are the helper's: the freshrss_unread and freshrss_save tools (an agent, the phone) do the same.
+test("the FreshRSS tools list the unread articles and save one, never over a note", async ({ request }) => {
+  await request.put("/api/plugins/freshrss/settings", { headers: H, data: { server: `http://127.0.0.1:${port}`, api_key: "fever-key", folder: "notes/feeds-saved" } });
+  const list = await request.post("/api/plugins/freshrss/tools/unread", { headers: H, data: { limit: 5 } });
+  expect(list.ok(), await list.text()).toBe(true);
+  expect(JSON.stringify(await list.json())).toContain("Kondo physics today");
+  const save = async () => (await request.post("/api/plugins/freshrss/tools/save", { headers: H, data: { id: "7" } })).json();
+  expect(JSON.stringify(await save())).toContain("notes/feeds-saved/Kondo physics today.md");
+  await expect.poll(() => read(request, "notes/feeds-saved/Kondo physics today.md")).toContain("source: \"https://example.org/kondo\"");
+  expect(JSON.stringify(await save())).toMatch(/"made":\s*false/); // there already: not written over
 });

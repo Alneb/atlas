@@ -8,7 +8,8 @@ import { suwayomi, isRemote, PAGE_W } from "./suwayomi.js";
 const PICTURE = /\.(jpe?g|png|webp|gif|avif|bmp)$/i;
 const ZIP = /\.cb[zr7t]$/i; // a chapter archive; only a .cbz is read in the page, the others made into one (helper/helper.ts)
 const CBZ = /\.cbz$/i;
-const READING = "reading.json"; // the older place file: read once, the note is written from then on
+const READING = "reading.json";
+const KEEP = 5; // chapters a Suwayomi series keeps for offline at a click // the older place file: read once, the note is written from then on
 
 // ---- where you are, in the series' note: reading_chapter · reading_page · last_read
 // · chapter_progress (each chapter's page, or "read": JSON text) · reader_options. The screens keep their shape,
@@ -179,7 +180,26 @@ export default function mount(host, atlas) {
         } catch (e) { atlas.toast("Manga", String(e.message ?? e), "error"); }
         fresh.disabled = false; fresh.textContent = "New chapters?";
       };
-      side.append(fresh);
+      // the next unread chapters fetched now into the plugin's cache, so they read with the server out of reach
+      const keep = el("button", "atlas-btn", `Keep ${KEEP} for offline`);
+      keep.title = `Fetch the pages of the next ${KEEP} unread chapters now: they open without the server`;
+      keep.onclick = async () => {
+        keep.disabled = true;
+        const r = await reading(s), [from] = resume(s, r);
+        const next = s.chapters.slice(from).filter((ch) => !isRead(r, ch)).slice(0, KEEP);
+        let done = 0;
+        try {
+          for (const ch of next) {
+            keep.textContent = `Keeping ${done + 1} of ${next.length}…`;
+            const pg = await suw.pages(ch), all = [...Array(pg.count).keys()];
+            for (let i = 0; i < all.length; i += 4) await Promise.all(all.slice(i, i + 4).map((j) => pg.url(j)));
+            done++;
+          }
+          atlas.toast("Manga", done ? `${done} chapter${done === 1 ? "" : "s"} of ${s.title} kept for offline` : "Nothing unread to keep", done ? "success" : undefined);
+        } catch (e) { atlas.toast("Manga", `Kept ${done} of ${next.length}: ${e.message ?? e}`, "error"); }
+        keep.disabled = false; keep.textContent = `Keep ${KEEP} for offline`;
+      };
+      side.append(fresh, keep);
     }
     if (s.remote && suw.offline) side.append(el("div", "m-offline", `Suwayomi cannot be reached (${suw.offline}): the chapters as last seen; the ones opened before read from the copies kept.`));
     top.append(pic, side);
@@ -395,6 +415,8 @@ function style() {
   .manga .m-cover img:not([src]) { visibility: hidden; }
   .manga .m-series { display: flex; gap: 18px; padding: 18px; align-items: flex-end; }
   .manga .m-cover.big { width: 140px; flex: none; }
+  .manga .m-side { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+  .manga .m-side > :is(h2, .m-count, .m-offline) { flex-basis: 100%; }
   .manga .m-side h2 { margin: 0 0 6px; font-size: 1.35em; }
   .manga .m-count { color: var(--text-muted); margin-bottom: 12px; }
   .manga .m-chapters { display: flex; flex-direction: column; padding: 0 10px 20px; }

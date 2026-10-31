@@ -24,6 +24,7 @@ a click.
   Its categories are folders under "Suwayomi" at the Comics side (Suwayomi › Weekly), its own Default left out.
   A series' **New chapters?** asks the server to look at its source again; the command "Manga: look for new chapters
   on Suwayomi" starts the server's update of the whole library (new chapters then show as unread counts).
+  **Keep 5 for offline** fetches every page of the next five unread chapters now, so they open without the server.
 - **On the phone**: a native reader (`android/`) takes a chapter handed over with `atlas.openNative` — a vault `.cbz`,
   a folder of pictures, or a Suwayomi chapter. It fetches pages in parallel, decodes them at the screen's size (JPEG
   XL included), keeps a memory cache and works only on the pages near where you are. The library stays the page's.

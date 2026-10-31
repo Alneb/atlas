@@ -2,6 +2,7 @@ import { test, expect, type APIRequestContext } from "@playwright/test";
 import { openFile } from "./open";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import * as words from "../src/lib/shell-words";
 
 // The example plugin plugins/beta/run-tools/ installed as it is: its Run button above a Python
 // file types the command into the terminal (`atlas.editor.toolbar` + `atlas.terminal.run`) and the
@@ -63,4 +64,15 @@ test("commands are written for the terminal's shell, and the project's files are
   expect(m.isDocument("% x\n\\documentclass{article}")).toBe(true);
   expect(m.isDocument("\\chapter{a}")).toBe(false);
   expect(m.LATEX).toContain("-lualatex");
+});
+
+// The app's own quoting (`atlas.terminal.quote` / `line`, lib/shell-words.ts) and run-tools' copy (its fallback on an
+// older app) say the same words for every shell.
+test("pure: atlas.terminal.quote and run-tools' quote agree", async () => {
+  const m = await import(new URL("../../plugins/beta/run-tools/main.js", import.meta.url).href);
+  for (const shell of ["posix", "powershell", "cmd"] as const) {
+    for (const w of ["plain", "a b", "it's", "x\"y", "C:\\py env\\python.exe", "~/notes", "$HOME", "a;b"]) expect(words.quote(w, shell)).toBe(m.quote(w, shell));
+    expect(words.line(shell, "C:\\py env\\python.exe", "x.py", undefined, "a b")).toBe(m.line(shell, "C:\\py env\\python.exe", "x.py", undefined, "a b"));
+  }
+  expect(words.quote("it's")).toBe("'it'\\''s'");
 });

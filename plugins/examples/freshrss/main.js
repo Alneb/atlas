@@ -3,27 +3,17 @@
 //   type: freshrss.unread
 //   limit: 15
 //   ```
-// Through FreshRSS's Fever API (`/api/fever.php?api&items`). Fever wants its key as a form field, not a header:
-// `atlas.fetch`'s `form` lets the core fill that field in (`{ secret: "api_key" }`), so the key never reaches the page.
-// "Save" makes a note of the article in the folder of the settings.
+// The reading and saving are the helper's (helper.js: `unread`, `save`, also the freshrss_unread / freshrss_save
+// tools); the block only draws the list. "Save" makes a note of the article in the folder of the settings and opens it.
 const el = (tag, style, text) => { const e = document.createElement(tag); if (style) e.style.cssText = style; if (text !== undefined) e.textContent = text; return e; };
-const fileName = (t) => String(t).replace(/[\\/:*?"<>|#^[\]]/g, " ").replace(/\s+/g, " ").trim().slice(0, 80) || "Article";
 
 export function register(atlas) {
-  const fever = async (query) => {
-    const s = atlas.plugin.settings, base = String(s.server ?? "").trim().replace(/\/+$/, "");
-    const res = await atlas.fetch(`${base}/api/fever.php?api&${query}`, { method: "POST", form: { api_key: { secret: "api_key" } } });
-    if (!res.ok) throw new Error(`FreshRSS answered ${res.status}`);
-    const j = await res.json();
-    if (j.auth === 0) throw new Error("FreshRSS did not accept the API key");
-    return j;
-  };
   async function save(item) {
-    const s = atlas.plugin.settings, day = new Date().toISOString().slice(0, 10);
-    const path = `${String(s.folder).replace(/\/+$/, "")}/${fileName(item.title)}.md`;
-    const text = `---\ntype: article\nsource: ${JSON.stringify(item.url ?? "")}\nsaved: ${day}\n---\n# ${item.title}\n\n${new DOMParser().parseFromString(item.html ?? "", "text/html").body.textContent?.trim() ?? ""}\n`;
-    if (!(await atlas.createFile(path, text))) atlas.toast("FreshRSS", `${path} is already there`);
-    atlas.open(path);
+    try {
+      const r = await atlas.helper.call("save", { id: item.id });
+      if (!r.made) atlas.toast("FreshRSS", `${r.path} is already there`);
+      atlas.open(r.path);
+    } catch (e) { atlas.toast("FreshRSS: not saved", String(e.message ?? e), "error"); }
   }
   atlas.registerBlock("freshrss.unread", (host, block) => {
     let gone = false;
@@ -34,8 +24,7 @@ export function register(atlas) {
     host.replaceChildren(el("p", "color: var(--text-faint)", "Reading FreshRSS…"));
     void (async () => {
       try {
-        const unread = String((await fever("unread_item_ids")).unread_item_ids ?? "").split(",").filter(Boolean).slice(0, Number(block.options.limit ?? 15));
-        const items = unread.length ? ((await fever(`items&with_ids=${unread.join(",")}`)).items ?? []) : [];
+        const items = await atlas.helper.call("unread", { limit: Number(block.options.limit ?? 15) });
         if (gone) return;
         const list = el("ul", "list-style: none; margin: 0; padding: 4px 0");
         for (const it of items) {

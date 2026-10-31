@@ -20,7 +20,9 @@ const notice = (text, { error = false, actions = [] } = {}) => {
 };
 const quiet = (text) => Object.assign(document.createElement("div"), { className: "atlas-empty", textContent: text });
 const el = (tag, style, text) => { const e = document.createElement(tag); if (style) e.style.cssText = style; if (text !== undefined) e.textContent = text; return e; };
-const quote = (s) => (/^[\w@%+=:,./~-]+$/.test(s) ? s : `'${String(s).replace(/'/g, `'\\''`)}'`);
+/** An argument quoted for the terminal's shell (POSIX, PowerShell or cmd): the app's own rule (`atlas.terminal.quote`,
+ *  API 23); on an older app, POSIX quoting. `~` stays bare so the remote side expands it. */
+const quoter = (atlas, shell) => (s) => (/^[\w@%+=:,./~-]+$/.test(s) ? s : atlas.terminal.quote ? atlas.terminal.quote(String(s), shell) : `'${String(s).replace(/'/g, `'\\''`)}'`);
 
 export function register(atlas) {
   // the hosts in Atlas's explorer (the helper's sftp over the shared connection): a file opens from a copy in
@@ -51,7 +53,7 @@ export function register(atlas) {
   const opts = () => String(atlas.plugin.settings.options ?? "").trim();
   const hosts = async () => { const h = await atlas.helper.call("hosts", { settings: atlas.plugin.settings }); return Array.isArray(h) ? h : []; };
   // scp / sshfs name a config host as it is (ssh applies its config), an extra one as user@host[:port]
-  const scpTarget = (h) => (h.from === "settings" ? { port: h.port ? `-P ${quote(h.port)} ` : "", host: h.user ? `${h.user}@${h.hostname}` : h.hostname } : { port: "", host: h.name });
+  const scpTarget = (h) => (h.from === "settings" ? { port: h.port ? `-P ${String(h.port).replace(/\D/g, "")} ` : "", host: h.user ? `${h.user}@${h.hostname}` : h.hostname } : { port: "", host: h.name });
   // the helper builds every ssh command line, so terminals and Claude's sessions share one connection per host
   const sshLine = (h, command) => atlas.helper.call("command", { host: h.name, command, settings: atlas.plugin.settings });
   const detail = (h) => [h.user && `${h.user}@`, h.hostname ?? "", h.port && `:${h.port}`].filter(Boolean).join("") || undefined;
@@ -114,12 +116,16 @@ export function register(atlas) {
       return [...known].sort((a, b) => rank(a) - rank(b)).map((h) => ({ label: `SSH: ${h.name}`, icon: "terminal", detail: up.includes(h.name) ? "connected, no password" : detail(h), run: () => terminalOn(h) }));
     });
   } catch { /* an Atlas older than the "terminal" menu place: the palette and the side tool still connect */ }
-  const copyTo = (h, path) => {
-    const t = scpTarget(h), dir = String(atlas.plugin.settings.remote_dir ?? "~").trim() || "~";
+  // what the terminal's shell reads: scp is there on Windows too (OpenSSH), sshfs and `tail` only on a POSIX system
+  const shell = async () => (atlas.terminal.shell ? atlas.terminal.shell() : "posix");
+  const copyTo = async (h, path) => {
+    const quote = quoter(atlas, await shell()), t = scpTarget(h), dir = String(atlas.plugin.settings.remote_dir ?? "~").trim() || "~";
     return atlas.terminal.run(`scp ${t.port}${opts() ? `${opts()} ` : ""}${quote(path)} ${quote(`${t.host}:${dir.replace(/\/?$/, "/")}`)}`);
   };
-  const mount = (h) => {
-    const t = scpTarget(h), dir = `${String(atlas.plugin.settings.mounts ?? "~/mnt").trim().replace(/\/+$/, "")}/${h.name.replace(/[^\w.-]/g, "_")}`;
+  const mount = async (h) => {
+    const sh = await shell();
+    if (sh !== "posix") return atlas.toast("SSH: no sshfs here", `Mounting needs sshfs, which this system's terminal (${sh}) does not have: "SSH: browse files on…" shows ${h.name}'s files in the explorer.`, "error");
+    const quote = quoter(atlas, sh), t = scpTarget(h), dir = `${String(atlas.plugin.settings.mounts ?? "~/mnt").trim().replace(/\/+$/, "")}/${h.name.replace(/[^\w.-]/g, "_")}`;
     return atlas.terminal.run(`mkdir -p ${quote(dir)} && sshfs ${t.port ? t.port.replace("-P", "-p") : ""}${quote(`${t.host}:`)} ${quote(dir)} && echo "mounted on ${dir}"`);
   };
 
@@ -140,7 +146,7 @@ export function register(atlas) {
   const watchSession = () => atlas.pick({
     placeholder: "Follow a session's log…", tag: "SSH", icon: "terminal",
     items: async () => ((await atlas.helper.call("sessions", {})) ?? []).map((s) => ({ value: s.log, title: s.session, detail: `${s.host}${s.running ? " · running" : ""}` })),
-    onpick: (log) => atlas.terminal.open(`tail -n 200 -f ${quote(log)}`, "ssh log"),
+    onpick: async (log) => { const sh = await shell(); return atlas.terminal.open(sh === "posix" ? `tail -n 200 -f ${quoter(atlas, sh)(log)}` : `powershell -NoProfile -Command Get-Content -Tail 200 -Wait ${quoter(atlas, "powershell")(log)}`, "ssh log"); },
   });
   atlas.registerCommand({ id: "watch", title: "SSH: watch a session (Claude's too)…", run: watchSession });
   atlas.shell.menu("file", (t) => (t.path && !t.dir ? [{ label: "Copy to host…", icon: "arrow-up", run: () => chooseHost(`Copy ${t.path} to…`, (h) => copyTo(h, t.path)) }] : []));

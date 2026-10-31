@@ -244,7 +244,7 @@ test("Suwayomi: its library beside the vault's, a chapter read from it, where yo
     await expect(blame.locator("img")).toHaveAttribute("src", /^blob:/); // its cover, from the server
     await expect.poll(() => blame.locator("img").evaluate((i: HTMLImageElement) => i.naturalWidth)).toBe(3); // decoded: PNG by now
     // its Suwayomi categories as folders under "Suwayomi" at the side (Suwayomi's own Default left out)
-    await libs.getByRole("button", { name: "Open Suwayomi" }).click();
+    await expect(libs.getByRole("button", { name: "Close Suwayomi" })).toBeVisible(); // a top folder starts open
     await libs.locator('button.item[title="Suwayomi › Weekly"]').click();
     await expect(libs.locator(".card", { hasText: "Blue Period" })).toHaveCount(0);
     await expect(blame).toBeVisible();
@@ -269,6 +269,9 @@ test("Suwayomi: its library beside the vault's, a chapter read from it, where yo
     await page.keyboard.type("Manga: look for new chapters");
     await page.getByTestId("palette").getByText("Manga: look for new chapters on Suwayomi").first().click();
     await expect.poll(() => updates).toBe(1);
+    // the next unread chapters kept for offline: every page of each fetched into the cache now
+    await pane.getByRole("button", { name: "Keep 5 for offline" }).click();
+    await expect(page.getByText("3 chapters of BLAME! kept for offline")).toBeVisible();
 
   } finally {
     await request.put("/api/file", { headers: { "x-atlas": "1" }, data: { path: ".atlas/plugin-settings/manga.toml", text: "" } });
@@ -333,7 +336,9 @@ test("pure: Suwayomi offline — the lists and pictures as kept, where you are s
   let suw = client();
   const [series] = await suw.library();
   await suw.chapters(series);
-  expect(await (await suw.pages(series.chapters[0])).url(0)).toBe("thumb:.atlas/cache/plugins/manga/suwayomi/1/0");
+  const read = await suw.pages(series.chapters[0]);
+  expect(await read.url(0)).toBe("thumb:.atlas/cache/plugins/manga/suwayomi/1/0");
+  await read.url(1); // the chapter's pages looked at while it answered
 
   up = false; suw = client(); // a reload with the server gone
   const [again] = await suw.library();

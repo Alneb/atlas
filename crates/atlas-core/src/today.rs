@@ -82,8 +82,14 @@ pub fn untick_line(l: &str) -> Option<String> {
             || l[..i].trim_start().chars().next().is_some_and(|c| c.is_ascii_digit())
     })?;
     let open = format!("{}[ ]{}", &l[..i], &l[i + 3..]);
-    let done = regex::Regex::new(r"\s*✅\u{FE0F}?\s*\d{4}-\d{2}-\d{2}").expect("static regex");
-    Some(done.replace(&open, "").into_owned())
+    Some(without_done_date(&open))
+}
+
+/// The line without its Tasks `✅ date` (a task opened again).
+pub fn without_done_date(line: &str) -> String {
+    static DONE: std::sync::LazyLock<regex::Regex> =
+        std::sync::LazyLock::new(|| regex::Regex::new(r"\s*✅\u{FE0F}?\s*\d{4}-\d{2}-\d{2}").expect("static regex"));
+    DONE.replace(line, "").into_owned()
 }
 
 /// Every task of the vault's notes, open and done (a task block that asks for done ones), in the

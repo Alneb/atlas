@@ -85,7 +85,7 @@ is the manifest’s `api` (the current one is 20; an older number still loads, s
 | catalog-open, catalog-tmdb, audiobookshelf | beta | ~ 1 / 0 each | ✓ | ✓ | ✓ | ~ | – | ✓ | ✓ | 15 | ✓ | ✓ | 0.1–0.2 | one shared end-to-end spec for the catalog's sources (1) |
 | catalog-linkwarden | beta | ~ 0 / 1 | ✓ | ✓ | ✓ | ✓ | – | ✓ | ✓ | 15 | ✓ | ✓ | 0.2.1 | unit tests (1) |
 | kiwix | beta | ~ 0 / 1 | ✓ | ✓ | ✓ | ✓ | – | ✓ | ~ | 4 | ✓ | ✓ | 0.1.0 | unit tests (1); tried on the phone (8); 1.0 (12) |
-| freshrss, immich, jellyfin, memos, paperless, ttrpg | example | ~ 0 / 1 each | ✓ | ✓ | ✓ | ~ | – | ✓ | ✓ | 4 | ✓ | ✓ | 0.1.0 | unit tests (1) |
+| freshrss, immich, jellyfin, paperless, ttrpg | example | ~ 0 / 1 each | ✓ | ✓ | ✓ | ~ | – | ✓ | ✓ | 4 | ✓ | ✓ | 0.1.0 | unit tests (1) |
 
 What the columns rest on:
 - **4:** finance defaults its currencies to `EUR, CAD, USD, XAU, BTC` with EUR as the base; a neutral default

@@ -230,6 +230,10 @@ export interface PluginApi {
     /** What words the terminal's shell reads — `posix` (sh, bash, zsh, fish…), `powershell` or `cmd` — so a command
      *  typed into it is quoted for it (API 17). The shell of the machine the terminal runs on, a server's too. */
     shell(): Promise<"posix" | "powershell" | "cmd">;
+    /** One argument quoted for that shell (`posix` by default), as it reads it back; plain words stay as they are
+     *  (API 23). `line(shell, program, ...args)`: a whole command line, PowerShell's `&` before a quoted program. */
+    quote(arg: string, shell?: "posix" | "powershell" | "cmd"): string;
+    line(shell: "posix" | "powershell" | "cmd", program: string, ...args: (string | undefined)[]): string;
   };
   /** The file explorer (lib/file-sources.svelte.ts). `source(def)`: this plugin's places (hosts, servers) in it, one
    *  source per plugin, its local copies in `.atlas/remote/<plugin id>/`; `explore({ source?, place?, path? })` opens it

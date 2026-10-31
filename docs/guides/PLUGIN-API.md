@@ -2,7 +2,7 @@
 
 For someone writing a plugin. This page says **what exists and how to call it**; why each piece is the way it is, and how it is built, is in [PLUGINS.md](PLUGINS.md) ("v4"). The source of truth is the interface `PluginApi` in `ui/src/lib/plugin-api.ts`: if this page and that file disagree, the file is right and this page needs fixing.
 
-Working examples to copy from, in `plugins/`: `examples/wordcount/` (smallest), `examples/ttrpg/` (most of the page side), `examples/helper-js/` (a helper the core runs), `examples/memos/` (a line to a memos server), `examples/freshrss/`, `examples/immich/`, `examples/jellyfin/` and `examples/paperless/` (a block over a service's API, its key kept by the core), `beta/run-tools/` (Run / Test above code files), `beta/notifications/` (to and from the phone, a JavaScript helper), `stable/ssh/` (a pane per host — the Files pane over sftp — opened with `openView`), `stable/email/` (a full pane: folders, list, reading view, replies).
+Working examples to copy from, in `plugins/`: `examples/wordcount/` (smallest), `examples/ttrpg/` (most of the page side), `examples/helper-js/` (a helper the core runs), `examples/freshrss/`, `examples/immich/`, `examples/jellyfin/` and `examples/paperless/` (a block over a service's API, its key kept by the core), `beta/run-tools/` (Run / Test above code files), `beta/notifications/` (to and from the phone, a JavaScript helper), `stable/ssh/` (a pane per host — the Files pane over sftp — opened with `openView`), `stable/email/` (a full pane: folders, list, reading view, replies).
 
 ## A plugin is a folder
 
@@ -421,6 +421,7 @@ export default function mount(host, atlas) {
 | `await atlas.terminal.run(command)` | type a command into the shell terminal and enter it (opened when there is none): the user sees the command and its output. `false` when no terminal became ready |
 | `await atlas.terminal.open(command, title?)` | a terminal tab of its own running the command directly (`sh -c`, no interactive shell: no rc files, no login banner); the tab closes when the command ends. For a session (ssh) or a prompt the user must answer |
 | `await atlas.terminal.shell()` (API 17) | what words the terminal's shell reads: `"posix"` (sh, bash, zsh, fish…), `"powershell"` or `"cmd"` — the shell of the machine the terminal runs on (a server's too), so a command typed with `run` is quoted for it. Run tools is the example |
+| `atlas.terminal.quote(arg, shell?)` · `atlas.terminal.line(shell, program, ...args)` (v23) | one argument quoted the way that shell (`posix` by default, `powershell`, `cmd`) reads it back, plain words left bare; a whole command line, PowerShell's `&` before a quoted program. Ask `shell()` once, then quote with it: never hand-write POSIX quotes into a command a Windows terminal will read (ssh's Copy to host is the example) |
 | `atlas.other(id)` | another plugin's `settings` and `data(args)`; `null` when absent or off |
 
 ## The helper's protocol

@@ -344,7 +344,8 @@ export const api = {
   },
   /** The file shown selected in the desktop's own file manager (the desktop's core only: 403 elsewhere). */
   revealOutside: (path: string) => request<void>("POST", "/api/fs/reveal-outside", { query: { path } }),
-  tickTask: (path: string, line: number) => request<void>("POST", "/api/task/tick", { body: { path, line } }),
+  /** `text`: the task as shown; the tick is refused (409) when that line now holds another one */
+  tickTask: (path: string, line: number, text?: string) => request<void>("POST", "/api/task/tick", { body: { path, line, text } }),
   /** The `[[` list for `q`, ranked by the core (link_targets.rs); `from`: the note being written (its neighbours rank higher). */
   linkTargets: (q: string, from?: string) => request<LinkTarget[]>("GET", "/api/link-targets", { query: from ? { q, from } : { q } }),
   /** One task line ticked (`done`) or opened again, as text: the lines that replace it (no file is touched). */

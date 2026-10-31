@@ -3,4 +3,8 @@
 /**
  * `POST /api/task/tick`: tick the open task at `path`:`line`.
  */
-export type TaskRef = { path: string, line: number, };
+export type TaskRef = { path: string, line: number, 
+/**
+ * The task's text as the client saw it: when the line no longer holds it (an earlier tick shifted the lines), 409.
+ */
+text?: string, };

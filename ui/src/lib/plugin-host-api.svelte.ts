@@ -39,6 +39,7 @@ import { registerCodeTools } from "./plugin-code-tools";
 /** The terminal's shell, asked of the core once (an older core does not say: POSIX, what it always ran). */
 let shellAsked: Promise<"posix" | "powershell" | "cmd"> | null = null;
 const terminalShell = () => (shellAsked ??= api.version().then((v) => v.shell ?? "posix", () => "posix"));
+import { quote as quoteWord, line as commandLine } from "./shell-words";
 import { penOver } from "./pen-target";
 import * as hooks from "./editor/plugin-hooks";
 import { onPluginEvent } from "./plugin-events";
@@ -211,6 +212,8 @@ export function pluginApi(p: Plugin, at: PaneAt = {}): PluginApi {
       run: (command) => import("./actions").then((m) => m.runInTerminal(String(command))),
       open: (command, title) => import("./actions").then((m) => m.runInNewTerminal(String(command), title === undefined ? undefined : String(title))),
       shell: () => terminalShell(),
+      quote: (arg, shell) => quoteWord(String(arg), shell),
+      line: (shell, program, ...args) => commandLine(shell, String(program), ...args),
     },
     helper: {
       call: (method, params, opts) => api.pluginHelper(p.id, method, params, opts?.timeout),

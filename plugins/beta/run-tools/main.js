@@ -4,7 +4,8 @@
 // nearest Cargo.toml, package.json, go.mod, Makefile, justfile, .venv…), and each command is written for the shell the
 // terminal runs (POSIX, PowerShell or cmd), so the same buttons work on Linux, macOS and Windows.
 
-// --- the shell's words: pure, exported for the tests ---
+// --- the shell's words: pure, exported for the tests; the app's `atlas.terminal.quote` / `line` (API 23) are the same
+// rule (a spec checks they agree), these kept for an older app ---
 
 /** One argument, as `shell` reads it back unchanged. */
 export function quote(s, shell = "posix") {

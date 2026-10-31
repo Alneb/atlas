@@ -48,7 +48,13 @@ pub(crate) type FileCache = HashMap<String, Arc<Parsed>>;
 pub(crate) struct Index {
     pub names: Arc<Names>,
     pub parsed: FileCache,
+    /// Each note's links resolved, made by the first request that needs them and kept for the index's life: backlinks,
+    /// Bases, tags and the link completion each resolved every link of the vault per request before.
+    resolved: std::sync::OnceLock<Resolved>,
 }
+
+/// For each note, the file each of its links points at (`None`: unresolved), in [`Parsed::links`] order.
+type Resolved = HashMap<String, Box<[Option<FileId>]>>;
 
 /// The vaults' indexes, the most recently used first. The desktop's one core serves several vaults, so one slot would
 /// rebuild from scratch on every switch; a vault unused for [`IDLE`] (or beyond [`WARM_VAULTS`]) is dropped.
@@ -301,7 +307,12 @@ impl Names {
     }
 
     fn contains(&self, p: &str) -> bool {
-        self.sorted.binary_search_by(|&id| self.path(id).cmp(p)).is_ok()
+        self.id_of(p).is_some()
+    }
+
+    /// The id of the file at exactly this path.
+    fn id_of(&self, p: &str) -> Option<FileId> {
+        self.sorted.binary_search_by(|&id| self.path(id).cmp(p)).ok().map(|i| self.sorted[i])
     }
 
     /// The file a link points at: explicit paths first, then by name (Obsidian's "shortest
@@ -415,8 +426,8 @@ fn rebuild(root: &Path, cfg: &Config, prev: Option<Arc<Index>>) -> Arc<Index> {
     let same_files = prev.as_ref().is_some_and(|i| i.names.files == files);
     match prev {
         Some(i) if same_files && reused == parsed.len() && reused == i.parsed.len() => i,
-        Some(i) if same_files => Arc::new(Index { names: i.names.clone(), parsed: shrunk(parsed) }),
-        _ => Arc::new(Index { names: Arc::new(Names::new(files)), parsed: shrunk(parsed) }),
+        Some(i) if same_files => Arc::new(Index::new(i.names.clone(), shrunk(parsed))),
+        _ => Arc::new(Index::new(Arc::new(Names::new(files)), shrunk(parsed))),
     }
 }
 
@@ -457,6 +468,28 @@ pub(crate) fn snapshot(root: &Path, cfg: &Config) -> Snapshot {
 }
 
 impl Index {
+    pub(crate) fn new(names: Arc<Names>, parsed: FileCache) -> Self {
+        Index { names, parsed, resolved: std::sync::OnceLock::new() }
+    }
+
+    /// Every note's links resolved (once per index).
+    fn resolved(&self) -> &Resolved {
+        self.resolved.get_or_init(|| {
+            self.parsed
+                .iter()
+                .map(|(src, p)| (src.clone(), p.links.iter().map(|l| self.names.resolve(l, src).and_then(|t| self.names.id_of(&t))).collect()))
+                .collect()
+        })
+    }
+
+    /// `src`'s links with the file each resolves to.
+    fn links_of<'a>(&'a self, src: &'a str) -> impl Iterator<Item = (&'a RawLink, Option<&'a str>)> + 'a {
+        let ids = self.resolved().get(src);
+        self.parsed.get(src).into_iter().flat_map(move |p| {
+            p.links.iter().enumerate().map(move |(i, l)| (l, ids.and_then(|t| t.get(i).copied().flatten()).map(|id| self.names.path(id))))
+        })
+    }
+
     /// Every file (ignore rules applied), in walk order.
     pub fn files(&self) -> &[String] {
         self.names.files()
@@ -466,16 +499,21 @@ impl Index {
     /// many notes link to each file (`incoming`).
     pub fn link_stats(&self, from: Option<&str>) -> LinkStats {
         let mut stats = LinkStats::default();
-        for (src, p) in &self.parsed {
+        for src in self.parsed.keys() {
             let mut seen = std::collections::HashSet::new();
-            for t in p.links.iter().filter_map(|l| self.names.resolve(l, src)) {
+            for t in self.links_of(src).filter_map(|(_, t)| t) {
                 if Some(src.as_str()) == from {
-                    stats.near.insert(t.clone());
-                } else if Some(t.as_str()) == from {
+                    stats.near.insert(t.to_string());
+                } else if Some(t) == from {
                     stats.near.insert(src.clone());
                 }
-                if t != *src && seen.insert(t.clone()) {
-                    *stats.incoming.entry(t).or_default() += 1;
+                if t != src.as_str() && seen.insert(t) {
+                    match stats.incoming.get_mut(t) {
+                        Some(n) => *n += 1,
+                        None => {
+                            stats.incoming.insert(t.to_string(), 1);
+                        }
+                    }
                 }
             }
         }
@@ -484,7 +522,7 @@ impl Index {
 
     /// The files each note's links resolve to (unresolved links left out).
     pub fn targets<'a>(&'a self, src: &'a str) -> impl Iterator<Item = String> + 'a {
-        self.parsed.get(src).into_iter().flat_map(move |p| p.links.iter().filter_map(move |l| self.names.resolve(l, src)))
+        self.links_of(src).filter_map(|(_, t)| t.map(str::to_string))
     }
 
     /// How many files share this file name (any case) — more than one: a link needs the path.
@@ -496,12 +534,12 @@ impl Index {
 /// Notes that link to (or embed) `path`, sorted by source then line.
 pub fn backlinks(root: &Path, cfg: &Config, path: &str) -> Backlinks {
     let index = scan(root, cfg);
-    let (parsed, names) = (&index.parsed, &*index.names);
-    let mut links: Vec<Backlink> = parsed
-        .iter()
-        .filter(|(src, _)| src.as_str() != path)
-        .flat_map(|(src, p)| {
-            p.links.iter().filter(|l| names.resolve(l, src).as_deref() == Some(path)).map(|l| Backlink {
+    let mut links: Vec<Backlink> = index
+        .parsed
+        .keys()
+        .filter(|src| src.as_str() != path)
+        .flat_map(|src| {
+            index.links_of(src).filter(move |(_, t)| *t == Some(path)).map(move |(l, _)| Backlink {
                 source: src.clone(),
                 line: l.line,
                 context: l.context.clone(),
@@ -511,14 +549,15 @@ pub fn backlinks(root: &Path, cfg: &Config, path: &str) -> Backlinks {
         })
         .collect();
     links.sort_by(|a, b| a.source.cmp(&b.source).then(a.line.cmp(&b.line)));
-    let unlinked = unlinked(root, parsed, names, path);
+    let unlinked = unlinked(root, &index, path);
     Backlinks { path: path.to_string(), links, unlinked }
 }
 
 /// Lines in other notes that NAME `path` (its file name, whole words, any case) without linking to
 /// it — Obsidian's "unlinked mentions". Code, frontmatter and lines already linking here are skipped.
-fn unlinked(root: &Path, parsed: &FileCache, names: &Names, path: &str) -> Vec<Backlink> {
+fn unlinked(root: &Path, index: &Index, path: &str) -> Vec<Backlink> {
     const MAX: usize = 200;
+    let parsed = &index.parsed;
     let name = path.rsplit('/').next().unwrap_or(path).trim_end_matches(".md");
     if name.chars().count() < 3 {
         return Vec::new(); // "QM", "A": everywhere, meaningless
@@ -541,8 +580,7 @@ fn unlinked(root: &Path, parsed: &FileCache, names: &Names, path: &str) -> Vec<B
         if !named(&text) {
             continue;
         }
-        let linking: std::collections::HashSet<u32> =
-            p.links.iter().filter(|l| names.resolve(l, src).as_deref() == Some(path)).map(|l| l.line).collect();
+        let linking: std::collections::HashSet<u32> = index.links_of(src).filter(|(_, t)| *t == Some(path)).map(|(l, _)| l.line).collect();
         let mut fence = false;
         let mut in_fm = text.starts_with("---\n");
         for (i, line) in text.lines().enumerate() {
@@ -627,26 +665,23 @@ impl Vault {
 
 pub(crate) fn vault(root: &Path, cfg: &Config) -> Vault {
     let index = scan(root, cfg);
-    let names = &index.names;
     let mut incoming: HashMap<String, Vec<String>> = HashMap::new();
     let mut notes: Vec<(String, Arc<Parsed>, Vec<String>)> = index
         .parsed
         .iter()
         .map(|(src, p)| {
             let mut out: Vec<String> = Vec::new();
-            for l in &p.links {
-                if let Some(t) = names.resolve(l, src) {
-                    if !out.contains(&t) {
-                        incoming.entry(t.clone()).or_default().push(src.clone());
-                        out.push(t);
-                    }
+            for t in index.links_of(src).filter_map(|(_, t)| t) {
+                if !out.iter().any(|o| o == t) {
+                    incoming.entry(t.to_string()).or_default().push(src.clone());
+                    out.push(t.to_string());
                 }
             }
             (src.clone(), p.clone(), out)
         })
         .collect();
     notes.sort_by(|a, b| a.0.cmp(&b.0));
-    Vault { notes, incoming, names: names.clone() }
+    Vault { notes, incoming, names: index.names.clone() }
 }
 
 /// The notes and the links between them (markdown only; each pair once, self-links dropped).
@@ -807,7 +842,7 @@ mod tests {
 
     #[test]
     fn several_vaults_stay_warm_until_idle_or_too_many() {
-        let empty = || Arc::new(Index { names: Arc::new(Names::new(Vec::new())), parsed: HashMap::new() });
+        let empty = || Arc::new(Index::new(Arc::new(Names::new(Vec::new())), HashMap::new()));
         let (mut warm, t0) = (Vec::new(), Instant::now());
         let a = refresh(&mut warm, Path::new("/a"), t0, None, |_| empty());
         refresh(&mut warm, Path::new("/b"), t0, None, |_| empty());
@@ -824,7 +859,7 @@ mod tests {
 
     #[test]
     fn an_unchanged_watched_vault_is_not_walked_again() {
-        let empty = || Arc::new(Index { names: Arc::new(Names::new(Vec::new())), parsed: HashMap::new() });
+        let empty = || Arc::new(Index::new(Arc::new(Names::new(Vec::new())), HashMap::new()));
         let root = Path::new("/links-trust-test");
         let cfg = Config::default();
         let feed = crate::vault_changes::Feed::new(root, &cfg);

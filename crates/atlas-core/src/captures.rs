@@ -225,8 +225,7 @@ pub fn triage(root: &Path, cfg: &Config, req: &TriageRequest, now: NaiveDateTime
         TriageAction::Dismiss => vec![with_status(&line, Some('-')).unwrap_or(line.clone())],
         TriageAction::Reopen => {
             let open = with_status(&line, None).unwrap_or(line.clone());
-            let done = regex::Regex::new(r"\s*✅\u{FE0F}?\s*\d{4}-\d{2}-\d{2}").expect("static regex");
-            let open = done.replace(&open, "").into_owned();
+            let open = crate::today::without_done_date(&open);
             vec![if c.filed.is_some() { strip_link(&open) } else { open }]
         }
         TriageAction::File { note } => {

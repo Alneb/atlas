@@ -6,7 +6,7 @@ use crate::lease::{Answer, Holder, Leases, Why};
 use crate::vault_write::{ContentHash, WriteGuard, WriteKind};
 use crate::{Error, Result};
 use std::path::{Path, PathBuf};
-use std::collections::HashSet;
+use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
@@ -23,6 +23,13 @@ pub trait LeaseLink: Send + Sync {
     fn done(&self, path: &str, version: Option<ContentHash>);
 }
 
+/// A lease held by this core's writes of one path.
+#[derive(Default)]
+struct Held {
+    writes: usize,
+    shared: bool,
+}
+
 /// The guard of one mirrored vault: the lease of every path a change touches, waiting while another device holds it.
 pub struct LeaseGuard<L> {
     root: PathBuf,
@@ -30,8 +37,10 @@ pub struct LeaseGuard<L> {
     /// how long a write waits for another device's lease (or, for a write that adds, for Syncthing) before failing
     patience: Duration,
     poll: Duration,
-    /// the paths whose lease this write holds (not those written with the server unreachable)
-    granted: Mutex<HashSet<String>>,
+    /// the paths whose lease is held here (not those written with the server unreachable): how many writes hold each,
+    /// and whether two ever overlapped — two writes of one note (a save and a task tick) share the lease, and it is
+    /// handed back once, by the last, with the version on disk then
+    granted: Mutex<HashMap<String, Held>>,
 }
 
 /// Where the base of a path is kept: the last version both copies had, what a conflict copy is merged against (§4).
@@ -71,7 +80,10 @@ impl<L: LeaseLink> LeaseGuard<L> {
             }
             let why = match self.link.ask(rel, have) {
                 Ok(Answer::Granted) => {
-                    self.granted.lock().unwrap_or_else(|e| e.into_inner()).insert(rel.to_string());
+                    let mut g = self.granted.lock().unwrap_or_else(|e| e.into_inner());
+                    let held = g.entry(rel.to_string()).or_default();
+                    held.writes += 1;
+                    held.shared |= held.writes > 1;
                     return Ok(());
                 }
                 Err(Unreachable(e)) => {
@@ -95,9 +107,17 @@ impl<L: LeaseLink> LeaseGuard<L> {
 
     /// Hands back a lease taken for a change that did not happen: the content is what it was, so that is the version.
     fn release(&self, rel: &str) {
-        if self.granted.lock().unwrap_or_else(|e| e.into_inner()).remove(rel) {
+        if self.last_out(rel).is_some() {
             self.link.done(rel, self.disk(rel));
         }
+    }
+
+    /// One write of `rel` is over: `Some(shared)` when it was the last one holding the lease.
+    fn last_out(&self, rel: &str) -> Option<bool> {
+        let mut g = self.granted.lock().unwrap_or_else(|e| e.into_inner());
+        let held = g.get_mut(rel)?;
+        held.writes -= 1;
+        (held.writes == 0).then(|| g.remove(rel).is_some_and(|h| h.shared))
     }
 }
 
@@ -106,8 +126,9 @@ impl<L: LeaseLink> LeaseGuard<L> {
     /// the server unreachable holds no lease, so nothing is handed back — a second call to a server that just failed
     /// would only add its timeout to the write.
     fn finish(&self, rel: &str, version: Option<ContentHash>) {
-        if self.granted.lock().unwrap_or_else(|e| e.into_inner()).remove(rel) {
-            self.link.done(rel, version);
+        if let Some(shared) = self.last_out(rel) {
+            // after overlapping writes, the one finishing last may not be the one that wrote last: the disk says
+            self.link.done(rel, if shared { self.disk(rel) } else { version });
             self.keep_base(rel);
         }
     }

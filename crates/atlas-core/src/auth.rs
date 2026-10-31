@@ -548,13 +548,19 @@ impl Auth {
             return Err(Refused::PlainHttp);
         }
         let ip = self.client_ip(peer, h);
-        if let Some((_, until)) = self.failures.lock().unwrap().get(&ip).filter(|(_, until)| *until > now) {
-            return Err(Refused::Wait(until.duration_since(now).unwrap_or_default()));
-        }
-        if !password_ok(hash, password) {
+        // the attempt is counted before the (slow) check, under one lock: guesses sent in parallel each find the wait
+        // the one before them set, instead of all passing an empty table first
+        let n = {
             let mut f = self.failures.lock().unwrap();
+            f.retain(|_, (_, until)| *until + MAX_WAIT > now); // long-quiet addresses are forgotten
+            if let Some((_, until)) = f.get(&ip).filter(|(_, until)| *until > now) {
+                return Err(Refused::Wait(until.duration_since(now).unwrap_or_default()));
+            }
             let n = f.get(&ip).map_or(0, |(n, _)| *n) + 1;
             f.insert(ip, (n, now + wait_after(n)));
+            n
+        };
+        if !password_ok(hash, password) {
             eprintln!("atlas: wrong password from {ip} ({n} in a row)");
             return Err(Refused::Wrong);
         }

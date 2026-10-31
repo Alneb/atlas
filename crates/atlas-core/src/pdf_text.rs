@@ -7,8 +7,9 @@
 use crate::api::LineHit;
 use crate::config::Config;
 use crate::{vault_write, walk};
-use std::path::Path;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::path::{Path, PathBuf};
+use std::sync::Mutex;
+use std::time::{Duration, Instant};
 
 pub const CACHE: &str = ".atlas/cache/pdftext";
 
@@ -76,23 +77,53 @@ fn pdftotext(abs: &Path) -> Option<String> {
     o.status.success().then(|| String::from_utf8_lossy(&o.stdout).into_owned())
 }
 
-static RUNNING: AtomicBool = AtomicBool::new(false);
+/// The vaults with a pass running, each with whether another was asked for meanwhile: that one runs right after, so a
+/// PDF that arrives during a pass is not left out until something asks again.
+static RUNNING: Mutex<Vec<(PathBuf, bool)>> = Mutex::new(Vec::new());
 
-/// `refresh` on a background thread, at most one at a time (startup, and after each search so new
-/// PDFs join the next one).
+/// `refresh` on a background thread, one pass per vault at a time (at start, when a PDF arrives, and [`catch_up`]).
 pub fn refresh_in_background(root: &Path, cfg: &Config) {
-    if RUNNING.swap(true, Ordering::SeqCst) {
-        return;
+    {
+        let mut running = RUNNING.lock().unwrap_or_else(|e| e.into_inner());
+        if let Some(r) = running.iter_mut().find(|(r, _)| r == root) {
+            r.1 = true;
+            return;
+        }
+        running.push((root.to_path_buf(), false));
     }
     let (root, cfg) = (root.to_path_buf(), cfg.clone());
-    std::thread::spawn(move || {
-        let t = std::time::Instant::now();
+    std::thread::spawn(move || loop {
+        let t = Instant::now();
         let n = refresh(&root, &cfg);
         if n > 0 {
             eprintln!("atlas: PDF text for search — {n} extracted in {:.1}s", t.elapsed().as_secs_f32());
         }
-        RUNNING.store(false, Ordering::SeqCst);
+        let mut running = RUNNING.lock().unwrap_or_else(|e| e.into_inner());
+        let Some(i) = running.iter().position(|(r, _)| *r == root) else { return };
+        if !std::mem::take(&mut running[i].1) {
+            running.remove(i);
+            return;
+        }
     });
+}
+
+/// How often a search may start a pass of its own: arrivals are the watcher's, this only catches what it could not
+/// see (a vault served without one). Every search started a whole walk of the vault before, a pass per key typed.
+const CATCH_UP: Duration = Duration::from_secs(10 * 60);
+static CAUGHT_UP: Mutex<Vec<(PathBuf, Instant)>> = Mutex::new(Vec::new());
+
+/// [`refresh_in_background`] when this vault's last search-started pass is older than [`CATCH_UP`].
+pub fn catch_up(root: &Path, cfg: &Config) {
+    let now = Instant::now();
+    {
+        let mut last = CAUGHT_UP.lock().unwrap_or_else(|e| e.into_inner());
+        match last.iter_mut().find(|(r, _)| r == root) {
+            Some((_, at)) if now.saturating_duration_since(*at) < CATCH_UP => return,
+            Some((_, at)) => *at = now,
+            None => last.push((root.to_path_buf(), now)),
+        }
+    }
+    refresh_in_background(root, cfg);
 }
 
 /// Search hits from the cache, mapped back to `<pdf>` with the page in `line` and a `p. N ·` prefix.

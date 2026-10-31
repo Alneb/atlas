@@ -30,7 +30,9 @@ pub fn search_with(root: &Path, cfg: &Config, q: &str, o: Opts) -> SearchResults
     if let Some(tag) = q.trim().strip_prefix("tag:") {
         return SearchResults { files: crate::tags::notes(root, cfg, tag), lines: Vec::new() };
     }
-    let mut lines = rg_lines(root, cfg, q, o);
+    // one walk for both the lines and the names
+    let walked: Vec<(std::path::PathBuf, String)> = walk::files(root, cfg).filter(|(_, rel)| o.agent || !cfg.is_agent_file(rel)).collect();
+    let mut lines = lines_over(q, o, walked.iter().cloned().filter(|(abs, _)| small(abs)));
     // PDF text (pdf_text.rs): the same rg over the extracted-text cache, listed after the notes' hits;
     // papers keep up to a quarter of the results, so a common word in notes cannot crowd them out
     if root.join(crate::pdf_text::CACHE).is_dir() {
@@ -47,16 +49,20 @@ pub fn search_with(root: &Path, cfg: &Config, q: &str, o: Opts) -> SearchResults
             l.path = t.clone();
         }
     }
-    crate::pdf_text::refresh_in_background(root, cfg);
-    SearchResults { files: if o.regex { Vec::new() } else { match_files(root, cfg, q, o.agent) }, lines }
+    crate::pdf_text::catch_up(root, cfg);
+    SearchResults { files: if o.regex { Vec::new() } else { match_names(root, walked.into_iter().map(|(_, rel)| rel), q) }, lines }
 }
 
 /// Every whitespace token must appear (case-insensitive) in the path; basename hits rank first.
 pub fn match_files(root: &Path, cfg: &Config, q: &str, agent: bool) -> Vec<String> {
+    match_names(root, walk::files(root, cfg).filter(|(_, rel)| agent || !cfg.is_agent_file(rel)).map(|(_, rel)| rel), q)
+}
+
+/// [`match_files`] over paths already walked.
+fn match_names(root: &Path, paths: impl Iterator<Item = String>, q: &str) -> Vec<String> {
     let tokens: Vec<String> = q.split_whitespace().map(str::to_lowercase).collect();
-    let mut hits: Vec<(bool, usize, String)> = walk::files(root, cfg)
-        .filter(|(_, rel)| agent || !cfg.is_agent_file(rel))
-        .filter_map(|(_, rel)| {
+    let mut hits: Vec<(bool, usize, String)> = paths
+        .filter_map(|rel| {
             let low = rel.to_lowercase();
             if !tokens.iter().all(|t| low.contains(t.as_str())) {
                 return None;
@@ -83,10 +89,15 @@ pub fn rg_lines(root: &Path, cfg: &Config, q: &str, o: Opts) -> Vec<LineHit> {
 
 /// ripgrep's own searcher (its crates, in this process: no `rg` to install) over [`text_files`] of one folder.
 fn lines_in(root: &Path, cfg: &Config, q: &str, o: Opts, dir: &str) -> Vec<LineHit> {
+    lines_over(q, o, text_files(root, cfg, o, dir))
+}
+
+/// ripgrep's searcher over these files (absolute, relative), at most [`MAX_RESULTS`] lines.
+fn lines_over(q: &str, o: Opts, files: impl Iterator<Item = (std::path::PathBuf, String)>) -> Vec<LineHit> {
     let Ok(m) = grep_matcher(q, o) else { return Vec::new() }; // a regex being typed
     let mut searcher = searcher();
     let mut out = Vec::new();
-    for (abs, rel) in text_files(root, cfg, o, dir) {
+    for (abs, rel) in files {
         let _ = searcher.search_path(&m, &abs, UTF8(|n, line| {
             let text: String = line.trim_end().chars().take(400).collect();
             if !looks_encoded(&text) {
@@ -127,7 +138,12 @@ fn text_files<'a>(root: &'a Path, cfg: &'a Config, o: Opts, dir: &str) -> Box<dy
             Some((e.into_path(), rel))
         }))
     };
-    Box::new(files.filter(|(abs, _)| std::fs::metadata(abs).is_ok_and(|m| m.len() <= MAX_FILE)))
+    Box::new(files.filter(|(abs, _)| small(abs)))
+}
+
+/// At most [`MAX_FILE`] long.
+fn small(abs: &Path) -> bool {
+    std::fs::metadata(abs).is_ok_and(|m| m.len() <= MAX_FILE)
 }
 
 /// The same match rules as `rg` (which uses this regex engine): literal unless `regex`, whole

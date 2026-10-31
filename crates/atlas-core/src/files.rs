@@ -68,9 +68,7 @@ pub fn tree(ws: &Workspace, rel: &str, all_hidden: bool) -> Result<Vec<TreeEntry
         let unshown = kind == EntryKind::File && name.ends_with(".md") && unshown(&entry.path());
         out.push(TreeEntry { name, path, kind, ignored, size, modified, note, unshown });
     }
-    out.sort_by(|a, b| {
-        (a.kind != EntryKind::Dir, a.name.to_lowercase()).cmp(&(b.kind != EntryKind::Dir, b.name.to_lowercase()))
-    });
+    out.sort_by_cached_key(|e| (e.kind != EntryKind::Dir, e.name.to_lowercase()));
     Ok(out)
 }
 
@@ -163,8 +161,12 @@ fn write_bytes(ws: &Workspace, rel: &str, bytes: &[u8], guard: Guard) -> Result<
 }
 
 
+/// The most one range answer carries: a `<video>` asks for `bytes=0-`, which must not read a 2 GB file into memory.
+/// HTTP lets the answer be shorter than asked (its `Content-Range` says so); the reader asks again from there.
+pub const MAX_RANGE_BYTES: u64 = 8 * 1024 * 1024;
+
 /// Bytes `start..=end` of a raw file (an HTTP `Range`), the file's length and its type: a PDF viewer reads
-/// a 70 MB book by pieces instead of waiting for all of it. `end` is clamped to the file.
+/// a 70 MB book by pieces instead of waiting for all of it. `end` is clamped to the file and to `MAX_RANGE_BYTES`.
 pub fn read_raw_range(ws: &Workspace, rel: &str, start: u64, end: u64) -> Result<(Vec<u8>, u64, String)> {
     use std::io::{Read, Seek, SeekFrom};
     let path = ws.resolve(rel)?;
@@ -174,7 +176,7 @@ pub fn read_raw_range(ws: &Workspace, rel: &str, start: u64, end: u64) -> Result
     let mime = mime_guess::from_path(&path).first_or_octet_stream().essence_str().to_string();
     let mut f = std::fs::File::open(&path)?;
     let len = f.metadata()?.len();
-    let end = end.min(len.saturating_sub(1));
+    let end = end.min(len.saturating_sub(1)).min(start.saturating_add(MAX_RANGE_BYTES - 1));
     if start > end || len == 0 {
         return Err(Error::BadRequest(format!("range {start}-{end} outside a file of {len} bytes")));
     }
@@ -202,13 +204,13 @@ pub fn attach(ws: &Workspace, note: &str, name: &str, bytes: &[u8]) -> Result<cr
         _ => (clean.clone(), String::new()),
     };
     let dir = ws.resolve(if rel_dir.is_empty() { "." } else { &rel_dir })?;
+    // each name is taken atomically: two files dropped at once with one name never overwrite each other
     let mut file = clean.clone();
     let mut n = 1;
-    while dir.join(&file).exists() {
+    while vault_write::create(&dir.join(&file), bytes)? == vault_write::Created::Taken {
         file = format!("{stem} {n}{ext}");
         n += 1;
     }
-    vault_write::write(&dir.join(&file), bytes)?;
     let path = if rel_dir.is_empty() { file.clone() } else { format!("{rel_dir}/{file}") };
     Ok(crate::api::Attached { embed: format!("![[{file}]]"), path })
 }
@@ -261,6 +263,9 @@ mod tests {
         assert_eq!(read_raw_range(&w, "book.pdf", 7, u64::MAX).unwrap().0, b"789"); // `bytes=7-`
         assert!(read_raw_range(&w, "book.pdf", 12, 20).is_err());
         assert!(read_raw_range(&w, "missing.pdf", 0, 1).is_err());
+        std::fs::write(d.path().join("film.mp4"), vec![7u8; MAX_RANGE_BYTES as usize + 5]).unwrap();
+        let (b, len, _) = read_raw_range(&w, "film.mp4", 0, u64::MAX).unwrap();
+        assert_eq!((b.len() as u64, len), (MAX_RANGE_BYTES, MAX_RANGE_BYTES + 5), "`bytes=0-` answers one piece");
     }
 
     #[test]
@@ -370,7 +375,7 @@ pub fn put_bytes(ws: &Workspace, rel: &str, bytes: &[u8], replace: bool) -> Resu
 /// Move / rename inside the workspace; never overwrites (409).
 pub fn move_path(ws: &Workspace, from: &str, to: &str) -> Result<()> {
     let (a, b) = (ws.resolve(from)?, ws.resolve(to)?);
-    if !a.exists() {
+    if !a.exists() || a == ws.root() {
         return Err(Error::NotFound(from.into()));
     }
     if b.exists() {
@@ -388,7 +393,8 @@ pub fn move_path(ws: &Workspace, from: &str, to: &str) -> Result<()> {
 /// into `.atlas/trash/<timestamp>/` (still recoverable). Never a hard delete.
 pub fn trash(ws: &Workspace, rel: &str) -> Result<String> {
     let p = ws.resolve(rel)?;
-    if !p.exists() || rel.trim_matches('/').is_empty() {
+    // the resolved path, not the text: `.` or `./` is the vault itself
+    if !p.exists() || p == ws.root() {
         return Err(Error::NotFound(rel.into()));
     }
     // tests never touch the user's desktop Trash (ATLAS_VAULT_TRASH: the e2e server, whose vault may sit on the home disk)
@@ -399,8 +405,13 @@ pub fn trash(ws: &Workspace, rel: &str) -> Result<String> {
             return Ok("the Trash".into());
         }
     }
-    let stamp = chrono::Local::now().format("%Y%m%d-%H%M%S").to_string();
-    let dest = ws.root().join(".atlas/trash").join(&stamp).join(rel);
+    // a second delete of the same path within the second gets its own folder (a rename would replace the first)
+    let now = chrono::Local::now().format("%Y%m%d-%H%M%S").to_string();
+    let (stamp, dest) = (0..)
+        .map(|n| if n == 0 { now.clone() } else { format!("{now}-{n}") })
+        .map(|stamp| { let dest = ws.root().join(".atlas/trash").join(&stamp).join(rel); (stamp, dest) })
+        .find(|(_, dest)| !dest.exists())
+        .expect("an unused name");
     vault_write::rename(&p, &dest)?;
     Ok(format!(".atlas/trash/{stamp}"))
 }
@@ -425,6 +436,8 @@ mod manage_tests {
         assert!(!d.path().join("b.md").exists());
         assert!(to == "the Trash" || d.path().join(&to).join("b.md").exists(), "recoverable: {to}");
         assert!(trash(&ws, "").is_err() && move_path(&ws, "../x", "y").is_err());
+        assert!(trash(&ws, ".").is_err() && trash(&ws, "./").is_err(), "never the vault itself");
+        assert!(move_path(&ws, ".", "elsewhere").is_err());
     }
 
     #[test]
