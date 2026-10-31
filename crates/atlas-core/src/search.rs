@@ -32,12 +32,14 @@ pub fn search_with(root: &Path, cfg: &Config, q: &str, o: Opts) -> SearchResults
     }
     // one walk for both the lines and the names
     let walked: Vec<(std::path::PathBuf, String)> = walk::files(root, cfg).filter(|(_, rel)| o.agent || !cfg.is_agent_file(rel)).collect();
-    let mut lines = lines_over(q, o, walked.iter().cloned().filter(|(abs, _)| small(abs)));
+    let mut lines = lines_over(q, o, walked.iter().filter(|&(abs, _)| small(abs)).cloned());
     // PDF text (pdf_text.rs): the same rg over the extracted-text cache, listed after the notes' hits;
     // papers keep up to a quarter of the results, so a common word in notes cannot crowd them out
     if root.join(crate::pdf_text::CACHE).is_dir() {
         let cache = lines_in(root, cfg, q, o, crate::pdf_text::CACHE);
-        let pdf: Vec<LineHit> = crate::pdf_text::hits(cache, root).into_iter().take(MAX_RESULTS / 4).collect();
+        // only PDFs this walk found: the text of one deleted, moved or now excluded stays in the cache until the next pass
+        let pdfs: std::collections::HashSet<&str> = walked.iter().map(|(_, rel)| rel.as_str()).filter(|r| r.to_lowercase().ends_with(".pdf")).collect();
+        let pdf: Vec<LineHit> = crate::pdf_text::hits(cache, root).into_iter().filter(|h| pdfs.contains(h.path.as_str())).take(MAX_RESULTS / 4).collect();
         lines.truncate(MAX_RESULTS - pdf.len());
         lines.extend(pdf);
     }

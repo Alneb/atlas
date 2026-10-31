@@ -198,17 +198,18 @@ pub(crate) fn step(rule: &str, from: NaiveDate) -> Option<NaiveDate> {
     if n == 0 {
         return None;
     }
+    // a huge count (`every 4000000000 days`) is a rule Atlas does not read, not an overflow
     let months = |m: u32| -> Option<NaiveDate> {
-        let total = from.year() * 12 + from.month0() as i32 + m as i32;
+        let total = (from.year() * 12 + from.month0() as i32).checked_add(i32::try_from(m).ok()?)?;
         let (y, mo) = (total.div_euclid(12), total.rem_euclid(12) as u32 + 1);
         // the 31st of a month without one is that month's last day
         (0..4).find_map(|back| NaiveDate::from_ymd_opt(y, mo, from.day().saturating_sub(back)))
     };
     match unit.trim_end_matches('s') {
-        "day" => Some(from + Duration::days(i64::from(n))),
-        "week" => Some(from + Duration::weeks(i64::from(n))),
+        "day" => from.checked_add_signed(Duration::days(i64::from(n))),
+        "week" => from.checked_add_signed(Duration::weeks(i64::from(n))),
         "month" => months(n),
-        "year" => months(12 * n),
+        "year" => months(n.checked_mul(12)?),
         "weekday" => {
             let mut d = from + Duration::days(1);
             while d.weekday().number_from_monday() > 5 {
@@ -242,15 +243,42 @@ pub fn next_occurrence(line: &str, today: NaiveDate) -> Option<String> {
         };
         moved.format("%Y-%m-%d").to_string()
     };
+    // each date rewritten where its field has it: the same day may also be another field's (`➕ D 📅 D`), or a moved
+    // date another's old one, so a text search could move the wrong one
+    const DUE: &[&str] = &["📅", "🗓️", "🗓"];
+    let others: Vec<std::ops::Range<usize>> = [&["➕"][..], &["✅"][..]].iter().filter_map(|m| marked_date(line, m)).collect();
+    let mut edits: Vec<(std::ops::Range<usize>, String)> = Vec::new();
+    for (d, markers) in [(t.due, DUE), (t.scheduled, &["⏳"][..]), (t.start, &["🛫"][..])] {
+        let Some(d) = d else { continue };
+        let at = marked_date(line, markers).or_else(|| {
+            // a due date written without an emoji (parse's fallback): its first mention outside the other fields
+            let text = d.format("%Y-%m-%d").to_string();
+            let taken = |a: usize| others.iter().chain(edits.iter().map(|(r, _)| r)).any(|r| r.contains(&a));
+            line.match_indices(&text).map(|(a, _)| a).find(|&a| !taken(a)).map(|a| a..a + text.len())
+        });
+        if let Some(r) = at {
+            edits.push((r, shift(d)));
+        }
+    }
+    edits.sort_by_key(|(r, _)| std::cmp::Reverse(r.start));
     let mut out = line.to_string();
-    for d in [t.due, t.scheduled, t.start].into_iter().flatten() {
-        out = out.replacen(&d.format("%Y-%m-%d").to_string(), &shift(d), 1);
+    for (r, new) in edits {
+        out.replace_range(r, &new);
     }
     if t.date().is_none() {
         // a rule and no date: the next one is due when the rule says
         out = format!("{} 📅 {}", out.trim_end(), next_anchor.format("%Y-%m-%d"));
     }
     Some(out)
+}
+
+/// Where the date right after the first of `markers` found in `line` is (the field's own value, as `parse` reads it).
+fn marked_date(line: &str, markers: &[&str]) -> Option<std::ops::Range<usize>> {
+    markers.iter().find_map(|m| {
+        let after = line.find(m)? + m.len();
+        let (_, i) = first_date(&line[after..]).filter(|(_, i)| line[after..after + i].trim().is_empty())?;
+        Some(after + i..after + i + 10)
+    })
 }
 
 /// Does the line use the Tasks plugin's fields at all? (Then a tick also writes `✅ date`, as that plugin does.)
@@ -489,6 +517,18 @@ mod tests {
         assert_eq!(next("- [ ] taxes 🔁 every year 📅 2026-06-30").as_deref(), Some("- [ ] taxes 🔁 every year 📅 2027-06-30"));
         assert_eq!(next("- [ ] odd 🔁 every full moon 📅 2026-10-17"), None, "a rule not read: nothing is invented");
         assert_eq!(next("- [ ] plain 📅 2026-10-17"), None);
+        assert_eq!(
+            next("- [ ] x 🔁 every day ➕ 2026-10-10 📅 2026-10-10").as_deref(),
+            Some("- [ ] x 🔁 every day ➕ 2026-10-10 📅 2026-10-11"),
+            "made and due the same day: the due date moves, not the created one"
+        );
+        assert_eq!(
+            next("- [ ] y 🔁 every day 📅 2026-10-10 🛫 2026-10-11").as_deref(),
+            Some("- [ ] y 🔁 every day 📅 2026-10-11 🛫 2026-10-12"),
+            "a moved date equal to another's old one"
+        );
+        assert_eq!(next("- [ ] z 🔁 every 4000000000 days 📅 2026-10-10"), None, "too far: not read, no panic");
+        assert_eq!(next("- [ ] z 🔁 every 400000000 years 📅 2026-10-10"), None);
     }
 
     #[test]

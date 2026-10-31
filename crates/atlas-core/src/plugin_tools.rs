@@ -201,12 +201,8 @@ pub async fn call(root: &Path, cfg: &Config, helpers: &Helpers, secrets: &Store,
             return Err(Error::BadRequest(format!("plugin {id}: tool {name} names secrets, but [permissions] secrets is not true")));
         }
         // `"*"`: every secret of the plugin (names that vary, such as one password per account)
-        let names = if tool.secrets.iter().any(|s| s == "*") { secrets.names(id)? } else { tool.secrets.clone() };
-        for s in &names {
-            if let Some(v) = secrets.get(id, s)? {
-                given.insert(s.clone(), Value::String(v));
-            }
-        }
+        let only = (!tool.secrets.iter().any(|s| s == "*")).then_some(tool.secrets.as_slice());
+        given.extend(secrets.values(id, only)?.into_iter().map(|(k, v)| (k, Value::String(v))));
     }
     params.insert("secrets".into(), Value::Object(given));
     let answer = helpers.call(id, tool.method.as_deref().unwrap_or(&tool.name), Value::Object(params), timeout_of(&tool)).await?;
@@ -228,11 +224,7 @@ pub fn page_call_params(root: &Path, cfg: &Config, secrets: &Store, id: &str, pa
     }
     let mut given = Map::new();
     if crate::plugins::permissions(root, id)?.secrets {
-        for s in secrets.names(id)? {
-            if let Some(v) = secrets.get(id, &s)? {
-                given.insert(s, Value::String(v));
-            }
-        }
+        given.extend(secrets.values(id, None)?.into_iter().map(|(k, v)| (k, Value::String(v))));
     }
     m.insert("secrets".into(), Value::Object(given));
     Ok(Value::Object(m))

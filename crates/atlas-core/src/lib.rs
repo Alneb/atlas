@@ -19,6 +19,7 @@ pub mod drawing_compact;
 pub mod drawing_note;
 pub mod error;
 pub mod events;
+pub mod file_stamp;
 pub mod files;
 pub mod frontmatter;
 pub mod git;

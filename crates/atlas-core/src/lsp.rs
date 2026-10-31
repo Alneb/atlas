@@ -181,10 +181,22 @@ async fn run(mut socket: WebSocket, ws: &Workspace, lang: LspLang) -> anyhow::Re
         .spawn()?;
     let mut stdin = child.stdin.take().expect("piped");
     let mut stdout = BufReader::new(child.stdout.take().expect("piped"));
+    // read by a task of its own: `read_message` is not cancel-safe, and a page's message winning the `select!` below
+    // in the middle of one would drop what was read of it and put the stream out of step
+    let (tx, mut from_server) = tokio::sync::mpsc::channel::<std::io::Result<Option<String>>>(64);
+    let reader = tokio::spawn(async move {
+        loop {
+            let m = read_message(&mut stdout).await;
+            let last = !matches!(m, Ok(Some(_)));
+            if tx.send(m).await.is_err() || last {
+                return;
+            }
+        }
+    });
     let (mut sink, mut stream) = socket.split();
     loop {
         tokio::select! {
-            msg = read_message(&mut stdout) => match msg? {
+            msg = from_server.recv() => match msg.unwrap_or(Ok(None))? {
                 Some(m) => if sink.send(Message::Text(m.into())).await.is_err() { break },
                 None => {
                     // the server exited on its own: the page is told how, so it reports a dead server only then
@@ -208,6 +220,7 @@ async fn run(mut socket: WebSocket, ws: &Workspace, lang: LspLang) -> anyhow::Re
             },
         }
     }
+    reader.abort();
     let _ = child.start_kill();
     Ok(())
 }

@@ -849,7 +849,8 @@ pub fn adopt_config_section(root: &Path, section: &str, id: &str) -> Result<()> 
     Ok(())
 }
 
-/// Every plugin folder holding a `plugin.toml`, sorted by id.
+/// Every plugin folder holding a `plugin.toml`, sorted by id. Every plugin call asks for it: the list read last is
+/// kept while the stamps of everything it was read from stay the same (`kept`).
 pub fn list(root: &Path) -> Vec<Plugin> {
     let mut ids: Vec<String> = std::fs::read_dir(root.join(PLUGINS_DIR))
         .into_iter()
@@ -860,6 +861,53 @@ pub fn list(root: &Path) -> Vec<Plugin> {
         .filter(|id| valid_id(id))
         .collect();
     ids.sort();
+    let stamps = crate::file_stamp::key(read_from(root, &ids));
+    if let Some(hit) = stamps.as_ref().and_then(|s| kept::get(root, s)) {
+        return hit;
+    }
+    let all = read_list(root, ids);
+    if let Some(s) = stamps {
+        kept::put(root, s, &all);
+    }
+    all
+}
+
+/// Every file `read_list` reads or looks for, and the folders whose entries it lists.
+fn read_from(root: &Path, ids: &[String]) -> Vec<std::path::PathBuf> {
+    let mut paths = vec![root.join(PLUGINS_DIR)];
+    for id in ids {
+        let dir = root.join(PLUGINS_DIR).join(id);
+        paths.extend([dir.join("plugin.toml"), dir.join(".source"), root.join(settings_rel(id)), dir]);
+    }
+    paths
+}
+
+/// The plugin lists read last, per vault, with the stamps they were read at.
+mod kept {
+    use super::Plugin;
+    use crate::file_stamp::Seen;
+    use std::collections::HashMap;
+    use std::path::{Path, PathBuf};
+    use std::sync::{LazyLock, Mutex, MutexGuard};
+
+    type Kept = HashMap<PathBuf, (Vec<Seen>, Vec<Plugin>)>;
+
+    fn kept() -> MutexGuard<'static, Kept> {
+        static KEPT: LazyLock<Mutex<Kept>> = LazyLock::new(Mutex::default);
+        // a poisoned lock only means a panic elsewhere; the table is still whole
+        KEPT.lock().unwrap_or_else(|e| e.into_inner())
+    }
+
+    pub(super) fn get(root: &Path, stamps: &[Seen]) -> Option<Vec<Plugin>> {
+        kept().get(root).filter(|(s, _)| s == stamps).map(|(_, all)| all.clone())
+    }
+
+    pub(super) fn put(root: &Path, stamps: Vec<Seen>, all: &[Plugin]) {
+        kept().insert(root.to_path_buf(), (stamps, all.to_vec()));
+    }
+}
+
+fn read_list(root: &Path, ids: Vec<String>) -> Vec<Plugin> {
     ids.into_iter()
         .map(|id| {
             match read_manifest(root, &id) {
@@ -1104,6 +1152,28 @@ mod tests {
         let d = root.join(PLUGINS_DIR).join(id);
         std::fs::create_dir_all(&d).unwrap();
         std::fs::write(d.join("plugin.toml"), toml).unwrap();
+    }
+
+    /// The kept list is used while nothing it was read from changed, and read again when its manifest is rewritten,
+    /// even to the same size.
+    #[test]
+    fn a_kept_plugin_list_is_read_again_when_a_manifest_changes() {
+        let d = tempfile::tempdir().unwrap();
+        let settle = |at: u64| {
+            let at = std::time::SystemTime::now() - Duration::from_secs(at);
+            let dir = d.path().join(PLUGINS_DIR);
+            for p in [dir.clone(), dir.join("a"), dir.join("a/plugin.toml")] {
+                std::fs::File::open(&p).unwrap().set_modified(at).unwrap();
+            }
+        };
+        plugin(d.path(), "a", "title = \"A\"\n");
+        settle(60);
+        assert_eq!(list(d.path())[0].title, "A");
+        let stamps = crate::file_stamp::key(read_from(d.path(), &["a".into()])).expect("settled");
+        assert!(kept::get(d.path(), &stamps).is_some(), "kept once settled");
+        plugin(d.path(), "a", "title = \"B\"\n");
+        settle(30);
+        assert_eq!(list(d.path())[0].title, "B");
     }
 
     /// `[helper] start = "open"`: started with the vault — only when the plugin can run.

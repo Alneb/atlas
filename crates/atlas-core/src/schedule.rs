@@ -50,7 +50,7 @@ pub fn span(s: &str) -> Option<Duration> {
         "d" | "day" | "days" => 86_400,
         _ => return None,
     };
-    Some(Duration::from_secs(k * secs))
+    Some(Duration::from_secs(k.checked_mul(secs)?))
 }
 
 impl Schedule {

@@ -171,7 +171,8 @@ fn with_parents(tag: &str) -> impl Iterator<Item = &str> {
 /// by name.
 pub fn all(root: &Path, cfg: &Config) -> Vec<TagCount> {
     let mut count: BTreeMap<String, u32> = BTreeMap::new();
-    for (_, parsed, _) in &crate::links::vault(root, cfg).notes {
+    // the index's parses as they are: resolving every link (links::vault) would be work thrown away here
+    for parsed in crate::links::scan(root, cfg).parsed.values() {
         let mine: BTreeSet<&str> = parsed.tags.iter().flat_map(|t| with_parents(t)).collect();
         for t in mine {
             *count.entry(t.to_string()).or_default() += 1;
@@ -183,11 +184,11 @@ pub fn all(root: &Path, cfg: &Config) -> Vec<TagCount> {
 /// The notes carrying `tag` or a tag nested under it, by path.
 pub fn notes(root: &Path, cfg: &Config, tag: &str) -> Vec<String> {
     let Some(want) = clean(tag) else { return Vec::new() };
-    let mut out: Vec<String> = crate::links::vault(root, cfg)
-        .notes
-        .into_iter()
-        .filter(|(_, parsed, _)| parsed.tags.iter().any(|t| with_parents(t).any(|p| p == want)))
-        .map(|(path, _, _)| path)
+    let mut out: Vec<String> = crate::links::scan(root, cfg)
+        .parsed
+        .iter()
+        .filter(|(_, parsed)| parsed.tags.iter().any(|t| with_parents(t).any(|p| p == want)))
+        .map(|(path, _)| path.clone())
         .collect();
     out.sort();
     out

@@ -84,21 +84,30 @@ pub(crate) enum LineKind<'a> {
     Text,
 }
 
+/// A note's frontmatter as the one fence reader sees it (atlas_text::frontmatter: a BOM, CRLF, a `...` closer; an
+/// opening `---` never closed is a rule, not frontmatter): the YAML's byte range and where the body starts (0, 0..0
+/// without one).
+fn front_matter(text: &str) -> (std::ops::Range<usize>, usize) {
+    match atlas_text::frontmatter::split(text) {
+        (Some(_), body) => (atlas_text::frontmatter::yaml_range(text).unwrap_or(0..0), text.len() - body.len()),
+        (None, _) => (0..0, 0),
+    }
+}
+
 /// Each line of a markdown text that may hold links, with its 1-based number and its byte offset in `text`; fenced
 /// code is skipped. The one walk over a note both the index ([`parse`]) and the link rewrite on a move use.
 pub(crate) fn link_lines<'a>(text: &'a str, mut f: impl FnMut(u32, usize, &'a str, LineKind<'_>)) {
     let mut fence: Option<&str> = None;
-    let mut in_fm = text.starts_with("---\n") || text.starts_with("---\r\n");
+    let (yaml, body) = front_matter(text);
     let mut key = String::new();
     let mut at = 0;
     for (i, raw) in text.split_inclusive('\n').enumerate() {
         let offset = at;
         at += raw.len();
         let line = raw.strip_suffix('\n').map_or(raw, |l| l.strip_suffix('\r').unwrap_or(l));
-        if in_fm {
-            if i > 0 && line.trim_end() == "---" {
-                in_fm = false;
-            } else if i > 0 {
+        if offset < body {
+            // the fences themselves are skipped
+            if yaml.contains(&offset) {
                 if let Some((k, _)) = line.split_once(':').filter(|(k, _)| !k.starts_with([' ', '-', '\t'])) {
                     key = k.trim().to_string();
                 }
@@ -333,8 +342,14 @@ impl Names {
         if t.is_empty() {
             return None;
         }
+        // a dot is not always an extension: `[[Dr. Smith]]` is `Dr. Smith.md` (Obsidian tries both), a file by its full
+        // name first
         let has_ext = t.rsplit('/').next().is_some_and(|n| n.contains('.'));
-        let cands: Vec<String> = if has_ext { vec![t.to_string()] } else { vec![format!("{t}.md"), t.to_string()] };
+        let cands: Vec<String> = match () {
+            _ if t.to_ascii_lowercase().ends_with(".md") => vec![t.to_string()],
+            _ if has_ext => vec![t.to_string(), format!("{t}.md")],
+            _ => vec![format!("{t}.md"), t.to_string()],
+        };
         for c in &cands {
             let rel = normalize(&format!("{}/{c}", dir_of(from)));
             let root = normalize(c);
@@ -370,7 +385,7 @@ pub(crate) fn frontmatter(text: &str) -> serde_yaml::Mapping {
 
 /// The vault's index, current: the walk is done on every call, and only the notes whose mtime changed are read again.
 /// When nothing changed the same `Arc` comes back, so a request costs the walk and a few stats — never a copy.
-fn scan(root: &Path, cfg: &Config) -> Arc<Index> {
+pub(crate) fn scan(root: &Path, cfg: &Config) -> Arc<Index> {
     let mut warm = CACHE.lock().unwrap_or_else(|e| e.into_inner());
     // read before the walk: a change while it runs makes the next request walk again
     let stamp = crate::vault_changes::stamp(root, cfg);
@@ -582,13 +597,14 @@ fn unlinked(root: &Path, index: &Index, path: &str) -> Vec<Backlink> {
         }
         let linking: std::collections::HashSet<u32> = index.links_of(src).filter(|(_, t)| *t == Some(path)).map(|(l, _)| l.line).collect();
         let mut fence = false;
-        let mut in_fm = text.starts_with("---\n");
-        for (i, line) in text.lines().enumerate() {
+        let body = front_matter(&text).1;
+        let mut at = 0;
+        for (i, raw) in text.split_inclusive('\n').enumerate() {
+            let line = raw.strip_suffix('\n').map_or(raw, |l| l.strip_suffix('\r').unwrap_or(l));
             let t = line.trim_start();
-            if in_fm {
-                if i > 0 && line.trim_end() == "---" {
-                    in_fm = false;
-                }
+            let offset = at;
+            at += raw.len();
+            if offset < body {
                 continue;
             }
             if t.starts_with("```") || t.starts_with("~~~") {
@@ -630,22 +646,23 @@ pub fn link_mention(text: &str, line: u32, target: &str) -> Option<String> {
     let name = target.rsplit('/').next().unwrap_or(target).trim_end_matches(".md");
     let mut lines: Vec<String> = text.split('\n').map(String::from).collect();
     let l = lines.get_mut(line.checked_sub(1)? as usize)?;
-    let low = l.to_lowercase();
-    let needle = name.to_lowercase();
+    // matched on the line as written: offsets found in a lowercased copy are off wherever a letter's lowercase has
+    // another length in UTF-8 (`İ`, the Kelvin and Ohm signs), and cut the line in the wrong place
+    let any_case = regex::RegexBuilder::new(&regex::escape(name)).case_insensitive(true).build().ok()?;
     let word = |c: Option<char>| c.is_some_and(|c| c.is_alphanumeric() || c == '_');
-    let mut from = 0;
-    while let Some(i) = low[from..].find(&needle).map(|i| i + from) {
-        let (before, after) = (low[..i].chars().next_back(), low[i + needle.len()..].chars().next());
-        let in_link = low[..i].rfind("[[").is_some_and(|o| low[..i].rfind("]]").is_none_or(|c| c < o));
-        if !word(before) && !word(after) && !in_link {
-            let written = &l[i..i + needle.len()];
-            let link = if written == name { format!("[[{name}]]") } else { format!("[[{name}|{written}]]") };
-            l.replace_range(i..i + needle.len(), &link);
-            return Some(lines.join("\n"));
-        }
-        from = i + needle.len();
-    }
-    None
+    let written: &str = l;
+    let at = any_case
+        .find_iter(written)
+        .find(|m| {
+            let (head, tail) = (&written[..m.start()], &written[m.end()..]);
+            let in_link = head.rfind("[[").is_some_and(|o| head.rfind("]]").is_none_or(|c| c < o));
+            !word(head.chars().next_back()) && !word(tail.chars().next()) && !in_link
+        })?
+        .range();
+    let written = written[at.clone()].to_string();
+    let link = if written == name { format!("[[{name}]]") } else { format!("[[{name}|{written}]]") };
+    l.replace_range(at, &link);
+    Some(lines.join("\n"))
 }
 
 /// Every note with its parsed data and resolved outgoing links (unique, in order), plus who
@@ -763,6 +780,14 @@ mod tests {
             Some(text.replacen("title: Hubbard model", "title: [[Hubbard model]]", 1))
         );
         assert_eq!(link_mention("nothing here", 1, "Hubbard model.md"), None);
+        // CRLF frontmatter is skipped too; a `---` never closed is a rule, and the lines after it are text
+        std::fs::write(d.path().join("b.md"), "---\r\ntitle: Hubbard model\r\n---\r\nThe hubbard model.\r\n").unwrap();
+        std::fs::write(d.path().join("c.md"), "---\nThe hubbard model, under a rule.\n").unwrap();
+        let mut got: Vec<(String, u32)> = backlinks(d.path(), &Config::default(), "Hubbard model.md").unlinked.into_iter().map(|l| (l.source, l.line)).collect();
+        got.sort();
+        assert_eq!(got, [("a.md".to_string(), 4), ("b.md".to_string(), 4), ("c.md".to_string(), 2)]);
+        // `Ω` (the Ohm sign, 3 bytes) lowercases to `ω` (2 bytes): the cut is made in the line as written
+        assert_eq!(link_mention("1 \u{2126}, then the Hubbard model.", 1, "Hubbard model.md").as_deref(), Some("1 \u{2126}, then the [[Hubbard model]]."));
     }
 
     #[test]
@@ -801,7 +826,7 @@ mod tests {
     #[test]
     fn resolves_like_obsidian() {
         let files: Vec<String> =
-            ["notes/a.md", "notes/lectures/b.md", "other/b.md", "notes/img/fig.png", "notes/x y.md"]
+            ["notes/a.md", "notes/lectures/b.md", "other/b.md", "notes/img/fig.png", "notes/x y.md", "people/Dr. Smith.md"]
                 .map(String::from)
                 .to_vec();
         let n = Names::new(files);
@@ -812,6 +837,7 @@ mod tests {
         assert_eq!(n.resolve(&w("b"), "notes/z.md").as_deref(), Some("other/b.md"), "then shortest path");
         assert_eq!(n.resolve(&w("lectures/b"), "x.md").as_deref(), Some("notes/lectures/b.md"));
         assert_eq!(n.resolve(&w("fig.png"), "x.md").as_deref(), Some("notes/img/fig.png"));
+        assert_eq!(n.resolve(&w("Dr. Smith"), "x.md").as_deref(), Some("people/Dr. Smith.md"), "a dot that is no extension");
         assert_eq!(n.resolve(&m("lectures/b.md"), "notes/a.md").as_deref(), Some("notes/lectures/b.md"));
         assert_eq!(n.resolve(&m("x%20y.md"), "notes/a.md").as_deref(), Some("notes/x y.md"));
         assert_eq!(n.resolve(&m("b.md"), "notes/a.md"), None, "md links do not search by name");

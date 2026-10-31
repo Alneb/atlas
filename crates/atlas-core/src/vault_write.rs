@@ -188,6 +188,37 @@ pub fn guarded<T>(abs: &Path, kind: WriteKind, op: impl FnOnce() -> Result<T>) -
     run(abs, |_| kind, hashed, op)
 }
 
+/// Read `abs` as text, change it with `edit`, and [`write`] the result, with no other `modify` of the same file in this
+/// process in between: two ticks at once on one note would each write back the text without the other's. A text
+/// `edit` leaves unchanged is not written.
+pub fn modify(abs: &Path, edit: impl FnOnce(&str) -> Result<String>) -> Result<()> {
+    let one = path_lock(abs);
+    let _held = one.lock().unwrap_or_else(|e| e.into_inner());
+    let text = std::fs::read_to_string(abs)?;
+    let next = edit(&text)?;
+    if next != text {
+        write(abs, next.as_bytes())?;
+    }
+    Ok(())
+}
+
+/// The lock of one file's [`modify`]: kept while someone holds it, then dropped from the table.
+fn path_lock(abs: &Path) -> std::sync::Arc<std::sync::Mutex<()>> {
+    use std::sync::{Arc, Mutex, Weak};
+    static LOCKS: std::sync::LazyLock<Mutex<std::collections::HashMap<std::path::PathBuf, Weak<Mutex<()>>>>> =
+        std::sync::LazyLock::new(Mutex::default);
+    let mut all = LOCKS.lock().unwrap_or_else(|e| e.into_inner());
+    if let Some(held) = all.get(abs).and_then(Weak::upgrade) {
+        return held;
+    }
+    if all.len() > 64 {
+        all.retain(|_, w| w.strong_count() > 0);
+    }
+    let fresh = Arc::new(Mutex::new(()));
+    all.insert(abs.to_path_buf(), Arc::downgrade(&fresh));
+    fresh
+}
+
 /// Replace `abs` atomically (a temporary file beside it renamed into place); parents made, permissions kept.
 pub fn write(abs: &Path, bytes: &[u8]) -> Result<()> {
     run(abs, |_| WriteKind::Write, Some(abs), || raw::atomic(abs, raw::Replace::Always, |f| Ok(f.write_all(bytes)?)).map(|_| ()))
@@ -391,6 +422,24 @@ pub mod cache {
         check(to);
         raw::rename(from, to)
     }
+    /// `abs` dated `modified`: an entry made from a vault file carries that file's time, so "made from this version"
+    /// is an equality ([`made_from`]), not "newer than" (a synced file can arrive with a time older than the entry's).
+    pub fn date(abs: &Path, modified: std::time::SystemTime) -> Result<()> {
+        check(abs);
+        // opened for writing: Windows sets a time only through a handle that may write attributes
+        Ok(std::fs::OpenOptions::new().write(true).open(abs)?.set_modified(modified)?)
+    }
+    /// An entry written before entries were dated, judged once by the old rule (made after its source changed) and
+    /// dated if it passes, so the first start after the change does not make every entry again.
+    pub fn adopt_undated(abs: &Path, source: std::time::SystemTime) {
+        if std::fs::metadata(abs).and_then(|m| m.modified()).is_ok_and(|t| t > source) {
+            let _ = date(abs, source);
+        }
+    }
+    /// Whether cache entry `abs` was dated from a source last changed at `source` ([`date`]).
+    pub fn made_from(abs: &Path, source: std::time::SystemTime) -> bool {
+        std::fs::metadata(abs).and_then(|m| m.modified()).is_ok_and(|t| t == source)
+    }
     /// Copy a file into the cache (`from` may be anywhere).
     pub fn copy(from: &Path, to: &Path) -> Result<()> {
         check(to);
@@ -455,6 +504,27 @@ pub mod outside {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Edits of one file at once, each reading what the one before wrote: none is lost.
+    #[test]
+    fn modify_never_loses_an_edit_made_at_the_same_time() {
+        let d = tempfile::tempdir().unwrap();
+        let f = d.path().join("note.md");
+        std::fs::write(&f, "").unwrap();
+        let threads: Vec<_> = (0..4)
+            .map(|t| {
+                let f = f.clone();
+                std::thread::spawn(move || {
+                    for i in 0..25 {
+                        modify(&f, |text| Ok(format!("{text}{t}-{i}\n"))).unwrap();
+                    }
+                })
+            })
+            .collect();
+        threads.into_iter().for_each(|t| t.join().unwrap());
+        assert_eq!(std::fs::read_to_string(&f).unwrap().lines().count(), 100);
+        assert!(modify(&f, |_| Err(Error::Conflict { current: None })).is_err(), "an edit's error is the call's");
+    }
     use std::sync::Mutex;
 
     #[derive(Default)]

@@ -5,7 +5,7 @@ use crate::{Error, Result};
 pub use atlas_text::frontmatter::*;
 
 /// A key the panel may write: one plain line, no `:`, not starting like a list item or a comment.
-fn plain_key(key: &str) -> Result<&str> {
+pub(crate) fn plain_key(key: &str) -> Result<&str> {
     let k = key.trim();
     if k.is_empty() || k.contains([':', '\n', '\r']) || k.starts_with(['-', '#', '"', '\'']) {
         return Err(Error::BadRequest(format!("`{key}` is not a property name")));

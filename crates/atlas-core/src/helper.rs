@@ -91,6 +91,9 @@ pub struct Helpers {
     root: PathBuf,
     bus: EventBus,
     slots: Arc<Mutex<HashMap<String, Slot>>>,
+    /// one start at a time per plugin, without holding `slots` (a start reads the manifest and spawns a process, and
+    /// every other plugin's calls go through `slots`); kept apart from the slots, which `stop` removes
+    starting: Arc<Mutex<HashMap<String, Arc<Mutex<()>>>>>,
     /// the vault's routes, answering the helpers' calls back in-process (helper_api.rs); unset where nothing serves the
     /// vault (`atlas mcp` running a helper itself), and a call is then answered 503
     routes: Arc<std::sync::OnceLock<axum::Router>>,
@@ -131,7 +134,7 @@ fn log(root: &Path, id: &str, line: &str) {
 
 impl Helpers {
     pub fn new(root: &Path, bus: EventBus) -> Self {
-        Self { root: root.to_path_buf(), bus, slots: Arc::default(), routes: Arc::default() }
+        Self { root: root.to_path_buf(), bus, slots: Arc::default(), starting: Arc::default(), routes: Arc::default() }
     }
 
     /// The routes the helpers' calls go through (the server, once the vault's router exists).
@@ -150,6 +153,9 @@ impl Helpers {
     }
 
     pub fn stop(&self, id: &str) {
+        // after a start in progress, or it would put its helper back once this is done
+        let one = self.starting.lock().unwrap().get(id).cloned();
+        let _starting = one.as_ref().map(|m| m.lock().unwrap_or_else(|e| e.into_inner()));
         let taken = self.slots.lock().unwrap().remove(id).and_then(|s| s.running);
         if let Some(r) = taken {
             r.fail_all("the helper was stopped");
@@ -171,38 +177,54 @@ impl Helpers {
 
     /// The running helper of `id`, started now if it is not.
     fn running(&self, id: &str) -> Result<Arc<Running>> {
-        let mut slots = self.slots.lock().unwrap();
-        let slot = slots.entry(id.to_string()).or_default();
         let stamp = manifest_stamp(&self.root, id);
-        if let Some(r) = &slot.running {
-            if r.stamp == stamp {
-                return Ok(r.clone());
-            }
-            // the plugin was updated under its running helper (`atlas plugin update`, a copy): the old one goes
-            log(&self.root, id, "[atlas] plugin.toml changed: the helper restarts");
-            r.fail_all("the plugin was updated: its helper restarted");
-            r.kill();
-            slot.running = None;
+        if let Some(r) = self.current(id, stamp) {
+            return Ok(r);
+        }
+        let one = self.starting.lock().unwrap().entry(id.to_string()).or_default().clone();
+        let _starting = one.lock().unwrap_or_else(|e| e.into_inner());
+        // another call may have started it while this one waited
+        if let Some(r) = self.current(id, stamp) {
+            return Ok(r);
         }
         let now = Instant::now();
-        slot.starts.retain(|t| now.duration_since(*t) < CRASH_WINDOW);
-        if slot.starts.len() >= CRASH_LIMIT {
-            return Err(Error::CommandFailed(format!(
-                "plugin {id}: its helper stopped {CRASH_LIMIT} times in ten minutes and is left stopped — see .atlas/cache/plugins/{id}.log, then restart it"
-            )));
+        {
+            let mut slots = self.slots.lock().unwrap();
+            let slot = slots.entry(id.to_string()).or_default();
+            if let Some(old) = slot.running.take() {
+                // the plugin was updated under its running helper (`atlas plugin update`, a copy): the old one goes
+                log(&self.root, id, "[atlas] plugin.toml changed: the helper restarts");
+                old.fail_all("the plugin was updated: its helper restarted");
+                old.kill();
+            }
+            slot.starts.retain(|t| now.duration_since(*t) < CRASH_WINDOW);
+            if slot.starts.len() >= CRASH_LIMIT {
+                return Err(Error::CommandFailed(format!(
+                    "plugin {id}: its helper stopped {CRASH_LIMIT} times in ten minutes and is left stopped — see .atlas/cache/plugins/{id}.log, then restart it"
+                )));
+            }
         }
         let r = match plugins::helper_program(&self.root, id)? {
             plugins::HelperProgram::Command(run) => self.start_process(id, &run, stamp, now)?,
             plugins::HelperProgram::Js(file) => self.start_js(id, file, stamp, now)?,
         };
-        slot.running = Some(r.clone());
-        slot.starts.push(now);
+        {
+            let mut slots = self.slots.lock().unwrap();
+            let slot = slots.entry(id.to_string()).or_default();
+            slot.running = Some(r.clone());
+            slot.starts.push(now);
+        }
         match plugins::helper_idle(&self.root, id) {
             Ok(Some(idle)) => self.stop_when_idle(id, &r, idle.max(IDLE_FLOOR)),
             Ok(None) => {}
             Err(why) => log(&self.root, id, &format!("[atlas] {why}")),
         }
         Ok(r)
+    }
+
+    /// `id`'s running helper, when it was started from the manifest as it is now.
+    fn current(&self, id: &str, stamp: Option<std::time::SystemTime>) -> Option<Arc<Running>> {
+        self.slots.lock().unwrap().get(id)?.running.as_ref().filter(|r| r.stamp == stamp).cloned()
     }
 
     /// `[helper] run`: the program, its stdout read for answers, its stderr into the log.

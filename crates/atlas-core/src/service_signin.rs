@@ -109,8 +109,8 @@ pub fn forget(store: &Store, host: &str) -> Result<bool> {
 
 fn entries(store: &Store) -> Result<Vec<(String, Entry)>> {
     let mut out = Vec::new();
-    for name in store.names(SECTION)? {
-        let (Some(host), Some(raw)) = (name.strip_prefix("door."), store.get(SECTION, &name)?) else { continue };
+    for (name, raw) in store.values(SECTION, None)? {
+        let Some(host) = name.strip_prefix("door.") else { continue };
         if let Ok(e) = serde_json::from_str::<Entry>(&raw) {
             out.push((host.to_string(), e));
         }

@@ -67,8 +67,8 @@ pub fn ensure(root: &Path, cfg: &Config, req: &CompanionRequest, now: NaiveDateT
     }
     shape.block = req.block.as_deref().map(view_block).unwrap_or_else(|| file_block(rel));
     let text = new_text(&shape, template(root, cfg, rel, &note, &shape.title, now)?.as_deref(), &stamp(root, cfg, now));
-    write_new(&path, &text)?;
-    Ok(CompanionNote { path: note, created: true, migrated_from: None })
+    let created = write_new(&path, &text)?;
+    Ok(CompanionNote { path: note, created, migrated_from: None })
 }
 
 /// The folder entry's note that owns file `rel`, when `rel` sits in one: a paper's PDF has the paper's note, never a
@@ -187,8 +187,8 @@ fn entry_note(root: &Path, cfg: &Config, dir_rel: &str, stem: &str, shape: &Shap
             Some(t) => format!("{}{}\n{t}", frontmatter(shape, template.as_deref(), &stamp(root, cfg, now)), heading(shape)),
             None => new_text(shape, template.as_deref(), &stamp(root, cfg, now)),
         };
-        write_new(&path, &text)?;
-        if old.is_some() {
+        // made meanwhile by another call: the legacy file stays for that one to move
+        if write_new(&path, &text)? && old.is_some() {
             vault_write::remove_file(&legacy)?;
         }
     }
@@ -209,12 +209,10 @@ fn file_block(rel: &str) -> String {
     }
 }
 
-/// `create_new`: a file made meanwhile (another writer) is never replaced.
-fn write_new(path: &Path, text: &str) -> Result<()> {
-    match vault_write::create(path, text.as_bytes())? {
-        vault_write::Created::New => Ok(()),
-        vault_write::Created::Taken => Err(std::io::Error::from(std::io::ErrorKind::AlreadyExists).into()),
-    }
+/// `create_new`: a file made meanwhile (another writer, the same note asked for twice at once) is never replaced, and is
+/// the note (false: not made here).
+fn write_new(path: &Path, text: &str) -> Result<bool> {
+    Ok(matches!(vault_write::create(path, text.as_bytes())?, vault_write::Created::New))
 }
 
 /// The template the rules give the companion note of `file` (template_rules.rs: a template's own

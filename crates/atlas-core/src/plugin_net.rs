@@ -206,12 +206,17 @@ pub fn fetch(root: &Path, secrets: &Store, id: &str, req: &FetchRequest) -> Resu
     let method = reqwest::Method::from_bytes(req.method.as_deref().unwrap_or("GET").to_ascii_uppercase().as_bytes())
         .map_err(|_| Error::BadRequest(format!("fetch: method {:?}", req.method)))?;
     let allowed = perm.net.clone();
+    // a secret in a header of the plugin's naming or in the form is not one reqwest drops on a redirect to another host
+    // (it drops only Authorization and Cookie): then a redirect may not leave the host asked
+    let carries_secret = req.headers.values().chain(req.form.iter().flat_map(|f| f.values())).any(|v| !matches!(v, HeaderValue::Text(_)));
+    let first_host = url.host_str().unwrap_or_default().to_ascii_lowercase();
     let client = reqwest::blocking::Client::builder()
         .timeout(Duration::from_secs(req.timeout_secs.unwrap_or(DEFAULT_TIMEOUT).clamp(1, MAX_TIMEOUT)))
         .user_agent(concat!("Atlas/", env!("CARGO_PKG_VERSION"), " (plugin)"))
         // a redirect is followed only to a host the plugin may reach: an allowed host cannot hand it on to another
         .redirect(reqwest::redirect::Policy::custom(move |a| {
-            if a.previous().len() >= 8 || !host_allowed(&allowed, a.url().host_str().unwrap_or_default()) {
+            let host = a.url().host_str().unwrap_or_default();
+            if a.previous().len() >= 8 || !host_allowed(&allowed, host) || (carries_secret && !host.eq_ignore_ascii_case(&first_host)) {
                 a.stop()
             } else {
                 a.follow()

@@ -832,17 +832,16 @@ async fn backlinks_get(State(st): S, Query(q): Query<PathQuery>) -> Result<Json<
 
 async fn property_put(State(st): S, Json(e): Json<PropertyEdit>) -> Result<StatusCode> {
     with_ws(&st, move |ws| {
-        if !e.path.ends_with(".md") || e.key.trim().is_empty() || e.key.contains([':', '\n']) {
+        // the properties panel's rule (frontmatter::plain_key): `#x` would be a YAML comment, `- x` a list item
+        if !e.path.ends_with(".md") || crate::frontmatter::plain_key(&e.key).is_err() {
             return Err(Error::BadRequest("a property edit needs a note and a plain key".into()));
         }
         let path = ws.resolve(&e.path)?;
-        let text = std::fs::read_to_string(&path)?;
         let value = match &e.value {
             Some(v) => serde_yaml::to_value(v).map_err(|x| Error::BadRequest(x.to_string()))?,
             None => crate::frontmatter::parse_cell(&e.text, e.list),
         };
-        let next = crate::frontmatter::set_property(&text, e.key.trim(), &value);
-        vault_write::write(&path, next.as_bytes())
+        vault_write::modify(&path, |text| Ok(crate::frontmatter::set_property(text, e.key.trim(), &value)))
     })
     .await?;
     Ok(StatusCode::NO_CONTENT)
@@ -866,10 +865,8 @@ async fn link_mention_post(State(st): S, Json(m): Json<LinkMention>) -> Result<S
     let src = m.source.clone();
     with_ws(&st, move |ws| {
         let path = ws.resolve(&m.source)?;
-        let text = std::fs::read_to_string(&path)?;
-        let next =
-            crate::links::link_mention(&text, m.line, &m.target).ok_or_else(|| Error::Conflict { current: None })?; // the line changed since it was listed
-        vault_write::write(&path, next.as_bytes())
+        // no mention on that line: it changed since it was listed
+        vault_write::modify(&path, |text| crate::links::link_mention(text, m.line, &m.target).ok_or(Error::Conflict { current: None }))
     })
     .await?;
     st.bus.publish(Event::Fs { paths: vec![src] });
@@ -891,8 +888,8 @@ async fn fs_upload(State(st): S, Query(q): Query<UploadQuery>, body: Bytes) -> R
     Ok(StatusCode::NO_CONTENT)
 }
 
-/// A move, and every link to what moved rewritten for its new place (relink.rs; the user's choice, 2026-10-21:
-/// "Always, then say what changed").
+/// A move, and every link to what moved rewritten for its new place (relink.rs): always, then the answer says what
+/// changed.
 async fn fs_move(State(st): S, Json(m): Json<MoveRequest>) -> Result<Json<Moved>> {
     let mut paths = vec![m.from.clone(), m.to.clone()];
     let relinked = with_ws(&st, move |ws| {
@@ -946,14 +943,14 @@ async fn task_tick(State(st): S, Json(t): Json<TaskRef>) -> Result<StatusCode> {
     let path = t.path.clone();
     with_ws(&st, move |ws| {
         let p = ws.resolve(&t.path)?;
-        let text = std::fs::read_to_string(&p)?;
-        let want = t.text.as_deref().map(str::trim).filter(|w| !w.is_empty());
-        let at = text.split('\n').nth((t.line as usize).saturating_sub(1)).unwrap_or_default();
-        if want.is_some_and(|w| !at.contains(w)) {
-            return Err(Error::Conflict { current: None });
-        }
-        let next = crate::today::tick_task(&text, t.line).ok_or(Error::Conflict { current: None })?;
-        vault_write::write(&p, next.as_bytes())
+        vault_write::modify(&p, |text| {
+            let want = t.text.as_deref().map(str::trim).filter(|w| !w.is_empty());
+            let at = text.split('\n').nth((t.line as usize).saturating_sub(1)).unwrap_or_default();
+            if want.is_some_and(|w| !at.contains(w)) {
+                return Err(Error::Conflict { current: None });
+            }
+            crate::today::tick_task(text, t.line).ok_or(Error::Conflict { current: None })
+        })
     })
     .await?;
     st.bus.publish(Event::Fs { paths: vec![path] });
@@ -1412,8 +1409,9 @@ struct LiveQuery {
 }
 
 /// A file's live room (live.rs): the devices with it open see each other's changes and pointers as they happen.
-async fn live_ws(State(st): S, Query(q): Query<LiveQuery>, upgrade: WebSocketUpgrade) -> Result<Response> {
-    st.ws.resolve(&q.path)?; // a file of this vault, nothing else
+async fn live_ws(State(st): S, Query(mut q): Query<LiveQuery>, upgrade: WebSocketUpgrade) -> Result<Response> {
+    // a file of this vault, nothing else, named as the vault names it: `./a.md` and `a.md` are one room, one writer
+    q.path = st.ws.rel(&st.ws.resolve(&q.path)?);
     let rooms = st.live.clone();
     let name = if q.name.trim().is_empty() { "another device".to_string() } else { q.name.chars().take(60).collect() };
     // a local vault with a copy on a server: its room is the server's (DESIGN-mirror-v2.md §3), so every pane of every
@@ -1625,7 +1623,7 @@ async fn guard(State(st): S, mut req: Request, next: Next) -> Response {
     // a plugin's helper, over its pipe (helper_api.rs): no network request carries this extension
     if let Some(crate::helper_api::Caller(id)) = req.extensions().get::<crate::helper_api::Caller>().cloned() {
         if !crate::helper_api::may(&id, req.uri().path()) {
-            return forbidden(&format!("plugin {id} may read only its own secrets"));
+            return forbidden(&format!("plugin {id} may not act as another plugin (its secrets, sign-ins, fetch, settings) nor reach the sign-ins"));
         }
         if st.auth.is_some() {
             req.extensions_mut().insert(crate::auth::Who::Device { name: format!("plugin {id}"), scope: crate::auth::Scope::Full });

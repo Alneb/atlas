@@ -20,7 +20,7 @@ pub fn thumbnail(ws: &Workspace, rel: &str, w: u32) -> Result<(Vec<u8>, &'static
         return Ok((std::fs::read(pdf_cover(&ws.cache_dir(), rel, &src)?)?, "image/jpeg"));
     }
     let cached = cache_path(&ws.cache_dir(), rel, w, "png");
-    if fresh(&cached, mtime) {
+    if made_from(&cached, mtime) {
         return Ok((std::fs::read(&cached)?, "image/png"));
     }
     let img = if is_jxl(&src) {
@@ -56,7 +56,7 @@ pub fn thumbnail(ws: &Workspace, rel: &str, w: u32) -> Result<(Vec<u8>, &'static
     let mut out = std::io::Cursor::new(Vec::new());
     small.write_to(&mut out, image::ImageFormat::Png).map_err(bad(rel))?;
     let bytes = out.into_inner();
-    write_cache(&cached, &bytes);
+    write_cache(&cached, &bytes, mtime);
     Ok((bytes, "image/png"))
 }
 
@@ -70,27 +70,27 @@ pub const PDF_COVER_W: u32 = 640;
 /// changes (a `.failed` marker beside where its cover would be).
 pub fn pdf_cover(cache_dir: &Path, rel: &str, pdf: &Path) -> Result<std::path::PathBuf> {
     static NO_RENDERER: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
-    let out = cache_path(cache_dir, rel, PDF_COVER_W, "jpg");
+    let out = pdf_cover_path(cache_dir, rel);
     let changed = std::fs::metadata(pdf)?.modified()?;
-    if fresh(&out, changed) {
+    if made_from(&out, changed) {
         return Ok(out);
     }
     let failed = out.with_extension("failed");
     if NO_RENDERER.load(std::sync::atomic::Ordering::Relaxed) {
         return Err(Error::NotFound(format!("{rel}: no PDF renderer here (pdftoppm)")));
     }
-    if fresh(&failed, changed) {
+    if made_from(&failed, changed) {
         return Err(Error::BadRequest(format!("{rel}: its first page could not be drawn (tried before)")));
     }
     let _ = crate::vault_write::cache::mkdir(out.parent().expect("a cache file has a folder"));
     if crate::pdfium::ready() {
-        return match pdfium_cover(pdf).and_then(|jpg| crate::vault_write::cache::write(&out, &jpg).map_err(|e| e.to_string())) {
+        return match pdfium_cover(pdf).and_then(|jpg| write_dated(&out, &jpg, changed).map_err(|e| e.to_string())) {
             Ok(()) => {
                 let _ = crate::vault_write::cache::remove_file(&failed);
                 Ok(out)
             }
             Err(e) => {
-                let _ = crate::vault_write::cache::write(&failed, b"");
+                let _ = write_dated(&failed, b"", changed);
                 Err(Error::BadRequest(format!("{rel}: its first page could not be drawn ({e})")))
             }
         };
@@ -107,13 +107,18 @@ pub fn pdf_cover(cache_dir: &Path, rel: &str, pdf: &Path) -> Result<std::path::P
         }
     };
     let drawn = base.with_extension("drawing.jpg");
-    if !ok || crate::vault_write::cache::rename(&drawn, &out).is_err() {
+    if !ok || crate::vault_write::cache::rename(&drawn, &out).and_then(|_| crate::vault_write::cache::date(&out, changed)).is_err() {
         let _ = crate::vault_write::cache::remove_file(&drawn);
-        let _ = crate::vault_write::cache::write(&failed, b"");
+        let _ = write_dated(&failed, b"", changed);
         return Err(Error::BadRequest(format!("{rel}: its first page could not be drawn")));
     }
     let _ = crate::vault_write::cache::remove_file(&failed);
     Ok(out)
+}
+
+/// Where the cover of PDF `rel` is kept.
+pub fn pdf_cover_path(cache_dir: &Path, rel: &str) -> std::path::PathBuf {
+    cache_path(cache_dir, rel, PDF_COVER_W, "jpg")
 }
 
 /// The first page drawn by PDFium, PDF_COVER_W wide, as a JPEG.
@@ -244,9 +249,12 @@ fn cache_path(cache_dir: &Path, rel: &str, w: u32, ext: &str) -> std::path::Path
     cache_dir.join("thumbs").join(format!("{:016x}-{w}.{ext}", h.finish()))
 }
 
-/// Made since its source last changed.
-fn fresh(cached: &Path, source_mtime: std::time::SystemTime) -> bool {
-    std::fs::metadata(cached).and_then(|m| m.modified()).is_ok_and(|t| t >= source_mtime)
+use crate::vault_write::cache::made_from;
+
+/// A cache entry made from a source last changed at `source`.
+fn write_dated(path: &Path, bytes: &[u8], source: std::time::SystemTime) -> Result<()> {
+    crate::vault_write::cache::write(path, bytes)?;
+    crate::vault_write::cache::date(path, source)
 }
 
 /// The most pixels decoded (a long webtoon strip is ~16 M): a picture from a manga source is untrusted, and a header
@@ -296,8 +304,8 @@ fn bad(rel: &str) -> impl Fn(image::ImageError) -> Error + '_ {
 }
 
 /// Best effort: a read-only workspace still gets thumbnails, just uncached.
-fn write_cache(path: &Path, bytes: &[u8]) {
-    let _ = crate::vault_write::cache::write(path, bytes);
+fn write_cache(path: &Path, bytes: &[u8], source: std::time::SystemTime) {
+    let _ = write_dated(path, bytes, source);
 }
 
 #[cfg(test)]
@@ -327,6 +335,24 @@ mod tests {
         assert_eq!(image::load_from_memory(&bytes).unwrap().width(), 256, "the package's cover (2:3), at the asked step");
         assert_eq!(image::load_from_memory(&bytes).unwrap().height(), 384);
         assert!(cache_path(&ws.cache_dir(), "book.epub", 256, "png").is_file(), "kept for the next time");
+    }
+
+    /// A picture replaced by one with an older time (a sync keeps the sender's) is not shown from the old thumbnail.
+    #[test]
+    fn a_picture_synced_in_with_an_older_time_gets_a_new_thumbnail() {
+        let d = tempfile::tempdir().unwrap();
+        let put = |w: u32, h: u32, age: u64| {
+            let f = d.path().join("fig.png");
+            image::DynamicImage::new_rgb8(w, h).save(&f).unwrap();
+            let at = std::time::SystemTime::now() - std::time::Duration::from_secs(age);
+            std::fs::File::options().write(true).open(&f).unwrap().set_modified(at).unwrap();
+        };
+        let ws = Workspace::open(d.path()).unwrap();
+        let height = || image::load_from_memory(&thumbnail(&ws, "fig.png", 128).unwrap().0).unwrap().height();
+        put(400, 400, 60);
+        assert_eq!(height(), 128);
+        put(800, 200, 3600);
+        assert_eq!(height(), 32, "the new picture's shape, not the kept square");
     }
 
     #[test]

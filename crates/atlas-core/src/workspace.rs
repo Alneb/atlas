@@ -28,7 +28,7 @@ impl Workspace {
         self.root.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_else(|| "/".into())
     }
 
-    /// Re-read on every call: the file is the truth and it is tiny.
+    /// The file is the truth: a call after it changed sees the change (the parse is kept only while it is unchanged).
     pub fn config(&self) -> Result<Config> {
         Ok(Config::load(&self.root)?)
     }

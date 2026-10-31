@@ -43,7 +43,8 @@ pub fn plan(root: &Path, cfg: &Config, from: &str, to: &str) -> Plan {
     Plan { old: snap.names.clone(), moved, sources }
 }
 
-/// After the move: every planned note read again and its links rewritten (written only where one changed).
+/// After the move: every planned note read again and its links rewritten (written only where one changed). The move
+/// is done by then: a note that cannot be rewritten is passed over (and logged), not the end of the others.
 pub fn apply(ws: &Workspace, plan: &Plan) -> Result<Relinked> {
     let new_files: Vec<String> = plan.old.files().iter().map(|f| plan.moved.get(f).unwrap_or(f).clone()).collect();
     let new = Names::new(new_files);
@@ -51,12 +52,19 @@ pub fn apply(ws: &Workspace, plan: &Plan) -> Result<Relinked> {
     for src_old in &plan.sources {
         let src_new = plan.moved.get(src_old).unwrap_or(src_old);
         let Ok(abs) = ws.resolve(src_new) else { continue };
-        let Ok(text) = std::fs::read_to_string(&abs) else { continue };
-        let (next, n) = rewrite(&text, src_old, src_new, plan, &new);
-        if n > 0 {
-            vault_write::write(&abs, next.as_bytes())?;
-            out.links += n;
-            out.notes.push(src_new.clone());
+        let mut n = 0;
+        let done = vault_write::modify(&abs, |text| {
+            let (next, changed) = rewrite(text, src_old, src_new, plan, &new);
+            n = changed;
+            Ok(next)
+        });
+        match done {
+            Ok(()) if n > 0 => {
+                out.links += n;
+                out.notes.push(src_new.clone());
+            }
+            Ok(()) => {}
+            Err(e) => eprintln!("atlas: the links of {src_new} were not rewritten after the move: {e}"),
         }
     }
     out.notes.sort();

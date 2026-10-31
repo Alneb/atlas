@@ -16,27 +16,41 @@ pub const CACHE: &str = ".atlas/cache/pdftext";
 /// Extract text for every PDF whose cache is missing or stale; returns how many were (re)extracted.
 pub fn refresh(root: &Path, cfg: &Config) -> usize {
     let mut n = 0;
+    // texts and covers kept from before they carried their PDF's time are adopted once (vault_write::cache::adopt_undated)
+    let dated = root.join(CACHE).join(".dated");
+    let adopt = !dated.exists();
+    let mut seen = std::collections::HashSet::new();
     for (abs, rel) in walk::files(root, cfg).filter(|(_, rel)| rel.to_lowercase().ends_with(".pdf")) {
+        let out = root.join(CACHE).join(format!("{rel}.txt"));
+        seen.insert(out.clone());
+        // the text carries the PDF's time: a PDF synced in with an older time than the text's is still read again
+        let Ok(changed) = std::fs::metadata(&abs).and_then(|m| m.modified()) else { continue };
+        if adopt {
+            vault_write::cache::adopt_undated(&out, changed);
+            vault_write::cache::adopt_undated(&crate::thumbs::pdf_cover_path(&root.join(".atlas/cache"), &rel), changed);
+        }
         // its cover too, drawn once here rather than by every page that shows it (thumbs.rs)
         let _ = crate::thumbs::pdf_cover(&root.join(".atlas/cache"), &rel, &abs);
-        let out = root.join(CACHE).join(format!("{rel}.txt"));
-        let newer = |a: &Path, b: &Path| -> bool {
-            match (std::fs::metadata(a).and_then(|m| m.modified()), std::fs::metadata(b).and_then(|m| m.modified())) {
-                (Ok(x), Ok(y)) => x > y,
-                (Ok(_), Err(_)) => true,
-                _ => false,
-            }
-        };
-        if !newer(&abs, &out) {
+        if vault_write::cache::made_from(&out, changed) {
             continue;
         }
         let _ = vault_write::cache::mkdir(out.parent().expect("cache file has a folder"));
         let tmp = out.with_extension("tmp");
         // a PDF with no text layer still gets an (empty) entry, so it is not retried on every search
         let _ = vault_write::cache::write(&tmp, extract(&abs).as_bytes());
-        if vault_write::cache::rename(&tmp, &out).is_ok() {
+        if vault_write::cache::rename(&tmp, &out).and_then(|_| vault_write::cache::date(&out, changed)).is_ok() {
             n += 1;
         }
+    }
+    // the texts of PDFs deleted, moved or excluded since
+    for e in walkdir::WalkDir::new(root.join(CACHE)).into_iter().flatten() {
+        let p = e.path();
+        if e.file_type().is_file() && p.extension().is_some_and(|x| x == "txt") && !seen.contains(p) {
+            let _ = vault_write::cache::remove_file(p);
+        }
+    }
+    if adopt && vault_write::cache::mkdir(&root.join(CACHE)).is_ok() {
+        let _ = vault_write::cache::write(&dated, b"");
     }
     n
 }
@@ -163,6 +177,10 @@ mod tests {
         let cache = d.path().join(super::CACHE).join("refs/paper.pdf.txt");
         std::fs::create_dir_all(cache.parent().unwrap()).unwrap();
         std::fs::write(&cache, "Introduction\nnothing here\n\u{c}The Hubbard model\non page two\n").unwrap();
+        std::fs::create_dir_all(d.path().join("refs")).unwrap();
+        std::fs::write(d.path().join("refs/paper.pdf"), "%PDF-1.4\n").unwrap();
+        // the text of a PDF no longer in the vault is not a hit
+        std::fs::write(d.path().join(super::CACHE).join("refs/gone.pdf.txt"), "Hubbard, gone\n").unwrap();
         std::fs::write(d.path().join("note.md"), "Hubbard in a note\n").unwrap();
         let r = crate::search::search(d.path(), &crate::config::Config::default(), "hubbard");
         let paths: Vec<(&str, u32)> = r.lines.iter().map(|h| (h.path.as_str(), h.line)).collect();

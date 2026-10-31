@@ -226,7 +226,12 @@ mod linux {
                 .call_method(Some(DEST), PATH, Some(DEST), "Notify", &("Atlas", replaces.unwrap_or(0), "atlas", n.title.as_str(), body.as_str(), actions, hints, -1i32))
                 .map_err(|e| e.to_string())?;
             let id: u32 = reply.body().deserialize().map_err(|e| e.to_string())?;
-            self.opens.lock().unwrap().insert(id, open.map(str::to_string));
+            let mut opens = self.opens.lock().unwrap();
+            opens.insert(id, open.map(str::to_string));
+            // the server numbers its notifications upwards: only the last few hundred can still be clicked
+            if opens.len() > 512 {
+                opens.retain(|&k, _| k <= id && k > id.saturating_sub(256)); // (a restarted server counts from 1 again)
+            }
             Ok(id)
         }
     }

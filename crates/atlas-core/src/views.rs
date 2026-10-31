@@ -167,6 +167,9 @@ fn section_range(lines: &[&str], at: usize) -> (usize, usize) {
         let n = l.chars().take_while(|&c| c == '#').count();
         (n > 0 && n <= 6 && l[n..].starts_with(' ')).then_some(n)
     };
+    if lines.is_empty() {
+        return (0, 0);
+    }
     let Some((start, lv)) = (0..=at.min(lines.len().saturating_sub(1))).rev().find_map(|i| level(lines[i]).map(|n| (i, n)))
     else {
         return (0, lines.len());

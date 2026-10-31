@@ -1040,17 +1040,61 @@ impl Default for ActivityConfig {
     }
 }
 
+/// The config files parsed last, per vault: (stamp, config, whether it sets `log_dir`).
+mod parsed {
+    use super::Config;
+    use crate::file_stamp::FileStamp;
+    use std::collections::HashMap;
+    use std::path::{Path, PathBuf};
+    use std::sync::{Mutex, MutexGuard};
+
+    type Kept = HashMap<PathBuf, (FileStamp, Config, bool)>;
+
+    fn kept() -> MutexGuard<'static, Kept> {
+        static KEPT: std::sync::LazyLock<Mutex<Kept>> = std::sync::LazyLock::new(Mutex::default);
+        // a poisoned lock only means a panic elsewhere; the table is still whole
+        KEPT.lock().unwrap_or_else(|e| e.into_inner())
+    }
+
+    pub(super) fn get(path: &Path, stamp: &FileStamp) -> Option<(Config, bool)> {
+        kept().get(path).filter(|(s, ..)| s == stamp).map(|(_, c, set)| (c.clone(), *set))
+    }
+
+    pub(super) fn put(path: &Path, stamp: FileStamp, c: &Config, set: bool) {
+        kept().insert(path.to_path_buf(), (stamp, c.clone(), set));
+    }
+
+    pub(super) fn forget(path: &Path) {
+        kept().remove(path);
+    }
+}
+
 impl Config {
-    /// Missing file → defaults. A malformed file is an error so the user sees it, not a silent reset.
+    /// Missing file → defaults. A malformed file is an error so the user sees it, not a silent reset. Nearly every
+    /// request asks for it: the parsed file is kept while its size, time and inode stay the same (any write changes
+    /// them; `save` forgets it outright).
     pub fn load(root: &Path) -> anyhow::Result<Self> {
         let path = root.join(CONFIG_FILE);
-        let (mut c, text) = match std::fs::read_to_string(&path) {
-            Ok(text) => (parse(&text).map_err(|e| anyhow::anyhow!("{}: {e}", path.display()))?.0, text),
-            Err(e) if e.kind() == std::io::ErrorKind::NotFound => (Self::default(), String::new()),
-            Err(e) => return Err(e.into()),
+        let stamp = match crate::file_stamp::seen(&path) {
+            crate::file_stamp::Seen::Stamped(s) => Some(s),
+            _ => None,
+        };
+        let (mut c, set) = match stamp.as_ref().and_then(|s| parsed::get(&path, s)) {
+            Some(hit) => hit,
+            None => {
+                let (c, text) = match std::fs::read_to_string(&path) {
+                    Ok(text) => (parse(&text).map_err(|e| anyhow::anyhow!("{}: {e}", path.display()))?.0, text),
+                    Err(e) if e.kind() == std::io::ErrorKind::NotFound => (Self::default(), String::new()),
+                    Err(e) => return Err(e.into()),
+                };
+                let set = text.lines().any(|l| l.trim_start().starts_with("log_dir"));
+                if let Some(s) = stamp {
+                    parsed::put(&path, s, &c, set);
+                }
+                (c, set)
+            }
         };
         // a vault from before the log moved under notes/ keeps writing where its logs are
-        let set = text.lines().any(|l| l.trim_start().starts_with("log_dir"));
         if !set && c.log_dir == DEFAULT_LOG_DIR && root.join("log").is_dir() && !root.join(DEFAULT_LOG_DIR).exists() {
             c.log_dir = "log".into();
         }
@@ -1070,6 +1114,7 @@ impl Config {
     /// layout. The result is re-parsed before it replaces the file, so a bad write never lands.
     pub fn save(root: &Path, new: &Config) -> anyhow::Result<()> {
         let path = root.join(CONFIG_FILE);
+        parsed::forget(&path);
         let text = match std::fs::read_to_string(&path) {
             Ok(t) => t,
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => String::new(),
@@ -1166,6 +1211,25 @@ fn edit_value(v: &toml::Value) -> toml_edit::Value {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_kept_config_is_read_again_when_the_file_changes() {
+        let d = tempfile::tempdir().unwrap();
+        let file = d.path().join(CONFIG_FILE);
+        std::fs::create_dir_all(file.parent().unwrap()).unwrap();
+        let ago = |s: u64| std::time::SystemTime::now() - std::time::Duration::from_secs(s);
+        let write = |text: &str, at| {
+            std::fs::write(&file, text).unwrap(); // in place: the same inode, and here the same size
+            std::fs::File::options().write(true).open(&file).unwrap().set_modified(at).unwrap();
+        };
+        write("log_dir = \"a\"\n", ago(60));
+        assert_eq!(Config::load(d.path()).unwrap().log_dir, "a");
+        assert_eq!(Config::load(d.path()).unwrap().log_dir, "a", "kept");
+        write("log_dir = \"b\"\n", ago(30));
+        assert_eq!(Config::load(d.path()).unwrap().log_dir, "b", "a new time is a new version");
+        write("log_dir = \"c\"\n", std::time::SystemTime::now());
+        assert_eq!(Config::load(d.path()).unwrap().log_dir, "c", "just written: never taken from what was kept");
+    }
 
     #[test]
     fn a_page_format_taken_out_reads_as_a4() {

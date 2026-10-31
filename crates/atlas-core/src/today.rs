@@ -63,6 +63,8 @@ pub fn tick_task_on(text: &str, line: u32, day: chrono::NaiveDate) -> Option<Str
 /// task recurs, then the ticked line (`✅ day` added when it uses the Tasks fields). None when the line
 /// is not an open task. Shared by Home's tick and the note editor's checkbox (`POST /api/task/line`).
 pub fn tick_line(l: &str, day: chrono::NaiveDate) -> Option<Vec<String>> {
+    // a CRLF note's line keeps its `\r`, on the next occurrence too
+    let (l, cr) = l.strip_suffix('\r').map_or((l, ""), |l| (l, "\r"));
     let i = l.find("[ ]").filter(|&i| {
         l[..i].trim_start().starts_with(['-', '*', '+'])
             || l[..i].trim_start().chars().next().is_some_and(|c| c.is_ascii_digit())
@@ -71,7 +73,7 @@ pub fn tick_line(l: &str, day: chrono::NaiveDate) -> Option<Vec<String>> {
     if crate::tasks::uses_fields(l) && !l.contains('✅') {
         ticked = format!("{} ✅ {}", ticked.trim_end(), day.format("%Y-%m-%d"));
     }
-    Some(crate::tasks::next_occurrence(l, day).into_iter().chain([ticked]).collect())
+    Some(crate::tasks::next_occurrence(l, day).into_iter().chain([ticked]).map(|x| format!("{x}{cr}")).collect())
 }
 
 /// A done task line opened again: `[x]` → `[ ]`, and its `✅ date` taken off, as the Tasks plugin
@@ -147,7 +149,7 @@ fn tasks_in(abs: &Path, meta: &std::fs::Metadata) -> std::sync::Arc<Vec<(u32, St
         let mut in_fence = false;
         for (i, line) in text.lines().enumerate() {
             // Checkboxes inside code fences are examples, not tasks.
-            if line.trim_start().starts_with("```") {
+            if line.trim_start().starts_with("```") || line.trim_start().starts_with("~~~") {
                 in_fence = !in_fence;
                 continue;
             }
@@ -532,6 +534,11 @@ mod tests {
         assert_eq!(
             tick_task_on("# Chores\n- [ ] water 🔁 every week 📅 2026-10-12\nend\n", 2, day).as_deref(),
             Some("# Chores\n- [ ] water 🔁 every week 📅 2026-10-19\n- [x] water 🔁 every week 📅 2026-10-12 ✅ 2026-10-14\nend\n")
+        );
+        assert_eq!(
+            tick_task_on("- [ ] water 🔁 every week 📅 2026-10-12\r\nend\r\n", 1, day).as_deref(),
+            Some("- [ ] water 🔁 every week 📅 2026-10-19\r\n- [x] water 🔁 every week 📅 2026-10-12 ✅ 2026-10-14\r\nend\r\n"),
+            "a CRLF note keeps CRLF"
         );
     }
 

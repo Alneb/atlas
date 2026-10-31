@@ -330,7 +330,7 @@ fn append_to_log(root: &Path, cfg: &Config, text: &str, now: NaiveDateTime) -> R
         // made only if still missing (the Today page may make it meanwhile): then the entry goes into that one
         if vault_write::create(&path, format!("{text}{entry}").as_bytes())? == vault_write::Created::Taken {
             drop(_one);
-            return append_to_log(root, cfg, &original, now);
+            return append_to_log(root, cfg, original, now);
         }
         return Ok(CaptureResult { path: rel, line: lines_before as u32 + 1, source: Some(first_line(&entry)) });
     }

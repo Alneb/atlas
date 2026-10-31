@@ -97,11 +97,36 @@ impl Store {
 
     /// The names a plugin has stored (never the values).
     pub fn names(&self, plugin: &str) -> Result<Vec<String>> {
-        let mut names: std::collections::BTreeSet<String> = self.read()?.get(plugin).map(|p| p.keys().cloned().collect()).unwrap_or_default();
+        Ok(self.names_in(plugin, &self.read()?.remove(plugin).unwrap_or_default()))
+    }
+
+    /// The names in `own` (the file's, for `plugin`) and the host's mounted ones, sorted, once each.
+    fn names_in(&self, plugin: &str, own: &BTreeMap<String, String>) -> Vec<String> {
+        let mut names: std::collections::BTreeSet<String> = own.keys().cloned().collect();
         if let Some(dir) = self.mounted.as_ref().map(|d| d.join(plugin)) {
             names.extend(std::fs::read_dir(dir).into_iter().flatten().flatten().filter_map(|e| e.file_name().into_string().ok()).filter(|n| self.mounted_file(plugin, n).is_some()));
         }
-        Ok(names.into_iter().collect())
+        names.into_iter().collect()
+    }
+
+    /// `plugin`'s secrets by name, every one (`only` None) or those of `only` it has, with one read of the file.
+    pub fn values(&self, plugin: &str, only: Option<&[String]>) -> Result<BTreeMap<String, String>> {
+        let mut own = self.read()?.remove(plugin).unwrap_or_default();
+        let names: Vec<String> = match only {
+            Some(names) => names.to_vec(),
+            None => self.names_in(plugin, &own),
+        };
+        let mut out = BTreeMap::new();
+        for name in names {
+            let v = match self.mounted_file(plugin, &name) {
+                Some(f) => Some(std::fs::read_to_string(f)?.trim_end_matches(['\n', '\r']).to_string()),
+                None => own.remove(&name),
+            };
+            if let Some(v) = v {
+                out.insert(name, v);
+            }
+        }
+        Ok(out)
     }
 
     pub fn set(&self, plugin: &str, name: &str, value: &str) -> Result<()> {
@@ -174,5 +199,9 @@ mod tests {
         assert!(s.set("finance", "bank_key", "v").is_err() && s.delete("finance", "bank_key").is_err(), "the host's file is read-only");
         assert_eq!(s.get("..", "hidden").unwrap(), None, "no way out of the mounted folder");
         assert_eq!(s.get("finance", "other").unwrap().as_deref(), Some("v"));
+        let all = s.values("finance", None).unwrap();
+        assert_eq!((all["bank_key"].as_str(), all["other"].as_str()), ("first line\nabc\nlast line", "v"), "every value, the host's too");
+        let some = s.values("finance", Some(&["other".into(), "missing".into()])).unwrap();
+        assert_eq!(some.into_iter().collect::<Vec<_>>(), [("other".to_string(), "v".to_string())], "only those asked that exist");
     }
 }
