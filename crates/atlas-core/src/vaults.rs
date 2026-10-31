@@ -102,16 +102,27 @@ pub fn list(file: &Path) -> Vec<Vault> {
     v
 }
 
+/// The list read, changed by `f` and written, under the list's lock: every window of this machine keeps it, and a
+/// focus noting its vault dropped a mirror set or a vault forgotten in another meanwhile.
+fn change(file: &Path, f: impl FnOnce(&mut Vec<Vault>) -> Result<()>) -> Result<()> {
+    crate::vault_write::outside::locked(file, || {
+        let mut v = read(file);
+        f(&mut v)?;
+        write(file, v)
+    })
+}
+
 /// Records that `root` was opened now (adds it, or moves it to the top).
 pub fn remember(file: &Path, root: &Path, now_ms: i64) -> Result<()> {
     let root = crate::paths::real(root).map_err(|e| Error::BadPath(format!("{}: {e}", root.display())))?;
     let path = root.to_string_lossy().into_owned();
     let name = root.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_else(|| path.clone());
-    let mut v = read(file);
-    let mirror = v.iter().find(|x| x.path == path).and_then(|x| x.mirror.clone()); // a reopen keeps its mirror
-    v.retain(|x| x.path != path);
-    v.insert(0, Vault { name, path, last_opened: now_ms, missing: false, url: None, mirror, warm: false });
-    write(file, v)
+    change(file, |v| {
+        let mirror = v.iter().find(|x| x.path == path).and_then(|x| x.mirror.clone()); // a reopen keeps its mirror
+        v.retain(|x| x.path != path);
+        v.insert(0, Vault { name, path, last_opened: now_ms, missing: false, url: None, mirror, warm: false });
+        Ok(())
+    })
 }
 
 /// Links the local vault `path` to its copy on a server (`mirror`: a server vault's address), or unlinks it (None).
@@ -120,12 +131,13 @@ pub fn set_mirror(file: &Path, path: &str, mirror: Option<&str>) -> Result<()> {
         Some(m) => Some(server_address(m).ok_or_else(|| Error::BadRequest(format!("{m}: a mirror is a server vault's address (https://…)")))?),
         None => None,
     };
-    let mut v = read(file);
-    let Some(entry) = v.iter_mut().find(|x| x.path == path && x.url.is_none()) else {
-        return Err(Error::NotFound(format!("{path}: not a folder on the vault list")));
-    };
-    entry.mirror = mirror;
-    write(file, v)
+    change(file, |v| {
+        let Some(entry) = v.iter_mut().find(|x| x.path == path && x.url.is_none()) else {
+            return Err(Error::NotFound(format!("{path}: not a folder on the vault list")));
+        };
+        entry.mirror = mirror;
+        Ok(())
+    })
 }
 
 /// What a window started without knowing its vault shows: the folder asked for, else the vault
@@ -166,17 +178,19 @@ pub fn remember_server(file: &Path, url: &str, now_ms: i64) -> Result<()> {
     let vault = u.path().strip_prefix("/v/").map(|p| p.trim_end_matches('/')).filter(|p| !p.is_empty());
     let host = u.host_str().unwrap_or(url);
     let name = vault.map_or_else(|| host.to_string(), |v| format!("{host} · {v}"));
-    let mut v = read(file);
-    v.retain(|x| x.path != url);
-    v.insert(0, Vault { name, path: url.to_string(), last_opened: now_ms, missing: false, url: Some(url.to_string()), mirror: None, warm: false });
-    write(file, v)
+    change(file, |v| {
+        v.retain(|x| x.path != url);
+        v.insert(0, Vault { name, path: url.to_string(), last_opened: now_ms, missing: false, url: Some(url.to_string()), mirror: None, warm: false });
+        Ok(())
+    })
 }
 
 /// Drops a vault from the list. Its folder is not touched.
 pub fn forget(file: &Path, path: &str) -> Result<()> {
-    let mut v = read(file);
-    v.retain(|x| x.path != path);
-    write(file, v)
+    change(file, |v| {
+        v.retain(|x| x.path != path);
+        Ok(())
+    })
 }
 
 /// The folder a typed path names (`~` expanded); with `create`, made if it does not exist.

@@ -201,9 +201,13 @@ fn download(url: &str, to: &Path) -> Result<()> {
         .timeout(std::time::Duration::from_secs(300))
         .build()
         .map_err(|e| Error::CommandFailed(format!("download: {e}")))?;
-    let res = client.get(url).send().and_then(|r| r.error_for_status()).map_err(|e| Error::CommandFailed(format!("download {url}: {e}")))?;
-    let bytes = res.bytes().map_err(|e| Error::CommandFailed(format!("download {url}: {e}")))?;
-    vault_write::cache::write(to, &bytes)?;
+    // the address without its query in what is said: a release's address may carry a token there
+    let shown = url.split(['?', '#']).next().unwrap_or(url);
+    let failed = |e: reqwest::Error| Error::CommandFailed(format!("download {shown}: {}", e.without_url()));
+    let mut res = client.get(url).send().and_then(|r| r.error_for_status()).map_err(failed)?;
+    // streamed to the file, not held whole in memory
+    let mut file = vault_write::cache::file(to)?;
+    res.copy_to(&mut file).map_err(failed)?;
     Ok(())
 }
 
@@ -303,7 +307,8 @@ pub fn set_off(root: &Path, id: &str, off: bool) -> Result<()> {
 
 /// Installs (or, with `replace`, updates) a plugin. An update keeps the vault's own `[settings]`.
 pub fn install(root: &Path, source: &Source, id: Option<&str>, replace: bool) -> Result<Installed> {
-    let work = root.join(format!(".atlas/cache/plugin-install-{}-{}", std::process::id(), stamp()));
+    // two installs at once (Update clicked on two plugins) each get their own folder
+    let work = vault_write::cache::unique(&root.join(format!(".atlas/cache/plugin-install-{}", stamp())));
     let _ = vault_write::cache::remove_dir_all(&work);
     let result = (|| -> Result<Installed> {
         let commit = fetch(source, &work)?;
@@ -325,9 +330,17 @@ pub fn install(root: &Path, source: &Source, id: Option<&str>, replace: bool) ->
             plugins::move_settings_out(root, &id)?;
             replaced = Some(to_trash(root, &id)?);
         }
+        // the files the release brought: an update carries over only the others (the plugin's own), so a file a later
+        // release drops does not come back
+        let shipped: Vec<toml::Value> = walkdir::WalkDir::new(&from)
+            .into_iter()
+            .flatten()
+            .filter(|e| e.file_type().is_file())
+            .filter_map(|e| e.path().strip_prefix(&from).ok().map(|r| toml::Value::String(r.to_string_lossy().replace('\\', "/"))))
+            .collect();
         vault_write::cache::write(
             &from.join(SOURCE_FILE),
-            format!("# Where this plugin was installed from (`atlas plugin update {id}` goes back there).\nkind = {:?}\nfrom = {:?}\ninstalled = {:?}\n{}", source.kind(), source.recorded(), chrono::Local::now().format("%Y-%m-%d").to_string(), commit.map(|c| format!("commit = {c:?}\n")).unwrap_or_default()).as_bytes(),
+            format!("# Where this plugin was installed from (`atlas plugin update {id}` goes back there).\nkind = {:?}\nfrom = {:?}\ninstalled = {:?}\n{}shipped = {}\n", source.kind(), source.recorded(), chrono::Local::now().format("%Y-%m-%d").to_string(), commit.map(|c| format!("commit = {c:?}\n")).unwrap_or_default(), toml::Value::Array(shipped)).as_bytes(),
         )?;
         // a new plugin starts off — and the setting is written BEFORE its folder appears: an Atlas that
         // sees the folder first would start it for a moment (it did, in the tests)
@@ -391,7 +404,7 @@ pub fn available(root: &Path, index: &str) -> Result<Vec<Available>> {
     if index.trim().is_empty() {
         return Ok(Vec::new());
     }
-    let work = root.join(format!(".atlas/cache/plugin-index-{}-{}.json", std::process::id(), stamp()));
+    let work = vault_write::cache::unique(&root.join(format!(".atlas/cache/plugin-index-{}", stamp()))).with_extension("json");
     let got = download(index, &work).and_then(|_| Ok(std::fs::read_to_string(&work)?));
     let _ = vault_write::cache::remove_file(&work);
     let entries: Vec<IndexEntry> = serde_json::from_str(&got?).map_err(|e| Error::BadRequest(format!("{index}: not a plugin index: {e}")))?;
@@ -424,12 +437,17 @@ pub fn update(root: &Path, id: &str) -> Result<Installed> {
         .map_err(|_| Error::BadRequest(format!("plugin {id} was not installed from anywhere (no {SOURCE_FILE} in its folder): nothing to update from")))?;
     let t: toml::Table = toml::from_str(&text).map_err(|e| Error::BadRequest(format!("{SOURCE_FILE}: {e}")))?;
     let from = t.get("from").and_then(|v| v.as_str()).ok_or_else(|| Error::BadRequest(format!("{SOURCE_FILE}: no `from`")))?;
-    // files the plugin made in its folder (an accounts list) are not in the source: they survive the update
+    // files the plugin made in its folder (an accounts list) are not in the source: they survive the update. The ones
+    // the last release brought (`shipped`; an install from before it was kept: none known) do not.
+    let shipped: std::collections::HashSet<String> =
+        t.get("shipped").and_then(|v| v.as_array()).into_iter().flatten().filter_map(|v| v.as_str().map(str::to_string)).collect();
     let dir = root.join(PLUGINS_DIR).join(id);
     let mut own = vec![];
     for e in walkdir::WalkDir::new(&dir).into_iter().flatten().filter(|e| e.file_type().is_file()) {
         if let Ok(rel) = e.path().strip_prefix(&dir) {
-            own.push((rel.to_path_buf(), std::fs::read(e.path())?));
+            if !shipped.contains(&rel.to_string_lossy().replace('\\', "/")) {
+                own.push((rel.to_path_buf(), std::fs::read(e.path())?));
+            }
         }
     }
     let done = install(root, &Source::parse(from), Some(id), true)?;
@@ -487,6 +505,7 @@ mod tests {
         let (vault, elsewhere) = (tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap());
         let root = vault.path();
         let src = source(elsewhere.path(), "0.1.0");
+        std::fs::write(src.join("old.js"), "// dropped by 0.2.0").unwrap();
         let got = install(root, &Source::Folder(src.clone()), None, false).unwrap();
         assert_eq!((got.id.as_str(), got.title.as_str(), got.version.as_deref(), got.on, &got.replaced), ("dice-plugin", "Dice", Some("0.1.0"), false, &None));
         assert_eq!(got.permissions.net, ["dice.example.org"]);
@@ -508,7 +527,10 @@ mod tests {
         std::fs::write(dir.join("plugin.toml"), std::fs::read_to_string(dir.join("plugin.toml")).unwrap().replace("sides = 6", "sides = 20")).unwrap();
         set_off(root, "dice-plugin", false).unwrap();
         source(elsewhere.path(), "0.2.0");
+        std::fs::remove_file(src.join("old.js")).unwrap();
+        std::fs::write(dir.join("accounts.json"), "[]").unwrap(); // made by the plugin itself
         let up = update(root, "dice-plugin").unwrap();
+        assert!(dir.join("accounts.json").is_file() && !dir.join("old.js").exists(), "the plugin's own file kept, the dropped one not brought back");
         assert_eq!((up.version.as_deref(), up.on), (Some("0.2.0"), true), "the new code, still switched on");
         let text = std::fs::read_to_string(dir.join("plugin.toml")).unwrap();
         assert!(text.contains("version = \"0.2.0\""), "the new manifest: {text}");

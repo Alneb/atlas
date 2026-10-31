@@ -225,7 +225,7 @@ fn parse_set_cookie(line: &str, host: &str) -> Option<Cookie> {
         }
     }
     if let Some(m) = max_age {
-        c.expires = Some((now() as i64 + m).max(0) as u64);
+        c.expires = Some((now() as i64).saturating_add(m).max(0) as u64); // a huge Max-Age is "for good", not an overflow
     }
     Some(c)
 }

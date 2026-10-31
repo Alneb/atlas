@@ -549,14 +549,15 @@ pub fn change(root: &std::path::Path, cfg: &crate::config::Config, pdf: &str, op
     let (at, file) = holder(pdf);
     let note = note_of(root, cfg, &at, true, now)?;
     let abs = crate::paths::safe_join(root, &note.path)?;
-    let text = std::fs::read_to_string(&abs)?;
-    let mut block = read_for(&text, file.as_deref());
-    apply(&mut block, ops);
-    let next = write_for(&text, file.as_deref(), &block);
-    if next != text {
-        crate::vault_write::write(&abs, next.as_bytes())?;
-    }
-    let marks = block.live().into_iter().cloned().collect();
+    // under the note's lock: two quick marks (or two chapters of one series note) each wrote back the note without
+    // the other's
+    let mut marks = Vec::new();
+    crate::vault_write::modify(&abs, |text| {
+        let mut block = read_for(text, file.as_deref());
+        apply(&mut block, ops);
+        marks = block.live().into_iter().cloned().collect();
+        Ok(write_for(text, file.as_deref(), &block))
+    })?;
     Ok((Marks { note: Some(note.path), marks }, note.created))
 }
 

@@ -16,6 +16,13 @@ pub fn agents_file() -> PathBuf {
     std::env::var_os("ATLAS_AGENTS_FILE").map(PathBuf::from).unwrap_or_else(|| crate::auth::state_file().with_file_name("agents.json"))
 }
 
+/// Changes of the agents file one at a time in this process, each reading the file under it: `who` noting a use wrote
+/// back the list it read before a revoke, and the revoked token was let in again.
+fn changing() -> std::sync::MutexGuard<'static, ()> {
+    static ONE: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    ONE.lock().unwrap_or_else(|e| e.into_inner())
+}
+
 /// The agents of one file. Each call reads it afresh (a few hundred bytes), so there is no copy to go stale.
 pub struct Agents {
     file: PathBuf,
@@ -45,6 +52,7 @@ impl Agents {
         if name.is_empty() {
             anyhow::bail!("an agent needs a name (the agent and machine it is for)");
         }
+        let _one = changing();
         let mut all = self.list();
         if all.iter().any(|t| t.name == name) {
             anyhow::bail!("an agent named “{name}” exists: revoke it first, or pick another name");
@@ -56,6 +64,7 @@ impl Agents {
     }
 
     pub fn revoke(&self, name: &str) -> anyhow::Result<bool> {
+        let _one = changing();
         let mut all = self.list();
         let before = all.len();
         all.retain(|t| t.name != name);
@@ -74,12 +83,17 @@ impl Agents {
         if hashes.is_empty() {
             return None;
         }
-        let mut all = self.list();
-        let i = all.iter().position(|t| hashes.iter().any(|h| crate::local_lock::same(h, &t.hash)))?;
+        let known = |all: &[Token]| all.iter().position(|t| hashes.iter().any(|h| crate::local_lock::same(h, &t.hash)));
+        let all = self.list();
+        let i = known(&all)?;
         let now = SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |d| d.as_secs());
         if all[i].last_used.is_none_or(|t| now.saturating_sub(t) >= LAST_USED_STEP) {
-            all[i].last_used = Some(now);
-            let _ = self.save(&all); // the agent is let in even if the note of it cannot be kept
+            // read again under the lock: only a token still there gets its use noted
+            let _one = changing();
+            let mut now_all = self.list();
+            let Some(j) = known(&now_all) else { return None };
+            now_all[j].last_used = Some(now);
+            let _ = self.save(&now_all); // the agent is let in even if the note of it cannot be kept
         }
         Some(all[i].name.clone())
     }

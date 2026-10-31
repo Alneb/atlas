@@ -146,10 +146,14 @@ pub fn rename(ws: &crate::workspace::Workspace, from: &str, to: &str) -> crate::
     let mut written = Vec::new();
     for path in notes(ws.root(), &cfg, from) {
         let abs = ws.resolve(&path)?;
-        let Ok(text) = std::fs::read_to_string(&abs) else { continue };
-        let (next, n) = rename_in(&text, from, to);
+        let mut n = 0;
+        // read and written under the file's lock (vault_write::modify): a tick meanwhile is not lost
+        crate::vault_write::modify(&abs, |text| {
+            let (next, renamed) = rename_in(text, from, to);
+            n = renamed;
+            Ok(next)
+        })?;
         if n > 0 {
-            crate::vault_write::write(&abs, next.as_bytes())?;
             count += n;
             written.push(path);
         }

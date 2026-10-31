@@ -104,21 +104,37 @@ fn classify(author: &str, body: &str, files: &[String], marks: &[(String, Vec<St
     (by, agent, kind)
 }
 
-/// Who added `rel` (its first commit) and when; None when untracked or not a repo.
-pub fn file_origin(root: &Path, rel: &str) -> Option<CommandOrigin> {
+/// Who added each file under folder `dir` (its first commit) and when, by path; a file untracked, or no repo, is not in
+/// it. One log for the folder: the command list asked one full-history log per script.
+pub fn file_origins(root: &Path, dir: &str) -> HashMap<String, CommandOrigin> {
+    let marks = agent_marks(root);
+    let mut out = HashMap::new();
+    let mut found = |path: String, author: &str, body: &str, time: i64| {
+        // newest first: an older commit adding the same path (it was removed and added again) is its first
+        let (by, agent, _) = classify(author, body, &[], &marks);
+        out.insert(path, CommandOrigin { by, agent, time: Mtime(time.max(0) as u64 * 1000) });
+    };
     if !has_git() {
-        let all = crate::git_read::commits(root, None, None, 0, usize::MAX, true).ok()?;
-        let first = all.into_iter().rfind(|c| c.files.iter().any(|(p, ch)| p == rel && *ch == Change::Added))?;
-        let (by, agent, _) = classify(&first.author, &first.body, &[], &agent_marks(root));
-        return Some(CommandOrigin { by, agent, time: Mtime(first.time.max(0) as u64 * 1000) });
+        let prefix = format!("{}/", dir.trim_end_matches('/'));
+        for c in crate::git_read::commits(root, None, None, 0, usize::MAX, true).unwrap_or_default() {
+            for (p, ch) in &c.files {
+                if *ch == Change::Added && p.starts_with(&prefix) {
+                    found(p.clone(), &c.author, &c.body, c.time);
+                }
+            }
+        }
+        return out;
     }
-    let out = git(root, &["log", "--diff-filter=A", "--format=%x1e%an%x1f%ct%x1f%b", "--", rel]).ok()?;
-    let text = String::from_utf8_lossy(&out.stdout);
-    let first = text.split('\x1e').rfind(|r| !r.trim().is_empty())?;
-    let mut f = first.split('\x1f');
-    let (author, ts, body) = (f.next()?, f.next()?, f.next().unwrap_or(""));
-    let (by, agent, _) = classify(author, body, &[], &agent_marks(root));
-    Some(CommandOrigin { by, agent, time: Mtime(ts.trim().parse::<u64>().ok()? * 1000) })
+    let Ok(log) = git(root, &["log", "--diff-filter=A", "--name-only", "--relative", "--format=%x1e%an%x1f%ct%x1f%b%x1f", "--", dir]) else { return out };
+    for rec in String::from_utf8_lossy(&log.stdout).split('\x1e').filter(|r| !r.trim().is_empty()) {
+        let mut f = rec.splitn(4, '\x1f');
+        let (Some(author), Some(ts), Some(body), files) = (f.next(), f.next(), f.next(), f.next().unwrap_or("")) else { continue };
+        let Ok(time) = ts.trim().parse::<i64>() else { continue };
+        for p in files.lines().map(str::trim).filter(|p| !p.is_empty()) {
+            found(p.to_string(), author, body, time);
+        }
+    }
+    out
 }
 
 const LOG_FORMAT: &str = "--format=%x1e%h%x1f%s%x1f%ct%x1f%an%x1f%b%x1f";
@@ -475,7 +491,9 @@ pub fn discard(ws: &Workspace, rels: &[String]) -> Result<String> {
         let st = status(root)?;
         rels.iter().filter(|r| st.entries.iter().any(|e| &e.path == *r && e.unstaged == Some(Change::Untracked))).collect()
     };
-    let stamp = chrono::Local::now().format("%Y%m%d-%H%M%S").to_string();
+    // to the nanosecond: a second discard in the same second (a double click) copied the restored file over the
+    // first one's backup of the user's text
+    let stamp = chrono::Local::now().format("%Y%m%d-%H%M%S-%f").to_string();
     let keep = format!("{}/discarded/{stamp}", ws.rel(&ws.cache_dir()));
     for rel in rels {
         let src = ws.resolve(rel)?;

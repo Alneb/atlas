@@ -183,11 +183,12 @@ pub fn scripts(root: &Path) -> Vec<ScriptCommand> {
 pub fn list(root: &Path) -> Vec<CommandInfo> {
     let builtins = BuiltinId::ALL.into_iter().map(BuiltinId::info);
     let runs = crate::schedule::records(&root.join(".atlas/cache"));
+    let mut origins = crate::git::file_origins(root, COMMANDS_DIR);
     let scripts = scripts(root).into_iter().map(|s| {
         let file = format!("{COMMANDS_DIR}/{}.toml", s.id);
         let last_run = s.manifest.schedule.as_ref().and_then(|_| runs.get(&s.id).cloned());
         CommandInfo {
-            origin: crate::git::file_origin(root, &file),
+            origin: origins.remove(&file),
             file: Some(file),
             id: s.id,
             title: s.manifest.title,
@@ -307,11 +308,19 @@ pub async fn run_script_with(root: &Path, script: &ScriptCommand, env: &[(String
     crate::platform::proc::own_group(&mut cmd);
     let mut child = cmd.spawn().map_err(|e| Error::CommandFailed(format!("{}: {e}", script.id)))?;
     let pid = child.id();
-    if let Some(mut stdin) = child.stdin.take() {
-        // A script that ignores stdin may close it early; that is not a failure.
-        let _ = stdin.write_all(args.to_string().as_bytes()).await;
+    // fed by a task of its own, inside the timeout: a script that never reads stdin would block a write of more than a
+    // pipe holds (~64 KB of arguments) forever. A script that closes it early is not a failure.
+    let feed = child.stdin.take().map(|mut stdin| {
+        let bytes = args.to_string();
+        tokio::spawn(async move {
+            let _ = stdin.write_all(bytes.as_bytes()).await;
+        })
+    });
+    let out = tokio::time::timeout(timeout, child.wait_with_output()).await;
+    if let Some(f) = feed {
+        f.abort();
     }
-    let out = match tokio::time::timeout(timeout, child.wait_with_output()).await {
+    let out = match out {
         Ok(out) => out?,
         Err(_) => {
             if let Some(pid) = pid {
@@ -414,6 +423,27 @@ mod tests {
 
         let err = run(&ws, &bus, Command::resolve(ws.root(), "fail", json!({})).unwrap()).await.unwrap_err();
         assert!(err.to_string().contains("oops"), "{err}");
+    }
+
+    /// Large arguments to a script that writes a lot before it reads them: neither side waits on the other.
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn big_arguments_and_big_output_do_not_deadlock() {
+        let tmp = tempfile::tempdir().unwrap();
+        let s = ScriptCommand {
+            id: "loud".into(),
+            manifest: ScriptManifest {
+                title: "l".into(),
+                run: "head -c 300000 /dev/zero | tr '\\000' a; cat > /dev/null".into(),
+                keys: None,
+                description: None,
+                timeout_secs: None,
+                schedule: None,
+            },
+        };
+        let args = json!({ "text": "x".repeat(300_000) });
+        let v = run_script(tmp.path(), &s, &args, Duration::from_secs(20)).await.unwrap();
+        assert_eq!(v.as_str().map(str::len), Some(300_000));
     }
 
     #[tokio::test]

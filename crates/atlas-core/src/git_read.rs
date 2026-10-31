@@ -110,8 +110,13 @@ pub fn commits(root: &Path, since: Option<i64>, until: Option<i64>, skip: usize,
     let Some(repo) = open(root) else { return Ok(vec![]) };
     let Ok(head) = repo.head_id() else { return Ok(vec![]) }; // no commit yet
     let walk = repo.rev_walk([head]).sorting(gix::revision::walk::Sorting::ByCommitTime(Default::default())).all().map_err(fail)?;
+    // only the page asked for is read (its files diffed): a page of the log read the whole history before
     let mut out = vec![];
+    let mut seen = 0usize;
     for info in walk {
+        if out.len() >= limit {
+            break;
+        }
         let info = info.map_err(fail)?;
         let c = info.object().map_err(fail)?;
         let t = c.time().map_err(fail)?.seconds;
@@ -121,9 +126,12 @@ pub fn commits(root: &Path, since: Option<i64>, until: Option<i64>, skip: usize,
         if since.is_some_and(|s| t < s) {
             break; // newest first: the rest are older
         }
-        out.push(read_commit(&repo, &c, with_files)?);
+        seen += 1;
+        if seen > skip {
+            out.push(read_commit(&repo, &c, with_files)?);
+        }
     }
-    Ok(out.into_iter().skip(skip).take(limit).collect())
+    Ok(out)
 }
 
 /// The paths of the index (what git tracks).

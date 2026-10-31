@@ -396,11 +396,29 @@ pub fn ready(root: &Path, secrets: &Store, id: &str, name: &str, resource: &str)
             }
         }
     }
-    Ok(silent(root, secrets, id, name, resource, &vault).unwrap_or_else(|e| {
+    // a silent sign-in that did not work is not tried again for a while: each try is a discovery and a request to the
+    // provider, and a polling plugin would make them on every fetch
+    static TRIED: std::sync::LazyLock<std::sync::Mutex<HashMap<(std::path::PathBuf, String, String), std::time::Instant>>> =
+        std::sync::LazyLock::new(Default::default);
+    let key = (root.to_path_buf(), id.to_string(), name.to_string());
+    let recent = |at: &std::time::Instant| at.elapsed() < SILENT_AGAIN;
+    if TRIED.lock().unwrap_or_else(|e| e.into_inner()).get(&key).is_some_and(recent) {
+        return Ok(false);
+    }
+    let ok = silent(root, secrets, id, name, resource, &vault).unwrap_or_else(|e| {
         eprintln!("atlas: a silent sign-in for {id} ({name}): {e}");
         false
-    }))
+    });
+    let mut tried = TRIED.lock().unwrap_or_else(|e| e.into_inner());
+    tried.retain(|_, at| recent(at));
+    if !ok {
+        tried.insert(key, std::time::Instant::now());
+    }
+    Ok(ok)
 }
+
+/// How long a failed silent sign-in is not tried again.
+const SILENT_AGAIN: std::time::Duration = std::time::Duration::from_secs(5 * 60);
 
 /// The authorization request with `prompt=none` and the kept gate cookie for the provider's host: a provider that
 /// knows the session (Authelia's portal shares its cookie with its OpenID side) answers the redirect with a code at

@@ -42,7 +42,8 @@ pub fn record_at(ws: &Workspace, event: UsageEvent, t: i64) -> Result<()> {
     if std::fs::metadata(&path).is_ok_and(|m| m.len() > CAP_BYTES) {
         let text = std::fs::read_to_string(&path).unwrap_or_default();
         let keep = text.len() / 2;
-        let cut = text[keep..].find('\n').map_or(text.len(), |i| keep + i + 1);
+        // by bytes: the middle may fall inside a character (`Réunion.md`), and a `str` slice there panics on every record
+        let cut = text.as_bytes()[keep..].iter().position(|&b| b == b'\n').map_or(text.len(), |i| keep + i + 1);
         cache::write(&path, &text.as_bytes()[cut..])?;
     }
     let line = serde_json::to_string(&Entry { t, event }).map_err(anyhow::Error::from)?;
@@ -55,18 +56,30 @@ pub fn read(ws: &Workspace) -> Vec<Entry> {
 }
 
 fn read_at(root: &Path) -> Vec<Entry> {
-    std::fs::read_to_string(root.join(JOURNAL))
-        .unwrap_or_default()
-        .lines()
-        .filter_map(|l| serde_json::from_str(l).ok())
-        .collect()
+    read_last(root, u64::MAX)
+}
+
+/// The entries in the journal's last `bytes` (the line cut at the start dropped), oldest first.
+fn read_last(root: &Path, bytes: u64) -> Vec<Entry> {
+    use std::io::{Read, Seek, SeekFrom};
+    let Ok(mut f) = std::fs::File::open(root.join(JOURNAL)) else { return Vec::new() };
+    let len = f.metadata().map_or(0, |m| m.len());
+    let from = len.saturating_sub(bytes);
+    let mut raw = Vec::new();
+    if f.seek(SeekFrom::Start(from)).and_then(|_| f.read_to_end(&mut raw)).is_err() {
+        return Vec::new();
+    }
+    let text = String::from_utf8_lossy(&raw);
+    let text = if from > 0 { text.split_once('\n').map_or("", |(_, rest)| rest) } else { &text };
+    text.lines().filter_map(|l| serde_json::from_str(l).ok()).collect()
 }
 
 /// The user's files opened lately, newest first, once each, at most `limit`; gone files and the agent's own
 /// (`editor.index_exclude`) left out.
 pub fn opened(root: &Path, cfg: &Config, limit: usize) -> Vec<String> {
+    // the `[[` list asks on every key: only the journal's end (thousands of its newest entries), not all 2 MB of it
     let mut out: Vec<String> = Vec::new();
-    for e in read_at(root).into_iter().rev() {
+    for e in read_last(root, 256 * 1024).into_iter().rev() {
         if out.len() >= limit {
             break;
         }
@@ -131,6 +144,26 @@ mod recent_tests {
         assert_eq!(&r[..3], ["b.md", "a.md", "c.md"], "opened newest first, once each; then the rest by change: {r:?}");
         assert!(!r.contains(&"gone.md".to_string()));
         assert_eq!(recent(&ws, 1).unwrap(), ["b.md"]);
+    }
+
+    /// Over the cap the older half goes; the cut may fall inside a non-ASCII character.
+    #[test]
+    fn a_full_journal_is_halved_whatever_letters_it_holds() {
+        let t = tempfile::tempdir().unwrap();
+        let ws = Workspace::open(t.path()).unwrap();
+        let journal = t.path().join(JOURNAL);
+        std::fs::create_dir_all(journal.parent().unwrap()).unwrap();
+        // every byte offset of a line is tried as the middle by the varying lengths
+        let mut text = String::new();
+        let mut i = 0;
+        while text.len() as u64 <= CAP_BYTES {
+            text.push_str(&format!("{{\"t\":{i},\"kind\":\"open\",\"path\":\"Réunion é{}.md\"}}\n", "é".repeat(i % 7)));
+            i += 1;
+        }
+        std::fs::write(&journal, &text).unwrap();
+        record(&ws, UsageEvent::Open { path: "x.md".into() }).unwrap();
+        assert!(std::fs::metadata(&journal).unwrap().len() < CAP_BYTES);
+        assert!(std::fs::read_to_string(&journal).unwrap().lines().last().is_some_and(|l| l.contains("x.md")), "the new entry kept");
     }
 
     #[test]

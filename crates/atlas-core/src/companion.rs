@@ -105,8 +105,9 @@ pub fn thing_of(root: &Path, rel: &str) -> Option<String> {
         }
     }
     if name.ends_with(".md") {
-        let text = std::fs::read_to_string(root.join(rel)).ok()?;
-        let props: Mapping = split(&text).0.and_then(|f| serde_yaml::from_str(f).ok())?;
+        // the frontmatter only: this runs for every search hit and link suggestion, and a mail note can be long
+        let head = read_head(&root.join(rel), 16 * 1024)?;
+        let props: Mapping = split(&head).0.and_then(|f| serde_yaml::from_str(f).ok())?;
         if props.get("shown").and_then(Value::as_bool) == Some(false) {
             let link = ["drawing", "pdf", "book"].iter().find_map(|k| props.get(*k)?.as_str())?;
             let target = link.trim().strip_prefix("[[")?.strip_suffix("]]")?.split('|').next()?.trim();
@@ -114,6 +115,22 @@ pub fn thing_of(root: &Path, rel: &str) -> Option<String> {
         }
     }
     None
+}
+
+/// The first `max` bytes of a file as text (a character cut at the end dropped).
+fn read_head(abs: &Path, max: u64) -> Option<String> {
+    use std::io::Read;
+    let mut bytes = Vec::new();
+    std::fs::File::open(abs).ok()?.take(max).read_to_end(&mut bytes).ok()?;
+    Some(match String::from_utf8(bytes) {
+        Ok(s) => s,
+        Err(e) => {
+            let ok = e.utf8_error().valid_up_to();
+            let mut b = e.into_bytes();
+            b.truncate(ok);
+            String::from_utf8(b).ok()?
+        }
+    })
 }
 
 /// What stands for `rel` where each thing is listed once (Activity): a satellite's thing ([`thing_of`]); a file with a shown note (a book's, a manga series' entry

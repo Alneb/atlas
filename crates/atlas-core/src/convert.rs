@@ -73,7 +73,7 @@ fn cached(root: &Path, id: &str, rel: &str, ext: &str) -> Result<(PathBuf, Strin
 fn made(out: &Path, make: impl FnOnce(&Path) -> Result<(), String>) -> Result<(), String> {
     let dir = out.parent().expect("a cache file has a folder");
     crate::vault_write::cache::mkdir(dir).map_err(|e| e.to_string())?;
-    let part = out.with_extension("part");
+    let part = crate::vault_write::cache::unique(&out.with_extension("part"));
     let r = make(&part).and_then(|()| crate::vault_write::cache::rename(&part, out).map_err(|e| e.to_string()));
     if r.is_err() {
         let _ = crate::vault_write::cache::remove_file(&part);
@@ -90,7 +90,7 @@ pub fn comic_to_cbz(root: &Path, id: &str, rel: &str) -> Result<String, String> 
     }
     let src = root.join(rel);
     let kind = sniff(&src)?;
-    let tmp = Unpack::new(out.with_extension("unpack"))?;
+    let tmp = Unpack::new(crate::vault_write::cache::unique(&out.with_extension("unpack")))?;
     match kind {
         Archive::Zip => unzip_pictures(&src, tmp.path())?,
         Archive::Tar { gzip } => untar_pictures(&src, gzip, tmp.path())?,

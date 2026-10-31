@@ -422,6 +422,15 @@ pub mod cache {
         check(to);
         raw::rename(from, to)
     }
+    /// `base` with a suffix no other call of this process gets, nor another process (its pid): a work folder or part
+    /// file that two jobs started in the same second must not share (one would wipe the other's).
+    pub fn unique(base: &Path) -> std::path::PathBuf {
+        static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+        let n = NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        let mut name = base.file_name().map(|n| n.to_os_string()).unwrap_or_default();
+        name.push(format!("-{}-{n}", std::process::id()));
+        base.with_file_name(name)
+    }
     /// `abs` dated `modified`: an entry made from a vault file carries that file's time, so "made from this version"
     /// is an equality ([`made_from`]), not "newer than" (a synced file can arrive with a time older than the entry's).
     pub fn date(abs: &Path, modified: std::time::SystemTime) -> Result<()> {
@@ -469,6 +478,19 @@ pub mod cache {
 /// and work folders in the system temp dir. No guard: they are not a vault's content.
 pub mod outside {
     use super::*;
+
+    /// `f` run holding an exclusive lock on `<file>.lock` (made if missing), shared with every process of this machine:
+    /// a read-change-write of a file several Atlas windows keep (the vault list) never drops another's change.
+    pub fn locked<T>(file: &Path, f: impl FnOnce() -> Result<T>) -> Result<T> {
+        check(file);
+        let mut name = file.file_name().map(|n| n.to_os_string()).unwrap_or_default();
+        name.push(".lock");
+        let lock_path = file.with_file_name(name);
+        raw::mkdir_parent(&lock_path)?;
+        let lock = std::fs::OpenOptions::new().create(true).truncate(false).write(true).open(&lock_path)?;
+        lock.lock()?; // released when `lock` is dropped
+        f()
+    }
 
     fn check(abs: &Path) {
         debug_assert!(guard_of(abs).is_none(), "{} is inside a guarded vault: write it with vault_write::write", abs.display());
