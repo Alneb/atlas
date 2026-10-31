@@ -63,6 +63,11 @@ export function warm(path: string): Promise<string> {
   return blobUrl(path).then((u) => (ready.set(path, u), u));
 }
 
+/** Drop every cached file (the page may have missed changes). */
+export function invalidateAll(): void {
+  for (const path of new Set([...ready.keys(), ...[...cache.keys()].map((k) => k.split("\u0000")[0])])) invalidate(path);
+}
+
 /** Drop a cached file (it changed on disk). */
 export function invalidate(path: string): void {
   ready.delete(path);

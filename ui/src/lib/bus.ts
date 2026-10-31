@@ -8,6 +8,10 @@ const handlers: Handlers = { fs: new Set(), gone: new Set(), open: new Set(), no
  *  a file a note, the tree, Today or git review shows — `fs` listeners skip it. */
 export const isBookkeeping = (path: string): boolean => /^\.atlas\/(cache|trash)\//.test(path);
 
+/** Whether an `fs` event's paths include one `test` picks. No paths at all means "anything may have changed": the page
+ *  may have missed events (it reconnected, or fell behind the core's bus), so every listener looks again. */
+export const touches = (paths: readonly string[], test: (path: string) => boolean): boolean => !paths.length || paths.some(test);
+
 export function on<K extends ServerEvent["type"]>(type: K, fn: (e: Extract<ServerEvent, { type: K }>) => void): () => void {
   const set = handlers[type] as Set<typeof fn>;
   set.add(fn);

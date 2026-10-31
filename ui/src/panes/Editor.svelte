@@ -14,7 +14,7 @@
   import { onMount } from "svelte";
   import { api, ApiError } from "../lib/api";
   import { diff } from "../lib/frontmatter-edit";
-  import { on } from "../lib/bus";
+  import { on, touches } from "../lib/bus";
   import { app, toast } from "../lib/state.svelte";
   import { setDirty, closePanel, open } from "../lib/dock";
   import { editors, noteEditorActive, openIntent } from "../lib/registry";
@@ -340,7 +340,7 @@
     })();
 
     const offFs = on("fs", (e) => {
-      if (!e.paths.some((p) => p === path || p.endsWith(`/${path}`))) return;
+      if (!touches(e.paths, (p) => p === path || p.endsWith(`/${path}`))) return;
       if (inflight || !ed) return;
       // shared live: the others' edits arrive as edits, not as a reload of the file under the shared text
       if (live && live.others() > 0) { void api.file(path).then((f) => { mtime = f.mtime; saved = lf(f.text) === current() ? lf(f.text) : saved; markDirty(); }, () => {}); return; }

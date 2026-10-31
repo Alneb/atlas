@@ -3,7 +3,7 @@
 // Here: the marks read and changed through /api/pdf-marks, pen samples coded as the core codes them, each page's marks
 // drawn as SVG over the reader's page from their page-space places, and the mark under a point (the eraser).
 import { api } from "./api";
-import { on } from "./bus";
+import { on, touches } from "./bus";
 import { boxShown, toShown } from "./pdf-geom";
 import { markId } from "./atlas-mark";
 import type { Box } from "./pdf-engine";
@@ -195,7 +195,7 @@ export function attachPdfMarks(reader: Reader, pdf: string, changed: (marks: rea
   const offDrawn = reader.on("drawn", (n) => void place(n));
   // the note's own saves (another device, the note edited); before it exists, any note made beside the PDF
   const offFs = on("fs", (e) => {
-    if (state.note ? e.paths.includes(state.note) : e.paths.some((p) => p.endsWith(".md") && p.startsWith(dir))) void load();
+    if (touches(e.paths, (p) => (state.note ? p === state.note : p.endsWith(".md") && p.startsWith(dir)))) void load();
   });
   return {
     marks: () => state.marks,

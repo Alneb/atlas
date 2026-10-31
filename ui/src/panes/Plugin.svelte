@@ -10,7 +10,7 @@
   import { paneParks, pluginAnchors } from "../lib/registry";
   import { plugins, loadPlugins, loadView, pluginApi, pluginOn, type PluginPane } from "../lib/plugins.svelte";
   import { logPlugin } from "../lib/plugin-log.svelte";
-  import { on } from "../lib/bus";
+  import { on, touches } from "../lib/bus";
 
   let { spec, panel }: PaneProps<"plugin"> = $props();
   let host: HTMLDivElement;
@@ -87,7 +87,7 @@
     let t: ReturnType<typeof setTimeout> | undefined;
     const prefix = `.atlas/plugins/${spec.id}/`;
     const off = on("fs", (e) => {
-      if (!e.paths.some((p) => p.startsWith(prefix))) return;
+      if (!touches(e.paths, (p) => p.startsWith(prefix))) return;
       clearTimeout(t);
       t = setTimeout(() => void (e.paths.some((p) => p.endsWith("plugin.toml")) ? loadPlugins().then(mount) : mount()), 250);
     });

@@ -1458,7 +1458,11 @@ async fn forward_events(mut socket: WebSocket, mut rx: tokio::sync::broadcast::R
                     let text = serde_json::to_string(&ev).expect("events serialize");
                     if socket.send(Message::Text(text.into())).await.is_err() { break }
                 }
-                Err(RecvError::Lagged(_)) => continue, // slow client: drop old events, keep going
+                // the page fell behind and old events were dropped: an `fs` naming nothing makes it look at everything again
+                Err(RecvError::Lagged(_)) => {
+                    let text = serde_json::to_string(&Event::Fs { paths: Vec::new() }).expect("events serialize");
+                    if socket.send(Message::Text(text.into())).await.is_err() { break }
+                }
                 Err(RecvError::Closed) => break,
             },
             msg = socket.recv() => match msg {

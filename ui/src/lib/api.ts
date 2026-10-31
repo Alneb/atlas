@@ -409,10 +409,13 @@ export function connectEvents(onEvent: (e: ServerEvent) => void, onState: (s: Co
     window.addEventListener("blur", report);
   }
 
+  let opened = false;
   const open = () => {
     onState("connecting");
     ws = new WebSocket(wsUrl("/api/events"));
-    ws.onopen = () => { delay = 400; onState("open"); report(); };
+    // after the first time, whatever changed while the socket was down was never sent: an `fs` naming nothing makes
+    // every listener look again (bus.ts `touches`)
+    ws.onopen = () => { delay = 400; onState("open"); report(); if (opened) onEvent({ type: "fs", paths: [] }); opened = true; };
     ws.onmessage = (m) => {
       if (typeof m.data !== "string") return;
       try { onEvent(JSON.parse(m.data) as ServerEvent); }

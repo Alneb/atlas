@@ -10,7 +10,7 @@
   import { errText } from "../lib/text";
   import { shownPath } from "../lib/paths";
   import { superOf } from "../lib/keys";
-  import { on } from "../lib/bus";
+  import { on, touches } from "../lib/bus";
   import { open } from "../lib/dock";
   import type { PaneProps } from "../lib/dock";
   import { toast } from "../lib/state.svelte";
@@ -370,8 +370,8 @@
     // a change on disk that is not our own save: read again when nothing is unsaved here, else say so (a reload would
     // also lose the undo history)
     const off = on("fs", async (e) => {
-      if (notePath && e.paths.includes(notePath)) void loadViews(); // the views changed elsewhere
-      if (!e.paths.includes(spec.path) || saving || (await diskMtime(spec.path)) === mtime) return;
+      if (notePath && touches(e.paths, (p) => p === notePath)) void loadViews(); // the views changed elsewhere
+      if (!touches(e.paths, (p) => p === spec.path) || saving || (await diskMtime(spec.path)) === mtime) return;
       if (edit?.dirty) conflict = true; else void load();
     });
     return off;

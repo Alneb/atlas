@@ -13,7 +13,7 @@
   import { api, ApiError } from "../lib/api";
   import { keepRecovery, recoveryPath } from "../lib/recovery";
   import { settings } from "../lib/settings.svelte";
-  import { on } from "../lib/bus";
+  import { on, touches } from "../lib/bus";
   import { fullscreen, toggleFullscreen } from "../lib/fullscreen.svelte";
   import { mountDrawing, isPluginDrawing, sceneJson, writeSceneInto, type Drawing, type Notepad } from "../lib/draw-excalidraw";
   import NotepadBar from "../components/NotepadBar.svelte";
@@ -175,7 +175,7 @@
     mo.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
     // Changed on disk by someone else while we have no unsaved strokes → take the new version.
     const off = on("fs", (e) => {
-      if (!e.paths.includes(spec.path) || dirty || saving) return;
+      if (!touches(e.paths, (p) => p === spec.path) || dirty || saving) return;
       void api.file(spec.path).then((f) => {
         if (f.text === original) baseMtime = f.mtime; // our own save, seen by the watcher
         // another device's save: merged in where the view is, no reload (it flashed and recentred)

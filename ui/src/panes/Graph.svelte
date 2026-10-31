@@ -7,7 +7,7 @@
   import { errText } from "../lib/text";
   import { shownName, shownPath } from "../lib/paths";
   import { api } from "../lib/api";
-  import { on } from "../lib/bus";
+  import { on, touches } from "../lib/bus";
   import { getDock, openPath } from "../lib/dock";
   import { editors, lastEditorId } from "../lib/registry";
   import type { PaneProps } from "../lib/dock";
@@ -257,7 +257,7 @@
     const ro2 = new ResizeObserver(() => { if (stale && shown()) { stale = false; void load(); } });
     ro2.observe(wrap);
     const off = on("fs", (e) => {
-      if (!e.paths.some((p) => /\.md$/i.test(p))) return;
+      if (!touches(e.paths, (p) => /\.md$/i.test(p))) return;
       if (!shown()) { stale = true; return; }
       clearTimeout(t); t = setTimeout(load, 800);
     });

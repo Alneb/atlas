@@ -4,7 +4,7 @@
 // checked too: a folder renamed while Atlas was closed showed "GET /api/file: 404" in its tab. A tab
 // with unsaved text stays — closing would lose the text, saving would bring the file back unasked.
 import type { DockviewApi, IDockviewPanel } from "dockview-core";
-import { on } from "./bus";
+import { on, touches } from "./bus";
 import { app, toast } from "./state.svelte";
 import { api } from "./api";
 import { exists } from "./vault-files";
@@ -90,7 +90,7 @@ export function attachGoneFiles(d: DockviewApi): void {
   d.onDidLayoutFromJSON(() => void checkRestored());
   void checkRestored();
   on("fs", (e) => {
-    const hit = d.panels.map((p) => [p, fileOf(p)] as const).filter(([, f]) => f && e.paths.some((c) => within(f, c)));
+    const hit = d.panels.map((p) => [p, fileOf(p)] as const).filter(([, f]) => f && touches(e.paths, (c) => within(f, c)));
     // a moment later: a save that replaces the file is not a deletion
     if (hit.length) setTimeout(() => { for (const [p, f] of hit) void closeIfGone(p, f!); }, 350);
   });

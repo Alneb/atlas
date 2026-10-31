@@ -882,7 +882,8 @@ impl Notice {
 #[serde(tag = "type", rename_all = "lowercase")]
 #[ts(export)]
 pub enum Event {
-    /// Workspace-relative paths that changed on disk (debounced).
+    /// Workspace-relative paths that changed on disk (debounced). None at all: anything may have changed (the page
+    /// fell behind the bus and missed events), so every listener looks again.
     Fs {
         paths: Vec<String>,
     },

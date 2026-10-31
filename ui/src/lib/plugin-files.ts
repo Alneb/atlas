@@ -4,13 +4,13 @@
 // `../zip/zip.js` — and `<rev>` changes on every change under `.atlas/plugins/`: ES modules are kept by URL for the
 // page's life, so a reloaded plugin needs new URLs to get its new code.
 import { apiBase } from "./api";
-import { on } from "./bus";
+import { on, touches } from "./bus";
 
 const PLUGINS = ".atlas/plugins/";
 const INIT = ".atlas/init.js";
 let rev = 0;
 // at module load, before any pane or plugin start listens: they reload on the same event and must see the new rev
-on("fs", (e) => { if (e.paths.some((p) => p.startsWith(PLUGINS) || p === INIT)) rev++; });
+on("fs", (e) => { if (touches(e.paths, (p) => p.startsWith(PLUGINS) || p === INIT)) rev++; });
 
 const encodePath = (path: string) => path.split("/").map(encodeURIComponent).join("/");
 

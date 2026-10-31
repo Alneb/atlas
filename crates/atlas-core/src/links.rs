@@ -34,6 +34,8 @@ pub(crate) struct Parsed {
     pub ctime: Option<SystemTime>,
     /// Its tags (tags.rs): frontmatter and inline, lower case.
     pub tags: Vec<String>,
+    /// The words of its text, for [`unlinked`] to pass over a note that cannot name a file (empty above [`TEXT_BYTES`]).
+    words: crate::word_bloom::Words,
 }
 
 /// Notes larger than this give no unlinked mentions. The text itself is never kept: it was 39 of the index's 47 MB
@@ -384,33 +386,50 @@ pub(crate) fn frontmatter(text: &str) -> serde_yaml::Mapping {
 }
 
 /// The vault's index, current: the walk is done on every call, and only the notes whose mtime changed are read again.
-/// When nothing changed the same `Arc` comes back, so a request costs the walk and a few stats — never a copy.
+/// When nothing changed the same `Arc` comes back, so a request costs the walk and a few stats — never a copy. One
+/// build per vault at a time (the page's first requests come together: one walk, the others wait for it), and the
+/// other vaults' requests never wait on it.
 pub(crate) fn scan(root: &Path, cfg: &Config) -> Arc<Index> {
-    let mut warm = CACHE.lock().unwrap_or_else(|e| e.into_inner());
+    static BUILDING: crate::key_lock::KeyLocks = crate::key_lock::KeyLocks::new();
+    let building = BUILDING.get(root);
+    let _one = building.lock().unwrap_or_else(|e| e.into_inner());
     // read before the walk: a change while it runs makes the next request walk again
     let stamp = crate::vault_changes::stamp(root, cfg);
-    refresh(&mut warm, root, Instant::now(), stamp, |prev| rebuild(root, cfg, prev))
+    refresh(&CACHE, root, Instant::now(), stamp, |prev| rebuild(root, cfg, prev))
 }
 
 /// `root`'s entry of the warm list brought up to date by `build` — or kept without a walk when its watcher saw no change
 /// since (the same `stamp`, within [`TRUST`]) — and moved to the front; vaults idle for [`IDLE`] or beyond the first
-/// [`WARM_VAULTS`] are dropped (their memory with them).
+/// [`WARM_VAULTS`] are dropped (their memory with them). The list is locked only to look and to store, not for `build`.
 fn refresh(
-    warm: &mut Vec<Warm>,
+    cache: &Mutex<Vec<Warm>>,
     root: &Path,
     now: Instant,
     stamp: Option<Stamp>,
     build: impl FnOnce(Option<Arc<Index>>) -> Arc<Index>,
 ) -> Arc<Index> {
-    let prev = warm.iter().position(|w| w.root == root).map(|i| warm.remove(i));
+    let lock = || cache.lock().unwrap_or_else(|e| e.into_inner());
     let unchanged = |w: &Warm| {
         stamp.is_some() && w.walked.is_some_and(|(s, at)| Some(s) == stamp && now.saturating_duration_since(at) < TRUST)
     };
-    let (index, walked) = match prev {
-        Some(w) if unchanged(&w) => (w.index, w.walked),
-        prev => (build(prev.map(|w| w.index)), stamp.map(|s| (s, now))),
+    let prev = {
+        let mut warm = lock();
+        match warm.iter().position(|w| w.root == root) {
+            Some(i) if unchanged(&warm[i]) => {
+                let w = warm.remove(i);
+                return keep(&mut warm, root, now, w.index, w.walked);
+            }
+            Some(i) => Some(warm[i].index.clone()),
+            None => None,
+        }
     };
-    warm.retain(|w| now.saturating_duration_since(w.used) < IDLE);
+    let index = build(prev);
+    keep(&mut lock(), root, now, index, stamp.map(|s| (s, now)))
+}
+
+/// `index` stored as `root`'s, at the front of the warm list.
+fn keep(warm: &mut Vec<Warm>, root: &Path, now: Instant, index: Arc<Index>, walked: Option<(Stamp, Instant)>) -> Arc<Index> {
+    warm.retain(|w| w.root != root && now.saturating_duration_since(w.used) < IDLE);
     warm.insert(0, Warm { root: root.to_path_buf(), used: now, index: index.clone(), walked });
     warm.truncate(WARM_VAULTS);
     index
@@ -460,6 +479,10 @@ fn parse_note(abs: &Path, meta: &std::fs::Metadata) -> Parsed {
     Parsed {
         links,
         tags: crate::tags::of_note(&text, &props),
+        words: match meta.len() > TEXT_BYTES {
+            true => Default::default(),
+            false => crate::word_bloom::Words::of(&text.to_lowercase()),
+        },
         props: props.into(),
         size: meta.len(),
         mtime: meta.modified().ok(),
@@ -578,23 +601,16 @@ fn unlinked(root: &Path, index: &Index, path: &str) -> Vec<Backlink> {
         return Vec::new(); // "QM", "A": everywhere, meaningless
     }
     let needle = name.to_lowercase();
-    // A quick "may name it somewhere" before the line-by-line check, without lowercasing the whole note. Case folding
-    // matches whatever `to_lowercase` would, except U+0130 (İ, which lowercases to two chars): such a note is checked.
-    let any_case = regex::RegexBuilder::new(&regex::escape(&needle)).case_insensitive(true).build().ok();
-    let named = |text: &str| any_case.as_ref().is_none_or(|re| re.is_match(text)) || text.contains('\u{130}');
     let mut out = Vec::new();
     let mut srcs: Vec<&String> = parsed.keys().filter(|s| s.as_str() != path).collect();
     srcs.sort();
     for src in srcs {
         let p = &parsed[src];
-        // the text is read here, not kept in the index; a note that never names the file is passed over whole
-        if p.size > TEXT_BYTES {
+        // the text is read here, not kept in the index; a note whose words cannot name the file is not read
+        if p.size > TEXT_BYTES || !p.words.may_hold_all(&needle) {
             continue;
         }
         let Ok(text) = std::fs::read_to_string(root.join(src)) else { continue };
-        if !named(&text) {
-            continue;
-        }
         let linking: std::collections::HashSet<u32> = index.links_of(src).filter(|(_, t)| *t == Some(path)).map(|(l, _)| l.line).collect();
         let mut fence = false;
         let body = front_matter(&text).1;
@@ -788,6 +804,11 @@ mod tests {
         assert_eq!(got, [("a.md".to_string(), 4), ("b.md".to_string(), 4), ("c.md".to_string(), 2)]);
         // `Ω` (the Ohm sign, 3 bytes) lowercases to `ω` (2 bytes): the cut is made in the line as written
         assert_eq!(link_mention("1 \u{2126}, then the Hubbard model.", 1, "Hubbard model.md").as_deref(), Some("1 \u{2126}, then the [[Hubbard model]]."));
+        // the word filter cuts names the way the line check reads them: `İ` lowercases to `i` and a combining dot
+        std::fs::write(d.path().join("\u{130}zmir trip.md"), "").unwrap();
+        std::fs::write(d.path().join("e.md"), "Plans for the \u{130}ZMIR TRIP.\n").unwrap();
+        let bl = backlinks(d.path(), &Config::default(), "\u{130}zmir trip.md");
+        assert_eq!(bl.unlinked.iter().map(|l| (l.source.as_str(), l.line)).collect::<Vec<_>>(), [("e.md", 1)]);
     }
 
     #[test]
@@ -869,18 +890,41 @@ mod tests {
     #[test]
     fn several_vaults_stay_warm_until_idle_or_too_many() {
         let empty = || Arc::new(Index::new(Arc::new(Names::new(Vec::new())), HashMap::new()));
-        let (mut warm, t0) = (Vec::new(), Instant::now());
-        let a = refresh(&mut warm, Path::new("/a"), t0, None, |_| empty());
-        refresh(&mut warm, Path::new("/b"), t0, None, |_| empty());
-        let again = refresh(&mut warm, Path::new("/a"), t0, None, |prev| prev.expect("a is still warm"));
+        let (warm, t0) = (Mutex::new(Vec::new()), Instant::now());
+        let a = refresh(&warm, Path::new("/a"), t0, None, |_| empty());
+        refresh(&warm, Path::new("/b"), t0, None, |_| empty());
+        let again = refresh(&warm, Path::new("/a"), t0, None, |prev| prev.expect("a is still warm"));
         assert!(Arc::ptr_eq(&a, &again), "switching vaults does not drop the other's index");
         for v in ["/c", "/d"] {
-            refresh(&mut warm, Path::new(v), t0, None, |_| empty());
+            refresh(&warm, Path::new(v), t0, None, |_| empty());
         }
-        let roots = |w: &Vec<Warm>| w.iter().map(|w| w.root.to_string_lossy().into_owned()).collect::<Vec<_>>();
+        let roots = |w: &Mutex<Vec<Warm>>| w.lock().unwrap().iter().map(|w| w.root.to_string_lossy().into_owned()).collect::<Vec<_>>();
         assert_eq!(roots(&warm), ["/d", "/c", "/a"], "the least recently used goes first");
-        refresh(&mut warm, Path::new("/d"), t0 + IDLE + Duration::from_secs(1), None, |prev| prev.unwrap());
+        refresh(&warm, Path::new("/d"), t0 + IDLE + Duration::from_secs(1), None, |prev| prev.unwrap());
         assert_eq!(roots(&warm), ["/d"], "idle vaults are dropped");
+    }
+
+    #[test]
+    fn a_vault_being_walked_does_not_hold_up_another() {
+        let empty = || Arc::new(Index::new(Arc::new(Names::new(Vec::new())), HashMap::new()));
+        let warm = Arc::new(Mutex::new(Vec::new()));
+        let (started, wait) = std::sync::mpsc::channel();
+        let (release, held) = std::sync::mpsc::channel::<()>();
+        let slow = {
+            let warm = warm.clone();
+            std::thread::spawn(move || {
+                refresh(&warm, Path::new("/slow"), Instant::now(), None, |_| {
+                    started.send(()).unwrap();
+                    held.recv().unwrap();
+                    empty()
+                });
+            })
+        };
+        wait.recv().unwrap();
+        refresh(&warm, Path::new("/quick"), Instant::now(), None, |_| empty());
+        release.send(()).unwrap();
+        slow.join().unwrap();
+        assert_eq!(warm.lock().unwrap().len(), 2);
     }
 
     #[test]
@@ -890,26 +934,26 @@ mod tests {
         let cfg = Config::default();
         let feed = crate::vault_changes::Feed::new(root, &cfg);
         feed.register();
-        let (mut warm, t0) = (Vec::new(), Instant::now());
+        let (warm, t0) = (Mutex::new(Vec::new()), Instant::now());
         let stamp = || crate::vault_changes::stamp(root, &cfg);
-        let first = refresh(&mut warm, root, t0, stamp(), |_| empty());
-        let kept = refresh(&mut warm, root, t0, stamp(), |_| panic!("no change: no walk"));
+        let first = refresh(&warm, root, t0, stamp(), |_| empty());
+        let kept = refresh(&warm, root, t0, stamp(), |_| panic!("no change: no walk"));
         assert!(Arc::ptr_eq(&first, &kept));
         feed.changed();
         let mut walked = false;
-        refresh(&mut warm, root, t0, stamp(), |prev| {
+        refresh(&warm, root, t0, stamp(), |prev| {
             walked = true;
             prev.unwrap()
         });
         assert!(walked, "a change: walked again");
         let mut walked = false;
-        refresh(&mut warm, root, t0 + TRUST, stamp(), |prev| {
+        refresh(&warm, root, t0 + TRUST, stamp(), |prev| {
             walked = true;
             prev.unwrap()
         });
         assert!(walked, "trusted for a while only");
         let mut walked = false;
-        refresh(&mut warm, root, t0 + TRUST, None, |prev| {
+        refresh(&warm, root, t0 + TRUST, None, |prev| {
             walked = true;
             prev.unwrap()
         });

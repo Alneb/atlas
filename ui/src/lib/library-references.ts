@@ -2,7 +2,7 @@
 // entry's fields, read through the catalog-papers helper's endpoints. Keys: Enter opens the PDF, r reads, n notes,
 // c copies the citekey.
 import { api } from "./api";
-import { on } from "./bus";
+import { on, touches } from "./bus";
 import { openPath } from "./dock";
 import { errText } from "./text";
 import { openReadingNote, readPaper } from "./papers";
@@ -151,7 +151,7 @@ export function referencesSource(): LibrarySource {
         },
       }];
     },
-    watch: (reload) => on("fs", (e) => { if (e.paths.some((p) => p.startsWith(dir))) reload(); }),
+    watch: (reload) => on("fs", (e) => { if (touches(e.paths, (p) => p.startsWith(dir))) reload(); }),
     keys: { r: (i) => readPaper(paper(i)), n: (i) => void openReadingNote(i.id), c: (i) => void copy(i.id, "citekey") },
     open: (i) => openPdf(paper(i)),
   };

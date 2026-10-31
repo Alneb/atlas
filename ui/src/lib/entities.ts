@@ -2,7 +2,7 @@
 // Library; plugins add kinds by prefix (`@run:…`). Kept free of CodeMirror: plugins load at startup,
 // the editor does not (editor/mentions.ts draws the chips).
 import { api } from "./api";
-import { on } from "./bus";
+import { on, touches } from "./bus";
 import { openReadingNote } from "./papers";
 import type { Paper } from "./gen/Paper";
 
@@ -24,7 +24,7 @@ export function onLibraryChange(fn: () => void): () => void {
   listeners.add(fn);
   if (!watching) {
     watching = true;
-    on("fs", (e) => { if (e.paths.some((p) => /(?:^|\/)([^/]+)\/\1\.md$/.test(p) || /info\.yaml$/.test(p) || p.startsWith(".atlas/plugins/catalog-papers/"))) { papers = null; listeners.forEach((f) => f()); } });
+    on("fs", (e) => { if (touches(e.paths, (p) => /(?:^|\/)([^/]+)\/\1\.md$/.test(p) || /info\.yaml$/.test(p) || p.startsWith(".atlas/plugins/catalog-papers/"))) { papers = null; listeners.forEach((f) => f()); } });
   }
   return () => listeners.delete(fn);
 }

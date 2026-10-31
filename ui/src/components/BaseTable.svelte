@@ -12,7 +12,7 @@
   import { errText } from "../lib/text";
   import { shownName, shownPath } from "../lib/paths";
   import { api } from "../lib/api";
-  import { on } from "../lib/bus";
+  import { on, touches } from "../lib/bus";
   import { openPath } from "../lib/dock";
   import { toast } from "../lib/state.svelte";
   import { propertySpec, watchPropertySpec } from "../lib/property-spec.svelte";
@@ -78,7 +78,7 @@
     const seen = new IntersectionObserver((es) => { if (stale && es.some((e) => e.isIntersecting)) { stale = false; void load(); } });
     if (host) seen.observe(host);
     const off = on("fs", (e) => {
-      if (!e.paths.some((p) => /\.(md|base)$/i.test(p))) return;
+      if (!touches(e.paths, (p) => /\.(md|base)$/i.test(p))) return;
       if (!host?.isConnected) { stale = true; return; }
       clearTimeout(t);
       t = setTimeout(load, 500);

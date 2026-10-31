@@ -21,7 +21,7 @@
   import Places from "../components/explorer/Places.svelte";
   import { pluginMenu } from "../lib/plugin-menus";
   import { openWith } from "../lib/actions";
-  import { on } from "../lib/bus";
+  import { on, touches } from "../lib/bus";
   import { api } from "../lib/api";
   import { explorerGo, paneFocus } from "../lib/registry";
   import { shownEntries, toggleShowAll, treeView } from "../lib/tree-view.svelte";
@@ -310,7 +310,7 @@
     const off = on("fs", (e) => {
       if (!isVault) return;
       const here = b.loc.path;
-      if (here && e.paths.some((p) => p === here || here.startsWith(`${p}/`))) {
+      if (here && touches(e.paths, (p) => p === here || here.startsWith(`${p}/`))) {
         clearTimeout(t);
         t = setTimeout(async () => {
           if (await api.exists(here).catch(() => true)) return void b.reload();
@@ -318,7 +318,7 @@
           await b.go({ ...b.loc, path: to }, { record: false });
           say(`“${basename(here)}” was moved or deleted; this is the folder above it.`, "bad");
         }, 300);
-      } else if (e.paths.some((p) => parentPath(p) === here)) {
+      } else if (touches(e.paths, (p) => parentPath(p) === here)) {
         clearTimeout(t); t = setTimeout(() => void b.reload(), 300);
       }
     });

@@ -13,7 +13,7 @@
   import { loadHighlight } from "./lib/highlight";
   import { api, connectEvents } from "./lib/api";
   import { watchServiceSignins } from "./lib/service-signin";
-  import { emit, on } from "./lib/bus";
+  import { emit, on, touches } from "./lib/bus";
   import { sweep, counts as hibernationCounts } from "./lib/hibernate";
   import { guardMiddlePaste } from "./lib/middle-paste";
   import { initDock, open, openPath, getDock, activeEditorId, canNavigate, navigate, steppedJustNow } from "./lib/dock";
@@ -30,7 +30,7 @@
   import { loadSettings, settings } from "./lib/settings.svelte";
   import { installDiagnostics } from "./lib/diagnostics";
   import { installNavInput } from "./lib/nav-input";
-  import { invalidate } from "./lib/raw";
+  import { invalidate, invalidateAll } from "./lib/raw";
   import Rail from "./components/Rail.svelte";
   import Sidebar from "./components/Sidebar.svelte";
   import { attachTabs, tabs, whenNoTabs } from "./lib/tabs.svelte";
@@ -177,9 +177,9 @@
       on("open", (e) => openPath(e.path, e.line)),
       on("notify", (e) => toast(e.title, e.body, e.level === "failure" ? "error" : e.level === "success" ? "success" : "info")),
       on("focus", (e) => focusPane(e.pane)),
-      on("fs", (e) => e.paths.forEach(invalidate)),
-      on("fs", (e) => { if (e.paths.includes(settings.path)) loadSettings().catch(() => {}); }),
-      on("fs", (e) => { if (e.paths.some((p) => p === ".atlas/keys.toml" || p.startsWith(".atlas/commands/"))) void loadKeymap().catch(() => {}); }),
+      on("fs", (e) => { if (e.paths.length) e.paths.forEach(invalidate); else invalidateAll(); }),
+      on("fs", (e) => { if (touches(e.paths, (p) => p === settings.path)) loadSettings().catch(() => {}); }),
+      on("fs", (e) => { if (touches(e.paths, (p) => p === ".atlas/keys.toml" || p.startsWith(".atlas/commands/"))) void loadKeymap().catch(() => {}); }),
       watchPlugins(),
       watchServiceSignins(),
       startWhere(),

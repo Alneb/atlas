@@ -204,19 +204,8 @@ pub fn modify(abs: &Path, edit: impl FnOnce(&str) -> Result<String>) -> Result<(
 
 /// The lock of one file's [`modify`]: kept while someone holds it, then dropped from the table.
 fn path_lock(abs: &Path) -> std::sync::Arc<std::sync::Mutex<()>> {
-    use std::sync::{Arc, Mutex, Weak};
-    static LOCKS: std::sync::LazyLock<Mutex<std::collections::HashMap<std::path::PathBuf, Weak<Mutex<()>>>>> =
-        std::sync::LazyLock::new(Mutex::default);
-    let mut all = LOCKS.lock().unwrap_or_else(|e| e.into_inner());
-    if let Some(held) = all.get(abs).and_then(Weak::upgrade) {
-        return held;
-    }
-    if all.len() > 64 {
-        all.retain(|_, w| w.strong_count() > 0);
-    }
-    let fresh = Arc::new(Mutex::new(()));
-    all.insert(abs.to_path_buf(), Arc::downgrade(&fresh));
-    fresh
+    static LOCKS: crate::key_lock::KeyLocks = crate::key_lock::KeyLocks::new();
+    LOCKS.get(abs)
 }
 
 /// Replace `abs` atomically (a temporary file beside it renamed into place); parents made, permissions kept.

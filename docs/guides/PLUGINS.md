@@ -34,7 +34,7 @@ dir = "runs"
 - **`atlas`** (`PluginApi`, `ui/src/lib/plugins.svelte.ts`) — deliberately small, because plugins outlive
   refactors: `plugin` (its manifest, incl. `settings`), `data(args)` (runs the data script → its JSON),
   `open(path, line?)`, `openTable(path)`, `readText(path)`, `fileUrl(path)` (object URL fetched with the API
-  header — images, PDFs), `onFilesChanged(fn)` (unsubscribe returned), `toast(title, body?, kind?)`.
+  header — images, PDFs), `onFilesChanged(fn)` (unsubscribe returned; `fn(paths)`, an empty list meaning anything may have changed — the page reconnected or fell behind), `toast(title, body?, kind?)`.
 - **Data script**: stdin = `{"settings": {...}, "args": <what the view passed>}`, stdout = JSON, stderr = its
   log. Runs through the same runner as workspace commands (`sh -c`, process group killed on timeout), with
   `$ATLAS_ROOT` and `$ATLAS_PLUGIN_DIR` exported. `POST /api/plugins/{id}/data`.

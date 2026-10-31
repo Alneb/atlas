@@ -112,22 +112,59 @@ pub fn rules(root: &Path, cfg: &Config) -> Vec<Rule> {
     own.into_iter().chain(config).chain(settings.into_iter().flatten()).collect()
 }
 
-/// The `apply_when:` of every template in the templates folder, by the templates' names.
+/// The `apply_when:` of every template in the templates folder, by the templates' names. Kept on the stamps of the
+/// folder and its templates (file_stamp.rs): every save that sets a property asks.
 fn own_rules(root: &Path, cfg: &Config) -> Vec<Rule> {
     let dir = cfg.notes.templates.trim().trim_matches('/');
     let Ok(abs) = crate::paths::safe_join(root, dir) else { return vec![] };
-    let mut files: Vec<_> = std::fs::read_dir(abs).into_iter().flatten().flatten().filter(|e| e.file_type().is_ok_and(|t| t.is_file())).collect();
-    files.sort_by_key(|e| e.file_name());
+    let mut files: Vec<_> = std::fs::read_dir(&abs)
+        .into_iter()
+        .flatten()
+        .flatten()
+        .filter(|e| e.file_type().is_ok_and(|t| t.is_file()) && e.file_name().to_string_lossy().ends_with(".md"))
+        .map(|e| e.path())
+        .collect();
+    files.sort();
+    let stamps = crate::file_stamp::key(std::iter::once(&abs).chain(&files));
+    if let Some(rules) = stamps.as_ref().and_then(|s| kept::get(&abs, s)) {
+        return rules;
+    }
     let mut out = vec![];
-    for e in files {
-        let file = e.file_name().to_string_lossy().into_owned();
-        let Some(name) = file.strip_suffix(".md") else { continue };
-        let Ok(text) = std::fs::read_to_string(e.path()) else { continue };
+    for path in files {
+        let Some(name) = path.file_stem().map(|n| n.to_string_lossy().into_owned()) else { continue };
+        let Ok(text) = std::fs::read_to_string(&path) else { continue };
         for when in apply_when(&text) {
-            out.push(Rule { template: name.to_string(), when, source: Source::Template });
+            out.push(Rule { template: name.clone(), when, source: Source::Template });
         }
     }
+    if let Some(s) = stamps {
+        kept::put(&abs, s, &out);
+    }
     out
+}
+
+mod kept {
+    use super::Rule;
+    use crate::file_stamp::Seen;
+    use std::collections::HashMap;
+    use std::path::{Path, PathBuf};
+    use std::sync::{LazyLock, Mutex, MutexGuard};
+
+    type Kept = HashMap<PathBuf, (Vec<Seen>, Vec<Rule>)>;
+
+    fn kept() -> MutexGuard<'static, Kept> {
+        static KEPT: LazyLock<Mutex<Kept>> = LazyLock::new(Mutex::default);
+        // a poisoned lock only means a panic elsewhere; the table is still whole
+        KEPT.lock().unwrap_or_else(|e| e.into_inner())
+    }
+
+    pub(super) fn get(dir: &Path, stamps: &[Seen]) -> Option<Vec<Rule>> {
+        kept().get(dir).filter(|(s, _)| s == stamps).map(|(_, rules)| rules.clone())
+    }
+
+    pub(super) fn put(dir: &Path, stamps: Vec<Seen>, rules: &[Rule]) {
+        kept().insert(dir.to_path_buf(), (stamps, rules.to_vec()));
+    }
 }
 
 /// A template's `apply_when:` — one condition or a list of them. The template's other properties may hold `{{…}}`
@@ -332,6 +369,24 @@ mod tests {
             crate::config::TemplateRule { title: None, folder: Some("labs".into()), template: "b".into() },
         ];
         assert_eq!(pick(&d, &cfg, Moment::NewNote { path: "labs/x.md" }).as_deref(), Some("b"));
+    }
+
+    #[test]
+    fn kept_rules_are_read_again_when_a_template_changes() {
+        let d = vault(&[("film", "---\napply_when:\n  folder: films\n---\n")]);
+        let age = |secs: u64| {
+            let t = std::time::SystemTime::now() - std::time::Duration::from_secs(secs);
+            for p in [d.path().join("templates/film.md"), d.path().join("templates")] {
+                std::fs::File::open(&p).unwrap().set_modified(t).unwrap();
+            }
+        };
+        age(60);
+        let cfg = Config::default();
+        assert_eq!(pick(&d, &cfg, Moment::NewNote { path: "films/x.md" }).as_deref(), Some("film"));
+        std::fs::write(d.path().join("templates/film.md"), "---\napply_when:\n  folder: movies\n---\n").unwrap();
+        age(30);
+        assert_eq!(pick(&d, &cfg, Moment::NewNote { path: "films/x.md" }), None);
+        assert_eq!(pick(&d, &cfg, Moment::NewNote { path: "movies/x.md" }).as_deref(), Some("film"));
     }
 
     #[test]

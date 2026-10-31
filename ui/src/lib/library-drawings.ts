@@ -2,7 +2,7 @@
 // PDF's notes) — with its companion note's properties (drawing_note.rs: `x.excalidraw` → `x.md`), which the user sets
 // (tags, project, topics) to filter by. Its cover is its first page, drawn only when it comes near the view.
 import { api } from "./api";
-import { on } from "./bus";
+import { on, touches } from "./bus";
 import { openPath } from "./dock";
 import { movedTabs } from "./gone-files";
 import { toast } from "./state.svelte";
@@ -180,7 +180,7 @@ export function drawingsSource(): LibrarySource {
       ];
     },
     // a drawing, or a drawing's note (its properties), not every note saved
-    watch: (reload) => on("fs", (e) => { if (!e.paths.length || e.paths.some((p) => DRAWING.test(p) || (p.endsWith(".md") && vaultFiles().has(p.replace(/\.md$/, ".excalidraw"))))) reload(); }),
+    watch: (reload) => on("fs", (e) => { if (touches(e.paths, (p) => DRAWING.test(p) || (p.endsWith(".md") && vaultFiles().has(p.replace(/\.md$/, ".excalidraw"))))) reload(); }),
     open: (item) => openPath(item.id),
     many: (items) => [{
       label: `Delete ${items.length}…`, icon: "close", danger: true,

@@ -1,7 +1,7 @@
 // One way for a view to follow the vault: reload (debounced) when a file it cares about changes — never for Atlas's
 // own bookkeeping (.atlas/cache, .atlas/trash) — and, while its element is off-screen (a hidden tab, scrolled away),
 // wait until it is seen again instead of asking the core for something nobody looks at.
-import { isBookkeeping, on } from "./bus";
+import { isBookkeeping, on, touches } from "./bus";
 
 export interface ReloadOn {
   /** ms to wait after the last change */
@@ -28,7 +28,7 @@ export function reloadOnChange(load: () => void, o: ReloadOn): () => void {
     load();
   };
   const later = () => { clearTimeout(t); t = setTimeout(fire, o.wait); };
-  const counts = (paths: string[]) => !paths.length || paths.some((p) => !isBookkeeping(p) && (o.wants?.(p) ?? true));
+  const counts = (paths: string[]) => touches(paths, (p) => !isBookkeeping(p) && (o.wants?.(p) ?? true));
   const offFs = on("fs", (e) => { if (counts(e.paths)) later(); });
   const offGone = on("gone", (e) => { if (counts(e.paths)) later(); });
   return () => { offFs(); offGone(); clearTimeout(t); io?.disconnect(); };

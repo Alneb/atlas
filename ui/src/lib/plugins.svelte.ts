@@ -6,7 +6,7 @@
 import { errText } from "./text";
 import { api, forgetRoles } from "./api";
 import { getDock } from "./dock-instance";
-import { on } from "./bus";
+import { on, touches } from "./bus";
 import { toast } from "./state.svelte";
 import type { PaneSpec } from "./panes";
 import { exists } from "./vault-files";
@@ -168,7 +168,7 @@ export function watchPlugins(): () => void {
   const offFs = on("fs", (e) => {
     // a manifest, or a plugin folder appearing / going (copied in whole, its files may beat the watch)
     // a manifest, or a plugin's settings file (.atlas/plugin-settings/<id>.toml: the values live there now)
-    if (e.paths.some((p) => /^\.atlas\/plugins\/[^/]+(\/plugin\.toml)?\/?$/.test(p) || /^\.atlas\/plugin-settings\/[^/]+\.toml$/.test(p))) { void loadPlugins(); return; }
+    if (touches(e.paths, (p) => /^\.atlas\/plugins\/[^/]+(\/plugin\.toml)?\/?$/.test(p) || /^\.atlas\/plugin-settings\/[^/]+\.toml$/.test(p))) { void loadPlugins(); return; }
     // a main.js or view.js that was not there when the list was read: the plugin just gained that part
     const known = new Set(plugins.list.flatMap((p) => [p.main, p.view]));
     if (e.paths.some((p) => /^\.atlas\/plugins\/[^/]+\/(main|view)\.js$/.test(p) && !known.has(p))) { void loadPlugins(); return; }
