@@ -106,7 +106,7 @@ fn front_matter(text: &str) -> (std::ops::Range<usize>, usize) {
 /// Each line of a markdown text that may hold links, with its 1-based number and its byte offset in `text`; fenced
 /// code is skipped. The one walk over a note both the index ([`parse`]) and the link rewrite on a move use.
 pub(crate) fn link_lines<'a>(text: &'a str, mut f: impl FnMut(u32, usize, &'a str, LineKind<'_>)) {
-    let mut fence: Option<&str> = None;
+    let mut fences = atlas_text::fence::Fences::default();
     let (yaml, body) = front_matter(text);
     let mut key = String::new();
     let mut at = 0;
@@ -124,18 +124,9 @@ pub(crate) fn link_lines<'a>(text: &'a str, mut f: impl FnMut(u32, usize, &'a st
             }
             continue;
         }
-        let t = line.trim_start();
-        if let Some(fc) = fence {
-            if t.starts_with(fc) {
-                fence = None;
-            }
-            continue;
+        if !fences.code(line) {
+            f(i as u32 + 1, offset, line, LineKind::Text);
         }
-        if t.starts_with("```") || t.starts_with("~~~") {
-            fence = Some(&t[..3]);
-            continue;
-        }
-        f(i as u32 + 1, offset, line, LineKind::Text);
     }
 }
 
@@ -207,6 +198,7 @@ pub(crate) fn link_spans(line: &str) -> Vec<Span> {
         }
     };
     let mut i = 0;
+    let mut wiki_closes = true;
     while i < b.len() {
         match b[i] {
             b'`' => {
@@ -215,7 +207,7 @@ pub(crate) fn link_spans(line: &str) -> Vec<Span> {
                 let tick = "`".repeat(run);
                 i = line[i + run..].find(&tick).map_or(b.len(), |j| i + run + j + run);
             }
-            b'[' if b.get(i + 1) == Some(&b'[') => {
+            b'[' if wiki_closes && b.get(i + 1) == Some(&b'[') => {
                 let embed = i > 0 && b[i - 1] == b'!';
                 match line[i + 2..].find("]]") {
                     Some(j) => {
@@ -225,7 +217,11 @@ pub(crate) fn link_spans(line: &str) -> Vec<Span> {
                         push(i + 2, i + 2 + end, true, embed);
                         i += 2 + j + 2;
                     }
-                    None => break,
+                    // no `]]` in the rest of the line: no more wikilinks, but `[[x](y.md)` still has a markdown link
+                    None => {
+                        wiki_closes = false;
+                        i += 1;
+                    }
                 }
             }
             b'[' => {
@@ -285,8 +281,31 @@ pub(crate) fn dir_of(p: &str) -> &str {
     p.rfind('/').map_or("", |i| &p[..i])
 }
 
+/// A target's `%XX` escapes decoded as the page's `decodeURI` does (`R%C3%A9union.md`, `x%20%281%29.md`), so a link the
+/// editor opens is the one the index counts: reserved characters (`%23`, `%2F`) stay escaped, and a malformed escape or
+/// one that is not UTF-8 keeps the target as written.
 pub(crate) fn decode(t: &str) -> String {
-    t.replace("%20", " ")
+    if !t.contains('%') {
+        return t.to_string();
+    }
+    let b = t.as_bytes();
+    let mut out = Vec::with_capacity(b.len());
+    let mut i = 0;
+    while i < b.len() {
+        if b[i] != b'%' {
+            out.push(b[i]);
+            i += 1;
+            continue;
+        }
+        let Some(v) = b.get(i + 1..i + 3).filter(|h| h.iter().all(u8::is_ascii_hexdigit)).and_then(|h| u8::from_str_radix(std::str::from_utf8(h).ok()?, 16).ok()) else { return t.to_string() };
+        if v.is_ascii() && ";/?:@&=+$,#".contains(v as char) {
+            out.extend_from_slice(&b[i..i + 3]);
+        } else {
+            out.push(v);
+        }
+        i += 3;
+    }
+    String::from_utf8(out).unwrap_or_else(|_| t.to_string())
 }
 
 /// A file of [`Names`]: its position in `files`. Each path is stored once; the lookups hold ids.
@@ -619,29 +638,14 @@ fn unlinked(root: &Path, index: &Index, path: &str) -> Vec<Backlink> {
         }
         let Ok(text) = std::fs::read_to_string(root.join(src)) else { continue };
         let linking: std::collections::HashSet<u32> = index.links_of(src).filter(|(_, t)| *t == Some(path)).map(|(l, _)| l.line).collect();
-        let mut fence = false;
-        let body = front_matter(&text).1;
-        let mut at = 0;
-        for (i, raw) in text.split_inclusive('\n').enumerate() {
-            let line = raw.strip_suffix('\n').map_or(raw, |l| l.strip_suffix('\r').unwrap_or(l));
-            let t = line.trim_start();
-            let offset = at;
-            at += raw.len();
-            if offset < body {
-                continue;
+        // the lines the index reads links from (fenced code and the frontmatter left out)
+        link_lines(&text, |n, _, line, kind| {
+            if out.len() < MAX && matches!(kind, LineKind::Text) && !linking.contains(&n) && mentions(&line.to_lowercase(), &needle) {
+                out.push(Backlink { source: src.clone(), line: n, context: context(line), embed: false, relation: None });
             }
-            if t.starts_with("```") || t.starts_with("~~~") {
-                fence = !fence;
-                continue;
-            }
-            let n = i as u32 + 1;
-            if fence || linking.contains(&n) || !mentions(&line.to_lowercase(), &needle) {
-                continue;
-            }
-            out.push(Backlink { source: src.clone(), line: n, context: context(line), embed: false, relation: None });
-            if out.len() >= MAX {
-                return out;
-            }
+        });
+        if out.len() >= MAX {
+            break;
         }
     }
     out
@@ -774,6 +778,8 @@ mod tests {
         );
         let table = parse("| [[Hubbard model\\|Hubbard]] | [[Mott]] |\n");
         assert_eq!(table.iter().map(|l| l.target.as_str()).collect::<Vec<_>>(), vec!["Hubbard model", "Mott"], "a table's escaped alias bar");
+        let open = parse("[[unclosed and [x](y.md), [[z](w.md)\n");
+        assert_eq!(open.iter().map(|l| l.target.as_str()).collect::<Vec<_>>(), vec!["y.md", "w.md"], "an unclosed [[ hides no markdown link");
         let fm = parse("---\ntype: x\ntopics:\n  - '[[Condensed Matter]]'\n---\nsee [[B]]\n");
         assert_eq!(
             fm.iter().map(|l| l.context.as_str()).collect::<Vec<_>>(),
@@ -809,6 +815,9 @@ mod tests {
         let mut got: Vec<(String, u32)> = backlinks(d.path(), &Config::default(), "Hubbard model.md").unlinked.into_iter().map(|l| (l.source, l.line)).collect();
         got.sort();
         assert_eq!(got, [("a.md".to_string(), 4), ("b.md".to_string(), 4), ("c.md".to_string(), 2)]);
+        // a `~~~` inside a ``` block does not close it
+        std::fs::write(d.path().join("f.md"), "```\n~~~\nhubbard model\n```\n").unwrap();
+        assert!(backlinks(d.path(), &Config::default(), "Hubbard model.md").unlinked.iter().all(|l| l.source != "f.md"));
         // `Ω` (the Ohm sign, 3 bytes) lowercases to `ω` (2 bytes): the cut is made in the line as written
         assert_eq!(link_mention("1 \u{2126}, then the Hubbard model.", 1, "Hubbard model.md").as_deref(), Some("1 \u{2126}, then the [[Hubbard model]]."));
         // the word filter cuts names the way the line check reads them: `İ` lowercases to `i` and a combining dot
@@ -868,6 +877,8 @@ mod tests {
         assert_eq!(n.resolve(&w("Dr. Smith"), "x.md").as_deref(), Some("people/Dr. Smith.md"), "a dot that is no extension");
         assert_eq!(n.resolve(&m("lectures/b.md"), "notes/a.md").as_deref(), Some("notes/lectures/b.md"));
         assert_eq!(n.resolve(&m("x%20y.md"), "notes/a.md").as_deref(), Some("notes/x y.md"));
+        assert_eq!((decode("R%C3%A9union%20%281%29.md"), decode("a%23b"), decode("100%.md"), decode("%FF.md")), ("Réunion (1).md".into(), "a%23b".into(), "100%.md".into(), "%FF.md".into()), "as the page's decodeURI reads them");
+        assert_eq!(decode("%+A.md"), "%+A.md", "two hex digits, no sign");
         assert_eq!(n.resolve(&m("b.md"), "notes/a.md"), None, "md links do not search by name");
         assert_eq!(n.resolve(&m("../../out.md"), "a.md"), None);
     }

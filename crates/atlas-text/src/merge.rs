@@ -89,12 +89,9 @@ fn heading_key(line: &str) -> Option<String> {
 
 fn sections(body: &str) -> Vec<Section> {
     let mut out = vec![Section { heading: None, body: vec![] }];
-    let mut fence = false;
+    let mut fences = crate::fence::Fences::default();
     for line in body.lines() {
-        if line.trim_start().starts_with("```") {
-            fence = !fence;
-        }
-        if !fence && heading_key(line).is_some() {
+        if !fences.code(line) && heading_key(line).is_some() {
             out.push(Section { heading: Some(line.to_string()), body: vec![] });
         } else {
             out.last_mut().expect("one at least").body.push(line.to_string());

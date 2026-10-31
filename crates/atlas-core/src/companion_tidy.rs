@@ -170,11 +170,16 @@ pub fn apply(ws: &Workspace, plan: &[Tidy]) -> Result<Option<String>> {
                 });
                 let props = place_props(&book, &e);
                 let at = ws.resolve(&note)?;
-                let text = std::fs::read_to_string(&at).unwrap_or_else(|_| format!("---\ntitle: '{}'\n---\n", book.rsplit('/').next().unwrap_or(&book).replace('\'', "''")));
-                let merged = merge_reading(&props, &text);
-                if merged != text {
-                    if at.is_file() { keep(&note)?; }
-                    crate::vault_write::write(&at, merged.as_bytes())?;
+                // a new note only if still missing; else through `modify`, so a save meanwhile is merged into
+                let fresh = || format!("---\ntitle: '{}'\n---\n", book.rsplit('/').next().unwrap_or(&book).replace('\'', "''"));
+                if at.is_file() || crate::vault_write::create(&at, merge_reading(&props, &fresh()).as_bytes())? == crate::vault_write::Created::Taken {
+                    crate::vault_write::modify(&at, |text| {
+                        let merged = merge_reading(&props, text);
+                        if merged != text {
+                            keep(&note)?;
+                        }
+                        Ok(merged)
+                    })?;
                 }
             }
         }

@@ -434,6 +434,9 @@ fn eval_binary(op: &str, a: &Expr, b: &Expr, ctx: &dyn Context, scope: Option<&V
                 }
                 "-" => {
                     if let Val::Date(d) = va {
+                        if let Val::Date(e) = vb {
+                            return duration(d - e);
+                        }
                         if let Some(dur) = as_duration(&vb) {
                             return Val::Date(d - dur);
                         }
@@ -605,6 +608,13 @@ fn eval_call(callee: &Expr, args: &[Expr], ctx: &dyn Context, scope: Option<&Val
     Val::Null
 }
 
+/// Two dates' difference as Obsidian gives it: a duration whose fields are its whole length in each unit
+/// (`(now() - file.ctime).days`).
+fn duration(d: chrono::Duration) -> Val {
+    let units = [("days", d.num_days()), ("hours", d.num_hours()), ("minutes", d.num_minutes()), ("seconds", d.num_seconds()), ("milliseconds", d.num_milliseconds())];
+    Val::Map(units.into_iter().map(|(k, n)| (k.to_string(), Val::Num(n as f64))).collect())
+}
+
 /// Interpret a value as a duration (only string forms like "1 day").
 fn as_duration(v: &Val) -> Option<chrono::Duration> {
     match v {
@@ -618,13 +628,8 @@ fn to_plain(v: &Val) -> String {
     match v {
         Val::Null => String::new(),
         Val::Bool(b) => b.to_string(),
-        Val::Num(n) => {
-            if n.fract() == 0.0 {
-                format!("{}", *n as i64)
-            } else {
-                n.to_string()
-            }
-        }
+        // `3`, not `3.0` (f64's Display), at any size; never `-0`
+        Val::Num(n) => (n + 0.0).to_string(),
         Val::Str(s) => s.clone(),
         Val::Link(t) => t.clone(),
         Val::Date(d) => d.format("%Y-%m-%d").to_string(),
@@ -682,6 +687,15 @@ mod tests {
         assert!(run("1 + 2 == 3", &ctx).truthy());
         assert!(run("2 * 3 > 5", &ctx).truthy());
         assert!(!run("1 > 2", &ctx).truthy());
+        assert!(run("1.5 + 1.5 + \"x\" == \"3x\"", &ctx).truthy(), "a whole number as text has no decimals");
+    }
+
+    #[test]
+    fn two_dates_differ_by_a_duration() {
+        let ctx = TestCtx::new(&[("start", Val::Str("2025-03-01".into())), ("end", Val::Str("2025-03-11 12:00".into()))]);
+        assert!(run("(date(end) - date(start)).days == 10", &ctx).truthy());
+        assert!(run("(date(end) - date(start)).hours == 252", &ctx).truthy());
+        assert!(run("date(end) - \"1 day\" > date(start)", &ctx).truthy(), "a date less a length is still a date");
     }
 
     #[test]

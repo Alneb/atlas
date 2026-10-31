@@ -47,18 +47,13 @@ fn tag_char(c: char) -> bool {
 fn inline_tags(text: &str, mut f: impl FnMut(usize, &str)) {
     let body = body_of(text);
     let base = text.len() - body.len(); // the body is the text's tail
-    let mut fenced = false;
+    let mut fences = atlas_text::fence::Fences::default();
     let mut at = 0;
     for raw in body.split_inclusive('\n') {
         let line_at = base + at;
         at += raw.len();
         let line = raw.trim_end_matches(['\n', '\r']);
-        let t = line.trim_start();
-        if t.starts_with("```") || t.starts_with("~~~") {
-            fenced = !fenced;
-            continue;
-        }
-        if fenced {
+        if fences.code(line) {
             continue;
         }
         // inline code is not text: every second piece between backticks is skipped

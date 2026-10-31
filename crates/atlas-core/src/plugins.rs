@@ -411,26 +411,28 @@ pub fn save_settings(root: &Path, secrets: &crate::secrets::Store, id: &str, val
         return Err(Error::BadRequest(format!("bad plugin id {id:?}")));
     }
     move_settings_out(root, id)?; // an older vault's [settings] first become the file this writes
-    let m = read_manifest(root, id)?;
     let rel = settings_rel(id);
     // the form's rules (plugin_settings::apply) edit a `[settings]` table: the file's values under one, and back
-    let current = std::fs::read_to_string(root.join(&rel)).unwrap_or_default();
-    let file: toml_edit::DocumentMut = current.parse().map_err(|e| Error::BadRequest(format!("{rel}: {e}")))?;
-    let mut doc = toml_edit::DocumentMut::new();
-    let mut under = toml_edit::Table::new();
-    for (k, v) in file.iter() {
-        under.insert(k, v.clone());
-    }
-    doc.insert("settings", toml_edit::Item::Table(under));
-    let saved = crate::plugin_settings::apply(id, &doc.to_string(), &m.fields, &m.settings, m.permissions.secrets, values).map_err(|e| Error::BadRequest(format!("{rel}: {e}")))?;
-    let after: toml_edit::DocumentMut = saved.text.parse().map_err(|e| Error::BadRequest(format!("{rel}: {e}")))?;
-    let mut out = toml_edit::DocumentMut::new();
-    if let Some(t) = after.get("settings").and_then(toml_edit::Item::as_table) {
-        for (k, v) in t.iter() {
-            out.insert(k, v.clone());
+    let saved = edit_settings_file(root, id, |file| {
+        // the manifest's current values read under the lock too: a save meanwhile is what the cards' renames start from
+        let m = read_manifest(root, id)?;
+        let mut doc = toml_edit::DocumentMut::new();
+        let mut under = toml_edit::Table::new();
+        for (k, v) in file.iter() {
+            under.insert(k, v.clone());
         }
-    }
-    write_settings_file(root, id, &out.to_string())?;
+        doc.insert("settings", toml_edit::Item::Table(under));
+        let saved = crate::plugin_settings::apply(id, &doc.to_string(), &m.fields, &m.settings, m.permissions.secrets, values).map_err(|e| Error::BadRequest(format!("{rel}: {e}")))?;
+        let after: toml_edit::DocumentMut = saved.text.parse().map_err(|e| Error::BadRequest(format!("{rel}: {e}")))?;
+        let mut out = toml_edit::DocumentMut::new();
+        if let Some(t) = after.get("settings").and_then(toml_edit::Item::as_table) {
+            for (k, v) in t.iter() {
+                out.insert(k, v.clone());
+            }
+        }
+        *file = out;
+        Ok(saved)
+    })?;
     // a renamed card's secrets move first: one typed into it in the same save is newer and goes over them
     for (from, to) in &saved.moved {
         if let Some(v) = secrets.get(id, from)? {
@@ -706,6 +708,22 @@ fn write_settings_file(root: &Path, id: &str, text: &str) -> Result<()> {
     crate::vault_write::write(&path, format!("{head}{}", text.trim_start_matches(&head)).as_bytes())
 }
 
+/// Plugin `id`'s settings file edited under its lock (none yet = empty): `op` changes the parsed file, which is written
+/// only when it changed. Every read-change-write of a settings file goes through here, so two saves never lose one.
+fn edit_settings_file<T>(root: &Path, id: &str, op: impl FnOnce(&mut toml_edit::DocumentMut) -> Result<T>) -> Result<T> {
+    let rel = settings_rel(id);
+    crate::vault_write::locked(&crate::paths::safe_join(root, &rel)?, || {
+        let current = std::fs::read_to_string(root.join(&rel)).unwrap_or_default();
+        let mut file: toml_edit::DocumentMut = current.parse().map_err(|e| Error::BadRequest(format!("{rel}: {e}")))?;
+        let before = file.to_string();
+        let out = op(&mut file)?;
+        if file.to_string() != before {
+            write_settings_file(root, id, &file.to_string())?;
+        }
+        Ok(out)
+    })
+}
+
 /// A vault copy of a manifest that still holds `[settings]` (from before the settings file): its values move to the
 /// file — only when the vault has no file yet — and the manifest keeps none, so there is one place to look.
 pub fn move_settings_out(root: &Path, id: &str) -> Result<()> {
@@ -716,16 +734,16 @@ pub fn move_settings_out(root: &Path, id: &str) -> Result<()> {
     }
     let mut doc: toml_edit::DocumentMut = text.parse().map_err(|e| Error::BadRequest(format!("{rel}: {e}")))?;
     // the table's own lines, comments kept (`sides = 20 # the classic`), into the file — a key the file has wins
-    let current = std::fs::read_to_string(root.join(settings_rel(id))).unwrap_or_default();
-    let mut file: toml_edit::DocumentMut = current.parse().map_err(|e| Error::BadRequest(format!("{}: {e}", settings_rel(id))))?;
-    if let Some(t) = doc.get("settings").and_then(toml_edit::Item::as_table) {
-        for (k, v) in t.iter() {
-            if !file.contains_key(k) {
-                file.insert(k, v.clone());
+    edit_settings_file(root, id, |file| {
+        if let Some(t) = doc.get("settings").and_then(toml_edit::Item::as_table) {
+            for (k, v) in t.iter() {
+                if !file.contains_key(k) {
+                    file.insert(k, v.clone());
+                }
             }
         }
-    }
-    write_settings_file(root, id, &file.to_string())?;
+        Ok(())
+    })?;
     doc.remove("settings");
     crate::vault_write::write(&crate::paths::safe_join(root, &rel)?, doc.to_string().as_bytes())?;
     Ok(())
@@ -738,20 +756,15 @@ pub fn carry_settings(root: &Path, r: &Replaced, to: &str) -> Result<bool> {
     move_settings_out(root, &r.id)?;
     let Ok(text) = std::fs::read_to_string(root.join(settings_rel(&r.id))) else { return Ok(false) };
     let old: toml_edit::DocumentMut = text.parse().map_err(|e| Error::BadRequest(format!("{}: {e}", settings_rel(&r.id))))?;
-    let current = std::fs::read_to_string(root.join(settings_rel(to))).unwrap_or_default();
-    let mut file: toml_edit::DocumentMut = current.parse().map_err(|e| Error::BadRequest(format!("{}: {e}", settings_rel(to))))?;
-    let mut added = false;
-    for (k, v) in old.iter() {
-        let k = r.renamed(k);
-        if !file.contains_key(k) {
-            file.insert(k, v.clone());
-            added = true;
+    edit_settings_file(root, to, |file| {
+        for (k, v) in old.iter() {
+            let k = r.renamed(k);
+            if !file.contains_key(k) {
+                file.insert(k, v.clone());
+            }
         }
-    }
-    added |= set_missing(&mut file, &r.set, &format!("replaces.{}.set", r.id))?;
-    if added {
-        write_settings_file(root, to, &file.to_string())?;
-    }
+        set_missing(file, &r.set, &format!("replaces.{}.set", r.id)).map(|_| ())
+    })?;
     Ok(true)
 }
 
@@ -770,12 +783,7 @@ fn set_missing(file: &mut toml_edit::DocumentMut, values: &toml::Table, origin: 
 
 /// A replaced plugin the vault had switched off: its `if_off` values into plugin `to`'s settings (keys it has win).
 pub fn settings_if_off(root: &Path, r: &Replaced, to: &str) -> Result<()> {
-    let current = std::fs::read_to_string(root.join(settings_rel(to))).unwrap_or_default();
-    let mut file: toml_edit::DocumentMut = current.parse().map_err(|e| Error::BadRequest(format!("{}: {e}", settings_rel(to))))?;
-    if set_missing(&mut file, &r.if_off, &format!("replaces.{}.if_off", r.id))? {
-        write_settings_file(root, to, &file.to_string())?;
-    }
-    Ok(())
+    edit_settings_file(root, to, |file| set_missing(file, &r.if_off, &format!("replaces.{}.if_off", r.id)).map(|_| ()))
 }
 
 /// Where plugin `id`'s settings file is, relative to the vault.
@@ -808,19 +816,18 @@ pub fn hide_legacy_rails(root: &Path) {
 }
 
 fn hide_legacy_rail(root: &Path, id: &str) -> Result<()> {
-    let rel = settings_rel(id);
-    let text = std::fs::read_to_string(root.join(&rel))?;
-    let mut file: toml_edit::DocumentMut = text.parse().map_err(|e| Error::BadRequest(format!("{rel}: {e}")))?;
-    let Some(shown) = file.get("rail").map(|v| v.as_bool()) else { return Ok(()) };
-    if shown == Some(false) {
-        let mut cfg = crate::config::Config::load(root)?;
-        if !cfg.ui.apps_hidden.iter().any(|a| a == id) {
-            cfg.ui.apps_hidden.push(id.to_string());
-            crate::config::Config::save(root, &cfg)?;
+    edit_settings_file(root, id, |file| {
+        let Some(shown) = file.get("rail").map(|v| v.as_bool()) else { return Ok(()) };
+        if shown == Some(false) {
+            let mut cfg = crate::config::Config::load(root)?;
+            if !cfg.ui.apps_hidden.iter().any(|a| a == id) {
+                cfg.ui.apps_hidden.push(id.to_string());
+                crate::config::Config::save(root, &cfg)?;
+            }
         }
-    }
-    file.remove("rail");
-    write_settings_file(root, id, &file.to_string())
+        file.remove("rail");
+        Ok(())
+    })
 }
 
 /// A section the vault's config once kept for what is now plugin `id` (`[refs]` → catalog-papers) becomes the plugin's
@@ -834,20 +841,15 @@ pub fn adopt_config_section(root: &Path, section: &str, id: &str) -> Result<()> 
     let Ok(text) = std::fs::read_to_string(root.join(crate::config::CONFIG_FILE)) else { return Ok(()) };
     let cfg: toml::Table = toml::from_str(&text).map_err(|e| Error::BadRequest(format!("{}: {e}", crate::config::CONFIG_FILE)))?;
     let Some(old) = cfg.get(section).and_then(toml::Value::as_table) else { return Ok(()) };
-    let current = std::fs::read_to_string(root.join(settings_rel(id))).unwrap_or_default();
-    let mut file: toml_edit::DocumentMut = current.parse().map_err(|e| Error::BadRequest(format!("{}: {e}", settings_rel(id))))?;
-    let mut added = false;
-    for (k, v) in old {
-        if !file.contains_key(k) {
-            let item = toml_edit::value(v.to_string().parse::<toml_edit::Value>().map_err(|e| Error::BadRequest(format!("[{section}] {k}: {e}")))?);
-            file.insert(k, item);
-            added = true;
+    edit_settings_file(root, id, |file| {
+        for (k, v) in old {
+            if !file.contains_key(k) {
+                let item = toml_edit::value(v.to_string().parse::<toml_edit::Value>().map_err(|e| Error::BadRequest(format!("[{section}] {k}: {e}")))?);
+                file.insert(k, item);
+            }
         }
-    }
-    if added {
-        write_settings_file(root, id, &file.to_string())?;
-    }
-    Ok(())
+        Ok(())
+    })
 }
 
 /// Every plugin folder holding a `plugin.toml`, sorted by id. Every plugin call asks for it: the list read last is
@@ -1376,6 +1378,20 @@ mod tests {
         save_settings(t.path(), &store, "bare", json!({ "n": 3 }).as_object().unwrap()).unwrap();
         let bare = list(t.path()).into_iter().find(|p| p.id == "bare").unwrap();
         assert_eq!((bare.error.clone(), &bare.settings["n"], bare.fields.len()), (None, &json!(3), 1), "{}", std::fs::read_to_string(t.path().join(PLUGINS_DIR).join("bare/plugin.toml")).unwrap());
+    }
+
+    #[test]
+    fn two_saves_at_once_keep_both_values() {
+        let t = tempfile::tempdir().unwrap();
+        plugin(t.path(), "dice", "title = \"Dice\"\n\n[[setting]]\nkey = \"sides\"\nkind = \"number\"\n\n[[setting]]\nkey = \"system\"\nkind = \"text\"\n");
+        let sdir = tempfile::tempdir().unwrap();
+        let store = crate::secrets::Store::in_dir(sdir.path(), t.path());
+        std::thread::scope(|s| {
+            s.spawn(|| (0..30).for_each(|i| drop(save_settings(t.path(), &store, "dice", json!({ "sides": i }).as_object().unwrap()).unwrap())));
+            s.spawn(|| (0..30).for_each(|i| drop(save_settings(t.path(), &store, "dice", json!({ "system": format!("s{i}") }).as_object().unwrap()).unwrap())));
+        });
+        let p = list(t.path()).remove(0);
+        assert_eq!((&p.settings["sides"], &p.settings["system"]), (&json!(29), &json!("s29")));
     }
 
     #[test]

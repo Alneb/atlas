@@ -25,13 +25,6 @@ fn fnv1a(bytes: &[u8]) -> u64 {
 }
 
 // `@` and the length: a card's secret is `<field>.<card name>.<key>`, and cards are often named by an address
-/// `set` and `delete` rewrite the whole table: one at a time in this process, or a token refresh and a settings save
-/// at once would each write back the table without the other's change.
-fn one_writer() -> std::sync::MutexGuard<'static, ()> {
-    static WRITING: std::sync::Mutex<()> = std::sync::Mutex::new(());
-    WRITING.lock().unwrap_or_else(|e| e.into_inner())
-}
-
 fn valid(name: &str) -> bool {
     !name.is_empty() && name.len() <= 200 && name.chars().all(|c| c.is_ascii_alphanumeric() || "_-.@".contains(c))
 }
@@ -129,31 +122,38 @@ impl Store {
         Ok(out)
     }
 
+    /// The table changed by `op` (which says whether it did) and written back, under a lock every Atlas process of this
+    /// computer takes: a token refresh and a settings save at once, even from two processes, never drop one.
+    fn edit(&self, op: impl FnOnce(&mut Table) -> bool) -> Result<bool> {
+        crate::vault_write::outside::locked(&self.file, || {
+            let mut t = self.read()?;
+            let changed = op(&mut t);
+            if changed {
+                self.write(&t)?;
+            }
+            Ok(changed)
+        })
+    }
+
     pub fn set(&self, plugin: &str, name: &str, value: &str) -> Result<()> {
         if !valid(name) {
             return Err(Error::BadRequest(format!("secret name {name:?}: letters, digits, - _ . @ (at most 200)")));
         }
         self.refuse_mounted(plugin, name)?;
-        let _one = one_writer();
-        let mut t = self.read()?;
-        t.entry(plugin.to_string()).or_default().insert(name.to_string(), value.to_string());
-        self.write(&t)
+        self.edit(|t| t.entry(plugin.to_string()).or_default().insert(name.to_string(), value.to_string()).as_deref() != Some(value)).map(|_| ())
     }
 
     /// True when there was one.
     pub fn delete(&self, plugin: &str, name: &str) -> Result<bool> {
         self.refuse_mounted(plugin, name)?;
-        let _one = one_writer();
-        let mut t = self.read()?;
-        let Some(p) = t.get_mut(plugin) else { return Ok(false) };
-        let had = p.remove(name).is_some();
-        if p.is_empty() {
-            t.remove(plugin);
-        }
-        if had {
-            self.write(&t)?;
-        }
-        Ok(had)
+        self.edit(|t| {
+            let Some(p) = t.get_mut(plugin) else { return false };
+            let had = p.remove(name).is_some();
+            if p.is_empty() {
+                t.remove(plugin);
+            }
+            had
+        })
     }
 }
 

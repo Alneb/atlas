@@ -162,13 +162,9 @@ fn tasks_in(abs: &Path, meta: &std::fs::Metadata) -> std::sync::Arc<Vec<(u32, St
 /// The task lines of `lines`: (index, text after the checkbox, done). Checkboxes inside code fences are examples, not
 /// tasks. The one reader of a note's tasks (Today, task and view blocks).
 pub(crate) fn task_lines<'a>(lines: impl Iterator<Item = &'a str>) -> impl Iterator<Item = (usize, &'a str, bool)> {
-    let mut in_fence = false;
+    let mut fences = atlas_text::fence::Fences::default();
     lines.enumerate().filter_map(move |(i, line)| {
-        if line.trim_start().starts_with("```") || line.trim_start().starts_with("~~~") {
-            in_fence = !in_fence;
-            return None;
-        }
-        if in_fence {
+        if fences.code(line) {
             return None;
         }
         parse_task(line).map(|t| (i, t, false)).or_else(|| done_task(line).map(|t| (i, t, true)))

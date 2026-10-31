@@ -94,14 +94,11 @@ fn log_section(lines: &[&str]) -> std::ops::Range<usize> {
 /// The captures of one day's log, in file order.
 fn in_log(rel: &str, day: &str, text: &str) -> Vec<CaptureItem> {
     let lines: Vec<&str> = text.split('\n').collect();
-    let mut fence = false;
+    let mut fences = atlas_text::fence::Fences::default();
     let mut out = vec![];
     for i in log_section(&lines) {
         let l = lines[i];
-        if l.trim_start().starts_with("```") {
-            fence = !fence;
-        }
-        let Some(c) = (!fence).then(|| parse_line(l)).flatten() else { continue };
+        let Some(c) = (!fences.code(l)).then(|| parse_line(l)).flatten() else { continue };
         out.push(CaptureItem {
             kind: CaptureKind::Line,
             path: rel.to_string(),

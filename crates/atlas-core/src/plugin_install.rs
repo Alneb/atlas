@@ -445,10 +445,7 @@ pub fn update(root: &Path, id: &str) -> Result<Installed> {
     }
     let done = install(root, &Source::parse(from), Some(id), true)?;
     for (rel, bytes) in own {
-        let to = dir.join(&rel);
-        if !to.exists() {
-            vault_write::write(&to, &bytes)?;
-        }
+        let _ = vault_write::create(&dir.join(&rel), &bytes)?; // one the new version ships wins
     }
     Ok(done)
 }

@@ -86,9 +86,9 @@ fn date_text(d: NaiveDateTime) -> String {
     d.format(if d.time() == chrono::NaiveTime::MIN { "%Y-%m-%d" } else { "%Y-%m-%d %H:%M" }).to_string()
 }
 
-/// At most two decimals, none when whole.
+/// At most two decimals, none when whole (`-0.001` is `0`, not `-0`).
 fn num_text(x: f64) -> String {
-    let r = (x * 100.0).round() / 100.0;
+    let r = (x * 100.0).round() / 100.0 + 0.0;
     if r.fract() == 0.0 { format!("{r:.0}") } else { format!("{r}") }
 }
 
@@ -107,6 +107,7 @@ mod tests {
         assert_eq!(summarize(SummaryKind::Empty, &n).as_deref(), Some("1"));
         assert_eq!(summarize(SummaryKind::Checked, &n).as_deref(), Some("1"));
         assert_eq!(summarize(SummaryKind::Sum, &[Val::Str("x".into())]), None, "nothing to add up");
+        assert_eq!(summarize(SummaryKind::Sum, &[Val::Num(-0.001)]).as_deref(), Some("0"), "no negative zero");
         let d = [Val::Str("2025-03-10".into()), Val::Str("2025-03-01".into()), Val::Str("2025-03-01".into())];
         assert_eq!(summarize(SummaryKind::Earliest, &d).as_deref(), Some("2025-03-01"));
         assert_eq!(summarize(SummaryKind::Latest, &d).as_deref(), Some("2025-03-10"));

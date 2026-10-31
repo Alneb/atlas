@@ -40,11 +40,11 @@ pub fn record_at(ws: &Workspace, event: UsageEvent, t: i64) -> Result<()> {
     use crate::vault_write::cache;
     let path = ws.root().join(JOURNAL);
     if std::fs::metadata(&path).is_ok_and(|m| m.len() > CAP_BYTES) {
-        let text = std::fs::read_to_string(&path).unwrap_or_default();
+        // as bytes: the middle may fall inside a character (`Réunion.md`), and one bad byte must not empty the journal
+        let text = std::fs::read(&path)?;
         let keep = text.len() / 2;
-        // by bytes: the middle may fall inside a character (`Réunion.md`), and a `str` slice there panics on every record
-        let cut = text.as_bytes()[keep..].iter().position(|&b| b == b'\n').map_or(text.len(), |i| keep + i + 1);
-        cache::write(&path, &text.as_bytes()[cut..])?;
+        let cut = text[keep..].iter().position(|&b| b == b'\n').map_or(text.len(), |i| keep + i + 1);
+        cache::write(&path, &text[cut..])?;
     }
     let line = serde_json::to_string(&Entry { t, event }).map_err(anyhow::Error::from)?;
     cache::append(&path, format!("{line}\n").as_bytes())

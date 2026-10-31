@@ -297,13 +297,15 @@ fn cell(v: &Val, resolve: &dyn Fn(&str) -> Option<String>) -> BaseCell {
     }
 }
 
-/// A card's picture from a property's value: a web address as written, a `[[link]]` or a path resolved in the
-/// vault (a list: its first).
+/// A card's picture from a property's value: a web address as written, a `[[link]]` (an embed `![[x.jpg]]` too) or a
+/// path resolved in the vault (a list: its first).
 fn picture(v: &Val, from: &str, vault: &links::Vault) -> Option<String> {
     match v {
         Val::List(l) => l.iter().find_map(|i| picture(i, from, vault)),
         Val::Str(s) if s.starts_with("https://") || s.starts_with("http://") => Some(s.trim().to_string()),
         Val::Link(t) | Val::Str(t) => {
+            let t = t.trim().trim_start_matches('!');
+            let t = t.strip_prefix("[[").and_then(|x| x.strip_suffix("]]")).unwrap_or(t);
             let target = t.split('|').next().unwrap_or(t).trim();
             vault.resolve(target, from)
         }
@@ -400,17 +402,10 @@ pub fn evaluate(root: &Path, cfg: &Config, base_src: &str, this: Option<&str>) -
         })
         .collect();
     let host = this.and_then(|t| notes.iter().find(|n| n.path == t));
-    let by_stem: HashMap<String, &str> = {
-        let mut m = HashMap::new();
-        // shortest path wins for a shared name, like link resolution
-        for n in notes.iter().rev() {
-            m.insert(n.name.to_lowercase(), n.path);
-        }
-        m
-    };
-    let resolve = |t: &str| by_stem.get(&stem(t).to_lowercase()).map(|p| p.to_string());
     let formulas: Vec<(String, Option<Expr>)> =
         base.formulas.iter().map(|(k, v)| (k.clone(), expr::parse(v).ok())).collect();
+    // a formula may use another (`formula.x`), whatever their order: one pass per formula reaches the end of any chain
+    let passes = if base.formulas.values().any(|v| v.contains("formula.")) { formulas.len() } else { 1 };
 
     let views = base
         .views
@@ -420,9 +415,11 @@ pub fn evaluate(root: &Path, cfg: &Config, base_src: &str, this: Option<&str>) -
                 .iter()
                 .filter_map(|note| {
                     let mut ctx = Ctx { note, this: host, props: note.props(), formulas: BTreeMap::new() };
-                    for (name, e) in &formulas {
-                        let v = e.as_ref().map_or(Val::Null, |e| expr::eval(e, &ctx));
-                        ctx.formulas.insert(name.clone(), v);
+                    for _ in 0..passes {
+                        for (name, e) in &formulas {
+                            let v = e.as_ref().map_or(Val::Null, |e| expr::eval(e, &ctx));
+                            ctx.formulas.insert(name.clone(), v);
+                        }
                     }
                     let ok = base.filters.as_ref().is_none_or(|f| passes(f, &ctx))
                         && view.filters.as_ref().is_none_or(|f| passes(f, &ctx));
@@ -476,7 +473,10 @@ pub fn evaluate(root: &Path, cfg: &Config, base_src: &str, this: Option<&str>) -
                 .collect();
             let rows = rows
                 .iter()
-                .map(|ctx| BaseRow {
+                .map(|ctx| {
+                    // a cell's link found as the note's own links are (its folder first, then the shortest path)
+                    let resolve = |t: &str| vault.resolve(t, ctx.note.path);
+                    BaseRow {
                     group: group_by.as_ref().map(|g| cell_text(&cell(&resolve_field(ctx, g), &resolve))),
                     image: view.image.as_ref().and_then(|p| picture(&resolve_field(ctx, p), ctx.note.path, &vault)),
                     edit: columns_raw(&order, ctx.note),
@@ -495,6 +495,7 @@ pub fn evaluate(root: &Path, cfg: &Config, base_src: &str, this: Option<&str>) -
                             _ => cell(&resolve_field(ctx, id), &resolve),
                         })
                         .collect(),
+                    }
                 })
                 .collect();
             BaseView {
@@ -612,14 +613,34 @@ views:
         let w = |n: &str, s: &str| std::fs::write(d.path().join(n), s).unwrap();
         w("a.md", "---\nprice: 3\ncover: \"[[a.png]]\"\n---\n");
         w("b.md", "---\nprice: 5\ncover: https://example.org/b.jpg\n---\n");
+        w("c.md", "---\nprice: 0\ncover: \"![[c.jpg]]\"\n---\n");
         w("a.png", "");
+        w("c.jpg", "");
         let src = "views:\n  - type: cards\n    order: [file.name, price]\n    image: note.cover\n    summaries:\n      note.price: Sum\n      file.name: Nope\n";
         let v = &evaluate(d.path(), &Config::default(), src, None).views[0];
         let s = v.columns[1].summary.as_ref().unwrap();
         assert_eq!((s.kind, s.value.as_str()), (SummaryKind::Sum, "8"));
         assert!(v.columns[0].summary.is_none(), "an unknown summary is left out");
         let pics: Vec<_> = v.rows.iter().map(|r| r.image.as_deref()).collect();
-        assert_eq!(pics, [Some("a.png"), Some("https://example.org/b.jpg")]);
+        assert_eq!(pics, [Some("a.png"), Some("https://example.org/b.jpg"), Some("c.jpg")], "a link, an address, an embed");
+    }
+
+    #[test]
+    fn a_formula_uses_another_whatever_their_names_and_links_resolve_from_the_row() {
+        let d = tempfile::tempdir().unwrap();
+        let w = |p: &str, s: &str| {
+            let p = d.path().join(p);
+            std::fs::create_dir_all(p.parent().unwrap()).unwrap();
+            std::fs::write(p, s).unwrap();
+        };
+        w("a/deep/x.md", "");
+        w("z/x.md", "");
+        w("z/row.md", "---\nprice: 4\nup: \"[[x]]\"\n---\n");
+        let src = "formulas:\n  a: formula.z * 2\n  z: price + 1\nviews:\n  - type: table\n    filters: 'file.name == \"row\"'\n    order: [formula.a, up]\n";
+        let r = evaluate(d.path(), &Config::default(), src, None);
+        let row = &r.views[0].rows[0];
+        assert!(matches!(&row.cells[0], BaseCell::Num { value } if *value == 10.0), "{:?}", row.cells[0]);
+        assert!(matches!(&row.cells[1], BaseCell::Link { path, .. } if path.as_deref() == Some("z/x.md")), "the row's own folder: {:?}", row.cells[1]);
     }
 
     #[test]

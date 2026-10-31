@@ -183,12 +183,16 @@ pub fn settle(ws: &Workspace, copy: &str) -> crate::Result<Settled> {
         Merged::Clashed => Ok(Settled::Left("both sides changed the same lines".into())),
         Merged::Clean(text) => {
             // the merge took a while: an edit saved meanwhile would be written over, so it waits for the next pass
+            // (the check and the write under the file's lock, which saves take: none lands between them)
             let path = ws.resolve(&orig)?;
-            if std::fs::read(&path).ok().as_deref() != Some(ours.as_bytes()) {
-                return Ok(Settled::Later("the file changed while merging".into()));
-            }
-            if let Err(e) = vault_write::write(&path, text.as_bytes()) {
-                return Ok(Settled::Later(format!("the merge was not written yet: {e}")));
+            let later = vault_write::locked(&path, || {
+                if std::fs::read(&path).ok().as_deref() != Some(ours.as_bytes()) {
+                    return Ok(Some("the file changed while merging".to_string()));
+                }
+                Ok(vault_write::write(&path, text.as_bytes()).err().map(|e| format!("the merge was not written yet: {e}")))
+            })?;
+            if let Some(why) = later {
+                return Ok(Settled::Later(why));
             }
             to_trash(ws, copy)?;
             Ok(Settled::Merged)
