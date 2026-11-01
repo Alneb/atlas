@@ -1,7 +1,8 @@
 //! Sending, drafts and sending later (DESIGN-mail-ui §3 "Composer"). The page holds a message a few seconds before
 //! calling `send` (its Undo); drafts live in the server's Drafts (saved by themselves while typing), so they follow
 //! the user to every client; a message to send later is a draft carrying `X-Atlas-Send-At` and the keyword
-//! `$atlas-send-later`, sent by whichever Atlas engine runs when its time comes (the server's, through the mirror).
+//! `$atlas-send-later`, sent by whichever Atlas engine runs when its time comes (the server's, through the mirror) —
+//! the one that takes the keyword off on the server first (`claim`), so two engines never both send it.
 
 use crate::account::{Account, Auth};
 use crate::compose::{self, Draft, File, Quote};
@@ -289,6 +290,15 @@ pub async fn send_due(m: &Mail, acc: &Account) -> Result<usize, String> {
             rcpt.extend(b.iter().filter_map(|a| a.address().map(String::from)));
         }
         let from = e.from.first().map(|x| x.addr.clone()).unwrap_or_else(|| acc.user.clone());
+        // the desktop's engine and the server's both look every minute: only the one that takes the keyword sends
+        match claim(m, acc, &drafts.path, id).await {
+            Ok(true) => {}
+            Ok(false) => continue, // sent by another Atlas, or no longer scheduled
+            Err(err) => {
+                m.event("status", json!({ "account": acc.name, "state": "error", "error": format!("sending “{}” later: {err}", e.subject) }));
+                continue;
+            }
+        }
         // the message as it goes out: no longer a draft, dated now
         let out = fresh_date(&raw);
         match deliver(m, acc, &from, &rcpt, &out).await {
@@ -301,10 +311,39 @@ pub async fn send_due(m: &Mail, acc: &Account) -> Result<usize, String> {
                 m.event("sent", json!({ "account": acc.name, "subject": e.subject, "later": true }));
                 n += 1;
             }
-            Err(err) => m.event("status", json!({ "account": acc.name, "state": "error", "error": format!("sending “{}” later failed: {err}", e.subject) })),
+            Err(err) => {
+                // scheduled again, so the next minute tries it again
+                let _ = crate::ops::flag(m, &[id], SEND_LATER, true).await;
+                m.event("status", json!({ "account": acc.name, "state": "error", "error": format!("sending “{}” later failed: {err}", e.subject) }));
+            }
         }
     }
     Ok(n)
+}
+
+/// Takes the send-later keyword off draft `id` on the server: true when this engine took it (and so sends it).
+pub async fn claim(m: &Mail, acc: &Account, drafts: &str, id: i64) -> Result<bool, String> {
+    let Some(x) = m.index.msg(id) else { return Ok(false) };
+    let mut c = m.conn(acc).await?;
+    let r = async {
+        c.ensure(drafts, true).await?;
+        c.take_flag(x.uid, SEND_LATER).await
+    }
+    .await;
+    match r {
+        Ok(took) => {
+            m.give_back(c);
+            if took {
+                // taken on the server: it is sent even if the index cannot follow (the next sync tells it)
+                let _ = m.index.flag(&[id], SEND_LATER, false);
+            }
+            Ok(took)
+        }
+        Err(e) => {
+            m.rt.spawn(c.logout());
+            Err(e)
+        }
+    }
 }
 
 /// The Date header set to now (a message sent later is dated when it leaves).
@@ -338,6 +377,22 @@ mod tests {
     use super::*;
     use crate::sync::tests_support::harness;
     use std::sync::{Arc, Mutex};
+
+    #[test]
+    fn a_draft_due_is_sent_by_one_engine_only() {
+        let (m, s, _e, _d) = harness(true);
+        let acc = m.account(None).unwrap();
+        m.rt.block_on(crate::sync::account(&m, &acc, None)).unwrap();
+        let c = Compose { account: "fake".into(), to: "ana@example.org".into(), subject: "Later".into(), body: "x".into(), send_at: Some(chrono::Utc::now().timestamp() - 1), ..Default::default() };
+        let id = m.rt.block_on(save_draft(&m, &c)).unwrap()["id"].as_i64().unwrap();
+        let drafts = m.index.role("fake", "drafts").unwrap().path;
+        assert!(m.rt.block_on(claim(&m, &acc, &drafts, id)).unwrap(), "the first engine takes it");
+        assert!(!m.rt.block_on(claim(&m, &acc, &drafts, id)).unwrap(), "the second finds it taken");
+        // an engine whose index still says "send later" asks the server, which says it is taken: nothing sent
+        m.index.flag(&[id], SEND_LATER, true).unwrap();
+        assert_eq!(m.rt.block_on(send_due(&m, &acc)).unwrap(), 0);
+        assert_eq!(s.store.lock().unwrap().sent, 0);
+    }
 
     #[test]
     fn a_reply_is_sent_threaded_kept_in_sent_and_its_parent_marked_answered() {

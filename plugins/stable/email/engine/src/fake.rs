@@ -593,13 +593,17 @@ impl Imap {
                     return self.send(&format!("{tag} NO read-only"));
                 }
                 let set = uids_in(&a[0], &have);
+                // CONDSTORE (RFC 7162): `(UNCHANGEDSINCE n)` leaves messages changed after n alone, said as [MODIFIED …]
+                let since = a.get(1).filter(|x| x.to_uppercase().starts_with("(UNCHANGEDSINCE")).and_then(|x| x.trim_matches(['(', ')']).split_whitespace().nth(1)?.parse::<u64>().ok());
+                let a: Vec<String> = if since.is_some() { a[1..].to_vec() } else { a.to_vec() };
                 let op = a.get(1).cloned().unwrap_or_default().to_uppercase();
                 let flags: Vec<String> = a.get(2).map(|f| f.trim_matches(['(', ')']).split_whitespace().map(String::from).collect()).unwrap_or_default();
                 let mut st = self.s.store.lock().unwrap();
                 st.modseq += 1;
                 let ms = st.modseq;
                 let f = st.folders.get_mut(&sel).unwrap();
-                for m in f.msgs.iter_mut().filter(|m| set.contains(&m.uid)) {
+                let modified: Vec<u32> = f.msgs.iter().filter(|m| set.contains(&m.uid) && since.is_some_and(|n| m.modseq > n)).map(|m| m.uid).collect();
+                for m in f.msgs.iter_mut().filter(|m| set.contains(&m.uid) && !modified.contains(&m.uid)) {
                     for fl in &flags {
                         if op.starts_with('+') {
                             m.flags.insert(fl.clone());
@@ -612,7 +616,12 @@ impl Imap {
                 st.save();
                 drop(st);
                 self.s.changed.notify_all();
-                self.send(&format!("{tag} OK done"))
+                if modified.is_empty() {
+                    self.send(&format!("{tag} OK done"))
+                } else {
+                    let uids: Vec<String> = modified.iter().map(u32::to_string).collect();
+                    self.send(&format!("{tag} OK [MODIFIED {}] conditional STORE failed", uids.join(",")))
+                }
             }
             "MOVE" | "COPY" => {
                 if sub == "MOVE" && !self.s.moves {

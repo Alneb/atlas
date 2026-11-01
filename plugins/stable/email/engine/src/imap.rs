@@ -381,6 +381,39 @@ impl Imap {
         self.raw(&format!("UID STORE {} {op} ({})", set(uids), flags.join(" "))).await
     }
 
+    /// Takes `flag` off `uid` of the open folder (opened for writing) only while it is still there: true when this
+    /// call took it. With CONDSTORE the STORE holds only if nobody changed the message since it was read
+    /// (UNCHANGEDSINCE; the server answers `[MODIFIED …]` otherwise), so of two engines asking at once one wins;
+    /// without it the fresh read leaves a moment's race.
+    pub async fn take_flag(&mut self, uid: u32, flag: &str) -> Result<bool, String> {
+        let condstore = self.has("CONDSTORE");
+        let (mut there, mut modseq) = (false, 0u64);
+        self.raw_each(&format!("UID FETCH {uid} (UID FLAGS{})", if condstore { " MODSEQ" } else { "" }), |r| {
+            if let Response::Fetch(_, attrs) = r {
+                let mut m = Fetched::default();
+                m.read(attrs);
+                if m.uid == Some(uid) {
+                    there = m.flags.iter().any(|f| f.eq_ignore_ascii_case(flag));
+                    modseq = m.modseq;
+                }
+            }
+        })
+        .await?;
+        if !there {
+            return Ok(false);
+        }
+        let cond = if condstore && modseq > 0 { format!(" (UNCHANGEDSINCE {modseq})") } else { String::new() };
+        let mut modified = false;
+        // imap-proto has no MODIFIED code: it stays at the head of the answer's text
+        self.raw_each(&format!("UID STORE {uid}{cond} -FLAGS.SILENT ({flag})"), |r| {
+            if let Response::Data { outcome, .. } | Response::Done { outcome, .. } = r {
+                modified |= outcome.information.as_deref().is_some_and(|i| i.trim_start().to_ascii_uppercase().starts_with("[MODIFIED"));
+            }
+        })
+        .await?;
+        Ok(!modified)
+    }
+
     /// Gmail labels added or removed (X-GM-LABELS).
     pub async fn store_labels(&mut self, uids: &[u32], add: bool, labels: &[String]) -> Result<(), String> {
         if uids.is_empty() || labels.is_empty() {

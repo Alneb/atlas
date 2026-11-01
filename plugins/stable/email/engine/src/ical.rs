@@ -186,13 +186,25 @@ fn person(params: &[(String, String)], value: &str) -> (String, String) {
     (param(params, "CN").unwrap_or("").to_string(), addr)
 }
 
+/// Whether an event's line belongs to a component inside it (VALARM…), its BEGIN and END included; `inner` counts
+/// how deep.
+fn skip_inner(name: &str, value: &str, inner: &mut u32) -> bool {
+    let nested = !value.trim().eq_ignore_ascii_case("VEVENT");
+    match name {
+        "BEGIN" if nested => *inner += 1,
+        "END" if nested && *inner > 0 => *inner -= 1,
+        _ => return *inner > 0,
+    }
+    true
+}
+
 /// The first event of a calendar text (an invitation carries one, plus overrides of a series we do not show).
 pub fn read(ics: &str) -> Invite {
     let text = unfold(ics);
     let mut inv = Invite { ics: ics.to_string(), ..Default::default() };
     let mut vtz: HashMap<String, Vtz> = HashMap::new();
     let (mut tzid, mut sub, mut cur) = (String::new(), String::new(), Vtz::default());
-    let mut in_event = false;
+    let (mut in_event, mut inner) = (false, 0);
     let (mut start, mut end): (Option<Prop>, Option<Prop>) = (None, None);
     for line in text.lines() {
         let line = line.trim_end_matches('\r');
@@ -222,6 +234,10 @@ pub fn read(ics: &str) -> Invite {
                 }
                 _ => {}
             }
+            continue;
+        }
+        // an alarm inside the event (Outlook's `DESCRIPTION:REMINDER`) is not the event's
+        if skip_inner(&name, &value, &mut inner) {
             continue;
         }
         let v = unescape(&value);
@@ -265,7 +281,7 @@ pub fn read(ics: &str) -> Invite {
 pub fn reply(inv: &Invite, me: &str, my_name: &str, partstat: &str) -> String {
     let text = unfold(&inv.ics);
     let mut out = String::from("BEGIN:VCALENDAR\r\nPRODID:-//Atlas//Email//EN\r\nVERSION:2.0\r\nMETHOD:REPLY\r\n");
-    let (mut depth, mut in_event, mut done) = (0, false, false);
+    let (mut depth, mut in_event, mut done, mut inner) = (0, false, false, 0);
     for line in text.lines() {
         let line = line.trim_end_matches('\r');
         let Some((name, params, value)) = split(line) else { continue };
@@ -286,7 +302,7 @@ pub fn reply(inv: &Invite, me: &str, my_name: &str, partstat: &str) -> String {
             out.push_str("BEGIN:VEVENT\r\n");
             continue;
         }
-        if !in_event {
+        if !in_event || skip_inner(&name, &value, &mut inner) {
             continue;
         }
         if name == "END" && upper == "VEVENT" {
@@ -361,5 +377,15 @@ mod tests {
         assert!(!r.contains("bo@uni.example"), "other attendees are not in a reply");
         assert!(r.contains("BEGIN:VTIMEZONE"), "the zone its times use goes with it");
         assert_eq!(r.matches("BEGIN:VEVENT").count(), 1);
+    }
+
+    #[test]
+    fn an_alarm_inside_the_event_is_not_the_event() {
+        let ics = "BEGIN:VCALENDAR\r\nMETHOD:REQUEST\r\nBEGIN:VEVENT\r\nUID:u1\r\nSUMMARY:Seminar\r\nDESCRIPTION:Room change\r\nDTSTART:20261105T150000Z\r\nBEGIN:VALARM\r\nACTION:DISPLAY\r\nDESCRIPTION:REMINDER\r\nSUMMARY:alarm\r\nTRIGGER:-PT15M\r\nDURATION:PT5M\r\nEND:VALARM\r\nLOCATION:D3\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n";
+        let i = read(ics);
+        assert_eq!((i.summary.as_str(), i.description.as_str(), i.location.as_str()), ("Seminar", "Room change", "D3"));
+        let r = reply(&i, "me@uni.example", "", "DECLINED");
+        assert!(!r.contains("VALARM") && !r.contains("DURATION") && !r.contains("SUMMARY:alarm"), "{r}");
+        assert!(r.contains("SUMMARY:Seminar\r\n") && r.contains("ATTENDEE;PARTSTAT=DECLINED:mailto:me@uni.example\r\n"));
     }
 }

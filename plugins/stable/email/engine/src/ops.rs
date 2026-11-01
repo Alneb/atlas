@@ -41,13 +41,14 @@ pub fn expand_threads(m: &Mail, ids: &[i64]) -> Vec<i64> {
 pub async fn flag(m: &Mail, ids: &[i64], flag: &str, on: bool) -> Result<(), String> {
     let before: Vec<(i64, bool)> = ids.iter().filter_map(|id| m.index.msg(*id)).map(|x| (x.id, has_flag(&x, flag))).collect();
     m.index.flag(ids, flag, on)?;
-    for ((account, folder), msgs) in groups(m, ids) {
+    let groups: Vec<_> = groups(m, ids).into_iter().collect();
+    for (i, ((account, folder), msgs)) in groups.iter().enumerate() {
         let r = async {
-            let acc = m.account(Some(&account))?;
+            let acc = m.account(Some(account))?;
             let mut c = m.conn(&acc).await?;
             let uids: Vec<u32> = msgs.iter().filter(|x| x.uid > 0).map(|x| x.uid).collect();
             let r = async {
-                c.ensure(&folder, true).await?;
+                c.ensure(folder, true).await?;
                 c.store(&uids, on, &[flag]).await
             }
             .await;
@@ -64,8 +65,13 @@ pub async fn flag(m: &Mail, ids: &[i64], flag: &str, on: bool) -> Result<(), Str
         }
         .await;
         if let Err(e) = r {
-            for (id, was) in &before {
+            // the groups the server already changed keep it; this one and those not yet sent go back
+            let left: std::collections::HashSet<i64> = groups[i..].iter().flat_map(|(_, g)| g.iter().map(|x| x.id)).collect();
+            for (id, was) in before.iter().filter(|(id, _)| left.contains(id)) {
                 let _ = m.index.flag(&[*id], flag, *was);
+            }
+            if i > 0 {
+                m.event("changed", serde_json::json!({}));
             }
             return Err(e);
         }
@@ -115,11 +121,14 @@ pub async fn folder_for(m: &Mail, acc: &Account, role: &str) -> Result<String, S
     let delim = m.index.role(&acc.name, "inbox").and_then(|f| f.delimiter).unwrap_or_else(|| "/".into());
     let mut c = m.conn(acc).await?;
     // some servers only allow folders under INBOX: try the top first, then there
+    // a folder of that name with no role yet (no special-use flag) is the one: never a second one under INBOX
+    let exists = |e: &str| e.contains("ALREADYEXISTS") || e.to_lowercase().contains("exist");
     let path = match c.create(name).await {
         Ok(()) => name.to_string(),
+        Err(e) if exists(&e) => name.to_string(),
         Err(_) => {
             let under = format!("INBOX{delim}{name}");
-            c.create(&under).await.or_else(|e| if e.contains("ALREADYEXISTS") || e.to_lowercase().contains("exist") { Ok(()) } else { Err(e) })?;
+            c.create(&under).await.or_else(|e| if exists(&e) { Ok(()) } else { Err(e) })?;
             under
         }
     };
@@ -388,6 +397,17 @@ mod tests {
         assert!(!x.seen);
         let st = s.store.lock().unwrap();
         assert!(st.folders["INBOX"].msgs.iter().all(|x| !x.flags.iter().any(|f| f.starts_with("$atlas-snooze"))));
+    }
+
+    #[test]
+    fn a_folder_another_client_made_meanwhile_is_used_not_doubled() {
+        let (m, s, _e, _d) = harness(true);
+        let acc = m.account(None).unwrap();
+        m.rt.block_on(crate::sync::account(&m, &acc, None)).unwrap();
+        // made on the server after this index last listed the folders
+        s.store.lock().unwrap().folders.insert("Snoozed".into(), crate::fake::Folder { special: "", uidvalidity: 1, uidnext: 1, msgs: vec![] });
+        assert_eq!(m.rt.block_on(folder_for(&m, &acc, "snoozed")).unwrap(), "Snoozed");
+        assert_eq!(s.store.lock().unwrap().folders.keys().filter(|k| k.contains("Snoozed")).count(), 1, "no second folder under INBOX");
     }
 
     #[test]

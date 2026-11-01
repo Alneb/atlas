@@ -416,6 +416,8 @@ const journaled = new Map<string, number>();
 function journalOpen(path: string): void {
   const now = Date.now();
   if (now - (journaled.get(path) ?? 0) < 10_000) return;
+  // only the last 10 s matter: the older ones go, not one entry per file opened all day
+  if (journaled.size >= 200) for (const [p, t] of journaled) if (now - t >= 10_000) journaled.delete(p);
   journaled.set(path, now);
   api.usage({ kind: "open", path });
 }

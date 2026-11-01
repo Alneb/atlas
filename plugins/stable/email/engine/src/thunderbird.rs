@@ -33,6 +33,15 @@ fn profiles() -> Vec<(String, PathBuf, BTreeMap<String, String>)> {
     out
 }
 
+/// Thunderbird's socketType / try_ssl: 0 none, 1 STARTTLS when offered, 2 STARTTLS, 3 TLS from the start.
+fn tls_of(v: &str) -> &'static str {
+    match v {
+        "0" => "none",
+        "1" | "2" => "starttls",
+        _ => "ssl",
+    }
+}
+
 /// A short card name from an address: "me@uni.example" → "uni".
 fn short(user: &str, host: &str) -> String {
     let dom = user.split('@').nth(1).unwrap_or(host);
@@ -64,19 +73,19 @@ pub fn accounts(taken: &[String]) -> Value {
             let oauth = g("authMethod") == "10";
             let outlook = oauth && (host.contains("office365") || host.contains("outlook"));
             let user = g("userName");
-            let security = match g("socketType").as_str() {
-                "2" => "starttls",
-                "0" => "none",
-                _ => "ssl",
-            };
-            let port: u16 = if typ == "pop3" { 993 } else { g("port").parse().unwrap_or(993) };
+            let security = tls_of(&g("socketType"));
+            // Thunderbird writes no port when it is the default: left out, the card's own default follows the
+            // security (993 or 143); a POP account's port is not IMAP's
+            let port: Option<u16> = if typ == "pop3" { None } else { g("port").parse().ok() };
             found.push(json!({ "profile": label, "name": g("name"), "user": user, "imap_host": host, "imap_port": port, "security": security, "was": typ, "auth": if outlook { "outlook" } else if oauth { "oauth2 (not supported yet)" } else { "password" } }));
         }
         // SMTP servers, matched to an account by user name
         for (key, host) in &prefs {
             let Some(s) = key.strip_prefix("mail.smtpserver.").and_then(|k| k.strip_suffix(".hostname")) else { continue };
             let user = prefs.get(&format!("mail.smtpserver.{s}.username")).cloned().unwrap_or_default();
-            let port: u16 = prefs.get(&format!("mail.smtpserver.{s}.port")).and_then(|p| p.parse().ok()).unwrap_or(587);
+            // no port written: Thunderbird's default for its security (465 for TLS from the start, else 587)
+            let tls = prefs.get(&format!("mail.smtpserver.{s}.try_ssl")).map(|t| tls_of(t));
+            let port: u16 = prefs.get(&format!("mail.smtpserver.{s}.port")).and_then(|p| p.parse().ok()).unwrap_or(if tls == Some("ssl") { 465 } else { 587 });
             if let Some(acc) = found.iter_mut().find(|a| a["user"] == user.as_str() && a.get("smtp_host").is_none()) {
                 acc["smtp_host"] = json!(host);
                 acc["smtp_port"] = json!(port);
@@ -228,6 +237,11 @@ mod tests {
         let v = mbox(&p);
         assert_eq!(v.len(), 2);
         assert_eq!(String::from_utf8_lossy(&v[0]), "Subject: one\n\nFrom the start\nbody\n\n");
+    }
+
+    #[test]
+    fn thunderbirds_security_values() {
+        assert_eq!([tls_of("0"), tls_of("1"), tls_of("2"), tls_of("3"), tls_of("")], ["none", "starttls", "starttls", "ssl", "ssl"]);
     }
 
     #[test]

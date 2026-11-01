@@ -28,14 +28,16 @@ export default function mount(host, atlas) {
   };
   const xml = (text) => new DOMParser().parseFromString(text, "application/xml");
   const plain = (html) => new DOMParser().parseFromString(html, "text/html").body.textContent ?? "";
+  // the server's own links carry its root location (kiwix-serve --urlRootLocation /kiwix: /kiwix/content/…)
+  const content = (() => { try { return `${new URL(server).pathname.replace(/\/+$/, "")}/content/`; } catch { return "/content/"; } })();
   const articleUrl = (path) => `${server}/content/${encodeURIComponent(book.value)}/${path.split("/").map(encodeURIComponent).join("/")}`;
 
   /** The server's books, those the setting names first-class (the others hidden unless none match). */
   async function books() {
     const doc = xml(await get("/catalog/v2/entries?count=-1"));
     const all = [...doc.querySelectorAll("entry")].map((e) => {
-      const href = [...e.querySelectorAll("link")].map((l) => l.getAttribute("href") ?? "").find((h) => h.startsWith("/content/")) ?? "";
-      return { id: decodeURIComponent(href.slice("/content/".length)), title: e.querySelector("title")?.textContent ?? "", name: e.querySelector("name")?.textContent ?? "", lang: e.querySelector("language")?.textContent ?? "", count: Number(e.querySelector("articleCount")?.textContent ?? 0) };
+      const href = [...e.querySelectorAll("link")].map((l) => l.getAttribute("href") ?? "").find((h) => h.startsWith(content)) ?? "";
+      return { id: decodeURIComponent(href.slice(content.length)), title: e.querySelector("title")?.textContent ?? "", name: e.querySelector("name")?.textContent ?? "", lang: e.querySelector("language")?.textContent ?? "", count: Number(e.querySelector("articleCount")?.textContent ?? 0) };
     }).filter((b) => b.id);
     const words = String(atlas.plugin.settings?.books ?? "").toLowerCase().split(",").map((w) => w.trim()).filter(Boolean);
     const named = words.length ? all.filter((b) => words.some((w) => `${b.name} ${b.title}`.toLowerCase().includes(w))) : all;
@@ -77,7 +79,7 @@ export default function mount(host, atlas) {
     try {
       const doc = xml(await get(`/search?content=${encodeURIComponent(book.value)}&pattern=${encodeURIComponent(term)}&format=xml&pageLength=25`));
       if (mine !== asked || gone) return;
-      const prefix = `/content/${book.value}/`;
+      const prefix = `${content}${book.value}/`;
       const hits = [...doc.querySelectorAll("item")].map((i) => {
         const link = decodeURIComponent(i.querySelector("link")?.textContent ?? "");
         return { title: i.querySelector("title")?.textContent ?? "", path: link.startsWith(prefix) ? link.slice(prefix.length) : "", snippet: plain(i.querySelector("description")?.textContent ?? "").trim() };
