@@ -427,7 +427,7 @@ pub fn move_path(ws: &Workspace, from: &str, to: &str) -> Result<()> {
     if !a.exists() || a == ws.root() {
         return Err(Error::NotFound(from.into()));
     }
-    if b.exists() {
+    if b.exists() && !case_only(&a, &b) {
         return Err(Error::Conflict { current: None });
     }
     vault_write::rename(&a, &b)?;
@@ -436,6 +436,12 @@ pub fn move_path(ws: &Workspace, from: &str, to: &str) -> Result<()> {
         eprintln!("atlas: the note of {from} did not follow it to {to}: {e}");
     }
     Ok(())
+}
+
+/// `Note.md` → `note.md` on a case-insensitive file system (Windows, macOS): `to` "exists" because it is `from` itself.
+fn case_only(a: &std::path::Path, b: &std::path::Path) -> bool {
+    let id = |p: &std::path::Path| std::fs::symlink_metadata(p).ok().map(|m| crate::platform::proc::file_id(&m)).filter(|n| *n != 0);
+    a != b && a.to_string_lossy().to_lowercase() == b.to_string_lossy().to_lowercase() && id(a).is_some() && id(a) == id(b)
 }
 
 /// Delete = to the desktop Trash (`gio trash`, recoverable from the file manager); without gio,
@@ -496,6 +502,12 @@ mod manage_tests {
         std::fs::write(d.path().join("a.md"), "A").unwrap();
         std::fs::write(d.path().join("b.md"), "B").unwrap();
         assert!(move_path(&ws, "a.md", "b.md").is_err(), "no overwrite");
+        if !d.path().join("A.md").exists() {
+            // a case-sensitive file system: `B.md` is another file than `b.md`, never replaced
+            std::fs::write(d.path().join("B.md"), "B2").unwrap();
+            assert!(move_path(&ws, "B.md", "b.md").is_err(), "no overwrite by a name differing in case");
+            std::fs::remove_file(d.path().join("B.md")).unwrap();
+        }
         move_path(&ws, "a.md", "notes/new/a.md").unwrap();
         assert_eq!(std::fs::read_to_string(d.path().join("notes/new/a.md")).unwrap(), "A");
         assert!(move_path(&ws, "a.md", "c.md").is_err(), "gone");

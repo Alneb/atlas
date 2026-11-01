@@ -27,7 +27,7 @@ export async function register(atlas: PluginApi) {
   void engine.loadWords().catch((e) => console.warn("snippets: the word list did not load, only the short one holds:", e));
 
   // a snippet file changed, or which old file is meant: read again
-  atlas.onFilesChanged((paths) => { if (paths.some((p) => p.startsWith(`${FOLDER}/`) || p === ".atlas/config.toml")) void reload(); });
+  atlas.onFilesChanged((paths) => { if (!paths.length || paths.some((p) => p.startsWith(`${FOLDER}/`) || p === ".atlas/config.toml")) void reload(); });
 
   const where = (view: EditorView, pos: number) => engine.placeOf(view, pos);
   atlas.editor.registerCompletion({

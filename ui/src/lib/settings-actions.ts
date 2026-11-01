@@ -57,7 +57,7 @@ export function register(atlas) {
       host.style.cssText = "padding: 8px 0; color: var(--text-muted)"; // the app's variables follow the theme
     };
     void draw();
-    return atlas.onFilesChanged((paths) => { if (paths.includes(block.note)) void draw(); });
+    return atlas.onFilesChanged((paths) => { if (!paths.length || paths.includes(block.note)) void draw(); });
   }, {
     title: ${JSON.stringify(title)},
     // the fields of the page's "Options…" form (kinds: text, number, toggle, list, choice)

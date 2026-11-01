@@ -83,7 +83,7 @@ export interface PluginApi {
   assetUrl(rel: string): string;
   /** A downscaled image (≤ `width` px, default 320) for galleries: never show full-size figures small. */
   thumbUrl(path: string, width?: number): Promise<string>;
-  /** Called with the changed paths on every file event; returns the unsubscribe function. */
+  /** Called with the changed paths on every file event (none: anything may have changed); returns the unsubscribe function. */
   onFilesChanged(fn: (paths: string[]) => void): () => void;
   /** `options.run`: the notice's button (`options.label`, "Open" by default), e.g. open what it is about. */
   toast(title: string, body?: string, kind?: "info" | "success" | "error", options?: { run?: () => void; label?: string }): void;

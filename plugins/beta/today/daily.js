@@ -32,11 +32,20 @@ const style = () => { if (styled) return; styled = true; const s = document.crea
 export function registerDaily(atlas, lang) {
   atlas.registerBlock("daily.header", (host, block) => {
     style();
-    let gone = false;
+    let gone = false, drawn = 0, daysOf = null;
+    // the log folder's dated notes, across its year / month folders (`log_folders`): asked again only when another file
+    // there changes, not on every save of this one
+    const here = block.note.includes("/") ? block.note.slice(0, block.note.lastIndexOf("/")) : "";
+    const folder = here.replace(/(^|\/)\d{4}(\/[^/]+)*$/, "");
+    const days = () => (daysOf ??= atlas.query(`filters:\n  and:\n    - file.inFolder(${JSON.stringify(folder)})\nviews:\n  - type: table\n    name: days\n    order: [file.name]\n`)
+      .then((r) => (r?.views?.[0]?.rows ?? []).map((row) => row.path).filter((p) => DAY.test(p) && !p.includes("sync-conflict")).sort())
+      .catch(() => { daysOf = null; return []; }));
+    // a save of the log redraws it without the facts and the arrows blinking
     const draw = async () => {
+      const mine = ++drawn;
       const props = await block.props().catch(() => ({}));
       const text = await atlas.readText(block.note).catch(() => "");
-      if (gone) return;
+      if (gone || mine !== drawn) return;
       // a template (`date: {{date}}`, or a note in the templates folder): today's header as a preview, said to be one
       const template = /\{\{/.test(String(props.date ?? "")) || /(^|\/)(templates?|plantillas)\//i.test(block.note);
       const now = new Date(), today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
@@ -57,17 +66,15 @@ export function registerDaily(atlas, lang) {
       const facts = el("div", "facts");
       box.append(sub, nav, facts);
       if (template) box.append(el("p", "daily-template", "Template preview: a log made from it shows its own day here."));
-      host.replaceChildren(box);
-      if (!template) void dayFacts(facts, iso);
-      // the days around it that have a log: the log folder's dated notes, across its year / month folders (`log_folders`)
-      const here = block.note.includes("/") ? block.note.slice(0, block.note.lastIndexOf("/")) : "";
-      const folder = here.replace(/(^|\/)\d{4}(\/[^/]+)*$/, "");
-      const r = await atlas.query(`filters:\n  and:\n    - file.inFolder(${JSON.stringify(folder)})\nviews:\n  - type: table\n    name: days\n    order: [file.name]\n`).catch(() => null);
-      if (gone) return;
-      const days = (r?.views?.[0]?.rows ?? []).map((row) => row.path).filter((p) => DAY.test(p) && !p.includes("sync-conflict")).sort();
-      const at = days.indexOf(block.note);
+      // the first one shows at once and fills in; a redraw replaces the last only once it is whole
+      const first = !host.querySelector(".daily-head");
+      if (first) host.replaceChildren(box);
+      const [all] = await Promise.all([days(), template ? null : dayFacts(facts, iso)]);
+      if (gone || mine !== drawn) return;
+      const at = all.indexOf(block.note);
       const step = (label, path) => { const b = el("button", "", label); b.disabled = !path; if (path) { b.title = DAY.exec(path)[1]; b.onclick = () => atlas.open(path); } return b; };
-      nav.append(step("←", at > 0 ? days[at - 1] : null), step("→", at >= 0 && at < days.length - 1 ? days[at + 1] : null));
+      nav.append(step("←", at > 0 ? all[at - 1] : null), step("→", at >= 0 && at < all.length - 1 ? all[at + 1] : null));
+      if (!first) host.replaceChildren(box);
     };
     /** A line of the facts: a label, then items each opening where it came from. */
     const fact = (facts, label, items) => {
@@ -90,14 +97,18 @@ export function registerDaily(atlas, lang) {
         rows(`type: task-list\nfrom: tasks\ndue: ${iso}\nstarted: false`),
         rows(`type: task-list\nfrom: tasks\nshow: all\ncompleted: ${iso}`),
       ]);
-      if (gone) return;
       const time = (d) => (/T(\d{2}:\d{2})/.exec(String(d ?? ""))?.[1] ?? "");
       fact(facts, "Calendar", events.map((r) => ({ text: `${time(r.props?.start) ? `${time(r.props.start)} ` : ""}${r.title ?? ""}`, path: r.path })));
       fact(facts, "Due", due.filter((r) => !r.done).map((r) => ({ text: r.title ?? "", path: r.path, line: r.line })));
       fact(facts, "Done", done.map((r) => ({ text: r.title ?? "", path: r.path, line: r.line })));
     };
     void draw();
-    const off = atlas.onFilesChanged((paths) => { if (paths.includes(block.note)) void draw(); });
+    const off = atlas.onFilesChanged((paths) => {
+      // a day made or gone; no paths: the connection came back, anything may have changed
+      const day = !paths.length || paths.some((p) => p !== block.note && DAY.test(p) && (!folder || p.startsWith(`${folder}/`)));
+      if (day) daysOf = null;
+      if (day || paths.includes(block.note)) void draw();
+    });
     return () => { gone = true; off(); };
   }, { title: "Daily: the top of a day's log" });
 }

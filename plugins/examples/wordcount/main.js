@@ -21,7 +21,7 @@ export function register(atlas) {
     };
     void draw();
     // redraw when the note is saved; the returned function is the block's cleanup
-    return atlas.onFilesChanged((paths) => { if (paths.includes(block.note)) void draw(); });
+    return atlas.onFilesChanged((paths) => { if (!paths.length || paths.includes(block.note)) void draw(); });
   }, {
     // optional: a name for the "add a block" list, and the options as form fields — a page's
     // block menu then has "Options…" (kinds: text, number, toggle, list, choice)

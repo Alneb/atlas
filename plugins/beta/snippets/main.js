@@ -1259,7 +1259,7 @@ var ge = (e) => e.replace(/\$\{VISUAL\}/g, "x").replace(/\$\{\d+:((?:[^{}]|\{[^{
 async function _e(e) {
 	let t = re(e), n = null, r = async () => (n = await se(e), t.use(n), n);
 	e.editor.extension(t.extension), e.editor.claimTab(t.claim), await r(), t.loadWords().catch((e) => console.warn("snippets: the word list did not load, only the short one holds:", e)), e.onFilesChanged((e) => {
-		e.some((e) => e.startsWith(".atlas/snippets/") || e === ".atlas/config.toml") && r();
+		(!e.length || e.some((e) => e.startsWith(".atlas/snippets/") || e === ".atlas/config.toml")) && r();
 	});
 	let i = (e, n) => t.placeOf(e, n);
 	e.editor.registerCompletion({

@@ -90,7 +90,7 @@ export function register(atlas) {
   // is there such a file? (a failed read is "no"; kept, as the bar asks at every redraw; forgotten when files change)
   const known = new Map();
   const read = (path) => { if (!known.has(path)) known.set(path, atlas.readText(path).then((t) => t, () => null)); return known.get(path); };
-  atlas.onFilesChanged((paths) => { for (const p of paths) known.delete(p); });
+  atlas.onFilesChanged((paths) => { if (!paths.length) known.clear(); for (const p of paths) known.delete(p); });
   /** The nearest folder, from the file upwards, that holds `name`; null when none does. */
   const nearest = async (path, name) => { for (const d of upwards(path)) if ((await read(d ? `${d}/${name}` : name)) !== null) return d; return null; };
   const shellOf = async () => (await atlas.terminal.shell?.().catch(() => null)) ?? "posix";

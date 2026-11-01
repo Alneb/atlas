@@ -231,7 +231,7 @@ function baseSource(atlas, base, note, o) {
     // the collection's folder changed (a capture, an edit, another program)
     watch: (reload) => {
       const folder = base.split("/").slice(0, -1).join("/");
-      return atlas.onFilesChanged((paths) => { if (paths.some((p) => p === base || p.startsWith(`${folder}/`))) reload(); });
+      return atlas.onFilesChanged((paths) => { if (!paths.length || paths.some((p) => p === base || p.startsWith(`${folder}/`))) reload(); });
     },
     open: (item) => atlas.open(item.id),
   };
@@ -572,8 +572,8 @@ function librarySource(atlas, title = null) {
       },
     },
     watch: (reload) => atlas.onFilesChanged((paths) => {
-      if (paths.some((p) => p.startsWith(".atlas/kinds/"))) kindsAsk = null;
-      if (paths.some((p) => p.endsWith(".md") || p.startsWith(".atlas/kinds/"))) reload();
+      if (!paths.length || paths.some((p) => p.startsWith(".atlas/kinds/"))) kindsAsk = null;
+      if (!paths.length || paths.some((p) => p.endsWith(".md") || p.startsWith(".atlas/kinds/"))) reload();
     }),
     open: (item) => atlas.open(item.id),
   };
@@ -622,7 +622,7 @@ function registerLibraries(atlas) {
     gone = titles.map((t) => atlas.registerLibrary({ ...librarySource(atlas, t), icon: list.find((k) => libraryOf(k) === t)?.library?.icon ?? "library" }));
   }, () => {});
   void make();
-  atlas.onFilesChanged((paths) => { if (paths.some((p) => p.startsWith(".atlas/kinds/"))) { kindsAsk = null; void make(); } });
+  atlas.onFilesChanged((paths) => { if (!paths.length || paths.some((p) => p.startsWith(".atlas/kinds/"))) { kindsAsk = null; void make(); } });
 }
 
 function appBlock(atlas) {
