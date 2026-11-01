@@ -84,12 +84,14 @@
     void mount();
     paneParks.set(panel.id, save);
     pluginAnchors.set(panel.id, (a) => goTo?.(a));
-    let t: ReturnType<typeof setTimeout> | undefined;
+    let t: ReturnType<typeof setTimeout> | undefined, manifest = false;
     const prefix = `.atlas/plugins/${spec.id}/`;
     const off = on("fs", (e) => {
       if (!touches(e.paths, (p) => p.startsWith(prefix))) return;
+      // a manifest change in any event of the burst reloads the plugin list, not only one in the last
+      manifest ||= !e.paths.length || e.paths.some((p) => p.endsWith("plugin.toml"));
       clearTimeout(t);
-      t = setTimeout(() => void (e.paths.some((p) => p.endsWith("plugin.toml")) ? loadPlugins().then(mount) : mount()), 250);
+      t = setTimeout(() => { const m = manifest; manifest = false; void (m ? loadPlugins().then(mount) : mount()); }, 250);
     });
     return () => {
       off(); clearTimeout(t); generation++; cleanup?.();

@@ -29,7 +29,7 @@
   import { isIconName } from "../lib/icons";
   import CaptureGuides from "../components/CaptureGuides.svelte";
   import { PROMPT, landedAt } from "../lib/capture-guides";
-  import { fences } from "../lib/fence-walk";
+  import { noteHeadings } from "../lib/note-anchor";
 
   export type TodayPart = "greeting" | "capture" | "focus" | "log" | "tasks" | "activity";
   const ALL: TodayPart[] = ["greeting", "capture", "focus", "log", "tasks", "activity"];
@@ -144,15 +144,11 @@
   /** A heading with nothing under it (the template's "## Dreams" on a day without dreams) left blank, so the card shows
    *  what was written; blanked, not removed, so the lines keep their numbers (the log's to-dos are ticked by line). */
   function blankEmptySections(md: string): string {
-    const lines = md.split("\n");
-    const level = (l: string) => /^(#{1,6})\s/.exec(l)?.[1].length ?? 0;
-    const code = fences();
-    for (let i = 0; i < lines.length; i++) {
-      const h = code.code(lines[i]) ? 0 : level(lines[i]);
-      if (!h) continue;
-      let j = i + 1;
+    const lines = md.split("\n"), hs = noteHeadings(lines), level = new Map(hs.map((h) => [h.i, h.level]));
+    for (const h of hs) {
+      let j = h.i + 1;
       while (j < lines.length && !lines[j].trim()) j++;
-      if (j >= lines.length || (level(lines[j]) > 0 && level(lines[j]) <= h)) lines[i] = "";
+      if (j >= lines.length || (level.get(j) ?? 7) <= h.level) lines[h.i] = "";
     }
     return lines.join("\n");
   }
@@ -162,20 +158,15 @@
   /** The day's note by its `##` sections (outside code fences): the card shows the one the captures go to (`## Log`);
    *  the others (Journal, Dreams…) are buttons that open the note there. */
   const sections = $derived.by(() => {
-    const out: { title: string; line: number }[] = [];
-    const code = fences();
-    logText.split("\n").forEach((l, i) => {
-      const m = !code.code(l) && /^##\s+(.+?)\s*$/.exec(l);
-      if (m) out.push({ title: m[1], line: i });
-    });
-    return out;
+    return noteHeadings(logText.split("\n")).filter((h) => h.level === 2 && h.text).map((h) => ({ title: h.text, line: h.i }));
   });
   const logSection = $derived(sections.find((x) => /^(log|registro|bit[aá]cora)$/i.test(x.title)) ?? null);
   const otherSections = $derived(sections.filter((x) => x !== logSection));
   const logBody = $derived.by(() => {
     if (!logText) return "";
     if (!logSection) return blankEmptySections(logText.replace(/^(?:---\n[\s\S]*?\n---\n)?(?:#\s[^\n]*\n+)?/, ""));
-    const lines = logText.split("\n"), next = sections.find((x) => x.line > logSection.line)?.line ?? lines.length;
+    // the section ends at the next heading of its level or above, as the core reads it (captures.rs `log_section`)
+    const lines = logText.split("\n"), next = noteHeadings(lines).find((h) => h.i > logSection.line && h.level <= 2)?.i ?? lines.length;
     // the blocks closing the note (the activity block at the end) are not the log's
     return lines.slice(logSection.line + 1, next).join("\n").replace(/(?:\n```view\n[\s\S]*?\n```\s*)+$/, "\n");
   });

@@ -16,14 +16,19 @@ const isTagKey = (k: string) => /^(tags?|aliases?|cssclasses)$/i.test(k);
 /** The note's frontmatter (`---` on the first line, after a BOM, to the next `---` / `...` alone), or null. The core
  *  reads it the same way (atlas-text `frontmatter::split`). */
 export function frontmatterOf(text: string): Frontmatter | null {
+  const s = frontmatterSpan(text);
+  return s && { ...s, data: parseYaml(s.yaml) };
+}
+
+/** Where the frontmatter is, unparsed (for readers that only skip it). */
+export function frontmatterSpan(text: string): { yaml: string; end: number } | null {
   const m = /^\uFEFF?---\r?\n/.exec(text);
   if (!m) return null;
   const close = /^(---|\.\.\.)[ \t]*$/m;
   const rest = text.slice(m[0].length);
   const c = close.exec(rest);
   if (!c) return null;
-  const yaml = rest.slice(0, c.index).replace(/\r?\n$/, "");
-  return { yaml, end: m[0].length + c.index + c[0].length, data: parseYaml(yaml) };
+  return { yaml: rest.slice(0, c.index).replace(/\r?\n$/, ""), end: m[0].length + c.index + c[0].length };
 }
 
 /** A note's frontmatter YAML (null without one) and its body after the closing fence. */

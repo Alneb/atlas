@@ -79,15 +79,15 @@ fn log_day(cfg: &Config, rel: &str) -> Option<String> {
     chrono::NaiveDate::parse_from_str(name, "%Y-%m-%d").ok().map(|_| name.to_string())
 }
 
-/// The 0-based line range a log's captures are in: its `## Log` section when it has one, else the whole note.
-fn log_section(lines: &[&str]) -> std::ops::Range<usize> {
-    let heading = |l: &str| l.starts_with('#') && l.trim_start_matches('#').starts_with(' ');
-    let Some(start) = lines.iter().position(|l| crate::capture::is_log_heading(l)) else { return 0..lines.len() };
-    let level = lines[start].chars().take_while(|&c| c == '#').count();
-    let end = lines[start + 1..]
-        .iter()
-        .position(|l| heading(l) && l.chars().take_while(|&c| c == '#').count() <= level)
-        .map_or(lines.len(), |i| start + 1 + i);
+/// The 0-based line range a log's captures are in: its `## Log` section when it has one, else the whole note. A
+/// heading inside a code fence (a shell `# comment`) neither starts nor ends it.
+pub(crate) fn log_section(lines: &[&str]) -> std::ops::Range<usize> {
+    let level = |l: &str| l.starts_with('#').then(|| l.trim_start_matches('#')).filter(|r| r.starts_with(' ')).map(|_| l.len() - l.trim_start_matches('#').len());
+    let mut fences = atlas_text::fence::Fences::default();
+    let prose: Vec<bool> = lines.iter().map(|l| !fences.code(l)).collect();
+    let Some(start) = (0..lines.len()).find(|&i| prose[i] && crate::capture::is_log_heading(lines[i])) else { return 0..lines.len() };
+    let own = level(lines[start]).unwrap_or(2);
+    let end = (start + 1..lines.len()).find(|&i| prose[i] && level(lines[i]).is_some_and(|n| n <= own)).unwrap_or(lines.len());
     start + 1..end
 }
 
@@ -396,6 +396,15 @@ mod tests {
         for not in ["  - indented", "# heading", "prose", "-", "- ", "1. ordered"] {
             assert!(parse_line(not).is_none(), "{not:?}");
         }
+    }
+
+    #[test]
+    fn a_heading_in_a_code_fence_does_not_end_the_log() {
+        let text = "## Log\n- 09:00 a\n```sh\n# a comment\n```\n- 10:00 b\n## Next\n- c\n";
+        let got: Vec<String> = in_log("l.md", "2026-10-27", text).into_iter().map(|c| c.text).collect();
+        assert_eq!(got, ["a", "b"]);
+        let fenced = "```\n## Log\n```\n- x\n";
+        assert_eq!(log_section(&fenced.split('\n').collect::<Vec<_>>()), 0..5, "a fenced `## Log` is not the section");
     }
 
     const LOG: &str = "---\ndate: 2026-10-27\ntype: log\n---\n# Tuesday\n\n## Journal\n- a thought in the journal\n\n## Log\n- [ ] look at R0\n- 09:12 check the tail\n  http://x.org\n- 14:43 Bulk DCA → [[Notes]]\n- [x] the report\n\n```view\ntype: activity\n```\n";

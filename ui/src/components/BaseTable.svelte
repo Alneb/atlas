@@ -12,7 +12,7 @@
   import { errText } from "../lib/text";
   import { shownName, shownPath } from "../lib/paths";
   import { api } from "../lib/api";
-  import { on, touches } from "../lib/bus";
+  import { reloadOnChange } from "../lib/reload-on-change";
   import { openPath } from "../lib/dock";
   import { toast } from "../lib/state.svelte";
   import { propertySpec, watchPropertySpec } from "../lib/property-spec.svelte";
@@ -72,18 +72,8 @@
   onMount(() => {
     watchPropertySpec();
     void load();
-    let t: ReturnType<typeof setTimeout> | undefined;
-    // out of the page (a background tab, a widget scrolled away): noted, reloaded once it is seen again
-    let stale = false;
-    const seen = new IntersectionObserver((es) => { if (stale && es.some((e) => e.isIntersecting)) { stale = false; void load(); } });
-    if (host) seen.observe(host);
-    const off = on("fs", (e) => {
-      if (!touches(e.paths, (p) => /\.(md|base)$/i.test(p))) return;
-      if (!host?.isConnected) { stale = true; return; }
-      clearTimeout(t);
-      t = setTimeout(load, 500);
-    });
-    return () => { off(); clearTimeout(t); seen.disconnect(); };
+    // out of the page (a background tab, a widget scrolled away): reloaded once it is seen again
+    return reloadOnChange(() => void load(), { wait: 500, wants: (p) => /\.(md|base)$/i.test(p), host: () => host });
   });
 </script>
 

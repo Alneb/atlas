@@ -24,3 +24,11 @@ test("a PDF place link may name an annotation or one of the note's marks", async
   expect(placeOf("x.pdf#page=3&annotation=m-k2f9q1xz")).toEqual({ page: 3, annotation: "m-k2f9q1xz" });
   expect(placeOf("x.pdf#page=3&annotation=nonsense")).toEqual({ page: 3 });
 });
+
+test("a closing `#` run needs a blank before it, and the frontmatter's `# comments` are not headings", async () => {
+  const { noteHeadings } = await import("../src/lib/note-anchor");
+  const md = ["---", "# a YAML comment", "tags: [x]", "---", "# C#", "## Done ##", "### F# notes"];
+  expect(noteHeadings(md).map((h) => [h.i, h.text])).toEqual([[4, "C#"], [5, "Done"], [6, "F# notes"]]);
+  expect(noteHeadings(["# only"]).map((h) => h.i)).toEqual([0]);
+  expect(noteHeadings(["---", "# unclosed"]).map((h) => h.text)).toEqual(["unclosed"]);
+});

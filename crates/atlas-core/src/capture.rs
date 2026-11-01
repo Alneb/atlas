@@ -322,9 +322,19 @@ fn append_to_log(root: &Path, cfg: &Config, text: &str, now: NaiveDateTime) -> R
     Ok(CaptureResult { path: rel, line, source })
 }
 
-/// `text` with `entry` added, and the entry's line: above the blocks closing the day's note (```view … ``` after
-/// `## Log`, as the activity block), else at the end.
+/// `text` with `entry` added, and the entry's line: at the end of the `## Log` section when another section follows it
+/// (a template with `## Journal` after the log: the captures list reads only the log), above the blocks closing the
+/// day's note (```view … ``` after `## Log`, as the activity block), else at the end.
 fn with_entry(text: &str, entry: &str) -> (String, u32) {
+    let lines: Vec<&str> = text.split('\n').collect();
+    let sec = crate::captures::log_section(&lines);
+    if sec.start > 0 && sec.end < lines.len() {
+        let mut last = sec.end; // after the section's last written line, its blank lines kept below the entry
+        while last > sec.start && lines[last - 1].trim().is_empty() {
+            last -= 1;
+        }
+        return (format!("{}\n{entry}{}", lines[..last].join("\n"), lines[last..].join("\n")), last as u32 + 1);
+    }
     if let Some(at) = tail_blocks(text) {
         let (head, tail) = text.split_at(at);
         let head = head.trim_end_matches('\n');
@@ -467,6 +477,17 @@ mod tests {
         let d = days(thu);
         assert_eq!(d.len(), DAY_WORDS.len());
         assert_eq!((d[1].word.as_str(), d[1].date.as_str()), ("tomorrow", "2026-10-16"));
+    }
+
+    #[test]
+    fn a_capture_goes_to_the_end_of_the_log_when_a_section_follows_it() {
+        let day = "# Day\n\n## Log\n- 08:00 first\n\n## Journal\nprose\n";
+        assert_eq!(with_entry(day, "- 09:05 second\n"), ("# Day\n\n## Log\n- 08:00 first\n- 09:05 second\n\n## Journal\nprose\n".to_string(), 5));
+        let empty = "## Log\n## Journal\n";
+        assert_eq!(with_entry(empty, "- 09:05 x\n"), ("## Log\n- 09:05 x\n## Journal\n".to_string(), 2));
+        // a fenced `# comment` in the log is not the next section
+        let fenced = "## Log\n```sh\n# c\n```\n";
+        assert_eq!(with_entry(fenced, "- 09:05 x\n").0, "## Log\n```sh\n# c\n```\n- 09:05 x\n");
     }
 
     #[test]

@@ -7,7 +7,7 @@
   import { errText } from "../lib/text";
   import { shownName, shownPath } from "../lib/paths";
   import { api } from "../lib/api";
-  import { on, touches } from "../lib/bus";
+  import { reloadOnChange } from "../lib/reload-on-change";
   import { getDock, openPath } from "../lib/dock";
   import { editors, lastEditorId } from "../lib/registry";
   import type { PaneProps } from "../lib/dock";
@@ -251,19 +251,11 @@
     void load();
     const ro = new ResizeObserver(() => kick());
     ro.observe(wrap);
-    let t: ReturnType<typeof setTimeout> | undefined;
-    // a note changed: reload now if shown, else once the tab is back (stale)
-    let stale = false;
-    const ro2 = new ResizeObserver(() => { if (stale && shown()) { stale = false; void load(); } });
-    ro2.observe(wrap);
-    const off = on("fs", (e) => {
-      if (!touches(e.paths, (p) => /\.md$/i.test(p))) return;
-      if (!shown()) { stale = true; return; }
-      clearTimeout(t); t = setTimeout(load, 800);
-    });
+    // a note changed: reload now if shown, else once the tab is back
+    const off = reloadOnChange(() => void load(), { wait: 800, wants: (p) => /\.md$/i.test(p), host: () => wrap });
     // Local follows the note in front of the reader
     const sub = getDock()?.onDidActivePanelChange(() => { if (local) setTimeout(() => { if (activePath() !== centre) build(); }, 50); });
-    return () => { ro.disconnect(); ro2.disconnect(); off(); sub?.dispose(); clearTimeout(t); if (raf) cancelAnimationFrame(raf); };
+    return () => { ro.disconnect(); off(); sub?.dispose(); if (raf) cancelAnimationFrame(raf); };
   });
 </script>
 

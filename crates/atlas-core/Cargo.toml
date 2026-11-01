@@ -96,3 +96,4 @@ tempfile = "3"
 sevenz-rust2 = { version = "0.24", default-features = false, features = ["compress", "util"] } # a .cb7 made in a test
 reqwest = { workspace = true, features = ["blocking", "rustls-tls"] }
 tokio-tungstenite = "0.28"
+chrono-tz = "0.10" # a zone with a DST gap (schedule.rs)

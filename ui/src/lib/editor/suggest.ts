@@ -3,6 +3,7 @@
 import { EditorView, showPanel, type Panel, keymap } from "@codemirror/view";
 import { StateField, StateEffect, type Extension } from "@codemirror/state";
 import { suggestFor, type Suggestion } from "../suggestions";
+import { noteHeadings } from "../note-anchor";
 
 interface Offer { s: Suggestion; at: number }
 const setOffer = StateEffect.define<Offer | null>();
@@ -36,21 +37,17 @@ function accept(view: EditorView): boolean {
   return true;
 }
 
-/** The section around `pos`: from its heading to the next heading of the same or a higher level. */
+/** The section around `pos`: from its heading to the next heading of the same or a higher level (headings as
+ *  lib/note-anchor.ts reads them: none in a code fence or the frontmatter). */
 function sectionAt(doc: EditorView["state"]["doc"], pos: number): { heading: string; from: number; to: number } {
-  let start = 1, level = 7, heading = "";
-  for (let n = doc.lineAt(pos).number; n >= 1; n--) {
-    const m = /^(#{1,6})\s+(.*)/.exec(doc.line(n).text);
-    if (m) { start = n; level = m[1].length; heading = m[2]; break; }
-  }
-  let end = doc.lines;
-  for (let n = start + 1; n <= doc.lines; n++) {
-    const m = /^(#{1,6})\s/.exec(doc.line(n).text);
-    if (m && m[1].length <= level) { end = n - 1; break; }
-  }
+  const hs = noteHeadings(doc.iterLines()), here = doc.lineAt(pos).number - 1;
+  const at = hs.findLast((h) => h.i <= here);
+  const next = at ? hs.find((h) => h.i > at.i && h.level <= at.level) : hs[0];
+  const start = at ? at.i + 1 : 1;
+  let end = next ? next.i : doc.lines;
   // the last non-empty line, so an insert lands after the content
   while (end > start && !doc.line(end).text.trim()) end--;
-  return { heading, from: doc.line(start).from, to: doc.line(end).to };
+  return { heading: at?.text ?? "", from: doc.line(start).from, to: doc.line(end).to };
 }
 
 export function noteSuggestions(path: string): Extension {

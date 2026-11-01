@@ -60,13 +60,16 @@ impl Schedule {
         match *self {
             Schedule::Every(d) => last.is_none_or(|l| (now - l).to_std().is_ok_and(|e| e >= d)),
             Schedule::Daily(t) => {
-                let Some(slot) = now.date_naive().and_time(t).and_local_timezone(Local).earliest() else {
-                    return false;
-                };
+                let Some(slot) = daily_slot(now.date_naive().and_time(t), &Local) else { return false };
                 now >= slot && last.is_none_or(|l| l < slot)
             }
         }
     }
+}
+
+/// A day's slot in `tz`; one the clocks skip (a spring-forward gap) is an hour later, as the wall clock reads after it.
+fn daily_slot<Tz: chrono::TimeZone>(at: chrono::NaiveDateTime, tz: &Tz) -> Option<DateTime<Tz>> {
+    at.and_local_timezone(tz.clone()).earliest().or_else(|| (at + chrono::Duration::hours(1)).and_local_timezone(tz.clone()).earliest())
 }
 
 const STATE: &str = "schedule.json";
@@ -243,6 +246,16 @@ mod tests {
         assert!(every.due(Some(at(7, 0)), at(9, 0)));
     }
 
+    #[test]
+    fn a_slot_the_clocks_skip_runs_an_hour_later() {
+        // 2026-03-08 02:30 does not exist in New York (02:00 → 03:00)
+        let gap = chrono::NaiveDate::from_ymd_opt(2026, 3, 8).unwrap().and_hms_opt(2, 30, 0).unwrap();
+        let ny: chrono_tz::Tz = "America/New_York".parse().unwrap();
+        assert_eq!(daily_slot(gap, &ny).map(|d| d.naive_local().format("%H:%M").to_string()).as_deref(), Some("03:30"));
+        let normal = gap + chrono::Duration::days(1);
+        assert_eq!(daily_slot(normal, &ny).map(|d| d.naive_local()), Some(normal));
+    }
+
     #[tokio::test]
     async fn tick_runs_due_commands_and_records_them() {
         let d = tempfile::tempdir().unwrap();
@@ -323,11 +336,12 @@ mod tests {
         let bus = EventBus::default();
         let mut rx = bus.subscribe();
         let at = |m: i64| Local::now() + chrono::Duration::minutes(m);
-        for m in [0, 2, 4] {
+        // three runs (the 5-minute floor apart), the same failure each time
+        for m in [0, 6, 12] {
             tick(&ws, &bus, None, at(m)).await;
         }
         write("host unknown"); // another reason: said again
-        tick(&ws, &bus, None, at(6)).await;
+        tick(&ws, &bus, None, at(18)).await;
         let mut said = vec![];
         while let Ok(Event::Notify(n)) = rx.try_recv() {
             said.push(n.body.unwrap_or_default());
