@@ -25,8 +25,10 @@
   onMount(() => {
     void load();
     void call(atlas, "watch", {}, 30).then(load, () => {});
-    const off = atlas.helper.on("changed", () => void load());
-    return off;
+    // a sync of several calendars says `changed` for each: one reload for the burst
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const off = atlas.helper.on("changed", () => { clearTimeout(timer); timer = setTimeout(() => void load(), 250); });
+    return () => { clearTimeout(timer); off(); };
   });
   const groups = $derived(Array.from({ length: days }, (_, i) => addDays(today, i)).map((d) => ({ d, evs: onDay(events, d).sort((a, b) => Number(!a.all_day) - Number(!b.all_day) || evStart(a).getTime() - evStart(b).getTime()) })).filter((g, i) => i < 2 || g.evs.length));
   const label = (d: Date) => (sameDay(d, today) ? "Today" : sameDay(d, addDays(today, 1)) ? "Tomorrow" : d.toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "short" }));

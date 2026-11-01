@@ -139,8 +139,12 @@ function H(a, p) {
 	}
 	d(() => {
 		Z();
-		let e = [p.atlas.helper.on("changed", () => Z()), p.atlas.helper.on("new", () => Z())];
-		return () => e.forEach((e) => e());
+		let e, t = () => {
+			clearTimeout(e), e = setTimeout(() => void Z(), 250);
+		}, n = [p.atlas.helper.on("changed", t), p.atlas.helper.on("new", t)];
+		return () => {
+			clearTimeout(e), n.forEach((e) => e());
+		};
 	});
 	function Q(e, t) {
 		v(K, {

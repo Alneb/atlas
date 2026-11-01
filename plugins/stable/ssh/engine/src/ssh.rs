@@ -74,12 +74,14 @@ impl Settings {
     pub fn target(&self, name: &str) -> Vec<String> {
         let known = self.hosts();
         let h = known.iter().find(|h| h.name == name).cloned().unwrap_or_else(|| hosts::extra_host(name));
+        // `--` before the destination: a name starting with `-` (`-oProxyCommand=…`, from a setting or a tool call) is
+        // a host to ssh, never an option that runs a command here
         if !h.is_extra() {
-            return vec![name.to_string()];
+            return vec!["--".into(), name.to_string()];
         }
         let host = h.hostname.clone().unwrap_or_default();
         let at = match &h.user { Some(u) => format!("{u}@{host}"), None => host };
-        match &h.port { Some(p) => vec!["-p".into(), p.clone(), at], None => vec![at] }
+        match &h.port { Some(p) => vec!["-p".into(), p.clone(), "--".into(), at], None => vec!["--".into(), at] }
     }
 
     /// One connection per host: the config's own ControlPath when it sets one (a plain `ssh host` elsewhere shares it
@@ -277,8 +279,12 @@ mod tests {
     #[test]
     fn a_config_host_is_reached_by_its_name_any_other_by_user_host_and_port() {
         let s = Settings::of(&json!({ "settings": { "config": "/no/such/config", "extra": ["me@box.example.org:2200"] } }));
-        assert_eq!(s.target("me@box.example.org:2200"), ["-p", "2200", "me@box.example.org"]);
-        assert_eq!(s.target("other.example.org"), ["other.example.org"]);
+        assert_eq!(s.target("me@box.example.org:2200"), ["-p", "2200", "--", "me@box.example.org"]);
+        assert_eq!(s.target("other.example.org"), ["--", "other.example.org"]);
+        assert_eq!(s.target("-oProxyCommand=touch x"), ["--", "-oProxyCommand=touch x"], "a name is never an option");
+        let sftp = s.sftp_argv("me@box.example.org:2200");
+        assert_eq!(&sftp[sftp.len() - 4..], ["-b", "-", "--", "me@box.example.org"]);
+        assert!(sftp.windows(2).any(|w| w == ["-P", "2200"]));
         assert_eq!(safe("a b;c@d:1", ".@:-"), "a_b_c@d:1");
         assert_ne!(token(), token());
     }

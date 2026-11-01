@@ -114,12 +114,13 @@ async fn account_inner(m: &Mail, acc: &Account, only: Option<&[String]>) -> Resu
                 rep.folders += 1;
                 rep.removed += removed;
                 rep.flagged += flagged.len();
-                if f.role.as_deref() == Some("inbox") && !first {
-                    rep.new.extend(added.iter().filter(|id| m.index.msg(**id).is_some_and(|x| !x.seen)));
-                }
                 rep.added += added.len();
                 if !added.is_empty() && f.role.as_deref() == Some("inbox") {
                     crate::rules::apply(m, acc, &added).await;
+                }
+                // told after the rules, as Thunderbird does: what a rule read, moved or deleted is no new mail
+                if f.role.as_deref() == Some("inbox") && !first {
+                    rep.new.extend(added.iter().filter(|id| m.index.msg(**id).is_some_and(|x| !x.seen && x.folder == f.path)));
                 }
                 if !first && !matches!(f.role.as_deref(), Some("trash" | "junk")) {
                     follow.extend(added.iter().chain(&flagged));

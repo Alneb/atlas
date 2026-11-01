@@ -55,8 +55,11 @@
   }
   $effect(() => {
     load();
-    const offs = [atlas.helper.on("changed", () => load()), atlas.helper.on("new", () => load())];
-    return () => offs.forEach((o) => o());
+    // a sync says `changed` per batch and `new` with it: one reload for a burst, as the pane does
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const soon = () => { clearTimeout(timer); timer = setTimeout(() => void load(), 250); };
+    const offs = [atlas.helper.on("changed", soon), atlas.helper.on("new", soon)];
+    return () => { clearTimeout(timer); offs.forEach((o) => o()); };
   });
 
   function say(text: string, undo?: () => Promise<void>) {

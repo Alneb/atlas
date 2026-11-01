@@ -5,7 +5,7 @@
 use crate::parse::{self, Envelope, Person};
 use rusqlite::{params, params_from_iter, Connection, OptionalExtension, Transaction};
 use serde::Serialize;
-use std::collections::{BTreeMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::path::Path;
 use std::sync::Mutex;
 
@@ -526,19 +526,12 @@ impl Index {
         if msgs.len() < 2 {
             return msgs;
         }
-        let all: HashSet<(String, String)> = self.folders(None).into_iter().filter(|f| f.role.as_deref() == Some("all")).map(|f| (f.account, f.path)).collect();
-        let mut out: Vec<Msg> = vec![];
-        for m in msgs {
-            match out.iter().position(|x| x.account == m.account && x.message_id == m.message_id) {
-                Some(i) => {
-                    if all.contains(&(out[i].account.clone(), out[i].folder.clone())) && !all.contains(&(m.account.clone(), m.folder.clone())) {
-                        out[i] = m;
-                    }
-                }
-                None => out.push(m),
-            }
-        }
-        out
+        dedupe_in(&self.all_mail(), msgs)
+    }
+
+    /// Gmail's All Mail folders, (account, path).
+    fn all_mail(&self) -> HashSet<(String, String)> {
+        self.folders(None).into_iter().filter(|f| f.role.as_deref() == Some("all")).map(|f| (f.account, f.path)).collect()
     }
 
     /// The trash and junk folders of every account (what conversations and lists leave out).
@@ -705,9 +698,20 @@ impl Index {
         drop(db);
         let bin = self.bin_folders();
         let in_bin = scope.folders.iter().any(|f| bin.contains(f));
+        // the page's messages in a few queries, not one (and a folder listing) per row
+        let mut by: HashMap<i64, Vec<Msg>> = HashMap::new();
+        let col = if scope.flat { "m.id" } else { "m.thread" };
+        for chunk in keys.chunks(500) {
+            let marks: Vec<String> = (1..=chunk.len()).map(|i| format!("?{i}")).collect();
+            for m in self.msgs_where(&format!("{col} IN ({})", marks.join(",")), chunk.iter().map(|(k, _)| (*k).into()).collect()) {
+                by.entry(if scope.flat { m.id } else { m.thread }).or_default().push(m);
+            }
+        }
+        let all = if scope.flat { HashSet::new() } else { self.all_mail() };
         keys.into_iter()
             .filter_map(|(k, newest)| {
-                let msgs = if scope.flat { self.msg(k).into_iter().collect() } else { self.dedupe(self.msgs_where("m.thread=?1", vec![k.into()])) };
+                let msgs = by.remove(&k).unwrap_or_default();
+                let msgs = if scope.flat { msgs } else { dedupe_in(&all, msgs) };
                 let msgs: Vec<Msg> = msgs.into_iter().filter(|m| in_bin || !bin.contains(&(m.account.clone(), m.folder.clone())) || m.id == newest).collect();
                 conversation(&msgs, newest)
             })
@@ -789,6 +793,27 @@ impl Index {
     pub fn set_pref(&self, key: &str, value: &str) {
         let _ = self.db().execute("INSERT OR REPLACE INTO prefs(key, value) VALUES (?1, ?2)", params![key, value]);
     }
+}
+
+/// [`Index::dedupe`] with the All Mail folders at hand.
+fn dedupe_in(all: &HashSet<(String, String)>, msgs: Vec<Msg>) -> Vec<Msg> {
+    let in_all = |m: &Msg| all.contains(&(m.account.clone(), m.folder.clone()));
+    let mut out: Vec<Msg> = Vec::with_capacity(msgs.len());
+    let mut at: HashMap<(String, String), usize> = HashMap::new();
+    for m in msgs {
+        match at.get(&(m.account.clone(), m.message_id.clone())) {
+            Some(&i) => {
+                if in_all(&out[i]) && !in_all(&m) {
+                    out[i] = m;
+                }
+            }
+            None => {
+                at.insert((m.account.clone(), m.message_id.clone()), out.len());
+                out.push(m);
+            }
+        }
+    }
+    out
 }
 
 fn err(e: rusqlite::Error) -> String {

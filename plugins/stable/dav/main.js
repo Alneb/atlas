@@ -20,7 +20,15 @@ function G(e, n) {
 		}
 		L(u, !0);
 	}
-	z(() => (G(), P(n.atlas, "watch", {}, 30).then(G, () => {}), n.atlas.helper.on("changed", () => void G())));
+	z(() => {
+		G(), P(n.atlas, "watch", {}, 30).then(G, () => {});
+		let e, t = n.atlas.helper.on("changed", () => {
+			clearTimeout(e), e = setTimeout(() => void G(), 250);
+		});
+		return () => {
+			clearTimeout(e), t();
+		};
+	});
 	let K = x(() => Array.from({ length: f }, (e, t) => m(v, t)).map((e) => ({
 		d: e,
 		evs: N(b(a), e).sort((e, t) => Number(!e.all_day) - Number(!t.all_day) || E(e).getTime() - E(t).getTime())
