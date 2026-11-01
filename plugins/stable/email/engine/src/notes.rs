@@ -103,11 +103,26 @@ fn save_files(root: &Path, dir_rel: &str, raw: &[u8], body: &parse::Body) -> (Ve
     (inline, listed)
 }
 
-/// An attachment's name as a file name: no separators or characters other systems refuse, never `.`/`..` or empty.
+/// An attachment's name as a file name: no separators, control characters or characters other systems refuse, none a
+/// wikilink reads (`#`, `^`, `[`, `]`: `[[report #2.pdf]]` would name a heading), never `.`/`..` or empty, and short enough for any file system (255 bytes; 90 Chinese characters are 270), its extension
+/// kept — a longer one failed to write, and the attachment was left out.
 pub(crate) fn note_file(name: &str) -> String {
-    let n = name.replace(['/', '\\', ':', '*', '?', '"', '<', '>', '|', '\0'], " ");
-    let n = n.trim();
-    if n.chars().all(|c| c == '.') { "attachment".into() } else { n.to_string() }
+    const MAX: usize = 180; // bytes, with room for free_name's " 2"
+    let n: String = name.chars().map(|c| if c.is_control() || "/\\:*?\"<>|#^[]".contains(c) { ' ' } else { c }).collect();
+    let n = n.split_whitespace().collect::<Vec<_>>().join(" ");
+    let n = n.as_str();
+    if n.chars().all(|c| c == '.') {
+        return "attachment".into();
+    }
+    if n.len() <= MAX {
+        return n.to_string();
+    }
+    let ext = n.rfind('.').filter(|&i| i > 0 && n.len() - i <= 16).map_or("", |i| &n[i..]);
+    let mut cut = MAX - ext.len();
+    while !n.is_char_boundary(cut) {
+        cut -= 1;
+    }
+    format!("{}{ext}", n[..cut].trim_end())
 }
 
 pub(crate) fn free_name(dir: &Path, name: &str) -> String {
@@ -290,7 +305,10 @@ pub fn write(m: &Mail, also: &[String], items: Vec<(Msg, Vec<u8>, String)>) -> R
     let files_dir = format!("{dir_rel}/{stem} files");
     let mut added = 0;
     for (x, raw, label) in &items {
-        if text.contains(&format!("\"message_id\":\"<{}>\"", x.message_id)) {
+        // a section's marker, either spacing (the older plugin's notes wrote `"message_id": "<…>"`); not the note's
+        // own `message_id:` property, which a new note has before its first section
+        let id = &x.message_id;
+        if [format!("\"message_id\":\"<{id}>\""), format!("\"message_id\": \"<{id}>\"")].iter().any(|n| text.contains(n.as_str())) {
             continue;
         }
         let part = section(m, x, label, &files_dir, raw)?;
@@ -366,6 +384,10 @@ mod tests {
         assert_eq!(note_file(".."), "attachment");
         assert_eq!(note_file("  "), "attachment");
         assert_eq!(note_file("a:b?.pdf"), "a b .pdf");
+        assert_eq!(note_file("a\nb.txt"), "a b.txt");
+        assert_eq!(note_file("report #2 [v1].pdf"), "report 2 v1 .pdf");
+        let long = note_file(&format!("{}.pdf", "漢".repeat(100)));
+        assert!(long.len() <= 180 && long.ends_with("漢.pdf"), "{long}");
         let d = tempfile::tempdir().unwrap();
         std::fs::write(d.path().join("paper.pdf"), "").unwrap();
         assert_eq!(free_name(d.path(), "paper.pdf"), "paper 2.pdf");
@@ -411,6 +433,11 @@ mod tests {
         let text = std::fs::read_to_string(d.path().join("vault").join(&rel)).unwrap();
         assert!(text.contains("messages: 2\n"), "{text}");
         assert!(text.contains("One more thing."));
+        // a note whose markers have a space after the colon (the older plugin's) is not given its messages twice
+        std::fs::write(d.path().join("vault").join(&rel), text.replace("\"message_id\":\"", "\"message_id\": \"")).unwrap();
+        m.rt.block_on(save(&m, thread)).unwrap();
+        let text = std::fs::read_to_string(d.path().join("vault").join(&rel)).unwrap();
+        assert_eq!(text.matches("<!-- mail ").count(), 2, "{text}");
     }
 
     #[test]

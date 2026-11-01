@@ -4,10 +4,11 @@ use crate::api::FrontmatterEdit;
 use crate::{Error, Result};
 pub use atlas_text::frontmatter::*;
 
-/// A key the panel may write: one plain line, no `:`, not starting like a list item or a comment.
+/// A key the panel may write: one plain line, no `:` nor ` #` (a comment), not starting with a YAML indicator (a list
+/// item, a comment, a quote, a flow `[`/`{`, an anchor, alias or tag…: the key would not read back as a name).
 pub(crate) fn plain_key(key: &str) -> Result<&str> {
     let k = key.trim();
-    if k.is_empty() || k.contains([':', '\n', '\r']) || k.starts_with(['-', '#', '"', '\'']) {
+    if k.is_empty() || k.contains([':', '\n', '\r']) || k.contains(" #") || k.starts_with(['-', '#', '"', '\'', '[', ']', '{', '}', ',', '&', '*', '!', '|', '>', '%', '@', '`', '?']) {
         return Err(Error::BadRequest(format!("`{key}` is not a property name")));
     }
     Ok(k)
@@ -83,6 +84,10 @@ mod tests {
         assert!(set("done", serde_json::json!(true)).unwrap().contains("done: true\n"));
         assert!(set("empty", serde_json::Value::Null).unwrap().contains("empty:\n---"));
         assert!(set("bad: key", serde_json::json!(1)).is_err());
+        for odd in ["[x]", "{a}", "&ref", "*alias", "!tag", "a #b"] {
+            assert!(set(odd, serde_json::json!(1)).is_err(), "{odd} would not read back as a property name");
+        }
+        assert!(set("Due date", serde_json::json!(1)).is_ok());
         let clash = apply(NOTE, &FrontmatterEdit::Rename { from: "type".into(), to: "date".into() });
         assert!(clash.is_err(), "renaming onto an existing key would lose a value");
         assert!(has_property(NOTE, "date") && !has_property(NOTE, "kept comment"));

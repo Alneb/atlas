@@ -365,15 +365,19 @@ pub fn split_invite(text: &str) -> Result<Vec<Invite>, String> {
                 )
             })
             .collect();
-        let mut uids: Vec<&String> = Vec::new();
-        for (u, _) in &tagged {
-            if !uids.contains(&u) {
-                uids.push(u);
+        // grouped once, in the order the UIDs first appear (a feed of thousands of events was grouped in n² steps)
+        let mut groups: Vec<(String, Vec<&Component>)> = Vec::new();
+        let mut at: std::collections::HashMap<&str, usize> = std::collections::HashMap::new();
+        for (u, ev) in &tagged {
+            match at.get(u.as_str()) {
+                Some(&i) => groups[i].1.push(*ev),
+                None => {
+                    at.insert(u, groups.len());
+                    groups.push((u.clone(), vec![*ev]));
+                }
             }
         }
-        for uid in uids {
-            let uid = uid.clone();
-            let evs: Vec<&Component> = tagged.iter().filter(|(u, _)| *u == uid).map(|(_, e)| *e).collect();
+        for (uid, evs) in groups {
             let master = evs.iter().find(|e| e.prop("RECURRENCE-ID").is_none()).or(evs.first()).copied();
             let Some(master) = master else { continue };
             let mut obj = Component { name: "VCALENDAR".into(), ..Component::default() };

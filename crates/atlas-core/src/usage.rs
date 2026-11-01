@@ -95,18 +95,23 @@ pub fn opened(root: &Path, cfg: &Config, limit: usize) -> Vec<String> {
 /// The commands run lately (`GET /api/recent/commands`: the palette lists them first), newest first, once each, at
 /// most `limit`.
 pub fn commands(ws: &Workspace, limit: usize) -> Vec<String> {
-    let mut out: Vec<String> = Vec::new();
-    for e in read(ws).into_iter().rev() {
-        if out.len() >= limit {
-            break;
-        }
-        if let UsageEvent::Command { id } = e.event {
-            if !out.contains(&id) {
-                out.push(id);
+    let newest = |entries: Vec<Entry>| {
+        let mut out: Vec<String> = Vec::new();
+        for e in entries.into_iter().rev() {
+            if out.len() >= limit {
+                break;
+            }
+            if let UsageEvent::Command { id } = e.event {
+                if !out.contains(&id) {
+                    out.push(id);
+                }
             }
         }
-    }
-    out
+        out
+    };
+    // asked each time the palette opens: the journal's end first, all 2 MB of it only when that holds too few
+    let out = newest(read_last(ws.root(), 256 * 1024));
+    if out.len() >= limit { out } else { newest(read(ws)) }
 }
 
 /// The files to come back to (`GET /api/recent`: the palette, the phone's Home): [`opened`], then the ones changed
