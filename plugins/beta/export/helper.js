@@ -498,7 +498,7 @@
 			"-emulate-aux-dir",
 			`-auxdir=${build}`,
 			"-outdir=.",
-			`${j.stem}.tex`
+			`./${j.stem}.tex`
 		], {
 			cwd: j.outDir,
 			timeout: 600

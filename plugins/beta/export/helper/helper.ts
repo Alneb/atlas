@@ -186,7 +186,7 @@ async function latexRoad(j: Job, format: "pdf-latex" | "tex"): Promise<string[]>
   const build = relative(j.outDir, buildDir);
   progress("latex", `compiling with ${engine} (latexmk; biber for the references)`);
   const r = await run("latexmk", [ENGINES[engine] ?? "-lualatex", "-interaction=nonstopmode", "-halt-on-error", "-file-line-error",
-    "-emulate-aux-dir", `-auxdir=${build}`, "-outdir=.", `${j.stem}.tex`], { cwd: j.outDir, timeout: 600 });
+    "-emulate-aux-dir", `-auxdir=${build}`, "-outdir=.", `./${j.stem}.tex`], { cwd: j.outDir, timeout: 600 }); // `./`: a note named "-x" is no option
   if (r.status !== 0) {
     const log = await atlas.read(`${buildDir}/${j.stem}.log`).catch(() => r.stdout);
     throw new Error(`LaTeX failed on ${at}:\n${latexErrors(log)}`);
