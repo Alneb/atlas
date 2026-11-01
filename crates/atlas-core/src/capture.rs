@@ -176,7 +176,7 @@ pub fn describe(at: Option<(&Path, &Config)>, text: &str, today: chrono::NaiveDa
         (true, Some(w)) => format!("a to-do, due {w}"),
         (true, None) => "a to-do".into(),
         (false, w) => {
-            let what = if note { format!("a note in {}", at.map_or("", |(_, c)| c.notes.inbox.trim_matches('/'))) } else { "a line in today's log".into() };
+            let what = if note { at.and_then(|(_, c)| c.inbox_dir()).map_or_else(|| "a note".into(), |d| format!("a note in {d}")) } else { "a line in today's log".into() };
             w.map_or(what.clone(), |w| format!("{what} · mentions {w}"))
         }
     };
@@ -245,7 +245,8 @@ pub fn capture_at(root: &Path, cfg: &Config, text: &str, now: NaiveDateTime) -> 
             let title = text.trim().lines().next().unwrap_or_default().to_string();
             // its template by the rules (template_rules.rs): a template's own for captures or the inbox, else
             // `capture_template`; none fits: the new-note rules, then the default
-            let at = format!("{}/{}.md", cfg.notes.inbox.trim_matches('/'), crate::notes::file_stem(&title));
+            let stem = crate::notes::file_stem(&title);
+            let at = cfg.inbox_dir().map_or_else(|| format!("{stem}.md"), |d| format!("{d}/{stem}.md"));
             let template = crate::template_rules::choose(root, cfg, &crate::template_rules::Moment::Capture { path: &at }).map(|c| c.template);
             let req = NewNote {
                 template,

@@ -26,7 +26,8 @@ const HOST: Record<string, (path: string, ...args: unknown[]) => Promise<unknown
 
 let worker: Worker | null = null;
 let ids = 0;
-const pending = new Map<number, { path: string; request: EvalRequest; done(r: ExprResult): void; timer: ReturnType<typeof setTimeout> }>();
+/** `calls`: the host's answers it waits for — its time is not counted then. */
+const pending = new Map<number, { path: string; request: EvalRequest; done(r: ExprResult): void; timer: ReturnType<typeof setTimeout>; calls: number }>();
 
 function start(): Worker {
   const w = new Worker(new URL("./expr-worker.ts", import.meta.url), { type: "module" });
@@ -34,7 +35,14 @@ function start(): Worker {
     const m = e.data, p = pending.get(m.id);
     if (!p) return;
     if ("call" in m) {
-      const answer = (ok: boolean, value: unknown) => w.postMessage({ answer: m.n, ok, value });
+      // the host is answering (a query on a big vault may take seconds): only the worker's own time counts as stuck
+      clearTimeout(p.timer);
+      p.calls++;
+      const answer = (ok: boolean, value: unknown) => {
+        p.calls--;
+        if (worker === w && pending.get(m.id) === p && !p.calls) { clearTimeout(p.timer); p.timer = setTimeout(() => stuck(m.id), TIMEOUT_MS); }
+        w.postMessage({ answer: m.n, ok, value });
+      };
       const f = HOST[m.call];
       if (!f) answer(false, `${m.call}() is not available`);
       else f(p.path, ...m.args).then((v) => answer(true, v), (err) => answer(false, errText(err)));
@@ -55,6 +63,7 @@ function send(id: number): void {
   const p = pending.get(id);
   if (!p) return;
   clearTimeout(p.timer);
+  p.calls = 0; // asked anew: what the last worker was waiting for is gone with it
   p.timer = setTimeout(() => stuck(id), TIMEOUT_MS);
   try { (worker ??= start()).postMessage(p.request); }
   catch (e) { finish(id, { ok: false, error: errText(e) }); } // data that cannot be cloned
@@ -71,7 +80,7 @@ function stuck(id: number): void {
 export function evaluate(expr: string, path: string, scope: Scope): Promise<ExprResult> {
   return new Promise((done) => {
     const id = ++ids;
-    pending.set(id, { path, done, request: { id, expr, scope: { ...scope, path } }, timer: undefined as unknown as ReturnType<typeof setTimeout> });
+    pending.set(id, { path, done, request: { id, expr, scope: { ...scope, path } }, timer: undefined as unknown as ReturnType<typeof setTimeout>, calls: 0 });
     send(id);
   });
 }
