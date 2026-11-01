@@ -138,6 +138,7 @@ pub async fn tick(ws: &Workspace, bus: &EventBus, helpers: Option<&crate::helper
                 if recs.get(&id).is_none_or(|r| r.summary != e) {
                     log_line(&cache, &format!("{id}: {e}"));
                     recs.insert(id.clone(), ScheduledRun { time: Mtime(now.timestamp_millis() as u64), ok: false, summary: e });
+                    keep(&cache, &recs);
                 }
                 continue;
             }
@@ -171,8 +172,13 @@ pub async fn tick(ws: &Workspace, bus: &EventBus, helpers: Option<&crate::helper
             bus.publish(Event::Notify(Notice::new(format!("{} failed (scheduled)", job.title())).body(summary.clone()).source("schedule").level(NoticeLevel::Failure).id(format!("schedule:{id}"))));
         }
         recs.insert(id, ScheduledRun { time: Mtime(Local::now().timestamp_millis() as u64), ok, summary });
+        // after each job, not once at the end: Atlas closed during a long one must not run the ones before it again
+        keep(&cache, &recs);
     }
-    let _ = vault_write::cache::write(&cache.join(STATE), serde_json::to_string_pretty(&recs).unwrap_or_default().as_bytes());
+}
+
+fn keep(cache: &Path, recs: &HashMap<String, ScheduledRun>) {
+    let _ = vault_write::cache::write(&cache.join(STATE), serde_json::to_string_pretty(recs).unwrap_or_default().as_bytes());
 }
 
 /// What a job's answer says for the log: `skipped` (it had nothing it could do, e.g. a cluster not connected: never a

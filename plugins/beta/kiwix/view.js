@@ -27,6 +27,8 @@ export default function mount(host, atlas) {
     return r.text();
   };
   const xml = (text) => new DOMParser().parseFromString(text, "application/xml");
+  // a malformed escape in one link is that link's, not the end of the list
+  const decoded = (s) => { try { return decodeURIComponent(s); } catch { return s; } };
   const plain = (html) => new DOMParser().parseFromString(html, "text/html").body.textContent ?? "";
   // the server's own links carry its root location (kiwix-serve --urlRootLocation /kiwix: /kiwix/content/…)
   const content = (() => { try { return `${new URL(server).pathname.replace(/\/+$/, "")}/content/`; } catch { return "/content/"; } })();
@@ -37,7 +39,7 @@ export default function mount(host, atlas) {
     const doc = xml(await get("/catalog/v2/entries?count=-1"));
     const all = [...doc.querySelectorAll("entry")].map((e) => {
       const href = [...e.querySelectorAll("link")].map((l) => l.getAttribute("href") ?? "").find((h) => h.startsWith(content)) ?? "";
-      return { id: decodeURIComponent(href.slice(content.length)), title: e.querySelector("title")?.textContent ?? "", name: e.querySelector("name")?.textContent ?? "", lang: e.querySelector("language")?.textContent ?? "", count: Number(e.querySelector("articleCount")?.textContent ?? 0) };
+      return { id: decoded(href.slice(content.length)), title: e.querySelector("title")?.textContent ?? "", name: e.querySelector("name")?.textContent ?? "", lang: e.querySelector("language")?.textContent ?? "", count: Number(e.querySelector("articleCount")?.textContent ?? 0) };
     }).filter((b) => b.id);
     const words = String(atlas.plugin.settings?.books ?? "").toLowerCase().split(",").map((w) => w.trim()).filter(Boolean);
     const named = words.length ? all.filter((b) => words.some((w) => `${b.name} ${b.title}`.toLowerCase().includes(w))) : all;
@@ -81,7 +83,7 @@ export default function mount(host, atlas) {
       if (mine !== asked || gone) return;
       const prefix = `${content}${book.value}/`;
       const hits = [...doc.querySelectorAll("item")].map((i) => {
-        const link = decodeURIComponent(i.querySelector("link")?.textContent ?? "");
+        const link = decoded(i.querySelector("link")?.textContent ?? "");
         return { title: i.querySelector("title")?.textContent ?? "", path: link.startsWith(prefix) ? link.slice(prefix.length) : "", snippet: plain(i.querySelector("description")?.textContent ?? "").trim() };
       }).filter((h) => h.path);
       const total = doc.getElementsByTagNameNS("http://a9.com/-/spec/opensearch/1.1/", "totalResults")[0]?.textContent ?? String(hits.length);

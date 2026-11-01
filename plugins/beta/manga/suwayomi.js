@@ -142,7 +142,14 @@ export function suwayomi(atlas, address, store) {
       const made = new Map();
       return {
         count: list.length,
-        url(i) { if (!made.has(i)) made.set(i, picture(base + list[i], `${idOf(chapter)}/${i}`, PAGE_W)); return made.get(i); },
+        url(i) {
+          if (!made.has(i)) {
+            const got = picture(base + list[i], `${idOf(chapter)}/${i}`, PAGE_W);
+            got.catch(() => made.delete(i)); // a page that failed (the server out of reach a moment) is asked again
+            made.set(i, got);
+          }
+          return made.get(i);
+        },
         done() {},
       };
     },

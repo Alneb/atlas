@@ -85,6 +85,10 @@ fn tidy(lines: impl IntoIterator<Item = String>) -> String {
 /// Where a picture named in a note is: a path as written (beside the note, or from the vault's root), else the one
 /// file of that name anywhere (an `![[embed]]` names only the file).
 fn locate(atlas: &Atlas, root: &Path, note: &str, name: &str) -> Result<PathBuf> {
+    // a name out of the vault (`/…`, `../…`, from a shared text) is not read
+    if !Path::new(name).components().all(|c| matches!(c, std::path::Component::Normal(_) | std::path::Component::CurDir)) {
+        return fail(format!("{name} is not a picture of the vault"));
+    }
     let dir = Path::new(note).parent().unwrap_or(Path::new(""));
     for p in [root.join(dir).join(name), root.join(name)] {
         if p.is_file() {
@@ -106,7 +110,9 @@ fn locate(atlas: &Atlas, root: &Path, note: &str, name: &str) -> Result<PathBuf>
 fn on_disk(root: &Path, file: &str) -> Option<PathBuf> {
     let mut dirs = vec![root.to_path_buf()];
     while let Some(dir) = dirs.pop() {
-        for e in std::fs::read_dir(&dir).ok()?.flatten() {
+        // a folder that cannot be read is passed over, not the end of the search
+        let Ok(entries) = std::fs::read_dir(&dir) else { continue };
+        for e in entries.flatten() {
             let (path, name) = (e.path(), e.file_name());
             if name.to_string_lossy().starts_with('.') {
                 continue;

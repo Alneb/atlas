@@ -317,11 +317,12 @@ export default function mount(host, atlas) {
       else if (p >= ch.count && index + 1 < s.chapters.length) void open(index + 1, 0);
       else atlas.toast("Manga", p < 0 ? "This is the first chapter." : "That was the last chapter.");
     }
-    // webtoon: every picture under the other, the page in view is where you are
+    // webtoon: every picture under the other, the page in view is where you are (one that failed asked again a moment
+    // later, while it is still near the view)
     let watch = null;
     function strip() {
       watch?.disconnect();
-      const load = new IntersectionObserver((xs) => { for (const x of xs) if (x.isIntersecting) { load.unobserve(x.target); void ch.url(+x.target.dataset.i).then((u) => (x.target.src = u)); } }, { root: view, rootMargin: "150% 0px" });
+      const load = new IntersectionObserver((xs) => { for (const x of xs) if (x.isIntersecting) { load.unobserve(x.target); void ch.url(+x.target.dataset.i).then((u) => (x.target.src = u), () => setTimeout(() => load.observe(x.target), 5000)); } }, { root: view, rootMargin: "150% 0px" });
       const at = new IntersectionObserver((xs) => { for (const x of xs) if (x.isIntersecting) { page = +x.target.dataset.i; shown(); } }, { root: view, threshold: 0.5 });
       watch = { disconnect: () => { load.disconnect(); at.disconnect(); } };
       for (let i = 0; i < ch.count; i++) {

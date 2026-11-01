@@ -105,12 +105,27 @@ fn when(t: i64) -> String {
     chrono::DateTime::from_timestamp(t, 0).map(|d| d.with_timezone(&chrono::Local).format("%a, %-d %b %Y at %H:%M").to_string()).unwrap_or_default()
 }
 
-/// Markdown → HTML for the message (tables, strikethrough, task lists; raw HTML the user typed is escaped).
+/// Whether a link may keep its address: a web, mail, phone or attachment (`cid:`) one, or one with no scheme. A quoted
+/// mail's `[x](javascript:…)` would otherwise be a script link in the preview, which is Atlas's own page. Browsers drop
+/// whitespace and control characters inside a scheme, so they are dropped before it is read.
+fn safe_link(dest: &str) -> bool {
+    let clean: String = dest.chars().filter(|c| !c.is_ascii_whitespace() && !c.is_control()).collect::<String>().to_ascii_lowercase();
+    match clean.split_once(':') {
+        Some((scheme, _)) if !scheme.is_empty() && scheme.chars().all(|c| c.is_ascii_alphanumeric() || "+.-".contains(c)) => {
+            matches!(scheme, "http" | "https" | "mailto" | "tel" | "cid")
+        }
+        _ => true,
+    }
+}
+
+/// Markdown → HTML for the message (tables, strikethrough, task lists; raw HTML the user typed is escaped, a link to a
+/// script goes nowhere).
 pub fn markdown(md: &str) -> String {
-    use pulldown_cmark::{html, Event, Options, Parser};
+    use pulldown_cmark::{html, Event, Options, Parser, Tag};
     let opts = Options::ENABLE_TABLES | Options::ENABLE_STRIKETHROUGH | Options::ENABLE_TASKLISTS;
     let events = Parser::new_ext(md, opts).map(|e| match e {
         Event::Html(h) | Event::InlineHtml(h) => Event::Text(h),
+        Event::Start(Tag::Link { link_type, dest_url, title, id }) if !safe_link(&dest_url) => Event::Start(Tag::Link { link_type, dest_url: "#".into(), title, id }),
         // a single line break is a line break in a mail, as people type them
         Event::SoftBreak => Event::HardBreak,
         e => e,
@@ -338,6 +353,14 @@ mod tests {
     #[test]
     fn typed_html_is_text_not_markup() {
         assert!(markdown("<script>x</script> & <b>").contains("&lt;script&gt;"));
+        // a quoted mail's script link goes nowhere, also spelled to slip past a plain check; web and mail links stay
+        for bad in ["[x](javascript:alert(1))", "[x](JaVaScRiPt:alert(1))", "[x](<java\tscript:alert(1)>)", "<javascript:alert(1)>", "[x](vbscript:x)", "[x](data:text/html,<b>)"] {
+            let h = markdown(bad).to_lowercase();
+            assert!(h.contains("href=\"#\"") && !h.contains("href=\"java") && !h.contains("href=\"vbscript") && !h.contains("href=\"data:"), "{bad} → {h}");
+        }
+        for good in ["[x](https://example.org/a)", "[x](mailto:a@example.org)", "[x](#top)", "<https://example.org>"] {
+            assert!(!markdown(good).contains("href=\"#\"") || good.contains("#top"), "{good}");
+        }
     }
 
     #[test]

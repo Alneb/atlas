@@ -1,6 +1,7 @@
 //! Syncthing, scan now: the vault's changed paths → `POST /rest/db/scan?folder=<id>&sub=<path>` on this computer's
 //! Syncthing. The folder holding the vault is found by its path, the API key read from Syncthing's own config when none
-//! is set. The logic takes its transport and file reader, so the tests run offline.
+//! is set. No paths at all (the core dropped events) scans the whole vault. The logic takes its transport and file reader,
+//! so the tests run offline.
 use serde_json::{json, Value};
 use std::path::{Path, PathBuf};
 
@@ -83,10 +84,12 @@ pub fn scan(request: Request, m: &Machine, root: &Path, params: &Value) -> Resul
     let Some(key) = secrets["api_key"].as_str().filter(|k| !k.is_empty()).map(str::to_string).or_else(|| key_from_config(&m.home, m.read)) else {
         return Ok(json!({ "skipped": "no Syncthing on this machine (no API key set, none in its config)" }));
     };
+    // no paths at all: the core dropped events (anything may have changed), so the whole vault is scanned
+    let everything = params["paths"].as_array().is_none_or(Vec::is_empty);
     let mut paths: Vec<&str> = params["paths"].as_array().into_iter().flatten().filter_map(Value::as_str).filter(|p| !p.is_empty() && !p.starts_with(".atlas/cache/")).collect();
     paths.sort_unstable();
     paths.dedup();
-    if paths.is_empty() {
+    if paths.is_empty() && !everything {
         return Ok(json!({ "scanned": 0 }));
     }
     // the folder named in Settings is still looked up: the vault may sit below its top
@@ -102,6 +105,13 @@ pub fn scan(request: Request, m: &Machine, root: &Path, params: &Value) -> Resul
         (None, Some(n)) => (n.to_string(), String::new()),
         (None, None) => return Ok(json!({ "skipped": "no Syncthing folder holds this vault" })),
     };
+    if everything {
+        let sub = if inside.is_empty() { String::new() } else { format!("&sub={}", form(&inside)) };
+        request("POST", &format!("{url}/rest/db/scan?folder={}{sub}", form(&folder)), &key).map_err(|f| match f {
+            Fail::Unreachable(why) | Fail::Refused(why) => why,
+        })?;
+        return Ok(json!({ "folder": folder, "scanned": "all" }));
+    }
     // Syncthing takes many `sub`s in one scan; batches keep the address short
     for batch in paths.chunks(SUBS_PER_SCAN) {
         let subs: String = batch.iter().map(|p| format!("&sub={}", form(&if inside.is_empty() { p.to_string() } else { format!("{inside}/{p}") }))).collect();
@@ -150,6 +160,22 @@ mod tests {
         assert_eq!(scan(&request, &machine(NONE), Path::new("/home/u/Work"), &params), Ok(json!({"folder": "work", "scanned": 2})));
         assert_eq!(asked.borrow().last().unwrap(), &("POST".into(), "http://127.0.0.1:8384/rest/db/scan?folder=work&sub=b.md&sub=notes%2Fa+b.md".into(), "k".into()));
         assert_eq!(asked.borrow().len(), 2, "one listing, one scan for both paths");
+        // only the cache changed: nothing to scan, not even a listing
+        let only_cache = json!({"paths": [".atlas/cache/x"], "secrets": {"api_key": "k"}, "settings": {}});
+        assert_eq!(scan(&request, &machine(NONE), Path::new("/home/u/Work"), &only_cache), Ok(json!({"scanned": 0})));
+        assert_eq!(asked.borrow().len(), 2);
+    }
+
+    #[test]
+    fn no_paths_at_all_scans_the_whole_vault() {
+        let asked = RefCell::new(vec![]);
+        let request = |_: &str, url: &str, _: &str| {
+            asked.borrow_mut().push(url.to_string());
+            Ok(if url.ends_with("/rest/config/folders") { json!([{"id": "home", "path": "/home/u"}]) } else { Value::Null })
+        };
+        let params = json!({"paths": [], "secrets": {"api_key": "k"}, "settings": {}});
+        assert_eq!(scan(&request, &machine(NONE), Path::new("/home/u/Work"), &params), Ok(json!({"folder": "home", "scanned": "all"})));
+        assert_eq!(asked.borrow().last().unwrap(), "http://127.0.0.1:8384/rest/db/scan?folder=home&sub=Work", "the vault, below the folder's top");
     }
 
     #[test]

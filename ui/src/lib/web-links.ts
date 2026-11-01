@@ -16,6 +16,7 @@ export function openWeb(url: string): void {
   if ((settings.config?.web?.open_links ?? "tab") !== "tab") return void window.open(url, "_blank", "noopener");
   // the desktop app shows any site in a tab (a view of its own over the pane, panes/Web.svelte), framing allowed or not
   if (nativeTabs) return void open({ kind: "web", url });
-  if (!sites.has(host)) sites.set(host, api.webFrameable(url).catch(() => false));
+  // a failed ask (the core restarting) opens a window this time and is asked again next time, not kept as the answer
+  if (!sites.has(host)) sites.set(host, api.webFrameable(url).catch(() => (sites.delete(host), false)));
   void sites.get(host)!.then((ok) => (ok ? open({ kind: "web", url }) : void window.open(url, "_blank", "noopener")));
 }

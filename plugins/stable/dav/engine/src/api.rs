@@ -1144,18 +1144,21 @@ fn remove_event(p: Value) -> Res {
 
 /// The vault's important notes into the default calendar (opt-in: `push_notes`; never mail, never .ics files —
 /// invitations come from Email's `import_invite`). With `paths` (Atlas, after files changed: `on = "fs"`) only those,
-/// and only while it is on and an account is filled in; without, every note in the folders.
+/// and only while it is on and an account is filled in (an empty list: every note, on the same terms); without, every
+/// note in the folders.
 fn sync_method(p: Value) -> Res {
     let s = conf::settings(&p);
     let folders: Vec<String> = s["folders"].as_array().map(|a| a.iter().filter_map(|f| f.as_str().map(str::to_string)).collect()).unwrap_or_default();
     let scope = SyncScope { folders, past_days: s["past_days"].as_i64().unwrap_or(30) };
-    let only: Option<Vec<String>> = p["paths"].as_array().map(|a| a.iter().filter_map(|x| x.as_str().map(str::to_string)).collect());
-    if let Some(paths) = &only {
+    // `paths` given: Atlas after files changed; an empty list there means anything may have changed (every note read)
+    let hooked = p["paths"].as_array();
+    let only: Option<Vec<String>> = hooked.filter(|a| !a.is_empty()).map(|a| a.iter().filter_map(|x| x.as_str().map(str::to_string)).collect());
+    if hooked.is_some() {
         // after every change in the vault: quiet and cheap unless it is on and a note in the folders changed
         if s["push_notes"] != json!(true) {
             return Ok(json!({ "skipped": "important notes are not put on the server (Settings → Calendar → Sync)" }));
         }
-        if !paths.iter().any(|x| x.ends_with(".md") && sync::in_scope(x, &scope.folders)) {
+        if only.as_ref().is_some_and(|paths| !paths.iter().any(|x| x.ends_with(".md") && sync::in_scope(x, &scope.folders))) {
             return Ok(json!({ "skipped": "no changed note in the folders" }));
         }
         if !conf::filled(&s) {
