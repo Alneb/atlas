@@ -11,6 +11,8 @@
 //! `archive`, `trash`, `spam`, `read`, `star`, `important` (starred and kept as a note), `not-important`, `label <name>`,
 //! `save` (the conversation as a note), `notify` (a notice
 //! even for a person the split inbox would file away), `stop` (no later rule sees it).
+//! A rule's moves (`move`, `archive`, `trash`, `spam`) run after its other actions, whatever the order written; a moved
+//! message is not seen by later rules.
 
 use crate::account::Account;
 use crate::index::Scope;
@@ -31,19 +33,36 @@ pub const FENCE: &str = "email-rules";
 pub fn parse(text: &str) -> Vec<Rule> {
     block(text)
         .map(|(_, body, _)| {
-            body.lines()
-                .filter_map(|l| {
-                    let l = l.trim();
-                    if l.is_empty() || l.starts_with('#') || l.starts_with("//") {
-                        return None;
-                    }
-                    let (when, then) = l.split_once("=>").or_else(|| l.split_once("->"))?;
-                    let actions: Vec<String> = then.split(',').map(|a| a.trim().to_string()).filter(|a| !a.is_empty()).collect();
-                    (!when.trim().is_empty() && !actions.is_empty()).then(|| Rule { when: when.trim().to_string(), actions })
-                })
-                .collect()
+            body.lines().filter_map(rule_of).collect()
         })
         .unwrap_or_default()
+}
+
+/// One line of the block as a rule; None for a comment, a blank or a line that is no rule.
+fn rule_of(line: &str) -> Option<Rule> {
+    let l = line.trim();
+    if l.is_empty() || l.starts_with('#') || l.starts_with("//") {
+        return None;
+    }
+    let (when, then) = l.split_once("=>").or_else(|| l.split_once("->"))?;
+    let actions: Vec<String> = then.split(',').map(|a| a.trim().to_string()).filter(|a| !a.is_empty()).collect();
+    (!when.trim().is_empty() && !actions.is_empty()).then(|| Rule { when: when.trim().to_string(), actions })
+}
+
+/// A rule is one line `<search> => <a>, <b>`: what would break that line (or make another rule of it) is refused.
+fn fits_a_line(r: &Rule) -> Result<(), String> {
+    if r.when.trim().is_empty() || r.when.contains(['\n', '\r']) || r.when.contains("=>") || r.when.contains("->") {
+        return Err(format!("“{}”: a search on one line, without => or ->", r.when));
+    }
+    match r.actions.iter().find(|a| a.contains(['\n', '\r', ',']) || a.trim().is_empty()) {
+        Some(a) => Err(format!("“{a}”: one action each, without commas")),
+        None if r.actions.is_empty() => Err(format!("“{}”: no action", r.when)),
+        None => Ok(()),
+    }
+}
+
+fn line_of(r: &Rule) -> String {
+    format!("{} => {}\n", r.when.trim(), r.actions.join(", "))
 }
 
 /// The block's place: (text before, its body, text after).
@@ -55,10 +74,22 @@ fn block(text: &str) -> Option<(String, String, String)> {
     Some((text[..start].to_string(), text[body_start..end].to_string(), text[after..].to_string()))
 }
 
-/// The note's text with these rules in its block (the rest of the note as it was; a block added when none).
+/// The note's text with these rules in its block, in their order (which rule sees mail first): the block's rule lines
+/// take them one by one, more go at the end, rule lines left over are taken out; its comments and other lines, and the
+/// rest of the note, stay as written. A block is added when there is none.
 pub fn write(text: &str, rules: &[Rule]) -> String {
-    let lines: String = rules.iter().map(|r| format!("{} => {}\n", r.when.trim(), r.actions.join(", "))).collect();
-    let new_block = format!("```{FENCE}\n{lines}```\n");
+    let mut next = rules.iter();
+    let mut body = String::new();
+    if let Some((_, old, _)) = block(text) {
+        for l in old.lines() {
+            match rule_of(l) {
+                None => body.push_str(&format!("{l}\n")),
+                Some(_) => body.extend(next.next().map(line_of)),
+            }
+        }
+    }
+    body.extend(next.map(line_of));
+    let new_block = format!("```{FENCE}\n{body}```\n");
     match block(text) {
         Some((before, _, after)) => format!("{before}{new_block}{after}"),
         None if text.trim().is_empty() => format!(
@@ -82,6 +113,12 @@ pub fn load(m: &Mail) -> Vec<Rule> {
 }
 
 pub fn save(m: &Mail, rules: &[Rule]) -> Result<String, String> {
+    // as the dialog sends them: "move X, read," split at its commas
+    let rules: Vec<Rule> = rules.iter().map(|r| Rule { when: r.when.trim().to_string(), actions: r.actions.iter().map(|a| a.trim().to_string()).filter(|a| !a.is_empty()).collect() }).filter(|r| !(r.when.is_empty() && r.actions.is_empty())).collect(); // a blank row: none
+    for r in &rules {
+        fits_a_line(r)?;
+    }
+    let rules = &rules[..];
     let p = path(m);
     let was = std::fs::read_to_string(&p).unwrap_or_default();
     atlas_plugin::write_file(&p, write(&was, rules).as_bytes()).map_err(|e| e.to_string())?;
@@ -111,7 +148,8 @@ pub async fn apply(m: &Mail, acc: &Account, ids: &[i64]) {
         if hit.is_empty() {
             continue;
         }
-        if act(m, acc, &rule, &hit).await {
+        // `stop`, or a move (the message is no longer where the next rule would act on it)
+        if act(m, acc, &rule, &hit).await || in_order(&rule.actions).iter().any(|(v, _)| moves(v)) {
             left.retain(|i| !hit.contains(i));
         }
     }
@@ -120,8 +158,7 @@ pub async fn apply(m: &Mail, acc: &Account, ids: &[i64]) {
 /// Does a rule's actions on the messages it matched → whether it said `stop`.
 pub async fn act(m: &Mail, acc: &Account, rule: &Rule, hit: &[i64]) -> bool {
     let mut stop = false;
-    for a in &rule.actions {
-        let (verb, arg) = a.split_once(' ').map(|(v, r)| (v.to_lowercase(), r.trim().to_string())).unwrap_or((a.to_lowercase(), String::new()));
+    for (verb, arg) in in_order(&rule.actions) {
         let r = match verb.as_str() {
             "read" => crate::ops::flag(m, hit, "\\Seen", true).await,
             "star" | "flag" => crate::ops::flag(m, hit, "\\Flagged", true).await,
@@ -166,6 +203,18 @@ pub async fn act(m: &Mail, acc: &Account, rule: &Rule, hit: &[i64]) -> bool {
     stop
 }
 
+/// A rule's actions as (verb, argument), the ones that move the mail last (each group as written): a flag set after a
+/// move would reach only the index, the moved message's place on the server not known yet (Thunderbird's order too).
+fn in_order(actions: &[String]) -> Vec<(String, String)> {
+    let mut out: Vec<(String, String)> = actions.iter().map(|a| a.split_once(' ').map(|(v, r)| (v.to_lowercase(), r.trim().to_string())).unwrap_or((a.to_lowercase(), String::new()))).collect();
+    out.sort_by_key(|(verb, _)| moves(verb));
+    out
+}
+
+fn moves(verb: &str) -> bool {
+    matches!(verb, "move" | "archive" | "trash" | "delete" | "spam" | "junk")
+}
+
 /// Actions a rule may name (Claude's `email_add_rule` is checked against them).
 pub const ACTIONS: &[&str] = &["move", "archive", "trash", "delete", "spam", "junk", "read", "star", "flag", "important", "not-important", "unimportant", "label", "tag", "save", "note", "notify", "stop"];
 
@@ -174,6 +223,7 @@ pub fn add(m: &Mail, rule: Rule) -> Result<String, String> {
     if search::parse(&rule.when, 0).is_empty() {
         return Err(format!("“{}” matches every message: name who or what", rule.when));
     }
+    fits_a_line(&rule)?;
     for a in &rule.actions {
         let verb = a.split_whitespace().next().unwrap_or("").to_lowercase();
         if !ACTIONS.contains(&verb.as_str()) {
@@ -206,6 +256,13 @@ mod tests {
     use crate::sync::tests_support::harness;
 
     #[test]
+    fn a_rules_moves_come_after_its_flags() {
+        let acts: Vec<String> = ["Move Newsletters", "read", "archive", "label Bills", "stop"].map(String::from).to_vec();
+        let order: Vec<String> = in_order(&acts).into_iter().map(|(v, a)| if a.is_empty() { v } else { format!("{v} {a}") }).collect();
+        assert_eq!(order, ["read", "label Bills", "stop", "move Newsletters", "archive"]);
+    }
+
+    #[test]
     fn rules_read_and_write_inside_their_note() {
         let note = "# My rules\n\nSome words.\n\n```email-rules\n# comment\nfrom:shop => move Newsletters, read\nnonsense line\nsubject:\"a b\" -> label X\n```\n\nAfter.\n";
         let rules = parse(note);
@@ -214,7 +271,11 @@ mod tests {
             Rule { when: "subject:\"a b\"".into(), actions: vec!["label X".into()] },
         ]);
         let again = write(note, &rules[..1]);
-        assert_eq!(again, "# My rules\n\nSome words.\n\n```email-rules\nfrom:shop => move Newsletters, read\n```\n\nAfter.\n");
+        assert_eq!(again, "# My rules\n\nSome words.\n\n```email-rules\n# comment\nfrom:shop => move Newsletters, read\nnonsense line\n```\n\nAfter.\n", "the block's own words kept");
+        let edited = [Rule { when: "from:shop.example".into(), actions: vec!["read".into()] }, rules[1].clone(), Rule { when: "from:new".into(), actions: vec!["star".into()] }];
+        assert_eq!(write(note, &edited), "# My rules\n\nSome words.\n\n```email-rules\n# comment\nfrom:shop.example => read\nnonsense line\nsubject:\"a b\" => label X\nfrom:new => star\n```\n\nAfter.\n", "an edited search keeps its place");
+        assert!(fits_a_line(&Rule { when: "from:x\nfrom:y".into(), actions: vec!["trash".into()] }).is_err());
+        assert!(fits_a_line(&Rule { when: "from:x".into(), actions: vec!["read, trash".into()] }).is_err());
         assert!(write("", &rules).starts_with("# Mail rules\n"));
     }
 
@@ -224,17 +285,20 @@ mod tests {
         let acc = m.account(None).unwrap();
         m.rt.block_on(crate::sync::account(&m, &acc, None)).unwrap();
         std::fs::create_dir_all(d.path().join("vault/mail")).unwrap();
-        std::fs::write(d.path().join("vault/mail/rules.md"), "```email-rules\nfrom:promo@shop.example => archive, read, stop\nsubject:promo => star\nfrom:boss => star\n```\n").unwrap();
+        std::fs::write(d.path().join("vault/mail/rules.md"), "```email-rules\nfrom:promo@shop.example => archive, read, stop\nfrom:deals@shop.example => read, archive\nsubject:promo => star\nfrom:boss => star\n```\n").unwrap();
         s.store.lock().unwrap().add("INBOX", b"From: Shop <promo@shop.example>\r\nSubject: Big promo\r\nMessage-ID: <p@x>\r\nDate: Tue, 20 Oct 2026 10:00:00 +0000\r\n\r\nbuy\r\n".to_vec(), &[]);
+        s.store.lock().unwrap().add("INBOX", b"From: Shop <deals@shop.example>\r\nSubject: promo deals\r\nMessage-ID: <d@x>\r\nDate: Tue, 20 Oct 2026 10:00:30 +0000\r\n\r\nbuy\r\n".to_vec(), &[]);
         s.store.lock().unwrap().add("INBOX", b"From: Boss <boss@uni.example>\r\nSubject: Now\r\nMessage-ID: <b@x>\r\nDate: Tue, 20 Oct 2026 10:01:00 +0000\r\n\r\ncome\r\n".to_vec(), &[]);
         m.rt.block_on(crate::sync::account(&m, &acc, None)).unwrap();
         let st = s.store.lock().unwrap();
         let promo = st.folders["Archive"].msgs.iter().find(|x| String::from_utf8_lossy(&x.raw).contains("Big promo")).expect("archived");
         assert!(promo.flags.contains("\\Seen"));
         assert!(!promo.flags.contains("\\Flagged"), "stop: the later rule did not see it");
+        let deals = st.folders["Archive"].msgs.iter().find(|x| String::from_utf8_lossy(&x.raw).contains("promo deals")).expect("archived");
+        assert!(deals.flags.contains("\\Seen") && !deals.flags.contains("\\Flagged"), "moved: the later rule did not see it");
         let boss = st.folders["INBOX"].msgs.iter().find(|x| String::from_utf8_lossy(&x.raw).contains("boss@")).unwrap();
         assert!(boss.flags.contains("\\Flagged"));
-        assert_eq!(events.lock().unwrap().iter().filter(|(n, _)| n == "rule").count(), 2);
+        assert_eq!(events.lock().unwrap().iter().filter(|(n, _)| n == "rule").count(), 3);
     }
 
     #[test]

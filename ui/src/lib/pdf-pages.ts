@@ -1,6 +1,7 @@
 // A PDF page as a picture, for covers, thumbnails, previews and embedded pages, by the engine Settings chose
 // (lib/pdf-engine.ts). The reader asks its own engine (lib/pdf-reader.ts).
 import { dropEverywhere, engine, type EngineName, type Fit } from "./pdf-engine";
+import { keepCapped } from "./capped";
 
 /** Device pixels per CSS px, capped: a page drawn sharp on HiDPI without 4K canvases. */
 export const dpr = (): number => Math.min(window.devicePixelRatio || 1, 3);
@@ -40,10 +41,8 @@ const THUMB_DOCS = 2;
 const thumbKey = (path: string, by: EngineName) => `${by}\n${path}`;
 export function thumbCache(path: string, by: EngineName): Map<number, ImageBitmap> {
   const key = thumbKey(path, by);
-  let m = thumbs.get(key);
-  if (m) { thumbs.delete(key); thumbs.set(key, m); return m; } // the most recent last
-  thumbs.set(key, (m = new Map()));
-  for (const [p, old] of thumbs) { if (thumbs.size <= THUMB_DOCS) break; old.forEach((b) => b.close()); thumbs.delete(p); }
+  const m = thumbs.get(key) ?? new Map<number, ImageBitmap>();
+  keepCapped(thumbs, key, m, THUMB_DOCS, (old) => old.forEach((b) => b.close()));
   return m;
 }
 

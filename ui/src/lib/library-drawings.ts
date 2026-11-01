@@ -11,6 +11,7 @@ import { vaultFiles, vaultReady } from "./vault";
 import { shownName, basename } from "./paths";
 import type { LibraryItem, LibrarySource } from "./library";
 import { errText, escapeRegExp } from "./text";
+import { keepCapped } from "./capped";
 
 const DRAWING = /\.excalidraw$/i;
 /** `chap.pdf.excalidraw`: a file's ink, which belongs to that file (drawing_note.rs `ink_of`). An extension has a
@@ -25,17 +26,18 @@ function names(v: unknown): string[] {
 }
 
 const covers = new Map<string, Promise<string | null>>();
+const COVERS_KEPT = 200; // every saved version of a drawing makes a new one
 /** The first page as a picture (the whole drawing when it has no pages); one per drawing and version. */
 function coverOf(path: string, version: string): () => Promise<string | null> {
   return () => {
     const key = `${path}@${version}`;
-    if (!covers.has(key)) covers.set(key, (async () => {
+    if (!covers.has(key)) keepCapped(covers, key, (async () => {
       const { sceneJson, sceneSvg } = await import("./draw-excalidraw");
       const json = await sceneJson((await api.file(path)).text);
       const svg = await sceneSvg(json, false, "Page 1").catch(() => sceneSvg(json, false));
       svg.setAttribute("style", "background:#fff");
       return URL.createObjectURL(new Blob([svg.outerHTML], { type: "image/svg+xml" }));
-    })().catch(() => null));
+    })().catch(() => null), COVERS_KEPT, (old) => void old.then((u) => u && setTimeout(() => URL.revokeObjectURL(u), 30_000)));
     return covers.get(key)!;
   };
 }

@@ -2,6 +2,7 @@
 // without indentation, pen points to 0.1 px and pressures to 0.01, and pictures at most 2000 px as WebP (JPEG where
 // the browser cannot write WebP, e.g. WebKitGTK, for a picture without transparency). The same rules as the notepad's
 // DrawingSize.java and `atlas drawings compact` (drawing_compact.rs); docs/design/DESIGN-drawing-size.md.
+import { keepCapped } from "./capped";
 
 const POINT = 10; // 0.1 px
 const PRESSURE = 100; // 0.01
@@ -24,6 +25,7 @@ export function compactJson(scene: unknown): string {
 
 type FileEntry = { mimeType?: string; dataURL?: string; [k: string]: unknown };
 const shrunk = new Map<string, string>(); // a picture's id → its smaller data URL (a picture never changes under its id)
+const SHRUNK_KEPT = 200;
 
 /** A data URL for the picture at most MAX_SIDE px, as WebP (else JPEG when it is opaque); the original when that is
  *  not smaller, or the browser cannot decode it. */
@@ -59,7 +61,7 @@ export async function shrinkFiles(files: Record<string, FileEntry>): Promise<Rec
   for (const [id, f] of Object.entries(files)) {
     if (!f?.dataURL) { out[id] = f; continue; }
     let url = shrunk.get(id);
-    if (!url) { url = await shrinkPicture(f.dataURL); shrunk.set(id, url); }
+    if (!url) { url = await shrinkPicture(f.dataURL); keepCapped(shrunk, id, url, SHRUNK_KEPT); }
     out[id] = url === f.dataURL ? f : { ...f, dataURL: url, mimeType: url.slice(5, url.indexOf(";")) };
   }
   return out;
