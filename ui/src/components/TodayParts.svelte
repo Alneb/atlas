@@ -258,8 +258,8 @@
   const focusText = $derived(today ? focusBody(today.focus.text ?? "", today.focus.path) : "");
   const titleOf = (t: string) => (settings.config?.editor.task_chips === false ? t : taskTextWithChips(t).title);
 
+  onMount(useToday); // its release, when the part goes
   onMount(() => {
-    useToday();
     if (!show("capture")) return;
     const offCapture = box ? capture.add(box) : () => {};
     // a frame later, only if nothing took the focus meanwhile (Ctrl+P right after Ctrl+J: the

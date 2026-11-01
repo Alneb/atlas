@@ -1,13 +1,22 @@
 // Workspace-relative path arithmetic shared by the renderer and the link resolver.
 /** Join a note-relative path onto the note's directory, normalising `.` and `..`. */
 export function resolveRel(path: string, dir?: string): string {
-  if (path.startsWith("/")) return path.slice(1);
-  const parts = (dir ? `${dir}/${path}` : path).split("/");
+  return inVault(path, dir, true) as string;
+}
+
+/** [`resolveRel`] for resolving a link, as the core's links.rs `normalize`: null when a `..` climbs out of the vault
+ *  (`../x.md` in a note at the root names nothing in it). */
+export const resolveInVault = (path: string, dir?: string): string | null => inVault(path, dir, false);
+
+function inVault(path: string, dir: string | undefined, clamp: boolean): string | null {
+  // `/x` is from the vault's root, its `.` and `..` read all the same
+  const parts = (dir && !path.startsWith("/") ? `${dir}/${path}` : path).split("/");
   const out: string[] = [];
   for (const p of parts) {
     if (!p || p === ".") continue;
-    if (p === "..") out.pop();
-    else out.push(p);
+    if (p !== "..") out.push(p);
+    else if (out.length) out.pop();
+    else if (!clamp) return null;
   }
   return out.join("/");
 }

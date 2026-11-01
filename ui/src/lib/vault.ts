@@ -2,7 +2,7 @@
 // on file events, so `[[note]]` and `![[pic.png]]` resolve synchronously while rendering.
 // Same rules as the core's links.rs: explicit path (from the root for wikilinks, from the note for
 // markdown links), then by file name — same folder first, then the shortest path.
-import { dirOf, basename, resolveRel } from "./paths";
+import { dirOf, basename, resolveRel, resolveInVault } from "./paths";
 import { isAgentFile } from "./agent-files";
 import { api } from "./api";
 import { isBookkeeping, on } from "./bus";
@@ -109,9 +109,10 @@ export function resolveLink(target: string, fromDir: string, wiki = true): strin
   // `x.excalidraw` names the vault's `x.excalidraw.md` (Obsidian appends .md when the file is a note)
   const cands = name.includes(".") ? [t, `${t}.md`] : [`${t}.md`, t];
   for (const c of cands) {
-    const rel = resolveRel(c, fromDir);
-    const root = resolveRel(c);
-    for (const p of wiki ? [root, rel] : [rel, root]) if (all.has(p)) return p;
+    // a `..` out of the vault names nothing there (links.rs `normalize`), not the file at the root
+    const rel = resolveInVault(c, fromDir);
+    const root = resolveInVault(c);
+    for (const p of wiki ? [root, rel] : [rel, root]) if (p !== null && all.has(p)) return p;
   }
   if (!wiki) return null;
   const fromAgent = isAgentFile(fromDir);
