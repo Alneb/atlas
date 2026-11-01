@@ -44,6 +44,14 @@ impl Query {
     }
 }
 
+/// What a LIKE with a typed value says: `\` escapes the value's own `%` and `_` ([`literal`]).
+pub const LIKE_ESC: &str = r" ESCAPE '\'";
+
+/// A typed value inside a LIKE pattern, matched as written (`first_last@x`): its `\`, `%` and `_` escaped.
+pub fn literal(v: &str) -> String {
+    v.replace('\\', "\\\\").replace('%', "\\%").replace('_', "\\_")
+}
+
 const OPS: &[&str] = &[
     "from", "to", "cc", "subject", "label", "tag", "has", "is", "kind", "category", "in", "account", "before", "older_than", "older", "after", "since",
     "newer_than", "newer", "larger", "bigger", "smaller", "list",
@@ -142,7 +150,7 @@ pub fn parse(q: &str, now: i64) -> Query {
         if value.is_empty() {
             continue;
         }
-        let like = |v: &str| Value::Text(format!("%{}%", v.replace(['%', '_'], "")));
+        let like = |v: &str| Value::Text(format!("%{}%", literal(v)));
         let n = if not { "NOT " } else { "" };
         match op.as_deref() {
             None => {
@@ -163,7 +171,7 @@ pub fn parse(q: &str, now: i64) -> Query {
                 };
                 // `from:a@x,b@y` — any of them (a rule for several people); a subject keeps its commas
                 let alts: Vec<&str> = if o == "subject" { vec![value.as_str()] } else { value.split(',').map(str::trim).filter(|v| !v.is_empty()).collect() };
-                let ors: Vec<String> = (1..=alts.len()).map(|k| one.replace("?1", &format!("?{k}"))).collect();
+                let ors: Vec<String> = (1..=alts.len()).map(|k| one.replace("?1", &format!("?{k}{LIKE_ESC}"))).collect();
                 let sql = if ors.len() == 1 { ors[0].clone() } else { format!("({})", ors.join(" OR ")) };
                 out.cond(&format!("{n}{sql}"), alts.iter().map(|v| like(v)).collect());
             }
@@ -182,7 +190,7 @@ pub fn parse(q: &str, now: i64) -> Query {
                 "person" | "newsletter" | "notification" => out.cond(&format!("{n}m.kind=?1"), vec![Value::Text(value.to_lowercase())]),
                 _ => continue,
             },
-            Some("list") => out.cond(&format!("{n}m.list_id LIKE ?1"), vec![like(&value)]),
+            Some("list") => out.cond(&format!("{n}m.list_id LIKE ?1{LIKE_ESC}"), vec![like(&value)]),
             Some("kind" | "category") => out.cond(&format!("{n}m.kind=?1"), vec![Value::Text(value.to_lowercase())]),
             Some("in") => out.folder = Some(value.clone()),
             Some("account") => out.account = Some(value.clone()),
@@ -242,7 +250,7 @@ mod tests {
         assert_eq!(q.sql.len(), 5);
         assert!(q.sql[4].starts_with("NOT m.flagged"));
         assert_eq!(q.args.len(), 2);
-        assert_eq!(q.sql[1], "m.subject LIKE ?2", "numbered after the ones before");
+        assert_eq!(q.sql[1], r"m.subject LIKE ?2 ESCAPE '\'", "numbered after the ones before");
     }
 
     #[test]
@@ -278,12 +286,15 @@ mod tests {
         assert_eq!(run("cluster -down"), vec!["Cluster time"]);
         assert_eq!(run("-down"), vec!["Cluster time"]);
         assert_eq!(run("after:2026-09-15 before:2026-09-16 -from:bo"), vec!["Cluster time"]);
+        add(3, "From: first_last@x.example\r\nSubject: Underscore\r\nMessage-ID: <3@x>\r\nDate: Tue, 15 Sep 2026 12:00:00 +0000\r\n\r\n", &[]);
+        assert_eq!(run("from:first_last"), vec!["Underscore"], "a `_` in an address is matched as itself");
+        assert!(run("from:first%last").is_empty() && run("from:firstXlast").is_empty());
     }
 
     #[test]
     fn several_people_in_one_operator() {
         let q = parse("from:vt@uni.example,ana@uni.example is:unread", 0);
-        assert_eq!(q.sql[0], "(m.from_json LIKE ?1 OR m.from_json LIKE ?2)");
+        assert_eq!(q.sql[0], r"(m.from_json LIKE ?1 ESCAPE '\' OR m.from_json LIKE ?2 ESCAPE '\')");
         assert_eq!(q.args.len(), 2);
         assert_eq!(q.sql[1], "m.seen=0");
         let s = parse("subject:\"a, b\"", 0);

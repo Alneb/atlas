@@ -311,15 +311,15 @@ impl Store {
         self.rows("SELECT source, href, etag, uid, ics FROM objects WHERE source = ?1 AND href = ?2", &[&source, &href]).pop()
     }
 
-    /// Objects whose title, place or description holds every word of `q`.
+    /// Objects whose title, place or description holds every word of `q` (each matched as typed: [`literal`]).
     pub fn search(&self, sources: &[String], q: &str, limit: usize) -> Vec<Object> {
-        let words: Vec<String> = q.split_whitespace().map(|w| format!("%{}%", w.to_lowercase().replace(['%', '_'], ""))).collect();
+        let words: Vec<String> = q.split_whitespace().map(|w| format!("%{}%", literal(&w.to_lowercase()))).collect();
         if words.is_empty() {
             return vec![];
         }
         let mut out: Vec<Object> = Vec::new();
         for s in sources {
-            let cond = (0..words.len()).map(|i| format!("words LIKE ?{}", i + 2)).collect::<Vec<_>>().join(" AND ");
+            let cond = (0..words.len()).map(|i| format!("words LIKE ?{}{LIKE_ESC}", i + 2)).collect::<Vec<_>>().join(" AND ");
             let sql = format!("SELECT source, href, etag, uid, ics FROM objects WHERE source = ?1 AND {cond} LIMIT {limit}");
             let mut p: Vec<&dyn rusqlite::ToSql> = vec![s];
             p.extend(words.iter().map(|w| w as &dyn rusqlite::ToSql));
@@ -348,12 +348,13 @@ impl Store {
     /// Contacts whose name, address or organisation holds `q` (every one with an address when empty), by name.
     pub fn contacts(&self, q: &str, limit: usize) -> Vec<Contact> {
         let db = self.db();
-        let like = format!("%{}%", q.trim().to_lowercase());
-        let Ok(mut st) = db.prepare(
-            "SELECT name, emails, max(org) FROM contacts WHERE emails != '[]' AND (lower(name) LIKE ?1 OR lower(emails) LIKE ?1 OR lower(coalesce(org, '')) LIKE ?1)
-             GROUP BY lower(name), emails ORDER BY CASE WHEN lower(name) LIKE ?2 THEN 0 ELSE 1 END, name LIMIT ?3",
-        ) else { return vec![] };
-        let prefix = format!("{}%", q.trim().to_lowercase());
+        let typed = literal(&q.trim().to_lowercase());
+        let like = format!("%{typed}%");
+        let Ok(mut st) = db.prepare(&format!(
+            "SELECT name, emails, max(org) FROM contacts WHERE emails != '[]' AND (lower(name) LIKE ?1{LIKE_ESC} OR lower(emails) LIKE ?1{LIKE_ESC} OR lower(coalesce(org, '')) LIKE ?1{LIKE_ESC})
+             GROUP BY lower(name), emails ORDER BY CASE WHEN lower(name) LIKE ?2{LIKE_ESC} THEN 0 ELSE 1 END, name LIMIT ?3",
+        )) else { return vec![] };
+        let prefix = format!("{typed}%");
         st.query_map(params![like, prefix, limit as i64], |r| {
             let emails: String = r.get(1)?;
             Ok(Contact { name: r.get(0)?, emails: serde_json::from_str(&emails).unwrap_or_default(), org: r.get(2)? })
@@ -365,6 +366,14 @@ impl Store {
     pub fn contact_count(&self) -> i64 {
         self.db().query_row("SELECT count(*) FROM contacts", [], |r| r.get(0)).optional().ok().flatten().unwrap_or(0)
     }
+}
+
+/// What a LIKE with a typed value says: `\` escapes the value's own `%` and `_` ([`literal`]).
+const LIKE_ESC: &str = r" ESCAPE '\'";
+
+/// A typed value inside a LIKE pattern, matched as written (`first_last`): its `\`, `%` and `_` escaped.
+fn literal(v: &str) -> String {
+    v.replace('\\', "\\\\").replace('%', "\\%").replace('_', "\\_")
 }
 
 #[cfg(test)]
@@ -412,5 +421,8 @@ mod tests {
         // the same card in a second address book is one contact
         s.put_contacts("b2", &[("9".into(), None, c("Ana Ruiz", "ana@example.org"))]).unwrap();
         assert_eq!(s.contacts("ana", 10).len(), 1);
+        s.put_contacts("b3", &[("7".into(), None, c("Cy", "first_last@example.org"))]).unwrap();
+        assert_eq!(s.contacts("first_l", 10).len(), 1);
+        assert!(s.contacts("a_a", 10).is_empty(), "a typed `_` is itself, not any letter (ana)");
     }
 }

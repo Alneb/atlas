@@ -137,11 +137,13 @@ pub async fn act(m: &Mail, acc: &Account, rule: &Rule, hit: &[i64]) -> bool {
             },
             "save" | "note" => {
                 let mut r = Ok(());
-                for id in hit {
-                    if let Some(x) = m.index.msg(*id) {
-                        if let Err(e) = crate::notes::save(m, x.thread).await {
-                            r = Err(e);
-                        }
+                // each conversation once, however many of its messages the rule matched
+                let mut threads: Vec<i64> = hit.iter().filter_map(|id| m.index.msg(*id)).map(|x| x.thread).collect();
+                threads.sort_unstable();
+                threads.dedup();
+                for t in threads {
+                    if let Err(e) = crate::notes::save(m, t).await {
+                        r = Err(e);
                     }
                 }
                 r

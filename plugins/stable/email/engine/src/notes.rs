@@ -24,7 +24,8 @@ static STYLE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?is)<style\b.*?</
 pub fn note_name(text: &str) -> String {
     let s = UNSAFE.replace_all(text, " ");
     let s: String = s.split_whitespace().collect::<Vec<_>>().join(" ");
-    let s: String = s.chars().take(70).collect::<String>().trim().to_string();
+    // a leading dot would hide the note ("...and one more thing")
+    let s: String = s.chars().take(70).collect::<String>().trim().trim_start_matches('.').trim_start().to_string();
     if s.is_empty() { "Mail".into() } else { s }
 }
 
@@ -62,7 +63,21 @@ pub fn html_block(clean: &str, saved: &[(String, String)], remote: bool) -> Stri
         s = REMOTE_URL.replace_all(&s, "none").into_owned();
         n
     };
-    let lines: Vec<&str> = s.lines().map(str::trim).filter(|l| !l.is_empty()).collect();
+    // lines trimmed and blank ones dropped, except inside a <pre>: its indentation is the text, and a blank line there
+    // is kept as `&#32;` (a line that does not end the block)
+    let mut depth = 0usize; // open <pre>s before this line
+    let mut lines: Vec<&str> = vec![];
+    for l in s.lines() {
+        let low = l.to_ascii_lowercase();
+        let inside = depth > 0;
+        depth = (depth + low.matches("<pre").count()).saturating_sub(low.matches("</pre").count());
+        match (inside, l.trim()) {
+            (true, "") => lines.push("&#32;"),
+            (true, _) => lines.push(l.trim_end_matches('\r')),
+            (false, "") => {}
+            (false, t) => lines.push(t),
+        }
+    }
     let banner = if blocked > 0 { format!("<p class=\"email-remote\">{blocked} remote image{} blocked — “Email: show remote images” shows them in this mail.</p>\n", if blocked == 1 { "" } else { "s" }) } else { String::new() };
     format!("<div class=\"email-html\">\n{banner}{}\n</div>", lines.join("\n"))
 }
@@ -180,6 +195,11 @@ fn with_props(text: &str, set: &[(&str, Value)]) -> String {
     format!("---\n{}{}", head.join("\n"), &text[end..])
 }
 
+/// Whether a note's text holds one of these message ids (a section's marker or the note's property).
+fn holds(t: &str, ids: &[String]) -> bool {
+    ids.iter().any(|i| t.contains(&format!("\"message_id\":\"<{i}>\"")) || t.contains(&format!("\"message_id\": \"<{i}>\"")) || t.contains(&format!("message_id: \"<{i}>\"")))
+}
+
 /// The note that already holds one of these message ids, in the account's mail folder.
 fn existing(dir: &Path, ids: &[String]) -> Option<PathBuf> {
     let mut stack = vec![dir.to_path_buf()];
@@ -192,10 +212,8 @@ fn existing(dir: &Path, ids: &[String]) -> Option<PathBuf> {
                     stack.push(p);
                 }
             } else if p.extension().is_some_and(|x| x == "md") {
-                if let Ok(t) = std::fs::read_to_string(&p) {
-                    if ids.iter().any(|i| t.contains(&format!("\"message_id\":\"<{i}>\"")) || t.contains(&format!("\"message_id\": \"<{i}>\"")) || t.contains(&format!("message_id: \"<{i}>\""))) {
-                        return Some(p);
-                    }
+                if std::fs::read_to_string(&p).is_ok_and(|t| holds(&t, ids)) {
+                    return Some(p);
                 }
             }
         }
@@ -228,7 +246,9 @@ pub fn write(m: &Mail, also: &[String], items: Vec<(Msg, Vec<u8>, String)>) -> R
     let account_dir = format!("{base}/{}", note_name(&first.account));
     let mut ids: Vec<String> = items.iter().map(|(x, _, _)| x.message_id.clone()).collect();
     ids.extend(also.iter().cloned());
-    let found = existing(&m.root.join(&account_dir), &ids);
+    // the note this conversation was saved into last (`save` remembers it), else a look through the account's notes
+    let known = m.index.pref(&format!("note:{}", first.thread)).map(|rel| m.root.join(rel)).filter(|p| std::fs::read_to_string(p).is_ok_and(|t| holds(&t, &ids)));
+    let found = known.or_else(|| existing(&m.root.join(&account_dir), &ids));
     let (path, mut text) = match &found {
         Some(p) => (p.clone(), std::fs::read_to_string(p).map_err(|e| e.to_string())?),
         None => {
@@ -323,6 +343,13 @@ mod tests {
     use crate::sync::tests_support::harness;
 
     #[test]
+    fn a_subject_is_a_visible_file_name() {
+        assert_eq!(note_name("...and one more thing"), "and one more thing");
+        assert_eq!(note_name("Re: [list] a/b #3"), "Re list a b 3");
+        assert_eq!(note_name(" . "), "Mail");
+    }
+
+    #[test]
     fn a_conversation_becomes_a_thread_note_with_its_files_and_grows() {
         let (m, s, _e, d) = harness(true);
         let acc = m.account(None).unwrap();
@@ -349,6 +376,8 @@ mod tests {
 
     #[test]
     fn html_in_a_note_is_one_block_without_style_and_remote_pictures() {
+        let code = html_block("<p>x</p>\n<pre>fn main() {\n\n    run();\n}</pre>\n  <p>y</p>", &[], true);
+        assert_eq!(code, "<div class=\"email-html\">\n<p>x</p>\n<pre>fn main() {\n&#32;\n    run();\n}</pre>\n<p>y</p>\n</div>", "a <pre> keeps its indentation and blank lines");
         let h = html_block("<style>p{}</style>\n<p>a</p>\n\n   <img src=\"https://t/p.gif\">\n<img src=\"cid:logo@x\">", &[("logo@x".into(), "mail/a b/x.png".into())], false);
         assert_eq!(h, "<div class=\"email-html\">\n<p class=\"email-remote\">1 remote image blocked — “Email: show remote images” shows them in this mail.</p>\n<p>a</p>\n<img data-remote-src=\"https://t/p.gif\">\n<img src=\"mail/a%20b/x.png\">\n</div>");
     }

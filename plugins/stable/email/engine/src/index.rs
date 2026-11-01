@@ -759,14 +759,15 @@ impl Index {
     /// Addresses that start with (or whose name has a word starting with) `q`, the most used first.
     pub fn contacts(&self, q: &str, limit: usize) -> Vec<Contact> {
         let db = self.db();
-        let like = format!("{}%", q.to_lowercase().replace(['%', '_'], ""));
+        let like = format!("{}%", crate::search::literal(&q.to_lowercase()));
         let word = format!("% {}", like);
+        let esc = crate::search::LIKE_ESC;
         let mut st = db
-            .prepare(
+            .prepare(&format!(
                 "SELECT name, addr, sent, received, last FROM contacts
-                 WHERE addr LIKE ?1 OR lower(name) LIKE ?1 OR lower(name) LIKE ?2
+                 WHERE addr LIKE ?1{esc} OR lower(name) LIKE ?1{esc} OR lower(name) LIKE ?2{esc}
                  ORDER BY (sent * 4 + received) * 1.0 / (1 + (strftime('%s','now') - last) / 2592000.0) DESC LIMIT ?3",
-            )
+            ))
             .unwrap();
         st.query_map(params![like, word, limit as i64], |r| Ok(Contact { name: r.get(0)?, addr: r.get(1)?, sent: r.get(2)?, received: r.get(3)?, last: r.get(4)? }))
             .unwrap()
@@ -1206,6 +1207,9 @@ mod tests {
         assert_eq!(ix.contacts("lop", 5).iter().map(|c| c.addr.as_str()).collect::<Vec<_>>(), vec!["ana@x.example"]);
         let all: Vec<String> = ix.contacts("", 5).into_iter().map(|c| c.addr).collect();
         assert_eq!(all, vec!["ana@x.example", "bo@x.example"], "written-to first; no machines");
+        ix.add("a", "Sent", &own, &[inc(4, "From: me@x.example\r\nTo: first_last@x.example\r\nSubject: s\r\nDate: Tue, 15 Sep 2026 10:00:00 +0000\r\n\r\n", &[])]).unwrap();
+        assert_eq!(ix.contacts("first_l", 5).len(), 1, "a `_` typed is matched as itself");
+        assert!(ix.contacts("firstXl", 5).is_empty());
     }
 
     #[test]
