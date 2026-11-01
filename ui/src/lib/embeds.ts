@@ -80,6 +80,13 @@ const PLACEHOLDERS = [".pdf-embed", ".note-embed", ".file-embed"];
 // what each mounted embed undoes before it is drawn again (a registration came or went) or when it goes
 const cleanups = new WeakMap<HTMLElement, () => void>();
 const mounted = new Set<WeakRef<HTMLElement>>();
+/** Each mounted element's entry in `mounted`: a release finds it at once (a closed note's embeds all go together). */
+const refOf = new WeakMap<HTMLElement, WeakRef<HTMLElement>>();
+function track(el: HTMLElement): void {
+  const ref = new WeakRef(el);
+  refOf.set(el, ref);
+  mounted.add(ref);
+}
 /** Embeds whose note view went: one still resolving its link must not mount into them afterwards. */
 const released = new WeakSet<HTMLElement>();
 
@@ -87,7 +94,9 @@ function release(el: HTMLElement): void {
   released.add(el);
   try { cleanups.get(el)?.(); } catch { /* the drawing's own problem */ }
   cleanups.delete(el);
-  for (const ref of mounted) if (ref.deref() === el) mounted.delete(ref);
+  const ref = refOf.get(el);
+  if (ref) mounted.delete(ref);
+  refOf.delete(el);
 }
 /** Keeps `clean` for `el` — or runs it at once when the embed was released while it was being drawn. */
 function keep(el: HTMLElement, clean: () => void): void {
@@ -107,12 +116,12 @@ async function mountEmbed(el: HTMLElement, notePath: string, compact: boolean): 
   const by = embedFor(path);
   el.dataset.embedBy = String(by?.id ?? 0);
   if (by) {
-    mounted.add(new WeakRef(el));
+    track(el);
     return drawRegistered(el, by, path, section, notePath, compact);
   }
   if (!pdf && !file && depth >= MAX_DEPTH) return; // left as the link it was drawn with
   if (!pdf && !file && path === notePath && !section) return; // the note itself: the link stays
-  mounted.add(new WeakRef(el));
+  track(el);
   if (compact && !(AUDIO.test(path) || VIDEO.test(path))) return card(el, path);
   if (file) {
     if (AUDIO.test(path) || VIDEO.test(path)) return void media(el, path, VIDEO.test(path)).catch(() => card(el, path));

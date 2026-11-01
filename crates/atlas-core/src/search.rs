@@ -191,7 +191,7 @@ pub fn replace(ws: &Workspace, q: &str, o: Opts, with: &str, only: Option<&[Stri
         if n == 0 {
             continue;
         }
-        files::write_text(ws, &FileWrite { path: path.to_string(), text: text.into_owned(), base_mtime: Some(doc.mtime), only_new: false, apply_here: false })?;
+        files::write_text(ws, &FileWrite { path: path.to_string(), text, base_mtime: Some(doc.mtime), only_new: false, apply_here: false })?;
         res.replacements += n as u32;
         res.files.push(path.to_string());
     }

@@ -23,7 +23,7 @@ const idOf = (chapter) => Number(chapter.slice(SCHEME.length).split("/")[0]);
 /** Page lists kept for this many chapters, the last opened first. */
 const KEEP_PAGES = 300;
 /** What a server answered, kept in the page's storage per server: { library, chapters: {<manga id>: nodes},
- *  pages: {<chapter id>: urls}, marks: {<chapter id>: { page, read }} not yet sent }. In memory only when storage is off. */
+ *  pages: {c<chapter id>: urls}, the last opened last, marks: {<chapter id>: { page, read }} not yet sent }. In memory only when storage is off. */
 export function kept(base, storage = globalThis.localStorage) {
   const key = `atlas.manga.suwayomi:${base}`;
   let data = {};
@@ -133,10 +133,12 @@ export function suwayomi(atlas, address, store) {
     /** A chapter's pages: { count, url(i), done() }, as the vault's chapters give them. */
     async pages(chapter) {
       const id = idOf(chapter);
-      let list = k.pages[id];
-      if (list) delete k.pages[id]; // put back last: the most recently opened are the ones kept
+      // keyed `c<id>`: an object orders integer keys by value, which would keep the highest ids, not the last opened
+      const key = `c${id}`;
+      let list = k.pages[key];
+      if (list) delete k.pages[key]; // put back last: the most recently opened are the ones kept
       else list = (await query("mutation($id: Int!) { fetchChapterPages(input: {chapterId: $id}) { pages } }", { id })).fetchChapterPages?.pages ?? [];
-      if (list.length) { k.pages[id] = list; store.save(); }
+      if (list.length) { k.pages[key] = list; store.save(); }
       const made = new Map();
       return {
         count: list.length,

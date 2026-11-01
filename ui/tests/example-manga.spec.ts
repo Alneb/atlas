@@ -313,6 +313,15 @@ test("a Suwayomi error is one line, and a source gone says what to do", () => {
 // What the server answered is kept: with it unreachable the library and a series' chapters are the last ones seen, a
 // chapter opened before reads from the kept pictures without asking anything, and where you are waits and is sent
 // with the server's next answer (said once).
+test("pure: Suwayomi keeps the page lists of the chapters opened last", async () => {
+  const store = kept("http://s.example.org", { getItem: () => null, setItem: () => {} });
+  const atlas = { plugin: { id: "manga" }, async fetch() { return { ok: true, json: async () => ({ data: { fetchChapterPages: { pages: ["/p"] } } }) }; } };
+  const suw = suwayomi(atlas, "http://s.example.org", store);
+  for (const id of [5, 900, 5]) await suw.pages(`suwayomi:${id}/x`);
+  // an object orders integer keys by value: chapter 5, opened last, must still come last (the first dropped is 900)
+  expect(Object.keys(store.data.pages)).toEqual(["c900", "c5"]);
+});
+
 test("pure: Suwayomi offline — the lists and pictures as kept, where you are sent when it answers", async () => {
   const mem = new Map<string, string>(), storage = { getItem: (k: string) => mem.get(k) ?? null, setItem: (k: string, v: string) => void mem.set(k, v) };
   let up = true;
