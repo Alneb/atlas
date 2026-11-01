@@ -6,6 +6,7 @@
 // while the pointer is on it, so a long preview can be scrolled.
 import { dirOf, shownName, IMAGE_RE } from "./paths";
 import { api } from "./api";
+import { thumbUrl } from "./raw";
 import { renderMarkdown, stripFrontmatter } from "./markdown";
 import { resolveLink } from "./vault";
 import { settings } from "./settings.svelte";
@@ -102,7 +103,7 @@ export async function drawPreview(card: HTMLElement, t: PreviewTarget, width = C
   head.textContent = t.title ?? shownName(t.path);
   if (IMAGE_RE.test(t.path)) {
     const img = document.createElement("img");
-    img.src = URL.createObjectURL(await api.thumb(t.path, 360));
+    img.src = await thumbUrl(t.path, 360); // the shared cache's: a hover never leaves a blob URL behind
     img.alt = "";
     body.append(img);
   } else if (/\.pdf$/i.test(t.path)) {
