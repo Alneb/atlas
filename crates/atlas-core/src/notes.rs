@@ -46,7 +46,9 @@ fn templater_tag(expr: &str, title: &str, now: NaiveDateTime) -> Option<String> 
             }
             _ => now,
         };
-        return Some(fmt(a.first().map_or("", String::as_str), base + chrono::Duration::days(days)));
+        // checked: an offset typed too large leaves the tag as written
+        let when = chrono::Duration::try_days(days).and_then(|d| base.checked_add_signed(d))?;
+        return Some(fmt(a.first().map_or("", String::as_str), when));
     }
     if args("tp.file.cursor").is_some() {
         return Some(String::new());
@@ -628,6 +630,7 @@ mod tests {
     fn a_templater_format_may_hold_a_comma() {
         assert_eq!(split_args(r#""YYYY, MM", 1, 'a,b'"#), [r#""YYYY, MM""#, " 1", " 'a,b'"]);
         assert_eq!(templater_tag(r#"tp.date.now("YYYY, MM-DD", 1)"#, "x", now()).as_deref(), Some("2026, 10-14"));
+        assert_eq!(templater_tag(r#"tp.date.now("YYYY", 99999999999999)"#, "x", now()), None, "an offset too large: the tag stays");
     }
 
     #[test]

@@ -197,15 +197,15 @@ pub(crate) fn link_spans(line: &str) -> Vec<Span> {
             out.push(Span { start: start + lead, end: start + lead + t.len(), wiki, embed });
         }
     };
+    let mut code = atlas_text::fence::code_spans(line).into_iter().peekable();
     let mut i = 0;
     let mut wiki_closes = true;
     while i < b.len() {
         match b[i] {
+            // inline code (atlas_text's one reader): skipped whole; a backtick that opens none is text
             b'`' => {
-                // inline code: skip to the matching run of backticks
-                let run = b[i..].iter().take_while(|&&c| c == b'`').count();
-                let tick = "`".repeat(run);
-                i = line[i + run..].find(&tick).map_or(b.len(), |j| i + run + j + run);
+                while code.next_if(|c| c.start < i).is_some() {} // spans a link stepped over
+                i = code.next_if(|c| c.start == i).map_or(i + 1, |c| c.end);
             }
             b'[' if wiki_closes && b.get(i + 1) == Some(&b'[') => {
                 let embed = i > 0 && b[i - 1] == b'!';
@@ -786,6 +786,8 @@ mod tests {
         assert_eq!(open.iter().map(|l| l.target.as_str()).collect::<Vec<_>>(), vec!["y.md", "w.md"], "an unclosed [[ hides no markdown link");
         let stray = parse("see [[ and [[Note]], [[a[[b]]\n");
         assert_eq!(stray.iter().map(|l| l.target.as_str()).collect::<Vec<_>>(), vec!["Note", "b"], "a stray [[ before a link, as the editor reads it");
+        let ticks = parse("use ` then [[A]]\n``x` [[B]]`` [[C]] `[[D]]`\n");
+        assert_eq!(ticks.iter().map(|l| l.target.as_str()).collect::<Vec<_>>(), vec!["A", "C"], "a lone backtick is text; code spans close on their own length");
         let fm = parse("---\ntype: x\ntopics:\n  - '[[Condensed Matter]]'\n---\nsee [[B]]\n");
         assert_eq!(
             fm.iter().map(|l| l.context.as_str()).collect::<Vec<_>>(),

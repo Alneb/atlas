@@ -2566,7 +2566,7 @@ function Zi(e, t = /* @__PURE__ */ new Date()) {
 		let e = /* @__PURE__ */ new Date(`${i[1]}T${(i[2] ?? "8").padStart(2, "0")}:${i[3] ?? "00"}:00`);
 		return isNaN(e.getTime()) ? null : Math.floor(e.getTime() / 1e3);
 	}
-	let a = n.match(/^(today|tomorrow|mon|tue|wed|thu|fri|sat|sun)\w*\s*(\d{1,2})?(?::(\d{2}))?$/);
+	let a = n.match(/^(today|tomorrow|mon(?:day)?|tue(?:s(?:day)?)?|wed(?:nesday)?|thu(?:r(?:s(?:day)?)?)?|fri(?:day)?|sat(?:urday)?|sun(?:day)?)\s*(\d{1,2})?(?::(\d{2}))?$/);
 	if (!a) return null;
 	let o = new Date(t);
 	if (a[1] === "tomorrow") o.setDate(o.getDate() + 1);
@@ -2579,7 +2579,7 @@ function Zi(e, t = /* @__PURE__ */ new Date()) {
 			"thu",
 			"fri",
 			"sat"
-		].indexOf(a[1]);
+		].indexOf(a[1].slice(0, 3));
 		o.setDate(o.getDate() + ((e - o.getDay() + 7) % 7 || 7));
 	}
 	return o.setHours(a[2] ? Number(a[2]) : 8, a[3] ? Number(a[3]) : 0, 0, 0), Math.floor(o.getTime() / 1e3);

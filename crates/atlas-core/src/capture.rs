@@ -113,19 +113,18 @@ pub fn starts_as_task(text: &str) -> bool {
 /// The day a capture's `@word` names: `today`, `tomorrow`, `mon`…`sun` (the next such day), `+3d`.
 /// Also used by the quick-capture box to say when a to-do is due (crates/atlas-capture).
 pub fn day_of(word: &str, today: chrono::NaiveDate) -> Option<chrono::NaiveDate> {
-    use chrono::{Datelike, Duration};
-    const DAYS: [&str; 7] = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
+    use chrono::Duration;
     let w = word.to_ascii_lowercase();
     match w.as_str() {
         "today" => Some(today),
         "tomorrow" | "tmr" => Some(today + Duration::days(1)),
         _ => {
             if let Some(n) = w.strip_prefix('+').and_then(|n| n.strip_suffix('d')).and_then(|n| n.parse::<i64>().ok()) {
-                return Some(today + Duration::days(n));
+                return today.checked_add_signed(Duration::try_days(n)?); // `@+99999999999d` names no day
             }
-            let i = DAYS.iter().position(|d| w.starts_with(d) && w.len() <= 9)? as i64;
-            let ahead = (i - today.weekday().num_days_from_monday() as i64).rem_euclid(7);
-            Some(today + Duration::days(if ahead == 0 { 7 } else { ahead }))
+            // a day's name or its start, three letters at least (`fri`, `thurs`): `@monster` is no Monday
+            let day = crate::task_suggest::weekday_named(&w).filter(|_| w.len() >= 3)?;
+            Some(crate::task_suggest::next_weekday(today, day))
         }
     }
 }
@@ -470,6 +469,9 @@ mod tests {
         assert_eq!((h.task, h.due.as_deref(), h.says.as_str()), (true, Some("2026-10-16"), "a to-do, due tomorrow"));
         assert_eq!(describe(None, "* [ ] x", thu).says, "a to-do", "every bullet the capture accepts");
         assert_eq!(describe(None, "lunch with Ana @mon", thu).says, "a line in today's log · mentions Monday");
+        assert_eq!(day_of("Thurs", thu), day_of("thursday", thu), "a day's start, any case");
+        assert_eq!((day_of("monster", thu), day_of("sunshine", thu), day_of("mo", thu)), (None, None, None), "words that only start like a day");
+        assert_eq!(day_of("+99999999999d", thu), None, "a count too large names no day");
         let t = tempfile::tempdir().unwrap();
         let mut cfg = Config::default();
         cfg.notes.capture = CaptureMode::Note;

@@ -4,6 +4,7 @@
 use chrono::{DateTime, FixedOffset, Local, NaiveDate, NaiveDateTime, TimeZone, Utc};
 use chrono_tz::Tz;
 use serde::Serialize;
+use atlas_text::ical::{fold, unescape, unfold, Line};
 use std::collections::HashMap;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Default)]
@@ -39,34 +40,14 @@ pub struct Invite {
     pub ics: String,
 }
 
-/// RFC 5545 3.1: a line starting with a space or tab continues the one before.
-fn unfold(ics: &str) -> String {
-    ics.replace("\r\n ", "").replace("\n ", "").replace("\r\n\t", "").replace("\n\t", "")
-}
-
-fn unescape(v: &str) -> String {
-    v.replace("\\,", ",").replace("\\;", ";").replace("\\n", "\n").replace("\\N", "\n").replace("\\\\", "\\")
-}
-
 /// A content line's parameters, in order: `(NAME, value)`.
 type Params = Vec<(String, String)>;
 /// A property's value with its parameters.
 type Prop = (String, Params);
 
-/// `NAME;P1=a;P2="b:c":value` → (NAME, params, value); a colon inside a quoted parameter is not the separator.
+/// `NAME;P1=a;P2="b:c":value` → (NAME, params, value), by the reader the calendar plugin uses too.
 fn split(line: &str) -> Option<(String, Params, String)> {
-    let mut quoted = false;
-    let colon = line.char_indices().find(|&(_, c)| {
-        if c == '"' {
-            quoted = !quoted;
-        }
-        c == ':' && !quoted
-    })?.0;
-    let (head, value) = (&line[..colon], &line[colon + 1..]);
-    let mut parts = head.split(';');
-    let name = parts.next()?.trim().to_uppercase();
-    let params = parts.filter_map(|p| p.split_once('=')).map(|(k, v)| (k.trim().to_uppercase(), v.trim().trim_matches('"').to_string())).collect();
-    Some((name, params, value.to_string()))
+    Line::parse(line).map(|l| (l.name, l.params, l.value))
 }
 
 fn param<'a>(params: &'a [(String, String)], key: &str) -> Option<&'a str> {
@@ -292,7 +273,7 @@ pub fn reply(inv: &Invite, me: &str, my_name: &str, partstat: &str) -> String {
             depth += 1;
         }
         if depth > 0 {
-            out.push_str(line);
+            out.push_str(&fold(line));
             out.push_str("\r\n");
             if name == "END" && upper == "VTIMEZONE" {
                 depth -= 1;
@@ -309,7 +290,8 @@ pub fn reply(inv: &Invite, me: &str, my_name: &str, partstat: &str) -> String {
         }
         if name == "END" && upper == "VEVENT" {
             let cn = if my_name.is_empty() { String::new() } else { format!(";CN=\"{}\"", my_name.replace('"', "")) };
-            out.push_str(&format!("ATTENDEE;PARTSTAT={partstat}{cn}:mailto:{me}\r\n"));
+            out.push_str(&fold(&format!("ATTENDEE;PARTSTAT={partstat}{cn}:mailto:{me}")));
+            out.push_str("\r\n");
             out.push_str(&format!("DTSTAMP:{}\r\n", Utc::now().format("%Y%m%dT%H%M%SZ")));
             out.push_str("END:VEVENT\r\n");
             (in_event, done) = (false, true);
@@ -318,7 +300,7 @@ pub fn reply(inv: &Invite, me: &str, my_name: &str, partstat: &str) -> String {
         // keep what identifies the event (RFC 5546 table 3.2.3); the user's ATTENDEE is written anew above
         if matches!(name.as_str(), "UID" | "SEQUENCE" | "RECURRENCE-ID" | "ORGANIZER" | "DTSTART" | "DTEND" | "DURATION" | "SUMMARY") {
             let _ = params;
-            out.push_str(line);
+            out.push_str(&fold(line));
             out.push_str("\r\n");
         }
     }

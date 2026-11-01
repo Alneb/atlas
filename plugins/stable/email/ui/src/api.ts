@@ -138,11 +138,12 @@ export function parseWhen(text: string, now = new Date()): number | null {
   if (rel) return Math.floor(now.getTime() / 1000) + Number(rel[1]) * ({ m: 60, min: 60, h: 3600, d: 86400, w: 604800 } as Record<string, number>)[rel[2]];
   const iso = t.match(/^(\d{4}-\d{2}-\d{2})(?:[ t](\d{1,2})(?::(\d{2}))?)?$/);
   if (iso) { const d = new Date(`${iso[1]}T${(iso[2] ?? "8").padStart(2, "0")}:${iso[3] ?? "00"}:00`); return isNaN(d.getTime()) ? null : Math.floor(d.getTime() / 1000); }
-  const m = t.match(/^(today|tomorrow|mon|tue|wed|thu|fri|sat|sun)\w*\s*(\d{1,2})?(?::(\d{2}))?$/);
+  // a day's name or its start (`fri`, `thurs`), never a word that only begins like one (`monster`)
+  const m = t.match(/^(today|tomorrow|mon(?:day)?|tue(?:s(?:day)?)?|wed(?:nesday)?|thu(?:r(?:s(?:day)?)?)?|fri(?:day)?|sat(?:urday)?|sun(?:day)?)\s*(\d{1,2})?(?::(\d{2}))?$/);
   if (!m) return null;
   const d = new Date(now);
   if (m[1] === "tomorrow") d.setDate(d.getDate() + 1);
-  else if (m[1] !== "today") { const want = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"].indexOf(m[1]); d.setDate(d.getDate() + (((want - d.getDay()) + 7) % 7 || 7)); }
+  else if (m[1] !== "today") { const want = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"].indexOf(m[1].slice(0, 3)); d.setDate(d.getDate() + (((want - d.getDay()) + 7) % 7 || 7)); }
   d.setHours(m[2] ? Number(m[2]) : 8, m[3] ? Number(m[3]) : 0, 0, 0);
   return Math.floor(d.getTime() / 1000);
 }

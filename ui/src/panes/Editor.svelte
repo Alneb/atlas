@@ -84,7 +84,7 @@
   const fromDisk = (t: string) => { const nl = t.indexOf("\n"); crlf = nl > 0 && t[nl - 1] === "\r"; return crlf ? lf(t) : t; };
   const toDisk = (t: string) => (crlf ? t.replace(/\n/g, "\r\n") : t);
   const current = () => ed?.view.state.doc.toString() ?? saved;
-  const markDirty = () => setDirty(panel.id, current() !== saved);
+  const markDirty = (text = current()) => setDirty(panel.id, text !== saved);
   // "dont autosave code files, but keep a temporary one just in case"
   const autosave = () => isMarkdown(path) || (settings.config?.editor.autosave_code ?? false);
   const RECOVERY = recoveryPath(path);
@@ -189,12 +189,12 @@
     if (keys) {
       // keys: the text read when typing pauses (a big note's text is not free to build on every key)
       clearTimeout(textTimer);
-      textTimer = setTimeout(() => { if (disposed) return; docText = current(); markDirty(); }, 120);
+      textTimer = setTimeout(() => { if (disposed) return; docText = current(); markDirty(docText); }, 120);
     } else {
       // anything else (a panel's edit, a paste, a load) is read at once: what made it reads it back
       clearTimeout(textTimer);
       if (text === undefined) docText = current();
-      markDirty();
+      markDirty(docText);
     }
     if (!autosave()) return keepRecovery();
     clearTimeout(timer);

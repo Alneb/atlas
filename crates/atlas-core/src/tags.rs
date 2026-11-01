@@ -62,26 +62,25 @@ fn inline_tags(text: &str, mut f: impl FnMut(usize, &str)) {
         if fences.code(line) {
             continue;
         }
-        // inline code is not text: every second piece between backticks is skipped
-        let mut piece_at = 0;
-        for (k, piece) in line.split('`').enumerate() {
-            if k % 2 == 0 {
-                let (mut prev, mut before) = (' ', ' ');
-                for (i, c) in piece.char_indices() {
-                    // `[[#Heading]]` and `[x](#anchor)` link into a note: the `#` starts a link's target, not a tag
-                    let link = matches!((before, prev), ('[', '[') | (']', '('));
-                    if c == '#' && !link && (prev.is_whitespace() || matches!(prev, '(' | '[' | ',' | ';')) {
-                        let rest = &piece[i + 1..];
-                        let end = rest.find(|ch: char| !tag_char(ch)).unwrap_or(rest.len());
-                        if end > 0 {
-                            f(line_at + piece_at + i + 1, &rest[..end]);
-                        }
+        // inline code is not text (atlas_text's one reader): the pieces between code spans are read
+        let code = atlas_text::fence::code_spans(line);
+        let gaps = std::iter::once(0).chain(code.iter().map(|c| c.end)).zip(code.iter().map(|c| c.start).chain(std::iter::once(line.len())));
+        for (piece_at, piece_end) in gaps {
+            let piece = &line[piece_at..piece_end];
+            let (mut prev, mut before) = (' ', ' ');
+            for (i, c) in piece.char_indices() {
+                // `[[#Heading]]` and `[x](#anchor)` link into a note: the `#` starts a link's target, not a tag
+                let link = matches!((before, prev), ('[', '[') | (']', '('));
+                if c == '#' && !link && (prev.is_whitespace() || matches!(prev, '(' | '[' | ',' | ';')) {
+                    let rest = &piece[i + 1..];
+                    let end = rest.find(|ch: char| !tag_char(ch)).unwrap_or(rest.len());
+                    if end > 0 {
+                        f(line_at + piece_at + i + 1, &rest[..end]);
                     }
-                    before = prev;
-                    prev = c;
                 }
+                before = prev;
+                prev = c;
             }
-            piece_at += piece.len() + 1;
         }
     }
 }
@@ -211,6 +210,8 @@ mod tests {
         let text = "---\ntags: [Physics/DMFT, todo]\n---\n# Heading\nSee #idea and (#physics/qmc), issue #42, colour `#fff`.\n```\n#notatag\n```\na#b is not one; C# neither; [[#Heading]] and [up](#heading) link\n";
         let props = crate::links::frontmatter(text);
         assert_eq!(of_note(text, &props), ["idea", "physics/dmft", "physics/qmc", "todo"]);
+        let tick = "it` is #real\n``#a` b`` is not, #also is\n";
+        assert_eq!(of_note(tick, &crate::links::frontmatter(tick)), ["also", "real"], "a lone backtick opens no code");
         assert_eq!(of_note("---\ntags: one, two three\n---\n", &crate::links::frontmatter("---\ntags: one, two three\n---\n")), ["one", "three", "two"]);
     }
 

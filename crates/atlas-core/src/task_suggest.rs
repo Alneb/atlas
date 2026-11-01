@@ -112,13 +112,13 @@ const WEEKDAYS: [(&str, Weekday); 7] =
     [("monday", Weekday::Mon), ("tuesday", Weekday::Tue), ("wednesday", Weekday::Wed), ("thursday", Weekday::Thu), ("friday", Weekday::Fri), ("saturday", Weekday::Sat), ("sunday", Weekday::Sun)];
 
 /// The next `w` after `today` (a week on when today is `w`).
-fn next_weekday(today: NaiveDate, w: Weekday) -> NaiveDate {
+pub(crate) fn next_weekday(today: NaiveDate, w: Weekday) -> NaiveDate {
     let ahead = (i64::from(w.num_days_from_monday()) - i64::from(today.weekday().num_days_from_monday())).rem_euclid(7);
     today + Duration::days(if ahead == 0 { 7 } else { ahead })
 }
 
 /// A weekday by the start of its name, when only one starts so ("f", "th"; not "t").
-fn weekday_named(word: &str) -> Option<Weekday> {
+pub(crate) fn weekday_named(word: &str) -> Option<Weekday> {
     let mut hits = WEEKDAYS.iter().filter(|(name, _)| !word.is_empty() && name.starts_with(word));
     match (hits.next(), hits.next()) {
         (Some((_, w)), None) => Some(*w),
@@ -126,10 +126,11 @@ fn weekday_named(word: &str) -> Option<Weekday> {
     }
 }
 
-fn add_months(d: NaiveDate, m: i32) -> NaiveDate {
-    let total = d.year() * 12 + d.month0() as i32 + m;
-    let (y, mo) = (total.div_euclid(12), total.rem_euclid(12) as u32 + 1);
-    (0..4).find_map(|back| NaiveDate::from_ymd_opt(y, mo, d.day().saturating_sub(back))).unwrap_or(d)
+/// `m` months on (back when negative), on the calendar: January 31st plus a month is February's last day. None past
+/// chrono's range (`in 99999999999 months`).
+fn add_months(d: NaiveDate, m: i64) -> Option<NaiveDate> {
+    let months = chrono::Months::new(u32::try_from(m.unsigned_abs()).ok()?);
+    if m >= 0 { d.checked_add_months(months) } else { d.checked_sub_months(months) }
 }
 
 /// A date as typed: `today`, `tomorrow`, `fri`, `next fri`, `next week` (Monday), `next month`,
@@ -140,10 +141,11 @@ pub fn natural_date(text: &str, today: NaiveDate) -> Option<NaiveDate> {
     let count = |n: &str, unit: &str| -> Option<NaiveDate> {
         let n: i64 = n.trim_start_matches('+').parse().ok()?;
         match unit.trim_end_matches('s') {
-            "d" | "day" => Some(today + Duration::days(n)),
-            "w" | "week" => Some(today + Duration::weeks(n)),
-            "m" | "month" => Some(add_months(today, n as i32)),
-            "y" | "year" => Some(add_months(today, 12 * n as i32)),
+            // checked: a count typed too large names no day, it does not stop the server
+            "d" | "day" => today.checked_add_signed(Duration::try_days(n)?),
+            "w" | "week" => today.checked_add_signed(Duration::try_weeks(n)?),
+            "m" | "month" => add_months(today, n),
+            "y" | "year" => add_months(today, n.checked_mul(12)?),
             _ => None,
         }
     };
@@ -152,8 +154,8 @@ pub fn natural_date(text: &str, today: NaiveDate) -> Option<NaiveDate> {
         ["tomorrow"] | ["tmr"] => Some(today + Duration::days(1)),
         ["yesterday"] => Some(today - Duration::days(1)),
         ["next", "week"] => Some(next_weekday(today, Weekday::Mon)),
-        ["next", "month"] => Some(add_months(today, 1)),
-        ["next", "year"] => Some(add_months(today, 12)),
+        ["next", "month"] => add_months(today, 1),
+        ["next", "year"] => add_months(today, 12),
         ["next", day] | ["this", day] => weekday_named(day).map(|w| next_weekday(today, w)),
         ["in", n, unit] => count(n, unit),
         [one] => {
@@ -179,8 +181,8 @@ fn named_days(today: NaiveDate) -> Vec<(String, NaiveDate)> {
     }
     out.push(("next week".into(), next_weekday(today, Weekday::Mon)));
     out.push(("in two weeks".into(), today + Duration::weeks(2)));
-    out.push(("next month".into(), add_months(today, 1)));
-    out.push(("next year".into(), add_months(today, 12)));
+    out.extend(add_months(today, 1).map(|d| ("next month".into(), d)));
+    out.extend(add_months(today, 12).map(|d| ("next year".into(), d)));
     out
 }
 
@@ -320,7 +322,8 @@ mod tests {
             assert_eq!(natural_date(typed, t), d(want), "{typed}");
         }
         assert_eq!(natural_date("f", t), d("2026-10-16"), "one weekday starts so");
-        for typed in ["", "soon", "t", "in days", "next"] {
+        assert_eq!(natural_date("1m", d("2026-01-31").unwrap()), d("2026-02-28"), "a month on the calendar, to its last day");
+        for typed in ["", "soon", "t", "in days", "next", "in 99999999999 days", "99999999999w", "in 9999999999 years"] {
             assert_eq!(natural_date(typed, t), None, "{typed:?}");
         }
         assert_eq!(say(thu()), "Thu 15 Oct");

@@ -105,20 +105,21 @@ const VALUES: usize = 40;
 pub fn known(root: &Path, cfg: &crate::config::Config) -> Vec<KnownProperty> {
     // the index's parses as they are: resolving every link (links::vault) would be work thrown away here
     let index = crate::links::scan(root, cfg);
-    let mut by: std::collections::HashMap<String, (u32, std::collections::HashMap<String, u32>)> = Default::default();
+    // keyed by the index's own strings: one allocation per distinct key and value, not one per note
+    let mut by: std::collections::HashMap<&str, (u32, std::collections::HashMap<std::borrow::Cow<str>, u32>)> = Default::default();
     for parsed in index.parsed.values() {
         for (key, v) in parsed.props.iter() {
-            let entry = by.entry(key.to_string()).or_default();
+            let entry = by.entry(key).or_default();
             entry.0 += 1;
             let items: Vec<&Value> = match v {
                 Value::Sequence(xs) => xs.iter().collect(),
                 other => vec![other],
             };
             for it in items {
-                let text = match it {
-                    Value::String(s) => s.trim().to_string(),
-                    Value::Number(n) => n.to_string(),
-                    Value::Bool(b) => b.to_string(),
+                let text: std::borrow::Cow<str> = match it {
+                    Value::String(s) => s.trim().into(),
+                    Value::Number(n) => n.to_string().into(),
+                    Value::Bool(b) => b.to_string().into(),
                     _ => continue,
                 };
                 if !text.is_empty() && text.len() <= VALUE_MAX {
@@ -130,9 +131,9 @@ pub fn known(root: &Path, cfg: &crate::config::Config) -> Vec<KnownProperty> {
     let mut out: Vec<KnownProperty> = by
         .into_iter()
         .map(|(key, (notes, values))| {
-            let mut vs: Vec<(String, u32)> = values.into_iter().collect();
+            let mut vs: Vec<(std::borrow::Cow<str>, u32)> = values.into_iter().collect();
             vs.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(&b.0)));
-            KnownProperty { key, notes, values: vs.into_iter().take(VALUES).map(|(v, _)| v).collect() }
+            KnownProperty { key: key.to_string(), notes, values: vs.into_iter().take(VALUES).map(|(v, _)| v.into_owned()).collect() }
         })
         .collect();
     out.sort_by(|a, b| b.notes.cmp(&a.notes).then_with(|| a.key.cmp(&b.key)));

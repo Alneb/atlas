@@ -38,6 +38,47 @@ impl Fences {
     }
 }
 
+/// The inline code spans of one line, backticks included, as CommonMark reads them: a run of N backticks is closed by
+/// the next run of exactly N; a run never closed (or a backtick escaped with `\`) is literal text, not code to the end.
+pub fn code_spans(line: &str) -> Vec<std::ops::Range<usize>> {
+    let b = line.as_bytes();
+    let run_at = |i: usize| b[i..].iter().take_while(|&&c| c == b'`').count();
+    let mut out = Vec::new();
+    let mut i = 0;
+    while i < b.len() {
+        if b[i] == b'\\' {
+            i += 2; // an escaped character, a backtick too, is text
+            continue;
+        }
+        if b[i] != b'`' {
+            i += 1;
+            continue;
+        }
+        let n = run_at(i);
+        let mut j = i + n;
+        let close = loop {
+            match b[j.min(b.len())..].iter().position(|&c| c == b'`') {
+                None => break None,
+                Some(k) => {
+                    let m = run_at(j + k);
+                    if m == n {
+                        break Some(j + k + m);
+                    }
+                    j += k + m;
+                }
+            }
+        };
+        match close {
+            Some(end) => {
+                out.push(i..end);
+                i = end;
+            }
+            None => i += n,
+        }
+    }
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -57,5 +98,15 @@ mod tests {
         assert_eq!(code("``` a`b\nx"), [false, false], "a backtick in the info string: inline code, not a fence");
         assert_eq!(code("    ```\nx"), [false, false], "four spaces in: an indented code line, not a fence");
         assert_eq!(code("  ```\nx\r\n  ```\r\nb"), [true, true, true, false]);
+    }
+
+    #[test]
+    fn code_spans_close_on_a_run_of_the_same_length() {
+        let spans = |l: &str| code_spans(l).into_iter().map(|r| &l[r]).collect::<Vec<_>>();
+        assert_eq!(spans("a `x` b ``y`z`` c"), ["`x`", "``y`z``"]);
+        assert_eq!(spans("it` was [[X]]"), Vec::<&str>::new(), "a run never closed is text");
+        assert_eq!(spans("``a` b"), Vec::<&str>::new(), "a shorter run does not close a longer one");
+        assert_eq!(spans(r"\`no` `yes`"), ["` `"], "an escaped backtick opens nothing");
+        assert_eq!(spans("é `ü` ö"), ["`ü`"]);
     }
 }

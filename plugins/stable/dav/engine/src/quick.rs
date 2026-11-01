@@ -178,7 +178,8 @@ pub fn parse(text: &str, now: NaiveDateTime) -> Quick {
         |c| {
             let n: f64 = c[1].replace(',', ".").parse().ok()?;
             let mins = if c[2].to_lowercase().starts_with('m') { n } else { n * 60.0 };
-            Some(Duration::minutes(mins.round() as i64))
+            // a year at most: a length typed past it (`for 99999999999 hours`) is no event's, and would overflow the end
+            Duration::try_minutes(mins.round() as i64).filter(|d| *d <= Duration::days(366))
         },
     );
 

@@ -77,9 +77,10 @@ pub fn suggest(text: &str, caret: usize, names: &Names) -> Vec<Suggestion> {
     }
     if let Some(typed) = word.strip_prefix('@') {
         let today = Local::now().date_naive();
+        let typed = typed.to_lowercase(); // `@Tom` as `@tom`, as the web boxes read it
         return atlas_core::capture::DAY_WORDS
             .iter()
-            .filter(|d| d.starts_with(typed) && **d != typed)
+            .filter(|d| d.starts_with(&typed) && **d != typed)
             .take(MOST)
             .map(|d| {
                 let when = atlas_core::capture::day_of(d, today).map(atlas_core::task_suggest::say).unwrap_or_default();
@@ -159,6 +160,8 @@ mod tests {
         assert_eq!(suggest(t, t.len(), &names)[0].label, "#physics");
         let t = "call @tom";
         assert_eq!(suggest(t, t.len(), &names)[0].insert, "tomorrow ");
+        let t = "call @Tom";
+        assert_eq!(suggest(t, t.len(), &names)[0].insert, "tomorrow ", "any case");
         let t = "[] pay rent due";
         let fields = suggest(t, t.len(), &names);
         assert!(fields[0].new_line, "Enter stays the box's own after a word");

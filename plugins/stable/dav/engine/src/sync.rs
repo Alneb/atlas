@@ -198,7 +198,8 @@ pub fn scan(root: &Path, scope: &Scope, only: Option<&[String]>, today: NaiveDat
         Some(ps) => ps.iter().filter(|p| in_scope(p, &scope.folders) && p.ends_with(".md")).cloned().collect(),
         None => walk(root, &scope.folders),
     };
-    let oldest = today - Duration::days(scope.past_days.max(0));
+    // a setting past chrono's range reaches back to the earliest day, not a panic
+    let oldest = Duration::try_days(scope.past_days.max(0)).and_then(|d| today.checked_sub_signed(d)).unwrap_or(NaiveDate::MIN);
     let mut scan = Scan::default();
     for p in &paths {
         let Ok(text) = std::fs::read_to_string(root.join(p)) else { continue };
