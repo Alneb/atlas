@@ -1,4 +1,5 @@
 // Subsequence fuzzy matcher with the usual bonuses (word starts, consecutive runs, basename).
+import { lowerInPlace } from "./text";
 export interface Match { score: number; indices: number[] }
 
 const isBoundary = (s: string, i: number) => i === 0 || /[\s/_.\-:]/.test(s[i - 1]) || (s[i] >= "A" && s[i] <= "Z" && s[i - 1] >= "a" && s[i - 1] <= "z");
@@ -6,7 +7,7 @@ const isBoundary = (s: string, i: number) => i === 0 || /[\s/_.\-:]/.test(s[i - 
 export function fuzzy(query: string, text: string): Match | null {
   if (!query) return { score: 0, indices: [] };
   const q = query.toLowerCase();
-  const t = text.toLowerCase();
+  const t = lowerInPlace(text); // its indices mark `text`
   // fast path: contiguous substring scores highest, earlier and at boundaries better
   const at = t.indexOf(q);
   if (at >= 0) {

@@ -4,7 +4,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { harness, Status } from "atlas-helper/testing";
-import { auth, muted, oneAtATime, sendWith, syncWith, type Message, type Net, type Vault } from "./helper";
+import { auth, muted, oneAtATime, sendWith, sourceOf, syncWith, yamlValue, type Message, type Net, type Vault } from "./helper";
 
 /** ntfy: each topic's messages, `since=<id>` honoured as the real one does; the POSTs made. */
 function ntfy(topics: Record<string, Message[]>) {
@@ -54,7 +54,7 @@ test("messages are filed by source, newest first, and never twice", async () => 
   const r = await syncWith(net, m.vault, settings());
   assert.equal(r.new, 3);
   let note = m.files["notifications/backups.md"];
-  assert.ok(note.startsWith("---\ntype: notifications\nsource: backups\nfrom: ntfy: server\nmuted: false\nunread: 2\n---\n# Backups\n\n"), note);
+  assert.ok(note.startsWith("---\ntype: notifications\nsource: backups\nfrom: \"ntfy: server\"\nmuted: false\nunread: 2\n---\n# Backups\n\n"), note);
   assert.ok(note.indexOf("Backup failed") < note.indexOf("Backup done"), "newest first");
   assert.ok(note.includes("🔴 **Backup failed** — repository locked · [open](https://example.org/b) <!-- n=a2 -->\n  > restic said so"), note);
   assert.match(note, /^- \d{4}-\d\d-\d\d \d\d:\d\d · 🔴/m);
@@ -147,4 +147,12 @@ test("a sync that found something says it to the pages", async () => {
   await harness.call("sync", settings({ topics: "events" }));
   const ev = harness.events.find((e) => e.event === "synced");
   assert.equal((ev?.data as { new?: number })?.new, 1, JSON.stringify(harness.events));
+});
+
+test("a source's note has a name a link can reach and properties YAML reads back", () => {
+  assert.equal(sourceOf({ tags: ["#ops [prod]"] }, "server"), "ops prod");
+  assert.equal(sourceOf({ tags: [".hidden"] }, "server"), "hidden");
+  assert.equal(sourceOf({ tags: ["###"] }, "server"), "server", "a tag of nothing but marks: the topic");
+  assert.equal(yamlValue("backups"), "backups");
+  for (const v of ["ntfy: server", "true", "2026", "- x", "a #b", "[x]", "'q'"]) assert.equal(yamlValue(v), JSON.stringify(v), v);
 });

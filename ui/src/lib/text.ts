@@ -9,6 +9,13 @@ export const errReason = (e: unknown): string => errText(e).replace(/^\w+ \S+: \
 /** `s` matched literally inside a RegExp. */
 export const escapeRegExp = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
+/** `s` in lower case with every character where it was: one whose lower case is longer (`İ` → `i̇`) is kept as it is,
+ *  so an index found in the result marks the same text in `s` (a highlight, a fuzzy match). */
+export function lowerInPlace(s: string): string {
+  const low = s.toLowerCase();
+  return low.length === s.length ? low : Array.from(s, (c) => { const l = c.toLowerCase(); return l.length === c.length ? l : c; }).join("");
+}
+
 /** Text made safe inside HTML: `&`, `<`, `>` and `"` escaped. */
 export const escapeHtml = (s: string): string => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
 

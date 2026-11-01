@@ -232,6 +232,10 @@ impl Notes {
     }
 }
 
+/// `s` as a property's value that reads back as this very text (an account `Expenses:Food #1` written plain would read
+/// back as `Expenses:Food`): atlas-text's, as every property line.
+pub use atlas_text::frontmatter::inline_string as yaml_str;
+
 pub fn frontmatter(text: &str) -> Option<&str> {
     atlas_text::frontmatter::split(text).0
 }
@@ -292,6 +296,12 @@ mod tests {
         assert_eq!(with, "---\ntype: finance-category\naccount: Expenses:Food\ntarget: 250 EUR\n---\n\n# Food\n");
         assert_eq!(set_property(&with, "target", Some("300 EUR")).matches("target").count(), 1);
         assert_eq!(set_property(&with, "target", None), t);
+        for v in ["Expenses:Food", "250 EUR", "Expenses:Food #1", "a: b", "true", "12", "", "- x", "#x", "C:\\x \"y\""] {
+            let doc = format!("k: {}\n", yaml_str(v));
+            let back: Value = serde_yaml::from_str(&doc).unwrap();
+            assert_eq!(back.get("k").and_then(Value::as_str), Some(v), "{doc}");
+        }
+        assert_eq!(yaml_str("Expenses:Food"), "Expenses:Food", "plain when it can be");
     }
 
     #[test]

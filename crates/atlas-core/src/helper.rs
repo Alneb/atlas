@@ -391,13 +391,14 @@ impl Helpers {
                 }
             };
         }
-        match tokio::time::timeout(timeout, rx).await {
+        let got = tokio::time::timeout(timeout, rx).await;
+        *r.used.lock().unwrap() = Instant::now(); // its idle time counts from the call's end, however long it took
+        match got {
             Ok(Ok(Ok(v))) => Ok(v),
             Ok(Ok(Err(why))) => Err(Error::CommandFailed(format!("plugin {id}: {method}: {why}"))),
             Ok(Err(_)) => Err(Error::CommandFailed(format!("plugin {id}: {method}: the helper went away"))),
             Err(_) => {
                 r.waiting.lock().unwrap().remove(&n);
-                *r.used.lock().unwrap() = Instant::now(); // its idle time counts from the call's end
                 Err(Error::CommandFailed(format!("plugin {id}: {method}: no answer in {}s", timeout.as_secs())))
             }
         }

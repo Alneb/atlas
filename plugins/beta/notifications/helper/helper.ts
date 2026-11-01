@@ -57,10 +57,18 @@ async function poll(net: Net, vault: Vault, server: string, topic: string, heade
   return text.split("\n").filter((l) => l.trim()).map((l) => JSON.parse(l) as Message).filter((m) => m.event === "message");
 }
 
-/** The message's first tag (the server's Apprise tag), else the topic: a name fit for a file. */
+/** The message's first tag (the server's Apprise tag), else the topic: a name fit for a file, and for a `[[link]]` to it
+ *  (no `#`, `^`, `[ ]`, `|`), never hidden (no leading dot). */
 export function sourceOf(m: Message, topic: string): string {
   const tag = (m.tags ?? []).find((t): t is string => typeof t === "string" && !!t.trim());
-  return (tag ?? topic).replace(/[\\/:*?"<>|]+/g, " ").trim() || topic;
+  const name = (raw: string) => raw.replace(/[\\/:*?"<>|#^[\]\u0000-\u001f]+/g, " ").replace(/\s+/g, " ").trim().replace(/^\.+\s*/, "");
+  return name(tag ?? topic) || name(topic) || "notifications";
+}
+
+/** A property's value as YAML reads it back: plain when it can be, else quoted (`ntfy: alerts` would be a mapping). */
+export function yamlValue(v: string): string {
+  const plain = /^[A-Za-z0-9][\w .\/-]*$/.test(v) && !/\s$/.test(v) && !/^(true|false|null|yes|no|on|off|[-+]?[\d._]+)$/i.test(v);
+  return plain ? v : JSON.stringify(v);
 }
 
 const two = (n: number) => String(n).padStart(2, "0");
@@ -91,7 +99,7 @@ export function muted(props: Record<string, string>, today: string): boolean {
 /** `lines` (newest first) put at the top of the source's note, made when missing; its `unread` grows. → its properties. */
 async function fileIn(vault: Vault, path: string, source: string, origin: string, lines: string[]): Promise<Record<string, string>> {
   const text = (await vault.read(path))
-    ?? `---\ntype: notifications\nsource: ${source}\nfrom: ${origin}\nmuted: false\nunread: 0\n---\n# ${source[0].toUpperCase()}${source.slice(1)}\n\n`;
+    ?? `---\ntype: notifications\nsource: ${yamlValue(source)}\nfrom: ${yamlValue(origin)}\nmuted: false\nunread: 0\n---\n# ${source[0].toUpperCase()}${source.slice(1)}\n\n`;
   const end = text.startsWith("---\n") ? text.indexOf("\n---\n") : -1;
   let head = end < 0 ? "" : text.slice(0, end), body = end < 0 ? text : text.slice(end + 5);
   const props: Record<string, string> = {};

@@ -171,7 +171,9 @@ export function register(atlas) {
     if (!tasks.has(path)) { tasks.set(path, []); void taskButton(path).then((b) => { tasks.set(path, b); if (b.length) redraw(); }); }
     return tasks.get(path);
   };
-  atlas.onFilesChanged(() => tasks.clear());
+  // asked again only when a file the Task button reads changes, not at every save (each would redraw the bar)
+  const TASK_FILES = /(^|\/)(package\.json|Makefile|justfile)$/;
+  atlas.onFilesChanged((paths) => { if (!paths.length || paths.some((p) => TASK_FILES.test(p))) tasks.clear(); });
 
   const tools = (file) => {
     const p = file.path, name = baseOf(p);

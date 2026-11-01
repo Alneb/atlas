@@ -9,7 +9,7 @@ use serde_yaml::{Mapping, Value};
 
 /// An arXiv id in text (new `2301.12345`, old `cond-mat/0101001`; a URL, `arXiv:`), without its version.
 pub fn parse_arxiv(text: &str) -> Option<String> {
-    let low = text.to_lowercase();
+    let low = text.to_ascii_lowercase(); // its offsets are the text's: a full lower case can be longer (`İ`)
     let start = ["arxiv.org/abs/", "arxiv.org/pdf/", "arxiv:"].iter().find_map(|p| low.find(p).map(|i| i + p.len())).unwrap_or(0);
     let id: String = text[start..].trim().chars().take_while(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '/' | '-')).collect();
     let id = id.trim_end_matches(".pdf");
@@ -488,6 +488,8 @@ mod tests {
         assert_eq!(parse_arxiv("https://arxiv.org/abs/2301.12345v2").as_deref(), Some("2301.12345"));
         assert_eq!(parse_arxiv("arXiv:cond-mat/0101001").as_deref(), Some("cond-mat/0101001"));
         assert_eq!(parse_arxiv("2409.01234").as_deref(), Some("2409.01234"));
+        // a letter whose full lower case is longer, before the id, does not move where it is read
+        assert_eq!(parse_arxiv("İnce, Kelvin K — arXiv:2409.01234").as_deref(), Some("2409.01234"));
         assert_eq!(parse_arxiv("10.1103/PhysRevB.62"), None);
     }
 

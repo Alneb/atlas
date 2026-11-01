@@ -174,7 +174,7 @@ pub fn code_spent(error: &str) -> bool {
 
 /// A connection's note (`finance/sources/<bank>.md`): what the pane lists and the sync reads. No secret in it.
 pub fn source_note(s: &crate::notes::SourceNote) -> String {
-    let yaml = |s: &str| format!("\"{}\"", s.replace('\\', "\\\\").replace('"', "\\\""));
+    let yaml = crate::notes::yaml_str;
     let day = |d: Option<chrono::NaiveDate>| d.map(|d| d.to_string()).unwrap_or_default();
     let mut t = format!("---\ntype: finance-source\nsource: enable-banking\nbank: {}\ncountry: {}\n", yaml(&s.bank), s.country);
     t += &format!("session: {}\nuntil: {}\nsynced: {}\n", yaml(s.session.as_deref().unwrap_or("")), day(s.until), day(s.synced));

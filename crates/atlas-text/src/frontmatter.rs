@@ -23,6 +23,27 @@ fn scalar(v: &Value) -> String {
     serde_yaml::to_string(v).map(|s| s.trim_end().to_string()).unwrap_or_default()
 }
 
+/// A text as the value on a property's line (`key: …`, `  - key: …`) that reads back as this very text: plain when it
+/// can be, quoted when not (`a: b`, `x #y`, `true`); text of several lines double-quoted on the one line.
+pub fn inline_string(s: &str) -> String {
+    if !s.contains(['\n', '\r']) {
+        return scalar(&Value::String(s.to_string()));
+    }
+    let mut out = String::from("\"");
+    for c in s.chars() {
+        match c {
+            '"' => out.push_str("\\\""),
+            '\\' => out.push_str("\\\\"),
+            '\n' => out.push_str("\\n"),
+            '\r' => out.push_str("\\r"),
+            '\t' => out.push_str("\\t"),
+            c => out.push(c),
+        }
+    }
+    out.push('"');
+    out
+}
+
 /// The text the user typed in a cell → a YAML value. `list` keeps a list a list (comma-separated);
 /// numbers and booleans stay typed; `[[links]]` and everything else stay strings.
 pub fn parse_cell(text: &str, list: bool) -> Value {
@@ -171,6 +192,20 @@ pub fn has_property(text: &str, key: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn an_inline_string_reads_back_as_the_text_on_a_line_and_in_a_list_item() {
+        for v in ["Expenses:Food", "Expenses:Food #1", "a: b", "true", "12", "", "- x", "#x", "C:\\x \"y\"", "two\nlines\t\"q\""] {
+            let line = inline_string(v);
+            assert!(!line.contains('\n'), "one line: {line}");
+            for doc in [format!("k: {line}\n"), format!("l:\n  - k: {line}\n")] {
+                let back: Value = serde_yaml::from_str(&doc).unwrap();
+                let got = back.get("k").or_else(|| back.get("l")?.get(0)?.get("k")).and_then(Value::as_str);
+                assert_eq!(got, Some(v), "{doc}");
+            }
+        }
+        assert_eq!(inline_string("Expenses:Food"), "Expenses:Food", "plain when it can be");
+    }
 
     #[test]
     fn one_reader_of_the_fences_for_every_spelling() {

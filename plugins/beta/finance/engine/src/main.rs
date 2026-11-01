@@ -457,9 +457,10 @@ fn serve_plugin() {
         let (path, text) = match l.notes.categories.get(&account) {
             Some(n) => (n.path.to_string(), atlas.read(&n.path)?),
             None => (format!("{}/categories/{}.md", folder(&p), account.as_str().split(':').skip(1).collect::<Vec<_>>().join(" ")),
-                     format!("---\ntype: finance-category\naccount: {account}\n---\n\n# {}\n", account.as_str().rsplit(':').next().unwrap_or_default())),
+                     format!("---\ntype: finance-category\naccount: {}\n---\n\n# {}\n", finance::notes::yaml_str(account.as_str()), account.as_str().rsplit(':').next().unwrap_or_default())),
         };
-        let out = finance::notes::set_property(&text, "target", (!target.is_empty()).then_some(target.as_str()));
+        let target = finance::notes::yaml_str(&target);
+        let out = finance::notes::set_property(&text, "target", (!target.is_empty() && target != "\"\"").then_some(target.as_str()));
         atlas.write(&path, &out)?;
         Ok(json!({ "path": path }))
     });

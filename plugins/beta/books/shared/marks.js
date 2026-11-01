@@ -55,7 +55,10 @@ function markPassages(doc, passages) {
 }
 /** Every place `query` occurs in `text` (any case, whitespace as one space) → [{ k, len, snippet: [before, hit, after] }]. */
 function occurrences(text, query, max = 200) {
-  const q = squash(query).toLowerCase(), low = text.toLowerCase(), out = [];
+  // lower case with each character in its place (`İ` → `i̇` would shift every later hit's mark)
+  const q = squash(query).toLowerCase(), out = [];
+  let low = text.toLowerCase();
+  if (low.length !== text.length) low = Array.from(text, (c) => { const l = c.toLowerCase(); return l.length === c.length ? l : c; }).join("");
   if (!q) return out;
   for (let k = low.indexOf(q); k >= 0 && out.length < max; k = low.indexOf(q, k + q.length)) {
     const a = Math.max(0, text.lastIndexOf(" ", Math.max(0, k - 40)) + 1), b = text.indexOf(" ", Math.min(text.length, k + q.length + 40));

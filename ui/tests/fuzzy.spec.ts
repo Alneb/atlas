@@ -10,3 +10,9 @@ test("scattered letters are not a match, abbreviations and substrings are", () =
   expect(fuzzy("set app", "Settings: Appearance")).not.toBeNull();
   expect(fuzzy("task", "Open tasks")!.score).toBeGreaterThan(fuzzy("tsk", "Open tasks")!.score);
 });
+
+test("a match's letters are the text's own, after a letter whose lower case is longer", () => {
+  const text = "İstanbul Notes";
+  const m = fuzzy("notes", text)!;
+  expect(m.indices.map((i) => text[i]).join("")).toBe("Notes");
+});

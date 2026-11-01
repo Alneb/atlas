@@ -309,7 +309,8 @@ fn day_order(mut txns: Vec<&String>) -> Vec<&String> {
 fn note(p: &Planned, sha256: &str, archive: &str, today: chrono::NaiveDate) -> String {
     let st = &p.statement;
     let c = &st.currency;
-    let mut s = format!("---\ntype: finance-statement\naccount: {}\npreset: {}\nsource: \"{}\"\nsha256: {sha256}\n", p.account, st.preset, st.source.replace('"', "'"));
+    let q = crate::notes::yaml_str;
+    let mut s = format!("---\ntype: finance-statement\naccount: {}\npreset: {}\nsource: {}\nsha256: {sha256}\n", q(p.account.as_str()), q(&st.preset), serde_json::to_string(&st.source).expect("a string serializes"));
     if !archive.is_empty() {
         let _ = writeln!(s, "archive: \"[[{archive}]]\"");
     }
