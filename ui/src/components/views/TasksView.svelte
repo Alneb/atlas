@@ -17,7 +17,7 @@
   function when(date: string): { text: string; late: boolean; soon: boolean } {
     const days = Math.round((Date.parse(date) - Date.parse(today)) / DAY);
     const text = days === 0 ? "Today" : days === 1 ? "Tomorrow" : days === -1 ? "Yesterday"
-      : days < -1 ? `${-days} days ago` : days < 7 ? new Date(date).toLocaleDateString(undefined, { weekday: "long" }) : date;
+      : days < -1 ? `${-days} days ago` : days < 7 ? new Date(`${date}T12:00:00`).toLocaleDateString(undefined, { weekday: "long" }) /* the local day, not UTC's */ : date;
     return { text, late: days < 0, soon: days >= 0 && days <= 1 };
   }
   const PRIORITY: Record<string, string> = { highest: "‼", high: "!", medium: "·", low: "↓", lowest: "⇊" };

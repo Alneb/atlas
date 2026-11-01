@@ -346,7 +346,7 @@ fn server_action(action: &ServerAction) -> Result<()> {
             let s = auth.settings();
             println!("sign-in: {:?}; password: {}; trusted proxies: [{}]; plain HTTP from others: {}; AI agents: {}", s.auth, if s.password_hash.is_some() { "set" } else { "not set" }, s.trusted_proxies.iter().map(ToString::to_string).collect::<Vec<_>>().join(", "), s.allow_plain_http, if s.mcp { "on" } else { "off" });
             for t in auth.tokens() {
-                println!("  token {:<16} {:?}, last used {}", t.name, t.scope, t.last_used.map_or("never".into(), |u| chrono::DateTime::from_timestamp(u as i64, 0).map_or(u.to_string(), |d| d.format("%Y-%m-%d").to_string())));
+                println!("  token {:<16} {:?}, last used {}", t.name, t.scope, t.last_used.map_or("never".into(), |u| chrono::DateTime::from_timestamp(u as i64, 0).map_or(u.to_string(), |d| d.with_timezone(&chrono::Local).format("%Y-%m-%d").to_string())));
             }
             println!("{} browser session(s); files: {} and {}", auth.session_count(), atlas_core::auth::settings_file().display(), atlas_core::auth::state_file().display());
             if let Some(why) = auth.not_ready() {

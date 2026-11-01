@@ -1,5 +1,6 @@
 <script lang="ts">
   import { errText } from "../../lib/text";
+  import { localDay as iso } from "../../lib/local-day";
   import { reloadOnChange } from "../../lib/reload-on-change";
   import { shownName, shownPath } from "../../lib/paths";
   import { superOf } from "../../lib/keys";
@@ -29,7 +30,6 @@
   const cur = $derived(queue[Math.min(at, queue.length - 1)]);
   const name = shownName;
 
-  const iso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
   const inDays = (n: number) => { const d = new Date(); d.setDate(d.getDate() + n); return iso(d); };
   /** Waiting now: never answered (in a filtered inbox), or its date has come. "done" never returns. */
   function due(r: Row): boolean {

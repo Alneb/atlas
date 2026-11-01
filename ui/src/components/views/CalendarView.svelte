@@ -4,9 +4,9 @@
   import type { ViewRow } from "../../lib/gen/ViewRow";
   import { openPath } from "../../lib/dock";
   import ListView from "./ListView.svelte";
+  import { localDay as iso } from "../../lib/local-day";
   let { rows, ontick }: { rows: ViewRow[]; ontick: (r: ViewRow) => void } = $props();
 
-  const iso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
   const today = iso(new Date());
   // start on the month of the next dated item (else the last one, else now)
   const dated = $derived(rows.filter((r) => r.date).sort((a, b) => a.date!.localeCompare(b.date!)));

@@ -285,12 +285,13 @@ impl Renderer<'_, '_> {
             let digits = rest[1..].find(|c: char| !c.is_ascii_digit()).unwrap_or(rest.len() - 1);
             let n: i64 = rest[1..1 + digits].parse().ok()?;
             let unit = rest[1 + digits..].chars().next()?;
+            // checked: an offset typed too large (`day+99999999999d`) names no moment, it does not stop the program
             when = match unit {
-                'h' => when + Duration::hours(sign * n),
-                'd' => when + Duration::days(sign * n),
-                'w' => when + Duration::weeks(sign * n),
+                'h' => when.checked_add_signed(Duration::try_hours(sign * n)?)?,
+                'd' => when.checked_add_signed(Duration::try_days(sign * n)?)?,
+                'w' => when.checked_add_signed(Duration::try_weeks(sign * n)?)?,
                 'm' | 'y' => {
-                    let months = Months::new((n * if unit == 'y' { 12 } else { 1 }) as u32);
+                    let months = Months::new(u32::try_from(n.checked_mul(if unit == 'y' { 12 } else { 1 })?).ok()?);
                     if sign > 0 { when.checked_add_months(months)? } else { when.checked_sub_months(months)? }
                 }
                 _ => return None,
@@ -462,6 +463,9 @@ mod tests {
     fn dates_formats_and_offsets() {
         let r = run("{{date}} {{time}} {{date:dddd D MMMM}} {{date+1d}} {{date-1m:YYYY-MM}} {{day}} [[{{day-1d}}]] {{now+2h:HH:mm}}", json!({}));
         assert_eq!(r.text, "2026-10-17 14:05 Saturday 17 October 2026-10-18 2026-09 2026-10-20 [[2026-10-19]] 16:05");
+        for far in ["{{date+99999999999999d}}", "{{date-9999999999y}}"] {
+            assert_eq!(run(far, json!({})).text, far, "an offset too large stays as written, no panic");
+        }
     }
 
     #[test]

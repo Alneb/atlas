@@ -734,15 +734,15 @@ function yt(r, i) {
 }
 f(["click", "change"]);
 //#endregion
-//#region plugins/beta/finance/ui/src/Editor.svelte
-var bt = g("<b class=\"svelte-ht6n60\"> </b>"), xt = g("<div class=\"route svelte-ht6n60\" aria-label=\"Where the money went\"><span class=\"side svelte-ht6n60\"></span> <span class=\"arrow svelte-ht6n60\" aria-hidden=\"true\">→</span> <span class=\"side svelte-ht6n60\"></span></div>"), St = g("<div class=\"posting svelte-ht6n60\"><input class=\"acct svelte-ht6n60\" list=\"fin-accounts\" placeholder=\"Expenses:Food\" aria-label=\"Account\"/> <input class=\"amt svelte-ht6n60\" aria-label=\"Amount\"/> <button class=\"x svelte-ht6n60\" aria-label=\"Remove this posting\" title=\"Remove\">−</button></div>"), Ct = g("<dt class=\"svelte-ht6n60\"> </dt><dd class=\"svelte-ht6n60\"> </dd>", 1), wt = g("<h3 class=\"svelte-ht6n60\">From the bank</h3> <dl class=\"meta svelte-ht6n60\"></dl>", 1), Tt = g("<div class=\"atlas-notice error\"> </div>"), Et = g("<button class=\"atlas-btn\">Open in the journal</button> <button class=\"atlas-btn danger svelte-ht6n60\">Delete</button>", 1), Dt = g("<option></option>"), Ot = g("<div class=\"editor svelte-ht6n60\" role=\"dialog\" tabindex=\"-1\"><header class=\"svelte-ht6n60\"><h2 class=\"svelte-ht6n60\"> </h2> <button class=\"x svelte-ht6n60\" aria-label=\"Close\" title=\"Close (Esc)\">×</button></header> <!> <div class=\"fields svelte-ht6n60\"><label class=\"date svelte-ht6n60\">Date<input type=\"date\" class=\"svelte-ht6n60\"/></label> <label class=\"mark svelte-ht6n60\">Status <select class=\"svelte-ht6n60\"><option>Cleared</option><option>To review</option></select></label> <label class=\"wide svelte-ht6n60\">Payee — who it was with<input list=\"fin-payees\" placeholder=\"Mercadona\" class=\"svelte-ht6n60\"/></label> <label class=\"wide svelte-ht6n60\">Note<input placeholder=\"what it was for\" class=\"svelte-ht6n60\"/></label> <label class=\"wide svelte-ht6n60\">Tags<input placeholder=\"e.g. #trip\" class=\"svelte-ht6n60\"/></label></div> <h3 class=\"svelte-ht6n60\">Postings <span class=\"faint svelte-ht6n60\">money leaves the negative ones and arrives in the positive ones; leave one amount empty to take the rest</span></h3> <div class=\"postings svelte-ht6n60\"><!> <button class=\"atlas-btn add svelte-ht6n60\">Add a posting</button></div> <p role=\"status\"><!></p> <!> <!> <footer class=\"svelte-ht6n60\"><button class=\"atlas-btn primary\" title=\"Ctrl+Enter\"> </button> <!> <span class=\"faint where svelte-ht6n60\"> </span></footer> <datalist id=\"fin-accounts\"></datalist> <datalist id=\"fin-payees\"></datalist></div>"), kt = {
+//#region ui/src/lib/local-day.ts
+var bt = (e = /* @__PURE__ */ new Date()) => `${e.getFullYear()}-${String(e.getMonth() + 1).padStart(2, "0")}-${String(e.getDate()).padStart(2, "0")}`, xt = g("<b class=\"svelte-ht6n60\"> </b>"), St = g("<div class=\"route svelte-ht6n60\" aria-label=\"Where the money went\"><span class=\"side svelte-ht6n60\"></span> <span class=\"arrow svelte-ht6n60\" aria-hidden=\"true\">→</span> <span class=\"side svelte-ht6n60\"></span></div>"), Ct = g("<div class=\"posting svelte-ht6n60\"><input class=\"acct svelte-ht6n60\" list=\"fin-accounts\" placeholder=\"Expenses:Food\" aria-label=\"Account\"/> <input class=\"amt svelte-ht6n60\" aria-label=\"Amount\"/> <button class=\"x svelte-ht6n60\" aria-label=\"Remove this posting\" title=\"Remove\">−</button></div>"), wt = g("<dt class=\"svelte-ht6n60\"> </dt><dd class=\"svelte-ht6n60\"> </dd>", 1), Tt = g("<h3 class=\"svelte-ht6n60\">From the bank</h3> <dl class=\"meta svelte-ht6n60\"></dl>", 1), Et = g("<div class=\"atlas-notice error\"> </div>"), Dt = g("<button class=\"atlas-btn\">Open in the journal</button> <button class=\"atlas-btn danger svelte-ht6n60\">Delete</button>", 1), Ot = g("<option></option>"), kt = g("<div class=\"editor svelte-ht6n60\" role=\"dialog\" tabindex=\"-1\"><header class=\"svelte-ht6n60\"><h2 class=\"svelte-ht6n60\"> </h2> <button class=\"x svelte-ht6n60\" aria-label=\"Close\" title=\"Close (Esc)\">×</button></header> <!> <div class=\"fields svelte-ht6n60\"><label class=\"date svelte-ht6n60\">Date<input type=\"date\" class=\"svelte-ht6n60\"/></label> <label class=\"mark svelte-ht6n60\">Status <select class=\"svelte-ht6n60\"><option>Cleared</option><option>To review</option></select></label> <label class=\"wide svelte-ht6n60\">Payee — who it was with<input list=\"fin-payees\" placeholder=\"Mercadona\" class=\"svelte-ht6n60\"/></label> <label class=\"wide svelte-ht6n60\">Note<input placeholder=\"what it was for\" class=\"svelte-ht6n60\"/></label> <label class=\"wide svelte-ht6n60\">Tags<input placeholder=\"e.g. #trip\" class=\"svelte-ht6n60\"/></label></div> <h3 class=\"svelte-ht6n60\">Postings <span class=\"faint svelte-ht6n60\">money leaves the negative ones and arrives in the positive ones; leave one amount empty to take the rest</span></h3> <div class=\"postings svelte-ht6n60\"><!> <button class=\"atlas-btn add svelte-ht6n60\">Add a posting</button></div> <p role=\"status\"><!></p> <!> <!> <footer class=\"svelte-ht6n60\"><button class=\"atlas-btn primary\" title=\"Ctrl+Enter\"> </button> <!> <span class=\"faint where svelte-ht6n60\"> </span></footer> <datalist id=\"fin-accounts\"></datalist> <datalist id=\"fin-payees\"></datalist></div>"), At = {
 	hash: "svelte-ht6n60",
 	code: ".editor.svelte-ht6n60 {display:flex;flex-direction:column;gap:12px;padding:16px 18px;background:var(--bg-elev);border-left:1px solid var(--border);height:100%;overflow:auto;min-width:0;box-sizing:border-box;outline:none;}header.svelte-ht6n60 {display:flex;align-items:center;justify-content:space-between;}h2.svelte-ht6n60 {margin:0;font-size:1.05em;color:var(--heading);}h3.svelte-ht6n60 {margin:4px 0 0;font-size:0.78em;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-muted);font-weight:600;}h3.svelte-ht6n60 .faint:where(.svelte-ht6n60) {text-transform:none;letter-spacing:0;font-weight:400;}.faint.svelte-ht6n60 {color:var(--text-faint);}.x.svelte-ht6n60 {all:unset;cursor:pointer;width:28px;height:28px;display:grid;place-items:center;border-radius:var(--radius-sm);color:var(--text-muted);font-size:1.2em;}.x.svelte-ht6n60:hover:not(:disabled) {background:var(--bg-hover);color:var(--text);}.x.svelte-ht6n60:focus-visible {outline:2px solid var(--accent);}.x.svelte-ht6n60:disabled {opacity:0.35;cursor:default;}.route.svelte-ht6n60 {display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:var(--radius);background:var(--accent-soft);flex-wrap:wrap;}.route.svelte-ht6n60 .side:where(.svelte-ht6n60) {display:flex;flex-direction:column;gap:2px;min-width:0;}.route.svelte-ht6n60 b:where(.svelte-ht6n60) {font-weight:600;overflow-wrap:anywhere;}.arrow.svelte-ht6n60 {color:var(--accent);font-size:1.2em;}.fields.svelte-ht6n60 {display:grid;grid-template-columns:1fr 1fr;gap:10px;}.fields.svelte-ht6n60 .wide:where(.svelte-ht6n60) {grid-column:1 / -1;}label.svelte-ht6n60 {display:flex;flex-direction:column;gap:4px;font-size:0.82em;color:var(--text-muted);min-width:0;}input.svelte-ht6n60, select.svelte-ht6n60 {font:inherit;font-size:1.1em;color:var(--text);background:var(--bg);border:1px solid var(--border-strong);border-radius:var(--radius-sm);padding:6px 8px;min-width:0;}input.svelte-ht6n60:focus-visible, select.svelte-ht6n60:focus-visible {outline:2px solid var(--accent);outline-offset:-1px;}.postings.svelte-ht6n60 {display:flex;flex-direction:column;gap:6px;}.posting.svelte-ht6n60 {display:grid;grid-template-columns:minmax(0, 1fr) 9.5em 28px;gap:6px;align-items:center;}.amt.svelte-ht6n60 {font-family:var(--font-mono);text-align:right;font-variant-numeric:tabular-nums;}.add.svelte-ht6n60 {align-self:flex-start;}.balance.svelte-ht6n60 {margin:0;font-size:0.88em;color:var(--green);}.balance.bad.svelte-ht6n60 {color:var(--red);}.meta.svelte-ht6n60 {display:grid;grid-template-columns:max-content minmax(0, 1fr);gap:4px 12px;margin:0;font-size:0.88em;}.meta.svelte-ht6n60 dt:where(.svelte-ht6n60) {color:var(--text-muted);}.meta.svelte-ht6n60 dd:where(.svelte-ht6n60) {margin:0;overflow-wrap:anywhere;font-family:var(--font-mono);font-size:0.95em;}footer.svelte-ht6n60 {display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:auto;padding-top:8px;border-top:1px solid var(--border);}.where.svelte-ht6n60 {margin-left:auto;font-size:0.82em;}.danger.svelte-ht6n60 {color:var(--red);}"
 };
-function At(r, i) {
-	e(i, !0), ne(r, kt);
+function jt(r, i) {
+	e(i, !0), ne(r, At);
 	let o = () => ({
-		date: (/* @__PURE__ */ new Date()).toISOString().slice(0, 10),
+		date: bt(),
 		status: "*",
 		payee: "",
 		narration: "",
@@ -814,17 +814,17 @@ function At(r, i) {
 	function te(e) {
 		e.key === "Escape" && (e.stopPropagation(), i.onclose()), e.key === "Enter" && (e.ctrlKey || e.metaKey) && (e.preventDefault(), V());
 	}
-	var K = Ot(), J = C(K), X = C(J), Z = d(X, !0), ie = W(X, 2);
+	var K = kt(), J = C(K), X = C(J), Z = d(X, !0), ie = W(X, 2);
 	q(J);
 	var ae = W(J, 2), oe = (e) => {
-		var r = xt(), i = C(r);
+		var r = St(), i = C(r);
 		b(i, 21, () => n(N).from, (e) => e.account, (e, r) => {
-			var i = bt(), a = d(i, !0);
+			var i = xt(), a = d(i, !0);
 			S((e) => t(a, e), [() => G(n(r).account)]), p(e, i);
 		}), q(i);
 		var a = W(i, 4);
 		b(a, 21, () => n(N).to, (e) => e.account, (e, r) => {
-			var i = bt(), a = d(i, !0);
+			var i = xt(), a = d(i, !0);
 			S((e) => t(a, e), [() => G(n(r).account)]), p(e, i);
 		}), q(a), q(r), p(e, r);
 	};
@@ -845,7 +845,7 @@ function At(r, i) {
 	P(ve), q(_e), q(Q);
 	var ye = W(Q, 4), be = C(ye);
 	b(be, 17, () => m.postings, a, (e, t, r) => {
-		var i = St(), a = C(i);
+		var i = Ct(), a = C(i);
 		P(a);
 		var o = W(a, 2);
 		P(o);
@@ -872,11 +872,11 @@ function At(r, i) {
 		n(k).bad.length ? e(De) : n(A) ? e(Oe, 1) : e(ke, -1);
 	}), q(we);
 	var Ae = W(we, 2), je = (e) => {
-		var r = wt(), i = W(s(r), 2);
+		var r = Tt(), i = W(s(r), 2);
 		b(i, 21, () => n(M), ([e, t]) => e + t, (e, r) => {
 			var i = E(() => ee(n(r), 2));
 			let a = () => n(i)[0], o = () => n(i)[1];
-			var c = Ct(), l = s(c), u = d(l, !0), f = W(l), m = d(f, !0);
+			var c = wt(), l = s(c), u = d(l, !0), f = W(l), m = d(f, !0);
 			S(() => {
 				t(u, a()), t(m, o());
 			}), p(e, c);
@@ -886,14 +886,14 @@ function At(r, i) {
 		n(M).length && e(je);
 	});
 	var Me = W(Ae, 2), Ne = (e) => {
-		var r = Tt(), i = d(r, !0);
+		var r = Et(), i = d(r, !0);
 		S(() => t(i, n(O))), p(e, r);
 	};
 	h(Me, (e) => {
 		n(O) && e(Ne);
 	});
 	var Pe = W(Me, 2), Fe = C(Pe), Ie = d(Fe, !0), Le = W(Fe, 2), Re = (e) => {
-		var t = Et(), r = s(t), a = W(r, 2);
+		var t = Dt(), r = s(t), a = W(r, 2);
 		S(() => a.disabled = n(x)), v("click", r, () => i.atlas.open(i.txn.path, i.txn.line)), v("click", a, H), p(e, t);
 	};
 	h(Le, (e) => {
@@ -903,14 +903,14 @@ function At(r, i) {
 	q(Pe);
 	var Ve = W(Pe, 2);
 	b(Ve, 20, () => i.accounts, (e) => e, (e, t) => {
-		var n = Dt(), r = {};
+		var n = Ot(), r = {};
 		S(() => {
 			r !== (r = t) && (n.value = (n.__value = r) ?? "");
 		}), p(e, n);
 	}), q(Ve);
 	var He = W(Ve, 2);
 	b(He, 20, () => i.payees, (e) => e, (e, t) => {
-		var n = Dt(), r = {};
+		var n = Ot(), r = {};
 		S(() => {
 			r !== (r = t) && (n.value = (n.__value = r) ?? "");
 		}), p(e, n);
@@ -926,12 +926,12 @@ function At(r, i) {
 f(["keydown", "click"]);
 //#endregion
 //#region plugins/beta/finance/ui/src/Transactions.svelte
-var jt = g("<button role=\"radio\"> </button>"), Mt = g("<button class=\"link svelte-aipwz8\">clear the search</button>"), Nt = g("<div class=\"month svelte-aipwz8\"> </div>"), Pt = g("<span class=\"chip warn svelte-aipwz8\">review</span>"), Ft = g("<span> </span>"), It = g("<span class=\"note svelte-aipwz8\"> </span>"), Lt = g("<!>  <button role=\"option\"><span class=\"date svelte-aipwz8\"> </span> <span class=\"who svelte-aipwz8\"><span class=\"payee svelte-aipwz8\"> <!><!></span> <!></span> <span class=\"route svelte-aipwz8\"><span class=\"from svelte-aipwz8\"> </span><span class=\"arr svelte-aipwz8\" aria-label=\"to\">→</span><span class=\"to svelte-aipwz8\"> </span></span> <span> </span></button>", 1), Rt = g("<div class=\"atlas-empty\"> </div>"), zt = g("<button class=\"atlas-btn more svelte-aipwz8\"> </button>"), Bt = g("<div><section class=\"main svelte-aipwz8\"><div class=\"bar svelte-aipwz8\"><input class=\"search svelte-aipwz8\" placeholder=\"Search payee, account, bank text · #guess · >100 · 2025-03 · !\" aria-label=\"Search transactions\"/> <div class=\"seg svelte-aipwz8\" role=\"radiogroup\" aria-label=\"Kind\"></div> <button class=\"atlas-btn primary\" title=\"n\">New…</button></div> <p class=\"count svelte-aipwz8\"><b class=\"svelte-aipwz8\"> </b> <!> <!></p> <div class=\"list svelte-aipwz8\" role=\"listbox\" aria-label=\"Transactions\" tabindex=\"-1\"><!> <!></div></section> <!></div>"), Vt = {
+var Mt = g("<button role=\"radio\"> </button>"), Nt = g("<button class=\"link svelte-aipwz8\">clear the search</button>"), Pt = g("<div class=\"month svelte-aipwz8\"> </div>"), Ft = g("<span class=\"chip warn svelte-aipwz8\">review</span>"), It = g("<span> </span>"), Lt = g("<span class=\"note svelte-aipwz8\"> </span>"), Rt = g("<!>  <button role=\"option\"><span class=\"date svelte-aipwz8\"> </span> <span class=\"who svelte-aipwz8\"><span class=\"payee svelte-aipwz8\"> <!><!></span> <!></span> <span class=\"route svelte-aipwz8\"><span class=\"from svelte-aipwz8\"> </span><span class=\"arr svelte-aipwz8\" aria-label=\"to\">→</span><span class=\"to svelte-aipwz8\"> </span></span> <span> </span></button>", 1), zt = g("<div class=\"atlas-empty\"> </div>"), Bt = g("<button class=\"atlas-btn more svelte-aipwz8\"> </button>"), Vt = g("<div><section class=\"main svelte-aipwz8\"><div class=\"bar svelte-aipwz8\"><input class=\"search svelte-aipwz8\" placeholder=\"Search payee, account, bank text · #guess · >100 · 2025-03 · !\" aria-label=\"Search transactions\"/> <div class=\"seg svelte-aipwz8\" role=\"radiogroup\" aria-label=\"Kind\"></div> <button class=\"atlas-btn primary\" title=\"n\">New…</button></div> <p class=\"count svelte-aipwz8\"><b class=\"svelte-aipwz8\"> </b> <!> <!></p> <div class=\"list svelte-aipwz8\" role=\"listbox\" aria-label=\"Transactions\" tabindex=\"-1\"><!> <!></div></section> <!></div>"), Ht = {
 	hash: "svelte-aipwz8",
 	code: ".tx.svelte-aipwz8 {display:grid;grid-template-columns:minmax(0, 1fr);gap:0;height:100%;min-height:0;}.tx.with.svelte-aipwz8 {grid-template-columns:minmax(0, 1fr) min(460px, 45%);}.main.svelte-aipwz8 {display:flex;flex-direction:column;min-width:0;min-height:0;padding-right:12px;}.bar.svelte-aipwz8 {display:flex;gap:8px;align-items:center;flex-wrap:wrap;}.search.svelte-aipwz8 {flex:1;min-width:220px;font:inherit;color:var(--text);background:var(--bg);border:1px solid var(--border-strong);border-radius:var(--radius);padding:8px 10px;}.search.svelte-aipwz8:focus-visible {outline:2px solid var(--accent);outline-offset:-1px;}.seg.svelte-aipwz8 {display:flex;border:1px solid var(--border-strong);border-radius:var(--radius);overflow:hidden;}.seg.svelte-aipwz8 button:where(.svelte-aipwz8) {all:unset;cursor:pointer;padding:6px 10px;font-size:0.9em;color:var(--text-muted);}.seg.svelte-aipwz8 button:where(.svelte-aipwz8) + button:where(.svelte-aipwz8) {border-left:1px solid var(--border);}.seg.svelte-aipwz8 button:where(.svelte-aipwz8):hover {background:var(--bg-hover);color:var(--text);}.seg.svelte-aipwz8 button.on:where(.svelte-aipwz8) {background:var(--accent-soft);color:var(--accent-strong);font-weight:600;}.seg.svelte-aipwz8 button:where(.svelte-aipwz8):focus-visible {outline:2px solid var(--accent);outline-offset:-2px;}.count.svelte-aipwz8 {margin:10px 0 6px;color:var(--text-muted);font-size:0.88em;display:flex;gap:8px;align-items:baseline;flex-wrap:wrap;}.count.svelte-aipwz8 b:where(.svelte-aipwz8) {color:var(--text);font-variant-numeric:tabular-nums;}.link.svelte-aipwz8 {all:unset;cursor:pointer;color:var(--accent);}.list.svelte-aipwz8 {overflow:auto;min-height:0;flex:1;outline:none;}.month.svelte-aipwz8 {position:sticky;top:0;z-index:1;background:var(--bg);padding:10px 8px 4px;font-size:0.78em;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-muted);font-weight:600;border-bottom:1px solid var(--border);}.row.svelte-aipwz8 {all:unset;box-sizing:border-box;cursor:pointer;display:grid;grid-template-columns:4.2em minmax(0, 1.3fr) minmax(0, 1.2fr) 8.5em;gap:12px;align-items:center;width:100%;padding:7px 8px;border-bottom:1px solid var(--border);min-height:40px;}.row.svelte-aipwz8:hover {background:var(--bg-hover);}.row.sel.svelte-aipwz8 {box-shadow:inset 2px 0 0 var(--accent);background:var(--bg-hover);}.row.open.svelte-aipwz8 {background:var(--accent-soft);}.row.svelte-aipwz8:focus-visible {outline:2px solid var(--accent);outline-offset:-2px;}.date.svelte-aipwz8 {color:var(--text-muted);font-size:0.88em;font-variant-numeric:tabular-nums;}.who.svelte-aipwz8 {display:flex;flex-direction:column;min-width:0;}.payee.svelte-aipwz8 {font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}.note.svelte-aipwz8 {color:var(--text-faint);font-size:0.85em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}.chip.svelte-aipwz8 {display:inline-block;margin-left:6px;padding:0 6px;border-radius:999px;background:var(--tag-bg);color:var(--tag-color);font-size:0.75em;font-weight:500;vertical-align:1px;}.chip.warn.svelte-aipwz8 {background:var(--highlight-bg);color:var(--text);}.route.svelte-aipwz8 {display:flex;gap:6px;align-items:baseline;min-width:0;font-size:0.88em;color:var(--text-muted);}.route.svelte-aipwz8 .from:where(.svelte-aipwz8), .route.svelte-aipwz8 .to:where(.svelte-aipwz8) {white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;}.route.svelte-aipwz8 .to:where(.svelte-aipwz8) {color:var(--text);flex:1;}.arr.svelte-aipwz8 {color:var(--text-faint);}.amt.svelte-aipwz8 {text-align:right;font-family:var(--font-mono);font-variant-numeric:tabular-nums;font-size:0.92em;}.amt.in.svelte-aipwz8 {color:var(--green);}.amt.moved.svelte-aipwz8 {color:var(--text-muted);}.more.svelte-aipwz8 {margin:10px auto;display:block;}\n  @container (max-width: 640px) {.row.svelte-aipwz8 {grid-template-columns:3.6em minmax(0, 1fr) 7em;}.route.svelte-aipwz8 {display:none;} }"
 };
-function Ht(r, a) {
-	e(a, !0), ne(r, Vt);
+function Ut(r, a) {
+	e(a, !0), ne(r, Ht);
 	let o = N(a, "query", 15, ""), u = N(a, "open", 15, null), f = [
 		["all", "All"],
 		["spend", "Spending"],
@@ -967,7 +967,7 @@ function Ht(r, a) {
 		}
 		e.key === "j" || e.key === "ArrowDown" ? (e.preventDefault(), H(n(k) + 1), u() && u() !== "new" && u(n(M)[n(k)])) : e.key === "k" || e.key === "ArrowUp" ? (e.preventDefault(), H(n(k) - 1), u() && u() !== "new" && u(n(M)[n(k)])) : e.key === "Enter" && n(M)[n(k)] ? (e.preventDefault(), u(n(M)[n(k)])) : e.key === "n" ? (e.preventDefault(), u("new")) : e.key === "Escape" && u() && u(null);
 	}
-	var G = Bt();
+	var G = Vt();
 	Z("keydown", x, te);
 	let K;
 	var J = C(G), Y = C(J), X = C(Y);
@@ -976,7 +976,7 @@ function Ht(r, a) {
 	b(re, 21, () => f, ([e, t]) => e, (e, r) => {
 		var i = E(() => ee(n(r), 2));
 		let a = () => n(i)[0], o = () => n(i)[1];
-		var s = jt();
+		var s = Mt();
 		let c;
 		var l = d(s, !0);
 		S(() => {
@@ -993,7 +993,7 @@ function Ht(r, a) {
 		(o() || n(g) !== "all") && e(pe);
 	});
 	var me = W(fe, 2), he = (e) => {
-		var t = Mt();
+		var t = Nt();
 		v("click", t, () => o("")), p(e, t);
 	};
 	h(me, (e) => {
@@ -1002,8 +1002,8 @@ function Ht(r, a) {
 	var ge = W(ae, 2), _e = C(ge);
 	b(_e, 19, () => n(L), (e) => e.path + ":" + e.line, (e, r, i) => {
 		let o = E(() => se(n(r))), c = E(() => le(n(r)));
-		var l = Lt(), f = s(l), m = (e) => {
-			var i = Nt(), a = d(i, !0);
+		var l = Rt(), f = s(l), m = (e) => {
+			var i = Pt(), a = d(i, !0);
 			S((e) => t(a, e), [() => V(n(r).date)]), p(e, i);
 		}, g = E(() => n(i) === 0 || n(L)[n(i) - 1].date.slice(0, 7) !== n(r).date.slice(0, 7));
 		h(f, (e) => {
@@ -1012,7 +1012,7 @@ function Ht(r, a) {
 		var _ = W(f, 2);
 		let x;
 		var w = C(_), O = d(w, !0), A = W(w, 2), j = C(A), M = C(j, !0), N = W(M), P = (e) => {
-			var t = Pt();
+			var t = Ft();
 			p(e, t);
 		};
 		h(N, (e) => {
@@ -1020,7 +1020,7 @@ function Ht(r, a) {
 		});
 		var F = W(N);
 		b(F, 16, () => n(r).tags, (e) => e, (e, n) => {
-			var r = Ft();
+			var r = It();
 			let i;
 			var a = d(r);
 			S(() => {
@@ -1028,7 +1028,7 @@ function Ht(r, a) {
 			}), p(e, r);
 		}), q(j);
 		var I = W(j, 2), R = (e) => {
-			var i = It(), a = d(i, !0);
+			var i = Lt(), a = d(i, !0);
 			S(() => t(a, n(r).narration)), p(e, i);
 		};
 		h(I, (e) => {
@@ -1057,11 +1057,11 @@ function Ht(r, a) {
 			T(k, n(i), !0), u(n(r));
 		}), p(e, l);
 	}, (e) => {
-		var n = Rt(), r = d(n, !0);
+		var n = zt(), r = d(n, !0);
 		S(() => t(r, a.rows.length ? "Nothing matches. Try fewer words, or clear the search." : "No transactions yet: import a statement (Overview) or add one with New…")), p(e, n);
 	});
 	var ve = W(_e, 2), ye = (e) => {
-		var r = zt(), i = d(r);
+		var r = Bt(), i = d(r);
 		S((e) => t(i, `Show ${e ?? ""} more of ${n(M).length - n(O)}`), [() => Math.min(400, n(M).length - n(O))]), v("click", r, () => T(O, n(O) + 400)), p(e, r);
 	};
 	h(ve, (e) => {
@@ -1072,7 +1072,7 @@ function Ht(r, a) {
 		i(r, () => u() === "new" ? "new" : u().path + ":" + u().line + u().text, (e) => {
 			{
 				let t = E(() => u() === "new" ? null : u());
-				At(e, {
+				jt(e, {
 					get atlas() {
 						return a.atlas;
 					},
@@ -1102,12 +1102,12 @@ function Ht(r, a) {
 f(["click"]);
 //#endregion
 //#region plugins/beta/finance/ui/src/MonthBars.svelte
-var Ut = o("<line class=\"grid svelte-19iowyp\"></line><text class=\"tick svelte-19iowyp\" text-anchor=\"end\" dominant-baseline=\"middle\"> </text>", 1), Wt = o("<path class=\"svelte-19iowyp\"></path>"), Gt = o("<text class=\"tick svelte-19iowyp\" text-anchor=\"middle\"> </text>"), Kt = o("<g role=\"presentation\"><rect class=\"hit svelte-19iowyp\"></rect><!></g><!>", 1), qt = g("<div class=\"tip svelte-19iowyp\"><span> </span> <b class=\"svelte-19iowyp\"> </b></div>"), Jt = g("<div class=\"bars svelte-19iowyp\"><svg role=\"img\" aria-label=\"By month\" class=\"svelte-19iowyp\"><!><!></svg> <!></div>"), Yt = {
+var Wt = o("<line class=\"grid svelte-19iowyp\"></line><text class=\"tick svelte-19iowyp\" text-anchor=\"end\" dominant-baseline=\"middle\"> </text>", 1), Gt = o("<path class=\"svelte-19iowyp\"></path>"), Kt = o("<text class=\"tick svelte-19iowyp\" text-anchor=\"middle\"> </text>"), qt = o("<g role=\"presentation\"><rect class=\"hit svelte-19iowyp\"></rect><!></g><!>", 1), Jt = g("<div class=\"tip svelte-19iowyp\"><span> </span> <b class=\"svelte-19iowyp\"> </b></div>"), Yt = g("<div class=\"bars svelte-19iowyp\"><svg role=\"img\" aria-label=\"By month\" class=\"svelte-19iowyp\"><!><!></svg> <!></div>"), Xt = {
 	hash: "svelte-19iowyp",
 	code: ".bars.svelte-19iowyp {position:relative;min-width:0;}svg.svelte-19iowyp {display:block;}.grid.svelte-19iowyp {stroke:var(--border);}.tick.svelte-19iowyp {fill:var(--text-faint);font-size:11px;font-variant-numeric:tabular-nums;}.hit.svelte-19iowyp {fill:transparent;}.m.svelte-19iowyp {cursor:pointer;}.m.svelte-19iowyp:hover .hit:where(.svelte-19iowyp) {fill:var(--bg-hover);}.m.dim.svelte-19iowyp path:where(.svelte-19iowyp) {opacity:0.4;}.tip.svelte-19iowyp {position:absolute;top:0;pointer-events:none;display:flex;flex-direction:column;padding:6px 10px;border-radius:var(--radius-sm);background:var(--bg-elev);border:1px solid var(--border-strong);box-shadow:var(--shadow-sm);font-size:0.85em;color:var(--text-muted);white-space:nowrap;}.tip.svelte-19iowyp b:where(.svelte-19iowyp) {color:var(--text);font-variant-numeric:tabular-nums;}"
 };
-function Xt(r, i) {
-	e(i, !0), ne(r, Yt);
+function Zt(r, i) {
+	e(i, !0), ne(r, Xt);
 	let a = N(i, "fill", 3, "var(--accent)"), o = N(i, "selected", 3, null), c = w(600), l = {
 		l: 56,
 		r: 4,
@@ -1128,7 +1128,7 @@ function Xt(r, i) {
 		].map((e) => e * n).find((e) => e >= t) ?? n * 10;
 	}
 	let P = (e) => !!o() && e >= o().from && e <= o().to;
-	var F = Jt(), I = C(F);
+	var F = Yt(), I = C(F);
 	D(I, "height", 150);
 	var L = C(I);
 	b(L, 16, () => [
@@ -1137,7 +1137,7 @@ function Xt(r, i) {
 		2,
 		3
 	].map((e) => e * n(m)).filter((e) => e <= n(g)), (e) => e, (e, r) => {
-		var a = Ut(), o = s(a), u = W(o), f = d(u, !0);
+		var a = Wt(), o = s(a), u = W(o), f = d(u, !0);
 		S((e, r, i, a) => {
 			D(o, "x1", l.l), D(o, "x2", n(c) - l.r), D(o, "y1", e), D(o, "y2", r), D(u, "x", l.l - 6), D(u, "y", i), t(f, a);
 		}, [
@@ -1150,10 +1150,10 @@ function Xt(r, i) {
 	var R = W(L);
 	b(R, 19, () => i.months, (e) => e.month, (e, r, c) => {
 		let f = E(() => l.l + n(c) * n(x) + (n(x) - n(O)) / 2);
-		var m = Kt(), g = s(m);
+		var m = qt(), g = s(m);
 		let _;
 		var b = C(g), w = W(b), M = (e) => {
-			var t = Wt();
+			var t = Gt();
 			let i;
 			S((e) => {
 				D(t, "d", e), i = X(t, "", i, { fill: a() });
@@ -1163,7 +1163,7 @@ function Xt(r, i) {
 			n(r).value > 0 && e(M);
 		}), q(g);
 		var N = W(g), F = (e) => {
-			var i = Gt();
+			var i = Kt();
 			D(i, "y", 144);
 			var a = d(i, !0);
 			S((e) => {
@@ -1180,7 +1180,7 @@ function Xt(r, i) {
 		}, [() => P(n(r).month), () => !!o() && !P(n(r).month)]), Z("pointerenter", g, () => T(u, n(c), !0)), Z("pointerleave", g, () => T(u, null)), v("click", g, () => i.onpick?.(n(r).month)), p(e, m);
 	}), q(I);
 	var z = W(I, 2), V = (e) => {
-		var r = qt();
+		var r = Jt();
 		let a;
 		var o = C(r), s = d(o, !0), f = W(o, 2), m = d(f, !0);
 		q(r), S((e, n, i) => {
@@ -1201,12 +1201,12 @@ function Xt(r, i) {
 f(["click"]);
 //#endregion
 //#region plugins/beta/finance/ui/src/Spend.svelte
-var Zt = g("<button role=\"radio\"> </button>"), Qt = g("<span class=\"chip svelte-qqjett\"> </span>"), $t = g("<button class=\"link svelte-qqjett\">all categories</button>"), en = g("<span class=\"usual svelte-qqjett\"></span>"), tn = g("<tr><td class=\"svelte-qqjett\"><button class=\"link svelte-qqjett\"> </button></td><td class=\"n svelte-qqjett\"> </td><td class=\"n svelte-qqjett\"> </td></tr>"), nn = g("<div class=\"who svelte-qqjett\"><table class=\"svelte-qqjett\"><thead><tr><th class=\"svelte-qqjett\">Paid to</th><th class=\"n svelte-qqjett\">Times</th><th class=\"n svelte-qqjett\">Total</th></tr></thead><tbody></tbody></table> <button class=\"atlas-btn\"> </button></div>"), rn = g("<li><button class=\"cat svelte-qqjett\"><span class=\"swatch svelte-qqjett\"></span> <span class=\"name svelte-qqjett\"> </span> <span class=\"track svelte-qqjett\"><span class=\"fill svelte-qqjett\"></span><!></span> <span class=\"v svelte-qqjett\"> </span> <span class=\"pct svelte-qqjett\"> </span> <span> </span></button> <!></li>"), an = g("<li class=\"atlas-empty svelte-qqjett\">Nothing spent in this period.</li>"), on = g("<div class=\"spend svelte-qqjett\"><div class=\"bar svelte-qqjett\"><div class=\"seg svelte-qqjett\" role=\"radiogroup\" aria-label=\"Period\"></div> <!></div> <section><h3 class=\"svelte-qqjett\"> <span class=\"faint svelte-qqjett\"> </span><!></h3> <!></section> <section><h3 class=\"svelte-qqjett\"> <span class=\"faint svelte-qqjett\"> </span></h3> <ol class=\"cats svelte-qqjett\"></ol></section></div>"), sn = {
+var Qt = g("<button role=\"radio\"> </button>"), $t = g("<span class=\"chip svelte-qqjett\"> </span>"), en = g("<button class=\"link svelte-qqjett\">all categories</button>"), tn = g("<span class=\"usual svelte-qqjett\"></span>"), nn = g("<tr><td class=\"svelte-qqjett\"><button class=\"link svelte-qqjett\"> </button></td><td class=\"n svelte-qqjett\"> </td><td class=\"n svelte-qqjett\"> </td></tr>"), rn = g("<div class=\"who svelte-qqjett\"><table class=\"svelte-qqjett\"><thead><tr><th class=\"svelte-qqjett\">Paid to</th><th class=\"n svelte-qqjett\">Times</th><th class=\"n svelte-qqjett\">Total</th></tr></thead><tbody></tbody></table> <button class=\"atlas-btn\"> </button></div>"), an = g("<li><button class=\"cat svelte-qqjett\"><span class=\"swatch svelte-qqjett\"></span> <span class=\"name svelte-qqjett\"> </span> <span class=\"track svelte-qqjett\"><span class=\"fill svelte-qqjett\"></span><!></span> <span class=\"v svelte-qqjett\"> </span> <span class=\"pct svelte-qqjett\"> </span> <span> </span></button> <!></li>"), on = g("<li class=\"atlas-empty svelte-qqjett\">Nothing spent in this period.</li>"), sn = g("<div class=\"spend svelte-qqjett\"><div class=\"bar svelte-qqjett\"><div class=\"seg svelte-qqjett\" role=\"radiogroup\" aria-label=\"Period\"></div> <!></div> <section><h3 class=\"svelte-qqjett\"> <span class=\"faint svelte-qqjett\"> </span><!></h3> <!></section> <section><h3 class=\"svelte-qqjett\"> <span class=\"faint svelte-qqjett\"> </span></h3> <ol class=\"cats svelte-qqjett\"></ol></section></div>"), cn = {
 	hash: "svelte-qqjett",
 	code: ".spend.svelte-qqjett {display:flex;flex-direction:column;gap:18px;max-width:980px;}.bar.svelte-qqjett {display:flex;gap:8px;align-items:center;flex-wrap:wrap;}.seg.svelte-qqjett {display:flex;flex-wrap:wrap;border:1px solid var(--border-strong);border-radius:var(--radius);overflow:hidden;}.seg.svelte-qqjett button:where(.svelte-qqjett) {all:unset;cursor:pointer;padding:6px 10px;font-size:0.9em;color:var(--text-muted);}.seg.svelte-qqjett button:where(.svelte-qqjett) + button:where(.svelte-qqjett) {border-left:1px solid var(--border);}.seg.svelte-qqjett button:where(.svelte-qqjett):hover {background:var(--bg-hover);color:var(--text);}.seg.svelte-qqjett button.on:where(.svelte-qqjett) {background:var(--accent-soft);color:var(--accent-strong);font-weight:600;}.seg.svelte-qqjett button:where(.svelte-qqjett):focus-visible {outline:2px solid var(--accent);outline-offset:-2px;}.chip.svelte-qqjett {padding:3px 10px;border-radius:999px;background:var(--accent-soft);color:var(--accent-strong);font-size:0.88em;font-weight:600;}h3.svelte-qqjett {margin:0 0 8px;font-size:0.78em;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-muted);font-weight:600;display:flex;gap:8px;align-items:baseline;flex-wrap:wrap;}.faint.svelte-qqjett {color:var(--text-faint);text-transform:none;letter-spacing:0;font-weight:400;}.link.svelte-qqjett {all:unset;cursor:pointer;color:var(--accent);text-transform:none;letter-spacing:0;font-weight:400;}.link.svelte-qqjett:focus-visible {outline:2px solid var(--accent);}.cats.svelte-qqjett {list-style:none;margin:0;padding:0;}.cats.svelte-qqjett li:where(.svelte-qqjett) {border-bottom:1px solid var(--border);}.cat.svelte-qqjett {all:unset;box-sizing:border-box;cursor:pointer;width:100%;display:grid;grid-template-columns:10px minmax(7em, 1fr) minmax(80px, 2fr) 7.5em 3em 9.5em;gap:10px;align-items:center;padding:8px 6px;}.cat.svelte-qqjett:hover {background:var(--bg-hover);}.cat.svelte-qqjett:focus-visible {outline:2px solid var(--accent);outline-offset:-2px;}.open.svelte-qqjett .cat:where(.svelte-qqjett) {background:var(--bg-hover);}.swatch.svelte-qqjett {width:10px;height:10px;border-radius:3px;}.name.svelte-qqjett {font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}.track.svelte-qqjett {position:relative;height:10px;background:var(--bg-hover);border-radius:3px;}.fill.svelte-qqjett {position:absolute;inset:0 auto 0 0;border-radius:3px;}.usual.svelte-qqjett {position:absolute;top:-3px;bottom:-3px;width:2px;background:var(--text);border-radius:1px;}.v.svelte-qqjett, .pct.svelte-qqjett, .vs.svelte-qqjett {text-align:right;font-variant-numeric:tabular-nums;}.v.svelte-qqjett {font-family:var(--font-mono);font-size:0.92em;}.pct.svelte-qqjett {color:var(--text-muted);font-size:0.88em;}.vs.svelte-qqjett {color:var(--text-faint);font-size:0.82em;}.vs.up.svelte-qqjett {color:var(--red);}.vs.down.svelte-qqjett {color:var(--green);}.who.svelte-qqjett {padding:4px 6px 12px 26px;display:flex;flex-direction:column;gap:8px;align-items:flex-start;}table.svelte-qqjett {border-collapse:collapse;width:100%;max-width:560px;font-size:0.9em;}th.svelte-qqjett {text-align:left;color:var(--text-muted);font-weight:500;font-size:0.85em;padding:2px 8px 4px 0;}td.svelte-qqjett {padding:3px 8px 3px 0;border-top:1px solid var(--border);}.n.svelte-qqjett {text-align:right;font-variant-numeric:tabular-nums;}\n  @container (max-width: 700px) {.cat.svelte-qqjett {grid-template-columns:10px minmax(6em, 1fr) minmax(60px, 1fr) 7em;}.pct.svelte-qqjett, .vs.svelte-qqjett {display:none;} }"
 };
-function cn(r, i) {
-	e(i, !0), ne(r, sn);
+function ln(r, i) {
+	e(i, !0), ne(r, cn);
 	let a = N(i, "period", 15), o = w(null), s = (e, t = !1) => z(e, i.cur, { whole: t }), c = E(() => ve(i.rows)), l = E(() => n(c).map((e) => ({
 		month: e.month,
 		value: n(o) ? e.by.get(n(o)) ?? 0 : e.total
@@ -1223,9 +1223,9 @@ function cn(r, i) {
 			year: "numeric"
 		})
 	});
-	var A = on(), j = C(A), M = C(j);
+	var A = sn(), j = C(A), M = C(j);
 	b(M, 21, () => i.periods, (e) => e.name, (e, r) => {
-		var i = Zt();
+		var i = Qt();
 		let o;
 		var s = d(i, !0);
 		S(() => {
@@ -1233,14 +1233,14 @@ function cn(r, i) {
 		}), v("click", i, () => a(n(r))), p(e, i);
 	}), q(M);
 	var P = W(M, 2), F = (e) => {
-		var n = Qt(), r = d(n, !0);
+		var n = $t(), r = d(n, !0);
 		S(() => t(r, a().name)), p(e, n);
 	}, I = E(() => !i.periods.some((e) => e.name === a().name));
 	h(P, (e) => {
 		n(I) && e(F);
 	}), q(j);
 	var L = W(j, 2), R = C(L), B = C(R), V = W(B), H = d(V, !0), U = W(V), te = (e) => {
-		var t = $t();
+		var t = en();
 		v("click", t, () => T(o, null)), p(e, t);
 	};
 	h(U, (e) => {
@@ -1249,7 +1249,7 @@ function cn(r, i) {
 	var K = W(R, 2);
 	{
 		let e = E(() => n(o) ? i.color(n(o)) : "var(--accent)");
-		Xt(K, {
+		Zt(K, {
 			get months() {
 				return n(l);
 			},
@@ -1270,14 +1270,14 @@ function cn(r, i) {
 	b(ae, 21, () => n(m), ([e, t]) => e, (e, r) => {
 		var a = E(() => ee(n(r), 2));
 		let c = () => n(a)[0], l = () => n(a)[1], m = E(() => O(c()) * n(f)), _ = E(() => n(o) === c());
-		var w = rn();
+		var w = an();
 		let k;
 		var A = C(w), j = C(A);
 		let M;
 		var N = W(j, 2), P = d(N, !0), F = W(N, 2), I = C(F);
 		let L;
 		var R = W(I), z = (e) => {
-			var t = en();
+			var t = tn();
 			let r;
 			S((e, n) => {
 				D(t, "title", `usual: ${e ?? ""}`), r = X(t, "", r, { left: n });
@@ -1291,9 +1291,9 @@ function cn(r, i) {
 		var J = d(te, !0);
 		q(A);
 		var Y = W(A, 2), ne = (e) => {
-			var r = nn(), a = C(r), o = W(C(a));
+			var r = rn(), a = C(r), o = W(C(a));
 			b(o, 21, () => ye(n(u), c()).slice(0, 12), (e) => e.payee, (e, r) => {
-				var a = tn(), o = C(a), l = C(o), u = d(l, !0);
+				var a = nn(), o = C(a), l = C(o), u = d(l, !0);
 				q(o);
 				var f = W(o), m = d(f, !0), h = W(f), g = d(h, !0);
 				q(a), S((e) => {
@@ -1322,7 +1322,7 @@ function cn(r, i) {
 			() => n(m) > 0 ? `${l() >= n(m) ? "+" : "−"}${s(Math.abs(l() - n(m)), !0)} vs usual` : "new"
 		]), v("click", A, () => T(o, n(_) ? null : c(), !0)), p(e, w);
 	}, (e) => {
-		var t = an();
+		var t = on();
 		p(e, t);
 	}), q(ae), q(J), q(A), S((e, r, i) => {
 		t(B, `${e ?? ""} by month `), t(H, n(o) ? "" : "click a month to look at it"), t(re, `${a().name ?? ""}: ${r ?? ""} spent `), t(ie, i);
@@ -1335,12 +1335,12 @@ function cn(r, i) {
 f(["click"]);
 //#endregion
 //#region plugins/beta/finance/ui/src/Review.svelte
-var ln = g("<div class=\"atlas-notice error\"> <div class=\"actions\"><button class=\"atlas-btn\">Try again</button></div></div>"), un = g("<div class=\"atlas-empty\">Reading the journal…</div>"), dn = g("<div class=\"atlas-empty\">Nothing to review.</div>"), fn = g("<span class=\"faint svelte-12excp\"> </span>"), pn = g("<button> </button>"), mn = g("<button title=\"c: choose the category\"> </button>"), hn = g("<button class=\"atlas-btn\" title=\"a\"> </button>"), gn = g("<!> <button class=\"atlas-btn primary\" title=\"Enter\">Accept</button>", 1), _n = g("<div class=\"why faint svelte-12excp\"> </div>"), vn = g("<span><span class=\"faint svelte-12excp\"> </span> </span>"), yn = g("<span class=\"faint bank svelte-12excp\"> </span>"), bn = g("<div role=\"option\" tabindex=\"-1\"><div class=\"line1 svelte-12excp\"><span class=\"date svelte-12excp\"> </span> <span class=\"payee svelte-12excp\"> </span> <!> <span class=\"grow svelte-12excp\"></span> <!> <!></div> <!> <div class=\"posts svelte-12excp\"><!> <!></div></div>"), xn = g("<div class=\"keys svelte-12excp\"><kbd class=\"svelte-12excp\">j</kbd><kbd class=\"svelte-12excp\">k</kbd> move · <kbd class=\"svelte-12excp\">Enter</kbd> accept · <kbd class=\"svelte-12excp\">a</kbd> accept all like it · <kbd class=\"svelte-12excp\">c</kbd> category · <kbd class=\"svelte-12excp\">s</kbd> split · <kbd class=\"svelte-12excp\">o</kbd> </div> <!>", 1), Sn = g("<div class=\"review svelte-12excp\" role=\"listbox\" aria-label=\"Transactions to review\" tabindex=\"0\"><!></div>"), Cn = {
+var un = g("<div class=\"atlas-notice error\"> <div class=\"actions\"><button class=\"atlas-btn\">Try again</button></div></div>"), dn = g("<div class=\"atlas-empty\">Reading the journal…</div>"), fn = g("<div class=\"atlas-empty\">Nothing to review.</div>"), pn = g("<span class=\"faint svelte-12excp\"> </span>"), mn = g("<button> </button>"), hn = g("<button title=\"c: choose the category\"> </button>"), gn = g("<button class=\"atlas-btn\" title=\"a\"> </button>"), _n = g("<!> <button class=\"atlas-btn primary\" title=\"Enter\">Accept</button>", 1), vn = g("<div class=\"why faint svelte-12excp\"> </div>"), yn = g("<span><span class=\"faint svelte-12excp\"> </span> </span>"), bn = g("<span class=\"faint bank svelte-12excp\"> </span>"), xn = g("<div role=\"option\" tabindex=\"-1\"><div class=\"line1 svelte-12excp\"><span class=\"date svelte-12excp\"> </span> <span class=\"payee svelte-12excp\"> </span> <!> <span class=\"grow svelte-12excp\"></span> <!> <!></div> <!> <div class=\"posts svelte-12excp\"><!> <!></div></div>"), Sn = g("<div class=\"keys svelte-12excp\"><kbd class=\"svelte-12excp\">j</kbd><kbd class=\"svelte-12excp\">k</kbd> move · <kbd class=\"svelte-12excp\">Enter</kbd> accept · <kbd class=\"svelte-12excp\">a</kbd> accept all like it · <kbd class=\"svelte-12excp\">c</kbd> category · <kbd class=\"svelte-12excp\">s</kbd> split · <kbd class=\"svelte-12excp\">o</kbd> </div> <!>", 1), Cn = g("<div class=\"review svelte-12excp\" role=\"listbox\" aria-label=\"Transactions to review\" tabindex=\"0\"><!></div>"), wn = {
 	hash: "svelte-12excp",
 	code: ".review.svelte-12excp {outline:none;display:grid;grid-template-columns:minmax(0, 1fr);gap:4px;}.keys.svelte-12excp {color:var(--text-faint);font-size:0.9em;margin-bottom:6px;}kbd.svelte-12excp {font-family:var(--font-mono);font-size:0.85em;padding:0 4px;border:1px solid var(--border);border-radius:3px;margin-right:2px;}.txn.svelte-12excp {padding:8px 10px;border-radius:var(--radius);border:1px solid transparent;}.txn.svelte-12excp:hover {background:var(--bg-hover);}.txn.sel.svelte-12excp {border-color:var(--accent);background:var(--accent-soft);}.line1.svelte-12excp {display:flex;align-items:center;gap:10px;min-height:26px;}.date.svelte-12excp {color:var(--text-muted);font-variant-numeric:tabular-nums;white-space:nowrap;}.payee.svelte-12excp {font-weight:600;white-space:nowrap;}.line1.svelte-12excp > .faint:where(.svelte-12excp) {overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;}.bank.svelte-12excp {font-style:italic;}.grow.svelte-12excp {flex:1;}.faint.svelte-12excp {color:var(--text-faint);}.cat.svelte-12excp {all:unset;cursor:pointer;padding:2px 10px;border-radius:999px;background:var(--bg-hover);color:var(--text-muted);}.cat.unknown.svelte-12excp {box-shadow:inset 0 0 0 1px var(--yellow);}.cat.guess.svelte-12excp {box-shadow:inset 0 0 0 1px var(--accent);font-style:italic;}.cat.guess.sure.svelte-12excp {font-style:normal;}.why.svelte-12excp {font-size:0.85em;margin:2px 0 0;}.cat.svelte-12excp:hover {color:var(--text);}.posts.svelte-12excp {display:flex;flex-wrap:wrap;gap:4px 16px;font-size:0.92em;font-variant-numeric:tabular-nums;margin-top:2px;}"
 };
-function wn(r, i) {
-	e(i, !0), ne(r, Cn);
+function Tn(r, i) {
+	e(i, !0), ne(r, wn);
 	let o = w(u([])), c = w(0), l = w(""), f = w(!0), m = w(void 0);
 	async function g() {
 		try {
@@ -1452,39 +1452,39 @@ function wn(r, i) {
 		else return;
 		e.preventDefault();
 	}
-	var L = { load: g }, R = Sn(), z = C(R), B = (e) => {
-		var r = ln(), i = C(r, !0), a = W(i), o = d(a);
+	var L = { load: g }, R = Cn(), z = C(R), B = (e) => {
+		var r = un(), i = C(r, !0), a = W(i), o = d(a);
 		q(r), S(() => t(i, n(l))), v("click", o, g), p(e, r);
 	}, V = (e) => {
-		var t = un();
-		p(e, t);
-	}, H = (e) => {
 		var t = dn();
 		p(e, t);
+	}, H = (e) => {
+		var t = fn();
+		p(e, t);
 	}, te = (e) => {
-		var r = xn(), i = s(r), l = W(C(i), 12);
+		var r = Sn(), i = s(r), l = W(C(i), 12);
 		q(i);
 		var u = W(i, 2);
 		b(u, 19, () => n(o), (e) => e.path + e.line, (e, r, i) => {
 			let o = E(() => O(n(r)));
-			var l = bn();
+			var l = xn();
 			let u;
 			var f = C(l), m = C(f), g = d(m, !0), _ = W(m, 2), w = d(_, !0), j = W(_, 2), F = (e) => {
-				var i = fn(), a = d(i, !0);
+				var i = pn(), a = d(i, !0);
 				S(() => t(a, n(r).narration)), p(e, i);
 			};
 			h(j, (e) => {
 				n(r).narration && e(F);
 			});
 			var I = W(j, 4), L = (e) => {
-				var i = pn();
+				var i = mn();
 				let a;
 				var o = d(i);
 				S((e) => {
 					a = y(i, 1, "cat guess svelte-12excp", null, a, { sure: n(r).guess.sure }), D(i, "title", `${n(r).guess.why ?? ""} — Enter takes it, c chooses another`), t(o, `${e ?? ""}?`);
 				}, [() => G(n(r).guess.to)]), v("click", i, () => P(n(r))), p(e, i);
 			}, R = E(() => n(o) && n(o).account.endsWith(":Unknown") && n(r).guess), z = (e) => {
-				var i = mn();
+				var i = hn();
 				let a;
 				var s = d(i, !0);
 				S((e, n) => {
@@ -1496,8 +1496,8 @@ function wn(r, i) {
 			});
 			var B = W(I, 2), V = (e) => {
 				let i = E(() => M(n(r)).length);
-				var a = gn(), o = s(a), c = (e) => {
-					var a = hn(), o = d(a);
+				var a = _n(), o = s(a), c = (e) => {
+					var a = gn(), o = d(a);
 					S(() => t(o, `All ${n(i) ?? ""}`)), v("click", a, () => N(n(r))), p(e, a);
 				};
 				h(o, (e) => {
@@ -1510,7 +1510,7 @@ function wn(r, i) {
 				n(i) === n(c) && e(V);
 			}), q(f);
 			var H = W(f, 2), U = (e) => {
-				var i = _n(), a = d(i, !0);
+				var i = vn(), a = d(i, !0);
 				S(() => t(a, n(r).guess.why)), p(e, i);
 			}, te = E(() => n(i) === n(c) && n(r).guess && n(o)?.account.endsWith(":Unknown"));
 			h(H, (e) => {
@@ -1518,7 +1518,7 @@ function wn(r, i) {
 			});
 			var K = W(H, 2), J = C(K);
 			b(J, 17, () => n(r).postings.filter((e) => e !== n(o) || e.amount), a, (e, r) => {
-				var i = vn(), a = C(i), o = d(a, !0), s = W(a);
+				var i = yn(), a = C(i), o = d(a, !0), s = W(a);
 				q(i), S((e) => {
 					t(o, e), t(s, ` ${n(r).amount ?? "" ?? ""}`);
 				}, [() => G(n(r).account)]), p(e, i);
@@ -1527,7 +1527,7 @@ function wn(r, i) {
 			b(Y, 17, () => n(r).meta.filter(([e]) => e === "bank"), a, (e, r) => {
 				var i = E(() => ee(n(r), 2));
 				let a = () => n(i)[1];
-				var o = yn(), s = d(o);
+				var o = bn(), s = d(o);
 				S((e) => {
 					D(o, "title", a()), t(s, `“${e ?? ""}”`);
 				}, [() => x(a())]), p(e, o);
@@ -1543,12 +1543,12 @@ function wn(r, i) {
 f(["keydown", "click"]);
 //#endregion
 //#region plugins/beta/finance/ui/src/Budget.svelte
-var Tn = g("<span class=\"faint svelte-48f9vs\">*</span>"), En = g("<div class=\"mrow svelte-48f9vs\"><span class=\"mname svelte-48f9vs\"> </span> <span class=\"pair svelte-48f9vs\"><span class=\"in svelte-48f9vs\"></span><span class=\"in hatch svelte-48f9vs\"></span> <br/> <span class=\"out svelte-48f9vs\"></span><span class=\"out hatch svelte-48f9vs\"></span></span> <span> <!></span></div>"), Dn = g("<button class=\"rec svelte-48f9vs\"><span class=\"payee svelte-48f9vs\"> <span class=\"faint svelte-48f9vs\"> </span></span> <span> <span class=\"faint svelte-48f9vs\"> </span></span> <span class=\"next faint svelte-48f9vs\"> </span></button>"), On = g("<div class=\"atlas-empty\">Nothing comes back regularly yet: three payments at a steady period and amount make a recurring one.</div>"), kn = g("<div class=\"grid svelte-48f9vs\"><section class=\"card wide svelte-48f9vs\"><!></section> <section class=\"card svelte-48f9vs\"><h3 class=\"svelte-48f9vs\">Saved per month <span class=\"faint svelte-48f9vs\">income − spending, the uncategorised drawn hatched</span></h3> <!> <div class=\"faint legend svelte-48f9vs\"><span class=\"sw in svelte-48f9vs\"></span> income <span class=\"sw out svelte-48f9vs\"></span> spending · * counting the uncategorised as income and spending</div></section> <section class=\"card svelte-48f9vs\"><h3 class=\"svelte-48f9vs\">Recurring <span class=\"faint svelte-48f9vs\"> <!></span></h3> <!></section></div>"), An = {
+var En = g("<span class=\"faint svelte-48f9vs\">*</span>"), Dn = g("<div class=\"mrow svelte-48f9vs\"><span class=\"mname svelte-48f9vs\"> </span> <span class=\"pair svelte-48f9vs\"><span class=\"in svelte-48f9vs\"></span><span class=\"in hatch svelte-48f9vs\"></span> <br/> <span class=\"out svelte-48f9vs\"></span><span class=\"out hatch svelte-48f9vs\"></span></span> <span> <!></span></div>"), On = g("<button class=\"rec svelte-48f9vs\"><span class=\"payee svelte-48f9vs\"> <span class=\"faint svelte-48f9vs\"> </span></span> <span> <span class=\"faint svelte-48f9vs\"> </span></span> <span class=\"next faint svelte-48f9vs\"> </span></button>"), kn = g("<div class=\"atlas-empty\">Nothing comes back regularly yet: three payments at a steady period and amount make a recurring one.</div>"), An = g("<div class=\"grid svelte-48f9vs\"><section class=\"card wide svelte-48f9vs\"><!></section> <section class=\"card svelte-48f9vs\"><h3 class=\"svelte-48f9vs\">Saved per month <span class=\"faint svelte-48f9vs\">income − spending, the uncategorised drawn hatched</span></h3> <!> <div class=\"faint legend svelte-48f9vs\"><span class=\"sw in svelte-48f9vs\"></span> income <span class=\"sw out svelte-48f9vs\"></span> spending · * counting the uncategorised as income and spending</div></section> <section class=\"card svelte-48f9vs\"><h3 class=\"svelte-48f9vs\">Recurring <span class=\"faint svelte-48f9vs\"> <!></span></h3> <!></section></div>"), jn = {
 	hash: "svelte-48f9vs",
 	code: ".grid.svelte-48f9vs {display:grid;grid-template-columns:repeat(auto-fit, minmax(340px, 1fr));gap:14px;}.card.svelte-48f9vs {background:var(--bg-elev);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px;min-width:0;}.wide.svelte-48f9vs {grid-column:1 / -1;}h3.svelte-48f9vs {margin:0 0 10px;font-size:0.82em;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-muted);font-weight:600;}.faint.svelte-48f9vs {color:var(--text-faint);font-weight:400;text-transform:none;letter-spacing:0;}.mrow.svelte-48f9vs {display:grid;grid-template-columns:5.5em 1fr 5em;gap:8px;align-items:center;padding:2px 0;}.mname.svelte-48f9vs {color:var(--text-muted);font-variant-numeric:tabular-nums;}.pair.svelte-48f9vs {line-height:0;}.pair.svelte-48f9vs span:where(.svelte-48f9vs) {display:inline-block;height:6px;vertical-align:top;}.in.svelte-48f9vs {background:var(--green);opacity:0.8;border-radius:3px 0 0 3px;}.out.svelte-48f9vs {background:var(--accent);opacity:0.8;border-radius:3px 0 0 3px;}.hatch.svelte-48f9vs {opacity:0.35;border-radius:0 3px 3px 0;background-image:repeating-linear-gradient(45deg, transparent 0 2px, var(--bg-elev) 2px 4px);}.rate.svelte-48f9vs {text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap;}.rate.neg.svelte-48f9vs {color:var(--red);}.legend.svelte-48f9vs {margin-top:8px;font-size:0.85em;}.sw.svelte-48f9vs {display:inline-block;width:10px;height:6px;border-radius:2px;margin:0 2px 0 6px;}.rec.svelte-48f9vs {all:unset;cursor:pointer;display:grid;grid-template-columns:1fr auto;gap:0 10px;padding:5px 8px;border-radius:var(--radius-sm);}.rec.svelte-48f9vs:hover {background:var(--bg-hover);}.payee.svelte-48f9vs {overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}.num.svelte-48f9vs {text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap;}.num.income.svelte-48f9vs {color:var(--green);}.next.svelte-48f9vs {grid-column:1 / -1;font-size:0.85em;}"
 };
-function jn(r, i) {
-	e(i, !0), ne(r, An);
+function Mn(r, i) {
+	e(i, !0), ne(r, jn);
 	function a(e) {
 		let t = Math.round(j(e.usual)), n = [{
 			value: `${t} ${i.cur}`,
@@ -1579,7 +1579,7 @@ function jn(r, i) {
 		});
 	}
 	let o = E(() => i.budget.months.slice(0, 12)), s = E(() => Math.max(1, ...n(o).map((e) => Math.max(j(e.income) + j(e.unknown_in), j(e.spent) + j(e.unknown_out))))), c = E(() => i.budget.recurring.filter((e) => j(e.per_month) > 0).reduce((e, t) => e + j(t.per_month), 0)), u = E(() => -i.budget.recurring.filter((e) => j(e.per_month) < 0).reduce((e, t) => e + j(t.per_month), 0)), f = (e) => e.rate ?? e.rate_all;
-	var m = kn(), g = C(m), x = C(g);
+	var m = An(), g = C(m), x = C(g);
 	K(x, {
 		get budget() {
 			return i.budget;
@@ -1592,7 +1592,7 @@ function jn(r, i) {
 	var w = W(g, 2), T = W(C(w), 2);
 	b(T, 17, () => n(o), (e) => e.month, (e, r) => {
 		let a = E(() => j(n(r).income)), o = E(() => j(n(r).spent)), c = E(() => f(n(r)));
-		var l = En(), u = C(l), m = d(u, !0), g = W(u, 2), _ = C(g);
+		var l = Dn(), u = C(l), m = d(u, !0), g = W(u, 2), _ = C(g);
 		let v;
 		var b = W(_);
 		let x;
@@ -1604,7 +1604,7 @@ function jn(r, i) {
 		var A = W(g, 2);
 		let M;
 		var N = C(A, !0), P = W(N), F = (e) => {
-			var t = Tn();
+			var t = En();
 			p(e, t);
 		};
 		h(P, (e) => {
@@ -1632,7 +1632,7 @@ function jn(r, i) {
 	}), q(A), q(k);
 	var L = W(k, 2);
 	b(L, 17, () => i.budget.recurring, (e) => e.path + e.line, (e, r) => {
-		var a = Dn(), o = C(a), s = C(o, !0), c = W(s), l = d(c);
+		var a = On(), o = C(a), s = C(o, !0), c = W(s), l = d(c);
 		q(o);
 		var u = W(o, 2);
 		let f;
@@ -1647,19 +1647,19 @@ function jn(r, i) {
 			() => z(Math.abs(j(n(r).amount)), i.cur)
 		]), v("click", a, () => i.atlas.open(n(r).path, n(r).line)), p(e, a);
 	}, (e) => {
-		var t = On();
+		var t = kn();
 		p(e, t);
 	}), q(O), q(m), S((e) => t(N, `${e ?? ""} a month out`), [() => z(n(c), i.cur, { whole: !0 })]), p(r, m), _();
 }
 f(["click"]);
 //#endregion
 //#region plugins/beta/finance/ui/src/Invest.svelte
-var Mn = g("<div class=\"atlas-notice error\"> <div class=\"actions\"><button class=\"atlas-btn\">Try again</button></div></div>"), Nn = g("<div class=\"atlas-empty\">Reading the lots…</div>"), Pn = g("<tr><td class=\"svelte-aqy484\"> </td><td class=\"num svelte-aqy484\"> </td><td class=\"num svelte-aqy484\"> </td></tr>"), Fn = g("<table class=\"lots svelte-aqy484\"><thead><tr><th class=\"svelte-aqy484\">bought</th><th class=\"num svelte-aqy484\">units</th><th class=\"num svelte-aqy484\">cost</th></tr></thead><tbody></tbody></table>"), In = g("<button class=\"hold svelte-aqy484\"><span class=\"name\"> <span class=\"faint svelte-aqy484\"> </span></span> <span class=\"num svelte-aqy484\"> </span> <span class=\"num svelte-aqy484\"> </span> <span> </span> <span class=\"faint small svelte-aqy484\"> </span></button> <!>", 1), Ln = g("<div class=\"atlas-empty\">Nothing held in lots now (funds, stocks). Gains realised before are below.</div>"), Rn = g("<span><b> </b> </span>"), zn = g("<div class=\"realised svelte-aqy484\"><!><span class=\"faint svelte-aqy484\">realised gains (the booked Income:Gains)</span></div>"), Bn = g("<div class=\"plot svelte-aqy484\"></div>"), Vn = g("<div class=\"fx svelte-aqy484\"><div class=\"fxhead svelte-aqy484\"><span class=\"name\"><b> </b></span> <span class=\"num svelte-aqy484\"> </span> <span class=\"faint svelte-aqy484\"> </span> <span> </span></div> <!></div>"), Hn = g("<div class=\"atlas-empty\"> </div>"), Un = g("<span><b> </b> <span class=\"faint svelte-aqy484\"> </span></span>"), Wn = g("<div class=\"grid svelte-aqy484\"><section class=\"card tiles wide svelte-aqy484\"><div class=\"tile svelte-aqy484\"><span class=\"n svelte-aqy484\"> </span><span>held in lots</span></div> <div class=\"tile svelte-aqy484\"><span> </span><span>unrealised</span></div> <div class=\"tile svelte-aqy484\"><span> </span><span>realised, all years</span></div> <div class=\"tile svelte-aqy484\"><span class=\"n svelte-aqy484\"> </span><span>a year (XIRR, money-weighted)</span></div></section> <section class=\"card wide svelte-aqy484\"><h3 class=\"svelte-aqy484\">Holdings</h3> <!> <!></section> <section class=\"card wide svelte-aqy484\"><h3 class=\"svelte-aqy484\">Currencies <span class=\"faint svelte-aqy484\"> </span></h3> <!></section> <section class=\"card wide svelte-aqy484\"><h3 class=\"svelte-aqy484\">Prices <span class=\"faint svelte-aqy484\">finance/prices/, kept sparse; fetched daily</span></h3> <div class=\"quotes svelte-aqy484\"></div> <button class=\"atlas-btn\"> </button></section></div>"), Gn = {
+var Nn = g("<div class=\"atlas-notice error\"> <div class=\"actions\"><button class=\"atlas-btn\">Try again</button></div></div>"), Pn = g("<div class=\"atlas-empty\">Reading the lots…</div>"), Fn = g("<tr><td class=\"svelte-aqy484\"> </td><td class=\"num svelte-aqy484\"> </td><td class=\"num svelte-aqy484\"> </td></tr>"), In = g("<table class=\"lots svelte-aqy484\"><thead><tr><th class=\"svelte-aqy484\">bought</th><th class=\"num svelte-aqy484\">units</th><th class=\"num svelte-aqy484\">cost</th></tr></thead><tbody></tbody></table>"), Ln = g("<button class=\"hold svelte-aqy484\"><span class=\"name\"> <span class=\"faint svelte-aqy484\"> </span></span> <span class=\"num svelte-aqy484\"> </span> <span class=\"num svelte-aqy484\"> </span> <span> </span> <span class=\"faint small svelte-aqy484\"> </span></button> <!>", 1), Rn = g("<div class=\"atlas-empty\">Nothing held in lots now (funds, stocks). Gains realised before are below.</div>"), zn = g("<span><b> </b> </span>"), Bn = g("<div class=\"realised svelte-aqy484\"><!><span class=\"faint svelte-aqy484\">realised gains (the booked Income:Gains)</span></div>"), Vn = g("<div class=\"plot svelte-aqy484\"></div>"), Hn = g("<div class=\"fx svelte-aqy484\"><div class=\"fxhead svelte-aqy484\"><span class=\"name\"><b> </b></span> <span class=\"num svelte-aqy484\"> </span> <span class=\"faint svelte-aqy484\"> </span> <span> </span></div> <!></div>"), Un = g("<div class=\"atlas-empty\"> </div>"), Wn = g("<span><b> </b> <span class=\"faint svelte-aqy484\"> </span></span>"), Gn = g("<div class=\"grid svelte-aqy484\"><section class=\"card tiles wide svelte-aqy484\"><div class=\"tile svelte-aqy484\"><span class=\"n svelte-aqy484\"> </span><span>held in lots</span></div> <div class=\"tile svelte-aqy484\"><span> </span><span>unrealised</span></div> <div class=\"tile svelte-aqy484\"><span> </span><span>realised, all years</span></div> <div class=\"tile svelte-aqy484\"><span class=\"n svelte-aqy484\"> </span><span>a year (XIRR, money-weighted)</span></div></section> <section class=\"card wide svelte-aqy484\"><h3 class=\"svelte-aqy484\">Holdings</h3> <!> <!></section> <section class=\"card wide svelte-aqy484\"><h3 class=\"svelte-aqy484\">Currencies <span class=\"faint svelte-aqy484\"> </span></h3> <!></section> <section class=\"card wide svelte-aqy484\"><h3 class=\"svelte-aqy484\">Prices <span class=\"faint svelte-aqy484\">finance/prices/, kept sparse; fetched daily</span></h3> <div class=\"quotes svelte-aqy484\"></div> <button class=\"atlas-btn\"> </button></section></div>"), Kn = {
 	hash: "svelte-aqy484",
 	code: ".grid.svelte-aqy484 {display:grid;grid-template-columns:repeat(auto-fit, minmax(340px, 1fr));gap:14px;}.card.svelte-aqy484 {background:var(--bg-elev);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px;min-width:0;}.wide.svelte-aqy484 {grid-column:1 / -1;}h3.svelte-aqy484 {margin:0 0 10px;font-size:0.82em;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-muted);font-weight:600;}.faint.svelte-aqy484 {color:var(--text-faint);font-weight:400;text-transform:none;letter-spacing:0;}.small.svelte-aqy484 {font-size:0.85em;}.tiles.svelte-aqy484 {display:grid;grid-template-columns:repeat(auto-fit, minmax(150px, 1fr));gap:10px;}.tile.svelte-aqy484 {display:flex;flex-direction:column;gap:2px;padding:4px 6px;color:var(--text-muted);}.tile.svelte-aqy484 .n:where(.svelte-aqy484) {font-size:1.5em;font-weight:650;color:var(--text);font-variant-numeric:tabular-nums;}.pos.svelte-aqy484 {color:var(--green) !important;}.neg.svelte-aqy484 {color:var(--red) !important;}.hold.svelte-aqy484 {all:unset;cursor:pointer;display:grid;grid-template-columns:1fr auto auto 7em;gap:2px 14px;padding:6px 8px;border-radius:var(--radius-sm);width:100%;box-sizing:border-box;}.hold.svelte-aqy484:hover {background:var(--bg-hover);}.hold.svelte-aqy484 .small:where(.svelte-aqy484) {grid-column:1 / -1;}.num.svelte-aqy484 {text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap;}.lots.svelte-aqy484 {margin:0 0 8px 16px;border-collapse:collapse;font-variant-numeric:tabular-nums;font-size:0.92em;}.lots.svelte-aqy484 th:where(.svelte-aqy484) {text-align:left;font-weight:500;color:var(--text-faint);padding:2px 10px;}.lots.svelte-aqy484 td:where(.svelte-aqy484) {padding:2px 10px;border-top:1px solid var(--border);}.realised.svelte-aqy484 {display:flex;flex-wrap:wrap;gap:4px 16px;margin-top:8px;font-variant-numeric:tabular-nums;}.fx.svelte-aqy484 {padding:4px 0 10px;border-bottom:1px solid var(--border);}.fx.svelte-aqy484:last-child {border-bottom:0;}.fxhead.svelte-aqy484 {display:flex;flex-wrap:wrap;gap:6px 18px;align-items:baseline;}.plot.svelte-aqy484 {margin-top:8px;max-width:980px;}.quotes.svelte-aqy484 {display:flex;flex-wrap:wrap;gap:4px 18px;margin-bottom:10px;font-variant-numeric:tabular-nums;}\n  @media (max-width: 700px) {.hold.svelte-aqy484 {grid-template-columns:1fr auto;} }"
 };
-function Kn(o, c) {
-	e(c, !0), ne(o, Gn);
+function qn(o, c) {
+	e(c, !0), ne(o, Kn);
 	let l = w(null), u = w(""), f = w(!1), g = w(null);
 	async function x() {
 		try {
@@ -1691,13 +1691,13 @@ function Kn(o, c) {
 		}) };
 	}
 	var R = { load: x }, B = m(), V = s(B), ee = (e) => {
-		var r = Mn(), i = C(r, !0), a = W(i), o = d(a);
+		var r = Nn(), i = C(r, !0), a = W(i), o = d(a);
 		q(r), S(() => t(i, n(u))), v("click", o, x), p(e, r);
 	}, H = (e) => {
-		var t = Nn();
+		var t = Pn();
 		p(e, t);
 	}, U = (e) => {
-		var o = Wn(), u = C(o), _ = C(u), x = C(_), w = d(x, !0);
+		var o = Gn(), u = C(o), _ = C(u), x = C(_), w = d(x, !0);
 		M(), q(_);
 		var E = W(_, 2), I = C(E);
 		let R;
@@ -1711,16 +1711,16 @@ function Kn(o, c) {
 		M(), q(te), q(u);
 		var Y = W(u, 2), ne = W(C(Y), 2);
 		b(ne, 17, () => n(l).holdings, (e) => e.account + e.commodity, (e, r) => {
-			var i = In(), o = s(i), l = C(o), u = C(l, !0), f = W(u), m = d(f);
+			var i = Ln(), o = s(i), l = C(o), u = C(l, !0), f = W(u), m = d(f);
 			q(l);
 			var _ = W(l, 2), x = d(_), w = W(_, 2), E = d(w, !0), D = W(w, 2);
 			let O;
 			var k = d(D, !0), A = W(D, 2), M = d(A, !0);
 			q(o);
 			var N = W(o, 2), I = (e) => {
-				var i = Fn(), o = W(C(i));
+				var i = In(), o = W(C(i));
 				b(o, 21, () => n(r).lots, a, (e, r) => {
-					var i = Pn(), a = C(i), o = d(a, !0), s = W(a), c = d(s, !0), l = W(s), u = d(l, !0);
+					var i = Fn(), a = C(i), o = d(a, !0), s = W(a), c = d(s, !0), l = W(s), u = d(l, !0);
 					q(i), S((e) => {
 						t(o, n(r).date), t(c, e), t(u, n(r).cost ?? "unknown");
 					}, [() => P(n(r).units)]), p(e, i);
@@ -1743,13 +1743,13 @@ function Kn(o, c) {
 				() => n(r).price ? `${j(n(r).price.price)} ${c.cur} on ${n(r).price.date}${F(n(r).price.date) > 7 ? ` (${F(n(r).price.date)} days old)` : ""}` : "no price: Update prices"
 			]), v("click", o, () => T(g, n(g) === n(r).commodity ? null : n(r).commodity, !0)), p(e, i);
 		}, (e) => {
-			var t = Ln();
+			var t = Rn();
 			p(e, t);
 		});
 		var X = W(ne, 2), re = (e) => {
-			var r = zn(), i = C(r);
+			var r = Bn(), i = C(r);
 			b(i, 17, () => n(l).realised, (e) => e.year, (e, r) => {
-				var i = Rn(), a = C(i), o = d(a, !0), s = W(a);
+				var i = zn(), a = C(i), o = d(a, !0), s = W(a);
 				q(i), S((e) => {
 					t(o, n(r).year), t(s, ` ${e ?? ""}`);
 				}, [() => z(j(n(r).gain), c.cur, { sign: !0 })]), p(e, i);
@@ -1762,7 +1762,7 @@ function Kn(o, c) {
 		q(ie);
 		var se = W(ie, 2);
 		b(se, 17, () => n(l).currencies, (e) => e.currency, (e, a) => {
-			var o = Vn(), l = C(o), u = C(l), f = C(u), g = d(f, !0);
+			var o = Hn(), l = C(o), u = C(l), f = C(u), g = d(f, !0);
 			q(u);
 			var _ = W(u, 2), v = d(_, !0), b = W(_, 2), x = d(b, !0), w = W(b, 2);
 			let T;
@@ -1771,7 +1771,7 @@ function Kn(o, c) {
 			var O = W(l, 2), k = (e) => {
 				var t = m(), o = s(t);
 				i(o, () => n(a).history, (e) => {
-					var t = Bn();
+					var t = Vn();
 					r(t, (e, t) => L?.(e, t), () => n(a).history), p(e, t);
 				}), p(e, t);
 			};
@@ -1791,12 +1791,12 @@ function Kn(o, c) {
 				() => n(a).fx_gain ? `${z(j(n(a).fx_gain), c.cur, { sign: !0 })} from the rate` : ""
 			]), p(e, o);
 		}, (e) => {
-			var n = Hn(), r = d(n);
+			var n = Un(), r = d(n);
 			S(() => t(r, `Everything is in ${c.cur ?? ""}.`)), p(e, n);
 		}), q(Z);
 		var Q = W(Z, 2), $ = W(C(Q), 2);
 		b($, 21, () => n(l).prices, (e) => e.base + e.quote, (e, r) => {
-			var i = Un(), a = C(i), o = d(a, !0), s = W(a), c = W(s), l = d(c, !0);
+			var i = Wn(), a = C(i), o = d(a, !0), s = W(a), c = W(s), l = d(c, !0);
 			q(i), S((e) => {
 				D(i, "title", `${n(r).base ?? ""} in ${n(r).quote ?? ""}`), t(o, n(r).base), t(s, ` ${e ?? ""} ${n(r).quote ?? ""} `), t(l, n(r).date);
 			}, [() => j(n(r).price).toLocaleString(void 0, { maximumFractionDigits: 4 })]), p(e, i);
@@ -1827,12 +1827,12 @@ function Kn(o, c) {
 f(["click"]);
 //#endregion
 //#region plugins/beta/finance/ui/src/Sources.svelte
-var qn = g("<button class=\"atlas-btn\">Renew</button>"), Jn = g("<div class=\"atlas-notice error\"> </div>"), Yn = g("<div class=\"src svelte-er8fe7\"><button class=\"name svelte-er8fe7\"> <span class=\"faint svelte-er8fe7\"> </span></button> <span> </span> <span class=\"faint svelte-er8fe7\"> </span> <!> <div class=\"accts faint svelte-er8fe7\"> </div> <!></div>"), Xn = g("<div class=\"atlas-empty\"> </div>"), Zn = g("<option> </option>"), Qn = g("<span class=\"faint svelte-er8fe7\"> </span>"), $n = g("<button class=\"site svelte-er8fe7\"><b> </b><!></button>"), er = g("<span class=\"faint svelte-er8fe7\">No bank matches.</span>"), tr = g("<div class=\"step svelte-er8fe7\" role=\"group\" aria-label=\"Choose a bank\"><div class=\"steps faint svelte-er8fe7\"><b class=\"svelte-er8fe7\">1 Bank</b> · 2 Consent · 3 Accounts</div> <input aria-label=\"Bank\" class=\"svelte-er8fe7\"/> <div class=\"banks svelte-er8fe7\"></div> <button class=\"atlas-btn svelte-er8fe7\">Cancel</button></div>"), nr = g("<label class=\"link-row svelte-er8fe7\"><span class=\"svelte-er8fe7\"> </span> <select class=\"svelte-er8fe7\"><option>not now</option><!></select></label>"), rr = g("<div class=\"step svelte-er8fe7\" role=\"group\" aria-label=\"Link the accounts\"><div class=\"steps faint svelte-er8fe7\">1 Bank · 2 Consent · <b class=\"svelte-er8fe7\">3 Accounts</b></div> <p class=\"svelte-er8fe7\"> <!></p> <!> <button class=\"atlas-btn primary svelte-er8fe7\">Done</button></div>"), ir = g("(<a target=\"_blank\" rel=\"noopener\">open it</a> if no tab appeared)", 1), ar = g("<div class=\"paste svelte-er8fe7\"><span class=\"steps faint svelte-er8fe7\">1 Bank · <b class=\"svelte-er8fe7\">2 Consent</b> · 3 Accounts</span> <span> <!>. It comes back here by itself; if it does not, paste the address it ended on:</span> <input class=\"svelte-er8fe7\"/> <button class=\"atlas-btn primary\">Finish</button></div>"), or = g("<p> <button class=\"atlas-btn\">Stop</button></p>"), sr = g("<p class=\"faint svelte-er8fe7\"> </p>"), cr = g("<section class=\"card wide svelte-er8fe7\"><h3 class=\"svelte-er8fe7\">From the bank's site <span class=\"faint svelte-er8fe7\"> </span></h3> <div class=\"sites svelte-er8fe7\"></div> <!> <!></section>"), lr = g(": <code class=\"svelte-er8fe7\"> </code>", 1), ur = g("<div class=\"grid svelte-er8fe7\"><section class=\"card wide svelte-er8fe7\"><h3 class=\"svelte-er8fe7\">Banks <span class=\"faint svelte-er8fe7\">read through Enable Banking with your consent; on the server, four times a day at most</span></h3> <!> <div class=\"actions svelte-er8fe7\"><button class=\"atlas-btn primary\"> </button> <select aria-label=\"Country\" class=\"svelte-er8fe7\"></select> <button class=\"atlas-btn\"> </button></div> <!> <!> <!> <!></section> <!> <section class=\"card wide svelte-er8fe7\"><h3 class=\"svelte-er8fe7\">Enable Banking <span class=\"faint svelte-er8fe7\">what connecting needs</span></h3> <ol class=\"setup svelte-er8fe7\"><li>An application at <b>enablebanking.com</b> (free for your own accounts) and its id in <button class=\"link svelte-er8fe7\">Settings</button><!>.</li> <li>Its redirect address, the server's https address, in Settings too<!>.</li> <li>Its private key (the .pem the control panel gave): <button class=\"atlas-btn\"> </button> <span class=\"faint svelte-er8fe7\">kept as a secret of the plugin, outside the vault</span></li></ol> <p class=\"faint svelte-er8fe7\">Desjardins (Canada) has no such access yet: fetch its PDF statements from its site above.</p></section></div>"), dr = {
+var Jn = g("<button class=\"atlas-btn\">Renew</button>"), Yn = g("<div class=\"atlas-notice error\"> </div>"), Xn = g("<div class=\"src svelte-er8fe7\"><button class=\"name svelte-er8fe7\"> <span class=\"faint svelte-er8fe7\"> </span></button> <span> </span> <span class=\"faint svelte-er8fe7\"> </span> <!> <div class=\"accts faint svelte-er8fe7\"> </div> <!></div>"), Zn = g("<div class=\"atlas-empty\"> </div>"), Qn = g("<option> </option>"), $n = g("<span class=\"faint svelte-er8fe7\"> </span>"), er = g("<button class=\"site svelte-er8fe7\"><b> </b><!></button>"), tr = g("<span class=\"faint svelte-er8fe7\">No bank matches.</span>"), nr = g("<div class=\"step svelte-er8fe7\" role=\"group\" aria-label=\"Choose a bank\"><div class=\"steps faint svelte-er8fe7\"><b class=\"svelte-er8fe7\">1 Bank</b> · 2 Consent · 3 Accounts</div> <input aria-label=\"Bank\" class=\"svelte-er8fe7\"/> <div class=\"banks svelte-er8fe7\"></div> <button class=\"atlas-btn svelte-er8fe7\">Cancel</button></div>"), rr = g("<label class=\"link-row svelte-er8fe7\"><span class=\"svelte-er8fe7\"> </span> <select class=\"svelte-er8fe7\"><option>not now</option><!></select></label>"), ir = g("<div class=\"step svelte-er8fe7\" role=\"group\" aria-label=\"Link the accounts\"><div class=\"steps faint svelte-er8fe7\">1 Bank · 2 Consent · <b class=\"svelte-er8fe7\">3 Accounts</b></div> <p class=\"svelte-er8fe7\"> <!></p> <!> <button class=\"atlas-btn primary svelte-er8fe7\">Done</button></div>"), ar = g("(<a target=\"_blank\" rel=\"noopener\">open it</a> if no tab appeared)", 1), or = g("<div class=\"paste svelte-er8fe7\"><span class=\"steps faint svelte-er8fe7\">1 Bank · <b class=\"svelte-er8fe7\">2 Consent</b> · 3 Accounts</span> <span> <!>. It comes back here by itself; if it does not, paste the address it ended on:</span> <input class=\"svelte-er8fe7\"/> <button class=\"atlas-btn primary\">Finish</button></div>"), sr = g("<p> <button class=\"atlas-btn\">Stop</button></p>"), cr = g("<p class=\"faint svelte-er8fe7\"> </p>"), lr = g("<section class=\"card wide svelte-er8fe7\"><h3 class=\"svelte-er8fe7\">From the bank's site <span class=\"faint svelte-er8fe7\"> </span></h3> <div class=\"sites svelte-er8fe7\"></div> <!> <!></section>"), ur = g(": <code class=\"svelte-er8fe7\"> </code>", 1), dr = g("<div class=\"grid svelte-er8fe7\"><section class=\"card wide svelte-er8fe7\"><h3 class=\"svelte-er8fe7\">Banks <span class=\"faint svelte-er8fe7\">read through Enable Banking with your consent; on the server, four times a day at most</span></h3> <!> <div class=\"actions svelte-er8fe7\"><button class=\"atlas-btn primary\"> </button> <select aria-label=\"Country\" class=\"svelte-er8fe7\"></select> <button class=\"atlas-btn\"> </button></div> <!> <!> <!> <!></section> <!> <section class=\"card wide svelte-er8fe7\"><h3 class=\"svelte-er8fe7\">Enable Banking <span class=\"faint svelte-er8fe7\">what connecting needs</span></h3> <ol class=\"setup svelte-er8fe7\"><li>An application at <b>enablebanking.com</b> (free for your own accounts) and its id in <button class=\"link svelte-er8fe7\">Settings</button><!>.</li> <li>Its redirect address, the server's https address, in Settings too<!>.</li> <li>Its private key (the .pem the control panel gave): <button class=\"atlas-btn\"> </button> <span class=\"faint svelte-er8fe7\">kept as a secret of the plugin, outside the vault</span></li></ol> <p class=\"faint svelte-er8fe7\">Desjardins (Canada) has no such access yet: fetch its PDF statements from its site above.</p></section></div>"), fr = {
 	hash: "svelte-er8fe7",
 	code: ".grid.svelte-er8fe7 {display:grid;gap:14px;}.card.svelte-er8fe7 {background:var(--bg-elev);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px;min-width:0;}h3.svelte-er8fe7 {margin:0 0 10px;font-size:0.82em;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-muted);font-weight:600;}.faint.svelte-er8fe7 {color:var(--text-faint);font-weight:400;text-transform:none;letter-spacing:0;}.bad.svelte-er8fe7 {color:var(--red);}.src.svelte-er8fe7 {display:flex;flex-wrap:wrap;gap:4px 16px;align-items:baseline;padding:6px 0;border-bottom:1px solid var(--border);}.src.svelte-er8fe7 .name:where(.svelte-er8fe7) {all:unset;cursor:pointer;font-weight:600;}.accts.svelte-er8fe7 {flex-basis:100%;font-size:0.88em;}.actions.svelte-er8fe7, .paste.svelte-er8fe7 {display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px;}.paste.svelte-er8fe7 input:where(.svelte-er8fe7), select.svelte-er8fe7 {font:inherit;color:var(--text);background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-sm);padding:5px 8px;}.paste.svelte-er8fe7 input:where(.svelte-er8fe7) {flex:1;min-width:240px;}.setup.svelte-er8fe7 {margin:0;padding-left:1.4em;display:grid;gap:6px;}.setup.svelte-er8fe7 li.done:where(.svelte-er8fe7)::marker {color:var(--green);}.setup.svelte-er8fe7 li.done:where(.svelte-er8fe7) {color:var(--text-muted);}.link.svelte-er8fe7 {all:unset;cursor:pointer;color:var(--accent);}code.svelte-er8fe7 {font-size:0.9em;}.sites.svelte-er8fe7 {display:flex;flex-wrap:wrap;gap:8px;}.site.svelte-er8fe7 {all:unset;cursor:pointer;display:flex;flex-direction:column;gap:2px;padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius-sm);}.site.svelte-er8fe7:hover {background:var(--bg-hover);border-color:var(--accent);}.site.svelte-er8fe7 .faint:where(.svelte-er8fe7) {font-size:0.85em;}.step.svelte-er8fe7 {display:grid;gap:8px;margin-top:12px;padding:10px 12px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg);}.steps.svelte-er8fe7 {font-size:0.85em;}.steps.svelte-er8fe7 b:where(.svelte-er8fe7) {color:var(--text);}.step.svelte-er8fe7 input:where(.svelte-er8fe7) {font:inherit;color:var(--text);background:var(--bg-elev);border:1px solid var(--border);border-radius:var(--radius-sm);padding:5px 8px;}.banks.svelte-er8fe7 {display:flex;flex-wrap:wrap;gap:8px;max-height:260px;overflow:auto;}.step.svelte-er8fe7 > .atlas-btn:where(.svelte-er8fe7) {justify-self:start;}.step.svelte-er8fe7 p:where(.svelte-er8fe7) {margin:0;}.link-row.svelte-er8fe7 {display:flex;gap:10px;align-items:center;flex-wrap:wrap;}.link-row.svelte-er8fe7 span:where(.svelte-er8fe7) {min-width:200px;}"
 };
-function fr(r, i) {
-	e(i, !0), ne(r, dr);
+function pr(r, i) {
+	e(i, !0), ne(r, fr);
 	let a = N(i, "assets", 19, () => []), o = w(null), f = w("ES"), m = w(u([])), g = w(!1), x = w(""), O = E(() => n(m).filter((e) => e.name.toLowerCase().includes(n(x).trim().toLowerCase()))), k = w(null), A = w(""), j = w(""), L = w(""), R = E(() => String(i.atlas.plugin.settings.bank_app_id ?? "")), z = E(() => String(i.atlas.plugin.settings.bank_redirect ?? ""));
 	c(() => {
 		i.atlas.secrets.has("enable_banking_key").then((e) => T(o, e, !0)).catch(() => T(o, !1));
@@ -1936,22 +1936,22 @@ function fr(r, i) {
 		}, 3e3);
 	}
 	let ue = (e) => e ? Math.round(((/* @__PURE__ */ new Date(`${e}T12:00:00`)).getTime() - Date.now()) / 864e5) : null;
-	var de = ur(), fe = C(de), pe = W(C(fe), 2);
+	var de = dr(), fe = C(de), pe = W(C(fe), 2);
 	b(pe, 17, () => i.sources, (e) => e.path, (e, r) => {
 		let a = E(() => ue(n(r).until));
-		var o = Yn(), s = C(o), c = C(s, !0), l = W(c), u = d(l);
+		var o = Xn(), s = C(o), c = C(s, !0), l = W(c), u = d(l);
 		q(s);
 		var f = W(s, 2);
 		let m;
 		var g = d(f, !0), _ = W(f, 2), b = d(_, !0), x = W(_, 2), w = (e) => {
-			var t = qn();
+			var t = Jn();
 			v("click", t, () => te(n(r).bank)), p(e, t);
 		};
 		h(x, (e) => {
 			n(a) !== null && n(a) < 14 && e(w);
 		});
 		var T = W(x, 2), D = d(T, !0), O = W(T, 2), k = (e) => {
-			var i = Jn(), a = d(i, !0);
+			var i = Yn(), a = d(i, !0);
 			S(() => t(a, n(r).error)), p(e, i);
 		};
 		h(O, (e) => {
@@ -1960,7 +1960,7 @@ function fr(r, i) {
 			t(c, n(r).bank), t(u, `· ${n(r).country ?? ""}`), m = y(f, 1, "faint svelte-er8fe7", null, m, { bad: n(a) !== null && n(a) < 14 }), t(g, n(a) === null ? "consent: unknown" : n(a) < 0 ? `consent ended ${n(r).until}` : `consent ${n(a)} days left`), t(b, n(r).synced ? `synced ${n(r).synced}` : "never synced"), t(D, e);
 		}, [() => n(r).accounts.map((e) => `${e.name || "account"} ${e.iban ? `…${e.iban.slice(-4)}` : ""}`).join(" · ")]), v("click", s, () => i.atlas.open(n(r).path)), p(e, o);
 	}, (e) => {
-		var n = Xn(), r = d(n);
+		var n = Zn(), r = d(n);
 		S((e) => t(r, `No bank connected. Statements dropped into ${e ?? ""}/statements/inbox/ always work (Overview → Statements).`), [() => H(i.atlas)]), p(e, n);
 	});
 	var me = W(pe, 2), he = C(me), ge = d(he, !0), _e = W(he, 2);
@@ -1976,7 +1976,7 @@ function fr(r, i) {
 		"LT",
 		"FI"
 	], (e) => e, (e, n) => {
-		var r = Zn(), i = d(r, !0), a = {};
+		var r = Qn(), i = d(r, !0), a = {};
 		S(() => {
 			t(i, n), a !== (a = n) && (r.__value = a);
 		}), p(e, r);
@@ -1984,19 +1984,19 @@ function fr(r, i) {
 	var ve = W(_e, 2), ye = d(ve, !0);
 	q(me);
 	var be = W(me, 2), xe = (e) => {
-		var r = tr(), i = W(C(r), 2);
+		var r = nr(), i = W(C(r), 2);
 		P(i);
 		var a = W(i, 2);
 		b(a, 21, () => n(O), (e) => e.name, (e, r) => {
-			var i = $n(), a = C(i), o = d(a, !0), s = W(a), c = (e) => {
-				var i = Qn(), a = d(i);
+			var i = er(), a = C(i), o = d(a, !0), s = W(a), c = (e) => {
+				var i = $n(), a = d(i);
 				S(() => t(a, `consent up to ${n(r).days ?? ""} days`)), p(e, i);
 			};
 			h(s, (e) => {
 				n(r).days && e(c);
 			}), q(i), S(() => t(o, n(r).name)), v("click", i, () => te(n(r).name)), p(e, i);
 		}, (e) => {
-			var t = er();
+			var t = tr();
 			p(e, t);
 		}), q(a);
 		var o = W(a, 2);
@@ -2006,7 +2006,7 @@ function fr(r, i) {
 		n(g) && e(xe);
 	});
 	var Se = W(be, 2), Ce = (e) => {
-		var r = rr(), i = W(C(r), 2), o = C(i), s = W(o), c = (e) => {
+		var r = ir(), i = W(C(r), 2), o = C(i), s = W(o), c = (e) => {
 			var t = l();
 			t.nodeValue = " These accounts name no ledger account yet: which is each?", p(e, t);
 		};
@@ -2015,11 +2015,11 @@ function fr(r, i) {
 		}), q(i);
 		var u = W(i, 2);
 		b(u, 17, () => n(J), (e) => e.uid, (e, r) => {
-			var i = nr(), o = C(i), s = d(o, !0), c = W(o, 2), l = C(c);
+			var i = rr(), o = C(i), s = d(o, !0), c = W(o, 2), l = C(c);
 			l.value = l.__value = "";
 			var u = W(l);
 			b(u, 16, a, (e) => e, (e, n) => {
-				var r = Zn(), i = d(r, !0), a = {};
+				var r = Qn(), i = d(r, !0), a = {};
 				S(() => {
 					t(i, n), a !== (a = n) && (r.value = (r.__value = a) ?? "");
 				}), p(e, r);
@@ -2036,8 +2036,8 @@ function fr(r, i) {
 		n(K) && e(Ce);
 	});
 	var we = W(Se, 2), Te = (e) => {
-		var r = ar(), i = W(C(r), 2), a = C(i), o = W(a), c = (e) => {
-			var t = ir(), r = W(s(t));
+		var r = or(), i = W(C(r), 2), a = C(i), o = W(a), c = (e) => {
+			var t = ar(), r = W(s(t));
 			M(), S(() => D(r, "href", n(U))), p(e, t);
 		};
 		h(o, (e) => {
@@ -2054,19 +2054,19 @@ function fr(r, i) {
 		n(k) && e(Te);
 	});
 	var Ee = W(we, 2), De = (e) => {
-		var r = Jn(), i = d(r, !0);
+		var r = Yn(), i = d(r, !0);
 		S(() => t(i, n(L))), p(e, r);
 	};
 	h(Ee, (e) => {
 		n(L) && e(De);
 	}), q(fe);
 	var Oe = W(fe, 2), ke = (e) => {
-		var r = cr(), i = C(r), a = W(C(i)), o = d(a);
+		var r = lr(), i = C(r), a = W(C(i)), o = d(a);
 		q(i);
 		var s = W(i, 2);
 		b(s, 21, () => n(oe), (e) => e.url, (e, r) => {
-			var i = $n(), a = C(i), o = d(a, !0), s = W(a), c = (e) => {
-				var i = Qn(), a = d(i, !0);
+			var i = er(), a = C(i), o = d(a, !0), s = W(a), c = (e) => {
+				var i = $n(), a = d(i, !0);
 				S(() => t(a, n(r).hint)), p(e, i);
 			};
 			h(s, (e) => {
@@ -2076,7 +2076,7 @@ function fr(r, i) {
 			}), v("click", i, () => le(n(r))), p(e, i);
 		}), q(s);
 		var c = W(s, 2), l = (e) => {
-			var r = or(), i = C(r), a = W(i);
+			var r = sr(), i = C(r), a = W(i);
 			q(r), S(() => t(i, `Watching the downloads for ${n(Q).name ?? ""}… `)), v("click", a, () => {
 				clearInterval(ce), T(Q, null);
 			}), p(e, r);
@@ -2085,7 +2085,7 @@ function fr(r, i) {
 			n(Q) && e(l);
 		});
 		var u = W(c, 2), f = (e) => {
-			var r = sr(), i = d(r);
+			var r = cr(), i = d(r);
 			S((e) => t(i, `Taken: ${e ?? ""}. Import them in Overview → Statements.`), [() => n($).join(", ")]), p(e, r);
 		};
 		h(u, (e) => {
@@ -2098,7 +2098,7 @@ function fr(r, i) {
 	var Ae = W(Oe, 2), je = W(C(Ae), 2), Me = C(je);
 	let Ne;
 	var Pe = W(C(Me), 3), Fe = W(Pe), Ie = (e) => {
-		var r = lr(), i = W(s(r)), a = d(i, !0);
+		var r = ur(), i = W(s(r)), a = d(i, !0);
 		S(() => t(a, n(R))), p(e, r);
 	};
 	h(Fe, (e) => {
@@ -2107,7 +2107,7 @@ function fr(r, i) {
 	var Le = W(Me, 2);
 	let Re;
 	var ze = W(C(Le)), Be = (e) => {
-		var r = lr(), i = W(s(r)), a = d(i, !0);
+		var r = ur(), i = W(s(r)), a = d(i, !0);
 		S(() => t(a, n(z))), p(e, r);
 	};
 	h(ze, (e) => {
@@ -2123,12 +2123,12 @@ function fr(r, i) {
 f(["click", "keydown"]);
 //#endregion
 //#region plugins/beta/finance/ui/src/App.svelte
-var pr = g("<span class=\"badge svelte-1oymcr8\"> </span>"), mr = g("<button> <!></button>"), hr = g("<div class=\"atlas-notice error\"> <div class=\"actions\"><button class=\"atlas-btn\">Try again</button><button class=\"atlas-btn\">Settings…</button></div></div>"), gr = g("<div class=\"atlas-empty\">Reading the journal…</div>"), _r = g("<button> <span class=\"faint svelte-1oymcr8\"> </span></button>"), vr = g("<h3 class=\"svelte-1oymcr8\"> <button class=\"link svelte-1oymcr8\">as transactions</button></h3> <!>", 1), yr = g("<div class=\"atlas-empty\">Choose an account or a category: its postings with the running balance, newest first; a row opens the transaction.</div>"), br = g("<div class=\"split svelte-1oymcr8\"><aside class=\"svelte-1oymcr8\"><h3 class=\"svelte-1oymcr8\">Accounts</h3> <!> <h3 class=\"svelte-1oymcr8\">Categories</h3> <!></aside> <main><!></main></div>"), xr = g("<div><header class=\"top svelte-1oymcr8\"><nav aria-label=\"Finance\" class=\"svelte-1oymcr8\"></nav> <button class=\"atlas-btn\">Settings…</button></header> <!></div>"), Sr = {
+var mr = g("<span class=\"badge svelte-1oymcr8\"> </span>"), hr = g("<button> <!></button>"), gr = g("<div class=\"atlas-notice error\"> <div class=\"actions\"><button class=\"atlas-btn\">Try again</button><button class=\"atlas-btn\">Settings…</button></div></div>"), _r = g("<div class=\"atlas-empty\">Reading the journal…</div>"), vr = g("<button> <span class=\"faint svelte-1oymcr8\"> </span></button>"), yr = g("<h3 class=\"svelte-1oymcr8\"> <button class=\"link svelte-1oymcr8\">as transactions</button></h3> <!>", 1), br = g("<div class=\"atlas-empty\">Choose an account or a category: its postings with the running balance, newest first; a row opens the transaction.</div>"), xr = g("<div class=\"split svelte-1oymcr8\"><aside class=\"svelte-1oymcr8\"><h3 class=\"svelte-1oymcr8\">Accounts</h3> <!> <h3 class=\"svelte-1oymcr8\">Categories</h3> <!></aside> <main><!></main></div>"), Sr = g("<div><header class=\"top svelte-1oymcr8\"><nav aria-label=\"Finance\" class=\"svelte-1oymcr8\"></nav> <button class=\"atlas-btn\">Settings…</button></header> <!></div>"), Cr = {
 	hash: "svelte-1oymcr8",
 	code: "\n  /* The categorical slots (dataviz reference palette, validated on --bg-elev in both themes) and the two flow ends. */.finance.svelte-1oymcr8 {--fin-c1: #3987e5;--fin-c2: #d95926;--fin-c3: #199e70;--fin-c4: #c98500;--fin-c5: #d55181;--fin-c6: #008300;--fin-c7: #9085e9;--fin-c8: #e66767;--fin-other: #6b7280;--fin-income: #3f8f6a;--fin-saved: #7d8590;}[data-theme=\"light\"] .finance.svelte-1oymcr8 {--fin-c1: #2a78d6;--fin-c2: #eb6834;--fin-c3: #1baf7a;--fin-c4: #eda100;--fin-c5: #e87ba4;--fin-c6: #008300;--fin-c7: #6250d6;--fin-c8: #e34948;--fin-other: #9ca3af;--fin-income: #2f9e5c;--fin-saved: #8c939f;}.finance.svelte-1oymcr8 {padding:14px 18px 28px;color:var(--text);font-size:calc(14px * var(--ui-scale, 1));container-type:inline-size;box-sizing:border-box;}.finance.full.svelte-1oymcr8 {height:100%;display:flex;flex-direction:column;padding-bottom:0;}.finance.full.svelte-1oymcr8 > :last-child {flex:1;min-height:0;}.top.svelte-1oymcr8 {display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:16px;flex-wrap:wrap;}nav.svelte-1oymcr8 {display:flex;gap:2px;background:var(--bg-hover);padding:3px;border-radius:var(--radius);flex-wrap:wrap;}nav.svelte-1oymcr8 button:where(.svelte-1oymcr8) {all:unset;cursor:pointer;padding:5px 12px;border-radius:var(--radius-sm);color:var(--text-muted);display:flex;gap:6px;align-items:center;min-height:24px;}nav.svelte-1oymcr8 button:where(.svelte-1oymcr8):hover {color:var(--text);}nav.svelte-1oymcr8 button.on:where(.svelte-1oymcr8) {background:var(--bg);color:var(--text);box-shadow:var(--shadow-sm);font-weight:500;}nav.svelte-1oymcr8 button:where(.svelte-1oymcr8):focus-visible {outline:2px solid var(--accent);outline-offset:-2px;}.badge.svelte-1oymcr8 {font-size:0.8em;padding:0 6px;border-radius:999px;background:var(--yellow);color:var(--bg);font-weight:600;}h3.svelte-1oymcr8 {margin:0 0 10px;font-size:0.78em;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-muted);font-weight:600;display:flex;gap:10px;align-items:baseline;}.faint.svelte-1oymcr8 {color:var(--text-faint);font-weight:400;text-transform:none;letter-spacing:0;}.link.svelte-1oymcr8 {all:unset;cursor:pointer;color:var(--accent);text-transform:none;letter-spacing:0;font-weight:400;}.split.svelte-1oymcr8 {display:grid;grid-template-columns:minmax(220px, 300px) minmax(0, 1fr);gap:18px;align-items:start;max-width:1180px;}aside.svelte-1oymcr8 {position:sticky;top:0;display:grid;gap:4px;}aside.svelte-1oymcr8 h3:where(.svelte-1oymcr8):not(:first-child) {margin-top:14px;}.cat.svelte-1oymcr8 {all:unset;cursor:pointer;display:flex;justify-content:space-between;padding:4px 8px;border-radius:var(--radius-sm);color:var(--text-muted);}.cat.svelte-1oymcr8:hover, .cat.on.svelte-1oymcr8 {background:var(--bg-hover);color:var(--text);}\n  @container (max-width: 700px) {.split.svelte-1oymcr8 {grid-template-columns:minmax(0, 1fr);}aside.svelte-1oymcr8 {position:static;} }"
 };
-function Cr(r, i) {
-	e(i, !0), ne(r, Sr);
+function wr(r, i) {
+	e(i, !0), ne(r, Cr);
 	let a = [
 		["overview", "Overview"],
 		["transactions", "Transactions"],
@@ -2203,17 +2203,17 @@ function Cr(r, i) {
 		].indexOf(e.key);
 		t >= 0 && (T(l, a[t][0], !0), e.preventDefault());
 	}
-	var ue = xr();
+	var ue = Sr();
 	Z("keydown", x, le);
 	let de;
 	var fe = C(ue), me = C(fe);
 	b(me, 23, () => a, ([e, t]) => e, (e, r, i) => {
 		var a = E(() => ee(n(r), 2));
 		let o = () => n(a)[0], s = () => n(a)[1];
-		var c = mr();
+		var c = hr();
 		let u;
 		var m = C(c, !0), g = W(m), _ = (e) => {
-			var r = pr(), i = d(r, !0);
+			var r = mr(), i = d(r, !0);
 			S(() => t(i, n(f).review)), p(e, r);
 		};
 		h(g, (e) => {
@@ -2225,10 +2225,10 @@ function Cr(r, i) {
 	var ge = W(me, 2);
 	q(fe);
 	var ve = W(fe, 2), ye = (e) => {
-		var r = hr(), a = C(r, !0), o = W(a), s = C(o), c = W(s);
+		var r = gr(), a = C(r, !0), o = W(a), s = C(o), c = W(s);
 		q(o), q(r), S(() => t(a, n(g))), v("click", s, X), v("click", c, () => i.atlas.plugin.openSettings()), p(e, r);
 	}, be = (e) => {
-		var t = gr();
+		var t = _r();
 		p(e, t);
 	}, xe = (e) => {
 		var t = () => n(K), r = (e) => T(B, e, !0);
@@ -2264,7 +2264,7 @@ function Cr(r, i) {
 			onchange: X
 		});
 	}, Se = (e) => {
-		Ht(e, {
+		Ut(e, {
 			get atlas() {
 				return i.atlas;
 			},
@@ -2293,7 +2293,7 @@ function Cr(r, i) {
 		});
 	}, Ce = (e) => {
 		var t = () => n(K), r = (e) => T(B, e, !0);
-		cn(e, {
+		ln(e, {
 			get rows() {
 				return n(m);
 			},
@@ -2313,7 +2313,7 @@ function Cr(r, i) {
 			onshow: ie
 		});
 	}, we = (e) => {
-		var r = br(), i = C(r), a = W(C(i), 2);
+		var r = xr(), i = C(r), a = W(C(i), 2);
 		te(a, {
 			get accounts() {
 				return n(f).accounts;
@@ -2325,7 +2325,7 @@ function Cr(r, i) {
 		});
 		var o = W(a, 4);
 		b(o, 16, () => n(ce), (e) => e, (e, r) => {
-			var i = _r();
+			var i = vr();
 			let a;
 			var o = C(i, !0), s = W(o), c = d(s, !0);
 			q(i), S((e, s) => {
@@ -2333,7 +2333,7 @@ function Cr(r, i) {
 			}, [() => G(r), () => r.split(":")[0]]), v("click", i, () => re(r)), p(e, i);
 		}), q(i);
 		var c = W(i, 2), l = C(c), u = (e) => {
-			var r = vr(), i = s(r), a = C(i), o = W(a);
+			var r = yr(), i = s(r), a = C(i), o = W(a);
 			q(i);
 			var c = W(i, 2);
 			V(c, {
@@ -2346,14 +2346,14 @@ function Cr(r, i) {
 				onopen: (e) => oe(e.path, e.line)
 			}), S(() => t(a, `${n(A) ?? ""} `)), v("click", o, () => ie(n(A).toLowerCase())), p(e, r);
 		}, m = (e) => {
-			var t = yr();
+			var t = br();
 			p(e, t);
 		};
 		h(l, (e) => {
 			n(A) ? e(u) : e(m, -1);
 		}), q(c), q(r), p(e, r);
 	}, Te = (e) => {
-		jn(e, {
+		Mn(e, {
 			get atlas() {
 				return i.atlas;
 			},
@@ -2366,7 +2366,7 @@ function Cr(r, i) {
 			onchange: X
 		});
 	}, Ee = (e) => {
-		U(wn(e, {
+		U(Tn(e, {
 			get atlas() {
 				return i.atlas;
 			},
@@ -2376,7 +2376,7 @@ function Cr(r, i) {
 			onchange: X
 		}), (e) => T(P, e, !0), () => n(P));
 	}, De = (e) => {
-		U(Kn(e, {
+		U(qn(e, {
 			get atlas() {
 				return i.atlas;
 			},
@@ -2387,7 +2387,7 @@ function Cr(r, i) {
 	}, Oe = (e) => {
 		{
 			let t = E(() => n(f).known.filter((e) => e.startsWith("Assets:")));
-			fr(e, {
+			pr(e, {
 				get atlas() {
 					return i.atlas;
 				},
@@ -2408,12 +2408,12 @@ function Cr(r, i) {
 f(["click"]);
 //#endregion
 //#region plugins/beta/finance/ui/src/view.ts
-function wr(e, t) {
-	let n = R(Cr, {
+function Tr(e, t) {
+	let n = R(wr, {
 		target: e,
 		props: { atlas: t }
 	});
 	return () => L(n);
 }
 //#endregion
-export { wr as default };
+export { Tr as default };

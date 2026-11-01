@@ -421,8 +421,8 @@ fn eval_binary(op: &str, a: &Expr, b: &Expr, ctx: &dyn Context, scope: Option<&V
                 }
                 "+" => {
                     if let Val::Date(d) = va {
-                        if let Some(dur) = as_duration(&vb) {
-                            return Val::Date(d + dur);
+                        if let Some(at) = shifted(d, &vb, 1) {
+                            return Val::Date(at);
                         }
                     }
                     if let (Some(x), Some(y)) = (va.as_num(), vb.as_num()) {
@@ -437,8 +437,8 @@ fn eval_binary(op: &str, a: &Expr, b: &Expr, ctx: &dyn Context, scope: Option<&V
                         if let Val::Date(e) = vb {
                             return duration(d - e);
                         }
-                        if let Some(dur) = as_duration(&vb) {
-                            return Val::Date(d - dur);
+                        if let Some(at) = shifted(d, &vb, -1) {
+                            return Val::Date(at);
                         }
                     }
                     Val::Num(va.as_num().unwrap_or(0.0) - vb.as_num().unwrap_or(0.0))
@@ -615,10 +615,10 @@ fn duration(d: chrono::Duration) -> Val {
     Val::Map(units.into_iter().map(|(k, n)| (k.to_string(), Val::Num(n as f64))).collect())
 }
 
-/// Interpret a value as a duration (only string forms like "1 day").
-fn as_duration(v: &Val) -> Option<chrono::Duration> {
+/// A date moved by a length written as text (`"1 month"`, `"2w"`: dates::shift), or None when the value is no length.
+fn shifted(d: chrono::NaiveDateTime, v: &Val, sign: i64) -> Option<chrono::NaiveDateTime> {
     match v {
-        Val::Str(s) => dates::parse_duration(s),
+        Val::Str(s) => dates::shift(d, s, sign),
         _ => None,
     }
 }

@@ -1,9 +1,9 @@
-// Carries a note's headings over an edit that cannot have changed any: no touched line holds a heading's, a fence's or
-// a LaTeX section's mark. Typing in a long note then costs no rescan of all its lines on every key.
+// Carries a note's headings over an edit that cannot have changed any: no touched line holds a heading's, a fence's,
+// a frontmatter fence's or a LaTeX section's mark. Typing in a long note then costs no rescan of all its lines on every key.
 import type { ChangeSet, Text } from "@codemirror/state";
 
 export interface DocHead { level: number; text: string; line: number }
-const MAY_MATTER = /[#`~\\]/;
+const MAY_MATTER = /[#`~\\]|^(?:-{3}|\.{3})\s*$/; // a frontmatter fence too: `# …` inside it is no heading
 const MAX_LINES = 200; // a bigger edit (a paste) is rescanned
 
 /** True when lines `from`..`to` of `doc` hold nothing a heading or a fence is made of. */

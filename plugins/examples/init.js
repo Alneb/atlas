@@ -4,7 +4,7 @@ export function register(atlas) {
   // Today's log, one key away.
   atlas.registerCommand({
     id: "today-note", title: "Open today's log", keys: "Ctrl+Alt+T",
-    run: () => atlas.open(`log/${new Date().toISOString().slice(0, 10)}.md`),
+    run: () => atlas.open(`log/${new Date().toLocaleDateString("sv-SE")}.md`), // YYYY-MM-DD, the local day
   });
 
   // Two files side by side: the note being written, and the one it draws on.

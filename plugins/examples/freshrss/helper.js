@@ -37,7 +37,7 @@ async function save(p) {
   const folder = String(p.settings?.folder || "notes/reading").replace(/\/+$/, "");
   const path = `${folder}/${fileName(it.title)}.md`;
   try { await atlas.read(path); return { path, made: false }; } catch (e) { if (e.status !== 404) throw e; }
-  const day = new Date().toISOString().slice(0, 10);
+  const day = new Date().toLocaleDateString("sv-SE"); // YYYY-MM-DD, the local day (not UTC's)
   await atlas.write(path, `---\ntype: article\nsource: ${JSON.stringify(it.url ?? "")}\nsaved: ${day}\n---\n# ${it.title}\n\n${textOf(it.html)}\n`);
   return { path, made: true };
 }

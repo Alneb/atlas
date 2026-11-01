@@ -87,7 +87,8 @@ export function register(atlas) {
   }) });
 
   atlas.registerCommand({ id: "session", title: "TTRPG: new session note", run: async () => {
-    const day = new Date().toISOString().slice(0, 10), path = `${String(settings.sessions).replace(/\/+$/, "")}/Session ${day}.md`;
+    // today as YYYY-MM-DD where the user is (toISOString would give UTC's day)
+    const day = new Date().toLocaleDateString("sv-SE"), path = `${String(settings.sessions).replace(/\/+$/, "")}/Session ${day}.md`;
     const made = await atlas.createFile(path, `---\ntype: session\ndate: ${day}\n---\n# Session ${day}\n\n## Recap\n\n## What happened\n\n## Loot and threads\n`);
     atlas.open(path);
     if (!made) atlas.toast("TTRPG", "Today's session note was already there.");

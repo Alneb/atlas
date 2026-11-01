@@ -4,12 +4,13 @@
   // writes only when the books stay sound; deleted with Undo. A new one when `txn` is null.
   import { call, label, money, type PluginApi } from "./api";
   import { draftOf, imbalance, sides, type Draft, type Row } from "./model";
+  import { localDay } from "../../../../../ui/src/lib/local-day"; // today where the user is, not UTC's
 
   let { atlas, txn, accounts, payees, onclose, onsaved }: {
     atlas: PluginApi; txn: Row | null; accounts: string[]; payees: string[]; onclose: () => void; onsaved: (path?: string) => void;
   } = $props();
 
-  const blank = (): Draft => ({ date: new Date().toISOString().slice(0, 10), status: "*", payee: "", narration: "", tags: [], postings: [{ account: "", amount: "" }, { account: "", amount: "" }] });
+  const blank = (): Draft => ({ date: localDay(), status: "*", payee: "", narration: "", tags: [], postings: [{ account: "", amount: "" }, { account: "", amount: "" }] });
   const initial = () => (txn ? draftOf(txn) : blank());
   let draft = $state<Draft>(initial());
   let tagText = $state(initial().tags.map((t) => `#${t}`).join(" "));

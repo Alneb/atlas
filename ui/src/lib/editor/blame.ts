@@ -4,6 +4,7 @@
 import { gutter, GutterMarker } from "@codemirror/view";
 import { RangeSet, RangeSetBuilder, StateField, type EditorState, type Extension } from "@codemirror/state";
 import type { Blame } from "../gen/Blame";
+import { localDay } from "../local-day";
 
 const NOBODY = /^0+$/; // a line not committed yet
 
@@ -20,7 +21,7 @@ class BlameMarker extends GutterMarker {
   }
 }
 
-const day = (t: number) => new Date(t * 1000).toISOString().slice(0, 10);
+const day = (t: number) => localDay(new Date(t * 1000)); // the commit's day where the reader is, not UTC's
 
 /** The markers for `b` over the document as it is: one at the first line of each commit's run of lines. */
 function markers(state: EditorState, b: Blame, open: (hash: string, subject: string) => void): RangeSet<GutterMarker> {

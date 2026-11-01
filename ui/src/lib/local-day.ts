@@ -2,3 +2,7 @@
  *  UTC day, a day off for hours around midnight (in CEST, 00:00–02:00 was still "yesterday"). */
 export const localDay = (d: Date = new Date()): string =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+
+/** `YYYY-MM-DDTHH:MM` in local time, as the core writes a `created` property. */
+export const localMinute = (d: Date = new Date()): string =>
+  `${localDay(d)}T${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;

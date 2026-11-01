@@ -173,7 +173,8 @@ fn useful(note: bool, opened: Option<usize>, near: bool, incoming: u32, age_days
 pub fn targets(root: &Path, cfg: &Config, q: &str, from: Option<&str>) -> Vec<LinkTarget> {
     let snap = crate::links::snapshot(root, cfg);
     let stats = snap.link_stats(from);
-    let opened = crate::usage::opened(root, cfg, 40); // past 40 places an opening earns no points (`useful`)
+    // past 40 places an opening earns no points (`useful`); by path, as every file asks
+    let opened: std::collections::HashMap<String, usize> = crate::usage::opened(root, cfg, 40).into_iter().enumerate().map(|(i, p)| (p, i)).rev().collect();
     let query = Query::new(q);
     let short = query.q.chars().count() <= SHORT_QUERY;
     let now = SystemTime::now();
@@ -191,9 +192,6 @@ pub fn targets(root: &Path, cfg: &Config, q: &str, from: Option<&str>) -> Vec<Li
         let note = matches!(kind, TargetKind::Note | TargetKind::Mail);
         let name = if note { file.rsplit_once('.').map_or(file, |(n, _)| n) } else { file };
         let (aliases, title) = parsed.map(|p| names_in(&p.props)).unwrap_or_default();
-        let is_near = stats.near.contains(rel);
-        let opened_at = opened.iter().position(|p| p == rel);
-        let incoming = stats.incoming.get(rel).copied().unwrap_or(0);
         let (tier, matched, spread) = if query.tokens.is_empty() {
             (Tier::Exact, None, 0)
         } else {
@@ -202,6 +200,9 @@ pub fn targets(root: &Path, cfg: &Config, q: &str, from: Option<&str>) -> Vec<Li
                 None => continue,
             }
         };
+        let is_near = stats.near.contains(rel);
+        let opened_at = opened.get(rel.as_str()).copied();
+        let incoming = stats.incoming.get(rel).copied().unwrap_or(0);
         // a note's mtime is in the index; any other file is asked only once it matched (one stat, not thousands)
         let mtime = match parsed {
             Some(p) => p.mtime,

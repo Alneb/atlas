@@ -162,8 +162,11 @@ function ie(t, n) {
 }
 f(["change", "click"]);
 //#endregion
+//#region ui/src/lib/local-day.ts
+var ae = (e = /* @__PURE__ */ new Date()) => `${e.getFullYear()}-${String(e.getMonth() + 1).padStart(2, "0")}-${String(e.getDate()).padStart(2, "0")}`;
+//#endregion
 //#region plugins/stable/dav/ui/src/main.ts
-function ae(e) {
+function oe(e) {
 	let t = () => e.plugin.settings.accounts ?? [], r = () => t().some((e) => e.name && e.url && e.user) || !!(e.plugin.settings.url && e.plugin.settings.user), i = (t = {}) => {
 		window.__atlasCalendarShow = t, e.openView(void 0, {
 			title: "Calendar",
@@ -180,7 +183,7 @@ function ae(e) {
 		id: "today",
 		title: "Calendar: today",
 		run: () => i({
-			date: (/* @__PURE__ */ new Date()).toISOString().slice(0, 10),
+			date: ae(),
 			view: "day"
 		})
 	}), e.registerCommand({
@@ -330,4 +333,4 @@ function ae(e) {
 	};
 }
 //#endregion
-export { ae as register };
+export { oe as register };

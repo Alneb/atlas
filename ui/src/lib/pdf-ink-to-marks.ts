@@ -6,6 +6,7 @@
 import { toPage } from "./pdf-geom";
 import { pageFrames, type El } from "./pdf-ink-scene";
 import { encodeSamples } from "./pdf-samples";
+import { localMinute } from "./local-day";
 import type { Mark } from "./gen/Mark";
 import type { Sample } from "./gen/Sample";
 import type { Stroke } from "./gen/Stroke";
@@ -23,10 +24,6 @@ const idOf = (key: string) => {
   let h = 0xcbf29ce484222325n;
   for (const c of new TextEncoder().encode(key)) h = BigInt.asUintN(64, (h ^ BigInt(c)) * 0x100000001b3n);
   return `m-${(h % 36n ** 8n).toString(36).padStart(8, "0")}`;
-};
-const stamp = (ms: number) => {
-  const d = new Date(ms), p = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
 };
 
 /** The pages that have marks over their frames: their spaces are what `convert` needs. */
@@ -73,7 +70,7 @@ export function convert(els: readonly El[], spaces: Map<number, Space>): Convert
     const key = am?.id ?? cd.atlasHighlight?.mark ?? e.id;
     const head = (color: string) => ({
       id: am && ID.test(am.id) ? am.id : (marks.get(key)?.id ?? idOf(key)), page: n, version: 0, color, device,
-      created: stamp(am?.created ?? (Number(e.updated) || Date.now())), tags: [] as string[],
+      created: localMinute(new Date(am?.created ?? (Number(e.updated) || Date.now()))), tags: [] as string[],
     });
     if (e.type === "rectangle" && (cd.atlasHighlight || am?.kind === "highlight")) {
       const quad = cd.atlasHighlight?.rect ?? box();

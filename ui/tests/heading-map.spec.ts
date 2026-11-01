@@ -21,3 +21,10 @@ test("an edit of plain text moves the headings; one touching a mark asks for a r
   expect(carry({ changes: { from: 0, to: 1 } }).got).toBeNull(); // a heading's mark removed
   expect(carry({ changes: { from: 3, to: 4 } }).got).toBeNull(); // a heading's line joined to the next
 });
+
+test("an edit that makes or breaks a frontmatter fence asks for a rescan", () => {
+  const s0 = EditorState.create({ doc: "--\n# yaml comment\n---\n# Title\n" });
+  const tr = s0.update({ changes: { from: 2, insert: "-" } }); // line 1 becomes `---`: a frontmatter now
+  expect(mapHeadings(scan(s0), s0.doc, tr.changes, tr.newDoc)).toBeNull();
+  expect(scan(tr.state).map((h) => h.text)).toEqual(["Title"]);
+});

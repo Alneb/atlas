@@ -14,6 +14,7 @@ import type { Sample } from "./gen/Sample";
 import type { Stamp } from "./gen/Stamp";
 import type { Reader } from "./pdf-reader";
 import { decodeSamples } from "./pdf-samples";
+import { localMinute } from "./local-day";
 export { encodeSamples, decodeSamples } from "./pdf-samples";
 export { MOVABLE, WORDED, movedBy, recoloured, reworded, tagsIn, wordsOf } from "./pdf-mark-edit";
 
@@ -23,16 +24,10 @@ export type MarkKind = Mark["kind"];
 export interface Space { view: Box; rotate: number }
 
 // ── making marks ─────────────────────────────────────────────────────────────────────────────────────────────────
-/** `YYYY-MM-DDTHH:MM`, local time, as the core writes `created`. */
-const stamp = (d = new Date()) => {
-  const p = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
-};
-
 type Body = Mark extends infer M ? (M extends { kind: string } ? Omit<M, "id" | "page" | "version" | "color" | "device" | "created" | "tags"> : never) : never;
 /** A new mark of this desktop: an id, now, the `#tags` of its text. */
 export function newMark(page: number, color: string, body: Body, tags: string[] = []): Mark {
-  return { id: markId(), page, version: 0, color, device: "desktop", created: stamp(), tags, ...body } as Mark;
+  return { id: markId(), page, version: 0, color, device: "desktop", created: localMinute(), tags, ...body } as Mark;
 }
 
 // ── drawing ──────────────────────────────────────────────────────────────────────────────────────────────────────

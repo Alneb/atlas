@@ -15,11 +15,14 @@ export async function sourceNotes(atlas) {
   return entries.filter((e) => !e.dir).map((e) => e.path).filter((p) => p.startsWith(`${folderOf(atlas)}/`) && p.endsWith(".md"));
 }
 
+/** A day as YYYY-MM-DD where the user is (UTC's day is another one for hours each evening west of Greenwich). */
+const localDay = (d = new Date()) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+
 /** A note's `muted:` read: "always", the last day as YYYY-MM-DD, or "" (not muted, or a day gone by). */
 export function mutedOf(props) {
   const m = String(props?.muted ?? "false");
   if (m === "true") return "always";
-  return /^\d{4}-\d{2}-\d{2}$/.test(m) && m >= new Date().toISOString().slice(0, 10) ? m : "";
+  return /^\d{4}-\d{2}-\d{2}$/.test(m) && m >= localDay() ? m : "";
 }
 
 /** How long a source can be muted, as the mute's `how`. */
@@ -30,7 +33,7 @@ export const MUTE_CHOICES = [
 
 /** How long a mute lasts: a number of days, "always", or "off" (unmute). Returns the note's new `muted:`. */
 export async function muteSource(atlas, path, how) {
-  const until = how === "always" ? "true" : how === "off" ? "false" : new Date(Date.now() + Number(how) * 864e5).toISOString().slice(0, 10);
+  const until = how === "always" ? "true" : how === "off" ? "false" : localDay(new Date(Date.now() + Number(how) * 864e5));
   await atlas.writeProperty(path, "muted", until);
   return until;
 }

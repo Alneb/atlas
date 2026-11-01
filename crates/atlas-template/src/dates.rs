@@ -54,25 +54,38 @@ pub fn parse(s: &str) -> Option<NaiveDateTime> {
     None
 }
 
-/// Parse a duration string such as "1 day", "2 weeks", "-3 hours".
-/// Used by Bases date arithmetic, e.g. `today() - "1 day"`.
-pub fn parse_duration(s: &str) -> Option<Duration> {
+/// `dt` moved by a length written as Obsidian's Bases write it (`date + "1 month"`, `now() - "2w"`), `sign` 1 or -1:
+/// a count and a unit, apart or together — `y`/`year`, `M`/`month`, `w`/`week`, `d`/`day`, `h`/`hour`, `m`/`minute`,
+/// `s`/`second` (the one-letter forms by their case: `M` months, `m` minutes; the words in any case and number); a bare
+/// count is days. Months and years move on the calendar (January 31st plus a month is February's last day). None:
+/// not a length.
+pub fn shift(dt: NaiveDateTime, s: &str, sign: i64) -> Option<NaiveDateTime> {
     let s = s.trim();
-    let mut parts = s.split_whitespace();
-    let n: i64 = parts.next()?.parse().ok()?;
-    let unit = parts.next().unwrap_or("days").to_lowercase();
-    let unit = unit.trim_end_matches('s'); // day/days, week/weeks, …
-    let dur = match unit {
-        "second" | "sec" => Duration::seconds(n),
-        "minute" | "min" => Duration::minutes(n),
-        "hour" | "hr" => Duration::hours(n),
-        "day" => Duration::days(n),
-        "week" => Duration::weeks(n),
-        "month" => Duration::days(n * 30),
-        "year" => Duration::days(n * 365),
-        _ => return None,
+    let split = s.char_indices().skip(1).find(|(_, c)| !c.is_ascii_digit()).map_or(s.len(), |(i, _)| i);
+    let n: i64 = s[..split].parse().ok()?;
+    let unit = s[split..].trim();
+    let n = n.checked_mul(sign)?;
+    enum U { Months(i64), Span(Duration) }
+    let u = match unit {
+        "M" => U::Months(n),
+        "m" => U::Span(Duration::try_minutes(n)?),
+        "" => U::Span(Duration::try_days(n)?),
+        _ => match unit.to_lowercase().trim_end_matches('s') {
+            "y" | "year" | "yr" => U::Months(n.checked_mul(12)?),
+            "month" | "mo" => U::Months(n),
+            "w" | "week" | "wk" => U::Span(Duration::try_weeks(n)?),
+            "d" | "day" => U::Span(Duration::try_days(n)?),
+            "h" | "hour" | "hr" => U::Span(Duration::try_hours(n)?),
+            "minute" | "min" => U::Span(Duration::try_minutes(n)?),
+            "" | "second" | "sec" => U::Span(Duration::try_seconds(n)?), // `s` alone trims to ""
+            _ => return None,
+        },
     };
-    Some(dur)
+    match u {
+        U::Months(m) if m >= 0 => dt.checked_add_months(chrono::Months::new(u32::try_from(m).ok()?)),
+        U::Months(m) => dt.checked_sub_months(chrono::Months::new(u32::try_from(-m).ok()?)),
+        U::Span(d) => dt.checked_add_signed(d),
+    }
 }
 
 /// Format a datetime using a subset of moment.js tokens.
@@ -239,13 +252,20 @@ mod tests {
     }
 
     #[test]
-    fn parses_durations() {
-        assert_eq!(parse_duration("1 day"), Some(Duration::days(1)));
-        assert_eq!(parse_duration("2 weeks"), Some(Duration::weeks(2)));
-        assert_eq!(parse_duration("-3 hours"), Some(Duration::hours(-3)));
-        // bare number defaults to days
-        assert_eq!(parse_duration("5"), Some(Duration::days(5)));
-        assert_eq!(parse_duration("1 fortnight"), None);
+    fn shifts_on_the_calendar() {
+        let at = |s: &str| parse(s).unwrap();
+        let day = |d: Option<NaiveDateTime>| d.map(|d| d.format("%Y-%m-%d %H:%M").to_string());
+        assert_eq!(day(shift(at("2026-01-31"), "1 month", 1)).as_deref(), Some("2026-02-28 00:00"), "the month's last day");
+        assert_eq!(day(shift(at("2026-03-31"), "1M", -1)).as_deref(), Some("2026-02-28 00:00"));
+        assert_eq!(day(shift(at("2024-02-29"), "1y", 1)).as_deref(), Some("2025-02-28 00:00"));
+        assert_eq!(day(shift(at("2026-01-01"), "2w", 1)).as_deref(), Some("2026-01-15 00:00"));
+        assert_eq!(day(shift(at("2026-01-01 10:00"), "30m", 1)).as_deref(), Some("2026-01-01 10:30"), "m: minutes");
+        assert_eq!(day(shift(at("2026-01-01"), "3 Days", 1)).as_deref(), Some("2026-01-04 00:00"));
+        assert_eq!(day(shift(at("2026-01-01"), "5", -1)).as_deref(), Some("2025-12-27 00:00"), "a bare count is days");
+        assert_eq!(day(shift(at("2026-01-01 00:00"), "10s", 1)).as_deref(), Some("2026-01-01 00:00"));
+        assert_eq!(shift(at("2026-01-01"), "1 fortnight", 1), None);
+        assert_eq!(shift(at("2026-01-01"), "x", 1), None);
+        assert_eq!(shift(at("2026-01-01"), "99999999999 years", 1), None, "too far: no panic");
     }
 
     #[test]

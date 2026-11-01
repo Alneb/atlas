@@ -58,3 +58,12 @@ test("a block id inside a code fence is an example, not a place", () => {
   expect(anchorLine(md, "^ex")).toBe(4);
   expect(anchorLine(md, "^tab")).toBe(6);
 });
+
+test("a block embed shows the block its id marks, without the id", () => {
+  const md = ["# T", "first line", "second line ^para", "", "- a", "- b ^item", "- c", "", "| x |", "| - |", "| 1 |", "^tab", "", "- p", "- q", "^list"].join("\n");
+  expect(sectionOf(md, "^para")).toBe("first line\nsecond line");
+  expect(sectionOf(md, "^item")).toBe("- b");
+  expect(sectionOf(md, "^tab")).toBe("| x |\n| - |\n| 1 |");
+  expect(sectionOf(md, "^list")).toBe("- p\n- q");
+  expect(sectionOf(md, "^none")).toBe(md);
+});

@@ -6,7 +6,8 @@
   import { api } from "../../lib/api";
   import Markdown from "../Markdown.svelte";
 
-  // `section`: only that heading and what is under it (`![[Note#Heading]]`, as Obsidian embeds it)
+  // `section`: only that heading and what is under it (`![[Note#Heading]]`), or the block a `^id` marks (`![[Note#^id]]`),
+  // as Obsidian embeds them
   let { path = "", text = "", doc = "", section = "" }: { path?: string; text?: string; doc?: string; section?: string } = $props();
   let body = $state("");
   const load = () => api.file(path).then((f) => { body = section ? sectionOf(f.text, section) : f.text; }, () => { body = `*No ${path} yet — open this block as a tab to write it.*`; });

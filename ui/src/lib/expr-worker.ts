@@ -3,6 +3,7 @@
 // expression may know arrives as plain data; what it may ask for goes through `call` to the app.
 /// <reference lib="webworker" />
 import { errText } from "./text";
+import { localDay as day } from "./local-day";
 
 const CLOSED = ["fetch", "XMLHttpRequest", "WebSocket", "EventSource", "importScripts", "indexedDB", "caches", "BroadcastChannel", "Worker", "SharedWorker", "navigator", "postMessage"] as const;
 const post = self.postMessage.bind(self);
@@ -25,7 +26,6 @@ const call = (id: number, name: string) => (...args: unknown[]) => new Promise((
 });
 
 // --- helpers every expression has -------------------------------------------------------------------
-const day = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 const asDate = (v: unknown) => (v instanceof Date ? v : new Date(String(v).length <= 10 ? `${String(v)}T00:00:00` : String(v)));
 const nums = (list: unknown) => (Array.isArray(list) ? list : []).map(Number).filter((n) => !Number.isNaN(n));
 const helpers = {
