@@ -344,7 +344,7 @@ export const lspKeys: Extension = Prec.highest(keymap.of([
 
 /** The LSP extension for a file, or null when no server covers it (or none is installed). */
 export async function lspFor(path: string): Promise<Extension | null> {
-  servers ??= api.lspServers().catch(() => []);
+  servers ??= api.lspServers().catch(() => { servers = null; return []; }); // a failed ask is asked again next file
   const e = ext(path);
   const info = (await servers).find((s) => s.command && s.extensions.includes(e));
   if (!info) return null;

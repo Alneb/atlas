@@ -168,6 +168,22 @@ mod linux {
         conn: zbus::blocking::Connection,
         /// Each notification shown, and the vault path a click on it opens.
         opens: Arc<Mutex<HashMap<u32, Option<String>>>>,
+        /// the server reads bodies as markup (`body-markup`, Plasma and GNOME do): `&`, `<`, `>` are escaped, or
+        /// `Prof <prof@uni.example>` would lose its address as an unknown tag
+        markup: bool,
+    }
+
+    /// Whether the server says it reads a body as markup.
+    fn reads_markup(conn: &zbus::blocking::Connection) -> bool {
+        conn.call_method(Some(DEST), PATH, Some(DEST), "GetCapabilities", &())
+            .ok()
+            .and_then(|r| r.body().deserialize::<Vec<String>>().ok())
+            .is_some_and(|caps| caps.iter().any(|c| c == "body-markup"))
+    }
+
+    /// Text as a markup body shows it as written.
+    pub(super) fn as_markup_text(s: &str) -> String {
+        s.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;")
     }
 
     impl DBus {
@@ -201,13 +217,14 @@ mod linux {
                     }
                 })
                 .map_err(|e| e.to_string())?;
-            Ok(Self { conn, opens })
+            let markup = reads_markup(&conn);
+            Ok(Self { conn, opens, markup })
         }
     }
 
     impl Notifier for DBus {
         fn show(&self, n: &Notice, replaces: Option<u32>) -> Result<u32, String> {
-            let body = super::body_of(n);
+            let body = if self.markup { as_markup_text(&super::body_of(n)) } else { super::body_of(n) };
             // a click (`default`: the server's own click on the body) brings Atlas forward and opens a vault path
             let open = super::opens(n);
             let actions = vec!["default", if open.is_some() { "Open" } else { "Show Atlas" }];
@@ -265,6 +282,11 @@ mod linux {
                 let _ = self.0.kill();
                 let _ = self.0.wait();
             }
+        }
+
+        #[test]
+        fn a_markup_body_shows_its_text_as_written() {
+            assert_eq!(super::as_markup_text("Prof <prof@uni.example> & co"), "Prof &lt;prof@uni.example&gt; &amp; co");
         }
 
         #[test]

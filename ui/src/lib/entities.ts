@@ -19,16 +19,20 @@ export interface EntityProvider {
 let papers: Promise<Paper[]> | null = null;
 const listeners = new Set<() => void>();
 let watching = false;
-/** Called when the Library changes (subscribed lazily: this module is imported during startup). */
+/** The cache dropped when a reference's note changes (subscribed lazily: this module is imported during startup). */
+function watch(): void {
+  if (watching) return;
+  watching = true;
+  on("fs", (e) => { if (touches(e.paths, (p) => /(?:^|\/)([^/]+)\/\1\.md$/.test(p) || /info\.yaml$/.test(p) || p.startsWith(".atlas/plugins/catalog-papers/"))) { papers = null; listeners.forEach((f) => f()); } });
+}
+/** Called when the Library changes. */
 export function onLibraryChange(fn: () => void): () => void {
   listeners.add(fn);
-  if (!watching) {
-    watching = true;
-    on("fs", (e) => { if (touches(e.paths, (p) => /(?:^|\/)([^/]+)\/\1\.md$/.test(p) || /info\.yaml$/.test(p) || p.startsWith(".atlas/plugins/catalog-papers/"))) { papers = null; listeners.forEach((f) => f()); } });
-  }
+  watch();
   return () => listeners.delete(fn);
 }
-export const library = (): Promise<Paper[]> => { onLibraryChange(() => {}); return (papers ??= api.refs().catch(() => [] as Paper[])); };
+// a failed ask (the references plugin still starting, or off) is not kept: the next one asks again
+export const library = (): Promise<Paper[]> => { watch(); return (papers ??= api.refs().catch(() => { papers = null; return [] as Paper[]; })); };
 
 const paperEntities: EntityProvider = {
   prefix: "",

@@ -51,9 +51,15 @@ export interface Action {
 }
 
 /** The home document (`home` in config; a note of live blocks), or the classic Today pane when off.
- *  Resolved once per session: the first screen must not wait on a request twice. */
-let home: Promise<{ path: string | null; title: string | null }> | null = null;
-export const homeDoc = () => (home ??= api.home().then((h) => ({ path: h.path ?? null, title: h.title ?? null }), () => ({ path: null, title: null })));
+ *  Resolved once per setting: the first screen must not wait on a request twice, and a home chosen in Settings is the
+ *  one opened next. */
+let home: { setting: string | undefined; doc: Promise<{ path: string | null; title: string | null }> } | null = null;
+export const homeDoc = () => {
+  const setting = settings.config?.home;
+  if (home && home.setting === undefined) home.setting = setting; // asked before the settings came: that answer is theirs
+  if (!home || home.setting !== setting) home = { setting, doc: api.home().then((h) => ({ path: h.path ?? null, title: h.title ?? null }), () => ({ path: null, title: null })) };
+  return home.doc;
+};
 export async function openHome(still: () => boolean = () => true): Promise<void> {
   const { path, title } = await homeDoc();
   if (!still()) return; // something else was asked for while the home document was looked up

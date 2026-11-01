@@ -8,6 +8,7 @@
 import { settings } from "./settings.svelte";
 import { basename } from "./paths";
 import { api } from "./api";
+import { on, touches } from "./bus";
 import { captureDays, describeCapture, SETTLE_MS } from "./capture-hints.svelte";
 import { Newest } from "./newest";
 import type { IconName } from "./panes";
@@ -32,6 +33,11 @@ export function tokenAt(text: string, caret: number): Open | null {
 }
 
 let notes: Promise<string[]> | null = null, tags: Promise<string[]> | null = null;
+// a note made or a tag written since: both lists asked again at the next completion (not at once: most changes are
+// saves, and nobody may be typing)
+const stale = (paths: readonly string[]) => { if (touches(paths, (p) => /\.md$/i.test(p))) notes = tags = null; };
+on("fs", (e) => stale(e.paths));
+on("gone", (e) => stale(e.paths));
 const stem = (p: string) => basename(p).replace(/\.md$/i, "");
 async function candidates(o: Open): Promise<string[]> {
   const q = o.typed.toLowerCase();
