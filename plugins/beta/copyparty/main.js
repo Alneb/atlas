@@ -50,8 +50,7 @@ export function register(atlas) {
   const keepLists = () => {
     clearTimeout(keepTimer);
     keepTimer = setTimeout(() => {
-      const keys = Object.keys(lists);
-      if (keys.length > MAX_LISTS) for (const k of keys.sort((a, b) => lists[a].at - lists[b].at).slice(0, keys.length - MAX_LISTS)) delete lists[k];
+      trim(lists, MAX_LISTS);
       try { localStorage.setItem(LISTS, JSON.stringify(lists)); } catch { /* full: kept for this run */ }
     }, 2000);
   };
@@ -71,10 +70,12 @@ export function register(atlas) {
   }
 
   // thumbnails fetched before: (server, path) → the cached file (null: the server has none), written once fetching pauses
-  const THUMBS = "atlas.copyparty.thumbs";
+  const THUMBS = "atlas.copyparty.thumbs", MAX_THUMBS = 5000;
   const thumbs = (() => { try { return JSON.parse(localStorage.getItem(THUMBS) ?? "{}"); } catch { return {}; } })();
   let thumbTimer = 0;
-  const keepThumbs = () => { clearTimeout(thumbTimer); thumbTimer = setTimeout(() => { try { localStorage.setItem(THUMBS, JSON.stringify(thumbs)); } catch { /* kept for this run */ } }, 2000); };
+  // the oldest forgotten past the cap (their files stay in the cache; one is fetched again when shown)
+  const trim = (kept, max) => { const keys = Object.keys(kept); if (keys.length > max) for (const k of keys.sort((a, b) => kept[a].at - kept[b].at).slice(0, keys.length - max)) delete kept[k]; };
+  const keepThumbs = () => { clearTimeout(thumbTimer); thumbTimer = setTimeout(() => { trim(thumbs, MAX_THUMBS); try { localStorage.setItem(THUMBS, JSON.stringify(thumbs)); } catch { /* kept for this run */ } }, 2000); };
 
   // each local copy → the file it came from, as last seen there (its date and size): a save over a newer version is asked first
   const KEY = "atlas.copyparty.copies";

@@ -437,16 +437,17 @@ impl Index {
 
     /// The Gmail labels of rows changed (elsewhere labels are keywords: [`Index::flag`]).
     pub fn set_labels(&self, ids: &[i64], add: &[String], remove: &[String]) -> Result<(), String> {
-        let db = self.db();
+        let mut db = self.db();
+        let tx = db.transaction().map_err(err)?;
         for id in ids {
-            let was: Option<String> = db.query_row("SELECT labels FROM messages WHERE id=?1", [id], |r| r.get(0)).optional().map_err(err)?;
+            let was: Option<String> = tx.query_row("SELECT labels FROM messages WHERE id=?1", [id], |r| r.get(0)).optional().map_err(err)?;
             let mut l = strings(&was.unwrap_or_default());
             l.retain(|x| !remove.contains(x));
             l.extend(add.iter().filter(|a| !l.contains(a)).cloned().collect::<Vec<_>>());
             l.sort();
-            db.execute("UPDATE messages SET labels=?2 WHERE id=?1", params![id, json(&l)]).map_err(err)?;
+            tx.execute("UPDATE messages SET labels=?2 WHERE id=?1", params![id, json(&l)]).map_err(err)?;
         }
-        Ok(())
+        tx.commit().map_err(err)
     }
 
     /// Messages gone from a folder on the server.
@@ -658,22 +659,28 @@ impl Index {
 
     /// Keep the body cache under `max_bytes`: the oldest messages' bodies go first.
     pub fn prune_bodies(&self, max_bytes: i64) -> Result<usize, String> {
-        let db = self.db();
+        let mut db = self.db();
         let total: i64 = db.query_row("SELECT coalesce(sum(length(raw)),0) FROM bodies", [], |r| r.get(0)).map_err(err)?;
         if total <= max_bytes {
             return Ok(0);
         }
-        let mut st = db.prepare("SELECT b.id, length(b.raw) FROM bodies b JOIN messages m ON m.id=b.id ORDER BY m.date").map_err(err)?;
-        let rows: Vec<(i64, i64)> = st.query_map([], |r| Ok((r.get(0)?, r.get(1)?))).map_err(err)?.filter_map(Result::ok).collect();
+        let rows: Vec<(i64, i64)> = {
+            let mut st = db.prepare("SELECT b.id, length(b.raw) FROM bodies b JOIN messages m ON m.id=b.id ORDER BY m.date").map_err(err)?;
+            let rows = st.query_map([], |r| Ok((r.get(0)?, r.get(1)?))).map_err(err)?.filter_map(Result::ok).collect();
+            rows
+        };
+        // one transaction: thousands of bodies go in one commit
+        let tx = db.transaction().map_err(err)?;
         let (mut over, mut n) = (total - max_bytes, 0);
         for (id, len) in rows {
             if over <= 0 {
                 break;
             }
-            db.execute("DELETE FROM bodies WHERE id=?1", [id]).map_err(err)?;
+            tx.execute("DELETE FROM bodies WHERE id=?1", [id]).map_err(err)?;
             over -= len;
             n += 1;
         }
+        tx.commit().map_err(err)?;
         Ok(n)
     }
 

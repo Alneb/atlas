@@ -191,9 +191,10 @@ impl Task {
 // --- recurrence ---------------------------------------------------------------------------------------
 
 /// `every week`, `every 3 days`, `every month` (the day kept by the date itself), `every month on the 31st` / `on the
-/// last` (that day, or the month's last when it has none),
-/// `every weekday`, each optionally ending in `when done`. None: a rule Atlas does not read — the
-/// task is then ticked like any other and nothing new is made, rather than made wrongly.
+/// last` (that day, or the month's last when it has none), `every week on Monday, Thursday` (every N weeks counted
+/// from the task's week, weeks from Monday), `every weekday`, each optionally ending in `when done`. None: a rule
+/// Atlas does not read (`every month on the 2nd Tuesday`) — the task is then ticked like any other and nothing new is
+/// made, rather than made wrongly.
 pub(crate) fn step(rule: &str, from: NaiveDate) -> Option<NaiveDate> {
     let r = rule.to_ascii_lowercase();
     let r = r.trim().strip_prefix("every")?.trim().trim_end_matches("when done").trim();
@@ -201,16 +202,42 @@ pub(crate) fn step(rule: &str, from: NaiveDate) -> Option<NaiveDate> {
         Some((n, rest)) if n.parse::<u32>().is_ok() => (n.parse::<u32>().ok()?, rest.trim()),
         _ => (1, r),
     };
-    let unit = unit.split_whitespace().next()?;
+    let words: Vec<&str> = unit.split(|c: char| c.is_whitespace() || c == ',').filter(|w| !w.is_empty()).collect();
+    let (unit, tail) = words.split_first()?;
+    let unit = unit.trim_end_matches('s');
     if n == 0 {
         return None;
     }
     // `on the 31st` / `on the last`: the day every month lands on, so a 31st kept as February's 28th comes back to the
-    // 31st in March instead of drifting to the 28th for good
-    let on_day = r.split_once("on the ").and_then(|(_, d)| match d.split_whitespace().next()? {
-        "last" => Some(31),
-        d => d.trim_end_matches(|c: char| c.is_ascii_alphabetic()).parse::<u32>().ok().filter(|d| (1..=31).contains(d)),
-    });
+    // 31st in March instead of drifting to the 28th for good; any other tail is a rule not read
+    let mut on_day = None;
+    let mut on_weekdays: Vec<chrono::Weekday> = Vec::new();
+    match (unit, tail) {
+        (_, []) => {}
+        ("month", ["on", "the", d]) => {
+            on_day = Some(match *d {
+                "last" => 31,
+                d => {
+                    let (num, suffix) = d.split_at(d.find(|c: char| !c.is_ascii_digit()).unwrap_or(d.len()));
+                    let num: u32 = num.parse().ok().filter(|x| (1..=31).contains(x))?;
+                    let want = match num % 100 {
+                        11..=13 => "th",
+                        _ => ["th", "st", "nd", "rd", "th", "th", "th", "th", "th", "th"][(num % 10) as usize],
+                    };
+                    (suffix.is_empty() || suffix == want).then_some(num)?
+                }
+            })
+        }
+        ("week", ["on", days @ ..]) => {
+            for w in days.iter().filter(|w| **w != "and") {
+                on_weekdays.push(w.trim_end_matches('s').parse::<chrono::Weekday>().ok()?);
+            }
+            if on_weekdays.is_empty() {
+                return None;
+            }
+        }
+        _ => return None,
+    }
     // a huge count (`every 4000000000 days`) is a rule Atlas does not read, not an overflow
     let months = |m: u32| -> Option<NaiveDate> {
         let total = (from.year() * 12 + from.month0() as i32).checked_add(i32::try_from(m).ok()?)?;
@@ -219,8 +246,16 @@ pub(crate) fn step(rule: &str, from: NaiveDate) -> Option<NaiveDate> {
         let day = on_day.unwrap_or(from.day());
         (0..4).find_map(|back| NaiveDate::from_ymd_opt(y, mo, day.saturating_sub(back)))
     };
-    match unit.trim_end_matches('s') {
+    match unit {
         "day" => from.checked_add_signed(Duration::days(i64::from(n))),
+        "week" if !on_weekdays.is_empty() => {
+            // the next of those days in this week or every Nth one after it (as RRULE's WEEKLY;INTERVAL;BYDAY)
+            let monday = |d: NaiveDate| d - Duration::days(i64::from(d.weekday().num_days_from_monday()));
+            let n = i64::from(n);
+            (1..=7 * (n.min(520) + 1))
+                .map(|k| from + Duration::days(k))
+                .find(|d| on_weekdays.contains(&d.weekday()) && ((monday(*d) - monday(from)).num_days() / 7) % n == 0)
+        }
         "week" => from.checked_add_signed(Duration::weeks(i64::from(n))),
         "month" => months(n),
         "year" => months(n.checked_mul(12)?),
@@ -540,6 +575,17 @@ mod tests {
         assert_eq!(rent("2026-02-28").as_deref(), Some("- [ ] rent 🔁 every month on the 31st 📅 2026-03-31"), "back to the 31st");
         assert_eq!(step("every month on the last", d("2026-03-31")), Some(d("2026-04-30")));
         assert_eq!(step("every 2 months on the 1st", d("2026-01-15")), Some(d("2026-03-01")));
+        assert_eq!(step("every month on the last Friday", d("2026-03-27")), None, "a weekday of the month is not read");
+        assert_eq!(step("every month on the 2nd Tuesday", d("2026-03-10")), None);
+        assert_eq!(step("every month on the 2nd", d("2026-03-10")), Some(d("2026-04-02")));
+        assert_eq!(step("every month on the 2st", d("2026-03-10")), None);
+        // 2026-10-19 is a Monday
+        assert_eq!(step("every week on Monday, Thursday", d("2026-10-19")), Some(d("2026-10-22")));
+        assert_eq!(step("every week on Monday and Thursday", d("2026-10-22")), Some(d("2026-10-26")));
+        assert_eq!(step("every 2 weeks on Monday, Thursday", d("2026-10-22")), Some(d("2026-11-02")), "the week in between skipped");
+        assert_eq!(step("every week on Mondays when done", d("2026-10-21")), Some(d("2026-10-26")));
+        assert_eq!(step("every week on Funday", d("2026-10-21")), None);
+        assert_eq!(step("every day at noon", d("2026-10-21")), None);
         assert_eq!(next("- [ ] review 🔁 every 2 days").as_deref(), Some("- [ ] review 🔁 every 2 days 📅 2026-10-21"), "no date: due from today");
         assert_eq!(next("- [ ] standup 🔁 every weekday 📅 2026-10-16").as_deref(), Some("- [ ] standup 🔁 every weekday 📅 2026-10-19"), "Friday → Monday");
         assert_eq!(next("- [ ] taxes 🔁 every year 📅 2026-06-30").as_deref(), Some("- [ ] taxes 🔁 every year 📅 2027-06-30"));

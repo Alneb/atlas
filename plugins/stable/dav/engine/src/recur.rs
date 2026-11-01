@@ -7,6 +7,7 @@ use crate::ics::{unescape, Component, Line};
 use crate::zone::{self, Zone};
 use chrono::{DateTime, Duration, NaiveDate, NaiveDateTime, Utc};
 use serde::Serialize;
+use std::collections::BTreeMap;
 
 /// A date-time property as written.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -370,15 +371,17 @@ pub fn expand(cal: &Component, range: Range, user: &Zone) -> Vec<Instance> {
     let overlaps = |s: DateTime<Utc>, e: DateTime<Utc>| {
         if e > s { s < range.to && e > range.from } else { s >= range.from && s < range.to }
     };
-    let mut uids: Vec<String> = events.iter().filter_map(|e| e.text("UID")).collect();
-    // sorted first: a subscribed .ics may list an override away from its master, and a UID seen twice is expanded twice
-    uids.sort_unstable();
-    uids.dedup();
-    if uids.is_empty() {
-        uids.push(String::new());
+    // grouped once by UID (a subscribed .ics may list an override away from its master); an event with none stands alone
+    let mut by_uid: BTreeMap<String, Vec<&Component>> = BTreeMap::new();
+    let mut groups: Vec<Vec<&Component>> = Vec::new();
+    for ev in events {
+        match ev.text("UID").filter(|u| !u.is_empty()) {
+            Some(uid) => by_uid.entry(uid).or_default().push(ev),
+            None => groups.push(vec![ev]),
+        }
     }
-    for uid in uids {
-        let same: Vec<&Component> = events.iter().filter(|e| e.text("UID").unwrap_or_default() == uid).copied().collect();
+    groups.extend(by_uid.into_values());
+    for same in groups {
         let master = same.iter().find(|e| e.prop("RECURRENCE-ID").is_none()).copied();
         let overrides: Vec<&Component> = same.iter().filter(|e| e.prop("RECURRENCE-ID").is_some()).copied().collect();
         let Some(master) = master else {
@@ -559,6 +562,9 @@ mod tests {
         assert_eq!(expand(&x, days("2026-11-01", "2026-11-30", &Zone::UTC), &Zone::UTC).len(), 2);
         let apart = cal("BEGIN:VEVENT\nUID:x\nSUMMARY:Daily\nDTSTART:20261102T090000Z\nRRULE:FREQ=DAILY;COUNT=3\nEND:VEVENT\nBEGIN:VEVENT\nUID:y\nSUMMARY:Other\nDTSTART:20261105T090000Z\nEND:VEVENT\nBEGIN:VEVENT\nUID:x\nRECURRENCE-ID:20261103T090000Z\nSUMMARY:Daily, later\nDTSTART:20261103T120000Z\nEND:VEVENT\n");
         assert_eq!(expand(&apart, days("2026-11-01", "2026-11-30", &Zone::UTC), &Zone::UTC).len(), 4, "an override away from its master: the series once");
+        let bare = cal("BEGIN:VEVENT\nUID:x\nSUMMARY:A\nDTSTART:20261102T090000Z\nEND:VEVENT\nBEGIN:VEVENT\nSUMMARY:B\nDTSTART:20261103T090000Z\nEND:VEVENT\nBEGIN:VEVENT\nSUMMARY:C\nDTSTART:20261104T090000Z\nEND:VEVENT\n");
+        let names: Vec<_> = expand(&bare, days("2026-11-01", "2026-11-30", &Zone::UTC), &Zone::UTC).into_iter().map(|i| i.summary).collect();
+        assert_eq!(names, ["A", "B", "C"], "events with no UID are each shown");
     }
 
     #[test]

@@ -22,8 +22,11 @@ export function trackRecent(d: DockviewApi): void {
 function remember(d: DockviewApi): void {
   const p = d.activePanel;
   if (!p) return;
-  const list = (recent.get(p.group.id) ?? []).filter((id) => id !== p.id);
+  // only the tabs still open, and splits still there: a long day closes hundreds
+  const open = new Set(p.group.panels.map((x) => x.id));
+  const list = (recent.get(p.group.id) ?? []).filter((id) => id !== p.id && open.has(id));
   recent.set(p.group.id, [p.id, ...list]);
+  for (const g of [...recent.keys()]) if (!d.groups.some((x) => x.id === g)) recent.delete(g);
 }
 
 /** The focused split's open tabs, most recent first (tabs never visited keep their bar order). */
