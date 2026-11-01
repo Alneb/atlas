@@ -30,3 +30,10 @@ export function startWith(box: HTMLTextAreaElement | HTMLInputElement | undefine
   box.focus();
   box.setSelectionRange(starts.length, starts.length);
 }
+
+/** The box after a capture of `sent` was saved: empty, or what was typed on while it was being saved (sent again it
+ *  would be a second capture of the same words). Text edited in place, not only added to, stays as it is. */
+export function afterSaved(text: string, sent: string): string {
+  const now = text.trimStart();
+  return now.startsWith(sent) ? now.slice(sent.length).trimStart() : text;
+}

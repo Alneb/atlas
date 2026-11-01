@@ -218,8 +218,11 @@ pub fn spawn_watcher(root: &Path, cfg: Config, bus: EventBus) -> Result<WatcherG
                         }
                         feed.changed(); // files may have arrived in it before its watch did
                     } else if !path.exists() {
-                        // A removed dir loses its inotify watch; forget it so a re-created one is re-added.
-                        watched.retain(|w| !w.starts_with(&path));
+                        // A removed dir loses its inotify watch; forget it so a re-created one is re-added. Only a
+                        // watched dir has any: a removed file skips the walk over every watch (a big folder deleted)
+                        if watched.contains(&path) {
+                            watched.retain(|w| !w.starts_with(&path));
+                        }
                         gone.insert(rel.clone());
                     }
                     changed.insert(rel);

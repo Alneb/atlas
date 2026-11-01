@@ -11,7 +11,7 @@
   import { complete } from "../lib/textarea-complete";
   import { captureHint } from "../lib/capture-hints.svelte";
   import { attachFiles, filesOf, type Attached } from "../lib/attach";
-  import { PROMPT } from "../lib/capture-guides";
+  import { PROMPT, afterSaved } from "../lib/capture-guides";
   import type { CaptureResult } from "../lib/gen/CaptureResult";
   import Icon from "./Icon.svelte";
   import CaptureGuides from "./CaptureGuides.svelte";
@@ -77,7 +77,7 @@
     sending = true;
     try {
       const r = await api.capture(value, other);
-      text = "";
+      text = afterSaved(text, value);
       attached = [];
       onsaved(r, value);
     } catch (e) { failed = errText(e); box?.focus(); }

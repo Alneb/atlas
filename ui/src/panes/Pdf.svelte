@@ -169,7 +169,10 @@
   // Settings → PDF → "export on save": the note follows the marks, a moment after the last one
   let exportTimer = 0;
   function saved() {
-    if (pdfCfg()?.export_on_save) { clearTimeout(exportTimer); exportTimer = window.setTimeout(() => void toNotes(), 2000); }
+    if (!pdfCfg()?.export_on_save) return;
+    clearTimeout(exportTimer);
+    // non-zero while an export is due; closing, the pane exports once its last marks are saved
+    exportTimer = disposed ? -1 : window.setTimeout(() => { exportTimer = 0; void toNotes(); }, 2000);
   }
 
   async function toNotes() {
@@ -327,8 +330,9 @@
     return () => {
       disposed = true;
       marks?.stop(); offPan(); offActive.dispose(); pdfPages.delete(panel.id); ro.disconnect(); clearTimeout(posTimer); clearTimeout(exportTimer);
+      // closed within the export's wait: the note still follows the last marks, once they are saved
       const reader = r;
-      void (tools?.destroy() ?? Promise.resolve()).finally(() => reader?.destroy());
+      void (tools?.destroy() ?? Promise.resolve()).finally(() => { reader?.destroy(); if (exportTimer !== 0) { exportTimer = 0; void toNotes(); } });
       releaseCanvases(container);
     };
   });

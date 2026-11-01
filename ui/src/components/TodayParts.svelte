@@ -28,7 +28,7 @@
   import Icon from "../components/Icon.svelte";
   import { isIconName } from "../lib/icons";
   import CaptureGuides from "../components/CaptureGuides.svelte";
-  import { PROMPT, landedAt } from "../lib/capture-guides";
+  import { PROMPT, afterSaved, landedAt } from "../lib/capture-guides";
   import { noteHeadings } from "../lib/note-anchor";
   import { frontmatterSpan } from "../lib/property-model";
 
@@ -59,6 +59,9 @@
   const shownDay = $derived(fixedDay ?? actDay ?? today?.date ?? "");
   // no day yet (Today still loading) counts as today: no "Invalid date" title, no day buttons on nothing
   const onToday = $derived(!shownDay || (!!today && shownDay === today.date));
+  // the commits tab is today's only: on another day (or none to show) the card shows what was made
+  const hasCommits = $derived(onToday && !fixedDay && (mine.length + claude.length > 0));
+  const tab = $derived(actTab === "commits" && !hasCommits ? "created" : actTab);
   async function loadActivity() {
     const d = shownDay;
     if (!d || !show("activity")) return; // each Home block is its own instance: only the activity one asks
@@ -204,7 +207,7 @@
     sending = true;
     try {
       const res = await api.capture(value);
-      text = "";
+      text = afterSaved(text, value);
       const n = ++confirmSeq;
       confirm = { msg: `Saved to ${landedAt(res)}`, n };
       setTimeout(() => { if (confirm?.n === n) confirm = null; }, 2600);
@@ -417,13 +420,13 @@
             </span>
           </div>
           <div class="act-tabs atlas-seg" role="tablist" aria-label="Activity">
-            <button role="tab" class:on={actTab === "created"} aria-selected={actTab === "created"} onclick={() => (actTab = "created")}>Created <span class="count">{created.length}</span></button>
-            <button role="tab" class:on={actTab === "changed"} aria-selected={actTab === "changed"} onclick={() => (actTab = "changed")}>Changed <span class="count">{dayAct?.changed.length ?? 0}</span></button>
-            {#if onToday && !fixedDay && (mine.length || claude.length)}
-              <button role="tab" class:on={actTab === "commits"} aria-selected={actTab === "commits"} onclick={() => (actTab = "commits")}>Commits <span class="count">{mine.length + claude.length}</span></button>
+            <button role="tab" class:on={tab === "created"} aria-selected={tab === "created"} onclick={() => (actTab = "created")}>Created <span class="count">{created.length}</span></button>
+            <button role="tab" class:on={tab === "changed"} aria-selected={tab === "changed"} onclick={() => (actTab = "changed")}>Changed <span class="count">{dayAct?.changed.length ?? 0}</span></button>
+            {#if hasCommits}
+              <button role="tab" class:on={tab === "commits"} aria-selected={tab === "commits"} onclick={() => (actTab = "commits")}>Commits <span class="count">{mine.length + claude.length}</span></button>
             {/if}
           </div>
-          {#if actTab === "created"}
+          {#if tab === "created"}
             {#if created.length}
               <ul class="activity changed">
                 {#each createdAll ? created : created.slice(0, 8) as f (f.path)}
@@ -434,7 +437,7 @@
             {:else}
               <p class="empty">{onToday ? "Nothing made yet today." : "Nothing was made that day."}</p>
             {/if}
-          {:else if actTab === "changed"}
+          {:else if tab === "changed"}
             {#if groups.length}
               <ul class="activity changed">
                 {#each changedAll ? groups : groups.slice(0, 8) as g (g.key)}

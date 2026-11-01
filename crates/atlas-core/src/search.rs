@@ -104,8 +104,7 @@ fn lines_over(q: &str, o: Opts, files: impl Iterator<Item = (std::path::PathBuf,
     let mut out = Vec::new();
     for (abs, rel) in files {
         let _ = searcher.search_path(&m, &abs, UTF8(|n, line| {
-            let text: String = line.trim_end().chars().take(400).collect();
-            if !looks_encoded(&text) {
+            if let Some(text) = shown_line(line) {
                 out.push(LineHit { path: rel.clone(), line: n as u32, text });
             }
             Ok(out.len() < MAX_RESULTS)
@@ -166,7 +165,8 @@ pub fn matcher(q: &str, o: Opts) -> Result<regex::Regex> {
 
 /// Replace every match in the workspace's text files (the files `rg` finds with these options,
 /// optionally narrowed to `only`). Regex mode expands `$1` / `${name}`; literal mode inserts
-/// `with` as written. Each file is rewritten atomically.
+/// `with` as written. Each file is rewritten atomically. Only what the search shows is replaced: a match on a line of
+/// encoded data (a drawing's compressed scene, an inline picture) is left, or the picture would be broken.
 pub fn replace(ws: &Workspace, q: &str, o: Opts, with: &str, only: Option<&[String]>) -> Result<ReplaceResult> {
     if q.is_empty() {
         return Err(Error::BadRequest("empty search".into()));
@@ -176,6 +176,7 @@ pub fn replace(ws: &Workspace, q: &str, o: Opts, with: &str, only: Option<&[Stri
     let m = grep_matcher(q, o)?;
     let mut searcher = searcher();
     let found: Vec<String> = text_files(ws.root(), &cfg, o, ".")
+        .filter(|(_, rel)| only.is_none_or(|o| o.iter().any(|p| p == rel)))
         .filter(|(abs, _)| {
             let mut hit = false;
             let _ = searcher.search_path(&m, abs, UTF8(|_, _| { hit = true; Ok(false) }));
@@ -185,20 +186,45 @@ pub fn replace(ws: &Workspace, q: &str, o: Opts, with: &str, only: Option<&[Stri
         .collect();
     let mut res = ReplaceResult::default();
     for path in found.iter().map(String::as_str) {
-        if only.is_some_and(|o| !o.iter().any(|p| p == path)) {
-            continue;
-        }
         let Ok(doc) = files::read_text(ws, path) else { continue }; // binary or vanished
-        let n = re.find_iter(&doc.text).count();
+        let (text, n) = replace_shown(&re, &doc.text, with, o.regex);
         if n == 0 {
             continue;
         }
-        let text = if o.regex { re.replace_all(&doc.text, with) } else { re.replace_all(&doc.text, regex::NoExpand(with)) };
         files::write_text(ws, &FileWrite { path: path.to_string(), text: text.into_owned(), base_mtime: Some(doc.mtime), only_new: false, apply_here: false })?;
         res.replacements += n as u32;
         res.files.push(path.to_string());
     }
     Ok(res)
+}
+
+/// `re`'s matches in `text` replaced (`$1` expanded when `expand`), except on lines the search does not show →
+/// (text, replacements).
+fn replace_shown(re: &regex::Regex, text: &str, with: &str, expand: bool) -> (String, usize) {
+    let mut n = 0;
+    let mut line = (0, 0, true); // the last line looked at: (start, end, shown) — one look per line, however many hits
+    let out = re.replace_all(text, |c: &regex::Captures| {
+        let m = c.get(0).expect("the whole match");
+        if !(line.0..line.1).contains(&m.start()) {
+            let start = text[..m.start()].rfind('\n').map_or(0, |i| i + 1);
+            let end = text[m.start()..].find('\n').map_or(text.len(), |i| m.start() + i);
+            line = (start, end.max(start + 1), shown_line(&text[start..end]).is_some());
+        }
+        if !line.2 {
+            return m.as_str().to_string();
+        }
+        n += 1;
+        let mut s = String::new();
+        if expand { c.expand(with, &mut s) } else { s.push_str(with) }
+        s
+    });
+    (out.into_owned(), n)
+}
+
+/// A matching line as the search lists it (trimmed, at most 400 characters); None for one it never lists.
+fn shown_line(line: &str) -> Option<String> {
+    let text: String = line.trim_end().chars().take(400).collect();
+    (!looks_encoded(&text)).then_some(text)
 }
 
 /// A line that is encoded data, not words: an embedded picture's base64 (a drawing's `dataURL`, a note's inline
@@ -289,6 +315,19 @@ mod tests {
         replace(&ws, "U=4", Opts::default(), "$1", None).unwrap();
         assert_eq!(read("notes/c.md"), "$1, U=8\n", "literal mode inserts the text as written");
         assert!(replace(&ws, "(", Opts { regex: true, ..Default::default() }, "x", None).is_err());
+    }
+
+    #[test]
+    fn replace_leaves_encoded_lines_as_they_are() {
+        let d = tempfile::tempdir().unwrap();
+        let blob = "iVBORw0KGgoAbcAbc".repeat(10);
+        let note = format!("abc here\n![x](data:image/png;base64,{blob})\nand abc\n");
+        std::fs::write(d.path().join("a.md"), &note).unwrap();
+        let ws = Workspace::open(d.path()).unwrap();
+        let r = replace(&ws, "abc", Opts::default(), "xyz", None).unwrap();
+        assert_eq!(r.replacements, 2, "only the two lines the search shows");
+        assert_eq!(std::fs::read_to_string(d.path().join("a.md")).unwrap(), note.replace("abc here", "xyz here").replace("and abc", "and xyz"));
+        assert_eq!(replace_shown(&regex::Regex::new("(a)").unwrap(), "a\na", "<$1>", true), ("<a>\n<a>".to_string(), 2));
     }
 
     #[test]
