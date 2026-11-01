@@ -192,7 +192,8 @@ fn with_props(text: &str, set: &[(&str, Value)]) -> String {
         match head.iter().position(key_line) {
             Some(i) => {
                 let more = head[i + 1..].iter().take_while(|l| l.starts_with([' ', '\t']) || l.starts_with("- ") || l.trim_end() == "-").count();
-                head.splice(i..=i + more, [line]);
+                head.drain(i + 1..=i + more);
+                head[i] = line;
             }
             None => head.push(line),
         }

@@ -97,6 +97,9 @@ export function write(c: Condition, type: FieldType): string {
 const REF = String.raw`((?:file|formula|note)\.[A-Za-z_]\w*|note\["(?:[^"\\]|\\.)*"\]|[A-Za-z_]\w*)`;
 const TOKEN = /\s*("(?:[^"\\]|\\.)*"|'[^']*'|-?\d+(?:\.\d+)?|true|false)\s*(,|$)/y;
 
+/** A double-quoted literal's text; one with an escape JSON does not know (`"a\x"`) is taken as written. */
+const unquote = (t: string): string => { try { return JSON.parse(t) as string; } catch { return t.slice(1, -1); } };
+
 /** `"a", 'b', 3` → their texts; null when anything else is in the list. */
 function literals(src: string): string[] | null {
   const out: string[] = [];
@@ -106,14 +109,14 @@ function literals(src: string): string[] | null {
     const m = TOKEN.exec(src);
     if (!m) return null;
     const t = m[1];
-    out.push(t.startsWith('"') ? JSON.parse(t) : t.startsWith("'") ? t.slice(1, -1) : t);
+    out.push(t.startsWith('"') ? unquote(t) : t.startsWith("'") ? t.slice(1, -1) : t);
     if (!m[2]) break;
   }
   return TOKEN.lastIndex >= src.length ? out : null;
 }
 
 /** `note["a key"]` → `a key`; other names as written. */
-const propOf = (r: string) => (r.startsWith('note["') ? JSON.parse(r.slice(5, -1)) as string : r);
+const propOf = (r: string) => (r.startsWith('note["') ? unquote(r.slice(5, -1)) : r);
 
 const RULES: [RegExp, (m: RegExpExecArray) => Condition | null][] = [
   [new RegExp(String.raw`^(!?)\s*file\.(hasTag|inFolder|hasLink)\((.*)\)$`), (m) => {

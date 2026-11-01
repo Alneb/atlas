@@ -36,9 +36,16 @@ struct Alike<'a> {
     props: Vec<&'a crate::note_props::Props>,
 }
 
+/// `dir` as the expression's string literal (JSON's quoting, which the Bases grammar reads), inside the YAML's single
+/// quotes (a `'` doubled): `Ana's "notes"` stays one folder name.
+fn folder_literal(dir: &str) -> String {
+    serde_json::to_string(dir).unwrap_or_default().replace('\'', "''")
+}
+
 /// Does an existing `.base` already filter on this folder?
 fn covered(bases: &[String], dir: &str) -> bool {
-    bases.iter().any(|b| b.contains(&format!("\"{dir}\"")) || b.contains(&format!("'{dir}'")))
+    let quoted = folder_literal(dir);
+    bases.iter().any(|b| b.contains(&quoted) || b.contains(&format!("\"{dir}\"")) || b.contains(&format!("'{dir}'")))
 }
 
 /// The `.base` drafted for `dir`: a table, and a board when one key splits the notes into a few
@@ -51,8 +58,9 @@ fn base_draft(dir: &str, keys: &[String], props: &[&crate::note_props::Props], f
     let name = dir.rsplit('/').next().unwrap_or(dir);
     let order = std::iter::once("file.name".to_string()).chain(keys.iter().cloned()).collect::<Vec<_>>().join(", ");
     let mut text = format!(
-        "# Made by Atlas from the notes in {dir}/ (they share {}). Edit freely.\nfilters: 'file.inFolder(\"{dir}\")'\nviews:\n  - type: table\n    name: All\n    order: [{order}]\n",
-        keys.join(", ")
+        "# Made by Atlas from the notes in {dir}/ (they share {}). Edit freely.\nfilters: 'file.inFolder({})'\nviews:\n  - type: table\n    name: All\n    order: [{order}]\n",
+        keys.join(", "),
+        folder_literal(dir)
     );
     if let Some(g) = group {
         text.push_str(&format!("  - type: board\n    name: By {g}\n    groupBy:\n      property: {g}\n    order: [{order}]\n"));
@@ -350,6 +358,12 @@ mod tests {
         assert_eq!(r.views[0].rows.len(), 5);
         assert_eq!(keep(&ws, "base:work/items").unwrap(), ["work/items.base"]);
         assert!(suggestions(&ws).unwrap().is_empty(), "covered by the new base now");
+        // a folder name with quotes stays one valid YAML string and one literal
+        let odd = "Ana's \"notes\"";
+        let t = base_draft(odd, &["status".into(), "prio".into()], &[], None).files.remove(0).text;
+        let y: serde_yaml::Value = serde_yaml::from_str(&t).unwrap();
+        assert_eq!(y["filters"].as_str(), Some(r#"file.inFolder("Ana's \"notes\"")"#), "{t}");
+        assert!(covered(&[t], odd));
         std::fs::remove_file(d.path().join("work/items.base")).unwrap();
         dismiss(&ws, "base:work/items").unwrap();
         assert!(suggestions(&ws).unwrap().is_empty(), "dismissed stays dismissed");

@@ -14,6 +14,7 @@ const CLIP_SLACK = 8;
 
 /** Elements that show scrollbars around the shell (they should never scroll; panes scroll inside). */
 function overflowCheck(): void {
+  if (document.hidden) return; // it forces a layout: none for a window nobody sees
   const shell = document.querySelector(".shell");
   if (!shell) return;
   const bad: string[] = [];

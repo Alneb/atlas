@@ -36,6 +36,32 @@ fn unshown(path: &std::path::Path) -> bool {
     fm.lines().any(|l| l.trim_end() == "shown: false")
 }
 
+/// [`unshown`]'s answers by the note's (time, size): a mail folder of thousands is listed again after every change in
+/// it, and its notes do not change. A note changed in the last two seconds is not remembered (a second same-size save
+/// within one tick of the file system's clock would keep its stamp); past [`UNSHOWN_MAX`] entries all are forgotten.
+static UNSHOWN: std::sync::LazyLock<std::sync::Mutex<std::collections::HashMap<std::path::PathBuf, (std::time::SystemTime, u64, bool)>>> =
+    std::sync::LazyLock::new(Default::default);
+const UNSHOWN_MAX: usize = 100_000;
+
+fn unshown_cached(path: &std::path::Path, meta: &std::fs::Metadata) -> bool {
+    let lock = || UNSHOWN.lock().unwrap_or_else(|e| e.into_inner());
+    let Ok(at) = meta.modified() else { return unshown(path) };
+    if let Some(&(t, len, v)) = lock().get(path) {
+        if t == at && len == meta.len() {
+            return v;
+        }
+    }
+    let v = unshown(path);
+    if std::time::SystemTime::now().duration_since(at).is_ok_and(|age| age >= std::time::Duration::from_secs(2)) {
+        let mut cache = lock();
+        if cache.len() >= UNSHOWN_MAX {
+            cache.clear();
+        }
+        cache.insert(path.to_path_buf(), (at, meta.len(), v));
+    }
+    v
+}
+
 /// One directory level, dirs first then by name. Ignored and hidden entries per `[files]` config; `all_hidden`: the
 /// dotfiles too (the explorers' "Show hidden files", which then hide them by the same rule in the UI).
 pub fn tree(ws: &Workspace, rel: &str, all_hidden: bool) -> Result<Vec<TreeEntry>> {
@@ -65,7 +91,7 @@ pub fn tree(ws: &Workspace, rel: &str, all_hidden: bool) -> Result<Vec<TreeEntry
         let note = (kind == EntryKind::Dir)
             .then(|| format!("{path}/{}", crate::companion::file_name(&name)))
             .filter(|n| ws.resolve(n).is_ok_and(|p| p.is_file()));
-        let unshown = kind == EntryKind::File && name.ends_with(".md") && unshown(&entry.path());
+        let unshown = kind == EntryKind::File && name.ends_with(".md") && unshown_cached(&entry.path(), &meta);
         out.push(TreeEntry { name, path, kind, ignored, size, modified, note, unshown });
     }
     out.sort_by_cached_key(|e| (e.kind != EntryKind::Dir, e.name.to_lowercase()));
@@ -318,6 +344,23 @@ mod tests {
         let unshown: Vec<_> = inner.iter().filter(|e| e.unshown).map(|e| e.name.as_str()).collect();
         assert_eq!(unshown, ["data.md"]);
         assert!(tree(&w, "", false).unwrap().iter().all(|e| e.note.is_none()), "notes/ has no notes/notes.md");
+    }
+
+    #[test]
+    fn an_unshown_answer_is_remembered_until_the_note_changes() {
+        let (_d, w) = ws();
+        let f = w.root().join("m.md");
+        let old = std::time::SystemTime::now() - std::time::Duration::from_secs(60);
+        let put = |text: &str, at: std::time::SystemTime| {
+            std::fs::write(&f, text).unwrap();
+            std::fs::File::options().write(true).open(&f).unwrap().set_modified(at).unwrap();
+        };
+        let unshown = || tree(&w, "", false).unwrap().iter().any(|e| e.name == "m.md" && e.unshown);
+        put("---\nshown: false\n---\n", old);
+        assert!(unshown());
+        assert!(unshown(), "the second listing from the cache");
+        put("---\nshown: true\n---\n", old + std::time::Duration::from_secs(1));
+        assert!(!unshown(), "a new time: read again");
     }
 
     #[test]
