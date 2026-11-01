@@ -10,6 +10,7 @@ import { api } from "./api";
 import type { EvalRequest, WorkerOut } from "./expr-worker";
 import { queryRows } from "./base-rows";
 import { scopeAt, type Scope } from "./section-props";
+import { keepCapped } from "./capped";
 
 export type ExprResult = { ok: true; value: unknown } | { ok: false; error: string };
 
@@ -109,8 +110,7 @@ export function renderExpr(el: HTMLElement, expr: string, path: string, text: st
   show(el, expr, last.get(key));
   if (last.has(key) && !isVolatile(expr)) return;
   void evaluate(expr, path, scope).then((r) => {
-    last.set(key, r);
-    if (last.size > 500) last.delete(last.keys().next().value!);
+    keepCapped(last, key, r, 500);
     if (el.dataset.key === key) show(el, expr, r);
   });
 }

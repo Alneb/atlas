@@ -12,6 +12,7 @@ import { onVaultChange, resolveLink, resolveOrBeside } from "./vault";
 import { onSettings } from "./settings.svelte";
 import { wikilinkAt } from "./wikilink-syntax";
 import { tagAt, tagMayFollow } from "./tag-syntax";
+import { keepCapped } from "./capped";
 
 export { resolveRel };
 
@@ -382,8 +383,7 @@ function memo(limit: number, make: (source: string, dir?: string) => string): (s
     const hit = cache.get(key);
     if (hit !== undefined) return hit;
     const html = make(source, dir);
-    if (cache.size >= limit) cache.delete(cache.keys().next().value!);
-    cache.set(key, html);
+    keepCapped(cache, key, html, limit);
     return html;
   };
 }

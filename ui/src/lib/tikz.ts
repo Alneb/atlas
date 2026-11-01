@@ -3,6 +3,7 @@
 // hash of its source, in memory and in IndexedDB: a note opened again draws at once. Pure parts (parsing, the TeX
 // error, the SVG's ids) are exported for the tests; `renderTikz` is the one entry point.
 import DOMPurify from "dompurify";
+import { keepCapped } from "./capped";
 
 /** What a ```tikz fence holds: `\usetikzlibrary` / `\usepackage` lines, then the picture. */
 export interface TikzSource {
@@ -137,7 +138,8 @@ async function compile(src: TikzSource, key: string): Promise<TikzResult> {
 
 // ---- the cache: by the hash of the source --------------------------------------------------------------------------
 
-const memory = new Map<string, string>();
+const memory = new Map<string, string>(); // the pictures drawn this run (a diagram being edited leaves one per version)
+const MEMORY_KEPT = 200;
 const DB = "atlas-tikz";
 
 async function hashOf(text: string): Promise<string> {
@@ -165,13 +167,13 @@ function store<T>(mode: IDBTransactionMode, op: (s: IDBObjectStore) => IDBReques
 export async function renderTikz(source: string): Promise<TikzResult> {
   const key = await hashOf(`${ENGINE}\n${source}`);
   const known = memory.get(key) ?? (await store<string>("readonly", (s) => s.get(key) as IDBRequest<string>));
-  if (known) { memory.set(key, known); return { ok: true, svg: known }; }
+  if (known) { keepCapped(memory, key, known, MEMORY_KEPT); return { ok: true, svg: known }; }
   const src = parseTikz(source);
   if (!/\\begin\s*\{tikzpicture\}/.test(src.body)) return { ok: false, error: "A tikz block holds a \\begin{tikzpicture} … \\end{tikzpicture}." };
   const run = queue.then((): Promise<TikzResult> | TikzResult => { const done = memory.get(key); return done ? { ok: true, svg: done } : compile(src, key); }); // a twin drawn meanwhile
   queue = run.catch(() => {});
   const r = await run;
-  if (r.ok) { memory.set(key, r.svg); void store("readwrite", (s) => s.put(r.svg, key)); }
+  if (r.ok) { keepCapped(memory, key, r.svg, MEMORY_KEPT); void store("readwrite", (s) => s.put(r.svg, key)); }
   return r;
 }
 

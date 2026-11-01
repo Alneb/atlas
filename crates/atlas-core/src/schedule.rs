@@ -55,8 +55,10 @@ pub fn span(s: &str) -> Option<Duration> {
 
 impl Schedule {
     /// Due now? `Every` runs at once the first time, then each period; `Daily` runs once per day
-    /// at or after its time (a missed slot runs when Atlas next starts that day).
+    /// at or after its time (a missed slot runs when Atlas next starts that day). A last run after now (recorded
+    /// while the clock was ahead) counts as none: else the job waits until the clock catches up with it.
     pub fn due(&self, last: Option<DateTime<Local>>, now: DateTime<Local>) -> bool {
+        let last = last.filter(|l| *l <= now);
         match *self {
             Schedule::Every(d) => last.is_none_or(|l| (now - l).to_std().is_ok_and(|e| e >= d)),
             Schedule::Daily(t) => {
@@ -244,6 +246,8 @@ mod tests {
         assert!(every.due(None, at(9, 0)));
         assert!(!every.due(Some(at(8, 0)), at(9, 0)));
         assert!(every.due(Some(at(7, 0)), at(9, 0)));
+        let ahead = at(9, 0) + chrono::Duration::days(400);
+        assert!(every.due(Some(ahead), at(9, 0)) && daily.due(Some(ahead), at(9, 0)), "a run recorded in the future");
     }
 
     #[test]

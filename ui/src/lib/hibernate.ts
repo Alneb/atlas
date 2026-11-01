@@ -50,7 +50,8 @@ export function register(s: Sleeper): SleeperHandle {
     seen: () => { e.seen = Date.now(); },
     woke: () => { e.asleep = false; e.seen = Date.now(); },
     dispose: () => {
-      entries.delete(s.id);
+      // a restored layout reuses panel ids: an old panel disposed late must not drop its successor
+      if (entries.get(s.id) === e) entries.delete(s.id);
       if (!entries.size) { clearInterval(timer); timer = undefined; }
     },
   };

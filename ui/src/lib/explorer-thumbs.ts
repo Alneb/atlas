@@ -3,10 +3,14 @@
 // file's date, so a changed file is drawn again. docs/refactor/REFACTOR-explorer.md, "Thumbnails".
 import type { Entry, Excerpt, FileSource } from "./file-sources.svelte";
 import { thumbUrl } from "./raw";
+import { keepCapped } from "./capped";
 
 export const THUMB_W = 240;
 type Drawn = string | Excerpt | null; // a picture's URL, or a text file's first lines
 const kept = new Map<string, Promise<Drawn>>();
+// a long day over big folders (and every changed file under a new key): the oldest go, their blob URLs freed — a tile
+// already showing one keeps its decoded picture, one drawn again asks again
+const MAX_KEPT = 1500;
 const waiting: (() => void)[] = [];
 let running = 0;
 
@@ -30,7 +34,7 @@ function picture(src: FileSource, place: string, path: string, e: Entry, wanted:
       return t === null ? null : typeof t === "string" ? thumbUrl(t, THUMB_W) : t instanceof Blob ? URL.createObjectURL(t) : t;
     });
     p.catch(() => kept.delete(key));
-    kept.set(key, p);
+    keepCapped(kept, key, p, MAX_KEPT, (gone) => void gone.then((d) => { if (typeof d === "string" && d.startsWith("blob:")) URL.revokeObjectURL(d); }, () => {}));
   }
   return p.catch(() => null);
 }

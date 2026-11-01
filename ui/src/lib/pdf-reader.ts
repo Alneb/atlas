@@ -7,6 +7,7 @@ import type { Box, DocInfo, EngineName, Match, OutlineItem, PageLayers, PdfEngin
 import { boxShown, charAt, findWords, lineBoxes, piecesOf, runsOf, textOf, toPage, unturn, type Chars, type Run } from "./pdf-geom";
 import { dpr } from "./pdf-pages";
 import type { TextPiece } from "./atlas-mark";
+import { keepCapped } from "./capped";
 
 export type Zoom = "page-width" | "page-fit" | number;
 export type { OutlineItem };
@@ -321,8 +322,7 @@ export async function openReader(container: HTMLElement, path: string, eng: PdfE
         return { layers, shown, runs: runsOf(shown) };
       });
       t.catch(() => texts.delete(n));
-      texts.set(n, t);
-      if (texts.size > LAYERS_KEPT) texts.delete(texts.keys().next().value!);
+      keepCapped(texts, n, t, LAYERS_KEPT);
     }
     return t;
   }

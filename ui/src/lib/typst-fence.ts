@@ -5,6 +5,7 @@
 import DOMPurify from "dompurify";
 import { registerFence } from "./fences";
 import { api } from "./api";
+import { keepCapped } from "./capped";
 
 const drawn = new Map<string, Promise<{ svg: string[] } | { error: string }>>();
 const MAX = 200;
@@ -19,8 +20,7 @@ function draw(path: string, source: string) {
     );
     // errors are not kept: the picture a fence names may come later
     void p.then((r) => { if ("error" in r) drawn.delete(key); });
-    drawn.set(key, p);
-    if (drawn.size > MAX) drawn.delete(drawn.keys().next().value!);
+    keepCapped(drawn, key, p, MAX);
   }
   return p;
 }

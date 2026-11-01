@@ -27,6 +27,7 @@ import { lineOf, scopeAt, type Props } from "./section-props";
 import TodayParts, { type TodayPart } from "../components/TodayParts.svelte";
 import { IMAGE_RE } from "./paths";
 import { reloadOnChange } from "./reload-on-change";
+import { keepCapped } from "./capped";
 
 /** Where a block is drawn: inside a note, on a page, alone in a tab, or in the sidebar. */
 export type BlockHost = "note" | "page" | "tab" | "side";
@@ -216,8 +217,10 @@ function parseOptions(src: string): Record<string, unknown> {
   catch { return {}; }
 }
 
-// the last rows of each row view (document + YAML): a remount (scrolling, re-render) draws at once
+// the last rows of each row view (document + YAML): a remount (scrolling, re-render) draws at once; capped, as each
+// edit of a block's YAML is a key of its own
 const lastRows = new Map<string, { type: string; rows: ViewRow[] }>();
+const ROWS_KEPT = 100;
 
 /** A row view (list, table, calendar…): rows from the core, cached first, refreshed on file events. */
 function mountRows(body: HTMLElement, doc: string, src: string): () => void {
@@ -236,7 +239,7 @@ function mountRows(body: HTMLElement, doc: string, src: string): () => void {
     try {
       const r = await api.view(doc, src);
       const next = { type: r.kind, rows: r.rows };
-      lastRows.set(key, next);
+      keepCapped(lastRows, key, next, ROWS_KEPT);
       if (JSON.stringify(next) !== shown) draw(next); // unchanged: keep the DOM
     } catch (e) { message(body, "view-error", errText(e)); }
   };
