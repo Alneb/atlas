@@ -132,10 +132,13 @@ function openCell(view: EditorView, table: HTMLElement, cell: HTMLElement, r: nu
   cell.focus();
   placeCaret(cell, caret);
   let done = false;
+  // this edit's listeners, gone when it ends: the cell stays, and is opened again
+  const listening = new AbortController(), signal = listening.signal;
   /** Leaves the cell: its text written (with `change` to the rest of the table), or the drawing put back. */
   const finish = (to?: Target, keep = true, change?: (x: Table) => void) => {
     if (done) return;
     done = true;
+    listening.abort();
     cell.contentEditable = "false";
     cell.classList.remove("editing");
     const text = clean(cell.textContent ?? "");
@@ -187,9 +190,9 @@ function openCell(view: EditorView, table: HTMLElement, cell: HTMLElement, r: nu
       view.focus();
     }
   };
-  cell.addEventListener("keydown", key);
-  for (const k of ["keypress", "keyup", "input", "beforeinput", "paste", "copy", "cut"]) cell.addEventListener(k, (ev) => ev.stopPropagation());
-  cell.addEventListener("blur", () => finish(), { once: true });
+  cell.addEventListener("keydown", key, { signal });
+  for (const k of ["keypress", "keyup", "input", "beforeinput", "paste", "copy", "cut"]) cell.addEventListener(k, (ev) => ev.stopPropagation(), { signal });
+  cell.addEventListener("blur", () => finish(), { once: true, signal });
 }
 
 /** The right-click menu of the cell at row `r`, column `c`. */

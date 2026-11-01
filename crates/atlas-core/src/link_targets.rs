@@ -40,7 +40,7 @@ fn kind_of(rel: &str, props: Option<&crate::note_props::Props>) -> TargetKind {
     let ext = rel.rsplit_once('.').map(|(_, e)| e.to_ascii_lowercase()).unwrap_or_default();
     match ext.as_str() {
         // shape, not folder: a kept mail is a note with a message id
-        "md" if props.is_some_and(|p| p.contains_key("message-id")) => TargetKind::Mail,
+        "md" if props.is_some_and(|p| crate::note_props::is_mail(p.get("type").and_then(serde_yaml::Value::as_str), |k| p.contains_key(k))) => TargetKind::Mail,
         "md" | "markdown" => TargetKind::Note,
         "page" => TargetKind::Page,
         "pdf" => TargetKind::Pdf,
@@ -276,6 +276,7 @@ mod tests {
             ("kondo/readme.md", "x"),
             ("refs/kondo1964.pdf", "%PDF"),
             ("mail/re-kondo.md", "---\nmessage-id: <a@b>\n---\nhi"),
+            ("mail/fake/Inbox/2026-10-13 Kondo thread.md", "---\ntype: email-thread\nmessage_id: \"<t@b>\"\n---\n"),
             ("pics/kondo plot.png", "png"),
             ("tex/kondo.aux", "x"),
         ]);
@@ -287,6 +288,7 @@ mod tests {
         assert!(pos("readme") > pos("impurity"), "a folder match last: {got:?}");
         assert_eq!(got[pos("impurity")].2.as_deref(), Some("Kondo problem"));
         assert_eq!(got[pos("re-kondo")].1, TargetKind::Mail);
+        assert_eq!(got[pos("2026-10-13 Kondo thread")].1, TargetKind::Mail, "the email plugin's thread note too");
         assert_eq!(got[pos("kondo plot.png")].1, TargetKind::Image);
         assert!(!got.iter().any(|g| g.0.ends_with(".aux")), "build output only when an extension is typed: {got:?}");
         assert_eq!(targets(d.path(), &Config::default(), "kondo.aux", None)[0].link, "kondo.aux");

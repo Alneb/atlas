@@ -388,10 +388,10 @@ fn made_on(abs: &Path) -> Option<(chrono::NaiveDate, Option<u64>)> {
     })
 }
 
-/// A mail note (its `type` an `email…` one — a message, a thread — or a `message_id:` property) or a file in a mail
+/// A mail note ([`crate::note_props::is_mail`]) or a file in a mail
 /// note's attachments folder (`<note> files/`).
 fn is_mail(abs: &Path) -> bool {
-    let mail_note = |note: &Path| front_of(note).is_some_and(|f| property(&f, "type").is_some_and(|t| t.starts_with("email")) || property(&f, "message_id").is_some());
+    let mail_note = |note: &Path| front_of(note).is_some_and(|f| crate::note_props::is_mail(property(&f, "type"), |k| property(&f, k).is_some()));
     if mail_note(abs) {
         return true;
     }

@@ -40,6 +40,13 @@ impl From<Mapping> for Props {
     }
 }
 
+/// Whether a note's properties say it is kept mail: an `email…` type (the email plugin's messages and threads) or a
+/// message id (`message_id`, or `message-id` as older kept mail wrote it). `kind`: its `type`; `has`: whether it has
+/// a property. The one rule for the `[[` list and the Today page.
+pub(crate) fn is_mail(kind: Option<&str>, has: impl Fn(&str) -> bool) -> bool {
+    kind.is_some_and(|t| t.starts_with("email")) || has("message_id") || has("message-id")
+}
+
 /// Spare capacity left by the parser in nested lists and maps.
 fn shrink(v: &mut Value) {
     match v {
@@ -68,5 +75,12 @@ mod tests {
         assert_eq!(p.get("title").and_then(Value::as_str), Some("T"));
         assert!(p.contains_key("tags") && !p.contains_key("2024") && !p.contains_key("missing"));
         assert!(Props::default().is_empty());
+    }
+
+    #[test]
+    fn kept_mail_by_its_type_or_either_spelling_of_its_message_id() {
+        assert!(is_mail(Some("email-thread"), |_| false));
+        assert!(is_mail(None, |k| k == "message_id") && is_mail(None, |k| k == "message-id"));
+        assert!(!is_mail(Some("lecture"), |k| k == "title"));
     }
 }

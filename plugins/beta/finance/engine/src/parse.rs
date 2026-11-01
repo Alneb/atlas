@@ -111,8 +111,10 @@ fn parse_top(path: &Arc<str>, n: usize, line: &str) -> Result<Top, String> {
     };
     let mut tags = BTreeSet::new();
     let mut id = None;
+    // one rule for what is a tag, read here and left out of the payee below (`#2!` is text)
+    let tag = |w: &str| w.strip_prefix('#').filter(|t| !t.is_empty() && t.chars().all(|c| c.is_alphanumeric() || "_/-".contains(c)));
     for w in text.split_whitespace() {
-        if let Some(t) = w.strip_prefix('#').filter(|t| !t.is_empty() && t.chars().all(|c| c.is_alphanumeric() || "_/-".contains(c))) {
+        if let Some(t) = tag(w) {
             tags.insert(t.to_string());
         } else if let Some(t) = w.strip_prefix('^').filter(|t| !t.is_empty()) {
             if id.replace(t.to_string()).is_some() {
@@ -120,7 +122,7 @@ fn parse_top(path: &Arc<str>, n: usize, line: &str) -> Result<Top, String> {
             }
         }
     }
-    let clean = |s: &str| s.split_whitespace().filter(|w| !w.starts_with('^') && !(w.starts_with('#') && w.len() > 1)).collect::<Vec<_>>().join(" ");
+    let clean = |s: &str| s.split_whitespace().filter(|w| !(w.starts_with('^') && w.len() > 1) && tag(w).is_none()).collect::<Vec<_>>().join(" ");
     Ok(Top::Txn(Txn {
         date,
         status,
@@ -244,6 +246,8 @@ mod tests {
         assert_eq!(t.postings[1].assert.as_ref().unwrap().to_string(), "3904.16 EUR");
         assert_eq!(t.postings[1].comment.as_deref(), Some("bank"));
         assert_eq!((t.span.first, t.span.last), (1, 4));
+        let (j, _) = one("2026-10-21 * Café #2! #food\n  Expenses:Food   2.40 EUR\n  Assets:Cash\n");
+        assert_eq!((j.txns[0].payee.as_str(), j.txns[0].tags.len()), ("Café #2!", 1), "a word that is no tag stays in the payee");
     }
 
     #[test]
