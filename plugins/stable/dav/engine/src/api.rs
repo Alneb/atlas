@@ -467,7 +467,8 @@ fn note_events(r: Range, user: &Zone) -> Vec<Value> {
     let e = engine();
     let mut cache = lock(&e.notes);
     let files = md_files(&root);
-    cache.retain(|k, _| files.iter().any(|(f, _)| f == k));
+    let present: std::collections::HashSet<&str> = files.iter().map(|(f, _)| f.as_str()).collect(); // a vault's notes: not a scan each
+    cache.retain(|k, _| present.contains(k.as_str()));
     let mut out = Vec::new();
     for (path, mtime) in files {
         let fresh = cache.get(&path).is_some_and(|(m, _)| *m == mtime);

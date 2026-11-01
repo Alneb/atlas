@@ -98,7 +98,8 @@ pub fn calendar(store: &Store, client: &Client, src: &Source) -> Result<bool, Da
     let listed = client.listing(&url)?;
     let have: HashMap<String, Option<String>> = store.etags(&src.id).into_iter().collect();
     let want: Vec<String> = listed.iter().filter(|(h, e)| e.is_none() || have.get(h) != Some(e)).map(|(h, _)| h.clone()).collect();
-    let gone: Vec<&String> = have.keys().filter(|h| !listed.iter().any(|(l, _)| l == *h)).collect();
+    let on_server: std::collections::HashSet<&str> = listed.iter().map(|(l, _)| l.as_str()).collect(); // a big calendar: not a scan per event
+    let gone: Vec<&String> = have.keys().filter(|h| !on_server.contains(h.as_str())).collect();
     for h in &gone {
         store.delete(&src.id, h);
     }

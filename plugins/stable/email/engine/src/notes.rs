@@ -207,13 +207,18 @@ fn with_props(text: &str, set: &[(&str, Value)]) -> String {
     format!("{}{yaml_text}{}", &text[..yaml_at.start], &text[yaml_at.end..])
 }
 
+/// How a note writes these message ids (its blocks' JSON, either spacing, or YAML): made once, looked for in many notes.
+fn needles(ids: &[String]) -> Vec<String> {
+    ids.iter().flat_map(|i| [format!("\"message_id\":\"<{i}>\""), format!("\"message_id\": \"<{i}>\""), format!("message_id: \"<{i}>\"")]).collect()
+}
+
 /// Whether a note's text holds one of these message ids (a section's marker or the note's property).
-fn holds(t: &str, ids: &[String]) -> bool {
-    ids.iter().any(|i| t.contains(&format!("\"message_id\":\"<{i}>\"")) || t.contains(&format!("\"message_id\": \"<{i}>\"")) || t.contains(&format!("message_id: \"<{i}>\"")))
+fn holds(t: &str, needles: &[String]) -> bool {
+    needles.iter().any(|n| t.contains(n.as_str()))
 }
 
 /// The note that already holds one of these message ids, in the account's mail folder.
-fn existing(dir: &Path, ids: &[String]) -> Option<PathBuf> {
+fn existing(dir: &Path, needles: &[String]) -> Option<PathBuf> {
     let mut stack = vec![dir.to_path_buf()];
     while let Some(d) = stack.pop() {
         let Ok(rd) = std::fs::read_dir(&d) else { continue };
@@ -224,7 +229,7 @@ fn existing(dir: &Path, ids: &[String]) -> Option<PathBuf> {
                     stack.push(p);
                 }
             } else if p.extension().is_some_and(|x| x == "md") {
-                if std::fs::read_to_string(&p).is_ok_and(|t| holds(&t, ids)) {
+                if std::fs::read_to_string(&p).is_ok_and(|t| holds(&t, needles)) {
                     return Some(p);
                 }
             }
@@ -258,9 +263,10 @@ pub fn write(m: &Mail, also: &[String], items: Vec<(Msg, Vec<u8>, String)>) -> R
     let account_dir = format!("{base}/{}", note_name(&first.account));
     let mut ids: Vec<String> = items.iter().map(|(x, _, _)| x.message_id.clone()).collect();
     ids.extend(also.iter().cloned());
+    let needles = needles(&ids);
     // the note this conversation was saved into last (`save` remembers it), else a look through the account's notes
-    let known = m.index.pref(&format!("note:{}", first.thread)).map(|rel| m.root.join(rel)).filter(|p| std::fs::read_to_string(p).is_ok_and(|t| holds(&t, &ids)));
-    let found = known.or_else(|| existing(&m.root.join(&account_dir), &ids));
+    let known = m.index.pref(&format!("note:{}", first.thread)).map(|rel| m.root.join(rel)).filter(|p| std::fs::read_to_string(p).is_ok_and(|t| holds(&t, &needles)));
+    let found = known.or_else(|| existing(&m.root.join(&account_dir), &needles));
     let (path, mut text) = match &found {
         Some(p) => (p.clone(), std::fs::read_to_string(p).map_err(|e| e.to_string())?),
         None => {
