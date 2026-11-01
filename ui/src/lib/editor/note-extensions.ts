@@ -1,7 +1,7 @@
 // What a note's editor adds to the shared base (create.ts): the live preview (live/live-preview.js + KaTeX) with
 // Atlas's renderers, Obsidian's folds, list continuation, the typing aids and their completions, files pasted or
 // dropped saved beside the note, and the settings-driven options (heading folds, typewriter scrolling).
-import { dirOf, shownName } from "../paths";
+import { basename, dirOf, shownName } from "../paths";
 import { noteHtml } from "./big-html";
 import { attachFiles, filesOf } from "../attach";
 import { wikilinkSource, slashSource, citeSource, citeApplies, taskSource, continueList, backspaceMarkup, taskShortForms, type TaskCompletion } from "./md-complete";
@@ -51,7 +51,11 @@ const obsidianFolds: MarkdownConfig = {
 
 export function noteExtensions(path: string, viewRef: { view: EditorView | null }, onOpenLink?: (target: string) => void): { head: Extension; body: Extension } {
   const dir = dirOf(path);
-  const isLog = () => path.startsWith(`${(settings.config?.log_dir ?? "notes/log").replace(/\/+$/, "")}/`);
+  const isLog = () => {
+    const logs = (settings.config?.log_dir ?? "notes/log").replace(/^\/+|\/+$/g, "");
+    // logs at the vault's top: a day's note by its name, as the core reads one (captures.rs `log_day`)
+    return logs ? path.startsWith(`${logs}/`) : /^\d{4}-\d{2}-\d{2}\.md$/.test(basename(path));
+  };
   watchPropertySpec(); // the inline table's kinds; once for the app
   const resolveAttachment = (src: string): string => {
     if (/^(https?:|data:|blob:)/.test(src)) return src;

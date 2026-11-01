@@ -28,7 +28,7 @@ fn templater_tag(expr: &str, title: &str, now: NaiveDateTime) -> Option<String> 
     let e = expr.trim();
     let args = |name: &str| -> Option<Vec<String>> {
         let inner = e.strip_prefix(name)?.trim().strip_prefix('(')?.strip_suffix(')')?;
-        Some(inner.split(',').map(|a| a.trim().trim_matches(|c| c == '"' || c == '\'').to_string()).filter(|a| !a.is_empty()).collect())
+        Some(split_args(inner).into_iter().map(|a| a.trim().trim_matches(|c| c == '"' || c == '\'').to_string()).filter(|a| !a.is_empty()).collect())
     };
     let fmt = |f: &str, when: NaiveDateTime| crate::bases::dates::format(&when, if f.is_empty() { "YYYY-MM-DD" } else { f });
     if e == "tp.file.title" {
@@ -53,6 +53,24 @@ fn templater_tag(expr: &str, title: &str, now: NaiveDateTime) -> Option<String> 
     }
     let quoted = e.len() >= 2 && ((e.starts_with('"') && e.ends_with('"')) || (e.starts_with('\'') && e.ends_with('\'')));
     quoted.then(|| e[1..e.len() - 1].to_string())
+}
+
+/// A call's arguments split at the commas outside quotes: `"dddd, MMMM D", 1` is two.
+fn split_args(inner: &str) -> Vec<&str> {
+    let (mut out, mut start, mut quote) = (vec![], 0, None);
+    for (i, c) in inner.char_indices() {
+        match (quote, c) {
+            (None, '"' | '\'' | '`') => quote = Some(c),
+            (Some(q), c) if c == q => quote = None,
+            (None, ',') => {
+                out.push(&inner[start..i]);
+                start = i + 1;
+            }
+            _ => {}
+        }
+    }
+    out.push(&inner[start..]);
+    out
 }
 
 /// Where a Templater template moves its note: the folder of `tp.file.move(<path>)` in a script block,
@@ -326,7 +344,7 @@ const BUILT_IN_DEFAULT: &str = "default";
 /// The text of the template this note will be made from, with the templates it includes after it: what a caller
 /// reads to know which values it uses (template_values.rs) before the note is made.
 pub fn template_for(root: &Path, cfg: &Config, req: &NewNote) -> Option<String> {
-    let name = chosen_template(root, cfg, req, &file_stem(req.title.trim()))?;
+    let name = chosen_template(root, cfg, req, &note_stem(&req.title, chrono::Local::now().naive_local()).1)?;
     let mut text = template_text(root, cfg, &name).ok()?;
     let mut seen = vec![name];
     let mut at = 0;
@@ -346,14 +364,20 @@ pub fn template_for(root: &Path, cfg: &Config, req: &NewNote) -> Option<String> 
     Some(text)
 }
 
-pub fn new_note_at(root: &Path, cfg: &Config, req: &NewNote, now: NaiveDateTime) -> Result<NewNoteResult> {
-    // a name typed with its extension ("idea.md") is still one note, not "idea.md.md"
-    let title = req.title.trim();
+/// A new note's title as typed, and its file's name: a name typed with its extension ("idea.md") is still one note,
+/// not "idea.md.md"; no name at all is the minute it was made. The one reading for the template's choice and the file.
+fn note_stem(title: &str, now: NaiveDateTime) -> (&str, String) {
+    let title = title.trim();
     let title = title.strip_suffix(".md").unwrap_or(title).trim_end();
     let stem = match file_stem(title) {
         s if s.is_empty() => now.format("%Y-%m-%d %H%M").to_string(),
         s => s,
     };
+    (title, stem)
+}
+
+pub fn new_note_at(root: &Path, cfg: &Config, req: &NewNote, now: NaiveDateTime) -> Result<NewNoteResult> {
+    let (title, stem) = note_stem(&req.title, now);
     let chosen = chosen_template(root, cfg, req, &stem);
     let Draft { text, cursor, create_in } = draft(root, cfg, chosen.as_deref(), title, req.text.as_deref(), &req.values.clone().unwrap_or_default(), now)?;
     // where it goes: asked for > the template's own folder > beside the note the user was in > the notes folder
@@ -598,6 +622,12 @@ mod tests {
         let text = std::fs::read_to_string(d.path().join(&r.path)).unwrap();
         assert_eq!(text, "---\ncreated: 2026-10-13\nkind: film\n---\n# 2026-10-20 Tue\n\n\n\n<%* tR += 'x' %>\nnext: 2026-10-21\n");
         assert_eq!(r.line, 7, "the caret goes where tp.file.cursor() was");
+    }
+
+    #[test]
+    fn a_templater_format_may_hold_a_comma() {
+        assert_eq!(split_args(r#""YYYY, MM", 1, 'a,b'"#), [r#""YYYY, MM""#, " 1", " 'a,b'"]);
+        assert_eq!(templater_tag(r#"tp.date.now("YYYY, MM-DD", 1)"#, "x", now()).as_deref(), Some("2026, 10-14"));
     }
 
     #[test]

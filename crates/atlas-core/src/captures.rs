@@ -75,7 +75,8 @@ pub fn parse_line(line: &str) -> Option<Line<'_>> {
 /// The day a log file is for: its name, `YYYY-MM-DD.md`, under the vault's log folder.
 fn log_day(cfg: &Config, rel: &str) -> Option<String> {
     let dir = cfg.log_dir.trim_matches('/');
-    let name = rel.strip_prefix(dir)?.strip_prefix('/')?.rsplit('/').next()?.strip_suffix(".md")?;
+    let under = if dir.is_empty() { rel } else { rel.strip_prefix(dir)?.strip_prefix('/')? }; // logs at the vault's top
+    let name = under.rsplit('/').next()?.strip_suffix(".md")?;
     chrono::NaiveDate::parse_from_str(name, "%Y-%m-%d").ok().map(|_| name.to_string())
 }
 

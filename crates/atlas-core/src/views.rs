@@ -124,20 +124,27 @@ fn task_of(r: &ViewRow) -> crate::tasks::Task {
 }
 
 /// The 0-based line range of the section holding line `at` (0-based): from its heading to the next
-/// heading of the same or a higher level; the whole note when `at` is above every heading.
+/// heading of the same or a higher level; the whole note when `at` is above every heading. Headings inside code fences
+/// (a shell `# comment`) are not.
 fn section_range(lines: &[&str], at: usize) -> (usize, usize) {
-    let level = |l: &str| {
-        let n = l.chars().take_while(|&c| c == '#').count();
-        (n > 0 && n <= 6 && l[n..].starts_with(' ')).then_some(n)
-    };
+    let mut fences = atlas_text::fence::Fences::default();
+    let heads: Vec<Option<usize>> = lines
+        .iter()
+        .map(|l| {
+            let code = fences.code(l);
+            let n = l.chars().take_while(|&c| c == '#').count();
+            (!code && n > 0 && n <= 6 && l[n..].starts_with(' ')).then_some(n)
+        })
+        .collect();
+    let level = |i: usize| heads[i];
     if lines.is_empty() {
         return (0, 0);
     }
-    let Some((start, lv)) = (0..=at.min(lines.len().saturating_sub(1))).rev().find_map(|i| level(lines[i]).map(|n| (i, n)))
+    let Some((start, lv)) = (0..=at.min(lines.len().saturating_sub(1))).rev().find_map(|i| level(i).map(|n| (i, n)))
     else {
         return (0, lines.len());
     };
-    let end = (start + 1..lines.len()).find(|&i| level(lines[i]).is_some_and(|n| n <= lv)).unwrap_or(lines.len());
+    let end = (start + 1..lines.len()).find(|&i| level(i).is_some_and(|n| n <= lv)).unwrap_or(lines.len());
     (start, end)
 }
 
@@ -371,6 +378,12 @@ mod tests {
         // A file-reading evaluation never calls a tool.
         let d = tempfile::tempdir().unwrap();
         assert!(matches!(evaluate(&Workspace::open(d.path()).unwrap(), "x.md", "from: plugin:dav/events"), Err(Error::BadRequest(_))));
+    }
+
+    #[test]
+    fn a_fenced_comment_is_not_a_section_heading() {
+        let lines = ["# A", "- [ ] one", "```sh", "# not a heading", "```", "- [ ] two", "```view", "```", "# B"];
+        assert_eq!(section_range(&lines, 6), (0, 8));
     }
 
     #[test]

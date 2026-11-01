@@ -266,7 +266,8 @@ pub fn day_log(cfg: &Config, day: chrono::NaiveDate) -> String {
         let _names = crate::bases::dates::names(cfg.editor.date_names == crate::config::DateNames::Spanish);
         format!("{}/", crate::bases::dates::format(&day.and_hms_opt(12, 0, 0).expect("noon exists"), pattern))
     };
-    format!("{dir}/{folders}{}.md", day.format("%Y-%m-%d"))
+    let dir = if dir.is_empty() { String::new() } else { format!("{dir}/") }; // logs at the vault's top
+    format!("{dir}{folders}{}.md", day.format("%Y-%m-%d"))
 }
 
 /// Today's log, made from the log template when it is missing (the Home log card's one button: "create or edit the

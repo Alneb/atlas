@@ -154,7 +154,8 @@ pub fn parse(text: &str) -> Task {
             }
         }
     }
-    t.tags = title.split_whitespace().filter(|w| w.len() > 1 && w.starts_with('#') && !w[1..].starts_with('#')).map(|w| w[1..].trim_end_matches([',', '.', ';', ':']).to_string()).collect();
+    // a tag as the tag index reads one (tags.rs): `#1984` is a number, `#a.b` is the tag `a`
+    t.tags = title.split_whitespace().filter_map(|w| crate::tags::tag_at(w.strip_prefix('#')?)).map(str::to_string).collect();
     t.title = title.split_whitespace().collect::<Vec<_>>().join(" ");
     t
 }
@@ -189,7 +190,8 @@ impl Task {
 
 // --- recurrence ---------------------------------------------------------------------------------------
 
-/// `every week`, `every 3 days`, `every month on the 1st` (the day is kept by the date itself),
+/// `every week`, `every 3 days`, `every month` (the day kept by the date itself), `every month on the 31st` / `on the
+/// last` (that day, or the month's last when it has none),
 /// `every weekday`, each optionally ending in `when done`. None: a rule Atlas does not read — the
 /// task is then ticked like any other and nothing new is made, rather than made wrongly.
 pub(crate) fn step(rule: &str, from: NaiveDate) -> Option<NaiveDate> {
@@ -203,12 +205,19 @@ pub(crate) fn step(rule: &str, from: NaiveDate) -> Option<NaiveDate> {
     if n == 0 {
         return None;
     }
+    // `on the 31st` / `on the last`: the day every month lands on, so a 31st kept as February's 28th comes back to the
+    // 31st in March instead of drifting to the 28th for good
+    let on_day = r.split_once("on the ").and_then(|(_, d)| match d.split_whitespace().next()? {
+        "last" => Some(31),
+        d => d.trim_end_matches(|c: char| c.is_ascii_alphabetic()).parse::<u32>().ok().filter(|d| (1..=31).contains(d)),
+    });
     // a huge count (`every 4000000000 days`) is a rule Atlas does not read, not an overflow
     let months = |m: u32| -> Option<NaiveDate> {
         let total = (from.year() * 12 + from.month0() as i32).checked_add(i32::try_from(m).ok()?)?;
         let (y, mo) = (total.div_euclid(12), total.rem_euclid(12) as u32 + 1);
         // the 31st of a month without one is that month's last day
-        (0..4).find_map(|back| NaiveDate::from_ymd_opt(y, mo, from.day().saturating_sub(back)))
+        let day = on_day.unwrap_or(from.day());
+        (0..4).find_map(|back| NaiveDate::from_ymd_opt(y, mo, day.saturating_sub(back)))
     };
     match unit.trim_end_matches('s') {
         "day" => from.checked_add_signed(Duration::days(i64::from(n))),
@@ -371,7 +380,7 @@ pub struct Found {
 impl Query {
     /// Does any option ask for more than "the open tasks, as they come"?
     pub fn is_plain(&self) -> bool {
-        self.show == Show::Open && self.tag.is_empty() && self.path.is_none() && self.priority.is_none() && self.due.is_none() && self.sort.is_empty() && self.group.is_none() && self.limit.is_none()
+        self.show == Show::Open && self.tag.is_empty() && self.path.is_none() && self.priority.is_none() && self.due.is_none() && self.sort.is_empty() && self.group.is_none() && self.limit.is_none() && self.completed.as_deref().is_none_or(|c| c.trim().is_empty())
     }
 
     fn keeps(&self, f: &Found, today: NaiveDate) -> Result<bool, String> {
@@ -383,7 +392,7 @@ impl Query {
         } {
             return Ok(false);
         }
-        if !self.tag.is_empty() && !self.tag.iter().any(|want| { let w = want.trim_start_matches('#'); t.tags.iter().any(|have| have == w || have.starts_with(&format!("{w}/"))) }) {
+        if !self.tag.is_empty() && !self.tag.iter().any(|want| { let w = want.trim_start_matches('#').to_lowercase(); t.tags.iter().map(|h| h.to_lowercase()).any(|have| have == w || have.starts_with(&format!("{w}/"))) }) {
             return Ok(false);
         }
         if let Some(p) = self.path.as_deref().map(|p| p.trim_matches('/')).filter(|p| !p.is_empty()) {
@@ -431,7 +440,7 @@ impl Query {
         Ok(Some(match g.trim().to_ascii_lowercase().as_str() {
             "file" => f.path.rsplit('/').next().unwrap_or(&f.path).trim_end_matches(".md").to_string(),
             "priority" => f.task.priority.name().to_string(),
-            "tag" => f.task.tags.first().map(|t| format!("#{t}")).unwrap_or_else(|| "no tag".into()),
+            "tag" => f.task.tags.first().map(|t| format!("#{}", t.to_lowercase())).unwrap_or_else(|| "no tag".into()), // one group per tag, as the tag index
             "due" => match f.task.date() {
                 None => "No date".into(),
                 Some(d) if d < today => "Overdue".into(),
@@ -460,7 +469,7 @@ impl Query {
                 "due" | "date" => kept.sort_by_key(|x| x.0.task.date().unwrap_or(far)),
                 "start" => kept.sort_by_key(|x| x.0.task.start.unwrap_or(far)),
                 "file" | "path" => kept.sort_by(|a, b| a.0.path.cmp(&b.0.path).then(a.0.line.cmp(&b.0.line))),
-                "title" => kept.sort_by_key(|x| x.0.task.title.to_lowercase()),
+                "title" => kept.sort_by_cached_key(|x| x.0.task.title.to_lowercase()),
                 other => return Err(format!("sort: {other:?} (priority, due, start, file, title)")),
             }
         }
@@ -475,7 +484,7 @@ impl Query {
                 };
                 (order.iter().position(|x| *x == n).unwrap_or(order.len()), if order.is_empty() { n.to_lowercase() } else { String::new() })
             };
-            kept.sort_by_key(|x| rank(&x.1));
+            kept.sort_by_cached_key(|x| rank(&x.1));
         }
         if let Some(n) = self.limit {
             kept.truncate(n);
@@ -499,6 +508,7 @@ mod tests {
         assert_eq!((t.priority, t.recurrence.as_deref()), (Priority::High, Some("every week")));
         assert_eq!((t.start, t.due), (Some(d("2026-10-10")), Some(d("2026-10-17"))));
         assert_eq!(t.tags, ["work", "admin/forms"]);
+        assert_eq!(parse("fix issue #12, see #Notes; ##x").tags, ["Notes"], "a number and `##` are not tags, as in the tag index");
         assert_eq!(t.date(), Some(d("2026-10-17")));
         let p = t.props();
         assert_eq!((p["priority"].as_str(), p["recurrence"].as_str(), p["due"].as_str(), p["tags"].as_str()), ("high", "every week", "2026-10-17", "work admin/forms"));
@@ -525,6 +535,11 @@ mod tests {
         assert_eq!(next("- [ ] water 🔁 every week 📅 2026-10-17").as_deref(), Some("- [ ] water 🔁 every week 📅 2026-10-24"), "from its own date");
         assert_eq!(next("- [ ] water 🔁 every week when done 📅 2026-10-17").as_deref(), Some("- [ ] water 🔁 every week when done 📅 2026-10-26"), "from the day it was done");
         assert_eq!(next("  - [ ] rent 🔁 every month 🛫 2026-01-25 📅 2026-01-31").as_deref(), Some("  - [ ] rent 🔁 every month 🛫 2026-02-22 📅 2026-02-28"), "the 31st of a short month; start keeps its distance");
+        let rent = |due: &str| next_occurrence(&format!("- [ ] rent 🔁 every month on the 31st 📅 {due}"), today);
+        assert_eq!(rent("2026-01-31").as_deref(), Some("- [ ] rent 🔁 every month on the 31st 📅 2026-02-28"));
+        assert_eq!(rent("2026-02-28").as_deref(), Some("- [ ] rent 🔁 every month on the 31st 📅 2026-03-31"), "back to the 31st");
+        assert_eq!(step("every month on the last", d("2026-03-31")), Some(d("2026-04-30")));
+        assert_eq!(step("every 2 months on the 1st", d("2026-01-15")), Some(d("2026-03-01")));
         assert_eq!(next("- [ ] review 🔁 every 2 days").as_deref(), Some("- [ ] review 🔁 every 2 days 📅 2026-10-21"), "no date: due from today");
         assert_eq!(next("- [ ] standup 🔁 every weekday 📅 2026-10-16").as_deref(), Some("- [ ] standup 🔁 every weekday 📅 2026-10-19"), "Friday → Monday");
         assert_eq!(next("- [ ] taxes 🔁 every year 📅 2026-06-30").as_deref(), Some("- [ ] taxes 🔁 every year 📅 2027-06-30"));
@@ -560,11 +575,13 @@ mod tests {
         let names = |q: &Query| titles(q).into_iter().map(|(t, _)| t).collect::<Vec<_>>();
 
         assert!(q("{}").is_plain());
+        assert!(!q("completed: 2026-10-02").is_plain(), "a calendar of the day's done tasks asks its question");
         assert_eq!(names(&q("{}")), ["write intro #work", "fix figure 2 #work/figures", "buy dice #fun"], "open, started");
         assert_eq!(names(&q("started: false")).len(), 4);
         assert_eq!(names(&q("show: done")), ["pay rent"]);
         assert_eq!(names(&q("tag: work")), ["write intro #work", "fix figure 2 #work/figures"], "a tag takes its sub-tags");
         assert_eq!(names(&q("tag: [fun, nothing]")), ["buy dice #fun"]);
+        assert_eq!(names(&q("tag: '#Fun'")), ["buy dice #fun"], "without case, as the tag index");
         assert_eq!(names(&q("path: notes/proj\nsort: priority")), ["fix figure 2 #work/figures", "write intro #work"]);
         assert_eq!(names(&q("priority: high")), ["fix figure 2 #work/figures"]);
         assert_eq!(names(&q("due: overdue")), ["fix figure 2 #work/figures"]);

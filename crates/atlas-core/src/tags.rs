@@ -42,6 +42,12 @@ fn tag_char(c: char) -> bool {
     c.is_alphanumeric() || matches!(c, '_' | '-' | '/')
 }
 
+/// The tag written at the start of `rest` (the text right after a `#`), as written; None when it is not one.
+pub(crate) fn tag_at(rest: &str) -> Option<&str> {
+    let t = &rest[..rest.find(|c: char| !tag_char(c)).unwrap_or(rest.len())];
+    clean(t).map(|_| t.trim_end_matches('/'))
+}
+
 /// Each `#tag` of a note's text (after the frontmatter, outside code): its byte offset in `text` (after the `#`) and
 /// the tag as written. The one walk both [`of_note`] and [`rename_in`] use.
 fn inline_tags(text: &str, mut f: impl FnMut(usize, &str)) {

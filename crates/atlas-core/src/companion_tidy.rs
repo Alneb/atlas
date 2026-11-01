@@ -60,8 +60,13 @@ fn link(v: Option<&Value>) -> Option<&str> {
 }
 
 /// A body with nothing of the user's: blank lines and headings only (a reader's new note: its title, "## Highlights").
+/// A `#tag` line is the user's.
 fn empty(body: &str) -> bool {
-    body.lines().all(|l| l.trim().is_empty() || l.starts_with('#'))
+    let heading = |l: &str| {
+        let rest = l.trim_start_matches('#');
+        (1..=6).contains(&(l.len() - rest.len())) && (rest.is_empty() || rest.starts_with([' ', '\t']))
+    };
+    body.lines().all(|l| l.trim().is_empty() || heading(l))
 }
 
 /// `dir/name` (a note's sibling).
@@ -207,6 +212,13 @@ pub fn apply(ws: &Workspace, plan: &[Tidy]) -> Result<Option<String>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_tag_is_something_of_the_users() {
+        assert!(empty("# Title\n\n## Highlights\n"));
+        assert!(!empty("# Title\n#to-read\n"));
+        assert!(!empty("####### seven\n"));
+    }
 
     #[test]
     fn a_pdf_keeps_one_note_and_its_ink() {
