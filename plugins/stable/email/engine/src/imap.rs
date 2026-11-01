@@ -682,7 +682,8 @@ pub fn set(uids: &[u32]) -> String {
 
 /// A folder name as an IMAP quoted string (the name stays as the server spells it, modified UTF-7 included).
 pub fn quote(s: &str) -> String {
-    format!("\"{}\"", s.replace('\\', "\\\\").replace('"', "\\\""))
+    // a line break ends an IMAP command: never in a quoted string (no folder or label can hold one)
+    format!("\"{}\"", s.replace(['\r', '\n'], "").replace('\\', "\\\\").replace('"', "\\\""))
 }
 
 /// IMAP's modified UTF-7 (RFC 3501 5.1.3) → text: "Envoy&AOk-s" → "Envoyés".
@@ -819,6 +820,12 @@ fn refused(host: &str, why: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_quoted_string_is_one_string_of_one_command() {
+        assert_eq!(quote(r#"a\b "c""#), r#""a\\b \"c\"""#);
+        assert_eq!(quote("x\r\nA1 DELETE INBOX"), "\"xA1 DELETE INBOX\"");
+    }
 
     #[test]
     fn modified_utf7_both_ways() {

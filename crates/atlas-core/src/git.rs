@@ -20,6 +20,8 @@ fn git(root: &Path, args: &[&str]) -> std::io::Result<Output> {
         .args(args)
         .env("LC_ALL", "C")
         .env("GIT_TERMINAL_PROMPT", "0")
+        // a path is that file, never a pattern: discarding `notes [ab].md` must not also restore `notes a.md`
+        .env("GIT_LITERAL_PATHSPECS", "1")
         // status / diff never rewrite .git/index in passing (as editors do): no lock fights, no write per look
         .env("GIT_OPTIONAL_LOCKS", "0");
     crate::platform::host::std_command(cmd)?.stdin(Stdio::null()).output()
@@ -624,6 +626,28 @@ mod tests {
         assert!(!r.join("new.md").exists());
         assert_eq!(std::fs::read_to_string(r.join(&keep).join("a.md")).unwrap(), "changed\n");
         assert_eq!(std::fs::read_to_string(r.join(&keep).join("new.md")).unwrap(), "fresh\n");
+    }
+
+    #[test]
+    fn a_name_with_pattern_letters_is_only_that_file() {
+        let (d, ws) = repo();
+        let r = d.path();
+        for f in ["x[ab].md", "xa.md"] {
+            std::fs::write(r.join(f), "one\n").unwrap();
+        }
+        git_ok(r, &["add", "-A"]).unwrap();
+        git_ok(r, &["commit", "-q", "-m", "two"]).unwrap();
+        for f in ["x[ab].md", "xa.md"] {
+            std::fs::write(r.join(f), "mine\n").unwrap();
+        }
+        discard(&ws, &["x[ab].md".into()]).unwrap();
+        assert_eq!(std::fs::read_to_string(r.join("x[ab].md")).unwrap(), "one\n");
+        assert_eq!(std::fs::read_to_string(r.join("xa.md")).unwrap(), "mine\n", "another file's changes are left");
+        std::fs::write(r.join("x[ab].md"), "mine\n").unwrap();
+        stage(r, &["x[ab].md".into()], true).unwrap();
+        forget_status(r);
+        let staged: Vec<String> = status(r).unwrap().entries.into_iter().filter(|e| e.staged.is_some()).map(|e| e.path).collect();
+        assert_eq!(staged, ["x[ab].md"], "staged alone");
     }
 
     #[test]

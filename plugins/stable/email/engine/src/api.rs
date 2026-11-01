@@ -771,11 +771,12 @@ fn folder_delete(m: &Arc<Mail>, p: &Value) -> Result<Value, String> {
 /// index, so the list shows it.
 fn search_server(m: &Arc<Mail>, p: &Value) -> Result<Value, String> {
     let q = search::parse(s(p, "query"), chrono::Utc::now().timestamp());
-    let words: Vec<String> = q.words.iter().filter(|w| w.is_ascii() && !w.contains('"')).cloned().collect();
+    let words: Vec<String> = q.words.iter().filter(|w| w.is_ascii() && !w.contains(['\r', '\n'])).cloned().collect();
     if words.is_empty() {
         return Ok(json!({ "added": 0 }));
     }
-    let crit = words.iter().map(|w| format!("TEXT \"{w}\"")).collect::<Vec<_>>().join(" ");
+    // quoted as IMAP strings: a word ending in `\` or holding `"` is searched for, not a broken command
+    let crit = words.iter().map(|w| format!("TEXT {}", crate::imap::quote(w))).collect::<Vec<_>>().join(" ");
     let accounts: Vec<_> = match &q.account {
         Some(a) => vec![m.account(Some(a))?],
         None if !s(p, "account").is_empty() => vec![m.account(Some(s(p, "account")))?],

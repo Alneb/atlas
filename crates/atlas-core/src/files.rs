@@ -220,13 +220,13 @@ pub fn read_raw_range(ws: &Workspace, rel: &str, start: u64, end: u64) -> Result
 
 /// Saves a pasted/dropped file for `note` under `<note dir>/<attachment_folder>/`, never
 /// overwriting: an existing name gets ` 1`, ` 2`… like Obsidian. Names are reduced to a safe
-/// single path component.
+/// single path component that a wikilink can name (`[ ] | # ^` would end or cut the `![[…]]`).
 pub fn attach(ws: &Workspace, note: &str, name: &str, bytes: &[u8]) -> Result<crate::api::Attached> {
     let folder = ws.config()?.editor.attachment_folder;
     let note_dir = note.rsplit_once('/').map(|(d, _)| d).unwrap_or("");
     let rel_dir =
         [note_dir, folder.trim_matches('/')].iter().filter(|s| !s.is_empty()).copied().collect::<Vec<_>>().join("/");
-    let clean: String = name.chars().map(|c| if c == '/' || c == '\\' || c.is_control() { '_' } else { c }).collect();
+    let clean: String = name.chars().map(|c| if matches!(c, '/' | '\\' | '[' | ']' | '|' | '#' | '^') || c.is_control() { '_' } else { c }).collect();
     let clean = clean.trim().trim_start_matches('.').to_string();
     if clean.is_empty() {
         return Err(Error::BadRequest("empty file name".into()));
@@ -314,6 +314,8 @@ mod tests {
         // traversal is flattened into one harmless name inside the attachments folder
         assert!(c.path.starts_with("attachments/") && c.path.matches('/').count() == 1, "{}", c.path);
         assert!(attach(&w, "a.md", "  ", b"").is_err());
+        let d = attach(&w, "a.md", "Shot [1] #2|^x.png", b"4").unwrap();
+        assert_eq!(d.embed, "![[Shot _1_ _2__x.png]]", "a name the embed can hold");
     }
 
     #[test]
