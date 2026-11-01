@@ -148,7 +148,8 @@ fn epub_cover(epub: &Path) -> Result<Vec<u8>> {
     let mut zip = zip::ZipArchive::new(std::fs::File::open(epub)?).map_err(|_| none())?;
     let mut text = |name: &str| -> Option<String> {
         let mut s = String::new();
-        zip.by_name(name).ok()?.read_to_string(&mut s).ok()?;
+        // a package file is a few KB: a crafted one that unzips to gigabytes is cut, as the picture is below
+        zip.by_name(name).ok()?.take(4 << 20).read_to_string(&mut s).ok()?;
         Some(s)
     };
     let opf_path = text("META-INF/container.xml").and_then(|c| attr_after(&c, "full-path=", 0)).unwrap_or_default();

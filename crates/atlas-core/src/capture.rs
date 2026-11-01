@@ -78,7 +78,8 @@ pub fn take_pending(root: &Path) -> Vec<crate::events::Captured> {
         !name.starts_with('.') && (name.ends_with(".jsonl") || name.ends_with(".taking"))
     };
     let mut files: Vec<_> = dir.flatten().map(|e| e.path()).filter(|p| ours(p) && p.is_file()).collect();
-    files.sort();
+    // a leftover `.taking` first: the device's `.jsonl` is renamed onto that name next, and would replace it unread
+    files.sort_by_key(|p| (p.extension().is_none_or(|e| e != "taking"), p.clone()));
     let mut out = vec![];
     for f in files {
         // moved aside first: a capture appended between reading and removing would be removed unread
@@ -595,5 +596,14 @@ mod tests {
         std::fs::write(&arriving, "{\"text\": \"half").unwrap();
         assert!(take_pending(d.path()).is_empty());
         assert!(arriving.exists());
+        // a take cut short left `phone.taking`; the phone's newer file is renamed to that name next, never over it
+        let (old, new) = (
+            crate::events::Captured { text: "left by a take cut short".into(), path: "log/x.md".into(), line: 4 },
+            crate::events::Captured { text: "captured since".into(), path: "log/x.md".into(), line: 5 },
+        );
+        let line = |c: &crate::events::Captured| format!("{}\n", serde_json::to_string(c).unwrap());
+        std::fs::write(d.path().join(PENDING_DIR).join("phone.taking"), line(&old)).unwrap();
+        std::fs::write(d.path().join(PENDING_DIR).join("phone.jsonl"), line(&new)).unwrap();
+        assert_eq!(take_pending(d.path()), vec![old, new]);
     }
 }

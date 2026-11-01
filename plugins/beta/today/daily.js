@@ -38,7 +38,9 @@ export function registerDaily(atlas, lang) {
     const here = block.note.includes("/") ? block.note.slice(0, block.note.lastIndexOf("/")) : "";
     const folder = here.replace(/(^|\/)\d{4}(\/[^/]+)*$/, "");
     const days = () => (daysOf ??= atlas.query(`filters:\n  and:\n    - file.inFolder(${JSON.stringify(folder)})\nviews:\n  - type: table\n    name: days\n    order: [file.name]\n`)
-      .then((r) => (r?.views?.[0]?.rows ?? []).map((row) => row.path).filter((p) => DAY.test(p) && !p.includes("sync-conflict")).sort())
+      .then((r) => (r?.views?.[0]?.rows ?? []).map((row) => row.path).filter((p) => DAY.test(p) && !p.includes("sync-conflict"))
+        // by the day, not the path: month folders by name (`2026/noviembre`) sort before `2026/octubre`
+        .sort((a, b) => DAY.exec(a)[1].localeCompare(DAY.exec(b)[1]) || a.localeCompare(b)))
       .catch(() => { daysOf = null; return []; }));
     // a save of the log redraws it without the facts and the arrows blinking
     const draw = async () => {

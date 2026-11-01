@@ -123,7 +123,7 @@ fn searcher() -> Searcher {
 
 /// [`matcher`]'s rules for ripgrep's searcher.
 fn grep_matcher(q: &str, o: Opts) -> Result<RegexMatcher> {
-    let insensitive = !o.case && !q.chars().any(char::is_uppercase);
+    let insensitive = smart_insensitive(q, o);
     let re = matcher(q, o)?;
     RegexMatcherBuilder::new().case_insensitive(insensitive).build(re.as_str()).map_err(|e| Error::BadRequest(format!("bad pattern: {e}")))
 }
@@ -155,12 +155,46 @@ fn small(abs: &Path) -> bool {
 pub fn matcher(q: &str, o: Opts) -> Result<regex::Regex> {
     let pat = if o.regex { q.to_string() } else { regex::escape(q) };
     let pat = if o.word { format!(r"\b(?:{pat})\b") } else { pat };
-    let insensitive = !o.case && !q.chars().any(char::is_uppercase);
+    let insensitive = smart_insensitive(q, o);
     regex::RegexBuilder::new(&pat)
         .case_insensitive(insensitive)
         .multi_line(true)
         .build()
         .map_err(|e| Error::BadRequest(format!("bad pattern: {e}")))
+}
+
+/// Smart case, as rg: insensitive unless `case` or the query has a capital — in a regex, a capital it would match
+/// (`\S`, `\p{Greek}`, `(?P<Name>…)` are syntax, not capitals).
+fn smart_insensitive(q: &str, o: Opts) -> bool {
+    if o.case {
+        return false;
+    }
+    if !o.regex {
+        return !q.chars().any(char::is_uppercase);
+    }
+    let mut rest = q;
+    while let Some(c) = rest.chars().next() {
+        rest = &rest[c.len_utf8()..];
+        if c == '\\' {
+            // an escape: `\p{Name}` / `\pL` skip the class's name, any other skips its one character
+            let Some(e) = rest.chars().next() else { break };
+            rest = &rest[e.len_utf8()..];
+            if matches!(e, 'p' | 'P') {
+                rest = match rest.strip_prefix('{') {
+                    Some(r) => r.split_once('}').map_or("", |(_, after)| after),
+                    None => rest.chars().next().map_or(rest, |n| &rest[n.len_utf8()..]),
+                };
+            }
+        } else if c == '(' {
+            // a group's name (`(?P<Name>`, `(?<Name>`) is not matched
+            if let Some(r) = rest.strip_prefix("?P<").or_else(|| rest.strip_prefix("?<")) {
+                rest = r.split_once('>').map_or("", |(_, after)| after);
+            }
+        } else if c.is_uppercase() {
+            return false;
+        }
+    }
+    true
 }
 
 /// Replace every match in the workspace's text files (the files `rg` finds with these options,
@@ -248,6 +282,21 @@ fn looks_encoded(text: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn smart_case_counts_only_the_capitals_a_pattern_matches() {
+        let (lit, re) = (Opts::default(), Opts { regex: true, ..Opts::default() });
+        assert!(smart_insensitive("note", lit) && !smart_insensitive("Note", lit));
+        assert!(!smart_insensitive(r"\S", lit), "literal: the text as typed");
+        for q in [r"\S+ items", r"\W\D\B", r"\p{Greek}x", r"\PLx", r"(?P<Name>a)", r"(?<Year>\d{4})"] {
+            assert!(smart_insensitive(q, re), "{q}");
+        }
+        for q in [r"\SNote", r"\p{Greek}A", r"(?P<n>Ab)", "Ünder"] {
+            assert!(!smart_insensitive(q, re), "{q}");
+        }
+        assert!(!smart_insensitive("note", Opts { case: true, ..Opts::default() }));
+        assert!(matcher(r"\S+ items", re).unwrap().is_match("3 ITEMS"));
+    }
 
     #[test]
     fn encoded_lines_are_not_hits() {

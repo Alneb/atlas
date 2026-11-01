@@ -71,7 +71,9 @@
     if (!query) return null;
     let src = opts.regex ? query : escapeRegExp(query);
     if (opts.word) src = `\\b(?:${src})\\b`;
-    const insensitive = !opts.case && !/\p{Lu}/u.test(query);
+    // smart case as the core's (search.rs smart_insensitive): in a regex, `\S`, `\p{Greek}`, a group's name are not capitals
+    const literal = opts.regex ? query.replace(/\\[pP](\{[^}]*\}|.)|\\.|\(\?P?<[^>]*>/gsu, "") : query;
+    const insensitive = !opts.case && !/\p{Lu}/u.test(literal);
     try { return new RegExp(src, insensitive ? "gi" : "g"); } catch { return null; }
   });
   /** What a match becomes: the replacement as typed, or (regex) with its groups filled in —

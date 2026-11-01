@@ -182,8 +182,10 @@ fn holds(line: &str, text: &str) -> bool {
 /// link it yet. The capture's own line, written a moment ago by the capture path (PHILOSOPHY §2); anything else is left alone.
 fn link_line(root: &Path, c: &Captured, note: &str) -> bool {
     let mut linked = false;
+    // a pending capture's path came from a synced file: inside the vault only
+    let Ok(abs) = crate::paths::safe_join(root, &c.path) else { return false };
     // through `modify`: a capture typed while the hook looked its page up is appended to the same log
-    let changed = crate::vault_write::modify(&root.join(&c.path), |text| {
+    let changed = crate::vault_write::modify(&abs, |text| {
         let mut lines: Vec<String> = text.split('\n').map(str::to_string).collect();
         let Some(line) = lines.get_mut((c.line as usize).saturating_sub(1)) else { return Ok(text.to_string()) };
         let Some(with_link) = Some(&*line).filter(|l| holds(l, &c.text)).and_then(|l| crate::captures::link_line(l, note)) else {
@@ -209,6 +211,7 @@ mod tests {
         assert!(!link_line(dir.path(), &c, "Films/Dune Part Two (2024).md"), "linked once");
         let other = Captured { line: 3, ..c.clone() };
         assert!(!link_line(dir.path(), &other, "Films/X.md"), "a line that is not the capture");
+        assert!(!link_line(dir.path(), &Captured { path: "../log.md".into(), ..c.clone() }, "Films/X.md"), "outside the vault");
         assert_eq!(std::fs::read_to_string(dir.path().join("log.md")).unwrap(), "# Today\n- 10:02 https://letterboxd.com/film/dune-part-two/ → [[Dune Part Two (2024)]]\n- 10:05 milk\n");
     }
 
