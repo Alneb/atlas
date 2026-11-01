@@ -216,11 +216,21 @@ fn parse_set_cookie(line: &str, host: &str) -> Option<Cookie> {
     for p in parts {
         let (k, v) = p.split_once('=').map_or((p, ""), |(k, v)| (k.trim(), v.trim()));
         match k.to_ascii_lowercase().as_str() {
-            "domain" if !v.is_empty() => (c.domain, c.host_only) = (v.trim_start_matches('.').to_string(), false),
+            "domain" if !v.is_empty() => {
+                let d = v.trim_start_matches('.').to_ascii_lowercase();
+                // only the host itself or a domain above it (a browser refuses the cookie otherwise): no server sets
+                // what another site is sent
+                let h = host.rsplit_once(':').filter(|(_, port)| port.chars().all(|c| c.is_ascii_digit())).map_or(host, |(h, _)| h);
+                let h = h.trim_end_matches('.').to_ascii_lowercase();
+                if h != d && !h.ends_with(&format!(".{d}")) {
+                    return None;
+                }
+                (c.domain, c.host_only) = (d, false);
+            }
             "path" if v.starts_with('/') => c.path = v.to_string(),
             "secure" => c.secure = true,
             "max-age" => max_age = v.parse::<i64>().ok(),
-            "expires" => c.expires = chrono::NaiveDateTime::parse_from_str(v, "%a, %d %b %Y %H:%M:%S GMT").ok().map(|t| t.and_utc().timestamp().max(0) as u64),
+            "expires" => c.expires = cookie_date(v),
             _ => {}
         }
     }
@@ -228,6 +238,14 @@ fn parse_set_cookie(line: &str, host: &str) -> Option<Cookie> {
         c.expires = Some((now() as i64).saturating_add(m).max(0) as u64); // a huge Max-Age is "for good", not an overflow
     }
     Some(c)
+}
+
+/// An `Expires` date in seconds: `Wed, 21 Oct 2026 07:28:00 GMT` and the dashed form many servers send to clear a
+/// cookie (`Thu, 01-Jan-1970 00:00:00 GMT`), two-digit years too. Unread, a cleared cookie would be kept for good.
+fn cookie_date(v: &str) -> Option<u64> {
+    let v = v.replace('-', " ");
+    let t = ["%a, %d %b %Y %H:%M:%S GMT", "%A, %d %b %y %H:%M:%S GMT", "%a, %d %b %y %H:%M:%S GMT"].iter().find_map(|f| chrono::NaiveDateTime::parse_from_str(&v, f).ok())?;
+    Some(t.and_utc().timestamp().max(0) as u64)
 }
 
 /// The `Cookie` header for a request to `url` from every kept sign-in that covers it: a gate's cookie usually covers
@@ -318,6 +336,13 @@ mod tests {
         assert_eq!((c.name.as_str(), c.value.as_str(), c.domain.as_str(), c.host_only, c.path.as_str(), c.secure), ("sid", "abc", "example.org", false, "/app", true));
         assert_eq!(c.expires, Some(2139722880));
         assert!(parse_set_cookie("no pair here", "h").is_none());
+        assert!(parse_set_cookie("sid=x; Domain=bank.example.com", "notes.example.org").is_none(), "another site's domain");
+        assert!(parse_set_cookie("sid=x; Domain=ample.org", "notes.example.org").is_none(), "not at a dot");
+        assert!(parse_set_cookie("sid=x; Domain=example.org", "notes.example.org:8443").is_some(), "a port is not the host's name");
+        // the dashed date a server sends to clear a cookie is read, so the cookie counts as ended
+        assert_eq!(parse_set_cookie("sid=deleted; expires=Thu, 01-Jan-1970 00:00:01 GMT", "h").unwrap().expires, Some(1));
+        assert_eq!(cookie_date("Sunday, 06-Nov-94 08:49:37 GMT"), Some(784111777));
+        assert_eq!(cookie_date("Wed, 21 Oct 2037 07:28:00 GMT"), Some(2139722880));
     }
 
     fn url(s: &str) -> reqwest::Url {

@@ -110,7 +110,8 @@ fn terms(q: &str) -> Vec<(bool, Option<String>, String, bool)> {
     out
 }
 
-/// "2026-10-01", "2026/10/01", "7d", "2w", "3m", "1y" → unix seconds (relative ones from `now`).
+/// "2026-10-01", "2026/10/01", "7d", "2w", "3m", "1y" → unix seconds (relative ones from `now`; a date is its start on
+/// this computer's clock: the day a person means, not UTC's).
 fn when(v: &str, now: i64) -> Option<i64> {
     let v = v.trim();
     if let Some(n) = v.strip_suffix(['d', 'w', 'm', 'y']).and_then(|n| n.parse::<i64>().ok()) {
@@ -123,7 +124,7 @@ fn when(v: &str, now: i64) -> Option<i64> {
         return Some(now - n * unit);
     }
     let d = chrono::NaiveDate::parse_from_str(&v.replace('/', "-"), "%Y-%m-%d").ok()?;
-    Some(d.and_hms_opt(0, 0, 0)?.and_utc().timestamp())
+    atlas_text::wall_clock::at(d.and_hms_opt(0, 0, 0)?, &chrono::Local).map(|t| t.timestamp())
 }
 
 /// "5M", "200k", "1G", "300" → bytes.
@@ -262,7 +263,8 @@ mod tests {
         let q = parse("in:sent account:gmail before:2026-01-01 newer_than:2w larger:5M", NOW);
         assert_eq!(q.folder.as_deref(), Some("sent"));
         assert_eq!(q.account.as_deref(), Some("gmail"));
-        assert_eq!(q.args, vec![Value::Integer(1767225600), Value::Integer(NOW - 14 * 86400), Value::Integer(5 * 1024 * 1024)]);
+        let new_year = atlas_text::wall_clock::at(chrono::NaiveDate::from_ymd_opt(2026, 1, 1).unwrap().and_hms_opt(0, 0, 0).unwrap(), &chrono::Local).unwrap().timestamp();
+        assert_eq!(q.args, vec![Value::Integer(new_year), Value::Integer(NOW - 14 * 86400), Value::Integer(5 * 1024 * 1024)]);
         assert!(q.text.is_none());
     }
 
