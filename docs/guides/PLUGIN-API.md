@@ -14,7 +14,7 @@ Working examples to copy from, in `plugins/`: `examples/wordcount/` (smallest), 
   anything else               a data script, a helper, styles, pictures
 ```
 
-Everything a plugin registers is undone when it reloads or is switched off; you never clean up registrations yourself. A function you hand to Atlas may throw: the failure is written to the plugin's log (Settings → Plugins → "N problems") and costs only that one row, block or key.
+Everything a plugin registers is undone when it reloads or is switched off; you never clean up registrations yourself. Subscriptions (`onFilesChanged`, `onContext`, `on`, `helper.on`) last as long as what made them: from `register`, the plugin; from a pane or a dialog, that pane — closed or remounted, its listeners go with it. A function you hand to Atlas may throw: the failure is written to the plugin's log (Settings → Plugins → "N problems") and costs only that one row, block or key.
 
 Get one: **Settings → Plugins → New block / New plugin** writes a working one; `atlas plugin install <folder | git address | archive>` copies someone else's in (switched off until you switch it on).
 

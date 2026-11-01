@@ -6,6 +6,7 @@
   import Dialog from "./Dialog.svelte";
   import { errText } from "../lib/text";
   import { loadView, pluginApi, type Plugin } from "../lib/plugins.svelte";
+  import { paneScope } from "../lib/plugin-registry.svelte";
 
   let { plugin, arg, view, title, width = 960, height = 680, onclose }: {
     plugin: Plugin; arg?: string; view?: string; title: string; width?: number; height?: number; onclose: () => void;
@@ -15,13 +16,14 @@
   onMount(() => {
     let cleanup: (() => void) | undefined;
     let gone = false;
+    const scope = paneScope();
     const pane = { setDirty: () => {}, onSave: () => () => {}, onAnchor: () => () => {}, close: () => onclose() };
     void (async () => {
       try {
         const mod = await loadView(plugin, view);
         if (gone) return;
         if (typeof mod.default !== "function") throw new Error("the module has no default export function (host, atlas) => …");
-        const r = await mod.default(host, pluginApi(plugin, { arg, pane }));
+        const r = await mod.default(host, pluginApi(plugin, { arg, pane, hold: scope.hold }));
         if (gone) { if (typeof r === "function") r(); return; }
         cleanup = typeof r === "function" ? r : undefined;
       } catch (e) {
@@ -29,7 +31,7 @@
         console.error("[atlas] plugin dialog", plugin.id, e);
       }
     })();
-    return () => { gone = true; cleanup?.(); };
+    return () => { gone = true; cleanup?.(); scope.release(); };
   });
 </script>
 

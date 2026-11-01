@@ -45,6 +45,14 @@ export function own(id: string, undo: () => void): () => void {
   list.push(undo);
   return () => { const i = list.indexOf(undo); if (i >= 0) list.splice(i, 1); undo(); };
 }
+/** A pane's own subscriptions (files changed, the helper's events): undone when the pane goes, not with the plugin. */
+export function paneScope(): { hold: (undo: () => void) => () => void; release: () => void } {
+  const list: (() => void)[] = [];
+  return {
+    hold: (undo) => { list.push(undo); return () => { const i = list.indexOf(undo); if (i >= 0) list.splice(i, 1); undo(); }; },
+    release: () => { for (const undo of list.splice(0).reverse()) { try { undo(); } catch (e) { console.error("[atlas] plugin pane", e); } } },
+  };
+}
 export function disposeAll(id: string): void {
   for (const undo of (owned.get(id) ?? []).splice(0).reverse()) { try { undo(); } catch (e) { console.error("[atlas] plugin", id, e); } }
 }

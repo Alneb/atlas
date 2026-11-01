@@ -313,15 +313,8 @@ pub fn install(root: &Path, source: &Source, id: Option<&str>, replace: bool) ->
         // the manifest must be one this Atlas reads, before anything in the vault changes
         let m = plugins::summary_of(&std::fs::read_to_string(from.join("plugin.toml"))?).map_err(|e| Error::BadRequest(format!("plugin.toml: {e}")))?;
         let dest = root.join(PLUGINS_DIR).join(&id);
-        let mut replaced = None;
-        if dest.exists() {
-            if !replace {
-                return Err(Error::BadRequest(format!("{PLUGINS_DIR}/{id} is already there: update it instead (or remove it first)")));
-            }
-            // the vault's settings live in .atlas/plugin-settings/, which an update never touches; an older copy's
-            // [settings] move there before the copy goes to the Trash
-            plugins::move_settings_out(root, &id)?;
-            replaced = Some(to_trash(root, &id)?);
+        if dest.exists() && !replace {
+            return Err(Error::BadRequest(format!("{PLUGINS_DIR}/{id} is already there: update it instead (or remove it first)")));
         }
         // the files the release brought: an update carries over only the others (the plugin's own), so a file a later
         // release drops does not come back
@@ -337,8 +330,22 @@ pub fn install(root: &Path, source: &Source, id: Option<&str>, replace: bool) ->
         )?;
         // a new plugin starts off — and the setting is written BEFORE its folder appears: an Atlas that
         // sees the folder first would start it for a moment (it did, in the tests)
-        let on = if replaced.is_none() { set_off(root, &id, true).map(|_| false)? } else { !crate::workspace::Workspace::open(root)?.config()?.plugins.off.contains(&id) };
-        vault_write::rename(&from, &dest)?;
+        let on = if !dest.exists() { set_off(root, &id, true).map(|_| false)? } else { !crate::workspace::Workspace::open(root)?.config()?.plugins.off.contains(&id) };
+        // from here on the old copy is in the Trash: only the move into place is left to fail
+        let mut replaced = None;
+        if dest.exists() {
+            // the vault's settings live in .atlas/plugin-settings/, which an update never touches; an older copy's
+            // [settings] move there before the copy goes to the Trash
+            plugins::move_settings_out(root, &id)?;
+            replaced = Some(to_trash(root, &id)?);
+        }
+        if let Err(e) = vault_write::rename(&from, &dest) {
+            // the old copy back from the Trash: a failed update must not leave the vault without the plugin
+            if let Some(t) = &replaced {
+                let _ = vault_write::rename(&root.join(t), &dest);
+            }
+            return Err(e);
+        }
         let adopted = adopt_replaced(root, &crate::secrets::Store::for_vault(root), &id, replaced.is_none())?;
         Ok(Installed { id, title: m.title, version: m.version, permissions: m.permissions, has_helper: m.has_helper, replaced, on, adopted })
     })();

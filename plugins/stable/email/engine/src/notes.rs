@@ -103,12 +103,14 @@ fn save_files(root: &Path, dir_rel: &str, raw: &[u8], body: &parse::Body) -> (Ve
     (inline, listed)
 }
 
-fn note_file(name: &str) -> String {
-    let n = name.replace(['/', '\\', ':', '*', '?', '"', '<', '>', '|'], " ");
-    if n.trim().is_empty() { "attachment".into() } else { n.trim().to_string() }
+/// An attachment's name as a file name: no separators or characters other systems refuse, never `.`/`..` or empty.
+pub(crate) fn note_file(name: &str) -> String {
+    let n = name.replace(['/', '\\', ':', '*', '?', '"', '<', '>', '|', '\0'], " ");
+    let n = n.trim();
+    if n.chars().all(|c| c == '.') { "attachment".into() } else { n.to_string() }
 }
 
-fn free_name(dir: &Path, name: &str) -> String {
+pub(crate) fn free_name(dir: &Path, name: &str) -> String {
     if !dir.join(name).exists() {
         return name.to_string();
     }
@@ -351,6 +353,17 @@ pub fn saved(m: &Mail, thread: i64) -> Option<String> {
 mod tests {
     use super::*;
     use crate::sync::tests_support::harness;
+
+    #[test]
+    fn an_attachments_name_is_a_plain_file_name() {
+        assert_eq!(note_file("../../.bashrc"), ".. .. .bashrc");
+        assert_eq!(note_file(".."), "attachment");
+        assert_eq!(note_file("  "), "attachment");
+        assert_eq!(note_file("a:b?.pdf"), "a b .pdf");
+        let d = tempfile::tempdir().unwrap();
+        std::fs::write(d.path().join("paper.pdf"), "").unwrap();
+        assert_eq!(free_name(d.path(), "paper.pdf"), "paper 2.pdf");
+    }
 
     #[test]
     fn a_subject_is_a_visible_file_name() {

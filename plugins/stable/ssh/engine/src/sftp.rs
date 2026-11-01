@@ -173,6 +173,27 @@ fn text<'a>(p: &'a Value, key: &str) -> Result<&'a str, String> {
     p[key].as_str().ok_or_else(|| format!("{key}: needed"))
 }
 
+/// Where a host's file is copied: EDIT_DIR/<host>/<its path, `..` resolved as the host does> — never outside that
+/// host's folder (a path like `/../../notes/a.md` would otherwise land on the vault's own note).
+fn edit_rel(host: &str, path: &str) -> Result<String, String> {
+    let dir = crate::ssh::safe(host, ".@-");
+    if dir.chars().all(|c| c == '.') {
+        return Err(format!("{host}: not a host name"));
+    }
+    let mut parts: Vec<&str> = Vec::new();
+    for part in path.split('/') {
+        match part {
+            "" | "." => {}
+            ".." => drop(parts.pop()),
+            p => parts.push(p),
+        }
+    }
+    if parts.is_empty() {
+        return Err(format!("{path}: not a file"));
+    }
+    Ok(format!("{EDIT_DIR}/{dir}/{}", parts.join("/")))
+}
+
 /// A remote file copied into EDIT_DIR/<host>/<path> → {local}: the vault path Atlas opens.
 pub fn fetch_for_edit(argv: &[String], p: &Value) -> Answer {
     let (host, path) = (text(p, "host")?, text(p, "path")?);
@@ -189,7 +210,7 @@ pub fn fetch_for_edit(argv: &[String], p: &Value) -> Answer {
         let _ = std::fs::create_dir_all(ignore.parent().unwrap_or(&root()));
         let _ = std::fs::write(&ignore, "# working copies of remote files (the SSH plugin): not part of the vault's history\n*\n");
     }
-    let rel = format!("{EDIT_DIR}/{}/{}", crate::ssh::safe(host, ".@-"), path.trim_start_matches('/'));
+    let rel = edit_rel(host, path)?;
     let local = inside_vault(&rel)?;
     if let Some(dir) = local.parent() {
         std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
@@ -301,5 +322,14 @@ mod tests {
         assert_eq!(free_path(d.path(), "notes.md"), d.path().join("notes 2.md"));
         assert_eq!(free_path(d.path(), ".bashrc"), d.path().join(".bashrc"));
         assert_eq!(real(&d.path().join("a/../b/c")), d.path().canonicalize().unwrap().join("b/c"));
+    }
+
+    #[test]
+    fn a_copy_stays_in_its_hosts_folder() {
+        assert_eq!(edit_rel("me@box", "/srv/../etc/x.conf").unwrap(), ".atlas/remote/ssh/me@box/etc/x.conf");
+        assert_eq!(edit_rel("box", "/../../../notes/a.md").unwrap(), ".atlas/remote/ssh/box/notes/a.md");
+        assert_eq!(edit_rel("box", "~/a.txt").unwrap(), ".atlas/remote/ssh/box/~/a.txt");
+        assert!(edit_rel("..", "/index.json").is_err());
+        assert!(edit_rel("box", "/a/..").is_err());
     }
 }

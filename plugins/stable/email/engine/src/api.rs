@@ -513,13 +513,14 @@ fn attachment(m: &Arc<Mail>, p: &Value) -> Result<Value, String> {
     let raw = m.rt.block_on(sync::body(m, id))?;
     let (bytes, name, mime) = parse::part_bytes(&raw, part).ok_or("that file is no longer in the message")?;
     let name = if name == "attachment" { s(p, "name").to_string() } else { name };
-    let safe: String = name.chars().map(|c| if "/\\:*?\"<>|".contains(c) { ' ' } else { c }).collect::<String>().trim().to_string();
+    let fname = crate::notes::note_file(&name);
     let (dir, rel_base) = match Some(s(p, "to")).filter(|t| !t.is_empty()) {
         Some(to) => {
-            if to.split('/').any(|x| x == "..") {
+            let to = to.trim_matches('/'); // "/x" is the vault's x: joined as it is, it would replace the vault's root
+            if to.split(['/', '\\']).any(|x| x == "..") {
                 return Err("that folder is outside the vault".into());
             }
-            (m.root.join(to), to.trim_matches('/').to_string())
+            (m.root.join(to), to.to_string())
         }
         None => {
             let d = m.cache.join("files").join(format!("{id}-{part}"));
@@ -527,20 +528,11 @@ fn attachment(m: &Arc<Mail>, p: &Value) -> Result<Value, String> {
             (d, rel)
         }
     };
-    let mut fname = if safe.is_empty() { "attachment".to_string() } else { safe };
-    if !s(p, "to").is_empty() {
-        let mut n = 2;
-        let (stem, ext) = match fname.rfind('.') {
-            Some(i) if i > 0 => (fname[..i].to_string(), fname[i..].to_string()),
-            _ => (fname.clone(), String::new()),
-        };
-        while dir.join(&fname).exists() {
-            fname = format!("{stem} {n}{ext}");
-            n += 1;
-        }
-    }
+    // into the vault never over a file; the cache's copy is replaced
+    let fname = if s(p, "to").is_empty() { fname } else { crate::notes::free_name(&dir, &fname) };
     atlas_plugin::write_file(dir.join(&fname), &bytes).map_err(|e| e.to_string())?; // the cache's straight to disk
-    Ok(json!({ "path": format!("{rel_base}/{fname}"), "mime": mime, "size": bytes.len() }))
+    let path = if rel_base.is_empty() { fname } else { format!("{rel_base}/{fname}") };
+    Ok(json!({ "path": path, "mime": mime, "size": bytes.len() }))
 }
 
 /// The address book: people from the mail (ranked by how much and how lately), then the Calendar plugin's CardDAV

@@ -75,11 +75,13 @@ export async function noteProps(path: string): Promise<Record<string, unknown>> 
 /** What a plugin hands `atlas.files.source`: a FileSource without its id (the plugin's) and with any icon name. */
 export type PluginFileSource = Partial<Omit<FileSource, "id" | "icon">> & { icon?: string };
 
-/** Where a pane's API is: the file, `openView` argument and link anchor it was opened with, and its editor contract. */
-export interface PaneAt { path?: string; arg?: string; anchor?: string; pane?: PluginPane }
+/** Where a pane's API is: the file, `openView` argument and link anchor it was opened with, its editor contract, and
+ *  `hold`, which keeps its subscriptions for as long as the pane (without one: as long as the plugin). */
+export interface PaneAt { path?: string; arg?: string; anchor?: string; pane?: PluginPane; hold?: (undo: () => void) => () => void }
 
 export function pluginApi(p: Plugin, at: PaneAt = {}): PluginApi {
   const { path, arg } = at;
+  const hold = at.hold ?? ((undo: () => void) => own(p.id, undo));
   return {
     version: PLUGIN_API_VERSION,
     plugin: {
@@ -113,11 +115,11 @@ export function pluginApi(p: Plugin, at: PaneAt = {}): PluginApi {
     fileUrl: async (path) => blobUrl(await vaultPath(path)),
     assetUrl: (rel) => { if (p.id === INIT_ID) throw new Error("init.js has no folder of its own: assetUrl is a plugin's"); return pluginAssetUrl(p.id, rel); },
     thumbUrl: async (path, width) => thumbUrl(await vaultPath(path), width),
-    onFilesChanged: (fn) => on("fs", (e) => fn(e.paths)),
+    onFilesChanged: (fn) => hold(on("fs", (e) => fn(e.paths))),
     eink: { get on() { return document.documentElement.classList.contains("eink"); }, refresh: () => void import("./eink").then((m) => m.einkRefresh()), pen: penOver },
     toast: (title, body, kind = "info", options) => toast(title, body, kind, undefined, options?.run && { label: options.label ?? "Open", run: () => { try { options.run!(); } catch (e) { logPlugin(p.id, "toast", e); } } }),
     context: snapshot,
-    onContext: (fn) => onContext(() => fn(snapshot())),
+    onContext: (fn) => hold(onContext(() => fn(snapshot()))),
     hover: (path, line) => setHover(path ? { path, line, source: `plugin:${p.id}` } : null),
     writeProperty: (path, key, value) => api.setProperty({ path, key, text: Array.isArray(value) ? value.join(", ") : value, list: Array.isArray(value) }),
     query: (baseYaml, thisPath) => api.baseQuery(baseYaml, thisPath),
@@ -190,7 +192,7 @@ export function pluginApi(p: Plugin, at: PaneAt = {}): PluginApi {
       signOut: (name) => api.pluginOauthSignOut(p.id, name),
     },
     registerSuggestion: (sp) => own(p.id, registerSuggestion(sp)),
-    on: (type, fn) => own(p.id, onPluginEvent(p.id, type, fn)),
+    on: (type, fn) => hold(onPluginEvent(p.id, type, fn)),
     media: async (url, init = {}) => `${apiBase()}/media/${(await api.pluginMedia(p.id, { url, headers: init.headers })).ticket}`,
     fetch: async (url, init = {}) => {
       const json = init.body !== undefined && typeof init.body !== "string";
@@ -217,7 +219,7 @@ export function pluginApi(p: Plugin, at: PaneAt = {}): PluginApi {
     },
     helper: {
       call: (method, params, opts) => api.pluginHelper(p.id, method, params, opts?.timeout),
-      on: (event, fn) => own(p.id, on("plugin", (e) => { if (e.plugin === p.id && e.event === event) void guard(p.id, `helper.on("${event}")`, () => fn(e.data), undefined); })),
+      on: (event, fn) => hold(on("plugin", (e) => { if (e.plugin === p.id && e.event === event) void guard(p.id, `helper.on("${event}")`, () => fn(e.data), undefined); })),
       state: async () => (await api.pluginHelperState(p.id)).state,
       restart: async () => { await api.stopPluginHelper(p.id); },
     },

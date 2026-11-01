@@ -10,12 +10,14 @@
   import { paneParks, pluginAnchors } from "../lib/registry";
   import { plugins, loadPlugins, loadView, pluginApi, pluginOn, type PluginPane } from "../lib/plugins.svelte";
   import { logPlugin } from "../lib/plugin-log.svelte";
+  import { paneScope } from "../lib/plugin-registry.svelte";
   import { on, touches } from "../lib/bus";
 
   let { spec, panel }: PaneProps<"plugin"> = $props();
   let host: HTMLDivElement;
   let error = $state("");
   let cleanup: (() => void) | undefined;
+  let scope = paneScope();
   let generation = 0;
   // the mounted view's hooks; reset on every mount, so an older mount's calls change nothing
   let saver: (() => void | Promise<void>) | undefined;
@@ -50,6 +52,8 @@
     const mine = ++generation;
     cleanup?.();
     cleanup = undefined;
+    scope.release();
+    scope = paneScope();
     saver = goTo = undefined;
     setDirty(panel.id, false);
     host.replaceChildren();
@@ -63,7 +67,7 @@
       const mod = await loadView(p);
       if (mine !== generation) return;
       if (typeof mod.default !== "function") throw new Error("the module has no default export function (host, atlas) => …");
-      const r = await mod.default(host, pluginApi(p, { path: spec.path, arg: spec.arg, anchor: spec.anchor, pane: paneOf(mine) }));
+      const r = await mod.default(host, pluginApi(p, { path: spec.path, arg: spec.arg, anchor: spec.anchor, pane: paneOf(mine), hold: scope.hold }));
       if (mine !== generation) { if (typeof r === "function") r(); return; }
       cleanup = typeof r === "function" ? r : undefined;
     } catch (e) {
@@ -94,7 +98,7 @@
       t = setTimeout(() => { const m = manifest; manifest = false; void (m ? loadPlugins().then(mount) : mount()); }, 250);
     });
     return () => {
-      off(); clearTimeout(t); generation++; cleanup?.();
+      off(); clearTimeout(t); generation++; cleanup?.(); scope.release();
       if (paneParks.get(panel.id) === save) paneParks.delete(panel.id);
       pluginAnchors.delete(panel.id);
       setDirty(panel.id, false);

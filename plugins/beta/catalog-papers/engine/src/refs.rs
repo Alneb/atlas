@@ -152,7 +152,8 @@ pub fn citekey(authors: &[String], year: Option<&str>, title: &str, taken: &dyn 
     if !taken(&base) {
         return base;
     }
-    ('a'..='z').map(|c| format!("{base}{c}")).find(|k| !taken(k)).unwrap_or(base)
+    // past z a number: a taken key would put this paper in another's folder
+    ('a'..='z').map(|c| format!("{base}{c}")).chain((2..).map(|n| format!("{base}_{n}"))).find(|k| !taken(k)).expect("an endless list of keys")
 }
 
 // --- BibTeX (same mapping as tools/refs_bib.py) -------------------------------------------------------------------
@@ -788,6 +789,8 @@ pub mod tests {
         assert_eq!(citekey(&a, Some("2023"), "Condensed Matter Field Theory", &|_| false), "altland2023condensed");
         assert_eq!(citekey(&["Sénéchal, David".into()], Some("2008"), "The Theory of...", &|_| false), "senechal2008theory");
         assert_eq!(citekey(&a, Some("2023"), "Condensed", &|k| k == "altland2023condensed"), "altland2023condenseda");
+        let all_letters = |k: &str| k.len() <= "altland2023condensed".len() + 1;
+        assert_eq!(citekey(&a, Some("2023"), "Condensed", &all_letters), "altland2023condensed_2");
     }
 
     #[test]

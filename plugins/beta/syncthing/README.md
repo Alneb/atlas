@@ -7,7 +7,7 @@ It has no pane: once switched on it works by itself.
 ## What it adds
 
 - **A changed-files hook** (`on = "fs"`): each batch of paths the vault's watcher sees change — Atlas's own writes and
-  any other program's — is handed to Syncthing's REST API (`POST /rest/db/scan?folder=<id>&sub=<path>`). Batches that
+  any other program's — is handed to Syncthing's REST API (`POST /rest/db/scan?folder=<id>&sub=<path>&sub=…`, up to 50 paths a call). Batches that
   arrive while one call runs are joined into the next.
 - **The tool `scan`** `{ paths }`.
 - The Syncthing folder holding the vault is found by its path (the deepest one), and the API key is read from this
@@ -17,7 +17,8 @@ It has no pane: once switched on it works by itself.
 
 - **Syncthing's address** (`http://127.0.0.1:8384`): its web interface.
 - **API key** (a secret): Syncthing → Actions → Settings → API Key; empty: read from the local Syncthing configuration.
-- **Folder ID**: empty: the Syncthing folder that holds this vault.
+- **Folder ID**: empty: the Syncthing folder that holds this vault. A folder named here is still looked up by its path,
+  so a vault below its top is scanned at its own place.
 
 ## How it fits
 

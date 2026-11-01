@@ -7,6 +7,7 @@ use std::path::{Path, PathBuf};
 /// Where Syncthing keeps its config: 2.x in ~/.local/state, 1.x in ~/.config.
 pub const CONFIGS: [&str; 2] = [".local/state/syncthing/config.xml", ".config/syncthing/config.xml"];
 pub const DEFAULT_URL: &str = "http://127.0.0.1:8384";
+const SUBS_PER_SCAN: usize = 50;
 
 /// Why a request to Syncthing gave no answer.
 #[derive(Debug, Clone, PartialEq)]
@@ -82,24 +83,29 @@ pub fn scan(request: Request, m: &Machine, root: &Path, params: &Value) -> Resul
     let Some(key) = secrets["api_key"].as_str().filter(|k| !k.is_empty()).map(str::to_string).or_else(|| key_from_config(&m.home, m.read)) else {
         return Ok(json!({ "skipped": "no Syncthing on this machine (no API key set, none in its config)" }));
     };
-    let (folder, inside) = match settings["folder"].as_str().map(str::trim).filter(|f| !f.is_empty()) {
-        Some(f) => (f.to_string(), String::new()),
-        None => {
-            let folders = match request("GET", &format!("{url}/rest/config/folders"), &key) {
-                Ok(v) => v,
-                Err(Fail::Unreachable(why)) => return Ok(json!({ "skipped": format!("Syncthing is not running at {url} ({why})") })),
-                Err(Fail::Refused(why)) => return Err(why),
-            };
-            match folder_of(folders.as_array().map(Vec::as_slice).unwrap_or_default(), root, &m.home, m.real) {
-                Some(found) => found,
-                None => return Ok(json!({ "skipped": "no Syncthing folder holds this vault" })),
-            }
-        }
+    let mut paths: Vec<&str> = params["paths"].as_array().into_iter().flatten().filter_map(Value::as_str).filter(|p| !p.is_empty() && !p.starts_with(".atlas/cache/")).collect();
+    paths.sort_unstable();
+    paths.dedup();
+    if paths.is_empty() {
+        return Ok(json!({ "scanned": 0 }));
+    }
+    // the folder named in Settings is still looked up: the vault may sit below its top
+    let named = settings["folder"].as_str().map(str::trim).filter(|f| !f.is_empty());
+    let folders = match request("GET", &format!("{url}/rest/config/folders"), &key) {
+        Ok(v) => v,
+        Err(Fail::Unreachable(why)) => return Ok(json!({ "skipped": format!("Syncthing is not running at {url} ({why})") })),
+        Err(Fail::Refused(why)) => return Err(why),
     };
-    let paths: Vec<&str> = params["paths"].as_array().into_iter().flatten().filter_map(Value::as_str).filter(|p| !p.is_empty() && !p.starts_with(".atlas/cache/")).collect();
-    for p in &paths {
-        let sub = if inside.is_empty() { p.to_string() } else { format!("{inside}/{p}") };
-        request("POST", &format!("{url}/rest/db/scan?folder={}&sub={}", form(&folder), form(&sub)), &key).map_err(|f| match f {
+    let candidates: Vec<Value> = folders.as_array().into_iter().flatten().filter(|f| named.is_none_or(|n| f["id"] == n)).cloned().collect();
+    let (folder, inside) = match (folder_of(&candidates, root, &m.home, m.real), named) {
+        (Some(found), _) => found,
+        (None, Some(n)) => (n.to_string(), String::new()),
+        (None, None) => return Ok(json!({ "skipped": "no Syncthing folder holds this vault" })),
+    };
+    // Syncthing takes many `sub`s in one scan; batches keep the address short
+    for batch in paths.chunks(SUBS_PER_SCAN) {
+        let subs: String = batch.iter().map(|p| format!("&sub={}", form(&if inside.is_empty() { p.to_string() } else { format!("{inside}/{p}") }))).collect();
+        request("POST", &format!("{url}/rest/db/scan?folder={}{subs}", form(&folder)), &key).map_err(|f| match f {
             Fail::Unreachable(why) | Fail::Refused(why) => why,
         })?;
     }
@@ -140,9 +146,24 @@ mod tests {
             asked.borrow_mut().push((method.to_string(), url.to_string(), key.to_string()));
             Ok(if url.ends_with("/rest/config/folders") { json!([{"id": "work", "path": "/home/u/Work"}]) } else { Value::Null })
         };
-        let params = json!({"paths": ["notes/a b.md", ".atlas/cache/x"], "secrets": {"api_key": "k"}, "settings": {}});
-        assert_eq!(scan(&request, &machine(NONE), Path::new("/home/u/Work"), &params), Ok(json!({"folder": "work", "scanned": 1})));
-        assert_eq!(asked.borrow().last().unwrap(), &("POST".into(), "http://127.0.0.1:8384/rest/db/scan?folder=work&sub=notes%2Fa+b.md".into(), "k".into()));
+        let params = json!({"paths": ["notes/a b.md", ".atlas/cache/x", "b.md", "notes/a b.md"], "secrets": {"api_key": "k"}, "settings": {}});
+        assert_eq!(scan(&request, &machine(NONE), Path::new("/home/u/Work"), &params), Ok(json!({"folder": "work", "scanned": 2})));
+        assert_eq!(asked.borrow().last().unwrap(), &("POST".into(), "http://127.0.0.1:8384/rest/db/scan?folder=work&sub=b.md&sub=notes%2Fa+b.md".into(), "k".into()));
+        assert_eq!(asked.borrow().len(), 2, "one listing, one scan for both paths");
+    }
+
+    #[test]
+    fn a_folder_named_in_settings_still_finds_the_vault_below_its_top() {
+        let asked = RefCell::new(vec![]);
+        let request = |_: &str, url: &str, _: &str| {
+            asked.borrow_mut().push(url.to_string());
+            Ok(if url.ends_with("/rest/config/folders") { json!([{"id": "home", "path": "/home/u"}, {"id": "work", "path": "/home/u/Work"}]) } else { Value::Null })
+        };
+        let params = json!({"paths": ["a.md"], "secrets": {"api_key": "k"}, "settings": {"folder": "home"}});
+        assert_eq!(scan(&request, &machine(NONE), Path::new("/home/u/Work/vault"), &params), Ok(json!({"folder": "home", "scanned": 1})));
+        assert!(asked.borrow().last().unwrap().ends_with("folder=home&sub=Work%2Fvault%2Fa.md"), "{:?}", asked.borrow());
+        let params = json!({"paths": ["a.md"], "secrets": {"api_key": "k"}, "settings": {"folder": "elsewhere"}});
+        assert_eq!(scan(&request, &machine(NONE), Path::new("/home/u/Work/vault"), &params), Ok(json!({"folder": "elsewhere", "scanned": 1})));
     }
 
     #[test]

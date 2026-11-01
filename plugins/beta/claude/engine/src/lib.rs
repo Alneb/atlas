@@ -41,14 +41,18 @@ pub fn accounts(home: &Path, config_dir: Option<&Path>) -> Vec<Account> {
     found
 }
 
+/// An account's folder is not entered: below it are its sessions and projects (thousands of files, asked on every poll).
 fn walk(dir: &Path, depth: u32, out: &mut Vec<PathBuf>) {
+    let own = dir.join(".credentials.json");
+    if own.is_file() {
+        out.push(own);
+        return;
+    }
     let Ok(entries) = std::fs::read_dir(dir) else { return };
     for e in entries.flatten() {
         let p = e.path();
-        if p.is_dir() && depth > 0 {
+        if depth > 0 && p.is_dir() {
             walk(&p, depth - 1, out);
-        } else if p.file_name().is_some_and(|n| n == ".credentials.json") {
-            out.push(p);
         }
     }
 }
@@ -156,6 +160,9 @@ mod tests {
         }
         std::fs::write(home.join(".claude.json"), r#"{"oauthAccount":{"emailAddress":"alice@example.org"}}"#).unwrap();
         std::fs::write(home.join(".claude-switch/accounts/work/.claude.json"), r#"{"oauthAccount":{"emailAddress":"bob@example.org"}}"#).unwrap();
+        // a credentials file inside an account's own data is not another account
+        std::fs::create_dir_all(home.join(".claude-switch/accounts/work/projects/x")).unwrap();
+        std::fs::write(home.join(".claude-switch/accounts/work/projects/x/.credentials.json"), "{}").unwrap();
         let names: Vec<_> = accounts(home, None).into_iter().map(|a| a.name).collect();
         assert_eq!(names, ["default", "personal", "work"]);
         let all = accounts(home, Some(&home.join(".claude-switch/accounts/work")));
