@@ -210,6 +210,9 @@ pub(crate) fn link_spans(line: &str) -> Vec<Span> {
             b'[' if wiki_closes && b.get(i + 1) == Some(&b'[') => {
                 let embed = i > 0 && b[i - 1] == b'!';
                 match line[i + 2..].find("]]") {
+                    // `[[ and [[Note]]`: a body with a `[` is not a link (the UI's wikilink-syntax.ts reads it so); the
+                    // next `[[` is read on
+                    Some(j) if line[i + 2..i + 2 + j].contains('[') => i += 2,
                     Some(j) => {
                         let inner = &line[i + 2..i + 2 + j];
                         // in a table the alias's bar is written `\|` (Obsidian): the backslash is not the target's
@@ -400,7 +403,8 @@ impl Names {
                 .map(|&id| self.path(id))
                 .filter(|p| !c.contains('/') || p.to_lowercase().ends_with(&suffix))
                 .collect();
-            hits.sort_by_key(|p| (dir_of(p) != dir_of(from), p.len()));
+            // then by path: the UI resolves the same way (ui/src/lib/vault.ts), whatever order each listed the files in
+            hits.sort_by_key(|p| (dir_of(p) != dir_of(from), p.len(), *p));
             hits.first().map(|p| p.to_string())
         })
     }
@@ -780,6 +784,8 @@ mod tests {
         assert_eq!(table.iter().map(|l| l.target.as_str()).collect::<Vec<_>>(), vec!["Hubbard model", "Mott"], "a table's escaped alias bar");
         let open = parse("[[unclosed and [x](y.md), [[z](w.md)\n");
         assert_eq!(open.iter().map(|l| l.target.as_str()).collect::<Vec<_>>(), vec!["y.md", "w.md"], "an unclosed [[ hides no markdown link");
+        let stray = parse("see [[ and [[Note]], [[a[[b]]\n");
+        assert_eq!(stray.iter().map(|l| l.target.as_str()).collect::<Vec<_>>(), vec!["Note", "b"], "a stray [[ before a link, as the editor reads it");
         let fm = parse("---\ntype: x\ntopics:\n  - '[[Condensed Matter]]'\n---\nsee [[B]]\n");
         assert_eq!(
             fm.iter().map(|l| l.context.as_str()).collect::<Vec<_>>(),

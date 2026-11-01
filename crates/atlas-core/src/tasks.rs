@@ -48,11 +48,14 @@ enum Field {
     Priority(Priority),
 }
 
-const MARKERS: [(&str, Field); 13] = [
+/// The Tasks plugin's markers, its alternatives too (`📆` / `🗓` due, `⌛` scheduled); a marker may carry the emoji
+/// variation selector (U+FE0F), read as blank by [`blank`].
+const MARKERS: [(&str, Field); 14] = [
     ("📅", Field::Due),
-    ("🗓️", Field::Due),
+    ("📆", Field::Due),
     ("🗓", Field::Due),
     ("⏳", Field::Scheduled),
+    ("⌛", Field::Scheduled),
     ("🛫", Field::Start),
     ("➕", Field::Created),
     ("✅", Field::Completed),
@@ -112,7 +115,8 @@ pub fn parse(text: &str) -> Task {
     let mut t = Task { title: String::new(), due: None, scheduled: None, start: None, created: None, completed: None, priority: Priority::Normal, recurrence: None, tags: Vec::new() };
     let mut title = text[..cuts.first().map_or(text.len(), |c| c.0)].to_string();
     for (k, (at, len, field)) in cuts.iter().enumerate() {
-        let value = &text[at + len..cuts.get(k + 1).map_or(text.len(), |c| c.0)];
+        // a marker's variation selector (`⏫\u{FE0F}`) is the marker's, not the value's or the title's
+        let value = text[at + len..cuts.get(k + 1).map_or(text.len(), |c| c.0)].trim_start_matches('\u{FE0F}');
         // what follows the field's own value is text again (`📅 2026-10-17 before lunch`)
         let mut rest = value;
         match field {
@@ -124,7 +128,7 @@ pub fn parse(text: &str) -> Task {
                 rest = &value[end..];
             }
             _ => {
-                if let Some((date, i)) = first_date(value).filter(|(_, i)| value[..*i].trim().is_empty()) {
+                if let Some((date, i)) = first_date(value).filter(|(_, i)| blank(&value[..*i])) {
                     match field {
                         Field::Due => t.due = Some(date),
                         Field::Scheduled => t.scheduled = Some(date),
@@ -246,10 +250,10 @@ pub fn next_occurrence(line: &str, today: NaiveDate) -> Option<String> {
     };
     // each date rewritten where its field has it: the same day may also be another field's (`➕ D 📅 D`), or a moved
     // date another's old one, so a text search could move the wrong one
-    const DUE: &[&str] = &["📅", "🗓️", "🗓"];
+    const DUE: &[&str] = &["📅", "📆", "🗓"];
     let others: Vec<std::ops::Range<usize>> = [&["➕"][..], &["✅"][..]].iter().filter_map(|m| marked_date(line, m)).collect();
     let mut edits: Vec<(std::ops::Range<usize>, String)> = Vec::new();
-    for (d, markers) in [(t.due, DUE), (t.scheduled, &["⏳"][..]), (t.start, &["🛫"][..])] {
+    for (d, markers) in [(t.due, DUE), (t.scheduled, &["⏳", "⌛"][..]), (t.start, &["🛫"][..])] {
         let Some(d) = d else { continue };
         let at = marked_date(line, markers).or_else(|| {
             // a due date written without an emoji (parse's fallback): its first mention outside the other fields
@@ -277,9 +281,14 @@ pub fn next_occurrence(line: &str, today: NaiveDate) -> Option<String> {
 fn marked_date(line: &str, markers: &[&str]) -> Option<std::ops::Range<usize>> {
     markers.iter().find_map(|m| {
         let after = line.find(m)? + m.len();
-        let (_, i) = first_date(&line[after..]).filter(|(_, i)| line[after..after + i].trim().is_empty())?;
+        let (_, i) = first_date(&line[after..]).filter(|(_, i)| blank(&line[after..after + i]))?;
         Some(after + i..after + i + 10)
     })
+}
+
+/// Nothing between a marker and its value but spaces and the emoji variation selector (`📅\u{FE0F} 2026-10-17`).
+fn blank(s: &str) -> bool {
+    s.chars().all(|c| c.is_whitespace() || c == '\u{FE0F}')
 }
 
 /// Does the line use the Tasks plugin's fields at all? (Then a tick also writes `✅ date`, as that plugin does.)
@@ -495,6 +504,8 @@ mod tests {
         assert_eq!((p["priority"].as_str(), p["recurrence"].as_str(), p["due"].as_str(), p["tags"].as_str()), ("high", "every week", "2026-10-17", "work admin/forms"));
 
         // text after a field is text; a date without an emoji is the due date; nothing at all is a plain task
+        assert_eq!(parse("a 📆 2026-10-12").due, parse("a 📅\u{FE0F} 2026-10-12").due, "the plugin's other due marker; a variation selector");
+        assert!(parse("a ⌛ 2026-10-12").scheduled.is_some() && parse("a 🗓\u{FE0F} 2026-10-12").due.is_some());
         let t = parse("call Ana 📅 2026-10-12 before lunch");
         assert_eq!((t.title.as_str(), t.due), ("call Ana before lunch", Some(d("2026-10-12"))));
         let t = parse("run sweep due:: 2026-10-13 fast");

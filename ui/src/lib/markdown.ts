@@ -11,6 +11,7 @@ import { resolveRel, IMAGE_RE } from "./paths";
 import { onVaultChange, resolveLink, resolveOrBeside } from "./vault";
 import { onSettings } from "./settings.svelte";
 import { wikilinkAt } from "./wikilink-syntax";
+import { tagAt, tagMayFollow } from "./tag-syntax";
 
 export { resolveRel };
 
@@ -129,11 +130,11 @@ function highlightMark(state: StateInline, silent: boolean): boolean {
 function hashtag(state: StateInline, silent: boolean): boolean {
   const src = state.src, start = state.pos;
   if (src.charCodeAt(start) !== 0x23) return false;
-  if (start > 0 && !/\s|\(/.test(src[start - 1])) return false;
-  const m = /^#([\p{L}_][\p{L}\p{N}_/-]*)/u.exec(src.slice(start));
-  if (!m) return false;
-  if (!silent) { const t = state.push("hashtag", "", 0); t.content = m[1]; }
-  state.pos = start + m[0].length;
+  if (start > 0 && !tagMayFollow(src[start - 1], src[start - 2])) return false;
+  const tag = tagAt(src.slice(start + 1, state.posMax));
+  if (!tag) return false;
+  if (!silent) { const t = state.push("hashtag", "", 0); t.content = tag; }
+  state.pos = start + 1 + tag.length;
   return true;
 }
 

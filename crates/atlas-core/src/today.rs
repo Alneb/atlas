@@ -34,10 +34,11 @@ pub fn today_at(root: &Path, cfg: &Config, now: DateTime<Local>) -> Result<Today
     })
 }
 
-/// Text after an unchecked checkbox: `- [ ] x`, `* [ ] x`, `+ [ ] x`, any indentation.
+/// Text after an unchecked checkbox: `- [ ] x`, `* [ ] x`, `+ [ ] x`, `1. [ ] x`, any indentation — the box
+/// [`checkbox`] finds, the one ticking flips.
 pub fn parse_task(line: &str) -> Option<&str> {
-    let rest = line.trim_start().strip_prefix(['-', '*', '+'])?;
-    let rest = rest.strip_prefix(' ')?.trim_start().strip_prefix("[ ]")?;
+    let i = checkbox(line).filter(|&i| &line[i..i + 3] == "[ ]")?;
+    let rest = &line[i + 3..];
     let text = rest.trim();
     (!text.is_empty() && (rest.starts_with(' ') || rest.starts_with('\t'))).then_some(text)
 }
@@ -109,9 +110,8 @@ pub const MAX_ALL_TASKS: usize = 5000;
 
 /// Text after a ticked checkbox (`- [x] …`).
 pub fn done_task(line: &str) -> Option<&str> {
-    let rest = line.trim_start().strip_prefix(['-', '*', '+'])?.strip_prefix(' ')?.trim_start();
-    let rest = rest.strip_prefix("[x]").or_else(|| rest.strip_prefix("[X]"))?;
-    let t = rest.trim();
+    let i = checkbox(line).filter(|&i| matches!(&line[i..i + 3], "[x]" | "[X]"))?;
+    let t = line[i + 3..].trim();
     (!t.is_empty()).then_some(t)
 }
 
@@ -488,6 +488,8 @@ mod tests {
         assert_eq!(parse_task("-[ ] no space"), None);
         assert_eq!(parse_task("- [ ]x"), None);
         assert_eq!(parse_task("text - [ ] mid-line"), None);
+        assert_eq!(parse_task("2. [ ] numbered"), Some("numbered"), "an ordered list's task, as ticking reads it");
+        assert_eq!(done_task("1) [X] done too"), Some("done too"));
     }
 
     #[test]

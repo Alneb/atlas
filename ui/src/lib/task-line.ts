@@ -2,11 +2,12 @@
 // dialog (components/TaskDialog.svelte). The file keeps the emoji fields (Obsidian and the core's tasks.rs read
 // them); fields are written back in Obsidian Tasks' order so a line edited here and there stays the same.
 import { localDay } from "./local-day";
+import { DATE_MARKS, fieldPattern, type DateField } from "./task-fields";
 
 export type Priority = "highest" | "high" | "medium" | "none" | "low" | "lowest";
 const PRIORITY_MARK: Record<Exclude<Priority, "none">, string> = { highest: "🔺", high: "⏫", medium: "🔼", low: "🔽", lowest: "⏬" };
-const DATE_MARK = { created: "➕", start: "🛫", scheduled: "⏳", due: "📅", done: "✅" } as const;
-type DateField = keyof typeof DATE_MARK;
+/** The marker each date is written with (any of the plugin's is read: task-fields.ts). */
+const DATE_MARK: Record<DateField, string> = { created: "➕", start: "🛫", scheduled: "⏳", due: "📅", done: "✅" };
 
 export interface TaskFields {
   /** What the task says, with its #tags and [[links]]; no fields. */
@@ -28,8 +29,7 @@ export interface TaskLine extends TaskFields {
 }
 
 const LINE = /^(\s*(?:[-*+]|\d+[.)])\s+)\[(.)\]\s?(.*)$/u;
-const MARKS = "🔺⏫🔼🔽⏬📅⏳🛫➕✅🔁";
-const FIELD = new RegExp(`(📅|⏳|🛫|➕|✅)\\uFE0F?\\s*(\\d{4}-\\d{2}-\\d{2})|(🔺|⏫|🔼|🔽|⏬)\\uFE0F?|🔁\\uFE0F?\\s*([^${MARKS}#\\n]*?)(?=\\s*(?:[${MARKS}]|#|$))`, "gu");
+const FIELD = fieldPattern();
 
 /** A task line taken apart; a line that is not a task (`text`, `- item`) becomes a new one with that text. */
 export function parseTaskLine(text: string): TaskLine {
@@ -41,10 +41,9 @@ export function parseTaskLine(text: string): TaskLine {
   const id = /\s\^([A-Za-z0-9-]+)\s*$/u.exec(` ${whole}`);
   const rest = id ? whole.slice(0, whole.length - id[0].length + 1).trimEnd() : whole;
   const t: TaskLine = { lead, status, blockId: id ? id[1] : "", description: "", done: status === "x" || status === "X", priority: "none", repeat: "", created: "", start: "", scheduled: "", due: "", doneOn: "" };
-  const dates: Record<string, DateField> = { "➕": "created", "🛫": "start", "⏳": "scheduled", "📅": "due", "✅": "done" };
   const priorities = Object.fromEntries(Object.entries(PRIORITY_MARK).map(([k, v]) => [v, k as Priority]));
   t.description = rest.replace(FIELD, (_all, dm: string, day: string, pm: string, rule: string) => {
-    if (dm) { const f = dates[dm]; if (f === "done") t.doneOn = day; else t[f] = day; }
+    if (dm) { const f = DATE_MARKS[dm]; if (f === "done") t.doneOn = day; else t[f] = day; }
     else if (pm) t.priority = priorities[pm];
     else if (rule !== undefined) t.repeat = rule.trim();
     return "";

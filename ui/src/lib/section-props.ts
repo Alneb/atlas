@@ -2,8 +2,10 @@
 // heading's section, and the sections inside it inherit it — so `run:: X` under "## Results" is known
 // to every expression and block below that heading, and the note's frontmatter to all of them.
 // Pure text in, plain data out: used by expressions, by blocks (`ctx.props()`) and by tests.
-import { parse as parseYaml } from "yaml";
-import { FENCE, HEADING } from "./note-anchor";
+import { frontmatterOf } from "./property-model";
+import { HEADING } from "./note-anchor";
+import { fences } from "./fence-walk";
+import { DUE } from "./task-fields";
 
 export type Props = Record<string, unknown>;
 export interface Task { text: string; done: boolean; line: number; due?: string }
@@ -37,24 +39,21 @@ function setField(into: Props, key: string, raw: string): void {
 
 /** The frontmatter as data, and the line (0-based) where the body starts. */
 function frontmatter(lines: string[]): { note: Props; body: number } {
-  if (lines[0]?.trim() !== "---") return { note: {}, body: 0 };
-  const end = lines.findIndex((l, i) => i > 0 && /^(---|\.\.\.)\s*$/.test(l));
-  if (end < 0) return { note: {}, body: 0 };
-  try {
-    const v: unknown = parseYaml(lines.slice(1, end).join("\n"));
-    return { note: v && typeof v === "object" && !Array.isArray(v) ? (v as Props) : {}, body: end + 1 };
-  } catch { return { note: {}, body: end + 1 }; }
+  // the fences as the core reads them (property-model.ts `frontmatterOf`, atlas-text `frontmatter::split`)
+  const text = lines.join("\n"), f = frontmatterOf(text);
+  if (!f) return { note: {}, body: 0 };
+  return { note: (f.data ?? {}) as Props, body: text.slice(0, f.end).split("\n").length };
 }
 
 /** Every section of a note (the part before the first heading is level 0), with its own properties. */
 function sections(lines: string[], body: number): Section[] {
   const root: Section = { level: 0, heading: "", start: body, end: lines.length, own: {}, parent: null };
   const all = [root];
-  let cur = root, fenced = false;
+  let cur = root;
+  const code = fences();
   for (let i = body; i < lines.length; i++) {
     const line = lines[i];
-    if (FENCE.test(line)) { fenced = !fenced; continue; }
-    if (fenced) continue; // code is not prose: `a::b` in a snippet is not a property
+    if (code.code(line)) continue; // code is not prose: `a::b` in a snippet is not a property
     const h = HEADING.exec(line);
     if (h) {
       let parent: Section = cur;
@@ -72,11 +71,10 @@ function sections(lines: string[], body: number): Section[] {
 
 function tasksIn(lines: string[], s: Section): Task[] {
   const out: Task[] = [];
-  let fenced = false;
+  const code = fences();
   for (let i = s.start; i < s.end; i++) {
-    if (FENCE.test(lines[i])) { fenced = !fenced; continue; }
-    const t = fenced ? null : TASK.exec(lines[i]);
-    if (t) out.push({ text: t[2].replace(/\s*📅\s*\d{4}-\d{2}-\d{2}/u, "").trim(), done: t[1] !== " ", line: i + 1, due: /📅\s*(\d{4}-\d{2}-\d{2})/u.exec(t[2])?.[1] });
+    const t = code.code(lines[i]) ? null : TASK.exec(lines[i]);
+    if (t) out.push({ text: t[2].replace(DUE, "").trim(), done: t[1] !== " ", line: i + 1, due: DUE.exec(t[2])?.[1] });
   }
   return out;
 }

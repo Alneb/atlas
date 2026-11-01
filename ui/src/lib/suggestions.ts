@@ -5,7 +5,8 @@ export interface SectionInfo { path: string; heading: string; text: string }
 export interface Suggestion { label: string; insert: string }
 export type SuggestionProvider = (s: SectionInfo) => Suggestion[];
 
-const DATED = /^\s*[-*] \[[ xX]\] .*(📅\s*\d{4}-\d{2}-\d{2}|due::\s*\d{4}-\d{2}-\d{2}|\b\d{4}-\d{2}-\d{2}\b)/gm;
+// any list's task (`- `, `* `, `+ `, `1. `) with a date in it, as the core's `today::checkbox` reads the box
+const DATED = /^\s*(?:[-*+]|\d+[.)])\s+\[[ xX]\] .*\b\d{4}-\d{2}-\d{2}\b/gm;
 const hasView = (text: string, type: string) => new RegExp(`^\\s*type:\\s*["']?${type.replace(/\./g, "\\.")}\\b`, "m").test(text);
 
 /** Built in: a section with ≥ 2 dated tasks and no calendar → a calendar of them. */

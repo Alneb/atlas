@@ -29,6 +29,7 @@
   import { isIconName } from "../lib/icons";
   import CaptureGuides from "../components/CaptureGuides.svelte";
   import { PROMPT, landedAt } from "../lib/capture-guides";
+  import { fences } from "../lib/fence-walk";
 
   export type TodayPart = "greeting" | "capture" | "focus" | "log" | "tasks" | "activity";
   const ALL: TodayPart[] = ["greeting", "capture", "focus", "log", "tasks", "activity"];
@@ -145,10 +146,9 @@
   function blankEmptySections(md: string): string {
     const lines = md.split("\n");
     const level = (l: string) => /^(#{1,6})\s/.exec(l)?.[1].length ?? 0;
-    let fence = false;
+    const code = fences();
     for (let i = 0; i < lines.length; i++) {
-      if (/^\s*(```|~~~)/.test(lines[i])) fence = !fence;
-      const h = fence ? 0 : level(lines[i]);
+      const h = code.code(lines[i]) ? 0 : level(lines[i]);
       if (!h) continue;
       let j = i + 1;
       while (j < lines.length && !lines[j].trim()) j++;
@@ -163,10 +163,9 @@
    *  the others (Journal, Dreams…) are buttons that open the note there. */
   const sections = $derived.by(() => {
     const out: { title: string; line: number }[] = [];
-    let fence = false;
+    const code = fences();
     logText.split("\n").forEach((l, i) => {
-      if (/^\s*(```|~~~)/.test(l)) fence = !fence;
-      const m = !fence && /^##\s+(.+?)\s*$/.exec(l);
+      const m = !code.code(l) && /^##\s+(.+?)\s*$/.exec(l);
       if (m) out.push({ title: m[1], line: i });
     });
     return out;

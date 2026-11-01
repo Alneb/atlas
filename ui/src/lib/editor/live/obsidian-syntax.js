@@ -30,6 +30,7 @@
 // blockquote nesting for no gain.
 
 import { styleTags, tags as t } from "@lezer/highlight";
+import { tagAt, tagMayFollow } from "../../tag-syntax";
 
 // Character codes, named so the parse functions below read as prose.
 const CH_NEWLINE = 10;
@@ -220,8 +221,6 @@ const InlineMath = {
 // --- #tag -------------------------------------------------------------------
 // Obsidian requires at least one non-numeric character, which is what stops
 // "#1" in prose ("issue #1") from becoming a tag.
-const TAG_BODY = /[\p{L}\p{N}_/-]/u;
-const TAG_HAS_LETTER = /[\p{L}_/-]/u;
 
 const Tag = {
   defineNodes: [{ name: "Tag" }],
@@ -230,16 +229,12 @@ const Tag = {
       name: "Tag",
       parse(cx, next, pos) {
         if (next !== CH_HASH) return -1;
-        // Only at a word boundary, so a URL fragment (#section) is left alone.
-        if (pos > cx.offset) {
-          const prev = String.fromCharCode(cx.char(pos - 1));
-          if (!/\s/.test(prev)) return -1;
-        }
-        let end = pos + 1;
-        while (end < cx.end && TAG_BODY.test(String.fromCharCode(cx.char(end)))) end++;
-        if (end === pos + 1) return -1;
-        if (!TAG_HAS_LETTER.test(cx.slice(pos + 1, end))) return -1;
-        return cx.addElement(cx.elt("Tag", pos, end));
+        // the core's rule (lib/tag-syntax.ts): a URL fragment (#section) is left alone
+        const before = pos - 1 > cx.offset ? String.fromCharCode(cx.char(pos - 2)) : undefined;
+        if (pos > cx.offset && !tagMayFollow(String.fromCharCode(cx.char(pos - 1)), before)) return -1;
+        const tag = tagAt(cx.slice(pos + 1, cx.end));
+        if (!tag) return -1;
+        return cx.addElement(cx.elt("Tag", pos, pos + 1 + tag.length));
       },
     },
   ],

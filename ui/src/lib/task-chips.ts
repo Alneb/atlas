@@ -5,18 +5,19 @@
 import { iconSvg } from "./icons";
 import type { IconName } from "./panes";
 import { localDay } from "./local-day";
+import { DATE_MARKS, fieldPattern, type DateField } from "./task-fields";
 
 export type ChipKind = "due" | "scheduled" | "start" | "created" | "done" | "priority" | "repeat";
 export interface Chip { kind: ChipKind; from: number; to: number; text: string; icon: IconName; title: string; tone?: "late" | "soon" | "high" | "low" }
 
-const DATES: Record<string, { kind: ChipKind; icon: IconName; what: string }> = {
-  "📅": { kind: "due", icon: "calendar", what: "due" }, "⏳": { kind: "scheduled", icon: "clock", what: "scheduled" },
-  "🛫": { kind: "start", icon: "flag", what: "starts" }, "➕": { kind: "created", icon: "plus", what: "created" }, "✅": { kind: "done", icon: "check", what: "done" },
+const DATES: Record<DateField, { icon: IconName; what: string }> = {
+  due: { icon: "calendar", what: "due" }, scheduled: { icon: "clock", what: "scheduled" },
+  start: { icon: "flag", what: "starts" }, created: { icon: "plus", what: "created" }, done: { icon: "check", what: "done" },
 };
 const PRIORITIES: Record<string, { name: string; up: boolean }> = {
   "🔺": { name: "highest", up: true }, "⏫": { name: "high", up: true }, "🔼": { name: "medium", up: true }, "🔽": { name: "low", up: false }, "⏬": { name: "lowest", up: false },
 };
-const FIELD = /(📅|⏳|🛫|➕|✅)️?\s*(\d{4}-\d{2}-\d{2})|(🔺|⏫|🔼|🔽|⏬)️?|🔁️?\s*(every\b[^📅⏳🛫➕✅🔺⏫🔼🔽⏬🔁#\n]*?)(?=\s*(?:[📅⏳🛫➕✅🔺⏫🔼🔽⏬🔁#]|$))/gu;
+const FIELD = fieldPattern("every\\b");
 
 const iso = localDay;
 
@@ -37,7 +38,7 @@ export function chipsOf(text: string, now = new Date(), done = false): Chip[] {
   for (const m of text.matchAll(FIELD)) {
     const from = m.index ?? 0, to = from + m[0].length;
     if (m[1]) {
-      const f = DATES[m[1]], { text: said, days } = sayDate(m[2], now);
+      const kind = DATE_MARKS[m[1]], f = { kind, ...DATES[kind] }, { text: said, days } = sayDate(m[2], now);
       const open = f.kind === "due" || f.kind === "scheduled" || f.kind === "start";
       out.push({ kind: f.kind, from, to, text: said, icon: f.icon, title: `${f.what} ${m[2]}`, tone: done ? undefined : open && days < 0 && f.kind === "due" ? "late" : open && days >= 0 && days <= 1 ? "soon" : undefined });
     } else if (m[3]) {

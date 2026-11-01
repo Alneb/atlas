@@ -60,15 +60,18 @@ fn inline_tags(text: &str, mut f: impl FnMut(usize, &str)) {
         let mut piece_at = 0;
         for (k, piece) in line.split('`').enumerate() {
             if k % 2 == 0 {
-                let mut prev = ' ';
+                let (mut prev, mut before) = (' ', ' ');
                 for (i, c) in piece.char_indices() {
-                    if c == '#' && (prev.is_whitespace() || matches!(prev, '(' | '[' | ',' | ';')) {
+                    // `[[#Heading]]` and `[x](#anchor)` link into a note: the `#` starts a link's target, not a tag
+                    let link = matches!((before, prev), ('[', '[') | (']', '('));
+                    if c == '#' && !link && (prev.is_whitespace() || matches!(prev, '(' | '[' | ',' | ';')) {
                         let rest = &piece[i + 1..];
                         let end = rest.find(|ch: char| !tag_char(ch)).unwrap_or(rest.len());
                         if end > 0 {
                             f(line_at + piece_at + i + 1, &rest[..end]);
                         }
                     }
+                    before = prev;
                     prev = c;
                 }
             }
@@ -199,7 +202,7 @@ mod tests {
 
     #[test]
     fn tags_come_from_frontmatter_and_text_but_not_from_code_headings_or_numbers() {
-        let text = "---\ntags: [Physics/DMFT, todo]\n---\n# Heading\nSee #idea and (#physics/qmc), issue #42, colour `#fff`.\n```\n#notatag\n```\na#b is not one; C# neither\n";
+        let text = "---\ntags: [Physics/DMFT, todo]\n---\n# Heading\nSee #idea and (#physics/qmc), issue #42, colour `#fff`.\n```\n#notatag\n```\na#b is not one; C# neither; [[#Heading]] and [up](#heading) link\n";
         let props = crate::links::frontmatter(text);
         assert_eq!(of_note(text, &props), ["idea", "physics/dmft", "physics/qmc", "todo"]);
         assert_eq!(of_note("---\ntags: one, two three\n---\n", &crate::links::frontmatter("---\ntags: one, two three\n---\n")), ["one", "three", "two"]);

@@ -121,7 +121,8 @@ export function resolveLink(target: string, fromDir: string, wiki = true): strin
     // a note's `[[name]]` never lands on one of the agent's files (they link among themselves)
     const hits = (byName.get(n) ?? []).filter((p) => (!c.includes("/") || p.toLowerCase().endsWith(suffix)) && (fromAgent || !isAgentFile(p)));
     if (!hits.length) continue;
-    hits.sort((a, b) => Number(dirOf(a) !== fromDir) - Number(dirOf(b) !== fromDir) || a.length - b.length);
+    // then by path, as the core does (links.rs `resolve_target`): the list's order changes as files come and go
+    hits.sort((a, b) => Number(dirOf(a) !== fromDir) - Number(dirOf(b) !== fromDir) || a.length - b.length || (a < b ? -1 : a > b ? 1 : 0));
     return hits[0];
   }
   return null;

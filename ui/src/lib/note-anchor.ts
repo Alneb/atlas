@@ -2,9 +2,10 @@
 // `#A#B` the last part), `[[note#^block]]` (a line ending in ` ^block`). Links, bookmarks and note embeds all find
 // headings and sections here. Pure: no I/O.
 
-/** An ATX heading (closing `#`s not part of its text) and a code fence's line: the one reading every module uses. */
+import { fences } from "./fence-walk";
+
+/** An ATX heading (closing `#`s not part of its text): the one reading every module uses (code: lib/fence-walk.ts). */
 export const HEADING = /^(#{1,6})\s+(.*?)\s*#*\s*$/;
-export const FENCE = /^\s*(```|~~~)/;
 const norm = (s: string) => s.trim().replace(/\s+/g, " ").toLowerCase();
 
 /** A PDF mark's id (`m-` + 8), a block id in the PDF's note (pdf_marks.rs). */
@@ -13,10 +14,10 @@ export const MARK_ID = /^m-[0-9a-z]{8}$/;
 /** The note's headings (none inside a code fence): 0-based line index, level, text as written. */
 export function noteHeadings(lines: Iterable<string>): { i: number; level: number; text: string }[] {
   const out: { i: number; level: number; text: string }[] = [];
-  let fence = false, i = 0;
+  const code = fences();
+  let i = 0;
   for (const l of lines) {
-    if (FENCE.test(l)) fence = !fence;
-    const m = !fence && HEADING.exec(l);
+    const m = !code.code(l) && HEADING.exec(l);
     if (m) out.push({ i, level: m[1].length, text: m[2] });
     i++;
   }
