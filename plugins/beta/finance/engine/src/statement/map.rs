@@ -78,7 +78,7 @@ impl Reader<'_> {
             Some(d) if s.chars().all(|c| c.is_ascii_digit()) => {
                 Decimal::try_from_i128_with_scale(s.parse::<i128>().map_err(|e| format!("{name} {s:?}: {e}"))?, d).map_err(|e| e.to_string())?
             }
-            _ => bank_number(s.trim_end_matches(['€', '$']).trim()).ok_or_else(|| format!("{name}: {s:?} is not a number"))?,
+            _ => bank_number(s).ok_or_else(|| format!("{name}: {s:?} is not a number"))?,
         };
         let negative = self.p.negative_sign.as_ref().is_some_and(|neg| f.get(&format!("{name}_sign")).is_some_and(|v| v.trim() == neg));
         Ok(Some(if negative { -n } else { n }))

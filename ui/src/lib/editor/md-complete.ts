@@ -11,7 +11,7 @@ import type { Command } from "@codemirror/view";
 import { library } from "../entities";
 import { builtinOn } from "../builtin-plugins";
 import { resolveWikilink } from "../links";
-import { mathMode } from "./math-context";
+import { notePlaceAt } from "./math-context";
 import type { LinkTarget, Paper } from "../types";
 import { settings } from "../settings.svelte";
 import { localDay } from "../local-day";
@@ -154,7 +154,8 @@ export const slashSource = (ctx: CompletionContext): CompletionResult | null => 
   const m = ctx.matchBefore(/(?:^|\s)\/[\w-]*$/);
   if (!m) return null;
   const slash = m.text.lastIndexOf("/") + m.from;
-  if (mathMode(ctx.state.sliceDoc(0, slash), slash)) return null;
+  // text only: not in math, nor in code (a path typed in a shell fence, `/usr`, is not a block)
+  if (notePlaceAt(ctx.state, slash).kind !== "text") return null;
   return {
     from: slash + 1, // filter on what follows the slash; apply() removes the slash too
     options: BLOCKS.map((b) => ({

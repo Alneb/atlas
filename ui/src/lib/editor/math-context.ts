@@ -126,12 +126,17 @@ const extOf = (path: string) => /\.([^./]+)$/.exec(path)?.[1].toLowerCase() ?? "
 
 /** The place at `pos` of the file at `path`. Scans the text: asked when something needs it, not on every key. */
 export function placeAt(state: EditorState, pos: number, path: string): Place {
-  const tex = isTex(path);
-  if (!tex && !isNote(path)) return { kind: "code", lang: extOf(path) };
-  if (!tex) {
-    const lang = codeAt(state, pos);
-    if (lang !== null) return { kind: "code", lang };
+  if (isTex(path)) {
+    const form = texMathMode(state.doc.sliceString(0, pos), pos);
+    return form ? { kind: "math", form, textArg: inTextArg(state, pos) } : { kind: "text" };
   }
-  const form = tex ? texMathMode(state.doc.sliceString(0, pos), pos) : noteMath(state, pos);
+  return isNote(path) ? notePlaceAt(state, pos) : { kind: "code", lang: extOf(path) };
+}
+
+/** The place at `pos` in a note: its code, its math (from the caret's block), else text. */
+export function notePlaceAt(state: EditorState, pos: number): Place {
+  const lang = codeAt(state, pos);
+  if (lang !== null) return { kind: "code", lang };
+  const form = noteMath(state, pos);
   return form ? { kind: "math", form, textArg: inTextArg(state, pos) } : { kind: "text" };
 }
