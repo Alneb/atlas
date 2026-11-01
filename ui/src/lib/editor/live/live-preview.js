@@ -484,13 +484,25 @@ const CALLOUT_RE = /^>\s*\[!([A-Za-z-]+)\]([+-]?)\s*/;
  * file the user is editing is worse than showing them.
  */
 function frontmatterEnd(state) {
-  if (state.doc.lines < 2 || state.doc.line(1).text.trim() !== "---") return 0;
-  for (let n = 2; n <= state.doc.lines; n++) {
-    const line = state.doc.line(n);
-    const text = line.text.trim();
-    if (text === "---" || text === "...") return line.to;
+  const n = frontmatterClose(state.doc);
+  return n ? state.doc.line(n).to : 0; // unterminated: not frontmatter, just a rule and some text
+}
+
+/**
+ * The line number of the frontmatter's closing fence, 0 when the note has none: the fences as the core reads them
+ * (atlas-text `frontmatter`, property-model.ts `frontmatterSpan`) — the first line exactly `---` (after a BOM), the
+ * closing one `---` or `...` at the margin, trailing blanks allowed. The one reading for the editor.
+ *
+ * @param {import("@codemirror/state").Text} doc
+ * @returns {number}
+ */
+export function frontmatterClose(doc) {
+  if (doc.lines < 2 || doc.line(1).text.replace(/^\uFEFF/, "") !== "---") return 0;
+  for (let n = 2; n <= doc.lines; n++) {
+    const text = doc.line(n).text.trimEnd();
+    if (text === "---" || text === "...") return n;
   }
-  return 0; // unterminated: not frontmatter, just a rule and some text
+  return 0;
 }
 
 /**
@@ -505,15 +517,10 @@ function frontmatterEnd(state) {
  * @returns {number} an offset safe to use as an initial selection
  */
 export function bodyStart(doc) {
-  if (doc.lines < 2 || doc.line(1).text.trim() !== "---") return 0;
-  for (let n = 2; n <= doc.lines; n++) {
-    const text = doc.line(n).text.trim();
-    if (text === "---" || text === "...") {
-      // The line after the closing fence, when the note has one.
-      return n < doc.lines ? doc.line(n + 1).from : doc.line(n).to;
-    }
-  }
-  return 0;
+  const n = frontmatterClose(doc);
+  if (!n) return 0;
+  // The line after the closing fence, when the note has one.
+  return n < doc.lines ? doc.line(n + 1).from : doc.line(n).to;
 }
 
 /**

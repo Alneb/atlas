@@ -32,3 +32,29 @@ test("a closing `#` run needs a blank before it, and the frontmatter's `# commen
   expect(noteHeadings(["# only"]).map((h) => h.i)).toEqual([0]);
   expect(noteHeadings(["---", "# unclosed"]).map((h) => h.text)).toEqual(["unclosed"]);
 });
+
+test("a CRLF note's frontmatter closes as the core reads it", async () => {
+  const { frontmatterOf } = await import("../src/lib/property-model");
+  const { noteHeadings } = await import("../src/lib/note-anchor");
+  const crlf = "---\r\n# comment\r\ntags: [x]\r\n---\r\n# Title\r\n";
+  expect(frontmatterOf(crlf)?.data).toEqual({ tags: ["x"] });
+  expect(noteHeadings(crlf.split("\n")).map((h) => [h.i, h.text])).toEqual([[4, "Title"]]);
+});
+
+test("the editor reads the frontmatter's fences as the core", async () => {
+  const { Text } = await import("@codemirror/state");
+  const { frontmatterClose, bodyStart } = await import("../src/lib/editor/live/live-preview.js");
+  const at = (s: string) => frontmatterClose(Text.of(s.split("\n")));
+  expect(at("---\na: 1\n---\nbody")).toBe(3);
+  expect(at("---\na: 1\n...  \nbody")).toBe(3);
+  expect(at("---\n---\n")).toBe(2);
+  expect(at(" ---\na: 1\n---")).toBe(0); // an indented first line opens nothing
+  expect(at("---\na: 1\n  ---\nb")).toBe(0); // nor closes
+  expect(bodyStart(Text.of(["---", "a: 1", "---", "body"]))).toBe(13);
+});
+
+test("a block id inside a code fence is an example, not a place", () => {
+  const md = ["```", "x ^ex", "```", "real ^ex", "| a |", "^tab"].join("\n");
+  expect(anchorLine(md, "^ex")).toBe(4);
+  expect(anchorLine(md, "^tab")).toBe(6);
+});

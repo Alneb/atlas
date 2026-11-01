@@ -24,7 +24,7 @@ export function frontmatterOf(text: string): Frontmatter | null {
 export function frontmatterSpan(text: string): { yaml: string; end: number } | null {
   const m = /^\uFEFF?---\r?\n/.exec(text);
   if (!m) return null;
-  const close = /^(---|\.\.\.)[ \t]*$/m;
+  const close = /^(---|\.\.\.)[ \t]*\r?$/m; // a CRLF note's closing line too, as the core (`trim_end`)
   const rest = text.slice(m[0].length);
   const c = close.exec(rest);
   if (!c) return null;

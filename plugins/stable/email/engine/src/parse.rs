@@ -115,7 +115,8 @@ pub fn thread_subject(subject: &str) -> String {
 
 /// Whether a subject says it answers or forwards something (Re:, Fwd:, TR: …), list tags aside.
 pub fn is_reply_subject(subject: &str) -> bool {
-    let without_tags = Regex::new(r"^\s*(\[[^\]]{1,40}\]\s*)+").unwrap().replace(subject, "");
+    static TAGS: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^\s*(\[[^\]]{1,40}\]\s*)+").unwrap());
+    let without_tags = TAGS.replace(subject, "");
     PREFIX.find(&without_tags).is_some_and(|m| m.as_str().contains(':'))
 }
 

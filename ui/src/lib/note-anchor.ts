@@ -37,8 +37,9 @@ const headingNamed = (hs: ReturnType<typeof headings>, name: string) => {
 /** The 1-based line `anchor` (a link's part after `#`) names in `md`: a heading, or a `^block`; undefined if none. */
 export function anchorLine(md: string, anchor: string): number | undefined {
   const lines = md.split("\n"), a = anchor.trim();
+  const code = fences(); // a block id in a code fence is an example, as a heading there is
   const i = a.startsWith("^")
-    ? lines.findIndex((l) => l.trimEnd().endsWith(` ${a}`) || l.trimEnd() === a)
+    ? lines.findIndex((l) => !code.code(l) && (l.trimEnd().endsWith(` ${a}`) || l.trimEnd() === a))
     : (headingNamed(headings(lines), a)?.i ?? -1);
   return i < 0 ? undefined : i + 1;
 }

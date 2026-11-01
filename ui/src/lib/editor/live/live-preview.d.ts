@@ -24,5 +24,7 @@ export interface LivePreviewOptions {
 export function livePreview(options?: LivePreviewOptions): [Extension, Extension];
 export function buildDecorations(state: EditorState, ranges: { from: number; to: number }[], options?: LivePreviewOptions): DecorationSet;
 export function bodyStart(doc: Text): number;
+/** The line number of the frontmatter's closing fence, 0 when the note has none (as the core reads the fences). */
+export function frontmatterClose(doc: Text): number;
 /** Rebuild the decorations although the document did not change (a setting changed a builder). */
 export const redecorate: StateEffectType<null>;

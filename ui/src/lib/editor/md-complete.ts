@@ -2,6 +2,7 @@
 // `#heading`), and a `/` slash menu of blocks. Each is a CodeMirror completion source.
 import { snippet, startCompletion, type Completion, type CompletionContext, type CompletionResult } from "@codemirror/autocomplete";
 import { noteHeadings } from "../note-anchor";
+import { fences } from "../fence-walk";
 import { api } from "../api";
 import { taskSuggestions, type TaskSuggestion } from "../task-complete";
 import { deleteMarkupBackward, insertNewlineContinueMarkupCommand } from "@codemirror/lang-markdown";
@@ -98,7 +99,14 @@ async function placesIn(note: string, after: string, from: number, closing: stri
   const path = note ? await resolveWikilink(note, fromPath) : fromPath;
   const text = await api.file(path).then((f) => f.text, () => "");
   if (after.startsWith("^")) {
-    const blocks = [...text.matchAll(/^(.*?)\s\^([\w-]+)\s*$/gm)].map((b) => ({ label: `^${b[2]}`, detail: b[1].trim().slice(0, 60), type: "block", apply: `^${b[2]}${closing}` }));
+    // as a link finds them (note-anchor.ts `anchorLine`): a line ending in ` ^id`, or `^id` alone under its block
+    const lines = text.split("\n"), code = fences(), blocks: Completion[] = [];
+    for (let i = 0; i < lines.length; i++) {
+      const b = !code.code(lines[i]) && /^(.*?)(?:^|\s)\^([\w-]+)\s*$/.exec(lines[i]);
+      if (!b) continue;
+      const said = (b[1].trim() || lines[i - 1]?.trim() || "").slice(0, 60);
+      blocks.push({ label: `^${b[2]}`, detail: said, type: "block", apply: `^${b[2]}${closing}` });
+    }
     return { from, options: blocks, validFor: /^\^?[\w-]*$/ };
   }
   const heads = noteHeadings(text.split("\n")).map((h) => h.text);

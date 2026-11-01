@@ -30,6 +30,7 @@
   import CaptureGuides from "../components/CaptureGuides.svelte";
   import { PROMPT, landedAt } from "../lib/capture-guides";
   import { noteHeadings } from "../lib/note-anchor";
+  import { frontmatterSpan } from "../lib/property-model";
 
   export type TodayPart = "greeting" | "capture" | "focus" | "log" | "tasks" | "activity";
   const ALL: TodayPart[] = ["greeting", "capture", "focus", "log", "tasks", "activity"];
@@ -164,7 +165,11 @@
   const otherSections = $derived(sections.filter((x) => x !== logSection));
   const logBody = $derived.by(() => {
     if (!logText) return "";
-    if (!logSection) return blankEmptySections(logText.replace(/^(?:---\n[\s\S]*?\n---\n)?(?:#\s[^\n]*\n+)?/, ""));
+    if (!logSection) {
+      // the properties (read as the core reads them) and the note's own title left out
+      const f = frontmatterSpan(logText), body = f ? logText.slice(f.end).replace(/^\r?\n/, "") : logText;
+      return blankEmptySections(body.replace(/^#\s[^\n]*\n+/, ""));
+    }
     // the section ends at the next heading of its level or above, as the core reads it (captures.rs `log_section`)
     const lines = logText.split("\n"), next = noteHeadings(lines).find((h) => h.i > logSection.line && h.level <= 2)?.i ?? lines.length;
     // the blocks closing the note (the activity block at the end) are not the log's

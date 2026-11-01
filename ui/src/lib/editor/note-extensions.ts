@@ -16,7 +16,7 @@ import { foldGutter, foldNodeProp, foldKeymap } from "@codemirror/language";
 import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
 import type { MarkdownConfig } from "@lezer/markdown";
 import { obsidianMarkdown, AnyTaskStatus } from "./live/obsidian-syntax.js";
-import { livePreview, bodyStart } from "./live/live-preview.js";
+import { livePreview, bodyStart, frontmatterClose } from "./live/live-preview.js";
 import { renderMathInto } from "../math";
 import { highlightCode } from "../highlight";
 import { blockHtml, inlineHtml } from "../markdown";
@@ -199,12 +199,7 @@ const typewriter = [
 export function headingRepeats(state: EditorState, name: string): boolean {
   const norm = (t: string) => t.replace(/[*_`~]/g, "").replace(/\s+/g, " ").trim().toLowerCase();
   const doc = state.doc;
-  let n = 1;
-  if (doc.line(1).text.trim() === "---") {
-    for (n = 2; n <= Math.min(doc.lines, 200) && doc.line(n).text.trim() !== "---"; n++);
-    n++;
-  }
-  for (; n <= Math.min(doc.lines, 400); n++) {
+  for (let n = frontmatterClose(doc) + 1; n <= Math.min(doc.lines, 400); n++) {
     const t = doc.line(n).text;
     if (!t.trim()) continue;
     const h = /^#[ \t]+(.*?)(?:[ \t]+#+)?[ \t]*$/.exec(t);
