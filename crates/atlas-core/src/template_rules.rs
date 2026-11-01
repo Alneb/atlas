@@ -115,7 +115,7 @@ pub fn rules(root: &Path, cfg: &Config) -> Vec<Rule> {
 /// The `apply_when:` of every template in the templates folder, by the templates' names. Kept on the stamps of the
 /// folder and its templates (file_stamp.rs): every save that sets a property asks.
 fn own_rules(root: &Path, cfg: &Config) -> Vec<Rule> {
-    let dir = cfg.notes.templates.trim().trim_matches('/');
+    let Some(dir) = cfg.templates_dir() else { return vec![] };
     let Ok(abs) = crate::paths::safe_join(root, dir) else { return vec![] };
     let mut files: Vec<_> = std::fs::read_dir(&abs)
         .into_iter()

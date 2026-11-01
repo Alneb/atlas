@@ -94,6 +94,7 @@ pub mod typst_doc;
 pub mod views;
 pub mod vscode_theme;
 pub mod walk;
+pub mod wall_clock;
 pub mod word_bloom;
 pub mod auth;
 pub mod login_page;

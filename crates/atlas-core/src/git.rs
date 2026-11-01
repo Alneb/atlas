@@ -49,9 +49,9 @@ fn listed(r: crate::git_read::Read, marks: &[(String, Vec<String>)]) -> Commit {
 
 /// A git date as the log takes it (`yesterday`, `@<seconds>`) in unix seconds, for the in-process log.
 fn since_secs(since: &str) -> Option<i64> {
-    use chrono::{Duration, Local, TimeZone};
+    use chrono::{Duration, Local};
     match since {
-        "yesterday" => Local.from_local_datetime(&(Local::now().date_naive() - Duration::days(1)).and_hms_opt(0, 0, 0)?).earliest().map(|t| t.timestamp()),
+        "yesterday" => crate::wall_clock::at((Local::now().date_naive() - Duration::days(1)).and_hms_opt(0, 0, 0)?, &Local).map(|t| t.timestamp()),
         s => s.strip_prefix('@')?.parse().ok(),
     }
 }

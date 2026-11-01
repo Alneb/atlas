@@ -71,7 +71,13 @@ fn remember(root: &Path, c: &crate::events::Captured) -> Result<()> {
 /// acted on once).
 pub fn take_pending(root: &Path) -> Vec<crate::events::Captured> {
     let Ok(dir) = std::fs::read_dir(root.join(PENDING_DIR)) else { return vec![] };
-    let mut files: Vec<_> = dir.flatten().map(|e| e.path()).filter(|p| p.is_file()).collect();
+    // the devices' files (`<host>.jsonl`, a conflict copy too) and one an interrupted take left (`.taking`) — never a
+    // sync tool's file still arriving (Syncthing's `.syncthing.<name>.tmp`): read half and removed, its captures were lost
+    let ours = |p: &Path| {
+        let name = p.file_name().and_then(|n| n.to_str()).unwrap_or(".");
+        !name.starts_with('.') && (name.ends_with(".jsonl") || name.ends_with(".taking"))
+    };
+    let mut files: Vec<_> = dir.flatten().map(|e| e.path()).filter(|p| ours(p) && p.is_file()).collect();
     files.sort();
     let mut out = vec![];
     for f in files {
@@ -583,5 +589,10 @@ mod tests {
         std::fs::create_dir_all(d.path().join(PENDING_DIR)).unwrap();
         std::fs::write(d.path().join(PENDING_DIR).join("phone.sync-conflict-1.jsonl"), format!("{}\n", serde_json::to_string(&other).unwrap())).unwrap();
         assert_eq!(take_pending(d.path()), vec![other]);
+        // a file Syncthing is still bringing in is left to it
+        let arriving = d.path().join(PENDING_DIR).join(".syncthing.phone.jsonl.tmp");
+        std::fs::write(&arriving, "{\"text\": \"half").unwrap();
+        assert!(take_pending(d.path()).is_empty());
+        assert!(arriving.exists());
     }
 }

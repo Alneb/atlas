@@ -245,10 +245,10 @@ fn default_name(root: &Path, cfg: &Config) -> Option<String> {
 pub(crate) fn templater_rules(root: &Path, cfg: &Config) -> Vec<crate::config::TemplateRule> {
     let Ok(text) = std::fs::read_to_string(root.join(".obsidian/plugins/templater-obsidian/data.json")) else { return vec![] };
     let Ok(v) = serde_json::from_str::<Value>(&text) else { return vec![] };
-    let dir = cfg.notes.templates.trim_matches('/');
+    let dir = cfg.templates_dir();
     let name = |t: &str| {
         let t = t.trim().trim_end_matches(".md");
-        t.strip_prefix(&format!("{dir}/")).unwrap_or(t).to_string()
+        dir.and_then(|d| t.strip_prefix(d)?.strip_prefix('/')).unwrap_or(t).to_string()
     };
     let mut rules = vec![];
     for (on, list, key) in [("enable_file_templates", "file_templates", "regex"), ("enable_folder_templates", "folder_templates", "folder")] {
@@ -275,8 +275,13 @@ fn template_by_rule(root: &Path, cfg: &Config, rel: &str) -> Option<String> {
 
 /// The template's text; a missing `fleeting` falls back to the built-in one, any other is an error.
 pub(crate) fn template_text(root: &Path, cfg: &Config, name: &str) -> Result<String> {
-    let rel = format!("{}/{name}.md", cfg.notes.templates.trim_matches('/'));
-    match std::fs::read_to_string(paths::safe_join(root, &rel)?) {
+    // no templates folder: only the built-in ones
+    let rel = format!("{}/{name}.md", cfg.templates_dir().unwrap_or_default());
+    let read = match cfg.templates_dir() {
+        Some(_) => std::fs::read_to_string(paths::safe_join(root, &rel)?),
+        None => Err(std::io::ErrorKind::NotFound.into()),
+    };
+    match read {
         Ok(s) => Ok(s),
         Err(e) if e.kind() == std::io::ErrorKind::NotFound && name == "fleeting" => Ok(FLEETING.into()),
         Err(e) if e.kind() == std::io::ErrorKind::NotFound && name == BUILT_IN_DEFAULT => Ok(DEFAULT_NOTE.into()),
@@ -473,7 +478,7 @@ fn asks(template: &str) -> Vec<PromptAsk> {
 
 /// The templates "New note from a template…" offers: the `.md` files directly in `[notes] templates`.
 pub fn templates(root: &Path, cfg: &Config) -> Result<Vec<TemplateInfo>> {
-    let dir = cfg.notes.templates.trim().trim_matches('/');
+    let Some(dir) = cfg.templates_dir() else { return Ok(vec![]) };
     let entries = match std::fs::read_dir(paths::safe_join(root, dir)?) {
         Ok(e) => e,
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(vec![]),
@@ -492,7 +497,7 @@ pub fn templates(root: &Path, cfg: &Config) -> Result<Vec<TemplateInfo>> {
             let (text, own) = take_own(&std::fs::read_to_string(e.path()).ok()?);
             let folder = own.create_in.or_else(|| templater_move_dir(&text, &name, now));
             Some(TemplateInfo {
-                path: if dir.is_empty() { file.clone() } else { format!("{dir}/{file}") },
+                path: format!("{dir}/{file}"),
                 folder,
                 properties: frontmatter_keys(&text),
                 prompts: crate::template::prompts(&text),
@@ -695,6 +700,12 @@ mod tests {
         let mut none = Config::default();
         none.notes.templates = "nowhere".into();
         assert!(templates(d.path(), &none).unwrap().is_empty());
+        // an empty setting is no folder, not the vault's top: its notes are not templates, nor left out of the index
+        std::fs::write(d.path().join("Ideas.md"), "# Ideas\n").unwrap();
+        none.notes.templates = " / ".into();
+        assert!(templates(d.path(), &none).unwrap().is_empty());
+        assert!(!none.index_excluded("Ideas.md") && Config::default().index_excluded("templates/plain.md"));
+        assert_eq!(template_text(d.path(), &none, "fleeting").unwrap(), FLEETING, "the built-in one still");
     }
 
     #[test]

@@ -5,7 +5,7 @@
 //! wall-clock times of its TZID otherwise — so a weekly 10:00 meeting stays at 10:00 across DST.
 use crate::ics::{unescape, Component, Line};
 use crate::zone::{self, Zone};
-use chrono::{DateTime, Duration, NaiveDate, NaiveDateTime, TimeZone, Utc};
+use chrono::{DateTime, Duration, NaiveDate, NaiveDateTime, Utc};
 use serde::Serialize;
 
 /// A date-time property as written.
@@ -310,7 +310,7 @@ fn starts(master: &Component, frame: Frame, first: NaiveDateTime, lo: NaiveDateT
     };
     // a wall-clock time a DST change skips (a range's midnight in Santiago or Havana) is the hour after, as Zone::instant
     // takes it: none would leave the whole series out of that range
-    let at = |t: NaiveDateTime| rtz.from_local_datetime(&t).earliest().or_else(|| rtz.from_local_datetime(&(t + Duration::hours(1))).earliest());
+    let at = |t: NaiveDateTime| atlas_text::wall_clock::at(t, &rtz);
     for line in master.props.iter().filter(|l| l.name == "RRULE") {
         // UNTIL is applied by hand: the crate wants it in UTC, calendars write it as a date or a floating time too
         let mut until = None;

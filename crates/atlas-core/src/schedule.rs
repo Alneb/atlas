@@ -69,9 +69,9 @@ impl Schedule {
     }
 }
 
-/// A day's slot in `tz`; one the clocks skip (a spring-forward gap) is an hour later, as the wall clock reads after it.
+/// A day's slot in `tz` (one the clocks skip: an hour later, `wall_clock::at`).
 fn daily_slot<Tz: chrono::TimeZone>(at: chrono::NaiveDateTime, tz: &Tz) -> Option<DateTime<Tz>> {
-    at.and_local_timezone(tz.clone()).earliest().or_else(|| (at + chrono::Duration::hours(1)).and_local_timezone(tz.clone()).earliest())
+    crate::wall_clock::at(at, tz)
 }
 
 const STATE: &str = "schedule.json";

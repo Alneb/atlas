@@ -2,7 +2,7 @@
 //! calendar's own VTIMEZONE) resolved to a zone; the user's zone; and a VTIMEZONE written for a zone, so an event Atlas
 //! makes carries its TZID as RFC 5545 asks.
 use crate::ics::{Component, Line};
-use chrono::{DateTime, Datelike, Duration, FixedOffset, LocalResult, NaiveDate, NaiveDateTime, Offset, TimeZone, Utc, Weekday};
+use chrono::{DateTime, Datelike, Duration, FixedOffset, NaiveDate, NaiveDateTime, Offset, TimeZone, Utc, Weekday};
 use chrono_tz::{OffsetComponents, Tz};
 
 /// A zone an event's times are in.
@@ -19,14 +19,7 @@ impl Zone {
     /// A wall-clock time in this zone as an instant: in a DST gap the time after it, in a fold the first.
     pub fn instant(&self, t: NaiveDateTime) -> DateTime<Utc> {
         match self {
-            Zone::Tz(z) => match z.from_local_datetime(&t) {
-                LocalResult::Single(x) | LocalResult::Ambiguous(x, _) => x.with_timezone(&Utc),
-                LocalResult::None => z
-                    .from_local_datetime(&(t + Duration::hours(1)))
-                    .earliest()
-                    .map(|x| x.with_timezone(&Utc))
-                    .unwrap_or_else(|| t.and_utc()),
-            },
+            Zone::Tz(z) => atlas_text::wall_clock::at(t, z).map(|x| x.with_timezone(&Utc)).unwrap_or_else(|| t.and_utc()),
             Zone::Fixed(o) => (t - Duration::seconds(o.local_minus_utc() as i64)).and_utc(),
         }
     }

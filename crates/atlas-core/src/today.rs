@@ -299,7 +299,8 @@ pub fn day_activity(root: &Path, cfg: &Config, day: chrono::NaiveDate) -> DayAct
 }
 
 fn start_of(day: chrono::NaiveDate) -> DateTime<Local> {
-    day.and_hms_opt(0, 0, 0).and_then(|d| d.and_local_timezone(Local).earliest()).unwrap_or_else(Local::now)
+    // a midnight the clocks skip (Chile's spring) starts the day at one, not now: else the day's window is empty
+    crate::wall_clock::at(day.and_time(chrono::NaiveTime::MIN), &Local).unwrap_or_else(Local::now)
 }
 
 fn ms(t: SystemTime) -> u64 {
@@ -382,7 +383,7 @@ fn made_on(abs: &Path) -> Option<(chrono::NaiveDate, Option<u64>)> {
         let v = property(&front, key)?;
         let day = chrono::NaiveDate::parse_from_str(v.get(..10)?, "%Y-%m-%d").ok()?;
         let at = v.get(11..16).and_then(|t| chrono::NaiveTime::parse_from_str(t, "%H:%M").ok())
-            .and_then(|t| day.and_time(t).and_local_timezone(Local).earliest()).map(|d| d.timestamp_millis() as u64);
+            .and_then(|t| crate::wall_clock::at(day.and_time(t), &Local)).map(|d| d.timestamp_millis() as u64);
         Some((day, at))
     })
 }

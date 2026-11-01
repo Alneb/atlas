@@ -45,8 +45,7 @@ fn values(text: &str) -> Vec<(String, String)> {
 /// alone — its template was chosen when it was made — and so are the templates themselves.
 pub fn on_save(root: &Path, cfg: &Config, rel: &str, before: Option<&str>, after: &str, now: NaiveDateTime) -> Option<Applied> {
     let before = before?;
-    let templates = format!("{}/", cfg.notes.templates.trim_matches('/'));
-    if !rel.ends_with(".md") || rel.starts_with(&templates) {
+    if !rel.ends_with(".md") || cfg.in_templates(rel) {
         return None;
     }
     let had = values(before);

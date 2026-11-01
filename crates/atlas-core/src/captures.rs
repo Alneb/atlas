@@ -155,7 +155,7 @@ pub fn list(root: &Path, cfg: &Config) -> CaptureList {
             items.extend(in_log(&rel, &day, &text));
         }
     }
-    if let Ok(dir) = paths::safe_join(root, cfg.notes.inbox.trim_matches('/')) {
+    if let Some(Ok(dir)) = cfg.inbox_dir().map(|d| paths::safe_join(root, d)) {
         for (abs, rel) in walk::files_under(root, &dir, cfg) {
             if !rel.ends_with(".md") {
                 continue;
@@ -441,6 +441,11 @@ mod tests {
         );
         assert_eq!((l.open, l.total), (4, 7));
         assert_eq!(l.items[1].line, 12);
+        // no inbox folder set: the notes at the vault's top are not captures
+        let mut none = cfg.clone();
+        none.notes.inbox = String::new();
+        std::fs::write(d.path().join("Top.md"), "# Top\n").unwrap();
+        assert_eq!(list(d.path(), &none).total, 6, "the log's captures only");
     }
 
     fn ask(d: &Path, cfg: &Config, path: &str, line: u32, action: TriageAction) -> Result<Vec<String>> {

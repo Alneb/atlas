@@ -149,7 +149,8 @@ fn when(value: &str, params: &[(String, String)], vtz: &HashMap<String, Vtz>) ->
     match param(params, "TZID") {
         Some(id) => {
             if let Some(tz) = zone(id) {
-                if let Some(d) = tz.from_local_datetime(&naive).earliest() {
+                // a time the zone's clocks skip is still that zone's (an hour on), not the reader's own
+                if let Some(d) = atlas_text::wall_clock::at(naive, &tz) {
                     return (rfc(d.fixed_offset()), false, tz.name().to_string());
                 }
             }
@@ -174,7 +175,7 @@ fn when(value: &str, params: &[(String, String)], vtz: &HashMap<String, Vtz>) ->
 
 /// A time with no zone is wall-clock (RFC 5545 "floating"): the user's own hour.
 fn floating(naive: NaiveDateTime) -> (String, bool, String) {
-    match Local.from_local_datetime(&naive).earliest() {
+    match atlas_text::wall_clock::at(naive, &Local) {
         Some(d) => (d.fixed_offset().to_rfc3339(), false, String::new()),
         None => (naive.format("%Y-%m-%dT%H:%M:%S").to_string(), false, String::new()),
     }
@@ -345,6 +346,9 @@ mod tests {
         assert_eq!((day.start.as_str(), day.all_day), ("2026-12-24", true));
         let odd = read("BEGIN:VTIMEZONE\r\nTZID:Customized Time Zone\r\nBEGIN:STANDARD\r\nTZOFFSETTO:+0100\r\nRRULE:FREQ=YEARLY;BYMONTH=10\r\nEND:STANDARD\r\nBEGIN:DAYLIGHT\r\nTZOFFSETTO:+0200\r\nRRULE:FREQ=YEARLY;BYMONTH=3\r\nEND:DAYLIGHT\r\nEND:VTIMEZONE\r\nBEGIN:VEVENT\r\nDTSTART;TZID=\"Customized Time Zone\":20260701T100000\r\nEND:VEVENT\r\n");
         assert_eq!(DateTime::parse_from_rfc3339(&odd.start).unwrap().timestamp(), Utc.with_ymd_and_hms(2026, 7, 1, 8, 0, 0).unwrap().timestamp());
+        // Santiago's clocks skip from 00:00 to 01:00 that day: the meeting is at 01:00 there (04:00 UTC), not the reader's hour
+        let gap = read("BEGIN:VEVENT\r\nDTSTART;TZID=America/Santiago:20260906T000000\r\nEND:VEVENT\r\n");
+        assert_eq!(DateTime::parse_from_rfc3339(&gap.start).unwrap().timestamp(), Utc.with_ymd_and_hms(2026, 9, 6, 4, 0, 0).unwrap().timestamp());
     }
 
     #[test]

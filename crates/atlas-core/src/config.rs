@@ -1155,8 +1155,22 @@ impl Config {
     /// `editor.index_exclude`, and the note templates — a template says `type: project` without
     /// being a project.
     pub fn index_excluded(&self, rel: &str) -> bool {
-        let templates = self.notes.templates.trim_matches('/');
-        self.is_agent_file(rel) || (!templates.is_empty() && rel.strip_prefix(templates).is_some_and(|r| r.starts_with('/')))
+        self.is_agent_file(rel) || self.in_templates(rel)
+    }
+
+    /// The note templates' folder (`[notes] templates`); None when it is empty: no templates, never the vault's top.
+    pub fn templates_dir(&self) -> Option<&str> {
+        Some(self.notes.templates.trim().trim_matches('/')).filter(|d| !d.is_empty())
+    }
+
+    /// The inbox folder (`[notes] inbox`); None when it is empty: no inbox — every note at the top is not a capture.
+    pub fn inbox_dir(&self) -> Option<&str> {
+        Some(self.notes.inbox.trim().trim_matches('/')).filter(|d| !d.is_empty())
+    }
+
+    /// `rel` is inside the templates folder.
+    pub fn in_templates(&self, rel: &str) -> bool {
+        self.templates_dir().is_some_and(|d| rel.strip_prefix(d).is_some_and(|r| r.starts_with('/')))
     }
 }
 

@@ -5,3 +5,4 @@ pub mod ical;
 pub mod links;
 pub mod merge;
 pub mod paths;
+pub mod wall_clock;
