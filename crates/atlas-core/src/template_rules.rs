@@ -377,7 +377,7 @@ mod tests {
         let age = |secs: u64| {
             let t = std::time::SystemTime::now() - std::time::Duration::from_secs(secs);
             for p in [d.path().join("templates/film.md"), d.path().join("templates")] {
-                std::fs::File::open(&p).unwrap().set_modified(t).unwrap();
+                filetime::set_file_mtime(&p, filetime::FileTime::from_system_time(t)).unwrap();
             }
         };
         age(60);

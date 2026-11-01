@@ -1166,7 +1166,7 @@ mod tests {
             let at = std::time::SystemTime::now() - Duration::from_secs(at);
             let dir = d.path().join(PLUGINS_DIR);
             for p in [dir.clone(), dir.join("a"), dir.join("a/plugin.toml")] {
-                std::fs::File::open(&p).unwrap().set_modified(at).unwrap();
+                filetime::set_file_mtime(&p, filetime::FileTime::from_system_time(at)).unwrap();
             }
         };
         plugin(d.path(), "a", "title = \"A\"\n");

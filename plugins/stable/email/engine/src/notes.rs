@@ -243,10 +243,8 @@ fn existing(dir: &Path, needles: &[String]) -> Option<PathBuf> {
                 if !p.to_string_lossy().ends_with(" files") {
                     stack.push(p);
                 }
-            } else if p.extension().is_some_and(|x| x == "md") {
-                if std::fs::read_to_string(&p).is_ok_and(|t| holds(&t, needles)) {
-                    return Some(p);
-                }
+            } else if p.extension().is_some_and(|x| x == "md") && std::fs::read_to_string(&p).is_ok_and(|t| holds(&t, needles)) {
+                return Some(p);
             }
         }
     }

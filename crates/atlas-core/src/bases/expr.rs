@@ -470,6 +470,7 @@ fn eval_member(obj: &Expr, name: &str, ctx: &dyn Context, scope: Option<&Val>) -
         match root.as_str() {
             "file" => return ctx.file_field(name),
             "note" => return ctx.property(name),
+            "formula" => return ctx.formula(name),
             _ => {}
         }
     }

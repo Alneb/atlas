@@ -39,8 +39,9 @@ fn unshown(path: &std::path::Path) -> bool {
 /// [`unshown`]'s answers by the note's (time, size): a mail folder of thousands is listed again after every change in
 /// it, and its notes do not change. A note changed in the last two seconds is not remembered (a second same-size save
 /// within one tick of the file system's clock would keep its stamp); past [`UNSHOWN_MAX`] entries all are forgotten.
-static UNSHOWN: std::sync::LazyLock<std::sync::Mutex<std::collections::HashMap<std::path::PathBuf, (std::time::SystemTime, u64, bool)>>> =
-    std::sync::LazyLock::new(Default::default);
+static UNSHOWN: std::sync::LazyLock<std::sync::Mutex<Unshown>> = std::sync::LazyLock::new(Default::default);
+/// A note → (time, size) when read, and whether it was unshown.
+type Unshown = std::collections::HashMap<std::path::PathBuf, (std::time::SystemTime, u64, bool)>;
 const UNSHOWN_MAX: usize = 100_000;
 
 fn unshown_cached(path: &std::path::Path, meta: &std::fs::Metadata) -> bool {

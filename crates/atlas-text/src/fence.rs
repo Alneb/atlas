@@ -25,7 +25,7 @@ impl Fences {
                 true
             }
             None => {
-                let opens = [b'`', b'~'].into_iter().map(|c| (c, run(c))).find(|&(c, r)| r >= 3 && (c == b'~' || !t[r..].contains('`')));
+                let opens = (*b"`~").into_iter().map(|c| (c, run(c))).find(|&(c, r)| r >= 3 && (c == b'~' || !t[r..].contains('`')));
                 match opens {
                     Some(f) if !indented => {
                         self.open = Some(f);
@@ -102,7 +102,9 @@ mod tests {
 
     #[test]
     fn code_spans_close_on_a_run_of_the_same_length() {
-        let spans = |l: &str| code_spans(l).into_iter().map(|r| &l[r]).collect::<Vec<_>>();
+        fn spans(l: &str) -> Vec<&str> {
+            code_spans(l).into_iter().map(|r| &l[r]).collect()
+        }
         assert_eq!(spans("a `x` b ``y`z`` c"), ["`x`", "``y`z``"]);
         assert_eq!(spans("it` was [[X]]"), Vec::<&str>::new(), "a run never closed is text");
         assert_eq!(spans("``a` b"), Vec::<&str>::new(), "a shorter run does not close a longer one");

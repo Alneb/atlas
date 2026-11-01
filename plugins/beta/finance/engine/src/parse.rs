@@ -112,7 +112,10 @@ fn parse_top(path: &Arc<str>, n: usize, line: &str) -> Result<Top, String> {
     let mut tags = BTreeSet::new();
     let mut id = None;
     // one rule for what is a tag, read here and left out of the payee below (`#2!` is text)
-    let tag = |w: &str| w.strip_prefix('#').filter(|t| !t.is_empty() && t.chars().all(|c| c.is_alphanumeric() || "_/-".contains(c)));
+    // a fn, not a closure: the tag borrows from `w`, which a closure's signature cannot say
+    fn tag(w: &str) -> Option<&str> {
+        w.strip_prefix('#').filter(|t| !t.is_empty() && t.chars().all(|c| c.is_alphanumeric() || "_/-".contains(c)))
+    }
     for w in text.split_whitespace() {
         if let Some(t) = tag(w) {
             tags.insert(t.to_string());

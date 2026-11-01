@@ -600,7 +600,7 @@ mod tests {
         let mv = WriteKind::Rename { to: "b.md".into() };
         desk.before("log.md", &mv, now(desktop.path(), "log.md")).unwrap();
         desk.after("log.md", &mv, None);
-        assert_eq!(*calls.lock().unwrap(), 3, "one ask per path, no `done` after an ask that failed");
+        assert_eq!(*calls.lock().unwrap(), 1, "one ask, none more while the server is taken as down, no `done` after a failed ask");
         // a note moved to the trash under a lease: the trash is never merged, so no base for it
         let desk = LeaseGuard::new(desktop.path(), Shared(leases, desktop.path().into(), "desktop", offline)).quick();
         std::fs::write(desktop.path().join("log.md"), "v1\n").unwrap();
