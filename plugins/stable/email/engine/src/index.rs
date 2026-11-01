@@ -732,8 +732,7 @@ impl Index {
         }
         if let Some((c, a)) = &scope.filter {
             // the filter numbers its parameters from 1: shift them after ours
-            let base = args.len();
-            let shifted = regex::Regex::new(r"\?(\d+)").unwrap().replace_all(c, |m: &regex::Captures| format!("?{}", m[1].parse::<usize>().unwrap() + base));
+            let shifted = crate::search::shift_params(c, args.len());
             cond.push(format!("({shifted})"));
             args.extend(a.iter().cloned());
         }

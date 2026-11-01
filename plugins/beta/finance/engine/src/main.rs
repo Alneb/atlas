@@ -724,7 +724,7 @@ fn apply_import(vault: &std::path::Path, out: &finance::statement::batch::Output
     let put = |rel: &str, b: &[u8]| -> Result<(), String> {
         let target = vault.join(rel);
         std::fs::create_dir_all(target.parent().unwrap()).map_err(|e| e.to_string())?;
-        std::fs::write(&target, b).map_err(|e| format!("{rel}: {e}"))
+        atlas_plugin::write_file(&target, b).map_err(|e| format!("{rel}: {e}"))
     };
     for (rel, text) in &out.texts {
         put(rel, text.as_bytes())?;
@@ -794,7 +794,7 @@ fn cli(args: &[String]) -> Result<(), String> {
         "export-hledger" => {
             let l = load(&Dir(PathBuf::from(arg(1)?)), args.get(3).map(String::as_str).unwrap_or("finance"))?;
             let e = export::hledger(&l.ledger, &l.notes);
-            std::fs::write(arg(2)?, e.journal).map_err(|e| e.to_string())?;
+            atlas_plugin::write_file(arg(2)?, e.journal.as_bytes()).map_err(|e| e.to_string())?;
             for x in e.losses {
                 eprintln!("lost: {x}");
             }
@@ -814,7 +814,7 @@ fn cli(args: &[String]) -> Result<(), String> {
                         continue;
                     }
                     std::fs::create_dir_all(target.parent().unwrap()).map_err(|e| e.to_string())?;
-                    std::fs::write(&target, body).map_err(|e| e.to_string())?;
+                    atlas_plugin::write_file(&target, body.as_bytes()).map_err(|e| e.to_string())?;
                     eprintln!("wrote {path}");
                 }
             }
@@ -847,7 +847,7 @@ fn cli(args: &[String]) -> Result<(), String> {
                 old = [&lines[..e.span.first - 1], &lines[end..]].concat().concat();
                 eprintln!("replaced the count of {date} (it was {})", e.text);
             }
-            std::fs::write(&path, write::append(&old, t)).map_err(|e| e.to_string())?;
+            atlas_plugin::write_file(&path, write::append(&old, t).as_bytes()).map_err(|e| e.to_string())?;
             println!("{}", write::txn(t));
             Ok(())
         }
@@ -875,7 +875,7 @@ fn cli(args: &[String]) -> Result<(), String> {
             }
             let path = vault.join(&*t.span.path);
             let out = edit::apply(&std::fs::read_to_string(&path).map_err(|e| e.to_string())?, t, &e)?;
-            std::fs::write(&path, out).map_err(|e| e.to_string())?;
+            atlas_plugin::write_file(&path, out.as_bytes()).map_err(|e| e.to_string())?;
             println!("{} {} → {to}", t.date, t.payee);
             Ok(())
         }
@@ -897,7 +897,7 @@ fn cli(args: &[String]) -> Result<(), String> {
             let write = args.iter().any(|a| a == "--write");
             if write {
                 for (p, text) in &files {
-                    std::fs::write(vault.join(p), text).map_err(|e| e.to_string())?;
+                    atlas_plugin::write_file(vault.join(p), text.as_bytes()).map_err(|e| e.to_string())?;
                 }
             }
             for p in &problems {
@@ -923,7 +923,7 @@ fn cli(args: &[String]) -> Result<(), String> {
             problems.iter().for_each(|x| eprintln!("problem: {x}"));
             if args.iter().any(|a| a == "--write") {
                 for (p, t) in &files {
-                    std::fs::write(vault.join(p), t).map_err(|e| e.to_string())?;
+                    atlas_plugin::write_file(vault.join(p), t.as_bytes()).map_err(|e| e.to_string())?;
                 }
                 let after = load(&Dir(vault), "finance")?;
                 let errors = after.ledger.diags.iter().filter(|d| d.severity == Severity::Error).count();
@@ -951,7 +951,7 @@ fn cli(args: &[String]) -> Result<(), String> {
                 for (p, t) in &u.files {
                     let target = vault.join(p);
                     std::fs::create_dir_all(target.parent().unwrap()).map_err(|e| e.to_string())?;
-                    std::fs::write(&target, t).map_err(|e| e.to_string())?;
+                    atlas_plugin::write_file(&target, t.as_bytes()).map_err(|e| e.to_string())?;
                     eprintln!("wrote {p}");
                 }
             }

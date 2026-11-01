@@ -478,7 +478,7 @@ fn note_events(r: Range, user: &Zone) -> Vec<Value> {
                 let _ = std::io::Read::read_to_end(&mut std::io::Read::take(f, 16 * 1024), &mut buf);
                 String::from_utf8_lossy(&buf).into_owned()
             });
-            let evs = text.filter(|t| t.starts_with("---") && t.contains("important")).map(|t| sync::dated_events(&path, &t).0).unwrap_or_default();
+            let evs = text.filter(|t| atlas_text::frontmatter::yaml_head(t).is_some_and(|y| y.contains("important"))).map(|t| sync::dated_events(&path, &t).0).unwrap_or_default();
             cache.insert(path.clone(), (mtime, evs));
         }
         for ev in &cache[&path].1 {

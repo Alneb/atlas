@@ -37,11 +37,15 @@ impl Query {
 
     fn cond(&mut self, sql: &str, args: Vec<Value>) {
         // renumber this condition's ?N after the ones already taken
-        let base = self.args.len();
-        let s = regex::Regex::new(r"\?(\d+)").unwrap().replace_all(sql, |m: &regex::Captures| format!("?{}", m[1].parse::<usize>().unwrap() + base));
-        self.sql.push(s.into_owned());
+        self.sql.push(shift_params(sql, self.args.len()));
         self.args.extend(args);
     }
+}
+
+/// `sql`'s numbered parameters (`?1`, `?2`…) moved `base` on, to follow `base` parameters already bound.
+pub fn shift_params(sql: &str, base: usize) -> String {
+    static PARAM: std::sync::LazyLock<regex::Regex> = std::sync::LazyLock::new(|| regex::Regex::new(r"\?(\d+)").unwrap());
+    PARAM.replace_all(sql, |m: &regex::Captures| m[1].parse::<usize>().map_or_else(|_| m[0].to_string(), |n| format!("?{}", n + base))).into_owned()
 }
 
 /// What a LIKE with a typed value says: `\` escapes the value's own `%` and `_` ([`literal`]).

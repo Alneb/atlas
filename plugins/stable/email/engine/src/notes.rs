@@ -181,18 +181,27 @@ fn props(text: &str) -> Vec<(&'static str, Value)> {
     ]
 }
 
-/// The note's frontmatter with these properties set, the others kept.
+/// The note's frontmatter with these properties set, the others kept. The fences are atlas-text's (the one reader); a
+/// key's old value goes whole, the lines of a block list under it too (Obsidian rewrites `[a, b]` as one).
 fn with_props(text: &str, set: &[(&str, Value)]) -> String {
-    let Some(end) = text[4..].find("\n---\n").map(|i| i + 4) else { return text.to_string() };
-    let mut head: Vec<String> = text[4..end].lines().map(String::from).collect();
+    let Some(yaml_at) = atlas_text::frontmatter::yaml_range(text) else { return text.to_string() };
+    let mut head: Vec<String> = text[yaml_at.clone()].lines().map(String::from).collect();
     for (k, v) in set {
         let line = format!("{k}: {}", yaml(v));
-        match head.iter().position(|l| l.starts_with(&format!("{k}: "))) {
-            Some(i) => head[i] = line,
+        let key_line = |l: &String| l.strip_prefix(k).is_some_and(|r| r.starts_with(':'));
+        match head.iter().position(key_line) {
+            Some(i) => {
+                let more = head[i + 1..].iter().take_while(|l| l.starts_with([' ', '\t']) || l.starts_with("- ") || l.trim_end() == "-").count();
+                head.splice(i..=i + more, [line]);
+            }
             None => head.push(line),
         }
     }
-    format!("---\n{}{}", head.join("\n"), &text[end..])
+    let mut yaml_text = head.join("\n");
+    if !yaml_text.is_empty() {
+        yaml_text.push('\n'); // the range ends where the closing fence's line starts
+    }
+    format!("{}{yaml_text}{}", &text[..yaml_at.start], &text[yaml_at.end..])
 }
 
 /// Whether a note's text holds one of these message ids (a section's marker or the note's property).
@@ -253,7 +262,7 @@ pub fn write(m: &Mail, also: &[String], items: Vec<(Msg, Vec<u8>, String)>) -> R
         Some(p) => (p.clone(), std::fs::read_to_string(p).map_err(|e| e.to_string())?),
         None => {
             let dir = m.root.join(&account_dir).join(note_name(&first_label));
-            let subject = Regex::new(r"(?i)^\s*((re|fwd?|tr|aw|sv|rv)\s*:\s*)+").unwrap().replace(&first.subject, "").to_string();
+            let subject = crate::parse::bare_subject(&first.subject);
             let subject = if subject.is_empty() { "(no subject)".to_string() } else { subject };
             let stem = format!("{} {}", iso(first.date).get(..10).unwrap_or(""), note_name(&subject));
             let name = free_name(&dir, &format!("{stem}.md"));
@@ -347,6 +356,16 @@ mod tests {
         assert_eq!(note_name("...and one more thing"), "and one more thing");
         assert_eq!(note_name("Re: [list] a/b #3"), "Re list a b 3");
         assert_eq!(note_name(" . "), "Mail");
+    }
+
+    #[test]
+    fn a_thread_notes_properties_are_set_in_place() {
+        let set = [("messages", json!(2)), ("participants", json!(["a@x", "b@x"]))];
+        let block = "---\ntitle: T\nparticipants:\n  - old@x\nmessages: 1\n---\nbody\n";
+        assert_eq!(with_props(block, &set), "---\ntitle: T\nparticipants: [\"a@x\",\"b@x\"]\nmessages: 2\n---\nbody\n", "a block list goes whole");
+        assert_eq!(with_props("---\n---\nbody", &set[..1]), "---\nmessages: 2\n---\nbody");
+        assert_eq!(with_props("abc", &set), "abc", "no frontmatter: left as it is");
+        assert_eq!(with_props("é", &set), "é");
     }
 
     #[test]

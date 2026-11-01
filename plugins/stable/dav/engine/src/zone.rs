@@ -167,8 +167,9 @@ pub fn offset(s: &str) -> Option<FixedOffset> {
     if rest.len() < 4 {
         return None;
     }
-    let h: i32 = rest[..2].parse().ok()?;
-    let m: i32 = rest[2..4].parse().ok()?;
+    // by `get`: the text comes from calendar data, and a byte index may fall inside a character
+    let h: i32 = rest.get(..2)?.parse().ok()?;
+    let m: i32 = rest.get(2..4)?.parse().ok()?;
     let sec: i32 = rest.get(4..6).and_then(|x| x.parse().ok()).unwrap_or(0);
     FixedOffset::east_opt(sign * (h * 3600 + m * 60 + sec))
 }
@@ -291,6 +292,7 @@ mod tests {
         assert_eq!(resolve("Custom Zone", &vt), Some(Zone::Fixed(FixedOffset::west_opt(5 * 3600).unwrap())));
         assert_eq!(resolve("Nowhere", &[]), None);
         assert_eq!(offset("+0530"), FixedOffset::east_opt(5 * 3600 + 1800));
+        assert_eq!(offset("+0é0"), None, "calendar data with a character where digits go");
     }
 
     #[test]

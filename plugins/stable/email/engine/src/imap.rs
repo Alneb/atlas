@@ -736,7 +736,8 @@ static NOT_MAIL: LazyLock<Regex> = LazyLock::new(|| {
 /// English, French, Spanish, German, Italian.
 pub fn role_of(name: &str, delim: Option<&str>, flags: &[String]) -> (String, Option<String>) {
     let decoded = mutf7_decode(name);
-    let label = Regex::new(r"^\[(?:Gmail|Google Mail)\][/.]").unwrap().replace(&decoded, "").to_string();
+    static GMAIL: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^\[(?:Gmail|Google Mail)\][/.]").unwrap());
+    let label = GMAIL.replace(&decoded, "").to_string();
     let d = delim.unwrap_or("/");
     let leaf = label.rsplit(d).next().unwrap_or(&label).trim().to_string();
     let top = label.split(d).next().unwrap_or(&label).trim().to_string();

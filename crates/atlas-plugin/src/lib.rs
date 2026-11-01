@@ -280,10 +280,17 @@ pub fn write_file(path: impl AsRef<std::path::Path>, bytes: &[u8]) -> Result<()>
         }
     }
     let io = |e: std::io::Error| error(format!("cannot write {}: {e}", path.display()));
-    if let Some(dir) = path.parent() {
-        std::fs::create_dir_all(dir).map_err(io)?;
-    }
-    std::fs::write(path, bytes).map_err(io)
+    let dir = path.parent().ok_or_else(|| error(format!("cannot write {}: no folder", path.display())))?;
+    std::fs::create_dir_all(dir).map_err(io)?;
+    // beside it, then renamed over it: a note is never left half written (a crash, a full disk), as the core writes
+    let name = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+    // named as the core names its own (`.<name>.atlas-tmp-<pid>-<nanos>`), which the watcher passes over
+    let nanos = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_nanos());
+    let tmp = dir.join(format!(".{name}.atlas-tmp-{}-{nanos}", std::process::id()));
+    std::fs::write(&tmp, bytes).and_then(|()| std::fs::rename(&tmp, path)).map_err(|e| {
+        let _ = std::fs::remove_file(&tmp);
+        io(e)
+    })
 }
 
 /// Moves a file or folder of the vault (absolute paths), through Atlas as [`write_file`] does: the links to it follow.

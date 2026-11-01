@@ -390,7 +390,8 @@ fn eval_scoped(e: &Expr, ctx: &dyn Context, scope: Option<&Val>) -> Val {
             let o = eval_scoped(obj, ctx, scope);
             match (&o, &i) {
                 (Val::Map(m), Val::Str(k)) => m.get(k).cloned().unwrap_or(Val::Null),
-                (Val::List(l), Val::Num(n)) => l.get(*n as usize).cloned().unwrap_or(Val::Null),
+                // a whole index from 0: `list[-1]` (which `as usize` turns into 0) and `list[1.5]` are nothing, as in JS
+                (Val::List(l), Val::Num(n)) if *n >= 0.0 && n.fract() == 0.0 => l.get(*n as usize).cloned().unwrap_or(Val::Null),
                 _ => Val::Null,
             }
         }
@@ -688,6 +689,9 @@ mod tests {
         assert!(run("2 * 3 > 5", &ctx).truthy());
         assert!(!run("1 > 2", &ctx).truthy());
         assert!(run("1.5 + 1.5 + \"x\" == \"3x\"", &ctx).truthy(), "a whole number as text has no decimals");
+        let xs = TestCtx::new(&[("xs", Val::List(vec![Val::Str("a".into()), Val::Str("b".into())]))]);
+        assert!(run("xs[1] == \"b\"", &xs).truthy());
+        assert!(matches!((run("xs[-1]", &xs), run("xs[0.5]", &xs)), (Val::Null, Val::Null)), "no first item for -1 or 0.5");
     }
 
     #[test]

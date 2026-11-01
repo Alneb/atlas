@@ -108,6 +108,12 @@ pub fn bare(addr: &str) -> String {
     }
 }
 
+/// A subject as a conversation's title: without Re:/Fwd:/TR: (every language [`PREFIX`] knows) and list tags, its case
+/// kept.
+pub fn bare_subject(subject: &str) -> String {
+    PREFIX.replace(subject, "").trim().to_string()
+}
+
 /// A conversation's subject: without Re:/Fwd:/TR: and list tags, spaces and case folded (to match replies).
 pub fn thread_subject(subject: &str) -> String {
     PREFIX.replace(subject, "").split_whitespace().collect::<Vec<_>>().join(" ").to_lowercase()
@@ -326,7 +332,8 @@ pub fn body_of(m: &Message) -> Body {
         // entities in a text part (`enregistr&eacute;`) are never meant literally
         text = ENTITY.replace_all(&text, |c: &regex::Captures| entity(&c[1]).map(String::from).unwrap_or_else(|| c[0].to_string())).into_owned();
     }
-    let html_cids: Vec<String> = Regex::new(r#"(?i)cid:([^"'\s)>]+)"#).unwrap().captures_iter(&html).map(|c| c[1].to_string()).collect();
+    static CID: LazyLock<Regex> = LazyLock::new(|| Regex::new(r#"(?i)cid:([^"'\s)>]+)"#).unwrap());
+    let html_cids: Vec<String> = CID.captures_iter(&html).map(|c| c[1].to_string()).collect();
     let mut attachments = vec![];
     let mut invite = None;
     let mut forwarded = vec![];
@@ -639,6 +646,7 @@ mod tests {
     fn subjects_fold_to_their_conversation() {
         assert_eq!(thread_subject("Re: Fwd: RE[2]: Hello  World"), "hello world");
         assert_eq!(thread_subject("[physics-l] Re: Seminar"), "seminar");
+        assert_eq!(bare_subject("AW: Antw: Réunion du Lundi"), "Réunion du Lundi", "the title keeps its case; every language's prefix goes");
         assert_eq!(thread_subject("TR : Réunion"), "réunion");
         assert_eq!(thread_subject("AW: WG: Termin"), "termin");
         assert!(!is_reply_subject("Seminar"));

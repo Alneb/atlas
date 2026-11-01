@@ -218,7 +218,7 @@ fn entry_note(root: &Path, cfg: &Config, dir_rel: &str, stem: &str, shape: &Shap
     let legacy = dir.join(LEGACY);
     let old = std::fs::read_to_string(&legacy).ok();
     let template = template(root, cfg, dir_rel, &rel, &shape.title, now)?;
-    if old.as_deref().is_some_and(|t| t.starts_with("---\n")) {
+    if old.as_deref().is_some_and(|t| atlas_text::frontmatter::split(t).0.is_some()) {
         vault_write::rename(&legacy, &path)?;
     } else {
         let text = match old.as_deref().filter(|t| !t.trim().is_empty()) {
