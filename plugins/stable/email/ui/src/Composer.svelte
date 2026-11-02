@@ -245,13 +245,14 @@
   <div class="tb" role="toolbar" aria-label="Formatting">
     <button onclick={() => wrap("**")} title="Bold (Ctrl+B)"><b>B</b></button>
     <button onclick={() => wrap("*")} title="Italic (Ctrl+I)"><i>I</i></button>
-    <button onclick={() => wrap("~~")} title="Strikethrough"><s>S</s></button>
+    <button onclick={() => wrap("~~")} title="Strikethrough"><span class="struck">S</span></button>
     <button onclick={link} title="Link (Ctrl+K)"><Icon name="open" size={14} /></button>
     <button onclick={() => prefix("- ")} title="List">•</button>
     <button onclick={() => prefix("1. ")} title="Numbered list">1.</button>
-    <button onclick={() => prefix("> ")} title="Quote">”</button>
+    <button onclick={() => prefix("> ")} title="Quote">"</button>
     <button onclick={() => wrap("`")} title="Code"><code>{"<>"}</code></button>
     <span class="grow"></span>
+    <span class="tsep" aria-hidden="true"></span>
     <button onclick={togglePreview} class:on={preview !== null} title="How it will look">{preview !== null ? "Edit" : "Preview"}</button>
   </div>
 
@@ -302,6 +303,7 @@
   .bar b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .grow { flex: 1; min-width: 0; }
   .fields { display: grid; }
+  .composer:not(.inline) .fields { padding-top: 6px; }
   .from { display: flex; gap: 8px; align-items: center; border-bottom: 1px solid var(--border); padding: 4px 0; }
   .from select { flex: 1; min-width: 0; background: transparent; color: var(--text); border: 0; padding: 4px 0; font: inherit; }
   .label { flex: none; width: 3.2em; color: var(--text-faint); font-size: 0.9em; }
@@ -309,11 +311,14 @@
   .torow .link { margin-top: 9px; }
   .link { all: unset; cursor: pointer; color: var(--text-muted); font-size: 0.9em; }
   .link:hover { color: var(--accent); }
-  .subject { all: unset; padding: 8px 0; border-bottom: 1px solid var(--border); font-weight: 600; }
-  .tb { display: flex; gap: 2px; align-items: center; padding-top: 2px; }
-  .tb button { all: unset; cursor: pointer; min-width: 26px; height: 26px; display: grid; place-items: center; border-radius: var(--radius-sm); color: var(--text-muted); font-size: 0.92em; padding: 0 4px; }
+  .subject { all: unset; padding: 10px 0; border-bottom: 1px solid var(--border); font-weight: 600; }
+  .tb { display: flex; gap: 2px; align-items: center; padding-top: 4px; }
+  .tb button { all: unset; cursor: pointer; min-width: 28px; height: 28px; display: grid; place-items: center; border-radius: var(--radius-sm); color: var(--text-muted); font-size: 0.92em; padding: 0 4px; }
   .tb button:hover, .tb button.on { background: var(--bg-hover); color: var(--text); }
+  .tb .struck { text-decoration: line-through; }
+  .tsep { width: 1px; height: 16px; background: var(--border-strong); margin: 0 4px; flex: none; }
   textarea { all: unset; box-sizing: border-box; width: 100%; min-height: 120px; resize: none; white-space: pre-wrap; line-height: 1.55; font-size: 15px; font-family: var(--font-prose, var(--font-ui)); overflow-y: auto; }
+  .composer:not(.inline) textarea { min-height: 200px; }
   .preview { min-height: 120px; padding: 4px 0; line-height: 1.55; overflow-wrap: anywhere; }
   .preview :global(blockquote) { margin: 0.4em 0; padding-left: 0.9em; border-left: 3px solid var(--border-strong); color: var(--text-muted); }
   .files { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
