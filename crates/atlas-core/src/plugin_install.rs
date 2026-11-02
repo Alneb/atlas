@@ -129,6 +129,39 @@ fn copy_dir(from: &Path, to: &Path) -> Result<()> {
     Ok(())
 }
 
+/// The newest change of a file under `dir` (its `target/` build folder left out), None when there is no file.
+fn newest(dir: &Path) -> Option<std::time::SystemTime> {
+    walkdir::WalkDir::new(dir)
+        .into_iter()
+        .filter_entry(|e| e.file_name() != "target")
+        .flatten()
+        .filter(|e| e.file_type().is_file())
+        .filter_map(|e| e.metadata().ok()?.modified().ok())
+        .max()
+}
+
+/// A folder whose compiled engine is older than its source is refused: the plugin would ship a binary that lacks
+/// what its manifest and page already call (a method added to `engine/src` after the last build). Checked for this
+/// computer's build (`bin/<target>/`, else all of `bin/`); a folder with no engine or no build is let through.
+fn stale_engine(dir: &Path) -> Result<()> {
+    let engine = dir.join("engine");
+    if !engine.join("Cargo.toml").is_file() {
+        return Ok(());
+    }
+    let bin = Some(dir.join("bin").join(plugins::target())).filter(|b| b.is_dir()).unwrap_or_else(|| dir.join("bin"));
+    let (Some(built), Some(source)) = (newest(&bin), newest(&engine)) else { return Ok(()) };
+    if built < source {
+        let day = |t: std::time::SystemTime| chrono::DateTime::<chrono::Local>::from(t).format("%Y-%m-%d %H:%M").to_string();
+        return Err(Error::BadRequest(format!(
+            "{}: its engine build ({}) is older than its source ({}): rebuild it first (bash engine/build.sh)",
+            dir.display(),
+            day(built),
+            day(source)
+        )));
+    }
+    Ok(())
+}
+
 /// The folder holding `plugin.toml`: `dir` itself, or its only sub-folder (an archive of one folder).
 fn plugin_root(dir: &Path) -> Result<PathBuf> {
     if dir.join("plugin.toml").is_file() {
@@ -148,6 +181,7 @@ fn fetch(source: &Source, work: &Path) -> Result<Option<String>> {
             if !p.is_dir() {
                 return Err(Error::NotFound(p.display().to_string()));
             }
+            stale_engine(p)?;
             copy_dir(p, work)?;
             Ok(None)
         }
@@ -469,6 +503,30 @@ pub fn remove(root: &Path, id: &str) -> Result<String> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn a_folder_whose_engine_build_is_older_than_its_source_is_refused() {
+        let d = tempfile::tempdir().unwrap();
+        let (bin, src) = (d.path().join("bin").join(crate::plugins::target()), d.path().join("engine/src"));
+        std::fs::create_dir_all(&bin).unwrap();
+        std::fs::create_dir_all(&src).unwrap();
+        std::fs::write(d.path().join("engine/Cargo.toml"), "[package]\n").unwrap();
+        std::fs::write(src.join("main.rs"), "fn main() {}\n").unwrap();
+        std::fs::write(bin.join("engine"), b"old").unwrap();
+        let set = |p: &std::path::Path, secs: u64| filetime::set_file_mtime(p, filetime::FileTime::from_unix_time(secs as i64, 0)).unwrap();
+        set(&bin.join("engine"), 1_000);
+        set(&src.join("main.rs"), 2_000);
+        set(&d.path().join("engine/Cargo.toml"), 1_000);
+        let e = super::stale_engine(d.path()).unwrap_err().to_string();
+        assert!(e.contains("older than its source"), "{e}");
+        set(&bin.join("engine"), 3_000);
+        super::stale_engine(d.path()).unwrap();
+        // a build folder of the engine's own is not its source
+        std::fs::create_dir_all(d.path().join("engine/target")).unwrap();
+        std::fs::write(d.path().join("engine/target/x"), b"").unwrap();
+        set(&d.path().join("engine/target/x"), 9_000);
+        super::stale_engine(d.path()).unwrap();
+    }
+
     use super::*;
 
     fn source(dir: &Path, version: &str) -> PathBuf {

@@ -1,7 +1,7 @@
 import { test, expect, type APIRequestContext, type Page } from "@playwright/test";
 
 // LaTeX is a built-in plugin (lib/builtin-plugins.ts): its id in `[plugins] off` takes its snippets, Tab stops and
-// LaTeX completions out of the editor and its routes out of the core; its settings are its own page under Plugins.
+// LaTeX completions out of the editor and its routes out of the core; its switch is in Plugins.
 const H = { "x-atlas": "1" };
 const NOTE = "latex-plugin-note.md";
 async function setOff(request: APIRequestContext, off: string[]) {
@@ -29,7 +29,7 @@ async function typeAtEnd(page: Page, text: string) {
   await page.keyboard.type(text);
 }
 
-test("switched off, LaTeX has no snippets and no route; its page sits under Plugins", async ({ page, request }) => {
+test("switched off, LaTeX has no snippets and no route; its switch is in Plugins (no page of its own)", async ({ page, request }) => {
   await setOff(request, ["latex"]);
   expect((await request.get("/api/snippets", { headers: H })).status()).toBe(404);
   await page.goto("/");
@@ -40,13 +40,13 @@ test("switched off, LaTeX has no snippets and no route; its page sits under Plug
   await page.keyboard.press("Escape");
   await page.keyboard.press("Meta+,");
   const nav = page.getByRole("navigation", { name: "Settings pages" });
-  const entry = nav.getByRole("button", { name: /^LaTeX/ });
-  await expect(entry).toHaveClass(/off/);
-  await entry.click();
-  await expect(page.getByText("Snippets file", { exact: true })).toBeVisible();
+  // snippets have one page, the Snippets plugin's: no LaTeX page beside it
+  await expect(nav.getByRole("button", { name: /^LaTeX/ })).toHaveCount(0);
   await nav.getByRole("button", { name: /^Plugins( \d+)?$/ }).click();
-  await page.getByRole("switch", { name: "Plugin LaTeX" }).click();
-  await expect(entry).not.toHaveClass(/off/);
+  const sw = page.getByRole("switch", { name: "Plugin LaTeX" });
+  await expect(sw).not.toBeChecked();
+  await sw.click();
+  await expect(sw).toBeChecked();
   expect((await request.get("/api/snippets", { headers: H })).status()).toBe(200);
 });
 

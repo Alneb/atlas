@@ -1,16 +1,14 @@
 import { test, expect, type APIRequestContext } from "@playwright/test";
-import { readFileSync } from "node:fs";
+import { openFile } from "./open";
+import { restoreCatalog, withCatalog } from "./fixtures/catalog";
 
-// The catalog's Library app on Atlas's library page (docs/refactor/REFACTOR-libraries.md, step 2): the page References
+// The catalog's Library app on the library page (docs/refactor/REFACTOR-libraries.md, step 2): the page References
 // is, over every kind the catalog knows — a tab per kind, shelves at the side, covers or a list, the item at the right
 // with its fields, the services it is in and its shelf, changed in place. The kinds come from the plugin's helper (a
-// stand-in here); the rows from the Bases engine over the notes.
+// stand-in here); the rows from the Bases engine over the notes. The page is the plugin's own (its view.js, the
+// vault's copy: tests/fixtures/catalog.ts), and so is the Libraries page its libraries are tabs of.
 const H = { "x-atlas": "1" };
 const put = (request: APIRequestContext, path: string, text: string) => request.put("/api/file", { headers: H, data: { path, text } });
-const MAIN = readFileSync(new URL("../../plugins/beta/catalog/main.js", import.meta.url), "utf8");
-const VIEW = readFileSync(new URL("../../plugins/beta/catalog/view.js", import.meta.url), "utf8");
-// the real id: a second copy of the plugin would register its blocks twice (catalog-collections.spec puts one there)
-const DIR = ".atlas/plugins/catalog";
 
 const KINDS = {
   kinds: [
@@ -33,10 +31,7 @@ const FILMS: [string, number, string, string][] = [
 ];
 
 test.beforeAll(async ({ request }) => {
-  await put(request, `${DIR}/helper.py`, HELPER);
-  await put(request, `${DIR}/main.js`, MAIN);
-  await put(request, `${DIR}/view.js`, VIEW);
-  await put(request, `${DIR}/plugin.toml`, 'title = "Catalib"\nrail = true\nicon = "grid"\napi = 4\n\n[helper]\nrun = "python3 -u \\"$ATLAS_PLUGIN_DIR/helper.py\\""\n');
+  await withCatalog(request, HELPER);
   for (const [title, year, director, status] of FILMS) {
     const slug = title.toLowerCase().replace(/\s+/g, "-");
     expect((await request.put(`/api/raw?path=${encodeURIComponent(`Shelf/Films/${slug}.png`)}`, { headers: H, data: PNG })).ok()).toBeTruthy();
@@ -47,19 +42,20 @@ test.beforeAll(async ({ request }) => {
   // only a PDF: its first page is the cover
   await put(request, "Shelf/Albums/hejira.pdf", "%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj\n3 0 obj<</Type/Page/Parent 2 0 R/MediaBox[0 0 200 300]>>endobj\ntrailer<</Root 1 0 R>>\n%%EOF\n");
   await put(request, "Shelf/Albums/Hejira.md", "---\ntype: record\ntitle: Hejira\nartist: Joni Mitchell\nbooklet: Shelf/Albums/hejira.pdf\n---\n");
+  // the Library app, as a note shows it
+  await put(request, "Shelf/Everything.md", "# Everything\n\n```view\ntype: catalog.app\n```\n");
 });
 test.afterAll(async ({ request }) => {
-  // gone, as before the catalog specs: left without its helper, its main.js asked for one on every later page (a 400
-  // in the console of every spec after this one)
-  await request.post("/api/plugins/catalog/helper/stop", { headers: H });
-  await request.post(`/api/fs/trash?path=${DIR}`, { headers: H });
+  // the vault's copy again: left with main.js and no helper, it asked for one on every later page (a 400 in the console
+  // of every spec after this one)
+  await restoreCatalog(request);
   await request.post(`/api/fs/trash?path=Shelf`, { headers: H }); // other specs count notes
 });
 
 test("the catalog's library is the library page: kinds as tabs, shelves, covers or a list, the item with its shelf", async ({ page, request }) => {
   await page.goto("/");
   await page.getByText("Finish the GW notes.").waitFor();
-  await page.locator(`[data-testid=apps] .app[aria-label^="Catalib"]`).click();
+  await openFile(page, "Everything.md");
   const lib = page.locator('.library[data-source="catalog"]');
   await expect(lib.locator(".card")).toHaveCount(5);
   // the kinds with notes, by how many; an empty kind is no filter

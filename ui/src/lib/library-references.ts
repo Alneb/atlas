@@ -1,4 +1,4 @@
-// References (Zotero-like) as a library source (lib/library.ts): refs/<key>/<key>.md, whose properties are the
+// References (Zotero-like) as a library source (plugin-api.ts `LibrarySource`, registered in core-libraries.ts): refs/<key>/<key>.md, whose properties are the
 // entry's fields, read through the catalog-papers helper's endpoints. Keys: Enter opens the PDF, r reads, n notes,
 // c copies the citekey.
 import { api } from "./api";
@@ -8,7 +8,7 @@ import { errText } from "./text";
 import { openReadingNote, readPaper } from "./papers";
 import { toast } from "./state.svelte";
 import type { Paper } from "./types";
-import type { LibraryItem, LibrarySource } from "./library";
+import type { LibraryItem, LibrarySource } from "./plugin-api";
 
 // Zotero's item types grouped as a reader thinks of them (2026-10-18: books, theses and lecture notes are references too)
 const typeOf = (p: Paper) =>

@@ -97,7 +97,7 @@ export function mountSection(host: HTMLElement, o: { atlas: PluginApi; engine: R
     top.replaceChildren();
     if (read.fromOldFile) {
       const row = el("div", "display:flex;gap:12px;align-items:center;padding:10px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg-alt);");
-      row.append(el("div", "flex:1;", "These come from the old snippet file. Converting writes a JavaScript module beside it, with the known misfires mended and listed at its top. The old file is left as it was."));
+      row.append(el("div", "flex:1;", "These come from the old snippet file ([latex] snippets_file in the settings file). Converting writes a JavaScript module beside it, with the known misfires mended and listed at its top. The old file is left as it was."));
       const b = el("button", "", "Convert");
       b.className = "btn primary";
       b.onclick = () => void o.convert().then(draw);

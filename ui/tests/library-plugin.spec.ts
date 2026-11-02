@@ -1,7 +1,7 @@
 import { test, expect, type APIRequestContext } from "@playwright/test";
 
-// "i would like them separate considering this library plugin is only for science": the Library is a
-// built-in plugin. Its button sits in the bar's bottom row with the other launchers, and one switch — its id in
+// The Library is a built-in plugin (References, for a science vault): its button sits in the bar's bottom row with the
+// other launchers and opens the Libraries page (the Catalog plugin's pane) at References; one switch — its id in
 // `[plugins] off` — removes the button, the command, its shortcut and @-citations from the vault.
 const H = { "x-atlas": "1" };
 async function setOff(request: APIRequestContext, off: string[]) {
@@ -45,9 +45,9 @@ test("the Library is a plugin: an app at the top of the bar, gone when switched 
   await expect(page.locator(`[data-testid=apps] .app.open[aria-label^="Library"]`)).toHaveCount(1);
 });
 
-// An old References pane is not shown twice: a layout saved with the old References pane (`library`) beside the
-// Library page (`libraries`) showed two tiles; the old one is folded into the page when the layout is read.
-test("an old layout's References pane becomes the one Library page", async ({ page, context, request }) => {
+// The core's Library panes of older layouts — the References pane (`library`) and the Libraries page (`libraries`) — are
+// the one Libraries page now, the Catalog plugin's pane: read from the layout file as that pane, one tile, not two.
+test("an old layout's Library panes become the one Libraries page, the Catalog's pane", async ({ page, context, request }) => {
   await page.goto("/");
   await page.getByText("Finish the GW notes.").waitFor();
   await page.keyboard.press("Meta+Shift+l");
@@ -55,11 +55,19 @@ test("an old layout's References pane becomes the one Library page", async ({ pa
     const r = await request.get(`/api/file?path=${encodeURIComponent(".atlas/cache/layout.json")}`, { headers: { "x-atlas": "1" } });
     return r.ok() ? (((await r.json()) as { text?: string }).text ?? "") : "";
   };
-  await expect.poll(layoutText).toContain('"libraries"');
+  await expect.poll(layoutText).toContain('"plugin:catalog"');
+  // the same layout as an older Atlas wrote it: the page as the core's `libraries` pane, the old `library` beside it
   const saved = JSON.parse(await layoutText());
-  saved.panels.library = { ...saved.panels.libraries, id: "library", contentComponent: "library", title: "Library", params: { kind: "library" } };
-  const addOld = (n: { type: string; data: any }): void => { if (n.type === "leaf") { if (n.data.views.includes("libraries")) n.data.views.push("library"); } else n.data.forEach(addOld); };
-  addOld(saved.grid.root);
+  const now = saved.panels["plugin:catalog"];
+  delete saved.panels["plugin:catalog"];
+  saved.panels.libraries = { ...now, id: "libraries", contentComponent: "libraries", title: "Library", params: { kind: "libraries", at: "references" } };
+  saved.panels.library = { ...now, id: "library", contentComponent: "library", title: "Library", params: { kind: "library" } };
+  const asOld = (n: { type: string; data: any }): void => {
+    if (n.type !== "leaf") { n.data.forEach(asOld); return; }
+    n.data.views = n.data.views.flatMap((v: string) => (v === "plugin:catalog" ? ["libraries", "library"] : [v]));
+    if (n.data.activeView === "plugin:catalog") n.data.activeView = "libraries";
+  };
+  asOld(saved.grid.root);
   await request.put("/api/file", { headers: { "x-atlas": "1" }, data: { path: ".atlas/cache/layout.json", text: JSON.stringify(saved) } });
   await page.close();
   const fresh = await context.newPage(); // a new window reads the file (a reload keeps its own tabs)
@@ -69,4 +77,6 @@ test("an old layout's References pane becomes the one Library page", async ({ pa
   await expect(apps.locator(".app.open")).not.toHaveCount(0);
   const labels = await apps.evaluate((el) => [...el.querySelectorAll("button")].map((n) => n.getAttribute("aria-label") ?? ""));
   expect(labels.filter((l) => /^Librar/.test(l))).toEqual(["Library"]);
+  // the page itself, at References
+  await expect(fresh.locator(".libraries .library[data-source=\"references\"] .row")).not.toHaveCount(0);
 });

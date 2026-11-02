@@ -176,7 +176,11 @@ fn param<'a>(p: &'a Value, k: &str) -> Option<&'a str> {
 fn pull_all(p: &Value, force: bool) -> (bool, Vec<String>) {
     let e = engine();
     let _one = lock(&e.pulling);
-    let s = conf::settings(p);
+    // unread settings are not "no accounts": nothing is pulled or forgotten until they can be read
+    let Some(s) = conf::read_settings(p) else {
+        eprintln!("dav: the settings could not be read; this round is skipped");
+        return (false, Vec::new());
+    };
     let cards = conf::accounts(&s, p);
     let mut changed_any = false;
     let mut errors = Vec::new();

@@ -1,6 +1,6 @@
 import { test, expect, type Page, type APIRequestContext } from "@playwright/test";
 import { openFile } from "./open";
-import { readFileSync } from "node:fs";
+import { catalogFile, restoreCatalog } from "./fixtures/catalog";
 import { deflateSync } from "node:zlib";
 
 // The catalog's collections (docs/design/DESIGN-collections.md): a collection's index page is the Library page over its base,
@@ -9,7 +9,6 @@ import { deflateSync } from "node:zlib";
 // base through Atlas's Bases engine, so these are the same files Obsidian reads.
 const H = { "x-atlas": "1" };
 const put = (request: APIRequestContext, path: string, text: string) => request.put("/api/file", { headers: H, data: { path, text } });
-const MAIN = readFileSync(new URL("../../plugins/beta/catalog/main.js", import.meta.url), "utf8");
 
 // a solid-colour PNG, so covers are real pictures without the network
 function png(w: number, h: number, [r, g, b]: [number, number, number]): Buffer {
@@ -30,8 +29,8 @@ const FILMS: [string, number, string, string, number, [number, number, number]][
 ];
 
 async function vault(request: APIRequestContext) {
-  await put(request, ".atlas/plugins/catalog/plugin.toml", 'title = "Catalog"\nicon = "library"\napi = 4\n');
-  await put(request, ".atlas/plugins/catalog/main.js", MAIN);
+  // the vault's copy of the plugin (its page, no helper: these blocks need none) with its main.js
+  await put(request, ".atlas/plugins/catalog/main.js", catalogFile("main.js"));
   for (const [title, year, director, status, rating, rgb] of FILMS) {
     const slug = title.toLowerCase().replace(/\s+/g, "-");
     expect((await request.put(`/api/raw?path=${encodeURIComponent(`Films/covers/${slug}.png`)}`, { headers: H, data: png(40, 60, rgb) })).ok()).toBeTruthy();
@@ -46,8 +45,8 @@ async function open(page: Page, name: string) {
   await openFile(page, name);
 }
 
-// the plugin goes with the spec: left installed without its helper it asks for one on every later page
-test.afterAll(async ({ request }) => { await request.post("/api/fs/trash?path=.atlas/plugins/catalog", { headers: H }); });
+// the vault's copy again: its main.js goes with the spec
+test.afterAll(async ({ request }) => { await restoreCatalog(request); });
 
 test("a collection's index page is the Library page over its base: shelves in the kind's order, a cover dragged to another shelf moves there", async ({ page, request }) => {
   await vault(request);

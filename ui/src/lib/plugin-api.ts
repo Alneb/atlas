@@ -1,7 +1,6 @@
 // The plugin API's contract: what a plugin's view, main.js and blocks get (`PluginApi`) and the shapes around it.
 // Kept apart from its implementation (plugins.svelte.ts) so the promise plugins rely on reads on its own page
 // (docs/guides/PLUGIN-API.md); "kept small and stable: plugins outlive app refactors".
-import type { LibrarySource } from "./library";
 import type { Plugin } from "./gen/Plugin";
 import type { BaseResult } from "./types";
 import type { OptionField } from "./block-options";
@@ -20,7 +19,7 @@ import type { NativeSample, PenOptions } from "./pen-target";
 import type { EmbedRender } from "./embed-registry";
 import type { Live, LiveHandlers } from "./live";
 
-export const PLUGIN_API_VERSION = 23;
+export const PLUGIN_API_VERSION = 24;
 
 /** What a plugin's view gets. Kept small and stable: plugins outlive app refactors. */
 export interface PluginApi {
@@ -49,7 +48,8 @@ export interface PluginApi {
    *  `blob(buf, entry, type?)` → that entry's bytes (stored or deflated). */
   zip: { index(buf: ArrayBuffer): Map<string, import("./zip").ZipEntry>; blob(buf: ArrayBuffer, entry: import("./zip").ZipEntry, type?: string): Promise<Blob> };
   /** Open the Libraries page at one library (`registerLibrary`'s id, a catalog's `catalog.films-series`…), or at the
-   *  last one seen there. A plugin's "library" command goes here, so a library is one place (API 19). */
+   *  last one seen there. A plugin's "library" command goes here, so a library is one place (API 19). The page is the
+   *  pane of the plugin that `provides = ["libraries"]` (the Catalog); with none on, a notice says so (v24). */
   openLibrary(id?: string): void;
   /** Run the plugin's data script (`data = …` in plugin.toml) with `args`; resolves to its JSON. */
   data(args?: unknown): Promise<unknown>;
@@ -81,12 +81,17 @@ export interface PluginApi {
    *  the folder's address, a base for a library that fetches its own files (Excalidraw's `EXCALIDRAW_ASSET_PATH`). A module may also say
    *  `new URL("./x", import.meta.url)`, or import a sibling plugin's file (`../zip/zip.js`). */
   assetUrl(rel: string): string;
-  /** A downscaled image (≤ `width` px, default 320) for galleries: never show full-size figures small. */
+  /** A downscaled image (≤ `width` px, default 320) for galleries: never show full-size figures small. `path` may be
+   *  a link's target (`[[x.png]]`, found as a link is); (v24) a PDF gives its first page. */
   thumbUrl(path: string, width?: number): Promise<string>;
   /** Called with the changed paths on every file event (none: anything may have changed); returns the unsubscribe function. */
   onFilesChanged(fn: (paths: string[]) => void): () => void;
-  /** `options.run`: the notice's button (`options.label`, "Open" by default), e.g. open what it is about. */
-  toast(title: string, body?: string, kind?: "info" | "success" | "error", options?: { run?: () => void; label?: string }): void;
+  /** `options.run`: the notice's button (`options.label`, "Open" by default), e.g. open what it is about; (v24)
+   *  `options.timeout`: how long it stays, in ms. */
+  toast(title: string, body?: string, kind?: "info" | "success" | "error", options?: { run?: () => void; label?: string; timeout?: number }): void;
+  /** (v24) A title's little markup as safe HTML, drawn as the app draws titles: Zotero's and Crossref's `<i>`, `<b>`,
+   *  `<sub>`, `<sup>`, `<sc>` and `$math$`; everything else escaped. */
+  richTitle(text: string): string;
   /** The e-ink mode (lib/eink.ts): whether it is on, and one full refresh against ghosts (a reader's page turn).
    *  `pen(host, take, opts)` (v5): the phone app's native pen over `host` (pen-target.ts — the firmware's quick line,
    *  every sample of each stroke to `take` in client CSS px); `sync()` after what `opts` reads changes, `off()` to give
@@ -131,12 +136,14 @@ export interface PluginApi {
   registerNew(k: { id: string; title: string; detail?: string; icon?: string; run(): void | Promise<void> }): () => void;
   /** Another plugin's settings and data — plugins build on each other. Null when absent or off. */
   other(id: string): { settings: Record<string, unknown>; data(args?: unknown): Promise<unknown> } | null;
-  /** Atlas's library page (the one References is) over the plugin's own items: search, sort, tabs, groups, a list or
-   *  covers, the selected item with its actions (lib/library.ts, docs/refactor/REFACTOR-libraries.md). Returns the cleanup. */
-  mountLibrary(host: HTMLElement, source: LibrarySource): () => void;
-  /** The same source as one of the vault's libraries: a tab of the Libraries page (the phone's Library), shown as the
-   *  vault's `[ui] libraries` says (docs/design/DESIGN-libraries-everywhere.md). Returns its removal. */
+  /** One of the vault's libraries: a tab of the Libraries page (the phone's Library), shown as the vault's
+   *  `[ui] libraries` says (docs/design/DESIGN-libraries-everywhere.md). The page that draws it is a plugin's (the
+   *  Catalog's, `provides = ["libraries"]`); Atlas keeps only the list. Returns its removal. */
   registerLibrary(source: LibrarySource): () => void;
+  /** (v24) The vault's libraries for the plugin whose pane is the Libraries page: `list()` those the vault shows, in its
+   *  order (each made by `source()` when first shown), `onChange(fn)` called with the list now and whenever it changes
+   *  (a plugin registers one, Settings hides one). */
+  libraries: { list(): LibraryEntry[]; onChange(fn: (list: LibraryEntry[]) => void): () => void };
   /** Draw any block (built-in, or another plugin's) into `host`: YAML text or an options object. */
   mountBlock(host: HTMLElement, block: string | Record<string, unknown>, notePath?: string): () => void;
   /** A TSV/CSV file parsed (header sniffed, any size). */
@@ -386,3 +393,129 @@ export interface BlockContext {
   props(): Promise<Record<string, unknown>>;
 }
 export interface PluginEntity { title: string; subtitle?: string; props?: Record<string, string>; path?: string }
+
+// --- libraries (registerLibrary; the page that draws them is a plugin's: plugins/beta/catalog/ui) ---------------------
+
+/** One thing in a library: a reference, a film, an album. Its `id` is stable (a citekey, a note's path). */
+export interface LibraryItem {
+  id: string;
+  /** May hold a title's markup (`$x^2$`, `<i>`): drawn with `richTitle`. */
+  title: string;
+  /** The line under the title: authors · year · venue, director · year. */
+  sub?: string;
+  /** A picture: a vault path or an address, or found later (the catalog's fallback to a note's first picture). */
+  cover?: string | (() => Promise<string | null>);
+  flags?: { label: string; tone?: "red" }[];
+  /** The source's tab it is in (`tabs`). */
+  tab?: string;
+  /** Collections or shelves. */
+  groups?: string[];
+  tags?: string[];
+  /** What search looks in (lower-cased by the page). */
+  text: string;
+  /** Values by the source's sort ids. */
+  sort: Record<string, string | number>;
+  /** The vault file the item is (its note, the drawing): the links to it shown under its card, as under a note. */
+  note?: string;
+}
+
+/** Something to do with an item: a button in its detail (or a header tool). `icon`: one of the app's icon names. */
+export type LibraryAction = {
+  label: string;
+  icon?: string;
+  title?: string;
+  primary?: boolean;
+  danger?: boolean;
+  disabled?: boolean;
+} & (
+  | { run: () => unknown }
+  /** Asks first (a delete). */
+  | { confirm: { title: string; hint?: string; button: string }; run: () => unknown }
+  /** Opens a form of the item's fields in the detail. */
+  | { edit: LibraryForm }
+);
+
+export interface LibraryForm {
+  fields: { key: string; label: string; hint?: string; value: string; rows?: number; half?: boolean }[];
+  save(values: Record<string, string>): Promise<void>;
+}
+
+/** The right-hand pane for the selected item. */
+export interface LibraryDetail {
+  /** A small line above the title (the item's type, its year). */
+  kind?: string;
+  title: string;
+  /** Lines under the title; `muted` ones in italics (a venue). */
+  lines?: { text: string; muted?: boolean }[];
+  /** Label / value pairs (a kind's key fields). */
+  fields?: [string, string][];
+  actions: LibraryAction[];
+  links?: { label: string; url: string }[];
+  /** A longer text under its own heading (an abstract, a synopsis). */
+  body?: { title: string; text: string };
+  /** One of a few values, changed in place: a film's shelf (to watch, watched…). */
+  choice?: { label: string; options: { label: string; on: boolean; run: () => unknown }[] };
+}
+
+export interface LibraryTab { id: string; title: string; always?: boolean }
+
+/** What a library is: its items and what can be done with one. The page draws every source the same way: search, sort,
+ *  tabs, groups and tags at the side, a list or covers, the selected item at the right. */
+export interface LibrarySource {
+  id: string;
+  title: string;
+  /** One of the app's icon names (else the library icon). */
+  icon: string;
+  /** "references": the side's "All references", the empty text. */
+  noun: string;
+  /** What it is a library of, when its title does not say: same-subject libraries show as one page, each a tab of it. */
+  subject?: string;
+  load(): Promise<LibraryItem[]>;
+  /** Tabs above the list, shown when more than one holds items; a function is asked after each load (the catalog's
+   *  kinds are known only then). `always`: shown empty too — a kind of thing the library can hold, its first one added
+   *  from there (the catalog's Manga and Anime with no note yet). */
+  tabs?: LibraryTab[] | (() => LibraryTab[]);
+  /** The side's heading over the groups ("Collections", "Shelves"). */
+  groupsTitle?: string;
+  /** Groups listed first, in this order, and shown even when empty (a kind's shelves, a place to drop onto). */
+  groupOrder?: string[];
+  /** Items dragged onto a group at the side go there (a film to another shelf); the page loads again after. */
+  regroup?(items: LibraryItem[], group: string): Promise<void>;
+  /** How items are drawn; the first is the default, more than one gives a switch. */
+  layouts: ("list" | "covers")[];
+  /** Sort orders; the first is the default. `desc`: biggest / newest first. */
+  sorts: { id: string; label: string; desc?: boolean }[];
+  /** The search box's placeholder. */
+  search: string;
+  /** Shown when the library is empty. */
+  empty: string;
+  /** Async when it reads more than the item holds (the catalog's service links, from the note's properties). */
+  detail(item: LibraryItem): LibraryDetail | Promise<LibraryDetail>;
+  /** The add box: an identifier typed in; resolves to the new item's id, to select it. */
+  add?: { placeholder: string; busy: string; run(text: string): Promise<string | void> };
+  /** Files dropped on the page; resolves to the last new item's id. */
+  drop?: { hint: string; accept: RegExp; run(files: File[]): Promise<string | void> };
+  /** Buttons in the header that are not about one item (a sync); asked once when the page opens. */
+  tools?(): Promise<LibraryAction[]>;
+  /** Calls `reload` when the source's files change; returns the unsubscribe. */
+  watch?(reload: () => void): () => void;
+  /** Single keys on the selected item (j/k and arrows move, built in). */
+  keys?: Record<string, (item: LibraryItem) => void>;
+  /** Double click / Enter. */
+  open?(item: LibraryItem): void;
+  /** What can be done with several picked items (dragged over, Ctrl/Shift-clicked); "Open each" is offered with `open`. */
+  many?(items: LibraryItem[]): LibraryAction[];
+}
+
+/** A library as the vault lists it (`atlas.libraries`): who gives it, and its source, made when first shown. */
+export interface LibraryEntry {
+  id: string;
+  title: string;
+  /** One of the app's icon names. */
+  icon: string;
+  /** Who gives it: "core" or a plugin's id (Settings says so). */
+  by: string;
+  /** What it is a library of (`LibrarySource.subject`); default: its title's slug. */
+  subject?: string;
+  source(): LibrarySource | Promise<LibrarySource>;
+}

@@ -23,7 +23,8 @@ const entries = (text) => {
 const CSS = `
 .daily-head .daily-template { flex-basis: 100%; margin: 0; font-size: .78em; color: var(--text-faint); }
 .daily-head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; padding: 8px 12px; margin: 2px 0 8px;
-  border: 1px solid var(--border); border-radius: var(--radius, 8px); background: color-mix(in srgb, var(--accent) 5%, var(--bg-elev, var(--bg))); }
+  border: 1px solid var(--card-border, transparent); border-radius: var(--radius-lg, 8px); background: var(--card-bg, var(--bg-elev));
+  box-shadow: var(--shadow-card, none); }
 .daily-head .day { font-weight: 600; color: var(--heading, var(--text)); text-transform: capitalize; }
 .daily-head .sub { flex: 1; color: var(--text-muted); font-size: .9em; display: flex; flex-wrap: wrap; gap: 4px 14px; }
 .daily-head .sky { font-size: 1.15em; margin-right: 5px; }

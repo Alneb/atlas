@@ -306,14 +306,11 @@ impl AutomationConfig {
 pub struct UiConfig {
     /// Color theme: dark, light, or `system` to follow the desktop's setting. The phone app always follows the phone's.
     pub theme: Theme,
-    /// Accent colour (links, selection, buttons), as `#rrggbb`. Empty = the theme's own.
+    /// Accent colour (links, selection, buttons), as `#rrggbb`. Empty: the colour scheme's own.
     pub accent: String,
-    /// Colour scheme (by day, and by night too unless `palette_dark` names another): Atlas's own cool greys; a warm paper with ink-blue (`ink`) or terracotta
-    /// (`clay`) links and buttons; green-grey `sage`, blue-grey `sea`, lavender `dusk`, neutral `graphite`; black and
-    /// green `phosphor`; `rose`, `honey`, `slate`, `forest`, `coffee`, `ember`, `glacier`, `sand`, `midnight`, and
-    /// `contrast` for the most contrast. A colour set above still wins over its links and buttons.
+    /// Colour scheme by day (and by night, unless the night's is set).
     pub palette: Palette,
-    /// Night palette: the colour scheme in the dark theme (the one above is then the day's). Empty: the same in both.
+    /// Colour scheme by night (the dark theme). Empty: the day's.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub palette_dark: Option<Palette>,
     /// Shapes: `cards` (panes as rounded cards floating on the window) or `paper` (one flat sheet: panes flush,

@@ -267,17 +267,38 @@ The phone app shows **its own** interface for a vault on a server (`atlas_core::
 Pages are Excalidraw frames (`ui/src/lib/draw-pages.ts`: `pagesOf`, `pageAt`, `nextPage`, `columns`, `arranged`, `heldView` (page mode: the view held on one page, as `NotepadView.clampToPage`), `frameRef`, `wikiTarget` — pure, tested in `tests/draw-pages.spec.ts`; pages lie in a grid as the Boox Notepad lays them, `Scene.java` `slot`/`nextPage` and `Step.arranged` being the same rules in Java: `per_row` side by side for a new notebook, a drawing with a second row keeps its first row's count, More → "Pages side by side" moves each page and what is on it (its `frameId`) to its slot); the notepad (`Notepad` in `draw-excalidraw.ts`, `NotepadBar.svelte`) and the embeds (`markdown.ts` → `draw-embed.ts` → `sceneSvg(json, dark, page)`) use them; `PaneSpec.excalidraw.page` + `drawingPages` (registry.ts) open a drawing at a page. How a pen stroke is outlined is `draw-ink.ts`, which Excalidraw consults through a build-time rewrite (`vite.config.ts` `inkStroke`, which fails the build when Excalidraw's code moved).
 
 ### Add a library (a page of items: references, films, albums)
-Never a new page: write a **source** (`ui/src/lib/library.ts`, `LibrarySource`) and let `components/library/Library.svelte`
-draw it — search, sort, tabs, groups and tags at the side, a list or covers (`LibraryCover.svelte`: a vault picture, a
-`[[name]]` or an address, asked when it nears the view), the selected item with its actions. An action is a `run`, a
-`confirm` (asks first) or an `edit` (a form with `save`); a `choice` changes one value in place (a shelf). In the core:
-`lib/library-references.ts` (References, `panes/Library.svelte`). From a plugin: `atlas.mountLibrary(host, source)`
-(the catalog's `catalog.app`). Tests: `library.spec.ts`, `catalog-library.spec.ts`.
-has the why. **Register it** so it is one of the vault's libraries: `registerLibrary({ id, title, icon, by, source })`
-(`lib/libraries.svelte.ts`; a plugin: `atlas.registerLibrary(source)`) — the **Libraries** page (`panes/Libraries.svelte`,
-pane kind `libraries`, the phone's bottom-bar **Library**) shows those the vault's `[ui] libraries` names, in its
-order (none: all). The core's own are Drawings (`lib/library-drawings.ts`: every drawing but a file's ink, its note's
-`project`/`topics`/`tags` as the filters, its first page as the cover) and References. Test: `libraries.spec.ts`.
+Never a new page: write a **source** (`LibrarySource`, in the plugin API's contract `ui/src/lib/plugin-api.ts`) and
+**register** it — `registerLibrary({ id, title, icon, by, source })` in the core (`lib/libraries.svelte.ts`), the call
+behind a plugin's `atlas.registerLibrary(source)`. An action is a `run`, a `confirm` (asks first) or an `edit` (a form
+with `save`); a `choice` changes one value in place (a shelf). The core keeps only that list: its own two are
+registered in `lib/core-libraries.ts` the same way — Drawings (`lib/library-drawings.ts`: every drawing but a file's
+ink, its note's `project`/`topics`/`tags` as the filters, its first page as the cover) and References
+(`lib/library-references.ts`, the built-in Library's) — and the vault's `[ui] libraries` (Settings → Appearance →
+Libraries) says which show, in which order (none: all).
+
+**The page is a plugin's pane**: the plugin whose manifest `provides = ["libraries"]` — the Catalog,
+`plugins/beta/catalog/ui/` (Svelte, built to its `view.js` by `scripts/dev/plugin-ui.mjs`). `Libraries.svelte` is the
+tabbed page over `atlas.libraries.list()` / `onChange` (libraries of one `subject` one tab: `library.ts` `bySubject`,
+`mergeSources`); `Library.svelte` draws one source — search, sort, tabs, groups and tags at the side, a list or covers
+(`LibraryCover.svelte`: a vault picture, a `[[name]]`, a PDF's first page or an address, through `atlas.thumbUrl`, asked
+when it nears the view), the selected item's card with its actions and its backlinks (the core's `backlinks` block),
+several picked by a rectangle (`lib/marquee.ts`). It is built with the app's pure pieces (Icon, Select, marquee),
+bundled, and reaches everything else through `atlas` (`confirm`, `toast`, `richTitle`, `mountBlock`). The Catalog's
+`main.js` draws its collection and Library app blocks with the same page (`view.js` `mountLibrary`, imported when first
+drawn).
+
+Opening it: `openLibraries(at?)` (`lib/libraries.svelte.ts`; `atlas.openLibrary`, the `ui.libraries` / `ui.library`
+commands, the built-in Library's tile, a paper block's Library button, the phone's `atlasShell.view("libraries")`)
+opens that plugin's pane with `anchor: at` — one tab whatever the library; an open page goes to it through
+`atlas.pane.onAnchor`. With no plugin giving the page nothing opens (a notice says which to switch on) and the tile is
+gone. Older layouts' `library` / `libraries` panes become that pane when read (`dock.ts` `librariesAsPluginPane`), and
+`library` / `libraries` blocks in notes and pages are registered as that pane (`blocks.ts`). The phone app's Library
+place knows the tab by its `place: "libraries"` (`native-shell.svelte.ts`, `AtlasActivity.ownTab`).
+
+Tests: `libraries.spec.ts` (Drawings), `library.spec.ts` (References), `library-subjects.spec.ts`,
+`catalog-library.spec.ts`, `library-plugin.spec.ts` (the tile, an old layout). The test vault holds the Catalog's page
+without its helper (`ui/tests/fixtures/catalog.ts`); a spec that needs its kinds puts its `main.js` and a stand-in
+helper (`withCatalog`) and gives the vault's copy back (`restoreCatalog`).
 
 ### A plugin as a file's editor (claims, anchors, dirty, save)
 A plugin's pane becomes the default view of a file type by `claims = ["*.epub"]` in its manifest (`plugins.rs` lists it apart and adds it to `opens`; `startMain` registers the opener with `claims`). A plain open goes `openPath(path, line, { anchor })` → `resolveSpec(path, line, anchor)` (openers.ts): the vault's `[files] open_with` for the extension, else the first enabled plugin claiming the path, else `specForPath`. A link's `#…` (`openWikilink`) travels as `PaneSpec.plugin.anchor` (not part of the pane's id: one tab per file) to `atlas.anchor`; a later link to an open pane goes through `pluginAnchors` (registry.ts) to the view's `pane.onAnchor`. `Plugin.svelte` gives the view `atlas.pane` (`setDirty`, `onSave`, `onAnchor`): the dirty dot is the core's `setDirty`, Ctrl+S in the pane runs the save hook, and the pane registers its save in `paneParks` (registry.ts) so `closePanel`, the window closing (`App.svelte`), a reload (`ui-reload.ts`) and another workspace (`workspaces.ts`) save it as they park editors — all through `parkOf` / `parkAll`. A plugin switched off registers no opener, so it claims nothing. Test: `ui/tests/plugin-claims.spec.ts`; Rust: `plugins::tests::claims_are_opens_too_and_said`.

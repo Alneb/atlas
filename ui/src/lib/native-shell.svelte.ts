@@ -16,6 +16,8 @@ import { wikiTarget } from "./draw-pages";
 import { loadPlugins } from "./plugins.svelte";
 import { deliverPenDraft, deliverPenStroke } from "./pen-target";
 import { openPluginSettings } from "./plugin-settings.svelte";
+import { librariesSpec, openLibraries } from "./libraries.svelte";
+import { paneId } from "./panes";
 
 /** What the app injects (AtlasActivity's `addJavascriptInterface`); strings only, as the bridge requires. */
 interface Bridge {
@@ -41,8 +43,9 @@ export function nativeSignInDoor(url: string): boolean {
   return true;
 }
 
-/** A tab as the app needs it: `file` tabs are listed; the others are the one view. */
-export interface NativeTab { id: string; title: string; path: string | null; icon: string; active: boolean; file: boolean }
+/** A tab as the app needs it: `file` tabs are listed; the others are the one view. `place`: the app's own place the tab
+ *  is (its Library: the Libraries page, a plugin's pane whose id the app does not know). */
+export interface NativeTab { id: string; title: string; path: string | null; icon: string; active: boolean; file: boolean; place?: "libraries" }
 
 /** Starts the bridge (App.svelte, once the dock exists): the tabs reported on every change, the app's orders exposed. */
 export function attachNativeShell(): () => void {
@@ -71,7 +74,8 @@ export function attachNativeShell(): () => void {
     }),
     // the vault's home document (`home` in its config: Home.page), as the desktop opens it; Today when it has none
     home: front(() => { const mine = asked; void import("./actions").then((m) => m.openHome(() => asked === mine)); }),
-    view: front((kind: "files" | "search" | "settings" | "graph" | "outline" | "library" | "libraries" | "commands" | "git") => open({ kind })),
+    // "libraries": the Libraries page, a plugin's pane (libraries.svelte.ts); the app's Library place asks for it so
+    view: front((kind: "files" | "search" | "settings" | "graph" | "outline" | "libraries" | "commands" | "git") => (kind === "libraries" ? openLibraries() : open({ kind }))),
     plugin: front((id: string, arg?: string) => open({ kind: "plugin", id, arg })),
     /** a plugin's settings form (the app's "Built into this app": it may have just added the plugin to the vault) */
     pluginSettings: async (id: string) => { await loadPlugins(); await openPluginSettings(id); },
@@ -100,8 +104,9 @@ export function attachNativeShell(): () => void {
   };
   const stop = $effect.root(() => {
     $effect(() => {
+      const libraries = paneId(librariesSpec());
       const all: NativeTab[] = tabs.groups.flatMap((g) => g.tabs).map((t) => ({
-        id: t.id, title: t.title, path: t.path ?? null, icon: t.icon, active: t.active, file: !!t.path,
+        id: t.id, title: t.title, path: t.path ?? null, icon: t.icon, active: t.active, file: !!t.path, ...(t.id === libraries ? { place: "libraries" as const } : {}),
       }));
       // one view at a time: a view left behind when another tab or view comes up is closed
       const shown = all.find((t) => t.active);

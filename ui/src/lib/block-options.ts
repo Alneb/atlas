@@ -82,6 +82,8 @@ export const BUILTIN_FIELDS: Record<string, OptionField[]> = {
     { key: "hide_pdf", label: "Hide the PDF", kind: "toggle", hint: "only the details, no embedded PDF" },
     { key: "pdf_height", label: "PDF height", kind: "number", hint: "in pixels (default 760)" },
   ],
+  backlinks: [{ key: "path", label: "File", kind: "text", hint: "the file whose links are listed (default: the note the block is in)" }],
+  libraries: [{ key: "at", label: "Library", kind: "text", hint: "the library shown first, by id (references, drawings, catalog.films-series…)" }],
   review: [{ key: "types", label: "Keep as…", kind: "list", hint: "the note types offered when keeping a note (default: literature, atomic, project)" }],
 };
 

@@ -1,20 +1,20 @@
 <script lang="ts">
-  // The library page every library is drawn with (lib/library.ts): a source gives the items and what can be done with
-  // one; this page searches, sorts, narrows by tab, group or tag, and shows the selected one.
+  // The library page every library is drawn with: a source (the plugin API's LibrarySource) gives the items and what
+  // can be done with one; this page searches, sorts, narrows by tab, group or tag, and shows the selected one. The
+  // app's own pieces it is built with — icons, the dropdown, the rectangle that picks — are the app's sources, bundled.
   import { onMount, untrack } from "svelte";
-  import { errText } from "../../lib/text";
-  import { superOf } from "../../lib/keys";
-  import { toast } from "../../lib/state.svelte";
-  import { richTitle } from "../../lib/rich-title";
-  import { counted, groupTree, inGroup, GROUP_SEP, matches, sortItems, type LibraryAction, type LibraryDetail, type LibraryForm, type LibraryItem, type LibrarySource } from "../../lib/library";
-  import Icon from "../Icon.svelte";
-  import Select from "../Select.svelte";
-  import InputDialog from "../InputDialog.svelte";
+  import { errText } from "../../../../../ui/src/lib/text";
+  import { superOf } from "../../../../../ui/src/lib/keys";
+  import { marquee } from "../../../../../ui/src/lib/marquee";
+  import Select from "../../../../../ui/src/components/Select.svelte";
+  import type { LibraryAction, LibraryDetail, LibraryForm, LibraryItem, LibrarySource, PluginApi } from "../../../../../ui/src/lib/plugin-api";
+  import { counted, groupTree, inGroup, GROUP_SEP, matches, sortItems } from "./library";
+  import Icon from "./Icon.svelte";
   import LibraryCover from "./LibraryCover.svelte";
-  import { marquee } from "../../lib/marquee";
-  import Backlinks from "../Backlinks.svelte";
 
-  let { source }: { source: LibrarySource } = $props();
+  let { atlas, source }: { atlas: PluginApi; source: LibrarySource } = $props();
+  const toast = (title: string, body?: string, kind: "info" | "error" = "info", timeout?: number) => atlas.toast(title, body, kind, { timeout });
+  const richTitle = (t: string) => atlas.richTitle(t);
   let items = $state<LibraryItem[]>([]);
   let error = $state("");
   let q = $state("");
@@ -81,10 +81,9 @@
 
   // an action's form (Edit) and an action that asks first (Delete…)
   let form = $state<{ def: LibraryForm; values: Record<string, string> } | null>(null);
-  let asking = $state<Extract<LibraryAction, { confirm: unknown }> | null>(null);
   async function act(a: LibraryAction) {
     if ("edit" in a) { form = { def: a.edit, values: Object.fromEntries(a.edit.fields.map((f) => [f.key, f.value])) }; return; }
-    if ("confirm" in a) { asking = a; return; }
+    if ("confirm" in a && !(await atlas.confirm(a.confirm.title, { hint: a.confirm.hint, ok: a.confirm.button, danger: true }))) return;
     await run(a.run);
   }
   async function run(f: () => unknown) {
@@ -204,6 +203,12 @@
     e.preventDefault();
   }
 
+  /** The app's "Linked mentions" of `path`, as under a note. */
+  function backlinks(host: HTMLElement, path: string) {
+    const off = atlas.mountBlock(host, { type: "backlinks", path });
+    return { destroy: off };
+  }
+
   onMount(() => {
     void load();
     void source.tools?.().then((t) => (tools = t), () => {});
@@ -286,7 +291,7 @@
       {#each sorted as i (i.id)}
         {#if layout === "covers"}
           <button class="card" class:sel={isPicked(i)} data-pick={i.id} draggable={source.regroup ? "true" : undefined} ondragstart={(e) => dragItem(e, i)} onclick={(e) => click(e, i)} ondblclick={() => source.open?.(i)} title={i.sub}>
-            <LibraryCover cover={i.cover} title={i.title} />
+            <LibraryCover {atlas} cover={i.cover} title={i.title} />
             <span class="t">{@html richTitle(i.title)}</span>
             {#if i.sub}<span class="m">{i.sub}</span>{/if}
           </button>
@@ -321,7 +326,7 @@
             <div class="actions"><button class="btn primary">Save</button><button type="button" class="btn" onclick={() => (form = null)}>Cancel</button></div>
           </form>
         {/if}
-        {#if layout === "covers"}<LibraryCover cover={sel.cover} title={sel.title} big />{/if}
+        {#if layout === "covers"}<LibraryCover {atlas} cover={sel.cover} title={sel.title} big />{/if}
         {#if detail.kind}<div class="kind">{detail.kind}</div>{/if}
         <h2>{@html richTitle(detail.title)}</h2>
         {#each detail.lines ?? [] as l, n (n)}<p class={l.muted ? "venue" : "authors"}>{l.text}</p>{/each}
@@ -345,8 +350,8 @@
           </div>
         {/if}
         {#if detail.body}<h3>{detail.body.title}</h3><p class="abstract">{detail.body.text}</p>{/if}
-        <!-- the links to it, as under a note -->
-        {#if sel.note}<div class="links-bar">{#key sel.note}<Backlinks path={sel.note} />{/key}</div>{/if}
+        <!-- the links to it, as under a note (the app's backlinks block) -->
+        {#if sel.note}<div class="links-bar">{#key sel.note}<div use:backlinks={sel.note}></div>{/key}</div>{/if}
       </aside>
     {:else if !narrow && items.length}
       <!-- the detail's column says what goes there, rather than standing blank -->
@@ -355,10 +360,6 @@
   </div>
 </div>
 
-{#if asking}
-  <InputDialog title={asking.confirm.title} confirm={asking.confirm.button} hint={asking.confirm.hint}
-    onsubmit={() => { const a = asking!; asking = null; void run(a.run); }} oncancel={() => (asking = null)} />
-{/if}
 
 <style>
   .types { display: flex; gap: 6px; flex-wrap: wrap; padding: 0 16px 10px; }

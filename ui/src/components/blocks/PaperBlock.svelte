@@ -5,7 +5,8 @@
   import { onMount } from "svelte";
   import { builtinOn } from "../../lib/builtin-plugins";
   import { library, onLibraryChange } from "../../lib/entities";
-  import { open, openPath } from "../../lib/dock";
+  import { openPath } from "../../lib/dock";
+  import { openLibraries } from "../../lib/libraries.svelte";
   import { richTitle } from "../../lib/rich-title";
   import { toast } from "../../lib/state.svelte";
   import type { Paper } from "../../lib/gen/Paper";
@@ -74,7 +75,7 @@
       <span class="tools">
         <button class="btn btn-ghost" title="Copy the citekey" onclick={() => copy(paper!.key, "citekey")}><Icon name="copy" size={13} /> {paper.key}</button>
         {#if paper.pdf}<button class="btn btn-ghost" title="The PDF in a tab of its own" onclick={() => openPath(paper!.pdf!)}><Icon name="pdf" size={13} /> Open PDF</button>{/if}
-        <button class="btn btn-ghost" title="The Library" onclick={() => open({ kind: "libraries", at: "references" })}><Icon name="library" size={13} /> Library</button>
+        <button class="btn btn-ghost" title="The Library" onclick={() => openLibraries("references")}><Icon name="library" size={13} /> Library</button>
       </span>
     </div>
     {#if paper.collections.length || paper.tags.length}

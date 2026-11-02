@@ -1003,6 +1003,8 @@ fn agent_get(m: &Arc<Mail>, p: &Value) -> Result<Value, String> {
         "uid": x.uid.to_string(), "from": list(&x.from), "to": list(&x.to), "cc": list(&x.cc), "subject": x.subject, "date": iso(x.date),
         "message_id": format!("<{}>", x.message_id), "text": b.text, "attachments": b.attachments.iter().filter(|a| !a.inline).map(|a| json!({ "name": a.name, "type": a.mime, "size": a.size, "part": a.part })).collect::<Vec<_>>(),
         "invite": b.invite,
+        // the text has no addresses for its links: they come here, each with its text
+        "links": b.html.as_deref().map(parse::html_links).unwrap_or_default().into_iter().take(300).map(|(text, url)| json!({ "text": text, "url": url })).collect::<Vec<_>>(),
     }))
 }
 

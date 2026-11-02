@@ -43,15 +43,18 @@ export function pluginApi(p: Plugin, at?: PaneAt): PluginApi {
 // the newest start of each plugin: a start overtaken while it fetched main.js (switched off, reloaded) stops there
 const starts = new Map<string, number>();
 
+// Starts of one plugin run one after the other: a start that began while the previous one was inside its async
+// `register` (a file of the plugin changed meanwhile) would otherwise register the same commands a second time.
 function startMain(p: Plugin): Promise<void> {
-  const s = startMainNow(p);
+  const run = (starts.get(p.id) ?? 0) + 1;
+  starts.set(p.id, run); // an earlier start still fetching main.js sees it is overtaken and stops there
+  const s = (starting.get(p.id) ?? Promise.resolve()).catch(() => {}).then(() => startMainNow(p, run));
   starting.set(p.id, s);
   void s.finally(() => { if (starting.get(p.id) === s) starting.delete(p.id); });
   return s;
 }
-async function startMainNow(p: Plugin): Promise<void> {
-  const run = (starts.get(p.id) ?? 0) + 1;
-  starts.set(p.id, run);
+async function startMainNow(p: Plugin, run: number): Promise<void> {
+  if (starts.get(p.id) !== run) return; // a newer start is queued behind this one: it does the work
   disposeAll(p.id);
   delete plugins.errors[p.id];
   if (!pluginOn(p)) {

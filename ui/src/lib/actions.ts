@@ -9,6 +9,7 @@ import { toggleProperties } from "./properties-panel.svelte";
 import { open, focusOrOpen, focusPanel, nextTerminalN, closeActive, resetLayout, openPath, toggleTerminalPanel, toggleSidePanel, focusTerminalPanel, navigate, historyList } from "./dock";
 import { drawingExports, editors, lastEditorId, noteFormat, searchRequest, terminals, type TerminalHandle } from "./registry";
 import { getDock } from "./dock-instance";
+import { openLibraries } from "./libraries.svelte";
 import { agentsOn, fillSelection } from "./agents";
 import { context, currentSelection } from "./context.svelte";
 import { extOf, openersFor, setDefaultOpener } from "./openers";
@@ -307,9 +308,10 @@ export const actions: Action[] = [
   { id: "ui.zoomAllOut", title: "Zoom everything out (all text sizes, a setting)", keys: "Ctrl+Alt+Minus", run: () => zoom(-1) },
   { id: "ui.zoomAllReset", title: "Zoom everything: back to the default text sizes", keys: "Ctrl+Alt+0", run: () => zoom(0) },
   { id: "ui.outline", title: "Outline of the current note", icon: "outline", label: "Outline", keys: "Super+O", run: () => { open({ kind: "outline" }); } },
-  { id: "ui.libraries", title: "Libraries (drawings, references, films, comics…)", icon: "library", label: "Libraries", run: () => { open({ kind: "libraries" }); } },
+  // the Libraries page is a plugin's pane (the Catalog's: libraries.svelte.ts); without one on, a notice says so
+  { id: "ui.libraries", title: "Libraries (drawings, references, films, comics…)", icon: "library", label: "Libraries", run: () => openLibraries() },
   // one Library page: References is its first library
-  { id: "ui.library", title: "Library: references, then the vault's other libraries", icon: "library", label: "Library", keys: "Super+Shift+L", plugin: "library", run: () => { open({ kind: "libraries", at: "references" }); } },
+  { id: "ui.library", title: "Library: references, then the vault's other libraries", icon: "library", label: "Library", keys: "Super+Shift+L", plugin: "library", run: () => openLibraries("references") },
   { id: "ui.git", title: "Git: changes and history", icon: "git", label: "Git", keys: "Super+G", run: () => { open({ kind: "git" }); } },
   { id: "ui.git.blame", title: "Git: who changed each line (blame)", icon: "git", run: () => void toggleBlame() },
   { id: "ui.sidePanel", title: "Show / hide the side panel (files, search, outline, git)", icon: "folder-tree", label: "Side panel (show / hide)", keys: "Super+B", run: toggleSidePanel },

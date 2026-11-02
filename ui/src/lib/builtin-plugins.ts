@@ -7,6 +7,7 @@
 import type { IconName, PaneSpec } from "./panes";
 import type { PageId } from "./settings-pages";
 import { settings } from "./settings.svelte";
+import { librariesPage, librariesSpec } from "./libraries.svelte";
 
 /** The built-in plugins' ids — the core's `BuiltinPlugin` (config.rs) has the same; a typo is a type error. */
 export type BuiltinId = "library" | "latex";
@@ -17,8 +18,8 @@ export interface Builtin {
   description: string;
   icon: IconName;
   /** A button at the top of the left bar (lib/apps.svelte.ts) running `command` (an action marked `plugin: id`),
-   *  which opens `pane`. A plugin that only adds to the editor has none. */
-  button?: { command: string; pane: PaneSpec };
+   *  which opens `pane` — none while there is nothing to open. A plugin that only adds to the editor has none. */
+  button?: { command: string; pane: () => PaneSpec | null };
   /** Its own page in Settings (lib/settings-pages.ts, a page with `plugin: id`), listed under Plugins. */
   page?: PageId;
   /** What it adds, for Settings → Plugins. */
@@ -27,16 +28,17 @@ export interface Builtin {
 
 export const BUILTINS: Builtin[] = [
   {
-    // id "library" kept: vaults switch it off by that name. The view is the Library page, References its first library.
-    id: "library", title: "Library", icon: "library", button: { command: "ui.library", pane: { kind: "libraries", at: "references" } },
-    description: "The Library page — References (your papers, books, theses and lecture notes) first, then the vault's other libraries — \\cite completion and the PDF reader's paper actions. The references themselves — their notes, refs.bib, the Zotero connector, PDF sources — are the Catalog · Science plugin's.",
-    parts: "the Library page · commands · \\cite completion",
+    // id "library" kept: vaults switch it off by that name. Its button opens the Libraries page (the Catalog plugin's
+    // pane, libraries.svelte.ts) at References, the library it adds; without that page, no button.
+    id: "library", title: "Library", icon: "library", button: { command: "ui.library", pane: () => (librariesPage() ? librariesSpec("references") : null) },
+    description: "References (your papers, books, theses and lecture notes) as the first library of the Library page — the Catalog plugin's — \\cite completion and the PDF reader's paper actions. The references themselves — their notes, refs.bib, the Zotero connector, PDF sources — are the Catalog · Science plugin's.",
+    parts: "References in the Library page · commands · \\cite completion",
   },
   {
     // the core keeps rendering $…$ in notes (Obsidian fidelity); everything about typing LaTeX is this plugin's
-    id: "latex", title: "LaTeX", icon: "sigma", page: "latex",
-    description: "Typing LaTeX: symbol completions and .tex files. Snippets are the Snippets plugin's; while a vault has not converted its old snippet file, that plugin reads the file named here. Math in notes is rendered either way.",
-    parts: "LaTeX completions · the old snippet file, until converted",
+    id: "latex", title: "LaTeX", icon: "sigma",
+    description: "Typing LaTeX: symbol completions and .tex files. Snippets, the old LaTeX Suite file among them, are the Snippets plugin's. Math in notes is rendered either way.",
+    parts: "LaTeX completions",
   },
 ];
 

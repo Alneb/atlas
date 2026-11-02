@@ -3,11 +3,11 @@
 Anything you capture — a link, a DOI, an arXiv id, an ISBN, an IMDb id — is recognised, looked up in every source the
 switched-on source plugins offer, and written as one note of its kind (a film, an album, a book, a video, a web page…)
 in that kind's folder. The notes stay yours: a later refresh changes only the properties the catalog owns. The
-catalog's notes then show as libraries on Atlas's **Libraries** page (Films & Series with anime, Music, Comics, Books,
-Videos, Web pages), each kind a tab.
+catalog's notes then show as libraries on the **Libraries** page (Films & Series with anime, Music, Comics, Books,
+Videos, Web pages), each kind a tab — a page that is this plugin's own pane.
 
-The work runs in a helper (Rust) that reaches Atlas back through its pipe; the page side draws blocks and registers the
-libraries.
+The work runs in a helper (Rust) that reaches Atlas back through its pipe; the page side draws blocks, registers the
+libraries and is the Libraries page.
 
 ## How a thing is filed
 
@@ -31,7 +31,10 @@ Each step is narrated (the tools answer their `steps`).
   as `catalog.films-series`. Items are the vault's notes whose `type` is a kind's type, wherever they are; tabs are
   kinds; groups are shelves (`status`); tags are `genres`, `topics`, `tags`. The detail has Open note, Open on
   <service>, Copy link, Update, Edit, a shelf choice and Delete (to the trash). Papers are left to References.
-- **The Catalog pane** (a left-bar tile, `view.js`): every kind in one library page, papers included.
+- **The Libraries page** — its pane (`view.js`, built from `ui/` by `scripts/dev/plugin-ui.mjs`; the role `libraries`):
+  every library of the vault a tab, those of one subject one tab — its own, Atlas's Drawings and References, Books'
+  E-books, Manga's and Audiobookshelf's. `atlas.openLibrary`, the Library tile and the phone's Library open it; with this
+  plugin off there is no Libraries page. Its library page also draws the `catalog.library` and `catalog.app` blocks.
 - **Blocks**: `catalog.item` (the top of a catalogued note: cover, key fields, shelf chips, a five-star rating, buttons
   to the services, Refresh), `catalog.library` (a collection over its `.base` as shelves, covers or a table, with
   search, shelf chips and drag between shelves), `catalog.collections` (every collection as a tile, and a box that
@@ -84,8 +87,10 @@ Linux works; Android works (`phone = true`); macOS, Windows and a server are unt
 ## Status
 
 Beta. Tests: `cargo test -p atlas-catalog` (the engine against a vault in memory) and the specs
-`ui/tests/catalog-library.spec.ts`, `catalog-collections.spec.ts`, `plugin-requires.spec.ts`. Known rough edges: the
-same notes are reachable from several places (the Libraries tabs, the Catalog pane, each kind's index page,
+`ui/tests/catalog-library.spec.ts`, `catalog-collections.spec.ts`, `plugin-requires.spec.ts`, and the page's own:
+`libraries.spec.ts`, `library.spec.ts`, `library-subjects.spec.ts`, `library-plugin.spec.ts`; `node
+scripts/dev/plugin-ui.mjs --check plugins/beta/catalog` (its types, and `view.js` current). Known rough edges: the
+same notes are reachable from several places (the Libraries tabs, the `catalog.app` block, each kind's index page,
 `Collections.md`); adding by a title from the Libraries page or the command fails when several things match (use the
 `catalog.collections` box); Update works only for notes inside their kind's folder; linked services are asked again on
 every refresh.

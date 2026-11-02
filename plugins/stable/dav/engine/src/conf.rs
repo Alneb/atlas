@@ -18,18 +18,24 @@ pub fn serving() -> bool {
 
 /// The plugin's settings: given with a tool's call; a page's call passes its own; else asked of Atlas.
 pub fn settings(p: &Value) -> Value {
+    read_settings(p).unwrap_or_else(|| json!({}))
+}
+
+/// The settings when they could be read: None when Atlas did not answer (it is reloading its plugin list, say). What
+/// forgets a calendar taken out of Settings works only from these, never from an empty stand-in.
+pub fn read_settings(p: &Value) -> Option<Value> {
     if p["settings"].is_object() {
-        return p["settings"].clone();
+        return Some(p["settings"].clone());
     }
     if serving() {
         let id = std::env::var("ATLAS_PLUGIN_ID").unwrap_or_else(|_| "dav".into());
         if let Ok(Value::Array(all)) = Atlas::new().get("/api/plugins") {
-            if let Some(me) = all.iter().find(|x| x["id"] == id.as_str()) {
-                return me["settings"].clone();
-            }
+            // listed: its settings (none set yet is an empty table); not listed while the list is re-read: unknown
+            return all.iter().find(|x| x["id"] == id.as_str()).map(|me| if me["settings"].is_object() { me["settings"].clone() } else { json!({}) });
         }
+        return None;
     }
-    json!({})
+    Some(json!({}))
 }
 
 pub fn text(s: &Value, key: &str) -> String {

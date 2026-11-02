@@ -4,6 +4,7 @@ import { execFileSync } from "node:child_process";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { tmpdir } from "node:os";
+import { catalogFixture } from "./tests/fixtures/catalog";
 
 // A throwaway workspace, rebuilt on every run, served by the real `atlas` binary (UI embedded).
 // Build the UI first (`npm run build`) — the server serves what was compiled into it.
@@ -38,6 +39,8 @@ const files: Record<string, string> = {
   // the references library is the catalog-papers plugin's: its manifest, its helper the debug build (webServer builds it)
   ".atlas/plugins/catalog-papers/plugin.toml": readFileSync(fileURLToPath(new URL("../plugins/beta/catalog-papers/plugin.toml", import.meta.url)), "utf8")
     .replace(/^run = .*$/m, `run = "${fileURLToPath(new URL("../target/debug/papers", import.meta.url))}"`),
+  // the Libraries page is the Catalog plugin's pane: its page, without its helper (tests/fixtures/catalog.ts)
+  ...catalogFixture(),
   // the snippets are a plugin's: its build, as a vault holds it
   ".atlas/plugins/snippets/plugin.toml": readFileSync(fileURLToPath(new URL("../plugins/beta/snippets/plugin.toml", import.meta.url)), "utf8"),
   ".atlas/plugins/snippets/main.js": readFileSync(fileURLToPath(new URL("../plugins/beta/snippets/main.js", import.meta.url)), "utf8"),

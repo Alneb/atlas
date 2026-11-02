@@ -4,7 +4,7 @@ title = "copyparty"
 description = "your copyparty file servers in the explorer: browse, open, edit, upload, download"
 icon = "server"
 phone = true # runs in the phone apps too (the books of the server's folders, the explorer's servers)
-version = "0.3.5"
+version = "0.3.6"
 api = 4
 
 [permissions]
@@ -18,7 +18,7 @@ kind = "records"
 add = "Add server"
 hint = "Each is a place in the explorer. On a VPN-only server with no password, leave the password empty."
 fields = [
-  { key = "name", label = "Name", kind = "text", hint = "short, shown in the explorer: nas, home (letters, digits, . @ - _)" },
+  { key = "name", label = "Name", kind = "text", hint = "short, shown in the explorer: nas, home (letters, digits, spaces, . @ - _)" },
   { key = "url", label = "Address", kind = "text", hint = "the server, or a folder of it: https://files.example.org/hdd1/Physics" },
   { key = "password", label = "Password", kind = "secret", hint = "copyparty's own password (sent as its pw header); empty: none" },
 ]

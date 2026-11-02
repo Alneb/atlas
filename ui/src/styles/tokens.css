@@ -54,6 +54,8 @@ html.phone:not(.native-shell) { --fab-room: 80px; }
   --tag-bg: rgba(138, 164, 255, .13); --tag-color: #aabdff;
   --scrim: rgba(6, 8, 12, .55);
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, .3), 0 2px 8px rgba(0, 0, 0, .18);
+  /* a card lying on the page (the day block, the Today cards): an edge and a short, soft drop, kept by the paper shape */
+  --shadow-card: 0 0 0 1px rgba(255, 255, 255, .05), 0 1px 2px rgba(0, 0, 0, .35), 0 3px 10px -4px rgba(0, 0, 0, .4);
   --shadow-pop: 0 24px 60px rgba(0, 0, 0, .5), 0 4px 16px rgba(0, 0, 0, .3);
   --term-bg: #13151a; --term-black: #2a2e36;
   /* the terminal's 16 colours: bright ones differ from normal ones, or bold/dim text in TUIs reads the same */
@@ -99,6 +101,7 @@ html.phone:not(.native-shell) { --fab-room: 80px; }
   --tag-bg: rgba(72, 100, 221, .1); --tag-color: #3a52c4;
   --scrim: rgba(30, 36, 48, .28);
   --shadow-sm: 0 1px 2px rgba(15, 23, 42, .06), 0 2px 8px rgba(15, 23, 42, .06);
+  --shadow-card: 0 0 0 1px rgba(15, 23, 42, .07), 0 1px 2px rgba(15, 23, 42, .06), 0 3px 10px -4px rgba(15, 23, 42, .12);
   --shadow-pop: 0 24px 60px rgba(15, 23, 42, .18), 0 4px 16px rgba(15, 23, 42, .08);
   --term-bg: #fbfbfc; --term-black: #e3e5ea;
   /* on white, "white" text must still be dark enough to read: GitHub-light-like greys */
@@ -128,7 +131,7 @@ html.phone:not(.native-shell) { --fab-room: 80px; }
   --code-bg: #f2f2f2; --inline-code: #000000; --highlight-bg: #dcdcdc;
   --tag-bg: #ffffff; --tag-color: #000000;
   --scrim: transparent;
-  --shadow-sm: none; --shadow-pop: 0 0 0 1.5px #000000;
+  --shadow-sm: none; --shadow-card: none; --shadow-pop: 0 0 0 1.5px #000000;
   --pdf-bg: #ffffff;
   --paper-line: #b4b4b4; /* the Boox Notepad's on e-ink */
   --syn-keyword: #000000; --syn-string: #2a2a2a; --syn-number: #000000; --syn-comment: #555555;

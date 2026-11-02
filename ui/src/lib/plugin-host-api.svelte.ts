@@ -12,7 +12,8 @@ import { renderMathInto } from "./math";
 import { errText } from "./text";
 import { on } from "./bus";
 import { returned, signIn } from "./signin";
-import { blobUrl, thumbUrl } from "./raw";
+import { blobUrl, pdfThumbUrl, thumbUrl } from "./raw";
+import { richTitle } from "./rich-title";
 import { addNewKind } from "./new-thing";
 import { toast } from "./state.svelte";
 import { confirmDialog, inputDialog } from "./confirm";
@@ -22,7 +23,7 @@ import { registerNoteView } from "./note-views.svelte";
 import { registerBlock, mountBlock } from "./blocks";
 import { loadTable } from "./table-load";
 import { exists } from "./vault-files";
-import { registerLibrary as addLibrary } from "./libraries.svelte";
+import { registerLibrary as addLibrary, openLibraries, shownLibraries, watchLibraries, type LibraryEntry } from "./libraries.svelte";
 import { registerEmbed } from "./embed-registry";
 import { pick } from "./palette.svelte";
 import { registerSuggestion } from "./suggestions";
@@ -101,7 +102,7 @@ export function pluginApi(p: Plugin, at: PaneAt = {}): PluginApi {
     // the dialog's module loads when first asked for (it imports the pane machinery: a cycle closed at run time only)
     openDialog: (arg, opts = {}) => import("./plugin-dialog").then((m) => m.openPluginDialog(p, arg === undefined ? undefined : String(arg), opts)),
     zip: { index: zipIndex, blob: zipBlob },
-    openLibrary: (id) => open({ kind: "libraries", ...(id ? { at: id } : {}) }),
+    openLibrary: (id) => openLibraries(id),
     data: (args) => pluginData(p.id, args),
     open: (path, line, opts) => openPath(path, line, opts),
     openNative: (path) => openNative(String(path)),
@@ -114,10 +115,11 @@ export function pluginApi(p: Plugin, at: PaneAt = {}): PluginApi {
     // a picture named the way a note names it ("poster.png", "[[Frances Ha.png]]") is found where it is, as a link is
     fileUrl: async (path) => blobUrl(await vaultPath(path)),
     assetUrl: (rel) => { if (p.id === INIT_ID) throw new Error("init.js has no folder of its own: assetUrl is a plugin's"); return pluginAssetUrl(p.id, rel); },
-    thumbUrl: async (path, width) => thumbUrl(await vaultPath(path), width),
+    thumbUrl: async (path, width) => { const at = await vaultPath(path); return /\.pdf$/i.test(at) ? pdfThumbUrl(at, width) : thumbUrl(at, width); },
     onFilesChanged: (fn) => hold(on("fs", (e) => fn(e.paths))),
     eink: { get on() { return document.documentElement.classList.contains("eink"); }, refresh: () => void import("./eink").then((m) => m.einkRefresh()), pen: penOver },
-    toast: (title, body, kind = "info", options) => toast(title, body, kind, undefined, options?.run && { label: options.label ?? "Open", run: () => { try { options.run!(); } catch (e) { logPlugin(p.id, "toast", e); } } }),
+    toast: (title, body, kind = "info", options) => toast(title, body, kind, options?.timeout, options?.run && { label: options.label ?? "Open", run: () => { try { options.run!(); } catch (e) { logPlugin(p.id, "toast", e); } } }),
+    richTitle: (text) => richTitle(String(text)),
     context: snapshot,
     onContext: (fn) => hold(onContext(() => fn(snapshot()))),
     hover: (path, line) => setHover(path ? { path, line, source: `plugin:${p.id}` } : null),
@@ -146,17 +148,15 @@ export function pluginApi(p: Plugin, at: PaneAt = {}): PluginApi {
       return o && pluginOn(o) ? { settings: (o.settings ?? {}) as Record<string, unknown>, data: (args) => pluginData(id, args) } : null;
     },
     mountBlock: (host, block, notePath = "") => mountBlock(host, notePath, typeof block === "string" ? block : stringifyBlock(block)),
-    mountLibrary: (host, source) => {
-      // the page is loaded when first asked for: the startup bundle stays without it
-      let app: ReturnType<typeof mount> | null = null, gone = false;
-      host.style.height = "100%"; // in a pane it fills it and its columns scroll; in a note, 100% of nothing is its own height
-      void import("../components/library/Library.svelte").then(({ default: Library }) => {
-        if (gone) return;
-        app = mount(Library, { target: host, props: { source: { ...source, icon: isIconName(source.icon) ? source.icon : "library" } } });
-      }, (e) => logPlugin(p.id, "library", e));
-      return () => { gone = true; if (app) void unmount(app); };
+    registerLibrary: (source) => {
+      const icon = isIconName(source.icon) ? source.icon : "library";
+      return own(p.id, addLibrary({ id: source.id, title: source.title, icon, by: p.id, subject: source.subject, source: () => ({ ...source, icon }) }));
     },
-    registerLibrary: (source) => own(p.id, addLibrary({ id: source.id, title: source.title, icon: isIconName(source.icon) ? source.icon : "library", by: p.id, subject: source.subject, source: () => ({ ...source, icon: isIconName(source.icon) ? source.icon : "library" }) })),
+    // what the Libraries page (a plugin's pane) draws; entries handed over without the core's own fields
+    libraries: {
+      list: () => shownLibraries().map(shownEntry),
+      onChange: (fn) => hold(watchLibraries((list) => { try { fn(list.map(shownEntry)); } catch (e) { logPlugin(p.id, "libraries.onChange", e); } })),
+    },
     table: (path) => loadTable(path),
     plot: (host, d) => {
       const app = mount(Plot, { target: host, props: { x: d.x, ys: d.ys, xLabel: d.xLabel ?? "", yLabels: d.yLabels ?? d.ys.map((_, i) => `y${i + 1}`) } });
@@ -275,6 +275,14 @@ export function pluginApi(p: Plugin, at: PaneAt = {}): PluginApi {
     createFile: async (path, text) => (await api.createFile(path, text)).written,
   };
 }
+
+// one object per entry, handed again while it stays: the page keeps a library's page open across unrelated changes
+const handed = new WeakMap<LibraryEntry, LibraryEntry>();
+const shownEntry = (e: LibraryEntry): LibraryEntry => {
+  let h = handed.get(e);
+  if (!h) { const { id, title, icon, by, subject, source } = e; h = { id, title, icon, by, subject, source }; handed.set(e, h); }
+  return h;
+};
 
 // flat options → the YAML a block reads (`{type: runs.plot, y: [n]}` → "type: runs.plot\ny: [\"n\"]")
 const stringifyBlock = (o: Record<string, unknown>) => Object.entries(o).map(([k, v]) => `${k}: ${JSON.stringify(v)}`).join("\n") + "\n";

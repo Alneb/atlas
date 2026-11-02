@@ -9,7 +9,7 @@ import { toast } from "./state.svelte";
 import { queryRows, type Row } from "./base-rows";
 import { vaultFiles, vaultReady } from "./vault";
 import { shownName, basename } from "./paths";
-import type { LibraryItem, LibrarySource } from "./library";
+import type { LibraryItem, LibrarySource } from "./plugin-api";
 import { errText, escapeRegExp } from "./text";
 import { keepCapped } from "./capped";
 

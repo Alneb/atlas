@@ -1,5 +1,5 @@
 // The catalog's blocks (docs/design/DESIGN-collections.md), drawn from the vault's files:
-//   catalog.library      a collection's index page: its base on the generic Library page, shelves at the side (drag to move)
+//   catalog.library      a collection's index page: its base on the library page, shelves at the side (drag to move)
 //   catalog.item         the top of a catalogued note: cover, key fields, shelf chips, rating, the services holding it
 //   catalog.collections  every collection as a tile, and a box to capture into them (preview first, then add)
 // Rows come from Atlas's Bases engine (atlas.query over the collection's .base), so the files stay Obsidian's.
@@ -161,7 +161,7 @@ function coverBox(atlas, cell, title, path) {
 }
 
 // ---- catalog.library ----------------------------------------------------------------------------------------------
-// A collection's index page: the generic Library page (atlas.mountLibrary) over the rows of the collection's base, so
+// A collection's index page: the library page (view.js `mountLibrary`) over the rows of the collection's base, so
 // it reads the same files Obsidian does and needs no helper. The block's options say which property is the shelf
 // (`group`, in the order of `shelves`), the cover and the key fields; a card dragged onto a shelf at the side, or
 // the shelf chosen in its card, is written to the note as a link.
@@ -170,8 +170,16 @@ function libraryBlock(atlas) {
     const o = block.options ?? {};
     const base = String(o.base ?? "").trim();
     if (!base) { style(); host.replaceChildren(el("p", "cat-err", "This library has no base: add `base: Films/Films.base` to its options.")); return; }
-    return atlas.mountLibrary(host, baseSource(atlas, base, block.note, o));
+    return libraryPage(host, baseSource(atlas, base, block.note, o), atlas);
   };
+}
+
+/** The library page (this plugin's view.js, built from ui/: the one every library of the vault is drawn with) over
+ *  `source` in `host`, loaded when first drawn; returns the cleanup. */
+function libraryPage(host, source, atlas) {
+  let off = null, gone = false;
+  import("./view.js").then((m) => { if (!gone) off = m.mountLibrary(host, source, atlas); }, (e) => { style(); host.replaceChildren(el("p", "cat-err", `The library page did not load: ${e?.message ?? e}`)); });
+  return () => { gone = true; off?.(); };
 }
 
 function baseSource(atlas, base, note, o) {
@@ -426,7 +434,7 @@ function collectionsBlock(atlas) {
 
 // ---- catalog.app: the Library app --------------------------------------------------------------------------------
 // One app over every kind the catalog knows,
-// drawn by Atlas's library page, the one References is (atlas.mountLibrary; docs/refactor/REFACTOR-libraries.md).
+// drawn by the library page, the one References is (view.js `mountLibrary`; docs/refactor/REFACTOR-libraries.md).
 // Nothing about a kind is written here: its tab, cover, key fields and shelves come from its kind file.
 
 /** A kind's property under the vault's own name (`rename: { cover: poster }`). */
@@ -638,8 +646,7 @@ function registerLibraries(atlas) {
 
 function appBlock(atlas) {
   return (host) => {
-    if (!atlas.mountLibrary) { host.replaceChildren(el("p", "cat-err", "The Library needs a newer Atlas (its library page).")); return; }
-    return atlas.mountLibrary(own(host), librarySource(atlas));
+    return libraryPage(own(host), librarySource(atlas), atlas);
   };
 }
 
@@ -656,8 +663,9 @@ export function register(atlas) {
   atlas.registerBlock("catalog.item", itemBlock(atlas), { title: "Catalog: this item" });
   atlas.registerBlock("catalog.collections", collectionsBlock(atlas), { title: "Catalog: all collections" });
   atlas.registerBlock("catalog.app", appBlock(atlas), { title: "Catalog: the Library app (every kind)" });
-  // the vault's libraries: a tab of Atlas's Libraries page (the phone's Library) per group of kinds
-  if (atlas.registerLibrary) registerLibraries(atlas);
+  // the vault's libraries: a tab of the Libraries page (this plugin's pane; the phone's Library) per group of kinds,
+  // known from the helper (none without one: a vault that only shows the page)
+  if (atlas.plugin.has_helper) registerLibraries(atlas);
   // from anywhere: a link, DOI, arXiv id or ISBN into its library (what Clip's "Clip a web page…" did, for every kind)
   atlas.registerCommand({
     id: "add", title: "Add to the catalog…",

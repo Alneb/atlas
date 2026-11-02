@@ -2,10 +2,9 @@
   // An item's picture: an address as is, a vault picture (a path or a `[[name]]`, found as links are) as a thumbnail, a
   // PDF as its first page — asked only when it comes near the view (a shelf of hundreds asks for what is seen). Without
   // one, a tile tinted by the title with its first letter, so items without covers still read as covers.
-  import { pdfThumbUrl, thumbUrl } from "../../lib/raw";
-  import type { LibraryItem } from "../../lib/library";
+  import type { LibraryItem, PluginApi } from "../../../../../ui/src/lib/plugin-api";
 
-  let { cover, title, big = false }: { cover: LibraryItem["cover"]; title: string; big?: boolean } = $props();
+  let { atlas, cover, title, big = false }: { atlas: PluginApi; cover: LibraryItem["cover"]; title: string; big?: boolean } = $props();
   let url = $state<string | null>(null);
   let box = $state<HTMLElement>();
 
@@ -13,9 +12,8 @@
     const raw = typeof c === "function" ? await c() : c;
     if (!raw) return null;
     if (/^(https?:|data:|blob:)/i.test(raw)) return raw;
-    const name = raw.replace(/^!?\[\[|\]\]$/g, "").split("|")[0];
-    const path = (await import("../../lib/vault")).resolveLink(name, "") ?? name;
-    return /\.pdf$/i.test(path) ? pdfThumbUrl(path, big ? 520 : 260) : thumbUrl(path, big ? 520 : 260);
+    // a link's alias is no part of its target; the target is found as a link is, a PDF drawn as its first page
+    return atlas.thumbUrl(raw.replace(/^!?\[\[|\]\]$/g, "").split("|")[0], big ? 520 : 260);
   }
 
   $effect(() => {

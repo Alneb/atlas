@@ -32,6 +32,7 @@ tempfile = "3"
 adblock = { version = "0.13", features = ["content-blocking"] }
 # the platform webview's settings (window.open without a fresh click; main.rs)
 webkit2gtk = "2.0"
+base64 = "0.22"   # a web tab's snapshot handed to the page as a data: URL (webtab.rs)
 # the touchpad pinch caught before WebKit zooms the page with it (main.rs `pinch_to_wheel`)
 gtk = "0.18"
 # the web tabs' messages (webtab.rs): the page's posted strings

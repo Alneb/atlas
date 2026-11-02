@@ -37,9 +37,9 @@ test("a PDF and a note's section are embedded, not shown as links", async ({ pag
   const note = page.locator(".note-embed").first();
   await expect(note).toContainText("only this part");
   await expect(note).not.toContainText("not this");
-  // the PDF viewer, drawn in place
-  await expect(page.locator(".pdf-embed.atlas-block").getByRole("toolbar", { name: "Annotation tools" })).toBeVisible();
+  // the PDF drawn in place, without the viewer's toolbar (an embed is for reading; its note or tab has the tools)
   await expect(page.locator(".pdf-embed canvas").first()).toBeVisible({ timeout: 15000 });
+  await expect(page.locator(".pdf-embed.atlas-block").getByRole("toolbar", { name: "Annotation tools" })).toHaveCount(0);
 });
 
 // "all files should be able to render when embedded": a table as the table, a sound as a player,

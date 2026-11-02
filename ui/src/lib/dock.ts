@@ -1,4 +1,5 @@
 // The dockview-core host: pane mounting, opening/focusing panes, layout persistence.
+import { tabFacts } from "./tab-facts";
 import { onWide } from "./phone.svelte";
 import {
   createDockview,
@@ -32,6 +33,7 @@ import { api } from "./api";
 import type { PaneRef } from "./types";
 import { shownPath } from "./paths";
 import { isApp } from "./apps.svelte";
+import { librariesSpec } from "./libraries.svelte";
 import { SveltePane, setOpening, type AnyLoader, type PaneComponents } from "./pane-host";
 
 export type { PaneProps, PaneComponents } from "./pane-host";
@@ -279,7 +281,7 @@ export function migrateLayout<T>(layout: T): T {
   const l = layout as SavedLayout | null;
   if (!l?.panels) return layout;
   keepOnlyTerminalsRendered(l.panels);
-  foldLibraryIntoLibraries(l);
+  librariesAsPluginPane(l);
   return layout;
 }
 
@@ -288,20 +290,28 @@ function keepOnlyTerminalsRendered(panels: Record<string, SavedPanel>): void {
   for (const p of Object.values(panels)) if (p.renderer === "always" && p.params?.kind !== "terminal") delete p.renderer;
 }
 
-/** The References pane of older layouts (`library`) as the one Library page (`libraries` at References): two tabs, two
- *  sidebar tiles otherwise. Dropped when both are open. */
-function foldLibraryIntoLibraries(l: SavedLayout): void {
-  const old = l.panels?.library;
-  if (!l.panels || old?.params?.kind !== "library") return;
-  const keep = !l.panels.libraries;
-  delete l.panels.library;
-  if (keep) l.panels.libraries = { ...old, id: "libraries", contentComponent: "libraries", title: "Library", params: { kind: "libraries", at: "references" } } as SavedPanel;
+/** The core's Library panes of older layouts — the References pane (`library`), the Libraries page (`libraries`) — as
+ *  the one Libraries page, now a plugin's pane (libraries.svelte.ts): one tab, the first one's place kept, the other
+ *  dropped (two tabs, two sidebar tiles otherwise). */
+function librariesAsPluginPane(l: SavedLayout): void {
+  const panels = l.panels;
+  if (!panels) return;
+  const old = Object.values(panels).filter((p) => p.params?.kind === "library" || p.params?.kind === "libraries");
+  if (!old.length) return;
+  const spec = librariesSpec();
+  const id = paneId(spec);
+  const keep = panels[id] ? null : old[0];
+  const at = (keep?.params as { at?: string } | undefined)?.at ?? (keep?.params?.kind === "library" ? "references" : undefined);
+  for (const p of old) delete panels[p.id];
+  if (keep) panels[id] = { ...keep, id, contentComponent: "plugin", title: "Library", params: { ...spec, ...(at ? { anchor: at } : {}) } } as SavedPanel;
+  const gone = new Set(old.map((p) => p.id));
   const walk = (n?: SavedNode): void => {
     if (!n) return;
     if (Array.isArray(n.data)) { n.data.forEach(walk); return; }
     const leaf = n.data;
-    leaf.views = keep ? leaf.views.map((v) => (v === "library" ? "libraries" : v)) : leaf.views.filter((v) => v !== "library");
-    if (leaf.activeView === "library") leaf.activeView = keep ? "libraries" : leaf.views[0];
+    const was = leaf.activeView;
+    leaf.views = [...new Set(leaf.views.map((v) => (keep && v === keep.id ? id : v)))].filter((v) => !gone.has(v) || v === id);
+    if (was && gone.has(was)) leaf.activeView = keep && was === keep.id ? id : leaf.views[0];
   };
   walk(l.grid?.root);
 }
@@ -509,9 +519,6 @@ export function navigate(step: -1 | 1): void {
   // back closes the tab it leaves, forward opens it again from the history
   if (step < 0 && leaving && leaving.id !== went.visit.id && closesOnBack(leaving)) leaving.api.close();
 }
-
-/** Set by tabs.svelte.ts (which imports this module): whether a tab is pinned. */
-export const tabFacts = { pinned: (_id: string): boolean => false };
 
 /** A document tab (one with a file: never a terminal), nothing unsaved, not pinned, not an app (Home, a plugin's
  *  view): what Back may close. A pane on the side or bottom is not in the history. */

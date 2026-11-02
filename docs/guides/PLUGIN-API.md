@@ -150,7 +150,8 @@ provides = ["references"]         # catalog-papers: the references library (cita
 
 Roles in use: `catalog` (the capture box's hint, the target of `[contributes.catalog]`, what OCR, Audiobookshelf and
 Letterboxd file through), `references` (the papers library the page's citations and PDF import call), `pdf-export`
-(Export: the PDF Print prints a note as). A vault can swap one plugin for another that provides the same role.
+(Export: the PDF Print prints a note as), `libraries` (the plugin whose pane is the Libraries page: `atlas.openLibrary`,
+the Library tile and the phone's Library open it; the Catalog's — see "Libraries" below). A vault can swap one plugin for another that provides the same role.
 
 A plugin calls another by its role too: **`/api/plugins/@<role>/tools/<tool>`** and **`/api/plugins/@<role>/helper`**
 reach whichever plugin fills the role (`plugins::resolve`; a 404 says no plugin that can run provides it), with that
@@ -254,6 +255,7 @@ plugins/<tier>/<id>/
 - `--check` (the gate's `ui` stage, for every plugin with a `ui/`): `svelte-check` with warnings as errors, then a fresh build compared with the committed one. A stale `view.js` fails the gate.
 - Draw with the app's CSS variables and shared classes (Styling, below). A prop read once at mount (`atlas`) still goes through `$derived` or a closure, which `--check` enforces.
 - Example: `plugins/beta/finance/ui/` (a pane with three tabs, three blocks, a keyboard queue).
+- **Built with the app's own pieces:** a pure module or component of the app (`ui/src/components/Icon.svelte`, `Select.svelte`, `lib/marquee.ts`, `lib/prefs.ts`) may be imported by its path and is bundled into the plugin; anything that holds the app's state (the API, the dock, toasts, the backlinks) is reached through `atlas` instead — a bundled copy would be a second, empty one. `lib/back.ts` keeps its list on the window, so a bundled dropdown still closes on the phone's Back. Example: `plugins/beta/catalog/ui/` (the Libraries page).
 
 
 ## A plugin's own files by URL — modules, fonts, pictures, workers (v9)
@@ -321,7 +323,7 @@ Every `register…` / `on…` returns a function that undoes it (rarely needed).
 | `await atlas.table(path)` | a TSV / CSV parsed |
 | `await atlas.fileUrl(path)` / `thumbUrl(path, width?)` | an address for `<img src>`; thumbnails are made small by the core (up to 2048 px; smaller pictures pass through untouched) and a JPEG XL always comes back as PNG — show pictures from the network through `thumbUrl`, since WebKit can hang on a JXL and Chromium shows none |
 | `atlas.assetUrl(rel)` (v9) | the address of a file of the plugin's own folder (`fonts/x.woff2`, `cover.png`, `worker.js`) for a font, a picture, a worker, an `import()` — see "A plugin's own files by URL" |
-| `await atlas.thumbUrl(path, width?)` | the address of a downscaled copy of a vault picture (at most `width` px, 320 by default), for galleries and covers: a figure shown small is never loaded full size |
+| `await atlas.thumbUrl(path, width?)` | the address of a downscaled copy of a vault picture (at most `width` px, 320 by default), for galleries and covers: a figure shown small is never loaded full size. `path` may name the file as a link does (`[[cover.png]]`, found as a link is); (v24) a PDF gives its first page |
 | `atlas.trash(path)` (v10) | a file to the vault's Trash (`.atlas/trash/`, taken back from there) — a library's Delete… |
 | `atlas.companion(path, { find?, title?, properties? })` | the one note of a file (a book, a PDF, a series folder `x/`), made by the core when missing — the vault's template rules (`apply_when: { file: … }`), the file's block, your `properties` — exactly as every device makes it; `find: true` only says which. Never write a companion note's text yourself |
 | `atlas.templates()` (v13) | the vault's templates: name, title, folder, questions (`asks`), when each applies by itself (`applies`, in words) |
@@ -358,8 +360,30 @@ Every `register…` / `on…` returns a function that undoes it (rarely needed).
 | `atlas.registerSuggestion(provider)` | offer a view for the section under the caret |
 | `atlas.mountBlock(host, block, notePath?)` | draw any block inside yours |
 | `atlas.plot(host, { x, ys, xLabel?, yLabels? })` | Atlas's plot |
-| `atlas.mountLibrary(host, source)` | Atlas's library page (the one References is) over your items: `source` is a `LibrarySource` (`ui/src/lib/library.ts`) — `load()` → items, `detail(item)` → fields, actions, links, a choice; optional tabs, groups (`groupOrder`: listed first in that order, kept when empty; `regroup(items, group)`: cards dragged onto a group go there), layouts (`list`, `covers`), sorts, an add box, a file watch. Returns the cleanup. The catalog's Library app is one |
-| `atlas.registerLibrary(source)` | The same `LibrarySource` as one of the vault's libraries: a tab of Atlas's Libraries page (the phone's **Library** in its bottom bar), shown as the vault's `[ui] libraries` says. Returns its removal; feature-detect it (`atlas.registerLibrary?.(…)`). **One tab per subject:** libraries of the same `subject` (default: the slug of the title) show as one tab, each source a tab inside it, each item still detailed, opened and moved by its own source (`mergeSources`, `ui/src/lib/library.ts`) — the catalog's Books and Books' E-books (`subject: "books"`) are one Books; the catalog's Comics and Manga's Comics one Comics. `openLibrary` with any member's id opens it; Settings lists each source on its own |
+| `atlas.registerLibrary(source)` | One of the vault's libraries: a tab of the Libraries page (the phone's **Library** in its bottom bar), shown as the vault's `[ui] libraries` says. `source` is a `LibrarySource` (`ui/src/lib/plugin-api.ts`) — `load()` → items, `detail(item)` → fields, actions, links, a choice; optional tabs, groups (`groupOrder`: listed first in that order, kept when empty; `regroup(items, group)`: cards dragged onto a group go there), layouts (`list`, `covers`), sorts, an add box, dropped files, header tools, a file watch, keys, `many(items)` for several picked. Returns its removal. **One tab per subject:** libraries of the same `subject` (default: the slug of the title) show as one tab, each source a tab inside it, each item still detailed, opened and moved by its own source — the catalog's Books and Books' E-books (`subject: "books"`) are one Books; the catalog's Comics and Manga's Comics one Comics. `openLibrary` with any member's id opens it; Settings lists each source on its own. See "Libraries" below |
+
+### Libraries — `registerLibrary`, and the page that draws them (v24)
+
+A library is a **source** (`LibrarySource`, the plugin API's): its items and what can be done with one. Atlas keeps only
+the **list** of the vault's libraries (`ui/src/lib/libraries.svelte.ts`): plugins add theirs with
+`atlas.registerLibrary`, and Atlas's own features add theirs with the same call (`ui/src/lib/core-libraries.ts`:
+Drawings, and References while the built-in Library is on). The vault's `[ui] libraries` (Settings → Appearance →
+Libraries) says which show, in which order.
+
+The **page** that draws them — the tabs, search, sort, groups and tags at the side, a list or covers, the selected
+item's card, picking several — is a plugin's pane: the plugin that `provides = ["libraries"]`, the Catalog
+(`plugins/beta/catalog/ui/`, its `view.js`). It reads the list with **`atlas.libraries`**:
+
+| | |
+|---|---|
+| `atlas.libraries.list()` (v24) | the libraries the vault shows, in its order: `{ id, title, icon, by, subject?, source() }`, `source()` made when first shown |
+| `atlas.libraries.onChange(fn)` (v24) | `fn(list)` now and whenever the list changes (a plugin registers one, Settings hides one) → the unsubscribe |
+
+`atlas.openLibrary(id?)` opens that pane at a library (its `anchor`; a later one goes to `atlas.pane.onAnchor`), the
+built-in Library's tile opens it at References, and the phone's Library is the same pane. With no plugin giving the
+page there is no page: the tile is gone and `openLibrary` says which plugin to switch on. A `library` / `libraries`
+block of an older note or page is that pane. `atlas.mountLibrary` (the page over one source, for a plugin's own block)
+is gone with the page: the Catalog draws its collection and Library app blocks with its own `view.js`.
 
 ### A file's editor — `claims` and `atlas.pane` (v7)
 A plugin with a pane (`view.js`) becomes the view a file type opens in on a click (the file tree, a link, the palette) with `claims = ["*.epub"]` in its manifest. Which view a plain open uses, first that applies: the vault's `[files] open_with` for the extension, a plugin's claim (enabled plugins only; two claiming the same file: the first to load), Atlas's built-in viewer. Settings → Files & search → Open with lists the rules and, under them, what each enabled plugin claims; Settings → Plugins says "opens *.epub by default" under the plugin. In the pane:
@@ -401,11 +425,12 @@ export default function mount(host, atlas) {
 | `atlas.pick({ placeholder, items, typed?, onpick, oncancel? })` | ask the user to choose or type, in the palette; `oncancel` runs when it closes with nothing chosen (Escape, a click outside, another chooser in its place), so an `await`ed choice always settles; returns a function that closes it if it is still showing |
 | `atlas.signIn(url, back)` | an OAuth sign-in page whose answer comes back to `back` (a localhost address such as `https://localhost`): the desktop app shows it in a window of its own and resolves with the address it ended on (`?code=…` or `?error=…`); in a browser it opens a tab and never resolves, so keep a way to paste that address (plugins/stable/email) |
 | `atlas.signInReturned?.(back)` | in a browser, the address a sign-in to `back` came back to while no tab was waiting for it (the one that asked was closed or reloaded): kept 30 minutes by the server's return page and handed out once; check it when the pane opens. Test for it: absent before the server keeps returns |
-| `atlas.toast(title, body?, kind?, { run?, label? })` | a notification; `run` puts a button on it (`label`, "Open" by default) |
+| `atlas.toast(title, body?, kind?, { run?, label?, timeout? })` | a notification; `run` puts a button on it (`label`, "Open" by default); `timeout` (v24): how long it stays, in ms |
+| `atlas.richTitle(text)` (v24) | a title's little markup as safe HTML, as the app draws titles: Zotero's and Crossref's `<i>`, `<b>`, `<sub>`, `<sup>`, `<sc>` and `$math$`; everything else escaped — for `{@html}` / `innerHTML` |
 | `atlas.eink.on` / `atlas.eink.refresh()` | whether the e-ink mode is on; one full refresh of the screen against ghosts (on a Boox Onyx's own, elsewhere a black-white flash) — e.g. a reader's page turn |
 | `atlas.eink.pen(host, take, opts?)` (v5) | the phone app's native pen over `host` (on a Boox: the firmware's instant line, and every sample of each stroke) — `take([{clientX, clientY, pressure}, …])` per stroke, in the page's CSS px; `opts`: `active()` (wanted now?), `top` (a strip left to the fingers), `line()` → `[width, onyxStyle]` (0 pencil, 1 brush, 2 marker). Returns `{ sync(), off() }`, or `null` where there is no native pen (read pointer events there). One holder at a time (`ui/src/lib/pen-target.ts`). The book reader's pen highlights use it |
 | `atlas.openView(arg?, { title?, icon?, beside? })` | open the plugin's pane (`view.js`) in a tab, or show the one already open on that `arg`. Each `arg` is a tab of its own, kept in the layout; the pane reads it as `atlas.arg`. `title` names the tab, `icon` is an app icon name |
-| `atlas.openLibrary(id?)` (API 19) | open the Libraries page at a library (`registerLibrary`'s id; the catalog's are `catalog.<group>`, such as `catalog.films-series`), or at the last one seen there: a plugin's "library" command goes here rather than drawing a list of its own |
+| `atlas.openLibrary(id?)` (API 19) | open the Libraries page at a library (`registerLibrary`'s id; the catalog's are `catalog.<group>`, such as `catalog.films-series`), or at the last one seen there: a plugin's "library" command goes here rather than drawing a list of its own. The page is the pane of the plugin that provides `libraries`; with none on, a notice says which to switch on (v24) |
 | `atlas.openDialog(arg?, { title?, width?, height?, view? })` (API 20; `view` 23) | the plugin's pane (view.js) in a popup over the app instead of a tab, for a moment rather than a place (Export's and Print's dialogs): the same module and API, `atlas.arg` = `arg`; `atlas.pane.close()`, Escape, Back and the ✕ close it; resolves when it closes. `view: "signin.js"`: another module of the plugin's folder, shaped as view.js (`export default (host, atlas) => cleanup`), so a plugin with several dialogs keeps each its own module |
 | `atlas.zip.index(buf)`, `atlas.zip.blob(buf, entry, type?)` (API 20) | a zip read in the page — an EPUB or a CBZ a reader fetched: name → entry, then one entry's bytes as a Blob (stored or deflated), without a request per page (Books, Manga) |
 

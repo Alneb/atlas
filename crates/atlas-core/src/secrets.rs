@@ -25,8 +25,9 @@ fn fnv1a(bytes: &[u8]) -> u64 {
 }
 
 // `@` and the length: a card's secret is `<field>.<card name>.<key>`, and cards are often named by an address
+/// Spaces only inside a name: a record's secrets carry its name (`subscriptions.IQ Calendar.password`).
 fn valid(name: &str) -> bool {
-    !name.is_empty() && name.len() <= 200 && name.chars().all(|c| c.is_ascii_alphanumeric() || "_-.@".contains(c))
+    !name.is_empty() && name.len() <= 200 && name.trim() == name && name.chars().all(|c| c.is_ascii_alphanumeric() || "_-.@ ".contains(c))
 }
 
 impl Store {
@@ -137,7 +138,7 @@ impl Store {
 
     pub fn set(&self, plugin: &str, name: &str, value: &str) -> Result<()> {
         if !valid(name) {
-            return Err(Error::BadRequest(format!("secret name {name:?}: letters, digits, - _ . @ (at most 200)")));
+            return Err(Error::BadRequest(format!("secret name {name:?}: letters, digits, spaces, - _ . @ (at most 200)")));
         }
         self.refuse_mounted(plugin, name)?;
         self.edit(|t| t.entry(plugin.to_string()).or_default().insert(name.to_string(), value.to_string()).as_deref() != Some(value)).map(|_| ())

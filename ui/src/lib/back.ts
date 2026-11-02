@@ -5,7 +5,9 @@
 // `shown`: for a view that stays mounted when hidden (Files, Settings behind an open note): counted only while on screen —
 // before, Back on a note went up a hidden Files folder each time, and landed at its root.
 type Entry = { close: () => void; shown?: () => boolean };
-const open: Entry[] = [];
+// one list per page, on the window: a plugin's pane built with the app's components (plugins/*/ui, a bundle of its
+// own with its own copy of this module) registers its dropdowns where the app's Back looks
+const open: Entry[] = ((globalThis as { atlasBackStack?: Entry[] }).atlasBackStack ??= []);
 
 /** Registers `close` while the overlay is open; the returned function unregisters it (an `$effect`'s cleanup). */
 export function closable(close: () => void, shown?: () => boolean): () => void {

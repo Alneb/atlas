@@ -17,6 +17,7 @@
   let slot = $state<HTMLDivElement>();
   let address = $state<HTMLInputElement>();
   let nav = $state({ back: false, forward: false, loading: false });
+  let shot = $state("");
 
   type Native = { postMessage(s: string): void };
   const native = (globalThis as unknown as { webkit?: { messageHandlers?: { atlasWeb?: Native } } }).webkit?.messageHandlers?.atlasWeb;
@@ -69,8 +70,9 @@
   }
 
   function heard(e: Event) {
-    const d = (e as CustomEvent).detail as { id: string; url?: string; title?: string; loading?: boolean; back?: boolean; forward?: boolean; open?: string; action?: string; key?: { key: string; code: string; ctrl: boolean; shift: boolean; alt: boolean } };
+    const d = (e as CustomEvent).detail as { id: string; url?: string; title?: string; loading?: boolean; back?: boolean; forward?: boolean; open?: string; action?: string; snapshot?: string; key?: { key: string; code: string; ctrl: boolean; shift: boolean; alt: boolean } };
     if (d.id !== panel.id) return;
+    if (d.snapshot) return void (shot = d.snapshot); // the page as it was, shown while the view is hidden under Atlas
     if (d.open) return void open({ kind: "web", url: d.open });
     if (d.action === "close") return void panel.close();
     if (d.action === "address") return void address?.select();
@@ -115,7 +117,7 @@
     <input bind:this={address} bind:value={url} onkeydown={(e) => { if (e.key === "Enter") go(); }} spellcheck="false" aria-label="Address" />
   </div>
   {#if native}
-    <div class="slot" bind:this={slot}></div>
+    <div class="slot" bind:this={slot} style:background-image={shot ? `url("${shot}")` : undefined}></div>
   {:else}
     <iframe bind:this={frame} src={shown} title={shown} sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-downloads allow-modals"></iframe>
   {/if}
@@ -131,5 +133,5 @@
   @keyframes spin { to { transform: rotate(360deg); } }
   iframe { flex: 1; border: 0; background: white; width: 100%; }
   /* the native view lies over this; the colour shows only while it is hidden or not made yet */
-  .slot { flex: 1; min-height: 0; background: var(--bg); }
+  .slot { flex: 1; min-height: 0; background: var(--bg) top left / 100% 100% no-repeat; }
 </style>

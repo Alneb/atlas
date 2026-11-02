@@ -11,7 +11,8 @@
   import SnippetsPanel from "./SnippetsPanel.svelte";
   import SwitchList from "./SwitchList.svelte";
   import { allApps, ordered, appHidden, setAppHidden, moveApp } from "../../lib/apps.svelte";
-  import { libraryChoices, libraryHidden, setLibraryHidden, moveLibrary } from "../../lib/libraries.svelte";
+  import { libraryChoices, libraryHidden, librariesPage, setLibraryHidden, moveLibrary } from "../../lib/libraries.svelte";
+  import { isIconName } from "../../lib/icons";
   import TemplatesPanel from "./TemplatesPanel.svelte";
   import KeysPanel from "./KeysPanel.svelte";
   import { renderInlineMarkdown } from "../../lib/markdown";
@@ -73,8 +74,10 @@
     {:else if panel === "apps"}
       <SwitchList title="Apps in the left bar" label="Apps" items={ordered(allApps())} hidden={appHidden} setHidden={setAppHidden} move={moveApp}
         desc="The tiles above the tabs. A hidden app still opens from the palette and its keys; a plugin's pane gets a tile when its manifest says <code>rail = true</code>." />
-      <SwitchList title="Libraries" label="Libraries" items={libraryChoices().map((e) => ({ key: e.id, title: e.title, icon: e.icon }))} hidden={libraryHidden} setHidden={setLibraryHidden} move={moveLibrary} movable={(k) => !libraryHidden(k)}
-        desc="The tabs of the Library page, in this order: Atlas's own and those your plugins add (the catalog adds one per group of kinds)." />
+      {#if librariesPage()}
+        <SwitchList title="Libraries" label="Libraries" items={libraryChoices().map((e) => ({ key: e.id, title: e.title, icon: isIconName(e.icon) ? e.icon : "library" }))} hidden={libraryHidden} setHidden={setLibraryHidden} move={moveLibrary} movable={(k) => !libraryHidden(k)}
+          desc="The tabs of the Library page (the Catalog plugin's), in this order: Atlas's own and those your plugins add (the catalog adds one per group of kinds)." />
+      {/if}
     {:else if panel === "snippets"}<SnippetsPanel onnew={() => (naming = "snippet")} />
     {:else if panel === "templates"}<TemplatesPanel />
     {:else if panel === "keys"}<KeysPanel />

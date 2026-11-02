@@ -49,6 +49,7 @@
   import { initSidebar } from "./lib/sidebar.svelte";
   import { initRecent } from "./lib/recent";
   import "./lib/sidebar-blocks";
+  import "./lib/core-libraries";
   import StatusBar from "./components/StatusBar.svelte";
   import Palette from "./components/Palette.svelte";
   import QuickCapture from "./components/QuickCapture.svelte";

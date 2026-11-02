@@ -117,7 +117,7 @@ pub struct Records {
     pub fields: Vec<SettingField>,
     /// The label of the button that adds a card.
     pub add: String,
-    /// The key of the field that names each card: unique, `[A-Za-z0-9_.@-]+`, fixed once saved.
+    /// The key of the field that names each card: unique, `[A-Za-z0-9_.@- ]+` (no space at its ends), fixed once saved.
     pub name: String,
     pub actions: Vec<RecordAction>,
     pub list_actions: Vec<ListAction>,
@@ -324,8 +324,10 @@ pub fn checked_fields<'de, D: Deserializer<'de>>(d: D) -> std::result::Result<Ve
 }
 
 /// A card's name: what its secrets are kept under, so plain and short.
+/// A record's name is also the middle of its secrets' names (`<key>.<name>.<field>`): letters, digits, `. @ - _`, and
+/// spaces inside it ("IQ Calendar"), never at its ends.
 pub fn valid_record_name(name: &str) -> bool {
-    !name.is_empty() && name.len() <= 100 && name.chars().all(|c| c.is_ascii_alphanumeric() || "_.@-".contains(c))
+    !name.is_empty() && name.len() <= 100 && name.trim() == name && name.chars().all(|c| c.is_ascii_alphanumeric() || "_.@- ".contains(c))
 }
 
 fn empty(v: &Value) -> bool {
@@ -539,7 +541,7 @@ fn cards(f: &SettingField, r: &Records, v: &Value, secret: &mut dyn FnMut(String
         }
         let name = card.get(&r.name).and_then(Value::as_str).map(str::trim).unwrap_or_default().to_string();
         if !valid_record_name(&name) {
-            return Err(format!("{key}: the {} {name:?} — letters, digits and . @ - _ only, at most 100", r.name));
+            return Err(format!("{key}: the {} {name:?} — letters, digits, spaces and . @ - _ only, at most 100", r.name));
         }
         if names.contains(&name) {
             return Err(format!("{key}: two records are named {name}"));
@@ -570,6 +572,15 @@ fn cards(f: &SettingField, r: &Records, v: &Value, secret: &mut dyn FnMut(String
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn a_record_name_may_hold_spaces_inside_it() {
+        assert!(super::valid_record_name("IQ Calendar"));
+        assert!(super::valid_record_name("work.cal@uni-2"));
+        assert!(!super::valid_record_name(" IQ"));
+        assert!(!super::valid_record_name("IQ/cal"));
+        assert!(!super::valid_record_name(""));
+    }
+
     use super::*;
     use serde_json::json;
 

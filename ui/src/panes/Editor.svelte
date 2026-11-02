@@ -469,11 +469,15 @@
   {#if isNew && status === "ready"}
     <div class="new-file-hint">New file — it is created on the first save.</div>
   {/if}
-  {#if isMarkdown(path) && status !== "error" && (settings.config?.editor.format_bar ?? false)}<FormatBar view={() => ed?.view ?? null} />{/if}
   {#if !isMarkdown(path) && status === "ready" && (settings.config?.editor.code_bar ?? true)}<CodeBar view={() => ed?.view ?? null} {path} {problems} />{/if}
   {#if drawn}<div class="note-view" bind:this={viewHost}></div>{/if}
+  <!-- the format bar heads the note's column only: the Properties panel beside it runs the full height, its edge the
+       one line between them -->
   <div class="editor-row">
-    <div class="editor-host" bind:this={host}></div>
+    <div class="editor-col">
+      {#if isMarkdown(path) && status !== "error" && (settings.config?.editor.format_bar ?? false)}<FormatBar view={() => ed?.view ?? null} />{/if}
+      <div class="editor-host" bind:this={host}></div>
+    </div>
     {#if isMarkdown(path) && status === "ready" && (settings.config?.editor.properties === "panel" || ((settings.config?.editor.properties ?? "hidden") === "hidden" && propsPanel.open))}
       <PropertiesPanel text={docText} view={() => ed?.view ?? null} onopen={openLink} closable={settings.config?.editor.properties !== "panel"} />
     {/if}
@@ -494,6 +498,7 @@
     background: var(--bg); color: var(--text-muted); font-size: calc(12px * var(--ui-scale, 1)); }
   .note-view-switch:hover { color: var(--text); background: var(--bg-hover); }
   .editor-row { flex: 1; min-height: 0; display: flex; }
+  .editor-col { flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; }
   .editor-host { flex: 1; min-width: 0; min-height: 0; }
   .crumbs { flex: none; display: flex; align-items: center; gap: 2px; padding: 4px 14px; min-height: 26px; overflow: hidden; white-space: nowrap;
     font-size: calc(12px * var(--ui-scale, 1)); color: var(--text-faint); border-bottom: 1px solid var(--border); }

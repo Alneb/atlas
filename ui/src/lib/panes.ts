@@ -28,9 +28,6 @@ export type PaneSpec =
   // a .page layout file (rows/columns of blocks) — the home screen is one; title from the file
   | { kind: "page"; path: RelPath; title?: string }
   | { kind: "excalidraw"; path: RelPath; page?: string } // `page`: shown at open (an embed's `#Page 2`, draw-pages.ts frameRef)
-  | { kind: "library" }
-  // the vault's libraries (lib/libraries.svelte.ts), opened at one of them
-  | { kind: "libraries"; at?: string }
   | { kind: "outline" }
   | { kind: "commands" }
   | { kind: "graph" }
@@ -47,7 +44,7 @@ export type PaneKind = PaneSpec["kind"];
 const KINDS: Record<PaneKind, true> = {
   today: true, editor: true, terminal: true, files: true, search: true, pdf: true, image: true, web: true,
   settings: true, git: true, commit: true, diff: true, table: true, base: true, excalidraw: true,
-  library: true, libraries: true, outline: true, plugin: true, commands: true, graph: true, page: true, block: true, explorer: true,
+  outline: true, plugin: true, commands: true, graph: true, page: true, block: true, explorer: true,
 };
 export const PANE_KINDS = Object.keys(KINDS) as PaneKind[];
 export type SpecOf<K extends PaneKind> = Extract<PaneSpec, { kind: K }>;
@@ -68,8 +65,6 @@ export function paneId(s: PaneSpec): string {
     case "search":
     case "settings":
     case "git":
-    case "library":
-    case "libraries":
     case "outline":
     case "commands":
     case "graph":
@@ -125,8 +120,6 @@ export function paneTitle(s: PaneSpec): string {
     case "page": return s.title ?? shownName(s.path);
     case "terminal": return s.title || (s.preset === "claude" ? "Claude" : s.n > 1 ? `Shell ${s.n}` : "Shell");
     case "settings": return "Settings";
-    case "library": return "Library";
-    case "libraries": return "Libraries";
     case "outline": return "Outline";
     case "commands": return "Commands";
     case "graph": return "Graph";
@@ -174,7 +167,6 @@ export function paneIcon(s: PaneSpec): IconName {
     case "page": return "today";
     case "excalidraw":
       return "edit";
-    case "library": case "libraries": return "library";
     case "outline": return "outline";
     case "commands": return "command";
     case "graph": return "link";
@@ -236,8 +228,6 @@ export function paneZone(k: PaneKind): PaneZone {
     case "table":
     case "base":
     case "page":
-    case "library":
-    case "libraries":
     case "excalidraw":
     case "plugin":
     case "commands":
@@ -253,10 +243,9 @@ const str = (v: unknown) => (typeof v === "string" && v ? v : undefined);
  *  pane that is not a thing to embed (a terminal, a commit, another block's own tab). */
 export function embedOptions(s: PaneSpec): Record<string, string> | null {
   switch (s.kind) {
-    case "today": case "files": case "git": case "library": case "outline": case "commands": case "graph":
+    case "today": case "files": case "git": case "outline": case "commands": case "graph":
       return {};
     case "search": return s.q ? { q: s.q } : {};
-    case "libraries": return s.at ? { at: s.at } : {};
     case "table": return s.view ? { path: s.path, view: s.view } : { path: s.path };
     case "base": return s.view ? { path: s.path, table: s.view } : { path: s.path }; // the block's option is `table`
     case "editor": case "pdf": case "image": case "excalidraw": case "page":
@@ -277,13 +266,11 @@ export function specFromOptions(kind: PaneKind, o: Record<string, unknown>): Pan
     case "files":
     case "settings":
     case "git":
-    case "library":
     case "outline":
     case "commands":
     case "graph":
       return { kind };
     case "search": return { kind, q: str(o.q) };
-    case "libraries": return { kind, at: str(o.at) };
     case "editor":
     case "pdf":
     case "image":

@@ -52,7 +52,7 @@
 **Reading and research**
 - **The Library page**: one page, one tab per library the vault has — References (papers, books, theses), Drawings,
   and those the plugins add (films and series, music, books, comics, audiobooks…). Search, sort, groups and tags at
-  the side, a list or covers, the selected item's details and actions at the right.
+  the side, a list or covers, the selected item's details and actions at the right. It is the Catalog plugin's page.
 - **References**: one folder and one note per paper, added by DOI or arXiv id with its metadata and open-access PDF,
   a `refs.bib` kept current, the Zotero browser extension answered, citations as `[[citekey]]`.
 - **PDFs** rendered by PDFium (pdf.js as a backup). Highlights, underlines and ink live in the PDF's note; the PDF

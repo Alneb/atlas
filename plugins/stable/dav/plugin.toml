@@ -7,7 +7,7 @@
 title = "Calendar"
 description = "your calendars in a pane: month, week, day, agenda; several CalDAV accounts and ICS subscriptions; invitations from Email; contacts"
 icon = "calendar"
-version = "1.3.0"
+version = "1.3.2"
 rail = true          # a button for the Calendar pane (view.js)
 api = 12             # Settings v2: account cards (status, Test, presets), hidden / advanced fields, a drawn section
 
@@ -54,7 +54,7 @@ add = "Subscribe to a calendar"
 hint = "public calendars by address (https:// or webcal://): holidays, a seminar series. Read-only; fetched again only when they changed"
 actions = [{ label = "Test", command = "test-subscription" }]
 fields = [
-  { key = "name", label = "Name", kind = "text", hint = "short: holidays, seminars (letters, digits, . @ - _)" },
+  { key = "name", label = "Name", kind = "text", hint = "short: holidays, seminars (letters, digits, spaces, . @ - _)" },
   { key = "url", label = "Address", kind = "text", hint = "the .ics address; webcal:// works" },
   { key = "color", label = "Colour", kind = "text", hint = "#hex; empty: one is picked" },
   { key = "refresh", label = "Fetch every (minutes)", kind = "number", default = 60 },

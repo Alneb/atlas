@@ -1,15 +1,16 @@
 # The capture + organization meta plugin: anything captured (a link, an ID, a title) is recognised, looked up in every
 # source the switched-on catalog-* plugins offer, written as one note of its kind and kept in step with the services
 # that hold it (Linkwarden, Jellyfin, Zotero…). The work runs in its helper on the server; docs/REFACTOR-catalog.md.
-title = "Catalog"                 # not "Library": the built-in Library tile is the page its libraries are tabs of
-rail = false                # one Library: its kinds are tabs of the built-in Libraries page; the every-kind view (view.js →
-                            # main.js catalog.app) stays a block and a command, not a second tile
+title = "Catalog"                 # not "Library": the Library tile is the built-in Library's (References), which opens this pane
+rail = false                # its pane (view.js, built from ui/) is the Libraries page: every library of the vault a tab of it
+                            # (its kinds', Drawings, References, Books…); the every-kind view is the catalog.app block
 description = "anything you capture, recognised, enriched and filed in its library"
 phone = true # runs in the phone apps too (only plugins marked so start there)
 icon = "grid" # not References' library icon (a vault may show both)
-version = "0.7.1"
-api = 19
-provides = ["catalog"]                 # the role the core and the page ask for (not this id)
+version = "0.8.0"
+api = 24
+provides = ["catalog", "libraries"]    # the roles the core and the page ask for (not this id): "libraries" = its pane
+                                       # is the Libraries page (atlas.openLibrary, the Library tile, the phone's Library)
 
 # Catalog · Web pages is now the "read_pages" setting: a vault that had it switched off gets the setting off
 [replaces]

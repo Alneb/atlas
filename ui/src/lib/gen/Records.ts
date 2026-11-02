@@ -17,6 +17,6 @@ fields: Array<SettingField>,
  */
 add: string, 
 /**
- * The key of the field that names each card: unique, `[A-Za-z0-9_.@-]+`, fixed once saved.
+ * The key of the field that names each card: unique, `[A-Za-z0-9_.@- ]+` (no space at its ends), fixed once saved.
  */
 name: string, actions: Array<RecordAction>, list_actions: Array<ListAction>, account?: AccountSpec, };

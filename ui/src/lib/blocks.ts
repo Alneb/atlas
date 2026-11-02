@@ -19,6 +19,7 @@ import { api } from "./api";
 import { open, type PaneProps } from "./dock";
 import { iconSvg } from "./icons";
 import { paneComponents } from "./pane-components";
+import { librariesSpec } from "./libraries.svelte";
 import { PANE_KINDS, blockType, paneIcon, paneId, paneTitle, specFromOptions, type IconName, type PaneKind, type PaneSpec } from "./panes";
 import { renderView, rowViewTypes } from "./views";
 import { BUILTIN_FIELDS, ROW_VIEW_FIELDS, type OptionField } from "./block-options";
@@ -159,9 +160,8 @@ function embedPanel(spec: PaneSpec, el: HTMLElement, setTitle: (t: string) => vo
   return shim as unknown as DockviewPanelApi;
 }
 
-function paneBlock(kind: PaneKind): Block {
+function paneBlock(kind: PaneKind, specOf = (ctx: BlockCtx): PaneSpec | string => specFromOptions(kind, ctx.options)): Block {
   const sample = { kind } as PaneSpec; // only for the generic title and icon of the kind
-  const specOf = (ctx: BlockCtx) => specFromOptions(kind, ctx.options);
   return {
     type: paneBlockType(kind),
     title: kind[0].toUpperCase() + kind.slice(1),
@@ -193,6 +193,14 @@ registerBlock({
   icon: "file-text", card: true, file: /\.(md|markdown)$/i,
   tab: (c) => (str(c.options.path) ? { kind: "editor", path: str(c.options.path) } : null),
 });
+// the links to a file, as under a note ("Linked mentions"): the note it sits in, or `path` (a library's card)
+registerBlock({ ...lazyBlock("backlinks", "Linked mentions", () => import("../components/Backlinks.svelte"), (c) => ({ path: str(c.options.path) || c.doc })), icon: "link", bare: true });
+// `library` and `libraries` blocks written before the Libraries page became a plugin's pane: that pane (an old
+// `library` at References), or the plugin's "switched off" where none gives it (libraries.svelte.ts)
+for (const old of ["library", "libraries"]) {
+  const at = (c: BlockCtx) => str(c.options.at) || (old === "library" ? "references" : undefined);
+  registerBlock({ ...paneBlock("plugin", (c) => librariesSpec(at(c))), type: old, title: "Library", icon: "library" });
+}
 registerBlock({ ...lazyBlock("text", "Text", () => import("../components/blocks/NoteBlock.svelte"), (c) => ({ text: str(c.options.text), doc: c.doc })), icon: "edit", card: true });
 // a Library entry with its PDF: the head of every reading note (`<citekey>.md`; docs/guides/ZOTERO.md)
 registerBlock({

@@ -428,6 +428,25 @@ static BREAK: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?i)<\s*(br|/p|/di
 static TAG: LazyLock<Regex> = LazyLock::new(|| Regex::new(r#"(?s)<(?:[^>"']|"[^"]*"|'[^']*')*>"#).unwrap());
 static ENTITY: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"&(#x[0-9a-fA-F]+|#\d+|[a-zA-Z]+);").unwrap());
 
+static ANCHOR: LazyLock<Regex> = LazyLock::new(|| Regex::new(r#"(?is)<a\b[^>]*?\bhref\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))[^>]*>(.*?)</a\s*>"#).unwrap());
+
+/// The links of an HTML body, in order, each once: (its text, its address). Only web and mail addresses — what an agent
+/// reading the mail can follow (the text alone loses them: html_text drops the tags).
+pub fn html_links(html: &str) -> Vec<(String, String)> {
+    let mut out: Vec<(String, String)> = Vec::new();
+    for c in ANCHOR.captures_iter(html) {
+        let href = c.get(1).or(c.get(2)).or(c.get(3)).map(|m| m.as_str()).unwrap_or_default();
+        let href = ENTITY.replace_all(href.trim(), |e: &regex::Captures| entity(&e[1]).map(String::from).unwrap_or_else(|| e[0].to_string())).into_owned();
+        let lower = href.to_ascii_lowercase();
+        if !(lower.starts_with("http://") || lower.starts_with("https://") || lower.starts_with("mailto:")) || out.iter().any(|(_, h)| *h == href) {
+            continue;
+        }
+        let text = html_text(&c[4]).split_whitespace().collect::<Vec<_>>().join(" ");
+        out.push((text, href));
+    }
+    out
+}
+
 /// An HTML body's text (for snippets, the search index and a text/plain alternative): blocks become lines.
 pub fn html_text(html: &str) -> String {
     let t = DROP.replace_all(html, "");
@@ -616,6 +635,16 @@ pub fn preview(b: &Body, width: usize) -> String {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn the_links_of_an_html_body_are_kept_with_their_text() {
+        let html = r##"<p>See <a href="https://example.org/a?x=1&amp;y=2">the <b>page</b></a>, <a href='mailto:alice@example.org'>Alice</a>,
+            <a href="#top">top</a> and <a class=x href=https://example.org/a?x=1&amp;y=2>again</a>.</p>"##;
+        assert_eq!(
+            super::html_links(html),
+            vec![("the page".to_string(), "https://example.org/a?x=1&y=2".to_string()), ("Alice".to_string(), "mailto:alice@example.org".to_string())]
+        );
+    }
+
     use super::*;
 
     const OUTLOOK_REPLY: &[u8] = b"From: =?utf-8?Q?Jos=C3=A9_P=C3=A9rez?= <jose@uni.example.org>\r\nTo: \"Me, Myself\" <me@example.org>, other@example.org\r\nCc: =?iso-8859-1?q?Andr=E9?= <andre@example.org>\r\nSubject: RE: TR: =?utf-8?B?UsOpdW5pb24=?=\r\nDate: Tue, 15 Sep 2026 10:02:00 -0400\r\nMessage-ID: <AB12@outlook.example>\r\nIn-Reply-To: <first@example.org>\r\nReferences: <root@example.org>\r\n <first@example.org>\r\nMIME-Version: 1.0\r\nContent-Type: multipart/alternative; boundary=\"b1\"\r\n\r\n--b1\r\nContent-Type: text/plain; charset=\"iso-8859-1\"\r\nContent-Transfer-Encoding: quoted-printable\r\n\r\nD'accord pour mardi =E0 10h.\r\n\r\n-- \r\nJos=E9\r\n\r\nFrom: Me <me@example.org>\r\nSent: Monday\r\n\r\n> old\r\n--b1\r\nContent-Type: text/html; charset=\"utf-8\"\r\n\r\n<html><head><style>p{color:red}</style></head><body><p>D'accord pour mardi \xc3\xa0 10h.</p><div id=\"appendonsend\"></div><hr><div id=\"divRplyFwdMsg\">From: Me</div></body></html>\r\n--b1--\r\n";

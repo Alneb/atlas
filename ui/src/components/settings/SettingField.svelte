@@ -21,6 +21,7 @@
   import { options, plain, valueOf, defaultOf, isModified, setValue, resetValue, resolve, choiceLabel, type Schema } from "../../lib/settings-schema";
   import { errText } from "../../lib/text";
   import { stringKind } from "../../lib/settings-pages";
+  import PaletteSwatches from "./PaletteSwatches.svelte";
 
   let { path, schema: s }: { path: string; schema: Schema } = $props();
 
@@ -44,6 +45,18 @@
   let slideT: ReturnType<typeof setTimeout> | undefined;
   const slide = (n: number) => { clearTimeout(slideT); slideT = setTimeout(() => void setValue(path, n), 150); };
   const num = (x: string) => { const n = Number(x); return Number.isFinite(n) ? (s.type === "integer" ? Math.round(n) : n) : null; };
+  const swatches = $derived(path === "ui.palette" || path === "ui.palette_dark");
+  // an accent left empty is the scheme's: the colour picker shows that one, not a stand-in
+  const schemeAccent = $derived.by(() => {
+    void settings.config?.ui; // the scheme, the theme and the accent are all set on <html> from these
+    if (kind !== "colour" || typeof document === "undefined") return "#8aa4ff";
+    const probe = document.createElement("span");
+    probe.style.color = "var(--accent)";
+    document.body.append(probe);
+    const m = /rgba?\((\d+),\s*(\d+),\s*(\d+)/.exec(getComputedStyle(probe).color);
+    probe.remove();
+    return m ? "#" + m.slice(1, 4).map((x) => Number(x).toString(16).padStart(2, "0")).join("") : "#8aa4ff";
+  });
   const shownDefault = $derived.by(() => {
     const d = defaultOf(path);
     if (Array.isArray(d)) return d.length ? d.join(", ") : "empty";
@@ -53,7 +66,7 @@
   });
 </script>
 
-<div class="row" class:modified class:stacked={s.type === "array" && !!s.items && resolve(s.items).type === "object"} data-path={path}>
+<div class="row" class:modified class:stacked={swatches || (s.type === "array" && !!s.items && resolve(s.items).type === "object")} data-path={path}>
   <div class="label">
     <label for={path}>{label}</label>
     {#if s.description}<p>{plain(s.description)}</p>{/if}
@@ -62,7 +75,9 @@
     {/if}
   </div>
   <div class="control">
-    {#if s.type === "boolean"}
+    {#if swatches}
+      <PaletteSwatches {path} {label} />
+    {:else if s.type === "boolean"}
       <button id={path} class="switch" class:on={v === true} role="switch" aria-checked={v === true} aria-label={label} onclick={() => setValue(path, !v)}><span></span></button>
     {:else if opts && opts.length <= 4}
       <div class="seg" role="radiogroup" id={path} aria-label={label}>
@@ -96,9 +111,9 @@
       <span class="hint">one per line</span>
     {:else if kind === "colour"}
       <div class="colour">
-        <input type="color" value={/^#[0-9a-f]{6}$/i.test(String(v)) ? String(v) : "#8aa4ff"} aria-label="{label} picker"
+        <input type="color" value={/^#[0-9a-f]{6}$/i.test(String(v)) ? String(v) : schemeAccent} aria-label="{label} picker"
           onchange={(e) => setValue(path, e.currentTarget.value)} />
-        <input id={path} type="text" class="short" value={(v as string) ?? ""} placeholder="theme's" spellcheck="false" onchange={(e) => setValue(path, e.currentTarget.value.trim())} />
+        <input id={path} type="text" class="short" value={(v as string) ?? ""} placeholder="the scheme's" spellcheck="false" onchange={(e) => setValue(path, e.currentTarget.value.trim())} />
         {#if v}<button class="icon-btn" title="Use the theme's colour" aria-label="Clear {label}" onclick={() => setValue(path, "")}><Icon name="close" size={12} /></button>{/if}
       </div>
     {:else if sug.length}

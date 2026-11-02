@@ -9,7 +9,7 @@ use std::collections::HashMap;
 use gtk::prelude::*;
 use gtk::OverlaySignals;
 use webkit2gtk::{
-    CookieManagerExt, LoadEvent, SettingsExt, URIRequestExt, UserContentInjectedFrames, UserContentManager,
+    CookieManagerExt, LoadEvent, SettingsExt, SnapshotOptions, SnapshotRegion, URIRequestExt, UserContentInjectedFrames, UserContentManager,
     UserContentManagerExt, UserScript, UserScriptInjectionTime, WebContext, WebContextExt, WebView, WebViewExt, WebsiteDataManager,
     WebsiteDataManagerExt,
 };
@@ -43,8 +43,8 @@ addEventListener("keydown", (e) => {
   const meta = e.metaKey || sup || e.getModifierState("Super") || e.getModifierState("OS");
   const k = e.key.toLowerCase(), plain = !e.altKey && !meta;
   const send = (what) => { e.preventDefault(); e.stopImmediatePropagation(); webkit.messageHandlers.atlasWebKey.postMessage(what); };
-  if (e.altKey && e.key === "ArrowLeft") { e.preventDefault(); history.back(); }
-  else if (e.altKey && e.key === "ArrowRight") { e.preventDefault(); history.forward(); }
+  if (e.altKey && e.key === "ArrowLeft") send("back");
+  else if (e.altKey && e.key === "ArrowRight") send("forward");
   else if (e.key === "F5" || (e.ctrlKey && plain && !e.shiftKey && k === "r")) { e.preventDefault(); location.reload(); }
   else if (e.ctrlKey && plain && !e.shiftKey && k === "w") send("close");
   else if (e.ctrlKey && plain && !e.shiftKey && k === "p") send("files");
@@ -53,7 +53,6 @@ addEventListener("keydown", (e) => {
   // Super is Atlas's (its app keys; a page has no use for it): the chord back, run as Atlas binds it
   else if (meta) send("key:" + JSON.stringify({ key: e.key, code: e.code, ctrl: e.ctrlKey, shift: e.shiftKey, alt: e.altKey }));
 }, true);
-addEventListener("mouseup", (e) => { if (e.button === 3) history.back(); else if (e.button === 4) history.forward(); }, true);
 "#;
 const ACTIONS: [&str; 4] = ["close", "files", "palette", "address"];
 
@@ -140,7 +139,18 @@ fn handle(ask: Ask) {
             view.queue_resize();
             view.show();
         }
-        Ask::Hide { id } => if let Some(v) = p.tabs.get(&id) { v.hide() },
+        // something of Atlas lies over the view (a link's preview, a menu): the page shows a picture of it meanwhile,
+        // not an empty pane — taken before the view goes, which it then does whatever the picture's fate
+        Ask::Hide { id } => if let Some(v) = p.tabs.get(&id).filter(|v| v.is_visible()) {
+            let view = v.clone();
+            v.snapshot(SnapshotRegion::Visible, SnapshotOptions::NONE, None::<&gtk::gio::Cancellable>, move |shot| {
+                let (w, h, k) = (view.allocated_width(), view.allocated_height(), view.scale_factor().max(1));
+                if let Some(url) = shot.ok().and_then(|s| picture(&s, w, h, k)) {
+                    tell(&id, serde_json::json!({ "snapshot": url }));
+                }
+                view.hide();
+            });
+        },
         Ask::Go { id, url } => if let (Some(v), true) = (p.tabs.get(&id), web_url(&url)) { v.load_uri(&url) },
         Ask::Back { id } => if let Some(v) = p.tabs.get(&id) { v.go_back() },
         Ask::Forward { id } => if let Some(v) = p.tabs.get(&id) { v.go_forward() },
@@ -167,9 +177,13 @@ fn make(p: &mut Place, id: &str) -> WebView {
     }
     crate::browser::filter::apply(&view);
     let tell_id = id.to_string();
+    // back / forward go through the view's own history (a page's `history.back()` can be overridden or ignored by it)
+    let weak = view.downgrade();
     ucm.connect_script_message_received(Some("atlasWebKey"), move |_, r| {
         let Some(what) = r.js_value().map(|v| javascriptcore::ValueExt::to_str(&v).to_string()) else { return };
-        if ACTIONS.contains(&what.as_str()) {
+        if let (Some(v), "back" | "forward") = (weak.upgrade(), what.as_str()) {
+            if what == "back" { v.go_back() } else { v.go_forward() }
+        } else if ACTIONS.contains(&what.as_str()) {
             if let Some(m) = main() { m.grab_focus() }
             tell(&tell_id, serde_json::json!({ "action": what }));
         } else if let Some(chord) = what.strip_prefix("key:").and_then(|j| serde_json::from_str::<serde_json::Value>(j).ok()) {
@@ -186,7 +200,23 @@ fn make(p: &mut Place, id: &str) -> WebView {
     view.connect_uri_notify(move |v| s(v));
     let s = seen.clone();
     view.connect_title_notify(move |v| s(v));
-    view.connect_load_changed(move |v, _| seen(v));
+    let s = seen.clone();
+    view.connect_load_changed(move |v, _| s(v));
+    // can_go_back changes with the history list, which a page's own navigation (pushState) updates after its address
+    let weak = view.downgrade();
+    if let Some(list) = view.back_forward_list() {
+        // (the binding has no typed `changed`: connected by name)
+        list.connect_local("changed", false, move |_| {
+            if let Some(v) = weak.upgrade() { seen(&v) }
+            None
+        });
+    }
+    // the mouse's side buttons (GTK 8 and 9): WebKitGTK does not hand them to the page
+    view.connect_button_release_event(|v, ev| match ev.button() {
+        8 => { v.go_back(); gtk::glib::Propagation::Stop }
+        9 => { v.go_forward(); gtk::glib::Propagation::Stop }
+        _ => gtk::glib::Propagation::Proceed,
+    });
     // a link that wants a new window: a new tab of Atlas
     let tell_id = id.to_string();
     view.connect_create(move |_, action| {
@@ -216,6 +246,36 @@ fn context() -> WebContext {
     // context, and each is a WebKit process of its own
     context.set_cache_model(webkit2gtk::CacheModel::DocumentBrowser);
     context
+}
+
+/// A snapshot as a `data:` URL, drawn at the view's `w`×`h` widget px (the snapshot has `scale` device px per widget
+/// px), written as a 32-bit top-down BMP (cairo's ARGB32 is BMP's BGRA byte order on little-endian; no PNG encoder).
+fn picture(shot: &gtk::cairo::Surface, w: i32, h: i32, scale: i32) -> Option<String> {
+    use base64::Engine;
+    if w < 1 || h < 1 { return None }
+    let k = 1.0 / scale as f64;
+    let mut img = gtk::cairo::ImageSurface::create(gtk::cairo::Format::ARgb32, w, h).ok()?;
+    {
+        let cr = gtk::cairo::Context::new(&img).ok()?;
+        cr.scale(k, k);
+        cr.set_source_surface(shot, 0.0, 0.0).ok()?;
+        cr.paint().ok()?;
+    }
+    img.flush();
+    let stride = img.stride() as usize;
+    let data = img.data().ok()?;
+    let row = w as usize * 4;
+    let mut bmp = Vec::with_capacity(54 + row * h as usize);
+    let size = (54 + row * h as usize) as u32;
+    bmp.extend_from_slice(b"BM");
+    for v in [size, 0, 54, 40] { bmp.extend_from_slice(&v.to_le_bytes()) }
+    bmp.extend_from_slice(&w.to_le_bytes());
+    bmp.extend_from_slice(&(-h).to_le_bytes()); // negative: rows top to bottom, as cairo's
+    bmp.extend_from_slice(&1u16.to_le_bytes());
+    bmp.extend_from_slice(&32u16.to_le_bytes());
+    for v in [0u32, (row * h as usize) as u32, 2835, 2835, 0, 0] { bmp.extend_from_slice(&v.to_le_bytes()) }
+    for y in 0..h as usize { bmp.extend_from_slice(&data[y * stride..y * stride + row]) }
+    Some(format!("data:image/bmp;base64,{}", base64::engine::general_purpose::STANDARD.encode(&bmp)))
 }
 
 /// An `atlas-web` event to the Web pane `id`.

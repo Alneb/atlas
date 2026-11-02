@@ -57,6 +57,25 @@ test("accent colour applies live and resets to the theme's", async ({ page, requ
   await expect.poll(async () => (await cfg(request)).ui.accent).toBe("");
 });
 
+test("colour schemes are swatches, by day and by night; an empty accent shows the scheme's", async ({ page, request }) => {
+  await openSettings(page);
+  await nav(page).getByRole("button", { name: "Appearance" }).click();
+  const day = page.locator('[id="ui.palette"]');
+  await expect(day.locator(".pal-sample")).not.toHaveCount(0);
+  await day.getByRole("radio", { name: /sage/i }).click();
+  await expect.poll(async () => (await cfg(request)).ui.palette).toBe("sage");
+  // the night's list starts with "as by day"; each swatch is drawn dark
+  const night = page.locator('[id="ui.palette_dark"]');
+  await expect(night.getByRole("radio").first()).toContainText("as by day");
+  await expect(night.locator('.pal-sample[data-theme="dark"]')).not.toHaveCount(0);
+  // the accent's picker holds the colour in use, not a stand-in
+  const used = await page.evaluate(() => { const s = document.createElement("span"); s.style.color = "var(--accent)"; document.body.append(s); const c = getComputedStyle(s).color; s.remove(); return c; });
+  const shown = await page.locator('.row[data-path="ui.accent"] input[type="color"]').inputValue();
+  const hex = used.match(/\d+/g)!.slice(0, 3).map((x) => Number(x).toString(16).padStart(2, "0")).join("");
+  expect(shown).toBe(`#${hex}`);
+  await page.locator('.row[data-path="ui.palette"]').getByRole("button", { name: /reset/ }).click();
+});
+
 test("the keyboard page lists every command with a rebindable shortcut", async ({ page }) => {
   await openSettings(page);
   await nav(page).getByRole("button", { name: "Keyboard" }).click();

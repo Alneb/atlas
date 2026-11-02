@@ -153,7 +153,10 @@ export const HIDDEN = new Set(["ui.css_snippets_off", "ui.apps_order", "ui.apps_
   // Accounts → Sign-ins for plugins edits these (components/settings/SigninsPanel.svelte)
   "plugins.oidc_issuer", "plugins.oidc_client_id", "plugins.oidc_redirect",
   // read by nothing since the Snippets plugin took over typing: shown, it looked like the plugin's own switch
-  "latex.snippets"]);
+  "latex.snippets",
+  // the old LaTeX Suite file: the Snippets plugin's page names it and converts it; a second place to set it was
+  // a second Settings page for snippets (the LaTeX page, left with nothing else, is not listed)
+  "latex.snippets_file", "latex.variables_file"]);
 
 export interface Placed { page: string; title: string; group: Group; icon: IconName; blurb: string; fields: string[]; plugin?: BuiltinId }
 

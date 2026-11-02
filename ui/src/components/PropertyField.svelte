@@ -93,6 +93,10 @@
   const target = (v: string): string | null => (WIKI.test(v) ? linkTarget(v) : isFile(v) ? v.trim() : null);
   const follow = (v: string) => { if (isUrl(v)) void import("../lib/web-links").then((m) => m.openWeb(v.trim())); else { const t = target(v); if (t) onopen(t); } };
   const opens = (v: string) => isUrl(v) || target(v) !== null;
+  // links inside a longer value ("from [[a]] and https://b"): each one offered under the field
+  const inner = (v: string): string[] => (opens(v) ? [] : [...v.matchAll(/\[\[[^\]\n]+\]\]|https?:\/\/[^\s<>"')\]]+/g)].map((m) => m[0]));
+  // Ctrl/⌘+click on a field holding one link opens it, as Ctrl+click on a name in the editor
+  const ctrlOpen = (e: MouseEvent, v: string) => { if ((e.ctrlKey || e.metaKey) && opens(v)) { e.preventDefault(); follow(v); } };
 </script>
 
 {#if pills}
@@ -120,18 +124,25 @@
   <Select label={label} value={scalarText(value)} {options} onchange={(v) => onset(v || null)} />
 <!-- a template's `{{date}}` stays its text, never read as a date -->
 {:else if (kind === "date" || kind === "datetime") && !/\{\{/.test(scalarText(value))}
-  {@const k = kind}
+  <!-- a datetime property holding a bare day (a daily note's `date: 2026-11-02`) is edited as that day, not as its midnight -->
+  {@const k = kind === "datetime" && /^\d{4}-\d{2}-\d{2}$/.test(scalarText(value)) ? "date" : kind}
   <input class="field" type={k === "date" ? "date" : "datetime-local"} aria-label={label} value={toInput(value, k)} onchange={(e) => commitDate(e, k)} onkeydown={enterBlurs} />
 {:else if kind === "number"}
   <input class="field num" type="number" step="any" aria-label={label} value={scalarText(value)} onchange={commitNumber} onkeydown={enterBlurs} />
 {:else}
   {@const text = scalarText(value)}
   <div class="text-row">
-    <SuggestInput class="field" type="text" aria-label={label} placeholder="Empty" value={text} items={textSuggest}
+    <SuggestInput class="field {opens(text) ? 'is-link' : ''}" type="text" aria-label={label} placeholder="Empty" value={text} items={textSuggest}
+      title={opens(text) ? "Ctrl+click to open" : undefined} onclick={(e: MouseEvent) => ctrlOpen(e, text)}
       onpick={(v) => { typed = v; onset(v.trim() === "" ? null : v); }} onchange={commitText} onkeydown={enterBlurs}
       oninput={(e) => (typed = e.currentTarget.value)} onfocus={(e) => (typed = e.currentTarget.value)} />
     {#if text && opens(text)}
       <button type="button" class="icon-btn open" aria-label="Open {label}" title={isUrl(text) ? `Open ${text} in the browser` : `Open ${target(text)}`} onclick={() => follow(text)}><Icon name="link" size={12} /></button>
+    {/if}
+    {#if inner(text).length}
+    <div class="inner-links">
+      {#each inner(text) as l (l)}<button type="button" class="inner-link" title={isUrl(l) ? `Open ${l} in the browser` : `Open ${linkTarget(l)}`} onclick={() => follow(l)}>{isUrl(l) ? l.replace(/^https?:\/\/(www\.)?/, "") : linkLabel(l)}</button>{/each}
+    </div>
     {/if}
   </div>
 {/if}
@@ -155,9 +166,15 @@
   .pill-text { padding: 0 2px 0 8px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; color: inherit; }
   .pill.link .pill-text { color: var(--link, var(--accent)); }
   .pill .pill-text.opens { color: var(--link, var(--accent)); cursor: pointer; }
-  .text-row { display: flex; align-items: center; gap: 2px; min-width: 0; }
+  .text-row { display: flex; flex-wrap: wrap; align-items: center; gap: 2px; min-width: 0; }
+  .text-row > :global(:first-child) { flex: 1; min-width: 0; }
   .text-row .open { flex: none; width: calc(22px * var(--ui-scale, 1)); height: calc(22px * var(--ui-scale, 1)); color: var(--text-faint); }
   .text-row .open:hover { color: var(--link, var(--accent)); }
+  .text-row :global(.field.is-link) { color: var(--link, var(--accent)); }
+  .inner-links { flex-basis: 100%; display: flex; flex-wrap: wrap; gap: 2px 8px; padding: 0 7px 3px; min-width: 0; }
+  .inner-link { border: 0; background: none; padding: 0; font: inherit; font-size: calc(12px * var(--ui-scale, 1)); color: var(--link, var(--accent)); cursor: pointer;
+    max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .inner-link:hover { text-decoration: underline; }
   button.pill-text:hover { text-decoration: underline; }
   .pill-x { display: inline-grid; place-items: center; width: calc(20px * var(--ui-scale, 1)); height: calc(20px * var(--ui-scale, 1)); border-radius: 50%; color: var(--text-faint); flex: none; }
   .pill-x:hover { color: var(--text); background: var(--bg-hover); }

@@ -716,13 +716,15 @@ public final class AtlasActivity extends Activity {
         web.evaluateJavascript(code, null);
     }
 
-    /** Whether tab `id` is what place `k` shows itself (the page's pane ids: native-shell.svelte.ts `view`, panes.ts
-     *  `paneId`); Home is the Today pane or the vault's home document (a file, followed as one). */
-    private static boolean ownTab(Kind k, String id) {
+    /** Whether tab `t` is what place `k` shows itself (the page's pane ids: native-shell.svelte.ts `view`, panes.ts
+     *  `paneId`; the Library is a plugin's pane, which the page names by its `place`); Home is the Today pane or the
+     *  vault's home document (a file, followed as one). */
+    private static boolean ownTab(Kind k, JSONObject t) {
+        String id = t.optString("id");
         switch (k) {
             case SEARCH: return "search".equals(id);
             case FILES: return "files".equals(id);
-            case LIBRARY: return "libraries".equals(id);
+            case LIBRARY: return "libraries".equals(t.optString("place"));
             case HOME: return "today".equals(id);
             default: return false;
         }
@@ -757,7 +759,7 @@ public final class AtlasActivity extends Activity {
             // Home) — is a place of its own, Back returning here; staying "Search" while the page showed the Catalog,
             // the next redraw put Search back
             String id = active.optString("id");
-            if (pending(id) || (!active.optBoolean("file") && ownTab(at.kind, id))) return;
+            if (pending(id) || (!active.optBoolean("file") && ownTab(at.kind, active))) return;
             go(new Screen(Kind.NOTE, id), true);
         }
         if (active == null) { go(new Screen(Kind.HOME, ""), false); return; } // the last tab closed

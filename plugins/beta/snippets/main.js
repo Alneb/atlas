@@ -1206,7 +1206,7 @@ function he(e, t) {
 		let e = t.read();
 		if (i.replaceChildren(), e.fromOldFile) {
 			let e = Z("div", "display:flex;gap:12px;align-items:center;padding:10px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg-alt);");
-			e.append(Z("div", "flex:1;", "These come from the old snippet file. Converting writes a JavaScript module beside it, with the known misfires mended and listed at its top. The old file is left as it was."));
+			e.append(Z("div", "flex:1;", "These come from the old snippet file ([latex] snippets_file in the settings file). Converting writes a JavaScript module beside it, with the known misfires mended and listed at its top. The old file is left as it was."));
 			let n = Z("button", "", "Convert");
 			n.className = "btn primary", n.onclick = () => void t.convert().then(l), e.append(n), i.append(e);
 		} else e.modules.length || i.append(Z("div", $, "No snippets yet: put a JavaScript module in .atlas/snippets/, or switch on a pack."));

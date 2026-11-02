@@ -93,7 +93,8 @@
   .app.open::before { content: ""; position: absolute; bottom: 3px; left: 50%; width: 10px; height: 2px; margin-left: -5px; border-radius: 2px; background: var(--text-faint); }
   .app.active { background: var(--accent-soft); border-color: color-mix(in srgb, var(--accent) 45%, transparent); color: var(--accent); }
   .app.active::before { background: var(--accent); }
-  .pins { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 4px 0 6px; position: relative; outline: none; }
+  /* collapsed, a pin is as tall as its row in the open bar (28 px, the same padding): what follows keeps its place */
+  .pins { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 2px 0 8px; position: relative; outline: none; }
   /* in the open bar a pin is a small chip, icon then name: several to a row, one line high */
   .pins.wide { display: grid; grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: 4px; padding: 2px 8px 8px; }
   .pins.wide.empty { display: none; }
@@ -101,7 +102,7 @@
   .pins.wide.empty.dropping { display: block; height: 0; padding: 0; z-index: 3; }
   .pins.wide.empty.dropping .pins-hint { position: absolute; top: 0; left: 8px; right: 8px; background: var(--bg-app); }
   .pins.empty:not(.wide) { display: none; }
-  .pin { width: 36px; height: 36px; border-radius: 10px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; padding: 0; min-width: 0;
+  .pin { width: 36px; height: 28px; border-radius: 10px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; padding: 0; min-width: 0;
     background: var(--bg-hover); border: 1px solid var(--border); color: var(--text-muted); transition: background .12s, border-color .12s, color .12s; }
   .wide .pin { width: auto; height: 28px; flex-direction: row; justify-content: flex-start; gap: 6px; padding: 0 8px; border-radius: 8px; }
   .pin:hover { background: var(--bg-active); color: var(--text); }

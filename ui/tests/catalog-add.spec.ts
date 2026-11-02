@@ -1,13 +1,11 @@
 import { test, expect, type APIRequestContext } from "@playwright/test";
-import { readFileSync } from "node:fs";
+import { restoreCatalog, withCatalog } from "./fixtures/catalog";
 
 // "Add to the catalog…" is a dialog: the collections block's own form (addBox in main.js, mounted by add.js) — what is
 // typed looked up, its card with the other matches as chips, then Add opens the note and closes the dialog. The
 // helper is a stand-in answering `preview` and `add`.
 const H = { "x-atlas": "1" };
 const put = (request: APIRequestContext, path: string, text: string) => request.put("/api/file", { headers: H, data: { path, text } });
-const read = (f: string) => readFileSync(new URL(`../../plugins/beta/catalog/${f}`, import.meta.url), "utf8");
-const DIR = ".atlas/plugins/catalog"; // the real id, as catalog-library.spec
 
 const PREVIEW = {
   candidate: { kind: "film", ids: { imdb: "tt1160419" }, label: "Dune (2021)" },
@@ -26,14 +24,11 @@ for line in sys.stdin:
 `;
 
 test.beforeAll(async ({ request }) => {
-  await put(request, `${DIR}/helper.py`, HELPER);
-  for (const f of ["main.js", "add.js"]) await put(request, `${DIR}/${f}`, read(f));
-  await put(request, `${DIR}/plugin.toml`, 'title = "Catalog"\nicon = "library"\napi = 23\n\n[helper]\nrun = "python3 -u \\"$ATLAS_PLUGIN_DIR/helper.py\\""\n');
+  await withCatalog(request, HELPER, ["main.js", "add.js"]); // the vault's copy (its page) with its main.js and the dialog
   await put(request, "Shelf/Films/Dune.md", "---\ntype: film\ntitle: Dune\n---\nThe film note.\n");
 });
 test.afterAll(async ({ request }) => {
-  await request.post("/api/plugins/catalog/helper/stop", { headers: H });
-  await request.post(`/api/fs/trash?path=${DIR}`, { headers: H });
+  await restoreCatalog(request, ["main.js", "add.js"]);
   await request.post(`/api/fs/trash?path=Shelf`, { headers: H });
 });
 

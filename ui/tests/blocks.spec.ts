@@ -2,7 +2,8 @@ import { test, expect, type APIRequestContext } from "@playwright/test";
 import { openFile } from "./open";
 
 // docs/refactor/REFACTOR-blocks.md: one registry. A pane (Library, an editor, a table file) is a block that
-// sits in a page or a note; any block opens as a tab of its own.
+// sits in a page or a note; any block opens as a tab of its own. The Library is the Catalog plugin's pane: a `library`
+// block is that plugin pane, at References.
 const H = { "x-atlas": "1" };
 const put = (r: APIRequestContext, path: string, text: string) => r.put("/api/file", { headers: H, data: { path, text } });
 
@@ -12,7 +13,7 @@ test("panes embed in a page, and an embedded pane opens as its own tab", async (
   await openFile(page, "Desk.page");
   const desk = page.locator(".atlas-pane-page .page");
   // the Library, with its real papers
-  await expect(desk.locator(".atlas-pane-library")).toContainText("More Is Different");
+  await expect(desk.locator(".atlas-pane-plugin")).toContainText("More Is Different");
   // the same editor as in a tab: live preview renders the note, wikilink included
   await expect(desk.locator(".atlas-pane-editor .cm-content")).toContainText("See the hubbard model.");
   // a data file as a table
@@ -20,9 +21,10 @@ test("panes embed in a page, and an embedded pane opens as its own tab", async (
   // a block that lacks what it needs says so, in place
   await expect(desk.locator(".view-error")).toContainText("needs `path:`");
   // open the embedded Library as a tab: the real Library pane
-  await desk.locator(".atlas-block", { has: page.locator(".atlas-pane-library") }).hover();
-  await desk.locator(".atlas-block", { has: page.locator(".atlas-pane-library") }).locator("> .block-pop").click();
-  await expect.poll(() => page.evaluate(() => fetch("/api/ui/state", { headers: { "x-atlas": "1" } }).then((r) => r.json()).then((s) => s.active?.kind))).toBe("library");
+  await desk.locator(".atlas-block", { has: page.locator(".atlas-pane-plugin") }).hover();
+  await desk.locator(".atlas-block", { has: page.locator(".atlas-pane-plugin") }).locator("> .block-pop").click();
+  await expect.poll(() => page.evaluate(() => fetch("/api/ui/state", { headers: { "x-atlas": "1" } }).then((r) => r.json()).then((s) => s.active?.kind))).toBe("plugin");
+  await expect(page.locator(".dv-active-group .libraries .library")).toContainText("More Is Different");
 });
 
 test("a pane block inside a note, and a row view opened as a tab", async ({ page, request }) => {
@@ -30,7 +32,7 @@ test("a pane block inside a note, and a row view opened as a tab", async ({ page
   await page.goto("/");
   await openFile(page, "desk.md");
   const note = page.locator(".cm-content");
-  await expect(note.locator(".atlas-pane-library")).toContainText("More Is Different");
+  await expect(note.locator(".atlas-pane-plugin")).toContainText("More Is Different");
   const cal = note.locator(".atlas-block", { has: page.locator(".atlas-view-calendar") });
   await expect(cal).toContainText("ship blocks");
   await cal.hover();

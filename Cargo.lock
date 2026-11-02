@@ -550,6 +550,7 @@ dependencies = [
  "adblock",
  "anyhow",
  "atlas-core",
+ "base64 0.22.1",
  "gio-sys",
  "glib-sys",
  "gobject-sys",

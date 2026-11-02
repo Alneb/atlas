@@ -16,7 +16,7 @@ export const setHomeSpec = (s: PaneSpec): void => { home.id = paneId(s); };
 /** Whether an open pane is an app rather than a document. A plugin's pane opened on a file ("Open with")
  *  is a document; opened on a value (an account, a host) it is that app's. */
 export const isApp = (id: string, s: PaneSpec | undefined): boolean =>
-  id === home.id || s?.kind === "today" || s?.kind === "library" || s?.kind === "libraries" || (s?.kind === "plugin" && !s.path);
+  id === home.id || s?.kind === "today" || (s?.kind === "plugin" && !s.path);
 
 /** `ids`: the tabs it stands for — Home's are the home document's and the classic Today pane's (a vault with both
  *  open showed two "today" tiles). The first is its own. */
@@ -30,8 +30,8 @@ export function allApps(): AppTile[] {
   const cmds = allCommands(), cmd = (id: string) => cmds.find((c) => c.id === id);
   const homeCmd = cmd("ui.today");
   const builtins = BUILTINS.filter((b) => builtinOn(b.id)).flatMap((b): AppTile[] => {
-    const c = b.button && cmd(b.button.command);
-    return b.button && c ? [{ key: b.id, ids: [paneId(b.button.pane)], title: c.label ?? b.title, icon: b.icon, keys: c.keys, command: c.id, open: () => void c.run() }] : [];
+    const c = b.button && cmd(b.button.command), pane = b.button?.pane();
+    return c && pane ? [{ key: b.id, ids: [paneId(pane)], title: c.label ?? b.title, icon: b.icon, keys: c.keys, command: c.id, open: () => void c.run() }] : [];
   });
   const vault = plugins.list.filter((p) => pluginOn(p) && p.rail && p.view).map((p): AppTile => ({
     key: p.id, ids: [paneId(pluginSpec(p))], title: p.title, icon: p.icon && isIconName(p.icon) ? p.icon : "plugin", keys: cmd(`plugin.${p.id}`)?.keys, command: `plugin.${p.id}`, open: () => void cmd(`plugin.${p.id}`)?.run(),

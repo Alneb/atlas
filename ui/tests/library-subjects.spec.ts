@@ -3,9 +3,9 @@ import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { WS } from "../playwright.config";
 
-// Libraries of one subject are one tab of the Libraries page (lib/libraries.svelte.ts `subject`, library.ts
-// mergeSources): a catalog's book notes and the e-books read here show as "Books", each source a tab inside it, each
-// item opened by the plugin that gave it.
+// Libraries of one subject are one tab of the Libraries page (the Catalog's pane: plugins/beta/catalog/ui/src/library.ts
+// `bySubject`, `mergeSources`): a catalog's book notes and the e-books read here show as "Books", each source a tab
+// inside it, each item opened by the plugin that gave it.
 const plugin = (id: string, title: string, items: string[], extra = "") => {
   const dir = join(WS, ".atlas/plugins", id);
   mkdirSync(dir, { recursive: true });

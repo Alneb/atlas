@@ -6,7 +6,8 @@
 import { saveShellPrefs, shellPart } from "./shell-prefs";
 import { LocalSelectionTransfer, PanelTransfer, type DockviewApi, type DockviewGroupPanel, type IDockviewPanel } from "dockview-core";
 import { onPins, savePins as writePins, type Pin } from "./bookmarks.svelte";
-import { closePanel, focusPanel, getDock, open, sideIdOf, tabFacts } from "./dock";
+import { closePanel, focusPanel, getDock, open, sideIdOf } from "./dock";
+import { tabFacts } from "./tab-facts";
 import { isApp } from "./apps.svelte";
 import type { SideId } from "./side-panel.svelte";
 import { panelZone } from "./dock-instance";

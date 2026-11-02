@@ -119,7 +119,7 @@ Obsidian fidelity needs it in every vault. On by default. While it is off:
 | Snippets, their Tab stops and Tab out of brackets | the Snippets plugin (`plugins/beta/snippets/`), not this one; while a vault has not converted its old file, the plugin reads it through `/api/snippets`, and `[latex] snippets` off means none |
 | LaTeX symbol completions (notes' math, `.tex`) | the same file's `ofLatex` wrapper: a source of the plugin answers nothing while it is off |
 | `GET /api/snippets` | in the core's group of LaTeX routes: 404 "the LaTeX plugin is switched off in this vault" |
-| its settings `[latex] snippets`, `snippets_file`, `variables_file` | its page in Settings, listed under Plugins (dimmed while off) |
+| its settings `[latex] snippets`, `snippets_file`, `variables_file` | in the settings file only: the old file is named and converted on the Snippets plugin's page, so snippets have one page; LaTeX's switch is in Settings → Plugins |
 
 The three settings were `[editor] latex_snippets`, `latex_snippets_file`, `latex_snippet_variables_file`; a config that
 still has them loads them into `[latex]` and is written in the new shape on the next save (`config.rs`, `MOVED` and
