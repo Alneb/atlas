@@ -110,7 +110,7 @@ pub fn command(decl: &AgentDecl, settings: &toml::Table, session: Option<&str>, 
         args.extend(extra.iter().map(|a| fill(a, settings, Some(&id))));
         if let Some(r) = report {
             if let Some(dir) = r.parent() {
-                let _ = std::fs::create_dir_all(dir);
+                let _ = crate::vault_write::mkdir(dir);
             }
             args.extend(decl.session_report.iter().cloned());
             env.push(("ATLAS_SESSION_REPORT".into(), r.to_string_lossy().into_owned()));
