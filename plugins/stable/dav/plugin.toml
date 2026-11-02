@@ -5,10 +5,11 @@
 # Email hands it (`import_invite`) and answers Email's address book. It never reads mail; notes marked
 # `important: true` with `due:` / `event:` are shown, and put on the server, only when switched on.
 title = "Calendar"
-description = "your calendars in a pane: month, week, day, agenda; several CalDAV accounts and ICS subscriptions; invitations from Email; contacts"
+description = "your calendars in a pane: month, week, day, agenda; several CalDAV or Outlook / Microsoft 365 (Exchange) accounts and ICS subscriptions; meetings; invitations from Email; contacts"
 icon = "calendar"
-version = "1.3.2"
+version = "1.4.0"
 rail = true          # a button for the Calendar pane (view.js)
+provides = ["calendar"]  # the role other plugins call it by (Email: `@calendar/tools/import_invite`, contacts, agenda)
 api = 12             # Settings v2: account cards (status, Test, presets), hidden / advanced fields, a drawn section
 
 [helper]
@@ -18,7 +19,7 @@ run = "\"${ATLAS_PLUGIN_BIN:-$ATLAS_PLUGIN_DIR/bin/$ATLAS_PLUGIN_TARGET}/dav\""
 [permissions]
 secrets = true   # each account's app password (accounts.<name>.password), in Atlas's secret store, never in the vault
 
-# ----- Accounts first: one card per CalDAV server / user, written as [[accounts]] in .atlas/plugin-settings/dav.toml
+# ----- Accounts first: one card per CalDAV server / user, or per Exchange mailbox (ews.rs), written as [[accounts]] in .atlas/plugin-settings/dav.toml
 [[setting]]
 key = "accounts"
 label = "Accounts"
@@ -30,12 +31,14 @@ list_actions = [{ label = "Sync now", command = "sync-now" }]
 account = { kind = "Calendar", summary = "{user} · {url}", status = "account_status", test = "test_account", presets = [
   { label = "RustiCal", hint = "an app token from its web page → App tokens", values = { url = "https://cal.example.org/caldav/" } },
   { label = "Nextcloud", hint = "an app password from Settings → Security → Devices & sessions", values = { url = "https://cloud.example.org/remote.php/dav/" } },
+  { label = "Outlook / Microsoft 365", hint = "your work or university Exchange calendar, signed in through the Email plugin's Outlook account of the same address", values = { server = "exchange" } },
 ] }
 fields = [
   { key = "name", label = "Name", kind = "text", hint = "short: it starts each calendar's id (home/personal). Letters, digits, . @ - _" },
-  { key = "url", label = "Server address", kind = "text", hint = "https://cal.example.org/caldav/ (RustiCal), https://host/remote.php/dav/ (Nextcloud); the server's top often works too" },
-  { key = "user", label = "User name", kind = "text" },
-  { key = "password", label = "App password", kind = "secret", hint = "an app password made on the server (RustiCal: its web page → App tokens), not your sign-in password" },
+  { key = "server", label = "Server", kind = "choice", choices = ["caldav", "exchange"], default = "caldav", hint = "caldav: any CalDAV server; exchange: Outlook / Microsoft 365, signed in through Email's Outlook account of the same address (no password here)" },
+  { key = "url", label = "Server address", kind = "text", when = { server = "caldav" }, hint = "https://cal.example.org/caldav/ (RustiCal), https://host/remote.php/dav/ (Nextcloud); the server's top often works too" },
+  { key = "user", label = "User name", kind = "text", hint = "exchange: the mailbox's address, as in Email" },
+  { key = "password", label = "App password", kind = "secret", when = { server = "caldav" }, hint = "an app password made on the server (RustiCal: its web page → App tokens), not your sign-in password" },
   { key = "color", label = "Colour", kind = "text", hint = "#hex for this account's calendars that have no colour of their own; empty: picked from the name" },
 ]
 
@@ -210,7 +213,7 @@ secrets = ["*"]
 
 [[tool]]
 name = "import_invite"
-description = "Files a meeting invitation the user answered into their calendar: their answer (PARTSTAT) on their ATTENDEE line, METHOD dropped, the mail's Message-ID kept as the event's source; a cancellation (METHOD:CANCEL) marks the calendar's copy cancelled. A copy already in any account's calendar is updated there; else it goes to `calendar` or the default. Answers the UID, the calendar's id, status (added / updated / unchanged) and the first occurrence's start and end in local time. Only after the user answered the invitation. (Email calls this when the user answers; the Calendar never reads mail.)"
+description = "Files a meeting invitation the user answered into their calendar: their answer (PARTSTAT) on their ATTENDEE line, METHOD dropped, the mail's Message-ID kept as the event's source; a cancellation (METHOD:CANCEL) marks the calendar's copy cancelled. A copy already in any account's calendar is updated there; else it goes to `calendar` or the default. Answers the UID, the calendar's id, status (added / updated / unchanged) and the first occurrence's start and end in local time. Only after the user answered the invitation. A meeting already in an Exchange calendar is answered by Exchange itself (status answered, sent: true: the organiser was told, nothing else to send). (Email calls this when the user answers; the Calendar never reads mail.)"
 input = { ics = { type = "string", description = "the invitation's calendar text (the mail's text/calendar part or .ics)" }, source = { type = "string", description = "the mail's Message-ID" }, partstat = { type = "string", description = "the user's answer: ACCEPTED, TENTATIVE or DECLINED", optional = true }, attendee = { type = "string", description = "the user's address as invited", optional = true }, calendar = { type = "string", description = "a calendar id (default: the one for new events)", optional = true } }
 secrets = ["*"]
 

@@ -150,7 +150,9 @@ provides = ["references"]         # catalog-papers: the references library (cita
 
 Roles in use: `catalog` (the capture box's hint, the target of `[contributes.catalog]`, what OCR, Audiobookshelf and
 Letterboxd file through), `references` (the papers library the page's citations and PDF import call), `pdf-export`
-(Export: the PDF Print prints a note as), `libraries` (the plugin whose pane is the Libraries page: `atlas.openLibrary`,
+(Export: the PDF Print prints a note as), `mail` (Email: the Calendar's Exchange sign-in, `calendar_token`), `calendar`
+(the Calendar: Email's invitations, contacts and agenda; its new-event dialog also opens on the window event
+`atlas-calendar:new` `{ title, guests, description, ack }`, answered by `atlas-calendar:heard`), `libraries` (the plugin whose pane is the Libraries page: `atlas.openLibrary`,
 the Library tile and the phone's Library open it; the Catalog's — see "Libraries" below). A vault can swap one plugin for another that provides the same role.
 
 A plugin calls another by its role too: **`/api/plugins/@<role>/tools/<tool>`** and **`/api/plugins/@<role>/helper`**

@@ -1,6 +1,7 @@
 //! The helper's methods: what the pane (ui/), the blocks, Email and Claude's tools call (README.md). Each takes the
 //! call's params (with `settings`, `secrets`, and the page's `tz`) and answers JSON.
 use crate::caldav::{as_dir, Client, Existing};
+use crate::remote::Remote;
 use crate::conf::{self, Card, Sub};
 use crate::edit::{self, Change, Scope};
 use crate::ics::{self, Event, When};
@@ -154,10 +155,10 @@ fn card_named(s: &Value, p: &Value, name: &str) -> atlas_plugin::Result<Card> {
 }
 
 /// A cached calendar and the client of its account.
-fn client_for(s: &Value, p: &Value, source: &str) -> atlas_plugin::Result<(Source, Client)> {
+fn client_for(s: &Value, p: &Value, source: &str) -> atlas_plugin::Result<(Source, Remote)> {
     let src = engine().store.source(source).ok_or_else(|| error(format!("no calendar {source:?} (refresh the calendars)")))?;
     let account = src.account.clone().ok_or_else(|| error(format!("{} is a subscription: read-only", src.name)))?;
-    let c = Client::new(&card_named(s, p, &account)?.account).map_err(|e| error(format!("{account}: {e}")))?;
+    let c = Remote::of(&card_named(s, p, &account)?).map_err(|e| error(format!("{account}: {e}")))?;
     Ok((src, c))
 }
 
@@ -212,7 +213,7 @@ fn pull_all(p: &Value, force: bool) -> (bool, Vec<String>) {
 fn pull_card(card: &Card) -> (bool, Vec<String>) {
     let e = engine();
     lock(&e.accounts).entry(card.name.clone()).or_default().busy = true;
-    let r = Client::new(&card.account).and_then(|c| pull::caldav(&e.store, &c, &card.name));
+    let r = Remote::of(card).and_then(|c| pull::caldav(&e.store, &c, &card.name));
     let mut st = lock(&e.accounts);
     let a = st.entry(card.name.clone()).or_default();
     a.busy = false;
@@ -239,7 +240,8 @@ fn push_round() {
     let server = conf::push_server(&s);
     let e = engine();
     let cards: Vec<Card> = conf::accounts(&s, &p).into_iter().filter(|c| c.filled()).collect();
-    let clients: Vec<(String, Client)> = cards.iter().filter_map(|c| Client::new(&c.account).ok().map(|cl| (c.name.clone(), cl))).collect();
+    // WebDAV Push is CalDAV's: an Exchange account is checked on the regular round only
+    let clients: Vec<(String, Client)> = cards.iter().filter(|c| c.server == conf::Server::Caldav).filter_map(|c| Client::new(&c.account).ok().map(|cl| (c.name.clone(), cl))).collect();
     let calendars: Vec<(String, &Client, Url)> = e
         .store
         .sources()
@@ -365,7 +367,7 @@ fn sources(p: Value) -> Res {
     let st = lock(&engine().accounts).clone();
     let accounts: Vec<Value> = conf::cards(&s)
         .iter()
-        .map(|c| json!({ "name": c.name, "color": c.color, "error": st.get(&c.name).and_then(|a| a.error.clone()) }))
+        .map(|c| json!({ "name": c.name, "user": c.account.user, "color": c.color, "error": st.get(&c.name).and_then(|a| a.error.clone()) }))
         .collect();
     Ok(json!({ "sources": shown, "write": write, "accounts": accounts, "configured": conf::filled(&s) }))
 }
@@ -526,7 +528,7 @@ fn remember(steps: Vec<Step>) -> u64 {
 /// The calendar to write to and its account's client: the call's `calendar` (an id, `account/Name`, a name, an
 /// address), else the default (Settings), else the first writable one. The calendars are read first when the cache
 /// has none yet.
-fn target(p: &Value, s: &Value) -> atlas_plugin::Result<(Source, Client)> {
+fn target(p: &Value, s: &Value) -> atlas_plugin::Result<(Source, Remote)> {
     if engine().store.sources().iter().all(|x| x.kind != Kind::Caldav) && conf::filled(s) {
         let _ = pull_all(p, true);
     }
@@ -553,12 +555,19 @@ fn change_of(p: &Value) -> Change {
     serde_json::from_value(p.clone()).unwrap_or_default()
 }
 
+/// The change with its organiser: the address of the calendar's account (a meeting it makes is sent from there).
+fn change_for(p: &Value, s: &Value, src: &Source) -> Change {
+    let mut ch = change_of(p);
+    ch.organizer = src.account.as_deref().and_then(|a| conf::cards(s).into_iter().find(|c| c.name == a)).map(|c| c.account.user).filter(|u| u.contains('@'));
+    ch
+}
+
 fn create(p: Value) -> Res {
     let s = conf::settings(&p);
     let user = conf::user_zone(&p);
     let (dst, c) = target(&p, &s)?;
     let cal = dir_of(&dst)?;
-    let ch = change_of(&p);
+    let ch = change_for(&p, &s, &dst);
     let stamp = Utc::now();
     let uid = uid::derive(&format!("atlas-calendar:{}", stamp.timestamp_nanos_opt().unwrap_or_default()), ch.summary.as_deref().unwrap_or(""));
     let text = edit::create(&uid, &ch, &user, stamp).map_err(error)?;
@@ -573,7 +582,7 @@ fn create(p: Value) -> Res {
 }
 
 /// The cached object, else the server's (a calendar not synced yet).
-fn object(c: &Client, source: &str, href: &str) -> atlas_plugin::Result<Object> {
+fn object(c: &Remote, source: &str, href: &str) -> atlas_plugin::Result<Object> {
     if let Some(o) = engine().store.object(source, href) {
         return Ok(o);
     }
@@ -585,7 +594,7 @@ fn object(c: &Client, source: &str, href: &str) -> atlas_plugin::Result<Object> 
 }
 
 /// Writes `text` over the object read (If-Match its ETag); the cache follows.
-fn put_over(c: &Client, o: &Object, text: Option<&str>) -> atlas_plugin::Result<()> {
+fn put_over(c: &Remote, o: &Object, text: Option<&str>) -> atlas_plugin::Result<()> {
     let u = Url::parse(&o.href).map_err(fail)?;
     match text {
         Some(t) => {
@@ -601,7 +610,7 @@ fn put_over(c: &Client, o: &Object, text: Option<&str>) -> atlas_plugin::Result<
 }
 
 /// Runs an edit on the object; when the server had a newer version (412), once more on that one.
-fn edit_object<F>(c: &Client, source: &str, href: &str, mut f: F) -> atlas_plugin::Result<(Object, edit::Written)>
+fn edit_object<F>(c: &Remote, source: &str, href: &str, mut f: F) -> atlas_plugin::Result<(Object, edit::Written)>
 where
     F: FnMut(&str) -> Result<edit::Written, String>,
 {
@@ -630,9 +639,10 @@ fn update(p: Value) -> Res {
     let s = conf::settings(&p);
     let user = conf::user_zone(&p);
     let (source, href, uid) = (param(&p, "calendar").ok_or_else(|| error("calendar: required"))?, param(&p, "href").ok_or_else(|| error("href: required"))?, param(&p, "uid").ok_or_else(|| error("uid: required"))?);
-    let (rid, scope, ch) = (param(&p, "rid"), scope_of(&p), change_of(&p));
+    let (rid, scope) = (param(&p, "rid"), scope_of(&p));
     let now = Utc::now();
     let (src, c) = client_for(&s, &p, source)?;
+    let ch = change_for(&p, &s, &src);
     // to another calendar, of this account or another: the whole event moves (written there first, then removed here)
     if let Some(dest) = param(&p, "move_to").filter(|d| *d != source) {
         let (to, c2) = client_for(&s, &p, dest)?;
@@ -812,6 +822,24 @@ fn caldav_copies(uid: &str) -> Vec<Object> {
     engine().store.by_uid(uid).into_iter().filter(|o| srcs.iter().any(|s| s.id == o.source && s.kind == Kind::Caldav)).collect()
 }
 
+/// The copy of a meeting in an Exchange mailbox's calendar (the cache's, else asked of each Exchange calendar) and
+/// that account's client.
+fn exchange_copy(s: &Value, p: &Value, uid: &str) -> Option<(Object, Remote)> {
+    let cards = conf::accounts(s, p);
+    let exchange = |src: &Source| src.account.as_ref().is_some_and(|a| cards.iter().any(|c| &c.name == a && c.server == conf::Server::Exchange));
+    let srcs: Vec<Source> = engine().store.sources().into_iter().filter(|x| exchange(x)).collect();
+    if let Some(o) = engine().store.by_uid(uid).into_iter().find(|o| srcs.iter().any(|x| x.id == o.source)) {
+        let (_, c) = client_for(s, p, &o.source).ok()?;
+        return Some((o, c));
+    }
+    for src in &srcs {
+        let Ok((_, c)) = client_for(s, p, &src.id) else { continue };
+        let Ok(Some((u, etag, ics))) = c.find_uid(&Url::parse(&src.url).ok()?, uid) else { continue };
+        return Some((Object { source: src.id.clone(), href: u.to_string(), etag, uid: uid.into(), ics }, c));
+    }
+    None
+}
+
 /// Files an invitation the user answered (README "Email"): the user's PARTSTAT on their ATTENDEE line, METHOD
 /// dropped, the mail as X-ATLAS-SOURCE; a cancellation marks the copy cancelled.
 fn import_invite(p: Value) -> Res {
@@ -820,6 +848,26 @@ fn import_invite(p: Value) -> Res {
     let cancel = inv.method.as_deref() == Some("CANCEL");
     if !inv.is_entry() && !cancel {
         return Err(error(format!("this calendar file is a {} (an answer), not an invitation to file", inv.method.unwrap_or_default())));
+    }
+    // an Exchange mailbox's copy is a meeting Exchange keeps: answered there (the organiser told by Exchange), never
+    // rewritten (a rewrite would cut it from the meeting's updates); a cancellation Exchange applies by itself
+    if let Some((o, c)) = exchange_copy(&s, &p, &inv.uid) {
+        let calendar = o.source.clone();
+        let Some(partstat) = param(&p, "partstat").map(str::to_uppercase).filter(|_| !cancel) else {
+            return Ok(json!({ "uid": inv.uid, "calendar": calendar, "status": "unchanged", "start": start, "end": end }));
+        };
+        let Remote::Ews(ex) = &c else { unreachable!("exchange_copy answers Exchange clients only") };
+        ex.respond(&Url::parse(&o.href).map_err(fail)?, &partstat).map_err(fail)?;
+        if let Some(card) = conf::accounts(&s, &p).into_iter().find(|x| engine().store.source(&calendar).and_then(|src| src.account).as_deref() == Some(x.name.as_str())) {
+            let _ = pull_card(&card);
+        }
+        changed();
+        eprintln!("dav: invitation {} \"{}\": answered {partstat} through Exchange in {calendar}", inv.uid, inv.summary);
+        return Ok(json!({ "uid": inv.uid, "calendar": calendar, "status": "answered", "sent": true, "start": start, "end": end }));
+    }
+    // declined elsewhere: nothing to file
+    if param(&p, "partstat").is_some_and(|x| x.eq_ignore_ascii_case("DECLINED")) && !cancel {
+        return Ok(json!({ "uid": inv.uid, "calendar": null, "status": "unchanged", "start": start, "end": end }));
     }
     let text = invite::prepare(&inv.ics, param(&p, "attendee"), param(&p, "partstat"), param(&p, "source"), cancel).map_err(error)?;
     let (dst, c) = target(&p, &s)?;
@@ -895,7 +943,8 @@ fn contacts(p: Value) -> Res {
         let p2 = p.clone();
         let work = move || {
             let s = conf::settings(&p2);
-            for card in conf::accounts(&s, &p2).iter().filter(|c| c.filled()) {
+            // address books are CalDAV servers' (CardDAV); an Exchange mailbox's contacts are not read yet
+            for card in conf::accounts(&s, &p2).iter().filter(|c| c.filled() && c.server == conf::Server::Caldav) {
                 if let Err(err) = Client::new(&card.account).and_then(|c| pull::books(&engine().store, &c)) {
                     eprintln!("dav: {}: contacts: {err}", card.name);
                 }
@@ -1000,7 +1049,7 @@ fn account_states(s: &Value, p: &Value) -> HashMap<String, Status> {
             let say = |state, text: String| Status { state, text };
             let status = if !c.filled() {
                 say(State::Warn, "give the server address and the user name".into())
-            } else if c.account.password.is_empty() {
+            } else if c.lacks_password() {
                 say(State::Warn, "no app password yet".into())
             } else if a.busy {
                 say(State::Busy, "syncing…".into())
@@ -1030,10 +1079,10 @@ fn test_account(p: Value) -> Res {
     let Some(card) = conf::card_of(record, &p) else {
         return Ok(json!({ "ok": false, "text": "give the server address and the user name" }));
     };
-    if card.account.password.is_empty() {
+    if card.lacks_password() {
         return Ok(json!({ "ok": false, "text": "no app password yet" }));
     }
-    let answer = match Client::new(&card.account).and_then(|c| c.discover()) {
+    let answer = match Remote::of(&card).and_then(|c| c.discover()) {
         Ok(cals) => {
             let evs: Vec<String> = cals.iter().filter(|c| c.takes_events()).map(|c| if c.writable { c.name.clone() } else { format!("{} (read-only)", c.name) }).collect();
             if evs.is_empty() {

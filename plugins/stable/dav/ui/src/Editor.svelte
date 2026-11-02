@@ -1,6 +1,8 @@
 <script lang="ts">
   // The full editor (`e`, or More options): title, all-day, start and end in local time, repeat, place, description,
-  // calendar; who is invited is shown, not edited. Saving a repeating event asks which occurrences it is for.
+  // calendar, guests. Guests make it a meeting the calendar's account organises (Exchange, or a CalDAV server that
+  // schedules, sends the invitations); a meeting someone else organises shows them, not edited. Saving a repeating
+  // event asks which occurrences it is for.
   import { onMount } from "svelte";
   import { addDays, repeats, ruleText, type Ev } from "./api";
   import type { Cal } from "./store.svelte";
@@ -8,13 +10,21 @@
   import Icon from "./Icon.svelte";
 
   // frame "dialog": the app's dialog around it (its title bar, its scrim), so no sheet of its own
-  let { cal, e = null, start, end, allDay, title = "", calendar = "", frame = "sheet", onclose }: {
-    cal: Cal; e?: Ev | null; start: string; end: string; allDay: boolean; title?: string; calendar?: string; frame?: "sheet" | "dialog"; onclose: () => void;
+  let { cal, e = null, start, end, allDay, title = "", guests: invited = [], description = "", calendar = "", frame = "sheet", onclose }: {
+    cal: Cal; e?: Ev | null; start: string; end: string; allDay: boolean; title?: string; guests?: string[]; description?: string; calendar?: string; frame?: "sheet" | "dialog"; onclose: () => void;
   } = $props();
 
   // the form starts from the event (or the new slot) once; it is the user's after that
   // svelte-ignore state_referenced_locally
-  let f = $state({ summary: e?.summary ?? title, all_day: allDay, sday: start.slice(0, 10), stime: start.slice(11, 16) || "09:00", eday: end.slice(0, 10), etime: end.slice(11, 16) || "10:00", location: e?.location ?? "", description: e?.description ?? "", rrule: e?.rrule ?? "", calendar: e?.calendar ?? (calendar || cal.newCalendar()) ?? "" });
+  let f = $state({ summary: e?.summary ?? title, all_day: allDay, sday: start.slice(0, 10), stime: start.slice(11, 16) || "09:00", eday: end.slice(0, 10), etime: end.slice(11, 16) || "10:00", location: e?.location ?? "", description: e?.description ?? description, rrule: e?.rrule ?? "", calendar: e?.calendar ?? (calendar || cal.newCalendar()) ?? "" });
+  // svelte-ignore state_referenced_locally
+  const guestsWere = (e?.attendees ?? []).map((a) => a.email).join(", ");
+  // svelte-ignore state_referenced_locally
+  let guests = $state(e ? guestsWere : invited.join(", "));
+  // a meeting another person organises: its guests are theirs to change
+  const own = $derived(new Set(cal.accounts.map((a) => (a.user ?? "").toLowerCase()).filter((u) => u.includes("@"))));
+  const theirs = $derived(!!e?.organizer?.email && !own.has(e.organizer.email.toLowerCase()));
+  const guestList = () => guests.split(/[,;\s]+/).map((g) => g.trim()).filter((g) => g.includes("@"));
   let first: HTMLInputElement | undefined = $state();
   let error = $state("");
   onMount(() => first?.focus());
@@ -36,7 +46,11 @@
   async function save() {
     const { start, end } = values();
     if (end <= start && !(f.all_day && end > start)) { error = "The end is before the start."; return; }
-    const change = { summary: f.summary, start, end, all_day: f.all_day, location: f.location, description: f.description, rrule: f.rrule };
+    const bad = guests.split(/[,;\s]+/).map((g) => g.trim()).filter((g) => g && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(g));
+    if (bad.length) { error = `Not an address: ${bad.join(", ")}`; return; }
+    // guests only when they changed: an untouched event keeps its lines as they are
+    const attendees = !theirs && guests !== guestsWere ? guestList() : undefined;
+    const change = { summary: f.summary, start, end, all_day: f.all_day, location: f.location, description: f.description, rrule: f.rrule, attendees };
     if (!e) {
       onclose();
       await cal.create({ ...change, calendar: f.calendar || undefined });
@@ -97,8 +111,10 @@
   <div class="row"><Icon name="calendar" />
     <CalendarPicker {cal} bind:value={f.calendar} disabled={!!e && e.recurring} />
   </div>
-  {#if e?.attendees?.length}
-    <div class="row"><Icon name="people" /><span class="guests">{e.attendees.map((a) => a.name ?? a.email).join(", ")}</span></div>
+  {#if theirs}
+    <div class="row"><Icon name="people" /><span class="guests">{(e?.attendees ?? []).map((a) => a.name ?? a.email).join(", ")} <span class="faint">· organised by {e?.organizer?.name ?? e?.organizer?.email}</span></span></div>
+  {:else}
+    <div class="row"><Icon name="people" /><input bind:value={guests} placeholder="Add guests (addresses, comma-separated): it becomes a meeting" aria-label="Guests" /></div>
   {/if}
   <div class="row top"><Icon name="text" /><textarea bind:value={f.description} rows="5" placeholder="Add a description" aria-label="Description"></textarea></div>
   <p class="zone">Times in your zone: {Intl.DateTimeFormat().resolvedOptions().timeZone}{e?.tzid && e.tzid !== Intl.DateTimeFormat().resolvedOptions().timeZone ? ` · written in ${e.tzid}` : ""}</p>
@@ -134,6 +150,7 @@
   .hm { width: 5.5em; font-variant-numeric: tabular-nums; text-align: center; }
   .check { display: flex; gap: 6px; align-items: center; color: var(--text); margin-left: 6px; }
   .guests { color: var(--text); }
+  .faint { color: var(--text-faint); }
   .zone { margin: 0; color: var(--text-faint); font-size: 0.82em; }
   footer { display: flex; gap: 8px; align-items: center; justify-content: flex-end; }
   .hint { flex: 1; color: var(--text-faint); font-size: 0.82em; }

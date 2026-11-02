@@ -376,6 +376,27 @@ export class Mail {
     return c;
   }
 
+  /** A meeting about the open conversation: the Calendar's new-event dialog with its subject and everyone in it but
+   *  the user (the Calendar listens for `atlas-calendar:new`; with no Calendar plugin nothing opens, said in a toast). */
+  meeting() {
+    const t = this.open;
+    if (!t) return;
+    const own = new Set(this.own.map((a) => a.toLowerCase()));
+    const seen = new Set<string>();
+    const guests = t.messages.flatMap((m) => [...m.from, ...m.to, ...m.cc]).map((p) => p.addr).filter((a) => {
+      const k = a.toLowerCase();
+      if (!a.includes("@") || own.has(k) || seen.has(k)) return false;
+      seen.add(k);
+      return true;
+    });
+    const title = t.subject.replace(/^((re|fwd?|tr|aw|wg)\s*:\s*)+/i, "").trim();
+    let heard = false;
+    const ack = () => (heard = true);
+    window.addEventListener("atlas-calendar:heard", ack, { once: true });
+    window.dispatchEvent(new CustomEvent("atlas-calendar:new", { detail: { title, guests, ack: true } }));
+    setTimeout(() => { window.removeEventListener("atlas-calendar:heard", ack); if (!heard) this.toast("No Calendar plugin to make the meeting in: turn it on in Settings → Plugins.", "error"); }, 400);
+  }
+
   async reply(mode: "reply" | "all" | "forward", id = this.open?.messages.at(-1)?.id ?? this.cursor, inline = false) {
     if (!id) return;
     try {

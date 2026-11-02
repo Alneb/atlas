@@ -14,6 +14,9 @@ use std::sync::{Arc, Condvar, LazyLock, Mutex};
 use std::time::{Duration, Instant};
 
 pub const SCOPES: &str = "https://outlook.office.com/IMAP.AccessAsUser.All https://outlook.office.com/SMTP.Send offline_access";
+/// Exchange Web Services, for the Calendar plugin's Exchange accounts: granted on the same sign-in (Thunderbird's
+/// application has it), so the refresh token IMAP uses is redeemed for it with no second sign-in.
+pub const EWS_SCOPES: &str = "https://outlook.office.com/EWS.AccessAsUser.All offline_access";
 const WINDOW_REDIRECT: &str = "https://localhost";
 
 /// How a form is POSTed to Microsoft (the core's fetch in the helper; a stand-in in tests).
@@ -112,27 +115,34 @@ pub fn take_rotated() -> HashMap<String, String> {
     std::mem::take(&mut *ROTATED.lock().unwrap())
 }
 
-/// The access token for an account (None for a password account). Cached until a minute before it ends.
+/// The access token IMAP and SMTP sign in with (None for a password account).
 pub fn access_token(acc: &Account, post: &Post) -> Result<Option<String>, String> {
+    access_token_for(acc, SCOPES, post)
+}
+
+/// An access token for `scopes` from the account's refresh token (None for a password account). Cached per refresh
+/// token and scopes until a minute before it ends.
+pub fn access_token_for(acc: &Account, scopes: &str, post: &Post) -> Result<Option<String>, String> {
     let Auth::Outlook { tenant, client_id, refresh } = &acc.auth else { return Ok(None) };
     let key = format!("accounts.{}.oauth_refresh", acc.name);
     let refresh = ROTATED.lock().unwrap().get(&key).cloned().or_else(|| refresh.clone());
     let refresh = refresh.ok_or_else(|| "not signed in to Outlook: run “Email: sign in to Outlook…” (or the card's Sign in button)".to_string())?;
-    if let Some(c) = TOKENS.lock().unwrap().get(&refresh) {
+    let cache = |r: &str| format!("{scopes}\n{r}");
+    if let Some(c) = TOKENS.lock().unwrap().get(&cache(&refresh)) {
         if Instant::now() + Duration::from_secs(60) < c.until {
             return Ok(Some(c.token.clone()));
         }
     }
     let url = format!("https://login.microsoftonline.com/{tenant}/oauth2/v2.0/token");
-    let j = post(&url, &[("client_id", client_id), ("grant_type", "refresh_token"), ("refresh_token", &refresh), ("scope", SCOPES)])?;
+    let j = post(&url, &[("client_id", client_id), ("grant_type", "refresh_token"), ("refresh_token", &refresh), ("scope", scopes)])?;
     let token = j["access_token"].as_str().ok_or_else(|| format!("Outlook refused the sign-in ({}): sign in again", refused(&j)))?.to_string();
     let until = Instant::now() + Duration::from_secs(j["expires_in"].as_u64().unwrap_or(3600));
     if let Some(new) = j["refresh_token"].as_str().filter(|n| *n != refresh) {
         ROTATED.lock().unwrap().insert(key.clone(), new.to_string());
         let _ = atlas_plugin::Atlas::new().set_secret(&key, new);
-        TOKENS.lock().unwrap().insert(new.to_string(), Cached { token: token.clone(), until });
+        TOKENS.lock().unwrap().insert(cache(new), Cached { token: token.clone(), until });
     }
-    TOKENS.lock().unwrap().insert(refresh, Cached { token: token.clone(), until });
+    TOKENS.lock().unwrap().insert(cache(&refresh), Cached { token: token.clone(), until });
     Ok(Some(token))
 }
 
@@ -378,6 +388,9 @@ mod tests {
         assert_eq!(access_token(&acc, &post).unwrap().as_deref(), Some("A1"));
         assert_eq!(access_token(&acc, &post).unwrap().as_deref(), Some("A1"));
         assert_eq!(calls.load(std::sync::atomic::Ordering::SeqCst), 1);
+        // another scope (the Calendar's Exchange) is its own token, from the same refresh token
+        assert_eq!(access_token_for(&acc, EWS_SCOPES, &post).unwrap().as_deref(), Some("A1"));
+        assert_eq!(calls.load(std::sync::atomic::Ordering::SeqCst), 2);
         let pw = crate::account::pick(&json!({ "settings": { "accounts": [{ "name": "p", "user": "u@x", "imap_host": "h" }] } })).unwrap();
         assert_eq!(access_token(&pw, &post).unwrap(), None);
     }

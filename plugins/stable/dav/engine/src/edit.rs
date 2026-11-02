@@ -35,6 +35,33 @@ pub struct Change {
     pub rrule: Option<String>,
     /// the occurrence's start as the pane showed it (what "all events" shifts the series by)
     pub from_start: Option<String>,
+    /// the guests' addresses: the event becomes a meeting (`[]`: no longer one). Answers already given are kept
+    pub attendees: Option<Vec<String>>,
+    /// the organiser's address, set by the engine from the calendar's account (never by the page)
+    #[serde(skip)]
+    pub organizer: Option<String>,
+}
+
+/// The guests a change names, on the event: ATTENDEE lines kept for those still invited (with their answers), new ones
+/// asked to answer; ORGANIZER the account when there are guests, none when there are none.
+fn set_guests(ev: &mut Component, c: &Change) {
+    let Some(want) = &c.attendees else { return };
+    let want: Vec<String> = want.iter().map(|a| a.trim().trim_start_matches("mailto:").to_string()).filter(|a| a.contains('@')).collect();
+    let addr = |l: &Line| l.value.trim().trim_start_matches("mailto:").trim_start_matches("MAILTO:").to_ascii_lowercase();
+    ev.props.retain(|l| l.name != "ATTENDEE" || want.iter().any(|w| w.eq_ignore_ascii_case(&addr(l))));
+    for w in &want {
+        if !ev.props.iter().any(|l| l.name == "ATTENDEE" && addr(l) == w.to_ascii_lowercase()) {
+            let params = vec![("ROLE".into(), "REQ-PARTICIPANT".into()), ("PARTSTAT".into(), "NEEDS-ACTION".into()), ("RSVP".into(), "TRUE".into())];
+            ev.props.push(Line { name: "ATTENDEE".into(), params, value: format!("mailto:{w}") });
+        }
+    }
+    if want.is_empty() {
+        ev.remove("ORGANIZER");
+    } else if ev.prop("ORGANIZER").is_none() {
+        if let Some(o) = c.organizer.as_deref().filter(|o| o.contains('@')) {
+            ev.set("ORGANIZER", vec![], format!("mailto:{o}"));
+        }
+    }
 }
 
 /// A time the pane wrote: a day, or the user's wall clock.
@@ -124,6 +151,7 @@ pub fn create(uid: &str, c: &Change, user: &Zone, now: DateTime<Utc>) -> Result<
     ev.set_text("SUMMARY", Some(c.summary.as_deref().filter(|s| !s.trim().is_empty()).unwrap_or("(no title)")));
     ev.set_text("LOCATION", c.location.as_deref());
     ev.set_text("DESCRIPTION", c.description.as_deref());
+    set_guests(&mut ev, c);
     if let Some(r) = c.rrule.as_deref().map(str::trim).filter(|r| !r.is_empty()) {
         ev.set("RRULE", vec![], r.trim_start_matches("RRULE:").to_string());
     }
@@ -415,6 +443,7 @@ fn apply_fields(ev: &mut Component, c: &Change, user: &Zone, series: bool) -> Re
     if c.location.is_some() {
         ev.set_text("LOCATION", c.location.as_deref());
     }
+    set_guests(ev, c);
     if c.description.is_some() {
         ev.set_text("DESCRIPTION", c.description.as_deref());
     }
@@ -503,6 +532,24 @@ mod tests {
     const TORONTO: Zone = Zone::Tz(Tz::America__Toronto);
     fn now() -> DateTime<Utc> {
         DateTime::parse_from_rfc3339("2026-10-23T12:00:00Z").unwrap().with_timezone(&Utc)
+    }
+
+    #[test]
+    fn guests_make_a_meeting_and_keep_their_answers() {
+        let mut c = Change { summary: Some("Sync".into()), start: Some("2026-11-04T10:00".into()), attendees: Some(vec!["ana@example.org".into(), "bo@example.org".into()]), organizer: Some("me@example.org".into()), ..Default::default() };
+        let t = ics::unfold(&create("m1", &c, &TORONTO, now()).unwrap());
+        assert!(t.contains("ORGANIZER:mailto:me@example.org"), "{t}");
+        assert_eq!(t.matches("ATTENDEE;ROLE=REQ-PARTICIPANT;PARTSTAT=NEEDS-ACTION;RSVP=TRUE:mailto:").count(), 2, "{t}");
+        // Ana answered; Bo is taken off, Cy added: Ana's answer stays
+        let answered = t.replace("PARTSTAT=NEEDS-ACTION;RSVP=TRUE:mailto:ana", "PARTSTAT=ACCEPTED:mailto:ana");
+        c = Change { attendees: Some(vec!["ana@example.org".into(), "cy@example.org".into()]), organizer: Some("me@example.org".into()), ..Default::default() };
+        let u = ics::unfold(&update(&answered, "m1", None, Scope::All, &c, &TORONTO, now()).unwrap().object.unwrap());
+        assert!(u.contains("PARTSTAT=ACCEPTED:mailto:ana@example.org") && u.contains("mailto:cy@example.org") && !u.contains("bo@example.org"), "{u}");
+        assert_eq!(u.matches("ORGANIZER").count(), 1);
+        // no guests: no longer a meeting
+        c = Change { attendees: Some(vec![]), ..Default::default() };
+        let n = update(&u, "m1", None, Scope::All, &c, &TORONTO, now()).unwrap().object.unwrap();
+        assert!(!n.contains("ATTENDEE") && !n.contains("ORGANIZER"), "{n}");
     }
     fn starts(text: &str, a: &str, b: &str) -> Vec<String> {
         let cal = ics::parse(text).unwrap().remove(0);

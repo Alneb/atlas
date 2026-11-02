@@ -47,16 +47,47 @@ pub fn text(s: &Value, key: &str) -> String {
 #[derive(Debug, Clone)]
 pub struct Card {
     pub name: String,
+    pub server: Server,
     pub account: Account,
     pub color: Option<String>,
     /// made from the 0.1 flat settings (url / user / `password`), not saved as a card yet
     pub legacy: bool,
 }
 
+/// What kind of server a card is: CalDAV (an address and an app password), or Exchange (the mailbox's address only:
+/// it signs in through the Email plugin's Outlook account of that address, ews.rs).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Server {
+    Caldav,
+    Exchange,
+}
+
+impl Server {
+    pub fn of(card: &Value) -> Server {
+        if text(card, "server") == "exchange" { Server::Exchange } else { Server::Caldav }
+    }
+}
+
 impl Card {
-    /// Server address and user name filled in (the password is asked only when needed).
+    /// Server address and user name filled in (the password is asked only when needed); Exchange: the mailbox.
     pub fn filled(&self) -> bool {
-        !(self.account.url.is_empty() || self.account.user.is_empty())
+        match self.server {
+            Server::Caldav => !(self.account.url.is_empty() || self.account.user.is_empty()),
+            Server::Exchange => self.account.user.contains('@'),
+        }
+    }
+
+    /// Whether the card still needs a password before it can sign in (Exchange never does).
+    pub fn lacks_password(&self) -> bool {
+        self.server == Server::Caldav && self.account.password.is_empty()
+    }
+}
+
+/// A card's server address: the one typed (CalDAV), or Exchange Online's.
+fn url_of(card: &Value, server: Server) -> String {
+    match server {
+        Server::Caldav => text(card, "url"),
+        Server::Exchange => crate::ews::ENDPOINT.to_string(),
     }
 }
 
@@ -111,7 +142,8 @@ pub fn cards(s: &Value) -> Vec<Card> {
         .filter(|c| !text(c, "name").is_empty())
         .map(|c| Card {
             name: text(c, "name"),
-            account: Account { url: text(c, "url"), user: text(c, "user"), password: String::new() },
+            server: Server::of(c),
+            account: Account { url: url_of(c, Server::of(c)), user: text(c, "user"), password: String::new() },
             color: Some(text(c, "color")).filter(|x| x.starts_with('#')),
             legacy: legacy.is_some(),
         })
@@ -134,12 +166,16 @@ pub fn card_of(record: &Value, p: &Value) -> Option<Card> {
     let name = text(record, "name");
     let typed = text(record, "password");
     let password = if typed.is_empty() { secret(p, &password_key(&name)).unwrap_or_default() } else { typed };
-    Some(Card { account: Account { url: text(record, "url"), user: text(record, "user"), password }, color: None, legacy: false, name }).filter(|c| c.filled())
+    let server = Server::of(record);
+    Some(Card { account: Account { url: url_of(record, server), user: text(record, "user"), password }, server, color: None, legacy: false, name }).filter(|c| c.filled())
 }
 
 /// Some account has its server address and user name (no secret asked).
 pub fn filled(s: &Value) -> bool {
-    let full = |c: &Value| ["name", "url", "user"].iter().all(|k| !text(c, k).is_empty());
+    let full = |c: &Value| match Server::of(c) {
+        Server::Caldav => ["name", "url", "user"].iter().all(|k| !text(c, k).is_empty()),
+        Server::Exchange => !text(c, "name").is_empty() && text(c, "user").contains('@'),
+    };
     legacy_card(s).is_some() || s["accounts"].as_array().is_some_and(|a| a.iter().any(full))
 }
 

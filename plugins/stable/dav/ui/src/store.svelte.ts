@@ -7,7 +7,7 @@ export type View = "day" | "week" | "workweek" | "month" | "agenda" | "year";
 export type Scope = "this" | "following" | "all";
 export interface Toast { id: number; text: string; kind?: "error" | "success"; undo?: () => Promise<void> }
 /** What the editor or a drag changes (engine edit.rs `Change`). */
-export interface Change { summary?: string; start?: string; end?: string; all_day?: boolean; location?: string; description?: string; rrule?: string; from_start?: string; calendar?: string; move_to?: string }
+export interface Change { summary?: string; start?: string; end?: string; all_day?: boolean; location?: string; description?: string; rrule?: string; from_start?: string; calendar?: string; move_to?: string; attendees?: string[] }
 
 /** A new event before it has a title: its slot. */
 export interface Draft { start: Date; end: Date; all_day: boolean }

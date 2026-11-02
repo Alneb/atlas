@@ -178,7 +178,7 @@ fn excerpt(body: &str) -> String {
 }
 
 /// A reqwest failure with its causes (a TLS or DNS reason is in the chain, not the top message).
-fn network_why(e: &reqwest::Error) -> String {
+pub(crate) fn network_why(e: &reqwest::Error) -> String {
     let mut parts = vec![if e.is_timeout() {
         "no answer in time".to_string()
     } else if e.is_connect() {

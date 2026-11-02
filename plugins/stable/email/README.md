@@ -25,6 +25,12 @@ own IMAP/SMTP accounts (a password) or Outlook / Microsoft 365 (OAuth2), several
   *Keep important mail as notes*, keeps it as a note that grows with replies; important conversations come first.
 - **Invitations**: a card with the times in your zone, your answer, Accept / Maybe / Decline (a reply to the organiser,
   then the event filed through the Calendar plugin), and whether it is already in your calendar or overlaps something.
+  On an Outlook account whose calendar the Calendar plugin reads over Exchange, Exchange answers instead (as Outlook
+  does): the meeting stays linked to the organiser's, and no second answer is mailed.
+- **Meetings**: the reader's **Meeting** button opens the Calendar's new-event dialog with the conversation's subject
+  and everyone in it but you; saved in an Exchange calendar, Exchange sends the invitations.
+- **Your calendar on Outlook**: the Calendar plugin's Exchange account signs in through the Outlook account here of the
+  same address (`calendar_token`, the role `mail`): no second sign-in.
 - **Writing**: To / Cc / Bcc with the address book, identities, Markdown sent as text and HTML, a preview, files from
   disk or the vault, drafts saved to the server, Undo send, Send later, templates (notes in `mail/templates/`), a
   forgotten-attachment check.

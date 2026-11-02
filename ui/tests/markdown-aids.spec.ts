@@ -9,9 +9,11 @@ test("markdown: [[ link completion, / slash menu, foldable headings", async ({ p
   await page.keyboard.press("Escape");
   await page.keyboard.type("Go"); // vim: new last line, insert mode
   await page.keyboard.type("See [[FOC");
-  await expect(page.locator(".cm-tooltip-autocomplete")).toContainText("FOCUS");
+  // other specs' notes may match "FOC" too (focus-return.md): pick FOCUS itself, not whichever ranks first
+  const focus = page.locator(".cm-tooltip-autocomplete li").filter({ has: page.locator(".cm-completionLabel", { hasText: /^FOCUS$/ }) });
+  await expect(focus).toHaveCount(1);
   await page.waitForTimeout(120);
-  await page.keyboard.press("Enter");
+  await focus.click();
   await expect(page.locator(".cm-line").last()).toHaveText("See [[FOCUS]]");
   await page.keyboard.press("End");
   await page.keyboard.press("Enter");

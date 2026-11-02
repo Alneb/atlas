@@ -156,3 +156,37 @@ test("Calendar: new event is a dialog with the pane's editor, the calendar not o
   expect(created[0]).toMatchObject({ summary: "Lab meeting", calendar: "home/personal", all_day: false });
   await expect(page.locator(".toast", { hasText: "Added “Lab meeting”" })).toBeVisible();
 });
+
+test("a meeting from Email: the new-event dialog seeded with the subject and the people; the guests reach the engine", async ({ page }) => {
+  const created: Record<string, unknown>[] = [];
+  await page.route("**/api/plugins/dav/helper", async (route) => {
+    const body = route.request().postDataJSON() as { method: string; params: Record<string, unknown> };
+    if (body.method === "watch") return route.fulfill({ json: { sources: [{ id: "uni/calendar", kind: "caldav", account: "uni", url: "https://outlook.office365.com/EWS/Exchange.asmx/a@uni.example.org/calendar/", name: "Calendar", writable: true, synced: 0 }], write: "uni/calendar", accounts: [{ name: "uni", user: "a@uni.example.org" }], configured: true } });
+    if (body.method === "create") { created.push(body.params); return route.fulfill({ json: { undo: 1 } }); }
+    if (body.method === "range") return route.fulfill({ json: { events: [] } });
+    return route.continue();
+  });
+  await page.goto("/");
+  await page.getByText("Finish the GW notes.").waitFor();
+  await expect.poll(() => page.evaluate(() => (window as unknown as { __atlas: { commands(): { id: string }[] } }).__atlas.commands().some((c) => c.id === "plugin.dav.new")), { timeout: 20_000 }).toBe(true);
+  // what Email's Meeting button sends; the Calendar says it heard it (else Email says there is no Calendar)
+  const heard = page.evaluate(() => new Promise<boolean>((ok) => { window.addEventListener("atlas-calendar:heard", () => ok(true), { once: true }); setTimeout(() => ok(false), 3000); }));
+  await page.evaluate(() => window.dispatchEvent(new CustomEvent("atlas-calendar:new", { detail: { title: "Thesis plan", guests: ["bob@example.org", "cy@example.org"], ack: true } })));
+  expect(await heard).toBe(true);
+  const form = page.getByRole("form", { name: "New event" });
+  await expect(form.getByRole("textbox", { name: "Title" })).toHaveValue("Thesis plan", { timeout: 15_000 });
+  const guests = form.getByRole("textbox", { name: "Guests" });
+  await expect(guests).toHaveValue("bob@example.org, cy@example.org");
+  await guests.fill("bob@example.org, nope");
+  await form.getByRole("button", { name: "Save" }).click();
+  await expect(form.getByText("Not an address: nope")).toBeVisible();
+  await guests.fill("bob@example.org, dee@example.org");
+  for (const scheme of ["light", "dark"] as const) {
+    await page.emulateMedia({ colorScheme: scheme });
+    await page.screenshot({ path: `test-results/calendar-new-meeting-${scheme}.png` });
+  }
+  await form.getByRole("button", { name: "Save" }).click();
+  await expect(form).toHaveCount(0);
+  await expect.poll(() => created.length).toBe(1);
+  expect(created[0]).toMatchObject({ summary: "Thesis plan", calendar: "uni/calendar", attendees: ["bob@example.org", "dee@example.org"] });
+});

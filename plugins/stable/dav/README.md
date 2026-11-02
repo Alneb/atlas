@@ -1,16 +1,16 @@
 # Calendar (the `dav` plugin)
 
-Your calendars and contacts over CalDAV and CardDAV, from as many servers and accounts as you have, in a calendar pane
-inside Atlas: month, week, work week, day, agenda and year views; drag to create, move and resize; repeating events;
-any calendar written to; read-only ICS subscriptions; invitations answered from the Email plugin; and tools for
-agents. The engine is Rust; the pane is Svelte. The plugin's id is `dav` (tools `dav_*`), its title "Calendar".
+Your calendars and contacts over CalDAV and CardDAV, and Outlook / Microsoft 365 calendars over Exchange, from as many
+servers and accounts as you have, in a calendar pane inside Atlas: month, week, work week, day, agenda and year views;
+drag to create, move and resize; repeating events; meetings with guests; any calendar written to; read-only ICS
+subscriptions; invitations answered from the Email plugin; and tools for agents. The engine is Rust; the pane is Svelte. The plugin's id is `dav` (tools `dav_*`), its title "Calendar".
 
 ## What it adds
 
 - **The Calendar pane** (a left-bar tile, "Calendar: open"): the six views, an all-day lane, the now line, overlapping
   events side by side; drag on the grid to create, drag an event to move it, drag its edge to resize (15-minute steps,
   Esc cancels); a click shows the event's card, `e` the full editor (title, all-day, start / end, repeat, place,
-  description, calendar). A repeating event asks "this event / this and following / all events". Every change shows at
+  description, calendar, guests). A repeating event asks "this event / this and following / all events". Every change shows at
   once, is written behind, and has Undo; a refusal rolls back with the server's reason.
 - **Keys** after Google Calendar's: `d` `w` `x` `m` `a` `y` (or 1–6) the views, `t` today, `j`/`k` next / previous,
   `g` go to a date, `c` new event, `q` quick add, `e` edit, Delete, `/` search, `r` sync, `s` the side panel, `?` the
@@ -18,11 +18,23 @@ agents. The engine is Rust; the pane is Svelte. The plugin's id is `dav` (tools 
 - **Quick add** (`q`): a line in English, Spanish or French ("lunch with Ana tomorrow 13:00"), previewed as you type.
 - **The side panel**: a mini month, one heading per account with its calendars (show / hide, colour), the
   subscriptions, and — when switched on — your important notes as a calendar.
+- **Outlook / Microsoft 365 (Exchange)**: an account card with Server `exchange` and the mailbox's address reads and
+  writes that mailbox's calendars over Exchange Web Services. It has no sign-in of its own: the Email plugin's Outlook
+  account of the same address lends its sign-in (`@mail` → `calendar_token`), so nothing is typed twice and nothing
+  needs your organisation's approval beyond what Email already has. Events travel as iCalendar both ways. Exchange
+  ignores iCalendar on update, so a change writes the new version first, then removes the old one (same UID).
+- **Meetings**: guests in the editor make the event a meeting the calendar's account organises. On Exchange, Exchange
+  sends the invitations, the updates when you change it and the cancellation when you delete it; on a CalDAV server
+  that schedules (RFC 6638: Nextcloud, for one) the server sends them; elsewhere the guests are written but nobody is
+  told. A meeting someone else organises shows its guests, not editable. Email's **Meeting** button opens the new-event
+  dialog with the conversation's subject and people (the window event `atlas-calendar:new`).
 - **Moving an event between calendars**, of the same account or another: written there first, then removed here.
 - **Times** are your local time, 24-hour by default; time zones (IANA, Windows, VTIMEZONE) and DST are handled.
 - **The block `dav.upcoming`** (`days: 7`): today, tomorrow and the rest of the week as a compact agenda.
 - **Any calendar view** can show the events: ```` ```view ```` / `type: calendar` / `from: plugin:dav/events`.
-- **For the Email plugin**: `import_invite` (file or update an invitation, with your answer), `invite_status` (is it
+- **For the Email plugin** (the role `calendar`): `import_invite` (file or update an invitation, with your answer; a
+  meeting already in an Exchange calendar is answered by Exchange itself — accept, tentative, decline — so it stays
+  linked to the organiser's meeting, and Email sends no answer of its own), `invite_status` (is it
   in your calendar, does it overlap anything), `contacts` (CardDAV address books), `agenda`.
 - **Tools for agents** (`atlas mcp`): `dav_calendars`, `dav_events`, `dav_agenda`, `dav_add_event`,
   `dav_remove_event`, `dav_import_invite`, `dav_invite_status`, `dav_contacts`, `dav_sync`. The plugin never reads
@@ -30,18 +42,22 @@ agents. The engine is Rust; the pane is Svelte. The plugin's id is `dav` (tools 
 - **Important notes** (opt-in): a note with `important: true` and `due:` or `event:` (+ `event_end:`) shows as an
   event in the pane and, when "Put important notes on the server" is on, is written to the calendar new events go to.
   Mail notes are never read. Nothing is ever deleted by itself.
-- **Instant updates** (WebDAV Push): a calendar server that offers it (RustiCal does) tells an ntfy server of each
+- **Instant updates** (WebDAV Push, CalDAV only; an Exchange account is checked on the regular round): a calendar server that offers it (RustiCal does) tells an ntfy server of each
   change and the calendar syncs at once.
 - **A cache**, `calendar.sqlite` in the plugin's cache folder: only a cache, deleting it loses nothing. Sync uses
-  `getctag`, `sync-token` and ETags; subscriptions are fetched again only when changed.
+  `getctag`, `sync-token` and ETags (Exchange: each item's ChangeKey); subscriptions are fetched again only when changed.
 
 ## Settings
 
-- **Accounts** (cards, also under Settings → Accounts, with RustiCal and Nextcloud presets, a state line and Test):
+- **Accounts** (cards, also under Settings → Accounts, with RustiCal, Nextcloud and Outlook / Microsoft 365 presets, a
+  state line and Test):
   - **Name**: starts each calendar's id (`home/personal`).
-  - **Server address**: `https://cal.example.org/caldav/` (RustiCal), `https://cloud.example.org/remote.php/dav/`
+  - **Server**: `caldav` (default) or `exchange` (Outlook / Microsoft 365: only the mailbox's address as the user name,
+    no server address or password; it needs the Email plugin with an Outlook account of that address, signed in).
+  - **Server address** (CalDAV): `https://cal.example.org/caldav/` (RustiCal), `https://cloud.example.org/remote.php/dav/`
     (Nextcloud); the server's top often works too.
-  - **User name**, **App password** (a secret: an app password made on the server, not your sign-in password).
+  - **User name** (Exchange: the mailbox's address), **App password** (CalDAV; a secret: an app password made on the
+    server, not your sign-in password).
   - **Colour**: for this account's calendars that have none of their own.
   - Under the cards: **Sync now**.
 - **New events go to**: a calendar id of any account (offered once an account is saved); empty: the first account's
@@ -59,7 +75,8 @@ agents. The engine is Rust; the pane is Svelte. The plugin's id is `dav` (tools 
 
 ## How it fits
 
-No requirements. Email calls its tools for invitations and contacts; Daily shows the day's events; the core's
+No requirements; an Exchange account needs Email (its sign-in). Email calls its tools for invitations and contacts (the
+role `calendar`); Daily shows the day's events; the core's
 calendar view reads `events`.
 
 ## Needs
@@ -73,5 +90,6 @@ Linux works; the others are untested.
 
 ## Status
 
-Beta, and the closest to stable: `cargo test` covers the engine (recurrence, zones, ICS, editing, the cache) and an
-end-to-end spec covers the pane; it still needs a review by someone who did not write it.
+Beta, and the closest to stable: `cargo test` covers the engine (recurrence, zones, ICS, editing, the cache, Exchange's
+answers) and an end-to-end spec covers the pane; an Exchange mailbox's contacts are not read yet (address books are
+CardDAV's); it still needs a review by someone who did not write it.

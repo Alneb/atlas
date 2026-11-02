@@ -4,15 +4,16 @@
 import { mount, unmount } from "svelte";
 import Upcoming from "./Upcoming.svelte";
 import CalendarsSection from "./CalendarsSection.svelte";
-import { NEW_EVENT_DIALOG, call, type PluginApi } from "./api";
+import { NEW_EVENT_DIALOG, call, newEventDialog, type NewEventSeed, type PluginApi } from "./api";
 import { localDay } from "../../../../../ui/src/lib/local-day"; // today where the user is, not UTC's
 
 type Show = { date?: string; view?: string; quick?: boolean; create?: boolean };
 
 export function register(atlas: PluginApi) {
-  type Card = { name?: string; url?: string; user?: string };
+  type Card = { name?: string; url?: string; user?: string; server?: string };
   const cards = () => (atlas.plugin.settings.accounts as Card[] | undefined) ?? [];
-  const ready = () => cards().some((c) => c.name && c.url && c.user) || Boolean(atlas.plugin.settings.url && atlas.plugin.settings.user);
+  // an Exchange card has no address: its mailbox is enough
+  const ready = () => cards().some((c) => c.name && c.user && (c.url || c.server === "exchange")) || Boolean(atlas.plugin.settings.url && atlas.plugin.settings.user);
   const show = (detail: Show = {}) => {
     (window as unknown as { __atlasCalendarShow?: unknown }).__atlasCalendarShow = detail;
     atlas.openView(undefined, { title: "Calendar", icon: "calendar" });
@@ -29,6 +30,13 @@ export function register(atlas: PluginApi) {
   atlas.registerCommand({ id: "new", title: "Calendar: new event", run: () => (typeof atlas.openDialog === "function"
     ? void atlas.openDialog(NEW_EVENT_DIALOG, { title: "New event", width: 640, height: 560 })
     : show({ create: true })) });
+  // another plugin's "make it a meeting" (Email: a conversation's subject and people): the editor in a dialog, seeded
+  window.addEventListener("atlas-calendar:new", (ev) => {
+    const { ack, ...seed } = ((ev as CustomEvent).detail ?? {}) as NewEventSeed & { ack?: boolean };
+    if (ack) window.dispatchEvent(new CustomEvent("atlas-calendar:heard"));
+    if (typeof atlas.openDialog === "function") void atlas.openDialog(newEventDialog(seed), { title: seed.guests?.length ? "New meeting" : "New event", width: 640, height: 600 });
+    else show({ create: true });
+  });
   atlas.registerCommand({ id: "quick", title: "Calendar: quick add (in words)…", run: () => show({ quick: true }) });
   atlas.registerCommand({
     id: "sync",

@@ -2470,10 +2470,25 @@ function Zi(e) {
 	}[t.FREQ] ?? t.FREQ?.toLowerCase(), r = Number(t.INTERVAL ?? 1), i = r > 1 ? `Every ${r} ${n}s` : `Every ${n}`;
 	return t.BYDAY && (i += ` on ${t.BYDAY.split(",").map((e) => e.slice(-2)).join(", ")}`), t.COUNT && (i += `, ${t.COUNT} times`), t.UNTIL && (i += `, until ${t.UNTIL.slice(0, 4)}-${t.UNTIL.slice(4, 6)}-${t.UNTIL.slice(6, 8)}`), i;
 }
-var Qi = JSON.stringify({ dialog: "new-event" });
+var Qi = JSON.stringify({ dialog: "new-event" }), $i = (e = {}) => JSON.stringify({
+	dialog: "new-event",
+	...e
+});
+function ea(e) {
+	try {
+		let t = typeof e == "string" ? JSON.parse(e) : null;
+		return t?.dialog === "new-event" ? {
+			title: t.title,
+			guests: t.guests,
+			description: t.description
+		} : null;
+	} catch {
+		return null;
+	}
+}
 //#endregion
 //#region plugins/stable/dav/ui/src/layout.ts
-function $i(e, t) {
+function ta(e, t) {
 	let n = ji(t).getTime(), r = Mi(ji(t), 1).getTime(), i = e.filter((e) => !Vi(e)).map((e) => ({
 		e,
 		s: zi(e).getTime(),
@@ -2508,7 +2523,7 @@ function $i(e, t) {
 	}
 	return c(), a;
 }
-function ea(e, t) {
+function na(e, t) {
 	if (!t.length) return [];
 	let n = ji(t[0]).getTime(), r = (e) => Math.round((e - n) / Ai), i = e.filter(Vi).map((e) => {
 		let t = zi(e).getTime(), n = Bi(e).getTime() - 1;
@@ -2530,7 +2545,7 @@ function ea(e, t) {
 		};
 	});
 }
-function ta(e, t) {
+function ra(e, t) {
 	let n = ji(t).getTime(), r = Mi(ji(t), 1).getTime();
 	return e.filter((e) => {
 		let t = zi(e).getTime(), i = Math.max(Bi(e).getTime(), t + 1);
@@ -2538,4 +2553,4 @@ function ta(e, t) {
 	});
 }
 //#endregion
-export { or as $, ui as A, Fr as B, Ii as C, xi as D, Ci as E, ni as F, Ar as G, Mr as H, $r as I, hr as J, br as K, Zr as L, di as M, ii as N, _i as O, ri as P, sr as Q, Gr as R, Hi as S, Ei as T, Er as U, Pr as V, Tr as W, vr as X, _r as Y, cr as Z, qi as _, Te as _t, Mi as a, tn as at, Ki as b, Bi as c, an as ct, Ji as d, N as dt, Q as et, Vi as f, pt as ft, Pi as g, Ee as gt, Zi as h, Ge as ht, Qi as i, Xt as it, fi as j, gi as k, zi as l, qt as lt, Xi as m, Ke as mt, ea as n, xn as nt, Ni as o, nn as ot, Yi as p, tt as pt, yr as q, ta as r, hn as rt, ki as s, rn as st, $i as t, $n as tt, Wi as u, P as ut, ji as v, m as vt, Di as w, Li as x, Ui as y, zr as z };
+export { cr as $, _i as A, Gr as B, Li as C, Ei as D, Di as E, ii as F, Er as G, Fr as H, ri as I, br as J, Tr as K, ni as L, ui as M, fi as N, Ci as O, di as P, vr as Q, $r as R, Ki as S, Ii as T, Pr as U, zr as V, Mr as W, hr as X, yr as Y, _r as Z, Zi as _, Ge as _t, Mi as a, hn as at, ji as b, m as bt, Bi as c, nn as ct, Ji as d, qt as dt, sr as et, Vi as f, P as ft, Xi as g, Ke as gt, Yi as h, tt as ht, Qi as i, xn as it, gi as j, xi as k, zi as l, rn as lt, ea as m, pt as mt, na as n, Q as nt, Ni as o, Xt as ot, $i as p, N as pt, Ar as q, ra as r, $n as rt, ki as s, tn as st, ta as t, or as tt, Wi as u, an as ut, Pi as v, Ee as vt, Hi as w, Ui as x, qi as y, Te as yt, Zr as z };

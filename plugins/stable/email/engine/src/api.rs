@@ -57,6 +57,7 @@ pub fn table() -> Vec<(&'static str, Method)> {
         ("folder_delete", folder_delete),
         ("search_server", search_server),
         ("unread_count", unread_count),
+        ("calendar_token", calendar_token),
         ("signin_start", signin_start),
         ("signin_finish", signin_finish),
         ("signin_reopen", signin_reopen),
@@ -373,7 +374,7 @@ fn invite_status(m: &Arc<Mail>, p: &Value) -> Result<Value, String> {
     let id = p.get("id").and_then(Value::as_i64).ok_or("which message?")?;
     let raw = m.rt.block_on(sync::body(m, id))?;
     let Some(inv) = parse::body(&raw).and_then(|b| b.invite) else { return Ok(Value::Null) };
-    Ok(m.core_post("/api/plugins/dav/tools/invite_status", &json!({ "ics": inv.ics })).unwrap_or(Value::Null))
+    Ok(m.core_post("/api/plugins/@calendar/tools/invite_status", &json!({ "ics": inv.ics })).unwrap_or(Value::Null))
 }
 
 /// A conversation with every message's body (fetched when not kept). `read: true` marks it read, as opening does.
@@ -542,7 +543,7 @@ fn contacts(m: &Arc<Mail>, p: &Value) -> Result<Value, String> {
     let mut out: Vec<Value> = m.index.contacts(s(p, "q"), limit).into_iter().map(|c| json!(c)).collect();
     if out.len() < limit && s(p, "q").len() >= 2 {
         let have: Vec<String> = out.iter().filter_map(|c| c["addr"].as_str().map(str::to_lowercase)).collect();
-        if let Ok(Value::Array(dav)) = m.core_post("/api/plugins/dav/tools/contacts", &json!({ "q": s(p, "q"), "limit": limit })).map(|v| v.get("contacts").cloned().unwrap_or(v)) {
+        if let Ok(Value::Array(dav)) = m.core_post("/api/plugins/@calendar/tools/contacts", &json!({ "q": s(p, "q"), "limit": limit })).map(|v| v.get("contacts").cloned().unwrap_or(v)) {
             for c in dav {
                 for e in c["emails"].as_array().into_iter().flatten().filter_map(Value::as_str) {
                     if out.len() < limit && !have.contains(&e.to_lowercase()) {
@@ -557,7 +558,7 @@ fn contacts(m: &Arc<Mail>, p: &Value) -> Result<Value, String> {
 
 /// Today's and the coming days' events (the Calendar plugin's `agenda`), for the Home card; null without that plugin.
 fn agenda(m: &Arc<Mail>, p: &Value) -> Result<Value, String> {
-    Ok(m.core_post("/api/plugins/dav/tools/agenda", &json!({ "days": p.get("days").cloned().unwrap_or(json!(1)) })).unwrap_or(Value::Null))
+    Ok(m.core_post("/api/plugins/@calendar/tools/agenda", &json!({ "days": p.get("days").cloned().unwrap_or(json!(1)) })).unwrap_or(Value::Null))
 }
 
 // ----- writing
@@ -809,6 +810,20 @@ fn search_server(m: &Arc<Mail>, p: &Value) -> Result<Value, String> {
 }
 
 // ----- accounts: sign-in, rename, Thunderbird
+
+/// The Calendar plugin's Exchange account signs in with the Outlook account of the same address: an Exchange Web
+/// Services token from its refresh token (no second sign-in). `user`: the mailbox's address.
+fn calendar_token(m: &Arc<Mail>, p: &Value) -> Result<Value, String> {
+    let user = s(p, "user");
+    let acc = m
+        .accounts()
+        .into_iter()
+        .flatten()
+        .find(|a| matches!(a.auth, crate::account::Auth::Outlook { .. }) && a.user.eq_ignore_ascii_case(user))
+        .ok_or_else(|| format!("no Outlook account for {user} in Email: add it there (Settings → Email → Accounts) and sign in"))?;
+    let token = crate::oauth::access_token_for(&acc, crate::oauth::EWS_SCOPES, &*m.post)?.ok_or("not an Outlook account")?;
+    Ok(json!({ "token": token, "account": acc.name }))
+}
 
 fn signin_start(m: &Arc<Mail>, p: &Value) -> Result<Value, String> {
     let card = match p.get("record") {
@@ -1264,8 +1279,8 @@ mod tests {
         let acc = m.account(None).unwrap();
         m.rt.block_on(crate::sync::account(&m, &acc, None)).unwrap();
         m.set_core(Arc::new(|path: &str, body: &Value| match path {
-            "/api/plugins/dav/tools/contacts" => Ok(json!([{ "name": "Véronique T", "emails": ["VT@uni.example", "grace@example.org"] }, { "name": "q", "emails": [body["q"]] }])),
-            "/api/plugins/dav/tools/agenda" => Ok(json!({ "events": [{ "time": "10:00", "line": "10:00 Group meeting" }] })),
+            "/api/plugins/@calendar/tools/contacts" => Ok(json!([{ "name": "Véronique T", "emails": ["VT@uni.example", "grace@example.org"] }, { "name": "q", "emails": [body["q"]] }])),
+            "/api/plugins/@calendar/tools/agenda" => Ok(json!({ "events": [{ "time": "10:00", "line": "10:00 Group meeting" }] })),
             _ => Err("no".into()),
         }));
         let c = call_(&m, "contacts", json!({ "q": "gr", "limit": 8 }));

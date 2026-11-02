@@ -199,7 +199,7 @@ impl Mail {
         self.syncing.lock().unwrap().contains(account)
     }
 
-    /// POSTs to Atlas's API (the Calendar plugin's tools: `/api/plugins/dav/tools/<name>`).
+    /// POSTs to Atlas's API (the Calendar plugin's tools: `/api/plugins/@calendar/tools/<name>`).
     pub fn core_post(&self, path: &str, body: &Value) -> Result<Value, String> {
         let f = self.core.lock().unwrap().clone();
         f(path, body)

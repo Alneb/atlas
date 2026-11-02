@@ -1,7 +1,8 @@
 //! Filling the cache from the servers (DESIGN-calendar §3): CalDAV calendars by getctag → sync-collection → ETag
 //! listing, changed objects fetched with calendar-multiget; ICS subscriptions by a conditional GET when due; the
 //! address books whole. Each step narrates itself in the plugin's log.
-use crate::caldav::{Client, DavError};
+use crate::caldav::DavError;
+use crate::remote::Remote;
 use crate::conf::Sub;
 use crate::store::{calendar_id, Kind, Source, Store};
 use crate::subs::{self, Fetched};
@@ -24,7 +25,7 @@ impl Pulled {
 }
 
 /// One account's calendars listed again, then each brought up to date. Only that account's sources are touched.
-pub fn caldav(store: &Store, client: &Client, account: &str) -> Result<Pulled, DavError> {
+pub fn caldav(store: &Store, client: &Remote, account: &str) -> Result<Pulled, DavError> {
     let cals = client.discover()?;
     let mut out = Pulled::default();
     let known = store.of_account(account);
@@ -71,7 +72,7 @@ pub fn caldav(store: &Store, client: &Client, account: &str) -> Result<Pulled, D
 }
 
 /// One calendar: nothing when its ctag did not move; else what changed since its sync-token, or by ETags.
-pub fn calendar(store: &Store, client: &Client, src: &Source) -> Result<bool, DavError> {
+pub fn calendar(store: &Store, client: &Remote, src: &Source) -> Result<bool, DavError> {
     let url = Url::parse(&src.url).map_err(|e| DavError::Setup(e.to_string()))?;
     let (ctag, token) = client.state(&url).unwrap_or((None, None));
     if src.synced > 0 && ctag.is_some() && ctag == src.ctag {
@@ -109,7 +110,7 @@ pub fn calendar(store: &Store, client: &Client, src: &Source) -> Result<bool, Da
     Ok(changed)
 }
 
-fn fetch(store: &Store, client: &Client, url: &Url, id: &str, hrefs: &[String]) -> Result<bool, DavError> {
+fn fetch(store: &Store, client: &Remote, url: &Url, id: &str, hrefs: &[String]) -> Result<bool, DavError> {
     if hrefs.is_empty() {
         return Ok(false);
     }
@@ -180,7 +181,7 @@ fn subscription(store: &Store, src: &Source, etag: Option<&str>, modified: Optio
 }
 
 /// One account's address books, whole (they are small and change rarely).
-pub fn books(store: &Store, client: &Client) -> Result<usize, DavError> {
+pub fn books(store: &Store, client: &crate::caldav::Client) -> Result<usize, DavError> {
     let mut n = 0;
     for b in client.books()? {
         let cards = client.cards(&b.url)?;

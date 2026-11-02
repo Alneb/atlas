@@ -251,6 +251,7 @@
           <button class="atlas-btn" onclick={() => mail.reply("reply")}><Icon name="reply" size={15} /> Reply</button>
           <button class="atlas-btn" onclick={() => mail.reply("all")}><Icon name="replyall" size={15} /> Reply all</button>
           <button class="atlas-btn" onclick={() => mail.reply("forward")}><Icon name="forward" size={15} /> Forward</button>
+          <button class="atlas-btn" onclick={() => mail.meeting()} title="A meeting with everyone in this conversation (the Calendar's editor)"><Icon name="calendar" size={15} /> Meeting</button>
         </div>
       {/if}
     </div>

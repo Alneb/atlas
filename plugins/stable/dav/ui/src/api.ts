@@ -11,7 +11,7 @@ export interface Source {
   error?: string; visible: boolean; shown_color?: string;
 }
 /** An account card (Settings → Calendar → Accounts), in Settings' order, with its last sync's error. */
-export interface Account { name: string; color?: string | null; error?: string | null }
+export interface Account { name: string; user?: string; color?: string | null; error?: string | null }
 export interface Ev {
   uid: string; rid?: string; summary: string; start: string; end: string; all_day: boolean; location?: string;
   description?: string; recurring: boolean; rrule?: string; source?: string; status?: string; free: boolean;
@@ -130,3 +130,14 @@ export function ruleText(r: string | undefined): string {
 
 /** The pane's arg that opens the new-event editor alone, in a dialog (view.ts). */
 export const NEW_EVENT_DIALOG = JSON.stringify({ dialog: "new-event" });
+/** What a new-event dialog starts with: a meeting from a mail (Email asks with `atlas-calendar:new`). */
+export interface NewEventSeed { title?: string; guests?: string[]; description?: string }
+/** The dialog's arg for a seeded new event. */
+export const newEventDialog = (seed: NewEventSeed = {}) => JSON.stringify({ dialog: "new-event", ...seed });
+/** The seed in a pane's arg, when the arg is the new-event dialog's. */
+export function newEventSeed(arg: unknown): NewEventSeed | null {
+  try {
+    const a = typeof arg === "string" ? JSON.parse(arg) : null;
+    return a?.dialog === "new-event" ? { title: a.title, guests: a.guests, description: a.description } : null;
+  } catch { return null; }
+}

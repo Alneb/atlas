@@ -102,11 +102,16 @@ test("the picked mark's bar follows its mark when the page is zoomed", async ({ 
   const bar = pane.getByTestId("pdf-mark-bar");
   await expect(bar).toBeVisible();
   // the gap between the mark's bottom and the bar's top stays the same however the page is scaled
-  const gap = async () => (await bar.boundingBox())!.y - ((await hl.boundingBox())!.y + (await hl.boundingBox())!.height);
+  // while a zoom re-renders the page the mark is redrawn and has no box for a moment: NaN, and the poll tries again
+  const gap = async () => {
+    const [b, m] = [await bar.boundingBox(), await hl.boundingBox()];
+    return b && m ? b.y - (m.y + m.height) : NaN;
+  };
   const before = await gap();
+  expect(before).not.toBeNaN();
   await pane.getByRole("button", { name: "Zoom in" }).click();
   await pane.getByRole("button", { name: "Zoom in" }).click();
-  await expect.poll(gap).toBeCloseTo(before, 0);
+  await expect.poll(gap, { timeout: 15000 }).toBeCloseTo(before, 0);
 });
 
 test("a click on a page gives it the keys: PageDown scrolls it, Ctrl+= zooms it", async ({ page }) => {

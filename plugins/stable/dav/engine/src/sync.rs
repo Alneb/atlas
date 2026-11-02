@@ -3,7 +3,8 @@
 //!
 //! Notes only, never mail: a mail note (`message_id` / `type: email`) is Email's, and its invitations reach the
 //! Calendar through Email's call (`import_invite`), not a scan. Free-text dates: an agent reads them (`add_event`).
-use crate::caldav::{Client, DavError, Existing, Outcome};
+use crate::caldav::{DavError, Existing, Outcome};
+use crate::remote::Remote;
 use crate::ics::{Event, When};
 use crate::uid;
 use chrono::{Duration, NaiveDate, Utc};
@@ -217,7 +218,7 @@ pub fn scan(root: &Path, scope: &Scope, only: Option<&[String]>, today: NaiveDat
 }
 
 /// Writes what a scan found into the calendar, one narrated line each; `told` hears every event added or updated.
-pub fn push(client: &Client, cal: &Url, found: &[Found], told: &dyn Fn(&Report)) -> Vec<Report> {
+pub fn push(client: &Remote, cal: &Url, found: &[Found], told: &dyn Fn(&Report)) -> Vec<Report> {
     let mut out = Vec::new();
     for f in found {
         let ev = &f.event;

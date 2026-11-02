@@ -186,6 +186,17 @@ pub async fn answer_invite(m: &Mail, id: i64, partstat: &str) -> Result<Value, S
     let ident = compose::people(&acc.from).into_iter().next().unwrap_or_else(|| Person { name: String::new(), addr: acc.user.clone() });
     // the address the invitation was for, else the account's own
     let me = inv.attendees.iter().map(|a| a.addr.clone()).find(|a| own.iter().any(|o| o.eq_ignore_ascii_case(a))).unwrap_or_else(|| ident.addr.clone());
+    let args = json!({ "ics": inv.ics, "source": x.message_id, "partstat": partstat, "attendee": me });
+    // an Outlook mailbox's meeting is answered by Exchange itself through the Calendar (its own answer to the
+    // organiser, the meeting kept linked); only when it was not (no Exchange account there) is the answer mailed here
+    let first = if matches!(acc.auth, crate::account::Auth::Outlook { .. }) { Some(m.core_post("/api/plugins/@calendar/tools/import_invite", &args)) } else { None };
+    if let Some(Ok(v)) = &first {
+        if v["sent"] == json!(true) {
+            m.index.set_pref(&format!("invite:{}", inv.uid), &partstat);
+            let _ = crate::ops::flag(m, &[id], "\\Answered", true).await;
+            return Ok(json!({ "sent": true, "calendar": v }));
+        }
+    }
     let ics = crate::ical::reply(&inv, &me, &ident.name, &partstat);
     let verb = match partstat.as_str() { "ACCEPTED" => "Accepted", "TENTATIVE" => "Tentative", _ => "Declined" };
     let said = match partstat.as_str() { "ACCEPTED" => "accepted", "TENTATIVE" => "tentatively accepted", _ => "declined" };
@@ -218,8 +229,8 @@ pub async fn answer_invite(m: &Mail, id: i64, partstat: &str) -> Result<Value, S
     if partstat == "DECLINED" {
         return Ok(json!({ "sent": true, "calendar": null }));
     }
-    let args = json!({ "ics": inv.ics, "source": x.message_id, "partstat": partstat, "attendee": me });
-    match m.core_post("/api/plugins/dav/tools/import_invite", &args) {
+    // filed already by the first call (an Outlook account whose calendar is not on Exchange)
+    match first.unwrap_or_else(|| m.core_post("/api/plugins/@calendar/tools/import_invite", &args)) {
         Ok(v) => Ok(json!({ "sent": true, "calendar": v })),
         Err(e) => Ok(json!({ "sent": true, "calendar": null, "calendar_error": e })),
     }
@@ -505,7 +516,7 @@ mod tests {
         assert!(sent.contains("PARTSTAT=ACCEPTED"), "{sent}");
         assert!(sent.contains("In-Reply-To: <inv-1@uni.example>"), "{sent}");
         let call = filed.lock().unwrap().clone();
-        assert_eq!(call["path"], "/api/plugins/dav/tools/import_invite");
+        assert_eq!(call["path"], "/api/plugins/@calendar/tools/import_invite");
         assert_eq!(call["body"]["source"], "inv-1@uni.example");
         assert_eq!(call["body"]["attendee"], "me@example.org");
         assert_eq!(m.index.pref("invite:meet-1@uni.example").as_deref(), Some("ACCEPTED"));
