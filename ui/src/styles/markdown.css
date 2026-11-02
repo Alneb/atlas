@@ -41,6 +41,9 @@ html.phone .markdown a::after, html.phone .markdown .cm-link::after, html.phone 
 .markdown .file-card-icon { display: inline-flex; color: var(--text-faint); }
 .markdown .embed-audio { display: block; width: min(100%, 480px); margin: .4em 0; }
 .markdown .embed-video { display: block; max-width: 100%; max-height: 480px; margin: .4em 0; border-radius: 6px; background: #000; } /* literal: a video's letterbox */
+/* a PDF embedded (`![[x.pdf]]`) is the pages alone, read in place: its tools (outline, marks, zoom) belong to the PDF
+   opened in a tab. A paper's reading note keeps them (its PDF is a block of the note, read and marked there). */
+.markdown .pdf-embed .pdf-pane > .toolbar { display: none; }
 
 .markdown strong, .markdown .cm-strong { font-weight: 650; color: var(--heading); }
 .markdown em, .markdown .cm-em { font-style: italic; }

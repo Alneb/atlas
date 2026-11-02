@@ -219,6 +219,14 @@ export function makeEngine(atlas: PluginApi) {
     return tryExpand(view, head, "", true, true);
   }
 
+  /** The key that released a held snippet, typed after its expansion — but not a space after one that already ends in
+   *  a space (`sim` + Space → `\sim `, not `\sim  `). */
+  function typeAfter(view: EditorView, typed: string): void {
+    const at = view.state.selection.main.head;
+    if (typed === " " && /[ \t]/.test(view.state.sliceDoc(at - 1, at))) return;
+    view.dispatch(view.state.replaceSelection(typed));
+  }
+
   /** Expands the snippet ending at `head` (with `typed` about to be inserted): the first that matches, or a longer plain
    *  one of the same priority; true when the key was handled. `plainly`: the word list does not hold this one back. */
   function tryExpand(view: EditorView, head: number, typed: string, autoOnly: boolean, plainly = false): boolean {
@@ -226,7 +234,7 @@ export function makeEngine(atlas: PluginApi) {
     const held = takeWaiting(view, head);
     if (!held && !plainly && typed && releaseHeldByWord(view, head, typed)) {
       const at = view.state.selection.main.head;
-      if (!tryExpand(view, at, typed, autoOnly)) view.dispatch(view.state.replaceSelection(typed));
+      if (!tryExpand(view, at, typed, autoOnly)) typeAfter(view, typed);
       return true;
     }
     const line = view.state.doc.lineAt(head);
@@ -285,7 +293,7 @@ export function makeEngine(atlas: PluginApi) {
       }
       if (!release(view, held)) return false;
       const at = view.state.selection.main.head;
-      if (typed && !tryExpand(view, at, typed, autoOnly)) view.dispatch(view.state.replaceSelection(typed));
+      if (typed && !tryExpand(view, at, typed, autoOnly)) typeAfter(view, typed);
       return true;
     }
     if (!hit) return false;
@@ -367,14 +375,8 @@ export function makeEngine(atlas: PluginApi) {
 
   /** Tab's job here: a held trigger, the stops, or math; never in a code file's `$`. */
   const claim = {
-    overList(view: EditorView): boolean {
-      if (waiting.has(view) || stops.active(view.state)) return true;
-      const head = view.state.selection.main.head;
-      // a `\command` being typed: its list is walked (`\ga` → \gamma, \Gamma); a whole one is done, Tab moves on
-      const command = /\\([A-Za-z]*)$/.exec(view.state.sliceDoc(Math.max(0, head - 40), head));
-      if (command && !KNOWN.includes(command[1])) return false;
-      return inMath(view);
-    },
+    // a list on screen is walked by Tab, in math too (Shift+Tab back); out of a bracket only with no list showing
+    overList: (view: EditorView): boolean => waiting.has(view) || stops.active(view.state),
     whileAsking: (view: EditorView): boolean => waiting.has(view) || stops.active(view.state) || inMath(view),
   };
 

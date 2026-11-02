@@ -147,15 +147,15 @@ returns the state PUT into a live server on a real vault.
 ### Later additions (rounds 2–6 of feedback)
 17. **Settings are generated** from the Config JSON schema (schemars; doc comments = descriptions);
     `GET/PUT /api/config` (toml_edit: only changed keys, comments kept), `GET /api/config/suggestions`
-    (detect.rs: claude installs/accounts, fonts, VS Code themes, LaTeX Suite snippet files; cached 5 min).
+    (detect.rs: claude installs/accounts, fonts, LaTeX Suite snippet files; cached 5 min).
     Rule: **every new feature adds its settings as Config fields**.
 18. **Git**: `/api/git/{log,commit,status,diff,stage,blame}`; commits classified you/claude × work/housekeeping. `blame?path=` (`git blame --porcelain`) → `{commits: {hash: {author, time, summary}}, lines: [hash per line]}` (all zeros: not committed yet; empty outside a repository or for an untracked file): the editor's "Git: who changed each line" gutter (`ui/src/lib/editor/blame.ts`, markers mapped through edits, a click opens the commit).
 19. **fs watcher**: raw notify watcher, `Access` events ignored (they fed an endless read→event loop).
 20. **UI diagnostics**: `POST /api/ui/log` → `.atlas/cache/ui.log` (uncaught errors, layout overflow
     and shell-scroll self-checks) — how WebKitGTK-only bugs are seen.
 21. **CodeMirror chrome is a theme extension** (`ui/src/lib/editor/theme.ts`): the base theme beats plain CSS.
-22. **VS Code themes** (`ui.vscode_theme`, `/api/theme/vscode`): colors → tokens, tokenColors → `--syn-*`
-    by VS Code scope matching; WCAG contrast floor on text/icon/scrollbar tokens.
+22. **Colour schemes** (`ui.palette`, `ui/src/styles/palettes.css`): built-in families over tokens.css, each with a
+    light and a dark side; no theme file is read (VS Code themes were dropped for one way to colour the app).
 23. **Snippets** (`plugins/beta/snippets/`, a plugin; `ui/src/lib/editor/math-context.ts` tells it where the caret is): JavaScript
     modules in `.atlas/snippets/`, an old LaTeX Suite file through `/api/snippets` until converted; tab stops on a stack, so a
     snippet in another's stop hands Tab back; nothing fires in text-like arguments or in an ordinary word being typed.

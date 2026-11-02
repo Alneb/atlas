@@ -1230,6 +1230,20 @@ pub struct LspServerInfo {
     pub root_uri: String,
 }
 
+/// `GET /api/lsp/peek?uri=&line=`: the lines around a definition the language server found outside the vault (a
+/// library, the language's own stubs), shown read-only where the name was asked about.
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[ts(export)]
+pub struct LspPeek {
+    /// The file on disk (the server's own machine).
+    pub path: String,
+    /// 1-based number of `lines[0]`.
+    pub start: u32,
+    /// 1-based line of the definition.
+    pub line: u32,
+    pub lines: Vec<String>,
+}
+
 /// `PUT /api/property`: set one frontmatter property of a note (a Bases cell edit).
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
 #[ts(export)]

@@ -188,6 +188,9 @@ const typewriter = [
   EditorView.scrollMargins.of((view) => {
     // a selection being made (a drag, Shift+arrows) keeps its end where it is: only a caret is held at mid-height
     if (!view.state.selection.main.empty) return null;
+    // CodeMirror shows a tooltip only inside the editor less these margins: with a list open (completions, snippets,
+    // a hover) the one-line band hid every list under the caret; while one is up the caret is not held mid-height
+    if (view.dom.querySelector(".cm-tooltip")) return null;
     const m = Math.max(0, view.scrollDOM.clientHeight / 2 - view.defaultLineHeight);
     return { top: m, bottom: m };
   }),

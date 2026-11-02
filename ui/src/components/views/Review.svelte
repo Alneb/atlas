@@ -103,7 +103,7 @@
   {/if}
   {#if error}<p class="view-error">{error}</p>
   {:else if cur}
-    <button class="title" onclick={() => openPath(cur.path)} title="Open {cur.path}">{name(cur.path)}</button>
+    <button class="title" data-path={cur.path} onclick={() => openPath(cur.path)} title="Open {cur.path}">{name(cur.path)}</button>
     <div class="where">{shownPath(cur.path)}</div>
     <div class="body">{#if text}<Markdown {text} path={cur.path} />{/if}</div>
     <footer>

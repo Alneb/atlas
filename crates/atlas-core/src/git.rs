@@ -506,8 +506,10 @@ pub fn discard(ws: &Workspace, rels: &[String]) -> Result<String> {
     let tracked: Vec<&str> = rels.iter().filter(|r| !untracked.contains(r)).map(String::as_str).collect();
     if !tracked.is_empty() {
         let mut args = vec!["restore", "--worktree", "--"];
-        args.extend(tracked);
-        git_ok(root, &args)?;
+        args.extend(tracked.iter().copied());
+        // a mirrored vault's files are leased before git writes them (mirror_guard.rs), as the core's own writes are
+        let leased = tracked.iter().map(|r| root.join(r)).collect();
+        crate::vault_write::guarded_all(leased, crate::vault_write::WriteKind::Write, || git_ok(root, &args))?;
     }
     for rel in untracked {
         crate::files::trash(ws, rel)?;
@@ -518,7 +520,6 @@ pub fn discard(ws: &Workspace, rels: &[String]) -> Result<String> {
 /// `git apply` of a patch (one hunk, from the diff view): to the index (`cached`: stage /
 /// unstage a hunk) or the working tree (discard a hunk, with `reverse`).
 pub fn apply(root: &Path, patch: &str, cached: bool, reverse: bool) -> Result<()> {
-    use std::io::Write;
     let mut cmd = Command::new("git");
     cmd.arg("-C").arg(root).args(["apply", "--whitespace=nowarn"]).env("LC_ALL", "C");
     if cached {
@@ -528,6 +529,22 @@ pub fn apply(root: &Path, patch: &str, cached: bool, reverse: bool) -> Result<()
         cmd.arg("--reverse");
     }
     cmd.arg("-");
+    // the index alone changes nothing in the vault; the working tree's files are leased first (a mirrored vault)
+    let touched = if cached { Vec::new() } else { patch_files(patch).into_iter().map(|r| root.join(r)).collect() };
+    crate::vault_write::guarded_all(touched, crate::vault_write::WriteKind::Write, || run_apply(cmd, patch))
+}
+
+/// The files a patch changes: its `--- a/…` and `+++ b/…` names (`/dev/null` for a file made or deleted is not one).
+fn patch_files(patch: &str) -> Vec<String> {
+    patch
+        .lines()
+        .filter_map(|l| l.strip_prefix("--- a/").or_else(|| l.strip_prefix("+++ b/")))
+        .map(|p| p.trim_end().to_string())
+        .collect()
+}
+
+fn run_apply(cmd: Command, patch: &str) -> Result<()> {
+    use std::io::Write;
     let mut child = crate::platform::host::std_command(cmd)
         .map_err(not_started)?
         .stdin(Stdio::piped())
@@ -554,10 +571,21 @@ pub enum Sync {
 /// Pull or push the current branch with its upstream. No prompts: a remote that needs a password
 /// fails with git's message (use a terminal for that once).
 pub fn sync(root: &Path, way: Sync) -> Result<String> {
-    let args: &[&str] = match way {
-        Sync::Pull => &["pull", "--ff-only"],
-        Sync::Push => &["push"],
-    };
+    match way {
+        Sync::Push => remote(root, &["push"]),
+        // `pull --ff-only` in two steps, so the files the fast-forward writes are known (and leased, in a mirrored vault)
+        // before it writes them
+        Sync::Pull => {
+            remote(root, &["fetch"])?;
+            let incoming = git_ok(root, &["diff", "--name-only", "-z", "HEAD", "@{u}"])?;
+            let leased = incoming.split('\0').filter(|r| !r.is_empty()).map(|r| root.join(r)).collect();
+            crate::vault_write::guarded_all(leased, crate::vault_write::WriteKind::Write, || remote(root, &["merge", "--ff-only", "@{u}"]))
+        }
+    }
+}
+
+/// A git command that may reach the network: no prompt, git's message as the error.
+fn remote(root: &Path, args: &[&str]) -> Result<String> {
     let mut cmd = Command::new("git");
     cmd.arg("-C")
         .arg(root)

@@ -737,11 +737,6 @@ async fn config_suggestions_get(State(st): S) -> Result<Json<Suggestions>> {
     Ok(Json(with_ws(&st, |_| Ok(crate::detect::suggestions_cached())).await?))
 }
 
-/// The configured VS Code theme as plain JSON (404 when none is set).
-async fn vscode_theme_get(State(st): S) -> Result<Json<serde_json::Value>> {
-    Ok(Json(with_ws(&st, |ws| crate::vscode_theme::load(ws.root(), &ws.config()?.ui.vscode_theme)).await?))
-}
-
 async fn attach_post(State(st): S, Query(q): Query<AttachQuery>, body: Bytes) -> Result<Json<Attached>> {
     let a = with_ws(&st, move |ws| {
         ws.resolve(&q.note)?; // the note must be a workspace path
@@ -1495,6 +1490,16 @@ async fn lsp_get(State(st): S) -> Result<Json<Vec<LspServerInfo>>> {
     ))
 }
 
+#[derive(serde::Deserialize)]
+struct PeekQuery {
+    uri: String,
+    line: u32,
+}
+/// A definition outside the vault, read for a look (lsp.rs `peek`).
+async fn lsp_peek(Query(q): Query<PeekQuery>) -> Result<Json<crate::api::LspPeek>> {
+    Ok(Json(blocking(move || crate::lsp::peek(&q.uri, q.line)).await?))
+}
+
 async fn lsp_ws(State(st): S, UrlPath(lang): UrlPath<crate::lsp::LspLang>, upgrade: WebSocketUpgrade) -> Response {
     let ws = st.ws.clone();
     upgrade.on_upgrade(move |socket| crate::lsp::session(socket, ws, lang))
@@ -2124,11 +2129,11 @@ fn router(state: Arc<AppState>) -> Router {
         .route("/remote/{host}/{*rest}", axum::routing::any(remote_any))
         .route("/api/pty", get(pty_ws))
         .route("/api/lsp", get(lsp_get))
+        .route("/api/lsp/peek", get(lsp_peek))
         .route("/api/python-envs", get(python_envs_get))
         .route("/api/lsp/{lang}", get(lsp_ws))
         .route("/api/config", get(config_get).put(config_put))
         .route("/api/config/suggestions", get(config_suggestions_get))
-        .route("/api/theme/vscode", get(vscode_theme_get))
         .route("/api/attach", post(attach_post).layer(DefaultBodyLimit::max(100 * 1024 * 1024)))
         .route("/api/companion", post(companion_post))
         .route("/api/pdf-marks", get(pdf_marks_get).post(pdf_marks_post))

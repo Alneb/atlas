@@ -306,15 +306,16 @@ impl AutomationConfig {
 pub struct UiConfig {
     /// Color theme: dark, light, or `system` to follow the desktop's setting. The phone app always follows the phone's.
     pub theme: Theme,
-    /// A VS Code color theme (.json) to dress Atlas in: window, editor, terminal and syntax colours.
-    /// Empty = Atlas's own palette. It applies while the theme above is of its kind (a dark theme
-    /// dresses dark mode; light mode keeps Atlas's light palette).
-    pub vscode_theme: String,
     /// Accent colour (links, selection, buttons), as `#rrggbb`. Empty = the theme's own.
     pub accent: String,
-    /// Colours, in light and dark alike: Atlas's own cool greys, or a warm paper with ink-blue (`ink`) or
-    /// terracotta (`clay`) links and buttons. A colour set above and a VS Code theme still win over it.
+    /// Colour scheme (by day, and by night too unless `palette_dark` names another): Atlas's own cool greys; a warm paper with ink-blue (`ink`) or terracotta
+    /// (`clay`) links and buttons; green-grey `sage`, blue-grey `sea`, lavender `dusk`, neutral `graphite`; black and
+    /// green `phosphor`; `rose`, `honey`, `slate`, `forest`, `coffee`, `ember`, `glacier`, `sand`, `midnight`, and
+    /// `contrast` for the most contrast. An accent colour set above still wins over its accent.
     pub palette: Palette,
+    /// Night palette: the colour scheme in the dark theme (the one above is then the day's). Empty: the same in both.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub palette_dark: Option<Palette>,
     /// Shapes: `cards` (panes as rounded cards floating on the window) or `paper` (one flat sheet: panes flush,
     /// hairline rules between them, square corners, the selected tab or row marked by a bar).
     pub shape: Shape,
@@ -450,6 +451,36 @@ pub enum Palette {
     Ink,
     /// Warm paper, terracotta links and buttons.
     Clay,
+    /// Green-grey paper, moss links and buttons.
+    Sage,
+    /// Blue-grey, sea-teal links and buttons.
+    Sea,
+    /// Lavender-grey, plum links and buttons.
+    Dusk,
+    /// Neutral greys, links and buttons in ink alone: no colour but the marks.
+    Graphite,
+    /// Black glass and phosphor green (a page of white paper and deep green in light mode).
+    Phosphor,
+    /// Blush paper, raspberry.
+    Rose,
+    /// Cream, amber.
+    Honey,
+    /// Cool slate, steel blue.
+    Slate,
+    /// Pine paper, deep green.
+    Forest,
+    /// Latte paper, mocha.
+    Coffee,
+    /// Warm ash, ember orange.
+    Ember,
+    /// Ice, cold cyan.
+    Glacier,
+    /// Sand, olive.
+    Sand,
+    /// Navy, gold.
+    Midnight,
+    /// Black on white and white on black, a strong blue: the most contrast.
+    Contrast,
 }
 
 /// How panes and controls are drawn (shape-paper.css).
@@ -458,9 +489,9 @@ pub enum Palette {
 #[ts(export)]
 pub enum Shape {
     /// Rounded cards floating on the window's background.
-    #[default]
     Cards,
     /// One flat sheet: flush panes, hairline rules, square corners.
+    #[default]
     Paper,
 }
 
@@ -970,7 +1001,7 @@ impl Default for Config {
 
 impl Default for UiConfig {
     fn default() -> Self {
-        Self { theme: Theme::System, vscode_theme: String::new(), accent: String::new(), palette: Palette::default(), shape: Shape::default(), ui_font: String::new(), font_size: 14, gpu_rendering: GpuRendering::Auto, css_snippets_off: Vec::new(), tabs: TabsLayout::Vertical, side_panel: SidePanelPlace::Dock, motion: Motion::default(), eink: Eink::Auto, eink_refresh: EinkRefresh::Often, restore_layout: true, tab_preview: true, tab_switcher: TabSwitcher::Glance, sleep_after_min: 10, awake_tabs: 8, libraries: Vec::new(), apps_order: Vec::new(), apps_hidden: Vec::new() }
+        Self { theme: Theme::System, accent: String::new(), palette: Palette::default(), palette_dark: None, shape: Shape::default(), ui_font: String::new(), font_size: 14, gpu_rendering: GpuRendering::Auto, css_snippets_off: Vec::new(), tabs: TabsLayout::Vertical, side_panel: SidePanelPlace::Dock, motion: Motion::default(), eink: Eink::Auto, eink_refresh: EinkRefresh::Often, restore_layout: true, tab_preview: true, tab_switcher: TabSwitcher::Glance, sleep_after_min: 10, awake_tabs: 8, libraries: Vec::new(), apps_order: Vec::new(), apps_hidden: Vec::new() }
     }
 }
 

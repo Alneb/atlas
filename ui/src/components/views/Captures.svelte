@@ -4,8 +4,9 @@
   // own file by the core (`POST /api/captures/triage`); this only lists and asks.
   //   type: captures
   //   show: open        # open (default: still to triage) | tasks | all
-  // By keyboard: j/k (or ↑/↓) move, t task, f file, d dismiss, x done, u reopen, Enter opens; the focus stays in place
-  // as triaged rows leave the list, so a run of keys clears it.
+  // By keyboard, from the moment it opens (the first row takes the keys unless a text has them): j/k (or ↑/↓) move,
+  // g/G (Home/End) first and last, h/l (←/→) or 1 2 3 the tabs, t task, f file, d dismiss, x done, u reopen, Enter opens;
+  // the focus stays in place as triaged rows leave the list, so a run of keys clears it.
   import { onMount, tick } from "svelte";
   import { listVault } from "../../lib/vault";
   import { reloadOnChange } from "../../lib/reload-on-change";
@@ -64,8 +65,24 @@
   async function load() {
     try { const l = await api.captures(); items = l.items; open = l.open; error = ""; }
     catch (e) { error = errText(e); }
+    const first = !loaded;
     loaded = true;
+    if (first) void takeKeys();
   }
+  /** Opened: the first row has the keys at once — unless something is being typed elsewhere (a layout restored). */
+  async function takeKeys() {
+    const a = document.activeElement as HTMLElement | null;
+    if (a && a !== document.body && a.closest("input, textarea, [contenteditable], .cm-editor") && !section?.contains(a)) return;
+    await focusAt(at);
+  }
+  const TABS: Show[] = ["open", "tasks", "all"];
+  /** Another tab of the list; the keys stay on its first row. */
+  async function showTab(s: Show) {
+    chosen = s;
+    at = 0;
+    await focusAt(0);
+  }
+  let section = $state<HTMLElement>();
   onMount(() => {
     void load();
     return reloadOnChange(() => void load(), { wait: 400, wants: (p) => p.endsWith(".md") });
@@ -75,15 +92,21 @@
   async function focusAt(i: number) {
     at = Math.max(0, Math.min(i, shown.length - 1));
     await tick();
-    list?.querySelector<HTMLElement>(`[data-i="${at}"]`)?.focus();
+    // no row (an empty tab): the list itself keeps the keys, so h/l still reach the other tabs
+    (list?.querySelector<HTMLElement>(`[data-i="${at}"]`) ?? section)?.focus();
   }
   function onkeydown(e: KeyboardEvent) {
     if (e.ctrlKey || e.metaKey || e.altKey || (e.target as HTMLElement).closest("input, textarea, [contenteditable]")) return;
+    const k = e.key;
+    // the tabs work on an empty list too
+    const tab = TABS.indexOf(show), to = k === "h" || k === "ArrowLeft" ? tab - 1 : k === "l" || k === "ArrowRight" ? tab + 1 : "123".indexOf(k);
+    if (to >= 0 && to < TABS.length && (k === "h" || k === "l" || k.startsWith("Arrow") || "123".includes(k))) { e.preventDefault(); void showTab(TABS[to]); return; }
     const c = shown[at];
     if (!c) return;
     const can = { open: c.state === "open", live: c.state === "open" || c.state === "task" };
-    const k = e.key;
-    if (k === "j" || k === "ArrowDown") void focusAt(at + 1);
+    if (k === "g" || k === "Home") void focusAt(0);
+    else if (k === "G" || k === "End") void focusAt(shown.length - 1);
+    else if (k === "j" || k === "ArrowDown") void focusAt(at + 1);
     else if (k === "k" || k === "ArrowUp") void focusAt(at - 1);
     else if (k === "Enter") openPath(c.path, c.line || undefined);
     else if (k === "t" && can.open) void triage(c, { kind: "task" }, true);
@@ -123,12 +146,12 @@
 </script>
 
 <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-<section class="captures" aria-label="Captures" data-testid="captures" {onkeydown}>
+<section class="captures" aria-label="Captures" data-testid="captures" tabindex="-1" {onkeydown} bind:this={section}>
   <header>
     <span class="label">Captures</span>
     <div class="tabs atlas-seg" role="tablist" aria-label="Which captures">
       {#each [["open", `To triage`, open], ["tasks", "Tasks", tasks], ["all", "All", items.length]] as const as [s, label, n] (s)}
-        <button role="tab" class:on={show === s} aria-selected={show === s} onclick={() => (chosen = s)}>{label}<span class="n">{n}</span></button>
+        <button role="tab" class:on={show === s} aria-selected={show === s} onclick={() => void showTab(s)}>{label}<span class="n">{n}</span></button>
       {/each}
     </div>
   </header>
@@ -138,7 +161,7 @@
       <!-- the next step, not a dead end: capturing is what fills this list -->
       <button class="link" onclick={() => openQuickCapture()}>Capture something</button>{#if keysOf("ui.capture")}<kbd class="keys-only">{chordLabel(keysOf("ui.capture")!).join(" ")}</kbd>{/if}</p>
   {:else}
-    <p class="keys" aria-hidden="true"><kbd>j</kbd><kbd>k</kbd> move · <kbd>t</kbd> task · <kbd>f</kbd> file · <kbd>d</kbd> dismiss · <kbd>x</kbd> done · <kbd>u</kbd> reopen · <kbd>Enter</kbd> open</p>
+    <p class="keys" aria-hidden="true"><kbd>j</kbd><kbd>k</kbd> move · <kbd>h</kbd><kbd>l</kbd> tabs · <kbd>t</kbd> task · <kbd>f</kbd> file · <kbd>d</kbd> dismiss · <kbd>x</kbd> done · <kbd>u</kbd> reopen · <kbd>Enter</kbd> open</p>
     <div class="list" bind:this={list}>
     {#each byDay as g (g.day)}
       <h3 class="day">{dayLabel(g.day)}</h3>
@@ -207,6 +230,7 @@
   .act:hover { background: var(--bg-hover); border-color: var(--border-strong); }
   .empty { margin: 6px 0; color: var(--text-muted); }
   .empty .link { margin: 0 6px 0 8px; }
+  .captures:focus { outline: none; } /* holding the keys for an empty tab: the chosen tab says where they are */
   .row:focus-visible { outline: 2px solid color-mix(in srgb, var(--accent) 60%, transparent); outline-offset: 1px; border-radius: var(--radius-sm); }
   /* always laid out, shown while the list has the keys: appearing must not move the rows under a click */
   .keys { visibility: hidden; margin: 0 0 2px; color: var(--text-faint); font-size: calc(11.5px * var(--ui-scale, 1)); }

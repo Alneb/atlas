@@ -4,6 +4,7 @@
   import { Terminal } from "@xterm/xterm";
   import { FitAddon } from "@xterm/addon-fit";
   import { WebLinksAddon } from "@xterm/addon-web-links";
+  import { Unicode11Addon } from "@xterm/addon-unicode11";
   import { WebglAddon } from "@xterm/addon-webgl";
   import { openPty, ptyResize, ptyEnd, vaultScoped } from "../lib/api";
   import { app } from "../lib/state.svelte";
@@ -14,6 +15,7 @@
   import { closePanel } from "../lib/dock";
   import { getDock } from "../lib/dock-instance";
   import { wikilinkProvider } from "../lib/terminal-wikilinks";
+  import { atPointer, popMenu } from "../lib/menu";
 
   let { spec, panel }: PaneProps<"terminal"> = $props();
   /** This window, the same across a reload of it (sessionStorage), another in a second window or test. */
@@ -25,6 +27,7 @@
       return k;
     } catch { return "window"; }
   }
+  const ZOOM_KEYS = new Set(["Equal", "Minus", "Digit0", "NumpadAdd", "NumpadSubtract", "Numpad0"]);
   const size = () => Math.round((settings.config?.terminal.font_size ?? 13) * paneZoom(panel.id));
   let host: HTMLDivElement;
   let conn = $state<"connecting" | "open" | "exited">("connecting");
@@ -79,6 +82,10 @@
     const fit = new FitAddon();
     term.loadAddon(fit);
     term.loadAddon(new WebLinksAddon());
+    // Unicode 11 widths, as zsh and fastfetch count them: with xterm's Unicode 6 an emoji or icon took one column where
+    // the shell put two, and a prompt's decoration or a logo slid and wrapped (worst in a narrow column)
+    term.loadAddon(new Unicode11Addon());
+    term.unicode.activeVersion = "11";
     term.registerLinkProvider(wikilinkProvider(term)); // [[note]] in the output opens the note (lib/terminal-wikilinks.ts)
     const enc = new TextEncoder();
     let ws: WebSocket | null = null;
@@ -115,11 +122,16 @@
       };
     };
 
+    const copySel = () => { const sel = term.getSelection(); if (sel) void navigator.clipboard.writeText(sel); };
+    const pasteIn = () => void navigator.clipboard.readText().then((t) => term.paste(t), () => {});
     // Konsole's keys: Ctrl+Shift+C copies the selection, Ctrl+Shift+V pastes (plain Ctrl+C / V stay the shell's)
     term.attachCustomKeyEventHandler((e) => {
+      // the zoom chords (Ctrl+= / Ctrl+- / Ctrl+0, with Alt: everything) are the app's: xterm sent them to the shell
+      // and stopped them, so a terminal never zoomed
+      if (e.ctrlKey && !e.shiftKey && !e.metaKey && ZOOM_KEYS.has(e.code)) return false;
       if (e.type !== "keydown" || !e.ctrlKey || !e.shiftKey || e.altKey) return true;
-      if (e.code === "KeyC") { const sel = term.getSelection(); if (sel) void navigator.clipboard.writeText(sel); return false; }
-      if (e.code === "KeyV") { void navigator.clipboard.readText().then((t) => term.paste(t), () => {}); return false; }
+      if (e.code === "KeyC") { copySel(); return false; }
+      if (e.code === "KeyV") { pasteIn(); return false; }
       return true;
     });
     // OSC 10 / 11 "what are your colours?": answered with the theme's own, so a program that picks
@@ -234,8 +246,22 @@
     const offSettings = onSettings(resize);
     const onZoom = (e: Event) => { if ((e as CustomEvent).detail === panel.id) resize(); };
     window.addEventListener(PANE_ZOOM_EVENT, onZoom);
+    // a terminal's own right-click menu (the app's would offer a text field's, on xterm's hidden textarea)
+    const onMenu = (e: MouseEvent) => {
+      if (e.shiftKey) return;
+      e.preventDefault();
+      popMenu(atPointer(e, [
+        { label: "Copy", icon: "copy", hint: "Ctrl+Shift+C", disabled: !term.hasSelection(), run: copySel },
+        { label: "Paste", icon: "clipboard", hint: "Ctrl+Shift+V", run: pasteIn },
+        { label: "Select all", icon: "select-all", run: () => term.selectAll() },
+        "sep",
+        { label: "Clear the scrollback", icon: "eraser", run: () => term.clear() },
+      ]), () => term.focus());
+    };
+    host.addEventListener("contextmenu", onMenu);
 
     return () => {
+      host.removeEventListener("contextmenu", onMenu);
       disposed = true;
       terminals.delete(panel.id);
       offActive.dispose();

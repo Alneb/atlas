@@ -3,15 +3,14 @@
 // "zoom everything" commands). A tab's zoom is the app's size variables overridden on its own
 // element, so every pane follows without knowing; a terminal sizes its font from `paneZoom(id)`.
 // Kept per pane id in the vault's shell.json, so a file reopens at the size it was read at.
-// Smooth ("the zoom just feels choppy"): the pane is first scaled as a picture (a transform, cheap),
-// then its text size is set once — a key press glides over ~110 ms; Ctrl+wheel and a touchpad pinch
-// zoom continuously in fractions of a step and set the size when the gesture rests.
+// Immediate: a press, a wheel notch or a pinch sets the text size at once (no picture scaled first, no glide); a
+// gesture's events are folded into one size per frame.
 import type { DockviewApi, IDockviewPanel } from "dockview-core";
 import { onSettings, settings } from "./settings.svelte";
 import { saveShellPrefs, shellPart } from "./shell-prefs";
 
 const STEP = 1.1, MOST = 8; // ten percent a press, between 1.1^-8 and 1.1^8
-const GLIDE_MS = 110, REST_MS = 160, WHEEL_STEP = 1 / 120; // a wheel notch (120) zooms one step
+const WHEEL_STEP = 1 / 120; // a wheel notch (120) zooms one step
 const steps = new Map<string, number>();
 let dock: DockviewApi | undefined;
 
@@ -29,47 +28,28 @@ function paint(p: IDockviewPanel): void {
   window.dispatchEvent(new Event("resize")); // editors measure their lines again
 }
 
-/** The zoom a pane is drawn at (its text size) while a gesture shows another as a picture. */
-const drawn = new Map<string, number>();
-let restT: ReturnType<typeof setTimeout> | undefined;
-const instant = () => document.documentElement.dataset.motion === "instant";
+/** Panes whose size changed since the last frame: drawn once at the next one. */
+const pending = new Set<IDockviewPanel>();
+let frame = 0;
 
-/** Sets the pane's text size to its zoom and drops the picture scaling. */
-function commit(p: IDockviewPanel): void {
-  const el = p.view.content.element;
-  el.getAnimations().forEach((a) => a.cancel());
-  el.style.removeProperty("transform");
-  el.style.removeProperty("transform-origin");
-  drawn.delete(p.id);
-  paint(p);
-  saveShellPrefs();
-}
-
-/** The pane shown at `next` steps: scaled at once, its size set when the zoom rests. */
-function zoomTo(p: IDockviewPanel, next: number, glide: boolean): void {
+/** The pane at `next` steps: its size set at the next frame. */
+function zoomTo(p: IDockviewPanel, next: number): void {
   next = Math.max(-MOST, Math.min(MOST, next));
-  const was = drawn.get(p.id) ?? steps.get(p.id) ?? 0;
-  drawn.set(p.id, was);
   if (Math.abs(next) < 1e-6) steps.delete(p.id); else steps.set(p.id, next);
-  const el = p.view.content.element, ratio = STEP ** (next - was);
-  el.style.transformOrigin = "0 0";
-  clearTimeout(restT);
-  if (glide && !instant()) {
-    const from = el.style.transform || "scale(1)";
-    el.getAnimations().forEach((a) => a.cancel());
-    el.style.transform = `scale(${ratio})`;
-    el.animate([{ transform: from }, { transform: `scale(${ratio})` }], { duration: GLIDE_MS, easing: "ease-out" }).finished.then(() => { if (drawn.has(p.id)) restT = setTimeout(() => commit(p), 20); }, () => {});
-  } else {
-    el.style.transform = `scale(${ratio})`;
-    restT = setTimeout(() => commit(p), glide ? 0 : REST_MS);
-  }
+  pending.add(p);
+  frame ||= requestAnimationFrame(() => {
+    frame = 0;
+    pending.forEach(paint);
+    pending.clear();
+    saveShellPrefs();
+  });
 }
 
 /** `step` presses larger or smaller on the active tab; 0 = back to the settings' size. */
 export function zoomPane(step: -1 | 0 | 1): void {
   const p = dock?.activePanel;
   if (!p) return;
-  zoomTo(p, step === 0 ? 0 : (steps.get(p.id) ?? 0) + step, true);
+  zoomTo(p, step === 0 ? 0 : (steps.get(p.id) ?? 0) + step);
 }
 
 /** Ctrl+wheel and a touchpad pinch (WebKit sends it as a wheel with Ctrl) over a pane zoom that pane.
@@ -80,7 +60,7 @@ function onWheel(e: WheelEvent): void {
   if (!p) return;
   e.preventDefault();
   const px = e.deltaMode === 1 ? e.deltaY * 40 : e.deltaY; // lines → pixels
-  zoomTo(p, (steps.get(p.id) ?? 0) - px * WHEEL_STEP, false);
+  zoomTo(p, (steps.get(p.id) ?? 0) - px * WHEEL_STEP);
 }
 
 /** Called once, right after the dock is created. */

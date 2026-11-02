@@ -42,3 +42,6 @@ wayland-client = { version = "0.31", optional = true, default-features = false }
 wayland-backend = { version = "0.3", optional = true, features = ["client_system", "dlopen"] }
 # besides the text (src/context.rs): the window you were on (a KWin script calling back), what is playing
 dbus = { version = "0.9", optional = true }
+
+[dev-dependencies]
+tempfile = "3"

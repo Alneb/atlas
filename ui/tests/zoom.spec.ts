@@ -49,10 +49,9 @@ test("Ctrl+Alt++ and Ctrl+Alt+- zoom everything, Ctrl+Alt+0 resets", async ({ pa
   await expect.poll(() => rootVar(page, "--prose-size"), "set in the same save, painted a moment later").toBe("15px");
 });
 
-// "smoother zoom in general" · "the zoom just feels choppy i like the controls": a key press glides
-// (the pane scaled as a picture, its size set once), Ctrl+wheel / a touchpad pinch zoom the pane under
-// the pointer continuously and set the size when they rest
-test("zoom glides: the size lands after a picture-scale, and Ctrl+wheel zooms the pane under the pointer", async ({ page }) => {
+// zoom is immediate: a key press sets the size at the next frame, never a picture-scale or a glide;
+// Ctrl+wheel / a touchpad pinch zoom the pane under the pointer
+test("zoom is immediate, with no picture-scale, and Ctrl+wheel zooms the pane under the pointer", async ({ page }) => {
   await page.goto("/");
   await page.getByText("Finish the GW notes.").waitFor();
   await openFile(page, "journal.md");
@@ -62,8 +61,8 @@ test("zoom glides: the size lands after a picture-scale, and Ctrl+wheel zooms th
   const pane = () => content.evaluate((el) => (el.closest(".dv-content-container") as HTMLElement | null)?.querySelector<HTMLElement>(":scope > *")?.style.transform ?? "");
   const base = await size();
   await page.keyboard.press("Control++");
-  await expect.poll(size).toBeCloseTo(base * 1.1, 1); // set once the glide ends…
-  await expect.poll(pane).toBe(""); // …and the picture-scale is gone
+  await expect.poll(size, { timeout: 500 }).toBeCloseTo(base * 1.1, 1); // at once…
+  expect(await pane()).toBe(""); // …and never drawn as a scaled picture
   const box = (await content.boundingBox())!;
   await page.mouse.move(box.x + 50, box.y + 50);
   for (let i = 0; i < 4; i++) await page.evaluate(() => document.querySelector(".cm-content")!.dispatchEvent(new WheelEvent("wheel", { deltaY: -30, ctrlKey: true, bubbles: true, cancelable: true })));

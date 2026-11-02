@@ -8,6 +8,18 @@ const DAY = /(\d{4}-\d{2}-\d{2})(?=\.md$)/;
 // the weather as the Weather plugin noted it: its sky's symbol first ("⛅ 12 °C, partly cloudy · Oslo")
 const skyOf = (w) => { const m = /^(\p{Extended_Pictographic}\uFE0F?)\s*/u.exec(w); return m ? [m[1], w.slice(m[0].length)] : [null, w]; };
 
+// the day's entries: its timed lines (`- 09:05 …`, captured), and under the log's heading every item, written by hand
+// or not — the heading's names are the core's (capture.rs)
+const LOG_HEADING = /^##\s+(log|registro|bit[aá]cora)\s*$/i;
+const entries = (text) => {
+  let inLog = false, n = 0;
+  for (const l of text.split("\n")) {
+    if (/^#{1,6}\s/.test(l)) inLog = LOG_HEADING.test(l);
+    else if (/^\s*[-*] (\[.\] )?\d{1,2}:\d{2}\b/.test(l) || (inLog && /^ ?[-*] \S/.test(l))) n++;
+  }
+  return n;
+};
+
 const CSS = `
 .daily-head .daily-template { flex-basis: 100%; margin: 0; font-size: .78em; color: var(--text-faint); }
 .daily-head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; padding: 8px 12px; margin: 2px 0 8px;
@@ -62,7 +74,7 @@ export function registerDaily(atlas, lang) {
       const sub = el("div", "sub");
       const weather = String(props.weather ?? "").trim();
       if (weather) { const [icon, words] = skyOf(weather); const w = el("span"); if (icon) w.append(el("span", "sky", icon)); w.append(words); sub.append(w); }
-      const lines = text.split("\n").filter((l) => /^\s*[-*] (\[.\] )?\d{1,2}:\d{2}\b/.test(l)).length;
+      const lines = entries(text);
       sub.append(el("span", "", lines ? `${lines} ${lines === 1 ? "entry" : "entries"}` : "nothing captured yet"));
       const nav = el("nav");
       const facts = el("div", "facts");

@@ -16,7 +16,9 @@ const fuzzy = (q: string, s: string) => {
  *  in order. `null`: not at all. Names count from three letters, so a short start lists triggers only. */
 export function rank(s: Compiled, typed: string): number | null {
   const trigger = s.plain!.trim();
-  if (trigger.startsWith(typed) && trigger !== typed) return 0;
+  // the whole trigger typed is listed too, first: what Space would expand, shown before it does
+  if (trigger === typed) return -1;
+  if (trigger.startsWith(typed)) return 0;
   const lower = typed.toLowerCase(), name = s.name?.toLowerCase();
   if (typed.length < 3 || !name) return null;
   if (name.includes(lower)) return 1;

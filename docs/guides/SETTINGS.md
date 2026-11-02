@@ -68,7 +68,7 @@ grouped by page, include matching **features** (with Try), and the box is focuse
 | page | options | features | panels | go further |
 |---|---|---|---|---|
 | Overview | — | palette, open file, capture, commands | cards per area: features with shortcuts, "N changed" | — |
-| Appearance | theme, accent, VS Code theme, text size, interface font, motion, e-ink screen and its full refresh, tabs, side panel, restore layout, tab preview, Ctrl+Tab, prose font/size/line height/width, code font/size, inline title | toggle theme, zoom, side panel, fullscreen, reset layout | live preview, CSS snippets | write a CSS snippet |
+| Appearance | theme, colour scheme by day and by night (palette, palette_dark), shape, accent, text size, interface font, motion, e-ink screen and its full refresh, tabs, side panel, restore layout, tab preview, Ctrl+Tab, prose font/size/line height/width, code font/size, inline title | toggle theme, zoom, side panel, fullscreen, reset layout | live preview, CSS snippets | write a CSS snippet |
 | Writing | vim, format bar, math and link preview, task chips/suggestions/short forms, properties and their spec, completions, slash menu, folding, typewriter, **live editing between devices**, backlinks, LaTeX snippets, attachments, date names, strict line breaks, notes.* (capture, inbox, fleeting note template, templates folder, templates by name or folder, **default template**) | vim, New…, new note, cycle a line, properties panel / inline, kit, outline, graph | — | put a live view in a note (copies a ```` ```view ```` example) |
 | Home & Today | home, focus, **daily log folder**, **daily log template**, activity.* | home, capture, edit FOCUS.md | — | reshape the home screen (opens Home.page) |
 | Code | autosave, tool bar, git gutter, line numbers, wrap, guides, minimap, breadcrumbs, lsp.* | problems, git, replace | — | — |
@@ -86,8 +86,14 @@ grouped by page, include matching **features** (with Try), and the box is focuse
 
 ## New config (all optional, defaults unchanged)
 - `[ui] accent = "#rrggbb"`: derives `--accent`, `--accent-strong`, `--accent-soft`, `--accent-sel`, `--link`,
-  `--tag-*` with `color-mix`. Clearing it removes **only** Atlas's own override and re-applies a VS Code theme's
-  accent if one is set, since both write the same variables.
+  `--tag-*` with `color-mix`. Clearing it removes Atlas's override: the colour scheme's own accent comes back.
+- `[ui] palette`: the colour scheme, built in, light and dark alike — `atlas`, `ink`, `clay`, `sage`, `sea`, `dusk`,
+  `graphite`, `phosphor`, `rose`, `honey`, `slate`, `forest`, `coffee`, `ember`, `glacier`, `sand`, `midnight`, `contrast`
+  (`ui/src/styles/palettes.css`; the last ten generated with every text colour and accent checked for contrast: text ≥ 7:1,
+  muted ≥ 4.5:1, faint ≥ 4:1, links ≥ 4.6:1 on the page). VS Code theme files are no longer read: a scheme is one of
+  these, so every one is drawn for both sides and checked for contrast like the rest. `[ui] palette_dark`: the night's
+  scheme, used whenever the theme is dark (`palette` is then the day's); unset, the same scheme by day and night.
+  `[ui] shape` is `paper` by default (flush panes, hairline rules), `cards` the rounded one.
 - `[ui] ui_font`: sets `--font-ui`; fonts are detected like the prose font.
 - `[editor] prose_line_height` (1.2–2.2, default 1.68): sets `--prose-line-height` in the live preview.
 - `[plugins] off = ["id"]`: a switched-off plugin is still listed in Settings, but gets no command, rail button or

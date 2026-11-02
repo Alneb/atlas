@@ -12,7 +12,7 @@
   import { api } from "../lib/api";
   import { app, toast } from "../lib/state.svelte";
   import { open, openPath } from "../lib/dock";
-  import { openCaptures } from "../lib/quick-capture.svelte";
+  import { openCaptures, openTasks } from "../lib/quick-capture.svelte";
   import { settings } from "../lib/settings.svelte";
   import CommitRow from "../components/CommitRow.svelte";
   import { capture } from "../lib/registry";
@@ -358,7 +358,8 @@
         <section class="card">
           <div class="card-head">
             <h2>{viewDay ? `Log — ${dayLabel(viewDay)}` : "Today's log"}</h2>
-            {#if untriaged}<button class="triage-pill" onclick={openCaptures} title="Every capture still to triage: make it a task, file it into a note, dismiss it" data-testid="untriaged">{untriaged} to triage</button>{/if}
+            <!-- always there (the way to triage and to every capture), counting what waits -->
+            <button class="triage-pill" class:idle={!untriaged} onclick={openCaptures} title="Every capture still to triage: make it a task, file it into a note, dismiss it" data-testid="untriaged"><Icon name="inbox" size={12} />{untriaged ? `${untriaged} to triage` : "Captures"}</button>
             <!-- one row of icons: open the day's note (made from the template when missing), then the days -->
             <span class="day-nav">
               {#if viewDay}<button class="link today-btn" onclick={() => showDay(null)}>Today</button>{/if}
@@ -383,13 +384,15 @@
       <div class="col">
         {#if show("tasks")}
         <section class="card">
-          <div class="card-head"><h2>Open tasks</h2>{#if today}<span class="count">{today.tasks.length}</span>{/if}</div>
+          <div class="card-head"><h2>Open tasks</h2>
+            <button class="triage-pill idle" onclick={openTasks} title="Every open task in a tab: due dates, priorities, done in place"><Icon name="check" size={12} />All</button>
+            {#if today}<span class="count">{today.tasks.length}</span>{/if}</div>
           {#if today && today.tasks.length}
             <ul class="tasks">
               {#each tasks as t (t.path + ":" + t.line)}
                 <li class="task-li">
                   <button class="task-box" aria-label="Mark done: {t.text}" title="Mark done (writes [x] in {t.path})" onclick={() => markDone(t)}></button>
-                  <button class="task" onclick={() => openPath(t.path, t.line)} title="{t.path}:{t.line}">
+                  <button class="task" data-path={t.path} data-line={t.line} onclick={() => openPath(t.path, t.line)} title="{t.path}:{t.line}">
                     <span class="task-text">{@html inline(titleOf(t.text))}<span class="task-chips" use:chips={t.text}></span></span>
                     <span class="task-src">{sourceOf(t.path)}</span>
                   </button>
@@ -430,7 +433,7 @@
             {#if created.length}
               <ul class="activity changed">
                 {#each createdAll ? created : created.slice(0, 8) as f (f.path)}
-                  <li><button class="changed-row" onclick={() => openPath(f.path)} title={f.path}><Icon name={/\.md$/i.test(f.path) ? "file-text" : "file"} size={14} /><span class="path">{shownName(f.path)}{#if f.path.includes("/")}{" "}<span class="n">· {f.path.slice(0, f.path.lastIndexOf("/"))}</span>{/if}</span><span class="when">{madeAt(f.created)}</span></button></li>
+                  <li><button class="changed-row" data-path={f.path} onclick={() => openPath(f.path)} title={f.path}><Icon name={/\.md$/i.test(f.path) ? "file-text" : "file"} size={14} /><span class="path">{shownName(f.path)}{#if f.path.includes("/")}{" "}<span class="n">· {f.path.slice(0, f.path.lastIndexOf("/"))}</span>{/if}</span><span class="when">{madeAt(f.created)}</span></button></li>
                 {/each}
               </ul>
               {#if created.length > 8}<button class="link more" onclick={() => (createdAll = !createdAll)}>{createdAll ? "Show fewer" : `Show all ${created.length}`}</button>{/if}
@@ -442,12 +445,12 @@
               <ul class="activity changed">
                 {#each changedAll ? groups : groups.slice(0, 8) as g (g.key)}
                   {#if g.files.length === 1}
-                    <li><button class="changed-row" onclick={() => openPath(g.files[0].path)}><Icon name="file" size={14} /><span class="path">{g.files[0].path}</span><span class="when">{madeAt(g.files[0].mtime)}</span></button></li>
+                    <li><button class="changed-row" data-path={g.files[0].path} onclick={() => openPath(g.files[0].path)}><Icon name="file" size={14} /><span class="path">{g.files[0].path}</span><span class="when">{madeAt(g.files[0].mtime)}</span></button></li>
                   {:else}
                     <li><button class="changed-row" onclick={() => (openDirs[g.key] = !openDirs[g.key])}><Icon name={openDirs[g.key] ? "folder-open" : "folder"} size={14} /><span class="path">{g.key}/ <span class="n">· {g.files.length} files</span></span><span class="when">{madeAt(g.files[0].mtime)}</span></button></li>
                     {#if openDirs[g.key]}
                       {#each g.files as f (f.path)}
-                        <li><button class="changed-row nested" onclick={() => openPath(f.path)}><Icon name="file" size={13} /><span class="path">{f.path.slice(g.key.length + 1)}</span><span class="when">{madeAt(f.mtime)}</span></button></li>
+                        <li><button class="changed-row nested" data-path={f.path} onclick={() => openPath(f.path)}><Icon name="file" size={13} /><span class="path">{f.path.slice(g.key.length + 1)}</span><span class="when">{madeAt(f.mtime)}</span></button></li>
                       {/each}
                     {/if}
                   {/if}
@@ -528,7 +531,11 @@
   /* beside the title; the day's icons stay on the right */
   .triage-pill { margin: 0 auto 0 8px; padding: 1px 9px; border-radius: 999px; font-size: calc(11.5px * var(--ui-scale, 1)); font-variant-numeric: tabular-nums;
     color: var(--accent-strong, var(--accent)); background: color-mix(in srgb, var(--accent) 12%, transparent); border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent); }
+  .triage-pill { display: inline-flex; align-items: center; gap: 4px; }
   .triage-pill:hover { background: color-mix(in srgb, var(--accent) 22%, transparent); }
+  /* nothing waiting: a quiet way in, not a call to act */
+  .triage-pill.idle { color: var(--text-muted); background: transparent; border-color: var(--border); }
+  .triage-pill.idle:hover { color: var(--text); border-color: var(--border-strong); background: var(--bg-hover); }
   /* the day's log (lib/log-entries.ts): the time in a muted column, the text beside it, pictures as thumbnails */
   :global(.log-md ul.log-entries) { padding-left: 0; list-style: none; }
   /* time | marker | text: a capture's dot and a task's box share the marker column, every text starts at one edge */

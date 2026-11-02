@@ -19,10 +19,11 @@ import { searchKeymap, highlightSelectionMatches, search } from "@codemirror/sea
 import { findPanel } from "./find-panel";
 import { acceptCompletion, clearSnippet, closeCompletion, completionStatus } from "@codemirror/autocomplete";
 import { vim, getCM } from "@replit/codemirror-vim";
-import { bodyStart, redecorate } from "./live/live-preview.js";
+import { bodyStart, frontmatterClose, redecorate, showRawProperties } from "./live/live-preview.js";
 import { onHighlightLanguage } from "../highlight";
 import { onPropertySpec } from "../property-spec.svelte";
 import { lspFor, lspKeys } from "./lsp";
+import { definitionClicks } from "./definition";
 import { mathPreview } from "./math-preview";
 import { editorMenu } from "./menu";
 import { pluginCompletions, pluginHooks } from "./plugin-hooks";
@@ -37,6 +38,7 @@ import { setDiagnosticsEffect } from "@codemirror/lint";
 import { texCite } from "./completion-sources";
 import { linkClicks } from "./link-clicks";
 import { blameExtension } from "./blame";
+import { PANE_ZOOM_EVENT } from "../pane-zoom";
 import type { Blame } from "../gen/Blame";
 
 export { codeTools } from "./code-extensions";
@@ -119,7 +121,7 @@ export function createEditor(o: EditorOptions): AtlasEditor {
     { key: "Mod-h", preventDefault: true, run: openReplace }])),
     Prec.highest(EditorView.domEventHandlers({ paste: (_e, v) => { restoreVisual(v); return false; } })),
     desktopKeys, // before vim (first wins): see its comment
-    md ? [] : lspKeys,
+    md ? [] : [lspKeys, definitionClicks], // Ctrl+click a name: its definition, from the language server (definition.ts)
     // Live-preview's arrow keymap must precede vim (both Prec.highest; first wins) — see editor.js.
     mdx ? mdx.head : [],
     vimSlot.of(o.vim ? vim({ status: false }) : []),
@@ -210,7 +212,15 @@ export function createEditor(o: EditorOptions): AtlasEditor {
     (err) => console.warn("[atlas] language server", o.path, err));
   exHooks.set(view, { save: o.onSave, quit: o.onQuit });
   // a setting can change what the live preview draws (the properties' mode, the inline title): redraw
-  const offSettings = onSettings((cfg) => view.dispatch({ effects: [codeOpts.reconfigure(md ? mdOptions(cfg) : codeOptions(cfg)), ...(md ? [redecorate.of(null)] : [])] }));
+  const offSettings = onSettings((cfg) => {
+    view.dispatch({ effects: [codeOpts.reconfigure(md ? mdOptions(cfg) : codeOptions(cfg)), ...(md ? [redecorate.of(null)] : [])] });
+    remeasureText(view); // a text size set in Settings or by "zoom everything"
+  });
+  // a pane's zoom changes its text size only (lib/pane-zoom.ts): CodeMirror sees a new box size, not new line heights,
+  // and kept the old ones — the caret's coordinates stale, a completion list placed outside the editor (never shown)
+  const onZoom = () => remeasureText(view);
+  window.addEventListener(PANE_ZOOM_EVENT, onZoom);
+  const offZoom = () => window.removeEventListener(PANE_ZOOM_EVENT, onZoom);
   const offSpec = md ? onPropertySpec(() => view.dispatch({ effects: redecorate.of(null) })) : () => {};
   const offLang = md ? onHighlightLanguage(() => view.dispatch({ effects: redecorate.of(null) })) : () => {}; // a fence's language arrived
 
@@ -253,7 +263,9 @@ export function createEditor(o: EditorOptions): AtlasEditor {
     gotoLine(line) {
       const doc = view.state.doc;
       const l = doc.line(Math.max(1, Math.min(line, doc.lines)));
-      view.dispatch({ selection: { anchor: l.from }, effects: EditorView.scrollIntoView(l.from, { y: "center" }) });
+      // a line asked for inside the properties (a search hit in one) shows them as text: the one jump that may land there
+      const raw = md && l.number <= frontmatterClose(doc) ? [showRawProperties.of(true)] : [];
+      view.dispatch({ selection: { anchor: l.from }, effects: [EditorView.scrollIntoView(l.from, { y: "center" }), ...raw] });
       view.focus();
     },
     vimMode: () => mode,
@@ -265,6 +277,7 @@ export function createEditor(o: EditorOptions): AtlasEditor {
       clearTimeout(keepTimer);
       destroyed = true;
       offSettings();
+      offZoom();
       offSpec();
       offLang();
       unwireVim();
@@ -272,4 +285,11 @@ export function createEditor(o: EditorOptions): AtlasEditor {
       view.destroy();
     },
   };
+}
+
+/** Line heights and character widths measured again, as CodeMirror does itself once web fonts load (its own
+ *  `mustMeasureContent = "refresh"`): a size from a CSS variable changes no box CodeMirror watches. */
+function remeasureText(view: EditorView): void {
+  (view as unknown as { viewState: { mustMeasureContent: boolean | "refresh" } }).viewState.mustMeasureContent = "refresh";
+  view.requestMeasure();
 }

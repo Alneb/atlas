@@ -137,31 +137,31 @@
 {/if}
 
 <style>
-  .field, .text-row :global(.field) { width: 100%; min-width: 0; height: 26px; padding: 0 7px; border-radius: var(--radius-sm); border: 1px solid transparent; background: transparent;
+  .field, .text-row :global(.field) { width: 100%; min-width: 0; height: calc(26px * var(--ui-scale, 1)); padding: 0 7px; border-radius: var(--radius-sm); border: 1px solid transparent; background: transparent;
     color: var(--text); font: inherit; font-size: calc(12.5px * var(--ui-scale, 1)); }
   .field:hover, .text-row :global(.field:hover) { border-color: var(--border); }
   .field:focus, .text-row :global(.field:focus) { outline: none; border-color: var(--accent); background: var(--bg); }
   .field::placeholder, .text-row :global(.field::placeholder) { color: var(--text-faint); font-style: italic; }
   .num { font-variant-numeric: tabular-nums; }
   input[type="date"], input[type="datetime-local"] { font-variant-numeric: tabular-nums; color-scheme: light dark; }
-  .check { display: inline-flex; align-items: center; gap: 7px; min-height: 26px; padding: 0 7px; color: var(--text-muted); font-size: calc(12.5px * var(--ui-scale, 1)); cursor: pointer; }
-  .check input { accent-color: var(--accent); width: 14px; height: 14px; }
-  .pills { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; min-height: 26px; padding: 2px 4px; border-radius: var(--radius-sm); border: 1px solid transparent; }
+  .check { display: inline-flex; align-items: center; gap: 7px; min-height: calc(26px * var(--ui-scale, 1)); padding: 0 7px; color: var(--text-muted); font-size: calc(12.5px * var(--ui-scale, 1)); cursor: pointer; }
+  .check input { accent-color: var(--accent); width: calc(14px * var(--ui-scale, 1)); height: calc(14px * var(--ui-scale, 1)); }
+  .pills { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; min-height: calc(26px * var(--ui-scale, 1)); padding: 2px 4px; border-radius: var(--radius-sm); border: 1px solid transparent; }
   .pills:hover { border-color: var(--border); }
   .pills:focus-within { border-color: var(--accent); background: var(--bg); }
   .pill { display: inline-flex; align-items: center; max-width: 100%; min-width: 0; border-radius: 999px; background: var(--bg-alt); border: 1px solid var(--border);
-    font-size: calc(12px * var(--ui-scale, 1)); line-height: 20px; }
+    font-size: calc(12px * var(--ui-scale, 1)); line-height: calc(20px * var(--ui-scale, 1)); }
   .pill.tag { background: var(--accent-soft); border-color: transparent; color: var(--accent); }
   .pill-text { padding: 0 2px 0 8px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; color: inherit; }
   .pill.link .pill-text { color: var(--link, var(--accent)); }
   .pill .pill-text.opens { color: var(--link, var(--accent)); cursor: pointer; }
   .text-row { display: flex; align-items: center; gap: 2px; min-width: 0; }
-  .text-row .open { flex: none; width: 22px; height: 22px; color: var(--text-faint); }
+  .text-row .open { flex: none; width: calc(22px * var(--ui-scale, 1)); height: calc(22px * var(--ui-scale, 1)); color: var(--text-faint); }
   .text-row .open:hover { color: var(--link, var(--accent)); }
   button.pill-text:hover { text-decoration: underline; }
-  .pill-x { display: inline-grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; color: var(--text-faint); flex: none; }
+  .pill-x { display: inline-grid; place-items: center; width: calc(20px * var(--ui-scale, 1)); height: calc(20px * var(--ui-scale, 1)); border-radius: 50%; color: var(--text-faint); flex: none; }
   .pill-x:hover { color: var(--text); background: var(--bg-hover); }
-  .pills :global(.pill-input) { flex: 1; min-width: 70px; height: 22px; border: 0; background: transparent; color: var(--text); font: inherit; font-size: calc(12.5px * var(--ui-scale, 1)); padding: 0 4px; }
+  .pills :global(.pill-input) { flex: 1; min-width: calc(70px * var(--ui-scale, 1)); height: calc(22px * var(--ui-scale, 1)); border: 0; background: transparent; color: var(--text); font: inherit; font-size: calc(12.5px * var(--ui-scale, 1)); padding: 0 4px; }
   .pills :global(.pill-input:focus) { outline: none; }
   .pills :global(.pill-input::placeholder) { color: var(--text-faint); }
 </style>

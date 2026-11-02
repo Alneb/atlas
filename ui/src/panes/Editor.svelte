@@ -37,6 +37,7 @@
   import { noteViewFor, shownAsNote } from "../lib/note-views.svelte";
   import type { LiveNote } from "../lib/note-live";
   import { hostOf, mirrorState, signInToMirror, type MirrorState } from "../lib/mirror";
+  import { below, popMenu } from "../lib/menu";
   import { chooseVault } from "../lib/vaults";
   import { readText } from "../lib/vault-files";
   import type { Text } from "@codemirror/state";
@@ -64,10 +65,29 @@
   let livePeers = $state<string[]>([]);
   /** This vault's mirror (lib/mirror.ts): the note is saved here, and its live room is the server's (core server.rs
    *  live_ws); null when none is linked. Shown as the `⇄ host` chip. */
-  let mirror = $state<{ host: string; state: MirrorState } | null>(null);
-  const askMirror = () => { if (isMarkdown(path)) void mirrorState().then((m) => { if (!disposed) mirror = m && { host: hostOf(m.address), state: m.state }; }, () => {}); };
+  let mirror = $state<{ host: string; address: string; state: MirrorState } | null>(null);
+  const askMirror = () => { if (isMarkdown(path)) void mirrorState().then((m) => { if (!disposed) mirror = m && { host: hostOf(m.address), address: m.address, state: m.state }; }, () => {}); };
+  /** The chip says what the mirror is and what it is doing, then offers what can be done about it. */
+  function mirrorMenu(e: MouseEvent) {
+    const m = mirror;
+    if (!m) return;
+    const status = m.state === "online"
+      ? { label: "Connected", detail: writesHere ? "this device is the one writing this note" : "another device is writing this note; its saves arrive here" }
+      : m.state === "signin"
+        ? { label: "Not signed in", detail: "saves stay on this device until you sign in; differences are merged then" }
+        : { label: "Server unreachable", detail: "notes are saved on this device only; differences are merged when it is back" };
+    popMenu(below(e, [
+      { info: `This vault is also on ${m.host}`, detail: "Notes are saved in this folder first. The server lets one device write a note at a time, so the two copies never clash.", icon: "server" },
+      { info: status.label, detail: status.detail, icon: m.state === "online" ? "check" : "warning" },
+      "sep",
+      ...(m.state === "signin" ? [{ label: "Sign in to the server…", icon: "user" as const, run: () => void signInToMirror() }] : []),
+      { label: "Open this vault on the server", icon: "external-link", run: () => void import("../lib/web-links").then((w) => w.openWeb(m.address)) },
+      { label: "Mirror settings…", detail: "the server's address, or stop mirroring", icon: "settings", run: () => void chooseVault({ linkMirror: true }) },
+    ], 4));
+  }
   /** Who saves the note while it is shared live (lib/live.ts writes()); read again as the room changes. */
   const writesHere = $derived.by(() => { void livePeers; return live?.writes() ?? true; });
+  const writerName = $derived.by(() => { void livePeers; return live?.writerName() ?? null; });
   let disposed = false;
 
   let mtime: number | undefined;
@@ -442,12 +462,10 @@
   {#if status === "error"}
     <div class="pane-empty"><p class="muted">Could not open <code>{path}</code></p><p class="faint small">{loadError}</p></div>
   {/if}
-  {#if livePeers.length}<div class="live-chip" title="These devices have this note open: their edits and cursors show here as they type.{mirror ? (writesHere ? ' This device writes the note.' : ' Another device writes; its saves come here through Syncthing.') : ''}">Live · {[...new Set(livePeers)].join(", ")}{#if mirror} · ⇄ {mirror.host}{/if}</div>
-  {:else if mirror}<button class="live-chip mirror-chip" class:down={mirror.state !== "online"}
-    onclick={() => (mirror?.state === "signin" ? signInToMirror() : void chooseVault({ linkMirror: true }))}
-    title={mirror.state === "online"
-      ? `Live with ${mirror.host}, this vault's mirror: saved in this folder, the server leasing each save so Syncthing never sees two versions. ${writesHere ? "This device writes the note." : "Another device writes; its saves come here through Syncthing."} Click: the mirror's settings`
-      : `${mirror.host} ${mirror.state === "signin" ? "wants a sign-in (click)" : "is offline"}: this note is saved here only, and a later difference is merged. Click: ${mirror.state === "signin" ? "sign in" : "the mirror's settings"}`}>⇄ {mirror.host}{mirror.state === "online" ? "" : mirror.state === "signin" ? " · sign in" : " · offline"}</button>{/if}
+  <!-- who has the note and who saves it; the mirror only when something is wrong with it (all is well: nothing to say) -->
+  {#if livePeers.length}<div class="live-chip" title="These devices have this note open: their edits and cursors show here as they type. {writerName ? `${writerName} saves the file; your edits reach it as you type.` : 'This device saves the file.'}">Live · {[...new Set(livePeers)].join(", ")} · {writerName ? `${writerName} writes` : "you write"}</div>
+  {:else if mirror && mirror.state !== "online"}<button class="live-chip mirror-chip down" onclick={mirrorMenu}
+    title="{mirror.host} {mirror.state === 'signin' ? 'wants a sign-in' : 'is unreachable'}: this note is saved on this device only, and merged with the server's copy later. Click for more">{mirror.state === "signin" ? `Sign in to ${mirror.host}` : `${mirror.host} offline · saved here`}</button>{/if}
   {#if isNew && status === "ready"}
     <div class="new-file-hint">New file — it is created on the first save.</div>
   {/if}
@@ -468,7 +486,7 @@
   .note-view { flex: 1; min-height: 0; overflow: auto; }
   .live-chip { position: absolute; z-index: 3; bottom: 10px; right: 14px; padding: 3px 10px; border-radius: 999px; pointer-events: none;
     background: var(--accent); color: var(--accent-fg, #fff); font-size: calc(12px * var(--ui-scale, 1)); }
-  .mirror-chip { background: var(--bg-elev); color: var(--text-muted); border: 1px solid var(--border); opacity: .85; font: inherit; cursor: pointer; }
+  .mirror-chip { pointer-events: auto; /* the Live badge lets clicks through; this one is a button */ background: var(--bg-elev); color: var(--text-muted); border: 1px solid var(--border); opacity: .85; font: inherit; cursor: pointer; }
   .mirror-chip:hover { opacity: 1; color: var(--text); }
   .mirror-chip.down { color: var(--text-faint); border-style: dashed; }
   .drawn .editor-row, .drawn :global(.format-bar) { display: none; }

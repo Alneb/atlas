@@ -6,13 +6,14 @@
 // "new line" row Enter is the box's own again. Every row is icon, name, hint — the same rows as the
 // native box (crates/atlas-capture). Nothing here knows about the editor.
 import { settings } from "./settings.svelte";
-import { basename } from "./paths";
 import { api } from "./api";
 import { on, touches } from "./bus";
 import { captureDays, describeCapture, SETTLE_MS } from "./capture-hints.svelte";
 import { Newest } from "./newest";
 import type { IconName } from "./panes";
 import { taskSuggestions, taskIconEl, rowIconEl, type TaskSuggestion } from "./task-complete";
+import { linkRow, type LinkRow } from "./link-rows";
+import type { LinkTarget } from "./types";
 
 const MOST = 7;
 interface Open { start: number; kind: "note" | "tag" | "day"; typed: string }
@@ -32,13 +33,12 @@ export function tokenAt(text: string, caret: number): Open | null {
   return { start: caret - word[3].length, kind: word[2] === "#" ? "tag" : "day", typed: word[3] };
 }
 
-let notes: Promise<string[]> | null = null, tags: Promise<string[]> | null = null;
+let tags: Promise<string[]> | null = null;
 // a note made or a tag written since: both lists asked again at the next completion (not at once: most changes are
 // saves, and nobody may be typing)
-const stale = (paths: readonly string[]) => { if (touches(paths, (p) => /\.md$/i.test(p))) notes = tags = null; };
+const stale = (paths: readonly string[]) => { if (touches(paths, (p) => /\.md$/i.test(p))) tags = null; };
 on("fs", (e) => stale(e.paths));
 on("gone", (e) => stale(e.paths));
-const stem = (p: string) => basename(p).replace(/\.md$/i, "");
 async function candidates(o: Open): Promise<string[]> {
   const q = o.typed.toLowerCase();
   if (o.kind === "day") {
@@ -50,11 +50,12 @@ async function candidates(o: Open): Promise<string[]> {
     tags ??= api.tags().then((t) => t.map((x) => x.tag.replace(/^#/, "")), () => []);
     return (await tags).filter((t) => t.toLowerCase().startsWith(q));
   }
-  notes ??= api.files({ index: true }).then((f) => [...new Set(f.filter((p) => /\.md$/i.test(p)).map(stem))], () => []);
-  const all = await notes;
-  // names that begin with what was typed first, then those that only contain it
-  return [...all.filter((n) => n.toLowerCase().startsWith(q)), ...all.filter((n) => !n.toLowerCase().startsWith(q) && n.toLowerCase().includes(q))];
+  // the note editor's list: the core's rows in its order (link_targets.rs), worded alike (link-rows.ts)
+  const rows = (await api.linkTargets(o.typed).catch(() => [] as LinkTarget[])).slice(0, 50).map(linkRow);
+  noteRows = new Map(rows.map((r) => [r.label, r]));
+  return rows.map((r) => r.label);
 }
+let noteRows = new Map<string, LinkRow>();
 
 /** `when`: the list is offered only while it says so (the command bar is a capture box only in its capture mode). */
 export function complete(box: HTMLTextAreaElement | HTMLInputElement, opts: { when?: () => boolean; vault?: () => string | undefined } = {}): { destroy(): void } {
@@ -80,7 +81,7 @@ export function complete(box: HTMLTextAreaElement | HTMLInputElement, opts: { wh
         li.append(taskIconEl(t.icon), label, detail);
       } else if (open) {
         label.textContent = SIGN[open.kind] + it;
-        detail.textContent = open.kind === "day" && dayDates.has(it) ? sayDate(dayDates.get(it)!) : "";
+        detail.textContent = open.kind === "day" && dayDates.has(it) ? sayDate(dayDates.get(it)!) : open.kind === "note" ? noteRows.get(it)?.detail ?? "" : "";
         li.append(rowIconEl(ICON[open.kind]), label, detail);
       }
       li.setAttribute("role", "option");
@@ -150,7 +151,7 @@ export function complete(box: HTMLTextAreaElement | HTMLInputElement, opts: { wh
     }
     if (!open || !items[sel]) return;
     const caret = box.selectionStart ?? 0, word = items[sel];
-    const insert = open.kind === "note" ? `${word}]] ` : `${word} `;
+    const insert = open.kind === "note" ? `${noteRows.get(word)?.link ?? word}]] ` : `${word} `;
     box.setRangeText(insert, open.start, caret, "end");
     box.dispatchEvent(new Event("input", { bubbles: true })); // the box's own bindings (its value, its hints) follow
     close();

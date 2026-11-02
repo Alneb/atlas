@@ -22,9 +22,10 @@ const SYMBOLS = ("alpha beta gamma Gamma delta Delta epsilon varepsilon zeta eta
   + "arccos arctan det dim ker deg gcd cdot cdots ldots dots vdots ddots times div pm mp leq geq neq approx equiv sim simeq propto cong to mapsto rightarrow leftarrow Rightarrow Leftarrow leftrightarrow Leftrightarrow uparrow downarrow "
   + "forall exists in notin subset subseteq supset supseteq cup cap setminus emptyset varnothing wedge vee oplus otimes dagger quad qquad angle triangle top bot bra ket braket").split(" ");
 
-/** `\\alpha`, `\\nabla`…: command names in math, from two letters on (with or without the backslash). */
+/** `\\alpha`, `\\nabla`…: command names in math after a backslash and two letters. A word without one is the
+ *  snippets' (`fra` → their `frac`): offered here too, it was the same thing twice. */
 const symbolSource = (path: (ctx: CompletionContext) => string) => (ctx: CompletionContext): CompletionResult | null => {
-  const word = ctx.matchBefore(/\\?[A-Za-z]{2,}$/);
+  const word = ctx.matchBefore(/\\[A-Za-z]{2,}$/);
   if (!word) return null;
   const place = placeAt(ctx.state, ctx.pos, path(ctx));
   if (place.kind !== "math" || place.textArg) return null;

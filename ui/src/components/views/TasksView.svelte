@@ -31,7 +31,7 @@
       <input type="checkbox" class="atlas-check" checked={r.done ?? false} disabled={r.done ?? false} aria-label="Done: {r.title}" onchange={() => ontick(r)} />
       <!-- always there, so titles line up whether or not a task has a priority -->
       <span class="pri" title={r.props.priority ? `Priority: ${r.props.priority}` : undefined}>{PRIORITY[r.props.priority ?? ""] ?? ""}</span>
-      <button class="title" onclick={() => r.path && openPath(r.path, r.line ?? undefined)} title="{r.path}:{r.line}">{r.title}</button>
+      <button class="title" data-path={r.path} data-line={r.line} onclick={() => r.path && openPath(r.path, r.line ?? undefined)} title="{r.path}:{r.line}">{r.title}</button>
       {#if r.props.recurrence}<span class="rec" title="Repeats {r.props.recurrence}: ticking it makes the next one">↻ {r.props.recurrence.replace(/^every\s+/, "")}</span>{/if}
       {#if r.date && !r.done}
         {@const w = when(r.date)}

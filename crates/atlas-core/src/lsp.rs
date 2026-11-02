@@ -237,9 +237,60 @@ pub fn root_uri(root: &Path) -> String {
     format!("file://{}", root.to_string_lossy().replace(' ', "%20"))
 }
 
+/// A definition outside the vault, read for a look (`api::LspPeek`): `uri` a `file://` URI the language server
+/// answered, `line` 0-based as LSP counts. Only source files of a language a server covers (its extensions), so this
+/// is never a way to read any file of the machine; a few lines above the definition, up to 60 from it.
+pub fn peek(uri: &str, line: u32) -> crate::Result<crate::api::LspPeek> {
+    let raw = uri.strip_prefix("file://").ok_or_else(|| crate::Error::BadRequest(format!("not a file URI: {uri}")))?;
+    let path = PathBuf::from(percent_decode(raw));
+    let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("").to_lowercase();
+    if !LspLang::ALL.iter().any(|l| l.extensions().contains(&ext.as_str())) {
+        return Err(crate::Error::BadRequest(format!("not a source file a language server reads: {}", path.display())));
+    }
+    if std::fs::metadata(&path)?.len() > 8 << 20 {
+        return Err(crate::Error::TooLarge(path.display().to_string()));
+    }
+    let text = std::fs::read_to_string(&path)?;
+    let from = line.saturating_sub(3) as usize;
+    let lines: Vec<String> = text.lines().skip(from).take(63).map(str::to_string).collect();
+    Ok(crate::api::LspPeek { path: path.display().to_string(), start: from as u32 + 1, line: line + 1, lines })
+}
+
+/// `%20` and friends back to bytes (the URIs servers send; UTF-8 kept).
+fn percent_decode(s: &str) -> String {
+    let b = s.as_bytes();
+    let mut out = Vec::with_capacity(b.len());
+    let mut i = 0;
+    while i < b.len() {
+        if b[i] == b'%' && i + 2 < b.len() {
+            if let Ok(v) = u8::from_str_radix(&s[i + 1..i + 3], 16) {
+                out.push(v);
+                i += 3;
+                continue;
+            }
+        }
+        out.push(b[i]);
+        i += 1;
+    }
+    String::from_utf8_lossy(&out).into_owned()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_peek_reads_a_source_file_outside_the_vault_and_nothing_else() {
+        let d = tempfile::tempdir().unwrap();
+        let f = d.path().join("my lib.pyi");
+        std::fs::write(&f, (1..=100).map(|n| format!("l{n}\n")).collect::<String>()).unwrap();
+        let uri = format!("file://{}", f.display().to_string().replace(' ', "%20"));
+        let p = peek(&uri, 9).unwrap();
+        assert_eq!((p.start, p.line, p.lines[0].as_str(), p.lines.len()), (7, 10, "l7", 63)); // three lines above the definition
+        std::fs::write(d.path().join("secret.txt"), "x").unwrap();
+        assert!(peek(&format!("file://{}/secret.txt", d.path().display()), 0).is_err(), "only source files");
+        assert!(peek("https://example.org/a.py", 0).is_err());
+    }
 
     #[tokio::test]
     async fn frames_round_trip() {

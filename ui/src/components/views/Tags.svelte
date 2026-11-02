@@ -77,7 +77,7 @@
           </button>
           {#if open === t.tag}
             <ul class="notes">
-              {#each notes as p (p)}<li><button class="note" title={p} onclick={() => openPath(p)}><span class="n">{name(p)}</span></button></li>{/each}
+              {#each notes as p (p)}<li><button class="note" title={p} data-path={p} onclick={() => openPath(p)}><span class="n">{name(p)}</span></button></li>{/each}
             </ul>
           {/if}
         </li>

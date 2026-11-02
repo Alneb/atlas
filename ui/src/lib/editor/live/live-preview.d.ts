@@ -28,3 +28,7 @@ export function bodyStart(doc: Text): number;
 export function frontmatterClose(doc: Text): number;
 /** Rebuild the decorations although the document did not change (a setting changed a builder). */
 export const redecorate: StateEffectType<null>;
+/** Turns the raw-YAML view of the note's properties on or off (only on purpose: Alt+click, the menu). */
+export const showRawProperties: StateEffectType<boolean>;
+/** Shows the properties as raw YAML, the caret on their first key; false when the note has none. */
+export function editRawProperties(view: import("@codemirror/view").EditorView): boolean;

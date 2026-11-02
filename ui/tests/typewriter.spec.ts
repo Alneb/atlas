@@ -27,3 +27,21 @@ test("with typewriter scrolling the caret's line stays in the middle of the pane
   for (let i = 0; i < 6; i++) await page.keyboard.press("Enter"); // keep writing: it stays there
   await expect.poll(off).toBeLessThan(40);
 });
+
+// CodeMirror draws a tooltip only inside the editor less its scroll margins: the typewriter's left a one-line band, and
+// every completion list under the caret was placed off screen (top -10000px) though it was open
+test("with typewriter scrolling a completion list shows under the caret", async ({ page, request }) => {
+  await setTypewriter(request, true);
+  await page.goto("/");
+  await page.getByText("Finish the GW notes.").waitFor();
+  await openFile(page, "journal.md");
+  await page.locator(".cm-content").click();
+  await page.keyboard.press("Escape");
+  await page.keyboard.type("Go");
+  await page.keyboard.type("see [[jou", { delay: 40 });
+  const list = page.locator(".cm-tooltip-autocomplete");
+  await expect(list).toBeVisible();
+  await expect.poll(async () => (await list.boundingBox())?.y ?? -1).toBeGreaterThan(0);
+  const caret = (await page.locator(".cm-activeLine").first().boundingBox())!;
+  expect(Math.abs((await list.boundingBox())!.y - (caret.y + caret.height))).toBeLessThan(40);
+});

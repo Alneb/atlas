@@ -19,6 +19,7 @@
   import { initDock, open, openPath, getDock, activeEditorId, canNavigate, navigate, steppedJustNow } from "./lib/dock";
   import { attachBrowserBack } from "./lib/back";
   import { attachTouch } from "./lib/touch";
+  import { attachAppMenu } from "./lib/app-menu";
   import { paneComponents as components } from "./lib/pane-components";
   import type { FocusTarget } from "./lib/types";
   import { editors, lastEditorId, parkAll } from "./lib/registry";
@@ -125,6 +126,7 @@
     // a browser's Back closes what is open, then goes back a place; a phone then leaves Atlas, a desktop stays in its vault.
     // A mouse's side button is taken by nav-input.ts as well: that step counts once.
     const offTouch = attachTouch(); // a long press is a right click; finger-sized targets are styles/touch.css
+    const offMenu = attachAppMenu(); // the app's right-click menu where no part has its own (lib/app-menu.ts)
     const offBack = attachBrowserBack(() => !nativeShell.on, () => steppedJustNow() || (canNavigate(-1) && (navigate(-1), true)), () => phone.on);
     // The tabs as they were left (a file of this vault — docs/guides/SHELL.md), unless the setting says to
     // start clean. Home is the first screen either way: restored layouts keep their panes, but home
@@ -192,6 +194,7 @@
       offNative,
       offBack,
       offTouch,
+      offMenu,
     ];
 
     window.addEventListener("keydown", onKey, true);

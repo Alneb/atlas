@@ -15,6 +15,8 @@ export interface Live {
   others(): number;
   /** Whether this device saves the file: the room's writer, or alone (or not in a room: offline). */
   writes(): boolean;
+  /** The device saving the file when it is not this one (its name as it joined), else null. */
+  writerName(): string | null;
   close(): void;
 }
 export interface LiveHandlers {
@@ -66,6 +68,7 @@ export function joinLive(path: string, on: LiveHandlers): Live {
     peers: () => [...peers.values()],
     others: () => peers.size + unheard,
     writes: () => writer === me || peers.size + unheard === 0,
+    writerName: () => (writer === me || peers.size + unheard === 0 ? null : peers.get(writer)?.name ?? "another device"),
     close() { closed = true; clearTimeout(timer); ws?.close(); },
   };
 }

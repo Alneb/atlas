@@ -7,7 +7,7 @@
   // leaves the window (it flips above / left of the pointer when there is no room).
   import Icon from "./Icon.svelte";
   import type { IconName } from "../lib/panes";
-  export type MenuItem = { label: string; detail?: string; hint?: string; icon?: IconName; danger?: boolean; disabled?: boolean; run: () => void } | "sep";
+  export type MenuItem = { label: string; detail?: string; hint?: string; icon?: IconName; danger?: boolean; disabled?: boolean; run: () => void } | { info: string; detail?: string; icon?: IconName } | "sep";
   let { x, y, items, onclose }: { x: number; y: number; items: MenuItem[]; onclose: () => void } = $props();
   let menu = $state<HTMLDivElement>();
   let at = $state<{ left: number; top: number } | null>(null); // null until measured: no flash at the wrong place
@@ -53,6 +53,9 @@
 <div class="menu" role="menu" bind:this={menu} class:placed={at} style:left="{at?.left ?? x}px" style:top="{at?.top ?? y}px">
   {#each items as it}
     {#if it === "sep"}<div class="sep" role="separator"></div>
+    {:else if "info" in it}
+      <!-- a line that explains (what a chip means, a state), not a choice: readable, wrapping, never focused -->
+      <div class="info">{#if icons}<span class="ic">{#if it.icon}<Icon name={it.icon} size={14} />{/if}</span>{/if}<span><b>{it.info}</b>{#if it.detail}<small>{it.detail}</small>{/if}</span></div>
     {:else}
       <button role="menuitem" class:danger={it.danger} disabled={it.disabled} data-label={it.label} onmouseenter={(e) => e.currentTarget.focus()} onclick={() => { onclose(); it.run(); }}>
         {#if icons}<span class="ic">{#if it.icon}<Icon name={it.icon} size={14} />{/if}</span>{/if}
@@ -73,6 +76,10 @@
   small { display: block; overflow: hidden; text-overflow: ellipsis; color: var(--text-faint); font-size: .86em; }
   .danger, .danger .ic { color: var(--red); }
   kbd { color: var(--text-faint); font-family: var(--font-mono); font-size: .85em; margin-left: 12px; }
+  .info { display: flex; align-items: flex-start; gap: 9px; padding: 5px 10px; color: var(--text); font-size: calc(13px * var(--ui-scale, 1)); }
+  .info b { font-weight: 600; }
+  .info small { white-space: normal; color: var(--text-muted); line-height: 1.35; margin-top: 1px; }
+  .info .ic { margin-top: 2px; }
   .sep { height: 1px; background: var(--border); margin: 4px 6px; }
   /* a finger, not a pointer */
   :global(html.phone) button { min-height: 44px; font-size: 15px; padding: 8px 12px; }

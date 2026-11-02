@@ -107,7 +107,7 @@
 .tab-glance .glance-where { font-size: calc(11px * var(--ui-scale, 1)); color: var(--text-faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; direction: rtl; text-align: left; }
 .tab-glance .glance-card.chosen .glance-title { color: var(--accent-strong); }
 
-/* lib/image-peek.ts: a picture shown large while Ctrl is held over it */
+/* lib/image-peek.ts: a picture shown large while Ctrl is held over it (click-through: being within it keeps it, lib/image-peek.ts) */
 .image-peek { position: fixed; inset: 0; margin: auto; z-index: 95; max-width: 86vw; max-height: 86vh; object-fit: contain; pointer-events: none;
   border-radius: 8px; background: var(--bg-elev); box-shadow: var(--shadow-pop); border: 1px solid var(--border-strong); }
 /* vertical tabs: the side column's header is the side panel's row of tools (SideHead.svelte), not tabs */

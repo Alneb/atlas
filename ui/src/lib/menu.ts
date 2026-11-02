@@ -17,3 +17,10 @@ export function below(e: MouseEvent, items: MenuItem[], gap = 2): MenuAt {
 export function popMenu(at: MenuAt, onclose?: () => void): void {
   const m = mount(ContextMenu, { target: document.body, props: { ...at, onclose: () => { void unmount(m); onclose?.(); } } });
 }
+
+/** What last pressed the page: a long press by a finger or a pen is the phone's own (it selects a word, with the
+ *  system's toolbar), not an app menu — Android's WebView sends a contextmenu event on every long press, and on the Boox
+ *  it opened a menu instead of selecting. */
+let lastPointer = "mouse";
+if (typeof addEventListener === "function") addEventListener("pointerdown", (e: PointerEvent) => { lastPointer = e.pointerType; }, { capture: true, passive: true });
+export const pressedByHand = (): boolean => lastPointer === "touch" || lastPointer === "pen";

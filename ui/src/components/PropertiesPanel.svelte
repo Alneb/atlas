@@ -3,6 +3,7 @@
   // one row per property, each edited with the control of its kind (the vault's spec, else the
   // value's shape), the keys the note's `type:` requires and lacks, and "Add a property".
   // Every change is one edit of the editor's text (lib/frontmatter-edit.ts): undo and save as typing.
+  import { editRawProperties } from "../lib/editor/live/live-preview.js";
   import { known, loadKnown, valuesOf } from "../lib/known-properties.svelte";
   import { errText } from "../lib/text";
   import { tick } from "svelte";
@@ -21,9 +22,7 @@
   // the YAML itself, for what the controls do not cover: the caret at the start of the frontmatter
   function asText() {
     const v = view();
-    if (!v) return;
-    v.dispatch({ selection: { anchor: Math.min(4, v.state.doc.length) }, scrollIntoView: true });
-    v.focus();
+    if (v) editRawProperties(v); // the deliberate way into the YAML (live-preview.js rawProperties)
   }
   watchPropertySpec();
 
@@ -118,35 +117,35 @@
 <style>
   .props-panel { flex: none; width: min(calc(300px * var(--ui-scale, 1)), 42%); min-width: 0; display: flex; flex-direction: column; border-left: 1px solid var(--border); background: var(--bg-alt); }
   .grow { flex: 1; }
-  .side-head { flex: none; display: flex; align-items: center; gap: 8px; height: 36px; padding: 0 10px 0 14px; }
+  .side-head { flex: none; display: flex; align-items: center; gap: 8px; height: calc(36px * var(--ui-scale, 1)); padding: 0 10px 0 14px; }
   .side-title { font-size: calc(11px * var(--ui-scale, 1)); font-weight: 600; text-transform: uppercase; letter-spacing: .08em; color: var(--text-muted); }
   .body { flex: 1; min-height: 0; overflow: auto; display: flex; flex-direction: column; gap: 2px; padding: 0 8px 16px; }
   /* one line per property, the name left and its value right (a name above each value
      took two screens for a film's 17 properties) */
   .row { display: grid; grid-template-columns: calc(96px * var(--ui-scale, 1)) minmax(0, 1fr); align-items: start; column-gap: 6px; padding: 2px 4px; border-radius: var(--radius-sm); }
-  .row > .key { min-height: 28px; position: relative; }
+  .row > .key { min-height: calc(28px * var(--ui-scale, 1)); position: relative; }
   .row > .key :global(.rm) { position: absolute; right: 0; background: var(--bg-alt); } /* over the name's end: no width kept for it */
   .row > :global(:not(.key)) { min-width: 0; }
   .props-panel :global(input[type="number"]) { appearance: textfield; -moz-appearance: textfield; }
   .props-panel :global(input[type="number"]::-webkit-inner-spin-button), .props-panel :global(input[type="number"]::-webkit-outer-spin-button) { -webkit-appearance: none; margin: 0; }
   .row:hover { background: var(--bg-hover); }
   .row.missing .name { color: var(--text-faint); }
-  .key { display: flex; align-items: center; gap: 6px; min-height: 20px; padding-left: 3px; color: var(--text-muted); font-size: calc(11.5px * var(--ui-scale, 1)); }
+  .key { display: flex; align-items: center; gap: 6px; min-height: calc(20px * var(--ui-scale, 1)); padding-left: 3px; color: var(--text-muted); font-size: calc(11.5px * var(--ui-scale, 1)); }
   .icon { display: inline-grid; place-items: center; flex: none; opacity: .75; }
-  .icon :global(svg) { width: 13px; height: 13px; }
+  .icon :global(svg) { width: calc(13px * var(--ui-scale, 1)); height: calc(13px * var(--ui-scale, 1)); }
   .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; font-weight: 550; }
-  .rename { flex: 1; min-width: 0; height: 20px; font: inherit; font-weight: 550; color: var(--text); background: var(--bg); border: 1px solid var(--accent); border-radius: var(--radius-sm); padding: 0 4px; }
+  .rename { flex: 1; min-width: 0; height: calc(20px * var(--ui-scale, 1)); font: inherit; font-weight: 550; color: var(--text); background: var(--bg); border: 1px solid var(--accent); border-radius: var(--radius-sm); padding: 0 4px; }
   .rename:focus { outline: none; }
   .req { margin-left: auto; font-size: .92em; color: var(--text-faint); font-style: italic; white-space: nowrap; }
-  .rm { margin-left: auto; width: 24px; height: 20px; opacity: 0; }
+  .rm { margin-left: auto; width: calc(24px * var(--ui-scale, 1)); height: calc(20px * var(--ui-scale, 1)); opacity: 0; }
   .row:hover .rm, .rm:focus-visible { opacity: 1; }
   /* a choice looks like the other fields: no box until pointed at or focused */
-  .props-panel .row :global(.trigger) { height: 26px; padding: 0 7px; border-color: transparent; background: transparent; font-size: calc(12.5px * var(--ui-scale, 1)); }
+  .props-panel .row :global(.trigger) { height: calc(26px * var(--ui-scale, 1)); padding: 0 7px; border-color: transparent; background: transparent; font-size: calc(12.5px * var(--ui-scale, 1)); }
   .props-panel .row :global(.trigger:hover) { border-color: var(--border); }
   .props-panel .row :global(.trigger:focus-visible), .props-panel .row :global(.trigger[aria-expanded="true"]) { border-color: var(--accent); background: var(--bg); }
-  .add { display: flex; align-items: center; gap: 6px; margin-top: 6px; padding: 0 7px; min-height: 28px; border-radius: var(--radius-sm); color: var(--text-faint); border: 1px dashed var(--border-strong); }
+  .add { display: flex; align-items: center; gap: 6px; margin-top: 6px; padding: 0 7px; min-height: calc(28px * var(--ui-scale, 1)); border-radius: var(--radius-sm); color: var(--text-faint); border: 1px dashed var(--border-strong); }
   .add:focus-within { border-style: solid; border-color: var(--accent); color: var(--text-muted); }
-  .add input { flex: 1; min-width: 0; height: 26px; border: 0; background: transparent; color: var(--text); font: inherit; font-size: calc(12.5px * var(--ui-scale, 1)); }
+  .add input { flex: 1; min-width: 0; height: calc(26px * var(--ui-scale, 1)); border: 0; background: transparent; color: var(--text); font: inherit; font-size: calc(12.5px * var(--ui-scale, 1)); }
   .add input:focus { outline: none; }
   .add input::placeholder { color: var(--text-faint); }
   .note { margin: 8px 6px; color: var(--text-faint); font-size: calc(12px * var(--ui-scale, 1)); }

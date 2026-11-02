@@ -11,7 +11,7 @@
   {#each rows as r (`${r.path}:${r.line ?? ""}:${r.title}`)}
     <li class:done={r.done}>
       {#if r.done !== null}<input type="checkbox" class="atlas-check" checked={r.done} disabled={r.done} aria-label="Done: {r.title}" onchange={() => ontick(r)} />{/if}
-      <button class="title" onclick={() => r.path && openPath(r.path, r.line ?? undefined)} title={r.path ?? ""}>{r.title}</button>
+      <button class="title" data-path={r.path} data-line={r.line} onclick={() => r.path && openPath(r.path, r.line ?? undefined)} title={r.path ?? ""}>{r.title}</button>
       {#if r.props.note}<span class="of" title="The note this task is in">{r.props.note}</span>{/if}
       {#if r.date}<span class="date">{r.date}</span>{/if}
       {#if table && r.path}<span class="path">{shownPath(r.path)}</span>{/if}

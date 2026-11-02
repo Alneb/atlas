@@ -32,7 +32,7 @@
           {#if n.children.length}
             <button class="twist" class:closed={closed.has(p)} onclick={() => toggle(p)} aria-label="{closed.has(p) ? 'Expand' : 'Collapse'} {n.row.title}" aria-expanded={!closed.has(p)}>▾</button>
           {:else}<span class="twist leaf"></span>{/if}
-          <button class="title" onclick={() => openPath(p)} title={p}>{n.row.title}</button>
+          <button class="title" data-path={p} onclick={() => openPath(p)} title={p}>{n.row.title}</button>
           {#if n.children.length}<span class="n">{n.children.length}</span>{/if}
           {#if n.row.date}<span class="date">{n.row.date}</span>{/if}
         </div>

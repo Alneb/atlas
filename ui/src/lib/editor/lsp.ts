@@ -1,7 +1,7 @@
 // Language servers for code files (@codemirror/lsp-client): one client per language, shared by all
 // editors, talking to atlas-core's `/api/lsp/{lang}` relay (which runs the server in the workspace).
 import { errText } from "../text";
-import { LSPClient, LSPPlugin, Workspace, findReferences, formatDocument, jumpToDefinition, jumpToImplementation, languageServerExtensions, renameSymbol, signatureKeymap, type Transport, type WorkspaceFile } from "@codemirror/lsp-client";
+import { LSPClient, LSPPlugin, Workspace, findReferences, formatDocument, jumpToImplementation, languageServerExtensions, renameSymbol, signatureKeymap, type Transport, type WorkspaceFile } from "@codemirror/lsp-client";
 import { ChangeSet, Prec, type Extension, type Text } from "@codemirror/state";
 import { keymap, type EditorView } from "@codemirror/view";
 import { forEachDiagnostic } from "@codemirror/lint";
@@ -12,6 +12,7 @@ import { toast } from "../state.svelte";
 import { onSettings } from "../settings.svelte";
 import type { LspLang, LspServerInfo } from "../types";
 import { inlayHints } from "./inlay-hints";
+import { goToDefinition } from "./definition";
 
 let servers: Promise<LspServerInfo[]> | null = null;
 const clients = new Map<LspLang, Promise<LSPClient | null>>();
@@ -329,11 +330,14 @@ export async function restartLanguage(lang: LspLang): Promise<void> {
   try { c.connect(await connect(lang, root)); } catch (e) { clients.delete(lang); toast(`The ${lang} language server did not start again`, errText(e), "error"); }
 }
 
+/** The workspace root URI of the server serving `view` (definitions under it open in a tab), else undefined. */
+export const lspRoot = (view: EditorView): string | undefined => { const p = LSPPlugin.get(view); return p ? roots.get(p.client) : undefined; };
+
 /** The LSP keys, ahead of vim (whose normal mode swallows F2). Each command declines (false) in a
  *  file without a server, so the key falls through. */
 export const lspKeys: Extension = Prec.highest(keymap.of([
   { key: "F2", run: renameSymbol },
-  { key: "F12", run: jumpToDefinition },
+  { key: "F12", run: (v) => goToDefinition(v) }, // a definition outside the vault peeked (definition.ts)
   { key: "Mod-F12", run: jumpToImplementation },
   // the parameters of the call the caret is in (it also opens by itself after "(" and ","): Ctrl+Shift+Space, as in VS Code
   ...signatureKeymap,

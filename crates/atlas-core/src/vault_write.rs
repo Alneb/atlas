@@ -188,6 +188,20 @@ pub fn guarded<T>(abs: &Path, kind: WriteKind, op: impl FnOnce() -> Result<T>) -
     run(abs, |_| kind, hashed, op)
 }
 
+/// [`guarded`] for an outside program that changes several files at once (git restoring, reverting a hunk, pulling):
+/// every path's lease taken, one after the other, and all held while `op` runs.
+pub fn guarded_all<T>(mut abs: Vec<PathBuf>, kind: WriteKind, op: impl FnOnce() -> Result<T>) -> Result<T> {
+    abs.sort();
+    abs.dedup();
+    fn nest<T>(abs: &[PathBuf], kind: &WriteKind, op: impl FnOnce() -> Result<T>) -> Result<T> {
+        match abs.split_first() {
+            None => op(),
+            Some((first, rest)) => guarded(first, kind.clone(), || nest(rest, kind, op)),
+        }
+    }
+    nest(&abs, &kind, op)
+}
+
 /// Read `abs` as text, change it with `edit`, and [`write`] the result, with no other `modify` of the same file in this
 /// process in between: two ticks at once on one note would each write back the text without the other's. A text
 /// `edit` leaves unchanged is not written.

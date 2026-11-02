@@ -39,9 +39,10 @@
 :root[data-shape="paper"] .palette .section { display: flex; align-items: center; gap: 8px; }
 :root[data-shape="paper"] .palette .section::after { content: ""; flex: 1; height: 1px; background: var(--border); }
 
-/* a note reads as a page: its format bar and path quiet until the pointer comes near */
-:root[data-shape="paper"] .format-bar { opacity: .55; transition: opacity .15s; border-bottom-color: transparent; }
-:root[data-shape="paper"] .format-bar:hover, :root[data-shape="paper"] .format-bar:focus-within { opacity: 1; }
+/* a note reads as a page: its format bar quiet until the pointer comes near (its buttons only: the hairline under it,
+   which also closes the Properties panel's top, stays) */
+:root[data-shape="paper"] .format-bar > * { opacity: .55; transition: opacity .15s; }
+:root[data-shape="paper"] .format-bar:is(:hover, :focus-within) > * { opacity: 1; }
 
 /* buttons: flat, a rule instead of a fill where they are secondary */
 :root[data-shape="paper"] .btn-ghost { border-color: var(--border-strong); background: transparent; }

@@ -402,10 +402,18 @@ pub fn new_note_at(root: &Path, cfg: &Config, req: &NewNote, now: NaiveDateTime)
     for n in 1..1000 {
         let rel = rel_of(n);
         if write_new(root, &rel, &text)? {
-            return Ok(NewNoteResult { path: rel, line: cursor.unwrap_or_else(|| text.lines().count().max(1) as u32) });
+            return Ok(NewNoteResult { path: rel, line: cursor.unwrap_or_else(|| end_line(&text)) });
         }
     }
     Err(Error::BadRequest(format!("too many notes named {stem}")))
+}
+
+/// Where the caret goes in a new note with no `{{cursor}}`: its last line of text — but below the properties when they
+/// are all there is (on their closing `---` the editor opened them as raw text, not the first line to write on).
+fn end_line(text: &str) -> u32 {
+    let last = text.lines().count().max(1) as u32;
+    let closes = text.starts_with("---") && text.lines().count() > 1 && text.lines().last().is_some_and(|l| l.trim_end() == "---");
+    if closes { last + 1 } else { last }
 }
 
 /// The top-level keys of a text's frontmatter, in order: a `key:` line at the left margin (Templater
@@ -603,6 +611,14 @@ mod tests {
         assert!(matches!(new_note_at(d.path(), &Config::default(), &missing, now()), Err(Error::NotFound(_))));
         let out = NewNote { dir: Some("../x".into()), ..req };
         assert!(matches!(new_note_at(d.path(), &Config::default(), &out, now()), Err(Error::BadPath(_))));
+    }
+
+    #[test]
+    fn a_note_of_properties_alone_opens_below_them() {
+        assert_eq!(end_line("---\ntype: idea\n---\n"), 4, "the empty line after the closing fence, not the fence");
+        assert_eq!(end_line("# Title\n"), 1);
+        assert_eq!(end_line("---\na: 1\n---\na thought\n"), 4, "a text's last line keeps the caret");
+        assert_eq!(end_line("no newline"), 1);
     }
 
     #[test]

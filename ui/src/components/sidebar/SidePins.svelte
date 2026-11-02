@@ -25,6 +25,9 @@
   /** the tile's open tab: the shown one first, else any */
   const openId = (a: AppTile) => (a.ids.includes(tabs.active ?? "") ? tabs.active : a.ids.find((id) => tabs.apps.some((t) => t.id === id))) ?? null;
   const isActive = (a: AppTile) => a.ids.includes(tabs.active ?? "");
+  // collapsed to icons, the apps are one icon: the one in front (else the first) — a column of every app pushed the
+  // rest of the bar down, so nothing kept its height between the two widths; the others are a hover (peek) away
+  const shown = $derived(wide ? apps : apps.filter(isActive).slice(0, 1).concat(apps.some(isActive) ? [] : apps.slice(0, 1)));
   const go = (a: AppTile) => { const id = openId(a); if (id) activate(id); else a.open(); };
   const appTip = (a: AppTile) => `${a.title}${a.keys ? ` · ${a.keys}` : ""}${openId(a) ? "" : " (opens it)"}`;
   /** Its tab's Close, then where the tile sits (`[ui] apps_order` / `apps_hidden`, also in Settings → Appearance). */
@@ -48,7 +51,7 @@
 
 {#if apps.length}
   <div class="apps" class:wide role="toolbar" aria-label="Apps" data-testid="apps">
-    {#each apps as a (a.ids[0])}
+    {#each shown as a (a.ids[0])}
       {@const id = openId(a)}
       <button class="app" class:active={isActive(a)} class:open={!!id} aria-label={a.title} aria-pressed={isActive(a)} title={appTip(a)}
         data-app-id={a.ids[0]} onclick={() => go(a)} onauxclick={(e) => { if (e.button === 1 && id) { e.preventDefault(); closeTab(id); } }}

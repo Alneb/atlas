@@ -44,6 +44,13 @@
 .cm-panel.cm-search .cm-search-count.none { color: var(--red); }
 .cm-panel.cm-search label { color: var(--text-muted); display: inline-flex; gap: 4px; align-items: center; }
 .cm-panel.cm-search [name=close] { color: var(--text-faint); font-size: calc(16px * var(--ui-scale, 1)); border: 0; background: none; }
+/* CodeMirror's own small dialogs (the language server's rename: "New name"): the find bar's look, not the browser's */
+.cm-panel.cm-dialog { display: flex; align-items: center; gap: 8px; padding: 6px 12px; font-size: calc(12.5px * var(--ui-scale, 1)); }
+.cm-panel.cm-dialog label { display: inline-flex; align-items: center; gap: 8px; color: var(--text-muted); }
+.cm-panel.cm-dialog input, .cm-panel.cm-dialog button { font: inherit; background: var(--bg-elev); color: var(--text); border: 1px solid var(--border-strong); border-radius: var(--radius-sm); padding: 3px 8px; background-image: none; }
+.cm-panel.cm-dialog input:focus { outline: none; border-color: var(--accent); }
+.cm-panel.cm-dialog button[type=submit] { background: var(--accent); color: var(--accent-fg, #fff); border-color: transparent; }
+.cm-panel.cm-dialog .cm-dialog-close { margin-left: auto; color: var(--text-faint); border: 0; background: none; font-size: calc(16px * var(--ui-scale, 1)); }
 .cm-vim-panel, .cm-panel.cm-vim-panel { font-family: var(--font-mono); font-size: calc(13px * var(--ui-scale, 1)); padding: 4px 12px; background: var(--bg-alt); }
 .cm-vim-panel input { background: transparent; color: var(--text); border: 0; outline: 0; font: inherit; }
 
@@ -108,9 +115,9 @@
 .markdown .cm-rendered-block > :last-child { margin-bottom: 0; }
 /* a hint that the block is clickable, not a highlight: the accent tint read as "selected" */
 .markdown .cm-rendered-block:hover { background: var(--bg-hover); }
-/* an editable table or an embedded base is clicked into its cells, not its source, and draws its own frame: no
-   "click to show the source" band around it */
-.markdown .cm-rendered-block:has(.table-edit-box, .base.embedded):hover { background: none; }
+/* an editable table, an embedded base or any block (a day's header, a widget) draws its own box: the "click to show
+   the source" band round it peeked out above and below that box like a smudged shadow */
+.markdown .cm-rendered-block:has(.table-edit-box, .base.embedded, .atlas-block):hover { background: none; }
 .markdown .cm-rendered-block pre, .markdown .cm-rendered-block .table-wrap { margin: .3em 0; }
 
 .markdown .cm-frontmatter { font-family: var(--font-mono); font-size: .78em; color: var(--text-muted); line-height: 1.55; }
@@ -219,3 +226,10 @@
   background: var(--bg-elev); color: var(--text-muted); font-size: 11px; line-height: 1; cursor: pointer; }
 .table-edit-box:hover .table-minus:not([hidden]) { display: grid; }
 .table-minus:hover { color: var(--red); border-color: var(--red); }
+
+/* lib/editor/definition.ts: a definition outside the vault, peeked read-only under the name */
+.def-peek { position: fixed; z-index: 80; width: min(640px, calc(100vw - 16px)); height: 280px; display: flex; flex-direction: column; background: var(--bg); border: 1px solid var(--border-strong); border-radius: var(--radius-lg); box-shadow: var(--shadow-pop); overflow: hidden; }
+.def-peek-head { flex: none; padding: 5px 10px; font-size: calc(11.5px * var(--ui-scale, 1)); color: var(--text-muted); background: var(--bg-alt); border-bottom: 1px solid var(--border); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; direction: rtl; text-align: left; }
+.def-peek .cm-editor { flex: 1; min-height: 0; font-size: var(--code-size, 13px); }
+.def-peek .cm-scroller { overflow: auto; }
+.def-peek .def-peek-line { background: var(--accent-soft); }

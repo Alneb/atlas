@@ -45,7 +45,7 @@
 
 <style>
   .format-bar { display: flex; align-items: center; gap: 2px; padding: 3px 10px; border-bottom: 1px solid var(--border); flex: none; overflow-x: auto; }
-  button { display: grid; place-items: center; width: 30px; height: 28px; padding: 0; border-radius: var(--radius-sm); color: var(--text-muted); flex: none; }
+  button { display: grid; place-items: center; width: calc(30px * var(--ui-scale, 1)); height: calc(28px * var(--ui-scale, 1)); padding: 0; border-radius: var(--radius-sm); color: var(--text-muted); flex: none; }
   button:hover { background: var(--bg-hover); color: var(--text); }
-  .gap { width: 1px; height: 16px; margin: 0 6px; background: var(--border); flex: none; }
+  .gap { width: 1px; height: calc(16px * var(--ui-scale, 1)); margin: 0 6px; background: var(--border); flex: none; }
 </style>

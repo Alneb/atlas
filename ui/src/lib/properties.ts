@@ -87,7 +87,7 @@ export function propertiesChip(yamlText: string): HTMLElement {
   pill.className = "cm-properties";
   pill.title = "Show the properties in a panel at the right";
   // opens the rich panel (PropertiesPanel); the event never reaches CodeMirror, so the caret does not drop into the YAML
-  line.addEventListener("mousedown", (e) => { e.preventDefault(); e.stopImmediatePropagation(); window.dispatchEvent(new Event("atlas-properties-toggle")); }); // immediate: the live preview's own listener on this element would enter the YAML
+  line.addEventListener("mousedown", (e) => { if (e.altKey) return; /* Alt+click: the YAML (live-preview.js) */ e.preventDefault(); e.stopImmediatePropagation(); window.dispatchEvent(new Event("atlas-properties-toggle")); }); // immediate: the live preview's own listener on this element would enter the YAML
   pill.textContent = "Properties";
   const n = document.createElement("span");
   n.className = "cm-properties-n";

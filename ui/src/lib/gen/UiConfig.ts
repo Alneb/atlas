@@ -19,20 +19,20 @@ export type UiConfig = {
  */
 theme: Theme, 
 /**
- * A VS Code color theme (.json) to dress Atlas in: window, editor, terminal and syntax colours.
- * Empty = Atlas's own palette. It applies while the theme above is of its kind (a dark theme
- * dresses dark mode; light mode keeps Atlas's light palette).
- */
-vscode_theme: string, 
-/**
  * Accent colour (links, selection, buttons), as `#rrggbb`. Empty = the theme's own.
  */
 accent: string, 
 /**
- * Colours, in light and dark alike: Atlas's own cool greys, or a warm paper with ink-blue (`ink`) or
- * terracotta (`clay`) links and buttons. A colour set above and a VS Code theme still win over it.
+ * Colour scheme (by day, and by night too unless `palette_dark` names another): Atlas's own cool greys; a warm paper with ink-blue (`ink`) or terracotta
+ * (`clay`) links and buttons; green-grey `sage`, blue-grey `sea`, lavender `dusk`, neutral `graphite`; black and
+ * green `phosphor`; `rose`, `honey`, `slate`, `forest`, `coffee`, `ember`, `glacier`, `sand`, `midnight`, and
+ * `contrast` for the most contrast. An accent colour set above still wins over its accent.
  */
 palette: Palette, 
+/**
+ * Night palette: the colour scheme in the dark theme (the one above is then the day's). Empty: the same in both.
+ */
+palette_dark?: Palette | null, 
 /**
  * Shapes: `cards` (panes as rounded cards floating on the window) or `paper` (one flat sheet: panes flush,
  * hairline rules between them, square corners, the selected tab or row marked by a bar).

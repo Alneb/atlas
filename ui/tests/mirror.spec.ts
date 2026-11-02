@@ -27,12 +27,11 @@ async function open(page: import("@playwright/test").Page, up: boolean): Promise
   return { mirrorFileCalls: () => calls };
 }
 
-test("a note of a mirrored vault is read and saved here, the chip saying it is live with the server", async ({ page, request }) => {
+test("a note of a mirrored vault is read and saved here, with no chip while all is well", async ({ page, request }) => {
   await request.put("/api/file", { headers: H, data: { path: NOTE, text: "# Here\n\nthe local copy\n" } });
   const m = await open(page, true);
   await expect(page.locator(".cm-content")).toContainText("the local copy");
-  await expect(page.locator(".mirror-chip")).toHaveText("⇄ mirror.invalid");
-  await expect(page.locator(".mirror-chip")).toHaveAttribute("title", /This device writes the note/);
+  await expect(page.locator(".mirror-chip")).toHaveCount(0); // this device writes, alone: nothing to say
 
   await page.locator(".cm-content").click();
   await page.keyboard.press("Escape");
@@ -46,7 +45,10 @@ test("a note of a mirrored vault is read and saved here, the chip saying it is l
 test("with the mirror not answering, the note is saved here all the same and the chip says so", async ({ page, request }) => {
   await request.put("/api/file", { headers: H, data: { path: NOTE, text: "# Same\n\nin step\n" } });
   const m = await open(page, false);
-  await expect(page.locator(".mirror-chip")).toHaveText("⇄ mirror.invalid · offline");
+  await expect(page.locator(".mirror-chip")).toHaveText("mirror.invalid offline · saved here");
+  await page.locator(".mirror-chip").click();
+  await expect(page.getByRole("menu")).toContainText("saved on this device"); // the chip explains itself
+  await page.keyboard.press("Escape");
   await page.locator(".cm-content").click();
   await page.keyboard.press("Escape");
   await page.keyboard.type("GkA");

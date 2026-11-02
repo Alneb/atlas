@@ -19,10 +19,12 @@ function selection(): string {
   return snap ? snap.ranges.map((r) => snap.text.slice(r.from, r.to)).filter(Boolean).join("\n") : "";
 }
 
-/** Opens the popup: `seed` (what was typed in the command bar), else the draft, else the editor's selection. */
 /** The captures still to triage, in a tab: the one way every button and command opens them. */
 export const openCaptures = (): void => void open({ kind: "block", src: "type: captures\n", doc: "", title: "Captures", icon: "inbox" });
+/** Every open task of the vault, in a tab beside the captures (the `task-list` view: dates, priorities, done in place). */
+export const openTasks = (): void => void open({ kind: "block", src: "type: task-list\nfrom: tasks\n", doc: "", title: "Tasks", icon: "check" });
 
+/** Opens the popup: `seed` (what was typed in the command bar), else the draft, else the editor's selection. */
 export function openQuickCapture(seed = ""): void {
   if (quickCapture.open && !seed) { quickCapture.open = false; return; }
   quickCapture.text = seed || load<string>(DRAFT, "") || selection();

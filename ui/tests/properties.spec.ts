@@ -190,3 +190,17 @@ test("panel: known names and values are offered, [[ offers notes, an address and
   await panel.getByRole("button", { name: "Open source: text" }).click();
   expect((await popup).url()).toContain("example.org/x");
 });
+
+// Raw YAML only on purpose: a plain click or Ctrl+Home keeps the table; Alt+click (or "Edit as text") shows the text.
+test("the properties turn into raw text only on purpose", async ({ page }) => {
+  const ed = await note(page, "props/hidden.md");
+  const content = ed.locator(".cm-content");
+  await content.getByText("The body.").click();
+  await page.keyboard.press("Control+Home");
+  await page.keyboard.press("ArrowUp");
+  await expect(content).not.toContainText("type: Concept");
+  await ed.locator(".cm-properties").click({ modifiers: ["Alt"] });
+  await expect(content).toContainText("type: Concept");
+  await content.getByText("The body.").click();
+  await expect(content).not.toContainText("type: Concept");
+});

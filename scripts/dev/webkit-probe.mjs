@@ -54,7 +54,7 @@ export async function readOnlyPage({ url = coreUrl(), dist, width = 1500, height
   // ATLAS_PROBE_SCALE=2: a HiDPI screen (canvases sized by devicePixelRatio look different there)
   const page = await browser.newPage({ viewport: { width, height }, deviceScaleFactor: Number(process.env.ATLAS_PROBE_SCALE ?? 1), extraHTTPHeaders: key ? { "x-atlas-token": key } : {} });
   if (key) await page.context().addCookies([{ name: "atlas_local", value: key, url }]);
-  await page.routeWebSocket(/.*/, (ws) => ws.close());
+  if (!COPY) await page.routeWebSocket(/.*/, (ws) => ws.close()); // a copy may talk to its core (a language server, live events)
   await page.route("**/*", async (r) => {
     const req = r.request(), u = new URL(req.url());
     if (u.pathname.startsWith("/api/")) return COPY || req.method() === "GET" || READS.test(u.pathname) || readingFetch(req) ? r.continue() : r.fulfill({ status: 200, contentType: "application/json", body: "{}" });

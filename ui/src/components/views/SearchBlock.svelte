@@ -32,9 +32,9 @@
   {#if error}<p class="view-error">{error}</p>
   {:else if res}
     <ul>
-      {#each res.files.slice(0, 8) as f (f)}<li><button onclick={() => openPath(f)} title={f}>{shownPath(f)}</button></li>{/each}
+      {#each res.files.slice(0, 8) as f (f)}<li><button data-path={f} onclick={() => openPath(f)} title={f}>{shownPath(f)}</button></li>{/each}
       {#each lines.slice(0, 20) as h (`${h.path}:${h.line}`)}
-        <li><button onclick={() => openPath(h.path, h.line)}><span class="p">{shownPath(h.path)}:{h.line}</span> {h.text.trim().slice(0, 140)}</button></li>
+        <li><button data-path={h.path} data-line={h.line} onclick={() => openPath(h.path, h.line)}><span class="p">{shownPath(h.path)}:{h.line}</span> {h.text.trim().slice(0, 140)}</button></li>
       {/each}
     </ul>
   {/if}

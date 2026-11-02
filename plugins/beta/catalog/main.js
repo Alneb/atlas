@@ -612,17 +612,28 @@ function plainAbout(text) {
     .replace(/\[\[([^\]|]*\|)?([^\]]*)\]\]/g, "$2").replace(/\[([^\]]*)\]\([^)]*\)/g, "$1").replace(/\n{3,}/g, "\n\n").trim();
 }
 
-/** One library per group of kinds (`libraryOf`), registered as the kinds are known and again when a kind file
- *  changes; References' kinds (papers) are left to References. */
+/** One library per group of kinds (`libraryOf`) that the vault has notes of — a research vault shows no empty Anime
+ *  or Music tab; the first one of a kind is added with the catalog's Add command, and its library appears then.
+ *  Registered as the kinds are known, again when a kind file changes, and (settled) when notes change. References'
+ *  kinds (papers) are left to References. */
 function registerLibraries(atlas) {
-  let gone = [];
-  const make = () => kinds(atlas).then((list) => {
-    gone.forEach((f) => f());
+  let gone = [], shown = "", timer = 0;
+  const make = () => kinds(atlas).then(async (list) => {
     const titles = [...new Set(list.map(libraryOf))].filter((t) => t !== "References");
-    gone = titles.map((t) => atlas.registerLibrary({ ...librarySource(atlas, t), icon: list.find((k) => libraryOf(k) === t)?.library?.icon ?? "library" }));
+    const sources = titles.map((t) => ({ t, src: librarySource(atlas, t) }));
+    const held = await Promise.all(sources.map(({ src }) => src.load().then((items) => items.length > 0, () => false)));
+    const keep = sources.filter((_, i) => held[i]);
+    const key = keep.map((x) => x.t).join("\n");
+    if (key === shown) return; // the same libraries: nothing redrawn
+    shown = key;
+    gone.forEach((f) => f());
+    gone = keep.map(({ t, src }) => atlas.registerLibrary({ ...src, icon: list.find((k) => libraryOf(k) === t)?.library?.icon ?? "library" }));
   }, () => {});
   void make();
-  atlas.onFilesChanged((paths) => { if (!paths.length || paths.some((p) => p.startsWith(".atlas/kinds/"))) { kindsAsk = null; void make(); } });
+  atlas.onFilesChanged((paths) => {
+    if (!paths.length || paths.some((p) => p.startsWith(".atlas/kinds/"))) { kindsAsk = null; void make(); return; }
+    if (paths.some((p) => p.endsWith(".md"))) { clearTimeout(timer); timer = setTimeout(() => void make(), 3000); } // a note of a new kind
+  });
 }
 
 function appBlock(atlas) {

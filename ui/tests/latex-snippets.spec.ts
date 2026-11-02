@@ -88,6 +88,12 @@ test("a snippet whose trigger starts another one waits a key, so the longer one 
   await expect(last).toHaveText("$5\\text{kVA}+3\\text{kV}+2kV$"); // waiting
   await page.keyboard.press("Tab");
   await expect(last).toHaveText("$5\\text{kVA}+3\\text{kV}+2\\text{kV}$");
+  // released by Space: the space is typed once, even after an expansion that ends in one (`\sim `)
+  await page.keyboard.press("End");
+  await page.keyboard.press("ArrowLeft");
+  await page.keyboard.type(" a sim b");
+  await expect(last).not.toHaveText(/ {2}/);
+  await expect(last).toContainText("\\sim");
 });
 
 // A snippet expanded in another's stop hands Tab back to the outer one when its own stops are done (the outer

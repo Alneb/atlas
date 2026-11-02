@@ -181,7 +181,7 @@
       {#if res.files.length}
         <div class="group-label">Files <span class="n">{res.files.length}</span></div>
         {#each res.files.slice(0, 50) as f, i (f)}
-          <button class="hit file-hit" class:sel={sel === i} data-idx={i} onclick={() => go({ path: f })} onmouseenter={() => (sel = i)}>
+          <button class="hit file-hit" class:sel={sel === i} data-idx={i} data-path={f} onclick={() => go({ path: f })} onmouseenter={() => (sel = i)}>
             <Icon name={fileIcon(f)} size={14} />{#if titles.has(f)}<span class="fname">{titles.get(f)}</span><span class="fdir">{shownName(f)}</span>{:else}<span class="fname">{shownName(f)}</span><span class="fdir">{f.includes("/") ? f.slice(0, f.lastIndexOf("/")) : ""}</span>{/if}
           </button>
         {/each}
@@ -195,7 +195,7 @@
               aria-label="{excluded.has(path) ? 'Include' : 'Exclude'} {path}"><Icon name={excluded.has(path) ? "plus" : "close"} size={12} /></button>{/if}
           </div>
           {#each hits as h (h.idx)}
-            <button class="hit line-hit" class:sel={sel === h.idx} data-idx={h.idx} onclick={() => go({ path, line: h.line })} onmouseenter={() => (sel = h.idx)}>
+            <button class="hit line-hit" class:sel={sel === h.idx} data-idx={h.idx} data-path={path} data-line={h.line} onclick={() => go({ path, line: h.line })} onmouseenter={() => (sel = h.idx)}>
               <span class="ln">{h.line}</span><span class="txt">{@html mark(h.text)}</span>
             </button>
           {/each}

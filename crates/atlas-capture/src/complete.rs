@@ -1,6 +1,7 @@
-//! What the box offers while typing. Notes, tags and `@days` as the web boxes do
-//! (ui/src/lib/textarea-complete.ts — kept in step by hand); a to-do's fields come from the core
-//! itself (atlas_core::task_suggest), the one implementation every box and the editor use.
+//! What the box offers while typing. `[[` lists what the editor's `[[` lists, from the same core function
+//! (atlas_core::link_targets: the same files, ranking and exclusions); a to-do's fields come from the core too
+//! (atlas_core::task_suggest). Tags and `@days` as the web boxes do (ui/src/lib/textarea-complete.ts — kept in step by
+//! hand). This module is the desktop capture's and the phone app's (crates/atlas-android) alike.
 use atlas_core::config::TaskSuggestMode;
 use crate::icons::Icon;
 use atlas_core::task_suggest::TaskIcon;
@@ -31,6 +32,8 @@ pub fn is_todo(text: &str) -> bool {
 /// What the lists draw on: the vault's note names and tags, and when its tasks offer their fields.
 #[derive(Debug, Clone, Default)]
 pub struct Names {
+    /// the vault, for the `[[` list (the core's link_targets); None in tests, which list `notes` instead
+    pub vault: Option<(std::path::PathBuf, atlas_core::config::Config)>,
     pub notes: Vec<String>,
     pub tags: Vec<String>,
     /// `[editor] task_suggest`, as in a note.
@@ -38,19 +41,22 @@ pub struct Names {
 }
 
 impl Names {
-    /// The vault's note names (not the agent's files) and tags: slow on a big vault, so callers read it off the
-    /// thread that types.
+    /// The vault's note names and tags: slow on a big vault, so callers read it off the thread that types. The notes
+    /// are the ones the editor's `[[` offers: not the templates nor the agent's files (`index_excluded`, as the core's
+    /// link_targets.rs).
     pub fn load(root: &std::path::Path) -> Option<Names> {
         let ws = atlas_core::Workspace::open(root).ok()?;
         let cfg = ws.config().ok()?;
         let mut notes: Vec<String> = atlas_core::walk::files(ws.root(), &cfg)
-            .filter(|(_, rel)| rel.ends_with(".md") && !cfg.is_agent_file(rel))
+            .filter(|(_, rel)| rel.ends_with(".md") && !cfg.index_excluded(rel))
             .map(|(_, rel)| rel.rsplit('/').next().unwrap_or(&rel).trim_end_matches(".md").to_string())
             .collect();
         notes.sort();
         notes.dedup();
         let tags = atlas_core::tags::all(ws.root(), &cfg).into_iter().map(|t| t.tag.trim_start_matches('#').to_string()).collect();
-        Some(Names { notes, tags, tasks: cfg.editor.task_suggest })
+        // warms the link index here, off the typing thread: each `[[` keystroke then only ranks
+        let _ = atlas_core::link_targets::targets(ws.root(), &cfg, "", None);
+        Some(Names { vault: Some((ws.root().to_path_buf(), cfg.clone())), notes, tags, tasks: cfg.editor.task_suggest })
     }
 }
 
@@ -62,6 +68,9 @@ pub fn suggest(text: &str, caret: usize, names: &Names) -> Vec<Suggestion> {
     if let Some(open) = before.rfind("[[") {
         let typed = &before[open + 2..];
         if !typed.contains(']') && !typed.contains('\n') {
+            if let Some((root, cfg)) = &names.vault {
+                return atlas_core::link_targets::targets(root, cfg, typed, None).into_iter().take(MOST).map(|t| link_row(t, open + 2..caret)).collect();
+            }
             let q = typed.to_lowercase();
             let mut hits: Vec<&String> = notes.iter().filter(|n| n.to_lowercase().starts_with(&q)).collect();
             hits.extend(notes.iter().filter(|n| !n.to_lowercase().starts_with(&q) && n.to_lowercase().contains(&q)));
@@ -98,6 +107,17 @@ pub fn suggest(text: &str, caret: usize, names: &Names) -> Vec<Suggestion> {
 /// (`capture::describe`), with the vault's own settings when it is known.
 pub fn what_it_becomes(at: Option<(&std::path::Path, &atlas_core::config::Config)>, text: &str) -> String {
     atlas_core::capture::describe(at, text, Local::now().date_naive()).says
+}
+
+/// One `[[` row as the editor draws it (ui/src/lib/editor/md-complete.ts): the alias or name, the folder, `[[link|alias]]`.
+fn link_row(t: atlas_core::api::LinkTarget, replace: Range<usize>) -> Suggestion {
+    let folder = t.path.rsplit_once('/').map_or("", |(d, _)| d);
+    let icon = if matches!(t.kind, atlas_core::api::TargetKind::Image) { Icon::Image } else { Icon::Note };
+    let insert = match &t.alias {
+        Some(a) => format!("{}|{a}]] ", t.link),
+        None => format!("{}]] ", t.link),
+    };
+    s(t.alias.as_deref().unwrap_or(&t.link), folder, icon, &insert, replace)
 }
 
 fn s(label: &str, detail: &str, icon: Icon, insert: &str, replace: Range<usize>) -> Suggestion {
@@ -150,10 +170,26 @@ mod tests {
     use super::*;
 
     #[test]
+    fn the_link_list_is_the_editors_without_templates() {
+        let d = tempfile::tempdir().unwrap();
+        for (f, t) in [("notes/Daily plan.md", "# plan\n"), ("templates/daily.md", "---\ndate: {{date}}\n---\n")] {
+            std::fs::create_dir_all(d.path().join(f).parent().unwrap()).unwrap();
+            std::fs::write(d.path().join(f), t).unwrap();
+        }
+        let names = Names::load(d.path()).unwrap();
+        let t = "see [[dai";
+        let got: Vec<String> = suggest(t, t.len(), &names).into_iter().map(|s| s.insert).collect();
+        let cfg = atlas_core::Workspace::open(d.path()).unwrap().config().unwrap();
+        let editor: Vec<String> = atlas_core::link_targets::targets(d.path(), &cfg, "dai", None).into_iter().map(|t| format!("{}]] ", t.link)).collect();
+        assert_eq!(got, vec!["Daily plan]] ".to_string()], "the template is not offered");
+        assert_eq!(got, editor, "the same list as the editor's");
+    }
+
+    #[test]
     fn notes_tags_days_and_task_fields_are_offered() {
         let notes = vec!["Kondo".to_string(), "GW notes".to_string()];
         let tags = vec!["physics".to_string()];
-        let names = Names { notes, tags, tasks: TaskSuggestMode::Always };
+        let names = Names { vault: None, notes, tags, tasks: TaskSuggestMode::Always };
         let t = "see [[ko";
         assert_eq!(suggest(t, t.len(), &names)[0].insert, "Kondo]] ");
         let t = "x #ph";

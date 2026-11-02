@@ -9,6 +9,8 @@
   import { onMount, tick } from "svelte";
   import { api } from "../lib/api";
   import { open } from "../lib/dock";
+  import { atPointer, popMenu } from "../lib/menu";
+  import { fileItems } from "../lib/app-menu";
   import { settings, updateSettings } from "../lib/settings.svelte";
   import { toast } from "../lib/state.svelte";
   import type { GitChange, GitCommit, GitStatus, StatusEntry } from "../lib/types";
@@ -105,6 +107,17 @@
 
   const showDiff = (e: StatusEntry, isStaged: boolean) => open({ kind: "diff", path: e.path, staged: isStaged });
   const dir = (p: string) => p.includes("/") ? p.slice(0, p.lastIndexOf("/")) : "";
+  /** A change's own menu: its diff, the file, stage / unstage, discard; then what any file offers (app-menu.ts). */
+  function entryMenu(ev: MouseEvent, e: StatusEntry, isStaged: boolean) {
+    ev.preventDefault();
+    const gone = (isStaged ? e.staged : e.unstaged) === "deleted";
+    popMenu(atPointer(ev, [
+      { label: "Show the changes", icon: "git", run: () => showDiff(e, isStaged) },
+      isStaged ? { label: "Unstage", icon: "minus", run: () => void stage([e.path], false) } : { label: "Stage", icon: "plus", run: () => void stage([e.path], true) },
+      ...(isStaged ? [] : [{ label: "Discard changes…", icon: "undo" as const, danger: true, run: () => discard([e.path]) }]),
+      ...(gone ? [] : ["sep" as const, ...fileItems(e.path)]),
+    ]));
+  }
 
   onMount(() => {
     void refreshStatus();
@@ -117,7 +130,7 @@
 
 {#snippet entryRow(e: StatusEntry, isStaged: boolean)}
   {@const ch = (isStaged ? e.staged : e.unstaged)!}
-  <li class="entry">
+  <li class="entry" oncontextmenu={(ev) => entryMenu(ev, e, isStaged)}>
     <button class="name" onclick={() => showDiff(e, isStaged)} title={e.orig ? `${e.orig} → ${e.path}` : e.path}>
       <span class="base" class:gone={ch === "deleted"}>{shownName(e.path)}</span><span class="dir">{dir(e.path)}</span>
     </button>

@@ -188,6 +188,8 @@ export const api = {
   templates: () => request<import("./gen/TemplateInfo").TemplateInfo[]>("GET", "/api/note/templates"),
   newNote: (r: import("./gen/NewNote").NewNote) => request<import("./gen/NewNoteResult").NewNoteResult>("POST", "/api/note/new", { body: r }).then((n) => { emitPluginEvent({ type: "file:create", path: n.path }); return n; }),
   /** `agent`: also the agent's own files (editor.index_exclude), left out by default. */
+  /** A definition outside the vault, read for a look (lsp.rs `peek`): `line` 0-based, as the language server says. */
+  lspPeek: (uri: string, line: number) => request<import("./gen/LspPeek").LspPeek>("GET", "/api/lsp/peek", { query: { uri, line: String(line) } }),
   search: (q: string, o: { case?: boolean; word?: boolean; regex?: boolean; agent?: boolean } = {}) =>
     request<SearchResult>("GET", "/api/search", { query: { q, case: o.case ? "true" : undefined, word: o.word ? "true" : undefined, regex: o.regex ? "true" : undefined, agent: o.agent ? "true" : undefined } }),
   /** Every tag with its number of notes; a tag's notes are `search("tag:<name>").files`. */
@@ -225,7 +227,6 @@ export const api = {
   /** What the user is looking at, for Claude via `atlas mcp` (atlas_context). */
   putUiState: (state: UiState) => request<void>("PUT", "/api/ui/state", { body: state }),
   config: () => request<ConfigDoc>("GET", "/api/config"),
-  vscodeTheme: () => request<import("./vscode-theme").VscodeTheme>("GET", "/api/theme/vscode"),
   /** Raw bytes in the body; the server picks a free name in the note's attachment folder. */
   attach: async (note: RelPath, name: string, data: Blob) => {
     const res = await fetch(url("/api/attach", { note, name }), { method: "POST", headers: { "x-atlas": "1" }, body: data });

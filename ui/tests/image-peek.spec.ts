@@ -36,3 +36,27 @@ test("a picture shows while its link is written, grows with Ctrl, opens on a cli
   await page.locator(".cm-content img.cm-embed-image").first().click({ modifiers: ["Control"] });
   await expect(page.getByRole("option", { name: /peek-pic\.svg/ }).first()).toBeVisible();
 });
+
+// The large picture covers the small one: moving within it keeps it, leaving it hides it.
+test("the large picture stays while the pointer is within it, Ctrl held", async ({ page, request }) => {
+  await request.put("/api/file", { headers: H, data: { path: "notes/peek-pic.svg", text: SVG } });
+  await request.put("/api/file", { headers: H, data: { path: "notes/peek-stay.md", text: "# Stay\n\n![[peek-pic.svg]]\n\nend\n" } });
+  await page.goto("/");
+  await page.getByText("Finish the GW notes.").waitFor();
+  await openFile(page, "peek-stay.md");
+  const img = page.locator(".cm-content img.cm-embed-image").first();
+  await expect(img).toBeVisible();
+  await img.hover();
+  await page.keyboard.down("Control");
+  const big = page.locator("img.image-peek");
+  await expect(big).toBeVisible();
+  const r = (await big.boundingBox())!;
+  const s = (await img.boundingBox())!;
+  // a point of the large picture off the small one
+  const x = s.x + s.width + 20 < r.x + r.width ? s.x + s.width + 20 : r.x + 5, y = r.y + r.height - 5;
+  await page.mouse.move(x, y, { steps: 4 });
+  await expect(big).toBeVisible();
+  await page.mouse.move(r.x + r.width + 30 < 1280 ? r.x + r.width + 30 : 2, 2, { steps: 4 });
+  await expect(big).toHaveCount(0);
+  await page.keyboard.up("Control");
+});

@@ -30,6 +30,8 @@ export async function register(atlas: PluginApi) {
   atlas.onFilesChanged((paths) => { if (!paths.length || paths.some((p) => p.startsWith(`${FOLDER}/`) || p === ".atlas/config.toml")) void reload(); });
 
   const where = (view: EditorView, pos: number) => engine.placeOf(view, pos);
+  /** A body as it reads once typed: the stops' placeholders kept, their markers gone (`${0:A}` → A, `$1` → nothing). */
+  const readable = (body: string) => body.replace(/\$\{\d+:([^}]*)\}/g, "$1").replace(/\$\d+/g, "").replace(/\s+/g, " ").trim();
   atlas.editor.registerCompletion({
     where: "all",
     trigger: /[A-Za-z@:][\w@:]*$/,
@@ -46,6 +48,8 @@ export async function register(atlas: PluginApi) {
       const fixed = engine.snippets().filter((s) => s.plain?.trim() && typeof s.body === "string" && !s.visual && engine.fits(s, place, at.view));
       // "x@a": the trigger starts where some snippet's name starts, not where the word does
       for (let i = 0; i <= Math.max(0, typed.length - (at.explicit ? 1 : 2)); i++) {
+        // inside the word only after a boundary (`x@a`, `2pp`): "frac" is not "ac" for `acomm`
+        if (i > 0 && /[A-Za-z]/.test(typed[i - 1])) continue;
         const prefix = typed.slice(i);
         const ranked = fixed.map((s) => [s, rank(s, prefix)] as const).filter(([, r]) => r !== null) as [Compiled, number][];
         if (!ranked.length) continue;
@@ -53,7 +57,7 @@ export async function register(atlas: PluginApi) {
         const items = found.slice(0, 50).map((s): CompletionItem => {
           const body = s.body as string;
           return {
-            label: s.plain!.trim(), detail: s.name ?? body.replace(/\s+/g, " ").slice(0, 48), kind: "keyword",
+            label: s.plain!.trim(), detail: s.name ?? readable(body).slice(0, 48), kind: "keyword",
             apply: (view, from, to) => engine.insert(view, body, from, to, "", s.legacyStops),
             info: s.math ? () => { const host = document.createElement("div"); atlas.editor.drawMath(host, preview(body), false); return host; } : undefined,
           };

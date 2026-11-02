@@ -6,7 +6,6 @@ import { einkOn, inPhoneApp, setEinkRefresh } from "./eink";
 import { api } from "./api";
 import type { PropertiesView, WorkspaceConfig } from "./types";
 import { app, paintTheme, toast } from "./state.svelte";
-import { applyVscodeTheme, themeBase, type VscodeTheme } from "./vscode-theme";
 
 export const settings = $state({
   config: null as WorkspaceConfig | null,
@@ -33,34 +32,16 @@ media?.addEventListener("change", () => settings.config && apply(settings.config
 const still = typeof matchMedia === "function" ? matchMedia("(prefers-reduced-motion: reduce)") : null;
 still?.addEventListener("change", () => settings.config && apply(settings.config));
 
-let vscodeLoaded: string | null = null;
-let vscode: VscodeTheme | null = null;
-
-/** Fetches ui.vscode_theme when it changes; a broken theme falls back with a toast. */
-async function syncVscodeTheme(path: string, force = false): Promise<void> {
-  if (path === vscodeLoaded && !force) return;
-  vscodeLoaded = path;
-  vscode = null;
-  if (path.trim()) {
-    try { vscode = await api.vscodeTheme(); }
-    catch (err) { toast("VS Code theme not applied", errText(err), "error"); }
-  }
-  if (settings.config) apply(settings.config);
-}
-
 function apply(c: WorkspaceConfig): void {
   const root = document.documentElement;
-  void syncVscodeTheme(c.ui.vscode_theme);
-  // the theme setting decides dark or light ("system": the desktop's); a VS Code theme dresses the
-  // side it was made for and leaves the other to Atlas's own palette
+  // the theme setting decides dark or light ("system": the desktop's); the palette, its colours on either side
   const eink = einkOn(c.ui.eink);
   root.classList.toggle("eink", eink); // tokens.css / base.css: black on white, no motion
   setEinkRefresh(c.ui.eink_refresh); // eink.ts: when the whole screen is refreshed
   // the phone app follows the phone (the vault's theme is the desktop's: one vault, several screens)
   const theme = eink ? "light" : c.ui.theme === "system" || inPhoneApp() ? (media?.matches ? "light" : "dark") : c.ui.theme;
-  applyVscodeTheme(vscode && themeBase(vscode) === theme ? vscode : null);
   paintTheme(theme);
-  root.dataset.palette = c.ui.palette; // palettes.css
+  root.dataset.palette = (theme === "dark" && c.ui.palette_dark) || c.ui.palette; // palettes.css: the night's own, if set
   root.dataset.shape = c.ui.shape; // shape-paper.css
   app.vimEnabled = c.vim;
   const px = (n: number) => `${n}px`;
@@ -79,14 +60,20 @@ function apply(c: WorkspaceConfig): void {
   for (const f of listeners) f(c);
 }
 
-// The accent family derives from one colour; a VS Code theme's accent stays when none is set.
-const ACCENT_VARS = ["--accent", "--accent-strong", "--accent-soft", "--accent-sel", "--link", "--tag-bg", "--tag-color"];
+// The accent family derives from one colour; the palette's accent stays when none is set. A chosen accent also tints
+// what is selected or in front (rows, the open tab: --bg-active), so it shows beyond links and a 2 px bar, and the
+// text on it is black or white, whichever reads (a yellow accent had white text on it).
+const ACCENT_VARS = ["--accent", "--accent-strong", "--accent-soft", "--accent-sel", "--link", "--tag-bg", "--tag-color", "--bg-active", "--accent-fg"];
+/** Black or white on `hex`, by its luminance (WCAG's relative luminance, threshold where both contrasts meet). */
+const onColour = (hex: string): string => {
+  const lin = (i: number) => { const c = parseInt(hex.slice(i, i + 2), 16) / 255; return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4; };
+  return 0.2126 * lin(1) + 0.7152 * lin(3) + 0.0722 * lin(5) > 0.179 ? "#0b0d12" : "#ffffff";
+};
 let accentSet = "";
 function applyAccent(root: HTMLElement, hex: string): void {
   const ok = /^#[0-9a-f]{6}$/i.test(hex);
   if (!ok) {
-    // only undo our own override: the same variables may come from a VS Code theme
-    if (accentSet) { for (const v of ACCENT_VARS) root.style.removeProperty(v); accentSet = ""; void syncVscodeTheme(vscodeLoaded ?? "", true); }
+    if (accentSet) { for (const v of ACCENT_VARS) root.style.removeProperty(v); accentSet = ""; }
     return;
   }
   accentSet = hex;
@@ -98,6 +85,8 @@ function applyAccent(root: HTMLElement, hex: string): void {
   root.style.setProperty("--link", hex);
   root.style.setProperty("--tag-bg", mix(13));
   root.style.setProperty("--tag-color", `color-mix(in srgb, ${hex} 80%, var(--heading))`);
+  root.style.setProperty("--bg-active", `color-mix(in srgb, ${hex} 16%, var(--bg))`);
+  root.style.setProperty("--accent-fg", onColour(hex));
 }
 
 // The last settings seen, per vault (a server keeps several under /v/<name>): with no connection the page

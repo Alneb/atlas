@@ -26,6 +26,8 @@ export interface LiveNote {
   others(): number;
   /** Whether this device saves the note (the room's writer, or alone). */
   writes(): boolean;
+  /** The device saving the note when it is not this one, else null. */
+  writerName(): string | null;
   close(): void;
 }
 
@@ -101,6 +103,7 @@ export function liveNote(path: string, view: EditorView, onPeers?: (names: strin
   return {
     others: () => live.others(),
     writes: () => live.writes(),
+    writerName: () => live.writerName(),
     close() {
       clearTimeout(waiting);
       removeAwarenessStates(awareness, [doc.clientID], "local");

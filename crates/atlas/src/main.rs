@@ -497,6 +497,9 @@ async fn main() -> Result<()> {
         return Ok(());
     }
     let ws = Workspace::open(workspace_root(cli.workspace)?)?;
+    // this process writes the vault too (drawings, companions, plugins, a capture with no core running, MCP): a mirrored
+    // vault's writes take the server's lease here as they do in the serving core
+    atlas_core::mirror_guard::install_for_mirror(&ws);
     if let Action::Mcp = cli.action {
         return mcp::serve(ws).await;
     }

@@ -23,7 +23,7 @@
 // against Obsidian have a chance of applying unchanged.
 
 import { Decoration, EditorView, WidgetType, keymap } from "@codemirror/view";
-import { StateField, StateEffect, Prec } from "@codemirror/state";
+import { EditorState, StateField, StateEffect, Prec } from "@codemirror/state";
 import { syntaxTree } from "@codemirror/language";
 import { isIconToken } from "./obsidian-syntax.js";
 
@@ -303,7 +303,12 @@ class PropertiesWidget extends KeyedWidget {
   }
   toDOM(view) {
     const host = (this.render && this.render()) || chip("cm-properties", "Properties");
-    enterOnClick(host, view);
+    if (view) host.addEventListener("mousedown", (event) => {
+      // a plain click: links, the panel — never the YAML; YAML that does not parse is entered by any click, to fix it
+      if (event.button !== 0 || !(event.altKey || host.querySelector(".prop-error"))) return;
+      event.preventDefault();
+      editRawProperties(view);
+    });
     return host;
   }
   ignoreEvent() {
@@ -913,11 +918,11 @@ export function buildDecorations(state, ranges, options = {}) {
   // It is REPLACED by the read view's properties table rather than shown as
   // YAML: this app has a Properties panel that edits the same fields far better
   // than raw YAML does, and Obsidian shows a properties widget here rather than
-  // the source. Clicking the widget (or arrowing into it) still gives the raw
-  // YAML back, so nothing is unreachable.
+  // the source. Raw YAML only on purpose (`rawProperties`): Alt+click on the
+  // widget or the editor menu's "Edit properties as text".
   const fmEnd = frontmatterEnd(state);
   if (fmEnd) {
-    if (revealed(state, 0, fmEnd)) {
+    if (state.field(rawProperties, false) && revealed(state, 0, fmEnd)) {
       for (let n = 1; n <= state.doc.lines; n++) {
         const line = state.doc.line(n);
         add(line.from, line.from, Decoration.line({ class: "cm-frontmatter" }));
@@ -999,8 +1004,11 @@ export function buildDecorations(state, ranges, options = {}) {
       if (revealed(state, chunk.from, chunk.to)) return false; // being edited
       const source = state.doc.sliceString(chunk.from, chunk.to);
       const html = opts.blockHtml(source);
-      if (!html) return undefined; // unknown to the renderer: decorate as markdown
-      rendered.push({ ...chunk, source, html });
+      // a raw block of closing tags only (`</div>` after a blank line inside a `<div>`) renders to nothing, as in
+      // Obsidian: not its source as text
+      const closers = node.name === "HTMLBlock" && /^(\s*<\/[A-Za-z][\w-]*\s*>)+\s*$/.test(source);
+      if (!html && !closers) return undefined; // unknown to the renderer: decorate as markdown
+      rendered.push({ ...chunk, source, html: html || "" });
       return false;
     },
   });
@@ -1460,6 +1468,38 @@ export function buildDecorations(state, ranges, options = {}) {
  *        view), so without one the source is shown in a styled box rather than
  *        forcing a ~270 KB KaTeX dependency into the bundle prematurely.
  */
+/**
+ * The note's properties as raw YAML only when asked for: Alt+click on them, or the editor menu's "Edit properties as
+ * text" (`editRawProperties`). A plain click, an arrow, Ctrl+Home, vim's gg, an undo or a search no longer drop the
+ * caret into the frontmatter and turn the table into text: the caret is moved to the body instead. Leaving the
+ * frontmatter folds it back.
+ */
+export const showRawProperties = StateEffect.define();
+export const rawProperties = StateField.define({
+  create: () => false,
+  update(on, tr) {
+    for (const e of tr.effects) if (e.is(showRawProperties)) return e.value;
+    if (!on || !tr.selection) return on;
+    const end = frontmatterEnd(tr.state);
+    return !!end && tr.state.selection.main.head <= end; // still inside: stays raw
+  },
+});
+const keepCaretOutOfProperties = EditorState.transactionFilter.of((tr) => {
+  if (!tr.selection || tr.effects.some((e) => e.is(showRawProperties) && e.value)) return tr;
+  if (tr.startState.field(rawProperties, false)) return tr;
+  const end = frontmatterEnd(tr.state);
+  if (!end || tr.selection.ranges.every((r) => r.from > end)) return tr;
+  const body = bodyStart(tr.state.doc);
+  return [tr, { selection: { anchor: body }, sequential: true }];
+});
+/** Shows the properties as raw YAML with the caret on their first key (the deliberate way in). */
+export function editRawProperties(view) {
+  if (!frontmatterEnd(view.state)) return false;
+  view.dispatch({ effects: showRawProperties.of(true), selection: { anchor: Math.min(4, view.state.doc.length) } });
+  view.focus();
+  return true;
+}
+
 export function livePreview(options = {}) {
   const opts = normalizeOptions(options);
 
@@ -1522,7 +1562,7 @@ export function livePreview(options = {}) {
     ],
   });
 
-  return [[calloutFolds, field], blockEntryKeymap(field)];
+  return [[calloutFolds, rawProperties, keepCaretOutOfProperties, field], blockEntryKeymap(field)];
 }
 
 /**

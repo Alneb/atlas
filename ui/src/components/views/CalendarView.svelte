@@ -38,7 +38,7 @@
         {#each byDay.get(iso(d)) ?? [] as r (`${r.path}:${r.line}:${r.title}`)}
           <div class="item" class:done={r.done}>
             {#if r.done === false}<input type="checkbox" aria-label="Done: {r.title}" onchange={() => ontick(r)} />{/if}
-            <button onclick={() => r.path && openPath(r.path, r.line ?? undefined)} title="{r.title} — {r.path}">{r.title}</button>
+            <button data-path={r.path} data-line={r.line} onclick={() => r.path && openPath(r.path, r.line ?? undefined)} title="{r.title} — {r.path}">{r.title}</button>
           </div>
         {/each}
       </div>

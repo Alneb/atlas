@@ -44,3 +44,20 @@ test("a tab's menu: arrows and a letter move, it stays in a small window, Esc cl
   await expect(menu).toBeHidden();
   await expect(tab, "not pinned, not closed").toBeVisible();
 });
+
+// The app's own menu where no part has one (lib/app-menu.ts): never the WebView's (its Back left the app).
+test("a right-click with no menu of its own gets the app's: commands on bare ground, the clipboard in a field", async ({ page }) => {
+  await page.goto("/");
+  await page.getByText("Finish the GW notes.").waitFor();
+  await page.locator("footer.status").click({ button: "right", position: { x: 4, y: 4 } });
+  const menu = page.getByRole("menu");
+  await expect(menu.getByRole("menuitem", { name: /Command palette/ })).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(menu).toHaveCount(0);
+  await page.keyboard.press("Control+Shift+F");
+  const field = page.getByRole("textbox", { name: "Search", exact: true }).first();
+  await field.fill("hello");
+  await field.click({ button: "right" });
+  await expect(menu.getByRole("menuitem", { name: /^Paste/ })).toBeVisible();
+  await expect(menu.getByRole("menuitem", { name: /^Select all/ })).toBeVisible();
+});

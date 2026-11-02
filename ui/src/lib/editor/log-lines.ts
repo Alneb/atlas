@@ -1,7 +1,8 @@
 // A day's log drawn as a timeline: each captured line
 // (`- 09:05 text`, also after a task box) gets its time in a column on the left and a dot on a line that runs through
 // the entries around it; a task's box takes the dot's place, so every marker is in one column and every text starts at
-// the same edge. Untimed items (to-dos of older logs) join the timeline when their run of items has a timed one. An entry's indented lines under it (a capture's picture or file) join it on the timeline, their
+// the same edge. Untimed items join the timeline under the log's heading (a log written by hand), elsewhere when their
+// run of items has a timed one (to-dos of older logs). An entry's indented lines under it (a capture's picture or file) join it on the timeline, their
 // embeds as thumbnails. Only in the daily log
 // folder (`log_dir`); the file keeps its plain list.
 import { RangeSetBuilder } from "@codemirror/state";
@@ -10,8 +11,12 @@ import { Decoration, ViewPlugin, type DecorationSet, type EditorView, type ViewU
 export const LOG_ENTRY = /^(\s*[-*] (?:\[.\] )?)(\d{1,2}:\d{2})(?= )/;
 /** A line under an entry that belongs to it: indented, not a list item of its own. */
 const MORE = /^\s+(?![-*+] |\d+[.)] )\S/;
-/** A top-level item without a time (a to-do written in the log): on the timeline when its run of items has an entry. */
-const ITEM = /^[-*] (?:\[.\] )?\S/;
+/** A top-level item without a time (a line written by hand, a to-do): on the timeline under the log's heading, or when its
+ *  run of items has an entry. One space before the marker is still the top level (CommonMark: a child needs two). */
+const ITEM = /^ ?[-*] (?:\[.\] )?\S/;
+/** The log's heading, in the names the core writes and reads captures under (capture.rs, LOG_HEADING). */
+const LOG_HEADING = /^##\s+(log|registro|bit[aá]cora)\s*$/i;
+const HEADING = /^#{1,6}\s/;
 const time = Decoration.mark({ class: "cm-log-time" });
 // the markdown under the caret, quieted: an entry's `- ` / `- [ ] `, the source of an embed under it
 const quiet = Decoration.mark({ class: "cm-log-src" });
@@ -30,14 +35,15 @@ function build(view: EditorView): DecorationSet {
   const doc = view.state.doc;
   // one pass over the note (a day's log is short): runs of items and their lines; a run with a timed entry is on the line
   const kinds: Kind[] = [null];
-  for (let n = 1, start = 1, timed = false; n <= doc.lines + 1; n++) {
+  for (let n = 1, start = 1, timed = false, inLog = false; n <= doc.lines + 1; n++) {
     const text = n <= doc.lines ? doc.line(n).text : "";
+    if (HEADING.test(text)) inLog = LOG_HEADING.test(text);
     const k: Kind = n > doc.lines ? null : LOG_ENTRY.test(text) ? "entry" : ITEM.test(text) ? "item" : kinds[n - 1] && MORE.test(text) ? "more" : null;
     if (k === null) {
       if (!timed) for (let i = start; i < n; i++) kinds[i] = null;
       start = n + 1; timed = false;
     }
-    timed ||= k === "entry";
+    timed ||= k === "entry" || (k === "item" && inLog);
     kinds[n] = k;
   }
   const kind = (n: number): Kind => kinds[n] ?? null;

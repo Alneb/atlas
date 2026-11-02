@@ -4,6 +4,7 @@ import { snippet, startCompletion, type Completion, type CompletionContext, type
 import { noteHeadings } from "../note-anchor";
 import { fences } from "../fence-walk";
 import { api } from "../api";
+import { linkRow } from "../link-rows";
 import { taskSuggestions, type TaskSuggestion } from "../task-complete";
 import { deleteMarkupBackward, insertNewlineContinueMarkupCommand } from "@codemirror/lang-markdown";
 import { EditorView } from "@codemirror/view";
@@ -60,6 +61,9 @@ export function wikilinkSource(fromPath: string): GatedSource {
   };
 }
 
+/** `p`'s answer if it comes within a frame or so, else `none` (it goes on loading for the next ask). */
+const promptly = <T,>(p: Promise<T>, none: T, ms = 150): Promise<T> => Promise.race([p, new Promise<T>((done) => setTimeout(() => done(none), ms))]);
+
 async function linkResult(ctx: CompletionContext, m: { from: number; text: string }, fromPath: string): Promise<CompletionResult | null> {
   const embed = m.text.startsWith("!");
   const inner = m.text.slice(embed ? 3 : 2);
@@ -68,7 +72,9 @@ async function linkResult(ctx: CompletionContext, m: { from: number; text: strin
   const hash = inner.indexOf("#");
   if (hash >= 0) return placesIn(inner.slice(0, hash), inner.slice(hash + 1), from + hash + 1, closing, fromPath);
   // papers by author, year or title words → [[citekey]], the paper's note
-  const papers = !embed && inner.trim() && builtinOn("library") ? citeMatches(await library().catch(() => [] as Paper[]), inner) : [];
+  // the Library only if it answers at once: its helper may be slow or busy, and the list never waits on it (the papers'
+  // notes are listed by the core anyway; the next keystroke finds the Library loaded)
+  const papers = !embed && inner.trim() && builtinOn("library") ? citeMatches(await promptly(library().catch(() => [] as Paper[]), [] as Paper[]), inner) : [];
   // only a citekey or an author that starts with the query goes before the notes; a title word does not
   const paperRow = (m: CiteMatch) => ({ ...citeRow(m.paper, (k) => k + closing), type: "note" });
   const leading = papers.filter((m) => m.rank <= 1).slice(0, 5);
@@ -80,11 +86,10 @@ async function linkResult(ctx: CompletionContext, m: { from: number; text: strin
   const trailing = papers.filter((m) => !cited.has(m.paper.key) && !listed.has(m.paper.key)); // a paper's note the core lists stays where it ranks
   if (ctx.aborted) return null;
   const options: Completion[] = targets.map((t, i) => ({
-    label: t.alias ?? t.link,
-    detail: [t.alias ? `→ ${t.link}` : "", t.path.includes("/") ? t.path.slice(0, t.path.lastIndexOf("/")) : "", t.near ? "linked" : ""].filter(Boolean).join(" · "),
+    ...(({ label, detail }) => ({ label, detail }))(linkRow(t)), // the capture boxes' rows too (link-rows.ts)
     type: t.kind,
     boost: -i, // the core's order
-    apply: (t.alias && !embed ? `${t.link}|${t.alias}` : t.link) + closing,
+    apply: (embed ? t.link : linkRow(t).link) + closing,
     info: t.kind === "note" || t.kind === "mail" ? () => preview(t.path) : undefined,
   }));
   // a name nothing has yet: the link is written, the note is made when it is followed (as in Obsidian)
@@ -227,7 +232,8 @@ const TASK_LINE = /^\s*(?:[-*+]|\d+[.)])\s+\[.\]\s/;
 export type TaskCompletion = Completion & { task: TaskSuggestion; browsing: boolean };
 export const taskSource: GatedSource = {
   // `[editor] task_suggest`: "always" is Obsidian Tasks with "minimum match 0"
-  applies: (ctx) => TASK_LINE.test(ctx.state.doc.lineAt(ctx.pos).text) && ((settings.config?.editor.task_suggest ?? "always") !== "off" || ctx.explicit),
+  // not inside an open `[[`: there the list is the link's alone (the fields came after the notes, as if a link had one)
+  applies: (ctx) => TASK_LINE.test(ctx.state.doc.lineAt(ctx.pos).text) && !ctx.matchBefore(LINK_BEFORE) && ((settings.config?.editor.task_suggest ?? "always") !== "off" || ctx.explicit),
   answer: taskAnswer,
 };
 

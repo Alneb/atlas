@@ -65,20 +65,17 @@ pub fn suggestions_cached() -> Suggestions {
 
 /// Suggestions per dotted setting path, for the Settings pane.
 pub fn suggestions() -> Suggestions {
-    let (mono, all, (snip, vars), themes) = std::thread::scope(|s| {
+    let (mono, all, (snip, vars)) = std::thread::scope(|s| {
         let m = s.spawn(|| fonts(true));
         let a = s.spawn(|| fonts(false));
         let sn = s.spawn(crate::snippets::discover);
-        let th = s.spawn(crate::vscode_theme::discover);
         (
             m.join().unwrap_or_default(),
             a.join().unwrap_or_default(),
             sn.join().unwrap_or_default(),
-            th.join().unwrap_or_default(),
         )
     });
     BTreeMap::from([
-        ("ui.vscode_theme".to_string(), themes),
         ("latex.snippets_file".to_string(), snip),
         ("latex.variables_file".to_string(), vars),
         ("editor.code_font".to_string(), mono),
