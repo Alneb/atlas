@@ -28,3 +28,30 @@ export async function attachFiles(note: string, files: File[]): Promise<Attached
 export function filesOf(data: DataTransfer | null): File[] {
   return data ? [...data.files] : [];
 }
+
+/** A paste that carries nothing at all: WebKitGTK's paste-as-plain-text (Ctrl+Shift+V, Vim mode's paste) of a
+ *  picture hands over an empty text and no files. The picture is still on the desktop's clipboard. */
+function pastedNothing(data: DataTransfer | null): boolean {
+  if (!data || data.files.length) return false;
+  return [...data.types].every((t) => t === "text/plain") && !data.getData("text/plain");
+}
+
+/** The picture on the desktop's clipboard, read by the core (`GET /api/clipboard/image`); null when there is none. */
+async function clipboardPicture(): Promise<File | null> {
+  try {
+    const blob = await api.clipboardImage();
+    if (!blob) return null;
+    return new File([blob], `image.${(blob.type.split("/")[1] || "png").replace("jpeg", "jpg")}`, { type: blob.type || "image/png" });
+  } catch { return null; }
+}
+
+/** The files of a paste or a drop, or null when it is text (the default goes on). Call it in the event handler itself:
+ *  when it answers files it has already taken the event (preventDefault), even if they come later from the core. */
+export function takeFiles(e: ClipboardEvent | DragEvent): Promise<File[]> | null {
+  const data = "clipboardData" in e ? e.clipboardData : e.dataTransfer;
+  const files = filesOf(data);
+  if (files.length) { e.preventDefault(); return Promise.resolve(files); }
+  if (!("clipboardData" in e) || !pastedNothing(data)) return null;
+  e.preventDefault();
+  return clipboardPicture().then((f) => (f ? [f] : []));
+}

@@ -136,6 +136,8 @@ details.atlas-quoted>summary{display:inline-block;cursor:pointer;list-style:none
 details.atlas-quoted>summary::-webkit-details-marker{display:none}
 details.atlas-quoted[open]>summary{margin-bottom:8px}
 table{max-width:100%}
+mark.atlas-find{background:${t.dark ? "#7a5d00" : "#ffe27a"};color:inherit;border-radius:2px}
+mark.atlas-find.cur{background:${t.dark ? "#c77700" : "#ff9f1a"};color:${t.dark ? "#fff" : "#000"}}
 </style></head><body>${html}</body></html>`;
   });
 
@@ -149,6 +151,12 @@ table{max-width:100%}
     new ResizeObserver(fit).observe(d.documentElement);
     for (const img of Array.from(d.images)) img.addEventListener("load", fit);
     d.addEventListener("toggle", fit, true);
+    // Ctrl+F inside the message is the pane's find (Reader.svelte), not lost in the frame
+    d.addEventListener("keydown", (e) => {
+      if (!((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "f")) return;
+      e.preventDefault();
+      frame?.dispatchEvent(new KeyboardEvent("keydown", { key: e.key, ctrlKey: e.ctrlKey, metaKey: e.metaKey, bubbles: true }));
+    });
   }
 </script>
 

@@ -10,7 +10,7 @@
   import { errText } from "../lib/text";
   import { complete } from "../lib/textarea-complete";
   import { captureHint } from "../lib/capture-hints.svelte";
-  import { attachFiles, filesOf, type Attached } from "../lib/attach";
+  import { attachFiles, takeFiles, type Attached } from "../lib/attach";
   import { PROMPT, afterSaved } from "../lib/capture-guides";
   import type { CaptureResult } from "../lib/gen/CaptureResult";
   import Icon from "./Icon.svelte";
@@ -100,13 +100,14 @@
   }
   /** Files from a paste or drop → their embeds at the caret, each on its own line. */
   async function attach(e: ClipboardEvent | DragEvent) {
-    const files = filesOf("clipboardData" in e ? e.clipboardData : e.dataTransfer);
-    if (!files.length) return; // plain text: the textarea's own paste
-    e.preventDefault();
+    const taken = takeFiles(e);
+    if (!taken) return; // plain text: the textarea's own paste
     // files go beside this vault's log; the core takes them nowhere else yet
     if (other) { failed = "files go only into this window's vault"; return; }
     attaching++;
     try {
+      const files = await taken;
+      if (!files.length) return;
       const done = await attachFiles((await api.todayLog()).path, files);
       if (!done.length) return;
       attached = [...attached, ...done];

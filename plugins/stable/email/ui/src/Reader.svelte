@@ -6,6 +6,7 @@
   import InviteCard from "./InviteCard.svelte";
   import MailFrame from "./MailFrame.svelte";
   import Composer from "./Composer.svelte";
+  import { Finder, reveal } from "./find";
   import { askLine, askYes, display, fullDate, hue, initials, size, who, when, type Attachment, type Message } from "./api";
   import type { Mail } from "./store.svelte";
 
@@ -25,6 +26,52 @@
     openIds = t.messages.filter((m) => !m.seen || m.draft || m === last).map((m) => m.id);
     remoteOk = [];
   });
+
+  // ----- find in the conversation (Ctrl+F): every message opened, the matches marked in their frames
+
+  let scroller: HTMLElement | undefined = $state();
+  let findOpen = $state(false);
+  let findText = $state("");
+  let findInput: HTMLInputElement | undefined = $state();
+  let found = $state(0);
+  let foundAt = $state(0);
+  const finder = new Finder();
+  let findTimer: ReturnType<typeof setTimeout> | undefined;
+
+  export function find() {
+    if (!t) return;
+    expandAll(true);
+    findOpen = true;
+    requestAnimationFrame(() => { findInput?.focus(); findInput?.select(); });
+    if (findText) setTimeout(search, 300); // the bodies of the cards just opened
+  }
+  function frames(): Document[] {
+    return Array.from(scroller?.querySelectorAll("iframe") ?? []).map((f) => f.contentDocument).filter((d): d is Document => !!d);
+  }
+  function search() {
+    found = finder.run(frames(), findText);
+    foundAt = 0;
+    if (found) go(1);
+  }
+  function go(dir: 1 | -1) {
+    const m = finder.step(dir);
+    if (!m || !scroller) return;
+    foundAt = finder.at + 1;
+    reveal(scroller, m);
+  }
+  function closeFind() {
+    finder.clear();
+    findOpen = false;
+    found = 0;
+  }
+  function findKey(e: KeyboardEvent) {
+    e.stopPropagation();
+    if (e.key === "Enter") { e.preventDefault(); clearTimeout(findTimer); if (!found || finder.marks[0]?.isConnected === false) search(); else go(e.shiftKey ? -1 : 1); }
+    else if (e.key === "Escape") { e.preventDefault(); closeFind(); }
+    else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "f") { e.preventDefault(); findInput?.select(); }
+  }
+  // another conversation: the find closes
+  $effect(() => { void t?.thread; return () => { if (findOpen) closeFind(); }; });
 
   export function expandAll(open: boolean) {
     if (!t) return;
@@ -78,7 +125,7 @@
   const icon = (mime: string) => (mime.startsWith("image/") ? "image" : mime === "text/calendar" ? "calendar" : "attach");
 </script>
 
-<section class="reader" aria-label="The conversation">
+<section class="reader" aria-label="The conversation" bind:this={scroller}>
   {#if mail.reading && !t}
     <div class="loading"><div class="bar"></div><div class="bar short"></div><div class="bar"></div></div>
   {:else if mail.readError}
@@ -119,6 +166,17 @@
         <span class="faint">{`${t.messages.length} message${t.messages.length === 1 ? "" : "s"}${t.messages.at(-1)?.folder_label ? ` · ${t.messages.at(-1)?.folder_label}` : ""}`}</span>
         {#if unsub}<button class="link" onclick={unsubscribe}>Unsubscribe</button>{/if}
       </div>
+      {#if findOpen}
+        <div class="find" role="search">
+          <Icon name="search" size={14} />
+          <input bind:this={findInput} bind:value={findText} placeholder="Find in this conversation" aria-label="Find in this conversation"
+            oninput={() => { clearTimeout(findTimer); findTimer = setTimeout(search, 150); }} onkeydown={findKey} />
+          <span class="faint count">{findText.trim() ? (found ? `${foundAt} of ${found}` : "No match") : ""}</span>
+          <button class="tool" onclick={() => go(-1)} disabled={!found} title="Previous (⇧Enter)"><Icon name="up" size={14} /></button>
+          <button class="tool" onclick={() => go(1)} disabled={!found} title="Next (Enter)"><Icon name="down" size={14} /></button>
+          <button class="tool" onclick={closeFind} title="Close (Esc)"><Icon name="x" size={14} /></button>
+        </div>
+      {/if}
     </header>
 
     <div class="cards">
@@ -223,6 +281,10 @@
   .faint { color: var(--text-faint); }
   .link { all: unset; cursor: pointer; color: var(--accent); }
   .link:hover { text-decoration: underline; }
+  .find { display: flex; align-items: center; gap: 4px; padding: 3px 4px 3px 10px; border: 1px solid var(--border-strong); border-radius: var(--radius); background: var(--bg-alt); color: var(--text-muted); }
+  .find input { all: unset; flex: 1; min-width: 0; padding: 4px 4px; color: var(--text); }
+  .find .count { font-size: 0.85em; white-space: nowrap; }
+  .find .tool:disabled { opacity: 0.4; cursor: default; }
   .menu-wrap { position: relative; }
   .menu { position: absolute; right: 0; top: 100%; z-index: 5; min-width: 200px; background: var(--bg-elev); border: 1px solid var(--border-strong); border-radius: var(--radius); box-shadow: var(--shadow-md, var(--shadow-sm)); padding: 4px; display: grid; }
   .menu button { all: unset; cursor: pointer; padding: 7px 10px; border-radius: var(--radius-sm); }

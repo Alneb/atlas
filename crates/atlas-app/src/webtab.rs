@@ -9,7 +9,7 @@ use std::collections::HashMap;
 use gtk::prelude::*;
 use gtk::OverlaySignals;
 use webkit2gtk::{
-    CookieManagerExt, LoadEvent, NavigationPolicyDecision, NavigationPolicyDecisionExt, PolicyDecisionExt, PolicyDecisionType, SettingsExt, SnapshotOptions, SnapshotRegion, URIRequestExt, UserContentInjectedFrames, UserContentManager,
+    CookieManagerExt, FindControllerExt, FindOptions, LoadEvent, NavigationPolicyDecision, NavigationPolicyDecisionExt, PolicyDecisionExt, PolicyDecisionType, SettingsExt, SnapshotOptions, SnapshotRegion, URIRequestExt, UserContentInjectedFrames, UserContentManager,
     UserContentManagerExt, UserScript, UserScriptInjectionTime, WebContext, WebContextExt, WebView, WebViewExt, WebsiteDataManager,
     WebsiteDataManagerExt,
 };
@@ -26,6 +26,10 @@ enum Ask {
     Forward { id: String },
     Reload { id: String },
     Close { id: String },
+    /// find in the page: `step` 0 searches `text` afresh (every match marked), 1 / -1 go to the next / previous one
+    Find { id: String, text: String, #[serde(default)] step: i32 },
+    /// the find bar closed: the marks go
+    FindEnd { id: String },
 }
 
 /// The keys a web tab hands back to Atlas, as names (never keystrokes: a site could post them itself, so a site can at
@@ -50,11 +54,12 @@ addEventListener("keydown", (e) => {
   else if (e.ctrlKey && plain && !e.shiftKey && k === "p") send("files");
   else if (e.key === "F1") send("palette");
   else if (e.ctrlKey && plain && !e.shiftKey && k === "l") send("address");
+  else if (e.ctrlKey && plain && !e.shiftKey && k === "f") send("find");
   // Super is Atlas's (its app keys; a page has no use for it): the chord back, run as Atlas binds it
   else if (meta) send("key:" + JSON.stringify({ key: e.key, code: e.code, ctrl: e.ctrlKey, shift: e.shiftKey, alt: e.altKey }));
 }, true);
 "#;
-const ACTIONS: [&str; 4] = ["close", "files", "palette", "address"];
+const ACTIONS: [&str; 5] = ["close", "files", "palette", "address", "find"];
 
 struct Place {
     overlay: gtk::Overlay,
@@ -178,6 +183,15 @@ fn handle(ask: Ask) {
         Ask::Back { id } => if let Some(v) = p.tabs.get(&id) { v.go_back() },
         Ask::Forward { id } => if let Some(v) = p.tabs.get(&id) { v.go_forward() },
         Ask::Reload { id } => if let Some(v) = p.tabs.get(&id) { v.reload() },
+        Ask::Find { id, text, step } => if let Some(f) = p.tabs.get(&id).and_then(|v| v.find_controller()) {
+            match step {
+                0 if text.is_empty() => f.search_finish(),
+                0 => f.search(&text, (FindOptions::CASE_INSENSITIVE | FindOptions::WRAP_AROUND).bits(), u32::MAX),
+                s if s < 0 => f.search_previous(),
+                _ => f.search_next(),
+            }
+        },
+        Ask::FindEnd { id } => if let Some(f) = p.tabs.get(&id).and_then(|v| v.find_controller()) { f.search_finish() },
         Ask::Close { id } => if let Some(v) = p.tabs.remove(&id) {
             TURN.with(|t| t.borrow_mut().remove(&v));
             forget(&p.overlay, &v)
@@ -218,6 +232,12 @@ fn make(p: &mut Place, id: &str) -> WebView {
             tell(&tell_id, serde_json::json!({ "key": chord }));
         }
     });
+    // find in the page (Ask::Find): how many matches, for the pane's find bar
+    if let Some(f) = view.find_controller() {
+        let (a, b) = (id.to_string(), id.to_string());
+        f.connect_found_text(move |_, n| tell(&a, serde_json::json!({ "found": n })));
+        f.connect_failed_to_find_text(move |_| tell(&b, serde_json::json!({ "found": 0 })));
+    }
     let tell_id = id.to_string();
     let seen = move |v: &WebView| {
         tell(&tell_id, serde_json::json!({ "url": v.uri().map(|u| u.to_string()), "title": v.title().map(|t| t.to_string()), "loading": v.is_loading(), "back": v.can_go_back(), "forward": v.can_go_forward() }));

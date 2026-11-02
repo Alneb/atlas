@@ -192,3 +192,56 @@ test("important: i pins it on top and keeps it as a note; n sends it to Not impo
   await page.keyboard.press("n");
   await expect(row("Cluster time on iq")).toBeVisible({ timeout: 15_000 });
 });
+
+test("Ctrl+F finds in the conversation's frames; a pasted picture goes in the text and leaves inline", async ({ page }) => {
+  test.setTimeout(120_000);
+  const mail = await openPane(page);
+  const row = (s: string) => mail.locator(".list .row", { hasText: s });
+  await expect(row("Draft of the DCA section")).toBeVisible({ timeout: 30_000 });
+  await row("Draft of the DCA section").click();
+  const reader = mail.getByRole("region", { name: "The conversation" });
+  await expect(reader.locator("h2.subject")).toContainText("Draft of the DCA section");
+  await page.keyboard.press("Control+f");
+  const find = reader.getByRole("textbox", { name: "Find in this conversation" });
+  await expect(find).toBeFocused();
+  await find.fill("ATTACHED");
+  await expect(reader.locator(".find .count")).toHaveText(/^1 of \d+$/);
+  const frame = reader.frameLocator("iframe.frame").first();
+  await expect(frame.locator("mark.atlas-find.cur")).toHaveText("attached");
+  await find.press("Escape");
+  await expect(frame.locator("mark.atlas-find")).toHaveCount(0);
+  await page.screenshot({ path: "target/email-find.png" });
+
+  // a new message; a long subject never widens the window (the popup stays put)
+  await page.keyboard.press("c");
+  const form = mail.getByRole("form", { name: "New message" });
+  await form.getByRole("textbox", { name: "To" }).fill("ana@example.org");
+  await form.getByRole("textbox", { name: "Subject" }).fill("A picture ".repeat(20));
+  // the chip To makes on blur leaves the cursor in the subject
+  await expect(form.getByRole("textbox", { name: "Subject" })).toHaveValue(/^A picture/);
+  await expect(form.getByRole("textbox", { name: "Subject" })).toBeFocused();
+  const win = mail.locator(".win").first();
+  expect(await win.evaluate((w) => w.scrollWidth - w.clientWidth)).toBeLessThanOrEqual(0);
+  const body = form.getByRole("textbox", { name: "The message" });
+  await body.fill("Look:\n");
+  await body.evaluate(async (t: HTMLTextAreaElement) => {
+    // a 1×1 PNG on the clipboard, as a screenshot tool leaves it
+    const png = Uint8Array.from(atob("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="), (c) => c.charCodeAt(0));
+    const dt = new DataTransfer();
+    dt.items.add(new File([png], "image.png", { type: "image/png" }));
+    t.setSelectionRange(t.value.length, t.value.length);
+    t.dispatchEvent(new ClipboardEvent("paste", { clipboardData: dt, bubbles: true, cancelable: true }));
+  });
+  await expect(body).toHaveValue(/!\[\]\(cid:pasted-1\.png\)/);
+  await expect(form.locator(".file")).toContainText("pasted-1.png");
+  await form.getByRole("button", { name: "Preview" }).click();
+  await expect(form.locator(".preview img")).toHaveAttribute("src", /^data:image\/png;base64,/);
+  await page.screenshot({ path: "target/email-compose-paste.png" });
+  const before = existsSync(`${STATE}/sent`) ? readdirSync(`${STATE}/sent`).length : 0;
+  await page.keyboard.press("Control+Enter");
+  await expect.poll(() => (existsSync(`${STATE}/sent`) ? readdirSync(`${STATE}/sent`).length : 0), { timeout: 20_000 }).toBe(before + 1);
+  const sent = readFileSync(`${STATE}/sent/${before + 1}.eml`, "utf8");
+  expect(sent.toLowerCase()).toContain("multipart/related");
+  expect(sent).toMatch(/Content-ID: <pasted-1\.png>/i);
+  expect(sent).toContain("[image: pasted-1.png]");
+});

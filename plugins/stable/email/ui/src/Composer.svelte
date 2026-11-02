@@ -1,7 +1,7 @@
 <script lang="ts">
   // The composer (DESIGN-mail-ui §3): From (an identity, when the account has several), To / Cc / Bcc as chips with the
   // address book, the subject, the text in Markdown (a small toolbar; a preview of the mail as sent), files by drag and
-  // drop, from disk or from the vault. Saved to the server's Drafts by itself after two quiet seconds. Send holds the
+  // drop, from disk or from the vault; a picture pasted into the text goes in place (`![](cid:name)`, sent inline). Saved to the server's Drafts by itself after two quiet seconds. Send holds the
   // mail a few seconds with an Undo (`undo_send`), or sends it later; a mail that says "attached" with nothing attached
   // asks once. Inline under a conversation, or a window of its own (pop out / full size).
   import Icon from "./Icon.svelte";
@@ -28,10 +28,15 @@
   const identities = $derived(account?.identities?.filter(Boolean) ?? []);
   const accounts = $derived(mail.accounts.filter((a) => !a.error));
 
+  // the cursor where writing starts, once: To for a new mail, the text for a reply. Not on every change of To — the
+  // chip made when To loses focus would pull the cursor out of the subject into the text.
+  // svelte-ignore state_referenced_locally
+  const startInText = !!d.to;
+  let started = false;
   $effect(() => {
-    // the cursor where writing starts: To for a new mail, the text for a reply
-    if (!d.to) return;
-    text?.focus();
+    if (started || !text) return;
+    started = true;
+    if (startInText) text.focus();
   });
 
   function changed() {
@@ -77,20 +82,60 @@
   }
   async function togglePreview() {
     if (preview !== null) { preview = null; return; }
-    try { preview = (await mail.call<{ html: string }>("preview", { body: d.body })).html; } catch (e) { c.error = (e as Error).message; }
+    try { preview = shown((await mail.call<{ html: string }>("preview", { body: d.body })).html); } catch (e) { c.error = (e as Error).message; }
+  }
+  /** The pictures written into the text, shown in the preview from the bytes the page holds. */
+  function shown(html: string) {
+    return html.replace(/src="cid:([^"]+)"/g, (all, name: string) => {
+      const f = d.files.find((x) => x.name === decodeURIComponent(name) && x.data);
+      return f ? `src="data:${f.mime || "image/png"};base64,${f.data}"` : all;
+    });
   }
 
   // ----- files
 
+  const base64 = (f: Blob) => new Promise<string>((ok, no) => {
+    const r = new FileReader();
+    r.onload = () => ok(String(r.result).replace(/^data:[^,]*,/, ""));
+    r.onerror = () => no(r.error);
+    r.readAsDataURL(f);
+  });
   async function addFiles(list: FileList | File[]) {
-    for (const f of Array.from(list)) {
-      const data = await new Promise<string>((ok, no) => {
-        const r = new FileReader();
-        r.onload = () => ok(String(r.result).replace(/^data:[^,]*,/, ""));
-        r.onerror = () => no(r.error);
-        r.readAsDataURL(f);
-      });
-      d.files = [...d.files, { name: f.name, mime: f.type, size: f.size, data }];
+    for (const f of Array.from(list)) d.files = [...d.files, { name: f.name, mime: f.type, size: f.size, data: await base64(f) }];
+    changed();
+  }
+  /** A name no other file of this mail has: pasted-1.png, pasted-2.png… */
+  function freshName(ext: string) {
+    for (let n = 1; ; n++) if (!d.files.some((f) => f.name === `pasted-${n}.${ext}`)) return `pasted-${n}.${ext}`;
+  }
+  /** Pasting a picture (a screenshot, a copied image) puts it in the text where the cursor is; other files attach. */
+  async function paste(e: ClipboardEvent) {
+    const data = e.clipboardData;
+    let files = Array.from(data?.files ?? []);
+    // WebKitGTK's paste-as-plain-text of a picture hands over nothing: the core reads the clipboard (ui/src/lib/attach.ts)
+    const nothing = !!data && !files.length && [...data.types].every((t) => t === "text/plain") && !data.getData("text/plain");
+    if ((!files.length && !nothing) || !text) return;
+    e.preventDefault();
+    if (nothing) {
+      const res = await fetch("/api/clipboard/image", { headers: { "x-atlas": "1" } }).catch(() => null);
+      if (res?.status !== 200) return;
+      const blob = await res.blob();
+      files = [new File([blob], "image.png", { type: blob.type || "image/png" })];
+    }
+    const at = text.selectionStart, end = text.selectionEnd;
+    let marks = "";
+    for (const f of files) {
+      if (!f.type.startsWith("image/")) { await addFiles([f]); continue; }
+      const name = freshName(f.type.split("/")[1]?.replace("jpeg", "jpg").replace(/\W.*$/, "") || "png");
+      d.files = [...d.files, { name, mime: f.type, size: f.size, data: await base64(f) }];
+      marks += `![](cid:${name})`;
+    }
+    if (marks) {
+      const v = d.body;
+      const pad = (s: string) => (s && !s.endsWith("\n") ? "\n" : "");
+      const ins = `${pad(v.slice(0, at))}${marks}\n`;
+      d.body = v.slice(0, at) + ins + v.slice(end);
+      requestAnimationFrame(() => { text!.focus(); text!.setSelectionRange(at + ins.length, at + ins.length); });
     }
     changed();
   }
@@ -114,7 +159,10 @@
     if (vault) { d.files = [...d.files, { name: vault.split("/").at(-1) ?? vault, path: vault }]; changed(); return; }
     if (e.dataTransfer?.files.length) addFiles(e.dataTransfer.files);
   }
-  const removeFile = (f: FileRef) => { d.files = d.files.filter((x) => x !== f); changed(); };
+  const picture = (name: string) => new RegExp(`!\\[[^\\]]*\\]\\(<?cid:${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}>?\\)\\n?`, "g");
+  /** A file taken off; a picture shown in the text leaves the text with it. */
+  const removeFile = (f: FileRef) => { d.files = d.files.filter((x) => x !== f); d.body = d.body.replace(picture(f.name), ""); changed(); };
+  const isShown = (f: FileRef) => picture(f.name).test(d.body);
   const totalSize = $derived(d.files.reduce((s, f) => s + (f.size ?? 0), 0));
 
   // ----- sending
@@ -260,13 +308,13 @@
     <!-- the engine's own Markdown → HTML: what the recipients get -->
     <div class="preview">{@html preview}</div>
   {:else}
-    <textarea bind:this={text} bind:value={d.body} oninput={changed} placeholder={d.forward ? "Add a note (optional)…" : d.reply_to ? "Your reply…" : "Write… (Markdown: **bold**, *italic*, - lists, > quotes)"} aria-label="The message" spellcheck="true"></textarea>
+    <textarea bind:this={text} bind:value={d.body} oninput={changed} onpaste={paste} placeholder={d.forward ? "Add a note (optional)…" : d.reply_to ? "Your reply…" : "Write… (Markdown: **bold**, *italic*, - lists, > quotes)"} aria-label="The message" spellcheck="true"></textarea>
   {/if}
 
   {#if d.files.length}
     <div class="files">
       {#each d.files as f (f.name + (f.path ?? "") + (f.from?.join() ?? ""))}
-        <span class="file"><Icon name="attach" size={13} /><span>{f.name}</span>{#if f.size}<span class="faint">{size(f.size)}</span>{/if}{#if f.from}<span class="faint">(forwarded)</span>{/if}<button onclick={() => removeFile(f)} aria-label={`Remove ${f.name}`}>×</button></span>
+        <span class="file">{#if f.data && f.mime?.startsWith("image/")}<img class="thumb" src={`data:${f.mime};base64,${f.data}`} alt="" />{:else}<Icon name="attach" size={13} />{/if}<span>{f.name}</span>{#if isShown(f)}<span class="faint">(in the text)</span>{/if}{#if f.size}<span class="faint">{size(f.size)}</span>{/if}{#if f.from}<span class="faint">(forwarded)</span>{/if}<button onclick={() => removeFile(f)} aria-label={`Remove ${f.name}`}>×</button></span>
       {/each}
       {#if totalSize > 20 * 1024 * 1024}<span class="warn">{size(totalSize)}: most servers take about 25 MB</span>{/if}
     </div>
@@ -302,7 +350,8 @@
   .bar { display: flex; align-items: center; gap: 6px; margin: 0 -14px; padding: 8px 10px 8px 14px; background: var(--bg-alt); border-bottom: 1px solid var(--border); border-radius: var(--radius) var(--radius) 0 0; }
   .bar b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .grow { flex: 1; min-width: 0; }
-  .fields { display: grid; }
+  /* one column that may shrink: a long From, subject or address never widens the window */
+  .fields { display: grid; grid-template-columns: minmax(0, 1fr); }
   .composer:not(.inline) .fields { padding-top: 6px; }
   .from { display: flex; gap: 8px; align-items: center; border-bottom: 1px solid var(--border); padding: 4px 0; }
   .from select { flex: 1; min-width: 0; background: transparent; color: var(--text); border: 0; padding: 4px 0; font: inherit; }
@@ -311,7 +360,7 @@
   .torow .link { margin-top: 9px; }
   .link { all: unset; cursor: pointer; color: var(--text-muted); font-size: 0.9em; }
   .link:hover { color: var(--accent); }
-  .subject { all: unset; padding: 10px 0; border-bottom: 1px solid var(--border); font-weight: 600; }
+  .subject { all: unset; min-width: 0; text-overflow: ellipsis; padding: 10px 0; border-bottom: 1px solid var(--border); font-weight: 600; }
   .tb { display: flex; gap: 2px; align-items: center; padding-top: 4px; }
   .tb button { all: unset; cursor: pointer; min-width: 28px; height: 28px; display: grid; place-items: center; border-radius: var(--radius-sm); color: var(--text-muted); font-size: 0.92em; padding: 0 4px; }
   .tb button:hover, .tb button.on { background: var(--bg-hover); color: var(--text); }
@@ -324,6 +373,7 @@
   .files { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
   .file { display: inline-flex; gap: 6px; align-items: center; padding: 3px 4px 3px 8px; border-radius: var(--radius-sm); background: var(--bg-alt); border: 1px solid var(--border); font-size: 0.9em; max-width: 260px; }
   .file span:not(.faint) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .thumb { width: 22px; height: 22px; object-fit: cover; border-radius: 3px; flex: none; }
   .file button { all: unset; cursor: pointer; width: 18px; height: 18px; display: grid; place-items: center; border-radius: 50%; color: var(--text-muted); }
   .file button:hover { background: var(--bg-hover); }
   .warn { color: var(--orange); font-size: 0.86em; }

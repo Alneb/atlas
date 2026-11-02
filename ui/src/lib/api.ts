@@ -228,6 +228,11 @@ export const api = {
   putUiState: (state: UiState) => request<void>("PUT", "/api/ui/state", { body: state }),
   config: () => request<ConfigDoc>("GET", "/api/config"),
   /** Raw bytes in the body; the server picks a free name in the note's attachment folder. */
+  /** The desktop clipboard's picture (the core reads it: core/clipboard.rs); null when it holds none. */
+  clipboardImage: async (): Promise<Blob | null> => {
+    const res = await fetch(url("/api/clipboard/image"), { headers: { "x-atlas": "1" } });
+    return res.status === 200 ? res.blob() : null;
+  },
   attach: async (note: RelPath, name: string, data: Blob) => {
     const res = await fetch(url("/api/attach", { note, name }), { method: "POST", headers: { "x-atlas": "1" }, body: data });
     if (!res.ok) throw new ApiError(res.status, `POST /api/attach: ${res.status} ${await res.text()}`);

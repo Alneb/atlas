@@ -137,7 +137,8 @@
     const started = nativeShell.on ? Promise.resolve() : settled
       .then(() => loadShellPrefs(settings.config?.ui.restore_layout !== false))
       .then(() => restoreLayout(settings.config?.ui.restore_layout !== false))
-      .catch(() => false)
+      // a start that cannot restore says why (the tabs as they were are lost for this start, Home opens)
+      .catch((e) => { console.warn("[atlas] the tabs as they were could not be restored", e); return false; })
       .then(() => { stopLayout = autosaveLayout(); return openHome(); });
 
     api.workspace().then((w) => {

@@ -2425,6 +2425,7 @@ var Pi = {
 	x: "M6 6l12 12M18 6L6 18",
 	back: "M15 18l-6-6 6-6",
 	down: "M6 9l6 6 6-6",
+	up: "M6 15l6-6 6 6",
 	right: "M9 6l6 6-6 6",
 	note: "M6 3h9l4 4v14H6zM14 3v5h5M9 13h7M9 17h5",
 	refresh: "M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7",
@@ -2718,6 +2719,8 @@ details.atlas-quoted>summary{display:inline-block;cursor:pointer;list-style:none
 details.atlas-quoted>summary::-webkit-details-marker{display:none}
 details.atlas-quoted[open]>summary{margin-bottom:8px}
 table{max-width:100%}
+mark.atlas-find{background:${s.dark ? "#7a5d00" : "#ffe27a"};color:inherit;border-radius:2px}
+mark.atlas-find.cur{background:${s.dark ? "#c77700" : "#ff9f1a"};color:${s.dark ? "#fff" : "#000"}}
 </style></head><body>${t.html}</body></html>`;
 	});
 	function y() {
@@ -2729,7 +2732,14 @@ table{max-width:100%}
 		};
 		t(), new ResizeObserver(t).observe(e.documentElement);
 		for (let n of Array.from(e.images)) n.addEventListener("load", t);
-		e.addEventListener("toggle", t, !0);
+		e.addEventListener("toggle", t, !0), e.addEventListener("keydown", (e) => {
+			(e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "f" && (e.preventDefault(), Z(c)?.dispatchEvent(new KeyboardEvent("keydown", {
+				key: e.key,
+				ctrlKey: e.ctrlKey,
+				metaKey: e.metaKey,
+				bubbles: !0
+			})));
+		});
 	}
 	var b = ea();
 	let x;

@@ -737,6 +737,14 @@ async fn config_suggestions_get(State(st): S) -> Result<Json<Suggestions>> {
     Ok(Json(with_ws(&st, |_| Ok(crate::detect::suggestions_cached())).await?))
 }
 
+/// The desktop clipboard's picture (clipboard.rs), for a paste that arrived without it; 204 when there is none.
+async fn clipboard_image_get() -> Response {
+    match crate::clipboard::image().await {
+        Some((ty, bytes)) => ([(header::CONTENT_TYPE, ty), (header::CACHE_CONTROL, "no-store".to_string())], bytes).into_response(),
+        None => StatusCode::NO_CONTENT.into_response(),
+    }
+}
+
 async fn attach_post(State(st): S, Query(q): Query<AttachQuery>, body: Bytes) -> Result<Json<Attached>> {
     let a = with_ws(&st, move |ws| {
         ws.resolve(&q.note)?; // the note must be a workspace path
@@ -2134,6 +2142,7 @@ fn router(state: Arc<AppState>) -> Router {
         .route("/api/lsp/{lang}", get(lsp_ws))
         .route("/api/config", get(config_get).put(config_put))
         .route("/api/config/suggestions", get(config_suggestions_get))
+        .route("/api/clipboard/image", get(clipboard_image_get))
         .route("/api/attach", post(attach_post).layer(DefaultBodyLimit::max(100 * 1024 * 1024)))
         .route("/api/companion", post(companion_post))
         .route("/api/pdf-marks", get(pdf_marks_get).post(pdf_marks_post))

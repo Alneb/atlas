@@ -30,6 +30,10 @@ own IMAP/SMTP accounts (a password) or Outlook / Microsoft 365 (OAuth2), several
   forgotten-attachment check.
 - **Search** with operators: `from: to: cc: subject: has:attachment is:unread|starred|snoozed list: label: in:
   account: before: after: older_than: newer_than: larger: smaller:`, phrases and `-word`.
+- **Find in a conversation** (Ctrl+F): every message opened, the matches marked in the mails themselves (case and
+  accents ignored), folded quotes opened; Enter / Shift+Enter step.
+- **Pictures pasted into a mail** go where the cursor is (`![](cid:pasted-1.png)` in the text) and leave inline, in a
+  `multipart/related` part, not as attachments; a draft reopens with them in place.
 - **Rules** in `mail/rules.md` (one `email-rules` block): `<search> => <actions>` (move, archive, trash, spam, read,
   star, important, not-important, label, save, notify, stop), run on new inbox mail, a rule's moves after its other
   actions and a moved message seen by no later rule (as in Thunderbird); edited in a dialog (the pane's

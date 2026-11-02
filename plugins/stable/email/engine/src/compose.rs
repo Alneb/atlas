@@ -1,10 +1,13 @@
 //! A message the user wrote, built for sending (mail-builder): Markdown becomes the HTML part and stays the text part
 //! (Markdown reads as plain text); the signature goes under "-- "; a reply quotes what it answers below it (HTML as a
 //! cited blockquote, text with "> "), threads by In-Reply-To / References, and a forward carries the original's files.
+//! A file the text shows as a picture (`![](cid:<its name>)`, what pasting a picture writes) goes inline: the HTML part
+//! and those pictures in a `multipart/related`, the text part saying `[image: name]` where the picture stands.
 
 use crate::parse::{escape, Person};
 use mail_builder::headers::address::Address;
 use mail_builder::headers::raw::Raw;
+use mail_builder::mime::{BodyPart, MimePart};
 use mail_builder::MessageBuilder;
 use serde::Deserialize;
 
@@ -181,7 +184,8 @@ pub fn build(d: &Draft) -> Result<(Vec<u8>, String, Vec<String>), String> {
         }
     };
     let html = format!("<!doctype html><html><head><meta charset=\"utf-8\"></head><body><div class=\"atlas-body\">{}</div>{sig_html}{quote_html}</body></html>", markdown(&d.body));
-    let text = format!("{}{sig_text}{quote_text}", d.body.trim_end());
+    let shown = inline_names(&d.body);
+    let text = format!("{}{sig_text}{quote_text}", CID_IMAGE.replace_all(d.body.trim_end(), "[image: $1]"));
     let from = if d.from.name.is_empty() { Address::new_address(None::<String>, d.from.addr.clone()) } else { Address::new_address(Some(d.from.name.clone()), d.from.addr.clone()) };
     let mut m = MessageBuilder::new().from(from).subject(d.subject.clone()).message_id(id.clone()).date(chrono::Utc::now().timestamp()).header("X-Mailer", Raw::new("Atlas"));
     if !d.to.is_empty() {
@@ -205,14 +209,33 @@ pub fn build(d: &Draft) -> Result<(Vec<u8>, String, Vec<String>), String> {
     if let Some(t) = d.send_at {
         m = m.header("X-Atlas-Send-At", Raw::new(t.to_string()));
     }
-    m = m.text_body(text).html_body(html);
-    for f in &d.files {
-        let mime = if f.mime.is_empty() { mime_of(&f.name).to_string() } else { f.mime.clone() };
-        m = m.attachment(mime, f.name.clone(), f.bytes.clone());
+    let mime = |f: &File| if f.mime.is_empty() { mime_of(&f.name).to_string() } else { f.mime.clone() };
+    let (inline, attached): (Vec<&File>, Vec<&File>) = d.files.iter().partition(|f| shown.contains(&f.name));
+    if inline.is_empty() {
+        m = m.text_body(text).html_body(html);
+        for f in attached {
+            m = m.attachment(mime(f), f.name.clone(), f.bytes.clone());
+        }
+    } else {
+        // mixed[ alternative[ text, related[ html, pictures… ] ], files… ]
+        let mut related = vec![MimePart::new("text/html", BodyPart::Text(html.into()))];
+        related.extend(inline.iter().map(|f| MimePart::new(mime(f), BodyPart::Binary(f.bytes.clone().into())).inline().cid(f.name.clone())));
+        let alt = MimePart::new("multipart/alternative", vec![MimePart::new("text/plain", BodyPart::Text(text.into())), MimePart::new("multipart/related", related)]);
+        let mut parts = vec![alt];
+        parts.extend(attached.iter().map(|f| MimePart::new(mime(f), BodyPart::Binary(f.bytes.clone().into())).attachment(f.name.clone())));
+        m = m.body(if parts.len() == 1 { parts.pop().unwrap() } else { MimePart::new("multipart/mixed", parts) });
     }
     let raw = m.write_to_vec().map_err(|e| format!("cannot build the message: {e}"))?;
     let rcpt: Vec<String> = d.to.iter().chain(&d.cc).chain(&d.bcc).map(|p| p.addr.clone()).collect();
     Ok((raw, id, rcpt))
+}
+
+/// `![alt](cid:name)` in the typed text: a picture shown in place.
+static CID_IMAGE: std::sync::LazyLock<regex::Regex> = std::sync::LazyLock::new(|| regex::Regex::new(r"!\[[^\]]*\]\(<?cid:([^)>\s]+)>?\)").unwrap());
+
+/// The names of the files the text shows as pictures.
+fn inline_names(body: &str) -> Vec<String> {
+    CID_IMAGE.captures_iter(body).map(|c| c[1].to_string()).collect()
 }
 
 /// The message without its Bcc header (what the recipients get; the envelope still carries every address).
@@ -348,6 +371,27 @@ mod tests {
         assert!(!String::from_utf8_lossy(&sent).to_lowercase().contains("bcc:"));
         assert!(String::from_utf8_lossy(&raw).to_lowercase().contains("bcc:"));
         assert_eq!(envelope(&sent, None).message_id, id);
+    }
+
+    #[test]
+    fn a_pasted_picture_goes_inline() {
+        let png = b"\x89PNG\r\n\x1a\nfake".to_vec();
+        let d = Draft {
+            from: p("Me", "me@x.example"),
+            to: vec![p("Ana", "ana@x.example")],
+            subject: "Plot".into(),
+            body: "Here:\n\n![](cid:pasted-1.png)\n\nbye".into(),
+            files: vec![File { name: "pasted-1.png".into(), mime: "image/png".into(), bytes: png }, File { name: "notes.pdf".into(), mime: String::new(), bytes: b"%PDF".to_vec() }],
+            ..Default::default()
+        };
+        let (raw, _, _) = build(&d).unwrap();
+        let s = String::from_utf8_lossy(&raw).to_lowercase();
+        assert!(s.contains("multipart/related") && s.contains("content-id: <pasted-1.png>"), "{s}");
+        let b = body(&raw).unwrap();
+        assert!(b.html.as_deref().unwrap().contains("src=\"cid:pasted-1.png\""), "{:?}", b.html);
+        assert!(b.text.contains("[image: pasted-1.png]") && !b.text.contains("cid:"), "{}", b.text);
+        // the picture is shown, not listed; the PDF stays a file
+        assert_eq!(b.attachments.iter().filter(|a| !a.inline).map(|a| a.name.as_str()).collect::<Vec<_>>(), vec!["notes.pdf"]);
     }
 
     #[test]

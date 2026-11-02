@@ -8,6 +8,7 @@ pub mod agent_terminals;
 pub mod api;
 pub mod bases;
 pub mod capture;
+pub mod clipboard;
 pub mod capture_hooks;
 pub mod captures;
 pub mod catalog_hint;

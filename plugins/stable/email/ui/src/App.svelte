@@ -139,6 +139,7 @@
     focusSearch: () => { searchBox?.focus(); searchBox?.select(); },
     help: () => (help = !help),
     expandAll: (o) => reader?.expandAll(o),
+    find: () => reader?.find(),
     // a dialog over the app (API 20); a tab of its own on an older one
     rules: () => (typeof atlas.openDialog === "function" ? void atlas.openDialog(RULES_DIALOG, { title: "Rules", width: 860, height: 640 }) : atlas.openView(RULES_DIALOG, { title: "Email rules", icon: "mail" })),
     layout: chooseLayout,

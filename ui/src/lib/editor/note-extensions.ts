@@ -3,7 +3,7 @@
 // dropped saved beside the note, and the settings-driven options (heading folds, typewriter scrolling).
 import { basename, dirOf, shownName } from "../paths";
 import { noteHtml } from "./big-html";
-import { attachFiles, filesOf } from "../attach";
+import { attachFiles, takeFiles } from "../attach";
 import { wikilinkSource, slashSource, citeSource, citeApplies, taskSource, continueList, backspaceMarkup, taskShortForms, type TaskCompletion } from "./md-complete";
 import { taskIconEl } from "../task-complete";
 import { taskChips } from "./task-chips";
@@ -127,17 +127,17 @@ export function noteExtensions(path: string, viewRef: { view: EditorView | null 
             view.dispatch({ changes: { from: sel.from, to: sel.to, insert: `[${text}](${url})` } });
             return true;
           }
-          const files = filesOf(e.clipboardData);
-          if (!files.length) return false;
-          e.preventDefault();
-          void attachAt(view, path, files, view.state.selection.main.head);
+          const files = takeFiles(e);
+          if (!files) return false;
+          const at = view.state.selection.main.head;
+          void files.then((f) => attachAt(view, path, f, at));
           return true;
         },
         drop: (e, view) => {
-          const files = filesOf(e.dataTransfer);
-          if (!files.length) return false;
-          e.preventDefault();
-          void attachAt(view, path, files, view.posAtCoords({ x: e.clientX, y: e.clientY }) ?? view.state.selection.main.head);
+          const files = takeFiles(e);
+          if (!files) return false;
+          const at = view.posAtCoords({ x: e.clientX, y: e.clientY }) ?? view.state.selection.main.head;
+          void files.then((f) => attachAt(view, path, f, at));
           return true;
         },
       }),

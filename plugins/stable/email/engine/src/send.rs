@@ -262,10 +262,23 @@ pub async fn open_draft(m: &Mail, id: i64) -> Result<Value, String> {
     let bcc: Vec<String> = parsed.as_ref().and_then(|p| p.bcc()).map(|b| b.iter().filter_map(|a| a.address().map(String::from)).collect()).unwrap_or_default();
     let parent = x.in_reply_to.first().and_then(|irt| m.index.by_message_id(&x.account, irt).into_iter().next()).map(|p| p.id);
     let list = |ps: &[Person]| ps.iter().map(Person::display).collect::<Vec<_>>().join(", ");
+    // a picture written into the text (compose.rs) comes back as it was typed, its part as a file again
+    let mut body = typed.trim_end().to_string();
+    let mut files = vec![];
+    for a in &b.attachments {
+        let name = match (&a.cid, a.inline) {
+            (Some(cid), true) if body.contains(&format!("[image: {cid}]")) => {
+                body = body.replace(&format!("[image: {cid}]"), &format!("![](cid:{cid})"));
+                cid.clone()
+            }
+            (_, true) => continue,
+            _ => a.name.clone(),
+        };
+        files.push(json!({ "name": name, "mime": a.mime, "size": a.size, "from": [id, a.part] }));
+    }
     Ok(json!({
         "account": x.account, "to": list(&x.to), "cc": list(&x.cc), "bcc": bcc.join(", "),
-        "subject": x.subject, "body": typed.trim_end(), "reply_to": parent, "draft": id, "send_at": send_at,
-        "files": b.attachments.iter().filter(|a| !a.inline).map(|a| json!({ "name": a.name, "mime": a.mime, "size": a.size, "from": [id, a.part] })).collect::<Vec<_>>(),
+        "subject": x.subject, "body": body, "reply_to": parent, "draft": id, "send_at": send_at, "files": files,
     }))
 }
 
@@ -432,6 +445,18 @@ mod tests {
         assert_eq!(opened["body"], "second version");
         assert_eq!(opened["to"], "ana@example.org");
         assert_eq!(opened["files"][0]["name"], "a.txt");
+        // a pasted picture comes back in place and as a file, not as "[image: …]"
+        let mut p = c.clone();
+        p.draft = second["id"].as_i64();
+        p.body = "see ![](cid:pasted-1.png) here".into();
+        p.files.push(FileIn { name: "pasted-1.png".into(), mime: "image/png".into(), data: Some("iVBORw0KGgo=".into()), ..Default::default() });
+        let pic = m.rt.block_on(save_draft(&m, &p)).unwrap();
+        let back = m.rt.block_on(open_draft(&m, pic["id"].as_i64().unwrap())).unwrap();
+        assert_eq!(back["body"], "see ![](cid:pasted-1.png) here");
+        let mut names: Vec<&str> = back["files"].as_array().unwrap().iter().map(|f| f["name"].as_str().unwrap()).collect();
+        names.sort();
+        assert_eq!(names, vec!["a.txt", "pasted-1.png"]);
+        let second = pic;
         c.draft = second["id"].as_i64();
         c.send_at = Some(chrono::Utc::now().timestamp() - 1);
         m.rt.block_on(save_draft(&m, &c)).unwrap();

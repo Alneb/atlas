@@ -235,9 +235,11 @@ async function openInBrowser(): Promise<void> {
 
 const PAGE_ZOOM = ".pdf-pane"; // panes with a zoom of their own
 
+// Every `run` calls its function when run, never holds it (`run: () => f()`, not `run: f`): this table is built while
+// modules load, and in an import cycle (dock.ts ↔ tabs ↔ libraries) an imported function may not exist yet.
 export const actions: Action[] = [
   { id: "ui.palette", title: "Command palette", keys: "Super+E", alsoKeys: ["F1"], run: () => openPalette("all") },
-  { id: "ui.open-in-browser", title: "Open Atlas in the browser", run: openInBrowser },
+  { id: "ui.open-in-browser", title: "Open Atlas in the browser", run: () => openInBrowser() },
   // e-ink (Settings → Appearance: ui.eink_refresh): the ghosts of earlier screens cleared by one full refresh
   { id: "ui.eink-refresh", title: "E-ink: clear the screen", run: () => void import("./eink").then((m) => m.einkRefresh(true)) },
   // the store before the note's pdf-marks block: each older drawing's marks moved over, after a yes (lib/pdf-migrate.ts)
@@ -272,21 +274,21 @@ export const actions: Action[] = [
   // the bar as a capture box, wherever one is: the same completions (task fields, [[notes, #tags, @days)
   { id: "ui.capture-bar", title: "Capture in the bar", run: () => openPalette("capture") },
   // every capture by day, to triage (components/views/Captures.svelte): the `captures` block alone in a tab
-  { id: "ui.captures", title: "Captures: triage what was captured", icon: "inbox", run: openCaptures },
+  { id: "ui.captures", title: "Captures: triage what was captured", icon: "inbox", run: () => openCaptures() },
   // New…: every kind of new thing, each placed by its kind; the phone app's + opens it
   { id: "ui.new", title: "New… (a note, from a template, a drawing, or what a plugin adds)", icon: "plus", label: "New…", run: () => void import("./new-thing").then((m) => m.newThing()) },
-  { id: "ui.browse", title: "Browse the web… (an address, or words to search)", icon: "globe", label: "Browse", keys: "Super+Shift+B", run: browse },
+  { id: "ui.browse", title: "Browse the web… (an address, or words to search)", icon: "globe", label: "Browse", keys: "Super+Shift+B", run: () => browse() },
   { id: "ui.drawing", title: "New drawing (Excalidraw)", keys: "Super+Shift+D", run: () => import("./draw-new").then((m) => m.newExcalidraw()) },
   { id: "draw.exportSvg", title: "Drawing: export as SVG (beside it)", run: () => void exportDrawing() },
-  { id: "draw.properties", title: "Drawing: its properties (tags, project, topics — its note, beside it)", run: drawingProperties },
-  { id: "ui.terminal", title: "Focus terminal (again: hide)", keys: "Ctrl+`", fromTerminal: true, run: focusTerminalPanel },
+  { id: "draw.properties", title: "Drawing: its properties (tags, project, topics — its note, beside it)", run: () => drawingProperties() },
+  { id: "ui.terminal", title: "Focus terminal (again: hide)", keys: "Ctrl+`", fromTerminal: true, run: () => focusTerminalPanel() },
   // Super+F; F11 as before
   { id: "ui.fullscreen", title: "Fullscreen: this tab (terminal or editor) over the whole window; again: back", keys: "Super+F", alsoKeys: ["F11"], run: () => { void toggleFullscreen(); } },
   { id: "ui.terminal.new", title: "New shell terminal", run: () => { open({ kind: "terminal", preset: "shell", n: nextTerminalN() }); } },
   // the id stays (keys the user rebound); the agent is the one used last (lib/agents.ts)
-  { id: "ui.sendToClaude", title: "Send the selection to the AI agent (@file#lines for Claude)", keys: "Ctrl+Alt+Enter", run: sendToAgent },
+  { id: "ui.sendToClaude", title: "Send the selection to the AI agent (@file#lines for Claude)", keys: "Ctrl+Alt+Enter", run: () => sendToAgent() },
   // the ids stay (keys the user rebound): the agent is a plugin's (pty.rs: the `claude` agent, else the first declared)
-  { id: "ui.claude", title: "AI agent terminal (Claude, or the agent a plugin declares)", icon: "claude", label: "Agent", keys: "Super+K", run: claudeTerminal },
+  { id: "ui.claude", title: "AI agent terminal (Claude, or the agent a plugin declares)", icon: "claude", label: "Agent", keys: "Super+K", run: () => claudeTerminal() },
   { id: "ui.claude.new", title: "New AI agent session (another one beside the first)", run: () => { open({ kind: "terminal", preset: "claude", n: nextTerminalN() }); } },
   { id: "ui.files", title: "Show files", icon: "files", label: "Files", keys: "Super+Shift+F", run: () => { open({ kind: "files" }); } },
   // the big explorer (a tab, like Dolphin): the vault, SSH hosts, copyparty servers in one list
@@ -295,10 +297,10 @@ export const actions: Action[] = [
   { id: "ui.search", title: "Search in workspace", icon: "search", label: "Search", keys: "Ctrl+Shift+F", run: () => { open({ kind: "search" }); } },
   { id: "ui.replace", title: "Replace in files", keys: "Ctrl+Shift+H", run: () => { searchRequest.replace = true; open({ kind: "search" }); window.dispatchEvent(new Event("atlas-search-replace")); } },
   // Super+Q is Atlas's key (also from a terminal, which keeps Ctrl+W for the shell); Ctrl+W stays
-  { id: "ui.close", title: "Close tab", keys: "Super+Q", alsoKeys: ["Ctrl+W"], run: closeActive },
+  { id: "ui.close", title: "Close tab", keys: "Super+Q", alsoKeys: ["Ctrl+W"], run: () => closeActive() },
   { id: "ui.reload", title: "Reload the interface", run: () => { void reloadInterface(); } },
   { id: "ui.vim", title: "Toggle vim mode", run: () => { toggleVim(); toast(`Vim mode ${app.vimEnabled ? "off" : "on"}`); } },
-  { id: "ui.theme", title: "Toggle light / dark theme", icon: () => (app.theme === "dark" ? "sun" : "moon"), label: "Toggle theme", run: toggleTheme },
+  { id: "ui.theme", title: "Toggle light / dark theme", icon: () => (app.theme === "dark" ? "sun" : "moon"), label: "Toggle theme", run: () => toggleTheme() },
   { id: "ui.settings", title: "Settings", icon: "settings", keys: "Super+,", run: () => { open({ kind: "settings" }); } },
   // the keys zoom the tab they are in (lib/pane-zoom.ts); everything at once is its own trio
   { id: "ui.zoomIn", title: "Zoom in: this tab's text larger", keys: "Ctrl+Plus", alsoKeys: ["Ctrl+="], yieldTo: PAGE_ZOOM, run: () => zoomPane(1) },
@@ -314,19 +316,19 @@ export const actions: Action[] = [
   { id: "ui.library", title: "Library: references, then the vault's other libraries", icon: "library", label: "Library", keys: "Super+Shift+L", plugin: "library", run: () => openLibraries("references") },
   { id: "ui.git", title: "Git: changes and history", icon: "git", label: "Git", keys: "Super+G", run: () => { open({ kind: "git" }); } },
   { id: "ui.git.blame", title: "Git: who changed each line (blame)", icon: "git", run: () => void toggleBlame() },
-  { id: "ui.sidePanel", title: "Show / hide the side panel (files, search, outline, git)", icon: "folder-tree", label: "Side panel (show / hide)", keys: "Super+B", run: toggleSidePanel },
+  { id: "ui.sidePanel", title: "Show / hide the side panel (files, search, outline, git)", icon: "folder-tree", label: "Side panel (show / hide)", keys: "Super+B", run: () => toggleSidePanel() },
   { id: "ui.sidePanel.move", title: "Move side panel (beside the editors ↔ in the left bar)", run: () => placeSidePanel(sideInBar() ? "dock" : "sidebar") },
-  { id: "ui.panel", title: "Show / hide terminal panel", icon: "terminal", label: "Terminal (show / hide)", keys: "Super+J", run: toggleTerminalPanel },
+  { id: "ui.panel", title: "Show / hide terminal panel", icon: "terminal", label: "Terminal (show / hide)", keys: "Super+J", run: () => toggleTerminalPanel() },
   { id: "ui.panel.move", title: "Move terminal panel (bottom ↔ right)", run: () => setTerminalPosition(settings.config?.terminal.position === "right" ? "bottom" : "right") },
   { id: "ui.properties.inline", title: "Properties: show them in the note (as Obsidian)", run: () => setPropertiesView("inline") },
   { id: "ui.web", title: "Open web page…", run: () => openPalette("url") },
   { id: "ui.openWith", title: "Open with… (this file in another view)", keys: "Ctrl+Alt+O", run: () => openWith() },
   { id: "ui.focusFile", title: "Edit FOCUS.md", run: () => openPath(app.workspace?.config.focus ?? "FOCUS.md") },
-  { id: "ui.resetLayout", title: "Reset layout", run: resetLayout },
+  { id: "ui.resetLayout", title: "Reset layout", run: () => resetLayout() },
   { id: "ui.python.env", title: "Python: choose the environment (for the Python server and new terminals)", icon: "terminal", run: () => void import("./python-env").then((m) => m.choosePythonEnv()) },
   { id: "ui.glance", title: "Glance: follow another device (what it shows, full screen)", icon: "eye", run: () => void import("./where.svelte").then((m) => m.followDevice()) },
   { id: "ui.symbols", title: "Go to a symbol in the project (functions, classes…)", icon: "file-code", run: () => goToSymbol() },
-  { id: "ui.problems", title: "Problems: errors and warnings of the current file", keys: "Super+M", run: showProblems },
+  { id: "ui.problems", title: "Problems: errors and warnings of the current file", keys: "Super+M", run: () => showProblems() },
   { id: "ui.graph", title: "Graph of notes (links between notes)", icon: "link", label: "Graph", keys: "Super+Shift+G", run: () => { open({ kind: "graph" }); } },
   { id: "ui.commands", title: "Commands & keyboard shortcuts (all commands, new command)", icon: "command", label: "Commands & shortcuts", keys: "Super+Shift+K", run: () => { open({ kind: "commands" }); } },
   ...tabActions,

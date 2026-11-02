@@ -9,6 +9,7 @@ export interface Ui {
   help(): void;
   palette(): void;
   expandAll(open: boolean): void;
+  find(): void;
   back(): void;
   rules(): void;
   layout(): void;
@@ -33,6 +34,7 @@ export const COMMANDS: Command[] = [
   { id: "open", title: "Open", group: "Move around", keys: "o, enter", when: (m) => m.cursor !== null, run: (m) => { if (m.cursor !== null) m.read(m.cursor); } },
   { id: "back", title: "Back to the list", group: "Move around", keys: "u, escape", run: (_m, ui) => ui.back() },
   { id: "search", title: "Search mail", group: "Move around", keys: "/", run: (_m, ui) => ui.focusSearch() },
+  { id: "find", title: "Find in this conversation", group: "Move around", keys: "ctrl+f", when: (m) => m.open !== null, run: (_m, ui) => ui.find() },
   { id: "expand", title: "Expand every message", group: "Move around", keys: ";", run: (_m, ui) => ui.expandAll(true) },
   { id: "collapse", title: "Collapse every message", group: "Move around", keys: ":", run: (_m, ui) => ui.expandAll(false) },
   { id: "first", title: "First conversation", group: "Move around", keys: "home", run: (m) => m.move(-1e9) },

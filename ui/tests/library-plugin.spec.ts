@@ -9,7 +9,17 @@ async function setOff(request: APIRequestContext, off: string[]) {
   d.config.plugins.off = off;
   expect((await request.put("/api/config", { headers: H, data: d.config })).ok()).toBeTruthy();
 }
-test.afterEach(async ({ request }) => { await setOff(request, []); });
+/** Whether a fresh window reopens the saved layout (the test vault starts every test clean: off). */
+async function setRestore(request: APIRequestContext, on: boolean) {
+  const d = await (await request.get("/api/config", { headers: H })).json();
+  d.config.ui.restore_layout = on;
+  expect((await request.put("/api/config", { headers: H, data: d.config })).ok()).toBeTruthy();
+}
+test.afterEach(async ({ request }) => {
+  await setOff(request, []);
+  await setRestore(request, false);
+  await request.put("/api/file", { headers: H, data: { path: ".atlas/cache/layout.json", text: "null" } });
+});
 
 test("the Library is a plugin: an app at the top of the bar, gone when switched off", async ({ page, request }) => {
   await page.goto("/");
@@ -48,6 +58,7 @@ test("the Library is a plugin: an app at the top of the bar, gone when switched 
 // The core's Library panes of older layouts — the References pane (`library`) and the Libraries page (`libraries`) — are
 // the one Libraries page now, the Catalog plugin's pane: read from the layout file as that pane, one tile, not two.
 test("an old layout's Library panes become the one Libraries page, the Catalog's pane", async ({ page, context, request }) => {
+  await setRestore(request, true); // a new window reads the layout file only when the tabs are restored on start
   await page.goto("/");
   await page.getByText("Finish the GW notes.").waitFor();
   await page.keyboard.press("Meta+Shift+l");
@@ -77,6 +88,7 @@ test("an old layout's Library panes become the one Libraries page, the Catalog's
   await expect(apps.locator(".app.open")).not.toHaveCount(0);
   const labels = await apps.evaluate((el) => [...el.querySelectorAll("button")].map((n) => n.getAttribute("aria-label") ?? ""));
   expect(labels.filter((l) => /^Librar/.test(l))).toEqual(["Library"]);
-  // the page itself, at References
+  // the page itself, at References (Home is the first screen after a restore: the Library's tile brings its tab forward)
+  await apps.getByRole("button", { name: /^Library/ }).click();
   await expect(fresh.locator(".libraries .library[data-source=\"references\"] .row")).not.toHaveCount(0);
 });

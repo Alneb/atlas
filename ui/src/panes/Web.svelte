@@ -19,6 +19,11 @@
   let address = $state<HTMLInputElement>();
   let nav = $state({ back: false, forward: false, loading: false });
   let shot = $state("");
+  // find in the page (Ctrl+F, in the page or here): WebKit's own find in the native view, every match marked
+  let finding = $state(false);
+  let findText = $state("");
+  let found = $state<number | null>(null);
+  let findBox = $state<HTMLInputElement>();
 
   type Native = { postMessage(s: string): void };
   const native = (globalThis as unknown as { webkit?: { messageHandlers?: { atlasWeb?: Native } } }).webkit?.messageHandlers?.atlasWeb;
@@ -68,6 +73,21 @@
     else ask({ op: "hide" });
   }
 
+  function openFind() {
+    if (!native) return;
+    finding = true;
+    requestAnimationFrame(() => { findBox?.focus(); findBox?.select(); });
+  }
+  function closeFind() {
+    finding = false;
+    found = null;
+    ask({ op: "findend" });
+  }
+  function findKey(e: KeyboardEvent) {
+    if (e.key === "Enter") { e.preventDefault(); ask({ op: "find", text: findText, step: e.shiftKey ? -1 : 1 }); }
+    else if (e.key === "Escape") { e.preventDefault(); closeFind(); }
+  }
+
   /** A Super chord pressed in the page: the global command Atlas binds to it (a page never gets Super). */
   function superKey(k: { key: string; code: string; ctrl: boolean; shift: boolean; alt: boolean }) {
     const ev = new KeyboardEvent("keydown", { key: k.key, code: k.code, ctrlKey: k.ctrl, shiftKey: k.shift, altKey: k.alt, metaKey: true });
@@ -82,6 +102,8 @@
     if (d.external) return void inBrowser(d.external);
     if (d.action === "close") return void panel.close();
     if (d.action === "address") return void address?.select();
+    if (d.action === "find") return void openFind();
+    if ("found" in d) return void (found = (d as { found: number }).found);
     if (d.key) return void superKey(d.key);
     if (d.action === "files" || d.action === "palette") return void allCommands().find((c) => c.id === (d.action === "files" ? "ui.quickOpen" : "ui.palette"))?.run();
     if (d.url && d.url !== shown) {
@@ -114,7 +136,8 @@
   onDestroy(() => ask({ op: "close" }));
 </script>
 
-<div class="web-pane">
+<!-- svelte-ignore a11y_no_static_element_interactions -->
+<div class="web-pane" onkeydown={(e) => { if (e.ctrlKey && !e.altKey && !e.shiftKey && e.key.toLowerCase() === "f") { e.preventDefault(); openFind(); } }}>
   <div class="bar">
     {#if native}
       <button class="icon-btn" title="Back (Alt+←)" disabled={!nav.back} onclick={() => ask({ op: "back" })}><Icon name="arrow-left" size={14} /></button>
@@ -122,8 +145,18 @@
     {/if}
     <button class="icon-btn" class:spin={nav.loading} title="Reload (F5)" onclick={reload}><Icon name="refresh" size={14} /></button>
     <input bind:this={address} bind:value={url} onkeydown={(e) => { if (e.key === "Enter") go(); }} spellcheck="false" aria-label="Address" />
+    {#if native}<button class="icon-btn" class:on={finding} title="Find in the page (Ctrl+F)" onclick={() => (finding ? closeFind() : openFind())}><Icon name="search" size={14} /></button>{/if}
     <button class="icon-btn" title="Open in the browser (Shift+click a link to open it there)" onclick={() => inBrowser(shown)}><Icon name="external-link" size={14} /></button>
   </div>
+  {#if native && finding}
+    <div class="find" role="search">
+      <input bind:this={findBox} bind:value={findText} oninput={() => ask({ op: "find", text: findText })} onkeydown={findKey} placeholder="Find in the page" aria-label="Find in the page" spellcheck="false" />
+      <span class="count">{findText ? (found === null ? "" : found ? `${found} match${found === 1 ? "" : "es"}` : "No match") : ""}</span>
+      <button class="icon-btn" title="Previous (Shift+Enter)" disabled={!found} onclick={() => ask({ op: "find", text: findText, step: -1 })}><Icon name="arrow-up" size={14} /></button>
+      <button class="icon-btn" title="Next (Enter)" disabled={!found} onclick={() => ask({ op: "find", text: findText, step: 1 })}><Icon name="arrow-down" size={14} /></button>
+      <button class="icon-btn" title="Close (Esc)" onclick={closeFind}><Icon name="close" size={14} /></button>
+    </div>
+  {/if}
   {#if native}
     <div class="slot" bind:this={slot} style:background-image={shot ? `url("${shot}")` : undefined}></div>
   {:else}
@@ -136,7 +169,12 @@
   .bar { display: flex; align-items: center; gap: 6px; padding: 6px 10px; border-bottom: 1px solid var(--border); }
   .bar input { flex: 1; height: 26px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--bg-elev); color: var(--text); font: inherit; font-size: calc(12.5px * var(--ui-scale, 1)); padding: 0 10px; outline: 0; }
   .bar input:focus { border-color: color-mix(in srgb, var(--accent) 55%, transparent); }
-  .bar .icon-btn:disabled { opacity: 0.35; }
+  .bar .icon-btn:disabled, .find .icon-btn:disabled { opacity: 0.35; }
+  .bar .icon-btn.on { color: var(--accent); }
+  .find { display: flex; align-items: center; gap: 6px; padding: 4px 10px; border-bottom: 1px solid var(--border); background: var(--bg-alt); }
+  .find input { flex: 0 1 280px; min-width: 0; height: 24px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--bg-elev); color: var(--text); font: inherit; font-size: calc(12.5px * var(--ui-scale, 1)); padding: 0 8px; outline: 0; }
+  .find input:focus { border-color: color-mix(in srgb, var(--accent) 55%, transparent); }
+  .find .count { font-size: calc(12px * var(--ui-scale, 1)); color: var(--text-faint); white-space: nowrap; }
   .spin :global(svg) { animation: spin 1s linear infinite; }
   @keyframes spin { to { transform: rotate(360deg); } }
   iframe { flex: 1; border: 0; background: white; width: 100%; }
