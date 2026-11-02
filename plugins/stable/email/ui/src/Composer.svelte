@@ -259,7 +259,7 @@
     <!-- the engine's own Markdown → HTML: what the recipients get -->
     <div class="preview">{@html preview}</div>
   {:else}
-    <textarea bind:this={text} bind:value={d.body} oninput={changed} placeholder={d.reply_to ? "Your reply…" : "Write… (Markdown: **bold**, *italic*, - lists, > quotes)"} aria-label="The message" spellcheck="true"></textarea>
+    <textarea bind:this={text} bind:value={d.body} oninput={changed} placeholder={d.forward ? "Add a note (optional)…" : d.reply_to ? "Your reply…" : "Write… (Markdown: **bold**, *italic*, - lists, > quotes)"} aria-label="The message" spellcheck="true"></textarea>
   {/if}
 
   {#if d.files.length}

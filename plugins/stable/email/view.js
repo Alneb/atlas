@@ -1219,7 +1219,7 @@ function Nt(e, s) {
 		o(t, () => T(C), !0), q(t), c(e, t);
 	}, rt = (e) => {
 		var t = bt();
-		te(t), ue(t, (e) => O(w, e), () => T(w)), E(() => h(t, "placeholder", T(y).reply_to ? "Your reply…" : "Write… (Markdown: **bold**, *italic*, - lists, > quotes)")), J("input", t, V), a(t, () => T(y).body, (e) => T(y).body = e), c(e, t);
+		te(t), ue(t, (e) => O(w, e), () => T(w)), E(() => h(t, "placeholder", T(y).forward ? "Add a note (optional)…" : T(y).reply_to ? "Your reply…" : "Write… (Markdown: **bold**, *italic*, - lists, > quotes)")), J("input", t, V), a(t, () => T(y).body, (e) => T(y).body = e), c(e, t);
 	};
 	v(tt, (e) => {
 		T(C) === null ? e(rt, -1) : e(nt);
@@ -2829,7 +2829,7 @@ var On = 100, kn = class {
 		};
 		return this.composers = [...this.composers, r], r;
 	}
-	async reply(e, t = this.open?.messages.at(-1)?.id ?? this.cursor, n = !0) {
+	async reply(e, t = this.open?.messages.at(-1)?.id ?? this.cursor, n = !1) {
 		if (t) try {
 			let r = await this.call("compose_for", {
 				id: t,

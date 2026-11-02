@@ -376,7 +376,7 @@ export class Mail {
     return c;
   }
 
-  async reply(mode: "reply" | "all" | "forward", id = this.open?.messages.at(-1)?.id ?? this.cursor, inline = true) {
+  async reply(mode: "reply" | "all" | "forward", id = this.open?.messages.at(-1)?.id ?? this.cursor, inline = false) {
     if (!id) return;
     try {
       const d = await this.call<Partial<Draft>>("compose_for", { id, mode });
