@@ -5,6 +5,29 @@ and versions follow [Semantic Versioning](https://semver.org/) once 1.0 is out.
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-11-02
+
+### Added
+- Calendar: Outlook / Microsoft 365 calendars over Exchange, signed in through the Email plugin's Outlook account of
+  the same address (no password); events read, created, edited, moved and deleted like CalDAV ones.
+- Meetings: a Guests field in the event editor (invitations, updates and cancellations sent by Exchange, or by a CalDAV
+  server that schedules); Email's Meeting button opens a new event with the conversation's subject and people;
+  Accept / Maybe / Decline on an Outlook invitation answered by Exchange itself.
+- Email: reply and forward open in a popup with a toolbar.
+- Plugins call each other by role (`@mail`, `@calendar`) instead of by id.
+- Snippets: a plugin of JavaScript modules; Tab walks a formula's brackets.
+- Appearance: colour palettes by day and night, a paper shape, serif note fonts; app-wide menus, Ctrl+click
+  definitions, dialogs for import, add, sign-in and new event, recent commands.
+- Web tab: back and forward through its history, mouse side buttons. RAR archives on the phone.
+- Android: system notices, 48 dp touch targets.
+
+### Fixed
+- Races and missing locks in the core (notes, settings, secrets, marks, the mirror, the watcher, captures).
+- One reader for headings, tags, task fields, fences and links in the UI and the core; Bases filters and formulas.
+- Mail: notes' names, rules keep comments and order, send-later once, IMAP quoting and reconnects, links for agents.
+- Calendar: recurrence tails, the cache kept when settings cannot be read, invitation alarms.
+- Find in pages and mail, pasted pictures, actions after an import cycle, local days and DST gaps.
+
 ## [0.2.0] - 2026-10-30
 
 ### Added
@@ -49,6 +72,7 @@ and versions follow [Semantic Versioning](https://semver.org/) once 1.0 is out.
 - `AGENTS.md`: rules for AI coding agents working in the repository, and a `tidy` stage in the gate.
 - [Plugin maturity](guides/PLUGIN-MATURITY.md): what beta and stable promise, and the criteria for stable.
 
-[Unreleased]: https://github.com/Alneb/atlas/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/Alneb/atlas/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/Alneb/atlas/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/Alneb/atlas/compare/v0.1.1...v0.2.0
 [0.1.0]: https://github.com/Alneb/atlas/releases/tag/v0.1.0
