@@ -344,7 +344,7 @@
       {#if mode !== "full"}<div class="grip" class:h={mode === "below"} class:v={mode === "three"} role="separator" aria-label="Resize the list" onpointerdown={(e) => drag(e, mode === "below" ? "listH" : "list")}></div>{/if}
       {#if showReader && (!narrow || screen === "reader")}
         <div class="readerpane">
-          <Reader bind:this={reader} {mail} {dark} narrow={mode === "full"} onback={() => { mail.close(); screen = "list"; }} onpick={pick} />
+          <Reader bind:this={reader} {mail} narrow={mode === "full"} onback={() => { mail.close(); screen = "list"; }} onpick={pick} />
         </div>
       {/if}
     </div>

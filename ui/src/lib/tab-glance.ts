@@ -5,6 +5,7 @@
 // Each step shows the chosen tab itself in the pane behind: the cards are names only — no previews to draw — and Esc goes back.
 import type { DockviewApi } from "dockview-core";
 import { tabs } from "./tabs.svelte";
+import { overlayOpened } from "./overlays";
 
 const DRAW_MS = 120;
 /** Each split's tabs, the most recently active first. */
@@ -38,7 +39,7 @@ export function glanceOrder(d: DockviewApi): string[] {
   return [...seen, ...here.filter((id) => !seen.includes(id))];
 }
 
-let state: { ids: string[]; at: number; el: HTMLElement | null; timer: ReturnType<typeof setTimeout>; show: () => void } | null = null;
+let state: { ids: string[]; at: number; el: HTMLElement | null; timer: ReturnType<typeof setTimeout>; show: () => void; closed: () => void } | null = null;
 
 /** Ctrl+Tab (+1) or Ctrl+Shift+Tab (-1) while the glance is open or to open it. */
 export function glance(d: DockviewApi, step: 1 | -1): void {
@@ -53,7 +54,9 @@ export function glance(d: DockviewApi, step: 1 | -1): void {
   const from = ids[0];
   glancing = true;
   const show = () => { if (state) d.getPanel(state.ids[state.at])?.api.setActive(); };
-  state = { ids, at: step === 1 ? 1 : ids.length - 1, el: null, timer: setTimeout(draw, DRAW_MS), show };
+  // over everything from the first key, before its cards are drawn: a web tab stepped to must not show over them
+  const closed = overlayOpened("window");
+  state = { ids, at: step === 1 ? 1 : ids.length - 1, el: null, timer: setTimeout(draw, DRAW_MS), show, closed };
   show(); // the pane behind shows the chosen tab at once
   const up = (e: KeyboardEvent) => { if (e.key === "Control") finish(true); };
   const esc = (e: KeyboardEvent) => {
@@ -64,9 +67,10 @@ export function glance(d: DockviewApi, step: 1 | -1): void {
   const end = () => finish(true);
   function finish(go: boolean) {
     if (!state) return;
-    const { ids, at, el, timer } = state;
+    const { ids, at, el, timer, closed } = state;
     clearTimeout(timer);
     el?.remove();
+    closed();
     state = null;
     window.removeEventListener("keyup", up, true);
     window.removeEventListener("keydown", esc, true);

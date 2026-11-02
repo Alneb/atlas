@@ -7,6 +7,7 @@
   // link, the values the vault already uses): ↑/↓ to move, Enter or Tab to take one, Escape to close, a click to take
   // it. In place of a `<datalist>`, which WebKitGTK barely shows and which cannot say which folder a note is in
   //.
+  import { overlay } from "../lib/overlays";
   import type { HTMLInputAttributes } from "svelte/elements";
 
   let { value = $bindable(""), items, onpick, class: cls = "", ...rest }: {
@@ -62,7 +63,7 @@
   onfocus={(e) => { show(); rest.onfocus?.(e); }}
   onblur={(e) => { open = false; rest.onblur?.(e); }} />
 {#if shown}
-  <ul class="suggest" role="listbox" style="left:{box.left}px;top:{box.top}px;width:{box.width}px">
+  <ul class="suggest" use:overlay role="listbox" style="left:{box.left}px;top:{box.top}px;width:{box.width}px">
     {#each items as s, i (s.value)}
       <!-- mousedown, not click: the input keeps its focus, so its blur does not commit the half-typed text first -->
       <li role="option" aria-selected={i === at} class:at={i === at} onmousedown={(e) => { e.preventDefault(); take(i); }} onmouseenter={() => (at = i)}>

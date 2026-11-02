@@ -2,6 +2,7 @@
   // A panel anchored under the button that opened it (Obsidian's toolbar menus): moved to <body> so no pane or editor
   // widget clips it, kept inside the window, closed by Escape, a click outside (not on its button) or a phone's Back.
   // Being at the end of <body>, Tab would never reach it: it takes the focus when it opens and keeps Tab inside.
+  import { overlay } from "../lib/overlays";
   import type { Snippet } from "svelte";
   import { tick } from "svelte";
   import { closable } from "../lib/back";
@@ -65,7 +66,7 @@
   });
 </script>
 
-<div class="popover" role="dialog" aria-label={label} tabindex="-1" bind:this={el} onkeydown={(e) => trapTab(e, e.currentTarget)}
+<div class="popover" use:overlay role="dialog" aria-label={label} tabindex="-1" bind:this={el} onkeydown={(e) => trapTab(e, e.currentTarget)}
   style:left={at ? `${at.left}px` : "-9999px"} style:top={at ? `${at.top}px` : "0"}
   style:width="min({width}px, calc(100vw - {2 * EDGE}px))" style:max-height={at ? `${at.maxH}px` : undefined}>
   {@render children()}

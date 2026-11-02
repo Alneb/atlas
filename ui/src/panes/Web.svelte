@@ -2,6 +2,7 @@
   // Web pane: any URL with a small address bar. In the desktop app it is a WebKit view of the app's own laid over this
   // pane (atlas-app webtab.rs), so a site that forbids framing shows too; elsewhere (a browser, the phone) an iframe.
   import { onDestroy, onMount } from "svelte";
+  import { onOverlays, overlayOver } from "../lib/overlays";
   import type { PaneProps } from "../lib/dock";
   import { allCommands, bindings } from "../lib/keymap.svelte";
   import { matches } from "../lib/keys";
@@ -38,14 +39,18 @@
     setTitle(null, u);
     ask({ op: "go", url: u });
   }
+  /** The page (or a link Shift+clicked in it) in the system's browser, as Atlas opens any outside link. */
+  function inBrowser(u: string) { window.open(u, "_blank", "noopener"); }
   function reload() { if (native) ask({ op: "reload" }); else if (frame) frame.src = shown; }
 
-  // the native view follows this pane's place, and hides when the pane is hidden or something of Atlas lies over it
-  // (the palette, a dialog, a menu, the side bar opened over the panes: the view would cover them) — checked on a grid
-  // that reaches the edges, as elementFromPoint sees it: something lying over one side only covers the edge points
+  // the native view follows this pane's place, and hides when the pane is hidden or something of Atlas lies over it:
+  // a registered overlay (lib/overlays.ts: the palette, dialogs, menus, popovers, the Ctrl+Tab glance), told at once;
+  // and, for what is not registered (the side bar opened over the panes, a plugin's own popup), a grid that reaches the
+  // edges, as elementFromPoint sees it (something lying over one side only covers the edge points)
   let last = "";
   const GRID = [0.01, 0.25, 0.5, 0.75, 0.99];
   function covered(r: DOMRect): boolean {
+    if (overlayOver(r)) return true;
     for (const fx of GRID) for (const fy of GRID) {
       const el = document.elementFromPoint(r.left + r.width * fx, r.top + r.height * fy);
       if (!el || !(el === slot || slot!.contains(el))) return true;
@@ -70,10 +75,11 @@
   }
 
   function heard(e: Event) {
-    const d = (e as CustomEvent).detail as { id: string; url?: string; title?: string; loading?: boolean; back?: boolean; forward?: boolean; open?: string; action?: string; snapshot?: string; key?: { key: string; code: string; ctrl: boolean; shift: boolean; alt: boolean } };
+    const d = (e as CustomEvent).detail as { id: string; url?: string; title?: string; loading?: boolean; back?: boolean; forward?: boolean; open?: string; external?: string; action?: string; snapshot?: string; key?: { key: string; code: string; ctrl: boolean; shift: boolean; alt: boolean } };
     if (d.id !== panel.id) return;
     if (d.snapshot) return void (shot = d.snapshot); // the page as it was, shown while the view is hidden under Atlas
     if (d.open) return void open({ kind: "web", url: d.open });
+    if (d.external) return void inBrowser(d.external);
     if (d.action === "close") return void panel.close();
     if (d.action === "address") return void address?.select();
     if (d.key) return void superKey(d.key);
@@ -96,9 +102,10 @@
     for (const ev of ["resize", "atlas-layout"]) window.addEventListener(ev, place);
     document.addEventListener("visibilitychange", place);
     window.addEventListener("atlas-web", heard);
+    const unlisten = onOverlays(place);
     place();
     return () => {
-      ro.disconnect(); clearInterval(tick);
+      ro.disconnect(); clearInterval(tick); unlisten();
       for (const ev of ["resize", "atlas-layout"]) window.removeEventListener(ev, place);
       document.removeEventListener("visibilitychange", place);
       window.removeEventListener("atlas-web", heard);
@@ -115,6 +122,7 @@
     {/if}
     <button class="icon-btn" class:spin={nav.loading} title="Reload (F5)" onclick={reload}><Icon name="refresh" size={14} /></button>
     <input bind:this={address} bind:value={url} onkeydown={(e) => { if (e.key === "Enter") go(); }} spellcheck="false" aria-label="Address" />
+    <button class="icon-btn" title="Open in the browser (Shift+click a link to open it there)" onclick={() => inBrowser(shown)}><Icon name="external-link" size={14} /></button>
   </div>
   {#if native}
     <div class="slot" bind:this={slot} style:background-image={shot ? `url("${shot}")` : undefined}></div>

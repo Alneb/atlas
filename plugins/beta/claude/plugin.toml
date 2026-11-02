@@ -4,7 +4,7 @@
 title = "Claude"
 description = "Claude Code sessions in the terminal, and the plan's usage (5-hour session, week) in the status bar"
 icon = "claude"
-version = "0.7.0"
+version = "0.7.1"
 api = 16
 
 [[agent]]
@@ -16,6 +16,9 @@ env = { CLAUDE_CONFIG_DIR = "{account}" }
 new_session = ["--session-id", "{session}"]
 resume_session = ["--resume", "{session}"]
 session_file = "{account:~/.claude}/projects/*/{session}.jsonl"
+# Claude Code moves a conversation to a new id on /clear (and may on a resume): its SessionStart hook writes the id it
+# now has to the tab's report file, so the tab resumes that conversation after a restart (merged with the account's own hooks)
+session_report = ["--settings", '{"hooks":{"SessionStart":[{"hooks":[{"type":"command","command":"cat > \"$ATLAS_SESSION_REPORT\""}]}]}}']
 commit_marks = ["co-authored-by: claude", "noreply@anthropic.com"]
 send_selection = "@{path}#L{from}-{to} "
 

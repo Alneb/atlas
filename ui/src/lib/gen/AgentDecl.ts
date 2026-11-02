@@ -30,6 +30,12 @@ resume_session: Array<string>,
  */
 session_file?: string, 
 /**
+ * Arguments, passed as written (not filled), that make the agent write its current session to the file named by
+ * `$ATLAS_SESSION_REPORT` (JSON with `session_id`) whenever it starts one: an agent may move a conversation to a
+ * new id (Claude Code on /clear, or a resume), and the tab then resumes that one, not the id it started with.
+ */
+session_report: Array<string>, 
+/**
  * How the agent's commits are recognised (the trailer or author it writes), lower case.
  */
 commit_marks: Array<string>, 

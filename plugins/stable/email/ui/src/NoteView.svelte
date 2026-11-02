@@ -38,7 +38,6 @@
   let opened = $state<number[] | null>(null);
   const open = $derived(opened ?? messages.map((m, i) => (i === messages.length - 1 || !m.seen ? i : -1)).filter((i) => i >= 0));
   const subject = $derived(String(note.props.subject ?? note.text.match(/^# (.+)$/m)?.[1] ?? ""));
-  const dark = document.documentElement.dataset.theme !== "light";
   const name = (from: string) => from.replace(/<[^>]+>/, "").replace(/"/g, "").trim() || from;
   const date = (d: string) => (d ? new Date(d).toLocaleString(undefined, { day: "numeric", month: "short", year: "numeric", hour: "2-digit", hourCycle: "h23", minute: "2-digit" }) : "");
 
@@ -66,7 +65,7 @@
       {#if open.includes(i)}
         <div class="body">
           {#if m.to}<div class="meta">to {m.to}{m.cc ? ` · cc ${m.cc}` : ""}</div>{/if}
-          {#if m.html}<MailFrame html={m.html} {dark} />{:else}<div class="text">{m.text}</div>{/if}
+          {#if m.html}<MailFrame html={m.html} />{:else}<div class="text">{m.text}</div>{/if}
           {#if m.files.length}<div class="files">{#each m.files as f (f)}<button class="file" onclick={() => atlas.open(f, undefined, { beside: true })}><Icon name="attach" size={13} />{f.split("/").at(-1)}</button>{/each}</div>{/if}
           {#if m.message_id}
             <div class="acts">

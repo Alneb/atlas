@@ -9,6 +9,7 @@ use std::path::{Path, PathBuf};
 /// The pictures a comic's pages are.
 const PICTURE: [&str; 8] = ["jpg", "jpeg", "png", "gif", "webp", "avif", "jxl", "bmp"];
 /// Programs that unpack a RAR, tried in this order: each with its arguments for archive `{a}` into folder `{d}`.
+#[cfg(not(target_os = "android"))]
 const RAR_TOOLS: [(&str, &[&str]); 3] = [("bsdtar", &["-xf", "{a}", "-C", "{d}"]), ("unar", &["-q", "-f", "-o", "{d}", "{a}"]), ("unrar", &["x", "-inul", "-y", "{a}", "{d}/"])];
 
 /// What an archive is, by its first bytes (a .cbr is often a zip in disguise).
@@ -216,7 +217,14 @@ fn un7z_pictures(src: &Path, into: &Path) -> Result<(), String> {
     failed.map_or(Ok(()), Err)
 }
 
+/// RAR on the phone: no program to run, so libarchive (BSD) compiled into the core (crates/atlas-rar).
+#[cfg(target_os = "android")]
+fn unrar(src: &Path, into: &Path) -> Result<(), String> {
+    atlas_rar::unpack(src, into)
+}
+
 /// RAR through the first program here that unpacks it (its licence keeps an unRAR reader out of the core).
+#[cfg(not(target_os = "android"))]
 fn unrar(src: &Path, into: &Path) -> Result<(), String> {
     let mut tried = vec![];
     for (tool, args) in RAR_TOOLS {

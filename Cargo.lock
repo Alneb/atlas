@@ -621,6 +621,7 @@ dependencies = [
  "anyhow",
  "argon2",
  "atlas-pen",
+ "atlas-rar",
  "atlas-template",
  "atlas-text",
  "axum",
@@ -772,6 +773,18 @@ name = "atlas-plugin"
 version = "0.2.0"
 dependencies = [
  "serde_json",
+]
+
+[[package]]
+name = "atlas-rar"
+version = "0.2.0"
+dependencies = [
+ "cmake",
+ "flate2",
+ "libc",
+ "sha2 0.10.9",
+ "tar",
+ "tempfile",
 ]
 
 [[package]]

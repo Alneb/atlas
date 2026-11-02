@@ -18,6 +18,8 @@ The requirements: a native Rust app for Android, built without downloading the w
 
 Already on the machine: the Rust target `aarch64-linux-android`, `javac` (OpenJDK 25), `keytool`, `adb` (Fedora's android-tools). Why not xbuild: its own page now says *"(unmaintained)"*; cargo-apk needs the same build-tools anyway.
 
+RAR comics (`.cbr`): the phone has no `bsdtar`, `unar` or `unrar`, so the core links libarchive (BSD) there, built by `crates/atlas-rar` from its release source (pinned by SHA-256, fetched by curl into the build folder, or `ATLAS_LIBARCHIVE_TARBALL` offline) with only the RAR4/RAR5 readers; cmake needs `cmake` on the build machine and takes the NDK's toolchain file from `ANDROID_NDK_ROOT` (set by `build-apk.sh`). The desktop and the server keep the programs. Never the unrar crate: its licence forbids writing a RAR compressor from it.
+
 ## Build and install
 
 ```sh

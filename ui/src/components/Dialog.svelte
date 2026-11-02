@@ -2,6 +2,7 @@
   // Every modal dialog's frame: the scrim (`--scrim`, a click on it closes), one place on screen (near the top, or
   // centred for the big ones), Escape and a phone's Back close it, Tab stays inside, and the focus goes back where it
   // was when it closes (lib/focus-return.ts). The dialog's own look is its content's.
+  import { overlay } from "../lib/overlays";
   import type { Snippet } from "svelte";
   import { tick } from "svelte";
   import { closable } from "../lib/back";
@@ -28,7 +29,7 @@
 </script>
 
 <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
-<div class="scrim" class:center onclick={onclose}>
+<div class="scrim" use:overlay class:center onclick={onclose}>
   <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
   <div class="frame" role="dialog" aria-modal="true" aria-label={label} data-testid={testid} tabindex="-1" bind:this={frame}
     onclick={(e) => e.stopPropagation()} {onkeydown}>

@@ -3,9 +3,30 @@
   // run; its Content-Security-Policy lets nothing remote load unless the user allowed it for this mail or this sender,
   // which is what really blocks tracking pictures. The frame grows to its content (one scrollbar, the reader's).
   // Quoted earlier messages are folded behind "···" (Gmail, Outlook, Apple, Thunderbird, Yahoo, plain-text quotes).
-  // In the dark theme the mail's colours are remapped — light backgrounds made dark, dark text made light, hues kept,
-  // pictures untouched — rather than the whole page inverted.
-  let { html, plain = false, remote = false, dark = false, prose = "" }: { html: string; plain?: boolean; remote?: boolean; dark?: boolean; prose?: string } = $props();
+  // It wears the app's colours (the scheme's --bg, --text, --link…, read from the window and followed when the theme or
+  // scheme changes). In a dark theme the mail's own colours are remapped — white made the app's surface, other light
+  // backgrounds darkened, dark text made light, hues kept, pictures untouched — rather than the whole page inverted.
+  let { html, plain = false, remote = false, prose = "" }: { html: string; plain?: boolean; remote?: boolean; prose?: string } = $props();
+
+  /** The window's theme and scheme colours (palettes.css). */
+  function appColours() {
+    const root = document.documentElement, cs = getComputedStyle(root);
+    const dark = root.dataset.theme !== "light";
+    const v = (name: string, light: string, night: string) => cs.getPropertyValue(name).trim() || (dark ? night : light);
+    return {
+      dark,
+      bg: v("--bg", "#ffffff", "#1b1d22"), text: v("--text", "#1d1d1f", "#dcdfe5"), muted: v("--text-muted", "#555b66", "#aab0bb"),
+      faint: v("--text-faint", "#7a808a", "#8a919d"), link: v("--link", "#2557d6", "#8aa4ff"),
+      border: v("--border", "#d6d9de", "#3a3f4a"), borderStrong: v("--border-strong", "#c3c7cf", "#4a5060"), chip: v("--bg-alt", "#eceef1", "#2a2e36"),
+    };
+  }
+  let theme = $state(appColours());
+  $effect(() => {
+    const o = new MutationObserver(() => (theme = appColours()));
+    o.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme", "data-palette", "style", "class"] });
+    return () => o.disconnect();
+  });
+  const dark = $derived(theme.dark);
   let frame: HTMLIFrameElement | undefined = $state();
   let height = $state(80);
 
@@ -53,12 +74,13 @@
     return [h * 60, s, l];
   }
   const css = (h: number, s: number, l: number, a: number) => `hsla(${h.toFixed(0)}, ${(s * 100).toFixed(0)}%, ${(l * 100).toFixed(0)}%, ${a})`;
-  /** A background: light ones become dark (the reader's surface for white), dark ones stay. */
+  /** A background: white and near-white become the app's surface, other light ones dark, dark ones stay. */
   function darkBg(c: string): string | null {
     const p = parse(c);
     if (!p || p[3] === 0) return null;
     const [h, s, l] = hsl(p[0], p[1], p[2]);
     if (l < 0.35) return null;
+    if (l > 0.93 && s < 0.3) return theme.bg;
     return css(h, s * 0.55, 0.09 + (1 - l) * 0.35, p[3]);
   }
   /** A text colour: dark ones become light, light ones stay. */
@@ -95,22 +117,22 @@
   const page = $derived.by(() => {
     const img = remote ? "data: https: http:" : "data:";
     const csp = `default-src 'none'; style-src 'unsafe-inline'${remote ? " https: http:" : ""}; img-src ${img}; font-src data:${remote ? " https:" : ""}; media-src 'none'; form-action 'none'`;
-    const base = dark ? "#1b1d22" : "#ffffff";
-    const fg = dark ? "#dcdfe5" : "#1d1d1f";
+    const t = theme;
+    const base = t.bg, fg = t.text;
     const font = plain ? `${prose || "Georgia, serif"}` : "system-ui, -apple-system, 'Segoe UI', sans-serif";
-    return `<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="${csp}"><base target="_blank"><meta name="color-scheme" content="${dark ? "dark" : "light"}">
+    return `<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="${csp}"><base target="_blank"><meta name="color-scheme" content="${t.dark ? "dark" : "light"}">
 <style>
 html{overflow-y:hidden;background:${base}}
 body{margin:0;padding:4px 2px 8px;font:14px/1.55 ${font};color:${fg};background:${base};overflow-wrap:anywhere;overflow-x:auto}
 img{max-width:100%;height:auto}
 img:not([src]),img[src^="http"]:not([data-ok]){min-height:0}
-a{color:${dark ? "#8aa4ff" : "#2557d6"}}
-blockquote{margin:.5em 0 .5em .2em;padding-left:.9em;border-left:3px solid ${dark ? "#3a3f4a" : "#d6d9de"};color:${dark ? "#aab0bb" : "#555b66"}}
-blockquote blockquote{border-left-color:${dark ? "#4a5060" : "#c3c7cf"}}
+a{color:${t.link}}
+blockquote{margin:.5em 0 .5em .2em;padding-left:.9em;border-left:3px solid ${t.border};color:${t.muted}}
+blockquote blockquote{border-left-color:${t.borderStrong}}
 .atlas-plain{white-space:normal;font-size:15px;line-height:1.6;max-width:72ch}
-.atlas-signature{color:${dark ? "#8a919d" : "#7a808a"};font-size:.92em}
+.atlas-signature{color:${t.faint};font-size:.92em}
 pre.atlas-text{white-space:pre-wrap;font:inherit}
-details.atlas-quoted>summary{display:inline-block;cursor:pointer;list-style:none;padding:0 8px;margin:6px 0;border-radius:6px;background:${dark ? "#2a2e36" : "#eceef1"};color:${dark ? "#aab0bb" : "#5b616b"};font:600 13px/1.4 system-ui,sans-serif;letter-spacing:.1em}
+details.atlas-quoted>summary{display:inline-block;cursor:pointer;list-style:none;padding:0 8px;margin:6px 0;border-radius:6px;background:${t.chip};color:${t.muted};font:600 13px/1.4 system-ui,sans-serif;letter-spacing:.1em}
 details.atlas-quoted>summary::-webkit-details-marker{display:none}
 details.atlas-quoted[open]>summary{margin-bottom:8px}
 table{max-width:100%}

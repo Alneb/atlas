@@ -9,7 +9,7 @@ use std::collections::HashMap;
 use gtk::prelude::*;
 use gtk::OverlaySignals;
 use webkit2gtk::{
-    CookieManagerExt, LoadEvent, SettingsExt, SnapshotOptions, SnapshotRegion, URIRequestExt, UserContentInjectedFrames, UserContentManager,
+    CookieManagerExt, LoadEvent, NavigationPolicyDecision, NavigationPolicyDecisionExt, PolicyDecisionExt, PolicyDecisionType, SettingsExt, SnapshotOptions, SnapshotRegion, URIRequestExt, UserContentInjectedFrames, UserContentManager,
     UserContentManagerExt, UserScript, UserScriptInjectionTime, WebContext, WebContextExt, WebView, WebViewExt, WebsiteDataManager,
     WebsiteDataManagerExt,
 };
@@ -69,6 +69,24 @@ thread_local! {
     static AT: RefCell<HashMap<WebView, gtk::gdk::Rectangle>> = RefCell::new(HashMap::new());
     /// apart from PLACE: a view's signals fire inside a call made while PLACE is borrowed (load_uri → uri) and tell it
     static MAIN: RefCell<Option<WebView>> = const { RefCell::new(None) };
+    /// each view's latest show/hide, numbered: a hide waits for its snapshot, and only goes ahead if nothing came
+    /// after it (an overlay that opened and closed at once would otherwise hide a view meant to show)
+    static TURN: RefCell<HashMap<WebView, u64>> = RefCell::new(HashMap::new());
+}
+
+/// A new turn for `view` (a show or a hide asked): → its number.
+fn turn(view: &WebView) -> u64 {
+    TURN.with(|t| {
+        let mut t = t.borrow_mut();
+        let n = t.get(view).copied().unwrap_or(0) + 1;
+        t.insert(view.clone(), n);
+        n
+    })
+}
+
+/// Whether `n` is still `view`'s latest turn.
+fn latest(view: &WebView, n: u64) -> bool {
+    TURN.with(|t| t.borrow().get(view) == Some(&n))
 }
 
 /// Puts the main view in an overlay and listens to its page. GTK main thread, before the page loads.
@@ -136,6 +154,7 @@ fn handle(ask: Ask) {
             let (r, b) = (((x + w) * zoom).round().max(l + 1.0), ((y + h) * zoom).round().max(t + 1.0));
             let at = gtk::gdk::Rectangle::new(l as i32, t as i32, (r - l) as i32, (b - t) as i32);
             AT.with(|a| a.borrow_mut().insert(view.clone(), at));
+            turn(&view); // a hide still waiting for its snapshot is called off
             view.queue_resize();
             view.show();
         }
@@ -143,8 +162,12 @@ fn handle(ask: Ask) {
         // not an empty pane — taken before the view goes, which it then does whatever the picture's fate
         Ask::Hide { id } => if let Some(v) = p.tabs.get(&id).filter(|v| v.is_visible()) {
             let view = v.clone();
+            let n = turn(&view);
             v.snapshot(SnapshotRegion::Visible, SnapshotOptions::NONE, None::<&gtk::gio::Cancellable>, move |shot| {
                 let (w, h, k) = (view.allocated_width(), view.allocated_height(), view.scale_factor().max(1));
+                if !latest(&view, n) {
+                    return; // shown again meanwhile
+                }
                 if let Some(url) = shot.ok().and_then(|s| picture(&s, w, h, k)) {
                     tell(&id, serde_json::json!({ "snapshot": url }));
                 }
@@ -155,7 +178,10 @@ fn handle(ask: Ask) {
         Ask::Back { id } => if let Some(v) = p.tabs.get(&id) { v.go_back() },
         Ask::Forward { id } => if let Some(v) = p.tabs.get(&id) { v.go_forward() },
         Ask::Reload { id } => if let Some(v) = p.tabs.get(&id) { v.reload() },
-        Ask::Close { id } => if let Some(v) = p.tabs.remove(&id) { forget(&p.overlay, &v) },
+        Ask::Close { id } => if let Some(v) = p.tabs.remove(&id) {
+            TURN.with(|t| t.borrow_mut().remove(&v));
+            forget(&p.overlay, &v)
+        },
     });
 }
 
@@ -216,6 +242,24 @@ fn make(p: &mut Place, id: &str) -> WebView {
         8 => { v.go_back(); gtk::glib::Propagation::Stop }
         9 => { v.go_forward(); gtk::glib::Propagation::Stop }
         _ => gtk::glib::Propagation::Proceed,
+    });
+    // Shift+click on a link: the system's browser, not Atlas. Read from the click WebKit itself reports (modifiers
+    // and a user gesture), never from the page's script, so a site cannot send pages out on its own.
+    let ext_id = id.to_string();
+    view.connect_decide_policy(move |_, decision, kind| {
+        if !matches!(kind, PolicyDecisionType::NavigationAction | PolicyDecisionType::NewWindowAction) {
+            return false;
+        }
+        let Some(nav) = decision.downcast_ref::<NavigationPolicyDecision>() else { return false };
+        let Some(action) = nav.navigation_action() else { return false };
+        const SHIFT: u32 = 1; // GDK_SHIFT_MASK
+        if action.modifiers() & SHIFT == 0 || action.mouse_button() == 0 || !action.is_user_gesture() {
+            return false;
+        }
+        let Some(url) = action.request().and_then(|r| r.uri()) else { return false };
+        tell(&ext_id, serde_json::json!({ "external": url.to_string() }));
+        decision.ignore();
+        true
     });
     // a link that wants a new window: a new tab of Atlas
     let tell_id = id.to_string();

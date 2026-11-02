@@ -688,7 +688,7 @@ kind = "text"
     fn bad_cards_are_refused_and_nothing_is_written() {
         let m = manifest(MAIL).unwrap();
         let refused = |v: Value| apply("mail", MAIL, &m.fields, &m.settings, true, v.as_object().unwrap()).unwrap_err();
-        assert!(refused(json!({ "accounts": [{ "name": "a b" }] })).contains("letters, digits"));
+        assert!(refused(json!({ "accounts": [{ "name": "a/b" }] })).contains("letters, digits"));
         assert!(refused(json!({ "accounts": [{ "user": "x" }] })).contains("letters, digits"), "a card needs a name");
         assert!(refused(json!({ "accounts": [{ "name": "a" }, { "name": "a" }] })).contains("two records"));
         assert!(refused(json!({ "accounts": [{ "name": "a", "port": 1 }] })).contains("not a field of a record"));

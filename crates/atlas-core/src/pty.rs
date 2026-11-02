@@ -34,7 +34,12 @@ fn command(ws: &Workspace, q: &PtyQuery) -> anyhow::Result<CommandBuilder> {
             let (decl, settings) = found.ok_or_else(|| {
                 anyhow::anyhow!("no AI agent here: switch on a plugin that declares one (Settings → Plugins: Claude)")
             })?;
-            let (program, args, env) = crate::agent_terminals::command(&decl, &settings, q.session.as_deref());
+            let (program, args, env) = crate::agent_terminals::command(
+                &decl,
+                &settings,
+                q.session.as_deref(),
+                q.session.as_deref().map(|id| crate::agent_terminals::report_file(ws.root(), id)).as_deref(),
+            );
             let mut cmd = CommandBuilder::new(program);
             cmd.args(args);
             for (k, v) in env {

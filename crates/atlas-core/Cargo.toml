@@ -85,6 +85,8 @@ libc = "0.2"
 [target.'cfg(all(target_os = "linux", not(target_os = "android")))'.dependencies]
 zbus = "5"
 [target.'cfg(target_os = "android")'.dependencies]
+# RAR on the phone, which has no RAR program: libarchive compiled in (crates/atlas-rar)
+atlas-rar = { path = "../atlas-rar" }
 rquickjs = { version = "0.14", default-features = false, features = ["std", "bindgen"] }
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_System_Threading", "Win32_System_Registry"] }

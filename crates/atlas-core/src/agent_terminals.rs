@@ -31,6 +31,11 @@ pub struct AgentDecl {
     #[serde(default)]
     #[ts(optional)]
     pub session_file: Option<String>,
+    /// Arguments, passed as written (not filled), that make the agent write its current session to the file named by
+    /// `$ATLAS_SESSION_REPORT` (JSON with `session_id`) whenever it starts one: an agent may move a conversation to a
+    /// new id (Claude Code on /clear, or a resume), and the tab then resumes that one, not the id it started with.
+    #[serde(default)]
+    pub session_report: Vec<String>,
     /// How the agent's commits are recognised (the trailer or author it writes), lower case.
     #[serde(default)]
     pub commit_marks: Vec<String>,
@@ -73,18 +78,44 @@ pub fn has_session(pattern: &str) -> bool {
     }
 }
 
+/// Where a tab's agent reports its current session (`session_report`): one small file per tab, in the vault's cache.
+pub fn report_file(root: &Path, tab_session: &str) -> std::path::PathBuf {
+    root.join(".atlas/cache/agent-sessions").join(format!("{tab_session}.json"))
+}
+
+/// The session the agent last reported for this tab, if it is a UUID it still has a transcript of.
+fn reported(decl: &AgentDecl, settings: &toml::Table, report: &Path) -> Option<String> {
+    let v: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(report).ok()?).ok()?;
+    let id = v.get("session_id")?.as_str()?.to_string();
+    let file = decl.session_file.as_deref()?;
+    (crate::pty::is_uuid(&id) && has_session(&fill(file, settings, Some(&id)))).then_some(id)
+}
+
 /// The agent's terminal: its command line split into program and arguments, its environment, its session arguments.
-pub fn command(decl: &AgentDecl, settings: &toml::Table, session: Option<&str>) -> (String, Vec<String>, Vec<(String, String)>) {
+/// `report`: the tab's report file (`report_file`), for an agent that declares `session_report`.
+pub fn command(decl: &AgentDecl, settings: &toml::Table, session: Option<&str>, report: Option<&Path>) -> (String, Vec<String>, Vec<(String, String)>) {
     let line = fill(&decl.command, settings, None);
     let mut words = line.split_whitespace().map(str::to_string);
     let program = words.next().unwrap_or_default();
     let mut args: Vec<String> = words.collect();
-    if let Some(id) = session.filter(|id| crate::pty::is_uuid(id)) {
-        let resume = decl.session_file.as_deref().is_some_and(|f| has_session(&fill(f, settings, Some(id))));
+    let mut env: Vec<(String, String)> = decl.env.iter().map(|(k, v)| (k.clone(), fill(v, settings, None))).filter(|(_, v)| !v.is_empty()).collect();
+    if let Some(tab) = session.filter(|id| crate::pty::is_uuid(id)) {
+        let report = report.filter(|_| !decl.session_report.is_empty());
+        // the conversation the agent moved this tab to, else the tab's own
+        let id = report.and_then(|r| reported(decl, settings, r)).unwrap_or_else(|| tab.to_string());
+        let resume = decl.session_file.as_deref().is_some_and(|f| has_session(&fill(f, settings, Some(&id))));
         let extra = if resume { &decl.resume_session } else { &decl.new_session };
-        args.extend(extra.iter().map(|a| fill(a, settings, Some(id))));
+        // a new session keeps the tab's id: the agent's report then names it, and nothing else may take it
+        let id = if resume { id } else { tab.to_string() };
+        args.extend(extra.iter().map(|a| fill(a, settings, Some(&id))));
+        if let Some(r) = report {
+            if let Some(dir) = r.parent() {
+                let _ = std::fs::create_dir_all(dir);
+            }
+            args.extend(decl.session_report.iter().cloned());
+            env.push(("ATLAS_SESSION_REPORT".into(), r.to_string_lossy().into_owned()));
+        }
     }
-    let env = decl.env.iter().map(|(k, v)| (k.clone(), fill(v, settings, None))).filter(|(_, v)| !v.is_empty()).collect();
     (program, args, env)
 }
 
@@ -128,17 +159,39 @@ session_file = "{account:~/.claude}/projects/*/{session}.jsonl"
         let t = tempfile::tempdir().unwrap();
         let id = "0b1c2d3e-4f50-4617-8293-a4b5c6d7e8f9";
         let mut s = toml::Table::new();
-        let (p, a, env) = command(&claude(), &s, None);
+        let (p, a, env) = command(&claude(), &s, None, None);
         assert_eq!((p.as_str(), a.len(), env.len()), ("claude", 0, 0), "defaults; an empty account sets nothing");
         s.insert("command".into(), "claude-acc personal --x".into());
         s.insert("account".into(), t.path().to_string_lossy().into_owned().into());
-        let (p, a, env) = command(&claude(), &s, Some(id));
+        let (p, a, env) = command(&claude(), &s, Some(id), None);
         assert_eq!((p.as_str(), a), ("claude-acc", vec!["personal".to_string(), "--x".into(), "--session-id".into(), id.into()]));
         assert_eq!(env, vec![("CLAUDE_CONFIG_DIR".to_string(), t.path().to_string_lossy().into_owned())]);
         std::fs::create_dir_all(t.path().join("projects/-home-x")).unwrap();
         std::fs::write(t.path().join(format!("projects/-home-x/{id}.jsonl")), "").unwrap();
-        assert_eq!(command(&claude(), &s, Some(id)).1[2..], ["--resume".to_string(), id.into()], "the transcript exists: resumed");
-        assert_eq!(command(&claude(), &s, Some("not; a uuid")).1.len(), 2, "only a UUID reaches the arguments");
+        assert_eq!(command(&claude(), &s, Some(id), None).1[2..], ["--resume".to_string(), id.into()], "the transcript exists: resumed");
+        assert_eq!(command(&claude(), &s, Some("not; a uuid"), None).1.len(), 2, "only a UUID reaches the arguments");
+    }
+
+    #[test]
+    fn a_tab_follows_the_session_its_agent_moved_it_to() {
+        let t = tempfile::tempdir().unwrap();
+        let (tab, moved) = ("0b1c2d3e-4f50-4617-8293-a4b5c6d7e8f9", "9b41ad3f-16d6-454e-956a-8cbf0de58e52");
+        let mut decl = claude();
+        decl.session_report = vec!["--settings".into(), r#"{"hooks":{}}"#.into()];
+        let mut s = toml::Table::new();
+        s.insert("account".into(), t.path().to_string_lossy().into_owned().into());
+        let report = t.path().join("cache/agent-sessions").join(format!("{tab}.json"));
+        let (_, a, env) = command(&decl, &s, Some(tab), Some(&report));
+        assert_eq!(a, ["--session-id", tab, "--settings", r#"{"hooks":{}}"#], "no report yet: the tab's own id; the hook passed as written");
+        assert!(env.contains(&("ATLAS_SESSION_REPORT".to_string(), report.to_string_lossy().into_owned())));
+        // the agent moved the conversation (/clear) and reported it; its transcript exists
+        std::fs::write(&report, format!(r#"{{"session_id":"{moved}","source":"clear"}}"#)).unwrap();
+        std::fs::create_dir_all(t.path().join("projects/-home-x")).unwrap();
+        std::fs::write(t.path().join(format!("projects/-home-x/{moved}.jsonl")), "").unwrap();
+        assert_eq!(command(&decl, &s, Some(tab), Some(&report)).1[..2], ["--resume".to_string(), moved.into()]);
+        // a report naming a session with no transcript is ignored
+        std::fs::write(&report, r#"{"session_id":"11111111-2222-4333-8444-555555555555"}"#).unwrap();
+        assert_eq!(command(&decl, &s, Some(tab), Some(&report)).1[..2], ["--session-id".to_string(), tab.into()]);
     }
 
     #[test]

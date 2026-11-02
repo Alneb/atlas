@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { overlay } from "../lib/overlays";
   import { closable } from "../lib/back";
   import { superOf } from "../lib/keys";
   // The one right-click menu (tabs, files, pins, blocks, tables). Rows may carry an icon and a
@@ -50,7 +51,7 @@
   });
 </script>
 
-<div class="menu" role="menu" bind:this={menu} class:placed={at} style:left="{at?.left ?? x}px" style:top="{at?.top ?? y}px">
+<div class="menu" use:overlay role="menu" bind:this={menu} class:placed={at} style:left="{at?.left ?? x}px" style:top="{at?.top ?? y}px">
   {#each items as it}
     {#if it === "sep"}<div class="sep" role="separator"></div>
     {:else if "info" in it}

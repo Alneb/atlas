@@ -1628,30 +1628,24 @@ function cn(e, t) {
 						},
 						get remote() {
 							return T(a);
-						},
-						get dark() {
-							return t.dark;
 						}
 					});
 					var h = Y(m, 2);
-					l(h, 17, () => T(r).body.forwarded, f, (e, r) => {
-						var i = Yt(), o = N(i), s = Y(N(o));
-						q(o);
-						var l = Y(o, 2);
-						ne(l, {
+					l(h, 17, () => T(r).body.forwarded, f, (e, t) => {
+						var r = Yt(), i = N(r), o = Y(N(i));
+						q(i);
+						var s = Y(i, 2);
+						ne(s, {
 							get html() {
-								return T(r).html;
+								return T(t).html;
 							},
 							get plain() {
-								return T(r).plain;
+								return T(t).plain;
 							},
 							get remote() {
 								return T(a);
-							},
-							get dark() {
-								return t.dark;
 							}
-						}), q(i), E((e, t) => n(s, ` ${T(r).subject ?? ""} · ${e ?? ""} · ${t ?? ""}`), [() => T(r).from.map(se).join(", "), () => de(T(r).date)]), c(e, i);
+						}), q(r), E((e, r) => n(o, ` ${T(t).subject ?? ""} · ${e ?? ""} · ${r ?? ""}`), [() => T(t).from.map(se).join(", "), () => de(T(t).date)]), c(e, r);
 					});
 					var g = Y(h, 2), _ = (e) => {
 						var t = Zt();
@@ -3376,9 +3370,6 @@ function rr(t, r) {
 				ue(cn(n, {
 					get mail() {
 						return o;
-					},
-					get dark() {
-						return T(A);
 					},
 					get narrow() {
 						return T(e);

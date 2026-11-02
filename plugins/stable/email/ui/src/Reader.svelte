@@ -9,7 +9,7 @@
   import { askLine, askYes, display, fullDate, hue, initials, size, who, when, type Attachment, type Message } from "./api";
   import type { Mail } from "./store.svelte";
 
-  let { mail, dark, narrow = false, onback, onpick }: { mail: Mail; dark: boolean; narrow?: boolean; onback: () => void; onpick: (kind: "move" | "label" | "snooze") => void } = $props();
+  let { mail, narrow = false, onback, onpick }: { mail: Mail; narrow?: boolean; onback: () => void; onpick: (kind: "move" | "label" | "snooze") => void } = $props();
 
   const t = $derived(mail.open);
   let openIds = $state<number[]>([]);
@@ -159,11 +159,11 @@
                   </div>
                 {/if}
                 {#if m.body.invite}<InviteCard {mail} id={m.id} invite={m.body.invite} />{/if}
-                <MailFrame html={m.body.html} plain={m.body.plain} remote={allowed} {dark} />
+                <MailFrame html={m.body.html} plain={m.body.plain} remote={allowed} />
                 {#each m.body.forwarded as f, i (i)}
                   <div class="fwd">
                     <div class="fwdhead"><b>Forwarded:</b> {f.subject} · {f.from.map(display).join(", ")} · {when(f.date)}</div>
-                    <MailFrame html={f.html} plain={f.plain} remote={allowed} {dark} />
+                    <MailFrame html={f.html} plain={f.plain} remote={allowed} />
                   </div>
                 {/each}
                 {#if m.body.attachments.length}

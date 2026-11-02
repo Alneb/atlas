@@ -33,6 +33,8 @@ native() { # native <app> → $work/lib-<app>/<abi>/libatlas_android.so
     # QuickJS's bindings are generated for Android (no prebuilt ones): bindgen's clang must read the NDK's headers,
     # not the build machine's (/usr/include has no Android libc: "bits/libc-header-start.h not found")
     export "BINDGEN_EXTRA_CLANG_ARGS_${triple//-/_}=--sysroot=$ndk/toolchains/llvm/prebuilt/linux-x86_64/sysroot --target=$triple$api"
+    # libarchive's cmake (crates/atlas-rar, RAR in the core) takes the NDK's toolchain file from here
+    export ANDROID_NDK_ROOT=$ndk
     # release: the `android` profile (Cargo.toml: size-optimized)
     cargo build -p atlas-android --target "$triple" $feat $([ $profile = release ] && echo --profile android)
     mkdir -p "$work/lib-$1-$abi/lib/$abi"
