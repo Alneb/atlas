@@ -102,10 +102,11 @@ test("the Libraries page: a library per group of kinds, each with its own kinds 
   await page.keyboard.type("Libraries");
   await page.getByTestId("palette").getByText("Libraries (drawings, references, films, comics…)").click();
   const libs = page.locator(".libraries");
-  // films by their kind file's `library.in`; records a library of their own; manga by the catalog's default (Comics)
+  // films by their kind file's `library.in`; records a library of their own; Comics (manga's, the catalog's default)
+  // holds no note in the fixture, so it has no tab: a library shows only for kinds the vault has notes of
   await expect(libs.getByRole("tab", { name: "Films & Series" })).toBeVisible();
   await expect(libs.getByRole("tab", { name: "Albums" })).toBeVisible();
-  await expect(libs.getByRole("tab", { name: "Comics" })).toBeVisible();
+  await expect(libs.getByRole("tab", { name: "Comics" })).toHaveCount(0);
   await libs.getByRole("tab", { name: "Films & Series" }).click();
   const lib = page.locator('.library[data-source="catalog.films-series"]');
   await expect(lib.locator(".card")).toHaveCount(3); // only its films, not the albums
@@ -118,6 +119,4 @@ test("the Libraries page: a library per group of kinds, each with its own kinds 
   await lib.locator(".detail").getByRole("button", { name: "Save" }).click();
   await expect.poll(async () => (await (await page.request.get(`/api/file?path=${encodeURIComponent("Shelf/Films/Dune.md")}`, { headers: H })).json()).text).toMatch(/title: Dune \(2021\)/);
   await expect(lib.locator(".detail").getByRole("button", { name: "Delete…" })).toBeVisible();
-  await libs.getByRole("tab", { name: "Comics" }).click();
-  await expect(page.locator('.library[data-source="catalog.comics"]')).toContainText("Nothing here yet");
 });

@@ -26,7 +26,7 @@ accent: string,
  * Colour scheme (by day, and by night too unless `palette_dark` names another): Atlas's own cool greys; a warm paper with ink-blue (`ink`) or terracotta
  * (`clay`) links and buttons; green-grey `sage`, blue-grey `sea`, lavender `dusk`, neutral `graphite`; black and
  * green `phosphor`; `rose`, `honey`, `slate`, `forest`, `coffee`, `ember`, `glacier`, `sand`, `midnight`, and
- * `contrast` for the most contrast. An accent colour set above still wins over its accent.
+ * `contrast` for the most contrast. A colour set above still wins over its links and buttons.
  */
 palette: Palette, 
 /**

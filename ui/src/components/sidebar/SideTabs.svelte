@@ -55,7 +55,7 @@
       return { zone, label: LABEL[zone], groups: gs, visible: shown.length > 0, split, rest: gs.flatMap((g) => g.tabs.filter((t) => !inSplit.has(t.id)).map((t) => ({ g, t }))) };
     }).filter((x) => x.split.length || x.rest.length || x.zone !== "main"); // only an app (Home) open: no bare "Tabs"
     // the terminal keeps its heading (and its buttons) in its place with nothing open
-    if (wide && !side.filter && !out.some((x) => x.zone === "bottom")) out.unshift({ zone: "bottom", label: LABEL.bottom, groups: [], visible: false, split: [], rest: [] });
+    if (!side.filter && !out.some((x) => x.zone === "bottom")) out.unshift({ zone: "bottom", label: LABEL.bottom, groups: [], visible: false, split: [], rest: [] });
     return out;
   });
   $effect(() => { if (side.filtering && flat.length && (!side.cursor || !flat.includes(side.cursor))) side.cursor = flat[0]; });
@@ -122,7 +122,7 @@
   {#each sections as sec (sec.zone)}
     <div class="group" class:hidden-group={!sec.visible && sec.groups.length > 0} role="group" aria-label={sec.label}>
       {#if wide}{@render head(sec.zone, sec.label, sec.visible, sec.groups.length ? (e: DragEvent) => groupDrop(e, sec.groups[0]) : undefined)}
-      {:else if sections.length > 1}<div class="group-sep"></div>{/if}
+      {:else}<div class="group-sep" role="presentation"></div>{/if}
       {#if sec.split.length}
         <!-- the split: what each half shows, side by side; a tab dropped on a half goes into that half -->
         <div class="split-row" class:wide role="group" aria-label="Split view" data-testid="split-row">
@@ -152,16 +152,17 @@
   .new-tab kbd { opacity: 0; transition: opacity .12s; }
   .new-tab:hover { background: var(--bg-hover); color: var(--text); }
   .new-tab:hover kbd { opacity: 1; }
-  .new-tab-icon { margin: 2px 0 4px; }
 
   .side-filter { width: 100%; height: 30px; margin: 4px 0 6px; padding: 0 10px; border-radius: 8px; border: 1px solid var(--accent); background: var(--bg); color: var(--text); font: inherit; font-size: calc(13px * var(--ui-scale, 1)); outline: none; }
 
-  .group { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+  /* collapsed, every row keeps the open bar's height and place (a heading becomes a line of its height), so what
+     is under the pointer stays there when the bar opens over the panes */
+  .group { display: flex; flex-direction: column; align-items: center; gap: 1px; }
   .wide .group { align-items: stretch; gap: 1px; }
   .group-head { margin: 8px -8px 0; } /* full width: its label on the bar's one left edge, like every heading */
   .group-head span:first-child { flex: 1; }
   .small-btn.off { color: var(--accent); }
-  .group-sep { width: 20px; height: 1px; background: var(--border-strong); margin: 6px 0 2px; }
+  .group-sep { flex: none; width: 20px; height: 28px; margin-top: 8px; background: linear-gradient(var(--border-strong), var(--border-strong)) center / 100% 1px no-repeat; }
   .hidden-group .tab { opacity: .6; }
 
   /* the split row (Zen's split view): the halves side by side in one rounded frame; collapsed, stacked */

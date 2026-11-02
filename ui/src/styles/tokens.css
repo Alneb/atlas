@@ -14,10 +14,15 @@
   --rail-w: 54px; --status-h: 26px;
   --fab-room: 0px; /* the room the phone's floating capture button needs under scrolled content */
   --ease: cubic-bezier(.2, .8, .2, 1);
+  /* scrollbars: the text colour, faint, so they show on any palette; brighter on hover */
+  --scrollbar: color-mix(in srgb, var(--text) 30%, transparent);
+  --scrollbar-hover: color-mix(in srgb, var(--text) 50%, transparent);
 }
 
-/* the button (PhoneTop.svelte): 56 px tall, 16 px above the bottom bar; none in the phone app, whose bars are native */
-html.phone:not(.native-shell) { --fab-room: 72px; }
+/* the button (PhoneTop.svelte): 56 px tall, 16 px above the bottom bar, and 8 px of air so the last line never touches
+   it (with 72 px exactly, a pane edge on a fractional pixel left it under the button by a hair); none in the phone app,
+   whose bars are native */
+html.phone:not(.native-shell) { --fab-room: 80px; }
 
 :root, [data-theme="dark"] {
   color-scheme: dark;

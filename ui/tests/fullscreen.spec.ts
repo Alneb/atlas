@@ -45,8 +45,9 @@ test("F11 gives the editor, then the terminal, the whole window, and puts the la
   await page.mouse.click(view.width - 200, view.height / 2);
   await expect.poll(async () => (await box(sidebar)).width).toBeLessThan(64);
   // no frame round the one pane (it took the accent's tint from the split's active-group border)
-  const border = await page.locator(".dv-groupview:visible").first().evaluate((g) => getComputedStyle(g).borderTopColor);
-  expect(border).toBe("rgba(0, 0, 0, 0)");
+  // — none drawn: either no width (the paper shape's `border: 0`, whose colour is then the text's) or no colour (cards)
+  const border = await page.locator(".dv-groupview:visible").first().evaluate((g) => { const c = getComputedStyle(g); return c.borderTopWidth === "0px" ? "none" : c.borderTopColor; });
+  expect(["none", "rgba(0, 0, 0, 0)"]).toContain(border);
   await page.keyboard.press("F11");
   await expect.poll(async () => (await box(sidebar)).width).toBeGreaterThan(150);
   await expect(editor).toBeVisible();

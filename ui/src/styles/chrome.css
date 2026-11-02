@@ -52,7 +52,7 @@
 .side-toolbar.wide .tipped:hover::after { transform: translateX(-50%); }
 .side-toolbar.wide .tipped:first-child::after { left: 0; transform: none; }
 .side-toolbar.wide .tipped:last-child:not(:first-child)::after { left: auto; right: 0; transform: none; }
-.side-row { position: relative; display: flex; align-items: center; justify-content: center; gap: 9px; width: 36px; height: 34px; padding: 0; border-radius: 8px; color: var(--text-muted); cursor: default;
+.side-row { position: relative; display: flex; align-items: center; justify-content: center; gap: 9px; width: 36px; height: 32px; padding: 0; border-radius: 8px; color: var(--text-muted); cursor: default;
   font-size: calc(13px * var(--ui-scale, 1)); outline: none; border: 1px solid transparent; transition: background .1s, color .1s; }
 .wide .side-row { width: auto; height: 32px; padding: 0 4px 0 calc(var(--side-inset) - 9px); justify-content: flex-start; } /* the icon on the bar's one left edge */
 .side-row:hover { background: var(--bg-hover); color: var(--text); }

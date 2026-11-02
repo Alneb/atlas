@@ -86,8 +86,13 @@ test("vertical tabs: open, find, pin, drag to reorder, middle-click close, split
   await expect.poll(() => side(page).evaluate((el) => el.getBoundingClientRect().width)).toBeLessThan(60);
   await expect(side(page).locator(".tab-title")).toHaveCount(0);
   await shot(page, "06-collapsed");
+  // every row keeps its height and place when the bar opens over the panes: a click aimed in the rail lands there
+  // (up to the split row, which stacks its halves when collapsed)
+  const tops = () => side(page).locator(".apps, .new-tab, .new-tab-icon, .group:first-of-type .tab").evaluateAll((els) => els.map((e) => Math.round(e.getBoundingClientRect().top)));
+  const railTops = await tops();
   await page.mouse.move(26, 450);
   await expect(side(page)).toHaveClass(/peek/);
+  expect(await tops()).toEqual(railTops);
   await expect(side(page).locator(".tab-title").first()).toBeVisible();
   await shot(page, "07-hover");
   await page.mouse.move(900, 450);

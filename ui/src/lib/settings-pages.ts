@@ -151,7 +151,9 @@ export const PAGES: PageDef[] = [
 /** Fields edited by a custom panel, never as a raw row. */
 export const HIDDEN = new Set(["ui.css_snippets_off", "ui.apps_order", "ui.apps_hidden", "ui.libraries", "plugins.off", "files.open_with",
   // Accounts → Sign-ins for plugins edits these (components/settings/SigninsPanel.svelte)
-  "plugins.oidc_issuer", "plugins.oidc_client_id", "plugins.oidc_redirect"]);
+  "plugins.oidc_issuer", "plugins.oidc_client_id", "plugins.oidc_redirect",
+  // read by nothing since the Snippets plugin took over typing: shown, it looked like the plugin's own switch
+  "latex.snippets"]);
 
 export interface Placed { page: string; title: string; group: Group; icon: IconName; blurb: string; fields: string[]; plugin?: BuiltinId }
 

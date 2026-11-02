@@ -84,7 +84,7 @@
 <style>
   /* apps: icon tiles sharing a row (a column when collapsed); an open one is underlined, the shown one lit.
      Native tips (title): the bar's scrolling column would clip a drawn one */
-  .apps { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 2px 0 6px; }
+  .apps { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 2px 0 8px; } /* the open row's height */
   .apps.wide { display: grid; grid-template-columns: repeat(auto-fill, minmax(36px, 1fr)); gap: 4px; padding: 2px 8px 8px; }
   .app { position: relative; height: 32px; width: 36px; border-radius: 9px; display: grid; place-items: center; padding: 0;
     background: var(--bg-hover); border: 1px solid var(--border); color: var(--text-muted); transition: background .12s, border-color .12s, color .12s; }

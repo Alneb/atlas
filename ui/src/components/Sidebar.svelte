@@ -57,7 +57,38 @@
 
   // --- hover expand (collapsed) -----------------------------------------------------------------
   let hoverT: ReturnType<typeof setTimeout> | undefined;
-  function enter() { clearTimeout(hoverT); if (collapsed && !side.peek && !fullscreen.on) hoverT = setTimeout(() => (side.peek = true), 220); }
+  function enter() { clearTimeout(hoverT); if (collapsed && !side.peek && !fullscreen.on) hoverT = setTimeout(openPeek, 220); }
+
+  // A click aimed at an icon just as the bar opens lands on the row that took the icon's place; while the pointer has
+  // not moved since, it goes to what was aimed at (the same tab, app or button in the open bar).
+  let pointer = { x: -1, y: -1 };
+  let aim: { sel: string; x: number; y: number } | null = null;
+  const AIM_ATTRS = ["data-tab-id", "data-app-id", "data-testid", "aria-label"];
+  function aimAt(el: Element | null): string | null {
+    const t = el?.closest("button, [role=option]");
+    const a = t && AIM_ATTRS.find((n) => t.hasAttribute(n));
+    return a ? `[${a}="${CSS.escape(t!.getAttribute(a)!)}"]` : null;
+  }
+  function openPeek() {
+    const sel = aimAt(document.elementFromPoint(pointer.x, pointer.y));
+    aim = sel ? { sel, ...pointer } : null;
+    side.peek = true;
+  }
+  // what lies over the panes changed: a native view (a web tab) hides under the open bar now, not at its next check
+  $effect(() => { void side.peek; window.dispatchEvent(new Event("atlas-layout")); });
+  function track(e: PointerEvent) {
+    pointer = { x: e.clientX, y: e.clientY };
+    if (aim && Math.hypot(e.clientX - aim.x, e.clientY - aim.y) > 4) aim = null;
+  }
+  function aimedClick(e: MouseEvent) {
+    const was = aim;
+    aim = null;
+    if (!was || !side.peek || aimAt(e.target as Element) === was.sel) return;
+    const to = nav?.querySelector<HTMLElement>(was.sel);
+    if (!to) return;
+    e.preventDefault(); e.stopPropagation();
+    to.click();
+  }
   function leave() {
     clearTimeout(hoverT);
     if (!collapsed || side.kb || side.held || side.menu || side.dragId) return;
@@ -88,7 +119,8 @@
   <!-- the click on empty space is the mouse's way to open it in fullscreen; the keys have Ctrl+Shift+A -->
   <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_noninteractive_element_interactions -->
   <nav class="sidebar" class:wide class:peek={collapsed && side.peek} style:width={wide ? `${tabs.sidebar.width}px` : undefined}
-    aria-label="Tabs and tools" onmouseenter={enter} onmouseleave={leave} onfocusout={onFocusOut} onclick={emptyClick} bind:this={nav} data-testid="sidebar">
+    aria-label="Tabs and tools" onmouseenter={enter} onmouseleave={leave} onfocusout={onFocusOut} onclick={emptyClick}
+    onpointermove={track} onclickcapture={aimedClick} bind:this={nav} data-testid="sidebar">
     <header class="head">
       <VaultBadge />
       {#if wide}<button class="ws" onclick={() => void chooseVault()} title="{app.workspace?.root ?? ""} — switch vault ({keysOf("ui.vault") ?? "Ctrl+Alt+V"})">{app.workspace?.name ?? "Atlas"}<Icon name="chevron-down" size={12} /></button>{/if}
@@ -125,7 +157,11 @@
   .sidebar.peek { box-shadow: var(--shadow-pop); border-right: 1px solid var(--border-strong); background: var(--bg-app); z-index: 60; border-radius: 0 var(--radius-lg) var(--radius-lg) 0; }
 
   .head { display: flex; align-items: center; gap: 9px; height: 46px; padding: 0 6px 0 calc(var(--side-inset) - 7px); flex: none; } /* the mark over the tools' column */
-  .sidebar:not(.wide) .head { flex-direction: column; justify-content: center; height: auto; padding: 10px 0 4px; gap: 6px; }
+  /* collapsed: the mark alone, in the open head's row (the toggle shows when the bar opens over the panes) */
+  .sidebar:not(.wide) .head { position: relative; justify-content: center; padding: 0; }
+  .sidebar:not(.wide) .collapse { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); opacity: 0; transition: opacity .12s; }
+  .sidebar:not(.wide) .head:hover .collapse, .sidebar:not(.wide) .collapse:focus-visible { opacity: 1; }
+  .sidebar:not(.wide) .head:hover :global(.badge) { opacity: 0; }
   .ws { flex: 1; min-width: 0; display: flex; align-items: center; gap: 4px; min-height: 26px; padding: 0 6px; margin-left: -6px; border-radius: 6px; text-align: left; font-weight: 600; font-size: calc(13px * var(--ui-scale, 1)); color: var(--heading); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .ws:hover { background: var(--bg-hover); }
   .ws :global(svg) { flex: none; color: var(--text-faint); }

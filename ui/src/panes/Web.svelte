@@ -40,10 +40,12 @@
   function reload() { if (native) ask({ op: "reload" }); else if (frame) frame.src = shown; }
 
   // the native view follows this pane's place, and hides when the pane is hidden or something of Atlas lies over it
-  // (the palette, a dialog, a menu: the view would cover them) — checked at five points, as elementFromPoint sees it
+  // (the palette, a dialog, a menu, the side bar opened over the panes: the view would cover them) — checked on a grid
+  // that reaches the edges, as elementFromPoint sees it: something lying over one side only covers the edge points
   let last = "";
+  const GRID = [0.01, 0.25, 0.5, 0.75, 0.99];
   function covered(r: DOMRect): boolean {
-    for (const [fx, fy] of [[0.5, 0.5], [0.25, 0.25], [0.75, 0.25], [0.25, 0.75], [0.75, 0.75]]) {
+    for (const fx of GRID) for (const fy of GRID) {
       const el = document.elementFromPoint(r.left + r.width * fx, r.top + r.height * fy);
       if (!el || !(el === slot || slot!.contains(el))) return true;
     }

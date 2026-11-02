@@ -22,7 +22,8 @@ test("arrange a page by hand: the file follows every gesture", async ({ page, re
   await page.keyboard.press("Enter");
   await expect.poll(text).toContain("- [greeting, tasks]");
   // the block is drawn with its list (which tasks lead depends on what other tests left; in arrange mode it takes no clicks)
-  await expect(pane.locator('[data-block="tasks"]')).toContainText(/Open tasks\s*\d+/);
+  // (its head: the title, the All button that opens every task in a tab, the count)
+  await expect(pane.locator('[data-block="tasks"]')).toContainText(/Open tasks\s*All\s*\d+/);
 
   // move with the menu (the keyboard path): tasks into a column of its own
   await pane.getByRole("button", { name: "Block menu: Open tasks" }).click();

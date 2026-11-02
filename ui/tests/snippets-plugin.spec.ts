@@ -138,7 +138,7 @@ test("Tab walks a formula's brackets, Shift+Tab walks back", async ({ page }) =>
   await expect(page.locator(".cm-content:visible").first()).toContainText("(a,)+(;b!)");
 });
 
-test("the list finds a snippet by its trigger's start, its name, or its name's letters in order", () => {
+test("the list finds a snippet by its whole trigger first, then its trigger's start, its name, or its name's letters in order", () => {
   const s = (plain: string, name?: string) => ({ plain, name }) as Compiled;
   const arrow = s("lra", "left right arrow");
   expect(rank(arrow, "lr")).toBe(0);
@@ -146,5 +146,5 @@ test("the list finds a snippet by its trigger's start, its name, or its name's l
   expect(rank(arrow, "lrar")).toBe(2);
   expect(rank(arrow, "igar")).toBeNull(); // letters in order, but not from a word's start
   expect(rank(arrow, "la")).toBeNull(); // under three letters: triggers only
-  expect(rank(s("sum"), "sum")).toBeNull(); // the whole trigger typed: it fires, nothing to list
+  expect(rank(s("sum"), "sum")).toBe(-1); // the whole trigger typed: listed first, what Space would expand
 });

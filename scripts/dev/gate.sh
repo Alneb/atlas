@@ -45,7 +45,8 @@ run() { # name, what it checks, command…
     audit) note="$(grep -m1 -i -E 'finding' ui/audit-report/REPORT.md 2>/dev/null)" ;;
     scan) note="$(grep -E '^\[scan\] findings' "$logs/$name.log" | sed 's/^\[scan\] //')" ;;
     sync) note="$(grep -E '^\[sync\] (DIVERGED|behind|in step)' "$logs/$name.log" | sed 's/^\[sync\] //' | cut -c1-90 | tr '\n' ' ')" ;;
-    tidy) note="$(grep -E '^\[tidy\] findings' "$logs/$name.log" | sed 's/^\[tidy\] //')" ;;
+    # tidy runs three checks (stray files, generated types, styles): each one's count, so a failure shows where
+    tidy) note="$(grep -E '^\[(tidy|gen)\] findings|^\[styles\] literal colours' "$logs/$name.log" | sed -E 's/^\[(tidy|gen|styles)\] (findings|literal colours outside tokens.css and unknown variables)/\1/' | tr '\n' ' ')" ;;
     build) note="$(grep -E '^\[bundle\]' "$logs/$name.log" | tail -1 | sed 's/^\[bundle\] //')" ;;
     py)   note="$(grep -E '^\[py\] .*: Ran' "$logs/$name.log" | grep -oE 'Ran [0-9]+' | awk '{n+=$2} END {printf "%d tests", n}'), $(grep -E '^\[py\] failed' "$logs/$name.log" | sed 's/^\[py\] //')" ;;
   esac
