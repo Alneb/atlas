@@ -29,4 +29,9 @@ filed?: string,
 /**
  * The whole line as read, sent back with a triage so an edited line is never overwritten ("" for a note).
  */
-source: string, };
+source: string, 
+/**
+ * The pictures it embeds (`![[x.png]]`, `![](x.png)`) on its line, the lines under it or in its note: link targets
+ * as written, resolved from `path`'s folder.
+ */
+pictures: Array<string>, };

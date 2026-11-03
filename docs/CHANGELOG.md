@@ -5,6 +5,16 @@ and versions follow [Semantic Versioning](https://semver.org/) once 1.0 is out.
 
 ## [Unreleased]
 
+### Added
+- Captures: a Delete answer (button and the Delete key), the capture kept in the vault's trash; a capture's pictures
+  shown under it, large with Ctrl as in a note.
+- Web tabs show any site inside the pane on Linux (a libsoup hook in WebKit's network process) and Windows (a WebView2
+  extension), signed in; Shift+click opens the system's browser.
+
+### Fixed
+- Today: the day's card no longer redraws on every save of the log, nor asks the calendar again each time.
+- The gate's style check knows the high-contrast layer as a token file.
+
 ## [0.2.1] - 2026-11-02
 
 ### Added

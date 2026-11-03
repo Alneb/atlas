@@ -5,10 +5,12 @@
   //   type: captures
   //   show: open        # open (default: still to triage) | tasks | all
   // By keyboard, from the moment it opens (the first row takes the keys unless a text has them): j/k (or ↑/↓) move,
-  // g/G (Home/End) first and last, h/l (←/→) or 1 2 3 the tabs, t task, f file, d dismiss, x done, u reopen, Enter opens;
+  // g/G (Home/End) first and last, h/l (←/→) or 1 2 3 the tabs, t task, f file, d dismiss, x done, u reopen, Delete
+  // deletes (the line and its lines under it to `.atlas/trash/`), Enter opens; its pictures show under it (Ctrl: large);
   // the focus stays in place as triaged rows leave the list, so a run of keys clears it.
   import { onMount, tick } from "svelte";
-  import { listVault } from "../../lib/vault";
+  import { listVault, resolveLink } from "../../lib/vault";
+  import { installImagePeek } from "../../lib/image-peek";
   import { reloadOnChange } from "../../lib/reload-on-change";
   import { parse as parseYaml } from "yaml";
   import { api } from "../../lib/api";
@@ -18,7 +20,7 @@
   import { openQuickCapture } from "../../lib/quick-capture.svelte";
   import { keysOf } from "../../lib/keymap.svelte";
   import { chordLabel } from "../../lib/keys";
-  import { shownName, shownPath } from "../../lib/paths";
+  import { dirOf, shownName, shownPath } from "../../lib/paths";
   import { followRenderedLink } from "../../lib/rendered-links";
   import { settings } from "../../lib/settings.svelte";
   import { toast } from "../../lib/state.svelte";
@@ -84,6 +86,7 @@
   }
   let section = $state<HTMLElement>();
   onMount(() => {
+    installImagePeek();
     void load();
     return reloadOnChange(() => void load(), { wait: 400, wants: (p) => p.endsWith(".md") });
   });
@@ -114,13 +117,17 @@
     else if (k === "d" && can.live) void triage(c, { kind: "dismiss" }, true);
     else if (k === "x" && c.state === "task") void triage(c, { kind: "done" }, true);
     else if (k === "u" && !can.live) void triage(c, { kind: "reopen" }, true);
+    else if (k === "Delete") void triage(c, { kind: "delete" }, true);
     else return;
     e.preventDefault();
   }
 
   async function triage(c: CaptureItem, action: TriageAction, byKey = false) {
     busy = new Set(busy).add(key(c));
-    try { await api.triageCapture({ path: c.path, line: c.line, source: c.source, action }); }
+    try {
+      await api.triageCapture({ path: c.path, line: c.line, source: c.source, action });
+      if (action.kind === "delete") toast("Capture deleted", "Kept in the vault's .atlas/trash/.");
+    }
     catch (e) { toast("Could not triage the capture", /409/.test(String(e)) ? "The line changed since it was listed — shown again as it is now." : errText(e), "error"); }
     busy.delete(key(c));
     busy = new Set(busy);
@@ -137,6 +144,8 @@
       onpick: (v, isNew) => triage(c, { kind: "file", note: isNew ? `${dir ? `${dir}/` : ""}${v.replace(/\.md$/i, "")}.md` : v }),
     });
   }
+  /** A picture's vault path, from the capture's folder as its link is written; null when it names nothing (yet). */
+  const pictureAt = (c: CaptureItem, target: string) => resolveLink(target, dirOf(c.path));
   const where = (c: CaptureItem) => (c.kind === "note" ? `Open ${c.path}` : `Open ${c.path} at line ${c.line}`);
   function onTextClick(e: MouseEvent, c: CaptureItem) {
     if (followRenderedLink(e, c.path, e.button === 1)) return;
@@ -161,7 +170,7 @@
       <!-- the next step, not a dead end: capturing is what fills this list -->
       <button class="link" onclick={() => openQuickCapture()}>Capture something</button>{#if keysOf("ui.capture")}<kbd class="keys-only">{chordLabel(keysOf("ui.capture")!).join(" ")}</kbd>{/if}</p>
   {:else}
-    <p class="keys" aria-hidden="true"><kbd>j</kbd><kbd>k</kbd> move · <kbd>h</kbd><kbd>l</kbd> tabs · <kbd>t</kbd> task · <kbd>f</kbd> file · <kbd>d</kbd> dismiss · <kbd>x</kbd> done · <kbd>u</kbd> reopen · <kbd>Enter</kbd> open</p>
+    <p class="keys" aria-hidden="true"><kbd>j</kbd><kbd>k</kbd> move · <kbd>h</kbd><kbd>l</kbd> tabs · <kbd>t</kbd> task · <kbd>f</kbd> file · <kbd>d</kbd> dismiss · <kbd>x</kbd> done · <kbd>u</kbd> reopen · <kbd>Del</kbd> delete · <kbd>Enter</kbd> open</p>
     <div class="list" bind:this={list}>
     {#each byDay as g (g.day)}
       <h3 class="day">{dayLabel(g.day)}</h3>
@@ -183,6 +192,14 @@
               {@html renderInlineMarkdown(c.text)}
               {#if c.filed}<span class="filed">→ {c.filed}</span>{/if}
             </span>
+            {#if c.pictures.length}
+              <span class="pics">
+                {#each c.pictures as t (t)}
+                  {@const at = pictureAt(c, t)}
+                  {#if at}<button class="pic" title="Open {t} (Ctrl over it: large)" onclick={() => openPath(at)}><img src={api.rawUrl(at)} alt={t} loading="lazy" data-peek /></button>{/if}
+                {/each}
+              </span>
+            {/if}
             <span class="acts">
               {#if c.state === "open"}
                 <button class="act" onclick={() => triage(c, { kind: "task" })} title="Make it a to-do (- [ ])"><Icon name="list-todo" size={13} />Task</button>
@@ -193,6 +210,7 @@
               {:else}
                 <button class="act" onclick={() => triage(c, { kind: "reopen" })} title="Back to the captures to triage"><Icon name="undo" size={13} />Reopen</button>
               {/if}
+              <button class="act del" onclick={() => triage(c, { kind: "delete" })} title="Delete it: out of the log, kept in .atlas/trash/ (Delete)" aria-label="Delete: {c.text}"><Icon name="trash" size={13} /></button>
             </span>
           </li>
         {/each}
@@ -221,6 +239,11 @@
   .box:hover { border-color: var(--accent); }
   .text { cursor: pointer; overflow-wrap: anywhere; min-width: 0; }
   .text :global(.icon) { vertical-align: -1px; margin-right: 4px; color: var(--text-faint); }
+  /* the pictures under the text, in its column: thumbnails in em, so the tab's zoom grows them too */
+  .pics { grid-column: 3; display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+  .pic { padding: 0; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--bg-alt); overflow: hidden; cursor: zoom-in; line-height: 0; }
+  .pic img { max-height: 8em; max-width: 16em; object-fit: contain; display: block; }
+  .act.del:hover { color: var(--red); border-color: var(--red); }
   .filed { margin-left: 6px; color: var(--text-faint); font-size: .88em; }
   .st-done .text, .st-dismissed .text { color: var(--text-muted); }
   .st-dismissed .text { text-decoration: line-through; text-decoration-color: var(--text-faint); }

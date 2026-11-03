@@ -27,8 +27,9 @@ test.describe("on a phone", () => {
 test("Esc empties the search box, ↓ goes to the first option found; the count reads as one option", async ({ page }) => {
   await openSettings(page);
   const box = page.getByPlaceholder("Search settings…");
-  await box.fill("accent");
-  await expect(page.getByText("1 option matches “accent”")).toBeVisible();
+  // "accent" alone also finds the contrast option (its accent turns phosphor-bright): the words narrow it to one
+  await box.fill("accent selection");
+  await expect(page.getByText("1 option matches “accent selection”")).toBeVisible();
   await box.press("ArrowDown");
   await expect(page.locator('.row[data-path="ui.accent"]').locator(":focus")).toHaveCount(1);
   await box.focus();

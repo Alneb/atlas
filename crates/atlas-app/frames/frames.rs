@@ -206,7 +206,7 @@ mod tests {
     fn atlas_is_the_loopback_page() {
         assert_eq!(host_of("http://127.0.0.1:4317/v/notes/"), "127.0.0.1");
         assert_eq!(host_of("http://[::1]:80/"), "::1");
-        assert_eq!(host_of("https://user@github.com/x"), "github.com");
+        assert_eq!(host_of("https://user@sub.example.test/x"), "sub.example.test");
         assert!(loopback(host_of("http://localhost:9/")) && !loopback(host_of("https://127.0.0.1.example.org/")));
     }
 }

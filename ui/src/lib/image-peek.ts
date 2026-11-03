@@ -1,5 +1,5 @@
 // Ctrl over a picture shows it large: in notes
-// (live preview and reading view) and pages. It stays while the pointer is on the picture or on the large one (which
+// (live preview and reading view), pages, and any picture marked `data-peek` (the Captures block's). It stays while the pointer is on the picture or on the large one (which
 // covers it: moving within it no longer hides it); let go of Ctrl, or move off both, and it is gone. The large one lets
 // clicks through (Ctrl+click still reaches the picture), so "within it" is its rectangle, not a hover.
 // Ctrl+click opens it in a tab (the editor's mousedown, create.ts).
@@ -9,7 +9,7 @@ export function installImagePeek(): void {
   if (installed) return;
   installed = true;
   let over: HTMLImageElement | null = null, big: HTMLImageElement | null = null;
-  const pictures = "img.cm-embed-image, .markdown img, .md-render img";
+  const pictures = "img.cm-embed-image, .markdown img, .md-render img, img[data-peek]";
   const show = () => {
     if (!over || !over.complete || !over.naturalWidth) return;
     big ??= Object.assign(document.createElement("img"), { className: "image-peek motion-keep", alt: "" });

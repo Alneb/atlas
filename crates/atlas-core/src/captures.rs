@@ -110,6 +110,7 @@ fn in_log(rel: &str, day: &str, text: &str) -> Vec<CaptureItem> {
             state: c.state(),
             filed: c.filed.map(str::to_string),
             source: l.to_string(),
+            pictures: pictures(std::iter::once(l.to_string()).chain(continuation(&lines, i))),
         });
     }
     out
@@ -142,7 +143,30 @@ fn inbox_note(rel: &str, text: &str, mtime: Option<std::time::SystemTime>) -> Ca
         state,
         filed,
         source: String::new(),
+        pictures: pictures(body.lines().map(str::to_string)),
     }
+}
+
+/// The pictures embedded in these lines (`![[x.png|300]]`, `![alt](x.png)`): their targets as written.
+fn pictures(lines: impl Iterator<Item = String>) -> Vec<String> {
+    let mut out: Vec<String> = vec![];
+    for l in lines {
+        let mut rest = l.as_str();
+        while let Some(i) = rest.find("![") {
+            rest = &rest[i + 2..];
+            let target = if let Some(wiki) = rest.strip_prefix('[') {
+                wiki.split_once("]]").map(|(t, _)| t.split(['|', '#']).next().unwrap_or(t))
+            } else {
+                rest.split_once("](").and_then(|(_, r)| r.split_once(')')).map(|(t, _)| t.split_whitespace().next().unwrap_or(t).trim_matches(['<', '>']))
+            };
+            if let Some(t) = target.map(str::trim).filter(|t| !t.is_empty() && crate::link_targets::is_image(t) && !t.contains("://")) {
+                if !out.iter().any(|o| o == t) {
+                    out.push(t.to_string());
+                }
+            }
+        }
+    }
+    out
 }
 
 /// Every capture of the vault, newest first; `open` counts the ones still waiting to be triaged.
@@ -234,6 +258,13 @@ pub fn triage(root: &Path, cfg: &Config, req: &TriageRequest, now: NaiveDateTime
                 filed = Some((note, filed_entry(c.text, &more, day.as_deref().map(wikilink).as_deref())));
                 vec![link_line(&line, note).unwrap_or(line.clone())]
             }
+            TriageAction::Delete => {
+                // the trash's copy first: failing, the log is left as it was
+                let last = idx + continuation(&lines, idx).len();
+                let gone: Vec<String> = lines.drain(idx..=last).collect();
+                crate::files::lines_to_vault_trash(root, &req.path, &(gone.join("\n") + "\n"))?;
+                return Ok(lines.join("\n"));
+            }
         };
         lines.splice(idx..=idx, next);
         Ok(lines.join("\n"))
@@ -285,8 +316,9 @@ fn strip_link(line: &str) -> String {
 }
 
 /// The capture's own lines under it (a picture, the address a share sent), as written: indented, up to the next item.
-fn continuation(lines: &[String], idx: usize) -> Vec<String> {
-    let mut more: Vec<String> = lines[idx + 1..].iter().take_while(|l| l.is_empty() || l.starts_with([' ', '\t'])).cloned().collect();
+fn continuation<S: AsRef<str>>(lines: &[S], idx: usize) -> Vec<String> {
+    let mut more: Vec<String> =
+        lines[idx + 1..].iter().map(AsRef::as_ref).take_while(|l| l.is_empty() || l.starts_with([' ', '\t'])).map(str::to_string).collect();
     while more.last().is_some_and(|l| l.trim().is_empty()) {
         more.pop();
     }
@@ -342,6 +374,12 @@ fn triage_note(root: &Path, cfg: &Config, abs: &Path, rel: &str, action: &Triage
     let mut touched = vec![rel.to_string()];
     match action {
         TriageAction::Dismiss | TriageAction::Done => vault_write::modify(abs, |text| Ok(done(text, None))),
+        TriageAction::Delete => {
+            if !abs.exists() {
+                return Err(Error::NotFound(rel.to_string()));
+            }
+            crate::files::to_vault_trash(root, rel).map(|_| ())
+        }
         TriageAction::Reopen => vault_write::modify(abs, |text| Ok(frontmatter::remove_property(&frontmatter::remove_property(text, "filed"), "review"))),
         TriageAction::File { note } => {
             let mut entry = String::new();
@@ -473,6 +511,39 @@ mod tests {
         let stale = TriageRequest { path: p.into(), line: 12, source: "- 09:12 something else".into(), action: TriageAction::Dismiss };
         assert!(matches!(triage(d.path(), &cfg, &stale, now()), Err(Error::Conflict { .. })));
         assert!(read().contains("- 09:12 check the tail"));
+    }
+
+    #[test]
+    fn a_deleted_capture_leaves_with_its_lines_and_is_kept_in_the_trash() {
+        let (d, cfg) = vault();
+        let p = "notes/log/2026/10-October/2026-10-27.md";
+        let read = || std::fs::read_to_string(d.path().join(p)).unwrap();
+        ask(d.path(), &cfg, p, 12, TriageAction::Delete).unwrap();
+        assert_eq!(read(), LOG.replace("- 09:12 check the tail\n  http://x.org\n", ""), "the bullet and the line under it, nothing else");
+        let kept: Vec<_> = walkdir(d.path().join(".atlas/trash"));
+        assert_eq!(kept.len(), 1);
+        assert!(kept[0].ends_with(p) && std::fs::read_to_string(&kept[0]).unwrap() == "- 09:12 check the tail\n  http://x.org\n");
+        // edited since it was listed: nothing goes
+        let stale = TriageRequest { path: p.into(), line: 11, source: "- [ ] something else".into(), action: TriageAction::Delete };
+        assert!(matches!(triage(d.path(), &cfg, &stale, now()), Err(Error::Conflict { .. })));
+        // a note of the inbox goes to the trash whole
+        ask(d.path(), &cfg, "inbox/A thought.md", 0, TriageAction::Delete).unwrap();
+        assert!(!d.path().join("inbox/A thought.md").exists());
+        assert_eq!(walkdir(d.path().join(".atlas/trash")).len(), 2);
+    }
+
+    fn walkdir(dir: std::path::PathBuf) -> Vec<std::path::PathBuf> {
+        let mut out = vec![];
+        for e in std::fs::read_dir(&dir).into_iter().flatten().flatten() {
+            if e.path().is_dir() { out.extend(walkdir(e.path())) } else { out.push(e.path()) }
+        }
+        out
+    }
+
+    #[test]
+    fn a_capture_shows_the_pictures_it_embeds() {
+        let lines = ["- 21:40 the board ![[a.png|300]] and ![x](<b c.jpg>)", "  ![[board.png]]", "  ![[note]] ![](https://x.org/y.png) ![[a.png]]"];
+        assert_eq!(pictures(lines.iter().map(|l| l.to_string())), ["a.png", "b c.jpg", "board.png"]);
     }
 
     #[test]

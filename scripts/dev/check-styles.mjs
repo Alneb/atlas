@@ -16,8 +16,8 @@ const files = (d) => readdirSync(d).flatMap((n) => { const p = join(d, n); retur
 const all = files(src);
 // every custom property set anywhere: `--x:` in CSS, `style:--x`, setProperty("--x"…), a "--x" key in script
 const defined = new Set(all.flatMap((f) => [...readFileSync(f, "utf8").matchAll(/(--[\w-]+)\s*:|style:(--[\w-]+)|["'`](--[\w-]+)/g)].map((m) => m[1] ?? m[2] ?? m[3])));
-// the token files: where colours are defined (tokens.css, and palettes.css's colour families over it)
-const TOKENS = ["tokens.css", "palettes.css"];
+// the token files: where colours are defined (tokens.css, palettes.css's colour families over it, contrast.css's high-contrast layer)
+const TOKENS = ["tokens.css", "palettes.css", "contrast.css"];
 const outside = (name) => name.startsWith("--dv-") || name.startsWith("--cm-"); // dockview's and CodeMirror's own
 
 const found = [];

@@ -59,8 +59,9 @@ became a note of its own to the trash, and the text comes back in the popup. As 
 the one written (`CaptureResult.source`); edited or filed meanwhile, nothing is touched and the notice says so.
 
 **Triage by keyboard.** In the Captures view (`components/views/Captures.svelte`) a clicked row takes the keys: `j`/`k`
-(or ↑/↓) move, `t` makes it a to-do, `f` files it into a note, `d` dismisses, `x` ticks a to-do, `u` reopens, Enter opens
-its line. The focus stays in place as an answered row leaves the list, so a run of keys clears it; the keys are listed
+(or ↑/↓) move, `t` makes it a to-do, `f` files it into a note, `d` dismisses, `x` ticks a to-do, `u` reopens, Delete
+deletes it (the line and the lines under it leave the log and are kept in `.atlas/trash/`; an inbox note goes there
+whole), Enter opens its line. A capture's pictures show under it; Ctrl over one shows it large, a click opens it. The focus stays in place as an answered row leaves the list, so a run of keys clears it; the keys are listed
 over the rows while the list has the focus. What opens over the page (the command bar, this popup, a plugin's dialog)
 gives the focus back when it closes (`lib/focus-return.ts`).
 

@@ -483,13 +483,29 @@ pub fn trash(ws: &Workspace, rel: &str) -> Result<String> {
 /// way anything goes to the vault's trash. A path this second already put there gets a stamp of its own (`-1`…): a
 /// rename would replace it.
 pub(crate) fn to_vault_trash(root: &std::path::Path, rel: &str) -> Result<String> {
-    let now = chrono::Local::now().format("%Y%m%d-%H%M%S").to_string();
-    let to = (0..1000)
-        .map(|n| if n == 0 { format!(".atlas/trash/{now}/{rel}") } else { format!(".atlas/trash/{now}-{n}/{rel}") })
-        .find(|to| !root.join(to).exists())
-        .ok_or_else(|| Error::BadRequest("the trash is full for this second".into()))?;
+    let to = trash_slot(root, rel)?;
     vault_write::rename(&root.join(rel), &root.join(&to))?;
     Ok(to)
+}
+
+/// Lines taken out of `rel` (a deleted capture), kept as `.atlas/trash/<stamp>/<rel>`: recoverable as a file is.
+pub(crate) fn lines_to_vault_trash(root: &std::path::Path, rel: &str, lines: &str) -> Result<String> {
+    let to = trash_slot(root, rel)?;
+    let abs = root.join(&to);
+    if let Some(dir) = abs.parent() {
+        vault_write::mkdir(dir)?;
+    }
+    vault_write::create(&abs, lines.as_bytes())?;
+    Ok(to)
+}
+
+/// A free `.atlas/trash/<stamp>/<rel>`, vault-relative.
+fn trash_slot(root: &std::path::Path, rel: &str) -> Result<String> {
+    let now = chrono::Local::now().format("%Y%m%d-%H%M%S").to_string();
+    (0..1000)
+        .map(|n| if n == 0 { format!(".atlas/trash/{now}/{rel}") } else { format!(".atlas/trash/{now}-{n}/{rel}") })
+        .find(|to| !root.join(to).exists())
+        .ok_or_else(|| Error::BadRequest("the trash is full for this second".into()))
 }
 
 #[cfg(test)]

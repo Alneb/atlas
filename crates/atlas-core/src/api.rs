@@ -515,6 +515,10 @@ pub struct CaptureItem {
     pub filed: Option<String>,
     /// The whole line as read, sent back with a triage so an edited line is never overwritten ("" for a note).
     pub source: String,
+    /// The pictures it embeds (`![[x.png]]`, `![](x.png)`) on its line, the lines under it or in its note: link targets
+    /// as written, resolved from `path`'s folder.
+    #[serde(default)]
+    pub pictures: Vec<String>,
 }
 
 /// `GET /api/captures`.
@@ -542,6 +546,9 @@ pub enum TriageAction {
     Reopen,
     /// Add it to the note at `note` (a vault path, made when missing) and link the capture to it.
     File { note: String },
+    /// Take it out: a log's line and the lines under it leave the log (kept as a file in `.atlas/trash/`), a note of the
+    /// inbox goes to `.atlas/trash/`.
+    Delete,
 }
 
 /// `POST /api/captures/triage`.

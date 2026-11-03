@@ -1,4 +1,7 @@
 import { test, expect, type APIRequestContext } from "@playwright/test";
+import { mkdirSync, writeFileSync, readdirSync, readFileSync, existsSync } from "node:fs";
+import { join } from "node:path";
+import { WS } from "../playwright.config";
 
 // The Captures view (docs/design/DESIGN-capture-triage.md): every capture of the day logs by day, and the answers that
 // triage one — each written into the capture's own line by the core, and a filed one added to its note.
@@ -104,5 +107,36 @@ test("a capture holding a frame or a script is listed without running it", async
     expect(page.url()).toBe(url);
   } finally {
     await request.post(`/api/fs/trash?path=${encodeURIComponent(log)}`, { headers: H });
+  }
+});
+
+// A capture's picture shows under it (Ctrl over it: large, as in a note); Delete takes the capture and the lines under
+// it out of the log, into the vault's trash, and leaves its neighbours.
+test("a capture shows its picture, and is deleted into the trash", async ({ page, request }) => {
+  const log = "log/2020-03-05.md";
+  mkdirSync(join(WS, "log"), { recursive: true });
+  // a 1×1 PNG
+  writeFileSync(join(WS, "log/capture-board.png"), Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==", "base64"));
+  await put(request, log, "---\ndate: 2020-03-05\ntype: log\n---\n## Log\n- 09:00 the board\n  ![[capture-board.png]]\n- 09:30 stays\n");
+  try {
+    await page.goto("/");
+    await page.getByText("Finish the GW notes.").waitFor();
+    await page.keyboard.press("Control+p");
+    await page.keyboard.type(">Captures: triage");
+    await page.keyboard.press("Enter");
+    const view = page.getByTestId("captures");
+    const row = (t: string) => view.locator("li.row", { hasText: t });
+    const pic = row("the board").locator("img[data-peek]");
+    await expect(pic).toHaveAttribute("src", /capture-board\.png/);
+    await expect.poll(() => pic.evaluate((i: HTMLImageElement) => i.naturalWidth)).toBe(1);
+    await row("the board").getByRole("button", { name: /^Delete/ }).click();
+    await expect(row("the board")).toHaveCount(0);
+    await expect.poll(() => read(request, log)).toBe("---\ndate: 2020-03-05\ntype: log\n---\n## Log\n- 09:30 stays\n");
+    const trash = join(WS, ".atlas/trash");
+    const kept = existsSync(trash) ? readdirSync(trash, { recursive: true }).map(String).filter((f) => f.endsWith("2020-03-05.md")) : [];
+    expect(kept.map((f) => readFileSync(join(trash, f), "utf8"))).toContain("- 09:00 the board\n  ![[capture-board.png]]\n");
+  } finally {
+    await request.post(`/api/fs/trash?path=${encodeURIComponent(log)}`, { headers: H });
+    await request.post(`/api/fs/trash?path=${encodeURIComponent("log/capture-board.png")}`, { headers: H });
   }
 });

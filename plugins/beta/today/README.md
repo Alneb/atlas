@@ -15,6 +15,10 @@ Everything is read from the notes; nothing is written.
     done that day, each opening where it came from — shown live, never written into the note;
   - **← →**: the previous and next days that have a log, across the log folder's year and month folders.
   - In a template it draws today's header as a preview, and says so.
+  - **Quiet while you write**: a save of the log only updates its count of entries, in place; the rest is asked again
+    five seconds after the typing stops, and the card is replaced only when what it shows has changed. The calendar's
+    answer for a day is kept two minutes (an unreachable calendar keeps the last one), and a card the editor rebuilds
+    shows its last drawing at once instead of starting empty.
 - **`home.map`** (block "Map of the vault"): the vault's skeleton as a tree — the notes others hang from by a link
   property (`topics:` by default), each with how many notes name it. Options: the property, and the fewest notes a
   name needs to be shown.

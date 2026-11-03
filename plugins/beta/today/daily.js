@@ -20,6 +20,8 @@ const entries = (text) => {
   return n;
 };
 
+const countText = (n) => (n ? `${n} ${n === 1 ? "entry" : "entries"}` : "nothing captured yet");
+
 const CSS = `
 .daily-head .daily-template { flex-basis: 100%; margin: 0; font-size: .78em; color: var(--text-faint); }
 .daily-head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; padding: 8px 12px; margin: 2px 0 8px;
@@ -39,13 +41,19 @@ const CSS = `
 .daily-head .facts .v { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .daily-head .facts a { color: inherit; text-decoration: none; border-bottom: 1px dotted var(--border-strong); cursor: pointer; }
 `;
+// per note, across remounts (the editor rebuilds a block it scrolled away or revealed): the last whole drawing,
+// shown at once while the next one fills; and the calendar's answer per day, asked again after two minutes at most
+const drawnHtml = new Map();
+const eventsOf = new Map();
+const EVENTS_TTL = 120_000;
 let styled = false;
 const style = () => { if (styled) return; styled = true; const s = document.createElement("style"); s.textContent = CSS; document.head.append(s); };
 
 export function registerDaily(atlas, lang) {
   atlas.registerBlock("daily.header", (host, block) => {
     style();
-    let gone = false, drawn = 0, daysOf = null;
+    let gone = false, drawn = 0, daysOf = null, later = 0;
+    if (drawnHtml.has(block.note) && !host.querySelector(".daily-head")) host.innerHTML = drawnHtml.get(block.note);
     // the log folder's dated notes, across its year / month folders (`log_folders`): asked again only when another file
     // there changes, not on every save of this one
     const here = block.note.includes("/") ? block.note.slice(0, block.note.lastIndexOf("/")) : "";
@@ -76,12 +84,12 @@ export function registerDaily(atlas, lang) {
       const weather = String(props.weather ?? "").trim();
       if (weather) { const [icon, words] = skyOf(weather); const w = el("span"); if (icon) w.append(el("span", "sky", icon)); w.append(words); sub.append(w); }
       const lines = entries(text);
-      sub.append(el("span", "", lines ? `${lines} ${lines === 1 ? "entry" : "entries"}` : "nothing captured yet"));
+      sub.append(el("span", "count", countText(lines)));
       const nav = el("nav");
       const facts = el("div", "facts");
       box.append(sub, nav, facts);
       if (template) box.append(el("p", "daily-template", "Template preview: a log made from it shows its own day here."));
-      // the first one shows at once and fills in; a redraw replaces the last only once it is whole
+      // the first one shows at once and fills in; a redraw replaces the last only once it is whole, and only if it differs
       const first = !host.querySelector(".daily-head");
       if (first) host.replaceChildren(box);
       const [all] = await Promise.all([days(), template ? null : dayFacts(facts, iso)]);
@@ -89,7 +97,19 @@ export function registerDaily(atlas, lang) {
       const at = all.indexOf(block.note);
       const step = (label, path) => { const b = el("button", "", label); b.disabled = !path; if (path) { b.title = DAY.exec(path)[1]; b.onclick = () => atlas.open(path); } return b; };
       nav.append(step("←", at > 0 ? all[at - 1] : null), step("→", at >= 0 && at < all.length - 1 ? all[at + 1] : null));
-      if (!first) host.replaceChildren(box);
+      const now = host.querySelector(".daily-head");
+      if (!first && !(now?.live && now.outerHTML === box.outerHTML)) host.replaceChildren(box);
+      (host.querySelector(".daily-head") ?? box).live = true;
+      drawnHtml.set(block.note, box.outerHTML);
+    };
+    /** A save of the note itself: its count at once, in place; the rest (its tasks done) a while after the typing stops. */
+    const recount = async () => {
+      const text = await atlas.readText(block.note).catch(() => null);
+      const count = host.querySelector(".daily-head .count");
+      if (gone || text === null || !count) return void draw();
+      count.textContent = countText(entries(text));
+      clearTimeout(later);
+      later = setTimeout(() => void draw(), 5000);
     };
     /** A line of the facts: a label, then items each opening where it came from. */
     const fact = (facts, label, items) => {
@@ -108,7 +128,7 @@ export function registerDaily(atlas, lang) {
     const dayFacts = async (facts, iso) => {
       const rows = async (src) => (await atlas.view(src, block.note).catch(() => null))?.rows ?? [];
       const [events, due, done] = await Promise.all([
-        rows(`type: list\nfrom: plugin:dav/events\nargs: {from: "${iso}", to: "${iso}"}`),
+        calendar(iso, async () => (await atlas.view(`type: list\nfrom: plugin:dav/events\nargs: {from: "${iso}", to: "${iso}"}`, block.note).catch(() => null))?.rows ?? null),
         rows(`type: task-list\nfrom: tasks\ndue: ${iso}\nstarted: false`),
         rows(`type: task-list\nfrom: tasks\nshow: all\ncompleted: ${iso}`),
       ]);
@@ -117,13 +137,22 @@ export function registerDaily(atlas, lang) {
       fact(facts, "Due", due.filter((r) => !r.done).map((r) => ({ text: r.title ?? "", path: r.path, line: r.line })));
       fact(facts, "Done", done.map((r) => ({ text: r.title ?? "", path: r.path, line: r.line })));
     };
+    /** The day's events, from the cache while fresh; a failed asking (the calendar unreachable) keeps the last answer. */
+    const calendar = async (iso, ask) => {
+      const had = eventsOf.get(iso);
+      if (had && Date.now() - had.at < EVENTS_TTL) return had.rows;
+      const rows = await ask();
+      if (rows) eventsOf.set(iso, { at: Date.now(), rows });
+      return rows ?? had?.rows ?? [];
+    };
     void draw();
     const off = atlas.onFilesChanged((paths) => {
       // a day made or gone; no paths: the connection came back, anything may have changed
       const day = !paths.length || paths.some((p) => p !== block.note && DAY.test(p) && (!folder || p.startsWith(`${folder}/`)));
       if (day) daysOf = null;
-      if (day || paths.includes(block.note)) void draw();
+      if (day) void draw();
+      else if (paths.includes(block.note)) void recount();
     });
-    return () => { gone = true; off(); };
+    return () => { gone = true; clearTimeout(later); off(); };
   }, { title: "Daily: the top of a day's log" });
 }
