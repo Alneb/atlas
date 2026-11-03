@@ -5,6 +5,8 @@ and versions follow [Semantic Versioning](https://semver.org/) once 1.0 is out.
 
 ## [Unreleased]
 
+## [0.2.5] - 2026-11-03
+
 ### Added
 - Captures: a Delete answer (button and the Delete key), the capture kept in the vault's trash; a capture's pictures
   shown under it, large with Ctrl as in a note.
@@ -82,7 +84,8 @@ and versions follow [Semantic Versioning](https://semver.org/) once 1.0 is out.
 - `AGENTS.md`: rules for AI coding agents working in the repository, and a `tidy` stage in the gate.
 - [Plugin maturity](guides/PLUGIN-MATURITY.md): what beta and stable promise, and the criteria for stable.
 
-[Unreleased]: https://github.com/Alneb/atlas/compare/v0.2.1...HEAD
+[Unreleased]: https://github.com/Alneb/atlas/compare/v0.2.5...HEAD
+[0.2.5]: https://github.com/Alneb/atlas/compare/v0.2.1...v0.2.5
 [0.2.1]: https://github.com/Alneb/atlas/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/Alneb/atlas/compare/v0.1.1...v0.2.0
 [0.1.0]: https://github.com/Alneb/atlas/releases/tag/v0.1.0
