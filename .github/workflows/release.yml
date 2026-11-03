@@ -14,6 +14,8 @@ jobs:
 
   publish:
     needs: packages
+    # also when a plugin engine is missing (packages.yml lets that pass); a missing desktop package still fails below
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-24.04
     # the only job that writes (the draft release)
     permissions:

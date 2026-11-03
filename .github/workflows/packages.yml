@@ -115,7 +115,7 @@ jobs:
   # every plugin's Rust engine, built on each desktop platform (scripts/dev/plugin-pack.mjs); a platform an engine
   # does not build on yet is reported (red) without holding the rest back: the archives say which platforms they carry
   plugin-engines:
-    name: plugin engines (${{ matrix.target }})
+    name: plugin engines (${{ matrix.targets }})
     runs-on: ${{ matrix.os }}
     continue-on-error: true
     timeout-minutes: 60
@@ -124,11 +124,12 @@ jobs:
       matrix:
         include:
           # Linux on an old glibc (22.04), for the engines that cannot be static
-          - { os: ubuntu-22.04, target: x86_64-linux, rust: "x86_64-unknown-linux-musl,x86_64-unknown-linux-gnu" }
-          - { os: ubuntu-22.04-arm, target: aarch64-linux, rust: "aarch64-unknown-linux-musl,aarch64-unknown-linux-gnu" }
-          - { os: macos-latest, target: aarch64-macos, rust: aarch64-apple-darwin }
-          - { os: macos-latest, target: x86_64-macos, rust: x86_64-apple-darwin }
-          - { os: windows-latest, target: x86_64-windows, rust: x86_64-pc-windows-msvc }
+          - { os: ubuntu-22.04, targets: x86_64-linux, rust: "x86_64-unknown-linux-musl,x86_64-unknown-linux-gnu" }
+          - { os: ubuntu-22.04-arm, targets: aarch64-linux, rust: "aarch64-unknown-linux-musl,aarch64-unknown-linux-gnu" }
+          # both Macs on one Apple-silicon runner (Intel cross-compiled): a second macOS job waited for a runner
+          # until GitHub gave up on it
+          - { os: macos-latest, targets: aarch64-macos x86_64-macos, rust: "aarch64-apple-darwin,x86_64-apple-darwin" }
+          - { os: windows-latest, targets: x86_64-windows, rust: x86_64-pc-windows-msvc }
     steps:
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
@@ -136,7 +137,7 @@ jobs:
           targets: ${{ matrix.rust }}
       - uses: Swatinem/rust-cache@v2
         with:
-          key: engines-${{ matrix.target }}
+          key: engines-${{ matrix.os }}
           workspaces: |
             . -> target
             plugins/stable/dav/engine -> target
@@ -151,25 +152,30 @@ jobs:
         timeout-minutes: 10
       - name: The engines
         shell: bash
-        run: node scripts/dev/plugin-pack.mjs engines --target ${{ matrix.target }} --keep-going
+        run: |
+          ok=0
+          for t in ${{ matrix.targets }}; do node scripts/dev/plugin-pack.mjs engines --target "$t" --keep-going || ok=1; done
+          exit $ok
       # the marker keeps the artifact's root at plugins/ (an artifact keeps the paths below its files' common folder),
       # so it holds <tier>/<id>/bin/<target>/ even when one engine alone was built
       - name: Marker
         if: always()
         shell: bash
-        run: echo "${{ matrix.target }}" > plugins/engines-${{ matrix.target }}.txt
+        run: for t in ${{ matrix.targets }}; do echo "$t" > "plugins/engines-$t.txt"; done
       - uses: actions/upload-artifact@v7
         if: always()
         with:
-          name: engines-${{ matrix.target }}
+          name: engines-${{ matrix.os }}
           path: |
-            plugins/engines-${{ matrix.target }}.txt
-            plugins/*/*/bin/${{ matrix.target }}/
+            plugins/engines-*.txt
+            plugins/*/*/bin/
           if-no-files-found: warn
 
   # one atlas-plugin-<id>.tar.gz per plugin, every platform's engine inside, and plugins.json
   plugins:
     needs: plugin-engines
+    # the engines that did build: an engine job that failed or got no runner leaves its platform out of the archives
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
