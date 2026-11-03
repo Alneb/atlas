@@ -190,3 +190,36 @@ test("a meeting from Email: the new-event dialog seeded with the subject and the
   await expect.poll(() => created.length).toBe(1);
   expect(created[0]).toMatchObject({ summary: "Thesis plan", calendar: "uni/calendar", attendees: ["bob@example.org", "dee@example.org"] });
 });
+
+test("a meeting the user is invited to in Exchange: the card joins the call and answers Yes / Maybe / No through the engine", async ({ page }) => {
+  const answered: Record<string, unknown>[] = [];
+  const at = (h: number) => { const d = new Date(); d.setHours(h, 0, 0, 0); return d.toISOString(); };
+  const meeting = {
+    uid: "m1", summary: "Group meeting", start: at(15), end: at(16), all_day: false, recurring: true, rrule: "FREQ=WEEKLY", free: false,
+    location: "Réunion Microsoft Teams", description: "Réunion Microsoft Teams\nRejoindre : https://teams.microsoft.com/meet/251257223?p=abc\n",
+    organizer: { email: "dee@uni.example.org", name: "Dee" }, attendees: [{ email: "dee@uni.example.org", name: "Dee" }, { email: "a@uni.example.org", name: "Me", partstat: "NEEDS-ACTION" }],
+    calendar: "uni/calendar", calendar_name: "Calendar", href: "https://outlook.office365.com/EWS/Exchange.asmx/a@uni.example.org/calendar/m1.ics", writable: true, answer: "NEEDS-ACTION",
+  };
+  await page.route("**/api/plugins/dav/helper", async (route) => {
+    const body = route.request().postDataJSON() as { method: string; params: Record<string, unknown> };
+    if (body.method === "watch") return route.fulfill({ json: { sources: [{ id: "uni/calendar", kind: "caldav", account: "uni", url: "https://outlook.office365.com/EWS/Exchange.asmx/a@uni.example.org/calendar/", name: "Calendar", writable: true, synced: 0 }], write: "uni/calendar", accounts: [{ name: "uni", user: "a@uni.example.org" }], configured: true } });
+    if (body.method === "range") return route.fulfill({ json: { events: [{ ...meeting, answer: answered.length ? "ACCEPTED" : "NEEDS-ACTION" }] } });
+    if (body.method === "respond") { answered.push(body.params); return route.fulfill({ json: { calendar: "uni/calendar", partstat: body.params.partstat } }); }
+    return route.continue();
+  });
+  const cal = await openPane(page);
+  await cal.getByText("Group meeting").first().click();
+  const card = page.getByRole("dialog", { name: "Group meeting" });
+  await expect(card.getByRole("link", { name: "Join the meeting" })).toHaveAttribute("href", "https://teams.microsoft.com/meet/251257223?p=abc");
+  const going = card.getByRole("group", { name: "Going?" });
+  await expect(going.getByRole("button", { name: "Yes" })).toHaveAttribute("aria-pressed", "false");
+  for (const scheme of ["light", "dark"] as const) {
+    await page.emulateMedia({ colorScheme: scheme });
+    await card.screenshot({ path: `test-results/calendar-meeting-answer-${scheme}.png` });
+  }
+  await going.getByRole("button", { name: "Yes" }).click();
+  await expect.poll(() => answered.length).toBe(1);
+  expect(answered[0]).toMatchObject({ calendar: "uni/calendar", href: meeting.href, partstat: "ACCEPTED" });
+  await expect(page.locator(".toast", { hasText: "Going to “Group meeting”" })).toBeVisible();
+  await expect(going.getByRole("button", { name: "Yes" })).toHaveAttribute("aria-pressed", "true");
+});

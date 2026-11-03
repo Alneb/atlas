@@ -167,8 +167,8 @@
 
     {#if manage}
       <div class="foot">
-        <button class="btn" onclick={() => act(() => askFolder(false))}><Icon name="folder-open" size={14} /> Open folder…</button>
-        <button class="btn" onclick={() => act(() => askFolder(true))}><Icon name="plus" size={14} /> New vault…</button>
+        <button class="btn" onclick={() => act(() => void askFolder(false))}><Icon name="folder-open" size={14} /> Open folder…</button>
+        <button class="btn" onclick={() => act(() => void askFolder(true))}><Icon name="plus" size={14} /> New vault…</button>
         <button class="btn" onclick={() => act(askServer)}><Icon name="server" size={14} /> Connect to a server…</button>
         <span class="grow"></span>
         <span class="hint">↑↓ Enter · Esc</span>

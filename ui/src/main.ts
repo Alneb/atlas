@@ -20,6 +20,7 @@ import "@xterm/xterm/css/xterm.css";
 import "./vendor/dockview/dockview.css";
 import "./styles/tokens.css";
 import "./styles/palettes.css";
+import "./styles/contrast.css";
 import "./styles/base.css";
 import "./styles/dockview-theme.css";
 import "./styles/chrome.css";
@@ -52,13 +53,15 @@ window.addEventListener("vite:preloadError", (e) => {
 });
 
 // a link to a web page anywhere in the app (a note, a property, a plugin's page): a tab when the site allows it
-// (lib/web-links.ts) — Ctrl/Shift/middle click keep the browser's own meaning
+// (lib/web-links.ts); Shift+click, or a link marked `data-outside` (a meeting's Join): the system's browser; Ctrl / Alt /
+// middle click keep their meaning
 document.addEventListener("click", (e) => {
-  if (e.defaultPrevented || e.button !== 0 || e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) return;
+  if (e.defaultPrevented || e.button !== 0 || e.ctrlKey || e.metaKey || e.altKey) return;
   const a = (e.target as HTMLElement | null)?.closest?.("a[href]") as HTMLAnchorElement | null;
   if (!a || !/^https?:/i.test(a.href) || a.origin === location.origin || a.hasAttribute("download")) return;
   e.preventDefault();
-  void import("./lib/web-links").then((m) => m.openWeb(a.href));
+  const outside = e.shiftKey || a.hasAttribute("data-outside");
+  void import("./lib/web-links").then((m) => (outside ? m.openOutside(a.href) : m.openWeb(a.href)));
 }, true);
 
 // the desktop app's hand-off: a page a plugin, a mail or a PDF opened with window.open (or a link that would have

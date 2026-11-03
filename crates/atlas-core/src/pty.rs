@@ -70,6 +70,12 @@ fn command(ws: &Workspace, q: &PtyQuery) -> anyhow::Result<CommandBuilder> {
             cmd.env_remove(&k);
         }
     }
+    // the desktop app preloads its web-tab hook into WebKit through LD_PRELOAD (atlas-app main.rs `frames_preload`); a
+    // program takes it out of its own copy, but a shell keeps what it inherited and would pass it to every command
+    if let Some(pre) = std::env::var_os("LD_PRELOAD") {
+        let rest = without_frames_hook(&pre.to_string_lossy());
+        if rest.is_empty() { cmd.env_remove("LD_PRELOAD"); } else { cmd.env("LD_PRELOAD", rest); }
+    }
     cmd.cwd(cwd);
     cmd.env("TERM", "xterm-256color");
     cmd.env("COLORTERM", "truecolor");
@@ -417,5 +423,19 @@ mod tests {
         for k in ["CLAUDE_CONFIG_DIR", "ANTHROPIC_API_KEY", "PATH", "CLAUDE"] {
             assert!(!is_claude_session_var(k), "{k}");
         }
+    }
+}
+
+/// LD_PRELOAD without the desktop app's web-tab hook (`libatlas-webkit-frames.so`), the rest as it was.
+fn without_frames_hook(list: &str) -> String {
+    list.split([':', ' ']).filter(|p| !p.is_empty() && !p.contains("atlas-webkit-frames")).collect::<Vec<_>>().join(":")
+}
+
+#[cfg(test)]
+mod frames_hook_tests {
+    #[test]
+    fn a_terminal_never_inherits_the_web_tab_hook() {
+        assert_eq!(super::without_frames_hook("/c/libatlas-webkit-frames.so:/usr/lib/libx.so"), "/usr/lib/libx.so");
+        assert_eq!(super::without_frames_hook("/c/libatlas-webkit-frames.so"), "");
     }
 }

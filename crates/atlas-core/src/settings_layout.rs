@@ -33,7 +33,7 @@ const FIELD_LABELS: &[(&str, &str)] = &[
     ("lsp.c", "C / C++ server"), ("lsp.rust", "Rust server"), ("lsp.python", "Python server"), ("lsp.latex", "LaTeX server"),
     ("lsp.language", "Servers' message language"), ("lsp.inlay_hints", "Inlay hints"), ("lsp.python_env", "Python environment"),
     ("latex.snippets", "Snippets while typing math"), ("latex.snippets_file", "Snippets file"), ("latex.variables_file", "Snippet variables file"),
-    ("draw.page_format", "A new drawing's pages"), ("web.open_links", "Web links open in"), ("pdf.export_on_save", "Export annotations on save"),
+    ("draw.page_format", "A new drawing's pages"), ("web.open_links", "Web links open in"), ("web.tab_view", "Web tabs show pages"), ("pdf.export_on_save", "Export annotations on save"),
     ("notifications.system", "System notifications"),
 ];
 

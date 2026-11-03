@@ -936,6 +936,32 @@ async fn fs_reveal_outside(State(st): S, axum::extract::ConnectInfo(peer): axum:
     }
 }
 
+/// Opens a web address in the system's browser (Shift+click on a link, "Open in the browser"): the desktop window turns
+/// every `window.open` into a tab of Atlas, so the page asks here instead. Same guard as the file manager's.
+async fn open_outside_post(State(st): S, axum::extract::ConnectInfo(peer): axum::extract::ConnectInfo<std::net::SocketAddr>, Json(q): Json<OutsideRequest>) -> Response {
+    if !may_reveal_outside(st.auth.is_some(), peer.ip()) {
+        return forbidden("the system's browser opens only from the desktop's own core");
+    }
+    if !outside_scheme(&q.url) {
+        return Error::BadRequest(format!("{}: only http, https and mailto addresses open outside", q.url)).into_response();
+    }
+    match tokio::task::spawn_blocking(move || crate::platform::open::url(&q.url)).await {
+        Ok(Err(why)) => Error::CommandFailed(why).into_response(),
+        _ => StatusCode::NO_CONTENT.into_response(),
+    }
+}
+
+#[derive(serde::Deserialize)]
+struct OutsideRequest {
+    url: String,
+}
+
+/// A page may send only web and mail addresses to the system (never `file:` or a program's own scheme).
+fn outside_scheme(url: &str) -> bool {
+    let lower = url.trim_start().to_ascii_lowercase();
+    ["http://", "https://", "mailto:"].iter().any(|s| lower.starts_with(s))
+}
+
 /// The desktop's core (no sign-in), asked from this machine: never a server (its nginx makes visitors look local).
 fn may_reveal_outside(signed_in_server: bool, peer: std::net::IpAddr) -> bool {
     !signed_in_server && peer.is_loopback()
@@ -1065,7 +1091,7 @@ async fn vaults_open_post(State(st): S, Json(q): Json<crate::vaults::VaultReques
             crate::vaults::remember_server(&crate::vaults::list_file(), &url, chrono::Utc::now().timestamp_millis())?;
             return Ok(serde_json::json!({}));
         }
-        let fresh = q.create && !std::path::Path::new(&crate::pty::expand_home(q.path.trim())).exists();
+        let fresh = q.create && crate::vaults::is_fresh(std::path::Path::new(&crate::pty::expand_home(q.path.trim())));
         let root = crate::vaults::resolve(&q.path, q.create)?;
         if fresh {
             crate::vaults::start_plain(&root)?;
@@ -1109,12 +1135,53 @@ async fn lease_ask(State(st): S, Json(q): Json<crate::mirror_guard::AskBody>) ->
     Ok(Json(answer.into()))
 }
 
-/// `POST /api/lease/done`: the device wrote `path` (now `version`) and lets it go.
+/// `POST /api/lease/done`: the device wrote `path` (now `version`) and lets it go. With the content (`carry`, step 7 of
+/// DESIGN-mirror-v2.md) the server writes it into its copy as the lease's holder — its watchers, index and live rooms
+/// see an ordinary write, whose finish hands the lease back; content that does not hash to `version` is refused.
 async fn lease_done(State(st): S, Json(q): Json<crate::mirror_guard::DoneBody>) -> Result<StatusCode> {
-    let (_, path) = leased_path(&st, &q.path, &q.holder)?;
+    use crate::mirror_guard::Carry;
+    let (abs, path) = leased_path(&st, &q.path, &q.holder)?;
     let leases = st.leases.clone();
-    blocking(move || Ok(leases.done(&path, &q.holder, q.version))).await?; // it keeps the table on disk
+    blocking(move || {
+        let bytes = match q.carry {
+            Some(Carry::Bytes(b64)) => {
+                use base64::Engine;
+                let b = base64::engine::general_purpose::STANDARD.decode(b64).map_err(|e| Error::BadRequest(format!("carry: {e}")))?;
+                if q.version != Some(vault_write::ContentHash::of(&b)) {
+                    return Err(Error::BadRequest(format!("{path}: the content carried is not the version reported")));
+                }
+                Some(Some(b))
+            }
+            Some(Carry::Gone) => Some(None),
+            Some(Carry::Nothing) | None => None,
+        };
+        match bytes {
+            Some(Some(b)) => crate::mirror_guard::as_holder(&q.holder, || vault_write::write(&abs, &b)),
+            Some(None) if abs.is_file() => crate::mirror_guard::as_holder(&q.holder, || vault_write::remove_file(&abs)),
+            _ => Ok(leases.done(&path, &q.holder, q.version)).map(|_| ()), // Syncthing carries it; it keeps the table on disk
+        }
+    })
+    .await?;
     Ok(StatusCode::NO_CONTENT)
+}
+
+/// `POST /api/lease/file`: the server's copy of `path`, for a device behind it (`content: null` when it has none).
+async fn lease_file(State(st): S, Json(q): Json<crate::mirror_guard::FileBody>) -> Result<Json<crate::mirror_guard::FileAnswer>> {
+    let (abs, _) = leased_path(&st, &q.path, &q.holder)?;
+    let content = blocking(move || {
+        use base64::Engine;
+        Ok(std::fs::read(&abs).ok().map(|b| base64::engine::general_purpose::STANDARD.encode(b)))
+    })
+    .await?;
+    Ok(Json(crate::mirror_guard::FileAnswer { content }))
+}
+
+/// `POST /api/lease/versions`: every path the table knows, its last version and the ones it replaced (a device's
+/// catch-up brings those it has an older version of).
+async fn lease_versions(State(st): S, Json(q): Json<crate::mirror_guard::FileBody>) -> Result<Json<Vec<crate::mirror_guard::Recent>>> {
+    leased_path(&st, ".", &q.holder)?;
+    let recent = st.leases.recent().into_iter().map(|(path, version, past)| crate::mirror_guard::Recent { path, version, past }).collect();
+    Ok(Json(recent))
 }
 
 /// A lease is asked of a server only, for a path inside the vault, by a device other than the server's own core; the
@@ -1140,6 +1207,20 @@ async fn vaults_active_post(State(st): S) -> Result<StatusCode> {
         blocking(move || crate::vaults::remember_now(&root)).await?;
     }
     Ok(StatusCode::NO_CONTENT)
+}
+
+/// The system's folder dialog (desktop only): `{path}` chosen, `{}` cancelled.
+async fn vaults_pick_post(State(st): S, Json(q): Json<PickRequest>) -> Result<Json<serde_json::Value>> {
+    if st.served.is_some() {
+        return Err(Error::BadRequest("a server's vaults are its folders: choose one from the list".into()));
+    }
+    let chosen = blocking(move || crate::vaults::pick_folder(q.purpose)).await?;
+    Ok(Json(chosen.map_or_else(|| serde_json::json!({}), |p| serde_json::json!({ "path": p.to_string_lossy() }))))
+}
+
+#[derive(serde::Deserialize)]
+struct PickRequest {
+    purpose: crate::vaults::PickPurpose,
 }
 
 async fn vaults_forget_post(State(st): S, Json(q): Json<crate::vaults::VaultRequest>) -> Result<StatusCode> {
@@ -2132,7 +2213,9 @@ fn router(state: Arc<AppState>) -> Router {
         .route("/api/events", get(events_ws))
         .route("/api/live", get(live_ws))
         .route("/api/lease/ask", post(lease_ask))
-        .route("/api/lease/done", post(lease_done))
+        .route("/api/lease/done", post(lease_done).layer(DefaultBodyLimit::max(crate::mirror_guard::CARRY_MAX as usize * 4 / 3 + 64 * 1024)))
+        .route("/api/lease/file", post(lease_file))
+        .route("/api/lease/versions", post(lease_versions))
         .route("/api/web/frameable", get(web_frameable_get))
         .route("/remote/{host}/{*rest}", axum::routing::any(remote_any))
         .route("/api/pty", get(pty_ws))
@@ -2162,6 +2245,7 @@ fn router(state: Arc<AppState>) -> Router {
         .route("/api/vaults", get(vaults_get))
         .route("/api/vaults/open", post(vaults_open_post))
         .route("/api/vaults/forget", post(vaults_forget_post))
+        .route("/api/vaults/pick", post(vaults_pick_post))
         .route("/api/vaults/mirror", post(vaults_mirror_post))
         .route("/api/vaults/active", post(vaults_active_post))
         .route("/api/usage", post(usage_post))
@@ -2179,6 +2263,7 @@ fn router(state: Arc<AppState>) -> Router {
         .route("/api/fs/move", post(fs_move))
         .route("/api/fs/trash", post(fs_trash))
         .route("/api/fs/reveal-outside", post(fs_reveal_outside))
+        .route("/api/open-outside", post(open_outside_post))
         .route("/api/link-mention", post(link_mention_post))
         .route("/api/property", put(property_put))
         .route("/api/frontmatter/edit", post(frontmatter_edit_post))
@@ -2587,6 +2672,8 @@ mod tests {
     fn the_system_file_manager_opens_only_for_the_desktop_asked_from_this_machine() {
         let local: std::net::IpAddr = [127, 0, 0, 1].into();
         let lan: std::net::IpAddr = [10, 88, 0, 2].into();
+        assert!(outside_scheme("https://teams.microsoft.com/l/meetup-join/x") && outside_scheme("mailto:a@example.org"));
+        assert!(!outside_scheme("file:///etc/passwd") && !outside_scheme("javascript:alert(1)") && !outside_scheme("ssh://h"));
         assert!(may_reveal_outside(false, local));
         assert!(!may_reveal_outside(false, lan));
         assert!(!may_reveal_outside(true, local)); // a server behind nginx: every visitor is loopback
@@ -2643,7 +2730,13 @@ def roundtrip(params):
         other = "read"
     except atlas.AtlasError as e:
         other = e.status
-    return {"back": back, "names": names, "other": other}
+    try:
+        atlas.write(".atlas/plugins/other/view.js", "hijacked")
+        code = "written"
+    except atlas.AtlasError as e:
+        code = e.status
+    atlas.write(".atlas/plugins/pyback/state.json", "{}")
+    return {"back": back, "names": names, "other": other, "code": code}
 
 atlas.serve()
 "##,
@@ -2654,6 +2747,8 @@ atlas.serve()
         assert_eq!(got["back"], "# Hi\npipe\n");
         assert!(got["names"].as_array().unwrap().iter().any(|p| p == "notes/From helper.md"), "{got}");
         assert_eq!(got["other"], 403, "another plugin's secrets stay closed: {got}");
+        assert_eq!(got["code"], 403, "another plugin's code stays closed: {got}");
+        assert!(!root.join(".atlas/plugins/other/view.js").exists() && root.join(".atlas/plugins/pyback/state.json").exists(), "its own folder stays writable");
         assert_eq!(std::fs::read_to_string(root.join("notes/From helper.md")).unwrap(), "# Hi\npipe\n");
         state.helpers.stop_all();
     }

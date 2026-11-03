@@ -36,6 +36,9 @@ pub fn reveal(abs: &Path) -> Result<(), String> {
 
 /// Opens `url` in the system's browser (or the program the OS gives that kind of link).
 pub fn url(url: &str) -> Result<(), String> {
+    if std::env::var_os("ATLAS_NO_BROWSER").is_some() {
+        return Ok(()); // tests never touch the user's desktop
+    }
     let mut cmd = if cfg!(windows) {
         // `explorer <url>` hands it to the default handler; `cmd /c start` would parse `&` in the URL
         let mut c = Command::new("explorer");

@@ -233,6 +233,77 @@ fn paint_before_page(window: &tauri::WebviewWindow, vault: &std::path::Path) {
     let _ = window.set_background_color(Some(color));
 }
 
+/// Web pages as tabs on Windows: WebView2 is Chromium, so an extension of the app's own (`webview2/frame-any`, its
+/// declarativeNetRequest rules) removes X-Frame-Options and Content-Security-Policy from the pages Atlas's window frames
+/// — and only those (`initiatorDomains`: the core's own address) — and every site shows in a plain iframe, as in
+/// Obsidian. Written out under the cache at each start (WebView2 loads unpacked extensions from a folder). None: it
+/// could not be written; sites that refuse framing then open in a window, as before. WebKitGTK has no such hook
+/// (DEVELOPING.md, "Web pages as tabs"): Linux keeps a native view over the pane.
+#[cfg(windows)]
+fn frame_any_extension() -> Option<PathBuf> {
+    let root = atlas_core::platform::dirs::atlas(atlas_core::platform::dirs::Base::Cache).join("webview2-extensions");
+    let dir = root.join("frame-any");
+    let files = [("manifest.json", include_str!("../webview2/frame-any/manifest.json")), ("rules.json", include_str!("../webview2/frame-any/rules.json"))];
+    let written = std::fs::create_dir_all(&dir).and_then(|_| files.iter().try_for_each(|(name, text)| std::fs::write(dir.join(name), text)));
+    match written {
+        Ok(()) => Some(root),
+        Err(e) => {
+            eprintln!("atlas-app: web pages as tabs: the WebView2 extension was not written to {}: {e}", dir.display());
+            None
+        }
+    }
+}
+
+/// Web pages as tabs on Linux: the libsoup hook (frames/frames.rs, built by build.rs) is written under the cache and
+/// put in LD_PRELOAD before WebKit starts its processes; it acts in the network process only and takes itself out of
+/// LD_PRELOAD in every process it is loaded into, so the shells and helpers Atlas starts never carry it on. False: it
+/// could not be written (the web tabs keep the native view, webtab.rs).
+#[cfg(target_os = "linux")]
+fn frames_preload() -> bool {
+    const LIB: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/libatlas-webkit-frames.so"));
+    let dir = atlas_core::platform::dirs::atlas(atlas_core::platform::dirs::Base::Cache);
+    let path = dir.join("libatlas-webkit-frames.so");
+    let current = std::fs::read(&path).is_ok_and(|b| b == LIB);
+    // written beside and renamed: a running WebKit process may have the old one mapped
+    let written = current || {
+        let tmp = dir.join(format!("libatlas-webkit-frames.so.{}", std::process::id()));
+        std::fs::create_dir_all(&dir).and_then(|_| std::fs::write(&tmp, LIB)).and_then(|_| std::fs::rename(&tmp, &path)).map_err(|e| eprintln!("atlas-app: web pages as tabs: {} not written: {e}", path.display())).is_ok()
+    };
+    if written {
+        let before = std::env::var("LD_PRELOAD").unwrap_or_default();
+        let list = [path.to_string_lossy().into_owned()].into_iter().chain(before.split([':', ' ']).filter(|p| !p.is_empty() && !p.contains("atlas-webkit-frames")).map(str::to_owned));
+        // SAFETY: main's first steps, before any thread exists
+        unsafe { std::env::set_var("LD_PRELOAD", list.collect::<Vec<_>>().join(":")) };
+    }
+    written
+}
+
+/// Tells the page it is in the desktop app (in a plain browser, web links open the browser's own tabs) and whether its
+/// iframes can show any site (lib/web-links.ts): on Windows the extension above removes the headers that forbid it, on
+/// Linux the libsoup hook (`frames_preload`).
+fn frames_any_page(frames: bool) -> &'static str {
+    if frames { "window.__atlasDesktop = true; window.__atlasFramesAnything = true;" } else { "window.__atlasDesktop = true;" }
+}
+
+/// The core's "choose a folder" (the vault switcher's Choose…) is the system's own dialog, over this window: typing a whole
+/// path was the only way, and on macOS nobody knows theirs.
+fn folder_dialog(window: &tauri::WebviewWindow) {
+    use atlas_core::vaults::PickPurpose;
+    use tauri_plugin_dialog::DialogExt;
+    let window = window.clone();
+    atlas_core::vaults::on_pick_folder(move |purpose| {
+        let title = match purpose {
+            PickPurpose::Open => "Open a folder as a vault",
+            PickPurpose::Create => "Where the new vault goes — make a new folder here, or choose an empty one",
+        };
+        let mut d = window.dialog().file().set_title(title).set_parent(&window).set_can_create_directories(true);
+        if let Some(home) = std::env::var_os("HOME").or_else(|| std::env::var_os("USERPROFILE")) {
+            d = d.set_directory(home);
+        }
+        d.blocking_pick_folder().and_then(|f| f.into_path().ok())
+    });
+}
+
 fn browse_window(url: tauri::Url, root: PathBuf) -> anyhow::Result<()> {
     let web = atlas_core::config::Config::load(&root).map(|c| c.web).unwrap_or_default();
     tauri::Builder::default()
@@ -290,6 +361,10 @@ fn main() -> anyhow::Result<()> {
     }
     let root = vault_to_open(folder)?;
     webkit_rendering(&root);
+    #[cfg(target_os = "linux")]
+    let frames = frames_preload();
+    #[cfg(not(target_os = "linux"))]
+    let frames = cfg!(windows);
     // the installed UI (packaging/install.sh copies it): a new interface reloads into this window
     // without a new program (atlas-core ui_files.rs; the page watches /api/ui/build)
     if std::env::var_os("ATLAS_UI_DIR").is_none() {
@@ -316,6 +391,7 @@ fn main() -> anyhow::Result<()> {
     let vault = root.clone();
 
     tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
         .setup(move |app| {
             let handle = app.handle().clone();
             browser::prepare(&handle, atlas_core::config::Config::load(&vault).map(|c| c.web).unwrap_or_default());
@@ -323,11 +399,24 @@ fn main() -> anyhow::Result<()> {
             let vault_bg = vault.clone();
             let main = WebviewWindowBuilder::new(app, "main", WebviewUrl::External(url))
                 .title("Atlas")
+                .initialization_script(frames_any_page(frames))
+                // a web tab's frame: its address, history, find and Atlas's keys (frame_page.js; inert elsewhere)
+                .initialization_script_for_all_frames(include_str!("frame_page.js"))
                 // OS file drops reach the page's own `drop` (the editor, the explorer, the capture popup); Tauri's
                 // handler would take them first (on Windows the page then never sees a dropped file)
                 .disable_drag_drop_handler()
-                .inner_size(MAIN_SIZE.width, MAIN_SIZE.height)
-                .on_navigation(move |to| off_app.stay(to))
+                .inner_size(MAIN_SIZE.width, MAIN_SIZE.height);
+            // the window's page never leaves Atlas (OffApp). WebKitGTK reports a frame's navigation as the page's, and
+            // a web tab is a frame: there the guard watches the page's own loads instead (`load-changed` is the main
+            // frame's alone), below; elsewhere the navigation hook is the main frame's.
+            #[cfg(not(target_os = "linux"))]
+            let main = main.on_navigation(move |to| off_app.stay(to));
+            #[cfg(windows)]
+            let main = match frame_any_extension() {
+                Some(dir) => main.browser_extensions_enabled(true).extensions_path(dir),
+                None => main,
+            };
+            let main = main
                 // window.open: WebKitGTK opens nothing without a handler. A sign-in page that returns to a
                 // localhost address gets a window of ours (it catches that address); a web page a browsing window
                 // (browser.rs) or the desktop's browser (`web.open_links`); anything else (mailto:) its desktop handler.
@@ -348,6 +437,7 @@ fn main() -> anyhow::Result<()> {
                 .build()?;
             fit_to_screen(&main);
             paint_before_page(&main, &vault_bg);
+            folder_dialog(&main);
             // a click on one of Atlas's system notifications brings this window forward (the page opens its note)
             let forward = main.clone();
             atlas_core::notify::on_click(move || {
@@ -358,12 +448,13 @@ fn main() -> anyhow::Result<()> {
             // WebKitGTK silently drops a window.open that no fresh click started — and a plugin's sign-in
             // opens its page only after its helper has answered. Every request still goes through on_new_window.
             #[cfg(target_os = "linux")]
-            main.with_webview(|w| {
+            main.with_webview(move |w| {
                 use webkit2gtk::{SettingsExt, WebViewExt};
                 if let Some(s) = w.inner().settings() {
                     s.set_javascript_can_open_windows_automatically(true);
                 }
                 pinch_to_wheel(&w.inner());
+                stay_in_atlas(&w.inner(), off_app);
                 webtab::attach(&w.inner()); // web pages as tabs, framing allowed or not
                 // a document, not a browser: no back/forward page cache, small memory caches — Atlas is one page and never goes back to a page it left
                 if let Some(c) = w.inner().context() {
@@ -386,6 +477,22 @@ fn main() -> anyhow::Result<()> {
             }
         });
     Ok(())
+}
+
+/// The page leaving Atlas for an outside address (a sign-in, a stray link): the load is stopped before it commits
+/// (the page stays as it was) and the address goes where OffApp sends it. Linux only: see where it is called.
+#[cfg(target_os = "linux")]
+fn stay_in_atlas(view: &webkit2gtk::WebView, off: OffApp) {
+    use webkit2gtk::{LoadEvent, WebViewExt};
+    view.connect_load_changed(move |v, ev| {
+        if !matches!(ev, LoadEvent::Started | LoadEvent::Redirected) {
+            return;
+        }
+        let Some(to) = v.uri().and_then(|u| tauri::Url::parse(&u).ok()) else { return };
+        if !off.stay(&to) {
+            v.stop_loading();
+        }
+    });
 }
 
 /// A touchpad pinch never zooms the whole page (WebKitGTK scales it on its own, before any script could stop it): the

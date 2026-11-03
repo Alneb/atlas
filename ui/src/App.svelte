@@ -25,7 +25,7 @@
   import { editors, lastEditorId, parkAll } from "./lib/registry";
   import { homeDoc, openHome, shellTerminal, claudeTerminal } from "./lib/actions";
   import { openQuickCapture } from "./lib/quick-capture.svelte";
-  import { matches } from "./lib/keys";
+  import { matches, systemEditingChord } from "./lib/keys";
   import { palette, openPalette } from "./lib/palette.svelte";
   import { app, toast, paintTheme } from "./lib/state.svelte";
   import { loadSettings, settings } from "./lib/settings.svelte";
@@ -70,7 +70,7 @@
   }
 
   function onKey(e: KeyboardEvent) {
-    if (e.defaultPrevented && !palette.open) return;
+    if ((e.defaultPrevented && !palette.open) || systemEditingChord(e)) return;
     const target = e.target as HTMLElement | null;
     const inTerminal = !!target?.closest?.(".xterm"), inNote = !!target?.closest?.(".cm-editor.live-cm");
     for (const b of bound) {

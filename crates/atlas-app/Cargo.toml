@@ -18,6 +18,8 @@ tauri-build = { version = "2", features = [] }
 atlas-core.workspace = true
 anyhow.workspace = true
 tauri = { version = "2", features = [] }
+# the system's folder dialog for opening or making a vault (main.rs; the core asks through vaults::on_pick_folder)
+tauri-plugin-dialog = "2"
 tokio = { workspace = true }
 serde_json.workspace = true
 serde.workspace = true

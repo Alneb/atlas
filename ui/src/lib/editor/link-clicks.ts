@@ -36,8 +36,9 @@ function linkTarget(view: EditorView, el: HTMLElement | null, onOpenLink?: OpenL
 
 export function linkClicks(onOpenLink?: OpenLink) {
   // the web in the browser, a file of the vault in Atlas
-  const follow = (target: string, opts?: { beside?: boolean }) => {
-    if (/^[a-z][a-z0-9+.-]*:/i.test(target)) void import("../web-links").then((m) => m.openWeb(target));
+  // Shift on a web link: the system's browser, as everywhere in Atlas
+  const follow = (target: string, opts?: { beside?: boolean; outside?: boolean }) => {
+    if (/^[a-z][a-z0-9+.-]*:/i.test(target)) void import("../web-links").then((m) => (opts?.outside ? m.openOutside(target) : m.openWeb(target)));
     else onOpenLink?.(target, opts);
   };
   const at = (view: EditorView, el: EventTarget | Element | null) => linkTarget(view, el as HTMLElement | null, onOpenLink);
@@ -54,7 +55,7 @@ export function linkClicks(onOpenLink?: OpenLink) {
       const target = at(view, e.target);
       if (target === null) return false;
       e.preventDefault();
-      follow(target);
+      follow(target, { outside: e.shiftKey });
       return true;
     },
     auxclick: (e, view) => {

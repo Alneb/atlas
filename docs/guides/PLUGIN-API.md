@@ -478,7 +478,7 @@ helper → Atlas   {"call": 4, "verb": "GET", "path": "/api/file?path=notes/a.md
 Atlas → helper   {"reply": 4, "status": 200, "body": {"path": "notes/a.md", "text": "…", "mtime": …}}
 ```
 
-`verb` is GET, POST, PUT or DELETE; `path` must start with `/api/`; `body` is JSON — or, in its place, `"bytes": "<base64>"`, a file's bytes for `PUT /api/raw?path=…` (a PDF, an attachment, a picture). `status` is the API's own (a 4xx carries `{"error": "why"}`). A request from the core can arrive while a call waits for its reply: the libraries keep it and answer it next. What a helper reaches: everything a signed-in page may, **except what acts as another plugin** — its secrets, sign-ins (`oauth`), `fetch` (which fills in its secrets), settings, update and removal — and the user's sign-ins (403; `helper_api::may`). Another plugin's tools, helper, data and contributions stay open: they run that plugin's own code. A fetch that carries a secret (a `{secret}` header or form value) follows a redirect only on the host it asked, since a header of the plugin's naming is not one dropped on the way to another host. In server mode it acts as the vault's owner. Where nothing serves the vault (`atlas mcp` running a helper with Atlas closed) a call is answered 503.
+`verb` is GET, POST, PUT or DELETE; `path` must start with `/api/`; `body` is JSON — or, in its place, `"bytes": "<base64>"`, a file's bytes for `PUT /api/raw?path=…` (a PDF, an attachment, a picture). `status` is the API's own (a 4xx carries `{"error": "why"}`). A request from the core can arrive while a call waits for its reply: the libraries keep it and answer it next. What a helper reaches: everything a signed-in page may, **except what acts as another plugin** — its secrets, sign-ins (`oauth`), `fetch` (which fills in its secrets), settings, update and removal — and the user's sign-ins (403; `helper_api::may`). Nor does a helper write another plugin's files: a call other than GET whose target — a query parameter or a JSON value under a key that names a file (`path`, `from`, `to`, `dest`, `paths`, `new_path`…) — lies in `.atlas/plugins/<other>/`, is `.atlas/plugin-settings/<other>.toml`, or is a folder holding them (`.atlas`, `.atlas/plugins`) is refused with a 403 (`helper_api::may_write`, read where the body is at hand). Its own folder and settings stay writable. Another plugin's tools, helper, data and contributions stay open: they run that plugin's own code. A fetch that carries a secret (a `{secret}` header or form value) follows a redirect only on the host it asked, since a header of the plugin's naming is not one dropped on the way to another host. In server mode it acts as the vault's owner. Where nothing serves the vault (`atlas mcp` running a helper with Atlas closed) a call is answered 503.
 
 **Python** — `import atlas_plugin as atlas` (the core writes the library to `<vault>/.atlas/cache/sdk/python/` and puts it first on the helper's `PYTHONPATH`; standard library only; source `crates/atlas-core/sdk/python/atlas_plugin.py`):
 
@@ -589,6 +589,14 @@ opens = ["*.cbz"]                        # vault files the app opens with it ins
   - the pen: `PENS`, `penInk`, `penDefaults`, `penOutput`, `penShape(xyt, openink)`; `quickInk(view)` → `QuickInk` (`area`, `up`, `repaint`, `stop`)
   - back to the app: `open(path)`, `openLink(link, from)`; and `toast(text)`
 - The web side and the native side are separate and both optional; the web Settings shows the plugin's settings for both.
+
+## Links to web pages
+
+A plain `<a href="https://…">` in a plugin's view behaves like any link of Atlas: a click opens it as a web tab (or as
+`[web] open_links` says), Shift+click in the system's browser. Mark a link `data-outside` when its page belongs in the
+system's browser every time (a video call's Join: the meeting app takes it from there); `openOutside(url)` of
+`ui/src/lib/web-links.ts` does the same from code. Both ask the desktop's core (`POST /api/open-outside`, http, https and
+mailto only), since the desktop window turns every `window.open` into a tab of Atlas.
 
 ## Styling
 

@@ -38,8 +38,20 @@ async function openVault(path: string, create = false): Promise<void> {
   }
 }
 
-/** Asks for a folder, then opens it (`create`: makes it a new vault). */
-function askFolder(create: boolean): void {
+/** Asks for a folder, then opens it (`create`: makes it a new vault): the system's folder dialog in the desktop app,
+ *  else (a browser, a core with no screen) a typed path. */
+async function askFolder(create: boolean): Promise<void> {
+  try {
+    const r = await ownCore<{ path?: string }>("POST", "/api/vaults/pick", { purpose: create ? "create" : "open" });
+    if (r?.path) void openVault(r.path, create);
+    return; // chosen, or cancelled
+  } catch (e) {
+    if (!(e instanceof ApiError && e.status === 404)) { toast("The folder dialog did not open", errText(e), "error"); }
+  }
+  askFolderTyped(create);
+}
+
+function askFolderTyped(create: boolean): void {
   setTimeout(() => pick({
     placeholder: create ? "Where the new vault goes — a folder that does not exist yet (~/Notes/Course)…" : "The folder to open as a vault (~/Notes)…",
     tag: create ? "New vault" : "Open folder", icon: "folder", items: [],

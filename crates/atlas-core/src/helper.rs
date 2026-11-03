@@ -414,6 +414,13 @@ async fn answer_call(routes: Option<axum::Router>, id: &str, c: crate::helper_ap
         return (503, json!({ "error": "Atlas is not serving this vault here (atlas mcp started the helper): start Atlas to call it back" }));
     };
     use crate::helper_api::CallBody;
+    // the URL guard (`may`) cannot see a file route's target: read it here, where the body is at hand
+    if c.verb != axum::http::Method::GET {
+        let body = if let CallBody::Json(j) = &c.body { Some(j) } else { None };
+        if let Err(why) = crate::helper_api::may_write(id, &c.path, body) {
+            return (403, json!({ "error": why }));
+        }
+    }
     let kind = if matches!(c.body, CallBody::Bytes(_)) { "application/octet-stream" } else { "application/json" };
     let mut req = axum::http::Request::builder().method(c.verb).uri(&c.path).header("content-type", kind);
     if let Some(ext) = req.extensions_mut() {

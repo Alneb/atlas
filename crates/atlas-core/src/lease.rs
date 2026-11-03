@@ -176,6 +176,11 @@ impl<H: Clone + Eq + Serialize + DeserializeOwned> Leases<H> {
         }
     }
 
+    /// Every path in the table with its last version and the ones it replaced (a device's catch-up), oldest first.
+    pub fn recent(&self) -> Vec<(String, Option<H>, Vec<Option<H>>)> {
+        self.table.lock().expect("leases").iter().map(|(p, e)| (p.clone(), e.version.clone(), e.past.clone())).collect()
+    }
+
     /// The last version known for `path`, if it was ever asked for.
     pub fn version(&self, path: &str) -> Option<Option<H>> {
         self.table.lock().expect("leases").get(path).map(|e| e.version.clone())

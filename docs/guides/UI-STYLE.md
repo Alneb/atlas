@@ -34,6 +34,9 @@ The UI matters, and its rules come from reading on style. What was read: Anthrop
 - **A palette** (`ui.palette`: `atlas`, `ink`, `clay`; `styles/palettes.css`) is a colour family over `tokens.css`, in
   light and dark alike, set as `<html data-palette>`. It only redefines tokens; components never test the palette. E-ink
   keeps its own; an accent set in Settings and a VS Code theme (inline on `<html>`) win over it.
+- **High contrast** (`ui.contrast`; `styles/contrast.css`, `<html data-contrast="high">`) sits over any palette: it
+  redefines the surface and text tokens to black or white and full strength, and the accent is recomputed from the
+  palette's own hue (an inline style, like a chosen accent). Components never test it either.
 - **A shape** (`ui.shape`: `cards`, `paper`; `styles/shape-paper.css`) is how surfaces are drawn, set as
   `<html data-shape>`. `cards` is the default described above; `paper` is one flat sheet: panes flush with 1 px rules
   (the dock's gap, `lib/dock.ts`), square corners, a selected tab or row marked by an accent bar, section labels

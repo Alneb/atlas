@@ -1,9 +1,10 @@
 <script lang="ts">
   // The card on a click (Google's): an event's when in local time, where, which calendar, the note it came from,
-  // who comes — with Edit (e), Delete (Del) and Open note. Or, on empty space, a new event's title box: Enter saves,
+  // who comes — with Edit (e), Delete (Del) and Open note; Join for an online meeting, and Going? Yes / Maybe / No for
+  // a meeting the user is invited to in an Exchange calendar (Exchange tells the organiser). Or, on empty space, a new event's title box: Enter saves,
   // "More options" opens the editor.
   import { onMount } from "svelte";
-  import { notePath, ruleText, span, timeText, type Ev } from "./api";
+  import { meetingLink, notePath, ruleText, span, timeText, type Answer, type Ev } from "./api";
   import type { Cal, Draft } from "./store.svelte";
   import CalendarPicker from "./CalendarPicker.svelte";
   import Icon from "./Icon.svelte";
@@ -41,6 +42,17 @@
     await cal.create({ summary: title.trim() || "(no title)", start: draft.all_day ? d(draft.start) : w(draft.start), end: draft.all_day ? d(draft.end) : w(draft.end), all_day: draft.all_day, calendar: target || undefined });
   }
   const note = $derived(e ? notePath(e) : null);
+  const join = $derived(e ? meetingLink(e) : null);
+  const ANSWERS: [Answer, string][] = [["ACCEPTED", "Yes"], ["TENTATIVE", "Maybe"], ["DECLINED", "No"]];
+  // the card's own copy: `e` is the event as it was when the card opened, the store's list moves on without it
+  // svelte-ignore state_referenced_locally
+  let answer = $state(e?.answer);
+  async function answerWith(ps: Answer) {
+    if (!e || answer === ps) return;
+    const before = answer;
+    answer = ps;
+    if (!(await cal.respond(e, ps))) answer = before;
+  }
   const draftWhen = $derived(draft ? (draft.all_day ? `${draft.start.toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" })} · all day` : `${draft.start.toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" })} · ${timeText(draft.start, cal.h12)} – ${timeText(draft.end, cal.h12)}`) : "");
 </script>
 
@@ -59,6 +71,16 @@
         {#if e.status === "CANCELLED"}<p class="sub warn">Cancelled</p>{/if}
       </div>
     </div>
+    <!-- the answer first: the description of an online meeting is long and pushed it out of sight -->
+    {#if answer}
+      <div class="answer" role="group" aria-label="Going?">
+        <span>Going?</span>
+        {#each ANSWERS as [ps, label] (ps)}
+          <button class="atlas-btn" class:chosen={answer === ps} aria-pressed={answer === ps} onclick={() => void answerWith(ps)}>{label}</button>
+        {/each}
+      </div>
+    {/if}
+    {#if join}<a class="atlas-btn join" href={join} target="_blank" rel="noreferrer" data-outside title="Opens in your browser (Teams, Zoom… take it from there)"><Icon name="video" size={14} />Join the meeting</a>{/if}
     {#if e.location}<p class="line"><Icon name="pin" size={14} />{#if /^https?:\/\//.test(e.location)}<a href={e.location} target="_blank" rel="noreferrer">{e.location}</a>{:else}{e.location}{/if}</p>{/if}
     {#if e.organizer || e.attendees?.length}
       <div class="line people"><Icon name="people" size={14} />
@@ -114,5 +136,9 @@
   .atlas-btn { display: inline-flex; align-items: center; gap: 6px; justify-self: start; }
   .title { all: unset; font-size: 1.15em; font-weight: 600; color: var(--heading); border-bottom: 2px solid var(--accent); padding: 4px 0; }
   .title::placeholder { color: var(--text-faint); font-weight: 400; }
+  .join { text-decoration: none; }
+  .answer { display: flex; align-items: center; gap: 6px; padding: 6px 0; font-size: 0.9em; }
+  .answer span { color: var(--text-muted); margin-right: auto; }
+  .answer .chosen { background: var(--accent-soft); border-color: var(--accent); color: var(--accent-strong, var(--accent)); }
   .acts { display: flex; justify-content: flex-end; gap: 8px; }
 </style>

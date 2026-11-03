@@ -31,6 +31,9 @@ media?.addEventListener("change", () => settings.config && apply(settings.config
 // the system's reduced motion counts as ui.motion = "instant" (a shortened animation that repeats forever would spin flat out)
 const still = typeof matchMedia === "function" ? matchMedia("(prefers-reduced-motion: reduce)") : null;
 still?.addEventListener("change", () => settings.config && apply(settings.config));
+// ui.contrast = "system": the desktop's "more contrast"
+const more = typeof matchMedia === "function" ? matchMedia("(prefers-contrast: more)") : null;
+more?.addEventListener("change", () => settings.config && apply(settings.config));
 
 function apply(c: WorkspaceConfig): void {
   const root = document.documentElement;
@@ -42,6 +45,9 @@ function apply(c: WorkspaceConfig): void {
   const theme = eink ? "light" : c.ui.theme === "system" || inPhoneApp() ? (media?.matches ? "light" : "dark") : c.ui.theme;
   paintTheme(theme);
   root.dataset.palette = (theme === "dark" && c.ui.palette_dark) || c.ui.palette; // palettes.css: the night's own, if set
+  const high = !eink && (c.ui.contrast === "high" || (c.ui.contrast === "system" && !!more?.matches));
+  if (high) root.dataset.contrast = "high"; // contrast.css
+  else delete root.dataset.contrast;
   root.dataset.shape = c.ui.shape; // shape-paper.css
   app.vimEnabled = c.vim;
   const px = (n: number) => `${n}px`;
@@ -55,7 +61,7 @@ function apply(c: WorkspaceConfig): void {
   root.style.setProperty("--prose-line-height", String(c.editor.prose_line_height || 1.68));
   if (c.ui.ui_font.trim()) root.style.setProperty("--font-ui", font(c.ui.ui_font, "ui-sans-serif, system-ui, sans-serif"));
   else root.style.removeProperty("--font-ui");
-  applyAccent(root, c.ui.accent.trim());
+  applyAccent(root, high ? phosphorAccent(root, c.ui.accent.trim(), theme === "light") : c.ui.accent.trim());
   root.style.setProperty("--prose-width", c.editor.prose_width ? `${c.editor.prose_width}ch` : "none");
   for (const f of listeners) f(c);
 }
@@ -64,11 +70,50 @@ function apply(c: WorkspaceConfig): void {
 // what is selected or in front (rows, the open tab: --bg-active), so it shows beyond links and a 2 px bar, and the
 // text on it is black or white, whichever reads (a yellow accent had white text on it).
 const ACCENT_VARS = ["--accent", "--accent-strong", "--accent-soft", "--accent-sel", "--link", "--tag-bg", "--tag-color", "--bg-active", "--accent-fg"];
-/** Black or white on `hex`, by its luminance (WCAG's relative luminance, threshold where both contrasts meet). */
-const onColour = (hex: string): string => {
+/** WCAG relative luminance of `#rrggbb`. */
+const luminance = (hex: string): number => {
   const lin = (i: number) => { const c = parseInt(hex.slice(i, i + 2), 16) / 255; return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4; };
-  return 0.2126 * lin(1) + 0.7152 * lin(3) + 0.0722 * lin(5) > 0.179 ? "#0b0d12" : "#ffffff";
+  return 0.2126 * lin(1) + 0.7152 * lin(3) + 0.0722 * lin(5);
 };
+/** Black or white on `hex`, whichever reads (threshold where both contrasts meet). */
+const onColour = (hex: string): string => (luminance(hex) > 0.179 ? "#0b0d12" : "#ffffff");
+const toHex = (r: number, g: number, b: number) => "#" + [r, g, b].map((x) => Math.round(Math.max(0, Math.min(1, x)) * 255).toString(16).padStart(2, "0")).join("");
+/** `#rrggbb` from hue (degrees), saturation and lightness (0–1). */
+const hsl = (h: number, s: number, l: number): string => {
+  const k = (n: number) => (n + h / 30) % 12, a = s * Math.min(l, 1 - l);
+  const f = (n: number) => l - a * Math.max(-1, Math.min(k(n) - 3, 9 - k(n), 1));
+  return toHex(f(0), f(8), f(4));
+};
+/** The hue and saturation of a CSS colour as the browser resolves it (any syntax a palette uses). */
+const hueOf = (css: string): { h: number; s: number } | null => {
+  const m = css.match(/rgba?\(\s*([\d.]+)[ ,]+([\d.]+)[ ,]+([\d.]+)/) ?? css.match(/^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i);
+  if (!m) return null;
+  const [r, g, b] = m.slice(1, 4).map((x) => (css.startsWith("#") ? parseInt(x, 16) : Number(x)) / 255);
+  const max = Math.max(r, g, b), min = Math.min(r, g, b), d = max - min;
+  if (d === 0) return { h: 0, s: 0 };
+  const h = max === r ? ((g - b) / d) % 6 : max === g ? (b - r) / d + 2 : (r - g) / d + 4;
+  return { h: (h * 60 + 360) % 360, s: d / (1 - Math.abs(max + min - 1)) };
+};
+/** High contrast's accent: the chosen one, else the scheme's, at full saturation and as bright (by night) or deep
+ *  (by day) as it must be to stand at 8:1 on black or 7:1 on white — the hue kept, so each scheme stays itself.
+ *  A grey accent (graphite) stays grey: pure white or black. */
+function phosphorAccent(root: HTMLElement, chosen: string, light: boolean): string {
+  let base = chosen;
+  if (!/^#[0-9a-f]{6}$/i.test(base)) {
+    for (const v of ACCENT_VARS) root.style.removeProperty(v); // read the palette's own, not the last inline one
+    accentSet = "";
+    base = getComputedStyle(root).getPropertyValue("--accent").trim();
+  }
+  const hs = hueOf(base);
+  if (!hs) return chosen;
+  const s = hs.s < 0.12 ? 0 : 1;
+  for (let i = 0; i <= 50; i++) {
+    const l = light ? 0.5 - i * 0.01 : 0.5 + i * 0.01;
+    const hex = hsl(hs.h, s, l), y = luminance(hex);
+    if (light ? 1.05 / (y + 0.05) >= 7 : (y + 0.05) / 0.05 >= 8) return hex;
+  }
+  return light ? "#000000" : "#ffffff";
+}
 let accentSet = "";
 function applyAccent(root: HTMLElement, hex: string): void {
   const ok = /^#[0-9a-f]{6}$/i.test(hex);

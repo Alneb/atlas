@@ -62,6 +62,9 @@ test("the vaults block offers a new vault and an existing folder, as the vault s
   const block = page.getByTestId("vaults-block");
   await expect(block.getByRole("button", { name: "New vault…" })).toBeEnabled();
   await expect(block.getByRole("button", { name: "Open a folder…" })).toBeEnabled();
+  // a core with no screen has no folder dialog (404): the folder is typed instead
+  await block.getByRole("button", { name: "New vault…" }).click();
+  await expect(page.getByRole("dialog", { name: "Command palette" }).getByPlaceholder(/Where the new vault goes/)).toBeVisible();
 });
 
 test("`atlas serve` in a bare home folder names what to do instead of serving the whole home", () => {

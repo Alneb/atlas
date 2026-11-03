@@ -313,6 +313,10 @@ pub struct UiConfig {
     /// Colour scheme by night (the dark theme). Empty: the day's.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub palette_dark: Option<Palette>,
+    /// Contrast: `high` turns any colour scheme up — black or white paper, full-strength text and rules, and the
+    /// scheme's accent pushed to a phosphor-bright tone (with a faint glow on links by night). `system` follows the
+    /// desktop's "more contrast" setting.
+    pub contrast: Contrast,
     /// Shapes: `cards` (panes as rounded cards floating on the window) or `paper` (one flat sheet: panes flush,
     /// hairline rules between them, square corners, the selected tab or row marked by a bar).
     pub shape: Shape,
@@ -490,6 +494,20 @@ pub enum Shape {
     /// One flat sheet: flush panes, hairline rules, square corners.
     #[default]
     Paper,
+}
+
+/// How strongly the colour scheme is drawn (palettes.css, then contrast.css over it).
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, TS, JsonSchema)]
+#[serde(rename_all = "lowercase")]
+#[ts(export)]
+pub enum Contrast {
+    /// The scheme as drawn.
+    #[default]
+    Normal,
+    /// Black or white paper, full-strength text, the accent phosphor-bright.
+    High,
+    /// High when the desktop asks for more contrast, else normal.
+    System,
 }
 
 /// Short (≈120 ms) transitions and fades by default; e-ink screens and the system's reduced motion turn them off.
@@ -704,6 +722,19 @@ pub enum WebLinks {
     Browser,
 }
 
+/// How the desktop app on Linux shows a web page in a tab.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, TS, JsonSchema)]
+#[serde(rename_all = "lowercase")]
+#[ts(export)]
+pub enum WebTabView {
+    /// Inside the pane, like any part of Atlas: menus and previews draw over it. Sites that forbid being framed show all
+    /// the same, signed in (Atlas's WebKit hook lifts that for its own page only).
+    #[default]
+    Frame,
+    /// A browser view laid over the pane: it hides while a menu or a preview covers it.
+    Native,
+}
+
 /// When a notice (a failed schedule, a filed capture, a conflict copy, a plugin's word) also reaches the system's
 /// notifications, outside Atlas's window.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, TS, JsonSchema)]
@@ -742,11 +773,14 @@ pub struct WebConfig {
     /// Filter lists in Adblock Plus / uBlock Origin syntax, fetched once a week (uBlock's extended syntax — scriptlets —
     /// has no WebKit equivalent and is skipped). A change applies to the next window.
     pub filter_lists: Vec<String>,
+    /// Linux desktop app: a web tab is a frame inside the pane, or a browser view over it. A change applies to the next tab.
+    pub tab_view: WebTabView,
 }
 
 impl Default for WebConfig {
     fn default() -> Self {
         Self {
+            tab_view: WebTabView::Frame,
             open_links: WebLinks::Tab,
             block_ads: true,
             filter_lists: vec![
@@ -998,7 +1032,7 @@ impl Default for Config {
 
 impl Default for UiConfig {
     fn default() -> Self {
-        Self { theme: Theme::System, accent: String::new(), palette: Palette::default(), palette_dark: None, shape: Shape::default(), ui_font: String::new(), font_size: 14, gpu_rendering: GpuRendering::Auto, css_snippets_off: Vec::new(), tabs: TabsLayout::Vertical, side_panel: SidePanelPlace::Dock, motion: Motion::default(), eink: Eink::Auto, eink_refresh: EinkRefresh::Often, restore_layout: true, tab_preview: true, tab_switcher: TabSwitcher::Glance, sleep_after_min: 10, awake_tabs: 8, libraries: Vec::new(), apps_order: Vec::new(), apps_hidden: Vec::new() }
+        Self { theme: Theme::System, accent: String::new(), palette: Palette::default(), palette_dark: None, contrast: Contrast::default(), shape: Shape::default(), ui_font: String::new(), font_size: 14, gpu_rendering: GpuRendering::Auto, css_snippets_off: Vec::new(), tabs: TabsLayout::Vertical, side_panel: SidePanelPlace::Dock, motion: Motion::default(), eink: Eink::Auto, eink_refresh: EinkRefresh::Often, restore_layout: true, tab_preview: true, tab_switcher: TabSwitcher::Glance, sleep_after_min: 10, awake_tabs: 8, libraries: Vec::new(), apps_order: Vec::new(), apps_hidden: Vec::new() }
     }
 }
 

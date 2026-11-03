@@ -17,6 +17,20 @@ export interface Ev {
   description?: string; recurring: boolean; rrule?: string; source?: string; status?: string; free: boolean;
   organizer?: Person; attendees?: Person[]; url?: string; tzid?: string;
   calendar: string; calendar_name: string; color?: string; href?: string; writable: boolean;
+  /** the user's answer to a meeting they are invited to in an Exchange calendar (the card's Yes / Maybe / No) */
+  answer?: Answer | "NEEDS-ACTION";
+}
+export type Answer = "ACCEPTED" | "TENTATIVE" | "DECLINED";
+
+/** The online meeting's join link (Teams, Zoom, Meet, Webex, Jitsi), from where an invitation puts it: the location,
+ *  the URL, else the description. */
+const MEETING = /https:\/\/(?:teams\.microsoft\.com\/(?:l\/meetup-join|meet)\/|teams\.live\.com\/meet\/|[\w.-]*zoom\.us\/(?:j|my|w)\/|meet\.google\.com\/[a-z]|[\w.-]*webex\.com\/(?:meet|join|[\w.-]+\/j\.php)|meet\.jit\.si\/)[^\s<>"')\]]*/i;
+export function meetingLink(e: Ev): string | null {
+  for (const t of [e.location, e.url, e.description]) {
+    const m = t?.match(MEETING);
+    if (m) return m[0].replace(/[.,;]+$/, "");
+  }
+  return null;
 }
 export interface Quick { title: string; all_day: boolean; start: string; end: string; rrule?: string; location?: string; understood: string[] }
 

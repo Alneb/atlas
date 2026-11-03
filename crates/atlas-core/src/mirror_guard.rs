@@ -21,6 +21,45 @@ pub struct Unreachable(pub String);
 pub trait LeaseLink: Send + Sync {
     fn ask(&self, path: &str, have: Option<ContentHash>) -> std::result::Result<Answer<ContentHash>, Unreachable>;
     fn done(&self, path: &str, version: Option<ContentHash>);
+    /// Whether the content rides with the lease (§ step 7): a device's link does; the server's own core is the copy.
+    fn carries(&self) -> bool {
+        false
+    }
+    /// [`LeaseLink::done`] with the content the server writes into its copy as this lease's holder.
+    fn done_with(&self, path: &str, version: Option<ContentHash>, _carry: Carry) {
+        self.done(path, version)
+    }
+    /// The server's copy of `path` (`None`: it has none), to bring this copy up to the last version.
+    fn fetch(&self, path: &str) -> std::result::Result<Option<Vec<u8>>, Unreachable> {
+        Err(Unreachable(format!("{path}: this link carries no files")))
+    }
+    /// The server's recent versions, `path → (last, the versions it replaced)`: what a catch-up compares this copy with.
+    fn versions(&self) -> std::result::Result<Vec<Recent>, Unreachable> {
+        Err(Unreachable("this link carries no files".into()))
+    }
+}
+
+/// What a write hands the server with its lease: the new bytes, the file gone, or nothing (too large for the mirror,
+/// left to Syncthing; or a link that does not carry).
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Carry {
+    /// base64
+    Bytes(String),
+    Gone,
+    Nothing,
+}
+
+/// Files larger than this are not carried by the mirror (named in the log; Syncthing, if running, carries them).
+pub const CARRY_MAX: u64 = 16 * 1024 * 1024;
+
+/// One path of the server's table, for a catch-up.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct Recent {
+    pub path: String,
+    pub version: Option<ContentHash>,
+    #[serde(default)]
+    pub past: Vec<Option<ContentHash>>,
 }
 
 /// A lease held by this core's writes of one path.
@@ -117,6 +156,13 @@ impl<L: LeaseLink> LeaseGuard<L> {
                 }
                 Ok(Answer::Wait(why)) => why,
             };
+            // behind: the server's copy brought here at once (no Syncthing needed); a change computed from the old copy
+            // then fails as before (the caller reads again, now the last version), an addition goes on top of it
+            if let Why::Behind { last } = &why {
+                if self.pull(rel, last) && adds {
+                    continue;
+                }
+            }
             match &why {
                 Why::Behind { .. } if !adds => return Err(Error::Conflict { current: None }),
                 _ if Instant::now() >= until => {
@@ -161,9 +207,89 @@ impl<L: LeaseLink> LeaseGuard<L> {
     fn finish(&self, rel: &str, version: Option<ContentHash>) {
         if let Some(shared) = self.last_out(rel) {
             // after overlapping writes, the one finishing last may not be the one that wrote last: the disk says
-            self.link.done(rel, if shared { self.disk(rel) } else { version });
+            let version = if shared { self.disk(rel) } else { version };
+            if self.link.carries() {
+                self.link.done_with(rel, version, self.carry(rel));
+            } else {
+                self.link.done(rel, version);
+            }
             self.keep_base(rel);
         }
+    }
+
+    /// What this copy's `rel` hands the server: its bytes, gone, or nothing when too large to carry.
+    fn carry(&self, rel: &str) -> Carry {
+        use base64::Engine;
+        let abs = self.root.join(rel);
+        match std::fs::metadata(&abs) {
+            Err(_) => Carry::Gone,
+            Ok(m) if !m.is_file() => Carry::Nothing,
+            Ok(m) if m.len() > CARRY_MAX => {
+                eprintln!("atlas: mirror: {rel} ({} MB) is too large for the mirror to carry: Syncthing must", m.len() / (1024 * 1024));
+                Carry::Nothing
+            }
+            Ok(_) => std::fs::read(&abs).map_or(Carry::Nothing, |b| Carry::Bytes(base64::engine::general_purpose::STANDARD.encode(b))),
+        }
+    }
+
+    /// Brings `rel` here as the server has it, when that is the last version (`last`): written as Syncthing would (no
+    /// lease: it *is* the last version), the base kept. False when nothing came (no server, its disk not there yet).
+    fn pull(&self, rel: &str, last: &Option<ContentHash>) -> bool {
+        if !self.link.carries() {
+            return false;
+        }
+        let got = match self.link.fetch(rel) {
+            Ok(got) => got,
+            Err(Unreachable(e)) => {
+                eprintln!("atlas: mirror: could not bring {rel} from the server ({e})");
+                return false;
+            }
+        };
+        if got.as_deref().map(ContentHash::of) != *last {
+            return false; // the server's disk lags its table (the last write came by another way): wait for it
+        }
+        let abs = self.root.join(rel);
+        let written = match got {
+            Some(bytes) => crate::vault_write::incoming::write(&abs, &bytes),
+            None if abs.is_file() => crate::vault_write::incoming::remove_file(&abs),
+            None => Ok(()),
+        };
+        match written {
+            Ok(()) => {
+                self.keep_base(rel);
+                true
+            }
+            Err(e) => {
+                eprintln!("atlas: mirror: could not write {rel} as the server has it: {e}");
+                false
+            }
+        }
+    }
+
+    /// A catch-up (at start, then now and then): every path the server wrote lately that this copy has an older
+    /// version of — one it held before (its base), one the table saw replaced, or none — brought here. A path changed
+    /// here meanwhile (offline) is left alone: its next write is behind, and merged (§4).
+    pub fn catch_up(&self) -> usize {
+        if !self.link.carries() {
+            return 0;
+        }
+        let Ok(recent) = self.link.versions() else { return 0 };
+        let mut brought = 0;
+        for r in recent {
+            if r.path.starts_with(".atlas/cache/") || self.granted.lock().unwrap_or_else(|e| e.into_inner()).contains_key(&r.path) {
+                continue;
+            }
+            let here = self.disk(&r.path);
+            if here == r.version {
+                continue;
+            }
+            let base = std::fs::read(base_path(&self.root, &r.path)).ok().map(|b| ContentHash::of(&b));
+            let older = here.is_none() || here == base || r.past.contains(&here);
+            if older && self.pull(&r.path, &r.version) {
+                brought += 1;
+            }
+        }
+        brought
     }
 }
 
@@ -254,13 +380,33 @@ pub struct Local {
     pub holder: Holder,
 }
 
+thread_local! {
+    /// While the server writes a device's carried content: that device, the lease's holder, in place of the server.
+    static AS_HOLDER: std::cell::RefCell<Option<Holder>> = const { std::cell::RefCell::new(None) };
+}
+
+/// Runs `op` (a write of the server's copy) as `holder`, whose lease it is: the write is granted on that lease and its
+/// finish hands the lease back with the new version, as the device's own `done` would.
+pub fn as_holder<T>(holder: &str, op: impl FnOnce() -> T) -> T {
+    AS_HOLDER.with(|h| *h.borrow_mut() = Some(holder.to_string()));
+    let out = op();
+    AS_HOLDER.with(|h| *h.borrow_mut() = None);
+    out
+}
+
+impl Local {
+    fn who(&self) -> Holder {
+        AS_HOLDER.with(|h| h.borrow().clone()).unwrap_or_else(|| self.holder.clone())
+    }
+}
+
 impl LeaseLink for Local {
     fn ask(&self, path: &str, have: Option<ContentHash>) -> std::result::Result<Answer<ContentHash>, Unreachable> {
         let disk = || std::fs::read(self.root.join(path)).ok().map(|b| ContentHash::of(&b));
-        Ok(self.leases.ask(path, &self.holder, have, disk, HOLD, Instant::now()))
+        Ok(self.leases.ask(path, &self.who(), have, disk, HOLD, Instant::now()))
     }
     fn done(&self, path: &str, version: Option<ContentHash>) {
-        self.leases.done(path, &self.holder, version);
+        self.leases.done(path, &self.who(), version);
     }
 }
 
@@ -277,6 +423,23 @@ pub struct DoneBody {
     pub path: String,
     pub holder: Holder,
     pub version: Option<ContentHash>,
+    /// absent from an older device: Syncthing carries the file
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub carry: Option<Carry>,
+}
+
+/// `POST <mirror>api/lease/file` and `…/versions`: who asks, and for `file` which path.
+#[derive(serde::Serialize, serde::Deserialize)]
+pub struct FileBody {
+    #[serde(default)]
+    pub path: String,
+    pub holder: Holder,
+}
+
+/// The server's copy of a path: base64, or `null` when it has none.
+#[derive(serde::Serialize, serde::Deserialize)]
+pub struct FileAnswer {
+    pub content: Option<String>,
 }
 
 /// The answer on the wire: `{"granted":true}`, `{"held_by":"phone"}`, `{"behind":true,"last":"<hex>"|null}`.
@@ -364,9 +527,26 @@ impl LeaseLink for Remote {
         serde_json::from_str::<AnswerBody>(&text).map_err(|e| Unreachable(e.to_string()))?.answer()
     }
     fn done(&self, path: &str, version: Option<ContentHash>) {
-        if let Err(Unreachable(e)) = self.post("done", DoneBody { path: path.into(), holder: self.holder.clone(), version }) {
+        self.done_with(path, version, Carry::Nothing)
+    }
+    fn carries(&self) -> bool {
+        true
+    }
+    fn done_with(&self, path: &str, version: Option<ContentHash>, carry: Carry) {
+        let carry = (carry != Carry::Nothing).then_some(carry);
+        if let Err(Unreachable(e)) = self.post("done", DoneBody { path: path.into(), holder: self.holder.clone(), version, carry }) {
             eprintln!("atlas: mirror: could not hand back the lease of {path} ({e}); it runs out by itself");
         }
+    }
+    fn fetch(&self, path: &str) -> std::result::Result<Option<Vec<u8>>, Unreachable> {
+        use base64::Engine;
+        let text = self.post("file", FileBody { path: path.into(), holder: self.holder.clone() })?;
+        let a: FileAnswer = serde_json::from_str(&text).map_err(|e| Unreachable(e.to_string()))?;
+        a.content.map(|c| base64::engine::general_purpose::STANDARD.decode(c).map_err(|e| Unreachable(e.to_string()))).transpose()
+    }
+    fn versions(&self) -> std::result::Result<Vec<Recent>, Unreachable> {
+        let text = self.post("versions", FileBody { path: String::new(), holder: self.holder.clone() })?;
+        serde_json::from_str(&text).map_err(|e| Unreachable(e.to_string()))
     }
 }
 
@@ -396,9 +576,31 @@ pub fn install_for_mirror(ws: &crate::Workspace) {
     match mirror_of(ws.root()) {
         Some(mirror) => {
             let link = Remote { mirror, holder: device_id(), store: crate::secrets::Store::for_vault(ws.root()) };
-            ws.set_write_guard(Arc::new(LeaseGuard::new(ws.root(), link)));
+            let guard = Arc::new(LeaseGuard::new(ws.root(), link));
+            ws.set_write_guard(guard.clone());
+            catch_up_now_and_then(Arc::downgrade(&guard));
         }
         None => ws.clear_write_guard(),
+    }
+}
+
+/// How often a device brings what the server wrote lately (a write of a path behind brings it at once anyway).
+const CATCH_UP_EVERY: Duration = Duration::from_secs(60);
+
+/// A thread that catches this copy up at once, then every [`CATCH_UP_EVERY`], while the guard lives (a vault closed or
+/// unmirrored drops it, and the thread ends).
+fn catch_up_now_and_then<L: LeaseLink + 'static>(guard: std::sync::Weak<LeaseGuard<L>>) {
+    let spawned = std::thread::Builder::new().name("mirror-catch-up".into()).spawn(move || loop {
+        let Some(g) = guard.upgrade() else { return };
+        let n = g.catch_up();
+        if n > 0 {
+            eprintln!("atlas: mirror: brought {n} file(s) the server wrote");
+        }
+        drop(g);
+        std::thread::sleep(CATCH_UP_EVERY);
+    });
+    if let Err(e) = spawned {
+        eprintln!("atlas: mirror: no catch-up thread: {e}");
     }
 }
 

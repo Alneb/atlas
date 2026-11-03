@@ -17,8 +17,8 @@
     <p class="muted">This Atlas serves one folder. Another vault is served by starting <code>atlas serve</code> on it.</p>
   {:else}
     <div class="row">
-      <button class="btn primary" disabled={manage === null} onclick={() => askFolder(true)}><Icon name="plus" size={14} /> New vault…</button>
-      <button class="btn btn-ghost" disabled={manage === null} onclick={() => askFolder(false)}><Icon name="folder-open" size={14} /> Open a folder…</button>
+      <button class="btn primary" disabled={manage === null} onclick={() => void askFolder(true)}><Icon name="plus" size={14} /> New vault…</button>
+      <button class="btn btn-ghost" disabled={manage === null} onclick={() => void askFolder(false)}><Icon name="folder-open" size={14} /> Open a folder…</button>
       <button class="btn btn-ghost" disabled={manage === null} onclick={() => askServer()}><Icon name="server" size={14} /> Connect to a server…</button>
       {#if others}<button class="btn btn-ghost" onclick={() => void chooseVault()}><Icon name="folder" size={14} /> Your vaults ({others})…</button>{/if}
     </div>

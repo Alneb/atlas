@@ -1,6 +1,7 @@
 //! The mirror's leases end to end (docs/design/DESIGN-mirror-v2.md §2): a server core with the password sign-in, a
 //! desktop vault whose writes ask it over HTTP (signed in with the cookies the bridge keeps), and the server's own
 //! saves taking the same table — so the two copies are never changed concurrently, what Syncthing makes a conflict of.
+//! The content rides with the leases (step 7): a write reaches the other copy without Syncthing.
 #![allow(clippy::disallowed_methods)] // a test writes its fixtures (and plays Syncthing) directly
 use atlas_core::auth::{hash_password, Auth, AuthMode, ServerSettings};
 use atlas_core::mirror_guard::{LeaseGuard, Remote};
@@ -11,7 +12,7 @@ use reqwest::{redirect, StatusCode};
 use std::sync::Arc;
 
 #[tokio::test(flavor = "multi_thread")]
-async fn a_desktop_write_takes_the_servers_lease_and_the_servers_stale_save_is_refused() {
+async fn the_mirror_carries_writes_both_ways_without_syncthing() {
     let (server, desktop, keys, secrets) = (tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap());
     for d in [&server, &desktop] {
         std::fs::write(d.path().join("log.md"), "v1\n").unwrap();
@@ -30,28 +31,53 @@ async fn a_desktop_write_takes_the_servers_lease_and_the_servers_stale_save_is_r
     let cookie = Cookie { name: name.into(), value: value.into(), domain: "127.0.0.1".into(), host_only: true, path: "/".into(), secure: false, expires: None };
     keep(&store, "127.0.0.1", vec![cookie]).unwrap();
     let remote = Remote { mirror: format!("{base}/"), holder: "desktop".into(), store };
-    ws.set_write_guard(Arc::new(LeaseGuard::new(ws.root(), remote)));
+    let guard = Arc::new(LeaseGuard::new(ws.root(), remote));
+    ws.set_write_guard(guard.clone());
 
     let root = ws.root().to_path_buf();
     let put = |text: &str| http.put(format!("{base}/api/file")).header("x-atlas", "1").header("cookie", &session).json(&serde_json::json!({ "path": "log.md", "text": text }));
+    let on_server = || std::fs::read_to_string(server.path().join("log.md")).ok();
+    let here = || std::fs::read_to_string(desktop.path().join("log.md")).ok();
+    let write = |text: &'static str| {
+        let root = root.clone();
+        tokio::task::spawn_blocking(move || vault_write::write(&root.join("log.md"), text.as_bytes()))
+    };
 
-    // the desktop writes v2 through the funnel: granted (both copies are v1), then handed back with v2's hash
-    tokio::task::spawn_blocking(move || vault_write::write(&root.join("log.md"), b"v2\n")).await.unwrap().unwrap();
-    // the phone saves on the server, whose copy is still v1: refused, never written on top of the old version
-    let stale = put("phone edit on v1\n").send().await.unwrap();
-    assert_eq!(stale.status(), StatusCode::CONFLICT, "{:?}", stale.text().await);
-    assert_eq!(std::fs::read_to_string(server.path().join("log.md")).unwrap(), "v1\n");
-    // Syncthing carries v2 over; now the server's save goes on top of it
-    std::fs::write(server.path().join("log.md"), "v2\n").unwrap();
+    // the desktop writes v2 through the funnel: granted (both copies are v1), and the content rides with the lease —
+    // the server's copy is v2 at once, no Syncthing needed
+    write("v2\n").await.unwrap().unwrap();
+    assert_eq!(on_server().as_deref(), Some("v2\n"));
+    // the phone saves on the server, on top of v2
     assert!(put("v3 from the phone\n").send().await.unwrap().status().is_success());
 
-    // the desktop's copy is now behind (v2 while the last version is v3): its write is refused too
-    let root = ws.root().to_path_buf();
-    let behind = tokio::task::spawn_blocking(move || vault_write::write(&root.join("log.md"), b"desktop on v2\n")).await.unwrap();
+    // the desktop's copy is behind (v2): a change computed from it is refused, and the server's v3 is brought here meanwhile
+    let behind = write("desktop on v2\n").await.unwrap();
     assert!(matches!(behind, Err(atlas_core::Error::Conflict { .. })), "{behind:?}");
-    assert_eq!(std::fs::read_to_string(desktop.path().join("log.md")).unwrap(), "v2\n");
-    // a base was kept for the desktop's granted write
-    assert_eq!(std::fs::read_to_string(atlas_core::mirror_guard::base_path(ws.root(), "log.md")).unwrap(), "v2\n");
+    assert_eq!(here().as_deref(), Some("v3 from the phone\n"), "the last version, pulled");
+    assert_eq!(std::fs::read_to_string(atlas_core::mirror_guard::base_path(ws.root(), "log.md")).unwrap(), "v3 from the phone\n", "the base follows");
+    // an append goes on top of it, and reaches the server
+    let root2 = ws.root().to_path_buf();
+    tokio::task::spawn_blocking(move || vault_write::append(&root2.join("log.md"), b"- from the desktop\n")).await.unwrap().unwrap();
+    assert_eq!(on_server().as_deref(), Some("v3 from the phone\n- from the desktop\n"));
+
+    // the phone writes again; the desktop writes nothing, and its catch-up brings it (and a note the phone made)
+    assert!(put("v4 from the phone\n").send().await.unwrap().status().is_success());
+    let made = http.put(format!("{base}/api/file")).header("x-atlas", "1").header("cookie", &session).json(&serde_json::json!({ "path": "notes/new.md", "text": "made on the phone\n" }));
+    assert!(made.send().await.unwrap().status().is_success());
+    let g = guard.clone();
+    let brought = tokio::task::spawn_blocking(move || g.catch_up()).await.unwrap();
+    assert_eq!(brought, 2);
+    assert_eq!(here().as_deref(), Some("v4 from the phone\n"));
+    assert_eq!(std::fs::read_to_string(desktop.path().join("notes/new.md")).unwrap(), "made on the phone\n");
+    // a file changed here and never handed back (an offline edit) is left alone by the catch-up
+    std::fs::write(desktop.path().join("notes/new.md"), "edited offline\n").unwrap();
+    let g = guard.clone();
+    assert_eq!(tokio::task::spawn_blocking(move || g.catch_up()).await.unwrap(), 0);
+
+    // a deletion rides too
+    let root3 = ws.root().to_path_buf();
+    tokio::task::spawn_blocking(move || vault_write::remove_file(&root3.join("log.md"))).await.unwrap().unwrap();
+    assert_eq!(on_server(), None, "removed on the server too");
 
     // a device may not pass itself off as the server's own core, nor reach outside the vault
     let ask = |body: serde_json::Value| http.post(format!("{base}/api/lease/ask")).header("x-atlas", "1").header("cookie", &session).json(&body);

@@ -51,6 +51,16 @@ export function superOf(e: KeyboardEvent | MouseEvent): boolean {
   return e.metaKey || superHeld || e.getModifierState?.("Super") || e.getModifierState?.("OS") || false;
 }
 
+/** macOS, where Cmd is both Super (Atlas's app keys) and the system's editing key. */
+export const isMac = (): boolean => typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
+const MAC_EDITING = new Set(["KeyC", "KeyV", "KeyX", "KeyA", "KeyZ"]);
+
+/** Cmd+C / V / X / A / Z (and Cmd+Shift+Z) on macOS: copy, paste, cut, select all, undo, redo — the system's, in every
+ *  text field and terminal, so no Atlas command bound to Super+C (Capture) or Super+V (the next vault) takes them there. */
+export function systemEditingChord(e: KeyboardEvent): boolean {
+  return e.metaKey && !e.ctrlKey && !e.altKey && MAC_EDITING.has(e.code) && isMac();
+}
+
 export function matches(c: Chord, e: KeyboardEvent): boolean {
   const meta = superOf(e);
   if (c.char) return e.key === c.char && e.ctrlKey === c.ctrl && e.altKey === c.alt && meta === c.meta;

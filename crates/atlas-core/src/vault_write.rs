@@ -416,6 +416,21 @@ mod raw {
 
 /// Per-device state inside a vault that is never vault content: `.atlas/cache/**` (the index, thumbnails, PDF text,
 /// logs, layouts, recovery copies). No guard: no other device ever reads it as the vault's.
+/// Content that arrives from the vault's other copy (the mirror bringing the server's last version,
+/// mirror_guard.rs): written as Syncthing would write it — atomically, never asking a guard, since it *is* the last
+/// version and the lease table already knows it. The watchers see it as any outside change.
+pub mod incoming {
+    use super::*;
+
+    pub fn write(abs: &Path, bytes: &[u8]) -> Result<()> {
+        raw::atomic(abs, raw::Replace::Always, |f| Ok(f.write_all(bytes)?)).map(|_| ())
+    }
+
+    pub fn remove_file(abs: &Path) -> Result<()> {
+        Ok(std::fs::remove_file(abs)?)
+    }
+}
+
 pub mod cache {
     use super::*;
 

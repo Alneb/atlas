@@ -1,7 +1,7 @@
 // The Calendar pane's state: the calendars, the events of the range on screen (from the engine's cache, at once),
 // the view and the day it is on, and every change — made on screen first (optimistic), written behind, with an Undo
 // in the toast and a roll-back with the reason when the server refuses (UI-STYLE §4).
-import { addDays, addMonths, call, evEnd, evStart, hourCycle, hueColor, startOfDay, startOfWeek, wall, weekStart, ymd, type Account, type Ev, type PluginApi, type Source } from "./api";
+import { addDays, addMonths, call, evEnd, evStart, hourCycle, hueColor, startOfDay, startOfWeek, wall, weekStart, ymd, type Account, type Answer, type Ev, type PluginApi, type Source } from "./api";
 
 export type View = "day" | "week" | "workweek" | "month" | "agenda" | "year";
 export type Scope = "this" | "following" | "all";
@@ -263,6 +263,22 @@ export class Cal {
       this.toast(`${what} “${c.summary ?? e.summary}”`, undefined, this.undoer(r.undo, what));
     } catch (err) {
       this.toast(`Not saved: ${(err as Error).message}`, "error");
+    } finally { await this.load(true); }
+  }
+
+  /** Answers a meeting from its card (Exchange tells the organiser); a series is answered as a whole. */
+  async respond(e: Ev, partstat: Answer): Promise<boolean> {
+    const said = { ACCEPTED: "Going to", TENTATIVE: "Maybe going to", DECLINED: "Declined" }[partstat];
+    const before = this.events;
+    this.events = this.events.map((x) => (x.uid === e.uid && x.calendar === e.calendar ? { ...x, answer: partstat } : x));
+    try {
+      await call(this.atlas, "respond", { calendar: e.calendar, href: e.href, partstat });
+      this.toast(`${said} “${e.summary}” — the organiser is told`);
+      return true;
+    } catch (err) {
+      this.events = before;
+      this.toast(`Not answered: ${(err as Error).message}`, "error");
+      return false;
     } finally { await this.load(true); }
   }
 

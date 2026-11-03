@@ -1,0 +1,57 @@
+/* High contrast (Settings → Appearance → Contrast, `ui.contrast`; lib/settings.svelte.ts sets <html data-contrast="high">):
+   any colour scheme turned up. The paper goes to black or white, text and rules to full strength; the scheme's accent is
+   pushed to a phosphor-bright tone of its own hue in settings.svelte.ts (an inline style, like a chosen accent). It
+   outranks palettes.css by coming after it with one more attribute; e-ink keeps its own black on white. */
+
+:root:not(.eink)[data-contrast="high"]:not([data-theme="light"]) {
+  --bg-app: #000000;
+  --bg: #000000;
+  --bg-alt: #0a0a0a;
+  --card-bg: #0e0e0e;
+  --bg-elev: #141414;
+  --bg-hover: rgba(255, 255, 255, .09);
+  --border: rgba(255, 255, 255, .42);
+  --border-strong: rgba(255, 255, 255, .68);
+  --text: #ffffff;
+  --text-muted: #e2e2e2;
+  --text-faint: #c6c6c6;
+  --heading: #ffffff;
+  --code-bg: #121212;
+  --scrim: rgba(0, 0, 0, .72);
+  --term-bg: #000000;
+  --pdf-bg: #000000;
+  --paper-line: #5a5a5a;
+}
+
+:root:not(.eink)[data-contrast="high"][data-theme="light"] {
+  --bg-app: #ffffff;
+  --bg: #ffffff;
+  --bg-alt: #f6f6f6;
+  --card-bg: #f6f6f6;
+  --bg-elev: #ffffff;
+  --bg-hover: rgba(0, 0, 0, .07);
+  --border: rgba(0, 0, 0, .55);
+  --border-strong: rgba(0, 0, 0, .8);
+  --text: #000000;
+  --text-muted: #1f1f1f;
+  --text-faint: #383838;
+  --heading: #000000;
+  --code-bg: #f2f2f2;
+  --scrim: rgba(0, 0, 0, .35);
+  --term-bg: #ffffff;
+  --pdf-bg: #e6e6e6;
+  --paper-line: #8a8a8a;
+}
+
+/* by night the accent glows faintly, like a phosphor screen: links, the caret, the focused field */
+:root:not(.eink)[data-contrast="high"]:not([data-theme="light"]) :is(.markdown a, .markdown .cm-link, .markdown .cm-hmd-internal-link) {
+  text-shadow: 0 0 6px color-mix(in srgb, var(--link) 55%, transparent);
+}
+:root:not(.eink)[data-contrast="high"]:not([data-theme="light"]) .cm-cursor {
+  border-left-color: var(--accent) !important;
+  box-shadow: 0 0 6px var(--accent);
+}
+:root:not(.eink)[data-contrast="high"] :focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}

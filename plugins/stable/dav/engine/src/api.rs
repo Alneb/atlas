@@ -54,6 +54,7 @@ pub fn table() -> Vec<(&'static str, Method)> {
         ("create", create),
         ("update", update),
         ("delete", delete),
+        ("respond", respond),
         ("undo", undo),
         ("quick", quick_parse),
         ("search", search),
@@ -388,15 +389,37 @@ struct Shown {
     color: Option<String>,
     href: String,
     writable: bool,
+    /// the user's answer (NEEDS-ACTION, ACCEPTED, TENTATIVE, DECLINED) to a meeting they are invited to in an Exchange
+    /// calendar: the card then offers Yes / Maybe / No (`respond`), which Exchange tells the organiser
+    #[serde(skip_serializing_if = "Option::is_none")]
+    answer: Option<String>,
 }
 
 fn shown(o: &Object, src: &Source, s: &Value, range: Range, user: &Zone) -> Vec<Shown> {
     let Some(cal) = ics::parse(&o.ics).ok().and_then(|c| c.into_iter().find(|c| c.name == "VCALENDAR")) else { return vec![] };
     let color = color_of(s, src);
+    let me = exchange_user(s, src);
     recur::expand(&cal, range, user)
         .into_iter()
-        .map(|i| Shown { i, calendar: src.id.clone(), calendar_name: src.name.clone(), color: color.clone(), href: o.href.clone(), writable: src.writable })
+        .map(|i| {
+            let answer = me.as_deref().and_then(|m| invited_answer(&i, m));
+            Shown { i, calendar: src.id.clone(), calendar_name: src.name.clone(), color: color.clone(), href: o.href.clone(), writable: src.writable, answer }
+        })
         .collect()
+}
+
+/// The mailbox of the Exchange account a calendar belongs to; None for CalDAV and subscriptions.
+fn exchange_user(s: &Value, src: &Source) -> Option<String> {
+    let account = src.account.as_deref()?;
+    conf::cards(s).into_iter().find(|c| c.name == account && c.server == conf::Server::Exchange).map(|c| c.account.user)
+}
+
+/// `me`'s answer when they are a guest of the meeting (not its organiser).
+fn invited_answer(i: &Instance, me: &str) -> Option<String> {
+    if i.organizer.as_ref().is_some_and(|o| invite::same_address(&o.email, me)) {
+        return None;
+    }
+    i.attendees.iter().find(|a| invite::same_address(&a.email, me)).map(|a| a.partstat.clone().unwrap_or_else(|| "NEEDS-ACTION".into()))
 }
 
 fn instances(srcs: &[Source], s: &Value, range: Range, user: &Zone) -> Vec<Shown> {
@@ -902,6 +925,26 @@ fn import_invite(p: Value) -> Res {
     Ok(json!({ "uid": inv.uid, "calendar": dst.id, "status": status, "start": start, "end": end }))
 }
 
+/// Answers, from the event's card, a meeting the user is invited to (`partstat`: ACCEPTED, TENTATIVE, DECLINED):
+/// through Exchange, which tells the organiser and keeps the meeting linked to its later updates. A series is answered
+/// as a whole (the card's href is the series'). CalDAV invitations are answered from their mail (Email).
+fn respond(p: Value) -> Res {
+    let s = conf::settings(&p);
+    let need = |k: &str| param(&p, k).ok_or_else(|| error(format!("{k}: missing")));
+    let (calendar, href, partstat) = (need("calendar")?, need("href")?, need("partstat")?.to_ascii_uppercase());
+    let (src, c) = client_for(&s, &p, calendar)?;
+    let Remote::Ews(ex) = &c else {
+        return Err(error(format!("{}: a meeting here is answered from its invitation mail (only Exchange calendars answer from the card)", src.name)));
+    };
+    ex.respond(&Url::parse(href).map_err(fail)?, &partstat).map_err(fail)?;
+    if let Some(card) = src.account.as_deref().and_then(|a| card_named(&s, &p, a).ok()) {
+        let _ = pull_card(&card);
+    }
+    changed();
+    eprintln!("dav: meeting {href} in {}: answered {partstat} through Exchange", src.id);
+    Ok(json!({ "calendar": src.id, "partstat": partstat }))
+}
+
 /// Whether an invitation is in the calendar, the user's answer there, and what else overlaps it.
 fn invite_status(p: Value) -> Res {
     let s = conf::settings(&p);
@@ -1251,6 +1294,26 @@ mod tests {
     fn cal(account: &str, path: &str, name: &str, writable: bool) -> Source {
         let url = format!("https://{account}.example/dav/{path}/");
         Source { id: crate::store::calendar_id(account, &url, &[&url]), kind: Kind::Caldav, account: Some(account.into()), url, name: name.into(), color: None, writable, ctag: None, token: None, synced: 0, error: None }
+    }
+
+    #[test]
+    fn a_meeting_in_an_exchange_calendar_offers_its_guest_an_answer_never_its_organiser() {
+        let s = json!({ "accounts": [{ "name": "Uni", "server": "exchange", "user": "Me@Uni.example" }, { "name": "home", "url": "https://home.example/dav/", "user": "me" }] });
+        let ics = "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VEVENT\r\nUID:m1\r\nSUMMARY:Group meeting\r\nDTSTART:20261104T140000Z\r\nDTEND:20261104T150000Z\r\nORGANIZER;CN=Dee:mailto:dee@uni.example\r\nATTENDEE;CN=Dee:mailto:dee@uni.example\r\nATTENDEE;CN=Me;PARTSTAT=NEEDS-ACTION:mailto:me@uni.example\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n";
+        let range = Range { from: DateTime::from_timestamp(1_793_000_000, 0).unwrap(), to: DateTime::from_timestamp(1_795_000_000, 0).unwrap() };
+        let object = |source: &Source| Object { source: source.id.clone(), href: format!("{}m1.ics", source.url), etag: None, uid: "m1".into(), ics: ics.into() };
+        let zone = conf::user_zone(&json!({ "tz": "UTC" }));
+        let answers = |src: &Source| shown(&object(src), src, &s, range, &zone).into_iter().map(|x| x.answer).collect::<Vec<_>>();
+        assert_eq!(answers(&cal("Uni", "calendar", "Calendar", true)), vec![Some("NEEDS-ACTION".to_string())]);
+        assert_eq!(answers(&cal("home", "personal", "Personal", true)), vec![None], "a CalDAV meeting is answered from its mail");
+        let mut organised = s.clone();
+        organised["accounts"][0]["user"] = json!("dee@uni.example");
+        let src = cal("Uni", "calendar", "Calendar", true);
+        assert_eq!(shown(&object(&src), &src, &organised, range, &zone)[0].answer, None, "the organiser does not answer");
+        // Exchange's own shape: METHOD:PUBLISH, folded ATTENDEE lines, PARTSTAT before CN, the domain in capitals
+        let exchange = "BEGIN:VCALENDAR\r\nMETHOD:PUBLISH\r\nVERSION:2.0\r\nBEGIN:VEVENT\r\nUID:m2\r\nSUMMARY:Weekly\r\nDTSTART:20261104T140000Z\r\nDTEND:20261104T150000Z\r\nORGANIZER;CN=Dée Ö:mailto:Dee@UNI.example\r\nATTENDEE;ROLE=REQ-PARTICIPANT;PARTSTAT=NEEDS-ACTION;RSVP=TRUE;CN=Dée Ö:mailto:Dee@UNI.example\r\nATTENDEE;ROLE=REQ-PARTICIPANT;PARTSTAT=NEEDS-ACTION;RSVP=TRUE;CN=Mé Rosa\r\n do:mailto:Me@UNI.example\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n";
+        let o = Object { source: src.id.clone(), href: format!("{}m2.ics", src.url), etag: None, uid: "m2".into(), ics: exchange.into() };
+        assert_eq!(shown(&o, &src, &s, range, &zone)[0].answer.as_deref(), Some("NEEDS-ACTION"));
     }
 
     #[test]

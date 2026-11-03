@@ -101,7 +101,7 @@ Settings → Keyboard marks, in red beside the command, a key that another comma
 
 ## Where keys are decided (for whoever changes this)
 
-- A default is `keys: "Super+K"` on the action, with `alsoKeys: ["F1"]` for more. Keys are matched by physical key (`ui/src/lib/keys.ts`), so they work on a Spanish layout; `Super`, `Meta` and `Cmd` are the same modifier.
+- A default is `keys: "Super+K"` on the action, with `alsoKeys: ["F1"]` for more. Keys are matched by physical key (`ui/src/lib/keys.ts`), so they work on a Spanish layout; `Super`, `Meta` and `Cmd` are the same modifier. On macOS, Cmd+C / V / X / A / Z (and Cmd+Shift+Z) stay the system's copy, paste, cut, select all, undo and redo everywhere (`systemEditingChord` in `keys.ts`): no command bound to them (Capture's Super+C, the next vault's Super+V) takes them there; reach those from the command palette.
 - `where: "note"` limits a key to notes (Ctrl+B is bold there and nothing elsewhere); a focused terminal keeps every key without Super for its shell; `fromTerminal: true` lets a command's keys work from there too (Ctrl+Tab, Ctrl+`). (Until only plain Ctrl+letter keys of commands marked `yieldToTerminal` went to the shell.)
 - The user's own bindings win: `.atlas/keys.toml`, edited by Settings → Keyboard.
 

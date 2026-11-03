@@ -33,6 +33,58 @@ pub fn may(id: &str, path: &str) -> bool {
     }
 }
 
+/// Whether a helper's write (any verb but GET) leaves other plugins' files alone: no target — a query parameter, or a
+/// string in the JSON body under a key that names a file (`path`, `from`, `to`, `dest`, `paths`…, found by shape, not
+/// by route) — lies in another plugin's folder or settings file, or is a folder holding them (`.atlas`, `.atlas/plugins`).
+/// [`may`] sees only the URL; a file route carries its file in the body. `Err` says which target and why.
+pub fn may_write(id: &str, uri: &str, body: Option<&serde_json::Value>) -> Result<(), String> {
+    let mut targets = Vec::new();
+    if let Ok(uri) = uri.parse::<axum::http::Uri>() {
+        if let Ok(q) = axum::extract::Query::<Vec<(String, String)>>::try_from_uri(&uri) {
+            targets.extend(q.0.into_iter().filter(|(k, _)| names_a_file(k)).map(|(_, v)| v));
+        }
+    }
+    if let Some(b) = body {
+        collect_targets(b, false, &mut targets);
+    }
+    match targets.iter().find(|t| !own_or_free(id, t)) {
+        Some(t) => Err(format!("plugin {id} may not write {t:?}: another plugin's files (its code, manifest, settings) are its own")),
+        None => Ok(()),
+    }
+}
+
+/// A key that holds a vault path, by its name: `path`, `from`, `to`, `dest`, `src`, `target`, `dir`, `folder`, `file`
+/// and their plurals or prefixed forms (`new_path`, `paths`).
+fn names_a_file(key: &str) -> bool {
+    let k = key.to_ascii_lowercase();
+    let k = k.trim_end_matches('s');
+    ["path", "from", "to", "dest", "src", "source", "target", "dir", "folder", "file", "pdf", "note"].iter().any(|n| k == *n || k.ends_with(&format!("_{n}")))
+}
+
+fn collect_targets(v: &serde_json::Value, keyed: bool, out: &mut Vec<String>) {
+    match v {
+        serde_json::Value::String(s) if keyed => out.push(s.clone()),
+        serde_json::Value::Array(a) => a.iter().for_each(|x| collect_targets(x, keyed, out)),
+        serde_json::Value::Object(m) => m.iter().for_each(|(k, x)| collect_targets(x, names_a_file(k), out)),
+        _ => {}
+    }
+}
+
+/// A vault path a helper `id` may write: anything but another plugin's folder or settings file, and the folders that
+/// hold every plugin. Compared without case (a case-insensitive disk would take `.Atlas/Plugins/x` for the same).
+fn own_or_free(id: &str, target: &str) -> bool {
+    let t = target.replace('\\', "/").to_lowercase();
+    let parts: Vec<&str> = t.split('/').filter(|p| !p.is_empty() && *p != ".").collect();
+    let id = id.to_lowercase();
+    match parts.as_slice() {
+        [] => true, // the vault's top: a folder to write into (`dir: ""`), never one the core trashes or moves
+        [".atlas"] | [".atlas", "plugins"] | [".atlas", "plugin-settings"] => false,
+        [".atlas", "plugins", other, ..] => *other == id,
+        [".atlas", "plugin-settings", file, ..] => file.strip_suffix(".toml").unwrap_or(file) == id,
+        _ => true,
+    }
+}
+
 /// The environment a plugin's program starts with, beside `ATLAS_ROOT` / `ATLAS_PLUGIN_DIR` / `…_TARGET`:
 /// `ATLAS_PLUGIN_ID`, and `PYTHONPATH` led by the library's folder.
 pub fn env(root: &Path, id: &str) -> Vec<(&'static str, String)> {
@@ -122,6 +174,25 @@ mod tests {
         assert!(!may("demo-a", "/api/plugins/demo-b/oauth/start") && may("demo-a", "/api/plugins/demo-a/fetch"));
         assert!(may("demo-a", "/api/plugins/demo-b/tools/find") && may("demo-a", "/api/plugins/demo-b/helper"), "its code, its rules");
         assert!(!may("demo-a", "/api/signin/door") && !may("demo-a", "/api/signin"), "a helper never plants or reads a sign-in");
+    }
+
+    #[test]
+    fn a_helper_writes_its_own_plugin_files_and_never_anothers() {
+        use serde_json::json;
+        let w = |uri: &str, body: serde_json::Value| may_write("demo-a", uri, Some(&body)).is_ok();
+        assert!(w("/api/file", json!({ "path": "notes/x.md", "text": ".atlas/plugins/demo-b/view.js" })), "a text is not a target");
+        assert!(w("/api/file", json!({ "path": ".atlas/plugins/demo-a/cache.json" })), "its own folder");
+        assert!(!w("/api/file", json!({ "path": ".atlas/plugins/demo-b/view.js" })), "another's code");
+        assert!(!w("/api/file", json!({ "path": "./.Atlas//Plugins/Demo-B/plugin.toml" })), "however spelled");
+        assert!(!w("/api/file", json!({ "path": ".atlas\\plugins\\demo-b\\plugin.toml" })), "Windows separators");
+        assert!(!w("/api/fs/move", json!({ "from": "notes/a.md", "to": ".atlas/plugins/demo-b/view.js" })), "moved over it");
+        assert!(!w("/api/fs/trash", json!({ "paths": ["notes/a.md", ".atlas/plugins"] })), "every plugin at once");
+        assert!(!w("/api/fs/trash", json!({ "path": ".atlas" })));
+        assert!(!w("/api/file", json!({ "path": ".atlas/plugin-settings/demo-b.toml" })), "another's settings");
+        assert!(w("/api/file", json!({ "path": ".atlas/plugin-settings/demo-a.toml" })));
+        assert!(!w("/api/raw?path=.atlas%2Fplugins%2Fdemo-b%2Fbin%2Fx", json!(null)), "a query's path, decoded");
+        assert!(w("/api/raw?path=refs%2Fa.pdf", json!(null)));
+        assert!(!w("/api/fs/move", json!({ "items": [{ "new_path": ".atlas/plugins/demo-b/x" }] })), "nested, prefixed keys");
     }
 
     #[test]

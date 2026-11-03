@@ -7,6 +7,7 @@
   import { allCommands, bindings } from "../lib/keymap.svelte";
   import { matches } from "../lib/keys";
   import { open } from "../lib/dock";
+  import { framesAnything, nativeTabView, openOutside } from "../lib/web-links";
   import Icon from "../components/Icon.svelte";
 
   let { spec, panel }: PaneProps<"web"> = $props();
@@ -14,6 +15,8 @@
   const initial = spec.url;
   let url = $state(initial);
   let shown = $state(initial);
+  /** The frame's own address, set only by Atlas (a page that navigates itself must not be reloaded by the pane). */
+  let src = $state(initial);
   let frame = $state<HTMLIFrameElement>();
   let slot = $state<HTMLDivElement>();
   let address = $state<HTMLInputElement>();
@@ -26,8 +29,15 @@
   let findBox = $state<HTMLInputElement>();
 
   type Native = { postMessage(s: string): void };
-  const native = (globalThis as unknown as { webkit?: { messageHandlers?: { atlasWeb?: Native } } }).webkit?.messageHandlers?.atlasWeb;
-  const ask = (m: Record<string, unknown>) => native?.postMessage(JSON.stringify({ id: panel.id, ...m }));
+  // the native view over the pane only without the frames hook, or when Settings asks for it (lib/web-links.ts); chosen once per tab
+  const native = nativeTabView() ? (globalThis as unknown as { webkit?: { messageHandlers?: { atlasWeb?: Native } } }).webkit?.messageHandlers?.atlasWeb : undefined;
+  // a frame that shows any site (lib/web-links.ts) has the native view's page script too (atlas-app frame_page.js),
+  // spoken to by postMessage: the same requests and answers
+  const framed = !native && framesAnything;
+  const ask = (m: Record<string, unknown>) => {
+    if (native) native.postMessage(JSON.stringify({ id: panel.id, ...m }));
+    else if (framed) frame?.contentWindow?.postMessage({ atlasFrameDo: m }, "*");
+  };
 
   function normal(u: string): string {
     u = u.trim();
@@ -42,11 +52,12 @@
     url = shown = u;
     panel.updateParameters({ url: u });
     setTitle(null, u);
-    ask({ op: "go", url: u });
+    if (native) ask({ op: "go", url: u });
+    else src = u;
   }
   /** The page (or a link Shift+clicked in it) in the system's browser, as Atlas opens any outside link. */
-  function inBrowser(u: string) { window.open(u, "_blank", "noopener"); }
-  function reload() { if (native) ask({ op: "reload" }); else if (frame) frame.src = shown; }
+  const inBrowser = (u: string) => void openOutside(u);
+  function reload() { if (native || framed) ask({ op: "reload" }); else if (frame) frame.src = shown; }
 
   // the native view follows this pane's place, and hides when the pane is hidden or something of Atlas lies over it:
   // a registered overlay (lib/overlays.ts: the palette, dialogs, menus, popovers, the Ctrl+Tab glance), told at once;
@@ -74,7 +85,7 @@
   }
 
   function openFind() {
-    if (!native) return;
+    if (!native && !framed) return;
     finding = true;
     requestAnimationFrame(() => { findBox?.focus(); findBox?.select(); });
   }
@@ -113,10 +124,21 @@
       panel.updateParameters({ url: d.url });
     }
     if (d.url) setTitle(d.title, d.url);
-    nav = { back: !!d.back, forward: !!d.forward, loading: !!d.loading };
+    // a frame cannot know its forward history: the button stays on
+    nav = { back: !!d.back, forward: framed || !!d.forward, loading: !!d.loading };
+  }
+
+  /** A frame's page script speaking (only that frame's window: another page's messages are not this pane's). */
+  function fromFrame(e: MessageEvent) {
+    const m = e.source && e.source === frame?.contentWindow ? (e.data as { atlasFrame?: Record<string, unknown> } | null)?.atlasFrame : undefined;
+    if (m) heard(new CustomEvent("atlas-web", { detail: { id: panel.id, ...m } }));
   }
 
   onMount(() => {
+    if (framed) {
+      window.addEventListener("message", fromFrame);
+      return () => window.removeEventListener("message", fromFrame);
+    }
     if (!native) return;
     const ro = new ResizeObserver(place);
     if (slot) ro.observe(slot);
@@ -139,16 +161,16 @@
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <div class="web-pane" onkeydown={(e) => { if (e.ctrlKey && !e.altKey && !e.shiftKey && e.key.toLowerCase() === "f") { e.preventDefault(); openFind(); } }}>
   <div class="bar">
-    {#if native}
+    {#if native || framed}
       <button class="icon-btn" title="Back (Alt+←)" disabled={!nav.back} onclick={() => ask({ op: "back" })}><Icon name="arrow-left" size={14} /></button>
       <button class="icon-btn" title="Forward (Alt+→)" disabled={!nav.forward} onclick={() => ask({ op: "forward" })}><Icon name="arrow-right" size={14} /></button>
     {/if}
     <button class="icon-btn" class:spin={nav.loading} title="Reload (F5)" onclick={reload}><Icon name="refresh" size={14} /></button>
     <input bind:this={address} bind:value={url} onkeydown={(e) => { if (e.key === "Enter") go(); }} spellcheck="false" aria-label="Address" />
-    {#if native}<button class="icon-btn" class:on={finding} title="Find in the page (Ctrl+F)" onclick={() => (finding ? closeFind() : openFind())}><Icon name="search" size={14} /></button>{/if}
+    {#if native || framed}<button class="icon-btn" class:on={finding} title="Find in the page (Ctrl+F)" onclick={() => (finding ? closeFind() : openFind())}><Icon name="search" size={14} /></button>{/if}
     <button class="icon-btn" title="Open in the browser (Shift+click a link to open it there)" onclick={() => inBrowser(shown)}><Icon name="external-link" size={14} /></button>
   </div>
-  {#if native && finding}
+  {#if (native || framed) && finding}
     <div class="find" role="search">
       <input bind:this={findBox} bind:value={findText} oninput={() => ask({ op: "find", text: findText })} onkeydown={findKey} placeholder="Find in the page" aria-label="Find in the page" spellcheck="false" />
       <span class="count">{findText ? (found === null ? "" : found ? `${found} match${found === 1 ? "" : "es"}` : "No match") : ""}</span>
@@ -160,7 +182,7 @@
   {#if native}
     <div class="slot" bind:this={slot} style:background-image={shot ? `url("${shot}")` : undefined}></div>
   {:else}
-    <iframe bind:this={frame} src={shown} title={shown} sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-downloads allow-modals"></iframe>
+    <iframe bind:this={frame} {src} title={shown} sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-downloads allow-modals"></iframe>
   {/if}
 </div>
 

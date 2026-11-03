@@ -7,7 +7,7 @@
 title = "Calendar"
 description = "your calendars in a pane: month, week, day, agenda; several CalDAV or Outlook / Microsoft 365 (Exchange) accounts and ICS subscriptions; meetings; invitations from Email; contacts"
 icon = "calendar"
-version = "1.4.0"
+version = "1.5.1"
 rail = true          # a button for the Calendar pane (view.js)
 provides = ["calendar"]  # the role other plugins call it by (Email: `@calendar/tools/import_invite`, contacts, agenda)
 api = 12             # Settings v2: account cards (status, Test, presets), hidden / advanced fields, a drawn section

@@ -57,6 +57,39 @@ pub struct VaultRequest {
     pub create: bool,
 }
 
+/// `POST /api/vaults/pick`: what the system's folder dialog is for (its title says it).
+#[derive(Debug, Clone, Copy, Deserialize, TS)]
+#[ts(export)]
+#[serde(rename_all = "lowercase")]
+pub enum PickPurpose {
+    /// A folder to open as a vault.
+    Open,
+    /// Where a new vault goes (the dialog can make the folder).
+    Create,
+}
+
+/// The desktop's folder dialog: set by the desktop app (atlas-app), absent on a server, which has no screen.
+type Picker = Box<dyn Fn(PickPurpose) -> Option<PathBuf> + Send + Sync>;
+static PICKER: std::sync::OnceLock<Picker> = std::sync::OnceLock::new();
+
+/// The desktop app hands the core its native folder dialog (blocking: called off the async threads).
+pub fn on_pick_folder(f: impl Fn(PickPurpose) -> Option<PathBuf> + Send + Sync + 'static) {
+    let _ = PICKER.set(Box::new(f));
+}
+
+/// Asks the person for a folder in the system's dialog. Err: no dialog here (a server, a headless core);
+/// Ok(None): they cancelled.
+pub fn pick_folder(purpose: PickPurpose) -> Result<Option<PathBuf>> {
+    let f = PICKER.get().ok_or_else(|| Error::NotFound("no folder dialog here: type the folder's path".into()))?;
+    Ok(f(purpose))
+}
+
+/// A folder made into a new vault: one that is not there yet, or an empty one (the folder dialog makes it before
+/// Atlas sees it). A folder that already holds files is opened as it is, never given a config.
+pub fn is_fresh(p: &Path) -> bool {
+    !p.exists() || std::fs::read_dir(p).is_ok_and(|mut d| d.next().is_none())
+}
+
 /// `POST /api/vaults/mirror`: a local vault and its server copy's address (none: unlinked).
 #[derive(Debug, Clone, Deserialize, TS)]
 #[ts(export)]

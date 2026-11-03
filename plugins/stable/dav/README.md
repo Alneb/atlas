@@ -28,6 +28,11 @@ subscriptions; invitations answered from the Email plugin; and tools for agents.
   that schedules (RFC 6638: Nextcloud, for one) the server sends them; elsewhere the guests are written but nobody is
   told. A meeting someone else organises shows its guests, not editable. Email's **Meeting** button opens the new-event
   dialog with the conversation's subject and people (the window event `atlas-calendar:new`).
+- **Answering and joining from the card**: a meeting you are invited to in an Exchange calendar shows *Going? Yes /
+  Maybe / No* first on its card, under its time; the answer goes through Exchange, which tells the organiser (a series
+  is answered as a whole; the `respond` method). A CalDAV meeting is answered from its invitation mail. An online
+  meeting's link (Teams, Zoom, Meet, Webex, Jitsi) in the location, the URL or the description becomes a **Join the
+  meeting** button, which opens in the system's browser (the meeting's own app takes it from there), never a tab.
 - **Moving an event between calendars**, of the same account or another: written there first, then removed here.
 - **Times** are your local time, 24-hour by default; time zones (IANA, Windows, VTIMEZONE) and DST are handled.
 - **The block `dav.upcoming`** (`days: 7`): today, tomorrow and the rest of the week as a compact agenda.
