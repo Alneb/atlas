@@ -157,7 +157,11 @@ fn pictures(lines: impl Iterator<Item = String>) -> Vec<String> {
             let target = if let Some(wiki) = rest.strip_prefix('[') {
                 wiki.split_once("]]").map(|(t, _)| t.split(['|', '#']).next().unwrap_or(t))
             } else {
-                rest.split_once("](").and_then(|(_, r)| r.split_once(')')).map(|(t, _)| t.split_whitespace().next().unwrap_or(t).trim_matches(['<', '>']))
+                // `<a b.png>` may hold spaces; a bare target ends at the first space (a title follows)
+                rest.split_once("](").and_then(|(_, r)| match r.strip_prefix('<') {
+                    Some(r) => r.split_once('>').map(|(t, _)| t),
+                    None => r.split_once(')').map(|(t, _)| t.split_whitespace().next().unwrap_or(t)),
+                })
             };
             if let Some(t) = target.map(str::trim).filter(|t| !t.is_empty() && crate::link_targets::is_image(t) && !t.contains("://")) {
                 if !out.iter().any(|o| o == t) {

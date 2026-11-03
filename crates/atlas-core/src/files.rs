@@ -495,7 +495,10 @@ pub(crate) fn lines_to_vault_trash(root: &std::path::Path, rel: &str, lines: &st
     if let Some(dir) = abs.parent() {
         vault_write::mkdir(dir)?;
     }
-    vault_write::create(&abs, lines.as_bytes())?;
+    // the slot was free a moment ago; taken since, the lines must not vanish with the triage
+    if vault_write::create(&abs, lines.as_bytes())? == vault_write::Created::Taken {
+        return Err(Error::Conflict { current: None });
+    }
     Ok(to)
 }
 
