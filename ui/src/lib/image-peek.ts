@@ -1,8 +1,11 @@
 // Ctrl over a picture shows it large: in notes
-// (live preview and reading view), pages, and any picture marked `data-peek` (the Captures block's). It stays while the pointer is on the picture or on the large one (which
+// (live preview and reading view), pages, and any picture marked `data-peek` (a thumbnail whose `data-peek` names the
+// vault file: the thumbnail shows at once, the file replaces it once loaded — Captures). It stays while the pointer is on the picture or on the large one (which
 // covers it: moving within it no longer hides it); let go of Ctrl, or move off both, and it is gone. The large one lets
 // clicks through (Ctrl+click still reaches the picture), so "within it" is its rectangle, not a hover.
 // Ctrl+click opens it in a tab (the editor's mousedown, create.ts).
+import { blobUrl } from "./raw";
+
 let installed = false;
 
 export function installImagePeek(): void {
@@ -14,6 +17,8 @@ export function installImagePeek(): void {
     if (!over || !over.complete || !over.naturalWidth) return;
     big ??= Object.assign(document.createElement("img"), { className: "image-peek motion-keep", alt: "" });
     big.src = over.currentSrc || over.src;
+    const file = over.dataset.peek;
+    if (file) void blobUrl(file).then((u) => { if (big && over?.dataset.peek === file) big.src = u; }, () => {});
     if (!big.isConnected) document.body.append(big);
   };
   let leaving: ReturnType<typeof setTimeout> | undefined;

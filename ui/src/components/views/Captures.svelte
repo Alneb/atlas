@@ -11,6 +11,7 @@
   import { onMount, tick } from "svelte";
   import { listVault, resolveLink } from "../../lib/vault";
   import { installImagePeek } from "../../lib/image-peek";
+  import { thumbUrl } from "../../lib/raw";
   import { reloadOnChange } from "../../lib/reload-on-change";
   import { parse as parseYaml } from "yaml";
   import { api } from "../../lib/api";
@@ -196,7 +197,7 @@
               <span class="pics">
                 {#each c.pictures as t (t)}
                   {@const at = pictureAt(c, t)}
-                  {#if at}<button class="pic" title="Open {t} (Ctrl over it: large)" onclick={() => openPath(at)}><img src={api.rawUrl(at)} alt={t} loading="lazy" data-peek /></button>{/if}
+                  {#if at}<button class="pic" title="Open {t} (Ctrl over it: large)" onclick={() => openPath(at)}>{#await thumbUrl(at, 320) then src}<img {src} alt={t} data-peek={at} />{/await}</button>{/if}
                 {/each}
               </span>
             {/if}

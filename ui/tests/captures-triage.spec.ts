@@ -127,8 +127,9 @@ test("a capture shows its picture, and is deleted into the trash", async ({ page
     const view = page.getByTestId("captures");
     const row = (t: string) => view.locator("li.row", { hasText: t });
     const pic = row("the board").locator("img[data-peek]");
-    await expect(pic).toHaveAttribute("src", /capture-board\.png/);
-    await expect.poll(() => pic.evaluate((i: HTMLImageElement) => i.naturalWidth)).toBe(1);
+    // a blob: URL (an <img> cannot send /api/raw's header); data-peek names the file Ctrl shows large
+    await expect(pic).toHaveAttribute("data-peek", "log/capture-board.png");
+    await expect.poll(() => pic.evaluate((i: HTMLImageElement) => i.naturalWidth)).toBeGreaterThan(0);
     await row("the board").getByRole("button", { name: /^Delete/ }).click();
     await expect(row("the board")).toHaveCount(0);
     await expect.poll(() => read(request, log)).toBe("---\ndate: 2020-03-05\ntype: log\n---\n## Log\n- 09:30 stays\n");

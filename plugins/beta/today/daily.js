@@ -97,8 +97,8 @@ export function registerDaily(atlas, lang) {
       const at = all.indexOf(block.note);
       const step = (label, path) => { const b = el("button", "", label); b.disabled = !path; if (path) { b.title = DAY.exec(path)[1]; b.onclick = () => atlas.open(path); } return b; };
       nav.append(step("←", at > 0 ? all[at - 1] : null), step("→", at >= 0 && at < all.length - 1 ? all[at + 1] : null));
-      const now = host.querySelector(".daily-head");
-      if (!first && !(now?.live && now.outerHTML === box.outerHTML)) host.replaceChildren(box);
+      const shown = host.querySelector(".daily-head");
+      if (!first && !(shown?.live && shown.outerHTML === box.outerHTML)) host.replaceChildren(box);
       (host.querySelector(".daily-head") ?? box).live = true;
       drawnHtml.set(block.note, box.outerHTML);
     };
