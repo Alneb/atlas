@@ -40,11 +40,13 @@ jobs:
         run: npm --prefix ui ci --no-audit --no-fund && npm --prefix ui run build
       - name: The CLI
         run: cargo build --release --locked -p atlas && strip target/release/atlas
-      # the same pinned bundler on every system
+      # the same pinned bundler on every system, installed fresh: npx's cache can hold it without its native binary
+      # (npm's optional-dependency bug, npm/cli#4828), which broke a Windows rerun
       - name: The desktop app's packages
         run: |
+          npm install --no-save --no-audit --no-fund --prefix "$RUNNER_TEMP/tauri" @tauri-apps/cli@2.12.4
           cd crates/atlas-app
-          npx --yes @tauri-apps/cli@2.12.4 build --ci --bundles appimage,deb,rpm --config '{"bundle":{"active":true}}'
+          node "$RUNNER_TEMP/tauri/node_modules/@tauri-apps/cli/tauri.js" build --ci --bundles appimage,deb,rpm --config '{"bundle":{"active":true}}'
       - name: Collect
         run: |
           mkdir -p dist
@@ -80,8 +82,9 @@ jobs:
       - name: The desktop app's package
         shell: bash
         run: |
+          npm install --no-save --no-audit --no-fund --prefix "$RUNNER_TEMP/tauri" @tauri-apps/cli@2.12.4
           cd crates/atlas-app
-          npx --yes @tauri-apps/cli@2.12.4 build --ci
+          node "$RUNNER_TEMP/tauri/node_modules/@tauri-apps/cli/tauri.js" build --ci
       - uses: actions/upload-artifact@v7
         with:
           name: atlas-${{ runner.os }}
