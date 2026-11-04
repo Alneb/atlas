@@ -137,6 +137,7 @@ export function compileAll(files: { source: string; entries: Entry[]; pack?: boo
   const vars: Record<string, string> = {};
   for (const f of files) for (const e of f.entries) if (e?.type === "vars") Object.assign(vars, e.vars);
   const out: Compiled[] = [], known: string[] = [], words: string[] = [], problems: Problem[] = [];
+  const commands: { name: string; source: string }[] = [];
   // the triggers the vault's own files define, by where they apply: a pack's same trigger there is left out
   const own = new Set<string>();
   const placeKey = (c: Compiled) => `${c.shown}\u0000${c.math}${c.text}${c.code}${c.visual}`;
@@ -148,7 +149,7 @@ export function compileAll(files: { source: string; entries: Entry[]; pack?: boo
       if (!e || typeof e !== "object" || !("type" in e)) { problems.push({ source: f.source, what: `not an entry: ${JSON.stringify(e)?.slice(0, 60)}` }); continue; }
       if (e.type === "vars") continue;
       if (e.type === "words") { words.push(...e.words.map((w) => w.toLowerCase())); continue; }
-      if (e.type === "commands") { out.push(...compileCommands(e, f.source).filter(keep)); known.push(...e.names); continue; }
+      if (e.type === "commands") { out.push(...compileCommands(e, f.source).filter(keep)); known.push(...e.names); commands.push(...e.names.map((n) => ({ name: n, source: f.source }))); continue; }
       for (const t of e.triggers) {
         try { const c = compileOne(t, e, vars, f.source); if (keep(c)) out.push(c); }
         catch (err) { problems.push({ source: f.source, what: `${String(t)}: ${String((err as Error).message ?? err)}` }); }
@@ -158,7 +159,7 @@ export function compileAll(files: { source: string; entries: Entry[]; pack?: boo
   for (const v of Object.values(vars)) known.push(...String(v).split("|").filter((w) => /^[A-Za-z]{2,}$/.test(w)));
   // stable: higher priority first, then file order
   const snippets = out.map((s, i) => [s, i] as const).sort((a, b) => b[0].priority - a[0].priority || a[1] - b[1]).map(([s]) => s);
-  snippets.push(...abbreviations(snippets, new Set(known)));
+  snippets.push(...abbreviations(snippets, new Set(known)), ...commandShortcuts(commands, snippets, new Set(known)));
   for (const s of snippets) if (s.plain && /^[A-Za-z]{2,}$/.test(s.plain)) known.push(s.plain);
   return { snippets, known: [...new Set(known)], words, problems };
 }
@@ -166,6 +167,35 @@ export function compileAll(files: { source: string; entries: Entry[]; pack?: boo
 /** A math word trigger (`mfrak`) also fires on each shorter start (three letters or more) that no other math word
  *  trigger shares and no command or trigger already is (`mfr`, `mfra`): the engine holds such a start back while the
  *  keys still spell the full one, so typing it out whole gives the same. Text triggers get none (words collide). */
+/** A command of a `commands` entry (`alpha`) also typed by its unshared starts (`alp`, `alph`: as `abbreviations`) and
+ *  with two neighbouring letters swapped after the first (`alpah`, `lambda` as `lmabda`), when nothing else is so
+ *  spelled: each gives the command, its backslash included. */
+export function commandShortcuts(commands: { name: string; source: string }[], snippets: Compiled[], known: Set<string>): Compiled[] {
+  const names = commands.map((c) => c.name).filter((n) => /^[A-Za-z]+$/.test(n));
+  const taken = new Set([...known, ...snippets.flatMap((s) => (s.plain ? [s.plain] : []))]);
+  const startsOther = (start: string, own: string) => names.some((o) => o !== own && o.startsWith(start)) || snippets.some((s) => s.math && !!s.plain && s.plain !== start && s.plain.startsWith(start));
+  const make = (plain: string, name: string, source: string): Compiled => ({
+    plain, regex: null, body: `\\${name}`, auto: true, word: false, priority: -1, visual: false, text: false, code: false, langs: null, math: true,
+    display: true, inline: true, inTextArg: false, legacyStops: false, files: null, name: `\\${name}`, source, shown: plain,
+  });
+  const out: Compiled[] = [], made = new Set<string>();
+  const add = (plain: string, name: string, source: string) => { if (!taken.has(plain) && !made.has(plain)) { made.add(plain); out.push(make(plain, name, source)); } };
+  for (const { name, source } of commands) {
+    if (!/^[A-Za-z]{4,}$/.test(name)) continue;
+    for (let n = name.length - 1; n >= 3; n--) {
+      const start = name.slice(0, n);
+      if (taken.has(start) || startsOther(start, name)) break;
+      add(start, name, source);
+    }
+    for (let i = 1; i + 1 < name.length; i++) {
+      if (name[i] === name[i + 1]) continue;
+      const typo = name.slice(0, i) + name[i + 1] + name[i] + name.slice(i + 2);
+      if (!startsOther(typo, name) && !names.includes(typo)) add(typo, name, source);
+    }
+  }
+  return out;
+}
+
 export function abbreviations(snippets: Compiled[], known: Set<string>): Compiled[] {
   const word = (s: Compiled) => s.math && !s.text && s.auto && !s.regex && !!s.plain && /^[A-Za-z]{4,}$/.test(s.plain);
   const words = snippets.filter(word);

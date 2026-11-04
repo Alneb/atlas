@@ -177,3 +177,14 @@ test("a math word trigger also fires on each shorter start no other trigger shar
   expect(plains).not.toContain("tfr"); // text triggers: none (words collide)
   expect(set.filter((s) => s.plain === "mbf").map((s) => String(s.body))).toEqual(["D"]); // an existing trigger is never shadowed
 });
+
+test("a command is also typed by its unshared starts and with two neighbouring letters swapped", () => {
+  const set = compileAll([{ source: "s.js", entries: [builders.commands(["alpha", "beta", "epsilon", "varepsilon", "theta", "therefore"])] }]).snippets;
+  const body = (p: string) => set.find((s) => s.plain === p)?.body;
+  expect(body("alp")).toBe("\\alpha");
+  expect(body("alpah")).toBe("\\alpha");
+  expect(body("bet")).toBe("\\beta");
+  expect(body("eps")).toBe("\\epsilon");
+  expect(body("the")).toBeUndefined(); // theta and therefore both start so
+  expect(body("thet")).toBe("\\theta");
+});
