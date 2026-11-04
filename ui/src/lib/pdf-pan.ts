@@ -5,10 +5,17 @@
 /** Where a press selects or acts instead of panning: text, links, annotation editors, form fields. */
 const OWN = ".textLayer span, .textLayer br, a, .annotationLayer section, .annotationEditorLayer *, input, textarea, select, button";
 
+/** Whether a press is on the box's scrollbars (outside its client area): its target is the box, as on the grey. */
+function onScrollbar(box: HTMLElement, e: PointerEvent): boolean {
+  const r = box.getBoundingClientRect(), x = e.clientX - r.left - box.clientLeft, y = e.clientY - r.top - box.clientTop;
+  return x < 0 || y < 0 || x >= box.clientWidth || y >= box.clientHeight;
+}
+
 export function attachPan(container: HTMLElement, selecting: () => boolean): () => void {
   let drag: { id: number; x: number; y: number; left: number; top: number } | null = null;
   const down = (e: PointerEvent) => {
     if (e.pointerType !== "mouse" || e.defaultPrevented) return; // taken by a tool first (a mark being moved)
+    if (onScrollbar(container, e)) return; // the thumb's own drag: a pan beside it pulled the view back where it was
     const middle = e.button === 1;
     if (!middle && (e.button !== 0 || !selecting() || (e.target as Element).closest(OWN))) return;
     e.preventDefault(); // no text selection starting, no autoscroll / X11 paste

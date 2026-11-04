@@ -1,6 +1,6 @@
-import { $ as e, A as t, B as n, C as r, D as i, E as a, F as o, G as s, H as c, I as l, J as u, K as d, L as f, M as p, N as m, O as h, P as g, Q as _, R as v, S as y, T as b, U as x, V as S, W as C, X as w, Y as T, Z as E, _ as D, at as O, b as k, c as A, d as j, dt as M, et as N, f as P, ft as F, g as I, h as L, ht as R, i as z, it as B, j as V, k as H, l as U, lt as ee, m as W, n as G, nt as K, o as te, ot as q, p as ne, pt as J, q as Y, r as re, rt as X, s as ie, st as Z, t as ae, tt as Q, u as oe, ut as se, v as ce, w as le, x as $, y as ue, z as de } from "./ui-lib/Rules.js";
+import { $ as e, A as t, B as n, C as r, D as i, E as a, F as o, G as s, H as c, I as l, J as u, K as d, L as f, M as p, N as m, O as h, P as g, Q as _, R as v, S as y, T as b, U as x, V as S, W as C, X as w, Y as T, Z as E, _ as D, at as O, b as k, c as A, d as j, dt as M, et as N, f as P, ft as F, g as I, h as L, ht as R, i as z, it as B, j as V, k as ee, l as H, lt as te, m as U, n as ne, nt as W, o as G, ot as K, p as re, pt as q, q as J, r as ie, rt as Y, s as ae, st as X, t as oe, tt as Z, u as se, ut as ce, v as le, w as ue, x as Q, y as de, z as fe } from "./ui-lib/Rules.js";
 //#region plugins/stable/email/ui/src/Sidebar.svelte
-var fe = C("<span>New message</span>"), pe = C("<span class=\"name svelte-t2e5ba\"> </span>"), me = C("<span> </span>"), he = C("<button><!> <!> <!></button>"), ge = C("<span></span>"), _e = C("<span class=\"spin svelte-t2e5ba\" title=\"Checking for mail…\"></span>"), ve = C("<span class=\"faint svelte-t2e5ba\">offline</span>"), ye = C("<!> <span class=\"acct svelte-t2e5ba\"> </span> <!> <!>", 1), be = C("<button class=\"link svelte-t2e5ba\">Sign in…</button>"), xe = C("<div class=\"err svelte-t2e5ba\" role=\"alert\"><span class=\"svelte-t2e5ba\"> </span> <!> <button class=\"link svelte-t2e5ba\">Settings…</button></div>"), Se = C("<button class=\"twist svelte-t2e5ba\"><!></button>"), Ce = C("<div class=\"frow svelte-t2e5ba\"><button><!> <!> <!></button> <!></div>"), we = C("<button><!><span class=\"name svelte-t2e5ba\"> </span></button>"), Te = C("<button class=\"row faint svelte-t2e5ba\"><!><span class=\"name svelte-t2e5ba\"> </span></button> <!>", 1), Ee = C("<button class=\"row faint add svelte-t2e5ba\"><!><span class=\"name svelte-t2e5ba\">New folder…</span></button>"), De = C("<!> <!> <!>", 1), Oe = C("<div class=\"group svelte-t2e5ba\"><button class=\"head svelte-t2e5ba\"><!></button> <!> <!></div>"), ke = C("<div class=\"empty svelte-t2e5ba\"><p class=\"svelte-t2e5ba\">No mail account yet.</p> <button class=\"atlas-btn\">Add an account…</button></div>"), Ae = C("<nav aria-label=\"Mail folders\"><button class=\"compose svelte-t2e5ba\" title=\"New message (c)\"><!><!></button> <div class=\"group svelte-t2e5ba\"></div> <!></nav>"), je = {
+var pe = C("<span>New message</span>"), me = C("<span class=\"name svelte-t2e5ba\"> </span>"), he = C("<span> </span>"), ge = C("<button><!> <!> <!></button>"), _e = C("<span></span>"), ve = C("<span class=\"spin svelte-t2e5ba\" title=\"Checking for mail…\"></span>"), ye = C("<span class=\"faint svelte-t2e5ba\">offline</span>"), be = C("<!> <span class=\"acct svelte-t2e5ba\"> </span> <!> <!>", 1), xe = C("<button class=\"link svelte-t2e5ba\">Sign in…</button>"), Se = C("<div class=\"err svelte-t2e5ba\" role=\"alert\"><span class=\"svelte-t2e5ba\"> </span> <!> <button class=\"link svelte-t2e5ba\">Settings…</button></div>"), Ce = C("<button class=\"twist svelte-t2e5ba\"><!></button>"), we = C("<div class=\"frow svelte-t2e5ba\"><button><!> <!> <!></button> <!></div>"), Te = C("<button><!><span class=\"name svelte-t2e5ba\"> </span></button>"), Ee = C("<button class=\"row faint svelte-t2e5ba\"><!><span class=\"name svelte-t2e5ba\"> </span></button> <!>", 1), De = C("<button class=\"row faint add svelte-t2e5ba\"><!><span class=\"name svelte-t2e5ba\">New folder…</span></button>"), Oe = C("<!> <!> <!>", 1), ke = C("<div class=\"group svelte-t2e5ba\"><button class=\"head svelte-t2e5ba\"><!></button> <!> <!></div>"), Ae = C("<div class=\"empty svelte-t2e5ba\"><p class=\"svelte-t2e5ba\">No mail account yet.</p> <button class=\"atlas-btn\">Add an account…</button></div>"), $ = C("<nav aria-label=\"Mail folders\"><button class=\"compose svelte-t2e5ba\" title=\"New message (c)\"><!><!></button> <div class=\"group svelte-t2e5ba\"></div> <!></nav>"), je = {
 	hash: "svelte-t2e5ba",
 	code: ".side.svelte-t2e5ba {display:flex;flex-direction:column;gap:10px;padding:10px 8px 16px;overflow-y:auto;height:100%;box-sizing:border-box;font-size:0.95em;}.compose.svelte-t2e5ba {all:unset;box-sizing:border-box;display:flex;align-items:center;gap:10px;cursor:pointer;padding:9px 14px;border-radius:var(--radius);background:var(--accent);color:var(--accent-fg);font-weight:600;box-shadow:var(--shadow-sm);}.compose.svelte-t2e5ba:hover {filter:brightness(1.06);}.compose.svelte-t2e5ba:focus-visible {outline:2px solid var(--accent-strong);outline-offset:2px;}.rail.svelte-t2e5ba .compose:where(.svelte-t2e5ba) {justify-content:center;padding:9px;}.group.svelte-t2e5ba {display:flex;flex-direction:column;gap:1px;}.row.svelte-t2e5ba {all:unset;box-sizing:border-box;display:flex;align-items:center;gap:9px;cursor:pointer;padding:5px 8px 5px calc(8px + var(--depth, 0) * 14px);border-radius:var(--radius-sm);color:var(--text-muted);min-height:28px;flex:1;min-width:0;}.row.svelte-t2e5ba:hover {background:var(--bg-hover);color:var(--text);}.row.on.svelte-t2e5ba {background:var(--accent-soft);color:var(--accent-strong);font-weight:600;}.row.over.svelte-t2e5ba {outline:2px dashed var(--accent);background:var(--accent-soft);}.row.svelte-t2e5ba:focus-visible, .head.svelte-t2e5ba:focus-visible, .twist.svelte-t2e5ba:focus-visible {outline:2px solid var(--accent);outline-offset:-2px;}.rail.svelte-t2e5ba .row:where(.svelte-t2e5ba) {justify-content:center;padding:6px;}.frow.svelte-t2e5ba {display:flex;align-items:center;}.twist.svelte-t2e5ba {all:unset;cursor:pointer;padding:6px;border-radius:var(--radius-sm);color:var(--text-faint);}.twist.svelte-t2e5ba:hover {background:var(--bg-hover);color:var(--text);}.name.svelte-t2e5ba {flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}.n.svelte-t2e5ba {font-size:0.85em;color:var(--text-faint);font-variant-numeric:tabular-nums;}.n.strong.svelte-t2e5ba {color:var(--text);font-weight:600;}.rail.svelte-t2e5ba .n:where(.svelte-t2e5ba) {display:none;}.head.svelte-t2e5ba {all:unset;display:flex;align-items:center;gap:6px;cursor:pointer;padding:8px 8px 4px;color:var(--text-faint);font-size:0.78em;text-transform:uppercase;letter-spacing:0.06em;font-weight:600;min-width:0;}.head.svelte-t2e5ba:hover {color:var(--text-muted);}.rail.svelte-t2e5ba .head:where(.svelte-t2e5ba) {justify-content:center;padding:8px 0 4px;}.acct.svelte-t2e5ba {overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-transform:none;letter-spacing:0;font-size:1.15em;}.faint.svelte-t2e5ba {color:var(--text-faint);font-weight:400;}.add.svelte-t2e5ba {font-size:0.9em;}.dot.svelte-t2e5ba {width:8px;height:8px;border-radius:50%;background:var(--text-faint);}.dot.busy.svelte-t2e5ba {background:var(--accent);}.dot.bad.svelte-t2e5ba {background:var(--red);}.spin.svelte-t2e5ba {width:9px;height:9px;border-radius:50%;border:2px solid var(--accent);border-right-color:transparent; animation: svelte-t2e5ba-spin 0.8s linear infinite;}\n  @keyframes svelte-t2e5ba-spin { to { transform: rotate(360deg); } }\n  @media (prefers-reduced-motion: reduce) {.spin.svelte-t2e5ba { animation: none;} }.err.svelte-t2e5ba {margin:2px 6px 6px;padding:8px 10px;border-radius:var(--radius-sm);background:color-mix(in srgb, var(--red) 12%, transparent);color:var(--text);font-size:0.88em;display:flex;flex-wrap:wrap;gap:6px 10px;}.err.svelte-t2e5ba span:where(.svelte-t2e5ba) {flex-basis:100%;overflow-wrap:anywhere;}.link.svelte-t2e5ba {all:unset;cursor:pointer;color:var(--accent);}.empty.svelte-t2e5ba {padding:14px 8px;color:var(--text-muted);display:grid;gap:8px;justify-items:start;}.empty.svelte-t2e5ba p:where(.svelte-t2e5ba) {margin:0;}"
 };
@@ -67,7 +67,7 @@ function Me(e, t) {
 		junk: 6,
 		trash: 7,
 		all: 8
-	}, d = Z(() => t.mail.accounts.filter((e) => !e.error).length > 1), f = q(B(y())), _ = q(null);
+	}, d = X(() => t.mail.accounts.filter((e) => !e.error).length > 1), f = K(B(y())), _ = K(null);
 	function y() {
 		try {
 			return JSON.parse(localStorage.getItem("atlas-email-folded") ?? "{}");
@@ -119,51 +119,51 @@ function Me(e, t) {
 		let r = JSON.parse(e.dataTransfer?.getData("application/x-atlas-mail") || "[]"), i = t.mail.rows.filter((e) => r.includes(e.id) && e.account === n.account);
 		i.length ? t.mail.moveTo(n.path, n.label, i) : r.length && t.mail.toast("Mail moves within its own account", "error");
 	}
-	var P = Ae();
+	var P = $();
 	let I;
 	var L = N(P), z = N(L);
-	$(z, {
+	Q(z, {
 		name: "pen",
 		size: 17
 	});
-	var V = X(z), H = (e) => {
-		var t = fe();
+	var V = Y(z), ee = (e) => {
+		var t = pe();
 		c(e, t);
 	};
 	v(V, (e) => {
-		i() || e(H);
-	}), J(L);
-	var U = X(L, 2);
-	l(U, 21, () => a, ([e, t, n]) => e, (e, t) => {
-		var r = Z(() => R(T(t), 3));
-		let a = () => T(r)[0], o = () => T(r)[1], s = () => T(r)[2], l = Z(() => A(a()));
-		var u = x(), f = Q(u), p = (e) => {
-			var t = he();
+		i() || e(ee);
+	}), q(L);
+	var H = Y(L, 2);
+	l(H, 21, () => a, ([e, t, n]) => e, (e, t) => {
+		var r = X(() => R(T(t), 3));
+		let a = () => T(r)[0], o = () => T(r)[1], s = () => T(r)[2], l = X(() => A(a()));
+		var u = x(), f = Z(u), p = (e) => {
+			var t = ge();
 			let r;
 			var u = N(t);
-			$(u, { get name() {
+			Q(u, { get name() {
 				return s();
 			} });
-			var f = X(u, 2), p = (e) => {
-				var t = pe(), r = K(t, !0);
+			var f = Y(u, 2), p = (e) => {
+				var t = me(), r = W(t, !0);
 				E(() => n(r, T(d) && a() === "inbox" ? "All inboxes" : o())), c(e, t);
 			};
 			v(f, (e) => {
 				i() || e(p);
 			});
-			var g = X(f, 2), _ = (e) => {
-				var t = me();
+			var g = Y(f, 2), _ = (e) => {
+				var t = he();
 				let r;
-				var i = K(t, !0);
+				var i = W(t, !0);
 				E(() => {
 					r = m(t, 1, "n svelte-t2e5ba", null, r, { strong: a() === "inbox" }), n(i, a() === "inbox" ? T(l).unread : T(l).total);
 				}), c(e, t);
 			};
 			v(g, (e) => {
 				T(l) && (a() === "inbox" ? T(l).unread : T(l).total) && e(_);
-			}), J(t), E((e) => {
+			}), q(t), E((e) => {
 				r = m(t, 1, "row svelte-t2e5ba", null, r, { on: e }), h(t, "title", o());
-			}, [() => D(a())]), Y("click", t, () => w({
+			}, [() => D(a())]), J("click", t, () => w({
 				name: a(),
 				account: null,
 				folder: null,
@@ -173,37 +173,37 @@ function Me(e, t) {
 		v(f, (e) => {
 			(a() !== "scheduled" && a() !== "unimportant" || (T(l)?.total ?? 0) > 0) && e(p);
 		}), c(e, u);
-	}), J(U);
-	var ee = X(U, 2);
-	l(ee, 17, () => t.mail.accounts, (e) => e.name, (e, r) => {
-		let a = Z(() => `acct:${T(r).name}`), s = Z(() => S(T(r).name));
-		var d = Oe(), g = N(d), y = N(g), D = (e) => {
-			var t = ge();
+	}), q(H);
+	var te = Y(H, 2);
+	l(te, 17, () => t.mail.accounts, (e) => e.name, (e, r) => {
+		let a = X(() => `acct:${T(r).name}`), s = X(() => S(T(r).name));
+		var d = ke(), g = N(d), y = N(g), D = (e) => {
+			var t = _e();
 			let n;
 			E(() => n = m(t, 1, "dot svelte-t2e5ba", null, n, {
 				busy: T(r).syncing,
 				bad: T(r).error || T(r).status?.state === "error"
 			})), c(e, t);
 		}, A = (e) => {
-			var t = ye(), i = Q(t);
+			var t = be(), i = Z(t);
 			{
-				let e = Z(() => T(f)[T(a)] ? "right" : "down");
-				$(i, {
+				let e = X(() => T(f)[T(a)] ? "right" : "down");
+				Q(i, {
 					get name() {
 						return T(e);
 					},
 					size: 12
 				});
 			}
-			var o = X(i, 2), s = K(o, !0), l = X(o, 2), u = (e) => {
-				var t = _e();
+			var o = Y(i, 2), s = W(o, !0), l = Y(o, 2), u = (e) => {
+				var t = ve();
 				c(e, t);
 			};
 			v(l, (e) => {
 				(T(r).syncing || T(r).status?.state === "syncing") && e(u);
 			});
-			var d = X(l, 2), p = (e) => {
-				var t = ve();
+			var d = Y(l, 2), p = (e) => {
+				var t = ye();
 				E(() => h(t, "title", T(r).status.error)), c(e, t);
 			};
 			v(d, (e) => {
@@ -212,75 +212,75 @@ function Me(e, t) {
 		};
 		v(y, (e) => {
 			i() ? e(D) : e(A, -1);
-		}), J(g);
-		var M = X(g, 2), P = (e) => {
-			var i = xe(), a = N(i), o = K(a, !0), s = X(a, 2), l = (e) => {
-				var t = be();
-				Y("click", t, () => window.dispatchEvent(new CustomEvent("atlas-email:signin", { detail: T(r).name }))), c(e, t);
+		}), q(g);
+		var M = Y(g, 2), P = (e) => {
+			var i = Se(), a = N(i), o = W(a, !0), s = Y(a, 2), l = (e) => {
+				var t = xe();
+				J("click", t, () => window.dispatchEvent(new CustomEvent("atlas-email:signin", { detail: T(r).name }))), c(e, t);
 			};
 			v(s, (e) => {
 				T(r).outlook && e(l);
 			});
-			var u = X(s, 2);
-			J(i), E(() => n(o, T(r).error ?? T(r).status?.error)), Y("click", u, () => t.mail.atlas.plugin.openSettings()), c(e, i);
+			var u = Y(s, 2);
+			q(i), E(() => n(o, T(r).error ?? T(r).status?.error)), J("click", u, () => t.mail.atlas.plugin.openSettings()), c(e, i);
 		};
 		v(M, (e) => {
 			(T(r).error || T(r).status?.state === "error") && e(P);
 		});
-		var I = X(M, 2), L = (e) => {
-			var t = De(), d = Q(t);
+		var I = Y(M, 2), L = (e) => {
+			var t = Oe(), d = Z(t);
 			l(d, 17, () => T(s).main, ({ f: e, depth: t, children: n }) => e.path, (e, t) => {
 				let a = () => T(t).f, s = () => T(t).depth, l = () => T(t).children;
-				var d = Ce();
+				var d = we();
 				let g;
 				var y = N(d);
 				let x;
 				var S = N(y);
 				{
-					let e = Z(() => o[a().role ?? ""] ?? "folder");
-					$(S, { get name() {
+					let e = X(() => o[a().role ?? ""] ?? "folder");
+					Q(S, { get name() {
 						return T(e);
 					} });
 				}
-				var D = X(S, 2), A = (e) => {
-					var t = pe(), r = K(t, !0);
+				var D = Y(S, 2), A = (e) => {
+					var t = me(), r = W(t, !0);
 					E((e) => n(r, e), [() => C(a())]), c(e, t);
 				};
 				v(D, (e) => {
 					i() || e(A);
 				});
-				var M = X(D, 2), P = (e) => {
-					var t = me();
+				var M = Y(D, 2), P = (e) => {
+					var t = he();
 					let r;
-					var i = K(t, !0);
+					var i = W(t, !0);
 					E(() => {
 						r = m(t, 1, "n svelte-t2e5ba", null, r, { strong: a().role === "inbox" }), n(i, a().unread);
 					}), c(e, t);
 				};
 				v(M, (e) => {
 					a().unread && a().role !== "sent" && a().role !== "trash" && a().role !== "junk" && a().role !== "drafts" && e(P);
-				}), J(y);
-				var F = X(y, 2), I = (e) => {
-					var t = Se(), n = N(t);
+				}), q(y);
+				var F = Y(y, 2), I = (e) => {
+					var t = Ce(), n = N(t);
 					{
-						let e = Z(() => T(f)[`${T(r).name}:${a().path}`] ? "right" : "down");
-						$(n, {
+						let e = X(() => T(f)[`${T(r).name}:${a().path}`] ? "right" : "down");
+						Q(n, {
 							get name() {
 								return T(e);
 							},
 							size: 12
 						});
 					}
-					J(t), E(() => h(t, "aria-label", T(f)[`${T(r).name}:${a().path}`] ? "Show the folders in it" : "Hide the folders in it")), Y("click", t, () => b(`${T(r).name}:${a().path}`)), c(e, t);
+					q(t), E(() => h(t, "aria-label", T(f)[`${T(r).name}:${a().path}`] ? "Show the folders in it" : "Hide the folders in it")), J("click", t, () => b(`${T(r).name}:${a().path}`)), c(e, t);
 				};
 				v(F, (e) => {
 					l() && !i() && e(I);
-				}), J(d), E((e) => {
+				}), q(d), E((e) => {
 					g = p(d, "", g, { "--depth": i() ? 0 : s() }), x = m(y, 1, "row svelte-t2e5ba", null, x, {
 						on: e,
 						over: T(_) === `${T(r).name}:${a().path}`
 					}), h(y, "title", a().label);
-				}, [() => k(a())]), Y("click", y, () => w({
+				}, [() => k(a())]), J("click", y, () => w({
 					name: "folder",
 					account: T(r).name,
 					folder: a().path,
@@ -289,31 +289,31 @@ function Me(e, t) {
 					e.preventDefault(), O(_, `${T(r).name}:${a().path}`);
 				}), u("dragleave", y, () => O(_, null)), u("drop", y, (e) => j(e, a())), c(e, d);
 			});
-			var g = X(d, 2), y = (e) => {
-				var t = Te(), i = Q(t), o = N(i);
+			var g = Y(d, 2), y = (e) => {
+				var t = Ee(), i = Z(t), o = N(i);
 				{
-					let e = Z(() => T(f)[`${T(a)}:other`] ? "down" : "right");
-					$(o, {
+					let e = X(() => T(f)[`${T(a)}:other`] ? "down" : "right");
+					Q(o, {
 						get name() {
 							return T(e);
 						},
 						size: 12
 					});
 				}
-				var u = X(o), d = K(u);
-				J(i);
-				var h = X(i, 2), g = (e) => {
-					var t = x(), i = Q(t);
+				var u = Y(o), d = W(u);
+				q(i);
+				var h = Y(i, 2), g = (e) => {
+					var t = x(), i = Z(t);
 					l(i, 17, () => T(s).other, (e) => e.path, (e, t) => {
-						var i = we();
+						var i = Te();
 						let a;
 						p(i, "", {}, { "--depth": 1 });
 						var o = N(i);
-						$(o, { name: "folder" });
-						var s = X(o), l = K(s, !0);
-						J(i), E((e) => {
+						Q(o, { name: "folder" });
+						var s = Y(o), l = W(s, !0);
+						q(i), E((e) => {
 							a = m(i, 1, "row svelte-t2e5ba", null, a, { on: e }), n(l, T(t).label);
-						}, [() => k(T(t))]), Y("click", i, () => w({
+						}, [() => k(T(t))]), J("click", i, () => w({
 							name: "folder",
 							account: T(r).name,
 							folder: T(t).path,
@@ -323,17 +323,17 @@ function Me(e, t) {
 				};
 				v(h, (e) => {
 					T(f)[`${T(a)}:other`] && e(g);
-				}), E(() => n(d, `More (${T(s).other.length ?? ""})`)), Y("click", i, () => b(`${T(a)}:other`)), c(e, t);
+				}), E(() => n(d, `More (${T(s).other.length ?? ""})`)), J("click", i, () => b(`${T(a)}:other`)), c(e, t);
 			};
 			v(g, (e) => {
 				T(s).other.length && !i() && e(y);
 			});
-			var S = X(g, 2), D = (e) => {
-				var t = Ee(), n = N(t);
-				$(n, {
+			var S = Y(g, 2), D = (e) => {
+				var t = De(), n = N(t);
+				Q(n, {
 					name: "plus",
 					size: 14
-				}), F(), J(t), Y("click", t, () => window.dispatchEvent(new CustomEvent("atlas-email:new-folder", { detail: T(r).name }))), c(e, t);
+				}), F(), q(t), J("click", t, () => window.dispatchEvent(new CustomEvent("atlas-email:new-folder", { detail: T(r).name }))), c(e, t);
 			};
 			v(S, (e) => {
 				i() || e(D);
@@ -341,18 +341,18 @@ function Me(e, t) {
 		};
 		v(I, (e) => {
 			!T(f)[T(a)] && !T(r).error && e(L);
-		}), J(d), E(() => {
+		}), q(d), E(() => {
 			h(g, "aria-expanded", !T(f)[T(a)]), h(g, "title", T(r).user ?? T(r).name);
-		}), Y("click", g, () => b(T(a))), c(e, d);
+		}), J("click", g, () => b(T(a))), c(e, d);
 	}, (e) => {
-		var n = x(), r = Q(n), a = (e) => {
-			var n = ke(), r = X(N(n), 2);
-			J(n), Y("click", r, () => t.mail.atlas.plugin.openSettings()), c(e, n);
+		var n = x(), r = Z(n), a = (e) => {
+			var n = Ae(), r = Y(N(n), 2);
+			q(n), J("click", r, () => t.mail.atlas.plugin.openSettings()), c(e, n);
 		};
 		v(r, (e) => {
 			i() || e(a);
 		}), c(e, n);
-	}), J(P), E(() => I = m(P, 1, "side svelte-t2e5ba", null, I, { rail: i() })), Y("click", L, () => t.mail.compose()), c(e, P), se();
+	}), q(P), E(() => I = m(P, 1, "side svelte-t2e5ba", null, I, { rail: i() })), J("click", L, () => t.mail.compose()), c(e, P), ce();
 }
 d(["click"]);
 //#endregion
@@ -363,11 +363,11 @@ var Ne = C("<div class=\"sect svelte-g4my5v\">Everything else</div>"), Pe = C("<
 };
 function Ye(e, t) {
 	M(t, !0), g(e, Je);
-	let i = r(t, "mail", 7), a = r(t, "compact", 3, !1), o = Z(() => a() ? 34 : 76), d = Z(() => {
+	let i = r(t, "mail", 7), a = r(t, "compact", 3, !1), o = X(() => a() ? 34 : 76), d = X(() => {
 		if (!i().pinning) return 0;
 		let e = i().rows.findIndex((e) => !e.flagged);
 		return e < 0 ? i().rows.length : e;
-	}), y = (e) => e * T(o) + (T(d) ? e < T(d) ? 28 : 56 : 0), S = q(void 0), C = q(0), D = q(600), k = Z(() => Math.max(0, Math.floor(T(C) / T(o)) - 8)), A = Z(() => Math.min(i().rows.length, Math.ceil((T(C) + T(D)) / T(o)) + 8)), j = Z(() => i().rows.slice(T(k), T(A)));
+	}), y = (e) => e * T(o) + (T(d) ? e < T(d) ? 28 : 56 : 0), S = K(void 0), C = K(0), D = K(600), k = X(() => Math.max(0, Math.floor(T(C) / T(o)) - 8)), A = X(() => Math.min(i().rows.length, Math.ceil((T(C) + T(D)) / T(o)) + 8)), j = X(() => i().rows.slice(T(k), T(A)));
 	_(() => {
 		i().cursor;
 		let e = w(() => i().index());
@@ -398,7 +398,7 @@ function Ye(e, t) {
 		let n = i().checked.includes(t.thread) ? i().rows.filter((e) => i().checked.includes(e.thread)).map((e) => e.id) : [t.id];
 		e.dataTransfer?.setData("application/x-atlas-mail", JSON.stringify(n)), e.dataTransfer?.setData("text/plain", `${n.length} conversation${n.length === 1 ? "" : "s"}`), e.dataTransfer && (e.dataTransfer.effectAllowed = "move");
 	}
-	let B = q(null);
+	let B = K(null);
 	function V(e, t) {
 		e.pointerType === "touch" && O(B, {
 			id: t.id,
@@ -406,31 +406,31 @@ function Ye(e, t) {
 			dx: 0
 		}, !0);
 	}
-	function H(e) {
+	function ee(e) {
 		T(B) && (T(B).dx = e.clientX - T(B).x0);
 	}
-	function U(e, t) {
+	function H(e, t) {
 		if (!T(B) || T(B).id !== t.id) return;
 		let n = e.currentTarget.clientWidth, r = T(B).dx;
 		O(B, null), r < -n / 3 ? i().archive([t]) : r > n / 3 && i().toggleRead([t]);
 	}
-	let ee = (e) => P(e);
-	var W = qe();
-	let G;
-	var te = N(W);
-	let re;
-	var ie = N(te), ae = (e) => {
-		var t = Pe(), r = Q(t);
+	let te = (e) => P(e);
+	var U = qe();
+	let ne;
+	var G = N(U);
+	let ie;
+	var ae = N(G), oe = (e) => {
+		var t = Pe(), r = Z(t);
 		p(r, "", {}, { top: "0" });
 		var a = N(r);
-		$(a, {
+		Q(a, {
 			name: "star",
 			size: 13,
 			filled: !0
 		});
-		var s = X(a, 2), l = K(s, !0);
-		J(r);
-		var u = X(r, 2), f = (e) => {
+		var s = Y(a, 2), l = W(s, !0);
+		q(r);
+		var u = Y(r, 2), f = (e) => {
 			var t = Ne();
 			let n;
 			E(() => n = p(t, "", n, { top: `${T(d) * T(o) + 28}px` })), c(e, t);
@@ -439,18 +439,18 @@ function Ye(e, t) {
 			T(d) < i().rows.length && e(f);
 		}), E(() => n(l, T(d))), c(e, t);
 	};
-	v(ie, (e) => {
-		T(d) && e(ae);
+	v(ae, (e) => {
+		T(d) && e(oe);
 	});
-	var oe = X(ie, 2);
-	l(oe, 19, () => T(j), (e) => e.thread, (e, t, r) => {
-		let d = Z(() => T(k) + T(r)), f = Z(() => i().checked.includes(T(t).thread)), g = Z(() => T(B)?.id === T(t).id ? T(B).dx : 0);
+	var se = Y(ae, 2);
+	l(se, 19, () => T(j), (e) => e.thread, (e, t, r) => {
+		let d = X(() => T(k) + T(r)), f = X(() => i().checked.includes(T(t).thread)), g = X(() => T(B)?.id === T(t).id ? T(B).dx : 0);
 		var _ = Ge();
 		let b, x;
 		var S = N(_), C = (e) => {
 			var r = Fe();
 			let i;
-			var a = K(r, !0);
+			var a = W(r, !0);
 			E(() => {
 				i = m(r, 1, "swipe svelte-g4my5v", null, i, { left: T(g) < 0 }), n(a, T(g) < 0 ? "Archive" : T(t).unread ? "Read" : "Unread");
 			}), c(e, r);
@@ -458,10 +458,10 @@ function Ye(e, t) {
 		v(S, (e) => {
 			T(g) && e(C);
 		});
-		var w = X(S, 2);
+		var w = Y(S, 2);
 		let D;
 		var A = N(w), j = (e) => {
-			$(e, {
+			Q(e, {
 				name: "check",
 				size: 15
 			});
@@ -471,116 +471,116 @@ function Ye(e, t) {
 			E(() => r = m(n, 1, "dotonly svelte-g4my5v", null, r, { on: T(t).unread > 0 })), c(e, n);
 		}, F = (e) => {
 			var r = s();
-			E((e) => n(r, e), [() => ne(T(t).from.at(-1))]), c(e, r);
+			E((e) => n(r, e), [() => re(T(t).from.at(-1))]), c(e, r);
 		};
 		v(A, (e) => {
 			T(f) ? e(j) : a() ? e(M, 1) : e(F, -1);
-		}), J(w);
-		var I = X(w, 2), W = N(I), G = N(W), te = (e) => {
+		}), q(w);
+		var I = Y(w, 2), U = N(I), ne = N(U), G = (e) => {
 			var t = Le();
 			c(e, t);
 		};
-		v(G, (e) => {
-			T(t).unread > 0 && !a() && e(te);
+		v(ne, (e) => {
+			T(t).unread > 0 && !a() && e(G);
 		});
-		var q = X(G, 2), re = N(q, !0), ie = X(re), ae = (e) => {
-			var r = Re(), i = K(r, !0);
+		var K = Y(ne, 2), ie = N(K, !0), ae = Y(ie), oe = (e) => {
+			var r = Re(), i = W(r, !0);
 			E(() => n(i, T(t).count)), c(e, r);
 		};
-		v(ie, (e) => {
-			T(t).count > 1 && e(ae);
+		v(ae, (e) => {
+			T(t).count > 1 && e(oe);
 		});
-		var oe = X(ie), se = (e) => {
+		var se = Y(ae), ce = (e) => {
 			var t = ze();
 			c(e, t);
 		};
-		v(oe, (e) => {
-			T(t).draft && T(t).count > 1 && e(se);
-		}), J(q);
-		var le = X(q, 2), de = (e) => {
-			var r = Be(), i = N(r, !0), a = X(i), o = K(a);
-			J(r), E(() => {
+		v(se, (e) => {
+			T(t).draft && T(t).count > 1 && e(ce);
+		}), q(K);
+		var ue = Y(K, 2), fe = (e) => {
+			var r = Be(), i = N(r, !0), a = Y(i), o = W(a);
+			q(r), E(() => {
 				n(i, T(t).subject || "(no subject)"), n(o, `— ${T(t).snippet ?? ""}`);
 			}), c(e, r);
 		};
-		v(le, (e) => {
-			a() && e(de);
+		v(ue, (e) => {
+			a() && e(fe);
 		});
-		var fe = X(le, 2), pe = N(fe), me = (e) => {
-			$(e, {
+		var pe = Y(ue, 2), me = N(pe), he = (e) => {
+			Q(e, {
 				name: "attach",
 				size: 13,
 				title: "has files"
 			});
 		};
-		v(pe, (e) => {
-			T(t).has_attachments && e(me);
+		v(me, (e) => {
+			T(t).has_attachments && e(he);
 		});
-		var he = X(pe, 2), ge = (e) => {
-			$(e, {
+		var ge = Y(me, 2), _e = (e) => {
+			Q(e, {
 				name: "note",
 				size: 13,
 				title: "saved as a note"
 			});
 		};
-		v(he, (e) => {
-			T(t).saved && e(ge);
+		v(ge, (e) => {
+			T(t).saved && e(_e);
 		});
-		var _e = X(he, 2), ve = (e) => {
+		var ve = Y(ge, 2), ye = (e) => {
 			var t = Ve(), n = N(t);
-			$(n, {
+			Q(n, {
 				name: "star",
 				size: 14,
 				filled: !0,
 				title: "starred"
-			}), J(t), c(e, t);
+			}), q(t), c(e, t);
 		};
-		v(_e, (e) => {
-			T(t).flagged && e(ve);
-		}), J(fe);
-		var ye = X(fe, 2), be = K(ye, !0);
-		J(W);
-		var xe = X(W, 2), Se = (e) => {
-			var r = We(), a = Q(r), o = N(a), s = K(o, !0);
-			J(a);
-			var u = X(a, 2), d = N(u), f = (e) => {
-				var r = He(), i = K(r, !0);
+		v(ve, (e) => {
+			T(t).flagged && e(ye);
+		}), q(pe);
+		var be = Y(pe, 2), xe = W(be, !0);
+		q(U);
+		var Se = Y(U, 2), Ce = (e) => {
+			var r = We(), a = Z(r), o = N(a), s = W(o, !0);
+			q(a);
+			var u = Y(a, 2), d = N(u), f = (e) => {
+				var r = He(), i = W(r, !0);
 				E(() => n(i, T(t).account)), c(e, r);
 			};
 			v(d, (e) => {
 				i().view.name !== "folder" && i().view.account === null && i().accounts.length > 1 && e(f);
 			});
-			var m = X(d, 2);
+			var m = Y(d, 2);
 			l(m, 16, () => T(t).labels.slice(0, 3), (e) => e, (e, t) => {
 				var r = Ue();
 				let i;
-				var a = K(r, !0);
+				var a = W(r, !0);
 				E((e, t) => {
 					i = p(r, "", i, { "--h": e }), n(a, t);
-				}, [() => ee(t), () => t.replace(/^\$/, "")]), c(e, r);
+				}, [() => te(t), () => t.replace(/^\$/, "")]), c(e, r);
 			});
-			var h = X(m, 2), g = K(h, !0);
-			J(u), E(() => {
+			var h = Y(m, 2), g = W(h, !0);
+			q(u), E(() => {
 				n(s, T(t).subject || "(no subject)"), n(g, T(t).snippet_missing ? "…" : T(t).snippet);
 			}), c(e, r);
 		};
-		v(xe, (e) => {
-			a() || e(Se);
-		}), J(I);
-		var Ce = X(I, 2), we = N(Ce), Te = N(we);
-		$(Te, { name: "archive" }), J(we);
-		var Ee = X(we, 2), De = N(Ee);
-		$(De, { name: "trash" }), J(Ee);
-		var Oe = X(Ee, 2), ke = N(Oe);
+		v(Se, (e) => {
+			a() || e(Ce);
+		}), q(I);
+		var we = Y(I, 2), Te = N(we), Ee = N(Te);
+		Q(Ee, { name: "archive" }), q(Te);
+		var De = Y(Te, 2), Oe = N(De);
+		Q(Oe, { name: "trash" }), q(De);
+		var ke = Y(De, 2), Ae = N(ke);
 		{
-			let e = Z(() => T(t).unread ? "read" : "unread");
-			$(ke, { get name() {
+			let e = X(() => T(t).unread ? "read" : "unread");
+			Q(Ae, { get name() {
 				return T(e);
 			} });
 		}
-		J(Oe);
-		var Ae = X(Oe, 2), je = N(Ae);
-		$(je, { name: "clock" }), J(Ae), J(Ce), J(_), E((e, r, a, s, c) => {
+		q(ke);
+		var $ = Y(ke, 2), je = N($);
+		Q(je, { name: "clock" }), q($), q(we), q(_), E((e, r, a, s, c) => {
 			b = m(_, 1, "row svelte-g4my5v", null, b, {
 				unread: T(t).unread > 0,
 				cursor: i().cursor === T(t).id,
@@ -590,27 +590,27 @@ function Ye(e, t) {
 				top: e,
 				height: `${T(o) ?? ""}px`,
 				transform: T(g) ? `translateX(${T(g)}px)` : void 0
-			}), h(w, "aria-label", T(f) ? "Uncheck" : "Check"), h(w, "aria-pressed", T(f)), D = p(w, "", D, { "--h": r }), n(re, a), h(ye, "datetime", s), n(be, c), h(Oe, "title", T(t).unread ? "Mark read" : "Mark unread");
+			}), h(w, "aria-label", T(f) ? "Uncheck" : "Check"), h(w, "aria-pressed", T(f)), D = p(w, "", D, { "--h": r }), n(ie, a), h(be, "datetime", s), n(xe, c), h(ke, "title", T(t).unread ? "Mark read" : "Mark unread");
 		}, [
 			() => `${y(T(d)) ?? ""}px`,
 			() => P(T(t).from.at(-1)?.addr ?? T(t).subject),
 			() => T(t).draft && T(t).count === 1 ? "Draft" : L(T(t).from, i().own),
 			() => (/* @__PURE__ */ new Date(T(t).date * 1e3)).toISOString(),
-			() => ue(T(t).date)
-		]), Y("click", _, (e) => R(e, T(t))), Y("keydown", _, () => {}), u("dragstart", _, (e) => z(e, T(t))), Y("pointerdown", _, (e) => V(e, T(t))), Y("pointermove", _, H), Y("pointerup", _, (e) => U(e, T(t))), u("pointercancel", _, () => O(B, null)), Y("click", w, (e) => {
+			() => de(T(t).date)
+		]), J("click", _, (e) => R(e, T(t))), J("keydown", _, () => {}), u("dragstart", _, (e) => z(e, T(t))), J("pointerdown", _, (e) => V(e, T(t))), J("pointermove", _, ee), J("pointerup", _, (e) => H(e, T(t))), u("pointercancel", _, () => O(B, null)), J("click", w, (e) => {
 			e.stopPropagation(), i().toggle(T(t).thread);
-		}), Y("click", we, (e) => {
+		}), J("click", Te, (e) => {
 			e.stopPropagation(), i().archive([T(t)]);
-		}), Y("click", Ee, (e) => {
+		}), J("click", De, (e) => {
 			e.stopPropagation(), i().trash([T(t)]);
-		}), Y("click", Oe, (e) => {
+		}), J("click", ke, (e) => {
 			e.stopPropagation(), i().toggleRead([T(t)]);
-		}), Y("click", Ae, (e) => {
-			e.stopPropagation(), i().snooze(ce()[0].at, [T(t)]);
+		}), J("click", $, (e) => {
+			e.stopPropagation(), i().snooze(le()[0].at, [T(t)]);
 		}), c(e, _);
-	}), J(te);
-	var de = X(te, 2), fe = (e) => {
-		var t = x(), n = Q(t);
+	}), q(G);
+	var fe = Y(G, 2), pe = (e) => {
+		var t = x(), n = Z(t);
 		l(n, 16, () => Array(8), f, (e, t, n) => {
 			var r = Ke();
 			let i;
@@ -620,11 +620,11 @@ function Ye(e, t) {
 			})), c(e, r);
 		}), c(e, t);
 	};
-	v(de, (e) => {
-		i().loading && !i().rows.length && e(fe);
-	}), J(W), le(W, (e) => O(S, e), () => T(S)), E(() => {
-		G = m(W, 1, "list svelte-g4my5v", null, G, { compact: a() }), re = p(te, "", re, { height: `${i().rows.length * T(o) + (T(d) ? 56 : 0)}px` });
-	}), u("scroll", W, I), b(W, "clientHeight", (e) => O(D, e)), c(e, W), se();
+	v(fe, (e) => {
+		i().loading && !i().rows.length && e(pe);
+	}), q(U), ue(U, (e) => O(S, e), () => T(S)), E(() => {
+		ne = m(U, 1, "list svelte-g4my5v", null, ne, { compact: a() }), ie = p(G, "", ie, { height: `${i().rows.length * T(o) + (T(d) ? 56 : 0)}px` });
+	}), u("scroll", U, I), b(U, "clientHeight", (e) => O(D, e)), c(e, U), ce();
 }
 d([
 	"click",
@@ -641,7 +641,7 @@ var Xe = C("<span class=\"faint svelte-720w0p\"> </span>"), Ze = C("<span> </spa
 };
 function at(e, t) {
 	M(t, !0), g(e, it);
-	let r = q(null), i = q(null), a = q(!1), o = Z(() => T(i) ?? t.invite.answer);
+	let r = K(null), i = K(null), a = K(!1), o = X(() => T(i) ?? t.invite.answer);
 	_(() => {
 		let e = t.id;
 		O(r, null), t.mail.call("invite_status", { id: e }).then((n) => {
@@ -658,7 +658,7 @@ function at(e, t) {
 		hourCycle: "h23",
 		minute: "2-digit",
 		timeZone: t
-	}), p = (e, t) => e.toDateString() === t.toDateString(), h = Z(() => {
+	}), p = (e, t) => e.toDateString() === t.toDateString(), h = X(() => {
 		if (!t.invite.start) return "";
 		let e = u(t.invite.start), n = t.invite.end ? u(t.invite.end) : null;
 		if (t.invite.all_day) {
@@ -667,7 +667,7 @@ function at(e, t) {
 		}
 		let r = n ? p(e, n) ? `${f(e)} – ${f(n)}` : `${f(e)} – ${d(n)} ${f(n)}` : f(e);
 		return `${d(e)} · ${r}`;
-	}), y = Z(() => {
+	}), y = X(() => {
 		if (!t.invite.zone || t.invite.all_day || !t.invite.start) return "";
 		try {
 			let e = t.invite.zone.split("/").pop().replace(/_/g, " ");
@@ -675,7 +675,7 @@ function at(e, t) {
 		} catch {
 			return "";
 		}
-	}), b = Z(() => {
+	}), b = X(() => {
 		let e = /FREQ=(\w+)/.exec(t.invite.repeats)?.[1];
 		return e ? {
 			DAILY: "every day",
@@ -687,7 +687,7 @@ function at(e, t) {
 		ACCEPTED: "You accepted",
 		TENTATIVE: "You said maybe",
 		DECLINED: "You declined"
-	})[e] ?? "", S = Z(() => t.invite.method === "REQUEST" && !t.invite.mine);
+	})[e] ?? "", S = X(() => t.invite.method === "REQUEST" && !t.invite.mine);
 	async function C(e) {
 		O(a, !0);
 		try {
@@ -710,81 +710,81 @@ function at(e, t) {
 	var w = rt();
 	let D;
 	var k = N(w);
-	$(k, {
+	Q(k, {
 		name: "calendar",
 		size: 22
 	});
-	var A = X(k, 2), j = N(A), P = K(j), I = X(j, 2), L = N(I, !0), R = X(L), z = (e) => {
-		var t = Xe(), r = K(t);
+	var A = Y(k, 2), j = N(A), P = W(j), I = Y(j, 2), L = N(I, !0), R = Y(L), z = (e) => {
+		var t = Xe(), r = W(t);
 		E(() => n(r, `· ${T(b) ?? ""}`)), c(e, t);
 	};
 	v(R, (e) => {
 		T(b) && e(z);
-	}), J(I);
-	var B = X(I, 2), V = (e) => {
-		var t = Xe(), r = K(t, !0);
+	}), q(I);
+	var B = Y(I, 2), V = (e) => {
+		var t = Xe(), r = W(t, !0);
 		E(() => n(r, T(y))), c(e, t);
 	};
 	v(B, (e) => {
 		T(y) && e(V);
 	});
-	var H = X(B, 2), U = (e) => {
-		var r = Ze(), i = K(r, !0);
+	var ee = Y(B, 2), H = (e) => {
+		var r = Ze(), i = W(r, !0);
 		E(() => n(i, t.invite.location)), c(e, r);
 	};
-	v(H, (e) => {
-		t.invite.location && e(U);
+	v(ee, (e) => {
+		t.invite.location && e(H);
 	});
-	var ee = X(H, 2), W = (e) => {
-		var r = Xe(), i = K(r);
+	var te = Y(ee, 2), U = (e) => {
+		var r = Xe(), i = W(r);
 		E(() => n(i, `from ${t.invite.organizer ?? ""}${t.invite.attendees.length > 1 ? ` · ${t.invite.attendees.length} invited` : ""}`)), c(e, r);
 	};
-	v(ee, (e) => {
-		t.invite.organizer && e(W);
+	v(te, (e) => {
+		t.invite.organizer && e(U);
 	});
-	var G = X(ee, 2), te = (e) => {
+	var ne = Y(te, 2), G = (e) => {
 		var t = et(), i = N(t), a = (e) => {
 			var t = Qe(), n = N(t);
-			$(n, {
+			Q(n, {
 				name: "check",
 				size: 13
-			}), F(), J(t), c(e, t);
+			}), F(), q(t), c(e, t);
 		};
 		v(i, (e) => {
 			T(r).in_calendar && e(a);
 		});
-		var o = X(i, 2);
+		var o = Y(i, 2);
 		l(o, 17, () => T(r).conflicts.slice(0, 2), (e) => e.summary + e.start, (e, t) => {
-			var r = $e(), i = K(r);
+			var r = $e(), i = W(r);
 			E((e) => n(i, `Overlaps ${T(t).summary ?? ""} (${e ?? ""})`), [() => f(u(T(t).start))]), c(e, r);
-		}), J(t), c(e, t);
+		}), q(t), c(e, t);
 	};
-	v(G, (e) => {
-		T(r) && e(te);
-	}), J(A);
-	var ne = X(A, 2), re = (e) => {
+	v(ne, (e) => {
+		T(r) && e(G);
+	}), q(A);
+	var re = Y(A, 2), ie = (e) => {
 		var t = nt(), r = N(t), i = (e) => {
-			var t = tt(), r = K(t, !0);
+			var t = tt(), r = W(t, !0);
 			E((e) => n(r, e), [() => x(T(o))]), c(e, t);
 		};
 		v(r, (e) => {
 			T(o) && e(i);
 		});
-		var s = X(r, 2);
+		var s = Y(r, 2);
 		let l;
-		var u = X(s, 2);
+		var u = Y(s, 2);
 		let d;
-		var f = X(u, 2);
+		var f = Y(u, 2);
 		let p;
-		J(t), E(() => {
+		q(t), E(() => {
 			s.disabled = T(a), l = m(s, 1, "svelte-720w0p", null, l, { on: T(o) === "ACCEPTED" }), u.disabled = T(a), d = m(u, 1, "svelte-720w0p", null, d, { on: T(o) === "TENTATIVE" }), f.disabled = T(a), p = m(f, 1, "svelte-720w0p", null, p, { on: T(o) === "DECLINED" });
-		}), Y("click", s, () => C("ACCEPTED")), Y("click", u, () => C("TENTATIVE")), Y("click", f, () => C("DECLINED")), c(e, t);
+		}), J("click", s, () => C("ACCEPTED")), J("click", u, () => C("TENTATIVE")), J("click", f, () => C("DECLINED")), c(e, t);
 	};
-	v(ne, (e) => {
-		T(S) && e(re);
-	}), J(w), E(() => {
+	v(re, (e) => {
+		T(S) && e(ie);
+	}), q(w), E(() => {
 		D = m(w, 1, "invite svelte-720w0p", null, D, { cancelled: t.invite.method === "CANCEL" }), n(P, `${t.invite.method === "CANCEL" ? "Cancelled: " : ""}${(t.invite.summary || "An invitation") ?? ""}`), n(L, T(h));
-	}), c(e, w), se();
+	}), c(e, w), ce();
 }
 d(["click"]);
 //#endregion
@@ -795,13 +795,13 @@ var ot = C("<span><span class=\"svelte-1y6wl7m\"> </span> <button class=\"svelte
 };
 function ft(e, t) {
 	M(t, !0), g(e, dt);
-	let o = r(t, "value", 15), s = r(t, "autofocus", 3, !1), d = q(""), f = q(B([])), y = q(0), b = q(void 0), x;
+	let o = r(t, "value", 15), s = r(t, "autofocus", 3, !1), d = K(""), f = K(B([])), y = K(0), b = K(void 0), x;
 	function S(e) {
 		let t = [], n = "", r = !1, i = !1;
 		for (let a of e) a === "\"" && (r = !r), a === "<" && (i = !0), a === ">" && (i = !1), (a === "," || a === ";") && !r && !i ? (n.trim() && t.push(n.trim()), n = "") : n += a;
 		return n.trim() && t.push(n.trim()), t;
 	}
-	let C = Z(() => S(o())), w = (e) => (e.match(/<([^>]+)>/)?.[1] ?? e).trim(), D = (e) => e.replace(/<[^>]+>/, "").replace(/"/g, "").trim() || w(e), k = (e) => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(w(e));
+	let C = X(() => S(o())), w = (e) => (e.match(/<([^>]+)>/)?.[1] ?? e).trim(), D = (e) => e.replace(/<[^>]+>/, "").replace(/"/g, "").trim() || w(e), k = (e) => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(w(e));
 	function A(e) {
 		let t = e.trim().replace(/,$/, "");
 		t && (o([...T(C).filter((e) => w(e).toLowerCase() !== w(t).toLowerCase()), t].join(", ")), O(d, ""), O(f, [], !0));
@@ -822,7 +822,7 @@ function ft(e, t) {
 		}
 		x = setTimeout(async () => {
 			try {
-				let n = await U(t.atlas, "contacts", {
+				let n = await H(t.atlas, "contacts", {
 					q: e,
 					limit: 7
 				}, 10);
@@ -839,49 +839,49 @@ function ft(e, t) {
 	_(() => {
 		s() && T(b)?.focus();
 	});
-	var R = ut(), z = N(R), V = K(z, !0), H = X(z, 2), ee = N(H);
-	l(ee, 19, () => T(C), (e, t) => e + t, (e, t, r) => {
+	var R = ut(), z = N(R), V = W(z, !0), ee = Y(z, 2), te = N(ee);
+	l(te, 19, () => T(C), (e, t) => e + t, (e, t, r) => {
 		var i = ot();
 		let a, o;
-		var s = N(i), l = K(s, !0), u = X(s, 2);
-		J(i), E((e, r, s, c) => {
+		var s = N(i), l = W(s, !0), u = Y(s, 2);
+		q(i), E((e, r, s, c) => {
 			a = m(i, 1, "chip svelte-1y6wl7m", null, a, { bad: e }), h(i, "title", T(t)), o = p(i, "", o, { "--h": r }), n(l, s), h(u, "aria-label", c);
 		}, [
 			() => !k(T(t)),
 			() => P(w(T(t))),
 			() => D(T(t)),
 			() => `Remove ${w(T(t))}`
-		]), Y("click", u, (e) => {
+		]), J("click", u, (e) => {
 			e.stopPropagation(), j(T(r));
 		}), c(e, i);
 	});
-	var W = X(ee, 2);
-	i(W), le(W, (e) => O(b, e), () => T(b)), J(H);
-	var G = X(H, 2), te = (e) => {
+	var U = Y(te, 2);
+	i(U), ue(U, (e) => O(b, e), () => T(b)), q(ee);
+	var ne = Y(ee, 2), G = (e) => {
 		var t = lt();
 		l(t, 23, () => T(f), (e) => e.addr, (e, t, r) => {
 			var i = ct(), a = N(i);
 			let o;
-			var s = N(a), l = K(s, !0), u = X(s), d = (e) => {
-				var r = st(), i = K(r, !0);
+			var s = N(a), l = W(s, !0), u = Y(s), d = (e) => {
+				var r = st(), i = W(r, !0);
 				E(() => n(i, T(t).addr)), c(e, r);
 			};
 			v(u, (e) => {
 				T(t).name && e(d);
-			}), J(a), J(i), E(() => {
+			}), q(a), q(i), E(() => {
 				h(i, "aria-selected", T(r) === T(y)), o = m(a, 1, "svelte-1y6wl7m", null, o, { on: T(r) === T(y) }), n(l, T(t).name || T(t).addr);
-			}), Y("mousedown", a, (e) => {
+			}), J("mousedown", a, (e) => {
 				e.preventDefault(), A(I(T(t)));
 			}), c(e, i);
-		}), J(t), c(e, t);
+		}), q(t), c(e, t);
 	};
-	v(G, (e) => {
-		T(f).length && e(te);
-	}), J(R), E(() => {
-		n(V, t.label), h(W, "aria-label", t.label);
-	}), Y("click", H, () => T(b)?.focus()), Y("input", W, F), Y("keydown", W, L), u("blur", W, () => {
+	v(ne, (e) => {
+		T(f).length && e(G);
+	}), q(R), E(() => {
+		n(V, t.label), h(U, "aria-label", t.label);
+	}), J("click", ee, () => T(b)?.focus()), J("input", U, F), J("keydown", U, L), u("blur", U, () => {
 		T(d).trim() && A(T(d)), O(f, [], !0);
-	}), a(W, () => T(d), (e) => O(d, e)), c(e, R), se();
+	}), a(U, () => T(d), (e) => O(d, e)), c(e, R), ce();
 }
 d([
 	"click",
@@ -897,14 +897,14 @@ var pt = C("<header class=\"bar svelte-zp5xms\"><b class=\"svelte-zp5xms\"> </b>
 };
 function Ft(e, s) {
 	M(s, !0), g(e, Pt);
-	let d = r(s, "c", 7), f = r(s, "inline", 3, !1), p = r(s, "big", 15, !1), y = Z(() => d().draft), b = q(!!T(y).cc), S = q(!!T(y).bcc), C = q(null), w = q(void 0), k = q(!1), j = q(""), P = q(!1), F = q(void 0), L, R = Z(() => s.mail.accounts.find((e) => e.name === T(y).account)), z = Z(() => T(R)?.identities?.filter(Boolean) ?? []), B = Z(() => s.mail.accounts.filter((e) => !e.error)), H = !!T(y).to, U = !1;
+	let d = r(s, "c", 7), f = r(s, "inline", 3, !1), p = r(s, "big", 15, !1), y = X(() => d().draft), b = K(!!T(y).cc), S = K(!!T(y).bcc), C = K(null), w = K(void 0), k = K(!1), j = K(""), P = K(!1), F = K(void 0), L, R = X(() => s.mail.accounts.find((e) => e.name === T(y).account)), z = X(() => T(R)?.identities?.filter(Boolean) ?? []), B = X(() => s.mail.accounts.filter((e) => !e.error)), ee = X(() => `${T(y).account}\u0000${T(y).from && T(y).from === T(R)?.from ? "" : T(y).from}`), H = !!T(y).to, ne = !1;
 	_(() => {
-		!U && T(w) && (U = !0, H && T(w).focus());
+		!ne && T(w) && (ne = !0, H && T(w).focus());
 	});
 	function G() {
-		d().dirty = !0, clearTimeout(L), L = setTimeout(te, 2e3);
+		d().dirty = !0, clearTimeout(L), L = setTimeout(re, 2e3);
 	}
-	async function te() {
+	async function re() {
 		if (d().dirty && !d().sending && (T(y).body.trim() || T(y).subject.trim() || T(y).to.trim())) {
 			d().saving = !0;
 			try {
@@ -917,56 +917,56 @@ function Ft(e, s) {
 			}
 		}
 	}
-	function ne(e, t = e, n = "text") {
+	function ie(e, t = e, n = "text") {
 		if (!T(w)) return;
 		let { selectionStart: r, selectionEnd: i, value: a } = T(w), o = a.slice(r, i) || n;
 		T(y).body = a.slice(0, r) + e + o + t + a.slice(i), G(), requestAnimationFrame(() => {
 			T(w).focus(), T(w).setSelectionRange(r + e.length, r + e.length + o.length);
 		});
 	}
-	function re(e) {
+	function oe(e) {
 		if (!T(w)) return;
 		let { selectionStart: t, selectionEnd: n, value: r } = T(w), i = r.lastIndexOf("\n", t - 1) + 1, a = r.slice(i, n).split("\n").map((t) => e + t).join("\n");
 		T(y).body = r.slice(0, i) + a + r.slice(n), G();
 	}
-	async function ae() {
-		let e = await ie(s.mail.atlas, "Link to (address):", "https://");
-		e && ne("[", `](${e})`, "link text");
+	async function se() {
+		let e = await ae(s.mail.atlas, "Link to (address):", "https://");
+		e && ie("[", `](${e})`, "link text");
 	}
-	async function oe() {
+	async function le() {
 		if (T(C) !== null) {
 			O(C, null);
 			return;
 		}
 		try {
-			O(C, ce((await s.mail.call("preview", { body: T(y).body })).html), !0);
+			O(C, de((await s.mail.call("preview", { body: T(y).body })).html), !0);
 		} catch (e) {
 			d().error = e.message;
 		}
 	}
-	function ce(e) {
+	function de(e) {
 		return e.replace(/src="cid:([^"]+)"/g, (e, t) => {
 			let n = T(y).files.find((e) => e.name === decodeURIComponent(t) && e.data);
 			return n ? `src="data:${n.mime || "image/png"};base64,${n.data}"` : e;
 		});
 	}
-	let ue = (e) => new Promise((t, n) => {
+	let fe = (e) => new Promise((t, n) => {
 		let r = new FileReader();
 		r.onload = () => t(String(r.result).replace(/^data:[^,]*,/, "")), r.onerror = () => n(r.error), r.readAsDataURL(e);
 	});
-	async function de(e) {
+	async function pe(e) {
 		for (let t of Array.from(e)) T(y).files = [...T(y).files, {
 			name: t.name,
 			mime: t.type,
 			size: t.size,
-			data: await ue(t)
+			data: await fe(t)
 		}];
 		G();
 	}
-	function fe(e) {
+	function me(e) {
 		for (let t = 1;; t++) if (!T(y).files.some((n) => n.name === `pasted-${t}.${e}`)) return `pasted-${t}.${e}`;
 	}
-	async function pe(e) {
+	async function he(e) {
 		let t = e.clipboardData, n = Array.from(t?.files ?? []), r = !!t && !n.length && [...t.types].every((e) => e === "text/plain") && !t.getData("text/plain");
 		if (!n.length && !r || !T(w)) return;
 		if (e.preventDefault(), r) {
@@ -978,15 +978,15 @@ function Ft(e, s) {
 		let i = T(w).selectionStart, a = T(w).selectionEnd, o = "";
 		for (let e of n) {
 			if (!e.type.startsWith("image/")) {
-				await de([e]);
+				await pe([e]);
 				continue;
 			}
-			let t = fe(e.type.split("/")[1]?.replace("jpeg", "jpg").replace(/\W.*$/, "") || "png");
+			let t = me(e.type.split("/")[1]?.replace("jpeg", "jpg").replace(/\W.*$/, "") || "png");
 			T(y).files = [...T(y).files, {
 				name: t,
 				mime: e.type,
 				size: e.size,
-				data: await ue(e)
+				data: await fe(e)
 			}], o += `![](cid:${t})`;
 		}
 		if (o) {
@@ -997,7 +997,7 @@ function Ft(e, s) {
 		}
 		G();
 	}
-	function me() {
+	function ge() {
 		s.mail.atlas.pick({
 			placeholder: "A file of the vault to attach…",
 			tag: "Attach",
@@ -1021,7 +1021,7 @@ function Ft(e, s) {
 			}
 		});
 	}
-	function he(e) {
+	function _e(e) {
 		e.preventDefault(), O(P, !1);
 		let t = e.dataTransfer?.getData("text/x-atlas-path") || "";
 		if (t) {
@@ -1031,19 +1031,19 @@ function Ft(e, s) {
 			}], G();
 			return;
 		}
-		e.dataTransfer?.files.length && de(e.dataTransfer.files);
+		e.dataTransfer?.files.length && pe(e.dataTransfer.files);
 	}
-	let ge = (e) => RegExp(`!\\[[^\\]]*\\]\\(<?cid:${e.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}>?\\)\\n?`, "g"), _e = (e) => {
-		T(y).files = T(y).files.filter((t) => t !== e), T(y).body = T(y).body.replace(ge(e.name), ""), G();
-	}, ve = (e) => ge(e.name).test(T(y).body), ye = Z(() => T(y).files.reduce((e, t) => e + (t.size ?? 0), 0)), be = /\b(attached|attachment|attaching|enclosed|ci-joint|pi[eè]ce jointe|adjunto|te adjunto|anexo|allegato|anhang|angeh[aä]ngt)\b/i;
-	async function xe() {
+	let ve = (e) => RegExp(`!\\[[^\\]]*\\]\\(<?cid:${e.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}>?\\)\\n?`, "g"), ye = (e) => {
+		T(y).files = T(y).files.filter((t) => t !== e), T(y).body = T(y).body.replace(ve(e.name), ""), G();
+	}, be = (e) => ve(e.name).test(T(y).body), xe = X(() => T(y).files.reduce((e, t) => e + (t.size ?? 0), 0)), Se = /\b(attached|attachment|attaching|enclosed|ci-joint|pi[eè]ce jointe|adjunto|te adjunto|anexo|allegato|anhang|angeh[aä]ngt)\b/i;
+	async function Ce() {
 		if (!T(y).to.trim() && !T(y).cc.trim() && !T(y).bcc.trim()) return d().error = "Who is it for? Fill in To.", !1;
 		if (!T(y).subject.trim() && !await A(s.mail.atlas, "Send it without a subject?", { ok: "Send" })) return !1;
 		let e = T(y).body.split(/\n\s*>|\nOn .* wrote:/)[0];
-		return !(be.test(e) && !T(y).files.length && !T(y).forward && !await A(s.mail.atlas, "The text mentions an attachment, but nothing is attached. Send anyway?", { ok: "Send anyway" }));
+		return !(Se.test(e) && !T(y).files.length && !T(y).forward && !await A(s.mail.atlas, "The text mentions an attachment, but nothing is attached. Send anyway?", { ok: "Send anyway" }));
 	}
-	async function Se(e = null) {
-		if (!await xe()) return;
+	async function we(e = null) {
+		if (!await Ce()) return;
 		clearTimeout(L), d().sending = !0;
 		let t = {
 			...T(y),
@@ -1060,7 +1060,7 @@ function Ft(e, s) {
 					minute: "2-digit"
 				})}`, "success"), s.mail.later();
 			} catch (e) {
-				Ce(e);
+				Te(e);
 			}
 			return;
 		}
@@ -1069,7 +1069,7 @@ function Ft(e, s) {
 				let e = await s.mail.call("send", t, 300);
 				e.refused?.length ? s.mail.toast(`Sent, but refused for ${e.refused.map((e) => e.address).join(", ")}`, "error") : s.mail.toast("Sent", "success"), s.mail.later();
 			} catch (e) {
-				Ce(e);
+				Te(e);
 			}
 		}, n);
 		s.mail.toast("Sending…", "info", {
@@ -1079,19 +1079,19 @@ function Ft(e, s) {
 			}
 		});
 	}
-	function Ce(e) {
+	function Te(e) {
 		let t = s.mail.compose({ ...T(y) }, d().inline);
 		t.error = `Not sent: ${e.message}`, s.mail.toast(`Not sent: ${e.message}`, "error");
 	}
-	function we() {
-		let e = W(T(j));
+	function Ee() {
+		let e = U(T(j));
 		if (!e || e * 1e3 < Date.now()) {
 			d().error = "When? e.g. tomorrow 8, mon 14:00, 2026-11-02 09:00, 3h";
 			return;
 		}
-		O(k, !1), Se(e);
+		O(k, !1), we(e);
 	}
-	let Te = () => {
+	let De = () => {
 		let e = (e) => {
 			let t = /* @__PURE__ */ new Date();
 			return t.setDate(t.getDate() + e), t.setHours(8, 0, 0, 0), Math.floor(t.getTime() / 1e3);
@@ -1104,7 +1104,7 @@ function Ft(e, s) {
 			at: e(t)
 		}];
 	};
-	async function Ee() {
+	async function Oe() {
 		if ((!d().dirty && !T(y).draft || !T(y).body.trim() && !T(y).subject.trim() || await A(s.mail.atlas, "Discard this message?", {
 			ok: "Discard",
 			danger: !0
@@ -1112,64 +1112,64 @@ function Ft(e, s) {
 			await s.mail.call("discard_draft", { id: T(y).draft }), s.mail.later();
 		} catch {}
 	}
-	function De(e) {
+	function ke(e) {
 		e.stopPropagation();
 		let t = e.ctrlKey || e.metaKey;
-		t && e.key === "Enter" ? (e.preventDefault(), Se()) : t && e.key.toLowerCase() === "s" ? (e.preventDefault(), d().dirty = !0, te()) : t && e.key.toLowerCase() === "b" && e.target === T(w) ? (e.preventDefault(), ne("**")) : t && e.key.toLowerCase() === "i" && e.target === T(w) ? (e.preventDefault(), ne("*")) : t && e.key.toLowerCase() === "k" && e.target === T(w) ? (e.preventDefault(), ae()) : t && e.shiftKey && e.key.toLowerCase() === "c" ? (e.preventDefault(), O(b, !0)) : t && e.shiftKey && e.key.toLowerCase() === "b" ? (e.preventDefault(), O(S, !0)) : e.key === "Escape" && !f() && (e.preventDefault(), te(), s.mail.closeComposer(d().key));
+		t && e.key === "Enter" ? (e.preventDefault(), we()) : t && e.key.toLowerCase() === "s" ? (e.preventDefault(), d().dirty = !0, re()) : t && e.key.toLowerCase() === "b" && e.target === T(w) ? (e.preventDefault(), ie("**")) : t && e.key.toLowerCase() === "i" && e.target === T(w) ? (e.preventDefault(), ie("*")) : t && e.key.toLowerCase() === "k" && e.target === T(w) ? (e.preventDefault(), se()) : t && e.shiftKey && e.key.toLowerCase() === "c" ? (e.preventDefault(), O(b, !0)) : t && e.shiftKey && e.key.toLowerCase() === "b" ? (e.preventDefault(), O(S, !0)) : e.key === "Escape" && !f() && (e.preventDefault(), re(), s.mail.closeComposer(d().key));
 	}
-	function Oe() {
+	function Ae() {
 		T(w) && (T(w).style.height = "auto", T(w).style.height = `${Math.min(Math.max(T(w).scrollHeight, f() ? 120 : 220), p() ? 2e3 : 520)}px`);
 	}
 	_(() => {
-		T(y).body, Oe();
+		T(y).body, Ae();
 	});
-	var ke = Nt();
-	let Ae;
-	var je = N(ke), Me = (e) => {
-		var t = pt(), r = N(t), i = K(r, !0), a = X(r, 4), o = N(a);
-		$(o, {
+	var $ = Nt();
+	let je;
+	var Me = N($), Ne = (e) => {
+		var t = pt(), r = N(t), i = W(r, !0), a = Y(r, 4), o = N(a);
+		Q(o, {
 			name: "layout",
 			size: 15
-		}), J(a);
-		var l = X(a, 2), u = N(l);
-		$(u, {
+		}), q(a);
+		var l = Y(a, 2), u = N(l);
+		Q(u, {
 			name: "x",
 			size: 15
-		}), J(l), J(t), E(() => {
+		}), q(l), q(t), E(() => {
 			n(i, T(y).subject || (T(y).reply_to ? "Reply" : T(y).forward ? "Forward" : "New message")), h(a, "title", p() ? "Smaller" : "Full size");
-		}), Y("click", a, () => p(!p())), Y("click", l, () => {
-			te(), s.mail.closeComposer(d().key);
+		}), J("click", a, () => p(!p())), J("click", l, () => {
+			re(), s.mail.closeComposer(d().key);
 		}), c(e, t);
 	};
-	v(je, (e) => {
-		f() || e(Me);
+	v(Me, (e) => {
+		f() || e(Ne);
 	});
-	var Ne = X(je, 2), Pe = N(Ne), Fe = (e) => {
-		var r = ht(), i = X(N(r), 2);
+	var Pe = Y(Me, 2), Fe = N(Pe), Ie = (e) => {
+		var r = ht(), i = Y(N(r), 2);
 		l(i, 21, () => T(B), (e) => e.name, (e, t) => {
-			var r = x(), i = Q(r);
+			var r = x(), i = Z(r);
 			l(i, 16, () => T(t).identities?.length ? T(t).identities : [T(t).from ?? T(t).user ?? T(t).name], (e) => e, (e, r) => {
-				var i = mt(), a = K(i), o = {};
+				var i = mt(), a = W(i), o = {};
 				E(() => {
 					n(a, `${r ?? ""}${T(B).length > 1 ? ` · ${T(t).name}` : ""}`), o !== (o = `${T(t).name}\u0000${r === T(t).from ? "" : r}`) && (i.value = i.__value = o);
 				}), c(e, i);
 			}), c(e, r);
-		}), J(i);
+		}), q(i);
 		var a;
-		t(i), J(r), E(() => {
-			a !== (a = `${T(y).account}\u0000${T(y).from}`) && (i.value = i.__value = a, V(i, a));
-		}), Y("change", i, (e) => {
+		t(i), q(r), E(() => {
+			a !== (a = T(ee)) && (i.value = (i.__value = a) ?? "", V(i, a));
+		}), J("change", i, (e) => {
 			let [t, n] = e.currentTarget.value.split("\0");
 			T(y).account = t, T(y).from = n, G();
 		}), c(e, r);
 	};
-	v(Pe, (e) => {
-		(T(B).length > 1 || T(z).length > 1) && e(Fe);
+	v(Fe, (e) => {
+		(T(B).length > 1 || T(z).length > 1) && e(Ie);
 	});
-	var Ie = X(Pe, 2), Le = N(Ie), Re = N(Le);
+	var Le = Y(Fe, 2), Re = N(Le), ze = N(Re);
 	{
-		let e = Z(() => !T(y).to && !f());
-		ft(Re, {
+		let e = X(() => !T(y).to && !f());
+		ft(ze, {
 			get atlas() {
 				return s.mail.atlas;
 			},
@@ -1185,22 +1185,22 @@ function Ft(e, s) {
 			}
 		});
 	}
-	J(Le);
-	var ze = X(Le, 2), Be = (e) => {
+	q(Re);
+	var Be = Y(Re, 2), Ve = (e) => {
 		var t = gt();
-		Y("click", t, () => O(b, !0)), c(e, t);
+		J("click", t, () => O(b, !0)), c(e, t);
 	};
-	v(ze, (e) => {
-		T(b) || e(Be);
+	v(Be, (e) => {
+		T(b) || e(Ve);
 	});
-	var Ve = X(ze, 2), He = (e) => {
+	var He = Y(Be, 2), Ue = (e) => {
 		var t = _t();
-		Y("click", t, () => O(S, !0)), c(e, t);
+		J("click", t, () => O(S, !0)), c(e, t);
 	};
-	v(Ve, (e) => {
-		T(S) || e(He);
-	}), J(Ie);
-	var Ue = X(Ie, 2), We = (e) => {
+	v(He, (e) => {
+		T(S) || e(Ue);
+	}), q(Le);
+	var We = Y(Le, 2), Ge = (e) => {
 		ft(e, {
 			get atlas() {
 				return s.mail.atlas;
@@ -1214,10 +1214,10 @@ function Ft(e, s) {
 			}
 		});
 	};
-	v(Ue, (e) => {
-		T(b) && e(We);
+	v(We, (e) => {
+		T(b) && e(Ge);
 	});
-	var Ge = X(Ue, 2), Ke = (e) => {
+	var Ke = Y(We, 2), qe = (e) => {
 		ft(e, {
 			get atlas() {
 				return s.mail.atlas;
@@ -1231,45 +1231,45 @@ function Ft(e, s) {
 			}
 		});
 	};
-	v(Ge, (e) => {
-		T(S) && e(Ke);
+	v(Ke, (e) => {
+		T(S) && e(qe);
 	});
-	var qe = X(Ge, 2), Je = (e) => {
+	var Je = Y(Ke, 2), Ye = (e) => {
 		var t = vt();
-		i(t), Y("input", t, G), a(t, () => T(y).subject, (e) => T(y).subject = e), c(e, t);
+		i(t), J("input", t, G), a(t, () => T(y).subject, (e) => T(y).subject = e), c(e, t);
 	};
-	v(qe, (e) => {
-		(!f() || !T(y).reply_to) && e(Je);
-	}), J(Ne);
-	var Ye = X(Ne, 2), Xe = N(Ye), Ze = X(Xe, 2), Qe = X(Ze, 2), $e = X(Qe, 2), et = N($e);
-	$(et, {
+	v(Je, (e) => {
+		(!f() || !T(y).reply_to) && e(Ye);
+	}), q(Pe);
+	var Xe = Y(Pe, 2), Ze = N(Xe), Qe = Y(Ze, 2), $e = Y(Qe, 2), et = Y($e, 2), tt = N(et);
+	Q(tt, {
 		name: "open",
 		size: 14
-	}), J($e);
-	var tt = X($e, 2), nt = X(tt, 2), rt = X(nt, 2), it = X(rt, 2), at = N(it);
-	at.textContent = "<>", J(it);
-	var ot = X(it, 6);
-	let st;
-	var ct = K(ot, !0);
-	J(Ye);
-	var lt = X(Ye, 2), ut = (e) => {
+	}), q(et);
+	var nt = Y(et, 2), rt = Y(nt, 2), it = Y(rt, 2), at = Y(it, 2), ot = N(at);
+	ot.textContent = "<>", q(at);
+	var st = Y(at, 6);
+	let ct;
+	var lt = W(st, !0);
+	q(Xe);
+	var ut = Y(Xe, 2), dt = (e) => {
 		var t = yt();
-		o(t, () => T(C), !0), J(t), c(e, t);
-	}, dt = (e) => {
+		o(t, () => T(C), !0), q(t), c(e, t);
+	}, Ft = (e) => {
 		var t = bt();
-		ee(t), le(t, (e) => O(w, e), () => T(w)), E(() => h(t, "placeholder", T(y).forward ? "Add a note (optional)…" : T(y).reply_to ? "Your reply…" : "Write… (Markdown: **bold**, *italic*, - lists, > quotes)")), Y("input", t, G), u("paste", t, pe), a(t, () => T(y).body, (e) => T(y).body = e), c(e, t);
+		te(t), ue(t, (e) => O(w, e), () => T(w)), E(() => h(t, "placeholder", T(y).forward ? "Add a note (optional)…" : T(y).reply_to ? "Your reply…" : "Write… (Markdown: **bold**, *italic*, - lists, > quotes)")), J("input", t, G), u("paste", t, he), a(t, () => T(y).body, (e) => T(y).body = e), c(e, t);
 	};
-	v(lt, (e) => {
-		T(C) === null ? e(dt, -1) : e(ut);
+	v(ut, (e) => {
+		T(C) === null ? e(Ft, -1) : e(dt);
 	});
-	var Ft = X(lt, 2), It = (e) => {
+	var It = Y(ut, 2), Lt = (e) => {
 		var t = Dt(), r = N(t);
 		l(r, 17, () => T(y).files, (e) => e.name + (e.path ?? "") + (e.from?.join() ?? ""), (e, t) => {
 			var r = Tt(), i = N(r), a = (e) => {
 				var n = xt();
 				E(() => h(n, "src", `data:${T(t).mime};base64,${T(t).data}`)), c(e, n);
-			}, o = Z(() => T(t).data && T(t).mime?.startsWith("image/")), s = (e) => {
-				$(e, {
+			}, o = X(() => T(t).data && T(t).mime?.startsWith("image/")), s = (e) => {
+				Q(e, {
 					name: "attach",
 					size: 13
 				});
@@ -1277,122 +1277,122 @@ function Ft(e, s) {
 			v(i, (e) => {
 				T(o) ? e(a) : e(s, -1);
 			});
-			var l = X(i), u = K(l, !0), d = X(l), f = (e) => {
+			var l = Y(i), u = W(l, !0), d = Y(l), f = (e) => {
 				var t = St();
 				c(e, t);
-			}, p = Z(() => ve(T(t)));
+			}, p = X(() => be(T(t)));
 			v(d, (e) => {
 				T(p) && e(f);
 			});
-			var m = X(d), g = (e) => {
-				var r = Ct(), i = K(r, !0);
+			var m = Y(d), g = (e) => {
+				var r = Ct(), i = W(r, !0);
 				E((e) => n(i, e), [() => D(T(t).size)]), c(e, r);
 			};
 			v(m, (e) => {
 				T(t).size && e(g);
 			});
-			var _ = X(m), y = (e) => {
+			var _ = Y(m), y = (e) => {
 				var t = wt();
 				c(e, t);
 			};
 			v(_, (e) => {
 				T(t).from && e(y);
 			});
-			var b = X(_);
-			J(r), E(() => {
+			var b = Y(_);
+			q(r), E(() => {
 				n(u, T(t).name), h(b, "aria-label", `Remove ${T(t).name}`);
-			}), Y("click", b, () => _e(T(t))), c(e, r);
+			}), J("click", b, () => ye(T(t))), c(e, r);
 		});
-		var i = X(r, 2), a = (e) => {
-			var t = Et(), r = K(t);
-			E((e) => n(r, `${e ?? ""}: most servers take about 25 MB`), [() => D(T(ye))]), c(e, t);
+		var i = Y(r, 2), a = (e) => {
+			var t = Et(), r = W(t);
+			E((e) => n(r, `${e ?? ""}: most servers take about 25 MB`), [() => D(T(xe))]), c(e, t);
 		};
 		v(i, (e) => {
-			T(ye) > 20971520 && e(a);
-		}), J(t), c(e, t);
+			T(xe) > 20971520 && e(a);
+		}), q(t), c(e, t);
 	};
-	v(Ft, (e) => {
-		T(y).files.length && e(It);
+	v(It, (e) => {
+		T(y).files.length && e(Lt);
 	});
-	var Lt = X(Ft, 2), Rt = (e) => {
-		var t = Ot(), r = K(t, !0);
+	var Rt = Y(It, 2), zt = (e) => {
+		var t = Ot(), r = W(t, !0);
 		E(() => n(r, d().error)), c(e, t);
 	};
-	v(Lt, (e) => {
-		d().error && e(Rt);
+	v(Rt, (e) => {
+		d().error && e(zt);
 	});
-	var zt = X(Lt, 2), Bt = (e) => {
+	var Bt = Y(Rt, 2), Vt = (e) => {
 		var t = kt();
 		c(e, t);
 	};
-	v(zt, (e) => {
-		T(P) && e(Bt);
+	v(Bt, (e) => {
+		T(P) && e(Vt);
 	});
-	var Vt = X(zt, 2), Ht = N(Vt), Ut = N(Ht), Wt = X(Ut, 2), Gt = N(Wt);
-	$(Gt, {
+	var Ht = Y(Bt, 2), Ut = N(Ht), Wt = N(Ut), Gt = Y(Wt, 2), Kt = N(Gt);
+	Q(Kt, {
 		name: "down",
 		size: 14
-	}), J(Wt);
-	var Kt = X(Wt, 2), qt = (e) => {
+	}), q(Gt);
+	var qt = Y(Gt, 2), Jt = (e) => {
 		var t = jt(), r = N(t);
-		l(r, 17, Te, (e) => e.label, (e, t) => {
-			var r = At(), i = N(r, !0), a = X(i), o = K(a, !0);
-			J(r), E((e) => {
+		l(r, 17, De, (e) => e.label, (e, t) => {
+			var r = At(), i = N(r, !0), a = Y(i), o = W(a, !0);
+			q(r), E((e) => {
 				n(i, T(t).label), n(o, e);
 			}, [() => (/* @__PURE__ */ new Date(T(t).at * 1e3)).toLocaleString(void 0, {
 				weekday: "short",
 				hour: "2-digit",
 				hourCycle: "h23",
 				minute: "2-digit"
-			})]), Y("click", r, () => {
-				O(k, !1), Se(T(t).at);
+			})]), J("click", r, () => {
+				O(k, !1), we(T(t).at);
 			}), c(e, r);
 		});
-		var o = X(r, 2), s = N(o);
+		var o = Y(r, 2), s = N(o);
 		i(s);
-		var u = X(s);
-		J(o), J(t), Y("keydown", s, (e) => {
-			e.key === "Enter" && (e.preventDefault(), we());
-		}), a(s, () => T(j), (e) => O(j, e)), Y("click", u, we), c(e, t);
+		var u = Y(s);
+		q(o), q(t), J("keydown", s, (e) => {
+			e.key === "Enter" && (e.preventDefault(), Ee());
+		}), a(s, () => T(j), (e) => O(j, e)), J("click", u, Ee), c(e, t);
 	};
-	v(Kt, (e) => {
-		T(k) && e(qt);
-	}), J(Ht);
-	var Jt = X(Ht, 2), Yt = N(Jt);
-	$(Yt, { name: "attach" }), J(Jt);
-	var Xt = X(Jt, 2), Zt = N(Xt);
-	$(Zt, { name: "note" }), J(Xt);
-	var Qt = X(Xt, 2);
-	le(Qt, (e) => O(F, e), () => T(F));
-	var $t = X(Qt, 2), en = K($t, !0), tn = X($t, 4), nn = (e) => {
+	v(qt, (e) => {
+		T(k) && e(Jt);
+	}), q(Ut);
+	var Yt = Y(Ut, 2), Xt = N(Yt);
+	Q(Xt, { name: "attach" }), q(Yt);
+	var Zt = Y(Yt, 2), Qt = N(Zt);
+	Q(Qt, { name: "note" }), q(Zt);
+	var $t = Y(Zt, 2);
+	ue($t, (e) => O(F, e), () => T(F));
+	var en = Y($t, 2), tn = W(en, !0), nn = Y(en, 4), rn = (e) => {
 		var t = Mt(), n = N(t);
-		$(n, {
+		Q(n, {
 			name: "open",
 			size: 15
-		}), J(t), Y("click", t, () => {
+		}), q(t), J("click", t, () => {
 			d().inline = !1;
 		}), c(e, t);
 	};
-	v(tn, (e) => {
-		f() && e(nn);
+	v(nn, (e) => {
+		f() && e(rn);
 	});
-	var rn = X(tn, 2), an = N(rn);
-	$(an, { name: "trash" }), J(rn), J(Vt), J(ke), E((e) => {
-		Ae = m(ke, 1, "composer svelte-zp5xms", null, Ae, {
+	var an = Y(nn, 2), on = N(an);
+	Q(on, { name: "trash" }), q(an), q(Ht), q($), E((e) => {
+		je = m($, 1, "composer svelte-zp5xms", null, je, {
 			inline: f(),
 			over: T(P)
-		}), h(ke, "aria-label", T(y).reply_to ? "Reply" : T(y).forward ? "Forward" : "New message"), st = m(ot, 1, "svelte-zp5xms", null, st, { on: T(C) !== null }), n(ct, T(C) === null ? "Preview" : "Edit"), Ut.disabled = d().sending, h(Wt, "aria-expanded", T(k)), n(en, e);
+		}), h($, "aria-label", T(y).reply_to ? "Reply" : T(y).forward ? "Forward" : "New message"), ct = m(st, 1, "svelte-zp5xms", null, ct, { on: T(C) !== null }), n(lt, T(C) === null ? "Preview" : "Edit"), Wt.disabled = d().sending, h(Gt, "aria-expanded", T(k)), n(tn, e);
 	}, [() => d().saving ? "Saving…" : d().savedAt ? `Draft saved ${new Date(d().savedAt).toLocaleTimeString(void 0, {
 		hour: "2-digit",
 		hourCycle: "h23",
 		minute: "2-digit"
-	})}` : ""]), Y("keydown", ke, De), u("dragover", ke, (e) => {
+	})}` : ""]), J("keydown", $, ke), u("dragover", $, (e) => {
 		e.preventDefault(), O(P, !0);
-	}), u("dragleave", ke, (e) => {
+	}), u("dragleave", $, (e) => {
 		e.currentTarget === e.target && O(P, !1);
-	}), u("drop", ke, he), Y("click", Xe, () => ne("**")), Y("click", Ze, () => ne("*")), Y("click", Qe, () => ne("~~")), Y("click", $e, ae), Y("click", tt, () => re("- ")), Y("click", nt, () => re("1. ")), Y("click", rt, () => re("> ")), Y("click", it, () => ne("`")), Y("click", ot, oe), Y("click", Ut, () => Se()), Y("click", Wt, () => O(k, !T(k))), Y("click", Jt, () => T(F)?.click()), Y("click", Xt, me), Y("change", Qt, (e) => {
-		e.currentTarget.files && de(e.currentTarget.files), e.currentTarget.value = "";
-	}), Y("click", rn, Ee), c(e, ke), se();
+	}), u("drop", $, _e), J("click", Ze, () => ie("**")), J("click", Qe, () => ie("*")), J("click", $e, () => ie("~~")), J("click", et, se), J("click", nt, () => oe("- ")), J("click", rt, () => oe("1. ")), J("click", it, () => oe("> ")), J("click", at, () => ie("`")), J("click", st, le), J("click", Wt, () => we()), J("click", Gt, () => O(k, !T(k))), J("click", Yt, () => T(F)?.click()), J("click", Zt, ge), J("change", $t, (e) => {
+		e.currentTarget.files && pe(e.currentTarget.files), e.currentTarget.value = "";
+	}), J("click", an, Oe), c(e, $), ce();
 }
 d([
 	"keydown",
@@ -1469,54 +1469,54 @@ function zt(e, t) {
 }
 //#endregion
 //#region plugins/stable/email/ui/src/Reader.svelte
-var Bt = C("<div class=\"loading svelte-j5oobt\"><div class=\"bar svelte-j5oobt\"></div><div class=\"bar short svelte-j5oobt\"></div><div class=\"bar svelte-j5oobt\"></div></div>"), Vt = C("<div class=\"atlas-empty\"><p> </p><button class=\"atlas-btn\">Try again</button></div>"), Ht = C("<button class=\"tool svelte-j5oobt\" title=\"Back to the list (u)\"><!></button>"), Ut = C("<button role=\"menuitem\" class=\"svelte-j5oobt\">Open the note</button>"), Wt = C("<button role=\"menuitem\" class=\"svelte-j5oobt\">Unsubscribe</button>"), Gt = C("<div class=\"menu svelte-j5oobt\" role=\"menu\" tabindex=\"-1\"><!> <button role=\"menuitem\" class=\"svelte-j5oobt\">Mark important</button> <button role=\"menuitem\" class=\"svelte-j5oobt\">Not important…</button> <!> <button role=\"menuitem\" class=\"svelte-j5oobt\">Make a task</button> <button role=\"menuitem\" class=\"svelte-j5oobt\">Expand all (;)</button></div>"), Kt = C("<span class=\"chip svelte-j5oobt\"> </span>"), qt = C("<button class=\"link svelte-j5oobt\">Unsubscribe</button>"), Jt = C("<div class=\"find svelte-j5oobt\" role=\"search\"><!> <input placeholder=\"Find in this conversation\" aria-label=\"Find in this conversation\" class=\"svelte-j5oobt\"/> <span class=\"faint count svelte-j5oobt\"> </span> <button class=\"tool svelte-j5oobt\" title=\"Previous (⇧Enter)\"><!></button> <button class=\"tool svelte-j5oobt\" title=\"Next (Enter)\"><!></button> <button class=\"tool svelte-j5oobt\" title=\"Close (Esc)\"><!></button></div>"), Yt = C("<span class=\"addr svelte-j5oobt\"> </span>"), Xt = C("<span class=\"snip svelte-j5oobt\"> </span>"), Zt = C("<span> </span>"), Qt = C("<button class=\"atlas-btn\">Edit the draft</button>"), $t = C("<button class=\"mini svelte-j5oobt\" title=\"Reply (r)\"><!></button> <button class=\"mini svelte-j5oobt\" title=\"Reply all (a)\"><!></button> <button class=\"mini svelte-j5oobt\" title=\"Forward (f)\"><!></button>", 1), en = C("<div class=\"atlas-notice error\"> </div>"), tn = C("<div class=\"remote svelte-j5oobt\" role=\"status\"><!> <span> </span> <button class=\"link svelte-j5oobt\">Show</button> <button class=\"link svelte-j5oobt\"> </button></div>"), nn = C("<div class=\"fwd svelte-j5oobt\"><div class=\"fwdhead svelte-j5oobt\"><b>Forwarded:</b> </div> <!></div>"), rn = C("<div class=\"file svelte-j5oobt\"><button class=\"fopen svelte-j5oobt\" title=\"Open in Atlas\"><!><span class=\"fname svelte-j5oobt\"> </span><span class=\"faint svelte-j5oobt\"> </span></button> <button class=\"mini svelte-j5oobt\" title=\"Save into the vault…\"><!></button></div>"), an = C("<div class=\"files svelte-j5oobt\"></div>"), on = C("<!> <!> <!> <!> <!>", 1), sn = C("<div class=\"loading svelte-j5oobt\"><div class=\"bar svelte-j5oobt\"></div></div>"), cn = C("<div class=\"detail svelte-j5oobt\"><div class=\"to svelte-j5oobt\" role=\"presentation\"><!> <!> <span class=\"faint svelte-j5oobt\"> </span> <span class=\"grow svelte-j5oobt\"></span> <!></div> <!></div>"), ln = C("<article><button class=\"head svelte-j5oobt\"><span class=\"avatar svelte-j5oobt\"> </span> <span class=\"from svelte-j5oobt\"><b class=\"svelte-j5oobt\"> </b><!></span> <!> <span class=\"when svelte-j5oobt\"><!> </span></button> <!></article>"), un = C("<div class=\"quick svelte-j5oobt\"><button class=\"atlas-btn svelte-j5oobt\"><!> Reply</button> <button class=\"atlas-btn svelte-j5oobt\"><!> Reply all</button> <button class=\"atlas-btn svelte-j5oobt\"><!> Forward</button> <button class=\"atlas-btn svelte-j5oobt\" title=\"A meeting with everyone in this conversation (the Calendar's editor)\"><!> Meeting</button></div>"), dn = C("<header class=\"top svelte-j5oobt\"><div class=\"tools svelte-j5oobt\" role=\"toolbar\" aria-label=\"Conversation actions\"><!> <button class=\"tool svelte-j5oobt\" title=\"Archive (e)\"><!></button> <button class=\"tool svelte-j5oobt\"><!></button> <button class=\"tool svelte-j5oobt\"><!></button> <span class=\"sep svelte-j5oobt\"></span> <button class=\"tool svelte-j5oobt\" title=\"Mark unread (⇧U)\"><!></button> <button class=\"tool svelte-j5oobt\" title=\"Snooze (h)\"><!></button> <button class=\"tool svelte-j5oobt\" title=\"Move to (v)\"><!></button> <button class=\"tool svelte-j5oobt\" title=\"Label (l)\"><!></button> <span class=\"grow svelte-j5oobt\"></span> <button><!></button> <div class=\"menu-wrap svelte-j5oobt\"><button class=\"tool svelte-j5oobt\" title=\"More\"><!></button> <!></div></div> <h2 class=\"subject svelte-j5oobt\"> <button><!></button></h2> <div class=\"meta svelte-j5oobt\"><!> <span class=\"faint svelte-j5oobt\"> </span> <!></div> <!></header> <div class=\"cards svelte-j5oobt\"></div> <div class=\"answer svelte-j5oobt\"><!></div>", 1), fn = C("<div class=\"atlas-empty nothing svelte-j5oobt\"><!> <p class=\"svelte-j5oobt\"> </p> <p class=\"faint svelte-j5oobt\">j / k to move, Enter to open, c to write, ? for every key.</p></div>"), pn = C("<section class=\"reader svelte-j5oobt\" aria-label=\"The conversation\"><!></section>"), mn = {
+var Bt = C("<div class=\"loading svelte-j5oobt\"><div class=\"bar svelte-j5oobt\"></div><div class=\"bar short svelte-j5oobt\"></div><div class=\"bar svelte-j5oobt\"></div></div>"), Vt = C("<div class=\"atlas-empty\"><p> </p><button class=\"atlas-btn\">Try again</button></div>"), Ht = C("<button class=\"tool svelte-j5oobt\" title=\"Back to the list (u)\"><!></button>"), Ut = C("<button role=\"menuitem\" class=\"svelte-j5oobt\">Open the note</button>"), Wt = C("<button role=\"menuitem\" class=\"svelte-j5oobt\">Unsubscribe</button>"), Gt = C("<div class=\"menu svelte-j5oobt\" role=\"menu\" tabindex=\"-1\"><!> <button role=\"menuitem\" class=\"svelte-j5oobt\">Mark important</button> <button role=\"menuitem\" class=\"svelte-j5oobt\">Not important…</button> <!> <button role=\"menuitem\" class=\"svelte-j5oobt\">Make a task</button> <button role=\"menuitem\" class=\"svelte-j5oobt\">Expand all (;)</button></div>"), Kt = C("<span class=\"chip svelte-j5oobt\"> </span>"), qt = C("<button class=\"link svelte-j5oobt\">Unsubscribe</button>"), Jt = C("<div class=\"find svelte-j5oobt\" role=\"search\"><!> <input placeholder=\"Find in this conversation\" aria-label=\"Find in this conversation\" class=\"svelte-j5oobt\"/> <span class=\"faint count svelte-j5oobt\"> </span> <button class=\"tool svelte-j5oobt\" title=\"Previous (⇧Enter)\"><!></button> <button class=\"tool svelte-j5oobt\" title=\"Next (Enter)\"><!></button> <button class=\"tool svelte-j5oobt\" title=\"Close (Esc)\"><!></button></div>"), Yt = C("<span class=\"addr svelte-j5oobt\"> </span>"), Xt = C("<span class=\"snip svelte-j5oobt\"> </span>"), Zt = C("<span> </span>"), Qt = C("<button class=\"atlas-btn\">Edit the draft</button>"), $t = C("<button class=\"mini svelte-j5oobt\" title=\"Reply (r)\"><!></button> <button class=\"mini svelte-j5oobt\" title=\"Reply all (a)\"><!></button> <button class=\"mini svelte-j5oobt\" title=\"Forward (f)\"><!></button>", 1), en = C("<div class=\"atlas-notice error\"> </div>"), tn = C("<div class=\"remote svelte-j5oobt\" role=\"status\"><!> <span> </span> <button class=\"link svelte-j5oobt\">Show</button> <button class=\"link svelte-j5oobt\"> </button></div>"), nn = C("<div class=\"fwd svelte-j5oobt\"><div class=\"fwdhead svelte-j5oobt\"><b>Forwarded:</b> </div> <!></div>"), rn = C("<div class=\"file svelte-j5oobt\"><button class=\"fopen svelte-j5oobt\" title=\"Open in Atlas\"><!><span class=\"fname svelte-j5oobt\"> </span><span class=\"faint svelte-j5oobt\"> </span></button> <button class=\"mini svelte-j5oobt\" title=\"Save into the vault…\"><!></button></div>"), an = C("<div class=\"files svelte-j5oobt\"></div>"), on = C("<!> <!> <!> <!> <!>", 1), sn = C("<div class=\"loading svelte-j5oobt\"><div class=\"bar svelte-j5oobt\"></div></div>"), cn = C("<div class=\"detail svelte-j5oobt\"><div class=\"to svelte-j5oobt\" role=\"presentation\"><!> <!> <span class=\"faint svelte-j5oobt\"> </span> <span class=\"grow svelte-j5oobt\"></span> <span class=\"acts svelte-j5oobt\"><!> <button class=\"mini svelte-j5oobt\"><!></button></span></div> <!></div>"), ln = C("<article><button class=\"head svelte-j5oobt\"><span class=\"avatar svelte-j5oobt\"> </span> <span class=\"from svelte-j5oobt\"><b class=\"svelte-j5oobt\"> </b><!></span> <!> <span class=\"when svelte-j5oobt\"><!> </span></button> <!></article>"), un = C("<div class=\"quick svelte-j5oobt\"><button class=\"atlas-btn svelte-j5oobt\"><!> Reply</button> <button class=\"atlas-btn svelte-j5oobt\"><!> Reply all</button> <button class=\"atlas-btn svelte-j5oobt\"><!> Forward</button> <button class=\"atlas-btn svelte-j5oobt\" title=\"A meeting with everyone in this conversation (the Calendar's editor)\"><!> Meeting</button></div>"), dn = C("<header class=\"top svelte-j5oobt\"><div class=\"tools svelte-j5oobt\" role=\"toolbar\" aria-label=\"Conversation actions\"><!> <button class=\"tool svelte-j5oobt\" title=\"Archive (e)\"><!></button> <button class=\"tool svelte-j5oobt\"><!></button> <button class=\"tool svelte-j5oobt\"><!></button> <span class=\"sep svelte-j5oobt\"></span> <button class=\"tool svelte-j5oobt\" title=\"Mark unread (⇧U)\"><!></button> <button class=\"tool svelte-j5oobt\" title=\"Snooze (h)\"><!></button> <button class=\"tool svelte-j5oobt\" title=\"Move to (v)\"><!></button> <button class=\"tool svelte-j5oobt\" title=\"Label (l)\"><!></button> <span class=\"grow svelte-j5oobt\"></span> <button><!></button> <div class=\"menu-wrap svelte-j5oobt\"><button class=\"tool svelte-j5oobt\" title=\"More\"><!></button> <!></div></div> <h2 class=\"subject svelte-j5oobt\"> <button><!></button></h2> <div class=\"meta svelte-j5oobt\"><!> <span class=\"faint svelte-j5oobt\"> </span> <!></div> <!></header> <div class=\"cards svelte-j5oobt\"></div> <div class=\"answer svelte-j5oobt\"><!></div>", 1), fn = C("<div class=\"atlas-empty nothing svelte-j5oobt\"><!> <p class=\"svelte-j5oobt\"> </p> <p class=\"faint svelte-j5oobt\">j / k to move, Enter to open, c to write, ? for every key.</p></div>"), pn = C("<section class=\"reader svelte-j5oobt\" aria-label=\"The conversation\"><!></section>"), mn = {
 	hash: "svelte-j5oobt",
-	code: ".reader.svelte-j5oobt {height:100%;overflow-y:auto;display:flex;flex-direction:column;box-sizing:border-box;}.top.svelte-j5oobt {position:sticky;top:0;z-index:2;background:var(--bg);padding:8px 20px 10px;border-bottom:1px solid var(--border);display:grid;gap:6px;}.tools.svelte-j5oobt {display:flex;align-items:center;gap:2px;margin-left:-6px;}.tool.svelte-j5oobt {all:unset;cursor:pointer;padding:6px;border-radius:var(--radius-sm);color:var(--text-muted);min-width:24px;min-height:24px;display:grid;place-items:center;}.tool.svelte-j5oobt:hover {background:var(--bg-hover);color:var(--text);}.tool.on.svelte-j5oobt {color:var(--accent);}.tool.svelte-j5oobt:focus-visible, .head.svelte-j5oobt:focus-visible, .mini.svelte-j5oobt:focus-visible, .fopen.svelte-j5oobt:focus-visible, .star.svelte-j5oobt:focus-visible {outline:2px solid var(--accent);outline-offset:-2px;}.sep.svelte-j5oobt {width:1px;height:18px;background:var(--border-strong);margin:0 4px;}.grow.svelte-j5oobt {flex:1;}.subject.svelte-j5oobt {margin:0;font-size:1.32em;line-height:1.3;font-weight:600;color:var(--heading);display:flex;gap:8px;align-items:flex-start;overflow-wrap:anywhere;}.star.svelte-j5oobt {all:unset;cursor:pointer;color:var(--text-faint);padding:3px;border-radius:var(--radius-sm);margin-top:1px;}.star.on.svelte-j5oobt {color:var(--yellow);}.meta.svelte-j5oobt {display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center;font-size:0.88em;}.chip.svelte-j5oobt {font-size:0.9em;padding:0 7px;border-radius:999px;background:hsl(var(--h) 60% 50% / 0.16);}.faint.svelte-j5oobt {color:var(--text-faint);}.link.svelte-j5oobt {all:unset;cursor:pointer;color:var(--accent);}.link.svelte-j5oobt:hover {text-decoration:underline;}.find.svelte-j5oobt {display:flex;align-items:center;gap:4px;padding:3px 4px 3px 10px;border:1px solid var(--border-strong);border-radius:var(--radius);background:var(--bg-alt);color:var(--text-muted);}.find.svelte-j5oobt input:where(.svelte-j5oobt) {all:unset;flex:1;min-width:0;padding:4px 4px;color:var(--text);}.find.svelte-j5oobt .count:where(.svelte-j5oobt) {font-size:0.85em;white-space:nowrap;}.find.svelte-j5oobt .tool:where(.svelte-j5oobt):disabled {opacity:0.4;cursor:default;}.menu-wrap.svelte-j5oobt {position:relative;}.menu.svelte-j5oobt {position:absolute;right:0;top:100%;z-index:5;min-width:200px;background:var(--bg-elev);border:1px solid var(--border-strong);border-radius:var(--radius);box-shadow:var(--shadow-md, var(--shadow-sm));padding:4px;display:grid;}.menu.svelte-j5oobt button:where(.svelte-j5oobt) {all:unset;cursor:pointer;padding:7px 10px;border-radius:var(--radius-sm);}.menu.svelte-j5oobt button:where(.svelte-j5oobt):hover {background:var(--bg-hover);}.cards.svelte-j5oobt {padding:12px 16px;display:grid;gap:8px;}.card.svelte-j5oobt {border:1px solid var(--border);border-radius:var(--radius);background:var(--bg-alt);overflow:hidden;}.card.open.svelte-j5oobt {background:var(--bg);box-shadow:var(--shadow-sm);}.card.draft.svelte-j5oobt {border-color:color-mix(in srgb, var(--red) 40%, transparent);}.head.svelte-j5oobt {all:unset;box-sizing:border-box;width:100%;display:flex;align-items:center;gap:10px;padding:9px 14px;cursor:pointer;min-width:0;}.head.svelte-j5oobt:hover {background:var(--bg-hover);}.avatar.svelte-j5oobt {flex:none;width:30px;height:30px;border-radius:50%;display:grid;place-items:center;font-size:11px;font-weight:600;color:#fff;background:hsl(var(--h) 45% 46%);}.from.svelte-j5oobt {display:flex;gap:8px;align-items:baseline;min-width:0;flex:0 1 auto;white-space:nowrap;}.unread.svelte-j5oobt .from:where(.svelte-j5oobt) b:where(.svelte-j5oobt) {color:var(--heading);}.addr.svelte-j5oobt {color:var(--text-faint);font-size:0.86em;overflow:hidden;text-overflow:ellipsis;}.snip.svelte-j5oobt {flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-muted);}.when.svelte-j5oobt {margin-left:auto;flex:none;color:var(--text-muted);font-size:0.85em;display:flex;gap:5px;align-items:center;}.detail.svelte-j5oobt {padding:0 16px 14px 54px;display:grid;gap:10px;}.to.svelte-j5oobt {display:flex;flex-wrap:wrap;gap:4px 12px;align-items:center;font-size:0.86em;color:var(--text-muted);}.mini.svelte-j5oobt {all:unset;cursor:pointer;padding:5px;border-radius:var(--radius-sm);color:var(--text-muted);display:grid;place-items:center;min-width:24px;min-height:24px;}.mini.svelte-j5oobt:hover {background:var(--bg-hover);color:var(--text);}.remote.svelte-j5oobt {display:flex;flex-wrap:wrap;gap:6px 12px;align-items:center;padding:7px 10px;border-radius:var(--radius-sm);background:var(--bg-hover);font-size:0.86em;color:var(--text-muted);}.fwd.svelte-j5oobt {border-left:3px solid var(--border-strong);padding-left:12px;display:grid;gap:6px;}.fwdhead.svelte-j5oobt {font-size:0.86em;color:var(--text-muted);}.files.svelte-j5oobt {display:flex;flex-wrap:wrap;gap:8px;}.file.svelte-j5oobt {display:flex;align-items:center;border:1px solid var(--border-strong);border-radius:var(--radius);background:var(--bg-alt);}.fopen.svelte-j5oobt {all:unset;cursor:pointer;display:flex;gap:8px;align-items:center;padding:7px 10px;max-width:280px;}.fopen.svelte-j5oobt:hover {color:var(--accent);}.fname.svelte-j5oobt {overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;}.fopen.svelte-j5oobt .faint:where(.svelte-j5oobt) {white-space:nowrap;flex:none;font-size:0.86em;}.answer.svelte-j5oobt {padding:4px 16px 24px 16px;}.quick.svelte-j5oobt {display:flex;gap:8px;flex-wrap:wrap;padding-left:38px;}.quick.svelte-j5oobt .atlas-btn:where(.svelte-j5oobt) {display:inline-flex;gap:6px;align-items:center;}.nothing.svelte-j5oobt {margin:auto;display:grid;justify-items:center;gap:6px;color:var(--text-faint);text-align:center;padding:40px;}.nothing.svelte-j5oobt p:where(.svelte-j5oobt) {margin:0;}.loading.svelte-j5oobt {padding:24px;display:grid;gap:12px;}.bar.svelte-j5oobt {height:12px;border-radius:4px;background:var(--bg-hover);}.bar.short.svelte-j5oobt {width:40%;}\n  @container (max-width: 560px) {.detail.svelte-j5oobt {padding-left:14px;}.quick.svelte-j5oobt {padding-left:0;}.top.svelte-j5oobt {padding:6px 12px 8px;}.cards.svelte-j5oobt {padding:8px;} }"
+	code: ".reader.svelte-j5oobt {height:100%;overflow-y:auto;display:flex;flex-direction:column;box-sizing:border-box;}.top.svelte-j5oobt {position:sticky;top:0;z-index:2;background:var(--bg);padding:8px 20px 10px;border-bottom:1px solid var(--border);display:grid;gap:6px;}.tools.svelte-j5oobt {display:flex;align-items:center;gap:2px;margin-left:-6px;}.tool.svelte-j5oobt {all:unset;cursor:pointer;padding:6px;border-radius:var(--radius-sm);color:var(--text-muted);min-width:24px;min-height:24px;display:grid;place-items:center;}.tool.svelte-j5oobt:hover {background:var(--bg-hover);color:var(--text);}.tool.on.svelte-j5oobt {color:var(--accent);}.tool.svelte-j5oobt:focus-visible, .head.svelte-j5oobt:focus-visible, .mini.svelte-j5oobt:focus-visible, .fopen.svelte-j5oobt:focus-visible, .star.svelte-j5oobt:focus-visible {outline:2px solid var(--accent);outline-offset:-2px;}.sep.svelte-j5oobt {width:1px;height:18px;background:var(--border-strong);margin:0 4px;}.grow.svelte-j5oobt {flex:1;}.subject.svelte-j5oobt {margin:0;font-size:1.32em;line-height:1.3;font-weight:600;color:var(--heading);display:flex;gap:8px;align-items:flex-start;overflow-wrap:anywhere;}.star.svelte-j5oobt {all:unset;cursor:pointer;color:var(--text-faint);padding:3px;border-radius:var(--radius-sm);margin-top:1px;}.star.on.svelte-j5oobt {color:var(--yellow);}.meta.svelte-j5oobt {display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center;font-size:0.88em;}.chip.svelte-j5oobt {font-size:0.9em;padding:0 7px;border-radius:999px;background:hsl(var(--h) 60% 50% / 0.16);}.faint.svelte-j5oobt {color:var(--text-faint);}.link.svelte-j5oobt {all:unset;cursor:pointer;color:var(--accent);}.link.svelte-j5oobt:hover {text-decoration:underline;}.find.svelte-j5oobt {display:flex;align-items:center;gap:4px;padding:3px 4px 3px 10px;border:1px solid var(--border-strong);border-radius:var(--radius);background:var(--bg-alt);color:var(--text-muted);}.find.svelte-j5oobt input:where(.svelte-j5oobt) {all:unset;flex:1;min-width:0;padding:4px 4px;color:var(--text);}.find.svelte-j5oobt .count:where(.svelte-j5oobt) {font-size:0.85em;white-space:nowrap;}.find.svelte-j5oobt .tool:where(.svelte-j5oobt):disabled {opacity:0.4;cursor:default;}.menu-wrap.svelte-j5oobt {position:relative;}.menu.svelte-j5oobt {position:absolute;right:0;top:100%;z-index:5;min-width:200px;background:var(--bg-elev);border:1px solid var(--border-strong);border-radius:var(--radius);box-shadow:var(--shadow-md, var(--shadow-sm));padding:4px;display:grid;}.menu.svelte-j5oobt button:where(.svelte-j5oobt) {all:unset;cursor:pointer;padding:7px 10px;border-radius:var(--radius-sm);}.menu.svelte-j5oobt button:where(.svelte-j5oobt):hover {background:var(--bg-hover);}.cards.svelte-j5oobt {padding:12px 16px;display:grid;gap:8px;}.card.svelte-j5oobt {border:1px solid var(--border);border-radius:var(--radius);background:var(--bg-alt);overflow:hidden;}.card.open.svelte-j5oobt {background:var(--bg);box-shadow:var(--shadow-sm);}.card.draft.svelte-j5oobt {border-color:color-mix(in srgb, var(--red) 40%, transparent);}.head.svelte-j5oobt {all:unset;box-sizing:border-box;width:100%;display:flex;align-items:center;gap:10px;padding:9px 14px;cursor:pointer;min-width:0;}.head.svelte-j5oobt:hover {background:var(--bg-hover);}.avatar.svelte-j5oobt {flex:none;width:30px;height:30px;border-radius:50%;display:grid;place-items:center;font-size:11px;font-weight:600;color:#fff;background:hsl(var(--h) 45% 46%);}.from.svelte-j5oobt {display:flex;gap:8px;align-items:baseline;min-width:0;flex:0 1 auto;white-space:nowrap;}.unread.svelte-j5oobt .from:where(.svelte-j5oobt) b:where(.svelte-j5oobt) {color:var(--heading);}.addr.svelte-j5oobt {color:var(--text-faint);font-size:0.86em;overflow:hidden;text-overflow:ellipsis;}.snip.svelte-j5oobt {flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-muted);}.when.svelte-j5oobt {margin-left:auto;flex:none;color:var(--text-muted);font-size:0.85em;display:flex;gap:5px;align-items:center;}.detail.svelte-j5oobt {padding:0 16px 14px 54px;display:grid;gap:10px;}\n  /* a message's buttons stay one group (Delete beside Edit the draft), the row wrapping before them, never inside */.acts.svelte-j5oobt {display:inline-flex;align-items:center;gap:4px;flex-shrink:0;margin-left:auto;}.to.svelte-j5oobt {display:flex;flex-wrap:wrap;gap:4px 12px;align-items:center;font-size:0.86em;color:var(--text-muted);}.mini.svelte-j5oobt {all:unset;cursor:pointer;padding:5px;border-radius:var(--radius-sm);color:var(--text-muted);display:grid;place-items:center;min-width:24px;min-height:24px;}.mini.svelte-j5oobt:hover {background:var(--bg-hover);color:var(--text);}.remote.svelte-j5oobt {display:flex;flex-wrap:wrap;gap:6px 12px;align-items:center;padding:7px 10px;border-radius:var(--radius-sm);background:var(--bg-hover);font-size:0.86em;color:var(--text-muted);}.fwd.svelte-j5oobt {border-left:3px solid var(--border-strong);padding-left:12px;display:grid;gap:6px;}.fwdhead.svelte-j5oobt {font-size:0.86em;color:var(--text-muted);}.files.svelte-j5oobt {display:flex;flex-wrap:wrap;gap:8px;}.file.svelte-j5oobt {display:flex;align-items:center;border:1px solid var(--border-strong);border-radius:var(--radius);background:var(--bg-alt);}.fopen.svelte-j5oobt {all:unset;cursor:pointer;display:flex;gap:8px;align-items:center;padding:7px 10px;max-width:280px;}.fopen.svelte-j5oobt:hover {color:var(--accent);}.fname.svelte-j5oobt {overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;}.fopen.svelte-j5oobt .faint:where(.svelte-j5oobt) {white-space:nowrap;flex:none;font-size:0.86em;}.answer.svelte-j5oobt {padding:4px 16px 24px 16px;}.quick.svelte-j5oobt {display:flex;gap:8px;flex-wrap:wrap;padding-left:38px;}.quick.svelte-j5oobt .atlas-btn:where(.svelte-j5oobt) {display:inline-flex;gap:6px;align-items:center;}.nothing.svelte-j5oobt {margin:auto;display:grid;justify-items:center;gap:6px;color:var(--text-faint);text-align:center;padding:40px;}.nothing.svelte-j5oobt p:where(.svelte-j5oobt) {margin:0;}.loading.svelte-j5oobt {padding:24px;display:grid;gap:12px;}.bar.svelte-j5oobt {height:12px;border-radius:4px;background:var(--bg-hover);}.bar.short.svelte-j5oobt {width:40%;}\n  @container (max-width: 560px) {.detail.svelte-j5oobt {padding-left:14px;}.quick.svelte-j5oobt {padding-left:0;}.top.svelte-j5oobt {padding:6px 12px 8px;}.cards.svelte-j5oobt {padding:8px;} }"
 };
 function hn(e, t) {
 	M(t, !0), g(e, mn);
-	let o = r(t, "narrow", 3, !1), s = Z(() => t.mail.open), d = q(B([])), y = q(B([])), b = q(!1), S = -1;
+	let o = r(t, "narrow", 3, !1), s = X(() => t.mail.open), d = K(B([])), y = K(B([])), b = K(!1), S = -1;
 	_(() => {
 		if (!T(s) || T(s).thread === S) return;
 		S = T(s).thread;
 		let e = T(s).messages.at(-1);
 		O(d, T(s).messages.filter((t) => !t.seen || t.draft || t === e).map((e) => e.id), !0), O(y, [], !0);
 	});
-	let C = q(void 0), w = q(!1), I = q(""), L = q(void 0), R = q(0), z = q(0), V = new Rt(), H;
-	function U() {
-		T(s) && (ce(!0), O(w, !0), requestAnimationFrame(() => {
+	let C = K(void 0), w = K(!1), I = K(""), L = K(void 0), R = K(0), z = K(0), V = new Rt(), ee;
+	function H() {
+		T(s) && (le(!0), O(w, !0), requestAnimationFrame(() => {
 			T(L)?.focus(), T(L)?.select();
-		}), T(I) && setTimeout(W, 300));
+		}), T(I) && setTimeout(U, 300));
 	}
-	function ee() {
+	function te() {
 		return Array.from(T(C)?.querySelectorAll("iframe") ?? []).map((e) => e.contentDocument).filter((e) => !!e);
 	}
-	function W() {
-		O(R, V.run(ee(), T(I)), !0), O(z, 0), T(R) && G(1);
+	function U() {
+		O(R, V.run(te(), T(I)), !0), O(z, 0), T(R) && ne(1);
 	}
-	function G(e) {
+	function ne(e) {
 		let t = V.step(e);
 		t && T(C) && (O(z, V.at + 1), zt(T(C), t));
 	}
-	function re() {
+	function ie() {
 		V.clear(), O(w, !1), O(R, 0);
 	}
-	function ae(e) {
-		e.stopPropagation(), e.key === "Enter" ? (e.preventDefault(), clearTimeout(H), !T(R) || V.marks[0]?.isConnected === !1 ? W() : G(e.shiftKey ? -1 : 1)) : e.key === "Escape" ? (e.preventDefault(), re()) : (e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "f" && (e.preventDefault(), T(L)?.select());
+	function oe(e) {
+		e.stopPropagation(), e.key === "Enter" ? (e.preventDefault(), clearTimeout(ee), !T(R) || V.marks[0]?.isConnected === !1 ? U() : ne(e.shiftKey ? -1 : 1)) : e.key === "Escape" ? (e.preventDefault(), ie()) : (e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "f" && (e.preventDefault(), T(L)?.select());
 	}
 	_(() => (T(s)?.thread, () => {
-		T(w) && re();
+		T(w) && ie();
 	}));
-	function ce(e) {
+	function le(e) {
 		T(s) && O(d, e ? T(s).messages.map((e) => e.id) : [T(s).messages.at(-1).id], !0);
 	}
-	let de = (e) => O(d, T(d).includes(e) ? T(d).filter((t) => t !== e) : [...T(d), e], !0), fe = Z(() => t.mail.own), pe = (e) => e.map((e) => T(fe).includes(e.addr.toLowerCase()) ? "me" : e.name || e.addr).join(", "), me = q(B([]));
-	function he(e, t, n) {
+	let fe = (e) => O(d, T(d).includes(e) ? T(d).filter((t) => t !== e) : [...T(d), e], !0), pe = X(() => t.mail.own), me = (e) => e.map((e) => T(pe).includes(e.addr.toLowerCase()) ? "me" : e.name || e.addr).join(", "), he = K(B([]));
+	function ge(e, t, n) {
 		let r = `${t}:${n}`;
-		return e.length <= 4 || T(me).includes(r) ? pe(e) : `${pe(e.slice(0, 3))} and ${e.length - 3} more`;
+		return e.length <= 4 || T(he).includes(r) ? me(e) : `${me(e.slice(0, 3))} and ${e.length - 3} more`;
 	}
-	let ge = Z(() => t.mail.composers.find((e) => e.inline)), _e = Z(() => T(s) ? t.mail.rows.find((e) => e.thread === T(s).thread) : void 0), ve = Z(() => !!T(s)?.messages.some((e) => e.flagged)), ye = Z(() => T(s)?.messages.findLast((e) => e.unsubscribe)?.unsubscribe ? T(s)?.messages.findLast((e) => e.unsubscribe) : void 0), be = Z(() => T(s)?.messages.at(-1)?.folder_role ?? null);
-	async function xe(e, n, r = !0) {
+	let _e = X(() => t.mail.composers.find((e) => e.inline)), ve = X(() => T(s) ? t.mail.rows.find((e) => e.thread === T(s).thread) : void 0), ye = X(() => !!T(s)?.messages.some((e) => e.flagged)), be = X(() => T(s)?.messages.findLast((e) => e.unsubscribe)?.unsubscribe ? T(s)?.messages.findLast((e) => e.unsubscribe) : void 0), xe = X(() => T(s)?.messages.at(-1)?.folder_role ?? null);
+	async function Se(e, n, r = !0) {
 		try {
 			let i = await t.mail.call("attachment", {
 				id: e.id,
@@ -1528,8 +1528,8 @@ function hn(e, t) {
 			t.mail.toast(`Cannot open ${n.name}: ${e.message}`, "error");
 		}
 	}
-	async function Se(e, n) {
-		let r = await ie(t.mail.atlas, `Save ${n.name} into which vault folder?`, "attachments");
+	async function Ce(e, n) {
+		let r = await ae(t.mail.atlas, `Save ${n.name} into which vault folder?`, "attachments");
 		if (r) try {
 			let i = await t.mail.call("attachment", {
 				id: e.id,
@@ -1545,176 +1545,176 @@ function hn(e, t) {
 			t.mail.toast(`Cannot save ${n.name}: ${e.message}`, "error");
 		}
 	}
-	async function Ce(e) {
+	async function we(e) {
 		let n = e.from[0]?.addr;
 		n && (await t.mail.call("allow_remote", { sender: n }), O(y, [...T(y), ...T(s).messages.filter((e) => e.from[0]?.addr === n).map((e) => e.id)], !0), t.mail.toast(`Pictures from ${n} are shown from now on`));
 	}
-	async function we() {
-		if (T(ye) && await A(t.mail.atlas, `Unsubscribe from ${T(ye).from[0]?.name || T(ye).from[0]?.addr}?`, { ok: "Unsubscribe" })) try {
-			let e = await t.mail.call("unsubscribe", { id: T(ye).id });
+	async function Te() {
+		if (T(be) && await A(t.mail.atlas, `Unsubscribe from ${T(be).from[0]?.name || T(be).from[0]?.addr}?`, { ok: "Unsubscribe" })) try {
+			let e = await t.mail.call("unsubscribe", { id: T(be).id });
 			e.open ? window.open(e.open, "_blank") : t.mail.toast(e.done === "mail" ? "Unsubscribe mail sent" : "Unsubscribed", "success");
 		} catch (e) {
 			t.mail.toast(`Could not unsubscribe: ${e.message}`, "error");
 		}
 	}
-	let Te = (e) => e.startsWith("image/") ? "image" : e === "text/calendar" ? "calendar" : "attach";
-	var Ee = {
-		find: U,
-		expandAll: ce
-	}, De = pn(), Oe = N(De), ke = (e) => {
+	let Ee = (e) => e.startsWith("image/") ? "image" : e === "text/calendar" ? "calendar" : "attach";
+	var De = {
+		find: H,
+		expandAll: le
+	}, Oe = pn(), ke = N(Oe), Ae = (e) => {
 		var t = Bt();
 		c(e, t);
-	}, Ae = (e) => {
-		var r = Vt(), i = N(r), a = K(i, !0), o = X(i);
-		J(r), E(() => n(a, t.mail.readError)), Y("click", o, () => t.mail.openId && t.mail.read(t.mail.openId)), c(e, r);
+	}, $ = (e) => {
+		var r = Vt(), i = N(r), a = W(i, !0), o = Y(i);
+		q(r), E(() => n(a, t.mail.readError)), J("click", o, () => t.mail.openId && t.mail.read(t.mail.openId)), c(e, r);
 	}, je = (e) => {
-		var r = dn(), g = Q(r), _ = N(g), S = N(_), C = (e) => {
+		var r = dn(), g = Z(r), _ = N(g), S = N(_), C = (e) => {
 			var n = Ht(), r = N(n);
-			$(r, { name: "back" }), J(n), Y("click", n, function(...e) {
+			Q(r, { name: "back" }), q(n), J("click", n, function(...e) {
 				t.onback?.apply(this, e);
 			}), c(e, n);
 		};
 		v(S, (e) => {
 			o() && e(C);
 		});
-		var A = X(S, 2), M = N(A);
-		$(M, { name: "archive" }), J(A);
-		var B = X(A, 2), V = N(B);
-		$(V, { name: "trash" }), J(B);
-		var U = X(B, 2), ee = N(U);
-		$(ee, { name: "spam" }), J(U);
-		var q = X(U, 4), ie = N(q);
-		$(ie, { name: "unread" }), J(q);
-		var se = X(q, 2), pe = N(se);
-		$(pe, { name: "clock" }), J(se);
-		var Ee = X(se, 2), De = N(Ee);
-		$(De, { name: "folder" }), J(Ee);
-		var Oe = X(Ee, 2), ke = N(Oe);
-		$(ke, { name: "label" }), J(Oe);
-		var Ae = X(Oe, 4);
+		var A = Y(S, 2), M = N(A);
+		Q(M, { name: "archive" }), q(A);
+		var B = Y(A, 2), V = N(B);
+		Q(V, { name: "trash" }), q(B);
+		var H = Y(B, 2), te = N(H);
+		Q(te, { name: "spam" }), q(H);
+		var K = Y(H, 4), ae = N(K);
+		Q(ae, { name: "unread" }), q(K);
+		var ce = Y(K, 2), me = N(ce);
+		Q(me, { name: "clock" }), q(ce);
+		var De = Y(ce, 2), Oe = N(De);
+		Q(Oe, { name: "folder" }), q(De);
+		var ke = Y(De, 2), Ae = N(ke);
+		Q(Ae, { name: "label" }), q(ke);
+		var $ = Y(ke, 4);
 		let je;
-		var Me = N(Ae);
-		$(Me, { name: "note" }), J(Ae);
-		var Ne = X(Ae, 2), Pe = N(Ne), Fe = N(Pe);
-		$(Fe, { name: "more" }), J(Pe);
-		var Ie = X(Pe, 2), Le = (e) => {
+		var Me = N($);
+		Q(Me, { name: "note" }), q($);
+		var Ne = Y($, 2), Pe = N(Ne), Fe = N(Pe);
+		Q(Fe, { name: "more" }), q(Pe);
+		var Ie = Y(Pe, 2), Le = (e) => {
 			var n = Gt(), r = N(n), i = (e) => {
 				var n = Ut();
-				Y("click", n, () => {
+				J("click", n, () => {
 					O(b, !1), t.mail.atlas.open(T(s).saved, void 0, { beside: !0 });
 				}), c(e, n);
 			};
 			v(r, (e) => {
 				T(s).saved && e(i);
 			});
-			var a = X(r, 2), o = X(a, 2), l = X(o, 2), d = (e) => {
+			var a = Y(r, 2), o = Y(a, 2), l = Y(o, 2), d = (e) => {
 				var t = Wt();
-				Y("click", t, () => {
-					O(b, !1), we();
+				J("click", t, () => {
+					O(b, !1), Te();
 				}), c(e, t);
 			};
 			v(l, (e) => {
-				T(ye) && e(d);
+				T(be) && e(d);
 			});
-			var f = X(l, 2), p = X(f, 2);
-			J(n), u("mouseleave", n, () => O(b, !1)), Y("click", a, () => {
+			var f = Y(l, 2), p = Y(f, 2);
+			q(n), u("mouseleave", n, () => O(b, !1)), J("click", a, () => {
 				O(b, !1), t.mail.importance(!0);
-			}), Y("click", o, () => {
+			}), J("click", o, () => {
 				O(b, !1), t.mail.importance(!1);
-			}), Y("click", f, () => {
-				O(b, !1), t.mail.atlas.capture(`- [ ] ${T(s).subject} (mail from ${k(T(s).messages.at(-1)?.from[0], T(fe))})`), t.mail.toast("Added a task to today's log");
-			}), Y("click", p, () => {
-				O(b, !1), ce(!0);
+			}), J("click", f, () => {
+				O(b, !1), t.mail.atlas.capture(`- [ ] ${T(s).subject} (mail from ${k(T(s).messages.at(-1)?.from[0], T(pe))})`), t.mail.toast("Added a task to today's log");
+			}), J("click", p, () => {
+				O(b, !1), le(!0);
 			}), c(e, n);
 		};
 		v(Ie, (e) => {
 			T(b) && e(Le);
-		}), J(Ne), J(_);
-		var Re = X(_, 2), ze = N(Re), Be = X(ze);
+		}), q(Ne), q(_);
+		var Re = Y(_, 2), ze = N(Re), Be = Y(ze);
 		let Ve;
 		var He = N(Be);
-		$(He, {
+		Q(He, {
 			name: "star",
 			size: 18,
 			get filled() {
-				return T(ve);
+				return T(ye);
 			}
-		}), J(Be), J(Re);
-		var Ue = X(Re, 2), We = N(Ue), Ge = (e) => {
-			var t = x(), r = Q(t);
-			l(r, 16, () => T(_e).labels, (e) => e, (e, t) => {
+		}), q(Be), q(Re);
+		var Ue = Y(Re, 2), We = N(Ue), Ge = (e) => {
+			var t = x(), r = Z(t);
+			l(r, 16, () => T(ve).labels, (e) => e, (e, t) => {
 				var r = Kt();
 				let i;
-				var a = K(r, !0);
+				var a = W(r, !0);
 				E((e, t) => {
 					i = p(r, "", i, { "--h": e }), n(a, t);
 				}, [() => P(t), () => t.replace(/^\$/, "")]), c(e, r);
 			}), c(e, t);
 		};
 		v(We, (e) => {
-			T(_e) && e(Ge);
+			T(ve) && e(Ge);
 		});
-		var Ke = X(We, 2), qe = K(Ke, !0), Je = X(Ke, 2), Ye = (e) => {
+		var Ke = Y(We, 2), qe = W(Ke, !0), Je = Y(Ke, 2), Ye = (e) => {
 			var t = qt();
-			Y("click", t, we), c(e, t);
+			J("click", t, Te), c(e, t);
 		};
 		v(Je, (e) => {
-			T(ye) && e(Ye);
-		}), J(Ue);
-		var Xe = X(Ue, 2), Ze = (e) => {
+			T(be) && e(Ye);
+		}), q(Ue);
+		var Xe = Y(Ue, 2), Ze = (e) => {
 			var t = Jt(), r = N(t);
-			$(r, {
+			Q(r, {
 				name: "search",
 				size: 14
 			});
-			var o = X(r, 2);
-			i(o), le(o, (e) => O(L, e), () => T(L));
-			var s = X(o, 2), l = K(s, !0), u = X(s, 2), d = N(u);
-			$(d, {
+			var o = Y(r, 2);
+			i(o), ue(o, (e) => O(L, e), () => T(L));
+			var s = Y(o, 2), l = W(s, !0), u = Y(s, 2), d = N(u);
+			Q(d, {
 				name: "up",
 				size: 14
-			}), J(u);
-			var f = X(u, 2), p = N(f);
-			$(p, {
+			}), q(u);
+			var f = Y(u, 2), p = N(f);
+			Q(p, {
 				name: "down",
 				size: 14
-			}), J(f);
-			var m = X(f, 2), h = N(m);
-			$(h, {
+			}), q(f);
+			var m = Y(f, 2), h = N(m);
+			Q(h, {
 				name: "x",
 				size: 14
-			}), J(m), J(t), E((e) => {
+			}), q(m), q(t), E((e) => {
 				n(l, e), u.disabled = !T(R), f.disabled = !T(R);
-			}, [() => T(I).trim() ? T(R) ? `${T(z)} of ${T(R)}` : "No match" : ""]), Y("input", o, () => {
-				clearTimeout(H), H = setTimeout(W, 150);
-			}), Y("keydown", o, ae), a(o, () => T(I), (e) => O(I, e)), Y("click", u, () => G(-1)), Y("click", f, () => G(1)), Y("click", m, re), c(e, t);
+			}, [() => T(I).trim() ? T(R) ? `${T(z)} of ${T(R)}` : "No match" : ""]), J("input", o, () => {
+				clearTimeout(ee), ee = setTimeout(U, 150);
+			}), J("keydown", o, oe), a(o, () => T(I), (e) => O(I, e)), J("click", u, () => ne(-1)), J("click", f, () => ne(1)), J("click", m, ie), c(e, t);
 		};
 		v(Xe, (e) => {
 			T(w) && e(Ze);
-		}), J(g);
-		var Qe = X(g, 2);
+		}), q(g);
+		var Qe = Y(g, 2);
 		l(Qe, 21, () => T(s).messages, (e) => e.id, (e, r) => {
-			let i = Z(() => T(d).includes(T(r).id)), a = Z(() => !!T(r).body?.remote_allowed || T(y).includes(T(r).id));
+			let i = X(() => T(d).includes(T(r).id)), a = X(() => !!T(r).body?.remote_allowed || T(y).includes(T(r).id));
 			var o = ln();
 			let s;
 			var u = N(o), g = N(u);
 			let _;
-			var b = K(g, !0), x = X(g, 2), S = N(x), C = K(S, !0), w = X(S), A = (e) => {
-				var t = Yt(), i = K(t, !0);
+			var b = W(g, !0), x = Y(g, 2), S = N(x), C = W(S, !0), w = Y(S), A = (e) => {
+				var t = Yt(), i = W(t, !0);
 				E(() => n(i, T(r).from[0]?.addr)), c(e, t);
 			};
 			v(w, (e) => {
 				T(i) && !T(r).draft && e(A);
-			}), J(x);
-			var M = X(x, 2), F = (e) => {
-				var t = Xt(), i = K(t, !0);
+			}), q(x);
+			var M = Y(x, 2), F = (e) => {
+				var t = Xt(), i = W(t, !0);
 				E((e) => n(i, e), [() => T(r).snippet || T(r).body?.text?.slice(0, 160)]), c(e, t);
 			};
 			v(M, (e) => {
 				T(i) || e(F);
 			});
-			var I = X(M, 2), L = N(I), R = (e) => {
-				$(e, {
+			var I = Y(M, 2), L = N(I), R = (e) => {
+				Q(e, {
 					name: "attach",
 					size: 13
 				});
@@ -1722,65 +1722,70 @@ function hn(e, t) {
 			v(L, (e) => {
 				T(r).has_attachments && e(R);
 			});
-			var z = X(L, 1, !0);
-			J(I), J(u);
-			var B = X(u, 2), V = (e) => {
+			var z = Y(L, 1, !0);
+			q(I), q(u);
+			var B = Y(u, 2), V = (e) => {
 				var i = cn(), o = N(i), s = N(o), u = (e) => {
-					var t = Zt(), i = K(t);
-					E((e) => n(i, `to ${e ?? ""}`), [() => he(T(r).to, T(r).id, "to")]), c(e, t);
+					var t = Zt(), i = W(t);
+					E((e) => n(i, `to ${e ?? ""}`), [() => ge(T(r).to, T(r).id, "to")]), c(e, t);
 				};
 				v(s, (e) => {
 					T(r).to.length && e(u);
 				});
-				var d = X(s, 2), p = (e) => {
-					var t = Zt(), i = K(t);
-					E((e) => n(i, `cc ${e ?? ""}`), [() => he(T(r).cc, T(r).id, "cc")]), c(e, t);
+				var d = Y(s, 2), p = (e) => {
+					var t = Zt(), i = W(t);
+					E((e) => n(i, `cc ${e ?? ""}`), [() => ge(T(r).cc, T(r).id, "cc")]), c(e, t);
 				};
 				v(d, (e) => {
 					T(r).cc.length && e(p);
 				});
-				var m = X(d, 2), h = K(m, !0), g = X(m, 4), _ = (e) => {
+				var m = Y(d, 2), g = W(m, !0), _ = Y(m, 4), b = N(_), x = (e) => {
 					var n = Qt();
-					Y("click", n, () => t.mail.editDraft(T(r).id)), c(e, n);
-				}, b = (e) => {
-					var n = $t(), i = Q(n), a = N(i);
-					$(a, {
+					J("click", n, () => t.mail.editDraft(T(r).id)), c(e, n);
+				}, S = (e) => {
+					var n = $t(), i = Z(n), a = N(i);
+					Q(a, {
 						name: "reply",
 						size: 15
-					}), J(i);
-					var o = X(i, 2), s = N(o);
-					$(s, {
+					}), q(i);
+					var o = Y(i, 2), s = N(o);
+					Q(s, {
 						name: "replyall",
 						size: 15
-					}), J(o);
-					var l = X(o, 2), u = N(l);
-					$(u, {
+					}), q(o);
+					var l = Y(o, 2), u = N(l);
+					Q(u, {
 						name: "forward",
 						size: 15
-					}), J(l), Y("click", i, () => t.mail.reply("reply", T(r).id)), Y("click", o, () => t.mail.reply("all", T(r).id)), Y("click", l, () => t.mail.reply("forward", T(r).id)), c(e, n);
+					}), q(l), J("click", i, () => t.mail.reply("reply", T(r).id)), J("click", o, () => t.mail.reply("all", T(r).id)), J("click", l, () => t.mail.reply("forward", T(r).id)), c(e, n);
 				};
-				v(g, (e) => {
-					T(r).draft ? e(_) : e(b, -1);
-				}), J(o);
-				var x = X(o, 2), S = (e) => {
-					var t = en(), i = K(t, !0);
+				v(b, (e) => {
+					T(r).draft ? e(x) : e(S, -1);
+				});
+				var C = Y(b, 2), w = N(C);
+				Q(w, {
+					name: "trash",
+					size: 15
+				}), q(C), q(_), q(o);
+				var k = Y(o, 2), A = (e) => {
+					var t = en(), i = W(t, !0);
 					E(() => n(i, T(r).error)), c(e, t);
-				}, C = (e) => {
-					var i = on(), o = Q(i), s = (e) => {
+				}, M = (e) => {
+					var i = on(), o = Z(i), s = (e) => {
 						var t = tn(), i = N(t);
-						$(i, {
+						Q(i, {
 							name: "lock",
 							size: 14
 						});
-						var a = X(i, 2), o = K(a), s = X(a, 2), l = X(s, 2), u = K(l);
-						J(t), E(() => {
+						var a = Y(i, 2), o = W(a), s = Y(a, 2), l = Y(s, 2), u = W(l);
+						q(t), E(() => {
 							n(o, `${T(r).body.remote ?? ""} remote picture${T(r).body.remote === 1 ? "" : "s"} blocked (they can tell the sender you read it).`), n(u, `Always from ${T(r).from[0]?.addr ?? ""}`);
-						}), Y("click", s, () => O(y, [...T(y), T(r).id], !0)), Y("click", l, () => Ce(T(r))), c(e, t);
+						}), J("click", s, () => O(y, [...T(y), T(r).id], !0)), J("click", l, () => we(T(r))), c(e, t);
 					};
 					v(o, (e) => {
 						T(r).body.remote && !T(a) && e(s);
 					});
-					var u = X(o, 2), d = (e) => {
+					var u = Y(o, 2), d = (e) => {
 						at(e, {
 							get mail() {
 								return t.mail;
@@ -1796,8 +1801,8 @@ function hn(e, t) {
 					v(u, (e) => {
 						T(r).body.invite && e(d);
 					});
-					var p = X(u, 2);
-					te(p, {
+					var p = Y(u, 2);
+					G(p, {
 						get html() {
 							return T(r).body.html;
 						},
@@ -1808,12 +1813,12 @@ function hn(e, t) {
 							return T(a);
 						}
 					});
-					var m = X(p, 2);
+					var m = Y(p, 2);
 					l(m, 17, () => T(r).body.forwarded, f, (e, t) => {
-						var r = nn(), i = N(r), o = X(N(i));
-						J(i);
-						var s = X(i, 2);
-						te(s, {
+						var r = nn(), i = N(r), o = Y(N(i));
+						q(i);
+						var s = Y(i, 2);
+						G(s, {
 							get html() {
 								return T(t).html;
 							},
@@ -1823,47 +1828,49 @@ function hn(e, t) {
 							get remote() {
 								return T(a);
 							}
-						}), J(r), E((e, r) => n(o, ` ${T(t).subject ?? ""} · ${e ?? ""} · ${r ?? ""}`), [() => T(t).from.map(oe).join(", "), () => ue(T(t).date)]), c(e, r);
+						}), q(r), E((e, r) => n(o, ` ${T(t).subject ?? ""} · ${e ?? ""} · ${r ?? ""}`), [() => T(t).from.map(se).join(", "), () => de(T(t).date)]), c(e, r);
 					});
-					var h = X(m, 2), g = (e) => {
+					var h = Y(m, 2), g = (e) => {
 						var t = an();
 						l(t, 21, () => T(r).body.attachments, (e) => e.part, (e, t) => {
 							var i = rn(), a = N(i), o = N(a);
 							{
-								let e = Z(() => Te(T(t).mime));
-								$(o, { get name() {
+								let e = X(() => Ee(T(t).mime));
+								Q(o, { get name() {
 									return T(e);
 								} });
 							}
-							var s = X(o), l = K(s, !0), u = X(s), d = K(u, !0);
-							J(a);
-							var f = X(a, 2), p = N(f);
-							$(p, {
+							var s = Y(o), l = W(s, !0), u = Y(s), d = W(u, !0);
+							q(a);
+							var f = Y(a, 2), p = N(f);
+							Q(p, {
 								name: "save",
 								size: 14
-							}), J(f), J(i), E((e) => {
+							}), q(f), q(i), E((e) => {
 								n(l, T(t).name), n(d, e);
-							}, [() => D(T(t).size)]), Y("click", a, () => xe(T(r), T(t))), Y("click", f, () => Se(T(r), T(t))), c(e, i);
-						}), J(t), c(e, t);
+							}, [() => D(T(t).size)]), J("click", a, () => Se(T(r), T(t))), J("click", f, () => Ce(T(r), T(t))), c(e, i);
+						}), q(t), c(e, t);
 					};
 					v(h, (e) => {
 						T(r).body.attachments.length && e(g);
 					}), c(e, i);
-				}, w = (e) => {
+				}, P = (e) => {
 					var t = sn();
 					c(e, t);
 				};
-				v(x, (e) => {
-					T(r).error ? e(S) : T(r).body ? e(C, 1) : e(w, -1);
-				}), J(i), E((e) => n(h, e), [() => j(T(r).date)]), Y("click", o, () => O(me, [
-					...T(me),
+				v(k, (e) => {
+					T(r).error ? e(A) : T(r).body ? e(M, 1) : e(P, -1);
+				}), q(i), E((e) => {
+					n(g, e), h(C, "title", T(r).draft ? "Delete this draft" : "Delete this message only");
+				}, [() => j(T(r).date)]), J("click", o, () => O(he, [
+					...T(he),
 					`${T(r).id}:to`,
 					`${T(r).id}:cc`
-				], !0)), c(e, i);
+				], !0)), J("click", C, () => t.mail.trashMessage(T(r).id)), c(e, i);
 			};
 			v(B, (e) => {
 				T(i) && e(V);
-			}), J(o), E((e, t, a, c, l) => {
+			}), q(o), E((e, t, a, c, l) => {
 				s = m(o, 1, "card svelte-j5oobt", null, s, {
 					open: T(i),
 					unread: !T(r).seen,
@@ -1871,61 +1878,61 @@ function hn(e, t) {
 				}), h(u, "aria-expanded", T(i)), _ = p(g, "", _, { "--h": e }), n(b, t), n(C, a), h(I, "title", c), n(z, l);
 			}, [
 				() => P(T(r).from[0]?.addr ?? ""),
-				() => ne(T(r).from[0]),
-				() => T(r).draft ? "Draft" : k(T(r).from[0], T(fe)),
+				() => re(T(r).from[0]),
+				() => T(r).draft ? "Draft" : k(T(r).from[0], T(pe)),
 				() => j(T(r).date),
-				() => ue(T(r).date)
-			]), Y("click", u, () => de(T(r).id)), c(e, o);
-		}), J(Qe);
-		var $e = X(Qe, 2), et = N($e), tt = (e) => {
+				() => de(T(r).date)
+			]), J("click", u, () => fe(T(r).id)), c(e, o);
+		}), q(Qe);
+		var $e = Y(Qe, 2), et = N($e), tt = (e) => {
 			Ft(e, {
 				get mail() {
 					return t.mail;
 				},
 				get c() {
-					return T(ge);
+					return T(_e);
 				},
 				inline: !0
 			});
 		}, nt = (e) => {
 			var n = un(), r = N(n), i = N(r);
-			$(i, {
+			Q(i, {
 				name: "reply",
 				size: 15
-			}), F(), J(r);
-			var a = X(r, 2), o = N(a);
-			$(o, {
+			}), F(), q(r);
+			var a = Y(r, 2), o = N(a);
+			Q(o, {
 				name: "replyall",
 				size: 15
-			}), F(), J(a);
-			var s = X(a, 2), l = N(s);
-			$(l, {
+			}), F(), q(a);
+			var s = Y(a, 2), l = N(s);
+			Q(l, {
 				name: "forward",
 				size: 15
-			}), F(), J(s);
-			var u = X(s, 2), d = N(u);
-			$(d, {
+			}), F(), q(s);
+			var u = Y(s, 2), d = N(u);
+			Q(d, {
 				name: "calendar",
 				size: 15
-			}), F(), J(u), J(n), Y("click", r, () => t.mail.reply("reply")), Y("click", a, () => t.mail.reply("all")), Y("click", s, () => t.mail.reply("forward")), Y("click", u, () => t.mail.meeting()), c(e, n);
+			}), F(), q(u), q(n), J("click", r, () => t.mail.reply("reply")), J("click", a, () => t.mail.reply("all")), J("click", s, () => t.mail.reply("forward")), J("click", u, () => t.mail.meeting()), c(e, n);
 		};
 		v(et, (e) => {
-			T(ge) ? e(tt) : e(nt, -1);
-		}), J($e), E((e) => {
-			h(B, "title", T(be) === "trash" ? "Delete for good" : "Delete (#)"), h(U, "title", T(be) === "junk" ? "Not spam" : "Spam (!)"), je = m(Ae, 1, "tool svelte-j5oobt", null, je, { on: !!T(s).saved }), h(Ae, "title", T(s).saved ? `Saved as ${T(s).saved} — save again to add new messages` : "Save as note (⇧N)"), h(Pe, "aria-expanded", T(b)), n(ze, `${(T(s).subject || "(no subject)") ?? ""} `), Ve = m(Be, 1, "star svelte-j5oobt", null, Ve, { on: T(ve) }), h(Be, "title", T(ve) ? "Unstar (s)" : "Star (s)"), h(Be, "aria-pressed", T(ve)), n(qe, e);
-		}, [() => `${T(s).messages.length} message${T(s).messages.length === 1 ? "" : "s"}${T(s).messages.at(-1)?.folder_label ? ` · ${T(s).messages.at(-1)?.folder_label}` : ""}`]), Y("click", A, () => t.mail.archive()), Y("click", B, () => t.mail.trash()), Y("click", U, () => t.mail.spam()), Y("click", q, () => t.mail.toggleRead()), Y("click", se, () => t.onpick("snooze")), Y("click", Ee, () => t.onpick("move")), Y("click", Oe, () => t.onpick("label")), Y("click", Ae, () => t.mail.saveNote()), Y("click", Pe, () => O(b, !T(b))), Y("click", Be, () => t.mail.toggleStar()), c(e, r);
+			T(_e) ? e(tt) : e(nt, -1);
+		}), q($e), E((e) => {
+			h(B, "title", T(xe) === "trash" ? "Delete for good" : "Delete (#)"), h(H, "title", T(xe) === "junk" ? "Not spam" : "Spam (!)"), je = m($, 1, "tool svelte-j5oobt", null, je, { on: !!T(s).saved }), h($, "title", T(s).saved ? `Saved as ${T(s).saved} — save again to add new messages` : "Save as note (⇧N)"), h(Pe, "aria-expanded", T(b)), n(ze, `${(T(s).subject || "(no subject)") ?? ""} `), Ve = m(Be, 1, "star svelte-j5oobt", null, Ve, { on: T(ye) }), h(Be, "title", T(ye) ? "Unstar (s)" : "Star (s)"), h(Be, "aria-pressed", T(ye)), n(qe, e);
+		}, [() => `${T(s).messages.length} message${T(s).messages.length === 1 ? "" : "s"}${T(s).messages.at(-1)?.folder_label ? ` · ${T(s).messages.at(-1)?.folder_label}` : ""}`]), J("click", A, () => t.mail.archive()), J("click", B, () => t.mail.trash()), J("click", H, () => t.mail.spam()), J("click", K, () => t.mail.toggleRead()), J("click", ce, () => t.onpick("snooze")), J("click", De, () => t.onpick("move")), J("click", ke, () => t.onpick("label")), J("click", $, () => t.mail.saveNote()), J("click", Pe, () => O(b, !T(b))), J("click", Be, () => t.mail.toggleStar()), c(e, r);
 	}, Me = (e) => {
 		var r = fn(), i = N(r);
-		$(i, {
+		Q(i, {
 			name: "inbox",
 			size: 40
 		});
-		var a = X(i, 2), o = K(a, !0);
-		F(2), J(r), E(() => n(o, t.mail.rows.length ? "Choose a conversation to read it." : "Nothing here.")), c(e, r);
+		var a = Y(i, 2), o = W(a, !0);
+		F(2), q(r), E(() => n(o, t.mail.rows.length ? "Choose a conversation to read it." : "Nothing here.")), c(e, r);
 	};
-	return v(Oe, (e) => {
-		t.mail.reading && !T(s) ? e(ke) : t.mail.readError ? e(Ae, 1) : T(s) ? e(je, 2) : e(Me, -1);
-	}), J(De), le(De, (e) => O(C, e), () => T(C)), c(e, De), se(Ee);
+	return v(ke, (e) => {
+		t.mail.reading && !T(s) ? e(Ae) : t.mail.readError ? e($, 1) : T(s) ? e(je, 2) : e(Me, -1);
+	}), q(Oe), ue(Oe, (e) => O(C, e), () => T(C)), c(e, Oe), ce(De);
 }
 d([
 	"click",
@@ -1944,32 +1951,32 @@ function xn(e, t) {
 	l(r, 21, () => t.mail.toasts, (e) => e.id, (e, r) => {
 		var i = vn();
 		let a;
-		var o = N(i), s = K(o, !0), l = X(o, 2), u = (e) => {
+		var o = N(i), s = W(o, !0), l = Y(o, 2), u = (e) => {
 			var n = gn();
-			Y("click", n, async () => {
+			J("click", n, async () => {
 				t.mail.dismiss(T(r).id), await T(r).undo?.();
 			}), c(e, n);
 		};
 		v(l, (e) => {
 			T(r).undo && e(u);
 		});
-		var d = X(l, 2), f = (e) => {
-			var i = _n(), a = K(i, !0);
-			E(() => n(a, T(r).action.label)), Y("click", i, () => {
+		var d = Y(l, 2), f = (e) => {
+			var i = _n(), a = W(i, !0);
+			E(() => n(a, T(r).action.label)), J("click", i, () => {
 				t.mail.dismiss(T(r).id), T(r).action?.run();
 			}), c(e, i);
 		};
 		v(d, (e) => {
 			T(r).action && e(f);
 		});
-		var p = X(d, 2);
-		J(i), E(() => {
+		var p = Y(d, 2);
+		q(i), E(() => {
 			a = m(i, 1, "toast svelte-1rm31ba", null, a, {
 				error: T(r).kind === "error",
 				success: T(r).kind === "success"
 			}), h(i, "role", T(r).kind === "error" ? "alert" : "status"), n(s, T(r).text);
-		}), Y("click", p, () => t.mail.dismiss(T(r).id)), c(e, i);
-	}), J(r), c(e, r), se();
+		}), J("click", p, () => t.mail.dismiss(T(r).id)), c(e, i);
+	}), q(r), c(e, r), ce();
 }
 d(["click"]);
 //#endregion
@@ -2458,65 +2465,65 @@ var On = C("<span class=\"or svelte-8ls7cr\">or</span>"), kn = C("<!><kbd class=
 function Pn(e, t) {
 	M(t, !0), g(e, Nn);
 	let r = [...new Set(Cn.map((e) => e.group))];
-	var i = Mn(), a = N(i), o = N(a), s = X(N(o), 2);
-	J(o);
-	var u = X(o, 2);
+	var i = Mn(), a = N(i), o = N(a), s = Y(N(o), 2);
+	q(o);
+	var u = Y(o, 2);
 	l(u, 20, () => r, (e) => e, (e, t) => {
-		var r = jn(), i = N(r), a = K(i, !0), o = X(i, 2);
+		var r = jn(), i = N(r), a = W(i, !0), o = Y(i, 2);
 		l(o, 17, () => Cn.filter((e) => e.group === t && e.keys), (e) => e.id, (e, t) => {
-			var r = An(), i = N(r), a = K(i, !0), o = X(i);
+			var r = An(), i = N(r), a = W(i, !0), o = Y(i);
 			l(o, 22, () => Dn(T(t).keys), (e) => e, (e, t, r) => {
-				var i = kn(), a = Q(i), o = (e) => {
+				var i = kn(), a = Z(i), o = (e) => {
 					var t = On();
 					c(e, t);
 				};
 				v(a, (e) => {
 					T(r) && e(o);
 				});
-				var s = X(a), l = K(s, !0);
+				var s = Y(a), l = W(s, !0);
 				E(() => n(l, t)), c(e, i);
-			}), J(o), J(r), E(() => n(a, T(t).title)), c(e, r);
-		}), J(r), E(() => n(a, t)), c(e, r);
-	}), J(u), J(a), J(i), Y("click", i, function(...e) {
+			}), q(o), q(r), E(() => n(a, T(t).title)), c(e, r);
+		}), q(r), E(() => n(a, t)), c(e, r);
+	}), q(u), q(a), q(i), J("click", i, function(...e) {
 		t.onclose?.apply(this, e);
-	}), Y("keydown", i, (e) => e.key === "Escape" && t.onclose()), Y("click", a, (e) => e.stopPropagation()), Y("keydown", a, () => {}), Y("click", s, function(...e) {
+	}), J("keydown", i, (e) => e.key === "Escape" && t.onclose()), J("click", a, (e) => e.stopPropagation()), J("keydown", a, () => {}), J("click", s, function(...e) {
 		t.onclose?.apply(this, e);
-	}), c(e, i), se();
+	}), c(e, i), ce();
 }
 d(["click", "keydown"]);
 //#endregion
 //#region plugins/stable/email/ui/src/store.svelte.ts
 var Fn = 100, In = class {
 	atlas;
-	#e = q(B([]));
+	#e = K(B([]));
 	get accounts() {
 		return T(this.#e);
 	}
 	set accounts(e) {
 		O(this.#e, e, !0);
 	}
-	#t = q(B([]));
+	#t = K(B([]));
 	get own() {
 		return T(this.#t);
 	}
 	set own(e) {
 		O(this.#t, e, !0);
 	}
-	#n = q(B([]));
+	#n = K(B([]));
 	get folders() {
 		return T(this.#n);
 	}
 	set folders(e) {
 		O(this.#n, e, !0);
 	}
-	#r = q(B({}));
+	#r = K(B({}));
 	get counts() {
 		return T(this.#r);
 	}
 	set counts(e) {
 		O(this.#r, e, !0);
 	}
-	#i = q(B({
+	#i = K(B({
 		name: "inbox",
 		account: null,
 		folder: null,
@@ -2528,119 +2535,119 @@ var Fn = 100, In = class {
 	set view(e) {
 		O(this.#i, e, !0);
 	}
-	#a = q("");
+	#a = K("");
 	get query() {
 		return T(this.#a);
 	}
 	set query(e) {
 		O(this.#a, e, !0);
 	}
-	#o = q("");
+	#o = K("");
 	get quick() {
 		return T(this.#o);
 	}
 	set quick(e) {
 		O(this.#o, e, !0);
 	}
-	#s = q("");
+	#s = K("");
 	get kind() {
 		return T(this.#s);
 	}
 	set kind(e) {
 		O(this.#s, e, !0);
 	}
-	#c = q(B([]));
+	#c = K(B([]));
 	get rows() {
 		return T(this.#c);
 	}
 	set rows(e) {
 		O(this.#c, e, !0);
 	}
-	#l = q(0);
+	#l = K(0);
 	get total() {
 		return T(this.#l);
 	}
 	set total(e) {
 		O(this.#l, e, !0);
 	}
-	#u = q(0);
+	#u = K(0);
 	get unread() {
 		return T(this.#u);
 	}
 	set unread(e) {
 		O(this.#u, e, !0);
 	}
-	#d = q(B([]));
+	#d = K(B([]));
 	get chips() {
 		return T(this.#d);
 	}
 	set chips(e) {
 		O(this.#d, e, !0);
 	}
-	#f = q(!1);
+	#f = K(!1);
 	get loading() {
 		return T(this.#f);
 	}
 	set loading(e) {
 		O(this.#f, e, !0);
 	}
-	#p = q("");
+	#p = K("");
 	get error() {
 		return T(this.#p);
 	}
 	set error(e) {
 		O(this.#p, e, !0);
 	}
-	#m = q(null);
+	#m = K(null);
 	get cursor() {
 		return T(this.#m);
 	}
 	set cursor(e) {
 		O(this.#m, e, !0);
 	}
-	#h = q(B([]));
+	#h = K(B([]));
 	get checked() {
 		return T(this.#h);
 	}
 	set checked(e) {
 		O(this.#h, e, !0);
 	}
-	#g = q(null);
+	#g = K(null);
 	get open() {
 		return T(this.#g);
 	}
 	set open(e) {
 		O(this.#g, e, !0);
 	}
-	#_ = q(null);
+	#_ = K(null);
 	get openId() {
 		return T(this.#_);
 	}
 	set openId(e) {
 		O(this.#_, e, !0);
 	}
-	#v = q(!1);
+	#v = K(!1);
 	get reading() {
 		return T(this.#v);
 	}
 	set reading(e) {
 		O(this.#v, e, !0);
 	}
-	#y = q("");
+	#y = K("");
 	get readError() {
 		return T(this.#y);
 	}
 	set readError(e) {
 		O(this.#y, e, !0);
 	}
-	#b = q(B([]));
+	#b = K(B([]));
 	get composers() {
 		return T(this.#b);
 	}
 	set composers(e) {
 		O(this.#b, e, !0);
 	}
-	#x = q(B([]));
+	#x = K(B([]));
 	get toasts() {
 		return T(this.#x);
 	}
@@ -2658,7 +2665,7 @@ var Fn = 100, In = class {
 		this.atlas = e;
 	}
 	call(e, t = {}, n = 120) {
-		return U(this.atlas, e, t, n);
+		return H(this.atlas, e, t, n);
 	}
 	get split() {
 		return I(this.atlas, "split_inbox", !1) && this.view.name === "inbox";
@@ -2872,6 +2879,32 @@ var Fn = 100, In = class {
 			danger: !0
 		})) return this.leave(e, t ? "Deleted" : "Moved to Trash", (e) => this.call("trash", { ids: e }));
 	}
+	async trashMessage(e) {
+		let t = this.open;
+		if (!t) return;
+		if (t.messages.length === 1) {
+			let e = this.rows.find((e) => e.thread === t.thread);
+			if (e) return this.trash([e]);
+		}
+		let n = t.messages.find((t) => t.id === e), r = n?.draft ? "Draft" : "Message";
+		t.messages = t.messages.filter((t) => t.id !== e);
+		try {
+			let n = (await this.call("trash", {
+				ids: [e],
+				conversation: !1
+			})).moved ?? [], i = async () => {
+				await this.call("undo", { moved: n });
+			};
+			n.length && this.undos.push({
+				label: `${r} to Trash`,
+				run: i
+			}), this.toast(n.length ? `${r} moved to Trash` : `${r} deleted`, "info", n.length ? { undo: async () => {
+				this.undos = this.undos.filter((e) => e.run !== i), await i(), this.later(), this.open?.thread === t.thread && this.read(this.cursor ?? e);
+			} } : {}), this.later(), this.loadCounts();
+		} catch (e) {
+			n && this.open?.thread === t.thread && (this.open.messages = [...this.open.messages, n].sort((e, t) => e.date - t.date)), this.toast(`Could not delete it: ${e.message}`, "error");
+		}
+	}
 	spam(e = this.targets()) {
 		let t = e.every((e) => e.folder_role === "junk");
 		return this.leave(e, t ? "Not spam:" : "Spam:", (e) => this.call(t ? "not_spam" : "spam", { ids: e }));
@@ -2906,7 +2939,7 @@ var Fn = 100, In = class {
 		return this.leave(e, "Back in the inbox:", (e) => this.call("unsnooze", { ids: e }));
 	}
 	snoozeDefault() {
-		return this.snooze(ce()[0].at);
+		return this.snooze(le()[0].at);
 	}
 	async mark(e, t, n = this.targets()) {
 		if (!n.length) return;
@@ -3081,8 +3114,8 @@ function ur(t, r) {
 		try {
 			localStorage.setItem(`atlas-email-${e}`, t);
 		} catch {}
-	}, f = q(B(s("layout", String(r.atlas.plugin.settings.layout ?? "three")))), _ = q(s("density", String(r.atlas.plugin.settings.density ?? "comfortable")) === "compact"), x = q(B(Number(s("side-w", "232")))), S = q(B(Number(s("list-w", "420")))), C = q(B(Number(s("list-h", "320")))), w = q(1200), D = q("list"), k = q(!1), A = q(document.documentElement.dataset.theme !== "light"), j = q(void 0), P = q(void 0), I = q(""), L = q(!1), z = Z(() => T(w) < 700), V = Z(() => !T(z) && T(w) < 1100), H = Z(() => T(w) - (T(V) ? 56 : T(x)) - T(S) >= 460), U = Z(() => T(z) || T(f) === "three" && !T(H) ? "full" : T(f)), ee = Z(() => T(U) !== "full" || o.openId !== null || o.reading), te = Z(() => o.composers.filter((e) => !e.inline));
-	function ne() {
+	}, f = K(B(s("layout", String(r.atlas.plugin.settings.layout ?? "three")))), _ = K(s("density", String(r.atlas.plugin.settings.density ?? "comfortable")) === "compact"), x = K(B(Number(s("side-w", "232")))), S = K(B(Number(s("list-w", "420")))), C = K(B(Number(s("list-h", "320")))), w = K(1200), D = K("list"), k = K(!1), A = K(document.documentElement.dataset.theme !== "light"), j = K(void 0), P = K(void 0), I = K(""), L = K(!1), z = X(() => T(w) < 700), V = X(() => !T(z) && T(w) < 1100), ee = X(() => T(w) - (T(V) ? 56 : T(x)) - T(S) >= 460), H = X(() => T(z) || T(f) === "three" && !T(ee) ? "full" : T(f)), te = X(() => T(H) !== "full" || o.openId !== null || o.reading), G = X(() => o.composers.filter((e) => !e.inline));
+	function re() {
 		if (T(k)) {
 			O(k, !1);
 			return;
@@ -3100,24 +3133,24 @@ function ur(t, r) {
 			return;
 		}
 	}
-	function re(e) {
+	function ie(e) {
 		if (e.draft && e.count === 1) {
 			o.editDraft(e.id);
 			return;
 		}
 		o.read(e.id), T(z) && O(D, "reader");
 	}
-	let ae = () => o.targets()[0]?.account ?? o.view.account ?? o.accounts[0]?.name;
-	function oe(e) {
+	let oe = () => o.targets()[0]?.account ?? o.view.account ?? o.accounts[0]?.name;
+	function se(e) {
 		if (e === "snooze") r.atlas.pick({
 			placeholder: "Snooze until… (tomorrow 9, mon 14:00, 3h, 2026-11-02 08:00)",
 			tag: "Snooze",
-			items: ce().map((e) => ({
+			items: le().map((e) => ({
 				value: String(e.at),
 				title: e.label
 			})),
 			typed: (e) => {
-				let t = W(e);
+				let t = U(e);
 				return t ? `Until ${(/* @__PURE__ */ new Date(t * 1e3)).toLocaleString(void 0, {
 					weekday: "short",
 					day: "numeric",
@@ -3128,12 +3161,12 @@ function ur(t, r) {
 				})}` : "Type a time: tomorrow 9, mon 14:00, 3h";
 			},
 			onpick: (e, t) => {
-				let n = t ? W(e) : Number(e);
+				let n = t ? U(e) : Number(e);
 				n && o.snooze(n);
 			}
 		});
 		else if (e === "move" || e === "go") {
-			let t = e === "move" ? ae() : null, n = o.folders.filter((e) => (!t || e.account === t) && e.role !== "other" && e.role !== "view" && e.role !== "all");
+			let t = e === "move" ? oe() : null, n = o.folders.filter((e) => (!t || e.account === t) && e.role !== "other" && e.role !== "view" && e.role !== "all");
 			r.atlas.pick({
 				placeholder: e === "move" ? "Move to which folder?" : "Go to which folder?",
 				tag: e === "move" ? "Move" : "Go to",
@@ -3198,7 +3231,7 @@ function ur(t, r) {
 			}
 		});
 	}
-	function ue() {
+	function de() {
 		r.atlas.pick({
 			placeholder: "Do what? (every command of the Email pane)",
 			tag: "Email",
@@ -3208,10 +3241,10 @@ function ur(t, r) {
 				detail: Dn(e.keys).join("  ·  ") || void 0,
 				section: e.group
 			})),
-			onpick: (e) => Cn.find((t) => t.id === e)?.run(o, fe)
+			onpick: (e) => Cn.find((t) => t.id === e)?.run(o, pe)
 		});
 	}
-	function de() {
+	function fe() {
 		r.atlas.pick({
 			placeholder: "Layout of the Email pane",
 			tag: "Layout",
@@ -3242,33 +3275,33 @@ function ur(t, r) {
 			}
 		});
 	}
-	let fe = {
-		pick: oe,
-		palette: ue,
-		back: ne,
+	let pe = {
+		pick: se,
+		palette: de,
+		back: re,
 		focusSearch: () => {
 			T(j)?.focus(), T(j)?.select();
 		},
 		help: () => O(k, !T(k)),
 		expandAll: (e) => T(P)?.expandAll(e),
 		find: () => T(P)?.find(),
-		rules: () => typeof r.atlas.openDialog == "function" ? void r.atlas.openDialog(G, {
+		rules: () => typeof r.atlas.openDialog == "function" ? void r.atlas.openDialog(ne, {
 			title: "Rules",
 			width: 860,
 			height: 640
-		}) : r.atlas.openView(G, {
+		}) : r.atlas.openView(ne, {
 			title: "Email rules",
 			icon: "mail"
 		}),
-		layout: de
-	}, pe = q(""), me;
-	function he(e) {
+		layout: fe
+	}, me = K(""), he;
+	function ge(e) {
 		let t = e.target;
 		if (t.closest("input, textarea, select, [contenteditable=true], [role=dialog] input")) {
 			e.key === "Escape" && t === T(j) && T(j)?.blur();
 			return;
 		}
-		if (!T(Se)?.contains(t) && t !== document.body) return;
+		if (!T(Ce)?.contains(t) && t !== document.body) return;
 		let n = wn(e);
 		if ([
 			"shift",
@@ -3276,20 +3309,20 @@ function ur(t, r) {
 			"alt",
 			"meta"
 		].includes(e.key.toLowerCase())) return;
-		let r = T(pe) ? `${T(pe)} ${n}` : n;
-		if (clearTimeout(me), !T(pe) && En.has(n)) {
-			O(pe, n, !0), me = setTimeout(() => O(pe, ""), 1200), e.preventDefault();
+		let r = T(me) ? `${T(me)} ${n}` : n;
+		if (clearTimeout(he), !T(me) && En.has(n)) {
+			O(me, n, !0), he = setTimeout(() => O(me, ""), 1200), e.preventDefault();
 			return;
 		}
-		O(pe, "");
+		O(me, "");
 		let i = Tn.get(r);
-		!i || i.when && !i.when(o) || (e.preventDefault(), e.stopPropagation(), i.run(o, fe));
+		!i || i.when && !i.when(o) || (e.preventDefault(), e.stopPropagation(), i.run(o, pe));
 	}
-	let ge;
-	function _e() {
-		clearTimeout(ge), ge = setTimeout(() => o.search(T(I)), 140);
+	let _e;
+	function ve() {
+		clearTimeout(_e), _e = setTimeout(() => o.search(T(I)), 140);
 	}
-	async function ve() {
+	async function ye() {
 		if (o.search(T(I)), T(I).trim()) try {
 			let e = await o.call("search_server", { query: T(I) }, 300);
 			e.added && (o.toast(`${e.added} more from the server`), o.load());
@@ -3297,13 +3330,13 @@ function ur(t, r) {
 			o.toast(`The server search failed: ${e.message}`, "error");
 		}
 	}
-	function ye(e) {
+	function be(e) {
 		o.quick = o.quick === e ? "" : e, o.load();
 	}
-	function be(e) {
+	function xe(e) {
 		o.kind = e, o.load();
 	}
-	function xe(e, t) {
+	function Se(e, t) {
 		e.preventDefault();
 		let n = e.clientX, r = e.clientY, i = T(x), a = T(S), o = T(C), s = (e) => {
 			t === "side" ? O(x, Math.max(170, Math.min(420, i + e.clientX - n)), !0) : t === "list" ? O(S, Math.max(300, Math.min(900, a + e.clientX - n)), !0) : O(C, Math.max(160, Math.min(900, o + e.clientY - r)), !0);
@@ -3312,7 +3345,7 @@ function ur(t, r) {
 		};
 		document.body.style.userSelect = "none", window.addEventListener("pointermove", s), window.addEventListener("pointerup", c);
 	}
-	let Se = q(void 0);
+	let Ce = K(void 0);
 	y(() => {
 		o.start();
 		let e = [
@@ -3335,7 +3368,7 @@ function ur(t, r) {
 			attributeFilter: ["data-theme"]
 		});
 		let n = async (e) => {
-			let t = e.detail, n = await ie(o.atlas, `A new folder in ${t}:`);
+			let t = e.detail, n = await ae(o.atlas, `A new folder in ${t}:`);
 			if (n) try {
 				await o.call("folder_create", {
 					account: t,
@@ -3363,7 +3396,7 @@ function ur(t, r) {
 			e.forEach((e) => e()), t.disconnect(), window.removeEventListener("atlas-email:new-folder", n), window.removeEventListener("atlas-email:signed-in", i), window.removeEventListener("atlas-email:open", a);
 		};
 	});
-	let Ce = Z(() => o.query ? "Search" : o.view.label), we = [
+	let we = X(() => o.query ? "Search" : o.view.label), Te = [
 		[
 			"person",
 			"People",
@@ -3380,10 +3413,10 @@ function ur(t, r) {
 			"bell"
 		]
 	];
-	var Te = cr();
-	u("keydown", e, he);
-	let Ee, De;
-	var Oe = N(Te), ke = (e) => {
+	var Ee = cr();
+	u("keydown", e, ge);
+	let De, Oe;
+	var ke = N(Ee), Ae = (e) => {
 		var t = Rn(), n = N(t);
 		Me(n, {
 			get mail() {
@@ -3396,158 +3429,158 @@ function ur(t, r) {
 				T(z) && O(D, "list");
 			}
 		});
-		var r = X(n, 2), i = (e) => {
+		var r = Y(n, 2), i = (e) => {
 			var t = Ln();
-			Y("pointerdown", t, (e) => xe(e, "side")), c(e, t);
+			J("pointerdown", t, (e) => Se(e, "side")), c(e, t);
 		};
 		v(r, (e) => {
 			!T(V) && !T(z) && e(i);
-		}), J(t), c(e, t);
+		}), q(t), c(e, t);
 	};
-	v(Oe, (e) => {
-		(!T(z) || T(D) === "side") && e(ke);
+	v(ke, (e) => {
+		(!T(z) || T(D) === "side") && e(Ae);
 	});
-	var Ae = X(Oe, 2), je = (e) => {
+	var $ = Y(ke, 2), je = (e) => {
 		var t = ir();
 		let s;
 		var u = N(t), d = (e) => {
 			var t = tr(), s = N(t), u = N(s), d = N(u), f = (e) => {
 				var t = zn(), n = N(t);
-				$(n, { name: "menu" }), J(t), Y("click", t, () => O(D, "side")), c(e, t);
+				Q(n, { name: "menu" }), q(t), J("click", t, () => O(D, "side")), c(e, t);
 			};
 			v(d, (e) => {
 				T(z) && e(f);
 			});
-			var p = X(d, 2), g = N(p);
-			$(g, {
+			var p = Y(d, 2), g = N(p);
+			Q(g, {
 				name: "search",
 				size: 15
 			});
-			var y = X(g, 2);
-			i(y), le(y, (e) => O(j, e), () => T(j));
-			var b = X(y, 2), x = (e) => {
+			var y = Y(g, 2);
+			i(y), ue(y, (e) => O(j, e), () => T(j));
+			var b = Y(y, 2), x = (e) => {
 				var t = Bn(), n = N(t);
-				$(n, {
+				Q(n, {
 					name: "x",
 					size: 14
-				}), J(t), Y("click", t, () => {
+				}), q(t), J("click", t, () => {
 					O(I, ""), o.search("");
 				}), c(e, t);
 			};
 			v(b, (e) => {
 				T(I) && e(x);
-			}), J(p);
-			var S = X(p, 2), C = N(S);
-			$(C, { name: "refresh" }), J(S);
-			var w = X(S, 2), k = N(w);
-			$(k, { name: "layout" }), J(w);
-			var A = X(w, 2), M = N(A);
-			$(M, { name: "keyboard" }), J(A), J(u);
-			var P = X(u, 2), L = (e) => {
+			}), q(p);
+			var S = Y(p, 2), C = N(S);
+			Q(C, { name: "refresh" }), q(S);
+			var w = Y(S, 2), k = N(w);
+			Q(k, { name: "layout" }), q(w);
+			var A = Y(w, 2), M = N(A);
+			Q(M, { name: "keyboard" }), q(A), q(u);
+			var P = Y(u, 2), L = (e) => {
 				var t = Un(), r = N(t);
 				l(r, 17, () => o.chips, ([e, t]) => e + t, (e, t) => {
-					var r = Z(() => R(T(t), 2));
+					var r = X(() => R(T(t), 2));
 					let i = () => T(r)[0], a = () => T(r)[1];
-					var o = Vn(), s = N(o), l = K(s), u = X(s, 1, !0);
-					J(o), E(() => {
+					var o = Vn(), s = N(o), l = W(s), u = Y(s, 1, !0);
+					q(o), E(() => {
 						n(l, `${i() ?? ""}:`), n(u, a());
 					}), c(e, o);
 				});
-				var i = X(r), a = (e) => {
+				var i = Y(r), a = (e) => {
 					var t = Hn();
-					Y("click", t, ve), c(e, t);
+					J("click", t, ye), c(e, t);
 				};
 				v(i, (e) => {
 					o.query && e(a);
-				}), J(t), c(e, t);
+				}), q(t), c(e, t);
 			};
 			v(P, (e) => {
 				o.chips.length && e(L);
 			});
-			var B = X(P, 2), V = (e) => {
+			var B = Y(P, 2), V = (e) => {
 				var t = Wn(), r = N(t), i = N(r);
-				$(i, { name: "x" }), J(r);
-				var a = X(r, 2), s = K(a), l = X(a, 4), u = N(l);
-				$(u, { name: "archive" }), J(l);
-				var d = X(l, 2), f = N(d);
-				$(f, { name: "trash" }), J(d);
-				var p = X(d, 2), m = N(p);
-				$(m, { name: "read" }), J(p);
-				var h = X(p, 2), g = N(h);
-				$(g, { name: "unread" }), J(h);
-				var _ = X(h, 2), v = N(_);
-				$(v, { name: "star" }), J(_);
-				var y = X(_, 2), b = N(y);
-				$(b, { name: "clock" }), J(y);
-				var x = X(y, 2), S = N(x);
-				$(S, { name: "folder" }), J(x);
-				var C = X(x, 2), w = N(C);
-				$(w, { name: "label" }), J(C), J(t), E(() => n(s, `${o.checked.length ?? ""} checked`)), Y("click", r, () => o.selectWhere("none")), Y("click", l, () => o.archive()), Y("click", d, () => o.trash()), Y("click", p, () => o.mark("read", !0)), Y("click", h, () => o.mark("read", !1)), Y("click", _, () => o.toggleStar()), Y("click", y, () => oe("snooze")), Y("click", x, () => oe("move")), Y("click", C, () => oe("label")), c(e, t);
-			}, H = (e) => {
-				var t = Jn(), r = Q(t), i = N(r), a = K(i, !0), s = X(i, 2), u = K(s), d = X(s, 4), f = N(d);
+				Q(i, { name: "x" }), q(r);
+				var a = Y(r, 2), s = W(a), l = Y(a, 4), u = N(l);
+				Q(u, { name: "archive" }), q(l);
+				var d = Y(l, 2), f = N(d);
+				Q(f, { name: "trash" }), q(d);
+				var p = Y(d, 2), m = N(p);
+				Q(m, { name: "read" }), q(p);
+				var h = Y(p, 2), g = N(h);
+				Q(g, { name: "unread" }), q(h);
+				var _ = Y(h, 2), v = N(_);
+				Q(v, { name: "star" }), q(_);
+				var y = Y(_, 2), b = N(y);
+				Q(b, { name: "clock" }), q(y);
+				var x = Y(y, 2), S = N(x);
+				Q(S, { name: "folder" }), q(x);
+				var C = Y(x, 2), w = N(C);
+				Q(w, { name: "label" }), q(C), q(t), E(() => n(s, `${o.checked.length ?? ""} checked`)), J("click", r, () => o.selectWhere("none")), J("click", l, () => o.archive()), J("click", d, () => o.trash()), J("click", p, () => o.mark("read", !0)), J("click", h, () => o.mark("read", !1)), J("click", _, () => o.toggleStar()), J("click", y, () => se("snooze")), J("click", x, () => se("move")), J("click", C, () => se("label")), c(e, t);
+			}, ee = (e) => {
+				var t = Jn(), r = Z(t), i = N(r), a = W(i, !0), s = Y(i, 2), u = W(s), d = Y(s, 4), f = N(d);
 				let p;
-				var g = X(f, 2);
+				var g = Y(f, 2);
 				let _;
-				var y = X(g, 2);
+				var y = Y(g, 2);
 				let b;
-				var x = X(y, 2);
+				var x = Y(y, 2);
 				let S;
-				J(d), J(r);
-				var C = X(r, 2), w = (e) => {
+				q(d), q(r);
+				var C = Y(r, 2), w = (e) => {
 					var t = qn();
-					l(t, 21, () => we, ([e, t, n]) => e, (e, t) => {
-						var r = Z(() => R(T(t), 3));
-						let i = () => T(r)[0], a = () => T(r)[1], s = () => T(r)[2], l = Z(() => o.counts[i()]);
+					l(t, 21, () => Te, ([e, t, n]) => e, (e, t) => {
+						var r = X(() => R(T(t), 3));
+						let i = () => T(r)[0], a = () => T(r)[1], s = () => T(r)[2], l = X(() => o.counts[i()]);
 						var u = Kn();
 						let d;
 						var f = N(u);
-						$(f, {
+						Q(f, {
 							get name() {
 								return s();
 							},
 							size: 14
 						});
-						var p = X(f, 1, !0), g = X(p), _ = (e) => {
-							var t = Gn(), r = K(t, !0);
+						var p = Y(f, 1, !0), g = Y(p), _ = (e) => {
+							var t = Gn(), r = W(t, !0);
 							E(() => n(r, T(l).unread)), c(e, t);
 						};
 						v(g, (e) => {
 							T(l)?.unread && e(_);
-						}), J(u), E(() => {
+						}), q(u), E(() => {
 							h(u, "aria-selected", (o.kind || "person") === i()), d = m(u, 1, "svelte-7si10b", null, d, { on: (o.kind || "person") === i() }), n(p, a());
-						}), Y("click", u, () => be(i())), c(e, u);
-					}), J(t), c(e, t);
+						}), J("click", u, () => xe(i())), c(e, u);
+					}), q(t), c(e, t);
 				};
 				v(C, (e) => {
 					o.split && !o.query && e(w);
 				}), E(() => {
-					n(a, T(Ce)), n(u, `${o.total ? `${o.total} conversation${o.total === 1 ? "" : "s"}` : ""}${o.unread ? ` · ${o.unread} unread` : ""}`), p = m(f, 1, "svelte-7si10b", null, p, { on: o.quick === "unread" }), _ = m(g, 1, "svelte-7si10b", null, _, { on: o.quick === "starred" }), b = m(y, 1, "svelte-7si10b", null, b, { on: o.quick === "attachments" }), S = m(x, 1, "svelte-7si10b", null, S, { on: o.quick === "mentions" });
-				}), Y("click", f, () => ye("unread")), Y("click", g, () => ye("starred")), Y("click", y, () => ye("attachments")), Y("click", x, () => ye("mentions")), c(e, t);
+					n(a, T(we)), n(u, `${o.total ? `${o.total} conversation${o.total === 1 ? "" : "s"}` : ""}${o.unread ? ` · ${o.unread} unread` : ""}`), p = m(f, 1, "svelte-7si10b", null, p, { on: o.quick === "unread" }), _ = m(g, 1, "svelte-7si10b", null, _, { on: o.quick === "starred" }), b = m(y, 1, "svelte-7si10b", null, b, { on: o.quick === "attachments" }), S = m(x, 1, "svelte-7si10b", null, S, { on: o.quick === "mentions" });
+				}), J("click", f, () => be("unread")), J("click", g, () => be("starred")), J("click", y, () => be("attachments")), J("click", x, () => be("mentions")), c(e, t);
 			};
 			v(B, (e) => {
-				o.checked.length ? e(V) : e(H, -1);
-			}), J(s);
-			var U = X(s, 2), ee = (e) => {
-				var t = Yn(), i = N(t, !0), a = X(i), s = N(a), l = X(s);
-				J(a), J(t), E(() => n(i, o.error)), Y("click", s, () => o.load()), Y("click", l, () => r.atlas.plugin.openSettings()), c(e, t);
-			}, W = (e) => {
+				o.checked.length ? e(V) : e(ee, -1);
+			}), q(s);
+			var H = Y(s, 2), te = (e) => {
+				var t = Yn(), i = N(t, !0), a = Y(i), s = N(a), l = Y(s);
+				q(a), q(t), E(() => n(i, o.error)), J("click", s, () => o.load()), J("click", l, () => r.atlas.plugin.openSettings()), c(e, t);
+			}, U = (e) => {
 				var t = er(), i = N(t), a = (e) => {
-					var t = Xn(), n = X(Q(t));
-					Y("click", n, ve), c(e, t);
+					var t = Xn(), n = Y(Z(t));
+					J("click", n, ye), c(e, t);
 				}, s = (e) => {
-					var t = Zn(), n = X(Q(t));
-					Y("click", n, () => r.atlas.plugin.openSettings()), c(e, t);
+					var t = Zn(), n = Y(Z(t));
+					J("click", n, () => r.atlas.plugin.openSettings()), c(e, t);
 				}, l = (e) => {
 					var t = Qn();
 					F(), c(e, t);
 				}, u = (e) => {
-					var t = $n(), r = K(t);
+					var t = $n(), r = W(t);
 					E(() => n(r, `Nothing here${o.quick ? " with that filter" : ""}.`)), c(e, t);
 				};
 				v(i, (e) => {
 					o.query ? e(a) : o.accounts.length ? o.view.name === "inbox" && !o.quick ? e(l, 2) : e(u, -1) : e(s, 1);
-				}), J(t), c(e, t);
-			}, G = (e) => {
+				}), q(t), c(e, t);
+			}, ne = (e) => {
 				Ye(e, {
 					get mail() {
 						return o;
@@ -3555,34 +3588,34 @@ function ur(t, r) {
 					get compact() {
 						return T(_);
 					},
-					onopen: re
+					onopen: ie
 				});
 			};
-			v(U, (e) => {
-				o.error ? e(ee) : !o.loading && !o.rows.length ? e(W, 1) : e(G, -1);
-			}), J(t), E(() => h(t, "aria-label", T(Ce))), Y("input", y, _e), Y("keydown", y, (e) => {
-				e.key === "Enter" ? (e.preventDefault(), ve()) : e.key === "Escape" ? (O(I, ""), o.search(""), T(j)?.blur()) : e.key === "ArrowDown" && T(j)?.blur();
-			}), a(y, () => T(I), (e) => O(I, e)), Y("click", S, () => Cn.find((e) => e.id === "refresh")?.run(o, fe)), Y("click", w, de), Y("click", A, ue), c(e, t);
+			v(H, (e) => {
+				o.error ? e(te) : !o.loading && !o.rows.length ? e(U, 1) : e(ne, -1);
+			}), q(t), E(() => h(t, "aria-label", T(we))), J("input", y, ve), J("keydown", y, (e) => {
+				e.key === "Enter" ? (e.preventDefault(), ye()) : e.key === "Escape" ? (O(I, ""), o.search(""), T(j)?.blur()) : e.key === "ArrowDown" && T(j)?.blur();
+			}), a(y, () => T(I), (e) => O(I, e)), J("click", S, () => Cn.find((e) => e.id === "refresh")?.run(o, pe)), J("click", w, fe), J("click", A, de), c(e, t);
 		};
 		v(u, (e) => {
-			(T(U) !== "full" || !T(ee) || T(z) && T(D) !== "reader") && e(d);
+			(T(H) !== "full" || !T(te) || T(z) && T(D) !== "reader") && e(d);
 		});
-		var f = X(u, 2), p = (e) => {
+		var f = Y(u, 2), p = (e) => {
 			var t = nr();
 			let n;
 			E(() => n = m(t, 1, "grip svelte-7si10b", null, n, {
-				h: T(U) === "below",
-				v: T(U) === "three"
-			})), Y("pointerdown", t, (e) => xe(e, T(U) === "below" ? "listH" : "list")), c(e, t);
+				h: T(H) === "below",
+				v: T(H) === "three"
+			})), J("pointerdown", t, (e) => Se(e, T(H) === "below" ? "listH" : "list")), c(e, t);
 		};
 		v(f, (e) => {
-			T(U) !== "full" && e(p);
+			T(H) !== "full" && e(p);
 		});
-		var g = X(f, 2), y = (e) => {
+		var g = Y(f, 2), y = (e) => {
 			var t = rr(), n = N(t);
 			{
-				let e = Z(() => T(U) === "full");
-				le(hn(n, {
+				let e = X(() => T(H) === "full");
+				ue(hn(n, {
 					get mail() {
 						return o;
 					},
@@ -3592,25 +3625,25 @@ function ur(t, r) {
 					onback: () => {
 						o.close(), O(D, "list");
 					},
-					onpick: oe
+					onpick: se
 				}), (e) => O(P, e, !0), () => T(P));
 			}
-			J(t), c(e, t);
+			q(t), c(e, t);
 		};
 		v(g, (e) => {
-			T(ee) && (!T(z) || T(D) === "reader") && e(y);
-		}), J(t), E(() => s = m(t, 1, "work svelte-7si10b", null, s, {
-			below: T(U) === "below",
-			full: T(U) === "full"
+			T(te) && (!T(z) || T(D) === "reader") && e(y);
+		}), q(t), E(() => s = m(t, 1, "work svelte-7si10b", null, s, {
+			below: T(H) === "below",
+			full: T(H) === "full"
 		})), c(e, t);
 	};
-	v(Ae, (e) => {
+	v($, (e) => {
 		(!T(z) || T(D) !== "side") && e(je);
 	});
-	var Ne = X(Ae, 2), Pe = (e) => {
+	var Ne = Y($, 2), Pe = (e) => {
 		var t = or();
 		let n;
-		l(t, 21, () => T(te), (e) => e.key, (e, t) => {
+		l(t, 21, () => T(G), (e) => e.key, (e, t) => {
 			var n = ar();
 			Ft(N(n), {
 				get mail() {
@@ -3625,38 +3658,38 @@ function ur(t, r) {
 				set big(e) {
 					O(L, e, !0);
 				}
-			}), J(n), c(e, n);
-		}), J(t), E(() => n = m(t, 1, "windows svelte-7si10b", null, n, { big: T(L) || T(z) })), c(e, t);
+			}), q(n), c(e, n);
+		}), q(t), E(() => n = m(t, 1, "windows svelte-7si10b", null, n, { big: T(L) || T(z) })), c(e, t);
 	};
 	v(Ne, (e) => {
-		T(te).length && e(Pe);
+		T(G).length && e(Pe);
 	});
-	var Fe = X(Ne, 2), Ie = (e) => {
+	var Fe = Y(Ne, 2), Ie = (e) => {
 		Pn(e, { onclose: () => O(k, !1) });
 	};
 	v(Fe, (e) => {
 		T(k) && e(Ie);
 	});
-	var Le = X(Fe, 2);
+	var Le = Y(Fe, 2);
 	xn(Le, { get mail() {
 		return o;
 	} });
-	var Re = X(Le, 2), ze = (e) => {
-		var t = sr(), r = K(t);
-		E(() => n(r, `${T(pe) ?? ""} …`)), c(e, t);
+	var Re = Y(Le, 2), ze = (e) => {
+		var t = sr(), r = W(t);
+		E(() => n(r, `${T(me) ?? ""} …`)), c(e, t);
 	};
 	v(Re, (e) => {
-		T(pe) && e(ze);
-	}), J(Te), le(Te, (e) => O(Se, e), () => T(Se)), E(() => {
-		Ee = m(Te, 1, "mail svelte-7si10b", null, Ee, {
+		T(me) && e(ze);
+	}), q(Ee), ue(Ee, (e) => O(Ce, e), () => T(Ce)), E(() => {
+		De = m(Ee, 1, "mail svelte-7si10b", null, De, {
 			narrow: T(z),
 			dark: T(A)
-		}), De = p(Te, "", De, {
+		}), Oe = p(Ee, "", Oe, {
 			"--side-w": `${(T(V) ? 56 : T(x)) ?? ""}px`,
 			"--list-w": `${T(S) ?? ""}px`,
 			"--list-h": `${T(C) ?? ""}px`
 		});
-	}), b(Te, "clientWidth", (e) => O(w, e)), c(t, Te), se();
+	}), b(Ee, "clientWidth", (e) => O(w, e)), c(t, Ee), ce();
 }
 d([
 	"pointerdown",
@@ -3672,8 +3705,8 @@ var dr = C("<p class=\"err svelte-h2hvl1\"> </p>"), fr = C("<p class=\"hint svel
 };
 function Or(e, r) {
 	M(r, !0), g(e, Dr);
-	let i = q(B(w(() => (r.atlas.plugin.settings.accounts ?? []).filter((e) => e?.name)))), a = q(null), o = q(""), s = B({});
-	w(() => U(r.atlas, "thunderbird")).then((e) => O(a, e.accounts, !0), (e) => O(o, String(e.message ?? e), !0));
+	let i = K(B(w(() => (r.atlas.plugin.settings.accounts ?? []).filter((e) => e?.name)))), a = K(null), o = K(""), s = B({});
+	w(() => H(r.atlas, "thunderbird")).then((e) => O(a, e.accounts, !0), (e) => O(o, String(e.message ?? e), !0));
 	let u = (e) => T(i).some((t) => t.name === e.record.name || t.user && t.user === e.record.user);
 	async function d(e, t) {
 		try {
@@ -3682,14 +3715,14 @@ function Or(e, r) {
 			O(i, T(i).filter((e) => e !== t.record), !0), s[e] = `Not added: ${n.message ?? n}`;
 		}
 	}
-	let p = q(B(w(() => T(i)[0]?.name ?? ""))), h = q(B({ kind: "idle" }));
+	let p = K(B(w(() => T(i)[0]?.name ?? ""))), h = K(B({ kind: "idle" }));
 	async function _() {
 		O(h, {
 			kind: "busy",
 			text: `Comparing ${T(p)}'s local mail with its notes…`
 		}, !0);
 		try {
-			let e = await U(r.atlas, "thunderbird_mail", {
+			let e = await H(r.atlas, "thunderbird_mail", {
 				account: T(p),
 				dry: !0
 			}, 600), t = Object.entries(e.missing ?? {}), n = t.reduce((e, [, t]) => e + t, 0);
@@ -3715,7 +3748,7 @@ function Or(e, r) {
 			text: `Writing ${e} messages as notes…`
 		}, !0);
 		try {
-			let e = await U(r.atlas, "thunderbird_mail", {
+			let e = await H(r.atlas, "thunderbird_mail", {
 				account: T(p),
 				dry: !1
 			}, 1800);
@@ -3732,8 +3765,8 @@ function Or(e, r) {
 			}, !0);
 		}
 	}
-	var b = Er(), x = N(b), S = X(N(x), 4), C = (e) => {
-		var t = dr(), r = K(t, !0);
+	var b = Er(), x = N(b), S = Y(N(x), 4), C = (e) => {
+		var t = dr(), r = W(t, !0);
 		E(() => n(r, T(o))), c(e, t);
 	}, D = (e) => {
 		var t = fr();
@@ -3744,75 +3777,75 @@ function Or(e, r) {
 	}, A = (e) => {
 		var t = vr();
 		l(t, 21, () => T(a), f, (e, t, i) => {
-			var a = _r(), o = N(a), l = N(o), f = K(l, !0), p = X(l), h = K(p), g = X(p, 2), _ = (e) => {
+			var a = _r(), o = N(a), l = N(o), f = W(l, !0), p = Y(l), h = W(p), g = Y(p, 2), _ = (e) => {
 				var t = mr();
 				let r;
-				var a = K(t, !0);
+				var a = W(t, !0);
 				E((e) => {
 					r = m(t, 1, "svelte-h2hvl1", null, r, { err: e }), n(a, s[i]);
 				}, [() => s[i].startsWith("Not")]), c(e, t);
 			};
 			v(g, (e) => {
 				s[i] && e(_);
-			}), J(o);
-			var y = X(o, 2), b = (e) => {
+			}), q(o);
+			var y = Y(o, 2), b = (e) => {
 				var t = hr();
-				Y("click", t, () => r.atlas.plugin.openSettings()), c(e, t);
-			}, x = Z(() => s[i] && !s[i].startsWith("Not")), S = (e) => {
+				J("click", t, () => r.atlas.plugin.openSettings()), c(e, t);
+			}, x = X(() => s[i] && !s[i].startsWith("Not")), S = (e) => {
 				var r = gr();
 				let a;
-				var o = K(r, !0);
+				var o = W(r, !0);
 				E((e, t, i) => {
 					r.disabled = e, a = m(r, 1, "svelte-h2hvl1", null, a, { primary: t }), n(o, i);
 				}, [
 					() => u(T(t)),
 					() => !u(T(t)),
 					() => u(T(t)) ? "Already a card" : "Add"
-				]), Y("click", r, () => d(i, T(t))), c(e, r);
+				]), J("click", r, () => d(i, T(t))), c(e, r);
 			};
 			v(y, (e) => {
 				T(x) ? e(b) : e(S, -1);
-			}), J(a), E(() => {
+			}), q(a), E(() => {
 				n(f, T(t).user || T(t).name), n(h, `${T(t).imap_host ?? ""} · ${T(t).auth ?? ""} · ${T(t).profile ?? ""}`);
 			}), c(e, a);
-		}), J(t), c(e, t);
+		}), q(t), c(e, t);
 	};
 	v(S, (e) => {
 		T(o) ? e(C) : T(a) ? T(a).length ? e(A, -1) : e(k, 2) : e(D, 1);
-	}), J(x);
-	var j = X(x, 2), P = X(N(j), 4), F = (e) => {
+	}), q(x);
+	var j = Y(x, 2), P = Y(N(j), 4), F = (e) => {
 		var t = yr();
 		c(e, t);
 	}, I = (e) => {
-		var r = Tr(), a = Q(r), o = N(a);
+		var r = Tr(), a = Z(r), o = N(a);
 		l(o, 21, () => T(i), (e) => e.name, (e, t) => {
-			var r = br(), i = K(r), a = {};
+			var r = br(), i = W(r), a = {};
 			E(() => {
 				n(i, `${T(t).name ?? ""}${T(t).user ? ` — ${T(t).user}` : ""}`), a !== (a = T(t).name) && (r.value = (r.__value = a) ?? "");
 			}), c(e, r);
-		}), J(o), t(o);
-		var s = X(o, 2);
-		J(a);
-		var u = X(a, 2), d = (e) => {
-			var t = xr(), r = K(t, !0);
+		}), q(o), t(o);
+		var s = Y(o, 2);
+		q(a);
+		var u = Y(a, 2), d = (e) => {
+			var t = xr(), r = W(t, !0);
 			E(() => n(r, T(h).text)), c(e, t);
 		}, f = (e) => {
-			let t = Z(() => T(h).n);
-			var r = Cr(), i = Q(r), a = K(i), o = X(i, 2);
+			let t = X(() => T(h).n);
+			var r = Cr(), i = Z(r), a = W(i), o = Y(i, 2);
 			l(o, 21, () => T(h).by, ([e, t]) => e, (e, t) => {
-				var r = Z(() => R(T(t), 2));
+				var r = X(() => R(T(t), 2));
 				let i = () => T(r)[0], a = () => T(r)[1];
-				var o = Sr(), s = N(o), l = K(s, !0), u = X(s), d = K(u, !0);
-				J(o), E(() => {
+				var o = Sr(), s = N(o), l = W(s, !0), u = Y(s), d = W(u, !0);
+				q(o), E(() => {
 					n(l, i()), n(d, a());
 				}), c(e, o);
-			}), J(o);
-			var s = X(o, 2), u = K(s);
-			E(() => n(a, `${T(t) ?? ""} message${T(t) === 1 ? "" : "s"} Thunderbird keeps for ${T(p) ?? ""} ${T(t) === 1 ? "is" : "are"} in no note:`)), Y("click", u, () => y(T(t))), c(e, r);
+			}), q(o);
+			var s = Y(o, 2), u = W(s);
+			E(() => n(a, `${T(t) ?? ""} message${T(t) === 1 ? "" : "s"} Thunderbird keeps for ${T(p) ?? ""} ${T(t) === 1 ? "is" : "are"} in no note:`)), J("click", u, () => y(T(t))), c(e, r);
 		}, g = (e) => {
 			var t = wr();
 			let r;
-			var i = K(t, !0);
+			var i = W(t, !0);
 			E(() => {
 				r = m(t, 1, "svelte-h2hvl1", null, r, { err: T(h).error }), n(i, T(h).text);
 			}), c(e, t);
@@ -3821,15 +3854,15 @@ function Or(e, r) {
 			T(h).kind === "busy" ? e(d) : T(h).kind === "missing" ? e(f, 1) : T(h).kind === "done" && e(g, 2);
 		}), E(() => {
 			o.disabled = T(h).kind === "busy", s.disabled = !T(p) || T(h).kind === "busy";
-		}), Y("change", o, () => O(h, { kind: "idle" }, !0)), H(o, () => T(p), (e) => O(p, e)), Y("click", s, _), c(e, r);
+		}), J("change", o, () => O(h, { kind: "idle" }, !0)), ee(o, () => T(p), (e) => O(p, e)), J("click", s, _), c(e, r);
 	};
 	v(P, (e) => {
 		T(i).length ? e(I, -1) : e(F);
-	}), J(j);
-	var L = X(j, 2), z = K(L);
-	J(b), Y("click", z, function(...e) {
+	}), q(j);
+	var L = Y(j, 2), z = W(L);
+	q(b), J("click", z, function(...e) {
 		r.onclose?.apply(this, e);
-	}), c(e, b), se();
+	}), c(e, b), ce();
 }
 d(["click", "change"]);
 //#endregion
@@ -3840,8 +3873,8 @@ var kr = C("<p class=\"svelte-1gsd9hw\">No account signs in with Outlook: set on
 };
 function Wr(e, t) {
 	M(t, !0), g(e, Ur);
-	let r = w(() => (t.atlas.plugin.settings.accounts ?? []).filter((e) => e?.name && e.auth === "outlook")), o = q(B(w(() => t.account ?? t.record?.name ?? (r.length === 1 ? r[0].name : "")))), s = q(B(w(() => T(o) ? { kind: "starting" } : { kind: "choose" }))), d = q(""), f = !1, p = (e) => void U(t.atlas, "signin_reopen", { url: e }).catch(() => window.open(e, "_blank")), h = () => {
-		f || (O(s, { kind: "done" }, !0), window.dispatchEvent(new CustomEvent("atlas-email:signed-in", { detail: { account: T(o) } })), U(t.atlas, "watch", {}, 30).catch(() => {}));
+	let r = w(() => (t.atlas.plugin.settings.accounts ?? []).filter((e) => e?.name && e.auth === "outlook")), o = K(B(w(() => t.account ?? t.record?.name ?? (r.length === 1 ? r[0].name : "")))), s = K(B(w(() => T(o) ? { kind: "starting" } : { kind: "choose" }))), d = K(""), f = !1, p = (e) => void H(t.atlas, "signin_reopen", { url: e }).catch(() => window.open(e, "_blank")), h = () => {
+		f || (O(s, { kind: "done" }, !0), window.dispatchEvent(new CustomEvent("atlas-email:signed-in", { detail: { account: T(o) } })), H(t.atlas, "watch", {}, 30).catch(() => {}));
 	}, y = (e) => {
 		f || O(s, {
 			kind: "failed",
@@ -3849,7 +3882,7 @@ function Wr(e, t) {
 		}, !0);
 	}, b = !1;
 	function S(e) {
-		!b && e.trim() && (b = !0, U(t.atlas, "signin_finish", {
+		!b && e.trim() && (b = !0, H(t.atlas, "signin_finish", {
 			redirect: e.trim(),
 			account: T(o)
 		}, 60).then(h, (e) => {
@@ -3859,7 +3892,7 @@ function Wr(e, t) {
 	async function C() {
 		O(s, { kind: "starting" }, !0), b = !1;
 		try {
-			let e = await U(t.atlas, "signin_start", t.record && t.record.name === T(o) ? { record: t.record } : { account: T(o) }, 60);
+			let e = await H(t.atlas, "signin_start", t.record && t.record.name === T(o) ? { record: t.record } : { account: T(o) }, 60);
 			if (f) return;
 			if (e.flow === "automatic" || e.flow === "code") {
 				let n = !1;
@@ -3869,7 +3902,7 @@ function Wr(e, t) {
 					url: e.url,
 					code: e.code,
 					copied: n
-				}, !0), await U(t.atlas, "signin_finish", { account: T(o) }, e.flow === "code" ? 900 : 660), h();
+				}, !0), await H(t.atlas, "signin_finish", { account: T(o) }, e.flow === "code" ? 900 : 660), h();
 			}
 			O(s, {
 				kind: "waiting",
@@ -3890,86 +3923,86 @@ function Wr(e, t) {
 		}, !0);
 	}, () => {});
 	var k = Hr(), A = N(k), j = (e) => {
-		var i = x(), a = Q(i), s = (e) => {
-			var n = kr(), r = X(Q(n), 2), i = K(r);
-			Y("click", i, () => t.atlas.plugin.openSettings()), c(e, n);
+		var i = x(), a = Z(i), s = (e) => {
+			var n = kr(), r = Y(Z(n), 2), i = W(r);
+			J("click", i, () => t.atlas.plugin.openSettings()), c(e, n);
 		}, u = (e) => {
-			var t = Mr(), i = X(Q(t), 2);
+			var t = Mr(), i = Y(Z(t), 2);
 			l(i, 21, () => r, (e) => e.name, (e, t) => {
-				var r = jr(), i = N(r), a = N(i), s = K(a, !0), l = X(a), u = (e) => {
-					var r = Ar(), i = K(r, !0);
+				var r = jr(), i = N(r), a = N(i), s = W(a, !0), l = Y(a), u = (e) => {
+					var r = Ar(), i = W(r, !0);
 					E(() => n(i, T(t).user)), c(e, r);
 				};
 				v(l, (e) => {
 					T(t).user && e(u);
-				}), J(i), J(r), E(() => n(s, T(t).name)), Y("click", i, () => {
+				}), q(i), q(r), E(() => n(s, T(t).name)), J("click", i, () => {
 					O(o, T(t).name, !0), C();
 				}), c(e, r);
-			}), J(i), c(e, t);
+			}), q(i), c(e, t);
 		};
 		v(a, (e) => {
 			r.length ? e(u, -1) : e(s);
 		}), c(e, i);
 	}, P = (e) => {
-		var t = Nr(), r = K(t);
+		var t = Nr(), r = W(t);
 		E(() => n(r, `Asking Microsoft for a sign-in for ${T(o) ?? ""}…`)), c(e, t);
 	}, I = (e) => {
-		var t = zr(), r = Q(t), l = (e) => {
-			var t = Pr(), r = Q(t), i = X(N(r)), a = K(i, !0);
-			F(), J(r);
-			var l = X(r, 2), u = N(l), d = K(u, !0), f = X(u), p = K(f, !0);
-			J(l), E(() => {
+		var t = zr(), r = Z(t), l = (e) => {
+			var t = Pr(), r = Z(t), i = Y(N(r)), a = W(i, !0);
+			F(), q(r);
+			var l = Y(r, 2), u = N(l), d = W(u, !0), f = Y(u), p = W(f, !0);
+			q(l), E(() => {
 				n(a, T(o)), n(d, T(s).code), n(p, T(s).copied ? "Copied" : "Copy");
-			}), Y("click", f, () => D(T(s).kind === "waiting" ? T(s).code ?? "" : "")), c(e, t);
+			}), J("click", f, () => D(T(s).kind === "waiting" ? T(s).code ?? "" : "")), c(e, t);
 		}, f = (e) => {
-			var t = Fr(), r = X(N(t)), i = K(r, !0);
-			F(), J(t), E(() => n(i, T(o))), c(e, t);
+			var t = Fr(), r = Y(N(t)), i = W(r, !0);
+			F(), q(t), E(() => n(i, T(o))), c(e, t);
 		}, m = (e) => {
-			var t = Ir(), r = X(N(t)), i = K(r, !0);
-			F(), J(t), E(() => n(i, T(o))), c(e, t);
+			var t = Ir(), r = Y(N(t)), i = W(r, !0);
+			F(), q(t), E(() => n(i, T(o))), c(e, t);
 		};
 		v(r, (e) => {
 			T(s).flow === "code" ? e(l) : T(s).flow === "automatic" ? e(f, 1) : e(m, -1);
 		});
-		var h = X(r, 2), g = (e) => {
+		var h = Y(r, 2), g = (e) => {
 			var t = Lr(), n = N(t);
 			i(n);
-			var r = X(n, 2);
-			J(t), E((e) => r.disabled = e, [() => !T(d).trim()]), u("submit", t, (e) => {
+			var r = Y(n, 2);
+			q(t), E((e) => r.disabled = e, [() => !T(d).trim()]), u("submit", t, (e) => {
 				e.preventDefault(), S(T(d));
 			}), a(n, () => T(d), (e) => O(d, e)), c(e, t);
 		}, _ = (e) => {
-			var t = Rr(), n = X(Q(t), 2), r = K(n);
-			Y("click", r, () => T(s).kind === "waiting" && p(T(s).url)), c(e, t);
+			var t = Rr(), n = Y(Z(t), 2), r = W(n);
+			J("click", r, () => T(s).kind === "waiting" && p(T(s).url)), c(e, t);
 		};
 		v(h, (e) => {
 			T(s).flow === "window" ? e(g) : e(_, -1);
 		}), c(e, t);
 	}, L = (e) => {
-		var t = Br(), r = K(t);
+		var t = Br(), r = W(t);
 		E(() => n(r, `Signed in: ${T(o) ?? ""}'s mail can be read now.`)), c(e, t);
 	}, R = (e) => {
-		var t = Vr(), r = Q(t), i = K(r, !0), a = X(r, 2), o = K(a);
-		E(() => n(i, T(s).why)), Y("click", o, C), c(e, t);
+		var t = Vr(), r = Z(t), i = W(r, !0), a = Y(r, 2), o = W(a);
+		E(() => n(i, T(s).why)), J("click", o, C), c(e, t);
 	};
 	v(A, (e) => {
 		T(s).kind === "choose" ? e(j) : T(s).kind === "starting" ? e(P, 1) : T(s).kind === "waiting" ? e(I, 2) : T(s).kind === "done" ? e(L, 3) : e(R, -1);
 	});
-	var z = X(A, 2), V = N(z);
-	let H;
-	var ee = K(V, !0);
-	J(z), J(k), E(() => {
-		H = m(V, 1, "svelte-1gsd9hw", null, H, { primary: T(s).kind === "done" }), n(ee, T(s).kind === "done" ? "Done" : "Close");
-	}), Y("click", V, function(...e) {
+	var z = Y(A, 2), V = N(z);
+	let ee;
+	var te = W(V, !0);
+	q(z), q(k), E(() => {
+		ee = m(V, 1, "svelte-1gsd9hw", null, ee, { primary: T(s).kind === "done" }), n(te, T(s).kind === "done" ? "Done" : "Close");
+	}), J("click", V, function(...e) {
 		t.onclose?.apply(this, e);
-	}), c(e, k), se();
+	}), c(e, k), ce();
 }
 d(["click"]);
 //#endregion
 //#region plugins/stable/email/ui/src/view.ts
 function Gr(e, t) {
-	if (t.arg === G) {
-		let n = de(ae, {
+	if (t.arg === ne) {
+		let n = fe(oe, {
 			target: e,
 			props: {
 				frame: "dialog",
@@ -3987,7 +4020,7 @@ function Gr(e, t) {
 		}
 	})();
 	if (n.dialog === "signin") {
-		let r = de(Wr, {
+		let r = fe(Wr, {
 			target: e,
 			props: {
 				atlas: t,
@@ -3998,8 +4031,8 @@ function Gr(e, t) {
 		});
 		return () => S(r);
 	}
-	if (t.arg === re) {
-		let n = de(Or, {
+	if (t.arg === ie) {
+		let n = fe(Or, {
 			target: e,
 			props: {
 				atlas: t,
@@ -4009,7 +4042,7 @@ function Gr(e, t) {
 		return () => S(n);
 	}
 	e.style.height = "100%";
-	let r = de(ur, {
+	let r = fe(ur, {
 		target: e,
 		props: { atlas: t }
 	});

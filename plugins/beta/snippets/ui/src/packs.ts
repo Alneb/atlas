@@ -1,10 +1,24 @@
 // Ready sets of snippets, each switched on in Settings, never copied into a vault's own files.
 import type { Builders, Entry } from "./format";
 import * as std from "./std";
+import { latexSet } from "./latex-set";
 
 export interface Pack { id: string; title: string; description: string; entries(b: Builders): Entry[] }
 
+/** The packs switched on: the saved list, or with none saved (`auto`, the default) the LaTeX pack in a vault that has
+ *  no snippets of its own — a set of its own next to the pack would make two sets of triggers fire into each other. */
+export function packsOn(saved: unknown, hasOwn: boolean): string[] {
+  const s = String(saved ?? "auto").trim();
+  if (s === "auto") return hasOwn ? [] : ["latex"];
+  return s.split(",").map((x) => x.trim()).filter(Boolean);
+}
+
 export const PACKS: Pack[] = [
+  {
+    id: "latex", title: "LaTeX",
+    description: "The math set, on by itself in a vault with no snippets of its own: minl and menv for inline and display math, mbf mbb mcal mrm mfr for fonts, // for a fraction, Greek by @ or ;, sums, integrals, matrices, visual wraps of a selection. A trigger your own snippets define is yours.",
+    entries: (b) => latexSet(b),
+  },
   {
     id: "spacing", title: "Automatic spacing",
     description: "Bare names get their backslash, a letter after a command a space (\\sin x), a number after an operator a space (\\times 10), a digit after a Greek letter a subscript.",

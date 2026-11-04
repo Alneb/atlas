@@ -615,10 +615,9 @@ public final class CaptureActivity extends Activity {
         pill.setCompoundDrawablePadding(look.dp(6));
         pill.setPadding(look.dp(10), 0, look.dp(12), 0);
         pill.setBackground(look.target(look.pressable(look.hover, 15, look.border)));
-        // a tap: the list, as a click on the desktop (a stray tap never moves the capture to another vault); held: the
-        // next vault, as Super+V
-        pill.setOnClickListener(v -> toggleVaults());
-        pill.setOnLongClickListener(v -> { nextVault(1); return true; });
+        // a tap goes to the next vault, as the desktop box's does; a long press lists them (and adds one)
+        pill.setOnClickListener(v -> nextVault(1));
+        pill.setOnLongClickListener(v -> { toggleVaults(); return true; });
         foot.addView(pill, lp(-2, look.dp(48), look.dp(32), 0, 0, 0));
         foot.addView(new View(this), new LinearLayout.LayoutParams(0, 1, 1f));
         save = look.label(this, "Save", 15, look.accentFg);
@@ -850,6 +849,16 @@ public final class CaptureActivity extends Activity {
         if (t.isEmpty()) t = on.get(0).label;
         final String typed = t, to = vault, mirror = Server.is(vault) ? null : vaults.mirror(vault);
         final String token = vaults.token(mirror != null ? mirror : vault);
+        // a folder on the phone's storage is written only with "All files access", which a reinstall takes away while
+        // the chosen vault stays: say so and open the system's screen, the text kept, instead of a bare io error
+        if (!Server.is(to) && mirror == null && needsStorage(to) && !VaultChoice.canWriteStorage(this)) {
+            saving = false;
+            status.setVisibility(View.VISIBLE);
+            status.setTextColor(look.red);
+            status.setText("Not saved: Atlas may not write in " + Vaults.name(to) + " — allow \"All files access\", then save again");
+            VaultChoice.askStorage(this);
+            return;
+        }
         catalogLinks = catalogOn ? links() : java.util.Collections.emptyList();
         final java.util.List<String> attach = new java.util.ArrayList<>();
         for (Piece p : on) attach.add(p.file.getPath());
@@ -860,6 +869,12 @@ public final class CaptureActivity extends Activity {
                 : toFolder(to, typed, attach);
             ui.post(() -> saved(r));
         }).start();
+    }
+
+    /** Whether a folder vault lies outside the app's own storage (there no permission is needed). */
+    private boolean needsStorage(String folder) {
+        String own = getFilesDir().getParent();
+        return own == null || !new File(folder).getAbsolutePath().startsWith(own);
     }
 
     /** A mirrored folder's capture goes to the server first, so the other devices have it at once (Syncthing brings
@@ -961,7 +976,10 @@ public final class CaptureActivity extends Activity {
             if (o.has("error")) {
                 saving = false;
                 status.setTextColor(look.red);
-                status.setText("Not saved: " + o.getString("error"));
+                String why = o.getString("error");
+                boolean denied = why.toLowerCase(java.util.Locale.ROOT).contains("permission denied") && !VaultChoice.canWriteStorage(this);
+                status.setText("Not saved: " + (denied ? "Atlas may not write in this folder — allow \"All files access\", then save again" : why));
+                if (denied) VaultChoice.askStorage(this);
                 return;
             }
             boolean later = o.has("queued");

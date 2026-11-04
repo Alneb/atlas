@@ -151,7 +151,14 @@ pub async fn send(m: &Mail, c: &Compose) -> Result<Value, String> {
 /// SMTP, then the copy in Sent (unless the server files it) → (refused recipients, whether a copy was kept).
 async fn deliver(m: &Mail, acc: &Account, from: &str, rcpt: &[String], raw: &[u8]) -> Result<(Vec<Value>, bool), String> {
     let token = m.token(acc).await?;
-    let sent = crate::smtp::send(acc, token, from, rcpt, &compose::without_bcc(raw)).await?;
+    let sent = match crate::smtp::send(acc, token, from, rcpt, &compose::without_bcc(raw)).await {
+        // an organisation that turns SMTP sign-in off (535 5.7.3) still lets the mailbox send through Exchange
+        Err(e) if matches!(acc.auth, Auth::Outlook { .. }) && smtp_refused_signin(&e) => {
+            ews_send(m, acc, raw).map_err(|why| format!("{e}; sending through Exchange instead failed too: {why}"))?;
+            crate::smtp::Sent { refused: vec![] }
+        }
+        r => r?,
+    };
     let refused: Vec<Value> = sent.refused.iter().map(|(a, why)| json!({ "address": a, "why": why })).collect();
     let mut copy = false;
     if !files_sent(acc) {
@@ -165,6 +172,47 @@ async fn deliver(m: &Mail, acc: &Account, from: &str, rcpt: &[String], raw: &[u8
     let sent_path = m.index.role(&acc.name, "sent").map(|f| f.path);
     let _ = crate::sync::account(m, acc, Some(&sent_path.into_iter().collect::<Vec<_>>())).await;
     Ok((refused, copy))
+}
+
+/// Outlook's answer when the organisation has SMTP sign-in off for its mailboxes (the token itself is good).
+fn smtp_refused_signin(e: &str) -> bool {
+    e.contains("535") && e.contains("5.7.3")
+}
+
+/// Sends `raw` (with its Bcc header: Exchange delivers to those and leaves it out of what they get) through Exchange
+/// Web Services, with the token the Calendar already uses; Exchange files the copy in Sent Items, as it does for SMTP.
+fn ews_send(m: &Mail, acc: &Account, raw: &[u8]) -> Result<(), String> {
+    use base64::Engine as _;
+    let token = crate::oauth::access_token_for(acc, crate::oauth::EWS_SCOPES, &*m.post)?.ok_or("not an Outlook account")?;
+    let soap = ews_create_item(&base64::engine::general_purpose::STANDARD.encode(raw));
+    let req = json!({ "url": "https://outlook.office365.com/EWS/Exchange.asmx", "method": "POST", "timeout_secs": 120,
+        "headers": { "authorization": format!("Bearer {token}"), "content-type": "text/xml; charset=utf-8" }, "body": soap });
+    let r = m.core_post("/api/plugins/email/fetch", &req)?;
+    let text = r["text"].as_str().unwrap_or_default();
+    ews_answer(r["status"].as_u64().unwrap_or(0), text)
+}
+
+fn ews_create_item(mime_b64: &str) -> String {
+    format!(concat!(
+        r#"<?xml version="1.0" encoding="utf-8"?><soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/" "#,
+        r#"xmlns:t="http://schemas.microsoft.com/exchange/services/2006/types" xmlns:m="http://schemas.microsoft.com/exchange/services/2006/messages">"#,
+        r#"<soap:Header><t:RequestServerVersion Version="Exchange2013_SP1"/></soap:Header><soap:Body>"#,
+        r#"<m:CreateItem MessageDisposition="SendAndSaveCopy"><m:SavedItemFolderId><t:DistinguishedFolderId Id="sentitems"/></m:SavedItemFolderId>"#,
+        r#"<m:Items><t:Message><t:MimeContent CharacterSet="UTF-8">{}</t:MimeContent></t:Message></m:Items></m:CreateItem></soap:Body></soap:Envelope>"#
+    ), mime_b64)
+}
+
+/// Exchange's answer → Ok, or its own words (MessageText) for why not.
+fn ews_answer(status: u64, text: &str) -> Result<(), String> {
+    if status == 200 && text.contains(r#"ResponseClass="Success""#) {
+        return Ok(());
+    }
+    let between = |a: &str, b: &str| text.split_once(a).and_then(|(_, r)| r.split_once(b)).map(|(x, _)| x.trim().to_string());
+    let why = between("<m:MessageText>", "</m:MessageText>").or_else(|| between("<faultstring", "</faultstring>").map(|x| x.trim_start_matches(|c| c != '>').trim_start_matches('>').to_string()));
+    Err(match why {
+        Some(w) if !w.is_empty() => format!("Exchange said: {w}"),
+        _ => format!("Exchange answered {status}"),
+    })
 }
 
 /// Answers an invitation (the reader's Accept / Maybe / Decline): an iTIP REPLY to the organiser from the address
@@ -287,8 +335,13 @@ pub async fn open_draft(m: &Mail, id: i64) -> Result<Value, String> {
         };
         files.push(json!({ "name": name, "mime": a.mime, "size": a.size, "from": [id, a.part] }));
     }
+    // the identity it was written from: "" for the account's main one, the alias otherwise (the composer's From menu)
+    let from = m.account(Some(&x.account)).ok().and_then(|acc| {
+        let addr = x.from.first()?.addr.clone();
+        acc.aliases.iter().find(|a| parse::bare(a).eq_ignore_ascii_case(&addr)).cloned()
+    }).unwrap_or_default();
     Ok(json!({
-        "account": x.account, "to": list(&x.to), "cc": list(&x.cc), "bcc": bcc.join(", "),
+        "account": x.account, "from": from, "to": list(&x.to), "cc": list(&x.cc), "bcc": bcc.join(", "),
         "subject": x.subject, "body": body, "reply_to": parent, "draft": id, "send_at": send_at, "files": files,
     }))
 }
@@ -398,6 +451,17 @@ fn fresh_date(raw: &[u8]) -> Vec<u8> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn exchange_sends_when_smtp_signin_is_off() {
+        assert!(super::smtp_refused_signin("smtp.office365.com refused the sign-in: 535 5.7.3 Authentication unsuccessful [X]"));
+        assert!(!super::smtp_refused_signin("550 5.1.1 no such user"));
+        assert!(super::ews_create_item("QUJD").contains("<t:MimeContent CharacterSet=\"UTF-8\">QUJD</t:MimeContent>"));
+        assert!(super::ews_answer(200, r#"<m:CreateItemResponseMessage ResponseClass="Success">"#).is_ok());
+        let no = r#"<m:CreateItemResponseMessage ResponseClass="Error"><m:MessageText>The user account which was used to submit this request does not have the right to send mail.</m:MessageText>"#;
+        assert_eq!(super::ews_answer(200, no).unwrap_err(), "Exchange said: The user account which was used to submit this request does not have the right to send mail.");
+        assert_eq!(super::ews_answer(401, "").unwrap_err(), "Exchange answered 401");
+    }
+
     use super::*;
     use crate::sync::tests_support::harness;
     use std::sync::{Arc, Mutex};

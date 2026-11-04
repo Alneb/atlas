@@ -1,6 +1,8 @@
 import { test, expect, type Page } from "@playwright/test";
 import { convert, renumber } from "../../plugins/beta/snippets/ui/src/convert";
-import type { Compiled } from "../../plugins/beta/snippets/ui/src/format";
+import { builders, compileAll, type Compiled } from "../../plugins/beta/snippets/ui/src/format";
+import { packsOn } from "../../plugins/beta/snippets/ui/src/packs";
+import { latexSet } from "../../plugins/beta/snippets/ui/src/latex-set";
 import { rank } from "../../plugins/beta/snippets/ui/src/rank";
 
 // The Snippets plugin (plugins/beta/snippets): what must not fire, what comes back, a module of the new format beside the
@@ -147,4 +149,22 @@ test("the list finds a snippet by its whole trigger first, then its trigger's st
   expect(rank(arrow, "igar")).toBeNull(); // letters in order, but not from a word's start
   expect(rank(arrow, "la")).toBeNull(); // under three letters: triggers only
   expect(rank(s("sum"), "sum")).toBe(-1); // the whole trigger typed: listed first, what Space would expand
+});
+
+test("a space typed after an expanded command stays, and the next letter keeps it (\\partial q, not \\partialq)", async ({ page }) => {
+  await page.request.put("/api/file", { headers: H, data: { path: ".atlas/snippets/zz-part.js", text: 'export default ({ math, commands }) => [math("part", "\\\\partial"), commands(["partial"], { digit: "space" })];\n' } });
+  const last = await math(page, "partial", "part q");
+  await expect(last).toHaveText("$\\partial q$");
+});
+
+test("the LaTeX pack: on by itself only in a vault with no snippets of its own; the vault's own trigger wins over a pack's", () => {
+  expect(packsOn(undefined, false)).toEqual(["latex"]);
+  expect(packsOn("auto", true)).toEqual([]);
+  expect(packsOn("", false)).toEqual([]);
+  expect(packsOn("spacing, latex", true)).toEqual(["spacing", "latex"]);
+  const own = { source: "own.js", entries: [builders.math("mbb", "\\mathbb{own}")] };
+  const pack = { source: "the LaTeX pack", entries: latexSet(builders), pack: true };
+  const all = compileAll([own, pack]).snippets.filter((s) => s.plain === "mbb");
+  expect(all.map((s) => s.source)).toEqual(["own.js"]);
+  expect(compileAll([pack]).snippets.some((s) => s.plain === "mfr" && String(s.body).includes("mathfrak"))).toBe(true);
 });

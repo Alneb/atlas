@@ -49,8 +49,46 @@ fn pictures_in(text: &str) -> Vec<String> {
 /// The text read, as a callout folded under the picture: searchable, out of the way.
 fn callout(name: &str, text: &str) -> String {
     let file = name.rsplit('/').next().unwrap_or(name);
-    let body: Vec<String> = text.lines().map(|l| format!("> {l}").trim_end().to_string()).collect();
+    let body: Vec<String> = reflow(text).lines().map(|l| format!("> {l}").trim_end().to_string()).collect();
     format!("> [!ocr]- Text in {file}\n{}", body.join("\n"))
+}
+
+/// OCR text as paragraphs: the page's line breaks undone where a line ran to the block's right margin (it goes on in
+/// the next), a word cut by a hyphen at a line's end joined again (`pseu-` + `dogap`). Short lines (a figure's labels,
+/// a title, a list) stay lines; blank lines stay paragraph breaks. Judged by shape: the block's longest line is its width.
+fn reflow(text: &str) -> String {
+    let mut out: Vec<String> = vec![];
+    for block in text.split("\n\n") {
+        let lines: Vec<&str> = block.lines().map(str::trim_end).filter(|l| !l.trim().is_empty()).collect();
+        let width = lines.iter().map(|l| l.chars().count()).max().unwrap_or(0);
+        let mut para: Vec<String> = vec![];
+        let mut cur = String::new();
+        for (i, l) in lines.iter().enumerate() {
+            let l = l.trim();
+            if cur.is_empty() {
+                cur.push_str(l);
+            } else if cur.ends_with('-') && cur.len() > 1 && l.starts_with(|c: char| c.is_lowercase()) && cur[..cur.len() - 1].ends_with(|c: char| c.is_alphabetic()) {
+                cur.pop(); // a word cut at the margin
+                cur.push_str(l);
+            } else {
+                cur.push(' ');
+                cur.push_str(l);
+            }
+            // full lines run on (≥ 60 % of the block's width, at least 25 characters); the last line, a short one, ends it
+            let next_lower = lines.get(i + 1).is_some_and(|n| n.trim_start().starts_with(|c: char| c.is_lowercase()));
+            let runs_on = i + 1 < lines.len() && ((width >= 25 && l.chars().count() * 10 >= width * 6) || (l.ends_with('-') && next_lower));
+            if !runs_on {
+                para.push(std::mem::take(&mut cur));
+            }
+        }
+        if !cur.is_empty() {
+            para.push(cur);
+        }
+        if !para.is_empty() {
+            out.push(para.join("\n"));
+        }
+    }
+    out.join("\n\n")
 }
 
 /// The note with `block` right after the line that embeds `name`: the first such line from `from` (the capture's own,
@@ -333,6 +371,14 @@ fn main() {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn ocr_text_reads_as_paragraphs() {
+        let page = "| aS\nUz LZ, Ue a\n\nFIG. 5. Scenario for a phase diagram at fixed t, in\nthe (a) mu-U planes, the location of the last pseu-\ndogap solution and the free en-\nergies of the phases cross.\nShort.";
+        assert_eq!(reflow(page), "| aS\nUz LZ, Ue a\n\nFIG. 5. Scenario for a phase diagram at fixed t, in the (a) mu-U planes, the location of the last pseudogap solution and the free energies of the phases cross.\nShort.");
+        // a list of short lines, and a hyphen inside a word kept (mu-U), stay as they were
+        assert_eq!(reflow("Dune: Part Two\nhttps://letterboxd.com/film/dune-part-two/"), "Dune: Part Two\nhttps://letterboxd.com/film/dune-part-two/");
+    }
 
     #[test]
     fn a_captures_pictures_are_found_in_both_embed_forms() {

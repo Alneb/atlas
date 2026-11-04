@@ -3,7 +3,7 @@ import type { PluginApi, SettingsSectionContext } from "../../../../../ui/src/li
 import type { makeEngine } from "./engine";
 import type { Compiled } from "./format";
 import type { Read } from "./load";
-import { PACKS } from "./packs";
+import { PACKS, packsOn } from "./packs";
 import { WORDS } from "./words";
 
 const MATH = { kind: "math", form: "inline", textArg: false } as const;
@@ -109,7 +109,7 @@ export function mountSection(host: HTMLElement, o: { atlas: PluginApi; engine: R
 
     // packs
     packs.replaceChildren(el("div", TITLE, "Packs"));
-    const on = new Set(String(ctx.settings().packs ?? "").split(",").map((s) => s.trim()).filter(Boolean));
+    const on = new Set(packsOn(ctx.settings().packs, read.modules.length > 0 || read.fromOldFile));
     for (const p of PACKS) {
       const row = el("label", "display:flex;gap:10px;align-items:baseline;padding:3px 0;cursor:pointer;");
       const box = el("input");

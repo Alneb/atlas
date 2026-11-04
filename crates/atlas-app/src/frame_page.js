@@ -1,7 +1,8 @@
 // Runs in every frame of Atlas's window (main.rs, `initialization_script_for_all_frames`), and acts only in a web tab's
 // frame (a direct child of Atlas's page): what the native view's page script does (webtab.rs KEYS), through
 // postMessage — the page's address, title and history to the pane (ui/src/panes/Web.svelte), the pane's back /
-// forward / reload / find to the page, Atlas's keys back to Atlas, Shift+click to the system's browser.
+// forward / reload / find to the page, Atlas's keys back to Atlas, Shift+click to the system's browser, the
+// hovered link's address.
 (() => {
   if (window === window.top || window.parent !== window.top) return;
   const say = (m) => window.parent.postMessage({ atlasFrame: m }, "*");
@@ -55,6 +56,17 @@
     else if (e.ctrlKey && plain && !e.shiftKey && k === "f") send({ action: "find" });
     else if (meta) send({ key: { key: e.key, code: e.code, ctrl: e.ctrlKey, shift: e.shiftKey, alt: e.altKey } });
   }, true);
+  // the link under the pointer (or the keyboard's focus): its address in the pane's corner, as a browser's status bar
+  let hover = "";
+  const hovered = (t) => {
+    const a = t && t.closest && t.closest("a[href]");
+    const h = a ? a.href : "";
+    if (h !== hover) { hover = h; say({ hover: h }); }
+  };
+  addEventListener("mouseover", (e) => hovered(e.target), true);
+  addEventListener("focusin", (e) => hovered(e.target), true);
+  addEventListener("mouseout", (e) => { if (!e.relatedTarget) hovered(null); }, true);
+  addEventListener("pagehide", () => hovered(null));
   // Shift+click on a link: the system's browser (the pane asks the core; only http, https and mailto go out)
   addEventListener("click", (e) => {
     if (!e.shiftKey || e.button !== 0 || !e.isTrusted) return;

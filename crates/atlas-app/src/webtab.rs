@@ -9,7 +9,7 @@ use std::collections::HashMap;
 use gtk::prelude::*;
 use gtk::OverlaySignals;
 use webkit2gtk::{
-    CookieManagerExt, FindControllerExt, FindOptions, LoadEvent, NavigationPolicyDecision, NavigationPolicyDecisionExt, PolicyDecisionExt, PolicyDecisionType, SettingsExt, SnapshotOptions, SnapshotRegion, URIRequestExt, UserContentInjectedFrames, UserContentManager,
+    CookieManagerExt, FindControllerExt, FindOptions, HitTestResultExt, LoadEvent, NavigationPolicyDecision, NavigationPolicyDecisionExt, PolicyDecisionExt, PolicyDecisionType, SettingsExt, SnapshotOptions, SnapshotRegion, URIRequestExt, UserContentInjectedFrames, UserContentManager,
     UserContentManagerExt, UserScript, UserScriptInjectionTime, WebContext, WebContextExt, WebView, WebViewExt, WebsiteDataManager,
     WebsiteDataManagerExt,
 };
@@ -257,6 +257,16 @@ fn make(p: &mut Place, id: &str) -> WebView {
             None
         });
     }
+    // the link under the pointer, from WebKit's own hit test: its address in the pane, as a browser's status bar
+    let tell_id = id.to_string();
+    let hover = RefCell::new(String::new());
+    view.connect_mouse_target_changed(move |_, hit, _| {
+        let now = hit.link_uri().map(|u| u.to_string()).unwrap_or_default();
+        if *hover.borrow() != now {
+            tell(&tell_id, serde_json::json!({ "hover": now }));
+            *hover.borrow_mut() = now;
+        }
+    });
     // the mouse's side buttons (GTK 8 and 9): WebKitGTK does not hand them to the page
     view.connect_button_release_event(|v, ev| match ev.button() {
         8 => { v.go_back(); gtk::glib::Propagation::Stop }

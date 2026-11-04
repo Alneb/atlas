@@ -8,12 +8,17 @@
   import { pageDef, type Placed } from "../../lib/settings-pages";
   import { isModified } from "../../lib/settings-schema";
   import { renderInlineMarkdown } from "../../lib/markdown";
+  import { api } from "../../lib/api";
 
   let { pages, go }: { pages: Placed[]; go: (id: string) => void } = $props();
   const cards = $derived(pages.filter((p) => p.page !== "overview"));
+  // which Atlas this is: the core's version and plugin API, and the interface's build (it may be newer than the core)
+  let version = $state<{ version: string; api: number; ui: string } | null>(null);
+  $effect(() => { void api.version().then((v) => (version = v), () => {}); });
   const feats = (id: string) => (pageDef(id)?.features ?? []).flatMap((f) => { const a = actions.find((x) => x.id === f); return a ? [a] : []; });
 </script>
 
+{#if version}<p class="version" data-testid="atlas-version">Atlas <b>{version.version}</b> · plugin API {version.api}{#if version.ui} · interface build <code>{version.ui}</code>{/if}</p>{/if}
 <section class="cards" aria-label="Areas">
   {#each cards as p (p.page)}
     {@const changed = p.fields.filter(isModified).length}
@@ -29,6 +34,8 @@
 </section>
 
 <style>
+  .version { margin: 0 0 10px; color: var(--text-muted); font-size: calc(12.5px * var(--ui-scale, 1)); }
+  .version b { color: var(--text); font-weight: 600; }
   .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 10px; }
   .card { display: flex; flex-direction: column; gap: 6px; align-items: stretch; text-align: left; padding: 12px 14px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg); }
   .card:hover { border-color: var(--accent); }

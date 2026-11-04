@@ -347,20 +347,26 @@ mod raw {
             let mut f = std::fs::File::create(&tmp)?;
             fill(&mut f)?;
             f.sync_all()?;
-            // keep e.g. the executable bit of a script edited in Atlas
+            // keep e.g. the executable bit of a script edited in Atlas; a file system without modes (Android's shared
+            // storage) refuses chmod, and the file's bytes matter more than its bit there
             if let Some(meta) = &existing {
-                std::fs::set_permissions(&tmp, meta.permissions())?;
+                if std::fs::metadata(&tmp).map(|m| m.permissions()).ok().as_ref() != Some(&meta.permissions()) {
+                    let _ = std::fs::set_permissions(&tmp, meta.permissions());
+                }
             }
             match mode {
                 Replace::IfAbsent => {
                     // made since the check above: that file is kept
                     let linked = std::fs::hard_link(&tmp, abs);
-                    std::fs::remove_file(&tmp)?;
-                    match linked {
+                    let r = match linked {
                         Ok(()) => Ok(Created::New),
                         Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => Ok(Created::Taken),
-                        Err(e) => Err(e.into()),
-                    }
+                        // no hard links there (Android's shared storage says "permission denied"): the same promise
+                        // by an exclusive create, the bytes copied in
+                        Err(_) => copy_if_absent(&tmp, abs),
+                    };
+                    std::fs::remove_file(&tmp)?;
+                    r
                 }
                 Replace::Always => {
                     std::fs::rename(&tmp, abs)?;
@@ -372,6 +378,21 @@ mod raw {
             let _ = std::fs::remove_file(&tmp);
         }
         result
+    }
+
+    /// `abs` made from `tmp`'s bytes only if it does not exist (O_EXCL): `Replace::IfAbsent` where hard links are refused.
+    pub(super) fn copy_if_absent(tmp: &Path, abs: &Path) -> Result<Created> {
+        let mut out = match std::fs::File::options().write(true).create_new(true).open(abs) {
+            Ok(f) => f,
+            Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => return Ok(Created::Taken),
+            Err(e) => return Err(e.into()),
+        };
+        let copied = std::io::copy(&mut std::fs::File::open(tmp)?, &mut out).and_then(|_| out.sync_all());
+        if let Err(e) = copied {
+            let _ = std::fs::remove_file(abs); // never a half file where none was
+            return Err(e.into());
+        }
+        Ok(Created::New)
     }
 
     pub fn append(abs: &Path, bytes: &[u8]) -> Result<()> {
@@ -562,6 +583,19 @@ pub mod outside {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Where hard links are refused (Android's shared storage) a new note is still made, and one made meanwhile kept.
+    #[test]
+    fn a_new_file_without_hard_links_is_copied_in_and_never_over_another() {
+        let d = tempfile::tempdir().unwrap();
+        let (tmp, note) = (d.path().join(".tmp"), d.path().join("2026-11-04.md"));
+        std::fs::write(&tmp, "- a capture\n").unwrap();
+        assert!(matches!(raw::copy_if_absent(&tmp, &note).unwrap(), Created::New));
+        assert_eq!(std::fs::read_to_string(&note).unwrap(), "- a capture\n");
+        std::fs::write(&tmp, "- another\n").unwrap();
+        assert!(matches!(raw::copy_if_absent(&tmp, &note).unwrap(), Created::Taken));
+        assert_eq!(std::fs::read_to_string(&note).unwrap(), "- a capture\n", "the file made first is kept");
+    }
 
     /// Edits of one file at once, each reading what the one before wrote: none is lost.
     #[test]

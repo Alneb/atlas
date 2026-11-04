@@ -4,6 +4,7 @@ import type { Eink } from "./Eink";
 import type { EinkRefresh } from "./EinkRefresh";
 import type { GpuRendering } from "./GpuRendering";
 import type { Motion } from "./Motion";
+import type { NoticeCorner } from "./NoticeCorner";
 import type { Palette } from "./Palette";
 import type { Shape } from "./Shape";
 import type { SidePanelPlace } from "./SidePanelPlace";
@@ -75,6 +76,11 @@ side_panel: SidePanelPlace,
  * once). Off on e-ink and under the system's reduced motion; the swipe and history signs and spinners move either way.
  */
 motion: Motion, 
+/**
+ * The corner where the interface's notices (what was saved, copied, failed) appear: `bottom-right` (the
+ * default), `bottom-left`, `top-right` or `top-left`. On a phone they span the width, at the bottom or the top.
+ */
+notices: NoticeCorner, 
 /**
  * E-ink screens (a Boox and the like): pure black on white, no motion, no shadows, no tints that only say
  * something in colour, links underlined. `auto` turns it on where the screen is one — the phone app on a Boox, or

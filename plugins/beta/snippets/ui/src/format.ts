@@ -132,18 +132,25 @@ function compileCommands(e: Extract<Entry, { type: "commands" }>, source: string
 }
 
 /** Everything a set of files said, in order; an entry that fails is a problem and costs only itself. */
-export function compileAll(files: { source: string; entries: Entry[] }[]): Loaded {
+/** `pack`: a ready set (packs.ts) — a trigger the vault's own files already have is theirs, the pack's is left out. */
+export function compileAll(files: { source: string; entries: Entry[]; pack?: boolean }[]): Loaded {
   const vars: Record<string, string> = {};
   for (const f of files) for (const e of f.entries) if (e?.type === "vars") Object.assign(vars, e.vars);
   const out: Compiled[] = [], known: string[] = [], words: string[] = [], problems: Problem[] = [];
+  // the triggers the vault's own files define, by where they apply: a pack's same trigger there is left out
+  const own = new Set<string>();
+  const placeKey = (c: Compiled) => `${c.shown}\u0000${c.math}${c.text}${c.code}${c.visual}`;
+  let inPack = false;
+  const keep = (c: Compiled) => { if (!inPack) { own.add(placeKey(c)); return true; } return !own.has(placeKey(c)); };
   for (const f of files) {
+    inPack = !!f.pack;
     for (const e of f.entries) {
       if (!e || typeof e !== "object" || !("type" in e)) { problems.push({ source: f.source, what: `not an entry: ${JSON.stringify(e)?.slice(0, 60)}` }); continue; }
       if (e.type === "vars") continue;
       if (e.type === "words") { words.push(...e.words.map((w) => w.toLowerCase())); continue; }
-      if (e.type === "commands") { out.push(...compileCommands(e, f.source)); known.push(...e.names); continue; }
+      if (e.type === "commands") { out.push(...compileCommands(e, f.source).filter(keep)); known.push(...e.names); continue; }
       for (const t of e.triggers) {
-        try { out.push(compileOne(t, e, vars, f.source)); }
+        try { const c = compileOne(t, e, vars, f.source); if (keep(c)) out.push(c); }
         catch (err) { problems.push({ source: f.source, what: `${String(t)}: ${String((err as Error).message ?? err)}` }); }
       }
     }

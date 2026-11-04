@@ -294,6 +294,29 @@ export class Mail {
     if (inTrash && !(await askYes(this.atlas, `Delete ${rows.length === 1 ? "this conversation" : `${rows.length} conversations`} for good? This cannot be undone.`, { ok: "Delete for good", danger: true }))) return;
     return this.leave(rows, inTrash ? "Deleted" : "Moved to Trash", (ids) => this.call("trash", { ids }));
   }
+  /** One message of the open conversation to Trash (a draft too), the rest of the conversation staying; with Undo.
+   *  The last message going takes the conversation with it, as the conversation's own Delete does. */
+  async trashMessage(id: number) {
+    const t = this.open;
+    if (!t) return;
+    if (t.messages.length === 1) { const row = this.rows.find((r) => r.thread === t.thread); if (row) return this.trash([row]); }
+    const msg = t.messages.find((m) => m.id === id);
+    const what = msg?.draft ? "Draft" : "Message";
+    t.messages = t.messages.filter((m) => m.id !== id);
+    try {
+      const r = await this.call<{ moved?: unknown[] }>("trash", { ids: [id], conversation: false });
+      const moved = r.moved ?? [];
+      const undo = async () => { await this.call("undo", { moved }); };
+      if (moved.length) this.undos.push({ label: `${what} to Trash`, run: undo });
+      this.toast(moved.length ? `${what} moved to Trash` : `${what} deleted`, "info", moved.length ? { undo: async () => { this.undos = this.undos.filter((u) => u.run !== undo); await undo(); this.later(); if (this.open?.thread === t.thread) this.read(this.cursor ?? id); } } : {});
+      this.later();
+      this.loadCounts();
+    } catch (e) {
+      if (msg && this.open?.thread === t.thread) this.open.messages = [...this.open.messages, msg].sort((a, b) => a.date - b.date);
+      this.toast(`Could not delete it: ${(e as Error).message}`, "error");
+    }
+  }
+
   spam(rows = this.targets()) {
     const isSpam = rows.every((r) => r.folder_role === "junk");
     return this.leave(rows, isSpam ? "Not spam:" : "Spam:", (ids) => this.call(isSpam ? "not_spam" : "spam", { ids }));

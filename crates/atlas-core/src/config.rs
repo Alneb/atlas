@@ -340,6 +340,9 @@ pub struct UiConfig {
     /// Motion: `full` (the default: short, subtle transitions and fades) or `instant` (the interface changes at
     /// once). Off on e-ink and under the system's reduced motion; the swipe and history signs and spinners move either way.
     pub motion: Motion,
+    /// The corner where the interface's notices (what was saved, copied, failed) appear: `bottom-right` (the
+    /// default), `bottom-left`, `top-right` or `top-left`. On a phone they span the width, at the bottom or the top.
+    pub notices: NoticeCorner,
     /// E-ink screens (a Boox and the like): pure black on white, no motion, no shadows, no tints that only say
     /// something in colour, links underlined. `auto` turns it on where the screen is one — the phone app on a Boox, or
     /// a browser that reports a slow-refresh screen.
@@ -520,6 +523,18 @@ pub enum Motion {
     /// The interface's transitions and fades.
     #[default]
     Full,
+}
+
+/// Where the notices (toasts) appear.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, TS, JsonSchema)]
+#[serde(rename_all = "kebab-case")]
+#[ts(export)]
+pub enum NoticeCorner {
+    #[default]
+    BottomRight,
+    BottomLeft,
+    TopRight,
+    TopLeft,
 }
 
 /// When the task fields (due date, priority, repeat…) are offered while a task is typed.
@@ -1032,7 +1047,7 @@ impl Default for Config {
 
 impl Default for UiConfig {
     fn default() -> Self {
-        Self { theme: Theme::System, accent: String::new(), palette: Palette::default(), palette_dark: None, contrast: Contrast::default(), shape: Shape::default(), ui_font: String::new(), font_size: 14, gpu_rendering: GpuRendering::Auto, css_snippets_off: Vec::new(), tabs: TabsLayout::Vertical, side_panel: SidePanelPlace::Dock, motion: Motion::default(), eink: Eink::Auto, eink_refresh: EinkRefresh::Often, restore_layout: true, tab_preview: true, tab_switcher: TabSwitcher::Glance, sleep_after_min: 10, awake_tabs: 8, libraries: Vec::new(), apps_order: Vec::new(), apps_hidden: Vec::new() }
+        Self { theme: Theme::System, accent: String::new(), palette: Palette::default(), palette_dark: None, contrast: Contrast::default(), shape: Shape::default(), ui_font: String::new(), font_size: 14, gpu_rendering: GpuRendering::Auto, css_snippets_off: Vec::new(), tabs: TabsLayout::Vertical, side_panel: SidePanelPlace::Dock, motion: Motion::default(), notices: NoticeCorner::default(), eink: Eink::Auto, eink_refresh: EinkRefresh::Often, restore_layout: true, tab_preview: true, tab_switcher: TabSwitcher::Glance, sleep_after_min: 10, awake_tabs: 8, libraries: Vec::new(), apps_order: Vec::new(), apps_hidden: Vec::new() }
     }
 }
 

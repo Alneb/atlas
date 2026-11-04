@@ -567,13 +567,11 @@ fn agenda(m: &Arc<Mail>, p: &Value) -> Result<Value, String> {
 fn compose_for(m: &Arc<Mail>, p: &Value) -> Result<Value, String> {
     let id = p.get("id").and_then(Value::as_i64).ok_or("which message?")?;
     let x = m.index.msg(id).ok_or("that message is gone")?;
-    let acc = m.account(Some(&x.account))?;
     let mode = s(p, "mode");
     let forward = mode == "forward";
     let list = |ps: &[Person]| ps.iter().map(Person::display).collect::<Vec<_>>().join(", ");
-    // the identity the mail was sent to answers it
+    let (acc, ident) = answering(m, &x)?;
     let mine: Vec<String> = acc.own();
-    let ident = std::iter::once(acc.from.clone()).chain(acc.aliases.clone()).find(|i| x.to.iter().chain(&x.cc).any(|p| p.addr.eq_ignore_ascii_case(&parse::bare(i)))).unwrap_or_else(|| acc.from.clone());
     let (to, cc) = if forward { (vec![], vec![]) } else { compose::reply_people(&x.from, &x.reply_to, &x.to, &x.cc, mode == "all", &mine) };
     let mut files = vec![];
     if forward {
@@ -584,9 +582,28 @@ fn compose_for(m: &Arc<Mail>, p: &Value) -> Result<Value, String> {
         }
     }
     Ok(json!({
-        "account": x.account, "from": ident, "to": list(&to), "cc": list(&cc), "subject": compose::reply_subject(&x.subject, forward),
+        "account": acc.name, "from": ident, "to": list(&to), "cc": list(&cc), "subject": compose::reply_subject(&x.subject, forward),
         "reply_to": if forward { Value::Null } else { json!(id) }, "forward": if forward { json!(id) } else { Value::Null }, "files": files,
     }))
+}
+
+/// The account and identity that answer a message: the identity it was sent to, looked for in its own account
+/// first, then in the others (mail forwarded from one address to another account's inbox is answered from the
+/// address it was written to). `from` is "" for an account's main identity, an alias otherwise: the composer's
+/// From menu names identities that way.
+fn answering(m: &Arc<Mail>, x: &crate::index::Msg) -> Result<(crate::account::Account, String), String> {
+    let own = m.account(Some(&x.account))?;
+    let others = m.accounts().into_iter().flatten().filter(|a| a.name != own.name);
+    let addressed = |i: &String| x.to.iter().chain(&x.cc).any(|p| p.addr.eq_ignore_ascii_case(&parse::bare(i)));
+    for acc in std::iter::once(own.clone()).chain(others) {
+        if addressed(&acc.from) || x.to.iter().chain(&x.cc).any(|p| p.addr.eq_ignore_ascii_case(&acc.user)) {
+            return Ok((acc, String::new()));
+        }
+        if let Some(alias) = acc.aliases.iter().find(|i| addressed(i)).cloned() {
+            return Ok((acc, alias));
+        }
+    }
+    Ok((own, String::new()))
 }
 
 fn compose_of(p: &Value) -> Result<Compose, String> {
@@ -1186,6 +1203,9 @@ mod tests {
         let r = call_(&m, "compose_for", json!({ "id": id, "mode": "reply" }));
         assert_eq!(r["to"], "Grace Hopper <grace@example.org>");
         assert_eq!(r["subject"], "Re: Draft of the DCA section");
+        // the main identity is "" (the From menu's key for it), the account the message's own
+        assert_eq!(r["from"], "");
+        assert_eq!(r["account"], "fake");
         let f = call_(&m, "compose_for", json!({ "id": id, "mode": "forward" }));
         assert_eq!(f["subject"], "Fwd: Draft of the DCA section");
         assert_eq!(f["files"][0]["name"], "notes.txt");

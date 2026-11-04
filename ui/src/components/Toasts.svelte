@@ -44,8 +44,12 @@
 
 <style>
   .toasts { position: fixed; right: 16px; bottom: calc(var(--status-h) + 14px); z-index: 1100; display: flex; flex-direction: column; gap: 8px; align-items: flex-end; pointer-events: none; }
-  /* a phone: over the bottom bar, across the screen */
+  /* Settings → Appearance → notices: the corner (html[data-notices], settings.svelte.ts); the newest nearest the edge */
+  :global(html[data-notices$="-left"]) .toasts { right: auto; left: 16px; align-items: flex-start; }
+  :global(html[data-notices^="top-"]) .toasts { bottom: auto; top: 14px; flex-direction: column-reverse; }
+  /* a phone: over the bottom bar, across the screen (or under the status bar, for a top corner) */
   :global(html.phone) .toasts { left: 12px; right: 12px; bottom: calc(56px + env(safe-area-inset-bottom, 0px) + 10px + var(--keyboard, 0px)); align-items: stretch; }
+  :global(html.phone[data-notices^="top-"]) .toasts { bottom: auto; top: calc(env(safe-area-inset-top, 0px) + 10px); }
   :global(html.phone) .toast { max-width: none; }
   .toast { position: relative; overflow: hidden; pointer-events: auto; display: flex; gap: 10px; align-items: flex-start; max-width: 400px; min-width: 240px;
     padding: 10px 8px 12px 12px; background: var(--bg-elev); color: var(--text); border: 1px solid var(--border-strong); border-radius: var(--radius-lg);

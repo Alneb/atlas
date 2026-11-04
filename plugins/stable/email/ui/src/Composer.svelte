@@ -27,6 +27,8 @@
   const account = $derived(mail.accounts.find((a) => a.name === d.account));
   const identities = $derived(account?.identities?.filter(Boolean) ?? []);
   const accounts = $derived(mail.accounts.filter((a) => !a.error));
+  // the From menu's value: the account's main identity is "" (sending falls back to it), an alias is itself
+  const fromKey = $derived(`${d.account}\u0000${d.from && d.from === account?.from ? "" : d.from}`);
 
   // the cursor where writing starts, once: To for a new mail, the text for a reply. Not on every change of To — the
   // chip made when To loses focus would pull the cursor out of the subject into the text.
@@ -269,7 +271,7 @@
     {#if accounts.length > 1 || identities.length > 1}
       <div class="from">
         <span class="label">From</span>
-        <select value={`${d.account}\u0000${d.from}`} onchange={(e) => { const [a, f] = e.currentTarget.value.split("\u0000"); d.account = a; d.from = f; changed(); }}>
+        <select value={fromKey} onchange={(e) => { const [a, f] = e.currentTarget.value.split("\u0000"); d.account = a; d.from = f; changed(); }}>
           {#each accounts as a (a.name)}
             {#each (a.identities?.length ? a.identities : [a.from ?? a.user ?? a.name]) as id (id)}
               <option value={`${a.name}\u0000${id === a.from ? "" : id}`}>{id}{accounts.length > 1 ? ` · ${a.name}` : ""}</option>

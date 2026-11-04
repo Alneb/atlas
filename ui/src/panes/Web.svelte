@@ -26,6 +26,8 @@
   let finding = $state(false);
   let findText = $state("");
   let found = $state<number | null>(null);
+  /** the link under the pointer in the page: its address shown in a corner, as a browser's status bar */
+  let hover = $state("");
   let findBox = $state<HTMLInputElement>();
 
   type Native = { postMessage(s: string): void };
@@ -106,8 +108,9 @@
   }
 
   function heard(e: Event) {
-    const d = (e as CustomEvent).detail as { id: string; url?: string; title?: string; loading?: boolean; back?: boolean; forward?: boolean; open?: string; external?: string; action?: string; snapshot?: string; key?: { key: string; code: string; ctrl: boolean; shift: boolean; alt: boolean } };
+    const d = (e as CustomEvent).detail as { id: string; url?: string; title?: string; loading?: boolean; back?: boolean; forward?: boolean; open?: string; external?: string; action?: string; snapshot?: string; hover?: string; key?: { key: string; code: string; ctrl: boolean; shift: boolean; alt: boolean } };
     if (d.id !== panel.id) return;
+    if (typeof d.hover === "string") return void (hover = d.hover);
     if (d.snapshot) return void (shot = d.snapshot); // the page as it was, shown while the view is hidden under Atlas
     if (d.open) return void open({ kind: "web", url: d.open });
     if (d.external) return void inBrowser(d.external);
@@ -119,6 +122,7 @@
     if (d.action === "files" || d.action === "palette") return void allCommands().find((c) => c.id === (d.action === "files" ? "ui.quickOpen" : "ui.palette"))?.run();
     if (d.url && d.url !== shown) {
       shown = d.url;
+      hover = ""; // a new page: the old one's link is gone
       // the address follows the page unless it is being typed in (the native view holds the focus: not this page's)
       if (document.activeElement !== address || !document.hasFocus()) url = d.url;
       panel.updateParameters({ url: d.url });
@@ -184,10 +188,15 @@
   {:else}
     <iframe bind:this={frame} {src} title={shown} sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-downloads allow-modals"></iframe>
   {/if}
+  <!-- over the page in a frame; in the bar for the native view, which GTK draws above the pane -->
+  {#if hover}<div class="hover" class:in-bar={native} data-testid="web-hover">{hover}</div>{/if}
 </div>
 
 <style>
-  .web-pane { height: 100%; display: flex; flex-direction: column; background: var(--bg); }
+  .web-pane { position: relative; height: 100%; display: flex; flex-direction: column; background: var(--bg); }
+  .hover { position: absolute; left: 0; bottom: 0; max-width: min(70%, 640px); padding: 3px 9px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; pointer-events: none; z-index: 2;
+    font-size: calc(12px * var(--ui-scale, 1)); color: var(--text-muted); background: var(--bg-elev); border: 1px solid var(--border); border-left: 0; border-bottom: 0; border-top-right-radius: var(--radius-sm); }
+  .hover.in-bar { bottom: auto; left: auto; top: 6px; right: 10px; max-width: 50%; border: 1px solid var(--border); border-radius: var(--radius-sm); }
   .bar { display: flex; align-items: center; gap: 6px; padding: 6px 10px; border-bottom: 1px solid var(--border); }
   .bar input { flex: 1; height: 26px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--bg-elev); color: var(--text); font: inherit; font-size: calc(12.5px * var(--ui-scale, 1)); padding: 0 10px; outline: 0; }
   .bar input:focus { border-color: color-mix(in srgb, var(--accent) 55%, transparent); }

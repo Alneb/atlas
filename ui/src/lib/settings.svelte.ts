@@ -53,7 +53,8 @@ function apply(c: WorkspaceConfig): void {
   const px = (n: number) => `${n}px`;
   const font = (name: string, fallback: string) => (name.trim() ? `"${name.trim()}", ${fallback}` : fallback);
   root.style.setProperty("--ui-scale-set", String(c.ui.font_size / 14)); // base.css turns it into --ui-scale (larger on a phone)
-  root.dataset.motion = eink || still?.matches ? "instant" : c.ui.motion; // base.css: "instant" turns transitions and fades off
+  root.dataset.motion = eink || still?.matches ? "instant" : c.ui.motion;
+  root.dataset.notices = c.ui.notices ?? "bottom-right"; // Toasts.svelte: the corner the notices appear in // base.css: "instant" turns transitions and fades off
   root.style.setProperty("--code-font", font(c.editor.code_font, "var(--font-mono)"));
   root.style.setProperty("--code-size", px(c.editor.code_font_size));
   root.style.setProperty("--prose-font", font(c.editor.prose_font, "var(--font-ui)"));

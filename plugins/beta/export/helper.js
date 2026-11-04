@@ -411,7 +411,16 @@
 			if (road === "typst") m.bibliographystyle = style.typst;
 		}
 		if (header.length) m["header-includes"] = header;
-		return `---\n${Object.entries(m).filter(([, v]) => v !== void 0).map(([k, v]) => `${k}: ${JSON.stringify(v)}`).join("\n")}\n---\n\n`;
+		return `---\n${Object.entries(m).filter(([, v]) => v !== void 0).map(([k, v]) => yamlEntry(k, v)).join("\n")}\n---\n\n`;
+	}
+	/** One metadata line. JSON is YAML (every value quoted as it is), except text of several lines: pandoc reads a quoted
+	*  scalar as inline Markdown, which turns a ```{=latex} block (the preamble's header-includes) into inline code before
+	*  \begin{document}. Those go as literal block scalars, which pandoc reads as blocks. */
+	function yamlEntry(k, v) {
+		const block = (t, pad) => `|\n${t.split("\n").map((l) => pad + l).join("\n")}`;
+		if (typeof v === "string" && v.includes("\n")) return `${k}: ${block(v, "  ")}`;
+		if (Array.isArray(v) && v.some((x) => typeof x === "string" && x.includes("\n"))) return `${k}:\n${v.map((x) => `- ${typeof x === "string" && x.includes("\n") ? block(x, "    ") : JSON.stringify(x)}`).join("\n")}`;
+		return `${k}: ${JSON.stringify(v)}`;
 	}
 	/** The fences put back for a road: raw source, a compiled picture, or the code with a warning. */
 	async function fences(j, road) {
@@ -568,5 +577,6 @@
 	//#endregion
 	exports.latexErrors = latexErrors;
 	exports.tikzPng = tikzPng;
+	exports.yamlEntry = yamlEntry;
 	return exports;
 })({});

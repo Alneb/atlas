@@ -5,6 +5,28 @@ and versions follow [Semantic Versioning](https://semver.org/) once 1.0 is out.
 
 ## [Unreleased]
 
+## [0.2.6] - 2026-11-04
+
+### Added
+- Email: a conversation's single message (a draft too) can be deleted on its own, to Trash with Undo.
+- Email: an Outlook mailbox whose organisation turns SMTP sign-in off sends through Exchange instead.
+- Settings: the corner the notices appear in; the overview says which Atlas, plugin API and interface build run.
+- Snippets: a LaTeX pack shipped with the plugin, on by itself in a vault with no snippets of its own; a vault's own
+  trigger wins over a pack's.
+- The `.deb` and `.rpm` install the `atlas` command line beside the app.
+- Android capture: a tap on the vault cycles to the next one, as on the desktop; a long press lists them.
+- Web tabs show the address of the link under the pointer in a corner, as a browser's status bar.
+
+### Fixed
+- PDF: dragging the scrollbar also panned the pages against it, so the view could spring back where the drag began.
+- Android: saving into a vault on the phone's storage failed with "permission denied" (Android refuses hard links
+  there); the capture box also says plainly when the app may not write a folder.
+- Email: a reply selects the account and address the mail was written to; a reopened draft keeps its address.
+- Export: every LaTeX PDF failed ("Missing \begin{document}"): pandoc read the preamble as inline text.
+- OCR: the text under a picture reads as paragraphs, words cut at a line's end joined again.
+- Today on a phone: the log card's header keeps one line.
+- macOS: Cmd+C / V / X in the editor are never taken by a plugin's Super key.
+
 ## [0.2.5] - 2026-11-03
 
 ### Added
@@ -84,7 +106,8 @@ and versions follow [Semantic Versioning](https://semver.org/) once 1.0 is out.
 - `AGENTS.md`: rules for AI coding agents working in the repository, and a `tidy` stage in the gate.
 - [Plugin maturity](guides/PLUGIN-MATURITY.md): what beta and stable promise, and the criteria for stable.
 
-[Unreleased]: https://github.com/Alneb/atlas/compare/v0.2.5...HEAD
+[Unreleased]: https://github.com/Alneb/atlas/compare/v0.2.6...HEAD
+[0.2.6]: https://github.com/Alneb/atlas/compare/v0.2.5...v0.2.6
 [0.2.5]: https://github.com/Alneb/atlas/compare/v0.2.1...v0.2.5
 [0.2.1]: https://github.com/Alneb/atlas/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/Alneb/atlas/compare/v0.1.1...v0.2.0

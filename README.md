@@ -168,7 +168,11 @@ says what each tier promises and where each plugin stands. Each plugin's folder 
 ## Install
 
 **Linux packages.** Download the AppImage, `.deb`, `.rpm` or Flatpak from the
-[latest release](https://github.com/Alneb/atlas/releases), or build from source (below).
+[latest release](https://github.com/Alneb/atlas/releases), or build from source (below). The `.deb` and `.rpm` install
+the `atlas` command line beside the app (`/usr/bin/atlas`); it is also a file of its own in each release.
+
+**Android with Obtainium.** A release carries three APKs (the full app, the Boox build, the capture app): give the app's
+entry the APK filter `^atlas\.apk$` so Obtainium installs the right one.
 
 **Android.** The APKs are attached to each release. They are signed with the project's key, so later versions install
 as updates ([docs/guides/ANDROID.md](docs/guides/ANDROID.md)).

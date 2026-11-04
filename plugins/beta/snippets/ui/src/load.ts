@@ -1,7 +1,7 @@
 // Reading what a vault says: its modules in .atlas/snippets/, the old file until it is converted, the packs switched on.
 import type { PluginApi } from "../../../../../ui/src/lib/plugin-api";
 import { builders, compileAll, readLegacy, type Entry, type Loaded, type Problem } from "./format";
-import { PACKS } from "./packs";
+import { PACKS, packsOn } from "./packs";
 import * as std from "./std";
 
 export const FOLDER = ".atlas/snippets";
@@ -41,7 +41,7 @@ async function readModule(atlas: PluginApi, path: string, seen: Map<string, Prom
 export interface Read extends Loaded { fromOldFile: boolean; modules: string[]; oldFile: { sources: string[]; variables: string } | null }
 
 export async function loadAll(atlas: PluginApi): Promise<Read> {
-  const files: { source: string; entries: Entry[] }[] = [], problems: Problem[] = [];
+  const files: { source: string; entries: Entry[]; pack?: boolean }[] = [], problems: Problem[] = [];
   let names: string[] = [];
   // asked first: listing a folder that is not there is a 404 in the page's console
   if (await atlas.exists(FOLDER).catch(() => false)) names = (await atlas.list(FOLDER).catch(() => [])).filter((f) => !f.dir && f.name.endsWith(".js")).map((f) => f.path).sort();
@@ -63,8 +63,8 @@ export async function loadAll(atlas: PluginApi): Promise<Read> {
     files.push({ source: legacy.source, entries: legacy.entries });
     problems.push(...legacy.problems);
   }
-  const on = String(atlas.plugin.settings.packs ?? "").split(",").map((s) => s.trim()).filter(Boolean);
-  for (const p of PACKS) if (on.includes(p.id)) files.push({ source: `the ${p.title} pack`, entries: p.entries(builders) });
+  const on = packsOn(atlas.plugin.settings.packs, files.length > 0);
+  for (const p of PACKS) if (on.includes(p.id)) files.push({ source: `the ${p.title} pack`, entries: p.entries(builders), pack: true });
   const compiled = compileAll(files);
   return { ...compiled, problems: [...problems, ...compiled.problems], fromOldFile, modules, oldFile: hasOld ? oldFile : null };
 }

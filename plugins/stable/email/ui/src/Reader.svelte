@@ -198,12 +198,15 @@
                 {#if m.cc.length}<span>cc {few(m.cc, m.id, "cc")}</span>{/if}
                 <span class="faint">{fullDate(m.date)}</span>
                 <span class="grow"></span>
+                <span class="acts">
                 {#if m.draft}<button class="atlas-btn" onclick={() => mail.editDraft(m.id)}>Edit the draft</button>
                 {:else}
                   <button class="mini" onclick={() => mail.reply("reply", m.id)} title="Reply (r)"><Icon name="reply" size={15} /></button>
                   <button class="mini" onclick={() => mail.reply("all", m.id)} title="Reply all (a)"><Icon name="replyall" size={15} /></button>
                   <button class="mini" onclick={() => mail.reply("forward", m.id)} title="Forward (f)"><Icon name="forward" size={15} /></button>
                 {/if}
+                <button class="mini" onclick={() => mail.trashMessage(m.id)} title={m.draft ? "Delete this draft" : "Delete this message only"}><Icon name="trash" size={15} /></button>
+                </span>
               </div>
               {#if m.error}
                 <div class="atlas-notice error">{m.error}</div>
@@ -303,6 +306,8 @@
   .snip { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-muted); }
   .when { margin-left: auto; flex: none; color: var(--text-muted); font-size: 0.85em; display: flex; gap: 5px; align-items: center; }
   .detail { padding: 0 16px 14px 54px; display: grid; gap: 10px; }
+  /* a message's buttons stay one group (Delete beside Edit the draft), the row wrapping before them, never inside */
+  .acts { display: inline-flex; align-items: center; gap: 4px; flex-shrink: 0; margin-left: auto; }
   .to { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: center; font-size: 0.86em; color: var(--text-muted); }
   .mini { all: unset; cursor: pointer; padding: 5px; border-radius: var(--radius-sm); color: var(--text-muted); display: grid; place-items: center; min-width: 24px; min-height: 24px; }
   .mini:hover { background: var(--bg-hover); color: var(--text); }

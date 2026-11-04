@@ -12,4 +12,4 @@ key = "packs"
 label = "Packs"
 kind = "text"
 hidden = true
-default = ""
+default = "auto"

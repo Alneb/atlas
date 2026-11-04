@@ -4,7 +4,7 @@ import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import { harness } from "atlas-helper/testing";
 import { translate, relative } from "./translate";
-import { latexErrors } from "./helper";
+import { latexErrors, yamlEntry } from "./helper";
 
 const REPORT = `---
 author: Alice
@@ -158,4 +158,10 @@ test("a tikz picture: its source and key for the dialog; the PNG the dialog drew
   const left = await harness.call("export", { path: "notes/Fig.md", format: "docx" }); // the dialog drew nothing
   assert.ok(harness.ran[0].stdin!.includes("```tikz"));
   assert.ok(left.warnings.some((x: string) => /tikz picture is left as code/.test(x)));
+});
+
+test("a header of several lines goes as a block scalar (pandoc reads a quoted one as inline: \\usepackage became \\texttt)", () => {
+  const y = yamlEntry("header-includes", ["```{=latex}\n\\usepackage{soul}\n```"]);
+  assert.equal(y, "header-includes:\n- |\n    ```{=latex}\n    \\usepackage{soul}\n    ```");
+  assert.equal(yamlEntry("title", "One line"), 'title: "One line"');
 });

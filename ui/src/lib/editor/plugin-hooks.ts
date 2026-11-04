@@ -7,7 +7,7 @@
 import { Compartment, EditorState, Facet, Prec, StateEffect, type Extension, type Range } from "@codemirror/state";
 import { Decoration, EditorView, ViewPlugin, WidgetType, type DecorationSet, type ViewUpdate } from "@codemirror/view";
 import type { Completion, CompletionContext, CompletionResult, CompletionSource } from "@codemirror/autocomplete";
-import { matches, parseChord, type Chord } from "../keys";
+import { matches, parseChord, systemEditingChord, type Chord } from "../keys";
 import { guard, logPlugin } from "../plugin-log.svelte";
 import { escapeRegExp } from "../text";
 
@@ -226,6 +226,7 @@ export function pluginHooks(path: string, md: boolean): Extension {
     editorPath.of(path),
     Prec.highest(EditorView.domEventHandlers({
       keydown: (e, view) => {
+        if (systemEditingChord(e)) return false; // Cmd+C / V / X on a Mac: the system's, never a plugin's Super key
         for (const k of keys) {
           if (!applies(k.where, md) || !matches(k.chord, e)) continue;
           if (guard(k.plugin, `key ${k.label}`, () => k.run(touch(view)), false) === false) continue; // not taken: the key goes on
