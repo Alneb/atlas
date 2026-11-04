@@ -158,8 +158,27 @@ export function compileAll(files: { source: string; entries: Entry[]; pack?: boo
   for (const v of Object.values(vars)) known.push(...String(v).split("|").filter((w) => /^[A-Za-z]{2,}$/.test(w)));
   // stable: higher priority first, then file order
   const snippets = out.map((s, i) => [s, i] as const).sort((a, b) => b[0].priority - a[0].priority || a[1] - b[1]).map(([s]) => s);
+  snippets.push(...abbreviations(snippets, new Set(known)));
   for (const s of snippets) if (s.plain && /^[A-Za-z]{2,}$/.test(s.plain)) known.push(s.plain);
   return { snippets, known: [...new Set(known)], words, problems };
+}
+
+/** A math word trigger (`mfrak`) also fires on each shorter start (three letters or more) that no other math word
+ *  trigger shares and no command or trigger already is (`mfr`, `mfra`): the engine holds such a start back while the
+ *  keys still spell the full one, so typing it out whole gives the same. Text triggers get none (words collide). */
+export function abbreviations(snippets: Compiled[], known: Set<string>): Compiled[] {
+  const word = (s: Compiled) => s.math && !s.text && s.auto && !s.regex && !!s.plain && /^[A-Za-z]{4,}$/.test(s.plain);
+  const words = snippets.filter(word);
+  const taken = new Set([...known, ...snippets.flatMap((s) => (s.plain ? [s.plain] : []))]);
+  const out: Compiled[] = [];
+  for (const s of words) {
+    for (let n = s.plain!.length - 1; n >= 3; n--) {
+      const start = s.plain!.slice(0, n);
+      if (taken.has(start) || words.some((o) => o !== s && o.plain!.startsWith(start))) break; // shorter ones share it too
+      out.push({ ...s, plain: start, shown: start, priority: s.priority - 1 });
+    }
+  }
+  return out;
 }
 
 // --- LaTeX Suite's format ---------------------------------------------------------------------------------------

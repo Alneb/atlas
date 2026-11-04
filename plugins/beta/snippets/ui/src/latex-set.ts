@@ -13,7 +13,7 @@ export const latexSet = ({ math, text, visual, commands, vars }: Builders): Entr
   math("mcal", "\\mathcal{$1}$0"),
   math("mbf", "\\mathbf{$1}$0"),
   math("mrm", "\\mathrm{$1}$0"),
-  math(["mfr", "mfrk", "mfrak"], "\\mathfrak{$1}$0"),
+  math("mfrak", "\\mathfrak{$1}$0"),
   // Units
   // Voltage
   // Watts

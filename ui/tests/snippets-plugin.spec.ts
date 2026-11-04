@@ -168,3 +168,12 @@ test("the LaTeX pack: on by itself only in a vault with no snippets of its own; 
   expect(all.map((s) => s.source)).toEqual(["own.js"]);
   expect(compileAll([pack]).snippets.some((s) => s.plain === "mfr" && String(s.body).includes("mathfrak"))).toBe(true);
 });
+
+test("a math word trigger also fires on each shorter start no other trigger shares", () => {
+  const set = compileAll([{ source: "s.js", entries: [builders.math("mfrak", "F"), builders.math("mathbb", "B"), builders.math("mathbf", "C"), builders.math("mbf", "D"), builders.text("tfrak", "T")] }]).snippets;
+  const plains = set.map((s) => s.plain);
+  expect(plains).toEqual(expect.arrayContaining(["mfra", "mfr"])); // mfrak's own starts
+  expect(plains).not.toContain("mathb"); // shared by mathbb and mathbf
+  expect(plains).not.toContain("tfr"); // text triggers: none (words collide)
+  expect(set.filter((s) => s.plain === "mbf").map((s) => String(s.body))).toEqual(["D"]); // an existing trigger is never shadowed
+});
