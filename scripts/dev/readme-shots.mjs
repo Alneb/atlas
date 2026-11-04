@@ -47,7 +47,7 @@ for (const [p, text] of Object.entries(FILES)) {
 say(`demo vault: ${vault} (${Object.keys(FILES).length} files)`);
 
 const PORT = 7741, KEY = `atl_demo${Date.now().toString(16)}`, url = `http://127.0.0.1:${PORT}/`;
-const env = { ...process.env, ATLAS_VAULTS: join(tmp, "vaults.toml"), ATLAS_SECRETS_DIR: join(tmp, "secrets"), ATLAS_SERVER_CONFIG: join(tmp, "server.toml"), ATLAS_SERVER_STATE: join(tmp, "server.json"), ATLAS_AGENTS_FILE: join(tmp, "agents.json"), ATLAS_APP: "true", ATLAS_LOCAL_LOCK: "1", ATLAS_LOCAL_KEY: KEY, ATLAS_NO_BROWSER: "1", ATLAS_VAULT_TRASH: "1" };
+const env = { ...process.env, ATLAS_VAULTS: join(tmp, "vaults.toml"), ATLAS_SECRETS_DIR: join(tmp, "secrets"), ATLAS_SERVER_CONFIG: join(tmp, "server.toml"), ATLAS_SERVER_STATE: join(tmp, "server.json"), ATLAS_AGENTS_FILE: join(tmp, "agents.json"), ATLAS_APP: "true", ATLAS_LOCAL_LOCK: "1", ATLAS_LOCAL_KEY: KEY, ATLAS_NO_BROWSER: "1", ATLAS_VAULT_TRASH: "1", ATLAS_NO_NOTIFY: "1" };
 delete env.ATLAS_UI_DIR;
 const core = spawn(bin, ["serve", vault, "--port", String(PORT)], { env, stdio: ["ignore", "inherit", "inherit"] });
 say(`core: ${bin} (pid ${core.pid}) on ${url}`);

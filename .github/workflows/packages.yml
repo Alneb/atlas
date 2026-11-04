@@ -12,10 +12,19 @@ on:
         description: a release build (the APKs must then be signed with the project's key)
         type: boolean
         default: false
+      macos:
+        description: the macOS packages too (GitHub's Mac runners are scarce, so CI leaves them to the release)
+        type: boolean
+        default: true
     secrets:
       ANDROID_KEYSTORE_B64:
         required: false
   workflow_dispatch:
+    inputs:
+      macos:
+        description: the macOS packages too
+        type: boolean
+        default: true
 
 jobs:
   linux:
@@ -65,7 +74,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-latest, windows-latest]
+        os: ${{ fromJSON(inputs.macos && '["macos-latest","windows-latest"]' || '["windows-latest"]') }}
     steps:
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
@@ -122,14 +131,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include:
-          # Linux on an old glibc (22.04), for the engines that cannot be static
-          - { os: ubuntu-22.04, targets: x86_64-linux, rust: "x86_64-unknown-linux-musl,x86_64-unknown-linux-gnu" }
-          - { os: ubuntu-22.04-arm, targets: aarch64-linux, rust: "aarch64-unknown-linux-musl,aarch64-unknown-linux-gnu" }
-          # both Macs on one Apple-silicon runner (Intel cross-compiled): a second macOS job waited for a runner
-          # until GitHub gave up on it
-          - { os: macos-latest, targets: aarch64-macos x86_64-macos, rust: "aarch64-apple-darwin,x86_64-apple-darwin" }
-          - { os: windows-latest, targets: x86_64-windows, rust: x86_64-pc-windows-msvc }
+        # Linux on an old glibc (22.04), for the engines that cannot be static; both Macs on one Apple-silicon runner
+        # (Intel cross-compiled: a second macOS job waited for a runner until GitHub gave up on it), and only when
+        # inputs.macos asks for them (a matrix's `exclude` cannot remove an `include` entry, so the list is built here)
+        include: ${{ fromJSON(format('[{0}{1}]', '{"os":"ubuntu-22.04","targets":"x86_64-linux","rust":"x86_64-unknown-linux-musl,x86_64-unknown-linux-gnu"},{"os":"ubuntu-22.04-arm","targets":"aarch64-linux","rust":"aarch64-unknown-linux-musl,aarch64-unknown-linux-gnu"},{"os":"windows-latest","targets":"x86_64-windows","rust":"x86_64-pc-windows-msvc"}', inputs.macos && ',{"os":"macos-latest","targets":"aarch64-macos x86_64-macos","rust":"aarch64-apple-darwin,x86_64-apple-darwin"}' || '')) }}
     steps:
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable

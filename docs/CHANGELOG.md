@@ -18,6 +18,9 @@ and versions follow [Semantic Versioning](https://semver.org/) once 1.0 is out.
 - Web tabs show the address of the link under the pointer in a corner, as a browser's status bar.
 
 ### Fixed
+- Finance: a bank that refuses how far back a sync asks (Enable Banking's "Wrong transactions period") is asked again
+  for a shorter period.
+- Finance: the banks' sites list ships neutral examples; a vault's own `finance/banks.toml` lists its banks.
 - PDF: dragging the scrollbar also panned the pages against it, so the view could spring back where the drag began.
 - Android: saving into a vault on the phone's storage failed with "permission denied" (Android refuses hard links
   there); the capture box also says plainly when the app may not write a folder.

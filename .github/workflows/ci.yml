@@ -1,6 +1,7 @@
 # The gate on every push and pull request: the same `scripts/dev/gate.sh` a contributor runs locally, so "green" means
 # one thing. Windows and macOS build every crate and run the core's tests; they may fail until those ports are done.
-# Every package, the APKs included, comes from packages.yml, called here (job `packages`): a run keeps them as artifacts.
+# Every package but the Mac ones, the APKs included, comes from packages.yml, called here (job `packages`): a run keeps
+# them as artifacts.
 # scripts/dev/ci-annotate.mjs turns a failing step's errors and tests into annotations, readable without a sign-in.
 name: CI
 
@@ -86,8 +87,10 @@ jobs:
     timeout-minutes: 60
     strategy:
       fail-fast: false
+      # macOS only on a push to main: GitHub's Mac runners are scarce, and a pull request's (Dependabot's monthly ones)
+      # took them from the release, whose Mac jobs then waited until GitHub dropped them
       matrix:
-        os: [windows-latest, macos-latest]
+        os: ${{ fromJSON(github.event_name == 'push' && '["windows-latest","macos-latest"]' || '["windows-latest"]') }}
     steps:
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
@@ -115,4 +118,6 @@ jobs:
   packages:
     name: Packages
     uses: ./.github/workflows/packages.yml
+    with:
+      macos: false # the Mac packages come with a release (release.yml); the Mac build is checked by `port` above
     secrets: inherit

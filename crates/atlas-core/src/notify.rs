@@ -132,8 +132,11 @@ pub fn set_platform(make: impl Fn() -> Box<dyn Notifier> + Send + Sync + 'static
 
 /// The platform's notifier: the shell's own if it gave one; the desktop's notification server on Linux, toasts on
 /// Windows (a click publishes `Open` for the notice's note on `bus`); elsewhere, until its step of the design is
-/// built, the log.
+/// built, the log. `ATLAS_NO_NOTIFY` (any value): the log only — a test's or a probe's core never reaches the desktop.
 pub fn platform(bus: &EventBus) -> Box<dyn Notifier> {
+    if std::env::var_os("ATLAS_NO_NOTIFY").is_some() {
+        return Box::new(LogNotifier { next: AtomicU64::new(0) });
+    }
     if let Some(make) = SHELL_NOTIFIER.get() {
         return make();
     }

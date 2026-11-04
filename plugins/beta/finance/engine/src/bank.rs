@@ -91,6 +91,17 @@ pub fn transactions(cfg: &Config, account: &str, from: chrono::NaiveDate, contin
     Request { method: "GET", url, body: None }
 }
 
+/// Whether an answer is a bank refusing how far back it was asked (Enable Banking's 422 "Wrong transactions period
+/// requested"): many banks give 90 days only, some a year, whatever the consent says.
+pub fn period_refused(why: &str) -> bool {
+    why.contains("422") && why.to_lowercase().contains("period")
+}
+
+/// The next shorter span to ask after a refused one starting at `from`: a year, half a year, 90 days, 30; none left.
+pub fn shorter(from: chrono::NaiveDate, today: chrono::NaiveDate) -> Option<chrono::NaiveDate> {
+    [365, 180, 90, 30].into_iter().map(|d| today - chrono::Duration::days(d)).find(|d| *d > from)
+}
+
 /// An account of a session: its id at Enable Banking and what the bank calls it.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Linked {
@@ -201,6 +212,23 @@ pub fn csv(rows: &[Vec<String>]) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_refused_period_is_asked_again_shorter_until_none_is_left() {
+        assert!(period_refused("Enable Banking answered 422: Wrong transactions period requested"));
+        assert!(!period_refused("Enable Banking answered 422: Wrong account"));
+        assert!(!period_refused("Enable Banking answered 401: period expired"));
+        let today = chrono::NaiveDate::from_ymd_opt(2026, 11, 4).unwrap();
+        let mut from = today - chrono::Duration::days(730);
+        let mut asked = vec![];
+        while let Some(s) = shorter(from, today) {
+            asked.push((today - s).num_days());
+            from = s;
+        }
+        assert_eq!(asked, [365, 180, 90, 30]);
+        // a later sync's own start (a week before the last) is already short: 30 days is the only shorter one
+        assert_eq!(shorter(today - chrono::Duration::days(40), today), Some(today - chrono::Duration::days(30)));
+    }
 
     #[test]
     fn the_address_alone_says_which_bank_it_was_and_a_spent_code_is_recognised() {

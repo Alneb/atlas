@@ -16,6 +16,8 @@ delete process.env.ATLAS_UI_DIR;
 process.env.ATLAS_NO_BROWSER = "1";
 // …nor puts a deleted file in the desktop Trash (files.rs `trash`): `.atlas/trash/` in the throwaway vault
 process.env.ATLAS_VAULT_TRASH = "1";
+// …nor shows a notice on the desktop (notify.rs `platform`): a test's failing helper is no news for the person there
+process.env.ATLAS_NO_NOTIFY = "1";
 export const WS = process.env.ATLAS_PW_WS ?? join(process.env.TMPDIR ?? tmpdir(), "atlas-ui-test-ws");
 const PORT = Number(process.env.ATLAS_PW_PORT ?? 7720);
 // the core runs locked (DESIGN-local-lock.md), as the phone's does: every request of the tests carries this run's key —

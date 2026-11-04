@@ -18,7 +18,7 @@ test("a PDF's scrollbar drags where it is dropped, and a deep page stays put", a
   await page.evaluate((p) => (window as unknown as { __atlas: { open(p: string): void } }).__atlas.open(p), pdf);
   const viewer = page.locator(".atlas-pane-pdf .viewer-container").first();
   await expect(viewer.locator(".page").first()).toBeVisible({ timeout: 15_000 });
-  const bar = await viewer.evaluate((el) => el.offsetWidth - el.clientWidth - el.clientLeft * 2);
+  const bar = await viewer.evaluate((el: HTMLElement) => el.offsetWidth - el.clientWidth - el.clientLeft * 2);
   test.skip(bar <= 0, "overlay scrollbars: nothing to press on");
   const top = () => viewer.evaluate((el) => el.scrollTop);
 

@@ -275,9 +275,30 @@ fn bank_sync_one(p: &Value, l: &Loaded, s: &finance::notes::SourceNote) -> Resul
     let mut rows = vec![];
     for (uid, iban, _) in &s.accounts {
         let id = if iban.is_empty() { uid } else { iban }; // what the statement names it by (account_named)
-        let mut key: Option<String> = None;
+        rows.append(&mut bank_rows(p, &cfg, uid, id, from)?);
+    }
+    if !rows.is_empty() {
+        let path = format!("{}/statements/inbox/enable-banking {} {}.csv", folder(p), s.bank, today());
+        Atlas::new().write(&path, &finance::bank::csv(&rows)).map_err(|e| e.why)?;
+    }
+    Ok(rows.len())
+}
+
+/// One account's transactions since `from`, every page; a bank that refuses so long a period is asked for a shorter
+/// one (bank::shorter) until it answers or none is left.
+fn bank_rows(p: &Value, cfg: &finance::bank::Config, uid: &str, id: &str, from: chrono::NaiveDate) -> Result<Vec<Vec<String>>, String> {
+    let mut start = from;
+    'span: loop {
+        let (mut rows, mut key) = (vec![], None::<String>);
         for _ in 0..200 {
-            let v = bank_call(p, &finance::bank::transactions(&cfg, uid, from, key.as_deref())).map_err(|e| e.why)?;
+            let v = match bank_call(p, &finance::bank::transactions(cfg, uid, start, key.as_deref())) {
+                Ok(v) => v,
+                Err(e) if key.is_none() && finance::bank::period_refused(&e.why) => match finance::bank::shorter(start, today()) {
+                    Some(s) => { start = s; continue 'span; }
+                    None => return Err(e.why),
+                },
+                Err(e) => return Err(e.why),
+            };
             let (mut r, next) = finance::bank::rows(&v, id);
             rows.append(&mut r);
             key = next;
@@ -285,12 +306,8 @@ fn bank_sync_one(p: &Value, l: &Loaded, s: &finance::notes::SourceNote) -> Resul
                 break;
             }
         }
+        return Ok(rows);
     }
-    if !rows.is_empty() {
-        let path = format!("{}/statements/inbox/enable-banking {} {}.csv", folder(p), s.bank, today());
-        Atlas::new().write(&path, &finance::bank::csv(&rows)).map_err(|e| e.why)?;
-    }
-    Ok(rows.len())
 }
 
 /// The banks' own sites (data/banks.toml, or the vault's finance/banks.toml instead).

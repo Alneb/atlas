@@ -26,7 +26,7 @@ for (const group of readdirSync(join(repo, "plugins"), { withFileTypes: true }).
 }
 
 console.log(`[headless] the core: ${atlas} on ${vault}, an empty environment`);
-const env = { HOME: join(dir, "home"), PATH: "/usr/bin:/bin", LANG: "C.UTF-8", ATLAS_NO_BROWSER: "1", ATLAS_VAULT_TRASH: "1" };
+const env = { HOME: join(dir, "home"), PATH: "/usr/bin:/bin", LANG: "C.UTF-8", ATLAS_NO_BROWSER: "1", ATLAS_VAULT_TRASH: "1", ATLAS_NO_NOTIFY: "1" };
 const core = spawn(atlas, ["serve", "--port", String(port), vault], { env, stdio: ["ignore", "ignore", "pipe"] });
 let log = "";
 core.stderr.on("data", (b) => (log += b));
