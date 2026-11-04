@@ -92,6 +92,62 @@ fn capture_page(link: &str) -> String {
     }
 }
 
+/// `atlas-app --capture`: the native box (atlas-capture) when the package put one beside this program — an AppImage,
+/// the macOS app and the Windows install, where a shortcut can only name the app — and `ATLAS_CAPTURE` does not ask
+/// for the web box. Its exit code; None: no native box here, the web box below opens.
+fn native_capture(folder: Option<&std::path::Path>) -> Option<i32> {
+    if std::env::var("ATLAS_CAPTURE").is_ok_and(|v| v == "webview") {
+        return None;
+    }
+    let boxed = capture_box()?;
+    let mut cmd = std::process::Command::new(&boxed);
+    cmd.args(folder);
+    match cmd.status() {
+        Ok(s) => Some(s.code().unwrap_or(1)),
+        Err(e) => {
+            eprintln!("atlas-app: {} did not start ({e}); the web box instead", boxed.display());
+            None
+        }
+    }
+}
+
+/// The native capture box the package put beside this program, if it did.
+fn capture_box() -> Option<PathBuf> {
+    let exe = std::env::current_exe().ok()?;
+    Some(exe.with_file_name(format!("atlas-capture{}", std::env::consts::EXE_SUFFIX))).filter(|b| b.is_file())
+}
+
+/// macOS: a global key for the capture box while Atlas runs — `ATLAS_CAPTURE_KEY` (Tauri's form, e.g.
+/// "Control+Super+C"; "none" for no key), Ctrl+Cmd+C by default (Cmd+Shift+C is taken by browsers and Finder).
+/// The box opens on the vault this window shows.
+#[cfg(target_os = "macos")]
+fn capture_key(vault: PathBuf) -> tauri::plugin::TauriPlugin<tauri::Wry> {
+    use tauri_plugin_global_shortcut::{Builder, Shortcut, ShortcutState};
+    let builder = Builder::new().with_handler(move |_app, _key, event| {
+        if event.state == ShortcutState::Pressed {
+            match capture_box() {
+                Some(b) => {
+                    if let Err(e) = std::process::Command::new(&b).arg(&vault).spawn() {
+                        eprintln!("atlas-app: the capture box did not start: {e}");
+                    }
+                }
+                None => eprintln!("atlas-app: no capture box beside the app"),
+            }
+        }
+    });
+    let key = std::env::var("ATLAS_CAPTURE_KEY").unwrap_or_else(|_| "Control+Super+C".into());
+    if key == "none" {
+        return builder.build();
+    }
+    match key.parse::<Shortcut>().map_err(|e| e.to_string()).and_then(|k| builder.with_shortcut(k).map_err(|e| e.to_string())) {
+        Ok(b) => b.build(),
+        Err(e) => {
+            eprintln!("atlas-app: no capture key ({key:?}: {e})");
+            Builder::new().build()
+        }
+    }
+}
+
 /// `atlas-app --capture [folder]`: the quick-capture window (docs/guides/CAPTURE.md) — one small frameless
 /// box above everything, showing the app's `/#capture` page. It talks to the Atlas already open on
 /// that vault when there is one (two cores on one vault would run its schedules twice), and only
@@ -348,6 +404,9 @@ fn main() -> anyhow::Result<()> {
     }
     let folder = args.iter().find(|a| !a.to_string_lossy().starts_with("--")).map(PathBuf::from);
     if args.iter().any(|a| a == "--capture") {
+        if let Some(code) = native_capture(folder.as_deref()) {
+            std::process::exit(code);
+        }
         return capture_window(vault_to_open(folder)?);
     }
     if let Some(i) = args.iter().position(|a| a == "--browse") {
@@ -390,8 +449,10 @@ fn main() -> anyhow::Result<()> {
     let mut server = Some(server);
     let vault = root.clone();
 
-    tauri::Builder::default()
-        .plugin(tauri_plugin_dialog::init())
+    let builder = tauri::Builder::default().plugin(tauri_plugin_dialog::init());
+    #[cfg(target_os = "macos")]
+    let builder = builder.plugin(capture_key(root.clone()));
+    builder
         .setup(move |app| {
             let handle = app.handle().clone();
             browser::prepare(&handle, atlas_core::config::Config::load(&vault).map(|c| c.web).unwrap_or_default());

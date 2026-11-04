@@ -95,7 +95,7 @@
 | | |
 |---|---|
 | **Linux** | The desktop app (AppImage, `.deb`, `.rpm`, Flatpak), the `atlas` CLI and the capture box `atlas-capture`. |
-| **macOS, Windows** | Built by the same workflow (`.dmg`, NSIS installer), with the `atlas` CLI and the capture box inside; not yet signed or notarized, and less tried. On Windows the installer puts **Atlas Capture** in the Start menu, on Ctrl+Alt+Shift+C. On Windows, plugins that need a shell use Git for Windows' `sh`. Ad blocking and web tabs are Linux-only for now. |
+| **macOS, Windows** | Built by the same workflow (`.dmg`, NSIS installer), with the `atlas` CLI and the capture box inside; not yet signed or notarized, and less tried. On Windows the installer puts **Atlas Capture** in the Start menu, on Ctrl+Alt+Shift+C; on macOS Atlas takes Ctrl+Cmd+C for it while it runs. On Windows, plugins that need a shell use Git for Windows' `sh`. Ad blocking and web tabs are Linux-only for now. |
 | **Android** | Three APKs: **Atlas** (the full app, with the core inside it), **Atlas for Boox** (the same app tuned for e-ink and the Boox pen) and **Atlas capture** (just the capture box). |
 | **A server** | `atlas serve` or the Docker image. Every folder in `./vaults` becomes a vault. |
 

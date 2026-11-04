@@ -10,15 +10,16 @@ root=$(cd "$(dirname "$0")/../.." && pwd)
 cd "$root"
 [ -f ui/dist/index.html ] || { echo "[flatpak] ui/dist is missing: npm --prefix ui run build" >&2; exit 1; }
 
-echo "[flatpak] compiling atlas and atlas-app inside the GNOME 50 SDK (target/flatpak-sdk)"
+echo "[flatpak] compiling atlas, atlas-app and atlas-capture inside the GNOME 50 SDK (target/flatpak-sdk)"
 flatpak run --devel --share=network --filesystem="$root" --filesystem="$HOME/.cargo" --command=bash org.gnome.Sdk//50 -c "
   export PATH=/usr/lib/sdk/rust-stable/bin:\$PATH CARGO_HOME=$HOME/.cargo CARGO_TARGET_DIR=$root/target/flatpak-sdk
-  cd '$root' && nice -n 10 cargo build --release --locked -j \${ATLAS_JOBS:-4} -p atlas -p atlas-app --features tauri/custom-protocol"
+  cd '$root' && nice -n 10 cargo build --release --locked -j \${ATLAS_JOBS:-4} -p atlas -p atlas-app --features tauri/custom-protocol \\
+    && nice -n 10 cargo build --release --locked -j \${ATLAS_JOBS:-4} -p atlas-capture"
 
 echo "[flatpak] copying the stripped binaries to dist/, where the manifest takes them"
 mkdir -p dist
-cp target/flatpak-sdk/release/atlas target/flatpak-sdk/release/atlas-app dist/
-strip dist/atlas dist/atlas-app
+cp target/flatpak-sdk/release/atlas target/flatpak-sdk/release/atlas-app target/flatpak-sdk/release/atlas-capture dist/
+strip dist/atlas dist/atlas-app dist/atlas-capture
 
 echo "[flatpak] building and installing io.github.alneb.Atlas"
 flatpak-builder --user --install --force-clean --state-dir=target/flatpak-state target/flatpak-build \

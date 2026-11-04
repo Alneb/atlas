@@ -28,6 +28,7 @@
         "/usr/share/applications/atlas-capture-box.desktop": "../../packaging/atlas-capture-box.desktop",
         "/usr/share/icons/hicolor/scalable/apps/atlas.svg": "../../packaging/icon/atlas.svg"
       } },
+      "appimage": { "files": { "/usr/bin/atlas-capture": "../../target/release/atlas-capture" } },
       "rpm": { "files": {
         "/usr/bin/atlas": "../../target/release/atlas",
         "/usr/bin/atlas-capture": "../../target/release/atlas-capture",

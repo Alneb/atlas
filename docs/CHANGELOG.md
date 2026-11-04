@@ -8,7 +8,9 @@ and versions follow [Semantic Versioning](https://semver.org/) once 1.0 is out.
 ### Added
 - The capture box (`atlas-capture`) ships in the `.deb`, `.rpm`, Windows installer and macOS app, with its menu
   entries on Linux and a Start-menu shortcut on Ctrl+Alt+Shift+C on Windows; the `atlas` CLI is now in the Windows
-  and macOS packages too.
+  and macOS packages too. The AppImage and the Flatpak carry it as well (`atlas-app --capture` starts it), and on
+  macOS Atlas takes Ctrl+Cmd+C as its global key while it runs.
+- The render audit keeps its temporary files in `target/` and keeps a finding only when a second look shows it.
 
 ### Fixed
 - Markdown: an unclosed `$$` stays text instead of turning the rest of the note into one formula.

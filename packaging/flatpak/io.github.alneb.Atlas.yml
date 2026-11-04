@@ -25,6 +25,8 @@ modules:
     build-commands:
       - install -Dm755 atlas-app /app/bin/atlas-app
       - install -Dm755 atlas /app/bin/atlas
+      - install -Dm755 atlas-capture /app/bin/atlas-capture
+      - install -Dm644 io.github.alneb.Atlas.Capture.desktop /app/share/applications/io.github.alneb.Atlas.Capture.desktop
       - install -Dm644 io.github.alneb.Atlas.desktop /app/share/applications/io.github.alneb.Atlas.desktop
       - install -Dm644 io.github.alneb.Atlas.metainfo.xml /app/share/metainfo/io.github.alneb.Atlas.metainfo.xml
       - install -Dm644 atlas.svg /app/share/icons/hicolor/scalable/apps/io.github.alneb.Atlas.svg
@@ -33,6 +35,10 @@ modules:
         path: ../../dist/atlas-app
       - type: file
         path: ../../dist/atlas
+      - type: file
+        path: ../../dist/atlas-capture
+      - type: file
+        path: io.github.alneb.Atlas.Capture.desktop
       - type: file
         path: io.github.alneb.Atlas.desktop
       - type: file

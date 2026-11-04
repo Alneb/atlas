@@ -125,7 +125,7 @@ jobs:
         with:
           name: linux
           path: dist
-      - run: chmod +x dist/atlas dist/atlas-app
+      - run: chmod +x dist/atlas dist/atlas-app dist/atlas-capture
       - uses: flathub-infra/flatpak-github-actions/flatpak-builder@master
         with:
           bundle: atlas.flatpak

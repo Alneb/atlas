@@ -61,7 +61,9 @@ for s in "${stages[@]}"; do
     ui)     run ui     "Svelte + TypeScript types (the app, and each plugin's ui/ with its build current)" sh -c "npm --prefix ui run check && node scripts/dev/plugin-ui.mjs --check" ;;
     build)  run build  "production UI bundle, every chunk parsed" sh -c "npm --prefix ui run build && node scripts/dev/check-bundle.mjs" ;;
     e2e)    run e2e    "Playwright in parallel shards, each on its own throwaway workspace (needs the build stage)" node scripts/dev/e2e-shards.mjs ;;
-    audit)  run audit  "markdown render audit on a copy of the real notes (needs the build stage)" npm --prefix ui run audit:md ;;
+    # its temporary files (the vault's copy, Chromium's) in target/: /tmp is often a small tmpfs, and Chromium died
+    # (SIGTRAP, "Target crashed") on whichever note it reached when that filled up
+    audit)  mkdir -p target/tmp; run audit "markdown render audit on a copy of the real notes (needs the build stage)" env TMPDIR="$PWD/target/tmp" npm --prefix ui run audit:md ;;
     scan)   run scan   "secrets and personal paths in the tracked code" bash scripts/dev/scan-personal.sh ;;
     sync)   run sync   "master and public in step (publish/sync.mjs)" node publish/sync.mjs ;;
     tidy)   run tidy   "no stray files at the repo root (AGENTS.md)" bash scripts/dev/check-tidy.sh ;;

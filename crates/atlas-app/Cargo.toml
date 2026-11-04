@@ -28,6 +28,11 @@ reqwest = { workspace = true, features = ["blocking", "rustls-tls"] }
 [dev-dependencies]
 tempfile = "3"
 
+[target.'cfg(target_os = "macos")'.dependencies]
+# a global key for the capture box while Atlas runs (main.rs `capture_key`): macOS has no desktop setting that gives a
+# program a key, as KDE's shortcuts and a Windows Start-menu shortcut do
+tauri-plugin-global-shortcut = "2"
+
 [target.'cfg(target_os = "linux")'.dependencies]
 # filter lists → WebKit content-blocker rules, for the browsing windows' ad blocking (web_filters.rs; moved out of the
 # core, which the phone and the server build without needing it: REFACTOR-core-to-plugins.md #9)

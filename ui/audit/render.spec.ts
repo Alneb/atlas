@@ -74,7 +74,12 @@ async function auditNote(page: Page, path: string): Promise<Finding[]> {
   await page.waitForTimeout(900);
   const seen = new Map<string, Finding>();
   for (let i = 0; i < 400; i++) {
-    for (const f of await page.evaluate(scan)) seen.set(`${f.kind}|${f.text}`, f);
+    // a screen with findings is looked at again after a pause: on a note of megabytes (pasted base64 images) the
+    // editor parses in slices, and a first look can come before the parse reached the screen (findings that vary
+    // run to run); what the second look still shows is kept
+    let found = await page.evaluate(scan);
+    if (found.length) { await page.waitForTimeout(1500); found = await page.evaluate(scan); }
+    for (const f of found) seen.set(`${f.kind}|${f.text}`, f);
     const done = await page.evaluate(() => {
       const s = document.querySelector(".dv-active-group .cm-scroller, .cm-scroller") as HTMLElement | null;
       if (!s) return true;

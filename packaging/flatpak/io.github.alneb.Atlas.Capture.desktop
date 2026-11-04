@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=Atlas Capture
+Comment=A small box to capture a thought into today's log (bind a global shortcut to it)
+Exec=atlas-app --capture
+Icon=io.github.alneb.Atlas
+Categories=Office;

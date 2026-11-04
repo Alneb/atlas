@@ -94,8 +94,12 @@ The menu entry starts the launcher by its full path (`~/.local/bin/atlas-quick-c
 both menu entries (*Atlas Capture*, and the hidden one that lets KWin give the box its picture) under `/usr`; bind a
 key to *Atlas Capture* as above. The Windows installer puts `atlas-capture.exe` beside the app and an **Atlas
 Capture** Start-menu shortcut on **Ctrl+Alt+Shift+C** (a Start-menu shortcut's key works anywhere; the Windows key
-cannot be given to one). On macOS the box is inside the app (`Atlas.app/Contents/MacOS/atlas-capture`); a key for it
-is not set up yet (a Shortcuts action can start it). The AppImage and the Flatpak do not carry it yet.
+cannot be given to one). On macOS the box is inside the app (`Atlas.app/Contents/MacOS/atlas-capture`) and Atlas, while
+it runs, takes **Ctrl+Cmd+C** as a global key for it (the global-shortcut plugin; `ATLAS_CAPTURE_KEY` another key in
+Tauri's form, `Control+Super+C`, or `none`; Cmd+Shift+C is taken by browsers and Finder). The AppImage carries the box
+too: bind a key to `Atlas.AppImage --capture`. `atlas-app --capture` starts the native box whenever one sits beside
+the program (`ATLAS_CAPTURE=webview` keeps the older web box), so one command works for every package. The Flatpak
+has `atlas-capture` and an **Atlas Capture** entry (`atlas-app --capture`) to give a key to.
 
 ## How it works, and what to watch
 
