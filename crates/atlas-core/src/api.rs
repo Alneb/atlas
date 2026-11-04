@@ -626,6 +626,12 @@ pub struct SearchQuery {
     /// Also search the agent's own files (`editor.index_exclude`); they are left out by default.
     #[serde(default)]
     pub agent: bool,
+    /// Search the text of the vault's PDFs instead of its files (a search of its own).
+    #[serde(default)]
+    pub pdf: bool,
+    /// Only the names (files matched by name), no file read: answered at once, before the lines.
+    #[serde(default)]
+    pub names: bool,
 }
 
 /// Replace across files (POST /api/replace): the search options plus the replacement.

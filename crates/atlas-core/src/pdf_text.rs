@@ -182,10 +182,16 @@ mod tests {
         // the text of a PDF no longer in the vault is not a hit
         std::fs::write(d.path().join(super::CACHE).join("refs/gone.pdf.txt"), "Hubbard, gone\n").unwrap();
         std::fs::write(d.path().join("note.md"), "Hubbard in a note\n").unwrap();
-        let r = crate::search::search(d.path(), &crate::config::Config::default(), "hubbard");
+        // the PDFs' text is a search of its own: the notes' search does not list it, and it lists no note
+        let cfg = crate::config::Config::default();
+        let notes = crate::search::search(d.path(), &cfg, "hubbard");
+        assert_eq!(notes.lines.iter().map(|h| h.path.as_str()).collect::<Vec<_>>(), ["note.md"], "{notes:?}");
+        let pdf = crate::search::Opts { pdf: true, ..Default::default() };
+        let r = crate::search::search_with(d.path(), &cfg, "hubbard", pdf);
         let paths: Vec<(&str, u32)> = r.lines.iter().map(|h| (h.path.as_str(), h.line)).collect();
-        assert_eq!(paths, [("note.md", 1), ("refs/paper.pdf", 2)], "{r:?}");
-        assert_eq!(r.lines[1].text, "p. 2 · The Hubbard model");
+        assert_eq!(paths, [("refs/paper.pdf", 2)], "{r:?}");
+        assert_eq!(r.lines[0].text, "p. 2 · The Hubbard model");
+        assert!(r.files.is_empty());
     }
 }
 

@@ -16,6 +16,9 @@ pub struct Opts {
     pub regex: bool,
     /// Also look in the agent's own files (`editor.index_exclude`); off by default.
     pub agent: bool,
+    /// Search the text of the vault's PDFs (pdf_text.rs's cache) instead of its files: a search of its own, so the
+    /// library's megabytes neither slow nor crowd the notes' search.
+    pub pdf: bool,
 }
 
 pub fn search(root: &Path, cfg: &Config, q: &str) -> SearchResults {
@@ -32,17 +35,14 @@ pub fn search_with(root: &Path, cfg: &Config, q: &str, o: Opts) -> SearchResults
     }
     // one walk for both the lines and the names
     let walked: Vec<(std::path::PathBuf, String)> = walk::files(root, cfg).filter(|(_, rel)| o.agent || !cfg.is_agent_file(rel)).collect();
-    let mut lines = lines_over(q, o, walked.iter().filter(|&(abs, _)| small(abs)).cloned());
-    // PDF text (pdf_text.rs): the same rg over the extracted-text cache, listed after the notes' hits;
-    // papers keep up to a quarter of the results, so a common word in notes cannot crowd them out
-    if root.join(crate::pdf_text::CACHE).is_dir() {
-        let cache = lines_in(root, cfg, q, o, crate::pdf_text::CACHE);
-        // only PDFs this walk found: the text of one deleted, moved or now excluded stays in the cache until the next pass
-        let pdfs: std::collections::HashSet<&str> = walked.iter().map(|(_, rel)| rel.as_str()).filter(|r| r.to_lowercase().ends_with(".pdf")).collect();
-        let pdf: Vec<LineHit> = crate::pdf_text::hits(cache, root).into_iter().filter(|h| pdfs.contains(h.path.as_str())).take(MAX_RESULTS / 4).collect();
-        lines.truncate(MAX_RESULTS - pdf.len());
-        lines.extend(pdf);
+    if o.pdf {
+        crate::pdf_text::catch_up(root, cfg);
+        return SearchResults { files: Vec::new(), lines: pdf_lines(root, cfg, q, o, &walked) };
     }
+    // notes first (a stable sort keeps the walk's order within each), so their hits lead and fill the cap first
+    let mut texts: Vec<_> = walked.iter().filter(|&(abs, _)| small(abs)).cloned().collect();
+    texts.sort_by_key(|(_, rel)| !rel.ends_with(".md"));
+    let mut lines = lines_over(q, o, texts.into_iter(), true);
     // a hit in a hidden note is its thing's (a drawing's note text → the drawing; companion::thing_of), as the names are;
     // the notes' properties from the index (no note read for them; the watcher keeps it current without a walk)
     let index = crate::links::snapshot(root, cfg);
@@ -54,8 +54,32 @@ pub fn search_with(root: &Path, cfg: &Config, q: &str, o: Opts) -> SearchResults
             l.path = t.clone();
         }
     }
-    crate::pdf_text::catch_up(root, cfg);
     SearchResults { files: if o.regex { Vec::new() } else { match_names(root, walked.into_iter().map(|(_, rel)| rel), q, props) }, lines }
+}
+
+/// Only the names [`search_with`] would list, without reading a file: what the Search pane shows at once, while the
+/// files' lines are still being read.
+pub fn names_with(root: &Path, cfg: &Config, q: &str, o: Opts) -> Vec<String> {
+    if q.trim().is_empty() || o.regex || o.pdf {
+        return Vec::new();
+    }
+    if let Some(tag) = q.trim().strip_prefix("tag:") {
+        return crate::tags::notes(root, cfg, tag);
+    }
+    let index = crate::links::snapshot(root, cfg);
+    let props = |rel: &str| index.parsed.get(rel).and_then(|p| p.props_whole());
+    match_names(root, walk::files(root, cfg).filter(|(_, rel)| o.agent || !cfg.is_agent_file(rel)).map(|(_, rel)| rel), q, props)
+}
+
+/// The PDFs' text (pdf_text.rs's cache), each hit mapped back to its PDF and page; only PDFs this walk found: the text
+/// of one deleted, moved or now excluded stays in the cache until the next pass.
+fn pdf_lines(root: &Path, cfg: &Config, q: &str, o: Opts, walked: &[(std::path::PathBuf, String)]) -> Vec<LineHit> {
+    if !root.join(crate::pdf_text::CACHE).is_dir() {
+        return Vec::new();
+    }
+    let cache = lines_over(q, o, text_files(root, cfg, o, crate::pdf_text::CACHE), false);
+    let pdfs: std::collections::HashSet<&str> = walked.iter().map(|(_, rel)| rel.as_str()).filter(|r| r.to_lowercase().ends_with(".pdf")).collect();
+    crate::pdf_text::hits(cache, root).into_iter().filter(|h| pdfs.contains(h.path.as_str())).collect()
 }
 
 /// Every whitespace token must appear (case-insensitive) in the path; basename hits rank first.
@@ -94,26 +118,93 @@ pub fn rg_lines(root: &Path, cfg: &Config, q: &str, o: Opts) -> Vec<LineHit> {
 
 /// ripgrep's own searcher (its crates, in this process: no `rg` to install) over [`text_files`] of one folder.
 fn lines_in(root: &Path, cfg: &Config, q: &str, o: Opts, dir: &str) -> Vec<LineHit> {
-    lines_over(q, o, text_files(root, cfg, o, dir))
+    lines_over(q, o, text_files(root, cfg, o, dir), true)
 }
 
-/// ripgrep's searcher over these files (absolute, relative), at most [`MAX_RESULTS`] lines.
-fn lines_over(q: &str, o: Opts, files: impl Iterator<Item = (std::path::PathBuf, String)>) -> Vec<LineHit> {
+/// ripgrep's searcher over these files (absolute, relative), at most [`MAX_RESULTS`] lines, in the files' order. The
+/// files are read on several threads (a vault holds thousands; one thread took seconds); `sniff` first leaves out what
+/// is not worth reading ([`worth_reading`]).
+fn lines_over(q: &str, o: Opts, files: impl Iterator<Item = (std::path::PathBuf, String)>, sniff: bool) -> Vec<LineHit> {
+    use std::sync::atomic::{AtomicUsize, Ordering::Relaxed};
     let Ok(m) = grep_matcher(q, o) else { return Vec::new() }; // a regex being typed
-    let mut searcher = searcher();
-    let mut out = Vec::new();
-    for (abs, rel) in files {
-        let _ = searcher.search_path(&m, &abs, UTF8(|n, line| {
-            if let Some(text) = shown_line(line) {
-                out.push(LineHit { path: rel.clone(), line: n as u32, text });
-            }
-            Ok(out.len() < MAX_RESULTS)
-        }));
-        if out.len() >= MAX_RESULTS {
-            break;
+    let files: Vec<_> = files.collect();
+    let (next, found) = (AtomicUsize::new(0), AtomicUsize::new(0));
+    let per_file = std::sync::Mutex::new(Vec::<(usize, Vec<LineHit>)>::new());
+    let workers = std::thread::available_parallelism().map_or(4, |n| n.get()).clamp(1, 8);
+    let (next, found, per_file, files) = (&next, &found, &per_file, &files);
+    std::thread::scope(|s| {
+        for _ in 0..workers {
+            let m = m.clone();
+            s.spawn(move || {
+                let mut searcher = searcher();
+                while found.load(Relaxed) < MAX_RESULTS {
+                    let i = next.fetch_add(1, Relaxed);
+                    let Some((abs, rel)) = files.get(i) else { break };
+                    if sniff && !worth_reading(abs, rel) {
+                        continue;
+                    }
+                    let mut hits = Vec::new();
+                    let _ = searcher.search_path(&m, abs, UTF8(|n, line| {
+                        if let Some(text) = shown_line(line) {
+                            hits.push(LineHit { path: rel.clone(), line: n as u32, text });
+                        }
+                        Ok(hits.len() < MAX_RESULTS)
+                    }));
+                    if !hits.is_empty() {
+                        found.fetch_add(hits.len(), Relaxed);
+                        per_file.lock().unwrap_or_else(|e| e.into_inner()).push((i, hits));
+                    }
+                }
+            });
+        }
+    });
+    let mut per_file = std::mem::take(&mut *per_file.lock().unwrap_or_else(|e| e.into_inner()));
+    per_file.sort_by_key(|(i, _)| *i);
+    per_file.into_iter().flat_map(|(_, h)| h).take(MAX_RESULTS).collect()
+}
+
+/// Worth a content search, by the file's first 4 KB (the shape, as rg's binary sniff; no list of extensions): not
+/// binary (a NUL: pictures, PDFs, archives), not an SVG picture, and — unless a note — not a table of numbers (a run's
+/// `.tsv`, a data dump), whose words are only a header: under one character in twenty is in a word of four or more
+/// letters (so `1.5e-3`, `nan`, `inf` do not count as words).
+fn worth_reading(abs: &Path, rel: &str) -> bool {
+    use std::io::Read;
+    let mut head = [0u8; 4096];
+    let Ok(mut f) = std::fs::File::open(abs) else { return false };
+    let mut n = 0;
+    while n < head.len() {
+        match f.read(&mut head[n..]) {
+            Ok(0) | Err(_) => break,
+            Ok(k) => n += k,
         }
     }
-    out
+    let head = &head[..n];
+    if head.contains(&0) {
+        return false;
+    }
+    let text = String::from_utf8_lossy(head);
+    let start = text.trim_start();
+    if start.starts_with("<svg") || (start.starts_with("<?xml") && text.contains("<svg")) {
+        return false;
+    }
+    if rel.ends_with(".md") {
+        return true;
+    }
+    let (mut in_words, mut shown, mut run) = (0usize, 0usize, 0usize);
+    for c in text.chars().chain(std::iter::once(' ')) {
+        if c.is_alphabetic() {
+            run += 1;
+        } else {
+            if run >= 4 {
+                in_words += run;
+            }
+            run = 0;
+        }
+        if !c.is_whitespace() {
+            shown += 1;
+        }
+    }
+    shown < 200 || in_words * 20 >= shown
 }
 
 /// Binary files (a NUL byte) stop the search of that file, as rg does.
@@ -377,6 +468,35 @@ mod tests {
         assert_eq!(r.replacements, 2, "only the two lines the search shows");
         assert_eq!(std::fs::read_to_string(d.path().join("a.md")).unwrap(), note.replace("abc here", "xyz here").replace("and abc", "and xyz"));
         assert_eq!(replace_shown(&regex::Regex::new("(a)").unwrap(), "a\na", "<$1>", true), ("<a>\n<a>".to_string(), 2));
+    }
+
+    #[test]
+    fn only_text_worth_reading_is_searched() {
+        let d = tempfile::tempdir().unwrap();
+        let r = d.path();
+        let numbers: String = (0..400).map(|i| format!("{i}\t{:.4e}\t{:.3}\tnan\n", i as f64 * 1.5e-3, i as f64 / 7.0)).collect();
+        std::fs::write(r.join("run.tsv"), format!("energy\tdensity\tfilling\tgap\n{numbers}")).unwrap();
+        std::fs::write(r.join("plot.svg"), "<svg xmlns=\"http://www.w3.org/2000/svg\"><text>energy</text></svg>").unwrap();
+        std::fs::write(r.join("blob.bin"), b"energy\0\x01\x02").unwrap();
+        std::fs::write(r.join("table.md"), format!("energy\n{numbers}")).unwrap(); // a note is always read
+        std::fs::write(r.join("script.py"), "# the energy of the bath\nprint(1)\n").unwrap();
+        let mut hits: Vec<_> = search(r, &Config::default(), "energy").lines.into_iter().map(|l| l.path).collect();
+        hits.sort();
+        assert_eq!(hits, ["script.py", "table.md"]);
+    }
+
+    #[test]
+    fn notes_lead_and_the_order_holds_across_threads() {
+        let d = tempfile::tempdir().unwrap();
+        let r = d.path();
+        for i in 0..40 {
+            std::fs::write(r.join(format!("a{i:02}.py")), "# the lattice\n").unwrap();
+            std::fs::write(r.join(format!("z{i:02}.md")), "the lattice\n").unwrap();
+        }
+        let hits: Vec<_> = search(r, &Config::default(), "lattice").lines.into_iter().map(|l| l.path).collect();
+        assert_eq!(hits.len(), 80);
+        assert!(hits[..40].iter().all(|p| p.ends_with(".md")), "{hits:?}");
+        assert_eq!(hits, search(r, &Config::default(), "lattice").lines.into_iter().map(|l| l.path).collect::<Vec<_>>());
     }
 
     #[test]

@@ -16,4 +16,12 @@ regex: boolean,
 /**
  * Also search the agent's own files (`editor.index_exclude`); they are left out by default.
  */
-agent: boolean, };
+agent: boolean, 
+/**
+ * Search the text of the vault's PDFs instead of its files (a search of its own).
+ */
+pdf: boolean, 
+/**
+ * Only the names (files matched by name), no file read: answered at once, before the lines.
+ */
+names: boolean, };

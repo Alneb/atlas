@@ -4,7 +4,7 @@
   import { errText, escapeHtml, escapeRegExp } from "../lib/text";
   import { onMount } from "svelte";
   import { api } from "../lib/api";
-  import { besides, titledNotes } from "../lib/titled-notes";
+  import { besides, titledNotes, type Titled } from "../lib/titled-notes";
   import { Newest } from "../lib/newest";
   import { openPath } from "../lib/dock";
   import { fileIcon } from "../lib/panes";
@@ -40,7 +40,8 @@
   });
 
   // line-search options (VS Code's Aa / ab / .*); read in the effect, so a toggle re-runs the search
-  let opts = $state({ case: false, word: false, regex: false, agent: false });
+  // `pdf`: the text of the vault's PDFs instead of its files, a search of its own (the core's pdf_text cache)
+  let opts = $state({ case: false, word: false, regex: false, agent: false, pdf: false });
   const searches = new Newest(180);
   let rerun = $state(0); // bumped after a replace: same query, new results
   $effect(() => {
@@ -50,10 +51,21 @@
     if (!query) { searches.stop(); res = null; busy = false; return; } // a search still answering is now stale
     searches.run(async (still) => {
       busy = true;
+      // notes found by their title: after the names, one list for the keys
+      const show = (r: SearchResult, all: Titled[]) => {
+        const t = besides(all, r.files);
+        titles = new Map(t.map((x) => [x.path, x.title]));
+        res = { ...r, files: [...r.files, ...t.map((x) => x.path)] };
+        sel = 0;
+      };
       try {
-        const [r, all] = await Promise.all([api.search(query, o), titledNotes(query)]);
-        const t = besides(all, r.files); // notes found by their title: after the names, one list for the keys
-        if (still()) { titles = new Map(t.map((x) => [x.path, x.title])); res = { ...r, files: [...r.files, ...t.map((x) => x.path)] }; sel = 0; error = ""; }
+        // the names and titles first (no file read: a tenth of a second), then the lines once the files are read
+        let read = false;
+        const titled = o.pdf ? Promise.resolve([]) : titledNotes(query);
+        const full = api.search(query, o).then((r) => ((read = true), r));
+        if (!o.pdf) void Promise.all([api.search(query, { ...o, names: true }), titled]).then(([n, all]) => { if (still() && !read) show(n, all); }, () => {});
+        const [r, all] = await Promise.all([full, titled]);
+        if (still()) { show(r, all); error = ""; }
       } catch (err) {
         if (still()) error = errText(err);
       } finally {
@@ -157,13 +169,14 @@
 
 <div class="side-pane search-pane">
   <div class="search-box">
-    <button class="opt toggle" class:on={replacing} aria-pressed={replacing} title="Replace in files (Ctrl+Shift+H)" aria-label="Toggle replace" onclick={() => toggleReplace()}><Icon name="chevron" size={12} /></button>
-    <input bind:this={input} bind:value={q} {onkeydown} placeholder="Search…" spellcheck="false" aria-label="Search" />
+    <button class="opt toggle" class:on={replacing} aria-pressed={replacing} disabled={opts.pdf} title={opts.pdf ? "Replace works on the files, not the PDFs' text" : "Replace in files (Ctrl+Shift+H)"} aria-label="Toggle replace" onclick={() => toggleReplace()}><Icon name="chevron" size={12} /></button>
+    <input bind:this={input} bind:value={q} {onkeydown} placeholder={opts.pdf ? "Search the PDFs' text…" : "Search…"} spellcheck="false" aria-label="Search" />
     {#if busy}<span class="spin"></span>{/if}
     <span class="opts">
       <button class="opt" class:on={opts.case} aria-pressed={opts.case} title="Match case" aria-label="Match case" onclick={() => (opts.case = !opts.case)}>Aa</button>
       <button class="opt" class:on={opts.word} aria-pressed={opts.word} title="Whole word" aria-label="Whole word" onclick={() => (opts.word = !opts.word)}><u>ab</u></button>
       <button class="opt" class:on={opts.regex} aria-pressed={opts.regex} title="Regular expression" aria-label="Regular expression" onclick={() => (opts.regex = !opts.regex)}>.*</button>
+      <button class="opt pdf" class:on={opts.pdf} aria-pressed={opts.pdf} title="Search the text of the PDFs instead of the files (the library: papers, books, slides)" aria-label="Search the PDFs' text" onclick={() => { opts.pdf = !opts.pdf; if (opts.pdf) toggleReplace(false); }}>PDF</button>
       <button class="opt" class:on={opts.agent} aria-pressed={opts.agent} title="Also search the agent's own files (Claude's memory, session logs, instructions) — left out by default" aria-label="Include the agent's files" onclick={() => (opts.agent = !opts.agent)}><Icon name="claude" size={12} /></button>
     </span>
   </div>
@@ -202,11 +215,11 @@
         {/each}
       {/if}
       <!-- an empty result says what to try next: the switches that narrowed it, else fewer words -->
-      {#if !res.files.length && !res.lines.length}<p class="faint small pad">No file has “{q}”. {opts.case || opts.word || opts.regex
+      {#if !busy && !res.files.length && !res.lines.length}<p class="faint small pad">{opts.pdf ? "No PDF has" : "No file has"} “{q}”. {opts.case || opts.word || opts.regex
         ? `Try with ${[opts.case && "Match case", opts.word && "Whole word", opts.regex && "Regular expression"].filter(Boolean).join(", ")} off.`
         : "Try fewer or shorter words."}</p>{/if}
     {:else}
-      <p class="faint small pad">Type to search the names and the text of every file.<span class="keys-only keys-line"><kbd>↑</kbd> <kbd>↓</kbd> to move, <kbd>Enter</kbd> to open</span></p>
+      <p class="faint small pad">{opts.pdf ? "Type to search the text of every PDF: each hit opens its page." : "Type to search the names and the text of every file."}<span class="keys-only keys-line"><kbd>↑</kbd> <kbd>↓</kbd> to move, <kbd>Enter</kbd> to open</span></p>
     {/if}
   </div>
 </div>
@@ -228,6 +241,8 @@
   :global(html.phone) .opt { min-width: 36px; min-height: 36px; font-size: 14px; }
   .opt:hover { color: var(--text); background: var(--bg-hover); }
   .opt.on { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); }
+  .opt.pdf { font-size: calc(10px * var(--ui-scale, 1)); letter-spacing: 0.02em; }
+  .opt:disabled { opacity: 0.4; pointer-events: none; }
   .results { flex: 1; min-height: 0; overflow: auto; padding: 0 6px 16px; }
   .group-label { font-size: calc(11px * var(--ui-scale, 1)); text-transform: uppercase; letter-spacing: .07em; color: var(--text-faint); padding: 12px 8px 4px; font-weight: 600; }
   .n { font-weight: 500; margin-left: 4px; }

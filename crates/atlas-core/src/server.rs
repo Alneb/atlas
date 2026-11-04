@@ -686,13 +686,19 @@ async fn note_templates(State(st): S) -> Result<Json<Vec<crate::notes::TemplateI
 }
 
 async fn replace_post(State(st): S, Json(r): Json<ReplaceRequest>) -> Result<Json<ReplaceResult>> {
-    let o = search::Opts { case: r.case, word: r.word, regex: r.regex, agent: r.agent };
+    let o = search::Opts { case: r.case, word: r.word, regex: r.regex, agent: r.agent, pdf: false };
     Ok(Json(with_ws(&st, move |ws| search::replace(&ws, &r.q, o, &r.with, r.only.as_deref())).await?))
 }
 
 async fn search_get(State(st): S, Query(q): Query<SearchQuery>) -> Result<Json<SearchResults>> {
-    let o = search::Opts { case: q.case, word: q.word, regex: q.regex, agent: q.agent };
-    Ok(Json(with_ws(&st, move |ws| Ok(search::search_with(ws.root(), &ws.config()?, &q.q, o))).await?))
+    let o = search::Opts { case: q.case, word: q.word, regex: q.regex, agent: q.agent, pdf: q.pdf };
+    Ok(Json(
+        with_ws(&st, move |ws| {
+            let cfg = ws.config()?;
+            Ok(if q.names { SearchResults { files: search::names_with(ws.root(), &cfg, &q.q, o), lines: Vec::new() } } else { search::search_with(ws.root(), &cfg, &q.q, o) })
+        })
+        .await?,
+    ))
 }
 
 /// Append-only, capped at ~1 MB (then restarted), so a looping error cannot fill the disk.

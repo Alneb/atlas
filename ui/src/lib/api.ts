@@ -190,8 +190,9 @@ export const api = {
   /** `agent`: also the agent's own files (editor.index_exclude), left out by default. */
   /** A definition outside the vault, read for a look (lsp.rs `peek`): `line` 0-based, as the language server says. */
   lspPeek: (uri: string, line: number) => request<import("./gen/LspPeek").LspPeek>("GET", "/api/lsp/peek", { query: { uri, line: String(line) } }),
-  search: (q: string, o: { case?: boolean; word?: boolean; regex?: boolean; agent?: boolean } = {}) =>
-    request<SearchResult>("GET", "/api/search", { query: { q, case: o.case ? "true" : undefined, word: o.word ? "true" : undefined, regex: o.regex ? "true" : undefined, agent: o.agent ? "true" : undefined } }),
+  /** `pdf`: the PDFs' text instead of the files; `names`: only the names, no file read (answered at once). */
+  search: (q: string, o: { case?: boolean; word?: boolean; regex?: boolean; agent?: boolean; pdf?: boolean; names?: boolean } = {}) =>
+    request<SearchResult>("GET", "/api/search", { query: { q, case: o.case ? "true" : undefined, word: o.word ? "true" : undefined, regex: o.regex ? "true" : undefined, agent: o.agent ? "true" : undefined, pdf: o.pdf ? "true" : undefined, names: o.names ? "true" : undefined } }),
   /** Every tag with its number of notes; a tag's notes are `search("tag:<name>").files`. */
   tags: () => request<import("./gen/TagCount").TagCount[]>("GET", "/api/tags"),
   /** A tag renamed in every note, the tags nested under it too (core tags.rs `rename`). */
