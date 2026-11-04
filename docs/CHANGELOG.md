@@ -5,6 +5,14 @@ and versions follow [Semantic Versioning](https://semver.org/) once 1.0 is out.
 
 ## [Unreleased]
 
+### Added
+- The capture box (`atlas-capture`) ships in the `.deb`, `.rpm`, Windows installer and macOS app, with its menu
+  entries on Linux and a Start-menu shortcut on Ctrl+Alt+Shift+C on Windows; the `atlas` CLI is now in the Windows
+  and macOS packages too.
+
+### Fixed
+- Markdown: an unclosed `$$` stays text instead of turning the rest of the note into one formula.
+
 ## [0.2.6] - 2026-11-04
 
 ### Added

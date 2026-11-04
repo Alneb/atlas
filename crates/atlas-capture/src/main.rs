@@ -4,6 +4,9 @@
 //! window taking the focus: gone, nothing written, the text kept as the vault's draft for the next open (draft.rs). Super+V (or a click on the vault) its list, Super+↑ / Super+↓
 //! the vault before / after (Alt as well). Completions: `[[` a note, `#` a tag, `@` a day, and on a to-do the task fields (the
 //! core's `task_suggest`, as in the editor).
+// a window program on Windows: no console opens beside the box (as atlas-app)
+#![cfg_attr(all(windows, not(debug_assertions)), windows_subsystem = "windows")]
+
 use atlas_capture::app::{Capture, Theme, Vault};
 use atlas_capture::window;
 use std::path::PathBuf;

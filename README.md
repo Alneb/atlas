@@ -94,8 +94,8 @@
 
 | | |
 |---|---|
-| **Linux** | The desktop app (AppImage, `.deb`, `.rpm`, Flatpak) and the `atlas` CLI. |
-| **macOS, Windows** | Built by the same workflow (`.dmg`, NSIS installer); not yet signed or notarized, and less tried. On Windows, plugins that need a shell use Git for Windows' `sh`. Ad blocking and web tabs are Linux-only for now. |
+| **Linux** | The desktop app (AppImage, `.deb`, `.rpm`, Flatpak), the `atlas` CLI and the capture box `atlas-capture`. |
+| **macOS, Windows** | Built by the same workflow (`.dmg`, NSIS installer), with the `atlas` CLI and the capture box inside; not yet signed or notarized, and less tried. On Windows the installer puts **Atlas Capture** in the Start menu, on Ctrl+Alt+Shift+C. On Windows, plugins that need a shell use Git for Windows' `sh`. Ad blocking and web tabs are Linux-only for now. |
 | **Android** | Three APKs: **Atlas** (the full app, with the core inside it), **Atlas for Boox** (the same app tuned for e-ink and the Boox pen) and **Atlas capture** (just the capture box). |
 | **A server** | `atlas serve` or the Docker image. Every folder in `./vaults` becomes a vault. |
 
@@ -169,7 +169,9 @@ says what each tier promises and where each plugin stands. Each plugin's folder 
 
 **Linux packages.** Download the AppImage, `.deb`, `.rpm` or Flatpak from the
 [latest release](https://github.com/Alneb/atlas/releases), or build from source (below). The `.deb` and `.rpm` install
-the `atlas` command line beside the app (`/usr/bin/atlas`); it is also a file of its own in each release.
+the `atlas` command line beside the app (`/usr/bin/atlas`), and the quick-capture box (`atlas-capture`, with the menu
+entry **Atlas Capture**: give it a key in your desktop's shortcut settings, docs/guides/CAPTURE.md); both are also
+files of their own in each release.
 
 **Android with Obtainium.** A release carries three APKs (the full app, the Boox build, the capture app): give the app's
 entry the APK filter `^atlas\.apk$` so Obtainium installs the right one.

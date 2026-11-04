@@ -34,6 +34,7 @@ jobs:
           generate_release_notes: true
           files: |
             artifacts/linux/atlas
+            artifacts/linux/atlas-capture
             artifacts/linux/*.AppImage
             artifacts/linux/*.deb
             artifacts/linux/*.rpm

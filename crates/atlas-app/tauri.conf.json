@@ -20,8 +20,22 @@
     "shortDescription": "One fast desktop workspace over plain files",
     "icon": ["icons/32x32.png", "icons/128x128.png", "icons/128x128@2x.png", "icons/icon.icns", "icons/icon.ico", "icons/icon.png"],
     "linux": {
-      "deb": { "files": { "/usr/bin/atlas": "../../target/release/atlas" } },
-      "rpm": { "files": { "/usr/bin/atlas": "../../target/release/atlas" } }
+      "deb": { "files": {
+        "/usr/bin/atlas": "../../target/release/atlas",
+        "/usr/bin/atlas-capture": "../../target/release/atlas-capture",
+        "/usr/bin/atlas-quick-capture": "../../packaging/atlas-quick-capture",
+        "/usr/share/applications/atlas-capture.desktop": "../../packaging/atlas-capture.desktop",
+        "/usr/share/applications/atlas-capture-box.desktop": "../../packaging/atlas-capture-box.desktop",
+        "/usr/share/icons/hicolor/scalable/apps/atlas.svg": "../../packaging/icon/atlas.svg"
+      } },
+      "rpm": { "files": {
+        "/usr/bin/atlas": "../../target/release/atlas",
+        "/usr/bin/atlas-capture": "../../target/release/atlas-capture",
+        "/usr/bin/atlas-quick-capture": "../../packaging/atlas-quick-capture",
+        "/usr/share/applications/atlas-capture.desktop": "../../packaging/atlas-capture.desktop",
+        "/usr/share/applications/atlas-capture-box.desktop": "../../packaging/atlas-capture-box.desktop",
+        "/usr/share/icons/hicolor/scalable/apps/atlas.svg": "../../packaging/icon/atlas.svg"
+      } }
     }
   }
 }

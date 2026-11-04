@@ -90,6 +90,13 @@ The menu entry starts the launcher by its full path (`~/.local/bin/atlas-quick-c
 
 `atlas-quick-capture` starts `atlas-capture` (the native box). `ATLAS_CAPTURE=webview` starts the older web box of the desktop app; `ATLAS_CAPTURE=dialog` a one-line KDE dialog and `atlas capture` — which is also what happens when neither is installed.
 
+**From the release packages.** The `.deb` and `.rpm` install `atlas-capture`, the launcher `atlas-quick-capture` and
+both menu entries (*Atlas Capture*, and the hidden one that lets KWin give the box its picture) under `/usr`; bind a
+key to *Atlas Capture* as above. The Windows installer puts `atlas-capture.exe` beside the app and an **Atlas
+Capture** Start-menu shortcut on **Ctrl+Alt+Shift+C** (a Start-menu shortcut's key works anywhere; the Windows key
+cannot be given to one). On macOS the box is inside the app (`Atlas.app/Contents/MacOS/atlas-capture`); a key for it
+is not set up yet (a Shortcuts action can start it). The AppImage and the Flatpak do not carry it yet.
+
 ## How it works, and what to watch
 
 - **One core per vault.** When Atlas is already open on the vault, the box talks to *that* Atlas: `vaults::running_server(root)` reads the vault's `.atlas/cache/server.json` and believes it only while the folder is the same and the process is alive. Only when no Atlas is open on it does the box start a core of its own, stopped when the box closes. Two cores on one vault would run its scheduled commands twice — the reason for this care.

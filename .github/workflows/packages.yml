@@ -47,8 +47,9 @@ jobs:
           cache-dependency-path: ui/package-lock.json
       - name: The UI
         run: npm --prefix ui ci --no-audit --no-fund && npm --prefix ui run build
-      - name: The CLI
-        run: cargo build --release --locked -p atlas && strip target/release/atlas
+      # the CLI and the capture box: in the deb and rpm beside the app (tauri.conf.json `files`), and loose
+      - name: The CLI and the capture box
+        run: cargo build --release --locked -p atlas -p atlas-capture && strip target/release/atlas target/release/atlas-capture
       # the same pinned bundler on every system, installed fresh: npx's cache can hold it without its native binary
       # (npm's optional-dependency bug, npm/cli#4828), which broke a Windows rerun
       - name: The desktop app's packages
@@ -59,7 +60,7 @@ jobs:
       - name: Collect
         run: |
           mkdir -p dist
-          cp target/release/atlas target/release/atlas-app dist/
+          cp target/release/atlas target/release/atlas-app target/release/atlas-capture dist/
           cp target/release/bundle/appimage/*.AppImage target/release/bundle/deb/*.deb target/release/bundle/rpm/*.rpm dist/
       - uses: actions/upload-artifact@v7
         with:
@@ -88,12 +89,22 @@ jobs:
           cache-dependency-path: ui/package-lock.json
       - name: The UI
         run: npm --prefix ui ci --no-audit --no-fund && npm --prefix ui run build
+      # the CLI and the capture box go in the package beside the app (Tauri's externalBin wants each named with the
+      # target triple; installed without it). Given only here: in tauri.conf.json every build of the app would need them.
+      - name: The CLI and the capture box
+        shell: bash
+        run: |
+          cargo build --release --locked -p atlas -p atlas-capture
+          triple=$(rustc -vV | sed -n 's/^host: //p')
+          ext=$([ "$RUNNER_OS" = Windows ] && echo .exe || true)
+          for b in atlas atlas-capture; do cp "target/release/$b$ext" "target/release/$b-$triple$ext"; done
       - name: The desktop app's package
         shell: bash
         run: |
           npm install --no-save --no-audit --no-fund --prefix "$RUNNER_TEMP/tauri" @tauri-apps/cli@2.12.4
           cd crates/atlas-app
-          node "$RUNNER_TEMP/tauri/node_modules/@tauri-apps/cli/tauri.js" build --ci
+          node "$RUNNER_TEMP/tauri/node_modules/@tauri-apps/cli/tauri.js" build --ci \
+            --config '{"bundle":{"externalBin":["../../target/release/atlas","../../target/release/atlas-capture"]}}'
       - uses: actions/upload-artifact@v7
         with:
           name: atlas-${{ runner.os }}
