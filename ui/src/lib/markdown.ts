@@ -13,6 +13,7 @@ import { onSettings } from "./settings.svelte";
 import { wikilinkAt } from "./wikilink-syntax";
 import { tagAt, tagMayFollow } from "./tag-syntax";
 import { keepCapped } from "./capped";
+import { displayClosed } from "./math-close";
 
 export { resolveRel };
 
@@ -55,6 +56,9 @@ const mathBlockOf = (open: string, close: string) => function mathBlock(state: S
   const lineStart = (l: number) => state.bMarks[l] + state.tShift[l];
   if (state.sCount[startLine] - state.blkIndent >= 4) return false;
   if (src.slice(lineStart(startLine), lineStart(startLine) + open.length) !== open) return false;
+  // no closer before the next heading or the end: plain text, not the rest of the note as math
+  const closed = (from: number) => displayClosed((a, b) => src.slice(a, b), src.length, from, close);
+  if (!closed(lineStart(startLine) + open.length)) return false;
   if (silent) return true;
   // The closer is the next `$$` anywhere (mid-line included), as in Obsidian and in the editor's
   // BlockMath parser (obsidian-syntax.js): both must pair delimiters the same way.
@@ -80,7 +84,7 @@ const mathBlockOf = (open: string, close: string) => function mathBlock(state: S
     state.line = line + 1;
     if (end < 0) return true;
     const rest = src.slice(end + close.length, state.eMarks[line]);
-    const reopen = rest.trimStart().startsWith(open) ? rest.length - rest.trimStart().length + open.length : -1;
+    const reopen = rest.trimStart().startsWith(open) && closed(end + close.length + rest.length - rest.trimStart().length + open.length) ? rest.length - rest.trimStart().length + open.length : -1;
     if (reopen >= 0) { from0 = end + close.length + reopen; continue; } // `$$$$`: the next formula opens here
     if (!rest.trim()) return true;
     // prose after the closer (`$$which in space…`) is a paragraph, continued by the following lines

@@ -27,6 +27,11 @@ Build first: `npm run build && (cd .. && cargo build -p atlas)`. ~5–7 min for 
    reader's markdown-it rule (`lib/markdown.ts`). The node ends at the end of the closing line; trailing prose
    renders with the block (markdown-it emits it as a paragraph). `$$$$` (close + reopen on one line,
    Quantum Matter May 27th) stays ONE editor node, because a block replaced from mid-line cannot be drawn.
+   **An unclosed `$$` is text** (`lib/math-close.ts`, asked by both parsers): an opener whose closer does not
+   come before the next heading line or the end of the note is not math, so a stray or half-typed `$$` no
+   longer turns the rest of the note into one formula, or shifts the pairing of every later one. The heading
+   is the bound because a formula never holds one, while blank lines inside a formula are real (an `align`
+   with a gap). The search reads 8 KB chunks, so a note full of formulas costs one short scan per opener.
 2. **Indented continuation prose became code** (Renormalization Group: 14 raw `$a$`). The vault indents
    text under list items / after `$$` blocks with a tab or 4 spaces; CommonMark makes that an indented code
    block. Indented code is off in both parsers (`{ remove: ["IndentedCode"] }`, `md.disable("code")`). Fenced code

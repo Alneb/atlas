@@ -31,6 +31,7 @@
 
 import { styleTags, tags as t } from "@lezer/highlight";
 import { tagAt, tagMayFollow } from "../../tag-syntax";
+import { displayClosed } from "../../math-close";
 
 // Character codes, named so the parse functions below read as prose.
 const CH_NEWLINE = 10;
@@ -294,6 +295,8 @@ const Icon = {
 // A block parser rather than an inline one because these routinely span many
 // lines. Follows the same shape as lezer's own FencedCode: `line` is mutated in
 // place by cx.nextLine(), and cx.lineStart tracks the current line's offset.
+const closedAhead = (cx, from, closer) => displayClosed((a, b) => cx.input.read(a, b), cx.input.length, from, closer);
+
 const BlockMath = {
   defineNodes: [{ name: "BlockMath" }],
   parseBlock: [
@@ -316,7 +319,7 @@ const BlockMath = {
        */
       endLeaf(cx, line) {
         const rest = line.text.slice(line.pos);
-        return rest.startsWith("$$") || rest.startsWith("\\[");
+        return (rest.startsWith("$$") || rest.startsWith("\\[")) && closedAhead(cx, cx.lineStart + line.pos + 2, rest.startsWith("$$") ? "$$" : "\\]");
       },
 
       parse(cx, line) {
@@ -325,6 +328,8 @@ const BlockMath = {
         const tex = rest.startsWith("\\[");
         if (!tex && !rest.startsWith("$$")) return false;
         const closer = tex ? "\\]" : "$$";
+        // no closer before the next heading or the end: plain text (markdown.ts asks the same)
+        if (!closedAhead(cx, cx.lineStart + line.pos + 2, closer)) return false;
         // Obsidian pairs `$$` delimiters wherever they sit on a line, not only at line ends:
         //   $$ x = 1 $$          one-line formula
         //   …\ket{e} $$which in…  the closer mid-line, prose after it on the same line
@@ -346,7 +351,7 @@ const BlockMath = {
           }
           const closeEnd = idx + 2;
           const after = line.text.slice(closeEnd);
-          if (!tex && after.startsWith("$$") && after.indexOf("$$", 2) < 0) {
+          if (!tex && after.startsWith("$$") && after.indexOf("$$", 2) < 0 && closedAhead(cx, cx.lineStart + closeEnd + 2, "$$")) {
             // `$$$$`: the next formula opens right here. Both stay ONE node -- a block replaced
             // from mid-line cannot be drawn -- and blockHtml renders the two formulas from it.
             col = closeEnd + 2;

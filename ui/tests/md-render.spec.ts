@@ -1,5 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import lz from "lz-string";
+import { displayClosed } from "../src/lib/math-close";
 const { decompressFromBase64 } = lz; // CommonJS module
 
 // Rendering regressions, each a shape taken from the user's real Obsidian notes (see
@@ -13,6 +14,8 @@ const NOTES: Record<string, string> = {
   // Internship Porto: the closer mid-line, prose after it; every later formula used to desync
   "mdr/midline.md": "Intro\n$$\n\\ket{e} = \\sum_i \\psi_i\n$$which in space representation look like\n$$\ny = 1\n$$\nWhere $\\phi_{0}$ and $\\phi_{e}$ are orbitals.\n",
   // Quantum Matter, May 27th: `$$$$` closes one formula and opens the next
+  // an opener with no closer before the next heading (or the end) is text: the rest of the note stays a note
+  "mdr/unclosed.md": "Intro\n$$\nx = 1\n\n## Next part\nText with $y$ here.\n$$\nz = 2\n$$\nLast words\n$$\nw = 3\nand $v$ too.\n",
   "mdr/dollars4.md": "For the s channel\n$$\nU_{q} = s/V\n$$$$\nH = N^2 s\n$$\nAfter both.\n",
   // Renormalization Group: continuation prose indented by 4 spaces / a tab is text, not code
   "mdr/indented.md": "1. A list item with minimal length $a$ (lattice)\n$$\nm_0 = 1\n$$\n    However we choose $b$ here\n\tAnd a tab with $c$\n",
@@ -76,6 +79,25 @@ test("$$$$ renders both formulas and no stray $$", async ({ page }) => {
   const ed = await open(page, "mdr/dollars4.md");
   await expect(ed.locator(".katex-display")).toHaveCount(2);
   expect(await visibleProse(page)).not.toContain("$$");
+});
+
+test("an unclosed $$ stays text: the heading after it, the formula after that, the math at the end", async ({ page }) => {
+  const ed = await open(page, "mdr/unclosed.md");
+  await expect(ed.locator(".katex-display")).toHaveCount(1); // only z = 2
+  await expect(ed.locator(".cm-header-2, h2").filter({ hasText: "Next part" })).toHaveCount(1);
+  await expect(ed.getByText("Last words")).toBeVisible();
+  await expect(ed.locator(".cm-math-inline")).toHaveCount(2); // $y$ and $v$, after the last unclosed $$ too
+});
+
+test("a display formula is closed only before the next heading or the end", () => {
+  const at = (t: string) => displayClosed((a, b) => t.slice(a, b), t.length, 2, "$$");
+  expect(at("$$\nx\n\ny\n$$\n")).toBe(true); // a blank line inside a formula is real
+  expect(at("$$\nx\n## H\n$$\n")).toBe(false);
+  expect(at("$$\nx\n")).toBe(false);
+  expect(at("$$ x #1 $$")).toBe(true); // `#` inside TeX is no heading
+  const long = "$$\n" + "a\n".repeat(9000) + "$$"; // the closer past the first chunk
+  expect(at(long)).toBe(true);
+  expect(at("$$\n" + "a\n".repeat(9000) + "# H\n$$")).toBe(false);
 });
 
 test("indented continuation lines are prose with rendered math", async ({ page }) => {
