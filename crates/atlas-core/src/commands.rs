@@ -402,7 +402,9 @@ mod tests {
              print(json.dumps({'got': args, 'cwd': os.getcwd(), 'n': len(os.listdir('.'))}))\n",
         )
         .unwrap();
-        write_cmd(root, "echo.args", "title = \"Echo\"\nrun = \"python3 tools/echo.py\"\ndescription = \"d\"\n");
+        // Windows' `python3` is often the Store's stub, which waits instead of running: the runner's Python is `python`
+        let python = if cfg!(windows) { "python" } else { "python3" };
+        write_cmd(root, "echo.args", &format!("title = \"Echo\"\nrun = \"{python} tools/echo.py\"\ndescription = \"d\"\n"));
         write_cmd(root, "plain", "title = \"Plain\"\nrun = \"echo hello | tr a-z A-Z\"\n");
         write_cmd(root, "fail", "title = \"Fail\"\nrun = \"echo oops >&2; exit 3\"\n");
         write_cmd(root, "capture", "title = \"Shadow\"\nrun = \"true\"\n");
