@@ -48,11 +48,18 @@ async function readModule(atlas: PluginApi, path: string, seen: Map<string, Prom
 
 export interface Read extends Loaded { fromOldFile: boolean; modules: string[]; oldFile: { sources: string[]; variables: string } | null; wroteStarter: boolean }
 
-/** The LaTeX set (starter.js, beside the plugin) as the vault's first snippet file. */
-async function writeStarter(atlas: PluginApi): Promise<void> {
+/** Keeps the vault's copy of the plugin's LaTeX set (starter.js) equal to the plugin's: written when missing, replaced
+ *  when the plugin's differs (the copy replaced to .atlas/trash, so nothing is lost). True when it wrote. The set is
+ *  the plugin's, not the vault's: switches live in Settings, a vault's own snippets in other files. */
+async function keepStarter(atlas: PluginApi): Promise<boolean> {
   const answer = await fetch(atlas.assetUrl("starter.js"));
   if (!answer.ok) throw new Error(`starter.js: ${answer.status}`);
-  await atlas.writeText(STARTER, await answer.text());
+  const shipped = await answer.text();
+  const there = (await atlas.exists(STARTER)) ? await atlas.readText(STARTER) : null;
+  if (there === shipped) return false;
+  if (there !== null) await atlas.trash(STARTER);
+  await atlas.writeText(STARTER, shipped);
+  return true;
 }
 
 export async function loadAll(atlas: PluginApi, starter = true): Promise<Read> {
@@ -68,19 +75,19 @@ export async function loadAll(atlas: PluginApi, starter = true): Promise<Read> {
     try { files.push({ source: path, entries: await readModule(atlas, path, seen) }); }
     catch (e) { problems.push({ source: path, what: `could not be read: ${String((e as Error).message ?? e)}` }); }
   }
-  // the old file until the vault has converted it; route gone or nothing set: none
+  // the old file until the vault has converted it or takes the plugin's set; route gone or nothing set: none
   const oldFile = await atlas.editor.legacySnippets().catch(() => null);
   const hasOld = !!oldFile?.sources.some((s) => s.trim());
-  // converting ends it; a module of your own beside it does not
-  const fromOldFile = hasOld && !modules.includes(CONVERTED);
+  // converting or the plugin's set ends it; a module of your own beside it does not
+  const fromOldFile = hasOld && !modules.includes(CONVERTED) && !modules.includes(STARTER);
   if (fromOldFile) {
     const legacy = readLegacy(oldFile!);
     files.push({ source: legacy.source, entries: legacy.entries });
     problems.push(...legacy.problems);
   }
-  // nothing at all: the LaTeX set becomes the vault's own file, read like any other
-  if (starter && !names.length && !hasOld) {
-    try { await writeStarter(atlas); return { ...(await loadAll(atlas, false)), wroteStarter: true }; }
+  // the plugin's LaTeX set kept current, unless an old file not yet converted still holds the vault's snippets
+  if (starter && !fromOldFile) {
+    try { if (await keepStarter(atlas)) return { ...(await loadAll(atlas, false)), wroteStarter: true }; }
     catch (e) { problems.push({ source: STARTER, what: `could not be written: ${String((e as Error).message ?? e)}` }); }
   }
   const compiled = compileAll(files, switchedOf(atlas.plugin.settings.switched));

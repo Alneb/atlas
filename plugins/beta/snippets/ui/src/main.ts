@@ -16,7 +16,7 @@ export async function register(atlas: PluginApi) {
   const reload = async () => {
     read = await loadAll(atlas);
     engine.use(read);
-    if (read.wroteStarter) atlas.toast("Snippets", `The LaTeX set is now this vault's ${STARTER}: yours to edit. Settings → Snippets switches each snippet and option.`, "info");
+    if (read.wroteStarter) atlas.toast("Snippets", `The plugin's LaTeX set is now ${STARTER}, kept current by the plugin (a replaced copy goes to .atlas/trash). Settings → Snippets switches each snippet and option; your own snippets go in another file there.`, "info");
     return read;
   };
   atlas.editor.extension(engine.extension);

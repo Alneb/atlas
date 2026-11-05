@@ -1,8 +1,17 @@
-// The LaTeX set: what Snippets writes into a vault that has no snippets yet. This file is yours: edit, add, delete.
-// Settings → Snippets lists every snippet here with a switch, and each option below as one switch; `{ on: false }`
-// starts an option off. README.md (Snippets) has the format.
+// The LaTeX set, Snippets' own: the plugin keeps .atlas/snippets/latex.js equal to this file, and a new version of
+// the plugin replaces it (the copy it replaces goes to .atlas/trash). Switch any snippet or option on or off in
+// Settings → Snippets; snippets of your own go in another .js file in that folder. `{ on: false }` starts an option
+// off. README.md (Snippets) has the format.
 export default ({ math, text, visual, commands, vars, options }) => [
   vars({"${GREEK}":"alpha|beta|gamma|Gamma|delta|Delta|epsilon|varepsilon|zeta|eta|theta|vartheta|Theta|iota|kappa|lambda|Lambda|mu|nu|xi|omicron|pi|Pi|rho|varrho|sigma|varsigma|Sigma|tau|upsilon|Upsilon|phi|varphi|Phi|chi|psi|Psi|omega|Omega","${SYMBOL}":"parallel|perp|partial|nabla|hbar|ell|infty|oplus|ominus|otimes|oslash|square|star|dagger|vee|wedge|subseteq|subset|supseteq|supset|emptyset|exists|nexists|forall|implies|impliedby|iff|setminus|neg|lor|land|bigcup|bigcap|cdot|times|simeq|approx","${MORE_SYMBOLS}":"qquad|quad|leq|geq|neq|gg|ll|equiv|neq|sim|propto|rightarrow|leftarrow|Rightarrow|Leftarrow|leftrightarrow|to|mapsto|cap|cup|sum|prod|exp|ln|log|det|dots|vdots|ddots|int|iint|iiint|oint|tiny|langle|rangle"}),
+  // Text shortcuts
+  text(" bc ", " because ", { auto: true }),
+  text(" dont ", " don't ", { auto: true }),
+  text(" doesnt ", " doesn't ", { auto: true }),
+  text(" Im ", " I'm ", { auto: true }),
+  text(" im ", " I'm ", { auto: true }),
+  text(" i ", " I ", { auto: true }),
+  text(" pq ", " porque ", { auto: true }),
   // Math mode
   text("minl", "$$1$", { auto: true }),
   text("menv", "$$\n$1\n$$", { word: true, auto: true }),
@@ -12,7 +21,7 @@ export default ({ math, text, visual, commands, vars, options }) => [
   math("mcal", "\\mathcal{$1}$0"),
   math("mbf", "\\mathbf{$1}$0"),
   math("mrm", "\\mathrm{$1}$0"),
-  math("mfrak", "\\mathfrak{$1}$0"),
+  math(["mfr", "mfrk", "mfrak"], "\\mathfrak{$1}$0"),
   // Units
   // Voltage
   // Watts

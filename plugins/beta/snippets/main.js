@@ -1166,7 +1166,8 @@ async function de(e, t, n) {
 async function fe(e) {
 	let t = await fetch(e.assetUrl("starter.js"));
 	if (!t.ok) throw Error(`starter.js: ${t.status}`);
-	await e.writeText(J, await t.text());
+	let n = await t.text(), r = await e.exists(J) ? await e.readText(J) : null;
+	return r !== n && (r !== null && await e.trash(J), await e.writeText(J, n), !0);
 }
 async function pe(e, t = !0) {
 	let n = [], r = [], i = [];
@@ -1186,7 +1187,7 @@ async function pe(e, t = !0) {
 			});
 		}
 	}
-	let s = await e.editor.legacySnippets().catch(() => null), c = !!s?.sources.some((e) => e.trim()), l = c && !o.includes(ce);
+	let s = await e.editor.legacySnippets().catch(() => null), c = !!s?.sources.some((e) => e.trim()), l = c && !o.includes(ce) && !o.includes(J);
 	if (l) {
 		let e = _(s);
 		n.push({
@@ -1194,8 +1195,8 @@ async function pe(e, t = !0) {
 			entries: e.entries
 		}), r.push(...e.problems);
 	}
-	if (t && !i.length && !c) try {
-		return await fe(e), {
+	if (t && !l) try {
+		if (await fe(e)) return {
 			...await pe(e, !1),
 			wroteStarter: !0
 		};
@@ -1385,7 +1386,7 @@ function Se(e, t) {
 //#endregion
 //#region plugins/beta/snippets/ui/src/main.ts
 async function Ce(e) {
-	let t = oe(e), n = null, r = async () => (n = await pe(e), t.use(n), n.wroteStarter && e.toast("Snippets", `The LaTeX set is now this vault's ${J}: yours to edit. Settings → Snippets switches each snippet and option.`, "info"), n);
+	let t = oe(e), n = null, r = async () => (n = await pe(e), t.use(n), n.wroteStarter && e.toast("Snippets", `The plugin's LaTeX set is now ${J}, kept current by the plugin (a replaced copy goes to .atlas/trash). Settings → Snippets switches each snippet and option; your own snippets go in another file there.`, "info"), n);
 	e.editor.extension(t.extension), e.editor.claimTab(t.claim), await r(), t.loadWords().catch((e) => console.warn("snippets: the word list did not load, only the short one holds:", e)), e.onFilesChanged((e) => {
 		(!e.length || e.some((e) => e.startsWith(".atlas/snippets/") || e === ".atlas/config.toml")) && r();
 	});
