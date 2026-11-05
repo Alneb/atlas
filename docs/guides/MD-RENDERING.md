@@ -32,6 +32,11 @@ Build first: `npm run build && (cd .. && cargo build -p atlas)`. ~5–7 min for 
    longer turns the rest of the note into one formula, or shifts the pairing of every later one. The heading
    is the bound because a formula never holds one, while blank lines inside a formula are real (an `align`
    with a gap). The search reads 8 KB chunks, so a note full of formulas costs one short scan per opener.
+   **`$$align` blocks** (`lib/math-align.ts`, in `math.ts`'s one rewrite before KaTeX, so the reading view, the
+   editor and every other drawing agree): display math whose first line is `align` or `align*` is plain lines, drawn
+   as that environment with `&` before each line's first relation outside brackets (`=`, `\leq`, `\approx`, `:=`…),
+   `\\` between lines, `&\quad` before a line that goes on a sum, a line with its own `&` left as written. The note
+   keeps the short form; Obsidian draws it as one plain formula. The Snippets option Auto-align types it (`malign`).
 2. **Indented continuation prose became code** (Renormalization Group: 14 raw `$a$`). The vault indents
    text under list items / after `$$` blocks with a tab or 4 spaces; CommonMark makes that an indented code
    block. Indented code is off in both parsers (`{ remove: ["IndentedCode"] }`, `md.disable("code")`). Fenced code

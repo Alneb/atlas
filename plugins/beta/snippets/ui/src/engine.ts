@@ -53,6 +53,9 @@ export function makeEngine(atlas: PluginApi) {
 
   let SNIPPETS: Compiled[] = [];
   let KNOWN: string[] = COMMANDS;
+  /** The commands and triggers the snippets themselves make (not the built-in list, nor aliases): only these hold a
+   *  trigger typed from its first letter (`the` while `theta` may come), as nothing else could follow it. */
+  let MADE: string[] = [];
   let DICT = new Dictionary(WORDS, null);
   let OWN: string[] = [], BIG: SortedWords | null = null;
   /** The spelling dictionaries (`words.txt`, beside the plugin), fetched once: until they come the short list holds. */
@@ -69,6 +72,7 @@ export function makeEngine(atlas: PluginApi) {
   function use(l: Loaded): void {
     SNIPPETS = l.snippets;
     KNOWN = [...new Set([...COMMANDS, ...l.known])];
+    MADE = l.known;
     OWN = l.words;
     DICT = new Dictionary([...WORDS, ...OWN], BIG);
     anyCode = l.snippets.some((s) => s.code && s.langs !== null);
@@ -117,6 +121,13 @@ export function makeEngine(atlas: PluginApi) {
 
   function write(view: EditorView, s: Compiled, body: string, from: number, to: number, typed: string, visual = ""): void {
     const was = view.state.sliceDoc(from, to) + typed;
+    // the key that completed the trigger lands first, with the typing: Undo then takes back the expansion alone and
+    // leaves the trigger as typed, not short of its last letter
+    if (typed) {
+      view.dispatch({ changes: { from: to, insert: typed }, selection: { anchor: to + typed.length }, userEvent: "input.type" });
+      to += typed.length;
+      typed = "";
+    }
     stops.insert(view, body, from, to, visual, s.legacyStops);
     lastExpansion.set(view, { doc: view.state.doc, from, to: from + parseStops(body, visual, s.legacyStops).text.length, typed: was });
   }
@@ -220,10 +231,11 @@ export function makeEngine(atlas: PluginApi) {
   }
 
   /** The key that released a held snippet, typed after its expansion — but not a space after one that already ends in
-   *  a space (`sim` + Space → `\sim `, not `\sim  `). */
+   *  a space (`sim` + Space → `\sim `, not `\sim  `), nor one that would land inside the bracket it opened (`frac` +
+   *  Space → `\frac{|}{}`): that Space only said the trigger was whole. */
   function typeAfter(view: EditorView, typed: string): void {
     const at = view.state.selection.main.head;
-    if (typed === " " && /[ \t]/.test(view.state.sliceDoc(at - 1, at))) return;
+    if (typed === " " && /[ \t{([]/.test(view.state.sliceDoc(at - 1, at))) return;
     view.dispatch(view.state.replaceSelection(typed));
   }
 
@@ -269,7 +281,15 @@ export function makeEngine(atlas: PluginApi) {
     // the letters being typed, where they start in the document, and whether they still start a longer command, trigger
     // or word (`sim` of `simeq`, `bra` of `braket`, `the` of `then`)
     const word = lettersEnd(before), wordAt = startOf(word.length);
-    const longer = (w: string) => !!w && !plainly && (KNOWN.some((k) => k.length > w.length && k.startsWith(w)) || DICT.grows(w.toLowerCase()));
+    // letters right after a backslash are a command being typed (`\\inte…`): no ordinary word can grow from them
+    const afterSlash = before[before.length - word.length - 1] === "\\";
+    const longer = (w: string) => !!w && !plainly && (KNOWN.some((k) => k.length > w.length && k.startsWith(w)) || (!afterSlash && DICT.grows(w.toLowerCase())));
+    // in math a trigger typed from its first letter is meant (`ket`, `frac`, `ee`, `cdot`): it fires at once unless the
+    // snippets make something longer from it. Not a bare command name under three letters (`mu` of `much`, `to`), nor
+    // one inside longer letters (`pi` of `spi…`): those wait for the word or command
+    const holds = (w: string, core: string, plain: boolean) =>
+      w.length > core.length || here().kind !== "math" || (!plain && core.length < 3) ? longer(w)
+        : !plainly && MADE.some((k) => k.length > w.length && k.startsWith(w));
     // a waiting trigger: kept while the keys still spell a longer one, released first when this key does not
     if (held && (!hit || startOf(hit.len) >= held.to)) {
       const piece = view.state.sliceDoc(held.core, head) + typed;
@@ -279,9 +299,9 @@ export function makeEngine(atlas: PluginApi) {
         return false;
       }
       // an ordinary word, whole, as a letter completes it (`then`) or a key ends it (`number `): it stays as typed
-      if (!hit && letter && DICT.has(word.toLowerCase())) return false;
+      if (!hit && letter && !afterSlash && DICT.has(word.toLowerCase())) return false;
       const ended = lettersEnd(view.state.sliceDoc(line.from, head));
-      if (!hit && !letter && ended.length > (held.m ? coreOf(held.m) : held.s.plain!).length && DICT.has(ended.toLowerCase())) return false;
+      if (!hit && !letter && !afterSlash && ended.length > (held.m ? coreOf(held.m) : held.s.plain!).length && DICT.has(ended.toLowerCase())) return false;
       if (!hit && letter && KNOWN.includes(word)) {
         // the key completes a command: after a backslash it stands as typed (`\simeq`, not `\sim eq`); the one the held
         // trigger makes is that trigger (`sqrt` → `sqr`'s `\sqrt{ }`); any other becomes the command (`cdots` → `\cdots`)
@@ -298,7 +318,7 @@ export function makeEngine(atlas: PluginApi) {
     }
     if (!hit) return false;
     const best = hit.s, core = hit.m ? coreOf(hit.m) : best.plain!;
-    if (autoOnly && typed && (SNIPPETS.some((t) => t !== best && growsInto(before, core, t) && usable(t)) || (/^[A-Za-z]+$/.test(core) && !signed(best) && longer(word)))) {
+    if (autoOnly && typed && (SNIPPETS.some((t) => t !== best && growsInto(before, core, t) && usable(t)) || (/^[A-Za-z]+$/.test(core) && !signed(best) && holds(word, core, !best.regex)))) {
       const from = startOf(hit.len), end = head + typed.length;
       waiting.set(view, { s: best, m: hit.m, from, to: end, core: end - core.length, at: end });
       return false; // the key is typed as it is; the next one decides
@@ -334,6 +354,25 @@ export function makeEngine(atlas: PluginApi) {
     return typed === "{" && stops.active(view.state) && /[_^]\{$/.test(view.state.sliceDoc(Math.max(0, at - 2), at)) && view.state.sliceDoc(at, at + 1) === "}";
   }
 
+  /** A Space right after an expansion that left the caret just inside its bracket (`frac` → `\\frac{|}{}`) or after its
+   *  own space (`sim` → `\\sim |`): the habit of ending a trigger with Space, which the trigger did not need. It types
+   *  nothing. */
+  function habitSpace(view: EditorView, at: number, typed: string): boolean {
+    return typed === " " && lastExpansion.get(view)?.doc === view.state.doc && /[{([ \t]/.test(view.state.sliceDoc(at - 1, at));
+  }
+
+  /** `^` or `_` right after spaces that follow a term, in math: the spaces go (`\ket{\psi} ^` → `\ket{\psi}^`).
+   *  Returns where the key now lands. */
+  function dropSpaceBefore(view: EditorView, at: number, typed: string): number {
+    if (typed !== "^" && typed !== "_") return at;
+    const line = view.state.doc.lineAt(at), before = view.state.sliceDoc(Math.max(line.from, at - TAIL), at);
+    const m = /([A-Za-z0-9}\])|])( +)$/.exec(before);
+    if (!m || placeOf(view, at).kind !== "math") return at;
+    const from = at - m[2].length;
+    view.dispatch({ changes: { from, to: at }, selection: { anchor: from }, userEvent: "delete" });
+    return from;
+  }
+
   /** Where Tab would go from the caret (a document position), or null. */
   function taboutFrom(view: EditorView): number | null {
     const { head } = view.state.selection.main;
@@ -367,8 +406,12 @@ export function makeEngine(atlas: PluginApi) {
   function key(view: EditorView, from: number, to: number, text: string): boolean {
     if (text.length !== 1 || view.state.selection.ranges.length > 1 || !runsHere(view)) return false;
     if (from !== to) return wrapSelection(view, from, to, text);
-    if (braceThere(view, from, text)) return true;
-    return tryExpand(view, from, text, true) || overtype(view, from, text);
+    if (braceThere(view, from, text) || habitSpace(view, from, text)) return true;
+    const at = dropSpaceBefore(view, from, text);
+    if (at === from) return tryExpand(view, from, text, true) || overtype(view, from, text);
+    // the text moved under the editor's own insert: the key is typed here
+    if (!tryExpand(view, at, text, true)) view.dispatch(view.state.replaceSelection(text));
+    return true;
   }
 
   const inMath = (view: EditorView) => { const p = placeOf(view, view.state.selection.main.head); return p.kind === "math"; };
@@ -422,5 +465,5 @@ export function makeEngine(atlas: PluginApi) {
     } finally { view.destroy(); }
   }
 
-  return { extension, claim, use, loadWords, simulate, insert: stops.insert, snippets: () => SNIPPETS, fits, placeOf };
+  return { extension, claim, use, loadWords, simulate, insert: stops.insert, snippets: () => SNIPPETS, made: () => MADE, fits, placeOf };
 }

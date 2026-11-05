@@ -30,6 +30,7 @@ import { pluginCompletions, pluginHooks } from "./plugin-hooks";
 import { atlasTheme } from "./theme";
 import { drawnSelection } from "./drawn-selection";
 import { defineEx, exHooks, modeLabel, stashVisual, restoreVisual, desktopKeys, type VimModeLabel } from "./vim-glue";
+import { defineWordMotions } from "./vim-words";
 import { tabKey, untouchedTaskList } from "./tab-keys";
 import { placeOf, keepPlace, topIn, type Place } from "./places";
 import { noteExtensions, mdOptions } from "./note-extensions";
@@ -92,6 +93,7 @@ installImagePeek(); // Ctrl over a picture: shown large (lib/image-peek.ts); onc
 
 export function createEditor(o: EditorOptions): AtlasEditor {
   defineEx();
+  defineWordMotions();
   let keepTimer: ReturnType<typeof setTimeout> | undefined;
   let keep = () => {}; // set once the view exists: remembers the place it is left at
   const vimSlot = new Compartment();

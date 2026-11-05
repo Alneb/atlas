@@ -4,13 +4,11 @@ import type { PluginApi } from "../../../../../ui/src/lib/plugin-api";
 import type { CompletionAt, CompletionItem } from "../../../../../ui/src/lib/editor/plugin-hooks";
 import { convert } from "./convert";
 import { makeEngine } from "./engine";
-import type { Compiled } from "./format";
-import { CONVERTED, FOLDER, loadAll, type Read } from "./load";
+import { preview, type Compiled } from "./format";
+import { CONVERTED, FOLDER, STARTER, loadAll, type Read } from "./load";
 import { rank } from "./rank";
 import { mountSection } from "./settings";
 
-/** A body as a formula to show: stops give way to their placeholders. */
-const preview = (body: string) => body.replace(/\$\{VISUAL\}/g, "x").replace(/\$\{\d+:((?:[^{}]|\{[^{}]*\})*)\}/g, "$1").replace(/\$\{\d+\}|\$\d+/g, "\\square ");
 
 export async function register(atlas: PluginApi) {
   const engine = makeEngine(atlas);
@@ -18,6 +16,7 @@ export async function register(atlas: PluginApi) {
   const reload = async () => {
     read = await loadAll(atlas);
     engine.use(read);
+    if (read.wroteStarter) atlas.toast("Snippets", `The LaTeX set is now this vault's ${STARTER}: yours to edit. Settings → Snippets switches each snippet and option.`, "info");
     return read;
   };
   atlas.editor.extension(engine.extension);
@@ -45,7 +44,7 @@ export async function register(atlas: PluginApi) {
     // name only, as there is nothing to expand from a list
     complete: (at: CompletionAt) => {
       const place = where(at.view, at.pos), typed = at.word;
-      const fixed = engine.snippets().filter((s) => s.plain?.trim() && typeof s.body === "string" && !s.visual && engine.fits(s, place, at.view));
+      const fixed = engine.snippets().filter((s) => s.plain?.trim() && !s.alias && typeof s.body === "string" && !s.visual && engine.fits(s, place, at.view));
       // "x@a": the trigger starts where some snippet's name starts, not where the word does
       for (let i = 0; i <= Math.max(0, typed.length - (at.explicit ? 1 : 2)); i++) {
         // inside the word only after a boundary (`x@a`, `2pp`): "frac" is not "ac" for `acomm`

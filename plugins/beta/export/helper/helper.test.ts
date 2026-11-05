@@ -3,7 +3,8 @@
 import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import { harness } from "atlas-helper/testing";
-import { translate, relative } from "./translate";
+import { translate, relative, mathPortable } from "./translate";
+import { macroDefinitions } from "../../../../ui/src/lib/tex-portable";
 import { latexErrors, yamlEntry } from "./helper";
 
 const REPORT = `---
@@ -164,4 +165,16 @@ test("a header of several lines goes as a block scalar (pandoc reads a quoted on
   const y = yamlEntry("header-includes", ["```{=latex}\n\\usepackage{soul}\n```"]);
   assert.equal(y, "header-includes:\n- |\n    ```{=latex}\n    \\usepackage{soul}\n    ```");
   assert.equal(yamlEntry("title", "One line"), 'title: "One line"');
+});
+
+test("formulas: Atlas's macros kept and defined per road, a $$align block an aligned, a heading after a line its own", async () => {
+  assert.equal(mathPortable("a $\\ket{\\psi}$ b"), "a $\\ket{\\psi}$ b"); // LaTeX keeps it; the road defines it
+  assert.equal(mathPortable("x\n$$\n\\braket{a|b} \\cdot \n$$\ny"), "x\n$$\n\\braket{a|b} \\cdot\n$$\ny");
+  assert.equal(mathPortable("$$align\na = b\nc \\leq d\n$$"), "$$\n\\begin{aligned}\na &= b \\\\\nc &\\leq d\n\\end{aligned}\n$$");
+  assert.equal(mathPortable("$$\\begin{align}x &= 1\\end{align}$$"), "$$\n\\begin{aligned}x &= 1\\end{aligned}\n$$");
+  assert.match(macroDefinitions("providecommand"), /^\\providecommand\{\\ket\}\[1\]\{\\left\| #1\\right\\rangle\}$/m);
+  assert.match(macroDefinitions("newcommand"), /^\\newcommand\{\\Tr\}\{\\operatorname\{Tr\}\}$/m);
+  const files: Record<string, string> = { "n.md": "Intro line\n## Next\ntext\n" };
+  const t = await translate({ files: Object.keys(files), read: async (p) => files[p] }, "n.md", "", new Set());
+  assert.match(t.markdown, /Intro line\n\n## Next/);
 });

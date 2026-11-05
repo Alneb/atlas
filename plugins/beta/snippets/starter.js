@@ -1,8 +1,7 @@
-// The LaTeX set: math snippets (fractions, fonts, Greek, operators, environments, visual wraps) in the Snippets
-// format, a pack on by default. A vault's own snippet with the same trigger wins over this one (format.ts).
-import type { Builders, Entry } from "./format";
-
-export const latexSet = ({ math, text, visual, commands, vars }: Builders): Entry[] => [
+// The LaTeX set: what Snippets writes into a vault that has no snippets yet. This file is yours: edit, add, delete.
+// Settings → Snippets lists every snippet here with a switch, and each option below as one switch; `{ on: false }`
+// starts an option off. README.md (Snippets) has the format.
+export default ({ math, text, visual, commands, vars, options }) => [
   vars({"${GREEK}":"alpha|beta|gamma|Gamma|delta|Delta|epsilon|varepsilon|zeta|eta|theta|vartheta|Theta|iota|kappa|lambda|Lambda|mu|nu|xi|omicron|pi|Pi|rho|varrho|sigma|varsigma|Sigma|tau|upsilon|Upsilon|phi|varphi|Phi|chi|psi|Psi|omega|Omega","${SYMBOL}":"parallel|perp|partial|nabla|hbar|ell|infty|oplus|ominus|otimes|oslash|square|star|dagger|vee|wedge|subseteq|subset|supseteq|supset|emptyset|exists|nexists|forall|implies|impliedby|iff|setminus|neg|lor|land|bigcup|bigcap|cdot|times|simeq|approx","${MORE_SYMBOLS}":"qquad|quad|leq|geq|neq|gg|ll|equiv|neq|sim|propto|rightarrow|leftarrow|Rightarrow|Leftarrow|leftrightarrow|to|mapsto|cap|cup|sum|prod|exp|ln|log|det|dots|vdots|ddots|int|iint|iiint|oint|tiny|langle|rangle"}),
   // Math mode
   text("minl", "$$1$", { auto: true }),
@@ -23,7 +22,7 @@ export const latexSet = ({ math, text, visual, commands, vars }: Builders): Entr
   math("Hz", "\\space\\text{Hz}"),
   math("ang", "Å"),
   math("deg", "º"),
-  math("ST", "\\space\\text{ $1 } $0"),
+  math("ST", "\\space\\text{$1} $0"),
   // Greek letters
   math("@a", "\\alpha"),
   math("@b", "\\beta"),
@@ -64,7 +63,7 @@ export const latexSet = ({ math, text, visual, commands, vars }: Builders): Entr
   math("e8", "^{8}$0"),
   math("eplus", "^{\\text{\\small (+)}}$0"),
   math("eminus", "^{\\text{\\small (-)}}$0"),
-  math("ee", "e^{ $1 }$0"),
+  math("ee", "e^{$1}$0"),
   math("inv", "^{-1}"),
   math("e-1", "^{-1}"),
   math("pow", "^{$1}$0"),
@@ -75,42 +74,40 @@ export const latexSet = ({ math, text, visual, commands, vars }: Builders): Entr
   math("sub", "_{$1}$0"),
   math("--", "_{$1}$0", { priority: -1 }),
   math("_", "_{$1}$0"),
-  math(/\^([a-zA-Z0-9]{2,})/, (match: RegExpExecArray | null) => {
-      return `\^{${match![1]}\$0}$1`;
+  math(/\^([a-zA-Z0-9]{2,})/, (match) => {
+      return `\^{${match[1]}\$0}$1`;
     }, { legacyStops: true }),
-  math("sqr", "\\sqrt{ $1 }$0"),
-  math("([0-9|n|m|k]{1,})rt", (match: RegExpExecArray | null) => {
-      return `\\sqrt[${match![1]}]{ $0 } $1`;
+  math("sqr", "\\sqrt{$1}$0"),
+  math("([0-9|n|m|k]{1,})rt", (match) => {
+      return `\\sqrt[${match[1]}]{$0} $1`;
     }, { regex: true, legacyStops: true, priority: -1 }),
-  math("nrt", (match: RegExpExecArray | null) => {
-      return `\\sqrt[\${0:n}]{ $1 } $2`;
+  math("nrt", (match) => {
+      return `\\sqrt[\${0:n}]{$1} $2`;
     }, { regex: true, legacyStops: true }),
   math("//", "\\frac{$1}{$2}$0"),
   math("frac", "\\frac{$1}{$2}$0"),
   math("onehalf", "\\frac{1}{2}"),
   math(/(?<![\\A-Za-z])([A-Za-z])(\d)/, "[[0]]_{[[1]]}", { priority: -1, name: "Auto letter subscript" }),
-  // the automatic spacing: a bare name gets its backslash, a letter after a command a space
-  commands(["alpha","beta","gamma","Gamma","delta","Delta","epsilon","varepsilon","zeta","eta","theta","vartheta","Theta","iota","kappa","lambda","Lambda","mu","nu","xi","omicron","pi","Pi","rho","varrho","sigma","varsigma","Sigma","tau","upsilon","Upsilon","phi","varphi","Phi","chi","psi","Psi","omega","Omega"], { digit: "subscript" }),
-  commands(["parallel","perp","partial","nabla","hbar","ell","infty","oplus","ominus","otimes","oslash","square","star","dagger","vee","wedge","subseteq","subset","supseteq","supset","emptyset","exists","nexists","forall","implies","impliedby","iff","setminus","neg","lor","land","bigcup","bigcap","cdot","times","simeq","approx","qquad","quad","leq","geq","neq","gg","ll","equiv","sim","propto","rightarrow","leftarrow","Rightarrow","Leftarrow","leftrightarrow","to","mapsto","cap","cup","sum","prod","exp","ln","log","det","dots","vdots","ddots","int","iint","iiint","oint","tiny","langle","rangle","arcsin","arccos","arctan","arccot","arccsc","arcsec","sin","cos","tan","cot","csc","sec","sinh","cosh","tanh","coth","sech","csch"], { digit: "space" }),
-  math(/\\exp ([a-zA-Z0-9]{1,})/, (match: RegExpExecArray | null) => {
-      return `\\exp\\left(${match![1]}$0\\right)$1`;
+  options.spacing(),
+  math(/\\exp ([a-zA-Z0-9]{1,})/, (match) => {
+      return `\\exp\\left(${match[1]}$0\\right)$1`;
     }, { legacyStops: true }),
   math("conj", "^{*}"),
   math("Re", "\\mathfrak{Re}"),
   math("Im", "\\mathfrak{Im}"),
-  math(/\\mathfrak{Re}([a-zA-Z0-9]{2,})/, (match: RegExpExecArray | null) => {
-      return `\\mathfrak{Re}\\left\\{${match![1]}$0\\right\\}$1`;
+  math(/\\mathfrak{Re}([a-zA-Z0-9]{2,})/, (match) => {
+      return `\\mathfrak{Re}\\left\\{${match[1]}$0\\right\\}$1`;
     }, { legacyStops: true }),
-  math(/\\mathfrak{Im}([a-zA-Z0-9]{2,})/, (match: RegExpExecArray | null) => {
-      return `\\mathfrak{Im}\\left\\{${match![1]}$0\\right\\}$1`;
+  math(/\\mathfrak{Im}([a-zA-Z0-9]{2,})/, (match) => {
+      return `\\mathfrak{Im}\\left\\{${match[1]}$0\\right\\}$1`;
     }, { legacyStops: true }),
   // Linear algebra
   math("Tr", "\\mathrm{Tr}"),
-  math(/\\det ([a-zA-Z0-9]{2,})/, (match: RegExpExecArray | null) => {
-      return `\\det\\left(${match![1]}$0\\right)$1`;
+  math(/\\det ([a-zA-Z0-9]{2,})/, (match) => {
+      return `\\det\\left(${match[1]}$0\\right)$1`;
     }, { legacyStops: true }),
-  math(/\\mathrm{Tr}([a-zA-Z0-9]{2,})/, (match: RegExpExecArray | null) => {
-      return `\\mathrm{Tr}\\left(${match![1]}$0\\right)$1`;
+  math(/\\mathrm{Tr}([a-zA-Z0-9]{2,})/, (match) => {
+      return `\\mathrm{Tr}\\left(${match[1]}$0\\right)$1`;
     }, { legacyStops: true }),
   math("\\\\(${GREEK}),\\.", "\\boldsymbol{\\[[0]]}", { regex: true }),
   math("\\\\(${GREEK})\\.,", "\\boldsymbol{\\[[0]]}", { regex: true }),
@@ -139,7 +136,7 @@ export const latexSet = ({ math, text, visual, commands, vars }: Builders): Entr
   math("prod", "\\prod"),
   math("\\sum", "\\sum_{${1:i}=${2:1}}^{${3:N}} $0", { auto: false }),
   math("\\prod", "\\prod_{${1:i}=${2:1}}^{${3:N}} $0", { auto: false }),
-  math("lim", "\\lim_{ ${1:n} \\to ${2:\\infty} } $0"),
+  math("lim", "\\lim_{${1:n} \\to ${2:\\infty}} $0"),
   math("+-", "\\pm"),
   math("-+", "\\mp"),
   math("...", "\\dots"),
@@ -184,7 +181,7 @@ export const latexSet = ({ math, text, visual, commands, vars }: Builders): Entr
   math("sub=", "\\subseteq"),
   math("sup=", "\\supseteq"),
   math("0set", "\\emptyset"),
-  math("set", "\\{ $1 \\}$0"),
+  math("set", "\\{$1\\}$0"),
   math("exists", "\\exists", { priority: 1 }),
   math("LL", "\\mathcal{L}"),
   math("HH", "\\mathcal{H}"),
@@ -212,7 +209,7 @@ export const latexSet = ({ math, text, visual, commands, vars }: Builders): Entr
   math("\\\\(${GREEK}|${SYMBOL}) pow", "\\[[0]]^{$1}$0", { regex: true }),
   math("\\\\(${GREEK}|${SYMBOL}) pp", "\\[[0]]^{$1}$0", { regex: true }),
   // Derivatives and integrals
-  math("par", "\\frac{ \\partial $1 }{ \\partial $2 } $0", { auto: false }),
+  math("par", "\\frac{\\partial $1}{\\partial $2} $0", { auto: false }),
   math(/pa([A-Za-z])([A-Za-z])/, "\\frac{ \\partial [[0]] }{ \\partial [[1]] } ", { auto: false }),
   math(/de([A-Za-z])([A-Za-z])/, "\\frac{ d [[0]] }{ d [[1]] } ", { priority: -1, auto: false }),
   math("ddt", "\\frac{d}{d${1:t}} $0"),
@@ -226,12 +223,12 @@ export const latexSet = ({ math, text, visual, commands, vars }: Builders): Entr
   math("iinf", "_{-\\infty}^{\\infty} d${1:x} $0", { priority: 1 }),
   // Trigonometry
   // Visual operations
-  visual("U", "\\underbrace{ ${VISUAL} }_{ $1 }"),
-  visual("O", "\\overbrace{ ${VISUAL} }^{ $1 }"),
-  visual("B", "\\underset{ $1 }{ ${VISUAL} }"),
-  visual("C", "\\cancel{ ${VISUAL} }"),
-  visual("K", "\\cancelto{ $1 }{ ${VISUAL} }"),
-  visual("S", "\\sqrt{ ${VISUAL} }"),
+  visual("U", "\\underbrace{${VISUAL}}_{$1}"),
+  visual("O", "\\overbrace{${VISUAL}}^{$1}"),
+  visual("B", "\\underset{$1}{${VISUAL}}"),
+  visual("C", "\\cancel{${VISUAL}}"),
+  visual("K", "\\cancelto{$1}{${VISUAL}}"),
+  visual("S", "\\sqrt{${VISUAL}}"),
   // Physics
   math("qham", "\\hat{H}"),
   math("cham", "\\mathcal{H}"),
@@ -246,13 +243,13 @@ export const latexSet = ({ math, text, visual, commands, vars }: Builders): Entr
   math("ox", "\\otimes "),
   math("bra", "\\bra{$1} $0"),
   math("ket", "\\ket{$1} $0"),
-  math("braket", "\\braket{ ${1:\\psi} | ${2:\\psi} } $0"),
-  math("brk", "\\braket{ ${1:\\psi} | ${2:\\psi} } $0"),
-  math("<|>", "\\braket{ ${1:\\psi} | ${2:\\psi} } $0"),
+  math("braket", "\\braket{${1:\\psi} | ${2:\\psi}} $0"),
+  math("brk", "\\braket{${1:\\psi} | ${2:\\psi}} $0"),
+  math("<|>", "\\braket{${1:\\psi} | ${2:\\psi}} $0"),
   math("><", "\\ket{${1:\\psi}} \\bra{${2:\\psi}} $0"),
   math("kbr", "\\ket{${1:\\psi}} \\bra{${2:\\psi}} $0"),
-  math("<||>", "\\braket{ ${1:\\psi} | ${2:\\hat{O}} | ${3:\\psi} } $0"),
-  math("exv", "\\braket{ ${1:\\psi} | ${2:\\hat{O}} | ${3:\\psi} } $0"),
+  math("<||>", "\\braket{${1:\\psi} | ${2:\\hat{O}} | ${3:\\psi}} $0"),
+  math("exv", "\\braket{${1:\\psi} | ${2:\\hat{O}} | ${3:\\psi}} $0"),
   // Commutator
   math("comm", "\\left[ ${1:A} , ${2:B} \\right] $0"),
   // Anticommutator
@@ -292,8 +289,8 @@ export const latexSet = ({ math, text, visual, commands, vars }: Builders): Entr
   math("normord", ": ${1:\\mathcal{O}} : $0"),
   math("comcreah", "\\left[ a, a^\\dagger \\right]_{\\pm} = 1"),
   // Chemistry
-  //{trigger: "pu", replacement: "\\pu{ $0 }", options: "mA"},
-  //{trigger: "cee", replacement: "\\ce{ $0 }", options: "mA"},
+  //{trigger: "pu", replacement: "\\pu{$0}", options: "mA"},
+  //{trigger: "cee", replacement: "\\ce{$0}", options: "mA"},
   //{trigger: "he4", replacement: "{}^{4}_{2}He ", options: "mA"},
   //{trigger: "he3", replacement: "{}^{3}_{2}He ", options: "mA"},
   //{trigger: "iso", replacement: "{}^{${0:4}}_{${1:2}}${2:He}", options: "mA"},
@@ -346,10 +343,10 @@ export const latexSet = ({ math, text, visual, commands, vars }: Builders): Entr
   text(/([A-Za-z]=[A-Za-z][+-]\d+)([\n\s.,?!:'])/, "$[[0]]$[[1]]", { word: true, auto: true }),
   // Snippet replacements can also be JavaScript functions.
   // See the documentation for more information.
-  math(/iden(\d)/, (match: RegExpExecArray | null) => {
-      const n = Number(match![1]);
+  math(/iden(\d)/, (match) => {
+      const n = Number(match[1]);
 
-      let arr: number[][] = [];
+      let arr = [];
       for (let j = 0; j < n; j++) {
         arr[j] = [];
         for (let i = 0; i < n; i++) {
@@ -361,4 +358,15 @@ export const latexSet = ({ math, text, visual, commands, vars }: Builders): Entr
       output = `\\begin{pmatrix}\n${output}\n\\end{pmatrix}`;
       return output;
     }, { legacyStops: true, name: "N x N identity matrix" }),
+
+  // Options: sets of snippets switched as one
+  options.autoAlign(),
+  options.matrices({ on: false }),
+  options.sequences({ on: false }),
+  options.minmax({ on: false }),
+  options.derivatives({ on: false }),
+  options.align({ on: false }),
+  options.colors({ on: false }),
+  options.units({ on: false }),
+  options.textHelpers({ on: false }),
 ];

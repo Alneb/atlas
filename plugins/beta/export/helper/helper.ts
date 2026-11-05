@@ -3,6 +3,7 @@
 // Typst compiles the Typst road's PDF; latexmk the LaTeX road's. Results go under the exports folder at the note's own
 // path (`notes/a/x.md` → `exports/notes/a/x.pdf`), a preview into the plugin's cache. The note is only read.
 import type { Params } from "atlas-helper";
+import { macroDefinitions } from "../../../../ui/src/lib/tex-portable";
 import { bibKeys, dirname, relative, translate, type Translated } from "./translate";
 
 export type Format = "pdf-typst" | "pdf-latex" | "tex" | "typ" | "docx";
@@ -114,7 +115,8 @@ function metadata(j: Job, road: "latex" | "typst" | "docx", header: string[]): s
   }
   if (header.length) m["header-includes"] = header;
   const yaml = Object.entries(m).filter(([, v]) => v !== undefined).map(([k, v]) => yamlEntry(k, v)).join("\n");
-  return `---\n${yaml}\n---\n\n`;
+  // Atlas's own macros (\ket…): pandoc applies these to every formula for Typst and Word; LaTeX gets them in its header
+  return `---\n${yaml}\n---\n\n${road === "latex" ? "" : `${macroDefinitions("newcommand")}\n\n`}`;
 }
 
 /** One metadata line. JSON is YAML (every value quoted as it is), except text of several lines: pandoc reads a quoted
@@ -186,6 +188,8 @@ async function latexRoad(j: Job, format: "pdf-latex" | "tex"): Promise<string[]>
     if (j.files.includes(j.o.preamble)) header.push("```{=latex}\n\\input{" + relative(j.outDir, j.o.preamble) + "}\n```");
     else j.t.warnings.push(`LaTeX preamble not found: ${j.o.preamble}`);
   }
+  // after the preamble, so a \ket it (or a package) defines is the one used
+  header.push("```{=latex}\n" + macroDefinitions("providecommand") + "\n```");
   const extra = ["--lua-filter", `${PLUGIN}/tikz.lua`, ...(j.t.cited.length && j.bib ? ["--biblatex"] : [])];
   const tex = await pandoc(j, "latex", metadata(j, "latex", header) + (await fences(j, "latex")), extra);
   const at = `${j.outDir}/${j.stem}.tex`;

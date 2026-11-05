@@ -31,6 +31,12 @@ A command keeps its Ctrl key and gains a second one. Nothing that worked stopped
 
 **A warning about Super that cannot be fixed inside Atlas:** the desktop sees a Super key first. On KDE Plasma, Super+E opens the file manager, Super+L locks the screen, Super+D shows the desktop, Super+1…9 switch tasks, Super+Tab switches activities, and more. A key the desktop takes never reaches Atlas — nothing breaks, the key just does what the desktop says, and the Ctrl key for the same command still works. To give Super+E to Atlas: System Settings → Keyboard → Shortcuts, search the key, remove it there. That is why the Super keys above avoid the ones KDE uses by default except Super+E, chosen on purpose. **Not checked on a real desktop session.**
 
+## Vim words in TeX
+
+In a formula (`$…$`, `$$…$$`) and in a `.tex` file, a backslash and its letters are one word: `w`, `b`, `e`, `ge` and everything built on them (`dw`, `cw`, `de`…) take `\alpha` whole. `\\` and `\,` stay punctuation, and outside TeX words are vim's own. The vim library's word test looks at one character and is private, so `ui/src/lib/editor/vim-words.ts` redefines the `moveByWords` motion with the library's search ported over tokens. The text objects (`iw`, `aw`) still use the library's test. Tests: `vim-words.spec.ts`.
+
+The block cursor blinks between filled and hollow, like a terminal's, and stays hollow while the editor is not focused (`ui/src/styles/editor.css`). It does not blink when motion is instant (reduced motion, e-ink).
+
 ## Two vim modes
 
 Two vim modes: the classic one, and one where Visual mode leaves Ctrl+X / Y / C and the other usual keys alone while still feeling like vim.

@@ -17,9 +17,26 @@ and versions follow [Semantic Versioning](https://semver.org/) once 1.0 is out.
   Windows (which keeps its Win keys); AltGr never runs a shortcut.
 - Plugins: an installed plugin starts switched on (`atlas plugin install --off` keeps it off), and a new vault starts
   with every built-in plugin on, the Library included.
+- Snippets: the vault's own file is the one set (a vault with none gets the LaTeX set as `.atlas/snippets/latex.js`);
+  automatic spacing, matrices by size, units and the other ready sets are options declared in that file; Settings lists
+  every snippet, drawn, with a switch on each snippet and each option.
+- Snippets: in math a trigger typed from its first letter fires at once (`ket`, `frac`, `ee`, `cdot`), Undo after an
+  expansion leaves the trigger as typed, a Space right after one adds nothing, and `^`/`_` take away the spaces before
+  them. Short starts and typo spellings no longer crowd the list.
+- Math: a display block whose first line is `align` (`$$align`, then plain lines) is drawn as an align with each line
+  at its first relation; the Snippets option Auto-align types it with `malign`. The exports write it as `aligned`.
+- Math source: `\left` and `\right` are drawn small and faint, their brackets bold in a colour per depth.
+- Vim: in a formula or a `.tex` file a command is one word (`dw` on `\alpha` takes the backslash with it); the
+  block cursor blinks between filled and hollow, and stays hollow when the editor is not focused.
 - The render audit keeps its temporary files in `target/` and keeps a finding only when a second look shows it.
 
 ### Fixed
+- Export: formulas using Atlas's own macros (`\ket`, `\bra`, `\braket`, `\Tr`, `\mbox`) are defined in each
+  exported document (`\providecommand` in LaTeX, kept as written), so LaTeX no longer stops and Typst and Word draw
+  them; a heading right after a line of text is a heading; `$$\begin{align}…$$`
+  is written as `aligned`, which LaTeX takes inside display math.
+- An `align` with equation numbers no longer shows a horizontal scrollbar (the numbers took the hashtag style).
+- A sideways swipe over anything that scrolls sideways is its scrolling, even at its end, never back or forward.
 - Markdown: an unclosed `$$` stays text instead of turning the rest of the note into one formula.
 
 ## [0.2.6] - 2026-11-04

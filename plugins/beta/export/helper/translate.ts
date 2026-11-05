@@ -24,6 +24,8 @@ export interface Translated {
   fences: Fence[];
 }
 
+import { expandAlign } from "../../../../ui/src/lib/math-align";
+
 const IMAGE = /\.(png|jpe?g|gif|svg|webp|pdf|eps)$/i;
 // fenced blocks Atlas or Obsidian draw from a query: nothing to print
 const QUERY_FENCES = new Set(["view", "base", "tasks", "dataview", "dataviewjs", "query"]);
@@ -84,6 +86,12 @@ function segments(md: string): [boolean, string, string][] {
   out.push([fence !== null, buf.join(""), fence !== null ? lang : ""]);
   return out;
 }
+
+/** Display math as every writer takes it: on lines of its own, a `$$align` block (and a whole `\begin{align}` in `$$`)
+ *  as pandoc's `aligned`, valid inside display math everywhere. Atlas's macros stay as written: each road carries their
+ *  definitions (helper.ts). */
+export const mathPortable = (text: string) => text.replace(/\$\$([\s\S]+?)\$\$/g, (_, tex: string) =>
+  `$$\n${expandAlign(tex.trim()).replace(/^\\begin\{align\*?\}([\s\S]*)\\end\{align\*?\}$/, "\\begin{aligned}$1\\end{aligned}")}\n$$`);
 
 /** `fn` applied to the text between inline code spans. */
 const outsideInlineCode = (text: string, fn: (s: string) => string) =>
@@ -170,6 +178,7 @@ class Translator {
     // note embeds are async: collected first, put back after
     const embeds: Promise<string>[] = [];
     const inline = (t: string) => {
+      t = mathPortable(t);
       t = t.replace(/!\[\[([^\]|]+)((?:\\?\|[^\]]*)?)\]\]/g, (_, target: string, o: string) => {
         target = target.trim();
         const opts = (o ?? "").replace(/^\\?\|/, "");
@@ -186,8 +195,8 @@ class Translator {
     // a callout's first line → a titled quote
     text = text.replace(/^((?:>\s*)+)\[!(\w+)\][+-]?[ \t]*(.*)$/gm,
       (_, q: string, kind: string, title: string) => `${q}**${title.trim() || kind[0].toUpperCase() + kind.slice(1)}**\n${q.trimEnd()}`);
-    // pandoc needs a blank line between a paragraph and the list under it
-    return text.replace(/^([^\n\s>|-][^\n]*)\n(\s*(?:[-*+]|\d+[.)]) )/gm, "$1\n\n$2");
+    // pandoc needs a blank line between a paragraph and the list under it, and before a heading (Obsidian does not)
+    return text.replace(/^([^\n\s>|-][^\n]*)\n(\s*(?:[-*+]|\d+[.)]) )/gm, "$1\n\n$2").replace(/^([^\n]*\S[^\n]*)\n(#{1,6}[ \t])/gm, "$1\n\n$2");
   }
 
   async body(md: string, near: string, depth = 0): Promise<string> {

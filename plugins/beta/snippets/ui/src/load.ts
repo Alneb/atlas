@@ -1,12 +1,20 @@
-// Reading what a vault says: its modules in .atlas/snippets/, the old file until it is converted, the packs switched on.
+// Reading what a vault says: its modules in .atlas/snippets/ (the one place snippets come from), the old file until it is
+// converted, and what Settings switched off or on. A vault with neither gets the LaTeX set written as its first file.
 import type { PluginApi } from "../../../../../ui/src/lib/plugin-api";
 import { builders, compileAll, readLegacy, type Entry, type Loaded, type Problem } from "./format";
-import { PACKS, packsOn } from "./packs";
+import { options } from "./options";
 import * as std from "./std";
 
 export const FOLDER = ".atlas/snippets";
 export const CONVERTED = `${FOLDER}/converted.js`;
-const dsl = { ...builders, std };
+export const STARTER = `${FOLDER}/latex.js`;
+const dsl = { ...builders, std, options };
+
+/** The keys Settings turned the other way from what the files say (a JSON list in the plugin's `switched` setting). */
+export function switchedOf(saved: unknown): Set<string> {
+  try { const v = JSON.parse(String(saved ?? "[]")); return new Set(Array.isArray(v) ? v.map(String) : []); }
+  catch { return new Set(); }
+}
 
 /** A file's text as a module the browser can import, its relative imports pointing at their own. */
 async function moduleUrl(atlas: PluginApi, path: string, seen: Map<string, Promise<string>>): Promise<string> {
@@ -38,10 +46,17 @@ async function readModule(atlas: PluginApi, path: string, seen: Map<string, Prom
   return made.flat(Infinity) as Entry[];
 }
 
-export interface Read extends Loaded { fromOldFile: boolean; modules: string[]; oldFile: { sources: string[]; variables: string } | null }
+export interface Read extends Loaded { fromOldFile: boolean; modules: string[]; oldFile: { sources: string[]; variables: string } | null; wroteStarter: boolean }
 
-export async function loadAll(atlas: PluginApi): Promise<Read> {
-  const files: { source: string; entries: Entry[]; pack?: boolean }[] = [], problems: Problem[] = [];
+/** The LaTeX set (starter.js, beside the plugin) as the vault's first snippet file. */
+async function writeStarter(atlas: PluginApi): Promise<void> {
+  const answer = await fetch(atlas.assetUrl("starter.js"));
+  if (!answer.ok) throw new Error(`starter.js: ${answer.status}`);
+  await atlas.writeText(STARTER, await answer.text());
+}
+
+export async function loadAll(atlas: PluginApi, starter = true): Promise<Read> {
+  const files: { source: string; entries: Entry[] }[] = [], problems: Problem[] = [];
   let names: string[] = [];
   // asked first: listing a folder that is not there is a 404 in the page's console
   if (await atlas.exists(FOLDER).catch(() => false)) names = (await atlas.list(FOLDER).catch(() => [])).filter((f) => !f.dir && f.name.endsWith(".js")).map((f) => f.path).sort();
@@ -63,8 +78,11 @@ export async function loadAll(atlas: PluginApi): Promise<Read> {
     files.push({ source: legacy.source, entries: legacy.entries });
     problems.push(...legacy.problems);
   }
-  const on = packsOn(atlas.plugin.settings.packs, files.length > 0);
-  for (const p of PACKS) if (on.includes(p.id)) files.push({ source: `the ${p.title} pack`, entries: p.entries(builders), pack: true });
-  const compiled = compileAll(files);
-  return { ...compiled, problems: [...problems, ...compiled.problems], fromOldFile, modules, oldFile: hasOld ? oldFile : null };
+  // nothing at all: the LaTeX set becomes the vault's own file, read like any other
+  if (starter && !names.length && !hasOld) {
+    try { await writeStarter(atlas); return { ...(await loadAll(atlas, false)), wroteStarter: true }; }
+    catch (e) { problems.push({ source: STARTER, what: `could not be written: ${String((e as Error).message ?? e)}` }); }
+  }
+  const compiled = compileAll(files, switchedOf(atlas.plugin.settings.switched));
+  return { ...compiled, problems: [...problems, ...compiled.problems], fromOldFile, modules, oldFile: hasOld ? oldFile : null, wroteStarter: false };
 }

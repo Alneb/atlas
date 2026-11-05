@@ -5,8 +5,16 @@
 /* Colours, fonts and gutters that CodeMirror's base theme also sets live in lib/editor/theme.ts. */
 .cm-content { caret-color: var(--accent); padding: 14px 0 40vh; }
 .cm-cursor, .cm-dropCursor { border-left: 2px solid var(--accent) !important; }
-.cm-fat-cursor { background: color-mix(in srgb, var(--accent) 70%, transparent) !important; color: var(--accent-fg) !important; border: 0 !important; }
-.cm-editor:not(.cm-focused) .cm-fat-cursor { background: none !important; outline: 1px solid var(--accent) !important; color: inherit !important; }
+/* Vim's block cursor blinks between a filled box and a hollow one, as a terminal's does; away from the editor it
+   stays hollow (still with ui.motion instant: base.css). The edge is an inset shadow: a 1px outline on a fractional pixel lost edges and read as a "]".
+   No !important here (an animation cannot change an !important value): the doubled class outranks vim's theme. */
+.cm-editor.cm-editor .cm-scroller .cm-fat-cursor {
+  background: color-mix(in srgb, var(--accent) 70%, transparent); color: var(--accent-fg);
+  border: 0; outline: none; box-shadow: inset 0 0 0 1.5px var(--accent);
+  animation: atlas-fat-blink 1.2s steps(1, end) infinite;
+}
+@keyframes atlas-fat-blink { 50% { background: transparent; color: var(--text); } }
+.cm-editor.cm-editor:not(.cm-focused) .cm-scroller .cm-fat-cursor { background: transparent; color: inherit; animation: none; }
 .cm-selectionBackground { background: var(--accent-sel) !important; }
 .cm-content ::selection { background: var(--accent-sel); }
 .cm-activeLine { background: color-mix(in srgb, var(--text) 3%, transparent); }

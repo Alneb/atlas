@@ -3,6 +3,8 @@
 // its source, rendered in place once it does (wherever that HTML went: a note, a list, a title).
 import type { KatexOptions } from "katex";
 import { rendererArrived } from "./lazy-render";
+import { expandAlign } from "./math-align";
+import { MACROS } from "./tex-portable";
 
 type Katex = typeof import("katex").default;
 let katex: Katex | null = null;
@@ -31,22 +33,12 @@ export const PENDING = (source: string, block: boolean) =>
 function drawPending(el: HTMLElement): void {
   const source = el.textContent ?? "", block = el.hasAttribute("data-display");
   el.classList.remove("math-pending");
-  try { katex!.render(compat(source), el, opts(block)); } catch { el.classList.add("math-error"); }
+  try { katex!.render(compat(source, block), el, opts(block)); } catch { el.classList.add("math-error"); }
 }
 
-// One macro table for the session, so `\def`/`\newcommand` in one formula carry to the next
-// (what readers of physics notes expect from MathJax-era documents).
-const macros: Record<string, string> = {
-  "\\R": "\\mathbb{R}",
-  "\\C": "\\mathbb{C}",
-  "\\N": "\\mathbb{N}",
-  "\\Z": "\\mathbb{Z}",
-  "\\ket": "\\left|#1\\right\\rangle",
-  "\\bra": "\\left\\langle#1\\right|",
-  "\\braket": "\\left\\langle#1\\right\\rangle",
-  "\\Tr": "\\operatorname{Tr}",
-  "\\mbox": "\\text{#1}", // standard LaTeX and MathJax's; KaTeX has no such command and drew it as an error
-};
+// One macro table for the session (Atlas's own, tex-portable.ts, then a note's), so `\def`/`\newcommand` in one formula
+// carry to the next (what readers of physics notes expect from MathJax-era documents).
+const macros: Record<string, string> = { ...MACROS };
 
 const opts = (displayMode: boolean): KatexOptions => ({
   displayMode,
@@ -73,18 +65,19 @@ function isDefined(name: string): boolean {
 }
 
 /**
+ * A `$$align` block becomes its environment (math-align.ts).
  * MathJax accepts what KaTeX rejects: `\newcommand` over an existing name (`\div`, or the same
  * note rendered twice) and a bare `_`/`^` inside `\text{}` (`\text{Nb_3Ge}`). Rewrite both.
  */
-function compat(source: string): string {
-  return source
+function compat(source: string, block: boolean): string {
+  return (block ? expandAlign(source) : source)
     .replace(/\\(re)?newcommand\s*\{?\\([A-Za-z]+)\}?/g, (_m, _re, name: string) =>
       `\\${isDefined(name) ? "renewcommand" : "newcommand"}{\\${name}}`)
     .replace(/\\text\{([^{}]*)\}/g, (_m, body: string) => `\\text{${body.replace(/(?<!\\)([_^])/g, (c) => (c === "_" ? "\\_" : "\\^{}"))}}`);
 }
 
 export function renderMathInto(host: HTMLElement, source: string, block: boolean): void {
-  if (katex) { katex.render(compat(source), host, opts(block)); return; }
+  if (katex) { katex.render(compat(source, block), host, opts(block)); return; }
   host.innerHTML = PENDING(source, block);
   void loadMath();
 }
@@ -92,7 +85,7 @@ export function renderMathInto(host: HTMLElement, source: string, block: boolean
 export function mathToString(source: string, block: boolean): string {
   if (!katex) { void loadMath(); return PENDING(source, block); }
   try {
-    return katex.renderToString(compat(source), opts(block));
+    return katex.renderToString(compat(source, block), opts(block));
   } catch {
     return `<code class="math-error">${source.replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" })[c]!)}</code>`;
   }

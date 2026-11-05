@@ -30,6 +30,11 @@ the result goes under the exports folder at the note's own path (`notes/reports/
   dialog before the export (Atlas 23 or newer; code before that); ```` ```typst ```` → the picture on the Typst
   road, a PDF picture made by Atlas's Typst on the LaTeX road, code in Word; comments, block ids and query blocks left
   out.
+- **Formulas** as Atlas draws them: its own macros (`\ket`, `\bra`, `\braket`, `\Tr`, `\mbox`, `\R`…) kept as
+  written and defined in each document (`\providecommand` in the LaTeX preamble, `\newcommand` for pandoc's Typst
+  and Word writers); a `$$align` block and a whole `\begin{align}` in `$$` written
+  as `aligned` (valid inside display math everywhere); a heading right after a line of text kept a heading. The
+  definitions come from the table the drawing uses (`ui/src/lib/tex-portable.ts`).
 - LaTeX's own files (`.aux`, `.log`, `.bbl`…) stay in `.atlas/cache/plugins/export/build/`; previews in
   `.atlas/cache/plugins/export/preview/`.
 

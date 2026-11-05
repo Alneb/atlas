@@ -27,6 +27,24 @@ import { EditorState, StateField, StateEffect, Prec } from "@codemirror/state";
 import { syntaxTree } from "@codemirror/language";
 import { isIconToken } from "./obsidian-syntax.js";
 
+/**
+ * `\left(` … `\right)` in a formula's source, made short and paired: the command word small and faint, its bracket
+ * bold in a colour by its depth (three, in turn), so the pairs read at a glance while the text stays as typed.
+ * @param {string} source the formula between its delimiters
+ * @param {number} at where it starts in the document
+ * @param {(a: number, b: number, cls: string) => void} mark
+ */
+export function markSizedBrackets(source, at, mark) {
+  let depth = 0;
+  for (const m of source.matchAll(/\\(left|right)(?![A-Za-z])(\\[A-Za-z]+|\\.|[^\s\\])?/g)) {
+    const opens = m[1] === "left";
+    const level = opens ? depth++ : (depth = Math.max(0, depth - 1));
+    const start = at + m.index, word = 1 + m[1].length;
+    mark(start, start + word, "cm-math-lr-cmd");
+    if (m[2]) mark(start + word, start + m[0].length, `cm-math-lr cm-math-lr-${level % 3}`);
+  }
+}
+
 // --- reveal rule ------------------------------------------------------------
 
 /**
@@ -886,6 +904,7 @@ export function buildDecorations(state, ranges, options = {}) {
     mark(from, inner.from, FENCE);
     mark(inner.to, to, FENCE);
     const source = state.doc.sliceString(inner.from, inner.to);
+    markSizedBrackets(source, inner.from, mark);
     for (const r of opts.highlightCode(source, "latex")) {
       // Clamp exactly as the fenced-code branch does: a stale cache entry must
       // never produce a decoration reaching past the text it describes.
@@ -1675,9 +1694,12 @@ function redecorate_(value, tr, opts) {
   if (touchesHeading(tree, from, to) || oldSpans.some(([a, b]) => touchesHeading(oldTree, a, b))) return null;
   return finish(redraw(value.deco.map(tr.changes), state, from, to, opts));
 }
-/** `deco` with what lies in from..to dropped and drawn again from the state. */
+/** `deco` with what lies in from..to dropped and drawn again from the state. A node reaching past the range (a `$$`
+ *  formula entered from its closing line) is drawn whole, so the range grows to what was drawn: its inner marks
+ *  (the LaTeX colours, `\left` and `\right`) were otherwise left out. */
 function redraw(deco, state, from, to, opts) {
   const fresh = buildDecorations(state, [{ from, to }], opts);
+  fresh.between(from, to, (f, t) => { from = Math.min(from, f); to = Math.max(to, t); });
   const add = [];
   fresh.between(from, to, (f, t, v) => { add.push(v.range(f, t)); });
   return deco.update({ filterFrom: from, filterTo: to, filter: () => false, add, sort: true });

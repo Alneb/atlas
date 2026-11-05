@@ -29,7 +29,7 @@ const GONE = new Map<string, string>([
 const SPACING = new Set(["([^\\\\])(${GREEK}|${SYMBOL}|${MORE_SYMBOLS})", "\\\\(${GREEK}|${SYMBOL}|${MORE_SYMBOLS})([A-Za-z])", "/([^\\\\])(exp|log|ln)/", "/([^\\\\])(det)/",
   "/([^\\\\])(arcsin|sin|arccos|cos|arctan|tan|csc|sec|cot)/", "/\\\\(arcsin|sin|arccos|cos|arctan|tan|csc|sec|cot)([A-Za-gi-z])/", "/\\\\(sinh|cosh|tanh|coth)([A-Za-z])/"]);
 const FUNCTIONS = "arcsin arccos arctan arccot arccsc arcsec sin cos tan cot csc sec sinh cosh tanh coth sech csch exp log ln det".split(" ");
-/** Off, in their pack: they fire on those letters anywhere in math, and the notes never use them. */
+/** Off, kept by `options.units()`: they fire on those letters anywhere in math, and the notes never use them. */
 const UNITS = new Set("mV Vol kV VA kVA MVA VAR kVAR mW WATT kW uA mA Amp mOhm Ohm kOhm MOhm PU PF dB".split(" "));
 /** Mended in place. */
 const MEND: { when: (r: RawLegacy) => boolean; to: (r: RawLegacy) => RawLegacy | null; why: string }[] = [
@@ -93,7 +93,7 @@ function entryLine(r: RawLegacy): string {
 /** The module for this vault's old files. */
 export function convert(d: { sources: string[]; variables: string }): { text: string; kept: number; dropped: string[] } {
   const out: string[] = [], dropped: string[] = [];
-  let kept = 0, spaced = false;
+  let kept = 0, spaced = false, units = false;
   const vars = d.variables.trim() ? (evalLegacy(d.variables) as Record<string, string>) : {};
   const names = (k: string) => (vars[`\${${k}}`] ?? "").split("|").filter(Boolean);
   for (const src of d.sources) {
@@ -118,7 +118,7 @@ export function convert(d: { sources: string[]; variables: string }): { text: st
         }
         return;
       }
-      if (typeof r.trigger === "string" && UNITS.has(r.trigger)) { out.push(`  // off, in the Electrical units pack: ${entryLine(r)}`); kept++; return; }
+      if (typeof r.trigger === "string" && UNITS.has(r.trigger)) { out.push(`  // off, in options.units() below: ${entryLine(r)}`); units = true; kept++; return; }
       // a mended rule: the arrows only where no operand stands before them, the letter + digit subscript not inside a command
       if (r.trigger === "-d" || r.trigger === "-u") {
         out.push(`  ${entryLine(r).replace(/\),$/, `, { when: (at) => !/[A-Za-z0-9})]$/.test(at.before) }),`)}`);
@@ -135,10 +135,11 @@ export function convert(d: { sources: string[]; variables: string }): { text: st
     });
     for (const c of end) out.push(`  ${c}`);
   }
+  if (units) out.push(`  options.units({ on: false }), // switched on in Settings → Snippets`);
   const head = [
     `// Written by Snippets: convert from the old snippet file, which was left as it was. Edit freely: this file is yours.`,
     ...(dropped.length ? [`// Changed from the old file, as one batch:`, ...dropped.map((w) => `//   ${w}`)] : []),
-    `export default ({ math, text, code, visual, anywhere, commands, words, vars, std }) => [`,
+    `export default ({ math, text, code, visual, anywhere, commands, words, vars, std, options }) => [`,
     ...(Object.keys(vars).length ? [`  vars(${JSON.stringify(vars)}),`] : []),
   ];
   return { text: `${[...head, ...out].join("\n")}\n];\n`, kept, dropped };

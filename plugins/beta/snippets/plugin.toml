@@ -8,8 +8,8 @@ api = 22
 phone = true
 
 [[setting]]
-key = "packs"
-label = "Packs"
+key = "switched"
+label = "Switched in Settings"
 kind = "text"
 hidden = true
-default = "auto"
+default = "[]"

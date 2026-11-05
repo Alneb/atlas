@@ -40,7 +40,9 @@ export type Entry =
   /** Bare names get their backslash, and a letter after a command gets a space. */
   | { type: "commands"; names: string[]; digit: "space" | "subscript" | "none" }
   | { type: "words"; words: string[] }
-  | { type: "vars"; vars: Record<string, string> };
+  | { type: "vars"; vars: Record<string, string> }
+  /** A set of entries switched on or off as one, from Settings: `on` is the file's default. */
+  | { type: "option"; id: string; title: string; description: string; on: boolean; entries: Entry[] };
 
 const list = (t: Trigger | Trigger[]): Trigger[] => (Array.isArray(t) ? t : [t]);
 const snippet = (t: Trigger | Trigger[], body: Body, where: Where[], options: Options = {}, visual = false): Entry => ({ type: "snippet", triggers: list(t), body, where, visual, options });
@@ -61,6 +63,9 @@ export const builders = {
   anywhere: (where: Where[], t: Trigger | Trigger[], body: Body, o: Options = {}) => snippet(t, body, where, o),
   commands: (names: string[], o: { digit?: "space" | "subscript" | "none" } = {}): Entry => ({ type: "commands", names, digit: o.digit ?? "none" }),
   words: (words: string[]): Entry => ({ type: "words", words }),
+  /** A set switched on or off as one in Settings; `on: false` starts it off. */
+  option: (title: string, description: string, entries: Entry[], o: { on?: boolean } = {}): Entry =>
+    ({ type: "option", id: title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, ""), title, description, on: o.on ?? true, entries: entries.flat(Infinity as 1) as Entry[] }),
   /** `${NAME}` in a trigger stands for this text. */
   vars: (vars: Record<string, string>): Entry => ({ type: "vars", vars }),
 };
@@ -76,6 +81,12 @@ export interface Compiled {
   source: string;
   /** The trigger as written, to show. */
   shown: string;
+  /** A short start or a typo of another trigger (`mfr`, `iitn`): fires, but is never offered in the list. */
+  alias?: boolean;
+  /** The option it belongs to, if any (its id). */
+  option?: string;
+  /** What Settings switches it by: its file, its trigger, its places. */
+  key: string;
 }
 
 const expandVars = (t: string, vars: Record<string, string>) => Object.entries(vars).reduce((s, [k, v]) => s.split(k.startsWith("${") ? k : `\${${k}}`).join(v), t);
@@ -104,11 +115,14 @@ function compileOne(t: Trigger, e: Extract<Entry, { type: "snippet" }>, vars: Re
     auto: o.auto ?? !!math, text: e.where.some((w) => w.kind === "text"), code: !!code, langs: code?.lang ?? null, math: !!math,
     display: !!math && math.form !== "inline", inline: !!math && math.form !== "display", inTextArg: !!math?.inTextArg,
     legacyStops: !!o.legacyStops, when: o.when, files: o.file ? (Array.isArray(o.file) ? o.file : [o.file]).map(globToRegExp) : null,
-    name: o.name, note: o.note, test: o.test, source, shown: String(t),
+    name: o.name, note: o.note, test: o.test, source, shown: String(t), key: "",
   };
 }
 
-export interface Loaded { snippets: Compiled[]; known: string[]; words: string[]; problems: Problem[] }
+/** A body as a formula to show: stops give way to their placeholders. */
+export const preview = (body: string) => body.replace(/\$\{VISUAL\}/g, "x").replace(/\$\{\d+:((?:[^{}]|\{[^{}]*\})*)\}/g, "$1").replace(/\$\{\d+\}|\$\d+/g, "\\square ");
+
+export interface Loaded { snippets: Compiled[]; all: Compiled[]; options: OptionInfo[]; known: string[]; words: string[]; problems: Problem[] }
 export interface Problem { source: string; what: string }
 
 const alternatives = (names: string[]) => [...new Set(names)].sort((a, b) => b.length - a.length).map((n) => n.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|");
@@ -120,7 +134,7 @@ function compileCommands(e: Extract<Entry, { type: "commands" }>, source: string
   if (!names) return [];
   const rule = (regex: RegExp, body: string, shown: string, name: string): Compiled => ({
     plain: null, regex, body, auto: true, word: false, priority: 0, visual: false, text: false, code: false, langs: null, math: true, display: true, inline: true,
-    inTextArg: false, legacyStops: false, files: null, name, source, shown,
+    inTextArg: false, legacyStops: false, files: null, name, source, shown, key: "",
   });
   const out = [
     rule(new RegExp(`(^|[^\\\\])(${names})$`), "[[0]]\\[[1]]", `${e.names.length} commands, bare`, "A command's backslash"),
@@ -131,37 +145,58 @@ function compileCommands(e: Extract<Entry, { type: "commands" }>, source: string
   return out;
 }
 
-/** Everything a set of files said, in order; an entry that fails is a problem and costs only itself. */
-/** `pack`: a ready set (packs.ts) — a trigger the vault's own files already have is theirs, the pack's is left out. */
-export function compileAll(files: { source: string; entries: Entry[]; pack?: boolean }[]): Loaded {
+/** One option as Settings shows it. */
+export interface OptionInfo { id: string; title: string; description: string; on: boolean; source: string; count: number }
+
+/** What Settings switches a snippet by: its file, its trigger and its places (two of one trigger differ by place). */
+export const keyOf = (c: Compiled) =>
+  `${c.source}|${c.shown}|${[c.math && (c.display ? "D" : "") + (c.inline ? "I" : ""), c.text && "t", c.code && "c", c.visual && "v"].filter(Boolean).join("")}`;
+
+/** Everything a set of files said, in order; an entry that fails is a problem and costs only itself. `switched`: the
+ *  keys of snippets and options (`option:<id>`) Settings turned the other way from what the file says. The list of all,
+ *  off ones included, is kept for Settings; the engine runs `snippets`. */
+export function compileAll(files: { source: string; entries: Entry[] }[], switched: ReadonlySet<string> = new Set()): Loaded {
   const vars: Record<string, string> = {};
-  for (const f of files) for (const e of f.entries) if (e?.type === "vars") Object.assign(vars, e.vars);
-  const out: Compiled[] = [], known: string[] = [], words: string[] = [], problems: Problem[] = [];
-  const commands: { name: string; source: string }[] = [];
-  // the triggers the vault's own files define, by where they apply: a pack's same trigger there is left out
-  const own = new Set<string>();
-  const placeKey = (c: Compiled) => `${c.shown}\u0000${c.math}${c.text}${c.code}${c.visual}`;
-  let inPack = false;
-  const keep = (c: Compiled) => { if (!inPack) { own.add(placeKey(c)); return true; } return !own.has(placeKey(c)); };
-  for (const f of files) {
-    inPack = !!f.pack;
-    for (const e of f.entries) {
-      if (!e || typeof e !== "object" || !("type" in e)) { problems.push({ source: f.source, what: `not an entry: ${JSON.stringify(e)?.slice(0, 60)}` }); continue; }
+  const varsIn = (es: Entry[]) => { for (const e of es) if (e?.type === "vars") Object.assign(vars, e.vars); else if (e?.type === "option") varsIn(e.entries); };
+  for (const f of files) varsIn(f.entries);
+  const all: Compiled[] = [], known: string[] = [], words: string[] = [], problems: Problem[] = [], options: OptionInfo[] = [];
+  const commands: { name: string; source: string; on: boolean }[] = [];
+  const take = (entries: Entry[], source: string, option?: string) => {
+    for (const e of entries) {
+      if (!e || typeof e !== "object" || !("type" in e)) { problems.push({ source, what: `not an entry: ${JSON.stringify(e)?.slice(0, 60)}` }); continue; }
       if (e.type === "vars") continue;
       if (e.type === "words") { words.push(...e.words.map((w) => w.toLowerCase())); continue; }
-      if (e.type === "commands") { out.push(...compileCommands(e, f.source).filter(keep)); known.push(...e.names); commands.push(...e.names.map((n) => ({ name: n, source: f.source }))); continue; }
+      if (e.type === "option") {
+        const on = e.on !== switched.has(`option:${e.id}`), before = all.length;
+        take(e.entries, source, on ? e.id : `!${e.id}`);
+        options.push({ id: e.id, title: e.title, description: e.description, on, source, count: all.length - before });
+        continue;
+      }
+      const tag = (c: Compiled) => { c.option = option?.replace(/^!/, ""); c.key = keyOf(c); all.push(c); };
+      if (e.type === "commands") {
+        const made = compileCommands(e, source);
+        made.forEach(tag);
+        const on = !option?.startsWith("!") && made.some((c) => !switched.has(c.key));
+        commands.push(...e.names.map((n) => ({ name: n, source, on })));
+        continue;
+      }
       for (const t of e.triggers) {
-        try { const c = compileOne(t, e, vars, f.source); if (keep(c)) out.push(c); }
-        catch (err) { problems.push({ source: f.source, what: `${String(t)}: ${String((err as Error).message ?? err)}` }); }
+        try { tag(compileOne(t, e, vars, source)); }
+        catch (err) { problems.push({ source, what: `${String(t)}: ${String((err as Error).message ?? err)}` }); }
       }
     }
-  }
+  };
+  for (const f of files) take(f.entries, f.source);
+  const offOptions = new Set(options.filter((o) => !o.on).map((o) => o.id));
+  const isOn = (c: Compiled) => !(c.option && offOptions.has(c.option)) && !switched.has(c.key);
+  const out = all.filter(isOn);
+  for (const c of commands) if (c.on) known.push(c.name);
   for (const v of Object.values(vars)) known.push(...String(v).split("|").filter((w) => /^[A-Za-z]{2,}$/.test(w)));
   // stable: higher priority first, then file order
   const snippets = out.map((s, i) => [s, i] as const).sort((a, b) => b[0].priority - a[0].priority || a[1] - b[1]).map(([s]) => s);
-  snippets.push(...abbreviations(snippets, new Set(known)), ...commandShortcuts(commands, snippets, new Set(known)));
-  for (const s of snippets) if (s.plain && /^[A-Za-z]{2,}$/.test(s.plain)) known.push(s.plain);
-  return { snippets, known: [...new Set(known)], words, problems };
+  snippets.push(...abbreviations(snippets, new Set(known)), ...commandShortcuts(commands.filter((c) => c.on), snippets, new Set(known)));
+  for (const s of snippets) if (s.plain && !s.alias && /^[A-Za-z]{2,}$/.test(s.plain)) known.push(s.plain);
+  return { snippets, all, options, known: [...new Set(known)], words, problems };
 }
 
 /** A math word trigger (`mfrak`) also fires on each shorter start (three letters or more) that no other math word
@@ -176,7 +211,7 @@ export function commandShortcuts(commands: { name: string; source: string }[], s
   const startsOther = (start: string, own: string) => names.some((o) => o !== own && o.startsWith(start)) || snippets.some((s) => s.math && !!s.plain && s.plain !== start && s.plain.startsWith(start));
   const make = (plain: string, name: string, source: string): Compiled => ({
     plain, regex: null, body: `\\${name}`, auto: true, word: false, priority: -1, visual: false, text: false, code: false, langs: null, math: true,
-    display: true, inline: true, inTextArg: false, legacyStops: false, files: null, name: `\\${name}`, source, shown: plain,
+    display: true, inline: true, inTextArg: false, legacyStops: false, files: null, name: `\\${name}`, source, shown: plain, alias: true, key: "",
   });
   const out: Compiled[] = [], made = new Set<string>();
   const add = (plain: string, name: string, source: string) => { if (!taken.has(plain) && !made.has(plain)) { made.add(plain); out.push(make(plain, name, source)); } };
@@ -190,7 +225,9 @@ export function commandShortcuts(commands: { name: string; source: string }[], s
     for (let i = 1; i + 1 < name.length; i++) {
       if (name[i] === name[i + 1]) continue;
       const typo = name.slice(0, i) + name[i + 1] + name[i] + name.slice(i + 2);
-      if (!startsOther(typo, name) && !names.includes(typo)) add(typo, name, source);
+      // not one that starts with a trigger or command of its own (`intfy`): it would hold `int` back
+      const startsTaken = [...Array(typo.length - 2).keys()].some((k) => taken.has(typo.slice(0, k + 2)) || names.includes(typo.slice(0, k + 2)));
+      if (!startsOther(typo, name) && !names.includes(typo) && !startsTaken) add(typo, name, source);
     }
   }
   return out;
@@ -205,7 +242,7 @@ export function abbreviations(snippets: Compiled[], known: Set<string>): Compile
     for (let n = s.plain!.length - 1; n >= 3; n--) {
       const start = s.plain!.slice(0, n);
       if (taken.has(start) || words.some((o) => o !== s && o.plain!.startsWith(start))) break; // shorter ones share it too
-      out.push({ ...s, plain: start, shown: start, priority: s.priority - 1 });
+      out.push({ ...s, plain: start, shown: start, priority: s.priority - 1, alias: true });
     }
   }
   return out;

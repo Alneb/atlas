@@ -114,7 +114,7 @@ html.phone .markdown a::after, html.phone .markdown .cm-link::after, html.phone 
 .markdown img.embed-img.is-centered { margin-inline: auto; }
 .markdown img.is-missing { min-width: 120px; min-height: 40px; border: 1px dashed var(--border-strong); }
 
-.markdown .tag, .markdown .cm-hashtag { background: var(--tag-bg); color: var(--tag-color); border-radius: 99px; padding: .05em .55em; font-size: .85em; font-weight: 500; }
+.markdown .tag:not(.katex .tag), .markdown .cm-hashtag { /* not KaTeX's equation numbers, which share the class */ background: var(--tag-bg); color: var(--tag-color); border-radius: 99px; padding: .05em .55em; font-size: .85em; font-weight: 500; }
 
 /* math */
 .markdown .katex { font-size: 1.08em; }
@@ -221,3 +221,12 @@ html.phone .markdown a::after, html.phone .markdown .cm-link::after, html.phone 
 }
 .embed-open:hover { color: var(--text); opacity: 1; }
 .embed-open[hidden] { display: none; }
+/* \left( … \right) in a formula's source: the word small and faint, the bracket bold in its pair's colour (live-preview.js) */
+.markdown .cm-math-lr-cmd { font-size: .62em; opacity: .55; letter-spacing: -.03em; }
+.markdown .cm-math-lr { font-weight: 700; }
+.markdown .cm-math-lr-0, .markdown .cm-math-lr-0 * { color: var(--accent); }
+.markdown .cm-math-lr-1, .markdown .cm-math-lr-1 * { color: var(--orange); }
+.markdown .cm-math-lr-2, .markdown .cm-math-lr-2 * { color: var(--green); }
+/* An equation number's vertical list reaches 2px past its box (KaTeX's strut for a browser bug), which put a
+   scrollbar under every numbered align, empty ones too: the number keeps 2px inside the edge */
+.katex .katex-tag { padding-right: 2px; }

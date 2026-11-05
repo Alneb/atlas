@@ -1,6 +1,98 @@
 // Built from helper/helper.ts by scripts/dev/plugin-ui.mjs: edit the sources, not this file.
 (function(exports) {
 	Object.defineProperty(exports, Symbol.toStringTag, { value: "Module" });
+	//#region ui/src/lib/tex-portable.ts
+	/** The macros every formula in Atlas may use, as KaTeX's `macros` option writes them (`#1` for an argument). */
+	const MACROS = {
+		"\\R": "\\mathbb{R}",
+		"\\C": "\\mathbb{C}",
+		"\\N": "\\mathbb{N}",
+		"\\Z": "\\mathbb{Z}",
+		"\\ket": "\\left| #1\\right\\rangle",
+		"\\bra": "\\left\\langle #1\\right|",
+		"\\braket": "\\left\\langle #1\\right\\rangle",
+		"\\Tr": "\\operatorname{Tr}",
+		"\\mbox": "\\text{#1}"
+	};
+	/** The macros as definitions: `providecommand` for LaTeX (a package or preamble defining one first wins),
+	*  `newcommand` for pandoc's reader, which applies them to every formula for Typst and Word. */
+	function macroDefinitions(command, macros = MACROS) {
+		return Object.entries(macros).map(([name, body]) => `\\${command}{${name}}${body.includes("#1") ? "[1]" : ""}{${body}}`).join("\n");
+	}
+	//#endregion
+	//#region ui/src/lib/math-align.ts
+	const RELATIONS = [
+		":=",
+		"=:",
+		"\\leq",
+		"\\geq",
+		"\\leqslant",
+		"\\geqslant",
+		"\\le",
+		"\\ge",
+		"\\neq",
+		"\\ne",
+		"\\approx",
+		"\\equiv",
+		"\\simeq",
+		"\\sim",
+		"\\cong",
+		"\\propto",
+		"\\Rightarrow",
+		"\\Leftarrow",
+		"\\Leftrightarrow",
+		"\\implies",
+		"\\impliedby",
+		"\\iff",
+		"\\ll",
+		"\\gg",
+		"=",
+		"<",
+		">"
+	];
+	/** Where the first relation outside every bracket starts (`a_{i=1} = b` → the second `=`), or -1. */
+	function firstRelation(line) {
+		let depth = 0;
+		for (let i = 0; i < line.length; i++) {
+			const c = line[i];
+			if (c === "\\") {
+				const name = /^\\([A-Za-z]+|.)/.exec(line.slice(i))[0];
+				if (/^\\(left|right|big|Big|bigg|Bigg)[lr]?$/.exec(name)) {
+					const delimiter = /^(\\([A-Za-z]+|.)|.)/.exec(line.slice(i + name.length))?.[0] ?? "";
+					const opens = name === "\\left" || /l$/.test(name) || !/r$/.test(name) && name !== "\\right" && "{([".includes(delimiter.slice(-1));
+					depth += opens ? 1 : -1;
+					i += name.length + delimiter.length - 1;
+					continue;
+				}
+				if (depth === 0 && RELATIONS.includes(name) && !/[A-Za-z]/.test(line[i + name.length] ?? "")) return i;
+				i += name.length - 1;
+				continue;
+			}
+			if ("{([".includes(c)) depth++;
+			else if ("})]".includes(c)) depth--;
+			else if (depth === 0 && "=<>:".includes(c)) {
+				if (c === ":" && line[i + 1] !== "=") continue;
+				if (c === "=" && line[i - 1] === ":") continue;
+				return i;
+			}
+		}
+		return -1;
+	}
+	/** One line, aligned: `&` before its first relation; a line that goes on a sum (`+ c`) sits after the relation. */
+	function alignLine(line) {
+		if (/(^|[^\\])&/.test(line)) return line;
+		if (/^[+\-]/.test(line) || /^\\(cdot|times|pm|mp)\b/.test(line)) return `&\\quad ${line}`;
+		const at = firstRelation(line);
+		return at <= 0 ? `&${line}` : `${line.slice(0, at).trimEnd()} &${line.slice(at)}`;
+	}
+	/** The environment for a `$$align` block, or the source as it was. */
+	function expandAlign(source) {
+		const m = /^\s*(align\*?)[ \t]*(?:\n|$)([\s\S]*)$/.exec(source);
+		if (!m) return source;
+		const lines = m[2].split("\n").map((l) => l.trim().replace(/\\\\$/, "").trim()).filter(Boolean);
+		return `\\begin{${m[1]}}${lines.length ? `\n${lines.map(alignLine).join(" \\\\\n")}\n` : ""}\\end{${m[1]}}`;
+	}
+	//#endregion
 	//#region plugins/beta/export/helper/translate.ts
 	const IMAGE = /\.(png|jpe?g|gif|svg|webp|pdf|eps)$/i;
 	const QUERY_FENCES = /* @__PURE__ */ new Set([
@@ -80,6 +172,10 @@
 		]);
 		return out;
 	}
+	/** Display math as every writer takes it: on lines of its own, a `$$align` block (and a whole `\begin{align}` in `$$`)
+	*  as pandoc's `aligned`, valid inside display math everywhere. Atlas's macros stay as written: each road carries their
+	*  definitions (helper.ts). */
+	const mathPortable = (text) => text.replace(/\$\$([\s\S]+?)\$\$/g, (_, tex) => `$$\n${expandAlign(tex.trim()).replace(/^\\begin\{align\*?\}([\s\S]*)\\end\{align\*?\}$/, "\\begin{aligned}$1\\end{aligned}")}\n$$`);
 	/** `fn` applied to the text between inline code spans. */
 	const outsideInlineCode = (text, fn) => text.split(/(`+[^`\n]*?`+)/).map((p, i) => i % 2 ? p : fn(p)).join("");
 	var Translator = class {
@@ -169,6 +265,7 @@
 			text = text.replace(/!\[\[([^\]|#]+)((?:\\?\|[^\]]*)?)\]\]\n\n\*([^*\n][^\n]*?)\*\n/g, (_, t, o, c) => `${this.figure(t, o.replace(/^\\?\|/, ""), c, near)}\n`);
 			const embeds = [];
 			const inline = (t) => {
+				t = mathPortable(t);
 				t = t.replace(/!\[\[([^\]|]+)((?:\\?\|[^\]]*)?)\]\]/g, (_, target, o) => {
 					target = target.trim();
 					const opts = (o ?? "").replace(/^\\?\|/, "");
@@ -183,7 +280,7 @@
 			const done = await Promise.all(embeds);
 			text = text.replace(/\u0000(\d+)\u0000/g, (_, i) => done[Number(i)]);
 			text = text.replace(/^((?:>\s*)+)\[!(\w+)\][+-]?[ \t]*(.*)$/gm, (_, q, kind, title) => `${q}**${title.trim() || kind[0].toUpperCase() + kind.slice(1)}**\n${q.trimEnd()}`);
-			return text.replace(/^([^\n\s>|-][^\n]*)\n(\s*(?:[-*+]|\d+[.)]) )/gm, "$1\n\n$2");
+			return text.replace(/^([^\n\s>|-][^\n]*)\n(\s*(?:[-*+]|\d+[.)]) )/gm, "$1\n\n$2").replace(/^([^\n]*\S[^\n]*)\n(#{1,6}[ \t])/gm, "$1\n\n$2");
 		}
 		async body(md, near, depth = 0) {
 			const parts = [];
@@ -411,7 +508,7 @@
 			if (road === "typst") m.bibliographystyle = style.typst;
 		}
 		if (header.length) m["header-includes"] = header;
-		return `---\n${Object.entries(m).filter(([, v]) => v !== void 0).map(([k, v]) => yamlEntry(k, v)).join("\n")}\n---\n\n`;
+		return `---\n${Object.entries(m).filter(([, v]) => v !== void 0).map(([k, v]) => yamlEntry(k, v)).join("\n")}\n---\n\n${road === "latex" ? "" : `${macroDefinitions("newcommand")}\n\n`}`;
 	}
 	/** One metadata line. JSON is YAML (every value quoted as it is), except text of several lines: pandoc reads a quoted
 	*  scalar as inline Markdown, which turns a ```{=latex} block (the preamble's header-includes) into inline code before
@@ -486,6 +583,7 @@
 			if (j.files.includes(j.o.preamble)) header.push("```{=latex}\n\\input{" + relative(j.outDir, j.o.preamble) + "}\n```");
 			else j.t.warnings.push(`LaTeX preamble not found: ${j.o.preamble}`);
 		}
+		header.push("```{=latex}\n" + macroDefinitions("providecommand") + "\n```");
 		const extra = [
 			"--lua-filter",
 			`${PLUGIN}/tikz.lua`,

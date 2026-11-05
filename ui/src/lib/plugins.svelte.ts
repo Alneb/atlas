@@ -142,6 +142,8 @@ export async function loadPlugins(): Promise<void> {
   for (const p of plugins.list) levels.set(depth(p), [...(levels.get(depth(p)) ?? []), p]);
   for (const level of [...levels.keys()].sort((a, b) => a - b)) await Promise.all(levels.get(level)!.map(startMain));
   await startInit();
+  // every main.js has run: what a test waits for before typing into what plugins shape (snippets, completions)
+  if (typeof document !== "undefined") document.documentElement.dataset.pluginsStarted = "";
 }
 
 // `.atlas/init.js` (docs/guides/MALLEABLE.md rung 8): the workspace's own startup script — `register(atlas)`

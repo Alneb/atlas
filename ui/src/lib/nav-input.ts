@@ -1,5 +1,6 @@
 // Back / forward from the mouse's side buttons and a horizontal two-finger swipe, like a browser.
-// A swipe only navigates when nothing under the pointer can scroll that way (tables, code, tab strips keep it) or took
+// A swipe only navigates when nothing under the pointer scrolls sideways, even at its end (tables, code, tab strips, wide
+// formulas keep it) or took
 // the wheel itself (a drawing pans with it: Excalidraw's handler cancels the event).
 import { canNavigate, navigate } from "./dock";
 import { hideSwipe, swipeSign } from "./nav-signs";
@@ -8,11 +9,12 @@ const SWIPE_PX = 140; // accumulated horizontal travel that counts as a swipe
 const SWIPE_IDLE_MS = 180; // a pause this long ends the gesture
 const COOLDOWN_MS = 700; // one navigation per gesture (momentum keeps sending wheel events)
 
-function canScrollX(el: Element | null, dx: number): boolean {
+/** Something under the pointer scrolls sideways: a swipe there is its scrolling, even at its end (scrolling a bar to its
+ *  edge and on must not go back a page). */
+function scrollsX(el: Element | null): boolean {
   for (let e = el; e && e !== document.body; e = e.parentElement) {
     const s = getComputedStyle(e);
-    if (!/(auto|scroll)/.test(s.overflowX) || e.scrollWidth <= e.clientWidth) continue;
-    if (dx < 0 ? e.scrollLeft > 0 : e.scrollLeft + e.clientWidth < e.scrollWidth - 1) return true;
+    if (/(auto|scroll)/.test(s.overflowX) && e.scrollWidth > e.clientWidth) return true;
   }
   return false;
 }
@@ -48,7 +50,7 @@ export function installNavInput(): () => void {
     if (now - last > SWIPE_IDLE_MS) acc = 0;
     last = now;
     // a two-finger pan inside a drawing (or anything that scrolls sideways) is never a swipe back
-    if (e.defaultPrevented || ownsWheel(e.target as Element) || canScrollX(e.target as Element, e.deltaX)) { acc = 0; hideSwipe(); return; }
+    if (e.defaultPrevented || ownsWheel(e.target as Element) || scrollsX(e.target as Element)) { acc = 0; hideSwipe(); return; }
     acc += e.deltaX;
     // the sign at the edge follows the fingers; a pause ends the gesture and takes it away
     const step = acc < 0 ? -1 : 1; // fingers to the right (negative deltaX) = back, as in browsers

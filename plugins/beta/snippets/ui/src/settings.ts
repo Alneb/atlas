@@ -1,9 +1,8 @@
-// The Snippets page in Settings: packs, the problems, the searchable list. Plain elements in the app's colours.
+// The Snippets page in Settings: the options the files declare, the problems, every snippet with its switch. Plain elements in the app's colours.
 import type { PluginApi, SettingsSectionContext } from "../../../../../ui/src/lib/plugin-api";
 import type { makeEngine } from "./engine";
-import type { Compiled } from "./format";
-import type { Read } from "./load";
-import { PACKS, packsOn } from "./packs";
+import { preview, type Compiled } from "./format";
+import { switchedOf, type Read } from "./load";
 import { WORDS } from "./words";
 
 const MATH = { kind: "math", form: "inline", textArg: false } as const;
@@ -43,7 +42,12 @@ function problemsOf(read: Read, engine: ReturnType<typeof makeEngine>): { what: 
 /** Ordinary words that come out changed when typed in math: what the word list is for, seen with this vault's snippets. */
 function misfires(engine: ReturnType<typeof makeEngine>): string[] {
   const bad: string[] = [];
+  // a word that starts with a whole trigger (`integral`, `fraction`) changes by design: in math a trigger typed from
+  // its first letter fires at once, and words there go in \text{}. What is listed is a trigger firing inside a word.
+  const starts = [...engine.snippets().filter((s) => s.math && s.auto && s.plain && /^[A-Za-z]{2,}$/.test(s.plain)).map((s) => s.plain!),
+    ...engine.made().filter((k) => k.length >= 3)];
   for (const w of WORDS) {
+    if (starts.some((t) => w.startsWith(t))) continue;
     // the key after the word lets whatever is held go
     if (engine.simulate(`${w} `, MATH) !== `${w} `) bad.push(w);
   }
@@ -104,26 +108,35 @@ export function mountSection(host: HTMLElement, o: { atlas: PluginApi; engine: R
       row.append(b);
       top.append(row);
     } else if (!read.modules.length) {
-      top.append(el("div", MUTED, "No snippets yet: put a JavaScript module in .atlas/snippets/, or switch on a pack."));
+      top.append(el("div", MUTED, "No snippets yet: put a JavaScript module in .atlas/snippets/."));
+    } else {
+      top.append(el("div", MUTED, `From ${read.modules.join(", ")}: the vault's own files, the one place snippets come from. A switch here turns one off (or on) without touching the file.`));
     }
 
-    // packs
-    packs.replaceChildren(el("div", TITLE, "Packs"));
-    const on = new Set(packsOn(ctx.settings().packs, read.modules.length > 0 || read.fromOldFile));
-    for (const p of PACKS) {
-      const row = el("label", "display:flex;gap:10px;align-items:baseline;padding:3px 0;cursor:pointer;");
+    // the options the files declare, each switched as one
+    const switched = switchedOf(ctx.settings().switched);
+    const flip = (key: string) => {
+      if (switched.has(key)) switched.delete(key); else switched.add(key);
+      void ctx.save({ switched: JSON.stringify([...switched].sort()) }).then(() => o.reload()).then(draw);
+    };
+    const toggle = (label: string, on: boolean, key: string) => {
       const box = el("input");
       box.type = "checkbox";
-      box.checked = on.has(p.id);
-      box.setAttribute("aria-label", `Pack ${p.title}`);
-      box.onchange = () => {
-        if (box.checked) on.add(p.id); else on.delete(p.id);
-        void ctx.save({ packs: [...on].join(",") }).then(() => o.reload()).then(draw);
-      };
-      const text = el("span");
-      text.append(el("span", "", p.title), el("span", `${MUTED}margin-left:8px;`, p.description));
-      row.append(box, text);
-      packs.append(row);
+      box.checked = on;
+      box.setAttribute("aria-label", label);
+      box.onchange = () => flip(key);
+      return box;
+    };
+    packs.replaceChildren();
+    if (read.options.length) {
+      packs.append(el("div", TITLE, "Options"));
+      for (const p of read.options) {
+        const row = el("label", "display:flex;gap:10px;align-items:baseline;padding:3px 0;cursor:pointer;");
+        const text = el("span");
+        text.append(el("span", "", p.title), el("span", `${MUTED}margin-left:8px;`, `${p.description} ${p.count} snippet${p.count === 1 ? "" : "s"} · ${p.source}`));
+        row.append(toggle(`Option ${p.title}`, p.on, `option:${p.id}`), text);
+        packs.append(row);
+      }
     }
 
     // problems; the word check waits for the page to have drawn
@@ -146,23 +159,36 @@ export function mountSection(host: HTMLElement, o: { atlas: PluginApi; engine: R
       if (bad.length) show([...found, { source: "typed in math", what: `${bad.length} ordinary words change: ${bad.slice(0, 40).join(", ")}${bad.length > 40 ? "…" : ""}` }]);
     }, 0);
 
-    // the list
-    list.replaceChildren(el("div", TITLE, `Snippets (${read.snippets.length})`));
+    // every snippet, off ones too: a switch, the trigger, what it gives (drawn), where, and from which file
+    const offOptions = new Set(read.options.filter((p) => !p.on).map((p) => p.id));
+    const optionTitle = new Map(read.options.map((p) => [p.id, p.title]));
+    list.replaceChildren(el("div", TITLE, `Snippets (${read.all.length}, ${read.snippets.filter((s) => !s.alias).length} on)`));
     const search = el("input", "width:100%;box-sizing:border-box;margin-bottom:8px;");
-    search.placeholder = "Search triggers, names, what they give…";
+    search.placeholder = "Search triggers, names, what they give, files…";
     search.setAttribute("aria-label", "Search snippets");
-    const table = el("div", "display:grid;grid-template-columns:minmax(80px,1fr) minmax(0,2.4fr) auto;gap:3px 14px;align-items:baseline;");
+    const table = el("div", "display:grid;grid-template-columns:auto minmax(70px,1fr) minmax(0,2.4fr) auto;gap:4px 12px;align-items:center;");
     const fill = () => {
       const q = search.value.trim().toLowerCase();
-      const hits = read.snippets.filter((s) => !q || s.shown.toLowerCase().includes(q) || s.name?.toLowerCase().includes(q) || (typeof s.body === "string" && s.body.toLowerCase().includes(q)));
+      const hits = read.all.filter((s) => !q || s.shown.toLowerCase().includes(q) || s.name?.toLowerCase().includes(q) || s.source.toLowerCase().includes(q)
+        || (s.option && optionTitle.get(s.option)?.toLowerCase().includes(q)) || (typeof s.body === "string" && s.body.toLowerCase().includes(q)));
       table.replaceChildren();
       for (const s of hits.slice(0, SHOWN)) {
-        const body = typeof s.body === "string" ? s.body : "(computed)";
-        const what = el("div", "min-width:0;");
-        if (s.name) what.append(el("span", "", s.name), el("span", `${MUTED}margin-left:8px;`));
-        const code = el("code", `${MUTED}white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:${s.name ? "none" : "block"};`, body.replace(/\s+/g, " "));
-        what.append(code);
-        table.append(el("code", "color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;", s.shown), what, el("div", MUTED, `${s.auto ? "" : "Tab · "}${placeWord(s)}`));
+        const inOff = !!s.option && offOptions.has(s.option);
+        const box = toggle(`Snippet ${s.shown}`, !switched.has(s.key), s.key);
+        if (inOff) { box.disabled = true; box.title = `Off with its option, ${optionTitle.get(s.option!)}`; }
+        const what = el("div", "min-width:0;overflow:hidden;");
+        const body = typeof s.body === "string" ? s.body : null;
+        if (body && s.math && !s.regex) {
+          const math = el("span", "display:inline-block;max-width:100%;overflow:hidden;vertical-align:middle;");
+          try { o.atlas.editor.drawMath(math, preview(body), false); } catch { math.textContent = body; }
+          what.append(math);
+        }
+        const detail = s.name ?? (body ? body.replace(/\s+/g, " ") : "(computed)");
+        what.append(el("code", `${MUTED}margin-left:8px;white-space:nowrap;`, detail));
+        if (s.note) what.append(el("span", `${MUTED}margin-left:8px;`, s.note));
+        const where = el("div", `${MUTED}white-space:nowrap;text-align:right;`, `${s.auto ? "" : "Tab · "}${placeWord(s)} · ${s.option ? optionTitle.get(s.option) : s.source}`);
+        const trig = el("code", `color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;${inOff || switched.has(s.key) ? "opacity:.5;text-decoration:line-through;" : ""}`, s.shown);
+        table.append(box, trig, what, where);
       }
       if (hits.length > SHOWN) table.append(el("div", `${MUTED}grid-column:1/-1;`, `and ${hits.length - SHOWN} more: search to find them.`));
     };
