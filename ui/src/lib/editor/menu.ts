@@ -11,7 +11,7 @@ import { atPointer, popMenu, pressedByHand } from "../menu";
 import { keysOf } from "../keymap.svelte";
 import { toast } from "../state.svelte";
 import { formatNote } from "./md-format";
-import { pluginMenu } from "../plugin-menus";
+import { pluginRows } from "../plugin-menus";
 import { editRawProperties, frontmatterClose } from "./live/live-preview.js";
 import { goToDefinition } from "./definition";
 
@@ -68,8 +68,8 @@ function items(view: EditorView, target: HTMLElement, o: EditorMenuOptions): Men
     ...(frontmatterClose(view.state.doc) ? [{ label: "Edit properties as text", icon: "code" as const, hint: "Alt+click", run: () => { editRawProperties(view); } }] : []),
   );
   if (o.markdown) list.push("sep", { label: "Edit live on the vault's mirror…", icon: "link", run: () => void chooseVault({ linkMirror: true }) });
-  list.push(...pluginMenu("editor", { path: o.path, selection: selected(view) }));
-  return list;
+  const plugins = pluginRows("editor", { path: o.path, selection: selected(view) });
+  return [...plugins.top, ...list, ...plugins.end];
 }
 
 export function editorMenu(o: EditorMenuOptions): Extension {

@@ -110,6 +110,10 @@
 /* lib/image-peek.ts: a picture shown large while Ctrl is held over it (click-through: being within it keeps it, lib/image-peek.ts) */
 .image-peek { position: fixed; inset: 0; margin: auto; z-index: 95; max-width: 86vw; max-height: 86vh; object-fit: contain; pointer-events: none;
   border-radius: 8px; background: var(--bg-elev); box-shadow: var(--shadow-pop); border: 1px solid var(--border-strong); }
+/* a tikz drawing shown large: its cloned SVG on the page's colour, inverted in the dark theme like the drawing itself */
+.image-peek.tikz-peek { width: max-content; height: max-content; padding: 16px; background: var(--bg); }
+.image-peek.tikz-peek > svg { display: block; overflow: visible; }
+:root:not([data-theme="light"]) .image-peek.tikz-peek > svg { filter: invert(.9) hue-rotate(180deg); }
 /* vertical tabs: the side column's header is the side panel's row of tools (SideHead.svelte), not tabs */
 .dockview-theme-atlas .atlas-side-group .dv-tabs-container,
 .dockview-theme-atlas .atlas-side-group .dv-void-container,

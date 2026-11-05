@@ -10,7 +10,11 @@ export type MenuPlace = "file" | "tab" | "editor" | "block" | "terminal";
  *  selection · `block`: type, note · `terminal`: nothing (the terminal's "+" menu: what to start). */
 export interface MenuTarget { path?: string; dir?: boolean; kind?: string; selection?: string; type?: string; note?: string }
 /** A plugin's row: plain data, so the shape survives changes to the menu component. */
-export interface PluginMenuItem { label: string; run(): void | Promise<void>; icon?: string; hint?: string; detail?: string; danger?: boolean; disabled?: boolean }
+export interface PluginMenuItem {
+  label: string; run(): void | Promise<void>; icon?: string; hint?: string; detail?: string; danger?: boolean; disabled?: boolean;
+  /** first in the menu, before the app's rows: what is about the thing under the pointer (a spelling suggestion) */
+  top?: boolean;
+}
 type Builder = { plugin: string; fn: (t: MenuTarget) => PluginMenuItem[] | null | undefined | void };
 
 const PLACES: readonly MenuPlace[] = ["file", "tab", "editor", "block", "terminal"];
@@ -30,11 +34,20 @@ const row = (plugin: string, it: PluginMenuItem): MenuItem => ({
   run: () => { void guard(plugin, `menu row “${it.label}”`, () => it.run(), undefined); },
 });
 
-/** The plugins' rows for this place and target, after a separator; nothing when no plugin has any. */
-export function pluginMenu(where: MenuPlace, target: MenuTarget): MenuItem[] {
-  const rows: MenuItem[] = [];
+/** The plugins' rows for this place and target: `top` ones to open the menu (a separator after them), the others to
+ *  end it (a separator before them); empty lists when no plugin has any. */
+export function pluginRows(where: MenuPlace, target: MenuTarget): { top: MenuItem[]; end: MenuItem[] } {
+  const top: MenuItem[] = [], end: MenuItem[] = [];
   for (const b of builders.get(where) ?? []) {
-    for (const it of guard(b.plugin, `menu("${where}")`, () => b.fn(target), null) ?? []) if (it && typeof it.label === "string" && typeof it.run === "function") rows.push(row(b.plugin, it));
+    for (const it of guard(b.plugin, `menu("${where}")`, () => b.fn(target), null) ?? [])
+      if (it && typeof it.label === "string" && typeof it.run === "function") (it.top ? top : end).push(row(b.plugin, it));
   }
-  return rows.length ? ["sep", ...rows] : [];
+  return { top: top.length ? [...top, "sep"] : [], end: end.length ? ["sep", ...end] : [] };
+}
+
+/** The plugins' rows for a menu that has no top: all of them at its end. */
+export function pluginMenu(where: MenuPlace, target: MenuTarget): MenuItem[] {
+  const { top, end } = pluginRows(where, target);
+  const all = [...top.filter((r) => r !== "sep"), ...end.filter((r) => r !== "sep")];
+  return all.length ? ["sep", ...all] : [];
 }

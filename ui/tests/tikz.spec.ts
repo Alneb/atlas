@@ -90,4 +90,17 @@ test("a Feynman diagram (tikz-feynman) draws as an SVG", async ({ page, request 
   await expect(fig).toHaveAttribute("data-state", /done|error/, { timeout: 90_000 });
   expect(await fig.getAttribute("data-state"), await fig.innerText()).toBe("done");
   expect(await fig.locator("svg").evaluate((s) => s.getBoundingClientRect().width), "a real picture").toBeGreaterThan(150);
+
+  // Ctrl over the drawing shows it large, as over a picture; letting go hides it
+  await fig.locator("svg").hover();
+  await page.keyboard.down("Control");
+  const big = page.locator(".image-peek.tikz-peek > svg");
+  await expect(big).toBeVisible();
+  expect(await big.evaluate((s) => s.getBoundingClientRect().width)).toBeGreaterThan(await fig.locator("svg").evaluate((s) => s.getBoundingClientRect().width));
+  for (const theme of ["light", "dark"]) {
+    await page.evaluate((t) => document.documentElement.setAttribute("data-theme", t), theme);
+    await page.screenshot({ path: `../target/snip/tikz-peek-${theme}.png` });
+  }
+  await page.keyboard.up("Control");
+  await expect(big).toHaveCount(0);
 });

@@ -26,6 +26,7 @@ and versions follow [Semantic Versioning](https://semver.org/) once 1.0 is out.
 - Math: a display block whose first line is `align` (`$$align`, then plain lines) is drawn as an align with each line
   at its first relation; the Snippets option Auto-align types it with `malign`. The exports write it as `aligned`.
 - Math source: `\left` and `\right` are drawn small and faint, their brackets bold in a colour per depth.
+- Ctrl over a ```tikz drawing shows it large, as over a picture.
 - Predictor, a plugin: the likely rest of a word, and the next word when the vault is sure, faint after the caret in
   a note's prose (never in math or code), learned from the vault per language; Tab or → at the end of a line takes it,
   Ctrl+→ one word.

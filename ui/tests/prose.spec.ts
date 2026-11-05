@@ -55,3 +55,17 @@ test("suggestions: a swap of two letters first, then the dictionary's, each rank
   const uses: Record<string, number> = { tea: 5 };
   expect(suggestions("teh", (w) => known.has(w), () => ["ten", "eh", "tea"], (w) => uses[w] ?? 0)).toEqual(["the", "tea", "ten", "eh"]);
 });
+
+test("judging a word: hyphen parts, possessives, short words, acronyms and a capital at a sentence's start", async () => {
+  const { isWrong } = await import("../../plugins/beta/spelling/ui/src/judge");
+  const dict = new Set(["sub", "bath", "self", "energy", "the", "plaquette"]);
+  const knows = (w: string) => dict.has(w);
+  expect(isWrong("sub-bath", knows)).toBe(false);
+  expect(isWrong("self-energy", knows)).toBe(false);
+  expect(isWrong("self-enrgy", knows)).toBe(true);
+  expect(isWrong("plaquette's", knows)).toBe(false);
+  expect(isWrong("The", knows)).toBe(false);
+  expect(isWrong("et", knows) || isWrong("Eq", knows) || isWrong("GW", knows) || isWrong("McDonald", knows)).toBe(false);
+  expect(isWrong("teh", knows)).toBe(true);
+  expect(isWrong("plaquettes", knows)).toBe(false);
+});

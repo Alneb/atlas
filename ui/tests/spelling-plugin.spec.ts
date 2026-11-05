@@ -14,7 +14,7 @@ test.skip(!existsSync(DICT), `needs an English Hunspell dictionary (${DICT})`);
 
 test.beforeAll(async ({ request }) => {
   for (const f of ["plugin.toml", "main.js", "helper.js"]) await put(request, `.atlas/plugins/spelling/${f}`, built(f));
-  await put(request, "notes/spell-a.md", "# Spell A\n\nThe electrons teh insulator carry Wannier centers, $\\alpha teh$ and [[Mott|teh link]].\n\nAnother Blochy line.\n");
+  await put(request, "notes/spell-a.md", "# Spell A\n\nThe electrons teh insulator carry Wannier centers and self-energy's sub-bath, $\\alpha teh$ and [[Mott|teh link]].\n\nAnother blochy line, where we met Hubbardo and Sénéchalz.\n");
   await put(request, "notes/spell-b.md", "# Spell B\n\nWannier functions, Wannier centres and Wannier bands.\n");
 });
 test.afterAll(async ({ request }) => {
@@ -22,12 +22,14 @@ test.afterAll(async ({ request }) => {
   await request.post("/api/plugins/spelling/helper/stop", { headers: H });
 });
 
-test("a misspelled word is marked, math, links and the vault's words are not; suggestions and the vault's words from a right-click", async ({ page }) => {
+test("a misspelled word is marked, math, links, names and the vault's words are not; suggestions and the vault's words from a right-click", async ({ page }) => {
   await page.goto("/");
   await page.getByText("Finish the GW notes.").waitFor();
   await openFile(page, "spell-a.md");
   const marked = page.locator(".cm-content .cm-spell-miss");
-  await expect.poll(() => marked.allTextContents(), { timeout: 20000 }).toEqual(["teh", "Blochy"]);
+  await expect.poll(() => marked.allTextContents(), { timeout: 20000 }).toEqual(["teh", "blochy"]);
+  // the bottom bar: the note's language and what is marked
+  await expect(page.locator('.status [data-cell="spelling:spelling"]')).toHaveText("EN · 2 misspelled");
 
   for (const theme of ["light", "dark"]) {
     await page.evaluate((t) => document.documentElement.setAttribute("data-theme", t), theme);
@@ -35,13 +37,16 @@ test("a misspelled word is marked, math, links and the vault's words are not; su
   }
 
   await marked.first().click({ button: "right" });
+  // the suggestions open the menu, before the app's rows
+  await expect(page.getByRole("menu").locator("[data-label]").first()).toHaveAttribute("data-label", "the");
   await page.locator('[data-label="the"]').click();
   await expect(page.locator(".cm-content")).toContainText("The electrons the insulator");
-  await expect(marked).toHaveText(["Blochy"]);
+  await expect(marked).toHaveText(["blochy"]);
 
   await marked.first().click({ button: "right" });
-  await page.locator('[data-label="Add “Blochy” to this vault\'s words"]').click();
+  await page.locator('[data-label="Add “blochy” to this vault\'s words"]').click();
   await expect(marked).toHaveCount(0);
+  await expect(page.locator('.status [data-cell="spelling:spelling"]')).toHaveText("EN ✓");
   const words = await (await page.request.get("/api/file?path=.atlas/spelling/words.md", { headers: H })).json();
-  expect(words.text).toContain("```words\nBlochy\n```");
+  expect(words.text).toContain("```words\nblochy\n```");
 });

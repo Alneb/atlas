@@ -108,8 +108,8 @@
 	async function notes() {
 		return (await atlas.files(true)).filter((p) => /\.md$/i.test(p) && !p.startsWith(".atlas/"));
 	}
-	/** The words of these notes per language: word → [uses, notes using it]. `langs` are the languages with a
-	*  dictionary, `fallback` the vault's main one. */
+	/** Each of these notes' words, with its language: path → { lang, words: word → uses }. Per note, so the page can
+	*  take a note's old counts out when it changes and put the new ones in. */
 	async function count(p) {
 		const paths = p.paths ?? [];
 		const langs = p.langs ?? ["en"];
@@ -124,16 +124,12 @@
 			}
 			if (!ownWriting(text)) continue;
 			const lang = guessLanguage(text, langs, fallback, /^---[\s\S]*?^lang:\s*([\w-]+)/m.exec(text)?.[1]);
-			const table = out[lang] ??= {};
-			const seen = /* @__PURE__ */ new Set();
-			for (const { word } of wordsOf(plainProse(text))) {
-				const row = table[word] ??= [0, 0];
-				row[0]++;
-				if (!seen.has(word)) {
-					seen.add(word);
-					row[1]++;
-				}
-			}
+			const words = {};
+			for (const { word } of wordsOf(plainProse(text))) words[word] = (words[word] ?? 0) + 1;
+			out[path] = {
+				lang,
+				words
+			};
 		}
 		return out;
 	}

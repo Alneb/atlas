@@ -7,13 +7,17 @@ A wavy line under a word of a note's prose that neither the language's dictionar
   Dictionaries names others (`en=en_GB, es=es_MX`). A language's dictionary loads the first time a note in it is
   shown. Without any (the phone), nothing is marked.
 - **The vault teaches it:** a word the dictionary lacks counts as right once the vault uses it often enough
-  (3 times, in at least 2 notes, by default), counted when Atlas starts. Words you add yourself are kept in
+  (3 times, in at least 2 notes, by default — or 8 times in one note: a term it is about), counted when Atlas starts. Words you add yourself are kept in
   `.atlas/spelling/words.md`, one per line in its `words` block, free to edit.
-- **Only prose:** math, code, links, wikilinks, tags, HTML and the front matter are never checked. Acronyms and words
-  with a capital inside (`McDonald`, `GitHub`) are left alone, as is the word being typed.
+- **Only prose:** math, code, links, wikilinks, tags, HTML and the front matter are never checked. Left alone too:
+  words under 3 letters (`et al`, `Eq`), acronyms and inner capitals (`GW`, `McDonald`), a capitalised word (a name;
+  a typo at a sentence's start goes unmarked), and the word being typed. A hyphenated word is right when its parts are (`sub-bath`), a
+  possessive is its word (`pyqcm's`), and English is checked against the American and the British dictionary.
+- **The bottom bar** shows the note's language and how many words are marked on screen; hover for which dictionaries
+  and how many words the vault taught, click to set the note's language (its `lang:` property).
 - **A note's language:** its `lang:` property (`en`, `es`…), else guessed from its common words, else the main
   language in Settings.
-- **Right-click a marked word:** suggestions (two swapped letters first, then the dictionary's, those the vault uses
+- **Right-click a marked word:** at the top of the menu, suggestions (two swapped letters first, then the dictionary's, those the vault uses
   most first) and "Add to this vault's words".
 
 How: the helper (QuickJS, in the core) lists and reads the dictionaries with `ls` and `cat` and counts the vault's
