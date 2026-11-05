@@ -388,14 +388,18 @@ async fn answer_terminal_queries(ws: &mut Ws, chunk: &[u8]) {
     }
 }
 
-/// Reads binary frames until `want` shows up (10 s at most); returns everything read. A timeout says what did come,
+/// Reads binary frames until `want` shows up (`READ_WAIT` at most); returns everything read. A timeout says what did come,
 /// so a failure on another system shows the terminal's own output.
 async fn read_until(ws: &mut Ws, want: &str) -> String {
-    match try_read_until(ws, want, Duration::from_secs(10)).await {
+    match try_read_until(ws, want, Duration::from_secs(READ_WAIT)).await {
         Ok(out) => out,
-        Err(tail) => panic!("{want:?} within 10 s; the terminal's last output {tail:?}"),
+        Err(tail) => panic!("{want:?} within {READ_WAIT} s; the terminal's last output {tail:?}"),
     }
 }
+
+/// How long a terminal's answer may take: PowerShell on a cold CI runner can take over 10 s to run its first command
+/// after echoing it (the line shows, its output comes later).
+const READ_WAIT: u64 = if cfg!(windows) { 40 } else { 10 };
 
 /// `read_until` without the panic: everything read, or the output's end when `want` did not come within `wait`.
 async fn try_read_until(ws: &mut Ws, want: &str, wait: Duration) -> Result<String, String> {
