@@ -5,7 +5,15 @@ and versions follow [Semantic Versioning](https://semver.org/) once 1.0 is out.
 
 ## [Unreleased]
 
+## [0.2.7] - 2026-11-05
+
 ### Added
+- Spelling and the Predictor work in the mail composer: its text is a small Atlas editor (`atlas.editor.prose`,
+  plugin API 25) that carries the plugins' editor hooks.
+- The Predictor finishes words from the language's Hunspell dictionary as well as the vault (the vault's most used
+  first, then the shortest), and keeps its counts current as notes are saved.
+- Spelling's bottom-bar cell opens a panel: the note's language to switch, and every marked word with its line and
+  suggestions; choosing one selects it.
 - The capture box (`atlas-capture`) ships in the `.deb`, `.rpm`, Windows installer and macOS app, with its menu
   entries on Linux and a Start-menu shortcut on Ctrl+Alt+Shift+C on Windows; the `atlas` CLI is now in the Windows
   and macOS packages too. The AppImage and the Flatpak carry it as well (`atlas-app --capture` starts it), and on
@@ -38,6 +46,9 @@ and versions follow [Semantic Versioning](https://semver.org/) once 1.0 is out.
 - The render audit keeps its temporary files in `target/` and keeps a finding only when a second look shows it.
 
 ### Fixed
+- Snippets: with LaTeX switched off, the plugin no longer writes its own set, which used to end an old snippets
+  file for good.
+- Vim's block cursor is solid again, hollow with a clean edge when the editor is not focused.
 - Export: formulas using Atlas's own macros (`\ket`, `\bra`, `\braket`, `\Tr`, `\mbox`) are defined in each
   exported document (`\providecommand` in LaTeX, kept as written), so LaTeX no longer stops and Typst and Word draw
   them; a heading right after a line of text is a heading; `$$\begin{align}…$$`
@@ -150,7 +161,8 @@ and versions follow [Semantic Versioning](https://semver.org/) once 1.0 is out.
 - `AGENTS.md`: rules for AI coding agents working in the repository, and a `tidy` stage in the gate.
 - [Plugin maturity](guides/PLUGIN-MATURITY.md): what beta and stable promise, and the criteria for stable.
 
-[Unreleased]: https://github.com/Alneb/atlas/compare/v0.2.6...HEAD
+[Unreleased]: https://github.com/Alneb/atlas/compare/v0.2.7...HEAD
+[0.2.7]: https://github.com/Alneb/atlas/compare/v0.2.6...v0.2.7
 [0.2.6]: https://github.com/Alneb/atlas/compare/v0.2.5...v0.2.6
 [0.2.5]: https://github.com/Alneb/atlas/compare/v0.2.1...v0.2.5
 [0.2.1]: https://github.com/Alneb/atlas/compare/v0.2.0...v0.2.1

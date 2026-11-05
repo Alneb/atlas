@@ -85,8 +85,10 @@ export async function loadAll(atlas: PluginApi, starter = true): Promise<Read> {
     files.push({ source: legacy.source, entries: legacy.entries });
     problems.push(...legacy.problems);
   }
-  // the plugin's LaTeX set kept current, unless an old file not yet converted still holds the vault's snippets
-  if (starter && !fromOldFile) {
+  // the plugin's LaTeX set kept current, unless an old file not yet converted still holds the vault's snippets. Not
+  // when the old file could not be asked for (LaTeX switched off: the route is gone): writing the set then would end
+  // an old file for good that is only out of reach for now
+  if (starter && !fromOldFile && oldFile !== null) {
     try { if (await keepStarter(atlas)) return { ...(await loadAll(atlas, false)), wroteStarter: true }; }
     catch (e) { problems.push({ source: STARTER, what: `could not be written: ${String((e as Error).message ?? e)}` }); }
   }

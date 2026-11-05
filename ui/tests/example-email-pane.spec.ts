@@ -224,15 +224,16 @@ test("Ctrl+F finds in the conversation's frames; a pasted picture goes in the te
   expect(await win.evaluate((w) => w.scrollWidth - w.clientWidth)).toBeLessThanOrEqual(0);
   const body = form.getByRole("textbox", { name: "The message" });
   await body.fill("Look:\n");
-  await body.evaluate(async (t: HTMLTextAreaElement) => {
+  // the text is the app's prose editor (atlas.editor.prose): the caret to its end, then the paste
+  await body.press("Control+End");
+  await body.evaluate(async (t: HTMLElement) => {
     // a 1×1 PNG on the clipboard, as a screenshot tool leaves it
     const png = Uint8Array.from(atob("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="), (c) => c.charCodeAt(0));
     const dt = new DataTransfer();
     dt.items.add(new File([png], "image.png", { type: "image/png" }));
-    t.setSelectionRange(t.value.length, t.value.length);
     t.dispatchEvent(new ClipboardEvent("paste", { clipboardData: dt, bubbles: true, cancelable: true }));
   });
-  await expect(body).toHaveValue(/!\[\]\(cid:pasted-1\.png\)/);
+  await expect(body).toContainText("![](cid:pasted-1.png)");
   await expect(form.locator(".file")).toContainText("pasted-1.png");
   await form.getByRole("button", { name: "Preview" }).click();
   await expect(form.locator(".preview img")).toHaveAttribute("src", /^data:image\/png;base64,/);

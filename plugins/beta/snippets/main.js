@@ -1195,7 +1195,7 @@ async function pe(e, t = !0) {
 			entries: e.entries
 		}), r.push(...e.problems);
 	}
-	if (t && !l) try {
+	if (t && !l && s !== null) try {
 		if (await fe(e)) return {
 			...await pe(e, !1),
 			wroteStarter: !0
