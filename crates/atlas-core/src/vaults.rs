@@ -255,12 +255,12 @@ pub fn resolve(typed: &str, create: bool) -> Result<PathBuf> {
     Ok(p)
 }
 
-/// A vault Atlas has just created starts without the science plugins (the Library): they are one
-/// switch away in Settings → Plugins. An existing folder is never given a config this way.
+/// A vault Atlas has just created gets a settings file that says where the switches are, with every built-in plugin
+/// on (the Library too: the Catalog's Libraries page shows it). An existing folder is never given a config this way.
 pub fn start_plain(root: &Path) -> Result<()> {
     let cfg = root.join(".atlas/config.toml");
     if !cfg.exists() {
-        crate::vault_write::write(&cfg, format!("# Settings of this vault (Settings in Atlas edits this file; your comments are kept).\n\n[plugins]\n# built-in plugins this vault does not use; remove a name (or use Settings → Plugins) to switch it on\noff = [\"{}\"]\n", crate::config::BuiltinPlugin::Library.id()).as_bytes())?;
+        crate::vault_write::write(&cfg, "# Settings of this vault (Settings in Atlas edits this file; your comments are kept).\n\n[plugins]\n# plugins this vault does not use (Settings → Plugins switches them)\noff = []\n".as_bytes())?;
     }
     Ok(())
 }
@@ -401,11 +401,11 @@ mod tests {
     }
 
     #[test]
-    fn a_vault_atlas_creates_starts_without_the_library_and_a_config_is_never_replaced() {
+    fn a_vault_atlas_creates_starts_with_every_plugin_on_and_a_config_is_never_replaced() {
         let d = tempfile::tempdir().unwrap();
         start_plain(d.path()).unwrap();
         let cfg = crate::workspace::Workspace::open(d.path()).unwrap().config().unwrap();
-        assert_eq!(cfg.plugins.off, [crate::config::BuiltinPlugin::Library.id()]);
+        assert!(cfg.plugins.off.is_empty());
         std::fs::write(d.path().join(".atlas/config.toml"), "vim = false\n").unwrap();
         start_plain(d.path()).unwrap();
         assert_eq!(std::fs::read_to_string(d.path().join(".atlas/config.toml")).unwrap(), "vim = false\n");

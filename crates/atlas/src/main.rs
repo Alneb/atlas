@@ -113,15 +113,15 @@ enum Action {
 #[derive(Subcommand)]
 enum PluginAction {
     /// Copy a plugin into the vault from a folder, a git address or a .zip / .tar.gz. It arrives
-    /// switched off: read what it may do, then switch it on in Settings → Plugins (or pass --on).
+    /// switched on (--off keeps it off, to read what it may do first).
     Install {
         from: String,
         /// The plugin's folder name in the vault (default: the last part of `from`).
         #[arg(long)]
         id: Option<String>,
-        /// Switch it on at once.
+        /// Keep it switched off, to read what it may do first.
         #[arg(long)]
-        on: bool,
+        off: bool,
     },
     /// Install again from where the plugin came; the vault's own settings are kept, the old copy goes to .atlas/trash/.
     Update { id: String },
@@ -170,14 +170,14 @@ fn plugin_action(ws: &Workspace, action: PluginAction) -> Result<()> {
         }
     };
     match action {
-        PluginAction::Install { from, id, on } => {
+        PluginAction::Install { from, id, off } => {
             let r = inst::install(root, &Source::parse(&from), id.as_deref(), false)?;
             report("installed", &r);
-            if on {
-                inst::set_off(root, &r.id, false)?;
-                println!("  switched on");
+            if off {
+                inst::set_off(root, &r.id, true)?;
+                println!("  kept switched off: switch it on in Settings → Plugins");
             } else {
-                println!("  it is switched off: switch it on in Settings → Plugins (or install with --on)");
+                println!("  switched on");
             }
         }
         PluginAction::Update { id } => {

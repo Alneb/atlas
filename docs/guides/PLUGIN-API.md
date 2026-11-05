@@ -179,7 +179,7 @@ tubearchivist = { set = { preset = "TubeArchivist" } }          # values added w
   first plugin listed wins over the next. Its secrets are copied under their (renamed) names where the new plugin has
   none. A replaced plugin the vault had switched off gives its `if_off` values (a plugin folded into a setting:
   Catalog · Web pages became the catalog's `read_pages`). Its settings file and its folder go to `.atlas/trash/`, and its id leaves `[plugins] off`.
-- Switched off: a plugin new to the vault starts off, as every install does; at a start (a merged plugin copied in by
+- Switched off: a plugin installed starts on; at a start (a merged plugin copied in by
   hand, with no settings file yet) it is switched off when every plugin it replaces that the vault had was off. A
   plugin the vault already used is never switched off by what it absorbs.
 - Nothing happens for a plugin the vault never had, so the key stays in a manifest for good; the adoption is said on
@@ -636,7 +636,7 @@ quarantine mark is taken off the unpacked files (the plugin is installed switche
 
 ## From a terminal
 
-`atlas plugin list` · `atlas plugin install <from> [--id name] [--on]` (`<from>`: a folder, a git address, a `.zip` /
+`atlas plugin list` · `atlas plugin install <from> [--id name] [--off]` (`<from>`: a folder, a git address, a `.zip` /
 `.tar.gz` file or its web address) · `atlas plugin update <id>` · `atlas plugin remove <id>` · `atlas cmd plugin.<plugin id>.<command id>` runs one of its commands.
 
 ## What is promised to stay

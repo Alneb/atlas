@@ -89,7 +89,7 @@ export function installPlugin(): void {
         const r = await api.installPlugin(from.trim());
         await loadPlugins();
         const may = mayOf(r.permissions, r.has_helper);
-        toast(`Installed ${r.title}`, `It is switched off. ${may ? `It may ${may}. ` : ""}Switch it on here when you have looked at it.`, "success", 12000);
+        toast(`Installed ${r.title}`, `It is switched on.${may ? ` It may ${may}; switch it off here if you would rather not.` : ""}`, "success", 12000);
       } catch (e) { toast("Not installed", errText(e), "error", 9000); }
     },
   });

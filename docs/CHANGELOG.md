@@ -15,6 +15,8 @@ and versions follow [Semantic Versioning](https://semver.org/) once 1.0 is out.
   and titles show at once, before the lines.
 - Keys on macOS and Windows: Atlas's Super shortcuts are Ctrl+Cmd on a Mac (Cmd stays copy and paste) and Ctrl+Alt on
   Windows (which keeps its Win keys); AltGr never runs a shortcut.
+- Plugins: an installed plugin starts switched on (`atlas plugin install --off` keeps it off), and a new vault starts
+  with every built-in plugin on, the Library included.
 - The render audit keeps its temporary files in `target/` and keeps a finding only when a second look shows it.
 
 ### Fixed

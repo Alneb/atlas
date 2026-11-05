@@ -116,7 +116,7 @@ export function register(atlas) {
 
 ### A plugin
 
-Someone else's plugin is copied into the vault with `atlas plugin install <folder | git address | archive>` (or Settings → Plugins → Install…); it arrives switched off, with what it may do listed. `atlas plugin update <id>` keeps your settings; `atlas plugin remove <id>` moves it to `.atlas/trash/`.
+Someone else's plugin is copied into the vault with `atlas plugin install <folder | git address | archive>` (or Settings → Plugins → Install…); it arrives switched on, with what it may do listed (`--off` keeps it off). `atlas plugin update <id>` keeps your settings; `atlas plugin remove <id>` moves it to `.atlas/trash/`.
 ```
 .atlas/plugins/habits/
   plugin.toml      title = "Habits"            (only `title` is required)

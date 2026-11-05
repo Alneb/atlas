@@ -362,9 +362,9 @@ pub fn install(root: &Path, source: &Source, id: Option<&str>, replace: bool) ->
             &from.join(SOURCE_FILE),
             format!("# Where this plugin was installed from (`atlas plugin update {id}` goes back there).\nkind = {:?}\nfrom = {:?}\ninstalled = {:?}\n{}shipped = {}\n", source.kind(), source.recorded(), chrono::Local::now().format("%Y-%m-%d").to_string(), commit.map(|c| format!("commit = {c:?}\n")).unwrap_or_default(), toml::Value::Array(shipped)).as_bytes(),
         )?;
-        // a new plugin starts off — and the setting is written BEFORE its folder appears: an Atlas that
-        // sees the folder first would start it for a moment (it did, in the tests)
-        let on = if !dest.exists() { set_off(root, &id, true).map(|_| false)? } else { !crate::workspace::Workspace::open(root)?.config()?.plugins.off.contains(&id) };
+        // a plugin installed is meant to be used: it starts on, also when an earlier copy had been switched off (an
+        // update keeps whatever the vault chose)
+        let on = if !dest.exists() { set_off(root, &id, false).map(|_| true)? } else { !crate::workspace::Workspace::open(root)?.config()?.plugins.off.contains(&id) };
         // from here on the old copy is in the Trash: only the move into place is left to fail
         let mut replaced = None;
         if dest.exists() {
@@ -562,11 +562,11 @@ mod tests {
         let src = source(elsewhere.path(), "0.1.0");
         std::fs::write(src.join("old.js"), "// dropped by 0.2.0").unwrap();
         let got = install(root, &Source::Folder(src.clone()), None, false).unwrap();
-        assert_eq!((got.id.as_str(), got.title.as_str(), got.version.as_deref(), got.on, &got.replaced), ("dice-plugin", "Dice", Some("0.1.0"), false, &None));
+        assert_eq!((got.id.as_str(), got.title.as_str(), got.version.as_deref(), got.on, &got.replaced), ("dice-plugin", "Dice", Some("0.1.0"), true, &None));
         assert_eq!(got.permissions.net, ["dice.example.org"]);
         let dir = root.join(PLUGINS_DIR).join("dice-plugin");
         assert!(dir.join("main.js").is_file() && !dir.join(".git").exists(), "its files, not its version control");
-        assert!(std::fs::read_to_string(root.join(".atlas/config.toml")).unwrap().contains("off = [\"dice-plugin\"]"), "it starts switched off");
+        assert!(!crate::workspace::Workspace::open(root).unwrap().config().unwrap().plugins.off.contains(&"dice-plugin".to_string()), "it starts switched on");
         assert!(std::fs::read_to_string(dir.join(SOURCE_FILE)).unwrap().contains("kind = \"folder\""));
         assert!(install(root, &Source::Folder(src.clone()), None, false).is_err(), "a second install does not overwrite");
         // a tool's hidden folder stays behind; a relative source is kept absolute (an update from anywhere finds it)
