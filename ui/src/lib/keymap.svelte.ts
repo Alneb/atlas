@@ -5,7 +5,7 @@ import { emitPluginEvent } from "./plugin-events";
 import { builtinOn } from "./builtin-plugins";
 import { actions, runServerCommand, serverBuiltinToUi, type Action } from "./actions";
 import { api } from "./api";
-import { parseChord, type Chord } from "./keys";
+import { keySystem, onThisSystem, parseChord, sameChord, type Chord, type KeySystem } from "./keys";
 import type { CommandInfo } from "./types";
 import { toast } from "./state.svelte";
 
@@ -59,7 +59,26 @@ export function allCommands(): Cmd[] {
       defaultKeys: c.keys, keys: effective(c.id, c.keys), file: c.file, origin: c.origin, schedule: c.schedule, lastRun: c.last_run,
       fromTerminal: false, run: told(c.id, () => runServerCommand(c.id, c.title)),
     }));
-  return firstOfEach([...ui, ...server]);
+  return forThisSystem(firstOfEach([...ui, ...server]));
+}
+
+const hasSuper = (k: string) => onThisSystem(k, "windows") !== k;
+const withShift = (k: string) => (parseChord(k)?.shift ? k : k.replace(/\+([^+]+|\+)$/, "+Shift+$1"));
+
+/** The keys as this system types them (keys.ts `onThisSystem`: Super is Ctrl+Cmd on a Mac, Ctrl+Alt on Windows). On
+ *  Windows a default already on Ctrl+Alt that a Super key now takes (Super+P open file over Ctrl+Alt+P pin tab) moves
+ *  to Ctrl+Alt+Shift: the everyday app keys keep the shorter form. A key set by hand (`.atlas/keys.toml`) never moves. */
+export function forThisSystem(list: Cmd[], sys: KeySystem = keySystem()): Cmd[] {
+  if (sys === "linux") return list;
+  const keysOf = (c: Cmd) => [c.keys, ...(c.alsoKeys ?? [])].filter((k): k is string => !!k);
+  const taken = list.flatMap(keysOf).filter(hasSuper).map((k) => onThisSystem(k, sys));
+  const every = list.flatMap(keysOf).map((k) => onThisSystem(k, sys));
+  const free = (k: string) => !every.some((t) => sameChord(t, k));
+  // a moved key whose Shift form is taken too (Ctrl+Alt+B add bookmark, Super+Shift+B browse) is left without a key
+  // here, to be given one on the Keyboard page, rather than two commands answering it
+  const fix = (k: string | undefined, movable: boolean) =>
+    !k ? k : hasSuper(k) ? onThisSystem(k, sys) : movable && taken.some((t) => sameChord(t, k)) ? (free(withShift(k)) ? withShift(k) : undefined) : k;
+  return list.map((c) => ({ ...c, keys: fix(c.keys, c.keys === c.defaultKeys), defaultKeys: fix(c.defaultKeys, true), alsoKeys: c.alsoKeys?.flatMap((k) => fix(k, true) ?? []) }));
 }
 
 /** Every list of commands is keyed by id, and a repeated id crashed them all (Svelte each_key_duplicate: the

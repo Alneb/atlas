@@ -1,5 +1,6 @@
 // The dockview-core host: pane mounting, opening/focusing panes, layout persistence.
 import { tabFacts } from "./tab-facts";
+import { keyText } from "./keys";
 import { onWide } from "./phone.svelte";
 import {
   createDockview,
@@ -58,7 +59,7 @@ class AtlasTab implements ITabRenderer {
     title.textContent = p.api.title ?? paneTitle(spec);
     const close = document.createElement("button");
     close.className = "atlas-tab-close";
-    close.title = "Close (Super+Q, Ctrl+W)";
+    close.title = `Close (${keyText("Super+Q")}, Ctrl+W)`;
     close.innerHTML = iconSvg("close");
     close.addEventListener("pointerdown", (e) => e.stopPropagation());
     close.addEventListener("click", (e) => { e.stopPropagation(); void closePanel(p.api); });

@@ -61,7 +61,42 @@ export function systemEditingChord(e: KeyboardEvent): boolean {
   return e.metaKey && !e.ctrlKey && !e.altKey && MAC_EDITING.has(e.code) && isMac();
 }
 
+/** The system the keys are typed on: Atlas's app keys are written with Super (the Linux desktop's habit, KEYS.md). */
+export type KeySystem = "mac" | "windows" | "linux";
+export const keySystem = (): KeySystem =>
+  isMac() ? "mac" : typeof navigator !== "undefined" && /Windows/.test(navigator.userAgent) ? "windows" : "linux";
+
+/** What Super stands for here: on a Mac Ctrl+Cmd (Cmd alone is the system's copy, paste and undo), on Windows Ctrl+Alt
+ *  (Windows keeps most Win+letter keys for itself: Win+V its clipboard, Win+E, Win+D, Win+L…), on Linux Super. */
+const SUPER_IS: Record<KeySystem, string[] | null> = { mac: ["Ctrl", "Cmd"], windows: ["Ctrl", "Alt"], linux: null };
+const SUPER_WORD = /^(super|meta|cmd)$/i;
+
+/** A shortcut as this system types it ("Super+Shift+L" → "Ctrl+Alt+Shift+L" on Windows); a chord without Super as it is. */
+export function onThisSystem(spec: string, sys: KeySystem = keySystem()): string {
+  const as = SUPER_IS[sys];
+  const parts = spec.split("+");
+  const at = parts.findIndex((p) => SUPER_WORD.test(p.trim()));
+  if (!as || at < 0) return spec;
+  const word: Record<string, RegExp> = { Ctrl: /^(ctrl|control|mod)$/i, Alt: /^(alt|option)$/i, Cmd: /^cmd$/i };
+  const rest = parts.filter((_, i) => i !== at).map((p) => p.trim());
+  parts.splice(at, 1, ...as.filter((m) => !rest.some((p) => word[m].test(p))));
+  return parts.join("+");
+}
+
+/** A text that names keys ("Capture (Super+C)") as this system types them. */
+export const keyText = (text: string, sys: KeySystem = keySystem()): string => {
+  const as = SUPER_IS[sys];
+  return as ? text.replace(/\bSuper\+/g, `${as.join("+")}+`) : text;
+};
+
+/** Is this one of Atlas's app keys (Super, or what stands for it here), which reach Atlas even from a terminal? */
+export function appChord(c: Chord, sys: KeySystem = keySystem()): boolean {
+  return c.meta || (sys === "windows" && c.ctrl && c.alt);
+}
+
 export function matches(c: Chord, e: KeyboardEvent): boolean {
+  // AltGr (Ctrl+Alt to Windows on many layouts: € @ [ ] { }) types a character, never a Ctrl+Alt shortcut
+  if (c.ctrl && c.alt && e.getModifierState?.("AltGraph")) return false;
   const meta = superOf(e);
   if (c.char) return e.key === c.char && e.ctrlKey === c.ctrl && e.altKey === c.alt && meta === c.meta;
   return e.code === c.code && e.ctrlKey === c.ctrl && e.altKey === c.alt && e.shiftKey === c.shift && meta === c.meta;

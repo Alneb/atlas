@@ -93,6 +93,30 @@ Before, `indentWithTab` indented the whole line from anywhere in it. A list on s
 
 **Super in the desktop app.** WebKitGTK on Wayland can report Super+E with `metaKey` false. `superOf(e)` in `ui/src/lib/keys.ts` also counts a Super key seen going down (until it goes up or the window blurs) and the "Super"/"OS" modifier state; every check uses it, never `e.metaKey` alone. Test: the WebKitGTK case is simulated in `command-bar.spec.ts`. Still to confirm by hand in the desktop window after a restart.
 
+## On a Mac and on Windows, Super is another pair of keys
+
+The keys are written with **Super** (the Linux desktop's habit), but Super is not free everywhere: on a Mac it is Cmd,
+the system's copy, paste, cut, select-all and undo key; on Windows the system keeps most Win+letter keys for itself
+(Win+V its clipboard history, Win+E, Win+D, Win+L, Win+arrows). So each system types Super as its own pair
+(`keys.ts` `onThisSystem`, applied once where every command's keys are worked out, `keymap.svelte.ts` `forThisSystem`):
+
+| | Super+V (the next vault) is typed | why |
+|---|---|---|
+| Linux | Super+V | the Super key is free for the app |
+| macOS | Ctrl+Cmd+V | Cmd stays the system's; macOS leaves almost every Ctrl+Cmd chord free |
+| Windows | Ctrl+Alt+V | Ctrl and Alt, no Shift; Windows takes the Win keys |
+
+- On Windows a default already on that Ctrl+Alt key moves to Ctrl+Alt+Shift (Ctrl+Alt+P pin tab → Ctrl+Alt+Shift+P,
+  since Super+P, open file, takes Ctrl+Alt+P), and is left without a key when its Shift form is taken too (add a
+  bookmark: Ctrl+Alt+Shift+B is Super+Shift+B, browse the web). A key set by hand in `.atlas/keys.toml` never moves.
+- **AltGr** types its character and never runs a Ctrl+Alt shortcut: on Windows it reaches the page as Ctrl+Alt
+  (`€` is AltGr+E on a Spanish keyboard), told apart by its `AltGraph` modifier.
+- In a terminal, Atlas answers its app keys and leaves the rest to the shell; on Windows Ctrl+Alt keys count as app keys
+  there (`appChord`).
+- Hints written in the interface with Super (a tooltip, a page's blurb) go through `keyText`, which spells them the same
+  way; a key shown from the keymap is already the system's.
+- On a Mac, Cmd+C / V / X / A / Z are the system's in any case (`systemEditingChord`).
+
 ## Clashes are shown
 
 Settings → Keyboard marks, in red beside the command, a key that another command also has **in the same place** ("same key as Git") — only one of the two would ever run. A key that means one thing in notes and another elsewhere (Ctrl+K: link in a note, the command bar outside) is not a clash; that is the design. The default keys have none: a test fails if a new default ever collides (`key-clashes.spec.ts`; `keyClashes()` in `ui/src/lib/keymap.svelte.ts`).

@@ -1,6 +1,7 @@
 // Excalidraw (a React component) mounted inside a Svelte pane. Scenes are plain `.excalidraw` JSON;
 // fonts are served offline under /excalidraw/ (vite.config.ts), never from a CDN.
 import { compactJson, shrinkFiles } from "./draw-compact";
+import { keyText } from "./keys";
 import { basename } from "./paths";
 import { createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
@@ -436,7 +437,7 @@ export async function mountDrawing(host: HTMLElement, json: string, theme: "dark
         onPointerUpdate: live ? (p: Parameters<typeof live.pointer>[0]) => live.pointer(p) : undefined,
         UIOptions: { canvasActions: { loadScene: false, saveToActiveFile: false, export: { saveFileToDisk: true } } },
         renderTopRightUI: opts.onFullscreen
-          ? () => createElement("button", { className: "atlas-draw-full", title: "Fullscreen (Super+F)", "aria-label": "Fullscreen", onClick: opts.onFullscreen }, "⛶")
+          ? () => createElement("button", { className: "atlas-draw-full", title: `Fullscreen (${keyText("Super+F")})`, "aria-label": "Fullscreen", onClick: opts.onFullscreen }, "⛶")
           : undefined,
       }),
     );

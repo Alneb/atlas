@@ -25,7 +25,7 @@
   import { editors, lastEditorId, parkAll } from "./lib/registry";
   import { homeDoc, openHome, shellTerminal, claudeTerminal } from "./lib/actions";
   import { openQuickCapture } from "./lib/quick-capture.svelte";
-  import { matches, systemEditingChord } from "./lib/keys";
+  import { appChord, matches, systemEditingChord } from "./lib/keys";
   import { palette, openPalette } from "./lib/palette.svelte";
   import { app, toast, paintTheme } from "./lib/state.svelte";
   import { loadSettings, settings } from "./lib/settings.svelte";
@@ -77,7 +77,7 @@
       if (!matches(b.chord, e) || (b.cmd.where === "note" && !inNote)) continue;
       // a terminal keeps every key without Super for its shell (Ctrl+W, Ctrl+K, Ctrl+B, Alt+…): from
       // there Atlas answers only Super keys, F-keys and commands marked `fromTerminal`
-      const shellKey = !b.chord.meta && !/^F\d{1,2}$/.test(b.chord.code);
+      const shellKey = !appChord(b.chord) && !/^F\d{1,2}$/.test(b.chord.code);
       if ((inTerminal && shellKey && !b.cmd.fromTerminal) || (b.cmd.yieldTo && keeps(b.cmd.yieldTo, target))) return;
       e.preventDefault();
       e.stopPropagation();

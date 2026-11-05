@@ -3,7 +3,7 @@
   import { errText } from "../lib/text";
   import { closable } from "../lib/back";
   import { holdFocus, trapTab } from "../lib/focus-return";
-  import { allCommands, loadKeymap } from "../lib/keymap.svelte";
+  import { allCommands, keysOf, loadKeymap } from "../lib/keymap.svelte";
   // Command palette / quick open / URL prompt / generic picker — one fuzzy list, keyboard-first.
   import { tick } from "svelte";
   import { api } from "../lib/api";
@@ -15,7 +15,7 @@
   import { createNote } from "../lib/notes-system";
   import { editors } from "../lib/registry";
   import { fuzzy, highlightMatch } from "../lib/fuzzy";
-  import { chordLabel, superOf } from "../lib/keys";
+  import { chordLabel, keyText, superOf } from "../lib/keys";
   import { fileIcon, type IconName } from "../lib/panes";
   import { basename, shownName } from "../lib/paths";
   import { toast } from "../lib/state.svelte";
@@ -200,7 +200,7 @@
         // search has answered: before, the capture row was the only one, and an Enter typed early wrote a file's name
         // into today's log instead of opening the file
         const capture: Item[] = query && !query.startsWith(">") && answered === query ? [{
-          key: "cap", section: "Capture", title: `Capture “${query}”`, detail: `${captureWhat()} — or press Super+E again`, icon: "plus", score: -2, hl: [],
+          key: "cap", section: "Capture", title: `Capture “${query}”`, detail: `${captureWhat()} — or press ${keysOf("ui.palette") ?? keyText("Super+E")} again`, icon: "plus", score: -2, hl: [],
           run: () => captureNow(query),
         }] : [];
         return query ? [...cmds.slice(0, 8), ...heads, ...files, ...titledItems(), ...lines, ...capture] : [...files, ...cmds];

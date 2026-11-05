@@ -2,6 +2,7 @@
   // The `tabs` block (docs/design/VERTICAL-TABS.md): every open tab grouped by split; drag to reorder or to
   // another split, middle-click closes, double-click renames a terminal; j/k, Enter, x, p, / by keyboard.
   import type { BlockHost } from "../../lib/blocks";
+  import { keyText } from "../../lib/keys";
   import { below } from "../../lib/menu";
   import { open, nextTerminalN, dockTerminal, toggleTerminalPanel } from "../../lib/dock";
   import { keysOf, tipFor } from "../../lib/keymap.svelte";
@@ -84,7 +85,7 @@
       <!-- closes on the press: inside a draggable row WebKit (the desktop app) may start a drag and
            never deliver the click -->
       <!-- a half's × closes that half and ends the split -->
-      <button class="tab-close" tabindex="-1" aria-label="Close {t.title}" title={half ? "Close this half: the split ended" : `Close · ${keysOf("ui.close") ?? "Super+Q"} (or middle-click)`}
+      <button class="tab-close" tabindex="-1" aria-label="Close {t.title}" title={half ? "Close this half: the split ended" : `Close · ${keysOf("ui.close") ?? keyText("Super+Q")} (or middle-click)`}
         onmousedown={(e) => { if (e.button !== 0) return; e.preventDefault(); e.stopPropagation(); if (half) void closeHalf(t.id); else closeTab(t.id); }}
         onclick={(e) => e.stopPropagation()} draggable="false"><Icon name="close" size={13} /></button>
     {:else if app.dirty[t.id]}
@@ -98,7 +99,7 @@
     <span>{label}</span>
     {#if zone === "bottom"}
       {@const right = settings.config?.terminal.position === "right"}
-      <button class="icon-btn small-btn" class:off={!visible} onclick={toggleTerminalPanel} aria-label="{visible ? 'Hide' : 'Show'} the terminal panel" title="{visible ? 'Hide' : 'Show'} the terminal panel · {keysOf('ui.panel') ?? 'Super+J'} (the shells keep running)"><Icon name={visible ? "minus" : "chevron-down"} size={13} /></button>
+      <button class="icon-btn small-btn" class:off={!visible} onclick={toggleTerminalPanel} aria-label="{visible ? 'Hide' : 'Show'} the terminal panel" title="{visible ? 'Hide' : 'Show'} the terminal panel · {keysOf('ui.panel') ?? keyText('Super+J')} (the shells keep running)"><Icon name={visible ? "minus" : "chevron-down"} size={13} /></button>
       <button class="icon-btn small-btn" onclick={() => dockTerminal(right ? "bottom" : "right")} aria-label={right ? "Dock terminal at the bottom" : "Dock terminal on the right"} title={right ? "Dock at the bottom" : "Dock on the right"}><Icon name={right ? "panel-bottom" : "panel-right"} size={13} /></button>
       <button class="icon-btn small-btn" onclick={newTerminalMenu} aria-haspopup="menu" aria-label="New terminal" title="New terminal: a shell or a Claude session"><Icon name="plus" size={13} /></button>
     {/if}

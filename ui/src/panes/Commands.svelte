@@ -1,5 +1,6 @@
 <script lang="ts">
   import { errText } from "../lib/text";
+  import { keyText } from "../lib/keys";
   import { keysOf } from "../lib/keymap.svelte";
   // Commands & shortcuts: every command (Atlas's own and the workspace's scripts), where each script
   // came from (you or Claude, from git), its shortcut (click → press keys → saved to .atlas/keys.toml),
@@ -105,7 +106,7 @@
     {#if creating}
       <!-- svelte-ignore a11y_no_noninteractive_element_interactions (Esc from any of its fields closes it) -->
       <form class="new" onsubmit={(e) => { e.preventDefault(); void create(); }} onkeydown={(e) => { if (e.key === "Escape") { e.preventDefault(); closeForm(); } }}>
-        <p class="hint">A command is a shell command line run in the workspace folder; it lands in <code>.atlas/commands/</code>, shows in the command bar ({keysOf('ui.palette') ?? 'Super+E'}) and can get a shortcut. Its output appears here.</p>
+        <p class="hint">A command is a shell command line run in the workspace folder; it lands in <code>.atlas/commands/</code>, shows in the command bar ({keysOf('ui.palette') ?? keyText('Super+E')}) and can get a shortcut. Its output appears here.</p>
         <label>Title <input bind:this={titleInput} bind:value={form.title} placeholder="Papers: rebuild refs.bib" required /></label>
         <label>Command line <input class="mono" bind:value={form.run} placeholder={"python3 projects/x/make_figs.py && echo done"} required spellcheck="false" /></label>
         <label>Description <input bind:value={form.description} placeholder="What it does, in one line (optional)" /></label>

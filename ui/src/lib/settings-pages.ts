@@ -4,6 +4,8 @@
 // config section shows up with no UI work (shape over lists).
 
 import type { IconName } from "./panes";
+
+import { keyText } from "./keys";
 import type { BuiltinId } from "./builtin-plugins";
 
 export type PageId =
@@ -65,7 +67,7 @@ export const PAGES: PageDef[] = [
     fields: [], features: ["ui.palette", "ui.quickOpen", "ui.capture", "ui.commands"], panels: ["overview"],
   },
   {
-    id: "appearance", title: "Appearance", group: "general", icon: "sun", blurb: "Colours, fonts, sizes, how tabs are shown and where the side panel sits; e-ink screens (a Boox) get pure black on white. A split shows two tabs side by side; a tab outside it shows alone and a click on the pair brings both back. Super+F puts one tab over the whole window. Changes apply as you make them.",
+    id: "appearance", title: "Appearance", group: "general", icon: "sun", blurb: keyText("Colours, fonts, sizes, how tabs are shown and where the side panel sits; e-ink screens (a Boox) get pure black on white. A split shows two tabs side by side; a tab outside it shows alone and a click on the pair brings both back. Super+F puts one tab over the whole window. Changes apply as you make them."),
     fields: ["ui.theme", "ui.palette", "ui.palette_dark", "ui.contrast", "ui.shape", "ui.accent", "ui.font_size", "ui.ui_font", "ui.motion", "ui.notices", "ui.eink", "ui.eink_refresh", "ui.tabs", "ui.side_panel", "ui.restore_layout", "ui.tab_preview", "ui.tab_switcher", "ui.sleep_after_min", "ui.awake_tabs",
       "editor.prose_font", "editor.prose_font_size", "editor.prose_line_height", "editor.prose_width",
       "editor.code_font", "editor.code_font_size", "editor.inline_title"],
@@ -81,7 +83,7 @@ export const PAGES: PageDef[] = [
     next: [{ label: "Put a live view in a note", why: "A ```view block (calendar, list, table) over the note's own tasks or a folder.", run: "settings.viewHelp" }],
   },
   {
-    id: "today", title: "Home & Today", group: "working", icon: "today", blurb: "The first screen, the daily log, your focus file and the activity feed. Capture (Super+C) adds a line to today's log, a note in notes/log that starts with its date as properties, or from the daily log template; the Weather plugin adds the day's weather to it. Captures (the command, or a `captures` block in any note) lists every capture by day to triage: make it a task, file it into a note, dismiss it.",
+    id: "today", title: "Home & Today", group: "working", icon: "today", blurb: keyText("The first screen, the daily log, your focus file and the activity feed. Capture (Super+C) adds a line to today's log, a note in notes/log that starts with its date as properties, or from the daily log template; the Weather plugin adds the day's weather to it. Captures (the command, or a `captures` block in any note) lists every capture by day to triage: make it a task, file it into a note, dismiss it."),
     fields: ["home", "focus", "log_dir", "log_folders", "log_template", "activity.*", "notifications.*"],
     features: ["ui.today", "ui.capture", "ui.captures", "ui.focusFile"],
     next: [{ label: "Reshape the home screen", why: "Home is a .page file: rows and columns of blocks you add, move or remove.", run: "settings.editHome" }],
@@ -97,7 +99,7 @@ export const PAGES: PageDef[] = [
     features: ["ui.files", "ui.explorer", "ui.quickOpen", "ui.search", "ui.history", "ui.openWith", "ui.vault"], panels: ["openwith"],
   },
   {
-    id: "web", title: "Web", group: "working", icon: "globe", blurb: "Links to web pages: in a tab of Atlas when the site allows it, in a browsing window of Atlas (Alt+← / Alt+→ back and forward, Super+Shift+O to your browser, Ctrl+W close) with ads and trackers blocked, or in your own browser.",
+    id: "web", title: "Web", group: "working", icon: "globe", blurb: keyText("Links to web pages: in a tab of Atlas when the site allows it, in a browsing window of Atlas (Alt+← / Alt+→ back and forward, Super+Shift+O to your browser, Ctrl+W close) with ads and trackers blocked, or in your own browser."),
     fields: ["web.*"], features: ["ui.web"],
   },
   {

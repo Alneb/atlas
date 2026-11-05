@@ -13,6 +13,8 @@ and versions follow [Semantic Versioning](https://semver.org/) once 1.0 is out.
 - Search: a PDF switch in the Search pane narrows a search to the PDFs' text (which the normal search still lists after the notes').
 - Search is faster: files read on several threads, notes first, pictures, binaries and number tables left out; names
   and titles show at once, before the lines.
+- Keys on macOS and Windows: Atlas's Super shortcuts are Ctrl+Cmd on a Mac (Cmd stays copy and paste) and Ctrl+Alt on
+  Windows (which keeps its Win keys); AltGr never runs a shortcut.
 - The render audit keeps its temporary files in `target/` and keeps a finding only when a second look shows it.
 
 ### Fixed
