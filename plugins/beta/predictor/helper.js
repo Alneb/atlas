@@ -59,32 +59,92 @@
 		return !/^message_id:/m.test(text.slice(0, frontMatterEnd(text)));
 	}
 	//#endregion
+	//#region ui/src/lib/editor/dictionaries.ts
+	/** Where systems keep Hunspell dictionaries, the setting's folder first. */
+	const folders = (own) => [
+		typeof own === "string" ? own.trim() : "",
+		"/usr/share/hunspell",
+		"/usr/share/myspell",
+		"/usr/share/myspell/dicts"
+	].filter(Boolean);
+	/** Each installed dictionary (`en_US`) with its folder, the first folder holding a name winning. */
+	async function installedDictionaries(exec, own) {
+		const found = /* @__PURE__ */ new Map();
+		for (const dir of folders(own)) {
+			let r;
+			try {
+				r = await exec("ls", [dir]);
+			} catch {
+				return found;
+			}
+			if (r.status !== 0) continue;
+			const names = new Set(r.stdout.split("\n"));
+			for (const n of names) {
+				const m = /^([A-Za-z]{2,3}(?:[_-][A-Za-z0-9]+)*)\.dic$/.exec(n);
+				if (m && names.has(`${m[1]}.aff`) && !found.has(m[1])) found.set(m[1], dir);
+			}
+		}
+		return found;
+	}
+	/** One dictionary's file (`aff` or `dic`), as text. */
+	async function dictionaryFile(exec, own, name, ext) {
+		const dir = (await installedDictionaries(exec, own)).get(name);
+		if (!dir) throw new Error(`no Hunspell dictionary named ${name}`);
+		const r = await exec("cat", [`${dir}/${name}.${ext}`], { timeout: 30 });
+		if (r.status !== 0) throw new Error(r.stderr || `could not read ${name}.${ext}`);
+		return r.stdout;
+	}
+	/** The dictionaries a language uses when the setting names none: of each group, the first installed. English takes
+	*  both the American and the British one, so either spelling (centered, centred) is right. */
+	const PREFERRED = {
+		en: [["en_US", "en_CA"], ["en_GB", "en_AU"]],
+		es: [[
+			"es_ES",
+			"es_MX",
+			"es_AR"
+		]],
+		fr: [["fr_FR", "fr_CA"]],
+		de: [["de_DE"]]
+	};
+	/** language → dictionary names: the preferred installed ones, under the setting's choices (`en=en_GB, es=es_MX+es_AR`). */
+	function chooseDictionaries(installed, setting) {
+		const chosen = /* @__PURE__ */ new Map();
+		for (const [lang, groups] of Object.entries(PREFERRED)) {
+			const names = groups.map((g) => g.find((x) => installed.includes(x))).filter((x) => !!x);
+			if (names.length) chosen.set(lang, names);
+		}
+		for (const part of String(setting ?? "").split(/[,\s]+/)) {
+			const m = /^([a-z]{2,3})=([\w+-]+)$/.exec(part.trim());
+			const names = m?.[2].split("+").filter((n) => installed.includes(n)) ?? [];
+			if (m && names.length) chosen.set(m[1], names);
+		}
+		return chosen;
+	}
+	/** A `.dic` file's words without their affix flags, lower-case words only (names are the vault's to teach), sorted. */
+	function dicStems(dic) {
+		const out = /* @__PURE__ */ new Set();
+		for (const line of dic.split("\n").slice(1)) {
+			const w = line.split("/")[0].split(/\s/)[0];
+			if (/^\p{Ll}[\p{Ll}\p{M}'’-]*$/u.test(w)) out.add(w);
+		}
+		return [...out].sort();
+	}
+	//#endregion
 	//#region plugins/beta/predictor/ui/src/model.ts
 	/** A text's sentences as lists of words (a sentence ends at . ! ? ; : a line break or a blank). */
 	function sentences(text, wordsOf) {
 		return text.split(/[.!?;:]+(?:\s|$)|\n+/).map((s) => wordsOf(s).map((w) => w.word)).filter((s) => s.length);
 	}
-	/** Counts one note's sentences into a chunk's table. */
-	function countInto(table, sents) {
-		const bump = (m, k) => {
-			m[k] = (m[k] ?? 0) + 1;
-		};
-		for (const s of sents) {
-			const low = s.map((w) => w.toLowerCase());
-			low.forEach((w, i) => {
-				bump(table.words, w);
-				bump(table.forms[w] ??= {}, s[i]);
-				if (i >= 1) bump(table.next[low[i - 1]] ??= {}, w);
-				if (i >= 2) bump(table.next[`${low[i - 2]} ${low[i - 1]}`] ??= {}, w);
-			});
-		}
-	}
+	/** Sentences as one compact text (words by spaces, sentences by lines): what the helper answers and the page keeps. */
+	const packSentences = (sents) => sents.map((s) => s.join(" ")).join("\n");
 	//#endregion
 	//#region plugins/beta/predictor/helper/helper.ts
+	const exec = (cmd, args, opts) => atlas.exec(cmd, args, opts);
 	/** The notes to count, in order (the page asks for them in chunks). */
 	async function notes() {
 		return (await atlas.files(true)).filter((p) => /\.md$/i.test(p) && !p.startsWith(".atlas/"));
 	}
+	/** path → { lang, text: its sentences packed }; a note that is not the owner's writing (a kept mail) left out. */
 	async function count(p) {
 		const langs = p.langs ?? ["en"];
 		const fallback = String(p.fallback ?? langs[0] ?? "en");
@@ -97,18 +157,24 @@
 				continue;
 			}
 			if (!ownWriting(text)) continue;
-			const lang = guessLanguage(text, langs, fallback, /^---[\s\S]*?^lang:\s*([\w-]+)/m.exec(text)?.[1]);
-			countInto(out[lang] ??= {
-				words: {},
-				forms: {},
-				next: {}
-			}, sentences(plainProse(text), wordsOf));
+			out[path] = {
+				lang: guessLanguage(text, langs, fallback, /^---[\s\S]*?^lang:\s*([\w-]+)/m.exec(text)?.[1]),
+				text: packSentences(sentences(plainProse(text), wordsOf))
+			};
 		}
 		return out;
 	}
+	/** A language's dictionary words (lower case, without affixes), one per line; "" when none is installed. */
+	async function lexicon(p) {
+		const names = chooseDictionaries([...(await installedDictionaries(exec, p.folder)).keys()], p.dictionaries).get(String(p.lang ?? "en")) ?? [];
+		const words = /* @__PURE__ */ new Set();
+		for (const name of names) for (const w of dicStems(await dictionaryFile(exec, p.folder, name, "dic"))) words.add(w);
+		return [...words].join("\n");
+	}
 	atlas.methods({
 		notes,
-		count
+		count,
+		lexicon
 	});
 	//#endregion
 })();

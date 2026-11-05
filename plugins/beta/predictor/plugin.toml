@@ -4,13 +4,16 @@
 title = "Predictor"
 description = "suggests the rest of a word and the next one as you write, learned from the vault"
 icon = "sparkles"
-version = "0.1.0"
+version = "0.2.0"
 api = 22
 phone = true
 
 [helper]
 js = "helper.js"                   # run in the core (QuickJS), built from helper/helper.ts
 idle = "10m"
+
+[permissions]
+exec = ["ls", "cat"]               # find and read the Hunspell dictionaries (/usr/share/hunspell), for finishing words
 
 [[setting]]
 key = "min_count"
@@ -25,6 +28,13 @@ label = "Next word"
 kind = "toggle"
 default = true
 hint = "after a space, and after a completed word, the next word when the vault is sure of it"
+
+[[setting]]
+key = "dictionary"
+label = "Dictionary words"
+kind = "toggle"
+default = true
+hint = "finish a word the vault seldom writes from the language's Hunspell dictionary (from three letters, when few words start so)"
 
 [[setting]]
 key = "language"

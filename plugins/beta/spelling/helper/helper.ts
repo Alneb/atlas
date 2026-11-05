@@ -3,41 +3,18 @@
 // a chunk of notes per call so no call nears the helper's time limit. Nothing is written.
 import type { Params } from "atlas-helper";
 import { guessLanguage, ownWriting, plainProse, wordsOf } from "../../../../ui/src/lib/editor/prose";
+import { dictionaryFile, installedDictionaries, type Exec } from "../../../../ui/src/lib/editor/dictionaries";
 
-/** Where systems keep Hunspell dictionaries, the setting's folder first. */
-const folders = (own: unknown) => [typeof own === "string" ? own.trim() : "", "/usr/share/hunspell", "/usr/share/myspell", "/usr/share/myspell/dicts"].filter(Boolean);
-
-/** Each installed dictionary (`en_US`) with its folder, the first folder holding a name winning. */
-async function installed(own: unknown): Promise<Map<string, string>> {
-  const found = new Map<string, string>();
-  for (const dir of folders(own)) {
-    let r;
-    try { r = await atlas.exec("ls", [dir]); } catch { return found; } // no `ls` (the phone): no dictionaries
-    if (r.status !== 0) continue;
-    const names = new Set(r.stdout.split("\n"));
-    for (const n of names) {
-      const m = /^([A-Za-z]{2,3}(?:[_-][A-Za-z0-9]+)*)\.dic$/.exec(n);
-      if (m && names.has(`${m[1]}.aff`) && !found.has(m[1])) found.set(m[1], dir);
-    }
-  }
-  return found;
-}
+const exec: Exec = (cmd, args, opts) => atlas.exec(cmd, args, opts) as unknown as ReturnType<Exec>;
 
 async function dictionaries(p: Params) {
-  return [...(await installed(p.folder)).keys()].sort();
+  return [...(await installedDictionaries(exec, p.folder)).keys()].sort();
 }
 
 /** One dictionary's two files, as text. */
 async function dictionary(p: Params) {
   const name = String(p.name ?? "");
-  const dir = (await installed(p.folder)).get(name);
-  if (!dir) throw new Error(`no Hunspell dictionary named ${name}`);
-  const cat = async (ext: string) => {
-    const r = await atlas.exec("cat", [`${dir}/${name}.${ext}`], { timeout: 30 });
-    if (r.status !== 0) throw new Error(r.stderr || `could not read ${name}.${ext}`);
-    return r.stdout;
-  };
-  return { aff: await cat("aff"), dic: await cat("dic") };
+  return { aff: await dictionaryFile(exec, p.folder, name, "aff"), dic: await dictionaryFile(exec, p.folder, name, "dic") };
 }
 
 /** The notes to count, in order (the page asks for them in chunks). */

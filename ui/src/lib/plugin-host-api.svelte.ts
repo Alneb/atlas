@@ -53,6 +53,7 @@ import { pageSvg } from "./pdf-marks";
 import { open, openNative, openPath, openSide } from "./dock";
 import { guard, logPlugin } from "./plugin-log.svelte";
 import { pluginAssetUrl } from "./plugin-files";
+import { createProseEditor } from "./editor/prose-editor";
 import { PLUGIN_API_VERSION, type PluginApi, type PluginPane } from "./plugin-api";
 import { INIT_ID, own, pluginData, pluginOn, pluginSpec, plugins, type Plugin } from "./plugin-registry.svelte";
 import { addCommand } from "./plugin-commands";
@@ -244,6 +245,7 @@ export function pluginApi(p: Plugin, at: PaneAt = {}): PluginApi {
       path: (view) => view.state.facet(hooks.editorPath),
       drawMath: (host, source, block = false) => renderMathInto(host, String(source), block),
       legacySnippets: () => api.snippets(),
+      prose: (host, opts) => createProseEditor(host, opts), // the caller destroys it with its own view
     },
     pen: { shape: (xyt) => api.penShape(xyt) },
     confirm: (question, opts) => confirmDialog(String(question), opts?.hint ?? "", opts?.ok ?? "OK", opts?.danger ?? false),

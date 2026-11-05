@@ -59,7 +59,7 @@
 		return !/^message_id:/m.test(text.slice(0, frontMatterEnd(text)));
 	}
 	//#endregion
-	//#region plugins/beta/spelling/helper/helper.ts
+	//#region ui/src/lib/editor/dictionaries.ts
 	/** Where systems keep Hunspell dictionaries, the setting's folder first. */
 	const folders = (own) => [
 		typeof own === "string" ? own.trim() : "",
@@ -68,12 +68,12 @@
 		"/usr/share/myspell/dicts"
 	].filter(Boolean);
 	/** Each installed dictionary (`en_US`) with its folder, the first folder holding a name winning. */
-	async function installed(own) {
+	async function installedDictionaries(exec, own) {
 		const found = /* @__PURE__ */ new Map();
 		for (const dir of folders(own)) {
 			let r;
 			try {
-				r = await atlas.exec("ls", [dir]);
+				r = await exec("ls", [dir]);
 			} catch {
 				return found;
 			}
@@ -86,22 +86,26 @@
 		}
 		return found;
 	}
+	/** One dictionary's file (`aff` or `dic`), as text. */
+	async function dictionaryFile(exec, own, name, ext) {
+		const dir = (await installedDictionaries(exec, own)).get(name);
+		if (!dir) throw new Error(`no Hunspell dictionary named ${name}`);
+		const r = await exec("cat", [`${dir}/${name}.${ext}`], { timeout: 30 });
+		if (r.status !== 0) throw new Error(r.stderr || `could not read ${name}.${ext}`);
+		return r.stdout;
+	}
+	//#endregion
+	//#region plugins/beta/spelling/helper/helper.ts
+	const exec = (cmd, args, opts) => atlas.exec(cmd, args, opts);
 	async function dictionaries(p) {
-		return [...(await installed(p.folder)).keys()].sort();
+		return [...(await installedDictionaries(exec, p.folder)).keys()].sort();
 	}
 	/** One dictionary's two files, as text. */
 	async function dictionary(p) {
 		const name = String(p.name ?? "");
-		const dir = (await installed(p.folder)).get(name);
-		if (!dir) throw new Error(`no Hunspell dictionary named ${name}`);
-		const cat = async (ext) => {
-			const r = await atlas.exec("cat", [`${dir}/${name}.${ext}`], { timeout: 30 });
-			if (r.status !== 0) throw new Error(r.stderr || `could not read ${name}.${ext}`);
-			return r.stdout;
-		};
 		return {
-			aff: await cat("aff"),
-			dic: await cat("dic")
+			aff: await dictionaryFile(exec, p.folder, name, "aff"),
+			dic: await dictionaryFile(exec, p.folder, name, "dic")
 		};
 	}
 	/** The notes to count, in order (the page asks for them in chunks). */

@@ -364,10 +364,11 @@ pub fn permissions(root: &Path, id: &str) -> Result<Permissions> {
 /// `codemirror.language`, a completion's `applies`, `apply`, `info` and `from`; v23 `atlas.writeBytes`, `atlas.tikz.png`, `atlas.confirm`,
 /// `atlas.input`, `openDialog`'s `view` (another module of the plugin); v24 the Libraries page is a plugin's pane (the
 /// role `libraries`): `atlas.libraries` (the vault's libraries, for it), `atlas.richTitle`, `thumbUrl` of a PDF, a
-/// toast's `timeout`; `atlas.mountLibrary` gone (the page is the Catalog's own).
+/// toast's `timeout`; `atlas.mountLibrary` gone (the page is the Catalog's own); v25 `atlas.editor.prose` (a small
+/// editor for prose outside a note, with the plugins' editor hooks).
 /// The page's number must be the same (a test holds it). A manifest with a key this Atlas does not know and an `api`
 /// above it is refused with "update Atlas", not with the parser's error (`read_manifest`).
-pub const API_VERSION: u32 = 24;
+pub const API_VERSION: u32 = 25;
 
 /// `"1.2.3"` → `[1, 2, 3]` (missing parts are 0; anything after a non-digit part is ignored).
 fn version_parts(v: &str) -> [u64; 3] {

@@ -8,6 +8,8 @@
   import AddressField from "./AddressField.svelte";
   import { askLine, askYes, parseWhen, setting, size, type FileRef } from "./api";
   import type { Composer, Mail } from "./store.svelte";
+  import { untrack } from "svelte";
+  import type { ProseEditor } from "../../../../../ui/src/lib/editor/prose-editor";
 
   let { mail, c, inline = false, big = $bindable(false) }: { mail: Mail; c: Composer; inline?: boolean; big?: boolean } = $props();
 
@@ -18,6 +20,44 @@
   let showBcc = $state(!!d.bcc);
   let preview = $state<string | null>(null);
   let text: HTMLTextAreaElement | undefined = $state();
+  // the text is the app's prose editor when this Atlas has one (v25: the plugins' spelling, predictions and snippets
+  // work in it, as in a note); a plain textarea on an older one
+  // svelte-ignore state_referenced_locally
+  const proseEditor = mail.atlas.editor?.prose as typeof mail.atlas.editor.prose | undefined;
+  let host: HTMLDivElement | undefined = $state();
+  let ed: ProseEditor | null = $state(null);
+  const placeholder = $derived(d.forward ? "Add a note (optional)…" : d.reply_to ? "Your reply…" : "Write… (Markdown: **bold**, *italic*, - lists, > quotes)");
+  $effect(() => {
+    if (!host || !proseEditor) return;
+    const e = untrack(() => proseEditor(host!, {
+      text: d.body, path: "mail-draft.md", placeholder, label: "The message",
+      onChange: (t) => { if (t !== d.body) { d.body = t; changed(); } },
+      keys: [
+        { key: "Mod-Enter", run: () => { send(); return true; } },
+        { key: "Mod-b", run: () => { wrap("**"); return true; } },
+        { key: "Mod-i", run: () => { wrap("*"); return true; } },
+        { key: "Mod-k", run: () => { link(); return true; } },
+      ],
+    }));
+    ed = e;
+    return () => { e.destroy(); ed = null; };
+  });
+  // the text changed from here (a toolbar button, a pasted picture, a draft loaded): the editor follows
+  $effect(() => { const body = d.body; untrack(() => ed?.set(body)); });
+  const hasBody = () => !!(ed || text);
+  const focusBody = () => (ed ? ed.focus() : text?.focus());
+  /** The selection in the text: [from, to]. */
+  const selection = (): [number, number] => {
+    if (ed) { const m = ed.view.state.selection.main; return [m.from, m.to]; }
+    return text ? [text.selectionStart, text.selectionEnd] : [d.body.length, d.body.length];
+  };
+  /** Selects [a, b] once the text shows the change just made. */
+  const select = (a: number, b = a) => requestAnimationFrame(() => {
+    focusBody();
+    if (ed) ed.view.dispatch({ selection: { anchor: Math.min(a, ed.view.state.doc.length), head: Math.min(b, ed.view.state.doc.length) }, scrollIntoView: true });
+    else text?.setSelectionRange(a, b);
+  });
+  const inBody = (t: EventTarget | null) => t === text || (!!host && t instanceof Node && host.contains(t));
   let later = $state(false);
   let laterText = $state("");
   let over = $state(false);
@@ -36,9 +76,9 @@
   const startInText = !!d.to;
   let started = false;
   $effect(() => {
-    if (started || !text) return;
+    if (started || !hasBody()) return;
     started = true;
-    if (startInText) text.focus();
+    if (startInText) focusBody();
   });
 
   function changed() {
@@ -63,16 +103,16 @@
   // ----- Markdown helpers: the selection wrapped, or a line prefix
 
   function wrap(before: string, after = before, placeholder = "text") {
-    if (!text) return;
-    const { selectionStart: a, selectionEnd: b, value } = text;
+    if (!hasBody()) return;
+    const [a, b] = selection(), value = d.body;
     const sel = value.slice(a, b) || placeholder;
     d.body = value.slice(0, a) + before + sel + after + value.slice(b);
     changed();
-    requestAnimationFrame(() => { text!.focus(); text!.setSelectionRange(a + before.length, a + before.length + sel.length); });
+    select(a + before.length, a + before.length + sel.length);
   }
   function prefix(p: string) {
-    if (!text) return;
-    const { selectionStart: a, selectionEnd: b, value } = text;
+    if (!hasBody()) return;
+    const [a, b] = selection(), value = d.body;
     const start = value.lastIndexOf("\n", a - 1) + 1;
     const lines = value.slice(start, b).split("\n").map((l) => p + l).join("\n");
     d.body = value.slice(0, start) + lines + value.slice(b);
@@ -116,7 +156,7 @@
     let files = Array.from(data?.files ?? []);
     // WebKitGTK's paste-as-plain-text of a picture hands over nothing: the core reads the clipboard (ui/src/lib/attach.ts)
     const nothing = !!data && !files.length && [...data.types].every((t) => t === "text/plain") && !data.getData("text/plain");
-    if ((!files.length && !nothing) || !text) return;
+    if ((!files.length && !nothing) || !hasBody()) return;
     e.preventDefault();
     if (nothing) {
       const res = await fetch("/api/clipboard/image", { headers: { "x-atlas": "1" } }).catch(() => null);
@@ -124,7 +164,7 @@
       const blob = await res.blob();
       files = [new File([blob], "image.png", { type: blob.type || "image/png" })];
     }
-    const at = text.selectionStart, end = text.selectionEnd;
+    const [at, end] = selection();
     let marks = "";
     for (const f of files) {
       if (!f.type.startsWith("image/")) { await addFiles([f]); continue; }
@@ -137,7 +177,7 @@
       const pad = (s: string) => (s && !s.endsWith("\n") ? "\n" : "");
       const ins = `${pad(v.slice(0, at))}${marks}\n`;
       d.body = v.slice(0, at) + ins + v.slice(end);
-      requestAnimationFrame(() => { text!.focus(); text!.setSelectionRange(at + ins.length, at + ins.length); });
+      select(at + ins.length);
     }
     changed();
   }
@@ -238,12 +278,13 @@
 
   function key(e: KeyboardEvent) {
     e.stopPropagation(); // the pane's single keys are not for a composer
+    if (e.defaultPrevented) return; // the text's editor took it (its own Ctrl+Enter, Ctrl+B…)
     const ctrl = e.ctrlKey || e.metaKey;
     if (ctrl && e.key === "Enter") { e.preventDefault(); send(); }
     else if (ctrl && e.key.toLowerCase() === "s") { e.preventDefault(); c.dirty = true; save(); }
-    else if (ctrl && e.key.toLowerCase() === "b" && e.target === text) { e.preventDefault(); wrap("**"); }
-    else if (ctrl && e.key.toLowerCase() === "i" && e.target === text) { e.preventDefault(); wrap("*"); }
-    else if (ctrl && e.key.toLowerCase() === "k" && e.target === text) { e.preventDefault(); link(); }
+    else if (ctrl && e.key.toLowerCase() === "b" && inBody(e.target)) { e.preventDefault(); wrap("**"); }
+    else if (ctrl && e.key.toLowerCase() === "i" && inBody(e.target)) { e.preventDefault(); wrap("*"); }
+    else if (ctrl && e.key.toLowerCase() === "k" && inBody(e.target)) { e.preventDefault(); link(); }
     else if (ctrl && e.shiftKey && e.key.toLowerCase() === "c") { e.preventDefault(); showCc = true; }
     else if (ctrl && e.shiftKey && e.key.toLowerCase() === "b") { e.preventDefault(); showBcc = true; }
     else if (e.key === "Escape" && !inline) { e.preventDefault(); save(); mail.closeComposer(c.key); }
@@ -309,8 +350,10 @@
   {#if preview !== null}
     <!-- the engine's own Markdown → HTML: what the recipients get -->
     <div class="preview">{@html preview}</div>
+  {:else if proseEditor}
+    <div class="body" class:big bind:this={host} onpastecapture={paste}></div>
   {:else}
-    <textarea bind:this={text} bind:value={d.body} oninput={changed} onpaste={paste} placeholder={d.forward ? "Add a note (optional)…" : d.reply_to ? "Your reply…" : "Write… (Markdown: **bold**, *italic*, - lists, > quotes)"} aria-label="The message" spellcheck="true"></textarea>
+    <textarea bind:this={text} bind:value={d.body} oninput={changed} onpaste={paste} {placeholder} aria-label="The message" spellcheck="true"></textarea>
   {/if}
 
   {#if d.files.length}
@@ -370,6 +413,13 @@
   .tsep { width: 1px; height: 16px; background: var(--border-strong); margin: 0 4px; flex: none; }
   textarea { all: unset; box-sizing: border-box; width: 100%; min-height: 120px; resize: none; white-space: pre-wrap; line-height: 1.55; font-size: 15px; font-family: var(--font-prose, var(--font-ui)); overflow-y: auto; }
   .composer:not(.inline) textarea { min-height: 200px; }
+  .body { min-width: 0; }
+  .body :global(.cm-editor) { min-height: 120px; max-height: 520px; font-size: 15px; font-family: var(--font-prose, var(--font-ui)); background: transparent; }
+  .composer:not(.inline) .body :global(.cm-editor) { min-height: 220px; }
+  .body.big :global(.cm-editor) { max-height: 2000px; }
+  .body :global(.cm-scroller) { overflow-y: auto; line-height: 1.55; font-family: inherit; }
+  .body :global(.cm-content) { padding: 0; }
+  .body :global(.cm-editor.cm-focused) { outline: none; }
   .preview { min-height: 120px; padding: 4px 0; line-height: 1.55; overflow-wrap: anywhere; }
   .preview :global(blockquote) { margin: 0.4em 0; padding-left: 0.9em; border-left: 3px solid var(--border-strong); color: var(--text-muted); }
   .files { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }

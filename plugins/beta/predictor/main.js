@@ -74,30 +74,20 @@ var s = () => ({
 	words: /* @__PURE__ */ new Map(),
 	forms: /* @__PURE__ */ new Map(),
 	next: /* @__PURE__ */ new Map()
-});
-function c(e, t) {
-	for (let [n, r] of Object.entries(t)) {
-		let t = e.get(n) ?? e.set(n, s()).get(n);
-		for (let [e, n] of Object.entries(r.words)) t.words.set(e, (t.words.get(e) ?? 0) + n);
-		for (let [e, n] of Object.entries(r.forms)) {
-			let r = t.forms.get(e) ?? t.forms.set(e, /* @__PURE__ */ new Map()).get(e);
-			for (let [e, t] of Object.entries(n)) r.set(e, (r.get(e) ?? 0) + t);
-		}
-		for (let [e, n] of Object.entries(r.next)) {
-			let r = t.next.get(e) ?? t.next.set(e, /* @__PURE__ */ new Map()).get(e);
-			for (let [e, t] of Object.entries(n)) r.set(e, (r.get(e) ?? 0) + t);
-		}
-	}
-}
-function l(e, t = 2) {
-	for (let [n, r] of e.words) r < t && (e.words.delete(n), e.forms.delete(n));
-	for (let [n, r] of e.next) {
-		for (let [e, n] of r) n < t && r.delete(e);
-		r.size || e.next.delete(n);
-	}
-	for (let [t, n] of e.forms) if (n.size > 1) {
-		let r = [...n].sort((e, t) => t[1] - e[1])[0];
-		e.forms.set(t, new Map([r]));
+}), c = (e) => e ? e.split("\n").map((e) => e.split(" ")) : [];
+function l(e, t, n = 1) {
+	let r = (e, t) => {
+		let r = (e.get(t) ?? 0) + n;
+		r > 0 ? e.set(t, r) : e.delete(t);
+	}, i = (e, t, n) => {
+		let i = e.get(t) ?? e.set(t, /* @__PURE__ */ new Map()).get(t);
+		r(i, n), i.size || e.delete(t);
+	};
+	for (let n of t) {
+		let t = n.map((e) => e.toLowerCase());
+		t.forEach((a, o) => {
+			r(e.words, a), i(e.forms, a, n[o]), o >= 1 && i(e.next, t[o - 1], a), o >= 2 && i(e.next, `${t[o - 2]} ${t[o - 1]}`, a);
+		});
 	}
 }
 var u = (e, t) => [...e.forms.get(t) ?? []].sort((e, t) => t[1] - e[1])[0]?.[0] ?? t;
@@ -118,47 +108,105 @@ function f(e, t, n, r) {
 		t.length >= 2 ? d(e.next.get(`${t[t.length - 2]} ${t[t.length - 1]}`), n) : null,
 		t.length >= 1 ? d(e.next.get(t[t.length - 1]), n) : null,
 		i ? d(e.words, n) : null
-	].find((e) => e && e.n >= r.min) ?? null, l = "", f = 0, p;
+	].find((e) => e && e.n >= r.min) ?? null, l = "", f = 0, m;
 	if (o) {
 		if (o.length < 2) return null;
-		let t = c(s, o.toLowerCase(), !0);
-		if (!t || t.share < .25 && t.n < r.min * 3) return null;
-		l = u(e, t.word).slice(o.length), o === o.toUpperCase() && (l = l.toUpperCase()), f = l.length, p = t.word;
+		let t = o.toLowerCase(), n = c(s, t, !1), i = n && (n.share >= .25 || n.n >= r.min * 3) ? n.word : p(e, r.lexicon, t, r.min);
+		if (!i) return null;
+		l = u(e, i).slice(o.length), o === o.toUpperCase() && (l = l.toUpperCase()), f = l.length, m = i;
 	} else {
 		if (!r.nextWord || !/\s$/.test(i) || !s.length) return null;
-		p = "";
+		m = "";
 	}
 	if (r.nextWord) {
-		let t = c(p ? [...s, p] : s, "", !1);
-		t && t.n >= r.min * 2 && t.share >= .6 && (l += (p ? " " : "") + u(e, t.word));
+		let t = c(m ? [...s, m] : s, "", !1);
+		t && t.n >= r.min * 2 && t.share >= .6 && (l += (m ? " " : "") + u(e, t.word));
 	}
 	return l ? {
 		ghost: l,
 		firstWord: f || l.length
 	} : null;
 }
+function p(e, t, n, r) {
+	if (n.length < 2) return null;
+	let i = (t) => e.words.get(t) ?? 0, a = /* @__PURE__ */ new Set();
+	for (let [t, i] of e.words) i >= r && t.length > n.length && t.startsWith(n) && a.add(t);
+	let o = i(n) >= r;
+	if (t?.length && n.length >= 3) {
+		let e = 0, r = t.length;
+		for (; e < r;) {
+			let i = e + r >> 1;
+			t[i] < n ? e = i + 1 : r = i;
+		}
+		t[e] === n && (o = !0, e++);
+		for (let r = e; r < t.length && r < e + 5e3 && t[r].startsWith(n); r++) a.add(t[r]);
+	}
+	let s = [...a].sort((e, t) => i(t) - i(e) || e.length - t.length || (e < t ? -1 : 1))[0];
+	return !s || o && i(s) <= i(n) ? null : s;
+}
+//#endregion
+//#region ui/src/lib/editor/vault-count.ts
+function m(e, t, n, r = 20) {
+	let i = /* @__PURE__ */ new Map(), a = !1, o = (e, n) => {
+		for (let r of n) {
+			let n = i.get(r);
+			n && t(n, -1);
+			let a = e[r];
+			a ? (i.set(r, a), t(a, 1)) : i.delete(r);
+		}
+	}, s = async (t) => {
+		if (t.length) try {
+			o(await e(t), t);
+		} catch (e) {
+			if (t.length === 1) {
+				console.warn(`${n}: ${t[0]} was not counted:`, e);
+				return;
+			}
+			let r = Math.ceil(t.length / 2);
+			await s(t.slice(0, r)), await s(t.slice(r));
+		}
+	};
+	return {
+		count: s,
+		async countAll(e, t) {
+			for (let n = 0; n < e.length; n += r) await s(e.slice(n, n + r)), t?.(Math.min(n + r, e.length));
+			a = !0;
+		},
+		get counted() {
+			return a;
+		}
+	};
+}
 //#endregion
 //#region plugins/beta/predictor/ui/src/main.ts
-var p = [
+var h = [
 	"en",
 	"es",
 	"fr",
 	"de"
 ];
-async function m(e) {
-	let { state: r, view: a, language: s } = e.editor.codemirror, u = (t) => e.plugin.settings[t], d = () => ({
-		min: Number(u("min_count") ?? 3),
-		nextWord: u("next_word") !== !1
-	}), m = () => String(u("language") || "en"), h = /* @__PURE__ */ new Map(), g = async () => {
-		let t = await e.helper.call("notes");
-		for (let n = 0; n < t.length; n += 60) c(h, await e.helper.call("count", {
-			paths: t.slice(n, n + 60),
-			langs: p,
-			fallback: m()
-		}));
-		for (let e of h.values()) l(e);
-	}, _ = r.StateEffect.define();
-	class v extends a.WidgetType {
+async function g(e) {
+	let { state: r, view: a, language: u } = e.editor.codemirror, d = (t) => e.plugin.settings[t], p = () => ({
+		min: Number(d("min_count") ?? 3),
+		nextWord: d("next_word") !== !1
+	}), g = () => String(d("language") || "en"), _ = /* @__PURE__ */ new Map(), v = m(async (t) => await e.helper.call("count", {
+		paths: t,
+		langs: h,
+		fallback: g()
+	}), (e, t) => l(_.get(e.lang) ?? _.set(e.lang, s()).get(e.lang), c(e.text), t), "predictor"), y = async () => v.countAll(await e.helper.call("notes"));
+	e.onFilesChanged((e) => {
+		let t = e.filter((e) => /\.md$/i.test(e) && !e.startsWith(".atlas/"));
+		v.counted && t.length && v.count(t);
+	});
+	let b = /* @__PURE__ */ new Map(), x = (t) => {
+		if (d("dictionary") === !1) return;
+		let n = b.get(t);
+		if (n) return n === "loading" ? void 0 : n;
+		b.set(t, "loading"), e.helper.call("lexicon", { lang: t }, { timeout: 60 }).then((e) => b.set(t, e ? e.split("\n").sort() : [])).catch((e) => {
+			console.warn(`predictor: the ${t} dictionary did not load:`, e), b.set(t, []);
+		});
+	}, S = r.StateEffect.define();
+	class C extends a.WidgetType {
 		text;
 		constructor(e) {
 			super(), this.text = e;
@@ -174,18 +222,18 @@ async function m(e) {
 			return !0;
 		}
 	}
-	let y = r.StateField.define({
+	let w = r.StateField.define({
 		create: () => null,
 		update(e, t) {
-			for (let e of t.effects) if (e.is(_)) return e.value;
-			return e && t.docChanged ? b(e, t) : t.selection ? null : e;
+			for (let e of t.effects) if (e.is(S)) return e.value;
+			return e && t.docChanged ? T(e, t) : t.selection ? null : e;
 		},
 		provide: (e) => a.EditorView.decorations.from(e, (e) => e ? a.Decoration.set([a.Decoration.widget({
-			widget: new v(e.guess.ghost),
+			widget: new C(e.guess.ghost),
 			side: 1
 		}).range(e.at)]) : a.Decoration.none)
 	});
-	function b(e, t) {
+	function T(e, t) {
 		let n = null;
 		t.changes.iterChanges((t, r, i, a, o) => {
 			n = n === null && t === e.at && r === t ? o.toString() : "\0";
@@ -201,24 +249,27 @@ async function m(e) {
 			}
 		};
 	}
-	let x = (t) => /\.(md|markdown)$/i.test(e.editor.path(t));
-	function S(r, i) {
-		if (!x(r) || e.editor.place(r, i).kind !== "text") return !1;
-		let a = r.state.doc.lineAt(i), o = t(r.state.doc.sliceString(0, 4e3)), c = s.syntaxTree(r.state);
-		return n((e) => c.iterate(e), a.from, a.to, o).some(([e, t]) => e <= i && i <= t && (i > e || e === a.from));
+	let E = (t) => /\.(md|markdown)$/i.test(e.editor.path(t));
+	function D(r, i) {
+		if (!E(r) || e.editor.place(r, i).kind !== "text") return !1;
+		let a = r.state.doc.lineAt(i), o = t(r.state.doc.sliceString(0, 4e3)), s = u.syntaxTree(r.state);
+		return n((e) => s.iterate(e), a.from, a.to, o).some(([e, t]) => e <= i && i <= t && (i > e || e === a.from));
 	}
-	function C(e) {
+	function O(e) {
 		let n = e.state.selection.main;
 		if (!n.empty) return null;
 		let r = n.head, a = e.state.doc.lineAt(r);
-		if (/^[\p{L}\p{N}]/u.test(e.state.sliceDoc(r, r + 1)) || !S(e, r)) return null;
-		let s = e.state.doc.sliceString(0, 2e4), c = o(s, [...h.keys()], m(), /^---[\s\S]*?^lang:\s*([\w-]+)/m.exec(s.slice(0, t(s)))?.[1]), l = h.get(c), u = l && f(l, e.state.sliceDoc(Math.max(a.from, r - 300), r), i, d());
+		if (/^[\p{L}\p{N}]/u.test(e.state.sliceDoc(r, r + 1)) || !D(e, r)) return null;
+		let c = e.state.doc.sliceString(0, 2e4), l = o(c, h, g(), /^---[\s\S]*?^lang:\s*([\w-]+)/m.exec(c.slice(0, t(c)))?.[1]), u = f(_.get(l) ?? s(), e.state.sliceDoc(Math.max(a.from, r - 300), r), i, {
+			...p(),
+			lexicon: x(l)
+		});
 		return u ? {
 			at: r,
 			guess: u
 		} : null;
 	}
-	let w = a.ViewPlugin.fromClass(class {
+	let k = a.ViewPlugin.fromClass(class {
 		view;
 		timer = 0;
 		constructor(e) {
@@ -226,15 +277,15 @@ async function m(e) {
 		}
 		update(e) {
 			(e.docChanged || e.selectionSet) && (clearTimeout(this.timer), e.transactions.some((e) => e.isUserEvent("input.type")) && (this.timer = window.setTimeout(() => {
-				let e = C(this.view);
-				e && this.view.dispatch({ effects: _.of(e) });
-			}, Number(u("delay") ?? 60))));
+				let e = O(this.view);
+				e && this.view.dispatch({ effects: S.of(e) });
+			}, Number(d("delay") ?? 60))));
 		}
 		destroy() {
 			clearTimeout(this.timer);
 		}
-	}), T = (e) => (t) => {
-		let n = t.state.field(y, !1);
+	}), A = (e) => (t) => {
+		let n = t.state.field(w, !1);
 		if (!n || t.state.selection.main.head !== n.at) return !1;
 		let r = e ? n.guess.ghost : n.guess.ghost.slice(0, n.guess.firstWord);
 		return t.dispatch({
@@ -245,22 +296,22 @@ async function m(e) {
 			selection: { anchor: n.at + r.length },
 			userEvent: "input.complete"
 		}), !0;
-	}, E = (e) => e.state.selection.main.head === e.state.doc.lineAt(e.state.selection.main.head).to;
+	}, j = (e) => e.state.selection.main.head === e.state.doc.lineAt(e.state.selection.main.head).to;
 	e.editor.extension([
-		y,
 		w,
+		k,
 		r.Prec.high(a.keymap.of([
 			{
 				key: "Tab",
-				run: T(!0)
+				run: A(!0)
 			},
 			{
 				key: "ArrowRight",
-				run: (e) => E(e) && T(!0)(e)
+				run: (e) => j(e) && A(!0)(e)
 			},
 			{
 				key: "Ctrl-ArrowRight",
-				run: T(!1)
+				run: A(!1)
 			}
 		])),
 		a.EditorView.baseTheme({ ".cm-predict-ghost": {
@@ -268,7 +319,7 @@ async function m(e) {
 			opacity: "0.75",
 			pointerEvents: "none"
 		} })
-	]), g().catch((e) => console.warn("predictor: the vault was not learned:", e));
+	]), y().catch((e) => console.warn("predictor: the vault was not learned:", e));
 }
 //#endregion
-export { m as register };
+export { g as register };

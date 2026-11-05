@@ -1,6 +1,7 @@
 // The Predictor's model: how often the vault writes each word, and which words follow one or two others, per
-// language. Counted by the helper (`count` below runs there and in the tests), merged and pruned here; `predict` is
-// what the ghost text shows.
+// language. The helper hands over each note's sentences as plain words (`packSentences`); they are counted in and out
+// here (`addSentences`), so a saved note's old counts can leave. `predict` is what the ghost text shows; a dictionary's
+// word list (`Lexicon`) finishes the words the vault does not write often enough.
 
 /** One language's counts. Keys are lower case; `forms` keeps the casing the vault writes most (Wannier, GW). */
 export interface Model {
@@ -9,8 +10,8 @@ export interface Model {
   /** "a" → next word → count, and "a b" → next word → count */
   next: Map<string, Map<string, number>>;
 }
-/** What a chunk of notes gives, per language: plain objects (the helper answers JSON). */
-export type Chunk = Record<string, { words: Record<string, number>; forms: Record<string, Record<string, number>>; next: Record<string, Record<string, number>> }>;
+/** A dictionary's lower-case words, sorted (lib/editor/dictionaries.ts `dicStems`). */
+export type Lexicon = string[];
 
 export const emptyModel = (): Model => ({ words: new Map(), forms: new Map(), next: new Map() });
 
@@ -18,45 +19,27 @@ export const emptyModel = (): Model => ({ words: new Map(), forms: new Map(), ne
 export function sentences(text: string, wordsOf: (t: string) => { word: string }[]): string[][] {
   return text.split(/[.!?;:]+(?:\s|$)|\n+/).map((s) => wordsOf(s).map((w) => w.word)).filter((s) => s.length);
 }
+/** Sentences as one compact text (words by spaces, sentences by lines): what the helper answers and the page keeps. */
+export const packSentences = (sents: string[][]) => sents.map((s) => s.join(" ")).join("\n");
+export const unpackSentences = (text: string) => text ? text.split("\n").map((s) => s.split(" ")) : [];
 
-/** Counts one note's sentences into a chunk's table. */
-export function countInto(table: Chunk[string], sents: string[][]): void {
-  const bump = (m: Record<string, number>, k: string) => { m[k] = (m[k] ?? 0) + 1; };
+/** Counts sentences into the model (`sign` 1) or out of it (-1). */
+export function addSentences(m: Model, sents: string[][], sign: 1 | -1 = 1): void {
+  const bump = <K>(map: Map<K, number>, k: K) => { const n = (map.get(k) ?? 0) + sign; if (n > 0) map.set(k, n); else map.delete(k); };
+  const inner = (outer: Map<string, Map<string, number>>, k: string, w: string) => {
+    const into = outer.get(k) ?? outer.set(k, new Map()).get(k)!;
+    bump(into, w);
+    if (!into.size) outer.delete(k);
+  };
   for (const s of sents) {
     const low = s.map((w) => w.toLowerCase());
     low.forEach((w, i) => {
-      bump(table.words, w);
-      bump((table.forms[w] ??= {}), s[i]);
-      if (i >= 1) bump((table.next[low[i - 1]] ??= {}), w);
-      if (i >= 2) bump((table.next[`${low[i - 2]} ${low[i - 1]}`] ??= {}), w);
+      bump(m.words, w);
+      inner(m.forms, w, s[i]);
+      if (i >= 1) inner(m.next, low[i - 1], w);
+      if (i >= 2) inner(m.next, `${low[i - 2]} ${low[i - 1]}`, w);
     });
   }
-}
-
-/** Adds a chunk into the models. */
-export function merge(models: Map<string, Model>, chunk: Chunk): void {
-  for (const [lang, t] of Object.entries(chunk)) {
-    const m = models.get(lang) ?? models.set(lang, emptyModel()).get(lang)!;
-    for (const [w, n] of Object.entries(t.words)) m.words.set(w, (m.words.get(w) ?? 0) + n);
-    for (const [w, fs] of Object.entries(t.forms)) {
-      const into = m.forms.get(w) ?? m.forms.set(w, new Map()).get(w)!;
-      for (const [f, n] of Object.entries(fs)) into.set(f, (into.get(f) ?? 0) + n);
-    }
-    for (const [k, nx] of Object.entries(t.next)) {
-      const into = m.next.get(k) ?? m.next.set(k, new Map()).get(k)!;
-      for (const [w, n] of Object.entries(nx)) into.set(w, (into.get(w) ?? 0) + n);
-    }
-  }
-}
-
-/** Drops what was seen once (a typo, a one-off phrase): most of the memory, none of the predictions. */
-export function prune(m: Model, min = 2): void {
-  for (const [w, n] of m.words) if (n < min) { m.words.delete(w); m.forms.delete(w); }
-  for (const [k, nx] of m.next) {
-    for (const [w, n] of nx) if (n < min) nx.delete(w);
-    if (!nx.size) m.next.delete(k);
-  }
-  for (const [w, fs] of m.forms) if (fs.size > 1) { const best = [...fs].sort((a, b) => b[1] - a[1])[0]; m.forms.set(w, new Map([best])); }
 }
 
 /** The vault's usual spelling of a word (its case). */
@@ -78,7 +61,7 @@ function best(counts: Map<string, number> | undefined, prefix: string): { word: 
 
 /** What to show after `before` (the sentence so far, up to the caret): the rest of the word being typed, and the
  *  next word when the vault is sure of it (twice the uses, most of what follows). `min`: the uses a guess needs. */
-export function predict(m: Model, before: string, wordsOf: (t: string) => { word: string }[], opts: { min: number; nextWord: boolean }): Guess | null {
+export function predict(m: Model, before: string, wordsOf: (t: string) => { word: string }[], opts: { min: number; nextWord: boolean; lexicon?: Lexicon }): Guess | null {
   const sentence = before.split(/[.!?;:]\s|\n/).pop() ?? "";
   const words = wordsOf(sentence).map((w) => w.word);
   const typing = /\p{L}$/u.test(sentence) ? words.pop() ?? "" : "";
@@ -95,13 +78,15 @@ export function predict(m: Model, before: string, wordsOf: (t: string) => { word
   if (typing) {
     if (typing.length < 2) return null;
     const p = typing.toLowerCase();
-    const g = after(low, p, true);
-    if (!g || (g.share < 0.25 && g.n < opts.min * 3)) return null;
+    // what the vault writes after these words first; else any word of the vault or the dictionary
+    const g = after(low, p, false);
+    const word = g && (g.share >= 0.25 || g.n >= opts.min * 3) ? g.word : completeWord(m, opts.lexicon, p, opts.min);
+    if (!word) return null;
     // the typed letters stay as typed; the rest as the vault writes the word (all capitals when typed so)
-    ghost = formOf(m, g.word).slice(typing.length);
+    ghost = formOf(m, word).slice(typing.length);
     if (typing === typing.toUpperCase()) ghost = ghost.toUpperCase();
     firstWord = ghost.length;
-    done = g.word;
+    done = word;
   } else {
     if (!opts.nextWord || !/\s$/.test(sentence) || !low.length) return null;
     done = "";
@@ -112,4 +97,24 @@ export function predict(m: Model, before: string, wordsOf: (t: string) => { word
     if (n && n.n >= opts.min * 2 && n.share >= 0.6) ghost += (done ? " " : "") + formOf(m, n.word);
   }
   return ghost ? { ghost, firstWord: firstWord || ghost.length } : null;
+}
+
+/** The word being typed, finished from every word known: the vault's (used `min` times) and the dictionary's (from
+ *  three letters). The vault's most used wins, then the shortest. Letters that are already a whole word (the) are
+ *  finished only into a word the vault writes more often (there). */
+export function completeWord(m: Model, lex: Lexicon | undefined, prefix: string, min: number): string | null {
+  if (prefix.length < 2) return null;
+  const uses = (w: string) => m.words.get(w) ?? 0;
+  const cands = new Set<string>();
+  for (const [w, n] of m.words) if (n >= min && w.length > prefix.length && w.startsWith(prefix)) cands.add(w);
+  let whole = uses(prefix) >= min;
+  if (lex?.length && prefix.length >= 3) {
+    let lo = 0, hi = lex.length;
+    while (lo < hi) { const mid = (lo + hi) >> 1; if (lex[mid] < prefix) lo = mid + 1; else hi = mid; }
+    if (lex[lo] === prefix) { whole = true; lo++; }
+    for (let i = lo; i < lex.length && i < lo + 5000 && lex[i].startsWith(prefix); i++) cands.add(lex[i]);
+  }
+  const best = [...cands].sort((a, b) => uses(b) - uses(a) || a.length - b.length || (a < b ? -1 : 1))[0];
+  if (!best || (whole && uses(best) <= uses(prefix))) return null;
+  return best;
 }

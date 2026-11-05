@@ -2,7 +2,8 @@ import { test, expect, type APIRequestContext, type Page } from "@playwright/tes
 import { readFileSync } from "node:fs";
 import { openFile } from "./open";
 import { wordsOf } from "../src/lib/editor/prose";
-import { countInto, emptyModel, merge, predict, prune, sentences, type Chunk } from "../../plugins/beta/predictor/ui/src/model";
+import { addSentences, emptyModel, packSentences, predict, sentences, unpackSentences } from "../../plugins/beta/predictor/ui/src/model";
+import { dicStems } from "../src/lib/editor/dictionaries";
 
 // The Predictor plugin (plugins/beta/predictor): the rest of a word, and the next word when the vault is sure, faint
 // after the caret; Tab or → at the end of the line takes it; never in math. The model is tested alone first.
@@ -13,12 +14,9 @@ const TEXT = "Wannier functions are local. The Wannier functions of a band. Maxi
   + "Wannier functions again. We build Wannier functions. Smooth Wannier functions too. The wannier gauge.";
 
 const model = (text: string) => {
-  const chunk: Chunk = { en: { words: {}, forms: {}, next: {} } };
-  countInto(chunk.en, sentences(text, wordsOf));
-  const models = new Map([["en", emptyModel()]]);
-  merge(models, chunk);
-  prune(models.get("en")!);
-  return models.get("en")!;
+  const m = emptyModel();
+  addSentences(m, unpackSentences(packSentences(sentences(text, wordsOf))));
+  return m;
 };
 
 test("the model: the rest of a word as the vault writes it, the next word only when sure, nothing for one letter", () => {
@@ -31,6 +29,23 @@ test("the model: the rest of a word as the vault writes it, the next word only w
   expect(predict(m, "The Wan", wordsOf, { min: 3, nextWord: false })?.ghost).toBe("nier");
   expect(predict(m, "The Wan", wordsOf, { min: 9, nextWord: true })).toBeNull();
   expect(predict(m, "zzz qq", wordsOf, o)).toBeNull();
+  // a note's counts leave again (a saved note is recounted)
+  const twice = model(TEXT);
+  addSentences(twice, sentences(TEXT, wordsOf), 1);
+  addSentences(twice, sentences(TEXT, wordsOf), -1);
+  expect([...twice.words]).toEqual([...m.words]);
+});
+
+test("the dictionary finishes any word, the vault's own first, from three letters", () => {
+  const lex = dicStems("6\napproximate/DSG\napproximation/MS\napproximately\nHubbard/M\nthe\nthere\n");
+  expect(lex).toEqual(["approximate", "approximately", "approximation", "the", "there"]); // names left out
+  const m = model(TEXT);
+  const o = { min: 3, nextWord: true, lexicon: lex };
+  expect(predict(m, "A good approx", wordsOf, o)?.ghost).toBe("imate"); // the shortest
+  expect(predict(m, "An Approx", wordsOf, o)?.ghost).toBe("imate");
+  expect(predict(m, "A good ap", wordsOf, o)).toBeNull(); // two letters
+  expect(predict(m, "Over the", wordsOf, o)).toBeNull(); // already a word
+  expect(predict(m, "A good approx", wordsOf, { min: 3, nextWord: true })).toBeNull(); // no dictionary
 });
 
 test.describe("in the editor", () => {

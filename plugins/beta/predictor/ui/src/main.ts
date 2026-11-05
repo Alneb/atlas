@@ -6,7 +6,8 @@ import type { EditorView, ViewUpdate, DecorationSet } from "@codemirror/view";
 import type { Transaction } from "@codemirror/state";
 import type { PluginApi } from "../../../../../ui/src/lib/plugin-api";
 import { frontMatterEnd, guessLanguage, proseRanges, wordsOf } from "../../../../../ui/src/lib/editor/prose";
-import { merge, predict, prune, type Chunk, type Guess, type Model } from "./model";
+import { addSentences, emptyModel, predict, unpackSentences, type Guess, type Lexicon, type Model } from "./model";
+import { vaultCounter } from "../../../../../ui/src/lib/editor/vault-count";
 
 const LANGS = ["en", "es", "fr", "de"];
 
@@ -17,11 +18,30 @@ export async function register(atlas: PluginApi) {
   const fallback = () => String(setting("language") || "en");
 
   const models = new Map<string, Model>();
-  /** The vault counted a chunk of notes at a time, once per start; what was seen once is dropped at the end. */
-  const learn = async () => {
-    const notes = (await atlas.helper.call("notes")) as string[];
-    for (let i = 0; i < notes.length; i += 60) merge(models, (await atlas.helper.call("count", { paths: notes.slice(i, i + 60), langs: LANGS, fallback: fallback() })) as Chunk);
-    for (const m of models.values()) prune(m);
+  /** The vault learned at start and kept current as notes are saved (lib/editor/vault-count.ts): each note's sentences
+   *  are kept as plain words, so its old counts can leave when it changes. */
+  type Counted = { lang: string; text: string };
+  const vault = vaultCounter<Counted>(
+    async (paths) => (await atlas.helper.call("count", { paths, langs: LANGS, fallback: fallback() })) as Record<string, Counted>,
+    (e, sign) => addSentences(models.get(e.lang) ?? models.set(e.lang, emptyModel()).get(e.lang)!, unpackSentences(e.text), sign),
+    "predictor");
+  const learn = async () => vault.countAll((await atlas.helper.call("notes")) as string[]);
+  atlas.onFilesChanged((paths) => {
+    const notes = paths.filter((p) => /\.md$/i.test(p) && !p.startsWith(".atlas/"));
+    if (vault.counted && notes.length) void vault.count(notes);
+  });
+
+  /** A language's dictionary words, loaded the first time a note in it asks: undefined until there (or when none). */
+  const lexicons = new Map<string, Lexicon | "loading">();
+  const lexicon = (lang: string): Lexicon | undefined => {
+    if (setting("dictionary") === false) return undefined;
+    const have = lexicons.get(lang);
+    if (have) return have === "loading" ? undefined : have;
+    lexicons.set(lang, "loading");
+    void (atlas.helper.call("lexicon", { lang }, { timeout: 60 }) as Promise<string>)
+      .then((text) => lexicons.set(lang, text ? text.split("\n").sort() : []))
+      .catch((e) => { console.warn(`predictor: the ${lang} dictionary did not load:`, e); lexicons.set(lang, []); });
+    return undefined;
   };
 
   // --- the ghost -----------------------------------------------------------------------------------------------
@@ -68,9 +88,9 @@ export async function register(atlas: PluginApi) {
     const at = sel.head, line = view.state.doc.lineAt(at);
     if (/^[\p{L}\p{N}]/u.test(view.state.sliceDoc(at, at + 1)) || !inProse(view, at)) return null; // inside a word
     const text = view.state.doc.sliceString(0, 20000);
-    const lang = guessLanguage(text, [...models.keys()], fallback(), /^---[\s\S]*?^lang:\s*([\w-]+)/m.exec(text.slice(0, frontMatterEnd(text)))?.[1]);
-    const m = models.get(lang);
-    const guess = m && predict(m, view.state.sliceDoc(Math.max(line.from, at - 300), at), wordsOf, opts());
+    const lang = guessLanguage(text, LANGS, fallback(), /^---[\s\S]*?^lang:\s*([\w-]+)/m.exec(text.slice(0, frontMatterEnd(text)))?.[1]);
+    const m = models.get(lang) ?? emptyModel();
+    const guess = predict(m, view.state.sliceDoc(Math.max(line.from, at - 300), at), wordsOf, { ...opts(), lexicon: lexicon(lang) });
     return guess ? { at, guess } : null;
   }
 

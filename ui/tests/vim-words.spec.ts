@@ -36,8 +36,7 @@ test("w, b, e and ge over TeX, and as the library outside it", () => {
 });
 
 test.describe("in the editor", () => {
-test.use({ reducedMotion: "no-preference" }); // the blink is an animation: ui.motion "instant" stops it
-test("in the editor: dw on a formula's command takes the backslash with it; the block cursor blinks filled and hollow", async ({ page }) => {
+test("in the editor: dw on a formula's command takes the backslash with it; the block cursor is filled, hollow away from the editor", async ({ page }) => {
   await page.route("**/api/config", async (route) => {
     if (route.request().method() !== "GET") return route.continue();
     const res = await route.fetch(), body = await res.json();
@@ -59,13 +58,13 @@ test("in the editor: dw on a formula's command takes the backslash with it; the 
   await expect.poll(last).toBe("x $+ \\beta$ ab");
 
   const cursor = page.locator(".cm-fat-cursor").first();
-  const look = () => cursor.evaluate((e) => { const s = getComputedStyle(e); return { anim: s.animationName, edge: s.boxShadow !== "none" }; });
-  expect(await look()).toEqual({ anim: "atlas-fat-blink", edge: true });
+  const look = () => cursor.evaluate((e) => { const s = getComputedStyle(e); return { filled: s.backgroundColor !== "rgba(0, 0, 0, 0)" && s.backgroundImage === "none", edge: s.boxShadow !== "none" }; });
+  expect(await look()).toEqual({ filled: true, edge: false });
   for (const theme of ["light", "dark"]) {
     await page.evaluate((t) => document.documentElement.setAttribute("data-theme", t), theme);
-    await cursor.screenshot({ path: `../target/snip/vim-cursor-${theme}.png`, animations: "allow" });
+    await cursor.screenshot({ path: `../target/snip/vim-cursor-${theme}.png` });
   }
   await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
-  await expect.poll(async () => (await look()).anim, "away from the editor: hollow, still").toBe("none");
+  await expect.poll(look, "away from the editor: hollow, its edge drawn").toEqual({ filled: false, edge: true });
 });
 });

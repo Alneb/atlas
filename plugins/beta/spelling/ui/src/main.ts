@@ -6,6 +6,8 @@ import type { EditorView, ViewUpdate, DecorationSet } from "@codemirror/view";
 import nspell from "nspell";
 import type { PluginApi } from "../../../../../ui/src/lib/plugin-api";
 import { frontMatterEnd, guessLanguage, proseRanges, wordsOf, type Word } from "../../../../../ui/src/lib/editor/prose";
+import { chooseDictionaries } from "../../../../../ui/src/lib/editor/dictionaries";
+import { vaultCounter } from "../../../../../ui/src/lib/editor/vault-count";
 import { isWrong } from "./judge";
 import { suggestions } from "./suggest";
 import { addWord, parseWords, WORDS_NOTE } from "./words";
@@ -13,10 +15,6 @@ import { addWord, parseWords, WORDS_NOTE } from "./words";
 type Speller = ReturnType<typeof nspell>;
 /** word → [uses, notes using it], per language */
 type Counts = Map<string, Map<string, [number, number]>>;
-
-/** The dictionaries a language uses when the setting names none: of each group, the first installed. English takes
- *  both the American and the British one, so either spelling (centered, centred) is right. */
-const PREFERRED: Record<string, string[][]> = { en: [["en_US", "en_CA"], ["en_GB", "en_AU"]], es: [["es_ES", "es_MX", "es_AR"]], fr: [["fr_FR", "fr_CA"]], de: [["de_DE"]] };
 
 export async function register(atlas: PluginApi) {
   const { state: S, view: V, language } = atlas.editor.codemirror;
@@ -27,16 +25,7 @@ export async function register(atlas: PluginApi) {
   // --- what is known -------------------------------------------------------------------------------------------
   const installed: string[] = ((await atlas.helper.call("dictionaries", { folder: setting("folder") }).catch(() => [])) as string[]) ?? [];
   /** language → dictionary names, from the setting (`en=en_GB, es=es_MX+es_AR`) over the preferred installed ones */
-  const chosen = new Map<string, string[]>();
-  for (const [lang, groups] of Object.entries(PREFERRED)) {
-    const names = groups.map((g) => g.find((x) => installed.includes(x))).filter((x): x is string => !!x);
-    if (names.length) chosen.set(lang, names);
-  }
-  for (const part of String(setting("dictionaries") ?? "").split(/[,\s]+/)) {
-    const m = /^([a-z]{2,3})=([\w+-]+)$/.exec(part.trim());
-    const names = m?.[2].split("+").filter((n) => installed.includes(n)) ?? [];
-    if (m && names.length) chosen.set(m[1], names);
-  }
+  const chosen = chooseDictionaries(installed, setting("dictionaries"));
   const langs = [...chosen.keys()];
   const fallback = String(setting("language") || langs[0] || "en");
   if (!installed.length) atlas.toast("Spelling", "No Hunspell dictionary on this machine: only the vault's own words are known, so nothing is marked. Settings → Spelling names a folder.", "info");
@@ -62,13 +51,9 @@ export async function register(atlas: PluginApi) {
     redrawAll();
   };
 
-  /** The vault's words, counted by the helper a chunk at a time: once per start (a note saved again would count its
-   *  own typos twice), so a word typed now is judged by what the vault said when Atlas started. */
-  /** Each note's counted words (path → its language and word → uses), so a saved note's old counts come out and its
-   *  new ones go in: the vault is learned at start and kept current as notes change. */
-  const perNote = new Map<string, { lang: string; words: Record<string, number> }>();
-  type Counted = Record<string, { lang: string; words: Record<string, number> }>;
-  const apply = (entry: { lang: string; words: Record<string, number> }, sign: 1 | -1) => {
+  /** The vault's words, learned at start and kept current as notes are saved (lib/editor/vault-count.ts). */
+  type Counted = { lang: string; words: Record<string, number> };
+  const apply = (entry: Counted, sign: 1 | -1) => {
     const into = counts.get(entry.lang) ?? counts.set(entry.lang, new Map()).get(entry.lang)!;
     for (const [w, u] of Object.entries(entry.words)) {
       const r = into.get(w) ?? [0, 0];
@@ -76,33 +61,12 @@ export async function register(atlas: PluginApi) {
       if (r[1] <= 0) into.delete(w); else into.set(w, r);
     }
   };
-  const take = (part: Counted, asked: string[]) => {
-    for (const path of asked) {
-      const old = perNote.get(path);
-      if (old) apply(old, -1);
-      const now = part[path];
-      if (now) { perNote.set(path, now); apply(now, 1); } else perNote.delete(path);
-    }
-  };
-  // a chunk over the helper's time limit (long notes) is split in two and tried again; one note that still fails is
-  // left out, never the rest of the vault
-  const count = async (paths: string[]): Promise<void> => {
-    try { take((await atlas.helper.call("count", { paths, langs: langs.length ? langs : [fallback], fallback })) as Counted, paths); }
-    catch (e) {
-      if (paths.length === 1) { console.warn(`spelling: ${paths[0]} was not counted:`, e); return; }
-      const half = Math.ceil(paths.length / 2);
-      await count(paths.slice(0, half));
-      await count(paths.slice(half));
-    }
-  };
-  let counted = false;
+  const vault = vaultCounter<Counted>(
+    async (paths) => (await atlas.helper.call("count", { paths, langs: langs.length ? langs : [fallback], fallback })) as Record<string, Counted>,
+    apply, "spelling");
   const countVault = async () => {
-    const notes = (await atlas.helper.call("notes")) as string[];
-    for (let i = 0; i < notes.length; i += 20) {
-      await count(notes.slice(i, i + 20));
-      if (i % 200 === 0) redrawAll(); // what is learned shows as it comes
-    }
-    counted = true;
+    // what is learned shows as it comes
+    await vault.countAll((await atlas.helper.call("notes")) as string[], (done) => { if (done % 200 === 0) redrawAll(); });
     redrawAll();
   };
 
@@ -144,12 +108,35 @@ export async function register(atlas: PluginApi) {
   // --- the bottom bar: the note's language and what is marked; a click sets the language ------------------------
   const NAMES: Record<string, string> = { en: "English", es: "Spanish", fr: "French", de: "German" };
   let shown: EditorView | null = null;
-  const cell = atlas.shell.statusItem({ id: "spelling", text: "", title: "Spelling", run: async () => {
-    const view = shown;
-    if (!view) return;
-    const lang = await atlas.input("This note's language", { value: noteLanguage(view), hint: `${langs.join(", ") || "en"}: written as the note's lang: property`, ok: "Set" });
-    if (lang?.trim()) await atlas.writeProperty(atlas.editor.path(view), "lang", lang.trim());
-  } });
+  const cell = atlas.shell.statusItem({ id: "spelling", text: "", title: "Spelling", run: () => { if (shown) panel(shown); } });
+  /** The cell's panel: the note's language to switch, and every word marked in the whole note, with its fixes;
+   *  choosing a word selects it in the note. */
+  function panel(view: EditorView) {
+    const lang = noteLanguage(view), path = atlas.editor.path(view);
+    const tree = language.syntaxTree(view.state), front = frontMatterEnd(view.state.doc.sliceString(0, 4000));
+    const marked: Word[] = [];
+    for (const [a, b] of proseRanges((spec) => tree.iterate(spec), 0, view.state.doc.length, front))
+      for (const w of wordsOf(view.state.sliceDoc(a, b), a)) if (!aName(view, w) && wrong(lang, w.word)) marked.push(w);
+    const s = speller(lang);
+    const uses = (w: string) => counts.get(lang)?.get(w)?.[0] ?? 0;
+    const choices = [...new Set([...langs, lang])];
+    atlas.pick({
+      placeholder: marked.length ? `${marked.length} marked in this note: type to find one` : "Nothing marked in this note", tag: "Spelling", icon: "check",
+      items: [
+        ...choices.map((l) => ({ value: `lang:${l}`, title: `${NAMES[l] ?? l}${l === lang ? "  ✓" : ""}`, detail: l === lang ? (langProperty(view) ? "set for this note" : "guessed from its words") : `write this note in ${NAMES[l] ?? l}`, section: "Language", icon: "globe" as const })),
+        ...marked.map((w) => ({
+          value: `at:${w.from}:${w.to}`, title: w.word, section: `Marked (${marked.length})`, icon: "edit" as const,
+          detail: `line ${view.state.doc.lineAt(w.from).number}${s ? ` · ${suggestions(w.word, (x) => s.correct(x), (x) => s.suggest(x), uses).slice(0, 3).join(", ") || "no suggestions"}` : ""}`,
+        })),
+      ],
+      onpick: async (value) => {
+        if (value.startsWith("lang:")) { await atlas.writeProperty(path, "lang", value.slice(5)); return; }
+        const [, a, b] = value.split(":").map(Number);
+        view.dispatch({ selection: { anchor: a, head: b }, scrollIntoView: true });
+        view.focus();
+      },
+    });
+  }
   function status(view: EditorView, lang: string, marked: number) {
     if (!view.hasFocus && shown && shown !== view && views.has(shown)) return;
     shown = view;
@@ -157,7 +144,7 @@ export async function register(atlas: PluginApi) {
     const learned = [...(counts.get(lang)?.values() ?? [])].filter(([u, n]) => (u >= minUses() && n >= minNotes()) || u >= 8).length;
     cell.set(`${lang.toUpperCase()} ${loading ? "…" : marked ? `· ${marked} misspelled` : "✓"}`,
       `Spelling: ${NAMES[lang] ?? lang} (${dicts}), ${langProperty(view) ? "from the note's lang: property" : "guessed from its words"}. `
-      + `${marked} word${marked === 1 ? "" : "s"} marked on screen; ${learned} words learned from the vault, ${accepted.size} added by you. Click to set this note's language.`);
+      + `${marked} word${marked === 1 ? "" : "s"} marked on screen; ${learned} words learned from the vault, ${accepted.size} added by you. Click for the marked words and the note's language.`);
   }
   const isNote = (view: EditorView) => /\.(md|markdown)$/i.test(atlas.editor.path(view));
 
@@ -248,7 +235,7 @@ export async function register(atlas: PluginApi) {
     if (!paths.length || paths.includes(WORDS_NOTE)) void readAccepted();
     // a saved note: its counts replaced (after the first count, which reads every note anyway)
     const notes = paths.filter((p) => /\.md$/i.test(p) && !p.startsWith(".atlas/"));
-    if (counted && notes.length) void count(notes).then(redrawAll);
+    if (vault.counted && notes.length) void vault.count(notes).then(redrawAll);
   });
   await readAccepted();
   // not awaited: marks wait for the dictionaries, not the other way round

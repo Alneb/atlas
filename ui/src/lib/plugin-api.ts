@@ -19,7 +19,7 @@ import type { NativeSample, PenOptions } from "./pen-target";
 import type { EmbedRender } from "./embed-registry";
 import type { Live, LiveHandlers } from "./live";
 
-export const PLUGIN_API_VERSION = 24;
+export const PLUGIN_API_VERSION = 25;
 
 /** What a plugin's view gets. Kept small and stable: plugins outlive app refactors. */
 export interface PluginApi {
@@ -288,6 +288,9 @@ export interface PluginApi {
     drawMath(host: HTMLElement, source: string, block?: boolean): void;
     /** (v22) The snippet files of `[latex] snippets_file` / `variables_file`, as text, for the plugin that reads them. */
     legacySnippets(): Promise<{ sources: string[]; variables: string }>;
+    /** (v25) A small editor for prose outside a note (a mail being written): Markdown, wrapped, with every plugin's
+     *  editor hooks (Spelling, the Predictor, Snippets act in it as in a note). `path` is what plugins are told it is. */
+    prose(host: HTMLElement, opts?: import("./editor/prose-editor").ProseEditorOptions): import("./editor/prose-editor").ProseEditor;
   };
   /** (v8) A file's live room (core live.rs): the devices with it open send each other what changes as it happens, and
    *  one of them saves it (`writes()`; in a mirrored vault the room is the server's). Left when the plugin unloads. */
