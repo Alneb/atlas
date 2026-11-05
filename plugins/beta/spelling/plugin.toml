@@ -1,0 +1,51 @@
+# Spelling: a wavy line under a word of a note's prose that neither the language's dictionary nor the vault knows.
+# The dictionaries are the machine's Hunspell ones (en, es, fr, de… as installed); a word the vault uses often enough
+# counts as right; right-click a marked word for suggestions or to add it to the vault's words. README.md.
+title = "Spelling"
+description = "marks misspelled words in notes, from the machine's dictionaries and the vault's own words"
+icon = "check"
+version = "0.1.0"
+api = 22
+phone = true
+
+[permissions]
+exec = ["ls", "cat"]               # find and read the Hunspell dictionaries (/usr/share/hunspell)
+
+[helper]
+js = "helper.js"                   # run in the core (QuickJS), built from helper/helper.ts
+idle = "10m"
+
+[[setting]]
+key = "dictionaries"
+label = "Dictionaries"
+kind = "text"
+default = ""
+hint = "language=dictionary pairs, e.g. en=en_GB, es=es_MX; empty: the most common variant installed for each language"
+
+[[setting]]
+key = "language"
+label = "Main language"
+kind = "text"
+default = ""
+hint = "a note's language when its text says too little and it has no lang: property (en, es…); empty: the first installed"
+
+[[setting]]
+key = "min_uses"
+label = "A vault word after"
+kind = "number"
+default = 3
+hint = "uses in the vault after which a word the dictionary lacks counts as right"
+
+[[setting]]
+key = "min_notes"
+label = "…in at least"
+kind = "number"
+default = 2
+hint = "notes (a typo repeated in one note is not learned)"
+
+[[setting]]
+key = "folder"
+label = "Dictionary folder"
+kind = "text"
+default = ""
+hint = "a folder of .aff/.dic pairs searched before /usr/share/hunspell"

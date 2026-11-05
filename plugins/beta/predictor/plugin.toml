@@ -1,0 +1,41 @@
+# Predictor: the likely rest of the word being typed, and the next word when the vault is sure of it, faint after the
+# caret; learned from the vault's notes, per language. Tab or → at the end of a line takes it, Ctrl+→ one word.
+# Never in math, code or a .tex file. README.md.
+title = "Predictor"
+description = "suggests the rest of a word and the next one as you write, learned from the vault"
+icon = "sparkles"
+version = "0.1.0"
+api = 22
+phone = true
+
+[helper]
+js = "helper.js"                   # run in the core (QuickJS), built from helper/helper.ts
+idle = "10m"
+
+[[setting]]
+key = "min_count"
+label = "Uses before a guess"
+kind = "number"
+default = 3
+hint = "how often the vault must write a word (or a word after the same ones) before it is suggested"
+
+[[setting]]
+key = "next_word"
+label = "Next word"
+kind = "toggle"
+default = true
+hint = "after a space, and after a completed word, the next word when the vault is sure of it"
+
+[[setting]]
+key = "language"
+label = "Main language"
+kind = "text"
+default = "en"
+hint = "a note's language when its text says too little and it has no lang: property"
+
+[[setting]]
+key = "delay"
+label = "Delay (ms)"
+kind = "number"
+default = 60
+hint = "the pause after a key before a guess shows"

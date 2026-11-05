@@ -1,0 +1,93 @@
+import { test, expect, type APIRequestContext, type Page } from "@playwright/test";
+import { readFileSync } from "node:fs";
+import { openFile } from "./open";
+import { wordsOf } from "../src/lib/editor/prose";
+import { countInto, emptyModel, merge, predict, prune, sentences, type Chunk } from "../../plugins/beta/predictor/ui/src/model";
+
+// The Predictor plugin (plugins/beta/predictor): the rest of a word, and the next word when the vault is sure, faint
+// after the caret; Tab or → at the end of the line takes it; never in math. The model is tested alone first.
+const H = { "x-atlas": "1" };
+const put = (r: APIRequestContext, path: string, text: string) => r.put("/api/file", { headers: H, data: { path, text } });
+const built = (f: string) => readFileSync(new URL(`../../plugins/beta/predictor/${f}`, import.meta.url), "utf8");
+const TEXT = "Wannier functions are local. The Wannier functions of a band. Maximally localized Wannier functions help. "
+  + "Wannier functions again. We build Wannier functions. Smooth Wannier functions too. The wannier gauge.";
+
+const model = (text: string) => {
+  const chunk: Chunk = { en: { words: {}, forms: {}, next: {} } };
+  countInto(chunk.en, sentences(text, wordsOf));
+  const models = new Map([["en", emptyModel()]]);
+  merge(models, chunk);
+  prune(models.get("en")!);
+  return models.get("en")!;
+};
+
+test("the model: the rest of a word as the vault writes it, the next word only when sure, nothing for one letter", () => {
+  const m = model(TEXT);
+  const o = { min: 3, nextWord: true };
+  expect(predict(m, "The Wan", wordsOf, o)?.ghost).toBe("nier functions");
+  expect(predict(m, "the wan", wordsOf, o)?.ghost).toBe("nier functions"); // the typed letters stay as typed
+  expect(predict(m, "Smooth Wannier ", wordsOf, o)?.ghost).toBe("functions");
+  expect(predict(m, "The W", wordsOf, o)).toBeNull();
+  expect(predict(m, "The Wan", wordsOf, { min: 3, nextWord: false })?.ghost).toBe("nier");
+  expect(predict(m, "The Wan", wordsOf, { min: 9, nextWord: true })).toBeNull();
+  expect(predict(m, "zzz qq", wordsOf, o)).toBeNull();
+});
+
+test.describe("in the editor", () => {
+  test.beforeAll(async ({ request }) => {
+    for (const f of ["plugin.toml", "main.js", "helper.js"]) await put(request, `.atlas/plugins/predictor/${f}`, built(f));
+    await put(request, "notes/predict-a.md", `# Predict A\n\n${TEXT}\n`);
+    await put(request, "notes/predict-b.md", `# Predict B\n\n${TEXT}\n`);
+    await put(request, "notes/predict-new.md", "# Predict new\n\n");
+  });
+  test.afterAll(async ({ request }) => {
+    await put(request, ".atlas/plugins/predictor/main.js", "export function register() {}\n");
+    await request.post("/api/plugins/predictor/helper/stop", { headers: H });
+  });
+
+  const lastLine = (page: Page) => page.evaluate(() => (window as unknown as { __atlas: { editor(): { text: string } | null } }).__atlas.editor()?.text.trimEnd().split("\n").pop());
+
+  test("a ghost after typing in prose: Tab takes it, → at the end of the line too, Escape drops it, none in math", async ({ page }) => {
+    await page.goto("/");
+    await page.getByText("Finish the GW notes.").waitFor();
+    await openFile(page, "predict-new.md");
+    await page.locator(".cm-content").click();
+    await page.keyboard.press("Escape");
+    const ghost = page.locator(".cm-predict-ghost");
+    // the vault is learned in the background: type until it answers
+    await page.keyboard.type("Go");
+    await expect.poll(async () => {
+      await page.keyboard.type("The Wan");
+      await page.waitForTimeout(300); // the guess waits for a pause in the typing
+      const seen = await ghost.count() ? await ghost.textContent() : null;
+      for (let i = 0; i < 7; i++) await page.keyboard.press("Backspace");
+      return seen;
+    }, { timeout: 30000 }).toBe("nier functions");
+
+    await page.keyboard.type("The Wan");
+    await expect(ghost).toHaveText("nier functions");
+    for (const theme of ["light", "dark"]) {
+      await page.evaluate((t) => document.documentElement.setAttribute("data-theme", t), theme);
+      await page.locator(".cm-activeLine").screenshot({ path: `../target/snip/predict-${theme}.png` });
+    }
+    await page.keyboard.type("n"); // typing its own next letter keeps the rest
+    await expect(ghost).toHaveText("ier functions");
+    await page.keyboard.press("Tab");
+    await expect.poll(() => lastLine(page)).toBe("The Wannier functions");
+    await expect(ghost).toHaveCount(0);
+
+    await page.keyboard.type(". Smooth Wan");
+    await expect(ghost).toHaveText("nier functions");
+    await page.keyboard.press("ArrowRight");
+    await expect.poll(() => lastLine(page)).toBe("The Wannier functions. Smooth Wannier functions");
+
+    await page.keyboard.type(". The Wan");
+    await expect(ghost).toHaveCount(1);
+    await page.keyboard.press("Escape");
+    await expect(ghost).toHaveCount(0);
+
+    await page.keyboard.type("o $The Wan");
+    await page.waitForTimeout(400);
+    await expect(ghost, "never in math").toHaveCount(0);
+  });
+});

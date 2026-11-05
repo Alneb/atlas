@@ -1,0 +1,47 @@
+import { test, expect, type APIRequestContext } from "@playwright/test";
+import { existsSync, readFileSync } from "node:fs";
+import { openFile } from "./open";
+
+// The Spelling plugin (plugins/beta/spelling): a word neither the machine's Hunspell dictionary nor the vault knows
+// is marked; math, links and the vault's own words are not; a right-click offers suggestions and "Add to this
+// vault's words". Installed for this file only, as a vault holds it, and switched off after.
+const H = { "x-atlas": "1" };
+const put = (r: APIRequestContext, path: string, text: string) => r.put("/api/file", { headers: H, data: { path, text } });
+const built = (f: string) => readFileSync(new URL(`../../plugins/beta/spelling/${f}`, import.meta.url), "utf8");
+const DICT = "/usr/share/hunspell/en_US.dic";
+
+test.skip(!existsSync(DICT), `needs an English Hunspell dictionary (${DICT})`);
+
+test.beforeAll(async ({ request }) => {
+  for (const f of ["plugin.toml", "main.js", "helper.js"]) await put(request, `.atlas/plugins/spelling/${f}`, built(f));
+  await put(request, "notes/spell-a.md", "# Spell A\n\nThe electrons teh insulator carry Wannier centers, $\\alpha teh$ and [[Mott|teh link]].\n\nAnother Blochy line.\n");
+  await put(request, "notes/spell-b.md", "# Spell B\n\nWannier functions, Wannier centres and Wannier bands.\n");
+});
+test.afterAll(async ({ request }) => {
+  await put(request, ".atlas/plugins/spelling/main.js", "export function register() {}\n");
+  await request.post("/api/plugins/spelling/helper/stop", { headers: H });
+});
+
+test("a misspelled word is marked, math, links and the vault's words are not; suggestions and the vault's words from a right-click", async ({ page }) => {
+  await page.goto("/");
+  await page.getByText("Finish the GW notes.").waitFor();
+  await openFile(page, "spell-a.md");
+  const marked = page.locator(".cm-content .cm-spell-miss");
+  await expect.poll(() => marked.allTextContents(), { timeout: 20000 }).toEqual(["teh", "Blochy"]);
+
+  for (const theme of ["light", "dark"]) {
+    await page.evaluate((t) => document.documentElement.setAttribute("data-theme", t), theme);
+    await page.locator(".cm-content .cm-line").nth(2).screenshot({ path: `../target/snip/spell-${theme}.png` });
+  }
+
+  await marked.first().click({ button: "right" });
+  await page.locator('[data-label="the"]').click();
+  await expect(page.locator(".cm-content")).toContainText("The electrons the insulator");
+  await expect(marked).toHaveText(["Blochy"]);
+
+  await marked.first().click({ button: "right" });
+  await page.locator('[data-label="Add “Blochy” to this vault\'s words"]').click();
+  await expect(marked).toHaveCount(0);
+  const words = await (await page.request.get("/api/file?path=.atlas/spelling/words.md", { headers: H })).json();
+  expect(words.text).toContain("```words\nBlochy\n```");
+});

@@ -26,6 +26,12 @@ and versions follow [Semantic Versioning](https://semver.org/) once 1.0 is out.
 - Math: a display block whose first line is `align` (`$$align`, then plain lines) is drawn as an align with each line
   at its first relation; the Snippets option Auto-align types it with `malign`. The exports write it as `aligned`.
 - Math source: `\left` and `\right` are drawn small and faint, their brackets bold in a colour per depth.
+- Predictor, a plugin: the likely rest of a word, and the next word when the vault is sure, faint after the caret in
+  a note's prose (never in math or code), learned from the vault per language; Tab or → at the end of a line takes it,
+  Ctrl+→ one word.
+- Spelling, a plugin: a wavy line under a misspelled word of a note's prose, from the machine's Hunspell dictionaries
+  and the vault's own words (a word the vault uses often counts as right); right-click for suggestions or to add the
+  word to the vault's list. Each note's language is its `lang:` property or guessed from its words.
 - Vim: in a formula or a `.tex` file a command is one word (`dw` on `\alpha` takes the backslash with it); the
   block cursor blinks between filled and hollow, and stays hollow when the editor is not focused.
 - The render audit keeps its temporary files in `target/` and keeps a finding only when a second look shows it.

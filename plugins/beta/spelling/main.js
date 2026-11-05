@@ -1,0 +1,576 @@
+//#region \0rolldown/runtime.js
+var e = Object.create, t = Object.defineProperty, n = Object.getOwnPropertyDescriptor, r = Object.getOwnPropertyNames, i = Object.getPrototypeOf, a = Object.prototype.hasOwnProperty, o = (e, t) => () => (t || (e((t = { exports: {} }).exports, t), e = null), t.exports), s = (e, i, o, s) => {
+	if (i && typeof i == "object" || typeof i == "function") for (var c = r(i), l = 0, u = c.length, d; l < u; l++) d = c[l], !a.call(e, d) && d !== o && t(e, d, {
+		get: ((e) => i[e]).bind(null, d),
+		enumerable: !(s = n(i, d)) || s.enumerable
+	});
+	return e;
+}, c = (n, r, o) => (o = n == null ? {} : e(i(n)), s(r || !n || !n.__esModule || !a.call(n, "default") ? t(o, "default", {
+	value: n,
+	enumerable: !0
+}) : o, n)), l = /* @__PURE__ */ o(((e, t) => {
+	t.exports = function(e) {
+		return e != null && e.constructor != null && typeof e.constructor.isBuffer == "function" && e.constructor.isBuffer(e);
+	};
+})), u = /* @__PURE__ */ o(((e, t) => {
+	t.exports = r;
+	var n = [];
+	function r(e, t) {
+		var r = 0, i;
+		if (!t) return n;
+		if (e.FLAG === "long") {
+			for (i = Array(Math.ceil(t.length / 2)); r < t.length;) i[r / 2] = t.slice(r, r + 2), r += 2;
+			return i;
+		}
+		return t.split(e.FLAG === "num" ? "," : "");
+	}
+})), d = /* @__PURE__ */ o(((e, t) => {
+	var n = u();
+	t.exports = s;
+	var r = [].push, i = "etaoinshrdlcumwfgypbvkjxqz".split(""), a = /\s+/, o = [
+		"qwertzuop",
+		"yxcvbnm",
+		"qaw",
+		"say",
+		"wse",
+		"dsx",
+		"sy",
+		"edr",
+		"fdc",
+		"dx",
+		"rft",
+		"gfv",
+		"fc",
+		"tgz",
+		"hgb",
+		"gv",
+		"zhu",
+		"jhn",
+		"hb",
+		"uji",
+		"kjm",
+		"jn",
+		"iko",
+		"lkm"
+	];
+	function s(e) {
+		var t = Object.create(null), s = Object.create(null), u = Object.create(null), d = [], f = {
+			in: [],
+			out: []
+		}, p = [], m = e.toString("utf8"), h = [], g = 0, _ = m.indexOf("\n"), v, y, b, x, S, C, w, T, E, D, O, k, A;
+		for (u.KEY = []; _ > -1;) j(m.slice(g, _)), g = _ + 1, _ = m.indexOf("\n", g);
+		for (j(m.slice(g)), _ = -1; ++_ < h.length;) if (y = h[_], v = y.split(a), b = v[0], b === "REP") {
+			for (x = _ + parseInt(v[1], 10); ++_ <= x;) v = h[_].split(a), d.push([v[1], v[2]]);
+			_--;
+		} else if (b === "ICONV" || b === "OCONV") {
+			for (x = _ + parseInt(v[1], 10), T = f[b === "ICONV" ? "in" : "out"]; ++_ <= x;) v = h[_].split(a), T.push([new RegExp(v[1], "g"), v[2]]);
+			_--;
+		} else if (b === "COMPOUNDRULE") {
+			for (x = _ + parseInt(v[1], 10); ++_ <= x;) for (D = h[_].split(a)[1], E = -1, p.push(D); ++E < D.length;) s[D.charAt(E)] = [];
+			_--;
+		} else if (b === "PFX" || b === "SFX") {
+			for (x = _ + parseInt(v[3], 10), D = {
+				type: b,
+				combineable: v[2] === "Y",
+				entries: []
+			}, t[v[1]] = D; ++_ <= x;) {
+				v = h[_].split(a), S = v[2], C = v[3].split("/"), w = v[4], T = {
+					add: "",
+					remove: "",
+					match: "",
+					continuation: n(u, C[1])
+				}, C && C[0] !== "0" && (T.add = C[0]);
+				try {
+					S !== "0" && (T.remove = b === "SFX" ? c(S) : S), w && w !== "." && (T.match = b === "SFX" ? c(w) : l(w));
+				} catch {
+					T = null;
+				}
+				T && D.entries.push(T);
+			}
+			_--;
+		} else if (b === "TRY") {
+			for (w = v[1], k = -1, O = []; ++k < w.length;) A = w.charAt(k), A.toLowerCase() === A && O.push(A);
+			for (k = -1; ++k < i.length;) w.indexOf(i[k]) < 0 && O.push(i[k]);
+			u[b] = O;
+		} else b === "KEY" ? r.apply(u[b], v[1].split("|")) : b === "COMPOUNDMIN" ? u[b] = Number(v[1]) : b === "ONLYINCOMPOUND" ? (u[b] = v[1], s[v[1]] = []) : u[b] = v[1];
+		return isNaN(u.COMPOUNDMIN) && (u.COMPOUNDMIN = 3), u.KEY.length || (u.KEY = o), u.TRY ||= i.concat(), u.KEEPCASE ||= !1, {
+			compoundRuleCodes: s,
+			replacementTable: d,
+			conversion: f,
+			compoundRules: p,
+			rules: t,
+			flags: u
+		};
+		function j(e) {
+			e = e.trim(), e && e.charCodeAt(0) !== 35 && h.push(e);
+		}
+	}
+	function c(e) {
+		return RegExp(e + "$");
+	}
+	function l(e) {
+		return RegExp("^" + e);
+	}
+})), f = /* @__PURE__ */ o(((e, t) => {
+	t.exports = n;
+	function n(e, t) {
+		for (var n = -1; ++n < t.length;) e = e.replace(t[n][0], t[n][1]);
+		return e;
+	}
+})), p = /* @__PURE__ */ o(((e, t) => {
+	t.exports = n;
+	function n(e, t, n) {
+		return n && t in e && n.indexOf(e[t]) > -1;
+	}
+})), m = /* @__PURE__ */ o(((e, t) => {
+	var n = p();
+	t.exports = r;
+	function r(e, t) {
+		var r = -1;
+		if (e.data[t]) return !n(e.flags, "ONLYINCOMPOUND", e.data[t]);
+		if (t.length >= e.flags.COMPOUNDMIN) {
+			for (; ++r < e.compoundRules.length;) if (e.compoundRules[r].test(t)) return !0;
+		}
+		return !1;
+	}
+})), h = /* @__PURE__ */ o(((e, t) => {
+	var n = f(), r = m(), i = p();
+	t.exports = a;
+	function a(e, t, a) {
+		var s = t.trim(), c;
+		if (!s) return null;
+		if (s = n(s, e.conversion.in), r(e, s)) return !a && i(e.flags, "FORBIDDENWORD", e.data[s]) ? null : s;
+		if (s.toUpperCase() === s) {
+			if (c = s.charAt(0) + s.slice(1).toLowerCase(), o(e.flags, e.data[c], a)) return null;
+			if (r(e, c)) return c;
+		}
+		if (c = s.toLowerCase(), c !== s) {
+			if (o(e.flags, e.data[c], a)) return null;
+			if (r(e, c)) return c;
+		}
+		return null;
+	}
+	function o(e, t, n) {
+		return i(e, "KEEPCASE", t) || n || i(e, "FORBIDDENWORD", t);
+	}
+})), g = /* @__PURE__ */ o(((e, t) => {
+	var n = h();
+	t.exports = r;
+	function r(e) {
+		return !!n(this, e);
+	}
+})), _ = /* @__PURE__ */ o(((e, t) => {
+	t.exports = n;
+	function n(e) {
+		var t = r(e.charAt(0)), n = e.slice(1);
+		return !n || (n = r(n), t === n) ? t : t === "u" && n === "l" ? "s" : null;
+	}
+	function r(e) {
+		return e === e.toLowerCase() ? "l" : e === e.toUpperCase() ? "u" : null;
+	}
+})), v = /* @__PURE__ */ o(((e, t) => {
+	var n = _(), r = f(), i = p(), a = h();
+	t.exports = s;
+	var o = [].push;
+	function s(e) {
+		var t = this, i = {}, a = [], s = {}, l, u, d = [], f, p, m, h, g, _, v, y, b, x, S, C, w, T, E, D, O, k, A, j, M, N, P;
+		if (e = r(e.trim(), t.conversion.in), !e || t.correct(e)) return [];
+		for (P = n(e), p = -1; ++p < t.replacementTable.length;) for (u = t.replacementTable[p], m = e.indexOf(u[0]); m > -1;) d.push(e.replace(u[0], u[1])), m = e.indexOf(u[0], m + 1);
+		for (p = -1; ++p < e.length;) for (y = e.charAt(p), x = e.slice(0, p), S = e.slice(p + 1), w = y.toLowerCase(), C = w !== y, i = {}, m = -1; ++m < t.flags.KEY.length;) if (b = t.flags.KEY[m], h = b.indexOf(w), !(h < 0)) {
+			for (_ = -1; ++_ < b.length;) if (_ !== h) {
+				if (v = b.charAt(_), i[v]) continue;
+				i[v] = !0, C && (v = v.toUpperCase()), d.push(x + v + S);
+			}
+		}
+		for (p = -1, O = e.charAt(0), f = [""], k = 1, A = 0; ++p < e.length;) {
+			for (y = O, O = e.charAt(p + 1), x = e.slice(0, p), u = y === O ? "" : y + y, m = -1, g = f.length; ++m < g;) m <= k && f.push(f[m] + u), f[m] += y;
+			++A < 3 && (k = f.length);
+		}
+		for (o.apply(d, f), f = [e], u = e.toLowerCase(), (e === u || P === null) && f.push(e.charAt(0).toUpperCase() + u.slice(1)), u = e.toUpperCase(), e !== u && f.push(u), l = {
+			state: {},
+			weighted: s,
+			suggestions: a
+		}, T = c(t, l, f, d), E = 0, k = Math.min(T.length, Math.max(15 - e.length, 3) ** 3), j = Math.max((10 - e.length) ** 3, 1); !a.length && E < k;) D = E + j, c(t, l, T.slice(E, D)), E = D;
+		for (a.sort(F), f = [], M = [], p = -1; ++p < a.length;) N = r(a[p], t.conversion.out), u = N.toLowerCase(), M.indexOf(u) < 0 && (f.push(N), M.push(u));
+		return f;
+		function F(e, t) {
+			return I(e, t) || L(e, t) || R(e, t);
+		}
+		function I(e, t) {
+			return s[e] === s[t] ? 0 : s[e] > s[t] ? -1 : 1;
+		}
+		function L(e, t) {
+			var r = n(e), i = n(t);
+			return r === i ? 0 : r === P ? -1 : i === P ? 1 : void 0;
+		}
+		function R(e, t) {
+			return e.localeCompare(t);
+		}
+	}
+	function c(e, t, r, o) {
+		var s = e.flags.TRY, c = e.data, l = e.flags, u = [], d = -1, f, p, m, h, g, _, v, y, b, x, S, C, w;
+		if (o) for (; ++d < o.length;) T(o[d], !0);
+		for (d = -1; ++d < r.length;) for (f = r[d], p = "", m = "", h = f.charAt(0), g = f, _ = f.slice(1), v = h.toLowerCase() !== h, y = n(f), b = -1; ++b <= f.length;) for (p += m, x = g, g = _, _ = g.slice(1), m = h, h = f.charAt(b + 1), S = v, h && (v = h.toLowerCase() !== h), g && S !== v && (T(p + E(g)), T(p + E(h) + E(m) + _)), T(p + g), g && T(p + h + m + _), w = -1; ++w < s.length;) C = s[w], S && C !== C.toUpperCase() ? (y !== "s" && (T(p + C + x), T(p + C + g)), C = C.toUpperCase(), T(p + C + x), T(p + C + g)) : (T(p + C + x), T(p + C + g));
+		return u;
+		function T(n, r) {
+			var o = t.state[n], s;
+			o !== !!o && (u.push(n), s = a(e, n), o = s && !i(l, "NOSUGGEST", c[s]), t.state[n] = o, o && (t.weighted[n] = r ? 10 : 0, t.suggestions.push(n))), o && t.weighted[n]++;
+		}
+		function E(e) {
+			var t = e.charAt(0);
+			return (t.toLowerCase() === t ? t.toUpperCase() : t.toLowerCase()) + e.slice(1);
+		}
+	}
+})), y = /* @__PURE__ */ o(((e, t) => {
+	var n = h(), r = p();
+	t.exports = i;
+	function i(e) {
+		var t = this, i = n(t, e, !0);
+		return {
+			correct: t.correct(e),
+			forbidden: !!(i && r(t.flags, "FORBIDDENWORD", t.data[i])),
+			warn: !!(i && r(t.flags, "WARN", t.data[i]))
+		};
+	}
+})), b = /* @__PURE__ */ o(((e, t) => {
+	t.exports = n;
+	function n(e, t, r, i) {
+		for (var a = -1, o, s, c, l, u; ++a < t.entries.length;) if (o = t.entries[a], l = o.continuation, u = -1, (!o.match || o.match.test(e)) && (s = o.remove ? e.replace(o.remove, "") : e, s = t.type === "SFX" ? s + o.add : o.add + s, i.push(s), l && l.length)) for (; ++u < l.length;) c = r[l[u]], c && n(s, c, r, i);
+		return i;
+	}
+})), x = /* @__PURE__ */ o(((e, t) => {
+	var n = b();
+	t.exports = o;
+	var r = [].push, i = [];
+	function a(e, t, n) {
+		var a = e[t];
+		t in e ? a === i ? e[t] = n.concat() : r.apply(a, n) : e[t] = n.concat();
+	}
+	function o(e, t, r, o) {
+		var s = -1, c, l, u, d, f, p, m;
+		for ((!("NEEDAFFIX" in o.flags) || r.indexOf(o.flags.NEEDAFFIX) < 0) && a(e, t, r); ++s < r.length;) if (c = o.rules[r[s]], r[s] in o.compoundRuleCodes && o.compoundRuleCodes[r[s]].push(t), c) {
+			for (p = n(t, c, o.rules, []), l = -1; ++l < p.length;) if (p[l] in e || (e[p[l]] = i), c.combineable) {
+				for (u = s; ++u < r.length;) if (f = o.rules[r[u]], f && f.combineable && c.type !== f.type) for (m = n(p[l], f, o.rules, []), d = -1; ++d < m.length;) m[d] in e || (e[m[d]] = i);
+			}
+		}
+	}
+})), S = /* @__PURE__ */ o(((e, t) => {
+	var n = x();
+	t.exports = i;
+	var r = [];
+	function i(e, t) {
+		var i = this;
+		return n(i.data, e, i.data[t] || r, i), i;
+	}
+})), C = /* @__PURE__ */ o(((e, t) => {
+	t.exports = n;
+	function n(e) {
+		var t = this;
+		return delete t.data[e], t;
+	}
+})), w = /* @__PURE__ */ o(((e, t) => {
+	t.exports = n;
+	function n() {
+		return this.flags.WORDCHARS || null;
+	}
+})), T = /* @__PURE__ */ o(((e, t) => {
+	var n = u(), r = x();
+	t.exports = a;
+	var i = /\s/g;
+	function a(e, t, n) {
+		for (var r = e.toString("utf8"), i = r.indexOf("\n") + 1, a = r.indexOf("\n", i); a > -1;) r.charCodeAt(i) !== 9 && o(r.slice(i, a), t, n), i = a + 1, a = r.indexOf("\n", i);
+		o(r.slice(i), t, n);
+	}
+	function o(e, t, a) {
+		for (var o = e.indexOf("/"), s = e.indexOf("#"), c = "", l, u; o > -1 && e.charCodeAt(o - 1) === 92;) e = e.slice(0, o - 1) + e.slice(o), o = e.indexOf("/", o);
+		s > -1 ? o > -1 && o < s ? (l = e.slice(0, o), i.lastIndex = o + 1, u = i.exec(e), c = e.slice(o + 1, u ? u.index : void 0)) : l = e.slice(0, s) : o > -1 ? (l = e.slice(0, o), c = e.slice(o + 1)) : l = e, l = l.trim(), l && r(a, l, n(t.flags, c.trim()), t);
+	}
+})), E = /* @__PURE__ */ o(((e, t) => {
+	var n = T();
+	t.exports = r;
+	function r(e) {
+		var t = this, r = -1, i, a, o, s;
+		for (n(e, t, t.data); ++r < t.compoundRules.length;) {
+			for (i = t.compoundRules[r], a = "", s = -1; ++s < i.length;) o = i.charAt(s), a += t.compoundRuleCodes[o].length ? "(?:" + t.compoundRuleCodes[o].join("|") + ")" : o;
+			t.compoundRules[r] = new RegExp(a, "i");
+		}
+		return t;
+	}
+})), D = /* @__PURE__ */ o(((e, t) => {
+	t.exports = n;
+	function n(e) {
+		var t = this, n = e.toString("utf8").split("\n"), r = -1, i, a, o, s;
+		for (t.flags.FORBIDDENWORD === void 0 && (t.flags.FORBIDDENWORD = !1), s = t.flags.FORBIDDENWORD; ++r < n.length;) i = n[r].trim(), i && (i = i.split("/"), o = i[0], a = o.charAt(0) === "*", a && (o = o.slice(1)), t.add(o, i[1]), a && t.data[o].push(s));
+		return t;
+	}
+})), O = /* @__PURE__ */ c((/* @__PURE__ */ o(((e, t) => {
+	var n = l(), r = d();
+	t.exports = a;
+	var i = a.prototype;
+	i.correct = g(), i.suggest = v(), i.spell = y(), i.add = S(), i.remove = C(), i.wordCharacters = w(), i.dictionary = E(), i.personal = D();
+	function a(e, t) {
+		var i = -1, o;
+		if (!(this instanceof a)) return new a(e, t);
+		if (typeof e == "string" || n(e) ? (typeof t == "string" || n(t)) && (o = [{ dic: t }]) : e && ("length" in e ? (o = e, e = e[0] && e[0].aff) : (e.dic && (o = [e]), e = e.aff)), !e) throw Error("Missing `aff` in dictionary");
+		if (e = r(e), this.data = Object.create(null), this.compoundRuleCodes = e.compoundRuleCodes, this.replacementTable = e.replacementTable, this.conversion = e.conversion, this.compoundRules = e.compoundRules, this.rules = e.rules, this.flags = e.flags, o) for (; ++i < o.length;) o[i].dic && this.dictionary(o[i].dic);
+	}
+})))()), k = /* @__PURE__ */ new Set([
+	"FencedCode",
+	"CodeBlock",
+	"InlineCode",
+	"InlineMath",
+	"BlockMath",
+	"HTMLBlock",
+	"HTMLTag",
+	"Comment",
+	"CommentBlock",
+	"Link",
+	"Image",
+	"URL",
+	"Autolink",
+	"Wikilink",
+	"Embed",
+	"Tag",
+	"Icon",
+	"Emoji",
+	"Footnote",
+	"FootnoteReference"
+]);
+function A(e) {
+	let t = /^---[ \t]*\r?\n[\s\S]*?\r?\n(?:---|\.\.\.)[ \t]*(?:\r?\n|$)/.exec(e);
+	return t ? t[0].length : 0;
+}
+function j(e, t, n, r = 0) {
+	let i = r > t ? [[t, Math.min(r, n)]] : [];
+	e({
+		from: t,
+		to: n,
+		enter: (e) => {
+			if (k.has(e.name)) return i.push([e.from, e.to]), !1;
+		}
+	}), i.sort((e, t) => e[0] - t[0]);
+	let a = [], o = t;
+	for (let [e, t] of i) e > o && a.push([o, Math.min(e, n)]), o = Math.max(o, t);
+	return o < n && a.push([o, n]), a.filter(([e, t]) => t > e);
+}
+var M = /\p{L}[\p{L}\p{M}]*(?:['’-]\p{L}[\p{L}\p{M}]*)*/gu;
+function N(e, t = 0) {
+	let n = [];
+	for (let r of e.matchAll(M)) {
+		let i = e[r.index - 1] ?? "", a = e[r.index + r[0].length] ?? "";
+		/[\p{N}@#_/\\]/u.test(i) || /[\p{N}@_/\\]/u.test(a) || i === "." && /\p{L}/u.test(e[r.index - 2] ?? "") || n.push({
+			word: r[0],
+			from: t + r.index,
+			to: t + r.index + r[0].length
+		});
+	}
+	return n;
+}
+var P = {
+	en: new Set("the of and to in is that it for as with was on be by this are from or an at not which have but has can we".split(" ")),
+	es: new Set("de la que el en los se del las un por con una para es al lo como más pero sus le ha o este si porque".split(" ")),
+	fr: new Set("le la les de des et est un une du en que qui dans pour pas sur au par ce sont avec il elle nous".split(" "))
+};
+function F(e, t, n, r) {
+	let i = typeof r == "string" ? r.toLowerCase().split(/[-_]/)[0] : "";
+	if (i && t.includes(i)) return i;
+	let a = /* @__PURE__ */ new Map(), o = 0;
+	for (let { word: n } of N(e.slice(0, 2e4))) {
+		let e = n.toLowerCase();
+		for (let n of t) P[n]?.has(e) && a.set(n, (a.get(n) ?? 0) + 1);
+		o++;
+	}
+	let [s, c] = [...a].sort((e, t) => t[1] - e[1])[0] ?? [n, 0];
+	return o >= 12 && c >= 3 ? s : n;
+}
+//#endregion
+//#region plugins/beta/spelling/ui/src/suggest.ts
+function I(e) {
+	let t = [];
+	for (let n = 0; n + 1 < e.length; n++) e[n] !== e[n + 1] && t.push(e.slice(0, n) + e[n + 1] + e[n] + e.slice(n + 2));
+	return t;
+}
+function L(e, t, n, r, i = 6) {
+	let a = (e) => e.map((e, t) => [
+		e,
+		r(e),
+		t
+	]).sort((e, t) => t[1] - e[1] || e[2] - t[2]).map(([e]) => e), o = a(I(e).filter(t)), s = a(n(e));
+	return [.../* @__PURE__ */ new Set([...o, ...s])].filter((t) => t !== e).slice(0, i);
+}
+//#endregion
+//#region plugins/beta/spelling/ui/src/words.ts
+var R = ".atlas/spelling/words.md", z = /^```words[ \t]*\n([\s\S]*?)^```/m;
+function B(e) {
+	let t = z.exec(e)?.[1] ?? "";
+	return new Set(t.split("\n").map((e) => e.trim()).filter(Boolean));
+}
+function V(e, t) {
+	let n = "```words\n" + [...B(e), t].filter((e, t, n) => n.indexOf(e) === t).sort((e, t) => e.localeCompare(t)).join("\n") + "\n```";
+	return z.test(e) ? e.replace(z, n + "\n").replace(/```\n\n$/, "```\n") : (e.trim() ? e.replace(/\s*$/, "\n\n") : "# This vault's words\n\nWords the spell checker takes as right here, one per line.\n\n") + n + "\n";
+}
+//#endregion
+//#region plugins/beta/spelling/ui/src/main.ts
+var H = {
+	en: [
+		"en_US",
+		"en_GB",
+		"en_CA",
+		"en_AU"
+	],
+	es: [
+		"es_ES",
+		"es_MX",
+		"es_AR"
+	],
+	fr: ["fr_FR", "fr_CA"],
+	de: ["de_DE"]
+};
+async function U(e) {
+	let { state: t, view: n, language: r } = e.editor.codemirror, i = (t) => e.plugin.settings[t], a = () => Number(i("min_uses") ?? 3), o = () => Number(i("min_notes") ?? 2), s = await e.helper.call("dictionaries", { folder: i("folder") }).catch(() => []) ?? [], c = /* @__PURE__ */ new Map();
+	for (let [e, t] of Object.entries(H)) {
+		let n = t.find((e) => s.includes(e));
+		n && c.set(e, n);
+	}
+	for (let e of String(i("dictionaries") ?? "").split(/[,\s]+/)) {
+		let t = /^([a-z]{2,3})=([\w-]+)$/.exec(e.trim());
+		t && s.includes(t[2]) && c.set(t[1], t[2]);
+	}
+	let l = [...c.keys()], u = String(i("language") || l[0] || "en");
+	s.length || e.toast("Spelling", "No Hunspell dictionary on this machine: only the vault's own words are known, so nothing is marked. Settings → Spelling names a folder.", "info");
+	let d = /* @__PURE__ */ new Map(), f = (t) => {
+		let n = d.get(t);
+		if (n) return n === "loading" ? null : n;
+		let r = c.get(t);
+		return r ? (d.set(t, "loading"), e.helper.call("dictionary", {
+			name: r,
+			folder: i("folder")
+		}, { timeout: 60 }).then(({ aff: e, dic: n }) => {
+			d.set(t, (0, O.default)(e, n)), S();
+		}).catch((e) => {
+			console.warn(`spelling: ${r} did not load:`, e), d.delete(t);
+		}), null) : null;
+	}, p = /* @__PURE__ */ new Map(), m = /* @__PURE__ */ new Set(), h = async () => {
+		m = await e.exists(".atlas/spelling/words.md") ? B(await e.readText(R)) : /* @__PURE__ */ new Set(), S();
+	}, g = async () => {
+		let t = await e.helper.call("notes");
+		for (let n = 0; n < t.length; n += 120) {
+			let r = await e.helper.call("count", {
+				paths: t.slice(n, n + 120),
+				langs: l.length ? l : [u],
+				fallback: u
+			});
+			for (let [e, t] of Object.entries(r)) {
+				let n = p.get(e) ?? p.set(e, /* @__PURE__ */ new Map()).get(e);
+				for (let [e, [r, i]] of Object.entries(t)) {
+					let t = n.get(e);
+					t ? (t[0] += r, t[1] += i) : n.set(e, [r, i]);
+				}
+			}
+		}
+		S();
+	}, _ = (e, t) => {
+		let n = p.get(e), r = n?.get(t) ?? n?.get(t.toLowerCase());
+		return !!r && r[0] >= a() && r[1] >= o();
+	}, v = (e, t) => {
+		if (t.length < 2 || /\p{Lu}/u.test(t.slice(1)) || m.has(t) || m.has(t.toLowerCase()) || _(e, t)) return !1;
+		let n = f(e);
+		return n ? !(n.correct(t) || /^\p{Lu}/u.test(t) && n.correct(t.toLowerCase())) : null;
+	}, y = n.Decoration.mark({ class: "cm-spell-miss" }), b = /* @__PURE__ */ new Set(), x = t.StateEffect.define();
+	function S() {
+		for (let e of b) e.dispatch({ effects: x.of(null) });
+	}
+	let C = (e) => {
+		let t = e.state.doc.sliceString(0, 2e4);
+		return F(t, l.length ? l : [u], u, /^---[\s\S]*?^lang:\s*([\w-]+)/m.exec(t.slice(0, A(t)))?.[1]);
+	}, w = (t) => /\.(md|markdown)$/i.test(e.editor.path(t));
+	function T(e) {
+		if (!w(e)) return n.Decoration.none;
+		let t = C(e), i = r.syntaxTree(e.state), a = e.state.selection.main.head, o = A(e.state.doc.sliceString(0, 4e3)), s = [];
+		for (let { from: n, to: r } of e.visibleRanges) for (let [c, l] of j((e) => i.iterate(e), n, r, o)) for (let n of N(e.state.sliceDoc(c, l), c)) n.to !== a && v(t, n.word) && s.push(y.range(n.from, n.to));
+		return n.Decoration.set(s, !0);
+	}
+	let E = null, D = n.ViewPlugin.fromClass(class {
+		view;
+		decorations;
+		timer = 0;
+		constructor(e) {
+			this.view = e, b.add(e), this.decorations = T(e);
+		}
+		update(e) {
+			if (e.transactions.some((e) => e.effects.some((e) => e.is(x)))) {
+				this.decorations = T(e.view);
+				return;
+			}
+			e.docChanged && (this.decorations = this.decorations.map(e.changes)), (e.docChanged || e.viewportChanged || e.selectionSet) && (clearTimeout(this.timer), this.timer = window.setTimeout(() => this.view.dispatch({ effects: x.of(null) }), e.docChanged ? 400 : 120));
+		}
+		destroy() {
+			clearTimeout(this.timer), b.delete(this.view);
+		}
+	}, {
+		decorations: (e) => e.decorations,
+		eventHandlers: {
+			mousedown(e, t) {
+				e.button === 2 && k(e, t);
+			},
+			contextmenu(e, t) {
+				k(e, t);
+			}
+		}
+	});
+	function k(e, t) {
+		E = null;
+		let n = t.posAtCoords({
+			x: e.clientX,
+			y: e.clientY
+		});
+		if (n === null) return;
+		let r = t.state.doc.lineAt(n), i = N(r.text, r.from).find((e) => e.from <= n && n <= e.to), a = C(t);
+		i && w(t) && v(a, i.word) && (E = {
+			view: t,
+			word: i,
+			lang: a
+		});
+	}
+	e.editor.extension([D, n.EditorView.baseTheme({ ".cm-spell-miss": {
+		textDecoration: "underline wavy var(--red)",
+		textDecorationThickness: "1px",
+		textUnderlineOffset: "3px",
+		textDecorationSkipInk: "none"
+	} })]), e.shell.menu("editor", () => {
+		let t = E;
+		if (!t) return [];
+		let n = f(t.lang), r = (e) => () => t.view.dispatch({
+			changes: {
+				from: t.word.from,
+				to: t.word.to,
+				insert: e
+			},
+			userEvent: "input.spelling"
+		}), i = n ? L(t.word.word, (e) => n.correct(e), (e) => n.suggest(e), (e) => p.get(t.lang)?.get(e)?.[0] ?? 0) : [];
+		return [
+			...i.map((e) => ({
+				label: e,
+				run: r(e),
+				icon: "check"
+			})),
+			...i.length ? [] : [{
+				label: "No suggestions",
+				run: () => {},
+				disabled: !0
+			}],
+			{
+				label: `Add “${t.word.word}” to this vault's words`,
+				icon: "plus",
+				run: async () => {
+					let n = await e.exists(".atlas/spelling/words.md") ? await e.readText(R) : "";
+					await e.writeText(R, V(n, t.word.word)), await h();
+				}
+			}
+		];
+	}), e.onFilesChanged((e) => {
+		(!e.length || e.includes(".atlas/spelling/words.md")) && h();
+	}), await h(), g().catch((e) => console.warn("spelling: the vault's words were not counted:", e));
+}
+//#endregion
+export { U as register };
