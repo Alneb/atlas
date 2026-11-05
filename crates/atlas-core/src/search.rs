@@ -16,8 +16,8 @@ pub struct Opts {
     pub regex: bool,
     /// Also look in the agent's own files (`editor.index_exclude`); off by default.
     pub agent: bool,
-    /// Search the text of the vault's PDFs (pdf_text.rs's cache) instead of its files: a search of its own, so the
-    /// library's megabytes neither slow nor crowd the notes' search.
+    /// Only the text of the vault's PDFs (pdf_text.rs's cache), not the files; without it the PDFs' hits come after
+    /// the files' (a quarter of the results at most).
     pub pdf: bool,
 }
 
@@ -35,14 +35,22 @@ pub fn search_with(root: &Path, cfg: &Config, q: &str, o: Opts) -> SearchResults
     }
     // one walk for both the lines and the names
     let walked: Vec<(std::path::PathBuf, String)> = walk::files(root, cfg).filter(|(_, rel)| o.agent || !cfg.is_agent_file(rel)).collect();
+    crate::pdf_text::catch_up(root, cfg);
     if o.pdf {
-        crate::pdf_text::catch_up(root, cfg);
         return SearchResults { files: Vec::new(), lines: pdf_lines(root, cfg, q, o, &walked) };
     }
     // notes first (a stable sort keeps the walk's order within each), so their hits lead and fill the cap first
     let mut texts: Vec<_> = walked.iter().filter(|&(abs, _)| small(abs)).cloned().collect();
     texts.sort_by_key(|(_, rel)| !rel.ends_with(".md"));
-    let mut lines = lines_over(q, o, texts.into_iter(), true);
+    // the PDFs' text read at the same time as the files, listed after their hits; the papers keep up to a quarter of
+    // the results, so a common word in notes cannot crowd them out
+    let (mut lines, pdf) = std::thread::scope(|s| {
+        let pdf = s.spawn(|| pdf_lines(root, cfg, q, o, &walked));
+        (lines_over(q, o, texts.into_iter(), true), pdf.join().unwrap_or_default())
+    });
+    let pdf: Vec<LineHit> = pdf.into_iter().take(MAX_RESULTS / 4).collect();
+    lines.truncate(MAX_RESULTS - pdf.len());
+    lines.extend(pdf);
     // a hit in a hidden note is its thing's (a drawing's note text → the drawing; companion::thing_of), as the names are;
     // the notes' properties from the index (no note read for them; the watcher keeps it current without a walk)
     let index = crate::links::snapshot(root, cfg);

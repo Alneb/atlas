@@ -626,7 +626,7 @@ pub struct SearchQuery {
     /// Also search the agent's own files (`editor.index_exclude`); they are left out by default.
     #[serde(default)]
     pub agent: bool,
-    /// Search the text of the vault's PDFs instead of its files (a search of its own).
+    /// Only the text of the vault's PDFs, not the files (without it both, the PDFs' hits after the files').
     #[serde(default)]
     pub pdf: bool,
     /// Only the names (files matched by name), no file read: answered at once, before the lines.

@@ -18,7 +18,7 @@ regex: boolean,
  */
 agent: boolean, 
 /**
- * Search the text of the vault's PDFs instead of its files (a search of its own).
+ * Only the text of the vault's PDFs, not the files (without it both, the PDFs' hits after the files').
  */
 pdf: boolean, 
 /**

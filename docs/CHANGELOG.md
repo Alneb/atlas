@@ -10,7 +10,7 @@ and versions follow [Semantic Versioning](https://semver.org/) once 1.0 is out.
   entries on Linux and a Start-menu shortcut on Ctrl+Alt+Shift+C on Windows; the `atlas` CLI is now in the Windows
   and macOS packages too. The AppImage and the Flatpak carry it as well (`atlas-app --capture` starts it), and on
   macOS Atlas takes Ctrl+Cmd+C as its global key while it runs.
-- Search: the PDFs' text is a search of its own (the PDF switch in the Search pane), no longer mixed into the notes'.
+- Search: a PDF switch in the Search pane narrows a search to the PDFs' text (which the normal search still lists after the notes').
 - Search is faster: files read on several threads, notes first, pictures, binaries and number tables left out; names
   and titles show at once, before the lines.
 - The render audit keeps its temporary files in `target/` and keeps a finding only when a second look shows it.

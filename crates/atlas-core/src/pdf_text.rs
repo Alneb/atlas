@@ -182,10 +182,10 @@ mod tests {
         // the text of a PDF no longer in the vault is not a hit
         std::fs::write(d.path().join(super::CACHE).join("refs/gone.pdf.txt"), "Hubbard, gone\n").unwrap();
         std::fs::write(d.path().join("note.md"), "Hubbard in a note\n").unwrap();
-        // the PDFs' text is a search of its own: the notes' search does not list it, and it lists no note
+        // the normal search lists the PDFs' hits after the notes'; `pdf` lists only them
         let cfg = crate::config::Config::default();
-        let notes = crate::search::search(d.path(), &cfg, "hubbard");
-        assert_eq!(notes.lines.iter().map(|h| h.path.as_str()).collect::<Vec<_>>(), ["note.md"], "{notes:?}");
+        let both = crate::search::search(d.path(), &cfg, "hubbard");
+        assert_eq!(both.lines.iter().map(|h| (h.path.as_str(), h.line)).collect::<Vec<_>>(), [("note.md", 1), ("refs/paper.pdf", 2)], "{both:?}");
         let pdf = crate::search::Opts { pdf: true, ..Default::default() };
         let r = crate::search::search_with(d.path(), &cfg, "hubbard", pdf);
         let paths: Vec<(&str, u32)> = r.lines.iter().map(|h| (h.path.as_str(), h.line)).collect();

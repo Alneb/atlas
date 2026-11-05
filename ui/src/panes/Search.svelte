@@ -40,7 +40,7 @@
   });
 
   // line-search options (VS Code's Aa / ab / .*); read in the effect, so a toggle re-runs the search
-  // `pdf`: the text of the vault's PDFs instead of its files, a search of its own (the core's pdf_text cache)
+  // `pdf`: only the text of the vault's PDFs (the core's pdf_text cache); without it their hits follow the files'.
   let opts = $state({ case: false, word: false, regex: false, agent: false, pdf: false });
   const searches = new Newest(180);
   let rerun = $state(0); // bumped after a replace: same query, new results
@@ -170,13 +170,13 @@
 <div class="side-pane search-pane">
   <div class="search-box">
     <button class="opt toggle" class:on={replacing} aria-pressed={replacing} disabled={opts.pdf} title={opts.pdf ? "Replace works on the files, not the PDFs' text" : "Replace in files (Ctrl+Shift+H)"} aria-label="Toggle replace" onclick={() => toggleReplace()}><Icon name="chevron" size={12} /></button>
-    <input bind:this={input} bind:value={q} {onkeydown} placeholder={opts.pdf ? "Search the PDFs' text…" : "Search…"} spellcheck="false" aria-label="Search" />
+    <input bind:this={input} bind:value={q} {onkeydown} placeholder={opts.pdf ? "Search only the PDFs' text…" : "Search…"} spellcheck="false" aria-label="Search" />
     {#if busy}<span class="spin"></span>{/if}
     <span class="opts">
       <button class="opt" class:on={opts.case} aria-pressed={opts.case} title="Match case" aria-label="Match case" onclick={() => (opts.case = !opts.case)}>Aa</button>
       <button class="opt" class:on={opts.word} aria-pressed={opts.word} title="Whole word" aria-label="Whole word" onclick={() => (opts.word = !opts.word)}><u>ab</u></button>
       <button class="opt" class:on={opts.regex} aria-pressed={opts.regex} title="Regular expression" aria-label="Regular expression" onclick={() => (opts.regex = !opts.regex)}>.*</button>
-      <button class="opt pdf" class:on={opts.pdf} aria-pressed={opts.pdf} title="Search the text of the PDFs instead of the files (the library: papers, books, slides)" aria-label="Search the PDFs' text" onclick={() => { opts.pdf = !opts.pdf; if (opts.pdf) toggleReplace(false); }}>PDF</button>
+      <button class="opt pdf" class:on={opts.pdf} aria-pressed={opts.pdf} title="Only the PDFs' text (papers, books, slides): their hits come after the notes' anyway" aria-label="Only the PDFs' text" onclick={() => { opts.pdf = !opts.pdf; if (opts.pdf) toggleReplace(false); }}>PDF</button>
       <button class="opt" class:on={opts.agent} aria-pressed={opts.agent} title="Also search the agent's own files (Claude's memory, session logs, instructions) — left out by default" aria-label="Include the agent's files" onclick={() => (opts.agent = !opts.agent)}><Icon name="claude" size={12} /></button>
     </span>
   </div>
@@ -219,7 +219,7 @@
         ? `Try with ${[opts.case && "Match case", opts.word && "Whole word", opts.regex && "Regular expression"].filter(Boolean).join(", ")} off.`
         : "Try fewer or shorter words."}</p>{/if}
     {:else}
-      <p class="faint small pad">{opts.pdf ? "Type to search the text of every PDF: each hit opens its page." : "Type to search the names and the text of every file."}<span class="keys-only keys-line"><kbd>↑</kbd> <kbd>↓</kbd> to move, <kbd>Enter</kbd> to open</span></p>
+      <p class="faint small pad">{opts.pdf ? "Type to search the text of every PDF: each hit opens its page." : "Type to search the names and the text of every file, the PDFs' included."}<span class="keys-only keys-line"><kbd>↑</kbd> <kbd>↓</kbd> to move, <kbd>Enter</kbd> to open</span></p>
     {/if}
   </div>
 </div>

@@ -144,17 +144,17 @@ test("search options: match case, whole word, regex", async ({ page }) => {
   await expect(pane.locator(".line-hit").first()).toBeVisible();
 });
 
-test("the PDFs' text is a search of its own: the switch leaves the files out and Replace with them", async ({ page }) => {
+test("the PDF switch narrows the search to the PDFs' text: the files left out, and Replace with them", async ({ page }) => {
   await page.goto("/");
   await page.getByText("Finish the GW notes.").waitFor();
   await page.keyboard.press("Control+Shift+F");
   const pane = page.locator(".search-pane");
   await pane.getByLabel("Search", { exact: true }).fill("energy");
   await expect(pane.locator(".line-hit").first()).toBeVisible();
-  await pane.getByLabel("Search the PDFs' text").click();
+  await pane.getByLabel("Only the PDFs' text").click();
   await expect(pane.getByText("No PDF has “energy”")).toBeVisible(); // the fixture vault has no PDF text
   await expect(pane.locator(".line-hit")).toHaveCount(0);
   await expect(pane.getByLabel("Toggle replace")).toBeDisabled();
-  await pane.getByLabel("Search the PDFs' text").click();
+  await pane.getByLabel("Only the PDFs' text").click();
   await expect(pane.locator(".line-hit").first()).toBeVisible();
 });
