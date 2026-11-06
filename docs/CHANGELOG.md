@@ -5,6 +5,25 @@ and versions follow [Semantic Versioning](https://semver.org/) once 1.0 is out.
 
 ## [Unreleased]
 
+## [0.2.8] - 2026-11-06
+
+### Added
+- Search ranks the files whose text matches: a name or heading that says the word first, then notes, then the files
+  with more matches, then the newest; each shows its first lines and its number of matches, a page of 50 at a time
+  with "Show more" (before: the first 200 lines found, in no useful order, and 50 names).
+- Enter after a `$$` alone on its line brings the closing `$$`, so an unclosed formula no longer turns the text
+  below it into math.
+- Settings → Spelling shows the installed languages and their dictionaries, the main language, and the words you
+  added (add and remove them there). Spelling 0.3.0.
+- The desktop starts its other vaults in the background shortly after launch: a first switch is a page load.
+- Settings shows the commit Atlas was built from and the real plugin API (it showed the HTTP API's level).
+
+### Changed
+- Delete goes to the system Trash on macOS and Windows too (it went to the vault's `.atlas/trash/`), and a pasted
+  picture is read from the clipboard there as on Linux.
+- No Python in the app: the core no longer writes a Python plugin library into each vault, and the server image
+  drops `python3`. Every plugin helper is JavaScript in the core or compiled.
+
 ## [0.2.7] - 2026-11-05
 
 ### Added
