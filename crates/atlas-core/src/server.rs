@@ -1726,7 +1726,8 @@ pub const API_LEVEL: u32 = 2;
 /// `{version, api, ui}`: this program's version, its API_LEVEL and an id of its interface build (the hash of its index).
 pub fn version_info() -> serde_json::Value {
     let ui = ui_file("index.html", "").map(|(d, _)| crate::auth::sha256(&String::from_utf8_lossy(&d))[..12].to_string()).unwrap_or_default();
-    serde_json::json!({ "version": env!("CARGO_PKG_VERSION"), "api": API_LEVEL, "ui": ui, "shell": crate::pty::shell_kind() })
+    // `api`: the HTTP API's level (the page checks it); `plugin_api`: what plugins test (plugins.rs API_VERSION)
+    serde_json::json!({ "version": env!("CARGO_PKG_VERSION"), "api": API_LEVEL, "plugin_api": crate::plugins::API_VERSION, "commit": env!("ATLAS_COMMIT"), "ui": ui, "shell": crate::pty::shell_kind() })
 }
 
 fn host_ok(headers: &HeaderMap) -> bool {

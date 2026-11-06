@@ -131,8 +131,9 @@ export const api = {
   recentCommands: (limit: number) => request<string[]>("GET", "/api/recent/commands", { query: { limit } }),
   pluginData: (id: string, args?: unknown) => request<unknown>("POST", `/api/plugins/${encodeURIComponent(id)}/data`, { body: args }),
   me: () => request<Me>("GET", "/api/auth/me"),
-  /** The core: its version, plugin API, interface build and its terminal's shell (`posix`, `powershell`, `cmd`). */
-  version: () => request<{ version: string; api: number; ui: string; shell?: "posix" | "powershell" | "cmd" }>("GET", "/api/version"),
+  /** The core: its version, HTTP API level (`api`), plugin API, the commit it was built from, interface build and its
+   *  terminal's shell (`posix`, `powershell`, `cmd`). */
+  version: () => request<{ version: string; api: number; plugin_api?: number; commit?: string; ui: string; shell?: "posix" | "powershell" | "cmd" }>("GET", "/api/version"),
   /** A locked local core's one-time link for another window (local_lock.rs); 400 when the core is open. */
   localLink: () => request<{ url: string }>("POST", "/api/local/link"),
   signOut: () => request<void>("POST", "/api/auth/logout"),

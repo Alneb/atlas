@@ -12,13 +12,14 @@
 
   let { pages, go }: { pages: Placed[]; go: (id: string) => void } = $props();
   const cards = $derived(pages.filter((p) => p.page !== "overview"));
-  // which Atlas this is: the core's version and plugin API, and the interface's build (it may be newer than the core)
-  let version = $state<{ version: string; api: number; ui: string } | null>(null);
+  // which Atlas this is: the core's version, the commit it was built from and its plugin API, and the interface's build
+  // (it may be newer than the core)
+  let version = $state<Awaited<ReturnType<typeof api.version>> | null>(null);
   $effect(() => { void api.version().then((v) => (version = v), () => {}); });
   const feats = (id: string) => (pageDef(id)?.features ?? []).flatMap((f) => { const a = actions.find((x) => x.id === f); return a ? [a] : []; });
 </script>
 
-{#if version}<p class="version" data-testid="atlas-version">Atlas <b>{version.version}</b> · plugin API {version.api}{#if version.ui} · interface build <code>{version.ui}</code>{/if}</p>{/if}
+{#if version}<p class="version" data-testid="atlas-version">Atlas <b>{version.version}</b>{#if version.commit} · commit <code>{version.commit}</code>{/if}{#if version.plugin_api} · plugin API {version.plugin_api}{/if}{#if version.ui} · interface build <code>{version.ui}</code>{/if}</p>{/if}
 <section class="cards" aria-label="Areas">
   {#each cards as p (p.page)}
     {@const changed = p.fields.filter(isModified).length}

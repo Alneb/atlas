@@ -21,6 +21,25 @@ fn main() {
     let gen = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../ui/src/lib/gen");
     println!("cargo:rustc-env=ATLAS_CORE_TYPES={}", core_types(&gen));
     println!("cargo:rerun-if-changed=../../ui/src/lib/gen");
+    println!("cargo:rustc-env=ATLAS_COMMIT={}", commit());
+}
+
+/// The commit this core is built from, shown in Settings beside the version: `git rev-parse` in a checkout (rebuilt
+/// when HEAD moves), else a `COMMIT` file beside this crate (the server's build context has no .git: bundle.sh writes
+/// it), else empty.
+fn commit() -> String {
+    let crate_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let git = crate_dir.join("../../.git");
+    if git.exists() {
+        println!("cargo:rerun-if-changed=../../.git/HEAD");
+        println!("cargo:rerun-if-changed=../../.git/logs/HEAD");
+        let out = std::process::Command::new("git").args(["rev-parse", "--short=8", "HEAD"]).current_dir(crate_dir).output();
+        if let Some(o) = out.ok().filter(|o| o.status.success()) {
+            return String::from_utf8_lossy(&o.stdout).trim().to_string();
+        }
+    }
+    println!("cargo:rerun-if-changed=COMMIT");
+    std::fs::read_to_string(crate_dir.join("COMMIT")).map(|s| s.trim().to_string()).unwrap_or_default()
 }
 
 /// The stamp of the types the interface is built against (ui/vite.config.ts `coreTypes`, the same FNV-1a 64 over each
