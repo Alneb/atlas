@@ -125,7 +125,7 @@ export function drawSettings(host: HTMLElement, model: () => SettingsModel, act:
           h("td", {}, h("button", { class: l.lang === m.main ? "on" : "", "aria-pressed": String(l.lang === m.main), title: l.lang === m.main ? "The main language: a note says too little to tell" : `Make ${l.name} the main language`, onclick: () => void act.setMain(l.lang).then(draw) }, l.name)),
           h("td", { class: "dict", title: l.others.length ? `Also installed: ${l.others.join(", ")}` : "" }, l.dictionaries, l.others.length ? h("span", { class: "none" }, ` · ${l.others.length} more installed`) : null),
           h("td", { class: "none" }, `${l.learned} words learned from the vault`))))
-        : h("div", { class: "none" }, "No Hunspell dictionary on this machine: install one (hunspell-en, hunspell-es…) or name a folder below."),
+        : h("div", { class: "none" }, "No Hunspell dictionary here, nor in the vault's .atlas/dictionaries: install one (hunspell-en, hunspell-es…) on a computer that opens this vault, or name a folder below."),
       h("div", { class: "about" }, "A note's language is its lang: property, else guessed from its words; the highlighted one is used when a note says too little. Another variant (en_GB, es_MX…) is chosen under Dictionaries below."));
     const input = h("input", { "aria-label": "A word to add", placeholder: "a word…", spellcheck: "false" });
     const form = h("form", {}, input, h("button", {}, "Add"));

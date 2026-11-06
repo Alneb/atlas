@@ -60,39 +60,87 @@
 	}
 	//#endregion
 	//#region ui/src/lib/editor/dictionaries.ts
-	/** Where systems keep Hunspell dictionaries, the setting's folder first. */
-	const folders = (own) => [
-		typeof own === "string" ? own.trim() : "",
-		"/usr/share/hunspell",
-		"/usr/share/myspell",
-		"/usr/share/myspell/dicts"
-	].filter(Boolean);
-	/** Each installed dictionary (`en_US`) with its folder, the first folder holding a name winning. */
-	async function installedDictionaries(exec, own) {
-		const found = /* @__PURE__ */ new Map();
-		for (const dir of folders(own)) {
-			let r;
+	/** The vault's folder of dictionaries (synced with the vault, unlike the machine's). */
+	const VAULT_DICTIONARIES = ".atlas/dictionaries";
+	/** The vault, through a helper's `atlas`. */
+	const vaultFiles = (atlas) => ({
+		list: (dir) => atlas.tree(dir).then((t) => t.filter((e) => e.kind === "file").map((e) => e.name), () => null),
+		read: (path) => atlas.read(path)
+	});
+	/** The machine, through `ls` and `cat` (none on the phone: nothing found there). */
+	const machineFiles = (exec) => ({
+		list: async (dir) => {
 			try {
-				r = await exec("ls", [dir]);
+				const r = await exec("ls", [dir]);
+				return r.status === 0 ? r.stdout.split("\n") : null;
 			} catch {
-				return found;
+				return null;
 			}
-			if (r.status !== 0) continue;
-			const names = new Set(r.stdout.split("\n"));
+		},
+		read: async (path) => {
+			const r = await exec("cat", [path], { timeout: 30 });
+			if (r.status !== 0) throw new Error(r.stderr || `could not read ${path}`);
+			if (!r.stdout.includes("�")) return r.stdout;
+			for (const args of [["-w0", path], [path]]) {
+				const b = await exec("base64", args, { timeout: 30 }).catch(() => null);
+				if (b?.status === 0) return latin1(b.stdout.replace(/\s+/g, ""));
+			}
+			return r.stdout;
+		}
+	});
+	/** Base64 → a string whose characters are the bytes (Latin-1); no atob in every helper runtime. */
+	function latin1(b64) {
+		const A = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+		let out = "", bits = 0, n = 0;
+		for (const c of b64) {
+			const v = A.indexOf(c);
+			if (v < 0) continue;
+			bits = bits << 6 | v;
+			n += 6;
+			if (n >= 8) {
+				n -= 8;
+				out += String.fromCharCode(bits >> n & 255);
+			}
+		}
+		return out;
+	}
+	/** The places to look, in order: the vault's folder, the setting's folder, the systems' usual ones. */
+	function places(vault, machine, own) {
+		const mine = typeof own === "string" ? own.trim() : "";
+		return [{
+			files: vault,
+			dir: VAULT_DICTIONARIES,
+			inVault: true
+		}, ...[
+			mine,
+			"/usr/share/hunspell",
+			"/usr/share/myspell",
+			"/usr/share/myspell/dicts"
+		].filter(Boolean).map((dir) => ({
+			files: machine,
+			dir,
+			inVault: false
+		}))];
+	}
+	/** Each dictionary there is (`en_US`) and where, the first place holding a name winning. */
+	async function installedDictionaries(vault, machine, own) {
+		const found = /* @__PURE__ */ new Map();
+		for (const place of places(vault, machine, own)) {
+			const listed = await place.files.list(place.dir);
+			if (!listed) continue;
+			const names = new Set(listed);
 			for (const n of names) {
 				const m = /^([A-Za-z]{2,3}(?:[_-][A-Za-z0-9]+)*)\.dic$/.exec(n);
-				if (m && names.has(`${m[1]}.aff`) && !found.has(m[1])) found.set(m[1], dir);
+				if (m && names.has(`${m[1]}.aff`) && !found.has(m[1])) found.set(m[1], place);
 			}
 		}
 		return found;
 	}
 	/** One dictionary's file (`aff` or `dic`), as text. */
-	async function dictionaryFile(exec, own, name, ext) {
-		const dir = (await installedDictionaries(exec, own)).get(name);
-		if (!dir) throw new Error(`no Hunspell dictionary named ${name}`);
-		const r = await exec("cat", [`${dir}/${name}.${ext}`], { timeout: 30 });
-		if (r.status !== 0) throw new Error(r.stderr || `could not read ${name}.${ext}`);
-		return r.stdout;
+	async function dictionaryFile(vault, machine, own, name, ext) {
+		const at = (await installedDictionaries(vault, machine, own)).get(name);
+		if (!at) throw new Error(`no Hunspell dictionary named ${name}`);
+		return at.files.read(`${at.dir}/${name}.${ext}`);
 	}
 	/** The dictionaries a language uses when the setting names none: of each group, the first installed. English takes
 	*  both the American and the British one, so either spelling (centered, centred) is right. */
@@ -140,6 +188,8 @@
 	//#endregion
 	//#region plugins/beta/predictor/helper/helper.ts
 	const exec = (cmd, args, opts) => atlas.exec(cmd, args, opts);
+	const vault = vaultFiles(atlas);
+	const machine = machineFiles(exec);
 	/** The notes to count, in order (the page asks for them in chunks). */
 	async function notes() {
 		return (await atlas.files(true)).filter((p) => /\.md$/i.test(p) && !p.startsWith(".atlas/"));
@@ -166,9 +216,9 @@
 	}
 	/** A language's dictionary words (lower case, without affixes), one per line; "" when none is installed. */
 	async function lexicon(p) {
-		const names = chooseDictionaries([...(await installedDictionaries(exec, p.folder)).keys()], p.dictionaries).get(String(p.lang ?? "en")) ?? [];
+		const names = chooseDictionaries([...(await installedDictionaries(vault, machine, p.folder)).keys()], p.dictionaries).get(String(p.lang ?? "en")) ?? [];
 		const words = /* @__PURE__ */ new Set();
-		for (const name of names) for (const w of dicStems(await dictionaryFile(exec, p.folder, name, "dic"))) words.add(w);
+		for (const name of names) for (const w of dicStems(await dictionaryFile(vault, machine, p.folder, name, "dic"))) words.add(w);
 		return [...words].join("\n");
 	}
 	atlas.methods({

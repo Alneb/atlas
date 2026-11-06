@@ -3,10 +3,11 @@
 // for finishing words the vault does not write often. Nothing is written; the page keeps the model in memory.
 import type { Params } from "atlas-helper";
 import { guessLanguage, ownWriting, plainProse, wordsOf } from "../../../../ui/src/lib/editor/prose";
-import { chooseDictionaries, dicStems, dictionaryFile, installedDictionaries, type Exec } from "../../../../ui/src/lib/editor/dictionaries";
+import { chooseDictionaries, dicStems, dictionaryFile, installedDictionaries, machineFiles, vaultFiles, type Exec } from "../../../../ui/src/lib/editor/dictionaries";
 import { packSentences, sentences } from "../ui/src/model";
 
 const exec: Exec = (cmd, args, opts) => atlas.exec(cmd, args, opts) as unknown as ReturnType<Exec>;
+const vault = vaultFiles(atlas), machine = machineFiles(exec);
 
 /** The notes to count, in order (the page asks for them in chunks). */
 async function notes() {
@@ -30,10 +31,10 @@ async function count(p: Params) {
 
 /** A language's dictionary words (lower case, without affixes), one per line; "" when none is installed. */
 async function lexicon(p: Params) {
-  const installed = [...(await installedDictionaries(exec, p.folder)).keys()];
+  const installed = [...(await installedDictionaries(vault, machine, p.folder)).keys()];
   const names = chooseDictionaries(installed, p.dictionaries).get(String(p.lang ?? "en")) ?? [];
   const words = new Set<string>();
-  for (const name of names) for (const w of dicStems(await dictionaryFile(exec, p.folder, name, "dic"))) words.add(w);
+  for (const name of names) for (const w of dicStems(await dictionaryFile(vault, machine, p.folder, name, "dic"))) words.add(w);
   return [...words].join("\n");
 }
 

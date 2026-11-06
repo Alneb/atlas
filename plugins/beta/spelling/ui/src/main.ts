@@ -24,6 +24,13 @@ export async function register(atlas: PluginApi) {
   const minUses = () => Number(setting("min_uses") ?? 3);
   const minNotes = () => Number(setting("min_notes") ?? 2);
 
+  /** A notice said once on this device (a page per pane or window would each say it again). */
+  const tellOnce = (key: string, text: string) => {
+    const k = `atlas.spelling.told.${key}`;
+    try { if (localStorage.getItem(k)) return; localStorage.setItem(k, "1"); } catch { /* no storage: say it */ }
+    atlas.toast("Spelling", text, "info");
+  };
+
   // --- what is known -------------------------------------------------------------------------------------------
   const installed: string[] = ((await atlas.helper.call("dictionaries", { folder: setting("folder") }).catch(() => [])) as string[]) ?? [];
   /** language → dictionary names, from the setting (`en=en_GB, es=es_MX+es_AR`) over the preferred installed ones */
@@ -31,7 +38,12 @@ export async function register(atlas: PluginApi) {
   const langs = [...chosen.keys()];
   const fallback = String(setting("language") || langs[0] || "en");
   const NAMES: Record<string, string> = { en: "English", es: "Spanish", fr: "French", de: "German", it: "Italian", pt: "Portuguese", ca: "Catalan", nl: "Dutch" };
-  if (!installed.length) atlas.toast("Spelling", "No Hunspell dictionary on this machine: only the vault's own words are known, so nothing is marked. Settings → Spelling names a folder.", "info");
+  if (!installed.length) tellOnce("no-dictionary", "No Hunspell dictionary here, nor in the vault's .atlas/dictionaries: only the vault's own words are known, so nothing is marked. Open the vault once on a computer that has one (Settings → Spelling keeps it in the vault), or name a folder there.");
+  // a machine with the dictionaries in use copies them into the vault, for the server and the phone (none of their own)
+  if (setting("keep_in_vault") !== false && chosen.size)
+    void (atlas.helper.call("keep", { names: [...new Set([...chosen.values()].flat())], folder: setting("folder") }, { timeout: 120 }) as Promise<string[]>)
+      .then((kept) => { if (kept.length) console.info(`spelling: kept ${kept.join(", ")} in the vault (.atlas/dictionaries) for the devices that have none`); })
+      .catch((e) => console.warn("spelling: the dictionaries were not kept in the vault:", e));
 
   /** A language's dictionaries, loaded the first time a note in it is shown: null until they are there. */
   const spellers = new Map<string, Speller[] | "loading">();

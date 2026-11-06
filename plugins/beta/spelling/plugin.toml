@@ -4,12 +4,12 @@
 title = "Spelling"
 description = "marks misspelled words in notes, from the machine's dictionaries and the vault's own words"
 icon = "check"
-version = "0.3.0"
+version = "0.3.1"
 api = 22
 phone = true
 
 [permissions]
-exec = ["ls", "cat"]               # find and read the Hunspell dictionaries (/usr/share/hunspell)
+exec = ["ls", "cat", "base64"]               # find and read the Hunspell dictionaries (/usr/share/hunspell)
 
 [helper]
 js = "helper.js"                   # run in the core (QuickJS), built from helper/helper.ts
@@ -48,4 +48,11 @@ key = "folder"
 label = "Dictionary folder"
 kind = "text"
 default = ""
-hint = "a folder of .aff/.dic pairs searched before /usr/share/hunspell"
+hint = "a folder of .aff/.dic pairs searched after the vault's .atlas/dictionaries and before /usr/share/hunspell"
+
+[[setting]]
+key = "keep_in_vault"
+label = "Keep the dictionaries in the vault"
+kind = "toggle"
+default = true
+hint = "copy the dictionaries in use into .atlas/dictionaries (about 1 MB a language), so the server and the phone, which have none of their own, check spelling too"

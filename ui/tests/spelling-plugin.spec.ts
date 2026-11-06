@@ -1,6 +1,7 @@
 import { test, expect, type APIRequestContext } from "@playwright/test";
 import { existsSync, readFileSync } from "node:fs";
 import { openFile } from "./open";
+import { installedDictionaries, keepInVault, latin1, machineFiles, VAULT_DICTIONARIES, type Files } from "../src/lib/editor/dictionaries";
 
 // The Spelling plugin (plugins/beta/spelling): a word neither the machine's Hunspell dictionary nor the vault knows
 // is marked; math, links and the vault's own words are not; a right-click offers suggestions and "Add to this
@@ -9,6 +10,45 @@ const H = { "x-atlas": "1" };
 const put = (r: APIRequestContext, path: string, text: string) => r.put("/api/file", { headers: H, data: { path, text } });
 const built = (f: string) => readFileSync(new URL(`../../plugins/beta/spelling/${f}`, import.meta.url), "utf8");
 const DICT = "/usr/share/hunspell/en_US.dic";
+
+/** A place's files in memory: folder → name → text. */
+const memory = (dirs: Record<string, Record<string, string>>): Files & { dirs: typeof dirs } => ({
+  dirs,
+  list: async (dir) => (dirs[dir] ? Object.keys(dirs[dir]) : null),
+  read: async (path) => { const i = path.lastIndexOf("/"); const t = dirs[path.slice(0, i)]?.[path.slice(i + 1)]; if (t == null) throw new Error(`no ${path}`); return t; },
+});
+
+test("the vault's dictionaries come first and a machine copies the ones in use into the vault, for devices with none", async () => {
+  const machine = memory({ "/usr/share/hunspell": { "en_US.aff": "SET UTF-8", "en_US.dic": "1\ncolour", "es_ES.aff": "SET UTF-8", "es_ES.dic": "1\nhola", "fr_FR.dic": "half" } });
+  const vault = memory({});
+  const write = async (path: string, text: string) => { const i = path.lastIndexOf("/"); (vault.dirs[path.slice(0, i)] ??= {})[path.slice(i + 1)] = text; };
+  // the server: no machine dictionaries, an empty vault folder → nothing
+  expect([...(await installedDictionaries(vault, memory({}), "")).keys()]).toEqual([]);
+  // the laptop: the machine's, a lone .dic not counted; only the ones in use are copied, and once
+  expect([...(await installedDictionaries(vault, machine, "")).keys()].sort()).toEqual(["en_US", "es_ES"]);
+  expect(await keepInVault(vault, machine, "", ["en_US", "fr_FR"], write)).toEqual(["en_US"]);
+  expect(await keepInVault(vault, machine, "", ["en_US"], write)).toEqual([]);
+  expect(Object.keys(vault.dirs[VAULT_DICTIONARIES]).sort()).toEqual(["en_US.aff", "en_US.dic"]);
+  // the server again: the vault's copy is found and read with no machine dictionaries at all
+  const there = await installedDictionaries(vault, memory({}), "");
+  expect([...there.keys()]).toEqual(["en_US"]);
+  expect(there.get("en_US")?.inVault).toBe(true);
+});
+
+test("an ISO-8859-1 dictionary is read as its characters and kept in the vault as UTF-8", async () => {
+  const bytes = Buffer.from("SET ISO8859-1\nappliqu\xe9d\n", "latin1");
+  expect(latin1(bytes.toString("base64"))).toBe("SET ISO8859-1\nappliquéd\n");
+  // `cat` through exec decodes as UTF-8: é becomes U+FFFD; base64 brings the bytes
+  const exec = async (cmd: string, args: string[]) => cmd === "cat" ? { status: 0, stdout: bytes.toString("utf8"), stderr: "" }
+    : cmd === "base64" && args[0] === "-w0" ? { status: 0, stdout: bytes.toString("base64"), stderr: "" } : { status: 1, stdout: "", stderr: "no" };
+  const machine = machineFiles(exec);
+  expect(await machine.read("/x/en_GB.aff")).toBe("SET ISO8859-1\nappliquéd\n");
+  const kept: Record<string, string> = {};
+  const box = memory({ "/usr/share/hunspell": { "en_GB.aff": "SET ISO8859-1\nappliquéd\n", "en_GB.dic": "1\nappliquéd" } });
+  await keepInVault(memory({}), box, "", ["en_GB"], async (path, text) => { kept[path] = text; });
+  expect(kept[`${VAULT_DICTIONARIES}/en_GB.aff`]).toBe("SET UTF-8\nappliquéd\n");
+  expect(kept[`${VAULT_DICTIONARIES}/en_GB.dic`]).toBe("1\nappliquéd");
+});
 
 test.skip(!existsSync(DICT), `needs an English Hunspell dictionary (${DICT})`);
 
