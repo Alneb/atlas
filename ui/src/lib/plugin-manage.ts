@@ -78,20 +78,24 @@ async function releaseRows(): Promise<PickItem[]> {
   }));
 }
 
+/** Installs the plugin at `from` (a release archive's address, a folder, a git address…), switched on, and says what it
+ *  may do. The one install path: Settings' Install… and the Home page's welcome block. False when it failed (said). */
+export async function installFrom(from: string): Promise<boolean> {
+  try {
+    const r = await api.installPlugin(from.trim());
+    await loadPlugins();
+    const may = mayOf(r.permissions, r.has_helper);
+    toast(`Installed ${r.title}`, `It is switched on.${may ? ` It may ${may}; Settings → Plugins switches it off.` : ""}`, "success", 12000);
+    return true;
+  } catch (e) { toast("Not installed", errText(e), "error", 9000); return false; }
+}
+
 export function installPlugin(): void {
   pick({
     placeholder: "Install a plugin: one from the release, or type a folder, a git address, a .zip / .tar.gz file or its web address",
     tag: "Install", icon: "plugin", items: releaseRows,
     typed: (t) => `Copy the plugin at ${t} into this vault`,
-    onpick: async (from) => {
-      if (!from.trim()) return;
-      try {
-        const r = await api.installPlugin(from.trim());
-        await loadPlugins();
-        const may = mayOf(r.permissions, r.has_helper);
-        toast(`Installed ${r.title}`, `It is switched on.${may ? ` It may ${may}; switch it off here if you would rather not.` : ""}`, "success", 12000);
-      } catch (e) { toast("Not installed", errText(e), "error", 9000); }
-    },
+    onpick: async (from) => { if (from.trim()) await installFrom(from); },
   });
 }
 

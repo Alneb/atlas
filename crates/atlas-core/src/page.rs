@@ -77,12 +77,13 @@ pub fn parse(src: &str) -> Result<PageDoc> {
 
 /// The home page Atlas writes once: the Today dashboard, as a file.
 pub const HOME_TEMPLATE: &str = r#"# Your home screen, as a file: reorder, remove or add blocks and save — it updates at once.
-# A block is a name (greeting, capture, focus, log, tasks, activity, suggestions, calendar, list,
+# A block is a name (welcome, greeting, capture, focus, log, tasks, activity, suggestions, calendar, list,
 # table), or { view: calendar, from: tasks, dated: true, title: … }, { view: settings, page: appearance },
 # { note: path.md }, { base: x.base }, { text: "markdown" }. A row is a list of blocks, or `columns:`
 # (a list of block lists).
 title: Today
 rows:
+  - [welcome]
   - [greeting]
   - [capture]
   - columns:
@@ -98,9 +99,10 @@ mod tests {
     fn the_home_template_is_the_today_dashboard() {
         let p = parse(HOME_TEMPLATE).unwrap();
         assert_eq!(p.title.as_deref(), Some("Today"));
-        assert_eq!(p.rows.len(), 3);
-        assert_eq!(p.rows[2].columns.len(), 2);
-        assert!(matches!(&p.rows[2].columns[1][0], PageBlock::View { view, .. } if view == "tasks"));
+        assert_eq!(p.rows.len(), 4);
+        assert!(matches!(&p.rows[0].columns[0][0], PageBlock::View { view, .. } if view == "welcome"));
+        assert_eq!(p.rows[3].columns.len(), 2);
+        assert!(matches!(&p.rows[3].columns[1][0], PageBlock::View { view, .. } if view == "tasks"));
     }
 
     #[test]

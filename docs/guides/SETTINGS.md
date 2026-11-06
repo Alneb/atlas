@@ -112,6 +112,11 @@ would cycle):
 - `suggestions`: the toolsmith's drafts (`components/ToolDrafts.svelte`, also on the automation page). The Home.page
   **template** now ends its second column with `{ view: suggestions, title: Drafted for you }`. Existing home files
   are the user's and are not edited.
+- `welcome`: Getting started (`components/views/Welcome.svelte`), the first row of a new vault's Home.page. The main
+  functions as buttons, each running the command its key runs and showing that key (`keysOf`), so using the button
+  teaches the key; then the release's plugins that run here and are not installed, each one click from installed
+  through `installFrom` (`lib/plugin-manage.ts`, the same path as Settings → Plugins → Install…). "Remove this guide"
+  takes its `- [welcome]` row out of the home file, on that click only. Existing home files get it only if added.
 
 ## Shared pieces extracted
 - `components/ShortcutButton.svelte`: click, press keys, clash handling, reset to the default. Used by the Commands

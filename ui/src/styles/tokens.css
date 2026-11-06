@@ -82,18 +82,20 @@ html.phone:not(.native-shell) { --fab-room: 80px; }
   --bg-elev: #ffffff;
   --bg-hover: rgba(15, 23, 42, .045);
   --bg-active: rgba(15, 23, 42, .075);
-  --border: rgba(15, 23, 42, .085);
-  --border-strong: rgba(15, 23, 42, .14);
-  --text: #23272e;
-  --text-muted: #5b6270;
-  --text-faint: #767c89; /* ≥ 3.8:1 on light surfaces */
-  --heading: #12151a;
+  /* text and rules at the Contrast scheme's strength (palettes.css, "contrast"), the reference for reading: near-black
+     text, greys that stay ≥ 7:1, rules that show; the cool tint and the indigo stay Atlas's */
+  --border: rgba(15, 23, 42, .22);
+  --border-strong: rgba(15, 23, 42, .4);
+  --text: #0b0d12;
+  --text-muted: #363b45;
+  --text-faint: #4f5562;
+  --heading: #000000;
   --accent: #4864dd;
   --accent-fg: #ffffff;
   --accent-strong: #3a52c4;
   --accent-soft: rgba(72, 100, 221, .1);
   --accent-sel: rgba(72, 100, 221, .2);
-  --link: #3f5bd6;
+  --link: #3a52c4;
   --green: #2f9e5c; --red: #d4464f; --yellow: #b8860b; --orange: #c8641e; --purple: #8150d6; --cyan: #138a96;
   --code-bg: #f4f5f8;
   --inline-code: #b6452c;

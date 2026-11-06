@@ -315,9 +315,9 @@ pub struct UiConfig {
     /// Colour scheme by night (the dark theme). Empty: the day's.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub palette_dark: Option<Palette>,
-    /// Contrast: `high` turns any colour scheme up — black or white paper, full-strength text and rules, and the
-    /// scheme's accent pushed to a phosphor-bright tone (with a faint glow on links by night). `system` follows the
-    /// desktop's "more contrast" setting.
+    /// Contrast: `high` turns any colour scheme up, beyond even the Contrast scheme — black or white paper,
+    /// full-strength text and rules, and the scheme's accent pushed to a phosphor-bright tone (with a faint glow on
+    /// links by night). `system` follows the desktop's "more contrast" setting.
     pub contrast: Contrast,
     /// Shapes: `cards` (panes as rounded cards floating on the window) or `paper` (one flat sheet: panes flush,
     /// hairline rules between them, square corners, the selected tab or row marked by a bar).
@@ -509,7 +509,7 @@ pub enum Contrast {
     /// The scheme as drawn.
     #[default]
     Normal,
-    /// Black or white paper, full-strength text, the accent phosphor-bright.
+    /// Beyond the Contrast scheme: black or white paper, full-strength text and rules, the accent phosphor-bright.
     High,
     /// High when the desktop asks for more contrast, else normal.
     System,
