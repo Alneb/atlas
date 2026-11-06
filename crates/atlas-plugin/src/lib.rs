@@ -1,5 +1,5 @@
-//! Atlas from a plugin's compiled helper (docs/guides/PLUGIN-API.md, "Calling Atlas back") — the Rust twin of the Python
-//! library `atlas_plugin` (crates/atlas-core/sdk/python). A helper talks to the core over its own pipe: requests in on
+//! Atlas from a plugin's compiled helper (docs/guides/PLUGIN-API.md, "Calling Atlas back") — the twin of a JavaScript
+//! helper's `atlas.*` (crates/atlas-core/sdk/js/prelude.js). A helper talks to the core over its own pipe: requests in on
 //! stdin, answers out on stdout, and its calls back the same way (`{"call": n, "verb", "path", "body"}` out,
 //! `{"reply": n, "status", "body"}` in); the core runs each through the vault's API in-process
 //! (crates/atlas-core/src/helper_api.rs). No socket, no port, no key — and only std and serde_json, so a helper built

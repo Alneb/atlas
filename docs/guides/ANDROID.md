@@ -195,7 +195,7 @@ What is there: wikilinks (followed, resolved as Obsidian does), tasks (ticked, T
 
 **Proposed**: the core runs **inside the app** — `atlas-core` already compiles for Android, its server included — on 127.0.0.1 with a per-launch token; the web UI's build (`ui/dist`, a few MB) goes in the APK's assets; a **WebView** shows the pieces the native screens do not draw — a Base, a plugin block (Runs and the rest), a note in the code editor, a plugin's pane — in the phone layout (docs/guides/MOBILE.md), talking to that in-app core like the desktop window talks to its own. The native screens stay for what must be instant (Today, capture, Files, Search, reading). Plugins' `main.js` then run as on the desktop (in the WebView), with the same `atlas` API.
 
-**What cannot come**: plugin helpers that are programs (`data = "python3 …"`, the SSH plugin's binary) — a phone runs no Python; such plugins would say so and offer the server's version (the same vault on an Atlas server runs them there).
+**What cannot come**: plugin helpers that are scripts for an interpreter — a phone runs no Python; such plugins would say so and offer the server's version (the same vault on an Atlas server runs them there).
 
 
 ## The native shell

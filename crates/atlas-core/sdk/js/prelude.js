@@ -1,10 +1,10 @@
-// SPDX-License-Identifier: MIT OR Apache-2.0  (the plugin SDK, as atlas_plugin.py; Atlas itself is AGPL-3.0-or-later)
+// SPDX-License-Identifier: MIT OR Apache-2.0  (the plugin SDK, as the atlas-plugin crate; Atlas itself is AGPL-3.0-or-later)
 // The `atlas` object of a JavaScript helper (docs/guides/PLUGIN-API.md, "JavaScript helpers"). The core runs it before
 // the plugin's helper.js, in the plugin's own QuickJS context (js_helper.rs); the node test harness (testing.ts) runs
 // the same file. It speaks the helper protocol of every helper over `__host.send(line)` / `__atlas_receive(line)`:
 //   core → helper  {"id", "method", "params"}   and  {"reply", "status", "body"}
 //   helper → core  {"id", "result"|"error"}, {"event", "data"}  and  {"call", "verb", "path", "body"}
-// so everything a Python helper reaches (the API, `fetch` within `[permissions] net`, its secrets) it reaches the same way.
+// so everything a compiled helper reaches (the API, `fetch` within `[permissions] net`, its secrets) it reaches the same way.
 "use strict";
 (function (host) {
   if (!host) throw new Error("the Atlas helper prelude runs only where the core (or the test harness) set __host");
@@ -69,8 +69,8 @@
   const plugin = `/api/plugins/${encodeURIComponent(host.id)}`;
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-  // The web through the core's fetch (plugin_net.rs: only the manifest's `net` hosts), polite and patient as the Python
-  // SDK's: one request to a host every `every` seconds at most, a busy answer or a dropped connection tried again.
+  // The web through the core's fetch (plugin_net.rs: only the manifest's `net` hosts), polite and patient:
+  // one request to a host every `every` seconds at most, a busy answer or a dropped connection tried again.
   const BUSY = [429, 502, 503, 504];
   const last = new Map();
   async function fetchResponse(req) {

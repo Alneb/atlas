@@ -1,22 +1,19 @@
 //! A plugin's helper calling back into the core (docs/guides/PLUGIN-API.md, "Calling Atlas back"). A helper in any
-//! language (a Python script, a compiled program) can ask the core for things, over the helper's own pipe rather than
+//! language (a compiled program, a script) can ask the core for things, over the helper's own pipe rather than
 //! a web interface.
 //!
 //! The helper writes `{"call": n, "verb": "GET", "path": "/api/file?path=a.md", "body": …}` on its stdout (a file's bytes
 //! as `"bytes": "<base64>"` in place of `body`, for `PUT /api/raw`: a PDF, an attachment); the core runs
 //! it through the vault's own router **in-process** (no socket, no port, no key: the pipe is the identity) and writes
 //! `{"reply": n, "status": 200, "body": …}` to the helper's stdin. So a helper reaches exactly the API the pages use —
-//! one implementation of every file, note and search operation — on the machine running the server. The libraries:
-//! `crates/atlas-core/sdk/python/atlas_plugin.py` (`import atlas_plugin`) and the `atlas-plugin` crate.
-use std::path::{Path, PathBuf};
+//! one implementation of every file, note and search operation — on the machine running the server. The library: the
+//! `atlas-plugin` crate; a helper run in the core (js_helper.rs) has the same calls as `atlas.*`.
+use std::path::Path;
 
 /// Marks a request as a plugin's helper's own (a request extension: a network request can never carry one). The
 /// guards let it through as the vault's owner, within [`may`].
 #[derive(Clone, Debug)]
 pub struct Caller(pub String);
-
-/// The Python library, written beside the vault's cache for `PYTHONPATH` (`import atlas_plugin`).
-const PYTHON_SDK: &str = include_str!("../sdk/python/atlas_plugin.py");
 
 /// What a plugin's helper may reach: everything a signed-in page may, except the sign-ins and what acts as another
 /// plugin: its secrets, its sign-ins, its fetch (which fills in its secrets), its settings, its update and removal.
@@ -86,29 +83,9 @@ fn own_or_free(id: &str, target: &str) -> bool {
 }
 
 /// The environment a plugin's program starts with, beside `ATLAS_ROOT` / `ATLAS_PLUGIN_DIR` / `…_TARGET`:
-/// `ATLAS_PLUGIN_ID`, and `PYTHONPATH` led by the library's folder.
-pub fn env(root: &Path, id: &str) -> Vec<(&'static str, String)> {
-    let mut out = vec![("ATLAS_PLUGIN_ID", id.to_string())];
-    match python_dir(root) {
-        Ok(dir) => {
-            // the OS's own list separator (`;` on Windows)
-            let rest = std::env::var_os("PYTHONPATH").map(|r| std::env::split_paths(&r).collect::<Vec<_>>()).unwrap_or_default();
-            let all = std::env::join_paths(std::iter::once(dir).chain(rest)).unwrap_or_default();
-            out.push(("PYTHONPATH", all.to_string_lossy().into_owned()));
-        }
-        Err(e) => eprintln!("atlas: the plugins' Python library could not be written: {e}"),
-    }
-    out
-}
-
-/// `.atlas/cache/sdk/python/` with the library as this build carries it (rewritten only when it differs).
-fn python_dir(root: &Path) -> std::io::Result<PathBuf> {
-    let dir = root.join(".atlas/cache/sdk/python");
-    let file = dir.join("atlas_plugin.py");
-    if std::fs::read_to_string(&file).ok().as_deref() != Some(PYTHON_SDK) {
-        crate::vault_write::cache::write(&file, PYTHON_SDK.as_bytes()).map_err(std::io::Error::other)?;
-    }
-    Ok(dir)
+/// `ATLAS_PLUGIN_ID`. (`root` stays for what a later variable may need of the vault.)
+pub fn env(_root: &Path, id: &str) -> Vec<(&'static str, String)> {
+    vec![("ATLAS_PLUGIN_ID", id.to_string())]
 }
 
 /// A call line from a helper, parsed: the verb is checked here so the router only sees the four the API uses.
@@ -210,11 +187,10 @@ mod tests {
     }
 
     #[test]
-    fn the_environment_names_the_plugin_and_leads_with_the_library() {
+    fn the_environment_names_the_plugin() {
         let root = tempfile::tempdir().unwrap();
         let env: std::collections::HashMap<_, _> = env(root.path(), "demo-c").into_iter().collect();
         assert_eq!(env["ATLAS_PLUGIN_ID"], "demo-c");
-        assert!(env["PYTHONPATH"].starts_with(&root.path().join(".atlas/cache/sdk/python").to_string_lossy().into_owned()));
-        assert!(root.path().join(".atlas/cache/sdk/python/atlas_plugin.py").is_file());
+        assert!(!env.contains_key("PYTHONPATH") && !root.path().join(".atlas/cache/sdk").exists(), "no library written into the vault");
     }
 }

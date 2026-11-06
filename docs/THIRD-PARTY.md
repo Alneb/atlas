@@ -1,6 +1,6 @@
 # Third-party code inside this repository
 
-Atlas is licensed AGPL-3.0-or-later (`LICENSE`), except its plugin SDK (`crates/atlas-plugin`, `crates/atlas-core/sdk/python`), which is MIT OR Apache-2.0 so plugins may carry any licence. These parts come from elsewhere and keep their own licences:
+Atlas is licensed AGPL-3.0-or-later (`LICENSE`), except its plugin SDK (`crates/atlas-plugin`, `crates/atlas-core/sdk/js`), which is MIT OR Apache-2.0 so plugins may carry any licence. These parts come from elsewhere and keep their own licences:
 
 | path | what | licence | changes |
 |---|---|---|---|

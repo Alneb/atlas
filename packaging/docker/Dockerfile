@@ -4,7 +4,7 @@
 #
 # Three stages, as obsidian-web's: (1) Node builds the UI into ui/dist; (2) Rust builds the `atlas` CLI, which
 # embeds that dist (rust-embed, crates/atlas-core/src/server.rs); (3) a slim Debian runtime with the binary and what
-# a vault's plugins and terminals call: git, python3 (plugin helpers), openssh-client (the ssh plugin), bash (the
+# a vault's plugins and terminals call: git, openssh-client (the ssh plugin), bash (the
 # terminals' shell, with a prompt and the basic tools: packaging/docker/bashrc), the documents' tools and PDFium.
 # The desktop app (crates/atlas-app) is not built: its manifest is only read, as a workspace member.
 #
@@ -55,12 +55,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates
 # ---- 3) the runtime -------------------------------------------------------------------------------------------------
 FROM debian:bookworm-slim AS runtime
 # ca-certificates: plugins' HTTPS (mail, Zotero, copyparty…); tini: signals reach atlas, children are reaped;
-# git, python3, openssh-client: what plugins and helpers run; bash and the basic tools: the terminals
+# git, openssh-client: what plugins and helpers run (no Python: every helper is JavaScript in the core or compiled);
+# bash and the basic tools: the terminals
 # (bash as the default shell, with a friendly prompt). The documents' tools, so every plugin works here as on a
 # desktop: poppler (pdftotext, pdftoppm where PDFium is missing), pandoc + TeX Live + latexmk + biber (Export,
 # Print), djvulibre (Books' DjVu), libarchive's bsdtar and unar (Manga's .cbr/.cb7), cups-client (lp).
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends ca-certificates tini git python3 openssh-client \
+    apt-get install -y --no-install-recommends ca-certificates tini git openssh-client \
       poppler-utils pandoc latexmk biber texlive-luatex texlive-latex-recommended texlive-latex-extra \
       texlive-fonts-recommended texlive-science texlive-bibtex-extra djvulibre-bin libarchive-tools unar cups-client \
       bash bash-completion procps less nano vim-tiny curl wget jq ripgrep fd-find tree file htop \

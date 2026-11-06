@@ -425,7 +425,7 @@ public final class AtlasActivity extends Activity {
         }, READY_WAIT_MS);
         if (Server.is(vault)) { started(vault); return; }
         new Thread(() -> {
-            String r = Core.serve(vault, getFilesDir().getPath(), Helpers.environment(this)); // Python unpacked the first time
+            String r = Core.serve(vault, getFilesDir().getPath(), Helpers.environment(this)); // the helpers linked by name on PATH
             // the folder's copy on a server (set, or the server vault of the same name): the page edits notes and drawings
             // there while it answers, with this app's sign-in for it, as the desktop does
             applyMirror(vault);

@@ -34,7 +34,7 @@ main = "main.js"                      # default when the file exists
 opens = ["*.tsv", "runs/**"]          # files its pane offers to open ("Open with…")
 claims = ["*.epub"]                   # (API 7) files its pane is the DEFAULT view of: a click in the tree or a link opens
                                       #   them there, unless the vault's [files] open_with says otherwise; implies opens
-data = "python3 \"$ATLAS_PLUGIN_DIR/data.py\""   # a script run once per atlas.data(args) call
+data = "\"$ATLAS_PLUGIN_DIR/bin/$ATLAS_PLUGIN_TARGET/data\""   # a program run once per atlas.data(args) call
 timeout_secs = 30
 
 [settings]                            # starting values only — the vault's own are in .atlas/plugin-settings/<id>.toml
@@ -70,7 +70,7 @@ secrets = true
 exec = ["pandoc"]                     # programs a JavaScript helper may run (atlas.exec): by name, on the PATH
 
 [helper]                              # a program of its own, kept running
-run = "python3 -u \"$ATLAS_PLUGIN_DIR/helper.py\""
+run = "\"$ATLAS_PLUGIN_DIR/bin/$ATLAS_PLUGIN_TARGET/helper\""   # or js = "helper.js" (below)
 start = "open"                        # optional: start it with the vault (it listens for something itself);
                                       # default "call": at the first call
 idle = "10m"                          # optional (API 15): stopped after this long with no call, started again by
@@ -100,7 +100,7 @@ An unknown key is an error shown in Settings (a typo should be seen), not ignore
 - A helper is restarted on its next call once its `plugin.toml` is newer than the running helper (an `atlas plugin update`, a copy): the new code runs without restarting Atlas.
 - **A tool as a view's source**: a ```` ```view ```` block with `from: plugin:<id>/<tool>` (and `args:`, the tool's input) shows the tool's answer in any view (calendar, list, table…). The answer becomes rows by its shape (`views::plugin_rows`): an array of objects, or the first array in an object (`{events: […]}`). A row's title is `title`, `summary` or `name`; its date is the day of `date`, `start` or `due`; it opens `path`, or a `source` that is a note; every other plain field is a prop. The call is an ordinary tool call, with the plugin's permissions and secrets (`views::from_plugin`, asked by the server's `POST /api/view`). Example: the DAV plugin's events in the calendar view, `type: calendar` / `from: plugin:dav/events` / `args: {to: 2026-12-31}`.
 - **`template = "<name>"`**: the tool provides a template value. A note made from a template that uses `{{<name>…}}` (or includes one that does) gets the tool's answer as that value, asked with `{ title }` just before the note is made and only then (`template_values.rs`; docs/guides/TEMPLATES.md "Values from plugins"). The template stays data; the program is the plugin, with its permissions. Example: the Weather plugin's `now` (`template = "weather"`). A capture made with no Atlas serving the vault is kept in `.atlas/pending/` and the `on = "capture"` tools run on it when the vault is next served.
-- A Python helper may call Atlas while Atlas calls it (a sync asking the catalog, which asks this helper's lookup): `atlas_plugin` answers such a request at once, nested, instead of queueing it behind the call that waits for it.
+- A helper may call Atlas while Atlas calls it (a sync asking the catalog, which asks this helper's lookup): the `atlas-plugin` crate (`serve_threads`) and the JavaScript runtime answer such a request at once, nested, instead of queueing it behind the call that waits for it.
 
 ### Platforms — `[platforms]`
 
@@ -465,11 +465,11 @@ A tool call arrives as a request for its `method`, with the agent's arguments pl
 
 A tool that must make something happen **in the user's window** (open a tab, show a panel) cannot do it from the helper: it prints an event with an id, the page's `atlas.helper.on` listener does the work and calls a helper method with that id to say it is done, and only then does the tool answer. With no page listening (Atlas closed: `atlas mcp` then runs the helper itself) nobody answers, and the tool says so after a few seconds instead of claiming success. The SSH plugin's `ssh_terminal` is the example: `terminal` → a `tab` event → `atlas.terminal.open` → `tab_opened {id, ok}`.
 
-stderr and non-JSON lines go to `.atlas/cache/plugins/<id>.log`. Environment: `ATLAS_ROOT` (the vault, also the working folder), `ATLAS_PLUGIN_DIR`, `ATLAS_PLUGIN_CACHE`, `ATLAS_PLUGIN_TARGET`, `ATLAS_PLUGIN_ID`, and `PYTHONPATH` led by the `atlas_plugin` library (below). A helper may also **call the core back** over the same pipe (below). Started by the first call; restarted by the next call after it exits; left stopped after five starts in ten minutes; stopped with the plugin and with Atlas, and — with `[helper] idle` — after that long with no call and none waiting (never under a call; at least a minute; not counted as a crash). Give `idle` to a helper that keeps nothing running between calls (a lookup, a conversion): each one idle costs a process's memory. A helper that listens (mail, push, a connector) leaves it out.
+stderr and non-JSON lines go to `.atlas/cache/plugins/<id>.log`. Environment: `ATLAS_ROOT` (the vault, also the working folder), `ATLAS_PLUGIN_DIR`, `ATLAS_PLUGIN_CACHE`, `ATLAS_PLUGIN_TARGET`, and `ATLAS_PLUGIN_ID`. A helper may also **call the core back** over the same pipe (below). Started by the first call; restarted by the next call after it exits; left stopped after five starts in ten minutes; stopped with the plugin and with Atlas, and — with `[helper] idle` — after that long with no call and none waiting (never under a call; at least a minute; not counted as a crash). Give `idle` to a helper that keeps nothing running between calls (a lookup, a conversion): each one idle costs a process's memory. A helper that listens (mail, push, a connector) leaves it out.
 
-### Calling Atlas back — `atlas_plugin` (Python) and `atlas-plugin` (Rust)
+### Calling Atlas back — the `atlas-plugin` crate, or the protocol by hand
 
-A Python library (and the same for compiled Rust executables) lets a helper talk to the Rust backend, over the helper's **own pipe** rather than a web interface.
+A helper talks to the Rust backend over its **own pipe** rather than a web interface: the `atlas-plugin` crate does it for a compiled helper, a JavaScript helper (below) has the same calls as `atlas.*`, and any other program speaks the two lines below.
 
 A helper calls the core on the same pipe it answers on. It writes a call on **stdout**; the core runs it through the vault's own API **in-process** (the same routes the pages use: no socket, no port, no key — the pipe is the identity) and writes the reply to the helper's **stdin**:
 
@@ -480,36 +480,15 @@ Atlas → helper   {"reply": 4, "status": 200, "body": {"path": "notes/a.md", "t
 
 `verb` is GET, POST, PUT or DELETE; `path` must start with `/api/`; `body` is JSON — or, in its place, `"bytes": "<base64>"`, a file's bytes for `PUT /api/raw?path=…` (a PDF, an attachment, a picture). `status` is the API's own (a 4xx carries `{"error": "why"}`). A request from the core can arrive while a call waits for its reply: the libraries keep it and answer it next. What a helper reaches: everything a signed-in page may, **except what acts as another plugin** — its secrets, sign-ins (`oauth`), `fetch` (which fills in its secrets), settings, update and removal — and the user's sign-ins (403; `helper_api::may`). Nor does a helper write another plugin's files: a call other than GET whose target — a query parameter or a JSON value under a key that names a file (`path`, `from`, `to`, `dest`, `paths`, `new_path`…) — lies in `.atlas/plugins/<other>/`, is `.atlas/plugin-settings/<other>.toml`, or is a folder holding them (`.atlas`, `.atlas/plugins`) is refused with a 403 (`helper_api::may_write`, read where the body is at hand). Its own folder and settings stay writable. Another plugin's tools, helper, data and contributions stay open: they run that plugin's own code. A fetch that carries a secret (a `{secret}` header or form value) follows a redirect only on the host it asked, since a header of the plugin's naming is not one dropped on the way to another host. In server mode it acts as the vault's owner. Where nothing serves the vault (`atlas mcp` running a helper with Atlas closed) a call is answered 503.
 
-**Python** — `import atlas_plugin as atlas` (the core writes the library to `<vault>/.atlas/cache/sdk/python/` and puts it first on the helper's `PYTHONPATH`; standard library only; source `crates/atlas-core/sdk/python/atlas_plugin.py`):
-
-```python
-import atlas_plugin as atlas
-
-@atlas.method
-def tidy(params):                          # answered when Atlas (a tool, a page) calls "tidy"
-    text = atlas.read("notes/Inbox.md")
-    atlas.write("notes/Inbox.md", text.strip() + "\n")
-    hits = atlas.search("todo")["lines"]
-    token = atlas.secret("token")          # this plugin's own secret (None when unset)
-    atlas.event("progress", {"done": 1})   # for the page's atlas.helper.on("progress", …)
-    return {"hits": len(hits)}
-
-atlas.serve()                              # the loop, until Atlas closes stdin
-```
-
-Also: `files(index=False)`, `tree(folder)`, `today()`, `capture(text)`, `set_secret(name, value)`, and `get(path, **query)` / `post(path, body)` / `put(path, body)` / `call(verb, path, body, query)` for any other endpoint. Errors raise `atlas.AtlasError` (`.status`).
-
-**The web**: `atlas.fetch(url, headers=…, every=1.0, missing=(404,))` → the page's text through the core's fetch (only the manifest's `net` hosts), `None` for a `missing` status; `atlas.fetch_json(url, …)` parses it. It paces itself (at most one request to a host every `every` seconds: MusicBrainz asks 1, arXiv 3, Wikipedia ~0.25) and waits out a busy answer (429, 502–504) or a dropped connection, after 2 s and 6 s, before raising `AtlasError("<host> answered N")`. Use it instead of `post("/api/plugins/<id>/fetch", …)` by hand. (A 1000-capture run once lost 320 Wikipedia and 22 arXiv lookups to 429s without it.)
-
 **Rust** — the `atlas-plugin` crate (`crates/atlas-plugin`; only std and serde_json, so a static musl build stays small): `Atlas::new()` with `read`, `write`, `write_bytes`, `files`, `tree`, `search`, `capture`, `secret`, `set_secret`, `get` / `post` / `put` / `call(Verb, …)`; `Methods::add(name, |params| …)` and `serve(methods)`; `event(name, data)`. An engine that works on the vault's own paths (absolute, under `ATLAS_ROOT`) writes with `atlas_plugin::write_file(path, bytes)` and `move_path(from, to)` instead of `std::fs`: through Atlas when Atlas started it (the search index, the mirror and open tabs follow; a move rewrites the links), straight to the disk in a test, a run by hand, for `.atlas/cache/`, and when Atlas answers 503. A whole helper is `crates/atlas-plugin/examples/notes-count.rs`.
 
 Data scripts (`data = …`) cannot call back: their stdout is their result. A plugin that needs the core from its script makes it a helper.
 
-Checked by `server::tests::a_python_helper_calls_the_core_back_over_its_pipe` (a real vault, a Python helper writing and reading a note, refused another plugin's secret), `helper_api::tests`, and the crate's own tests.
+Checked by `server::tests::a_process_helper_calls_the_core_back_over_its_pipe` (a real vault, a helper speaking the bare protocol writing and reading a note, refused another plugin's secret and code), `helper_api::tests`, and the crate's own tests.
 
-### Any program, not only Python
+### Any program
 
-`[helper] run` and `data` are command lines run on the machine running Atlas's server, so the helper can be **any program speaking the protocol above** — a Python script, or a binary compiled from Rust, C++, Go. Everything a helper does (files, notes, the network, secrets) happens on that machine; the page only shows it, so a plugin with a helper works the same from a browser or a phone talking to a remote server.
+`[helper] run` and `data` are command lines run on the machine running Atlas's server, so the helper can be **any program speaking the protocol above** — a binary compiled from Rust, C++, Go, or a script for an interpreter the machine has (Atlas ships none: a script helper that should run everywhere is JavaScript, `[helper] js`). Everything a helper does (files, notes, the network, secrets) happens on that machine; the page only shows it, so a plugin with a helper works the same from a browser or a phone talking to a remote server.
 
 A line is a program and its arguments: words quoted with `"…"` or `'…'`, `\` escapes, `$VAR`, `${VAR}`, `${VAR:-default}` and a leading `~/`. Atlas reads it itself and starts the program without a shell, so the same line works on Windows, which has no `sh`. An expanded variable stays one argument, spaces and all. A line that uses more of the shell (pipes, `&&`, `;`, redirects, globs, `$(…)`) is run by `sh -c`: on Windows that needs Git for Windows' `sh` on the PATH. Keep plugin lines to the simple shape (`crates/atlas-core/src/platform/run_line.rs`; a test checks every bundled plugin).
 
@@ -520,13 +499,13 @@ A compiled helper is built per platform. `ATLAS_PLUGIN_TARGET` is `<arch>-<os>` 
 run = "\"$ATLAS_PLUGIN_DIR/bin/$ATLAS_PLUGIN_TARGET/helper\""
 ```
 
-Build Linux helpers **static** (`cargo build --target x86_64-unknown-linux-musl`, or `-static` for C/C++): the same file then runs on the desktop and in the server's container (Debian, an older glibc than a desktop's), wherever the vault is served. Keep the executable bit (installing from a folder, an archive or git keeps it). On Android, a phone may run programs only from inside the app's APK: there the helpers are compiled into atlas.apk (`crates/atlas-android/helpers/`) and found by name on `PATH`, with `python3` among them (docs/guides/ANDROID.md, "Python and helpers"). The test `helper::a_compiled_helper_runs_like_a_script` builds one with `rustc`.
+Build Linux helpers **static** (`cargo build --target x86_64-unknown-linux-musl`, or `-static` for C/C++): the same file then runs on the desktop and in the server's container (Debian, an older glibc than a desktop's), wherever the vault is served. Keep the executable bit (installing from a folder, an archive or git keeps it). On Android, a phone may run programs only from inside the app's APK: there the helpers are compiled into atlas.apk (`crates/atlas-android/helpers/`) and found by name on `PATH`; a phone has no interpreter for script helpers (docs/guides/ANDROID.md). The test `helper::a_compiled_helper_runs_like_a_script` builds one with `rustc`.
 
 ### JavaScript helpers — `[helper] js` (API 16)
 
 ```toml
 [helper]
-js = "helper.js"          # run inside the core by QuickJS: no process, no Python, the same on the phone
+js = "helper.js"          # run inside the core by QuickJS: no process, no interpreter to install, the same on the phone
 ```
 
 A helper may instead be a script the core runs itself: one QuickJS context per plugin, on a thread of its own,

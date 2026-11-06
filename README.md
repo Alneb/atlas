@@ -236,6 +236,6 @@ follow the [code of conduct](docs/CODE_OF_CONDUCT.md).
 
 ## License
 
-[AGPL-3.0-or-later](LICENSE), except the plugin SDK (`crates/atlas-plugin`, `crates/atlas-core/sdk/python`), which is
+[AGPL-3.0-or-later](LICENSE), except the plugin SDK (`crates/atlas-plugin`, `crates/atlas-core/sdk/js`), which is
 MIT OR Apache-2.0 so plugins may carry any licence. Third-party code inside the repository keeps its own licence
 ([docs/THIRD-PARTY.md](docs/THIRD-PARTY.md)).

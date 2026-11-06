@@ -2766,48 +2766,52 @@ mod tests {
         assert_eq!(byte_range(&HeaderMap::new()), None);
     }
 
-    /// The user's ask, end to end: a Python helper using `atlas_plugin` writes and reads a note through the vault's own
-    /// API over its pipe (helper_api.rs), and may not read another plugin's secrets.
+    /// A helper program (any language: here Node, speaking the raw protocol with no library) writes and reads a note
+    /// through the vault's own API over its pipe (helper_api.rs), and may not read another plugin's secrets or code.
     #[tokio::test(flavor = "multi_thread")]
-    async fn a_python_helper_calls_the_core_back_over_its_pipe() {
+    async fn a_process_helper_calls_the_core_back_over_its_pipe() {
+        if std::process::Command::new("node").arg("--version").output().is_err() {
+            eprintln!("skipped: no `node` on PATH to run the test's helper");
+            return;
+        }
         let dir = tempfile::tempdir().unwrap();
         let root = dir.path().join("vault");
-        let plug = root.join(".atlas/plugins/pyback");
+        let plug = root.join(".atlas/plugins/back");
         std::fs::create_dir_all(&plug).unwrap();
-        std::fs::write(plug.join("plugin.toml"), "title = \"Back\"\n[helper]\nrun = \"python3 -u \\\"$ATLAS_PLUGIN_DIR/helper.py\\\"\"\n").unwrap();
+        std::fs::write(plug.join("plugin.toml"), "title = \"Back\"\n[helper]\nrun = \"node \\\"$ATLAS_PLUGIN_DIR/helper.mjs\\\"\"\n").unwrap();
         std::fs::write(
-            plug.join("helper.py"),
-            r##"import atlas_plugin as atlas
-
-@atlas.method
-def roundtrip(params):
-    atlas.write("notes/From helper.md", "# Hi\n" + params["word"] + "\n")
-    back = atlas.read("notes/From helper.md")
-    names = [p for p in atlas.files() if p.endswith(".md")]
-    try:
-        atlas.get("/api/plugins/other/secrets/token")
-        other = "read"
-    except atlas.AtlasError as e:
-        other = e.status
-    try:
-        atlas.write(".atlas/plugins/other/view.js", "hijacked")
-        code = "written"
-    except atlas.AtlasError as e:
-        code = e.status
-    atlas.write(".atlas/plugins/pyback/state.json", "{}")
-    return {"back": back, "names": names, "other": other, "code": code}
-
-atlas.serve()
+            plug.join("helper.mjs"),
+            r##"import { createInterface } from "node:readline";
+const send = (m) => process.stdout.write(JSON.stringify(m) + "\n");
+const waiting = new Map();
+let n = 0;
+// one call to the core: {call, verb, path, body} out, {reply, status, body} back
+const call = (verb, path, body) => new Promise((ok) => { n += 1; waiting.set(n, ok); send({ call: n, verb, path, ...(body === undefined ? {} : { body }) }); });
+async function roundtrip(p) {
+  await call("PUT", "/api/file", { path: "notes/From helper.md", text: "# Hi\n" + p.word + "\n" });
+  const back = (await call("GET", "/api/file?path=" + encodeURIComponent("notes/From helper.md"))).body.text;
+  const names = (await call("GET", "/api/files")).body.filter((f) => f.endsWith(".md"));
+  const other = (await call("GET", "/api/plugins/other/secrets/token")).status;
+  const code = (await call("PUT", "/api/file", { path: ".atlas/plugins/other/view.js", text: "hijacked" })).status;
+  await call("PUT", "/api/file", { path: ".atlas/plugins/back/state.json", text: "{}" });
+  return { back, names, other, code };
+}
+createInterface({ input: process.stdin }).on("line", (line) => {
+  const m = JSON.parse(line);
+  if ("reply" in m) { waiting.get(m.reply)?.(m); waiting.delete(m.reply); return; }
+  if (m.method === "roundtrip") roundtrip(m.params).then((result) => send({ id: m.id, result }), (e) => send({ id: m.id, error: String(e) }));
+  else send({ id: m.id, error: "no method " + m.method });
+});
 "##,
         )
         .unwrap();
         let (_routes, _run, state) = start_vault(&root, 0, None, None, None, "").unwrap();
-        let got = state.helpers.call("pyback", "roundtrip", serde_json::json!({ "word": "pipe" }), std::time::Duration::from_secs(20)).await.unwrap();
+        let got = state.helpers.call("back", "roundtrip", serde_json::json!({ "word": "pipe" }), std::time::Duration::from_secs(20)).await.unwrap();
         assert_eq!(got["back"], "# Hi\npipe\n");
         assert!(got["names"].as_array().unwrap().iter().any(|p| p == "notes/From helper.md"), "{got}");
         assert_eq!(got["other"], 403, "another plugin's secrets stay closed: {got}");
         assert_eq!(got["code"], 403, "another plugin's code stays closed: {got}");
-        assert!(!root.join(".atlas/plugins/other/view.js").exists() && root.join(".atlas/plugins/pyback/state.json").exists(), "its own folder stays writable");
+        assert!(!root.join(".atlas/plugins/other/view.js").exists() && root.join(".atlas/plugins/back/state.json").exists(), "its own folder stays writable");
         assert_eq!(std::fs::read_to_string(root.join("notes/From helper.md")).unwrap(), "# Hi\npipe\n");
         state.helpers.stop_all();
     }
