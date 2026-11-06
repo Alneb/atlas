@@ -115,6 +115,18 @@ Test: `ui/tests/fullscreen.spec.ts` (the terminal, then the editor, take the win
 
 **The dock never scrolls** (`ui/tests/layout-overflow.spec.ts`): `ui.log` showed "layout overflow" for months — the dock twice as tall as its box. Cause: a pane that is kept alive while hidden (terminal, PDF: dockview's `always` renderer) lives in an overlay that gets its position when it is first shown; a tab restored from the layout but never shown had none, so its overlay (height 100 %) sat in normal flow *under* the dock. One rule in `styles/dockview-theme.css` gives an unplaced overlay `top: 0; left: 0`.
 
+## The tray: Atlas behind its window
+
+Closing Atlas's window does not quit it (Settings → Desktop app, *When the window is closed*): it keeps running in the
+tray, so the vault's schedules, mail checks and notifications go on. A click on the tray icon shows or hides the window;
+its menu has *Quick capture*, the notices that came while nobody looked (the icon gets a dot until the window is shown
+again), *Do not disturb* and *Quit Atlas*. A window hidden for half an hour (*Free the window's memory after*) is closed
+to give its memory back and reopens with its tabs. *Start Atlas when you log in* adds the system's own entry (an XDG
+autostart file on Linux, the Run key on Windows, a LaunchAgent on macOS) that starts Atlas straight into the tray.
+Launching Atlas again on a vault it already runs brings that window forward instead of starting a second one. With no
+tray on the desktop (GNOME without its AppIndicator extension, a bare compositor) closing the window quits, as before.
+On macOS a click on the Dock icon brings a hidden window back too.
+
 ## What to watch out for
 
 - **Two windows on one vault** (the desktop app and a browser tab, or two tabs) share `layout.json`. Each window also keeps its own layout in `sessionStorage` and a reload restores *that*, so one window's tabs no longer replace the other's when it reloads (reported: moving things in one moved them in the other). The file is what a fresh start reads: the last window to change wins there.

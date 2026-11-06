@@ -10,7 +10,7 @@ import type { BuiltinId } from "./builtin-plugins";
 
 export type PageId =
   | "overview" | "appearance" | "writing" | "today" | "code" | "files" | "web" | "server" | "papers" | "drawing"
-  | "terminal" | "keyboard" | "plugins" | "automation" | "agents" | "advanced" | "latex";
+  | "terminal" | "desktop" | "keyboard" | "plugins" | "automation" | "agents" | "advanced" | "latex";
 
 /** Custom panels drawn by the Settings UI beside the generated fields. */
 export type Panel = "overview" | "preview" | "apps" | "snippets" | "keys" | "plugins" | "scripts" | "drafts" | "openwith" | "server" | "agents" | "templates" | "file";
@@ -117,6 +117,10 @@ export const PAGES: PageDef[] = [
   {
     id: "terminal", title: "Terminal & agents", group: "working", icon: "terminal", blurb: "Shell and AI agent panes (an agent comes from its plugin: Claude), and where they dock.",
     fields: ["terminal.*"], features: ["ui.terminal", "ui.panel", "ui.claude", "ui.sendToClaude", "ui.panel.move", "ui.terminal.new", "ui.claude.new"],
+  },
+  {
+    id: "desktop", title: "Desktop app", group: "general", icon: "panel-bottom", blurb: "Atlas behind its window: closing it keeps Atlas running in the tray (schedules, mail checks and notifications go on), a click on the tray icon brings it back, and its menu gathers the notices you missed, does not disturb, captures and quits. It can also start with your session, straight into the tray.",
+    fields: ["desktop.*"], features: [], only: ["app"],
   },
   {
     id: "keyboard", title: "Keyboard", group: "general", icon: "command", blurb: "Every command and its shortcut. Click a shortcut, press the new keys.",

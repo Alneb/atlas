@@ -140,6 +140,12 @@
       // a start that cannot restore says why (the tabs as they were are lost for this start, Home opens)
       .catch((e) => { console.warn("[atlas] the tabs as they were could not be restored", e); return false; })
       .then(() => { stopLayout = autosaveLayout(); return openHome(); });
+    // a window the desktop app rebuilt from the tray or a notification's click names the note to open (`?open=`)
+    const asked = new URLSearchParams(location.search).get("open");
+    if (asked) {
+      history.replaceState(history.state, "", location.pathname + location.hash);
+      void started.catch(() => {}).then(() => openPath(asked));
+    }
 
     api.workspace().then((w) => {
       app.workspace = w;

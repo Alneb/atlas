@@ -6,7 +6,8 @@ import type { EditorView, ViewUpdate, DecorationSet } from "@codemirror/view";
 import type { Transaction } from "@codemirror/state";
 import type { PluginApi } from "../../../../../ui/src/lib/plugin-api";
 import { frontMatterEnd, guessLanguage, proseRanges, wordsOf } from "../../../../../ui/src/lib/editor/prose";
-import { addSentences, emptyModel, predict, unpackSentences, type Guess, type Lexicon, type Model } from "./model";
+import { addSentences, emptyModel, predict, sentences, unpackSentences, type Guess, type Lexicon, type Model } from "./model";
+import type { WordFreq } from "../../../../../ui/src/lib/editor/word-freq";
 import { vaultCounter } from "../../../../../ui/src/lib/editor/vault-count";
 
 const LANGS = ["en", "es", "fr", "de"];
@@ -42,6 +43,27 @@ export async function register(atlas: PluginApi) {
       .then((text) => lexicons.set(lang, text ? text.split("\n").sort() : []))
       .catch((e) => { console.warn(`predictor: the ${lang} dictionary did not load:`, e); lexicons.set(lang, []); });
     return undefined;
+  };
+
+  /** The language's general frequencies (the core's lists, plugin API v26): undefined until loaded, or where none. */
+  const general = new Map<string, WordFreq | null | "loading">();
+  const generalOf = (lang: string): WordFreq | undefined => {
+    if (setting("general") === false || !atlas.editor.words) return undefined;
+    const have = general.get(lang);
+    if (have !== undefined) return have === "loading" || have === null ? undefined : have;
+    general.set(lang, "loading");
+    void atlas.editor.words(lang).then((w) => general.set(lang, w)).catch(() => general.set(lang, null));
+    return undefined;
+  };
+
+  /** The open note's own counts, made again when its text changed: what is being written now ranks first. */
+  let noteMemo: { text: string; model: Model } | null = null;
+  const noteModel = (text: string): Model => {
+    if (noteMemo?.text === text) return noteMemo.model;
+    const model = emptyModel();
+    addSentences(model, sentences(text.slice(frontMatterEnd(text)), wordsOf));
+    noteMemo = { text, model };
+    return model;
   };
 
   // --- the ghost -----------------------------------------------------------------------------------------------
@@ -90,7 +112,9 @@ export async function register(atlas: PluginApi) {
     const text = view.state.doc.sliceString(0, 20000);
     const lang = guessLanguage(text, LANGS, fallback(), /^---[\s\S]*?^lang:\s*([\w-]+)/m.exec(text.slice(0, frontMatterEnd(text)))?.[1]);
     const m = models.get(lang) ?? emptyModel();
-    const guess = predict(m, view.state.sliceDoc(Math.max(line.from, at - 300), at), wordsOf, { ...opts(), lexicon: lexicon(lang) });
+    // the note without the word being typed: its half-typed letters are not one of its words
+    const note = noteModel(at <= text.length ? text.slice(0, at).replace(/[\p{L}\p{N}'’-]+$/u, "") + text.slice(at) : text);
+    const guess = predict(m, view.state.sliceDoc(Math.max(line.from, at - 300), at), wordsOf, { ...opts(), lexicon: lexicon(lang), general: generalOf(lang), note });
     return guess ? { at, guess } : null;
   }
 

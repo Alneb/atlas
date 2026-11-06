@@ -31,9 +31,27 @@ export interface Options {
   toc?: boolean; numbered?: boolean;
   paper?: "a4" | "letter"; fontsize?: string; margins?: string; columns?: number; lang?: string; font?: string;
   bibliography?: string; style?: string;
-  engine?: string; preamble?: string; typstPreamble?: string;
+  engine?: string; preamble?: string; typstPreamble?: string; layout?: string;
   folder?: string;
 }
+
+/** The LaTeX road's layouts: `plain` is pandoc's article; `article` a KOMA article set for reading (microtype, a
+ *  little more leading, dark-coloured links, paragraphs spaced, not indented); `chapter` a KOMA report whose top
+ *  headings are chapters, numbered, with a table of contents. */
+export const LAYOUTS: Record<string, { meta: Record<string, unknown>; header: string[]; args: string[] }> = {
+  plain: { meta: {}, header: [], args: [] },
+  article: {
+    meta: { documentclass: "scrartcl", classoption: ["parskip=half"], linestretch: 1.1, linkcolor: "blue!40!black", urlcolor: "blue!40!black", citecolor: "green!30!black" },
+    header: ["\\usepackage{microtype}", "\\addtokomafont{disposition}{\\rmfamily}"],
+    args: [],
+  },
+  chapter: {
+    meta: { documentclass: "scrreprt", classoption: ["parskip=half", "open=any"], linestretch: 1.1, numbersections: true, toc: true, "toc-depth": 2, linkcolor: "blue!40!black", urlcolor: "blue!40!black", citecolor: "green!30!black" },
+    header: ["\\usepackage{microtype}", "\\addtokomafont{disposition}{\\rmfamily}"],
+    args: ["--top-level-division=chapter"],
+  },
+};
+export const layoutOf = (o: Options) => LAYOUTS[o.layout ?? "plain"] ?? LAYOUTS.plain;
 
 const progress = (stage: string, text: string) => atlas.event("progress", { stage, text });
 
@@ -98,8 +116,8 @@ function metadata(j: Job, road: "latex" | "typst" | "docx", header: string[]): s
   const margin = MARGINS[o.margins ?? "normal"] ?? MARGINS.normal;
   const paper = o.paper === "letter" ? "letter" : "a4";
   if (road === "latex") {
-    Object.assign(m, { papersize: paper, fontsize: o.fontsize || "11pt", geometry: `margin=${margin}`, colorlinks: true });
-    if (Number(o.columns) === 2) m.classoption = "twocolumn";
+    Object.assign(m, { papersize: paper, fontsize: o.fontsize || "11pt", geometry: `margin=${margin}`, colorlinks: true }, layoutOf(o).meta);
+    if (Number(o.columns) === 2) m.classoption = [...((m.classoption as string[] | undefined) ?? []), "twocolumn"];
   } else if (road === "typst") {
     // pandoc's Typst template sets `font: ()` when no main font is named, which Typst 0.15 refuses: the bundled one
     m.mainfont ??= "Libertinus Serif";
@@ -183,14 +201,14 @@ async function typstRoad(j: Job, format: "pdf-typst" | "typ"): Promise<string> {
 }
 
 async function latexRoad(j: Job, format: "pdf-latex" | "tex"): Promise<string[]> {
-  const header = ["```{=latex}\n\\usepackage{soul}\n```"];
+  const header = ["```{=latex}\n" + ["\\usepackage{soul}", ...layoutOf(j.o).header].join("\n") + "\n```"];
   if (j.o.preamble) {
     if (j.files.includes(j.o.preamble)) header.push("```{=latex}\n\\input{" + relative(j.outDir, j.o.preamble) + "}\n```");
     else j.t.warnings.push(`LaTeX preamble not found: ${j.o.preamble}`);
   }
   // after the preamble, so a \ket it (or a package) defines is the one used
   header.push("```{=latex}\n" + macroDefinitions("providecommand") + "\n```");
-  const extra = ["--lua-filter", `${PLUGIN}/tikz.lua`, ...(j.t.cited.length && j.bib ? ["--biblatex"] : [])];
+  const extra = ["--lua-filter", `${PLUGIN}/tikz.lua`, ...layoutOf(j.o).args, ...(j.t.cited.length && j.bib ? ["--biblatex"] : [])];
   const tex = await pandoc(j, "latex", metadata(j, "latex", header) + (await fences(j, "latex")), extra);
   const at = `${j.outDir}/${j.stem}.tex`;
   await atlas.write(at, tex);

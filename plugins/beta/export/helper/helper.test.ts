@@ -131,6 +131,17 @@ test("PDF (LaTeX): the .tex written beside, latexmk's own files in the cache, a 
   assert.deepEqual(typst[0], { path: "notes/.fence.typ", to: ".atlas/cache/plugins/export/figures/abababababababab.pdf", source: "$ x^2 $", fence: true });
 });
 
+test("the LaTeX layouts: chapter makes a KOMA report of numbered chapters with contents, two columns kept", async () => {
+  await harness.call("export", { path: "notes/Report.md", to: "tex", settings: { format: "pdf-latex", layout: "chapter", columns: 2 } });
+  const [pandoc] = harness.ran;
+  assert.ok(pandoc.args.includes("--top-level-division=chapter"));
+  for (const line of ['documentclass: "scrreprt"', "numbersections: true", "toc: true", 'classoption: ["parskip=half","open=any","twocolumn"]', "\\usepackage{microtype}"])
+    assert.ok(pandoc.stdin!.includes(line), line);
+  harness.ran.length = 0;
+  await harness.call("export", { path: "notes/Report.md", to: "tex", settings: { format: "pdf-latex" } });
+  assert.ok(!harness.ran[0].stdin!.includes("documentclass") && !harness.ran[0].args.includes("--top-level-division=chapter"), "plain stays pandoc's article");
+});
+
 test("a preview goes to the cache; Word cites through citeproc and says the Typst picture stays code", async () => {
   const p = await harness.call("export", { path: "notes/Report.md", format: "pdf-typst", preview: true });
   assert.equal(p.pdf, ".atlas/cache/plugins/export/preview/notes/Report.pdf");

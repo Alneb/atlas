@@ -170,6 +170,9 @@
 /* Obsidian's inline title: the file name, at h1 size, above the note's first line */
 /* padding, never margin: CodeMirror measures block widgets by their border box (a margin shifted every click below it) */
 .markdown .inline-title { font-size: 1.802em; font-weight: 700; letter-spacing: -.022em; color: var(--heading, var(--text)); line-height: 1.2; margin: 0; padding: .1em 0 .5em; overflow-wrap: anywhere; }
+input.inline-title { display: block; width: 100%; border: 0; border-radius: 4px; background: transparent; font-family: inherit; outline: none; padding-inline: 0; cursor: text; }
+input.inline-title:hover { background: var(--bg-hover); }
+input.inline-title:focus { background: var(--bg-hover); box-shadow: inset 0 -2px 0 var(--accent); }
 
 /* lib/task-chips.ts: a task's fields as chips (the editor, Today's open tasks) */
 .task-chip { display: inline-flex; align-items: center; gap: 3px; margin: 0 1px 0 3px; text-indent: 0; padding: 0 6px; border-radius: 999px; vertical-align: baseline;

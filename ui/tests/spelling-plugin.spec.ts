@@ -50,3 +50,37 @@ test("a misspelled word is marked, math, links, names and the vault's words are 
   const words = await (await page.request.get("/api/file?path=.atlas/spelling/words.md", { headers: H })).json();
   expect(words.text).toContain("```words\nblochy\n```");
 });
+
+test("the lower bar's Spelling panel: the marked words with their fixes, words added and taken back, the language", async ({ page, request }) => {
+  await put(request, "notes/spell-c.md", "# Spell C\n\nWe recieve wierd results from the solver.\n");
+  await page.goto("/");
+  await page.getByText("Finish the GW notes.").waitFor();
+  await openFile(page, "spell-c.md");
+  const cell = page.locator('.status [data-cell="spelling:spelling"]');
+  await expect(cell).toHaveText("EN · 2 misspelled", { timeout: 20000 });
+  await cell.click();
+  const panel = page.locator('[data-panel="spelling:spelling"]');
+  await expect(panel.locator("li.word .w")).toHaveText(["recieve", "wierd"]);
+  await expect(panel.locator("li.word").first().locator(".fix").first()).toHaveText("receive");
+  for (const theme of ["light", "dark"]) {
+    await page.evaluate((t) => document.documentElement.setAttribute("data-theme", t), theme);
+    await page.locator(".popover").screenshot({ path: `../target/snip/spell-panel-${theme}.png` });
+  }
+
+  // a fix replaces the word in the note, and the panel shows what is left
+  await panel.locator("li.word").first().locator(".fix").first().click();
+  await expect(page.locator(".cm-content")).toContainText("We receive wierd results");
+  await expect(panel.locator("li.word .w")).toHaveText(["wierd"]);
+  // added to the vault's words, then taken back
+  await panel.locator("li.word .keep").click();
+  await expect(panel.locator(".chip", { hasText: "wierd" })).toHaveCount(1);
+  await expect(panel.locator("li.word")).toHaveCount(0);
+  await panel.getByRole("button", { name: "Remove wierd" }).click();
+  await expect(panel.locator(".chip", { hasText: "wierd" })).toHaveCount(0);
+  expect((await (await request.get("/api/file?path=.atlas/spelling/words.md", { headers: H })).json()).text).not.toContain("wierd");
+  // Escape closes it; the language buttons write the note's lang: property
+  await page.keyboard.press("Escape");
+  await expect(panel).toHaveCount(0);
+  await cell.click();
+  await expect(panel.locator(".langs button.on")).toHaveText("English");
+});

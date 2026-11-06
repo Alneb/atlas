@@ -93,19 +93,32 @@ impl Notifier for LogNotifier {
     }
 }
 
-/// What the desktop shell does when one of its system notifications is clicked: atlas-app brings its window forward
-/// (the page then opens the notice's note). Set once, at start; a core with no window leaves it unset.
-pub fn on_click(f: impl Fn() + Send + Sync + 'static) {
-    let _ = CLICKED.set(Box::new(f));
+/// A click on one of Atlas's system notifications: the desktop shell brings its window forward (shell.rs; rebuilt
+/// with `open` if it was asleep), and a live page opens the note from the `Open` event the notifier publishes.
+#[cfg_attr(not(any(windows, all(target_os = "linux", not(target_os = "android")))), allow(dead_code))]
+fn clicked(open: Option<String>) {
+    crate::shell::show(crate::shell::Show { vault: None, open });
 }
 
-static CLICKED: std::sync::OnceLock<Box<dyn Fn() + Send + Sync>> = std::sync::OnceLock::new();
+/// Do not disturb (the tray's check mark): no system notification from this process while on, failures included.
+/// The notices still reach the pages and the tray. Not saved: a moment's choice.
+static QUIET: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
-#[cfg_attr(not(any(windows, all(target_os = "linux", not(target_os = "android")))), allow(dead_code))]
-fn clicked() {
-    if let Some(f) = CLICKED.get() {
-        f();
-    }
+pub fn set_quiet(on: bool) {
+    QUIET.store(on, Ordering::Relaxed);
+}
+
+pub fn quiet() -> bool {
+    QUIET.load(Ordering::Relaxed)
+}
+
+type NoticeHook = Box<dyn Fn(&Notice, bool) + Send + Sync>;
+static OBSERVER: std::sync::OnceLock<NoticeHook> = std::sync::OnceLock::new();
+
+/// The desktop shell's tray hears every notice of every vault this process serves, and whether a page was looked at
+/// when it came (the tray gathers the unseen ones). Set once.
+pub fn on_notice(f: impl Fn(&Notice, bool) + Send + Sync + 'static) {
+    let _ = OBSERVER.set(Box::new(f));
 }
 
 /// The body's length a notification shows comfortably.
@@ -213,7 +226,7 @@ mod linux {
                         let Ok((id, _action)) = msg.body().deserialize::<(u32, String)>() else { continue };
                         // the signal is broadcast: another program's notifications are not ours to answer
                         let Some(open) = clicked.lock().unwrap().get(&id).cloned() else { continue };
-                        super::clicked();
+                        super::clicked(open.clone());
                         if let Some(path) = open {
                             bus.publish(Event::Open { path, line: None });
                         }
@@ -390,7 +403,7 @@ mod toast {
             let (bus, open) = (self.bus.clone(), super::opens(n).map(str::to_string));
             toast
                 .Activated(&TypedEventHandler::new(move |_, _| {
-                    super::clicked();
+                    super::clicked(open.clone());
                     if let Some(path) = open.clone() {
                         bus.publish(Event::Open { path, line: None });
                     }
@@ -530,7 +543,11 @@ pub fn spawn(ws: Workspace, bus: EventBus, presence: Arc<Presence>, notifier: Bo
             // the config read and a notifier's call (D-Bus) block: off the runtime's threads
             let offered = tokio::task::spawn_blocking(move || {
                 let mode = ws.config().map(|c| c.notifications.system).unwrap_or_default();
-                delivery.offer(mode, &n, presence.looked_at(), false);
+                let looked_at = presence.looked_at();
+                if let Some(f) = OBSERVER.get() {
+                    f(&n, looked_at);
+                }
+                delivery.offer(mode, &n, looked_at, quiet());
                 delivery
             });
             match offered.await {

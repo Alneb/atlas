@@ -47,6 +47,8 @@ pub struct Config {
     pub notes: NotesConfig,
     pub web: WebConfig,
     pub notifications: NotificationsConfig,
+    /// The desktop app around its window: closing it, the tray, starting with the session.
+    pub desktop: DesktopConfig,
 }
 
 /// What the keys every other program uses do while vim is on.
@@ -776,6 +778,40 @@ pub struct NotificationsConfig {
     pub system: SystemNotices,
 }
 
+/// What closing the desktop window does.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, TS, JsonSchema)]
+#[serde(rename_all = "lowercase")]
+#[ts(export)]
+pub enum OnClose {
+    /// Atlas keeps running in the tray: schedules, mail checks and notifications go on; the tray icon brings it back.
+    #[default]
+    Background,
+    /// Atlas quits, and with it everything it runs in the background.
+    Quit,
+}
+
+/// The desktop app (Linux, Windows, macOS): what happens around its window (docs/guides/SHELL.md, "The tray").
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS, JsonSchema)]
+#[serde(default)]
+#[ts(export)]
+pub struct DesktopConfig {
+    /// When the window is closed: keep running in the tray (where the desktop has one), or quit. The tray's menu can
+    /// quit either way.
+    pub on_close: OnClose,
+    /// Minutes the window may stay hidden before its page is closed to give its memory back; Atlas keeps running in
+    /// the tray, and opening it again reloads the page and its tabs. 0: keep the page.
+    #[schemars(range(min = 0, max = 1440))]
+    pub sleep_after_min: u32,
+    /// Start Atlas, in the tray, when you log in, so its schedules and notifications run from the start.
+    pub start_at_login: bool,
+}
+
+impl Default for DesktopConfig {
+    fn default() -> Self {
+        Self { on_close: OnClose::Background, sleep_after_min: 30, start_at_login: false }
+    }
+}
+
 /// The web: links, and ad blocking in Atlas's browsing windows (docs/design/WEB-WINDOWS.md).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS, JsonSchema)]
 #[serde(default)]
@@ -1041,6 +1077,7 @@ impl Default for Config {
             notes: NotesConfig::default(),
             web: WebConfig::default(),
             notifications: NotificationsConfig::default(),
+            desktop: DesktopConfig::default(),
         }
     }
 }

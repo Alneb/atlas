@@ -24,6 +24,8 @@ tokio = { workspace = true }
 serde_json.workspace = true
 serde.workspace = true
 reqwest = { workspace = true, features = ["blocking", "rustls-tls"] }
+# the tray icon's pixels (main.rs `tray_pixels`), as atlas-capture reads its own
+png = "0.17"
 
 [dev-dependencies]
 tempfile = "3"
@@ -33,7 +35,14 @@ tempfile = "3"
 # program a key, as KDE's shortcuts and a Windows Start-menu shortcut do
 tauri-plugin-global-shortcut = "2"
 
+[target.'cfg(not(target_os = "linux"))'.dependencies]
+# the tray icon on Windows and macOS (tray_tauri.rs); Linux has its own (ksni below: Tauri's loads
+# libayatana-appindicator at run time and panics without it)
+tauri = { version = "2", features = ["tray-icon"] }
+
 [target.'cfg(target_os = "linux")'.dependencies]
+# the tray icon: a StatusNotifierItem over D-Bus, pure Rust (tray_sni.rs)
+ksni = "0.3"
 # filter lists → WebKit content-blocker rules, for the browsing windows' ad blocking (web_filters.rs; moved out of the
 # core, which the phone and the server build without needing it: REFACTOR-core-to-plugins.md #9)
 adblock = { version = "0.13", features = ["content-blocking"] }

@@ -4,6 +4,7 @@ import { openFile } from "./open";
 import { wordsOf } from "../src/lib/editor/prose";
 import { addSentences, emptyModel, packSentences, predict, sentences, unpackSentences } from "../../plugins/beta/predictor/ui/src/model";
 import { dicStems } from "../src/lib/editor/dictionaries";
+import { parseWordFreq } from "../src/lib/editor/word-freq";
 
 // The Predictor plugin (plugins/beta/predictor): the rest of a word, and the next word when the vault is sure, faint
 // after the caret; Tab or → at the end of the line takes it; never in math. The model is tested alone first.
@@ -36,16 +37,22 @@ test("the model: the rest of a word as the vault writes it, the next word only w
   expect([...twice.words]).toEqual([...m.words]);
 });
 
-test("the dictionary finishes any word, the vault's own first, from three letters", () => {
+test("the language's frequencies finish any word when one is clearly likeliest; the note being written counts first", () => {
   const lex = dicStems("6\napproximate/DSG\napproximation/MS\napproximately\nHubbard/M\nthe\nthere\n");
   expect(lex).toEqual(["approximate", "approximately", "approximation", "the", "there"]); // names left out
+  const general = parseWordFreq("en", "@300\nthe\n@350\nthere\n@400\nbecause\nexample\n@450\napproximately\n@520\napproximate\n@530\napproximation\nbecame\n");
   const m = model(TEXT);
-  const o = { min: 3, nextWord: true, lexicon: lex };
-  expect(predict(m, "A good approx", wordsOf, o)?.ghost).toBe("imate"); // the shortest
-  expect(predict(m, "An Approx", wordsOf, o)?.ghost).toBe("imate");
-  expect(predict(m, "A good ap", wordsOf, o)).toBeNull(); // two letters
-  expect(predict(m, "Over the", wordsOf, o)).toBeNull(); // already a word
-  expect(predict(m, "A good approx", wordsOf, { min: 3, nextWord: true })).toBeNull(); // no dictionary
+  const o = { min: 3, nextWord: true, lexicon: lex, general };
+  expect(predict(m, "A good approx", wordsOf, o)?.ghost).toBe("imately"); // the commonest by far
+  expect(predict(m, "An Approx", wordsOf, o)?.ghost).toBe("imately");
+  expect(predict(m, "It is beca", wordsOf, o)?.ghost).toBe("use");
+  expect(predict(m, "A good ap", wordsOf, { ...o, general: undefined })).toBeNull(); // two letters, nothing known
+  expect(predict(m, "Over the", wordsOf, o)).toBeNull(); // already a word, likelier than "there"
+  // with only a word list and no frequencies, three words are equally likely: no guess
+  expect(predict(m, "A good approx", wordsOf, { min: 3, nextWord: true, lexicon: lex })).toBeNull();
+  // the open note's own words: a name it uses wins at once
+  const note = model("Hubbard model. The Hubbard model is solved. Hubbard again.");
+  expect(predict(m, "The Hub", wordsOf, { ...o, note })?.ghost).toBe("bard");
 });
 
 test.describe("in the editor", () => {

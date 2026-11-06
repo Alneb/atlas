@@ -19,7 +19,7 @@ import type { NativeSample, PenOptions } from "./pen-target";
 import type { EmbedRender } from "./embed-registry";
 import type { Live, LiveHandlers } from "./live";
 
-export const PLUGIN_API_VERSION = 25;
+export const PLUGIN_API_VERSION = 27;
 
 /** What a plugin's view gets. Kept small and stable: plugins outlive app refactors. */
 export interface PluginApi {
@@ -291,6 +291,9 @@ export interface PluginApi {
     /** (v25) A small editor for prose outside a note (a mail being written): Markdown, wrapped, with every plugin's
      *  editor hooks (Spelling, the Predictor, Snippets act in it as in a note). `path` is what plugins are told it is. */
     prose(host: HTMLElement, opts?: import("./editor/prose-editor").ProseEditorOptions): import("./editor/prose-editor").ProseEditor;
+    /** (v26) How common words are in a language at large (`en`, `es`; the core's lists, from wordfreq): for ranking
+     *  completions and suggestions under the vault's own counts. Loaded once per page; null where there is no list. */
+    words(lang: string): Promise<import("./editor/word-freq").WordFreq | null>;
   };
   /** (v8) A file's live room (core live.rs): the devices with it open send each other what changes as it happens, and
    *  one of them saves it (`writes()`; in a mirrored vault the room is the server's). Left when the plugin unloads. */
@@ -319,13 +322,25 @@ export interface PluginApi {
     /** A tool in the side panel, beside Files / Search / Outline / Git: `mount(host)` draws it (and may return
      *  its cleanup). It also becomes a command, "Side panel: <title>". */
     sideTool(t: { id: string; title: string; icon?: string; mount(host: HTMLElement): void | (() => void) }): () => void;
-    /** A cell in the status bar (a button when it has `run`). `set` changes its text; gone on reload or `remove()`. */
-    statusItem(it: { id: string; text: string; title?: string; run?: () => void | Promise<void> }): { set(text: string, title?: string): void; remove(): void };
+    /** A cell in the status bar (a button when it has `run` or `panel`). `set` changes its text; gone on reload or `remove()`.
+     *  (v27) `panel(host, close)`: a click opens a popover over the bar that the plugin draws into `host` (and may return
+     *  its cleanup); `close()` shuts it; `panelWidth` in px (default 380). Before v27 a click runs `run`, so give both. */
+    statusItem(it: StatusItem): { set(text: string, title?: string): void; remove(): void };
     /** A chip under the date in Today's greeting (the weather, the week…): `icon` one of the app's icon names
      *  (`calendar`, `check`, `sun`, `moon`…; drawn like the rest of the interface; since v21) or an emoji / short symbol, `order`
      *  where it goes (lower first; default 50), a button when it has `run`. Gone on reload or `remove()`. */
     greetingItem(it: { id: string; text: string; icon?: string; title?: string; order?: number; run?: () => void | Promise<void> }): { set(text: string, title?: string): void; remove(): void };
   };
+}
+/** A cell of the status bar (`atlas.shell.statusItem`). */
+export interface StatusItem {
+  id: string;
+  text: string;
+  title?: string;
+  run?: () => void | Promise<void>;
+  /** (v27) What a click opens: a popover over the bar, drawn by the plugin. */
+  panel?: (host: HTMLElement, close: () => void) => void | (() => void);
+  panelWidth?: number;
 }
 /** (v7) A plugin pane as a file's editor: what the core's editors do, for a pane of a plugin (Plugin.svelte). */
 export interface PluginPane {

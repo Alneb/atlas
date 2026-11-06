@@ -74,8 +74,12 @@ var s = () => ({
 	words: /* @__PURE__ */ new Map(),
 	forms: /* @__PURE__ */ new Map(),
 	next: /* @__PURE__ */ new Map()
-}), c = (e) => e ? e.split("\n").map((e) => e.split(" ")) : [];
-function l(e, t, n = 1) {
+});
+function c(e, t) {
+	return e.split(/[.!?;:]+(?:\s|$)|\n+/).map((e) => t(e).map((e) => e.word)).filter((e) => e.length);
+}
+var l = (e) => e ? e.split("\n").map((e) => e.split(" ")) : [];
+function u(e, t, n = 1) {
 	let r = (e, t) => {
 		let r = (e.get(t) ?? 0) + n;
 		r > 0 ? e.set(t, r) : e.delete(t);
@@ -90,63 +94,112 @@ function l(e, t, n = 1) {
 		});
 	}
 }
-var u = (e, t) => [...e.forms.get(t) ?? []].sort((e, t) => t[1] - e[1])[0]?.[0] ?? t;
-function d(e, t) {
-	if (!e) return null;
-	let n = null, r = 0;
-	for (let [i, a] of e) i.startsWith(t) && i !== t && (r += a, (!n || a > n[1]) && (n = [i, a]));
-	return n ? {
-		word: n[0],
-		n: n[1],
-		share: n[1] / r
-	} : null;
+var d = (e, t) => {
+	for (let n of e) {
+		let e = [...n.forms.get(t) ?? []].sort((e, t) => t[1] - e[1])[0]?.[0];
+		if (e) return e;
+	}
+	return t;
+}, f = {
+	share: .42,
+	shareShort: .6,
+	lead: 1.8
+};
+function p(e, t) {
+	let n = /* @__PURE__ */ new Map();
+	for (let { m: r, weight: i, min: a } of e) for (let [e, o] of r.next.get(t) ?? []) (r.words.get(e) ?? 0) >= a && n.set(e, (n.get(e) ?? 0) + o * i);
+	return n;
 }
-function f(e, t, n, r) {
+var m = (e, t) => [{
+	m: e,
+	weight: 1,
+	min: t.min
+}, ...t.note ? [{
+	m: t.note,
+	weight: 2,
+	min: 1
+}] : []];
+function h(e, t) {
+	let n = (t) => {
+		let n = e.map(t), r = n.reduce((e, t) => e + t, 0);
+		return {
+			of: (e) => r ? n[e] / r : 0,
+			total: r
+		};
+	}, r = n((e) => t.tri.get(e) ?? 0), i = n((e) => t.bi.get(e) ?? 0), a = n(t.uni), o = n(t.general), s = r.total / (r.total + 2), c = i.total / (i.total + 3), l = a.total / (a.total + 8), u = e.map((e, t) => {
+		let n = o.total ? l * a.of(t) + (1 - l) * o.of(t) : a.of(t);
+		return s * r.of(t) + (1 - s) * (c * i.of(t) + (1 - c) * n);
+	});
+	return e.map((e, t) => [e, u[t]]).sort((e, t) => t[1] - e[1]);
+}
+var g = 1e-9;
+function _(e, t, n, r) {
+	if (r.length < 2) return null;
+	let i = m(e, t), a = /* @__PURE__ */ new Set([r]);
+	for (let { m: e } of i) for (let t of e.words.keys()) t.length > r.length && t.startsWith(r) && a.add(t);
+	for (let e of t.general?.withPrefix(r, 40) ?? []) a.add(e);
+	let o = t.lexicon;
+	if (o?.length && r.length >= 3) {
+		let e = 0, t = o.length;
+		for (; e < t;) {
+			let n = e + t >> 1;
+			o[n] < r ? e = n + 1 : t = n;
+		}
+		for (let t = e; t < o.length && t < e + 400 && o[t].startsWith(r); t++) a.add(o[t]);
+	}
+	let s = [...a], c = new Set(o && r.length >= 3 ? s.filter((e) => v(o, e)) : []), l = (n) => {
+		let r = e.words.get(n) ?? 0;
+		return (r >= t.min ? r : 0) + 2 * (t.note?.words.get(n) ?? 0);
+	}, u = (e) => t.general?.freq(e) || (c.has(e) ? g : 0), d = n.length >= 2 ? `${n[n.length - 2]} ${n[n.length - 1]}` : "", [_, y] = h(s, {
+		tri: d ? p(i, d) : /* @__PURE__ */ new Map(),
+		bi: n.length ? p(i, n[n.length - 1]) : /* @__PURE__ */ new Map(),
+		uni: l,
+		general: u
+	});
+	if (!_ || _[0] === r || _[1] <= 0 || _[0].length - r.length < 2) return null;
+	let b = r.length >= 3 ? f.share : f.shareShort;
+	return _[1] < b || y && y[1] * f.lead > _[1] ? null : _[0];
+}
+function v(e, t) {
+	let n = 0, r = e.length;
+	for (; n < r;) {
+		let i = n + r >> 1;
+		e[i] < t ? n = i + 1 : r = i;
+	}
+	return e[n] === t;
+}
+function y(e, t, n, r) {
 	let i = t.split(/[.!?;:]\s|\n/).pop() ?? "", a = n(i).map((e) => e.word), o = /\p{L}$/u.test(i) ? a.pop() ?? "" : "";
 	if (o && !i.endsWith(o)) return null;
-	let s = a.map((e) => e.toLowerCase()), c = (t, n, i) => [
-		t.length >= 2 ? d(e.next.get(`${t[t.length - 2]} ${t[t.length - 1]}`), n) : null,
-		t.length >= 1 ? d(e.next.get(t[t.length - 1]), n) : null,
-		i ? d(e.words, n) : null
-	].find((e) => e && e.n >= r.min) ?? null, l = "", f = 0, m;
+	let s = a.map((e) => e.toLowerCase()), c = r.note ? [r.note, e] : [e], l = "", u = 0, f;
 	if (o) {
-		if (o.length < 2) return null;
-		let t = o.toLowerCase(), n = c(s, t, !1), i = n && (n.share >= .25 || n.n >= r.min * 3) ? n.word : p(e, r.lexicon, t, r.min);
-		if (!i) return null;
-		l = u(e, i).slice(o.length), o === o.toUpperCase() && (l = l.toUpperCase()), f = l.length, m = i;
+		let t = _(e, r, s, o.toLowerCase());
+		if (!t) return null;
+		l = d(c, t).slice(o.length), o.length > 1 && o === o.toUpperCase() && (l = l.toUpperCase()), u = l.length, f = t;
 	} else {
 		if (!r.nextWord || !/\s$/.test(i) || !s.length) return null;
-		m = "";
+		f = "";
 	}
 	if (r.nextWord) {
-		let t = c(m ? [...s, m] : s, "", !1);
-		t && t.n >= r.min * 2 && t.share >= .6 && (l += (m ? " " : "") + u(e, t.word));
+		let t = f ? [...s, f] : s, n = m(e, r), i = (e) => {
+			let t = p(n, e), r = null, i = 0;
+			for (let [e, n] of t) i += n, (!r || n > r[1]) && (r = [e, n]);
+			return r ? {
+				word: r[0],
+				n: r[1],
+				share: r[1] / i
+			} : null;
+		}, a = [t.length >= 2 ? i(`${t[t.length - 2]} ${t[t.length - 1]}`) : null, i(t[t.length - 1])].find((e) => e && e.n >= r.min * 2) ?? null;
+		a && a.share >= .6 && (l += (f ? " " : "") + d(c, a.word));
 	}
 	return l ? {
 		ghost: l,
-		firstWord: f || l.length
+		firstWord: u || l.length
 	} : null;
-}
-function p(e, t, n, r) {
-	if (n.length < 2) return null;
-	let i = (t) => e.words.get(t) ?? 0, a = /* @__PURE__ */ new Set();
-	for (let [t, i] of e.words) i >= r && t.length > n.length && t.startsWith(n) && a.add(t);
-	let o = i(n) >= r;
-	if (t?.length && n.length >= 3) {
-		let e = 0, r = t.length;
-		for (; e < r;) {
-			let i = e + r >> 1;
-			t[i] < n ? e = i + 1 : r = i;
-		}
-		t[e] === n && (o = !0, e++);
-		for (let r = e; r < t.length && r < e + 5e3 && t[r].startsWith(n); r++) a.add(t[r]);
-	}
-	let s = [...a].sort((e, t) => i(t) - i(e) || e.length - t.length || (e < t ? -1 : 1))[0];
-	return !s || o && i(s) <= i(n) ? null : s;
 }
 //#endregion
 //#region ui/src/lib/editor/vault-count.ts
-function m(e, t, n, r = 20) {
+function b(e, t, n, r = 20) {
 	let i = /* @__PURE__ */ new Map(), a = !1, o = (e, n) => {
 		for (let r of n) {
 			let n = i.get(r);
@@ -179,34 +232,46 @@ function m(e, t, n, r = 20) {
 }
 //#endregion
 //#region plugins/beta/predictor/ui/src/main.ts
-var h = [
+var x = [
 	"en",
 	"es",
 	"fr",
 	"de"
 ];
-async function g(e) {
-	let { state: r, view: a, language: u } = e.editor.codemirror, d = (t) => e.plugin.settings[t], p = () => ({
-		min: Number(d("min_count") ?? 3),
-		nextWord: d("next_word") !== !1
-	}), g = () => String(d("language") || "en"), _ = /* @__PURE__ */ new Map(), v = m(async (t) => await e.helper.call("count", {
+async function S(e) {
+	let { state: r, view: a, language: d } = e.editor.codemirror, f = (t) => e.plugin.settings[t], p = () => ({
+		min: Number(f("min_count") ?? 3),
+		nextWord: f("next_word") !== !1
+	}), m = () => String(f("language") || "en"), h = /* @__PURE__ */ new Map(), g = b(async (t) => await e.helper.call("count", {
 		paths: t,
-		langs: h,
-		fallback: g()
-	}), (e, t) => l(_.get(e.lang) ?? _.set(e.lang, s()).get(e.lang), c(e.text), t), "predictor"), y = async () => v.countAll(await e.helper.call("notes"));
+		langs: x,
+		fallback: m()
+	}), (e, t) => u(h.get(e.lang) ?? h.set(e.lang, s()).get(e.lang), l(e.text), t), "predictor"), _ = async () => g.countAll(await e.helper.call("notes"));
 	e.onFilesChanged((e) => {
 		let t = e.filter((e) => /\.md$/i.test(e) && !e.startsWith(".atlas/"));
-		v.counted && t.length && v.count(t);
+		g.counted && t.length && g.count(t);
 	});
-	let b = /* @__PURE__ */ new Map(), x = (t) => {
-		if (d("dictionary") === !1) return;
-		let n = b.get(t);
+	let v = /* @__PURE__ */ new Map(), S = (t) => {
+		if (f("dictionary") === !1) return;
+		let n = v.get(t);
 		if (n) return n === "loading" ? void 0 : n;
-		b.set(t, "loading"), e.helper.call("lexicon", { lang: t }, { timeout: 60 }).then((e) => b.set(t, e ? e.split("\n").sort() : [])).catch((e) => {
-			console.warn(`predictor: the ${t} dictionary did not load:`, e), b.set(t, []);
+		v.set(t, "loading"), e.helper.call("lexicon", { lang: t }, { timeout: 60 }).then((e) => v.set(t, e ? e.split("\n").sort() : [])).catch((e) => {
+			console.warn(`predictor: the ${t} dictionary did not load:`, e), v.set(t, []);
 		});
-	}, S = r.StateEffect.define();
-	class C extends a.WidgetType {
+	}, C = /* @__PURE__ */ new Map(), w = (t) => {
+		if (f("general") === !1 || !e.editor.words) return;
+		let n = C.get(t);
+		if (n !== void 0) return n === "loading" || n === null ? void 0 : n;
+		C.set(t, "loading"), e.editor.words(t).then((e) => C.set(t, e)).catch(() => C.set(t, null));
+	}, T = null, E = (e) => {
+		if (T?.text === e) return T.model;
+		let n = s();
+		return u(n, c(e.slice(t(e)), i)), T = {
+			text: e,
+			model: n
+		}, n;
+	}, D = r.StateEffect.define();
+	class O extends a.WidgetType {
 		text;
 		constructor(e) {
 			super(), this.text = e;
@@ -222,18 +287,18 @@ async function g(e) {
 			return !0;
 		}
 	}
-	let w = r.StateField.define({
+	let k = r.StateField.define({
 		create: () => null,
 		update(e, t) {
-			for (let e of t.effects) if (e.is(S)) return e.value;
-			return e && t.docChanged ? T(e, t) : t.selection ? null : e;
+			for (let e of t.effects) if (e.is(D)) return e.value;
+			return e && t.docChanged ? A(e, t) : t.selection ? null : e;
 		},
 		provide: (e) => a.EditorView.decorations.from(e, (e) => e ? a.Decoration.set([a.Decoration.widget({
-			widget: new C(e.guess.ghost),
+			widget: new O(e.guess.ghost),
 			side: 1
 		}).range(e.at)]) : a.Decoration.none)
 	});
-	function T(e, t) {
+	function A(e, t) {
 		let n = null;
 		t.changes.iterChanges((t, r, i, a, o) => {
 			n = n === null && t === e.at && r === t ? o.toString() : "\0";
@@ -249,27 +314,29 @@ async function g(e) {
 			}
 		};
 	}
-	let E = (t) => /\.(md|markdown)$/i.test(e.editor.path(t));
-	function D(r, i) {
-		if (!E(r) || e.editor.place(r, i).kind !== "text") return !1;
-		let a = r.state.doc.lineAt(i), o = t(r.state.doc.sliceString(0, 4e3)), s = u.syntaxTree(r.state);
+	let j = (t) => /\.(md|markdown)$/i.test(e.editor.path(t));
+	function M(r, i) {
+		if (!j(r) || e.editor.place(r, i).kind !== "text") return !1;
+		let a = r.state.doc.lineAt(i), o = t(r.state.doc.sliceString(0, 4e3)), s = d.syntaxTree(r.state);
 		return n((e) => s.iterate(e), a.from, a.to, o).some(([e, t]) => e <= i && i <= t && (i > e || e === a.from));
 	}
-	function O(e) {
+	function N(e) {
 		let n = e.state.selection.main;
 		if (!n.empty) return null;
 		let r = n.head, a = e.state.doc.lineAt(r);
-		if (/^[\p{L}\p{N}]/u.test(e.state.sliceDoc(r, r + 1)) || !D(e, r)) return null;
-		let c = e.state.doc.sliceString(0, 2e4), l = o(c, h, g(), /^---[\s\S]*?^lang:\s*([\w-]+)/m.exec(c.slice(0, t(c)))?.[1]), u = f(_.get(l) ?? s(), e.state.sliceDoc(Math.max(a.from, r - 300), r), i, {
+		if (/^[\p{L}\p{N}]/u.test(e.state.sliceDoc(r, r + 1)) || !M(e, r)) return null;
+		let c = e.state.doc.sliceString(0, 2e4), l = o(c, x, m(), /^---[\s\S]*?^lang:\s*([\w-]+)/m.exec(c.slice(0, t(c)))?.[1]), u = h.get(l) ?? s(), d = E(r <= c.length ? c.slice(0, r).replace(/[\p{L}\p{N}'’-]+$/u, "") + c.slice(r) : c), f = y(u, e.state.sliceDoc(Math.max(a.from, r - 300), r), i, {
 			...p(),
-			lexicon: x(l)
+			lexicon: S(l),
+			general: w(l),
+			note: d
 		});
-		return u ? {
+		return f ? {
 			at: r,
-			guess: u
+			guess: f
 		} : null;
 	}
-	let k = a.ViewPlugin.fromClass(class {
+	let P = a.ViewPlugin.fromClass(class {
 		view;
 		timer = 0;
 		constructor(e) {
@@ -277,15 +344,15 @@ async function g(e) {
 		}
 		update(e) {
 			(e.docChanged || e.selectionSet) && (clearTimeout(this.timer), e.transactions.some((e) => e.isUserEvent("input.type")) && (this.timer = window.setTimeout(() => {
-				let e = O(this.view);
-				e && this.view.dispatch({ effects: S.of(e) });
-			}, Number(d("delay") ?? 60))));
+				let e = N(this.view);
+				e && this.view.dispatch({ effects: D.of(e) });
+			}, Number(f("delay") ?? 60))));
 		}
 		destroy() {
 			clearTimeout(this.timer);
 		}
-	}), A = (e) => (t) => {
-		let n = t.state.field(w, !1);
+	}), F = (e) => (t) => {
+		let n = t.state.field(k, !1);
 		if (!n || t.state.selection.main.head !== n.at) return !1;
 		let r = e ? n.guess.ghost : n.guess.ghost.slice(0, n.guess.firstWord);
 		return t.dispatch({
@@ -296,22 +363,22 @@ async function g(e) {
 			selection: { anchor: n.at + r.length },
 			userEvent: "input.complete"
 		}), !0;
-	}, j = (e) => e.state.selection.main.head === e.state.doc.lineAt(e.state.selection.main.head).to;
+	}, I = (e) => e.state.selection.main.head === e.state.doc.lineAt(e.state.selection.main.head).to;
 	e.editor.extension([
-		w,
 		k,
+		P,
 		r.Prec.high(a.keymap.of([
 			{
 				key: "Tab",
-				run: A(!0)
+				run: F(!0)
 			},
 			{
 				key: "ArrowRight",
-				run: (e) => j(e) && A(!0)(e)
+				run: (e) => I(e) && F(!0)(e)
 			},
 			{
 				key: "Ctrl-ArrowRight",
-				run: A(!1)
+				run: F(!1)
 			}
 		])),
 		a.EditorView.baseTheme({ ".cm-predict-ghost": {
@@ -319,7 +386,7 @@ async function g(e) {
 			opacity: "0.75",
 			pointerEvents: "none"
 		} })
-	]), y().catch((e) => console.warn("predictor: the vault was not learned:", e));
+	]), _().catch((e) => console.warn("predictor: the vault was not learned:", e));
 }
 //#endregion
-export { g as register };
+export { S as register };

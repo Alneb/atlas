@@ -2,7 +2,14 @@
 //! just another HTTP client, so the same UI also works in a browser against `atlas serve`.
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod autostart;
+mod background;
 mod browser;
+mod tray;
+#[cfg(target_os = "linux")]
+mod tray_sni;
+#[cfg(not(target_os = "linux"))]
+mod tray_tauri;
 #[cfg(target_os = "linux")]
 mod web_filters;
 #[cfg(target_os = "linux")]
@@ -343,11 +350,13 @@ fn frames_any_page(frames: bool) -> &'static str {
 
 /// The core's "choose a folder" (the vault switcher's Choose…) is the system's own dialog, over this window: typing a whole
 /// path was the only way, and on macOS nobody knows theirs.
-fn folder_dialog(window: &tauri::WebviewWindow) {
+fn folder_dialog(app: &tauri::AppHandle) {
     use atlas_core::vaults::PickPurpose;
     use tauri_plugin_dialog::DialogExt;
-    let window = window.clone();
+    let app = app.clone();
     atlas_core::vaults::on_pick_folder(move |purpose| {
+        // the window of the moment: it is built again after its sleep (background.rs)
+        let window = app.get_webview_window(MAIN_WINDOW)?;
         let title = match purpose {
             PickPurpose::Open => "Open a folder as a vault",
             PickPurpose::Create => "Where the new vault goes — make a new folder here, or choose an empty one",
@@ -419,6 +428,19 @@ fn main() -> anyhow::Result<()> {
         return remote_window(url.parse()?);
     }
     let root = vault_to_open(folder)?;
+    // `--background`: the core and the tray, no window until asked (the session's autostart entry, autostart.rs)
+    let background_start = args.iter().any(|a| a == autostart::BACKGROUND);
+    // one Atlas per vault: a second launch brings the first one's window forward (it may be hidden in the tray)
+    if let Some(base) = atlas_core::vaults::running_server(&root) {
+        let asked = if background_start { Ok(String::new()) } else { tauri::async_runtime::block_on(post(&base, "/api/shell/show", "{}")) };
+        match asked {
+            Ok(_) => {
+                eprintln!("atlas-app: Atlas already runs on {} ({base}): {}", root.display(), if background_start { "nothing to start" } else { "its window brought forward" });
+                return Ok(());
+            }
+            Err(e) => eprintln!("atlas-app: the Atlas running on {} has no window to show ({e}); starting one", root.display()),
+        }
+    }
     webkit_rendering(&root);
     #[cfg(target_os = "linux")]
     let frames = frames_preload();
@@ -446,98 +468,208 @@ fn main() -> anyhow::Result<()> {
     watch_for_update(server.url());
     let url: tauri::Url = url.parse()?;
     let core = server.url();
-    let mut server = Some(server);
+    let server = Some(server);
     let vault = root.clone();
 
     let builder = tauri::Builder::default().plugin(tauri_plugin_dialog::init());
     #[cfg(target_os = "macos")]
     let builder = builder.plugin(capture_key(root.clone()));
+    // the link a rebuilt window opens with: a locked core's one-time codes are spent, so a fresh one each time
+    let server = std::sync::Arc::new(std::sync::Mutex::new(server));
+    let fresh_link = {
+        let (server, fixed) = (server.clone(), std::env::var("ATLAS_UI_URL").ok().or_else(|| dev.as_ref().map(|d| d.url.clone())));
+        move || fixed.clone().or_else(|| server.lock().unwrap().as_ref().map(|s| s.open_url()))
+    };
     builder
         .setup(move |app| {
             let handle = app.handle().clone();
             browser::prepare(&handle, atlas_core::config::Config::load(&vault).map(|c| c.web).unwrap_or_default());
-            let off_app = OffApp { home: url.clone(), handle: handle.clone(), vault: vault.clone() };
-            let vault_bg = vault.clone();
-            let main = WebviewWindowBuilder::new(app, "main", WebviewUrl::External(url))
-                .title("Atlas")
-                .initialization_script(frames_any_page(frames))
-                // a web tab's frame: its address, history, find and Atlas's keys (frame_page.js; inert elsewhere)
-                .initialization_script_for_all_frames(include_str!("frame_page.js"))
-                // OS file drops reach the page's own `drop` (the editor, the explorer, the capture popup); Tauri's
-                // handler would take them first (on Windows the page then never sees a dropped file)
-                .disable_drag_drop_handler()
-                .inner_size(MAIN_SIZE.width, MAIN_SIZE.height);
-            // the window's page never leaves Atlas (OffApp). WebKitGTK reports a frame's navigation as the page's, and
-            // a web tab is a frame: there the guard watches the page's own loads instead (`load-changed` is the main
-            // frame's alone), below; elsewhere the navigation hook is the main frame's.
-            #[cfg(not(target_os = "linux"))]
-            let main = main.on_navigation(move |to| off_app.stay(to));
-            #[cfg(windows)]
-            let main = match frame_any_extension() {
-                Some(dir) => main.browser_extensions_enabled(true).extensions_path(dir),
-                None => main,
-            };
-            let main = main
-                // window.open: WebKitGTK opens nothing without a handler. A sign-in page that returns to a
-                // localhost address gets a window of ours (it catches that address); a web page a browsing window
-                // (browser.rs) or the desktop's browser (`web.open_links`); anything else (mailto:) its desktop handler.
-                .on_new_window(move |to, _| {
-                    if let Some(page) = door_target(&to) {
-                        door_window(&handle, page, core.clone());
-                        return tauri::webview::NewWindowResponse::Deny;
-                    }
-                    // the core's own address (the "Open Atlas in the browser" link) is for the desktop's browser
-                    let own = to.port_or_known_default() == tauri::Url::parse(&core).ok().and_then(|c| c.port()) && matches!(to.host_str(), Some("127.0.0.1" | "localhost"));
-                    match signin_return(&to) {
-                        Some(back) => signin_window(&handle, to, back, core.clone()),
-                        None if own => open_outside(to.as_str()),
-                        None => web_link(&handle, to, &vault),
-                    }
-                    tauri::webview::NewWindowResponse::Deny
-                })
-                .build()?;
-            fit_to_screen(&main);
-            paint_before_page(&main, &vault_bg);
-            folder_dialog(&main);
-            // a click on one of Atlas's system notifications brings this window forward (the page opens its note)
-            let forward = main.clone();
-            atlas_core::notify::on_click(move || {
-                let _ = forward.show();
-                let _ = forward.unminimize();
-                let _ = forward.set_focus();
+            let spec = MainSpec { home: url.clone(), core: core.clone(), vault: vault.clone(), frames };
+            let open_main: background::OpenMain = Box::new(move |app, open| {
+                let mut to = fresh_link().and_then(|l| l.parse::<tauri::Url>().ok()).unwrap_or_else(|| spec.home.clone());
+                if let Some(path) = open {
+                    to.query_pairs_mut().append_pair("open", path);
+                }
+                spec.build(app, to)
             });
-            // WebKitGTK silently drops a window.open that no fresh click started — and a plugin's sign-in
-            // opens its page only after its helper has answered. Every request still goes through on_new_window.
-            #[cfg(target_os = "linux")]
-            main.with_webview(move |w| {
-                use webkit2gtk::{SettingsExt, WebViewExt};
-                if let Some(s) = w.inner().settings() {
-                    s.set_javascript_can_open_windows_automatically(true);
+            let shell = background::Shell::new(handle.clone(), vault.clone(), core.clone(), open_main);
+            let _ = SHELL.set(shell.clone());
+            folder_dialog(&handle);
+            // a notification's click, a second launch, the tray: one way to bring the window forward (shell.rs)
+            let s = shell.clone();
+            atlas_core::shell::on_show(move |show| s.show(show.open));
+            let s = shell.clone();
+            atlas_core::notify::on_notice(move |n, looked_at| s.notice(n, looked_at));
+            let start_vault = vault.clone();
+            atlas_core::shell::on_config(move |root, cfg| {
+                if same_folder(root, &start_vault) {
+                    autostart::apply(cfg.desktop.start_at_login);
                 }
-                pinch_to_wheel(&w.inner());
-                stay_in_atlas(&w.inner(), off_app);
-                webtab::attach(&w.inner()); // web pages as tabs, framing allowed or not
-                // a document, not a browser: no back/forward page cache, small memory caches — Atlas is one page and never goes back to a page it left
-                if let Some(c) = w.inner().context() {
-                    use webkit2gtk::WebContextExt;
-                    c.set_cache_model(webkit2gtk::CacheModel::DocumentViewer);
-                }
-            })?;
+            });
+            autostart::apply(atlas_core::config::Config::load(&vault).map(|c| c.desktop.start_at_login).unwrap_or(false));
+            if background_start {
+                shell.start_asleep();
+            } else {
+                shell.show(None);
+            }
+            start_tray(&handle, &shell, background_start);
+            shell.watch_sleep();
             Ok(())
         })
+        .on_window_event(|window, event| {
+            if let (MAIN_WINDOW, tauri::WindowEvent::CloseRequested { api, .. }) = (window.label(), event) {
+                if SHELL.get().is_some_and(|s| s.close_requested()) {
+                    api.prevent_close();
+                }
+            }
+        })
         .build(context())?
-        .run(move |_app, event| {
-            if let tauri::RunEvent::Exit = event {
+        .run(move |_app, event| match event {
+            // the window closed by its sleep (or never opened, `--background`): Atlas runs on in the tray
+            tauri::RunEvent::ExitRequested { code: None, api, .. } if SHELL.get().is_some_and(|s| s.keeps_running()) => api.prevent_exit(),
+            // macOS: a click on the Dock icon of an Atlas with no window shown
+            #[cfg(target_os = "macos")]
+            tauri::RunEvent::Reopen { has_visible_windows: false, .. } => {
+                if let Some(s) = SHELL.get() {
+                    s.show(None);
+                }
+            }
+            tauri::RunEvent::Exit => {
                 if let Some(mut d) = dev.take() {
                     let _ = d.vite.kill(); // the dev server goes with the window
                 }
                 // Graceful stop so `.atlas/cache/server.json` does not point at a dead port.
-                if let Some(s) = server.take() {
+                if let Some(s) = server.lock().unwrap().take() {
                     let _ = tauri::async_runtime::block_on(s.shutdown());
                 }
             }
+            _ => {}
         });
     Ok(())
+}
+
+const MAIN_WINDOW: &str = "main";
+static SHELL: std::sync::OnceLock<std::sync::Arc<background::Shell>> = std::sync::OnceLock::new();
+
+fn same_folder(a: &std::path::Path, b: &std::path::Path) -> bool {
+    a == b || matches!((a.canonicalize(), b.canonicalize()), (Ok(x), Ok(y)) if x == y)
+}
+
+/// The tray icon (tray_sni.rs on Linux, tray_tauri.rs elsewhere). Without one, closing quits, and a `--background`
+/// start opens its window after all — a window hidden with no way back would look like a crash.
+fn start_tray(app: &tauri::AppHandle, shell: &std::sync::Arc<background::Shell>, background_start: bool) {
+    let (rgba, w, h) = tray_pixels();
+    let model = shell.model();
+    #[cfg(target_os = "linux")]
+    {
+        let _ = app; // ksni needs no handle: its own D-Bus connection
+        let shell = shell.clone();
+        tauri::async_runtime::spawn(async move {
+            if let Err(e) = tray_sni::start(shell.clone(), tray_sni::Icons::from_rgba(&rgba, w, h), model).await {
+                eprintln!("atlas-app: no tray icon ({e}): closing the window quits Atlas");
+                if background_start {
+                    shell.show(None);
+                }
+            }
+        });
+    }
+    #[cfg(not(target_os = "linux"))]
+    if let Err(e) = tray_tauri::start(app, shell.clone(), tray_tauri::Icons::from_rgba(&rgba, w, h), model) {
+        eprintln!("atlas-app: no tray icon ({e}): closing the window quits Atlas");
+        if background_start {
+            shell.show(None);
+        }
+    }
+}
+
+/// The app's icon at 64 px, as RGBA (the tray scales it to its own size).
+fn tray_pixels() -> (Vec<u8>, u32, u32) {
+    let mut dec = png::Decoder::new(&include_bytes!("../icons/64x64.png")[..]);
+    dec.set_transformations(png::Transformations::EXPAND | png::Transformations::ALPHA);
+    let Ok(mut reader) = dec.read_info() else { return (vec![0; 64 * 64 * 4], 64, 64) };
+    let mut buf = vec![0; reader.output_buffer_size()];
+    let Ok(info) = reader.next_frame(&mut buf) else { return (vec![0; 64 * 64 * 4], 64, 64) };
+    buf.truncate(info.buffer_size());
+    let rgba = match info.color_type {
+        png::ColorType::Rgba => buf,
+        png::ColorType::Rgb => buf.as_chunks::<3>().0.iter().flat_map(|p| [p[0], p[1], p[2], 255]).collect(),
+        png::ColorType::GrayscaleAlpha => buf.as_chunks::<2>().0.iter().flat_map(|p| [p[0], p[0], p[0], p[1]]).collect(),
+        _ => buf.iter().flat_map(|&g| [g, g, g, 255]).collect(),
+    };
+    (rgba, info.width, info.height)
+}
+
+/// What the main window is built from — at start and again after its sleep (background.rs).
+struct MainSpec {
+    home: tauri::Url,
+    core: String,
+    vault: PathBuf,
+    frames: bool,
+}
+
+impl MainSpec {
+    fn build(&self, app: &tauri::AppHandle, url: tauri::Url) -> tauri::Result<tauri::WebviewWindow> {
+        let (handle, core, vault, vault_bg) = (app.clone(), self.core.clone(), self.vault.clone(), self.vault.clone());
+        let off_app = OffApp { home: self.home.clone(), handle: handle.clone(), vault: vault.clone() };
+        let main = WebviewWindowBuilder::new(app, MAIN_WINDOW, WebviewUrl::External(url))
+            .title("Atlas")
+            .initialization_script(frames_any_page(self.frames))
+            // a web tab's frame: its address, history, find and Atlas's keys (frame_page.js; inert elsewhere)
+            .initialization_script_for_all_frames(include_str!("frame_page.js"))
+            // OS file drops reach the page's own `drop` (the editor, the explorer, the capture popup); Tauri's
+            // handler would take them first (on Windows the page then never sees a dropped file)
+            .disable_drag_drop_handler()
+            .inner_size(MAIN_SIZE.width, MAIN_SIZE.height);
+        // the window's page never leaves Atlas (OffApp). WebKitGTK reports a frame's navigation as the page's, and
+        // a web tab is a frame: there the guard watches the page's own loads instead (`load-changed` is the main
+        // frame's alone), below; elsewhere the navigation hook is the main frame's.
+        #[cfg(not(target_os = "linux"))]
+        let main = main.on_navigation(move |to| off_app.stay(to));
+        #[cfg(windows)]
+        let main = match frame_any_extension() {
+            Some(dir) => main.browser_extensions_enabled(true).extensions_path(dir),
+            None => main,
+        };
+        let main = main
+            // window.open: WebKitGTK opens nothing without a handler. A sign-in page that returns to a
+            // localhost address gets a window of ours (it catches that address); a web page a browsing window
+            // (browser.rs) or the desktop's browser (`web.open_links`); anything else (mailto:) its desktop handler.
+            .on_new_window(move |to, _| {
+                if let Some(page) = door_target(&to) {
+                    door_window(&handle, page, core.clone());
+                    return tauri::webview::NewWindowResponse::Deny;
+                }
+                // the core's own address (the "Open Atlas in the browser" link) is for the desktop's browser
+                let own = to.port_or_known_default() == tauri::Url::parse(&core).ok().and_then(|c| c.port()) && matches!(to.host_str(), Some("127.0.0.1" | "localhost"));
+                match signin_return(&to) {
+                    Some(back) => signin_window(&handle, to, back, core.clone()),
+                    None if own => open_outside(to.as_str()),
+                    None => web_link(&handle, to, &vault),
+                }
+                tauri::webview::NewWindowResponse::Deny
+            })
+            .build()?;
+        fit_to_screen(&main);
+        paint_before_page(&main, &vault_bg);
+        // WebKitGTK silently drops a window.open that no fresh click started — and a plugin's sign-in
+        // opens its page only after its helper has answered. Every request still goes through on_new_window.
+        #[cfg(target_os = "linux")]
+        main.with_webview(move |w| {
+            use webkit2gtk::{SettingsExt, WebViewExt};
+            if let Some(s) = w.inner().settings() {
+                s.set_javascript_can_open_windows_automatically(true);
+            }
+            pinch_to_wheel(&w.inner());
+            stay_in_atlas(&w.inner(), off_app);
+            webtab::attach(&w.inner()); // web pages as tabs, framing allowed or not
+            // a document, not a browser: no back/forward page cache, small memory caches — Atlas is one page and never goes back to a page it left
+            if let Some(c) = w.inner().context() {
+                use webkit2gtk::WebContextExt;
+                c.set_cache_model(webkit2gtk::CacheModel::DocumentViewer);
+            }
+        })?;
+        Ok(main)
+    }
 }
 
 /// The page leaving Atlas for an outside address (a sign-in, a stray link): the load is stopped before it commits
@@ -773,7 +905,9 @@ fn watch_for_update(base: String) {
 /// left one (a locked core, local_lock.rs), as the `atlas` CLI does. → the answer's body when it succeeded.
 async fn post(base: &str, path: &str, body: &str) -> std::io::Result<String> {
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
-    let host = base.trim_start_matches("http://").trim_end_matches('/');
+    // a vault of the desktop's core is served under its prefix (`http://127.0.0.1:port/v/name`)
+    let (host, prefix) = split_base(base);
+    let path = format!("{prefix}{path}");
     let key = atlas_core::auth::local_key_header(host);
     let mut s = tokio::net::TcpStream::connect(host).await?;
     let req = format!("POST {path} HTTP/1.1\r\nHost: {host}\r\nx-atlas: 1\r\n{key}content-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{body}", body.len());
@@ -786,6 +920,15 @@ async fn post(base: &str, path: &str, body: &str) -> std::io::Result<String> {
         return Err(std::io::Error::other(head.lines().next().unwrap_or("no answer").to_string()));
     }
     Ok(body.to_string())
+}
+
+/// `http://host:port/v/name/` → (`host:port`, `/v/name`).
+fn split_base(base: &str) -> (&str, &str) {
+    let rest = base.trim_start_matches("http://").trim_end_matches('/');
+    match rest.find('/') {
+        Some(i) => (&rest[..i], &rest[i..]),
+        None => (rest, ""),
+    }
 }
 
 /// The Vite dev server of the repository Atlas was built from, proxying `/api` to this window's core.
@@ -821,6 +964,13 @@ fn dev_ui(core: &str, key: Option<&str>) -> anyhow::Result<DevUi> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_vaults_address_splits_into_its_host_and_its_prefix() {
+        assert_eq!(split_base("http://127.0.0.1:4000/v/notes/"), ("127.0.0.1:4000", "/v/notes"));
+        assert_eq!(split_base("http://127.0.0.1:4000/"), ("127.0.0.1:4000", ""));
+        assert_eq!(split_base("http://127.0.0.1:4000"), ("127.0.0.1:4000", ""));
+    }
 
     #[test]
     fn the_welcome_page_parses_and_leads_to_a_vault() {

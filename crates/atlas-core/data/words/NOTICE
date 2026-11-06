@@ -1,0 +1,5 @@
+en.words and es.words are made from wordfreq's "large" word lists (https://github.com/rspeer/wordfreq), by Robyn Speer
+and contributors, by scripts/dev/wordlists.mjs: the 60 000 most frequent words made of letters, with their frequency
+buckets. wordfreq's data is licensed under the Creative Commons Attribution-ShareAlike 4.0 license
+(https://creativecommons.org/licenses/by-sa/4.0/); so are these derived lists. wordfreq's own sources and their
+credits are listed in its README.

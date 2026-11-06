@@ -35,6 +35,8 @@ const FIELD_LABELS: &[(&str, &str)] = &[
     ("latex.snippets", "Snippets while typing math"), ("latex.snippets_file", "Snippets file"), ("latex.variables_file", "Snippet variables file"),
     ("draw.page_format", "A new drawing's pages"), ("web.open_links", "Web links open in"), ("web.tab_view", "Web tabs show pages"), ("pdf.export_on_save", "Export annotations on save"),
     ("notifications.system", "System notifications"),
+    ("ui.sleep_after_min", "Tabs sleep after (minutes)"), ("desktop.on_close", "Closing the window"),
+    ("desktop.sleep_after_min", "Hidden window closes after (minutes)"),
 ];
 
 /// Where Settings runs (the web's `hostOf`): this machine's app, a server's vault through it, the phone apps, a
@@ -55,6 +57,7 @@ const ONLY: &[(&str, &[Host])] = &[
     ("lsp", &[Host::App, Host::Bridged, Host::Browser]),
     ("ui.gpu_rendering", &[Host::App, Host::Bridged]),
     ("web.block_ads", &[Host::App, Host::Bridged]),
+    ("desktop", &[Host::App]),
 ];
 
 fn find<'a>(table: &'a [(&str, &str)], key: &str) -> Option<&'a str> {

@@ -1078,6 +1078,10 @@ async fn vaults_get(State(st): S) -> Result<Json<crate::vaults::VaultList>> {
                     v.warm = d.warm(std::path::Path::new(&v.path));
                 }
             }
+            // `current` in the list's own spelling of it (a symlink, a trailing slash, another form of the same folder),
+            // so the page finds this window's entry: its mirror button acted on nothing otherwise
+            let real = std::path::Path::new(&current).canonicalize().ok();
+            let current = vaults.iter().find(|v| real.is_some() && std::path::Path::new(&v.path).canonicalize().ok() == real).map_or(current, |v| v.path.clone());
             Ok(crate::vaults::VaultList { current, vaults, manage: true })
         })
         .await?,
@@ -1323,7 +1327,9 @@ async fn config_put(State(st): S, Json(body): Json<serde_json::Value>) -> Result
     }
     let cfg: crate::config::Config = serde_json::from_value(body).map_err(|e| Error::BadRequest(format!("not a config: {e}")))?;
     with_ws(&st, move |ws| {
-        crate::config::Config::save(ws.root(), &cfg).map_err(|e| Error::BadRequest(format!("{e:#}")))
+        crate::config::Config::save(ws.root(), &cfg).map_err(|e| Error::BadRequest(format!("{e:#}")))?;
+        crate::shell::config_saved(ws.root(), &cfg); // the desktop shell applies [desktop] at once
+        Ok(())
     })
     .await?;
     st.bus.publish(Event::Fs { paths: vec![crate::config::CONFIG_FILE.into()] });
@@ -1799,6 +1805,23 @@ fn locked(lock: &crate::local_lock::LocalLock, req: &Request) -> Option<Response
 async fn local_link(State(st): S) -> Result<Json<serde_json::Value>> {
     let lock = st.lock.as_ref().ok_or_else(|| Error::BadRequest("this core is not locked: open it at its address".into()))?;
     Ok(Json(serde_json::json!({ "url": format!("http://127.0.0.1:{}{}/?k={}", st.port, st.prefix, lock.code()) })))
+}
+
+/// A language's general word frequencies (words.rs): the same bytes for every build, cached by the page for a day.
+async fn words_get(axum::extract::Path(lang): axum::extract::Path<String>) -> Result<axum::response::Response> {
+    let text = crate::words::list(&lang).ok_or_else(|| Error::NotFound(format!("no word list for {lang}")))?;
+    Ok(([(header::CONTENT_TYPE, "text/plain; charset=utf-8"), (header::CACHE_CONTROL, "max-age=86400")], text).into_response())
+}
+
+/// A second launch of the desktop app asks the first to show its window (shell.rs): 404 from a core with no window
+/// around it (`atlas serve`), so the asker starts as before.
+async fn shell_show(State(st): S, body: Option<Json<crate::shell::ShowRequest>>) -> Result<StatusCode> {
+    let open = body.and_then(|Json(b)| b.open);
+    let vault = Some(st.ws.root().to_path_buf());
+    match crate::shell::show(crate::shell::Show { vault, open }) {
+        true => Ok(StatusCode::NO_CONTENT),
+        false => Err(Error::NotFound("no desktop window around this core".into())),
+    }
 }
 
 /// Settings → Agents (agents.rs): this machine's agents, for a local core; a server's agents use device tokens.
@@ -2292,6 +2315,8 @@ fn router(state: Arc<AppState>) -> Router {
         .route("/api/auth/me", get(auth_me))
         .route("/api/version", get(|| async { Json(version_info()) }))
         .route("/api/local/link", post(local_link))
+        .route("/api/shell/show", post(shell_show))
+        .route("/api/words/{lang}", get(words_get))
         .route("/api/agents", get(agents_get).post(agents_post))
         .route("/api/agents/terminals", put(agents_terminals_put))
         .route("/api/agents/{name}", axum::routing::delete(agents_delete))

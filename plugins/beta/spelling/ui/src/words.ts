@@ -11,6 +11,12 @@ export function parseWords(text: string): Set<string> {
   return new Set(body.split("\n").map((l) => l.trim()).filter(Boolean));
 }
 
+/** The note with `word` taken out of its block (the rest of the note as it was). */
+export function removeWord(text: string, word: string): string {
+  const words = [...parseWords(text)].filter((w) => w !== word);
+  return text.replace(BLOCK, "```words\n" + words.map((w) => w + "\n").join("") + "```");
+}
+
 /** The note with `word` added, its words kept sorted; a new note when `text` is empty. */
 export function addWord(text: string, word: string): string {
   const words = [...parseWords(text), word].filter((w, i, all) => all.indexOf(w) === i).sort((a, b) => a.localeCompare(b));

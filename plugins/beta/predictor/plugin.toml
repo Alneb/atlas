@@ -4,7 +4,7 @@
 title = "Predictor"
 description = "suggests the rest of a word and the next one as you write, learned from the vault"
 icon = "sparkles"
-version = "0.2.0"
+version = "0.3.0"
 api = 22
 phone = true
 
@@ -20,7 +20,7 @@ key = "min_count"
 label = "Uses before a guess"
 kind = "number"
 default = 3
-hint = "how often the vault must write a word (or a word after the same ones) before it is suggested"
+hint = "how often the vault must write a word before it counts as one of its words (the open note's words count at once)"
 
 [[setting]]
 key = "next_word"
@@ -28,6 +28,13 @@ label = "Next word"
 kind = "toggle"
 default = true
 hint = "after a space, and after a completed word, the next word when the vault is sure of it"
+
+[[setting]]
+key = "general"
+label = "Common words of the language"
+kind = "toggle"
+default = true
+hint = "rank words by how often the language writes them (English and Spanish lists, from wordfreq), under the vault's own"
 
 [[setting]]
 key = "dictionary"

@@ -1,7 +1,7 @@
 import { test, expect } from "@playwright/test";
 import { frontMatterEnd, guessLanguage, plainProse, proseRanges, wordsOf } from "../src/lib/editor/prose";
 import { addWord, parseWords } from "../../plugins/beta/spelling/ui/src/words";
-import { suggestions, swaps } from "../../plugins/beta/spelling/ui/src/suggest";
+import { editCost, edits1, LETTERS, suggestions, swaps } from "../src/lib/editor/spell-rank";
 
 // Prose in a note (lib/editor/prose.ts), shared by the Spelling and Predictor plugins: what is prose, its words, its
 // language; and the Spelling plugin's words note.
@@ -49,11 +49,22 @@ test("the vault's words note: read, and a word added sorted, a new note made whe
   expect(addWord(more, "Berry")).toBe(more);
 });
 
-test("suggestions: a swap of two letters first, then the dictionary's, each ranked by the vault's use", () => {
+test("suggestions: the likeliest slip to the commonest word first; the vault's words count as common", () => {
   expect(swaps("teh")).toEqual(["eth", "the"]);
   const known = new Set(["the", "ten", "tea", "eh"]);
-  const uses: Record<string, number> = { tea: 5 };
-  expect(suggestions("teh", (w) => known.has(w), () => ["ten", "eh", "tea"], (w) => uses[w] ?? 0)).toEqual(["the", "tea", "ten", "eh"]);
+  const zipf: Record<string, number> = { the: 7.7, ten: 5.4, tea: 4.9, eh: 4.1, receive: 4.6, relieve: 3.8, weird: 4.7, wired: 4.2, información: 5.5, también: 6.3, cambien: 3.2 };
+  const k = (dict: string[], uses: Record<string, number> = {}) => ({ correct: (w: string) => known.has(w) || w in zipf, dictionary: () => dict, uses: (w: string) => uses[w] ?? 0, zipf: (w: string) => zipf[w] ?? 0, letters: LETTERS.es });
+  expect(suggestions("teh", k(["ten", "eh", "tea"]))[0]).toBe("the"); // nspell offers "ten" first
+  expect(suggestions("recieve", k(["receive", "relieve"]))[0]).toBe("receive");
+  expect(suggestions("wierd", k(["wired", "weird"]))[0]).toBe("weird");
+  expect(suggestions("informacion", k([]))[0]).toBe("información"); // found by the frequencies alone: an accent
+  expect(suggestions("tambien", k(["cambien", "también"]))[0]).toBe("también");
+  expect(suggestions("Tambien", k([]))[0]).toBe("También"); // the typed capital kept
+  // a word of the vault's beats a common one at the same distance
+  expect(suggestions("tem", k(["ten", "tea"], { tea: 40 }))[0]).toBe("tea");
+  expect(editCost("informacion", "información")).toBeLessThan(0.1);
+  expect(editCost("teh", "the")).toBeLessThan(editCost("teh", "tah"));
+  expect(edits1("ab", "ab")).toEqual(expect.arrayContaining(["a", "b", "ba", "aab", "bb"]));
 });
 
 test("judging a word: hyphen parts, possessives, short words, acronyms and a capital at a sentence's start", async () => {

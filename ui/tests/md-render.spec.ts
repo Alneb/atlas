@@ -261,7 +261,21 @@ test("a folded callout ([!tip]-) shows only its title until the chevron opens it
 
 test("the note's file name shows as Obsidian's inline title", async ({ page }) => {
   const ed = await open(page, "mdr/look.md");
-  await expect(ed.locator(".inline-title")).toHaveText("look");
+  await expect(ed.locator(".inline-title")).toHaveValue("look");
+});
+
+test("the inline title renames the note in place: Enter renames, Esc puts the name back", async ({ page, request }) => {
+  await request.put("/api/file", { headers: H, data: { path: "mdr/rename me.md", text: "Some text.\n" } });
+  const ed = await open(page, "mdr/rename me.md");
+  const title = ed.locator(".inline-title");
+  await title.fill("never kept");
+  await title.press("Escape");
+  await expect(title).toHaveValue("rename me");
+  await title.fill("renamed in place");
+  await title.press("Enter");
+  await expect.poll(async () => (await request.get("/api/file?path=mdr/renamed%20in%20place.md", { headers: H })).status()).toBe(200);
+  expect((await request.get("/api/file?path=mdr/rename%20me.md", { headers: H })).status()).toBe(404);
+  await expect(page.locator(".dv-active-group .cm-editor .inline-title")).toHaveValue("renamed in place");
 });
 
 test("the inline title is left out when the note's first heading says the same; it comes back when the heading goes", async ({ page }) => {
@@ -269,13 +283,13 @@ test("the inline title is left out when the note's first heading says the same; 
   await expect(ed.locator(".cm-line", { hasText: "2026-10-15" })).toHaveCount(1);
   await expect(ed.locator(".inline-title")).toHaveCount(0);
   const other = await open(page, "mdr/Kondo model.md"); // a different heading: both stay
-  await expect(other.locator(".inline-title")).toHaveText("Kondo model");
+  await expect(other.locator(".inline-title")).toHaveValue("Kondo model");
   await open(page, "mdr/2026-10-15.md");
   await page.locator(".dv-active-group .cm-line", { hasText: "2026-10-15" }).click();
   await page.keyboard.press("Home");
   await page.keyboard.press("Delete");
   await page.keyboard.press("Delete"); // "# " gone: the heading is plain text now
-  await expect(page.locator(".dv-active-group .cm-editor .inline-title")).toHaveText("2026-10-15");
+  await expect(page.locator(".dv-active-group .cm-editor .inline-title")).toHaveValue("2026-10-15");
 });
 
 test("no block in the editor has a vertical margin (CodeMirror ignores it: clicks would land on the wrong line)", async ({ page }) => {

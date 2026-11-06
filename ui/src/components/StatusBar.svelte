@@ -7,19 +7,36 @@
   import Icon from "./Icon.svelte";
   import { tabs } from "../lib/tabs.svelte";
   import { statusCells } from "../lib/plugin-status.svelte";
+  import { zoomShown } from "../lib/zoom-status.svelte";
+  import { zoomPane } from "../lib/pane-zoom";
+  import Popover from "./Popover.svelte";
+  import type { StatusCell } from "../lib/plugin-status.svelte";
 
   const connLabel = $derived(app.conn === "open" ? "Connected" : app.conn === "connecting" ? "Connecting…" : "Offline — retrying");
   const plural = (n: number, w: string) => `${n} ${w}${n === 1 ? "" : "s"}`;
   const dirtyCount = $derived(Object.keys(app.dirty).length);
+
+  /** The cell whose panel is open, and its button (the popover's anchor). */
+  let opened = $state<{ cell: StatusCell; anchor: HTMLElement } | null>(null);
+  const toggle = (cell: StatusCell, anchor: HTMLElement) => { opened = opened?.cell.key === cell.key ? null : { cell, anchor }; };
+  /** The plugin draws its panel into the popover's body; its cleanup runs when the popover closes. */
+  function drawn(host: HTMLElement, cell: StatusCell) {
+    const done = cell.panel?.(host, () => { opened = null; });
+    return { destroy: () => { if (typeof done === "function") done(); } };
+  }
 </script>
 
 <footer class="status">
   <!-- the tab sidebar names the workspace itself -->
   {#if tabs.layout !== "vertical"}<span class="ws" title={app.workspace?.root ?? ""}>{app.workspace?.name ?? "—"}</span>{/if}
+  {#if zoomShown.percent !== 100}
+    <button class="cell zoom" data-cell="zoom" onclick={() => zoomPane(0)} title={tipFor(`This tab is shown at ${zoomShown.percent} % of the settings' sizes. Click for 100 %`, "ui.zoomReset")}>{zoomShown.percent} %</button>
+  {/if}
   {#if dirtyCount}<span class="saving">{dirtyCount} unsaved</span>{/if}
   <span class="grow"></span>
   {#each statusCells as c (c.key)}
-    {#if c.run}<button class="cell" title={c.title} data-cell={c.key} onclick={() => void c.run?.()}>{c.text}</button>
+    {#if c.panel}<button class="cell" class:open={opened?.cell.key === c.key} title={c.title} data-cell={c.key} aria-haspopup="dialog" aria-expanded={opened?.cell.key === c.key} onclick={(e) => toggle(c, e.currentTarget)}>{c.text}</button>
+    {:else if c.run}<button class="cell" title={c.title} data-cell={c.key} onclick={() => void c.run?.()}>{c.text}</button>
     {:else}<span class="cell" title={c.title} data-cell={c.key}>{c.text}</span>{/if}
   {/each}
   {#if app.problems}
@@ -33,6 +50,13 @@
   </button>
   <span class="conn" title={connLabel} data-state={app.conn} data-testid="conn"><span class="dot"></span>{connLabel}</span>
 </footer>
+{#if opened}
+  {#key opened.cell.key}
+    <Popover anchor={opened.anchor} label={opened.cell.title ?? opened.cell.text} width={opened.cell.panelWidth ?? 380} onclose={() => (opened = null)}>
+      <div class="cell-panel" data-panel={opened.cell.key} use:drawn={opened.cell}></div>
+    </Popover>
+  {/key}
+{/if}
 
 <style>
   .status { height: var(--status-h); flex: none; display: flex; align-items: center; gap: 14px; padding: 0 12px 0 14px; background: var(--bg-app); color: var(--text-faint); font-size: calc(11.5px * var(--ui-scale, 1)); user-select: none; }
@@ -41,7 +65,7 @@
   /* a plugin's cell: quiet text; a button only shows it on hover */
   .cell { max-width: 28ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   button.cell { padding: 1px 6px; border-radius: 5px; color: inherit; }
-  button.cell:hover { background: var(--bg-hover); color: var(--text); }
+  button.cell:hover, button.cell.open { background: var(--bg-hover); color: var(--text); }
   .saving { color: var(--yellow); }
   .vim { font-family: var(--font-mono); font-size: calc(10.5px * var(--ui-scale, 1)); font-weight: 600; letter-spacing: .06em; padding: 1px 8px; border-radius: 5px; color: var(--text-muted); background: var(--bg-hover); min-width: 64px; text-align: center; }
   .vim[data-mode="INSERT"] { color: var(--bg); background: var(--green); }

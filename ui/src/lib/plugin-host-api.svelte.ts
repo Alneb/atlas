@@ -55,6 +55,7 @@ import { guard, logPlugin } from "./plugin-log.svelte";
 import { pluginAssetUrl } from "./plugin-files";
 import { createProseEditor } from "./editor/prose-editor";
 import { PLUGIN_API_VERSION, type PluginApi, type PluginPane } from "./plugin-api";
+import { wordFreq } from "./editor/word-freq";
 import { INIT_ID, own, pluginData, pluginOn, pluginSpec, plugins, type Plugin } from "./plugin-registry.svelte";
 import { addCommand } from "./plugin-commands";
 
@@ -246,6 +247,7 @@ export function pluginApi(p: Plugin, at: PaneAt = {}): PluginApi {
       drawMath: (host, source, block = false) => renderMathInto(host, String(source), block),
       legacySnippets: () => api.snippets(),
       prose: (host, opts) => createProseEditor(host, opts), // the caller destroys it with its own view
+      words: (lang) => wordFreq(String(lang), api.wordList),
     },
     pen: { shape: (xyt) => api.penShape(xyt) },
     confirm: (question, opts) => confirmDialog(String(question), opts?.hint ?? "", opts?.ok ?? "OK", opts?.danger ?? false),

@@ -5,7 +5,7 @@
 title = "Export"
 description = "a note to PDF (Typst or LaTeX), LaTeX, Typst or Word, in a dialog with a preview"
 icon = "file"
-version = "1.1.0"
+version = "1.2.0"
 api = 20
 provides = ["pdf-export"]           # Print asks for a note's PDF by this role, not by this id
 
@@ -119,6 +119,15 @@ kind = "choice"
 choices = ["lualatex", "xelatex", "pdflatex"]
 default = "lualatex"
 hint = "what latexmk compiles with; lualatex and xelatex read any Unicode in the note"
+group = "LaTeX"
+
+[[setting]]
+key = "layout"
+label = "LaTeX layout"
+kind = "choice"
+choices = ["plain", "article", "chapter"]
+default = "plain"
+hint = "plain: pandoc's article; article: a KOMA article set for reading (microtype, spaced paragraphs, quiet link colours); chapter: a report whose top headings are numbered chapters, with contents"
 group = "LaTeX"
 
 [[setting]]

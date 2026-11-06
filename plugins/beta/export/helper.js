@@ -371,6 +371,44 @@
 	/** A fence's key: the hash of its source, the same for the dialog (from `describe`) and the road. */
 	const keyOf = (source) => atlas.hash.sha256(source).slice(0, 16);
 	const PLUGIN = ".atlas/plugins/export";
+	/** The LaTeX road's layouts: `plain` is pandoc's article; `article` a KOMA article set for reading (microtype, a
+	*  little more leading, dark-coloured links, paragraphs spaced, not indented); `chapter` a KOMA report whose top
+	*  headings are chapters, numbered, with a table of contents. */
+	const LAYOUTS = {
+		plain: {
+			meta: {},
+			header: [],
+			args: []
+		},
+		article: {
+			meta: {
+				documentclass: "scrartcl",
+				classoption: ["parskip=half"],
+				linestretch: 1.1,
+				linkcolor: "blue!40!black",
+				urlcolor: "blue!40!black",
+				citecolor: "green!30!black"
+			},
+			header: ["\\usepackage{microtype}", "\\addtokomafont{disposition}{\\rmfamily}"],
+			args: []
+		},
+		chapter: {
+			meta: {
+				documentclass: "scrreprt",
+				classoption: ["parskip=half", "open=any"],
+				linestretch: 1.1,
+				numbersections: true,
+				toc: true,
+				"toc-depth": 2,
+				linkcolor: "blue!40!black",
+				urlcolor: "blue!40!black",
+				citecolor: "green!30!black"
+			},
+			header: ["\\usepackage{microtype}", "\\addtokomafont{disposition}{\\rmfamily}"],
+			args: ["--top-level-division=chapter"]
+		}
+	};
+	const layoutOf = (o) => LAYOUTS[o.layout ?? "plain"] ?? LAYOUTS.plain;
 	const progress = (stage, text) => atlas.event("progress", {
 		stage,
 		text
@@ -481,8 +519,8 @@
 				fontsize: o.fontsize || "11pt",
 				geometry: `margin=${margin}`,
 				colorlinks: true
-			});
-			if (Number(o.columns) === 2) m.classoption = "twocolumn";
+			}, layoutOf(o).meta);
+			if (Number(o.columns) === 2) m.classoption = [...m.classoption ?? [], "twocolumn"];
 		} else if (road === "typst") {
 			m.mainfont ??= "Libertinus Serif";
 			Object.assign(m, {
@@ -578,7 +616,7 @@
 		return atlas.convert.typstPdf(at, `${j.outDir}/${j.stem}.pdf`, { source: typ });
 	}
 	async function latexRoad(j, format) {
-		const header = ["```{=latex}\n\\usepackage{soul}\n```"];
+		const header = ["```{=latex}\n" + ["\\usepackage{soul}", ...layoutOf(j.o).header].join("\n") + "\n```"];
 		if (j.o.preamble) {
 			if (j.files.includes(j.o.preamble)) header.push("```{=latex}\n\\input{" + relative(j.outDir, j.o.preamble) + "}\n```");
 			else j.t.warnings.push(`LaTeX preamble not found: ${j.o.preamble}`);
@@ -587,6 +625,7 @@
 		const extra = [
 			"--lua-filter",
 			`${PLUGIN}/tikz.lua`,
+			...layoutOf(j.o).args,
 			...j.t.cited.length && j.bib ? ["--biblatex"] : []
 		];
 		const tex = await pandoc(j, "latex", metadata(j, "latex", header) + await fences(j, "latex"), extra);
@@ -673,7 +712,9 @@
 		export: exportNote
 	});
 	//#endregion
+	exports.LAYOUTS = LAYOUTS;
 	exports.latexErrors = latexErrors;
+	exports.layoutOf = layoutOf;
 	exports.tikzPng = tikzPng;
 	exports.yamlEntry = yamlEntry;
 	return exports;

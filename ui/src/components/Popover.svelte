@@ -18,7 +18,7 @@
   } = $props();
 
   let el = $state<HTMLDivElement>();
-  let at = $state<{ left: number; top: number; maxH: number } | null>(null);
+  let at = $state<{ left: number; top?: number; bottom?: number; maxH: number } | null>(null);
   const EDGE = 8;
 
   function place() {
@@ -27,7 +27,9 @@
     // right-aligned to its button when there is no room to the right (a toolbar's last buttons)
     const left = Math.max(EDGE, Math.min(r.left, innerWidth - w - EDGE));
     const top = r.bottom + 4;
-    at = { left, top, maxH: Math.max(160, innerHeight - top - EDGE) };
+    // a button near the window's foot (the status bar's cells): the panel opens above it
+    if (innerHeight - top - EDGE < 240 && r.top > innerHeight / 2) at = { left, bottom: innerHeight - r.top + 4, maxH: r.top - 4 - EDGE };
+    else at = { left, top, maxH: Math.max(160, innerHeight - top - EDGE) };
   }
 
   $effect(() => {
@@ -67,7 +69,7 @@
 </script>
 
 <div class="popover" use:overlay role="dialog" aria-label={label} tabindex="-1" bind:this={el} onkeydown={(e) => trapTab(e, e.currentTarget)}
-  style:left={at ? `${at.left}px` : "-9999px"} style:top={at ? `${at.top}px` : "0"}
+  style:left={at ? `${at.left}px` : "-9999px"} style:top={at ? (at.top === undefined ? undefined : `${at.top}px`) : "0"} style:bottom={at?.bottom === undefined ? undefined : `${at.bottom}px`}
   style:width="min({width}px, calc(100vw - {2 * EDGE}px))" style:max-height={at ? `${at.maxH}px` : undefined}>
   {@render children()}
 </div>

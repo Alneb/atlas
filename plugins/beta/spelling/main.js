@@ -451,34 +451,149 @@ function z(e, t) {
 	return a.length < 2 || !a.every(i);
 }
 //#endregion
-//#region plugins/beta/spelling/ui/src/suggest.ts
-function B(e) {
+//#region ui/src/lib/editor/spell-rank.ts
+var B = {
+	substitute: .38,
+	nearKey: .2,
+	accent: .03,
+	omit: .47,
+	extra: .73,
+	double: .3,
+	swap: .35
+}, V = [
+	"qwertyuiop",
+	"asdfghjklñ",
+	"zxcvbnm"
+], H = /* @__PURE__ */ new Map();
+V.forEach((e, t) => [...e].forEach((e, n) => {
+	let r = /* @__PURE__ */ new Set();
+	for (let i of [
+		-1,
+		0,
+		1
+	]) for (let a of [
+		-1,
+		0,
+		1
+	]) {
+		let o = V[t + i]?.[n + a];
+		o && o !== e && r.add(o);
+	}
+	H.set(e, r);
+}));
+var U = (e) => e === "ñ" ? e : e.normalize("NFD").replace(/\p{M}/gu, "");
+function W(e, t) {
+	return e === t ? 0 : U(e) === U(t) ? B.accent : H.get(U(e))?.has(U(t)) ? B.nearKey : B.substitute;
+}
+function ee(e, t) {
+	let n = [...e.toLowerCase()], r = [...t.toLowerCase()], i = Array.from({ length: n.length + 1 }, () => Array(r.length + 1).fill(0));
+	for (let e = 1; e <= n.length; e++) i[e][0] = i[e - 1][0] + B.extra;
+	for (let e = 1; e <= r.length; e++) i[0][e] = i[0][e - 1] + B.omit;
+	for (let e = 1; e <= n.length; e++) for (let t = 1; t <= r.length; t++) {
+		let a = n[e - 1] === n[e - 2] || n[e - 1] === r[t - 1] ? B.double : B.extra, o = Math.min(i[e - 1][t] + a, i[e][t - 1] + B.omit, i[e - 1][t - 1] + W(n[e - 1], r[t - 1]));
+		e > 1 && t > 1 && n[e - 1] === r[t - 2] && n[e - 2] === r[t - 1] && n[e - 1] !== n[e - 2] && (o = Math.min(o, i[e - 2][t - 2] + B.swap)), i[e][t] = o;
+	}
+	return i[n.length][r.length];
+}
+function G(e, t) {
+	let n = e.toLowerCase(), r = /* @__PURE__ */ new Set();
+	for (let e = 0; e <= n.length; e++) {
+		let [i, a] = [n.slice(0, e), n.slice(e)];
+		a && r.add(i + a.slice(1)), a.length > 1 && r.add(i + a[1] + a[0] + a.slice(2));
+		for (let e of t) r.add(i + e + a), a && r.add(i + e + a.slice(1));
+	}
+	return r.delete(n), [...r];
+}
+var te = {
+	en: "abcdefghijklmnopqrstuvwxyz",
+	es: "abcdefghijklmnopqrstuvwxyzáéíóúüñ"
+}, K = .9;
+function q(e, t, n, r, i = 6) {
+	let a = e.toLowerCase(), o = /* @__PURE__ */ new Map();
+	for (let e of t) {
+		let t = e.toLowerCase();
+		if (t === a || o.has(t)) continue;
+		let i = Math.max(n(t), r(e) || r(t) ? 4 + Math.log2(1 + (r(e) || r(t))) : 0);
+		o.set(t, ee(a, t) + K * (1 - Math.min(i, 8) / 8));
+	}
+	let s = /^\p{Lu}/u.test(e) && !/\p{Lu}/u.test(e.slice(1));
+	return [...o].sort((e, t) => e[1] - t[1]).slice(0, i).map(([e]) => s ? e[0].toUpperCase() + e.slice(1) : e);
+}
+function J(e) {
 	let t = [];
 	for (let n = 0; n + 1 < e.length; n++) e[n] !== e[n + 1] && t.push(e.slice(0, n) + e[n + 1] + e[n] + e.slice(n + 2));
 	return t;
 }
-function V(e, t, n, r, i = 6) {
-	let a = (e) => e.map((e, t) => [
-		e,
-		r(e),
-		t
-	]).sort((e, t) => t[1] - e[1] || e[2] - t[2]).map(([e]) => e), o = a(B(e).filter(t)), s = a(n(e));
-	return [.../* @__PURE__ */ new Set([...o, ...s])].filter((t) => t !== e).slice(0, i);
+function ne(e, t, n = 6) {
+	let r = t.zipf ?? (() => 0), i = /* @__PURE__ */ new Set([...J(e).filter(t.correct), ...t.dictionary(e)]);
+	if (t.zipf && t.letters) for (let n of G(e, t.letters)) {
+		let e = r(n);
+		(t.uses(n) > 0 || e >= 3.5 || e > 0 && t.correct(n)) && i.add(n);
+	}
+	return q(e, i, r, t.uses, n);
 }
 //#endregion
 //#region plugins/beta/spelling/ui/src/words.ts
-var H = ".atlas/spelling/words.md", U = /^```words[ \t]*\n([\s\S]*?)^```/m;
-function W(e) {
-	let t = U.exec(e)?.[1] ?? "";
+var Y = ".atlas/spelling/words.md", X = /^```words[ \t]*\n([\s\S]*?)^```/m;
+function Z(e) {
+	let t = X.exec(e)?.[1] ?? "";
 	return new Set(t.split("\n").map((e) => e.trim()).filter(Boolean));
 }
-function G(e, t) {
-	let n = "```words\n" + [...W(e), t].filter((e, t, n) => n.indexOf(e) === t).sort((e, t) => e.localeCompare(t)).join("\n") + "\n```";
-	return U.test(e) ? e.replace(U, n + "\n").replace(/```\n\n$/, "```\n") : (e.trim() ? e.replace(/\s*$/, "\n\n") : "# This vault's words\n\nWords the spell checker takes as right here, one per line.\n\n") + n + "\n";
+function re(e, t) {
+	let n = [...Z(e)].filter((e) => e !== t);
+	return e.replace(X, "```words\n" + n.map((e) => e + "\n").join("") + "```");
+}
+function ie(e, t) {
+	let n = "```words\n" + [...Z(e), t].filter((e, t, n) => n.indexOf(e) === t).sort((e, t) => e.localeCompare(t)).join("\n") + "\n```";
+	return X.test(e) ? e.replace(X, n + "\n").replace(/```\n\n$/, "```\n") : (e.trim() ? e.replace(/\s*$/, "\n\n") : "# This vault's words\n\nWords the spell checker takes as right here, one per line.\n\n") + n + "\n";
+}
+//#endregion
+//#region plugins/beta/spelling/ui/src/panel.ts
+var Q = "\n.sp { display: flex; flex-direction: column; gap: 12px; padding: 4px 2px; }\n.sp h3 { margin: 0 0 6px; font-size: 11px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; color: var(--text-faint); }\n.sp .langs { display: flex; flex-wrap: wrap; gap: 4px; }\n.sp button { font: inherit; color: var(--text); background: none; border: 1px solid var(--border); border-radius: 6px; padding: 2px 8px; cursor: pointer; }\n.sp button:hover { background: var(--bg-hover); }\n.sp .langs button.on { border-color: var(--accent); color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, transparent); }\n.sp .about { margin-top: 4px; color: var(--text-faint); font-size: 11.5px; }\n.sp ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; max-height: 240px; overflow: auto; }\n.sp li.word { display: flex; align-items: center; gap: 6px; padding: 2px 0; }\n.sp li.word .w { border: none; padding: 1px 4px; text-decoration: underline wavy var(--red); text-decoration-thickness: 1px; text-underline-offset: 3px; }\n.sp li.word .line { color: var(--text-faint); font-size: 11px; min-width: 44px; }\n.sp li.word .fix { border-color: transparent; background: var(--bg-hover); padding: 1px 6px; }\n.sp li.word .fix:hover { border-color: var(--accent); }\n.sp li.word .keep { margin-left: auto; color: var(--text-faint); border-color: transparent; padding: 1px 5px; }\n.sp .none { color: var(--text-faint); }\n.sp .chips { display: flex; flex-wrap: wrap; gap: 4px; max-height: 120px; overflow: auto; }\n.sp .chip { display: inline-flex; align-items: center; gap: 2px; padding: 1px 2px 1px 7px; border-radius: 10px; background: var(--bg-hover); }\n.sp .chip button { border: none; padding: 0 5px; color: var(--text-faint); border-radius: 10px; }\n.sp .chip.plain { padding: 1px 7px; color: var(--text-muted); }\n.sp .foot { display: flex; justify-content: flex-end; }\n";
+function $(e, t = {}, ...n) {
+	let r = document.createElement(e);
+	for (let [e, n] of Object.entries(t)) if (e === "onclick") r.addEventListener("click", n);
+	else if (typeof n == "function") continue;
+	else n !== void 0 && r.setAttribute(e, n);
+	for (let e of n) e && r.append(e);
+	return r;
+}
+function ae(e, t, n) {
+	e.replaceChildren($("style", {}, Q));
+	let r = e.appendChild($("div", { class: "sp" })), i = () => a(t()), a = (e) => {
+		let t = $("section", {}, $("h3", {}, "Language of this note"), $("div", { class: "langs" }, ...e.choices.map((t) => $("button", {
+			class: t.lang === e.lang ? "on" : "",
+			"aria-pressed": String(t.lang === e.lang),
+			title: t.lang === e.lang ? e.source : `Set lang: ${t.lang} in this note's properties`,
+			onclick: () => {
+				n.setLang(t.lang);
+			}
+		}, t.name))), $("div", { class: "about" }, `${e.source} · ${e.dictionaries}${e.loading ? " · loading the dictionary…" : ""}`)), a = $("section", {}, $("h3", {}, `Marked in this note (${e.marked.length})`), e.marked.length ? $("ul", {}, ...e.marked.map((e) => $("li", { class: "word" }, $("button", {
+			class: "w",
+			title: "Select it in the note",
+			onclick: () => n.select(e)
+		}, e.word), $("span", { class: "line" }, `line ${e.line}`), ...e.fixes.length ? e.fixes.slice(0, 3).map((t) => $("button", {
+			class: "fix",
+			title: `Replace with “${t}”`,
+			onclick: () => {
+				n.fix(e, t), i();
+			}
+		}, t)) : [$("span", { class: "none" }, "no suggestions")], $("button", {
+			class: "keep",
+			title: `Add “${e.word}” to this vault's words`,
+			onclick: () => void n.add(e.word).then(i)
+		}, "+ add")))) : $("div", { class: "none" }, e.loading ? "Waiting for the dictionary." : "Nothing marked: every word is known.")), o = $("section", {}, $("h3", {}, `Added by you (${e.added.length})`), e.added.length ? $("div", { class: "chips" }, ...e.added.map((e) => $("span", { class: "chip" }, e, $("button", {
+			title: `Take “${e}” out of this vault's words`,
+			"aria-label": `Remove ${e}`,
+			onclick: () => void n.remove(e).then(i)
+		}, "×")))) : $("div", { class: "none" }, "None yet: “+ add” here or a right-click on a marked word adds one.")), s = $("section", {}, $("h3", {}, `Learned from the vault (${e.learned.count})`), e.learned.terms.length ? $("div", {}, $("div", { class: "about" }, "Not in the dictionary, the most used first:"), $("div", { class: "chips" }, ...e.learned.terms.map((e) => $("span", { class: "chip plain" }, e)))) : $("div", { class: "none" }, e.learned.count ? "All of them are in the dictionary too." : "Still counting the vault's notes."));
+		r.replaceChildren(t, a, o, s, $("div", { class: "foot" }, $("button", { onclick: () => n.settings() }, "Spelling settings…")));
+	};
+	a(t());
 }
 //#endregion
 //#region plugins/beta/spelling/ui/src/main.ts
-async function K(e) {
+async function oe(e) {
 	let { state: t, view: n, language: r } = e.editor.codemirror, i = (t) => e.plugin.settings[t], a = () => Number(i("min_uses") ?? 3), o = () => Number(i("min_notes") ?? 2), s = await e.helper.call("dictionaries", { folder: i("folder") }).catch(() => []) ?? [], c = L(s, i("dictionaries")), l = [...c.keys()], u = String(i("language") || l[0] || "en");
 	s.length || e.toast("Spelling", "No Hunspell dictionary on this machine: only the vault's own words are known, so nothing is marked. Settings → Spelling names a folder.", "info");
 	let d = /* @__PURE__ */ new Map(), f = (t) => {
@@ -488,200 +603,238 @@ async function K(e) {
 			suggest: (e) => [...new Set(n.flatMap((t) => t.suggest(e)))]
 		};
 		let r = c.get(t);
-		return r ? (d.set(t, "loading"), Promise.all(r.map((t) => e.helper.call("dictionary", {
+		return r ? (d.set(t, "loading"), m(t), Promise.all(r.map((t) => e.helper.call("dictionary", {
 			name: t,
 			folder: i("folder")
 		}, { timeout: 60 }))).then((e) => {
-			d.set(t, e.map(({ aff: e, dic: t }) => (0, O.default)(e, t))), w();
+			d.set(t, e.map(({ aff: e, dic: t }) => (0, O.default)(e, t))), D();
 		}).catch((e) => {
 			console.warn(`spelling: ${r.join(", ")} did not load:`, e), d.delete(t);
 		}), null) : null;
-	}, p = /* @__PURE__ */ new Map(), m = /* @__PURE__ */ new Set(), h = async () => {
-		m = await e.exists(".atlas/spelling/words.md") ? W(await e.readText(H)) : /* @__PURE__ */ new Set(), w();
-	}, g = R(async (t) => await e.helper.call("count", {
+	}, p = /* @__PURE__ */ new Map(), m = (t) => {
+		if (e.editor.words) return p.has(t) || (p.set(t, null), e.editor.words(t).then((e) => p.set(t, e)).catch(() => {})), p.get(t) ?? void 0;
+	}, h = (e, t) => {
+		let n = m(e);
+		return (r) => ne(r, {
+			correct: (e) => t.correct(e),
+			dictionary: (e) => t.suggest(e),
+			uses: (t) => g.get(e)?.get(t)?.[0] ?? 0,
+			zipf: n?.zipf,
+			letters: te[e]
+		});
+	}, g = /* @__PURE__ */ new Map(), _ = /* @__PURE__ */ new Set(), v = async () => {
+		_ = await e.exists(".atlas/spelling/words.md") ? Z(await e.readText(Y)) : /* @__PURE__ */ new Set(), D();
+	}, y = R(async (t) => await e.helper.call("count", {
 		paths: t,
 		langs: l.length ? l : [u],
 		fallback: u
 	}), (e, t) => {
-		let n = p.get(e.lang) ?? p.set(e.lang, /* @__PURE__ */ new Map()).get(e.lang);
+		let n = g.get(e.lang) ?? g.set(e.lang, /* @__PURE__ */ new Map()).get(e.lang);
 		for (let [r, i] of Object.entries(e.words)) {
 			let e = n.get(r) ?? [0, 0];
 			e[0] += t * i, e[1] += t, e[1] <= 0 ? n.delete(r) : n.set(r, e);
 		}
-	}, "spelling"), _ = async () => {
-		await g.countAll(await e.helper.call("notes"), (e) => {
-			e % 200 == 0 && w();
-		}), w();
-	}, v = (e, t) => {
-		let n = p.get(e), r = n?.get(t) ?? n?.get(t.toLowerCase());
+	}, "spelling"), b = async () => {
+		await y.countAll(await e.helper.call("notes"), (e) => {
+			e % 200 == 0 && D();
+		}), D();
+	}, x = (e, t) => {
+		let n = g.get(e), r = n?.get(t) ?? n?.get(t.toLowerCase());
 		return !!r && (r[0] >= a() && r[1] >= o() || r[0] >= 8);
-	}, y = /* @__PURE__ */ new Map(), b = (e, t) => {
-		let n = (t) => m.has(t) || m.has(t.toLowerCase()) || v(e, t) || (y.get(t) ?? 0) >= 8;
+	}, S = /* @__PURE__ */ new Map(), C = (e, t) => {
+		let n = (t) => _.has(t) || _.has(t.toLowerCase()) || x(e, t) || (S.get(t) ?? 0) >= 8;
 		if (!z(t, n)) return !1;
 		let r = f(e);
 		return r ? z(t, (e) => n(e) || r.correct(e)) ? !l.filter((t) => t !== e).map(f).some((e) => e && !z(t, e.correct)) : !1 : null;
-	}, x = n.Decoration.mark({ class: "cm-spell-miss" }), S = /* @__PURE__ */ new Set(), C = t.StateEffect.define();
-	function w() {
-		for (let e of S) e.dispatch({ effects: C.of(null) });
+	}, w = n.Decoration.mark({ class: "cm-spell-miss" }), T = /* @__PURE__ */ new Set(), E = t.StateEffect.define();
+	function D() {
+		for (let e of T) e.dispatch({ effects: E.of(null) });
 	}
-	let T = (e) => {
+	let k = (e) => {
 		let t = e.state.doc.sliceString(0, 4e3);
 		return /^---[\s\S]*?^lang:\s*([\w-]+)/m.exec(t.slice(0, A(t)))?.[1];
-	}, E = (e) => F(e.state.doc.sliceString(0, 2e4), l.length ? l : [u], u, T(e)), D = {
+	}, M = (e) => F(e.state.doc.sliceString(0, 2e4), l.length ? l : [u], u, k(e)), P = {
 		en: "English",
 		es: "Spanish",
 		fr: "French",
 		de: "German"
-	}, k = null, M = e.shell.statusItem({
+	}, I = null, B = e.shell.statusItem({
 		id: "spelling",
 		text: "",
 		title: "Spelling",
-		run: () => {
-			k && P(k);
+		panelWidth: 420,
+		run: () => e.plugin.openSettings(),
+		panel: (e, t) => {
+			I && ae(e, () => H(I), W(I, t));
 		}
 	});
-	function P(t) {
-		let n = E(t), i = e.editor.path(t), a = r.syntaxTree(t.state), o = A(t.state.doc.sliceString(0, 4e3)), s = [];
-		for (let [e, r] of j((e) => a.iterate(e), 0, t.state.doc.length, o)) for (let i of N(t.state.sliceDoc(e, r), e)) !K(t, i) && b(n, i.word) && s.push(i);
-		let c = f(n), u = (e) => p.get(n)?.get(e)?.[0] ?? 0, d = [.../* @__PURE__ */ new Set([...l, n])];
-		e.pick({
-			placeholder: s.length ? `${s.length} marked in this note: type to find one` : "Nothing marked in this note",
-			tag: "Spelling",
-			icon: "check",
-			items: [...d.map((e) => ({
-				value: `lang:${e}`,
-				title: `${D[e] ?? e}${e === n ? "  ✓" : ""}`,
-				detail: e === n ? T(t) ? "set for this note" : "guessed from its words" : `write this note in ${D[e] ?? e}`,
-				section: "Language",
-				icon: "globe"
-			})), ...s.map((e) => ({
-				value: `at:${e.from}:${e.to}`,
-				title: e.word,
-				section: `Marked (${s.length})`,
-				icon: "edit",
-				detail: `line ${t.state.doc.lineAt(e.from).number}${c ? ` · ${V(e.word, (e) => c.correct(e), (e) => c.suggest(e), u).slice(0, 3).join(", ") || "no suggestions"}` : ""}`
-			}))],
-			onpick: async (n) => {
-				if (n.startsWith("lang:")) {
-					await e.writeProperty(i, "lang", n.slice(5));
-					return;
-				}
-				let [, r, a] = n.split(":").map(Number);
-				t.dispatch({
-					selection: {
-						anchor: r,
-						head: a
-					},
-					scrollIntoView: !0
-				}), t.focus();
-			}
+	function V(e, t) {
+		let n = r.syntaxTree(e.state), i = A(e.state.doc.sliceString(0, 4e3)), a = f(t), o = a ? h(t, a) : null, s = [];
+		for (let [r, a] of j((e) => n.iterate(e), 0, e.state.doc.length, i)) for (let n of N(e.state.sliceDoc(r, a), r)) !q(e, n) && C(t, n.word) && s.push({
+			word: n.word,
+			from: n.from,
+			to: n.to,
+			line: e.state.doc.lineAt(n.from).number,
+			fixes: []
 		});
+		for (let e of s.slice(0, 60)) e.fixes = o ? o(e.word).slice(0, 3) : [];
+		return s;
 	}
-	function I(e, t, n) {
-		if (!e.hasFocus && k && k !== e && S.has(k)) return;
-		k = e;
-		let r = d.get(t) === "loading", i = c.get(t)?.join(" + ") ?? "no dictionary", s = [...p.get(t)?.values() ?? []].filter(([e, t]) => e >= a() && t >= o() || e >= 8).length;
-		M.set(`${t.toUpperCase()} ${r ? "…" : n ? `· ${n} misspelled` : "✓"}`, `Spelling: ${D[t] ?? t} (${i}), ${T(e) ? "from the note's lang: property" : "guessed from its words"}. ${n} word${n === 1 ? "" : "s"} marked on screen; ${s} words learned from the vault, ${m.size} added by you. Click for the marked words and the note's language.`);
+	function H(e) {
+		let t = M(e), n = f(t), r = [...g.get(t)?.entries() ?? []].filter(([, [e, t]]) => e >= a() && t >= o() || e >= 8), i = n ? r.filter(([e]) => !n.correct(e) && !n.correct(e.toLowerCase())).sort((e, t) => t[1][0] - e[1][0]).slice(0, 40).map(([e]) => e) : [];
+		return {
+			lang: t,
+			choices: [.../* @__PURE__ */ new Set([...l, t])].map((e) => ({
+				lang: e,
+				name: P[e] ?? e
+			})),
+			source: k(e) ? "set for this note (lang: property)" : "guessed from its words",
+			dictionaries: c.get(t)?.join(" + ") ?? "no dictionary installed",
+			loading: d.get(t) === "loading",
+			marked: V(e, t),
+			added: [..._].sort((e, t) => e.localeCompare(t)),
+			learned: {
+				count: r.length,
+				terms: i
+			}
+		};
 	}
-	let B = (t) => /\.(md|markdown)$/i.test(e.editor.path(t));
-	function U(e) {
-		if (!B(e)) return (k === e || !k) && M.set(""), n.Decoration.none;
-		let t = E(e);
-		y = /* @__PURE__ */ new Map();
-		for (let { word: t } of N(e.state.doc.sliceString(0, 2e5))) y.set(t, (y.get(t) ?? 0) + 1);
+	let U = async (t) => {
+		let n = await e.exists(".atlas/spelling/words.md") ? await e.readText(Y) : "";
+		await e.writeText(Y, t(n)), await v();
+	}, W = (t, n) => ({
+		setLang: (r) => {
+			n();
+			let i = e.editor.path(t);
+			e.exists(i).then((t) => t ? e.writeProperty(i, "lang", r) : e.toast("Spelling", "This text is not a note, so it has no lang: property: its language is guessed from its words.", "info"));
+		},
+		select: (e) => {
+			n(), t.dispatch({
+				selection: {
+					anchor: e.from,
+					head: e.to
+				},
+				scrollIntoView: !0
+			}), t.focus();
+		},
+		fix: (e, n) => {
+			t.state.sliceDoc(e.from, e.to) === e.word && t.dispatch({
+				changes: {
+					from: e.from,
+					to: e.to,
+					insert: n
+				},
+				userEvent: "input.spelling"
+			});
+		},
+		add: (e) => U((t) => ie(t, e)),
+		remove: (e) => U((t) => re(t, e)),
+		settings: () => {
+			n(), e.plugin.openSettings();
+		}
+	});
+	function ee(e, t, n) {
+		if (!e.hasFocus && I && I !== e && T.has(I)) return;
+		I = e;
+		let r = d.get(t) === "loading", i = c.get(t)?.join(" + ") ?? "no dictionary", s = [...g.get(t)?.values() ?? []].filter(([e, t]) => e >= a() && t >= o() || e >= 8).length;
+		B.set(`${t.toUpperCase()} ${r ? "…" : n ? `· ${n} misspelled` : "✓"}`, `Spelling: ${P[t] ?? t} (${i}), ${k(e) ? "from the note's lang: property" : "guessed from its words"}. ${n} word${n === 1 ? "" : "s"} marked on screen; ${s} words learned from the vault, ${_.size} added by you. Click for the panel: the language, the marked words and their fixes, your words.`);
+	}
+	let G = (t) => /\.(md|markdown)$/i.test(e.editor.path(t));
+	function K(e) {
+		if (!G(e)) return (I === e || !I) && B.set(""), n.Decoration.none;
+		let t = M(e);
+		S = /* @__PURE__ */ new Map();
+		for (let { word: t } of N(e.state.doc.sliceString(0, 2e5))) S.set(t, (S.get(t) ?? 0) + 1);
 		let i = r.syntaxTree(e.state), a = e.state.selection.main.head, o = A(e.state.doc.sliceString(0, 4e3)), s = [];
-		for (let { from: n, to: r } of e.visibleRanges) for (let [c, l] of j((e) => i.iterate(e), n, r, o)) for (let n of N(e.state.sliceDoc(c, l), c)) n.to === a || K(e, n) || b(t, n.word) && s.push(x.range(n.from, n.to));
-		return I(e, t, s.length), n.Decoration.set(s, !0);
+		for (let { from: n, to: r } of e.visibleRanges) for (let [c, l] of j((e) => i.iterate(e), n, r, o)) for (let n of N(e.state.sliceDoc(c, l), c)) n.to === a || q(e, n) || C(t, n.word) && s.push(w.range(n.from, n.to));
+		return ee(e, t, s.length), n.Decoration.set(s, !0);
 	}
-	function K(e, t) {
+	function q(e, t) {
 		return /^\p{Lu}/u.test(t.word);
 	}
-	let q = null, J = n.ViewPlugin.fromClass(class {
+	let J = null, X = n.ViewPlugin.fromClass(class {
 		view;
 		decorations;
 		timer = 0;
 		constructor(e) {
-			this.view = e, S.add(e), this.decorations = U(e);
+			this.view = e, T.add(e), this.decorations = K(e);
 		}
 		update(e) {
-			if (e.transactions.some((e) => e.effects.some((e) => e.is(C)))) {
-				this.decorations = U(e.view);
+			if (e.transactions.some((e) => e.effects.some((e) => e.is(E)))) {
+				this.decorations = K(e.view);
 				return;
 			}
-			e.docChanged && (this.decorations = this.decorations.map(e.changes)), (e.docChanged || e.viewportChanged || e.selectionSet) && (clearTimeout(this.timer), this.timer = window.setTimeout(() => this.view.dispatch({ effects: C.of(null) }), e.docChanged ? 400 : 120));
+			e.docChanged && (this.decorations = this.decorations.map(e.changes)), (e.docChanged || e.viewportChanged || e.selectionSet) && (clearTimeout(this.timer), this.timer = window.setTimeout(() => this.view.dispatch({ effects: E.of(null) }), e.docChanged ? 400 : 120));
 		}
 		destroy() {
-			clearTimeout(this.timer), S.delete(this.view);
+			clearTimeout(this.timer), T.delete(this.view);
 		}
 	}, {
 		decorations: (e) => e.decorations,
 		eventHandlers: {
 			mousedown(e, t) {
-				e.button === 2 && Y(e, t);
+				e.button === 2 && Q(e, t);
 			},
 			contextmenu(e, t) {
-				Y(e, t);
+				Q(e, t);
 			}
 		}
 	});
-	function Y(e, t) {
-		q = null;
+	function Q(e, t) {
+		J = null;
 		let n = t.posAtCoords({
 			x: e.clientX,
 			y: e.clientY
 		});
 		if (n === null) return;
-		let r = t.state.doc.lineAt(n), i = N(r.text, r.from).find((e) => e.from <= n && n <= e.to), a = E(t);
-		i && B(t) && !K(t, i) && b(a, i.word) && (q = {
+		let r = t.state.doc.lineAt(n), i = N(r.text, r.from).find((e) => e.from <= n && n <= e.to), a = M(t);
+		i && G(t) && !q(t, i) && C(a, i.word) && (J = {
 			view: t,
 			word: i,
 			lang: a
 		});
 	}
-	e.editor.extension([J, n.EditorView.baseTheme({ ".cm-spell-miss": {
+	e.editor.extension([X, n.EditorView.baseTheme({ ".cm-spell-miss": {
 		textDecoration: "underline wavy var(--red)",
 		textDecorationThickness: "1px",
 		textUnderlineOffset: "3px",
 		textDecorationSkipInk: "none"
 	} })]), e.shell.menu("editor", () => {
-		let t = q;
-		if (!t) return [];
-		let n = f(t.lang), r = (e) => () => t.view.dispatch({
+		let e = J;
+		if (!e) return [];
+		let t = f(e.lang), n = (t) => () => e.view.dispatch({
 			changes: {
-				from: t.word.from,
-				to: t.word.to,
-				insert: e
+				from: e.word.from,
+				to: e.word.to,
+				insert: t
 			},
 			userEvent: "input.spelling"
-		}), i = n ? V(t.word.word, (e) => n.correct(e), (e) => n.suggest(e), (e) => p.get(t.lang)?.get(e)?.[0] ?? 0) : [];
+		}), r = t ? h(e.lang, t)(e.word.word) : [];
 		return [
-			...i.map((e) => ({
+			...r.map((e) => ({
 				label: e,
-				run: r(e),
+				run: n(e),
 				icon: "check",
 				top: !0
 			})),
-			...i.length ? [] : [{
+			...r.length ? [] : [{
 				label: "No suggestions",
 				run: () => {},
 				disabled: !0,
 				top: !0
 			}],
 			{
-				label: `Add “${t.word.word}” to this vault's words`,
+				label: `Add “${e.word.word}” to this vault's words`,
 				icon: "plus",
 				top: !0,
-				run: async () => {
-					let n = await e.exists(".atlas/spelling/words.md") ? await e.readText(H) : "";
-					await e.writeText(H, G(n, t.word.word)), await h();
-				}
+				run: () => U((t) => ie(t, e.word.word))
 			}
 		];
 	}), e.onFilesChanged((e) => {
-		(!e.length || e.includes(".atlas/spelling/words.md")) && h();
+		(!e.length || e.includes(".atlas/spelling/words.md")) && v();
 		let t = e.filter((e) => /\.md$/i.test(e) && !e.startsWith(".atlas/"));
-		g.counted && t.length && g.count(t).then(w);
-	}), await h(), _().catch((e) => console.warn("spelling: the vault's words were not counted:", e));
+		y.counted && t.length && y.count(t).then(D);
+	}), await v(), b().catch((e) => console.warn("spelling: the vault's words were not counted:", e));
 }
 //#endregion
-export { K as register };
+export { oe as register };

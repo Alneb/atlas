@@ -256,6 +256,8 @@ export const api = {
   refsBibtex: (key: string) => papers<string>("bibtex", { key }),
   /** The paper's reading note `<dir>/<citekey>.md`, made (or renamed from a legacy notes.md) if needed. */
   /** Whether a web page lets itself be shown as a tab (web_frame.rs). */
+  /** A language's general word frequencies as text (words.rs); not JSON: the page parses it once (editor/word-freq.ts). */
+  wordList: (lang: string) => fetch(url(`/api/words/${encodeURIComponent(lang)}`), { headers: { "x-atlas": "1" } }),
   webFrameable: (url: string) => request<boolean>("GET", "/api/web/frameable", { query: { url } }),
   /** A file's one note (companion.rs): `find` says which without making it; else made when missing. */
   companion: (req: import("./gen/CompanionRequest").CompanionRequest) => request<import("./types").CompanionNote>("POST", "/api/companion", { body: req }),

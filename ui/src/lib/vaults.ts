@@ -107,7 +107,7 @@ export async function vaultListing(): Promise<VaultListing> {
     const server = !!v.url && !own(v);
     if (server && mirrors.has(slash(v.path))) continue; // shown as its folder's mirror
     entries.push({
-      name: v.name, path: v.path, kind: server ? "server" : "folder", current: !remote && v.path === l.current, missing: v.missing,
+      name: v.name, path: v.path, kind: server ? "server" : "folder", current: !remote && slash(v.path) === slash(l.current), missing: v.missing,
       warm: v.warm, mirror: v.mirror, managed: l.manage,
       go: () => {
         if (remote && v.path === l.current) location.href = "/"; // back to this desktop's own vault

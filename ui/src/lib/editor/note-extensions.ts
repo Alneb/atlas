@@ -2,6 +2,7 @@
 // Atlas's renderers, Obsidian's folds, list continuation, the typing aids and their completions, files pasted or
 // dropped saved beside the note, and the settings-driven options (heading folds, typewriter scrolling).
 import { basename, dirOf, shownName } from "../paths";
+import { renameTo } from "../rename-file";
 import { noteHtml } from "./big-html";
 import { attachFiles, takeFiles } from "../attach";
 import { wikilinkSource, slashSource, citeSource, citeApplies, taskSource, continueList, backspaceMarkup, taskShortForms, type TaskCompletion } from "./md-complete";
@@ -83,7 +84,7 @@ export function noteExtensions(path: string, viewRef: { view: EditorView | null 
       if (!(settings.config?.editor.inline_title ?? true)) return null;
       const name = shownName(path);
       if (headingRepeats(state, name)) return null; // "titles are duplicated usually": the note's own `# name` is the title
-      return { key: name, render: () => { const h = document.createElement("div"); h.className = "inline-title"; h.textContent = name; return h; } };
+      return { key: name, render: () => titleInput(path, name) };
     },
     inlineHtml: (source: string) => inlineHtml(source, dir) || null,
     toggleTask: tickTaskLine, // a box ticks as on Home: done date, next occurrence
@@ -209,4 +210,31 @@ export function headingRepeats(state: EditorState, name: string): boolean {
     return !!h && norm(h[1]) === norm(name);
   }
   return false;
+}
+
+/** The inline title as a field: the note's name, renamed in place — Enter (or leaving the field) renames the file,
+ *  Esc puts the name back. The editor ignores the widget's events (live-preview's InlineTitleWidget), so the field's
+ *  keys and clicks are its own. */
+function titleInput(path: string, name: string): HTMLElement {
+  const h = document.createElement("input");
+  h.className = "inline-title";
+  h.value = name;
+  h.spellcheck = false;
+  h.setAttribute("aria-label", "The note's name: type to rename it");
+  h.title = "The note's name: type here and press Enter to rename it";
+  let done = false;
+  const commit = () => {
+    if (done) return;
+    done = true;
+    if (h.value.trim() && h.value.trim() !== name) void renameTo(path, h.value).then((ok) => { if (!ok) h.value = name; });
+    else h.value = name;
+  };
+  h.addEventListener("focus", () => { done = false; });
+  h.addEventListener("keydown", (e) => {
+    e.stopPropagation(); // the app's keys (vim, shortcuts) stay out of the field
+    if (e.key === "Enter") { e.preventDefault(); commit(); h.blur(); }
+    else if (e.key === "Escape") { e.preventDefault(); done = true; h.value = name; h.blur(); }
+  });
+  h.addEventListener("blur", commit);
+  return h;
 }

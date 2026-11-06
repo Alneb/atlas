@@ -14,6 +14,8 @@
   let entries = $state<VaultEntry[]>([]);
   let manage = $state(false);
   let failed = $state("");
+  /** Asked to link a mirror where none can be linked: why. */
+  let noMirror = $state("");
   let query = $state("");
   let sel = $state(0);
   let input = $state<HTMLInputElement>();
@@ -29,6 +31,8 @@
       for (const e of l.entries) if (e.mirror) void reach(e.mirror).then((s) => { reached = { ...reached, [e.mirror!]: s }; });
       const here = linkMirror && l.entries.find((e) => e.current && e.kind === "folder" && e.managed);
       if (here) void startLinking(here);
+      // asked from a note but nothing to link here: say why, instead of a list that seems to ignore the request
+      else if (linkMirror) noMirror = mirrorRefusal(l.entries.find((e) => e.current));
     } catch (e) { failed = errText(e); }
   }
   $effect(() => { void load(); });
@@ -66,6 +70,13 @@
       if (sel < shown.length) go(shown[sel]);
       else if (typedPath) act(() => void openVault(typedPath));
     }
+  }
+
+  /** Why this window's vault cannot be linked to a mirror from here. */
+  function mirrorRefusal(current: VaultEntry | undefined): string {
+    if (!current) return "This window shows a vault on a server. A mirror is the link from a vault on this machine to its copy on a server: open the local folder in Atlas and link it there.";
+    if (current.kind !== "folder") return "This vault is on a server already: a mirror links a folder on this machine to it. Open the local folder and link it there.";
+    return "This vault is served by a program that does not keep Atlas's vault list (`atlas serve`, or another Atlas), so its mirror cannot be set from this window. Open the folder in the Atlas desktop app and link it there.";
   }
 
   async function startLinking(e: VaultEntry) {
@@ -106,6 +117,7 @@
 
     <ul class="rows" role="listbox" aria-label="Vaults">
       {#if failed}<li class="note">The vault list did not load: {failed}</li>{/if}
+      {#if noMirror}<li class="note">{noMirror}</li>{/if}
       {#each shown as e, i (e.path)}
         <li class="row" class:sel={sel === i} class:current={e.current} class:missing={e.missing} role="option" aria-selected={sel === i}
           data-vault={e.name} onmouseenter={() => (sel = i)}>

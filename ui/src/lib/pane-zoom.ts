@@ -8,6 +8,7 @@
 import type { DockviewApi, IDockviewPanel } from "dockview-core";
 import { onSettings, settings } from "./settings.svelte";
 import { saveShellPrefs, shellPart } from "./shell-prefs";
+import { zoomShown } from "./zoom-status.svelte";
 
 const STEP = 1.1, MOST = 8; // ten percent a press, between 1.1^-8 and 1.1^8
 const WHEEL_STEP = 1 / 120; // a wheel notch (120) zooms one step
@@ -19,6 +20,12 @@ export const paneZoom = (id: string): number => STEP ** (steps.get(id) ?? 0);
 /** Fired on `window` with the pane id when a pane's zoom changed (a terminal refits). */
 export const PANE_ZOOM_EVENT = "atlas-pane-zoom";
 
+/** The lower bar's zoom cell follows the tab in front. */
+function showActive(): void {
+  const p = dock?.activePanel;
+  zoomShown.percent = Math.round((p ? paneZoom(p.id) : 1) * 100);
+}
+
 function paint(p: IDockviewPanel): void {
   const c = settings.config, el = p.view.content.element, f = paneZoom(p.id);
   if (!c) return;
@@ -26,6 +33,7 @@ function paint(p: IDockviewPanel): void {
   for (const [k, v] of vars) { if (f === 1) el.style.removeProperty(k); else el.style.setProperty(k, v); }
   window.dispatchEvent(new CustomEvent(PANE_ZOOM_EVENT, { detail: p.id }));
   window.dispatchEvent(new Event("resize")); // editors measure their lines again
+  if (p === dock?.activePanel) showActive();
 }
 
 /** Panes whose size changed since the last frame: drawn once at the next one. */
@@ -69,6 +77,7 @@ export function attachPaneZoom(d: DockviewApi): void {
   window.addEventListener("wheel", onWheel, { passive: false });
   d.panels.forEach(paint);
   d.onDidAddPanel(paint);
+  d.onDidActivePanelChange(showActive);
   onSettings(() => d.panels.forEach(paint));
 }
 

@@ -9,8 +9,10 @@ import { frontMatterEnd, guessLanguage, proseRanges, wordsOf, type Word } from "
 import { chooseDictionaries } from "../../../../../ui/src/lib/editor/dictionaries";
 import { vaultCounter } from "../../../../../ui/src/lib/editor/vault-count";
 import { isWrong } from "./judge";
-import { suggestions } from "./suggest";
-import { addWord, parseWords, WORDS_NOTE } from "./words";
+import { LETTERS, suggestions } from "../../../../../ui/src/lib/editor/spell-rank";
+import type { WordFreq } from "../../../../../ui/src/lib/editor/word-freq";
+import { addWord, parseWords, removeWord, WORDS_NOTE } from "./words";
+import { drawPanel, type Marked, type PanelModel } from "./panel";
 
 type Speller = ReturnType<typeof nspell>;
 /** word → [uses, notes using it], per language */
@@ -38,10 +40,24 @@ export async function register(atlas: PluginApi) {
     const names = chosen.get(lang);
     if (!names) return null;
     spellers.set(lang, "loading");
+    freqOf(lang); // its frequencies, for ranking suggestions, load beside it
     void Promise.all(names.map((name) => atlas.helper.call("dictionary", { name, folder: setting("folder") }, { timeout: 60 }) as Promise<{ aff: string; dic: string }>))
       .then((dicts) => { spellers.set(lang, dicts.map(({ aff, dic }) => nspell(aff, dic))); redrawAll(); })
       .catch((e) => { console.warn(`spelling: ${names.join(", ")} did not load:`, e); spellers.delete(lang); });
     return null;
+  };
+
+  /** The language's general frequencies (plugin API v26), for ranking suggestions: undefined until loaded. */
+  const freqs = new Map<string, WordFreq | null>();
+  const freqOf = (lang: string): WordFreq | undefined => {
+    if (!atlas.editor.words) return undefined;
+    if (!freqs.has(lang)) { freqs.set(lang, null); void atlas.editor.words(lang).then((w) => freqs.set(lang, w)).catch(() => {}); }
+    return freqs.get(lang) ?? undefined;
+  };
+  /** What suggestions are made from, for a language: its dictionaries, the vault's uses, the language's frequencies. */
+  const suggestFor = (lang: string, s: { correct(w: string): boolean; suggest(w: string): string[] }) => {
+    const f = freqOf(lang);
+    return (word: string) => suggestions(word, { correct: (x) => s.correct(x), dictionary: (x) => s.suggest(x), uses: (x) => counts.get(lang)?.get(x)?.[0] ?? 0, zipf: f?.zipf, letters: LETTERS[lang] });
   };
 
   const counts: Counts = new Map();
@@ -105,38 +121,61 @@ export async function register(atlas: PluginApi) {
   const noteLanguage = (view: EditorView) =>
     guessLanguage(view.state.doc.sliceString(0, 20000), langs.length ? langs : [fallback], fallback, langProperty(view));
 
-  // --- the bottom bar: the note's language and what is marked; a click sets the language ------------------------
+  // --- the bottom bar: the note's language and what is marked; a click opens the Spelling panel (panel.ts) ---------
   const NAMES: Record<string, string> = { en: "English", es: "Spanish", fr: "French", de: "German" };
   let shown: EditorView | null = null;
-  const cell = atlas.shell.statusItem({ id: "spelling", text: "", title: "Spelling", run: () => { if (shown) panel(shown); } });
-  /** The cell's panel: the note's language to switch, and every word marked in the whole note, with its fixes;
-   *  choosing a word selects it in the note. */
-  function panel(view: EditorView) {
-    const lang = noteLanguage(view), path = atlas.editor.path(view);
+  const cell = atlas.shell.statusItem({
+    id: "spelling", text: "", title: "Spelling", panelWidth: 420,
+    // before plugin API 27 a click runs this: the settings, where the language and dictionaries are
+    run: () => atlas.plugin.openSettings(),
+    panel: (host, close) => { if (shown) drawPanel(host, () => panelModel(shown!), actions(shown, close)); },
+  });
+  /** Every word marked in the whole note, not only on screen, with its likeliest fixes. */
+  function markedIn(view: EditorView, lang: string): Marked[] {
     const tree = language.syntaxTree(view.state), front = frontMatterEnd(view.state.doc.sliceString(0, 4000));
-    const marked: Word[] = [];
+    const s = speller(lang), suggest = s ? suggestFor(lang, s) : null;
+    const out: Marked[] = [];
     for (const [a, b] of proseRanges((spec) => tree.iterate(spec), 0, view.state.doc.length, front))
-      for (const w of wordsOf(view.state.sliceDoc(a, b), a)) if (!aName(view, w) && wrong(lang, w.word)) marked.push(w);
-    const s = speller(lang);
-    const uses = (w: string) => counts.get(lang)?.get(w)?.[0] ?? 0;
-    const choices = [...new Set([...langs, lang])];
-    atlas.pick({
-      placeholder: marked.length ? `${marked.length} marked in this note: type to find one` : "Nothing marked in this note", tag: "Spelling", icon: "check",
-      items: [
-        ...choices.map((l) => ({ value: `lang:${l}`, title: `${NAMES[l] ?? l}${l === lang ? "  ✓" : ""}`, detail: l === lang ? (langProperty(view) ? "set for this note" : "guessed from its words") : `write this note in ${NAMES[l] ?? l}`, section: "Language", icon: "globe" as const })),
-        ...marked.map((w) => ({
-          value: `at:${w.from}:${w.to}`, title: w.word, section: `Marked (${marked.length})`, icon: "edit" as const,
-          detail: `line ${view.state.doc.lineAt(w.from).number}${s ? ` · ${suggestions(w.word, (x) => s.correct(x), (x) => s.suggest(x), uses).slice(0, 3).join(", ") || "no suggestions"}` : ""}`,
-        })),
-      ],
-      onpick: async (value) => {
-        if (value.startsWith("lang:")) { await atlas.writeProperty(path, "lang", value.slice(5)); return; }
-        const [, a, b] = value.split(":").map(Number);
-        view.dispatch({ selection: { anchor: a, head: b }, scrollIntoView: true });
-        view.focus();
-      },
-    });
+      for (const w of wordsOf(view.state.sliceDoc(a, b), a))
+        if (!aName(view, w) && wrong(lang, w.word)) out.push({ word: w.word, from: w.from, to: w.to, line: view.state.doc.lineAt(w.from).number, fixes: [] });
+    // fixes for the first ones only: the rest are reached by scrolling the note anyway
+    for (const m of out.slice(0, 60)) m.fixes = suggest ? suggest(m.word).slice(0, 3) : [];
+    return out;
   }
+  function panelModel(view: EditorView): PanelModel {
+    const lang = noteLanguage(view), s = speller(lang);
+    const learned = [...(counts.get(lang)?.entries() ?? [])].filter(([, [u, n]]) => (u >= minUses() && n >= minNotes()) || u >= 8);
+    const terms = s ? learned.filter(([w]) => !s.correct(w) && !s.correct(w.toLowerCase())).sort((x, y) => y[1][0] - x[1][0]).slice(0, 40).map(([w]) => w) : [];
+    return {
+      lang,
+      choices: [...new Set([...langs, lang])].map((l) => ({ lang: l, name: NAMES[l] ?? l })),
+      source: langProperty(view) ? "set for this note (lang: property)" : "guessed from its words",
+      dictionaries: chosen.get(lang)?.join(" + ") ?? "no dictionary installed",
+      loading: spellers.get(lang) === "loading",
+      marked: markedIn(view, lang),
+      added: [...accepted].sort((a, b) => a.localeCompare(b)),
+      learned: { count: learned.length, terms },
+    };
+  }
+  const editWords = async (change: (text: string) => string) => {
+    const text = (await atlas.exists(WORDS_NOTE)) ? await atlas.readText(WORDS_NOTE) : "";
+    await atlas.writeText(WORDS_NOTE, change(text));
+    await readAccepted();
+  };
+  const actions = (view: EditorView, close: () => void) => ({
+    // a mail being written is not a file: its language stays guessed
+    setLang: (l: string) => {
+      close();
+      const path = atlas.editor.path(view);
+      void atlas.exists(path).then((is) => is ? atlas.writeProperty(path, "lang", l) : atlas.toast("Spelling", "This text is not a note, so it has no lang: property: its language is guessed from its words.", "info"));
+    },
+    select: (m: Marked) => { close(); view.dispatch({ selection: { anchor: m.from, head: m.to }, scrollIntoView: true }); view.focus(); },
+    // the note may have changed since the panel was drawn: only the same word at the same place is replaced
+    fix: (m: Marked, by: string) => { if (view.state.sliceDoc(m.from, m.to) === m.word) view.dispatch({ changes: { from: m.from, to: m.to, insert: by }, userEvent: "input.spelling" }); },
+    add: (word: string) => editWords((t) => addWord(t, word)),
+    remove: (word: string) => editWords((t) => removeWord(t, word)),
+    settings: () => { close(); atlas.plugin.openSettings(); },
+  });
   function status(view: EditorView, lang: string, marked: number) {
     if (!view.hasFocus && shown && shown !== view && views.has(shown)) return;
     shown = view;
@@ -144,7 +183,7 @@ export async function register(atlas: PluginApi) {
     const learned = [...(counts.get(lang)?.values() ?? [])].filter(([u, n]) => (u >= minUses() && n >= minNotes()) || u >= 8).length;
     cell.set(`${lang.toUpperCase()} ${loading ? "…" : marked ? `· ${marked} misspelled` : "✓"}`,
       `Spelling: ${NAMES[lang] ?? lang} (${dicts}), ${langProperty(view) ? "from the note's lang: property" : "guessed from its words"}. `
-      + `${marked} word${marked === 1 ? "" : "s"} marked on screen; ${learned} words learned from the vault, ${accepted.size} added by you. Click for the marked words and the note's language.`);
+      + `${marked} word${marked === 1 ? "" : "s"} marked on screen; ${learned} words learned from the vault, ${accepted.size} added by you. Click for the panel: the language, the marked words and their fixes, your words.`);
   }
   const isNote = (view: EditorView) => /\.(md|markdown)$/i.test(atlas.editor.path(view));
 
@@ -218,16 +257,11 @@ export async function register(atlas: PluginApi) {
     if (!p) return [];
     const s = speller(p.lang);
     const replace = (by: string) => () => p.view.dispatch({ changes: { from: p.word.from, to: p.word.to, insert: by }, userEvent: "input.spelling" });
-    const uses = (w: string) => counts.get(p.lang)?.get(w)?.[0] ?? 0;
-    const found = s ? suggestions(p.word.word, (w) => s.correct(w), (w) => s.suggest(w), uses) : [];
+    const found = s ? suggestFor(p.lang, s)(p.word.word) : [];
     return [
       ...found.map((by) => ({ label: by, run: replace(by), icon: "check", top: true })),
       ...(found.length ? [] : [{ label: "No suggestions", run: () => {}, disabled: true, top: true }]),
-      { label: `Add “${p.word.word}” to this vault's words`, icon: "plus", top: true, run: async () => {
-        const text = (await atlas.exists(WORDS_NOTE)) ? await atlas.readText(WORDS_NOTE) : "";
-        await atlas.writeText(WORDS_NOTE, addWord(text, p.word.word));
-        await readAccepted();
-      } },
+      { label: `Add “${p.word.word}” to this vault's words`, icon: "plus", top: true, run: () => editWords((t) => addWord(t, p.word.word)) },
     ];
   });
 
