@@ -957,6 +957,33 @@ async fn open_outside_post(State(st): S, axum::extract::ConnectInfo(peer): axum:
     }
 }
 
+/// Settings → Desktop app: the desktop's global key for Atlas Capture (platform/capture_key.rs), this machine's only.
+async fn capture_key_get(State(st): S, axum::extract::ConnectInfo(peer): axum::extract::ConnectInfo<std::net::SocketAddr>) -> Response {
+    if !may_reveal_outside(st.auth.is_some(), peer.ip()) {
+        return forbidden("the desktop's keys are read only by its own core");
+    }
+    match tokio::task::spawn_blocking(crate::platform::capture_key::state).await {
+        Ok(k) => Json(k).into_response(),
+        Err(e) => Error::CommandFailed(e.to_string()).into_response(),
+    }
+}
+
+#[derive(serde::Deserialize)]
+struct CaptureKeyRequest {
+    key: String,
+}
+
+async fn capture_key_post(State(st): S, axum::extract::ConnectInfo(peer): axum::extract::ConnectInfo<std::net::SocketAddr>, Json(q): Json<CaptureKeyRequest>) -> Response {
+    if !may_reveal_outside(st.auth.is_some(), peer.ip()) {
+        return forbidden("the desktop's keys are set only by its own core");
+    }
+    match tokio::task::spawn_blocking(move || crate::platform::capture_key::set(&q.key)).await {
+        Ok(Ok(k)) => Json(k).into_response(),
+        Ok(Err(why)) => Error::BadRequest(why).into_response(),
+        Err(e) => Error::CommandFailed(e.to_string()).into_response(),
+    }
+}
+
 #[derive(serde::Deserialize)]
 struct OutsideRequest {
     url: String,
@@ -2293,6 +2320,7 @@ fn router(state: Arc<AppState>) -> Router {
         .route("/api/fs/trash", post(fs_trash))
         .route("/api/fs/reveal-outside", post(fs_reveal_outside))
         .route("/api/open-outside", post(open_outside_post))
+        .route("/api/desktop/capture-key", get(capture_key_get).post(capture_key_post))
         .route("/api/link-mention", post(link_mention_post))
         .route("/api/property", put(property_put))
         .route("/api/frontmatter/edit", post(frontmatter_edit_post))

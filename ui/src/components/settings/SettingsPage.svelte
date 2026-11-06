@@ -19,6 +19,7 @@
   import PluginsPanel from "./PluginsPanel.svelte";
   import ScriptsPanel from "./ScriptsPanel.svelte";
   import OpenWithPanel from "./OpenWithPanel.svelte";
+  import CaptureKeyPanel from "./CaptureKeyPanel.svelte";
   import ServerPanel from "./ServerPanel.svelte";
   import AgentsPanel from "./AgentsPanel.svelte";
   import { allCommands, keysOf } from "../../lib/keymap.svelte";
@@ -84,6 +85,7 @@
     {:else if panel === "plugins"}<PluginsPanel onnew={() => (naming = "plugin")} onblock={() => (naming = "block")} />
     {:else if panel === "scripts"}<ScriptsPanel />
     {:else if panel === "openwith"}<OpenWithPanel />
+    {:else if panel === "capturekey"}<CaptureKeyPanel />
     {:else if panel === "server"}<ServerPanel />
     {:else if panel === "agents"}<AgentsPanel />
     {:else if panel === "file"}

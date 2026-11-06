@@ -13,7 +13,7 @@ export type PageId =
   | "terminal" | "desktop" | "keyboard" | "plugins" | "automation" | "agents" | "advanced" | "latex";
 
 /** Custom panels drawn by the Settings UI beside the generated fields. */
-export type Panel = "overview" | "preview" | "apps" | "snippets" | "keys" | "plugins" | "scripts" | "drafts" | "openwith" | "server" | "agents" | "templates" | "file";
+export type Panel = "overview" | "preview" | "apps" | "snippets" | "keys" | "plugins" | "scripts" | "drafts" | "openwith" | "capturekey" | "server" | "agents" | "templates" | "file";
 
 /** The nav's groups, in this order: Accounts stands above them all (every sign-in is there). */
 export type Group = "general" | "working" | "connections" | "plugins" | "advanced";
@@ -120,7 +120,7 @@ export const PAGES: PageDef[] = [
   },
   {
     id: "desktop", title: "Desktop app", group: "general", icon: "panel-bottom", blurb: "Atlas behind its window: closing it keeps Atlas running in the tray (schedules, mail checks and notifications go on), a click on the tray icon brings it back, and its menu gathers the notices you missed, does not disturb, captures and quits. It can also start with your session, straight into the tray.",
-    fields: ["desktop.*"], features: [], only: ["app"],
+    fields: ["desktop.*"], features: [], panels: ["capturekey"], only: ["app"],
   },
   {
     id: "keyboard", title: "Keyboard", group: "general", icon: "command", blurb: "Every command and its shortcut. Click a shortcut, press the new keys.",

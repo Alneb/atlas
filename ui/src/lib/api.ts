@@ -1,5 +1,6 @@
 // Typed client for the Atlas HTTP + WebSocket API v0 (docs/ARCHITECTURE.md).
 // Every HTTP request carries `x-atlas: 1` (the server's CSRF guard); WebSockets rely on Origin.
+import type { CaptureKey } from "./gen/CaptureKey";
 import type {
   ApiErrorBody, CaptureResult, CmdResult, CommandInfo, FileDoc, PtyPreset, PtyControl,
   PutFileResult, RelPath, ReplaceRequest, TaskTicked, LinkTarget, ReplaceResult, SearchResult, ServerEvent, Today, TreeEntry, UiState, Workspace,
@@ -352,6 +353,9 @@ export const api = {
     return t;
   },
   /** The file shown selected in the desktop's own file manager (the desktop's core only: 403 elsewhere). */
+  /** The desktop's global key for Atlas Capture (platform/capture_key.rs); `set` binds one where Atlas can. */
+  captureKey: () => request<CaptureKey>("GET", "/api/desktop/capture-key"),
+  setCaptureKey: (key: string) => request<CaptureKey>("POST", "/api/desktop/capture-key", { body: { key } }),
   revealOutside: (path: string) => request<void>("POST", "/api/fs/reveal-outside", { query: { path } }),
   /** `text`: the task as shown; the tick is refused (409) when that line now holds another one */
   tickTask: (path: string, line: number, text?: string) => request<void>("POST", "/api/task/tick", { body: { path, line, text } }),

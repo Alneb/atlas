@@ -101,6 +101,15 @@ too: bind a key to `Atlas.AppImage --capture`. `atlas-app --capture` starts the 
 the program (`ATLAS_CAPTURE=webview` keeps the older web box), so one command works for every package. The Flatpak
 has `atlas-capture` and an **Atlas Capture** entry (`atlas-app --capture`) to give a key to.
 
+**From Settings.** Settings → Desktop app → *Capture key* shows the key bound now and where the desktop keeps it, and
+on KDE Plasma and GNOME sets one (Super+Shift+C offered when there is none), so a package needs no script
+(`platform/capture_key.rs`, `GET`/`POST /api/desktop/capture-key`, answered only by the desktop's own core asked from
+this machine). KDE: the same rules as `kde-shortcut.sh`: it is written to `kglobalshortcutsrc` with `kwriteconfig6`,
+a key any other shortcut uses or has as its default is refused with that shortcut's name, and `plasma-kglobalaccel`
+is restarted so the key works at once; it needs the `atlas-capture.desktop` entry the packages install. GNOME: a
+custom keybinding (`…/custom-keybindings/atlas-capture/`) running `atlas-capture`. Windows and macOS show their fixed
+key (the installer's, the app's); another Linux desktop and the Flatpak say to bind `atlas-capture` by hand.
+
 ## How it works, and what to watch
 
 - **One core per vault.** When Atlas is already open on the vault, the box talks to *that* Atlas: `vaults::running_server(root)` reads the vault's `.atlas/cache/server.json` and believes it only while the folder is the same and the process is alive. Only when no Atlas is open on it does the box start a core of its own, stopped when the box closes. Two cores on one vault would run its scheduled commands twice — the reason for this care.
