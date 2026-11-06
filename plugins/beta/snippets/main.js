@@ -198,7 +198,7 @@ function f(e, t = /* @__PURE__ */ new Set()) {
 	};
 }
 function p(e, t, n) {
-	let r = e.map((e) => e.name).filter((e) => /^[A-Za-z]+$/.test(e)), i = /* @__PURE__ */ new Set([...n, ...t.flatMap((e) => e.plain ? [e.plain] : [])]), a = (e, n) => r.some((t) => t !== n && t.startsWith(e)) || t.some((t) => t.math && !!t.plain && t.plain !== e && t.plain.startsWith(e)), o = (e, t, n) => ({
+	let r = e.map((e) => e.name).filter((e) => /^[A-Za-z]+$/.test(e)), i = /* @__PURE__ */ new Set([...n, ...t.flatMap((e) => e.plain ? [e.plain] : [])]), a = (e, n) => r.some((t) => t !== n && t.startsWith(e)) || t.some((t) => t.math && !!t.plain && t.plain !== e && t.plain.startsWith(e)), o = (e, t, n, r) => ({
 		plain: e,
 		regex: null,
 		body: `\\${t}`,
@@ -219,20 +219,27 @@ function p(e, t, n) {
 		source: n,
 		shown: e,
 		alias: !0,
+		typo: r,
 		key: ""
-	}), s = [], c = /* @__PURE__ */ new Set(), l = (e, t, n) => {
-		!i.has(e) && !c.has(e) && (c.add(e), s.push(o(e, t, n)));
+	}), s = [], c = /* @__PURE__ */ new Set(), l = (e, t, n, r = !1) => {
+		!i.has(e) && !c.has(e) && (c.add(e), s.push(o(e, t, n, r)));
 	};
-	for (let { name: t, source: n } of e) if (/^[A-Za-z]{4,}$/.test(t)) {
+	for (let { name: t, source: n } of e) {
+		if (!/^[A-Za-z]{4,}$/.test(t)) continue;
 		for (let e = t.length - 1; e >= 3; e--) {
 			let r = t.slice(0, e);
 			if (i.has(r) || a(r, t)) break;
 			l(r, t, n);
 		}
-		for (let e = 1; e + 1 < t.length; e++) {
-			if (t[e] === t[e + 1]) continue;
-			let o = t.slice(0, e) + t[e + 1] + t[e] + t.slice(e + 2), s = [...Array(o.length - 2).keys()].some((e) => i.has(o.slice(0, e + 2)) || r.includes(o.slice(0, e + 2)));
-			!a(o, t) && !r.includes(o) && !s && l(o, t, n);
+		let e = (e) => !a(e, t) && !r.includes(e) && !t.startsWith(e) && ![...Array(e.length - 2).keys()].some((t) => i.has(e.slice(0, t + 2)) || r.includes(e.slice(0, t + 2)));
+		for (let r = 1; r + 1 < t.length; r++) {
+			if (t[r] === t[r + 1]) continue;
+			let i = t.slice(0, r) + t[r + 1] + t[r] + t.slice(r + 2);
+			e(i) && l(i, t, n, !0);
+		}
+		if (t.length >= 5) for (let r = 1; r + 1 < t.length; r++) {
+			let i = t.slice(0, r) + t.slice(r + 1);
+			e(i) && l(i, t, n, !0);
 		}
 	}
 	return s;
@@ -843,7 +850,7 @@ function oe(e) {
 			return z(e, t, n, r) || oe(e, n), !0;
 		}
 		let u = e.state.doc.lineAt(t), d = e.state.doc.sliceString(Math.max(u.from, t - ie), t) + n, f, p = () => f ??= g(e, t), m = (e) => t + n.length - e, h = (e) => r === e.auto && !e.visual, _ = (t, n) => !t.when || t.when(v(e, d.slice(0, d.length - n))), x = (t) => h(t) && y(t, p(), e), S = (e) => {
-			if (!e.plain || !d.endsWith(e.plain)) return !1;
+			if (!e.plain || !d.endsWith(e.plain) || e.typo && l.has(e.plain.toLowerCase())) return !1;
 			let t = d.length - e.plain.length;
 			return e.word && t > 0 && /[A-Za-z0-9]/.test(d[t - 1]) ? !1 : !ne(d, e.plain) && (i || !N(d, e.plain));
 		}, C = null;

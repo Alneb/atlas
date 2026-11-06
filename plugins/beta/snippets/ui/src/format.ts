@@ -83,6 +83,8 @@ export interface Compiled {
   shown: string;
   /** A short start or a typo of another trigger (`mfr`, `iitn`): fires, but is never offered in the list. */
   alias?: boolean;
+  /** A misspelling made for a command (`lamda`): never fires where it spells a word of the dictionaries (`range`). */
+  typo?: boolean;
   /** The option it belongs to, if any (its id). */
   option?: string;
   /** What Settings switches it by: its file, its trigger, its places. */
@@ -203,18 +205,18 @@ export function compileAll(files: { source: string; entries: Entry[] }[], switch
  *  trigger shares and no command or trigger already is (`mfr`, `mfra`): the engine holds such a start back while the
  *  keys still spell the full one, so typing it out whole gives the same. Text triggers get none (words collide). */
 /** A command of a `commands` entry (`alpha`) also typed by its unshared starts (`alp`, `alph`: as `abbreviations`) and
- *  with two neighbouring letters swapped after the first (`alpah`, `lambda` as `lmabda`), when nothing else is so
- *  spelled: each gives the command, its backslash included. */
+ *  with two neighbouring letters swapped after the first (`alpah`, `lambda` as `lmabda`) or, in a name of five letters
+ *  or more, one inside it dropped (`lamda`), when nothing else is so spelled: each gives the command, its backslash included. */
 export function commandShortcuts(commands: { name: string; source: string }[], snippets: Compiled[], known: Set<string>): Compiled[] {
   const names = commands.map((c) => c.name).filter((n) => /^[A-Za-z]+$/.test(n));
   const taken = new Set([...known, ...snippets.flatMap((s) => (s.plain ? [s.plain] : []))]);
   const startsOther = (start: string, own: string) => names.some((o) => o !== own && o.startsWith(start)) || snippets.some((s) => s.math && !!s.plain && s.plain !== start && s.plain.startsWith(start));
-  const make = (plain: string, name: string, source: string): Compiled => ({
+  const make = (plain: string, name: string, source: string, typo: boolean): Compiled => ({
     plain, regex: null, body: `\\${name}`, auto: true, word: false, priority: -1, visual: false, text: false, code: false, langs: null, math: true,
-    display: true, inline: true, inTextArg: false, legacyStops: false, files: null, name: `\\${name}`, source, shown: plain, alias: true, key: "",
+    display: true, inline: true, inTextArg: false, legacyStops: false, files: null, name: `\\${name}`, source, shown: plain, alias: true, typo, key: "",
   });
   const out: Compiled[] = [], made = new Set<string>();
-  const add = (plain: string, name: string, source: string) => { if (!taken.has(plain) && !made.has(plain)) { made.add(plain); out.push(make(plain, name, source)); } };
+  const add = (plain: string, name: string, source: string, typo = false) => { if (!taken.has(plain) && !made.has(plain)) { made.add(plain); out.push(make(plain, name, source, typo)); } };
   for (const { name, source } of commands) {
     if (!/^[A-Za-z]{4,}$/.test(name)) continue;
     for (let n = name.length - 1; n >= 3; n--) {
@@ -222,12 +224,18 @@ export function commandShortcuts(commands: { name: string; source: string }[], s
       if (taken.has(start) || startsOther(start, name)) break;
       add(start, name, source);
     }
+    // not one that starts with a trigger or command of its own (`intfy`): it would hold `int` back
+    const free = (typo: string) => !startsOther(typo, name) && !names.includes(typo) && !name.startsWith(typo)
+      && ![...Array(typo.length - 2).keys()].some((k) => taken.has(typo.slice(0, k + 2)) || names.includes(typo.slice(0, k + 2)));
     for (let i = 1; i + 1 < name.length; i++) {
       if (name[i] === name[i + 1]) continue;
       const typo = name.slice(0, i) + name[i + 1] + name[i] + name.slice(i + 2);
-      // not one that starts with a trigger or command of its own (`intfy`): it would hold `int` back
-      const startsTaken = [...Array(typo.length - 2).keys()].some((k) => taken.has(typo.slice(0, k + 2)) || names.includes(typo.slice(0, k + 2)));
-      if (!startsOther(typo, name) && !names.includes(typo) && !startsTaken) add(typo, name, source);
+      if (free(typo)) add(typo, name, source, true);
+    }
+    // one letter dropped inside a longer name (`lamda`); the last one dropped is a start, above
+    if (name.length >= 5) for (let i = 1; i + 1 < name.length; i++) {
+      const typo = name.slice(0, i) + name.slice(i + 1);
+      if (free(typo)) add(typo, name, source, true);
     }
   }
   return out;

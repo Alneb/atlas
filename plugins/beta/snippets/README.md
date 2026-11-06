@@ -39,6 +39,9 @@ run in the page, with what a plugin may do.
 - **A longer trigger.** `kV` waits for the next key in case it is `kVA`.
 - **An ordinary word.** `spin` holds `pi`, but while the letters typed still start a known word nothing fires, and a word
   that completes stays as typed. Any other key releases what was held: `kpi` is `k\pi`, `spi+` is `s\pi+`.
+- **A misspelt command that is a word.** A command is also typed misspelt: two neighbouring letters swapped (`alpah`)
+  or, in a name of five letters or more, one inside dropped (`lamda`), when nothing else is so spelled. Such a
+  misspelling never fires where it is a word of the dictionaries: `range` stays `range`, not `\rangle`.
 
 In math, a trigger typed from its first letter is meant: `ket`, `frac`, `ee`, `cdot` fire on their last letter, with no
 Space. It waits only when the snippets themselves make something longer from it (`the` while `theta` may follow). A

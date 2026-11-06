@@ -204,6 +204,25 @@ test("a command is also typed by its unshared starts and with two neighbouring l
   expect(body("thet")).toBe("\\theta");
 });
 
+test("a longer command is also typed with one letter inside it dropped, where nothing else is so spelled", () => {
+  const set = compileAll([{ source: "s.js", entries: [builders.commands(["lambda", "alpha", "sigma", "sigmaz", "beta"])] }]).snippets;
+  const body = (p: string) => set.find((s) => s.plain === p)?.body;
+  expect(body("lamda")).toBe("\\lambda");
+  expect(body("lmbda")).toBe("\\lambda");
+  expect(body("apha")).toBe("\\alpha");
+  expect(body("bta")).toBeUndefined(); // four letters: too short to guess
+  expect(body("sigm")).toBeUndefined(); // a start of sigma itself
+  expect(body("sima")).toBe("\\sigma");
+});
+
+test("a misspelt command becomes the command, but not where the misspelling is a word", async ({ page }) => {
+  await page.request.put("/api/file", { headers: H, data: { path: ".atlas/snippets/zz-typo.js", text: 'export default ({ commands }) => [commands(["lambda", "rangle"])];\n' } });
+  const last = await math(page, "typo", "lamda x ");
+  await expect(last).toHaveText("$\\lambda x $");
+  await page.keyboard.type("range ");
+  await expect(last).toHaveText("$\\lambda x range $");
+});
+
 test("a trigger typed from its first letter fires at once; Space after it adds nothing; Undo leaves the trigger; ^ takes no space before it", async ({ page }) => {
   await page.request.put("/api/file", { headers: H, data: { path: ".atlas/snippets/zz-now.js", text: 'export default ({ math }) => [math("zfrac", "\\\\frac{$1}{$2}$0"), math("zket", "\\\\ket{$1} $0")];\n' } });
   const last = await math(page, "now", "zfrac a");

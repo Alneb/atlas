@@ -260,6 +260,7 @@ export function makeEngine(atlas: PluginApi) {
     const usable = (s: Compiled) => kind(s) && fits(s, here(), view);
     const plainHit = (s: Compiled) => {
       if (!s.plain || !before.endsWith(s.plain)) return false;
+      if (s.typo && DICT.has(s.plain.toLowerCase())) return false; // `range` is a word before it is \rangle misspelt
       const start = before.length - s.plain.length;
       if (s.word && start > 0 && /[A-Za-z0-9]/.test(before[start - 1])) return false;
       return !cutsCommand(before, s.plain) && (plainly || !cutsWord(before, s.plain));
