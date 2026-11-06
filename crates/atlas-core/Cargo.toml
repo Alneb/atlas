@@ -49,6 +49,9 @@ djvu-rs = { version = "0.43", default-features = false, features = ["std", "pdf"
 # JPEG XL thumbnails (src/thumbs.rs): pure Rust, so the phone's build needs no C either
 jxl-oxide = "0.12"
 reqwest = { workspace = true, features = ["blocking", "rustls-tls", "stream"] }
+# every client's TLS (tls_chain.rs): reqwest's rustls with a verifier that fetches an intermediate a server left out
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12", "logging"] }
+webpki-roots = "1"
 # server mode's sign-in (auth.rs): the password's Argon2id hash, SHA-256 of sessions and tokens
 argon2 = "0.5"
 sha2 = "0.10"

@@ -26,7 +26,7 @@ pub async fn check(url: &str) -> bool {
     if !(url.starts_with("http://") || url.starts_with("https://")) {
         return false;
     }
-    let Ok(client) = reqwest::Client::builder().timeout(std::time::Duration::from_secs(5)).user_agent(concat!("Mozilla/5.0 (X11; Linux x86_64) Atlas/", env!("CARGO_PKG_VERSION"))).build() else {
+    let Ok(client) = reqwest::Client::builder().use_preconfigured_tls(crate::tls_chain::config()).timeout(std::time::Duration::from_secs(5)).user_agent(concat!("Mozilla/5.0 (X11; Linux x86_64) Atlas/", env!("CARGO_PKG_VERSION"))).build() else {
         return false;
     };
     match client.get(url).send().await {

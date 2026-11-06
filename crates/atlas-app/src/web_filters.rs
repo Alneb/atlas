@@ -60,7 +60,7 @@ fn list_text(url: &str, dir: &Path, fetch: &dyn Fn(&str) -> Result<String>) -> (
 }
 
 fn http_get(url: &str) -> Result<String> {
-    let res = reqwest::blocking::Client::builder()
+    let res = reqwest::blocking::Client::builder().use_preconfigured_tls(atlas_core::tls_chain::config())
         .timeout(Duration::from_secs(60))
         .user_agent(concat!("Atlas/", env!("CARGO_PKG_VERSION")))
         .build()

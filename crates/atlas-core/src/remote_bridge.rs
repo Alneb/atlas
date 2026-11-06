@@ -40,7 +40,7 @@ fn client() -> &'static reqwest::Client {
     // a dead network must fail fast, not hang every save behind it until TCP gives up (minutes): the page holds its
     // edits for the mirror meanwhile (Editor.svelte)
     C.get_or_init(|| {
-        reqwest::Client::builder()
+        reqwest::Client::builder().use_preconfigured_tls(crate::tls_chain::config())
             .redirect(reqwest::redirect::Policy::none())
             .connect_timeout(std::time::Duration::from_secs(6))
             // idle, not total: a total deadline cut off every answer streamed for longer (a film, a big PDF)

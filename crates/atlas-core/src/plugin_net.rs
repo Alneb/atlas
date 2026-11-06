@@ -210,7 +210,7 @@ pub fn fetch(root: &Path, secrets: &Store, id: &str, req: &FetchRequest) -> Resu
     // (it drops only Authorization and Cookie): then a redirect may not leave the host asked
     let carries_secret = req.headers.values().chain(req.form.iter().flat_map(|f| f.values())).any(|v| !matches!(v, HeaderValue::Text(_)));
     let first_host = url.host_str().unwrap_or_default().to_ascii_lowercase();
-    let client = reqwest::blocking::Client::builder()
+    let client = reqwest::blocking::Client::builder().use_preconfigured_tls(crate::tls_chain::config())
         .timeout(Duration::from_secs(req.timeout_secs.unwrap_or(DEFAULT_TIMEOUT).clamp(1, MAX_TIMEOUT)))
         .user_agent(concat!("Atlas/", env!("CARGO_PKG_VERSION"), " (plugin)"))
         // a redirect is followed only to a host the plugin may reach: an allowed host cannot hand it on to another

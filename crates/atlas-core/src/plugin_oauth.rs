@@ -161,7 +161,7 @@ fn secret_of(name: &str) -> Result<String> {
 }
 
 fn client() -> Result<reqwest::blocking::Client> {
-    reqwest::blocking::Client::builder()
+    reqwest::blocking::Client::builder().use_preconfigured_tls(crate::tls_chain::config())
         .timeout(Duration::from_secs(20))
         .user_agent(concat!("Atlas/", env!("CARGO_PKG_VERSION"), " (plugin sign-in)"))
         .redirect(reqwest::redirect::Policy::none())

@@ -290,7 +290,7 @@ impl Server {
         if let Some(c) = CLIENT.get() {
             h.insert(atlas_core::auth::CLIENT_HEADER, reqwest::header::HeaderValue::from_static(c));
         }
-        reqwest::Client::builder().timeout(Duration::from_secs(40)).default_headers(h).build().ok()
+        reqwest::Client::builder().use_preconfigured_tls(atlas_core::tls_chain::config()).timeout(Duration::from_secs(40)).default_headers(h).build().ok()
     }
 
     pub(crate) async fn get(&self, path: &str) -> Result<Value> {

@@ -175,7 +175,7 @@ async fn touch(store: &Store, host: &str) -> Result<()> {
 async fn touch_at(store: &Store, host: &str, address: &str) -> Result<()> {
     let url = reqwest::Url::parse(address).map_err(|e| crate::Error::BadRequest(e.to_string()))?;
     let Some(cookie) = cookie_header(store, &url)? else { return Ok(()) };
-    let client = reqwest::Client::builder().redirect(reqwest::redirect::Policy::none()).timeout(std::time::Duration::from_secs(20)).build().map_err(|e| crate::Error::Other(e.into()))?;
+    let client = reqwest::Client::builder().use_preconfigured_tls(crate::tls_chain::config()).redirect(reqwest::redirect::Policy::none()).timeout(std::time::Duration::from_secs(20)).build().map_err(|e| crate::Error::Other(e.into()))?;
     let res = client.get(url.clone()).header(reqwest::header::COOKIE, cookie).send().await.map_err(|e| crate::Error::Other(e.into()))?;
     let status = res.status().as_u16();
     let mut headers = BTreeMap::new();

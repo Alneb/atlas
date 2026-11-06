@@ -123,7 +123,7 @@ impl Media {
 fn client() -> &'static reqwest::Client {
     static C: std::sync::OnceLock<reqwest::Client> = std::sync::OnceLock::new();
     C.get_or_init(|| {
-        reqwest::Client::builder()
+        reqwest::Client::builder().use_preconfigured_tls(crate::tls_chain::config())
             .user_agent(concat!("Atlas/", env!("CARGO_PKG_VERSION"), " (plugin media)"))
             .connect_timeout(Duration::from_secs(15))
             .redirect(reqwest::redirect::Policy::none()) // a redirect is a sign-in in front: said, never followed

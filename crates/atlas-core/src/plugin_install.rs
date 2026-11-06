@@ -230,7 +230,7 @@ fn unpack(archive: &Path, work: &Path) -> Result<()> {
 
 /// Fetches `url` into `to` (redirects followed: a release's `latest/download/…` address is one).
 fn download(url: &str, to: &Path) -> Result<()> {
-    let client = reqwest::blocking::Client::builder()
+    let client = reqwest::blocking::Client::builder().use_preconfigured_tls(crate::tls_chain::config())
         .user_agent(concat!("atlas/", env!("CARGO_PKG_VERSION")))
         .timeout(std::time::Duration::from_secs(300))
         .build()

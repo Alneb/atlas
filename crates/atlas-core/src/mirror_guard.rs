@@ -515,7 +515,7 @@ impl Remote {
             static CLIENT: std::sync::OnceLock<std::result::Result<reqwest::blocking::Client, String>> = std::sync::OnceLock::new();
             let client = CLIENT
                 .get_or_init(|| {
-                    reqwest::blocking::Client::builder()
+                    reqwest::blocking::Client::builder().use_preconfigured_tls(crate::tls_chain::config())
                         .redirect(reqwest::redirect::Policy::none())
                         .connect_timeout(Duration::from_secs(3))
                         .timeout(Duration::from_secs(8))
