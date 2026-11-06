@@ -4,7 +4,7 @@
 //! The content rides with the leases (step 7): a write reaches the other copy without Syncthing.
 #![allow(clippy::disallowed_methods)] // a test writes its fixtures (and plays Syncthing) directly
 use atlas_core::auth::{hash_password, Auth, AuthMode, ServerSettings};
-use atlas_core::mirror_guard::{LeaseGuard, Remote};
+use atlas_core::mirror_guard::{Bytes, LeaseGuard, Remote};
 use atlas_core::server::{serve_on, Listen};
 use atlas_core::service_signin::{keep, Cookie};
 use atlas_core::{vault_write, Workspace};
@@ -30,7 +30,7 @@ async fn the_mirror_carries_writes_both_ways_without_syncthing() {
     let store = atlas_core::secrets::Store::in_dir(secrets.path(), ws.root());
     let cookie = Cookie { name: name.into(), value: value.into(), domain: "127.0.0.1".into(), host_only: true, path: "/".into(), secure: false, expires: None };
     keep(&store, "127.0.0.1", vec![cookie]).unwrap();
-    let remote = Remote { mirror: format!("{base}/"), holder: "desktop".into(), store };
+    let remote = Remote { mirror: format!("{base}/"), holder: "desktop".into(), store, bytes: Bytes::of(desktop.path()) };
     let guard = Arc::new(LeaseGuard::new(ws.root(), remote));
     ws.set_write_guard(guard.clone());
 

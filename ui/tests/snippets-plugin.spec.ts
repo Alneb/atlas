@@ -1,6 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import { convert, renumber } from "../../plugins/beta/snippets/ui/src/convert";
-import { builders, compileAll, keyOf, type Compiled, type Entry } from "../../plugins/beta/snippets/ui/src/format";
+import { builders, compileAll, keyOf, preview, type Compiled, type Entry } from "../../plugins/beta/snippets/ui/src/format";
 import { options } from "../../plugins/beta/snippets/ui/src/options";
 import * as std from "../../plugins/beta/snippets/ui/src/std";
 // @ts-expect-error: a plain JavaScript module, the file a vault gets
@@ -85,6 +85,14 @@ test("a module of the new format works beside the old file: a place, a computed 
   await expect(code).toContainText("x = 1 print()");
 });
 
+test("a snippet's preview in Settings: stops as boxes, no box for the end, an environment named", () => {
+  expect(preview("\\mathbb{$1}$0")).toBe("\\mathbb{\\square }");
+  expect(preview("\\begin{$1} $2 \\end{$1}")).toBe("\\begin{matrix} \\square  \\end{matrix}");
+  expect(preview("\\frac{${1:a}}{$2}$0")).toBe("\\frac{a}{\\square }");
+  expect(preview("\\space\\text{$1} $0")).toBe("\\space\\text{\\square }");
+  expect(preview("${VISUAL}^2")).toBe("x^2");
+});
+
 test("the Settings page lists the snippets and offers the conversion", async ({ page }) => {
   await page.goto("/");
   await page.getByText("Finish the GW notes.").waitFor();
@@ -95,6 +103,17 @@ test("the Settings page lists the snippets and offers the conversion", async ({ 
   await page.getByLabel("Search snippets").fill("frac");
   await expect(page.getByText("\\frac{$0}{$1}$2").first()).toBeVisible();
   await expect(page.getByLabel(/^Snippet /).first()).toBeChecked();
+  // every snippet reachable without searching: a page at a time
+  await page.getByLabel("Search snippets").fill("");
+  const rows = page.getByLabel(/^Snippet /);
+  const first = await rows.count();
+  const more = page.getByRole("button", { name: /^Show \d+ more of / });
+  if (await more.count()) { await more.click(); await expect.poll(() => rows.count()).toBeGreaterThan(first); }
+  for (const theme of ["light", "dark"]) {
+    await page.evaluate((t) => document.documentElement.setAttribute("data-theme", t), theme);
+    await page.getByLabel("Search snippets").fill("");
+    await page.getByLabel("Search snippets").locator("..").screenshot({ path: `../target/snip/snippets-list-${theme}.png` });
+  }
 });
 
 test("the Try box shows what the vault's snippets make of typed keys, by place", async ({ page }) => {

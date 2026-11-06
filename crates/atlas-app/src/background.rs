@@ -190,6 +190,19 @@ impl Shell {
         }
     }
 
+    /// The window took the focus: the notices waiting in the tray are seen.
+    pub fn looked_at(&self) {
+        let changed = {
+            let mut s = self.state.lock().unwrap();
+            let had = s.model.attention();
+            s.model.mark_read();
+            had
+        };
+        if changed {
+            self.redraw();
+        }
+    }
+
     /// Every notice of this process (notify.rs `on_notice`): one nobody looked at waits in the tray.
     pub fn notice(&self, n: &atlas_core::api::Notice, looked_at: bool) {
         if looked_at {

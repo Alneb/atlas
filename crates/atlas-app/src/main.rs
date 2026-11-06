@@ -516,12 +516,19 @@ fn main() -> anyhow::Result<()> {
             shell.watch_sleep();
             Ok(())
         })
-        .on_window_event(|window, event| {
-            if let (MAIN_WINDOW, tauri::WindowEvent::CloseRequested { api, .. }) = (window.label(), event) {
+        .on_window_event(|window, event| match (window.label(), event) {
+            (MAIN_WINDOW, tauri::WindowEvent::CloseRequested { api, .. }) => {
                 if SHELL.get().is_some_and(|s| s.close_requested()) {
                     api.prevent_close();
                 }
             }
+            // looking at Atlas, however it came forward (the taskbar, Alt+Tab, a click), is seeing its notices
+            (MAIN_WINDOW, tauri::WindowEvent::Focused(true)) => {
+                if let Some(s) = SHELL.get() {
+                    s.looked_at();
+                }
+            }
+            _ => {}
         })
         .build(context())?
         .run(move |_app, event| match event {

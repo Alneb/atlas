@@ -122,7 +122,15 @@ function compileOne(t: Trigger, e: Extract<Entry, { type: "snippet" }>, vars: Re
 }
 
 /** A body as a formula to show: stops give way to their placeholders. */
-export const preview = (body: string) => body.replace(/\$\{VISUAL\}/g, "x").replace(/\$\{\d+:((?:[^{}]|\{[^{}]*\})*)\}/g, "$1").replace(/\$\{\d+\}|\$\d+/g, "\\square ");
+/** A snippet's body as a formula to draw in Settings: a stop's default shown, an empty stop a box, the end stop (`$0`)
+ *  nothing, and a stop naming an environment (`\begin{$1}`) a real one, so the preview renders instead of erring. */
+export const preview = (body: string) => body
+  .replace(/\$\{VISUAL\}/g, "x")
+  .replace(/\\(begin|end)\{(?:\$\{\d+(?::[^{}]*)?\}|\$\d+)\}/g, "\\$1{matrix}")
+  .replace(/\$\{\d+:((?:[^{}]|\{[^{}]*\})*)\}/g, "$1")
+  .replace(/\$\{0\}|\$0(?!\d)/g, "")
+  .replace(/\$\{\d+\}|\$\d+/g, "\\square ")
+  .trim();
 
 export interface Loaded { snippets: Compiled[]; all: Compiled[]; options: OptionInfo[]; known: string[]; words: string[]; problems: Problem[] }
 export interface Problem { source: string; what: string }

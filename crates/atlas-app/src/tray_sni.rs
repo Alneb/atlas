@@ -44,18 +44,12 @@ impl ksni::Tray for Sni {
     fn icon_name(&self) -> String {
         String::new() // the pixmap: an installed theme icon named atlas may be older or missing (AppImage)
     }
+    /// Unseen notices: the dotted icon, steady. `NeedsAttention` would make Plasma pulse it for as long as they wait.
     fn icon_pixmap(&self) -> Vec<ksni::Icon> {
-        vec![self.icons.plain.clone()]
-    }
-    fn attention_icon_pixmap(&self) -> Vec<ksni::Icon> {
-        vec![self.icons.dotted.clone()]
+        vec![if self.model.attention() { self.icons.dotted.clone() } else { self.icons.plain.clone() }]
     }
     fn status(&self) -> ksni::Status {
-        if self.model.attention() {
-            ksni::Status::NeedsAttention
-        } else {
-            ksni::Status::Active
-        }
+        ksni::Status::Active
     }
     fn tool_tip(&self) -> ksni::ToolTip {
         ksni::ToolTip { title: self.model.tooltip(), ..Default::default() }

@@ -6,7 +6,7 @@ import { switchedOf, type Read } from "./load";
 import { WORDS } from "./words";
 
 const MATH = { kind: "math", form: "inline", textArg: false } as const;
-const SHOWN = 150; // rows drawn at once: the search finds the rest
+const PAGE = 150; // rows drawn at once; "Show more" draws the next page
 
 const el = <K extends keyof HTMLElementTagNameMap>(tag: K, style = "", text?: string): HTMLElementTagNameMap[K] => {
   const e = document.createElement(tag);
@@ -166,33 +166,40 @@ export function mountSection(host: HTMLElement, o: { atlas: PluginApi; engine: R
     const search = el("input", "width:100%;box-sizing:border-box;margin-bottom:8px;");
     search.placeholder = "Search triggers, names, what they give, files…";
     search.setAttribute("aria-label", "Search snippets");
-    const table = el("div", "display:grid;grid-template-columns:auto minmax(70px,1fr) minmax(0,2.4fr) auto;gap:4px 12px;align-items:center;");
+    // switch · trigger · the drawn formula (a fixed width, so every row's source starts at the same place) · source · where
+    const table = el("div", "display:grid;grid-template-columns:auto minmax(70px,1fr) 9em minmax(0,2.4fr) auto;gap:4px 12px;align-items:center;");
+    let shown = PAGE;
     const fill = () => {
       const q = search.value.trim().toLowerCase();
       const hits = read.all.filter((s) => !q || s.shown.toLowerCase().includes(q) || s.name?.toLowerCase().includes(q) || s.source.toLowerCase().includes(q)
         || (s.option && optionTitle.get(s.option)?.toLowerCase().includes(q)) || (typeof s.body === "string" && s.body.toLowerCase().includes(q)));
       table.replaceChildren();
-      for (const s of hits.slice(0, SHOWN)) {
+      for (const s of hits.slice(0, shown)) {
         const inOff = !!s.option && offOptions.has(s.option);
         const box = toggle(`Snippet ${s.shown}`, !switched.has(s.key), s.key);
         if (inOff) { box.disabled = true; box.title = `Off with its option, ${optionTitle.get(s.option!)}`; }
-        const what = el("div", "min-width:0;overflow:hidden;");
+        const drawn = el("div", "min-width:0;overflow:hidden;white-space:nowrap;");
         const body = typeof s.body === "string" ? s.body : null;
         if (body && s.math && !s.regex) {
-          const math = el("span", "display:inline-block;max-width:100%;overflow:hidden;vertical-align:middle;");
-          try { o.atlas.editor.drawMath(math, preview(body), false); } catch { math.textContent = body; }
-          what.append(math);
+          // a preview that cannot be drawn is left blank, never a red error: the source beside it says what it gives
+          try { o.atlas.editor.drawMath(drawn, preview(body), false); } catch { drawn.replaceChildren(); }
+          if (drawn.querySelector(".katex-error")) drawn.replaceChildren();
         }
+        const what = el("div", "min-width:0;overflow:hidden;");
         const detail = s.name ?? (body ? body.replace(/\s+/g, " ") : "(computed)");
-        what.append(el("code", `${MUTED}margin-left:8px;white-space:nowrap;`, detail));
+        what.append(el("code", `${MUTED}white-space:nowrap;`, detail));
         if (s.note) what.append(el("span", `${MUTED}margin-left:8px;`, s.note));
         const where = el("div", `${MUTED}white-space:nowrap;text-align:right;`, `${s.auto ? "" : "Tab · "}${placeWord(s)} · ${s.option ? optionTitle.get(s.option) : s.source}`);
         const trig = el("code", `color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;${inOff || switched.has(s.key) ? "opacity:.5;text-decoration:line-through;" : ""}`, s.shown);
-        table.append(box, trig, what, where);
+        table.append(box, trig, drawn, what, where);
       }
-      if (hits.length > SHOWN) table.append(el("div", `${MUTED}grid-column:1/-1;`, `and ${hits.length - SHOWN} more: search to find them.`));
+      if (hits.length > shown) {
+        const more = el("button", "grid-column:1/-1;justify-self:start;", `Show ${Math.min(PAGE, hits.length - shown)} more of ${hits.length - shown}`);
+        more.onclick = () => { shown += PAGE; fill(); };
+        table.append(more);
+      }
     };
-    search.oninput = fill;
+    search.oninput = () => { shown = PAGE; fill(); };
     fill();
     list.append(search, table);
   };

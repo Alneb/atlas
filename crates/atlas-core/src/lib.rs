@@ -93,6 +93,7 @@ pub mod vault_write;
 pub(crate) mod vault_changes;
 pub mod vaults;
 pub mod today;
+pub mod tool_turns;
 pub mod typst_doc;
 pub mod views;
 pub mod walk;

@@ -482,6 +482,25 @@ pub struct Remote {
     pub mirror: String,
     pub holder: Holder,
     pub store: crate::secrets::Store,
+    pub bytes: Bytes,
+}
+
+/// Who moves a mirrored vault's bytes between this copy and the server's. The lease is the same either way.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Bytes {
+    /// No Syncthing here: the lease carries each write's content, a copy behind is pulled (step 7).
+    Mirror,
+    /// Syncthing shares this folder: it alone moves the bytes. Carrying them too makes two devices write every file
+    /// (the server from the lease, this one by hand), so Syncthing sees concurrent changes and leaves a conflict copy
+    /// of each binary — and a trash-then-move reaches the server as two writes Syncthing never saw here.
+    Syncthing,
+}
+
+impl Bytes {
+    /// By the folder's shape: Syncthing keeps a `.stfolder` marker at the root of every folder it shares.
+    pub fn of(root: &Path) -> Self {
+        if root.join(".stfolder").exists() { Self::Syncthing } else { Self::Mirror }
+    }
 }
 
 impl Remote {
@@ -530,7 +549,7 @@ impl LeaseLink for Remote {
         self.done_with(path, version, Carry::Nothing)
     }
     fn carries(&self) -> bool {
-        true
+        self.bytes == Bytes::Mirror
     }
     fn done_with(&self, path: &str, version: Option<ContentHash>, carry: Carry) {
         let carry = (carry != Carry::Nothing).then_some(carry);
@@ -575,7 +594,11 @@ pub fn mirror_of(root: &Path) -> Option<String> {
 pub fn install_for_mirror(ws: &crate::Workspace) {
     match mirror_of(ws.root()) {
         Some(mirror) => {
-            let link = Remote { mirror, holder: device_id(), store: crate::secrets::Store::for_vault(ws.root()) };
+            let bytes = Bytes::of(ws.root());
+            if bytes == Bytes::Syncthing {
+                eprintln!("atlas: mirror: {} is shared by Syncthing: writes take leases, Syncthing alone carries the files", ws.root().display());
+            }
+            let link = Remote { mirror, holder: device_id(), store: crate::secrets::Store::for_vault(ws.root()), bytes };
             let guard = Arc::new(LeaseGuard::new(ws.root(), link));
             ws.set_write_guard(guard.clone());
             catch_up_now_and_then(Arc::downgrade(&guard));
@@ -824,5 +847,24 @@ mod tests {
             let text = serde_json::to_string(&AnswerBody::from(a.clone())).unwrap();
             assert_eq!(serde_json::from_str::<AnswerBody>(&text).unwrap().answer().unwrap(), a, "{text}");
         }
+    }
+
+    #[test]
+    fn a_folder_syncthing_shares_is_not_carried_by_the_mirror_too() {
+        let (vault, secrets) = (tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap());
+        let remote = |root: &Path| Remote {
+            mirror: "http://127.0.0.1:9/".into(),
+            holder: "desktop".into(),
+            store: crate::secrets::Store::in_dir(secrets.path(), root),
+            bytes: Bytes::of(root),
+        };
+        assert!(remote(vault.path()).carries(), "no Syncthing: the lease carries the bytes");
+        std::fs::create_dir(vault.path().join(".stfolder")).unwrap();
+        let shared = remote(vault.path());
+        assert_eq!(shared.bytes, Bytes::Syncthing);
+        assert!(!shared.carries(), "Syncthing's folder: the lease carries none");
+        let guard = LeaseGuard::new(vault.path(), shared).quick();
+        assert_eq!(guard.catch_up(), 0, "and pulls none: nothing asked of the server");
+        assert!(!guard.pull("a.md", &Some(ContentHash::of(b"x"))));
     }
 }

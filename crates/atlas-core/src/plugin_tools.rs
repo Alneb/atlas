@@ -184,6 +184,7 @@ pub fn list(root: &Path, cfg: &Config) -> Vec<Tool> {
 
 /// Runs tool `name` of plugin `id` with the agent's `args`.
 pub async fn call(root: &Path, cfg: &Config, helpers: &Helpers, secrets: &Store, id: &str, name: &str, args: Value) -> Result<Value> {
+    let _turn = crate::tool_turns::take(root, id, name).await; // a round never runs twice at once
     if let Some(why) = crate::plugins::blocked(&crate::plugins::list(root), &cfg.plugins.off, id) {
         return Err(Error::BadRequest(format!("plugin {id} cannot run: {why}")));
     }
