@@ -88,6 +88,11 @@ zbus = "5"
 # RAR on the phone, which has no RAR program: libarchive compiled in (crates/atlas-rar)
 atlas-rar = { path = "../atlas-rar" }
 rquickjs = { version = "0.14", default-features = false, features = ["std", "bindgen"] }
+# the system Trash on macOS (Finder) and Windows (the Recycle Bin), platform/trash.rs; Linux has `gio trash`
+# and the clipboard's picture there (clipboard.rs; Linux reads it with wl-paste / xclip)
+[target.'cfg(any(target_os = "macos", windows))'.dependencies]
+trash = "5"
+arboard = { version = "3", default-features = false, features = ["image-data"] }
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_System_Threading", "Win32_System_Registry"] }
 # system notifications (notify.rs): toasts are WinRT; the same crate Tauri already brings in

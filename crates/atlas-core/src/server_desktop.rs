@@ -94,6 +94,21 @@ impl DesktopVaults {
         self.started.try_lock().is_ok_and(|s| s.contains_key(&name))
     }
 
+    /// The other local vaults on the list, started one after another a while after the window's own: the first switch to
+    /// one is then a page load, not a vault's start (its index, watcher and plugins). One that will not start, or that
+    /// another Atlas serves, is left for its first request to say why. A test's core starts nothing ahead.
+    pub(super) async fn start_ahead(self: Arc<Self>, after: std::time::Duration) {
+        if std::env::var_os("ATLAS_NO_SCHEDULE").is_some() {
+            return;
+        }
+        tokio::time::sleep(after).await;
+        self.refresh();
+        let names: Vec<String> = self.names.lock().unwrap_or_else(|e| e.into_inner()).iter().map(|(n, _)| n.clone()).collect();
+        for name in names {
+            let _ = self.router(&name).await;
+        }
+    }
+
     /// The vault's router, started now when this is its first request; else the answer that says why not (boxed: an
     /// answer is large, the router small).
     async fn router(self: &Arc<Self>, name: &str) -> Result<Router, Box<Response>> {

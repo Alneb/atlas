@@ -84,3 +84,28 @@ test("the lower bar's Spelling panel: the marked words with their fixes, words a
   await cell.click();
   await expect(panel.locator(".langs button.on")).toHaveText("English");
 });
+
+test("Settings → Spelling: the languages, the main one, and the words added by hand", async ({ page, request }) => {
+  await put(request, "notes/spell-d.md", "# Spell D\n\nA plain line.\n");
+  await page.goto("/");
+  await page.getByText("Finish the GW notes.").waitFor();
+  await openFile(page, "spell-d.md");
+  const cell = page.locator('.status [data-cell="spelling:spelling"]');
+  await expect(cell).toHaveText("EN ✓", { timeout: 20000 });
+  await cell.click();
+  await page.locator('[data-panel="spelling:spelling"]').getByRole("button", { name: "Spelling settings…" }).click();
+  const section = page.locator('[data-section="spelling/words"]');
+  await expect(section.locator("table button")).toContainText(["English"]);
+  await expect(section.locator("table button.on")).toHaveCount(1);
+  // a word added here is in the vault's words, and × takes it back
+  await section.getByLabel("A word to add").fill("Sénéchalz");
+  await section.getByRole("button", { name: "Add", exact: true }).click();
+  await expect(section.locator(".chip", { hasText: "Sénéchalz" })).toHaveCount(1);
+  expect((await (await request.get("/api/file?path=.atlas/spelling/words.md", { headers: H })).json()).text).toContain("Sénéchalz");
+  for (const theme of ["light", "dark"]) {
+    await page.evaluate((t) => document.documentElement.setAttribute("data-theme", t), theme);
+    await section.screenshot({ path: `../target/snip/spell-settings-${theme}.png` });
+  }
+  await section.getByRole("button", { name: "Remove Sénéchalz" }).click();
+  await expect(section.locator(".chip", { hasText: "Sénéchalz" })).toHaveCount(0);
+});

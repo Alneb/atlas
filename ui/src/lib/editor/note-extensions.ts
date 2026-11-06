@@ -5,6 +5,7 @@ import { basename, dirOf, shownName } from "../paths";
 import { renameTo } from "../rename-file";
 import { noteHtml } from "./big-html";
 import { attachFiles, takeFiles } from "../attach";
+import { closeDisplayMath } from "./display-math";
 import { wikilinkSource, slashSource, citeSource, citeApplies, taskSource, continueList, backspaceMarkup, taskShortForms, type TaskCompletion } from "./md-complete";
 import { taskIconEl } from "../task-complete";
 import { taskChips } from "./task-chips";
@@ -106,7 +107,7 @@ export function noteExtensions(path: string, viewRef: { view: EditorView | null 
     head: liveKeys,
     body: [
       markdown({ base: markdownLanguage, extensions: [...obsidianMarkdown, obsidianFolds, AnyTaskStatus], addKeymap: false, htmlTagLanguage: noteHtml() }),
-      Prec.high(keymap.of([{ key: "Enter", run: continueList }, { key: "Backspace", run: backspaceMarkup }])),
+      Prec.high(keymap.of([{ key: "Enter", run: (v) => closeDisplayMath(v) || continueList(v) }, { key: "Backspace", run: backspaceMarkup }])),
       taskShortForms,
       liveField,
       hoverSync(dir),

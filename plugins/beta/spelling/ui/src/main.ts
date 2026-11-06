@@ -12,7 +12,7 @@ import { isWrong } from "./judge";
 import { LETTERS, suggestions } from "../../../../../ui/src/lib/editor/spell-rank";
 import type { WordFreq } from "../../../../../ui/src/lib/editor/word-freq";
 import { addWord, parseWords, removeWord, WORDS_NOTE } from "./words";
-import { drawPanel, type Marked, type PanelModel } from "./panel";
+import { drawPanel, drawSettings, type Marked, type PanelModel } from "./panel";
 
 type Speller = ReturnType<typeof nspell>;
 /** word → [uses, notes using it], per language */
@@ -30,6 +30,7 @@ export async function register(atlas: PluginApi) {
   const chosen = chooseDictionaries(installed, setting("dictionaries"));
   const langs = [...chosen.keys()];
   const fallback = String(setting("language") || langs[0] || "en");
+  const NAMES: Record<string, string> = { en: "English", es: "Spanish", fr: "French", de: "German", it: "Italian", pt: "Portuguese", ca: "Catalan", nl: "Dutch" };
   if (!installed.length) atlas.toast("Spelling", "No Hunspell dictionary on this machine: only the vault's own words are known, so nothing is marked. Settings → Spelling names a folder.", "info");
 
   /** A language's dictionaries, loaded the first time a note in it is shown: null until they are there. */
@@ -122,7 +123,6 @@ export async function register(atlas: PluginApi) {
     guessLanguage(view.state.doc.sliceString(0, 20000), langs.length ? langs : [fallback], fallback, langProperty(view));
 
   // --- the bottom bar: the note's language and what is marked; a click opens the Spelling panel (panel.ts) ---------
-  const NAMES: Record<string, string> = { en: "English", es: "Spanish", fr: "French", de: "German" };
   let shown: EditorView | null = null;
   const cell = atlas.shell.statusItem({
     id: "spelling", text: "", title: "Spelling", panelWidth: 420,
@@ -162,6 +162,25 @@ export async function register(atlas: PluginApi) {
     await atlas.writeText(WORDS_NOTE, change(text));
     await readAccepted();
   };
+  const learnedIn = (lang: string) => [...(counts.get(lang)?.values() ?? [])].filter(([u, n]) => (u >= minUses() && n >= minNotes()) || u >= 8).length;
+
+  // --- Settings → Spelling: the languages, the main one, your words (panel.ts drawSettings) ---------------------------
+  atlas.plugin.registerSettingsSection?.({ id: "words", title: "Languages and words", place: "before",
+    hint: "What this machine's dictionaries give and the words you added; the form below has the finer settings.",
+    mount: (host, ctx) => drawSettings(host, () => {
+      const used = new Set([...chosen.values()].flat());
+      return {
+        main: String(ctx.settings().language || fallback),
+        langs: langs.map((l) => ({ lang: l, name: NAMES[l] ?? l, dictionaries: chosen.get(l)!.join(" + "), learned: learnedIn(l),
+          others: installed.filter((d) => !used.has(d) && d.split(/[_-]/)[0] === l) })),
+        added: [...accepted].sort((a, b) => a.localeCompare(b)),
+      };
+    }, {
+      setMain: async (l) => { await ctx.save({ language: l }); },
+      add: (w) => editWords((t) => addWord(t, w)),
+      remove: (w) => editWords((t) => removeWord(t, w)),
+    }),
+  });
   const actions = (view: EditorView, close: () => void) => ({
     // a mail being written is not a file: its language stays guessed
     setLang: (l: string) => {
@@ -180,7 +199,7 @@ export async function register(atlas: PluginApi) {
     if (!view.hasFocus && shown && shown !== view && views.has(shown)) return;
     shown = view;
     const loading = spellers.get(lang) === "loading", dicts = chosen.get(lang)?.join(" + ") ?? "no dictionary";
-    const learned = [...(counts.get(lang)?.values() ?? [])].filter(([u, n]) => (u >= minUses() && n >= minNotes()) || u >= 8).length;
+    const learned = learnedIn(lang);
     cell.set(`${lang.toUpperCase()} ${loading ? "…" : marked ? `· ${marked} misspelled` : "✓"}`,
       `Spelling: ${NAMES[lang] ?? lang} (${dicts}), ${langProperty(view) ? "from the note's lang: property" : "guessed from its words"}. `
       + `${marked} word${marked === 1 ? "" : "s"} marked on screen; ${learned} words learned from the vault, ${accepted.size} added by you. Click for the panel: the language, the marked words and their fixes, your words.`);

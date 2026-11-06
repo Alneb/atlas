@@ -6,7 +6,14 @@ use grep_regex::{RegexMatcher, RegexMatcherBuilder};
 use grep_searcher::{sinks::UTF8, BinaryDetection, Searcher, SearcherBuilder};
 use std::path::Path;
 
-pub const MAX_RESULTS: usize = 200;
+/// Names listed at most (the pane shows them a page at a time).
+pub const MAX_NAMES: usize = 1000;
+/// Files with matching lines listed at most, best first; each shows its first [`LINES_PER_FILE`] lines.
+pub const MAX_FILES: usize = 500;
+/// Matching lines shown per file; `counts` has them all.
+pub const LINES_PER_FILE: usize = 5;
+/// A file's matches are counted up to this (a log full of the word ranks no higher than one with this many).
+const MAX_COUNT: usize = 999;
 
 /// Line-search options (the Search pane's Aa / whole-word / .* toggles).
 #[derive(Debug, Clone, Copy, Default)]
@@ -31,38 +38,54 @@ pub fn search_with(root: &Path, cfg: &Config, q: &str, o: Opts) -> SearchResults
     }
     // `tag:physics/dmft` lists the notes with that tag (or one nested under it) — tags.rs
     if let Some(tag) = q.trim().strip_prefix("tag:") {
-        return SearchResults { files: crate::tags::notes(root, cfg, tag), lines: Vec::new() };
+        return SearchResults { files: crate::tags::notes(root, cfg, tag), ..Default::default() };
     }
     // one walk for both the lines and the names
     let walked: Vec<(std::path::PathBuf, String)> = walk::files(root, cfg).filter(|(_, rel)| o.agent || !cfg.is_agent_file(rel)).collect();
     crate::pdf_text::catch_up(root, cfg);
     if o.pdf {
-        return SearchResults { files: Vec::new(), lines: pdf_lines(root, cfg, q, o, &walked) };
+        let mut out = SearchResults::default();
+        for f in pdf_lines(root, cfg, q, o, &walked).into_iter().take(MAX_FILES) {
+            out.counts.insert(f.rel, f.count as u32);
+            out.lines.extend(f.lines);
+        }
+        return out;
     }
-    // notes first (a stable sort keeps the walk's order within each), so their hits lead and fill the cap first
-    let mut texts: Vec<_> = walked.iter().filter(|&(abs, _)| small(abs)).cloned().collect();
-    texts.sort_by_key(|(_, rel)| !rel.ends_with(".md"));
-    // the PDFs' text read at the same time as the files, listed after their hits; the papers keep up to a quarter of
-    // the results, so a common word in notes cannot crowd them out
-    let (mut lines, pdf) = std::thread::scope(|s| {
-        let pdf = s.spawn(|| pdf_lines(root, cfg, q, o, &walked));
-        (lines_over(q, o, texts.into_iter(), true), pdf.join().unwrap_or_default())
-    });
-    let pdf: Vec<LineHit> = pdf.into_iter().take(MAX_RESULTS / 4).collect();
-    lines.truncate(MAX_RESULTS - pdf.len());
-    lines.extend(pdf);
-    // a hit in a hidden note is its thing's (a drawing's note text → the drawing; companion::thing_of), as the names are;
-    // the notes' properties from the index (no note read for them; the watcher keeps it current without a walk)
     let index = crate::links::snapshot(root, cfg);
     let props = |rel: &str| index.parsed.get(rel).and_then(|p| p.props_whole());
-    let mut things = std::collections::HashMap::new();
-    for l in &mut lines {
-        let thing = things.entry(l.path.clone()).or_insert_with(|| crate::companion::thing_in(root, &l.path, props).filter(|t| !t.ends_with(".md")));
-        if let Some(t) = thing {
-            l.path = t.clone();
-        }
+    let names = if o.regex { Vec::new() } else { match_names(root, walked.iter().map(|(_, rel)| rel.clone()), q, props) };
+    // every file read (on several threads), the PDFs' text at the same time; then ranked, not in the walk's order
+    let texts = walked.iter().filter(|&(abs, _)| small(abs)).cloned();
+    let (found, pdf) = std::thread::scope(|s| {
+        let pdf = s.spawn(|| pdf_lines(root, cfg, q, o, &walked));
+        (file_lines(q, o, texts, true), pdf.join().unwrap_or_default())
+    });
+    let named: std::collections::HashSet<&str> = names.iter().map(String::as_str).collect();
+    let mut ranked: Vec<(Rank, FileLines)> = found.into_iter().map(|f| (rank(root, &f, &named), f)).collect();
+    ranked.sort_by_key(|r| r.0);
+    let mut out = SearchResults { files: Vec::new(), lines: Vec::new(), counts: Default::default() };
+    // a hit in a hidden note is its thing's (a drawing's note text → the drawing; companion::thing_of), as the names are;
+    // the notes' properties from the index (no note read for them; the watcher keeps it current without a walk)
+    for (_, f) in ranked.into_iter().take(MAX_FILES) {
+        let path = crate::companion::thing_in(root, &f.rel, props).filter(|t| !t.ends_with(".md")).unwrap_or(f.rel);
+        *out.counts.entry(path.clone()).or_default() += f.count as u32;
+        out.lines.extend(f.lines.into_iter().map(|l| LineHit { path: path.clone(), ..l }));
     }
-    SearchResults { files: if o.regex { Vec::new() } else { match_names(root, walked.into_iter().map(|(_, rel)| rel), q, props) }, lines }
+    // the papers after the notes, a page of them at most
+    for f in pdf.into_iter().take(MAX_FILES / 4) {
+        out.counts.insert(f.rel.clone(), f.count as u32);
+        out.lines.extend(f.lines);
+    }
+    out.files = names;
+    out
+}
+
+/// How a file with matching lines ranks (smaller first): its name matches the query too; a heading or the title says
+/// it; a note; more matches (up to [`MAX_COUNT`]); the newest. So a note about the thing leads, not the walk's order.
+type Rank = (bool, bool, bool, std::cmp::Reverse<usize>, std::cmp::Reverse<std::time::SystemTime>);
+fn rank(root: &Path, f: &FileLines, named: &std::collections::HashSet<&str>) -> Rank {
+    let modified = std::fs::metadata(root.join(&f.rel)).and_then(|m| m.modified()).unwrap_or(std::time::UNIX_EPOCH);
+    (!named.contains(f.rel.as_str()), !f.titled, !f.rel.ends_with(".md"), std::cmp::Reverse(f.count), std::cmp::Reverse(modified))
 }
 
 /// Only the names [`search_with`] would list, without reading a file: what the Search pane shows at once, while the
@@ -79,15 +102,23 @@ pub fn names_with(root: &Path, cfg: &Config, q: &str, o: Opts) -> Vec<String> {
     match_names(root, walk::files(root, cfg).filter(|(_, rel)| o.agent || !cfg.is_agent_file(rel)).map(|(_, rel)| rel), q, props)
 }
 
-/// The PDFs' text (pdf_text.rs's cache), each hit mapped back to its PDF and page; only PDFs this walk found: the text
-/// of one deleted, moved or now excluded stays in the cache until the next pass.
-fn pdf_lines(root: &Path, cfg: &Config, q: &str, o: Opts, walked: &[(std::path::PathBuf, String)]) -> Vec<LineHit> {
+/// The PDFs' text (pdf_text.rs's cache), each hit mapped back to its PDF and page, most matches first; only PDFs this
+/// walk found: the text of one deleted, moved or now excluded stays in the cache until the next pass.
+fn pdf_lines(root: &Path, cfg: &Config, q: &str, o: Opts, walked: &[(std::path::PathBuf, String)]) -> Vec<FileLines> {
     if !root.join(crate::pdf_text::CACHE).is_dir() {
         return Vec::new();
     }
-    let cache = lines_over(q, o, text_files(root, cfg, o, crate::pdf_text::CACHE), false);
     let pdfs: std::collections::HashSet<&str> = walked.iter().map(|(_, rel)| rel.as_str()).filter(|r| r.to_lowercase().ends_with(".pdf")).collect();
-    crate::pdf_text::hits(cache, root).into_iter().filter(|h| pdfs.contains(h.path.as_str())).collect()
+    let mut found: Vec<FileLines> = file_lines(q, o, text_files(root, cfg, o, crate::pdf_text::CACHE), false)
+        .into_iter()
+        .filter_map(|f| {
+            let lines = crate::pdf_text::hits(f.lines, root);
+            let rel = lines.first()?.path.clone();
+            pdfs.contains(rel.as_str()).then_some(FileLines { rel, lines, ..f })
+        })
+        .collect();
+    found.sort_by_key(|f| std::cmp::Reverse(f.count));
+    found
 }
 
 /// Every whitespace token must appear (case-insensitive) in the path; basename hits rank first.
@@ -115,52 +146,60 @@ fn match_names<'p>(root: &Path, paths: impl Iterator<Item = String>, q: &str, pr
     hits.into_iter()
         .map(|(_, _, p)| crate::companion::thing_in(root, &p, props).unwrap_or(p))
         .filter(|p| seen.insert(p.clone()))
-        .take(MAX_RESULTS)
+        .take(MAX_NAMES)
         .collect()
 }
 
-/// The lines matching `q` (fixed-string, smart-case unless the options say otherwise), at most [`MAX_RESULTS`].
+/// The lines matching `q` (fixed-string, smart-case unless the options say otherwise): each file's first
+/// [`LINES_PER_FILE`], in the files' order.
 pub fn rg_lines(root: &Path, cfg: &Config, q: &str, o: Opts) -> Vec<LineHit> {
-    lines_in(root, cfg, q, o, ".")
+    file_lines(q, o, text_files(root, cfg, o, "."), true).into_iter().flat_map(|f| f.lines).collect()
 }
 
-/// ripgrep's own searcher (its crates, in this process: no `rg` to install) over [`text_files`] of one folder.
-fn lines_in(root: &Path, cfg: &Config, q: &str, o: Opts, dir: &str) -> Vec<LineHit> {
-    lines_over(q, o, text_files(root, cfg, o, dir), true)
+/// One file's matches: its first [`LINES_PER_FILE`] lines, and how many there are (up to [`MAX_COUNT`]).
+struct FileLines {
+    rel: String,
+    count: usize,
+    /// A match in a heading (`# …`) or the `title:` property: the file is about it.
+    titled: bool,
+    lines: Vec<LineHit>,
 }
 
-/// ripgrep's searcher over these files (absolute, relative), at most [`MAX_RESULTS`] lines, in the files' order. The
-/// files are read on several threads (a vault holds thousands; one thread took seconds); `sniff` first leaves out what
-/// is not worth reading ([`worth_reading`]).
-fn lines_over(q: &str, o: Opts, files: impl Iterator<Item = (std::path::PathBuf, String)>, sniff: bool) -> Vec<LineHit> {
+/// ripgrep's searcher over these files (absolute, relative), every file read, in the files' order. The files are read
+/// on several threads (a vault holds thousands; one thread took seconds); `sniff` first leaves out what is not worth
+/// reading ([`worth_reading`]).
+fn file_lines(q: &str, o: Opts, files: impl Iterator<Item = (std::path::PathBuf, String)>, sniff: bool) -> Vec<FileLines> {
     use std::sync::atomic::{AtomicUsize, Ordering::Relaxed};
     let Ok(m) = grep_matcher(q, o) else { return Vec::new() }; // a regex being typed
     let files: Vec<_> = files.collect();
-    let (next, found) = (AtomicUsize::new(0), AtomicUsize::new(0));
-    let per_file = std::sync::Mutex::new(Vec::<(usize, Vec<LineHit>)>::new());
+    let next = AtomicUsize::new(0);
+    let per_file = std::sync::Mutex::new(Vec::<(usize, FileLines)>::new());
     let workers = std::thread::available_parallelism().map_or(4, |n| n.get()).clamp(1, 8);
-    let (next, found, per_file, files) = (&next, &found, &per_file, &files);
+    let (next, per_file, files) = (&next, &per_file, &files);
     std::thread::scope(|s| {
         for _ in 0..workers {
             let m = m.clone();
             s.spawn(move || {
                 let mut searcher = searcher();
-                while found.load(Relaxed) < MAX_RESULTS {
+                loop {
                     let i = next.fetch_add(1, Relaxed);
                     let Some((abs, rel)) = files.get(i) else { break };
                     if sniff && !worth_reading(abs, rel) {
                         continue;
                     }
-                    let mut hits = Vec::new();
+                    let mut f = FileLines { rel: rel.clone(), count: 0, titled: false, lines: Vec::new() };
                     let _ = searcher.search_path(&m, abs, UTF8(|n, line| {
                         if let Some(text) = shown_line(line) {
-                            hits.push(LineHit { path: rel.clone(), line: n as u32, text });
+                            f.count += 1;
+                            f.titled |= rel.ends_with(".md") && is_title(&text); // a `#` in code is a comment
+                            if f.lines.len() < LINES_PER_FILE {
+                                f.lines.push(LineHit { path: rel.clone(), line: n as u32, text });
+                            }
                         }
-                        Ok(hits.len() < MAX_RESULTS)
+                        Ok(f.count < MAX_COUNT)
                     }));
-                    if !hits.is_empty() {
-                        found.fetch_add(hits.len(), Relaxed);
-                        per_file.lock().unwrap_or_else(|e| e.into_inner()).push((i, hits));
+                    if f.count > 0 {
+                        per_file.lock().unwrap_or_else(|e| e.into_inner()).push((i, f));
                     }
                 }
             });
@@ -168,7 +207,13 @@ fn lines_over(q: &str, o: Opts, files: impl Iterator<Item = (std::path::PathBuf,
     });
     let mut per_file = std::mem::take(&mut *per_file.lock().unwrap_or_else(|e| e.into_inner()));
     per_file.sort_by_key(|(i, _)| *i);
-    per_file.into_iter().flat_map(|(_, h)| h).take(MAX_RESULTS).collect()
+    per_file.into_iter().map(|(_, f)| f).collect()
+}
+
+/// A heading or the note's title property: a line that names what the file is about.
+fn is_title(line: &str) -> bool {
+    let t = line.trim_start();
+    (t.starts_with('#') && t.trim_start_matches('#').starts_with(' ')) || t.starts_with("title:") || t.starts_with("aliases:")
 }
 
 /// Worth a content search, by the file's first 4 KB (the shape, as rg's binary sniff; no list of extensions): not
@@ -505,6 +550,27 @@ mod tests {
         assert_eq!(hits.len(), 80);
         assert!(hits[..40].iter().all(|p| p.ends_with(".md")), "{hits:?}");
         assert_eq!(hits, search(r, &Config::default(), "lattice").lines.into_iter().map(|l| l.path).collect::<Vec<_>>());
+    }
+
+    /// The files with matching lines come best first, not in the walk's order: the name, then a heading, then a note,
+    /// then how often; each lists a few lines and counts them all.
+    #[test]
+    fn matching_files_are_ranked_and_counted() {
+        let d = tempfile::tempdir().unwrap();
+        let r = d.path();
+        std::fs::create_dir_all(r.join("notes")).unwrap();
+        std::fs::write(r.join("notes/aaa.md"), "in passing: the lattice\n").unwrap();
+        std::fs::write(r.join("notes/bbb.md"), "lattice\n".repeat(12)).unwrap();
+        std::fs::write(r.join("notes/ccc.md"), "# The lattice\nmore\n").unwrap();
+        std::fs::write(r.join("notes/lattice-notes.md"), "one lattice\n").unwrap();
+        std::fs::write(r.join("aaa.py"), "# lattice lattice lattice\nlattice\n").unwrap();
+        let res = search(r, &Config::default(), "lattice");
+        let mut order: Vec<&str> = res.lines.iter().map(|l| l.path.as_str()).collect();
+        order.dedup();
+        assert_eq!(order, ["notes/lattice-notes.md", "notes/ccc.md", "notes/bbb.md", "notes/aaa.md", "aaa.py"]);
+        assert_eq!(res.lines.iter().filter(|l| l.path == "notes/bbb.md").count(), LINES_PER_FILE);
+        assert_eq!(res.counts["notes/bbb.md"], 12);
+        assert_eq!(res.counts["notes/aaa.md"], 1);
     }
 
     #[test]

@@ -672,8 +672,13 @@ pub struct TagCount {
 #[derive(Debug, Clone, Default, Serialize, Deserialize, TS)]
 #[ts(export)]
 pub struct SearchResults {
+    /// The files whose name or title matches, best first.
     pub files: Vec<String>,
+    /// Matching lines, grouped by file, the files ranked (search.rs `rank`); a few per file.
     pub lines: Vec<LineHit>,
+    /// Every file in `lines` with how many lines match in it (more than are listed).
+    #[serde(default)]
+    pub counts: std::collections::BTreeMap<String, u32>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]

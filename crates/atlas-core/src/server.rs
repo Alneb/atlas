@@ -695,7 +695,7 @@ async fn search_get(State(st): S, Query(q): Query<SearchQuery>) -> Result<Json<S
     Ok(Json(
         with_ws(&st, move |ws| {
             let cfg = ws.config()?;
-            Ok(if q.names { SearchResults { files: search::names_with(ws.root(), &cfg, &q.q, o), lines: Vec::new() } } else { search::search_with(ws.root(), &cfg, &q.q, o) })
+            Ok(if q.names { SearchResults { files: search::names_with(ws.root(), &cfg, &q.q, o), ..Default::default() } } else { search::search_with(ws.root(), &cfg, &q.q, o) })
         })
         .await?,
     ))
@@ -2544,6 +2544,7 @@ pub async fn serve_vaults(vaults: Vaults, listen: Listen) -> anyhow::Result<Serv
             let warm = d.clone();
             let _ = warm.dispatch(Request::builder().uri(format!("/v/{name}/api/workspace")).header("x-atlas", "1").body(axum::body::Body::empty())?).await;
             lazy = Some(d.clone());
+            tokio::spawn(d.clone().start_ahead(std::time::Duration::from_secs(20)));
             let app = Router::new().fallback(move |req: Request| d.clone().dispatch(req));
             (app, Vec::new(), first)
         }

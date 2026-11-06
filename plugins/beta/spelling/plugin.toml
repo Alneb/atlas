@@ -4,7 +4,7 @@
 title = "Spelling"
 description = "marks misspelled words in notes, from the machine's dictionaries and the vault's own words"
 icon = "check"
-version = "0.2.0"
+version = "0.3.0"
 api = 22
 phone = true
 

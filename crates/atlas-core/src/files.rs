@@ -447,8 +447,8 @@ fn case_only(a: &std::path::Path, b: &std::path::Path) -> bool {
     a != b && a.to_string_lossy().to_lowercase() == b.to_string_lossy().to_lowercase() && id(a).is_some() && id(a) == id(b)
 }
 
-/// Delete = to the desktop Trash (`gio trash`, recoverable from the file manager); without gio,
-/// into `.atlas/trash/<timestamp>/` (still recoverable). Never a hard delete.
+/// Delete = to the desktop Trash (platform/trash.rs: gio, Finder, the Recycle Bin; recoverable from the file manager);
+/// without one, into `.atlas/trash/<timestamp>/` (still recoverable). Never a hard delete.
 pub fn trash(ws: &Workspace, rel: &str) -> Result<String> {
     let p = ws.resolve(rel)?;
     // the resolved path, not the text: `.` or `./` is the vault itself
@@ -458,20 +458,19 @@ pub fn trash(ws: &Workspace, rel: &str) -> Result<String> {
     // tests never touch the user's desktop Trash (ATLAS_VAULT_TRASH: the e2e server, whose vault may sit on the home disk)
     if !cfg!(test) && std::env::var_os("ATLAS_VAULT_TRASH").is_none() {
         let kind = if p.is_dir() { vault_write::WriteKind::RemoveDir } else { vault_write::WriteKind::Remove };
-        // gio missing or failing is an error, not a success: the guard then hands the mirror's lease back with the file
-        // as it is, instead of telling the server it is gone (the vault's trash below would then be refused, and the
-        // path stay unwritable)
-        let gio_failed = std::cell::Cell::new(false);
-        let gio = || match std::process::Command::new("gio").arg("trash").arg(&p).output() {
-            Ok(o) if o.status.success() => Ok(()),
-            _ => {
-                gio_failed.set(true);
-                Err(Error::Other(anyhow::anyhow!("gio trash failed")))
-            }
+        // no system Trash, or one that refused, is an error, not a success: the guard then hands the mirror's lease back
+        // with the file as it is, instead of telling the server it is gone (the vault's trash below would then be
+        // refused, and the path stay unwritable)
+        let failed = std::cell::Cell::new(false);
+        let system = || {
+            crate::platform::trash::to_system(&p).map_err(|e| {
+                failed.set(true);
+                Error::Other(anyhow::anyhow!(e))
+            })
         };
-        match vault_write::guarded(&p, kind, gio) {
+        match vault_write::guarded(&p, kind, system) {
             Ok(()) => return Ok("the Trash".into()),
-            Err(_) if gio_failed.get() => {}
+            Err(_) if failed.get() => {}
             Err(e) => return Err(e),
         }
     }

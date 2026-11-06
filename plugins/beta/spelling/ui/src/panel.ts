@@ -30,7 +30,7 @@ const CSS = `
 .sp .langs { display: flex; flex-wrap: wrap; gap: 4px; }
 .sp button { font: inherit; color: var(--text); background: none; border: 1px solid var(--border); border-radius: 6px; padding: 2px 8px; cursor: pointer; }
 .sp button:hover { background: var(--bg-hover); }
-.sp .langs button.on { border-color: var(--accent); color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, transparent); }
+.sp .langs button.on, .sp table button.on { border-color: var(--accent); color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, transparent); }
 .sp .about { margin-top: 4px; color: var(--text-faint); font-size: 11.5px; }
 .sp ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; max-height: 240px; overflow: auto; }
 .sp li.word { display: flex; align-items: center; gap: 6px; padding: 2px 0; }
@@ -45,6 +45,11 @@ const CSS = `
 .sp .chip button { border: none; padding: 0 5px; color: var(--text-faint); border-radius: 10px; }
 .sp .chip.plain { padding: 1px 7px; color: var(--text-muted); }
 .sp .foot { display: flex; justify-content: flex-end; }
+.sp table { border-collapse: collapse; }
+.sp td { padding: 3px 12px 3px 0; vertical-align: baseline; }
+.sp td.dict { color: var(--text-muted); font-family: var(--font-mono); font-size: 12px; }
+.sp form { display: flex; gap: 6px; margin-top: 6px; }
+.sp input { font: inherit; padding: 2px 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--text); width: 14em; }
 `;
 
 type Child = Node | string | null | undefined | false;
@@ -93,4 +98,44 @@ export function drawPanel(host: HTMLElement, model: () => PanelModel, act: Panel
     body.replaceChildren(langs, marked, added, learned, h("div", { class: "foot" }, h("button", { onclick: () => act.settings() }, "Spelling settings…")));
   };
   draw(model());
+}
+
+/** Settings → Spelling, above the form: what is installed and which language leads, the words added by hand (add, ×),
+ *  and what the vault taught per language. The form below keeps the finer settings. */
+export interface SettingsModel {
+  main: string;
+  /** `others`: that language's variants installed but not used (another leads) */
+  langs: { lang: string; name: string; dictionaries: string; others: string[]; learned: number }[];
+  added: string[];
+}
+export interface SettingsActions {
+  setMain(lang: string): Promise<void>;
+  add(word: string): Promise<void>;
+  remove(word: string): Promise<void>;
+}
+
+export function drawSettings(host: HTMLElement, model: () => SettingsModel, act: SettingsActions) {
+  host.replaceChildren(h("style", {}, CSS));
+  const body = host.appendChild(h("div", { class: "sp" }));
+  const draw = () => {
+    const m = model();
+    const langs = h("section", {}, h("h3", {}, "Languages"),
+      m.langs.length
+        ? h("table", {}, ...m.langs.map((l) => h("tr", {},
+          h("td", {}, h("button", { class: l.lang === m.main ? "on" : "", "aria-pressed": String(l.lang === m.main), title: l.lang === m.main ? "The main language: a note says too little to tell" : `Make ${l.name} the main language`, onclick: () => void act.setMain(l.lang).then(draw) }, l.name)),
+          h("td", { class: "dict", title: l.others.length ? `Also installed: ${l.others.join(", ")}` : "" }, l.dictionaries, l.others.length ? h("span", { class: "none" }, ` · ${l.others.length} more installed`) : null),
+          h("td", { class: "none" }, `${l.learned} words learned from the vault`))))
+        : h("div", { class: "none" }, "No Hunspell dictionary on this machine: install one (hunspell-en, hunspell-es…) or name a folder below."),
+      h("div", { class: "about" }, "A note's language is its lang: property, else guessed from its words; the highlighted one is used when a note says too little. Another variant (en_GB, es_MX…) is chosen under Dictionaries below."));
+    const input = h("input", { "aria-label": "A word to add", placeholder: "a word…", spellcheck: "false" });
+    const form = h("form", {}, input, h("button", {}, "Add"));
+    form.addEventListener("submit", (e) => { e.preventDefault(); const w = input.value.trim(); if (w) void act.add(w).then(draw); });
+    const added = h("section", {}, h("h3", {}, `Your words (${m.added.length})`),
+      m.added.length
+        ? h("div", { class: "chips" }, ...m.added.map((w) => h("span", { class: "chip" }, w, h("button", { title: `Take “${w}” out of this vault's words`, "aria-label": `Remove ${w}`, onclick: () => void act.remove(w).then(draw) }, "×"))))
+        : h("div", { class: "none" }, "None yet. A word added here, from the lower bar's panel or by a right-click on a marked word is never marked again in this vault."),
+      form);
+    body.replaceChildren(langs, added);
+  };
+  draw();
 }

@@ -7,6 +7,7 @@ pub mod host;
 pub mod open;
 pub mod proc;
 pub mod run_line;
+pub mod trash;
 
 /// Where a core runs, as a plugin manifest names it (`[platforms]`): a desktop system, the phone app, or a server
 /// (`atlas serve`: no window, many devices, whatever the system under it).

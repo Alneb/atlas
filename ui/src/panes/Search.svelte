@@ -27,17 +27,29 @@
   let sel = $state(0);
 
   type Row = { path: string; line?: number; text?: string };
-  const rows = $derived<Row[]>(res ? [...res.files.slice(0, 50).map((path) => ({ path })), ...res.lines.map((l) => ({ path: l.path, line: l.line, text: l.text }))] : []);
-  const grouped = $derived.by(() => {
-    const m = new Map<string, { line: number; text: string; idx: number }[]>();
-    if (!res) return m;
-    const base = Math.min(res.files.length, 50);
-    res.lines.forEach((l, i) => {
+  // a page at a time: the names, then the files whose text matches (each with its first lines); "Show more" adds a page
+  const PAGE = 50;
+  let nFiles = $state(PAGE);
+  let nGroups = $state(PAGE);
+  const shownFiles = $derived(res ? res.files.slice(0, nFiles) : []);
+  const allGroups = $derived.by(() => {
+    const m = new Map<string, { line: number; text: string }[]>();
+    for (const l of res?.lines ?? []) {
       if (!m.has(l.path)) m.set(l.path, []);
-      m.get(l.path)!.push({ line: l.line, text: l.text, idx: base + i });
-    });
+      m.get(l.path)!.push({ line: l.line, text: l.text });
+    }
     return m;
   });
+  /** The shown groups, each line with its place in the keyboard's order (after the shown names). */
+  const grouped = $derived.by(() => {
+    const m = new Map<string, { line: number; text: string; idx: number }[]>();
+    let idx = shownFiles.length;
+    for (const [path, hits] of [...allGroups].slice(0, nGroups)) m.set(path, hits.map((h) => ({ ...h, idx: idx++ })));
+    return m;
+  });
+  const rows = $derived<Row[]>([...shownFiles.map((path) => ({ path })), ...[...grouped].flatMap(([path, hits]) => hits.map((h) => ({ path, line: h.line, text: h.text })))]);
+  /** Matching lines in a file, all of them (the list shows the first few). */
+  const countOf = (path: string) => res?.counts?.[path] ?? allGroups.get(path)?.length ?? 0;
 
   // line-search options (VS Code's Aa / ab / .*); read in the effect, so a toggle re-runs the search
   // `pdf`: only the text of the vault's PDFs (the core's pdf_text cache); without it their hits follow the files'.
@@ -57,6 +69,7 @@
         titles = new Map(t.map((x) => [x.path, x.title]));
         res = { ...r, files: [...r.files, ...t.map((x) => x.path)] };
         sel = 0;
+        nFiles = nGroups = PAGE;
       };
       try {
         // the names and titles first (no file read: a tenth of a second), then the lines once the files are read
@@ -115,9 +128,9 @@
   let excluded = $state<Set<string>>(new Set());
   let confirming = $state(false);
   let replaceInput = $state<HTMLInputElement>();
-  const included = $derived([...grouped.keys()].filter((p) => !excluded.has(p)));
-  const includedHits = $derived(included.reduce((n, p) => n + grouped.get(p)!.length, 0));
-  const capped = $derived((res?.lines.length ?? 0) >= 200);
+  const included = $derived([...allGroups.keys()].filter((p) => !excluded.has(p)));
+  const includedHits = $derived(included.reduce((n, p) => n + countOf(p), 0));
+  const capped = $derived(allGroups.size >= 500); // search.rs MAX_FILES: there may be more files than listed
   function toggleReplace(on = !replacing) {
     replacing = on;
     // with nothing searched yet, the search comes first
@@ -193,17 +206,19 @@
     {#if res}
       {#if res.files.length}
         <div class="group-label">Files <span class="n">{res.files.length}</span></div>
-        {#each res.files.slice(0, 50) as f, i (f)}
+        {#each shownFiles as f, i (f)}
           <button class="hit file-hit" class:sel={sel === i} data-idx={i} data-path={f} onclick={() => go({ path: f })} onmouseenter={() => (sel = i)}>
             <Icon name={fileIcon(f)} size={14} />{#if titles.has(f)}<span class="fname">{titles.get(f)}</span><span class="fdir">{shownName(f)}</span>{:else}<span class="fname">{shownName(f)}</span><span class="fdir">{f.includes("/") ? f.slice(0, f.lastIndexOf("/")) : ""}</span>{/if}
           </button>
         {/each}
+        {#if res.files.length > nFiles}<button class="more" onclick={() => (nFiles += PAGE)}>Show {Math.min(PAGE, res.files.length - nFiles)} more of {res.files.length - nFiles}</button>{/if}
       {/if}
       {#if res.lines.length}
-        <div class="group-label">Matches <span class="n">{res.lines.length}</span></div>
+        <div class="group-label">In the text <span class="n">{allGroups.size}{capped ? "+" : ""} file{allGroups.size === 1 ? "" : "s"}</span></div>
         {#each [...grouped] as [path, hits] (path)}
           <div class="hit-file" class:out={replacing && excluded.has(path)}>
             <Icon name={fileIcon(path)} size={13} /> <span class="p">{shownPath(path)}</span>
+            {#if countOf(path) > hits.length}<button class="count" onclick={() => go({ path, line: hits[0]?.line })} title="Open it at the first match">{countOf(path)} matches</button>{/if}
             {#if replacing}<button class="icon-btn keep" onclick={() => exclude(path)} title={excluded.has(path) ? "Include in the replace" : "Leave this file out of the replace"}
               aria-label="{excluded.has(path) ? 'Include' : 'Exclude'} {path}"><Icon name={excluded.has(path) ? "plus" : "close"} size={12} /></button>{/if}
           </div>
@@ -213,6 +228,7 @@
             </button>
           {/each}
         {/each}
+        {#if allGroups.size > nGroups}<button class="more" onclick={() => (nGroups += PAGE)}>Show {Math.min(PAGE, allGroups.size - nGroups)} more files of {allGroups.size - nGroups}</button>{/if}
       {/if}
       <!-- an empty result says what to try next: the switches that narrowed it, else fewer words -->
       {#if !busy && !res.files.length && !res.lines.length}<p class="faint small pad">{opts.pdf ? "No PDF has" : "No file has"} “{q}”. {opts.case || opts.word || opts.regex
@@ -265,6 +281,11 @@
   .hint { margin: 0 12px 6px; }
   .hit-file .p { overflow: hidden; text-overflow: ellipsis; }
   .hit-file .keep { margin-left: auto; opacity: .7; }
+  .hit-file .count { margin-left: auto; flex: none; font-weight: 400; font-size: calc(11px * var(--ui-scale, 1)); color: var(--text-faint); }
+  .hit-file .count:hover { color: var(--text); }
+  .hit-file .count + .keep { margin-left: 4px; }
+  .more { display: block; margin: 6px 8px 2px; padding: 3px 8px; border-radius: var(--radius-sm); color: var(--accent); font-size: calc(12px * var(--ui-scale, 1)); }
+  .more:hover { background: var(--bg-hover); }
   .hit-file.out { opacity: .45; text-decoration: line-through; }
   .txt :global(mark.old) { text-decoration: line-through; background: color-mix(in srgb, var(--red) 25%, transparent); }
   .txt :global(.new) { background: color-mix(in srgb, var(--green) 25%, transparent); color: var(--heading); border-radius: 2px; padding: 0 1px; }
