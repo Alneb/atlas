@@ -7,7 +7,7 @@ rail = false                # its pane (view.js, built from ui/) is the Librarie
 description = "anything you capture, recognised, enriched and filed in its library"
 phone = true # runs in the phone apps too (only plugins marked so start there)
 icon = "grid" # not References' library icon (a vault may show both)
-version = "0.8.0"
+version = "0.8.1"
 api = 24
 provides = ["catalog", "libraries"]    # the roles the core and the page ask for (not this id): "libraries" = its pane
                                        # is the Libraries page (atlas.openLibrary, the Library tile, the phone's Library)
