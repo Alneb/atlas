@@ -27,21 +27,56 @@ import { EditorState, StateField, StateEffect, Prec } from "@codemirror/state";
 import { syntaxTree } from "@codemirror/language";
 import { isIconToken } from "./obsidian-syntax.js";
 
+/** What opens and closes a pair in a formula's source: `\left`/`\right` with their delimiter, `\{` `\}`, `\langle`
+ *  `\rangle`, and the plain `(` `[` `{` and their closers. */
+const BRACKET = /\\(left|right)(?![A-Za-z])(\\[A-Za-z]+|\\.|[^\s\\])?|\\[{}]|\\[lr]angle(?![A-Za-z])|\\.|[([{)\]}]/g;
+
 /**
- * `\left(` … `\right)` in a formula's source, made short and paired: the command word small and faint, its bracket
- * bold in a colour by its depth (three, in turn), so the pairs read at a glance while the text stays as typed.
+ * Every bracket pair in a formula's source coloured by its depth (three colours in turn, recursively), the pair around
+ * the caret highlighted, and `\left` / `\right` reduced to a small faint word before their bracket — so the pairs read
+ * at a glance while the text stays as typed. A closer with no opener is coloured at depth 0.
  * @param {string} source the formula between its delimiters
  * @param {number} at where it starts in the document
  * @param {(a: number, b: number, cls: string) => void} mark
+ * @param {number} [caret] the caret's place in the document, when it is in this formula
  */
-export function markSizedBrackets(source, at, mark) {
-  let depth = 0;
-  for (const m of source.matchAll(/\\(left|right)(?![A-Za-z])(\\[A-Za-z]+|\\.|[^\s\\])?/g)) {
-    const opens = m[1] === "left";
-    const level = opens ? depth++ : (depth = Math.max(0, depth - 1));
-    const start = at + m.index, word = 1 + m[1].length;
-    mark(start, start + word, "cm-math-lr-cmd");
-    if (m[2]) mark(start + word, start + m[0].length, `cm-math-lr cm-math-lr-${level % 3}`);
+export function markBrackets(source, at, mark, caret = -1) {
+  /** @type {{from: number, to: number, level: number}[]} */
+  const open = [];
+  /** @type {{a: {from: number, to: number}, b: {from: number, to: number}, level: number}[]} */
+  const pairs = [];
+  const lone = [];
+  for (const m of source.matchAll(BRACKET)) {
+    const t = m[0];
+    let from = at + m.index, opens;
+    if (m[1]) {
+      const word = 1 + m[1].length;
+      mark(from, from + word, "cm-math-lr-cmd");
+      if (!m[2]) continue;
+      from += word;
+      opens = m[1] === "left";
+    } else if (/^\\[lr]angle$/.test(t)) opens = t[1] === "l";
+    else if (/^\\[{}]$/.test(t)) opens = t[1] === "{";
+    else if (t.length === 1) opens = "([{".includes(t);
+    else continue; // another escaped character (`\,`, `\\`, `\[`) is not a bracket
+    const span = { from, to: at + m.index + t.length };
+    if (opens) open.push({ ...span, level: open.length });
+    else {
+      const o = open.pop();
+      if (o) pairs.push({ a: o, b: span, level: o.level });
+      else lone.push(span);
+    }
+  }
+  // the innermost pair holding the caret (touching either bracket counts, as CodeMirror's own matching does)
+  let here = null;
+  for (const p of pairs) if (caret >= p.a.from && caret <= p.b.to && (!here || p.a.from > here.a.from)) here = p;
+  const ring = (level) => `cm-math-br cm-math-br-${level % 3}`;
+  for (const o of open) mark(o.from, o.to, ring(o.level)); // still unclosed while it is typed
+  for (const l of lone) mark(l.from, l.to, ring(0));
+  for (const p of pairs) {
+    const cls = ring(p.level) + (p === here ? " cm-math-br-here" : "");
+    mark(p.a.from, p.a.to, cls);
+    mark(p.b.from, p.b.to, cls);
   }
 }
 
@@ -904,7 +939,8 @@ export function buildDecorations(state, ranges, options = {}) {
     mark(from, inner.from, FENCE);
     mark(inner.to, to, FENCE);
     const source = state.doc.sliceString(inner.from, inner.to);
-    markSizedBrackets(source, inner.from, mark);
+    const head = state.selection.main.head;
+    markBrackets(source, inner.from, mark, head >= inner.from && head <= inner.to ? head : -1);
     for (const r of opts.highlightCode(source, "latex")) {
       // Clamp exactly as the fenced-code branch does: a stale cache entry must
       // never produce a decoration reaching past the text it describes.

@@ -315,7 +315,7 @@ pub struct UiConfig {
     /// Colour scheme by night (the dark theme). Empty: the day's.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub palette_dark: Option<Palette>,
-    /// Contrast: `high` turns any colour scheme up, beyond even the Contrast scheme — black or white paper,
+    /// Contrast: `high` turns any colour scheme up, beyond even Phosphor — black or white paper,
     /// full-strength text and rules, and the scheme's accent pushed to a phosphor-bright tone (with a faint glow on
     /// links by night). `system` follows the desktop's "more contrast" setting.
     pub contrast: Contrast,
@@ -465,7 +465,9 @@ pub enum Palette {
     Dusk,
     /// Neutral greys, links and buttons in ink alone: no colour but the marks.
     Graphite,
-    /// Black glass and phosphor green (a page of white paper and deep green in light mode).
+    /// Black on white and white on black at full strength, phosphor green (deep by day, bright by night). It took the
+    /// place of the former Contrast scheme: a saved `contrast` reads as this.
+    #[serde(alias = "contrast")]
     Phosphor,
     /// Blush paper, raspberry.
     Rose,
@@ -485,8 +487,6 @@ pub enum Palette {
     Sand,
     /// Navy, gold.
     Midnight,
-    /// Black on white and white on black, a strong blue: the most contrast.
-    Contrast,
 }
 
 /// How panes and controls are drawn (shape-paper.css).
@@ -509,7 +509,7 @@ pub enum Contrast {
     /// The scheme as drawn.
     #[default]
     Normal,
-    /// Beyond the Contrast scheme: black or white paper, full-strength text and rules, the accent phosphor-bright.
+    /// Beyond even Phosphor: black or white paper, full-strength text and rules, the accent phosphor-bright.
     High,
     /// High when the desktop asks for more contrast, else normal.
     System,
@@ -1362,6 +1362,16 @@ mod tests {
         assert_eq!(Config::load(d.path()).unwrap().log_dir, "b", "a new time is a new version");
         write("log_dir = \"c\"\n", std::time::SystemTime::now());
         assert_eq!(Config::load(d.path()).unwrap().log_dir, "c", "just written: never taken from what was kept");
+    }
+
+    #[test]
+    fn the_contrast_scheme_taken_out_reads_as_phosphor() {
+        // Phosphor took its place: a vault's day or night scheme naming it must still load
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(dir.path().join(".atlas")).unwrap();
+        std::fs::write(dir.path().join(CONFIG_FILE), "[ui]\npalette = \"contrast\"\npalette_dark = \"contrast\"\n").unwrap();
+        let ui = Config::load(dir.path()).unwrap().ui;
+        assert_eq!((ui.palette, ui.palette_dark), (Palette::Phosphor, Some(Palette::Phosphor)));
     }
 
     #[test]

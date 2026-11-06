@@ -33,7 +33,7 @@ palette: Palette,
  */
 palette_dark?: Palette | null, 
 /**
- * Contrast: `high` turns any colour scheme up, beyond even the Contrast scheme — black or white paper,
+ * Contrast: `high` turns any colour scheme up, beyond even Phosphor — black or white paper,
  * full-strength text and rules, and the scheme's accent pushed to a phosphor-bright tone (with a faint glow on
  * links by night). `system` follows the desktop's "more contrast" setting.
  */

@@ -222,11 +222,13 @@ html.phone .markdown a::after, html.phone .markdown .cm-link::after, html.phone 
 .embed-open:hover { color: var(--text); opacity: 1; }
 .embed-open[hidden] { display: none; }
 /* \left( … \right) in a formula's source: the word small and faint, the bracket bold in its pair's colour (live-preview.js) */
-.markdown .cm-math-lr-cmd { font-size: .62em; opacity: .55; letter-spacing: -.03em; }
-.markdown .cm-math-lr { font-weight: 700; }
-.markdown .cm-math-lr-0, .markdown .cm-math-lr-0 * { color: var(--accent); }
-.markdown .cm-math-lr-1, .markdown .cm-math-lr-1 * { color: var(--orange); }
-.markdown .cm-math-lr-2, .markdown .cm-math-lr-2 * { color: var(--green); }
+/* A formula's source: every bracket pair coloured by depth (purple, orange, cyan in turn: none is a scheme's accent), the
+   caret's pair ringed; `\left`/`\right` a small faint word, their bracket an ordinary one of its depth */
+.markdown .cm-math-lr-cmd { font-size: .5em; opacity: .35; letter-spacing: -.04em; }
+.markdown .cm-math-br-0, .markdown .cm-math-br-0 * { color: var(--purple); }
+.markdown .cm-math-br-1, .markdown .cm-math-br-1 * { color: var(--orange); }
+.markdown .cm-math-br-2, .markdown .cm-math-br-2 * { color: var(--cyan); }
+.markdown .cm-math-br-here { font-weight: 700; border-radius: 2px; background: color-mix(in srgb, currentColor 18%, transparent); outline: 1px solid color-mix(in srgb, currentColor 45%, transparent); }
 /* An equation number's vertical list reaches 2px past its box (KaTeX's strut for a browser bug), which put a
    scrollbar under every numbered align, empty ones too: the number keeps 2px inside the edge */
 .katex .katex-tag { padding-right: 2px; }

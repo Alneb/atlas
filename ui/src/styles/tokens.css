@@ -82,7 +82,7 @@ html.phone:not(.native-shell) { --fab-room: 80px; }
   --bg-elev: #ffffff;
   --bg-hover: rgba(15, 23, 42, .045);
   --bg-active: rgba(15, 23, 42, .075);
-  /* text and rules at the Contrast scheme's strength (palettes.css, "contrast"), the reference for reading: near-black
+  /* text and rules at Phosphor's strength (palettes.css, "phosphor"), the reference for reading: near-black
      text, greys that stay ≥ 7:1, rules that show; the cool tint and the indigo stay Atlas's */
   --border: rgba(15, 23, 42, .22);
   --border-strong: rgba(15, 23, 42, .4);

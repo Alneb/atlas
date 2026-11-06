@@ -1,6 +1,6 @@
 /* Palettes (Settings → Appearance → Palette, `ui.palette`; lib/settings.svelte.ts sets <html data-palette>): colour
    families over tokens.css, in light and dark. `ink` and `clay` share a warm paper and differ in the accent; `sage`,
-   `sea`, `dusk`, `graphite`, `phosphor` and the rest (rose … contrast) each have a paper of their own, tinted toward their accent. They
+   `sea`, `dusk`, `graphite`, `phosphor` and the rest (rose … midnight) each have a paper of their own, tinted toward their accent. They
    outrank tokens.css's theme blocks by specificity; e-ink keeps its own black on white (:not(.eink)); an accent set in
    Settings is an inline style on <html>, so it still wins. */
 
@@ -303,50 +303,21 @@
   --tag-bg: rgba(212, 212, 212, .1); --tag-color: #ededed;
 }
 
-/* phosphor: black glass and phosphor green; in light mode a white page and a deep green */
+/* phosphor: black on white and white on black at full strength (what the Contrast scheme was), and phosphor green —
+   deep by day, bright by night */
 :root:not(.eink)[data-theme="light"][data-palette="phosphor"], .pal-sample[data-theme="light"][data-palette="phosphor"] {
-  --bg-app: #e9ece9;
-  --bg: #ffffff;
-  --bg-alt: #f4f6f4;
-  --card-bg: #eff2ef;
-  --bg-elev: #ffffff;
-  --bg-hover: rgba(10, 40, 15, .05);
-  --bg-active: rgba(10, 40, 15, .085);
-  --border: rgba(10, 40, 15, .11);
-  --border-strong: rgba(10, 40, 15, .18);
-  --text: #18191a;
-  --text-muted: #55595c;
-  --text-faint: #6b7073;
-  --heading: #0b0c0c;
-  --code-bg: #f0f3f0;
-  --inline-code: #1d6b2c;
-  --scrim: rgba(10, 20, 12, .26);
-  --term-bg: #ffffff;
-  --pdf-bg: #e2e6e2;
-  --paper-line: #d3d9d3;
+  --bg-app: #e6e6e6; --bg: #ffffff; --bg-alt: #f2f2f2; --card-bg: #ededed; --bg-elev: #ffffff;
+  --bg-hover: rgba(46, 46, 46, .06); --bg-active: rgba(46, 46, 46, .10); --border: rgba(46, 46, 46, .25); --border-strong: rgba(46, 46, 46, .45);
+  --text: #000000; --text-muted: #383838; --text-faint: #525252; --heading: #000000;
+  --code-bg: #f0f0f0; --inline-code: #165f27; --scrim: rgba(46, 46, 46, .26);
+  --term-bg: #ffffff; --pdf-bg: #dedede; --paper-line: #d1d1d1;
 }
 :root:not(.eink):not([data-theme="light"])[data-palette="phosphor"], .pal-sample[data-theme="dark"][data-palette="phosphor"] {
-  --bg-app: #080808;
-  --bg: #050505;
-  --bg-alt: #101010;
-  --card-bg: #161616;
-  --bg-elev: #161616;
-  --bg-hover: rgba(125, 228, 134, .08);
-  --bg-active: rgba(125, 228, 134, .14);
-  --border: rgba(255, 255, 255, .09);
-  --border-strong: rgba(255, 255, 255, .125);
-  --text: #f7f7f8;
-  --text-muted: #aca8ae;
-  --text-faint: #8a868c;
-  --heading: #ffffff;
-  --code-bg: #161616;
-  --inline-code: #7de486;
-  --scrim: rgba(0, 0, 0, .6);
-  --term-bg: #050505;
-  --term-black: #161616;
-  --ansi-black: #161616;
-  --pdf-bg: #000000;
-  --paper-line: #3b3b3b;
+  --bg-app: #000000; --bg: #000000; --bg-alt: #0d0d0d; --card-bg: #141414; --bg-elev: #1a1a1a;
+  --bg-hover: rgba(237, 237, 237, .045); --bg-active: rgba(237, 237, 237, .08); --border: rgba(237, 237, 237, .22); --border-strong: rgba(237, 237, 237, .40);
+  --text: #ffffff; --text-muted: #d1d1d1; --text-faint: #b2b2b2; --heading: #ffffff;
+  --code-bg: #202020; --inline-code: #a3edaa; --scrim: rgba(0, 0, 0, .55);
+  --term-bg: #000000; --term-black: #141414; --ansi-black: #141414; --pdf-bg: #0a0a0a; --paper-line: #3d3d3d;
 }
 :root:not(.eink)[data-theme="light"][data-palette="phosphor"], .pal-sample[data-theme="light"][data-palette="phosphor"] {
   --accent: #1f7a34; --accent-fg: #ffffff; --accent-strong: #165f27;
@@ -547,25 +518,4 @@
   --accent: #eccd79; --accent-fg: #090c13; --accent-strong: #f2dea6;
   --accent-soft: rgba(236, 205, 121, .12); --accent-sel: rgba(236, 205, 121, .24); --link: #eccd79;
   --tag-bg: rgba(236, 205, 121, .13); --tag-color: #f2dea6;
-}
-/* contrast: black on white and white on black, a strong blue */
-:root:not(.eink)[data-theme="light"][data-palette="contrast"], .pal-sample[data-theme="light"][data-palette="contrast"] {
-  --bg-app: #e6e6e6; --bg: #ffffff; --bg-alt: #f2f2f2; --card-bg: #ededed; --bg-elev: #ffffff;
-  --bg-hover: rgba(46, 46, 46, .06); --bg-active: rgba(46, 46, 46, .10); --border: rgba(46, 46, 46, .25); --border-strong: rgba(46, 46, 46, .45);
-  --text: #000000; --text-muted: #383838; --text-faint: #525252; --heading: #000000;
-  --code-bg: #f0f0f0; --inline-code: #083691; --scrim: rgba(46, 46, 46, .26);
-  --term-bg: #ffffff; --pdf-bg: #dedede; --paper-line: #d1d1d1;
-  --accent: #0a44b8; --accent-fg: #ffffff; --accent-strong: #083691;
-  --accent-soft: rgba(10, 68, 184, .1); --accent-sel: rgba(10, 68, 184, .2); --link: #0a44b8;
-  --tag-bg: rgba(10, 68, 184, .1); --tag-color: #083691;
-}
-:root:not(.eink):not([data-theme="light"])[data-palette="contrast"], .pal-sample[data-theme="dark"][data-palette="contrast"] {
-  --bg-app: #000000; --bg: #000000; --bg-alt: #0d0d0d; --card-bg: #141414; --bg-elev: #1a1a1a;
-  --bg-hover: rgba(237, 237, 237, .045); --bg-active: rgba(237, 237, 237, .08); --border: rgba(237, 237, 237, .22); --border-strong: rgba(237, 237, 237, .40);
-  --text: #ffffff; --text-muted: #d1d1d1; --text-faint: #b2b2b2; --heading: #ffffff;
-  --code-bg: #202020; --inline-code: #9ebdfa; --scrim: rgba(0, 0, 0, .55);
-  --term-bg: #000000; --term-black: #141414; --ansi-black: #141414; --pdf-bg: #0a0a0a; --paper-line: #3d3d3d;
-  --accent: #6e9cf7; --accent-fg: #000000; --accent-strong: #9ebdfa;
-  --accent-soft: rgba(110, 156, 247, .12); --accent-sel: rgba(110, 156, 247, .24); --link: #6e9cf7;
-  --tag-bg: rgba(110, 156, 247, .13); --tag-color: #9ebdfa;
 }
