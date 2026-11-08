@@ -85,7 +85,7 @@ export const PAGES: PageDef[] = [
   {
     id: "today", title: "Home & Today", group: "working", icon: "today", blurb: keyText("The first screen, the daily log, your focus file and the activity feed. Capture (Super+C) adds a line to today's log, a note in notes/log that starts with its date as properties, or from the daily log template; the Weather plugin adds the day's weather to it. Captures (the command, or a `captures` block in any note) lists every capture by day to triage: make it a task, file it into a note, dismiss it."),
     fields: ["home", "focus", "log_dir", "log_folders", "log_template", "activity.*", "notifications.*"],
-    features: ["ui.today", "ui.capture", "ui.captures", "ui.focusFile"],
+    features: ["ui.today", "ui.capture", "ui.captures", "ui.note-triage", "ui.focusFile"],
     next: [{ label: "Reshape the home screen", why: "Home is a .page file: rows and columns of blocks you add, move or remove.", run: "settings.editHome" }],
   },
   {
