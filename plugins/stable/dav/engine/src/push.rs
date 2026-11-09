@@ -159,12 +159,18 @@ pub enum Login {
 }
 
 impl Login {
-    /// The user and password when a user is named, else the token when there is one.
+    /// The user and password when both are given, else the token when there is one, else the user alone. A user
+    /// left beside a token with no password must not hide the token (ntfy refuses an empty password).
     pub fn of(user: &str, password: &str, token: &str) -> Login {
-        match (user.trim(), token.trim()) {
-            (u, _) if !u.is_empty() => Login::Password { user: u.to_string(), password: password.to_string() },
-            (_, t) if !t.is_empty() => Login::Token(t.to_string()),
-            _ => Login::None,
+        let (u, t) = (user.trim(), token.trim());
+        if !u.is_empty() && !password.is_empty() {
+            Login::Password { user: u.to_string(), password: password.to_string() }
+        } else if !t.is_empty() {
+            Login::Token(t.to_string())
+        } else if !u.is_empty() {
+            Login::Password { user: u.to_string(), password: String::new() }
+        } else {
+            Login::None
         }
     }
 
@@ -286,5 +292,7 @@ mod tests {
         assert!(asked.to_ascii_lowercase().contains("authorization: basic bwu6chc="), "the user and password over the token: {asked}");
         assert_eq!(Login::of("", "", "tk"), Login::Token("tk".into()));
         assert_eq!(Login::of(" ", "", ""), Login::None);
+        assert_eq!(Login::of("user", "", "tk"), Login::Token("tk".into()), "a user with no password leaves the token in charge");
+        assert_eq!(Login::of("me", "", ""), Login::Password { user: "me".into(), password: String::new() });
     }
 }
