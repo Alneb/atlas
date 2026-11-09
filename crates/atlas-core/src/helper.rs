@@ -375,7 +375,15 @@ impl Helpers {
 
     /// Ask the helper of plugin `id` and wait for its answer.
     pub async fn call(&self, id: &str, method: &str, params: Value, timeout: Duration) -> Result<Value> {
-        let r = self.running(id)?;
+        let r = match self.current(id, manifest_stamp(&self.root, id)) {
+            Some(r) => r,
+            // starting one spawns a program and may wait on another call starting the same helper: not on an async
+            // thread the rest of the core needs meanwhile (a current-thread runtime, as in tests, has no other)
+            None => match tokio::runtime::Handle::try_current().map(|h| h.runtime_flavor()) {
+                Ok(tokio::runtime::RuntimeFlavor::MultiThread) => tokio::task::block_in_place(|| self.running(id))?,
+                _ => self.running(id)?,
+            },
+        };
         *r.used.lock().unwrap() = Instant::now();
         let n = r.next.fetch_add(1, Ordering::Relaxed);
         let (tx, rx) = oneshot::channel();

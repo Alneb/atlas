@@ -185,7 +185,21 @@ pub fn list(root: &Path, cfg: &Config) -> Vec<Tool> {
 /// Runs tool `name` of plugin `id` with the agent's `args`.
 pub async fn call(root: &Path, cfg: &Config, helpers: &Helpers, secrets: &Store, id: &str, name: &str, args: Value) -> Result<Value> {
     let _turn = crate::tool_turns::take(root, id, name).await; // a round never runs twice at once
-    if let Some(why) = crate::plugins::blocked(&crate::plugins::list(root), &cfg.plugins.off, id) {
+    // reading every manifest and the secret store (a keyring over D-Bus may take seconds) runs off the async threads,
+    // as does keeping a rotated secret: the core's other requests never wait behind a plugin's preparation
+    let (root, off, store, id_, name_) = (root.to_path_buf(), cfg.plugins.off.clone(), secrets.clone(), id.to_string(), name.to_string());
+    let (method, params, timeout, keeps) = tokio::task::spawn_blocking(move || prepare(&root, &off, &store, &id_, &name_, args))
+        .await
+        .map_err(|e| Error::Other(anyhow::anyhow!("plugin {id}: {e}")))??;
+    let answer = helpers.call(id, &method, params, timeout).await?;
+    let (store, id_) = (secrets.clone(), id.to_string());
+    tokio::task::spawn_blocking(move || keep_secrets(&store, &id_, keeps, answer)).await.map_err(|e| Error::Other(anyhow::anyhow!("plugin {id}: {e}")))?
+}
+
+/// A tool's call made ready: the helper's method, its params (the plugin's settings and the secrets the tool names),
+/// its timeout, and whether the plugin may keep secrets from the answer. Blocking: it reads the disk and the secrets.
+fn prepare(root: &Path, off: &[String], secrets: &Store, id: &str, name: &str, args: Value) -> Result<(String, Value, Duration, bool)> {
+    if let Some(why) = crate::plugins::blocked(&crate::plugins::list(root), off, id) {
         return Err(Error::BadRequest(format!("plugin {id} cannot run: {why}")));
     }
     let (tools, perms, settings) = crate::plugins::tool_parts(root, id)?;
@@ -206,8 +220,7 @@ pub async fn call(root: &Path, cfg: &Config, helpers: &Helpers, secrets: &Store,
         given.extend(secrets.values(id, only)?.into_iter().map(|(k, v)| (k, Value::String(v))));
     }
     params.insert("secrets".into(), Value::Object(given));
-    let answer = helpers.call(id, tool.method.as_deref().unwrap_or(&tool.name), Value::Object(params), timeout_of(&tool)).await?;
-    keep_secrets(secrets, id, perms.secrets, answer)
+    Ok((tool.method.clone().unwrap_or_else(|| tool.name.clone()), Value::Object(params), timeout_of(&tool), perms.secrets))
 }
 
 /// A page's helper call as a tool's gets it: refused while the plugin is off or blocked; `params.settings` the plugin's
