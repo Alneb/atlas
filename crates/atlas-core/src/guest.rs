@@ -191,7 +191,7 @@ pub fn sweep() -> usize {
             let link = Path::new(&m.folder).join(".atlas");
             if std::fs::read_link(&link).is_ok_and(|t| t == state) {
                 // the folder's own entry: through its guard when one is still installed (it allows `.atlas`)
-                if let Err(e) = vault_write::remove_file(&link) {
+                if let Err(e) = vault_write::remove_link(&link) {
                     eprintln!("atlas: the guest link {} stays: {e}", link.display());
                     continue;
                 }

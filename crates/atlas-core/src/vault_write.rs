@@ -309,6 +309,18 @@ pub fn remove_dir_all(abs: &Path) -> Result<()> {
     run(abs, |_| WriteKind::RemoveDir, None, || Ok(std::fs::remove_dir_all(abs)?))
 }
 
+/// Removes a link to a folder (a guest's `.atlas`, guest.rs), never what it points at. Windows keeps a folder link as
+/// a directory entry, which only `remove_dir` takes (`remove_file` is refused: "Access is denied").
+pub fn remove_link(abs: &Path) -> Result<()> {
+    run(abs, |_| WriteKind::Remove, None, || {
+        #[cfg(windows)]
+        std::fs::remove_dir(abs)?;
+        #[cfg(not(windows))]
+        std::fs::remove_file(abs)?;
+        Ok(())
+    })
+}
+
 /// Make a folder and its parents (no error when it exists).
 pub fn mkdir(abs: &Path) -> Result<()> {
     run(abs, |_| WriteKind::Mkdir, None, || Ok(std::fs::create_dir_all(abs)?))
