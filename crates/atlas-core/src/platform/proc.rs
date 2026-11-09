@@ -106,6 +106,36 @@ pub fn detach(cmd: &mut std::process::Command) {
     }
 }
 
+/// The CPU time the calling thread has used, or `None` where it cannot be read. A JS helper's time limit counts this,
+/// not the clock: on a busy machine (a compile on every core, memory under pressure) a thread waits, and waiting is not
+/// a loop that does not end.
+pub fn thread_cpu() -> Option<std::time::Duration> {
+    #[cfg(unix)]
+    {
+        let mut ts = libc::timespec { tv_sec: 0, tv_nsec: 0 };
+        // SAFETY: a valid out-pointer; the clock id is a constant every Unix target here has
+        if unsafe { libc::clock_gettime(libc::CLOCK_THREAD_CPUTIME_ID, &mut ts) } == 0 {
+            return Some(std::time::Duration::new(ts.tv_sec as u64, ts.tv_nsec as u32));
+        }
+        None
+    }
+    #[cfg(windows)]
+    {
+        use windows_sys::Win32::Foundation::FILETIME;
+        use windows_sys::Win32::System::Threading::{GetCurrentThread, GetThreadTimes};
+        let z = || FILETIME { dwLowDateTime: 0, dwHighDateTime: 0 };
+        let (mut c, mut e, mut k, mut u) = (z(), z(), z(), z());
+        // SAFETY: the pseudo-handle of this thread and four valid out-pointers
+        if unsafe { GetThreadTimes(GetCurrentThread(), &mut c, &mut e, &mut k, &mut u) } == 0 {
+            return None;
+        }
+        let ticks = |f: &FILETIME| ((f.dwHighDateTime as u64) << 32) | f.dwLowDateTime as u64; // 100 ns each
+        Some(std::time::Duration::from_nanos((ticks(&k) + ticks(&u)) * 100))
+    }
+    #[cfg(not(any(unix, windows)))]
+    None
+}
+
 /// This machine's name ("" when unknown).
 pub fn hostname() -> String {
     #[cfg(any(target_os = "linux", target_os = "android"))]

@@ -7,7 +7,9 @@
 //! Limits, per context: [`Limits::memory`] (QuickJS's allocator refuses more; the allocation throws), and
 //! [`Limits::turn`], the CPU time one turn (a call, a reply, a timer, and the promise jobs they start) may take before
 //! the interrupt handler ends it — a helper stuck in a loop is then stopped, its calls fail, and the next call starts it
-//! again (counted as a crash by helper.rs).
+//! again (counted as a crash by helper.rs). The thread's own CPU time is counted, not the clock: on a busy machine a
+//! helper that waits for the CPU is not in a loop (two helpers were stopped in the same second while a compile ran).
+//! A turn that hangs without using the CPU still ends after [`WALL_FACTOR`] times the limit.
 use rquickjs::{CatchResultExt, Context, Ctx, Function, Object, Runtime};
 use std::cell::{Cell, RefCell};
 use std::cmp::Reverse;
@@ -31,6 +33,30 @@ pub struct Limits {
 }
 
 pub const LIMITS: Limits = Limits { memory: 128 << 20, turn: Duration::from_secs(5) };
+/// The clock's backstop for one turn, as a multiple of its CPU time.
+const WALL_FACTOR: u32 = 10;
+
+/// When a turn began, by the thread's CPU clock and by the wall clock.
+#[derive(Clone, Copy)]
+struct TurnStart {
+    cpu: Option<Duration>,
+    wall: Instant,
+}
+
+impl TurnStart {
+    fn now() -> Self {
+        Self { cpu: crate::platform::proc::thread_cpu(), wall: Instant::now() }
+    }
+    /// Over `limit` of CPU (the clock where the CPU time cannot be read), or over the wall backstop.
+    fn over(&self, limit: Duration) -> bool {
+        let wall = self.wall.elapsed();
+        let cpu = match (self.cpu, crate::platform::proc::thread_cpu()) {
+            (Some(a), Some(b)) => b.saturating_sub(a),
+            _ => wall,
+        };
+        cpu > limit || wall > limit * WALL_FACTOR
+    }
+}
 
 /// What the helper says: a protocol line, a log line, or that it ended (and why).
 #[derive(Debug, PartialEq)]
@@ -109,7 +135,7 @@ pub(crate) struct Engine {
     ctx: Context,
     out: UnboundedSender<Out>,
     limits: Limits,
-    deadline: Rc<Cell<Option<Instant>>>,
+    started: Rc<Cell<Option<TurnStart>>>,
     tripped: Rc<Cell<bool>>,
     stop: Arc<AtomicBool>,
     timers: Timers,
@@ -120,10 +146,10 @@ impl Engine {
         let rt = Runtime::new()?;
         rt.set_memory_limit(limits.memory);
         rt.set_max_stack_size(1 << 20);
-        let (deadline, tripped) = (Rc::new(Cell::new(None::<Instant>)), Rc::new(Cell::new(false)));
-        let (d, t, s) = (deadline.clone(), tripped.clone(), stop.clone());
+        let (started, tripped) = (Rc::new(Cell::new(None::<TurnStart>)), Rc::new(Cell::new(false)));
+        let (d, t, s, limit) = (started.clone(), tripped.clone(), stop.clone(), limits.turn);
         rt.set_interrupt_handler(Some(Box::new(move || {
-            let over = d.get().is_some_and(|d| Instant::now() > d);
+            let over = d.get().is_some_and(|d| d.over(limit));
             if over {
                 t.set(true);
             }
@@ -168,7 +194,7 @@ impl Engine {
             ctx.globals().set("__host", host)?;
             Ok(())
         })?;
-        Ok(Self { rt, ctx, out, limits, deadline, tripped, stop, timers })
+        Ok(Self { rt, ctx, out, limits, started, tripped, stop, timers })
     }
 
     /// Evaluates the prelude and the helper's script.
@@ -237,7 +263,7 @@ impl Engine {
     /// Runs `f` and the promise jobs it leaves, within the turn's CPU time: `f`'s own error, if any (a job's is logged).
     /// Running over the time, being stopped, or memory running out where nothing could catch it ends the helper.
     fn turn(&self, f: impl for<'js> FnOnce(&Ctx<'js>) -> rquickjs::Result<()>) -> Result<Option<String>, Fatal> {
-        self.deadline.set(Some(Instant::now() + self.limits.turn));
+        self.started.set(Some(TurnStart::now()));
         self.tripped.set(false);
         let own = self.ctx.with(|ctx| f(&ctx).catch(&ctx).err().map(|e| e.to_string()));
         let mut errors: Vec<String> = own.iter().filter(|w| w.contains("out of memory")).cloned().collect();
@@ -248,7 +274,7 @@ impl Engine {
                 }
                 if why.contains("out of memory") {
                     // a throw the script could not even catch: what it holds is unknown, so it starts again
-                    self.deadline.set(None);
+                    self.started.set(None);
                     return Err(Fatal(format!("it ran out of its {} MB of memory", self.limits.memory >> 20)));
                 }
                 let _ = self.out.send(Out::Log(format!("uncaught: {why}")));
@@ -262,7 +288,7 @@ impl Engine {
                 Err(e) => errors.push(e.0.with(|ctx| rquickjs::CaughtError::from_error(&ctx, rquickjs::Error::Exception).to_string())),
             }
         }
-        self.deadline.set(None);
+        self.started.set(None);
         if self.tripped.get() {
             return Err(Fatal(format!("it used more than {} s of CPU at once (a loop that does not end?)", self.limits.turn.as_secs_f32())));
         }
@@ -425,6 +451,27 @@ mod tests {
         let c = line(&mut rx, &mut logs).await;
         h.send(&json!({ "reply": c["call"], "status": 200, "body": { "status": 200, "ok": true, "text": "{\"a\":1}", "headers": {} } }).to_string()).unwrap();
         assert_eq!(line(&mut rx, &mut logs).await, json!({ "id": 3, "result": { "a": 1 } }));
+    }
+
+    /// The turn's limit is the thread's CPU time: waiting (a busy machine, a stall) is not running, and only a turn
+    /// that also runs past the wall backstop is ended for its waiting.
+    #[test]
+    fn a_turn_is_timed_by_its_cpu_not_by_the_clock() {
+        if crate::platform::proc::thread_cpu().is_none() {
+            return; // no thread clock here: the wall clock stands in, as before
+        }
+        let limit = Duration::from_millis(100);
+        let waited = TurnStart::now();
+        std::thread::sleep(Duration::from_millis(250));
+        assert!(!waited.over(limit), "waiting past the limit is not running past it");
+        let busy = TurnStart::now();
+        let t0 = Instant::now();
+        while t0.elapsed() < Duration::from_millis(250) {
+            std::hint::black_box(0u64.wrapping_add(1));
+        }
+        assert!(busy.over(limit), "running past it is");
+        let stuck = TurnStart { cpu: crate::platform::proc::thread_cpu(), wall: Instant::now() - limit * (WALL_FACTOR + 1) };
+        assert!(stuck.over(limit), "the wall backstop");
     }
 
     /// The SDK's text helpers run in QuickJS, not only in node's V8 (the helpers' own tests): Unicode classes, lookbehind.
