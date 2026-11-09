@@ -45,6 +45,8 @@ tauri = { version = "2", features = ["tray-icon"] }
 # that feature turns on zbus's tokio backend for the whole build, and the core's blocking zbus calls (notify.rs) then
 # panic on an async thread ("Cannot start a runtime from within a runtime")
 ksni = { version = "0.3", default-features = false, features = ["async-io"] }
+# KDE's tablet mode followed over D-Bus (tablet.rs); the core's own zbus, blocking calls on a thread
+zbus = "5"
 # filter lists → WebKit content-blocker rules, for the browsing windows' ad blocking (web_filters.rs; moved out of the
 # core, which the phone and the server build without needing it: REFACTOR-core-to-plugins.md #9)
 adblock = { version = "0.13", features = ["content-blocking"] }

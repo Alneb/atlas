@@ -83,9 +83,17 @@ fn command(ws: &Workspace, q: &PtyQuery) -> anyhow::Result<CommandBuilder> {
     on_host(cmd)
 }
 
-/// In a Flatpak, a terminal is the user's shell or program on the host (platform/host.rs), else `cmd` as it is.
-fn on_host(cmd: CommandBuilder) -> anyhow::Result<CommandBuilder> {
+/// In a Flatpak, a terminal is the user's shell or program on the host (platform/host.rs), else `cmd` as it is (less an
+/// AppImage's own variables).
+fn on_host(mut cmd: CommandBuilder) -> anyhow::Result<CommandBuilder> {
     if !crate::platform::host::sandboxed() {
+        // from an AppImage: the user's shell without the bundle's libraries (host.rs `outside_bundle`)
+        for (k, v) in crate::platform::host::outside_bundle() {
+            match v {
+                Some(v) => cmd.env(k, v),
+                None => cmd.env_remove(k),
+            }
+        }
         return Ok(cmd);
     }
     let argv = cmd.get_argv();

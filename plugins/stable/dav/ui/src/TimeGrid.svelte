@@ -211,6 +211,8 @@
   .col.weekend { background-color: color-mix(in srgb, var(--bg-alt) 70%, transparent); }
   .ev { position: absolute; box-sizing: border-box; cursor: pointer; border-radius: var(--radius-sm); padding: 2px 6px; overflow: hidden; display: flex; flex-direction: column; gap: 0; font-size: 0.8em; line-height: 1.25;
     background: color-mix(in srgb, var(--c) 24%, var(--bg)); border-left: 3px solid var(--c); color: var(--text); box-shadow: 0 0 0 1px var(--bg); touch-action: none; z-index: 1; }
+  /* a bar is an .ev too (selection, colours) but a grid item in a row: absolute dropped its grid-column (every bar on Monday), a column centred its words */
+  .bar.ev { position: relative; flex-direction: row; }
   .ev:hover { background: color-mix(in srgb, var(--c) 34%, var(--bg)); }
   .ev:focus-visible, .ev.sel, .bar.sel, .bar:focus-visible { outline: 2px solid var(--c); outline-offset: 1px; z-index: 3; }
   .ev.short { flex-direction: row; gap: 6px; align-items: baseline; }

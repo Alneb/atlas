@@ -500,14 +500,14 @@ fn a_capture_sent_but_unanswered_is_unsure_and_enter_does_not_repeat_it() {
 fn every_capture_box_shows_the_cores_words() {
     use atlas_core::capture::{GUIDES, PROMPT};
     let web = include_str!("../../../ui/src/lib/capture-guides.ts");
-    let phone = include_str!("../../atlas-android/android/java/org/atlas/capture/CaptureActivity.java");
+    let phone = include_str!("../../atlas-android/android/java/org/atlas/capture/CaptureBox.java");
     let quoted = |s: &str| format!("\"{s}\"");
     assert!(web.contains(&quoted(PROMPT)), "capture-guides.ts: PROMPT");
-    assert!(phone.contains(&format!("setHint({})", quoted(PROMPT))), "CaptureActivity: the hint");
+    assert!(phone.contains(&format!("setHint({})", quoted(PROMPT))), "CaptureBox: the hint");
     for g in &GUIDES {
         let entry = format!("{{ shown: {}, starts: {}, what: {}, tip: {} }}", quoted(g.shown), quoted(g.starts), quoted(g.what), quoted(g.tip));
         assert!(web.contains(&entry), "capture-guides.ts lacks {entry}");
         let row = format!("{{{}, {}, {}}}", quoted(g.shown), quoted(g.starts), quoted(g.what));
-        assert!(phone.contains(&row), "CaptureActivity lacks {row}");
+        assert!(phone.contains(&row), "CaptureBox lacks {row}");
     }
 }

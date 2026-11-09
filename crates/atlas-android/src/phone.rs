@@ -187,12 +187,14 @@ mod plugin_tests {
         let names: std::collections::HashSet<String> = atlas_capture::icons::Icon::ALL.iter().map(|i| icon_name(*i)).collect();
         let call = regex::Regex::new(r#"\.icon\([^,()]+(?:\(\))?, "([a-z_]+)""#).unwrap();
         let bar = regex::Regex::new(r#"\{ "([a-z_]+)", "[A-Z][a-z]+" \}"#).unwrap();
+        // a launcher shortcut's glyph (Shortcuts.make): a wrong name there drew a blank tile
+        let shortcut = regex::Regex::new(r#"make\(c, look, "[a-z]+", "[^"]+", "([a-z_-]+)""#).unwrap();
         let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
         let mut missing = Vec::new();
         for dir in ["crates/atlas-android/android/java", "plugins"] {
             for e in walkdir::WalkDir::new(root.join(dir)).into_iter().flatten().filter(|e| e.path().extension().is_some_and(|x| x == "java")) {
                 let text = std::fs::read_to_string(e.path()).unwrap();
-                for c in call.captures_iter(&text).chain(bar.captures_iter(&text)) {
+                for c in call.captures_iter(&text).chain(bar.captures_iter(&text)).chain(shortcut.captures_iter(&text)) {
                     if !names.contains(&c[1]) { missing.push(format!("{}: {}", e.path().display(), &c[1])); }
                 }
             }

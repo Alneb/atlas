@@ -497,7 +497,7 @@
   .note-view-switch { position: absolute; top: 2px; right: 10px; z-index: 2; padding: 2px 9px; border-radius: 6px; border: 1px solid var(--border);
     background: var(--bg); color: var(--text-muted); font-size: calc(12px * var(--ui-scale, 1)); }
   .note-view-switch:hover { color: var(--text); background: var(--bg-hover); }
-  .editor-row { flex: 1; min-height: 0; display: flex; }
+  .editor-row { flex: 1; min-height: 0; display: flex; position: relative; } /* the phone's properties sheet covers it */
   .editor-col { flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; }
   .editor-host { flex: 1; min-width: 0; min-height: 0; }
   .crumbs { flex: none; display: flex; align-items: center; gap: 2px; padding: 4px 14px; min-height: 26px; overflow: hidden; white-space: nowrap;

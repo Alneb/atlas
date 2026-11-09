@@ -75,6 +75,8 @@ public final class AtlasActivity extends Activity {
     private View brand;           // in Back's place where Back goes nowhere (Home)
     private final View[] pills = new View[5]; // the bottom bar's mark behind the current place's icon
     private View fab, bottom, topBar, topLine;
+    /** The bars' backgrounds, recoloured to the vault's palette when the page says it (Bridge.paper). */
+    private final java.util.List<View> paper = new java.util.ArrayList<>();
     private View unfull;          // fullscreen's way out, in a corner
     private boolean full;         // fullscreen: the page alone, no bars of the app's or the system's (setFull)
     private final TextView[] tabsOfBar = new TextView[5];
@@ -102,6 +104,7 @@ public final class AtlasActivity extends Activity {
         asked = getIntent().getStringExtra(Shortcuts.PLACE);
         if (state == null) openAsked(getIntent()); // a notification's click with no window open
         Notices.askOnce(this);
+        CaptureWays.post(this); // the capture notification, back after a restart of the phone
         if (state != null) { keptHistory = state.getString("history"); keptHistoryOf = state.getString("historyOf"); }
     }
 
@@ -196,8 +199,10 @@ public final class AtlasActivity extends Activity {
         // there (go) — before, any return opened it at Home ("all options redirect to home")
         if (!vault.equals(shown) && !(at.kind == Kind.SETTINGS && shown != null)) open(vault, shown == null); // first open (the activity made again): where it was
         else if (!at.kind.web()) render(); // back from the capture box or a settings screen: the place as it is now
-        Kind place = "search".equals(asked) ? Kind.SEARCH : "files".equals(asked) ? Kind.FILES : null;
+        String want = asked;
         asked = null;
+        if ("new".equals(want)) { view("command('ui.new')"); return; } // as the + does: a note, a template, a drawing
+        Kind place = "search".equals(want) ? Kind.SEARCH : "files".equals(want) ? Kind.FILES : "home".equals(want) ? Kind.HOME : null;
         if (place != null && place != at.kind) go(new Screen(place, ""), true);
     }
 
@@ -207,11 +212,13 @@ public final class AtlasActivity extends Activity {
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
         root.setBackgroundColor(look.bg); // the system's bars, above and below, take the bars' colour
+        paper.add(root);
 
         LinearLayout top = new LinearLayout(this);
         top.setGravity(Gravity.CENTER_VERTICAL);
         top.setPadding(look.dp(4), 0, look.dp(4), 0);
         top.setBackgroundColor(look.bg);
+        paper.add(top);
         back = iconButton("back", "Back", v -> onBackPressed());
         top.addView(back);
         brand = look.brand(this, 28);
@@ -278,6 +285,7 @@ public final class AtlasActivity extends Activity {
         bar.addView(hairline());
         LinearLayout row = new LinearLayout(this);
         row.setBackgroundColor(look.bg);
+        paper.add(row);
         // the vault's libraries (drawings, references, comics, books…: docs/design/DESIGN-libraries-everywhere.md)
         String[][] items = { { "today", "Home" }, { "library", "Library" }, { "vault", "Files" }, { "search", "Search" }, { "settings", "Settings" } };
         Kind[] kinds = { Kind.HOME, Kind.LIBRARY, Kind.FILES, Kind.SEARCH, Kind.SETTINGS };
@@ -319,8 +327,9 @@ public final class AtlasActivity extends Activity {
             if (Build.VERSION.SDK_INT < 30) return in;
             // fullscreen: the bars a swipe shows a moment lie over the page, which does not jump for them
             android.graphics.Insets s = full ? android.graphics.Insets.NONE : in.getInsets(WindowInsets.Type.systemBars()), k = in.getInsets(WindowInsets.Type.ime());
-            boolean typing = k.bottom > s.bottom;
+            typing = k.bottom > s.bottom;
             bottom.setVisibility(typing || full ? View.GONE : View.VISIBLE);
+            fab.setVisibility(fabShown() ? View.VISIBLE : View.GONE); // over the field being typed in otherwise
             x.setPadding(s.left, s.top, s.right, typing ? k.bottom : s.bottom);
             return WindowInsets.CONSUMED;
         });
@@ -374,6 +383,11 @@ public final class AtlasActivity extends Activity {
         title.setAlpha(0.3f);
         title.animate().translationX(0).alpha(1).setDuration(160).start();
         return true;
+    }
+
+    private void repaper(int color) {
+        for (View v : paper) v.setBackgroundColor(color);
+        if (web != null) web.setBackgroundColor(color);
     }
 
     private View hairline() {
@@ -589,6 +603,9 @@ public final class AtlasActivity extends Activity {
         /** The system's font size (Settings → Display → Font size), for the page's `--ui-scale`. */
         /** An e-ink screen (Look.isEink): the page's `ui.eink = "auto"` turns its e-ink mode on (lib/eink.ts). */
         @JavascriptInterface public String eink() { return String.valueOf(look.eink); }
+        /** The page's background (`--bg`, as the vault's palette and theme draw it): the bars take it, so a black palette
+         *  is not framed in the app's own grey-blue. "" puts the app's colour back. */
+        @JavascriptInterface public void paper(String css) { runOnUiThread(() -> repaper(Look.parseCss(css, look.bg))); }
         /** native-shell.svelte.ts, before it makes a tab: a native plugin of this app opens the path instead. */
         @JavascriptInterface public String nativeOpens(String path) {
             if (path.equals(webOnce)) { webOnce = null; return "false"; } // asked for on the web this once
@@ -872,12 +889,17 @@ public final class AtlasActivity extends Activity {
         js("atlasShell." + call);
     }
 
+    /** The keyboard is up (the insets listener): the + steps aside with the bottom bar. */
+    private boolean typing;
+
+    private boolean fabShown() { return !full && !typing && at != null && (at.kind == Kind.HOME || at.kind == Kind.FILES); }
+
     private void render() {
         boolean note = at.kind.web() && ready;
         if (web != null) web.setVisibility(note ? View.VISIBLE : View.GONE);
         applyInk(); // a native screen over the page: no ink there
         place.setVisibility(note ? View.GONE : View.VISIBLE);
-        fab.setVisibility(!full && (at.kind == Kind.HOME || at.kind == Kind.FILES) ? View.VISIBLE : View.GONE);
+        fab.setVisibility(fabShown() ? View.VISIBLE : View.GONE);
         boolean nowhere = history.isEmpty() || (at.kind != Kind.NOTE && at.kind != Kind.SETTINGS); // an app's own place: no Back
         back.setVisibility(nowhere ? View.GONE : View.VISIBLE);
         brand.setVisibility(nowhere ? View.VISIBLE : View.GONE);

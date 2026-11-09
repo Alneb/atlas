@@ -76,6 +76,7 @@ is the manifest’s `api` (the current one is 20; an older number still loads, s
 | books | beta | ~ 0 / 2 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ~ | 15 | ✓ | ✓ | 0.10.2 | unit tests (1); platforms in the README (8); 1.0 (12) |
 | notepad | beta | ✗ 0 / 0 | ✓ | ✓ | ✓ | ✓ | ✓ | ~ | ~ | 4 | ✓ | ✓ | 0.4.0 | tests (1); its Boox-only parts declared (8) |
 | rnote | beta | ~ 0 / 2 | ✓ | ✓ | ✓ | ✓ | – | ✓ | ✓ | 7 | ✓ | ✓ | 0.3.0 | unit tests (1); 1.0 (12) — it converts in the page, with no `rnote-cli` |
+| zstd | beta | ~ 11 / 0 | ✓ | ✓ | ✓ | ✓ | – | ✓ | ~ | 17 | ✓ | ✓ | 0.2.0 | real use; an end-to-end spec (1); tried only on Linux (8); 1.0 (12) |
 | ocr | beta | ~ 6 / 0 | ✓ | ✓ | ✓ | ~ | ~ | ✓ | ✓ | 15 | ✓ | ✓ | 0.2.1 | an end-to-end spec (1); progress for long pages (6) |
 | claude | beta | ✗ 0 / 0 | ✓ | ✓ | ✓ | ✓ | – | ~ | ✗ | 4 | ✓ | ✓ | 0.5.0 | tests (1); says it reads the account on the core's machine (7, 8) |
 | today | beta | ~ 0 / 2 | ✓ | ✓ | ✓ | ~ | – | ✓ | ✓ | 19 | ✓ | ✓ | 0.3.0 | unit tests (1) |

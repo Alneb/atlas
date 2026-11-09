@@ -15,7 +15,8 @@ import java.io.FileOutputStream;
 /**
  * Takes "the screen I was on" for the box (Android 11+): the only way an app may take a screenshot without asking each time is an
  * accessibility service the user turned on. At the same moment it reads what the app shows (Page → Onscreen): a browser's
- * page, a YouTube video, a Spotify song, a Letterboxd film, a Wikipedia article; nothing at any other time. Also answers the accessibility button / gesture.
+ * page, a YouTube video, a Spotify song, a Letterboxd film, a Wikipedia article; nothing at any other time. Also answers the accessibility button / gesture,
+ * and floats the box over the app (CaptureOverlay), whose windows coming up are the only events it looks at.
  */
 public final class ScreenService extends AccessibilityService {
     private static ScreenService on;
@@ -95,11 +96,14 @@ public final class ScreenService extends AccessibilityService {
         if (f != null && f.url == null && f.site != null) i.putExtra("site", f.site.name()).putExtra("query", f.query).putExtra("year", f.year);
         if (page != null) i.putExtra("pkg", page.pkg);
         if (page != null && page.app != null && !page.app.contentEquals(getApplicationInfo().loadLabel(getPackageManager()))) i.putExtra("app", page.app);
-        startActivity(i);
+        if (!CaptureOverlay.open(this, i)) startActivity(i); // floating over the app, which keeps running; else a screen of its own
     }
 
     @Override
-    public void onAccessibilityEvent(AccessibilityEvent e) {}
+    public void onAccessibilityEvent(AccessibilityEvent e) {
+        // only while the box floats: another app coming up (home, a switch) takes it away, the draft kept
+        if (e.getEventType() == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED && e.getPackageName() != null) CaptureOverlay.appCameUp(e.getPackageName().toString(), this);
+    }
 
     @Override
     public void onInterrupt() {}

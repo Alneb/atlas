@@ -29,6 +29,7 @@ final class ConfigPages {
         for (Iterator<String> it = props.keys(); it.hasNext(); ) {
             String k = it.next();
             JSONObject raw = props.optJSONObject(k), r = resolve(schema, raw);
+            if (!onPhone(raw)) continue; // a whole section for other clients (the desktop window, terminals, LSP)
             JSONObject inner = r.optJSONObject("properties");
             if (inner != null) {
                 // a short description names the section better than its key ("Appearance" for ui); a long one says what

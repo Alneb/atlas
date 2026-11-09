@@ -16,7 +16,7 @@ import java.util.function.Consumer;
 final class VaultChoice {
     private VaultChoice() {}
 
-    static boolean canWriteStorage(Activity a) {
+    static boolean canWriteStorage(android.content.Context a) {
         if (Build.VERSION.SDK_INT >= 30) return Environment.isExternalStorageManager();
         return a.checkSelfPermission(android.Manifest.permission.WRITE_EXTERNAL_STORAGE) == android.content.pm.PackageManager.PERMISSION_GRANTED;
     }
@@ -31,15 +31,16 @@ final class VaultChoice {
     }
 
     /** Vault folders on the phone's storage (`.atlas` or `.obsidian` inside), off the main thread: the JSON of Core.findVaults. */
-    static void find(Activity a, Consumer<String> found) {
+    static void find(Consumer<String> found) {
+        android.os.Handler ui = new android.os.Handler(android.os.Looper.getMainLooper());
         new Thread(() -> {
             String json = Core.findVaults(Environment.getExternalStorageDirectory().getPath());
-            a.runOnUiThread(() -> found.accept(json));
+            ui.post(() -> found.accept(json));
         }).start();
     }
 
     /** The app's own folder, for captures with no vault on the phone yet. */
-    static String inApp(Activity a) {
+    static String inApp(android.content.Context a) {
         File f = new File(a.getFilesDir(), "Phone");
         new File(f, ".atlas").mkdirs();
         return f.getPath();

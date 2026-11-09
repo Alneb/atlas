@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Atlas (docs/guides/ANDROID.md, "The full app"): the desktop app's phone part, native — Today, Files, Search, notes — and the
      capture box, tile and screen service of the capture app. The same Java (package org.atlas.capture) and Rust library. -->
-<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="org.atlas.app" android:versionCode="8" android:versionName="0.2.8">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="org.atlas.app" android:versionCode="9" android:versionName="0.2.9">
   <uses-permission android:name="android.permission.INTERNET" />
   <!-- Outbox: a job that waits for a network (JobScheduler asks for it; without it the app was killed, 2026-10-19) -->
   <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
@@ -43,6 +43,14 @@
         <data android:mimeType="text/plain" />
       </intent-filter>
     </activity>
+    <!-- the box's own icon (CaptureWays): off until turned on in Settings → Capture; for the home screen, the drawer and a
+         Pixel's Quick Tap (double tap on the back opens an app) -->
+    <activity-alias android:name="org.atlas.capture.CaptureIcon" android:targetActivity="org.atlas.capture.CaptureActivity" android:label="Capture" android:icon="@mipmap/ic_launcher" android:enabled="false" android:exported="true">
+      <intent-filter>
+        <action android:name="android.intent.action.MAIN" />
+        <category android:name="android.intent.category.LAUNCHER" />
+      </intent-filter>
+    </activity-alias>
     <!-- signing in to a server (docs/guides/ANDROID.md, "Signing in"): the browser comes back to the app's own address -->
     <activity android:name="org.atlas.capture.SignedInActivity" android:exported="true" android:launchMode="singleTask" android:theme="@android:style/Theme.Translucent.NoTitleBar">
       <intent-filter>

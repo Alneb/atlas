@@ -333,3 +333,14 @@ apps' known layouts, not dumped from a real phone — the first real captures in
 ## System notifications
 
 The core decides when a notice becomes a system notification (`crates/atlas-core/src/notify.rs`), on the phone as on the desktop. `crates/atlas-android/src/notices.rs` gives the core a notifier (`notify::set_platform`) that calls `Notices.java` over JNI: one channel per source, so Android's settings can mute a source; a click opens the notice's vault path through `AtlasActivity`. Android 13 and later ask for the permission once, when the app first opens.
+
+## Ways into the capture box, and the box floating over the app
+
+**Ways in**: the quick-settings tile, a share, text selected in any app ("Capture" in its selection menu), the launcher shortcut, the accessibility button / gesture / volume-key shortcut (`ScreenService`), and two switches in Settings → Capture (`CaptureWays`): **a Capture icon of its own** (an `activity-alias` of the box, disabled until asked for: the home screen, the app drawer, a Pixel's Quick Tap "open app") and **a quiet notification that stays** (`IMPORTANCE_MIN`: no sound, no status-bar icon, shown on the lock screen since it shows nothing of the vault; posted again when the app starts).
+
+**The box is held by a frame** (`CaptureBox`, a `ContextWrapper` over the frame's context, so its views and dialogs are the frame's):
+- `CaptureActivity` — a translucent screen of its own. Android pauses the activity under any activity, so a video under it stops.
+- `CaptureOverlay` — a window of the accessibility service (`TYPE_ACCESSIBILITY_OVERLAY`), used whenever the service opens the box (button, gesture, volume keys, the tile when the service is on): the app under keeps running — a video plays on under the dimmed screen. It needs no permission beyond the service the user already turned on. Its own dialogs (a picture shown large, the drawing canvas) are windows of the same type (`CaptureBox.above`), else they would open under the app.
+- **What only an activity can do moves the box into one** (`CaptureBox.activity(Then)`): the camera, "All files access", signing in to a server. The draft is kept and the box reopens as `CaptureActivity` with the same intent (the screen taken, the page's link) and does the step there. Choices made in the floating box (a chip turned on) are not carried over.
+- **The floating box goes away when another app comes up** (home, a switch): the service's `TYPE_WINDOW_STATE_CHANGED` events, looked at only while the box floats, ignoring the app under it, Atlas itself, the system UI and the keyboard. The draft is kept.
+- **A switch** in Settings → Capture, "Over the app, which keeps running" (on by default, Android 11+); off, the service opens the activity as before.

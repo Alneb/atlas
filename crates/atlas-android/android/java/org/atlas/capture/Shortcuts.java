@@ -11,12 +11,13 @@ import android.graphics.drawable.Icon;
 import java.util.ArrayList;
 import java.util.List;
 
-/** The launcher icon's long-press menu (docs/guides/ANDROID.md, " "): Capture, Search, Files. Dynamic, not static
+/** The launcher icon's long-press menu (docs/guides/ANDROID.md, " "): Capture, New note, Today, Search, Files (a
+ *  launcher shows the first four or five). Dynamic, not static
  *  ones: a static shortcut clears the task, which would restart the note view; these bring the running app forward. */
 final class Shortcuts {
     private Shortcuts() {}
 
-    /** The extra naming the place an `AtlasActivity` intent opens: "search" or "files". */
+    /** The extra naming the place an `AtlasActivity` intent opens: "search", "files", "home", or "new" (New…). */
     static final String PLACE = "org.atlas.place";
 
     static void publish(Context c, Look look) {
@@ -24,6 +25,8 @@ final class Shortcuts {
         if (sm == null) return;
         List<ShortcutInfo> all = new ArrayList<>();
         all.add(make(c, look, "capture", "Capture", "plus", new Intent(c, CaptureActivity.class)));
+        all.add(make(c, look, "new", "New note", "note", place(c, "new")));
+        all.add(make(c, look, "home", "Today", "today", place(c, "home")));
         all.add(make(c, look, "search", "Search", "search", place(c, "search")));
         all.add(make(c, look, "files", "Files", "vault", place(c, "files")));
         try { sm.setDynamicShortcuts(all); } catch (RuntimeException e) { /* a launcher's rate limit: next start */ }

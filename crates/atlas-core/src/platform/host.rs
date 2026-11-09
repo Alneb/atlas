@@ -85,8 +85,14 @@ fn env_file(env: &[(OsString, OsString)]) -> std::io::Result<PathBuf> {
 
 /// `cmd` as it starts on the host when Atlas is sandboxed, else `cmd` unchanged. Only the program, arguments, folder
 /// and the variables `cmd` sets carry over: build `cmd` with those, then set stdio and the rest on what comes back.
-pub fn std_command(cmd: std::process::Command) -> std::io::Result<std::process::Command> {
+pub fn std_command(mut cmd: std::process::Command) -> std::io::Result<std::process::Command> {
     if !sandboxed() {
+        for (k, v) in outside_bundle() {
+            match v {
+                Some(v) => cmd.env(k, v),
+                None => cmd.env_remove(k),
+            };
+        }
         return Ok(cmd);
     }
     let args: Vec<OsString> = cmd.get_args().map(OsStr::to_os_string).collect();
@@ -96,6 +102,31 @@ pub fn std_command(cmd: std::process::Command) -> std::io::Result<std::process::
     let mut out = std::process::Command::new(program);
     out.args(args);
     Ok(out)
+}
+
+/// Atlas run from an AppImage: its launcher (AppRun) puts the bundle's folders first in `PATH`, `LD_LIBRARY_PATH`,
+/// `PYTHONPATH`… for the app's own libraries. A program of the user's started with them loads the bundle's copies (the
+/// system's `ssh` took the bundle's older libcrypto and failed). What to change for such a program: every variable that
+/// names the bundle, its list without the bundle's entries, unset when nothing else was in it. Empty outside an AppImage.
+pub fn outside_bundle() -> &'static [(OsString, Option<OsString>)] {
+    static VARS: OnceLock<Vec<(OsString, Option<OsString>)>> = OnceLock::new();
+    VARS.get_or_init(|| match (std::env::var("APPDIR"), std::env::var_os("APPIMAGE")) {
+        (Ok(dir), Some(_)) if !dir.is_empty() => strip_bundle(&dir, std::env::vars()),
+        _ => Vec::new(),
+    })
+}
+
+/// [`outside_bundle`] for the bundle at `dir` and the variables `vars`.
+fn strip_bundle(dir: &str, vars: impl Iterator<Item = (String, String)>) -> Vec<(OsString, Option<OsString>)> {
+    let dir = dir.trim_end_matches('/');
+    let inside = |e: &str| e == dir || e.starts_with(&format!("{dir}/"));
+    vars.filter(|(k, v)| k == "APPDIR" || v.split(':').any(inside))
+        .map(|(k, v)| {
+            let kept: Vec<&str> = v.split(':').filter(|e| !e.is_empty() && !inside(e)).collect();
+            let v = (k != "APPDIR" && !kept.is_empty()).then(|| OsString::from(kept.join(":")));
+            (OsString::from(k), v)
+        })
+        .collect()
 }
 
 /// Where `name` is on the host's PATH (None outside a Flatpak, or when the host has no such program). Asked of the
@@ -152,6 +183,31 @@ pub fn shell() -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// What AppRun sets (an AppImage's linuxdeploy launcher): the user's programs get the variables as they were.
+    #[test]
+    fn a_program_started_from_an_appimage_gets_the_systems_libraries_not_the_bundles() {
+        let d = "/tmp/.mount_AtlasX";
+        let vars = [
+            ("LD_LIBRARY_PATH", format!("{d}/usr/lib/:{d}/usr/lib64/:")),
+            ("PATH", format!("{d}/usr/bin/:{d}/bin/:/usr/bin:/home/u/.local/bin")),
+            ("PYTHONHOME", format!("{d}/usr/")),
+            ("APPDIR", d.to_string()),
+            ("GIO_MODULE_DIR", format!("{d}//usr/lib/gio/modules")),
+            ("XDG_DATA_DIRS", format!("{d}/usr/share:/usr/share:/usr/local/share")),
+            ("HOME", "/home/u".to_string()),
+            ("OTHER", "/tmp/.mount_AtlasXY/not-it".to_string()),
+        ];
+        let got: std::collections::HashMap<String, Option<String>> = strip_bundle(d, vars.into_iter().map(|(k, v)| (k.to_string(), v)))
+            .into_iter()
+            .map(|(k, v)| (k.into_string().unwrap(), v.map(|v| v.into_string().unwrap())))
+            .collect();
+        assert_eq!(got["LD_LIBRARY_PATH"], None);
+        assert_eq!(got["PATH"].as_deref(), Some("/usr/bin:/home/u/.local/bin"));
+        assert_eq!((got["PYTHONHOME"].as_deref(), got["APPDIR"].as_deref(), got["GIO_MODULE_DIR"].as_deref()), (None, None, None));
+        assert_eq!(got["XDG_DATA_DIRS"].as_deref(), Some("/usr/share:/usr/local/share"));
+        assert!(!got.contains_key("HOME") && !got.contains_key("OTHER"), "{got:?}");
+    }
 
     #[test]
     fn a_command_with_variables_reads_them_from_a_private_file_and_only_its_name_is_on_the_line() {

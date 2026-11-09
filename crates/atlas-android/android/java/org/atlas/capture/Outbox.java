@@ -99,7 +99,7 @@ final class Outbox {
                 if (cat != null && cat.length() > 0) { // "Catalogue it" chosen while offline: now, as the box does
                     List<String> links = new ArrayList<>();
                     for (int i = 0; i < cat.length(); i++) links.add(cat.optString(i));
-                    Log.i(TAG, "kept capture's links: " + CaptureActivity.catalogue(server, token, links));
+                    Log.i(TAG, "kept capture's links: " + CaptureBox.catalogue(server, token, links));
                 }
                 deleteAll(d);
                 sent++;

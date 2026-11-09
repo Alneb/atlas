@@ -64,6 +64,8 @@ function apply(c: WorkspaceConfig): void {
   else root.style.removeProperty("--font-ui");
   applyAccent(root, high ? phosphorAccent(root, c.ui.accent.trim(), theme === "light") : c.ui.accent.trim());
   root.style.setProperty("--prose-width", c.editor.prose_width ? `${c.editor.prose_width}ch` : "none");
+  // the phone app's own bars take the page's background (AtlasActivity Bridge.paper; an older app has no such call)
+  (globalThis as unknown as { AtlasNative?: { paper?: (css: string) => void } }).AtlasNative?.paper?.(getComputedStyle(document.body).backgroundColor);
   for (const f of listeners) f(c);
 }
 

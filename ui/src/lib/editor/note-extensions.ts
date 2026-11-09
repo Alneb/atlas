@@ -214,12 +214,16 @@ export function headingRepeats(state: EditorState, name: string): boolean {
 }
 
 /** The inline title as a field: the note's name, renamed in place — Enter (or leaving the field) renames the file,
- *  Esc puts the name back. The editor ignores the widget's events (live-preview's InlineTitleWidget), so the field's
+ *  Esc puts the name back. A textarea grown to its text, so a long name wraps (an input cut it off on a phone). The editor ignores the widget's events (live-preview's InlineTitleWidget), so the field's
  *  keys and clicks are its own. */
 function titleInput(path: string, name: string): HTMLElement {
-  const h = document.createElement("input");
+  const h = document.createElement("textarea");
   h.className = "inline-title";
   h.value = name;
+  h.rows = 1;
+  const fit = () => { h.style.height = "auto"; h.style.height = `${h.scrollHeight}px`; };
+  h.addEventListener("input", () => { h.value = h.value.replace(/[\r\n]+/g, " "); fit(); }); // a name has no line breaks (a paste)
+  new ResizeObserver(fit).observe(h); // attached, and at each new width
   h.spellcheck = false;
   h.setAttribute("aria-label", "The note's name: type to rename it");
   h.title = "The note's name: type here and press Enter to rename it";

@@ -62,7 +62,7 @@ button.btn.primary:disabled { opacity: .45; cursor: default; }
 /* One choice among a few lists or scopes (Home's Activity, the Captures view, a Base's filter): a segmented control —
    one sunken track, the chosen one raised; the line (`--card-border`) for e-ink, which has no shadow or tint. A
    component adds only its layout (full width, its place). */
-.atlas-seg { display: flex; gap: 2px; width: fit-content; max-width: 100%; padding: 2px; background: var(--bg-app); border-radius: var(--radius-sm); }
+.atlas-seg { display: flex; flex-wrap: wrap; gap: 2px; /* too narrow for its labels: a second row, never labels over each other */ width: fit-content; max-width: 100%; padding: 2px; background: var(--bg-app); border-radius: var(--radius-sm); }
 .atlas-seg > button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-width: 0; white-space: nowrap; font: inherit;
   font-size: calc(12.5px * var(--ui-scale, 1)); color: var(--text-muted); background: transparent; border: none; border-radius: calc(var(--radius-sm) - 2px); padding: 3px 10px; cursor: pointer; }
 .atlas-seg > button:hover { color: var(--text); }

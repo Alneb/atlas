@@ -114,7 +114,7 @@ says what each tier promises and where each plugin stands. Each plugin's folder 
 | Catalogue and references | [Catalog](plugins/beta/catalog) and its sources: [Science / References](plugins/beta/catalog-papers), [TMDB](plugins/beta/catalog-tmdb), [Open sources](plugins/beta/catalog-open) (books, music, manga and anime, YouTube, Wikipedia), [Linkwarden](plugins/beta/catalog-linkwarden); services told about catalogued things: [Downloader](plugins/beta/downloader) (MeTube, TubeArchivist or your own) |
 | Reading | [Books](plugins/beta/books), [Manga](plugins/beta/manga), [Kiwix](plugins/beta/kiwix), [OCR](plugins/beta/ocr), [Rnote](plugins/beta/rnote) |
 | Writing and output | [Export](plugins/beta/export) (LaTeX / PDF), [Print](plugins/beta/print), [Weather](plugins/beta/weather), [Today](plugins/beta/today) (the greeting, the day's log, the vault's map) |
-| Machines and files | [SSH](plugins/stable/ssh), [copyparty](plugins/beta/copyparty), [Run tools](plugins/beta/run-tools), [Syncthing](plugins/beta/syncthing) |
+| Machines and files | [SSH](plugins/stable/ssh), [copyparty](plugins/beta/copyparty), [Run tools](plugins/beta/run-tools), [Syncthing](plugins/beta/syncthing), [Zstandard](plugins/beta/zstd) (`*.zst` opened as the file they hold) |
 | Money | [Finance](plugins/beta/finance) |
 | Agents | [Claude](plugins/beta/claude) |
 | To copy from (`plugins/examples/`, not released) | [Word count](plugins/examples/wordcount) (the smallest plugin), [Word stats](plugins/examples/helper-python) (a plugin with a helper), [TTRPG](plugins/examples/ttrpg) (most of the page side), small integrations: [FreshRSS](plugins/examples/freshrss), [Immich](plugins/examples/immich), [Jellyfin](plugins/examples/jellyfin), [Paperless](plugins/examples/paperless) |

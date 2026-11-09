@@ -7,6 +7,8 @@ mod background;
 mod browser;
 mod tray;
 #[cfg(target_os = "linux")]
+mod tablet;
+#[cfg(target_os = "linux")]
 mod tray_sni;
 #[cfg(not(target_os = "linux"))]
 mod tray_tauri;
@@ -524,6 +526,8 @@ fn main() -> anyhow::Result<()> {
             let shell = background::Shell::new(handle.clone(), vault.clone(), core.clone(), open_main);
             let _ = SHELL.set(shell.clone());
             folder_dialog(&handle);
+            #[cfg(target_os = "linux")]
+            tablet::watch(handle.clone()); // KDE's tablet mode → the touch layout (tablet.rs)
             // a notification's click, a second launch, the tray: one way to bring the window forward (shell.rs)
             let s = shell.clone();
             atlas_core::shell::on_show(move |show| s.show(show.open));
@@ -664,6 +668,13 @@ impl MainSpec {
             // handler would take them first (on Windows the page then never sees a dropped file)
             .disable_drag_drop_handler()
             .inner_size(MAIN_SIZE.width, MAIN_SIZE.height);
+        // each page load learns whether KDE is in tablet mode (tablet.rs tells it of changes after)
+        #[cfg(target_os = "linux")]
+        let main = main.on_page_load(|w, load| {
+            if load.event() == tauri::webview::PageLoadEvent::Finished {
+                let _ = w.eval(tablet::script());
+            }
+        });
         // the window's page never leaves Atlas (OffApp). WebKitGTK reports a frame's navigation as the page's, and
         // a web tab is a frame: there the guard watches the page's own loads instead (`load-changed` is the main
         // frame's alone), below; elsewhere the navigation hook is the main frame's.
@@ -705,6 +716,7 @@ impl MainSpec {
                 s.set_javascript_can_open_windows_automatically(true);
             }
             pinch_to_wheel(&w.inner());
+            pen_as_pen(&w.inner());
             stay_in_atlas(&w.inner(), off_app);
             webtab::attach(&w.inner()); // web pages as tabs, framing allowed or not
             // a document, not a browser: no back/forward page cache, small memory caches — Atlas is one page and never goes back to a page it left
@@ -759,6 +771,38 @@ fn pinch_to_wheel(view: &webkit2gtk::WebView) {
             v.run_javascript(&js, None::<&gtk::gio::Cancellable>, |_| {});
         }
         gtk::glib::Propagation::Stop
+    });
+}
+
+/// A Wacom pen (or its eraser) reaches WebKitGTK as a mouse, without pressure: the drawings (draw-excalidraw.ts,
+/// draw-notepad.ts) then take it for one. Before WebKit delivers a pen's event, the page is told its pressure and tilt
+/// (ui/src/lib/pen-bridge.ts turns the mouse's pointer event into a pen's); the script and the event go to the page
+/// over one connection, in that order. The first event of another device says the pen is gone.
+#[cfg(target_os = "linux")]
+fn pen_as_pen(view: &webkit2gtk::WebView) {
+    use gtk::gdk::{AxisUse, InputSource};
+    use gtk::prelude::WidgetExt;
+    use webkit2gtk::WebViewExt;
+    let was_pen = std::cell::Cell::new(false);
+    view.connect_event(move |v, ev| {
+        use gtk::gdk::EventType as T;
+        if !matches!(ev.event_type(), T::MotionNotify | T::ButtonPress | T::ButtonRelease) {
+            return gtk::glib::Propagation::Proceed;
+        }
+        let source = ev.source_device().map(|d| gtk::gdk::prelude::DeviceExt::source(&d));
+        let js = match source {
+            Some(s @ (InputSource::Pen | InputSource::Eraser)) => {
+                was_pen.set(true);
+                let axis = |a| ev.axis(a).unwrap_or(0.0);
+                let tilt = |a| (axis(a).clamp(-1.0, 1.0) * 90.0).round();
+                format!("window.atlasPen&&atlasPen({:.3},{},{},{})", axis(AxisUse::Pressure), tilt(AxisUse::Xtilt), tilt(AxisUse::Ytilt), s == InputSource::Eraser)
+            }
+            _ if was_pen.replace(false) => "window.atlasPen&&atlasPen(null)".to_string(),
+            _ => return gtk::glib::Propagation::Proceed,
+        };
+        #[allow(deprecated)] // as pinch_to_wheel
+        v.run_javascript(&js, None::<&gtk::gio::Cancellable>, |_| {});
+        gtk::glib::Propagation::Proceed
     });
 }
 

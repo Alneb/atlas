@@ -241,4 +241,17 @@ public final class Look {
         k.setBackground(round(bg, 14, border));
         return k;
     }
+
+    /** A CSS colour as the page computes it (`rgb(r, g, b)`, `#rrggbb`) as an opaque Android colour; `fallback` when it
+     *  is neither (an empty string: the app's own). */
+    public static int parseCss(String css, int fallback) {
+        if (css == null) return fallback;
+        String c = css.trim();
+        try {
+            if (c.matches("#[0-9a-fA-F]{6}")) return 0xff000000 | Integer.parseInt(c.substring(1), 16);
+            java.util.regex.Matcher m = java.util.regex.Pattern.compile("rgba?\\(\\s*(\\d+)[ ,]+(\\d+)[ ,]+(\\d+)").matcher(c);
+            if (m.find()) return 0xff000000 | Integer.parseInt(m.group(1)) << 16 | Integer.parseInt(m.group(2)) << 8 | Integer.parseInt(m.group(3));
+        } catch (NumberFormatException e) { /* not a colour */ }
+        return fallback;
+    }
 }

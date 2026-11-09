@@ -13,7 +13,7 @@ import java.util.regex.Pattern;
  * Shape first, a small table second: any browser's address is found by its shape and made canonical; the four sites are
  * known by host or by a word in the package (a YouTube fork still says "youtube"); an unknown app keeps today's guess.
  * When an app shows no address, `query` (and `year`) name what to look up: the media session of the same app (Playing,
- * CaptureActivity) or `resolve` (network, off the main thread).
+ * CaptureBox) or `resolve` (network, off the main thread).
  */
 final class Onscreen {
     private Onscreen() {}

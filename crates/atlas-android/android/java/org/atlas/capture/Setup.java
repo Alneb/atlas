@@ -99,7 +99,7 @@ final class Setup {
             LinearLayout found = new LinearLayout(a);
             found.setOrientation(LinearLayout.VERTICAL);
             card.addView(found);
-            VaultChoice.find(a, json -> {
+            VaultChoice.find(json -> {
                 try {
                     JSONArray arr = new JSONArray(json);
                     for (int i = 0; i < arr.length(); i++) {
@@ -225,7 +225,7 @@ final class Setup {
     private void chooseCopy(String server) {
         java.util.List<String> folders = new java.util.ArrayList<>();
         for (String f : vaults.list()) if (!Server.is(f)) folders.add(f);
-        VaultChoice.find(a, json -> {
+        VaultChoice.find(json -> {
             try {
                 JSONArray arr = new JSONArray(json);
                 for (int i = 0; i < arr.length(); i++) { String p = arr.getJSONObject(i).getString("path"); if (!folders.contains(p)) folders.add(p); }
@@ -295,6 +295,22 @@ final class Setup {
             card.addView(look.row(a, "plus", "The Capture tile", "edit the quick settings and drag it in"));
         }
         card.addView(look.row(a, "link", "Share to Atlas", "from any app: text, links, pictures, files"));
+        // Atlas's own switches (CaptureWays): flipped here, unlike the ones below that Android keeps
+        boolean icon = CaptureWays.iconOn(a);
+        if (CaptureWays.hasIcon(a)) card.addView(switchRow("plus", "A Capture icon", icon
+            ? "in the app list: put it on the home screen, or pick it for a Pixel's double tap on the back (Quick Tap → Open app)"
+            : "its own icon in the app list, for the home screen or a Pixel's double tap on the back",
+            icon, () -> { CaptureWays.setIcon(a, !icon); draw(); }));
+        boolean note = CaptureWays.notificationOn(a);
+        card.addView(switchRow("plus", "Always in the notifications", "a quiet notification, one tap from anywhere, the lock screen too",
+            note, () -> { CaptureWays.setNotification(a, !note); if (!note) CaptureWays.askToNotify(a); draw(); }));
+        if (Build.VERSION.SDK_INT >= 30) { // CaptureOverlay: a window of the accessibility service
+            boolean floats = CaptureOverlay.on(a);
+            card.addView(switchRow("play", "Over the app, which keeps running", floats
+                ? "from the button, the gesture, the volume keys or the tile: a video plays on under the box"
+                : "the box is a screen of its own: the app under it pauses (a video stops)",
+                floats, () -> { CaptureOverlay.set(a, !floats); draw(); }));
+        }
         view.addView(card);
 
         // what the box may take by itself: each a switch showing whether it is on; Android grants these only on its
@@ -306,9 +322,9 @@ final class Setup {
             ? "the tile and the accessibility button add a picture of it, and a browser's page address"
             : "turn on \"" + a.getString(a.getResources().getIdentifier("screen_service", "string", a.getPackageName())) + "\" in Accessibility; nothing is read at any other time",
             screenOn, () -> a.startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))));
-        boolean shots = CaptureActivity.canReadImages(a);
+        boolean shots = CaptureBox.canReadImages(a);
         what.addView(switchRow("image", "The last screenshot", "the newest screenshot of the last half hour, offered in the box",
-            shots, () -> { if (!shots) a.requestPermissions(new String[] {CaptureActivity.imagesPermission()}, 2); else openAppSettings(); }));
+            shots, () -> { if (!shots) a.requestPermissions(new String[] {CaptureBox.imagesPermission()}, 2); else openAppSettings(); }));
         boolean hears = Playing.allowed(a);
         what.addView(switchRow("music", "What is playing", hears
             ? "the song or video playing (YouTube Music, Spotify, a podcast), with its link when the app gives one"

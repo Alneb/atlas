@@ -16,9 +16,13 @@
   import { propertySpec, watchPropertySpec } from "../lib/property-spec.svelte";
   import { toast } from "../lib/state.svelte";
   import { toggleProperties } from "../lib/properties-panel.svelte";
+  import { phone } from "../lib/phone.svelte";
+  import { closable as onBack } from "../lib/back";
   import type { FrontmatterEdit } from "../lib/types";
 
   let { text, view, onopen, closable = false }: { text: string; view: () => EditorView | null; onopen: (target: string) => void; closable?: boolean } = $props();
+  // on a phone the panel covers the note (a third of the width cut every value off): Back closes it, as a sheet
+  $effect(() => (phone.on && closable ? onBack(() => toggleProperties(false)) : undefined));
   // the YAML itself, for what the controls do not cover: the caret at the start of the frontmatter
   function asText() {
     const v = view();
@@ -116,6 +120,7 @@
 
 <style>
   .props-panel { flex: none; width: min(calc(300px * var(--ui-scale, 1)), 42%); min-width: 0; display: flex; flex-direction: column; border-left: 1px solid var(--border); background: var(--bg-alt); }
+  :global(html.phone) .props-panel { position: absolute; inset: 0; width: auto; z-index: 5; border-left: 0; }
   .grow { flex: 1; }
   .side-head { flex: none; display: flex; align-items: center; gap: 8px; height: calc(36px * var(--ui-scale, 1)); padding: 0 10px 0 14px; }
   .side-title { font-size: calc(11px * var(--ui-scale, 1)); font-weight: 600; text-transform: uppercase; letter-spacing: .08em; color: var(--text-muted); }

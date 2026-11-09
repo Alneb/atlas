@@ -6,7 +6,7 @@ use crate::{paths, vault_write, Error, Result};
 use chrono::NaiveDateTime;
 use std::path::Path;
 
-/// Every capture box's empty-box prompt. Mirrored in `ui/src/lib/capture-guides.ts` and `CaptureActivity.java`
+/// Every capture box's empty-box prompt. Mirrored in `ui/src/lib/capture-guides.ts` and `CaptureBox.java`
 /// (atlas-capture's tests fail when a mirror differs).
 pub const PROMPT: &str = "Capture a thought, a to-do, a link…";
 

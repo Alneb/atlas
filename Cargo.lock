@@ -509,7 +509,7 @@ dependencies = [
 
 [[package]]
 name = "atlas"
-version = "0.2.8"
+version = "0.2.9"
 dependencies = [
  "anyhow",
  "atlas-core",
@@ -524,7 +524,7 @@ dependencies = [
 
 [[package]]
 name = "atlas-android"
-version = "0.2.8"
+version = "0.2.9"
 dependencies = [
  "anyhow",
  "atlas-capture",
@@ -548,7 +548,7 @@ dependencies = [
 
 [[package]]
 name = "atlas-app"
-version = "0.2.8"
+version = "0.2.9"
 dependencies = [
  "adblock",
  "anyhow",
@@ -572,11 +572,12 @@ dependencies = [
  "tokio",
  "webkit2gtk",
  "webkit2gtk-sys",
+ "zbus",
 ]
 
 [[package]]
 name = "atlas-capture"
-version = "0.2.8"
+version = "0.2.9"
 dependencies = [
  "anyhow",
  "atlas-core",
@@ -623,7 +624,7 @@ dependencies = [
 
 [[package]]
 name = "atlas-core"
-version = "0.2.8"
+version = "0.2.9"
 dependencies = [
  "anyhow",
  "arboard",
@@ -774,21 +775,21 @@ dependencies = [
 
 [[package]]
 name = "atlas-pen"
-version = "0.2.8"
+version = "0.2.9"
 dependencies = [
  "openink-shape",
 ]
 
 [[package]]
 name = "atlas-plugin"
-version = "0.2.8"
+version = "0.2.9"
 dependencies = [
  "serde_json",
 ]
 
 [[package]]
 name = "atlas-rar"
-version = "0.2.8"
+version = "0.2.9"
 dependencies = [
  "cmake",
  "flate2",
@@ -820,7 +821,7 @@ dependencies = [
 
 [[package]]
 name = "atlas-template"
-version = "0.2.8"
+version = "0.2.9"
 dependencies = [
  "chrono",
  "serde_json",

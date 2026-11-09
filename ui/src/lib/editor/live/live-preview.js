@@ -1189,6 +1189,13 @@ export function buildDecorations(state, ranges, options = {}) {
           return;
         }
 
+        // a backslash escape (`\*`, `\_`, `\#`): the character alone, as Obsidian draws it, the backslash back
+        // when the caret is on it
+        if (name === "Escape") {
+          if (node.to - node.from === 2 && !revealed(state, node.from, node.to)) add(node.from, node.from + 1, Decoration.replace({}));
+          return;
+        }
+
         if (MARK_NODES.has(name)) {
           const parent = node.node.parent;
           if (parent && !revealed(state, parent.from, parent.to)) {

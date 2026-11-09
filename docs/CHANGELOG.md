@@ -5,6 +5,27 @@ and versions follow [Semantic Versioning](https://semver.org/) once 1.0 is out.
 
 ## [Unreleased]
 
+## [0.2.9] - 2026-11-09
+
+### Added
+- Phone: the capture box floats over the app below, which keeps running (opened from the accessibility button,
+  gesture, volume keys or tile); switch "Over the app, which keeps running" in Settings → Capture.
+- Phone: more ways into the capture box — a Capture icon of its own (home screen, Quick Tap) and an always-there quiet
+  notification, both switches in Settings → Capture; launcher shortcuts New note and Today.
+- Phone: the capture box's tools in one row of icons (to-do, date, link, tag, photo, draw); a camera photo joins the
+  pictures.
+- Touch: a held picture opens alone to zoom; KDE tablet mode takes the touch layout (menus, fields, switches and
+  scrollbars sized for a finger, key hints hidden); a Wacom pen reaches drawings as a pen, with pressure and tilt.
+- zstd: a plugin that opens `*.zst` files as the file they hold; its cache prunes itself.
+- Releases attach the bare `atlas-app` binary.
+
+### Fixed
+- Phone: long note titles wrap; escapes read as Obsidian draws them; properties open as a full sheet; the bars take the
+  vault's palette; Settings has no desktop-only sections; the + steps aside while the keyboard is up.
+- Calendar: all-day bars sit on their own days in week view, not all on Monday.
+- Programs started from the AppImage get the system's libraries, not the bundle's (ssh's libcrypto).
+- Segmented tabs wrap instead of overlapping in a narrow card.
+
 ## [0.2.8] - 2026-11-09
 
 ### Added

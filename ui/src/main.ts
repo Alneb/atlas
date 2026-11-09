@@ -29,6 +29,9 @@ import "./styles/editor.css";
 import "./styles/syntax.css";
 import "./styles/touch.css";
 import "./styles/shape-paper.css";
+import { attachPenBridge } from "./lib/pen-bridge";
+// first, before any pointer listener: a Wacom pen in the Linux app arrives as a mouse (pen-bridge.ts)
+attachPenBridge();
 import { mount } from "svelte";
 import App from "./App.svelte";
 import CaptureWindow from "./CaptureWindow.svelte";

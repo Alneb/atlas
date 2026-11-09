@@ -82,7 +82,7 @@ final class Vaults {
 
     /** The folder's copy on a server (docs/design/DESIGN-mirror-v2.md): the one set for it, else the known server vault of
      *  the same name (~/Notes ↔ https://…/v/notes/); null when none. Files are still written in the folder
-     *  (docs/design/DESIGN-mirror-v2.md), captures go to the mirror first (CaptureActivity.toMirror); the mirror is the
+     *  (docs/design/DESIGN-mirror-v2.md), captures go to the mirror first (CaptureBox.toMirror); the mirror is the
      *  live rooms' server. */
     String mirror(String folder) {
         String set = prefs.getString("mirror:" + folder, "");
