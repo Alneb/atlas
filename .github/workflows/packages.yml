@@ -190,8 +190,10 @@ jobs:
   # one atlas-plugin-<id>.tar.gz per plugin, every platform's engine inside, and plugins.json
   plugins:
     needs: plugin-engines
-    # the engines that did build: an engine job that failed or got no runner leaves its platform out of the archives
-    if: ${{ !cancelled() }}
+    # the engines that did build: an engine job that failed or got no runner leaves its platform out of the archives.
+    # always(), not !cancelled(): an engine job that timed out waiting for a Mac runner counts as cancelled, and with
+    # !cancelled() this job was skipped and the release lost (v0.2.5 twice, v0.2.6)
+    if: ${{ always() }}
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7

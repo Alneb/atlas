@@ -14,8 +14,9 @@ jobs:
 
   publish:
     needs: packages
-    # also when a plugin engine is missing (packages.yml lets that pass); a missing desktop package still fails below
-    if: ${{ !cancelled() }}
+    # also when a plugin engine is missing or its job was cancelled waiting for a runner (packages.yml lets that pass);
+    # a missing desktop package still fails below. Tests are not run here: a release never waits for them.
+    if: ${{ always() }}
     runs-on: ubuntu-24.04
     # the only job that writes (the draft release)
     permissions:
