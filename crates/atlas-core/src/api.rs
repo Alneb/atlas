@@ -546,6 +546,9 @@ pub enum TriageAction {
     Reopen,
     /// Add it to the note at `note` (a vault path, made when missing) and link the capture to it.
     File { note: String },
+    /// Link the capture to the note at `note` (a vault path, already there: the note the catalog made of it) without
+    /// copying the capture into it.
+    Link { note: String },
     /// Take it out: a log's line and the lines under it leave the log (kept as a file in `.atlas/trash/`), a note of the
     /// inbox goes to `.atlas/trash/`.
     Delete,

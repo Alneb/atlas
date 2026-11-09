@@ -1,7 +1,7 @@
 import { test, expect, type APIRequestContext, type Page } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { openFile } from "./open";
-import { wordsOf } from "../src/lib/editor/prose";
+import { plainProse, withoutLongRuns, wordsOf } from "../src/lib/editor/prose";
 import { addSentences, emptyModel, packSentences, predict, sentences, unpackSentences } from "../../plugins/beta/predictor/ui/src/model";
 import { dicStems } from "../src/lib/editor/dictionaries";
 import { parseWordFreq } from "../src/lib/editor/word-freq";
@@ -53,6 +53,22 @@ test("the language's frequencies finish any word when one is clearly likeliest; 
   // the open note's own words: a name it uses wins at once
   const note = model("Hubbard model. The Hubbard model is solved. Hubbard again.");
   expect(predict(m, "The Hub", wordsOf, { ...o, note })?.ghost).toBe("bard");
+});
+
+test("a note with embedded pictures: their data is no prose, dropped for the helpers, blanked in place for the editor", () => {
+  const pic = `<img src="data:image/png;base64,${"iVBORw0KGgo".repeat(50_000)}">`;
+  const note = `# Optics\n\nThe waveguide modes.\n\n${pic}\n\nMore waveguide modes.\n`;
+  const dropped = withoutLongRuns(note, false);
+  expect(dropped.length).toBeLessThan(200);
+  expect(dropped).toContain("The waveguide modes.");
+  expect(dropped).toContain("More waveguide modes.");
+  const kept = withoutLongRuns(note, true);
+  expect(kept.length).toBe(note.length); // the editor's offsets stay
+  expect(kept.indexOf("More waveguide")).toBe(note.indexOf("More waveguide"));
+  expect(withoutLongRuns("plain words only", false)).toBe("plain words only");
+  const words = wordsOf(plainProse(note)).map((w) => w.word);
+  expect(words.filter((w) => w === "waveguide")).toHaveLength(2);
+  expect(words.every((w) => w.length < 20)).toBe(true); // nothing of the picture's data
 });
 
 test.describe("in the editor", () => {

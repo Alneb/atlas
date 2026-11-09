@@ -7,7 +7,7 @@
 title = "Email"
 description = "mail: conversations, search, fast triage, a composer, rules; saved notes; IMAP/SMTP or Outlook (OAuth2), several accounts"
 icon = "mail"
-version = "1.5.0"
+version = "1.6.1"
 rail = true          # a button for the Email pane (view.js)
 provides = ["mail"]  # the role other plugins call it by (the Calendar's Exchange sign-in: `@mail/helper` calendar_token)
 api = 12
@@ -178,6 +178,13 @@ name = "read"
 description = "One email in full by its uid (from email_inbox): text, its links (text and url: the text alone has no addresses) and its attachments (name, type, size, part). Read one with email_attachment. Read-only: it is not marked as read."
 input = { uid = "string", folder = "string?", account = "string?" }
 method = "agent_get"
+secrets = ["*"]
+
+[[tool]]
+name = "open"
+description = "Show one email to the user in Atlas's Email pane (by uid and folder from email_inbox, or its Message-ID). Use it when the user asks to see or open a mail. Nothing comes back but its subject; fails when no Atlas window is open."
+input = { uid = "string?", message_id = { type = "string", description = "the mail's Message-ID, instead of a uid", optional = true }, folder = "string?", account = "string?" }
+method = "agent_open"
 secrets = ["*"]
 
 [[tool]]

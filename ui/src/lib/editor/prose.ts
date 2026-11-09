@@ -80,13 +80,28 @@ export function guessLanguage(text: string, known: string[], fallback: string, l
   return n >= 12 && score >= 3 ? best : fallback;
 }
 
+/** Runs of 500+ characters with no space (an embedded data: picture: never prose) taken out by a plain loop: a regex
+ *  over such a run makes QuickJS (the plugins' helpers) give up with a null error. `keepOffsets`: as spaces (the
+ *  editor's marks keep their places), else dropped (a helper counting words: megabytes of pictures become nothing). */
+const LONG_RUN = 500;
+export function withoutLongRuns(text: string, keepOffsets: boolean): string {
+  let out = "", from = 0, run = -1;
+  for (let i = 0; i <= text.length; i++) {
+    const c = i === text.length ? 32 : text.charCodeAt(i), space = c <= 32 || c === 160 || c === 0x2028 || c === 0x2029;
+    if (!space) { if (run < 0) run = i; continue; }
+    if (run >= 0 && i - run >= LONG_RUN) { out += text.slice(from, run) + (keepOffsets ? " ".repeat(i - run) : ""); from = i; }
+    run = -1;
+  }
+  return from ? out + text.slice(from) : text;
+}
+
 /** A note's text with what is not prose blanked out, for counting without a syntax tree (a plugin's helper): the
  *  front matter, fences, `$$…$$` and `$…$`, inline code, links' targets, wikilinks, embeds, tags, HTML and URLs.
  *  Blanked with spaces (a line's breaks kept) so sentences do not join across what was removed. */
 export function plainProse(text: string): string {
   const blank = (s: string) => s.replace(/[^\n]/g, " ");
   const end = frontMatterEnd(text);
-  return blank(text.slice(0, end)) + text.slice(end)
+  return blank(text.slice(0, end)) + withoutLongRuns(text.slice(end), true)
     .replace(/^(```|~~~)[\s\S]*?^\1[^\n]*$/gm, blank)
     .replace(/\$\$[\s\S]*?\$\$/g, blank)
     .replace(/\$[^$\n]+\$/g, blank)

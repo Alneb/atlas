@@ -96,6 +96,14 @@ export function register(atlas: PluginApi) {
     if (r?.key === "accounts") void call(atlas, "rename_account", { from: r.from, to: r.to }).catch((e) => atlas.toast("Email", `The account's mail kept its old name: ${(e as Error).message}`, "error"));
   });
 
+  // an agent's email_open: the message shown in the pane, then the engine told (its tool answers only after this)
+  atlas.helper.on("open", (d) => {
+    const q = d as { id: string; message: number };
+    let ok = "no";
+    try { openMail({ id: q.message }); ok = "opened"; }
+    finally { void atlas.helper.call("consent_answer", { id: q.id, allow: ok, settings: atlas.plugin.settings }); }
+  });
+
   // Claude asks to read an account (the card's "Claude may read it" = ask): the answer is given here
   atlas.helper.on("consent", (d) => {
     const q = d as { id: string; account: string; user: string; what: string };

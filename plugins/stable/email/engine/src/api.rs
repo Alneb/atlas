@@ -73,6 +73,7 @@ pub fn table() -> Vec<(&'static str, Method)> {
         ("set_importance", set_importance),
         ("agent_accounts", agent_accounts),
         ("consent_answer", consent_answer),
+        ("agent_open", agent_open),
         ("preview", preview),
         ("find", find),
         ("answer_invite", answer_invite),
@@ -584,6 +585,7 @@ fn compose_for(m: &Arc<Mail>, p: &Value) -> Result<Value, String> {
     Ok(json!({
         "account": acc.name, "from": ident, "to": list(&to), "cc": list(&cc), "subject": compose::reply_subject(&x.subject, forward),
         "reply_to": if forward { Value::Null } else { json!(id) }, "forward": if forward { json!(id) } else { Value::Null }, "files": files,
+        "quote": m.rt.block_on(send::quote_of(m, id)),
     }))
 }
 
@@ -950,11 +952,22 @@ fn thunderbird_mail(m: &Arc<Mail>, p: &Value) -> Result<Value, String> {
 
 // ----- Claude's tools, with the user's permission (the card's `claude`: ask, always, never)
 
-struct Ask {
-    allow: Option<String>,
-}
-static ASKS: LazyLock<(Mutex<HashMap<String, Ask>>, Condvar)> = LazyLock::new(|| (Mutex::new(HashMap::new()), Condvar::new()));
+/// Questions put to the page (an event with an id) until it answers through `consent_answer`: id → its answer.
+static ASKS: LazyLock<(Mutex<HashMap<String, Option<String>>>, Condvar)> = LazyLock::new(|| (Mutex::new(HashMap::new()), Condvar::new()));
 const ASK_SECONDS: u64 = 120;
+/// How long `open` waits for a window to show the message (no window: the tool says so instead of claiming it).
+const OPEN_SECONDS: u64 = 15;
+
+/// Sends `event` with a fresh `id` added to `data` and waits up to `secs` for the page's answer; None: none came.
+fn ask_page(m: &Mail, event: &str, mut data: Value, secs: u64) -> Option<String> {
+    let id = format!("{:x}", rand::random::<u64>());
+    let (lock, cv) = &*ASKS;
+    lock.lock().unwrap().insert(id.clone(), None);
+    data["id"] = json!(id);
+    m.event(event, data);
+    let (mut g, _) = cv.wait_timeout_while(lock.lock().unwrap(), Duration::from_secs(secs), |a| a.get(&id).is_some_and(Option::is_none)).unwrap();
+    g.remove(&id).flatten()
+}
 
 fn consent(m: &Mail, account: &str, what: &str) -> Result<crate::account::Account, String> {
     let acc = m.account(Some(account))?;
@@ -963,33 +976,40 @@ fn consent(m: &Mail, account: &str, what: &str) -> Result<crate::account::Accoun
         crate::account::Consent::Never => return Err(format!("the user does not let Claude read {} (its card in Email's settings: Claude may read = never)", acc.name)),
         crate::account::Consent::Ask => {}
     }
-    let id = format!("{:x}", rand::random::<u64>());
-    let (lock, cv) = &*ASKS;
-    lock.lock().unwrap().insert(id.clone(), Ask { allow: None });
-    m.event("consent", json!({ "id": id, "account": acc.name, "user": acc.user, "what": what }));
-    let (mut g, timeout) = cv.wait_timeout_while(lock.lock().unwrap(), Duration::from_secs(ASK_SECONDS), |a| a.get(&id).is_some_and(|x| x.allow.is_none())).unwrap();
-    let allow = g.remove(&id).and_then(|a| a.allow).unwrap_or_default();
-    if timeout.timed_out() && allow.is_empty() {
+    let Some(allow) = ask_page(m, "consent", json!({ "account": acc.name, "user": acc.user, "what": what }), ASK_SECONDS) else {
         return Err(format!("no answer in Atlas within {ASK_SECONDS} s (the question was closed, or no Atlas window is open) — the user can allow it on {}'s card", acc.name));
-    }
+    };
     if allow != "once" && allow != "always" {
         return Err(format!("the user said no to Claude reading {}", acc.name));
     }
     Ok(acc)
 }
 
+/// The page's answer to any `ask_page` question (consent: once / always / no; open: opened / no).
 fn consent_answer(_m: &Arc<Mail>, p: &Value) -> Result<Value, String> {
     let (lock, cv) = &*ASKS;
     let mut g = lock.lock().unwrap();
     let ok = match g.get_mut(s(p, "id")) {
         Some(a) => {
-            a.allow = Some(s(p, "allow").to_string()).filter(|x| !x.is_empty()).or(Some("no".into()));
+            *a = Some(Some(s(p, "allow").to_string()).filter(|x| !x.is_empty()).unwrap_or_else(|| "no".into()));
             true
         }
         None => false,
     };
     cv.notify_all();
     Ok(json!({ "ok": ok }))
+}
+
+/// An agent's `email_open`: shows one message (by uid and folder from email_inbox, its Message-ID, or its id) in the
+/// user's Email pane. Nothing is read back to the agent, so no consent is asked; no window answering is an error.
+fn agent_open(m: &Arc<Mail>, p: &Value) -> Result<Value, String> {
+    let acc = m.account(Some(s(p, "account")))?;
+    let x = find_msg(m, &acc.name, p)?;
+    match ask_page(m, "open", json!({ "message": x.id }), OPEN_SECONDS).as_deref() {
+        Some("opened") => Ok(json!({ "opened": x.subject, "account": acc.name, "uid": x.uid.to_string() })),
+        Some(_) => Err("the Atlas window could not show the message".into()),
+        None => Err("no Atlas window showed the message: is Atlas open on this vault, with the Email plugin on?".into()),
+    }
 }
 
 fn iso(t: i64) -> String {
@@ -1206,7 +1226,11 @@ mod tests {
         // the main identity is "" (the From menu's key for it), the account the message's own
         assert_eq!(r["from"], "");
         assert_eq!(r["account"], "fake");
+        // the message answered, for the composer to show under the text box
+        assert_eq!(r["quote"]["from"], "Grace Hopper <grace@example.org>");
+        assert!(!r["quote"]["text"].as_str().unwrap().is_empty(), "{r}");
         let f = call_(&m, "compose_for", json!({ "id": id, "mode": "forward" }));
+        assert!(f["quote"]["date"].as_i64().is_some(), "a forward shows the original too");
         assert_eq!(f["subject"], "Fwd: Draft of the DCA section");
         assert_eq!(f["files"][0]["name"], "notes.txt");
     }
@@ -1247,6 +1271,33 @@ mod tests {
         call_(&m, "consent_answer", json!({ "id": id, "allow": "" }));
         assert!(asker.join().unwrap().unwrap_err().contains("said no"));
         assert_eq!(m.index.role("fake", "inbox").unwrap().unread, 2, "nothing marked read");
+    }
+
+    #[test]
+    fn an_agent_opens_a_mail_in_the_window_and_hears_it_was_shown() {
+        let (m, _s, events, _d) = harness(true);
+        call_(&m, "sync", json!({}));
+        let want = m.index.id_of("fake", "INBOX", 2).unwrap();
+        let m2 = m.clone();
+        let opener = std::thread::spawn(move || {
+            let f = table().into_iter().find(|(n, _)| *n == "agent_open").unwrap().1;
+            call(&m2, f, &json!({ "uid": "2" }))
+        });
+        let (id, message) = loop {
+            if let Some((_, d)) = events.lock().unwrap().iter().find(|(n, _)| n == "open") {
+                break (d["id"].as_str().unwrap().to_string(), d["message"].as_i64().unwrap());
+            }
+            std::thread::sleep(Duration::from_millis(20));
+        };
+        assert_eq!(message, want, "the pane is told the index id of uid 2");
+        call_(&m, "consent_answer", json!({ "id": id, "allow": "opened" }));
+        let r = opener.join().unwrap().unwrap();
+        assert_eq!(r["opened"], "Draft of the DCA section");
+        // no consent asked: showing a mail to the user reads nothing back
+        assert!(!events.lock().unwrap().iter().any(|(n, _)| n == "consent"));
+        // a message that is not there fails at once, before any window is asked
+        let f = table().into_iter().find(|(n, _)| *n == "agent_open").unwrap().1;
+        assert!(call(&m, f, &json!({ "uid": "999" })).unwrap_err().contains("no message 999"));
     }
 
     #[test]

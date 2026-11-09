@@ -4,7 +4,7 @@
 title = "Predictor"
 description = "suggests the rest of a word and the next one as you write, learned from the vault"
 icon = "sparkles"
-version = "0.3.1"
+version = "0.3.2"
 api = 22
 phone = true
 

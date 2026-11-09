@@ -891,12 +891,12 @@ d([
 ]);
 //#endregion
 //#region plugins/stable/email/ui/src/Composer.svelte
-var pt = C("<header class=\"bar svelte-zp5xms\"><b class=\"svelte-zp5xms\"> </b> <span class=\"grow svelte-zp5xms\"></span> <button class=\"tool svelte-zp5xms\"><!></button> <button class=\"tool svelte-zp5xms\" title=\"Close (kept in Drafts)\"><!></button></header>"), mt = C("<option> </option>"), ht = C("<div class=\"from svelte-zp5xms\"><span class=\"label svelte-zp5xms\">From</span> <select class=\"svelte-zp5xms\"></select></div>"), gt = C("<button class=\"link svelte-zp5xms\">Cc</button>"), _t = C("<button class=\"link svelte-zp5xms\">Bcc</button>"), vt = C("<input class=\"subject svelte-zp5xms\" placeholder=\"Subject\" aria-label=\"Subject\"/>"), yt = C("<div class=\"preview svelte-zp5xms\"></div>"), bt = C("<div></div>"), xt = C("<textarea aria-label=\"The message\" spellcheck=\"true\" class=\"svelte-zp5xms\"></textarea>"), St = C("<img class=\"thumb svelte-zp5xms\" alt=\"\"/>"), Ct = C("<span class=\"faint svelte-zp5xms\">(in the text)</span>"), wt = C("<span class=\"faint svelte-zp5xms\"> </span>"), Tt = C("<span class=\"faint svelte-zp5xms\">(forwarded)</span>"), Et = C("<span class=\"file svelte-zp5xms\"><!><span class=\"svelte-zp5xms\"> </span><!><!><!><button class=\"svelte-zp5xms\">×</button></span>"), Dt = C("<span class=\"warn svelte-zp5xms\"> </span>"), Ot = C("<div class=\"files svelte-zp5xms\"><!> <!></div>"), kt = C("<div class=\"error svelte-zp5xms\" role=\"alert\"> </div>"), At = C("<div class=\"drop svelte-zp5xms\">Drop to attach</div>"), jt = C("<button class=\"svelte-zp5xms\"> <span class=\"faint svelte-zp5xms\"> </span></button>"), Mt = C("<div class=\"later svelte-zp5xms\" role=\"dialog\" aria-label=\"Send later\"><!> <div class=\"custom svelte-zp5xms\"><input placeholder=\"tomorrow 9, mon 14:00, 3h…\" class=\"svelte-zp5xms\"/><button class=\"atlas-btn svelte-zp5xms\">Schedule</button></div></div>"), Nt = C("<button class=\"tool svelte-zp5xms\" title=\"Pop out\"><!></button>"), Pt = C("<div role=\"form\"><!> <div class=\"fields svelte-zp5xms\"><!> <div class=\"torow svelte-zp5xms\"><div class=\"grow svelte-zp5xms\"><!></div> <!> <!></div> <!> <!> <!></div> <div class=\"tb svelte-zp5xms\" role=\"toolbar\" aria-label=\"Formatting\"><button title=\"Bold (Ctrl+B)\" class=\"svelte-zp5xms\"><b>B</b></button> <button title=\"Italic (Ctrl+I)\" class=\"svelte-zp5xms\"><i>I</i></button> <button title=\"Strikethrough\" class=\"svelte-zp5xms\"><span class=\"struck svelte-zp5xms\">S</span></button> <button title=\"Link (Ctrl+K)\" class=\"svelte-zp5xms\"><!></button> <button title=\"List\" class=\"svelte-zp5xms\">•</button> <button title=\"Numbered list\" class=\"svelte-zp5xms\">1.</button> <button title=\"Quote\" class=\"svelte-zp5xms\">\"</button> <button title=\"Code\" class=\"svelte-zp5xms\"><code></code></button> <span class=\"grow svelte-zp5xms\"></span> <span class=\"tsep svelte-zp5xms\" aria-hidden=\"true\"></span> <button title=\"How it will look\"> </button></div> <!> <!> <!> <!> <footer class=\"foot svelte-zp5xms\"><div class=\"send svelte-zp5xms\"><button class=\"atlas-btn primary svelte-zp5xms\" title=\"Send (Ctrl+Enter)\">Send</button> <button class=\"atlas-btn primary more svelte-zp5xms\" title=\"Send later…\"><!></button> <!></div> <button class=\"tool svelte-zp5xms\" title=\"Attach files\"><!></button> <button class=\"tool svelte-zp5xms\" title=\"Attach a file of the vault…\"><!></button> <input type=\"file\" multiple=\"\" hidden=\"\"/> <span class=\"status faint svelte-zp5xms\"> </span> <span class=\"grow svelte-zp5xms\"></span> <!> <button class=\"tool svelte-zp5xms\" title=\"Discard\"><!></button></footer></div>"), Ft = {
+var pt = C("<header class=\"bar svelte-zp5xms\"><b class=\"svelte-zp5xms\"> </b> <span class=\"grow svelte-zp5xms\"></span> <button class=\"tool svelte-zp5xms\"><!></button> <button class=\"tool svelte-zp5xms\" title=\"Close (kept in Drafts)\"><!></button></header>"), mt = C("<option> </option>"), ht = C("<div class=\"from svelte-zp5xms\"><span class=\"label svelte-zp5xms\">From</span> <select class=\"svelte-zp5xms\"></select></div>"), gt = C("<button class=\"link svelte-zp5xms\">Cc</button>"), _t = C("<button class=\"link svelte-zp5xms\">Bcc</button>"), vt = C("<input class=\"subject svelte-zp5xms\" placeholder=\"Subject\" aria-label=\"Subject\"/>"), yt = C("<div class=\"preview svelte-zp5xms\"></div>"), bt = C("<div></div>"), xt = C("<textarea aria-label=\"The message\" spellcheck=\"true\" class=\"svelte-zp5xms\"></textarea>"), St = C("<details class=\"quoted svelte-zp5xms\" open=\"\"><summary class=\"svelte-zp5xms\"> </summary> <blockquote class=\"svelte-zp5xms\"> </blockquote></details>"), Ct = C("<img class=\"thumb svelte-zp5xms\" alt=\"\"/>"), wt = C("<span class=\"faint svelte-zp5xms\">(in the text)</span>"), Tt = C("<span class=\"faint svelte-zp5xms\"> </span>"), Et = C("<span class=\"faint svelte-zp5xms\">(forwarded)</span>"), Dt = C("<span class=\"file svelte-zp5xms\"><!><span class=\"svelte-zp5xms\"> </span><!><!><!><button class=\"svelte-zp5xms\">×</button></span>"), Ot = C("<span class=\"warn svelte-zp5xms\"> </span>"), kt = C("<div class=\"files svelte-zp5xms\"><!> <!></div>"), At = C("<div class=\"error svelte-zp5xms\" role=\"alert\"> </div>"), jt = C("<div class=\"drop svelte-zp5xms\">Drop to attach</div>"), Mt = C("<button class=\"svelte-zp5xms\"> <span class=\"faint svelte-zp5xms\"> </span></button>"), Nt = C("<div class=\"later svelte-zp5xms\" role=\"dialog\" aria-label=\"Send later\"><!> <div class=\"custom svelte-zp5xms\"><input placeholder=\"tomorrow 9, mon 14:00, 3h…\" class=\"svelte-zp5xms\"/><button class=\"atlas-btn svelte-zp5xms\">Schedule</button></div></div>"), Pt = C("<button class=\"tool svelte-zp5xms\" title=\"Pop out\"><!></button>"), Ft = C("<div role=\"form\"><!> <div class=\"fields svelte-zp5xms\"><!> <div class=\"torow svelte-zp5xms\"><div class=\"grow svelte-zp5xms\"><!></div> <!> <!></div> <!> <!> <!></div> <div class=\"tb svelte-zp5xms\" role=\"toolbar\" aria-label=\"Formatting\"><button title=\"Bold (Ctrl+B)\" class=\"svelte-zp5xms\"><b>B</b></button> <button title=\"Italic (Ctrl+I)\" class=\"svelte-zp5xms\"><i>I</i></button> <button title=\"Strikethrough\" class=\"svelte-zp5xms\"><span class=\"struck svelte-zp5xms\">S</span></button> <button title=\"Link (Ctrl+K)\" class=\"svelte-zp5xms\"><!></button> <button title=\"List\" class=\"svelte-zp5xms\">•</button> <button title=\"Numbered list\" class=\"svelte-zp5xms\">1.</button> <button title=\"Quote\" class=\"svelte-zp5xms\">\"</button> <button title=\"Code\" class=\"svelte-zp5xms\"><code></code></button> <span class=\"grow svelte-zp5xms\"></span> <span class=\"tsep svelte-zp5xms\" aria-hidden=\"true\"></span> <button title=\"How it will look\"> </button></div> <!> <!> <!> <!> <!> <footer class=\"foot svelte-zp5xms\"><div class=\"send svelte-zp5xms\"><button class=\"atlas-btn primary svelte-zp5xms\" title=\"Send (Ctrl+Enter)\">Send</button> <button class=\"atlas-btn primary more svelte-zp5xms\" title=\"Send later…\"><!></button> <!></div> <button class=\"tool svelte-zp5xms\" title=\"Attach files\"><!></button> <button class=\"tool svelte-zp5xms\" title=\"Attach a file of the vault…\"><!></button> <input type=\"file\" multiple=\"\" hidden=\"\"/> <span class=\"status faint svelte-zp5xms\"> </span> <span class=\"grow svelte-zp5xms\"></span> <!> <button class=\"tool svelte-zp5xms\" title=\"Discard\"><!></button></footer></div>"), It = {
 	hash: "svelte-zp5xms",
-	code: ".composer.svelte-zp5xms {position:relative;display:flex;flex-direction:column;gap:6px;background:var(--bg);border:1px solid var(--border-strong);border-radius:var(--radius);padding:0 14px 10px;box-shadow:var(--shadow-sm);min-width:0;}.composer.inline.svelte-zp5xms {margin-left:38px;padding-top:6px;}.composer.over.svelte-zp5xms {outline:2px dashed var(--accent);}.bar.svelte-zp5xms {display:flex;align-items:center;gap:6px;margin:0 -14px;padding:8px 10px 8px 14px;background:var(--bg-alt);border-bottom:1px solid var(--border);border-radius:var(--radius) var(--radius) 0 0;}.bar.svelte-zp5xms b:where(.svelte-zp5xms) {overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}.grow.svelte-zp5xms {flex:1;min-width:0;}\n  /* one column that may shrink: a long From, subject or address never widens the window */.fields.svelte-zp5xms {display:grid;grid-template-columns:minmax(0, 1fr);}.composer.svelte-zp5xms:not(.inline) .fields:where(.svelte-zp5xms) {padding-top:6px;}.from.svelte-zp5xms {display:flex;gap:8px;align-items:center;border-bottom:1px solid var(--border);padding:4px 0;}.from.svelte-zp5xms select:where(.svelte-zp5xms) {flex:1;min-width:0;background:transparent;color:var(--text);border:0;padding:4px 0;font:inherit;}.label.svelte-zp5xms {flex:none;width:3.2em;color:var(--text-faint);font-size:0.9em;}.torow.svelte-zp5xms {display:flex;align-items:flex-start;gap:8px;}.torow.svelte-zp5xms .link:where(.svelte-zp5xms) {margin-top:9px;}.link.svelte-zp5xms {all:unset;cursor:pointer;color:var(--text-muted);font-size:0.9em;}.link.svelte-zp5xms:hover {color:var(--accent);}.subject.svelte-zp5xms {all:unset;min-width:0;text-overflow:ellipsis;padding:10px 0;border-bottom:1px solid var(--border);font-weight:600;}.tb.svelte-zp5xms {display:flex;gap:2px;align-items:center;padding-top:4px;}.tb.svelte-zp5xms button:where(.svelte-zp5xms) {all:unset;cursor:pointer;min-width:28px;height:28px;display:grid;place-items:center;border-radius:var(--radius-sm);color:var(--text-muted);font-size:0.92em;padding:0 4px;}.tb.svelte-zp5xms button:where(.svelte-zp5xms):hover, .tb.svelte-zp5xms button.on:where(.svelte-zp5xms) {background:var(--bg-hover);color:var(--text);}.tb.svelte-zp5xms .struck:where(.svelte-zp5xms) {text-decoration:line-through;}.tsep.svelte-zp5xms {width:1px;height:16px;background:var(--border-strong);margin:0 4px;flex:none;}textarea.svelte-zp5xms {all:unset;box-sizing:border-box;width:100%;min-height:120px;resize:none;white-space:pre-wrap;line-height:1.55;font-size:15px;font-family:var(--font-prose, var(--font-ui));overflow-y:auto;}.composer.svelte-zp5xms:not(.inline) textarea:where(.svelte-zp5xms) {min-height:200px;}.body.svelte-zp5xms {min-width:0;}.body.svelte-zp5xms .cm-editor {min-height:120px;max-height:520px;font-size:15px;font-family:var(--font-prose, var(--font-ui));background:transparent;}.composer.svelte-zp5xms:not(.inline) .body:where(.svelte-zp5xms) .cm-editor {min-height:220px;}.body.big.svelte-zp5xms .cm-editor {max-height:2000px;}.body.svelte-zp5xms .cm-scroller {overflow-y:auto;line-height:1.55;font-family:inherit;}.body.svelte-zp5xms .cm-content {padding:0;}.body.svelte-zp5xms .cm-editor.cm-focused {outline:none;}.preview.svelte-zp5xms {min-height:120px;padding:4px 0;line-height:1.55;overflow-wrap:anywhere;}.preview.svelte-zp5xms blockquote {margin:0.4em 0;padding-left:0.9em;border-left:3px solid var(--border-strong);color:var(--text-muted);}.files.svelte-zp5xms {display:flex;flex-wrap:wrap;gap:6px;align-items:center;}.file.svelte-zp5xms {display:inline-flex;gap:6px;align-items:center;padding:3px 4px 3px 8px;border-radius:var(--radius-sm);background:var(--bg-alt);border:1px solid var(--border);font-size:0.9em;max-width:260px;}.file.svelte-zp5xms span:where(.svelte-zp5xms):not(.faint) {overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}.thumb.svelte-zp5xms {width:22px;height:22px;object-fit:cover;border-radius:3px;flex:none;}.file.svelte-zp5xms button:where(.svelte-zp5xms) {all:unset;cursor:pointer;width:18px;height:18px;display:grid;place-items:center;border-radius:50%;color:var(--text-muted);}.file.svelte-zp5xms button:where(.svelte-zp5xms):hover {background:var(--bg-hover);}.warn.svelte-zp5xms {color:var(--orange);font-size:0.86em;}.faint.svelte-zp5xms {color:var(--text-faint);}.error.svelte-zp5xms {color:var(--red);font-size:0.9em;}.drop.svelte-zp5xms {position:absolute;inset:0;display:grid;place-items:center;background:color-mix(in srgb, var(--accent) 12%, var(--bg));border-radius:var(--radius);font-weight:600;color:var(--accent-strong);pointer-events:none;}.foot.svelte-zp5xms {display:flex;align-items:center;gap:6px;padding-top:4px;}.send.svelte-zp5xms {position:relative;display:flex;}.send.svelte-zp5xms .atlas-btn.primary:where(.svelte-zp5xms) {background:var(--accent);color:var(--accent-fg);border-color:transparent;font-weight:600;}.send.svelte-zp5xms .atlas-btn:where(.svelte-zp5xms):first-child {border-radius:var(--radius-sm) 0 0 var(--radius-sm);padding-inline:18px;}.send.svelte-zp5xms .more:where(.svelte-zp5xms) {border-radius:0 var(--radius-sm) var(--radius-sm) 0;border-left:1px solid color-mix(in srgb, var(--accent-fg) 25%, transparent) !important;padding-inline:6px;display:grid;place-items:center;}.later.svelte-zp5xms {position:absolute;bottom:110%;left:0;z-index:10;width:280px;background:var(--bg-elev);border:1px solid var(--border-strong);border-radius:var(--radius);box-shadow:var(--shadow-md, var(--shadow-sm));padding:6px;display:grid;gap:2px;}.later.svelte-zp5xms > button:where(.svelte-zp5xms) {all:unset;cursor:pointer;display:flex;justify-content:space-between;padding:7px 10px;border-radius:var(--radius-sm);}.later.svelte-zp5xms > button:where(.svelte-zp5xms):hover {background:var(--bg-hover);}.custom.svelte-zp5xms {display:flex;gap:6px;padding:6px 4px 2px;border-top:1px solid var(--border);margin-top:4px;}.custom.svelte-zp5xms input:where(.svelte-zp5xms) {flex:1;min-width:0;background:var(--bg);color:var(--text);border:1px solid var(--border-strong);border-radius:var(--radius-sm);padding:4px 8px;font:inherit;}.tool.svelte-zp5xms {all:unset;cursor:pointer;padding:6px;border-radius:var(--radius-sm);color:var(--text-muted);display:grid;place-items:center;min-width:24px;min-height:24px;}.tool.svelte-zp5xms:hover {background:var(--bg-hover);color:var(--text);}.tool.svelte-zp5xms:focus-visible, .tb.svelte-zp5xms button:where(.svelte-zp5xms):focus-visible, .link.svelte-zp5xms:focus-visible {outline:2px solid var(--accent);outline-offset:-2px;}.status.svelte-zp5xms {font-size:0.85em;}\n  @container (max-width: 560px) {.composer.inline.svelte-zp5xms {margin-left:0;} }"
+	code: ".composer.svelte-zp5xms {position:relative;display:flex;flex-direction:column;gap:6px;background:var(--bg);border:1px solid var(--border-strong);border-radius:var(--radius);padding:0 14px 10px;box-shadow:var(--shadow-sm);min-width:0;}.composer.inline.svelte-zp5xms {margin-left:38px;padding-top:6px;}.composer.over.svelte-zp5xms {outline:2px dashed var(--accent);}.bar.svelte-zp5xms {display:flex;align-items:center;gap:6px;margin:0 -14px;padding:8px 10px 8px 14px;background:var(--bg-alt);border-bottom:1px solid var(--border);border-radius:var(--radius) var(--radius) 0 0;}.bar.svelte-zp5xms b:where(.svelte-zp5xms) {overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}.grow.svelte-zp5xms {flex:1;min-width:0;}\n  /* one column that may shrink: a long From, subject or address never widens the window */.fields.svelte-zp5xms {display:grid;grid-template-columns:minmax(0, 1fr);}.composer.svelte-zp5xms:not(.inline) .fields:where(.svelte-zp5xms) {padding-top:6px;}.from.svelte-zp5xms {display:flex;gap:8px;align-items:center;border-bottom:1px solid var(--border);padding:4px 0;}.from.svelte-zp5xms select:where(.svelte-zp5xms) {flex:1;min-width:0;background:transparent;color:var(--text);border:0;padding:4px 0;font:inherit;}.label.svelte-zp5xms {flex:none;width:3.2em;color:var(--text-faint);font-size:0.9em;}.torow.svelte-zp5xms {display:flex;align-items:flex-start;gap:8px;}.torow.svelte-zp5xms .link:where(.svelte-zp5xms) {margin-top:9px;}.link.svelte-zp5xms {all:unset;cursor:pointer;color:var(--text-muted);font-size:0.9em;}.link.svelte-zp5xms:hover {color:var(--accent);}.subject.svelte-zp5xms {all:unset;min-width:0;text-overflow:ellipsis;padding:10px 0;border-bottom:1px solid var(--border);font-weight:600;}.tb.svelte-zp5xms {display:flex;gap:2px;align-items:center;padding-top:4px;}.tb.svelte-zp5xms button:where(.svelte-zp5xms) {all:unset;cursor:pointer;min-width:28px;height:28px;display:grid;place-items:center;border-radius:var(--radius-sm);color:var(--text-muted);font-size:0.92em;padding:0 4px;}.tb.svelte-zp5xms button:where(.svelte-zp5xms):hover, .tb.svelte-zp5xms button.on:where(.svelte-zp5xms) {background:var(--bg-hover);color:var(--text);}.tb.svelte-zp5xms .struck:where(.svelte-zp5xms) {text-decoration:line-through;}.tsep.svelte-zp5xms {width:1px;height:16px;background:var(--border-strong);margin:0 4px;flex:none;}textarea.svelte-zp5xms {all:unset;box-sizing:border-box;width:100%;min-height:120px;resize:none;white-space:pre-wrap;line-height:1.55;font-size:15px;font-family:var(--font-prose, var(--font-ui));overflow-y:auto;}.composer.svelte-zp5xms:not(.inline) textarea:where(.svelte-zp5xms) {min-height:200px;}.body.svelte-zp5xms {min-width:0;}.body.svelte-zp5xms .cm-editor {min-height:120px;max-height:520px;font-size:15px;font-family:var(--font-prose, var(--font-ui));background:transparent;}.composer.svelte-zp5xms:not(.inline) .body:where(.svelte-zp5xms) .cm-editor {min-height:220px;}.body.big.svelte-zp5xms .cm-editor {max-height:2000px;}.body.svelte-zp5xms .cm-scroller {overflow-y:auto;line-height:1.55;font-family:inherit;}.body.svelte-zp5xms .cm-content {padding:0;}.body.svelte-zp5xms .cm-editor.cm-focused {outline:none;}.preview.svelte-zp5xms {min-height:120px;padding:4px 0;line-height:1.55;overflow-wrap:anywhere;}.preview.svelte-zp5xms blockquote {margin:0.4em 0;padding-left:0.9em;border-left:3px solid var(--border-strong);color:var(--text-muted);}.quoted.svelte-zp5xms {color:var(--text-muted);font-size:.92em;}.quoted.svelte-zp5xms summary:where(.svelte-zp5xms) {cursor:pointer;color:var(--text-faint);padding:2px 0;}.quoted.svelte-zp5xms blockquote:where(.svelte-zp5xms) {margin:4px 0 0;padding:2px 0 2px 10px;border-left:2px solid var(--border-strong);white-space:pre-wrap;overflow-wrap:anywhere;max-height:40vh;overflow:auto;}.files.svelte-zp5xms {display:flex;flex-wrap:wrap;gap:6px;align-items:center;}.file.svelte-zp5xms {display:inline-flex;gap:6px;align-items:center;padding:3px 4px 3px 8px;border-radius:var(--radius-sm);background:var(--bg-alt);border:1px solid var(--border);font-size:0.9em;max-width:260px;}.file.svelte-zp5xms span:where(.svelte-zp5xms):not(.faint) {overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}.thumb.svelte-zp5xms {width:22px;height:22px;object-fit:cover;border-radius:3px;flex:none;}.file.svelte-zp5xms button:where(.svelte-zp5xms) {all:unset;cursor:pointer;width:18px;height:18px;display:grid;place-items:center;border-radius:50%;color:var(--text-muted);}.file.svelte-zp5xms button:where(.svelte-zp5xms):hover {background:var(--bg-hover);}.warn.svelte-zp5xms {color:var(--orange);font-size:0.86em;}.faint.svelte-zp5xms {color:var(--text-faint);}.error.svelte-zp5xms {color:var(--red);font-size:0.9em;}.drop.svelte-zp5xms {position:absolute;inset:0;display:grid;place-items:center;background:color-mix(in srgb, var(--accent) 12%, var(--bg));border-radius:var(--radius);font-weight:600;color:var(--accent-strong);pointer-events:none;}.foot.svelte-zp5xms {display:flex;align-items:center;gap:6px;padding-top:4px;}.send.svelte-zp5xms {position:relative;display:flex;}.send.svelte-zp5xms .atlas-btn.primary:where(.svelte-zp5xms) {background:var(--accent);color:var(--accent-fg);border-color:transparent;font-weight:600;}.send.svelte-zp5xms .atlas-btn:where(.svelte-zp5xms):first-child {border-radius:var(--radius-sm) 0 0 var(--radius-sm);padding-inline:18px;}.send.svelte-zp5xms .more:where(.svelte-zp5xms) {border-radius:0 var(--radius-sm) var(--radius-sm) 0;border-left:1px solid color-mix(in srgb, var(--accent-fg) 25%, transparent) !important;padding-inline:6px;display:grid;place-items:center;}.later.svelte-zp5xms {position:absolute;bottom:110%;left:0;z-index:10;width:280px;background:var(--bg-elev);border:1px solid var(--border-strong);border-radius:var(--radius);box-shadow:var(--shadow-md, var(--shadow-sm));padding:6px;display:grid;gap:2px;}.later.svelte-zp5xms > button:where(.svelte-zp5xms) {all:unset;cursor:pointer;display:flex;justify-content:space-between;padding:7px 10px;border-radius:var(--radius-sm);}.later.svelte-zp5xms > button:where(.svelte-zp5xms):hover {background:var(--bg-hover);}.custom.svelte-zp5xms {display:flex;gap:6px;padding:6px 4px 2px;border-top:1px solid var(--border);margin-top:4px;}.custom.svelte-zp5xms input:where(.svelte-zp5xms) {flex:1;min-width:0;background:var(--bg);color:var(--text);border:1px solid var(--border-strong);border-radius:var(--radius-sm);padding:4px 8px;font:inherit;}.tool.svelte-zp5xms {all:unset;cursor:pointer;padding:6px;border-radius:var(--radius-sm);color:var(--text-muted);display:grid;place-items:center;min-width:24px;min-height:24px;}.tool.svelte-zp5xms:hover {background:var(--bg-hover);color:var(--text);}.tool.svelte-zp5xms:focus-visible, .tb.svelte-zp5xms button:where(.svelte-zp5xms):focus-visible, .link.svelte-zp5xms:focus-visible {outline:2px solid var(--accent);outline-offset:-2px;}.status.svelte-zp5xms {font-size:0.85em;}\n  @container (max-width: 560px) {.composer.inline.svelte-zp5xms {margin-left:0;} }"
 };
-function It(e, s) {
-	M(s, !0), g(e, Ft);
+function Lt(e, s) {
+	M(s, !0), g(e, It);
 	let d = r(s, "c", 7), f = r(s, "inline", 3, !1), p = r(s, "big", 15, !1), y = X(() => d().draft), b = K(!!T(y).cc), S = K(!!T(y).bcc), C = K(null), k = K(void 0), j = s.mail.atlas.editor?.prose, P = K(void 0), F = K(null), L = X(() => T(y).forward ? "Add a note (optional)…" : T(y).reply_to ? "Your reply…" : "Write… (Markdown: **bold**, *italic*, - lists, > quotes)");
 	_(() => {
 		if (!T(P) || !j) return;
@@ -911,19 +911,19 @@ function It(e, s) {
 			keys: [
 				{
 					key: "Mod-Enter",
-					run: () => (Ne(), !0)
+					run: () => (Fe(), !0)
 				},
 				{
 					key: "Mod-b",
-					run: () => (ge("**"), !0)
+					run: () => (ve("**"), !0)
 				},
 				{
 					key: "Mod-i",
-					run: () => (ge("*"), !0)
+					run: () => (ve("*"), !0)
 				},
 				{
 					key: "Mod-k",
-					run: () => (ve(), !0)
+					run: () => (be(), !0)
 				}
 			]
 		}));
@@ -953,9 +953,15 @@ function It(e, s) {
 		!me && R() && (me = !0, pe && z());
 	});
 	function $() {
-		d().dirty = !0, clearTimeout(oe), oe = setTimeout(he, 2e3);
+		d().dirty = !0, clearTimeout(oe), oe = setTimeout(ge, 2e3);
 	}
-	async function he() {
+	let he = null;
+	function ge() {
+		return he ??= _e().finally(() => {
+			he = null;
+		});
+	}
+	async function _e() {
 		if (d().dirty && !d().sending && (T(y).body.trim() || T(y).subject.trim() || T(y).to.trim())) {
 			d().saving = !0;
 			try {
@@ -968,54 +974,54 @@ function It(e, s) {
 			}
 		}
 	}
-	function ge(e, t = e, n = "text") {
+	function ve(e, t = e, n = "text") {
 		if (!R()) return;
 		let [r, i] = B(), a = T(y).body, o = a.slice(r, i) || n;
 		T(y).body = a.slice(0, r) + e + o + t + a.slice(i), $(), ee(r + e.length, r + e.length + o.length);
 	}
-	function _e(e) {
+	function ye(e) {
 		if (!R()) return;
 		let [t, n] = B(), r = T(y).body, i = r.lastIndexOf("\n", t - 1) + 1, a = r.slice(i, n).split("\n").map((t) => e + t).join("\n");
 		T(y).body = r.slice(0, i) + a + r.slice(n), $();
 	}
-	async function ve() {
+	async function be() {
 		let e = await ae(s.mail.atlas, "Link to (address):", "https://");
-		e && ge("[", `](${e})`, "link text");
+		e && ve("[", `](${e})`, "link text");
 	}
-	async function ye() {
+	async function xe() {
 		if (T(C) !== null) {
 			O(C, null);
 			return;
 		}
 		try {
-			O(C, be((await s.mail.call("preview", { body: T(y).body })).html), !0);
+			O(C, Se((await s.mail.call("preview", { body: T(y).body })).html), !0);
 		} catch (e) {
 			d().error = e.message;
 		}
 	}
-	function be(e) {
+	function Se(e) {
 		return e.replace(/src="cid:([^"]+)"/g, (e, t) => {
 			let n = T(y).files.find((e) => e.name === decodeURIComponent(t) && e.data);
 			return n ? `src="data:${n.mime || "image/png"};base64,${n.data}"` : e;
 		});
 	}
-	let xe = (e) => new Promise((t, n) => {
+	let Ce = (e) => new Promise((t, n) => {
 		let r = new FileReader();
 		r.onload = () => t(String(r.result).replace(/^data:[^,]*,/, "")), r.onerror = () => n(r.error), r.readAsDataURL(e);
 	});
-	async function Se(e) {
+	async function we(e) {
 		for (let t of Array.from(e)) T(y).files = [...T(y).files, {
 			name: t.name,
 			mime: t.type,
 			size: t.size,
-			data: await xe(t)
+			data: await Ce(t)
 		}];
 		$();
 	}
-	function Ce(e) {
+	function Te(e) {
 		for (let t = 1;; t++) if (!T(y).files.some((n) => n.name === `pasted-${t}.${e}`)) return `pasted-${t}.${e}`;
 	}
-	async function we(e) {
+	async function Ee(e) {
 		let t = e.clipboardData, n = Array.from(t?.files ?? []), r = !!t && !n.length && [...t.types].every((e) => e === "text/plain") && !t.getData("text/plain");
 		if (!n.length && !r || !R()) return;
 		if (e.preventDefault(), r) {
@@ -1027,15 +1033,15 @@ function It(e, s) {
 		let [i, a] = B(), o = "";
 		for (let e of n) {
 			if (!e.type.startsWith("image/")) {
-				await Se([e]);
+				await we([e]);
 				continue;
 			}
-			let t = Ce(e.type.split("/")[1]?.replace("jpeg", "jpg").replace(/\W.*$/, "") || "png");
+			let t = Te(e.type.split("/")[1]?.replace("jpeg", "jpg").replace(/\W.*$/, "") || "png");
 			T(y).files = [...T(y).files, {
 				name: t,
 				mime: e.type,
 				size: e.size,
-				data: await xe(e)
+				data: await Ce(e)
 			}], o += `![](cid:${t})`;
 		}
 		if (o) {
@@ -1044,7 +1050,7 @@ function It(e, s) {
 		}
 		$();
 	}
-	function Te() {
+	function De() {
 		s.mail.atlas.pick({
 			placeholder: "A file of the vault to attach…",
 			tag: "Attach",
@@ -1068,7 +1074,7 @@ function It(e, s) {
 			}
 		});
 	}
-	function Ee(e) {
+	function Oe(e) {
 		e.preventDefault(), O(re, !1);
 		let t = e.dataTransfer?.getData("text/x-atlas-path") || "";
 		if (t) {
@@ -1078,20 +1084,20 @@ function It(e, s) {
 			}], $();
 			return;
 		}
-		e.dataTransfer?.files.length && Se(e.dataTransfer.files);
+		e.dataTransfer?.files.length && we(e.dataTransfer.files);
 	}
-	let De = (e) => RegExp(`!\\[[^\\]]*\\]\\(<?cid:${e.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}>?\\)\\n?`, "g"), Oe = (e) => {
-		T(y).files = T(y).files.filter((t) => t !== e), T(y).body = T(y).body.replace(De(e.name), ""), $();
-	}, ke = (e) => De(e.name).test(T(y).body), Ae = X(() => T(y).files.reduce((e, t) => e + (t.size ?? 0), 0)), je = /\b(attached|attachment|attaching|enclosed|ci-joint|pi[eè]ce jointe|adjunto|te adjunto|anexo|allegato|anhang|angeh[aä]ngt)\b/i;
-	async function Me() {
+	let ke = (e) => RegExp(`!\\[[^\\]]*\\]\\(<?cid:${e.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}>?\\)\\n?`, "g"), Ae = (e) => {
+		T(y).files = T(y).files.filter((t) => t !== e), T(y).body = T(y).body.replace(ke(e.name), ""), $();
+	}, je = (e) => ke(e.name).test(T(y).body), Me = X(() => T(y).files.reduce((e, t) => e + (t.size ?? 0), 0)), Ne = /\b(attached|attachment|attaching|enclosed|ci-joint|pi[eè]ce jointe|adjunto|te adjunto|anexo|allegato|anhang|angeh[aä]ngt)\b/i;
+	async function Pe() {
 		if (!T(y).to.trim() && !T(y).cc.trim() && !T(y).bcc.trim()) return d().error = "Who is it for? Fill in To.", !1;
 		if (!T(y).subject.trim() && !await A(s.mail.atlas, "Send it without a subject?", { ok: "Send" })) return !1;
 		let e = T(y).body.split(/\n\s*>|\nOn .* wrote:/)[0];
-		return !(je.test(e) && !T(y).files.length && !T(y).forward && !await A(s.mail.atlas, "The text mentions an attachment, but nothing is attached. Send anyway?", { ok: "Send anyway" }));
+		return !(Ne.test(e) && !T(y).files.length && !T(y).forward && !await A(s.mail.atlas, "The text mentions an attachment, but nothing is attached. Send anyway?", { ok: "Send anyway" }));
 	}
-	async function Ne(e = null) {
-		if (!await Me()) return;
-		clearTimeout(oe), d().sending = !0;
+	async function Fe(e = null) {
+		if (!await Pe()) return;
+		clearTimeout(oe), d().sending = !0, await he;
 		let t = {
 			...T(y),
 			send_at: e
@@ -1107,7 +1113,7 @@ function It(e, s) {
 					minute: "2-digit"
 				})}`, "success"), s.mail.later();
 			} catch (e) {
-				Pe(e);
+				Ie(e);
 			}
 			return;
 		}
@@ -1116,7 +1122,7 @@ function It(e, s) {
 				let e = await s.mail.call("send", t, 300);
 				e.refused?.length ? s.mail.toast(`Sent, but refused for ${e.refused.map((e) => e.address).join(", ")}`, "error") : s.mail.toast("Sent", "success"), s.mail.later();
 			} catch (e) {
-				Pe(e);
+				Ie(e);
 			}
 		}, n);
 		s.mail.toast("Sending…", "info", {
@@ -1126,19 +1132,19 @@ function It(e, s) {
 			}
 		});
 	}
-	function Pe(e) {
+	function Ie(e) {
 		let t = s.mail.compose({ ...T(y) }, d().inline);
 		t.error = `Not sent: ${e.message}`, s.mail.toast(`Not sent: ${e.message}`, "error");
 	}
-	function Fe() {
+	function Le() {
 		let e = U(T(ne));
 		if (!e || e * 1e3 < Date.now()) {
 			d().error = "When? e.g. tomorrow 8, mon 14:00, 2026-11-02 09:00, 3h";
 			return;
 		}
-		O(W, !1), Ne(e);
+		O(W, !1), Fe(e);
 	}
-	let Ie = () => {
+	let Re = () => {
 		let e = (e) => {
 			let t = /* @__PURE__ */ new Date();
 			return t.setDate(t.getDate() + e), t.setHours(8, 0, 0, 0), Math.floor(t.getTime() / 1e3);
@@ -1151,7 +1157,7 @@ function It(e, s) {
 			at: e(t)
 		}];
 	};
-	async function Le() {
+	async function ze() {
 		if ((!d().dirty && !T(y).draft || !T(y).body.trim() && !T(y).subject.trim() || await A(s.mail.atlas, "Discard this message?", {
 			ok: "Discard",
 			danger: !0
@@ -1159,20 +1165,20 @@ function It(e, s) {
 			await s.mail.call("discard_draft", { id: T(y).draft }), s.mail.later();
 		} catch {}
 	}
-	function Re(e) {
+	function Be(e) {
 		if (e.stopPropagation(), e.defaultPrevented) return;
 		let t = e.ctrlKey || e.metaKey;
-		t && e.key === "Enter" ? (e.preventDefault(), Ne()) : t && e.key.toLowerCase() === "s" ? (e.preventDefault(), d().dirty = !0, he()) : t && e.key.toLowerCase() === "b" && H(e.target) ? (e.preventDefault(), ge("**")) : t && e.key.toLowerCase() === "i" && H(e.target) ? (e.preventDefault(), ge("*")) : t && e.key.toLowerCase() === "k" && H(e.target) ? (e.preventDefault(), ve()) : t && e.shiftKey && e.key.toLowerCase() === "c" ? (e.preventDefault(), O(b, !0)) : t && e.shiftKey && e.key.toLowerCase() === "b" ? (e.preventDefault(), O(S, !0)) : e.key === "Escape" && !f() && (e.preventDefault(), he(), s.mail.closeComposer(d().key));
+		t && e.key === "Enter" ? (e.preventDefault(), Fe()) : t && e.key.toLowerCase() === "s" ? (e.preventDefault(), d().dirty = !0, ge()) : t && e.key.toLowerCase() === "b" && H(e.target) ? (e.preventDefault(), ve("**")) : t && e.key.toLowerCase() === "i" && H(e.target) ? (e.preventDefault(), ve("*")) : t && e.key.toLowerCase() === "k" && H(e.target) ? (e.preventDefault(), be()) : t && e.shiftKey && e.key.toLowerCase() === "c" ? (e.preventDefault(), O(b, !0)) : t && e.shiftKey && e.key.toLowerCase() === "b" ? (e.preventDefault(), O(S, !0)) : e.key === "Escape" && !f() && (e.preventDefault(), ge(), s.mail.closeComposer(d().key));
 	}
-	function ze() {
+	function Ve() {
 		T(k) && (T(k).style.height = "auto", T(k).style.height = `${Math.min(Math.max(T(k).scrollHeight, f() ? 120 : 220), p() ? 2e3 : 520)}px`);
 	}
 	_(() => {
-		T(y).body, ze();
+		T(y).body, Ve();
 	});
-	var Be = Pt();
-	let Ve;
-	var He = N(Be), Ue = (e) => {
+	var He = Ft();
+	let Ue;
+	var We = N(He), Ge = (e) => {
 		var t = pt(), r = N(t), i = G(r, !0), a = Y(r, 4), o = N(a);
 		Q(o, {
 			name: "layout",
@@ -1185,13 +1191,13 @@ function It(e, s) {
 		}), q(l), q(t), E(() => {
 			n(i, T(y).subject || (T(y).reply_to ? "Reply" : T(y).forward ? "Forward" : "New message")), h(a, "title", p() ? "Smaller" : "Full size");
 		}), J("click", a, () => p(!p())), J("click", l, () => {
-			he(), s.mail.closeComposer(d().key);
+			ge(), s.mail.closeComposer(d().key);
 		}), c(e, t);
 	};
-	v(He, (e) => {
-		f() || e(Ue);
+	v(We, (e) => {
+		f() || e(Ge);
 	});
-	var We = Y(He, 2), Ge = N(We), Ke = (e) => {
+	var Ke = Y(We, 2), qe = N(Ke), Je = (e) => {
 		var r = ht(), i = Y(N(r), 2);
 		l(i, 21, () => T(de), (e) => e.name, (e, t) => {
 			var r = x(), i = Z(r);
@@ -1210,13 +1216,13 @@ function It(e, s) {
 			T(y).account = t, T(y).from = n, $();
 		}), c(e, r);
 	};
-	v(Ge, (e) => {
-		(T(de).length > 1 || T(le).length > 1) && e(Ke);
+	v(qe, (e) => {
+		(T(de).length > 1 || T(le).length > 1) && e(Je);
 	});
-	var qe = Y(Ge, 2), Je = N(qe), Ye = N(Je);
+	var Ye = Y(qe, 2), Xe = N(Ye), Ze = N(Xe);
 	{
 		let e = X(() => !T(y).to && !f());
-		ft(Ye, {
+		ft(Ze, {
 			get atlas() {
 				return s.mail.atlas;
 			},
@@ -1232,22 +1238,22 @@ function It(e, s) {
 			}
 		});
 	}
-	q(Je);
-	var Xe = Y(Je, 2), Ze = (e) => {
+	q(Xe);
+	var Qe = Y(Xe, 2), $e = (e) => {
 		var t = gt();
 		J("click", t, () => O(b, !0)), c(e, t);
 	};
-	v(Xe, (e) => {
-		T(b) || e(Ze);
+	v(Qe, (e) => {
+		T(b) || e($e);
 	});
-	var Qe = Y(Xe, 2), $e = (e) => {
+	var et = Y(Qe, 2), tt = (e) => {
 		var t = _t();
 		J("click", t, () => O(S, !0)), c(e, t);
 	};
-	v(Qe, (e) => {
-		T(S) || e($e);
-	}), q(qe);
-	var et = Y(qe, 2), tt = (e) => {
+	v(et, (e) => {
+		T(S) || e(tt);
+	}), q(Ye);
+	var nt = Y(Ye, 2), rt = (e) => {
 		ft(e, {
 			get atlas() {
 				return s.mail.atlas;
@@ -1261,10 +1267,10 @@ function It(e, s) {
 			}
 		});
 	};
-	v(et, (e) => {
-		T(b) && e(tt);
+	v(nt, (e) => {
+		T(b) && e(rt);
 	});
-	var nt = Y(et, 2), rt = (e) => {
+	var it = Y(nt, 2), at = (e) => {
 		ft(e, {
 			get atlas() {
 				return s.mail.atlas;
@@ -1278,46 +1284,61 @@ function It(e, s) {
 			}
 		});
 	};
-	v(nt, (e) => {
-		T(S) && e(rt);
+	v(it, (e) => {
+		T(S) && e(at);
 	});
-	var it = Y(nt, 2), at = (e) => {
+	var ot = Y(it, 2), st = (e) => {
 		var t = vt();
 		i(t), J("input", t, $), a(t, () => T(y).subject, (e) => T(y).subject = e), c(e, t);
 	};
-	v(it, (e) => {
-		(!f() || !T(y).reply_to) && e(at);
-	}), q(We);
-	var ot = Y(We, 2), st = N(ot), ct = Y(st, 2), lt = Y(ct, 2), ut = Y(lt, 2), dt = N(ut);
-	Q(dt, {
+	v(ot, (e) => {
+		(!f() || !T(y).reply_to) && e(st);
+	}), q(Ke);
+	var ct = Y(Ke, 2), lt = N(ct), ut = Y(lt, 2), dt = Y(ut, 2), Lt = Y(dt, 2), Rt = N(Lt);
+	Q(Rt, {
 		name: "open",
 		size: 14
-	}), q(ut);
-	var It = Y(ut, 2), Lt = Y(It, 2), Rt = Y(Lt, 2), zt = Y(Rt, 2), Bt = N(zt);
-	Bt.textContent = "<>", q(zt);
-	var Vt = Y(zt, 6);
-	let Ht;
-	var Ut = G(Vt, !0);
-	q(ot);
-	var Wt = Y(ot, 2), Gt = (e) => {
+	}), q(Lt);
+	var zt = Y(Lt, 2), Bt = Y(zt, 2), Vt = Y(Bt, 2), Ht = Y(Vt, 2), Ut = N(Ht);
+	Ut.textContent = "<>", q(Ht);
+	var Wt = Y(Ht, 6);
+	let Gt;
+	var Kt = G(Wt, !0);
+	q(ct);
+	var qt = Y(ct, 2), Jt = (e) => {
 		var t = yt();
 		o(t, () => T(C), !0), q(t), c(e, t);
-	}, Kt = (e) => {
+	}, Yt = (e) => {
 		var t = bt();
 		let n;
-		ue(t, (e) => O(P, e), () => T(P)), E(() => n = m(t, 1, "body svelte-zp5xms", null, n, { big: p() })), u("paste", t, we, !0), c(e, t);
-	}, qt = (e) => {
+		ue(t, (e) => O(P, e), () => T(P)), E(() => n = m(t, 1, "body svelte-zp5xms", null, n, { big: p() })), u("paste", t, Ee, !0), c(e, t);
+	}, Xt = (e) => {
 		var t = xt();
-		te(t), ue(t, (e) => O(k, e), () => T(k)), E(() => h(t, "placeholder", T(L))), J("input", t, $), u("paste", t, we), a(t, () => T(y).body, (e) => T(y).body = e), c(e, t);
+		te(t), ue(t, (e) => O(k, e), () => T(k)), E(() => h(t, "placeholder", T(L))), J("input", t, $), u("paste", t, Ee), a(t, () => T(y).body, (e) => T(y).body = e), c(e, t);
 	};
-	v(Wt, (e) => {
-		T(C) === null ? j ? e(Kt, 1) : e(qt, -1) : e(Gt);
+	v(qt, (e) => {
+		T(C) === null ? j ? e(Yt, 1) : e(Xt, -1) : e(Jt);
 	});
-	var Jt = Y(Wt, 2), Yt = (e) => {
-		var t = Ot(), r = N(t);
+	var Zt = Y(qt, 2), Qt = (e) => {
+		var t = St(), r = N(t), i = G(r), a = Y(r, 2), o = G(a, !0);
+		q(t), E((e, t) => {
+			n(i, `${T(y).forward ? "Forwarded" : "Replying to"} ${T(y).quote.from ?? ""}, ${e ?? ""}`), n(o, t);
+		}, [() => (/* @__PURE__ */ new Date(T(y).quote.date * 1e3)).toLocaleString(void 0, {
+			weekday: "short",
+			day: "numeric",
+			month: "short",
+			hour: "2-digit",
+			minute: "2-digit"
+		}), () => T(y).quote.text.trim()]), c(e, t);
+	};
+	v(Zt, (e) => {
+		T(y).quote && e(Qt);
+	});
+	var $t = Y(Zt, 2), en = (e) => {
+		var t = kt(), r = N(t);
 		l(r, 17, () => T(y).files, (e) => e.name + (e.path ?? "") + (e.from?.join() ?? ""), (e, t) => {
-			var r = Et(), i = N(r), a = (e) => {
-				var n = St();
+			var r = Dt(), i = N(r), a = (e) => {
+				var n = Ct();
 				E(() => h(n, "src", `data:${T(t).mime};base64,${T(t).data}`)), c(e, n);
 			}, o = X(() => T(t).data && T(t).mime?.startsWith("image/")), s = (e) => {
 				Q(e, {
@@ -1329,21 +1350,21 @@ function It(e, s) {
 				T(o) ? e(a) : e(s, -1);
 			});
 			var l = Y(i), u = G(l, !0), d = Y(l), f = (e) => {
-				var t = Ct();
+				var t = wt();
 				c(e, t);
-			}, p = X(() => ke(T(t)));
+			}, p = X(() => je(T(t)));
 			v(d, (e) => {
 				T(p) && e(f);
 			});
 			var m = Y(d), g = (e) => {
-				var r = wt(), i = G(r, !0);
+				var r = Tt(), i = G(r, !0);
 				E((e) => n(i, e), [() => D(T(t).size)]), c(e, r);
 			};
 			v(m, (e) => {
 				T(t).size && e(g);
 			});
 			var _ = Y(m), y = (e) => {
-				var t = Tt();
+				var t = Et();
 				c(e, t);
 			};
 			v(_, (e) => {
@@ -1352,42 +1373,42 @@ function It(e, s) {
 			var b = Y(_);
 			q(r), E(() => {
 				n(u, T(t).name), h(b, "aria-label", `Remove ${T(t).name}`);
-			}), J("click", b, () => Oe(T(t))), c(e, r);
+			}), J("click", b, () => Ae(T(t))), c(e, r);
 		});
 		var i = Y(r, 2), a = (e) => {
-			var t = Dt(), r = G(t);
-			E((e) => n(r, `${e ?? ""}: most servers take about 25 MB`), [() => D(T(Ae))]), c(e, t);
+			var t = Ot(), r = G(t);
+			E((e) => n(r, `${e ?? ""}: most servers take about 25 MB`), [() => D(T(Me))]), c(e, t);
 		};
 		v(i, (e) => {
-			T(Ae) > 20971520 && e(a);
+			T(Me) > 20971520 && e(a);
 		}), q(t), c(e, t);
 	};
-	v(Jt, (e) => {
-		T(y).files.length && e(Yt);
+	v($t, (e) => {
+		T(y).files.length && e(en);
 	});
-	var Xt = Y(Jt, 2), Zt = (e) => {
-		var t = kt(), r = G(t, !0);
+	var tn = Y($t, 2), nn = (e) => {
+		var t = At(), r = G(t, !0);
 		E(() => n(r, d().error)), c(e, t);
 	};
-	v(Xt, (e) => {
-		d().error && e(Zt);
+	v(tn, (e) => {
+		d().error && e(nn);
 	});
-	var Qt = Y(Xt, 2), $t = (e) => {
-		var t = At();
+	var rn = Y(tn, 2), an = (e) => {
+		var t = jt();
 		c(e, t);
 	};
-	v(Qt, (e) => {
-		T(re) && e($t);
+	v(rn, (e) => {
+		T(re) && e(an);
 	});
-	var en = Y(Qt, 2), tn = N(en), nn = N(tn), rn = Y(nn, 2), an = N(rn);
-	Q(an, {
+	var on = Y(rn, 2), sn = N(on), cn = N(sn), ln = Y(cn, 2), un = N(ln);
+	Q(un, {
 		name: "down",
 		size: 14
-	}), q(rn);
-	var on = Y(rn, 2), sn = (e) => {
-		var t = Mt(), r = N(t);
-		l(r, 17, Ie, (e) => e.label, (e, t) => {
-			var r = jt(), i = N(r, !0), a = Y(i), o = G(a, !0);
+	}), q(ln);
+	var dn = Y(ln, 2), fn = (e) => {
+		var t = Nt(), r = N(t);
+		l(r, 17, Re, (e) => e.label, (e, t) => {
+			var r = Mt(), i = N(r, !0), a = Y(i), o = G(a, !0);
 			q(r), E((e) => {
 				n(i, T(t).label), n(o, e);
 			}, [() => (/* @__PURE__ */ new Date(T(t).at * 1e3)).toLocaleString(void 0, {
@@ -1396,27 +1417,27 @@ function It(e, s) {
 				hourCycle: "h23",
 				minute: "2-digit"
 			})]), J("click", r, () => {
-				O(W, !1), Ne(T(t).at);
+				O(W, !1), Fe(T(t).at);
 			}), c(e, r);
 		});
 		var o = Y(r, 2), s = N(o);
 		i(s);
 		var u = Y(s);
 		q(o), q(t), J("keydown", s, (e) => {
-			e.key === "Enter" && (e.preventDefault(), Fe());
-		}), a(s, () => T(ne), (e) => O(ne, e)), J("click", u, Fe), c(e, t);
+			e.key === "Enter" && (e.preventDefault(), Le());
+		}), a(s, () => T(ne), (e) => O(ne, e)), J("click", u, Le), c(e, t);
 	};
-	v(on, (e) => {
-		T(W) && e(sn);
-	}), q(tn);
-	var cn = Y(tn, 2), ln = N(cn);
-	Q(ln, { name: "attach" }), q(cn);
-	var un = Y(cn, 2), dn = N(un);
-	Q(dn, { name: "note" }), q(un);
-	var fn = Y(un, 2);
-	ue(fn, (e) => O(ie, e), () => T(ie));
-	var pn = Y(fn, 2), mn = G(pn, !0), hn = Y(pn, 4), gn = (e) => {
-		var t = Nt(), n = N(t);
+	v(dn, (e) => {
+		T(W) && e(fn);
+	}), q(sn);
+	var pn = Y(sn, 2), mn = N(pn);
+	Q(mn, { name: "attach" }), q(pn);
+	var hn = Y(pn, 2), gn = N(hn);
+	Q(gn, { name: "note" }), q(hn);
+	var _n = Y(hn, 2);
+	ue(_n, (e) => O(ie, e), () => T(ie));
+	var vn = Y(_n, 2), yn = G(vn, !0), bn = Y(vn, 4), xn = (e) => {
+		var t = Pt(), n = N(t);
 		Q(n, {
 			name: "open",
 			size: 15
@@ -1424,26 +1445,26 @@ function It(e, s) {
 			d().inline = !1;
 		}), c(e, t);
 	};
-	v(hn, (e) => {
-		f() && e(gn);
+	v(bn, (e) => {
+		f() && e(xn);
 	});
-	var _n = Y(hn, 2), vn = N(_n);
-	Q(vn, { name: "trash" }), q(_n), q(en), q(Be), E((e) => {
-		Ve = m(Be, 1, "composer svelte-zp5xms", null, Ve, {
+	var Sn = Y(bn, 2), Cn = N(Sn);
+	Q(Cn, { name: "trash" }), q(Sn), q(on), q(He), E((e) => {
+		Ue = m(He, 1, "composer svelte-zp5xms", null, Ue, {
 			inline: f(),
 			over: T(re)
-		}), h(Be, "aria-label", T(y).reply_to ? "Reply" : T(y).forward ? "Forward" : "New message"), Ht = m(Vt, 1, "svelte-zp5xms", null, Ht, { on: T(C) !== null }), n(Ut, T(C) === null ? "Preview" : "Edit"), nn.disabled = d().sending, h(rn, "aria-expanded", T(W)), n(mn, e);
+		}), h(He, "aria-label", T(y).reply_to ? "Reply" : T(y).forward ? "Forward" : "New message"), Gt = m(Wt, 1, "svelte-zp5xms", null, Gt, { on: T(C) !== null }), n(Kt, T(C) === null ? "Preview" : "Edit"), cn.disabled = d().sending, h(ln, "aria-expanded", T(W)), n(yn, e);
 	}, [() => d().saving ? "Saving…" : d().savedAt ? `Draft saved ${new Date(d().savedAt).toLocaleTimeString(void 0, {
 		hour: "2-digit",
 		hourCycle: "h23",
 		minute: "2-digit"
-	})}` : ""]), J("keydown", Be, Re), u("dragover", Be, (e) => {
+	})}` : ""]), J("keydown", He, Be), u("dragover", He, (e) => {
 		e.preventDefault(), O(re, !0);
-	}), u("dragleave", Be, (e) => {
+	}), u("dragleave", He, (e) => {
 		e.currentTarget === e.target && O(re, !1);
-	}), u("drop", Be, Ee), J("click", st, () => ge("**")), J("click", ct, () => ge("*")), J("click", lt, () => ge("~~")), J("click", ut, ve), J("click", It, () => _e("- ")), J("click", Lt, () => _e("1. ")), J("click", Rt, () => _e("> ")), J("click", zt, () => ge("`")), J("click", Vt, ye), J("click", nn, () => Ne()), J("click", rn, () => O(W, !T(W))), J("click", cn, () => T(ie)?.click()), J("click", un, Te), J("change", fn, (e) => {
-		e.currentTarget.files && Se(e.currentTarget.files), e.currentTarget.value = "";
-	}), J("click", _n, Le), c(e, Be), ce();
+	}), u("drop", He, Oe), J("click", lt, () => ve("**")), J("click", ut, () => ve("*")), J("click", dt, () => ve("~~")), J("click", Lt, be), J("click", zt, () => ye("- ")), J("click", Bt, () => ye("1. ")), J("click", Vt, () => ye("> ")), J("click", Ht, () => ve("`")), J("click", Wt, xe), J("click", cn, () => Fe()), J("click", ln, () => O(W, !T(W))), J("click", pn, () => T(ie)?.click()), J("click", hn, De), J("change", _n, (e) => {
+		e.currentTarget.files && we(e.currentTarget.files), e.currentTarget.value = "";
+	}), J("click", Sn, ze), c(e, He), ce();
 }
 d([
 	"keydown",
@@ -1453,8 +1474,8 @@ d([
 ]);
 //#endregion
 //#region plugins/stable/email/ui/src/find.ts
-var Lt = "atlas-find";
-function Rt(e) {
+var Rt = "atlas-find";
+function zt(e) {
 	let t = "", n = [];
 	for (let r = 0; r < e.length; r++) {
 		let i = e[r].toLowerCase().normalize("NFD").replace(/\p{M}/gu, "");
@@ -1465,7 +1486,7 @@ function Rt(e) {
 		at: n
 	};
 }
-var zt = class {
+var Bt = class {
 	marks = [];
 	at = -1;
 	clear() {
@@ -1479,21 +1500,21 @@ var zt = class {
 	}
 	run(e, t) {
 		this.clear();
-		let n = Rt(t.trim()).s;
+		let n = zt(t.trim()).s;
 		if (!n) return 0;
 		for (let t of e) {
 			if (!t.body) continue;
 			let e = t.createTreeWalker(t.body, NodeFilter.SHOW_TEXT, { acceptNode: (e) => e.parentElement?.closest("style, script, summary") ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT }), r = [];
 			for (let t = e.nextNode(); t; t = e.nextNode()) r.push(t);
 			for (let e of r) {
-				let { s: r, at: i } = Rt(e.data), a = [];
+				let { s: r, at: i } = zt(e.data), a = [];
 				for (let e = r.indexOf(n); e >= 0; e = r.indexOf(n, e + n.length)) a.push([i[e], i[e + n.length]]);
 				let o = [];
 				for (let [n, r] of a.reverse()) {
 					let i = t.createRange();
 					i.setStart(e, n), i.setEnd(e, r);
 					let a = t.createElement("mark");
-					a.className = Lt, i.surroundContents(a), o.unshift(a);
+					a.className = Rt, i.surroundContents(a), o.unshift(a);
 				}
 				this.marks.push(...o);
 			}
@@ -1509,7 +1530,7 @@ var zt = class {
 		return t;
 	}
 };
-function Bt(e, t) {
+function Vt(e, t) {
 	let n = t.ownerDocument.defaultView?.frameElement;
 	if (!n) return;
 	let r = e.getBoundingClientRect(), i = n.getBoundingClientRect().top + t.getBoundingClientRect().top - r.top + e.scrollTop;
@@ -1520,12 +1541,12 @@ function Bt(e, t) {
 }
 //#endregion
 //#region plugins/stable/email/ui/src/Reader.svelte
-var Vt = C("<div class=\"loading svelte-j5oobt\"><div class=\"bar svelte-j5oobt\"></div><div class=\"bar short svelte-j5oobt\"></div><div class=\"bar svelte-j5oobt\"></div></div>"), Ht = C("<div class=\"atlas-empty\"><p> </p><button class=\"atlas-btn\">Try again</button></div>"), Ut = C("<button class=\"tool svelte-j5oobt\" title=\"Back to the list (u)\"><!></button>"), Wt = C("<button role=\"menuitem\" class=\"svelte-j5oobt\">Open the note</button>"), Gt = C("<button role=\"menuitem\" class=\"svelte-j5oobt\">Unsubscribe</button>"), Kt = C("<div class=\"menu svelte-j5oobt\" role=\"menu\" tabindex=\"-1\"><!> <button role=\"menuitem\" class=\"svelte-j5oobt\">Mark important</button> <button role=\"menuitem\" class=\"svelte-j5oobt\">Not important…</button> <!> <button role=\"menuitem\" class=\"svelte-j5oobt\">Make a task</button> <button role=\"menuitem\" class=\"svelte-j5oobt\">Expand all (;)</button></div>"), qt = C("<span class=\"chip svelte-j5oobt\"> </span>"), Jt = C("<button class=\"link svelte-j5oobt\">Unsubscribe</button>"), Yt = C("<div class=\"find svelte-j5oobt\" role=\"search\"><!> <input placeholder=\"Find in this conversation\" aria-label=\"Find in this conversation\" class=\"svelte-j5oobt\"/> <span class=\"faint count svelte-j5oobt\"> </span> <button class=\"tool svelte-j5oobt\" title=\"Previous (⇧Enter)\"><!></button> <button class=\"tool svelte-j5oobt\" title=\"Next (Enter)\"><!></button> <button class=\"tool svelte-j5oobt\" title=\"Close (Esc)\"><!></button></div>"), Xt = C("<span class=\"addr svelte-j5oobt\"> </span>"), Zt = C("<span class=\"snip svelte-j5oobt\"> </span>"), Qt = C("<span> </span>"), $t = C("<button class=\"atlas-btn\">Edit the draft</button>"), en = C("<button class=\"mini svelte-j5oobt\" title=\"Reply (r)\"><!></button> <button class=\"mini svelte-j5oobt\" title=\"Reply all (a)\"><!></button> <button class=\"mini svelte-j5oobt\" title=\"Forward (f)\"><!></button>", 1), tn = C("<div class=\"atlas-notice error\"> </div>"), nn = C("<div class=\"remote svelte-j5oobt\" role=\"status\"><!> <span> </span> <button class=\"link svelte-j5oobt\">Show</button> <button class=\"link svelte-j5oobt\"> </button></div>"), rn = C("<div class=\"fwd svelte-j5oobt\"><div class=\"fwdhead svelte-j5oobt\"><b>Forwarded:</b> </div> <!></div>"), an = C("<div class=\"file svelte-j5oobt\"><button class=\"fopen svelte-j5oobt\" title=\"Open in Atlas\"><!><span class=\"fname svelte-j5oobt\"> </span><span class=\"faint svelte-j5oobt\"> </span></button> <button class=\"mini svelte-j5oobt\" title=\"Save into the vault…\"><!></button></div>"), on = C("<div class=\"files svelte-j5oobt\"></div>"), sn = C("<!> <!> <!> <!> <!>", 1), cn = C("<div class=\"loading svelte-j5oobt\"><div class=\"bar svelte-j5oobt\"></div></div>"), ln = C("<div class=\"detail svelte-j5oobt\"><div class=\"to svelte-j5oobt\" role=\"presentation\"><!> <!> <span class=\"faint svelte-j5oobt\"> </span> <span class=\"grow svelte-j5oobt\"></span> <span class=\"acts svelte-j5oobt\"><!> <button class=\"mini svelte-j5oobt\"><!></button></span></div> <!></div>"), un = C("<article><button class=\"head svelte-j5oobt\"><span class=\"avatar svelte-j5oobt\"> </span> <span class=\"from svelte-j5oobt\"><b class=\"svelte-j5oobt\"> </b><!></span> <!> <span class=\"when svelte-j5oobt\"><!> </span></button> <!></article>"), dn = C("<div class=\"quick svelte-j5oobt\"><button class=\"atlas-btn svelte-j5oobt\"><!> Reply</button> <button class=\"atlas-btn svelte-j5oobt\"><!> Reply all</button> <button class=\"atlas-btn svelte-j5oobt\"><!> Forward</button> <button class=\"atlas-btn svelte-j5oobt\" title=\"A meeting with everyone in this conversation (the Calendar's editor)\"><!> Meeting</button></div>"), fn = C("<header class=\"top svelte-j5oobt\"><div class=\"tools svelte-j5oobt\" role=\"toolbar\" aria-label=\"Conversation actions\"><!> <button class=\"tool svelte-j5oobt\" title=\"Archive (e)\"><!></button> <button class=\"tool svelte-j5oobt\"><!></button> <button class=\"tool svelte-j5oobt\"><!></button> <span class=\"sep svelte-j5oobt\"></span> <button class=\"tool svelte-j5oobt\" title=\"Mark unread (⇧U)\"><!></button> <button class=\"tool svelte-j5oobt\" title=\"Snooze (h)\"><!></button> <button class=\"tool svelte-j5oobt\" title=\"Move to (v)\"><!></button> <button class=\"tool svelte-j5oobt\" title=\"Label (l)\"><!></button> <span class=\"grow svelte-j5oobt\"></span> <button><!></button> <div class=\"menu-wrap svelte-j5oobt\"><button class=\"tool svelte-j5oobt\" title=\"More\"><!></button> <!></div></div> <h2 class=\"subject svelte-j5oobt\"> <button><!></button></h2> <div class=\"meta svelte-j5oobt\"><!> <span class=\"faint svelte-j5oobt\"> </span> <!></div> <!></header> <div class=\"cards svelte-j5oobt\"></div> <div class=\"answer svelte-j5oobt\"><!></div>", 1), pn = C("<div class=\"atlas-empty nothing svelte-j5oobt\"><!> <p class=\"svelte-j5oobt\"> </p> <p class=\"faint svelte-j5oobt\">j / k to move, Enter to open, c to write, ? for every key.</p></div>"), mn = C("<section class=\"reader svelte-j5oobt\" aria-label=\"The conversation\"><!></section>"), hn = {
+var Ht = C("<div class=\"loading svelte-j5oobt\"><div class=\"bar svelte-j5oobt\"></div><div class=\"bar short svelte-j5oobt\"></div><div class=\"bar svelte-j5oobt\"></div></div>"), Ut = C("<div class=\"atlas-empty\"><p> </p><button class=\"atlas-btn\">Try again</button></div>"), Wt = C("<button class=\"tool svelte-j5oobt\" title=\"Back to the list (u)\"><!></button>"), Gt = C("<button role=\"menuitem\" class=\"svelte-j5oobt\">Open the note</button>"), Kt = C("<button role=\"menuitem\" class=\"svelte-j5oobt\">Unsubscribe</button>"), qt = C("<div class=\"menu svelte-j5oobt\" role=\"menu\" tabindex=\"-1\"><!> <button role=\"menuitem\" class=\"svelte-j5oobt\">Mark important</button> <button role=\"menuitem\" class=\"svelte-j5oobt\">Not important…</button> <!> <button role=\"menuitem\" class=\"svelte-j5oobt\">Make a task</button> <button role=\"menuitem\" class=\"svelte-j5oobt\">Expand all (;)</button></div>"), Jt = C("<span class=\"chip svelte-j5oobt\"> </span>"), Yt = C("<button class=\"link svelte-j5oobt\">Unsubscribe</button>"), Xt = C("<div class=\"find svelte-j5oobt\" role=\"search\"><!> <input placeholder=\"Find in this conversation\" aria-label=\"Find in this conversation\" class=\"svelte-j5oobt\"/> <span class=\"faint count svelte-j5oobt\"> </span> <button class=\"tool svelte-j5oobt\" title=\"Previous (⇧Enter)\"><!></button> <button class=\"tool svelte-j5oobt\" title=\"Next (Enter)\"><!></button> <button class=\"tool svelte-j5oobt\" title=\"Close (Esc)\"><!></button></div>"), Zt = C("<span class=\"addr svelte-j5oobt\"> </span>"), Qt = C("<span class=\"snip svelte-j5oobt\"> </span>"), $t = C("<span> </span>"), en = C("<button class=\"atlas-btn\">Edit the draft</button>"), tn = C("<button class=\"mini svelte-j5oobt\" title=\"Reply (r)\"><!></button> <button class=\"mini svelte-j5oobt\" title=\"Reply all (a)\"><!></button> <button class=\"mini svelte-j5oobt\" title=\"Forward (f)\"><!></button>", 1), nn = C("<div class=\"atlas-notice error\"> </div>"), rn = C("<div class=\"remote svelte-j5oobt\" role=\"status\"><!> <span> </span> <button class=\"link svelte-j5oobt\">Show</button> <button class=\"link svelte-j5oobt\"> </button></div>"), an = C("<div class=\"fwd svelte-j5oobt\"><div class=\"fwdhead svelte-j5oobt\"><b>Forwarded:</b> </div> <!></div>"), on = C("<div class=\"file svelte-j5oobt\"><button class=\"fopen svelte-j5oobt\" title=\"Open in Atlas\"><!><span class=\"fname svelte-j5oobt\"> </span><span class=\"faint svelte-j5oobt\"> </span></button> <button class=\"mini svelte-j5oobt\" title=\"Save into the vault…\"><!></button></div>"), sn = C("<div class=\"files svelte-j5oobt\"></div>"), cn = C("<!> <!> <!> <!> <!>", 1), ln = C("<div class=\"loading svelte-j5oobt\"><div class=\"bar svelte-j5oobt\"></div></div>"), un = C("<div class=\"detail svelte-j5oobt\"><div class=\"to svelte-j5oobt\" role=\"presentation\"><!> <!> <span class=\"faint svelte-j5oobt\"> </span> <span class=\"grow svelte-j5oobt\"></span> <span class=\"acts svelte-j5oobt\"><!> <button class=\"mini svelte-j5oobt\"><!></button></span></div> <!></div>"), dn = C("<article><button class=\"head svelte-j5oobt\"><span class=\"avatar svelte-j5oobt\"> </span> <span class=\"from svelte-j5oobt\"><b class=\"svelte-j5oobt\"> </b><!></span> <!> <span class=\"when svelte-j5oobt\"><!> </span></button> <!></article>"), fn = C("<div class=\"quick svelte-j5oobt\"><button class=\"atlas-btn svelte-j5oobt\"><!> Reply</button> <button class=\"atlas-btn svelte-j5oobt\"><!> Reply all</button> <button class=\"atlas-btn svelte-j5oobt\"><!> Forward</button> <button class=\"atlas-btn svelte-j5oobt\" title=\"A meeting with everyone in this conversation (the Calendar's editor)\"><!> Meeting</button></div>"), pn = C("<header class=\"top svelte-j5oobt\"><div class=\"tools svelte-j5oobt\" role=\"toolbar\" aria-label=\"Conversation actions\"><!> <button class=\"tool svelte-j5oobt\" title=\"Archive (e)\"><!></button> <button class=\"tool svelte-j5oobt\"><!></button> <button class=\"tool svelte-j5oobt\"><!></button> <span class=\"sep svelte-j5oobt\"></span> <button class=\"tool svelte-j5oobt\" title=\"Mark unread (⇧U)\"><!></button> <button class=\"tool svelte-j5oobt\" title=\"Snooze (h)\"><!></button> <button class=\"tool svelte-j5oobt\" title=\"Move to (v)\"><!></button> <button class=\"tool svelte-j5oobt\" title=\"Label (l)\"><!></button> <span class=\"grow svelte-j5oobt\"></span> <button><!></button> <div class=\"menu-wrap svelte-j5oobt\"><button class=\"tool svelte-j5oobt\" title=\"More\"><!></button> <!></div></div> <h2 class=\"subject svelte-j5oobt\"> <button><!></button></h2> <div class=\"meta svelte-j5oobt\"><!> <span class=\"faint svelte-j5oobt\"> </span> <!></div> <!></header> <div class=\"cards svelte-j5oobt\"></div> <div class=\"answer svelte-j5oobt\"><!></div>", 1), mn = C("<div class=\"atlas-empty nothing svelte-j5oobt\"><!> <p class=\"svelte-j5oobt\"> </p> <p class=\"faint svelte-j5oobt\">j / k to move, Enter to open, c to write, ? for every key.</p></div>"), hn = C("<section class=\"reader svelte-j5oobt\" aria-label=\"The conversation\"><!></section>"), gn = {
 	hash: "svelte-j5oobt",
 	code: ".reader.svelte-j5oobt {height:100%;overflow-y:auto;display:flex;flex-direction:column;box-sizing:border-box;}.top.svelte-j5oobt {position:sticky;top:0;z-index:2;background:var(--bg);padding:8px 20px 10px;border-bottom:1px solid var(--border);display:grid;gap:6px;}.tools.svelte-j5oobt {display:flex;align-items:center;gap:2px;margin-left:-6px;}.tool.svelte-j5oobt {all:unset;cursor:pointer;padding:6px;border-radius:var(--radius-sm);color:var(--text-muted);min-width:24px;min-height:24px;display:grid;place-items:center;}.tool.svelte-j5oobt:hover {background:var(--bg-hover);color:var(--text);}.tool.on.svelte-j5oobt {color:var(--accent);}.tool.svelte-j5oobt:focus-visible, .head.svelte-j5oobt:focus-visible, .mini.svelte-j5oobt:focus-visible, .fopen.svelte-j5oobt:focus-visible, .star.svelte-j5oobt:focus-visible {outline:2px solid var(--accent);outline-offset:-2px;}.sep.svelte-j5oobt {width:1px;height:18px;background:var(--border-strong);margin:0 4px;}.grow.svelte-j5oobt {flex:1;}.subject.svelte-j5oobt {margin:0;font-size:1.32em;line-height:1.3;font-weight:600;color:var(--heading);display:flex;gap:8px;align-items:flex-start;overflow-wrap:anywhere;}.star.svelte-j5oobt {all:unset;cursor:pointer;color:var(--text-faint);padding:3px;border-radius:var(--radius-sm);margin-top:1px;}.star.on.svelte-j5oobt {color:var(--yellow);}.meta.svelte-j5oobt {display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center;font-size:0.88em;}.chip.svelte-j5oobt {font-size:0.9em;padding:0 7px;border-radius:999px;background:hsl(var(--h) 60% 50% / 0.16);}.faint.svelte-j5oobt {color:var(--text-faint);}.link.svelte-j5oobt {all:unset;cursor:pointer;color:var(--accent);}.link.svelte-j5oobt:hover {text-decoration:underline;}.find.svelte-j5oobt {display:flex;align-items:center;gap:4px;padding:3px 4px 3px 10px;border:1px solid var(--border-strong);border-radius:var(--radius);background:var(--bg-alt);color:var(--text-muted);}.find.svelte-j5oobt input:where(.svelte-j5oobt) {all:unset;flex:1;min-width:0;padding:4px 4px;color:var(--text);}.find.svelte-j5oobt .count:where(.svelte-j5oobt) {font-size:0.85em;white-space:nowrap;}.find.svelte-j5oobt .tool:where(.svelte-j5oobt):disabled {opacity:0.4;cursor:default;}.menu-wrap.svelte-j5oobt {position:relative;}.menu.svelte-j5oobt {position:absolute;right:0;top:100%;z-index:5;min-width:200px;background:var(--bg-elev);border:1px solid var(--border-strong);border-radius:var(--radius);box-shadow:var(--shadow-md, var(--shadow-sm));padding:4px;display:grid;}.menu.svelte-j5oobt button:where(.svelte-j5oobt) {all:unset;cursor:pointer;padding:7px 10px;border-radius:var(--radius-sm);}.menu.svelte-j5oobt button:where(.svelte-j5oobt):hover {background:var(--bg-hover);}.cards.svelte-j5oobt {padding:12px 16px;display:grid;gap:8px;}.card.svelte-j5oobt {border:1px solid var(--border);border-radius:var(--radius);background:var(--bg-alt);overflow:hidden;}.card.open.svelte-j5oobt {background:var(--bg);box-shadow:var(--shadow-sm);}.card.draft.svelte-j5oobt {border-color:color-mix(in srgb, var(--red) 40%, transparent);}.head.svelte-j5oobt {all:unset;box-sizing:border-box;width:100%;display:flex;align-items:center;gap:10px;padding:9px 14px;cursor:pointer;min-width:0;}.head.svelte-j5oobt:hover {background:var(--bg-hover);}.avatar.svelte-j5oobt {flex:none;width:30px;height:30px;border-radius:50%;display:grid;place-items:center;font-size:11px;font-weight:600;color:#fff;background:hsl(var(--h) 45% 46%);}.from.svelte-j5oobt {display:flex;gap:8px;align-items:baseline;min-width:0;flex:0 1 auto;white-space:nowrap;}.unread.svelte-j5oobt .from:where(.svelte-j5oobt) b:where(.svelte-j5oobt) {color:var(--heading);}.addr.svelte-j5oobt {color:var(--text-faint);font-size:0.86em;overflow:hidden;text-overflow:ellipsis;}.snip.svelte-j5oobt {flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-muted);}.when.svelte-j5oobt {margin-left:auto;flex:none;color:var(--text-muted);font-size:0.85em;display:flex;gap:5px;align-items:center;}.detail.svelte-j5oobt {padding:0 16px 14px 54px;display:grid;gap:10px;}\n  /* a message's buttons stay one group (Delete beside Edit the draft), the row wrapping before them, never inside */.acts.svelte-j5oobt {display:inline-flex;align-items:center;gap:4px;flex-shrink:0;margin-left:auto;}.to.svelte-j5oobt {display:flex;flex-wrap:wrap;gap:4px 12px;align-items:center;font-size:0.86em;color:var(--text-muted);}.mini.svelte-j5oobt {all:unset;cursor:pointer;padding:5px;border-radius:var(--radius-sm);color:var(--text-muted);display:grid;place-items:center;min-width:24px;min-height:24px;}.mini.svelte-j5oobt:hover {background:var(--bg-hover);color:var(--text);}.remote.svelte-j5oobt {display:flex;flex-wrap:wrap;gap:6px 12px;align-items:center;padding:7px 10px;border-radius:var(--radius-sm);background:var(--bg-hover);font-size:0.86em;color:var(--text-muted);}.fwd.svelte-j5oobt {border-left:3px solid var(--border-strong);padding-left:12px;display:grid;gap:6px;}.fwdhead.svelte-j5oobt {font-size:0.86em;color:var(--text-muted);}.files.svelte-j5oobt {display:flex;flex-wrap:wrap;gap:8px;}.file.svelte-j5oobt {display:flex;align-items:center;border:1px solid var(--border-strong);border-radius:var(--radius);background:var(--bg-alt);}.fopen.svelte-j5oobt {all:unset;cursor:pointer;display:flex;gap:8px;align-items:center;padding:7px 10px;max-width:280px;}.fopen.svelte-j5oobt:hover {color:var(--accent);}.fname.svelte-j5oobt {overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;}.fopen.svelte-j5oobt .faint:where(.svelte-j5oobt) {white-space:nowrap;flex:none;font-size:0.86em;}.answer.svelte-j5oobt {padding:4px 16px 24px 16px;}.quick.svelte-j5oobt {display:flex;gap:8px;flex-wrap:wrap;padding-left:38px;}.quick.svelte-j5oobt .atlas-btn:where(.svelte-j5oobt) {display:inline-flex;gap:6px;align-items:center;}.nothing.svelte-j5oobt {margin:auto;display:grid;justify-items:center;gap:6px;color:var(--text-faint);text-align:center;padding:40px;}.nothing.svelte-j5oobt p:where(.svelte-j5oobt) {margin:0;}.loading.svelte-j5oobt {padding:24px;display:grid;gap:12px;}.bar.svelte-j5oobt {height:12px;border-radius:4px;background:var(--bg-hover);}.bar.short.svelte-j5oobt {width:40%;}\n  @container (max-width: 560px) {.detail.svelte-j5oobt {padding-left:14px;}.quick.svelte-j5oobt {padding-left:0;}.top.svelte-j5oobt {padding:6px 12px 8px;}.cards.svelte-j5oobt {padding:8px;} }"
 };
-function gn(e, t) {
-	M(t, !0), g(e, hn);
+function _n(e, t) {
+	M(t, !0), g(e, gn);
 	let o = r(t, "narrow", 3, !1), s = X(() => t.mail.open), d = K(B([])), y = K(B([])), b = K(!1), S = -1;
 	_(() => {
 		if (!T(s) || T(s).thread === S) return;
@@ -1533,7 +1554,7 @@ function gn(e, t) {
 		let e = T(s).messages.at(-1);
 		O(d, T(s).messages.filter((t) => !t.seen || t.draft || t === e).map((e) => e.id), !0), O(y, [], !0);
 	});
-	let C = K(void 0), w = K(!1), I = K(""), L = K(void 0), R = K(0), z = K(0), V = new zt(), ee;
+	let C = K(void 0), w = K(!1), I = K(""), L = K(void 0), R = K(0), z = K(0), V = new Bt(), ee;
 	function H() {
 		T(s) && (le(!0), O(w, !0), requestAnimationFrame(() => {
 			T(L)?.focus(), T(L)?.select();
@@ -1547,7 +1568,7 @@ function gn(e, t) {
 	}
 	function W(e) {
 		let t = V.step(e);
-		t && T(C) && (O(z, V.at + 1), Bt(T(C), t));
+		t && T(C) && (O(z, V.at + 1), Vt(T(C), t));
 	}
 	function ie() {
 		V.clear(), O(w, !1), O(R, 0);
@@ -1612,15 +1633,15 @@ function gn(e, t) {
 	var Ee = {
 		find: H,
 		expandAll: le
-	}, De = mn(), Oe = N(De), ke = (e) => {
-		var t = Vt();
+	}, De = hn(), Oe = N(De), ke = (e) => {
+		var t = Ht();
 		c(e, t);
 	}, Ae = (e) => {
-		var r = Ht(), i = N(r), a = G(i, !0), o = Y(i);
+		var r = Ut(), i = N(r), a = G(i, !0), o = Y(i);
 		q(r), E(() => n(a, t.mail.readError)), J("click", o, () => t.mail.openId && t.mail.read(t.mail.openId)), c(e, r);
 	}, je = (e) => {
-		var r = fn(), g = Z(r), _ = N(g), S = N(_), C = (e) => {
-			var n = Ut(), r = N(n);
+		var r = pn(), g = Z(r), _ = N(g), S = N(_), C = (e) => {
+			var n = Wt(), r = N(n);
 			Q(r, { name: "back" }), q(n), J("click", n, function(...e) {
 				t.onback?.apply(this, e);
 			}), c(e, n);
@@ -1649,8 +1670,8 @@ function gn(e, t) {
 		var Ne = Y(Ae, 2), Pe = N(Ne), Fe = N(Pe);
 		Q(Fe, { name: "more" }), q(Pe);
 		var Ie = Y(Pe, 2), Le = (e) => {
-			var n = Kt(), r = N(n), i = (e) => {
-				var n = Wt();
+			var n = qt(), r = N(n), i = (e) => {
+				var n = Gt();
 				J("click", n, () => {
 					O(b, !1), t.mail.atlas.open(T(s).saved, void 0, { beside: !0 });
 				}), c(e, n);
@@ -1659,7 +1680,7 @@ function gn(e, t) {
 				T(s).saved && e(i);
 			});
 			var a = Y(r, 2), o = Y(a, 2), l = Y(o, 2), d = (e) => {
-				var t = Gt();
+				var t = Kt();
 				J("click", t, () => {
 					O(b, !1), we();
 				}), c(e, t);
@@ -1694,7 +1715,7 @@ function gn(e, t) {
 		var Ue = Y(Re, 2), We = N(Ue), Ge = (e) => {
 			var t = x(), r = Z(t);
 			l(r, 16, () => T(_e).labels, (e) => e, (e, t) => {
-				var r = qt();
+				var r = Jt();
 				let i;
 				var a = G(r, !0);
 				E((e, t) => {
@@ -1706,14 +1727,14 @@ function gn(e, t) {
 			T(_e) && e(Ge);
 		});
 		var Ke = Y(We, 2), qe = G(Ke, !0), Je = Y(Ke, 2), Ye = (e) => {
-			var t = Jt();
+			var t = Yt();
 			J("click", t, we), c(e, t);
 		};
 		v(Je, (e) => {
 			T(ye) && e(Ye);
 		}), q(Ue);
 		var Xe = Y(Ue, 2), Ze = (e) => {
-			var t = Yt(), r = N(t);
+			var t = Xt(), r = N(t);
 			Q(r, {
 				name: "search",
 				size: 14
@@ -1746,19 +1767,19 @@ function gn(e, t) {
 		var Qe = Y(g, 2);
 		l(Qe, 21, () => T(s).messages, (e) => e.id, (e, r) => {
 			let i = X(() => T(d).includes(T(r).id)), a = X(() => !!T(r).body?.remote_allowed || T(y).includes(T(r).id));
-			var o = un();
+			var o = dn();
 			let s;
 			var u = N(o), g = N(u);
 			let _;
 			var b = G(g, !0), x = Y(g, 2), S = N(x), C = G(S, !0), w = Y(S), A = (e) => {
-				var t = Xt(), i = G(t, !0);
+				var t = Zt(), i = G(t, !0);
 				E(() => n(i, T(r).from[0]?.addr)), c(e, t);
 			};
 			v(w, (e) => {
 				T(i) && !T(r).draft && e(A);
 			}), q(x);
 			var M = Y(x, 2), F = (e) => {
-				var t = Zt(), i = G(t, !0);
+				var t = Qt(), i = G(t, !0);
 				E((e) => n(i, e), [() => T(r).snippet || T(r).body?.text?.slice(0, 160)]), c(e, t);
 			};
 			v(M, (e) => {
@@ -1776,25 +1797,25 @@ function gn(e, t) {
 			var z = Y(L, 1, !0);
 			q(I), q(u);
 			var B = Y(u, 2), V = (e) => {
-				var i = ln(), o = N(i), s = N(o), u = (e) => {
-					var t = Qt(), i = G(t);
+				var i = un(), o = N(i), s = N(o), u = (e) => {
+					var t = $t(), i = G(t);
 					E((e) => n(i, `to ${e ?? ""}`), [() => he(T(r).to, T(r).id, "to")]), c(e, t);
 				};
 				v(s, (e) => {
 					T(r).to.length && e(u);
 				});
 				var d = Y(s, 2), p = (e) => {
-					var t = Qt(), i = G(t);
+					var t = $t(), i = G(t);
 					E((e) => n(i, `cc ${e ?? ""}`), [() => he(T(r).cc, T(r).id, "cc")]), c(e, t);
 				};
 				v(d, (e) => {
 					T(r).cc.length && e(p);
 				});
 				var m = Y(d, 2), g = G(m, !0), _ = Y(m, 4), b = N(_), x = (e) => {
-					var n = $t();
+					var n = en();
 					J("click", n, () => t.mail.editDraft(T(r).id)), c(e, n);
 				}, S = (e) => {
-					var n = en(), i = Z(n), a = N(i);
+					var n = tn(), i = Z(n), a = N(i);
 					Q(a, {
 						name: "reply",
 						size: 15
@@ -1819,11 +1840,11 @@ function gn(e, t) {
 					size: 15
 				}), q(C), q(_), q(o);
 				var k = Y(o, 2), A = (e) => {
-					var t = tn(), i = G(t, !0);
+					var t = nn(), i = G(t, !0);
 					E(() => n(i, T(r).error)), c(e, t);
 				}, M = (e) => {
-					var i = sn(), o = Z(i), s = (e) => {
-						var t = nn(), i = N(t);
+					var i = cn(), o = Z(i), s = (e) => {
+						var t = rn(), i = N(t);
 						Q(i, {
 							name: "lock",
 							size: 14
@@ -1866,7 +1887,7 @@ function gn(e, t) {
 					});
 					var m = Y(p, 2);
 					l(m, 17, () => T(r).body.forwarded, f, (e, t) => {
-						var r = rn(), i = N(r), o = Y(N(i));
+						var r = an(), i = N(r), o = Y(N(i));
 						q(i);
 						var s = Y(i, 2);
 						ne(s, {
@@ -1882,9 +1903,9 @@ function gn(e, t) {
 						}), q(r), E((e, r) => n(o, ` ${T(t).subject ?? ""} · ${e ?? ""} · ${r ?? ""}`), [() => T(t).from.map(se).join(", "), () => de(T(t).date)]), c(e, r);
 					});
 					var h = Y(m, 2), g = (e) => {
-						var t = on();
+						var t = sn();
 						l(t, 21, () => T(r).body.attachments, (e) => e.part, (e, t) => {
-							var i = an(), a = N(i), o = N(a);
+							var i = on(), a = N(i), o = N(a);
 							{
 								let e = X(() => Te(T(t).mime));
 								Q(o, { get name() {
@@ -1906,7 +1927,7 @@ function gn(e, t) {
 						T(r).body.attachments.length && e(g);
 					}), c(e, i);
 				}, P = (e) => {
-					var t = cn();
+					var t = ln();
 					c(e, t);
 				};
 				v(k, (e) => {
@@ -1936,7 +1957,7 @@ function gn(e, t) {
 			]), J("click", u, () => fe(T(r).id)), c(e, o);
 		}), q(Qe);
 		var $e = Y(Qe, 2), et = N($e), tt = (e) => {
-			It(e, {
+			Lt(e, {
 				get mail() {
 					return t.mail;
 				},
@@ -1946,7 +1967,7 @@ function gn(e, t) {
 				inline: !0
 			});
 		}, nt = (e) => {
-			var n = dn(), r = N(n), i = N(r);
+			var n = fn(), r = N(n), i = N(r);
 			Q(i, {
 				name: "reply",
 				size: 15
@@ -1973,7 +1994,7 @@ function gn(e, t) {
 			h(B, "title", T(be) === "trash" ? "Delete for good" : "Delete (#)"), h(H, "title", T(be) === "junk" ? "Not spam" : "Spam (!)"), je = m(Ae, 1, "tool svelte-j5oobt", null, je, { on: !!T(s).saved }), h(Ae, "title", T(s).saved ? `Saved as ${T(s).saved} — save again to add new messages` : "Save as note (⇧N)"), h(Pe, "aria-expanded", T(b)), n(ze, `${(T(s).subject || "(no subject)") ?? ""} `), Ve = m(Be, 1, "star svelte-j5oobt", null, Ve, { on: T(ve) }), h(Be, "title", T(ve) ? "Unstar (s)" : "Star (s)"), h(Be, "aria-pressed", T(ve)), n(qe, e);
 		}, [() => `${T(s).messages.length} message${T(s).messages.length === 1 ? "" : "s"}${T(s).messages.at(-1)?.folder_label ? ` · ${T(s).messages.at(-1)?.folder_label}` : ""}`]), J("click", A, () => t.mail.archive()), J("click", B, () => t.mail.trash()), J("click", H, () => t.mail.spam()), J("click", K, () => t.mail.toggleRead()), J("click", ce, () => t.onpick("snooze")), J("click", Ee, () => t.onpick("move")), J("click", Oe, () => t.onpick("label")), J("click", Ae, () => t.mail.saveNote()), J("click", Pe, () => O(b, !T(b))), J("click", Be, () => t.mail.toggleStar()), c(e, r);
 	}, Me = (e) => {
-		var r = pn(), i = N(r);
+		var r = mn(), i = N(r);
 		Q(i, {
 			name: "inbox",
 			size: 40
@@ -1992,18 +2013,18 @@ d([
 ]);
 //#endregion
 //#region plugins/stable/email/ui/src/Toasts.svelte
-var _n = C("<button class=\"svelte-1rm31ba\">Undo</button>"), vn = C("<button class=\"svelte-1rm31ba\"> </button>"), yn = C("<div><span class=\"text svelte-1rm31ba\"> </span> <!> <!> <button class=\"x svelte-1rm31ba\" aria-label=\"Close\">×</button></div>"), bn = C("<div class=\"toasts svelte-1rm31ba\" aria-live=\"polite\"></div>"), xn = {
+var vn = C("<button class=\"svelte-1rm31ba\">Undo</button>"), yn = C("<button class=\"svelte-1rm31ba\"> </button>"), bn = C("<div><span class=\"text svelte-1rm31ba\"> </span> <!> <!> <button class=\"x svelte-1rm31ba\" aria-label=\"Close\">×</button></div>"), xn = C("<div class=\"toasts svelte-1rm31ba\" aria-live=\"polite\"></div>"), Sn = {
 	hash: "svelte-1rm31ba",
 	code: ".toasts.svelte-1rm31ba {position:absolute;left:50%;bottom:16px;transform:translateX(-50%);z-index:50;display:grid;gap:8px;justify-items:center;pointer-events:none;width:min(560px, calc(100% - 32px));}.toast.svelte-1rm31ba {pointer-events:auto;display:flex;align-items:center;gap:12px;padding:9px 10px 9px 14px;border-radius:var(--radius);background:var(--heading);color:var(--bg);box-shadow:var(--shadow-md, var(--shadow-sm));max-width:100%; animation: svelte-1rm31ba-in 120ms var(--ease);}.toast.error.svelte-1rm31ba {background:var(--red);color:#fff;}.text.svelte-1rm31ba {min-width:0;overflow-wrap:anywhere;}button.svelte-1rm31ba {all:unset;cursor:pointer;font-weight:700;color:var(--accent);padding:2px 6px;border-radius:var(--radius-sm);}.error.svelte-1rm31ba button:where(.svelte-1rm31ba) {color:#fff;text-decoration:underline;}button.svelte-1rm31ba:hover {background:color-mix(in srgb, currentColor 14%, transparent);}button.svelte-1rm31ba:focus-visible {outline:2px solid currentColor;}.x.svelte-1rm31ba {color:inherit;opacity:0.7;font-weight:400;}\n  @keyframes svelte-1rm31ba-in { from { opacity: 0; transform: translateY(6px); } }\n  @media (prefers-reduced-motion: reduce) {.toast.svelte-1rm31ba { animation: none;} }"
 };
-function Sn(e, t) {
-	M(t, !0), g(e, xn);
-	var r = bn();
+function Cn(e, t) {
+	M(t, !0), g(e, Sn);
+	var r = xn();
 	l(r, 21, () => t.mail.toasts, (e) => e.id, (e, r) => {
-		var i = yn();
+		var i = bn();
 		let a;
 		var o = N(i), s = G(o, !0), l = Y(o, 2), u = (e) => {
-			var n = _n();
+			var n = vn();
 			J("click", n, async () => {
 				t.mail.dismiss(T(r).id), await T(r).undo?.();
 			}), c(e, n);
@@ -2012,7 +2033,7 @@ function Sn(e, t) {
 			T(r).undo && e(u);
 		});
 		var d = Y(l, 2), f = (e) => {
-			var i = vn(), a = G(i, !0);
+			var i = yn(), a = G(i, !0);
 			E(() => n(a, T(r).action.label)), J("click", i, () => {
 				t.mail.dismiss(T(r).id), T(r).action?.run();
 			}), c(e, i);
@@ -2032,7 +2053,7 @@ function Sn(e, t) {
 d(["click"]);
 //#endregion
 //#region plugins/stable/email/ui/src/keys.ts
-var Cn = (e) => e.targets().length > 0, wn = [
+var wn = (e) => e.targets().length > 0, Tn = [
 	{
 		id: "down",
 		title: "Next conversation",
@@ -2116,7 +2137,7 @@ var Cn = (e) => e.targets().length > 0, wn = [
 		title: "Archive",
 		group: "Act",
 		keys: "e",
-		when: Cn,
+		when: wn,
 		run: (e) => e.archive()
 	},
 	{
@@ -2124,7 +2145,7 @@ var Cn = (e) => e.targets().length > 0, wn = [
 		title: "Delete (to Trash)",
 		group: "Act",
 		keys: "#, delete",
-		when: Cn,
+		when: wn,
 		run: (e) => e.trash()
 	},
 	{
@@ -2132,7 +2153,7 @@ var Cn = (e) => e.targets().length > 0, wn = [
 		title: "Spam / not spam",
 		group: "Act",
 		keys: "!",
-		when: Cn,
+		when: wn,
 		run: (e) => e.spam()
 	},
 	{
@@ -2140,7 +2161,7 @@ var Cn = (e) => e.targets().length > 0, wn = [
 		title: "Star / unstar",
 		group: "Act",
 		keys: "s",
-		when: Cn,
+		when: wn,
 		run: (e) => e.toggleStar()
 	},
 	{
@@ -2148,7 +2169,7 @@ var Cn = (e) => e.targets().length > 0, wn = [
 		title: "Mark read",
 		group: "Act",
 		keys: "shift+i",
-		when: Cn,
+		when: wn,
 		run: (e) => e.mark("read", !0)
 	},
 	{
@@ -2156,7 +2177,7 @@ var Cn = (e) => e.targets().length > 0, wn = [
 		title: "Mark unread",
 		group: "Act",
 		keys: "shift+u",
-		when: Cn,
+		when: wn,
 		run: (e) => e.mark("read", !1)
 	},
 	{
@@ -2164,7 +2185,7 @@ var Cn = (e) => e.targets().length > 0, wn = [
 		title: "Read / unread",
 		group: "Act",
 		keys: "m",
-		when: Cn,
+		when: wn,
 		run: (e) => e.toggleRead()
 	},
 	{
@@ -2172,14 +2193,14 @@ var Cn = (e) => e.targets().length > 0, wn = [
 		title: "Snooze…",
 		group: "Act",
 		keys: "h, b",
-		when: Cn,
+		when: wn,
 		run: (e, t) => t.pick("snooze")
 	},
 	{
 		id: "unsnooze",
 		title: "Back to the inbox now (unsnooze)",
 		group: "Act",
-		when: (e) => e.view.name === "snoozed" && Cn(e),
+		when: (e) => e.view.name === "snoozed" && wn(e),
 		run: (e) => e.unsnooze()
 	},
 	{
@@ -2187,7 +2208,7 @@ var Cn = (e) => e.targets().length > 0, wn = [
 		title: "Move to…",
 		group: "Act",
 		keys: "v",
-		when: Cn,
+		when: wn,
 		run: (e, t) => t.pick("move")
 	},
 	{
@@ -2195,7 +2216,7 @@ var Cn = (e) => e.targets().length > 0, wn = [
 		title: "Label…",
 		group: "Act",
 		keys: "l",
-		when: Cn,
+		when: wn,
 		run: (e, t) => t.pick("label")
 	},
 	{
@@ -2203,7 +2224,7 @@ var Cn = (e) => e.targets().length > 0, wn = [
 		title: "Important",
 		group: "Act",
 		keys: "i",
-		when: Cn,
+		when: wn,
 		run: (e) => e.importance(!0)
 	},
 	{
@@ -2211,7 +2232,7 @@ var Cn = (e) => e.targets().length > 0, wn = [
 		title: "Not important (moves it out of the inbox)",
 		group: "Act",
 		keys: "n",
-		when: Cn,
+		when: wn,
 		run: (e) => e.importance(!1)
 	},
 	{
@@ -2219,7 +2240,7 @@ var Cn = (e) => e.targets().length > 0, wn = [
 		title: "Save as note",
 		group: "Act",
 		keys: "shift+n",
-		when: Cn,
+		when: wn,
 		run: (e) => e.saveNote()
 	},
 	{
@@ -2495,7 +2516,7 @@ var Cn = (e) => e.targets().length > 0, wn = [
 		run: (e) => e.atlas.plugin.openSettings()
 	}
 ];
-function Tn(e) {
+function En(e) {
 	let t = (e.key.length, e.key.toLowerCase()), n = e.key.length === 1 && !/[a-z0-9]/i.test(e.key);
 	return [...[
 		e.ctrlKey || e.metaKey ? "ctrl" : "",
@@ -2503,29 +2524,29 @@ function Tn(e) {
 		e.shiftKey && !n ? "shift" : ""
 	].filter(Boolean), t].join("+");
 }
-var En = new Map(wn.flatMap((e) => (e.keys ?? "").split(",").map((e) => e.trim()).filter(Boolean).map((t) => [t, e]))), Dn = new Set([...En.keys()].filter((e) => e.includes(" ")).map((e) => e.split(" ")[0]));
-function On(e) {
+var Dn = new Map(Tn.flatMap((e) => (e.keys ?? "").split(",").map((e) => e.trim()).filter(Boolean).map((t) => [t, e]))), On = new Set([...Dn.keys()].filter((e) => e.includes(" ")).map((e) => e.split(" ")[0]));
+function kn(e) {
 	return e ? e.split(",").map((e) => e.trim()).filter(Boolean).slice(0, 2).map((e) => e.split(" ").map((e) => e.replace("ctrl+", "Ctrl+").replace("shift+", "⇧").replace("arrowdown", "↓").replace("arrowup", "↑").replace("escape", "Esc").replace("enter", "Enter").replace("delete", "Del").replace("home", "Home").replace("end", "End").replace(/^(⇧)?([a-z])$/, (e, t, n) => t ? `⇧${n.toUpperCase()}` : n)).join(" then ")) : [];
 }
 //#endregion
 //#region plugins/stable/email/ui/src/Shortcuts.svelte
-var kn = C("<span class=\"or svelte-8ls7cr\">or</span>"), An = C("<!><kbd class=\"svelte-8ls7cr\"> </kbd>", 1), jn = C("<div class=\"line svelte-8ls7cr\"><span> </span><span class=\"keys svelte-8ls7cr\"></span></div>"), Mn = C("<section class=\"svelte-8ls7cr\"><h3 class=\"svelte-8ls7cr\"> </h3> <!></section>"), Nn = C("<div class=\"scrim svelte-8ls7cr\" role=\"presentation\"><div class=\"sheet svelte-8ls7cr\" role=\"dialog\" aria-modal=\"true\" aria-label=\"Keyboard shortcuts\" tabindex=\"-1\"><header class=\"svelte-8ls7cr\"><h2 class=\"svelte-8ls7cr\">Keyboard shortcuts</h2><span class=\"faint svelte-8ls7cr\">Ctrl+K finds any command by name</span><button class=\"x svelte-8ls7cr\" aria-label=\"Close\">×</button></header> <div class=\"cols svelte-8ls7cr\"></div></div></div>"), Pn = {
+var An = C("<span class=\"or svelte-8ls7cr\">or</span>"), jn = C("<!><kbd class=\"svelte-8ls7cr\"> </kbd>", 1), Mn = C("<div class=\"line svelte-8ls7cr\"><span> </span><span class=\"keys svelte-8ls7cr\"></span></div>"), Nn = C("<section class=\"svelte-8ls7cr\"><h3 class=\"svelte-8ls7cr\"> </h3> <!></section>"), Pn = C("<div class=\"scrim svelte-8ls7cr\" role=\"presentation\"><div class=\"sheet svelte-8ls7cr\" role=\"dialog\" aria-modal=\"true\" aria-label=\"Keyboard shortcuts\" tabindex=\"-1\"><header class=\"svelte-8ls7cr\"><h2 class=\"svelte-8ls7cr\">Keyboard shortcuts</h2><span class=\"faint svelte-8ls7cr\">Ctrl+K finds any command by name</span><button class=\"x svelte-8ls7cr\" aria-label=\"Close\">×</button></header> <div class=\"cols svelte-8ls7cr\"></div></div></div>"), Fn = {
 	hash: "svelte-8ls7cr",
 	code: ".scrim.svelte-8ls7cr {position:absolute;inset:0;z-index:60;background:rgba(0, 0, 0, 0.35);display:grid;place-items:center;padding:16px;}.sheet.svelte-8ls7cr {background:var(--bg-elev);border:1px solid var(--border-strong);border-radius:var(--radius-lg);box-shadow:var(--shadow-md, var(--shadow-sm));width:min(980px, 100%);max-height:90%;overflow:auto;padding:18px 22px 22px;}header.svelte-8ls7cr {display:flex;gap:14px;align-items:baseline;margin-bottom:12px;}h2.svelte-8ls7cr {margin:0;font-size:1.15em;}.faint.svelte-8ls7cr {color:var(--text-faint);font-size:0.9em;}.x.svelte-8ls7cr {all:unset;cursor:pointer;margin-left:auto;font-size:1.4em;color:var(--text-muted);padding:0 6px;}.cols.svelte-8ls7cr {columns:3 260px;column-gap:28px;}section.svelte-8ls7cr {break-inside:avoid;margin-bottom:16px;}h3.svelte-8ls7cr {margin:0 0 6px;font-size:0.75em;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-faint);}.line.svelte-8ls7cr {display:flex;justify-content:space-between;gap:10px;padding:3px 0;font-size:0.92em;}.keys.svelte-8ls7cr {display:flex;gap:4px;align-items:center;flex:none;}.or.svelte-8ls7cr {color:var(--text-faint);font-size:0.8em;}kbd.svelte-8ls7cr {font:600 0.85em var(--font-mono);padding:1px 6px;border-radius:5px;border:1px solid var(--border-strong);border-bottom-width:2px;background:var(--bg);}"
 };
-function Fn(e, t) {
-	M(t, !0), g(e, Pn);
-	let r = [...new Set(wn.map((e) => e.group))];
-	var i = Nn(), a = N(i), o = N(a), s = Y(N(o), 2);
+function In(e, t) {
+	M(t, !0), g(e, Fn);
+	let r = [...new Set(Tn.map((e) => e.group))];
+	var i = Pn(), a = N(i), o = N(a), s = Y(N(o), 2);
 	q(o);
 	var u = Y(o, 2);
 	l(u, 20, () => r, (e) => e, (e, t) => {
-		var r = Mn(), i = N(r), a = G(i, !0), o = Y(i, 2);
-		l(o, 17, () => wn.filter((e) => e.group === t && e.keys), (e) => e.id, (e, t) => {
-			var r = jn(), i = N(r), a = G(i, !0), o = Y(i);
-			l(o, 22, () => On(T(t).keys), (e) => e, (e, t, r) => {
-				var i = An(), a = Z(i), o = (e) => {
-					var t = kn();
+		var r = Nn(), i = N(r), a = G(i, !0), o = Y(i, 2);
+		l(o, 17, () => Tn.filter((e) => e.group === t && e.keys), (e) => e.id, (e, t) => {
+			var r = Mn(), i = N(r), a = G(i, !0), o = Y(i);
+			l(o, 22, () => kn(T(t).keys), (e) => e, (e, t, r) => {
+				var i = jn(), a = Z(i), o = (e) => {
+					var t = An();
 					c(e, t);
 				};
 				v(a, (e) => {
@@ -2544,7 +2565,7 @@ function Fn(e, t) {
 d(["click", "keydown"]);
 //#endregion
 //#region plugins/stable/email/ui/src/store.svelte.ts
-var In = 100, Ln = class {
+var Ln = 100, Rn = class {
 	atlas;
 	#e = K(B([]));
 	get accounts() {
@@ -2766,7 +2787,7 @@ var In = 100, Ln = class {
 		let t = ++this.loadSeq;
 		this.loading = !0;
 		try {
-			let n = e ? Math.max(In, this.rows.length) : In, r = await this.call("list", this.params({ limit: n }));
+			let n = e ? Math.max(Ln, this.rows.length) : Ln, r = await this.call("list", this.params({ limit: n }));
 			if (t !== this.loadSeq) return;
 			this.rows = r.rows, this.ended = r.rows.length < n, this.total = r.total, this.unread = r.unread, this.chips = r.chips, this.error = "", (this.cursor === null || !this.rows.some((e) => e.id === this.cursor)) && (this.cursor = this.rows[0]?.id ?? null), this.checked = this.checked.filter((e) => this.rows.some((t) => t.thread === e)), this.fillSnippets();
 		} catch (e) {
@@ -2781,12 +2802,12 @@ var In = 100, Ln = class {
 		let e = this.loadSeq;
 		try {
 			let t = await this.call("list", this.params({
-				limit: In,
+				limit: Ln,
 				offset: this.rows.length
 			}));
 			if (e !== this.loadSeq) return;
 			let n = new Set(this.rows.map((e) => e.thread)), r = t.rows.filter((e) => !n.has(e.thread));
-			(t.rows.length < In || !r.length) && (this.ended = !0), r.length && (this.rows = [...this.rows, ...r], this.fillSnippets());
+			(t.rows.length < Ln || !r.length) && (this.ended = !0), r.length && (this.rows = [...this.rows, ...r], this.fillSnippets());
 		} finally {
 			this.fetchingMore = !1;
 		}
@@ -3149,13 +3170,13 @@ var In = 100, Ln = class {
 	closeComposer(e) {
 		this.composers = this.composers.filter((t) => t.key !== e);
 	}
-}, Rn = C("<div class=\"grip v svelte-7si10b\" role=\"separator\" aria-orientation=\"vertical\" aria-label=\"Resize the folders\"></div>"), zn = C("<aside class=\"side svelte-7si10b\" aria-label=\"Folders\"><!> <!></aside>"), Bn = C("<button class=\"tool svelte-7si10b\" title=\"Folders\"><!></button>"), Vn = C("<button class=\"tool svelte-7si10b\" aria-label=\"Clear the search\"><!></button>"), Hn = C("<span class=\"chip svelte-7si10b\"><b class=\"svelte-7si10b\"> </b> </span>"), Un = C("<button class=\"link svelte-7si10b\">Search the servers too ↵</button>"), Wn = C("<div class=\"chips svelte-7si10b\"><!><!></div>"), Gn = C("<div class=\"selbar svelte-7si10b\" role=\"toolbar\" aria-label=\"Checked conversations\"><button class=\"tool svelte-7si10b\" title=\"Uncheck all (Esc)\"><!></button> <b> </b> <span class=\"grow svelte-7si10b\"></span> <button class=\"tool svelte-7si10b\" title=\"Archive (e)\"><!></button> <button class=\"tool svelte-7si10b\" title=\"Delete (#)\"><!></button> <button class=\"tool svelte-7si10b\" title=\"Mark read (⇧I)\"><!></button> <button class=\"tool svelte-7si10b\" title=\"Mark unread (⇧U)\"><!></button> <button class=\"tool svelte-7si10b\" title=\"Star (s)\"><!></button> <button class=\"tool svelte-7si10b\" title=\"Snooze (h)\"><!></button> <button class=\"tool svelte-7si10b\" title=\"Move (v)\"><!></button> <button class=\"tool svelte-7si10b\" title=\"Label (l)\"><!></button></div>"), Kn = C("<span class=\"n svelte-7si10b\"> </span>"), qn = C("<button role=\"tab\"><!> <!></button>"), Jn = C("<div class=\"tabs svelte-7si10b\" role=\"tablist\"></div>"), Yn = C("<div class=\"row2 svelte-7si10b\"><h1 class=\"svelte-7si10b\"> </h1> <span class=\"faint svelte-7si10b\"> </span> <span class=\"grow svelte-7si10b\"></span> <div class=\"seg svelte-7si10b\" role=\"group\" aria-label=\"Show only\"><button>Unread</button> <button>Starred</button> <button>Files</button> <button title=\"Mail where I am on To\">To me</button></div></div> <!>", 1), Xn = C("<div class=\"atlas-notice error\"> <div class=\"actions\"><button class=\"atlas-btn\">Try again</button><button class=\"atlas-btn\">Settings…</button></div></div>"), Zn = C("<p class=\"svelte-7si10b\">Nothing in the index matches.</p><button class=\"atlas-btn\">Search the servers too</button>", 1), Qn = C("<p class=\"svelte-7si10b\">No mail account yet.</p><button class=\"atlas-btn\">Add an account…</button>", 1), $n = C("<p class=\"zero svelte-7si10b\">Inbox zero.</p><p class=\"faint svelte-7si10b\">Nothing to answer. c writes a new message.</p>", 1), er = C("<p class=\"faint svelte-7si10b\"> </p>"), tr = C("<div class=\"empty svelte-7si10b\"><!></div>"), nr = C("<section class=\"listpane svelte-7si10b\"><header class=\"lhead svelte-7si10b\"><div class=\"row1 svelte-7si10b\"><!> <div class=\"search svelte-7si10b\"><!> <input placeholder=\"Search mail…\" aria-label=\"Search mail\" title=\"Words, or from: to: subject: has:attachment is:unread before: after:\" class=\"svelte-7si10b\"/> <!></div> <button class=\"tool svelte-7si10b\" title=\"Check for new mail (⇧G)\"><!></button> <button class=\"tool svelte-7si10b\" title=\"Layout and density\"><!></button> <button class=\"tool svelte-7si10b\" title=\"All commands (Ctrl+K)\"><!></button></div> <!> <!></header> <!></section>"), rr = C("<div role=\"separator\" aria-label=\"Resize the list\"></div>"), ir = C("<div class=\"readerpane svelte-7si10b\"><!></div>"), ar = C("<div><!> <!> <!></div>"), or = C("<div class=\"win svelte-7si10b\"><!></div>"), sr = C("<div></div>"), cr = C("<div class=\"pending svelte-7si10b\"> </div>"), lr = C("<div><!> <!> <!> <!> <!> <!></div>"), ur = {
+}, zn = C("<div class=\"grip v svelte-7si10b\" role=\"separator\" aria-orientation=\"vertical\" aria-label=\"Resize the folders\"></div>"), Bn = C("<aside class=\"side svelte-7si10b\" aria-label=\"Folders\"><!> <!></aside>"), Vn = C("<button class=\"tool svelte-7si10b\" title=\"Folders\"><!></button>"), Hn = C("<button class=\"tool svelte-7si10b\" aria-label=\"Clear the search\"><!></button>"), Un = C("<span class=\"chip svelte-7si10b\"><b class=\"svelte-7si10b\"> </b> </span>"), Wn = C("<button class=\"link svelte-7si10b\">Search the servers too ↵</button>"), Gn = C("<div class=\"chips svelte-7si10b\"><!><!></div>"), Kn = C("<div class=\"selbar svelte-7si10b\" role=\"toolbar\" aria-label=\"Checked conversations\"><button class=\"tool svelte-7si10b\" title=\"Uncheck all (Esc)\"><!></button> <b> </b> <span class=\"grow svelte-7si10b\"></span> <button class=\"tool svelte-7si10b\" title=\"Archive (e)\"><!></button> <button class=\"tool svelte-7si10b\" title=\"Delete (#)\"><!></button> <button class=\"tool svelte-7si10b\" title=\"Mark read (⇧I)\"><!></button> <button class=\"tool svelte-7si10b\" title=\"Mark unread (⇧U)\"><!></button> <button class=\"tool svelte-7si10b\" title=\"Star (s)\"><!></button> <button class=\"tool svelte-7si10b\" title=\"Snooze (h)\"><!></button> <button class=\"tool svelte-7si10b\" title=\"Move (v)\"><!></button> <button class=\"tool svelte-7si10b\" title=\"Label (l)\"><!></button></div>"), qn = C("<span class=\"n svelte-7si10b\"> </span>"), Jn = C("<button role=\"tab\"><!> <!></button>"), Yn = C("<div class=\"tabs svelte-7si10b\" role=\"tablist\"></div>"), Xn = C("<div class=\"row2 svelte-7si10b\"><h1 class=\"svelte-7si10b\"> </h1> <span class=\"faint svelte-7si10b\"> </span> <span class=\"grow svelte-7si10b\"></span> <div class=\"seg svelte-7si10b\" role=\"group\" aria-label=\"Show only\"><button>Unread</button> <button>Starred</button> <button>Files</button> <button title=\"Mail where I am on To\">To me</button></div></div> <!>", 1), Zn = C("<div class=\"atlas-notice error\"> <div class=\"actions\"><button class=\"atlas-btn\">Try again</button><button class=\"atlas-btn\">Settings…</button></div></div>"), Qn = C("<p class=\"svelte-7si10b\">Nothing in the index matches.</p><button class=\"atlas-btn\">Search the servers too</button>", 1), $n = C("<p class=\"svelte-7si10b\">No mail account yet.</p><button class=\"atlas-btn\">Add an account…</button>", 1), er = C("<p class=\"zero svelte-7si10b\">Inbox zero.</p><p class=\"faint svelte-7si10b\">Nothing to answer. c writes a new message.</p>", 1), tr = C("<p class=\"faint svelte-7si10b\"> </p>"), nr = C("<div class=\"empty svelte-7si10b\"><!></div>"), rr = C("<section class=\"listpane svelte-7si10b\"><header class=\"lhead svelte-7si10b\"><div class=\"row1 svelte-7si10b\"><!> <div class=\"search svelte-7si10b\"><!> <input placeholder=\"Search mail…\" aria-label=\"Search mail\" title=\"Words, or from: to: subject: has:attachment is:unread before: after:\" class=\"svelte-7si10b\"/> <!></div> <button class=\"tool svelte-7si10b\" title=\"Check for new mail (⇧G)\"><!></button> <button class=\"tool svelte-7si10b\" title=\"Layout and density\"><!></button> <button class=\"tool svelte-7si10b\" title=\"All commands (Ctrl+K)\"><!></button></div> <!> <!></header> <!></section>"), ir = C("<div role=\"separator\" aria-label=\"Resize the list\"></div>"), ar = C("<div class=\"readerpane svelte-7si10b\"><!></div>"), or = C("<div><!> <!> <!></div>"), sr = C("<div class=\"win svelte-7si10b\"><!></div>"), cr = C("<div></div>"), lr = C("<div class=\"pending svelte-7si10b\"> </div>"), ur = C("<div><!> <!> <!> <!> <!> <!></div>"), dr = {
 	hash: "svelte-7si10b",
 	code: ".mail.svelte-7si10b {position:relative;height:100%;display:flex;color:var(--text);background:var(--bg);font-size:calc(14px * var(--ui-scale, 1));container-type:inline-size;overflow:hidden;}.side.svelte-7si10b {position:relative;flex:none;width:var(--side-w);border-right:1px solid var(--border);background:var(--bg-alt);min-height:0;}.narrow.svelte-7si10b .side:where(.svelte-7si10b) {width:100%;}.work.svelte-7si10b {flex:1;min-width:0;display:flex;min-height:0;}.work.below.svelte-7si10b {flex-direction:column;}.listpane.svelte-7si10b {flex:none;width:var(--list-w);display:flex;flex-direction:column;min-height:0;min-width:0;border-right:1px solid var(--border);}.below.svelte-7si10b .listpane:where(.svelte-7si10b) {width:auto;height:var(--list-h);border-right:0;border-bottom:1px solid var(--border);}.full.svelte-7si10b .listpane:where(.svelte-7si10b) {flex:1;width:auto;border-right:0;}.readerpane.svelte-7si10b {flex:1;min-width:0;min-height:0;container-type:inline-size;}.grip.svelte-7si10b {flex:none;background:transparent;position:relative;z-index:3;}.grip.v.svelte-7si10b {width:5px;margin:0 -3px;cursor:col-resize;}.grip.h.svelte-7si10b {height:5px;margin:-3px 0;cursor:row-resize;}.side.svelte-7si10b .grip.v:where(.svelte-7si10b) {position:absolute;top:0;bottom:0;right:-3px;margin:0;}.grip.svelte-7si10b:hover {background:var(--accent-soft);}.lhead.svelte-7si10b {flex:none;padding:8px 10px 6px;display:grid;gap:6px;border-bottom:1px solid var(--border);}.row1.svelte-7si10b, .row2.svelte-7si10b, .selbar.svelte-7si10b, .chips.svelte-7si10b {display:flex;align-items:center;gap:6px;min-width:0;}.search.svelte-7si10b {flex:1;min-width:0;display:flex;align-items:center;gap:6px;background:var(--bg-hover);border:1px solid transparent;border-radius:var(--radius);padding:0 6px 0 10px;color:var(--text-faint);}.search.svelte-7si10b:focus-within {border-color:var(--accent);background:var(--bg);color:var(--text);}.search.svelte-7si10b input:where(.svelte-7si10b) {all:unset;flex:1;min-width:0;padding:7px 0;color:var(--text);}.search.svelte-7si10b input:where(.svelte-7si10b)::placeholder {color:var(--text-faint);}h1.svelte-7si10b {margin:0;font-size:1.05em;font-weight:650;color:var(--heading);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:0 1 auto;min-width:4.5em;}.row2.svelte-7si10b {flex-wrap:wrap;row-gap:4px;}.faint.svelte-7si10b {color:var(--text-faint);font-size:0.86em;white-space:nowrap;}.grow.svelte-7si10b {flex:1;}.seg.svelte-7si10b {display:flex;border:1px solid var(--border-strong);border-radius:var(--radius-sm);overflow:hidden;flex:none;}.seg.svelte-7si10b button:where(.svelte-7si10b) {all:unset;cursor:pointer;padding:3px 8px;font-size:0.82em;color:var(--text-muted);}.seg.svelte-7si10b button:where(.svelte-7si10b) + button:where(.svelte-7si10b) {border-left:1px solid var(--border);}.seg.svelte-7si10b button:where(.svelte-7si10b):hover {background:var(--bg-hover);color:var(--text);}.seg.svelte-7si10b button.on:where(.svelte-7si10b) {background:var(--accent-soft);color:var(--accent-strong);font-weight:600;}.seg.svelte-7si10b button:where(.svelte-7si10b):focus-visible, .tabs.svelte-7si10b button:where(.svelte-7si10b):focus-visible, .tool.svelte-7si10b:focus-visible {outline:2px solid var(--accent);outline-offset:-2px;}.tabs.svelte-7si10b {display:flex;gap:2px;margin-bottom:-7px;}.tabs.svelte-7si10b button:where(.svelte-7si10b) {all:unset;cursor:pointer;display:flex;align-items:center;gap:6px;padding:6px 12px 7px;color:var(--text-muted);border-bottom:2px solid transparent;font-size:0.92em;}.tabs.svelte-7si10b button:where(.svelte-7si10b):hover {color:var(--text);}.tabs.svelte-7si10b button.on:where(.svelte-7si10b) {color:var(--accent-strong);border-bottom-color:var(--accent);font-weight:600;}.n.svelte-7si10b {font-size:0.8em;padding:0 6px;border-radius:999px;background:var(--accent);color:var(--accent-fg);}.chips.svelte-7si10b {flex-wrap:wrap;}.chip.svelte-7si10b {font-size:0.82em;padding:1px 8px;border-radius:999px;background:var(--accent-soft);color:var(--accent-strong);}.chip.svelte-7si10b b:where(.svelte-7si10b) {font-weight:600;margin-right:2px;}.link.svelte-7si10b {all:unset;cursor:pointer;color:var(--accent);font-size:0.85em;}.selbar.svelte-7si10b {background:var(--accent-soft);border-radius:var(--radius-sm);padding:2px 4px;}.tool.svelte-7si10b {all:unset;cursor:pointer;padding:6px;border-radius:var(--radius-sm);color:var(--text-muted);display:grid;place-items:center;min-width:24px;min-height:24px;flex:none;}.tool.svelte-7si10b:hover {background:var(--bg-hover);color:var(--text);}.empty.svelte-7si10b {flex:1;display:grid;align-content:center;justify-items:center;gap:8px;padding:30px;text-align:center;color:var(--text-muted);}.empty.svelte-7si10b p:where(.svelte-7si10b) {margin:0;}.zero.svelte-7si10b {font-size:1.3em;font-weight:600;color:var(--heading);}.windows.svelte-7si10b {position:absolute;right:16px;bottom:0;z-index:40;display:flex;gap:12px;align-items:flex-end;max-width:calc(100% - 32px);}.win.svelte-7si10b {width:min(560px, calc(100vw - 32px));max-height:85%;overflow:auto;border-radius:var(--radius) var(--radius) 0 0;box-shadow:var(--shadow-md, 0 8px 30px rgba(0, 0, 0, 0.3));}.windows.big.svelte-7si10b {inset:12px;right:12px;bottom:12px;}.windows.big.svelte-7si10b .win:where(.svelte-7si10b) {width:100%;height:100%;max-height:none;border-radius:var(--radius);}.pending.svelte-7si10b {position:absolute;right:16px;top:12px;z-index:30;font:600 0.9em var(--font-mono);padding:4px 10px;border-radius:var(--radius-sm);background:var(--bg-elev);border:1px solid var(--border-strong);}\n  @container (max-width: 900px) {.seg.svelte-7si10b {display:none;} }"
 };
-function dr(t, r) {
-	M(r, !0), g(t, ur);
-	let o = new Ln(r.atlas), s = (e, t) => {
+function fr(t, r) {
+	M(r, !0), g(t, dr);
+	let o = new Rn(r.atlas), s = (e, t) => {
 		try {
 			return localStorage.getItem(`atlas-email-${e}`) ?? t;
 		} catch {
@@ -3286,13 +3307,13 @@ function dr(t, r) {
 		r.atlas.pick({
 			placeholder: "Do what? (every command of the Email pane)",
 			tag: "Email",
-			items: wn.filter((e) => e.id !== "palette" && (!e.when || e.when(o))).map((e) => ({
+			items: Tn.filter((e) => e.id !== "palette" && (!e.when || e.when(o))).map((e) => ({
 				value: e.id,
 				title: e.title,
-				detail: On(e.keys).join("  ·  ") || void 0,
+				detail: kn(e.keys).join("  ·  ") || void 0,
 				section: e.group
 			})),
-			onpick: (e) => wn.find((t) => t.id === e)?.run(o, pe)
+			onpick: (e) => Tn.find((t) => t.id === e)?.run(o, pe)
 		});
 	}
 	function fe() {
@@ -3353,7 +3374,7 @@ function dr(t, r) {
 			return;
 		}
 		if (!T(Se)?.contains(t) && t !== document.body) return;
-		let n = Tn(e);
+		let n = En(e);
 		if ([
 			"shift",
 			"control",
@@ -3361,12 +3382,12 @@ function dr(t, r) {
 			"meta"
 		].includes(e.key.toLowerCase())) return;
 		let r = T(me) ? `${T(me)} ${n}` : n;
-		if (clearTimeout($), !T(me) && Dn.has(n)) {
+		if (clearTimeout($), !T(me) && On.has(n)) {
 			O(me, n, !0), $ = setTimeout(() => O(me, ""), 1200), e.preventDefault();
 			return;
 		}
 		O(me, "");
-		let i = En.get(r);
+		let i = Dn.get(r);
 		!i || i.when && !i.when(o) || (e.preventDefault(), e.stopPropagation(), i.run(o, pe));
 	}
 	let ge;
@@ -3464,11 +3485,11 @@ function dr(t, r) {
 			"bell"
 		]
 	];
-	var Te = lr();
+	var Te = ur();
 	u("keydown", e, he);
 	let Ee, De;
 	var Oe = N(Te), ke = (e) => {
-		var t = zn(), n = N(t);
+		var t = Bn(), n = N(t);
 		Me(n, {
 			get mail() {
 				return o;
@@ -3481,7 +3502,7 @@ function dr(t, r) {
 			}
 		});
 		var r = Y(n, 2), i = (e) => {
-			var t = Rn();
+			var t = zn();
 			J("pointerdown", t, (e) => xe(e, "side")), c(e, t);
 		};
 		v(r, (e) => {
@@ -3492,11 +3513,11 @@ function dr(t, r) {
 		(!T(z) || T(D) === "side") && e(ke);
 	});
 	var Ae = Y(Oe, 2), je = (e) => {
-		var t = ar();
+		var t = or();
 		let s;
 		var u = N(t), d = (e) => {
-			var t = nr(), s = N(t), u = N(s), d = N(u), f = (e) => {
-				var t = Bn(), n = N(t);
+			var t = rr(), s = N(t), u = N(s), d = N(u), f = (e) => {
+				var t = Vn(), n = N(t);
 				Q(n, { name: "menu" }), q(t), J("click", t, () => O(D, "side")), c(e, t);
 			};
 			v(d, (e) => {
@@ -3510,7 +3531,7 @@ function dr(t, r) {
 			var y = Y(g, 2);
 			i(y), ue(y, (e) => O(j, e), () => T(j));
 			var b = Y(y, 2), x = (e) => {
-				var t = Vn(), n = N(t);
+				var t = Hn(), n = N(t);
 				Q(n, {
 					name: "x",
 					size: 14
@@ -3528,17 +3549,17 @@ function dr(t, r) {
 			var A = Y(w, 2), M = N(A);
 			Q(M, { name: "keyboard" }), q(A), q(u);
 			var P = Y(u, 2), L = (e) => {
-				var t = Wn(), r = N(t);
+				var t = Gn(), r = N(t);
 				l(r, 17, () => o.chips, ([e, t]) => e + t, (e, t) => {
 					var r = X(() => R(T(t), 2));
 					let i = () => T(r)[0], a = () => T(r)[1];
-					var o = Hn(), s = N(o), l = G(s), u = Y(s, 1, !0);
+					var o = Un(), s = N(o), l = G(s), u = Y(s, 1, !0);
 					q(o), E(() => {
 						n(l, `${i() ?? ""}:`), n(u, a());
 					}), c(e, o);
 				});
 				var i = Y(r), a = (e) => {
-					var t = Un();
+					var t = Wn();
 					J("click", t, ve), c(e, t);
 				};
 				v(i, (e) => {
@@ -3549,7 +3570,7 @@ function dr(t, r) {
 				o.chips.length && e(L);
 			});
 			var B = Y(P, 2), V = (e) => {
-				var t = Gn(), r = N(t), i = N(r);
+				var t = Kn(), r = N(t), i = N(r);
 				Q(i, { name: "x" }), q(r);
 				var a = Y(r, 2), s = G(a), l = Y(a, 4), u = N(l);
 				Q(u, { name: "archive" }), q(l);
@@ -3568,7 +3589,7 @@ function dr(t, r) {
 				var C = Y(x, 2), w = N(C);
 				Q(w, { name: "label" }), q(C), q(t), E(() => n(s, `${o.checked.length ?? ""} checked`)), J("click", r, () => o.selectWhere("none")), J("click", l, () => o.archive()), J("click", d, () => o.trash()), J("click", p, () => o.mark("read", !0)), J("click", h, () => o.mark("read", !1)), J("click", _, () => o.toggleStar()), J("click", y, () => se("snooze")), J("click", x, () => se("move")), J("click", C, () => se("label")), c(e, t);
 			}, ee = (e) => {
-				var t = Yn(), r = Z(t), i = N(r), a = G(i, !0), s = Y(i, 2), u = G(s), d = Y(s, 4), f = N(d);
+				var t = Xn(), r = Z(t), i = N(r), a = G(i, !0), s = Y(i, 2), u = G(s), d = Y(s, 4), f = N(d);
 				let p;
 				var g = Y(f, 2);
 				let _;
@@ -3578,11 +3599,11 @@ function dr(t, r) {
 				let S;
 				q(d), q(r);
 				var C = Y(r, 2), w = (e) => {
-					var t = Jn();
+					var t = Yn();
 					l(t, 21, () => we, ([e, t, n]) => e, (e, t) => {
 						var r = X(() => R(T(t), 3));
 						let i = () => T(r)[0], a = () => T(r)[1], s = () => T(r)[2], l = X(() => o.counts[i()]);
-						var u = qn();
+						var u = Jn();
 						let d;
 						var f = N(u);
 						Q(f, {
@@ -3592,7 +3613,7 @@ function dr(t, r) {
 							size: 14
 						});
 						var p = Y(f, 1, !0), g = Y(p), _ = (e) => {
-							var t = Kn(), r = G(t, !0);
+							var t = qn(), r = G(t, !0);
 							E(() => n(r, T(l).unread)), c(e, t);
 						};
 						v(g, (e) => {
@@ -3612,20 +3633,20 @@ function dr(t, r) {
 				o.checked.length ? e(V) : e(ee, -1);
 			}), q(s);
 			var H = Y(s, 2), te = (e) => {
-				var t = Xn(), i = N(t, !0), a = Y(i), s = N(a), l = Y(s);
+				var t = Zn(), i = N(t, !0), a = Y(i), s = N(a), l = Y(s);
 				q(a), q(t), E(() => n(i, o.error)), J("click", s, () => o.load()), J("click", l, () => r.atlas.plugin.openSettings()), c(e, t);
 			}, U = (e) => {
-				var t = tr(), i = N(t), a = (e) => {
-					var t = Zn(), n = Y(Z(t));
+				var t = nr(), i = N(t), a = (e) => {
+					var t = Qn(), n = Y(Z(t));
 					J("click", n, ve), c(e, t);
 				}, s = (e) => {
-					var t = Qn(), n = Y(Z(t));
+					var t = $n(), n = Y(Z(t));
 					J("click", n, () => r.atlas.plugin.openSettings()), c(e, t);
 				}, l = (e) => {
-					var t = $n();
+					var t = er();
 					F(), c(e, t);
 				}, u = (e) => {
-					var t = er(), r = G(t);
+					var t = tr(), r = G(t);
 					E(() => n(r, `Nothing here${o.quick ? " with that filter" : ""}.`)), c(e, t);
 				};
 				v(i, (e) => {
@@ -3646,13 +3667,13 @@ function dr(t, r) {
 				o.error ? e(te) : !o.loading && !o.rows.length ? e(U, 1) : e(W, -1);
 			}), q(t), E(() => h(t, "aria-label", T(Ce))), J("input", y, _e), J("keydown", y, (e) => {
 				e.key === "Enter" ? (e.preventDefault(), ve()) : e.key === "Escape" ? (O(I, ""), o.search(""), T(j)?.blur()) : e.key === "ArrowDown" && T(j)?.blur();
-			}), a(y, () => T(I), (e) => O(I, e)), J("click", S, () => wn.find((e) => e.id === "refresh")?.run(o, pe)), J("click", w, fe), J("click", A, de), c(e, t);
+			}), a(y, () => T(I), (e) => O(I, e)), J("click", S, () => Tn.find((e) => e.id === "refresh")?.run(o, pe)), J("click", w, fe), J("click", A, de), c(e, t);
 		};
 		v(u, (e) => {
 			(T(H) !== "full" || !T(te) || T(z) && T(D) !== "reader") && e(d);
 		});
 		var f = Y(u, 2), p = (e) => {
-			var t = rr();
+			var t = ir();
 			let n;
 			E(() => n = m(t, 1, "grip svelte-7si10b", null, n, {
 				h: T(H) === "below",
@@ -3663,10 +3684,10 @@ function dr(t, r) {
 			T(H) !== "full" && e(p);
 		});
 		var g = Y(f, 2), y = (e) => {
-			var t = ir(), n = N(t);
+			var t = ar(), n = N(t);
 			{
 				let e = X(() => T(H) === "full");
-				ue(gn(n, {
+				ue(_n(n, {
 					get mail() {
 						return o;
 					},
@@ -3692,11 +3713,11 @@ function dr(t, r) {
 		(!T(z) || T(D) !== "side") && e(je);
 	});
 	var Ne = Y(Ae, 2), Pe = (e) => {
-		var t = sr();
+		var t = cr();
 		let n;
 		l(t, 21, () => T(ne), (e) => e.key, (e, t) => {
-			var n = or();
-			It(N(n), {
+			var n = sr();
+			Lt(N(n), {
 				get mail() {
 					return o;
 				},
@@ -3716,17 +3737,17 @@ function dr(t, r) {
 		T(ne).length && e(Pe);
 	});
 	var Fe = Y(Ne, 2), Ie = (e) => {
-		Fn(e, { onclose: () => O(k, !1) });
+		In(e, { onclose: () => O(k, !1) });
 	};
 	v(Fe, (e) => {
 		T(k) && e(Ie);
 	});
 	var Le = Y(Fe, 2);
-	Sn(Le, { get mail() {
+	Cn(Le, { get mail() {
 		return o;
 	} });
 	var Re = Y(Le, 2), ze = (e) => {
-		var t = cr(), r = G(t);
+		var t = lr(), r = G(t);
 		E(() => n(r, `${T(me) ?? ""} …`)), c(e, t);
 	};
 	v(Re, (e) => {
@@ -3750,12 +3771,12 @@ d([
 ]);
 //#endregion
 //#region plugins/stable/email/ui/src/Thunderbird.svelte
-var fr = C("<p class=\"err svelte-h2hvl1\"> </p>"), pr = C("<p class=\"hint svelte-h2hvl1\">Reading Thunderbird's profiles…</p>"), mr = C("<p class=\"hint svelte-h2hvl1\">No account found in a Thunderbird profile.</p>"), hr = C("<small> </small>"), gr = C("<button class=\"svelte-h2hvl1\">Open its card</button>"), _r = C("<button> </button>"), vr = C("<li class=\"svelte-h2hvl1\"><div class=\"who svelte-h2hvl1\"><b> </b><small class=\"svelte-h2hvl1\"> </small> <!></div> <!></li>"), yr = C("<ul class=\"svelte-h2hvl1\"></ul>"), br = C("<p class=\"hint svelte-h2hvl1\">Add the account above first.</p>"), xr = C("<option> </option>"), Sr = C("<p class=\"hint svelte-h2hvl1\"> </p>"), Cr = C("<li class=\"svelte-h2hvl1\"><span> </span><span> </span></li>"), wr = C("<p class=\"svelte-h2hvl1\"> </p> <ul class=\"counts svelte-h2hvl1\"></ul> <div class=\"row svelte-h2hvl1\"><button class=\"primary svelte-h2hvl1\">Write them as notes</button></div>", 1), Tr = C("<p> </p>"), Er = C("<div class=\"row svelte-h2hvl1\"><select aria-label=\"Account\" class=\"svelte-h2hvl1\"></select> <button class=\"svelte-h2hvl1\">Check</button></div> <!>", 1), Dr = C("<div class=\"tb svelte-h2hvl1\"><section><h3 class=\"svelte-h2hvl1\">Accounts in Thunderbird</h3> <p class=\"hint svelte-h2hvl1\">Each becomes a card in Email's settings; its password or sign-in is given there.</p> <!></section> <section><h3 class=\"svelte-h2hvl1\">Local mail</h3> <p class=\"hint svelte-h2hvl1\">What Thunderbird keeps on this computer only (a POP account's mail, gone from the server), kept as notes.</p> <!></section> <div class=\"go svelte-h2hvl1\"><button class=\"svelte-h2hvl1\">Close</button></div></div>"), Or = {
+var pr = C("<p class=\"err svelte-h2hvl1\"> </p>"), mr = C("<p class=\"hint svelte-h2hvl1\">Reading Thunderbird's profiles…</p>"), hr = C("<p class=\"hint svelte-h2hvl1\">No account found in a Thunderbird profile.</p>"), gr = C("<small> </small>"), _r = C("<button class=\"svelte-h2hvl1\">Open its card</button>"), vr = C("<button> </button>"), yr = C("<li class=\"svelte-h2hvl1\"><div class=\"who svelte-h2hvl1\"><b> </b><small class=\"svelte-h2hvl1\"> </small> <!></div> <!></li>"), br = C("<ul class=\"svelte-h2hvl1\"></ul>"), xr = C("<p class=\"hint svelte-h2hvl1\">Add the account above first.</p>"), Sr = C("<option> </option>"), Cr = C("<p class=\"hint svelte-h2hvl1\"> </p>"), wr = C("<li class=\"svelte-h2hvl1\"><span> </span><span> </span></li>"), Tr = C("<p class=\"svelte-h2hvl1\"> </p> <ul class=\"counts svelte-h2hvl1\"></ul> <div class=\"row svelte-h2hvl1\"><button class=\"primary svelte-h2hvl1\">Write them as notes</button></div>", 1), Er = C("<p> </p>"), Dr = C("<div class=\"row svelte-h2hvl1\"><select aria-label=\"Account\" class=\"svelte-h2hvl1\"></select> <button class=\"svelte-h2hvl1\">Check</button></div> <!>", 1), Or = C("<div class=\"tb svelte-h2hvl1\"><section><h3 class=\"svelte-h2hvl1\">Accounts in Thunderbird</h3> <p class=\"hint svelte-h2hvl1\">Each becomes a card in Email's settings; its password or sign-in is given there.</p> <!></section> <section><h3 class=\"svelte-h2hvl1\">Local mail</h3> <p class=\"hint svelte-h2hvl1\">What Thunderbird keeps on this computer only (a POP account's mail, gone from the server), kept as notes.</p> <!></section> <div class=\"go svelte-h2hvl1\"><button class=\"svelte-h2hvl1\">Close</button></div></div>"), kr = {
 	hash: "svelte-h2hvl1",
 	code: ".tb.svelte-h2hvl1 {display:flex;flex-direction:column;gap:18px;height:100%;min-height:0;overflow:auto;padding:16px;box-sizing:border-box;background:var(--bg);color:var(--text);}h3.svelte-h2hvl1 {margin:0 0 2px;font-size:1em;}p.svelte-h2hvl1 {margin:4px 0;}.hint.svelte-h2hvl1, small.svelte-h2hvl1 {color:var(--text-muted);font-size:.9em;}.err.svelte-h2hvl1 {color:var(--danger, #c33);}ul.svelte-h2hvl1 {margin:6px 0 0;padding:0;list-style:none;display:flex;flex-direction:column;gap:6px;}li.svelte-h2hvl1 {display:flex;align-items:center;gap:10px;padding:6px 8px;border:1px solid var(--border);border-radius:6px;}.who.svelte-h2hvl1 {flex:1;min-width:0;display:flex;flex-direction:column;overflow-wrap:anywhere;}.counts.svelte-h2hvl1 li:where(.svelte-h2hvl1) {justify-content:space-between;padding:3px 8px;font-size:.9em;}.row.svelte-h2hvl1 {display:flex;gap:8px;margin-top:6px;}select.svelte-h2hvl1 {flex:1;min-width:0;font:inherit;color:var(--text);background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:5px 7px;}button.svelte-h2hvl1 {padding:5px 12px;border-radius:6px;border:1px solid var(--border);background:var(--bg);color:var(--text);cursor:pointer;white-space:nowrap;font:inherit;}button.primary.svelte-h2hvl1 {background:var(--accent);border-color:var(--accent);color:var(--accent-text, #fff);}button.svelte-h2hvl1:disabled {opacity:.5;cursor:default;}.go.svelte-h2hvl1 {display:flex;justify-content:flex-end;margin-top:auto;}"
 };
-function kr(e, r) {
-	M(r, !0), g(e, Or);
+function Ar(e, r) {
+	M(r, !0), g(e, kr);
 	let i = K(B(w(() => (r.atlas.plugin.settings.accounts ?? []).filter((e) => e?.name)))), a = K(null), o = K(""), s = B({});
 	w(() => H(r.atlas, "thunderbird")).then((e) => O(a, e.accounts, !0), (e) => O(o, String(e.message ?? e), !0));
 	let u = (e) => T(i).some((t) => t.name === e.record.name || t.user && t.user === e.record.user);
@@ -3816,20 +3837,20 @@ function kr(e, r) {
 			}, !0);
 		}
 	}
-	var b = Dr(), x = N(b), S = Y(N(x), 4), C = (e) => {
-		var t = fr(), r = G(t, !0);
+	var b = Or(), x = N(b), S = Y(N(x), 4), C = (e) => {
+		var t = pr(), r = G(t, !0);
 		E(() => n(r, T(o))), c(e, t);
 	}, D = (e) => {
-		var t = pr();
-		c(e, t);
-	}, k = (e) => {
 		var t = mr();
 		c(e, t);
+	}, k = (e) => {
+		var t = hr();
+		c(e, t);
 	}, A = (e) => {
-		var t = yr();
+		var t = br();
 		l(t, 21, () => T(a), f, (e, t, i) => {
-			var a = vr(), o = N(a), l = N(o), f = G(l, !0), p = Y(l), h = G(p), g = Y(p, 2), _ = (e) => {
-				var t = hr();
+			var a = yr(), o = N(a), l = N(o), f = G(l, !0), p = Y(l), h = G(p), g = Y(p, 2), _ = (e) => {
+				var t = gr();
 				let r;
 				var a = G(t, !0);
 				E((e) => {
@@ -3840,10 +3861,10 @@ function kr(e, r) {
 				s[i] && e(_);
 			}), q(o);
 			var y = Y(o, 2), b = (e) => {
-				var t = gr();
+				var t = _r();
 				J("click", t, () => r.atlas.plugin.openSettings()), c(e, t);
 			}, x = X(() => s[i] && !s[i].startsWith("Not")), S = (e) => {
-				var r = _r();
+				var r = vr();
 				let a;
 				var o = G(r, !0);
 				E((e, t, i) => {
@@ -3865,12 +3886,12 @@ function kr(e, r) {
 		T(o) ? e(C) : T(a) ? T(a).length ? e(A, -1) : e(k, 2) : e(D, 1);
 	}), q(x);
 	var j = Y(x, 2), P = Y(N(j), 4), F = (e) => {
-		var t = br();
+		var t = xr();
 		c(e, t);
 	}, I = (e) => {
-		var r = Er(), a = Z(r), o = N(a);
+		var r = Dr(), a = Z(r), o = N(a);
 		l(o, 21, () => T(i), (e) => e.name, (e, t) => {
-			var r = xr(), i = G(r), a = {};
+			var r = Sr(), i = G(r), a = {};
 			E(() => {
 				n(i, `${T(t).name ?? ""}${T(t).user ? ` — ${T(t).user}` : ""}`), a !== (a = T(t).name) && (r.value = (r.__value = a) ?? "");
 			}), c(e, r);
@@ -3878,15 +3899,15 @@ function kr(e, r) {
 		var s = Y(o, 2);
 		q(a);
 		var u = Y(a, 2), d = (e) => {
-			var t = Sr(), r = G(t, !0);
+			var t = Cr(), r = G(t, !0);
 			E(() => n(r, T(h).text)), c(e, t);
 		}, f = (e) => {
 			let t = X(() => T(h).n);
-			var r = wr(), i = Z(r), a = G(i), o = Y(i, 2);
+			var r = Tr(), i = Z(r), a = G(i), o = Y(i, 2);
 			l(o, 21, () => T(h).by, ([e, t]) => e, (e, t) => {
 				var r = X(() => R(T(t), 2));
 				let i = () => T(r)[0], a = () => T(r)[1];
-				var o = Cr(), s = N(o), l = G(s, !0), u = Y(s), d = G(u, !0);
+				var o = wr(), s = N(o), l = G(s, !0), u = Y(s), d = G(u, !0);
 				q(o), E(() => {
 					n(l, i()), n(d, a());
 				}), c(e, o);
@@ -3894,7 +3915,7 @@ function kr(e, r) {
 			var s = Y(o, 2), u = G(s);
 			E(() => n(a, `${T(t) ?? ""} message${T(t) === 1 ? "" : "s"} Thunderbird keeps for ${T(p) ?? ""} ${T(t) === 1 ? "is" : "are"} in no note:`)), J("click", u, () => y(T(t))), c(e, r);
 		}, g = (e) => {
-			var t = Tr();
+			var t = Er();
 			let r;
 			var i = G(t, !0);
 			E(() => {
@@ -3918,12 +3939,12 @@ function kr(e, r) {
 d(["click", "change"]);
 //#endregion
 //#region plugins/stable/email/ui/src/SignIn.svelte
-var Ar = C("<p class=\"svelte-1gsd9hw\">No account signs in with Outlook: set one's Sign-in to <b class=\"svelte-1gsd9hw\">outlook</b> in Email's settings.</p> <div class=\"go svelte-1gsd9hw\"><button class=\"svelte-1gsd9hw\">Open Email's settings</button></div>", 1), jr = C("<small class=\"svelte-1gsd9hw\"> </small>"), Mr = C("<li class=\"svelte-1gsd9hw\"><button class=\"pick svelte-1gsd9hw\"><b class=\"svelte-1gsd9hw\"> </b><!></button></li>"), Nr = C("<p class=\"svelte-1gsd9hw\">Which account?</p> <ul class=\"svelte-1gsd9hw\"></ul>", 1), Pr = C("<p class=\"hint svelte-1gsd9hw\"> </p>"), Fr = C("<p class=\"svelte-1gsd9hw\">On the Microsoft page, type this code and sign in as <b class=\"svelte-1gsd9hw\"> </b>:</p> <div class=\"code svelte-1gsd9hw\"><span class=\"svelte-1gsd9hw\"> </span><button class=\"svelte-1gsd9hw\"> </button></div>", 1), Ir = C("<p class=\"svelte-1gsd9hw\">Sign in as <b class=\"svelte-1gsd9hw\"> </b> on the Microsoft page in your browser.</p>"), Lr = C("<p class=\"svelte-1gsd9hw\">Sign in as <b class=\"svelte-1gsd9hw\"> </b> in the window that opened.</p>"), Rr = C("<form class=\"row svelte-1gsd9hw\"><input aria-label=\"Return address\" placeholder=\"If it ends on a page that does not load: its https://localhost/… address\" class=\"svelte-1gsd9hw\"/> <button type=\"submit\" class=\"svelte-1gsd9hw\">Finish</button></form>"), zr = C("<p class=\"hint svelte-1gsd9hw\"><span class=\"dot svelte-1gsd9hw\"></span>Atlas finishes by itself when Microsoft sends you back.</p> <div class=\"go svelte-1gsd9hw\"><button class=\"svelte-1gsd9hw\">Open the Microsoft page again</button></div>", 1), Br = C("<!> <!>", 1), Vr = C("<p class=\"ok svelte-1gsd9hw\"> </p>"), Hr = C("<p class=\"err svelte-1gsd9hw\"> </p> <div class=\"go svelte-1gsd9hw\"><button class=\"primary svelte-1gsd9hw\">Try again</button></div>", 1), Ur = C("<div class=\"si svelte-1gsd9hw\"><!> <div class=\"go end svelte-1gsd9hw\"><button> </button></div></div>"), Wr = {
+var jr = C("<p class=\"svelte-1gsd9hw\">No account signs in with Outlook: set one's Sign-in to <b class=\"svelte-1gsd9hw\">outlook</b> in Email's settings.</p> <div class=\"go svelte-1gsd9hw\"><button class=\"svelte-1gsd9hw\">Open Email's settings</button></div>", 1), Mr = C("<small class=\"svelte-1gsd9hw\"> </small>"), Nr = C("<li class=\"svelte-1gsd9hw\"><button class=\"pick svelte-1gsd9hw\"><b class=\"svelte-1gsd9hw\"> </b><!></button></li>"), Pr = C("<p class=\"svelte-1gsd9hw\">Which account?</p> <ul class=\"svelte-1gsd9hw\"></ul>", 1), Fr = C("<p class=\"hint svelte-1gsd9hw\"> </p>"), Ir = C("<p class=\"svelte-1gsd9hw\">On the Microsoft page, type this code and sign in as <b class=\"svelte-1gsd9hw\"> </b>:</p> <div class=\"code svelte-1gsd9hw\"><span class=\"svelte-1gsd9hw\"> </span><button class=\"svelte-1gsd9hw\"> </button></div>", 1), Lr = C("<p class=\"svelte-1gsd9hw\">Sign in as <b class=\"svelte-1gsd9hw\"> </b> on the Microsoft page in your browser.</p>"), Rr = C("<p class=\"svelte-1gsd9hw\">Sign in as <b class=\"svelte-1gsd9hw\"> </b> in the window that opened.</p>"), zr = C("<form class=\"row svelte-1gsd9hw\"><input aria-label=\"Return address\" placeholder=\"If it ends on a page that does not load: its https://localhost/… address\" class=\"svelte-1gsd9hw\"/> <button type=\"submit\" class=\"svelte-1gsd9hw\">Finish</button></form>"), Br = C("<p class=\"hint svelte-1gsd9hw\"><span class=\"dot svelte-1gsd9hw\"></span>Atlas finishes by itself when Microsoft sends you back.</p> <div class=\"go svelte-1gsd9hw\"><button class=\"svelte-1gsd9hw\">Open the Microsoft page again</button></div>", 1), Vr = C("<!> <!>", 1), Hr = C("<p class=\"ok svelte-1gsd9hw\"> </p>"), Ur = C("<p class=\"err svelte-1gsd9hw\"> </p> <div class=\"go svelte-1gsd9hw\"><button class=\"primary svelte-1gsd9hw\">Try again</button></div>", 1), Wr = C("<div class=\"si svelte-1gsd9hw\"><!> <div class=\"go end svelte-1gsd9hw\"><button> </button></div></div>"), Gr = {
 	hash: "svelte-1gsd9hw",
 	code: ".si.svelte-1gsd9hw {display:flex;flex-direction:column;gap:10px;height:100%;min-height:0;overflow:auto;padding:16px;box-sizing:border-box;background:var(--bg);color:var(--text);}p.svelte-1gsd9hw {margin:0;}.hint.svelte-1gsd9hw, small.svelte-1gsd9hw {color:var(--text-muted);font-size:.9em;}.ok.svelte-1gsd9hw {color:var(--success, #2a7);}.err.svelte-1gsd9hw {color:var(--danger, #c33);overflow-wrap:anywhere;}ul.svelte-1gsd9hw {margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:6px;}.pick.svelte-1gsd9hw {width:100%;display:flex;flex-direction:column;align-items:flex-start;text-align:left;}.code.svelte-1gsd9hw {display:flex;align-items:center;gap:12px;}.code.svelte-1gsd9hw span:where(.svelte-1gsd9hw) {font:600 1.6em var(--font-mono, monospace);letter-spacing:.12em;padding:6px 12px;border:1px solid var(--border);border-radius:8px;user-select:all;}.row.svelte-1gsd9hw {display:flex;gap:8px;}input.svelte-1gsd9hw {flex:1;min-width:0;font:inherit;color:var(--text);background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:5px 7px;}.go.svelte-1gsd9hw {display:flex;gap:8px;}.go.end.svelte-1gsd9hw {justify-content:flex-end;margin-top:auto;}button.svelte-1gsd9hw {padding:5px 12px;border-radius:6px;border:1px solid var(--border);background:var(--bg);color:var(--text);cursor:pointer;font:inherit;}button.primary.svelte-1gsd9hw {background:var(--accent);border-color:var(--accent);color:var(--accent-text, #fff);}button.svelte-1gsd9hw:disabled {opacity:.5;cursor:default;}.dot.svelte-1gsd9hw {display:inline-block;width:8px;height:8px;margin-right:6px;border-radius:50%;background:var(--accent); animation: svelte-1gsd9hw-pulse 1.2s ease-in-out infinite;}\n  @keyframes svelte-1gsd9hw-pulse { 50% { opacity: .25; } }"
 };
-function Gr(e, t) {
-	M(t, !0), g(e, Wr);
+function Kr(e, t) {
+	M(t, !0), g(e, Gr);
 	let r = w(() => (t.atlas.plugin.settings.accounts ?? []).filter((e) => e?.name && e.auth === "outlook")), o = K(B(w(() => t.account ?? t.record?.name ?? (r.length === 1 ? r[0].name : "")))), s = K(B(w(() => T(o) ? { kind: "starting" } : { kind: "choose" }))), d = K(""), f = !1, p = (e) => void H(t.atlas, "signin_reopen", { url: e }).catch(() => window.open(e, "_blank")), h = () => {
 		f || (O(s, { kind: "done" }, !0), window.dispatchEvent(new CustomEvent("atlas-email:signed-in", { detail: { account: T(o) } })), H(t.atlas, "watch", {}, 30).catch(() => {}));
 	}, y = (e) => {
@@ -3973,15 +3994,15 @@ function Gr(e, t) {
 			copied: !0
 		}, !0);
 	}, () => {});
-	var k = Ur(), A = N(k), j = (e) => {
+	var k = Wr(), A = N(k), j = (e) => {
 		var i = x(), a = Z(i), s = (e) => {
-			var n = Ar(), r = Y(Z(n), 2), i = G(r);
+			var n = jr(), r = Y(Z(n), 2), i = G(r);
 			J("click", i, () => t.atlas.plugin.openSettings()), c(e, n);
 		}, u = (e) => {
-			var t = Nr(), i = Y(Z(t), 2);
+			var t = Pr(), i = Y(Z(t), 2);
 			l(i, 21, () => r, (e) => e.name, (e, t) => {
-				var r = Mr(), i = N(r), a = N(i), s = G(a, !0), l = Y(a), u = (e) => {
-					var r = jr(), i = G(r, !0);
+				var r = Nr(), i = N(r), a = N(i), s = G(a, !0), l = Y(a), u = (e) => {
+					var r = Mr(), i = G(r, !0);
 					E(() => n(i, T(t).user)), c(e, r);
 				};
 				v(l, (e) => {
@@ -3995,45 +4016,45 @@ function Gr(e, t) {
 			r.length ? e(u, -1) : e(s);
 		}), c(e, i);
 	}, P = (e) => {
-		var t = Pr(), r = G(t);
+		var t = Fr(), r = G(t);
 		E(() => n(r, `Asking Microsoft for a sign-in for ${T(o) ?? ""}…`)), c(e, t);
 	}, I = (e) => {
-		var t = Br(), r = Z(t), l = (e) => {
-			var t = Fr(), r = Z(t), i = Y(N(r)), a = G(i, !0);
+		var t = Vr(), r = Z(t), l = (e) => {
+			var t = Ir(), r = Z(t), i = Y(N(r)), a = G(i, !0);
 			F(), q(r);
 			var l = Y(r, 2), u = N(l), d = G(u, !0), f = Y(u), p = G(f, !0);
 			q(l), E(() => {
 				n(a, T(o)), n(d, T(s).code), n(p, T(s).copied ? "Copied" : "Copy");
 			}), J("click", f, () => D(T(s).kind === "waiting" ? T(s).code ?? "" : "")), c(e, t);
 		}, f = (e) => {
-			var t = Ir(), r = Y(N(t)), i = G(r, !0);
+			var t = Lr(), r = Y(N(t)), i = G(r, !0);
 			F(), q(t), E(() => n(i, T(o))), c(e, t);
 		}, m = (e) => {
-			var t = Lr(), r = Y(N(t)), i = G(r, !0);
+			var t = Rr(), r = Y(N(t)), i = G(r, !0);
 			F(), q(t), E(() => n(i, T(o))), c(e, t);
 		};
 		v(r, (e) => {
 			T(s).flow === "code" ? e(l) : T(s).flow === "automatic" ? e(f, 1) : e(m, -1);
 		});
 		var h = Y(r, 2), g = (e) => {
-			var t = Rr(), n = N(t);
+			var t = zr(), n = N(t);
 			i(n);
 			var r = Y(n, 2);
 			q(t), E((e) => r.disabled = e, [() => !T(d).trim()]), u("submit", t, (e) => {
 				e.preventDefault(), S(T(d));
 			}), a(n, () => T(d), (e) => O(d, e)), c(e, t);
 		}, _ = (e) => {
-			var t = zr(), n = Y(Z(t), 2), r = G(n);
+			var t = Br(), n = Y(Z(t), 2), r = G(n);
 			J("click", r, () => T(s).kind === "waiting" && p(T(s).url)), c(e, t);
 		};
 		v(h, (e) => {
 			T(s).flow === "window" ? e(g) : e(_, -1);
 		}), c(e, t);
 	}, L = (e) => {
-		var t = Vr(), r = G(t);
+		var t = Hr(), r = G(t);
 		E(() => n(r, `Signed in: ${T(o) ?? ""}'s mail can be read now.`)), c(e, t);
 	}, R = (e) => {
-		var t = Hr(), r = Z(t), i = G(r, !0), a = Y(r, 2), o = G(a);
+		var t = Ur(), r = Z(t), i = G(r, !0), a = Y(r, 2), o = G(a);
 		E(() => n(i, T(s).why)), J("click", o, C), c(e, t);
 	};
 	v(A, (e) => {
@@ -4051,7 +4072,7 @@ function Gr(e, t) {
 d(["click"]);
 //#endregion
 //#region plugins/stable/email/ui/src/view.ts
-function Kr(e, t) {
+function qr(e, t) {
 	if (t.arg === W) {
 		let n = fe(oe, {
 			target: e,
@@ -4071,7 +4092,7 @@ function Kr(e, t) {
 		}
 	})();
 	if (n.dialog === "signin") {
-		let r = fe(Gr, {
+		let r = fe(Kr, {
 			target: e,
 			props: {
 				atlas: t,
@@ -4083,7 +4104,7 @@ function Kr(e, t) {
 		return () => S(r);
 	}
 	if (t.arg === ie) {
-		let n = fe(kr, {
+		let n = fe(Ar, {
 			target: e,
 			props: {
 				atlas: t,
@@ -4093,11 +4114,11 @@ function Kr(e, t) {
 		return () => S(n);
 	}
 	e.style.height = "100%";
-	let r = fe(dr, {
+	let r = fe(fr, {
 		target: e,
 		props: { atlas: t }
 	});
 	return () => S(r);
 }
 //#endregion
-export { Kr as default };
+export { qr as default };

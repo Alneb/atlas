@@ -48,7 +48,9 @@ own IMAP/SMTP accounts (a password) or Outlook / Microsoft 365 (OAuth2), several
   notices of new mail, "Email: send this note…", Thunderbird import (accounts; local mail as notes, after asking).
 - **Tools for agents** (`atlas mcp`): `email_inbox`, `email_read`, `email_attachment`, `email_send` (only a mail the
   user asked for), `email_mark`, `email_rules`, `email_add_rule`, `email_remove_rule`, `email_accounts`,
-  `email_thunderbird`, `email_thunderbird_mail`. Each account says whether an agent may read it: ask, always or never.
+  `email_thunderbird`, `email_thunderbird_mail`, `email_open` (shows one mail in the Email pane, by uid or Message-ID;
+  it answers once the window has shown it, and fails when no Atlas window is open). Each account says whether an agent
+  may read it: ask, always or never (`email_open` asks nothing: it reads nothing back).
 
 ## Settings
 

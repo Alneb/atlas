@@ -3,4 +3,4 @@
 /**
  * One triage answer.
  */
-export type TriageAction = { "kind": "task" } | { "kind": "done" } | { "kind": "dismiss" } | { "kind": "reopen" } | { "kind": "file", note: string, } | { "kind": "delete" };
+export type TriageAction = { "kind": "task" } | { "kind": "done" } | { "kind": "dismiss" } | { "kind": "reopen" } | { "kind": "file", note: string, } | { "kind": "link", note: string, } | { "kind": "delete" };

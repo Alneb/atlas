@@ -42,6 +42,8 @@ export interface FileRef { name: string; mime?: string; size?: number; data?: st
 export interface Draft {
   account: string; from: string; to: string; cc: string; bcc: string; subject: string; body: string;
   reply_to: number | null; forward: number | null; files: FileRef[]; draft: number | null; send_at: number | null;
+  /** the message answered or forwarded, shown under the text box (the sent mail quotes it there) */
+  quote?: { from: string; date: number; text: string } | null;
 }
 
 /** A helper call with the plugin's settings; the error stripped of the transport's prefix. */

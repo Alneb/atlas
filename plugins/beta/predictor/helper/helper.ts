@@ -2,7 +2,7 @@
 // language, a chunk of notes per call so no call nears the helper's time limit; and a Hunspell dictionary's word list,
 // for finishing words the vault does not write often. Nothing is written; the page keeps the model in memory.
 import type { Params } from "atlas-helper";
-import { guessLanguage, ownWriting, plainProse, wordsOf } from "../../../../ui/src/lib/editor/prose";
+import { guessLanguage, ownWriting, plainProse, withoutLongRuns, wordsOf } from "../../../../ui/src/lib/editor/prose";
 import { chooseDictionaries, dicStems, dictionaryFile, installedDictionaries, machineFiles, vaultFiles, type Exec } from "../../../../ui/src/lib/editor/dictionaries";
 import { packSentences, sentences } from "../ui/src/model";
 
@@ -21,7 +21,7 @@ async function count(p: Params) {
   const out: Record<string, { lang: string; text: string }> = {};
   for (const path of (p.paths as string[]) ?? []) {
     let text: string;
-    try { text = await atlas.read(path); } catch { continue; } // gone since the list
+    try { text = withoutLongRuns(await atlas.read(path), false); } catch { continue; } // gone since the list
     if (!ownWriting(text)) continue;
     const lang = guessLanguage(text, langs, fallback, /^---[\s\S]*?^lang:\s*([\w-]+)/m.exec(text)?.[1]);
     out[path] = { lang, text: packSentences(sentences(plainProse(text), wordsOf)) };

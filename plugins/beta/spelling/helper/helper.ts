@@ -3,7 +3,7 @@
 // one), and the vault's words counted per language, a chunk of notes per call so no call nears the helper's time
 // limit. The only write: `keep`, the dictionaries in use copied into the vault for the devices that have none.
 import type { Params } from "atlas-helper";
-import { guessLanguage, ownWriting, plainProse, wordsOf } from "../../../../ui/src/lib/editor/prose";
+import { guessLanguage, ownWriting, plainProse, withoutLongRuns, wordsOf } from "../../../../ui/src/lib/editor/prose";
 import { dictionaryFile, installedDictionaries, keepInVault, machineFiles, vaultFiles, type Exec } from "../../../../ui/src/lib/editor/dictionaries";
 
 const exec: Exec = (cmd, args, opts) => atlas.exec(cmd, args, opts) as unknown as ReturnType<Exec>;
@@ -38,7 +38,7 @@ async function count(p: Params) {
   const out: Record<string, { lang: string; words: Record<string, number> }> = {};
   for (const path of paths) {
     let text: string;
-    try { text = await atlas.read(path); } catch { continue; } // gone since the list
+    try { text = withoutLongRuns(await atlas.read(path), false); } catch { continue; } // gone since the list
     if (!ownWriting(text)) continue;
     const lang = guessLanguage(text, langs, fallback, /^---[\s\S]*?^lang:\s*([\w-]+)/m.exec(text)?.[1]);
     const words: Record<string, number> = {};

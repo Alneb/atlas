@@ -325,6 +325,8 @@ export const api = {
   // the core answers within timeout_secs (default 60); the page gives up a little later, so a request lost to a core
   // restart or a sleep never leaves a plugin waiting for ever
   pluginHelper: (id: string, method: string, params?: unknown, timeout_secs?: number) => request<unknown>("POST", `/api/plugins/${encodeURIComponent(id)}/helper`, { body: { method, params: params ?? null, timeout_secs }, signal: AbortSignal.timeout(((timeout_secs ?? 60) + 15) * 1000) }),
+  /** A plugin's tool, as an agent calls it (its settings and secrets added by the core). */
+  pluginTool: (id: string, name: string, args?: unknown) => request<unknown>("POST", `/api/plugins/${encodeURIComponent(id)}/tools/${encodeURIComponent(name)}`, { body: args ?? {} }),
   pluginHelperState: (id: string) => request<{ state: "stopped" | "running" | "crashed" }>("GET", `/api/plugins/${encodeURIComponent(id)}/helper`),
   stopPluginHelper: (id: string) => request<{ state: string }>("POST", `/api/plugins/${encodeURIComponent(id)}/helper/stop`),
   pluginSecretNames: (id: string) => request<string[]>("GET", `/api/plugins/${encodeURIComponent(id)}/secrets`),

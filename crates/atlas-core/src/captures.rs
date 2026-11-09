@@ -262,6 +262,7 @@ pub fn triage(root: &Path, cfg: &Config, req: &TriageRequest, now: NaiveDateTime
                 filed = Some((note, filed_entry(c.text, &more, day.as_deref().map(wikilink).as_deref())));
                 vec![link_line(&line, note).unwrap_or(line.clone())]
             }
+            TriageAction::Link { note } => vec![link_line(&line, note).unwrap_or(line.clone())],
             TriageAction::Delete => {
                 // the trash's copy first: failing, the log is left as it was
                 let last = idx + continuation(&lines, idx).len();
@@ -378,6 +379,7 @@ fn triage_note(root: &Path, cfg: &Config, abs: &Path, rel: &str, action: &Triage
     let mut touched = vec![rel.to_string()];
     match action {
         TriageAction::Dismiss | TriageAction::Done => vault_write::modify(abs, |text| Ok(done(text, None))),
+        TriageAction::Link { note } => vault_write::modify(abs, |text| Ok(done(text, Some(note.as_str())))),
         TriageAction::Delete => {
             if !abs.exists() {
                 return Err(Error::NotFound(rel.to_string()));
@@ -586,6 +588,25 @@ mod tests {
         // a second capture goes to the end of the same note
         ask(d.path(), &cfg, "notes/log/2026/10-October/2026-10-26.md", 3, TriageAction::File { note: "notes/Bath.md".into() }).unwrap();
         assert!(std::fs::read_to_string(d.path().join("notes/Bath.md")).unwrap().ends_with("http://x.org\n- fit the bath ([[2026-10-26]])\n"));
+    }
+
+    #[test]
+    fn linking_points_the_capture_at_a_note_and_copies_nothing_into_it() {
+        let (d, cfg) = vault();
+        let p = "notes/log/2026/10-October/2026-10-27.md";
+        std::fs::create_dir_all(d.path().join("refs")).unwrap();
+        std::fs::write(d.path().join("refs/Group Theory.md"), "# Group Theory\n").unwrap();
+        let touched = ask(d.path(), &cfg, p, 12, TriageAction::Link { note: "refs/Group Theory.md".into() }).unwrap();
+        assert_eq!(touched, vec![p.to_string()], "only the log is written");
+        assert_eq!(std::fs::read_to_string(d.path().join("refs/Group Theory.md")).unwrap(), "# Group Theory\n");
+        let log = std::fs::read_to_string(d.path().join(p)).unwrap();
+        assert!(log.contains("- 09:12 check the tail → [[Group Theory]]\n"), "{log}");
+        assert_eq!(list(d.path(), &cfg).items[1].state, CaptureState::Filed);
+        // an inbox note: `filed` names it, nothing else is written
+        let n = "inbox/A thought.md";
+        assert_eq!(ask(d.path(), &cfg, n, 0, TriageAction::Link { note: "refs/Group Theory.md".into() }).unwrap(), vec![n.to_string()]);
+        let last = list(d.path(), &cfg).items.into_iter().find(|c| c.path == n).unwrap();
+        assert_eq!((last.state, last.filed.as_deref()), (CaptureState::Filed, Some("Group Theory")));
     }
 
     #[test]

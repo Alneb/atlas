@@ -87,7 +87,12 @@
     timer = setTimeout(save, 2000);
   }
 
-  async function save() {
+  /** The save on its way, if any: Send waits for it, so the draft it makes is the one Send takes out of Drafts. */
+  let saving: Promise<void> | null = null;
+  function save(): Promise<void> {
+    return (saving ??= saveNow().finally(() => { saving = null; }));
+  }
+  async function saveNow() {
     if (!c.dirty || c.sending || !(d.body.trim() || d.subject.trim() || d.to.trim())) return;
     c.saving = true;
     try {
@@ -223,6 +228,9 @@
     if (!(await check())) return;
     clearTimeout(timer);
     c.sending = true;
+    // a save started before Send makes a draft of its own: wait for it, so that draft's id goes with the mail and is
+    // taken out of Drafts once it is sent (else it stayed in the thread as a "Draft")
+    await saving;
     const payload = { ...d, send_at: at };
     mail.closeComposer(c.key);
     if (at) {
@@ -356,6 +364,14 @@
     <textarea bind:this={text} bind:value={d.body} oninput={changed} onpaste={paste} {placeholder} aria-label="The message" spellcheck="true"></textarea>
   {/if}
 
+  {#if d.quote}
+    <!-- what the sent mail quotes under the text: read here, never edited -->
+    <details class="quoted" open>
+      <summary>{d.forward ? "Forwarded" : "Replying to"} {d.quote.from}, {new Date(d.quote.date * 1000).toLocaleString(undefined, { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</summary>
+      <blockquote>{d.quote.text.trim()}</blockquote>
+    </details>
+  {/if}
+
   {#if d.files.length}
     <div class="files">
       {#each d.files as f (f.name + (f.path ?? "") + (f.from?.join() ?? ""))}
@@ -422,6 +438,9 @@
   .body :global(.cm-editor.cm-focused) { outline: none; }
   .preview { min-height: 120px; padding: 4px 0; line-height: 1.55; overflow-wrap: anywhere; }
   .preview :global(blockquote) { margin: 0.4em 0; padding-left: 0.9em; border-left: 3px solid var(--border-strong); color: var(--text-muted); }
+  .quoted { color: var(--text-muted); font-size: .92em; }
+  .quoted summary { cursor: pointer; color: var(--text-faint); padding: 2px 0; }
+  .quoted blockquote { margin: 4px 0 0; padding: 2px 0 2px 10px; border-left: 2px solid var(--border-strong); white-space: pre-wrap; overflow-wrap: anywhere; max-height: 40vh; overflow: auto; }
   .files { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
   .file { display: inline-flex; gap: 6px; align-items: center; padding: 3px 4px 3px 8px; border-radius: var(--radius-sm); background: var(--bg-alt); border: 1px solid var(--border); font-size: 0.9em; max-width: 260px; }
   .file span:not(.faint) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

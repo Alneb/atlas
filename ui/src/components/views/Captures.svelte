@@ -5,7 +5,8 @@
   //   type: captures
   //   show: open        # open (default: still to triage) | tasks | all
   // By keyboard, from the moment it opens (the first row takes the keys unless a text has them): j/k (or ↑/↓) move,
-  // g/G (Home/End) first and last, h/l (←/→) or 1 2 3 the tabs, t task, f file, d dismiss, x done, u reopen, Delete
+  // g/G (Home/End) first and last, h/l (←/→) or 1 2 3 the tabs, t task, f file, c catalogue (when a plugin provides the
+  // catalog: it files the capture as its note — a link, an ISBN, a DOI — and the capture links to it), d dismiss, x done, u reopen, Delete
   // deletes (the line and its lines under it to `.atlas/trash/`), Enter opens; its pictures show under it (Ctrl: large);
   // the focus stays in place as triaged rows leave the list, so a run of keys clears it.
   import { onMount, tick } from "svelte";
@@ -24,6 +25,7 @@
   import { dirOf, shownName, shownPath } from "../../lib/paths";
   import { followRenderedLink } from "../../lib/rendered-links";
   import { settings } from "../../lib/settings.svelte";
+  import { pluginOn, plugins } from "../../lib/plugin-registry.svelte";
   import { toast } from "../../lib/state.svelte";
   import { errText } from "../../lib/text";
   import Icon from "../Icon.svelte";
@@ -115,6 +117,7 @@
     else if (k === "Enter") openPath(c.path, c.line || undefined);
     else if (k === "t" && can.open) void triage(c, { kind: "task" }, true);
     else if (k === "f" && can.live) fileInto(c);
+    else if (k === "c" && can.live && catalog) void catalogue(c);
     else if (k === "d" && can.live) void triage(c, { kind: "dismiss" }, true);
     else if (k === "x" && c.state === "task") void triage(c, { kind: "done" }, true);
     else if (k === "u" && !can.live) void triage(c, { kind: "reopen" }, true);
@@ -134,6 +137,23 @@
     busy = new Set(busy);
     await load();
     if (byKey) await focusAt(at); // the next capture has moved into this place
+  }
+  /** The plugin that files things as their notes (`provides = ["catalog"]`), asked by role, never by id. */
+  const catalog = $derived(plugins.list.find((p) => p.provides.includes("catalog") && pluginOn(p)) ?? null);
+  /** "Catalogue": the catalog's own `add` files the capture (what it is, its metadata, its note in its library), then
+   *  the capture links to that note — the same filing a capture hook does, asked for here. */
+  async function catalogue(c: CaptureItem) {
+    if (!catalog) return;
+    busy = new Set(busy).add(key(c));
+    try {
+      const r = (await api.pluginTool(catalog.id, "add", { text: c.text })) as { path?: string; error?: string };
+      if (!r?.path) throw new Error(r?.error ?? "the catalog found nothing to file in it");
+      await api.triageCapture({ path: c.path, line: c.line, source: c.source, action: { kind: "link", note: r.path } });
+      toast("Catalogued", shownName(r.path), "success", 4500, { label: "Open", run: () => openPath(r.path!) });
+    } catch (e) { toast("Could not catalogue the capture", /409/.test(String(e)) ? "The line changed since it was listed — shown again as it is now." : errText(e), "error"); }
+    busy.delete(key(c));
+    busy = new Set(busy);
+    await load();
   }
   /** "File into…": an existing note, or a new one named as typed (in the notes folder). */
   function fileInto(c: CaptureItem) {
@@ -171,7 +191,7 @@
       <!-- the next step, not a dead end: capturing is what fills this list -->
       <button class="link" onclick={() => openQuickCapture()}>Capture something</button>{#if keysOf("ui.capture")}<kbd class="keys-only">{chordLabel(keysOf("ui.capture")!).join(" ")}</kbd>{/if}</p>
   {:else}
-    <p class="keys" aria-hidden="true"><kbd>j</kbd><kbd>k</kbd> move · <kbd>h</kbd><kbd>l</kbd> tabs · <kbd>t</kbd> task · <kbd>f</kbd> file · <kbd>d</kbd> dismiss · <kbd>x</kbd> done · <kbd>u</kbd> reopen · <kbd>Del</kbd> delete · <kbd>Enter</kbd> open</p>
+    <p class="keys" aria-hidden="true"><kbd>j</kbd><kbd>k</kbd> move · <kbd>h</kbd><kbd>l</kbd> tabs · <kbd>t</kbd> task · <kbd>f</kbd> file · {#if catalog}<kbd>c</kbd> catalogue · {/if}<kbd>d</kbd> dismiss · <kbd>x</kbd> done · <kbd>u</kbd> reopen · <kbd>Del</kbd> delete · <kbd>Enter</kbd> open</p>
     <div class="list" bind:this={list}>
     {#each byDay as g (g.day)}
       <h3 class="day">{dayLabel(g.day)}</h3>
@@ -206,6 +226,7 @@
                 <button class="act" onclick={() => triage(c, { kind: "task" })} title="Make it a to-do (- [ ])"><Icon name="list-todo" size={13} />Task</button>
               {/if}
               {#if c.state === "open" || c.state === "task"}
+                {#if catalog}<button class="act" onclick={() => catalogue(c)} title="File it as its note in its library (a link, an ISBN, a DOI…), and link it from here (c)"><Icon name="grid" size={13} />Catalogue</button>{/if}
                 <button class="act" onclick={() => fileInto(c)} title="Add it to a note, and link it from here"><Icon name="arrow-right" size={13} />File…</button>
                 <button class="act" onclick={() => triage(c, { kind: "dismiss" })} title="Seen; nothing to do ([-])"><Icon name="close" size={13} />Dismiss</button>
               {:else}

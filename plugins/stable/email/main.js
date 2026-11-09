@@ -756,6 +756,17 @@ function Q(e) {
 			from: n.from,
 			to: n.to
 		}).catch((t) => e.toast("Email", `The account's mail kept its old name: ${t.message}`, "error"));
+	}), e.helper.on("open", (t) => {
+		let r = t, i = "no";
+		try {
+			n({ id: r.message }), i = "opened";
+		} finally {
+			e.helper.call("consent_answer", {
+				id: r.id,
+				allow: i,
+				settings: e.plugin.settings
+			});
+		}
 	}), e.helper.on("consent", (n) => {
 		let r = n, i = (t) => e.helper.call("consent_answer", {
 			id: r.id,

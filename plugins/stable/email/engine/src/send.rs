@@ -308,6 +308,15 @@ pub async fn save_draft(m: &Mail, c: &Compose) -> Result<Value, String> {
     Ok(json!({ "id": id, "message_id": msgid }))
 }
 
+/// The message a reply or forward quotes, as the composer shows it under the text box: who wrote it, when (unix), its
+/// text. The sent mail quotes the same message (`draft_of`). Null when it is gone or cannot be read.
+pub async fn quote_of(m: &Mail, id: i64) -> Value {
+    let Some(x) = m.index.msg(id) else { return Value::Null };
+    let Ok(raw) = crate::sync::body(m, id).await else { return Value::Null };
+    let Some(b) = parse::body(&raw) else { return Value::Null };
+    json!({ "from": x.from.first().map(Person::display).unwrap_or_default(), "date": x.date, "text": b.text })
+}
+
 /// What a draft says, for the composer to open it again (its body as the user wrote it, its people, its files).
 pub async fn open_draft(m: &Mail, id: i64) -> Result<Value, String> {
     let x = m.index.msg(id).ok_or("that draft is gone")?;
@@ -343,6 +352,7 @@ pub async fn open_draft(m: &Mail, id: i64) -> Result<Value, String> {
     Ok(json!({
         "account": x.account, "from": from, "to": list(&x.to), "cc": list(&x.cc), "bcc": bcc.join(", "),
         "subject": x.subject, "body": body, "reply_to": parent, "draft": id, "send_at": send_at, "files": files,
+        "quote": match parent { Some(p) => quote_of(m, p).await, None => Value::Null },
     }))
 }
 
