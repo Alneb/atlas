@@ -96,6 +96,78 @@ fn crossref_fields(w: &Json, doi: &str) -> Mapping {
     m
 }
 
+/// An ISBN in text (a book's copyright page: `ISBN 978-3-540-32897-1`, `ISBN-10: 0-19-…`), as its digits, checked:
+/// one marked `ISBN` first, else a bare 978/979 run; a number that fails its check digit is not one.
+pub fn parse_isbn(text: &str) -> Option<String> {
+    let low = text.to_ascii_lowercase(); // offsets kept: ASCII only
+    let digits_at = |from: usize| -> String {
+        text[from..].chars().skip_while(|c| !c.is_ascii_digit()).take_while(|c| c.is_ascii_digit() || matches!(c, '-' | 'X' | 'x')).filter(|c| *c != '-').collect::<String>().to_ascii_uppercase()
+    };
+    // the mark's own `-10` / `-13` / `13:` is a label, not the number
+    let label = |at: usize| ["-10", "-13", "10", "13"].iter().find(|p| low[at..].starts_with(*p) && !low[at + p.len()..].starts_with(|c: char| c.is_ascii_digit() || c == '-')).map_or(0, |p| p.len());
+    let marked = low.match_indices("isbn").map(|(i, _)| digits_at(i + 4 + label(i + 4))).map(|d| if d.len() > 13 { d[..13].to_string() } else { d });
+    let bare = text.char_indices().filter(|(i, _)| low[*i..].starts_with("978") || low[*i..].starts_with("979")).filter(|(i, _)| *i == 0 || !text[..*i].ends_with(|c: char| c.is_ascii_digit())).map(|(i, _)| digits_at(i).chars().take(13).collect::<String>());
+    marked.chain(bare).find(|d| isbn_valid(d))
+}
+
+/// ISBN-10's mod 11 or ISBN-13's mod 10 check.
+fn isbn_valid(d: &str) -> bool {
+    let v: Vec<u32> = d.chars().map(|c| if c == 'X' { 10 } else { c.to_digit(10).unwrap_or(99) }).collect();
+    match v.len() {
+        10 => v[..9].iter().all(|x| *x < 10) && v.iter().enumerate().map(|(i, x)| (10 - i as u32) * x).sum::<u32>() % 11 == 0,
+        13 => v.iter().all(|x| *x < 10) && v.iter().enumerate().map(|(i, x)| if i % 2 == 0 { *x } else { 3 * x }).sum::<u32>() % 10 == 0,
+        _ => false,
+    }
+}
+
+/// A book by its ISBN, as an entry's fields (`type: book`): Open Library, else Google Books.
+pub fn isbn_book(net: &dyn Net, isbn: &str) -> Result<Mapping, String> {
+    let ol = net.json(&format!("https://openlibrary.org/api/books?bibkeys=ISBN:{isbn}&format=json&jscmd=data")).ok();
+    let b = ol.as_ref().map(|j| &j[format!("ISBN:{isbn}").as_str()]).filter(|b| b["title"].is_string());
+    let mut m = Mapping::new();
+    m.insert("type".into(), "book".into());
+    let put = |m: &mut Mapping, k: &str, v: Option<String>| {
+        if let Some(v) = v.map(|x| x.trim().to_string()).filter(|x| !x.is_empty()) {
+            m.insert(k.into(), v.into());
+        }
+    };
+    let names = |a: &Json, key: &str| -> Vec<Value> { a.as_array().into_iter().flatten().filter_map(|x| if key.is_empty() { x.as_str() } else { x[key].as_str() }).map(|n| Value::from(last_first(n))).collect() };
+    if let Some(b) = b {
+        let title = match b["subtitle"].as_str() {
+            Some(sub) => format!("{}: {sub}", b["title"].as_str().unwrap_or_default()),
+            None => b["title"].as_str().unwrap_or_default().to_string(),
+        };
+        put(&mut m, "title", Some(title));
+        m.insert("author".into(), Value::Sequence(names(&b["authors"], "name")));
+        put(&mut m, "date", b["publish_date"].as_str().and_then(year_in).map(String::from));
+        put(&mut m, "publisher", b["publishers"][0]["name"].as_str().map(String::from));
+        put(&mut m, "numPages", b["number_of_pages"].as_u64().map(|n| n.to_string()));
+        put(&mut m, "url", b["url"].as_str().map(String::from));
+    } else {
+        let g = net.json(&format!("https://www.googleapis.com/books/v1/volumes?q=isbn:{isbn}"))?;
+        let v = &g["items"][0]["volumeInfo"];
+        if !v["title"].is_string() {
+            return Err(format!("ISBN {isbn}: neither Open Library nor Google Books knows it"));
+        }
+        let title = match v["subtitle"].as_str() {
+            Some(sub) => format!("{}: {sub}", v["title"].as_str().unwrap_or_default()),
+            None => v["title"].as_str().unwrap_or_default().to_string(),
+        };
+        put(&mut m, "title", Some(title));
+        m.insert("author".into(), Value::Sequence(names(&v["authors"], "")));
+        put(&mut m, "date", v["publishedDate"].as_str().and_then(year_in).map(String::from));
+        put(&mut m, "publisher", v["publisher"].as_str().map(String::from));
+        put(&mut m, "numPages", v["pageCount"].as_u64().map(|n| n.to_string()));
+    }
+    put(&mut m, "ISBN", Some(isbn.to_string()));
+    Ok(m)
+}
+
+/// The first four-digit year in a free-form date ("June 2010", "2010-06-01").
+fn year_in(d: &str) -> Option<&str> {
+    d.as_bytes().windows(4).position(|w| w.iter().all(u8::is_ascii_digit) && matches!(w[0], b'1' | b'2')).map(|i| &d[i..i + 4])
+}
+
 fn strip_tags(x: &str) -> String {
     let mut out = String::new();
     let mut tag = false;
@@ -408,6 +480,34 @@ fn absolute(u: &str, page: &str) -> String {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn an_isbn_is_found_on_a_copyright_page_and_checked() {
+        let page = "Springer\nISBN 978-3-540-32897-1 e-ISBN 978-3-540-32899-8\nDOI 10.1007/978-3-540-32899-8\n";
+        assert_eq!(super::parse_isbn(page).as_deref(), Some("9783540328971"));
+        assert_eq!(super::parse_isbn("ISBN-10: 0-306-40615-2").as_deref(), Some("0306406152"));
+        assert_eq!(super::parse_isbn("call 978-3-540-32897-2 now"), None, "a bad check digit");
+        assert_eq!(super::parse_isbn("printed 9783540328971."), Some("9783540328971".into()), "bare, no mark");
+        assert_eq!(super::parse_isbn("no number here"), None);
+    }
+
+    #[test]
+    fn a_book_comes_from_open_library_else_google_books() {
+        use crate::net::fake::{Answer, Table};
+        let ol = serde_json::json!({ "ISBN:9783540328971": { "title": "Group Theory", "subtitle": "Application to the Physics of Condensed Matter",
+            "authors": [{ "name": "Mildred S. Dresselhaus" }, { "name": "Gene Dresselhaus" }], "publish_date": "2008", "publishers": [{ "name": "Springer" }], "number_of_pages": 582 } });
+        let net = Table::default().on("https://openlibrary.org/api/books?bibkeys=ISBN:9783540328971", Answer::Json(ol));
+        let m = super::isbn_book(&net, "9783540328971").unwrap();
+        let get = |k: &str| m.get(k).and_then(|v| v.as_str()).map(String::from);
+        assert_eq!(get("title").as_deref(), Some("Group Theory: Application to the Physics of Condensed Matter"));
+        assert_eq!((get("type").as_deref(), get("date").as_deref(), get("publisher").as_deref(), get("ISBN").as_deref()), (Some("book"), Some("2008"), Some("Springer"), Some("9783540328971")));
+        assert_eq!(m.get("author").and_then(|a| a.as_sequence()).map(|a| a[0].as_str().unwrap().to_string()).as_deref(), Some("Dresselhaus, Mildred S."));
+        let g = serde_json::json!({ "items": [{ "volumeInfo": { "title": "Some Book", "authors": ["Ada Lovelace"], "publishedDate": "1843-01-01", "pageCount": 120 } }] });
+        let net = Table::default().on("https://openlibrary.org/", Answer::Json(serde_json::json!({}))).on("https://www.googleapis.com/books/v1/volumes?q=isbn:0306406152", Answer::Json(g));
+        let m = super::isbn_book(&net, "0306406152").unwrap();
+        assert_eq!(m.get("title").and_then(|v| v.as_str()), Some("Some Book"));
+        assert_eq!(m.get("date").and_then(|v| v.as_str()), Some("1843"));
+    }
+
     use super::*;
     use crate::net::fake::{Answer, Table};
     use serde_json::json;

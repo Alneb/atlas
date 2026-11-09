@@ -77,9 +77,10 @@
     return post(`${plugin}/fetch`, req);
   }
   async function fetchText(url, opts = {}) {
-    const { method = "GET", headers = {}, body, timeout = 20, every = 0, missing = [404], waits = [2, 6] } = opts;
+    const { method = "GET", headers = {}, body, timeout = 20, every = 0, missing = [404], waits = [2, 6], quiet = false } = opts;
     const site = hostOf(url);
     const req = { url, method, headers, timeout_secs: timeout };
+    if (quiet) req.quiet = true; // a sign-in met is not offered to the user (one try among several)
     if (body !== undefined) req.body = typeof body === "string" ? body : JSON.stringify(body);
     let pause = 0;
     for (let attempt = 0; attempt <= waits.length; attempt++) {
@@ -115,12 +116,13 @@
 
   // Downloads stream to disk in the core (`save_to`: the plugin's cache, or `remote`), never through the script.
   async function download(url, saveTo, opts = {}) {
-    const res = await fetchResponse({ url, headers: opts.headers || {}, timeout_secs: opts.timeout ?? 120, save_to: saveTo, save_in: opts.in });
+    const res = await fetchResponse({ url, headers: opts.headers || {}, timeout_secs: opts.timeout ?? 120, save_to: saveTo, save_in: opts.in, quiet: Boolean(opts.quiet) });
     return { ...res, head: res.ok && res.saved && !opts.in ? native("cache.head", { name: saveTo, bytes: 8 }) : "" };
   }
-  /** For a papers PDF source: `url` into the cache's `pdf/<key>.pdf`, where catalog-papers takes it; true when a PDF came. */
+  /** For a papers PDF source: `url` into the cache's `pdf/<key>.pdf`, where catalog-papers takes it; true when a PDF came.
+   *  Quiet: a source is one try among several, and catalog-papers offers a sign-in once when none had the PDF. */
   async function attachPdf(key, url, opts = {}) {
-    const got = await download(url, `pdf/${String(key).replace(/[^\w.-]/g, "_")}.pdf`, { headers: opts.headers, timeout: opts.timeout ?? 120 });
+    const got = await download(url, `pdf/${String(key).replace(/[^\w.-]/g, "_")}.pdf`, { headers: opts.headers, timeout: opts.timeout ?? 120, quiet: opts.quiet ?? true });
     return Boolean(got.ok && got.saved && got.head.startsWith("%PDF"));
   }
 

@@ -4,7 +4,7 @@
 
 ## Use Atlas's tools before the files
 
-Agents use the MCP before touching files directly. An agent working in a vault reaches it through **`atlas mcp`** first (register it in the agent's MCP config, e.g. `.mcp.json`): `atlas_search` to find, `atlas_new_note` (with `atlas_templates`) to create a note, `atlas_context` for what the user is looking at, `atlas_open` to show a file, `atlas_run` / `atlas_commands` for the vault's commands, and the plugins' tools (`email_*`, `ssh_*`, `claude_usage_*`, …). A tool keeps the vault's templates, properties, indexes and the user's open editors right; a direct file edit can miss all of them. Edit a file directly only for what no tool does — and say so. The MCP server repeats this to every agent that connects (`crates/atlas/src/mcp.rs`, `INSTRUCTIONS`).
+Agents use the MCP before touching files directly. An agent working in a vault reaches it through **`atlas mcp`** first (register it in the agent's MCP config, e.g. `.mcp.json`): `atlas_search` to find, `atlas_new_note` (with `atlas_templates`) to create a note, `atlas_context` for what the user is looking at, `atlas_open` to show a file, `atlas_tasks` / `atlas_task_done` for the vault's tasks (a new one through `atlas_capture`, `[] text @date`), `atlas_run` / `atlas_commands` for the vault's commands, and the plugins' tools (`email_*`, `ssh_*`, `claude_usage_*`, …). A tool keeps the vault's templates, properties, indexes and the user's open editors right; a direct file edit can miss all of them. Edit a file directly only for what no tool does — and say so. The MCP server repeats this to every agent that connects (`crates/atlas/src/mcp.rs`, `INSTRUCTIONS`).
 
 ## The one rule about scope
 

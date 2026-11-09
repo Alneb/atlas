@@ -608,28 +608,6 @@ fn titled(kind: &Kind, m: &mut Merged, url: Option<&str>, say: &mut Narration) {
     }
 }
 
-/// `%20` → ` `: a path segment as its owner named it (a file's name is usually typed with spaces). A `%` not followed by
-/// two hex digits is kept; bytes that are not UTF-8 become U+FFFD.
-fn percent_decoded(s: &str) -> String {
-    let b = s.as_bytes();
-    let mut out = Vec::with_capacity(b.len());
-    let mut i = 0;
-    while i < b.len() {
-        let hex = |c: u8| (c as char).to_digit(16);
-        match (b[i], b.get(i + 1).copied().and_then(hex), b.get(i + 2).copied().and_then(hex)) {
-            (b'%', Some(h), Some(l)) => {
-                out.push((h * 16 + l) as u8);
-                i += 3;
-            }
-            (c, _, _) => {
-                out.push(c);
-                i += 1;
-            }
-        }
-    }
-    String::from_utf8_lossy(&out).into_owned()
-}
-
 /// `…/questions/11227809/why-is-processing-a-sorted-array-faster` → "Why is processing a sorted array faster": the
 /// last path segment that is words, not a number or an id (percent-decoded first: `Group%20Theory.pdf` is two words);
 /// else the site's name.
@@ -644,7 +622,7 @@ pub fn title_from_url(url: &str) -> Option<String> {
         !ROUTES.contains(&s.to_lowercase().as_str())
             && (s.chars().filter(|c| c.is_alphabetic()).count() >= 3 && s.chars().any(|c| matches!(c, '-' | '_' | '+' | ' ')) || s.chars().all(|c| c.is_alphabetic()) && s.len() >= 4)
     };
-    let segs: Vec<String> = parts.filter(|s| !s.is_empty()).map(percent_decoded).collect();
+    let segs: Vec<String> = parts.filter(|s| !s.is_empty()).map(atlas_text::links::percent_decoded).collect();
     let seg = segs.iter().map(String::as_str).rev().find(wordy);
     let words = match seg {
         Some(s) => {
@@ -1062,6 +1040,6 @@ mod tests {
         assert_eq!(title_from_url("https://files.example.org/Livros/Group%20Theory%20Application%20to%20Condensed%20Matter.pdf").as_deref(), Some("Group Theory Application to Condensed Matter"));
         assert_eq!(title_from_url("https://files.example.org/Livros/Dresselhaus%20-%20Group%20Theory%20(2010).pdf").as_deref(), Some("Dresselhaus Group Theory (2010)"));
         assert_eq!(title_from_url("https://files.example.org/books/Teor%C3%ADa%20de%20grupos.pdf").as_deref(), Some("Teoría de grupos"));
-        assert_eq!(percent_decoded("100%25 and 50% off"), "100% and 50% off");
+        assert_eq!(atlas_text::links::percent_decoded("100%25 and 50% off"), "100% and 50% off");
     }
 }

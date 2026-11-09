@@ -29,6 +29,8 @@ export interface FetchOptions {
   missing?: number[];
   /** Seconds to wait before each new try after a busy answer (429, 502–504) or a dropped connection (default [2, 6]). */
   waits?: number[];
+  /** A sign-in page met is not offered to the user: for one try among several (a PDF source's mirrors). */
+  quiet?: boolean;
 }
 
 /** One element `html.select` matched. */
@@ -95,9 +97,10 @@ export interface AtlasHelper {
   /** The core's whole answer (status, headers, `signin`, `saved`), for a request built by hand. */
   fetchResponse(req: FetchRequest): Promise<FetchResponse>;
   /** `url` streamed by the core into the plugin's cache at `saveTo` (or `.atlas/remote/<id>/` with `in: "remote"`). */
-  download(url: string, saveTo: string, opts?: { headers?: Record<string, HeaderValue>; timeout?: number; in?: "cache" | "remote" }): Promise<Download>;
-  /** For a papers PDF source: true when `url` gave a PDF, now in this plugin's cache where catalog-papers takes it. */
-  attachPdf(key: string, url: string, opts?: { headers?: Record<string, HeaderValue>; timeout?: number }): Promise<boolean>;
+  download(url: string, saveTo: string, opts?: { headers?: Record<string, HeaderValue>; timeout?: number; in?: "cache" | "remote"; quiet?: boolean }): Promise<Download>;
+  /** For a papers PDF source: true when `url` gave a PDF, now in this plugin's cache where catalog-papers takes it.
+   *  Quiet by default (a source is one try among several); `quiet: false` offers a sign-in met. */
+  attachPdf(key: string, url: string, opts?: { headers?: Record<string, HeaderValue>; timeout?: number; quiet?: boolean }): Promise<boolean>;
 
   /** Addresses, without a URL class: Python's `quote(s, safe = "/")` (`!'()*` escaped too), and `ref` read against `base`
    *  (absolute, `//host/x`, `/x`, `x`). */

@@ -81,6 +81,8 @@ pub struct ImportOpts {
     pub kind: Option<String>,
     pub collections: Vec<String>,
     pub keep_name: bool,
+    /// Where the PDF was fetched from (a captured link), kept as the entry's `url`.
+    pub url: Option<String>,
 }
 
 /// What `fold_all` did (or would do): the entries with an `info.yaml` and how many fields each has, and where the
@@ -432,11 +434,15 @@ impl Lib<'_> {
                 return Ok(PaperAdded { paper: p, created: false, pdf: true, gate: None });
             }
         }
-        let text = pdf_text(bytes);
+        let (text, pages) = pdf_text(bytes);
         let id = parse_doi(&text).or_else(|| parse_arxiv(&text).map(|a| format!("arXiv:{a}")));
+        // a DOI or arXiv id gives the paper (a book's DOI, a book); else its ISBN, the book; else the file's name
         let mut added = match id.and_then(|i| self.add(&i).ok()) {
             Some(a) => a,
-            None => self.entry_named_after(name)?,
+            None => match remote::parse_isbn(&text).and_then(|i| remote::isbn_book(self.net, &i).ok()) {
+                Some(book) => self.new_entry(book)?,
+                None => self.entry_named_after(name, pages)?,
+            },
         };
         // the user's own file: under its own name when asked (first among the files), else `<key>.pdf` when it has none
         let dir = safe_join(self.root, &added.paper.dir)?;
@@ -458,6 +464,10 @@ impl Lib<'_> {
             m.insert("type".into(), kind.into());
             changed = true;
         }
+        if let Some(url) = opts.url.as_deref().filter(|u| !u.is_empty() && !m.contains_key("url")) {
+            m.insert("url".into(), url.into());
+            changed = true;
+        }
         if !opts.collections.is_empty() {
             join_all(&mut m, "collections", opts.collections.iter().map(|c| Value::from(c.as_str())));
             changed = true;
@@ -471,9 +481,24 @@ impl Lib<'_> {
         Ok(added)
     }
 
-    /// An entry for a PDF without identifiers: its title from the file's name.
-    fn entry_named_after(&self, name: &str) -> Res<PaperAdded> {
-        let stem = name.rsplit('/').next().unwrap_or(name).trim_end_matches(".pdf").trim_end_matches(".PDF");
+    /// A new entry from an index's fields (a book by its ISBN): its citekey, folder and note, as `add` makes them.
+    fn new_entry(&self, mut m: Mapping) -> Res<PaperAdded> {
+        let title = s(&m, "title").unwrap_or_default();
+        let year = s(&m, "date").and_then(|d| d.get(..4).map(String::from));
+        let key = self.next_citekey(&list(&m, "author"), year.as_deref(), &title)?;
+        let dir = self.base()?.join(&key);
+        std::fs::create_dir_all(&dir).map_err(io(&dir))?;
+        m.insert("citekey".into(), key.clone().into());
+        m.insert("dateAdded".into(), now_stamp().into());
+        let paper = self.saved(&dir, &key, &m)?;
+        Ok(PaperAdded { paper, created: true, pdf: false, gate: None })
+    }
+
+    /// An entry for a PDF without identifiers: its title from the file's name (percent-decoded, as a link names it);
+    /// a long one (past [`BOOK_PAGES`]) is a book, not a paper.
+    fn entry_named_after(&self, name: &str, pages: usize) -> Res<PaperAdded> {
+        let name = atlas_text::links::percent_decoded(name);
+        let stem = name.rsplit('/').next().unwrap_or(&name).trim_end_matches(".pdf").trim_end_matches(".PDF");
         let title: String = stem.replace(['_', '-'], " ").split_whitespace().collect::<Vec<_>>().join(" ");
         let base = self.base()?;
         let key = citekey(&[], None, &title, &|k| base.join(k).exists());
@@ -481,7 +506,10 @@ impl Lib<'_> {
         std::fs::create_dir_all(&dir).map_err(io(&dir))?;
         let mut m = Mapping::new();
         m.insert("title".into(), title.into());
-        m.insert("type".into(), "document".into());
+        m.insert("type".into(), if pages > BOOK_PAGES { "book" } else { "document" }.into());
+        if pages > 0 {
+            m.insert("numPages".into(), pages.to_string().into());
+        }
         m.insert("citekey".into(), key.clone().into());
         m.insert("dateAdded".into(), now_stamp().into());
         self.save(&dir, &m)?;
@@ -636,12 +664,18 @@ fn sha(bytes: &[u8]) -> [u8; 32] {
     sha2::Sha256::digest(bytes).into()
 }
 
-/// Text of a PDF's first two pages, read in Rust (pdf_oxide: no poppler needed); empty when it cannot be read.
-fn pdf_text(bytes: &[u8]) -> String {
-    let read = || -> Option<String> {
+/// Pages read for identifiers: a book's ISBN and DOI sit on its copyright page, past the title pages (p. 4–6).
+const ID_PAGES: usize = 8;
+/// A PDF with no identifiers and more pages than this is filed as a book.
+const BOOK_PAGES: usize = 100;
+
+/// Text of a PDF's first [`ID_PAGES`] pages and its page count, read in Rust (pdf_oxide: no poppler needed); empty
+/// and 0 when it cannot be read.
+fn pdf_text(bytes: &[u8]) -> (String, usize) {
+    let read = || -> Option<(String, usize)> {
         let doc = pdf_oxide::PdfDocument::from_bytes(bytes.to_vec()).ok()?;
-        let pages = doc.page_count().ok()?.min(2);
-        Some((0..pages).map(|i| doc.extract_text(i).unwrap_or_default()).collect::<Vec<_>>().join("\x0c"))
+        let count = doc.page_count().ok()?;
+        Some(((0..count.min(ID_PAGES)).map(|i| doc.extract_text(i).unwrap_or_default()).collect::<Vec<_>>().join("\x0c"), count))
     };
     std::panic::catch_unwind(read).ok().flatten().unwrap_or_default() // a malformed PDF never stops an import
 }
@@ -726,7 +760,7 @@ pub mod tests {
     fn a_pdf_is_filed_with_its_type_collection_and_own_name() {
         let v = Vault::new();
         let lib = v.lib();
-        let opts = ImportOpts { kind: Some("book".into()), collections: vec!["Many-body".into()], keep_name: true };
+        let opts = ImportOpts { kind: Some("book".into()), collections: vec!["Many-body".into()], keep_name: true, ..Default::default() };
         let a = lib.import_pdf_with("Coleman - Introduction to Many-Body Physics.pdf", b"%PDF-1.4\n%%EOF\n", &opts).unwrap();
         assert_eq!(a.paper.pdf.as_deref(), Some(format!("{}/Coleman - Introduction to Many-Body Physics.pdf", a.paper.dir).as_str()));
         let info = std::fs::read_to_string(v.root.join(&a.paper.dir).join(format!("{}.md", a.paper.key))).unwrap();

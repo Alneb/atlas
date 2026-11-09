@@ -1003,18 +1003,7 @@ fn may_reveal_outside(signed_in_server: bool, peer: std::net::IpAddr) -> bool {
 
 async fn task_tick(State(st): S, Json(t): Json<TaskRef>) -> Result<StatusCode> {
     let path = t.path.clone();
-    with_ws(&st, move |ws| {
-        let p = ws.resolve(&t.path)?;
-        vault_write::modify(&p, |text| {
-            let want = t.text.as_deref().map(str::trim).filter(|w| !w.is_empty());
-            let at = text.split('\n').nth((t.line as usize).saturating_sub(1)).unwrap_or_default();
-            if want.is_some_and(|w| !at.contains(w)) {
-                return Err(Error::Conflict { current: None });
-            }
-            crate::today::tick_task(text, t.line).ok_or(Error::Conflict { current: None })
-        })
-    })
-    .await?;
+    with_ws(&st, move |ws| crate::today::tick_ref(&ws, &t)).await?;
     st.bus.publish(Event::Fs { paths: vec![path] });
     Ok(StatusCode::NO_CONTENT)
 }

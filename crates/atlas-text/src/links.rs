@@ -2,6 +2,28 @@
 //! `igsh` from Instagram, `utm_*`, `fbclid`, `feature=share…`) taken off, so a capture, the catalog or a downloader
 //! keeps the item's own address. By shape: any such parameter on any site; the rest of the address is kept as it was.
 
+/// `%20` → ` `: a path segment as its owner named it (a file's name is usually typed with spaces). A `%` not followed by
+/// two hex digits is kept; bytes that are not UTF-8 become U+FFFD.
+pub fn percent_decoded(s: &str) -> String {
+    let b = s.as_bytes();
+    let mut out = Vec::with_capacity(b.len());
+    let mut i = 0;
+    while i < b.len() {
+        let hex = |c: u8| (c as char).to_digit(16);
+        match (b[i], b.get(i + 1).copied().and_then(hex), b.get(i + 2).copied().and_then(hex)) {
+            (b'%', Some(h), Some(l)) => {
+                out.push((h * 16 + l) as u8);
+                i += 3;
+            }
+            (c, _, _) => {
+                out.push(c);
+                i += 1;
+            }
+        }
+    }
+    String::from_utf8_lossy(&out).into_owned()
+}
+
 /// A query parameter (`key` or `key=value`) that only says how a link was shared.
 pub fn is_tracking(param: &str) -> bool {
     let key = param.split('=').next().unwrap_or(param);

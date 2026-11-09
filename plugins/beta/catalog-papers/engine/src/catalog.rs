@@ -12,12 +12,14 @@ use serde_json::{json, Map, Value};
 pub struct Ids {
     pub doi: Option<String>,
     pub arxiv: Option<String>,
+    /// A link straight to a PDF (a captured `….pdf`): downloaded and read for its identifiers.
+    pub pdf: Option<String>,
 }
 
 impl Ids {
     pub fn of(params: &Value) -> Ids {
         let one = |k: &str| params["ids"][k].as_str().map(str::trim).filter(|v| !v.is_empty()).map(String::from);
-        Ids { doi: one("doi"), arxiv: one("arxiv") }
+        Ids { doi: one("doi"), arxiv: one("arxiv"), pdf: one("pdf") }
     }
 
     /// The DOI to ask OpenAlex about: the paper's own, else its arXiv DOI.
@@ -225,10 +227,11 @@ pub fn add(lib: &Lib, params: &Value, sources_of: &dyn Fn() -> Res<Map<String, V
         return Ok(json!({ "path": path }));
     }
     let ids = Ids::of(params);
-    let ident = match (&ids.arxiv, &ids.doi) {
-        (Some(a), None) => format!("arXiv:{a}"),
-        (_, Some(d)) => d.clone(),
-        (None, None) => return Err("a paper needs a DOI or an arXiv id".into()),
+    let ident = match (&ids.arxiv, &ids.doi, &ids.pdf) {
+        (Some(a), None, _) => format!("arXiv:{a}"),
+        (_, Some(d), _) => d.clone(),
+        (None, None, Some(url)) => return add_pdf_link(lib, url),
+        (None, None, None) => return Err("a paper needs a DOI, an arXiv id or a link to its PDF".into()),
     };
     let added = lib.add(&ident)?;
     let key = added.paper.key.clone();
@@ -247,9 +250,22 @@ pub fn add(lib: &Lib, params: &Value, sources_of: &dyn Fn() -> Res<Map<String, V
     if let Some(from) = &found.from {
         out["notice"] = format!("PDF from {from}").into();
     } else if !found.pdf && !found.tried.is_empty() {
-        out["notice"] = format!("No PDF found ({})", found.tried.join("; ")).into();
+        // one short line: which sources were asked, not each one's error
+        let asked: Vec<&str> = found.tried.iter().map(|t| t.split(':').next().unwrap_or(t).trim()).collect();
+        out["notice"] = format!("No PDF found (asked {})", asked.join(", ")).into();
     }
     Ok(out)
+}
+
+/// A link to a PDF: the file fetched and imported as a dropped one is (its first pages read for a DOI, arXiv id or
+/// ISBN; else named after the file), keeping its own name and the link as `url`.
+fn add_pdf_link(lib: &Lib, url: &str) -> Res<Value> {
+    let bytes = lib.net.pdf(url).map_err(|e| e.to_string())?;
+    let name = url.split(['?', '#']).next().unwrap_or(url).rsplit('/').next().filter(|n| !n.is_empty()).unwrap_or("document.pdf");
+    let name = atlas_text::links::percent_decoded(name);
+    let opts = crate::refs::ImportOpts { keep_name: true, url: Some(url.to_string()), ..Default::default() };
+    let added = lib.import_pdf_with(&name, &bytes, &opts)?;
+    Ok(json!({ "path": lib.note(&added.paper.key)?, "created": added.created, "pdf": true }))
 }
 
 #[cfg(test)]

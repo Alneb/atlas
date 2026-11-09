@@ -46,6 +46,15 @@ fn builtin_tools() -> Value {
         {"name": "atlas_notify", "description": "Show a toast in the Atlas window (e.g. a long job finished).", "inputSchema": s(json!({"title": {"type": "string"}, "body": {"type": "string"}}), &["title"])},
         {"name": "atlas_capture", "description": "Append a timestamped line to today's log (the user's capture inbox). Only when the user asks.", "inputSchema": s(json!({"text": {"type": "string"}}), &["text"])},
         {"name": "atlas_today", "description": "Today's focus file, log, open tasks and recent activity (commits, changed files).", "inputSchema": s(json!({}), &[])},
+        {"name": "atlas_tasks", "description": "The vault's tasks (Markdown `- [ ]` lines in every note, the Obsidian Tasks plugin's fields read): each one's path, line, text, title, due/scheduled/start dates, priority, tags. Open ones by default.", "inputSchema": s(json!({
+            "status": {"type": "string", "enum": ["open", "done", "all"], "description": "default: open"},
+            "query": {"type": "string", "description": "words the task must contain (case-insensitive), e.g. a #tag or a name"},
+            "due_by": {"type": "string", "description": "YYYY-MM-DD: only tasks due (or scheduled) on or before that day"},
+            "limit": {"type": "integer", "description": "default 200"}
+        }), &[])},
+        {"name": "atlas_task_done", "description": "Tick one task as done, as the user's checkbox does (the Tasks plugin's ✅ date; a recurring task gets its next occurrence). Give path, line and text as atlas_tasks listed them; a line that changed since is refused. To add a task, use atlas_capture with `[] text @date`.", "inputSchema": s(json!({
+            "path": {"type": "string"}, "line": {"type": "integer", "description": "1-based, from atlas_tasks"}, "text": {"type": "string", "description": "the task's text from atlas_tasks"}
+        }), &["path", "line", "text"])},
         {"name": "atlas_search", "description": "Search workspace file names and contents (ripgrep, honors the Atlas ignore list).", "inputSchema": s(json!({"query": {"type": "string"}}), &["query"])},
         {"name": "atlas_commands", "description": "List Atlas commands (built-ins and the workspace's .atlas/commands scripts).", "inputSchema": s(json!({}), &[])},
         {"name": "atlas_run", "description": "Run an Atlas command by id with JSON args (see atlas_commands).", "inputSchema": s(json!({"id": {"type": "string"}, "args": {"type": "object"}}), &["id"])},
@@ -72,6 +81,18 @@ async fn call(ws: &Workspace, local: &atlas_core::helper::Helpers, server: Optio
             Some(s) => s.get("/api/today").await?,
             None => serde_json::to_value(today::today(ws.root(), &ws.config()?)?)?,
         },
+        "atlas_tasks" => tasks_listed(ws, a)?,
+        "atlas_task_done" => {
+            let line = a["line"].as_u64().and_then(|l| u32::try_from(l).ok()).ok_or_else(|| anyhow!("missing argument `line`"))?;
+            let t = atlas_core::api::TaskRef { path: str_arg("path")?, line, text: Some(str_arg("text")?) };
+            match server {
+                Some(s) => s.post("/api/task/tick", &serde_json::to_value(&t)?, std::time::Duration::from_secs(30)).await?,
+                None => {
+                    today::tick_ref(ws, &t)?;
+                    json!({})
+                }
+            }
+        }
         "atlas_search" => serde_json::to_value(search::search(ws.root(), &ws.config()?, &str_arg("query")?))?,
         "atlas_commands" => serde_json::to_value(commands::list(ws.root()))?,
         "atlas_run" => run(ws, server, &str_arg("id")?, a.get("args").cloned().unwrap_or(json!({}))).await?,
@@ -88,6 +109,38 @@ async fn call(ws: &Workspace, local: &atlas_core::helper::Helpers, server: Optio
         }
         other => return plugin_tool(ws, local, server, other, a).await,
     })
+}
+
+/// `atlas_tasks`: the vault's tasks, read from the files (the same scan as Home's), filtered as asked.
+fn tasks_listed(ws: &Workspace, a: &Value) -> Result<Value> {
+    let status = a["status"].as_str().unwrap_or("open");
+    let words: Vec<String> = a["query"].as_str().unwrap_or("").to_lowercase().split_whitespace().map(String::from).collect();
+    let by = match a["due_by"].as_str() {
+        Some(d) => Some(chrono::NaiveDate::parse_from_str(d, "%Y-%m-%d").map_err(|_| anyhow!("`due_by` is YYYY-MM-DD"))?),
+        None => None,
+    };
+    let limit = a["limit"].as_u64().unwrap_or(200) as usize;
+    let out: Vec<Value> = today::all_tasks(ws.root(), &ws.config()?)
+        .into_iter()
+        .filter(|(_, done)| match status {
+            "done" => *done,
+            "all" => true,
+            _ => !*done,
+        })
+        .filter(|(h, _)| {
+            let low = h.text.to_lowercase();
+            words.iter().all(|w| low.contains(w.as_str()))
+        })
+        .map(|(h, done)| (atlas_core::tasks::parse(&h.text), h, done))
+        .filter(|(t, _, _)| by.is_none_or(|by| t.due.or(t.scheduled).is_some_and(|d| d <= by)))
+        .take(limit)
+        .map(|(t, h, done)| {
+            let day = |d: Option<chrono::NaiveDate>| d.map(|d| d.to_string());
+            json!({ "path": h.path, "line": h.line, "text": h.text, "done": done, "title": t.title, "due": day(t.due), "scheduled": day(t.scheduled),
+                    "start": day(t.start), "priority": format!("{:?}", t.priority).to_lowercase(), "tags": t.tags, "recurrence": t.recurrence })
+        })
+        .collect();
+    Ok(json!({ "tasks": out }))
 }
 
 /// A plugin's tool: in the window's helper when the window is open (the session the user sees),

@@ -47,13 +47,41 @@ fn handshake_tools_and_offline_calls() {
     assert_eq!(replies.len(), 7, "the notification gets no reply: {replies:?}");
     assert_eq!(replies[0]["result"]["serverInfo"]["name"], "atlas");
     let names: Vec<&str> = replies[1]["result"]["tools"].as_array().unwrap().iter().map(|t| t["name"].as_str().unwrap()).collect();
-    assert!(names.contains(&"atlas_context") && names.contains(&"atlas_open") && names.len() == 10, "{names:?}");
+    assert!(names.contains(&"atlas_context") && names.contains(&"atlas_open") && names.contains(&"atlas_tasks") && names.len() == 12, "{names:?}");
     assert!(replies[2]["result"]["isError"].is_null(), "{}", replies[2]);
     let today = replies[3]["result"]["content"][0]["text"].as_str().unwrap();
     assert!(today.contains("cumulant periodization") && today.contains("Mott transition"), "{today}");
     assert!(replies[4]["result"]["content"][0]["text"].as_str().unwrap().contains("hubbard.md"));
     assert_eq!(replies[5]["result"]["isError"], true, "context needs the window");
     assert_eq!(replies[6]["error"]["code"], -32601);
+}
+
+#[test]
+fn tasks_are_listed_filtered_and_ticked_through_the_one_tick() {
+    let d = tempfile::tempdir().unwrap();
+    std::fs::write(d.path().join("plan.md"), "# Plan\n- [ ] write the DMFT section #thesis 📅 2026-11-10\n- [ ] buy milk\n- [x] old one ✅ 2026-11-01\n").unwrap();
+    let text = |r: &Value| serde_json::from_str::<Value>(r["result"]["content"][0]["text"].as_str().unwrap()).unwrap();
+    let replies = session(
+        d.path(),
+        &[
+            call(1, "atlas_tasks", json!({})),
+            call(2, "atlas_tasks", json!({"query": "#thesis", "due_by": "2026-11-30"})),
+            call(3, "atlas_tasks", json!({"status": "done"})),
+            call(4, "atlas_task_done", json!({"path": "plan.md", "line": 2, "text": "write the DMFT section"})),
+            call(5, "atlas_task_done", json!({"path": "plan.md", "line": 3, "text": "something else"})),
+            call(6, "atlas_tasks", json!({"due_by": "soon"})),
+        ],
+    );
+    let open = text(&replies[0]);
+    assert_eq!(open["tasks"].as_array().unwrap().len(), 2, "{open}");
+    let thesis = text(&replies[1]);
+    assert_eq!(thesis["tasks"].as_array().unwrap().len(), 1, "{thesis}");
+    assert_eq!((thesis["tasks"][0]["due"].as_str(), thesis["tasks"][0]["line"].as_u64()), (Some("2026-11-10"), Some(2)));
+    assert_eq!(text(&replies[2])["tasks"].as_array().unwrap().len(), 1);
+    assert!(replies[3]["result"]["isError"].is_null(), "{}", replies[3]);
+    assert!(std::fs::read_to_string(d.path().join("plan.md")).unwrap().contains("- [x] write the DMFT section"), "ticked in the file");
+    assert_eq!(replies[4]["result"]["isError"], true, "a line that changed is refused");
+    assert_eq!(replies[5]["result"]["isError"], true, "a bad day is said");
 }
 
 #[test]

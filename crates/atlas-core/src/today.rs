@@ -101,6 +101,20 @@ pub fn without_done_date(line: &str) -> String {
     DONE.replace(line, "").into_owned()
 }
 
+/// Ticks the task `t` points at (1-based line), when that line still holds `t.text`: Home's box, the task blocks,
+/// an agent (`atlas_task_done`) — one path. A line that changed meanwhile is a conflict, nothing written.
+pub fn tick_ref(ws: &crate::Workspace, t: &crate::api::TaskRef) -> Result<()> {
+    let p = ws.resolve(&t.path)?;
+    crate::vault_write::modify(&p, |text| {
+        let want = t.text.as_deref().map(str::trim).filter(|w| !w.is_empty());
+        let at = text.split('\n').nth((t.line as usize).saturating_sub(1)).unwrap_or_default();
+        if want.is_some_and(|w| !at.contains(w)) {
+            return Err(crate::Error::Conflict { current: None });
+        }
+        tick_task(text, t.line).ok_or(crate::Error::Conflict { current: None })
+    })
+}
+
 /// Every task of the vault's notes, open and done (a task block that asks for done ones), in the
 /// order of [`scan_tasks`]; at most [`MAX_ALL_TASKS`].
 pub fn all_tasks(root: &Path, cfg: &Config) -> Vec<(LineHit, bool)> {

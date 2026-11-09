@@ -305,7 +305,9 @@ impl Server {
             let status = resp.status();
             return Err(anyhow::anyhow!("{status}: {}", resp.text().await.unwrap_or_default()));
         }
-        Ok(resp.json().await?)
+        // a route that answers 204 (a tick) has no body: null, not a parse error
+        let text = resp.text().await?;
+        Ok(if text.trim().is_empty() { Value::Null } else { serde_json::from_str(&text)? })
     }
 
     pub(crate) async fn cmd(&self, id: &str, args: Value) -> Result<Value> {

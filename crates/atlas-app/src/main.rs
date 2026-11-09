@@ -84,7 +84,29 @@ rows:
 /// this window (server_desktop.rs).
 async fn desktop_core(root: PathBuf) -> anyhow::Result<atlas_core::server::ServerHandle> {
     let vaults = atlas_core::server::Vaults::Desktop { first: root, list: atlas_core::vaults::list_file() };
-    atlas_core::server::serve_vaults(vaults, atlas_core::server::Listen::Local(0, atlas_core::local_lock::Lock::desktop())).await
+    let port = last_port().filter(|p| std::net::TcpListener::bind(("127.0.0.1", *p)).is_ok()).unwrap_or(0);
+    let core = atlas_core::server::serve_vaults(vaults, atlas_core::server::Listen::Local(port, atlas_core::local_lock::Lock::desktop())).await?;
+    keep_port(core.port());
+    Ok(core)
+}
+
+/// Where the desktop core's last port is kept. The page's origin is its address with the port, and the browser keeps
+/// IndexedDB and localStorage per origin: a new port at each start lost them all (TikZ pictures drawn again, every
+/// remembered pane and choice). So the core asks for its last port first, and takes any free one when it is in use.
+fn port_file() -> PathBuf {
+    atlas_core::platform::dirs::atlas(atlas_core::platform::dirs::Base::State).join("desktop-port")
+}
+
+fn last_port() -> Option<u16> {
+    std::fs::read_to_string(port_file()).ok()?.trim().parse().ok().filter(|p| *p >= 1024)
+}
+
+fn keep_port(port: u16) {
+    let file = port_file();
+    let _ = file.parent().map(std::fs::create_dir_all);
+    if let Err(e) = std::fs::write(&file, port.to_string()) {
+        eprintln!("atlas-app: the port is not kept for the next start ({}): {e}", file.display());
+    }
 }
 
 /// The capture box's page at a core's address or one-time link (`…/?k=code` → `…/capture.html?k=code`).

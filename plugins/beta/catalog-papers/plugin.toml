@@ -8,7 +8,7 @@
 title = "Catalog · Science"
 description = "everything science: papers by DOI or arXiv id into References, with metadata, the open-access PDF (arXiv, OpenAlex, Unpaywall, Semantic Scholar, Europe PMC, CORE), refs.bib and the Zotero connector"
 icon = "book"
-version = "0.4.4"
+version = "0.5.1"
 api = 19
 provides = ["references"]                 # the role the core and the page ask for (not this id)
 # no `requires`: References stands alone; its [contributes.catalog] patterns count only where the catalog runs
@@ -104,6 +104,9 @@ recognize = [
   { pattern = "(?i)\\b(?:doi:\\s*|doi\\.org/)?(10\\.\\d{4,9}/[^\\s\"<>]+[^\\s\"<>.,;)])", kind = "paper", id = "doi" },
   { pattern = "(?i)arxiv\\.org/(?:abs|pdf)/(\\d{4}\\.\\d{4,5})(?:v\\d+)?", kind = "paper", id = "arxiv" },
   { pattern = "(?i)\\barxiv:\\s*(\\d{4}\\.\\d{4,5})(?:v\\d+)?", kind = "paper", id = "arxiv" },
+  # a link straight to a PDF: in a vault with References, any PDF is one (downloaded, its first pages read for a DOI,
+  # arXiv id or ISBN, else named after the file; a long one is a book). A vault without it files PDFs as documents.
+  { pattern = "(?i)(https?://[^\\s<>\"]+\\.pdf(?:[?#][^\\s<>\"]*)?)", kind = "paper", id = "pdf" },
 ]
 sources = [{ kind = "paper", tool = "lookup", priority = 70, needs = ["doi", "arxiv"] }]
 
@@ -113,7 +116,7 @@ label = "Paper"
 type = "Literature"
 folder = "{setting:dir}"                # where References keeps them (the `dir` setting), filled in by the core (API 19)
 note_name = "{citekey}/{citekey}"
-ids = [{ id = "doi", property = "source", prefix = "https://doi.org/" }, { id = "arxiv", property = "source", prefix = "https://arxiv.org/abs/" }]
+ids = [{ id = "doi", property = "source", prefix = "https://doi.org/" }, { id = "arxiv", property = "source", prefix = "https://arxiv.org/abs/" }, { id = "pdf", property = "url" }]
 writer = { by = "plugin", plugin = "catalog-papers", tool = "add" }
 links = { catalog-linkwarden = false }
 library = { title = "Papers", layout = "table", group = "status", shelves = ["to-read", "reading", "read"], key = ["authors", "year", "journal"], icon = "book" }

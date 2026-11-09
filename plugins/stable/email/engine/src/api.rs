@@ -952,8 +952,10 @@ fn thunderbird_mail(m: &Arc<Mail>, p: &Value) -> Result<Value, String> {
 
 // ----- Claude's tools, with the user's permission (the card's `claude`: ask, always, never)
 
-/// Questions put to the page (an event with an id) until it answers through `consent_answer`: id → its answer.
-static ASKS: LazyLock<(Mutex<HashMap<String, Option<String>>>, Condvar)> = LazyLock::new(|| (Mutex::new(HashMap::new()), Condvar::new()));
+/// Pending page questions: id → its answer (None until `consent_answer` fills it).
+type Asks = Mutex<HashMap<String, Option<String>>>;
+/// Questions put to the page (an event with an id) until it answers through `consent_answer`.
+static ASKS: LazyLock<(Asks, Condvar)> = LazyLock::new(|| (Mutex::new(HashMap::new()), Condvar::new()));
 const ASK_SECONDS: u64 = 120;
 /// How long `open` waits for a window to show the message (no window: the tool says so instead of claiming it).
 const OPEN_SECONDS: u64 = 15;
