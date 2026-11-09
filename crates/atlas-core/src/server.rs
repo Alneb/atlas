@@ -642,7 +642,7 @@ async fn capture_post(State(st): S, Json(req): Json<CaptureRequest>) -> Result<J
     let Some(other) = other else {
         let text = req.text.clone();
         let r = with_ws(&st, move |ws| capture::capture(ws.root(), &ws.config()?, &req.text)).await?;
-        st.bus.captured(crate::events::Captured { text, path: r.path.clone(), line: r.line });
+        st.bus.captured(crate::events::Captured::new(text, r.path.clone(), r.line));
         return Ok(Json(r));
     };
     // another vault: written as that vault's own settings say

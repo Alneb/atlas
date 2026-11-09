@@ -266,7 +266,7 @@ pub async fn run(ws: &Workspace, bus: &EventBus, cmd: Command) -> Result<Value> 
                     move || capture::capture(ws.root(), &ws.config()?, &text)
                 })
                 .await?;
-                bus.captured(crate::events::Captured { text, path: r.path.clone(), line: r.line });
+                bus.captured(crate::events::Captured::new(text, r.path.clone(), r.line));
                 Ok(to_json(&r))
             }
             Builtin::Open { path, line } => {

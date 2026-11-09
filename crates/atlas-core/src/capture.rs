@@ -51,15 +51,65 @@ fn pending_file(root: &Path) -> std::path::PathBuf {
 /// vault): written now, and kept for the hooks. Keeping it never fails the capture (said on stderr instead).
 pub fn capture_unserved(root: &Path, cfg: &Config, text: &str) -> Result<CaptureResult> {
     let r = capture(root, cfg, text)?;
+    let c = crate::events::Captured::new(text.to_string(), r.path.clone(), r.line);
     if cfg!(target_os = "android") {
-        // the phone: nothing left pending; its own helpers (the APK's Python) file what they can
-        return Ok(r);
-    }
-    let c = crate::events::Captured { text: text.to_string(), path: r.path.clone(), line: r.line };
-    if let Err(e) = remember(root, &c) {
+        // the phone runs no hooks without its core: those it could run are lost as before, the rest go to a desktop
+        keep_for_others(root, cfg, c);
+    } else if let Err(e) = remember(root, &c) {
         eprintln!("atlas: the capture is written, but not kept for the capture hooks: {e}");
     }
     Ok(r)
+}
+
+/// A capture made on a device that cannot run some plugins' capture hooks (the phone: OCR is desktop-only) is kept in
+/// [`PENDING_DIR`] for them alone; a desktop serving the vault runs just those when Syncthing brings it in.
+pub fn keep_for_others(root: &Path, cfg: &Config, c: crate::events::Captured) {
+    let others = crate::plugin_tools::listening_elsewhere(root, cfg, "capture");
+    if others.is_empty() {
+        return;
+    }
+    if let Err(e) = remember(root, &crate::events::Captured { only: Some(others), ..c }) {
+        eprintln!("atlas: the capture is written, but not kept for the other devices' hooks: {e}");
+    }
+}
+
+/// How many sweeps (a minute apart) a pending capture waits for its note and pictures to be synced in.
+const MAX_WAITS: u32 = 24 * 60;
+
+/// Whether a pending capture's note holds it and its pictures are here: another device's capture can come in before
+/// the files it names (Syncthing's order is its own), and a hook run then would find nothing to read.
+pub fn arrived(root: &Path, c: &crate::events::Captured) -> bool {
+    let Ok(note) = std::fs::read_to_string(root.join(&c.path)) else { return false };
+    if note.lines().count() <= c.line as usize {
+        return false;
+    }
+    let dir = root.join(&c.path).parent().map(Path::to_path_buf).unwrap_or_else(|| root.to_path_buf());
+    embeds(&c.text).iter().all(|name| note.contains(name.as_str()) && near(&dir, name, 2))
+}
+
+/// The files a capture's text embeds (`![[x.png|160]]` → `x.png`).
+fn embeds(text: &str) -> Vec<String> {
+    text.split("![[").skip(1).filter_map(|r| r.split("]]").next()).map(|e| e.split('|').next().unwrap_or(e).trim().to_string()).filter(|n| !n.is_empty()).collect()
+}
+
+/// A file named `name` (its last part) in `dir` or a folder under it, `depth` levels down at most (attachments/).
+fn near(dir: &Path, name: &str, depth: u8) -> bool {
+    let file = name.rsplit('/').next().unwrap_or(name);
+    if dir.join(file).is_file() {
+        return true;
+    }
+    depth > 0 && std::fs::read_dir(dir).is_ok_and(|d| d.flatten().any(|e| e.path().is_dir() && near(&e.path(), file, depth - 1)))
+}
+
+/// A pending capture whose files are not here yet, back in line for the next sweep; after a day it is given up.
+pub fn wait_longer(root: &Path, c: crate::events::Captured) {
+    if c.waits >= MAX_WAITS {
+        eprintln!("atlas: a capture in {} never arrived whole; its hooks were not run", c.path);
+        return;
+    }
+    if let Err(e) = remember(root, &crate::events::Captured { waits: c.waits + 1, ..c }) {
+        eprintln!("atlas: a pending capture could not be kept: {e}");
+    }
 }
 
 fn remember(root: &Path, c: &crate::events::Captured) -> Result<()> {
@@ -579,15 +629,38 @@ mod tests {
     }
 
     #[test]
+    fn a_capture_from_another_device_waits_for_its_note_and_pictures() {
+        let d = tempfile::tempdir().unwrap();
+        let mut c = crate::events::Captured::new("Screen\n  ![[Screen 1.png|160]]".into(), "log/day.md".into(), 2);
+        c.only = Some(vec!["ocr".into()]);
+        assert!(!arrived(d.path(), &c), "no note yet");
+        std::fs::create_dir_all(d.path().join("log/attachments")).unwrap();
+        std::fs::write(d.path().join("log/day.md"), "# day\n## Log\n- 10:38 Screen\n  ![[Screen 1.png|160]]\n").unwrap();
+        assert!(!arrived(d.path(), &c), "the picture is not here yet");
+        std::fs::write(d.path().join("log/attachments/Screen 1.png"), b"png").unwrap();
+        assert!(arrived(d.path(), &c));
+        // not arrived: back in line, counted, and still only for the plugins it was left for
+        wait_longer(d.path(), c.clone());
+        let back = take_pending(d.path());
+        assert_eq!(back.len(), 1);
+        assert_eq!((back[0].waits, back[0].only.clone()), (1, Some(vec!["ocr".to_string()])));
+        wait_longer(d.path(), crate::events::Captured { waits: MAX_WAITS, ..c });
+        assert!(take_pending(d.path()).is_empty(), "given up after a day");
+        // an old line (no `only`, no `waits`) still reads
+        let old: crate::events::Captured = serde_json::from_str(r#"{"text":"x","path":"log/x.md","line":3}"#).unwrap();
+        assert_eq!(old, crate::events::Captured::new("x".into(), "log/x.md".into(), 3));
+    }
+
+    #[test]
     fn a_capture_with_no_atlas_serving_is_kept_for_the_hooks_once() {
         let d = tempfile::tempdir().unwrap();
         let cfg = Config::default();
         let r = capture_unserved(d.path(), &cfg, "https://letterboxd.com/film/the-realm-2018/").unwrap();
         let pending = take_pending(d.path());
-        assert_eq!(pending, vec![crate::events::Captured { text: "https://letterboxd.com/film/the-realm-2018/".into(), path: r.path, line: r.line }]);
+        assert_eq!(pending, vec![crate::events::Captured::new("https://letterboxd.com/film/the-realm-2018/".into(), r.path, r.line)]);
         assert!(take_pending(d.path()).is_empty(), "acted on once");
         // the phone's file, synced in beside this machine's (a Syncthing conflict copy is read too)
-        let other = crate::events::Captured { text: "from the phone".into(), path: "log/x.md".into(), line: 3 };
+        let other = crate::events::Captured::new("from the phone".into(), "log/x.md".into(), 3);
         std::fs::create_dir_all(d.path().join(PENDING_DIR)).unwrap();
         std::fs::write(d.path().join(PENDING_DIR).join("phone.sync-conflict-1.jsonl"), format!("{}\n", serde_json::to_string(&other).unwrap())).unwrap();
         assert_eq!(take_pending(d.path()), vec![other]);
@@ -598,8 +671,8 @@ mod tests {
         assert!(arriving.exists());
         // a take cut short left `phone.taking`; the phone's newer file is renamed to that name next, never over it
         let (old, new) = (
-            crate::events::Captured { text: "left by a take cut short".into(), path: "log/x.md".into(), line: 4 },
-            crate::events::Captured { text: "captured since".into(), path: "log/x.md".into(), line: 5 },
+            crate::events::Captured::new("left by a take cut short".into(), "log/x.md".into(), 4),
+            crate::events::Captured::new("captured since".into(), "log/x.md".into(), 5),
         );
         let line = |c: &crate::events::Captured| format!("{}\n", serde_json::to_string(c).unwrap());
         std::fs::write(d.path().join(PENDING_DIR).join("phone.taking"), line(&old)).unwrap();

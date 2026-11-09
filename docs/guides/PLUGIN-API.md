@@ -600,7 +600,8 @@ line calling it):
 - `node scripts/dev/plugin-pack.mjs engines [--target <arch>-<os>] [--only id,…] [--keep-going]` builds the crate's
   binary (the one the `run` line names, when it has several) into `bin/<arch>-<os>/`. Targets: `x86_64-linux` and
   `aarch64-linux` (static, musl; a crate with C++ inside says `[package.metadata.atlas] libc = "gnu"` and is built on
-  an old glibc instead), `x86_64-macos`, `aarch64-macos`, `x86_64-windows`. Default: this machine.
+  an old glibc instead: CI's Ubuntu 22.04; a desktop build links against that desktop's glibc, which the server image,
+  Ubuntu 26.04, matches up to 2.43), `x86_64-macos`, `aarch64-macos`, `x86_64-windows`. Default: this machine.
 - `node scripts/dev/plugin-pack.mjs pack [--out dir] [--bins dir]` makes one `atlas-plugin-<id>.tar.gz` per plugin of
   `plugins/stable` and `plugins/beta`: its tracked files without its sources (`engine/`, `ui/`), plus every platform's
   `bin/` that was built, in one archive for every desktop. Beside them, `plugins.json` lists each one's id, title,

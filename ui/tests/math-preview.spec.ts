@@ -41,7 +41,8 @@ test("a formula is drawn as soon as its source shows: the caret on its dollars, 
   await page.keyboard.type(" here");
   await expect(tip, "away from it: rendered in the text, no second drawing").toHaveCount(0);
   await page.keyboard.press("Enter");
-  await page.keyboard.type("$$\nF = ma\n$$");
+  await page.keyboard.type("$$\nF = ma"); // Enter after the opener brought its closer (display-math.ts)
+  await page.keyboard.press("ArrowDown"); await page.keyboard.press("End");
   const block = page.locator(".cm-content .cm-math-preview-block");
   await expect(block.locator(".katex"), "on the closing $$").toContainText("ma");
 });
@@ -50,8 +51,7 @@ test("a formula is drawn as soon as its source shows: the caret on its dollars, 
 // snippet list stays on top
 test("display math is drawn in the text under it, inline math floats above its line, the list stays on top", async ({ page, request }) => {
   await note(page);
-  await page.keyboard.type("$$\nE = mc^2\n$$");
-  await page.keyboard.press("ArrowUp"); await page.keyboard.press("End"); // into the formula
+  await page.keyboard.type("$$\nE = mc^2"); // the closer came with the Enter; the caret is in the formula
   const block = page.locator(".cm-content .cm-math-preview-block");
   await expect(block, "in the text, not a tooltip").toBeVisible();
   await expect(block.locator(".katex")).toContainText("mc");

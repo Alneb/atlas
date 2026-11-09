@@ -88,6 +88,14 @@ public final class OnscreenTest {
         eq("unknown app guess", "How the octopus lost its shell", f.guess);
         eq("unknown app no site", null, f.site);
 
+        // Instagram: the caption is a paragraph (its first sentence is the guess), the counters are not titles
+        f = read("com.instagram.android", t("Reels"), t("eatmovies"), t("Follow"),
+            t("Robert Pattinson is operating in another league this year, and Primetime might be his finest hour.\n\nAs television host Chris Hansen, he makes authority feel deeply unsettling. The measured voice, rigid composure and satisfaction beneath the professional smile reveal a man increasingly seduced by his own spectacle."),
+            t("Liked by someone and 2,053 others"), t("76"), t("521"), t("See translation"), t("Add comment…"));
+        eq("instagram caption", "Robert Pattinson is operating in another league this year, and Primetime might be his finest hour.", f.guess);
+        eq("counter alone", null, read("com.instagram.android", t("Liked by someone and 2,053 others"), t("Likes")).guess);
+        eq("long line cut at a word", true, Onscreen.headline("word ".repeat(60)).endsWith("word…"));
+
         // addresses made canonical
         eq("youtu.be with time", "https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=42", Onscreen.canonical("https://youtu.be/dQw4w9WgXcQ?si=x&t=42"));
         eq("shorts", "https://www.youtube.com/shorts/abcdefghijk", Onscreen.canonical("https://m.youtube.com/shorts/abcdefghijk?feature=share"));

@@ -66,6 +66,7 @@ final class Onscreen {
     /** The screen's thing from its package and views; null when nothing at all was read. */
     static Found read(String pkg, List<Node> nodes) {
         String byExtra = null, byId = null, byShape = null, webTitle = null, named = null, longest = null;
+        Site known = ofPackage(pkg);
         for (Node n : nodes) {
             if (byExtra == null && n.extraUrl != null && n.extraUrl.startsWith("http")) byExtra = n.extraUrl; // Chromium's web root
             if (n.text != null && !n.text.contains(" ") && WEB.matcher(n.text).matches()) {
@@ -76,14 +77,15 @@ final class Onscreen {
                 String t = n.text != null ? n.text : n.desc;
                 if (t != null && !t.isEmpty() && !WEB.matcher(t).matches()) webTitle = t;
             }
-            if (n.text != null && n.visible && seeable(n.text)) {
-                if (named == null && n.id.contains("title")) named = n.text;
-                if (longest == null || n.text.length() > longest.length()) longest = n.text;
+            String line = n.visible ? headline(n.text) : null;
+            if (line != null && seeable(line) && !(known == null && counter(line))) {
+                if (named == null && n.id.contains("title")) named = line;
+                if (longest == null || line.length() > longest.length()) longest = line;
             }
         }
         // the address bar beats a page's own (a web root inside an app is the app's page: Wikipedia's mobile-html)
         String url = byId != null ? byId : byExtra != null ? byExtra : byShape;
-        Site site = ofPackage(pkg);
+        Site site = known;
         if (url != null) {
             if (!url.startsWith("http")) url = "https://" + url;
             url = canonical(url);
@@ -118,8 +120,32 @@ final class Onscreen {
 
     /** A line of words that can be a title: not a button's word, not a paragraph, not an address. */
     private static boolean seeable(String t) {
-        return t.length() >= 8 && t.length() <= 160 && t.indexOf('\n') < 0 && t.contains(" ") && !WEB.matcher(t).matches();
+        return t.length() >= 8 && t.length() <= 160 && t.contains(" ") && !WEB.matcher(t).matches();
     }
+
+    /** A number that is not a year (a title says "(1962 film)"). */
+    private static final Pattern NUMBER = Pattern.compile("(?<![\\d.,])(?!(?:18|19|20)\\d\\d(?![\\d.,]))\\d");
+
+    /** In an app nobody named, a short text with a number in it is a counter ("Liked by ana and 2,053 others",
+     *  "1.2K views"), not what is shown. */
+    private static boolean counter(String t) {
+        return t.length() < 48 && NUMBER.matcher(t).find();
+    }
+
+    /** What a text view says first: a caption or a post is a paragraph, so its first line, and when that is long, its
+     *  first sentence (or its first 160 characters, cut at a word). */
+    static String headline(String text) {
+        if (text == null) return null;
+        String line = null;
+        for (String l : text.split("\n")) if (!(l = l.trim()).isEmpty()) { line = l; break; }
+        if (line == null || line.length() <= 160) return line;
+        Matcher end = SENTENCE.matcher(line);
+        if (end.find() && end.end() >= 8 && end.end() <= 160) return line.substring(0, end.end()).trim();
+        int cut = line.lastIndexOf(' ', 159);
+        return (cut > 8 ? line.substring(0, cut) : line.substring(0, 159)) + "…";
+    }
+
+    private static final Pattern SENTENCE = Pattern.compile("[.!?…](?=\\s|$)");
 
     /** YouTube Music's app shows youtube.com pages too. */
     private static Site family(Site s) { return s == Site.YOUTUBE_MUSIC ? Site.YOUTUBE : s; }

@@ -21,6 +21,24 @@ pub struct Captured {
     pub text: String,
     pub path: String,
     pub line: u32,
+    /// Left by a device that could not run these plugins' hooks (the phone has no OCR): only they run, elsewhere.
+    /// None: every hook (a capture made here).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub only: Option<Vec<String>>,
+    /// Sweeps that found its note or pictures not synced in yet (capture::arrived).
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub waits: u32,
+}
+
+fn is_zero(n: &u32) -> bool {
+    *n == 0
+}
+
+impl Captured {
+    /// A capture just made here: every hook runs on it.
+    pub fn new(text: String, path: String, line: u32) -> Self {
+        Self { text, path, line, only: None, waits: 0 }
+    }
 }
 
 impl Default for EventBus {

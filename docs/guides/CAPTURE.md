@@ -192,6 +192,12 @@ hooks (catalog, OCR) act on them; with no Atlas open the capture is written stra
 `.atlas/pending/<device>.jsonl` — synced with the vault (not in `.atlas/cache`, which Syncthing leaves per machine), so a
 capture the phone made reaches the desktop — and the next Atlas to serve the vault runs the hooks on it first (385aa2f).
 
+On the phone, only the hooks it cannot run are left there: a capture is kept with `only` naming the plugins whose
+`[platforms]` say no on Android (OCR, Tesseract being desktop-only) and that are on in the vault
+(`plugin_tools::listening_elsewhere`, `capture::keep_for_others`), whether the phone's core was running or not. A
+desktop serving the vault runs just those, once the capture's note and the pictures it embeds have been synced in
+(`capture::arrived`; Syncthing brings files in its own order); it checks again every minute, and gives up after a day.
+
 
 ## What the catalog will make of it
 

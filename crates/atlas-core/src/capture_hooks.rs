@@ -44,17 +44,29 @@ pub fn spawn(ws: Workspace, bus: EventBus, helpers: Helpers) -> tokio::task::Joi
         let _fs = Stops(fs); // the fs hooks end with these (the vault stopped)
         let _forward = Stops(forward);
         // what was captured while no Atlas served the vault (capture::capture_unserved), or on the phone: at start, then
-        // every minute, as Syncthing brings other devices' files in. The phone leaves them to the desktop.
+        // every minute, as Syncthing brings other devices' files in. The phone leaves a desktop the hooks it cannot run.
         let mut sweep = tokio::time::interval(PENDING_EVERY);
         loop {
             tokio::select! {
                 _ = sweep.tick(), if !cfg!(target_os = "android") => {
                     for c in crate::capture::take_pending(ws.root()) {
-                        run(&ws, &bus, &helpers, c).await;
+                        if crate::capture::arrived(ws.root(), &c) {
+                            run(&ws, &bus, &helpers, c).await;
+                        } else {
+                            crate::capture::wait_longer(ws.root(), c);
+                        }
                     }
                 }
                 got = rx.recv() => match got {
-                    Some(c) => run(&ws, &bus, &helpers, c).await,
+                    Some(c) => {
+                        // the phone's own core: what it cannot run is left for a desktop
+                        if cfg!(target_os = "android") {
+                            if let Ok(cfg) = ws.config() {
+                                crate::capture::keep_for_others(ws.root(), &cfg, c.clone());
+                            }
+                        }
+                        run(&ws, &bus, &helpers, c).await
+                    }
                     None => return,
                 },
             }
@@ -65,7 +77,9 @@ pub fn spawn(ws: Workspace, bus: EventBus, helpers: Helpers) -> tokio::task::Joi
 async fn run(ws: &Workspace, bus: &EventBus, helpers: &Helpers, c: Captured) {
     let Ok(cfg) = ws.config() else { return };
     let store = crate::secrets::Store::for_vault(ws.root());
-    for (plugin, tool) in crate::plugin_tools::listening(ws.root(), &cfg, "capture") {
+    let only = c.only.clone();
+    let wanted = |p: &String| only.as_ref().is_none_or(|o| o.contains(p));
+    for (plugin, tool) in crate::plugin_tools::listening(ws.root(), &cfg, "capture").into_iter().filter(|(p, _)| wanted(p)) {
         let input = json!({ "text": c.text, "path": c.path, "line": c.line });
         match crate::plugin_tools::call(ws.root(), &cfg, helpers, &store, &plugin, &tool, input).await {
             Ok(v) if v.get("skipped").is_some() => {}
@@ -206,7 +220,7 @@ mod tests {
     fn the_capture_line_links_its_note_once_and_nothing_else_is_touched() {
         let dir = tempfile::tempdir().unwrap();
         std::fs::write(dir.path().join("log.md"), "# Today\n- 10:02 https://letterboxd.com/film/dune-part-two/\n- 10:05 milk\n").unwrap();
-        let c = Captured { text: "https://letterboxd.com/film/dune-part-two/".into(), path: "log.md".into(), line: 2 };
+        let c = Captured::new("https://letterboxd.com/film/dune-part-two/".into(), "log.md".into(), 2);
         assert!(link_line(dir.path(), &c, "Films/Dune Part Two (2024).md"));
         assert!(!link_line(dir.path(), &c, "Films/Dune Part Two (2024).md"), "linked once");
         let other = Captured { line: 3, ..c.clone() };

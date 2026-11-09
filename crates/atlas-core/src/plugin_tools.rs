@@ -78,6 +78,17 @@ pub fn listening(root: &Path, cfg: &Config, event: &str) -> Vec<(String, String)
     runnable(root, cfg).into_iter().filter(|(_, t)| t.on.as_deref() == Some(event)).map(|(p, t)| (p, t.name)).collect()
 }
 
+/// The plugins with an `event` tool that are installed and switched on but cannot run on this device (their
+/// `[platforms]` say no here: OCR on the phone). Another device serving the vault runs them (capture::keep_for_others).
+pub fn listening_elsewhere(root: &Path, cfg: &Config, event: &str) -> Vec<String> {
+    crate::plugins::list(root)
+        .into_iter()
+        .filter(|p| p.not_here.is_some() && p.error.is_none() && !cfg.plugins.off.contains(&p.id))
+        .filter(|p| crate::plugins::tool_parts(root, &p.id).is_ok_and(|(tools, _, _)| tools.iter().any(|t| t.on.as_deref() == Some(event))))
+        .map(|p| p.id)
+        .collect()
+}
+
 /// The tools that provide a template value (`template = "weather"`): (plugin, tool, value name).
 pub fn providers(root: &Path, cfg: &Config) -> Vec<(String, String, String)> {
     runnable(root, cfg).into_iter().filter_map(|(p, t)| t.template.clone().map(|name| (p, t.name, name))).collect()
@@ -275,6 +286,23 @@ mod tests {
         assert_eq!(s["properties"]["limit"]["type"], "integer");
         assert_eq!(s["properties"]["q"]["description"], "what");
         assert!(schema(&toml::from_str("x = \"date\"").unwrap()).is_err());
+    }
+
+    #[test]
+    fn a_hook_this_device_cannot_run_is_named_for_another() {
+        let dir = tempfile::tempdir().unwrap();
+        let tool = "[helper]\nrun = \"true\"\n[[tool]]\nname = \"capture\"\ndescription = \"after a capture\"\non = \"capture\"\n";
+        for (id, platforms) in [("ocr", "[platforms]\nlinux = \"no\"\nmacos = \"no\"\nwindows = \"no\"\nserver = \"no\"\n"), ("catalog", "")] {
+            let p = dir.path().join(".atlas/plugins").join(id);
+            std::fs::create_dir_all(&p).unwrap();
+            std::fs::write(p.join("plugin.toml"), format!("title = \"{id}\"\n{tool}{platforms}")).unwrap();
+        }
+        let mut cfg = Config::default();
+        assert_eq!(listening_elsewhere(dir.path(), &cfg, "capture"), vec!["ocr".to_string()], "the one that cannot run here");
+        assert_eq!(listening(dir.path(), &cfg, "capture"), vec![("catalog".to_string(), "capture".to_string())]);
+        assert!(listening_elsewhere(dir.path(), &cfg, "fs").is_empty());
+        cfg.plugins.off = vec!["ocr".into()];
+        assert!(listening_elsewhere(dir.path(), &cfg, "capture").is_empty(), "switched off: nobody runs it");
     }
 
     #[test]

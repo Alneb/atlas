@@ -35,7 +35,7 @@ test("a first start: the Today screen with nothing configured, no error, no vim,
   await expect(page.getByText("No FOCUS.md yet")).toBeVisible({ timeout: 20_000 });
   await expect(page.getByText("Nothing captured yet today.")).toBeVisible();
   await page.waitForTimeout(1500);
-  await expect(page.locator("body")).not.toContainText(/invalid date|undefined|NaN/i);
+  await expect(page.locator("body")).not.toContainText(/invalid date|\bundefined\b|\bNaN\b/i);
   await expect(page.locator(".toast[data-kind=error]")).toHaveCount(0);
   // the vault became one: its home page written once, nothing else of the user's touched
   expect(existsSync(join(VAULT, "Home.page"))).toBe(true);

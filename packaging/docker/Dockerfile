@@ -3,7 +3,7 @@
 # Atlas in server mode — container image (docs/guides/SERVER.md; compose.yaml at the repo root)
 #
 # Three stages, as obsidian-web's: (1) Node builds the UI into ui/dist; (2) Rust builds the `atlas` CLI, which
-# embeds that dist (rust-embed, crates/atlas-core/src/server.rs); (3) a slim Debian runtime with the binary and what
+# embeds that dist (rust-embed, crates/atlas-core/src/server.rs); (3) an Ubuntu runtime with the binary and what
 # a vault's plugins and terminals call: git, openssh-client (the ssh plugin), bash (the
 # terminals' shell, with a prompt and the basic tools: packaging/docker/bashrc), the documents' tools and PDFium.
 # The desktop app (crates/atlas-app) is not built: its manifest is only read, as a workspace member.
@@ -53,7 +53,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates
     else echo "no pinned PDFium for this architecture: covers through poppler"; fi
 
 # ---- 3) the runtime -------------------------------------------------------------------------------------------------
-FROM debian:bookworm-slim AS runtime
+# Ubuntu 26.04: a recent glibc (2.43), so a plugin engine built on a current desktop distribution (an engine with C++
+# inside is linked against the builder's glibc: plugin-pack.mjs, `libc = "gnu"`) also starts here, from the vault's
+# synced .atlas/plugins; the packages keep Debian's names.
+FROM ubuntu:26.04 AS runtime
 # ca-certificates: plugins' HTTPS (mail, Zotero, copyparty…); tini: signals reach atlas, children are reaped;
 # git, openssh-client: what plugins and helpers run (no Python: every helper is JavaScript in the core or compiled);
 # bash and the basic tools: the terminals
