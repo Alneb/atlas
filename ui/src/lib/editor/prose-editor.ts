@@ -1,12 +1,14 @@
 // A small editor for prose outside a note (a mail being written, a comment): Markdown with the note's syntax, wrapped
 // lines, undo, and the plugins' editor hooks (plugin-hooks.ts: their keys, completions, raw extensions), so what helps
-// in a note (Spelling's marks, the Predictor's ghost, Snippets) helps here too. No live preview, no vim, no file.
+// in a note (Spelling's marks and its right-click suggestions, the Predictor's ghost, Snippets) helps here too. No live
+// preview, no vim, no file; the right-click menu without a note's own rows (editor/menu.ts, kind "prose").
 import { EditorState, type Extension } from "@codemirror/state";
 import { EditorView, keymap, placeholder as placeholderText, drawSelection } from "@codemirror/view";
 import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
 import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
 import { obsidianMarkdown } from "./live/obsidian-syntax.js";
 import { pluginHooks } from "./plugin-hooks";
+import { editorMenu } from "./menu";
 import { atlasTheme } from "./theme";
 
 export interface ProseEditorOptions {
@@ -34,6 +36,7 @@ export function createProseEditor(parent: HTMLElement, o: ProseEditorOptions = {
   const extensions: Extension[] = [
     keymap.of((o.keys ?? []).map((k) => ({ key: k.key, run: () => k.run(), preventDefault: true }))),
     pluginHooks(path, /\.(md|markdown)$/i.test(path)),
+    editorMenu({ path, kind: "prose" }),
     markdown({ base: markdownLanguage, extensions: [...obsidianMarkdown], addKeymap: false }),
     history(),
     drawSelection(),

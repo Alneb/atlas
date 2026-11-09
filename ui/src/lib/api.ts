@@ -12,6 +12,7 @@ import { emitPluginEvent, type PluginEvent } from "./plugin-events";
 
 import { basename } from "./paths";
 import type { VaultList } from "./gen/VaultList";
+import type { GuestInfo } from "./gen/GuestInfo";
 import type { Plugin } from "./gen/Plugin";
 import type { CaptureHint } from "./gen/CaptureHint";
 import type { CaptureList } from "./gen/CaptureList";
@@ -116,6 +117,10 @@ export const api = {
   vaults: () => request<VaultList>("GET", "/api/vaults"),
   /** This window's vault becomes the one the capture box starts on. */
   vaultActive: () => request<void>("POST", "/api/vaults/active"),
+  /** This window's guest folder (core guest.rs), `null` for a vault. */
+  guest: () => request<GuestInfo | null>("GET", "/api/guest"),
+  /** The guest window's Edit switch. */
+  guestEdit: (on: boolean) => request<GuestInfo>("POST", "/api/guest/edit", { body: { on } }),
   /** `blocked` filled by the core (the one rule); `android`: as the phone app sees them. */
   plugins: (platform?: "android") => request<Plugin[]>("GET", "/api/plugins", { query: { platform } }),
   /** What a capture's text will become (capture.rs `describe`), for `vault` when it is not this window's. */

@@ -1110,12 +1110,21 @@ async fn vaults_open_post(State(st): S, Json(q): Json<crate::vaults::VaultReques
         return Err(Error::BadRequest("this server serves its own vaults only: choose one from the list (a new one is a folder in its vaults)".into()));
     }
     let one_core = desktop::of(&st);
+    let opener = st.ws.root().to_path_buf();
     let answer = blocking(move || {
         // a server's address: remembered beside the folders; the window itself goes there, through the bridge
         // (remote_bridge.rs)
         if let Some(url) = crate::vaults::server_address(&q.path) {
             crate::vaults::remember_server(&crate::vaults::list_file(), &url, chrono::Utc::now().timestamp_millis())?;
             return Ok(serde_json::json!({}));
+        }
+        if q.guest {
+            let d = one_core.as_ref().ok_or_else(|| Error::BadRequest("a guest folder opens in the desktop app".into()))?;
+            match crate::guest::prepare(std::path::Path::new(&crate::pty::expand_home(q.path.trim())), &opener) {
+                Ok(root) => return Ok(serde_json::json!({ "url": d.url_of(&root), "guest": true })),
+                Err(crate::guest::Refused::AVault) => {} // a vault of its own: opened as one
+                Err(crate::guest::Refused::Other(e)) => return Err(e),
+            }
         }
         let fresh = q.create && crate::vaults::is_fresh(std::path::Path::new(&crate::pty::expand_home(q.path.trim())));
         let root = crate::vaults::resolve(&q.path, q.create)?;
@@ -1230,9 +1239,20 @@ fn leased_path(st: &AppState, path: &str, holder: &str) -> Result<(PathBuf, Stri
 async fn vaults_active_post(State(st): S) -> Result<StatusCode> {
     if st.served.is_none() {
         let root = st.ws.root().to_path_buf();
-        blocking(move || crate::vaults::remember_now(&root)).await?;
+        // a guest folder is never remembered (guest.rs)
+        blocking(move || if crate::guest::is_guest(&root) { Ok(()) } else { crate::vaults::remember_now(&root) }).await?;
     }
     Ok(StatusCode::NO_CONTENT)
+}
+
+/// `GET /api/guest`: this window's guest folder, `null` for a vault (guest.rs).
+async fn guest_get(State(st): S) -> Json<Option<crate::guest::GuestInfo>> {
+    Json(crate::guest::info(st.ws.root()))
+}
+
+/// `POST /api/guest/edit`: the guest window's Edit switch.
+async fn guest_edit_post(State(st): S, Json(q): Json<crate::guest::GuestEdit>) -> Result<Json<crate::guest::GuestInfo>> {
+    Ok(Json(crate::guest::set_editing(st.ws.root(), q.on)?))
 }
 
 /// The system's folder dialog (desktop only): `{path}` chosen, `{}` cancelled.
@@ -2294,6 +2314,8 @@ fn router(state: Arc<AppState>) -> Router {
         .route("/api/vaults/pick", post(vaults_pick_post))
         .route("/api/vaults/mirror", post(vaults_mirror_post))
         .route("/api/vaults/active", post(vaults_active_post))
+        .route("/api/guest", get(guest_get))
+        .route("/api/guest/edit", post(guest_edit_post))
         .route("/api/usage", post(usage_post))
         .route("/api/tools/suggestions", get(tools_suggestions_get))
         .route("/api/tools/keep", post(tools_keep_post))
@@ -2686,6 +2708,7 @@ fn start_vault(root: &std::path::Path, port: u16, auth: Option<Arc<crate::auth::
     });
     if state.served.is_none() {
         crate::mirror_guard::install_for_mirror(&state.ws); // a local vault with a copy on a server asks it before writing
+        crate::guest::install(&state.ws); // a guest folder: read-only until its window's Edit switch
     }
     let routes = router(state.clone());
     state.helpers.answer_with(routes.clone()); // helpers' calls back (helper_api.rs); a cycle that lives as long as the vault

@@ -55,6 +55,10 @@ pub struct VaultRequest {
     pub path: String,
     #[serde(default)]
     pub create: bool,
+    /// Open it as a guest of this window's vault (guest.rs): not remembered, read-only until switched on. A folder
+    /// with its own `.atlas/` is opened as the vault it is.
+    #[serde(default)]
+    pub guest: bool,
 }
 
 /// `POST /api/vaults/pick`: what the system's folder dialog is for (its title says it).
@@ -66,6 +70,8 @@ pub enum PickPurpose {
     Open,
     /// Where a new vault goes (the dialog can make the folder).
     Create,
+    /// A folder to open as a guest (guest.rs).
+    Guest,
 }
 
 /// The desktop's folder dialog: set by the desktop app (atlas-app), absent on a server, which has no screen.

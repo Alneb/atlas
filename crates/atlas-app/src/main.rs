@@ -83,6 +83,12 @@ rows:
 /// of the vault list beside `root`, each at `/v/<name>/` and started when first opened, so switching is a page load in
 /// this window (server_desktop.rs).
 async fn desktop_core(root: PathBuf) -> anyhow::Result<atlas_core::server::ServerHandle> {
+    // the guest folders of the last run forgotten before any is served (core guest.rs); here, not in the core, so a
+    // test's desktop-style core never touches this machine's
+    let swept = tokio::task::spawn_blocking(atlas_core::guest::sweep).await.unwrap_or(0);
+    if swept > 0 {
+        eprintln!("atlas: {swept} guest folder(s) of the last run forgotten");
+    }
     let vaults = atlas_core::server::Vaults::Desktop { first: root, list: atlas_core::vaults::list_file() };
     let port = last_port().filter(|p| std::net::TcpListener::bind(("127.0.0.1", *p)).is_ok()).unwrap_or(0);
     let core = atlas_core::server::serve_vaults(vaults, atlas_core::server::Listen::Local(port, atlas_core::local_lock::Lock::desktop())).await?;
@@ -382,6 +388,7 @@ fn folder_dialog(app: &tauri::AppHandle) {
         let title = match purpose {
             PickPurpose::Open => "Open a folder as a vault",
             PickPurpose::Create => "Where the new vault goes — make a new folder here, or choose an empty one",
+            PickPurpose::Guest => "Open a folder as a guest — read-only until Edit is switched on, never added to the vaults",
         };
         let mut d = window.dialog().file().set_title(title).set_parent(&window).set_can_create_directories(true);
         if let Some(home) = std::env::var_os("HOME").or_else(|| std::env::var_os("USERPROFILE")) {
@@ -628,7 +635,9 @@ fn tray_pixels() -> (Vec<u8>, u32, u32) {
     (rgba, info.width, info.height)
 }
 
-/// What the main window is built from — at start and again after its sleep (background.rs).
+/// What the main window is built from — at start and again after its sleep (background.rs); a guest folder's window
+/// (core guest.rs) is built from it too.
+#[derive(Clone)]
 struct MainSpec {
     home: tauri::Url,
     core: String,
@@ -638,10 +647,16 @@ struct MainSpec {
 
 impl MainSpec {
     fn build(&self, app: &tauri::AppHandle, url: tauri::Url) -> tauri::Result<tauri::WebviewWindow> {
+        self.window(app, MAIN_WINDOW, "Atlas", url)
+    }
+
+    /// A window of this core's page: the main one, or a guest folder's (`label` guest-<n>), which closes as any window.
+    fn window(&self, app: &tauri::AppHandle, label: &str, title: &str, url: tauri::Url) -> tauri::Result<tauri::WebviewWindow> {
         let (handle, core, vault, vault_bg) = (app.clone(), self.core.clone(), self.vault.clone(), self.vault.clone());
         let off_app = OffApp { home: self.home.clone(), handle: handle.clone(), vault: vault.clone() };
-        let main = WebviewWindowBuilder::new(app, MAIN_WINDOW, WebviewUrl::External(url))
-            .title("Atlas")
+        let spec = self.clone();
+        let main = WebviewWindowBuilder::new(app, label, WebviewUrl::External(url))
+            .title(title)
             .initialization_script(frames_any_page(self.frames))
             // a web tab's frame: its address, history, find and Atlas's keys (frame_page.js; inert elsewhere)
             .initialization_script_for_all_frames(include_str!("frame_page.js"))
@@ -672,6 +687,7 @@ impl MainSpec {
                 let own = to.port_or_known_default() == tauri::Url::parse(&core).ok().and_then(|c| c.port()) && matches!(to.host_str(), Some("127.0.0.1" | "localhost"));
                 match signin_return(&to) {
                     Some(back) => signin_window(&handle, to, back, core.clone()),
+                    None if own && guest_page(&to) => guest_window(&handle, &spec, to),
                     None if own => open_outside(to.as_str()),
                     None => web_link(&handle, to, &vault),
                 }
@@ -797,6 +813,19 @@ fn signin_window(app: &tauri::AppHandle, page: tauri::Url, back: tauri::Url, cor
 }
 
 /// The page's ask for a service sign-in (core `/signin/door?url=…` on this computer): the service's address.
+/// A guest folder's page (`/v/<name>/?guest=1`, core guest.rs): it opens in a window of Atlas, not the browser.
+fn guest_page(to: &tauri::Url) -> bool {
+    to.path().starts_with("/v/") && to.query_pairs().any(|(k, v)| k == "guest" && v == "1")
+}
+
+fn guest_window(app: &tauri::AppHandle, spec: &MainSpec, page: tauri::Url) {
+    static N: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+    let label = format!("guest-{}", N.fetch_add(1, std::sync::atomic::Ordering::Relaxed));
+    if let Err(e) = spec.window(app, &label, "Atlas — guest folder", page) {
+        eprintln!("atlas: the guest folder's window did not open: {e}");
+    }
+}
+
 fn door_target(to: &tauri::Url) -> Option<tauri::Url> {
     let local = matches!(to.host_str(), Some("localhost" | "127.0.0.1" | "[::1]"));
     if !local || to.path() != "/signin/door" {

@@ -224,6 +224,15 @@ test("Ctrl+F finds in the conversation's frames; a pasted picture goes in the te
   expect(await win.evaluate((w) => w.scrollWidth - w.clientWidth)).toBeLessThanOrEqual(0);
   const body = form.getByRole("textbox", { name: "The message" });
   await body.fill("Look:\n");
+  // a right-click in the text: the editor's menu (where the plugins' rows, Spelling's suggestions, go), without a
+  // note's own rows
+  await body.click({ button: "right" });
+  const menu = page.getByRole("menu");
+  await expect(menu.locator('[data-label="Paste"]')).toBeVisible();
+  await expect(menu.locator('[data-label="Bold"]')).toBeVisible();
+  await expect(menu.locator('[data-label="Task…"]')).toHaveCount(0);
+  await page.keyboard.press("Escape");
+  await expect(menu).toHaveCount(0);
   // the text is the app's prose editor (atlas.editor.prose): the caret to its end, then the paste
   await body.press("Control+End");
   await body.evaluate(async (t: HTMLElement) => {

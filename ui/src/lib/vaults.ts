@@ -8,6 +8,7 @@ import { pick } from "./palette.svelte";
 import { toast } from "./state.svelte";
 import type { VaultList } from "./gen/VaultList";
 import type { Vault } from "./gen/Vault";
+import { openGuest } from "./guest.svelte";
 
 /** This window, on a vault on a server: the desktop's own page with the server's API through the bridge
  *  (core remote_bridge.rs). */
@@ -38,25 +39,42 @@ async function openVault(path: string, create = false): Promise<void> {
   }
 }
 
+/** What a folder is asked for (core vaults.rs `PickPurpose`). */
+type Purpose = "open" | "create" | "guest";
+const opens: Record<Purpose, (path: string) => void> = {
+  open: (p) => void openVault(p),
+  create: (p) => void openVault(p, true),
+  guest: (p) => void openGuest(p),
+};
+
 /** Asks for a folder, then opens it (`create`: makes it a new vault): the system's folder dialog in the desktop app,
  *  else (a browser, a core with no screen) a typed path. */
-async function askFolder(create: boolean): Promise<void> {
+const askFolder = (create: boolean): Promise<void> => askFor(create ? "create" : "open");
+/** An outside folder opened as a guest of this vault, in a window of its own (guest.svelte.ts). */
+export const askGuest = (): Promise<void> => askFor("guest");
+
+async function askFor(purpose: Purpose): Promise<void> {
   try {
-    const r = await ownCore<{ path?: string }>("POST", "/api/vaults/pick", { purpose: create ? "create" : "open" });
-    if (r?.path) void openVault(r.path, create);
+    const r = await ownCore<{ path?: string }>("POST", "/api/vaults/pick", { purpose });
+    if (r?.path) opens[purpose](r.path);
     return; // chosen, or cancelled
   } catch (e) {
     if (!(e instanceof ApiError && e.status === 404)) { toast("The folder dialog did not open", errText(e), "error"); }
   }
-  askFolderTyped(create);
+  askFolderTyped(purpose);
 }
 
-function askFolderTyped(create: boolean): void {
+const TYPED: Record<Purpose, { placeholder: string; tag: string; typed: (t: string) => string }> = {
+  open: { placeholder: "The folder to open as a vault (~/Notes)…", tag: "Open folder", typed: (t) => `Open ${t} as a vault` },
+  create: { placeholder: "Where the new vault goes — a folder that does not exist yet (~/Notes/Course)…", tag: "New vault", typed: (t) => `Create a new vault at ${t}` },
+  guest: { placeholder: "The folder to open as a guest, read-only, in its own window (~/Projects/x/docs)…", tag: "Guest folder", typed: (t) => `Open ${t} as a guest` },
+};
+
+function askFolderTyped(purpose: Purpose): void {
+  const t = TYPED[purpose];
   setTimeout(() => pick({
-    placeholder: create ? "Where the new vault goes — a folder that does not exist yet (~/Notes/Course)…" : "The folder to open as a vault (~/Notes)…",
-    tag: create ? "New vault" : "Open folder", icon: "folder", items: [],
-    typed: (t) => (create ? `Create a new vault at ${t}` : `Open ${t} as a vault`),
-    onpick: (v, isNew) => { if (isNew && v.trim()) void openVault(v.trim(), create); },
+    placeholder: t.placeholder, tag: t.tag, icon: "folder", items: [], typed: t.typed,
+    onpick: (v, isNew) => { if (isNew && v.trim()) opens[purpose](v.trim()); },
   }), 0);
 }
 
@@ -164,6 +182,7 @@ export async function nextVault(): Promise<void> {
 export const vaultActions: Action[] = [
   { id: "ui.vault", title: "Vault: switch, open or create…", keys: "Ctrl+Alt+V", run: () => void chooseVault() },
   { id: "ui.vault.next", title: "Vault: the next one", keys: "Super+V", run: () => void nextVault() },
+  { id: "ui.vault.guest", title: "Vault: open a folder as a guest (its own window, read-only until Edit)…", run: () => void askGuest() },
   // the way in from a note
   { id: "ui.vault.mirror", title: "Vault: edit live on its mirror (link this vault to its copy on a server)…", run: () => void chooseVault({ linkMirror: true }) },
 ];

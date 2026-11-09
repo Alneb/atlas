@@ -244,6 +244,58 @@ async fn the_desktop_core_serves_every_vault_of_its_list_each_started_when_first
     assert!(!b.join(".atlas/cache/server.json").exists(), "a vault started on demand is cleaned up too");
 }
 
+/// A guest folder (guest.rs; SHELL.md "Guest folders"): opened from a vault's window it is served by the same core at its
+/// own `/v/<name>/`, never on the vault list, read-only until its Edit switch, with the opener's plugins; a folder that
+/// is a vault opens as one.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_guest_folder_is_served_beside_the_vault_read_only_until_edit_and_never_remembered() {
+    use atlas_core::server::{serve_vaults, Vaults};
+    let home = tempfile::tempdir().unwrap();
+    std::env::set_var("ATLAS_GUESTS", home.path().join("guests")); // this test's own, never this machine's
+    let (vault, docs) = (home.path().join("Work"), home.path().join("docs"));
+    std::fs::create_dir_all(vault.join(".atlas/plugins/viewer")).unwrap();
+    std::fs::write(vault.join(".atlas/plugins/viewer/plugin.toml"), "title = \"Viewer\"\n").unwrap();
+    std::fs::create_dir_all(&docs).unwrap();
+    std::fs::write(docs.join("readme.md"), "# Docs\n").unwrap();
+    let list = home.path().join("vaults.toml");
+    let srv = serve_vaults(Vaults::Desktop { first: vault.clone(), list: list.clone() }, Listen::Local(0, atlas_core::local_lock::Lock::Open)).await.unwrap();
+    let base = format!("http://127.0.0.1:{}", srv.port());
+    let http = reqwest::Client::builder().redirect(redirect::Policy::none()).build().unwrap();
+    let post = |p: &str, body: serde_json::Value| http.post(format!("{base}{p}")).header("x-atlas", "1").json(&body).send();
+    let get = |p: &str| http.get(format!("{base}{p}")).header("x-atlas", "1").send();
+
+    let opened: serde_json::Value = post("/v/Work/api/vaults/open", serde_json::json!({ "path": docs, "guest": true })).await.unwrap().json().await.unwrap();
+    assert_eq!(opened["guest"], true, "{opened}");
+    let at = opened["url"].as_str().unwrap().trim_end_matches('/').to_string();
+    assert_eq!(at, "/v/docs");
+    assert_eq!(get(&format!("{at}/api/file?path=readme.md")).await.unwrap().status(), StatusCode::OK);
+    let info: serde_json::Value = get(&format!("{at}/api/guest")).await.unwrap().json().await.unwrap();
+    assert_eq!((info["editing"].as_bool(), info["from"].as_str().map(|f| f.ends_with("Work"))), (Some(false), Some(true)), "{info}");
+    assert!(get("/v/Work/api/guest").await.unwrap().json::<serde_json::Value>().await.unwrap().is_null(), "the vault is no guest");
+    let plugins: serde_json::Value = get(&format!("{at}/api/plugins")).await.unwrap().json().await.unwrap();
+    assert!(plugins.to_string().contains("viewer"), "the opener's plugins: {plugins}");
+
+    let put = |text: &str| http.put(format!("{base}{at}/api/file")).header("x-atlas", "1").json(&serde_json::json!({ "path": "readme.md", "text": text })).send();
+    assert!(!put("# Changed\n").await.unwrap().status().is_success(), "read-only until Edit");
+    assert_eq!(std::fs::read_to_string(docs.join("readme.md")).unwrap(), "# Docs\n");
+    let on: serde_json::Value = post(&format!("{at}/api/guest/edit"), serde_json::json!({ "on": true })).await.unwrap().json().await.unwrap();
+    assert_eq!(on["editing"], true);
+    assert!(put("# Changed\n").await.unwrap().status().is_success());
+    assert_eq!(std::fs::read_to_string(docs.join("readme.md")).unwrap(), "# Changed\n");
+
+    // a window of it taking the focus does not put it on the list
+    assert!(post(&format!("{at}/api/vaults/active"), serde_json::json!({})).await.unwrap().status().is_success());
+    assert!(!std::fs::read_to_string(&list).unwrap_or_default().contains("docs"), "never remembered");
+    // a folder with its own .atlas is a vault, opened as one
+    let other = home.path().join("Other");
+    std::fs::create_dir_all(other.join(".atlas")).unwrap();
+    let as_vault: serde_json::Value = post("/v/Work/api/vaults/open", serde_json::json!({ "path": other, "guest": true })).await.unwrap().json().await.unwrap();
+    assert!(as_vault["guest"].is_null(), "{as_vault}");
+    srv.shutdown().await.unwrap();
+    assert_eq!(atlas_core::guest::sweep(), 1);
+    assert!(docs.join(".atlas").symlink_metadata().is_err() && docs.join("readme.md").is_file());
+}
+
 /// A plugin's own files by URL (plugin_files.rs; PLUGIN-API.md "A plugin's own files"): no `x-atlas` header (an `<img>`,
 /// a font, an `import()` cannot send one), but the sign-in still holds; under a vault's `/v/<name>/` too; the right type,
 /// a 304 for an unchanged file, nothing outside the plugin's folder.

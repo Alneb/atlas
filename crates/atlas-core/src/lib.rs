@@ -25,6 +25,7 @@ pub mod files;
 pub mod frontmatter;
 pub mod git;
 pub mod git_read;
+pub mod guest;
 pub mod helper;
 pub mod helper_api;
 pub mod js_exec;

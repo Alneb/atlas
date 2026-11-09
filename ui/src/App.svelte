@@ -54,6 +54,8 @@
   import Palette from "./components/Palette.svelte";
   import QuickCapture from "./components/QuickCapture.svelte";
   import Toasts from "./components/Toasts.svelte";
+  import GuestBar from "./components/GuestBar.svelte";
+  import { guest, loadGuest } from "./lib/guest.svelte";
   import { startWhere } from "./lib/where.svelte";
 
   let dockEl: HTMLDivElement;
@@ -147,9 +149,10 @@
       void started.catch(() => {}).then(() => openPath(asked));
     }
 
-    api.workspace().then((w) => {
+    // a guest folder's window says so in its title and its bar (lib/guest.svelte.ts)
+    Promise.all([api.workspace(), loadGuest()]).then(([w]) => {
       app.workspace = w;
-      document.title = `${w.name} — Atlas`;
+      document.title = guest.info ? `Guest: ${w.name} — Atlas` : `${w.name} — Atlas`;
     }, (err) => console.warn("[atlas] workspace fetch failed", err));
 
     void loadKeymap().catch(() => {});
@@ -229,6 +232,7 @@
 
 <div class="shell" class:full={fullscreen.on} class:phone={phone.on} class:vtabs={tabs.layout === "vertical"} class:split={tabs.groups.filter((g) => g.visible).length > 1}>
   {#if phone.on && !nativeShell.on}<PhoneTop />{/if}
+  {#if guest.info}<GuestBar />{/if}
   <div class="main">
     {#if tabs.layout === "vertical"}<Sidebar />{:else}<Rail />{/if}
     <!-- vertical tabs: the sidebar runs the full height (Zen), the status bar sits under the panes -->

@@ -3,4 +3,9 @@
 /**
  * `POST /api/vaults/open` and `/forget`: a folder; `create` makes it when it does not exist.
  */
-export type VaultRequest = { path: string, create: boolean, };
+export type VaultRequest = { path: string, create: boolean, 
+/**
+ * Open it as a guest of this window's vault (guest.rs): not remembered, read-only until switched on. A folder
+ * with its own `.atlas/` is opened as the vault it is.
+ */
+guest: boolean, };

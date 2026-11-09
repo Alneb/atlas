@@ -3,4 +3,4 @@
 /**
  * `POST /api/vaults/pick`: what the system's folder dialog is for (its title says it).
  */
-export type PickPurpose = "open" | "create";
+export type PickPurpose = "open" | "create" | "guest";

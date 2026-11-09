@@ -1,6 +1,7 @@
-// The editor's own right-click menu: the clipboard, then what the place offers (a link under the
-// pointer, the note keys, the language server). Shift+right-click keeps the browser's menu
-// (spelling suggestions live there). One list builder, so a new entry is one line.
+// The editor's own right-click menu: the plugins' rows about the word under the pointer (Spelling's
+// suggestions), the clipboard, then what the place offers (a link under the pointer, the note keys,
+// the language server). Shift+right-click keeps the browser's menu. One list builder, so a new entry
+// is one line; notes, code files and the prose editor (a mail being written) all open it.
 import { chooseVault } from "../vaults";
 import { selectAll } from "@codemirror/commands";
 import { EditorView } from "@codemirror/view";
@@ -15,7 +16,9 @@ import { pluginRows } from "../plugin-menus";
 import { editRawProperties, frontmatterClose } from "./live/live-preview.js";
 import { goToDefinition } from "./definition";
 
-export interface EditorMenuOptions { path: string; markdown: boolean; onOpenLink?: (target: string) => void }
+/** What the editor holds: a vault note, a code file, or prose outside a note (a mail, a comment: no note keys). */
+export type EditorKind = "note" | "code" | "prose";
+export interface EditorMenuOptions { path: string; kind: EditorKind; onOpenLink?: (target: string) => void }
 
 /** The wikilink target under the pointer, in source or rendered form. */
 function linkAt(el: HTMLElement): string | null {
@@ -51,23 +54,25 @@ function items(view: EditorView, target: HTMLElement, o: EditorMenuOptions): Men
   const some = !view.state.selection.main.empty, link = linkAt(target);
   const list: MenuItem[] = [];
   if (link && o.onOpenLink) list.push({ label: "Open link", icon: "link", run: () => o.onOpenLink!(link) }, "sep");
-  if (!o.markdown) list.push(...codeItems(view), "sep");
+  if (o.kind === "code") list.push(...codeItems(view), "sep");
   list.push(
     { label: "Cut", icon: "scissors", hint: "Ctrl+X", disabled: !some, run: () => { void copy(selected(view)); view.dispatch(view.state.replaceSelection(""), { userEvent: "delete.cut" }); } },
     { label: "Copy", icon: "copy", hint: "Ctrl+C", disabled: !some, run: () => void copy(selected(view)) },
     { label: "Paste", icon: "clipboard", hint: "Ctrl+V", run: () => void paste(view) },
     { label: "Select all", icon: "select-all", hint: "Ctrl+A", run: () => { selectAll(view); } },
   );
-  if (o.markdown) list.push("sep",
-    { label: "Bold", icon: "bold", hint: keysOf("note.bold"), run: () => formatNote(view, "bold") },
-    { label: "Italic", icon: "italic", hint: keysOf("note.italic"), run: () => formatNote(view, "italic") },
+  if (o.kind !== "code") list.push("sep",
+    { label: "Bold", icon: "bold", hint: o.kind === "note" ? keysOf("note.bold") : undefined, run: () => formatNote(view, "bold") },
+    { label: "Italic", icon: "italic", hint: o.kind === "note" ? keysOf("note.italic") : undefined, run: () => formatNote(view, "italic") },
+  );
+  if (o.kind === "note") list.push(
     { label: "Link", icon: "link", hint: keysOf("note.link"), run: () => formatNote(view, "link") },
     { label: "To-do", icon: "check", hint: keysOf("note.task"), run: () => formatNote(view, "task") },
     { label: "Task…", icon: "calendar", run: () => formatNote(view, "taskDialog") },
     { label: "Insert template…", icon: "file-text", run: () => formatNote(view, "insertTemplate") },
     ...(frontmatterClose(view.state.doc) ? [{ label: "Edit properties as text", icon: "code" as const, hint: "Alt+click", run: () => { editRawProperties(view); } }] : []),
   );
-  if (o.markdown) list.push("sep", { label: "Edit live on the vault's mirror…", icon: "link", run: () => void chooseVault({ linkMirror: true }) });
+  if (o.kind === "note") list.push("sep", { label: "Edit live on the vault's mirror…", icon: "link", run: () => void chooseVault({ linkMirror: true }) });
   const plugins = pluginRows("editor", { path: o.path, selection: selected(view) });
   return [...plugins.top, ...list, ...plugins.end];
 }

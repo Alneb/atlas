@@ -26,6 +26,7 @@ import { lspFor, lspKeys } from "./lsp";
 import { definitionClicks } from "./definition";
 import { mathPreview } from "./math-preview";
 import { editorMenu } from "./menu";
+import { guestLock } from "../guest.svelte";
 import { pluginCompletions, pluginHooks } from "./plugin-hooks";
 import { atlasTheme } from "./theme";
 import { drawnSelection } from "./drawn-selection";
@@ -167,7 +168,8 @@ export function createEditor(o: EditorOptions): AtlasEditor {
         o.onSelection({ from_line: d.lineAt(from).number, to_line: d.lineAt(to).number, text: d.sliceString(from, Math.min(to, from + SELECTION_TEXT_MAX)) });
       }
     }),
-    editorMenu({ path: o.path, markdown: md, onOpenLink: o.onOpenLink }),
+    editorMenu({ path: o.path, kind: md ? "note" : "code", onOpenLink: o.onOpenLink }),
+    guestLock(), // a guest folder's window: read-only until its Edit switch (guest.svelte.ts)
     pluginHooks(o.path, md),
     // in code files the plugins' completions join the language's own (notes list theirs above)
     md ? [] : EditorState.languageData.of(() => [{ autocomplete: pluginCompletions(o.path, false) }]),

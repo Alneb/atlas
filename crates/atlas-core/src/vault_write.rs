@@ -578,6 +578,17 @@ pub mod outside {
         check(abs);
         Ok(std::fs::create_dir_all(abs)?)
     }
+    /// `link` made a link to the folder `target` (a guest folder's `.atlas`, guest.rs). On Windows a junction would
+    /// need no developer mode; a symlink is tried, and its refusal said.
+    pub fn symlink_dir(target: &Path, link: &Path) -> Result<()> {
+        check(link);
+        raw::mkdir_parent(link)?;
+        #[cfg(unix)]
+        std::os::unix::fs::symlink(target, link)?;
+        #[cfg(windows)]
+        std::os::windows::fs::symlink_dir(target, link)?;
+        Ok(())
+    }
 }
 
 #[cfg(test)]
