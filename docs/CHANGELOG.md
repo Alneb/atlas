@@ -5,9 +5,18 @@ and versions follow [Semantic Versioning](https://semver.org/) once 1.0 is out.
 
 ## [Unreleased]
 
-## [0.2.8] - 2026-11-06
+## [0.2.8] - 2026-11-09
 
 ### Added
+- Guest folders: **Vault: open a folder as a guest…** opens a folder that is not a vault in a window of its own, with
+  this vault's plugins, kept out of the vault's search, links and vault list, and read-only until its **Edit** switch
+  is on; it is forgotten at the next start.
+- **Notes: triage**, a Base of the notes that wait for a decision: unsorted, untagged, orphaned, stale.
+- Captures: **Catalogue** files a capture as its note; a captured PDF link becomes a reference (DOI, arXiv or ISBN
+  read from its first pages; books by ISBN). Papers 0.5.
+- Email: `email_open` lets an agent show one mail in the Email pane; a reply shows the mail it answers under the box.
+- MCP: `atlas_tasks` and `atlas_task_done`.
+- The editor colours brackets by depth; Phosphor icons at full contrast.
 - Search ranks the files whose text matches: a name or heading that says the word first, then notes, then the files
   with more matches, then the newest; each shows its first lines and its number of matches, a page of 50 at a time
   with "Show more" (before: the first 200 lines found, in no useful order, and 50 names).
@@ -17,6 +26,21 @@ and versions follow [Semantic Versioning](https://semver.org/) once 1.0 is out.
   added (add and remove them there). Spelling 0.3.0.
 - The desktop starts its other vaults in the background shortly after launch: a first switch is a page load.
 - Settings shows the commit Atlas was built from and the real plugin API (it showed the HTTP API's level).
+
+### Fixed
+- The Predictor and Spelling no longer lose their counts on a busy machine: a JavaScript helper's time limit counts
+  its own CPU time, not the clock, so a helper waiting for the CPU is no longer stopped as a runaway loop.
+- Spelling's suggestions on right-click in the mail composer (it had no right-click menu).
+- A sent reply's draft leaves the conversation.
+- A plugin's tool calls never block the core's other requests.
+- A server that leaves out its intermediate certificate is reached.
+- Phone captures get their OCR on the desktop.
+- The desktop core keeps its port across restarts, so the page keeps its storage.
+- PDF sources fetch quietly, with one short notice when none has the PDF.
+- Calendar: an ntfy token counts when a user is named without a password.
+- A title taken from a percent-encoded file name reads as text.
+- The mirror sends no file bytes while Syncthing carries the vault.
+- A release's plugin archives and draft are made even when a platform's plugin engine job was cancelled.
 
 ### Changed
 - Delete goes to the system Trash on macOS and Windows too (it went to the vault's `.atlas/trash/`), and a pasted
