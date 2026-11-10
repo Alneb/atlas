@@ -255,6 +255,15 @@ function embedOptions(text) {
 }
 
 /** A non-image embed (a transcluded note), shown as a chip until opened. */
+/** Atlas: the words a link reads instead of its target (a numbered equation's "(3)", lib/equations.ts). */
+class LinkLabelWidget extends KeyedWidget {
+  toDOM() {
+    const s = document.createElement("span");
+    s.textContent = this.key;
+    return s;
+  }
+}
+
 class EmbedChipWidget extends KeyedWidget {
   toDOM() {
     return chip("cm-embed-chip", this.key);
@@ -592,6 +601,8 @@ function normalizeOptions(options) {
     // not know (no vault index) draws every link as a normal link, rather than
     // dimming the whole document as if nothing resolved.
     linkResolves: options.linkResolves || (() => true),
+    // Atlas: what a link reads instead of its target (a numbered equation), null for most
+    linkLabel: options.linkLabel || null,
     // Syntax highlighting inside fenced code blocks, as [{from,to,cls}] ranges
     // over the code text. Defaults to none, which leaves code as plain
     // monospace -- the behaviour before this was wired in.
@@ -739,6 +750,10 @@ class RenderedBlockWidget extends KeyedWidget {
     this.html = html;
     this.hydrate = hydrate;
     this.release = release;
+  }
+  // Atlas: the same source can render anew (an equation's number moved when one was added above it)
+  eq(other) {
+    return super.eq(other) && other.html === this.html;
   }
   // CodeMirror drops the DOM (scrolled away, edited, the view destroyed): what
   // hydrate() mounted goes with it. Never on a detached editor (a hidden tab),
@@ -1058,7 +1073,7 @@ export function buildDecorations(state, ranges, options = {}) {
       };
       if (revealed(state, chunk.from, chunk.to)) return false; // being edited
       const source = state.doc.sliceString(chunk.from, chunk.to);
-      const html = opts.blockHtml(source);
+      const html = opts.blockHtml(source, state);
       // a raw block of closing tags only (`</div>` after a blank line inside a `<div>`) renders to nothing, as in
       // Obsidian: not its source as text
       const closers = node.name === "HTMLBlock" && /^(\s*<\/[A-Za-z][\w-]*\s*>)+\s*$/.test(source);
@@ -1228,6 +1243,9 @@ export function buildDecorations(state, ranges, options = {}) {
             // With an alias, the target is noise: Obsidian shows only the alias.
             // The marks themselves are hidden by the MARK_NODES branch.
             if (alias && target) add(target.from, alias.from, Decoration.replace({}));
+            // Atlas: a link that reads otherwise than its target (a numbered equation: "(3)")
+            const label = !alias && target && opts.linkLabel ? opts.linkLabel(state, state.doc.sliceString(target.from, target.to)) : null;
+            if (label) add(target.from, target.to, Decoration.replace({ widget: new LinkLabelWidget(label) }));
           }
           return;
         }

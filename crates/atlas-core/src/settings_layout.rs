@@ -35,6 +35,7 @@ const FIELD_LABELS: &[(&str, &str)] = &[
     ("latex.snippets", "Snippets while typing math"), ("latex.snippets_file", "Snippets file"), ("latex.variables_file", "Snippet variables file"),
     ("draw.page_format", "A new drawing's pages"), ("web.open_links", "Web links open in"), ("web.tab_view", "Web tabs show pages"), ("pdf.export_on_save", "Export annotations on save"),
     ("notifications.system", "System notifications"),
+    ("notifications.system_seconds", "A system notification stays (seconds)"),
     ("ui.sleep_after_min", "Tabs sleep after (minutes)"), ("desktop.on_close", "Closing the window"),
     ("desktop.sleep_after_min", "Hidden window closes after (minutes)"),
 ];

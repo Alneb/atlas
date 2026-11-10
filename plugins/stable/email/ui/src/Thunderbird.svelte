@@ -29,24 +29,24 @@
     }
   }
 
-  // local mail: check (a dry run), then write
+  // local mail: check (a dry run), then put on the server
   let account = $state(untrack(() => cards[0]?.name ?? ""));
   type Step = { kind: "idle" } | { kind: "busy"; text: string } | { kind: "missing"; n: number; by: [string, number][] } | { kind: "done"; text: string; error?: boolean };
   let step = $state<Step>({ kind: "idle" });
   async function check() {
-    step = { kind: "busy", text: `Comparing ${account}'s local mail with its notes…` };
+    step = { kind: "busy", text: `Comparing ${account}'s local mail with its server…` };
     try {
       const dry = await call<{ missing: Record<string, number>; note?: string }>(atlas, "thunderbird_mail", { account, dry: true }, 600);
       const by = Object.entries(dry.missing ?? {});
       const n = by.reduce((a, [, k]) => a + k, 0);
-      step = n ? { kind: "missing", n, by } : { kind: "done", text: dry.note ?? "Every local message is already a note." };
+      step = n ? { kind: "missing", n, by } : { kind: "done", text: dry.note ?? "The server already has every local message." };
     } catch (e) { step = { kind: "done", text: String((e as Error).message ?? e), error: true }; }
   }
   async function write(n: number) {
-    step = { kind: "busy", text: `Writing ${n} messages as notes…` };
+    step = { kind: "busy", text: `Putting ${n} messages on the server…` };
     try {
-      const r = await call<{ saved: string[]; failed: string[] }>(atlas, "thunderbird_mail", { account, dry: false }, 1800);
-      step = { kind: "done", text: `${r.saved.length} kept as notes${r.failed.length ? `; ${r.failed.length} failed: ${r.failed.slice(0, 3).join("; ")}` : "."}`, error: r.failed.length > 0 };
+      const r = await call<{ uploaded: number; failed: string[] }>(atlas, "thunderbird_mail", { account, dry: false }, 1800);
+      step = { kind: "done", text: `${r.uploaded} put on the server; the list has them now${r.failed.length ? `; ${r.failed.length} failed: ${r.failed.slice(0, 3).join("; ")}` : "."}`, error: r.failed.length > 0 };
     } catch (e) { step = { kind: "done", text: String((e as Error).message ?? e), error: true }; }
   }
 </script>
@@ -80,7 +80,7 @@
 
   <section>
     <h3>Local mail</h3>
-    <p class="hint">What Thunderbird keeps on this computer only (a POP account's mail, gone from the server), kept as notes.</p>
+    <p class="hint">What Thunderbird keeps on this computer only (a POP account's mail, gone from the server), put back on the server: into the folder of the same kind (Inbox, Sent, Trash…), read or starred as it was, each message once.</p>
     {#if !cards.length}
       <p class="hint">Add the account above first.</p>
     {:else}
@@ -94,9 +94,9 @@
         <p class="hint">{step.text}</p>
       {:else if step.kind === "missing"}
         {@const n = step.n}
-        <p>{n} message{n === 1 ? "" : "s"} Thunderbird keeps for {account} {n === 1 ? "is" : "are"} in no note:</p>
+        <p>{n} message{n === 1 ? "" : "s"} Thunderbird keeps for {account} {n === 1 ? "is" : "are"} not on the server:</p>
         <ul class="counts">{#each step.by as [folder, k] (folder)}<li><span>{folder}</span><span>{k}</span></li>{/each}</ul>
-        <div class="row"><button class="primary" onclick={() => write(n)}>Write them as notes</button></div>
+        <div class="row"><button class="primary" onclick={() => write(n)}>Put them on the server</button></div>
       {:else if step.kind === "done"}
         <p class:err={step.error}>{step.text}</p>
       {/if}

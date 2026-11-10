@@ -7,7 +7,7 @@
 title = "Email"
 description = "mail: conversations, search, fast triage, a composer, rules; saved notes; IMAP/SMTP or Outlook (OAuth2), several accounts"
 icon = "mail"
-version = "1.6.1"
+version = "1.7.0"
 rail = true          # a button for the Email pane (view.js)
 provides = ["mail"]  # the role other plugins call it by (the Calendar's Exchange sign-in: `@mail/helper` calendar_token)
 api = 12

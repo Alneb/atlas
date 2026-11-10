@@ -38,7 +38,7 @@ export function register(atlas: PluginApi) {
     ? void atlas.openDialog(THUNDERBIRD_DIALOG, { title: "Import from Thunderbird", width: 640, height: 560 })
     : atlas.openView(THUNDERBIRD_DIALOG, { title: "Thunderbird", icon: "mail" }));
   atlas.registerCommand({ id: "thunderbird", title: "Email: import an account from Thunderbird…", run: thunderbird });
-  atlas.registerCommand({ id: "thunderbird-mail", title: "Email: keep Thunderbird's local mail as notes…", run: thunderbird });
+  atlas.registerCommand({ id: "thunderbird-mail", title: "Email: put Thunderbird's local mail on the server…", run: thunderbird });
   // one listener however often the plugin is loaded again (a stale one would start a second sign-in)
   const w = window as unknown as { __atlasEmailSignin?: EventListener };
   if (w.__atlasEmailSignin) window.removeEventListener("atlas-email:signin", w.__atlasEmailSignin);

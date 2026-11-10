@@ -20,4 +20,5 @@ pub mod rules;
 pub mod send;
 pub mod sync;
 pub mod thunderbird;
+pub mod trouble;
 pub mod api;

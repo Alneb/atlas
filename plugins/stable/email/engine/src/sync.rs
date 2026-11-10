@@ -12,6 +12,7 @@ use crate::account::Account;
 use crate::imap::Imap;
 use crate::index::Folder;
 use crate::mail::Mail;
+use crate::trouble::{Fail, Trouble};
 use serde_json::json;
 use std::collections::HashSet;
 use std::sync::Arc;
@@ -60,7 +61,7 @@ pub async fn account(m: &Mail, acc: &Account, only: Option<&[String]>) -> Result
     m.event("status", json!({ "account": acc.name, "state": "syncing" }));
     let mut r = account_inner(m, acc, only).await;
     // servers hang up on idle or busy connections: a sync only asks what changed, so a new connection just goes on
-    if r.as_ref().is_err_and(|e| crate::imap::connection_lost(e)) {
+    if r.as_ref().is_err_and(|e| crate::imap::connection_lost(&e.text)) {
         m.drop_conns(&acc.name);
         r = account_inner(m, acc, only).await;
     }
@@ -76,12 +77,19 @@ pub async fn account(m: &Mail, acc: &Account, only: Option<&[String]>) -> Result
                 m.event("new", json!({ "account": acc.name, "messages": msgs, "count": rep.new.len() }));
             }
         }
-        Err(e) => m.event("status", json!({ "account": acc.name, "state": "error", "error": e })),
+        Err(e) => m.event("status", unreachable_status(&acc.name, e)),
     }
-    r
+    r.map_err(String::from)
 }
 
-async fn account_inner(m: &Mail, acc: &Account, only: Option<&[String]>) -> Result<Report, String> {
+/// The status of an account that could not be synced: `offline` when the way to the server failed (tried again by
+/// itself, nothing to fix), `error` when the person has something to do — `trouble` says whether it is the sign-in.
+fn unreachable_status(account: &str, e: &Fail) -> serde_json::Value {
+    let state = if e.trouble == Trouble::Connection { "offline" } else { "error" };
+    json!({ "account": account, "state": state, "trouble": e.trouble, "error": e.text })
+}
+
+async fn account_inner(m: &Mail, acc: &Account, only: Option<&[String]>) -> Result<Report, Fail> {
     let mut c = m.conn(acc).await?;
     let first = m.index.folders(Some(&acc.name)).is_empty();
     let round = {
@@ -96,7 +104,7 @@ async fn account_inner(m: &Mail, acc: &Account, only: Option<&[String]>) -> Resu
             Ok(list) => m.index.set_folders(&acc.name, &list)?,
             Err(e) => {
                 m.rt.spawn(c.logout());
-                return Err(e);
+                return Err(e.into());
             }
         }
     }
@@ -128,7 +136,7 @@ async fn account_inner(m: &Mail, acc: &Account, only: Option<&[String]>) -> Resu
             }
             Err(e) if crate::imap::connection_lost(&e) => {
                 m.rt.spawn(c.logout());
-                return Err(e);
+                return Err(e.into());
             }
             Err(e) => rep.errors.push(format!("{}: {e}", f.label)),
         }
@@ -297,7 +305,7 @@ async fn idle_loop(m: Arc<Mail>, name: String) {
     let mut pause = 5;
     loop {
         let Ok(acc) = m.account(Some(&name)) else { return };
-        let r: Result<(), String> = async {
+        let r: Result<(), Fail> = async {
             let token = m.token(&acc).await?;
             let mut c = Imap::connect(&acc, token).await?;
             let inbox = m.index.role(&acc.name, "inbox").map(|f| f.path).unwrap_or_else(|| "INBOX".into());
@@ -327,7 +335,11 @@ async fn idle_loop(m: Arc<Mail>, name: String) {
         match r {
             Ok(()) => pause = 5,
             Err(e) => {
-                m.event("status", json!({ "account": name, "state": "offline", "error": e }));
+                m.event("status", unreachable_status(&name, &e));
+                // refused credentials stay refused: asking every few seconds only gets an account locked
+                if e.trouble == Trouble::SignIn {
+                    pause = 300;
+                }
                 tokio::time::sleep(Duration::from_secs(pause)).await;
                 pause = (pause * 2).min(300);
             }
@@ -463,7 +475,27 @@ mod tests {
         let acc = m.account(None).unwrap();
         let e = m.rt.block_on(account(&m, &acc, None)).unwrap_err();
         assert!(e.contains("refused the user name or password"), "{e}");
-        assert!(events.lock().unwrap().iter().any(|(n, d)| n == "status" && d["state"] == "error"));
+        assert!(events.lock().unwrap().iter().any(|(n, d)| n == "status" && d["state"] == "error" && d["trouble"] == "sign-in"));
+    }
+
+    #[test]
+    fn no_password_is_the_sign_ins_trouble_and_no_server_the_connections() {
+        let (m, _s, events, _d) = harness(true);
+        let said = |events: &super::tests_support::Events| events.lock().unwrap().iter().rev().find(|(n, _)| n == "status").map(|(_, d)| d.clone()).unwrap();
+        let mut p = m.params();
+        p["secrets"]["accounts.fake.password"] = json!("");
+        m.remember(&p);
+        m.rt.block_on(account(&m, &m.account(None).unwrap(), None)).unwrap_err();
+        let st = said(&events);
+        assert_eq!((st["state"].as_str(), st["trouble"].as_str()), (Some("error"), Some("sign-in")), "{st}");
+        // a port nobody listens on: the password is fine, the server is not there
+        let free = std::net::TcpListener::bind("127.0.0.1:0").unwrap().local_addr().unwrap().port();
+        p["secrets"]["accounts.fake.password"] = json!(crate::fake::PASSWORD);
+        p["settings"]["accounts"][0]["imap_port"] = json!(free);
+        m.remember(&p);
+        m.rt.block_on(account(&m, &m.account(None).unwrap(), None)).unwrap_err();
+        let st = said(&events);
+        assert_eq!((st["state"].as_str(), st["trouble"].as_str()), (Some("offline"), Some("connection")), "{st}");
     }
 
     #[test]

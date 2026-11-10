@@ -16,7 +16,7 @@ struct Java {
 struct JavaNotifier(Arc<Java>);
 
 impl Notifier for JavaNotifier {
-    fn show(&self, n: &Notice, replaces: Option<u32>) -> Result<u32, String> {
+    fn show(&self, n: &Notice, replaces: Option<u32>, _stay: notify::Stay) -> Result<u32, String> {
         let mut env = self.0.vm.attach_current_thread_as_daemon().map_err(|e| e.to_string())?;
         // the thread stays attached: its references must not pile up over the app's life
         let shown = env.with_local_frame(8, |env| -> jni::errors::Result<i32> {

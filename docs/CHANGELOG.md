@@ -5,6 +5,26 @@ and versions follow [Semantic Versioning](https://semver.org/) once 1.0 is out.
 
 ## [Unreleased]
 
+## [0.2.10] - 2026-11-10
+
+### Added
+- Numbered equations: `\label{…}` inside `$$…$$` (or `$$ … $$ ^id`) numbers a display, as do `equation`/`align`
+  environments; links `[[#^id]]` / `[[Note#^id]]` read "(3)" / "Note (3)" and follow; `![[Note#^id]]` embeds one
+  formula; completion lists labels. Export numbers them over the whole document (an embedded note continues).
+- A DOI link opens its paper's note, or offers to add the paper to the library (note and PDF).
+- Appearance per device: "This device" keeps its own look; "Follow the system's theme".
+- `atlas.openLink` (plugin API 28): every web link opens the same way; Shift+click opens the browser, in mail too.
+- Email 1.7.0: a POP account's mail that only Thunderbird keeps is put back on its server; sign-in trouble is told
+  apart from a connection that failed (offline accounts retry, refused credentials wait).
+- Export 1.3.0: the LaTeX layout (plain, article, chapters) in the dialog.
+- System notifications have a lifetime (`[notifications] system_seconds`).
+
+### Fixed
+- A file sent from the phone without a note lands beside the day's log, not at the vault's top.
+- The phone's bars no longer turn black from a transparent colour.
+- A resolver's redirect (doi.org to a publisher) is no longer taken for a sign-in page.
+- Links to a place in the same note (`[[#…]]`) no longer show as missing; the Properties panel's heading has its line.
+
 ## [0.2.9] - 2026-11-09
 
 ### Added

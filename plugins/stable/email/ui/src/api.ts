@@ -4,7 +4,9 @@ export type { PluginApi };
 
 export interface Person { name: string; addr: string }
 export interface Folder { account: string; path: string; label: string; role: string | null; delimiter: string | null; unread: number; total: number }
-export interface Status { state: "syncing" | "idle" | "error" | "offline"; error?: string; errors?: string[] }
+/** `offline`: the server could not be reached (retried by itself); `error`: something to fix — `trouble` says whether
+ *  it is the sign-in (no password, refused, expired). */
+export interface Status { state: "syncing" | "idle" | "error" | "offline"; trouble?: "sign-in" | "connection" | "other"; error?: string; errors?: string[] }
 export interface Account {
   name: string; user?: string; from?: string; main?: boolean; own?: string[]; identities?: string[]; outlook?: boolean;
   unread?: number; status?: Status | null; syncing?: boolean; signature?: string; error?: string;

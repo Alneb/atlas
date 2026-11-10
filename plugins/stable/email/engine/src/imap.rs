@@ -3,6 +3,7 @@
 //! library drops (COPYUID, APPENDUID, Gmail's thread ids, MODSEQ) are read raw through [`Imap::raw`].
 
 use crate::account::{Account, Auth, Security, Server};
+use crate::trouble::{Fail, Trouble};
 use crate::index::Incoming;
 use crate::parse;
 use async_imap::imap_proto::rfc4315::UidSetMember;
@@ -136,44 +137,45 @@ pub struct Imap {
 pub type Token = Option<String>;
 
 impl Imap {
-    pub async fn connect(acc: &Account, token: Token) -> Result<Imap, String> {
+    /// Connects and signs in. The failure says whether the way to the server or the credentials stood in the way.
+    pub async fn connect(acc: &Account, token: Token) -> Result<Imap, Fail> {
         let host = &acc.imap.host;
         let stream = match acc.imap.security {
             Security::StartTls => {
-                let Stream::Plain(tcp) = open(&acc.imap).await? else { unreachable!() };
-                imap_starttls(tcp, host).await?
+                let Stream::Plain(tcp) = open(&acc.imap).await.map_err(Fail::connection)? else { unreachable!() };
+                imap_starttls(tcp, host).await.map_err(Fail::connection)?
             }
-            _ => open(&acc.imap).await?,
+            _ => open(&acc.imap).await.map_err(Fail::connection)?,
         };
         let mut client = async_imap::Client::new(stream);
         if acc.imap.security != Security::StartTls {
-            let greeting = tokio::time::timeout(TIMEOUT, client.read_response()).await.map_err(|_| format!("{host} sent no greeting"))?;
+            let greeting = tokio::time::timeout(TIMEOUT, client.read_response()).await.map_err(|_| Fail::connection(format!("{host} sent no greeting")))?;
             match greeting {
                 Ok(Some(_)) => {}
-                _ => return Err(format!("{host} closed the connection before greeting")),
+                _ => return Err(Fail::connection(format!("{host} closed the connection before greeting"))),
             }
         }
         let session = match &acc.auth {
             Auth::Password(pw) => {
                 if pw.is_empty() {
-                    return Err(format!("no password for {} yet: set it in Settings → Plugins → Email", acc.name));
+                    return Err(Fail::sign_in(format!("no password for {} yet: set it in Settings → Plugins → Email", acc.name)));
                 }
                 tokio::time::timeout(TIMEOUT, client.login(&acc.user, pw))
                     .await
-                    .map_err(|_| format!("{host} did not answer the sign-in"))?
-                    .map_err(|(e, _)| refused(host, &e.to_string()))?
+                    .map_err(|_| Fail::connection(format!("{host} did not answer the sign-in")))?
+                    .map_err(|(e, _)| sign_in_failed(host, e, refused))?
             }
             Auth::Outlook { .. } => {
-                let tok = token.ok_or_else(|| "not signed in to Outlook: run “Email: sign in to Outlook…”".to_string())?;
+                let tok = token.ok_or_else(|| Fail::sign_in("not signed in to Outlook: run “Email: sign in to Outlook…”"))?;
                 let auth = XOAuth2(format!("user={}\x01auth=Bearer {}\x01\x01", acc.user, tok));
                 tokio::time::timeout(TIMEOUT, client.authenticate("XOAUTH2", auth))
                     .await
-                    .map_err(|_| format!("{host} did not answer the sign-in"))?
-                    .map_err(|(e, _)| format!("Outlook refused the sign-in ({e}): sign in again"))?
+                    .map_err(|_| Fail::connection(format!("{host} did not answer the sign-in")))?
+                    .map_err(|(e, _)| sign_in_failed(host, e, |_, why| format!("Outlook refused the sign-in ({why}): sign in again")))?
             }
         };
         let mut me = Imap { s: session, caps: HashSet::new(), account: acc.name.clone(), selected: None };
-        let caps = me.s.capabilities().await.map_err(|e| format!("{host}: {e}"))?;
+        let caps = me.s.capabilities().await.map_err(|e| failed("CAPABILITY", e))?;
         me.caps = caps.iter().map(|c| format!("{c:?}").to_uppercase()).map(|c| cap_name(&c)).collect();
         if me.has("ENABLE") && me.has("CONDSTORE") {
             let _ = me.raw("ENABLE CONDSTORE").await;
@@ -462,7 +464,15 @@ impl Imap {
 
     /// APPEND a message → its uid there when the server says (APPENDUID).
     pub async fn append(&mut self, folder: &str, flags: &[&str], raw: &[u8]) -> Result<Option<u32>, String> {
-        let flags = if flags.is_empty() { String::new() } else { format!("({}) ", flags.join(" ")) };
+        self.append_at(folder, flags, None, raw).await
+    }
+
+    /// APPEND with the date it arrived (INTERNALDATE, unix seconds): an old message brought in sorts by its own day.
+    pub async fn append_at(&mut self, folder: &str, flags: &[&str], when: Option<i64>, raw: &[u8]) -> Result<Option<u32>, String> {
+        let mut flags = if flags.is_empty() { String::new() } else { format!("({}) ", flags.join(" ")) };
+        if let Some(t) = when.and_then(|t| chrono::DateTime::from_timestamp(t, 0)) {
+            flags.push_str(&format!("\"{}\" ", t.format("%d-%b-%Y %H:%M:%S +0000")));
+        }
         let rs = self.append_raw(folder, &flags, raw).await?;
         Ok(rs.iter().find_map(|code| match code {
             Some((_, uids)) => uids.first().copied(),
@@ -803,6 +813,17 @@ pub fn role_of(name: &str, delim: Option<&str>, flags: &[String]) -> (String, Op
     };
     let label = if role == Some("inbox") { "Inbox".to_string() } else { label };
     (label, role.map(String::from))
+}
+
+/// A sign-in that failed, by what failed: the server said no to the credentials (`said` words it), it said no for a
+/// reason of its own (busy, over a limit), or the connection died before it answered.
+fn sign_in_failed(host: &str, e: async_imap::error::Error, said: impl Fn(&str, &str) -> String) -> Fail {
+    use async_imap::error::Error as E;
+    match e {
+        E::No(_) | E::Bad(_) if crate::trouble::server_busy(&e.to_string()) => Fail { trouble: Trouble::Other, text: format!("{host} is not taking sign-ins now: {e}") },
+        E::No(_) | E::Bad(_) => Fail::sign_in(said(host, &e.to_string())),
+        e => Fail::connection(format!("{host} closed the connection during the sign-in ({e})")),
+    }
 }
 
 /// Why a server said no to a password, said so the user knows what to do.

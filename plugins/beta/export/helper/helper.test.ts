@@ -189,3 +189,18 @@ test("formulas: Atlas's macros kept and defined per road, a $$align block an ali
   const t = await translate({ files: Object.keys(files), read: async (p) => files[p] }, "n.md", "", new Set());
   assert.match(t.markdown, /Intro line\n\n## Next/);
 });
+
+test("equations are numbered over the whole document, an embedded note's continuing the host's; links read the number", async () => {
+  const files: Record<string, string> = {
+    "notes/Host.md": "# Host\n\nFirst\n$$ a = b \\label{eq-a} $$\nthen ![[Deriv]]\nand [[#^eq-a]], [[Deriv#^eq-d]], [[Far#^eq-f]].\n\n$$ c $$\n",
+    "notes/Deriv.md": "$$\n\\begin{align} x &= y \\end{align}\n$$ ^eq-d\n$$ z \\tag{D2} \\label{eq-z} $$\n",
+    "notes/Far.md": "$$ u \\label{eq-g} $$\n$$ v \\label{eq-f} $$\n",
+  };
+  const t = await translate({ files: Object.keys(files), read: async (p: string) => files[p] }, "notes/Host.md", "exports", new Set());
+  const md = t.markdown.replace(/\s+/g, " ");
+  assert.ok(md.includes("a = b\\tag{1}"), md);
+  assert.ok(md.includes("\\end{aligned}\\tag{2}"), md); // the embedded note continues: (2)
+  assert.ok(md.includes("z \\tag{D2}") && !md.includes("\\label"), md);
+  assert.ok(md.includes("and (1), (2), Far (2)."), md); // a note not in the document: its own numbers
+  assert.ok(md.includes("$$ c $$"), "a plain display stays unnumbered");
+});

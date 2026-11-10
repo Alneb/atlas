@@ -556,7 +556,7 @@ function librarySource(atlas, title = null) {
         fields: propsOf(k).filter((p) => p !== "title" && p !== cover && !(k.library?.key ?? []).map((x) => vaultName(k, x)).includes(p)).map((p) => [human(p), cellText(value(row, p))]).filter(([, v]) => v),
         actions: [
           { label: "Open note", icon: "edit", primary: true, run: () => atlas.open(item.id) },
-          ...links.slice(0, 1).map((l) => ({ label: `Open on ${l.label}`, icon: "link", run: () => window.open(l.url, "_blank", "noopener") })),
+          ...links.slice(0, 1).map((l) => ({ label: `Open on ${l.label}`, icon: "link", run: () => (atlas.openLink ? atlas.openLink(l.url) : window.open(l.url, "_blank", "noopener")) })), // as Atlas opens any link
           { label: "Copy link", icon: "copy", title: `[[${name}]]: to link it from a note`, run: () => navigator.clipboard.writeText(`[[${name}]]`).then(() => atlas.toast("Copied", `[[${name}]]`)) },
           { label: "Update", icon: "refresh", title: "Fetch its details again from the services it is in (your own text is kept)", run: () => atlas.helper.call("refresh", { path: item.id }, { timeout: 120 }) },
           // as References' Edit: its fields in place, each written to the note's property

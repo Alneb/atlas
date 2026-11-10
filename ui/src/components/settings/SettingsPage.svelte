@@ -8,6 +8,7 @@
   import SettingField from "./SettingField.svelte";
   import OverviewPanel from "./OverviewPanel.svelte";
   import PreviewPanel from "./PreviewPanel.svelte";
+  import DeviceLookPanel from "./DeviceLookPanel.svelte";
   import SnippetsPanel from "./SnippetsPanel.svelte";
   import SwitchList from "./SwitchList.svelte";
   import { allApps, ordered, appHidden, setAppHidden, moveApp } from "../../lib/apps.svelte";
@@ -72,6 +73,7 @@
   {#each def?.panels ?? [] as panel (panel)}
     {#if panel === "overview"}<OverviewPanel {pages} {go} />
     {:else if panel === "preview"}<PreviewPanel />
+    {:else if panel === "device"}<DeviceLookPanel />
     {:else if panel === "apps"}
       <SwitchList title="Apps in the left bar" label="Apps" items={ordered(allApps())} hidden={appHidden} setHidden={setAppHidden} move={moveApp}
         desc="The tiles above the tabs. A hidden app still opens from the palette and its keys; a plugin's pane gets a tile when its manifest says <code>rail = true</code>." />

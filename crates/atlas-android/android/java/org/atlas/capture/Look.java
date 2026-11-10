@@ -249,8 +249,10 @@ public final class Look {
         String c = css.trim();
         try {
             if (c.matches("#[0-9a-fA-F]{6}")) return 0xff000000 | Integer.parseInt(c.substring(1), 16);
-            java.util.regex.Matcher m = java.util.regex.Pattern.compile("rgba?\\(\\s*(\\d+)[ ,]+(\\d+)[ ,]+(\\d+)").matcher(c);
-            if (m.find()) return 0xff000000 | Integer.parseInt(m.group(1)) << 16 | Integer.parseInt(m.group(2)) << 8 | Integer.parseInt(m.group(3));
+            java.util.regex.Matcher m = java.util.regex.Pattern.compile("rgba?\\(\\s*(\\d+)[ ,]+(\\d+)[ ,]+(\\d+)(?:[ ,/]+([0-9.]+))?").matcher(c);
+            // a see-through colour is no colour of its own (an unstyled page says rgba(0, 0, 0, 0)): never black
+            if (m.find() && m.group(4) != null && Float.parseFloat(m.group(4)) == 0f) return fallback;
+            if (m.reset().find()) return 0xff000000 | Integer.parseInt(m.group(1)) << 16 | Integer.parseInt(m.group(2)) << 8 | Integer.parseInt(m.group(3));
         } catch (NumberFormatException e) { /* not a colour */ }
         return fallback;
     }

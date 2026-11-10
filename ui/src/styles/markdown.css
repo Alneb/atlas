@@ -30,6 +30,9 @@ html.phone .markdown a, html.phone .markdown .cm-link, html.phone .markdown .cm-
 html.phone .markdown a::after, html.phone .markdown .cm-link::after, html.phone .markdown .cm-hmd-internal-link::after { content: ""; position: absolute; inset: -9px -3px; }
 .markdown a.internal-link:hover, .markdown .cm-hmd-internal-link:hover { color: var(--accent-strong); border-bottom-color: var(--accent-strong); text-decoration: none; }
 .markdown .cm-hmd-internal-link.is-unresolved, .markdown a.internal-link.is-unresolved { color: var(--red); opacity: .85; }
+/* a DOI link to a paper the library has not yet (lib/doi-links.ts): dashed, a small ＋ — a click offers to add it */
+.markdown a.doi-link.not-in-library { text-decoration-style: dashed; }
+.markdown a.doi-link.not-in-library::after { content: "+"; margin-left: 1px; font-size: .8em; vertical-align: super; color: var(--text-faint); }
 /* hover sync (context.svelte.ts): the note another pane is pointing at */
 .markdown .atlas-hover-link { background: var(--accent-soft); border-radius: 3px; box-shadow: 0 0 0 2px var(--accent-soft); }
 .markdown .embed-chip { display: inline-flex; padding: .1em .55em; border: 1px solid var(--border-strong); border-radius: 6px; border-bottom-width: 1px; font-size: .9em; }

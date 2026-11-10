@@ -327,6 +327,12 @@ pub fn day_log(cfg: &Config, day: chrono::NaiveDate) -> String {
     format!("{dir}{folders}{}.md", day.format("%Y-%m-%d"))
 }
 
+/// The note a file is attached beside. A capture names none (the phone sending to a server, the desktop box): its
+/// files go beside the day's log, where its line goes, never to the vault's top.
+pub fn attach_note(cfg: &Config, note: &str, today: chrono::NaiveDate) -> String {
+    if note.trim().is_empty() { day_log(cfg, today) } else { note.to_string() }
+}
+
 /// Today's log, made from the log template when it is missing (the Home log card's one button: "create or edit the
 /// log"). Never rewrites one that is there; `create_new` so two doors making it at once never clobber each other.
 pub fn today_log(root: &Path, cfg: &Config, now: NaiveDateTime) -> Result<crate::api::TodayLog> {
@@ -495,6 +501,9 @@ mod tests {
         assert_eq!(day_log(&cfg, day), "notes/log/2026-10-05.md", "no folders: as before");
         cfg.log_folders = "YYYY/MM-MMMM".into();
         assert_eq!(day_log(&cfg, day), "notes/log/2026/10-October/2026-10-05.md");
+        // a capture's file names no note: beside that day's log, never at the vault's top
+        assert_eq!(attach_note(&cfg, "", day), "notes/log/2026/10-October/2026-10-05.md");
+        assert_eq!(attach_note(&cfg, "notes/x.md", day), "notes/x.md");
         cfg.editor.date_names = crate::config::DateNames::Spanish;
         assert_eq!(day_log(&cfg, day), "notes/log/2026/10-octubre/2026-10-05.md");
         let d = tempfile::tempdir().unwrap();

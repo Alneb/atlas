@@ -93,6 +93,104 @@
 		return `\\begin{${m[1]}}${lines.length ? `\n${lines.map(alignLine).join(" \\\\\n")}\n` : ""}\\end{${m[1]}}`;
 	}
 	//#endregion
+	//#region ui/src/lib/fence-walk.ts
+	/** A walk over a note's lines: `code(line)` for each in order says whether it is code (a fence line or inside one). */
+	function fences$1() {
+		let open = null;
+		return { code(line) {
+			const t0 = line.replace(/^ +/, "");
+			const indented = line.length - t0.length > 3;
+			const t = t0.replace(/[\r\n]+$/, "");
+			const run = (c) => {
+				let r = 0;
+				while (t[r] === c) r++;
+				return r;
+			};
+			if (open) {
+				const r = run(open.mark);
+				if (!indented && r >= open.n && !t.slice(r).trim()) open = null;
+				return true;
+			}
+			for (const mark of ["`", "~"]) {
+				const r = run(mark);
+				if (r >= 3 && (mark === "~" || !t.slice(r).includes("`"))) {
+					if (indented) return false;
+					open = {
+						mark,
+						n: r
+					};
+					return true;
+				}
+			}
+			return false;
+		} };
+	}
+	//#endregion
+	//#region ui/src/lib/equations.ts
+	const ID_AFTER_CLOSE = /\$\$[ \t]*\^([A-Za-z0-9-]+)[ \t]*$/;
+	const LABEL = /\\label\{([^}]+)\}/;
+	const LABELS = /\\label\{[^}]*\}/g;
+	const OWN_TAG = /\\tag\*?\{([^}]*)\}/;
+	const NO_TAG = /\\(?:notag|nonumber)\b/;
+	const NUMBERED_ENV = /\\begin\{(equation|align|gather|multline|eqnarray)\}/;
+	/** The label a numbered display takes: its own `\tag`, none for `\notag`, else the next number (`next` counts them). */
+	function labelOf(source, next) {
+		const own = OWN_TAG.exec(source);
+		if (own) return own[1];
+		return NO_TAG.test(source) ? null : String(next());
+	}
+	/** Every numbered display of a note, in order. Code fences are skipped (an example is not an equation). */
+	function noteEquations(md) {
+		const lines = md.split("\n"), code = fences$1();
+		const byId = /* @__PURE__ */ new Map(), byTex = /* @__PURE__ */ new Map(), spanOf = /* @__PURE__ */ new Map();
+		let n = 0;
+		const next = () => ++n;
+		for (let i = 0; i < lines.length; i++) {
+			if (code.code(lines[i])) continue;
+			const open = /^[\s>]*\$\$/.exec(lines[i]);
+			if (!open) continue;
+			let close = lines[i].indexOf("$$", open[0].length) >= 0 ? i : -1;
+			for (let k = i + 1; close < 0 && k < lines.length; k++) if (lines[k].includes("$$")) close = k;
+			if (close < 0) break;
+			const source = lines.slice(i, close + 1).join("\n");
+			const id = LABEL.exec(source)?.[1] ?? ID_AFTER_CLOSE.exec(lines[close])?.[1];
+			if (id || NUMBERED_ENV.test(source)) {
+				const label = labelOf(source, next);
+				if (label !== null) {
+					if (id) {
+						byId.set(id, label);
+						spanOf.set(id, [i + 1, close + 1]);
+					}
+					if (!OWN_TAG.test(source)) byTex.set(texKey(source), label);
+				}
+			}
+			i = close;
+		}
+		return {
+			byId,
+			byTex,
+			spanOf
+		};
+	}
+	/** A display's TeX as a lookup key: without its `$$`, a block id after them, container prefixes (`> `) and outer
+	*  blanks; the reader's token content and the editor's `$$…$$` source give the same key. */
+	const texKey = (display) => display.replace(/[ \t]*\^[A-Za-z0-9-]+[ \t]*$/, "").split("\n").map((l) => l.replace(/^[ \t>]*/, "")).join("\n").replace(/^\s*\$\$|\$\$\s*$/g, "").trim();
+	/** TeX as KaTeX should draw it: labels out (they are Atlas's), and with a number, a numbered environment made its
+	*  unnumbered twin (KaTeX would count from 1 in each display) and `\tag{n}` added — before the closing `$$` when the
+	*  text has them. */
+	function numberedTex(tex, n) {
+		let t = tex.replace(LABELS, "");
+		if (!n) return t;
+		t = t.replace(/\\(begin|end)\{(equation|align|gather|multline|eqnarray)\}/g, (_m, be, env) => env === "equation" || env === "multline" ? "" : `\\${be}{${env === "align" || env === "eqnarray" ? "aligned" : "gathered"}}`);
+		const at = t.lastIndexOf("$$");
+		return at > 0 ? `${t.slice(0, at)}\\tag{${n}}${t.slice(at)}` : `${t.trimEnd()}\\tag{${n}}`;
+	}
+	/** A link's equation label: `note#^id` → ["note", "id"]; null for any other link. */
+	function equationTarget(target) {
+		const m = /^([^#]*)#\^([A-Za-z0-9:_-]+)$/.exec(target.trim());
+		return m ? [m[1].trim(), m[2]] : null;
+	}
+	//#endregion
 	//#region plugins/beta/export/helper/translate.ts
 	const IMAGE = /\.(png|jpe?g|gif|svg|webp|pdf|eps)$/i;
 	const QUERY_FENCES = /* @__PURE__ */ new Set([
@@ -176,6 +274,45 @@
 	*  as pandoc's `aligned`, valid inside display math everywhere. Atlas's macros stay as written: each road carries their
 	*  definitions (helper.ts). */
 	const mathPortable = (text) => text.replace(/\$\$([\s\S]+?)\$\$/g, (_, tex) => `$$\n${expandAlign(tex.trim()).replace(/^\\begin\{align\*?\}([\s\S]*)\\end\{align\*?\}$/, "\\begin{aligned}$1\\end{aligned}")}\n$$`);
+	const AUTO = "";
+	/** A note's displays with their labels made its own: `$$ … $$ ^id` → `\label{note::id}`, `\label{id}` likewise. */
+	function qualifyLabels(text, note) {
+		return text.replace(/\$\$[ \t]*\^([A-Za-z0-9-]+)[ \t]*$/gm, (_, id) => `\\label{${id}}$$`).replace(/\$\$([\s\S]+?)\$\$/g, (whole, tex) => {
+			if (/\\label\{/.test(tex)) return `$$${tex.replace(/\\label\{([^}]*)\}/g, (_m, id) => `\\label{${note}::${id}}`)}$$`;
+			return /\\begin\{(equation|align|gather|multline|eqnarray)\}/.test(tex) ? `$$${tex}\\label{${AUTO}}$$` : whole;
+		});
+	}
+	/** The whole document numbered: each labelled display gets the next number (its own `\tag` kept, none for `\notag`),
+	*  its labels go, and a link to it reads "(n)"; a link to a note not in the document reads "Note (n)" by that note's
+	*  own numbers. */
+	async function numberEquations(md, read) {
+		const byLabel = /* @__PURE__ */ new Map();
+		let n = 0;
+		md = md.replace(/\$\$([\s\S]+?)\$\$/g, (whole, tex) => {
+			const labels = [...tex.matchAll(/\\label\{([^}]*)\}/g)].map((m) => m[1]);
+			if (!labels.length) return whole;
+			const own = /\\tag\*?\{([^}]*)\}/.exec(tex)?.[1];
+			const num = own ?? (/\\(?:notag|nonumber)\b/.test(tex) ? null : String(++n));
+			for (const l of labels) if (num && l !== AUTO) byLabel.set(l, num);
+			return `$$${num && !own ? numberedTex(tex.trimEnd(), num) : numberedTex(tex).trimEnd()}\n$$`;
+		});
+		const elsewhere = /* @__PURE__ */ new Map();
+		const refs = [...new Set([...md.matchAll(/\u0001([^\u0001]*)\u0001/g)].map((m) => m[1]))];
+		const text = /* @__PURE__ */ new Map();
+		for (const r of refs) {
+			const [note, id] = [r.slice(0, r.lastIndexOf("::")), r.slice(r.lastIndexOf("::") + 2)];
+			const here = byLabel.get(r);
+			if (here) {
+				text.set(r, `(${here})`);
+				continue;
+			}
+			if (!elsewhere.has(note)) elsewhere.set(note, read(note).then((t) => noteEquations(t).byId, () => /* @__PURE__ */ new Map()));
+			const there = (await elsewhere.get(note)).get(id);
+			const name = basename(note).replace(/\.md$/i, "");
+			text.set(r, there ? `${name} (${there})` : name);
+		}
+		return md.replace(/\u0001([^\u0001]*)\u0001/g, (_, r) => text.get(r) ?? "");
+	}
 	/** `fn` applied to the text between inline code spans. */
 	const outsideInlineCode = (text, fn) => text.split(/(`+[^`\n]*?`+)/).map((p, i) => i % 2 ? p : fn(p)).join("");
 	var Translator = class {
@@ -248,9 +385,14 @@
 				}
 				body = take.join("\n");
 			}
-			return this.body(body, dirname(note), depth + 1);
+			return this.body(body, dirname(note), depth + 1, note);
 		}
-		link(target, alias) {
+		link(target, alias, near, note) {
+			const eq = equationTarget(target);
+			if (eq && !alias) {
+				const path = eq[0] ? this.find(eq[0], near, ".md") : note;
+				if (path) return `\u0001${path}::${eq[1]}\u0001`;
+			}
 			const name = target.split("#")[0].trim();
 			const key = basename(name).replace(/\.md$/i, "");
 			if (this.keys.has(key)) {
@@ -260,12 +402,12 @@
 			if (alias) return alias;
 			return name ? basename(name).replace(/\.md$/i, "") : target.split("#").slice(1).join("#").replace(/^\^/, "");
 		}
-		async prose(text, near, depth) {
+		async prose(text, near, depth, note) {
 			text = text.replace(/%%[\s\S]*?%%/g, "");
 			text = text.replace(/!\[\[([^\]|#]+)((?:\\?\|[^\]]*)?)\]\]\n\n\*([^*\n][^\n]*?)\*\n/g, (_, t, o, c) => `${this.figure(t, o.replace(/^\\?\|/, ""), c, near)}\n`);
 			const embeds = [];
 			const inline = (t) => {
-				t = mathPortable(t);
+				t = mathPortable(qualifyLabels(t, note));
 				t = t.replace(/!\[\[([^\]|]+)((?:\\?\|[^\]]*)?)\]\]/g, (_, target, o) => {
 					target = target.trim();
 					const opts = (o ?? "").replace(/^\\?\|/, "");
@@ -273,7 +415,7 @@
 					embeds.push(this.transclude(target, near, depth));
 					return `\n\n\u0000${embeds.length - 1}\u0000\n\n`;
 				});
-				t = t.replace(/\[\[([^\]|]+?)(?:\\?\|([^\]]+))?\]\]/g, (_, target, alias) => this.link(target.replace(/\\$/, ""), alias));
+				t = t.replace(/\[\[([^\]|]+?)(?:\\?\|([^\]]+))?\]\]/g, (_, target, alias) => this.link(target.replace(/\\$/, ""), alias, near, note));
 				return t.replace(/[ \t]\^[A-Za-z0-9-]+[ \t]*$/gm, "");
 			};
 			text = outsideInlineCode(text, inline);
@@ -282,7 +424,7 @@
 			text = text.replace(/^((?:>\s*)+)\[!(\w+)\][+-]?[ \t]*(.*)$/gm, (_, q, kind, title) => `${q}**${title.trim() || kind[0].toUpperCase() + kind.slice(1)}**\n${q.trimEnd()}`);
 			return text.replace(/^([^\n\s>|-][^\n]*)\n(\s*(?:[-*+]|\d+[.)]) )/gm, "$1\n\n$2").replace(/^([^\n]*\S[^\n]*)\n(#{1,6}[ \t])/gm, "$1\n\n$2");
 		}
-		async body(md, near, depth = 0) {
+		async body(md, near, depth = 0, note = "") {
 			const parts = [];
 			for (const [code, chunk, lang] of segments(md)) if (code && (lang === "tikz" || lang === "typst")) {
 				const source = chunk.replace(/^[^\n]*\n/, "").replace(/\n?\s*(`{3,}|~{3,})\s*$/, "");
@@ -291,7 +433,7 @@
 					source
 				});
 				parts.push(`\n<!--fence:${this.fences.length - 1}-->\n`);
-			} else parts.push(code ? chunk : await this.prose(chunk, near, depth));
+			} else parts.push(code ? chunk : await this.prose(chunk, near, depth, note));
 			return parts.join("");
 		}
 	};
@@ -314,7 +456,7 @@
 		const t = new Translator(vault, outDir, keys);
 		return {
 			meta,
-			markdown: await t.body(body, dirname(note)),
+			markdown: await numberEquations(await t.body(body, dirname(note), 0, note), (n) => vault.read(n)),
 			cited: t.cited,
 			warnings: t.warnings,
 			fences: t.fences
@@ -574,7 +716,7 @@
 			j.t.warnings.push(`a ${f.lang} picture is left as code: ${f.lang === "tikz" ? "the TeX in the page did not draw it" : "Word has no Typst"}`);
 			out[i] = "```" + f.lang + "\n" + f.source + "\n```";
 		}
-		const md = j.t.markdown.replace(/<!--fence:(\d+)-->/g, (_, n) => out[Number(n)]);
+		const md = (road === "latex" ? j.t.markdown : j.t.markdown.replace(/\\tag\*?\{([^}]*)\}/g, (_, n) => `\\qquad\\text{(${n})}`)).replace(/<!--fence:(\d+)-->/g, (_, n) => out[Number(n)]);
 		return /^# /m.test(md) || !/^## /m.test(md) ? md : md.replace(/^#(#+ )/gm, "$1");
 	}
 	const MD = "markdown+mark-implicit_figures+implicit_figures";

@@ -45,7 +45,7 @@ own IMAP/SMTP accounts (a password) or Outlook / Microsoft 365 (OAuth2), several
   actions and a moved message seen by no later rule (as in Thunderbird); edited in a dialog (the pane's
   **Rules…**), in Settings → Email, by hand or by an agent.
 - **Elsewhere**: the `email.inbox` block (a triage card for Home), a side tool, the unread count in the status bar,
-  notices of new mail, "Email: send this note…", Thunderbird import (accounts; local mail as notes, after asking).
+  notices of new mail, "Email: send this note…", Thunderbird import (accounts; a POP account's local mail put back on its server, after asking).
 - **Tools for agents** (`atlas mcp`): `email_inbox`, `email_read`, `email_attachment`, `email_send` (only a mail the
   user asked for), `email_mark`, `email_rules`, `email_add_rule`, `email_remove_rule`, `email_accounts`,
   `email_thunderbird`, `email_thunderbird_mail`, `email_open` (shows one mail in the Email pane, by uid or Message-ID;

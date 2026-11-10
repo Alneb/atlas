@@ -6,7 +6,9 @@
   // It wears the app's colours (the scheme's --bg, --text, --link…, read from the window and followed when the theme or
   // scheme changes). In a dark theme the mail's own colours are remapped — white made the app's surface, other light
   // backgrounds darkened, dark text made light, hues kept, pictures untouched — rather than the whole page inverted.
-  let { html, plain = false, remote = false, prose = "" }: { html: string; plain?: boolean; remote?: boolean; prose?: string } = $props();
+  // `atlas`: its links open as Atlas opens links (atlas.openLink, API 28), Shift+click in the system's browser
+  import type { PluginApi } from "./api";
+  let { html, plain = false, remote = false, prose = "", atlas }: { html: string; plain?: boolean; remote?: boolean; prose?: string; atlas?: PluginApi } = $props();
 
   /** The window's theme and scheme colours (palettes.css). */
   function appColours() {
@@ -151,6 +153,14 @@ mark.atlas-find.cur{background:${t.dark ? "#c77700" : "#ff9f1a"};color:${t.dark 
     new ResizeObserver(fit).observe(d.documentElement);
     for (const img of Array.from(d.images)) img.addEventListener("load", fit);
     d.addEventListener("toggle", fit, true);
+    // a web link: as Atlas opens links, Shift+click in the browser. Left to the frame (`<base target=_blank>`), every
+    // link became a tab of the desktop window, Shift or not. An Atlas without openLink keeps the frame's way.
+    d.addEventListener("click", (e) => {
+      const a = (e.target as Element | null)?.closest?.("a[href]") as HTMLAnchorElement | null;
+      if (!a || !atlas?.openLink || !/^https?:/i.test(a.href) || e.button !== 0) return;
+      e.preventDefault();
+      atlas.openLink(a.href, { outside: e.shiftKey });
+    });
     // Ctrl+F inside the message is the pane's find (Reader.svelte), not lost in the frame
     d.addEventListener("keydown", (e) => {
       if (!((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "f")) return;

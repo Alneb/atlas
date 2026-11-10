@@ -8,7 +8,10 @@ export interface LivePreviewOptions {
   linkResolves?: (target: string) => boolean;
   highlightCode?: (code: string, lang: string) => CodeRange[];
   renderMath?: (host: HTMLElement, source: string, block: boolean) => void;
-  blockHtml?: (source: string) => string | null;
+  blockHtml?: (source: string, state: EditorState) => string | null;
+  /** The words a link without an alias reads instead of its target (a numbered equation's "(3)"), or null. A cached
+   *  lookup: it runs on every keystroke. */
+  linkLabel?: (state: EditorState, target: string) => string | null;
   hydrateBlock?: (host: HTMLElement) => Promise<unknown> | null | void;
   /** A hydrated host's DOM left the editor for good: undo what hydrateBlock mounted. */
   releaseBlock?: (host: HTMLElement) => void;

@@ -18,7 +18,9 @@ import { foldGutter, foldNodeProp, foldKeymap } from "@codemirror/language";
 import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
 import type { MarkdownConfig } from "@lezer/markdown";
 import { obsidianMarkdown, AnyTaskStatus } from "./live/obsidian-syntax.js";
-import { livePreview, bodyStart, frontmatterClose } from "./live/live-preview.js";
+import { livePreview, bodyStart, frontmatterClose, redecorate } from "./live/live-preview.js";
+import { equationLabelNow, equationTarget, linkText, noteEquations, numberedTex, texKey, type Equations } from "../equations";
+import { readText } from "../vault-files";
 import { renderMathInto } from "../math";
 import { highlightCode } from "../highlight";
 import { blockHtml, inlineHtml } from "../markdown";
@@ -74,12 +76,18 @@ export function noteExtensions(path: string, viewRef: { view: EditorView | null 
     void vaultReady().then(() => warm(resolveOrBeside(src, dir))).then(patch, () => patch("about:invalid"));
     return PLACEHOLDER;
   };
+  // the note's numbered equations, once per text (lib/equations.ts)
+  let eqs: { doc: unknown; of: Equations } | null = null;
+  const equationsOf = (state: EditorState): Equations => {
+    if (eqs?.doc !== state.doc) eqs = { doc: state.doc, of: noteEquations(state.doc.toString()) };
+    return eqs.of;
+  };
   const unmount = new WeakMap<HTMLElement, () => void>(); // a rendered block's views, per widget host
   const [liveField, liveKeys] = livePreview({
     renderMath: renderMathInto,
     highlightCode,
     resolveAttachment,
-    linkResolves: (target: string) => !!resolveLink(target, dir),
+    linkResolves: (target: string) => target.trim().startsWith("#") || !!resolveLink(target, dir), // `#…`: this note
     // Obsidian's inline title: the file name above the first line (Settings → editor.inline_title)
     inlineTitle: (state) => {
       if (!(settings.config?.editor.inline_title ?? true)) return null;
@@ -99,7 +107,21 @@ export function noteExtensions(path: string, viewRef: { view: EditorView | null 
         : { key: `folded:${fm}`, render: () => propertiesChip(yaml) };
     },
     // a log entry with a file under it stays a timeline line, its embed a chip (log-lines.ts), not the reader's block
-    blockHtml: (source: string) => (isLog() && LOG_ENTRY.test(source) ? null : blockHtml(source, dir)),
+    blockHtml: (source: string, state: EditorState) => {
+      if (isLog() && LOG_ENTRY.test(source)) return null;
+      // display math (lib/equations.ts): its labels out, its number (counted over the whole note) drawn on it
+      if (!/^[ \t>]*\$\$/.test(source)) return blockHtml(source, dir);
+      return blockHtml(numberedTex(source, equationsOf(state).byTex.get(texKey(source))), dir);
+    },
+    linkLabel: (state: EditorState, target: string) => {
+      const eq = equationTarget(target);
+      if (!eq) return null;
+      if (!eq[0]) { const n = equationsOf(state).byId.get(eq[1]); return n ? linkText("", n) : null; }
+      const path = resolveLink(eq[0], dir);
+      if (!path) return null;
+      const n = equationLabelNow(path, eq[1], readText, () => viewRef.view?.dispatch({ effects: redecorate.of(null) }));
+      return n ? linkText(eq[0], n) : null;
+    },
     hydrateBlock: (host: HTMLElement) => { unmount.set(host, hydrateRendered(host, path)); hydrateTables(host, viewRef); followLinksIn(host, path); },
     releaseBlock: (host: HTMLElement) => unmount.get(host)?.(), // the widget's DOM is gone for good (not a hidden tab)
   });

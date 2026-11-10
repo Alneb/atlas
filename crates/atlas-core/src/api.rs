@@ -1190,7 +1190,8 @@ pub struct UploadQuery {
     pub replace: bool,
 }
 
-/// `POST /api/attach?note=<note path>&name=<file name>` with the raw bytes as the body.
+/// `POST /api/attach?note=<note path>&name=<file name>` with the raw bytes as the body. An empty `note` is a
+/// capture's file: it goes beside today's log.
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
 #[ts(export)]
 pub struct AttachQuery {

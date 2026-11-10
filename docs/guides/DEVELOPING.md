@@ -216,6 +216,15 @@ The desktop's web tab is a real WebKit view laid over its pane (`crates/atlas-ap
   - So a web tab is a frame by default (`[web] tab_view = "frame"`); `"native"` brings back the WebKit view laid over the pane (webtab.rs, above), which is also what a build without the hook gets.
 - **macOS (WKWebView):** no hook either; sites that refuse framing open in a window.
 
+**Numbered equations are counted over the whole note, wherever a display is drawn.** `lib/equations.ts` reads the note's labelled displays (`\label{…}` inside the math, `$$ ^id` after it, or a numbered environment) and is the only place that numbers them. The reading view counts once per render (`MdEnv.equations`). The editor draws each `$$` block on its own (`blockHtml(source, state)`), so it looks the number up by the display's TeX (`texKey`). A rendered block's widget compares its HTML as well as its source, so it redraws when its number moves. A link without an alias reads its number: from the note itself at once, from another note through `equationLabelNow` (the editor) or `hydrateEquationRefs` (rendered HTML). The cache is cleared on every vault change.
+
+**Every web link opens the same way, whoever drew it.** A click on an `http(s)` link anywhere in Atlas's page (a note, a
+property, a plugin's pane or block) is caught once, in `ui/src/main.ts`: `openWeb` (`[web] open_links`), Shift+click or
+`data-outside` → `openOutside`; Ctrl / Alt / middle click keep their meaning. Two things escape a page-wide listener and
+must hand their links over themselves: a frame (the mail body, `MailFrame.svelte`, catches clicks in its document) and a
+button that opens a page from code. Both call `atlas.openLink(url, { outside })` (plugin API 28), which is `openWeb` /
+`openOutside`; a plugin never calls `window.open` for a web page (only a sign-in flow, which has its own path).
+
 **Opening in the system's browser** is one path, `openOutside(url)` of `lib/web-links.ts` → `POST /api/open-outside` (the desktop's core only, like `fs/reveal-outside`; http, https and mailto): Shift+click on any link (the global click handler in `main.ts`, the editor's `link-clicks.ts`, a web tab's page through webtab.rs's `external`), a link marked `data-outside` (a meeting's Join), the web tab's button. `window.open` cannot do it: the desktop window turns every `window.open` into a tab of Atlas (`web_link` in main.rs).
 
 **The system Trash** is `platform/trash.rs` `to_system`: `gio trash` on Linux, the Finder's Trash on macOS and the Recycle Bin on Windows (the `trash` crate); with none (the phone, a server), or when it refuses, `files::trash` falls back to the vault's `.atlas/trash/`. The clipboard's picture (`clipboard.rs`, for a paste that arrived without it) is `wl-paste` / `xclip` on Linux and `arboard` on macOS and Windows.
@@ -276,6 +285,14 @@ Two more small helpers hold what every view used to write for itself:
 - **Per-device niceties in `localStorage`** (a folded panel, a list-or-thumbnails choice, a PDF's last place) are read
   and written through `ui/src/lib/prefs.ts` (`load`/`save` for JSON, `loadRaw`/`saveRaw` for a plain string, `drop`),
   which never throws: a private window or blocked storage only forgets them.
+- **A device's own look** (`ui/src/lib/device-look.svelte.ts`): one vault is opened on a desktop, a phone and an e-ink
+  tablet, and its `config.toml` travels with it, so a look chosen for one screen would reach all of them. Settings →
+  Appearance → This device → "Its own look" keeps `LOOK_PATHS` (theme, both colour schemes, contrast, shape, accent,
+  text size) in this browser's storage instead: `lookOf(ui)` is what `settings.svelte.ts` `apply` draws, and
+  `settings-schema.ts` `valueOf` / `setValue` / `resetValue` read and write those paths there while it is on (the
+  vault's value is the default; reset gives a path back to the vault). A setting never changed on the device follows
+  the vault's. "Follow the system's theme" in the same panel is `ui.theme = "system"`, wherever the theme is kept; the
+  phone app follows the phone until it chooses a theme itself. A new look setting is added to `LOOK_PATHS`, nowhere else.
 
 It is then usable as `type: wordcount` in a note, `wordcount` in a page or in the sidebar's file, appears in the page's "add a block" chooser, opens as a tab, and can be bookmarked or pinned (`{view: wordcount}`). `ctx.host` says where it is (`note`, `page`, `tab`, `side`). Flags: `height` (it fills a box), `card` (wants a card surface in a page), `file` (it shows a file: the chooser asks which), `tab(ctx)` (what "open as a tab" opens), `options` (its options as form fields — the page's "Options…" is drawn from them; built-ins list theirs in `lib/block-options.ts`; see `docs/guides/PAGES.md`).
 

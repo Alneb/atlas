@@ -8,4 +8,9 @@ export type NotificationsConfig = {
 /**
  * When a notice also shows as a system notification (the desktop's, the phone's).
  */
-system: SystemNotices, };
+system: SystemNotices, 
+/**
+ * How many seconds a system notification stays on the desktop before the system puts it away; a failure stays
+ * three times as long. 0: until you close it. (A phone keeps its notifications by its own rules.)
+ */
+system_seconds: number, };

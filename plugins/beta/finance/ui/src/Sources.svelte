@@ -115,8 +115,10 @@
   $effect(() => { call<{ banks: Site[]; downloads: string | null }>(atlas, "banks").then((r) => { sites = r.banks; downloads = r.downloads; }).catch(() => {}); });
   let poll: ReturnType<typeof setInterval> | undefined;
   $effect(() => () => clearInterval(poll));
-  function fetchFrom(site: Site) {
-    window.open(site.url, "_blank", "noopener");
+  /** `outside`: Shift held, the system's browser, as for any link in Atlas (atlas.openLink, API 28). */
+  function fetchFrom(site: Site, outside = false) {
+    if (atlas.openLink) atlas.openLink(site.url, { outside });
+    else window.open(site.url, "_blank", "noopener");
     const since = Math.floor(Date.now() / 1000) - 5;
     watching = { name: site.name, until: Date.now() + 10 * 60_000 };
     taken = [];
@@ -201,7 +203,7 @@
     <h3>From the bank's site <span class="faint">download as usual: what lands in {downloads} and reads as a statement goes to the inbox</span></h3>
     <div class="sites">
       {#each sites as s (s.url)}
-        <button class="site" onclick={() => fetchFrom(s)} title={s.url}><b>{s.name}</b>{#if s.hint}<span class="faint">{s.hint}</span>{/if}</button>
+        <button class="site" onclick={(e) => fetchFrom(s, e.shiftKey)} title={s.url}><b>{s.name}</b>{#if s.hint}<span class="faint">{s.hint}</span>{/if}</button>
       {/each}
     </div>
     {#if watching}<p>Watching the downloads for {watching.name}… <button class="atlas-btn" onclick={() => { clearInterval(poll); watching = null; }}>Stop</button></p>{/if}

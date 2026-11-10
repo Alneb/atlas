@@ -6,6 +6,7 @@ use crate::account::{self, Account};
 use crate::imap::Imap;
 use crate::index::Index;
 use crate::oauth;
+use crate::trouble::Fail;
 use serde_json::{json, Value};
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
@@ -137,7 +138,7 @@ impl Mail {
     }
 
     /// A logged-in connection to an account's IMAP server: a kept one that still answers, else a new one.
-    pub async fn conn(&self, acc: &Account) -> Result<Imap, String> {
+    pub async fn conn(&self, acc: &Account) -> Result<Imap, Fail> {
         loop {
             let kept = {
                 let mut pool = self.pool.lock().unwrap();
@@ -179,13 +180,13 @@ impl Mail {
     }
 
     /// Outlook's access token (renewed through the core when needed); None for a password account.
-    pub async fn token(&self, acc: &Account) -> Result<Option<String>, String> {
+    pub async fn token(&self, acc: &Account) -> Result<Option<String>, Fail> {
         if matches!(acc.auth, account::Auth::Password(_)) {
             return Ok(None);
         }
         // the core's fetch blocks on the helper's pipe: off the async workers
         let (acc2, post) = (acc.clone(), self.post.clone());
-        tokio::task::spawn_blocking(move || oauth::access_token(&acc2, &*post)).await.map_err(|e| e.to_string())?
+        tokio::task::spawn_blocking(move || oauth::access_token(&acc2, &*post)).await.map_err(|e| Fail::from(e.to_string()))?
     }
 
     /// Marks an account as syncing; false when it already is (the caller then skips).

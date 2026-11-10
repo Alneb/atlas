@@ -25,6 +25,7 @@ export interface Translated {
 }
 
 import { expandAlign } from "../../../../ui/src/lib/math-align";
+import { equationTarget, noteEquations, numberedTex } from "../../../../ui/src/lib/equations";
 
 const IMAGE = /\.(png|jpe?g|gif|svg|webp|pdf|eps)$/i;
 // fenced blocks Atlas or Obsidian draw from a query: nothing to print
@@ -93,6 +94,52 @@ function segments(md: string): [boolean, string, string][] {
 export const mathPortable = (text: string) => text.replace(/\$\$([\s\S]+?)\$\$/g, (_, tex: string) =>
   `$$\n${expandAlign(tex.trim()).replace(/^\\begin\{align\*?\}([\s\S]*)\\end\{align\*?\}$/, "\\begin{aligned}$1\\end{aligned}")}\n$$`);
 
+// --- numbered equations (ui/src/lib/equations.ts says which): the document is numbered once, as LaTeX numbers it, so
+// an embedded note's equations continue the host's (an \input). Each label is first made its note's (`note::id`), a
+// numbered environment without one gets a blank label, links become placeholders; then `numberEquations` writes
+// `\tag{n}` into each display and the numbers into the links (the Typst and Word roads turn the tag into text, helper.ts).
+const AUTO = "\u0002";
+
+/** A note's displays with their labels made its own: `$$ … $$ ^id` → `\label{note::id}`, `\label{id}` likewise. */
+export function qualifyLabels(text: string, note: string): string {
+  return text
+    .replace(/\$\$[ \t]*\^([A-Za-z0-9-]+)[ \t]*$/gm, (_, id: string) => `\\label{${id}}$$`)
+    .replace(/\$\$([\s\S]+?)\$\$/g, (whole, tex: string) => {
+      if (/\\label\{/.test(tex)) return `$$${tex.replace(/\\label\{([^}]*)\}/g, (_m, id: string) => `\\label{${note}::${id}}`)}$$`;
+      return /\\begin\{(equation|align|gather|multline|eqnarray)\}/.test(tex) ? `$$${tex}\\label{${AUTO}}$$` : whole;
+    });
+}
+
+/** The whole document numbered: each labelled display gets the next number (its own `\tag` kept, none for `\notag`),
+ *  its labels go, and a link to it reads "(n)"; a link to a note not in the document reads "Note (n)" by that note's
+ *  own numbers. */
+export async function numberEquations(md: string, read: (note: string) => Promise<string>): Promise<string> {
+  const byLabel = new Map<string, string>();
+  let n = 0;
+  md = md.replace(/\$\$([\s\S]+?)\$\$/g, (whole, tex: string) => {
+    const labels = [...tex.matchAll(/\\label\{([^}]*)\}/g)].map((m) => m[1]);
+    if (!labels.length) return whole;
+    const own = /\\tag\*?\{([^}]*)\}/.exec(tex)?.[1];
+    const num = own ?? (/\\(?:notag|nonumber)\b/.test(tex) ? null : String(++n));
+    for (const l of labels) if (num && l !== AUTO) byLabel.set(l, num);
+    const bare = num && !own ? numberedTex(tex.trimEnd(), num) : numberedTex(tex).trimEnd(); // labels out, an env its twin
+    return `$$${bare}\n$$`;
+  });
+  const elsewhere = new Map<string, Promise<Map<string, string>>>();
+  const refs = [...new Set([...md.matchAll(/\u0001([^\u0001]*)\u0001/g)].map((m) => m[1]))];
+  const text = new Map<string, string>();
+  for (const r of refs) {
+    const [note, id] = [r.slice(0, r.lastIndexOf("::")), r.slice(r.lastIndexOf("::") + 2)];
+    const here = byLabel.get(r);
+    if (here) { text.set(r, `(${here})`); continue; }
+    if (!elsewhere.has(note)) elsewhere.set(note, read(note).then((t) => noteEquations(t).byId, () => new Map()));
+    const there = (await elsewhere.get(note)!).get(id);
+    const name = basename(note).replace(/\.md$/i, "");
+    text.set(r, there ? `${name} (${there})` : name);
+  }
+  return md.replace(/\u0001([^\u0001]*)\u0001/g, (_, r: string) => text.get(r) ?? "");
+}
+
 /** `fn` applied to the text between inline code spans. */
 const outsideInlineCode = (text: string, fn: (s: string) => string) =>
   text.split(/(`+[^`\n]*?`+)/).map((p, i) => (i % 2 ? p : fn(p))).join("");
@@ -156,10 +203,15 @@ class Translator {
       }
       body = take.join("\n");
     }
-    return this.body(body, dirname(note), depth + 1);
+    return this.body(body, dirname(note), depth + 1, note);
   }
 
-  link(target: string, alias?: string): string {
+  link(target: string, alias: string | undefined, near: string, note: string): string {
+    const eq = equationTarget(target);
+    if (eq && !alias) { // a numbered equation: its number once the document is numbered (`numberEquations`)
+      const path = eq[0] ? this.find(eq[0], near, ".md") : note;
+      if (path) return `\u0001${path}::${eq[1]}\u0001`;
+    }
     const name = target.split("#")[0].trim();
     const key = basename(name).replace(/\.md$/i, "");
     if (this.keys.has(key)) { // citing is linking: a link to a paper is its citation
@@ -170,7 +222,7 @@ class Translator {
     return name ? basename(name).replace(/\.md$/i, "") : target.split("#").slice(1).join("#").replace(/^\^/, "");
   }
 
-  async prose(text: string, near: string, depth: number): Promise<string> {
+  async prose(text: string, near: string, depth: number, note: string): Promise<string> {
     text = text.replace(/%%[\s\S]*?%%/g, ""); // Obsidian comments
     // an embed followed by its italic caption paragraph → one captioned figure
     text = text.replace(/!\[\[([^\]|#]+)((?:\\?\|[^\]]*)?)\]\]\n\n\*([^*\n][^\n]*?)\*\n/g,
@@ -178,7 +230,7 @@ class Translator {
     // note embeds are async: collected first, put back after
     const embeds: Promise<string>[] = [];
     const inline = (t: string) => {
-      t = mathPortable(t);
+      t = mathPortable(qualifyLabels(t, note));
       t = t.replace(/!\[\[([^\]|]+)((?:\\?\|[^\]]*)?)\]\]/g, (_, target: string, o: string) => {
         target = target.trim();
         const opts = (o ?? "").replace(/^\\?\|/, "");
@@ -186,7 +238,7 @@ class Translator {
         embeds.push(this.transclude(target, near, depth));
         return `\n\n\u0000${embeds.length - 1}\u0000\n\n`;
       });
-      t = t.replace(/\[\[([^\]|]+?)(?:\\?\|([^\]]+))?\]\]/g, (_, target: string, alias?: string) => this.link(target.replace(/\\$/, ""), alias));
+      t = t.replace(/\[\[([^\]|]+?)(?:\\?\|([^\]]+))?\]\]/g, (_, target: string, alias?: string) => this.link(target.replace(/\\$/, ""), alias, near, note));
       return t.replace(/[ \t]\^[A-Za-z0-9-]+[ \t]*$/gm, ""); // block ids
     };
     text = outsideInlineCode(text, inline);
@@ -199,14 +251,14 @@ class Translator {
     return text.replace(/^([^\n\s>|-][^\n]*)\n(\s*(?:[-*+]|\d+[.)]) )/gm, "$1\n\n$2").replace(/^([^\n]*\S[^\n]*)\n(#{1,6}[ \t])/gm, "$1\n\n$2");
   }
 
-  async body(md: string, near: string, depth = 0): Promise<string> {
+  async body(md: string, near: string, depth = 0, note = ""): Promise<string> {
     const parts: string[] = [];
     for (const [code, chunk, lang] of segments(md)) {
       if (code && (lang === "tikz" || lang === "typst")) {
         const source = chunk.replace(/^[^\n]*\n/, "").replace(/\n?\s*(`{3,}|~{3,})\s*$/, "");
         this.fences.push({ lang, source });
         parts.push(`\n<!--fence:${this.fences.length - 1}-->\n`);
-      } else parts.push(code ? chunk : await this.prose(chunk, near, depth));
+      } else parts.push(code ? chunk : await this.prose(chunk, near, depth, note));
     }
     return parts.join("");
   }
@@ -224,6 +276,6 @@ export async function translate(vault: VaultView, note: string, outDir: string, 
     if (h1) body = body.slice(0, h1.index) + body.slice(h1.index + h1[0].length);
   }
   const t = new Translator(vault, outDir, keys);
-  const markdown = await t.body(body, dirname(note));
+  const markdown = await numberEquations(await t.body(body, dirname(note), 0, note), (n) => vault.read(n));
   return { meta, markdown, cited: t.cited, warnings: t.warnings, fences: t.fences };
 }

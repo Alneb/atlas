@@ -753,8 +753,9 @@ async fn clipboard_image_get() -> Response {
 
 async fn attach_post(State(st): S, Query(q): Query<AttachQuery>, body: Bytes) -> Result<Json<Attached>> {
     let a = with_ws(&st, move |ws| {
-        ws.resolve(&q.note)?; // the note must be a workspace path
-        files::attach(&ws, &q.note, &q.name, &body)
+        let note = crate::capture::attach_note(&ws.config()?, &q.note, chrono::Local::now().date_naive());
+        ws.resolve(&note)?; // the note must be a workspace path
+        files::attach(&ws, &note, &q.name, &body)
     })
     .await?;
     st.bus.publish(Event::Fs { paths: vec![a.path.clone()] });

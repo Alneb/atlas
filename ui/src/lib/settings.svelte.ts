@@ -6,6 +6,7 @@ import { einkOn, inPhoneApp, setEinkRefresh } from "./eink";
 import { api } from "./api";
 import type { PropertiesView, WorkspaceConfig } from "./types";
 import { app, paintTheme, toast } from "./state.svelte";
+import { deviceChose, deviceLook, lookOf, onDeviceLook, setDeviceLook } from "./device-look.svelte";
 
 export const settings = $state({
   config: null as WorkspaceConfig | null,
@@ -35,24 +36,29 @@ still?.addEventListener("change", () => settings.config && apply(settings.config
 const more = typeof matchMedia === "function" ? matchMedia("(prefers-contrast: more)") : null;
 more?.addEventListener("change", () => settings.config && apply(settings.config));
 
+onDeviceLook(() => settings.config && apply(settings.config));
+
 function apply(c: WorkspaceConfig): void {
   const root = document.documentElement;
+  const ui = lookOf(c.ui); // the look: the vault's, or this device's own over it (device-look.svelte.ts)
   // the theme setting decides dark or light ("system": the desktop's); the palette, its colours on either side
   const eink = einkOn(c.ui.eink);
   root.classList.toggle("eink", eink); // tokens.css / base.css: black on white, no motion
   setEinkRefresh(c.ui.eink_refresh); // eink.ts: when the whole screen is refreshed
-  // the phone app follows the phone (the vault's theme is the desktop's: one vault, several screens)
-  const theme = eink ? "light" : c.ui.theme === "system" || inPhoneApp() ? (media?.matches ? "light" : "dark") : c.ui.theme;
+  // the phone app follows the phone (the vault's theme is the desktop's: one vault, several screens) until the
+  // phone chooses a theme of its own
+  const follows = ui.theme === "system" || (inPhoneApp() && !deviceChose("ui.theme"));
+  const theme = eink || (follows ? media?.matches : ui.theme === "light") ? "light" : "dark";
   paintTheme(theme);
-  root.dataset.palette = (theme === "dark" && c.ui.palette_dark) || c.ui.palette; // palettes.css: the night's own, if set
-  const high = !eink && (c.ui.contrast === "high" || (c.ui.contrast === "system" && !!more?.matches));
+  root.dataset.palette = (theme === "dark" && ui.palette_dark) || ui.palette; // palettes.css: the night's own, if set
+  const high = !eink && (ui.contrast === "high" || (ui.contrast === "system" && !!more?.matches));
   if (high) root.dataset.contrast = "high"; // contrast.css
   else delete root.dataset.contrast;
-  root.dataset.shape = c.ui.shape; // shape-paper.css
+  root.dataset.shape = ui.shape; // shape-paper.css
   app.vimEnabled = c.vim;
   const px = (n: number) => `${n}px`;
   const font = (name: string, fallback: string) => (name.trim() ? `"${name.trim()}", ${fallback}` : fallback);
-  root.style.setProperty("--ui-scale-set", String(c.ui.font_size / 14)); // base.css turns it into --ui-scale (larger on a phone)
+  root.style.setProperty("--ui-scale-set", String(ui.font_size / 14)); // base.css turns it into --ui-scale (larger on a phone)
   root.dataset.motion = eink || still?.matches ? "instant" : c.ui.motion;
   root.dataset.notices = c.ui.notices ?? "bottom-right"; // Toasts.svelte: the corner the notices appear in // base.css: "instant" turns transitions and fades off
   root.style.setProperty("--code-font", font(c.editor.code_font, "var(--font-mono)"));
@@ -62,10 +68,11 @@ function apply(c: WorkspaceConfig): void {
   root.style.setProperty("--prose-line-height", String(c.editor.prose_line_height || 1.68));
   if (c.ui.ui_font.trim()) root.style.setProperty("--font-ui", font(c.ui.ui_font, "ui-sans-serif, system-ui, sans-serif"));
   else root.style.removeProperty("--font-ui");
-  applyAccent(root, high ? phosphorAccent(root, c.ui.accent.trim(), theme === "light") : c.ui.accent.trim());
+  applyAccent(root, high ? phosphorAccent(root, ui.accent.trim(), theme === "light") : ui.accent.trim());
   root.style.setProperty("--prose-width", c.editor.prose_width ? `${c.editor.prose_width}ch` : "none");
-  // the phone app's own bars take the page's background (AtlasActivity Bridge.paper; an older app has no such call)
-  (globalThis as unknown as { AtlasNative?: { paper?: (css: string) => void } }).AtlasNative?.paper?.(getComputedStyle(document.body).backgroundColor);
+  // the phone app's own bars take the page's background (AtlasActivity Bridge.paper; an older app has no such call):
+  // the palette's own token, not the body's computed colour, which is transparent (read as black) until it is styled
+  (globalThis as unknown as { AtlasNative?: { paper?: (css: string) => void } }).AtlasNative?.paper?.(getComputedStyle(root).getPropertyValue("--bg-app").trim());
   for (const f of listeners) f(c);
 }
 
@@ -180,7 +187,12 @@ export function updateSettings(mut: (c: WorkspaceConfig) => void): Promise<void>
 export function change(label: string, mut: (c: WorkspaceConfig) => void): void {
   updateSettings(mut).catch((err) => toast(`${label}: not saved`, errText(err), "error"));
 }
-export const toggleTheme = () => change("Theme", (c) => { c.ui.theme = app.theme === "dark" ? "light" : "dark"; });
+/** Light ↔ dark, for whoever keeps the theme: this device's own look, else the vault. */
+export const toggleTheme = () => {
+  const next = app.theme === "dark" ? "light" : "dark";
+  if (deviceLook.own) setDeviceLook("ui.theme", next);
+  else change("Theme", (c) => { c.ui.theme = next; });
+};
 export const toggleVim = () => change("Vim mode", (c) => { c.vim = !c.vim; });
 export const setTerminalPosition = (p: "bottom" | "right") => change("Terminal position", (c) => { c.terminal.position = p; });
 export const setPropertiesView = (v: PropertiesView) => change("Properties", (c) => { c.editor.properties = v; });

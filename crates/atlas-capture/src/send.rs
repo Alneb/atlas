@@ -62,7 +62,7 @@ pub fn capture(root: &Path, text: &str) -> std::result::Result<(String, u64), No
 pub fn attach(root: &Path, name: &str, source: &Path) -> Result<(String, String)> {
     let ws = atlas_core::Workspace::open(root)?;
     let cfg = ws.config()?;
-    let note = atlas_core::capture::day_log(&cfg, chrono::Local::now().date_naive());
+    let note = atlas_core::capture::attach_note(&cfg, "", chrono::Local::now().date_naive());
     let bytes = std::fs::read(source).with_context(|| source.display().to_string())?;
     let a = atlas_core::files::attach(&ws, &note, name, &bytes)?;
     Ok((a.path, a.embed))

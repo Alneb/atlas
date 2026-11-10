@@ -267,7 +267,9 @@ pub fn cookie_header(store: &Store, url: &reqwest::Url) -> Result<Option<String>
 
 /// Is a sign-in in front of the service, judging by its answer? `asked` is the request's address, `landed` where the
 /// answer came from after the redirects the plugin may follow, `wants_json` whether the request asked for JSON.
-/// - a redirect (not followed: another host) or an answer from another host that is a page → a gate's portal;
+/// - a redirect (not followed: another host) or an answer from another host that is a page, when that address carries
+///   the one asked for back (`?rd=`, `redirect_uri=`, `return_to=`…, by its host in a query value) → a gate's portal.
+///   Without it the move to another host is a resolver's or a short link's (doi.org → the publisher), not a sign-in;
 /// - 401 with no `WWW-Authenticate` challenge the plugin could answer itself (Basic, Bearer…), or with a page;
 /// - a page where JSON was asked for.
 pub fn detect(asked: &reqwest::Url, landed: &reqwest::Url, status: u16, headers: &BTreeMap<String, String>, wants_json: bool) -> Option<Needed> {
@@ -275,12 +277,15 @@ pub fn detect(asked: &reqwest::Url, landed: &reqwest::Url, status: u16, headers:
     let kind = headers.get("content-type").map(|t| t.to_ascii_lowercase()).unwrap_or_default();
     let (html, json) = (kind.contains("text/html"), kind.contains("json"));
     let elsewhere = |u: &reqwest::Url| u.host_str().is_some_and(|h| !h.eq_ignore_ascii_case(&host));
-    let location_elsewhere = headers.get("location").and_then(|l| asked.join(l).ok()).is_some_and(|u| elsewhere(&u));
+    // a portal sends the visitor back afterwards: the address asked for is in one of its query values
+    let sends_back = |u: &reqwest::Url| u.query_pairs().any(|(_, v)| v.to_ascii_lowercase().contains(&host));
+    let portal = |u: &reqwest::Url| elsewhere(u) && sends_back(u);
+    let location_elsewhere = headers.get("location").and_then(|l| asked.join(l).ok()).is_some_and(|u| portal(&u));
     let door = match status {
         300..=399 => location_elsewhere,
         // a JSON 401 is the service's own answer (a missing token), not a gate's
         401 => html || location_elsewhere || (headers.get("www-authenticate").is_none() && !json),
-        200..=299 => html && (elsewhere(landed) || wants_json),
+        200..=299 => html && (portal(landed) || wants_json),
         _ => false,
     };
     door.then(|| Needed::Door { host, page: asked.to_string() })
@@ -315,7 +320,7 @@ mod tests {
         keep(&store, host, vec![old]).unwrap();
         let port = stand_in(vec![
             "HTTP/1.1 200 OK\r\nSet-Cookie: authelia_session=new; Max-Age=3600; Path=/; HttpOnly\r\nContent-Length: 2\r\nConnection: close\r\n\r\nok",
-            "HTTP/1.1 302 Found\r\nLocation: https://auth.example.org/?rd=x\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
+            "HTTP/1.1 302 Found\r\nLocation: https://auth.example.org/?rd=http%3A%2F%2F127.0.0.1%2F\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
         ]);
         let at = format!("http://{host}:{port}/");
         touch_at(&store, host, &at).await.unwrap();
@@ -362,7 +367,7 @@ mod tests {
         // for an API request: 401 with no challenge the plugin could answer
         assert_eq!(detect(&api, &api, 401, &h(&[]), true), door);
         // the portal reached (its host allowed): a page from elsewhere
-        assert_eq!(detect(&api, &url("https://auth.example.org/"), 200, &h(&[("content-type", "text/html; charset=utf-8")]), false), door);
+        assert_eq!(detect(&api, &url("https://auth.example.org/?rd=https%3A%2F%2Flinks.example.org%2Fapi"), 200, &h(&[("content-type", "text/html; charset=utf-8")]), false), door);
         // HTML where JSON was asked for
         assert_eq!(detect(&api, &api, 200, &h(&[("content-type", "text/html")]), true), door);
 
@@ -373,6 +378,11 @@ mod tests {
         assert_eq!(detect(&api, &api, 200, &h(&[("content-type", "application/json")]), true), None);
         assert_eq!(detect(&api, &api, 200, &h(&[("content-type", "text/html")]), false), None);
         assert_eq!(detect(&api, &api, 404, &h(&[("content-type", "text/html")]), true), None);
+        // a resolver hands the page on: doi.org to the publisher's article, followed or not
+        let doi = url("https://doi.org/10.1103/PhysRev.139.A796");
+        let html = h(&[("content-type", "text/html")]);
+        assert_eq!(detect(&doi, &url("https://journals.aps.org/pr/abstract/10.1103/PhysRev.139.A796"), 200, &html, false), None);
+        assert_eq!(detect(&doi, &doi, 302, &h(&[("location", "https://link.aps.org/doi/10.1103/PhysRev.139.A796")]), false), None);
     }
 
     #[test]

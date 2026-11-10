@@ -2,7 +2,7 @@
 //! toast on the open pages; this module decides whether it also becomes a system notification and hands it to the
 //! platform's [`Notifier`]. The rules are the same on every device; only the notifier differs.
 use crate::api::{Notice, NoticeLevel};
-use crate::config::SystemNotices;
+use crate::config::{NotificationsConfig, SystemNotices};
 use crate::events::EventBus;
 use crate::Workspace;
 use std::collections::HashMap;
@@ -74,10 +74,31 @@ pub struct Seen {
     pub seen: bool,
 }
 
+/// How long a system notification stays on screen before the system puts it away (into its history, where it has one).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Stay {
+    For(std::time::Duration),
+    /// Until the person closes it.
+    UntilDismissed,
+}
+
+/// A failure is read later and slower than a passing word: it stays this many times as long.
+const FAILURE_STAYS: u32 = 3;
+
+/// A notice's stay, from `[notifications] system_seconds` (0: until dismissed).
+pub fn stay_of(seconds: u32, n: &Notice) -> Stay {
+    match seconds {
+        0 => Stay::UntilDismissed,
+        s if n.level == Some(NoticeLevel::Failure) => Stay::For(std::time::Duration::from_secs((s * FAILURE_STAYS).into())),
+        s => Stay::For(std::time::Duration::from_secs(s.into())),
+    }
+}
+
 /// The platform's notification shower. `replaces`: the handle an earlier notice of the same id got, to update it in
-/// place (D-Bus `replaces_id`, Android's notification id, a Windows toast's tag).
+/// place (D-Bus `replaces_id`, Android's notification id, a Windows toast's tag). `stay`: how long it shows, where the
+/// platform lets a program say (D-Bus; Android and Windows keep their own rules).
 pub trait Notifier: Send + Sync {
-    fn show(&self, n: &Notice, replaces: Option<u32>) -> Result<u32, String>;
+    fn show(&self, n: &Notice, replaces: Option<u32>, stay: Stay) -> Result<u32, String>;
 }
 
 /// Says each notice on stderr: where no system notifier is reachable (a session without a notification server).
@@ -86,7 +107,7 @@ pub struct LogNotifier {
 }
 
 impl Notifier for LogNotifier {
-    fn show(&self, n: &Notice, replaces: Option<u32>) -> Result<u32, String> {
+    fn show(&self, n: &Notice, replaces: Option<u32>, _stay: Stay) -> Result<u32, String> {
         let handle = replaces.unwrap_or_else(|| self.next.fetch_add(1, Ordering::Relaxed) as u32 + 1);
         eprintln!("atlas: notice{}: {}{}", n.source.as_deref().map(|s| format!(" ({s})")).unwrap_or_default(), n.title, n.body.as_deref().map(|b| format!(" — {b}")).unwrap_or_default());
         Ok(handle)
@@ -170,7 +191,7 @@ pub fn platform(bus: &EventBus) -> Box<dyn Notifier> {
 /// `org.freedesktop.Notifications` over the session bus (zbus, pure Rust: nothing to install, nothing to link).
 #[cfg(all(target_os = "linux", not(target_os = "android")))]
 mod linux {
-    use super::{Notice, NoticeLevel, Notifier};
+    use super::{Notice, NoticeLevel, Notifier, Stay};
     use crate::api::Event;
     use crate::events::EventBus;
     use std::collections::HashMap;
@@ -239,14 +260,19 @@ mod linux {
     }
 
     impl Notifier for DBus {
-        fn show(&self, n: &Notice, replaces: Option<u32>) -> Result<u32, String> {
+        fn show(&self, n: &Notice, replaces: Option<u32>, stay: Stay) -> Result<u32, String> {
             let body = if self.markup { as_markup_text(&super::body_of(n)) } else { super::body_of(n) };
             // a click (`default`: the server's own click on the body) brings Atlas forward and opens a vault path
             let open = super::opens(n);
             let actions = vec!["default", if open.is_some() { "Open" } else { "Show Atlas" }];
-            let urgency: u8 = match n.level {
-                Some(NoticeLevel::Failure) => 2,
-                _ => 1,
+            // "critical" is what a server never puts away by itself (and shows over do-not-disturb): only for a failure
+            // the person asked to keep until dismissed. With a stay, a failure is a normal one that shows longer.
+            let urgency: u8 = if stay == Stay::UntilDismissed && n.level == Some(NoticeLevel::Failure) { 2 } else { 1 };
+            // the spec's expire_timeout, in milliseconds: 0 never expires (-1, the server's own choice, is not used:
+            // servers differ, and some keep such a notification with actions for good)
+            let expire: i32 = match stay {
+                Stay::For(d) => i32::try_from(d.as_millis()).unwrap_or(i32::MAX),
+                Stay::UntilDismissed => 0,
             };
             let mut hints: HashMap<&str, Value> = HashMap::new();
             hints.insert("desktop-entry", Value::from("atlas"));
@@ -256,7 +282,7 @@ mod linux {
             }
             let reply = self
                 .conn
-                .call_method(Some(DEST), PATH, Some(DEST), "Notify", &("Atlas", replaces.unwrap_or(0), "atlas", n.title.as_str(), body.as_str(), actions, hints, -1i32))
+                .call_method(Some(DEST), PATH, Some(DEST), "Notify", &("Atlas", replaces.unwrap_or(0), "atlas", n.title.as_str(), body.as_str(), actions, hints, expire))
                 .map_err(|e| e.to_string())?;
             let id: u32 = reply.body().deserialize().map_err(|e| e.to_string())?;
             let mut opens = self.opens.lock().unwrap();
@@ -275,8 +301,9 @@ mod linux {
         use std::io::BufRead;
         use std::time::{Duration, Instant};
 
-        /// What the test's notification server was asked: the summary, the id replaced, the actions, the urgency.
-        type Asked = Arc<Mutex<Vec<(String, u32, Vec<String>, u8)>>>;
+        /// What the test's notification server was asked: the summary, the id replaced, the actions, the urgency and
+        /// the expire_timeout.
+        type Asked = Arc<Mutex<Vec<(String, u32, Vec<String>, u8, i32)>>>;
 
         /// A notification server of the test's own, on a bus of its own: nothing reaches the desktop.
         struct Fake(Asked);
@@ -284,9 +311,9 @@ mod linux {
         #[zbus::interface(name = "org.freedesktop.Notifications")]
         impl Fake {
             #[allow(clippy::too_many_arguments)]
-            fn notify(&self, _app: String, replaces: u32, _icon: String, summary: String, _body: String, actions: Vec<String>, hints: HashMap<String, zbus::zvariant::OwnedValue>, _timeout: i32) -> u32 {
+            fn notify(&self, _app: String, replaces: u32, _icon: String, summary: String, _body: String, actions: Vec<String>, hints: HashMap<String, zbus::zvariant::OwnedValue>, timeout: i32) -> u32 {
                 let urgency = hints.get("urgency").and_then(|v| u8::try_from(&**v).ok()).unwrap_or(0);
-                self.0.lock().unwrap().push((summary, replaces, actions, urgency));
+                self.0.lock().unwrap().push((summary, replaces, actions, urgency, timeout));
                 42
             }
         }
@@ -324,18 +351,24 @@ mod linux {
             let n = DBus::on(client, bus.clone()).unwrap();
 
             let failed = Notice::new("backup failed").level(NoticeLevel::Failure).source("schedule").open("notes/backup.md");
-            assert_eq!(n.show(&failed, None), Ok(42));
-            assert_eq!(n.show(&Notice::new("3 new mails"), Some(42)), Ok(42), "a later one replaces it");
+            let secs = |s| Stay::For(Duration::from_secs(s));
+            assert_eq!(n.show(&failed, None, secs(30)), Ok(42));
+            assert_eq!(n.show(&Notice::new("3 new mails"), Some(42), secs(10)), Ok(42), "a later one replaces it");
+            assert_eq!(n.show(&failed, Some(42), Stay::UntilDismissed), Ok(42));
+            assert_eq!(n.show(&Notice::new("kept"), Some(42), Stay::UntilDismissed), Ok(42));
             assert_eq!(
                 *asked.lock().unwrap(),
                 vec![
-                    ("backup failed".into(), 0, vec!["default".into(), "Open".into()], 2),
-                    ("3 new mails".into(), 42, vec!["default".into(), "Show Atlas".into()], 1),
+                    // each says how long it stays; only a failure kept until dismissed is critical
+                    ("backup failed".into(), 0, vec!["default".into(), "Open".into()], 1, 30_000),
+                    ("3 new mails".into(), 42, vec!["default".into(), "Show Atlas".into()], 1, 10_000),
+                    ("backup failed".into(), 42, vec!["default".into(), "Open".into()], 2, 0),
+                    ("kept".into(), 42, vec!["default".into(), "Show Atlas".into()], 1, 0),
                 ]
             );
 
             // another program's notification clicked: not ours; then ours, shown again with a note to open
-            n.show(&failed, Some(42)).unwrap();
+            n.show(&failed, Some(42), secs(30)).unwrap();
             for id in [7u32, 42] {
                 server.emit_signal(None::<zbus::names::BusName>, PATH, DEST, "ActionInvoked", &(id, "default")).unwrap();
             }
@@ -359,7 +392,7 @@ mod linux {
 /// click is the toast's `Activated` event, which needs the process alive; the core is, as long as a vault is served.
 #[cfg(windows)]
 mod toast {
-    use super::{Notice, Notifier};
+    use super::{Notice, Notifier, Stay};
     use crate::api::Event;
     use crate::events::EventBus;
     use std::collections::VecDeque;
@@ -397,7 +430,7 @@ mod toast {
     }
 
     impl Notifier for Toasts {
-        fn show(&self, n: &Notice, replaces: Option<u32>) -> Result<u32, String> {
+        fn show(&self, n: &Notice, replaces: Option<u32>, _stay: Stay) -> Result<u32, String> {
             let handle = replaces.unwrap_or_else(|| NEXT.fetch_add(1, Ordering::Relaxed));
             let toast = toast_of(n, handle).map_err(|e| e.to_string())?;
             let (bus, open) = (self.bus.clone(), super::opens(n).map(str::to_string));
@@ -506,12 +539,12 @@ impl Delivery {
     }
 
     /// Applies the rules and shows it; whether it was shown. A notifier's failure is said, never fatal.
-    pub fn offer(&mut self, mode: SystemNotices, n: &Notice, looked_at: bool, muted: bool) -> bool {
-        if !shown(mode, n, looked_at, muted) {
+    pub fn offer(&mut self, cfg: &NotificationsConfig, n: &Notice, looked_at: bool, muted: bool) -> bool {
+        if !shown(cfg.system, n, looked_at, muted) {
             return false;
         }
         let replaces = n.id.as_ref().and_then(|id| self.handles.get(id).copied());
-        match self.notifier.show(n, replaces) {
+        match self.notifier.show(n, replaces, stay_of(cfg.system_seconds, n)) {
             Ok(handle) => {
                 if let Some(id) = &n.id {
                     self.handles.insert(id.clone(), handle);
@@ -542,12 +575,12 @@ pub fn spawn(ws: Workspace, bus: EventBus, presence: Arc<Presence>, notifier: Bo
             let (ws, presence) = (ws.clone(), presence.clone());
             // the config read and a notifier's call (D-Bus) block: off the runtime's threads
             let offered = tokio::task::spawn_blocking(move || {
-                let mode = ws.config().map(|c| c.notifications.system).unwrap_or_default();
+                let cfg = ws.config().map(|c| c.notifications).unwrap_or_default();
                 let looked_at = presence.looked_at();
                 if let Some(f) = OBSERVER.get() {
                     f(&n, looked_at);
                 }
-                delivery.offer(mode, &n, looked_at, quiet());
+                delivery.offer(&cfg, &n, looked_at, quiet());
                 delivery
             });
             match offered.await {
@@ -568,7 +601,7 @@ mod tests {
     /// Records what it was asked to show.
     struct Shown(Asked);
     impl Notifier for Shown {
-        fn show(&self, n: &Notice, replaces: Option<u32>) -> Result<u32, String> {
+        fn show(&self, n: &Notice, replaces: Option<u32>, _stay: Stay) -> Result<u32, String> {
             let mut v = self.0.lock().unwrap();
             v.push((n.title.clone(), replaces));
             Ok(replaces.unwrap_or(v.len() as u32))
@@ -590,13 +623,23 @@ mod tests {
     }
 
     #[test]
+    fn a_notice_stays_for_the_seconds_set_a_failure_longer_and_zero_keeps_it() {
+        let (info, failure) = (Notice::new("3 new mails"), Notice::new("backup failed").level(NoticeLevel::Failure));
+        let secs = |s| Stay::For(std::time::Duration::from_secs(s));
+        assert_eq!(stay_of(NotificationsConfig::default().system_seconds, &info), secs(10), "a lifetime by default");
+        assert_eq!((stay_of(8, &info), stay_of(8, &failure)), (secs(8), secs(24)));
+        assert_eq!((stay_of(0, &info), stay_of(0, &failure)), (Stay::UntilDismissed, Stay::UntilDismissed));
+    }
+
+    #[test]
     fn a_notice_with_the_same_id_replaces_the_earlier_one() {
         let seen = Arc::new(Mutex::new(vec![]));
         let mut d = Delivery::new(Box::new(Shown(seen.clone())));
+        let always = NotificationsConfig { system: SystemNotices::Always, ..Default::default() };
         let mails = |n: u32| Notice::new(format!("{n} new mails")).id("mail:inbox");
-        assert!(d.offer(SystemNotices::Always, &mails(1), false, false));
-        assert!(d.offer(SystemNotices::Always, &Notice::new("other"), false, false));
-        assert!(d.offer(SystemNotices::Always, &mails(3), false, false));
+        assert!(d.offer(&always, &mails(1), false, false));
+        assert!(d.offer(&always, &Notice::new("other"), false, false));
+        assert!(d.offer(&always, &mails(3), false, false));
         assert_eq!(*seen.lock().unwrap(), vec![("1 new mails".into(), None), ("other".into(), None), ("3 new mails".into(), Some(1))]);
     }
 

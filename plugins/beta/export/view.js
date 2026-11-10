@@ -68,6 +68,7 @@ export default function mount(host, atlas) {
   const font = text(s.font || "", "the format's own");
   const bibliography = text(s.bibliography || "", "refs/refs.bib, else the vault's .bib");
   const styleSel = select([["numeric", "Numeric [1]"], ["author-year", "Author–year"], ["alphabetic", "Alphabetic [Hub63]"], ["physics", "Physics (APS)"]], String(s.style || "numeric"));
+  const layout = select([["plain", "Plain (pandoc's article)"], ["article", "Article (KOMA, for reading)"], ["chapter", "Chapters (KOMA report, contents)"]], String(s.layout || "plain"));
   const engine = select([["lualatex", "LuaLaTeX"], ["xelatex", "XeLaTeX"], ["pdflatex", "pdfLaTeX"]], String(s.engine || "lualatex"));
   const preamble = text(s.preamble || "", "templates/preamble.tex");
   const typstPreamble = text(s.typstPreamble || "", "templates/style.typ");
@@ -76,7 +77,7 @@ export default function mount(host, atlas) {
 
   const refs = group("References", [field("Bibliography", bibliography), field("Citation style", styleSel)]);
   refs.hidden = true;
-  const latex = group("LaTeX", [field("Engine", engine), field("Extra preamble", preamble, "a .tex of the vault, \\input before the document")]);
+  const latex = group("LaTeX", [field("Layout", layout), field("Engine", engine), field("Extra preamble", preamble, "a .tex of the vault, \\input before the document")]);
   const typst = group("Typst", [field("Preamble", typstPreamble, "a .typ of the vault, put before the document (set and show rules)")]);
   const form = el("div", { className: "ex-form" }, [
     group("Format", [formatList]),
@@ -108,7 +109,7 @@ export default function mount(host, atlas) {
     title: title.value || title.placeholder, subtitle: subtitle.value, author: author.value, date: date.value,
     toc: toc.checked, numbered: numbered.checked, paper: paper.value, fontsize: fontsize.value, margins: margins.value,
     columns: Number(columns.value), lang: lang.value.trim(), font: font.value.trim(), bibliography: bibliography.value.trim(),
-    style: styleSel.value, engine: engine.value, preamble: preamble.value.trim(), typstPreamble: typstPreamble.value.trim(),
+    style: styleSel.value, layout: layout.value, engine: engine.value, preamble: preamble.value.trim(), typstPreamble: typstPreamble.value.trim(),
     folder: folder.value.trim() || "exports", openAfter: openAfter.checked,
   });
   // what the preview is made with: the format's own PDF, else the PDF road that matches it

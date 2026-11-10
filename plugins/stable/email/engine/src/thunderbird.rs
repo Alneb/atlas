@@ -1,13 +1,14 @@
 //! Thunderbird on this computer (the usual profile folder, the flatpak's, the snap's): its accounts as cards ready to
 //! add (passwords are not read — Thunderbird keeps them encrypted), and the mail it keeps locally for an account that
-//! the server no longer has (a POP account's), written as notes only when the user asks.
+//! the server no longer has (a POP account's), put on the server when the user asks: the index and every device then
+//! have it like any other mail.
 
-use crate::index::Msg;
+use crate::account::Account;
 use crate::mail::Mail;
 use crate::parse;
 use regex::Regex;
 use serde_json::{json, Value};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashSet};
 use std::path::{Path, PathBuf};
 
 fn roots() -> Vec<PathBuf> {
@@ -167,62 +168,126 @@ pub fn mbox(path: &Path) -> Vec<Vec<u8>> {
     out
 }
 
-/// Local Thunderbird mail of an account that no note has (by Message-ID): counted (`dry`), or written as notes.
-pub fn import(m: &Mail, account: &str, user: &str, dry: bool) -> Result<Value, String> {
-    let folders = local_folders(user);
-    if folders.is_empty() {
-        return Ok(json!({ "missing": {}, "saved": [], "note": format!("Thunderbird keeps no local folders for {user} on this computer") }));
+/// Thunderbird's own `X-Mozilla-Status` bits that matter here: read, starred, and deleted (a message deleted in
+/// Thunderbird stays in the mbox until the folder is compacted).
+const MOZ_READ: u32 = 0x1;
+const MOZ_FLAGGED: u32 = 0x4;
+const MOZ_DELETED: u32 = 0x8;
+
+fn mozilla_status(raw: &[u8]) -> u32 {
+    String::from_utf8_lossy(&raw[..raw.len().min(16384)])
+        .lines()
+        .take_while(|l| !l.trim().is_empty())
+        .find_map(|l| l.strip_prefix("X-Mozilla-Status:").map(|v| u32::from_str_radix(v.trim(), 16).unwrap_or(0)))
+        .unwrap_or(0)
+}
+
+/// The server folder a Thunderbird folder goes to: its role, so the old Inbox lands in the Inbox, Sent in Sent.
+fn role_of(label: &str) -> &'static str {
+    match label {
+        "Inbox" => "inbox",
+        "Sent" => "sent",
+        "Drafts" => "drafts",
+        "Archives" => "archive",
+        "Junk" => "junk",
+        "Trash" => "trash",
+        _ => "templates",
     }
-    let account_dir = m.root.join(crate::rules::folder(m)).join(crate::notes::note_name(account));
-    let have = crate::notes::ids_in_notes(&account_dir);
-    let mut missing: BTreeMap<String, usize> = BTreeMap::new();
-    let mut saved = vec![];
-    let mut failed = vec![];
-    for (label, file) in folders {
-        for raw in mbox(&file) {
+}
+
+/// One local message the server lacks.
+#[derive(Debug)]
+pub struct Upload {
+    pub label: String,
+    pub flags: Vec<&'static str>,
+    pub date: i64,
+    pub raw: Vec<u8>,
+}
+
+/// From Thunderbird's folders (label, its messages), the messages to put on the server: not deleted in Thunderbird,
+/// whose Message-ID the account does not have yet (`known`; a message without one is named by its bytes, so a second
+/// run finds it too), each once; line ends made CRLF, as IMAP wants.
+pub fn plan(folders: Vec<(String, Vec<Vec<u8>>)>, known: &HashSet<String>) -> Vec<Upload> {
+    let mut seen = known.clone();
+    let mut out = vec![];
+    for (label, msgs) in folders {
+        for raw in msgs {
+            let status = mozilla_status(&raw);
+            if status & MOZ_DELETED != 0 {
+                continue;
+            }
             let e = parse::envelope(&raw, None);
-            if have.contains(&e.message_id) {
+            if !seen.insert(e.message_id.clone()) {
                 continue;
             }
-            *missing.entry(label.clone()).or_default() += 1;
-            if dry {
-                continue;
+            let mut flags = vec![];
+            if status & MOZ_READ != 0 || label != "Inbox" {
+                flags.push("\\Seen");
             }
-            let x = Msg {
-                id: 0,
-                account: account.to_string(),
-                folder: label.clone(),
-                uid: 0,
-                thread: 0,
-                message_id: e.message_id.clone(),
-                subject: e.subject.clone(),
-                from: e.from.clone(),
-                to: e.to.clone(),
-                cc: e.cc.clone(),
-                reply_to: e.reply_to.clone(),
-                date: e.date,
-                size: raw.len() as i64,
-                seen: true,
-                flagged: false,
-                answered: false,
-                draft: false,
-                labels: vec![],
-                kind: e.kind.as_str().into(),
-                has_attachments: e.has_attachments,
-                snippet: String::new(),
-                in_reply_to: e.in_reply_to.clone(),
-                references: e.references.clone(),
-                unsubscribe: None,
-                cached: true,
-            };
-            let refs: Vec<String> = e.in_reply_to.iter().chain(&e.references).cloned().collect();
-            match crate::notes::write(m, &refs, vec![(x, raw, label.clone())]) {
-                Ok(p) => saved.push(p),
-                Err(err) => failed.push(format!("{label}: {}: {err}", e.message_id)),
+            if status & MOZ_FLAGGED != 0 {
+                flags.push("\\Flagged");
+            }
+            out.push(Upload { label: label.clone(), flags, date: e.date, raw: crlf(&raw) });
+        }
+    }
+    out
+}
+
+fn crlf(raw: &[u8]) -> Vec<u8> {
+    let mut out = Vec::with_capacity(raw.len() + raw.len() / 40);
+    for (i, b) in raw.iter().enumerate() {
+        if *b == b'\n' && (i == 0 || raw[i - 1] != b'\r') {
+            out.push(b'\r');
+        }
+        out.push(*b);
+    }
+    out
+}
+
+/// The mail Thunderbird keeps on this computer only (a POP account's) put on the account's server, where the index
+/// and every device find it: counted by folder (`dry`), or uploaded into the folders of the same role, then synced.
+/// What the server already has (by Message-ID) is skipped, so running it again adds nothing twice.
+pub async fn upload(m: &Mail, acc: &Account, dry: bool) -> Result<Value, String> {
+    let folders = local_folders(&acc.user);
+    if folders.is_empty() {
+        return Ok(json!({ "missing": {}, "uploaded": 0, "failed": [], "note": format!("Thunderbird keeps no local folders for {} on this computer", acc.user) }));
+    }
+    let known = m.index.msgids(&acc.name);
+    let todo = plan(folders.iter().map(|(l, f)| (l.clone(), mbox(f))).collect(), &known);
+    let mut missing: BTreeMap<String, usize> = BTreeMap::new();
+    for u in &todo {
+        *missing.entry(u.label.clone()).or_default() += 1;
+    }
+    if dry || todo.is_empty() {
+        return Ok(json!({ "missing": missing, "uploaded": 0, "failed": [], "dry": dry }));
+    }
+    let mut targets: BTreeMap<String, String> = BTreeMap::new();
+    for label in missing.keys() {
+        let role = role_of(label);
+        let path = match role {
+            "inbox" => m.index.role(&acc.name, "inbox").map(|f| f.path).unwrap_or_else(|| "INBOX".into()),
+            _ => crate::ops::folder_for(m, acc, role).await?,
+        };
+        targets.insert(label.clone(), path);
+    }
+    let mut c = m.conn(acc).await?;
+    let (mut uploaded, mut failed) = (0usize, vec![]);
+    for u in &todo {
+        let to = &targets[&u.label];
+        match c.append_at(to, &u.flags, (u.date > 0).then_some(u.date), &u.raw).await {
+            Ok(_) => uploaded += 1,
+            Err(e) => {
+                failed.push(format!("{}: {e}", u.label));
+                if crate::imap::connection_lost(&e) {
+                    break;
+                }
             }
         }
     }
-    Ok(json!({ "missing": missing, "saved": saved, "failed": failed, "dry": dry }))
+    m.give_back(c);
+    let paths: Vec<String> = targets.into_values().collect();
+    let _ = crate::sync::account(m, acc, Some(&paths)).await;
+    Ok(json!({ "missing": missing, "uploaded": uploaded, "failed": failed, "dry": false }))
 }
 
 #[cfg(test)]
@@ -237,6 +302,22 @@ mod tests {
         let v = mbox(&p);
         assert_eq!(v.len(), 2);
         assert_eq!(String::from_utf8_lossy(&v[0]), "Subject: one\n\nFrom the start\nbody\n\n");
+    }
+
+    #[test]
+    fn only_what_the_server_lacks_goes_up_once_with_its_state() {
+        let msg = |id: &str, status: &str| format!("X-Mozilla-Status: {status}\nMessage-ID: <{id}>\nDate: Mon, 12 Oct 2026 10:00:00 +0000\nSubject: s\n\nbody\n").into_bytes();
+        let known: HashSet<String> = ["have@x".to_string()].into();
+        let folders = vec![
+            ("Inbox".to_string(), vec![msg("have@x", "0001"), msg("new@x", "0000"), msg("read@x", "0005"), msg("gone@x", "0009"), msg("new@x", "0000")]),
+            ("Sent".to_string(), vec![msg("sent@x", "0000")]),
+        ];
+        let p = plan(folders, &known);
+        let got: Vec<(&str, Vec<&str>)> = p.iter().map(|u| (u.label.as_str(), u.flags.clone())).collect();
+        assert_eq!(got, [("Inbox", vec![]), ("Inbox", vec!["\\Seen", "\\Flagged"]), ("Sent", vec!["\\Seen"])]);
+        assert!(p[0].raw.windows(2).any(|w| w == b"\r\n") && !p[0].raw.windows(2).any(|w| w[1] == b'\n' && w[0] != b'\r'));
+        assert_eq!(p[0].date, 1_791_799_200);
+        assert_eq!(role_of("Sent"), "sent");
     }
 
     #[test]

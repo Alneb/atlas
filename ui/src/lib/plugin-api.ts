@@ -19,7 +19,7 @@ import type { NativeSample, PenOptions } from "./pen-target";
 import type { EmbedRender } from "./embed-registry";
 import type { Live, LiveHandlers } from "./live";
 
-export const PLUGIN_API_VERSION = 27;
+export const PLUGIN_API_VERSION = 28;
 
 /** What a plugin's view gets. Kept small and stable: plugins outlive app refactors. */
 export interface PluginApi {
@@ -61,6 +61,10 @@ export interface PluginApi {
   openNative(path: string): boolean;
   /** Open a table file in the table viewer (any `.tsv`/`.csv`). */
   openTable(path: string): void;
+  /** (v28) A web link opened as Atlas opens any link (`[web] open_links`: a tab of Atlas, its window, the browser);
+   *  `outside`: the system's browser whatever that says — what a Shift+click means. A pane that draws foreign HTML (a
+   *  mail) sends its links here instead of letting the frame open them. */
+  openLink(url: string, opts?: { outside?: boolean }): void;
   readText(path: string): Promise<string>;
   /** A folder's entries, one level (hidden and ignored ones as the explorer marks them): `dir` for folders, `size`
    *  in bytes and `mtime` in seconds for files. A plugin with a library on disk (manga, books) walks it with this. */

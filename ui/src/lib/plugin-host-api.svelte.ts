@@ -1,6 +1,7 @@
 // What a plugin is handed (`register(atlas)`, a pane's `api`): the PluginApi of plugin-api.ts, built for one plugin.
 // Every registration goes through `own`, so it is undone when the plugin reloads or is switched off.
 import { zipIndex, zipBlob } from "./zip";
+import { openOutside, openWeb } from "./web-links";
 import { mount, unmount } from "svelte";
 import { frontmatterOf } from "./property-model";
 import type { Extension } from "@codemirror/state";
@@ -109,6 +110,7 @@ export function pluginApi(p: Plugin, at: PaneAt = {}): PluginApi {
     open: (path, line, opts) => openPath(path, line, opts),
     openNative: (path) => openNative(String(path)),
     openTable: (path) => { open({ kind: "table", path }); },
+    openLink: (url, opts) => void (opts?.outside ? openOutside(url) : openWeb(url)),
     readText: async (path) => (await api.file(path)).text,
     exists: (path) => exists(String(path)),
     list: async (dir) => (await api.tree(dir)).map((e) => ({ name: e.name, path: e.path, dir: e.kind === "dir", ignored: e.ignored, ...(e.size === undefined ? {} : { size: e.size }), ...(e.modified === undefined ? {} : { mtime: e.modified }) })),

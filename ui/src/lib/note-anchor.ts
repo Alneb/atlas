@@ -4,6 +4,7 @@
 
 import { fences } from "./fence-walk";
 import { frontmatterSpan } from "./property-model";
+import { equationSection, noteEquations } from "./equations";
 
 /** An ATX heading: its closing `#`s (after a blank) not part of its text, so `# C#` is "C#"; the one reading every
  *  module uses (code: lib/fence-walk.ts). */
@@ -41,6 +42,7 @@ export function anchorLine(md: string, anchor: string): number | undefined {
   const i = a.startsWith("^")
     ? lines.findIndex((l) => !code.code(l) && (l.trimEnd().endsWith(` ${a}`) || l.trimEnd() === a))
     : (headingNamed(headings(lines), a)?.i ?? -1);
+  if (i < 0 && a.startsWith("^")) return noteEquations(md).spanOf.get(a.slice(1))?.[0]; // an equation's `\label{…}`
   return i < 0 ? undefined : i + 1;
 }
 
@@ -48,7 +50,7 @@ export function anchorLine(md: string, anchor: string): number | undefined {
  *  above a `^block` alone on its line, without the id — else the heading named `name` down to the next heading of its
  *  level or above; the whole text when there is neither. */
 export function sectionOf(md: string, name: string): string {
-  if (name.trim().startsWith("^")) return blockOf(md, name.trim()) ?? md;
+  if (name.trim().startsWith("^")) return equationSection(md, name.trim().slice(1)) ?? blockOf(md, name.trim()) ?? md;
   const lines = md.split("\n"), hs = headings(lines), at = headingNamed(hs, name);
   if (!at) return md;
   const end = hs.find((h) => h.i > at.i && h.level <= at.level);

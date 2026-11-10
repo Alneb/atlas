@@ -504,6 +504,13 @@ impl Index {
     }
 
     /// Rows by message id in an account (to find a message again after a move, or for a reply's parent).
+    /// Every Message-ID an account has, in any folder.
+    pub fn msgids(&self, account: &str) -> HashSet<String> {
+        let db = self.db();
+        let mut st = db.prepare("SELECT DISTINCT msgid FROM messages WHERE account=?1").expect("msgids");
+        st.query_map(params![account], |r| r.get(0)).map(|rows| rows.flatten().collect()).unwrap_or_default()
+    }
+
     pub fn by_message_id(&self, account: &str, msgid: &str) -> Vec<Msg> {
         self.msgs_where("m.account=?1 AND m.msgid=?2", vec![account.to_string().into(), msgid.to_string().into()])
     }

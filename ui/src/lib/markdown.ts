@@ -14,6 +14,7 @@ import { wikilinkAt } from "./wikilink-syntax";
 import { tagAt, tagMayFollow } from "./tag-syntax";
 import { keepCapped } from "./capped";
 import { displayClosed } from "./math-close";
+import { equationTarget, linkText, noteEquations, numberedTex, texKey, type Equations } from "./equations";
 
 export { resolveRel };
 
@@ -171,6 +172,14 @@ function taskLists(state: StateCore): void {
   }
 }
 
+// --- a numbered equation's block id (lib/equations.ts): the `^id` paragraph after a display is not text ---------------
+function equationIds(state: StateCore): void {
+  const t = state.tokens;
+  for (let i = 0; i + 3 < t.length; i++) {
+    if (t[i].type === "math_block" && t[i + 1].type === "paragraph_open" && t[i + 2].type === "inline" && /^\^[A-Za-z0-9-]+$/.test(t[i + 2].content.trim())) t.splice(i + 1, 3);
+  }
+}
+
 const CALLOUT_RE = /^\[!([A-Za-z-]+)\]([+-]?)[ \t]*(.*)$/;
 function callouts(state: StateCore): void {
   const toks = state.tokens;
@@ -198,7 +207,10 @@ function callouts(state: StateCore): void {
   }
 }
 
-export interface MdEnv { /** directory of the note, for relative embeds */ dir?: string }
+export interface MdEnv {
+  /** directory of the note, for relative embeds */ dir?: string;
+  /** the note's numbered equations (lib/equations.ts), filled by renderMarkdown */ equations?: Equations;
+}
 const dirOf = (env: unknown): string | undefined => (env as MdEnv | undefined)?.dir;
 
 function build() {
@@ -228,6 +240,7 @@ function build() {
   md.inline.ruler.push("hashtag", hashtag);
   md.core.ruler.push("task_lists", taskLists);
   md.core.ruler.push("callouts", callouts);
+  md.core.ruler.after("block", "equation_ids", equationIds);
 
   const r = md.renderer.rules;
   // an inline expression (docs/guides/EXPRESSIONS.md): its value is filled in by lib/expr.ts (hydrateExprs)
@@ -243,13 +256,19 @@ function build() {
     return defaultFence(t, i, o, env, self); // the Obsidian Ink blocks are a fence of their own (ink-fence.ts)
   };
   r.math_inline = (t, i) => (t[i].info ? `<span class="math-glue">${mathToString(t[i].content, false)}${md.utils.escapeHtml(t[i].info)}</span>` : mathToString(t[i].content, false));
-  r.math_block = (t, i) => `<div class="math-display">${mathToString(t[i].content, true)}</div>\n`;
+  r.math_block = (t, i, _o, env) => {
+    const n = (env as MdEnv).equations?.byTex.get(texKey(t[i].content));
+    return `<div class="math-display">${mathToString(numberedTex(t[i].content, n), true)}</div>\n`;
+  };
   r.math_block_inline = (t, i) => `<span class="math-display">${mathToString(t[i].content, true)}</span>`;
   r.wikilink = (t, i, _o, env) => {
     const { target, alias } = t[i].meta as { target: string; alias?: string };
-    const label = alias || target.split("#")[0].split("/").pop() || target;
-    const unresolved = resolveLink(target, dirOf(env) ?? "") ? "" : " is-unresolved";
-    return `<a class="internal-link${unresolved}" data-href="${esc(target)}" href="#">${esc(label)}</a>`;
+    // a link to a numbered equation reads "(3)": this note's at once, another note's filled in by hydrate.ts
+    const eq = alias ? null : equationTarget(target);
+    const own = eq && !eq[0] ? (env as MdEnv).equations?.byId.get(eq[1]) : undefined;
+    const label = alias || (own ? linkText("", own) : target.split("#")[0].split("/").pop() || target);
+    const unresolved = target.trim().startsWith("#") || resolveLink(target, dirOf(env) ?? "") ? "" : " is-unresolved"; // `#…`: this note
+    return `<a class="internal-link${unresolved}" data-href="${esc(target)}"${eq ? ` data-eq="${esc(eq[1])}"` : ""} href="#">${esc(label)}</a>`;
   };
   r.wiki_embed = (t, i, _o, env) => {
     const { target, alias } = t[i].meta as { target: string; alias?: string };
@@ -367,6 +386,7 @@ export function renderInlineMarkdown(text: string): string {
 }
 
 export function renderMarkdown(text: string, env: MdEnv = {}): string {
+  if (!env.equations && text.includes("$$")) env = { ...env, equations: noteEquations(text) };
   const html = md.render(stripComments(text), env as Parameters<typeof md.render>[1]);
   purifyEnv = env;
   try { return DOMPurify.sanitize(html, PURIFY) as string; } finally { purifyEnv = {}; }

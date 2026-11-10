@@ -167,7 +167,9 @@ async function fences(j: Job, road: "latex" | "typst" | "docx"): Promise<string>
       out[i] = "```" + f.lang + "\n" + f.source + "\n```";
     }
   }
-  const md = j.t.markdown.replace(/<!--fence:(\d+)-->/g, (_, n: string) => out[Number(n)]);
+  // an equation's number: LaTeX keeps `\tag`; pandoc's Typst and Word writers drop it, so there it is written beside it
+  const tagged = road === "latex" ? j.t.markdown : j.t.markdown.replace(/\\tag\*?\{([^}]*)\}/g, (_, n: string) => `\\qquad\\text{(${n})}`);
+  const md = tagged.replace(/<!--fence:(\d+)-->/g, (_, n: string) => out[Number(n)]);
   // a note whose sections start at ## gets them one level up
   return /^# /m.test(md) || !/^## /m.test(md) ? md : md.replace(/^#(#+ )/gm, "$1");
 }

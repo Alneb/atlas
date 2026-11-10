@@ -13,7 +13,7 @@ export type PageId =
   | "terminal" | "desktop" | "keyboard" | "plugins" | "automation" | "agents" | "advanced" | "latex";
 
 /** Custom panels drawn by the Settings UI beside the generated fields. */
-export type Panel = "overview" | "preview" | "apps" | "snippets" | "keys" | "plugins" | "scripts" | "drafts" | "openwith" | "capturekey" | "server" | "agents" | "templates" | "file";
+export type Panel = "overview" | "device" | "preview" | "apps" | "snippets" | "keys" | "plugins" | "scripts" | "drafts" | "openwith" | "capturekey" | "server" | "agents" | "templates" | "file";
 
 /** The nav's groups, in this order: Accounts stands above them all (every sign-in is there). */
 export type Group = "general" | "working" | "connections" | "plugins" | "advanced";
@@ -71,7 +71,7 @@ export const PAGES: PageDef[] = [
     fields: ["ui.theme", "ui.palette", "ui.palette_dark", "ui.contrast", "ui.shape", "ui.accent", "ui.font_size", "ui.ui_font", "ui.motion", "ui.notices", "ui.eink", "ui.eink_refresh", "ui.tabs", "ui.side_panel", "ui.restore_layout", "ui.tab_preview", "ui.tab_switcher", "ui.sleep_after_min", "ui.awake_tabs",
       "editor.prose_font", "editor.prose_font_size", "editor.prose_line_height", "editor.prose_width",
       "editor.code_font", "editor.code_font_size", "editor.inline_title"],
-    features: ["ui.theme", "ui.zoomIn", "ui.zoomOut", "ui.zoomReset", "ui.zoomAllIn", "ui.zoomAllOut", "ui.zoomAllReset", "ui.sidePanel", "ui.sidePanel.move", "ui.fullscreen", "ui.resetLayout"], panels: ["preview", "apps", "snippets"],
+    features: ["ui.theme", "ui.zoomIn", "ui.zoomOut", "ui.zoomReset", "ui.zoomAllIn", "ui.zoomAllOut", "ui.zoomAllReset", "ui.sidePanel", "ui.sidePanel.move", "ui.fullscreen", "ui.resetLayout"], panels: ["device", "preview", "apps", "snippets"],
     next: [{ label: "Write a CSS snippet", why: "Restyle anything — a file in .atlas/snippets/ applies live on save.", run: "settings.newSnippet" }],
   },
   {

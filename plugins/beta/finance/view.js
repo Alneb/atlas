@@ -1916,9 +1916,9 @@ function pr(r, i) {
 	});
 	let ce;
 	c(() => () => clearInterval(ce));
-	function le(e) {
-		window.open(e.url, "_blank", "noopener");
-		let t = Math.floor(Date.now() / 1e3) - 5;
+	function le(e, t = !1) {
+		i.atlas.openLink ? i.atlas.openLink(e.url, { outside: t }) : window.open(e.url, "_blank", "noopener");
+		let r = Math.floor(Date.now() / 1e3) - 5;
 		T(Q, {
 			name: e.name,
 			until: Date.now() + 6e5
@@ -1928,7 +1928,7 @@ function pr(r, i) {
 				return;
 			}
 			try {
-				let e = await I(i.atlas, "downloads", { since: t });
+				let e = await I(i.atlas, "downloads", { since: r });
 				e.taken.length && (T($, [...n($), ...e.taken.map((e) => `${e.name} (${e.preset})`)], !0), i.atlas.toast("Statement taken", e.taken.map((e) => e.name).join(", ") + " → the inbox"), i.onchange());
 			} catch (e) {
 				T(L, e.message, !0), clearInterval(ce), T(Q, null);
@@ -2073,7 +2073,7 @@ function pr(r, i) {
 				n(r).hint && e(c);
 			}), q(i), S(() => {
 				D(i, "title", n(r).url), t(o, n(r).name);
-			}), v("click", i, () => le(n(r))), p(e, i);
+			}), v("click", i, (e) => le(n(r), e.shiftKey)), p(e, i);
 		}), q(s);
 		var c = W(s, 2), l = (e) => {
 			var r = sr(), i = C(r), a = W(i);

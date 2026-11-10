@@ -770,12 +770,22 @@ pub enum SystemNotices {
 }
 
 /// Notices (docs/design/DESIGN-notifications.md).
-#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, TS, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS, JsonSchema)]
 #[serde(default)]
 #[ts(export)]
 pub struct NotificationsConfig {
     /// When a notice also shows as a system notification (the desktop's, the phone's).
     pub system: SystemNotices,
+    /// How many seconds a system notification stays on the desktop before the system puts it away; a failure stays
+    /// three times as long. 0: until you close it. (A phone keeps its notifications by its own rules.)
+    #[schemars(range(min = 0, max = 120))]
+    pub system_seconds: u32,
+}
+
+impl Default for NotificationsConfig {
+    fn default() -> Self {
+        Self { system: SystemNotices::default(), system_seconds: 10 }
+    }
 }
 
 /// What closing the desktop window does.

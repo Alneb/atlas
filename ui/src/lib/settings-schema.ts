@@ -2,6 +2,7 @@
 import { errText } from "./text";
 import { settings, updateSettings } from "./settings.svelte";
 import { toast } from "./state.svelte";
+import { deviceChose, deviceKeeps, deviceLook, resetDeviceLook, setDeviceLook } from "./device-look.svelte";
 import type { SettingsHost } from "./settings-pages";
 
 export type Schema = {
@@ -67,9 +68,12 @@ function at(root: unknown, path: string): unknown {
   for (const k of path.split(".")) v = (v as Record<string, unknown> | null)?.[k];
   return v;
 }
-export const valueOf = (path: string) => at(settings.config, path);
-export const defaultOf = (path: string) => at(settings.defaults, path);
-export const isModified = (path: string) => settings.defaults !== null && JSON.stringify(valueOf(path)) !== JSON.stringify(defaultOf(path));
+// A setting of the look that this device keeps for itself (device-look.svelte.ts) is read and written there: its
+// default is the vault's value, and reset gives it back to the vault.
+const vaultValue = (path: string) => at(settings.config, path);
+export const valueOf = (path: string) => (deviceChose(path) ? at({ ui: deviceLook.ui }, path) : vaultValue(path));
+export const defaultOf = (path: string) => (deviceKeeps(path) ? vaultValue(path) : at(settings.defaults, path));
+export const isModified = (path: string) => (deviceKeeps(path) ? deviceChose(path) : settings.defaults !== null && JSON.stringify(valueOf(path)) !== JSON.stringify(defaultOf(path)));
 
 function put(root: unknown, path: string, value: unknown): void {
   const keys = path.split(".");
@@ -86,8 +90,8 @@ async function save(label: string, mut: Parameters<typeof updateSettings>[0]): P
   }
 }
 
-export const setValue = (path: string, value: unknown) => save("Setting", (c) => put(c, path, value));
-export const resetValue = (path: string) => setValue(path, JSON.parse(JSON.stringify(defaultOf(path) ?? null)));
+export const setValue = (path: string, value: unknown) => (deviceKeeps(path) ? setDeviceLook(path, value) : save("Setting", (c) => put(c, path, value)));
+export const resetValue = (path: string) => (deviceKeeps(path) ? resetDeviceLook(path) : setValue(path, JSON.parse(JSON.stringify(defaultOf(path) ?? null))));
 
 // Zoom: the four text sizes move together, each inside its schema range (config.rs `#[schemars(range)]`).
 const SIZES = ["ui.font_size", "editor.code_font_size", "editor.prose_font_size", "terminal.font_size"];

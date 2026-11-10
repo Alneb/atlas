@@ -5,6 +5,7 @@
 //! HTTPS goes through the core's fetch (the manifest's `net`), so the engine carries no HTTP client.
 
 use crate::account::{Account, Auth};
+use crate::trouble::Fail;
 use base64::Engine;
 use serde_json::{json, Value};
 use std::collections::HashMap;
@@ -116,17 +117,17 @@ pub fn take_rotated() -> HashMap<String, String> {
 }
 
 /// The access token IMAP and SMTP sign in with (None for a password account).
-pub fn access_token(acc: &Account, post: &Post) -> Result<Option<String>, String> {
+pub fn access_token(acc: &Account, post: &Post) -> Result<Option<String>, Fail> {
     access_token_for(acc, SCOPES, post)
 }
 
 /// An access token for `scopes` from the account's refresh token (None for a password account). Cached per refresh
 /// token and scopes until a minute before it ends.
-pub fn access_token_for(acc: &Account, scopes: &str, post: &Post) -> Result<Option<String>, String> {
+pub fn access_token_for(acc: &Account, scopes: &str, post: &Post) -> Result<Option<String>, Fail> {
     let Auth::Outlook { tenant, client_id, refresh } = &acc.auth else { return Ok(None) };
     let key = format!("accounts.{}.oauth_refresh", acc.name);
     let refresh = ROTATED.lock().unwrap().get(&key).cloned().or_else(|| refresh.clone());
-    let refresh = refresh.ok_or_else(|| "not signed in to Outlook: run “Email: sign in to Outlook…” (or the card's Sign in button)".to_string())?;
+    let refresh = refresh.ok_or_else(|| Fail::sign_in("not signed in to Outlook: run “Email: sign in to Outlook…” (or the card's Sign in button)"))?;
     let cache = |r: &str| format!("{scopes}\n{r}");
     if let Some(c) = TOKENS.lock().unwrap().get(&cache(&refresh)) {
         if Instant::now() + Duration::from_secs(60) < c.until {
@@ -134,8 +135,8 @@ pub fn access_token_for(acc: &Account, scopes: &str, post: &Post) -> Result<Opti
         }
     }
     let url = format!("https://login.microsoftonline.com/{tenant}/oauth2/v2.0/token");
-    let j = post(&url, &[("client_id", client_id), ("grant_type", "refresh_token"), ("refresh_token", &refresh), ("scope", scopes)])?;
-    let token = j["access_token"].as_str().ok_or_else(|| format!("Outlook refused the sign-in ({}): sign in again", refused(&j)))?.to_string();
+    let j = post(&url, &[("client_id", client_id), ("grant_type", "refresh_token"), ("refresh_token", &refresh), ("scope", scopes)]).map_err(|e| Fail::connection(format!("cannot reach Microsoft's sign-in: {e}")))?;
+    let token = j["access_token"].as_str().ok_or_else(|| renewal_refused(&j))?.to_string();
     let until = Instant::now() + Duration::from_secs(j["expires_in"].as_u64().unwrap_or(3600));
     if let Some(new) = j["refresh_token"].as_str().filter(|n| *n != refresh) {
         ROTATED.lock().unwrap().insert(key.clone(), new.to_string());
@@ -144,6 +145,15 @@ pub fn access_token_for(acc: &Account, scopes: &str, post: &Post) -> Result<Opti
     }
     TOKENS.lock().unwrap().insert(cache(&refresh), Cached { token: token.clone(), until });
     Ok(Some(token))
+}
+
+/// A renewal Microsoft did not grant: its own trouble (down, or an answer that is no JSON: a proxy, a captive portal)
+/// is the connection's; anything else is about the sign-in itself (expired, revoked, blocked by the organisation).
+fn renewal_refused(answer: &Value) -> Fail {
+    match answer["error"].as_str() {
+        Some("temporarily_unavailable" | "server_error" | "no_json") => Fail::connection(format!("Microsoft's sign-in is not answering ({})", refused(answer))),
+        _ => Fail::sign_in(format!("Outlook refused the sign-in ({}): sign in again", refused(answer))),
+    }
 }
 
 /// A sign-in under way (one at a time, as in Thunderbird).
@@ -393,5 +403,27 @@ mod tests {
         assert_eq!(calls.load(std::sync::atomic::Ordering::SeqCst), 2);
         let pw = crate::account::pick(&json!({ "settings": { "accounts": [{ "name": "p", "user": "u@x", "imap_host": "h" }] } })).unwrap();
         assert_eq!(access_token(&pw, &post).unwrap(), None);
+    }
+
+    #[test]
+    fn a_renewal_that_fails_says_whether_to_sign_in_again_or_wait() {
+        use crate::trouble::Trouble;
+        let acc = |name: &str, refresh: Option<&str>| {
+            let mut p = json!({ "settings": { "accounts": [{ "name": name, "auth": "outlook", "user": "u@x" }] }, "secrets": {} });
+            if let Some(r) = refresh {
+                p["secrets"][format!("accounts.{name}.oauth_refresh")] = json!(r);
+            }
+            crate::account::pick(&p).unwrap()
+        };
+        let never = |_: &str, _: &[(&str, &str)]| -> Result<Value, String> { panic!("nothing to renew with") };
+        assert_eq!(access_token(&acc("t-none", None), &never).unwrap_err().trouble, Trouble::SignIn);
+        let expired = |_: &str, _: &[(&str, &str)]| -> Result<Value, String> { Ok(json!({ "error": "invalid_grant", "error_description": "AADSTS70008: The refresh token has expired." })) };
+        let e = access_token(&acc("t-expired", Some("old")), &expired).unwrap_err();
+        assert_eq!(e.trouble, Trouble::SignIn, "{e}");
+        assert!(e.text.contains("expired"), "{e}");
+        let offline = |_: &str, _: &[(&str, &str)]| -> Result<Value, String> { Err("no route to host".into()) };
+        assert_eq!(access_token(&acc("t-offline", Some("r2")), &offline).unwrap_err().trouble, Trouble::Connection);
+        let down = |_: &str, _: &[(&str, &str)]| -> Result<Value, String> { Ok(json!({ "error": "temporarily_unavailable" })) };
+        assert_eq!(access_token(&acc("t-down", Some("r3")), &down).unwrap_err().trouble, Trouble::Connection);
     }
 }

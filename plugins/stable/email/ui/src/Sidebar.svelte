@@ -83,7 +83,7 @@
     {@const t = tree(a.name)}
     <div class="group">
       <button class="head" onclick={() => fold(key)} aria-expanded={!folded[key]} title={a.user ?? a.name}>
-        {#if rail}<span class="dot" class:busy={a.syncing} class:bad={a.error || a.status?.state === "error"}></span>
+        {#if rail}<span class="dot" class:busy={a.syncing} class:bad={a.error || a.status?.state === "error"} class:off={a.status?.state === "offline"}></span>
         {:else}
           <Icon name={folded[key] ? "right" : "down"} size={12} />
           <span class="acct">{a.name}</span>
@@ -93,7 +93,7 @@
       </button>
       {#if a.error || a.status?.state === "error"}
         <div class="err" role="alert">
-          <span>{a.error ?? a.status?.error}</span>
+          <span>{#if !a.error && a.status?.trouble === "sign-in"}<b>Sign-in needed.</b> {/if}{a.error ?? a.status?.error}</span>
           {#if a.outlook}<button class="link" onclick={() => window.dispatchEvent(new CustomEvent("atlas-email:signin", { detail: a.name }))}>Sign in…</button>{/if}
           <button class="link" onclick={() => mail.atlas.plugin.openSettings()}>Settings…</button>
         </div>
@@ -161,6 +161,7 @@
   .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--text-faint); }
   .dot.busy { background: var(--accent); }
   .dot.bad { background: var(--red); }
+  .dot.off { background: transparent; border: 1px solid var(--text-faint); }
   .spin { width: 9px; height: 9px; border-radius: 50%; border: 2px solid var(--accent); border-right-color: transparent; animation: spin 0.8s linear infinite; }
   @keyframes spin { to { transform: rotate(360deg); } }
   @media (prefers-reduced-motion: reduce) { .spin { animation: none; } }

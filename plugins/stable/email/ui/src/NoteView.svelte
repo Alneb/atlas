@@ -65,7 +65,7 @@
       {#if open.includes(i)}
         <div class="body">
           {#if m.to}<div class="meta">to {m.to}{m.cc ? ` · cc ${m.cc}` : ""}</div>{/if}
-          {#if m.html}<MailFrame html={m.html} />{:else}<div class="text">{m.text}</div>{/if}
+          {#if m.html}<MailFrame html={m.html} {atlas} />{:else}<div class="text">{m.text}</div>{/if}
           {#if m.files.length}<div class="files">{#each m.files as f (f)}<button class="file" onclick={() => atlas.open(f, undefined, { beside: true })}><Icon name="attach" size={13} />{f.split("/").at(-1)}</button>{/each}</div>{/if}
           {#if m.message_id}
             <div class="acts">

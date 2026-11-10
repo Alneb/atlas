@@ -187,7 +187,7 @@
 <div class="card" bind:this={root} tabindex="0" onkeydown={key} role="listbox" aria-label="Mail to answer">
   <header>
     {#each accounts as a (a.name)}
-      <button class="acct" class:bad={!!a.error || a.status?.state === "error"} onclick={() => onopen({ view: "inbox", account: a.name })} title={a.error ?? a.status?.error ?? a.user}>
+      <button class="acct" class:bad={!!a.error || a.status?.state === "error"} class:off={a.status?.state === "offline"} onclick={() => onopen({ view: "inbox", account: a.name })} title={a.error ?? a.status?.error ?? a.user}>
         <i style:--h={hue(a.user ?? a.name)} class:spin={a.status?.state === "syncing"}></i><span>{a.name}</span>{#if a.error}<b>!</b>{:else if a.unread}<b>{a.unread}</b>{/if}
       </button>
     {/each}
@@ -238,6 +238,7 @@
   @keyframes pulse { 50% { opacity: 0.3; } }
   @media (prefers-reduced-motion: reduce) { .acct i.spin { animation: none; } }
   .acct.bad { border-color: var(--red); }
+  .acct.off { opacity: 0.6; border-style: dashed; }
   .acct b { font-weight: 650; }
   .icon { all: unset; cursor: pointer; display: grid; place-items: center; width: 26px; height: 26px; border-radius: var(--radius-sm); color: var(--text-muted); }
   .icon:hover { background: var(--bg-hover); color: var(--text); }

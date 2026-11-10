@@ -3,6 +3,7 @@
 import { snippet, startCompletion, type Completion, type CompletionContext, type CompletionResult } from "@codemirror/autocomplete";
 import { noteHeadings } from "../note-anchor";
 import { fences } from "../fence-walk";
+import { noteEquations, texKey } from "../equations";
 import { api } from "../api";
 import { linkRow } from "../link-rows";
 import { taskSuggestions, type TaskSuggestion } from "../task-complete";
@@ -112,7 +113,16 @@ async function placesIn(note: string, after: string, from: number, closing: stri
       const said = (b[1].trim() || lines[i - 1]?.trim() || "").slice(0, 60);
       blocks.push({ label: `^${b[2]}`, detail: said, type: "block", apply: `^${b[2]}${closing}` });
     }
-    return { from, options: blocks, validFor: /^\^?[\w-]*$/ };
+    // a numbered equation's label (lib/equations.ts): its number and formula, once (its `$$ ^id` line is a block id too)
+    const eqs = noteEquations(text);
+    for (const [id, n] of eqs.byId) {
+      const [a, b] = eqs.spanOf.get(id)!;
+      const tex = texKey(lines.slice(a - 1, b).join("\n")).replace(/\\label\{[^}]*\}/g, "").replace(/\s+/g, " ");
+      const k = blocks.findIndex((c) => c.label === `^${id}`);
+      if (k >= 0) blocks.splice(k, 1);
+      blocks.push({ label: `^${id}`, detail: `(${n}) ${tex.slice(0, 50)}`, type: "equation", apply: `^${id}${closing}` });
+    }
+    return { from, options: blocks, validFor: /^\^?[\w:-]*$/ };
   }
   const heads = noteHeadings(text.split("\n")).map((h) => h.text);
   return { from, options: heads.map((h) => ({ label: h, type: "heading", apply: h + closing })), validFor: /^[^\]\n]*$/ };

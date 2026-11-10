@@ -118,7 +118,7 @@
     if (!unsub || !(await askYes(mail.atlas, `Unsubscribe from ${unsub.from[0]?.name || unsub.from[0]?.addr}?`, { ok: "Unsubscribe" }))) return;
     try {
       const r = await mail.call<{ done?: string; open?: string }>("unsubscribe", { id: unsub.id });
-      if (r.open) window.open(r.open, "_blank");
+      if (r.open) mail.atlas.openLink ? mail.atlas.openLink(r.open) : window.open(r.open, "_blank"); // as Atlas opens any link
       else mail.toast(r.done === "mail" ? "Unsubscribe mail sent" : "Unsubscribed", "success");
     } catch (e) { mail.toast(`Could not unsubscribe: ${(e as Error).message}`, "error"); }
   }
@@ -220,11 +220,11 @@
                   </div>
                 {/if}
                 {#if m.body.invite}<InviteCard {mail} id={m.id} invite={m.body.invite} />{/if}
-                <MailFrame html={m.body.html} plain={m.body.plain} remote={allowed} />
+                <MailFrame html={m.body.html} plain={m.body.plain} remote={allowed} atlas={mail.atlas} />
                 {#each m.body.forwarded as f, i (i)}
                   <div class="fwd">
                     <div class="fwdhead"><b>Forwarded:</b> {f.subject} · {f.from.map(display).join(", ")} · {when(f.date)}</div>
-                    <MailFrame html={f.html} plain={f.plain} remote={allowed} />
+                    <MailFrame html={f.html} plain={f.plain} remote={allowed} atlas={mail.atlas} />
                   </div>
                 {/each}
                 {#if m.body.attachments.length}

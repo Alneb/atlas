@@ -26,6 +26,16 @@ export async function openOutside(url: string): Promise<void> {
 }
 
 export function openWeb(url: string): void {
+  // a DOI is a paper: its note, or the offer to file it (doi-links.ts); the page itself when that cannot be done
+  if (/doi\.org\/10\.|^doi:/i.test(url)) {
+    void import("./doi-links").then(async (m) => { const doi = m.doiOf(url); if (!doi || !(await m.openDoi(doi))) openPage(url); });
+    return;
+  }
+  openPage(url);
+}
+
+/** A web page in Atlas (a tab or its browsing window, `[web] open_links`). */
+export function openPage(url: string): void {
   let host = "";
   try { host = new URL(url).host; } catch { return void window.open(url, "_blank", "noopener"); }
   if (!/^https?:/i.test(url)) return void window.open(url, "_blank", "noopener"); // mailto: and the like: their handler

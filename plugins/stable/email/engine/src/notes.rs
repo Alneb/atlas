@@ -322,27 +322,6 @@ pub fn write(m: &Mail, also: &[String], items: Vec<(Msg, Vec<u8>, String)>) -> R
     Ok(rel)
 }
 
-/// Every message id the notes under `dir` hold (a thread's markers, a single note's property), without brackets.
-pub fn ids_in_notes(dir: &Path) -> std::collections::HashSet<String> {
-    let re = Regex::new(r#"(?m)"message_id":\s*"<([^>]+)>"|^message_id:\s*"<([^>]+)>""#).unwrap();
-    let mut out = std::collections::HashSet::new();
-    let mut stack = vec![dir.to_path_buf()];
-    while let Some(d) = stack.pop() {
-        let Ok(rd) = std::fs::read_dir(&d) else { continue };
-        for e in rd.flatten() {
-            let p = e.path();
-            if p.is_dir() {
-                stack.push(p);
-            } else if p.extension().is_some_and(|x| x == "md") {
-                if let Ok(t) = std::fs::read_to_string(&p) {
-                    out.extend(re.captures_iter(&t).filter_map(|c| c.get(1).or(c.get(2)).map(|x| x.as_str().to_string())));
-                }
-            }
-        }
-    }
-    out
-}
-
 /// The note a conversation was saved as, if any.
 /// New or newly starred messages: a conversation already kept as a note is saved again (its new messages added); a
 /// starred one is kept (`ops::save_important`). Rules ran first, so a rule's `important` is not done twice.

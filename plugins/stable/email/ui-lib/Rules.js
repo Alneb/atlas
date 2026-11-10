@@ -2727,12 +2727,15 @@ mark.atlas-find.cur{background:${s.dark ? "#c77700" : "#ff9f1a"};color:${s.dark 
 		let e = Z(c)?.contentDocument;
 		if (!e?.body) return;
 		d(e), Z(s) && !n() && _(e);
-		let t = () => {
+		let r = () => {
 			P(l, Math.max(40, e.documentElement.scrollHeight), !0);
 		};
-		t(), new ResizeObserver(t).observe(e.documentElement);
-		for (let n of Array.from(e.images)) n.addEventListener("load", t);
-		e.addEventListener("toggle", t, !0), e.addEventListener("keydown", (e) => {
+		r(), new ResizeObserver(r).observe(e.documentElement);
+		for (let t of Array.from(e.images)) t.addEventListener("load", r);
+		e.addEventListener("toggle", r, !0), e.addEventListener("click", (e) => {
+			let n = e.target?.closest?.("a[href]");
+			n && t.atlas?.openLink && /^https?:/i.test(n.href) && e.button === 0 && (e.preventDefault(), t.atlas.openLink(n.href, { outside: e.shiftKey }));
+		}), e.addEventListener("keydown", (e) => {
 			(e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "f" && (e.preventDefault(), Z(c)?.dispatchEvent(new KeyboardEvent("keydown", {
 				key: e.key,
 				ctrlKey: e.ctrlKey,

@@ -366,10 +366,11 @@ pub fn permissions(root: &Path, id: &str) -> Result<Permissions> {
 /// role `libraries`): `atlas.libraries` (the vault's libraries, for it), `atlas.richTitle`, `thumbUrl` of a PDF, a
 /// toast's `timeout`; `atlas.mountLibrary` gone (the page is the Catalog's own); v25 `atlas.editor.prose` (a small
 /// editor for prose outside a note, with the plugins' editor hooks); v26 `atlas.editor.words` (a language's general word
-/// frequencies, words.rs); v27 a status cell's `panel` (drawn by the plugin in a popover over the lower bar).
+/// frequencies, words.rs); v27 a status cell's `panel` (drawn by the plugin in a popover over the lower bar); v28
+/// `atlas.openLink(url, { outside })` (a web link opened as Atlas opens links; Shift+click's system browser).
 /// The page's number must be the same (a test holds it). A manifest with a key this Atlas does not know and an `api`
 /// above it is refused with "update Atlas", not with the parser's error (`read_manifest`).
-pub const API_VERSION: u32 = 27;
+pub const API_VERSION: u32 = 28;
 
 /// `"1.2.3"` → `[1, 2, 3]` (missing parts are 0; anything after a non-digit part is ignored).
 fn version_parts(v: &str) -> [u64; 3] {

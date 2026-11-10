@@ -868,6 +868,8 @@ fn account_status(m: &Arc<Mail>, _: &Value) -> Result<Value, String> {
                 let unread = m.index.role(&a.name, "inbox").map(|f| f.unread).unwrap_or(0);
                 match st["state"].as_str() {
                     Some("error") => ("error", st["error"].as_str().unwrap_or("the server refused").to_string()),
+                    // the way to the server, not the account: nothing to fix on the card
+                    Some("offline") => ("warn", format!("offline, trying again · {}", st["error"].as_str().unwrap_or("no answer"))),
                     Some("idle") if st["errors"].as_array().is_some_and(|e| !e.is_empty()) => ("warn", format!("{} folder(s) failed", st["errors"].as_array().map_or(0, Vec::len))),
                     Some("idle") => ("ok", if unread > 0 { format!("connected · {unread} unread") } else { "connected".into() }),
                     _ => ("warn", "not checked yet".into()),
@@ -947,7 +949,7 @@ fn thunderbird(m: &Arc<Mail>, _p: &Value) -> Result<Value, String> {
 
 fn thunderbird_mail(m: &Arc<Mail>, p: &Value) -> Result<Value, String> {
     let acc = m.account(Some(s(p, "account")))?;
-    crate::thunderbird::import(m, &acc.name, &acc.user, p.get("dry").and_then(Value::as_bool).unwrap_or(true))
+    m.rt.block_on(crate::thunderbird::upload(m, &acc, p.get("dry").and_then(Value::as_bool).unwrap_or(true)))
 }
 
 // ----- Claude's tools, with the user's permission (the card's `claude`: ask, always, never)
