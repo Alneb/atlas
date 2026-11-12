@@ -25,6 +25,24 @@ jobs:
       - uses: actions/download-artifact@v8
         with:
           path: artifacts
+      # the release's text is the annotated tag's message less its first line "Atlas x.y.z" (release-tag.mjs writes
+      # it from docs/CHANGELOG.md); read through the API, as a checkout can turn an annotated tag into a lightweight
+      # one. A lightweight tag or an empty message falls back to GitHub's list of the commits.
+      - name: Release notes from the tag
+        id: notes
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          ref=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$TAG")
+          if [ "$(jq -r .object.type <<<"$ref")" = tag ]; then
+            gh api "repos/$GITHUB_REPOSITORY/git/tags/$(jq -r .object.sha <<<"$ref")" --jq .message | sed '1,2d' > notes.md
+          fi
+          if [ -s notes.md ]; then
+            echo "path=notes.md" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning::$TAG has no message beyond its title: the release lists the commits instead (scripts/dev/release-tag.mjs)"
+          fi
       # an artifact keeps the folders below its paths' common root (atlas-macOS/dmg/…), hence the **; a pattern that
       # finds nothing fails the release instead of leaving a package out
       - name: Draft release
@@ -32,7 +50,8 @@ jobs:
         with:
           fail_on_unmatched_files: true
           draft: true
-          generate_release_notes: true
+          body_path: ${{ steps.notes.outputs.path }}
+          generate_release_notes: ${{ steps.notes.outputs.path == '' }}
           files: |
             artifacts/linux/atlas
             artifacts/linux/atlas-app
