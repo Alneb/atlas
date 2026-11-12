@@ -1,6 +1,6 @@
 <script lang="ts">
-  // A message's body (DESIGN-mail-ui §3 "Message body"): the engine's cleaned HTML in a sandboxed frame — no scripts
-  // run; its Content-Security-Policy lets nothing remote load unless the user allowed it for this mail or this sender,
+  // A message's body (DESIGN-mail-ui §3 "Message body"): the engine's cleaned HTML in a sandboxed frame — no script of
+  // the mail runs (the engine strips them, the CSP's `script-src 'none'` refuses any left); its Content-Security-Policy lets nothing remote load unless the user allowed it for this mail or this sender,
   // which is what really blocks tracking pictures. The frame grows to its content (one scrollbar, the reader's).
   // Quoted earlier messages are folded behind "···" (Gmail, Outlook, Apple, Thunderbird, Yahoo, plain-text quotes).
   // It wears the app's colours (the scheme's --bg, --text, --link…, read from the window and followed when the theme or
@@ -118,7 +118,7 @@
 
   const page = $derived.by(() => {
     const img = remote ? "data: https: http:" : "data:";
-    const csp = `default-src 'none'; style-src 'unsafe-inline'${remote ? " https: http:" : ""}; img-src ${img}; font-src data:${remote ? " https:" : ""}; media-src 'none'; form-action 'none'`;
+    const csp = `default-src 'none'; script-src 'none'; style-src 'unsafe-inline'${remote ? " https: http:" : ""}; img-src ${img}; font-src data:${remote ? " https:" : ""}; media-src 'none'; form-action 'none'`;
     const t = theme;
     const base = t.bg, fg = t.text;
     const font = plain ? `${prose || "Georgia, serif"}` : "system-ui, -apple-system, 'Segoe UI', sans-serif";
@@ -170,7 +170,9 @@ mark.atlas-find.cur{background:${t.dark ? "#c77700" : "#ff9f1a"};color:${t.dark 
   }
 </script>
 
-<iframe bind:this={frame} class="frame" title="The message" sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox" srcdoc={page} onload={loaded} style:height="{height}px" scrolling="no"></iframe>
+<!-- allow-scripts: WebKit (the desktop app) fires no listener in a frame without it, not even the ones added above from
+     this page (links, Ctrl+F, the height); the mail's own scripts are still refused by the CSP -->
+<iframe bind:this={frame} class="frame" title="The message" sandbox="allow-same-origin allow-scripts allow-popups allow-popups-to-escape-sandbox" srcdoc={page} onload={loaded} style:height="{height}px" scrolling="no"></iframe>
 
 <style>
   .frame { display: block; width: 100%; border: 0; background: transparent; color-scheme: normal; }

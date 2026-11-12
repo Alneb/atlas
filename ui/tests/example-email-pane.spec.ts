@@ -130,6 +130,12 @@ test("search with operators, an HTML mail drawn safely, and Save as note drawn a
   const frame = reader.frameLocator("iframe.frame").first();
   await expect(frame.locator("p.hl")).toHaveText("Styled heading");
   await expect(frame.locator("a", { hasText: "the talk page" })).toHaveAttribute("href", "https://example.org/talk");
+  // Shift+click: the system's browser, through the desktop's core (web-links.ts openOutside)
+  const outside: string[] = [];
+  await page.route("**/api/open-outside", async (r) => { outside.push(r.request().postDataJSON().url); await r.fulfill({ status: 204 }); });
+  await frame.locator("a", { hasText: "the talk page" }).click({ modifiers: ["Shift"] });
+  await expect.poll(() => outside).toEqual(["https://example.org/talk"]);
+  await mail.locator(".list .row").first().click(); // the keys below are the pane's, not the frame's
   await expect(frame.locator("script")).toHaveCount(0);
   await expect(frame.locator("img[alt=logo]")).toHaveAttribute("src", /^data:image\/png;base64,/);
   await expect(frame.locator("details.atlas-quoted")).toHaveCount(1);

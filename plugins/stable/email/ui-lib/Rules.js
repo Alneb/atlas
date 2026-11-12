@@ -2585,7 +2585,7 @@ function Zi(e, t = /* @__PURE__ */ new Date()) {
 	}
 	return o.setHours(a[2] ? Number(a[2]) : 8, a[3] ? Number(a[3]) : 0, 0, 0), Math.floor(o.getTime() / 1e3);
 }
-var Qi = (e, t, n) => typeof e.confirm == "function" ? e.confirm(t, n) : Promise.resolve(window.confirm(t)), $i = (e, t, n = "") => typeof e.input == "function" ? e.input(t, { value: n }) : Promise.resolve(window.prompt(t, n)?.trim() || null), ea = /* @__PURE__ */ br("<iframe class=\"frame svelte-lnhtx6\" title=\"The message\" sandbox=\"allow-same-origin allow-popups allow-popups-to-escape-sandbox\" scrolling=\"no\"></iframe>"), ta = {
+var Qi = (e, t, n) => typeof e.confirm == "function" ? e.confirm(t, n) : Promise.resolve(window.confirm(t)), $i = (e, t, n = "") => typeof e.input == "function" ? e.input(t, { value: n }) : Promise.resolve(window.prompt(t, n)?.trim() || null), ea = /* @__PURE__ */ br("<iframe class=\"frame svelte-lnhtx6\" title=\"The message\" sandbox=\"allow-same-origin allow-scripts allow-popups allow-popups-to-escape-sandbox\" scrolling=\"no\"></iframe>"), ta = {
 	hash: "svelte-lnhtx6",
 	code: ".frame.svelte-lnhtx6 {display:block;width:100%;border:0;background:transparent;color-scheme:normal;}"
 };
@@ -2702,7 +2702,7 @@ function na(e, t) {
 		}
 	}
 	let v = /* @__PURE__ */ ht(() => {
-		let e = r() ? "data: https: http:" : "data:", a = `default-src 'none'; style-src 'unsafe-inline'${r() ? " https: http:" : ""}; img-src ${e}; font-src data:${r() ? " https:" : ""}; media-src 'none'; form-action 'none'`, s = Z(o), c = s.bg, l = s.text, u = n() ? `${i() || "Georgia, serif"}` : "system-ui, -apple-system, 'Segoe UI', sans-serif";
+		let e = r() ? "data: https: http:" : "data:", a = `default-src 'none'; script-src 'none'; style-src 'unsafe-inline'${r() ? " https: http:" : ""}; img-src ${e}; font-src data:${r() ? " https:" : ""}; media-src 'none'; form-action 'none'`, s = Z(o), c = s.bg, l = s.text, u = n() ? `${i() || "Georgia, serif"}` : "system-ui, -apple-system, 'Segoe UI', sans-serif";
 		return `<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="${a}"><base target="_blank"><meta name="color-scheme" content="${s.dark ? "dark" : "light"}">
 <style>
 html{overflow-y:hidden;background:${c}}

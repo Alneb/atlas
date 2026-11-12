@@ -5,6 +5,12 @@ and versions follow [Semantic Versioning](https://semver.org/) once 1.0 is out.
 
 ## [Unreleased]
 
+### Fixed
+- Email 1.7.1: Shift+click on a link in a message opens the system's browser in the desktop app too. Its WebKit ran
+  no listener inside the message's frame (links, Ctrl+F, the frame's height following a picture or an unfolded
+  quote); the frame now allows scripts, while its Content-Security-Policy (`script-src 'none'`) still refuses every
+  script of the mail.
+
 ## [0.2.11] - 2026-11-12
 
 ### Added
