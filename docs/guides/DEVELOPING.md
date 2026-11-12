@@ -292,8 +292,11 @@ Two more small helpers hold what every view used to write for itself:
   Appearance → This device → "Its own look" keeps `LOOK_PATHS` (theme, both colour schemes, contrast, shape, accent,
   text size) in this browser's storage instead: `lookOf(ui)` is what `settings.svelte.ts` `apply` draws, and
   `settings-schema.ts` `valueOf` / `setValue` / `resetValue` read and write those paths there while it is on (the
-  vault's value is the default; reset gives a path back to the vault). A setting never changed on the device follows
-  the vault's. "Follow the system's theme" in the same panel is `ui.theme = "system"`, wherever the theme is kept; the
+  vault's value is the default; reset gives a path back to the vault). It is on by default: every vault of a device
+  opens on the same origin (`/v/<name>/`, a server's through `/r/<host>/`), so one look serves them all, and two vaults
+  never look different on one screen. The first vault drawn seeds it (`seeded`: every look path it had, but the phone's
+  theme, which follows the phone); a vault's own `[ui]` look then only matters with the switch off
+  (`ui/tests/look.ts` `vaultLook` for specs that change it). "Follow the system's theme" in the same panel is `ui.theme = "system"`, wherever the theme is kept; the
   phone app follows the phone until it chooses a theme itself. A new look setting is added to `LOOK_PATHS`, nowhere else.
 
 It is then usable as `type: wordcount` in a note, `wordcount` in a page or in the sidebar's file, appears in the page's "add a block" chooser, opens as a tab, and can be bookmarked or pinned (`{view: wordcount}`). `ctx.host` says where it is (`note`, `page`, `tab`, `side`). Flags: `height` (it fills a box), `card` (wants a card surface in a page), `file` (it shows a file: the chooser asks which), `tab(ctx)` (what "open as a tab" opens), `options` (its options as form fields — the page's "Options…" is drawn from them; built-ins list theirs in `lib/block-options.ts`; see `docs/guides/PAGES.md`).

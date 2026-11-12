@@ -1,4 +1,5 @@
 import { test, expect, type APIRequestContext, type Page } from "@playwright/test";
+import { vaultLook } from "./look";
 
 // High contrast (`[ui] contrast`): any scheme on black or white paper, full-strength text, and the scheme's accent
 // pushed to a bright tone of its own hue that stands at 8:1 on black by night and 7:1 on white by day.
@@ -6,6 +7,7 @@ const H = { "x-atlas": "1" };
 const cfg = async (request: APIRequestContext) => (await (await request.get("/api/config", { headers: H })).json()).config;
 
 test.describe.configure({ mode: "serial" });
+test.beforeEach(({ page }) => vaultLook(page)); // these change the vault's look and expect the page to follow
 
 let before: { theme: string; palette: string; contrast: string } | undefined;
 test.beforeAll(async ({ request }) => {

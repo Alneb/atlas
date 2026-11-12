@@ -11,6 +11,9 @@ and versions follow [Semantic Versioning](https://semver.org/) once 1.0 is out.
 - Export 1.4.0: a link to a numbered equation is a real link in the PDF — `\label` and `\eqref` on the LaTeX road, a
   `<eq-n>` label and a link to it on the Typst road; Word keeps the plain "(n)".
 - A DOI link the library has not got yet is marked in the live editor too (dashed), as in the reading view.
+- One look per device: the theme, colour schemes, contrast, shapes, accent and text size are kept by the device and
+  drawn the same in every vault it opens (two vaults no longer look different on one phone); seeded once from the
+  first vault shown. Settings → Appearance → This device → "Its own look" off brings back each vault's own.
 - `[editor] vim_clipboard` (on by default): with vim keys, a yank (`y`, a visual yank) also copies to the system
   clipboard; deletes stay in vim's registers.
 

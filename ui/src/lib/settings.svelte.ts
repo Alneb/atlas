@@ -40,7 +40,7 @@ onDeviceLook(() => settings.config && apply(settings.config));
 
 function apply(c: WorkspaceConfig): void {
   const root = document.documentElement;
-  const ui = lookOf(c.ui); // the look: the vault's, or this device's own over it (device-look.svelte.ts)
+  const ui = lookOf(c.ui, inPhoneApp()); // the look: this device's, the same in every vault (device-look.svelte.ts)
   // the theme setting decides dark or light ("system": the desktop's); the palette, its colours on either side
   const eink = einkOn(c.ui.eink);
   root.classList.toggle("eink", eink); // tokens.css / base.css: black on white, no motion

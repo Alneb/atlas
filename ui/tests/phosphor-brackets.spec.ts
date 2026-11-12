@@ -1,5 +1,6 @@
 import { test, expect, type APIRequestContext, type Page } from "@playwright/test";
 import { openFile } from "./open";
+import { vaultLook } from "./look";
 
 // Phosphor: black on white and white on black at full strength (the former Contrast scheme), its own green as accent;
 // and a formula's source with its brackets coloured by depth and the caret's pair ringed — shot in both themes.
@@ -21,6 +22,7 @@ const resolved = (page: Page, token: string) => page.evaluate((t) => {
 }, token);
 
 test.describe.configure({ mode: "serial" });
+test.beforeEach(({ page }) => vaultLook(page)); // these change the vault's look and expect the page to follow
 let before: Record<string, string> | undefined;
 test.beforeAll(async ({ request }) => {
   const c = await cfg(request);
