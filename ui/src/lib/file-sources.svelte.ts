@@ -7,6 +7,7 @@ import { load, save } from "./prefs";
 import { api } from "./api";
 import { app, toast } from "./state.svelte";
 import { open, openPath } from "./dock";
+import { claimLinks, openPage } from "./web-links";
 import { movedTabs } from "./gone-files";
 import { onPluginEvent } from "./plugin-events";
 import { pick } from "./palette.svelte";
@@ -57,6 +58,9 @@ export interface FileSource {
   upload?(place: string, local: string, dir: string, replace: boolean): Promise<"done" | "exists">;
   /** Into a vault folder → the vault path written. */
   download?(place: string, path: string, folder: string, dir: boolean): Promise<string>;
+  /** The file a web address names on this source (a copyparty server's file link), or null: a link to it in a note
+   *  opens that file in Atlas, as the explorer opens it (web-links.ts `openWeb`). */
+  owns?(url: string): { place: string; path: string } | null;
   /** No group in the explorer while it has no places (nothing to set up: the other vaults). */
   hideEmpty?: boolean;
   /** Called when the places change (a host connected): the explorer redraws them. */
@@ -155,6 +159,23 @@ function keptCopies(id: string, title: string, local: FileSource["local"]): File
     }
   };
 }
+
+/** A link to a file on a source that owns its address (a copyparty link) opens that file from its local copy; the
+ *  page opens instead when the file cannot be fetched. False when no source owns it (web-links.ts opens the page). */
+claimLinks((url) => {
+  for (const src of sources.list) {
+    let at: { place: string; path: string } | null = null;
+    try { at = src.owns?.(url) ?? null; } catch { at = null; }
+    if (!at || /\/$/.test(at.path)) continue; // a folder: the page (its listing) is what was linked
+    const { place, path } = at;
+    void src.local(place, path).then((local) => openPath(local), (e) => {
+      toast(`Not fetched from ${src.title}`, `${why(e)} — the page opens instead.`, "error", 9000);
+      openPage(url);
+    });
+    return true;
+  }
+  return false;
+});
 
 /** The explorer at a place of a source (default: the vault's top folder); a tab already there comes forward. */
 export function openExplorer(source = "vault", place = "", path?: string): void {

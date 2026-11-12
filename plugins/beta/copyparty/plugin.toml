@@ -1,11 +1,29 @@
 # copyparty: your copyparty servers' files in Atlas's explorer (browse, open and edit from a local copy, upload,
-# download, rename, delete). main.js only: copyparty's own HTTP API through atlas.fetch. Copy into a vault's .atlas/plugins/.
+# download, rename, delete), a link to a server's file opening that file in Atlas, and two tools for agents (list a
+# folder or find files; file one through the catalog). main.js and a JS helper: copyparty's own HTTP API through the
+# core's fetch. Copy into a vault's .atlas/plugins/.
 title = "copyparty"
 description = "your copyparty file servers in the explorer: browse, open, edit, upload, download"
 icon = "server"
 phone = true # runs in the phone apps too (the books of the server's folders, the explorer's servers)
-version = "0.3.6"
+version = "0.4.0"
 api = 4
+
+[helper]
+js = "helper.js"          # run in the core (QuickJS), built from helper/helper.ts: the agents' tools
+idle = "10m"
+
+[[tool]]
+name = "list"
+description = "A copyparty server's folder (`path`, default its top), or with `query` the files and folders under it whose names have all those words (nearest first, at most 300 folders walked). Each file comes with its address (`url`), which a note can link to and `file` files. `server`: a server's name from Settings → copyparty (default the first)."
+input = { server = "string?", path = "string?", query = "string?" }
+timeout_secs = 300
+
+[[tool]]
+name = "file"
+description = "File a copyparty file in the vault's libraries through the catalog, as a captured link is: a PDF is downloaded and read for its DOI, arXiv id, ISBN or first page, and becomes a paper or a book with the file attached. `path` as `list` shows it. Answers the note."
+input = { server = "string?", path = "string" }
+timeout_secs = 300
 
 [permissions]
 net = ["*"]          # the servers are a setting: any host

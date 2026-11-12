@@ -27,3 +27,5 @@ export async function lookup(params: Params) {
   if (!o) return { ids: { youtube: vid, url: cleanUrl(vid, kind) }, fields: {}, skipped: "YouTube does not show this video (private, removed or age-restricted)" };
   return fromOembed(o, vid, kind);
 }
+
+atlas.methods({ lookup });

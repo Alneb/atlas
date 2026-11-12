@@ -122,6 +122,11 @@ async function placesIn(note: string, after: string, from: number, closing: stri
       if (k >= 0) blocks.splice(k, 1);
       blocks.push({ label: `^${id}`, detail: `(${n}) ${tex.slice(0, 50)}`, type: "equation", apply: `^${id}${closing}` });
     }
+    // a figure: its number and caption
+    for (const [id, n] of eqs.figures) {
+      const k = blocks.findIndex((c) => c.label === `^${id}`);
+      if (k >= 0) blocks[k] = { ...blocks[k], detail: `Figure ${n}. ${blocks[k].detail ?? ""}`.slice(0, 70), type: "figure" };
+    }
     return { from, options: blocks, validFor: /^\^?[\w:-]*$/ };
   }
   const heads = noteHeadings(text.split("\n")).map((h) => h.text);

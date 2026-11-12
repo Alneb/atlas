@@ -204,3 +204,14 @@ test("equations are numbered over the whole document, an embedded note's continu
   assert.ok(md.includes("and (1), (2), Far (2)."), md); // a note not in the document: its own numbers
   assert.ok(md.includes("$$ c $$"), "a plain display stays unnumbered");
 });
+
+test("a link to a figure reads Figure n, and the figure's block id is gone", async () => {
+  const files: Record<string, string> = {
+    "notes/Host.md": "# Host\n\n![[a.png|First]] ^fig-a\n\n![[b.png|Second]] ^fig-b\n\nSee [[#^fig-b]] and [[Far#^fig-x]].\n",
+    "notes/Far.md": "![[x.png]] ^fig-x\n",
+  };
+  const t = await translate({ files: Object.keys(files), read: async (p: string) => files[p] }, "notes/Host.md", "exports", new Set());
+  const md = t.markdown.replace(/\s+/g, " ");
+  assert.ok(md.includes("See Figure 2 and Far, Figure 1."), md);
+  assert.ok(!md.includes("^fig-"), md);
+});

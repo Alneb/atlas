@@ -133,20 +133,36 @@
 	const OWN_TAG = /\\tag\*?\{([^}]*)\}/;
 	const NO_TAG = /\\(?:notag|nonumber)\b/;
 	const NUMBERED_ENV = /\\begin\{(equation|align|gather|multline|eqnarray)\}/;
+	/** A figure's line: an embed (`![[…]]` or `![…](…)`), anything after it, and its block id last. */
+	const FIGURE_LINE = /^[\s>]*(!\[\[[^\]]+\]\]|!\[[^\]]*\]\([^)]*\))(.*?)[ \t]+\^([A-Za-z0-9-]+)[ \t]*$/;
 	/** The label a numbered display takes: its own `\tag`, none for `\notag`, else the next number (`next` counts them). */
 	function labelOf(source, next) {
 		const own = OWN_TAG.exec(source);
 		if (own) return own[1];
 		return NO_TAG.test(source) ? null : String(next());
 	}
+	/** What a link to the label reads in its own note: "(3)" for an equation, "Figure 2" for a figure. */
+	function refOf(e, id) {
+		const eq = e?.byId.get(id);
+		if (eq) return `(${eq})`;
+		const fig = e?.figures.get(id);
+		return fig ? `Figure ${fig}` : void 0;
+	}
 	/** Every numbered display of a note, in order. Code fences are skipped (an example is not an equation). */
 	function noteEquations(md) {
 		const lines = md.split("\n"), code = fences$1();
 		const byId = /* @__PURE__ */ new Map(), byTex = /* @__PURE__ */ new Map(), spanOf = /* @__PURE__ */ new Map();
+		const figures = /* @__PURE__ */ new Map();
 		let n = 0;
 		const next = () => ++n;
 		for (let i = 0; i < lines.length; i++) {
 			if (code.code(lines[i])) continue;
+			const fig = FIGURE_LINE.exec(lines[i]);
+			if (fig) {
+				figures.set(fig[3], String(figures.size + 1));
+				spanOf.set(fig[3], [i + 1, i + 1]);
+				continue;
+			}
 			const open = /^[\s>]*\$\$/.exec(lines[i]);
 			if (!open) continue;
 			let close = lines[i].indexOf("$$", open[0].length) >= 0 ? i : -1;
@@ -169,7 +185,8 @@
 		return {
 			byId,
 			byTex,
-			spanOf
+			spanOf,
+			figures
 		};
 	}
 	/** A display's TeX as a lookup key: without its `$$`, a block id after them, container prefixes (`> `) and outer
@@ -190,6 +207,9 @@
 		const m = /^([^#]*)#\^([A-Za-z0-9:_-]+)$/.exec(target.trim());
 		return m ? [m[1].trim(), m[2]] : null;
 	}
+	/** What a link to an equation or figure reads, from what it reads in its own note (`refOf`): "(3)" there, "Note (3)"
+	*  from another; "Figure 2" there, "Note, Figure 2" from another. */
+	const linkText = (note, ref) => !note ? ref : `${note.split("/").pop()}${ref.startsWith("(") ? " " : ", "}${ref}`;
 	//#endregion
 	//#region plugins/beta/export/helper/translate.ts
 	const IMAGE = /\.(png|jpe?g|gif|svg|webp|pdf|eps)$/i;
@@ -284,7 +304,7 @@
 	}
 	/** The whole document numbered: each labelled display gets the next number (its own `\tag` kept, none for `\notag`),
 	*  its labels go, and a link to it reads "(n)"; a link to a note not in the document reads "Note (n)" by that note's
-	*  own numbers. */
+	*  own numbers. A link to a figure reads "Figure n" by its note's numbering ("Note, Figure n" from another note). */
 	async function numberEquations(md, read) {
 		const byLabel = /* @__PURE__ */ new Map();
 		let n = 0;
@@ -300,16 +320,17 @@
 		const refs = [...new Set([...md.matchAll(/\u0001([^\u0001]*)\u0001/g)].map((m) => m[1]))];
 		const text = /* @__PURE__ */ new Map();
 		for (const r of refs) {
-			const [note, id] = [r.slice(0, r.lastIndexOf("::")), r.slice(r.lastIndexOf("::") + 2)];
-			const here = byLabel.get(r);
+			const own = r.startsWith("="), key = own ? r.slice(1) : r;
+			const [note, id] = [key.slice(0, key.lastIndexOf("::")), key.slice(key.lastIndexOf("::") + 2)];
+			const here = byLabel.get(key);
 			if (here) {
 				text.set(r, `(${here})`);
 				continue;
 			}
-			if (!elsewhere.has(note)) elsewhere.set(note, read(note).then((t) => noteEquations(t).byId, () => /* @__PURE__ */ new Map()));
-			const there = (await elsewhere.get(note)).get(id);
+			if (!elsewhere.has(note)) elsewhere.set(note, read(note).then((t) => noteEquations(t), () => void 0));
+			const there = refOf(await elsewhere.get(note), id);
 			const name = basename(note).replace(/\.md$/i, "");
-			text.set(r, there ? `${name} (${there})` : name);
+			text.set(r, there ? linkText(own ? "" : name, there) : name);
 		}
 		return md.replace(/\u0001([^\u0001]*)\u0001/g, (_, r) => text.get(r) ?? "");
 	}
@@ -391,7 +412,7 @@
 			const eq = equationTarget(target);
 			if (eq && !alias) {
 				const path = eq[0] ? this.find(eq[0], near, ".md") : note;
-				if (path) return `\u0001${path}::${eq[1]}\u0001`;
+				if (path) return `\u0001${eq[0] ? "" : "="}${path}::${eq[1]}\u0001`;
 			}
 			const name = target.split("#")[0].trim();
 			const key = basename(name).replace(/\.md$/i, "");

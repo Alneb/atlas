@@ -32,7 +32,7 @@ export function onLibraryChange(fn: () => void): () => void {
   return () => listeners.delete(fn);
 }
 // a failed ask (the references plugin still starting, or off) is not kept: the next one asks again
-export const library = (): Promise<Paper[]> => { watch(); return (papers ??= api.refs().catch(() => { papers = null; return [] as Paper[]; })); };
+export const library = (): Promise<Paper[]> => { watch(); return (papers ??= api.refs().then((l) => (Array.isArray(l) ? l : []), () => { papers = null; return [] as Paper[]; })); };
 
 const paperEntities: EntityProvider = {
   prefix: "",

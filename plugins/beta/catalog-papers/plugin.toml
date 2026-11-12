@@ -8,7 +8,7 @@
 title = "Catalog · Science"
 description = "everything science: papers by DOI or arXiv id into References, with metadata, the open-access PDF (arXiv, OpenAlex, Unpaywall, Semantic Scholar, Europe PMC, CORE), refs.bib and the Zotero connector"
 icon = "book"
-version = "0.5.1"
+version = "0.6.0"
 api = 19
 provides = ["references"]                 # the role the core and the page ask for (not this id)
 # no `requires`: References stands alone; its [contributes.catalog] patterns count only where the catalog runs
@@ -109,6 +109,8 @@ recognize = [
   { pattern = "(?i)(https?://[^\\s<>\"]+\\.pdf(?:[?#][^\\s<>\"]*)?)", kind = "paper", id = "pdf" },
 ]
 sources = [{ kind = "paper", tool = "lookup", priority = 70, needs = ["doi", "arxiv"] }]
+# with this plugin, every book is a reference book (the science_book kind, beside the papers); without it, books are books
+instead = [{ of = "book", file_as = "science_book" }]
 
 [[contributes.catalog.kinds]]
 name = "paper"

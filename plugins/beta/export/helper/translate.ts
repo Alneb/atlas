@@ -25,7 +25,7 @@ export interface Translated {
 }
 
 import { expandAlign } from "../../../../ui/src/lib/math-align";
-import { equationTarget, noteEquations, numberedTex } from "../../../../ui/src/lib/equations";
+import { equationTarget, linkText, noteEquations, numberedTex, refOf, type Equations } from "../../../../ui/src/lib/equations";
 
 const IMAGE = /\.(png|jpe?g|gif|svg|webp|pdf|eps)$/i;
 // fenced blocks Atlas or Obsidian draw from a query: nothing to print
@@ -112,7 +112,7 @@ export function qualifyLabels(text: string, note: string): string {
 
 /** The whole document numbered: each labelled display gets the next number (its own `\tag` kept, none for `\notag`),
  *  its labels go, and a link to it reads "(n)"; a link to a note not in the document reads "Note (n)" by that note's
- *  own numbers. */
+ *  own numbers. A link to a figure reads "Figure n" by its note's numbering ("Note, Figure n" from another note). */
 export async function numberEquations(md: string, read: (note: string) => Promise<string>): Promise<string> {
   const byLabel = new Map<string, string>();
   let n = 0;
@@ -125,17 +125,20 @@ export async function numberEquations(md: string, read: (note: string) => Promis
     const bare = num && !own ? numberedTex(tex.trimEnd(), num) : numberedTex(tex).trimEnd(); // labels out, an env its twin
     return `$$${bare}\n$$`;
   });
-  const elsewhere = new Map<string, Promise<Map<string, string>>>();
+  const elsewhere = new Map<string, Promise<Equations | undefined>>();
   const refs = [...new Set([...md.matchAll(/\u0001([^\u0001]*)\u0001/g)].map((m) => m[1]))];
   const text = new Map<string, string>();
   for (const r of refs) {
-    const [note, id] = [r.slice(0, r.lastIndexOf("::")), r.slice(r.lastIndexOf("::") + 2)];
-    const here = byLabel.get(r);
+    // `=note::id`: a link inside that note (`[[#^id]]`), which reads without the note's name
+    const own = r.startsWith("="), key = own ? r.slice(1) : r;
+    const [note, id] = [key.slice(0, key.lastIndexOf("::")), key.slice(key.lastIndexOf("::") + 2)];
+    const here = byLabel.get(key);
     if (here) { text.set(r, `(${here})`); continue; }
-    if (!elsewhere.has(note)) elsewhere.set(note, read(note).then((t) => noteEquations(t).byId, () => new Map()));
-    const there = (await elsewhere.get(note)!).get(id);
+    // another note's equation, or a figure (numbered in its own note): what a link to it reads there
+    if (!elsewhere.has(note)) elsewhere.set(note, read(note).then((t) => noteEquations(t), () => undefined));
+    const there = refOf(await elsewhere.get(note)!, id);
     const name = basename(note).replace(/\.md$/i, "");
-    text.set(r, there ? `${name} (${there})` : name);
+    text.set(r, there ? linkText(own ? "" : name, there) : name);
   }
   return md.replace(/\u0001([^\u0001]*)\u0001/g, (_, r: string) => text.get(r) ?? "");
 }
@@ -210,7 +213,7 @@ class Translator {
     const eq = equationTarget(target);
     if (eq && !alias) { // a numbered equation: its number once the document is numbered (`numberEquations`)
       const path = eq[0] ? this.find(eq[0], near, ".md") : note;
-      if (path) return `\u0001${path}::${eq[1]}\u0001`;
+      if (path) return `\u0001${eq[0] ? "" : "="}${path}::${eq[1]}\u0001`;
     }
     const name = target.split("#")[0].trim();
     const key = basename(name).replace(/\.md$/i, "");

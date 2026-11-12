@@ -233,6 +233,9 @@ impl<H: Host> Engine<H> {
             found.append(&mut all);
             all = found;
         }
+        for c in &mut all {
+            c.kind = reg.filed_as(&c.kind); // a book is a reference book while Catalog · Science says so
+        }
         say.say(Stage::Recognise, describe(&all));
         if let Some(k) = &pick.kind {
             all.retain(|c| &c.kind == k);
@@ -257,6 +260,7 @@ impl<H: Host> Engine<H> {
             }),
             None => all.remove(0),
         };
+        candidate.kind = reg.filed_as(&candidate.kind);
         let mut kind = reg.kinds.get(&candidate.kind).ok_or_else(|| format!("{} is recognised but no plugin or vault file declares that kind", candidate.kind))?;
         let mut signin = Vec::new();
         let mut got = self.fetch(reg, kind, &candidate, &[], &mut signin, say);
@@ -266,6 +270,7 @@ impl<H: Host> Engine<H> {
         // by the page's own tags, and never back to a plain web page.
         if let (None, Some((k, trust))) = (&pick.kind, got.refined.clone()) {
             let allowed = candidate.by.is_empty() || (trust >= RE_KIND_TRUST && k != KindName::new(crate::kind::WEB_PAGE));
+            let k = reg.filed_as(&k);
             if let Some(better) = reg.kinds.get(&k).filter(|b| allowed && b.name != kind.name) {
                 say.say(Stage::Recognise, format!("the page says it is a {} — asking that kind's sources", better.label()));
                 candidate = Candidate { kind: better.name.clone(), ids: got.merged.ids.clone(), url: candidate.url, by: candidate.by, label: candidate.label };
@@ -281,7 +286,10 @@ impl<H: Host> Engine<H> {
             merged.ids.entry(id).or_insert(canonical);
         }
         titled(kind, &mut merged, candidate.url.as_deref(), say);
-        if !merged.fields.contains_key("title") && kind.name.as_str() != crate::kind::WEB_PAGE {
+        // a kind its own plugin writes names the note itself (References reads a PDF link's first page, else its
+        // file name): only the kinds the catalog writes need a title from a source
+        let names_itself = matches!(kind.writer, Writer::Plugin { .. }) && candidate.url.is_some();
+        if !merged.fields.contains_key("title") && kind.name.as_str() != crate::kind::WEB_PAGE && !names_itself {
             let problems: Vec<String> = say.problems().into_iter().filter(|p| p.contains(':')).collect();
             return Err(format!("no source knew this {} ({}){}", kind.label().to_lowercase(), show_ids(&merged.ids), if problems.is_empty() { String::new() } else { format!(": {}", problems.join("; ")) }));
         }

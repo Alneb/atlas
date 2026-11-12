@@ -14,7 +14,7 @@ const INC: Record<Kind, string> = { album: "artist-credits+genres+releases+media
 const FIELD: Record<Kind, string> = { album: "releasegroup", song: "recording", artist: "artist" };
 
 // MusicBrainz asks for one request a second and a User-Agent saying who asks; 400 is its "no such id"
-const get = (url: string) => atlas.fetchJson(url, { headers: { "User-Agent": "Atlas/0.1 (personal notes app; catalog-open)" }, every: 1, missing: [400, 404] });
+const get = (url: string) => atlas.fetchJson(url, { headers: { "User-Agent": "Atlas/0.1 (personal notes app; catalog-music)" }, every: 1, missing: [400, 404] });
 
 interface Credit { name?: string; artist?: { name?: string } }
 interface Release { title?: string; date?: string; status?: string; media?: { "track-count"?: number }[]; "release-group"?: { "primary-type"?: string; "secondary-types"?: string[] } }
@@ -124,3 +124,5 @@ export async function lookup(params: Params) {
   const fields = Object.fromEntries(Object.entries(fieldsOf(k, e)).filter(([, v]) => v !== undefined && v !== null && v !== ""));
   return { ids: { musicbrainz: mbid }, fields };
 }
+
+atlas.methods({ lookup });

@@ -37,7 +37,7 @@ Behind a sign-in proxy (Authelia and the like), Atlas offers the sign-in.
 
 ## How it fits
 
-No `requires`: the contribution is used while the catalog runs; videos and songs come from Catalog · Open sources. It
+No `requires`: the contribution is used while the catalog runs; videos and songs come from Catalog · YouTube. It
 replaces the **TubeArchivist** plugin (`replaces`): installing it carries TubeArchivist's address, token and switch
 over, with the TubeArchivist preset and `video` as the kind to send — unless this vault had Downloader set up already,
 whose own settings win (TubeArchivist's settings file is then in `.atlas/trash/`). One service per vault.

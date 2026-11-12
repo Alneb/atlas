@@ -8,7 +8,12 @@ the `paper` kind: a DOI or an arXiv id captured anywhere becomes a reference.
 ## What it adds
 
 - **Recognised**: a DOI (bare, `doi:` or a `doi.org` link) and an arXiv id (an `arxiv.org` abs or pdf link, or
-  `arXiv:…`).
+  `arXiv:…`), and any link to a PDF.
+- **A PDF without identifiers** (lecture notes, a thesis, an old paper) is read on its first page: the first line that
+  reads as a title, with a line of personal names under it, gives the title and authors, and a "Dated:" / "Received"
+  line (else the file's name) gives the year. The citekey is then the usual `author+year+word` (`georges2026screening`),
+  and Crossref is asked for a work of exactly that title and author, whose full record is used when it exists. A page
+  that does not read so (an OCR'd scan) keeps the file's name as its title.
 - **Metadata** from OpenAlex (any DOI) or arXiv (an arXiv id); Crossref records are read too.
 - **One folder per reference**: `<folder>/<citekey>/` holds `<citekey>.md`, the note whose properties are the
   reference's fields (Zotero's field names), and its PDF (docs/guides/ZOTERO.md).

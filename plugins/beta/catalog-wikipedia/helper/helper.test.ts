@@ -3,7 +3,7 @@ import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import { harness, Reply } from "atlas-helper/testing";
 import "./helper";
-import { kindOf, qualifier, queryUrl } from "./wikipedia";
+import { kindOf, qualifier, queryUrl } from "./helper";
 
 /** The query API's answer: the page's description and external links. */
 const wiki = (description: string, links: string[] = []) => () => ({ query: { pages: [{ title: "X", description, extlinks: links.map((url) => ({ url })) }] } });
@@ -35,28 +35,28 @@ test("descriptions say what a page is about, in several languages", () => {
 
 test("a film page gives its own ids, not the books it cites", async () => {
   harness.web = wiki("2023 film by Ari Aster", ["https://www.imdb.com/title/tt13521006/", "https://books.google.com/books?isbn=9781841505510"]);
-  const [c] = (await harness.call("wikipedia", { text: "https://en.wikipedia.org/wiki/Beau_Is_Afraid" })).candidates;
+  const [c] = (await harness.call("recognize", { text: "https://en.wikipedia.org/wiki/Beau_Is_Afraid" })).candidates;
   assert.deepEqual([c.kind, c.ids], ["movie", { url: "https://en.wikipedia.org/wiki/Beau_Is_Afraid", imdb: "tt13521006" }]);
-  assert.equal(harness.asked[0].headers?.["User-Agent"], "Atlas/0.1 (personal notes app) catalog-open");
+  assert.equal(harness.asked[0].headers?.["User-Agent"], "Atlas/0.1 (personal notes app) catalog-wikipedia");
 });
 
 test("a page about something else stays a web page, and other links are not asked", async () => {
   harness.web = wiki("Physical phenomenon");
-  assert.deepEqual(await harness.call("wikipedia", { text: "https://en.wikipedia.org/wiki/Quantum_entanglement" }), { candidates: [] });
+  assert.deepEqual(await harness.call("recognize", { text: "https://en.wikipedia.org/wiki/Quantum_entanglement" }), { candidates: [] });
   harness.reset();
-  assert.deepEqual(await harness.call("wikipedia", { text: "https://example.org/wiki/x" }), { candidates: [] });
+  assert.deepEqual(await harness.call("recognize", { text: "https://example.org/wiki/x" }), { candidates: [] });
   assert.equal(harness.asked.length, 0);
 });
 
 test("a title's qualifier files it when Wikipedia is busy", async () => {
   harness.web = () => new Reply(500);
-  const [got] = (await harness.call("wikipedia", { url: "https://en.wikipedia.org/wiki/Apollo_11_(2019_film)" })).candidates;
+  const [got] = (await harness.call("recognize", { url: "https://en.wikipedia.org/wiki/Apollo_11_(2019_film)" })).candidates;
   assert.deepEqual([got.kind, got.ids], ["movie", { url: "https://en.wikipedia.org/wiki/Apollo_11_(2019_film)" }]);
   assert.equal(qualifier("OK_Computer_(album)"), "album");
   assert.equal(kindOf(qualifier("Blur_(band)")), "artist");
   harness.web = wiki("2010 single by Narsha from the album Bbi Ri Bba Bba");
-  assert.equal((await harness.call("wikipedia", { url: "https://en.wikipedia.org/wiki/Bbi_Ri_Bba_Bba_(Narsha_song)" })).candidates[0].kind, "song");
+  assert.equal((await harness.call("recognize", { url: "https://en.wikipedia.org/wiki/Bbi_Ri_Bba_Bba_(Narsha_song)" })).candidates[0].kind, "song");
   harness.web = () => new Reply(500);
   // no qualifier: the error is reported, never filed as a web page
-  await assert.rejects(harness.call("wikipedia", { url: "https://en.wikipedia.org/wiki/Arctic_Dogs" }));
+  await assert.rejects(harness.call("recognize", { url: "https://en.wikipedia.org/wiki/Arctic_Dogs" }));
 });

@@ -35,20 +35,29 @@ function genres(subjects: unknown[] | undefined): string[] | undefined {
   return out.length ? out.slice(0, 5) : undefined;
 }
 
-const SCIENCE = new RegExp(String.raw`\b(physics|mathematic|algebra|calculus|geometry|topology|analysis \(mathematics\)|chemistry|biology|biochemistry|neuroscience|`
-  + String.raw`astronomy|astrophysics|cosmology|quantum|relativity|statistic|probability|computer science|programming|`
-  + String.raw`engineering|thermodynamics|mechanics|electromagnet|optics|textbooks?|sciences?)\b`, "i");
+interface Edition { title?: string; works?: { key?: string }[]; authors?: { key?: string }[]; covers?: number[]; number_of_pages?: number;
+  publishers?: string[]; publish_date?: string; description?: unknown; isbn_13?: string[]; isbn_10?: string[]; contributors?: { name?: string; role?: string }[];
+  by_statement?: string }
+interface EditionMore { contributors?: { name?: string; role?: string }[]; by_statement?: string }
 
-/** Subjects that say physics, mathematics, a science or a textbook — and none that say fiction ("Science fiction",
- *  "Fiction, science fiction") — make a science book. */
-export function isScience(subjects: unknown[] | undefined): boolean {
-  const all = (subjects ?? []).filter((s): s is string => typeof s === "string");
-  if (all.some((s) => /\bfiction\b/i.test(s) && !/non-?fiction/i.test(s))) return false;
-  return all.some((s) => SCIENCE.test(s));
+/** The edition's co-authors that the work's author list leaves out (Open Library links one author to a work and keeps
+ *  the others as `contributors` with an author role, or only in the title page's `by_statement`, "[by] A [and] B"). A
+ *  name is new when its last word is no listed author's. */
+export function withCoauthors(authors: string[], edition: EditionMore): string[] {
+  const out = [...authors];
+  const surname = (n: string) => n.trim().split(/\s+/).pop()?.toLowerCase() ?? "";
+  const add = (n: string | undefined) => {
+    const name = (n ?? "").replace(/[[\]]/g, "").replace(/[.;,\s]+$/, "").trim();
+    if (name.split(/\s+/).length >= 2 && !out.some((a) => surname(a) === surname(name))) out.push(name);
+  };
+  for (const c of edition.contributors ?? []) if (/author/i.test(c.role ?? "")) add(c.name);
+  const by = /^\s*\[?by\]?\s+(.*)$/i.exec(edition.by_statement ?? "")?.[1];
+  // only a statement of authors: "edited by", "translated by", "with a foreword by" name other roles
+  if (by && !/\b(edit|translat|foreword|introduc|illustrat)/i.test(by))
+    for (const n of by.split(/\s*(?:,|;|&|\[?\band\b\]?)\s*/i)) add(n);
+  return out;
 }
 
-interface Edition { title?: string; works?: { key?: string }[]; authors?: { key?: string }[]; covers?: number[]; number_of_pages?: number;
-  publishers?: string[]; publish_date?: string; description?: unknown; isbn_13?: string[]; isbn_10?: string[] }
 interface Work { title?: string; authors?: { author?: { key?: string } }[]; covers?: number[]; first_publish_date?: string; description?: unknown; subjects?: unknown[] }
 
 const get = <T>(url: string) => atlas.fetchJson<T>(url);
@@ -70,6 +79,7 @@ export async function lookup(params: Params) {
   let authors = await Promise.all((work.authors ?? []).slice(0, 4).map((a) => nameOf(a.author?.key)));
   if (!authors.some(Boolean) && edition) authors = await Promise.all((edition.authors ?? []).slice(0, 4).filter((a) => a.key).map((a) => nameOf(a.key)));
   const ed: Edition = edition ?? {};
+  authors = withCoauthors(authors.filter((a): a is string => !!a), ed).slice(0, 4);
   const cover = (ed.covers ?? work.covers ?? []).find((c) => Number.isInteger(c) && c > 0);
   const fields: Record<string, unknown> = {
     title: work.title || ed.title,
@@ -88,7 +98,7 @@ export async function lookup(params: Params) {
   const out: { ids: Record<string, string>; fields: Record<string, unknown>; kind?: string } = {
     ids: outIds, fields: Object.fromEntries(Object.entries(fields).filter(([, v]) => v !== undefined && v !== null && v !== "")),
   };
-  if (isScience(work.subjects)) out.kind = "science_book";
-  else if (params.kind === "science_book") out.kind = "book";
-  return out;
+  return out; // book or reference book is the vault's choice (Catalog · Science installed or not), never a guess
 }
+
+atlas.methods({ lookup });

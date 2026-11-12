@@ -15,6 +15,13 @@ made by Atlas's core, so the password never reaches the page and there is no COR
   copyparty's own delete would remove everything inside, and nothing goes to a trash on the server.
 - **Thumbnails** in the explorer's Thumbnails view: the server's own (`?th=j`), kept in the plugin's cache for a month.
 - **Folders seen before show at once** from a cached listing, refreshed from the server right behind it.
+- **Links to a server's files open in Atlas**: a link in a note to an address under a server
+  (`https://files.example.org/data/Physics/notes.pdf`) opens that file as the explorer does (the file source's
+  `owns`), not as a web page. Shift+click still opens the browser.
+- **Tools for agents** (a JS helper): `copyparty_list` lists a folder, or with `query` finds the files and folders under
+  it whose names have all those words (nearest first, at most 300 folders walked); each file comes with its address.
+  `copyparty_file` hands a file's address to the catalog, which files it as a captured link: a PDF becomes a paper or a
+  book with its file. The catalog fetches the address itself, so a server behind a password is not filed this way yet.
 - **Other plugins read servers through it**: the Books plugin lists the books of a server folder with
   `atlas.files.list("copyparty", …)`.
 

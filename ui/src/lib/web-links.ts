@@ -31,8 +31,15 @@ export function openWeb(url: string): void {
     void import("./doi-links").then(async (m) => { const doi = m.doiOf(url); if (!doi || !(await m.openDoi(doi))) openPage(url); });
     return;
   }
+  // a file on a server Atlas browses (a copyparty link): that file in Atlas, as the explorer opens it
+  if (owned?.(url)) return;
   openPage(url);
 }
+
+// who claims an address before it opens as a page: the file sources (file-sources.svelte.ts), set when they load. A
+// synchronous check, so a page that opens anyway still opens within the click (a browser blocks a late window.open).
+let owned: ((url: string) => boolean) | null = null;
+export const claimLinks = (fn: (url: string) => boolean): void => { owned = fn; };
 
 /** A web page in Atlas (a tab or its browsing window, `[web] open_links`). */
 export function openPage(url: string): void {

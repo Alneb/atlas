@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { equationTarget, linkText, noteEquations, numberedTex, texKey } from "../src/lib/equations";
+import { equationSection, equationTarget, figureCaption, linkText, noteEquations, numberedTex, refOf, texKey } from "../src/lib/equations";
 
 // Numbered equations (lib/equations.ts): labelled displays and numbered environments are numbered in note order;
 // links read "(n)" in their note, "Note (n)" from another.
@@ -54,7 +54,7 @@ test("a link names an equation by `note#^label`; from another note it reads with
   expect(equationTarget("Thomas–Fermi screening#^eq-tf")).toEqual(["Thomas–Fermi screening", "eq-tf"]);
   expect(equationTarget("#^eq-tf")).toEqual(["", "eq-tf"]);
   expect(equationTarget("note#Heading")).toBeNull();
-  expect([linkText("", "3"), linkText("notes/Screening", "3")]).toEqual(["(3)", "Screening (3)"]);
+  expect([linkText("", "(3)"), linkText("notes/Screening", "(3)")]).toEqual(["(3)", "Screening (3)"]);
 });
 
 test("`![[note#^label]]` embeds that one display, with its number written in", async () => {
@@ -62,4 +62,25 @@ test("`![[note#^label]]` embeds that one display, with its number written in", a
   expect(sectionOf(NOTE, "^eq-first")).toBe("$$\na = b \n\\tag{1}$$");
   expect(sectionOf(NOTE, "^eq-inside")).toBe("$$\ne = f\n\\tag{2}$$"); // out of its callout
   expect(anchorLine(NOTE, "^eq-first")).toBe(2); // a link opens the note at the display
+});
+
+test("an embed line ending in a block id is a figure, numbered in note order; links read Figure n", () => {
+  const md = [
+    "![[gap.png|The gap closes|600]] ^fig-gap",
+    "Some text ^para",
+    "```md",
+    "![[example.png]] ^fig-example",
+    "```",
+    "$$ a \\label{eq-a} $$",
+    "> ![Spectral function](a.svg) ^fig-spec",
+    "![[plain.png]]",
+  ].join("\n");
+  const e = noteEquations(md);
+  expect([...e.figures]).toEqual([["fig-gap", "1"], ["fig-spec", "2"]]);
+  expect(e.spanOf.get("fig-spec")).toEqual([7, 7]);
+  expect([refOf(e, "fig-spec"), refOf(e, "eq-a"), refOf(e, "para")]).toEqual(["Figure 2", "(1)", undefined]);
+  expect([linkText("", "Figure 2"), linkText("notes/Screening", "Figure 2")]).toEqual(["Figure 2", "Screening, Figure 2"]);
+  expect([figureCaption("![[gap.png|The gap closes|600]]"), figureCaption("![[gap.png|center]]"), figureCaption("![Spectral function](a.svg)")])
+    .toEqual(["The gap closes", "", "Spectral function"]);
+  expect(equationSection(md, "fig-spec")).toBe('![Spectral function](a.svg)\n\n<p class="figure-caption"><b>Figure 2.</b> Spectral function</p>');
 });

@@ -3,7 +3,7 @@ import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import { harness } from "atlas-helper/testing";
 import "./helper";
-import { cleanArtist, cleanTitle, firstAlbum } from "./music";
+import { cleanArtist, cleanTitle, firstAlbum } from "./helper";
 
 const RG = { id: "b1392450-e666-3926-a536-22c65f834433", title: "OK Computer", "first-release-date": "1997-05-21",
   "artist-credit": [{ name: "Radiohead" }], genres: [{ name: "alternative rock", count: 9 }, { name: "art rock", count: 7 }],
@@ -31,7 +31,7 @@ test("a song's album is its first studio album, not a compilation", () => {
 
 test("an album by its link relation gives artist, year, tracks, genres and cover", async () => {
   web({ "/url?resource=": { relations: [{ "release-group": { id: RG.id } }] }, [`/release-group/${RG.id}`]: RG });
-  const r = await harness.call("music", { kind: "album", url: "https://open.spotify.com/album/6dVIqQ8qmQ5GBnJ9shOYGE" });
+  const r = await harness.call("lookup", { kind: "album", url: "https://open.spotify.com/album/6dVIqQ8qmQ5GBnJ9shOYGE" });
   assert.deepEqual(r.ids, { musicbrainz: RG.id });
   const f = r.fields;
   assert.deepEqual([f.title, f.artist, f.year, f.tracks], ["OK Computer", "Radiohead", 1997, 12]);
@@ -43,7 +43,7 @@ test("an album by its link relation gives artist, year, tracks, genres and cover
 
 test("a song is searched only with its artist, and the earliest exact title wins", async () => {
   web({});
-  assert.deepEqual(await harness.call("music", { kind: "song", hints: { title: "Never Gonna Give You Up" } }), { fields: {}, skipped: "MusicBrainz has no sure match" });
+  assert.deepEqual(await harness.call("lookup", { kind: "song", hints: { title: "Never Gonna Give You Up" } }), { fields: {}, skipped: "MusicBrainz has no sure match" });
   const hits = { recordings: [
     { id: "live", title: "Never Gonna Give You Up", score: 100, "first-release-date": "2010", disambiguation: "live" },
     { id: "cover", title: "Never Gonna Give You Up (cover)", score: 95, "first-release-date": "1999" },
@@ -51,7 +51,7 @@ test("a song is searched only with its artist, and the earliest exact title wins
     { id: "late", title: "Never Gonna Give You Up", score: 100, "first-release-date": "2019" }] };
   harness.reset();
   web({ "/recording?query=": hits, "/recording/rec-1": REC });
-  const r = await harness.call("music", { kind: "song", hints: { title: "Rick Astley - Never Gonna Give You Up (Official Video)", channel: "RickAstleyVEVO" } });
+  const r = await harness.call("lookup", { kind: "song", hints: { title: "Rick Astley - Never Gonna Give You Up (Official Video)", channel: "RickAstleyVEVO" } });
   assert.deepEqual(r.ids, { musicbrainz: "rec-1" });
   assert.deepEqual([r.fields.duration, r.fields.album], ["3:33", "Whenever You Need Somebody"]);
   assert.ok(asked()[0].includes("artist%3A%22Rick%20Astley%22"), asked()[0]);
@@ -59,8 +59,8 @@ test("a song is searched only with its artist, and the earliest exact title wins
 
 test("nothing to go on waits for the page, and an unsure hit is not filed", async () => {
   web({});
-  assert.deepEqual(await harness.call("music", { kind: "album" }), { later: true });
+  assert.deepEqual(await harness.call("lookup", { kind: "album" }), { later: true });
   web({ "/release-group?query=": { "release-groups": [{ id: "x", title: "OK Computer", score: 72 }] } });
-  assert.ok((await harness.call("music", { kind: "album", hints: { title: "OK Computer", artist: "Radiohead" } })).skipped);
-  assert.ok((await harness.call("music", { kind: "video" })).skipped);
+  assert.ok((await harness.call("lookup", { kind: "album", hints: { title: "OK Computer", artist: "Radiohead" } })).skipped);
+  assert.ok((await harness.call("lookup", { kind: "video" })).skipped);
 });

@@ -58,6 +58,11 @@ them with `.atlas/kinds/<name>.yaml` (folder, names, property names via `rename`
 languages that keep the original title). Rules without code go in `.atlas/catalog/rules.yaml`: `when` → `then`
 (another folder, tags, properties, a link plugin switched off or given options).
 
+**Books or reference books.** A plugin may say that, while it is installed, one kind is filed as another
+(`[contributes.catalog] instead = [{ of = "book", file_as = "science_book" }]`). Catalog · Science does: with it every
+book is a reference book (`science_book`, beside the papers); without it, books are books. Nothing is guessed from a
+book's subjects.
+
 ## Settings
 
 - **File links from every capture** (on): a link, DOI, ISBN or IMDb id captured anywhere becomes its note and the
@@ -70,7 +75,7 @@ languages that keep the original title). Rules without code go in `.atlas/catalo
   the catalog (`GET /api/plugins/catalog/contributions`). A bad table costs only that plugin's part. See
   docs/guides/PLUGIN-API.md, "A meta plugin and its subplugins".
 - Sources: the linked page itself (the catalog's own, "Read the page a link points to": off, a web page gets only a
-  title made from its address; it was the Catalog · Web pages plugin), `catalog-tmdb`, `catalog-open` (books, music, anime, YouTube, Wikipedia — no keys), `audiobookshelf`,
+  title made from its address; it was the Catalog · Web pages plugin), `catalog-tmdb`, `catalog-books`, `catalog-music`, `catalog-anime`, `catalog-youtube`, `catalog-wikipedia` (no keys), `audiobookshelf`,
   `catalog-papers`. Links: `catalog-linkwarden`, `downloader` (MeTube, TubeArchivist).
 - Other plugins file through it: OCR (text read in screenshots), Kiwix and Linkwarden ("save" captures the address).
 

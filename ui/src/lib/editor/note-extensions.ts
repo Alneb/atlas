@@ -19,7 +19,7 @@ import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
 import type { MarkdownConfig } from "@lezer/markdown";
 import { obsidianMarkdown, AnyTaskStatus } from "./live/obsidian-syntax.js";
 import { livePreview, bodyStart, frontmatterClose, redecorate } from "./live/live-preview.js";
-import { equationLabelNow, equationTarget, linkText, noteEquations, numberedTex, texKey, type Equations } from "../equations";
+import { equationLabelNow, equationTarget, linkText, noteEquations, numberedTex, refOf, texKey, type Equations } from "../equations";
 import { readText } from "../vault-files";
 import { renderMathInto } from "../math";
 import { highlightCode } from "../highlight";
@@ -41,6 +41,7 @@ import { pluginCompletions, pluginCompletionApplies } from "./plugin-hooks";
 import { gatedCompletion, syncSource } from "./completion-gate";
 import { completionTab } from "./tab-keys";
 import { citing, mdSymbols } from "./completion-sources";
+import { figureCaptions } from "./figure-captions";
 
 // Fold like Obsidian: headings and lists only. lang-markdown makes every multi-line block foldable,
 // which put arrows beside ordinary paragraphs; lists inside the frontmatter are YAML, not lists.
@@ -116,7 +117,7 @@ export function noteExtensions(path: string, viewRef: { view: EditorView | null 
     linkLabel: (state: EditorState, target: string) => {
       const eq = equationTarget(target);
       if (!eq) return null;
-      if (!eq[0]) { const n = equationsOf(state).byId.get(eq[1]); return n ? linkText("", n) : null; }
+      if (!eq[0]) return refOf(equationsOf(state), eq[1]) ?? null;
       const path = resolveLink(eq[0], dir);
       if (!path) return null;
       const n = equationLabelNow(path, eq[1], readText, () => viewRef.view?.dispatch({ effects: redecorate.of(null) }));
@@ -132,6 +133,7 @@ export function noteExtensions(path: string, viewRef: { view: EditorView | null 
       Prec.high(keymap.of([{ key: "Enter", run: (v) => closeDisplayMath(v) || continueList(v) }, { key: "Backspace", run: backspaceMarkup }])),
       taskShortForms,
       liveField,
+      figureCaptions(equationsOf),
       hoverSync(dir),
       expressions(path),
       mathPreview(() => settings.config?.editor.math_preview ?? true),

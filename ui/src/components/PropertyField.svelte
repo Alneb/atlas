@@ -9,6 +9,7 @@
   import { asLink, asNumber, asTag, fromInput, isListKind, linkLabel, linkTarget, listOf, scalarText, toInput, WIKI } from "../lib/property-model";
   import type { PropertyKind, PropertySpec } from "../lib/types";
   import { api } from "../lib/api";
+  import { arxivOf, doiOf, filedSource, isSource, openSource } from "../lib/doi-links";
 
   let { name, kind, value, spec, onset, onopen, values = [] }: {
     name: string; kind: PropertyKind; value: unknown; spec?: PropertySpec;
@@ -95,6 +96,23 @@
   const opens = (v: string) => isUrl(v) || target(v) !== null;
   // links inside a longer value ("from [[a]] and https://b"): each one offered under the field
   const inner = (v: string): string[] => (opens(v) ? [] : [...v.matchAll(/\[\[[^\]\n]+\]\]|https?:\/\/[^\s<>"')\]]+/g)].map((m) => m[0]));
+  // a note's sources (`sources`, `references`…): an entry the library lacks shows red, a click files it through the
+  // catalog and opens its note (lib/doi-links.ts); Shift+click opens the address in the browser
+  const sourcesField = $derived(/^(sources?|references?|refs|cites?|citations?)$/i.test(name));
+  let unfiled = $state<string[]>([]);
+  $effect(() => {
+    const list = sourcesField ? items.filter(isSource) : [];
+    let live = true;
+    void Promise.all(list.map(async (s) => ((await filedSource(s)) ? null : s))).then((r) => { if (live) unfiled = r.filter((x): x is string => !!x); });
+    return () => { live = false; };
+  });
+  const asSource = (v: string) => sourcesField && isSource(v);
+  const openPill = (e: MouseEvent, v: string) => {
+    if (!asSource(v)) return follow(v);
+    const url = isUrl(v) ? v.trim() : doiOf(v) ? `https://doi.org/${doiOf(v)}` : `https://arxiv.org/abs/${arxivOf(v)}`;
+    if (e.shiftKey) return void import("../lib/web-links").then((m) => m.openOutside(url));
+    void openSource(v).then((ok) => { if (!ok) void import("../lib/web-links").then((m) => m.openPage(url)); });
+  };
   // Ctrl/⌘+click on a field holding one link opens it, as Ctrl+click on a name in the editor
   const ctrlOpen = (e: MouseEvent, v: string) => { if ((e.ctrlKey || e.metaKey) && opens(v)) { e.preventDefault(); follow(v); } };
 </script>
@@ -105,6 +123,9 @@
       <span class="pill" class:tag={kind === "tags"} class:link={WIKI.test(it)}>
         {#if WIKI.test(it)}
           <button type="button" class="pill-text" title="Open {linkTarget(it)}" onclick={() => onopen(linkTarget(it))}>{linkLabel(it)}</button>
+        {:else if asSource(it)}
+          <button type="button" class="pill-text opens" class:unfiled={unfiled.includes(it)} onclick={(e) => openPill(e, it)}
+            title={unfiled.includes(it) ? `Not in the library: a click adds it (Shift+click: the browser)` : `Open its note (Shift+click: the browser)`}>{it}</button>
         {:else if opens(it)}
           <button type="button" class="pill-text opens" title={isUrl(it) ? `Open ${it} in the browser` : `Open ${it}`} onclick={() => follow(it)}>{it}</button>
         {:else}
@@ -166,6 +187,7 @@
   .pill-text { padding: 0 2px 0 8px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; color: inherit; }
   .pill.link .pill-text { color: var(--link, var(--accent)); }
   .pill .pill-text.opens { color: var(--link, var(--accent)); cursor: pointer; }
+  .pill .pill-text.unfiled { color: var(--red); }
   .text-row { display: flex; flex-wrap: wrap; align-items: center; gap: 2px; min-width: 0; }
   .text-row > :global(:first-child) { flex: 1; min-width: 0; }
   .text-row .open { flex: none; width: calc(22px * var(--ui-scale, 1)); height: calc(22px * var(--ui-scale, 1)); color: var(--text-faint); }

@@ -23,7 +23,7 @@ interface Media {
   staff?: { edges?: { role?: string; node: { name: { full: string } } }[] }; studios?: { nodes?: { name?: string }[] };
 }
 
-const HEADERS = { "Content-Type": "application/json", "User-Agent": "Atlas/0.1 (personal notes app; catalog-open)" };
+const HEADERS = { "Content-Type": "application/json", "User-Agent": "Atlas/0.1 (personal notes app; catalog-anime)" };
 
 /** AniList's description without its markup (`<br>`, `<i>`, "(Source: …)"). */
 export function plain(text: string | null | undefined): string | undefined {
@@ -74,3 +74,5 @@ export async function lookup(params: Params) {
   if (m.idMal) outIds.myanimelist = String(m.idMal);
   return { ids: outIds, fields: fieldsOf(kind, m) };
 }
+
+atlas.methods({ lookup });

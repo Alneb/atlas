@@ -14,7 +14,7 @@ import { wikilinkAt } from "./wikilink-syntax";
 import { tagAt, tagMayFollow } from "./tag-syntax";
 import { keepCapped } from "./capped";
 import { displayClosed } from "./math-close";
-import { equationTarget, linkText, noteEquations, numberedTex, texKey, type Equations } from "./equations";
+import { equationTarget, FIGURE_LINE, figureCaption, noteEquations, numberedTex, refOf, texKey, type Equations } from "./equations";
 
 export { resolveRel };
 
@@ -180,6 +180,27 @@ function equationIds(state: StateCore): void {
   }
 }
 
+// --- a block id ending a paragraph (`… ^abc`) is an address, not text, as in Obsidian; a figure's line (an embed and
+// its id, lib/equations.ts) gets its caption, "Figure 2. The gap closes", below the picture ----------------------------
+function blockIds(state: StateCore): void {
+  const t = state.tokens;
+  for (let i = 0; i < t.length; i++) {
+    if (t[i].type !== "inline" || t[i - 1]?.type !== "paragraph_open") continue;
+    const kids = t[i].children ?? [], last = kids[kids.length - 1];
+    const id = last?.type === "text" ? /[ \t]+\^([A-Za-z0-9-]+)[ \t]*$/.exec(last.content) : null;
+    if (!id) continue;
+    last.content = last.content.slice(0, id.index);
+    const fig = FIGURE_LINE.exec(t[i].content.split("\n").pop() ?? "");
+    const n = fig && (state.env as MdEnv).equations?.figures.get(fig[3]);
+    if (!fig || !n) continue;
+    const caption = figureCaption(fig[1]);
+    const tok = new state.Token("html_block", "", 0);
+    tok.content = `<p class="figure-caption" id="fig-${escAttr(fig[3])}"><b>Figure ${n}.</b>${caption ? ` ${escAttr(caption)}` : ""}</p>\n`;
+    t.splice(i + 2, 0, tok); // after the paragraph's close
+  }
+}
+const escAttr = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+
 const CALLOUT_RE = /^\[!([A-Za-z-]+)\]([+-]?)[ \t]*(.*)$/;
 function callouts(state: StateCore): void {
   const toks = state.tokens;
@@ -241,6 +262,7 @@ function build() {
   md.core.ruler.push("task_lists", taskLists);
   md.core.ruler.push("callouts", callouts);
   md.core.ruler.after("block", "equation_ids", equationIds);
+  md.core.ruler.after("inline", "block_ids", blockIds);
 
   const r = md.renderer.rules;
   // an inline expression (docs/guides/EXPRESSIONS.md): its value is filled in by lib/expr.ts (hydrateExprs)
@@ -265,8 +287,8 @@ function build() {
     const { target, alias } = t[i].meta as { target: string; alias?: string };
     // a link to a numbered equation reads "(3)": this note's at once, another note's filled in by hydrate.ts
     const eq = alias ? null : equationTarget(target);
-    const own = eq && !eq[0] ? (env as MdEnv).equations?.byId.get(eq[1]) : undefined;
-    const label = alias || (own ? linkText("", own) : target.split("#")[0].split("/").pop() || target);
+    const own = eq && !eq[0] ? refOf((env as MdEnv).equations, eq[1]) : undefined;
+    const label = alias || own || target.split("#")[0].split("/").pop() || target;
     const unresolved = target.trim().startsWith("#") || resolveLink(target, dirOf(env) ?? "") ? "" : " is-unresolved"; // `#…`: this note
     return `<a class="internal-link${unresolved}" data-href="${esc(target)}"${eq ? ` data-eq="${esc(eq[1])}"` : ""} href="#">${esc(label)}</a>`;
   };
@@ -386,7 +408,7 @@ export function renderInlineMarkdown(text: string): string {
 }
 
 export function renderMarkdown(text: string, env: MdEnv = {}): string {
-  if (!env.equations && text.includes("$$")) env = { ...env, equations: noteEquations(text) };
+  if (!env.equations && (text.includes("$$") || text.includes("^"))) env = { ...env, equations: noteEquations(text) };
   const html = md.render(stripComments(text), env as Parameters<typeof md.render>[1]);
   purifyEnv = env;
   try { return DOMPurify.sanitize(html, PURIFY) as string; } finally { purifyEnv = {}; }

@@ -68,7 +68,7 @@ export async function recognize(params: Params) {
   const [whole, lang, title] = [m[0], m[1].toLowerCase(), m[2]];
   // Wikimedia asks programs to say who to contact; without that it throttles hard. Two a second at most.
   const contact = String(params.settings?.contact ?? "").trim();
-  const agent = `Atlas/0.1 (personal notes app${contact ? `; ${contact}` : ""}) catalog-open`;
+  const agent = `Atlas/0.1 (personal notes app${contact ? `; ${contact}` : ""}) catalog-wikipedia`;
   let page: Page = {};
   try {
     const pages: Page[] = (await atlas.fetchJson(queryUrl(lang, title), { headers: { "User-Agent": agent }, every: 0.5 }))?.query?.pages ?? [{}];
@@ -90,3 +90,5 @@ export async function recognize(params: Params) {
   const label = page.title ?? unquote(title).replaceAll("_", " ");
   return { candidates: [{ kind, ids, label: `${label} — ${page.description ?? qualifier(title)}` }] };
 }
+
+atlas.methods({ recognize });

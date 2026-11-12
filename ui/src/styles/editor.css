@@ -135,6 +135,11 @@ html.phone .live-cm .cm-content { padding: 20px 16px 45vh; }
 .markdown .cm-embed-chip { display: inline-flex; padding: .1em .5em; border: 1px solid var(--border-strong); border-radius: 6px; font-size: .9em; }
 .markdown .cm-embed-missing { opacity: .6; text-decoration: line-through; }
 .markdown .cm-embed-image-host { display: block; }
+/* a figure's caption under its picture (editor/figure-captions.ts), as the reading view's .figure-caption */
+.markdown .cm-figure-caption { display: block; font-size: .9em; color: var(--text-muted); margin: .2em 0 .6em; text-indent: 0; }
+.markdown .cm-embed-image-host.is-centered + .cm-figure-caption { text-align: center; }
+/* the caret's buffers between the picture and its caption would each take a line (the caret is never there) */
+.markdown .cm-line:has(> .cm-figure-caption) > .cm-widgetBuffer { display: none; }
 .markdown .cm-embed-image { display: block; margin: .5em 0; max-width: 100%; border-radius: 6px; }
 .markdown .cm-embed-image-host.is-centered .cm-embed-image { margin-inline: auto; }
 .markdown .cm-embed-link { display: inline-block; margin: .3em 0; color: var(--accent); }

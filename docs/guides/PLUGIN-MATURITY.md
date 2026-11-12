@@ -83,7 +83,7 @@ is the manifest’s `api` (the current one is 20; an older number still loads, s
 | weather | beta | ~ 1 / 0 | ✓ | ✓ | ✓ | ~ | – | ✓ | ✓ | 15 | ✓ | ✓ | 0.3.3 | an end-to-end spec (1) |
 | notifications | beta | ~ 3 / 0 | ✓ | ✓ | ✓ | ✓ | – | ✓ | ✓ | 19 | ✓ | ✓ | 0.4.0 | an end-to-end spec (1); the Apprise hook into Atlas (DESIGN-notifications.md step 1) |
 | syncthing, downloader | beta | ~ 1 / 0 | ✓ | ✓ | ✓ | ~ | ~ | ✓ | ✓ | 4 | ✓ | ✓ | 0.1.x | end-to-end specs against a stub (1); progress for long transfers (6) |
-| catalog-open, catalog-tmdb, audiobookshelf | beta | ~ 1 / 0 each | ✓ | ✓ | ✓ | ~ | – | ✓ | ✓ | 15 | ✓ | ✓ | 0.1–0.2 | one shared end-to-end spec for the catalog's sources (1) |
+| catalog-books, -music, -anime, -youtube, -wikipedia, catalog-tmdb, audiobookshelf | beta | ~ 1 / 0 each | ✓ | ✓ | ✓ | ~ | – | ✓ | ✓ | 15 | ✓ | ✓ | 0.1–0.2 | one shared end-to-end spec for the catalog's sources (1) |
 | catalog-linkwarden | beta | ~ 0 / 1 | ✓ | ✓ | ✓ | ✓ | – | ✓ | ✓ | 15 | ✓ | ✓ | 0.2.1 | unit tests (1) |
 | kiwix | beta | ~ 0 / 1 | ✓ | ✓ | ✓ | ✓ | – | ✓ | ~ | 4 | ✓ | ✓ | 0.1.0 | unit tests (1); tried on the phone (8); 1.0 (12) |
 | freshrss, immich, jellyfin, paperless, ttrpg | example | ~ 0 / 1 each | ✓ | ✓ | ✓ | ~ | – | ✓ | ✓ | 4 | ✓ | ✓ | 0.1.0 | unit tests (1) |

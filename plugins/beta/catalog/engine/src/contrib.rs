@@ -21,6 +21,16 @@ pub struct Contribution {
     pub sources: Vec<SourceSpec>,
     /// a service holding the same thing, kept in step by a tool
     pub links: Vec<LinkSpec>,
+    /// while this plugin is installed, a thing recognised as `of` is filed as `file_as` (Catalog · Science: every book
+    /// is a reference book; without it, books are books)
+    pub instead: Vec<Instead>,
+}
+
+#[derive(Debug, Clone, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct Instead {
+    pub of: KindName,
+    pub file_as: KindName,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -173,6 +183,8 @@ pub struct Registry {
     pub links: Vec<Link>,
     /// the vault's `.atlas/catalog/rules.yaml` (filled in by the engine's load)
     pub rules: Vec<crate::rules::Rule>,
+    /// kinds filed as another while the plugin that says so is installed (`instead`)
+    pub instead: Vec<Instead>,
 }
 
 impl Registry {
@@ -183,6 +195,7 @@ impl Registry {
         let mut recognizers = Vec::new();
         let mut sources = Vec::new();
         let mut links = Vec::new();
+        let mut instead = Vec::new();
         for (id, table) in contributions {
             let plugin = PluginId::new(id.clone());
             let c: Contribution = match serde_json::from_value(table.clone()) {
@@ -206,9 +219,17 @@ impl Registry {
             recognizers.extend(c.recognizers.into_iter().map(|r| (plugin.clone(), r)));
             sources.extend(c.sources.into_iter().map(|spec| Source { plugin: plugin.clone(), spec }));
             links.extend(c.links.into_iter().map(|spec| Link { plugin: plugin.clone(), spec }));
+            instead.extend(c.instead);
             say.say(Stage::Load, format!("{id}: {} kinds, {} patterns, {} sources, {} links", n.0, n.1, n.2, n.3));
         }
-        Registry { kinds, patterns, recognizers, sources, links, rules: Vec::new() }
+        // only to a kind that exists: a vault without it keeps filing the first kind
+        instead.retain(|i: &Instead| kinds.get(&i.file_as).is_some());
+        Registry { kinds, patterns, recognizers, sources, links, rules: Vec::new(), instead }
+    }
+
+    /// The kind a thing recognised as `kind` is filed as (`instead`), else that kind.
+    pub fn filed_as(&self, kind: &KindName) -> KindName {
+        self.instead.iter().find(|i| &i.of == kind).map_or_else(|| kind.clone(), |i| i.file_as.clone())
     }
 
     /// The sources for a kind, best first (priority, then plugin id so the order never wobbles).
@@ -258,5 +279,19 @@ mod tests {
         assert_eq!(spec(serde_json::json!({ "kind": "*", "api": "/api/clip" })), Via::Engine(EngineSource::Clip), "a manifest from before");
         assert_eq!(spec(serde_json::json!({ "kind": "*", "api": "/api/other" })), Via::Api("/api/other".into()));
         assert!(serde_json::from_value::<SourceSpec>(serde_json::json!({ "kind": "*", "engine": "nope" })).is_err());
+    }
+
+    #[test]
+    fn a_book_is_a_reference_book_only_while_the_plugin_that_says_so_is_there() {
+        use crate::kind::Kinds;
+        let book = KindName::new("book");
+        let with = serde_json::json!({ "catalog-papers": { "instead": [{ "of": "book", "file_as": "science_book" }] } });
+        let r = Registry::build(Kinds::builtin(), with.as_object().unwrap(), &mut Narration::default());
+        assert_eq!(r.filed_as(&book).as_str(), "science_book");
+        assert_eq!(r.filed_as(&KindName::new("movie")).as_str(), "movie");
+        let without = Registry::build(Kinds::builtin(), &serde_json::Map::new(), &mut Narration::default());
+        assert_eq!(without.filed_as(&book).as_str(), "book");
+        let nowhere = serde_json::json!({ "x": { "instead": [{ "of": "book", "file_as": "no_such_kind" }] } });
+        assert_eq!(Registry::build(Kinds::builtin(), nowhere.as_object().unwrap(), &mut Narration::default()).filed_as(&book).as_str(), "book");
     }
 }

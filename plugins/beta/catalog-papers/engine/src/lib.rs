@@ -7,6 +7,7 @@ pub mod catalog;
 pub mod connector;
 pub mod core_api;
 pub mod entry;
+pub mod firstpage;
 pub mod net;
 pub mod refs;
 pub mod remote;

@@ -5,9 +5,18 @@ and versions follow [Semantic Versioning](https://semver.org/) once 1.0 is out.
 
 ## [Unreleased]
 
-## [0.2.10] - 2026-11-10
+## [0.2.10] - 2026-11-12
 
 ### Added
+- Numbered figures: an embed line ending in a block id (`![[gap.png|Caption]] ^fig-gap`) is "Figure n", captioned
+  under the picture; links read "Figure 2" / "Note, Figure 2"; `![[Note#^fig-gap]]` embeds it with its caption.
+- A note's sources: a DOI, arXiv id or PDF link the library lacks shows red in the properties panel; a click files
+  it through the catalog and opens its note.
+- copyparty 0.4.0: a link to a server's file opens the file in Atlas; agents' tools to list or find files on a server
+  and file one through the catalog.
+- Papers 0.6.0: a PDF without identifiers is named from its first page (title, authors, year → `author2026word`).
+- Catalog 0.9.0: `instead` — with Catalog · Science installed every book is a reference book; without it, books are
+  books (no guess from subjects).
 - Numbered equations: `\label{…}` inside `$$…$$` (or `$$ … $$ ^id`) numbers a display, as do `equation`/`align`
   environments; links `[[#^id]]` / `[[Note#^id]]` read "(3)" / "Note (3)" and follow; `![[Note#^id]]` embeds one
   formula; completion lists labels. Export numbers them over the whole document (an embedded note continues).
@@ -19,7 +28,13 @@ and versions follow [Semantic Versioning](https://semver.org/) once 1.0 is out.
 - Export 1.3.0: the LaTeX layout (plain, article, chapters) in the dialog.
 - System notifications have a lifetime (`[notifications] system_seconds`).
 
+### Changed
+- Catalog · Open sources is split again into Catalog · Books, Music, Manga and anime, YouTube and Wikipedia (0.3.0).
+
 ### Fixed
+- Catalog: a link straight to a PDF that no source knows is filed (its plugin names it) instead of refused.
+- Catalog · Books: a book's co-authors that Open Library keeps only on the edition (Ashcroft and Mermin).
+- A block id at the end of a paragraph no longer shows in the reading view.
 - A file sent from the phone without a note lands beside the day's log, not at the vault's top.
 - The phone's bars no longer turn black from a transparent colour.
 - A resolver's redirect (doi.org to a publisher) is no longer taken for a sign-in page.

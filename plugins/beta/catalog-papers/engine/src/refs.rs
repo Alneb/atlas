@@ -436,12 +436,19 @@ impl Lib<'_> {
         }
         let (text, pages) = pdf_text(bytes);
         let id = parse_doi(&text).or_else(|| parse_arxiv(&text).map(|a| format!("arXiv:{a}")));
-        // a DOI or arXiv id gives the paper (a book's DOI, a book); else its ISBN, the book; else the file's name
-        let mut added = match id.and_then(|i| self.add(&i).ok()) {
+        // a DOI or arXiv id gives the paper (a book's DOI, a book); else its ISBN, the book; else what its first page
+        // says (the published record when Crossref has that title, else the page's title, authors, year); else the
+        // file's name
+        let first = crate::firstpage::read(text.split('\x0c').next().unwrap_or(""), name);
+        let found = id.or_else(|| first.as_ref().and_then(|p| crate::firstpage::crossref_match(self.net, p)));
+        let mut added = match found.and_then(|i| self.add(&i).ok()) {
             Some(a) => a,
             None => match remote::parse_isbn(&text).and_then(|i| remote::isbn_book(self.net, &i).ok()) {
                 Some(book) => self.new_entry(book)?,
-                None => self.entry_named_after(name, pages)?,
+                None => match first {
+                    Some(p) => self.new_entry(first_page_entry(&p, pages))?,
+                    None => self.entry_named_after(name, pages)?,
+                },
             },
         };
         // the user's own file: under its own name when asked (first among the files), else `<key>.pdf` when it has none
@@ -671,6 +678,21 @@ const BOOK_PAGES: usize = 100;
 
 /// Text of a PDF's first [`ID_PAGES`] pages and its page count, read in Rust (pdf_oxide: no poppler needed); empty
 /// and 0 when it cannot be read.
+/// An entry's fields from what a PDF's first page says (firstpage.rs); a long one is a book.
+fn first_page_entry(p: &crate::firstpage::FirstPage, pages: usize) -> Mapping {
+    let mut m = Mapping::new();
+    m.insert("type".into(), if pages > BOOK_PAGES { "book" } else { "document" }.into());
+    m.insert("title".into(), p.title.clone().into());
+    m.insert("author".into(), Value::Sequence(p.authors.iter().map(|a| Value::from(remote::last_first(a))).collect()));
+    if let Some(y) = &p.year {
+        m.insert("date".into(), y.clone().into());
+    }
+    if pages > 0 {
+        m.insert("numPages".into(), pages.to_string().into());
+    }
+    m
+}
+
 fn pdf_text(bytes: &[u8]) -> (String, usize) {
     let read = || -> Option<(String, usize)> {
         let doc = pdf_oxide::PdfDocument::from_bytes(bytes.to_vec()).ok()?;
@@ -685,6 +707,16 @@ pub mod tests {
     use super::*;
     use crate::entry::tests::Plain;
     use crate::net::fake::{Answer, Table};
+
+    /// A real PDF's first page through the PDF reader the import uses (its line breaks are what firstpage.rs reads):
+    /// `ATLAS_TEST_FIRSTPAGE_PDF=<file.pdf>`; skipped without it.
+    #[test]
+    fn a_real_pdf_s_first_page() {
+        let Ok(path) = std::env::var("ATLAS_TEST_FIRSTPAGE_PDF") else { return eprintln!("skipped: ATLAS_TEST_FIRSTPAGE_PDF unset") };
+        let (text, pages) = pdf_text(&std::fs::read(&path).unwrap());
+        let first = text.split('\x0c').next().unwrap_or("");
+        eprintln!("{pages} pages; first page:\n{}\n→ {:?}", first.chars().take(400).collect::<String>(), crate::firstpage::read(first, &path));
+    }
 
     /// The Trash of a temp vault: `.atlas/trash/<n>/<path>`.
     pub struct TempTrash(pub PathBuf);

@@ -2,6 +2,8 @@
 // library has it (its `doi`), and otherwise offers to file it there — the papers plugin writes its note and fetches its
 // PDF — then opens the new note. The link's text is never rewritten. Shift+click still opens the page in the browser
 // (web-links.ts `openOutside`); without the papers plugin, or when filing fails, the page opens as any web page.
+// A note's sources (its `sources` property: DOIs, arXiv ids, PDF links) the same way: `filedSource` says whether the library
+// has one, `openSource` opens it or files it through the catalog (a PDF link is downloaded and read for its metadata).
 import { api } from "./api";
 import { confirmDialog } from "./confirm";
 import { library } from "./entities";
@@ -38,6 +40,50 @@ export async function openDoi(doi: string): Promise<boolean> {
     return true;
   } catch (e) {
     toast(`Could not add ${doi}`, errText(e), "error", 9000);
+    return false;
+  }
+}
+
+/** An address without its scheme, `www.`, fragment or trailing slash: the same page however it was written. */
+const sameUrl = (u: string) => u.trim().replace(/^https?:\/\/(www\.)?/i, "").replace(/#.*$/, "").replace(/\/+$/, "").toLowerCase();
+
+/** An arXiv id a link or text names (`arxiv.org/abs/2401.00001v2`, `arXiv:2401.00001`), without its version. */
+export function arxivOf(s: string): string | null {
+  return /(?:arxiv\.org\/(?:abs|pdf)\/|^arxiv:\s*)(\d{4}\.\d{4,5})/i.exec(s.trim())?.[1] ?? null;
+}
+
+/** A source the papers library can hold: a DOI, an arXiv id, a link to a PDF. A page (a video, a site) is not one. */
+export const isSource = (v: string) => !!doiOf(v) || !!arxivOf(v) || /^https?:\/\/\S+\.pdf(?:[?#]\S*)?$/i.test(v.trim());
+
+/** The library's paper a source names: by its DOI, its arXiv id, else the address it was filed from (its `url`). */
+export async function filedSource(source: string): Promise<Paper | undefined> {
+  const doi = doiOf(source);
+  if (doi) return paperWithDoi(doi);
+  const ax = arxivOf(source), want = sameUrl(source);
+  return (await library()).find((p) => (ax && p.arxiv?.replace(/v\d+$/, "") === ax) || (p.url && sameUrl(p.url) === want));
+}
+
+/** Opens the note of a source (a DOI, an arXiv id, a PDF link), filing it through the catalog first when asked; false when
+ *  nothing was opened (declined, or the catalog could not file it — the page opens instead). Never an empty note:
+ *  the catalog files only what it recognises. */
+export async function openSource(source: string): Promise<boolean> {
+  const doi = doiOf(source);
+  if (doi) return openDoi(doi);
+  const known = await filedSource(source);
+  if (known) { await openReadingNote(known.key); return true; }
+  const add = await confirmDialog("Add this source to the library?",
+    `${source}\n\nThe catalog files it: a PDF is downloaded and read for its title, authors and year. Shift+click opens the address in the browser instead.`,
+    "Add to library", false);
+  if (!add) return true;
+  try {
+    const r = (await api.pluginTool("catalog", "add", { text: source.trim() })) as { path?: string };
+    if (!r.path) throw new Error("the catalog filed nothing");
+    toast("In the library", r.path, "success");
+    const { openPath } = await import("./dock");
+    openPath(r.path);
+    return true;
+  } catch (e) {
+    toast("Could not add this source", errText(e), "error", 9000);
     return false;
   }
 }

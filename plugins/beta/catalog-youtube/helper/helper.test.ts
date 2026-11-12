@@ -28,7 +28,7 @@ test("every link shape is recognised once, and YouTube Music is a song", () => {
 
 test("a song takes its artist from the Topic channel, and the address is clean", async () => {
   harness.web = () => ({ title: "Paranoid Android", author_name: "Radiohead - Topic" });
-  const r = await harness.call("youtube", { kind: "song", ids: { youtube: "fHiGbolFFGw" } });
+  const r = await harness.call("lookup", { kind: "song", ids: { youtube: "fHiGbolFFGw" } });
   assert.deepEqual(r.ids, { youtube: "fHiGbolFFGw", url: "https://music.youtube.com/watch?v=fHiGbolFFGw" });
   assert.deepEqual([r.fields.artist, r.fields.title, r.fields.channel], ["Radiohead", "Paranoid Android", undefined]);
   assert.match(harness.asked[0].url, /^https:\/\/www\.youtube\.com\/oembed\?format=json&url=https%3A%2F%2Fwww\.youtube\.com%2Fwatch%3Fv%3DfHiGbolFFGw$/);
@@ -36,8 +36,8 @@ test("a song takes its artist from the Topic channel, and the address is clean",
 
 test("a video YouTube hides is skipped with its clean address", async () => {
   harness.web = () => new Reply(401);
-  const gone = await harness.call("youtube", { kind: "video", ids: { youtube: "x".repeat(11) } });
+  const gone = await harness.call("lookup", { kind: "video", ids: { youtube: "x".repeat(11) } });
   assert.ok(gone.skipped);
   assert.equal(gone.ids.url, "https://www.youtube.com/watch?v=xxxxxxxxxxx");
-  assert.deepEqual(await harness.call("youtube", { kind: "video" }), { fields: {}, skipped: "no YouTube id" });
+  assert.deepEqual(await harness.call("lookup", { kind: "video" }), { fields: {}, skipped: "no YouTube id" });
 });

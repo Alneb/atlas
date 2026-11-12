@@ -87,6 +87,16 @@ export function register(atlas) {
   atlas.files.source({
     title: "copyparty", icon: "server",
     places: async () => servers().map((s) => ({ id: s.name, title: s.name, detail: s.url })),
+    // a link to a file on a server (its address as the setting has it, or a deeper one): that file, opened in Atlas
+    owns: (href) => {
+      for (const s of servers()) {
+        const base = s.url.trim().replace(/\/+$/, "");
+        if (!href.startsWith(`${base}/`)) continue;
+        const rest = href.slice(base.length).split(/[?#]/)[0];
+        try { return { place: s.name, path: decodeURIComponent(rest) }; } catch { return { place: s.name, path: rest }; }
+      }
+      return null;
+    },
     list: async (name, path) => {
       const at = path || "/";
       try { return { path: at, ...(await cachedLs(name, at)) }; } catch (e) { if (e.waiting) return { waiting: e.message }; throw e; }
