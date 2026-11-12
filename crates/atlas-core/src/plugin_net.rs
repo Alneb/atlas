@@ -474,7 +474,7 @@ mod tests {
         };
 
         // the gate sends an API request to its portal on another host: a sign-in, not an answer — and nothing saved
-        let (port, server) = serve_once("HTTP/1.1 302 Found\r\nLocation: https://auth.example.org/?rd=x\r\nContent-Length: 0\r\nConnection: close\r\n\r\n");
+        let (port, server) = serve_once("HTTP/1.1 302 Found\r\nLocation: https://auth.example.org/?rd=http://127.0.0.1/api/links\r\nContent-Length: 0\r\nConnection: close\r\n\r\n");
         let r = fetch(vault.path(), &secrets, "net", &req(port)).unwrap();
         let sent = server.join().unwrap().to_ascii_lowercase();
         assert!(!sent.contains("cookie:"), "nothing kept yet: {sent}");

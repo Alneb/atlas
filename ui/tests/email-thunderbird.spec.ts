@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 import { WS } from "../playwright.config";
 
 // Email's Thunderbird import and Outlook's sign-in are dialogs. The import: Thunderbird's accounts each added as a card (what to do next said beside
-// it), then an account's local mail checked, its counts shown, and written as notes on the go-ahead. The plugin's
+// it), then an account's local mail checked against its server, its counts shown, and put on the server on the go-ahead. The plugin's
 // page side as built; its helper a stand-in (the engine reads the real ~/.thunderbird, which a test never does).
 const REPO = fileURLToPath(new URL("../..", import.meta.url));
 const DIR = join(WS, ".atlas/plugins/email");
@@ -23,7 +23,7 @@ for line in sys.stdin:
     r = {}
     if m["method"] == "thunderbird": r = {"accounts": FOUND}
     if m["method"] == "thunderbird_mail":
-        r = {"missing": {"Inbox": 3, "Sent": 1}} if p.get("dry", True) else {"saved": ["a", "b", "c", "d"], "failed": []}
+        r = {"missing": {"Inbox": 3, "Sent": 1}} if p.get("dry", True) else {"uploaded": 4, "failed": []}
     if m["method"] == "signin_start": r = {"flow": "code", "url": "https://login.example.org/device", "code": "ABCD-1234", "opened": True}
     if m["method"] == "signin_finish": time.sleep(1)
     print(json.dumps({"id": m["id"], "result": r}), flush=True)
@@ -61,14 +61,14 @@ test("Thunderbird's accounts and local mail in one dialog: add a card, check, wr
 
   await dialog.getByRole("combobox", { name: "Account" }).selectOption("old-pop");
   await dialog.getByRole("button", { name: "Check" }).click();
-  await expect(dialog).toContainText("4 messages Thunderbird keeps for old-pop are in no note");
+  await expect(dialog).toContainText("4 messages Thunderbird keeps for old-pop are not on the server");
   await expect(dialog.locator(".counts li", { hasText: "Inbox" })).toContainText("3");
   for (const scheme of ["light", "dark"] as const) { // judged in both themes (docs/guides/UI-STYLE.md)
     await page.emulateMedia({ colorScheme: scheme });
     await page.screenshot({ path: `test-results/email-thunderbird-${scheme}.png` });
   }
-  await dialog.getByRole("button", { name: "Write them as notes" }).click();
-  await expect(dialog).toContainText("4 kept as notes.");
+  await dialog.getByRole("button", { name: "Put them on the server" }).click();
+  await expect(dialog).toContainText("4 put on the server; the list has them now.");
   await dialog.getByRole("button", { name: "Close" }).click();
   await expect(dialog).toHaveCount(0);
 });

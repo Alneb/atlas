@@ -19,6 +19,9 @@ and versions follow [Semantic Versioning](https://semver.org/) once 1.0 is out.
   "missing" (or found) until its line is edited.
 - copyparty 0.4.1: a PDF on a server with a password is filed (downloaded with the password, then read as a dropped
   PDF); the catalog could not fetch it.
+- A terminal could stop selecting (no drag highlight, no double-click on a word) after a divider drag whose release
+  was missed; any later press now ends that drag.
+- An equation's number no longer covers the last terms of a display wider than the page: it follows the formula.
 - Papers 0.7.1: a PDF already in the library is recognised by its content only; another work under the same file
   name (two `main.pdf`) gets its own entry instead of the first one's note.
 - Papers 0.7.1: a PDF with no identifier and no readable first page is named from its Info dictionary (title,

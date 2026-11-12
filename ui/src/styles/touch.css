@@ -22,5 +22,5 @@
 :where(:root[data-touch]) ::-webkit-scrollbar { width: 14px; height: 14px; }
 
 /* a picture held under the finger, shown alone (lib/image-viewer.ts): above everything, black around it */
-.image-viewer { position: fixed; inset: 0; z-index: 10000; background: rgb(0 0 0 / 0.92); display: flex; align-items: center; justify-content: center; touch-action: none; user-select: none; }
+.image-viewer { position: fixed; inset: 0; z-index: 10000; background: var(--image-viewer-bg); display: flex; align-items: center; justify-content: center; touch-action: none; user-select: none; }
 .image-viewer img { max-width: 100vw; max-height: 100vh; object-fit: contain; transform-origin: center; will-change: transform; }

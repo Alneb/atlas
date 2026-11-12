@@ -127,6 +127,11 @@ html.phone .markdown a::after, html.phone .markdown .cm-link::after, html.phone 
 .markdown .katex { font-size: 1.08em; }
 .markdown .math-display, .markdown .cm-math-block { display: block; overflow-x: auto; overflow-y: hidden; padding: .3em 0; margin: .6em 0; text-align: center; }
 .markdown .katex-display { margin: 0; }
+/* a numbered display: the number after the formula, never over it (KaTeX puts it at the box's right edge, which a
+   display wider than its box — it scrolls — covered with its last terms). Equal space on both sides keeps it centred. */
+.markdown .katex-display > .katex > .katex-html:has(> .katex-tag) { display: flex; align-items: baseline; min-width: max-content; }
+.markdown .katex-display > .katex > .katex-html:has(> .katex-tag)::before { content: ""; flex: 1 1 0; }
+.markdown .katex-display > .katex > .katex-html > .katex-tag { position: static; flex: 1 1 0; text-align: right; padding-left: 1.5em; }
 .markdown .cm-math-inline { display: inline-block; }
 .markdown .math-glue { white-space: nowrap; }
 .markdown .cm-math-error, .markdown .math-error { color: var(--red); font-family: var(--font-mono); font-size: .88em; }

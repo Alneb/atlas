@@ -10,6 +10,8 @@
   /* Atlas Term Symbols: Adwaita Mono's symbols (OFL, assets/fonts) for what JetBrains Mono's subsets lack —
      Claude Code's ⎿ ⏺ ✻, arrows, shapes — at the same 0.6 em advance, so they keep the cell grid */
   --font-mono: "JetBrains Mono", "Atlas Term Symbols", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  /* a picture alone on screen (touch.css .image-viewer): near-black in every theme, as photo viewers do */
+  --image-viewer-bg: rgb(0 0 0 / 0.92);
   --radius-sm: 6px; --radius: 8px; --radius-lg: 12px; --radius-xl: 14px;
   --rail-w: 54px; --status-h: 26px;
   --fab-room: 0px; /* the room the phone's floating capture button needs under scrolled content */
