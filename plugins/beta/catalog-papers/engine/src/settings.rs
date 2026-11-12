@@ -6,6 +6,8 @@ use serde_json::Value;
 pub struct Settings {
     /// The references' folder: one folder per entry, `<key>/<key>.md` and its PDF.
     pub dir: String,
+    /// The books' folder (`type: book`), laid out the same way: a textbook is a reference beside the papers.
+    pub books_dir: String,
     /// The BibTeX file rewritten after every change.
     pub bib: String,
     /// Fetch the open-access PDF when adding by DOI or arXiv id.
@@ -26,6 +28,7 @@ impl Default for Settings {
     fn default() -> Self {
         Settings {
             dir: "refs/papers".into(),
+            books_dir: "refs/books".into(),
             bib: "refs/refs.bib".into(),
             download_pdfs: true,
             email: String::new(),
@@ -46,6 +49,9 @@ impl Settings {
         let flag = |k: &str| o.get(k).and_then(Value::as_bool);
         if let Some(d) = text("dir").filter(|d| !d.is_empty()) {
             s.dir = d.trim_matches('/').to_string();
+        }
+        if let Some(d) = text("books_dir").filter(|d| !d.is_empty()) {
+            s.books_dir = d.trim_matches('/').to_string();
         }
         if let Some(b) = text("bib").filter(|b| !b.is_empty()) {
             s.bib = b;

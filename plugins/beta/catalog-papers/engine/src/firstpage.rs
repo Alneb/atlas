@@ -84,6 +84,37 @@ pub fn read(first_page: &str, file: &str) -> Option<FirstPage> {
     Some(FirstPage { title, authors, year })
 }
 
+/// A PDF's Info dictionary (what its author's program wrote: `/Title`, `/Author`, `/CreationDate`).
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct Info {
+    pub title: Option<String>,
+    pub author: Option<String>,
+    pub created: Option<String>,
+}
+
+/// What the Info dictionary says, when the first page says nothing readable: its title (else the file's name, made
+/// readable) and authors; the year it was made. None when it names no author — a title alone is no better than the
+/// file's name. A program's stand-in is no title: a file name ("main.tex", "Microsoft Word - x.docx"), "untitled".
+pub fn from_info(info: &Info, file: &str) -> Option<FirstPage> {
+    let authors: Vec<String> = info.author.as_deref().map(crate::remote::split_names).unwrap_or_default().into_iter().filter(|a| a.chars().filter(|c| c.is_alphabetic()).count() >= 2 && !a.contains('@')).collect();
+    if authors.is_empty() {
+        return None;
+    }
+    let stand_in = |t: &str| {
+        let low = t.to_lowercase();
+        low.starts_with("microsoft ") || low.starts_with("untitled") || low.rsplit_once('.').is_some_and(|(_, ext)| (1..=4).contains(&ext.len()) && ext.chars().all(|c| c.is_ascii_alphanumeric()) && !ext.chars().all(|c| c.is_ascii_digit()))
+    };
+    let title = info.title.as_deref().map(str::trim).filter(|t| t.chars().filter(|c| c.is_alphabetic()).count() >= 3 && !stand_in(t)).map(String::from).unwrap_or_else(|| {
+        let name = atlas_text::links::percent_decoded(file);
+        let stem = name.rsplit('/').next().unwrap_or(&name);
+        let stem = stem.rsplit_once('.').map_or(stem, |(s, _)| s);
+        stem.replace(['_', '-'], " ").split_whitespace().collect::<Vec<_>>().join(" ")
+    });
+    // a PDF date: "D:20111012153000+02'00'"
+    let year = info.created.as_deref().map(|d| d.trim().trim_start_matches("D:")).and_then(|d| d.get(..4)).filter(|y| (y.starts_with("19") || y.starts_with("20")) && y.bytes().all(|c| c.is_ascii_digit())).map(String::from);
+    Some(FirstPage { title, authors, year })
+}
+
 /// The DOI of the published work with exactly this title (and this first author, when known), from Crossref's
 /// search: a first page read right is upgraded to the full record. Only an exact title match counts — the search
 /// always answers something.
@@ -91,7 +122,8 @@ pub fn crossref_match(net: &dyn Net, p: &FirstPage) -> Option<String> {
     let norm = |s: &str| s.chars().filter(|c| c.is_alphanumeric()).flat_map(char::to_lowercase).collect::<String>();
     let query = format!("{} {}", p.title, p.authors.first().map(String::as_str).unwrap_or(""));
     let v = net.json(&format!("https://api.crossref.org/works?rows=3&select=DOI,title,author&query.bibliographic={}", enc(&query, ""))).ok()?;
-    let surname = p.authors.first().and_then(|a| a.split_whitespace().last()).map(norm);
+    // "Last, First" (as an Info dictionary may write it) or "First Last"
+    let surname = p.authors.first().and_then(|a| a.split_once(',').map(|(l, _)| l).or_else(|| a.split_whitespace().last())).map(norm);
     v["message"]["items"].as_array()?.iter().find_map(|w| {
         let same_title = w["title"][0].as_str().is_some_and(|t| norm(t) == norm(&p.title));
         let same_author = surname.as_ref().is_none_or(|s| w["author"].as_array().is_some_and(|a| a.iter().any(|x| x["family"].as_str().map(norm).as_ref() == Some(s))));
@@ -105,6 +137,18 @@ mod tests {
 
     // The first page of a lecture's notes, as a PDF's text comes out (no DOI, no arXiv id).
     const NOTES: &str = "Screening, RPA, GW and GW+EDMFT: an Introduction.\nLecture at a winter school on ‘Computational Quantum Materials’\nAntoine Georges\n(Dated: June, 2026)\n\nDisclaimer: Some mistakes or misprints may remain.\n\nCONTENTS\nI. Motivations\n";
+
+    /// Personal notes with nothing readable on the first page: the Info dictionary names them (title, author, the
+    /// year they were made); a program's stand-in title gives way to the file's name; no author, nothing.
+    #[test]
+    fn the_info_dictionary_names_a_pdf_its_first_page_does_not() {
+        let info = Info { title: Some("Mecánica y Ondas I".into()), author: Some("Ana Pérez".into()), created: Some("D:20190314120000+01'00'".into()) };
+        let p = from_info(&info, "teoria%20mecanica.pdf").unwrap();
+        assert_eq!((p.title.as_str(), p.authors.clone(), p.year.as_deref()), ("Mecánica y Ondas I", vec!["Ana Pérez".to_string()], Some("2019")));
+        let tex = Info { title: Some("main.tex".into()), ..info.clone() };
+        assert_eq!(from_info(&tex, "Mechanics_notes.pdf").unwrap().title, "Mechanics notes");
+        assert_eq!(from_info(&Info { author: None, ..info }, "x.pdf"), None);
+    }
 
     #[test]
     fn a_lecture_s_first_page_names_it() {

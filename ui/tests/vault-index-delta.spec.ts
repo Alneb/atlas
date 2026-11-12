@@ -29,3 +29,19 @@ test("a new file, a new folder and a removal reach the links without listing the
 
   for (const p of ["notes/delta-host.md", "notes/delta-new.md", "Delta.page"]) await trash(request, p);
 });
+
+// The editor colours a link by the same list: a note made after the link was drawn turns it from missing to found
+// without the line being touched (the editor redraws on the list's change).
+test("a link in the editor stops looking missing once its note is made", async ({ page, request }) => {
+  await request.put("/api/file", { headers: H, data: { path: "notes/delta-editor.md", text: "# Delta editor\n\nSee [[delta-later]].\n" } });
+  await page.goto("/");
+  await page.getByText("Finish the GW notes.").waitFor();
+  await openFile(page, "delta-editor.md");
+  const link = page.locator(".cm-content .cm-hmd-internal-link", { hasText: "delta-later" });
+  await expect(link).toHaveClass(/is-unresolved/);
+  await request.put("/api/file", { headers: H, data: { path: "notes/delta-later.md", text: "# Later\n" } });
+  await expect(link).not.toHaveClass(/is-unresolved/);
+  await trash(request, "notes/delta-later.md");
+  await expect(link, "and missing again once it is gone").toHaveClass(/is-unresolved/);
+  for (const p of ["notes/delta-editor.md"]) await trash(request, p);
+});

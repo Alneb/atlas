@@ -35,6 +35,9 @@ the result goes under the exports folder at the note's own path (`notes/reports/
   and Word writers); a `$$align` block and a whole `\begin{align}` in `$$` written
   as `aligned` (valid inside display math everywhere); a heading right after a line of text kept a heading. The
   definitions come from the table the drawing uses (`ui/src/lib/tex-portable.ts`).
+- **Numbered equations** over the whole document (an embedded note's continue the host's); a link to one reads its
+  number and is a real link in the PDF: `\label` + `\eqref` on the LaTeX road, a `<eq-n>` label and `#link` on the
+  Typst road (not `@eq-n`, which needs Typst's own numbering of every display); plain "(n)" in Word.
 - LaTeX's own files (`.aux`, `.log`, `.bbl`…) stay in `.atlas/cache/plugins/export/build/`; previews in
   `.atlas/cache/plugins/export/preview/`.
 

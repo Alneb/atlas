@@ -9,11 +9,20 @@ the `paper` kind: a DOI or an arXiv id captured anywhere becomes a reference.
 
 - **Recognised**: a DOI (bare, `doi:` or a `doi.org` link) and an arXiv id (an `arxiv.org` abs or pdf link, or
   `arXiv:…`), and any link to a PDF.
+- **Books beside the papers**: an entry of type `book` lives in the books' folder (`refs/books/<key>/`, setting
+  `books_dir`), the rest in `refs/papers/`; refs.bib holds both, and `[[citekey]]` links follow a move. A PDF is a book
+  when it carries an ISBN (the book's record from Open Library or Google Books), when its DOI is a book's, or when it is
+  long (over 100 pages) and nothing else says what it is. Setting an entry's type moves it; the `shelve` tool moves
+  entries filed before into the folder of their type.
 - **A PDF without identifiers** (lecture notes, a thesis, an old paper) is read on its first page: the first line that
   reads as a title, with a line of personal names under it, gives the title and authors, and a "Dated:" / "Received"
   line (else the file's name) gives the year. The citekey is then the usual `author+year+word` (`georges2026screening`),
   and Crossref is asked for a work of exactly that title and author, whose full record is used when it exists. A page
-  that does not read so (an OCR'd scan) keeps the file's name as its title.
+  that does not read so (an OCR'd scan) falls back on the PDF's Info dictionary — what the program that made it wrote:
+  `/Title` (unless it is a stand-in such as `main.tex`), `/Author` (several people in one string are split), the year
+  of `/CreationDate` — used only when it names an author; else the file's name is the title.
+- **The same PDF twice** is recognised by its content (size, then hash), never by its file name: two unrelated
+  `main.pdf` are two entries.
 - **Metadata** from OpenAlex (any DOI) or arXiv (an arXiv id); Crossref records are read too.
 - **One folder per reference**: `<folder>/<citekey>/` holds `<citekey>.md`, the note whose properties are the
   reference's fields (Zotero's field names), and its PDF (docs/guides/ZOTERO.md).

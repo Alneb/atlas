@@ -76,7 +76,7 @@ export const PAGES: PageDef[] = [
   },
   {
     id: "writing", title: "Writing", group: "working", icon: "edit", blurb: "Notes in markdown: vim, links, citations, math, the / menu, properties, capture and templates. A plain note starts from the default template, which the New… list leaves out; a template's `template_title:` names it there and is never copied into its notes. A note open on two devices is edited together, live. In a note Ctrl+B is bold, Ctrl+I italic, Ctrl+K a link, Ctrl+Q turns a line into a list item or a to-do.",
-    fields: ["vim", "editor.vim_keys", "editor.format_bar", "editor.math_preview", "editor.link_preview", "editor.task_chips", "editor.task_suggest", "editor.task_short_forms", "editor.properties", "editor.properties_spec", "editor.link_completion", "editor.citation_completion", "editor.slash_menu", "editor.fold_headings", "editor.typewriter", "editor.live",
+    fields: ["vim", "editor.vim_keys", "editor.vim_clipboard", "editor.format_bar", "editor.math_preview", "editor.link_preview", "editor.task_chips", "editor.task_suggest", "editor.task_short_forms", "editor.properties", "editor.properties_spec", "editor.link_completion", "editor.citation_completion", "editor.slash_menu", "editor.fold_headings", "editor.typewriter", "editor.live",
       "editor.backlinks",
       "editor.attachment_folder", "editor.date_names", "editor.strict_line_breaks", "notes.*"],
     features: ["ui.vim", "ui.new", "ui.note.new", "note.cycle", "note.insert-template", "ui.properties", "ui.properties.inline", "ui.kit.install", "ui.outline", "ui.graph"], panels: ["templates"],

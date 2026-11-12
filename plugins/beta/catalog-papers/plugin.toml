@@ -8,7 +8,7 @@
 title = "Catalog · Science"
 description = "everything science: papers by DOI or arXiv id into References, with metadata, the open-access PDF (arXiv, OpenAlex, Unpaywall, Semantic Scholar, Europe PMC, CORE), refs.bib and the Zotero connector"
 icon = "book"
-version = "0.6.0"
+version = "0.7.1"
 api = 19
 provides = ["references"]                 # the role the core and the page ask for (not this id)
 # no `requires`: References stands alone; its [contributes.catalog] patterns count only where the catalog runs
@@ -33,6 +33,13 @@ label = "Folder of your references"
 kind = "text"
 default = "refs/papers"
 hint = "papers, books, theses, lecture notes — one folder each (<citekey>/: its note <citekey>.md, whose properties are the reference's fields, and its PDF)"
+
+[[setting]]
+key = "books_dir"
+label = "Folder of your books"
+kind = "text"
+default = "refs/books"
+hint = "books (type book: a long PDF, one with an ISBN, a book's DOI) are kept here the same way, beside the papers; refs.bib holds both"
 
 [[setting]]
 key = "bib"
@@ -86,6 +93,11 @@ key = "core_key"
 label = "CORE API key (optional)"
 kind = "secret"
 hint = "free at core.ac.uk/services/api: CORE gathers the papers of thousands of university repositories"
+
+[[tool]]
+name = "shelve"
+description = "Move every reference to the folder of its type: books (type book) to the books' folder, the rest to the references' folder; refs.bib rewritten. Answers the keys moved."
+input = {}
 
 [[tool]]
 name = "lookup"

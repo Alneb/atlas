@@ -20,6 +20,7 @@ import type { MarkdownConfig } from "@lezer/markdown";
 import { obsidianMarkdown, AnyTaskStatus } from "./live/obsidian-syntax.js";
 import { livePreview, bodyStart, frontmatterClose, redecorate } from "./live/live-preview.js";
 import { equationLabelNow, equationTarget, linkText, noteEquations, numberedTex, refOf, texKey, type Equations } from "../equations";
+import { doiLinkMark } from "../doi-links";
 import { readText } from "../vault-files";
 import { renderMathInto } from "../math";
 import { highlightCode } from "../highlight";
@@ -123,6 +124,7 @@ export function noteExtensions(path: string, viewRef: { view: EditorView | null 
       const n = equationLabelNow(path, eq[1], readText, () => viewRef.view?.dispatch({ effects: redecorate.of(null) }));
       return n ? linkText(eq[0], n) : null;
     },
+    linkMark: (url: string) => doiLinkMark(url, () => viewRef.view?.dispatch({ effects: redecorate.of(null) })),
     hydrateBlock: (host: HTMLElement) => { unmount.set(host, hydrateRendered(host, path)); hydrateTables(host, viewRef); followLinksIn(host, path); },
     releaseBlock: (host: HTMLElement) => unmount.get(host)?.(), // the widget's DOM is gone for good (not a hidden tab)
   });

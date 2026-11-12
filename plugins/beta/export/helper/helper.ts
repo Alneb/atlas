@@ -167,11 +167,31 @@ async function fences(j: Job, road: "latex" | "typst" | "docx"): Promise<string>
       out[i] = "```" + f.lang + "\n" + f.source + "\n```";
     }
   }
-  // an equation's number: LaTeX keeps `\tag`; pandoc's Typst and Word writers drop it, so there it is written beside it
-  const tagged = road === "latex" ? j.t.markdown : j.t.markdown.replace(/\\tag\*?\{([^}]*)\}/g, (_, n: string) => `\\qquad\\text{(${n})}`);
-  const md = tagged.replace(/<!--fence:(\d+)-->/g, (_, n: string) => out[Number(n)]);
+  const md = equationMarks(j.t.markdown, road).replace(/<!--fence:(\d+)-->/g, (_, n: string) => out[Number(n)]);
   // a note whose sections start at ## gets them one level up
   return /^# /m.test(md) || !/^## /m.test(md) ? md : md.replace(/^#(#+ )/gm, "$1");
+}
+
+/** The equation numbers `numberEquations` wrote (translate.ts `ANCHOR`, `REF`), for a road. LaTeX keeps `\tag`, labels
+ *  the display and links with `\eqref`. pandoc's Typst and Word writers drop `\tag`, so there the number is written
+ *  beside the formula; Typst labels it `<eq-n>` and links to the label (`#link`, not `@eq-n`: a reference needs Typst's
+ *  own equation numbering, which would number every display); Word has the plain numbers. */
+export function equationMarks(md: string, road: "latex" | "typst" | "docx"): string {
+  const label = (n: string) => `eq-${n.replace(/[^A-Za-z0-9_.:-]/g, "-")}`;
+  const text = (n: string, star: boolean) => (star ? n : `(${n})`);
+  md = md.replace(/\$\$([\s\S]+?)\$\$/g, (whole, tex: string) => {
+    let anchor = "";
+    const t = tex.replace(/\\tag(\*?)\{([^}]*)\}(\u0005?)/g, (tag, star: string, n: string, a: string) => {
+      if (road === "latex") return a ? `${tag.slice(0, -1)}\\label{${label(n)}}` : tag;
+      if (a && road === "typst") anchor = "`<" + label(n) + ">`{=typst}";
+      return `\\qquad\\text{${text(n, !!star)}}`;
+    });
+    return t === tex ? whole : `$$${t}$$${anchor}`;
+  });
+  return md.replace(/\u0006([^\u0006]*)\u0006/g, (_, n: string) =>
+    road === "latex" ? "`\\eqref{" + label(n) + "}`{=latex}"
+      : road === "typst" ? "`#link(<" + label(n) + ">)[" + text(n, false).replace(/[\\#*_`$<>@\[\]]/g, "\\$&") + "]`{=typst}"
+      : text(n, false));
 }
 
 const MD = "markdown+mark-implicit_figures+implicit_figures";

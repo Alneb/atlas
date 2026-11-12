@@ -30,9 +30,14 @@ const abs = (p: string) => `/${p.replace(/^\/+/, "")}`;
 /** A file's address on its server (what the catalog fetches, and what a note links to). */
 export const fileUrl = (s: Server, path: string) => `${s.url}${enc(abs(path))}`;
 
+/** copyparty's `pw` header from the server's password (filled in by the core), when it has one. */
+async function password(s: Server) {
+  return (await atlas.secret(`servers.${s.name}.password`)) ? { pw: { secret: `servers.${s.name}.password` } } : undefined;
+}
+
 async function ls(s: Server, dir: string): Promise<Entry[]> {
   const at = abs(dir).replace(/\/*$/, "/");
-  const pw = (await atlas.secret(`servers.${s.name}.password`)) ? { pw: { secret: `servers.${s.name}.password` } } : undefined;
+  const pw = await password(s);
   const text = await atlas.fetch(`${s.url}${enc(at)}?ls&dots`, { headers: { accept: "application/json", ...pw }, timeout: 60 });
   let j: { dirs?: { href?: string; sz?: number }[]; files?: { href?: string; sz?: number }[] };
   try { j = JSON.parse(text ?? ""); } catch { throw new Error(`${s.name}: ${at} did not answer with a folder listing (a sign-in in front of it?)`); }
@@ -69,10 +74,34 @@ async function list(params: Params) {
   return { server: s.name, path: abs(path), query, found: found.map(shown), walked, ...(queue.length && walked >= WALK ? { more: `stopped after ${WALK} folders: search under a narrower path` } : {}) };
 }
 
+/** The plugin that keeps the references (`provides = ["references"]`), as the page finds it; null without one. */
+async function referencesPlugin(): Promise<string | null> {
+  const all = await atlas.get<{ id: string; provides?: string[]; has_helper?: boolean; blocked?: boolean }[]>("/api/plugins").catch(() => []);
+  return all.find((p) => p.provides?.includes("references") && p.has_helper && !p.blocked)?.id ?? null;
+}
+
+/** A PDF on a server with a password: the catalog's own fetch has no key to it (the password is this plugin's secret),
+ *  so it is downloaded here with the password, moved into the references plugin's cache and filed by its `import`, as
+ *  a PDF dropped on the page is (read for its identifiers, named by its file, the address kept as `url`). */
+async function fileBehindPassword(s: Server, path: string, url: string, pw: object, refs: string) {
+  const name = path.slice(path.lastIndexOf("/") + 1);
+  const got = await atlas.download(url, `file-${Date.now()}.pdf`, { headers: pw as Record<string, never>, timeout: 300 });
+  if (!got.ok || !got.saved) throw new Error(`${s.name}: ${path}: ${got.status === 403 || got.status === 401 ? "the password was refused" : `HTTP ${got.status}`}`);
+  if (!got.head.startsWith("%PDF")) throw new Error(`${s.name}: ${path} did not come back as a PDF (a sign-in in front of it?)`);
+  const at = `.atlas/cache/plugins/${refs}/import-${Date.now()}-${name.replace(/[^\w.-]+/g, "_")}`;
+  await atlas.post("/api/fs/move", { from: got.saved, to: at });
+  const r = await atlas.post<{ paper: { dir: string; kind: string }; created: boolean }>(
+    `/api/plugins/${refs}/helper`, { method: "import", params: { path: at, name, url, keep_name: true }, timeout_secs: 300 });
+  const dir = r.paper.dir.replace(/\/+$/, ""); // an entry's note: <dir>/<its folder's name>.md
+  return { url, note: `${dir}/${dir.slice(dir.lastIndexOf("/") + 1)}.md`, kind: r.paper.kind, outcome: r.created ? "filed" : "already in the library" };
+}
+
 async function file(params: Params) {
   const s = serverOf(params);
   if (typeof params.path !== "string" || !params.path.trim()) throw new Error("`path`: the file on the server, as `list` shows it");
   const url = fileUrl(s, params.path);
+  const pw = await password(s), refs = pw && /\.pdf$/i.test(params.path) ? await referencesPlugin() : null;
+  if (pw && refs) return fileBehindPassword(s, params.path, url, pw, refs);
   const r = await atlas.post<{ path?: string; outcome?: string; kind?: string; steps?: unknown }>("/api/plugins/catalog/tools/add", { text: url });
   return { url, note: r.path, kind: r.kind, outcome: r.outcome, steps: r.steps };
 }

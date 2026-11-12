@@ -5,6 +5,7 @@
 import { diff } from "../frontmatter-edit";
 import { installImagePeek } from "../image-peek";
 import { basename } from "../paths";
+import { onVaultChange } from "../vault";
 import type { Problems } from "../state.svelte";
 import { SELECTION_TEXT_MAX } from "../context.svelte";
 import { ansiColors } from "./ansi";
@@ -30,7 +31,7 @@ import { guestLock } from "../guest.svelte";
 import { pluginCompletions, pluginHooks } from "./plugin-hooks";
 import { atlasTheme } from "./theme";
 import { drawnSelection } from "./drawn-selection";
-import { defineEx, exHooks, modeLabel, stashVisual, restoreVisual, desktopKeys, type VimModeLabel } from "./vim-glue";
+import { defineEx, yankToClipboard, exHooks, modeLabel, stashVisual, restoreVisual, desktopKeys, type VimModeLabel } from "./vim-glue";
 import { defineWordMotions } from "./vim-words";
 import { tabKey, untouchedTaskList } from "./tab-keys";
 import { placeOf, keepPlace, topIn, type Place } from "./places";
@@ -94,6 +95,7 @@ installImagePeek(); // Ctrl over a picture: shown large (lib/image-peek.ts); onc
 
 export function createEditor(o: EditorOptions): AtlasEditor {
   defineEx();
+  yankToClipboard();
   defineWordMotions();
   let keepTimer: ReturnType<typeof setTimeout> | undefined;
   let keep = () => {}; // set once the view exists: remembers the place it is left at
@@ -227,6 +229,9 @@ export function createEditor(o: EditorOptions): AtlasEditor {
   const offZoom = () => window.removeEventListener(PANE_ZOOM_EVENT, onZoom);
   const offSpec = md ? onPropertySpec(() => view.dispatch({ effects: redecorate.of(null) })) : () => {};
   const offLang = md ? onHighlightLanguage(() => view.dispatch({ effects: redecorate.of(null) })) : () => {}; // a fence's language arrived
+  // links are coloured by whether their file exists (vault.ts's list): a list that arrived after the note was drawn, or a
+  // note made, moved or deleted since, redraws them — else a link kept the colour it had when its line was last drawn
+  const offVault = md ? onVaultChange(() => view.dispatch({ effects: redecorate.of(null) })) : () => {};
 
   let vimOn = o.vim;
   let mode: VimModeLabel = o.vim ? "NORMAL" : "";
@@ -284,6 +289,7 @@ export function createEditor(o: EditorOptions): AtlasEditor {
       offZoom();
       offSpec();
       offLang();
+      offVault();
       unwireVim();
       exHooks.delete(view);
       view.destroy();

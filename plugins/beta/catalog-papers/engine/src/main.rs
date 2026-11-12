@@ -120,6 +120,8 @@ fn main() {
     });
     let c = core.clone();
     m.add("bib", move |p| with_lib(&c, &p, |lib| lib.write_bib().map(|n| json!({ "entries": n }))));
+    let c = core.clone();
+    m.add("shelve", move |p| with_lib(&c, &p, |lib| lib.shelve_all().map(|moved| json!({ "moved": moved }))));
     // the key a paper with these fields would get here (what `add` names its folder); authors "Last, First" joined
     // by "; ", or a list
     let c = core.clone();

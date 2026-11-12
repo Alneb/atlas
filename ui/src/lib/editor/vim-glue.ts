@@ -1,4 +1,4 @@
-// The editor's Vim glue: the ex commands (:w, :q, :wq, :x) per view, the mode's label for the status bar, a visual
+// The editor's Vim glue: the ex commands (:w, :q, :wq, :x) per view, yanks to the clipboard, the mode's label for the status bar, a visual
 // selection kept across a paste, and the "desktop" key mode (Ctrl+C/X/V/Z/Y/A as everywhere). Split out of create.ts.
 import { EditorView } from "@codemirror/view";
 import { Prec } from "@codemirror/state";
@@ -20,6 +20,24 @@ export function defineEx(): void {
   Vim.defineEx("quit", "q", (cm: { cm6?: EditorView }) => hooks(cm)?.quit?.());
   Vim.defineEx("wq", "wq", (cm: { cm6?: EditorView }) => { const h = hooks(cm); h?.save?.(); h?.quit?.(); });
   Vim.defineEx("xit", "x", (cm: { cm6?: EditorView }) => { const h = hooks(cm); h?.save?.(); h?.quit?.(); });
+}
+
+// A yank also reaches the system clipboard (`[editor] vim_clipboard`): `y` over a visual selection, `yy`, `yw` are
+// pasted with Ctrl+V anywhere, as vim's `clipboard=unnamed` does for yanks. Deletes stay in vim's registers only, so
+// `x` and `dd` never overwrite what was copied. An explicit register (`"ay`) is left alone; `"+y` vim copies itself.
+let yankHooked = false;
+export function yankToClipboard(): void {
+  if (yankHooked) return;
+  yankHooked = true;
+  type Push = (name: string | null | undefined, op: string, text: string, linewise?: boolean, blockwise?: boolean) => void;
+  const rc = (Vim as unknown as { getRegisterController(): { pushText: Push } }).getRegisterController();
+  const push = rc.pushText.bind(rc);
+  rc.pushText = (name, op, text, linewise, blockwise) => {
+    push(name, op, text, linewise, blockwise);
+    if (op !== "yank" || (name && name !== '"') || settings.config?.editor.vim_clipboard === false) return;
+    const copied = linewise && !text.endsWith("\n") ? `${text}\n` : text;
+    void navigator.clipboard?.writeText(copied).catch(() => {}); // a window that may not write the clipboard: the register still has it
+  };
 }
 
 export function modeLabel(e: { mode?: string; subMode?: string } | undefined): VimModeLabel {

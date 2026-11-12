@@ -5,6 +5,27 @@ and versions follow [Semantic Versioning](https://semver.org/) once 1.0 is out.
 
 ## [Unreleased]
 
+## [0.2.11] - 2026-11-12
+
+### Added
+- Export 1.4.0: a link to a numbered equation is a real link in the PDF — `\label` and `\eqref` on the LaTeX road, a
+  `<eq-n>` label and a link to it on the Typst road; Word keeps the plain "(n)".
+- A DOI link the library has not got yet is marked in the live editor too (dashed), as in the reading view.
+- `[editor] vim_clipboard` (on by default): with vim keys, a yank (`y`, a visual yank) also copies to the system
+  clipboard; deletes stay in vim's registers.
+
+### Fixed
+- Links in the editor take their colour again when a note is made, moved or deleted: a link no longer stays
+  "missing" (or found) until its line is edited.
+- copyparty 0.4.1: a PDF on a server with a password is filed (downloaded with the password, then read as a dropped
+  PDF); the catalog could not fetch it.
+- Papers 0.7.1: a PDF already in the library is recognised by its content only; another work under the same file
+  name (two `main.pdf`) gets its own entry instead of the first one's note.
+- Papers 0.7.1: a PDF with no identifier and no readable first page is named from its Info dictionary (title,
+  author, year made) before its file name; several people in one author string (an index's "A B, C D, E F") are
+  split into one author each.
+- Catalog 0.9.1: the page reader no longer fetches a link to a file (a PDF over 8 MB failed with "file too large").
+
 ## [0.2.10] - 2026-11-12
 
 ### Added
@@ -15,6 +36,8 @@ and versions follow [Semantic Versioning](https://semver.org/) once 1.0 is out.
 - copyparty 0.4.0: a link to a server's file opens the file in Atlas; agents' tools to list or find files on a server
   and file one through the catalog.
 - Papers 0.6.0: a PDF without identifiers is named from its first page (title, authors, year → `author2026word`).
+- Papers 0.7.0: books (type book: an ISBN, a book's DOI, a long PDF) are kept in `refs/books/<key>/` beside the papers,
+  in refs.bib with them; `shelve` moves the books filed before.
 - Catalog 0.9.0: `instead` — with Catalog · Science installed every book is a reference book; without it, books are
   books (no guess from subjects).
 - Numbered equations: `\label{…}` inside `$$…$$` (or `$$ … $$ ^id`) numbers a display, as do `equation`/`align`

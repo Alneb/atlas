@@ -99,6 +99,9 @@ export const mathPortable = (text: string) => text.replace(/\$\$([\s\S]+?)\$\$/g
 // numbered environment without one gets a blank label, links become placeholders; then `numberEquations` writes
 // `\tag{n}` into each display and the numbers into the links (the Typst and Word roads turn the tag into text, helper.ts).
 const AUTO = "\u0002";
+/** In `numberEquations`' output: after a display's `\tag{n}`, "this one is equation n's target"; around a number, "a
+ *  link to equation n". Each road writes them its own way (helper.ts `equationMarks`). */
+export const ANCHOR = "\u0005", REF = "\u0006";
 
 /** A note's displays with their labels made its own: `$$ … $$ ^id` → `\label{note::id}`, `\label{id}` likewise. */
 export function qualifyLabels(text: string, note: string): string {
@@ -115,6 +118,7 @@ export function qualifyLabels(text: string, note: string): string {
  *  own numbers. A link to a figure reads "Figure n" by its note's numbering ("Note, Figure n" from another note). */
 export async function numberEquations(md: string, read: (note: string) => Promise<string>): Promise<string> {
   const byLabel = new Map<string, string>();
+  const anchored = new Set<string>();
   let n = 0;
   md = md.replace(/\$\$([\s\S]+?)\$\$/g, (whole, tex: string) => {
     const labels = [...tex.matchAll(/\\label\{([^}]*)\}/g)].map((m) => m[1]);
@@ -122,7 +126,9 @@ export async function numberEquations(md: string, read: (note: string) => Promis
     const own = /\\tag\*?\{([^}]*)\}/.exec(tex)?.[1];
     const num = own ?? (/\\(?:notag|nonumber)\b/.test(tex) ? null : String(++n));
     for (const l of labels) if (num && l !== AUTO) byLabel.set(l, num);
-    const bare = num && !own ? numberedTex(tex.trimEnd(), num) : numberedTex(tex).trimEnd(); // labels out, an env its twin
+    let bare = num && !own ? numberedTex(tex.trimEnd(), num) : numberedTex(tex).trimEnd(); // labels out, an env its twin
+    // the first display with this number is the one links go to (each road makes it a label: `equationMarks`)
+    if (num && !anchored.has(num)) { anchored.add(num); bare = bare.replace(/\\tag\*?\{[^}]*\}/, (t) => t + ANCHOR); }
     return `$$${bare}\n$$`;
   });
   const elsewhere = new Map<string, Promise<Equations | undefined>>();
@@ -133,7 +139,7 @@ export async function numberEquations(md: string, read: (note: string) => Promis
     const own = r.startsWith("="), key = own ? r.slice(1) : r;
     const [note, id] = [key.slice(0, key.lastIndexOf("::")), key.slice(key.lastIndexOf("::") + 2)];
     const here = byLabel.get(key);
-    if (here) { text.set(r, `(${here})`); continue; }
+    if (here) { text.set(r, `${REF}${here}${REF}`); continue; }
     // another note's equation, or a figure (numbered in its own note): what a link to it reads there
     if (!elsewhere.has(note)) elsewhere.set(note, read(note).then((t) => noteEquations(t), () => undefined));
     const there = refOf(await elsewhere.get(note)!, id);

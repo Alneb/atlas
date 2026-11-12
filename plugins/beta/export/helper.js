@@ -307,6 +307,7 @@
 	*  own numbers. A link to a figure reads "Figure n" by its note's numbering ("Note, Figure n" from another note). */
 	async function numberEquations(md, read) {
 		const byLabel = /* @__PURE__ */ new Map();
+		const anchored = /* @__PURE__ */ new Set();
 		let n = 0;
 		md = md.replace(/\$\$([\s\S]+?)\$\$/g, (whole, tex) => {
 			const labels = [...tex.matchAll(/\\label\{([^}]*)\}/g)].map((m) => m[1]);
@@ -314,7 +315,12 @@
 			const own = /\\tag\*?\{([^}]*)\}/.exec(tex)?.[1];
 			const num = own ?? (/\\(?:notag|nonumber)\b/.test(tex) ? null : String(++n));
 			for (const l of labels) if (num && l !== AUTO) byLabel.set(l, num);
-			return `$$${num && !own ? numberedTex(tex.trimEnd(), num) : numberedTex(tex).trimEnd()}\n$$`;
+			let bare = num && !own ? numberedTex(tex.trimEnd(), num) : numberedTex(tex).trimEnd();
+			if (num && !anchored.has(num)) {
+				anchored.add(num);
+				bare = bare.replace(/\\tag\*?\{[^}]*\}/, (t) => t + "");
+			}
+			return `$$${bare}\n$$`;
 		});
 		const elsewhere = /* @__PURE__ */ new Map();
 		const refs = [...new Set([...md.matchAll(/\u0001([^\u0001]*)\u0001/g)].map((m) => m[1]))];
@@ -324,7 +330,7 @@
 			const [note, id] = [key.slice(0, key.lastIndexOf("::")), key.slice(key.lastIndexOf("::") + 2)];
 			const here = byLabel.get(key);
 			if (here) {
-				text.set(r, `(${here})`);
+				text.set(r, `${here}`);
 				continue;
 			}
 			if (!elsewhere.has(note)) elsewhere.set(note, read(note).then((t) => noteEquations(t), () => void 0));
@@ -737,8 +743,26 @@
 			j.t.warnings.push(`a ${f.lang} picture is left as code: ${f.lang === "tikz" ? "the TeX in the page did not draw it" : "Word has no Typst"}`);
 			out[i] = "```" + f.lang + "\n" + f.source + "\n```";
 		}
-		const md = (road === "latex" ? j.t.markdown : j.t.markdown.replace(/\\tag\*?\{([^}]*)\}/g, (_, n) => `\\qquad\\text{(${n})}`)).replace(/<!--fence:(\d+)-->/g, (_, n) => out[Number(n)]);
+		const md = equationMarks(j.t.markdown, road).replace(/<!--fence:(\d+)-->/g, (_, n) => out[Number(n)]);
 		return /^# /m.test(md) || !/^## /m.test(md) ? md : md.replace(/^#(#+ )/gm, "$1");
+	}
+	/** The equation numbers `numberEquations` wrote (translate.ts `ANCHOR`, `REF`), for a road. LaTeX keeps `\tag`, labels
+	*  the display and links with `\eqref`. pandoc's Typst and Word writers drop `\tag`, so there the number is written
+	*  beside the formula; Typst labels it `<eq-n>` and links to the label (`#link`, not `@eq-n`: a reference needs Typst's
+	*  own equation numbering, which would number every display); Word has the plain numbers. */
+	function equationMarks(md, road) {
+		const label = (n) => `eq-${n.replace(/[^A-Za-z0-9_.:-]/g, "-")}`;
+		const text = (n, star) => star ? n : `(${n})`;
+		md = md.replace(/\$\$([\s\S]+?)\$\$/g, (whole, tex) => {
+			let anchor = "";
+			const t = tex.replace(/\\tag(\*?)\{([^}]*)\}(\u0005?)/g, (tag, star, n, a) => {
+				if (road === "latex") return a ? `${tag.slice(0, -1)}\\label{${label(n)}}` : tag;
+				if (a && road === "typst") anchor = "`<" + label(n) + ">`{=typst}";
+				return `\\qquad\\text{${text(n, !!star)}}`;
+			});
+			return t === tex ? whole : `$$${t}$$${anchor}`;
+		});
+		return md.replace(/\u0006([^\u0006]*)\u0006/g, (_, n) => road === "latex" ? "`\\eqref{" + label(n) + "}`{=latex}" : road === "typst" ? "`#link(<" + label(n) + ">)[" + text(n, false).replace(/[\\#*_`$<>@\[\]]/g, "\\$&") + "]`{=typst}" : text(n, false));
 	}
 	const MD = "markdown+mark-implicit_figures+implicit_figures";
 	async function pandoc(j, to, input, extra = [], output) {
@@ -876,6 +900,7 @@
 	});
 	//#endregion
 	exports.LAYOUTS = LAYOUTS;
+	exports.equationMarks = equationMarks;
 	exports.latexErrors = latexErrors;
 	exports.layoutOf = layoutOf;
 	exports.tikzPng = tikzPng;

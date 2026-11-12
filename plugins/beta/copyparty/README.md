@@ -21,7 +21,9 @@ made by Atlas's core, so the password never reaches the page and there is no COR
 - **Tools for agents** (a JS helper): `copyparty_list` lists a folder, or with `query` finds the files and folders under
   it whose names have all those words (nearest first, at most 300 folders walked); each file comes with its address.
   `copyparty_file` hands a file's address to the catalog, which files it as a captured link: a PDF becomes a paper or a
-  book with its file. The catalog fetches the address itself, so a server behind a password is not filed this way yet.
+  book with its file. A PDF on a server with a password is downloaded by this plugin (the catalog has no key to it) and
+  filed by the references plugin's `import`, as a PDF dropped on the page is: same reading, the address kept as `url`.
+  Other files on such a server still go through the catalog, which cannot fetch them.
 - **Other plugins read servers through it**: the Books plugin lists the books of a server folder with
   `atlas.files.list("copyparty", …)`.
 

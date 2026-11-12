@@ -59,3 +59,19 @@ test("classic keys: Ctrl+V is still vim's block selection", async ({ page }) => 
   await page.keyboard.press("Control+v");
   await expect.poll(() => mode(page)).toBe("V-BLOCK");
 });
+
+// `[editor] vim_clipboard` (on by default): a yank also reaches the system clipboard, in any key mode; a delete does not.
+test("a visual yank reaches the clipboard, a delete stays in vim's register", async ({ page, context }) => {
+  await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+  await open(page, "classic");
+  await page.keyboard.type("Gogamma delta");
+  await page.keyboard.press("Escape");
+  await page.evaluate(() => navigator.clipboard.writeText("before"));
+  await page.keyboard.type("viwy");
+  await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toBe("delta");
+  await expect.poll(() => mode(page)).toBe("NORMAL");
+  await page.keyboard.type("yy");
+  await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toBe("gamma delta\n");
+  await page.keyboard.type("x");
+  expect(await page.evaluate(() => navigator.clipboard.readText()), "x deletes into vim's register only").toBe("gamma delta\n");
+});

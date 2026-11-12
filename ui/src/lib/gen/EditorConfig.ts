@@ -140,6 +140,11 @@ properties_spec: string,
  */
 vim_keys: VimKeys, 
 /**
+ * With vim on: a yank (`y` over a visual selection, `yy`, `yw`…) also copies to the system clipboard, to paste
+ * with Ctrl+V in any program. Deletes stay in vim's registers. Off: only vim's registers (`"+y` still copies).
+ */
+vim_clipboard: boolean, 
+/**
  * An AI agent's own files (memories, session logs, its instructions): not your notes. They are
  * left out of links, backlinks, the graph, `[[` completion, Bases, open tasks, quick open, the
  * activity list and search (the Search pane has a switch to include them); the file tree still

@@ -9,7 +9,7 @@ export function attachPenBridge(): void {
   const w = window as unknown as { atlasPen?: (p: number | null, tx?: number, ty?: number, eraser?: boolean) => void };
   w.atlasPen = (p, tiltX = 0, tiltY = 0, eraser = false) => { pen = p === null ? null : { pressure: p, tiltX, tiltY, eraser }; };
   for (const type of ["pointerdown", "pointermove", "pointerup", "pointerover", "pointerenter", "pointerout", "pointerleave"] as const) {
-    addEventListener(type, (e) => {
+    window.addEventListener(type, (e: PointerEvent) => {
       if (!pen || e.pointerType !== "mouse" || !e.isTrusted) return;
       e.stopImmediatePropagation();
       const up = type === "pointerup";

@@ -131,7 +131,7 @@ pub fn isbn_book(net: &dyn Net, isbn: &str) -> Result<Mapping, String> {
             m.insert(k.into(), v.into());
         }
     };
-    let names = |a: &Json, key: &str| -> Vec<Value> { a.as_array().into_iter().flatten().filter_map(|x| if key.is_empty() { x.as_str() } else { x[key].as_str() }).map(|n| Value::from(last_first(n))).collect() };
+    let names = |a: &Json, key: &str| -> Vec<Value> { a.as_array().into_iter().flatten().filter_map(|x| if key.is_empty() { x.as_str() } else { x[key].as_str() }).flat_map(split_names).map(|n| Value::from(last_first(&n))).collect() };
     if let Some(b) = b {
         let title = match b["subtitle"].as_str() {
             Some(sub) => format!("{}: {sub}", b["title"].as_str().unwrap_or_default()),
@@ -222,12 +222,31 @@ pub struct ArxivRecord {
     pub journal_ref: Option<String>,
 }
 
-/// "P. W. Anderson" → "Anderson, P. W."
+/// "P. W. Anderson" → "Anderson, P. W."; a name already "Last, First" stays as it is.
 pub fn last_first(name: &str) -> String {
+    if name.contains(',') {
+        return name.trim().to_string();
+    }
     match name.trim().rsplit_once(' ') {
         Some((given, family)) => format!("{family}, {}", given.trim()),
         None => name.trim().to_string(),
     }
+}
+
+/// Several people written in one string, as indexes and a PDF's Info dictionary do ("Herbert Goldstein, Charles
+/// Poole, John Safko", "A. Smith and B. Jones", "Doe, J.; Roe, R."): one name each. Commas separate people only when
+/// every part is a whole name (has a space); "Goldstein, Herbert" is one person.
+pub fn split_names(s: &str) -> Vec<String> {
+    let mut out = Vec::new();
+    for part in s.split([';', '\n']).flat_map(|p| p.split(" and ")).flat_map(|p| p.split(" & ")) {
+        let commas: Vec<&str> = part.split(',').map(str::trim).filter(|p| !p.is_empty()).collect();
+        if commas.len() > 1 && commas.iter().all(|c| c.contains(' ')) {
+            out.extend(commas.into_iter().map(String::from));
+        } else if !part.trim().is_empty() {
+            out.push(part.trim().to_string());
+        }
+    }
+    out
 }
 
 /// The feed's first entry; None when arXiv has none (an unknown id answers an empty feed).
@@ -480,6 +499,16 @@ fn absolute(u: &str, page: &str) -> String {
 
 #[cfg(test)]
 mod tests {
+    /// One string with several people (Open Library's authors, an Info dictionary): one name each, "Last, First".
+    #[test]
+    fn several_people_in_one_string_are_split() {
+        let names: Vec<String> = super::split_names("Herbert Goldstein, Charles Poole, John Safko").iter().map(|n| super::last_first(n)).collect();
+        assert_eq!(names, ["Goldstein, Herbert", "Poole, Charles", "Safko, John"]);
+        assert_eq!(super::split_names("Goldstein, Herbert"), ["Goldstein, Herbert"]);
+        assert_eq!(super::last_first("Goldstein, Herbert"), "Goldstein, Herbert");
+        assert_eq!(super::split_names("A. Smith and B. Jones; C. Roe"), ["A. Smith", "B. Jones", "C. Roe"]);
+    }
+
     #[test]
     fn an_isbn_is_found_on_a_copyright_page_and_checked() {
         let page = "Springer\nISBN 978-3-540-32897-1 e-ISBN 978-3-540-32899-8\nDOI 10.1007/978-3-540-32899-8\n";

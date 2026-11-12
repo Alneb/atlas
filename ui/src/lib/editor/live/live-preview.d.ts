@@ -12,6 +12,8 @@ export interface LivePreviewOptions {
   /** The words a link without an alias reads instead of its target (a numbered equation's "(3)"), or null. A cached
    *  lookup: it runs on every keystroke. */
   linkLabel?: (state: EditorState, target: string) => string | null;
+  /** A class and tooltip for a `[text](url)` link by its address (a DOI not in the library), or null. A cached lookup. */
+  linkMark?: (url: string) => { class: string; title?: string } | null;
   hydrateBlock?: (host: HTMLElement) => Promise<unknown> | null | void;
   /** A hydrated host's DOM left the editor for good: undo what hydrateBlock mounted. */
   releaseBlock?: (host: HTMLElement) => void;

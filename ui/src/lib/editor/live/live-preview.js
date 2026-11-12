@@ -603,6 +603,8 @@ function normalizeOptions(options) {
     linkResolves: options.linkResolves || (() => true),
     // Atlas: what a link reads instead of its target (a numbered equation), null for most
     linkLabel: options.linkLabel || null,
+    // Atlas: a class (and a tooltip) for a [text](url) link by its address, null for most: a cached lookup
+    linkMark: options.linkMark || (() => null),
     // Syntax highlighting inside fenced code blocks, as [{from,to,cls}] ranges
     // over the code text. Defaults to none, which leaves code as plain
     // monospace -- the behaviour before this was wired in.
@@ -1291,7 +1293,9 @@ export function buildDecorations(state, ranges, options = {}) {
         if (name === "Link") {
           // Atlas: the target on the mark, for the hover preview (lib/preview.ts)
           const href = node.node.getChild("URL");
-          add(node.from, node.to, Decoration.mark({ class: "cm-link", attributes: href ? { "data-href": state.doc.sliceString(href.from, href.to) } : undefined }));
+          const target = href ? state.doc.sliceString(href.from, href.to) : null;
+          const more = target ? opts.linkMark(target) : null; // Atlas: a DOI link not in the library (doi-links.ts)
+          add(node.from, node.to, Decoration.mark({ class: more ? `cm-link ${more.class}` : "cm-link", attributes: target ? { "data-href": target, ...(more?.title ? { title: more.title } : {}) } : undefined }));
           if (!revealed(state, node.from, node.to)) {
             const url = node.node.getChild("URL");
             if (url) {

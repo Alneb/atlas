@@ -6,7 +6,7 @@
 // has one, `openSource` opens it or files it through the catalog (a PDF link is downloaded and read for its metadata).
 import { api } from "./api";
 import { confirmDialog } from "./confirm";
-import { library } from "./entities";
+import { library, onLibraryChange } from "./entities";
 import { openReadingNote } from "./papers";
 import { toast } from "./state.svelte";
 import { errText } from "./text";
@@ -86,6 +86,34 @@ export async function openSource(source: string): Promise<boolean> {
     toast("Could not add this source", errText(e), "error", 9000);
     return false;
   }
+}
+
+// the library's DOIs for a look that cannot wait (the editor's decorations): null until it has answered once, and
+// again after it changes; the editors that asked meanwhile are told when it is there
+let dois: Set<string> | null = null;
+let asking: Promise<void> | null = null;
+const waiting = new Set<() => void>();
+onLibraryChange(() => { dois = null; asking = null; });
+
+/** Whether the library has this DOI, if known now; null while asking (then `ready` is called once it answers). */
+export function doiInLibraryNow(doi: string, ready: () => void): boolean | null {
+  if (dois) return dois.has(doi.toLowerCase());
+  waiting.add(ready);
+  asking ??= library().then((ps) => {
+    dois = new Set(ps.map((p) => p.doi?.toLowerCase()).filter((d): d is string => !!d));
+    const told = [...waiting];
+    waiting.clear();
+    for (const f of told) f();
+  });
+  return null;
+}
+
+/** The editor's mark for a `[text](url)` link: a DOI the library has not got yet looks as in the reading view. */
+export function doiLinkMark(url: string, ready: () => void): { class: string; title: string } | null {
+  const doi = doiOf(url);
+  if (!doi) return null;
+  const has = doiInLibraryNow(doi, ready);
+  return has === false ? { class: "doi-link not-in-library", title: `${doi} — not in the library: a click offers to add it` } : { class: "doi-link", title: "" };
 }
 
 /** Rendered HTML: each DOI link says whether the library has it (`.doi-link`, `.not-in-library`). */

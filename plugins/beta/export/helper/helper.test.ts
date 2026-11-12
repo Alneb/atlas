@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import { harness } from "atlas-helper/testing";
 import { translate, relative, mathPortable } from "./translate";
 import { macroDefinitions } from "../../../../ui/src/lib/tex-portable";
-import { latexErrors, yamlEntry } from "./helper";
+import { latexErrors, yamlEntry, equationMarks } from "./helper";
 
 const REPORT = `---
 author: Alice
@@ -197,12 +197,29 @@ test("equations are numbered over the whole document, an embedded note's continu
     "notes/Far.md": "$$ u \\label{eq-g} $$\n$$ v \\label{eq-f} $$\n",
   };
   const t = await translate({ files: Object.keys(files), read: async (p: string) => files[p] }, "notes/Host.md", "exports", new Set());
-  const md = t.markdown.replace(/\s+/g, " ");
-  assert.ok(md.includes("a = b\\tag{1}"), md);
-  assert.ok(md.includes("\\end{aligned}\\tag{2}"), md); // the embedded note continues: (2)
-  assert.ok(md.includes("z \\tag{D2}") && !md.includes("\\label"), md);
-  assert.ok(md.includes("and (1), (2), Far (2)."), md); // a note not in the document: its own numbers
+  const md = t.markdown.replace(/\s+/g, " ").replace(/\u0005/g, "@").replace(/\u0006([^\u0006]*)\u0006/g, "<$1>");
+  assert.ok(md.includes("a = b\\tag{1}@"), md); // @: the display links go to
+  assert.ok(md.includes("\\end{aligned}\\tag{2}@"), md); // the embedded note continues: (2)
+  assert.ok(md.includes("z \\tag{D2}@") && !md.includes("\\label"), md);
+  assert.ok(md.includes("and <1>, <2>, Far (2)."), md); // a note not in the document: its own numbers, as text
   assert.ok(md.includes("$$ c $$"), "a plain display stays unnumbered");
+
+  // each road: LaTeX labels and \eqref, Typst the number beside the formula, a label and a link to it, Word the text
+  const roads = (r: "latex" | "typst" | "docx") => equationMarks(t.markdown, r).replace(/\s+/g, " ");
+  const latex = roads("latex"), typst = roads("typst"), word = roads("docx");
+  assert.ok(latex.includes("a = b\\tag{1}\\label{eq-1} $$") && latex.includes("\\tag{D2}\\label{eq-D2}"), latex);
+  assert.ok(latex.includes("and `\\eqref{eq-1}`{=latex}, `\\eqref{eq-2}`{=latex}, Far (2)."), latex);
+  assert.ok(typst.includes("a = b\\qquad\\text{(1)} $$`<eq-1>`{=typst}"), typst);
+  assert.ok(typst.includes("and `#link(<eq-1>)[(1)]`{=typst}, `#link(<eq-2>)[(2)]`{=typst}, Far (2)."), typst);
+  assert.ok(word.includes("a = b\\qquad\\text{(1)} $$ then") && word.includes("and (1), (2), Far (2).") && !/[\u0005\u0006]/.test(word), word);
+});
+
+test("an equation number is linked once, at its first display; a starred tag reads without brackets", () => {
+  const md = "$$ a \\tag*{A}\u0005\n$$\n\n$$ b \\tag{A}\n$$\n\nsee \u0006A\u0006";
+  const typst = equationMarks(md, "typst");
+  assert.equal((typst.match(/<eq-A>`/g) ?? []).length, 1, typst);
+  assert.ok(typst.includes("a \\qquad\\text{A}") && typst.includes("b \\qquad\\text{(A)}"), typst);
+  assert.equal((equationMarks(md, "latex").match(/\\label/g) ?? []).length, 1);
 });
 
 test("a link to a figure reads Figure n, and the figure's block id is gone", async () => {
