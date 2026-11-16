@@ -26,7 +26,7 @@ test.afterAll(async ({ request }) => {
 });
 
 test("plugins put chips under the date; Activity says what was made; the map is the vault's topics as a tree", async ({ page, request }) => {
-  await put(request, "notes/fresh idea.md", "# A fresh idea\n");
+  await put(request, "ideas/fresh idea.md", "# A fresh idea\n"); // a folder of its own: notes made the same day in one folder gather in one row
   await page.goto("/");
   await page.getByText("Finish the GW notes.").waitFor();
   const chips = page.locator(".greet-chips");
@@ -70,7 +70,7 @@ test("plugins put chips under the date; Activity says what was made; the map is 
   await expect(map.locator(".row").first()).toContainText("Physics");
   await expect(map.locator(".row", { hasText: "Optics" })).toBeVisible(); // under Physics, open
   await expect(map.locator(".row", { hasText: "Mechanics" })).toHaveCount(0); // named by nobody: not a hub
-  await request.post("/api/fs/trash?path=notes/fresh idea.md", { headers: H });
+  await request.post("/api/fs/trash?path=ideas/fresh idea.md", { headers: H });
 
   // the areas: the top folders as tiles, each with its latest notes
   await put(request, "notes/map/Areas.md", "# Areas\n\n```view\ntype: home.areas\nareas: 8\n```\n");

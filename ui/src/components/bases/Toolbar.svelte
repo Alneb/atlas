@@ -2,7 +2,8 @@
   // A base's toolbar, as Obsidian's: the view switcher (its menu adds, renames, copies, retypes and deletes views), the
   // results count, and Sort / Filter / Properties, each a popover under its button; "New" makes a note in the view.
   import Icon from "../Icon.svelte";
-  import ContextMenu, { type MenuItem } from "../ContextMenu.svelte";
+  import ContextMenu from "../ContextMenu.svelte";
+  import type { MenuItem } from "../../lib/menu";
   import InputDialog from "../InputDialog.svelte";
   import Popover from "../Popover.svelte";
   import FilterPanel from "./FilterPanel.svelte";

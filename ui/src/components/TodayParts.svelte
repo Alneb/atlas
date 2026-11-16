@@ -32,7 +32,7 @@
   import { noteHeadings } from "../lib/note-anchor";
   import { frontmatterSpan } from "../lib/property-model";
 
-  export type TodayPart = "greeting" | "capture" | "focus" | "log" | "tasks" | "activity";
+  import type { TodayPart } from "../lib/today-store.svelte";
   const ALL: TodayPart[] = ["greeting", "capture", "focus", "log", "tasks", "activity"];
   /** `day`: a day's log showing its own activity (fixed, no ‹ ›). */
   let { panel, parts = ALL, day: fixedDay }: { panel?: DockviewPanelApi; parts?: TodayPart[]; day?: string } = $props();
@@ -102,8 +102,8 @@
       for (const r of rows) if (dirOf(r.dir)) byParent.set(dirOf(r.dir), [...(byParent.get(dirOf(r.dir)) ?? []), r]);
       for (const [p, rs] of byParent) {
         if (rs.length < threshold) continue;
-        // the folder's own loose files join it too
-        const inside = rows.filter((r) => rs.includes(r) || (r.dir === p && r.files.length === 1));
+        // the folder's own rows join it too (its loose files, or its own gathered row: one row per key)
+        const inside = rows.filter((r) => rs.includes(r) || r.dir === p);
         rows = [...rows.filter((r) => !inside.includes(r)), { key: p, dir: p, files: inside.flatMap((r) => r.files) }];
         merged = true;
         break;

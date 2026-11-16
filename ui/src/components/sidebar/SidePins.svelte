@@ -10,7 +10,7 @@
   import { tabs, activate, closeTab } from "../../lib/tabs.svelte";
   import { appLaunchers, moveApp, setAppHidden, type AppTile } from "../../lib/apps.svelte";
   import { openSettingsAt } from "../../lib/settings-nav.svelte";
-  import type { MenuItem } from "../ContextMenu.svelte";
+  import type { MenuItem } from "../../lib/menu";
   import Icon from "../Icon.svelte";
 
   let { host }: { host: BlockHost } = $props();

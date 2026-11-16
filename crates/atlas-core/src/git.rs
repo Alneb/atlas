@@ -360,7 +360,7 @@ pub fn born(root: &Path, rel: &str) -> Option<i64> {
         return None;
     }
     let log = git_ok(root, &["log", "--follow", "--diff-filter=A", "--format=%at", "--", rel]).ok()?;
-    log.lines().filter_map(|l| l.trim().parse().ok()).last() // newest first: the last is the first add
+    log.lines().filter_map(|l| l.trim().parse().ok()).next_back() // newest first: the last is the first add
 }
 
 pub fn births(root: &Path, since: i64, until: i64) -> Option<Births> {

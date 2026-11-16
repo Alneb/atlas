@@ -112,6 +112,7 @@ pub fn prepare(_app: &AppHandle, _web: WebConfig) {
 }
 
 /// Website data that stays when sites' data is forgotten: Atlas's own (the core on the loopback address) and local files.
+#[cfg_attr(not(target_os = "linux"), allow(dead_code))] // only WebKitGTK's forgetting uses it; its test runs everywhere
 fn atlas_own(record: &str) -> bool {
     matches!(record.trim_start_matches('[').trim_end_matches(']'), "127.0.0.1" | "localhost" | "::1" | "") || record.eq_ignore_ascii_case("local files")
 }

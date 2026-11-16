@@ -4,7 +4,7 @@
 // to go anywhere (commands, search). A part with its own
 // menu (the editor, tabs, files, a terminal…) prevents the default and this one stays away. Shift+right-click keeps
 // the WebView's (spelling suggestions, Inspect); a long press by a finger or a pen stays the phone's own.
-import type { MenuItem } from "../components/ContextMenu.svelte";
+import type { MenuItem } from "./menu";
 import { atPointer, popMenu, pressedByHand } from "./menu";
 import { open, openPath } from "./dock";
 import { revealItems } from "./reveal-items";

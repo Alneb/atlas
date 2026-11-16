@@ -931,12 +931,7 @@ async fn fs_upload(State(st): S, Query(q): Query<UploadQuery>, body: Bytes) -> R
 /// changed.
 async fn fs_move(State(st): S, Json(m): Json<MoveRequest>) -> Result<Json<Moved>> {
     let mut paths = vec![m.from.clone(), m.to.clone()];
-    let relinked = with_ws(&st, move |ws| {
-        let plan = crate::relink::plan(ws.root(), &ws.config()?, &m.from, &m.to);
-        files::move_path(&ws, &m.from, &m.to)?;
-        crate::relink::apply(&ws, &plan)
-    })
-    .await?;
+    let relinked = with_ws(&st, move |ws| crate::relink::move_with_links(&ws, &m.from, &m.to)).await?;
     paths.extend(relinked.notes.iter().cloned());
     st.bus.publish(Event::Fs { paths });
     Ok(Json(Moved { links: relinked.links as u32, notes: relinked.notes }))
@@ -1039,12 +1034,71 @@ async fn task_tick(State(st): S, Json(t): Json<TaskRef>) -> Result<StatusCode> {
     Ok(StatusCode::NO_CONTENT)
 }
 
+#[derive(serde::Deserialize)]
+struct TasksQuery {
+    #[serde(default)]
+    status: today::Status,
+}
+
+/// The vault's tasks with their fields (`today::listed`): `{ tasks: [...] }`, open ones unless `status` says.
+async fn tasks_get(State(st): S, Query(q): Query<TasksQuery>) -> Result<Json<serde_json::Value>> {
+    let tasks = with_ws(&st, move |ws| Ok(today::listed(ws.root(), &ws.config()?, q.status))).await?;
+    Ok(Json(serde_json::json!({ "tasks": tasks })))
+}
+
+/// The task's block id, given one at the end of its line when it has none (`today::block_of`): for an action the
+/// user took on it (a nudge's Snooze, a link).
+async fn task_block(State(st): S, Json(t): Json<TaskRef>) -> Result<Json<serde_json::Value>> {
+    let path = t.path.clone();
+    let block = with_ws(&st, move |ws| today::block_of(&ws, &t)).await?;
+    st.bus.publish(Event::Fs { paths: vec![path] });
+    Ok(Json(serde_json::json!({ "block": block })))
+}
+
+#[derive(serde::Deserialize)]
+struct TaskSchedule {
+    task: TaskRef,
+    /// `YYYY-MM-DD`: the task's new ⏳
+    scheduled: String,
+    #[serde(default)]
+    link: Option<today::PlanLink>,
+}
+
+/// A task planned into an event (time-blocked, or moved with its event): its ⏳, a link to the event's note in its
+/// description, its block id (`today::schedule_ref`). Answers `{ block, line }`.
+async fn task_schedule(State(st): S, Json(q): Json<TaskSchedule>) -> Result<Json<serde_json::Value>> {
+    let day = chrono::NaiveDate::parse_from_str(q.scheduled.trim(), "%Y-%m-%d").map_err(|_| Error::BadRequest(format!("scheduled is not YYYY-MM-DD: {}", q.scheduled)))?;
+    let path = q.task.path.clone();
+    let (block, line) = with_ws(&st, move |ws| today::schedule_ref(&ws, &q.task, day, q.link.as_ref())).await?;
+    st.bus.publish(Event::Fs { paths: vec![path] });
+    Ok(Json(serde_json::json!({ "block": block, "line": line })))
+}
+
+/// This core's computer: its name and whether the vault's schedules run here (`[automation] schedules_on`) — what a
+/// plugin that must act on one device only (the Plan plugin's nudges) asks.
+async fn device_get(State(st): S) -> Result<Json<serde_json::Value>> {
+    let host = crate::platform::proc::hostname();
+    let cfg = with_ws(&st, |ws| ws.config()).await?;
+    Ok(Json(serde_json::json!({ "name": host, "schedules": cfg.automation.schedules_here(&host) })))
+}
+
 /// A notice's button pressed on a page (its toast): answered by the same router as a press on the system's
 /// notification (notice_actions.rs), so Open, Snooze and a plugin's own buttons do the same from both.
 async fn notice_press(State(st): S, Json(p): Json<crate::api::NoticePress>) -> Result<StatusCode> {
     let chosen = crate::events::Chosen { action: p.action, source: p.source, notice: p.notice, open: p.open };
     crate::notice_actions::answer(&st.ws, &st.bus, &st.helpers, chosen, chrono::Utc::now()).await;
     Ok(StatusCode::NO_CONTENT)
+}
+
+/// The notices that came while no page of this vault was looked at (notify.rs `UnseenList`), newest first.
+async fn notices_get(State(st): S) -> Json<crate::notify::UnseenList> {
+    Json(crate::notify::unseen_of(st.ws.root()).lock().unwrap_or_else(|e| e.into_inner()).clone())
+}
+
+/// The notices of this id or about this subject are no longer news: `Event::Withdraw`, as a done task's are.
+async fn notices_withdraw(State(st): S, Json(w): Json<crate::notify::Withdrawal>) -> StatusCode {
+    st.bus.publish(Event::Withdraw { id: w.id });
+    StatusCode::NO_CONTENT
 }
 
 async fn task_line(State(st): S, Json(t): Json<TaskTick>) -> Result<Json<TaskTicked>> {
@@ -1626,13 +1680,14 @@ async fn live_ws(State(st): S, Query(mut q): Query<LiveQuery>, upgrade: WebSocke
 
 async fn events_ws(State(st): S, upgrade: WebSocketUpgrade) -> Response {
     let rx = st.bus.subscribe();
-    let vault = crate::notify::Presence::of_vault(st.ws.root());
-    upgrade.on_upgrade(move |socket| forward_events(socket, rx, vault))
+    let (vault, unseen) = (crate::notify::Presence::of_vault(st.ws.root()), crate::notify::unseen_of(st.ws.root()));
+    upgrade.on_upgrade(move |socket| forward_events(socket, rx, vault, unseen))
 }
 
 /// The bus to one page; the page says on it whether it is looked at (`{"seen": …}`, notify.rs). It counts among the
-/// process's pages and its vault's (`vault`: a vault no page shows slows its background work).
-async fn forward_events(mut socket: WebSocket, mut rx: tokio::sync::broadcast::Receiver<Event>, vault: Arc<crate::notify::Presence>) {
+/// process's pages and its vault's (`vault`: a vault no page shows slows its background work). Looked at, the vault's
+/// unseen notices are seen.
+async fn forward_events(mut socket: WebSocket, mut rx: tokio::sync::broadcast::Receiver<Event>, vault: Arc<crate::notify::Presence>, unseen: Arc<std::sync::Mutex<crate::notify::UnseenList>>) {
     use tokio::sync::broadcast::error::RecvError;
     let page = crate::notify::Presence::global().join();
     let shown = vault.join();
@@ -1656,6 +1711,9 @@ async fn forward_events(mut socket: WebSocket, mut rx: tokio::sync::broadcast::R
                     if let Ok(s) = serde_json::from_str::<crate::notify::Seen>(&t) {
                         page.seen(s.seen);
                         shown.seen(s.seen);
+                        if s.seen {
+                            unseen.lock().unwrap_or_else(|e| e.into_inner()).clear();
+                        }
                     }
                 }
                 Some(Ok(_)) => {}
@@ -2390,9 +2448,15 @@ fn router(state: Arc<AppState>) -> Router {
         .route("/api/graph", get(graph_get))
         .route("/api/tags", get(tags_get))
         .route("/api/tags/rename", post(tags_rename))
+        .route("/api/tasks", get(tasks_get))
+        .route("/api/task/block", post(task_block))
+        .route("/api/task/schedule", post(task_schedule))
+        .route("/api/device", get(device_get))
         .route("/api/task/tick", post(task_tick))
         .route("/api/task/line", post(task_line))
+        .route("/api/notices", get(notices_get))
         .route("/api/notices/action", post(notice_press))
+        .route("/api/notices/withdraw", post(notices_withdraw))
         .route("/api/task/render", post(task_render))
         .route("/api/fs/mkdir", post(fs_mkdir))
         .route("/api/fs/upload", post(fs_upload).layer(DefaultBodyLimit::max(1024 * 1024 * 1024)))

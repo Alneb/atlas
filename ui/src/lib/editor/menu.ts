@@ -7,7 +7,7 @@ import { selectAll } from "@codemirror/commands";
 import { EditorView } from "@codemirror/view";
 import type { Extension } from "@codemirror/state";
 import { LSPPlugin, findReferences, formatDocument, jumpToImplementation, jumpToTypeDefinition, renameSymbol, showSignatureHelp } from "@codemirror/lsp-client";
-import type { MenuItem } from "../../components/ContextMenu.svelte";
+import type { MenuItem } from "../menu";
 import { atPointer, popMenu, pressedByHand } from "../menu";
 import { keysOf } from "../keymap.svelte";
 import { toast } from "../state.svelte";

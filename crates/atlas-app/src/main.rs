@@ -14,7 +14,6 @@ mod tray_sni;
 mod tray_tauri;
 #[cfg(target_os = "linux")]
 mod web_filters;
-#[cfg(target_os = "linux")]
 
 use std::path::PathBuf;
 use tauri::{Manager, WebviewUrl, WebviewWindowBuilder};
@@ -329,13 +328,18 @@ fn paint_before_page(window: &tauri::WebviewWindow, vault: &std::path::Path) {
 /// declarativeNetRequest rules) removes X-Frame-Options and Content-Security-Policy from the pages Atlas's window frames
 /// — and only those (`initiatorDomains`: the core's own address) — and every site shows in a plain iframe, as in
 /// Obsidian. Written out under the cache at each start (WebView2 loads unpacked extensions from a folder). None: it
-/// could not be written; sites that refuse framing then open in a window, as before. WebKitGTK has no such hook
-/// (DEVELOPING.md, "Web pages as tabs"): Linux keeps a native view over the pane.
+/// could not be written; sites that refuse framing then open in a window, as before.
+///
+/// The same extension carries the web tabs' page script (`frame_script`, this run's token in it) as its content
+/// script: Chromium runs it in the extension's isolated world, the one isolated world WebView2 offers (its
+/// `AddScriptToExecuteOnDocumentCreated`, wry's initialization scripts, run in the page's), so a framed site never sees
+/// the token — as on Linux and macOS (`frame_script_isolated`).
 #[cfg(windows)]
 fn frame_any_extension() -> Option<PathBuf> {
     let root = atlas_core::platform::dirs::atlas(atlas_core::platform::dirs::Base::Cache).join("webview2-extensions");
     let dir = root.join("frame-any");
-    let files = [("manifest.json", include_str!("../webview2/frame-any/manifest.json")), ("rules.json", include_str!("../webview2/frame-any/rules.json"))];
+    let script = frame_script();
+    let files = [("manifest.json", include_str!("../webview2/frame-any/manifest.json")), ("rules.json", include_str!("../webview2/frame-any/rules.json")), ("frame_page.js", script.as_str())];
     let written = std::fs::create_dir_all(&dir).and_then(|_| files.iter().try_for_each(|(name, text)| std::fs::write(dir.join(name), text)));
     match written {
         Ok(()) => Some(root),
@@ -389,15 +393,38 @@ fn frame_script() -> String {
     include_str!("frame_page.js").replace("__ATLAS_FRAME_TOKEN__", frame_token())
 }
 
-/// On Linux the page script runs in a script world of its own (WebKit's isolated world, as a browser extension's
-/// content script): a framed site's scripts share the page's DOM with it but not its variables, so they never see the
-/// token, nor can they wrap the functions it calls. Added to the window's content manager for every frame; wry's own
-/// scripts go into the page's world.
+/// On Linux and macOS the page script runs in a script world of its own (WebKit's isolated world, as a browser
+/// extension's content script): a framed site's scripts share the page's DOM with it but not its variables, so they
+/// never see the token, nor can they wrap the functions it calls. Added to the window's content manager for every
+/// frame; wry's own scripts go into the page's world. Windows: the content script of `frame_any_extension`.
 #[cfg(target_os = "linux")]
 fn frame_script_isolated(view: &webkit2gtk::WebView) {
     use webkit2gtk::{UserContentInjectedFrames, UserContentManagerExt, UserScript, UserScriptInjectionTime, WebViewExt};
     if let Some(m) = view.user_content_manager() {
         m.add_script(&UserScript::for_world(&frame_script(), UserContentInjectedFrames::AllFrames, UserScriptInjectionTime::Start, "atlas-frame", &[], &[]));
+    }
+}
+
+/// macOS: a named `WKContentWorld` (macOS 11, the bundle's minimum), the script for all frames at document start.
+/// `view` is the window's WKWebView, as Tauri's `with_webview` hands it, on the main thread.
+#[cfg(target_os = "macos")]
+fn frame_script_isolated(view: *mut std::ffi::c_void) {
+    use objc2::MainThreadMarker;
+    use objc2_foundation::NSString;
+    use objc2_web_kit::{WKContentWorld, WKUserScript, WKUserScriptInjectionTime, WKWebView};
+    let Some(mtm) = MainThreadMarker::new() else {
+        return eprintln!("atlas-app: web tabs: the page script not added (not on the main thread)");
+    };
+    if view.is_null() {
+        return eprintln!("atlas-app: web tabs: the page script not added (no web view)");
+    }
+    // SAFETY: Tauri's pointer is the window's WKWebView, alive for this call, used on the main thread (checked above)
+    let view: &WKWebView = unsafe { &*view.cast::<WKWebView>() };
+    // SAFETY: plain WebKit calls with live, retained arguments, on the main thread
+    unsafe {
+        let world = WKContentWorld::worldWithName(&NSString::from_str("atlas-frame"), mtm);
+        let script = WKUserScript::initWithSource_injectionTime_forMainFrameOnly_inContentWorld(mtm.alloc(), &NSString::from_str(&frame_script()), WKUserScriptInjectionTime::AtDocumentStart, false, &world);
+        view.configuration().userContentController().addUserScript(&script);
     }
 }
 
@@ -690,10 +717,16 @@ impl MainSpec {
         let main = WebviewWindowBuilder::new(app, label, WebviewUrl::External(url))
             .title(title)
             .initialization_script(frames_any_page(self.frames));
-        // a web tab's frame: its address, history, find and Atlas's keys (frame_page.js; inert elsewhere). Linux: in
-        // an isolated world, below; elsewhere in the page's world (WebView2 and WKWebView offer no isolated world
-        // for it), where the script keeps the functions it calls from before the site's scripts run.
-        #[cfg(not(target_os = "linux"))]
+        // a web tab's frame: its address, history, find and Atlas's keys (frame_page.js; inert elsewhere), in an
+        // isolated world — Linux and macOS: a script world of the window's, below (`frame_script_isolated`);
+        // Windows: the content script of the app's WebView2 extension, or in the page's world when the extension
+        // could not be written (the script then keeps the functions it calls from before the site's scripts run)
+        #[cfg(windows)]
+        let main = match frame_any_extension() {
+            Some(dir) => main.browser_extensions_enabled(true).extensions_path(dir),
+            None => main.initialization_script_for_all_frames(frame_script()),
+        };
+        #[cfg(not(any(target_os = "linux", target_os = "macos", windows)))]
         let main = main.initialization_script_for_all_frames(frame_script());
         let main = main
             // OS file drops reach the page's own `drop` (the editor, the explorer, the capture popup); Tauri's
@@ -712,11 +745,6 @@ impl MainSpec {
         // frame's alone), below; elsewhere the navigation hook is the main frame's.
         #[cfg(not(target_os = "linux"))]
         let main = main.on_navigation(move |to| off_app.stay(to));
-        #[cfg(windows)]
-        let main = match frame_any_extension() {
-            Some(dir) => main.browser_extensions_enabled(true).extensions_path(dir),
-            None => main,
-        };
         let main = main
             // window.open: WebKitGTK opens nothing without a handler. A sign-in page that returns to a
             // localhost address gets a window of ours (it catches that address); a web page a browsing window
@@ -759,6 +787,8 @@ impl MainSpec {
                 c.set_cache_model(webkit2gtk::CacheModel::DocumentViewer);
             }
         })?;
+        #[cfg(target_os = "macos")]
+        main.with_webview(|w| frame_script_isolated(w.inner()))?;
         Ok(main)
     }
 }

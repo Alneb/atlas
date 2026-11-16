@@ -2,7 +2,7 @@
 // too — once the caret leaves the line or the editor, after the text is saved (the tab follows the file). Off with
 // `[editor] heading_renames`. The inline title (note-extensions.ts) is hidden while the heading is the title.
 import { ViewPlugin, type EditorView, type ViewUpdate } from "@codemirror/view";
-import type { EditorState } from "@codemirror/state";
+import { Facet, StateField, type EditorState, type Extension } from "@codemirror/state";
 import { frontmatterClose } from "./live/live-preview.js";
 import { shownName } from "../paths";
 import { renameTo } from "../rename-file";
@@ -37,32 +37,43 @@ export function nameFromHeading(text: string): string {
 
 const enabled = () => settings.config?.editor.heading_renames ?? true;
 
-/** Whether the caret stands on the title heading (the inline title stays hidden meanwhile, as the words change). */
-export function editingTitle(state: EditorState): boolean {
-  if (!enabled()) return false;
-  const h = titleHeading(state);
-  return !!h && state.doc.lineAt(state.selection.main.head).number === h.line;
+/** The heading's words when the caret came onto it while it said the file's name; "" when it came onto it saying
+ *  something else; null while the caret is elsewhere. Kept in the state, so the inline title (note-extensions.ts) and
+ *  the rename below read one value — a note opened with the caret on a heading that is not its name keeps its title. */
+const noteName = Facet.define<string, string>({ combine: (v) => v[0] ?? "" });
+const armed = StateField.define<string | null>({
+  create: (state) => arm(state, null),
+  update: (was, tr) => (tr.selection || tr.docChanged ? arm(tr.state, was) : was),
+});
+
+function arm(state: EditorState, was: string | null): string | null {
+  const h = enabled() ? titleHeading(state) : null;
+  if (!h || state.doc.lineAt(state.selection.main.head).number !== h.line) return null;
+  return was ?? (norm(h.text) === norm(state.facet(noteName)) ? h.text : "");
 }
 
-export function headingTitle(path: string) {
+/** Whether the title heading is being edited (the inline title stays hidden meanwhile, as the words change). */
+export function editingTitle(state: EditorState): boolean {
+  return !!state.field(armed, false);
+}
+
+export function headingTitle(path: string): Extension {
   const name = shownName(path);
-  return ViewPlugin.fromClass(class {
-    /** The heading's words when the caret came onto it while it said the name; "" when it did not; null: not on it. */
-    armed: string | null = null;
+  const plugin = ViewPlugin.fromClass(class {
+    asked = ""; // the name last asked for: a blur and then the caret leaving rename once
     update(u: ViewUpdate) {
-      if (!(u.selectionSet || u.docChanged || u.focusChanged) || !enabled()) return;
-      const on = u.view.hasFocus && editingTitle(u.state);
-      if (on && this.armed === null) {
-        const h = titleHeading(u.state)!;
-        this.armed = norm(h.text) === norm(name) ? h.text : "";
-      } else if (!on && this.armed !== null) {
-        const was = this.armed;
-        this.armed = null;
-        const h = titleHeading(u.state), to = h ? nameFromHeading(h.text) : "";
-        if (was && to && norm(to) !== norm(name)) void rename(u.view, to);
-      }
+      if (!enabled()) return;
+      const was = u.startState.field(armed, false), now = u.state.field(armed, false);
+      // the caret left the heading, or the editor lost focus with it there: the words are final
+      const done = (was && now == null) || (now && u.focusChanged && !u.view.hasFocus);
+      if (!done) return;
+      const h = titleHeading(u.state), to = h ? nameFromHeading(h.text) : "";
+      if (!to || norm(to) === norm(name) || to === this.asked) return;
+      this.asked = to;
+      void rename(u.view, to);
     }
   });
+  return [noteName.of(name), armed, plugin];
 
   async function rename(_view: EditorView, to: string) {
     await [...editors.values()].find((e) => e.path === path)?.flush(); // the new heading on disk before the file moves

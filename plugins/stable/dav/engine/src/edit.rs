@@ -484,6 +484,34 @@ fn apply_fields(ev: &mut Component, c: &Change, user: &Zone, series: bool) -> Re
     Ok(())
 }
 
+/// The prefix of the DESCRIPTION lines that carry an event note's links for other calendar apps.
+pub const ATLAS_LINE: &str = "Atlas: ";
+
+/// An event tied to its note (DESIGN-calendar-tasks-nudges §2.2), on every VEVENT of `uid` (the series and its
+/// overrides): `X-ATLAS-SOURCE` set to `note` when the event came from nowhere (a source already there — the note or
+/// mail it was made from — is kept), and its DESCRIPTION's `Atlas: [[…]]` lines replaced by one per link, after the
+/// description's own text. None: nothing to change.
+pub fn tie_note(text: &str, uid: &str, note: &str, links: &[String], now: DateTime<Utc>) -> Result<Option<String>, String> {
+    let mut cal = ics::parse(text)?.into_iter().find(|x| x.name == "VCALENDAR").ok_or("no calendar in the object")?;
+    let mut changed = false;
+    for ev in cal.subs.iter_mut().filter(|e| e.name == "VEVENT" && e.text("UID").as_deref() == Some(uid)) {
+        let before = ev.clone();
+        if ev.text("X-ATLAS-SOURCE").is_none() {
+            ev.set("X-ATLAS-SOURCE", vec![], escape(note));
+        }
+        let own: Vec<String> = ev.text("DESCRIPTION").unwrap_or_default().lines().filter(|l| !l.starts_with(ATLAS_LINE)).map(str::to_string).collect();
+        let own = own.join("\n").trim_end().to_string();
+        let ours: Vec<String> = links.iter().map(|l| format!("{ATLAS_LINE}{l}")).collect();
+        let desc = [own, ours.join("\n")].into_iter().filter(|s| !s.is_empty()).collect::<Vec<_>>().join("\n\n");
+        ev.set_text("DESCRIPTION", Some(&desc));
+        if *ev != before {
+            touch(ev, now);
+            changed = true;
+        }
+    }
+    Ok(changed.then(|| cal.write()))
+}
+
 /// Removes one event (`rid`: an occurrence of a recurring one). `None`: delete the whole object.
 pub fn delete(text: &str, uid: &str, rid: Option<&str>, scope: Scope, user: &Zone, now: DateTime<Utc>) -> Result<Option<String>, String> {
     let mut cal = ics::parse(text)?.into_iter().find(|x| x.name == "VCALENDAR").ok_or("no calendar in the object")?;
@@ -532,6 +560,24 @@ mod tests {
     const TORONTO: Zone = Zone::Tz(Tz::America__Toronto);
     fn now() -> DateTime<Utc> {
         DateTime::parse_from_rfc3339("2026-10-23T12:00:00Z").unwrap().with_timezone(&Utc)
+    }
+
+    #[test]
+    fn an_event_tied_to_its_note_says_it_in_x_atlas_source_and_its_description() {
+        let c = Change { summary: Some("Write intro".into()), start: Some("2026-11-17T14:00".into()), description: Some("Bring the draft.".into()), ..Default::default() };
+        let t = create("e1", &c, &TORONTO, now()).unwrap();
+        let links = vec!["[[Thesis#^t3f9a]]".to_string()];
+        let tied = tie_note(&t, "e1", "calendar/2026/2026-11-17 Write intro.md", &links, now()).unwrap().unwrap();
+        let ev = ics::events_of(&tied).unwrap().remove(0);
+        assert_eq!(ev.source.as_deref(), Some("calendar/2026/2026-11-17 Write intro.md"));
+        assert!(ics::unfold(&tied).contains("DESCRIPTION:Bring the draft.\\n\\nAtlas: [[Thesis#^t3f9a]]"), "{tied}");
+        assert_eq!(tie_note(&tied, "e1", "calendar/2026/2026-11-17 Write intro.md", &links, now()).unwrap(), None, "nothing new: nothing written");
+        // a second link: one line each, the user's text kept once; a source already there (a mail) is kept
+        let two = vec![links[0].clone(), "[[mail/uni/Inbox/2026-11-10 Rapport]]".to_string()];
+        let mailed = tied.replace("X-ATLAS-SOURCE:calendar/2026/2026-11-17 Write intro.md", "X-ATLAS-SOURCE:<abc@example.org>");
+        let again = ics::unfold(&tie_note(&mailed, "e1", "calendar/x.md", &two, now()).unwrap().unwrap());
+        assert!(again.contains("X-ATLAS-SOURCE:<abc@example.org>"), "{again}");
+        assert!(again.contains("DESCRIPTION:Bring the draft.\\n\\nAtlas: [[Thesis#^t3f9a]]\\nAtlas: [[mail/uni/Inbox/2026-11-10 Rapport]]"), "{again}");
     }
 
     #[test]

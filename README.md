@@ -110,7 +110,7 @@ says what each tier promises and where each plugin stands. Each plugin's folder 
 
 | Area | Plugins |
 |---|---|
-| Mail, calendar, people | [Email](plugins/stable/email), [Calendar (dav)](plugins/stable/dav), [Notifications](plugins/beta/notifications) |
+| Mail, calendar, people | [Email](plugins/stable/email), [Calendar (dav)](plugins/stable/dav), [Notifications](plugins/beta/notifications), [Plan](plugins/beta/plan) (nudges for tasks when they fit your day) |
 | Catalogue and references | [Catalog](plugins/beta/catalog) and its sources: [Science / References](plugins/beta/catalog-papers), [TMDB](plugins/beta/catalog-tmdb), [Books](plugins/beta/catalog-books), [Music](plugins/beta/catalog-music), [Manga and anime](plugins/beta/catalog-anime), [YouTube](plugins/beta/catalog-youtube), [Wikipedia](plugins/beta/catalog-wikipedia) (no keys), [Linkwarden](plugins/beta/catalog-linkwarden); services told about catalogued things: [Downloader](plugins/beta/downloader) (MeTube, TubeArchivist or your own) |
 | Reading | [Books](plugins/beta/books), [Manga](plugins/beta/manga), [Kiwix](plugins/beta/kiwix), [OCR](plugins/beta/ocr), [Rnote](plugins/beta/rnote) |
 | Writing and output | [Export](plugins/beta/export) (LaTeX / PDF), [Print](plugins/beta/print), [Weather](plugins/beta/weather), [Today](plugins/beta/today) (the greeting, the day's log, the vault's map) |

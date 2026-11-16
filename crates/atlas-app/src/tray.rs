@@ -24,17 +24,9 @@ pub enum TrayItem {
     Separator,
 }
 
-/// A notice that came while nobody looked at Atlas; its id and subject say which withdrawal takes it away.
-#[derive(Debug, Clone, Default, PartialEq)]
-pub struct Unseen {
-    pub title: String,
-    pub source: Option<String>,
-    pub open: Option<String>,
-    pub id: Option<String>,
-    pub subject: Option<String>,
-}
+use atlas_core::notify::{Unseen, UnseenList};
 
-/// How many unseen notices the menu keeps.
+/// How many unseen notices the menu shows (the list keeps more, notify.rs `UnseenList`).
 pub const KEPT: usize = 8;
 
 /// The tray's state: the window shown or not, the unseen notices (newest first), do not disturb.
@@ -42,50 +34,20 @@ pub const KEPT: usize = 8;
 pub struct Model {
     pub vault: String,
     pub shown: bool,
-    pub unseen: Vec<Unseen>,
-    /// Unseen notices counted, also those beyond [`KEPT`].
-    pub unseen_count: usize,
+    /// Every vault's notices nobody looked at, by the core's one rule (a repeated id replaces, a withdrawal drops).
+    pub unseen: UnseenList,
     pub quiet: bool,
 }
 
 impl Model {
-    /// A notice nobody looked at: first in the list. One with the id of a notice already waiting replaces it ("3 new
-    /// mails" updated, counted once).
-    pub fn add_unseen(&mut self, u: Unseen) {
-        let before = self.unseen.len();
-        if u.id.is_some() {
-            self.unseen.retain(|w| w.id != u.id);
-        }
-        if self.unseen.len() == before {
-            self.unseen_count += 1;
-        }
-        self.unseen.insert(0, u);
-        self.unseen.truncate(KEPT);
-    }
-
-    /// `Event::Withdraw`: the notices waiting with this id or about this subject are dropped, and no longer counted;
-    /// whether any was.
-    pub fn withdraw(&mut self, id: &str) -> bool {
-        let before = self.unseen.len();
-        self.unseen.retain(|w| w.id.as_deref() != Some(id) && w.subject.as_deref() != Some(id));
-        let gone = before - self.unseen.len();
-        self.unseen_count = self.unseen_count.saturating_sub(gone);
-        gone > 0
-    }
-
-    pub fn mark_read(&mut self) {
-        self.unseen.clear();
-        self.unseen_count = 0;
-    }
-
     /// Whether the icon asks for attention (its dotted form).
     pub fn attention(&self) -> bool {
-        self.unseen_count > 0
+        self.unseen.count > 0
     }
 
     pub fn tooltip(&self) -> String {
         let name = if self.vault.is_empty() { "Atlas".to_string() } else { format!("Atlas — {}", self.vault) };
-        match self.unseen_count {
+        match self.unseen.count {
             0 => name,
             1 => format!("{name}: 1 new notice"),
             n => format!("{name}: {n} new notices"),
@@ -95,12 +57,12 @@ impl Model {
     pub fn menu(&self) -> Vec<TrayItem> {
         let act = |label: &str, action| TrayItem::Action { label: label.into(), action };
         let mut items = vec![if self.shown { act("Hide Atlas", TrayAction::Hide) } else { act("Show Atlas", TrayAction::Show) }, act("Quick capture", TrayAction::Capture)];
-        if !self.unseen.is_empty() {
-            let mut notices: Vec<TrayItem> = self.unseen.iter().enumerate().map(|(i, u)| act(&notice_label(u), TrayAction::OpenNotice(i))).collect();
+        if !self.unseen.items.is_empty() {
+            let mut notices: Vec<TrayItem> = self.unseen.items.iter().take(KEPT).enumerate().map(|(i, u)| act(&notice_label(u), TrayAction::OpenNotice(i))).collect();
             notices.push(TrayItem::Separator);
             notices.push(act("Mark all read", TrayAction::MarkRead));
             items.push(TrayItem::Separator);
-            items.push(TrayItem::Sub { label: format!("Notices ({})", self.unseen_count), items: notices });
+            items.push(TrayItem::Sub { label: format!("Notices ({})", self.unseen.count), items: notices });
         }
         items.push(TrayItem::Separator);
         items.push(TrayItem::Check { label: "Do not disturb".into(), checked: self.quiet, action: TrayAction::ToggleQuiet });
@@ -180,6 +142,7 @@ pub fn scaled(rgba: &[u8], w: u32, h: u32, to: u32) -> Vec<u8> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use atlas_core::api::Notice;
 
     fn labels(items: &[TrayItem]) -> Vec<String> {
         items
@@ -200,8 +163,8 @@ mod tests {
         assert_eq!(m.tooltip(), "Atlas — Notes");
         m.shown = true;
         m.quiet = true;
-        m.add_unseen(Unseen { title: "Backup failed".into(), source: Some("schedule".into()), open: None, ..Unseen::default() });
-        m.add_unseen(Unseen { title: "3 new mails".into(), source: None, open: Some("mail/x.md".into()), ..Unseen::default() });
+        m.unseen.add(&Notice { title: "Backup failed".into(), source: Some("schedule".into()), open: None, ..Notice::default() });
+        m.unseen.add(&Notice { title: "3 new mails".into(), source: None, open: Some("mail/x.md".into()), ..Notice::default() });
         let menu = m.menu();
         assert_eq!(labels(&menu), ["Hide Atlas", "Quick capture", "—", "Notices (2)", "—", "Do not disturb ✓", "—", "Quit Atlas"]);
         let TrayItem::Sub { items, .. } = &menu[3] else { panic!("no notices submenu") };
@@ -209,7 +172,7 @@ mod tests {
         assert!(matches!(items[0], TrayItem::Action { action: TrayAction::OpenNotice(0), .. }), "newest first");
         assert!(m.attention());
         assert_eq!(m.tooltip(), "Atlas — Notes: 2 new notices");
-        m.mark_read();
+        m.unseen.clear();
         assert!(!m.attention() && !labels(&m.menu()).iter().any(|l| l.starts_with("Notices")));
     }
 
@@ -217,32 +180,33 @@ mod tests {
     fn the_menu_keeps_the_newest_notices_but_counts_them_all() {
         let mut m = Model::default();
         for i in 0..KEPT + 3 {
-            m.add_unseen(Unseen { title: format!("n{i}"), source: None, open: None, ..Unseen::default() });
+            m.unseen.add(&Notice { title: format!("n{i}"), ..Notice::default() });
         }
-        assert_eq!(m.unseen.len(), KEPT);
-        assert_eq!(m.unseen[0].title, format!("n{}", KEPT + 2));
+        let TrayItem::Sub { items, .. } = &m.menu()[3] else { panic!("no notices submenu") };
+        assert_eq!(items.len(), KEPT + 2, "the newest {KEPT}, a separator, Mark all read");
+        assert_eq!(labels(&items[..1]), [format!("n{}", KEPT + 2)]);
         assert_eq!(m.tooltip(), format!("Atlas: {} new notices", KEPT + 3));
     }
 
     #[test]
     fn a_withdrawn_notice_leaves_the_list_and_the_count_and_a_repeated_id_is_counted_once() {
         let mut m = Model::default();
-        let task = |title: &str, id: Option<&str>| Unseen { title: title.into(), id: id.map(str::to_string), subject: Some("notes/R.md#^t1".into()), ..Unseen::default() };
-        m.add_unseen(Unseen { title: "2 new mails".into(), id: Some("mail:inbox".into()), ..Unseen::default() });
-        m.add_unseen(task("Due today", Some("deadline:t1")));
-        m.add_unseen(task("Time to start", None));
-        m.add_unseen(Unseen { title: "3 new mails".into(), id: Some("mail:inbox".into()), ..Unseen::default() });
-        assert_eq!((m.unseen.len(), m.unseen_count, m.unseen[0].title.as_str()), (3, 3, "3 new mails"), "the mail notice replaced, first");
-        assert!(m.withdraw("notes/R.md#^t1"), "by subject: both of the task's");
-        assert_eq!((m.unseen.len(), m.unseen_count), (1, 1));
-        assert!(!m.withdraw("deadline:t1"));
-        assert!(m.withdraw("mail:inbox"), "by id");
+        let task = |title: &str, id: Option<&str>| Notice { title: title.into(), id: id.map(str::to_string), subject: Some("notes/R.md#^t1".into()), ..Notice::default() };
+        m.unseen.add(&Notice { title: "2 new mails".into(), id: Some("mail:inbox".into()), ..Notice::default() });
+        m.unseen.add(&task("Due today", Some("deadline:t1")));
+        m.unseen.add(&task("Time to start", None));
+        m.unseen.add(&Notice { title: "3 new mails".into(), id: Some("mail:inbox".into()), ..Notice::default() });
+        assert_eq!((m.unseen.items.len(), m.unseen.count, m.unseen.items[0].title.as_str()), (3, 3, "3 new mails"), "the mail notice replaced, first");
+        assert!(m.unseen.withdraw("notes/R.md#^t1"), "by subject: both of the task's");
+        assert_eq!((m.unseen.items.len(), m.unseen.count), (1, 1));
+        assert!(!m.unseen.withdraw("deadline:t1"));
+        assert!(m.unseen.withdraw("mail:inbox"), "by id");
         assert!(!m.attention());
     }
 
     #[test]
     fn a_long_notice_is_one_short_line() {
-        let l = notice_label(&Unseen { title: "a\nvery ".repeat(20), source: None, open: None, ..Unseen::default() });
+        let l = notice_label(&Unseen { title: "a\nvery ".repeat(20), ..Unseen::default() });
         assert!(!l.contains('\n') && l.chars().count() == 60 && l.ends_with('…'));
     }
 

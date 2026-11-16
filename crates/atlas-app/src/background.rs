@@ -1,7 +1,7 @@
 //! Atlas living on behind its window (docs/design/DESIGN-tray-background.md): closing the window hides it, the tray
 //! brings it back, a window hidden long enough is closed to give its page's memory back ("asleep") and built again when
 //! shown; the core, its schedules and its notifications run on throughout. One [`Shell`] per process.
-use crate::tray::{Model, TrayAction, Unseen};
+use crate::tray::{Model, TrayAction};
 use atlas_core::config::{Config, OnClose};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
@@ -99,7 +99,7 @@ impl Shell {
                 s.hidden_since = None;
                 s.asleep = false;
                 s.model.shown = true;
-                s.model.mark_read();
+                s.model.unseen.clear();
             }
             me.redraw();
         });
@@ -156,7 +156,7 @@ impl Shell {
             TrayAction::Hide => self.hide(),
             TrayAction::Capture => quick_capture(&self.vault),
             TrayAction::OpenNotice(i) => {
-                let open = self.state.lock().unwrap().model.unseen.get(i).and_then(|u| u.open.clone());
+                let open = self.state.lock().unwrap().model.unseen.items.get(i).and_then(|u| u.open.clone());
                 if let Some(path) = &open {
                     // a live page opens it from the core (the same way a notification's click does)
                     let (core, body) = (self.core.clone(), serde_json::json!({ "args": { "path": path } }).to_string());
@@ -167,7 +167,7 @@ impl Shell {
                 self.show(open);
             }
             TrayAction::MarkRead => {
-                self.state.lock().unwrap().model.mark_read();
+                self.state.lock().unwrap().model.unseen.clear();
                 self.redraw();
             }
             TrayAction::ToggleQuiet => {
@@ -195,7 +195,7 @@ impl Shell {
         let changed = {
             let mut s = self.state.lock().unwrap();
             let had = s.model.attention();
-            s.model.mark_read();
+            s.model.unseen.clear();
             had
         };
         if changed {
@@ -212,11 +212,10 @@ impl Shell {
             match heard {
                 Heard::Notice(_, true) => false,
                 Heard::Notice(n, false) => {
-                    let open = atlas_core::notify::opens(n).map(str::to_string);
-                    model.add_unseen(Unseen { title: n.title.clone(), source: n.source.clone(), open, id: n.id.clone(), subject: n.subject.clone() });
+                    model.unseen.add(n);
                     true
                 }
-                Heard::Withdrawn(id) => model.withdraw(id),
+                Heard::Withdrawn(id) => model.unseen.withdraw(id),
             }
         };
         if changed {

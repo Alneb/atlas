@@ -47,7 +47,7 @@ fn handshake_tools_and_offline_calls() {
     assert_eq!(replies.len(), 7, "the notification gets no reply: {replies:?}");
     assert_eq!(replies[0]["result"]["serverInfo"]["name"], "atlas");
     let names: Vec<&str> = replies[1]["result"]["tools"].as_array().unwrap().iter().map(|t| t["name"].as_str().unwrap()).collect();
-    assert!(names.contains(&"atlas_context") && names.contains(&"atlas_open") && names.contains(&"atlas_tasks") && names.len() == 23, "{names:?}");
+    assert!(names.contains(&"atlas_context") && names.contains(&"atlas_open") && names.contains(&"atlas_tasks") && names.len() == 28, "{names:?}");
     assert!(replies[2]["result"]["isError"].is_null(), "{}", replies[2]);
     let today = replies[3]["result"]["content"][0]["text"].as_str().unwrap();
     assert!(today.contains("cumulant periodization") && today.contains("Mott transition"), "{today}");
@@ -175,4 +175,78 @@ fn the_vaults_structure_is_read_and_a_property_set_without_the_window() {
     }
     assert_eq!(replies[9]["result"]["isError"], true, "a base needs a file or its text");
     assert_eq!(replies[10]["result"]["isError"], true, "not a property name");
+}
+
+/// Captures triaged, a note moved with its links, the settings read — the core's own functions, without the window; the
+/// notices are the running Atlas's, and say so without it.
+#[test]
+fn captures_are_triaged_a_move_takes_its_links_and_the_settings_are_read() {
+    let d = tempfile::tempdir().unwrap();
+    let log = "notes/log/2026-11-15.md";
+    std::fs::create_dir_all(d.path().join("notes/log")).unwrap();
+    std::fs::write(d.path().join(log), "# Saturday\n\n- 09:12 read the Hubbard paper\n- 10:00 buy milk\n").unwrap();
+    std::fs::create_dir_all(d.path().join(".atlas")).unwrap();
+    std::fs::write(d.path().join(".atlas/config.toml"), "[editor]\nminimap = true\n").unwrap();
+    let triage = |id, line: u32, source: &str, action: &str, note: Option<&str>| call(id, "atlas_triage", json!({"path": log, "line": line, "source": source, "action": action, "note": note}));
+    let replies = session(
+        d.path(),
+        &[
+            call(1, "atlas_captures", json!({})),
+            triage(2, 3, "- 09:12 read the Hubbard paper", "file", Some("notes/Hubbard")),
+            triage(3, 4, "- 10:00 buy milk", "delete", None),
+            triage(4, 3, "- 09:12 read the Hubbard paper", "dismiss", None),
+            triage(5, 3, "- 09:12 read the Hubbard paper → [[Hubbard]]", "file", None),
+            call(6, "atlas_move", json!({"from": "notes/Hubbard.md", "to": "physics/Hubbard model.md"})),
+            call(7, "atlas_move", json!({"from": "physics/Hubbard model.md", "to": log})),
+            call(8, "atlas_settings", json!({"section": "editor"})),
+            call(9, "atlas_settings", json!({"section": "nope"})),
+            call(10, "atlas_settings", json!({})),
+            call(11, "atlas_notices", json!({})),
+            call(12, "atlas_notice_withdraw", json!({"id": "mail:inbox"})),
+        ],
+    );
+    let text = |i: usize| replies[i]["result"]["content"][0]["text"].as_str().unwrap().to_string();
+    let ok = |i: usize| -> Value {
+        assert!(replies[i]["result"]["isError"].is_null(), "{}", replies[i]);
+        serde_json::from_str(&text(i)).unwrap()
+    };
+    let read = |p: &str| std::fs::read_to_string(d.path().join(p)).unwrap_or_default();
+    let listed = ok(0);
+    assert_eq!(listed["open"], 2, "{listed}");
+    assert!(listed["items"].as_array().unwrap().iter().any(|c| c["source"] == "- 09:12 read the Hubbard paper" && c["line"] == 3), "{listed}");
+    // the files are read after the whole session: the filed note has moved by then (call 6), its link with it
+    ok(1);
+    ok(2);
+    assert_eq!(read("physics/Hubbard model.md"), "# Hubbard\n\n- read the Hubbard paper ([[2026-11-15]])\n", "filed into the note made for it");
+    assert!(!d.path().join("notes/Hubbard.md").exists(), "and moved");
+    assert_eq!(read(log), "# Saturday\n\n- 09:12 read the Hubbard paper → [[Hubbard model]]\n", "linked, the link following the move, and the deleted one gone");
+    let trash = walk(&d.path().join(".atlas/trash"));
+    assert!(trash.iter().any(|p| std::fs::read_to_string(p).unwrap() == "- 10:00 buy milk\n"), "the deleted capture kept in the trash: {trash:?}");
+    assert_eq!(replies[3]["result"]["isError"], true, "a line changed since it was listed is refused");
+    assert!(text(4).contains("need `note`"), "{}", text(4));
+    let moved = ok(5);
+    assert_eq!(moved["links"], 1, "{moved}");
+    assert_eq!(replies[6]["result"]["isError"], true, "never over an existing file");
+    assert!(read(log).starts_with("# Saturday"), "and that file untouched");
+    let editor = ok(7);
+    assert_eq!((editor["path"].as_str(), editor["settings"]["editor"]["minimap"].as_bool()), (Some(".atlas/config.toml"), Some(true)), "{editor}");
+    assert!(text(8).contains("notifications"), "the sections are named: {}", text(8));
+    let all = ok(9);
+    assert!(all["settings"]["log_dir"].is_string() && all["settings"]["notifications"].is_object(), "merged with the defaults: {all}");
+    for i in [10, 11] {
+        assert_eq!(replies[i]["result"]["isError"], true, "the notices are the running Atlas's: {}", replies[i]);
+        assert!(text(i).contains("not running"), "{}", text(i));
+    }
+}
+
+fn walk(dir: &std::path::Path) -> Vec<std::path::PathBuf> {
+    let mut out = vec![];
+    for e in std::fs::read_dir(dir).into_iter().flatten().flatten() {
+        if e.path().is_dir() {
+            out.extend(walk(&e.path()))
+        } else {
+            out.push(e.path())
+        }
+    }
+    out
 }

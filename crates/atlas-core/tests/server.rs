@@ -657,6 +657,49 @@ async fn a_toasts_button_is_answered_and_a_task_done_withdraws_its_notices() {
     t.stop().await;
 }
 
+/// The notices that came while no page looked are listed (what `atlas_notices` reads); a withdrawal by id drops one,
+/// and a page that says it is looked at has seen them all.
+#[tokio::test(flavor = "multi_thread")]
+async fn unseen_notices_are_listed_withdrawn_and_seen() {
+    let t = T::start().await;
+    // never on the desktop of whoever runs the test: the system's notifications off (read per notice)
+    let cfg = t.root().join(".atlas/config.toml");
+    let text = std::fs::read_to_string(&cfg).unwrap();
+    std::fs::write(&cfg, format!("{text}\n[notifications]\nsystem = \"off\"\n")).unwrap();
+    let mut ev = ws_connect(t.port(), "/api/events", Some(&format!("http://127.0.0.1:{}", t.port()))).await.unwrap();
+    let titles = || async {
+        let (s, v) = t.get("/api/notices").await;
+        assert_eq!(s, StatusCode::OK);
+        v["items"].as_array().unwrap().iter().map(|n| n["title"].as_str().unwrap().to_string()).collect::<Vec<_>>()
+    };
+    let until = |want: Vec<&'static str>| {
+        let titles = &titles;
+        async move {
+            for _ in 0..50 {
+                if titles().await == want {
+                    return;
+                }
+                tokio::time::sleep(Duration::from_millis(100)).await;
+            }
+            panic!("the unseen notices never became {want:?}: {:?}", titles().await);
+        }
+    };
+    for title in ["Backup failed", "Build done"] {
+        let (s, _) = t.send(reqwest::Method::POST, "/api/cmd/notify", json!({"args": {"title": title}})).await;
+        assert_eq!(s, StatusCode::OK);
+    }
+    until(vec!["Build done", "Backup failed"]).await;
+    // a withdrawal is the one `Event::Withdraw` (the list's own rule: notify.rs); of nothing waiting, no error
+    let (s, _) = t.send(reqwest::Method::POST, "/api/notices/withdraw", json!({"id": "notes/R.md#^r1"})).await;
+    assert_eq!(s, StatusCode::NO_CONTENT);
+    assert_eq!(next_event(&mut ev, |e| matches!(e, Event::Withdraw { .. })).await, Event::Withdraw { id: "notes/R.md#^r1".into() });
+    until(vec!["Build done", "Backup failed"]).await;
+    ev.send(Message::Text(r#"{"seen": true}"#.into())).await.unwrap();
+    until(vec![]).await;
+    ev.send(Message::Text(r#"{"seen": false}"#.into())).await.unwrap();
+    t.stop().await;
+}
+
 #[tokio::test(flavor = "multi_thread")]
 async fn a_switched_off_builtin_plugin_has_no_routes() {
     let t = T::start().await;

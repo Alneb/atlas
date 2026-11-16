@@ -29,7 +29,8 @@
   import PlotPanel from "../components/csv/PlotPanel.svelte";
   import GroupPanel from "../components/csv/GroupPanel.svelte";
   import StatsBar from "../components/csv/StatsBar.svelte";
-  import ContextMenu, { type MenuItem } from "../components/ContextMenu.svelte";
+  import ContextMenu from "../components/ContextMenu.svelte";
+  import type { MenuItem } from "../lib/menu";
   import InputDialog from "../components/InputDialog.svelte";
 
   let { spec }: PaneProps<"table"> = $props();

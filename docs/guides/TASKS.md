@@ -54,6 +54,8 @@ A task **written with fields** is ticked the way the Tasks plugin does it — `�
 - [x] pay the rent 📅 2026-10-15 ✅ 2026-10-14
 ```
 
+A block id (`^t3f9a`) stays last: the `✅ date` goes before it, so a link to the task still finds it.
+
 A **recurring** task also leaves its next occurrence, still open, on the line above:
 
 ```markdown
@@ -132,6 +134,13 @@ It is drawn three ways, all from that one query:
   template (the box and a month calendar of the same rows), then it is the vault's file;
 - the **Today plugin's chips** ("2 due today · 1 overdue") count the Today and Overdue groups.
 
+## Nudges — the Plan plugin
+
+The Plan plugin (`plugins/beta/plan`, its README) sends a notification for an open task at the moment it fits the
+day — dated within a week or overdue, or ⏫/🔺; at the first free gap of the calendar that holds it, outside quiet
+hours, a few a day — with **Done** (the same tick as above), **Snooze** and **Open**. A task ticked anywhere is never
+nudged again. What it did and what you answered is kept in notes, `plan/ledger/<month> <device>.md`.
+
 ## What is not there (on purpose, or not yet)
 
 - No query language: the options above are the whole of it. A question they cannot ask is a plugin's row view over `atlas.query`, or a reason to add one option.
@@ -142,4 +151,4 @@ It is drawn three ways, all from that one query:
 
 ## Tests
 
-`tasks.rs`: `a_task_line_is_read_by_the_shape_of_its_fields`, `a_recurring_task_ticked_makes_its_next_occurrence`, `a_block_filters_sorts_groups_and_limits`. `today.rs`: `ticking_a_task_written_with_fields_dates_it_and_a_recurring_one_leaves_its_next`, `all_tasks_lists_done_ones_too`. `views.rs`: `deadlines_are_dated_tasks_and_notes_grouped_by_how_far_mail_and_done_notes_left_out`, `a_deadline_event_made_from_a_note_shows_once_as_the_note`; the Calendar engine's `deadline_calendars_are_the_ones_settings_name_by_id_or_unique_name`. UI: `tasks-block.spec.ts` (grouping, priority, recurrence, a tag filter, and ticking a weekly task), `deadlines.spec.ts` (the box's groups, a note row without a box, ticking a task, the Deadlines page made from its template). Looked at in both themes.
+`tasks.rs`: `a_task_line_is_read_by_the_shape_of_its_fields`, `a_recurring_task_ticked_makes_its_next_occurrence`, `a_block_filters_sorts_groups_and_limits`. `today.rs`: `ticking_a_task_written_with_fields_dates_it_and_a_recurring_one_leaves_its_next`, `all_tasks_lists_done_ones_too`, `listed_tasks_carry_their_fields_and_their_text`. `views.rs`: `deadlines_are_dated_tasks_and_notes_grouped_by_how_far_mail_and_done_notes_left_out`, `a_deadline_event_made_from_a_note_shows_once_as_the_note`; the Calendar engine's `deadline_calendars_are_the_ones_settings_name_by_id_or_unique_name`. UI: `tasks-block.spec.ts` (grouping, priority, recurrence, a tag filter, and ticking a weekly task), `deadlines.spec.ts` (the box's groups, a note row without a box, ticking a task, the Deadlines page made from its template). Looked at in both themes.

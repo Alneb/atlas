@@ -15,7 +15,8 @@
   import { onGitWorthyChange, refreshGitTree } from "../lib/gitstatus.svelte";
   import { revealPath } from "../lib/file-tree.svelte";
   import { revealItems } from "../lib/reveal-items";
-  import ContextMenu, { type MenuItem } from "../components/ContextMenu.svelte";
+  import ContextMenu from "../components/ContextMenu.svelte";
+  import type { MenuItem } from "../lib/menu";
   import { pluginMenu } from "../lib/plugin-menus";
   import InputDialog from "../components/InputDialog.svelte";
   import { open, openPath } from "../lib/dock";

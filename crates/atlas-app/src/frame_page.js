@@ -2,14 +2,18 @@
 // Atlas's page), through postMessage — the page's address, title and history to the pane (ui/src/panes/Web.svelte), the
 // pane's back / forward / reload / find to the page, Atlas's keys back to Atlas, Shift+click to the system's browser,
 // the hovered link's address. Every message carries this run's token, which the pane checks: a framed site can post
-// to Atlas's page too, and must not open tabs or run commands. On Linux the script runs in a world of its own (the
-// site never sees the token); elsewhere it shares the site's world and so keeps what it calls from before the site's
-// scripts run.
+// to Atlas's page too, and must not open tabs or run commands. The script runs in a world of its own where the
+// platform offers one (Linux and macOS: a WebKit script world; Windows: the content script of the app's WebView2
+// extension), so the site never sees the token; elsewhere it shares the site's world and keeps what it calls from
+// before the site's scripts run. It speaks only to a parent served from this machine (Atlas's own page): on Windows the
+// extension reaches the browsing windows too, whose sites must never be told the token.
 (() => {
   if (window === window.top || window.parent !== window.top) return;
+  const above = location.ancestorOrigins && location.ancestorOrigins[0];
+  if (!above || !/^https?:\/\/(127\.0\.0\.1|localhost|\[::1\])(:\d+)?$/.test(above)) return;
   const token = "__ATLAS_FRAME_TOKEN__";
   const parentWin = window.parent, post = parentWin.postMessage.bind(parentWin);
-  const say = (m) => post({ atlasFrame: m, token }, "*");
+  const say = (m) => post({ atlasFrame: m, token }, above);
   let last = "";
   const where = () => {
     const now = JSON.stringify([location.href, document.title, history.length]);

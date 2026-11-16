@@ -27,6 +27,14 @@ pub struct Relinked {
     pub notes: Vec<String>,
 }
 
+/// A move with every link to what moved rewritten: the window's move and an agent's (`atlas mcp`) both come here.
+/// Never over an existing file ([`crate::files::move_path`] refuses it).
+pub fn move_with_links(ws: &Workspace, from: &str, to: &str) -> Result<Relinked> {
+    let plan = plan(ws.root(), &ws.config()?, from, to);
+    crate::files::move_path(ws, from, to)?;
+    apply(ws, &plan)
+}
+
 /// The move `from` → `to` (a file or a folder) as seen by the links, before it happens.
 pub fn plan(root: &Path, cfg: &Config, from: &str, to: &str) -> Plan {
     let snap = links::snapshot(root, cfg);

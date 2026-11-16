@@ -6,7 +6,7 @@
 // moves, aligns, sorts or deletes. The note's text stays the one source: every edit is a change of its table lines,
 // which the live preview then draws again (ui/src/lib/editor/live/live-preview.js).
 import type { EditorView } from "@codemirror/view";
-import type { MenuItem } from "../../components/ContextMenu.svelte";
+import type { MenuItem } from "../menu";
 import { atPointer, popMenu } from "../menu";
 import { alignOf, caretIn, linesOf, tableAt, tableOps, clean, type Align, type Table } from "./table-md";
 

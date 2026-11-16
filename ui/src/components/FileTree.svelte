@@ -10,7 +10,8 @@
   import { fileIcon } from "../lib/panes";
   import type { TreeEntry } from "../lib/types";
   import Icon from "./Icon.svelte";
-  import ContextMenu, { type MenuItem } from "./ContextMenu.svelte";
+  import ContextMenu from "./ContextMenu.svelte";
+  import type { MenuItem } from "../lib/menu";
   import { LETTER } from "../lib/gitstatus.svelte";
   import { settings } from "../lib/settings.svelte";
   import { shownEntries, treeView } from "../lib/tree-view.svelte";

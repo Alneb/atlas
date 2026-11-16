@@ -4,6 +4,7 @@ use crate::caldav::{as_dir, Client, Existing};
 use crate::remote::Remote;
 use crate::conf::{self, Card, Sub};
 use crate::edit::{self, Change, Scope};
+use crate::event_note::{self, Snapshot};
 use crate::ics::{self, Event, When};
 use crate::invite;
 use crate::pull;
@@ -68,6 +69,11 @@ pub fn table() -> Vec<(&'static str, Method)> {
         ("agenda", agenda),
         // the core's planned notices: events' alerts (remind.rs)
         ("reminders", reminders),
+        // event notes and links (event_note.rs, DESIGN-calendar-tasks-nudges §2)
+        ("event", event_get),
+        ("event_note", event_note_method),
+        ("link_event", link_event),
+        ("time_block", time_block),
     ]
 }
 
@@ -147,10 +153,14 @@ fn lock<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
     m.lock().unwrap_or_else(|p| p.into_inner())
 }
 
-/// Tells the page (when serving) that the cache changed.
+/// Tells the page (when serving) that the cache changed; the event notes follow their events.
 fn changed() {
+    let moved = notes_round();
     if conf::serving() {
         atlas_plugin::event("changed", json!({}));
+        if !moved.is_empty() {
+            atlas_plugin::event("moved", json!({ "moved": moved }));
+        }
     }
 }
 
@@ -1358,6 +1368,161 @@ fn sync_method(p: Value) -> Res {
         changed();
     }
     Ok(json!({ "summary": summary, "calendar": dst.id, "events": reports, "skipped": scan.skipped, "problems": scan.problems }))
+}
+
+// ----- event notes and links (event_note.rs, DESIGN-calendar-tasks-nudges §2)
+
+/// After the cache changed: every event note follows its event (event_note::round); the ones that moved are answered.
+fn notes_round() -> Vec<event_note::Moved> {
+    let p = json!({});
+    let Some(s) = conf::read_settings(&p) else { return Vec::new() };
+    let root = conf::vault_root();
+    let folder = event_note::folder(&s);
+    if !root.join(&folder).is_dir() {
+        return Vec::new();
+    }
+    event_note::round(&engine().store, &root, &folder, &conf::user_zone(&p), &|path, text| {
+        if let Err(e) = atlas_plugin::write_file(root.join(path), text.as_bytes()) {
+            eprintln!("dav: {path}: not written ({e})");
+        }
+    })
+}
+
+/// The day a call names (`start`, as the pane or the note has it), else today: where the occurrence is looked for.
+fn around(p: &Value, user: &Zone) -> NaiveDate {
+    param(p, "start").and_then(|s| NaiveDate::parse_from_str(s.get(..10)?, "%Y-%m-%d").ok()).unwrap_or_else(|| user.wall(Utc::now()).date())
+}
+
+/// `x` as a wikilink: `[[x]]` unless it is one already.
+fn as_link(x: &str) -> String {
+    let x = x.trim();
+    if x.starts_with("[[") { x.to_string() } else { format!("[[{}]]", x.trim_end_matches(".md")) }
+}
+
+/// The event's CalDAV object tied to its note (`edit::tie_note`); false when there was nothing to change.
+fn tie(p: &Value, s: &Value, src: &Source, uid: &str, note: &str, links: &[String]) -> atlas_plugin::Result<bool> {
+    let Some(o) = engine().store.by_uid(uid).into_iter().find(|o| o.source == src.id) else { return Ok(false) };
+    let now = Utc::now();
+    if edit::tie_note(&o.ics, uid, note, links, now).map_err(error)?.is_none() {
+        return Ok(false);
+    }
+    let (_, c) = client_for(s, p, &src.id)?;
+    // on the server's newer version when it had one; that one already tied: written back as it is
+    edit_object(&c, &src.id, &o.href, |text| Ok(edit::Written { object: Some(edit::tie_note(text, uid, note, links, now)?.unwrap_or_else(|| text.to_string())), split: None }))?;
+    Ok(true)
+}
+
+/// An event's note, made the first time (`uid`, `rid` for one occurrence's), `add` put in its `links:`; the CalDAV
+/// event tied to it when its calendar may be written. Answers the note's path, whether it was made, its links.
+fn ensure_note(p: &Value, add: &[String]) -> Res {
+    let s = conf::settings(p);
+    let user = conf::user_zone(p);
+    let uid = param(p, "uid").ok_or_else(|| error("uid: required"))?;
+    let rid = param(p, "rid");
+    let (root, folder) = (conf::vault_root(), event_note::folder(&s));
+    let found = event_note::instance_of(&engine().store, uid, rid, around(p, &user), &user);
+    let (path, mut text, made) = match event_note::find(&root, &folder, uid, rid) {
+        Some((path, text)) => (path, text, false),
+        None => {
+            let (i, src) = found.as_ref().ok_or_else(|| error("the event is not in the calendar's cache (sync the calendar first)"))?;
+            let snap = Snapshot::of(i, &src.id, rid);
+            (event_note::free_path(&root, &folder, &snap), event_note::render(&snap, &[]), true)
+        }
+    };
+    let mut dirty = made;
+    for l in add {
+        if let Some(t) = event_note::add_link(&text, l) {
+            text = t;
+            dirty = true;
+        }
+    }
+    if dirty {
+        atlas_plugin::write_file(root.join(&path), text.as_bytes()).map_err(fail)?;
+        eprintln!("dav: event note {path}: {}", if made { "made" } else { "linked" });
+    }
+    let links = event_note::links(&text);
+    let tied = match &found {
+        Some((_, src)) if src.writable && src.kind == Kind::Caldav => tie(p, &s, src, uid, &path, &links),
+        _ => Ok(false),
+    };
+    if tied.as_ref().is_ok_and(|t| *t) {
+        changed();
+    }
+    let why = tied.as_ref().err().map(|e| e.to_string());
+    Ok(json!({ "note": path, "made": made, "links": links, "tied": tied.unwrap_or(false), "why": why }))
+}
+
+/// "Note" on an event's card: its note, made on demand (`uid`, `rid`, `start`), with `links` added when given.
+fn event_note_method(p: Value) -> Res {
+    let add: Vec<String> = p["links"].as_array().map(|a| a.iter().filter_map(Value::as_str).map(as_link).collect()).unwrap_or_default();
+    ensure_note(&p, &add)
+}
+
+/// "Link to event…": `link` (a note's path or a `[[wikilink]]`) put in the event's note's `links:`, the note made first.
+fn link_event(p: Value) -> Res {
+    let link = param(&p, "link").map(as_link).ok_or_else(|| error("link: required (a note's path or [[link]])"))?;
+    ensure_note(&p, &[link])
+}
+
+/// One event as its note's block and its card show it (`uid`, `rid`, `start`): the occurrence from the cache with its
+/// calendar, its note (path, links) when it has one, and that note's backlinks (asked of Atlas when serving).
+fn event_get(p: Value) -> Res {
+    let s = conf::settings(&p);
+    let user = conf::user_zone(&p);
+    let uid = param(&p, "uid").ok_or_else(|| error("uid: required"))?;
+    let rid = param(&p, "rid");
+    let note = event_note::find(&conf::vault_root(), &event_note::folder(&s), uid, rid);
+    let backlinks = match (&note, conf::serving()) {
+        (Some((path, _)), true) => atlas_plugin::Atlas::new().get(&format!("/api/backlinks?path={}", url::form_urlencoded::byte_serialize(path.as_bytes()).collect::<String>())).unwrap_or(Value::Null),
+        _ => Value::Null,
+    };
+    let note = note.map(|(path, text)| json!({ "path": path, "links": event_note::links(&text), "cancelled": event_note::written(&text).cancelled }));
+    let Some((i, src)) = event_note::instance_of(&engine().store, uid, rid, around(&p, &user), &user) else {
+        return Ok(json!({ "event": null, "note": note, "backlinks": backlinks }));
+    };
+    let answer = exchange_user(&s, &src).and_then(|m| invited_answer(&i, &m));
+    let href = engine().store.by_uid(uid).into_iter().find(|o| o.source == src.id).map(|o| o.href).unwrap_or_default();
+    let shown = Shown { i, calendar: src.id.clone(), calendar_name: src.name.clone(), color: color_of(&s, &src), href, writable: src.writable, answer };
+    Ok(json!({ "event": shown, "note": note, "backlinks": backlinks }))
+}
+
+/// Time-block a task (DESIGN-calendar-tasks-nudges §2.3), in one action: the task given a block id (the core's
+/// `POST /api/task/block`), an event in the chosen slot (`summary`, `start`, `end`, `calendar`) tied to a new note whose
+/// `links:` is the task, and the task's line given `⏳ <day>` and a link to that note in its description (the core's one
+/// task writer, `POST /api/task/schedule`). `task`: `{ path, line, text, block? }` as Atlas lists tasks.
+fn time_block(p: Value) -> Res {
+    let s = conf::settings(&p);
+    let user = conf::user_zone(&p);
+    let task = &p["task"];
+    let tpath = task["path"].as_str().filter(|x| !x.is_empty()).ok_or_else(|| error("task: required ({ path, line, text })"))?.to_string();
+    let atlas = atlas_plugin::Atlas::new();
+    let block = atlas.post("/api/task/block", task)?["block"].as_str().map(str::to_string).ok_or_else(|| error("the task is no longer there (moved or edited?)"))?;
+    let link = format!("[[{}#^{block}]]", tpath.trim_end_matches(".md"));
+    let (dst, c) = target(&p, &s)?;
+    let mut ch = change_for(&p, &s, &dst);
+    if ch.summary.as_deref().is_none_or(|t| t.trim().is_empty()) {
+        ch.summary = param(&p, "title").map(str::to_string);
+    }
+    let now = Utc::now();
+    let uid = uid::derive(&format!("atlas-calendar:{}", now.timestamp_nanos_opt().unwrap_or_default()), ch.summary.as_deref().unwrap_or(""));
+    let text = edit::create(&uid, &ch, &user, now).map_err(error)?;
+    let day = ch.start.as_deref().and_then(|x| NaiveDate::parse_from_str(x.get(..10)?, "%Y-%m-%d").ok()).ok_or_else(|| error("start: required (2026-11-17T14:00)"))?;
+    let i = event_note::occurrence(&text, &uid, None, day, &user).ok_or_else(|| error("the new event could not be read back"))?;
+    let snap = Snapshot::of(&i, &dst.id, None);
+    let (root, folder) = (conf::vault_root(), event_note::folder(&s));
+    let note = event_note::free_path(&root, &folder, &snap);
+    let text = edit::tie_note(&text, &uid, &note, std::slice::from_ref(&link), now).map_err(error)?.unwrap_or(text);
+    let href = dir_of(&dst)?.join(&uid::resource_name(&uid)).map_err(fail)?;
+    let etag = c.write(&href, &text, None).map_err(fail)?;
+    let _ = engine().store.put(&dst.id, href.as_str(), etag.as_deref(), &text);
+    let undo = remember(vec![Step { source: dst.id.clone(), href: href.to_string(), before: None }]);
+    atlas_plugin::write_file(root.join(&note), event_note::render(&snap, std::slice::from_ref(&link)).as_bytes()).map_err(fail)?;
+    let label = event_note::slot_label(&snap, conf::text(&s, "time_format") == "12h");
+    let at = json!({ "path": tpath, "line": task["line"].as_u64().unwrap_or(0), "text": task["text"], "block": block });
+    let line = atlas.post("/api/task/schedule", &json!({ "task": at, "scheduled": &snap.start[..10], "link": { "target": note, "label": label } }))?;
+    eprintln!("dav: time-blocked {link} into \"{}\" ({}) in {}", snap.title, snap.start, dst.id);
+    changed();
+    Ok(json!({ "uid": uid, "href": href.as_str(), "calendar": dst.id, "note": note, "block": block, "line": line["line"], "undo": undo, "start": snap.start, "label": label }))
 }
 
 #[cfg(test)]

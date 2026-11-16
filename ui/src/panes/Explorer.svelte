@@ -17,7 +17,8 @@
   import { embedClass } from "../lib/markdown";
   import { fileIcon, type IconName } from "../lib/panes";
   import Icon from "../components/Icon.svelte";
-  import ContextMenu, { type MenuItem } from "../components/ContextMenu.svelte";
+  import ContextMenu from "../components/ContextMenu.svelte";
+  import type { MenuItem } from "../lib/menu";
   import Places from "../components/explorer/Places.svelte";
   import { pluginMenu } from "../lib/plugin-menus";
   import { openWith } from "../lib/actions";

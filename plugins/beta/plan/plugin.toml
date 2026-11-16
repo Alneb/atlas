@@ -1,0 +1,140 @@
+# Plan: nudges for open tasks at the moment they fit (docs/design/DESIGN-calendar-tasks-nudges.md §3). The core rings
+# them as planned notices with Done / Snooze / Open; this plugin decides which task, when and why, and keeps the
+# ledger of what happened (plan/ledger/<month> <device>.md). README.md has the rules and the formula.
+title = "Plan"
+description = "nudges for your tasks when they fit your day, with Done / Snooze / Open"
+icon = "bell"
+version = "0.1.1"
+api = 28
+phone = true
+
+[helper]
+js = "helper.js"                  # TypeScript in helper/, run in the core (QuickJS): the same on the phone
+
+[[setting]]
+key = "nudges"
+label = "Nudges"
+kind = "toggle"
+default = true
+hint = "a notification for a task when it fits your day; off: only the morning digest"
+
+[[setting]]
+key = "quiet"
+label = "Quiet hours"
+kind = "text"
+default = "22:30-08:00"
+hint = "no nudge between these times (HH:MM-HH:MM)"
+group = "When"
+
+[[setting]]
+key = "digest"
+label = "Morning digest"
+kind = "toggle"
+default = true
+hint = "one notification after the quiet hours: what is overdue, due today, and has no slot today"
+group = "When"
+
+[[setting]]
+key = "digest_at"
+label = "Digest not before"
+kind = "text"
+default = "08:00"
+group = "When"
+
+[[setting]]
+key = "snooze_minutes"
+label = "Snooze puts off at least (minutes)"
+kind = "number"
+default = 60
+hint = "Snooze moves the nudge to the first free slot after this"
+group = "When"
+
+[[setting]]
+key = "horizon"
+label = "Days ahead"
+kind = "number"
+default = 7
+hint = "a task dated within this many days (or overdue) may nudge; a ⏫ or 🔺 one always may"
+group = "What counts"
+
+[[setting]]
+key = "exclude"
+label = "Folders left out"
+kind = "text"
+hint = "comma-separated; their tasks never nudge"
+group = "What counts"
+
+[[setting]]
+key = "minutes"
+label = "A task takes (minutes)"
+kind = "number"
+default = 30
+hint = "unless its line says ⏱ 45m, or its tag has a duration below"
+group = "What counts"
+
+[[setting]]
+key = "durations"
+label = "Durations per tag"
+kind = "text"
+hint = "e.g. writing=60, admin=15 (minutes)"
+group = "What counts"
+
+[[setting]]
+key = "threshold"
+label = "Threshold"
+kind = "number"
+default = 1
+hint = "lower: more nudges; higher: only the urgent ones (urgency × room, README)"
+group = "Budget"
+
+[[setting]]
+key = "max_per_day"
+label = "Nudges a day"
+kind = "number"
+default = 0
+hint = "0: measured from what you acted on (6 until there are 14 days of ledger); important tasks do not count"
+group = "Budget"
+
+[[setting]]
+key = "min_gap"
+label = "Minutes between nudges"
+kind = "number"
+default = 0
+hint = "0: measured (45 until there are 14 days of ledger)"
+group = "Budget"
+
+[[setting]]
+key = "ledger"
+label = "Ledger folder"
+kind = "text"
+default = "plan/ledger"
+hint = "a note per device and month: what was nudged, snoozed, done"
+advanced = true
+
+[[setting]]
+key = "device"
+label = "This device's name in the ledger"
+kind = "text"
+hint = "empty: the computer's name"
+advanced = true
+
+[[tool]]
+name = "nudges"
+description = "The coming nudges for open tasks (Atlas asks by itself, on = \"plan\")."
+input = {}
+on = "plan"
+
+[[tool]]
+name = "pressed"
+description = "Done or Snooze pressed on a nudge (Atlas calls it, on = \"notice\")."
+input = {}
+on = "notice"
+
+[[tool]]
+name = "explain"
+description = "Why the user is (or is not) nudged: the day's budget as measured from the ledger (nudges a day, minutes between them), each open task's next nudge or the reason it has none, and the ledger's last lines. Read-only."
+input = {}
+
+# where it runs (PLUGIN-API.md, "Platforms"); a platform not named is untested (Android: only with `phone = true`)
+[platforms]
+linux = "works"

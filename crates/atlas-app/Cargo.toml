@@ -34,6 +34,10 @@ tempfile = "3"
 # a global key for the capture box while Atlas runs (main.rs `capture_key`): macOS has no desktop setting that gives a
 # program a key, as KDE's shortcuts and a Windows Start-menu shortcut do
 tauri-plugin-global-shortcut = "2"
+# the web tabs' page script in a content world of its own (main.rs `frame_script_isolated`); the versions wry uses
+objc2 = "0.6"
+objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSString"] }
+objc2-web-kit = { version = "0.3", default-features = false, features = ["std", "objc2-app-kit", "WKWebView", "WKWebViewConfiguration", "WKUserContentController", "WKUserScript", "WKContentWorld"] }
 
 [target.'cfg(not(target_os = "linux"))'.dependencies]
 # the tray icon on Windows and macOS (tray_tauri.rs); Linux has its own (ksni below: Tauri's loads

@@ -1,7 +1,7 @@
 // Rows a plugin adds to the app's right-click menus (`atlas.shell.menu(where, fn)`). One list per
 // place; each menu builder ends with `...pluginMenu(place, target)`. A builder that throws loses
 // only its own rows (and gets a line in its plugin's log).
-import type { MenuItem } from "../components/ContextMenu.svelte";
+import type { MenuItem } from "./menu";
 import { isIconName } from "./icons";
 import { guard } from "./plugin-log.svelte";
 

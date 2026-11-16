@@ -12,7 +12,7 @@
   import { side } from "../../lib/sidebar.svelte";
   import { zoneGroup } from "../../lib/dock-instance";
   import { paneElement } from "../../lib/dock-panels";
-  import type { MenuItem } from "../ContextMenu.svelte";
+  import type { MenuItem } from "../../lib/menu";
   import Icon from "../Icon.svelte";
 
   const inBar = $derived(sideInBar());

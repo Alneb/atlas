@@ -440,10 +440,7 @@ async fn answer_call(routes: Option<axum::Router>, id: &str, c: crate::helper_ap
         CallBody::Bytes(b) => axum::body::Body::from(b),
     };
     let Ok(req) = req.body(body) else { return (400, json!({ "error": format!("not a request: {}", c.path) })) };
-    let res = match routes.oneshot(req).await {
-        Ok(r) => r,
-        Err(e) => return (500, json!({ "error": e.to_string() })),
-    };
+    let Ok(res) = routes.oneshot(req).await; // a Router never fails: its error is Infallible
     let status = res.status().as_u16();
     let bytes = axum::body::to_bytes(res.into_body(), 256 * 1024 * 1024).await.unwrap_or_default();
     let text = String::from_utf8_lossy(&bytes);

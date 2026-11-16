@@ -1,6 +1,10 @@
 // Where a context menu opens: the one shape every owner of a <ContextMenu> keeps (null while closed).
 import { mount, unmount } from "svelte";
-import ContextMenu, { type MenuItem } from "../components/ContextMenu.svelte";
+import ContextMenu from "../components/ContextMenu.svelte";
+import type { IconName } from "./panes";
+
+/** One row of the context menu: a command, an info line, or a separator. */
+export type MenuItem = { label: string; detail?: string; hint?: string; icon?: IconName; danger?: boolean; disabled?: boolean; run: () => void } | { info: string; detail?: string; icon?: IconName } | "sep";
 
 export type MenuAt = { x: number; y: number; items: MenuItem[] };
 

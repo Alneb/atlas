@@ -6,7 +6,8 @@
   // view has a `groupBy`; the footer holds each column's summary (click it to choose one).
   import { tick } from "svelte";
   import Icon from "../Icon.svelte";
-  import ContextMenu, { type MenuItem } from "../ContextMenu.svelte";
+  import ContextMenu from "../ContextMenu.svelte";
+  import type { MenuItem } from "../../lib/menu";
   import InputDialog from "../InputDialog.svelte";
   import CellValue from "./CellValue.svelte";
   import CellEditor from "./CellEditor.svelte";

@@ -6,14 +6,24 @@ and versions follow [Semantic Versioning](https://semver.org/) once 1.0 is out.
 ## [Unreleased]
 
 ### Added
+- The Plan plugin (beta) nudges you about open tasks when they fit your day: a task dated within a week or overdue,
+  or marked ⏫/🔺, gets a notification at the first free gap in your calendar that holds it, outside quiet hours,
+  once per morning, afternoon or evening, with **Done** (ticks it), **Snooze to 16:30** (the next free slot) and
+  **Open**. Ordinary tasks share a daily budget that is measured from what you acted on (important ones are exempt),
+  a morning digest says what is overdue and due today, and a task ticked anywhere is never nudged again. What it did
+  and what you answered is kept as notes, one per device and month (`plan/ledger/`); Settings → Plan shows why each
+  task is or is not nudged. Ticking a task now writes its `✅ date` before its block id, which stays last.
 - Web tabs block ads and trackers with the browsing windows' lists (Atlas's own page spared), and their page script's
-  messages carry a secret token, from an isolated script world on Linux, so a framed site cannot pose as it. "Web tabs:
+  messages carry a secret token, from an isolated world (a WebKit script world on Linux and macOS, the app's WebView2
+  extension's content script on Windows) and only to Atlas's own page, so a framed site cannot pose as it. "Web tabs:
   forget sign-ins and site data" (also in Settings → Web) clears every website's cookies, storage and caches, keeping
   Atlas's own, after a confirmation.
 - AI agents reach more of Atlas through MCP: the window's commands (`atlas_ui_commands`, `atlas_ui_command`, shown as
-  a toast "An agent ran …"), reads of backlinks, tags, properties, bases, views, captures, activity and sync state, and
-  setting one property (`atlas_set_property`, the same writer as the Properties panel). Plugins' notice/plan/log hooks
-  are no longer offered to agents.
+  a toast "An agent ran …"), reads of backlinks, tags, properties, bases, views, captures, activity, sync state and the
+  settings, setting one property (`atlas_set_property`, the same writer as the Properties panel), triaging captures
+  (`atlas_triage`), moving or renaming with the links rewritten (`atlas_move`, never over an existing file), and the
+  notices that came while nobody looked (`atlas_notices`, `atlas_notice_withdraw`; `GET /api/notices`). Plugins'
+  notice/plan/log hooks are no longer offered to agents.
 - A note whose first `# heading` says its file name is renamed when that heading is edited (once the caret leaves the
   line), its tab following; off with "The title heading renames the file" (`[editor] heading_renames`, Settings →
   Appearance).
@@ -37,9 +47,9 @@ and versions follow [Semantic Versioning](https://semver.org/) once 1.0 is out.
   · Later. It is a box on Home (new homes have it; Settings → Home & Today → "Add the deadlines box" adds it to an
   existing one), a Deadlines page of its own (a tile beside Home and the "Deadlines" command; the list and a month
   calendar), and what the Today chips count. A task is ticked from the box; a view block says `from: deadlines`.
-- Notifications get buttons: an event's reminder rings with **Open** and **Snooze 10 min** on the desktop (D-Bus) and
-  the phone. Plugins can put their own buttons on a notice (`actions`), answered by their `on = "notice"` tool, and
-  take a notice away again (`withdraw`), its system notification closed. The in-app pop-ups show the same buttons;
+- Notifications get buttons: an event's reminder rings with **Open** and **Snooze 10 min** on the desktop (D-Bus on
+  Linux, toasts on Windows) and the phone. Plugins can put their own buttons on a notice (`actions`), answered by
+  their `on = "notice"` tool, and take a notice away again (`withdraw`), its system notification closed. The in-app pop-ups show the same buttons;
   a notice taken away also leaves the pop-ups and the tray's list of unseen notices. Ticking a task done takes away
   the notices about it (a notice names its task as `subject`), and a reminder whose event was deleted goes while it
   still shows.

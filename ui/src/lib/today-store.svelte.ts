@@ -1,6 +1,8 @@
 // Today's data (focus, log, tasks, activity), fetched once and shared by every part that shows it —
 // the Today pane and the home document's view blocks — so a part mounts from the cache at once
 // (the UI must not be slower than the backend) and one file event refreshes them all.
+/** The parts of Today a view block can show alone (TodayParts.svelte, blocks.ts). */
+export type TodayPart = "greeting" | "capture" | "focus" | "log" | "tasks" | "activity";
 import { errText } from "./text";
 import { api } from "./api";
 import { isBookkeeping, on } from "./bus";

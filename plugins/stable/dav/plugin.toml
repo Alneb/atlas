@@ -112,6 +112,14 @@ kind = "list"
 group = "The pane"
 hint = "calendars whose events are deadlines (their id, e.g. work/deadlines, or a name only one calendar has): they join dated tasks and notes in Home's deadlines box and on the Deadlines page"
 
+[[setting]]
+key = "event_notes"
+label = "Event notes go in"
+kind = "text"
+default = "calendar"
+group = "The pane"
+hint = "a folder of the vault: an event gets a note there (calendar/2026/2026-11-17 Title.md) only when you ask for one, link something to it or time-block a task into it; its properties follow the event, the text below its block is yours"
+
 # ----- Reminders: events' own alerts ring as notifications (engine/src/remind.rs, through the core's planned notices)
 [[setting]]
 key = "reminders"
@@ -266,6 +274,18 @@ input = { paths = { type = "array", description = "only these vault paths (Atlas
 secrets = ["*"]
 timeout_secs = 300
 on = "fs"
+
+[[tool]]
+name = "link_event"
+description = "Links a note to a calendar event: the note's [[link]] goes into the event's note (`links:`), made on demand in the event-notes folder (calendar/<year>/<day> <title>.md) with the event's time, place and calendar as properties; other calendar apps see it in the event's description. A mail is linked by its saved note (save it with email first). Answers the event note's path."
+input = { uid = { type = "string", description = "the event's UID (from dav_events)" }, rid = { type = "string", description = "one occurrence of a repeating event: its recurrence id (from dav_events); empty: the whole series", optional = true }, start = { type = "string", description = "the occurrence's start as dav_events gave it (where to look)", optional = true }, link = { type = "string", description = "the note's vault path or [[wikilink]]" } }
+secrets = ["*"]
+
+[[tool]]
+name = "time_block"
+description = "Time-blocks a task: an event for it in the slot given (on the calendar new events go to unless `calendar` says), the event's note linking the task, and the task's line given ⏳ that day and a link to the event's note (its block id added when it has none). Only when the user asked for it."
+input = { title = "string", start = { type = "string", description = "YYYY-MM-DDTHH:MM, the user's local time" }, end = { type = "string", description = "YYYY-MM-DDTHH:MM (default: an hour later)", optional = true }, task = { type = "object", description = "the task as atlas_tasks lists it: { path, line, text }" }, calendar = { type = "string", description = "a calendar id from dav_calendars", optional = true } }
+secrets = ["*"]
 
 [[tool]]
 name = "reminders"

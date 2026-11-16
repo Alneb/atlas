@@ -6,8 +6,7 @@
   // it, Enter runs, Esc or a click outside closes. Placed from its measured size, so it never
   // leaves the window (it flips above / left of the pointer when there is no room).
   import Icon from "./Icon.svelte";
-  import type { IconName } from "../lib/panes";
-  export type MenuItem = { label: string; detail?: string; hint?: string; icon?: IconName; danger?: boolean; disabled?: boolean; run: () => void } | { info: string; detail?: string; icon?: IconName } | "sep";
+  import type { MenuItem } from "../lib/menu";
   let { x, y, items, onclose }: { x: number; y: number; items: MenuItem[]; onclose: () => void } = $props();
   let menu = $state<HTMLDivElement>();
   let at = $state<{ left: number; top: number } | null>(null); // null until measured: no flash at the wrong place

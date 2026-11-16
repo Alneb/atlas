@@ -1,12 +1,13 @@
 //! The Calendar (DAV) plugin's engine (plugins/stable/dav/README.md, docs/refactor/REFACTOR-calendar.md): a local cache
 //! (`store`) filled from CalDAV (`caldav`, `xml`) and ICS subscriptions (`subs`) by `pull`; recurrence and zones
-//! (`recur`, `zone`); changes with their scopes (`edit`); quick add (`quick`); reminders (`remind`); invitations (`invite`); contacts
+//! (`recur`, `zone`); changes with their scopes (`edit`); event notes and links (`event_note`); quick add (`quick`); reminders (`remind`); invitations (`invite`); contacts
 //! (`carddav`); the vault's important dates (`sync`, `uid`). `api` is every method; `main.rs` serves them.
 pub mod api;
 pub mod caldav;
 pub mod carddav;
 pub mod conf;
 pub mod edit;
+pub mod event_note;
 pub mod ews;
 pub mod ics;
 pub mod invite;
