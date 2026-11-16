@@ -202,6 +202,9 @@ function pack(o) {
     index.push({
       id: p.id,
       title: manifestField(text, "title") ?? p.id,
+      // what the store's card says and shows (its icon: an Atlas icon name)
+      description: manifestField(text, "description") ?? null,
+      icon: manifestField(text, "icon") ?? null,
       version: manifestField(text, "version") ?? null,
       tier: p.tier,
       // a plugin without an engine is plain files: every platform; one with an engine runs where it was built

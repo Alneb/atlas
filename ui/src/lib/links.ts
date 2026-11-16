@@ -8,18 +8,37 @@ import { anchorLine, MARK_ID } from "./note-anchor";
 import { api } from "./api";
 
 export async function resolveWikilink(target: string, fromPath: string): Promise<string> {
+  return (await whereLinkPoints(target, fromPath)).path;
+}
+
+/** Where a link points, and whether a file is there (`found`: false — a note not made yet, beside the linking one). */
+async function whereLinkPoints(target: string, fromPath: string): Promise<{ path: string; found: boolean }> {
   await vaultReady();
   const clean = target.split("#")[0].split("|")[0].trim();
   const dir = fromPath.includes("/") ? fromPath.slice(0, fromPath.lastIndexOf("/")) : "";
   const hit = resolveLink(clean, dir);
-  if (hit) return hit;
+  if (hit) return { path: hit, found: true };
   const withExt = /\.[a-z0-9]+$/i.test(clean) ? clean : `${clean}.md`;
-  return clean.includes("/") ? resolveRel(withExt) : resolveRel(withExt, dir);
+  return { path: clean.includes("/") ? resolveRel(withExt) : resolveRel(withExt, dir), found: false };
+}
+
+/** A link to a note not made yet is followed by making it, as Obsidian does: through the core, so the vault's
+ *  template rules choose its template (a `linked_by: topics` rule makes a topic note a topic). Null: not made. */
+async function makeLinkedNote(path: string): Promise<{ path: string; line: number } | null> {
+  const slash = path.lastIndexOf("/");
+  const title = path.slice(slash + 1).replace(/\.md$/i, "");
+  try { return await api.newNote({ title, dir: slash > 0 ? path.slice(0, slash) : undefined }); }
+  catch { return null; } // the empty editor below still lets the user write it
 }
 
 /** Opens what a link names; a PDF at the page its `#page=…` names, its label's words selected there (lib/pdf-place.ts). */
 export async function openWikilink(target: string, fromPath: string, opts: { beside?: boolean } = {}): Promise<void> {
-  const path = await resolveWikilink(target, fromPath);
+  const where = await whereLinkPoints(target, fromPath);
+  if (!where.found && /\.md$/i.test(where.path)) {
+    const made = await makeLinkedNote(where.path);
+    if (made) { openPath(made.path, made.line, opts); return; }
+  }
+  const path = where.path;
   const place = placeOf(target);
   const section = target.split("|")[0].split("#").slice(1).join("#").trim(); // a drawing's page: `#Page 2`, `#^frame=…`
   if (/\.excalidraw(\.md)?$/i.test(path) && section) openDrawingAt(path, section, opts);

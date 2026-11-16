@@ -397,7 +397,7 @@ export function open(spec: PaneSpec, opts: { activate?: boolean; beside?: boolea
     if (spec.kind === "pdf" && spec.page !== undefined) pdfPages.get(id)?.(spec.page, { quote: spec.quote, annotation: spec.annotation });
     if (spec.kind === "excalidraw" && spec.page) drawingPages.get(id)?.(spec.page);
     if (spec.kind === "plugin" && spec.anchor) pluginAnchors.get(id)?.(spec.anchor);
-    if (spec.kind === "explorer" && spec.path !== undefined) explorerGo.get(id)?.(spec.path, spec.select);
+    if (spec.kind === "explorer" && spec.path !== undefined) explorerGo.get(id)?.({ source: spec.source, place: spec.place, path: spec.path }, spec.select);
     return existing.api;
   }
   setOpening(opts.activate === false ? null : id);

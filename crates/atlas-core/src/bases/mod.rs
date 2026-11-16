@@ -382,7 +382,7 @@ pub fn evaluate(root: &Path, cfg: &Config, base_src: &str, this: Option<&str>) -
                 views: Vec::new(),
                 error: Some(format!("could not read the base: {e}")),
                 filters: None,
-                formulas: Vec::new(),
+                formulas: BTreeMap::new(),
                 kinds: BTreeMap::new(),
             }
         }
@@ -517,7 +517,7 @@ pub fn evaluate(root: &Path, cfg: &Config, base_src: &str, this: Option<&str>) -
         views,
         error: None,
         filters: base.filters.as_ref().and_then(crate::api::Filter::from_yaml),
-        formulas: base.formulas.keys().cloned().collect(),
+        formulas: base.formulas.clone(),
         kinds: kinds(&notes),
     }
 }

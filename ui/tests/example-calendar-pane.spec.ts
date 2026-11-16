@@ -223,3 +223,23 @@ test("a meeting the user is invited to in Exchange: the card joins the call and 
   await expect(page.locator(".toast", { hasText: "Going to “Group meeting”" })).toBeVisible();
   await expect(going.getByRole("button", { name: "Yes" })).toHaveAttribute("aria-pressed", "true");
 });
+
+test("the card's trash button deletes the event through the engine (the card closing first must not lose it)", async ({ page }) => {
+  const deleted: Record<string, unknown>[] = [];
+  const at = (h: number) => { const d = new Date(); d.setHours(h, 0, 0, 0); return d.toISOString(); };
+  const ev = { uid: "d1", summary: "Dentist", start: at(14), end: at(15), all_day: false, recurring: false, free: false, calendar: "home/personal", calendar_name: "Personal", href: "http://127.0.0.1:9/caldav/personal/d1.ics", writable: true };
+  await page.route("**/api/plugins/dav/helper", async (route) => {
+    const body = route.request().postDataJSON() as { method: string; params: Record<string, unknown> };
+    if (body.method === "watch") return route.fulfill({ json: { sources: [{ id: "home/personal", kind: "caldav", account: "home", url: "http://127.0.0.1:9/caldav/personal/", name: "Personal", writable: true, synced: 0 }], write: "home/personal", accounts: [], configured: true } });
+    if (body.method === "range") return route.fulfill({ json: { events: deleted.length ? [] : [ev] } });
+    if (body.method === "delete") { deleted.push(body.params); return route.fulfill({ json: { undo: 1 } }); }
+    return route.continue();
+  });
+  const cal = await openPane(page);
+  await cal.getByText("Dentist").first().click();
+  await page.getByRole("dialog", { name: "Dentist" }).getByTitle("Delete (Del)").click();
+  await expect.poll(() => deleted.length).toBe(1);
+  expect(deleted[0]).toMatchObject({ calendar: "home/personal", href: ev.href, uid: "d1", scope: "this" });
+  await expect(page.locator(".toast", { hasText: "Deleted “Dentist”" })).toBeVisible();
+  await expect(cal.getByText("Dentist", { exact: true })).toHaveCount(0); // the toast names it too
+});

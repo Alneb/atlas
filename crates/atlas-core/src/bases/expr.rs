@@ -49,6 +49,7 @@ pub enum Expr {
     Member(Box<Expr>, String),            // `obj.field`
     Index(Box<Expr>, Box<Expr>),          // `obj[key]`
     Call(Box<Expr>, Vec<Expr>),           // `f(arg, arg)` or `obj.method(arg)`
+    List(Vec<Expr>),                      // `[a, b]`
     Unary(char, Box<Expr>),               // `!x` or `-x`
     Binary(String, Box<Expr>, Box<Expr>), // `a + b`, `a == b`, `a && b`, …
 }
@@ -149,7 +150,7 @@ fn lex(src: &str) -> Result<Vec<Tok>, String> {
                 if ["==", "!=", "<=", ">=", "&&", "||"].contains(&two.as_str()) {
                     toks.push(Tok::Op(two));
                     i += 2;
-                } else if "+-*/<>!".contains(c) {
+                } else if "+-*/%<>!".contains(c) {
                     toks.push(Tok::Op(c.to_string()));
                     i += 1;
                 } else {
@@ -244,7 +245,7 @@ impl Parser {
     }
     fn multiplicative(&mut self) -> Result<Expr, String> {
         let mut left = self.unary()?;
-        while let Some(op) = self.eat_op(&["*", "/"]) {
+        while let Some(op) = self.eat_op(&["*", "/", "%"]) {
             let right = self.unary()?;
             left = Expr::Binary(op, Box::new(left), Box::new(right));
         }
@@ -313,6 +314,20 @@ impl Parser {
                 "null" => Ok(Expr::Null),
                 _ => Ok(Expr::Ident(s)),
             },
+            // a list literal, `[1, "a", x]`
+            Some(Tok::LBrack) => {
+                let mut items = Vec::new();
+                while !matches!(self.peek(), Some(Tok::RBrack) | None) {
+                    items.push(self.or()?);
+                    if matches!(self.peek(), Some(Tok::Comma)) {
+                        self.next();
+                    }
+                }
+                match self.next() {
+                    Some(Tok::RBrack) => Ok(Expr::List(items)),
+                    other => Err(format!("expected ']' got {other:?}")),
+                }
+            }
             Some(Tok::LParen) => {
                 let e = self.or()?;
                 match self.next() {
@@ -350,10 +365,17 @@ pub fn eval(e: &Expr, ctx: &dyn Context) -> Val {
     eval_scoped(e, ctx, None)
 }
 
+/// What a lambda argument sees (`.filter(value > 1)`, `.map(value * index)`, `.reduce(acc + value, 0)`).
+struct Scope<'a> {
+    value: &'a Val,
+    index: usize,
+    acc: Option<&'a Val>,
+}
+
 /// The real recursive evaluator. `scope` carries the current `value` binding used
 /// inside `.filter(value …)` (it's `None` everywhere else). Each `match` arm
 /// handles one kind of AST node, recursing into children as needed.
-fn eval_scoped(e: &Expr, ctx: &dyn Context, scope: Option<&Val>) -> Val {
+fn eval_scoped(e: &Expr, ctx: &dyn Context, scope: Option<&Scope>) -> Val {
     match e {
         Expr::Null => Val::Null,
         Expr::Bool(b) => Val::Bool(*b),
@@ -365,7 +387,10 @@ fn eval_scoped(e: &Expr, ctx: &dyn Context, scope: Option<&Val>) -> Val {
         // `date` / `link`, which are functions only when called (Atlas change: a `date`
         // property is common in the user's notes).
         Expr::Ident(name) => match name.as_str() {
-            "value" => scope.cloned().unwrap_or(Val::Null),
+            "value" => scope.map(|s| s.value.clone()).unwrap_or(Val::Null),
+            // `index` and `acc` are bound only inside a lambda; elsewhere they are properties like any other name
+            "index" if scope.is_some() => Val::Num(scope.map_or(0, |s| s.index) as f64),
+            "acc" if scope.is_some_and(|s| s.acc.is_some()) => scope.and_then(|s| s.acc.cloned()).unwrap_or(Val::Null),
             "file" | "note" | "this" | "formula" => Val::Null,
             other => ctx.property(other),
         },
@@ -396,10 +421,11 @@ fn eval_scoped(e: &Expr, ctx: &dyn Context, scope: Option<&Val>) -> Val {
             }
         }
         Expr::Call(callee, args) => eval_call(callee, args, ctx, scope),
+        Expr::List(items) => Val::List(items.iter().map(|e| eval_scoped(e, ctx, scope)).collect()),
     }
 }
 
-fn eval_binary(op: &str, a: &Expr, b: &Expr, ctx: &dyn Context, scope: Option<&Val>) -> Val {
+fn eval_binary(op: &str, a: &Expr, b: &Expr, ctx: &dyn Context, scope: Option<&Scope>) -> Val {
     match op {
         "&&" => Val::Bool(eval_scoped(a, ctx, scope).truthy() && eval_scoped(b, ctx, scope).truthy()),
         "||" => Val::Bool(eval_scoped(a, ctx, scope).truthy() || eval_scoped(b, ctx, scope).truthy()),
@@ -445,6 +471,10 @@ fn eval_binary(op: &str, a: &Expr, b: &Expr, ctx: &dyn Context, scope: Option<&V
                     Val::Num(va.as_num().unwrap_or(0.0) - vb.as_num().unwrap_or(0.0))
                 }
                 "*" => Val::Num(va.as_num().unwrap_or(0.0) * vb.as_num().unwrap_or(0.0)),
+                "%" => match (va.as_num(), vb.as_num()) {
+                    (Some(x), Some(y)) if y != 0.0 => Val::Num(x % y),
+                    _ => Val::Null,
+                },
                 "/" => {
                     let d = vb.as_num().unwrap_or(0.0);
                     if d == 0.0 {
@@ -459,7 +489,7 @@ fn eval_binary(op: &str, a: &Expr, b: &Expr, ctx: &dyn Context, scope: Option<&V
     }
 }
 
-fn eval_member(obj: &Expr, name: &str, ctx: &dyn Context, scope: Option<&Val>) -> Val {
+fn eval_member(obj: &Expr, name: &str, ctx: &dyn Context, scope: Option<&Scope>) -> Val {
     // this.file.<name>  (host file: name, path, ext, folder, ctime, mtime, properties, …)
     if let Expr::Member(inner, mid) = obj {
         if matches!(inner.as_ref(), Expr::Ident(i) if i == "this") && mid == "file" {
@@ -485,12 +515,13 @@ fn eval_member(obj: &Expr, name: &str, ctx: &dyn Context, scope: Option<&Val>) -
         },
         _ => match &v {
             Val::Map(m) => m.get(name).cloned().unwrap_or(Val::Null),
+            Val::Date(d) => date_field(d, name),
             _ => Val::Null,
         },
     }
 }
 
-fn eval_call(callee: &Expr, args: &[Expr], ctx: &dyn Context, scope: Option<&Val>) -> Val {
+fn eval_call(callee: &Expr, args: &[Expr], ctx: &dyn Context, scope: Option<&Scope>) -> Val {
     // free functions: link(), date(), number()
     if let Expr::Ident(f) = callee {
         match f.as_str() {
@@ -519,6 +550,20 @@ fn eval_call(callee: &Expr, args: &[Expr], ctx: &dyn Context, scope: Option<&Val
                 return Val::Date(d);
             }
             "now" => return Val::Date(chrono::Local::now().naive_local()),
+            "max" | "min" => {
+                let nums: Vec<f64> = flat(args.iter().map(|e| eval_scoped(e, ctx, scope)).collect()).iter().filter_map(Val::as_num).collect();
+                let pick = if f == "max" { f64::max } else { f64::min };
+                return nums.into_iter().reduce(pick).map(Val::Num).unwrap_or(Val::Null);
+            }
+            "list" => {
+                return match args.first().map(|e| eval_scoped(e, ctx, scope)) {
+                    Some(Val::List(l)) => Val::List(l),
+                    Some(Val::Null) | None => Val::List(Vec::new()),
+                    Some(v) => Val::List(vec![v]),
+                };
+            }
+            // a length kept as its text, which date arithmetic reads (`now() + duration("1d")`)
+            "duration" => return args.first().map(|e| Val::Str(to_plain(&eval_scoped(e, ctx, scope)))).unwrap_or(Val::Null),
             _ => {}
         }
     }
@@ -555,18 +600,20 @@ fn eval_call(callee: &Expr, args: &[Expr], ctx: &dyn Context, scope: Option<&Val
                 _ => {}
             }
         }
-        // .filter(predicate) keeps the arg unevaluated (uses `value`)
-        if method == "filter" {
-            let target = eval_scoped(obj, ctx, scope);
-            if let Val::List(items) = target {
-                if let Some(pred) = args.first() {
-                    let kept: Vec<Val> =
-                        items.into_iter().filter(|item| eval_scoped(pred, ctx, Some(item)).truthy()).collect();
-                    return Val::List(kept);
+        // .filter / .map / .reduce keep their first argument unevaluated: it runs per item with `value`, `index`
+        // (and `acc` for reduce) bound
+        if matches!(method.as_str(), "filter" | "map" | "reduce") {
+            let Val::List(items) = eval_scoped(obj, ctx, scope) else { return Val::Null };
+            let Some(f) = args.first() else { return Val::List(items) };
+            let at = |value: &Val, index: usize, acc: Option<&Val>| eval_scoped(f, ctx, Some(&Scope { value, index, acc }));
+            return match method.as_str() {
+                "filter" => Val::List(items.iter().enumerate().filter(|(i, v)| at(v, *i, None).truthy()).map(|(_, v)| v.clone()).collect()),
+                "map" => Val::List(items.iter().enumerate().map(|(i, v)| at(v, i, None)).collect()),
+                _ => {
+                    let start = args.get(1).map(|e| eval_scoped(e, ctx, scope)).unwrap_or(Val::Null);
+                    items.iter().enumerate().fold(start, |acc, (i, v)| at(v, i, Some(&acc)))
                 }
-                return Val::List(items);
-            }
-            return Val::Null;
+            };
         }
 
         let recv = eval_scoped(obj, ctx, scope);
@@ -604,10 +651,141 @@ fn eval_call(callee: &Expr, args: &[Expr], ctx: &dyn Context, scope: Option<&Val
             "toString" => Val::Str(to_plain(&recv)),
             "lower" => Val::Str(to_plain(&recv).to_lowercase()),
             "upper" => Val::Str(to_plain(&recv).to_uppercase()),
-            _ => Val::Null,
+            _ => {
+                let rest: Vec<Val> = args.iter().skip(1).map(|e| eval_scoped(e, ctx, scope)).collect();
+                method_of(&recv, method, arg0, &rest)
+            }
         };
     }
     Val::Null
+}
+
+/// The methods that need only their receiver and evaluated arguments: Obsidian's string, number, list, date and object
+/// functions. Anything unknown is Null, as everywhere here.
+fn method_of(recv: &Val, method: &str, arg0: Option<Val>, rest: &[Val]) -> Val {
+    let num_arg = |v: &Option<Val>| v.as_ref().and_then(Val::as_num);
+    match (recv, method) {
+        (_, "isTruthy") => Val::Bool(recv.truthy()),
+        (_, "isType") => Val::Bool(type_name(recv) == to_plain(&arg0.unwrap_or(Val::Null)).to_lowercase()),
+        // dates
+        (Val::Date(d), "date") => Val::Date(d.date().and_hms_opt(0, 0, 0).unwrap_or(*d)),
+        (Val::Date(d), "time") => Val::Str(d.format("%H:%M:%S").to_string()),
+        (Val::Date(d), "relative") => Val::Str(dates::relative(d, &chrono::Local::now().naive_local())),
+        // numbers
+        (Val::Num(n), "abs") => Val::Num(n.abs()),
+        (Val::Num(n), "ceil") => Val::Num(n.ceil()),
+        (Val::Num(n), "floor") => Val::Num(n.floor()),
+        (Val::Num(n), "round") => {
+            let p = 10f64.powi(num_arg(&arg0).unwrap_or(0.0).clamp(0.0, 15.0) as i32);
+            Val::Num((n * p).round() / p)
+        }
+        (Val::Num(n), "toFixed") => Val::Str(format!("{:.*}", num_arg(&arg0).unwrap_or(0.0).clamp(0.0, 20.0) as usize, n)),
+        // lists
+        (Val::List(l), "join") => Val::Str(l.iter().map(to_plain).collect::<Vec<_>>().join(&arg0.map(|v| to_plain(&v)).unwrap_or_else(|| ",".into()))),
+        (Val::List(l), "reverse") => Val::List(l.iter().rev().cloned().collect()),
+        (Val::List(l), "sort") => {
+            let mut l = l.clone();
+            l.sort_by(|a, b| a.cmp_val(b).unwrap_or_else(|| to_plain(a).cmp(&to_plain(b))));
+            Val::List(l)
+        }
+        (Val::List(l), "unique") => {
+            let mut out: Vec<Val> = Vec::new();
+            for v in l {
+                if !out.iter().any(|o| o.eq_val(v)) {
+                    out.push(v.clone());
+                }
+            }
+            Val::List(out)
+        }
+        (Val::List(l), "flat") => Val::List(flat(l.clone())),
+        (Val::List(l), "slice") => {
+            let (a, b) = span(l.len(), num_arg(&arg0), rest.first().and_then(Val::as_num));
+            Val::List(l[a..b].to_vec())
+        }
+        // objects
+        (Val::Map(m), "keys") => Val::List(m.keys().map(|k| Val::Str(k.clone())).collect()),
+        (Val::Map(m), "values") => Val::List(m.values().cloned().collect()),
+        // text (anything else read as its text)
+        (_, "title") => Val::Str(title_case(&to_plain(recv))),
+        (_, "trim") => Val::Str(to_plain(recv).trim().to_string()),
+        (_, "reverse") => Val::Str(to_plain(recv).chars().rev().collect()),
+        (_, "repeat") => {
+            // at most a megabyte: a long property times a large count must not take the core's memory
+            let s = to_plain(recv);
+            let n = num_arg(&arg0).unwrap_or(0.0).clamp(0.0, 10_000.0) as usize;
+            Val::Str(s.repeat(n.min((1 << 20) / s.len().max(1))))
+        }
+        (_, "replace") => {
+            // an empty pattern changes nothing (Rust would put the replacement between every character)
+            let (s, pat) = (to_plain(recv), to_plain(&arg0.unwrap_or(Val::Null)));
+            Val::Str(if pat.is_empty() { s } else { s.replace(&pat, &rest.first().map(to_plain).unwrap_or_default()) })
+        }
+        (_, "split") => {
+            let s = to_plain(recv);
+            let sep = arg0.map(|v| to_plain(&v)).unwrap_or_default();
+            let parts: Vec<Val> = if sep.is_empty() { s.chars().map(|c| Val::Str(c.to_string())).collect() } else { s.split(sep.as_str()).map(|p| Val::Str(p.to_string())).collect() };
+            Val::List(parts)
+        }
+        (_, "slice") => {
+            let chars: Vec<char> = to_plain(recv).chars().collect();
+            let (a, b) = span(chars.len(), num_arg(&arg0), rest.first().and_then(Val::as_num));
+            Val::Str(chars[a..b].iter().collect())
+        }
+        _ => Val::Null,
+    }
+}
+
+/// `.year`, `.month` (1–12, as Obsidian's), `.day`, `.hour`, `.minute`, `.second`, `.millisecond` of a date.
+fn date_field(d: &chrono::NaiveDateTime, name: &str) -> Val {
+    use chrono::{Datelike, Timelike};
+    let n = match name {
+        "year" => d.year() as f64,
+        "month" => d.month() as f64,
+        "day" => d.day() as f64,
+        "hour" => d.hour() as f64,
+        "minute" => d.minute() as f64,
+        "second" => d.second() as f64,
+        "millisecond" => (d.nanosecond() / 1_000_000) as f64,
+        _ => return Val::Null,
+    };
+    Val::Num(n)
+}
+
+/// JavaScript's slice bounds: negative counts from the end, the end defaults to the length, a start past the end is empty.
+fn span(len: usize, start: Option<f64>, end: Option<f64>) -> (usize, usize) {
+    let at = |n: f64| if n < 0.0 { (len as f64 + n).max(0.0) as usize } else { (n as usize).min(len) };
+    let a = start.map_or(0, at);
+    let b = end.map_or(len, at);
+    (a, b.max(a))
+}
+
+/// Lists inside lists spread one level, as JavaScript's `flat()`.
+fn flat(l: Vec<Val>) -> Vec<Val> {
+    l.into_iter().flat_map(|v| match v {
+        Val::List(inner) => inner,
+        other => vec![other],
+    }).collect()
+}
+
+fn title_case(s: &str) -> String {
+    s.split(' ').map(|w| {
+        let mut c = w.chars();
+        c.next().map(|f| f.to_uppercase().chain(c.flat_map(char::to_lowercase)).collect()).unwrap_or_default()
+    }).collect::<Vec<String>>().join(" ")
+}
+
+/// The type names Obsidian's `isType` knows.
+fn type_name(v: &Val) -> &'static str {
+    match v {
+        Val::Null => "null",
+        Val::Bool(_) => "boolean",
+        Val::Num(_) => "number",
+        Val::Str(_) => "string",
+        Val::Link(_) => "link",
+        Val::List(_) => "list",
+        Val::Map(_) => "object",
+        Val::Date(_) => "date",
+    }
 }
 
 /// Two dates' difference as Obsidian gives it: a duration whose fields are its whole length in each unit
@@ -739,6 +917,41 @@ mod tests {
         assert!(run("file.hasTag(\"x\", \"#Physics\")", &ctx).truthy(), "any of, case-insensitive");
         assert!(!run("file.hasTag(\"phys\")", &ctx).truthy());
         assert!(run("file.hasLink(\"Hubbard\")", &ctx).truthy() && !run("file.hasLink(\"Other\")", &ctx).truthy());
+    }
+
+    #[test]
+    fn obsidians_formula_functions() {
+        let ctx = TestCtx::new(&[
+            ("price", Val::Num(12.345)),
+            ("name", Val::Str("  hubbard model  ".into())),
+            ("xs", Val::List(vec![Val::Num(3.0), Val::Num(1.0), Val::Num(3.0), Val::List(vec![Val::Num(2.0)])])),
+            ("when", Val::Str("2026-03-10 14:05".into())),
+            ("index", Val::Str("a property".into())),
+        ]);
+        let s = |src: &str| to_plain(&run(src, &ctx));
+        assert_eq!(s("price.round(1)"), "12.3");
+        assert_eq!(s("price.toFixed(2)"), "12.35");
+        assert_eq!(s("(-price).abs().floor()"), "12");
+        assert_eq!(s("7 % 3"), "1");
+        assert_eq!(s("name.trim().title()"), "Hubbard Model");
+        assert_eq!(s("name.trim().split(\" \")[1]"), "model");
+        assert_eq!(s("name.trim().slice(0, 3).upper()"), "HUB");
+        assert_eq!(s("name.trim().replace(\"model\", \"chain\")"), "hubbard chain");
+        assert_eq!(s("name.trim().replace(\"\", \"x\")"), "hubbard model");
+        assert_eq!(s("\"ab\".repeat(1000000000)").len(), 20_000); // the count stops at 10 000
+        assert_eq!(s("xs.flat().unique().sort().join(\"-\")"), "1-2-3");
+        assert_eq!(s("xs.flat().map(value * 10).slice(-2)"), "30, 20");
+        assert_eq!(s("xs.flat().map(index).join()"), "0,1,2,3");
+        assert_eq!(s("xs.flat().reduce(acc + value, 0)"), "9");
+        assert_eq!(s("max(xs.flat(), 7)"), "7");
+        assert_eq!(s("min(4, 2, 8)"), "2");
+        assert_eq!(s("[1, 2, 3].length"), "3");
+        assert_eq!(s("date(when).year + date(when).month + date(when).hour"), (2026 + 3 + 14).to_string());
+        assert_eq!(s("date(when).time()"), "14:05:00");
+        assert_eq!(s("(date(when) + duration(\"1d\")).day"), "11");
+        assert!(run("price.isType(\"number\") && xs.isType(\"list\")", &ctx).truthy());
+        assert_eq!(s("index"), "a property", "index outside a lambda is a property");
+        assert!(s("date(when).relative()").ends_with("ago") || s("date(when).relative()").starts_with("in "));
     }
 
     #[test]

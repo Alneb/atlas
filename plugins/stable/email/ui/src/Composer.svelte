@@ -86,6 +86,14 @@
     clearTimeout(timer);
     timer = setTimeout(save, 2000);
   }
+  // the address fields are bound, not typed into this form: a change of To, Cc or Bcc is a change of the draft too
+  // (else recipients added after the last save were missing from it); not on the first run, which is the draft loaded
+  let addressesSeen = false;
+  $effect(() => {
+    void d.to; void d.cc; void d.bcc;
+    if (!addressesSeen) { addressesSeen = true; return; }
+    untrack(changed);
+  });
 
   /** The save on its way, if any: Send waits for it, so the draft it makes is the one Send takes out of Drafts. */
   let saving: Promise<void> | null = null;
@@ -199,10 +207,18 @@
       onpick: (path) => { d.files = [...d.files, { name: path.split("/").at(-1) ?? path, path }]; changed(); },
     });
   }
+  const VAULT_TYPES = ["application/x-atlas-path", "text/x-atlas-path"];
+  /** A file dragged in (from the vault's tree, an explorer or the desktop), not text being moved inside the message. */
+  const isFileDrag = (e: DragEvent) => { const t = e.dataTransfer?.types ?? []; return t.includes("Files") || VAULT_TYPES.some((x) => t.includes(x)); };
+  // caught before the message's editor sees it: CodeMirror would type the dragged path into the text as well
   function drop(e: DragEvent) {
-    e.preventDefault();
     over = false;
-    const vault = e.dataTransfer?.getData("text/x-atlas-path") || "";
+    if (!isFileDrag(e)) return;
+    e.preventDefault();
+    e.stopPropagation();
+    // a row of Atlas's file tree or an explorer carries its vault path as `application/x-atlas-path` (the app's
+    // lib/explorer/drag.ts); `text/x-atlas-path` was an older name
+    const vault = e.dataTransfer?.getData("application/x-atlas-path") || e.dataTransfer?.getData("text/x-atlas-path") || "";
     if (vault) { d.files = [...d.files, { name: vault.split("/").at(-1) ?? vault, path: vault }]; changed(); return; }
     if (e.dataTransfer?.files.length) addFiles(e.dataTransfer.files);
   }
@@ -232,13 +248,15 @@
     // taken out of Drafts once it is sent (else it stayed in the thread as a "Draft")
     await saving;
     const payload = { ...d, send_at: at };
+    // read before closing: after it, this composer's state may be gone (an inline one's is)
+    const inline = c.inline;
     mail.closeComposer(c.key);
     if (at) {
       try {
         await mail.call("send", payload);
         mail.toast(`Will be sent ${new Date(at * 1000).toLocaleString(undefined, { weekday: "short", day: "numeric", month: "short", hour: "2-digit", hourCycle: "h23", minute: "2-digit" })}`, "success");
         mail.later();
-      } catch (e) { reopen(e as Error); }
+      } catch (e) { reopen(e as Error, payload, inline); }
       return;
     }
     const wait = Number(setting(mail.atlas, "undo_send", 10)) * 1000;
@@ -250,16 +268,16 @@
         if (r.refused?.length) mail.toast(`Sent, but refused for ${r.refused.map((x) => x.address).join(", ")}`, "error");
         else mail.toast("Sent", "success");
         mail.later();
-      } catch (e) { reopen(e as Error); }
+      } catch (e) { reopen(e as Error, payload, inline); }
     };
     const t = setTimeout(go, wait);
     mail.toast("Sending…", "info", {
       until: Date.now() + wait,
-      undo: async () => { undone = true; clearTimeout(t); mail.compose({ ...payload }, c.inline); },
+      undo: async () => { undone = true; clearTimeout(t); mail.compose({ ...payload, send_at: null }, inline); },
     });
   }
-  function reopen(e: Error) {
-    const again = mail.compose({ ...d }, c.inline);
+  function reopen(e: Error, was: typeof d, inline: boolean | undefined) {
+    const again = mail.compose({ ...was, send_at: null }, inline);
     again.error = `Not sent: ${e.message}`;
     mail.toast(`Not sent: ${e.message}`, "error");
   }
@@ -278,9 +296,10 @@
   async function discard() {
     if ((c.dirty || d.draft) && (d.body.trim() || d.subject.trim()) && !(await askYes(mail.atlas, "Discard this message?", { ok: "Discard", danger: true }))) return;
     clearTimeout(timer);
+    const draft = d.draft; // read before closing (the composer's state may go with it)
     mail.closeComposer(c.key);
-    if (d.draft) {
-      try { await mail.call("discard_draft", { id: d.draft }); mail.later(); } catch { /* it stays in Drafts */ }
+    if (draft) {
+      try { await mail.call("discard_draft", { id: draft }); mail.later(); } catch { /* it stays in Drafts */ }
     }
   }
 
@@ -307,7 +326,7 @@
 
 <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
 <div class="composer" class:inline class:over role="form" aria-label={d.reply_to ? "Reply" : d.forward ? "Forward" : "New message"}
-  onkeydown={key} ondragover={(e) => { e.preventDefault(); over = true; }} ondragleave={(e) => { if (e.currentTarget === e.target) over = false; }} ondrop={drop}>
+  onkeydown={key} ondragovercapture={(e) => { if (!isFileDrag(e)) return; e.preventDefault(); e.stopPropagation(); over = true; }} ondragleave={(e) => { if (e.currentTarget === e.target) over = false; }} ondropcapture={drop}>
   {#if !inline}
     <header class="bar">
       <b>{d.subject || (d.reply_to ? "Reply" : d.forward ? "Forward" : "New message")}</b>
@@ -374,7 +393,7 @@
 
   {#if d.files.length}
     <div class="files">
-      {#each d.files as f (f.name + (f.path ?? "") + (f.from?.join() ?? ""))}
+      {#each d.files as f, i (i + ":" + f.name + (f.path ?? "") + (f.from?.join() ?? ""))}
         <span class="file">{#if f.data && f.mime?.startsWith("image/")}<img class="thumb" src={`data:${f.mime};base64,${f.data}`} alt="" />{:else}<Icon name="attach" size={13} />{/if}<span>{f.name}</span>{#if isShown(f)}<span class="faint">(in the text)</span>{/if}{#if f.size}<span class="faint">{size(f.size)}</span>{/if}{#if f.from}<span class="faint">(forwarded)</span>{/if}<button onclick={() => removeFile(f)} aria-label={`Remove ${f.name}`}>×</button></span>
       {/each}
       {#if totalSize > 20 * 1024 * 1024}<span class="warn">{size(totalSize)}: most servers take about 25 MB</span>{/if}

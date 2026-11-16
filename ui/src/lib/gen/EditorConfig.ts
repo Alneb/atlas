@@ -160,6 +160,12 @@ index_exclude: Array<string>,
  */
 date_names: DateNames, 
 /**
+ * How dates are shown in Bases, task chips and the note's date, in moment.js tokens as Obsidian's (`DD/MM/YYYY`,
+ * `D MMM YYYY HH:mm`; a time is left out for a date without one). Empty: automatic — Today, Yesterday, a weekday
+ * within the week, else `16 Nov`. The full date and how far it is show on hover.
+ */
+date_format: string, 
+/**
  * Obsidian's "Strict line breaks": on, a single newline inside a paragraph is not a break in rendered notes (the
  * Markdown rule); off (Obsidian's default), each line shows as written — an address, a poem, a screenshot's text.
  */

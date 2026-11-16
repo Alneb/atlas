@@ -14,6 +14,8 @@
   import { onMount } from "svelte";
   import { api, ApiError } from "../lib/api";
   import { rel } from "../lib/time";
+  import { dateTip, showDate } from "../lib/dates";
+  import { localDay } from "../lib/local-day";
   import { diff } from "../lib/frontmatter-edit";
   import { on, touches } from "../lib/bus";
   import { app, toast } from "../lib/state.svelte";
@@ -63,10 +65,10 @@
   let made = $state<import("../lib/gen/Made").Made | null>(null);
   const askMade = () => { const p = path; void api.fileMade(p).then((m) => { if (p === path) made = m; }, () => { made = null; }); };
   $effect(() => { if (status === "ready") askMade(); });
-  const madeDay = (m: import("../lib/gen/Made").Made) =>
-    new Date(m.made).toLocaleDateString(undefined, { day: "numeric", month: "short", ...(new Date(m.made).getFullYear() === new Date().getFullYear() ? {} : { year: "numeric" }) });
+  // the day it was made (lib/dates.ts's form); the hour in the tooltip when known
+  const madeDay = (m: import("../lib/gen/Made").Made) => showDate(localDay(new Date(m.made)));
   const madeTip = (m: import("../lib/gen/Made").Made) => {
-    const at = new Date(m.made).toLocaleString(undefined, { dateStyle: "full", ...(m.day_only ? {} : { timeStyle: "short" }) });
+    const at = dateTip(m.day_only ? localDay(new Date(m.made)) : m.made);
     const from = { property: "its created/date property", git: "its first commit", disk: "the file's creation" }[m.by];
     return `Made ${at} (${from})\nLast changed ${rel(m.changed)}`;
   };
@@ -489,10 +491,8 @@
   <!-- who has the note and who saves it; the mirror only when something is wrong with it (all is well: nothing to say) -->
   {#if livePeers.length}<div class="live-chip" title="These devices have this note open: their edits and cursors show here as they type. {writerName ? `${writerName} saves the file; your edits reach it as you type.` : 'This device saves the file.'}">Live · {[...new Set(livePeers)].join(", ")} · {writerName ? `${writerName} writes` : "you write"}</div>
   {:else if mirror && mirror.state !== "online"}<button class="live-chip mirror-chip down" onclick={mirrorMenu}
-    title="{mirror.host} {mirror.state === 'signin' ? 'wants a sign-in' : 'is unreachable'}: this note is saved on this device only, and merged with the server's copy later. Click for more">{mirror.state === "signin" ? `Sign in to ${mirror.host}` : `${mirror.host} offline · saved here`}</button>{/if}
-  {#if isNew && status === "ready"}
-    <div class="new-file-hint">New file — it is created on the first save.</div>
-  {/if}
+    title="{mirror.host} {mirror.state === 'signin' ? 'wants a sign-in' : 'is unreachable'}: this note is saved on this device only, and merged with the server's copy later. Click for more">{mirror.state === "signin" ? `Sign in to ${mirror.host}` : `${mirror.host} offline · saved here`}</button>
+  {:else if isNew && status === "ready"}<div class="live-chip new-chip" title="This file does not exist yet: it is created on the first save">New file · not saved yet</div>{/if}
   {#if !isMarkdown(path) && status === "ready" && (settings.config?.editor.code_bar ?? true)}<CodeBar view={() => ed?.view ?? null} {path} {problems} />{/if}
   {#if drawn}<div class="note-view" bind:this={viewHost}></div>{/if}
   <!-- the format bar heads the note's column only: the Properties panel beside it runs the full height, its edge the
@@ -541,7 +541,7 @@
   .crumb-btn:hover { background: var(--bg-hover); color: var(--text); }
   .crumb-btn.on { color: var(--accent); background: var(--accent-soft); }
   .editor-host :global(.cm-editor) { height: 100%; }
-  .new-file-hint { font-size: calc(12px * var(--ui-scale, 1)); color: var(--text-faint); padding: 6px 16px 0; text-align: center; }
+  .new-chip { pointer-events: auto; background: var(--bg-elev); color: var(--text-faint); border: 1px dashed var(--border); }
   .banner { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
     padding: 8px 14px; font-size: calc(13px * var(--ui-scale, 1)); border-bottom: 1px solid var(--border); }
   .banner-warn { background: color-mix(in srgb, var(--yellow) 14%, var(--bg)); color: var(--text); }

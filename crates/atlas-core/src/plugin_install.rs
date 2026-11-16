@@ -406,6 +406,20 @@ pub struct Available {
     #[ts(optional)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub installed: Option<String>,
+    /// What it does, in a line (its manifest's `description`; an older index has none).
+    #[ts(optional)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    /// Its icon, an Atlas icon name (its manifest's `icon`).
+    #[ts(optional)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub icon: Option<String>,
+    /// The archive's size in bytes, when the index says it.
+    #[ts(optional, type = "number")]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub size: Option<u64>,
+    /// Installed here at an older version than the release's: an update is there to take (never a downgrade).
+    pub update: bool,
 }
 
 #[derive(Deserialize)]
@@ -416,6 +430,12 @@ struct IndexEntry {
     tier: String,
     file: String,
     platforms: Platforms,
+    #[serde(default)]
+    description: Option<String>,
+    #[serde(default)]
+    icon: Option<String>,
+    #[serde(default)]
+    size: Option<u64>,
 }
 
 /// `"any"` (plain files) or the platforms an engine was built for.
@@ -433,6 +453,13 @@ enum AnyWord {
     Any,
 }
 
+/// Whether version `a` is after `b`, number by number (`1.10.0` after `1.9.2`); a part that is not a number counts as 0,
+/// and an installed copy without a version is older than any.
+fn newer(a: &str, b: &str) -> bool {
+    let parts = |v: &str| v.trim().trim_start_matches('v').split(['.', '-', '+']).map(|x| x.parse::<u64>().unwrap_or(0)).collect::<Vec<_>>();
+    b.trim().is_empty() || parts(a) > parts(b)
+}
+
 /// The plugins the release at `index` (a plugins.json address) offers, marked with what this vault has.
 pub fn available(root: &Path, index: &str) -> Result<Vec<Available>> {
     if index.trim().is_empty() {
@@ -447,17 +474,24 @@ pub fn available(root: &Path, index: &str) -> Result<Vec<Available>> {
     let have = plugins::list(root);
     Ok(entries
         .into_iter()
-        .map(|e| Available {
-            runs_here: match &e.platforms {
-                Platforms::Any(_) => true,
-                Platforms::Built(list) => list.contains(&here),
-            },
-            installed: have.iter().find(|p| p.id == e.id).map(|p| p.version.clone().unwrap_or_default()),
-            url: format!("{base}/{}", e.file),
-            id: e.id,
-            title: e.title,
-            version: e.version,
-            tier: e.tier,
+        .map(|e| {
+            let installed = have.iter().find(|p| p.id == e.id).map(|p| p.version.clone().unwrap_or_default());
+            Available {
+                runs_here: match &e.platforms {
+                    Platforms::Any(_) => true,
+                    Platforms::Built(list) => list.contains(&here),
+                },
+                update: installed.as_deref().is_some_and(|v| e.version.as_deref().is_some_and(|r| newer(r, v))),
+                installed,
+                url: format!("{base}/{}", e.file),
+                id: e.id,
+                title: e.title,
+                version: e.version,
+                tier: e.tier,
+                description: e.description,
+                icon: e.icon,
+                size: e.size,
+            }
         })
         .collect())
 }
@@ -503,6 +537,12 @@ pub fn remove(root: &Path, id: &str) -> Result<String> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn an_update_is_a_newer_version_never_an_older_one() {
+        assert!(newer("1.8.1", "1.8.0") && newer("1.10.0", "1.9.2") && newer("0.2.0", ""));
+        assert!(!newer("1.8.0", "1.8.1") && !newer("1.8.0", "1.8.0") && !newer("1.8.0", "v1.8.0"));
+    }
+
     #[test]
     fn a_folder_whose_engine_build_is_older_than_its_source_is_refused() {
         let d = tempfile::tempdir().unwrap();

@@ -12,9 +12,9 @@ export type BaseResult = { views: Array<BaseView>, error: string | null,
  */
 filters: Filter | null, 
 /**
- * The base's formula names (`formula.<name>` columns).
+ * The base's formulas, name → expression (`formula.<name>` columns).
  */
-formulas: Array<string>, 
+formulas: { [key in string]: string }, 
 /**
  * Every frontmatter property of the vault's notes and its kind, read off the values (the commonest shape wins):
  * the filter editor's operators and the cell editors follow it (a vault's property spec, when there is one, wins

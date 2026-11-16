@@ -160,6 +160,12 @@ test("the morning digest: once, at the first moment after quiet hours", () => {
   assert.ok(!after.planned.some((p) => p.id.startsWith("plan:digest")), "once a day");
 });
 
+test("the morning digest stays silent when nothing is due, but the ledger records the day", () => {
+  const r = plan(input(clock("09:12"), [], { settings: settingsOf({}) }));
+  assert.ok(!r.planned.some((p) => p.id.startsWith("plan:digest")), "no notice saying there is nothing");
+  assert.equal(r.writes.find((w) => w.entry.kind === "digest")?.entry.detail, "nothing due");
+});
+
 test("the ledger round-trips through its note, newest first, hand lines kept", () => {
   const c = clock("16:48");
   const name = { path: "notes/Thesis.md", title: "Write the introduction", block: "t3f9a" };

@@ -115,7 +115,7 @@
     </Popover>
   {:else}
     <Popover anchor={pop.anchor} label="Properties" width={340} onclose={() => (pop = null)}>
-      <PropertiesPanel columns={view.columns} others={props.filter((p) => !columnIds.includes(p.id))} onedit={(e) => onedit(e)} />
+      <PropertiesPanel columns={view.columns} formulas={res.formulas} others={props.filter((p) => !columnIds.includes(p.id))} onedit={(e, then) => onedit(e, then)} />
     </Popover>
   {/if}
 {/if}

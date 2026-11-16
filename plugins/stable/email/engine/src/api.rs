@@ -74,6 +74,7 @@ pub fn table() -> Vec<(&'static str, Method)> {
         ("agent_accounts", agent_accounts),
         ("consent_answer", consent_answer),
         ("agent_open", agent_open),
+        ("agent_save_note", agent_save_note),
         ("preview", preview),
         ("find", find),
         ("answer_invite", answer_invite),
@@ -1013,6 +1014,16 @@ fn agent_open(m: &Arc<Mail>, p: &Value) -> Result<Value, String> {
         Some(_) => Err("the Atlas window could not show the message".into()),
         None => Err("no Atlas window showed the message: is Atlas open on this vault, with the Email plugin on?".into()),
     }
+}
+
+/// An agent's "keep this mail as a note": the conversation saved as Save as note does (the same path, updated when
+/// saved before), so it can be linked — to an event (dav_link_event) or from a note as `[[path]]`.
+fn agent_save_note(m: &Arc<Mail>, p: &Value) -> Result<Value, String> {
+    let acc = m.account(Some(s(p, "account")))?;
+    let x = find_msg(m, &acc.name, p)?;
+    let path = m.rt.block_on(crate::notes::save(m, x.thread))?;
+    let link = format!("[[{}]]", path.trim_end_matches(".md"));
+    Ok(json!({ "path": path, "link": link, "subject": x.subject }))
 }
 
 fn iso(t: i64) -> String {

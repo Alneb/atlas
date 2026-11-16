@@ -112,6 +112,8 @@
     for (const r of rows) r.files.sort((a, b) => at(b) - at(a));
     return rows.sort((a, b) => at(b.files[0]) - at(a.files[0]));
   }
+  /** A row of Activity: a note made (`created`) or changed (`mtime`) that day. */
+  type ActRow = { path: string; created?: number; mtime?: number };
   const createdGroups = $derived(byFolder(created, (f) => f.created));
   const groups = $derived(byFolder(changed, (f) => f.mtime));
   const error = $derived(todayData.error);
@@ -448,53 +450,16 @@
             </span>
           </div>
           <div class="act-tabs atlas-seg" role="tablist" aria-label="Activity">
-            <button role="tab" class:on={tab === "created"} aria-selected={tab === "created"} onclick={() => (actTab = "created")}>Created <span class="count">{created.length}</span></button>
-            <button role="tab" class:on={tab === "changed"} aria-selected={tab === "changed"} onclick={() => (actTab = "changed")}>Changed <span class="count">{changed.length}</span></button>
+            <button role="tab" class:on={tab === "created"} aria-selected={tab === "created"} title="Notes made that day" aria-label="Created" onclick={() => (actTab = "created")}><span class="w">New</span> <span class="count">{created.length}</span></button>
+            <button role="tab" class:on={tab === "changed"} aria-selected={tab === "changed"} title="Notes changed that day" aria-label="Changed" onclick={() => (actTab = "changed")}><span class="w">Edited</span> <span class="count">{changed.length}</span></button>
             {#if hasCommits}
-              <button role="tab" class:on={tab === "commits"} aria-selected={tab === "commits"} onclick={() => (actTab = "commits")}>Commits <span class="count">{mine.length + claude.length}</span></button>
+              <button role="tab" class:on={tab === "commits"} aria-selected={tab === "commits"} title="Commits that day" aria-label="Commits" onclick={() => (actTab = "commits")}><span class="w">Git</span> <span class="count">{mine.length + claude.length}</span></button>
             {/if}
           </div>
           {#if tab === "created"}
-            {#if createdGroups.length}
-              <ul class="activity changed">
-                {#each createdAll ? createdGroups : createdGroups.slice(0, 8) as g (g.key)}
-                  {#if g.files.length === 1}
-                    {@const f = g.files[0]}
-                    <li><button class="changed-row" data-path={f.path} onclick={() => openPath(f.path)} title={f.path}><Icon name={isNote(f.path) ? "file-text" : "file"} size={14} /><span class="path">{shownName(f.path)}{#if dirOf(f.path)}{" "}<span class="n">· {dirOf(f.path)}</span>{/if}</span><span class="when">{madeAt(f.created)}</span></button></li>
-                  {:else}
-                    <li><button class="changed-row" title={g.key} onclick={() => (openDirs[g.key] = !openDirs[g.key])}><Icon name={openDirs[g.key] ? "folder-open" : "folder"} size={14} /><span class="path">{basename(g.key)}/ <span class="n">· {g.files.length} {showFiles ? "files" : "notes"}{#if dirOf(g.key)}{" "}· {dirOf(g.key)}{/if}</span></span><span class="when">{madeAt(g.files[0].created)}</span></button></li>
-                    {#if openDirs[g.key]}
-                      {#each g.files as f (f.path)}
-                        <li><button class="changed-row nested" data-path={f.path} onclick={() => openPath(f.path)} title={f.path}><Icon name={isNote(f.path) ? "file-text" : "file"} size={13} /><span class="path">{shownName(f.path)}{#if dirOf(f.path) !== g.key}{" "}<span class="n">· {dirOf(f.path).slice(g.key.length + 1)}</span>{/if}</span><span class="when">{madeAt(f.created)}</span></button></li>
-                      {/each}
-                    {/if}
-                  {/if}
-                {/each}
-              </ul>
-              {#if createdGroups.length > 8}<button class="link more" onclick={() => (createdAll = !createdAll)}>{createdAll ? "Show fewer" : `Show all ${createdGroups.length}`}</button>{/if}
-            {:else}
-              <p class="empty">{onToday ? "No note made yet today." : "No note was made that day."}</p>
-            {/if}
+            {@render rowsOf(createdGroups, (f) => f.created ?? 0, createdAll, () => (createdAll = !createdAll), onToday ? "No note made yet today." : "No note was made that day.")}
           {:else if tab === "changed"}
-            {#if groups.length}
-              <ul class="activity changed">
-                {#each changedAll ? groups : groups.slice(0, 8) as g (g.key)}
-                  {#if g.files.length === 1}
-                    <li><button class="changed-row" data-path={g.files[0].path} onclick={() => openPath(g.files[0].path)} title={g.files[0].path}><Icon name={isNote(g.files[0].path) ? "file-text" : "file"} size={14} /><span class="path">{shownName(g.files[0].path)}{#if dirOf(g.files[0].path)}{" "}<span class="n">· {dirOf(g.files[0].path)}</span>{/if}</span><span class="when">{madeAt(g.files[0].mtime)}</span></button></li>
-                  {:else}
-                    <li><button class="changed-row" onclick={() => (openDirs[g.key] = !openDirs[g.key])}><Icon name={openDirs[g.key] ? "folder-open" : "folder"} size={14} /><span class="path">{basename(g.key)}/ <span class="n">· {g.files.length} {showFiles ? "files" : "notes"}{#if dirOf(g.key)}{" "}· {dirOf(g.key)}{/if}</span></span><span class="when">{madeAt(g.files[0].mtime)}</span></button></li>
-                    {#if openDirs[g.key]}
-                      {#each g.files as f (f.path)}
-                        <li><button class="changed-row nested" data-path={f.path} onclick={() => openPath(f.path)} title={f.path}><Icon name={isNote(f.path) ? "file-text" : "file"} size={13} /><span class="path">{shownName(f.path)}{#if dirOf(f.path) !== g.key}{" "}<span class="n">· {dirOf(f.path).slice(g.key.length + 1)}</span>{/if}</span><span class="when">{madeAt(f.mtime)}</span></button></li>
-                      {/each}
-                    {/if}
-                  {/if}
-                {/each}
-              </ul>
-              {#if groups.length > 8}<button class="link more" onclick={() => (changedAll = !changedAll)}>{changedAll ? "Show fewer" : `Show all ${groups.length}`}</button>{/if}
-            {:else}
-              <p class="empty">No other note changed.</p>
-            {/if}
+            {@render rowsOf(groups, (f) => f.mtime ?? 0, changedAll, () => (changedAll = !changedAll), "No other note changed.")}
           {/if}
           {#if tab !== "commits" && hiddenFiles > 0}
             <button class="link more hidden-files" onclick={toggleFiles}>+ {hiddenFiles} file{hiddenFiles === 1 ? "" : "s"} hidden — show</button>
@@ -520,6 +485,31 @@
   </div>
 </div>
 
+<!-- Created and Changed alike: a row per file, or per folder gathered (byFolder), newest first; `at` gives the row's time -->
+{#snippet rowsOf(list: { key: string; files: ActRow[] }[], at: (f: ActRow) => number, all: boolean, toggle: () => void, empty: string)}
+  {@const when = (f: ActRow) => madeAt(at(f))}
+  {#if list.length}
+    <ul class="activity changed">
+      {#each all ? list : list.slice(0, 8) as g (g.key)}
+        {#if g.files.length === 1}
+          {@const f = g.files[0]}
+          <li><button class="changed-row" data-path={f.path} onclick={() => openPath(f.path)} title={f.path}><Icon name={isNote(f.path) ? "file-text" : "file"} size={14} /><span class="path">{shownName(f.path)}{#if dirOf(f.path)}{" "}<span class="n">· {dirOf(f.path)}</span>{/if}</span><span class="when">{when(f)}</span></button></li>
+        {:else}
+          <li><button class="changed-row" title={g.key} onclick={() => (openDirs[g.key] = !openDirs[g.key])}><Icon name={openDirs[g.key] ? "folder-open" : "folder"} size={14} /><span class="path">{basename(g.key)}/ <span class="n">· {g.files.length}{#if dirOf(g.key)}{" "}· {dirOf(g.key)}{/if}</span></span><span class="when">{when(g.files[0])}</span></button></li>
+          {#if openDirs[g.key]}
+            {#each g.files as f (f.path)}
+              <li><button class="changed-row nested" data-path={f.path} onclick={() => openPath(f.path)} title={f.path}><Icon name={isNote(f.path) ? "file-text" : "file"} size={13} /><span class="path">{shownName(f.path)}{#if dirOf(f.path) !== g.key}{" "}<span class="n">· {dirOf(f.path).slice(g.key.length + 1)}</span>{/if}</span><span class="when">{when(f)}</span></button></li>
+            {/each}
+          {/if}
+        {/if}
+      {/each}
+    </ul>
+    {#if list.length > 8}<button class="link more" onclick={toggle}>{all ? "Show fewer" : `Show all ${list.length}`}</button>{/if}
+  {:else}
+    <p class="empty">{empty}</p>
+  {/if}
+{/snippet}
+
 <style>
   .today { height: 100%; overflow: auto; background: var(--bg); container-type: inline-size; }
   .today-inner { max-width: 1080px; margin: 0 auto; padding: 40px 36px 64px; }
@@ -527,7 +517,10 @@
   .eyebrow { font-size: calc(12.5px * var(--ui-scale, 1)); color: var(--text-faint); letter-spacing: .02em; margin-bottom: 4px; }
   /* one row whatever the card's width: the tabs share it and shrink, never wrap under each other */
   .act-tabs { margin: 2px 0 10px; flex-wrap: nowrap; width: 100%; }
-  .act-tabs > button { flex: 1 1 0; padding-inline: 6px; gap: 5px; overflow: hidden; }
+  .act-tabs > button { flex: 1 1 auto; min-width: 0; padding-inline: 4px; gap: 4px; overflow: hidden; }
+  /* a narrow card: the word ellipsed, the count always whole */
+  .act-tabs > button .w { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .act-tabs > button .count { flex: none; padding-inline: 5px; }
   .greet-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
   .greet-chip { display: inline-flex; align-items: center; gap: 6px; font: inherit; font-size: calc(12.5px * var(--ui-scale, 1)); color: var(--text-muted);
     background: var(--bg-alt); border: 1px solid var(--border); border-radius: 999px; padding: 3px 10px; white-space: nowrap; }

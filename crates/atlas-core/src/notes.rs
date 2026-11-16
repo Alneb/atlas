@@ -261,7 +261,7 @@ pub(crate) fn templater_rules(root: &Path, cfg: &Config) -> Vec<crate::config::T
                 continue;
             }
             let (title, folder) = if key == "regex" { (Some(what.to_string()), None) } else { (None, Some(what.trim_matches('/').to_string())) };
-            rules.push(crate::config::TemplateRule { title, folder, template: name(t) });
+            rules.push(crate::config::TemplateRule { title, folder, linked_by: None, template: name(t) });
         }
     }
     rules
@@ -270,7 +270,9 @@ pub(crate) fn templater_rules(root: &Path, cfg: &Config) -> Vec<crate::config::T
 /// The template a note made without one gets by the vault's rules (template_rules.rs: the templates' own
 /// `apply_when:`, `[notes] template_rules`, else Templater's).
 fn template_by_rule(root: &Path, cfg: &Config, rel: &str) -> Option<String> {
-    crate::template_rules::choose(root, cfg, &crate::template_rules::Moment::NewNote { path: rel }).map(|c| c.template)
+    let stem = rel.rsplit('/').next().unwrap_or(rel).trim_end_matches(".md");
+    let linked_by = crate::links::relations_to_missing(root, cfg, stem);
+    crate::template_rules::choose(root, cfg, &crate::template_rules::Moment::NewNote { path: rel, linked_by: &linked_by }).map(|c| c.template)
 }
 
 /// The template's text; a missing `fleeting` falls back to the built-in one, any other is an error.
@@ -803,9 +805,27 @@ mod tests {
         assert_eq!(make("an idea", Some("labs"), &cfg), plain, "folder templates are off in Templater: not used");
         // the vault's own rules win over Templater's
         let mut own = cfg.clone();
-        own.notes.template_rules = vec![crate::config::TemplateRule { title: None, folder: Some("labs".into()), template: "lab".into() }];
+        own.notes.template_rules = vec![crate::config::TemplateRule { title: None, folder: Some("labs".into()), linked_by: None, template: "lab".into() }];
         assert_eq!(make("run 7", Some("labs/sub"), &own), "# Lab\n");
         assert_eq!(make("2026-10-21 Wed.", None, &own), plain, "own rules replace Templater's");
+    }
+
+    #[test]
+    fn a_note_other_notes_name_under_topics_is_made_from_the_topic_template() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(dir.path().join("templates")).unwrap();
+        std::fs::create_dir_all(dir.path().join("notes")).unwrap();
+        std::fs::write(dir.path().join("templates/topic.md"), "---\ntype: subtopic\n---\n![[00_base_topic.base]]\n").unwrap();
+        std::fs::write(dir.path().join("notes/Lasers.md"), "---\ntopics:\n  - \"[[Optics]]\"\n---\nsee [[Plasma]]\n").unwrap();
+        let mut cfg = Config::default();
+        cfg.notes.template_rules = vec![crate::config::TemplateRule { title: None, folder: None, linked_by: Some("topics".into()), template: "topic".into() }];
+        let make = |title: &str| {
+            let req = NewNote { template: None, title: title.into(), dir: Some("notes".into()), near: None, text: None, values: None };
+            let r = new_note_at(dir.path(), &cfg, &req, now()).unwrap();
+            std::fs::read_to_string(dir.path().join(r.path)).unwrap()
+        };
+        assert_eq!(make("Optics"), "---\ntype: subtopic\n---\n![[00_base_topic.base]]\n", "named under topics: a topic");
+        assert!(!make("Plasma").contains("subtopic"), "linked in the text only: the default");
     }
 
     #[test]

@@ -191,6 +191,9 @@ export class Mail {
   async read(id: number) {
     this.cursor = id;
     this.openId = id;
+    // another conversation: the old one leaves the reader at once (the loading view shows), so Archive or Delete
+    // pressed meanwhile never acts on one thing while another is on screen
+    if (this.open && !this.open.messages.some((m) => m.id === id)) this.open = null;
     this.reading = true;
     this.readError = "";
     const row = this.rows.find((r) => r.id === id);
@@ -385,6 +388,36 @@ export class Mail {
       if (row) row.saved = r.path;
       this.toast("Saved as a note", "success", { action: { label: "Open", run: () => this.atlas.open(r.path, undefined, { beside: true }) } });
     } catch (e) { this.toast(`Could not save it: ${(e as Error).message}`, "error"); }
+  }
+
+  /** The open conversation as a note (saved first when it is not yet): what a link to the mail points at. */
+  private async noteOfOpen(): Promise<string | null> {
+    const t = this.open;
+    if (!t) return null;
+    if (t.saved) return t.saved;
+    await this.saveNote(t.thread);
+    return this.open?.thread === t.thread ? this.open.saved ?? null : null;
+  }
+
+  /** "Link to an event…": the conversation's note into an event's `links:` — the Calendar's chooser does the rest
+   *  (it listens for `atlas-calendar:link`; without the Calendar plugin a toast says so). */
+  async linkToEvent() {
+    const link = await this.noteOfOpen();
+    if (!link) return;
+    let heard = false;
+    const ack = () => (heard = true);
+    window.addEventListener("atlas-calendar:heard", ack, { once: true });
+    window.dispatchEvent(new CustomEvent("atlas-calendar:link", { detail: { link, ack: true } }));
+    setTimeout(() => { window.removeEventListener("atlas-calendar:heard", ack); if (!heard) this.toast("No Calendar plugin to link the event in: turn it on in Settings → Plugins.", "error"); }, 400);
+  }
+
+  /** "Copy a link": `[[the conversation's note]]`, to paste in any note (the note saved first). */
+  async copyLink() {
+    const path = await this.noteOfOpen();
+    if (!path) return;
+    const link = `[[${path.replace(/\.md$/i, "")}]]`;
+    try { await navigator.clipboard.writeText(link); this.toast(`Copied ${link} — paste it in a note`, "success"); }
+    catch { this.toast(`Copy it by hand: ${link}`, "error"); }
   }
 
   // ----- composing

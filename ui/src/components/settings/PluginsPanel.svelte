@@ -3,6 +3,7 @@
   // details are its own page in Settings (PluginPage.svelte), reached by its name or "Settings…".
   import Icon from "../Icon.svelte";
   import PlatformChips from "./PlatformChips.svelte";
+  import PluginStore from "./PluginStore.svelte";
   import { pluginLog } from "../../lib/plugin-log.svelte";
   import { openPluginSettings, openPluginSettingsText } from "../../lib/plugin-settings.svelte";
   import { open } from "../../lib/dock";
@@ -60,10 +61,11 @@
       </li>
     {:else}<li class="muted">No plugins of its own in this workspace (<code>.atlas/plugins/</code>).</li>{/each}
   </ul>
-  <button class="btn" onclick={installPlugin} title="Copy a plugin into this vault from a folder, a git address or an archive"><Icon name="arrow-down" size={13} /> Install…</button>
+  <button class="btn" onclick={installPlugin} title="Copy a plugin into this vault from a folder, a git address or an archive"><Icon name="arrow-down" size={13} /> Install from elsewhere…</button>
   <button class="btn" onclick={onnew}><Icon name="plus" size={13} /> New plugin</button>
   <button class="btn" onclick={onblock} title="A plugin with one block for notes and pages, from a template"><Icon name="plus" size={13} /> New block</button>
 </section>
+<PluginStore />
 
 
 <style>

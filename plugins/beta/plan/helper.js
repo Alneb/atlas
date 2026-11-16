@@ -611,11 +611,12 @@
 			kind: "digest",
 			detail: counts || "nothing due"
 		} });
+		if (!counts) return;
 		planned.push({
 			at: rfc3339(moment, c),
 			until: rfc3339(moment + DIGEST_RINGS, c),
 			id: `plan:digest:${today}`,
-			title: counts ? `Today: ${counts}` : "Today: nothing due",
+			title: `Today: ${counts}`,
 			body: names.join(" · "),
 			...input.digestOpens ? { open: input.digestOpens } : {},
 			actions: input.digestOpens ? [{

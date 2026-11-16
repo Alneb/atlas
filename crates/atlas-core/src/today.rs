@@ -417,18 +417,27 @@ impl<S: PartialEq, V: Clone> PerFile<S, V> {
 
 
 /// Each thing once, under the path that stands for it (a file and its companion note are one: companion::stands_for),
-/// that `keep` accepts, the first [`MAX_CHANGED`]; `items` newest first, so the newest of a thing's files gives its
-/// time. Stops there: a thing's path reads its file, and a sync or a checkout can touch thousands at once.
+/// that `keep` accepts, the first [`MAX_CHANGED`] notes and the first [`MAX_CHANGED`] other files; `items` newest
+/// first, so the newest of a thing's files gives its time. Notes and files are counted apart: a run writing hundreds
+/// of output files must not push the day's notes out of the list (Activity shows notes only by default). Stops there:
+/// a thing's path reads its file, and a sync or a checkout can touch thousands at once.
 fn per_thing<T>(root: &Path, items: &mut Vec<T>, path: impl Fn(&mut T) -> &mut String, keep: impl Fn(&str) -> bool) {
-    let mut seen = std::collections::HashSet::new();
+    let (mut notes, mut files) = (std::collections::HashSet::new(), std::collections::HashSet::new());
     items.retain_mut(|it| {
-        if seen.len() >= MAX_CHANGED {
+        if notes.len() >= MAX_CHANGED && files.len() >= MAX_CHANGED {
             return false;
         }
         let p = path(it);
         *p = crate::companion::stands_for(root, p);
-        keep(p) && seen.insert(p.clone())
+        let seen = if is_text_note(p) { &mut notes } else { &mut files };
+        seen.len() < MAX_CHANGED && keep(p) && seen.insert(p.clone())
     });
+}
+
+/// A note as Activity counts one (the UI's `paths.ts` `isNote`): text, not a drawing kept as `.excalidraw.md`.
+fn is_text_note(p: &str) -> bool {
+    let l = p.to_ascii_lowercase();
+    [".md", ".markdown", ".txt", ".page"].iter().any(|x| l.ends_with(x)) && !l.ends_with(".excalidraw.md")
 }
 
 fn changed_since(root: &Path, files: &[Found], cfg: &Config, now: SystemTime) -> Vec<Changed> {
@@ -684,6 +693,24 @@ mod tests {
         let today = day_activity(r, &Config::default(), Local::now().date_naive());
         assert!(today.created.is_empty(), "its property says the 14th, not the day it was written");
         assert_eq!(today.changed.len(), 2, "both written today");
+    }
+
+    #[test]
+    fn a_runs_many_output_files_never_push_the_days_notes_out_of_activity() {
+        let d = tempfile::tempdir().unwrap();
+        let r = d.path();
+        std::fs::create_dir_all(r.join("data/r1")).unwrap();
+        std::fs::create_dir_all(r.join("notes")).unwrap();
+        std::fs::write(r.join("notes/plan.md"), "# Plan\n").unwrap();
+        std::thread::sleep(std::time::Duration::from_millis(20)); // the output is newer than the note
+        for i in 0..(MAX_CHANGED + 10) {
+            std::fs::write(r.join(format!("data/r1/out{i}.csv")), "1,2,3\n").unwrap();
+        }
+        let a = day_activity(r, &Config::default(), Local::now().date_naive());
+        let listed = a.created.iter().map(|c| &c.path).chain(a.changed.iter().map(|c| &c.path)).any(|p| p == "notes/plan.md");
+        assert!(listed, "the note is there behind the newer files");
+        let files = a.created.iter().map(|c| &c.path).chain(a.changed.iter().map(|c| &c.path)).filter(|p| !is_text_note(p)).count();
+        assert!((MAX_CHANGED..=2 * MAX_CHANGED).contains(&files), "files still capped: {files}");
     }
 
     #[test]

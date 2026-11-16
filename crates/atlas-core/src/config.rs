@@ -119,6 +119,10 @@ pub struct TemplateRule {
     #[serde(default)]
     #[ts(optional)]
     pub folder: Option<String>,
+    /// A new note that other notes already name through this property (`topics`): see template_rules.rs `linked_by`.
+    #[serde(default)]
+    #[ts(optional)]
+    pub linked_by: Option<String>,
     /// A template's name in the templates folder (without `.md`).
     pub template: String,
 }
@@ -682,6 +686,10 @@ pub struct EditorConfig {
     pub index_exclude: Vec<String>,
     /// Month and day names in Bases dates (`.format("MMMM")`, `dddd`), templates and daily notes.
     pub date_names: DateNames,
+    /// How dates are shown in Bases, task chips and the note's date, in moment.js tokens as Obsidian's (`DD/MM/YYYY`,
+    /// `D MMM YYYY HH:mm`; a time is left out for a date without one). Empty: automatic — Today, Yesterday, a weekday
+    /// within the week, else `16 Nov`. The full date and how far it is show on hover.
+    pub date_format: String,
     /// Obsidian's "Strict line breaks": on, a single newline inside a paragraph is not a break in rendered notes (the
     /// Markdown rule); off (Obsidian's default), each line shows as written — an address, a poem, a screenshot's text.
     pub strict_line_breaks: bool,
@@ -1130,6 +1138,7 @@ impl Default for EditorConfig {
             git_gutter: true,
             index_exclude: vec!["docs/memory".into()],
             date_names: DateNames::English,
+            date_format: String::new(),
             strict_line_breaks: false,
             attachment_folder: "attachments".into(),
             prose_line_height: 1.68,

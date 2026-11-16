@@ -30,7 +30,10 @@ const registry = new Map<string, ViewRenderer>([
   ["table", svelte(ListView, { table: true })],
   ["calendar", svelte(CalendarView)],
   // (`tasks` is taken: it is Today's "Open tasks" part, a block of its own)
-  ["task-list", svelte(TasksView as unknown as typeof ListView)],
+  ["task-list", (host, d) => {
+    const app = mount(TasksView, { target: host, props: { rows: d.rows, ontick: tick(d), deadlines: d.options?.from === "deadlines" } });
+    return () => void unmount(app);
+  }],
   ["tree", (host, d) => {
     const app = mount(TreeView, { target: host, props: { rows: d.rows, by: typeof d.options?.by === "string" ? d.options.by : "up" } });
     return () => void unmount(app);

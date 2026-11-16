@@ -146,6 +146,61 @@ pub fn spanish_locale() -> bool {
     LOCALE_ES.with(Cell::get)
 }
 
+/// How far `dt` is from `now` in words, as moment.js's `fromNow()` says it (Obsidian's `date.relative()`): "a few
+/// seconds ago", "3 days ago", "in a month"; the same thresholds (45 s, 90 s, 45 min, 90 min, 22 h, 36 h, 26 days,
+/// 45 days, 320 days, 548 days). Spanish when [`names`] says so.
+pub fn relative(dt: &NaiveDateTime, now: &NaiveDateTime) -> String {
+    let es = spanish_locale();
+    // a day without a time (midnight) counts in calendar days, noon to noon: Thursday is "in 3 days" on Monday
+    // afternoon, today is "today" (the interface's tooltip, lib/dates.ts, says the same)
+    let (dt, now) = if dt.time() == chrono::NaiveTime::MIN {
+        if dt.date() == now.date() {
+            return if es { "hoy".into() } else { "today".into() };
+        }
+        let noon = chrono::NaiveTime::from_hms_opt(12, 0, 0).unwrap_or_default();
+        (dt.date().and_time(noon), now.date().and_time(noon))
+    } else {
+        (*dt, *now)
+    };
+    let secs = (dt - now).num_seconds();
+    let s = secs.unsigned_abs() as f64;
+    let (min, hour, day) = (60.0, 3600.0, 86400.0);
+    let n = |x: f64| x.round().max(1.0) as u64;
+    let words = if s < 45.0 {
+        if es { "unos segundos".to_string() } else { "a few seconds".to_string() }
+    } else if s < 90.0 {
+        if es { "un minuto".into() } else { "a minute".into() }
+    } else if s < 45.0 * min {
+        format!("{} {}", n(s / min), if es { "minutos" } else { "minutes" })
+    } else if s < 90.0 * min {
+        if es { "una hora".into() } else { "an hour".into() }
+    } else if s < 22.0 * hour {
+        format!("{} {}", n(s / hour), if es { "horas" } else { "hours" })
+    } else if s < 36.0 * hour {
+        if es { "un día".into() } else { "a day".into() }
+    } else if s < 26.0 * day {
+        format!("{} {}", n(s / day), if es { "días" } else { "days" })
+    } else if s < 45.0 * day {
+        if es { "un mes".into() } else { "a month".into() }
+    } else if s < 320.0 * day {
+        // 45 days rounds to one month: moment says "a month" there, never "1 months"
+        match n(s / (30.4375 * day)) {
+            1 => if es { "un mes".into() } else { "a month".into() },
+            k => format!("{} {}", k, if es { "meses" } else { "months" }),
+        }
+    } else if s < 548.0 * day {
+        if es { "un año".into() } else { "a year".into() }
+    } else {
+        format!("{} {}", n(s / (365.25 * day)), if es { "años" } else { "years" })
+    };
+    match (secs < 0, es) {
+        (true, false) => format!("{words} ago"),
+        (false, false) => format!("in {words}"),
+        (true, true) => format!("hace {words}"),
+        (false, true) => format!("dentro de {words}"),
+    }
+}
+
 fn render_token(dt: &NaiveDateTime, tok: &str) -> String {
     const MON_EN: [&str; 12] = [
         "January",
@@ -236,6 +291,21 @@ fn render_token(dt: &NaiveDateTime, tok: &str) -> String {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn relative_reads_like_moment_from_now() {
+        let now = super::parse("2026-03-10 12:00").unwrap();
+        let at = |s: &str| super::relative(&super::parse(s).unwrap(), &now);
+        assert_eq!(at("2026-03-10 11:59:40"), "a few seconds ago");
+        assert_eq!(at("2026-03-10 09:00"), "3 hours ago");
+        assert_eq!(at("2026-03-09 12:00"), "a day ago");
+        assert_eq!(at("2026-03-13 12:00"), "in 3 days");
+        assert_eq!(at("2026-03-13"), "in 3 days", "a day without a time counts calendar days");
+        assert_eq!(at("2026-03-10"), "today");
+        assert_eq!(at("2026-01-10 12:00"), "2 months ago");
+        assert_eq!(at("2023-03-10 12:00"), "3 years ago");
+        assert_eq!(at("2026-01-24 12:00"), "a month ago", "45 days: not 1 months");
+    }
+
     use super::*;
 
     fn dt(s: &str) -> NaiveDateTime {

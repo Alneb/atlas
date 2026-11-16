@@ -35,12 +35,14 @@
   onMount(() => { place(); input?.focus(); });
 
   async function save() {
-    if (!draft) return;
+    if (!draft || !target) return; // Enter in the title must not create where the disabled Save would not
     const pad = (n: number) => String(n).padStart(2, "0");
     const w = (x: Date) => `${x.getFullYear()}-${pad(x.getMonth() + 1)}-${pad(x.getDate())}T${pad(x.getHours())}:${pad(x.getMinutes())}`;
     const d = (x: Date) => w(x).slice(0, 10);
+    // read before closing: closing drops the card, and its props (draft, e) read as null after
+    const c = { summary: title.trim() || "(no title)", start: draft.all_day ? d(draft.start) : w(draft.start), end: draft.all_day ? d(draft.end) : w(draft.end), all_day: draft.all_day, calendar: target || undefined };
     onclose();
-    await cal.create({ summary: title.trim() || "(no title)", start: draft.all_day ? d(draft.start) : w(draft.start), end: draft.all_day ? d(draft.end) : w(draft.end), all_day: draft.all_day, calendar: target || undefined });
+    await cal.create(c);
   }
   // the event's note and links, asked of the engine when the card opens (a task row has none)
   let info = $state<EventInfo | null>(null);
@@ -94,7 +96,7 @@
   {:else if e}
     <div class="bar">
       {#if e.writable}<button class="tool" onclick={onedit} title="Edit (e)"><Icon name="pen" size={15} /></button>
-        <button class="tool" onclick={() => { onclose(); void cal.remove(e); }} title="Delete (Del)"><Icon name="trash" size={15} /></button>{/if}
+        <button class="tool" onclick={() => { const gone = e; onclose(); if (gone) void cal.remove(gone); }} title="Delete (Del)"><Icon name="trash" size={15} /></button>{/if}
       <button class="tool" onclick={onclose} title="Close (Esc)"><Icon name="x" size={15} /></button>
     </div>
     <div class="head">
@@ -130,14 +132,14 @@
     {#if info?.note?.links.length}
       <div class="line linked"><Icon name="link" size={14} />
         <ul aria-label="Linked">
-          {#each info.note.links as l (l.link)}<li><button class="lk" class:done={l.task === "x"} onclick={() => openLinked(l)} title={l.path}>{#if l.task !== undefined}<span class="tsq small" class:checked={l.task === "x"} aria-hidden="true"></span>{/if}{l.title}</button></li>{/each}
+          {#each info.note.links as l, i (l.link + ":" + i)}<li><button class="lk" class:done={l.task === "x"} onclick={() => openLinked(l)} title={l.path}>{#if l.task !== undefined}<span class="tsq small" class:checked={l.task === "x"} aria-hidden="true"></span>{/if}{l.title}</button></li>{/each}
         </ul>
       </div>
     {/if}
     {#if backlinks.length}
       <div class="line linked"><Icon name="backlink" size={14} />
         <ul aria-label="Linked from">
-          {#each backlinks.slice(0, 6) as b (b.source + b.line)}<li><button class="lk" onclick={() => { cal.atlas.open(b.source, b.line); onclose(); }} title={b.context}>{b.source.split("/").pop()?.replace(/\.md$/, "")}</button></li>{/each}
+          {#each backlinks.slice(0, 6) as b, i (b.source + ":" + b.line + ":" + i)}<li><button class="lk" onclick={() => { cal.atlas.open(b.source, b.line); onclose(); }} title={b.context}>{b.source.split("/").pop()?.replace(/\.md$/, "")}</button></li>{/each}
         </ul>
       </div>
     {/if}

@@ -3,8 +3,10 @@ import { createServer, type Server } from "node:http";
 import { readFileSync } from "node:fs";
 
 // A web tab shows the address of the link under the pointer in its corner, as a browser's status bar. The desktop app
-// injects frame_page.js into every frame; here Playwright does the same.
-const framePage = readFileSync(new URL("../../crates/atlas-app/src/frame_page.js", import.meta.url), "utf8");
+// injects frame_page.js into every frame, with this run's token that the pane checks (main.rs `frame_token`); here
+// Playwright does the same.
+const TOKEN = "test-frame-token";
+const framePage = readFileSync(new URL("../../crates/atlas-app/src/frame_page.js", import.meta.url), "utf8").replace("__ATLAS_FRAME_TOKEN__", TOKEN);
 let site: Server, port = 0;
 test.beforeAll(async () => {
   site = createServer((_req, res) => {
@@ -17,7 +19,7 @@ test.beforeAll(async () => {
 test.afterAll(() => site.close());
 
 test("hovering a link in a web tab shows its address, leaving it hides it", async ({ page }) => {
-  await page.addInitScript(() => { const w = window as unknown as { __atlasDesktop: boolean; __atlasFramesAnything: boolean }; w.__atlasDesktop = true; w.__atlasFramesAnything = true; });
+  await page.addInitScript((token) => { const w = window as unknown as { __atlasDesktop: boolean; __atlasFramesAnything: boolean; __atlasFrameToken: string }; w.__atlasDesktop = true; w.__atlasFramesAnything = true; w.__atlasFrameToken = token; }, TOKEN);
   await page.addInitScript(framePage);
   await page.goto("/");
   await page.getByText("Finish the GW notes.").waitFor();

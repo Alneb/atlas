@@ -420,11 +420,13 @@ function digest(input: Input, judged: Judged[], scheduledToday: Set<string>, ent
   const names = [...overdue, ...dueToday].slice(0, 3).map((j) => j.task.title);
   const moment = given ? given.at : now >= from ? floorMinute(now) : from;
   if (!given && moment <= now) writes.push({ entry: { at: moment, kind: "digest", detail: counts || "nothing due" } });
+  // nothing due: the ledger records the day was looked at, but a notice saying so is noise
+  if (!counts) return;
   planned.push({
     at: rfc3339(moment, c),
     until: rfc3339(moment + DIGEST_RINGS, c),
     id: `plan:digest:${today}`,
-    title: counts ? `Today: ${counts}` : "Today: nothing due",
+    title: `Today: ${counts}`,
     body: names.join(" · "),
     ...(input.digestOpens ? { open: input.digestOpens } : {}),
     actions: input.digestOpens ? [{ id: "atlas:open", label: "Open" }] : [],

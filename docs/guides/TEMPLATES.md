@@ -66,6 +66,7 @@ apply_when:
   - file: "lectures/**/*.pdf"     # a file arriving there: its companion note is made from this template
   - property: { type: lecture }   # an existing note whose type is set to lecture: merged in (below)
   - moment: day                   # the day's log (`moment: capture`: a capture made a note)
+  - linked_by: topics             # a new note other notes already name under `topics:` (a hub made when followed)
 type: lecture
 course:
 ---
@@ -79,6 +80,12 @@ templates' own rules (the most specific first: a file pattern or a title over a 
 shallower one), then `[notes] template_rules` (else Templater's), then the older settings as rules
 (`capture_template`, `log_template`, the `literature` template for companion notes); the first whose template is there
 wins.
+
+**A note named through a property gets its template.** `linked_by: topics` fits a new note that other notes already
+link to as the value of `topics:` (`topics: ["[[Optics]]"]`, or `topics:: [[Optics]]` in the text), so a topic note
+made by following that link is a topic, with its base, while the same name linked only in a sentence gets the
+default. A link to a missing note is followed by making the note (as Obsidian does), so the rule applies on the click.
+Nothing in the core knows what a topic is: the property's name is the template's to say.
 
 **A property set merges the template in.** When a save makes a property a value some template names
 (`property: { type: movie }`; a tag added to `tags` counts), and it was not so before, the template is merged into

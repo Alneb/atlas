@@ -47,9 +47,12 @@ jobs:
           cache-dependency-path: ui/package-lock.json
       - name: The UI
         run: npm --prefix ui ci --no-audit --no-fund && npm --prefix ui run build
-      # the CLI and the capture box: in the deb and rpm beside the app (tauri.conf.json `files`), and loose
+      # the CLI and the capture box: in the deb and rpm beside the app (tauri.conf.json `files`), and loose. Built in one
+      # cargo run with the app, so the dependencies are compiled once with the features of all three: built alone, the
+      # two resolved other features (serde's `rc`, serde_json's `unbounded_depth`…) and the bundler's build of the app
+      # compiled about half the graph again, the core included (DEVELOPING.md, "CI's build times")
       - name: The CLI and the capture box
-        run: cargo build --release --locked -p atlas -p atlas-capture && strip target/release/atlas target/release/atlas-capture
+        run: cargo build --release --locked -p atlas -p atlas-capture -p atlas-app && strip target/release/atlas target/release/atlas-capture
       # the same pinned bundler on every system, installed fresh: npx's cache can hold it without its native binary
       # (npm's optional-dependency bug, npm/cli#4828), which broke a Windows rerun
       - name: The desktop app's packages
@@ -91,10 +94,11 @@ jobs:
         run: npm --prefix ui ci --no-audit --no-fund && npm --prefix ui run build
       # the CLI and the capture box go in the package beside the app (Tauri's externalBin wants each named with the
       # target triple; installed without it). Given only here: in tauri.conf.json every build of the app would need them.
+      # Built with the app in one cargo run, as on Linux: the bundler's build of the app then reuses the dependencies
       - name: The CLI and the capture box
         shell: bash
         run: |
-          cargo build --release --locked -p atlas -p atlas-capture
+          cargo build --release --locked -p atlas -p atlas-capture -p atlas-app
           triple=$(rustc -vV | sed -n 's/^host: //p')
           ext=$([ "$RUNNER_OS" = Windows ] && echo .exe || true)
           for b in atlas atlas-capture; do cp "target/release/$b$ext" "target/release/$b-$triple$ext"; done
@@ -126,11 +130,19 @@ jobs:
           name: linux
           path: dist
       - run: chmod +x dist/atlas dist/atlas-app dist/atlas-capture
-      - uses: flathub-infra/flatpak-github-actions/flatpak-builder@master
+      # the image's own flatpak-builder, with the arguments flathub-infra's `flatpak-builder@master` action passed (that
+      # action targets Node.js 20, which GitHub retires: a warning on every run): the runtime from Flathub, one bundle
+      - name: The Flatpak
+        run: |
+          flatpak-builder --repo=repo --disable-rofiles-fuse --install-deps-from=flathub --force-clean \
+            --default-branch=master --arch=x86_64 flatpak_app packaging/flatpak/io.github.alneb.Atlas.yml
+          flatpak build-bundle repo atlas.flatpak --runtime-repo=https://flathub.org/repo/flathub.flatpakrepo \
+            --arch=x86_64 io.github.alneb.Atlas master
+      - uses: actions/upload-artifact@v7
         with:
-          bundle: atlas.flatpak
-          manifest-path: packaging/flatpak/io.github.alneb.Atlas.yml
-          cache-key: flatpak-${{ github.sha }}
+          name: atlas.flatpak-x86_64
+          path: atlas.flatpak
+          if-no-files-found: error
 
   # every plugin's Rust engine, built on each desktop platform (scripts/dev/plugin-pack.mjs); a platform an engine
   # does not build on yet is reported (red) without holding the rest back: the archives say which platforms they carry

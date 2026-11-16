@@ -22,7 +22,8 @@
           {#if p.up !== undefined && g.src.id !== vaultSource.id}<span class="dot" class:up={p.up} title={p.up ? "connected" : "not connected"}></span>{/if}
         </button>
       {:else}
-        {#if g.loading || g.error}<div class="place-note" class:error={!g.loading && !!g.error} title={g.error}>{g.loading ? "…" : g.error}</div>
+        <!-- an error can be a whole exception (code, a stack): one line here, all of it on hover -->
+        {#if g.loading || g.error}<div class="place-note" class:error={!g.loading && !!g.error} title={g.error}>{g.loading ? "…" : `Not reachable${/^[\w .,'’:-]{1,60}$/.test(g.error ?? "") ? `: ${g.error}` : ""}`}</div>
         {:else}<div class="place-note">none yet: <button class="link" onclick={() => openSettingsAt(pluginPageId(g.src.id))}>add some in its settings</button></div>{/if}
       {/each}
     </div>
@@ -41,7 +42,7 @@
   .place .label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .place-note { color: var(--text-faint); font-size: calc(12px * var(--ui-scale, 1)); padding: 2px 8px; }
   /* a source's error can be a long exception: three lines here, the whole of it on hover */
-  .place-note.error { color: var(--red); display: -webkit-box; -webkit-line-clamp: 3; line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
+  .place-note.error { color: var(--red); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: help; }
   .place-note .link { padding: 0; color: var(--accent); font-size: inherit; text-align: left; }
   .place-note .link:hover { text-decoration: underline; }
   .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--border-strong); flex: none; }

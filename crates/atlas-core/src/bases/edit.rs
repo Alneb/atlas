@@ -152,6 +152,44 @@ pub fn edit_view(base_src: &str, view: &str, edit: &ViewEdit) -> Result<String> 
             display_name(&mut doc, column, name.as_deref().map(str::trim).filter(|n| !n.is_empty()));
             return to_text(&doc);
         }
+        ViewEdit::Formula { name, formula, was } => {
+            let name = name.trim();
+            if name.is_empty() || !name.chars().all(|c| c.is_alphanumeric() || c == '_') || name.starts_with(|c: char| c.is_ascii_digit()) {
+                return Err(Error::BadRequest(format!("a formula's name is letters, digits and _ (\"{name}\")")));
+            }
+            let mut formulas = doc.get("formulas").and_then(Value::as_mapping).cloned().unwrap_or_default();
+            match formula.as_deref().map(str::trim) {
+                Some(f) => {
+                    // refused here rather than shown as an empty column: the message says what is wrong
+                    super::expr::parse(f).map_err(|e| Error::BadRequest(format!("formula {name}: {e}")))?;
+                    let old = was.as_deref().map(str::trim).filter(|w| *w != name);
+                    if let Some(old) = old {
+                        formulas.remove(old);
+                        let (from, to) = (format!("formula.{old}"), format!("formula.{name}"));
+                        for v in doc.get_mut("views").and_then(Value::as_sequence_mut).into_iter().flatten() {
+                            for c in v.get_mut("order").and_then(Value::as_sequence_mut).into_iter().flatten() {
+                                if c.as_str() == Some(from.as_str()) {
+                                    *c = Value::String(to.clone());
+                                }
+                            }
+                        }
+                    }
+                    formulas.insert(name.into(), f.into());
+                    set(&mut doc, "formulas", Value::Mapping(formulas));
+                }
+                None => {
+                    formulas.remove(name);
+                    if formulas.is_empty() { unset(&mut doc, "formulas") } else { set(&mut doc, "formulas", Value::Mapping(formulas)) }
+                    let id = format!("formula.{name}");
+                    for v in doc.get_mut("views").and_then(Value::as_sequence_mut).into_iter().flatten() {
+                        if let Some(o) = v.get_mut("order").and_then(Value::as_sequence_mut) {
+                            o.retain(|c| c.as_str() != Some(id.as_str()));
+                        }
+                    }
+                    return to_text(&doc);
+                }
+            }
+        }
         _ => {}
     }
     let views = doc
@@ -290,6 +328,15 @@ pub fn edit_view(base_src: &str, view: &str, edit: &ViewEdit) -> Result<String> 
         }
         ViewEdit::Image { property: Some(p) } => set(&mut views[i], "image", column_key(p).into()),
         ViewEdit::Image { property: None } => unset(&mut views[i], "image"),
+        // written above; a new formula also shows as a column of the view it was made from
+        ViewEdit::Formula { name, .. } => {
+            let id = format!("formula.{}", name.trim());
+            let mut o = order(&views[i]);
+            if !o.iter().any(|c| same(c, &id)) {
+                o.push(Value::String(id));
+                set(&mut views[i], "order", Value::Sequence(o));
+            }
+        }
         ViewEdit::BaseFilters { .. } | ViewEdit::DisplayName { .. } => unreachable!("handled above"),
     }
     to_text(&doc)
@@ -389,6 +436,26 @@ mod tests {
         assert!(d.path().join("db/items/Untitled 1.md").exists(), "never overwrites");
         let out = "filters: 'file.inFolder(\"../out\")'\nviews: [{type: table}]\n";
         assert!(new_row(d.path(), &Config::default(), "db/items.base", out, None).is_err(), "a folder out of the vault is refused");
+    }
+
+    #[test]
+    fn a_formula_is_written_shown_in_its_view_and_removed_from_every_view() {
+        let f = |name: &str, formula: Option<&str>| ViewEdit::Formula { name: name.into(), formula: formula.map(str::to_string), was: None };
+        let with = edit_view(BASE, "Open", &f("late", Some("due < today()"))).unwrap();
+        let doc: Value = serde_yaml::from_str(&with).unwrap();
+        assert_eq!(doc["formulas"]["late"], Value::from("due < today()"));
+        assert_eq!(doc["views"][0]["order"].as_sequence().unwrap().last(), Some(&Value::from("formula.late")));
+        let again = edit_view(&with, "Open", &f("late", Some("due <= today()"))).unwrap();
+        let doc: Value = serde_yaml::from_str(&again).unwrap();
+        assert_eq!(doc["views"][0]["order"].as_sequence().unwrap().iter().filter(|c| c.as_str() == Some("formula.late")).count(), 1, "a changed formula keeps one column");
+        let renamed = edit_view(&again, "Open", &ViewEdit::Formula { name: "overdue".into(), formula: Some("due < today()".into()), was: Some("late".into()) }).unwrap();
+        let doc: Value = serde_yaml::from_str(&renamed).unwrap();
+        assert!(doc["formulas"].get("late").is_none() && doc["formulas"].get("overdue").is_some());
+        assert_eq!(doc["views"][0]["order"].as_sequence().unwrap().last(), Some(&Value::from("formula.overdue")), "the column keeps its place");
+        let gone = edit_view(&again, "Open", &f("late", None)).unwrap();
+        assert!(!gone.contains("late"), "{gone}");
+        assert!(edit_view(BASE, "Open", &f("late", Some("due <"))).is_err(), "a formula that does not parse is refused");
+        assert!(edit_view(BASE, "Open", &f("two words", Some("1"))).is_err());
     }
 
     #[test]

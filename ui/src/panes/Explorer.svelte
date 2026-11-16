@@ -36,7 +36,8 @@
   import type { Confirm, Editing, Here, SayKind } from "../lib/explorer/actions";
   import { thumb } from "../lib/explorer-thumbs";
   import "../lib/other-vaults"; // the other vaults as a source of places
-  import { bytes, shortWhen } from "../lib/text";
+  import { bytes } from "../lib/text";
+  import { dateTip, showDate } from "../lib/dates";
 
   let { spec, panel }: PaneProps<"explorer"> = $props();
 
@@ -127,8 +128,11 @@
   /** Split: another explorer beside this one, at the same folder, to drag between. */
   const split = () => open({ kind: "explorer", source: loc.source, place: loc.place, path: loc.path, n: (spec.n ?? 0) + 1 }, { beside: true });
   // the entry selected gone (deleted, moved): its neighbour takes the place, not the first row
-  let lastSel = 0;
+  let lastSel = 0, lastSelIn = "";
   const sel = $derived.by(() => {
+    // another folder: the old one's place means nothing here (the first row, not the 12th)
+    const at = `${loc.source}:${loc.place}:${loc.path}`;
+    if (at !== lastSelIn) { lastSelIn = at; lastSel = 0; }
     const i = shown.findIndex((e) => e.name === b.selName);
     if (i >= 0) lastSel = i;
     return i >= 0 ? i : Math.max(0, Math.min(lastSel, shown.length - 1));
@@ -140,7 +144,8 @@
     return [root, ...parts.map((p, i) => ({ path: `${abs ? "/" : ""}${parts.slice(0, i + 1).join("/")}`, label: p }))];
   });
 
-  const full = new Intl.DateTimeFormat(undefined, { dateStyle: "full", timeStyle: "short" }); // the tooltip on a short time
+  /** A file's extension for its tile's badge (`PDF`, `MD`); none for a dotfile or a long one. */
+  const extOf = (name: string) => { const i = name.lastIndexOf("."); const x = i > 0 ? name.slice(i + 1) : ""; return x.length && x.length <= 5 ? x.toUpperCase() : ""; };
   const iconOf = (e: Entry): IconName => (e.kind === "dir" ? "folder" : e.kind === "link" ? "link" : fileIcon(e.name));
   const go = (to: Loc) => void b.go(to);
   const focusList = () => listEl?.focus();
@@ -165,7 +170,9 @@
   let rootEl = $state<HTMLDivElement>();
   // a long path in a narrow pane: the crumbs scrolled to their end, so the folder shown is the one in view
   let crumbsEl = $state<HTMLDivElement>();
-  $effect(() => { void crumbs; const el = crumbsEl; if (el) queueMicrotask(() => (el.scrollLeft = el.scrollWidth)); });
+  // the end of a long path in view; its start fades out instead of showing half a name
+  let crumbsCut = $state(false);
+  $effect(() => { void crumbs; const el = crumbsEl; if (el) queueMicrotask(() => { el.scrollLeft = el.scrollWidth; crumbsCut = el.scrollLeft > 0; }); });
   $effect(() => {
     const el = rootEl;
     if (!el) return;
@@ -202,13 +209,15 @@
   /** The bar's less-used buttons as one menu: what a narrow pane (a phone) shows instead of three rows of buttons. */
   function moreMenu(ev: MouseEvent): void {
     const items: MenuItem[] = [];
-    if (isVault) items.push({ label: deep ? "Filter this folder only" : "Filter every folder below too", icon: "search", run: () => (deep = !deep) });
     items.push({ label: treeView.showAll ? "Hide hidden files" : "Show hidden files", icon: "eye", run: toggleShowAll });
-    if (src?.mkdir) items.push({ label: "New folder", icon: "folder", run: () => (editing = { kind: "new" }) });
+    if (src?.mkdir) items.push({ label: "New folder", icon: "folder-plus", run: () => (editing = { kind: "new" }) });
     if (src && (src.upload || isVault)) {
-      items.push({ label: "Upload from this computer…", icon: "arrow-up", run: () => fileInput?.click() });
+      items.push({ label: "Upload from this computer…", icon: "upload", run: () => fileInput?.click() });
       if (!isVault) items.push({ label: "Upload a file of this vault…", icon: "files", run: () => run(act.uploadVaultFile) });
     }
+    // what the bar hides when the pane is narrow (Preview, Split) is here too
+    items.push({ label: preview ? "Hide the preview" : "Preview the selected file", icon: "panel-right", run: () => setPreview(!preview) });
+    items.push({ label: "Split: another explorer beside", icon: "columns", run: split });
     items.push({ label: "Refresh", hint: "F5", icon: "refresh", run: () => void b.reload() });
     menu = below(ev, items);
   }
@@ -303,7 +312,8 @@
     // svelte-ignore state_referenced_locally -- the entry asked for when the tab opened
     void b.go(b.loc, { record: false, keep: spec.select }).then(() => { if (!b.gone && !document.activeElement?.closest(".explorer")) focusList(); });
     // asked for again (Show in the explorer, a breadcrumb): there, the entry selected, the keyboard here
-    explorerGo.set(panel.id, (path, select) => void b.go({ ...b.loc, path }, { keep: select }).then(focusList));
+    // the source and place asked for: this tab may have wandered to another server since it opened
+    explorerGo.set(panel.id, (to, select) => void b.go({ source: to.source, place: to.place, path: to.path }, { keep: select }).then(focusList));
     paneFocus.set(panel.id, focusList);
     // the vault's own folders follow the disk (another program, the sidebar): the folder shown is read again; the
     // folder itself (or one above it) renamed or deleted → the nearest one still there
@@ -327,6 +337,7 @@
   });
 
   const focusInput = (el: HTMLInputElement, select: [number, number] | null) => { queueMicrotask(() => { el.focus(); if (select) el.setSelectionRange(...select); else el.select(); }); };
+  const baseOf = (name: string) => name.slice(name.lastIndexOf("/") + 1);
   const nameSel = (name: string, dir: boolean): [number, number] => { const dot = dir ? -1 : name.lastIndexOf("."); return [0, dot > 0 ? dot : name.length]; };
 </script>
 
@@ -346,25 +357,32 @@
           onblur={() => (typing = false)} />
       {:else}
         <!-- svelte-ignore a11y_click_events_have_key_events (Ctrl+L, from the list) -->
-        <div class="crumbs" bind:this={crumbsEl} title="Click the empty space (or Ctrl+L) to type a path" onclick={() => (typing = true)}>
+        <div class="crumbs" class:cut={crumbsCut} onscroll={(e) => (crumbsCut = e.currentTarget.scrollLeft > 0)} bind:this={crumbsEl} title="Click the empty space (or Ctrl+L) to type a path" onclick={() => (typing = true)}>
           {#each crumbs as c, i (c.path)}
-            {#if i > 1 || (i === 1 && crumbs[0].path !== "/")}<span class="sep">/</span>{/if}
+            {#if i > 1 || (i === 1 && crumbs[0].path !== "/")}<span class="sep"><Icon name="chevron" size={11} /></span>{/if}
             <button onclick={(e) => { e.stopPropagation(); go({ ...loc, path: c.path }); }}>{c.label}</button>
           {/each}
         </div>
       {/if}
-      <input class="filter" bind:this={filterEl} bind:value={filter} placeholder="Filter…" aria-label="Filter this folder" spellcheck="false"
-        onkeydown={(e) => { e.stopPropagation(); if (e.key === "Escape") { filter = ""; focusList(); } else if (e.key === "Enter" || e.key === "ArrowDown") { e.preventDefault(); focusList(); } }} />
-      {#if isVault}<button class="btn roomy" class:on={deep} aria-pressed={deep} title="Search every folder under this one, not only this folder" onclick={() => (deep = !deep)}>Below</button>{/if}
-      <button class="btn roomy" class:on={treeView.showAll} aria-pressed={treeView.showAll} title="Hidden files: dotfiles, companions (a mail's files, a PDF's ink), notes with shown: false — the same in the sidebar tree (Ctrl+H)" onclick={toggleShowAll}>Hidden</button>
+      <!-- the filter, with its "also in the folders below" switch inside it -->
+      <div class="filter-box" class:on={!!filter}>
+        <Icon name="search" size={13} />
+        <input class="filter" bind:this={filterEl} bind:value={filter} placeholder="Filter" aria-label="Filter this folder" spellcheck="false"
+          onkeydown={(e) => { e.stopPropagation(); if (e.key === "Escape") { filter = ""; focusList(); } else if (e.key === "Enter" || e.key === "ArrowDown") { e.preventDefault(); focusList(); } }} />
+        {#if isVault}<button class="in-filter" class:on={deep} aria-pressed={deep} aria-label="Below" title={deep ? "Looking in every folder under this one (click: only this folder)" : "Only this folder (click: every folder under it too)"} onclick={() => (deep = !deep)}><Icon name="folder-tree" size={13} /></button>{/if}
+      </div>
+      <span class="gap"></span>
       <div class="seg" role="group" aria-label="View">
         <button class="icon-btn" class:on={view === "list"} aria-pressed={view === "list"} title="List: names, sizes and dates" aria-label="List" onclick={() => setView("list")}><Icon name="rows" size={14} /></button>
         <button class="icon-btn" class:on={view === "thumbs"} aria-pressed={view === "thumbs"} title="Thumbnails: pictures, the first page of PDFs" aria-label="Thumbnails" onclick={() => setView("thumbs")}><Icon name="grid" size={14} /></button>
       </div>
-      {#if src?.mkdir}<button class="btn roomy" title="Make a folder here" onclick={() => (editing = { kind: "new" })}>New folder</button>{/if}
-      {#if src && (src.upload || isVault)}<button class="btn roomy" title="Put files into this folder" onclick={uploadMenu}>Upload…</button>{/if}
-      <button class="btn roomy wide" class:on={preview} aria-pressed={preview} title="Show the selected file at the right" onclick={() => setPreview(!preview)}>Preview</button>
-      <button class="btn roomy wide" title="Another explorer beside this one, to drag files between" onclick={split}>Split</button>
+      <span class="div roomy"></span>
+      {#if src?.mkdir}<button class="icon-btn roomy" title="New folder here" aria-label="New folder" onclick={() => (editing = { kind: "new" })}><Icon name="folder-plus" size={15} /></button>{/if}
+      {#if src && (src.upload || isVault)}<button class="icon-btn roomy" title="Upload files into this folder" aria-label="Upload…" onclick={uploadMenu}><Icon name="upload" size={15} /></button>{/if}
+      <button class="icon-btn roomy toggle" class:on={treeView.showAll} aria-pressed={treeView.showAll} aria-label="Hidden" title="Hidden files: dotfiles, companions (a mail's files, a PDF's ink), notes with shown: false — the same in the sidebar tree (Ctrl+H)" onclick={toggleShowAll}><Icon name="eye" size={15} /></button>
+      <span class="div roomy wide"></span>
+      <button class="icon-btn roomy wide toggle" class:on={preview} aria-pressed={preview} aria-label="Preview" title="Preview: the selected file at the right" onclick={() => setPreview(!preview)}><Icon name="panel-right" size={15} /></button>
+      <button class="icon-btn roomy wide" aria-label="Split" title="Split: another explorer beside this one, to drag files between" onclick={split}><Icon name="columns" size={15} /></button>
       <button class="icon-btn roomy" title="Refresh (F5)" aria-label="Refresh" onclick={() => void b.reload()}><Icon name="refresh" size={14} /></button>
       <button class="icon-btn more-btn" title="More: hidden files, new folder, upload, refresh" aria-label="More" onclick={moreMenu}><Icon name="more" size={14} /></button>
     </div>
@@ -415,23 +433,27 @@
             onclick={() => { b.selName = e.name; focusList(); if (tap !== "mouse" && !renaming) void enter(e); }} ondblclick={() => void enter(e)} oncontextmenu={(ev) => { ev.stopPropagation(); rowMenu(ev, e); }} ondragstart={(ev) => dragStart(ev, e)}>
             <span class="name">
               {#if view === "thumbs"}
-                <span class="pic"><Icon name={iconOf(e)} size={36} />
+                <span class="pic"><Icon name={iconOf(e)} size={e.kind === "dir" ? 44 : 34} />
                   {#if src?.thumb && e.kind === "file"}<img alt="" use:thumb={{ src, place: loc.place, path: joinPath(loc.path, e.name), entry: e }} />{/if}
+                  {#if e.kind === "file" && extOf(e.name)}<span class="ext">{extOf(e.name)}</span>{/if}
                 </span>
               {:else}<Icon name={iconOf(e)} size={15} />{/if}
               {#if renaming}
-                <input class="rename" value={e.name} aria-label="New name for {e.name}" use:focusInput={nameSel(e.name, e.kind === "dir")}
+                <!-- its clicks stay in it: the row's would take the focus (and end the rename) or open the file -->
+                <input class="rename" value={baseOf(e.name)} aria-label="New name for {e.name}" use:focusInput={nameSel(baseOf(e.name), e.kind === "dir")}
+                  onclick={(ev) => ev.stopPropagation()} ondblclick={(ev) => ev.stopPropagation()} onpointerdown={(ev) => ev.stopPropagation()}
                   onkeydown={(ev) => { ev.stopPropagation(); if (ev.key === "Enter") finishEdit((ev.currentTarget as HTMLInputElement).value, true); else if (ev.key === "Escape") finishEdit("", false); }}
                   onblur={(ev) => { if (editing) finishEdit(ev.currentTarget.value, false); }} />
               {:else}<span class="label" title={view === "thumbs" ? e.name : undefined}>{e.name}</span>{/if}
             </span>
             <span class="num">{e.kind === "dir" ? "" : bytes(e.size)}</span>
-            <span class="when" title={e.modified ? full.format(new Date(e.modified * 1000)) : undefined}>{shortWhen(e.modified)}</span>
+            <span class="when" title={e.modified ? dateTip(e.modified * 1000) : undefined}>{e.modified ? showDate(e.modified * 1000) : ""}</span>
+            <!-- a row's actions: words in the list; in the grid, small icons in the tile's corner (a click on a tile opens it) -->
             <span class="acts">
-              {#if e.kind !== "dir"}<button title="Open it in a tab" onclick={(ev) => { ev.stopPropagation(); void enter(e); }}>Open</button>{/if}
-              {#if remote}<button title="Into a folder of this vault" onclick={(ev) => { ev.stopPropagation(); run(act.download, e); }}>Download…</button>{/if}
-              {#if src?.rename}<button title="F2" onclick={(ev) => { ev.stopPropagation(); rename(e); }}>Rename</button>{/if}
-              {#if src?.remove}<button class="danger" title="Delete (asks first)" onclick={(ev) => { ev.stopPropagation(); b.selName = e.name; run(act.askDelete, e); }}>Delete</button>{/if}
+              {#if e.kind !== "dir" && view !== "thumbs"}<button title="Open it in a tab" onclick={(ev) => { ev.stopPropagation(); void enter(e); }}>Open</button>{/if}
+              {#if remote}<button title="Download into a folder of this vault" aria-label="Download… {e.name}" onclick={(ev) => { ev.stopPropagation(); run(act.download, e); }}>{#if view === "thumbs"}<Icon name="download" size={13} />{:else}Download…{/if}</button>{/if}
+              {#if src?.rename}<button title="Rename (F2)" aria-label="Rename {e.name}" onclick={(ev) => { ev.stopPropagation(); rename(e); }}>{#if view === "thumbs"}<Icon name="edit" size={13} />{:else}Rename{/if}</button>{/if}
+              {#if src?.remove}<button class="danger" title="Delete (asks first)" aria-label="Delete {e.name}" onclick={(ev) => { ev.stopPropagation(); b.selName = e.name; run(act.askDelete, e); }}>{#if view === "thumbs"}<Icon name="trash" size={13} />{:else}Delete{/if}</button>{/if}
             </span>
           </div>
         {/each}
@@ -456,10 +478,10 @@
       {#if !cur}<div class="note">Nothing selected.</div>
       {:else if cur.kind === "dir"}<div class="note"><strong>{cur.name}</strong>A folder: Enter opens it.</div>
       {:else if isVault}
-        <div class="pv-head"><b>{cur.name.split("/").pop()}</b><span>{bytes(cur.size)}{cur.modified ? ` · ${shortWhen(cur.modified)}` : ""}</span></div>
+        <div class="pv-head"><b>{cur.name.split("/").pop()}</b><span>{bytes(cur.size)}{cur.modified ? ` · ${showDate(cur.modified * 1000)}` : ""}</span></div>
         <div class="pv-body" use:previewOf={joinPath(loc.path, cur.name)}></div>
       {:else}
-        <div class="pv-head"><b>{cur.name}</b><span>{bytes(cur.size)}{cur.modified ? ` · ${shortWhen(cur.modified)}` : ""}</span></div>
+        <div class="pv-head"><b>{cur.name}</b><span>{bytes(cur.size)}{cur.modified ? ` · ${showDate(cur.modified * 1000)}` : ""}</span></div>
         {#if src?.thumb}<span class="pic big"><Icon name={iconOf(cur)} size={48} /><img alt="" use:thumb={{ src, place: loc.place, path: joinPath(loc.path, cur.name), entry: cur }} /></span>{/if}
         <div class="note">On {placeTitle}: Open (Enter) to see all of it.</div>
       {/if}
@@ -472,20 +494,25 @@
 <style>
   .explorer { display: flex; height: 100%; min-height: 0; container-type: inline-size; font-size: calc(13px * var(--ui-scale, 1)); color: var(--text); background: var(--bg); }
   button { font: inherit; color: inherit; background: transparent; border: 0; cursor: pointer; }
-  .main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
-  .bar { display: flex; align-items: center; flex-wrap: wrap; gap: 4px; row-gap: 4px; padding: 6px 10px; border-bottom: 1px solid var(--border); flex: none; min-width: 0; }
+  /* the bar measures the room it has (the preview takes its part of the pane) */
+  .main { flex: 1; min-width: 0; display: flex; flex-direction: column; container-type: inline-size; }
+  .bar { display: flex; align-items: center; gap: 4px; padding: 6px 10px; border-bottom: 1px solid var(--border); flex: none; min-width: 0; }
+  .gap { flex: 0 0 2px; }
+  .div { width: 1px; height: 18px; background: var(--border); margin: 0 3px; flex: none; }
+  .icon-btn.toggle.on { color: var(--accent); background: var(--accent-soft); }
   .icon-btn { display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; border-radius: var(--radius-sm); color: var(--text-muted); flex: none; }
   .icon-btn:hover:not(:disabled) { background: var(--bg-hover); color: var(--text); }
   .icon-btn:disabled { opacity: .35; cursor: default; }
   .flip { display: inline-flex; transform: scaleX(-1); }
   .bar > :not(.crumbs) { flex: none; }
-  /* the path on a row of its own under the buttons, its whole width to read and click (a file manager's path bar) */
-  .crumbs { order: 10; flex: 1 1 100%; min-width: 0; display: flex; align-items: center; overflow-x: auto; scrollbar-width: none; white-space: nowrap; font-family: var(--font-mono); font-size: .95em; border-radius: var(--radius-sm); padding: 0 4px; min-height: 26px; cursor: text; }
+  /* the path in the bar itself, between the arrows and the filter (a file manager's path bar): the rest of the row */
+  .crumbs { flex: 1 1 auto; min-width: 60px; display: flex; align-items: center; overflow-x: auto; scrollbar-width: none; white-space: nowrap; border-radius: var(--radius-sm); padding: 0 4px; min-height: 28px; cursor: text; margin-left: 2px; }
   .crumbs:hover { background: var(--bg-hover); }
   .crumbs button { padding: 2px 3px; border-radius: var(--radius-sm); color: var(--text-muted); flex: none; }
   .crumbs button:hover { color: var(--text); background: var(--bg-active); }
   .crumbs button:last-child { color: var(--text); font-weight: 600; }
-  .crumbs .sep { color: var(--text-faint); padding: 0 1px; }
+  .crumbs .sep { display: inline-flex; color: var(--text-faint); padding: 0 1px; }
+  .crumbs.cut { mask-image: linear-gradient(to right, transparent, #000 28px); }
   .path { flex: 1; min-width: 0; font: inherit; font-family: var(--font-mono); color: var(--text); background: var(--bg-elev); border: 1px solid var(--accent); border-radius: var(--radius-sm); padding: 3px 6px; outline: none; }
   .btn { display: inline-flex; align-items: center; min-height: 26px; padding: 0 9px; border-radius: var(--radius-sm); border: 1px solid var(--border); color: var(--text-muted); flex: none; white-space: nowrap; }
   .btn:hover { color: var(--text); background: var(--bg-hover); border-color: var(--border-strong); }
@@ -505,7 +532,8 @@
   .x-row { position: relative; min-height: 28px; border-radius: var(--radius-sm); cursor: default; user-select: none; }
   /* a folder of thousands: rows out of view are not laid out or painted (still in the page, for keys and find) */
   .x-row { content-visibility: auto; contain-intrinsic-size: auto 28px; }
-  .list.thumbs .x-row { contain-intrinsic-size: auto 150px; }
+  /* not in the grid: WebKit kept the row height it remembered from the list (`auto`) and cut every tile to it */
+  .list.thumbs .x-row { content-visibility: visible; }
   .x-row:hover { background: var(--bg-hover); }
   .x-row.sel { background: var(--accent-soft); }
   /* the keys' place is the selected row, not a frame round the whole list (base.css's focus ring) */
@@ -534,26 +562,43 @@
   .status .msg.ok { color: var(--text-muted); }
   .status .msg.bad { color: var(--red); }
   .status button { color: var(--accent); padding: 0 4px; }
-  .seg { display: inline-flex; border: 1px solid var(--border); border-radius: var(--radius-sm); flex: none; }
-  .seg .icon-btn { width: 26px; height: 24px; border-radius: 0; }
-  .seg .icon-btn.on { color: var(--accent); background: var(--accent-soft); }
+  .seg { display: inline-flex; gap: 1px; padding: 1px; background: var(--bg-elev); border: 1px solid var(--border); border-radius: var(--radius-sm); flex: none; }
+  .seg .icon-btn { width: 26px; height: 24px; border-radius: 4px; }
+  .seg .icon-btn.on { color: var(--accent); background: var(--bg); box-shadow: 0 0 0 1px var(--border); }
   /* Thumbnails: the same rows as tiles */
   .list.thumbs .head { display: none; }
-  .list.thumbs .rows { display: grid; grid-template-columns: repeat(auto-fill, minmax(132px, 1fr)); gap: 6px; padding-top: 4px; }
-  .list.thumbs .x-row { display: flex; flex-direction: column; align-items: stretch; padding: 6px; gap: 0; }
+  .list.thumbs { padding: 10px 12px 20px; }
+  .list.thumbs .rows { display: grid; grid-template-columns: repeat(auto-fill, minmax(128px, 1fr)); gap: 10px 8px; }
+  .list.thumbs .x-row { display: flex; flex-direction: column; align-items: stretch; padding: 6px 6px 8px; gap: 0; border-radius: 10px; }
+  .list.thumbs .x-row.sel { background: var(--accent-soft); }
+  .list.thumbs .x-row.sel .pic { box-shadow: 0 0 0 2px var(--accent); }
   .list.thumbs .num, .list.thumbs .when { display: none; }
-  .list.thumbs .name { flex-direction: column; gap: 5px; }
-  .list.thumbs .label { max-width: 100%; text-align: center; font-size: .95em; }
-  .list.thumbs .acts { top: 6px; transform: none; right: 6px; flex-direction: column; align-items: stretch; }
-  .pic { position: relative; display: flex; align-items: center; justify-content: center; width: 100%; aspect-ratio: 4 / 3; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--bg-elev); overflow: hidden; }
+  .list.thumbs .name { flex-direction: column; gap: 7px; }
+  /* a long name on two lines, then cut */
+  .list.thumbs .label { max-width: 100%; text-align: center; font-size: .95em; line-height: 1.3; white-space: normal; overflow-wrap: anywhere;
+    display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; }
+  .list.thumbs .acts { top: 6px; transform: none; right: 6px; gap: 2px; padding: 2px; border-radius: var(--radius-sm); background: var(--bg-elev); border: 1px solid var(--border); box-shadow: 0 1px 3px rgb(0 0 0 / .15); }
+  .list.thumbs .acts button { display: grid; place-items: center; width: 24px; min-height: 24px; padding: 0; }
+  .pic { position: relative; display: flex; align-items: center; justify-content: center; width: 100%; aspect-ratio: 4 / 3; border-radius: 8px; background: var(--bg-elev);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--border) 70%, transparent); overflow: hidden; color: var(--text-faint); transition: box-shadow .12s; }
+  .x-row:hover .pic { box-shadow: inset 0 0 0 1px var(--border-strong); }
+  /* a folder: its colour, no frame */
+  .x-row.dir .pic { background: color-mix(in srgb, var(--accent) 9%, var(--bg)); box-shadow: none; color: var(--accent); }
+  .ext { position: absolute; left: 6px; bottom: 6px; z-index: 1; padding: 1px 5px; border-radius: 4px; font-size: 9.5px; font-weight: 600; letter-spacing: .04em;
+    color: var(--text-muted); background: color-mix(in srgb, var(--bg) 85%, transparent); box-shadow: 0 0 0 1px var(--border); }
   .pic img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; opacity: 0; }
   :global(.x-row.has-thumb) .pic img { opacity: 1; background: var(--bg-elev); }
   /* a text file's first lines (explorer-thumbs.ts): a page in miniature, fading out at the bottom */
   .pic :global(.excerpt) { position: absolute; inset: 0; padding: 7px 8px; background: var(--bg-elev); color: var(--text-muted); font-size: 8.5px; line-height: 1.35;
     white-space: pre-wrap; overflow-wrap: anywhere; text-align: left; overflow: hidden; mask-image: linear-gradient(to bottom, var(--text) 70%, transparent); }
   @container (max-width: 820px) { .head, .x-row { grid-template-columns: minmax(0, 1fr) 6em; } .when { display: none; } .head .modified { display: none; } }
-  .filter { width: 140px; min-width: 70px; font: inherit; color: var(--text); background: var(--bg-elev); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 3px 8px; min-height: 26px; outline: none; flex: 0 1 140px; }
-  .filter:focus { border-color: var(--accent); }
+  .filter-box { display: flex; align-items: center; gap: 5px; flex: 0 1 190px; min-width: 90px; height: 28px; padding: 0 3px 0 8px; color: var(--text-faint); background: var(--bg-elev); border: 1px solid var(--border); border-radius: var(--radius-sm); }
+  .filter-box:focus-within { border-color: var(--accent); }
+  .filter-box.on { color: var(--accent); }
+  .filter { flex: 1; min-width: 0; font: inherit; color: var(--text); background: none; border: 0; padding: 0; outline: none; }
+  .in-filter { display: grid; place-items: center; width: 22px; height: 22px; border-radius: 4px; color: var(--text-faint); flex: none; }
+  .in-filter:hover { color: var(--text); background: var(--bg-hover); }
+  .in-filter.on { color: var(--accent); background: var(--accent-soft); }
   .preview { width: min(42%, 520px); min-width: 240px; flex: none; border-left: 1px solid var(--border); display: flex; flex-direction: column; min-height: 0; background: var(--bg); }
   .pv-head { display: flex; align-items: baseline; gap: 8px; padding: 8px 12px; border-bottom: 1px solid var(--border); flex: none; min-width: 0; }
   .pv-head b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -565,7 +610,8 @@
   @container (max-width: 700px) { .places-btn { display: inline-flex; } }
   /* a phone: the bar is one line, the rest in More (Preview and Split need room the pane has not got) */
   .more-btn { display: none; }
-  @container (max-width: 560px) { .bar .roomy { display: none; } .more-btn { display: inline-flex; } .bar > .filter { flex: 1 1 60px; width: auto; } }
+  @container (max-width: 720px) { .bar .wide { display: none; } }
+  @container (max-width: 600px) { .bar .roomy { display: none; } .more-btn { display: inline-flex; } .bar > .filter-box { flex: 1 1 60px; } }
 
   /* a finger's targets: rows and buttons ~40 px; the row's hover buttons never show (long press: its menu) */
   @media (pointer: coarse) {

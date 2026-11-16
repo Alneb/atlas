@@ -221,6 +221,12 @@
     if (mod || typing) return;
     if (picked && (e.key === "Delete" || e.key === "Backspace")) { e.preventDefault(); e.stopPropagation(); deletePicked(); return; }
     if (picked && e.key === "Escape") { e.preventDefault(); e.stopPropagation(); unpick(); return; }
+    // ← / → turn the page (the page before / after the one in view), as a book reader does
+    if ((e.key === "ArrowLeft" || e.key === "ArrowRight") && !e.altKey && !e.shiftKey) {
+      e.preventDefault(); e.stopPropagation();
+      goto(current + (e.key === "ArrowRight" ? 1 : -1));
+      return;
+    }
     const k = e.key.toLowerCase();
     if (k === "escape" && findOpen && tool === "select" && !erasing) { e.preventDefault(); closeFind(); return; }
     // a text mark's key marks the selection at once, else picks that tool

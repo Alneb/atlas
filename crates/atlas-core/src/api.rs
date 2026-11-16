@@ -1592,6 +1592,15 @@ pub enum ViewEdit {
     BaseFilters { filters: Option<Filter> },
     /// A column's display name, base-wide (Obsidian's `properties: {note.x: {displayName}}`); none: the default.
     DisplayName { column: String, name: Option<String> },
+    /// A formula of the base, written or replaced (and shown in this view); none: removed, with its column in every view.
+    /// `was`: the name it had, renamed (its columns keep their place).
+    Formula {
+        name: String,
+        formula: Option<String>,
+        #[ts(optional)]
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        was: Option<String>,
+    },
     /// A column's summary under the table (Obsidian's `summaries`); none: no summary.
     Summary { column: String, summary: Option<SummaryKind> },
     /// Rows gathered by a property's value, in every view type (a board's lanes); none: not grouped.
@@ -1746,8 +1755,8 @@ pub struct BaseResult {
     pub error: Option<String>,
     /// The base's own filter (Obsidian's "All views"): every view applies it before its own.
     pub filters: Option<Filter>,
-    /// The base's formula names (`formula.<name>` columns).
-    pub formulas: Vec<String>,
+    /// The base's formulas, name → expression (`formula.<name>` columns).
+    pub formulas: std::collections::BTreeMap<String, String>,
     /// Every frontmatter property of the vault's notes and its kind, read off the values (the commonest shape wins):
     /// the filter editor's operators and the cell editors follow it (a vault's property spec, when there is one, wins
     /// in the UI).

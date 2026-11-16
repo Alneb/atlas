@@ -6,6 +6,10 @@
  */
 export type TemplateRule = { title?: string, folder?: string, 
 /**
+ * A new note that other notes already name through this property (`topics`): see template_rules.rs `linked_by`.
+ */
+linked_by?: string, 
+/**
  * A template's name in the templates folder (without `.md`).
  */
 template: string, };

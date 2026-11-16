@@ -574,15 +574,12 @@ pub struct Page {
     pub text: String,
 }
 
-/// Fetches a page through the core (the engine never reaches the network itself: `get(url, cookie)`) — a meta refresh
-/// followed once — and reads it. Only `http(s)`. A bot check, an error page or a 202 "come back later" is an error
-/// saying so, never a note titled "Just a moment…". Moved from the core (REFACTOR-core-to-plugins #3, 2026-10-20).
 /// Whether an address can be a web page: its last segment has no extension, or a page's (`.html`, `.php`…). A link
 /// to a file (a PDF, a book, an archive, a video) is no page to read: fetching it as one downloads the whole file.
 fn is_page_address(url: &str) -> bool {
     let path = url.split(['?', '#']).next().unwrap_or(url);
     let path = path.split_once("://").map_or(path, |(_, rest)| rest);
-    let Some((_, last)) = path.split_once('/').map(|(_, p)| p.rsplit_once('/').map_or(("", p), |x| x)) else { return true };
+    let Some((_, last)) = path.split_once('/').map(|(_, p)| p.rsplit_once('/').unwrap_or(("", p))) else { return true };
     match last.rsplit_once('.') {
         None => true,
         Some((_, ext)) => {
@@ -593,6 +590,9 @@ fn is_page_address(url: &str) -> bool {
     }
 }
 
+/// Fetches a page through the core (the engine never reaches the network itself: `get(url, cookie)`) — a meta refresh
+/// followed once — and reads it. Only `http(s)`. A bot check, an error page or a 202 "come back later" is an error
+/// saying so, never a note titled "Just a moment…". Moved from the core (REFACTOR-core-to-plugins #3, 2026-10-20).
 pub fn fetch(url: &str, get: impl Fn(&str, &str) -> Result<Page, String>) -> Result<Clip, String> {
     let mut url = if url.contains("://") { url.to_string() } else { format!("https://{url}") };
     if !(url.starts_with("http://") || url.starts_with("https://")) {

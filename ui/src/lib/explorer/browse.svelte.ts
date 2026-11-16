@@ -52,7 +52,7 @@ export class Browse {
 
   async go(to: Loc, o: { keep?: string; record?: boolean } = {}): Promise<void> {
     clearTimeout(this.#retry);
-    const prev = this.loc;
+    const prev = this.loc, prevMode = this.mode, prevHistory = this.history;
     if (o.record !== false && this.mode === "ready" && !same(to, prev)) this.history = { back: [...this.history.back, { ...prev }], fwd: [] };
     if (!same(to, prev)) this.#hooks.left(); // a refresh keeps a question still open (replace?)
     this.loc = { ...to };
@@ -77,7 +77,8 @@ export class Browse {
       this.#retry = setTimeout(() => void this.go(to, { ...o, record: false }), RETRY_MS);
       return;
     }
-    if ("file" in r) { this.loc = prev; this.#hooks.file(r.file); return; }
+    // a link that is a file: opened, and the list stays as it was (its mode, its history), not "Opening…" for ever
+    if ("file" in r) { this.loc = prev; this.mode = prevMode; this.history = prevHistory; this.#hooks.file(r.file); return; }
     this.#show(r, o.keep ?? (seen ? this.selName ?? undefined : undefined), prev);
     if ("stale" in r && r.stale) void this.go(to, { ...o, record: false, keep: this.selName ?? undefined }); // the server's answer behind it
   }

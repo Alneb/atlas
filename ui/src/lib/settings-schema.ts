@@ -93,14 +93,25 @@ async function save(label: string, mut: Parameters<typeof updateSettings>[0]): P
 export const setValue = (path: string, value: unknown) => (deviceKeeps(path) ? setDeviceLook(path, value) : save("Setting", (c) => put(c, path, value)));
 export const resetValue = (path: string) => (deviceKeeps(path) ? resetDeviceLook(path) : setValue(path, JSON.parse(JSON.stringify(defaultOf(path) ?? null))));
 
-// Zoom: the four text sizes move together, each inside its schema range (config.rs `#[schemars(range)]`).
+// Zoom: the four text sizes move together, each inside its schema range (config.rs `#[schemars(range)]`). The
+// interface's size is a screen's look (device-look.svelte.ts): moved where it is kept, the device's or the vault's.
 const SIZES = ["ui.font_size", "editor.code_font_size", "editor.prose_font_size", "terminal.font_size"];
 /** `step` px larger or smaller; 0 = back to the default sizes. */
-export const zoom = (step: -1 | 0 | 1) => save("Zoom", (c) => {
+export const zoom = (step: -1 | 0 | 1) => {
   const ranges = leaves();
-  for (const p of SIZES) {
+  const next = (p: string, now: unknown) => {
     const { minimum = -Infinity, maximum = Infinity } = ranges.get(p) ?? {};
-    const n = step === 0 ? defaultOf(p) : Math.min(maximum, Math.max(minimum, (at(c, p) as number) + step));
-    if (typeof n === "number") put(c, p, n);
+    const n = step === 0 ? at(settings.defaults, p) : Math.min(maximum, Math.max(minimum, (now as number) + step));
+    return typeof n === "number" && !Number.isNaN(n) ? n : null;
+  };
+  for (const p of SIZES.filter(deviceKeeps)) {
+    const n = next(p, valueOf(p));
+    if (n !== null) setDeviceLook(p, n);
   }
-});
+  return save("Zoom", (c) => {
+    for (const p of SIZES.filter((p) => !deviceKeeps(p))) {
+      const n = next(p, at(c, p));
+      if (n !== null) put(c, p, n);
+    }
+  });
+};

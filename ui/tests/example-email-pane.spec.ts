@@ -250,6 +250,16 @@ test("Ctrl+F finds in the conversation's frames; a pasted picture goes in the te
   });
   await expect(body).toContainText("![](cid:pasted-1.png)");
   await expect(form.locator(".file")).toContainText("pasted-1.png");
+  // a file dragged from the file tree onto the text attaches it, and its path is not typed into the message
+  await body.evaluate((t: HTMLElement) => {
+    const dt = new DataTransfer();
+    dt.setData("application/x-atlas-path", "papers/report.pdf");
+    dt.setData("text/plain", "papers/report.pdf");
+    for (const type of ["dragover", "drop"]) t.dispatchEvent(new DragEvent(type, { dataTransfer: dt, bubbles: true, cancelable: true }));
+  });
+  await expect(form.locator(".file", { hasText: "report.pdf" })).toBeVisible();
+  await expect(body).not.toContainText("papers/report.pdf");
+  await form.getByRole("button", { name: "Remove report.pdf" }).click(); // not in this vault: not sent
   await form.getByRole("button", { name: "Preview" }).click();
   await expect(form.locator(".preview img")).toHaveAttribute("src", /^data:image\/png;base64,/);
   await page.screenshot({ path: "target/email-compose-paste.png" });

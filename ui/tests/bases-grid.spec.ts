@@ -51,8 +51,8 @@ test("a list view writes its date as the table does", async ({ page, request }) 
   await put(request, "db/when.base", 'filters:\n  and:\n    - file.inFolder("db/when")\nviews:\n  - type: list\n    name: L\n    order: [file.name, date]\n');
   const pane = await openBase(page, "when.base");
   const when = pane.locator(".rows .when .date");
-  await expect(when).toHaveAttribute("title", "2025-02-03");
-  await expect(when).not.toHaveText("2025-02-03"); // the reader's words, as in the table
+  await expect(when).toHaveAttribute("title", /^Monday, 3 February 2025 · /); // the whole date and how far (lib/dates.ts)
+  await expect(when).toHaveText("3 Feb 2025"); // the reader's words, as in the table
 });
 
 test("a board card opens with Enter and moves a lane over with Alt+arrows, the focus going with it", async ({ page, request }) => {
@@ -77,4 +77,29 @@ test("the filter popover's own view, empty, says the base's filters still apply"
   const pane = await openBase(page, "all.base");
   await pane.getByRole("button", { name: "Filter" }).click();
   await expect(page.getByText("No filters of its own", { exact: false })).toBeVisible();
+});
+
+test("a formula is written, changed and removed from the Properties popover, its column following", async ({ page, request }) => {
+  await put(request, "db/fx/a.md", "---\nprice: 7.5\nqty: 2\ntags: [physics, dmft]\n---\n");
+  await put(request, "db/fx.base", 'filters:\n  and:\n    - file.inFolder("db/fx")\nformulas:\n  total: price * qty\nviews:\n  - type: table\n    name: T\n    order: [file.name, formula.total]\n');
+  const pane = await openBase(page, "fx.base");
+  const row = pane.locator("tbody tr", { hasText: "a" });
+  await expect(row.locator("td").nth(1)).toHaveText("15");
+  await pane.getByRole("button", { name: "Properties", exact: true }).click();
+  const pop = page.getByRole("dialog", { name: "Properties" });
+  await pop.getByRole("button", { name: "Edit the formula total" }).click();
+  await pop.getByRole("textbox", { name: "Formula", exact: true }).fill("price * qty + 1");
+  await pop.getByRole("button", { name: "Save" }).click();
+  await expect(row.locator("td").nth(1)).toHaveText("16");
+  await pop.getByRole("button", { name: "Add formula" }).click();
+  await pop.getByRole("textbox", { name: "Formula name" }).fill("loud");
+  await pop.getByRole("textbox", { name: "Formula", exact: true }).fill('tags.map(value.upper()).join("+")');
+  await page.keyboard.press("Enter");
+  await expect(row.locator("td").nth(2)).toHaveText("PHYSICS+DMFT");
+  await expect.poll(() => text(request, "db/fx.base")).toContain("formula.loud");
+  await pop.getByRole("button", { name: "Remove the formula loud" }).click();
+  await expect.poll(() => text(request, "db/fx.base")).not.toContain("loud");
+  await page.keyboard.press("Escape");
+  await expect(pop).toHaveCount(0);
+  await expect(pane.getByRole("button", { name: "Properties", exact: true })).toBeFocused(); // Esc gives the focus back
 });

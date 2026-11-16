@@ -1428,15 +1428,15 @@ function sn(e, n) {
 		m(), A(f)?.focus();
 	});
 	async function h() {
-		if (!a()) return;
-		let e = (e) => String(e).padStart(2, "0"), t = (t) => `${t.getFullYear()}-${e(t.getMonth() + 1)}-${e(t.getDate())}T${e(t.getHours())}:${e(t.getMinutes())}`, r = (e) => t(e).slice(0, 10);
-		n.onclose(), await n.cal.create({
+		if (!a() || !A(d)) return;
+		let e = (e) => String(e).padStart(2, "0"), t = (t) => `${t.getFullYear()}-${e(t.getMonth() + 1)}-${e(t.getDate())}T${e(t.getHours())}:${e(t.getMinutes())}`, r = (e) => t(e).slice(0, 10), i = {
 			summary: A(c).trim() || "(no title)",
 			start: a().all_day ? r(a().start) : t(a().start),
 			end: a().all_day ? r(a().end) : t(a().end),
 			all_day: a().all_day,
 			calendar: A(d) || void 0
-		});
+		};
+		n.onclose(), await n.cal.create(i);
 	}
 	let _ = R(null), v = R(!1);
 	ie(() => {
@@ -1542,7 +1542,8 @@ function sn(e, n) {
 			}), b(o), X("click", i, function(...e) {
 				n.onedit?.apply(this, e);
 			}), X("click", o, () => {
-				n.onclose(), n.cal.remove(r());
+				let e = r();
+				n.onclose(), e && n.cal.remove(e);
 			}), D(e, t);
 		};
 		J(o, (e) => {
@@ -1681,7 +1682,7 @@ function sn(e, n) {
 				size: 14
 			});
 			var r = q(n, 2);
-			w(r, 21, () => A(_).note.links, (e) => e.link, (e, t) => {
+			w(r, 23, () => A(_).note.links, (e, t) => e.link + ":" + t, (e, t) => {
 				var n = Yt(), r = $(n);
 				let i;
 				var a = $(r), o = (e) => {
@@ -1708,7 +1709,7 @@ function sn(e, n) {
 				size: 14
 			});
 			var i = q(r, 2);
-			w(i, 21, () => A(O).slice(0, 6), (e) => e.source + e.line, (e, t) => {
+			w(i, 23, () => A(O).slice(0, 6), (e, t) => e.source + ":" + e.line + ":" + t, (e, t) => {
 				var r = Zt(), i = $(r), a = L(i, !0);
 				b(r), Q((e) => {
 					u(i, "title", A(t).context), E(a, e);

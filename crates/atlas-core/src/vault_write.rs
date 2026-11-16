@@ -139,7 +139,8 @@ fn rel_of(root: &Path, abs: &Path) -> String {
 fn hash_file(abs: &Path) -> Result<Option<ContentHash>> {
     match std::fs::read(abs) {
         Ok(bytes) => Ok(Some(ContentHash::of(&bytes))),
-        Err(e) if matches!(e.kind(), std::io::ErrorKind::NotFound | std::io::ErrorKind::IsADirectory) => Ok(None),
+        // a folder has no content hash; Windows refuses reading one as "Access is denied", not IsADirectory
+        Err(e) if matches!(e.kind(), std::io::ErrorKind::NotFound | std::io::ErrorKind::IsADirectory) || abs.is_dir() => Ok(None),
         Err(e) => Err(e.into()),
     }
 }
@@ -617,6 +618,17 @@ pub mod outside {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A folder, or a link to one, has no hash on any system: a guarded change to it (a guest's `.atlas` link removed)
+    /// is not refused by reading it as a file.
+    #[test]
+    fn a_folder_has_no_hash() {
+        let d = tempfile::tempdir().unwrap();
+        assert!(hash_file(d.path()).unwrap().is_none());
+        assert!(hash_file(&d.path().join("missing")).unwrap().is_none());
+        std::fs::write(d.path().join("a.md"), "a").unwrap();
+        assert!(hash_file(&d.path().join("a.md")).unwrap().is_some());
+    }
 
     /// Where hard links are refused (Android's shared storage) a new note is still made, and one made meanwhile kept.
     #[test]

@@ -14,8 +14,9 @@ use std::path::Path;
 /// When a template is asked for.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Moment<'a> {
-    /// a note being made: New…, a link followed, the phone's +, an agent, a plugin (`path`: where it would go)
-    NewNote { path: &'a str },
+    /// a note being made: New…, a link followed, the phone's +, an agent, a plugin (`path`: where it would go;
+    /// `linked_by`: the properties other notes already name it through, `topics: "[[It]]"`)
+    NewNote { path: &'a str, linked_by: &'a [String] },
     /// a capture becoming a note of its own
     Capture { path: &'a str },
     /// the log of a day, made when first written to or opened
@@ -52,6 +53,9 @@ pub struct When {
     pub property: Option<BTreeMap<String, serde_yaml::Value>>,
     #[serde(default)]
     pub moment: Option<MomentKind>,
+    /// a new note other notes name through this property (`linked_by: topics`: a hub made when its link is followed)
+    #[serde(default)]
+    pub linked_by: Option<String>,
 }
 
 /// Where a rule was written, so Settings can say it and a template's own rules come first.
@@ -97,7 +101,7 @@ pub fn rules(root: &Path, cfg: &Config) -> Vec<Rule> {
     let mut own = own_rules(root, cfg);
     own.sort_by_key(|r| std::cmp::Reverse(r.when.specificity())); // stable: a tie keeps the templates' order
     let config: Vec<Rule> = match cfg.notes.template_rules.is_empty() {
-        false => cfg.notes.template_rules.iter().map(|r| Rule { template: r.template.clone(), when: When { folder: r.folder.clone(), title: r.title.clone(), ..When::default() }, source: Source::Config }).collect(),
+        false => cfg.notes.template_rules.iter().map(|r| Rule { template: r.template.clone(), when: When { folder: r.folder.clone(), title: r.title.clone(), linked_by: r.linked_by.clone(), ..When::default() }, source: Source::Config }).collect(),
         true => crate::notes::templater_rules(root, cfg)
             .into_iter()
             .map(|r| Rule { template: r.template, when: When { folder: r.folder, title: r.title, ..When::default() }, source: Source::Templater })
@@ -213,7 +217,7 @@ impl When {
         match self.moment {
             Some(MomentKind::Day) => parts.push("the day's log".to_string()),
             Some(MomentKind::Capture) => parts.push("a capture made a note".to_string()),
-            None if self.folder.is_some() || self.title.is_some() => parts.push("a new note".to_string()),
+            None if self.folder.is_some() || self.title.is_some() || self.linked_by.is_some() => parts.push("a new note".to_string()),
             None => {}
         }
         if let Some(f) = &self.folder {
@@ -221,6 +225,9 @@ impl When {
         }
         if let Some(t) = &self.title {
             parts.push(format!("whose path matches {t}"));
+        }
+        if let Some(k) = &self.linked_by {
+            parts.push(format!("other notes name under {k}:"));
         }
         if let Some(g) = &self.file {
             parts.push(if g == "**" { "the note of any file".to_string() } else { format!("the note of a file matching {g}") });
@@ -233,7 +240,7 @@ impl When {
     }
 
     fn any(&self) -> bool {
-        self.folder.is_some() || self.title.is_some() || self.file.is_some() || self.property.as_ref().is_some_and(|p| !p.is_empty()) || self.moment.is_some()
+        self.folder.is_some() || self.title.is_some() || self.file.is_some() || self.property.as_ref().is_some_and(|p| !p.is_empty()) || self.moment.is_some() || self.linked_by.is_some()
     }
 
     /// How narrowly it picks: a file pattern or a title regex over a folder, a deeper folder over a shallower one.
@@ -241,7 +248,8 @@ impl When {
         let folder = self.folder.as_deref().map_or(0, |f| 10 + f.trim_matches('/').split('/').count() as u32);
         let parts = [self.file.is_some(), self.title.is_some()].iter().filter(|b| **b).count() as u32 * 100;
         let prop = self.property.as_ref().map_or(0, |p| 50 + p.len() as u32);
-        parts + folder + prop + u32::from(self.moment.is_some())
+        let linked = if self.linked_by.is_some() { 60 } else { 0 };
+        parts + folder + prop + linked + u32::from(self.moment.is_some())
     }
 
     /// Whether every part given fits `m`. A folder or a title is about a note at a path (a new note, a capture); a
@@ -250,8 +258,12 @@ impl When {
         if !self.any() {
             return false;
         }
+        let linked: &[String] = match *m {
+            Moment::NewNote { linked_by, .. } => linked_by,
+            _ => &[],
+        };
         let (path, file, prop, moment) = match *m {
-            Moment::NewNote { path } => (Some(path), None, None, None),
+            Moment::NewNote { path, .. } => (Some(path), None, None, None),
             Moment::Capture { path } => (Some(path), None, None, Some(MomentKind::Capture)),
             Moment::Day { .. } => (None, None, None, Some(MomentKind::Day)),
             Moment::Companion { file, .. } => (None, Some(file), None, None),
@@ -272,6 +284,7 @@ impl When {
             && self.file.as_deref().is_none_or(file_fits)
             && self.property.as_ref().is_none_or(prop_fits)
             && self.moment.is_none_or(|k| moment == Some(k))
+            && self.linked_by.as_deref().is_none_or(|k| linked.iter().any(|r| r.eq_ignore_ascii_case(k.trim())))
             // a folder or title rule never answers a moment it does not name (the day's log, a companion note)
             && (self.moment.is_some() || self.file.is_some() || self.property.is_some() || matches!(m, Moment::NewNote { .. } | Moment::Capture { .. }))
     }
@@ -337,9 +350,9 @@ mod tests {
             ("paper", "---\napply_when:\n- file: refs/*.pdf\n---\n"),
         ]);
         let cfg = Config::default();
-        assert_eq!(pick(&d, &cfg, Moment::NewNote { path: "lectures/QFT/week 1.md" }).as_deref(), Some("lecture"));
-        assert_eq!(pick(&d, &cfg, Moment::NewNote { path: "lectures/labs/a.md" }).as_deref(), Some("lab"), "the deeper folder wins");
-        assert_eq!(pick(&d, &cfg, Moment::NewNote { path: "notes/x.md" }), None);
+        assert_eq!(pick(&d, &cfg, Moment::NewNote { path: "lectures/QFT/week 1.md", linked_by: &[] }).as_deref(), Some("lecture"));
+        assert_eq!(pick(&d, &cfg, Moment::NewNote { path: "lectures/labs/a.md", linked_by: &[] }).as_deref(), Some("lab"), "the deeper folder wins");
+        assert_eq!(pick(&d, &cfg, Moment::NewNote { path: "notes/x.md", linked_by: &[] }), None);
         assert_eq!(pick(&d, &cfg, Moment::Companion { file: "lectures/QFT/slides.pdf", path: "lectures/QFT/slides.md" }).as_deref(), Some("lecture"));
         assert_eq!(pick(&d, &cfg, Moment::Companion { file: "refs/a.pdf", path: "refs/a.md" }).as_deref(), Some("paper"));
         assert_eq!(pick(&d, &cfg, Moment::Companion { file: "refs/deep/a.pdf", path: "refs/deep/a.md" }), None, "`*` stays within a folder");
@@ -357,7 +370,7 @@ mod tests {
         assert_eq!(pick(&d, &cfg, Moment::Capture { path: "notes/a.md" }).as_deref(), Some("fleeting"));
         assert_eq!(pick(&d, &cfg, Moment::Capture { path: "inbox/a.md" }).as_deref(), Some("inbox note"), "the template's own rule first");
         assert_eq!(pick(&d, &cfg, Moment::Companion { file: "any/where.pdf", path: "any/where.md" }).as_deref(), Some("literature"));
-        assert_eq!(pick(&d, &cfg, Moment::NewNote { path: "notes/a.md" }), None, "a setting's moment is its own");
+        assert_eq!(pick(&d, &cfg, Moment::NewNote { path: "notes/a.md", linked_by: &[] }), None, "a setting's moment is its own");
     }
 
     #[test]
@@ -365,10 +378,10 @@ mod tests {
         let d = vault(&[("b", "---\n---\n")]);
         let mut cfg = Config::default();
         cfg.notes.template_rules = vec![
-            crate::config::TemplateRule { title: None, folder: Some("labs".into()), template: "gone".into() },
-            crate::config::TemplateRule { title: None, folder: Some("labs".into()), template: "b".into() },
+            crate::config::TemplateRule { title: None, folder: Some("labs".into()), linked_by: None, template: "gone".into() },
+            crate::config::TemplateRule { title: None, folder: Some("labs".into()), linked_by: None, template: "b".into() },
         ];
-        assert_eq!(pick(&d, &cfg, Moment::NewNote { path: "labs/x.md" }).as_deref(), Some("b"));
+        assert_eq!(pick(&d, &cfg, Moment::NewNote { path: "labs/x.md", linked_by: &[] }).as_deref(), Some("b"));
     }
 
     #[test]
@@ -382,11 +395,11 @@ mod tests {
         };
         age(60);
         let cfg = Config::default();
-        assert_eq!(pick(&d, &cfg, Moment::NewNote { path: "films/x.md" }).as_deref(), Some("film"));
+        assert_eq!(pick(&d, &cfg, Moment::NewNote { path: "films/x.md", linked_by: &[] }).as_deref(), Some("film"));
         std::fs::write(d.path().join("templates/film.md"), "---\napply_when:\n  folder: movies\n---\n").unwrap();
         age(30);
-        assert_eq!(pick(&d, &cfg, Moment::NewNote { path: "films/x.md" }), None);
-        assert_eq!(pick(&d, &cfg, Moment::NewNote { path: "movies/x.md" }).as_deref(), Some("film"));
+        assert_eq!(pick(&d, &cfg, Moment::NewNote { path: "films/x.md", linked_by: &[] }), None);
+        assert_eq!(pick(&d, &cfg, Moment::NewNote { path: "movies/x.md", linked_by: &[] }).as_deref(), Some("film"));
     }
 
     #[test]
@@ -402,5 +415,15 @@ mod tests {
         let g = |p: &str, f: &str| glob(p).unwrap().is_match(f);
         assert!(g("**", "a/b/c.pdf") && g("**/*.pdf", "c.pdf") && g("**/*.pdf", "a/b/c.pdf") && g("refs/*.pdf", "refs/x y.pdf"));
         assert!(!g("refs/*.pdf", "refs/a/x.pdf") && !g("*.pdf", "a/x.pdf") && !g("a?.md", "a/.md"));
+    }
+
+    #[test]
+    fn linked_by_fits_a_new_note_named_through_that_property_only() {
+        let w = When { linked_by: Some("topics".into()), ..When::default() };
+        let topics = ["topics".to_string()];
+        assert!(w.fits(&Moment::NewNote { path: "notes/Optics.md", linked_by: &topics }));
+        assert!(!w.fits(&Moment::NewNote { path: "notes/Optics.md", linked_by: &[] }));
+        assert!(!w.fits(&Moment::Day { path: "log/2026-11-16.md" }));
+        assert!(w.specificity() > When { folder: Some("notes".into()), ..When::default() }.specificity());
     }
 }

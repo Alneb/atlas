@@ -244,7 +244,7 @@ function Oe(a, p) {
 			e.key === "Enter" && (e.ctrlKey || e.metaKey) ? (e.preventDefault(), Le()) : e.key === "Escape" && (v(J, null), h(je)?.focus()), e.stopPropagation();
 			return;
 		}
-		if (e.ctrlKey || e.metaKey || e.altKey) return;
+		if (e.ctrlKey || e.metaKey || e.altKey || (e.key === "Enter" || e.key === " ") && e.target.closest("button, a, select, [role=menuitem]")) return;
 		let t = h(Y).findIndex((e) => e.id === h(W)), n = h(Y)[t], r = (e) => {
 			let n = h(Y)[Math.max(0, Math.min(h(Y).length - 1, (t < 0 ? -1 : t) + e))];
 			n && v(W, n.id, !0);

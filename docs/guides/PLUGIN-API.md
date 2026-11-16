@@ -642,7 +642,8 @@ line calling it):
 - `node scripts/dev/plugin-pack.mjs pack [--out dir] [--bins dir]` makes one `atlas-plugin-<id>.tar.gz` per plugin of
   `plugins/stable` and `plugins/beta`: its tracked files without its sources (`engine/`, `ui/`), plus every platform's
   `bin/` that was built, in one archive for every desktop. Beside them, `plugins.json` lists each one's id, title,
-  version, tier, platforms (`"any"` for a plugin with no engine) and sha256.
+  description, icon, version, tier, platforms (`"any"` for a plugin with no engine), size and sha256 — what the Plugin
+  store in Settings shows on each card (an older index without description, icon or size still reads).
 
 CI builds the engines on Linux (x86_64 and arm64), macOS (both) and Windows, packs them, and keeps the archives as the
 run's artifact `plugins`; a release attaches them (`.github/workflows/packages.yml`). Atlas installs an archive from a

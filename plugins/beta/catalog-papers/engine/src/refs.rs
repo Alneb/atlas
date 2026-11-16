@@ -759,7 +759,7 @@ fn pdf_info(doc: &pdf_oxide::PdfDocument) -> crate::firstpage::Info {
         let v = doc.resolve_object(dict.as_ref()?.as_dict()?.get(key)?).ok()?;
         let b = v.as_string()?;
         let s = match b {
-            [0xFE, 0xFF, rest @ ..] => String::from_utf16_lossy(&rest.chunks_exact(2).map(|c| u16::from_be_bytes([c[0], c[1]])).collect::<Vec<_>>()),
+            [0xFE, 0xFF, rest @ ..] => String::from_utf16_lossy(&rest.as_chunks::<2>().0.iter().map(|&c| u16::from_be_bytes(c)).collect::<Vec<_>>()),
             [0xEF, 0xBB, 0xBF, rest @ ..] => String::from_utf8_lossy(rest).into_owned(),
             _ => b.iter().map(|&c| c as char).collect(),
         };

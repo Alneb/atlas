@@ -36,10 +36,13 @@
     document.body.appendChild(el);
     place();
     const node = el;
+    // held here: after onclose() the prop reads through a parent whose state is gone (Svelte 5), so Esc's and the
+    // cleanup's focus must not read `anchor` again
+    const button = anchor;
     const outside = (e: MouseEvent) => {
       const t = e.target as Node;
       // a menu or a dropdown opened from inside the panel lives elsewhere in <body>: a click there is not outside
-      if (node.contains(t) || anchor.contains(t) || (t as Element).closest?.(".ctx-menu, [role=listbox], [role=menu], .backdrop")) return;
+      if (node.contains(t) || button.contains(t) || (t as Element).closest?.(".ctx-menu, [role=listbox], [role=menu], .backdrop")) return;
       onclose();
     };
     const key = (e: KeyboardEvent) => {
@@ -47,7 +50,7 @@
       e.preventDefault();
       e.stopPropagation();
       onclose();
-      anchor.focus();
+      button.focus();
     };
     const onResize = () => place();
     document.addEventListener("mousedown", outside, true);
@@ -61,7 +64,7 @@
       window.removeEventListener("resize", onResize);
       off();
       // closed by whatever path (Esc caught by another handler, Back, a choice made): the focus goes back to its button
-      if (node.contains(document.activeElement) && anchor.isConnected) anchor.focus({ preventScroll: true });
+      if (node.contains(document.activeElement) && button.isConnected) button.focus({ preventScroll: true });
       node.remove();
     };
   });

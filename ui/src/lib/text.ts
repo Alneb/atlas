@@ -32,3 +32,8 @@ export function shortWhen(secs?: number): string {
   const d = new Date(secs * 1000), now = new Date();
   return d.toDateString() === now.toDateString() ? HM().format(d) : d.getFullYear() === now.getFullYear() ? MD().format(d) : YMD().format(d);
 }
+
+/** A terminal selection as text to paste elsewhere: each row's padding to the screen's edge gone, no blank rows
+ *  before or after, and at most one blank line in a row (a TUI's empty rows otherwise come along as many newlines). */
+export const cleanTerminalCopy = (s: string): string =>
+  s.replace(/\r\n?/g, "\n").replace(/[ \t]+$/gm, "").replace(/\n{3,}/g, "\n\n").replace(/^\n+|\n+$/g, "");

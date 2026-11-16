@@ -149,6 +149,8 @@
           {#if menu}
             <div class="menu" role="menu" tabindex="-1" onmouseleave={() => (menu = false)}>
               {#if t.saved}<button role="menuitem" onclick={() => { menu = false; mail.atlas.open(t.saved!, undefined, { beside: true }); }}>Open the note</button>{/if}
+              <button role="menuitem" onclick={() => { menu = false; void mail.copyLink(); }}>Copy a link to paste in a note</button>
+              <button role="menuitem" onclick={() => { menu = false; void mail.linkToEvent(); }}>Link to an event…</button>
               <button role="menuitem" onclick={() => { menu = false; mail.importance(true); }}>Mark important</button>
               <button role="menuitem" onclick={() => { menu = false; mail.importance(false); }}>Not important…</button>
               {#if unsub}<button role="menuitem" onclick={() => { menu = false; unsubscribe(); }}>Unsubscribe</button>{/if}

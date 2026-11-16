@@ -19,4 +19,20 @@ runs_here: boolean,
 /**
  * The version installed in this vault (empty: one without a version), none when it is not.
  */
-installed?: string, };
+installed?: string, 
+/**
+ * What it does, in a line (its manifest's `description`; an older index has none).
+ */
+description?: string, 
+/**
+ * Its icon, an Atlas icon name (its manifest's `icon`).
+ */
+icon?: string, 
+/**
+ * The archive's size in bytes, when the index says it.
+ */
+size?: number, 
+/**
+ * Installed here at an older version than the release's: an update is there to take (never a downgrade).
+ */
+update: boolean, };

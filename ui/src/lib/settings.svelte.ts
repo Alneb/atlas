@@ -3,6 +3,7 @@
 import { errText } from "./text";
 import { load, save } from "./prefs";
 import { einkOn, inPhoneApp, setEinkRefresh } from "./eink";
+import { setDatePrefs } from "./dates";
 import { api } from "./api";
 import type { PropertiesView, WorkspaceConfig } from "./types";
 import { app, paintTheme, toast } from "./state.svelte";
@@ -45,6 +46,7 @@ function apply(c: WorkspaceConfig): void {
   const eink = einkOn(c.ui.eink);
   root.classList.toggle("eink", eink); // tokens.css / base.css: black on white, no motion
   setEinkRefresh(c.ui.eink_refresh); // eink.ts: when the whole screen is refreshed
+  setDatePrefs(c.editor.date_format ?? "", c.editor.date_names === "spanish"); // dates.ts: how dates read everywhere
   // the phone app follows the phone (the vault's theme is the desktop's: one vault, several screens) until the
   // phone chooses a theme of its own
   const follows = ui.theme === "system" || (inPhoneApp() && !deviceChose("ui.theme"));

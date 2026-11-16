@@ -28,6 +28,9 @@
   // collapsed to icons, the apps are one icon: the one in front (else the first) — a column of every app pushed the
   // rest of the bar down, so nothing kept its height between the two widths; the others are a hover (peek) away
   const shown = $derived(wide ? apps : apps.filter(isActive).slice(0, 1).concat(apps.some(isActive) ? [] : apps.slice(0, 1)));
+  // …and the one icon stands in a box as tall as the open bar's rows of tiles (its grid below: 36 px tiles, 4 px gaps,
+  // 8 px sides), so the tabs under it keep their place when the bar opens over the panes
+  const openRows = $derived(Math.ceil(apps.length / Math.max(1, Math.floor((tabs.sidebar.width - 16 + 4) / 40))));
   const go = (a: AppTile) => { const id = openId(a); if (id) activate(id); else a.open(); };
   const appTip = (a: AppTile) => `${a.title}${a.keys ? ` · ${a.keys}` : ""}${openId(a) ? "" : " (opens it)"}`;
   /** Its tab's Close, then where the tile sits (`[ui] apps_order` / `apps_hidden`, also in Settings → Appearance). */
@@ -50,7 +53,7 @@
 </script>
 
 {#if apps.length}
-  <div class="apps" class:wide role="toolbar" aria-label="Apps" data-testid="apps">
+  <div class="apps" class:wide role="toolbar" aria-label="Apps" data-testid="apps" style:--open-rows={wide ? undefined : openRows}>
     {#each shown as a (a.ids[0])}
       {@const id = openId(a)}
       <button class="app" class:active={isActive(a)} class:open={!!id} aria-label={a.title} aria-pressed={isActive(a)} title={appTip(a)}
@@ -84,7 +87,7 @@
 <style>
   /* apps: icon tiles sharing a row (a column when collapsed); an open one is underlined, the shown one lit.
      Native tips (title): the bar's scrolling column would clip a drawn one */
-  .apps { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 2px 0 8px; } /* the open row's height */
+  .apps { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 2px 0 8px; min-height: calc(var(--open-rows, 1) * 36px + 6px); } /* the open rows' height */
   .apps.wide { display: grid; grid-template-columns: repeat(auto-fill, minmax(36px, 1fr)); gap: 4px; padding: 2px 8px 8px; }
   .app { position: relative; height: 32px; width: 36px; border-radius: 9px; display: grid; place-items: center; padding: 0;
     background: var(--bg-hover); border: 1px solid var(--border); color: var(--text-muted); transition: background .12s, border-color .12s, color .12s; }

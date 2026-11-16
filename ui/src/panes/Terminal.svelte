@@ -16,6 +16,7 @@
   import { getDock } from "../lib/dock-instance";
   import { wikilinkProvider } from "../lib/terminal-wikilinks";
   import { atPointer, popMenu } from "../lib/menu";
+  import { cleanTerminalCopy } from "../lib/text";
 
   let { spec, panel }: PaneProps<"terminal"> = $props();
   /** This window, the same across a reload of it (sessionStorage), another in a second window or test. */
@@ -34,10 +35,23 @@
 
   const css = () => getComputedStyle(document.documentElement);
   const COLOURS = ["black", "red", "green", "yellow", "blue", "magenta", "cyan", "white"] as const;
+  // A token may be any CSS colour — a chosen accent makes --accent-sel a `color-mix(…)` — which xterm cannot read: it
+  // fell back to its own selection colour, a white haze that does not show on a light background. Each one is painted
+  // on a pixel and read back as the rgba() xterm parses.
+  const pixel = document.createElement("canvas").getContext("2d", { willReadFrequently: true });
+  function rgba(colour: string): string {
+    if (!colour || !pixel) return colour;
+    pixel.clearRect(0, 0, 1, 1);
+    pixel.fillStyle = "#000";
+    pixel.fillStyle = colour;
+    pixel.fillRect(0, 0, 1, 1);
+    const [r, g, b, a] = pixel.getImageData(0, 0, 1, 1).data;
+    return `rgba(${r}, ${g}, ${b}, ${+(a / 255).toFixed(3)})`;
+  }
   /** xterm's theme from the --ansi-* tokens (tokens.css; a VS Code theme may set them). */
   function themeFromCss(): Record<string, string> {
     const c = css();
-    const v = (n: string) => c.getPropertyValue(n).trim();
+    const v = (n: string) => rgba(c.getPropertyValue(n).trim());
     const cap = (s: string) => s[0].toUpperCase() + s.slice(1);
     return {
       background: v("--term-bg"), foreground: v("--text"), cursor: v("--accent"), cursorAccent: v("--term-bg"),
@@ -122,7 +136,7 @@
       };
     };
 
-    const copySel = () => { const sel = term.getSelection(); if (sel) void navigator.clipboard.writeText(sel); };
+    const copySel = () => { const sel = cleanTerminalCopy(term.getSelection()); if (sel) void navigator.clipboard.writeText(sel); };
     const pasteIn = () => void navigator.clipboard.readText().then((t) => term.paste(t), () => {});
     // Konsole's keys: Ctrl+Shift+C copies the selection, Ctrl+Shift+V pastes (plain Ctrl+C / V stay the shell's)
     term.attachCustomKeyEventHandler((e) => {

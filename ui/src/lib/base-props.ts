@@ -66,7 +66,7 @@ export function allProps(view: BaseView, res: BaseResult): string[] {
   view.columns.forEach((c) => add(c.id));
   view.properties.forEach(add);
   Object.keys(res.kinds).sort((a, b) => a.localeCompare(b)).forEach(add);
-  res.formulas.forEach((f) => add(`formula.${f}`));
+  Object.keys(res.formulas).forEach((f) => add(`formula.${f}`));
   FILE_PROPS.forEach((f) => add(f.id));
   return out;
 }

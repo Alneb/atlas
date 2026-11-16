@@ -135,8 +135,10 @@ test("Settings → Spelling: the languages, the main one, and the words added by
   await cell.click();
   await page.locator('[data-panel="spelling:spelling"]').getByRole("button", { name: "Spelling settings…" }).click();
   const section = page.locator('[data-section="spelling/words"]');
-  await expect(section.locator("table button")).toContainText(["English"]);
-  await expect(section.locator("table button.on")).toHaveCount(1);
+  // a row per installed language, with its switch and the main one's radio (more rows where more are installed)
+  const english = section.locator("table tr", { hasText: "English" });
+  await expect(english.getByRole("checkbox")).toBeChecked();
+  await expect(section.locator("table input[type=radio]:checked")).toHaveCount(1);
   // a word added here is in the vault's words, and × takes it back
   await section.getByLabel("A word to add").fill("Sénéchalz");
   await section.getByRole("button", { name: "Add", exact: true }).click();

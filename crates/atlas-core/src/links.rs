@@ -599,6 +599,28 @@ impl Index {
     }
 }
 
+/// The properties other notes name a note not yet made through (`topics: "[[Optics]]"` → `topics`): its unresolved
+/// links whose name is `stem`, any case, sorted and once each. What a new note's template rule `linked_by` reads.
+pub fn relations_to_missing(root: &Path, cfg: &Config, stem: &str) -> Vec<String> {
+    let index = scan(root, cfg);
+    let want = stem.trim().to_lowercase();
+    let mut out: Vec<String> = index
+        .parsed
+        .keys()
+        .flat_map(|src| index.links_of(src).filter(|(l, t)| t.is_none() && l.wiki).filter_map(|(l, _)| l.relation.clone().filter(|_| link_stem(&l.target) == want)))
+        .collect();
+    out.sort();
+    out.dedup();
+    out
+}
+
+/// A wikilink's note name, lower case: no `#section`, `|label`, folder or `.md`.
+fn link_stem(target: &str) -> String {
+    let t = target.split(['#', '|']).next().unwrap_or("").trim();
+    let t = t.rsplit('/').next().unwrap_or(t);
+    t.strip_suffix(".md").unwrap_or(t).to_lowercase()
+}
+
 /// Notes that link to (or embed) `path`, sorted by source then line.
 pub fn backlinks(root: &Path, cfg: &Config, path: &str) -> Backlinks {
     let index = scan(root, cfg);

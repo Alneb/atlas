@@ -82,7 +82,7 @@ export const searchRequest: { replace: boolean; q?: string } = { replace: false 
  *  activates the pane, so keys typed after a shortcut land there and not in the old focus. */
 export const paneFocus = new Map<string, () => void>();
 /** An open explorer tab asked for again: it goes to `path` and selects `select` (Show in the explorer, a breadcrumb). */
-export const explorerGo = new Map<string, (path: string, select?: string) => void>();
+export const explorerGo = new Map<string, (to: { source: string; place: string; path: string }, select?: string) => void>();
 /** Open PDF panes by panel id: jump to a page (a search hit in a PDF that is already open). */
 /** An open PDF's "show this place": its page, and a link's words or annotation / mark id (lib/pdf-place.ts). */
 export const pdfPages = new Map<string, (page: number, at?: { quote?: string; annotation?: string }) => void>();

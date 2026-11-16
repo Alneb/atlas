@@ -5,6 +5,7 @@
 import { iconSvg } from "./icons";
 import type { IconName } from "./panes";
 import { localDay } from "./local-day";
+import { showDate } from "./dates";
 import { DATE_MARKS, fieldPattern, type DateField } from "./task-fields";
 
 export type ChipKind = "due" | "scheduled" | "start" | "created" | "done" | "priority" | "repeat";
@@ -21,13 +22,14 @@ const FIELD = fieldPattern("every\\b");
 
 const iso = localDay;
 
-/** A date as one reads it beside a task: today, tomorrow, a weekday within the week, else "Fri 17 Oct". */
+/** A date as one reads it beside a task: today, tomorrow, yesterday, a weekday within the week, else the interface's
+ *  date (lib/dates.ts: the vault's format, or "17 Oct"). */
 export function sayDate(date: string, now = new Date()): { text: string; days: number } {
   const days = Math.round((Date.parse(date) - Date.parse(iso(now))) / 86_400_000);
   const d = new Date(`${date}T12:00:00`);
   const text = days === 0 ? "today" : days === 1 ? "tomorrow" : days === -1 ? "yesterday"
     : days > 1 && days < 7 ? d.toLocaleDateString(undefined, { weekday: "long" })
-    : d.toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" });
+    : showDate(date, now);
   return { text, days };
 }
 

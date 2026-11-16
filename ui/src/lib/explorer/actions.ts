@@ -60,13 +60,17 @@ export function askDelete(h: Here, e: Entry): void {
 /** A typed name done (`ok`: Enter) → the folder made or the row renamed. */
 export async function finishEdit(h: Here, ed: Editing, value: string, ok: boolean): Promise<void> {
   const to = value.trim();
-  if (!ok || !to || (ed.kind === "rename" && to === ed.name)) { h.focus(); return; }
+  // a row the "Below" filter found is named with its folder (`sub/a.md`): only its last part is renamed, in place
+  const was = ed.kind === "rename" ? ed.name : "", cut = was.lastIndexOf("/");
+  const dir = cut >= 0 ? was.slice(0, cut) : "", base = was.slice(cut + 1);
+  if (!ok || !to || (ed.kind === "rename" && to === base)) { h.focus(); return; }
   if (to.includes("/")) { h.say("A name cannot contain “/”.", "bad"); return; }
   const { src, loc } = h;
+  const now = dir ? `${dir}/${to}` : to;
   try {
     if (ed.kind === "new") { await src.mkdir!(loc.place, joinPath(loc.path, to)); h.say(`Made the folder ${to}.`); }
-    else { await src.rename!(loc.place, joinPath(loc.path, ed.name), joinPath(loc.path, to)); h.say(`Renamed ${ed.name} to ${to}.`); }
-    await h.reload(to);
+    else { await src.rename!(loc.place, joinPath(loc.path, ed.name), joinPath(loc.path, now)); h.say(`Renamed ${base} to ${to}.`); }
+    await h.reload(now);
   } catch (err) {
     // a name taken comes back as the server's 409 (nothing is overwritten): say it as the tree does
     h.say(err instanceof ApiError && err.status === 409 ? `“${to}” already exists here.` : why(err), "bad");

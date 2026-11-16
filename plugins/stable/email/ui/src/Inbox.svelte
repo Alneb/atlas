@@ -127,6 +127,8 @@
       return;
     }
     if (e.ctrlKey || e.metaKey || e.altKey) return;
+    // Enter or Space on a button of the card (Undo, a snooze choice, an account) is that button's, not "open the row"
+    if ((e.key === "Enter" || e.key === " ") && (e.target as HTMLElement).closest("button, a, select, [role=menuitem]")) return;
     const i = all.findIndex((r) => r.id === cursor);
     const r = all[i];
     const step = (by: number) => { const n = all[Math.max(0, Math.min(all.length - 1, (i < 0 ? -1 : i) + by))]; if (n) cursor = n.id; };

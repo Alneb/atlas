@@ -5,6 +5,55 @@ and versions follow [Semantic Versioning](https://semver.org/) once 1.0 is out.
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-11-16
+
+### Added
+- **Plugin store** in Settings → Plugins: every plugin of the release as a card, with search, filters (installed, not
+  installed, updates; stable or beta), Install or Update in one click, and Update all. Never offers an older version.
+- **Email 1.8:** "Link to an event…" and "Copy a link to paste in a note" in a mail's menu; `email_save_note` for agents.
+- **Templates:** `apply_when: { linked_by: <property> }` gives a new note the template when other notes already name it
+  through that property (a topic named under `topics:` is made as a topic). Following a link to a missing note makes it.
+- **Formulas in Bases:** written, changed, renamed and removed from the Properties popover; Obsidian's functions for
+  text, numbers, lists (`map`, `reduce`, `join`, `unique`…), dates (`.year`, `relative()`, `time()`) and `%`.
+- **Dates read the same everywhere:** Bases, task chips, Deadlines and the note's date name near days (Today,
+  Yesterday, Thursday) and shorten the rest; hover for the whole date and how far it is. A moment.js format of your
+  own in Settings → Notes (`date_format`).
+
+### Fixed
+- Bases: a formula the core refuses keeps its text in the form; `repeat()` and `replace("")` no longer run away; a day that does not exist (31 February) with a timezone stays text.
+- **Calendar 1.8.1:** the event card's Delete button deletes again; the card's quick create keeps what was typed.
+- **Activity** keeps the day's notes listed when a run writes many files; its tabs fit a narrow card.
+- **Plan 0.1.2:** no morning notice when nothing is due.
+- **Deadlines** says what it would show when empty, and tints its groups by urgency.
+- Copying from a terminal drops the padding and runs of blank lines.
+- **PDF reader:** ← and → turn the page.
+- **Calendar 1.8.2:** Enter in the card's title no longer creates an event when there is no calendar to write to; a
+  note linked twice from one line no longer breaks the card's backlinks.
+- **Deadlines:** a recurring deadline event shows every time it recurs (they collided), and "Today" moves on at
+  midnight on a Home left open.
+- **Plugin store:** Update all cannot run twice at once, two installs at once leave the right buttons, and an update
+  that cannot run says why.
+- **Formulas:** a formula cannot silently replace another of the same name.
+- **Dates:** impossible dates (month 13, 25:00) stay text; every ISO offset reads; "a month ago", never "1 months";
+  week tokens (`W`, `WW`) in your date format; a date without a time keeps only the day part of the format.
+- **Email 1.8.1:** a file dragged from the file tree into a message is attached (it was dropped silently), and its
+  path is no longer typed into the text.
+- **Email 1.8.2:** recipients added after the last autosave are kept in the draft; Ctrl+Enter in To sends (what was
+  typed becomes an address first); Enter on the triage card's buttons presses them; Archive or Delete pressed while
+  the next conversation loads acts on the one shown, not the next; the same file attached twice draws right; an undone
+  or failed send reopens with its text even from a closed composer.
+- **Files:** clicking inside the rename box no longer cancels the rename; a file found with "Below" is renamed in its
+  own folder (it was refused or moved up); a folder opens with its first row selected, not the old folder's row
+  number; "Show in the explorer" goes to the vault even from a tab that had wandered to a server; a link that is a file
+  no longer leaves the list on "Opening…"; the bar measures the room left by the preview (no buttons cut off), More
+  holds Preview and Split when they do not fit, and a long path fades at its start.
+- **Files, grid view:** tiles show whole again (they were cut to a list row's height); a tile's actions are small
+  icons in its corner instead of a column of words over the picture.
+- **Files, redesigned bar:** one row — the path as clickable crumbs, the filter with its "folders below" switch inside,
+  icon buttons for new folder, upload, hidden files, preview and split. Folder tiles in the accent colour, files with a
+  type badge, names on two lines; dates as everywhere else; a source that cannot be reached says so in one line.
+- Pressing Esc in a toolbar popover (a base's Sort, Filter, Properties) no longer throws an error.
+
 ## [0.3.0] - 2026-11-16
 
 Calendar, tasks and notifications work together in this release:

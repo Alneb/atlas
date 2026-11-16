@@ -62,6 +62,9 @@
     if (offers.length && (e.key === "ArrowDown" || e.key === "ArrowUp")) {
       e.preventDefault();
       sel = (sel + (e.key === "ArrowDown" ? 1 : offers.length - 1)) % offers.length;
+    } else if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
+      // Ctrl+Enter sends: what is typed becomes a chip first, and the key goes on to the composer (not prevented)
+      if (text.trim()) add(text);
     } else if (e.key === "Enter" || (e.key === "Tab" && text.trim())) {
       if (offers.length) { e.preventDefault(); add(entry(offers[sel])); }
       else if (text.trim()) { e.preventDefault(); add(text); }
