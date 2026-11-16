@@ -225,6 +225,17 @@ abstract class VaultFiles {
         } catch (org.json.JSONException e) { throw new IOException(e.getMessage()); }
     }
 
+    /** The vault's sync state (GET /api/sync/state, core sync_state.rs): `{words, level, server, bytes, syncthing,
+     *  mirror, refused_count, captures_waiting, conflict_copies, …}` — the line the desktop's Settings → Vaults & sync
+     *  shows, from the core here (a folder) or the server (a server's vault). Never on the UI thread. Throws with why. */
+    static JSONObject syncState(Context c, String vault) throws IOException {
+        try {
+            JSONObject r = new JSONObject(new String(new OnServer(c, vault).get("/api/sync/state"), StandardCharsets.UTF_8));
+            if (r.has("error") || !r.has("words")) throw new IOException(r.optString("error", "no sync state"));
+            return r;
+        } catch (org.json.JSONException e) { throw new IOException(e.getMessage()); }
+    }
+
     /** One setting changed (`path`: its dotted place, "ui.font_size"; `value`: JSON's), read fresh then written whole —
      *  so a change made elsewhere meanwhile is kept. An error, or null. */
     static String setConfig(Context c, String vault, String path, Object value) {

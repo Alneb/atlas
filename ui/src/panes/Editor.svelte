@@ -13,6 +13,7 @@
   import Icon from "../components/Icon.svelte";
   import { onMount } from "svelte";
   import { api, ApiError } from "../lib/api";
+  import { rel } from "../lib/time";
   import { diff } from "../lib/frontmatter-edit";
   import { on, touches } from "../lib/bus";
   import { app, toast } from "../lib/state.svelte";
@@ -30,7 +31,8 @@
   import { setSelection } from "../lib/context.svelte";
   import Backlinks from "../components/Backlinks.svelte";
   import PropertiesPanel from "../components/PropertiesPanel.svelte";
-  import { propsPanel } from "../lib/properties-panel.svelte";
+  import { propsPanel, toggleProperties } from "../lib/properties-panel.svelte";
+  import { tipFor } from "../lib/keymap.svelte";
   import { phone } from "../lib/phone.svelte";
   import { nativeShell } from "../lib/native-shell.svelte";
   import { frontmatterOf } from "../lib/property-model";
@@ -56,6 +58,18 @@
   // the last headings() answer and the text it was read from (one scan per version of the text)
   let headCache: { doc: Text; heads: { level: number; text: string; line: number }[] } | null = null;
   let status = $state<"loading" | "ready" | "error">("loading");
+  // the note's date beside the breadcrumbs: when it was made (its `created:`/`date:`, first commit or birth: the core's
+  // one rule, today.rs `made`); asked again on hover so "changed" is current
+  let made = $state<import("../lib/gen/Made").Made | null>(null);
+  const askMade = () => { const p = path; void api.fileMade(p).then((m) => { if (p === path) made = m; }, () => { made = null; }); };
+  $effect(() => { if (status === "ready") askMade(); });
+  const madeDay = (m: import("../lib/gen/Made").Made) =>
+    new Date(m.made).toLocaleDateString(undefined, { day: "numeric", month: "short", ...(new Date(m.made).getFullYear() === new Date().getFullYear() ? {} : { year: "numeric" }) });
+  const madeTip = (m: import("../lib/gen/Made").Made) => {
+    const at = new Date(m.made).toLocaleString(undefined, { dateStyle: "full", ...(m.day_only ? {} : { timeStyle: "short" }) });
+    const from = { property: "its created/date property", git: "its first commit", disk: "the file's creation" }[m.by];
+    return `Made ${at} (${from})\nLast changed ${rel(m.changed)}`;
+  };
   let loadError = $state("");
   let conflict = $state(false);
   let isNew = $state(false);
@@ -428,6 +442,7 @@
   {/if}
   {#if settings.config?.editor.breadcrumbs ?? true}
     <nav class="crumbs" aria-label="Path">
+      <span class="trail">
       {#each path.split("/") as seg, i}
         {#if i > 0}<span class="sep">›</span>{/if}
         {#if i < path.split("/").length - 1}
@@ -438,6 +453,15 @@
           <span class="seg file"><Icon name={fileIcon(path)} size={13} />{shownName(seg)}</span>
         {/if}
       {/each}
+      </span>
+      {#if made}<span class="crumb-date" title={madeTip(made)} onmouseenter={askMade} role="note">{madeDay(made)}</span>{/if}
+      <!-- the Properties panel's toggle, the same one as the command and the note's "Properties" line; only where the
+           setting lets the panel come and go (`panel` keeps it open, `inline` shows the properties in the text) -->
+      {#if isMarkdown(path) && status === "ready" && !noteView && (settings.config?.editor.properties ?? "hidden") === "hidden"}
+        <button class="crumb-btn" class:on={propsPanel.open} aria-pressed={propsPanel.open} data-testid="properties-toggle"
+          title={tipFor(propsPanel.open ? "Hide the properties" : "Show the properties", "ui.properties")} aria-label="Properties"
+          onclick={() => toggleProperties()}><Icon name="panel-right" size={14} /></button>
+      {/if}
     </nav>
   {/if}
   {#if conflict}
@@ -497,15 +521,25 @@
   .note-view-switch { position: absolute; top: 2px; right: 10px; z-index: 2; padding: 2px 9px; border-radius: 6px; border: 1px solid var(--border);
     background: var(--bg); color: var(--text-muted); font-size: calc(12px * var(--ui-scale, 1)); }
   .note-view-switch:hover { color: var(--text); background: var(--bg-hover); }
-  .editor-row { flex: 1; min-height: 0; display: flex; position: relative; } /* the phone's properties sheet covers it */
-  .editor-col { flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; }
-  .editor-host { flex: 1; min-width: 0; min-height: 0; }
+  /* two columns (the note, the Properties panel) over two shared rows (the format bar and the panel's heading, then
+     the text and the panel's body): both sides take their rows from this grid (subgrid), so the line under the format
+     bar and the one under the heading are one line at one height, even when the narrow bar wraps to a second row */
+  .editor-row { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: auto minmax(0, 1fr); position: relative;
+    container-type: inline-size; } /* the panel's width is a share of this row's (cqi): a % in an auto column resolves against the column itself. The phone's properties sheet covers it */
+  .editor-col { grid-column: 1; grid-row: 1 / -1; min-width: 0; min-height: 0; display: grid; grid-template-rows: subgrid; }
+  .editor-host { grid-row: 2; min-width: 0; min-height: 0; }
+  .editor-host:first-child { grid-row: 1 / -1; } /* no format bar: the text takes both rows */
   .crumbs { flex: none; display: flex; align-items: center; gap: 2px; padding: 4px 14px; min-height: 26px; overflow: hidden; white-space: nowrap;
     font-size: calc(12px * var(--ui-scale, 1)); color: var(--text-faint); border-bottom: 1px solid var(--border); }
   .crumbs .seg { padding: 1px 4px; border-radius: 4px; color: var(--text-muted); }
   .crumbs button.seg:hover { background: var(--bg-hover); color: var(--text); }
   .crumbs .seg.file { display: inline-flex; gap: 5px; align-items: center; color: var(--text); }
   .crumbs .sep { opacity: .6; }
+  .crumbs .trail { flex: 1; min-width: 0; display: flex; align-items: center; gap: 2px; overflow: hidden; }
+  .crumb-date { flex: none; padding: 0 6px; color: var(--text-faint); font-variant-numeric: tabular-nums; cursor: default; }
+  .crumb-btn { flex: none; display: grid; place-items: center; width: calc(24px * var(--ui-scale, 1)); height: calc(22px * var(--ui-scale, 1)); padding: 0; margin-right: -6px; border-radius: var(--radius-sm); color: var(--text-faint); }
+  .crumb-btn:hover { background: var(--bg-hover); color: var(--text); }
+  .crumb-btn.on { color: var(--accent); background: var(--accent-soft); }
   .editor-host :global(.cm-editor) { height: 100%; }
   .new-file-hint { font-size: calc(12px * var(--ui-scale, 1)); color: var(--text-faint); padding: 6px 16px 0; text-align: center; }
   .banner { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;

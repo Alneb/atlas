@@ -3,7 +3,7 @@
 // object for every pane, plugin and view; also pushed to the core (PUT /api/ui/state), so Claude
 // reads it through `atlas mcp` → atlas_context. The push is fire-and-forget and debounced.
 import { api } from "./api";
-import type { EditorSelection, PaneRef, UiState } from "./types";
+import type { EditorSelection, PaneRef, UiCommand, UiState } from "./types";
 
 /** The contract caps selection text at 20 kB; the editor slices no more than this from its document. */
 export const SELECTION_TEXT_MAX = 20_000;
@@ -30,6 +30,18 @@ export function onContext(fn: Listener): () => void {
   return () => listeners.delete(fn);
 }
 
+// the window's commands for agents (atlas_ui_commands): sent with the next state only when they changed
+let commandsDue: UiCommand[] | undefined;
+let commandsSent = "";
+/** The palette's commands as agents see them; pushed with the state when the list differs from the last one sent. */
+export function setCommands(list: UiCommand[]): void {
+  const sig = list.map((c) => `${c.id}\t${c.title}`).join("\n");
+  if (sig === commandsSent) return;
+  commandsSent = sig;
+  commandsDue = list;
+  changed();
+}
+
 let timer: ReturnType<typeof setTimeout> | undefined;
 function changed(serverSide = true): void {
   for (const fn of listeners) { try { fn(context); } catch (e) { console.warn("[atlas] context listener", e); } }
@@ -37,7 +49,10 @@ function changed(serverSide = true): void {
   clearTimeout(timer);
   timer = setTimeout(() => {
     const s: UiState = { active: $state.snapshot(context.active), open: $state.snapshot(context.open), selection: $state.snapshot(context.selection) };
-    void api.putUiState(s).catch(() => {});
+    const commands = commandsDue;
+    if (commands) s.commands = commands;
+    commandsDue = undefined;
+    void api.putUiState(s).catch(() => { if (commands && !commandsDue) { commandsDue = commands; } });
   }, 300);
 }
 

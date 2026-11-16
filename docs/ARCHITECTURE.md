@@ -131,7 +131,7 @@ Known gaps: `/api/raw` reads whole files (no Range); watcher ignore list read on
     `.mcp.json` as `{"mcpServers": {"atlas": {"command": "atlas", "args": ["mcp"]}}}`.
     Also `atlas_tasks` (the vault's tasks from the same scan as Home's, open by default, filtered by words or a due
     day, the Tasks plugin's fields read) and `atlas_task_done` (`today::tick_ref`, the one tick Home's box uses too:
-    a line changed since it was listed is refused), `atlas_templates` and `atlas_new_note` (a note from one of the vault's templates at
+    a line changed since it was listed is refused; a task with a block id is found by it after its line moved), `atlas_templates` and `atlas_new_note` (a note from one of the vault's templates at
     an exact path, properties set from `fields`, an existing path refused; docs/guides/NOTES-SYSTEM.md), and the
     instructions the server sends at `initialize` (`INSTRUCTIONS` in `crates/atlas/src/mcp.rs`) tell agents to
     create notes that way and name the SSH plugin's `ssh_terminal` for a visible terminal tab. Every switched-on

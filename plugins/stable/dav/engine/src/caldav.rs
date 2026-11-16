@@ -79,6 +79,12 @@ pub struct Calendar {
     /// VEVENT, VTODO…; empty when the server does not say (then: everything)
     pub components: Vec<String>,
     pub writable: bool,
+    /// the calendar's default alert for timed events and for all-day ones (RFC 7809's `default-alarm-vevent-datetime` /
+    /// `-date`: a VALARM as text), when the server keeps one; it rings for an event that has none (remind.rs)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub alarm: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub alarm_day: Option<String>,
 }
 
 impl Calendar {
@@ -142,7 +148,7 @@ enum Put {
     Conflict(String),
 }
 
-const CAL_PROPS: &str = "<d:resourcetype/><d:displayname/><c:supported-calendar-component-set/><a:calendar-color/><d:current-user-privilege-set/>";
+const CAL_PROPS: &str = "<d:resourcetype/><d:displayname/><c:supported-calendar-component-set/><a:calendar-color/><d:current-user-privilege-set/><c:default-alarm-vevent-datetime/><c:default-alarm-vevent-date/>";
 const REDIRECTS: usize = 5;
 
 pub struct Client {
@@ -231,6 +237,8 @@ pub fn calendar_of(r: &Response, base: &Url) -> Option<Calendar> {
         color: r.text(APPLE, "calendar-color"),
         components,
         writable,
+        alarm: r.text(CALDAV, "default-alarm-vevent-datetime").filter(|t| t.contains("BEGIN:VALARM")),
+        alarm_day: r.text(CALDAV, "default-alarm-vevent-date").filter(|t| t.contains("BEGIN:VALARM")),
     })
 }
 

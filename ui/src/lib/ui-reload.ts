@@ -9,6 +9,9 @@ import { toast } from "./state.svelte";
 import { apiBase } from "./api";
 
 const EVERY_MS = 15_000; // one tiny request; the window stays idle otherwise
+// a hidden window (a second vault's, one in the tray) asks eight times less often: it still reloads unseen, before it
+// is shown again, rather than in front of the person
+const HIDDEN_EVERY_MS = 120_000;
 
 type Build = { build: string; terminals_survive?: boolean };
 
@@ -32,7 +35,10 @@ export async function watchUiBuild(): Promise<void> {
   const mine = (await build())?.build;
   if (!mine || mine === "built-in") return; // the UI inside the program changes only with the program
   let told = "";
+  let last = Date.now();
   setInterval(async () => {
+    if (document.hidden && Date.now() - last < HIDDEN_EVERY_MS) return;
+    last = Date.now();
     const now = await build();
     if (!now || now.build === mine) return;
     if (reloadKillsTerminals(now)) {

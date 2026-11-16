@@ -12,7 +12,26 @@ use std::time::Duration;
 use tokio::sync::broadcast;
 
 #[derive(Clone)]
-pub struct EventBus(broadcast::Sender<Event>, broadcast::Sender<Captured>, broadcast::Sender<Vec<String>>, broadcast::Sender<crate::api::Notice>);
+pub struct EventBus(broadcast::Sender<Event>, broadcast::Sender<Captured>, broadcast::Sender<Vec<String>>, broadcast::Sender<ToSystem>, broadcast::Sender<Chosen>);
+
+/// What the system's notifications hear (notify.rs): a notice to show, or the id of one to take away.
+#[derive(Debug, Clone, PartialEq)]
+pub enum ToSystem {
+    Show(crate::api::Notice),
+    Withdraw(String),
+}
+
+/// A button pressed on a system notification (a notice's `actions`), from the platform's notifier: routed by
+/// notice_actions.rs. The notice's own words travel with it, as the platform kept them: the core keeps no list.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Chosen {
+    /// The action's id.
+    pub action: String,
+    /// The notice's source (a plugin's id, `atlas`), its id and its `open`.
+    pub source: Option<String>,
+    pub notice: Option<String>,
+    pub open: Option<String>,
+}
 
 /// A capture just written, from any door (the app, the phone, the desktop box, an agent): what the server's capture
 /// hooks act on (capture_hooks.rs). A channel of its own, so a hook never counts as a UI listening on the bus.
@@ -43,7 +62,7 @@ impl Captured {
 
 impl Default for EventBus {
     fn default() -> Self {
-        Self(broadcast::channel(256).0, broadcast::channel(64).0, broadcast::channel(256).0, broadcast::channel(64).0)
+        Self(broadcast::channel(256).0, broadcast::channel(64).0, broadcast::channel(256).0, broadcast::channel(64).0, broadcast::channel(16).0)
     }
 }
 
@@ -69,25 +88,41 @@ impl EventBus {
 
     /// Every notice, for the system's notifications (notify.rs): a channel of its own, so the notifier never counts as
     /// a UI reached.
-    pub fn on_notice(&self) -> broadcast::Receiver<crate::api::Notice> {
+    pub fn on_notice(&self) -> broadcast::Receiver<ToSystem> {
         self.3.subscribe()
+    }
+
+    /// A notification's button was pressed (the platform's notifier says it here).
+    pub fn chose(&self, c: Chosen) {
+        let _ = self.4.send(c);
+    }
+
+    /// The buttons pressed, for notice_actions.rs.
+    pub fn on_chosen(&self) -> broadcast::Receiver<Chosen> {
+        self.4.subscribe()
+    }
+
+    /// What of `ev` the system's notifications hear.
+    fn to_system(&self, ev: &Event) {
+        match ev {
+            Event::Notify(n) => drop(self.3.send(ToSystem::Show(n.clone()))),
+            Event::Withdraw { id } => drop(self.3.send(ToSystem::Withdraw(id.clone()))),
+            _ => {}
+        }
     }
 
     /// Number of listeners reached; an error when no UI is connected, so `atlas open` can say so.
     pub fn emit(&self, ev: Event) -> Result<usize> {
-        if let Event::Notify(n) = &ev {
-            let _ = self.3.send(n.clone());
-        }
+        self.to_system(&ev);
         self.0.send(ev).map_err(|_| Error::CommandFailed("no Atlas UI is connected to receive it".into()))
     }
 
     /// Fire-and-forget (fs changes with nobody listening are not an error).
     pub fn publish(&self, ev: Event) {
-        match &ev {
-            Event::Fs { paths } => drop(self.2.send(paths.clone())),
-            Event::Notify(n) => drop(self.3.send(n.clone())),
-            _ => {}
+        if let Event::Fs { paths } = &ev {
+            let _ = self.2.send(paths.clone());
         }
+        self.to_system(&ev);
         let _ = self.0.send(ev);
     }
 }

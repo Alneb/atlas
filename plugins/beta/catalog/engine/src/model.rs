@@ -88,9 +88,10 @@ pub fn normalise(id: &IdName, value: &str) -> String {
     }
 }
 
-/// A URL as the same page: lower-case scheme and host, no `#fragment`, no `utm_*`/`fbclid`/`gclid` query parts,
-/// no trailing `/` on the path.
+/// A URL as the same page: lower-case scheme and host, no `#fragment`, no tracking parameters (atlas-text's one rule,
+/// the site-only ones included: X's `s` and `t`), no trailing `/` on the path.
 pub fn canonical_url(url: &str) -> String {
+    let url = &atlas_text::links::untracked_url(url);
     let url = url.split('#').next().unwrap_or(url);
     let (scheme, rest) = url.split_once("://").unwrap_or(("https", url));
     let (host, path) = rest.split_once('/').map_or((rest, ""), |(h, p)| (h, p));
@@ -179,6 +180,9 @@ mod tests {
         assert_eq!(normalise(&arxiv, "cond-mat/0512345"), "cond-mat/0512345");
         let url = IdName::new("url");
         assert_eq!(normalise(&url, "HTTPS://www.Example.org/a/b/?utm_source=x&id=3#top"), "https://example.org/a/b?id=3");
+        // a link read in a screenshot (OCR) or shared from X is the same post as the clean one
+        assert_eq!(normalise(&url, "https://x.com/someone/status/1790?s=46&t=AbC"), "https://x.com/someone/status/1790");
+        assert_eq!(normalise(&url, "https://youtu.be/abc?si=x&t=42"), "https://youtu.be/abc?t=42");
         // the share sheets' tracking (YouTube's si / feature / pp, Instagram's igsh) is not part of the address
         assert_eq!(normalise(&url, "https://youtu.be/bkMKtf2V6Js?si=Ab12&feature=shared"), "https://youtu.be/bkMKtf2V6Js");
         assert_eq!(normalise(&url, "https://music.youtube.com/watch?v=dQw4w9WgXcQ&si=x"), "https://music.youtube.com/watch?v=dQw4w9WgXcQ");

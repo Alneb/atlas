@@ -1,5 +1,5 @@
 //! Browsing windows: a link to a web page opens in a window of Atlas,
-//! with ads and trackers blocked by WebKit's own content blocker, fed by `web_filters` (EasyList,
+//! with ads and trackers blocked (and in web tabs, frames of the main window: `filter::apply_to_atlas`) by WebKit's own content blocker, fed by `web_filters` (EasyList,
 //! EasyPrivacy, uBlock Origin's list, converted). WebKitGTK runs no extensions, so this is the blocking, not uBlock's
 //! panel. Keys, from a small script in every page: Alt+← / Alt+→ back / forward, Super+Shift+O the page in the desktop's
 //! browser (Super: Atlas's own action, docs/guides/KEYS.md; Super+O is the outline), Ctrl+W close, F5 / Ctrl+R reload (a browser's usual keys). docs/WEB-WINDOWS.md.
@@ -111,6 +111,55 @@ pub fn prepare(_app: &AppHandle, _web: WebConfig) {
     eprintln!("atlas-app: ad blocking is not built for this platform yet");
 }
 
+/// Website data that stays when sites' data is forgotten: Atlas's own (the core on the loopback address) and local files.
+fn atlas_own(record: &str) -> bool {
+    matches!(record.trim_start_matches('[').trim_end_matches(']'), "127.0.0.1" | "localhost" | "::1" | "") || record.eq_ignore_ascii_case("local files")
+}
+
+/// "Web tabs: forget sign-ins and site data": every site's cookies, storage and cache in the view's WebContext
+/// (Atlas's window, its web tabs and the browsing windows share it), Atlas's own origin kept. A frame always uses its
+/// page's network session, so web tabs cannot have a cookie store apart from Atlas's; this is how they are emptied.
+/// `done` hears how many sites were forgotten.
+#[cfg(target_os = "linux")]
+pub fn forget_site_data(view: &webkit2gtk::WebView, done: Box<dyn FnOnce(Result<usize, String>) + Send>) {
+    use webkit2gtk::glib::translate::ToGlibPtr;
+    use webkit2gtk::{WebContextExt, WebViewExt, WebsiteDataManagerExt, WebsiteDataTypes};
+    let Some(manager) = view.context().and_then(|c| c.website_data_manager()) else { return done(Err("no website data manager".into())) };
+    let m2 = manager.clone();
+    manager.fetch(WebsiteDataTypes::ALL, None::<&webkit2gtk::gio::Cancellable>, move |res| {
+        let records = match res {
+            Ok(r) => r,
+            Err(e) => return done(Err(e.to_string())),
+        };
+        let away: Vec<_> = records.into_iter().filter(|r| !r.name().is_some_and(|n| atlas_own(&n))).collect();
+        let n = away.len();
+        if n == 0 {
+            return done(Ok(0));
+        }
+        // the C call (the bindings stop short of it): the list is read before it returns (transfer none)
+        unsafe extern "C" fn removed(source: *mut gobject_sys::GObject, res: *mut gio_sys::GAsyncResult, data: glib_sys::gpointer) {
+            let (n, done) = *Box::from_raw(data as *mut (usize, Box<dyn FnOnce(Result<usize, String>) + Send>));
+            let mut err = std::ptr::null_mut();
+            let ok = webkit2gtk_sys::webkit_website_data_manager_remove_finish(source.cast(), res, &mut err) != 0;
+            let why = if err.is_null() { "not removed".into() } else { std::ffi::CStr::from_ptr((*err).message).to_string_lossy().into_owned() };
+            if !err.is_null() {
+                glib_sys::g_error_free(err);
+            }
+            done(if ok { Ok(n) } else { Err(why) });
+        }
+        unsafe {
+            let mut list: *mut glib_sys::GList = std::ptr::null_mut();
+            for r in &away {
+                let p: *mut webkit2gtk_sys::WebKitWebsiteData = r.to_glib_none().0;
+                list = glib_sys::g_list_prepend(list, p.cast());
+            }
+            let data = Box::into_raw(Box::new((n, done)));
+            webkit2gtk_sys::webkit_website_data_manager_remove(m2.to_glib_none().0, webkit2gtk_sys::WEBKIT_WEBSITE_DATA_ALL, list, std::ptr::null_mut(), Some(removed), data.cast());
+            glib_sys::g_list_free(list);
+        }
+    });
+}
+
 /// WebKitGTK's content filter store, through its C API (the Rust bindings stop short of it). Everything here runs on
 /// the GTK main thread, so the state is a thread-local.
 #[cfg(target_os = "linux")]
@@ -122,18 +171,29 @@ pub(crate) mod filter {
     use webkit2gtk_sys as wk;
 
     enum State {
-        /// Rules not compiled yet: the windows that wait for them (each holds a reference); they reload once filtered.
-        Waiting(Vec<*mut wk::WebKitWebView>),
+        /// Rules not compiled yet: the views that wait for them (each holds a reference), and whether each reloads
+        /// once filtered (a browsing window does; Atlas's own window does not: its web tabs are filtered from their next load).
+        Waiting(Vec<(*mut wk::WebKitWebView, bool)>),
         Ready(*mut wk::WebKitUserContentFilter),
         Off,
     }
     thread_local! { static STATE: RefCell<State> = const { RefCell::new(State::Waiting(Vec::new())) }; }
 
+    /// A browsing window's view: filtered now, or reloaded filtered once the rules are ready.
     pub fn apply(view: &webkit2gtk::WebView) {
+        apply_to(view, true);
+    }
+
+    /// Atlas's own window: every frame of it (its web tabs) filtered, never reloaded for it (docs/design/WEB-WINDOWS.md).
+    pub fn apply_to_atlas(view: &webkit2gtk::WebView) {
+        apply_to(view, false);
+    }
+
+    fn apply_to(view: &webkit2gtk::WebView, reload: bool) {
         let v: *mut wk::WebKitWebView = view.to_glib_none().0;
         STATE.with(|s| match &mut *s.borrow_mut() {
             State::Ready(f) => unsafe { add(v, *f) },
-            State::Waiting(list) => list.push(unsafe { gobject_sys::g_object_ref(v.cast()) }.cast()),
+            State::Waiting(list) => list.push((unsafe { gobject_sys::g_object_ref(v.cast()) }.cast(), reload)),
             State::Off => {}
         });
     }
@@ -148,7 +208,7 @@ pub(crate) mod filter {
     pub fn off() {
         STATE.with(|s| {
             if let State::Waiting(list) = std::mem::replace(&mut *s.borrow_mut(), State::Off) {
-                for v in list {
+                for (v, _) in list {
                     unsafe { gobject_sys::g_object_unref(v.cast()) };
                 }
             }
@@ -159,10 +219,12 @@ pub(crate) mod filter {
         STATE.with(|s| {
             if let State::Waiting(list) = std::mem::replace(&mut *s.borrow_mut(), State::Ready(filter)) {
                 // a page that loaded before the rules did is loaded again, filtered
-                for v in list {
+                for (v, reload) in list {
                     unsafe {
                         add(v, filter);
-                        wk::webkit_web_view_reload(v);
+                        if reload {
+                            wk::webkit_web_view_reload(v);
+                        }
                         gobject_sys::g_object_unref(v.cast());
                     }
                 }
@@ -224,5 +286,18 @@ pub(crate) mod filter {
         gobject_sys::g_object_unref((*job).store.cast());
         drop(Box::from_raw(job));
         ready(f); // kept for the run: every browsing window shares it
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn atlas_own_data_is_kept() {
+        for own in ["127.0.0.1", "localhost", "[::1]", "::1", "Local files"] {
+            assert!(super::atlas_own(own), "{own}");
+        }
+        for site in ["example.org", "accounts.example.com", "127.0.0.2", "localhost.example"] {
+            assert!(!super::atlas_own(site), "{site}");
+        }
     }
 }

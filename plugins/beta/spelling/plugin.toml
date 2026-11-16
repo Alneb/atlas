@@ -4,7 +4,7 @@
 title = "Spelling"
 description = "marks misspelled words in notes, from the machine's dictionaries and the vault's own words"
 icon = "check"
-version = "0.3.2"
+version = "0.4.0"
 api = 22
 phone = true
 
@@ -15,19 +15,30 @@ exec = ["ls", "cat", "base64"]               # find and read the Hunspell dictio
 js = "helper.js"                   # run in the core (QuickJS), built from helper/helper.ts
 idle = "10m"
 
+# The languages: chosen in Settings → Spelling's own section ("Languages and words"), from the installed dictionaries,
+# so these three are never typed (hidden in the form; that section writes them).
 [[setting]]
-key = "dictionaries"
-label = "Dictionaries"
-kind = "text"
-default = ""
-hint = "language=dictionary pairs, e.g. en=en_GB, es=es_MX; empty: the most common variant installed for each language"
+key = "languages"
+label = "Languages checked"
+kind = "list"
+hidden = true
+hint = "the languages a note may be in (en, es…); absent: English, Spanish, French and German as installed"
 
 [[setting]]
 key = "language"
 label = "Main language"
 kind = "text"
+hidden = true
 default = ""
-hint = "a note's language when its text says too little and it has no lang: property (en, es…); empty: the first installed"
+hint = "a note's language when its text says too little and it has no lang: property; empty: the first checked"
+
+[[setting]]
+key = "dictionaries"
+label = "Dictionaries"
+kind = "text"
+hidden = true
+default = ""
+hint = "a language's variant other than the usual, e.g. en=en_GB, es=es_MX"
 
 [[setting]]
 key = "min_uses"

@@ -40,11 +40,16 @@ pub fn capture(root: &Path, cfg: &Config, text: &str) -> Result<CaptureResult> {
 /// One file per device, so two machines never append to the same file; every file here is taken (conflict copies too).
 pub const PENDING_DIR: &str = ".atlas/pending";
 
-/// This device's file in [`PENDING_DIR`]: its host name, letters and digits only.
+/// This device's file in [`PENDING_DIR`]: named by its device id (the host name and a random tag, kept in this
+/// device's state), letters, digits and `-` only. Not the host name alone: every Android device is `localhost`, so a
+/// phone and an e-reader appended to one file and Syncthing made conflict copies of it.
 fn pending_file(root: &Path) -> std::path::PathBuf {
-    let host = crate::platform::proc::hostname();
-    let host: String = host.chars().filter(|c| c.is_ascii_alphanumeric() || *c == '-').collect();
-    root.join(PENDING_DIR).join(format!("{}.jsonl", if host.is_empty() { "device" } else { &host }))
+    root.join(PENDING_DIR).join(pending_name(&crate::mirror_guard::device_id()))
+}
+
+fn pending_name(device: &str) -> String {
+    let id: String = device.chars().filter(|c| c.is_ascii_alphanumeric() || *c == '-').collect();
+    format!("{}.jsonl", if id.is_empty() { "device" } else { &id })
 }
 
 /// A capture by a door that found no Atlas serving the vault (the CLI, the desktop box, a capture into another
@@ -101,13 +106,28 @@ fn near(dir: &Path, name: &str, depth: u8) -> bool {
     depth > 0 && std::fs::read_dir(dir).is_ok_and(|d| d.flatten().any(|e| e.path().is_dir() && near(&e.path(), file, depth - 1)))
 }
 
-/// A pending capture whose files are not here yet, back in line for the next sweep; after a day it is given up.
+/// Where a device keeps the pending captures it took and is waiting on: in its own `.atlas/cache`, never synced. Put
+/// back into [`PENDING_DIR`] instead, a waiting capture went from device to device every minute (each core that sweeps
+/// takes every device's file, then wrote it into its own), a synced file rewritten by two devices each minute.
+fn waiting_file(root: &Path) -> std::path::PathBuf {
+    root.join(".atlas/cache/pending-waiting.jsonl")
+}
+
+/// How many captures wait on this device: kept for another device's hooks (its own file in [`PENDING_DIR`]) or taken
+/// from another device and waiting for their files (sync_state.rs shows it).
+pub fn waiting_here(root: &Path) -> usize {
+    let lines = |p: std::path::PathBuf| std::fs::read_to_string(p).map_or(0, |t| t.lines().filter(|l| !l.trim().is_empty()).count());
+    lines(pending_file(root)) + lines(waiting_file(root))
+}
+
+/// A pending capture whose files are not here yet, back in line for this device's next sweep; after a day it is given up.
 pub fn wait_longer(root: &Path, c: crate::events::Captured) {
     if c.waits >= MAX_WAITS {
         eprintln!("atlas: a capture in {} never arrived whole; its hooks were not run", c.path);
         return;
     }
-    if let Err(e) = remember(root, &crate::events::Captured { waits: c.waits + 1, ..c }) {
+    let line = serde_json::to_string(&crate::events::Captured { waits: c.waits + 1, ..c }).unwrap_or_default();
+    if let Err(e) = vault_write::cache::append(&waiting_file(root), format!("{line}\n").as_bytes()) {
         eprintln!("atlas: a pending capture could not be kept: {e}");
     }
 }
@@ -120,14 +140,14 @@ fn remember(root: &Path, c: &crate::events::Captured) -> Result<()> {
 /// The captures kept for the hooks, from every device, each file's in order; the files are removed (each capture is
 /// acted on once).
 pub fn take_pending(root: &Path) -> Vec<crate::events::Captured> {
-    let Ok(dir) = std::fs::read_dir(root.join(PENDING_DIR)) else { return vec![] };
-    // the devices' files (`<host>.jsonl`, a conflict copy too) and one an interrupted take left (`.taking`) — never a
+    // the devices' files (`<device>.jsonl`, a conflict copy too) and one an interrupted take left (`.taking`) — never a
     // sync tool's file still arriving (Syncthing's `.syncthing.<name>.tmp`): read half and removed, its captures were lost
     let ours = |p: &Path| {
         let name = p.file_name().and_then(|n| n.to_str()).unwrap_or(".");
         !name.starts_with('.') && (name.ends_with(".jsonl") || name.ends_with(".taking"))
     };
-    let mut files: Vec<_> = dir.flatten().map(|e| e.path()).filter(|p| ours(p) && p.is_file()).collect();
+    let listed = std::fs::read_dir(root.join(PENDING_DIR)).into_iter().flatten().flatten();
+    let mut files: Vec<_> = listed.map(|e| e.path()).filter(|p| ours(p) && p.is_file()).collect();
     // a leftover `.taking` first: the device's `.jsonl` is renamed onto that name next, and would replace it unread
     files.sort_by_key(|p| (p.extension().is_none_or(|e| e != "taking"), p.clone()));
     let mut out = vec![];
@@ -140,6 +160,21 @@ pub fn take_pending(root: &Path) -> Vec<crate::events::Captured> {
         let Ok(text) = std::fs::read_to_string(&taking) else { continue };
         let _ = vault_write::remove_file(&taking);
         out.extend(text.lines().filter_map(|l| serde_json::from_str(l).ok()));
+    }
+    // this device's own waiting ones, moved aside the same way
+    let waiting = waiting_file(root);
+    let taking = waiting.with_extension("taking");
+    // (a `.taking` left by a take cut short is read first; the file is then moved onto that name only once it is read)
+    for from in [None, Some(&waiting)] {
+        if let Some(w) = from.filter(|w| w.is_file()) {
+            if vault_write::cache::rename(w, &taking).is_err() {
+                continue;
+            }
+        }
+        if let Ok(text) = std::fs::read_to_string(&taking) {
+            let _ = vault_write::cache::remove_file(&taking);
+            out.extend(text.lines().filter_map(|l| serde_json::from_str(l).ok()));
+        }
     }
     out
 }
@@ -648,8 +683,10 @@ mod tests {
         assert!(!arrived(d.path(), &c), "the picture is not here yet");
         std::fs::write(d.path().join("log/attachments/Screen 1.png"), b"png").unwrap();
         assert!(arrived(d.path(), &c));
-        // not arrived: back in line, counted, and still only for the plugins it was left for
+        // not arrived: back in line, counted, and still only for the plugins it was left for — in this device's cache,
+        // not in the synced folder another device would take it from
         wait_longer(d.path(), c.clone());
+        assert!(!d.path().join(PENDING_DIR).exists(), "nothing synced is rewritten while it waits");
         let back = take_pending(d.path());
         assert_eq!(back.len(), 1);
         assert_eq!((back[0].waits, back[0].only.clone()), (1, Some(vec!["ocr".to_string()])));
@@ -687,5 +724,14 @@ mod tests {
         std::fs::write(d.path().join(PENDING_DIR).join("phone.taking"), line(&old)).unwrap();
         std::fs::write(d.path().join(PENDING_DIR).join("phone.jsonl"), line(&new)).unwrap();
         assert_eq!(take_pending(d.path()), vec![old, new]);
+    }
+
+    #[test]
+    fn each_device_appends_to_its_own_pending_file_even_two_with_one_host_name() {
+        // two Android devices: no host name of their own (`localhost`), each its own random tag
+        assert_ne!(pending_name("device-1a2b3c4d"), pending_name("device-9f8e7d6c"));
+        assert_eq!(pending_name("laptop-1a2b3c4d"), "laptop-1a2b3c4d.jsonl");
+        assert_eq!(pending_name("a/b c\n"), "abc.jsonl", "nothing that leaves the folder");
+        assert_eq!(pending_name(""), "device.jsonl");
     }
 }

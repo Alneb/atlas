@@ -2,9 +2,12 @@
   import { localDay } from "../../lib/local-day";
   // The `task-list` view: tasks with what their line says — priority, due date, recurrence, tags —
   // under their group's heading when the block groups them. The core has already filtered, sorted
-  // and grouped (crates/atlas-core/src/tasks.rs); this only draws, and ticks.
+  // and grouped (crates/atlas-core/src/tasks.rs); this only draws, and ticks. A deadlines list (`from: deadlines`) also
+  // has notes and calendar events (`props.from`): no box to tick, a mark of what they are instead.
   import type { ViewRow } from "../../lib/gen/ViewRow";
   import { openPath } from "../../lib/dock";
+  import Icon from "../Icon.svelte";
+  import type { IconName } from "../../lib/panes";
   let { rows, ontick }: { rows: ViewRow[]; ontick: (r: ViewRow) => void } = $props();
 
   // rows arrive group by group: a heading wherever the group changes
@@ -21,21 +24,31 @@
     return { text, late: days < 0, soon: days >= 0 && days <= 1 };
   }
   const PRIORITY: Record<string, string> = { highest: "‼", high: "!", medium: "·", low: "↓", lowest: "⇊" };
+  /** A row that is not a task line (a note's `due:`, a calendar's event): nothing to tick. */
+  const other = (r: ViewRow) => r.props.from === "note" || r.props.from === "event" || !r.line;
+  const KIND: Record<string, { icon: IconName; label: string }> = { note: { icon: "file-text", label: "A note due that day" }, event: { icon: "calendar", label: "An event in a deadline calendar" } };
+  const dateTitle = (r: ViewRow) => r.props.from === "event" ? `${r.props.calendar_name ?? "calendar"}: ${r.props.start ?? r.date}`
+    : r.props.due ? `due ${r.props.due}` : r.props.scheduled ? `scheduled ${r.props.scheduled}` : `starts ${r.props.start}`;
 </script>
 
 {#if !rows.length}<p class="empty">No tasks match.</p>{/if}
 <ul class="tasks">
   {#each withHeads as { r, head } (`${r.path}:${r.line ?? ""}:${r.title}`)}
     {#if head !== null}<li class="head"><span>{head}</span><span class="n">{count(head)}</span></li>{/if}
-    <li class="task" class:done={r.done} data-priority={r.props.priority ?? "normal"}>
-      <input type="checkbox" class="atlas-check" checked={r.done ?? false} disabled={r.done ?? false} aria-label="Done: {r.title}" onchange={() => ontick(r)} />
+    <li class="task" class:done={r.done} data-priority={r.props.priority ?? "normal"} data-from={r.props.from}>
+      {#if other(r)}
+        {@const k = KIND[r.props.from ?? "note"] ?? KIND.note}
+        <span class="kind" title={k.label} aria-label={k.label}><Icon name={k.icon} size={13} /></span>
+      {:else}
+        <input type="checkbox" class="atlas-check" checked={r.done ?? false} disabled={r.done ?? false} aria-label="Done: {r.title}" onchange={() => ontick(r)} />
+      {/if}
       <!-- always there, so titles line up whether or not a task has a priority -->
       <span class="pri" title={r.props.priority ? `Priority: ${r.props.priority}` : undefined}>{PRIORITY[r.props.priority ?? ""] ?? ""}</span>
       <button class="title" data-path={r.path} data-line={r.line} onclick={() => r.path && openPath(r.path, r.line ?? undefined)} title="{r.path}:{r.line}">{r.title}</button>
       {#if r.props.recurrence}<span class="rec" title="Repeats {r.props.recurrence}: ticking it makes the next one">↻ {r.props.recurrence.replace(/^every\s+/, "")}</span>{/if}
       {#if r.date && !r.done}
         {@const w = when(r.date)}
-        <span class="date" class:late={w.late} class:soon={w.soon} title={r.props.due ? `due ${r.props.due}` : r.props.scheduled ? `scheduled ${r.props.scheduled}` : `starts ${r.props.start}`}>{w.text}</span>
+        <span class="date" class:late={w.late} class:soon={w.soon} title={dateTitle(r)}>{w.text}</span>
       {:else if r.props.completed}<span class="date" title="done on">{r.props.completed}</span>{/if}
     </li>
   {/each}
@@ -52,6 +65,8 @@
   .title:hover { color: var(--accent); }
   .done .title { text-decoration: line-through; color: var(--text-faint); }
   /* priority: a mark and a tint, strongest for the two that should catch the eye */
+  /* a note or an event in a deadlines list: where a task's box would be, the same width, so titles line up */
+  .kind { display: inline-flex; justify-content: center; width: 16px; flex: none; color: var(--text-faint); align-self: center; }
   .pri { width: 1em; text-align: center; font-weight: 700; color: var(--text-faint); }
   [data-priority="highest"] .pri { color: var(--red); }
   [data-priority="high"] .pri { color: var(--orange, var(--yellow)); }

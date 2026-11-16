@@ -123,6 +123,10 @@ struct Manifest {
     #[serde(default)]
     #[allow(dead_code)]
     android: Option<AndroidManifest>,
+    /// Where its tools' background work runs (`server`, `device`, `any`; server_role.rs): the default of each `[[tool]]`
+    /// that does not say.
+    #[serde(default)]
+    background: Option<crate::server_role::Background>,
 }
 
 impl Manifest {
@@ -322,7 +326,13 @@ pub fn tool_parts(root: &Path, id: &str) -> Result<(Vec<crate::plugin_tools::Too
     }
     let m = read_manifest(root, id)?;
     let settings = settings_with_defaults(&m);
-    Ok((m.tools, m.permissions, settings))
+    let mut tools = m.tools;
+    if let Some(b) = m.background {
+        tools.iter_mut().for_each(|t| {
+            t.background.get_or_insert(b);
+        });
+    }
+    Ok((tools, m.permissions, settings))
 }
 
 /// The plugin's word to agents (`for_agents`), when it has one.
@@ -1137,6 +1147,7 @@ pub async fn data(root: &Path, id: &str, args: Value) -> Result<Value> {
             description: None,
             timeout_secs: m.timeout_secs,
             schedule: None,
+            background: Default::default(),
         },
     };
     let timeout = m.timeout_secs.map(Duration::from_secs).unwrap_or(SCRIPT_TIMEOUT);

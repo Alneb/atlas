@@ -3,6 +3,7 @@
 // dropped saved beside the note, and the settings-driven options (heading folds, typewriter scrolling).
 import { basename, dirOf, shownName } from "../paths";
 import { renameTo } from "../rename-file";
+import { editingTitle, headingRepeats, headingTitle } from "./heading-title";
 import { noteHtml } from "./big-html";
 import { attachFiles, takeFiles } from "../attach";
 import { closeDisplayMath } from "./display-math";
@@ -18,7 +19,7 @@ import { foldGutter, foldNodeProp, foldKeymap } from "@codemirror/language";
 import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
 import type { MarkdownConfig } from "@lezer/markdown";
 import { obsidianMarkdown, AnyTaskStatus } from "./live/obsidian-syntax.js";
-import { livePreview, bodyStart, frontmatterClose, redecorate } from "./live/live-preview.js";
+import { livePreview, bodyStart, redecorate } from "./live/live-preview.js";
 import { equationLabelNow, equationTarget, linkText, noteEquations, numberedTex, refOf, texKey, type Equations } from "../equations";
 import { doiLinkMark } from "../doi-links";
 import { readText } from "../vault-files";
@@ -63,6 +64,8 @@ export function noteExtensions(path: string, viewRef: { view: EditorView | null 
     return logs ? path.startsWith(`${logs}/`) : /^\d{4}-\d{2}-\d{2}\.md$/.test(basename(path));
   };
   watchPropertySpec(); // the inline table's kinds; once for the app
+  // one redraw per editor: the DOI lookups keep it to redraw this editor when the library changes (doi-links.ts)
+  const redraw = () => viewRef.view?.dispatch({ effects: redecorate.of(null) });
   const resolveAttachment = (src: string): string => {
     if (/^(https?:|data:|blob:)/.test(src)) return src;
     const known = resolveLink(src, dir);
@@ -94,7 +97,8 @@ export function noteExtensions(path: string, viewRef: { view: EditorView | null 
     inlineTitle: (state) => {
       if (!(settings.config?.editor.inline_title ?? true)) return null;
       const name = shownName(path);
-      if (headingRepeats(state, name)) return null; // "titles are duplicated usually": the note's own `# name` is the title
+      // the note's own `# name` is the title; and while that heading is being edited (heading-title.ts renames after)
+      if (headingRepeats(state, name) || editingTitle(state)) return null;
       return { key: name, render: () => titleInput(path, name) };
     },
     inlineHtml: (source: string) => inlineHtml(source, dir) || null,
@@ -124,7 +128,7 @@ export function noteExtensions(path: string, viewRef: { view: EditorView | null 
       const n = equationLabelNow(path, eq[1], readText, () => viewRef.view?.dispatch({ effects: redecorate.of(null) }));
       return n ? linkText(eq[0], n) : null;
     },
-    linkMark: (url: string) => doiLinkMark(url, () => viewRef.view?.dispatch({ effects: redecorate.of(null) })),
+    linkMark: (url: string) => doiLinkMark(url, redraw),
     hydrateBlock: (host: HTMLElement) => { unmount.set(host, hydrateRendered(host, path)); hydrateTables(host, viewRef); followLinksIn(host, path); },
     releaseBlock: (host: HTMLElement) => unmount.get(host)?.(), // the widget's DOM is gone for good (not a hidden tab)
   });
@@ -138,6 +142,7 @@ export function noteExtensions(path: string, viewRef: { view: EditorView | null 
       figureCaptions(equationsOf),
       hoverSync(dir),
       expressions(path),
+      headingTitle(path),
       mathPreview(() => settings.config?.editor.math_preview ?? true),
       taskChips(() => settings.config?.editor.task_chips ?? true),
       logLines(isLog),
@@ -224,20 +229,6 @@ const typewriter = [
   }),
   EditorView.theme({ ".cm-content": { paddingBottom: "50vh" } }),
 ];
-
-/** Whether the note's first line of text (after the frontmatter) is a `# heading` saying the file's name — then the
- *  inline title would draw the same words twice. Case, spaces and emphasis marks do not count. */
-export function headingRepeats(state: EditorState, name: string): boolean {
-  const norm = (t: string) => t.replace(/[*_`~]/g, "").replace(/\s+/g, " ").trim().toLowerCase();
-  const doc = state.doc;
-  for (let n = frontmatterClose(doc) + 1; n <= Math.min(doc.lines, 400); n++) {
-    const t = doc.line(n).text;
-    if (!t.trim()) continue;
-    const h = /^#[ \t]+(.*?)(?:[ \t]+#+)?[ \t]*$/.exec(t);
-    return !!h && norm(h[1]) === norm(name);
-  }
-  return false;
-}
 
 /** The inline title as a field: the note's name, renamed in place — Enter (or leaving the field) renames the file,
  *  Esc puts the name back. A textarea grown to its text, so a long name wraps (an input cut it off on a phone). The editor ignores the widget's events (live-preview's InlineTitleWidget), so the field's

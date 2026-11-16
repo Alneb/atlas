@@ -194,6 +194,9 @@ pub struct Instance {
     pub from: i64,
     #[serde(skip)]
     pub to: i64,
+    /// the occurrence's VALARMs (remind.rs): its own VEVENT's, an override with none its master's
+    #[serde(skip)]
+    pub alarms: Vec<Component>,
 }
 
 /// The range asked for, as instants.
@@ -295,6 +298,11 @@ fn instance(ev: &Component, rid: Option<String>, dates: Option<(NaiveDate, Naive
         tzid: ev.prop("DTSTART").and_then(|l| l.param("TZID")).map(str::to_string),
         from: s.timestamp(),
         to: e.timestamp(),
+        alarms: {
+            let own = |c: &Component| c.subs.iter().filter(|a| a.name == "VALARM").cloned().collect::<Vec<_>>();
+            let mine = own(ev);
+            if mine.is_empty() && !std::ptr::eq(ev, master) { own(master) } else { mine }
+        },
     }
 }
 

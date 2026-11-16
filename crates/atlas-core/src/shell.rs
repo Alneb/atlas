@@ -1,5 +1,6 @@
 //! What the core asks of the desktop shell around it (atlas-app), through hooks the shell sets once at start: bring its
-//! window forward (a notification's click, a second launch, the tray), and hear that a vault's settings were saved.
+//! window forward (a notification's click, a second launch, the tray), hear that a vault's settings were saved, and
+//! forget the websites' data its web tabs and browsing windows keep.
 //! A core with no window around it (`atlas serve`, tests, the phone) leaves them unset and every call is a no-op.
 //! docs/design/DESIGN-tray-background.md, "One way to bring Atlas forward".
 use crate::config::Config;
@@ -16,8 +17,12 @@ pub struct Show {
 
 type ShowHook = Box<dyn Fn(Show) + Send + Sync>;
 type ConfigHook = Box<dyn Fn(&Path, &Config) + Send + Sync>;
+/// Hears how many sites' data was forgotten, or why not.
+pub type Forgotten = Box<dyn FnOnce(Result<usize, String>) + Send>;
+type ForgetHook = Box<dyn Fn(Forgotten) + Send + Sync>;
 static SHOW: OnceLock<ShowHook> = OnceLock::new();
 static CONFIG: OnceLock<ConfigHook> = OnceLock::new();
+static FORGET: OnceLock<ForgetHook> = OnceLock::new();
 
 /// The shell's way of showing its window. Set once; a second call is ignored.
 pub fn on_show(f: impl Fn(Show) + Send + Sync + 'static) {
@@ -48,6 +53,22 @@ pub fn on_config(f: impl Fn(&Path, &Config) + Send + Sync + 'static) {
 pub fn config_saved(root: &Path, cfg: &Config) {
     if let Some(f) = CONFIG.get() {
         f(root, cfg);
+    }
+}
+
+/// The shell's way of forgetting every website's cookies, storage and cache (never Atlas's own). Set once.
+pub fn on_forget_web_data(f: impl Fn(Forgotten) + Send + Sync + 'static) {
+    let _ = FORGET.set(Box::new(f));
+}
+
+/// Asks the shell to forget the websites' data; false when no shell can (no window, or a platform without it).
+pub fn forget_web_data(done: Forgotten) -> bool {
+    match FORGET.get() {
+        Some(f) => {
+            f(done);
+            true
+        }
+        None => false,
     }
 }
 

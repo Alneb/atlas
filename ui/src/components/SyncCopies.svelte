@@ -4,57 +4,39 @@
   // note, with the ways out: compare the two line by line and choose per difference, look at it beside this one, keep
   // this one, or take the other.
   import { onMount } from "svelte";
-  import { api } from "../lib/api";
   import { openPath } from "../lib/dock";
-  import { readText } from "../lib/vault-files";
   import { reloadOnChange } from "../lib/reload-on-change";
   import { shownPath, basename } from "../lib/paths";
-  import { toast } from "../lib/state.svelte";
-  import { errText, escapeRegExp } from "../lib/text";
+  import { leftCopies, keepThis as keep, takeOther as take2, bothTexts, settleWith, type NoteSide } from "../lib/sync-copies";
   import SyncCompare from "./SyncCompare.svelte";
 
   let { path, mine, take }: { path: string; mine: () => string; take: (text: string) => void } = $props();
 
   let copies = $state<string[]>([]);
-  const dir = $derived(path.includes("/") ? path.slice(0, path.lastIndexOf("/")) : "");
-  /** `notes/log.md` → the pattern of its copies' names (`log.sync-conflict-20261020-231529-H3IIIUW.md`). */
-  const pattern = $derived.by(() => {
-    const name = basename(path), dot = name.lastIndexOf(".");
-    const [stem, ext] = dot > 0 ? [name.slice(0, dot), name.slice(dot)] : [name, ""];
-    const esc = escapeRegExp;
-    return new RegExp(`^${esc(stem)}\\.sync-conflict-\\d{8}-\\d{6}-[A-Za-z0-9]+${esc(ext)}$`);
-  });
+  // the note is the editor's: its text as typed, and taken back into it (saved by the editor)
+  const note: NoteSide = { mine: () => mine(), take: (text) => take(text) };
+  const gone = (copy: string) => (ok: boolean) => { if (ok) copies = copies.filter((c) => c !== copy); };
 
-  function look() {
-    void api.tree(dir).then((l) => { copies = l.filter((e) => e.kind === "file" && pattern.test(e.name)).map((e) => e.path); }, () => {});
-  }
-
-  async function keepThis(copy: string) {
-    try { await api.trash(copy); copies = copies.filter((c) => c !== copy); } catch (e) { toast(`Could not remove ${shownPath(copy)}`, errText(e), "error"); }
-  }
-  async function takeOther(copy: string) {
-    const text = await readText(copy);
-    if (text === null) return toast(`Could not read ${shownPath(copy)}`, "", "error");
-    take(text);
-    await keepThis(copy);
-  }
+  // which files are this note's copies is the core's one rule (sync_merge.rs), asked of this note's folder only
+  const look = () => void leftCopies(path).then((l) => { copies = l.map((c) => c.path); });
+  const keepThis = (copy: string) => keep(copy).then(gone(copy));
+  const takeOther = (copy: string) => take2(copy, note).then(gone(copy));
 
   let comparing = $state<{ copy: string; mine: string; theirs: string } | null>(null);
   async function compare(copy: string) {
-    const theirs = await readText(copy);
-    if (theirs === null) return toast(`Could not read ${shownPath(copy)}`, "", "error");
-    comparing = { copy, mine: mine(), theirs };
+    const both = await bothTexts(copy, note);
+    if (both) comparing = { copy, ...both };
   }
   async function useMerged(copy: string, text: string) {
     comparing = null;
-    take(text);
-    await keepThis(copy);
+    gone(copy)(await settleWith(copy, text, note));
   }
 
   onMount(() => {
     look();
     // looked for a moment after a change: the core merges most copies at once, and those need no word
-    return reloadOnChange(look, { wait: 2000, wants: (p) => pattern.test(basename(p)) });
+    const stem = basename(path).replace(/\.[^.]*$/, "");
+    return reloadOnChange(look, { wait: 2000, wants: (p) => basename(p).startsWith(`${stem}.sync-conflict-`) });
   });
 </script>
 

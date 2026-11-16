@@ -6,7 +6,8 @@ Everything is read from the notes; nothing is written.
 ## What it adds
 
 - **Greeting chips** under the date on Today: the week and day of the year, the moon's phase (lit share on hover), and
-  what is due or overdue today.
+  what is due or overdue today — counted from the core's `from: deadlines` (dated tasks, notes with `due:`, deadline
+  calendars), the same query as Home's deadlines box.
 - **`daily.header`** (the vault's log template puts it under the day's heading):
   - the day, from the note's `date:` property or a `YYYY-MM-DD` file name, its weekday in words;
   - **weather**: the note's `weather` property, as the Weather plugin wrote it;

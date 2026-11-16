@@ -306,8 +306,7 @@ async fn idle_loop(m: Arc<Mail>, name: String) {
     loop {
         let Ok(acc) = m.account(Some(&name)) else { return };
         let r: Result<(), Fail> = async {
-            let token = m.token(&acc).await?;
-            let mut c = Imap::connect(&acc, token).await?;
+            let mut c = m.sign_in(&acc).await?;
             let inbox = m.index.role(&acc.name, "inbox").map(|f| f.path).unwrap_or_else(|| "INBOX".into());
             if !c.has("IDLE") {
                 c.logout().await;

@@ -411,6 +411,34 @@ pub struct DayActivity {
     pub changed: Vec<Changed>,
 }
 
+/// Where a file's "made" time comes from, most trusted first.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "lowercase")]
+#[ts(export)]
+pub enum MadeBy {
+    /// Its own `created:` / `date:` property.
+    Property,
+    /// Its first commit.
+    Git,
+    /// Its birth on disk (a new file git does not know).
+    Disk,
+}
+
+/// `GET /api/file/made?path=`: when a file was made and last changed (a note's date beside its breadcrumbs).
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[ts(export)]
+pub struct Made {
+    /// ms since 1970; a property with a day only gives that day's midnight
+    #[ts(type = "number")]
+    pub made: u64,
+    /// The property gave a day without a time.
+    pub day_only: bool,
+    pub by: MadeBy,
+    /// Last change on disk, ms since 1970.
+    #[ts(type = "number")]
+    pub changed: u64,
+}
+
 /// A file by when it was made (its creation time, not its last change).
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
 #[ts(export)]
@@ -866,10 +894,45 @@ pub struct Notice {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub open: Option<String>,
-    /// A later notice with the same id replaces the earlier one ("3 new mails" updated, never stacked).
+    /// A later notice with the same id replaces the earlier one ("3 new mails" updated, never stacked), and
+    /// `Event::Withdraw` with it takes it away.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub id: Option<String>,
+    /// Buttons on the system's notification (D-Bus actions, Android's `Notification.Action`). A press goes to the
+    /// source plugin's `on = "notice"` tool as `{ notice_id, action, open }` (notice_actions.rs); ids starting with
+    /// `atlas:` are the core's own ([`NoticeAction::OPEN`], [`NoticeAction::snooze`]).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[ts(as = "Option<Vec<NoticeAction>>", optional)]
+    pub actions: Vec<NoticeAction>,
+    /// What the notice is about, so that thing's end takes it away: `Event::Withdraw` with the subject withdraws
+    /// every notice about it. A task is `<path>#^<block id>` (notice_actions.rs `task_subject`): ticking it done
+    /// withdraws its reminders and nudges.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub subject: Option<String>,
+}
+
+/// One button of a notice: the id its press is answered by, and the words on it.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[ts(export)]
+pub struct NoticeAction {
+    pub id: String,
+    pub label: String,
+}
+
+impl NoticeAction {
+    /// The core's Open: what a click on the notification does (its `open`, else Atlas brought forward).
+    pub const OPEN: &'static str = "atlas:open";
+
+    pub fn new(id: impl Into<String>, label: impl Into<String>) -> Self {
+        Self { id: id.into(), label: label.into() }
+    }
+
+    /// The core's Snooze for a planned notice: rung again `minutes` from the press (planned.rs).
+    pub fn snooze(minutes: u32) -> Self {
+        Self::new(format!("atlas:snooze:{minutes}"), format!("Snooze {minutes} min"))
+    }
 }
 
 impl Notice {
@@ -896,6 +959,37 @@ impl Notice {
         self.id = Some(id.into());
         self
     }
+    pub fn action(mut self, action: NoticeAction) -> Self {
+        self.actions.push(action);
+        self
+    }
+    pub fn subject(mut self, subject: impl Into<String>) -> Self {
+        self.subject = Some(subject.into());
+        self
+    }
+    /// Whether `Event::Withdraw { id }` takes this notice away: its id or its subject.
+    pub fn withdrawn_by(&self, id: &str) -> bool {
+        self.id.as_deref() == Some(id) || self.subject.as_deref() == Some(id)
+    }
+}
+
+/// `POST /api/notices/action`: a button of a notice pressed on a page (its toast), answered as a press on the
+/// system's notification is (notice_actions.rs).
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[ts(export)]
+pub struct NoticePress {
+    /// The action's id (`NoticeAction.id`).
+    pub action: String,
+    /// The notice's source, id and `open`, as the page received them.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub source: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub notice: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub open: Option<String>,
 }
 
 /// Server → client messages on `WS /api/events`.
@@ -921,6 +1015,12 @@ pub enum Event {
     },
     /// A notice: a toast on every open page, and a system notification when nobody is looking (notify.rs).
     Notify(Notice),
+    /// The notices of this id, or about this subject (`Notice.subject`), are no longer news (the task was done, the
+    /// event deleted, the mail read elsewhere): taken away from the system's notifications, the tray's unseen list and
+    /// the pages' toasts.
+    Withdraw {
+        id: String,
+    },
     Focus {
         pane: FocusPane,
     },
@@ -945,6 +1045,11 @@ pub enum Event {
         event: String,
         #[ts(type = "unknown")]
         data: serde_json::Value,
+    },
+    /// Run one of the window's own commands by id (`ui.*`, `plugin.<id>.<cmd>`): an agent's `atlas_ui_command`. The
+    /// window runs it as its key would, so a command that asks (a delete, a send) still asks the person there.
+    Palette {
+        command: String,
     },
 }
 
@@ -1033,6 +1138,18 @@ pub struct UiState {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub selection: Option<Selection>,
+    /// The window's commands (the palette's), sent when they change; a state without them keeps the last list.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub commands: Option<Vec<UiCommand>>,
+}
+
+/// One of the window's commands, as an agent sees it (`atlas_ui_commands`).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+#[ts(export)]
+pub struct UiCommand {
+    pub id: String,
+    pub title: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
@@ -1705,6 +1822,51 @@ pub struct TaskRef {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub text: Option<String>,
+    /// The task's Obsidian block id (`t3f9a`, without `^`): when given — or when `text` ends in one — the task is
+    /// found by it wherever its line moved, and `line` + `text` are only the fallback (tasks.rs `find_block`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub block: Option<String>,
+}
+
+/// `POST /api/task/render`: a task line's parts as the task dialog edits them; answered with the line written by
+/// the core's one task writer (tasks.rs `Line::from_fields` + `render_line`). Dates are `YYYY-MM-DD` or empty.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase", default)]
+#[ts(export)]
+pub struct TaskFields {
+    /// What comes before the box: indentation and the list mark (`  - `, `1. `).
+    pub lead: String,
+    /// The character the box held (` `, `x`, `/`…): kept unless `done` changes it.
+    pub status: String,
+    /// An Obsidian block id to keep last (without `^`), or empty.
+    pub block_id: String,
+    /// What the task says, with its #tags and [[links]]; no fields.
+    pub description: String,
+    pub done: bool,
+    /// `highest`, `high`, `medium`, `none`, `low`, `lowest`.
+    pub priority: String,
+    /// `every week`, `every 2 days when done`… — empty for none.
+    pub repeat: String,
+    pub created: String,
+    pub start: String,
+    pub scheduled: String,
+    pub due: String,
+    /// The ✅ day; empty with `done` = today.
+    pub done_on: String,
+}
+
+impl Default for TaskFields {
+    fn default() -> Self {
+        let none = String::new;
+        Self { lead: "- ".into(), status: " ".into(), block_id: none(), description: none(), done: false, priority: "none".into(), repeat: none(), created: none(), start: none(), scheduled: none(), due: none(), done_on: none() }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[ts(export)]
+pub struct TaskRendered {
+    pub line: String,
 }
 
 /// What a `[[` link can point at (link_targets.rs).
@@ -1751,6 +1913,11 @@ pub struct LinkTargetsQuery {
 pub struct TaskTick {
     pub text: String,
     pub done: bool,
+    /// The note the line is in: given, a task ticked done withdraws the notices about it (notice_actions.rs
+    /// `task_done`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub path: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]

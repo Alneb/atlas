@@ -24,12 +24,14 @@ pub enum TrayItem {
     Separator,
 }
 
-/// A notice that came while nobody looked at Atlas.
-#[derive(Debug, Clone, PartialEq)]
+/// A notice that came while nobody looked at Atlas; its id and subject say which withdrawal takes it away.
+#[derive(Debug, Clone, Default, PartialEq)]
 pub struct Unseen {
     pub title: String,
     pub source: Option<String>,
     pub open: Option<String>,
+    pub id: Option<String>,
+    pub subject: Option<String>,
 }
 
 /// How many unseen notices the menu keeps.
@@ -47,11 +49,28 @@ pub struct Model {
 }
 
 impl Model {
-    /// A notice nobody looked at: first in the list.
+    /// A notice nobody looked at: first in the list. One with the id of a notice already waiting replaces it ("3 new
+    /// mails" updated, counted once).
     pub fn add_unseen(&mut self, u: Unseen) {
+        let before = self.unseen.len();
+        if u.id.is_some() {
+            self.unseen.retain(|w| w.id != u.id);
+        }
+        if self.unseen.len() == before {
+            self.unseen_count += 1;
+        }
         self.unseen.insert(0, u);
         self.unseen.truncate(KEPT);
-        self.unseen_count += 1;
+    }
+
+    /// `Event::Withdraw`: the notices waiting with this id or about this subject are dropped, and no longer counted;
+    /// whether any was.
+    pub fn withdraw(&mut self, id: &str) -> bool {
+        let before = self.unseen.len();
+        self.unseen.retain(|w| w.id.as_deref() != Some(id) && w.subject.as_deref() != Some(id));
+        let gone = before - self.unseen.len();
+        self.unseen_count = self.unseen_count.saturating_sub(gone);
+        gone > 0
     }
 
     pub fn mark_read(&mut self) {
@@ -181,8 +200,8 @@ mod tests {
         assert_eq!(m.tooltip(), "Atlas — Notes");
         m.shown = true;
         m.quiet = true;
-        m.add_unseen(Unseen { title: "Backup failed".into(), source: Some("schedule".into()), open: None });
-        m.add_unseen(Unseen { title: "3 new mails".into(), source: None, open: Some("mail/x.md".into()) });
+        m.add_unseen(Unseen { title: "Backup failed".into(), source: Some("schedule".into()), open: None, ..Unseen::default() });
+        m.add_unseen(Unseen { title: "3 new mails".into(), source: None, open: Some("mail/x.md".into()), ..Unseen::default() });
         let menu = m.menu();
         assert_eq!(labels(&menu), ["Hide Atlas", "Quick capture", "—", "Notices (2)", "—", "Do not disturb ✓", "—", "Quit Atlas"]);
         let TrayItem::Sub { items, .. } = &menu[3] else { panic!("no notices submenu") };
@@ -198,7 +217,7 @@ mod tests {
     fn the_menu_keeps_the_newest_notices_but_counts_them_all() {
         let mut m = Model::default();
         for i in 0..KEPT + 3 {
-            m.add_unseen(Unseen { title: format!("n{i}"), source: None, open: None });
+            m.add_unseen(Unseen { title: format!("n{i}"), source: None, open: None, ..Unseen::default() });
         }
         assert_eq!(m.unseen.len(), KEPT);
         assert_eq!(m.unseen[0].title, format!("n{}", KEPT + 2));
@@ -206,8 +225,24 @@ mod tests {
     }
 
     #[test]
+    fn a_withdrawn_notice_leaves_the_list_and_the_count_and_a_repeated_id_is_counted_once() {
+        let mut m = Model::default();
+        let task = |title: &str, id: Option<&str>| Unseen { title: title.into(), id: id.map(str::to_string), subject: Some("notes/R.md#^t1".into()), ..Unseen::default() };
+        m.add_unseen(Unseen { title: "2 new mails".into(), id: Some("mail:inbox".into()), ..Unseen::default() });
+        m.add_unseen(task("Due today", Some("deadline:t1")));
+        m.add_unseen(task("Time to start", None));
+        m.add_unseen(Unseen { title: "3 new mails".into(), id: Some("mail:inbox".into()), ..Unseen::default() });
+        assert_eq!((m.unseen.len(), m.unseen_count, m.unseen[0].title.as_str()), (3, 3, "3 new mails"), "the mail notice replaced, first");
+        assert!(m.withdraw("notes/R.md#^t1"), "by subject: both of the task's");
+        assert_eq!((m.unseen.len(), m.unseen_count), (1, 1));
+        assert!(!m.withdraw("deadline:t1"));
+        assert!(m.withdraw("mail:inbox"), "by id");
+        assert!(!m.attention());
+    }
+
+    #[test]
     fn a_long_notice_is_one_short_line() {
-        let l = notice_label(&Unseen { title: "a\nvery ".repeat(20), source: None, open: None });
+        let l = notice_label(&Unseen { title: "a\nvery ".repeat(20), source: None, open: None, ..Unseen::default() });
         assert!(!l.contains('\n') && l.chars().count() == 60 && l.ends_with('…'));
     }
 

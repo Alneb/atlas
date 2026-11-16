@@ -124,10 +124,9 @@ pub fn access_token(acc: &Account, post: &Post) -> Result<Option<String>, Fail> 
 /// An access token for `scopes` from the account's refresh token (None for a password account). Cached per refresh
 /// token and scopes until a minute before it ends.
 pub fn access_token_for(acc: &Account, scopes: &str, post: &Post) -> Result<Option<String>, Fail> {
-    let Auth::Outlook { tenant, client_id, refresh } = &acc.auth else { return Ok(None) };
-    let key = format!("accounts.{}.oauth_refresh", acc.name);
-    let refresh = ROTATED.lock().unwrap().get(&key).cloned().or_else(|| refresh.clone());
-    let refresh = refresh.ok_or_else(|| Fail::sign_in("not signed in to Outlook: run “Email: sign in to Outlook…” (or the card's Sign in button)"))?;
+    let Auth::Outlook { tenant, client_id, .. } = &acc.auth else { return Ok(None) };
+    let key = refresh_key(acc);
+    let refresh = current_refresh(acc).ok_or_else(|| Fail::sign_in("not signed in to Outlook: run “Email: sign in to Outlook…” (or the card's Sign in button)"))?;
     let cache = |r: &str| format!("{scopes}\n{r}");
     if let Some(c) = TOKENS.lock().unwrap().get(&cache(&refresh)) {
         if Instant::now() + Duration::from_secs(60) < c.until {
@@ -145,6 +144,24 @@ pub fn access_token_for(acc: &Account, scopes: &str, post: &Post) -> Result<Opti
     }
     TOKENS.lock().unwrap().insert(cache(&refresh), Cached { token: token.clone(), until });
     Ok(Some(token))
+}
+
+fn refresh_key(acc: &Account) -> String {
+    format!("accounts.{}.oauth_refresh", acc.name)
+}
+
+/// The account's refresh token: the one Microsoft rotated last, else the stored one.
+fn current_refresh(acc: &Account) -> Option<String> {
+    let Auth::Outlook { refresh, .. } = &acc.auth else { return None };
+    ROTATED.lock().unwrap().get(&refresh_key(acc)).cloned().or_else(|| refresh.clone())
+}
+
+/// Drops the account's cached access tokens (every scope): a server refused one, the next is renewed fresh.
+pub fn forget(acc: &Account) {
+    if let Some(r) = current_refresh(acc) {
+        let tail = format!("\n{r}");
+        TOKENS.lock().unwrap().retain(|k, _| !k.ends_with(&tail));
+    }
 }
 
 /// A renewal Microsoft did not grant: its own trouble (down, or an answer that is no JSON: a proxy, a captive portal)
@@ -401,6 +418,10 @@ mod tests {
         // another scope (the Calendar's Exchange) is its own token, from the same refresh token
         assert_eq!(access_token_for(&acc, EWS_SCOPES, &post).unwrap().as_deref(), Some("A1"));
         assert_eq!(calls.load(std::sync::atomic::Ordering::SeqCst), 2);
+        // a token a server refused is forgotten: the next one is renewed
+        forget(&acc);
+        assert_eq!(access_token(&acc, &post).unwrap().as_deref(), Some("A1"));
+        assert_eq!(calls.load(std::sync::atomic::Ordering::SeqCst), 3);
         let pw = crate::account::pick(&json!({ "settings": { "accounts": [{ "name": "p", "user": "u@x", "imap_host": "h" }] } })).unwrap();
         assert_eq!(access_token(&pw, &post).unwrap(), None);
     }

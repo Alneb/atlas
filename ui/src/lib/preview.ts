@@ -8,6 +8,7 @@ import { dirOf, shownName, IMAGE_RE } from "./paths";
 import { api } from "./api";
 import { thumbUrl } from "./raw";
 import { renderMarkdown, stripFrontmatter } from "./markdown";
+import { linkParts, sectionOf } from "./note-anchor";
 import { resolveLink } from "./vault";
 import { settings } from "./settings.svelte";
 import { tabs } from "./tabs.svelte";
@@ -15,7 +16,8 @@ import { paneElement } from "./dock-panels";
 import { terminals } from "./registry";
 
 export type PreviewTarget =
-  | { kind: "file"; path: string; title?: string }
+  /** `anchor`: a heading or `^block` of a note — the card shows that section (an equation with its number) */
+  | { kind: "file"; path: string; title?: string; anchor?: string }
   | { kind: "url"; url: string }
   | { kind: "pane"; title: string; detail: string }
   /** a link to a file the vault does not have: opening it starts a new note there */
@@ -42,9 +44,10 @@ export function targetOf(el: Element): PreviewTarget | null {
   if (!on("link_preview")) return null;
   const wiki = el.closest<HTMLElement>(".cm-hmd-internal-link[data-target], a.internal-link[data-href]");
   if (wiki) {
-    const target = (wiki.dataset.target ?? wiki.dataset.href ?? "").replace(/^\[\[|\]\]$/g, "").split(/[|#]/)[0].trim();
-    const path = resolveLink(target, dirOf(noteOf(wiki)));
-    return path ? { kind: "file", path } : null;
+    const [target, anchor] = linkParts(wiki.dataset.target ?? wiki.dataset.href ?? "");
+    // `[[#^eq-gap]]`, `[[#Heading]]`: a place in the note the link is in
+    const path = target ? resolveLink(target, dirOf(noteOf(wiki))) : anchor ? noteOf(wiki) || null : null;
+    return path ? { kind: "file", path, ...(anchor ? { anchor } : {}) } : null;
   }
   const md = el.closest<HTMLElement>(".cm-link[data-href], .markdown a[href]:not(.internal-link)");
   if (md) {
@@ -100,7 +103,7 @@ export async function drawPreview(card: HTMLElement, t: PreviewTarget, width = C
     body.classList.add("preview-url");
     return;
   }
-  head.textContent = t.title ?? shownName(t.path);
+  head.textContent = t.title ?? (t.anchor ? `${shownName(t.path)} › ${t.anchor.replace(/^\^/, "")}` : shownName(t.path));
   if (IMAGE_RE.test(t.path)) {
     const img = document.createElement("img");
     img.src = await thumbUrl(t.path, 360); // the shared cache's: a hover never leaves a blob URL behind
@@ -113,7 +116,8 @@ export async function drawPreview(card: HTMLElement, t: PreviewTarget, width = C
     canvas.style.width = "100%";
     body.append(canvas);
   } else if (/\.md$/i.test(t.path)) {
-    const text = stripFrontmatter((await api.file(t.path)).text).slice(0, 4000);
+    const md = stripFrontmatter((await api.file(t.path)).text);
+    const text = (t.anchor ? sectionOf(md, t.anchor) : md).slice(0, 4000);
     body.classList.add("markdown");
     body.innerHTML = renderMarkdown(text || "*(empty)*", { dir: dirOf(t.path) });
   } else if (TEXT.test(t.path)) {

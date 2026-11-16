@@ -1,4 +1,4 @@
-// How the notepad's pen strokes are outlined (vite.config.ts `inkStroke` makes Excalidraw ask here): crisp, like Boox
+// How the notepad's pen strokes are outlined (scripts/dep-rewrites.ts makes Excalidraw ask here): crisp, like Boox
 // Notes — the shape of the letters kept, the width close to the Boox's quick line — instead of Excalidraw's rounded
 // marker. A stroke carries its pen in `customData.atlasPen` (draw-excalidraw.ts); strokes without it keep Excalidraw's
 // look, and so does every stroke in an Excalidraw without this rewrite (Obsidian's plugin: the same points, softer).

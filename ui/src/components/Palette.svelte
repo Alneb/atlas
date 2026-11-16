@@ -1,5 +1,4 @@
 <script lang="ts">
-  import { overlay } from "../lib/overlays";
   import { errText } from "../lib/text";
   import { closable } from "../lib/back";
   import { holdFocus, trapTab } from "../lib/focus-return";
@@ -244,7 +243,7 @@
 
 {#if palette.open}
   <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
-  <div class="scrim" use:overlay onclick={closePalette}>
+  <div class="scrim" onclick={closePalette}>
     <!-- Tab walks the box and its rows, never out to the page behind the scrim; Esc closes from a row as from the box -->
     <div class="palette" role="dialog" aria-modal="true" tabindex="-1" aria-label="Command palette" onclick={(e) => e.stopPropagation()} onkeydown={framekeys} data-testid="palette">
       <div class="field">

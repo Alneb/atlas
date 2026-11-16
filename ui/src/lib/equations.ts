@@ -3,8 +3,8 @@
 // numbered environment (`equation`, `align`, `gather`, `multline`; not their starred forms). Plain `$$…$$` is not.
 // A link to a label with no alias reads "(3)" in its own note (`[[#^eq-gap]]`) and "Note (3)" from another
 // (`[[Note#^eq-gap]]`), opens at the equation, and follows when equations are added or moved. A display with its own
-// `\tag{…}` keeps it (links read it); `\notag` / `\nonumber` takes none. One number per display (an `align`'s rows
-// share it). Used by the reading view (markdown.ts), the editor (note-extensions.ts), hydrate.ts and note-anchor.ts;
+// `\tag{…}` keeps it (links read it); `\notag` / `\nonumber` takes none. `align`, `gather` and `eqnarray` number each
+// row, as LaTeX does: a row's `\label` names that row, a block id after the closing `$$` the last numbered row. Used by the reading view (markdown.ts), the editor (note-extensions.ts), hydrate.ts and note-anchor.ts;
 // pure but for `equationLabel` / `equationLabelNow`, which read the other note through the reader they are given.
 // Figures the same way: an embed line ending in a block id (`![[gap.png|The gap closes]] ^fig-gap`, Obsidian's form)
 // is "Figure 2", numbered in note order; a link reads "Figure 2" / "Note, Figure 2"; the reading view captions it.
@@ -16,6 +16,38 @@ const LABELS = /\\label\{[^}]*\}/g;
 const OWN_TAG = /\\tag\*?\{([^}]*)\}/;
 const NO_TAG = /\\(?:notag|nonumber)\b/;
 const NUMBERED_ENV = /\\begin\{(equation|align|gather|multline|eqnarray)\}/;
+/** The environments numbered row by row (their starred forms are not numbered at all). */
+const MULTI_ROW = /\\begin\{(align|gather|eqnarray)\}/;
+
+/** A display's numbers: one per row of a multi-row environment, else one; null for a row that takes none. */
+export type Numbers = (string | null)[];
+
+/** The rows of the display's multi-row environment as [start, end) offsets into `tex` (a row ends at a top-level
+ *  `\\` or the environment's `\end`; a trailing `\\` makes no row), or null when it has none. Nested environments
+ *  (`cases`, `matrix`) and braces are skipped whole. */
+export function rowSpans(tex: string): [number, number][] | null {
+  const m = MULTI_ROW.exec(tex);
+  if (!m) return null;
+  const rows: [number, number][] = [];
+  let depth = 0, start = m.index + m[0].length;
+  for (let i = start; i < tex.length; i++) {
+    const env = /^\\(begin|end)\{[^}]*\}/.exec(tex.slice(i, i + 40));
+    if (env) {
+      if (env[1] === "begin") depth++;
+      else if (depth === 0) { rows.push([start, i]); break; }
+      else depth--;
+      i += env[0].length - 1;
+    } else if (tex.startsWith("\\\\", i)) {
+      if (depth === 0) { rows.push([start, i]); start = i + 2; }
+      i++;
+    } else if (tex[i] === "\\") i++; // an escaped character (`\{`, `\}`)
+    else if (tex[i] === "{") depth++;
+    else if (tex[i] === "}") depth--;
+  }
+  const last = rows.at(-1);
+  if (rows.length > 1 && last && !tex.slice(last[0], last[1]).trim()) rows.pop();
+  return rows.length ? rows : null;
+}
 /** A figure's line: an embed (`![[…]]` or `![…](…)`), anything after it, and its block id last. */
 export const FIGURE_LINE = /^[\s>]*(!\[\[[^\]]+\]\]|!\[[^\]]*\]\([^)]*\))(.*?)[ \t]+\^([A-Za-z0-9-]+)[ \t]*$/;
 
@@ -29,8 +61,8 @@ export function labelOf(source: string, next: () => number): string | null {
 export interface Equations {
   /** label → its number ("3", or a `\tag`'s text) */
   byId: Map<string, string>;
-  /** a display's TeX (`texKey`) → the number to draw on it (those without their own `\tag`) */
-  byTex: Map<string, string>;
+  /** a display's TeX (`texKey`) → the numbers to draw on it (rows with their own `\tag` keep it) */
+  byTex: Map<string, Numbers>;
   /** label → the 1-based lines its display spans, first and last (a link opens the note there; an embed shows it) */
   spanOf: Map<string, [number, number]>;
   /** a figure's label → its number */
@@ -55,7 +87,7 @@ export function figureCaption(embed: string): string {
 /** Every numbered display of a note, in order. Code fences are skipped (an example is not an equation). */
 export function noteEquations(md: string): Equations {
   const lines = md.split("\n"), code = fences();
-  const byId = new Map<string, string>(), byTex = new Map<string, string>(), spanOf = new Map<string, [number, number]>();
+  const byId = new Map<string, string>(), byTex = new Map<string, Numbers>(), spanOf = new Map<string, [number, number]>();
   const figures = new Map<string, string>();
   let n = 0;
   const next = () => ++n;
@@ -70,12 +102,26 @@ export function noteEquations(md: string): Equations {
     for (let k = i + 1; close < 0 && k < lines.length; k++) if (lines[k].includes("$$")) close = k;
     if (close < 0) break;
     const source = lines.slice(i, close + 1).join("\n");
+    const rows = rowSpans(source);
+    if (rows) {
+      const span: [number, number] = [i + 1, close + 1];
+      const nums = rows.map(([a, b]) => labelOf(source.slice(a, b), next));
+      rows.forEach(([a, b], r) => {
+        const rid = LABEL.exec(source.slice(a, b))?.[1], num = nums[r];
+        if (rid && num !== null) { byId.set(rid, num); spanOf.set(rid, span); }
+      });
+      const blockId = ID_AFTER_CLOSE.exec(lines[close])?.[1], lastNum = nums.filter((x) => x !== null).at(-1);
+      if (blockId && lastNum) { byId.set(blockId, lastNum); spanOf.set(blockId, span); }
+      if (nums.some((x) => x !== null)) byTex.set(texKey(source), nums);
+      i = close;
+      continue;
+    }
     const id = LABEL.exec(source)?.[1] ?? ID_AFTER_CLOSE.exec(lines[close])?.[1];
     if (id || NUMBERED_ENV.test(source)) {
       const label = labelOf(source, next);
       if (label !== null) {
         if (id) { byId.set(id, label); spanOf.set(id, [i + 1, close + 1]); }
-        if (!OWN_TAG.test(source)) byTex.set(texKey(source), label);
+        if (!OWN_TAG.test(source)) byTex.set(texKey(source), [label]);
       }
     }
     i = close;
@@ -91,12 +137,27 @@ export const texKey = (display: string): string =>
     .split("\n").map((l) => l.replace(/^[ \t>]*/, "")).join("\n")
     .replace(/^\s*\$\$|\$\$\s*$/g, "").trim();
 
-/** TeX as KaTeX should draw it: labels out (they are Atlas's), and with a number, a numbered environment made its
- *  unnumbered twin (KaTeX would count from 1 in each display) and `\tag{n}` added — before the closing `$$` when the
- *  text has them. */
-export function numberedTex(tex: string, n?: string): string {
+/** TeX as KaTeX should draw it: labels out (they are Atlas's), and with numbers, either each row of a multi-row
+ *  environment given its `\tag{n}` (KaTeX's `align`/`gather` take one per row; `eqnarray`, which KaTeX lacks, is drawn
+ *  as `align`), or a numbered environment made its unnumbered twin (KaTeX would count from 1 in each display) and
+ *  `\tag{n}` added — before the closing `$$` when the text has them. */
+export function numberedTex(tex: string, nums?: Numbers): string {
   let t = tex.replace(LABELS, "");
-  if (!n) return t;
+  const rows = rowSpans(t);
+  if (rows && nums?.length) {
+    for (let r = rows.length - 1; r >= 0; r--) {
+      const [a, b] = rows[r], row = t.slice(a, b), n = nums[r];
+      if (n && !OWN_TAG.test(row) && !NO_TAG.test(row)) t = `${t.slice(0, b).trimEnd()} \\tag{${n}}${t.slice(b)}`;
+    }
+    return t.replace(/\\(begin|end)\{eqnarray\}/g, "\\$1{align}");
+  }
+  const n = nums?.[0];
+  return n ? numberedWhole(t, n) : t;
+}
+
+/** A display given one number as a whole (labels already out): a numbered environment made its unnumbered twin and
+ *  `\tag{n}` added — before the closing `$$` when the text has them. The export numbers displays this way. */
+export function numberedWhole(t: string, n: string): string {
   t = t.replace(/\\(begin|end)\{(equation|align|gather|multline|eqnarray)\}/g, (_m, be: string, env: string) =>
     env === "equation" || env === "multline" ? "" : `\\${be}{${env === "align" || env === "eqnarray" ? "aligned" : "gathered"}}`);
   const at = t.lastIndexOf("$$");

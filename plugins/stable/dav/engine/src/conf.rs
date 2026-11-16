@@ -236,6 +236,12 @@ pub fn hidden(s: &Value) -> Vec<String> {
     s["hidden"].as_array().map(|a| a.iter().filter_map(|x| x.as_str().map(str::to_string)).collect()).unwrap_or_default()
 }
 
+/// The calendars Settings marks as deadline calendars (`deadline_calendars`: ids, names or addresses): their events
+/// join the core's `from: deadlines` view beside dated tasks and notes.
+pub fn deadline_calendars(s: &Value) -> Vec<String> {
+    s["deadline_calendars"].as_array().map(|a| a.iter().filter_map(|x| x.as_str().map(str::trim).filter(|x| !x.is_empty()).map(str::to_string)).collect()).unwrap_or_default()
+}
+
 /// A calendar's colour chosen in the pane (`colors`: "Name: #hex" lines), by name or address.
 pub fn color_for(s: &Value, name: &str, id: &str) -> Option<String> {
     s["colors"].as_array()?.iter().filter_map(|x| x.as_str()).find_map(|line| {

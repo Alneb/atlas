@@ -13,6 +13,10 @@ show_claude: boolean,
  */
 show_housekeeping: boolean, 
 /**
+ * List every file made or changed, not only notes (pictures, data, a run's output).
+ */
+show_files: boolean, 
+/**
  * Changed files in the same folder collapse into one row from this many on.
  */
 group_threshold: number, };

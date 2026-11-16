@@ -16,6 +16,11 @@ the result goes under the exports folder at the note's own path (`notes/reports/
   - *Document* — title, subtitle, author, date (from the note's properties, else its first heading, else its name;
     changed for this export only), table of contents, numbered sections.
   - *Page* — paper (A4, US Letter), font size, margins, one or two columns, language, font.
+  - *The Typst look* (`atlas.typst`, pandoc's Typst template with Atlas's rules): a coloured title block with a rule
+    under it, headings in the accent colour (Libertinus Sans where installed), the title and page number at the top
+    of every page after the first, code and quotes on a tinted ground, tables with rules at the head, Libertinus Math
+    beside Libertinus text. A display wider than its column is shrunk to fit it, on both PDF roads (in LaTeX's two
+    columns through `adjustbox`, the number kept on its line); a Typst preamble overrides any of these rules.
   - *References* (when the note links papers) — the `.bib`, the citation style (numeric, author–year, alphabetic,
     physics), each written in the format's own way (biblatex, Typst's bibliography, citeproc for Word).
   - *LaTeX* — engine, an extra preamble `.tex`. *Typst* — a preamble `.typ` (set and show rules).

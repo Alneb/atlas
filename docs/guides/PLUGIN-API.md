@@ -36,6 +36,8 @@ claims = ["*.epub"]                   # (API 7) files its pane is the DEFAULT vi
                                       #   them there, unless the vault's [files] open_with says otherwise; implies opens
 data = "\"$ATLAS_PLUGIN_DIR/bin/$ATLAS_PLUGIN_TARGET/data\""   # a program run once per atlas.data(args) call
 timeout_secs = 30
+background = "server"                 # where its tools' schedules and fs/start hooks run when the vault is also on a
+                                      #   server: "server", "device" or "any" (the default); see "Where background work runs"
 
 [settings]                            # starting values only — the vault's own are in .atlas/plugin-settings/<id>.toml
 dir = "runs"
@@ -86,21 +88,48 @@ timeout_secs = 60                     # how long a call may run (default 60); th
 schedule = "every 1h"                 # optional: called with {} on this schedule while the vault is served (a sync)
 on = "capture"                        # optional: called with { text, path, line } after every capture, from any door
 template = "weather"                  # optional: answers {{weather.…}} in a note made from a template (below)
+background = "device"                 # optional: this tool's own word, over the plugin's `background`
 ```
 
 A plugin's modules (`main.js`, `view.js`) are loaded from their own URL, so they import as any web module does: by a relative path, statically or with `import()`, and a sibling plugin's file as `../charts/charts.js` — see "A plugin's own files by URL" below. Since API 9 modules load by URL, so dynamic imports and `import.meta.url` work too.
 
 An unknown key is an error shown in Settings (a typo should be seen), not ignored.
 
-- **`schedule`** uses the vault commands' words (`every 30m`, `every 2h`, `daily 03:00`, `hourly`; 5-minute floor) and runs in the server's helpers, recorded in `.atlas/cache/schedule.json` / `schedule.log` as `plugin.<id>.<tool>`; a failure is a notice (once per new failure, not at every run). An answer's `summary` is what the log keeps; `{ skipped: "why" }` says the run had nothing it could do (a server not reachable, a login not there): logged, never a failure, never a notice. `notices: [{ title, body?, level?, open?, id? }]` in an answer are delivered as notices from the plugin (a toast, or the system's notification when no window is looked at): what the run found that the user wants to know, such as a job that finished. Examples: `catalog-letterboxd`'s `sync`; the Runs plugin's `auto` (a vault plugin) skips while the cluster is not connected and says each run that ended.
+- **`schedule`** uses the vault commands' words (`every 30m`, `every 2h`, `daily 03:00`, `hourly`; 5-minute floor) and runs in the server's helpers, recorded in `.atlas/cache/schedule.json` / `schedule.log` as `plugin.<id>.<tool>`; a failure is a notice (once per new failure, not at every run). An answer's `summary` is what the log keeps; `{ skipped: "why" }` says the run had nothing it could do (a server not reachable, a login not there): logged, never a failure, never a notice. `notices: [{ title, body?, level?, open?, id?, actions? }]` in an answer are delivered as notices from the plugin (a toast, or the system's notification when no window is looked at): what the run found that the user wants to know, such as a job that finished; `withdraw: ["id", …]` takes away the notices of those ids (their system notifications closed). Examples: `catalog-letterboxd`'s `sync`; the Runs plugin's `auto` (a vault plugin) skips while the cluster is not connected and says each run that ended.
 - **`on = "capture"`**: after a capture is written — the app's box, the phone, the desktop's capture window, `atlas capture`, an agent — the tool runs in the background (`capture_hooks.rs`); the capture never waits for it. Answer `{ skipped }` to leave it alone, or `{ path, notice? }` (a note): the capture's line gets ` → [[note]]` and the user the notice. Example: the catalog's `capture`, which files a link or identifier and never searches on plain words.
 - **`on = "fs"`**: called with `{ paths }` (vault-relative) for each batch of files the vault's watcher saw change: Atlas's own writes, Syncthing's, any program's; never `.atlas/cache` or the trash. One call at a time; the batches that arrive meanwhile are joined into the next call (`capture_hooks.rs spawn_fs`). An empty `paths` means anything may have changed (events were lost: the kernel's queue overflowed, or the core fell behind): look at everything the tool cares about. Example: the Syncthing plugin's `scan`.
 - **`on = "start"`**: called with `{}` in the background once the vault is served, and again for the plugin when it is installed or updated and whenever its settings are saved. For preparing what a hook would otherwise do on its first call, where every capture behind it would wait. Example: OCR's `prepare`, which fetches the setting's language models.
+- **`on = "plan"`: planned notices** — notices for a later moment, such as an event's reminder. Called with `{}` every 5 minutes on a core that shows notices to a person (the desktop app's own, the phone's; not a headless server, not under `ATLAS_NO_SCHEDULE`), it answers `planned: [{ at, until?, title, body?, level?, open?, id }]` (`at`, `until`: RFC 3339; `id` required). The list replaces the plugin's whole plan, so what is no longer listed (an event deleted) never fires; an answer without `planned` (a round that could not look) keeps the last plan. The core fires each once at `at` (checked every 15 s) as an ordinary notice from the plugin (`Event::Notify`: the toast, the system's notification by the usual rules), and only while `until` (default: 15 minutes after `at`) has not passed. Just before firing it calls the tool again and fires only what the fresh plan still has due, so a reminder follows an event moved a minute ago. What fired is kept by id and moment in `.atlas/cache/planned-fired.json` (the plan in `planned.json`): never twice, not after a restart either, and a notice whose `at` moved fires again at its new moment (`planned.rs`). Example: the Calendar's `reminders`. A planned notice that names no `actions` rings with **Open** (when it has an `open`) and **Snooze 10 min**, both the core's: a snooze rings a copy of it ten minutes after the press (`.atlas/cache/planned-snoozed.json`), as long as the plugin's plan still lists its id.
+- **`on = "notice"`: a notice's buttons.** A notice may carry `actions: [{ id, label }]`, shown as buttons on the system's notification (the desktop's over D-Bus, the phone's `Notification.Action`; Windows toasts show none yet). A press calls the notice's source plugin's `on = "notice"` tool with `{ notice_id, action, open }`, on the core that showed it (notice_actions.rs); its answer may carry `notices` (said from the plugin) and `withdraw: ["id", …]` (the notices taken away — a task done: its reminder gone). Ids starting with `atlas:` are the core's own and never reach a plugin: `atlas:open` (what a click does: the notice's `open`) and `atlas:snooze:<minutes>` (a planned notice rung again later). The notification goes when a button is pressed. The page's toast shows the same buttons, answered the same way. A notice about a task names it in `subject: "<path>#^<block id>"`: ticking that task done (anywhere in Atlas) withdraws it, and `withdraw: ["<subject>"]` takes away every notice about it. A planned notice that drops out of the plan while it still rings (the event deleted) is withdrawn too. Example: the plan plugin's Done (to come).
 - **`on = "log"`**: today's log was just made by the log card's button (`POST /api/log/today`, `capture_hooks::log_made`): the tool runs in the background with `{ text: "", path, line: 1 }`. Example: the Weather plugin's `log_made`, which writes the day's weather on it.
 - A helper is restarted on its next call once its `plugin.toml` is newer than the running helper (an `atlas plugin update`, a copy): the new code runs without restarting Atlas.
 - **A tool as a view's source**: a ```` ```view ```` block with `from: plugin:<id>/<tool>` (and `args:`, the tool's input) shows the tool's answer in any view (calendar, list, table…). The answer becomes rows by its shape (`views::plugin_rows`): an array of objects, or the first array in an object (`{events: […]}`). A row's title is `title`, `summary` or `name`; its date is the day of `date`, `start` or `due`; it opens `path`, or a `source` that is a note; every other plain field is a prop. The call is an ordinary tool call, with the plugin's permissions and secrets (`views::from_plugin`, asked by the server's `POST /api/view`). Example: the DAV plugin's events in the calendar view, `type: calendar` / `from: plugin:dav/events` / `args: {to: 2026-12-31}`.
 - **`template = "<name>"`**: the tool provides a template value. A note made from a template that uses `{{<name>…}}` (or includes one that does) gets the tool's answer as that value, asked with `{ title }` just before the note is made and only then (`template_values.rs`; docs/guides/TEMPLATES.md "Values from plugins"). The template stays data; the program is the plugin, with its permissions. Example: the Weather plugin's `now` (`template = "weather"`). A capture made with no Atlas serving the vault is kept in `.atlas/pending/` and the `on = "capture"` tools run on it when the vault is next served.
 - A helper may call Atlas while Atlas calls it (a sync asking the catalog, which asks this helper's lookup): the `atlas-plugin` crate (`serve_threads`) and the JavaScript runtime answer such a request at once, nested, instead of queueing it behind the call that waits for it.
+
+### Where background work runs — `background`
+
+A vault can be served by several cores at once, each on its own copy: the desktop's, the phone's, and a server's that
+mirrors it (docs/design/DESIGN-mirror-v2.md). A person's action runs where it was made. Work nobody asked for at that
+moment — a tool's `schedule`, its `on = "fs"` and `on = "start"` hooks — runs where `background` says:
+
+| `background` | runs on |
+|---|---|
+| `"any"` (the default) | every core that serves the vault, as before this key existed |
+| `"server"` | the vault's server; a desktop or phone whose vault has a `mirror` leaves it to the server; a vault with no server runs it where it is served. For what needs an always-on machine or the secrets kept there: a bank sync, a feed poll, push |
+| `"device"` | never a server core. For work that needs what only a person's device has (an ssh session it may not open itself), or that writes files the person is editing at the same time |
+
+- Set it for the whole plugin (a top-level key) or per `[[tool]]` (its own word wins).
+- **The vault decides last**: `[automation] background` in `.atlas/config.toml` maps a job's id, as the schedule log
+  names it (`"plugin.finance.bank_sync"`), or a whole plugin (`"plugin.runs"`), to one of the three — for a plugin
+  whose manifest does not say, or says what this vault does not want. A vault command takes `background` in its own
+  `.atlas/commands/<id>.toml` and in that table by its id.
+- `[automation] schedules_on` still names the computers that run the schedules at all; `background` chooses among the
+  kinds of core.
+- A capture's, a log's and a template's hooks are not background work: they run on the core where the person acted.
+- Core: `server_role.rs` (`Background`, `Seat`); it is read by `schedule.rs` and `plugin_tools::listening`.
+  **An older core refuses the key** (an unknown manifest key is an error): a plugin that sets it needs `needs` set to
+  the first release that reads it, or the vault's table instead.
 
 ### Platforms — `[platforms]`
 

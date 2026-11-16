@@ -3,7 +3,7 @@
 //! (calendar, list, table…, drawn by `ui/src/lib/views.ts`, which Lua widgets share):
 //! ```yaml
 //! type: calendar        # any registered view
-//! from: section         # section (default) | note | tasks | next-actions | folder:<dir> | base:<file.base> | plugin:<id>/<tool>
+//! from: section         # section (default) | note | tasks | next-actions | deadlines | folder:<dir> | base:<file.base> | plugin:<id>/<tool>
 //! args: {days: 60}      # plugin: only — the tool's input
 //! filters: ...          # Bases filters, for notes (folder:/base:/next-actions/or alone)
 //! date: due             # the property holding a note's date (default: date)
@@ -11,6 +11,11 @@
 //! by: up                # tree view: the property that names a note's parent
 //! columns: [state]      # more properties to carry in each row's `props`
 //! ```
+//! `deadlines` is everything that must be done by a day (docs/design/DESIGN-calendar-tasks-nudges.md §2.4): open tasks
+//! with 📅 (⏳ too with `scheduled: true`), notes with a `due:` that are not done (never mail), and the events of the
+//! calendar plugin's deadline calendars — each row with `props.from` (task / note / event), `props.days` (from today)
+//! and `props.group` (Overdue · Today · This week · Later), in date order; `horizon: 30` drops what is further away.
+//! Home's `deadlines` box, the Deadlines page and the Today chips all read it.
 //! `next-actions` is the first open task of each matching note (a project's next step): a note whose
 //! `start:` is in the future is left out, and rows are ordered by the task's date, else the note's `due`.
 //! Tasks come from checkboxes (`- [ ]` / `- [x]`), their date from the first ISO date in the line
@@ -39,6 +44,12 @@ struct Spec {
     /// The input of a `plugin:` source's tool.
     #[serde(default)]
     args: Option<serde_yaml::Value>,
+    /// `from: deadlines`: a task's ⏳ counts as its deadline when it has no 📅.
+    #[serde(default)]
+    scheduled: bool,
+    /// `from: deadlines`: only what falls within this many days (overdue always shows).
+    #[serde(default)]
+    horizon: Option<i64>,
     /// What a task block asks (show, tag, path, priority, due, sort, group, limit): crate::tasks.
     #[serde(flatten)]
     tasks: crate::tasks::Query,
@@ -57,6 +68,8 @@ enum From<'a> {
     Tasks,
     /// The first open task of each note matching the filters.
     NextActions,
+    /// What must be done by a day: dated tasks, notes with `due:`, deadline calendars' events.
+    Deadlines,
     Folder(&'a str),
     Base(&'a str),
     /// A plugin tool's answer (`plugin:dav/events`): the rows a plugin supplies (events from a calendar server).
@@ -70,13 +83,14 @@ fn parse_from(s: Option<&str>, has_filters: bool) -> Result<From<'_>> {
         Some("note") => From::Note,
         Some("tasks") => From::Tasks,
         Some("next-actions") => From::NextActions,
+        Some("deadlines") => From::Deadlines,
         Some(x) if x.starts_with("folder:") => From::Folder(x["folder:".len()..].trim().trim_matches('/')),
         Some(x) if x.starts_with("base:") => From::Base(x["base:".len()..].trim()),
         Some(x) if x.starts_with("plugin:") => match x["plugin:".len()..].trim().split_once('/') {
             Some((plugin, tool)) if !plugin.is_empty() && !tool.is_empty() => From::Plugin { plugin, tool },
             _ => return Err(Error::BadRequest(format!("view: `from: {x}` names no tool (plugin:<id>/<tool>, e.g. plugin:dav/events)"))),
         },
-        Some(x) => return Err(Error::BadRequest(format!("view: unknown `from: {x}` (section, note, tasks, next-actions, folder:…, base:…, plugin:…/…)"))),
+        Some(x) => return Err(Error::BadRequest(format!("view: unknown `from: {x}` (section, note, tasks, next-actions, deadlines, folder:…, base:…, plugin:…/…)"))),
     })
 }
 
@@ -243,6 +257,119 @@ fn next_actions(ws: &Workspace, notes: Vec<ViewRow>, today: &str) -> Vec<ViewRow
     out
 }
 
+// ----- deadlines (`from: deadlines`)
+
+/// The group a deadline `days` from today falls in.
+fn deadline_group(days: i64) -> &'static str {
+    match days {
+        ..0 => "Overdue",
+        0 => "Today",
+        1..=7 => "This week",
+        _ => "Later",
+    }
+}
+
+/// Open tasks whose line gives a deadline: its 📅, else (with `scheduled`) its ⏳. The row's date is that day.
+fn deadline_tasks(ws: &Workspace, scheduled: bool) -> Result<Vec<ViewRow>> {
+    let cfg = ws.config()?;
+    Ok(today::all_tasks(ws.root(), &cfg)
+        .into_iter()
+        .filter(|(_, done)| !done)
+        .filter_map(|(h, _)| {
+            let t = crate::tasks::parse(&h.text);
+            let day = t.due.or(t.scheduled.filter(|_| scheduled))?;
+            let mut r = task_row(&h.path, h.line, &h.text, false);
+            r.date = Some(day.format("%Y-%m-%d").to_string());
+            r.props.insert("from".into(), "task".into());
+            Some(r)
+        })
+        .collect())
+}
+
+/// Notes with a `due:` that are not done (`done: true`, `status: done | cancelled`), never kept mail — the
+/// convention the Calendar's important notes and `next-actions` read, without needing `important: true`.
+fn deadline_notes(ws: &Workspace, note: &str) -> Result<Vec<ViewRow>> {
+    let has_due = serde_yaml::Value::String("!due.isEmpty()".into());
+    let cols = ["due", "done", "status", "type", "message_id", "priority"];
+    let finished = |p: &BTreeMap<String, String>| {
+        p.get("done").is_some_and(|d| d.eq_ignore_ascii_case("true"))
+            || p.get("status").is_some_and(|s| ["done", "cancelled", "canceled"].iter().any(|x| s.trim().eq_ignore_ascii_case(x)))
+    };
+    Ok(notes(ws, note, notes_query("", Some(&has_due), &cols), "due")?
+        .into_iter()
+        .filter(|r| r.date.is_some() && !finished(&r.props))
+        .filter(|r| !crate::note_props::is_mail(r.props.get("type").map(String::as_str), |k| r.props.contains_key(k)))
+        .map(|mut r| {
+            r.props.insert("from".into(), "note".into());
+            r
+        })
+        .collect())
+}
+
+/// The vault's own deadlines: dated tasks and notes.
+fn deadline_files(ws: &Workspace, note: &str, scheduled: bool) -> Result<Vec<ViewRow>> {
+    let mut rows = deadline_tasks(ws, scheduled)?;
+    rows.extend(deadline_notes(ws, note)?);
+    Ok(rows)
+}
+
+/// Deadlines as the view shows them: each with its distance (`days`) and `group`, ordered by day, then priority
+/// (highest first), then title; beyond `horizon` days left out; an event made from a note (the Calendar's important
+/// notes) only once, as the note.
+fn deadlines(rows: Vec<ViewRow>, today: chrono::NaiveDate, horizon: Option<i64>) -> Vec<ViewRow> {
+    let notes: Vec<(String, String)> = rows.iter().filter(|r| r.props.get("from").is_some_and(|f| f == "note")).filter_map(|r| Some((r.path.clone()?, r.date.clone()?))).collect();
+    let twin = |r: &ViewRow| r.props.get("from").is_some_and(|f| f == "event") && notes.iter().any(|(p, d)| r.path.as_ref() == Some(p) && r.date.as_ref() == Some(d));
+    let rank = |r: &ViewRow| r.props.get("priority").and_then(|p| crate::tasks::Priority::from_name(p)).unwrap_or(crate::tasks::Priority::Normal);
+    let mut out: Vec<(i64, ViewRow)> = rows
+        .into_iter()
+        .filter(|r| !twin(r))
+        .filter_map(|mut r| {
+            let day = chrono::NaiveDate::parse_from_str(r.date.as_deref()?.get(..10)?, "%Y-%m-%d").ok()?;
+            let days = (day - today).num_days();
+            if horizon.is_some_and(|h| days > h) {
+                return None;
+            }
+            r.props.insert("days".into(), days.to_string());
+            r.props.insert("group".into(), deadline_group(days).into());
+            Some((days, r))
+        })
+        .collect();
+    out.sort_by(|(da, a), (db, b)| da.cmp(db).then(rank(b).cmp(&rank(a))).then_with(|| a.title.cmp(&b.title)));
+    out.into_iter().map(|(_, r)| r).collect()
+}
+
+/// The calendar plugin's deadline events (the plugin that `provides = ["calendar"]` and has a `deadlines` tool) as
+/// rows; none when no such plugin runs. A failing tool is said on stderr and leaves the files' deadlines standing.
+async fn deadline_events(ws: &Workspace, helpers: &crate::helper::Helpers) -> Vec<ViewRow> {
+    let root = ws.root().to_path_buf();
+    let Ok(cfg) = ws.config() else { return Vec::new() };
+    let off = cfg.plugins.off.clone();
+    let found = tokio::task::spawn_blocking(move || {
+        let all = crate::plugins::list(&root);
+        let id = crate::plugins::provider(&all, &off, "calendar")?.id.clone();
+        let has = crate::plugins::tool_parts(&root, &id).ok()?.0.iter().any(|t| t.name == "deadlines");
+        has.then_some(id)
+    })
+    .await
+    .ok()
+    .flatten();
+    let Some(id) = found else { return Vec::new() };
+    let store = crate::secrets::Store::for_vault(ws.root());
+    match crate::plugin_tools::call(ws.root(), &cfg, helpers, &store, &id, "deadlines", serde_json::json!({})).await {
+        Ok(answer) => plugin_rows(&answer)
+            .into_iter()
+            .map(|mut r| {
+                r.props.insert("from".into(), "event".into());
+                r
+            })
+            .collect(),
+        Err(e) => {
+            eprintln!("atlas: deadlines: {id} · deadlines: {e}; the vault's own deadlines stand");
+            Vec::new()
+        }
+    }
+}
+
 /// Evaluates a view block of `note` (workspace-relative) whose YAML body is `src`.
 pub fn evaluate(ws: &Workspace, note: &str, src: &str) -> Result<ViewResult> {
     let spec: Spec = serde_yaml::from_str(src).map_err(|e| Error::BadRequest(format!("view: {e}")))?;
@@ -278,17 +405,32 @@ pub fn evaluate(ws: &Workspace, note: &str, src: &str) -> Result<ViewResult> {
             let src = crate::files::read_text(ws, file)?.text;
             notes(ws, note, src, &date_prop)?
         }
+        // the files' deadlines only: the server adds the calendar's (views::from_plugin)
+        From::Deadlines => deadlines(deadline_files(ws, note, spec.scheduled)?, chrono::Local::now().date_naive(), spec.horizon),
         From::Plugin { .. } => return Err(Error::BadRequest("view: a plugin's rows are asked through the server (views::from_plugin)".into())),
     };
     finish(spec, rows)
 }
 
-/// The rows of a view block whose source is a plugin tool (`from: plugin:<id>/<tool>`), or None for any other block.
+/// The rows of a view block whose source calls a plugin's tool — `from: plugin:<id>/<tool>`, and `from: deadlines`
+/// (the calendar's deadline events beside the files') — or None for any other block, which [`evaluate`] reads.
 /// The tool is called like any (its permissions and secrets), with `args:` as its input.
-pub async fn from_plugin(ws: &Workspace, helpers: &crate::helper::Helpers, src: &str) -> Option<Result<ViewResult>> {
+pub async fn from_plugin(ws: &Workspace, helpers: &crate::helper::Helpers, note: &str, src: &str) -> Option<Result<ViewResult>> {
     let spec: Spec = serde_yaml::from_str(src).ok()?;
     let (plugin, tool) = match parse_from(spec.from.as_deref(), spec.filters.is_some()) {
         Ok(From::Plugin { plugin, tool }) => (plugin.to_string(), tool.to_string()),
+        Ok(From::Deadlines) => {
+            let (w, n, scheduled) = (ws.clone(), note.to_string(), spec.scheduled);
+            let files = tokio::task::spawn_blocking(move || deadline_files(&w, &n, scheduled)).await;
+            let mut rows = match files {
+                Ok(Ok(rows)) => rows,
+                Ok(Err(e)) => return Some(Err(e)),
+                Err(e) => return Some(Err(Error::Other(anyhow::anyhow!("deadlines: {e}")))),
+            };
+            rows.extend(deadline_events(ws, helpers).await);
+            let rows = deadlines(rows, chrono::Local::now().date_naive(), spec.horizon);
+            return Some(finish(spec, rows));
+        }
         _ => return None,
     };
     let input = match spec.args.as_ref().map(serde_json::to_value).transpose() {
@@ -346,7 +488,11 @@ fn finish(spec: Spec, rows: Vec<ViewRow>) -> Result<ViewResult> {
     // (only where the rows are tasks: a table of notes that says `limit:` must not lose its rows here)
     let of_tasks = matches!(parse_from(spec.from.as_deref(), spec.filters.is_some())?, From::Section | From::Note | From::Tasks);
     let rows = if of_tasks && (spec.kind == "task-list" || !spec.tasks.is_plain()) { ask(rows, &spec.tasks, chrono::Local::now().date_naive())? } else { rows };
-    let rows = if spec.dated { rows.into_iter().filter(|r| r.date.is_some()).collect() } else { rows };
+    let mut rows = if spec.dated { rows.into_iter().filter(|r| r.date.is_some()).collect() } else { rows };
+    // deadlines are not asked a task block's questions (their rows are notes and events too), but keep its `limit`
+    if matches!(parse_from(spec.from.as_deref(), spec.filters.is_some())?, From::Deadlines) {
+        rows.truncate(spec.tasks.limit.unwrap_or(usize::MAX));
+    }
     Ok(ViewResult { kind: spec.kind, rows })
 }
 
@@ -378,6 +524,80 @@ mod tests {
         // A file-reading evaluation never calls a tool.
         let d = tempfile::tempdir().unwrap();
         assert!(matches!(evaluate(&Workspace::open(d.path()).unwrap(), "x.md", "from: plugin:dav/events"), Err(Error::BadRequest(_))));
+    }
+
+    #[test]
+    fn deadlines_are_dated_tasks_and_notes_grouped_by_how_far_mail_and_done_notes_left_out() {
+        let d = tempfile::tempdir().unwrap();
+        let today = chrono::Local::now().date_naive();
+        let day = |n: i64| (today + chrono::Duration::days(n)).format("%Y-%m-%d").to_string();
+        let w = |name: &str, text: String| {
+            if let Some((dir, _)) = name.rsplit_once('/') {
+                std::fs::create_dir_all(d.path().join(dir)).unwrap();
+            }
+            std::fs::write(d.path().join(name), text).unwrap();
+        };
+        w(
+            "plan.md",
+            format!(
+                "- [ ] late report 📅 {}\n- [ ] call the bank ⏫ 📅 {}\n- [ ] buy stamps 📅 {}\n- [ ] book flights 📅 {}\n- [ ] far away 📅 {}\n- [x] already sent 📅 {}\n- [ ] only scheduled ⏳ {}\n- [ ] no date\n",
+                day(-2), day(0), day(0), day(3), day(40), day(1), day(2)
+            ),
+        );
+        w("Grant.md", format!("---\ndue: {}\n---\n# Grant\n", day(5)));
+        w("Thesis.md", format!("---\ndue: {}\nstatus: Done\n---\n", day(1)));
+        w("Talk.md", format!("---\ndue: {}\ndone: true\n---\n", day(1)));
+        w("Dropped.md", format!("---\ndue: {}\nstatus: cancelled\n---\n", day(1)));
+        w("mail/uni/Inbox/2026-11-01 Rapport.md", format!("---\ntype: email\nmessage_id: \"<a@uni.example.org>\"\ndue: {}\n---\n", day(1)));
+        w("mail/uni/Inbox/2026-11-02 Other.md", format!("---\nmessage_id: \"<b@uni.example.org>\"\ndue: {}\n---\n", day(1)));
+        let ws = Workspace::open(d.path()).unwrap();
+        let r = evaluate(&ws, "Home.page", "type: task-list\nfrom: deadlines").unwrap();
+        assert_eq!(r.kind, "task-list");
+        let got: Vec<_> = r.rows.iter().map(|x| (x.title.as_str(), x.props["group"].as_str(), x.props["from"].as_str())).collect();
+        assert_eq!(
+            got,
+            vec![
+                ("late report", "Overdue", "task"),
+                ("call the bank", "Today", "task"),
+                ("buy stamps", "Today", "task"),
+                ("book flights", "This week", "task"),
+                ("Grant", "This week", "note"),
+                ("far away", "Later", "task"),
+            ],
+            "by day, the higher priority first within a day; done tasks, done or cancelled notes and mail left out"
+        );
+        assert_eq!(r.rows[0].props["days"], "-2");
+        assert_eq!((r.rows[1].line, r.rows[1].done), (Some(2), Some(false)), "a task row can be ticked");
+        assert_eq!((r.rows[4].path.as_deref(), r.rows[4].line, r.rows[4].date.clone()), (Some("Grant.md"), None, Some(day(5))));
+        // ⏳ counts when asked; `horizon` keeps the near ones (overdue always), `limit` the first
+        let s = evaluate(&ws, "Home.page", "type: task-list\nfrom: deadlines\nscheduled: true\nhorizon: 7").unwrap();
+        let titles: Vec<_> = s.rows.iter().map(|x| x.title.as_str()).collect();
+        assert_eq!(titles, ["late report", "call the bank", "buy stamps", "only scheduled", "book flights", "Grant"]);
+        assert_eq!(evaluate(&ws, "Home.page", "from: deadlines\nlimit: 2").unwrap().rows.len(), 2);
+    }
+
+    #[test]
+    fn a_deadline_event_made_from_a_note_shows_once_as_the_note() {
+        let today = chrono::NaiveDate::from_ymd_opt(2026, 11, 16).unwrap();
+        let row = |title: &str, from: &str, path: Option<&str>, date: &str| ViewRow {
+            path: path.map(str::to_string),
+            line: None,
+            title: title.into(),
+            date: Some(date.into()),
+            done: None,
+            props: BTreeMap::from([("from".to_string(), from.to_string())]),
+        };
+        let rows = vec![
+            row("Grant", "note", Some("Grant.md"), "2026-11-20"),
+            row("Grant", "event", Some("Grant.md"), "2026-11-20"),
+            row("Exam", "event", None, "2026-11-16"),
+            row("Moved", "event", Some("Grant.md"), "2026-12-01"),
+        ];
+        let got: Vec<_> = deadlines(rows, today, None).into_iter().map(|r| (r.title, r.props["from"].clone(), r.props["group"].clone())).collect();
+        assert_eq!(
+            got,
+            vec![("Exam".into(), "event".into(), "Today".into()), ("Grant".into(), "note".into(), "This week".into()), ("Moved".into(), "event".into(), "Later".into())]
+        );
     }
 
     #[test]

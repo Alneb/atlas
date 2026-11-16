@@ -9,9 +9,28 @@ use crate::{mirror_guard, pdf_marks, vault_write, Workspace};
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
+use serde::Serialize;
+use ts_rs::TS;
 
-/// `notes/a.sync-conflict-20261020-231529-H3IIIUW.md` → `notes/a.md`; `None`: not a conflict copy.
-pub fn original_of(rel: &str) -> Option<String> {
+/// One conflict copy, read from the name Syncthing gave it (`GET /api/sync/conflicts`: the Sync conflicts view, the
+/// banner on a note).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, TS)]
+#[ts(export)]
+pub struct ConflictCopy {
+    /// The copy, vault-relative.
+    pub path: String,
+    /// The file it is a copy of.
+    pub original: String,
+    /// The device whose version the copy is: the short form of its Syncthing device ID (the ID's first 7
+    /// characters, as Syncthing → Actions → Show ID begins).
+    pub device: String,
+    /// When that device's version was set aside, in Syncthing's own clock reading: `2026-10-20T23:15:29`.
+    pub made: String,
+}
+
+/// `notes/a.sync-conflict-20261020-231529-H3IIIUW.md` → the copy of `notes/a.md` made on 2026-10-20 at 23:15:29 by
+/// device `H3IIIUW`; `None`: not a conflict copy.
+pub fn conflict_copy(rel: &str) -> Option<ConflictCopy> {
     let (dir, name) = rel.rsplit_once('/').map_or(("", rel), |(d, n)| (d, n));
     if name.starts_with(".syncthing.") {
         return None; // Syncthing's own temporary while it downloads one
@@ -20,16 +39,23 @@ pub fn original_of(rel: &str) -> Option<String> {
     let rest = &name[at + ".sync-conflict-".len()..];
     // <8 digits>-<6 digits>-<device id prefix>, then the extension if there is one
     let (stamp, ext) = rest.split_once('.').map_or((rest, None), |(s, e)| (s, Some(e)));
-    let mut parts = stamp.split('-');
-    let ok = parts.next().is_some_and(|d| d.len() == 8 && d.bytes().all(|b| b.is_ascii_digit()))
-        && parts.next().is_some_and(|t| t.len() == 6 && t.bytes().all(|b| b.is_ascii_digit()))
-        && parts.next().is_some_and(|id| !id.is_empty() && id.bytes().all(|b| b.is_ascii_alphanumeric()))
-        && parts.next().is_none();
-    if !ok || at == 0 {
+    let digits = |s: &str, n: usize| s.len() == n && s.bytes().all(|b| b.is_ascii_digit());
+    let [date, time, device] = stamp.split('-').collect::<Vec<_>>()[..] else { return None };
+    if at == 0 || !digits(date, 8) || !digits(time, 6) || device.is_empty() || !device.bytes().all(|b| b.is_ascii_alphanumeric()) {
         return None;
     }
     let file = format!("{}{}", &name[..at], ext.map(|e| format!(".{e}")).unwrap_or_default());
-    Some(if dir.is_empty() { file } else { format!("{dir}/{file}") })
+    Some(ConflictCopy {
+        path: rel.to_string(),
+        original: if dir.is_empty() { file } else { format!("{dir}/{file}") },
+        device: device.to_string(),
+        made: format!("{}-{}-{}T{}:{}:{}", &date[..4], &date[4..6], &date[6..], &time[..2], &time[2..4], &time[4..]),
+    })
+}
+
+/// `notes/a.sync-conflict-20261020-231529-H3IIIUW.md` → `notes/a.md`; `None`: not a conflict copy.
+pub fn original_of(rel: &str) -> Option<String> {
+    conflict_copy(rel).map(|c| c.original)
 }
 
 /// The result of a three-way merge.
@@ -40,30 +66,78 @@ pub enum Merged {
     Clashed,
 }
 
+/// What a merge does with lines both sides added at the same place, with no line of the base between them.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Inserts {
+    /// for the user, as in diff3 (a config's key added twice with two values must not become two keys)
+    Clash,
+    /// both kept, ours first: two captures appended to one day's log at once are two entries, not a clash. Never in
+    /// a note's properties (one key added on each side would make two), nor above the note's first line.
+    Both,
+}
+
+/// How the lines of `rel` merge: notes keep both sides' additions, every other file clashes.
+pub fn inserts_for(rel: &str) -> Inserts {
+    if rel.ends_with(".md") { Inserts::Both } else { Inserts::Clash }
+}
+
 /// diff3, by lines: what only one side changed is taken from it, the same change on both sides once.
 pub fn merge3(base: &str, ours: &str, theirs: &str) -> Merged {
+    merge3_with(base, ours, theirs, Inserts::Clash)
+}
+
+/// [`merge3`], with additions at the same place on both sides treated as `inserts` says.
+pub fn merge3_with(base: &str, ours: &str, theirs: &str, inserts: Inserts) -> Merged {
     let (b, o, t) = (lines(base), lines(ours), lines(theirs));
     let (Some(mo), Some(mt)) = (matches(&b, &o), matches(&b, &t)) else { return Merged::Clashed };
+    // the first base line an addition may go before: after the properties, never above the first line
+    let body = properties_end(&b).max(1);
     let mut out = String::new();
     let (mut pb, mut po, mut pt) = (0, 0, 0); // the next line of each not emitted yet
     // stable lines: a base line both sides kept, then the end of all three
     let stable = (0..b.len()).filter_map(|i| Some((i, mo[i]?, mt[i]?))).chain(std::iter::once((b.len(), o.len(), t.len())));
     for (sb, so, st) in stable {
         let (cb, co, ct) = (&b[pb..sb], &o[po..so], &t[pt..st]);
-        let take = if co == ct || ct == cb {
-            co
+        if co == ct || ct == cb {
+            co.iter().for_each(|l| out.push_str(l));
         } else if co == cb {
-            ct
+            ct.iter().for_each(|l| out.push_str(l));
+        } else if inserts == Inserts::Both && cb.is_empty() && sb >= body {
+            both(&mut out, co, ct);
         } else {
             return Merged::Clashed;
-        };
-        take.iter().for_each(|l| out.push_str(l));
+        }
         if sb < b.len() {
             out.push_str(b[sb]);
         }
         (pb, po, pt) = (sb + 1, so + 1, st + 1);
     }
     Merged::Clean(out)
+}
+
+/// Two additions at one place: the longer when one begins with the other (the same entry, one side further on), else
+/// ours then theirs, a missing last newline put between them.
+fn both(out: &mut String, ours: &[&str], theirs: &[&str]) {
+    if theirs.starts_with(ours) {
+        return theirs.iter().for_each(|l| out.push_str(l));
+    }
+    if ours.starts_with(theirs) {
+        return ours.iter().for_each(|l| out.push_str(l));
+    }
+    ours.iter().for_each(|l| out.push_str(l));
+    if !out.ends_with('\n') {
+        out.push('\n');
+    }
+    theirs.iter().for_each(|l| out.push_str(l));
+}
+
+/// The number of lines a note's properties take (`---` … `---`), 0 when it has none.
+fn properties_end(lines: &[&str]) -> usize {
+    if lines.first().is_none_or(|l| l.trim_end() != "---") {
+        return 0;
+    }
+    // never closed: all of it counts as properties, so nothing is added on both sides
+    lines.iter().skip(1).position(|l| l.trim_end() == "---").map_or(lines.len(), |at| at + 2)
 }
 
 /// Lines with their endings, so the merge gives back the file byte for byte where nothing changed.
@@ -176,7 +250,7 @@ pub fn settle(ws: &Workspace, copy: &str) -> crate::Result<Settled> {
         // a note with PDF marks: its text by lines, its marks mark by mark (with no base, only when the text agrees)
         (Some(b), true) => pdf_marks::merge_notes(&b, &ours, &theirs).map(Merged::Clean),
         (None, true) if pdf_marks::outside(&ours) == pdf_marks::outside(&theirs) => pdf_marks::merge_notes(&ours, &ours, &theirs).map(Merged::Clean),
-        (Some(b), false) => Some(merge3(&b, &ours, &theirs)),
+        (Some(b), false) => Some(merge3_with(&b, &ours, &theirs, inserts_for(&orig))),
         (None, _) => return Ok(Settled::Left("no base kept for it".into())),
     };
     match merged.unwrap_or(Merged::Clashed) {
@@ -219,6 +293,28 @@ fn all_copies(root: &Path) -> Vec<String> {
         .filter_map(|e| crate::paths::rel_path(root, e.path()))
         .filter(|rel| original_of(rel).is_some())
         .collect()
+}
+
+/// The conflict copies left for the user, oldest first: every one in the vault's own files (a copy the core is merging
+/// is gone a moment later), or, with `of`, the copies of that one file (looked for in its folder only). The single
+/// source of what the UI lists and counts.
+pub fn left_copies(root: &Path, of: Option<&str>) -> Vec<ConflictCopy> {
+    let found = match of {
+        None => all_copies(root),
+        Some(file) => {
+            let dir = file.rsplit_once('/').map_or("", |(d, _)| d);
+            let here = std::fs::read_dir(if dir.is_empty() { root.to_path_buf() } else { root.join(dir) });
+            let names = here.into_iter().flatten().flatten().filter(|e| e.file_type().is_ok_and(|t| t.is_file()));
+            names
+                .filter_map(|e| e.file_name().into_string().ok())
+                .map(|n| if dir.is_empty() { n } else { format!("{dir}/{n}") })
+                .filter(|rel| in_vault_files(rel) && original_of(rel).as_deref() == Some(file))
+                .collect()
+        }
+    };
+    let mut copies: Vec<ConflictCopy> = found.iter().filter_map(|c| conflict_copy(c)).collect();
+    copies.sort_by(|a, b| a.made.cmp(&b.made).then_with(|| a.path.cmp(&b.path)));
+    copies
 }
 
 /// Settles `copy` and logs what was done; `None` when nothing is left to do.
@@ -421,6 +517,30 @@ mod tests {
     }
 
     #[test]
+    fn a_days_log_keeps_what_both_devices_added_at_its_end() {
+        // the shape of a real case: one device appended a capture, the other added a picture's text under the
+        // capture before it and the day's weather to the properties; diff3 called it a clash and a capture was lost
+        let base = "---\ndate: 2026-01-02\n---\n## Log\n- 10:24 Screen\n  ![[a.png|160]]\n\n```view\ntype: activity\n```\n";
+        let ours = "---\ndate: 2026-01-02\nweather: 5 °C\n---\n## Log\n- 10:24 Screen\n  ![[a.png|160]]\n  > [!ocr]- Text in a.png\n  > hello\n\n```view\ntype: activity\n```\n";
+        let theirs = "---\ndate: 2026-01-02\n---\n## Log\n- 10:24 Screen\n  ![[a.png|160]]\n- 10:24 Screen\n  ![[b.png|160]]\n\n```view\ntype: activity\n```\n";
+        assert_eq!(merge3(base, ours, theirs), Merged::Clashed, "plain diff3: a clash");
+        let Merged::Clean(m) = merge3_with(base, ours, theirs, Inserts::Both) else { panic!("both additions kept") };
+        assert_eq!(m, "---\ndate: 2026-01-02\nweather: 5 °C\n---\n## Log\n- 10:24 Screen\n  ![[a.png|160]]\n  > [!ocr]- Text in a.png\n  > hello\n- 10:24 Screen\n  ![[b.png|160]]\n\n```view\ntype: activity\n```\n");
+        // one side's addition the start of the other's: once
+        assert_eq!(merge3_with("a\n", "a\nx\n", "a\nx\ny\n", Inserts::Both), Merged::Clean("a\nx\ny\n".into()));
+        // at the end of a file with no last newline
+        assert_eq!(merge3_with("a\n", "a\nx", "a\ny\n", Inserts::Both), Merged::Clean("a\nx\ny\n".into()));
+        // a property added on each side: two keys would be wrong, so it stays a clash
+        assert_eq!(merge3_with("---\na: 1\n---\nt\n", "---\na: 1\nb: 2\n---\nt\n", "---\na: 1\nb: 3\n---\nt\n", Inserts::Both), Merged::Clashed);
+        // a line changed on both sides is still the user's
+        assert_eq!(merge3_with("a\nb\n", "a\nb (here)\n", "a\nb (there)\n", Inserts::Both), Merged::Clashed);
+        // above the first line, nothing is added from both
+        assert_eq!(merge3_with("a\n", "x\na\n", "y\na\n", Inserts::Both), Merged::Clashed);
+        assert_eq!(inserts_for("notes/log/2026-01-02.md"), Inserts::Both);
+        assert_eq!(inserts_for(".atlas/config.toml"), Inserts::Clash);
+    }
+
+    #[test]
     fn trimmed_alignment_agrees_with_the_full_table() {
         let a: Vec<String> = (0..300).map(|i| format!("l{}\n", i % 37)).collect();
         let mut b = a.clone();
@@ -561,6 +681,36 @@ mod tests {
         std::fs::write(d.path().join(a), "theirs\n").unwrap();
         settle_found(&ws, &bus, &Told::of(&ws));
         assert_eq!(heard(), 1);
+    }
+
+    #[test]
+    fn a_copys_name_says_its_file_device_and_time() {
+        let c = conflict_copy("notes/log.sync-conflict-20261020-231529-H3IIIUW.md").unwrap();
+        assert_eq!((c.original.as_str(), c.device.as_str(), c.made.as_str()), ("notes/log.md", "H3IIIUW", "2026-10-20T23:15:29"));
+        let c = conflict_copy("Makefile.sync-conflict-20261020-231529-H3IIIUW").unwrap();
+        assert_eq!(c.original, "Makefile");
+        for not in ["notes/log.md", ".sync-conflict-20261020-231529-H3IIIUW.md", "a.sync-conflict-2026102-231529-H3IIIUW.md",
+            "a.sync-conflict-20261020-231529-H3IIIUW-X.md", "a.sync-conflict-20261020-231529-.md", ".syncthing.a.sync-conflict-20261020-231529-H3IIIUW.md.tmp"] {
+            assert!(conflict_copy(not).is_none(), "{not}");
+        }
+    }
+
+    #[test]
+    fn the_copies_left_are_listed_by_the_same_rule_as_they_are_settled() {
+        let d = tempfile::tempdir().unwrap();
+        for f in ["notes/b.sync-conflict-20261028-113314-ABCDEFG.md", "notes/b.sync-conflict-20261027-190410-J3SZH65.md",
+            "a.sync-conflict-20261101-080000-ABCDEFG.md", ".obsidian/w.sync-conflict-20260531-190730-FAF6EWY.json",
+            ".atlas/trash/1/b.sync-conflict-20261027-190410-J3SZH65.md", "notes/.hidden/b.sync-conflict-20261027-190410-J3SZH65.md", "notes/b.md"] {
+            std::fs::create_dir_all(d.path().join(f).parent().unwrap()).unwrap();
+            std::fs::write(d.path().join(f), "x").unwrap();
+        }
+        let all: Vec<String> = left_copies(d.path(), None).into_iter().map(|c| c.path).collect();
+        assert_eq!(all, ["notes/b.sync-conflict-20261027-190410-J3SZH65.md", "notes/b.sync-conflict-20261028-113314-ABCDEFG.md", "a.sync-conflict-20261101-080000-ABCDEFG.md"]);
+        let of_b: Vec<String> = left_copies(d.path(), Some("notes/b.md")).into_iter().map(|c| c.device).collect();
+        assert_eq!(of_b, ["J3SZH65", "ABCDEFG"]);
+        assert!(left_copies(d.path(), Some("a.md")).len() == 1);
+        assert!(left_copies(d.path(), Some("notes/.hidden/b.md")).is_empty(), "a hidden folder is not the vault's own");
+        assert!(left_copies(d.path(), Some("gone/x.md")).is_empty());
     }
 
     #[test]

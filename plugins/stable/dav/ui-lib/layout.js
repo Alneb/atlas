@@ -2498,44 +2498,96 @@ function na(e) {
 		return null;
 	}
 }
-//#endregion
-//#region plugins/stable/dav/ui/src/layout.ts
-function ra(e, t) {
-	let n = Ni(t).getTime(), r = Pi(Ni(t), 1).getTime(), i = e.filter((e) => !Ui(e)).map((e) => ({
+function ra(e, t, n = 30, r = 14) {
+	let i = Ni(t).getTime(), a = Pi(Ni(t), 1).getTime(), o = new aa(), s = e.filter((e) => !Ui(e)).map((e) => ({
 		e,
 		s: Vi(e).getTime(),
 		t: Math.max(Hi(e).getTime(), Vi(e).getTime() + 9e5)
-	})).filter((e) => e.s < r && e.t > n).sort((e, t) => e.s - t.s || t.t - e.t), a = [], o = [], s = -Infinity, c = () => {
-		let e = Math.max(1, ...o.map((e) => e.col + 1));
-		for (let t of o) a.push({
-			e: t.e,
-			top: t.top,
-			bottom: t.bottom,
-			col: t.col,
-			cols: e,
-			startsBefore: t.startsBefore,
-			endsAfter: t.endsAfter
-		});
-		o = [];
-	};
-	for (let e of i) {
-		e.s >= s && c();
-		let t = Math.max(e.s, n), i = Math.min(e.t, r), a = new Set(o.filter((t) => t.t > e.s).map((e) => e.col)), l = 0;
-		for (; a.has(l);) l++;
-		o.push({
-			e: e.e,
-			top: (t - n) / 6e4,
-			bottom: (i - n) / 6e4,
-			col: l,
-			cols: 1,
-			startsBefore: e.s < n,
-			endsAfter: e.t > r,
-			t: e.t
-		}), s = Math.max(s, e.t);
+	})).filter((e) => e.s < a && e.t > i).map((e) => ({
+		e: e.e,
+		top: (Math.max(e.s, i) - i) / 6e4,
+		bottom: (Math.min(e.t, a) - i) / 6e4,
+		startsBefore: e.s < i,
+		endsAfter: e.t > a,
+		depth: 0,
+		host: null,
+		col: 0,
+		span: 1,
+		cols: 1,
+		box: ia,
+		among: o,
+		over: new aa()
+	})).sort((e, t) => e.top - t.top || t.bottom - e.bottom), c = [];
+	for (let e of s) {
+		c = c.filter((t) => t.bottom > e.top);
+		let t = null, r = null;
+		for (let i of c) i.top <= e.top - n ? (!t || i.depth >= t.depth) && (t = i) : (!r || i.depth >= r.depth) && (r = i);
+		t && t.among.hasFree(e.top) ? t = t.host : !t && r && (t = r.host), e.host = t, e.depth = t ? t.depth + 1 : 0, e.among = t ? t.over : o, e.among.add(e), c.push(e);
 	}
-	return c(), a;
+	o.finish();
+	for (let e of s) e.over.finish();
+	for (let e of s) {
+		let t = e.host ? {
+			x: e.host.box.x,
+			xpx: e.host.box.xpx + r,
+			w: e.host.box.w,
+			wpx: e.host.box.wpx - r
+		} : ia, n = e.col / e.cols, i = e.span / e.cols;
+		e.box = {
+			x: t.x + n * t.w,
+			xpx: t.xpx + n * t.wpx,
+			w: i * t.w,
+			wpx: i * t.wpx
+		};
+	}
+	return s.map((e) => ({
+		e: e.e,
+		top: e.top,
+		bottom: e.bottom,
+		depth: e.depth,
+		box: e.box,
+		startsBefore: e.startsBefore,
+		endsAfter: e.endsAfter
+	}));
 }
-function ia(e, t) {
+var ia = {
+	x: 0,
+	xpx: 0,
+	w: 1,
+	wpx: 0
+}, aa = class {
+	cluster = [];
+	ends = [];
+	end = -Infinity;
+	hasFree(e) {
+		return e < this.end && this.ends.length > 1 && this.ends.some((t) => t <= e);
+	}
+	add(e) {
+		e.top >= this.end && this.finish();
+		let t = this.ends.findIndex((t) => t <= e.top);
+		t < 0 ? (t = this.ends.length, this.ends.push(e.bottom)) : this.ends[t] = e.bottom, e.col = t, this.cluster.push(e), this.end = Math.max(this.end, e.bottom);
+	}
+	finish() {
+		let e = this.ends.length, t = this.ends.map(() => []);
+		for (let e of this.cluster) t[e.col].push(e);
+		for (let n of this.cluster) {
+			n.cols = e;
+			let r = n.col + 1;
+			for (; r < e && !oa(t[r], n);) r++;
+			n.span = r - n.col;
+		}
+		this.cluster = [], this.ends = [], this.end = -Infinity;
+	}
+};
+function oa(e, t) {
+	let n = 0, r = e.length;
+	for (; n < r;) {
+		let i = n + r >> 1;
+		e[i].bottom <= t.top ? n = i + 1 : r = i;
+	}
+	return n < e.length && e[n].top < t.bottom;
+}
+function sa(e, t) {
 	if (!t.length) return [];
 	let n = Ni(t[0]).getTime(), r = (e) => Math.round((e - n) / Mi), i = e.filter(Ui).map((e) => {
 		let t = Vi(e).getTime(), n = Hi(e).getTime() - 1;
@@ -2557,7 +2609,7 @@ function ia(e, t) {
 		};
 	});
 }
-function aa(e, t) {
+function ca(e, t) {
 	let n = Ni(t).getTime(), r = Pi(Ni(t), 1).getTime();
 	return e.filter((e) => {
 		let t = Vi(e).getTime(), i = Math.max(Hi(e).getTime(), t + 1);
@@ -2565,4 +2617,4 @@ function aa(e, t) {
 	});
 }
 //#endregion
-export { vr as $, xi as A, Zr as B, Ji as C, Di as D, Ri as E, di as F, Mr as G, zr as H, ii as I, Ar as J, Er as K, ri as L, gi as M, ui as N, Ei as O, fi as P, _r as Q, ni as R, Gi as S, Wi as T, Fr as U, Gr as V, Pr as W, yr as X, br as Y, hr as Z, Qi as _, Ke as _t, Pi as a, bn as at, Yi as b, Te as bt, Hi as c, en as ct, Xi as d, rn as dt, cr as et, Ui as f, Kt as ft, Zi as g, tt as gt, na as h, pt as ht, ea as i, $n as it, _i as j, Ci as k, Vi as l, tn as lt, ta as m, P as mt, ia as n, or as nt, Fi as o, mn as ot, ki as p, F as pt, Tr as q, aa as r, Q as rt, ji as s, Yt as st, ra as t, sr as tt, Ki as u, nn as ut, $i as v, Ge as vt, zi as w, Ni as x, m as xt, Ii as y, Ee as yt, $r as z };
+export { vr as $, xi as A, Zr as B, Ji as C, Di as D, Ri as E, di as F, Mr as G, zr as H, ii as I, Ar as J, Er as K, ri as L, gi as M, ui as N, Ei as O, fi as P, _r as Q, ni as R, Gi as S, Wi as T, Fr as U, Gr as V, Pr as W, yr as X, br as Y, hr as Z, Qi as _, Ke as _t, Pi as a, bn as at, Yi as b, Te as bt, Hi as c, en as ct, Xi as d, rn as dt, cr as et, Ui as f, Kt as ft, Zi as g, tt as gt, na as h, pt as ht, ea as i, $n as it, _i as j, Ci as k, Vi as l, tn as lt, ta as m, P as mt, sa as n, or as nt, Fi as o, mn as ot, ki as p, F as pt, Tr as q, ca as r, Q as rt, ji as s, Yt as st, ra as t, sr as tt, Ki as u, nn as ut, $i as v, Ge as vt, zi as w, Ni as x, m as xt, Ii as y, Ee as yt, $r as z };

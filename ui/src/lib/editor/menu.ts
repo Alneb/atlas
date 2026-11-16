@@ -54,6 +54,9 @@ function items(view: EditorView, target: HTMLElement, o: EditorMenuOptions): Men
   const some = !view.state.selection.main.empty, link = linkAt(target);
   const list: MenuItem[] = [];
   if (link && o.onOpenLink) list.push({ label: "Open link", icon: "link", run: () => o.onOpenLink!(link) }, "sep");
+  // a DOI link the library has not got yet (doi-links.ts): Catalog's own dialog files it
+  const unfiled = target.closest<HTMLElement>(".cm-link.not-in-library[data-href]")?.dataset.href;
+  if (unfiled) list.push({ label: "Add to library…", icon: "library", run: () => void import("../doi-links").then((m) => m.addToLibrary(unfiled)) }, "sep");
   if (o.kind === "code") list.push(...codeItems(view), "sep");
   list.push(
     { label: "Cut", icon: "scissors", hint: "Ctrl+X", disabled: !some, run: () => { void copy(selected(view)); view.dispatch(view.state.replaceSelection(""), { userEvent: "delete.cut" }); } },

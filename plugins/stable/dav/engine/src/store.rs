@@ -10,7 +10,7 @@ use std::path::Path;
 use std::sync::Mutex;
 
 /// Bumped when the schema changes: an older cache is dropped and synced again.
-const SCHEMA: i64 = 2; // 2: sources carry their account; CalDAV ids are `<account>/<calendar>`
+const SCHEMA: i64 = 3; // 2: sources carry their account; CalDAV ids are `<account>/<calendar>`; 3: default alerts
 
 /// Where a source's events come from.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -57,6 +57,11 @@ pub struct Source {
     pub synced: i64,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub error: Option<String>,
+    /// the server's default alert for timed / all-day events (caldav::Calendar), as a VALARM's text
+    #[serde(skip)]
+    pub alarm: Option<String>,
+    #[serde(skip)]
+    pub alarm_day: Option<String>,
 }
 
 /// A CalDAV calendar's id: `<account>/<last part of its address>` (`home/personal`), or the whole path when another
@@ -128,7 +133,8 @@ impl Store {
         }
         c.execute_batch(
             "CREATE TABLE IF NOT EXISTS sources (id TEXT PRIMARY KEY, kind TEXT NOT NULL, account TEXT, url TEXT NOT NULL, name TEXT NOT NULL,
-               color TEXT, writable INTEGER NOT NULL, ctag TEXT, token TEXT, synced INTEGER NOT NULL DEFAULT 0, error TEXT);
+               color TEXT, writable INTEGER NOT NULL, ctag TEXT, token TEXT, synced INTEGER NOT NULL DEFAULT 0, error TEXT,
+               alarm TEXT, alarm_day TEXT);
              CREATE TABLE IF NOT EXISTS objects (source TEXT NOT NULL, href TEXT NOT NULL, etag TEXT, uid TEXT NOT NULL,
                ics TEXT NOT NULL, lo INTEGER NOT NULL, hi INTEGER, words TEXT NOT NULL, PRIMARY KEY (source, href));
              CREATE INDEX IF NOT EXISTS objects_uid ON objects(uid);
@@ -186,7 +192,7 @@ impl Store {
 
     pub fn sources(&self) -> Vec<Source> {
         let db = self.db();
-        let Ok(mut q) = db.prepare("SELECT id, kind, account, url, name, color, writable, ctag, token, synced, error FROM sources ORDER BY kind, account, name") else { return vec![] };
+        let Ok(mut q) = db.prepare("SELECT id, kind, account, url, name, color, writable, ctag, token, synced, error, alarm, alarm_day FROM sources ORDER BY kind, account, name") else { return vec![] };
         q.query_map([], |r| {
             Ok(Source {
                 id: r.get(0)?,
@@ -200,6 +206,8 @@ impl Store {
                 token: r.get(8)?,
                 synced: r.get(9)?,
                 error: r.get(10)?,
+                alarm: r.get(11)?,
+                alarm_day: r.get(12)?,
             })
         })
         .map(|rows| rows.flatten().collect())
@@ -214,9 +222,9 @@ impl Store {
     pub fn put_source(&self, s: &Source) -> Result<(), String> {
         self.db()
             .execute(
-                "INSERT INTO sources (id, kind, account, url, name, color, writable) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
-                 ON CONFLICT(id) DO UPDATE SET kind = ?2, account = ?3, url = ?4, name = ?5, color = ?6, writable = ?7",
-                params![s.id, s.kind.as_str(), s.account, s.url, s.name, s.color, s.writable as i64],
+                "INSERT INTO sources (id, kind, account, url, name, color, writable, alarm, alarm_day) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)
+                 ON CONFLICT(id) DO UPDATE SET kind = ?2, account = ?3, url = ?4, name = ?5, color = ?6, writable = ?7, alarm = ?8, alarm_day = ?9",
+                params![s.id, s.kind.as_str(), s.account, s.url, s.name, s.color, s.writable as i64, s.alarm, s.alarm_day],
             )
             .map(|_| ())
             .map_err(err)
@@ -385,7 +393,7 @@ mod tests {
     #[test]
     fn objects_are_found_by_range_uid_and_words() {
         let s = Store::memory();
-        s.put_source(&Source { id: "c1".into(), kind: Kind::Caldav, account: Some("a".into()), url: "https://x.example/c1/".into(), name: "Work".into(), color: None, writable: true, ctag: None, token: None, synced: 0, error: None }).unwrap();
+        s.put_source(&Source { id: "c1".into(), kind: Kind::Caldav, account: Some("a".into()), url: "https://x.example/c1/".into(), name: "Work".into(), color: None, writable: true, ctag: None, token: None, synced: 0, error: None, alarm: None, alarm_day: None }).unwrap();
         s.put("c1", "a1.ics", Some("\"e1\""), EV).unwrap();
         let c = vec!["c1".to_string()];
         let t = |d: &str| chrono::DateTime::parse_from_rfc3339(d).unwrap().timestamp();

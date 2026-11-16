@@ -68,12 +68,30 @@ function apply(c: WorkspaceConfig): void {
   root.style.setProperty("--prose-line-height", String(c.editor.prose_line_height || 1.68));
   if (c.ui.ui_font.trim()) root.style.setProperty("--font-ui", font(c.ui.ui_font, "ui-sans-serif, system-ui, sans-serif"));
   else root.style.removeProperty("--font-ui");
-  applyAccent(root, high ? phosphorAccent(root, ui.accent.trim(), theme === "light") : ui.accent.trim());
+  // the phone app on Android 12+, Atlas's own palette and no accent chosen: the wallpaper's (Material You) — its accent
+  // here, its surface for the app's bars below (AtlasActivity Bridge.wallpaper; "" on older Android or an older app)
+  const you = !eink && !high && !ui.accent.trim() && root.dataset.palette === "atlas" ? wallpaper(theme === "dark") : null;
+  applyAccent(root, high ? phosphorAccent(root, ui.accent.trim(), theme === "light") : ui.accent.trim() || (you?.accent ?? ""));
   root.style.setProperty("--prose-width", c.editor.prose_width ? `${c.editor.prose_width}ch` : "none");
   // the phone app's own bars take the page's background (AtlasActivity Bridge.paper; an older app has no such call):
   // the palette's own token, not the body's computed colour, which is transparent (read as black) until it is styled
-  (globalThis as unknown as { AtlasNative?: { paper?: (css: string) => void } }).AtlasNative?.paper?.(getComputedStyle(root).getPropertyValue("--bg-app").trim());
+  // with the accent, so the app's home-screen widget is drawn in the vault's palette too
+  const shell = nativeLook();
+  shell?.paper?.(you?.bars ?? getComputedStyle(root).getPropertyValue("--bg-app").trim());
+  shell?.accent?.(getComputedStyle(root).getPropertyValue("--accent").trim());
   for (const f of listeners) f(c);
+}
+
+/** The phone app's side of the look (AtlasActivity's Bridge; each call missing in an older app). */
+interface NativeLook { paper?(css: string): void; accent?(css: string): void; wallpaper?(dark: boolean): string }
+const nativeLook = () => (globalThis as unknown as { AtlasNative?: NativeLook }).AtlasNative;
+/** The wallpaper's colours for a dark or light scheme, `#rrggbb` each; null when the app has none to give. */
+function wallpaper(dark: boolean): { accent: string; bars: string } | null {
+  try {
+    const w = JSON.parse(nativeLook()?.wallpaper?.(dark) || "null") as { accent?: string; bars?: string } | null;
+    const ok = (x?: string) => !!x && /^#[0-9a-f]{6}$/i.test(x);
+    return w && ok(w.accent) && ok(w.bars) ? { accent: w.accent!, bars: w.bars! } : null;
+  } catch { return null; }
 }
 
 // The accent family derives from one colour; the palette's accent stays when none is set. A chosen accent also tints

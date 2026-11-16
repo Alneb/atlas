@@ -5,8 +5,8 @@
 //
 // The sweet spot, measured over a long day of use, and a setting: the 8 most recently seen tabs never sleep
 // (switching among a working set stays instant), others after 10 min unseen — notes 30 (their undo history goes too).
-// Never: a terminal (its shell's screen), a tab with unsaved changes, a tab on screen. A web tab is a whole WebKit
-// process of its own (~50–100 MB, the native view of app/webtab.rs): it is not one of the awake tabs, and sleeps
+// Never: a terminal (its shell's screen), a tab with unsaved changes, a tab on screen. A web tab holds a whole site
+// (often a WebKit process of its own for its frame, ~50–100 MB): it is not one of the awake tabs, and sleeps
 // after the plain time unseen however recently the others were seen.
 import type { PaneKind } from "./panes";
 import { settings } from "./settings.svelte";

@@ -46,6 +46,13 @@ export function anchorLine(md: string, anchor: string): number | undefined {
   return i < 0 ? undefined : i + 1;
 }
 
+/** A wikilink's target and its anchor (heading or `^block`), without brackets and alias. */
+export function linkParts(raw: string): [string, string | undefined] {
+  const t = raw.replace(/^\[\[|\]\]$/g, "").split("|")[0];
+  const at = t.indexOf("#");
+  return at < 0 ? [t.trim(), undefined] : [t.slice(0, at).trim(), t.slice(at + 1).trim() || undefined];
+}
+
 /** What `name` names, as Obsidian embeds it: a `^block` — the list item or paragraph ending in ` ^block`, or the block
  *  above a `^block` alone on its line, without the id — else the heading named `name` down to the next heading of its
  *  level or above; the whole text when there is neither. */

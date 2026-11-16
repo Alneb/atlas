@@ -1,15 +1,14 @@
-// One task line as Obsidian Tasks writes it, taken apart and put back together — for the "Create or edit task"
-// dialog (components/TaskDialog.svelte). The file keeps the emoji fields (Obsidian and the core's tasks.rs read
-// them); fields are written back in Obsidian Tasks' order so a line edited here and there stays the same.
-import { localDay } from "./local-day";
-import { DATE_MARKS, fieldPattern, type DateField } from "./task-fields";
+// One task line as Obsidian Tasks writes it, taken apart for the "Create or edit task" dialog
+// (components/TaskDialog.svelte). Only the reader lives here: the line is written back by the core's one task
+// writer (tasks.rs `render_line`, `POST /api/task/render`, in Obsidian Tasks' order). Both readers are checked
+// against one fixture list (ui/tests/fixtures/task-lines.json) while this one remains.
+import { DATE_MARKS, fieldPattern } from "./task-fields";
 
 export type Priority = "highest" | "high" | "medium" | "none" | "low" | "lowest";
 const PRIORITY_MARK: Record<Exclude<Priority, "none">, string> = { highest: "🔺", high: "⏫", medium: "🔼", low: "🔽", lowest: "⏬" };
-/** The marker each date is written with (any of the plugin's is read: task-fields.ts). */
-const DATE_MARK: Record<DateField, string> = { created: "➕", start: "🛫", scheduled: "⏳", due: "📅", done: "✅" };
 
-export interface TaskFields {
+/** The form's fields; with the line's own parts, the core's `TaskFields` (`POST /api/task/render`). */
+export interface TaskForm {
   /** What the task says, with its #tags and [[links]]; no fields. */
   description: string;
   done: boolean;
@@ -19,7 +18,7 @@ export interface TaskFields {
   /** YYYY-MM-DD or "". */
   created: string; start: string; scheduled: string; due: string; doneOn: string;
 }
-export interface TaskLine extends TaskFields {
+export interface TaskLine extends TaskForm {
   /** What comes before the box: indentation and the list mark (`  - `, `1. `). */
   lead: string;
   /** The status character inside the box (` `, `x`, or another one kept as it was: `/`, `-`). */
@@ -49,18 +48,4 @@ export function parseTaskLine(text: string): TaskLine {
     return "";
   }).replace(/\s{2,}/g, " ").trim();
   return t;
-}
-
-/** The line written back: description, then priority, repeat, created, start, scheduled, due, done (Obsidian
- *  Tasks' order). Ticking it here writes today's ✅ the way a tick does; opening it again drops the date. */
-export function formatTaskLine(t: TaskLine): string {
-  const status = t.done ? (t.status === "X" ? "X" : "x") : t.status === "x" || t.status === "X" ? " " : t.status;
-  const doneOn = t.done ? t.doneOn || localDay(new Date()) : "";
-  const parts = [t.description.trim()];
-  if (t.priority !== "none") parts.push(PRIORITY_MARK[t.priority]);
-  if (t.repeat.trim()) parts.push(`🔁 ${/^every\b/.test(t.repeat.trim()) ? t.repeat.trim() : `every ${t.repeat.trim()}`}`);
-  const days: [DateField, string][] = [["created", t.created], ["start", t.start], ["scheduled", t.scheduled], ["due", t.due], ["done", doneOn]];
-  for (const [f, day] of days) if (day) parts.push(`${DATE_MARK[f]} ${day}`);
-  if (t.blockId) parts.push(`^${t.blockId}`);
-  return `${t.lead}[${status}] ${parts.filter(Boolean).join(" ")}`;
 }

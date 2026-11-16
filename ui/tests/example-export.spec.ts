@@ -10,7 +10,7 @@ const put = (r: APIRequestContext, path: string, text: string) => r.put("/api/fi
 const example = (f: string) => readFileSync(fileURLToPath(new URL(`../../plugins/beta/export/${f}`, import.meta.url)), "utf8");
 
 test.beforeAll(async ({ request }) => {
-  for (const f of ["main.js", "view.js", "plugin.toml", "helper.js", "tikz.lua"]) await put(request, `.atlas/plugins/export/${f}`, example(f));
+  for (const f of ["main.js", "view.js", "plugin.toml", "helper.js", "tikz.lua", "atlas.typst"]) await put(request, `.atlas/plugins/export/${f}`, example(f));
 });
 test.afterAll(async ({ request }) => { await put(request, ".atlas/plugins/export/main.js", "export function register() {}\n"); });
 

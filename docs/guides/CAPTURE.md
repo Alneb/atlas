@@ -207,3 +207,10 @@ at once (`atlas_core::catalog_hint`, read again every 30 s; nothing asked of any
 Every box takes this line from one place, `atlas_core::capture::describe`: the desktop box and the web (`POST
 /api/capture/describe`) with the vault's settings; the phone through JNI (`crates/atlas-android/src/phone.rs`) still
 without its vault, so without the catalog's kind (the Android lane).
+
+**A share from the phone** comes through the same rules: `share::shared` (atlas-capture) makes the box's text of what
+the share sheet brought — every address untracked by atlas-text's `links.rs` (the one list, with keys that track only on
+one site in `SITE_TRACKING`), the subject turned into a title by its shape (`share::title_of`). The phone reads the
+share's pieces from every place apps put them (the text, ClipData, `SEND_MULTIPLE`, HTML links, the subject) and the
+box opens ready to type before the core has answered: docs/guides/ANDROID.md, "The box ready to type at once, shares
+read by shape".

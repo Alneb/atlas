@@ -22,6 +22,9 @@ final class Local {
 
     private static final Map<String, Endpoint> known = new HashMap<>();
 
+    /** Whether the core for `vault` is already running here (asking a started core costs nothing; starting one does). */
+    static synchronized boolean running(String vault) { return known.containsKey(vault); }
+
     static synchronized Endpoint of(Context c, String vault) throws IOException {
         Endpoint e = known.get(vault);
         if (e != null) return e;

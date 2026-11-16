@@ -106,8 +106,18 @@ export function registerHome(atlas, language) {
     atlas.shell.greetingItem({ id: "week", icon: icon("calendar", "📅"), text: `${W().week} ${week} · ${W().day} ${yday}`, order: 30 });
     atlas.shell.greetingItem({ id: "moon", icon: MOONS[moon.phase], text: W().moon[moon.phase], title: `${moon.lit} %`, order: 31 });
     const due = atlas.shell.greetingItem({ id: "due", icon: icon("check", "☑"), text: "…", order: 20 });
-    const count = async (when) => ((await atlas.view(`type: task-list\nfrom: tasks\ndue: ${when}`)).rows ?? []).filter((r) => !r.done).length;
-    void Promise.all([count("today"), count("overdue")]).then(([today, over]) => {
+    // the core's deadlines (dated tasks, notes with due:, deadline calendars): the same query as Home's box and the
+    // Deadlines page, counted by its groups; a core older than `from: deadlines` counts the dated tasks as before
+    const count = async () => {
+      const rows = (await atlas.view("type: task-list\nfrom: deadlines").catch(() => null))?.rows;
+      if (!rows) {
+        const tasks = async (when) => ((await atlas.view(`type: task-list\nfrom: tasks\ndue: ${when}`)).rows ?? []).filter((r) => !r.done).length;
+        return Promise.all([tasks("today"), tasks("overdue")]);
+      }
+      const n = (g) => rows.filter((r) => r.props?.group === g && !r.done).length;
+      return [n("Today"), n("Overdue")];
+    };
+    void count().then(([today, over]) => {
       due.set([today ? W().due(today) : W().free, over ? W().over(over) : ""].filter(Boolean).join(" · "));
     }, () => due.remove());
   }

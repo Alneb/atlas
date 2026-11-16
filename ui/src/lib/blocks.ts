@@ -13,7 +13,7 @@ import "./tikz-fence"; // the core's own fence: a ```tikz picture drawn by TeX i
 import "./ink-fence"; // the core's own fence: an Obsidian Ink block shown as a card for its file
 import "./typst-fence"; // and a ```typst block drawn by the core's Typst
 import { mount, unmount, type Component } from "svelte";
-import { parse as parseYaml } from "yaml";
+import { parse as parseYaml, stringify } from "yaml";
 import type { DockviewPanelApi } from "dockview-core";
 import { api } from "./api";
 import { open, type PaneProps } from "./dock";
@@ -125,6 +125,13 @@ registerBlock(lazyBlock("settings", "Settings page", () => import("../components
 registerBlock(lazyBlock("search", "Saved search", () => import("../components/views/SearchBlock.svelte"), (c) => ({ src: c.src, doc: c.doc })));
 registerBlock({ ...lazyBlock("review", "Review (notes waiting, one at a time)", () => import("../components/views/Review.svelte"), (c) => ({ src: c.src, doc: c.doc })), icon: "check", card: true });
 registerBlock({ ...lazyBlock("captures", "Captures (every capture, to triage)", () => import("../components/views/Captures.svelte"), (c) => ({ src: c.src })), icon: "inbox", card: true });
+registerBlock({ ...lazyBlock("sync-conflicts", "Sync conflicts (copies Syncthing left to settle)", () => import("../components/views/SyncConflicts.svelte"), () => ({})), icon: "refresh", card: true });
+// what must be done by a day (the core's `from: deadlines`, lib/deadlines.ts): a task list grouped Overdue · Today · This
+// week · Later; the block's own options (`horizon`, `scheduled`, `limit`) go with the query
+registerBlock({
+  type: "deadlines", title: "Deadlines (overdue, today, this week)", icon: "flag", card: true,
+  mount: (host, ctx) => mountRows(host, ctx.doc, deadlinesSrc(ctx.options)),
+});
 registerBlock(lazyBlock("tags", "Tags (every tag, its notes)", () => import("../components/views/Tags.svelte"), () => ({})));
 registerBlock(lazyBlock("vaults", "Vaults (new, open, switch)", () => import("../components/views/VaultsBlock.svelte"), () => ({})));
 registerBlock({ ...lazyBlock("welcome", "Getting started (where things are, plugins to add)", () => import("../components/views/Welcome.svelte"), (c) => ({ doc: c.doc })), icon: "home", card: true });
@@ -216,6 +223,12 @@ registerBlock({
 });
 
 // --- mounting -------------------------------------------------------------------------------------
+
+/** The row view a `deadlines` block is: a task list over `from: deadlines`, with the block's own options. */
+export function deadlinesSrc(options: Record<string, unknown>): string {
+  const { type: _t, view: _v, title: _ti, height: _h, from: _f, ...rest } = options;
+  return stringify({ type: "task-list", from: "deadlines", ...rest });
+}
 
 function message(host: HTMLElement, cls: string, text: string): void {
   host.replaceChildren(Object.assign(document.createElement("p"), { className: cls, textContent: text }));

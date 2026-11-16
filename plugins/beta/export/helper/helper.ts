@@ -212,10 +212,42 @@ export function latexErrors(log: string): string {
   return keep.map((k) => lines[k]).join("\n").slice(-3000) || lines.slice(-30).join("\n");
 }
 
+/** pandoc 3.7's Typst names that Typst 0.14–0.15 removed (codex 0.3), each to its successor. Found by writing every
+ *  KaTeX command through pandoc and compiling the result. */
+const TYPST_RENAMED: Record<string, string> = {
+  sect: "inter", "sect.big": "inter.big", "sect.double": "inter.double", "sect.sq": "inter.sq",
+  "planck.reduce": "planck", "angle.l": "chevron.l", "angle.r": "chevron.r", "angle.l.double": "chevron.l.double",
+  "angle.r.double": "chevron.r.double", "brace.l.double": "brace.l.stroked", "brace.r.double": "brace.r.stroked",
+  "bracket.l.double": "bracket.l.stroked", "bracket.r.double": "bracket.r.stroked", "circle.nested": "compose.o",
+  "ast.circle": "ast.op.o", "dash.circle": "dash.o", "dot.circle": "dot.o", "dot.circle.big": "dot.o.big",
+  "minus.circle": "minus.o", "times.circle": "times.o", "times.circle.big": "times.o.big",
+};
+
+/** pandoc's Typst with the removed symbol names renamed, inside math only (`$…$`; prose keeps its words). */
+export function typstSymbols(typ: string): string {
+  return typ.split(/(?<!\\)\$/).map((part, i) => (i % 2 === 0 ? part
+    : part.replace(/(?<![\w.])[a-z]+(?:\.[a-z]+)*(?![\w])/gi, (name) => TYPST_RENAMED[name] ?? name))).join("$");
+}
+
+/** A display too wide for a LaTeX column runs into the other one: in two columns each single-line display is boxed to
+ *  at most the column's width (adjustbox), its \tag and \label kept outside the box. Multi-row environments stay. */
+export function fitDisplays(md: string): string {
+  return md.replace(/\$\$([\s\S]+?)\$\$/g, (whole, tex: string) => {
+    if (/\\begin\{(align|gather|eqnarray|multline|flalign|alignat)\*?\}/.test(tex)) return whole;
+    const marks: string[] = [];
+    const body = tex.replace(/\\(?:tag\*?|label)\{[^}]*\}/g, (m) => { marks.push(m); return ""; }).trim();
+    if (/(^|[^\\])\\\\(?![a-zA-Z])/.test(body.replace(/\\begin\{(\w+\*?)\}[\s\S]*?\\end\{\1\}/g, ""))) return whole;
+    // a numbered one leaves room for its number on the same line
+    const width = marks.some((m) => m.startsWith("\\tag")) ? "\\dimexpr\\columnwidth-3em\\relax" : "\\columnwidth";
+    return "`\\begin{equation*}\\adjustbox{max width=" + width + "}{$\\displaystyle " + body + "$}" + marks.join("") + "\\end{equation*}`{=latex}";
+  });
+}
+
 async function typstRoad(j: Job, format: "pdf-typst" | "typ"): Promise<string> {
   const header = j.o.typstPreamble ? [await atlas.read(j.o.typstPreamble).catch(() => { j.t.warnings.push(`Typst preamble not found: ${j.o.typstPreamble}`); return ""; })] : [];
   const header2 = header.filter(Boolean).map((h) => "```{=typst}\n" + h + "\n```");
-  const typ = await pandoc(j, "typst", metadata(j, "typst", header2) + (await fences(j, "typst")));
+  // Atlas's look (atlas.typst): pandoc's template with a title block, headings, and displays fitted to their column
+  const typ = typstSymbols(await pandoc(j, "typst", metadata(j, "typst", header2) + (await fences(j, "typst")), ["--template", `${PLUGIN}/atlas.typst`]));
   const at = `${j.outDir}/${j.stem}.typ`;
   if (format === "typ") { await atlas.write(at, typ); return at; }
   progress("typst", "compiling the PDF with Typst");
@@ -223,7 +255,8 @@ async function typstRoad(j: Job, format: "pdf-typst" | "typ"): Promise<string> {
 }
 
 async function latexRoad(j: Job, format: "pdf-latex" | "tex"): Promise<string[]> {
-  const header = ["```{=latex}\n" + ["\\usepackage{soul}", ...layoutOf(j.o).header].join("\n") + "\n```"];
+  const two = Number(j.o.columns) === 2;
+  const header = ["```{=latex}\n" + ["\\usepackage{soul}", ...(two ? ["\\usepackage{adjustbox}"] : []), ...layoutOf(j.o).header].join("\n") + "\n```"];
   if (j.o.preamble) {
     if (j.files.includes(j.o.preamble)) header.push("```{=latex}\n\\input{" + relative(j.outDir, j.o.preamble) + "}\n```");
     else j.t.warnings.push(`LaTeX preamble not found: ${j.o.preamble}`);
@@ -231,7 +264,8 @@ async function latexRoad(j: Job, format: "pdf-latex" | "tex"): Promise<string[]>
   // after the preamble, so a \ket it (or a package) defines is the one used
   header.push("```{=latex}\n" + macroDefinitions("providecommand") + "\n```");
   const extra = ["--lua-filter", `${PLUGIN}/tikz.lua`, ...layoutOf(j.o).args, ...(j.t.cited.length && j.bib ? ["--biblatex"] : [])];
-  const tex = await pandoc(j, "latex", metadata(j, "latex", header) + (await fences(j, "latex")), extra);
+  const body = await fences(j, "latex");
+  const tex = await pandoc(j, "latex", metadata(j, "latex", header) + (two ? fitDisplays(body) : body), extra);
   const at = `${j.outDir}/${j.stem}.tex`;
   await atlas.write(at, tex);
   if (format === "tex") return [at];

@@ -108,6 +108,21 @@ impl Job {
             Job::Tool(t) => Some(&t.schedule),
         }
     }
+    /// Which of the cores serving the vault runs it (server_role.rs).
+    fn background(&self) -> crate::server_role::Background {
+        match self {
+            Job::Command(s) => s.manifest.background,
+            Job::Tool(t) => t.background,
+        }
+    }
+    /// Whom its answer's notices come from: the command's id, the tool's plugin.
+    fn source(&self) -> String {
+        match self {
+            Job::Command(s) => s.id.clone(),
+            Job::Tool(t) => t.plugin.clone(),
+        }
+    }
+
     fn title(&self) -> String {
         match self {
             Job::Command(s) => s.manifest.title.clone(),
@@ -119,6 +134,11 @@ impl Job {
 /// One pass: run every due scheduled command and plugin tool (sequentially), record and report. Plugin tools run only
 /// where the vault's helpers are (`helpers`: a served vault).
 pub async fn tick(ws: &Workspace, bus: &EventBus, helpers: Option<&crate::helper::Helpers>, now: DateTime<Local>) {
+    tick_at(ws, bus, helpers, now, crate::server_role::Seat::of(ws.root())).await
+}
+
+/// `tick` on a core in `seat`: a job whose `background` names another kind of core is left to it (server_role.rs).
+async fn tick_at(ws: &Workspace, bus: &EventBus, helpers: Option<&crate::helper::Helpers>, now: DateTime<Local>, seat: crate::server_role::Seat) {
     let Ok(cfg) = ws.config() else { return };
     if !cfg.automation.schedules_here(&crate::platform::proc::hostname()) {
         return;
@@ -129,6 +149,14 @@ pub async fn tick(ws: &Workspace, bus: &EventBus, helpers: Option<&crate::helper
     if helpers.is_some() {
         jobs.extend(crate::plugin_tools::scheduled(ws.root(), &cfg).into_iter().map(Job::Tool));
     }
+    jobs.retain(|j| {
+        let id = j.id();
+        let plugin = match j {
+            Job::Tool(t) => format!("plugin.{}", t.plugin),
+            Job::Command(_) => String::new(),
+        };
+        j.background().in_vault(&cfg.automation.background, &[&id, &plugin]).runs_at(seat)
+    });
     for job in jobs {
         let id = job.id();
         let Some(spec) = job.spec() else { continue };
@@ -162,9 +190,7 @@ pub async fn tick(ws: &Workspace, bus: &EventBus, helpers: Option<&crate::helper
         let summary: String = summary.trim().lines().last().unwrap_or("").chars().take(300).collect();
         log_line(&cache, &format!("{id} {}: {summary}", if ok { "ok" } else { "FAILED" }));
         if let Ok(v) = &out {
-            for n in notices(v, &job) {
-                bus.publish(Event::Notify(n));
-            }
+            crate::notice_actions::say(bus, &job.source(), v);
         }
         // once per failure, not per run: a job every 5 min that keeps failing the same way (a cluster not connected)
         // notified every 5 min; again when it fails for another reason, or fails anew after working
@@ -188,25 +214,6 @@ fn said(v: &Value) -> String {
         return format!("skipped: {why}");
     }
     v.get("summary").and_then(Value::as_str).map(str::to_string).or_else(|| v.as_str().map(str::to_string)).unwrap_or_else(|| v.to_string())
-}
-
-/// The notices a job's answer asks for (`notices: [{title, body?, level?, open?, id?}]`, e.g. "a run finished"), each
-/// from the job's source; one that is not a notice is dropped with a log line.
-fn notices(v: &Value, job: &Job) -> Vec<Notice> {
-    let source = match job {
-        Job::Command(s) => s.id.clone(),
-        Job::Tool(t) => t.plugin.clone(),
-    };
-    let Some(list) = v.get("notices").and_then(Value::as_array) else { return vec![] };
-    list.iter()
-        .filter_map(|n| match serde_json::from_value::<Notice>(n.clone()) {
-            Ok(n) => Some(n.source(source.as_str())),
-            Err(e) => {
-                eprintln!("atlas: {source}: a scheduled answer's notice is not one ({e}): {n}");
-                None
-            }
-        })
-        .collect()
 }
 
 /// The scheduler loop (every 30 s) for a running server; aborted with the server.
@@ -300,6 +307,33 @@ mod tests {
         assert!(!a.schedules_here("alice-laptop"), "the other computer leaves the generated files to it");
         a.run_schedules = false;
         assert!(!a.schedules_here("alice-desktop"), "off is off");
+    }
+
+    #[tokio::test]
+    async fn a_job_runs_only_on_the_kind_of_core_its_background_names() {
+        use crate::server_role::Seat;
+        let d = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(d.path().join(".atlas/commands")).unwrap();
+        for (id, bg) in [("bank", "server"), ("runs", "device"), ("plain", "any")] {
+            std::fs::write(d.path().join(format!(".atlas/commands/{id}.toml")), format!("title = \"{id}\"\nrun = \"echo {id}\"\nschedule = \"every 2h\"\nbackground = \"{bg}\"\n")).unwrap();
+        }
+        let ran = |seat: Seat| {
+            let d = d.path().to_path_buf();
+            async move {
+                let ws = Workspace::open(&d).unwrap();
+                let _ = std::fs::remove_file(ws.cache_dir().join(STATE));
+                tick_at(&ws, &EventBus::default(), None, Local::now(), seat).await;
+                let mut ids: Vec<String> = records(&ws.cache_dir()).into_keys().collect();
+                ids.sort();
+                ids
+            }
+        };
+        assert_eq!(ran(Seat::Server).await, ["bank", "plain"], "the server never runs a device's job");
+        assert_eq!(ran(Seat::MirroredDevice).await, ["plain", "runs"], "a mirrored device leaves the server's jobs to it");
+        assert_eq!(ran(Seat::LoneDevice).await, ["bank", "plain", "runs"], "no server: everything runs here");
+        // the vault's own word wins over the command's
+        std::fs::write(d.path().join(".atlas/config.toml"), "[automation.background]\nplain = \"device\"\nruns = \"any\"\n").unwrap();
+        assert_eq!(ran(Seat::Server).await, ["bank", "runs"]);
     }
 
     #[tokio::test]

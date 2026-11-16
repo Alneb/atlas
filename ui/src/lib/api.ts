@@ -115,6 +115,8 @@ export const ownCore = <T>(method: string, path: string, body?: unknown): Promis
 
 export const api = {
   vaults: () => request<VaultList>("GET", "/api/vaults"),
+  /** A vault's sync state in plain words (core sync_state.rs): this window's, or with `path` another vault on the list. */
+  syncState: (path?: string) => request<import("./gen/SyncStatus").SyncStatus>("GET", "/api/sync/state", { query: { path: path || undefined } }),
   /** This window's vault becomes the one the capture box starts on. */
   vaultActive: () => request<void>("POST", "/api/vaults/active"),
   /** This window's guest folder (core guest.rs), `null` for a vault. */
@@ -165,6 +167,8 @@ export const api = {
   workspace: () => request<Workspace>("GET", "/api/workspace"),
   /** Every file (the tree); `index`: the user's own only, the agent's (`editor.index_exclude`) left out. */
   exists: (path: RelPath) => request<boolean>("GET", "/api/exists", { query: { path } }),
+  /** When a file was made (its property, first commit or birth) and last changed (today.rs `made`); null when gone. */
+  fileMade: (path: RelPath) => request<import("./gen/Made").Made | null>("GET", "/api/file/made", { query: { path } }),
   /** `under`: only what is at or under that file or folder (a file event's path) */
   files: (o: { index?: boolean; under?: RelPath } = {}) => request<string[]>("GET", "/api/files", { query: { ...(o.index ? { index: "true" } : {}), ...(o.under !== undefined ? { under: o.under } : {}) } }),
   /** One folder's entries; `hidden`: dotfiles too, whatever `[files] show_hidden` says. */
@@ -355,6 +359,8 @@ export const api = {
     }
     return r;
   },
+  /** The Syncthing conflict copies left for the user (core sync_merge.rs `left_copies`): all, or `of` one file's. */
+  syncConflicts: (of?: RelPath) => request<import("./gen/ConflictCopy").ConflictCopy[]>("GET", "/api/sync/conflicts", { query: { path: of || undefined } }),
   trash: async (path: string) => {
     const t = await request<import("./types").Trashed>("POST", "/api/fs/trash", { query: { path } });
     emitPluginEvent({ type: "file:delete", path });
@@ -370,7 +376,11 @@ export const api = {
   /** The `[[` list for `q`, ranked by the core (link_targets.rs); `from`: the note being written (its neighbours rank higher). */
   linkTargets: (q: string, from?: string) => request<LinkTarget[]>("GET", "/api/link-targets", { query: from ? { q, from } : { q } }),
   /** One task line ticked (`done`) or opened again, as text: the lines that replace it (no file is touched). */
-  taskLine: (text: string, done: boolean) => request<TaskTicked>("POST", "/api/task/line", { body: { text, done } }),
+  taskLine: (text: string, done: boolean, path?: string) => request<TaskTicked>("POST", "/api/task/line", { body: { text, done, path } }),
+  /** A notice's button pressed on its toast: answered by the core's router, as a press on the system's notification. */
+  noticeAction: (press: import("./gen/NoticePress").NoticePress) => request<void>("POST", "/api/notices/action", { body: press }),
+  /** The task dialog's form → its line, written by the core's one task writer (tasks.rs `render_line`); no file is touched. */
+  renderTask: (f: import("./types").TaskFields) => request<import("./types").TaskRendered>("POST", "/api/task/render", { body: f }),
   graph: () => request<import("./types").Graph>("GET", "/api/graph"),
   backlinks: (path: string) => request<import("./types").Backlinks>("GET", "/api/backlinks", { query: { path } }),
   snippets: () => request<{ sources: string[]; variables: string }>("GET", "/api/snippets"),

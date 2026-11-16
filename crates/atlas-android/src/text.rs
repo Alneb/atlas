@@ -11,9 +11,11 @@ pub fn untracked(text: &str) -> String {
     atlas_text::links::untracked(text)
 }
 
-/// A share's text, its subject first when the text does not already hold it.
+/// A share's text as the box shows it: its addresses without their tracking parameters, its subject cleaned to a title
+/// and put first when the text does not hold it (atlas-capture share.rs). Tested on whole shares in
+/// tests/fixtures/shares.json.
 pub fn share_text(subject: &str, text: &str) -> String {
-    atlas_capture::share::with_subject(subject, text)
+    atlas_capture::share::shared(&untracked(subject), &untracked(text))
 }
 
 /// Selected text as a Markdown quote; "" when nothing is selected.
@@ -155,5 +157,24 @@ mod tests {
         assert!(!props_set_list(note, "tags", &[]).contains("tags"));
         let fresh = props_set("just text\n", &set);
         assert!(fresh.starts_with("---\n") && fresh.ends_with("---\njust text\n"), "{fresh}");
+    }
+}
+
+#[cfg(test)]
+mod share_tests {
+    /// Shares shaped as the apps send them (subject, text): each made into the box's text, tracking gone, the title
+    /// first once. A new app's share that comes out wrong goes in the fixture first.
+    #[test]
+    fn every_apps_share_becomes_a_clean_capture() {
+        let all: Vec<serde_json::Value> = serde_json::from_str(include_str!("../tests/fixtures/shares.json")).unwrap();
+        let mut bad = Vec::new();
+        for s in &all {
+            let got = super::share_text(s["subject"].as_str().unwrap_or(""), s["text"].as_str().unwrap_or(""));
+            if got != s["want"].as_str().unwrap() {
+                bad.push(format!("{}: got {got:?}, want {:?}", s["app"], s["want"]));
+            }
+        }
+        assert!(all.len() >= 15, "the fixture is read");
+        assert!(bad.is_empty(), "{}", bad.join("\n"));
     }
 }

@@ -10,10 +10,10 @@ import type { BuiltinId } from "./builtin-plugins";
 
 export type PageId =
   | "overview" | "appearance" | "writing" | "today" | "code" | "files" | "web" | "server" | "papers" | "drawing"
-  | "terminal" | "desktop" | "keyboard" | "plugins" | "automation" | "agents" | "advanced" | "latex";
+  | "terminal" | "desktop" | "keyboard" | "plugins" | "automation" | "agents" | "advanced" | "latex" | "vaults";
 
 /** Custom panels drawn by the Settings UI beside the generated fields. */
-export type Panel = "overview" | "device" | "preview" | "apps" | "snippets" | "keys" | "plugins" | "scripts" | "drafts" | "openwith" | "capturekey" | "server" | "agents" | "templates" | "file";
+export type Panel = "overview" | "device" | "preview" | "apps" | "snippets" | "keys" | "plugins" | "scripts" | "drafts" | "openwith" | "capturekey" | "server" | "agents" | "templates" | "file" | "syncconflicts" | "vaults" | "webdata";
 
 /** The nav's groups, in this order: Accounts stands above them all (every sign-in is there). */
 export type Group = "general" | "working" | "connections" | "plugins" | "advanced";
@@ -70,7 +70,7 @@ export const PAGES: PageDef[] = [
     id: "appearance", title: "Appearance", group: "general", icon: "sun", blurb: keyText("Colours, fonts, sizes, how tabs are shown and where the side panel sits; e-ink screens (a Boox) get pure black on white. A split shows two tabs side by side; a tab outside it shows alone and a click on the pair brings both back. Super+F puts one tab over the whole window. Changes apply as you make them."),
     fields: ["ui.theme", "ui.palette", "ui.palette_dark", "ui.contrast", "ui.shape", "ui.accent", "ui.font_size", "ui.ui_font", "ui.motion", "ui.notices", "ui.eink", "ui.eink_refresh", "ui.tabs", "ui.side_panel", "ui.restore_layout", "ui.tab_preview", "ui.tab_switcher", "ui.sleep_after_min", "ui.awake_tabs",
       "editor.prose_font", "editor.prose_font_size", "editor.prose_line_height", "editor.prose_width",
-      "editor.code_font", "editor.code_font_size", "editor.inline_title"],
+      "editor.code_font", "editor.code_font_size", "editor.inline_title", "editor.heading_renames"],
     features: ["ui.theme", "ui.zoomIn", "ui.zoomOut", "ui.zoomReset", "ui.zoomAllIn", "ui.zoomAllOut", "ui.zoomAllReset", "ui.sidePanel", "ui.sidePanel.move", "ui.fullscreen", "ui.resetLayout"], panels: ["device", "preview", "apps", "snippets"],
     next: [{ label: "Write a CSS snippet", why: "Restyle anything — a file in .atlas/snippets/ applies live on save.", run: "settings.newSnippet" }],
   },
@@ -85,8 +85,11 @@ export const PAGES: PageDef[] = [
   {
     id: "today", title: "Home & Today", group: "working", icon: "today", blurb: keyText("The first screen, the daily log, your focus file and the activity feed. Capture (Super+C) adds a line to today's log, a note in notes/log that starts with its date as properties, or from the daily log template; the Weather plugin adds the day's weather to it. Captures (the command, or a `captures` block in any note) lists every capture by day to triage: make it a task, file it into a note, dismiss it."),
     fields: ["home", "focus", "log_dir", "log_folders", "log_template", "activity.*", "notifications.*"],
-    features: ["ui.today", "ui.capture", "ui.captures", "ui.note-triage", "ui.focusFile"],
-    next: [{ label: "Reshape the home screen", why: "Home is a .page file: rows and columns of blocks you add, move or remove.", run: "settings.editHome" }],
+    features: ["ui.today", "ui.deadlines", "ui.capture", "ui.captures", "ui.note-triage", "ui.focusFile"],
+    next: [
+      { label: "Add the deadlines box", why: "Overdue, today and this week's tasks, notes with due: and deadline calendars' events, on Home — a home made before the box was in the template lacks it.", run: "ui.home.addDeadlines" },
+      { label: "Reshape the home screen", why: "Home is a .page file: rows and columns of blocks you add, move or remove.", run: "settings.editHome" },
+    ],
   },
   {
     id: "code", title: "Code", group: "working", icon: "file-code", blurb: "The code editor and language servers (completion, errors, go to definition). VS Code's keys work in a code file: Ctrl+G go to line, Ctrl+Shift+K delete line, Ctrl+Shift+L select all occurrences, Ctrl+D next occurrence, Ctrl+/ comment, Alt+↑/↓ move the line, F2 rename, F12 definition.",
@@ -96,11 +99,15 @@ export const PAGES: PageDef[] = [
   {
     id: "files", title: "Files & search", group: "working", icon: "files", blurb: "What the file tree, search and the note index see — and which files are an AI agent's own, kept apart from your notes. The explorer also opens other vaults, SSH hosts and servers (copyparty) beside your vault.",
     fields: ["ignore", "editor.index_exclude", "files.*"],
-    features: ["ui.files", "ui.explorer", "ui.quickOpen", "ui.search", "ui.history", "ui.openWith", "ui.vault"], panels: ["openwith"],
+    features: ["ui.files", "ui.explorer", "ui.quickOpen", "ui.search", "ui.history", "ui.openWith", "ui.vault"], panels: ["syncconflicts", "openwith"],
   },
   {
-    id: "web", title: "Web", group: "working", icon: "globe", blurb: keyText("Links to web pages: in a tab of Atlas when the site allows it, in a browsing window of Atlas (Alt+← / Alt+→ back and forward, Super+Shift+O to your browser, Ctrl+W close) with ads and trackers blocked, or in your own browser."),
-    fields: ["web.*"], features: ["ui.web"],
+    id: "web", title: "Web", group: "working", icon: "globe", blurb: keyText("Links to web pages: in a tab of Atlas (in the desktop app any site, with ads and trackers blocked; elsewhere when the site allows it), in a browsing window of Atlas (Alt+← / Alt+→ back and forward, Super+Shift+O to your browser, Ctrl+W close) with ads and trackers blocked, or in your own browser."),
+    fields: ["web.*"], features: ["ui.web"], panels: ["webdata"],
+  },
+  {
+    id: "vaults", title: "Vaults & sync", group: "connections", icon: "repeat", blurb: "Each vault on this device and how it is kept in step with the others: Syncthing or the mirror carrying its files, whether its server answers, writes it refused, captures waiting and conflict copies left. The vault switcher opens, makes and links them.",
+    fields: [], features: ["ui.vault"], panels: ["vaults"],
   },
   {
     id: "server", title: "Server", group: "connections", icon: "server", blurb: "Serving a vault to other machines and the phone (atlas serve --listen): who may sign in, the password, device tokens.",
@@ -156,6 +163,8 @@ export const PAGES: PageDef[] = [
 
 /** Fields edited by a custom panel, never as a raw row. */
 export const HIDDEN = new Set(["ui.css_snippets_off", "ui.apps_order", "ui.apps_hidden", "ui.libraries", "plugins.off", "files.open_with",
+  // where each background job runs: in the vault's config.toml for now (docs/design/DESIGN-server-role.md), a panel is to come
+  "automation.background",
   // Accounts → Sign-ins for plugins edits these (components/settings/SigninsPanel.svelte)
   "plugins.oidc_issuer", "plugins.oidc_client_id", "plugins.oidc_redirect",
   // read by nothing since the Snippets plugin took over typing: shown, it looked like the plugin's own switch

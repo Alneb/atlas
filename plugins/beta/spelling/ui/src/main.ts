@@ -7,6 +7,8 @@ import nspell from "nspell";
 import type { PluginApi } from "../../../../../ui/src/lib/plugin-api";
 import { frontMatterEnd, guessLanguage, proseRanges, wordsOf, type Word } from "../../../../../ui/src/lib/editor/prose";
 import { chooseDictionaries } from "../../../../../ui/src/lib/editor/dictionaries";
+import { shownName } from "../../../../../ui/src/lib/paths";
+import { langOf, languagesFrom, parseVariants, writeLanguages, writeVariants } from "./langs";
 import { vaultCounter } from "../../../../../ui/src/lib/editor/vault-count";
 import { isWrong } from "./judge";
 import { LETTERS, suggestions } from "../../../../../ui/src/lib/editor/spell-rank";
@@ -33,15 +35,15 @@ export async function register(atlas: PluginApi) {
 
   // --- what is known -------------------------------------------------------------------------------------------
   const installed: string[] = ((await atlas.helper.call("dictionaries", { folder: setting("folder") }).catch(() => [])) as string[]) ?? [];
-  /** language → dictionary names, from the setting (`en=en_GB, es=es_MX+es_AR`) over the preferred installed ones */
-  const chosen = chooseDictionaries(installed, setting("dictionaries"));
-  const langs = [...chosen.keys()];
-  const fallback = String(setting("language") || langs[0] || "en");
-  const NAMES: Record<string, string> = { en: "English", es: "Spanish", fr: "French", de: "German", it: "Italian", pt: "Portuguese", ca: "Catalan", nl: "Dutch" };
+  /** every installed language's dictionaries, the ones turned on and the main one (langs.ts) */
+  const { chosen, langs, main: fallback } = languagesFrom(installed, atlas.plugin.settings);
+  const NAMES: Record<string, string> = { en: "English", es: "Spanish", fr: "French", de: "German", it: "Italian", pt: "Portuguese", ca: "Catalan", nl: "Dutch", pl: "Polish", ru: "Russian", sv: "Swedish", da: "Danish", nb: "Norwegian", fi: "Finnish", cs: "Czech", el: "Greek", tr: "Turkish", ro: "Romanian", hu: "Hungarian", uk: "Ukrainian", gl: "Galician", eu: "Basque" };
+  const nameOf = (l: string) => NAMES[l] ?? l;
   if (!installed.length) tellOnce("no-dictionary", "No Hunspell dictionary here, nor in the vault's .atlas/dictionaries: only the vault's own words are known, so nothing is marked. Open the vault once on a computer that has one (Settings → Spelling keeps it in the vault), or name a folder there.");
   // a machine with the dictionaries in use copies them into the vault, for the server and the phone (none of their own)
-  if (setting("keep_in_vault") !== false && chosen.size)
-    void (atlas.helper.call("keep", { names: [...new Set([...chosen.values()].flat())], folder: setting("folder") }, { timeout: 120 }) as Promise<string[]>)
+  const inUse = [...new Set(langs.flatMap((l) => chosen.get(l) ?? []))];
+  if (setting("keep_in_vault") !== false && inUse.length)
+    void (atlas.helper.call("keep", { names: inUse, folder: setting("folder") }, { timeout: 120 }) as Promise<string[]>)
       .then((kept) => { if (kept.length) console.info(`spelling: kept ${kept.join(", ")} in the vault (.atlas/dictionaries) for the devices that have none`); })
       .catch((e) => console.warn("spelling: the dictionaries were not kept in the vault:", e));
 
@@ -125,23 +127,73 @@ export async function register(atlas: PluginApi) {
   const miss = V.Decoration.mark({ class: "cm-spell-miss" });
   const views = new Set<EditorView>();
   const redraw = S.StateEffect.define<null>();
-  function redrawAll() { for (const v of views) v.dispatch({ effects: redraw.of(null) }); }
+  // the open Settings sections: drawn once, so told when the words or the counts change (they come after the page opens)
+  const settingsRedraws = new Set<() => void>();
+  function redrawAll() { for (const v of views) v.dispatch({ effects: redraw.of(null) }); for (const r of settingsRedraws) r(); }
 
   const langProperty = (view: EditorView) => {
     const text = view.state.doc.sliceString(0, 4000);
     return /^---[\s\S]*?^lang:\s*([\w-]+)/m.exec(text.slice(0, frontMatterEnd(text)))?.[1];
   };
-  const noteLanguage = (view: EditorView) =>
-    guessLanguage(view.state.doc.sliceString(0, 20000), langs.length ? langs : [fallback], fallback, langProperty(view));
+  /** The note's lang: property when it names an installed language (even one turned off: it was said for this note),
+   *  else guessed among the languages turned on. */
+  const noteLanguage = (view: EditorView) => {
+    const given = langProperty(view), l = given ? langOf(given) : "";
+    return chosen.has(l) ? l : guessLanguage(view.state.doc.sliceString(0, 20000), langs.length ? langs : [fallback], fallback);
+  };
 
   // --- the bottom bar: the note's language and what is marked; a click opens the Spelling panel (panel.ts) ---------
+  // It follows what is in front: the focused editor, else the active tab when it is a note's editor, else a prose editor
+  // (the mail composer, which is spell-checked) last typed in and still shown inside the active plugin tab. Anything
+  // else in front (a code file, a PDF, a terminal, a web page) takes the cell away. Each view's language and marks are
+  // kept as they are drawn, so switching tabs updates the cell at once instead of after the next redraw.
   let shown: EditorView | null = null;
-  const cell = atlas.shell.statusItem({
-    id: "spelling", text: "", title: "Spelling", panelWidth: 420,
-    // before plugin API 27 a click runs this: the settings, where the language and dictionaries are
-    run: () => atlas.plugin.openSettings(),
-    panel: (host, close) => { if (shown) drawPanel(host, () => panelModel(shown!), actions(shown, close)); },
-  });
+  let lastFocused: EditorView | null = null;
+  const seen = new WeakMap<EditorView, { lang: string; marked: number }>();
+  let front = atlas.context();
+  let cell: ReturnType<typeof atlas.shell.statusItem> | null = null;
+  let cellSaid = "";
+  /** Shows the cell with this text, or takes it away (an empty cell would still be a blank button with a tooltip). */
+  const sayCell = (text: string, title = "") => {
+    if (text + "\n" + title === cellSaid) return;
+    cellSaid = text + "\n" + title;
+    if (!text) { cell?.remove(); cell = null; return; }
+    if (cell) { cell.set(text, title); return; }
+    cell = atlas.shell.statusItem({
+      id: "spelling", text, title, panelWidth: 420,
+      // before plugin API 27 a click runs this: the settings, where the language and dictionaries are
+      run: () => atlas.plugin.openSettings(),
+      panel: (host, close) => { if (shown) drawPanel(host, () => panelModel(shown!), actions(shown, close)); },
+    });
+  };
+  const live = (v: EditorView | null): v is EditorView => !!v && views.has(v) && v.dom.isConnected;
+  /** A note open in a tab (not a prose editor's made-up name such as the composer's). */
+  const inTab = (path: string) => front.open.some((p) => p.path === path) || front.active?.path === path;
+  function current(): EditorView | null {
+    const list = [...views].filter(live);
+    const focused = list.find((v) => v.hasFocus);
+    if (focused) return isNote(focused) ? focused : null;
+    const a = front.active;
+    if (a?.kind === "editor") {
+      const mine = list.filter((v) => atlas.editor.path(v) === a.path && isNote(v));
+      return mine.find((v) => v === lastFocused) ?? mine.find((v) => v.dom.offsetParent !== null) ?? mine[0] ?? null;
+    }
+    if (a?.kind === "plugin" && live(lastFocused) && lastFocused.dom.offsetParent !== null && isNote(lastFocused) && !inTab(atlas.editor.path(lastFocused))) return lastFocused;
+    return null;
+  }
+  function refreshCell() {
+    const view = current(), at = view && seen.get(view);
+    shown = view;
+    if (!view || !at) { sayCell(""); return; }
+    const { lang, marked } = at;
+    const path = atlas.editor.path(view);
+    const what = inTab(path) ? `“${shownName(path)}”` : "the text being written";
+    const loading = spellers.get(lang) === "loading", dicts = chosen.get(lang)?.join(" + ") ?? "no dictionary";
+    sayCell(`${lang.toUpperCase()} ${loading ? "…" : marked ? `· ${marked} misspelled` : "✓"}`,
+      `Spelling of ${what}: ${nameOf(lang)} (${dicts}), ${langProperty(view) ? "from its lang: property" : "guessed from its words"}. `
+      + `${marked} word${marked === 1 ? "" : "s"} marked on screen; ${learnedIn(lang)} words learned from the vault, ${accepted.size} added by you. Click for the panel: the language, the marked words and their fixes, your words.`);
+  }
+  atlas.onContext((c) => { front = c; refreshCell(); });
   /** Every word marked in the whole note, not only on screen, with its likeliest fixes. */
   function markedIn(view: EditorView, lang: string): Marked[] {
     const tree = language.syntaxTree(view.state), front = frontMatterEnd(view.state.doc.sliceString(0, 4000));
@@ -160,7 +212,7 @@ export async function register(atlas: PluginApi) {
     const terms = s ? learned.filter(([w]) => !s.correct(w) && !s.correct(w.toLowerCase())).sort((x, y) => y[1][0] - x[1][0]).slice(0, 40).map(([w]) => w) : [];
     return {
       lang,
-      choices: [...new Set([...langs, lang])].map((l) => ({ lang: l, name: NAMES[l] ?? l })),
+      choices: [...new Set([...langs, lang])].map((l) => ({ lang: l, name: nameOf(l) })),
       source: langProperty(view) ? "set for this note (lang: property)" : "guessed from its words",
       dictionaries: chosen.get(lang)?.join(" + ") ?? "no dictionary installed",
       loading: spellers.get(lang) === "loading",
@@ -176,22 +228,45 @@ export async function register(atlas: PluginApi) {
   };
   const learnedIn = (lang: string) => [...(counts.get(lang)?.values() ?? [])].filter(([u, n]) => (u >= minUses() && n >= minNotes()) || u >= 8).length;
 
-  // --- Settings → Spelling: the languages, the main one, your words (panel.ts drawSettings) ---------------------------
+  // --- Settings → Spelling: the languages (on/off, the main one, each one's variant), your words (panel.ts) ---------
+  // The three language settings are hidden in the generated form (plugin.toml): only this section writes them, with
+  // the installed dictionaries as the only choices. Its model is read from ctx.settings(), so it shows what is saved.
   atlas.plugin.registerSettingsSection?.({ id: "words", title: "Languages and words", place: "before",
-    hint: "What this machine's dictionaries give and the words you added; the form below has the finer settings.",
-    mount: (host, ctx) => drawSettings(host, () => {
-      const used = new Set([...chosen.values()].flat());
-      return {
-        main: String(ctx.settings().language || fallback),
-        langs: langs.map((l) => ({ lang: l, name: NAMES[l] ?? l, dictionaries: chosen.get(l)!.join(" + "), learned: learnedIn(l),
-          others: installed.filter((d) => !used.has(d) && d.split(/[_-]/)[0] === l) })),
-        added: [...accepted].sort((a, b) => a.localeCompare(b)),
-      };
-    }, {
-      setMain: async (l) => { await ctx.save({ language: l }); },
-      add: (w) => editWords((t) => addWord(t, w)),
-      remove: (w) => editWords((t) => removeWord(t, w)),
-    }),
+    hint: "The languages this machine's dictionaries give, which are checked, and the words you added; the form below has the finer settings.",
+    mount: (host, ctx) => {
+      const now = () => languagesFrom(installed, ctx.settings());
+      const usualOf = (l: string) => chooseDictionaries(installed, "").get(l) ?? chosen.get(l) ?? [];
+      const again = drawSettings(host, () => {
+        const l = now(), variants = parseVariants(ctx.settings().dictionaries);
+        return {
+          main: l.main,
+          langs: l.available.map((lang) => {
+            const own = installed.filter((d) => langOf(d) === lang).sort();
+            const usual = usualOf(lang).join(" + "), picked = variants.get(lang) ?? "";
+            const options = [{ value: "", label: `${usual} (usual)` }, ...own.filter((d) => d !== usual).map((d) => ({ value: d, label: d }))];
+            if (picked && !options.some((o) => o.value === picked)) options.push({ value: picked, label: picked.replace(/\+/g, " + ") });
+            return { lang, name: nameOf(lang), on: l.langs.includes(lang), variant: picked, variants: options, learned: learnedIn(lang) };
+          }),
+          added: [...accepted].sort((a, b) => a.localeCompare(b)),
+        };
+      }, {
+        setMain: async (lang) => { await ctx.save({ language: lang }); },
+        setOn: async (lang, on) => {
+          const l = now(), next = on ? [...l.langs, lang] : l.langs.filter((x) => x !== lang);
+          if (!next.length) return;
+          await ctx.save({ languages: writeLanguages(next, l), ...(on || lang !== l.main ? {} : { language: null }) });
+        },
+        setVariant: async (lang, value) => {
+          const v = parseVariants(ctx.settings().dictionaries);
+          if (value) v.set(lang, value); else v.delete(lang);
+          await ctx.save({ dictionaries: writeVariants(v) });
+        },
+        add: (w) => editWords((t) => addWord(t, w)),
+        remove: (w) => editWords((t) => removeWord(t, w)),
+      });
+      settingsRedraws.add(again);
+      return () => { settingsRedraws.delete(again); };
+    },
   });
   const actions = (view: EditorView, close: () => void) => ({
     // a mail being written is not a file: its language stays guessed
@@ -207,20 +282,11 @@ export async function register(atlas: PluginApi) {
     remove: (word: string) => editWords((t) => removeWord(t, word)),
     settings: () => { close(); atlas.plugin.openSettings(); },
   });
-  function status(view: EditorView, lang: string, marked: number) {
-    if (!view.hasFocus && shown && shown !== view && views.has(shown)) return;
-    shown = view;
-    const loading = spellers.get(lang) === "loading", dicts = chosen.get(lang)?.join(" + ") ?? "no dictionary";
-    const learned = learnedIn(lang);
-    cell.set(`${lang.toUpperCase()} ${loading ? "…" : marked ? `· ${marked} misspelled` : "✓"}`,
-      `Spelling: ${NAMES[lang] ?? lang} (${dicts}), ${langProperty(view) ? "from the note's lang: property" : "guessed from its words"}. `
-      + `${marked} word${marked === 1 ? "" : "s"} marked on screen; ${learned} words learned from the vault, ${accepted.size} added by you. Click for the panel: the language, the marked words and their fixes, your words.`);
-  }
   const isNote = (view: EditorView) => /\.(md|markdown)$/i.test(atlas.editor.path(view));
 
   /** The marked words of the visible prose; the word the caret ends is left alone while it is being typed. */
   function marks(view: EditorView): DecorationSet {
-    if (!isNote(view)) { if (shown === view || !shown) cell.set(""); return V.Decoration.none; }
+    if (!isNote(view)) { seen.delete(view); refreshCell(); return V.Decoration.none; }
     const lang = noteLanguage(view);
     noteUses = new Map();
     for (const { word } of wordsOf(view.state.doc.sliceString(0, 200000))) noteUses.set(word, (noteUses.get(word) ?? 0) + 1);
@@ -236,7 +302,8 @@ export async function register(atlas: PluginApi) {
         }
       }
     }
-    status(view, lang, out.length);
+    seen.set(view, { lang, marked: out.length });
+    refreshCell();
     return V.Decoration.set(out, true);
   }
 
@@ -253,13 +320,14 @@ export async function register(atlas: PluginApi) {
     constructor(readonly view: EditorView) { views.add(view); this.decorations = marks(view); }
     update(u: ViewUpdate) {
       if (u.transactions.some((t) => t.effects.some((e) => e.is(redraw)))) { this.decorations = marks(u.view); return; }
+      if (u.focusChanged) { if (u.view.hasFocus) lastFocused = u.view; refreshCell(); }
       if (u.docChanged) this.decorations = this.decorations.map(u.changes);
       if (u.docChanged || u.viewportChanged || u.selectionSet) {
         clearTimeout(this.timer);
         this.timer = window.setTimeout(() => this.view.dispatch({ effects: redraw.of(null) }), u.docChanged ? 400 : 120);
       }
     }
-    destroy() { clearTimeout(this.timer); views.delete(this.view); }
+    destroy() { clearTimeout(this.timer); views.delete(this.view); if (lastFocused === this.view) lastFocused = null; queueMicrotask(refreshCell); }
   }, {
     decorations: (p) => p.decorations,
     eventHandlers: {

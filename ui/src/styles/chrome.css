@@ -5,8 +5,9 @@
 .vtabs.split .dockview-theme-atlas .dv-groupview.dv-active-group { border-color: color-mix(in srgb, var(--accent) 38%, var(--border-strong)); }
 .vtabs:not(.split) .dockview-theme-atlas .dv-groupview.dv-active-group { border-color: var(--border); }
 
-/* the editor's path bar is the page's title bar now (SilverBullet's page name): roomier, no rule */
-.vtabs .editor-pane .crumbs { min-height: 36px; padding: 6px 16px; border-bottom-color: transparent; }
+/* the editor's path bar is the page's title bar now (SilverBullet's page name): roomier; its hairline divides it from
+   the note's own strip (format bar, Properties heading) below */
+.vtabs .editor-pane .crumbs { min-height: 36px; padding: 6px 16px; }
 .vtabs .editor-pane .crumbs .seg.file { font-weight: 600; color: var(--heading); }
 
 /* blocks (lib/blocks.ts): anything drawn inside a note or a page */

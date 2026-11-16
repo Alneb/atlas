@@ -543,6 +543,17 @@ pub mod cache {
     }
 }
 
+/// A sync tool's own settings at a vault's root, which that tool never carries to another device (Syncthing's
+/// `.stignore`, sync_ignore.rs): no guard, since no other copy of the vault ever has the file.
+pub mod sync_tool {
+    use super::*;
+
+    pub fn write(abs: &Path, bytes: &[u8]) -> Result<()> {
+        debug_assert!(abs.file_name().is_some_and(|n| n == ".stignore"), "{} is not a sync tool's file", abs.display());
+        raw::atomic(abs, raw::Replace::Always, |f| Ok(f.write_all(bytes)?)).map(|_| ())
+    }
+}
+
 /// Files outside every vault: Atlas's own config and state (~/.config/atlas, ~/.local/state/atlas), the secrets store,
 /// and work folders in the system temp dir. No guard: they are not a vault's content.
 pub mod outside {

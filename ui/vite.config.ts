@@ -2,6 +2,7 @@ import { defineConfig, type Plugin } from "vite";
 import { svelte } from "@sveltejs/vite-plugin-svelte";
 import { cpSync, existsSync, createReadStream, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { gzipSync } from "node:zlib";
+import { DEP_REWRITES, rewriteDeps } from "./scripts/dep-rewrites";
 import { join, resolve, normalize } from "node:path";
 
 // Offline app: libraries that fetch assets at runtime get them from the app itself — from
@@ -54,22 +55,23 @@ function texExtra(): Plugin {
   };
 }
 
-// Excalidraw draws every freehand stroke with fixed smoothing (perfect-freehand: thinning .6, smoothing .5, streamline .5),
-// which rounds handwriting off and makes the settled stroke differ from the Boox's quick line. This one spot asks `globalThis.__atlasInk(element)` first (lib/draw-ink.ts): a stroke the
-// notepad's pen made gets crisp settings, every other stroke Excalidraw's own. A new Excalidraw that moved the code fails
-// the build here rather than silently drawing the old way.
-const INK_AT = /size:\s*(\w+)\.strokeWidth\s*\*\s*4\.25,\s*thinning:\s*0?\.6,\s*smoothing:\s*0?\.5,\s*streamline:\s*0?\.5/;
-function rewriteInk(code: string, id: string): { code: string; hit: boolean } | null {
-  if (!/@excalidraw[\\/]excalidraw/.test(id) || !code.includes("thinning")) return null;
-  const out = code.replace(INK_AT, (_m, el: string) => `size:${el}.strokeWidth*4.25,...(globalThis.__atlasInk?.(${el})??{thinning:.6,smoothing:.5,streamline:.5})`);
-  return { code: out, hit: out !== code };
-}
-function inkStroke(): Plugin {
-  let hits = 0;
+// Dependencies changed at build time (scripts/dep-rewrites.ts); a rewrite whose spot a package no longer has fails the build.
+function depRewrites(): Plugin {
+  const hits = new Set<string>(), seen = new Set<string>();
   return {
-    name: "atlas-ink-stroke",
-    transform(code, id) { const r = rewriteInk(code, id); if (!r) return null; if (r.hit) hits++; return r.hit ? { code: r.code, map: null } : null; },
-    buildEnd() { if (this.meta.watchMode === false && hits === 0) this.error("atlas-ink-stroke: Excalidraw's freedraw options were not found (vite.config.ts INK_AT): the pen's crisp strokes would be lost"); },
+    name: "atlas-dep-rewrites",
+    transform(code, id) {
+      for (const r of DEP_REWRITES) if (r.pkg.test(id)) seen.add(r.name);
+      const out = rewriteDeps(code, id);
+      if (!out) return null;
+      out.hit.forEach((h) => hits.add(h));
+      return { code: out.code, map: null };
+    },
+    // a package the build loaded whose spot was nowhere in it
+    buildEnd() {
+      if (this.meta.watchMode !== false) return;
+      for (const r of DEP_REWRITES) if (seen.has(r.name) && !hits.has(r.name)) this.error(`atlas-dep-rewrites: ${r.name} not found (scripts/dep-rewrites.ts): ${r.lost}`);
+    },
   };
 }
 
@@ -99,11 +101,11 @@ export default defineConfig({
     nodeAssets("excalidraw", "/excalidraw", "@excalidraw/excalidraw/dist/prod", ["fonts"]),
     nodeAssets("tikzjax", "/tikzjax", "@drgrice1/tikzjax/dist", ["run-tex.js", "tex.wasm.gz", "core.dump.gz", "tex_files", "fonts", "fonts.css"]),
     texExtra(),
-    inkStroke(),
+    depRewrites(),
     coreTypesStamp(),
   ],
-  // the dev server pre-bundles Excalidraw: the same rewrite there
-  optimizeDeps: { rolldownOptions: { plugins: [{ name: "atlas-ink-stroke-deps", transform: (code: string, id: string) => rewriteInk(code, id)?.code ?? null }] } },
+  // the dev server pre-bundles dependencies: the same rewrites there
+  optimizeDeps: { rolldownOptions: { plugins: [{ name: "atlas-dep-rewrites-deps", transform: (code: string, id: string) => rewriteDeps(code, id)?.code ?? null }] } },
   server: {
     port: 5173,
     strictPort: true,

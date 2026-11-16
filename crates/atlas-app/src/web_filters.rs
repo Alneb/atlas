@@ -1,4 +1,4 @@
-//! Ad blocking for Atlas's browsing windows. WebKitGTK runs no browser extensions, so uBlock Origin itself
+//! Ad blocking for Atlas's browsing windows and its web tabs (frames of the main window). WebKitGTK runs no browser extensions, so uBlock Origin itself
 //! cannot run there; what it has is WebKit's content blocker (Safari's rule format, compiled natively and applied to
 //! every request and page). The filter lists uBlock Origin starts with (EasyList, EasyPrivacy, uBlock's own) are
 //! fetched here, kept a week, and converted into that format by Brave's adblock-rust (`content-blocking`, what Brave
@@ -12,7 +12,7 @@ use std::time::{Duration, SystemTime};
 /// A list older than this is fetched again (when the network answers; else the old one is used).
 const MAX_AGE: Duration = Duration::from_secs(7 * 24 * 3600);
 /// Names the converter in a rule set's id: bump it when an `adblock` update changes what the same lists become.
-const CONVERTER: &str = "adblock-0.13";
+const CONVERTER: &str = "adblock-0.13+frames1";
 
 /// The rules for WebKit, ready to compile.
 #[derive(Debug, Clone)]
@@ -86,9 +86,74 @@ pub fn rules(cfg: &WebConfig) -> Result<Option<Rules>> {
     rules_with(cfg, &cache_dir(), &http_get, &convert_apart)
 }
 
+/// Atlas's own page (the core on the loopback address), as WebKit content-blocker regexes: one each, since WebKit's
+/// rule regexes have no `|`.
+const LOOPBACK: [&str; 3] = [r"^[^:]+://+127\.0\.0\.1[:/]", r"^[^:]+://+localhost[:/]", r"^[^:]+://+\[::1\][:/]"];
+
+/// A WebKit domain condition (`example.org`, `*example.org` with its subdomains, `*example.*` any TLD) as a URL regex.
+fn domain_regex(d: &str) -> String {
+    let (sub, d) = d.strip_prefix('*').map_or((false, d), |d| (true, d));
+    let mut re = String::new();
+    for c in d.chars() {
+        if ".*+?^${}()|[]\\".contains(c) {
+            re.push('\\');
+        }
+        re.push(c);
+    }
+    if let Some(stem) = re.strip_suffix(r"\.\*") {
+        re = format!(r"{stem}\.[^/:]+");
+    }
+    format!("^[^:]+://+{}{re}[:/]", if sub { r"([^/:]+\.)?" } else { "" })
+}
+
+/// Generic element-hiding selectors per rule once merged: a few large rules instead of thousands.
+const SELECTORS_PER_RULE: usize = 1000;
+
+/// The rules made fit for Atlas's main window as well as the browsing windows (one compiled set serves both).
+/// In the main window every web tab is a frame of Atlas's own page, and WebKit matches a rule's conditions so
+/// (measured with WebKitGTK 2.54, docs/design/WEB-WINDOWS.md): `if-domain` / `unless-domain` / `if-top-url` against
+/// the top document — Atlas's page, for every frame; `if-frame-url` / `unless-frame-url` against the frame that makes
+/// the load; and an element-hiding action lands in the document that made the load — so loading a site's frame
+/// hides Atlas's own elements with any generic rule, and `ignore-previous-rules` cannot undo the generic ones.
+/// Hence: generic element hiding, merged into a few rules, gets `unless-frame-url` loopback (per-rule frame conditions
+/// on all 100 000 rules make WebKit's compiler run a minute and abort); hiding with site exceptions (`unless-domain`,
+/// which cannot be combined with a frame condition) becomes `unless-top-url` with those sites and loopback — off in
+/// web tabs, where the exceptions could not hold; the rest stays (a block rule on Atlas's page stops only what a
+/// site would load). Last, requests to the loopback address are never blocked.
+pub fn for_atlas(rules: Vec<serde_json::Value>) -> Vec<serde_json::Value> {
+    use serde_json::{json, Value};
+    let loopback = || LOOPBACK.iter().map(|r| Value::from(*r)).collect::<Vec<_>>();
+    let (mut out, mut generic, mut at) = (Vec::with_capacity(rules.len()), Vec::new(), None);
+    for mut r in rules {
+        let hide = r["action"]["type"] == "css-display-none";
+        let only_url = r["trigger"].as_object().is_some_and(|t| t.len() == 1) && r["trigger"]["url-filter"] == ".*";
+        if let (true, true, Some(sel)) = (hide, only_url, r["action"]["selector"].as_str()) {
+            at.get_or_insert(out.len()); // merged where the first one stood: later exceptions still undo them
+            generic.push(sel.to_string());
+            continue;
+        }
+        if let (true, Some(t)) = (hide, r.get_mut("trigger").and_then(Value::as_object_mut)) {
+            if let Some(Value::Array(sites)) = t.remove("unless-domain") {
+                let mut urls: Vec<Value> = sites.iter().filter_map(Value::as_str).map(|d| domain_regex(d).into()).collect();
+                urls.extend(loopback());
+                t.insert("unless-top-url".into(), urls.into());
+            }
+        }
+        out.push(r);
+    }
+    let merged = generic.chunks(SELECTORS_PER_RULE).map(|c| json!({ "trigger": { "url-filter": ".*", "unless-frame-url": loopback() }, "action": { "type": "css-display-none", "selector": c.join(",") } }));
+    let at = at.unwrap_or(out.len());
+    out.splice(at..at, merged);
+    out.extend(LOOPBACK.iter().map(|r| json!({ "trigger": { "url-filter": r }, "action": { "type": "ignore-previous-rules" } })));
+    out
+}
+
 /// Converts `lists` into WebKit rules at `path`, atomically; → how many rules.
 pub fn write_rules(lists: &[String], path: &Path) -> Result<usize> {
-    let rules = convert(lists);
+    let rules = match serde_json::to_value(convert(lists)).map_err(|e| atlas_core::Error::Other(e.into()))? {
+        serde_json::Value::Array(rules) => for_atlas(rules),
+        _ => Vec::new(),
+    };
     let json = serde_json::to_string(&rules).map_err(|e| atlas_core::Error::Other(e.into()))?;
     let part = path.with_extension("part");
     std::fs::write(&part, &json)?;
@@ -157,7 +222,7 @@ fn rules_with(cfg: &WebConfig, dir: &Path, fetch: &dyn Fn(&str) -> Result<String
 mod tests {
     use super::*;
 
-    /// The real lists, over the network: `cargo test -p atlas-core --lib real_lists -- --ignored --nocapture`.
+    /// The real lists, over the network: `cargo test -p atlas-app --bin atlas-app real_lists -- --ignored --nocapture`.
     #[test]
     #[ignore]
     fn real_lists() {
@@ -185,7 +250,9 @@ mod tests {
         // the second time: the kept copy, the same rules (the window reuses what it compiled)
         let again = rules_with(&cfg, dir.path(), &fetch, &write_rules).unwrap().unwrap();
         assert_eq!((calls.get(), again.id.as_str(), again.report[0].ends_with("kept")), (1, r.id.as_str(), true));
-        assert_eq!((r.count, again.count), (Some(6), None), "converted once, then the kept conversion");
+        let n = serde_json::from_str::<Vec<serde_json::Value>>(&json).unwrap().len();
+        assert_eq!((r.count, again.count), (Some(n), None), "converted once, then the kept conversion");
+        assert!(json.contains("unless-frame-url"), "fit for Atlas's window: {json}");
         // the network gone and the list too old: the old copy still blocks
         let lists = dir.path().join("lists");
         for f in std::fs::read_dir(&lists).unwrap().flatten() {
@@ -198,5 +265,32 @@ mod tests {
         assert!(rules_with(&WebConfig { block_ads: false, ..cfg.clone() }, dir.path(), &fetch, &write_rules).unwrap().is_none());
         let nowhere = WebConfig { filter_lists: vec!["https://nowhere.example/x.txt".into()], ..cfg };
         assert!(rules_with(&nowhere, dir.path(), &offline, &write_rules).unwrap().is_none());
+    }
+
+    #[test]
+    fn atlas_page_is_spared_and_web_tabs_filtered() {
+        use serde_json::json;
+        let hide = |sel: &str, t: serde_json::Value| json!({ "trigger": t, "action": { "type": "css-display-none", "selector": sel } });
+        let rules = vec![
+            json!({ "trigger": { "url-filter": "ads\\.example" }, "action": { "type": "block" } }),
+            hide(".a", json!({ "url-filter": ".*" })),
+            hide(".b", json!({ "url-filter": ".*", "if-domain": ["*example.org"] })),
+            hide(".c", json!({ "url-filter": ".*", "unless-domain": ["*example.org", "shop.example.*"] })),
+            hide(".d", json!({ "url-filter": ".*" })),
+            json!({ "trigger": { "url-filter": "x", "if-domain": ["site.example"] }, "action": { "type": "ignore-previous-rules" } }),
+        ];
+        let out = for_atlas(rules);
+        let types: Vec<&str> = out.iter().map(|r| r["action"]["type"].as_str().unwrap()).collect();
+        assert_eq!(types, ["block", "css-display-none", "css-display-none", "css-display-none", "ignore-previous-rules", "ignore-previous-rules", "ignore-previous-rules", "ignore-previous-rules"]);
+        // the generic hiding merged where it first stood, never on Atlas's own frames
+        assert_eq!(out[1]["action"]["selector"], ".a,.d");
+        assert_eq!(out[1]["trigger"]["unless-frame-url"].as_array().unwrap().len(), 3);
+        // a site's own hiding untouched; hiding with exceptions: by the top document, never on Atlas's page
+        assert_eq!(out[2]["trigger"]["if-domain"], json!(["*example.org"]));
+        let unless: Vec<&str> = out[3]["trigger"]["unless-top-url"].as_array().unwrap().iter().map(|v| v.as_str().unwrap()).collect();
+        assert_eq!(unless[..2], [r"^[^:]+://+([^/:]+\.)?example\.org[:/]", r"^[^:]+://+shop\.example\.[^/:]+[:/]"]);
+        assert!(unless.contains(&r"^[^:]+://+127\.0\.0\.1[:/]") && out[3]["trigger"].get("unless-domain").is_none());
+        // loopback requests never blocked, after every other rule
+        assert_eq!(out[7]["trigger"]["url-filter"], r"^[^:]+://+\[::1\][:/]");
     }
 }

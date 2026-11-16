@@ -38,13 +38,16 @@ export const IMAGE_RE = /\.(png|jpe?g|gif|svg|webp|avif|bmp|ico)$/i;
 /** A text note: its extension is never shown outside the file explorers. */
 const NOTE_EXT = /\.(md|markdown|txt|page)$/i;
 
+/** A text note (not a drawing kept as `.excalidraw.md`): what lists of "notes" keep when files are hidden. */
+export const isNote = (p: string): boolean => NOTE_EXT.test(p) && !/\.excalidraw\.md$/i.test(p);
+
 /** A file as the interface names it: a text note without its extension (`hubbard`), every other file — a PDF, a
  *  picture, a drawing, a table — with it (`paper.pdf`), so a note and a PDF of the same name stay apart; the file explorers (tree,
  *  explorer pane, phone list) show real names. The one place an extension is dropped: paths typed, copied or linked
  *  keep the real name. */
 export function shownName(p: string): string {
   const b = basename(p);
-  return NOTE_EXT.test(b) && !/\.excalidraw\.md$/i.test(b) ? b.replace(NOTE_EXT, "") : b;
+  return isNote(b) ? b.replace(NOTE_EXT, "") : b;
 }
 
 /** A file's path as the interface shows it: its folders, then its shown name. */

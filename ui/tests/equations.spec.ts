@@ -32,9 +32,9 @@ const NOTE = [
 test("labelled displays and numbered environments are numbered in order; plain $$, fences and \\notag are not", () => {
   const e = noteEquations(NOTE);
   expect([...e.byId]).toEqual([["eq-first", "1"], ["eq-inside", "2"], ["eq-own", "D1"], ["eq-last", "4"]]);
-  expect(e.byTex.get("a = b \\label{eq-first}")).toBe("1");
-  expect(e.byTex.get(texKey("$$\n> e = f\n> $$ ^eq-inside"))).toBe("2"); // the editor's source in a callout, the reader's TeX alike
-  expect(e.byTex.get("\\begin{align} k &= l \\end{align}")).toBe("3"); // unlabelled, but a numbered environment
+  expect(e.byTex.get("a = b \\label{eq-first}")).toEqual(["1"]);
+  expect(e.byTex.get(texKey("$$\n> e = f\n> $$ ^eq-inside"))).toEqual(["2"]); // the editor's source in a callout, the reader's TeX alike
+  expect(e.byTex.get("\\begin{align} k &= l \\end{align}")).toEqual(["3"]); // unlabelled, but a numbered environment
   expect(e.byTex.has("c = d")).toBe(false);
   expect(e.spanOf.get("eq-first")).toEqual([2, 4]);
 });
@@ -45,9 +45,38 @@ test("adding an equation above renumbers the ones below", () => {
 });
 
 test("KaTeX gets the TeX without labels, a numbered environment as its twin, and the number as a tag", () => {
-  expect(numberedTex("$$\na \\label{x}\n$$", "3")).toBe("$$\na \n\\tag{3}$$");
-  expect(numberedTex("\\begin{align} k &= l \\end{align}", "3")).toBe("\\begin{aligned} k &= l \\end{aligned}\\tag{3}");
+  expect(numberedTex("$$\na \\label{x}\n$$", ["3"])).toBe("$$\na \n\\tag{3}$$");
+  expect(numberedTex("\\begin{equation} k = l \\end{equation}", ["3"])).toBe(" k = l\\tag{3}");
+  expect(numberedTex("\\begin{align} k &= l \\end{align}", ["3"])).toBe("\\begin{align} k &= l \\tag{3}\\end{align}");
   expect(numberedTex("g \\label{x}")).toBe("g ");
+});
+
+// LaTeX numbers each row of align/gather/eqnarray: a row's \label names it, \notag skips it, a nested environment's
+// rows are not the display's, a trailing \\ makes no row.
+const ROWS = [
+  "$$",
+  "\\begin{align}",
+  "a &= b \\label{eq-a} \\\\",
+  "c &= \\begin{cases} 1 \\\\ 2 \\end{cases} \\notag \\\\",
+  "e &= f \\tag{T} \\\\",
+  "g &= h \\label{eq-g} \\\\",
+  "\\end{align}",
+  "$$ ^eq-rows",
+  "$$ z \\label{eq-after} $$",
+].join("\n");
+
+test("each row of an align is numbered: its own label, \\notag, \\tag and a nested environment", () => {
+  const e = noteEquations(ROWS);
+  expect([...e.byId]).toEqual([["eq-a", "1"], ["eq-g", "2"], ["eq-rows", "2"], ["eq-after", "3"]]);
+  expect(e.spanOf.get("eq-g")).toEqual([1, 8]);
+  const display = ROWS.split("\n").slice(0, 8).join("\n");
+  const nums = e.byTex.get(texKey(display));
+  expect(nums).toEqual(["1", null, "T", "2"]);
+  const tex = numberedTex(texKey(display), nums);
+  expect(tex.match(/\\tag\{[^}]*\}/g)).toEqual(["\\tag{1}", "\\tag{T}", "\\tag{2}"]);
+  expect(tex).not.toContain("label");
+  expect(numberedTex("\\begin{eqnarray} a &=& b \\\\ c &=& d \\end{eqnarray}", ["4", "5"])).toBe("\\begin{align} a &=& b \\tag{4}\\\\ c &=& d \\tag{5}\\end{align}");
+  expect(noteEquations("$$\\begin{align*} a \\\\ b \\end{align*}$$").byTex.size).toBe(0);
 });
 
 test("a link names an equation by `note#^label`; from another note it reads with the note's name", () => {

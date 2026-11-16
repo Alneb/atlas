@@ -12,6 +12,8 @@ import { pluginMenu } from "./plugin-menus";
 import { actions, openWith } from "./actions";
 import { keysOf } from "./keymap.svelte";
 import { toast } from "./state.svelte";
+import { resolveLink } from "./vault";
+import { dirOf } from "./paths";
 
 const copy = (text: string) => navigator.clipboard.writeText(text).catch(() => toast("Clipboard", "Could not copy — the window refused."));
 
@@ -55,8 +57,16 @@ function linkItems(a: HTMLAnchorElement): MenuItem[] {
   const url = a.href;
   return [
     { label: "Open link", icon: "link", detail: short(url.replace(/^https?:\/\//, "")), run: () => void import("./web-links").then((m) => m.openWeb(url)) },
+    // a DOI link the library has not got yet (doi-links.ts): Catalog's own dialog files it
+    ...(a.classList.contains("not-in-library") ? [{ label: "Add to library…", icon: "library" as const, run: () => void import("./doi-links").then((m) => m.addToLibrary(url)) }] : []),
     { label: "Copy link address", icon: "copy", run: () => void copy(url) },
   ];
+}
+
+/** A vault link drawn in rendered text (`a.internal-link`: a wikilink, a filed DOI link): its note's path, if it resolves. */
+function vaultLinkPath(a: HTMLAnchorElement): string | null {
+  const from = a.closest<HTMLElement>("[data-note]")?.dataset.note ?? "";
+  return resolveLink(a.dataset.href ?? "", dirOf(from));
 }
 
 /** A row that names a file (`data-path`, and `data-line` for a place in it: a search hit, a task, a change) in a part
@@ -90,8 +100,11 @@ export function appMenuItems(el: Element, selection: string): MenuItem[] {
   const file = el.closest<HTMLElement>("[data-path]");
   if (file?.dataset.path && !selection.trim()) return fileItems(file.dataset.path, Number(file.dataset.line) || undefined);
   const link = el.closest<HTMLAnchorElement>("a[href]");
+  // a vault link in rendered text is its note, with the menu any row naming that note has (not its "#" address)
+  const linked = link?.classList.contains("internal-link") && !selection.trim() ? vaultLinkPath(link) : null;
+  if (linked) return fileItems(linked);
   const out: MenuItem[] = [];
-  if (link && /^(https?|mailto):/i.test(link.href)) out.push(...linkItems(link));
+  if (link && !link.classList.contains("internal-link") && /^(https?|mailto):/i.test(link.href)) out.push(...linkItems(link));
   if (selection.trim()) out.push(...(out.length ? ["sep" as const] : []), ...selectionItems(selection));
   return out.length ? out : anywhere();
 }

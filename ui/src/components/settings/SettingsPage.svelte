@@ -23,6 +23,9 @@
   import CaptureKeyPanel from "./CaptureKeyPanel.svelte";
   import ServerPanel from "./ServerPanel.svelte";
   import AgentsPanel from "./AgentsPanel.svelte";
+  import VaultsSyncPanel from "./VaultsSyncPanel.svelte";
+  import SyncConflictsPanel from "./SyncConflictsPanel.svelte";
+  import WebDataPanel from "./WebDataPanel.svelte";
   import { allCommands, keysOf } from "../../lib/keymap.svelte";
   import { chordLabel } from "../../lib/keys";
   import { pageDef, type Placed, type NextRung } from "../../lib/settings-pages";
@@ -90,6 +93,9 @@
     {:else if panel === "capturekey"}<CaptureKeyPanel />
     {:else if panel === "server"}<ServerPanel />
     {:else if panel === "agents"}<AgentsPanel />
+    {:else if panel === "vaults"}<VaultsSyncPanel />
+    {:else if panel === "syncconflicts"}<SyncConflictsPanel />
+    {:else if panel === "webdata"}<WebDataPanel />
     {:else if panel === "file"}
       <section class="panel"><h3>The settings file</h3>
         <p class="what">Every page here writes <code>{settings.path}</code>, and a change made in the file shows here at once. Your comments in it are kept.</p>

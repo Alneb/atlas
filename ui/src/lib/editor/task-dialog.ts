@@ -1,10 +1,13 @@
-// "Note: create or edit task…" (Obsidian Tasks' dialog): the caret's line in a form; Save writes it
-// back as one change — unless the line was edited meanwhile (a sync, another window), then nothing is lost: the
-// task goes on a new line below.
+// "Note: create or edit task…" (Obsidian Tasks' dialog): the caret's line in a form; Save has the core write the
+// line (its one task writer, POST /api/task/render) and puts it back as one change — unless the line was edited
+// meanwhile (a sync, another window), then nothing is lost: the task goes on a new line below.
 import { mount, unmount } from "svelte";
 import type { EditorView } from "@codemirror/view";
 import TaskDialog from "../../components/TaskDialog.svelte";
-import { formatTaskLine, parseTaskLine, type TaskLine } from "../task-line";
+import { api } from "../api";
+import { toast } from "../state.svelte";
+import { errText } from "../text";
+import { parseTaskLine, type TaskLine } from "../task-line";
 
 export function editTask(view: EditorView): void {
   const head = view.state.selection.main.head;
@@ -15,8 +18,14 @@ export function editTask(view: EditorView): void {
   const host = document.body.appendChild(document.createElement("div"));
   let app: ReturnType<typeof mount> | null = null;
   const close = (): void => { if (app) void unmount(app); app = null; host.remove(); view.focus(); };
-  const save = (t: TaskLine): void => {
-    const text = formatTaskLine(t);
+  let saving = false;
+  const save = async (t: TaskLine): Promise<void> => {
+    if (saving) return;
+    saving = true;
+    let text: string;
+    // the dialog stays open when the core refuses or cannot be reached: the form is not lost
+    try { ({ line: text } = await api.renderTask(t)); } catch (e) { saving = false; toast("Could not write the task", errText(e), "error"); return; }
+    if (!app) return; // cancelled while the core answered
     if (view.dom.isConnected) {
       const n = line.number <= view.state.doc.lines ? view.state.doc.line(line.number) : null;
       const at = n && n.text === before ? n : null;
@@ -26,5 +35,5 @@ export function editTask(view: EditorView): void {
     }
     close();
   };
-  app = mount(TaskDialog, { target: host, props: { task, isNew, onsubmit: save, oncancel: close } });
+  app = mount(TaskDialog, { target: host, props: { task, isNew, onsubmit: (t: TaskLine) => void save(t), oncancel: close } });
 }

@@ -1,6 +1,7 @@
 <script lang="ts">
   // Week, work week and day (DESIGN-calendar §2): the all-day lane on top, the hours down the side in the user's
-  // locale, the now-line, overlapping events side by side. Drag on empty space makes an event, drag an event moves it
+  // locale, the now-line; overlapping events laid out by `dayColumns` (layout.ts: drawn over a running one, indented,
+  // or side by side when they start together). Drag on empty space makes an event, drag an event moves it
   // (across days too), drag its lower edge resizes it — 15-minute steps; Esc cancels; a click selects.
   import { onMount } from "svelte";
   import { addDays, evEnd, evStart, sameDay, startOfDay, timeText, notePath, type Ev } from "./api";
@@ -27,6 +28,10 @@
   const nowMin = $derived(cal.now.getHours() * 60 + cal.now.getMinutes());
   const isSel = (e: Ev) => selected !== null && selected.uid === e.uid && selected.rid === e.rid && selected.calendar === e.calendar;
   const color = (e: Ev) => e.color ?? cal.colorOf(e.calendar);
+  // a box's left and width (layout.ts `Box`): a fraction of the day column plus pixels, with a 1 px gap on each side
+  const px = (f: number, p: number) => `calc(${f * 100}% + ${p}px)`;
+  // the whole of it on hover: a narrow block shows only its title
+  const tip = (e: Ev) => [e.summary || "(no title)", `${timeText(evStart(e), cal.h12)} – ${timeText(evEnd(e), cal.h12)}`, e.location, e.calendar_name].filter(Boolean).join("\n");
 
   onMount(() => {
     const h = Number(cal.settings.day_start ?? 8);
@@ -153,10 +158,11 @@
           <div class="col" class:today={sameDay(d, cal.now)} class:weekend={d.getDay() === 0 || d.getDay() === 6} role="gridcell" tabindex="-1" onpointerdown={(ev) => down(ev, "create")}>
             {#each placed[i] as p (p.e.calendar + p.e.uid + (p.e.rid ?? ""))}
               {@const short = p.bottom - p.top < 40}
-              <div class="ev" class:sel={isSel(p.e)} class:short class:ro={!p.e.writable} class:cancel={p.e.status === "CANCELLED"} class:free={p.e.free}
+              <div class="ev" class:sel={isSel(p.e)} class:short class:over={p.depth > 0} class:ro={!p.e.writable} class:cancel={p.e.status === "CANCELLED"} class:free={p.e.free}
                 class:ghosted={drag?.e === p.e && drag.moved}
                 style:--c={color(p.e)} style:top="{(p.top / 60) * HOUR}px" style:height="{Math.max(14, ((p.bottom - p.top) / 60) * HOUR - 2)}px"
-                style:left="calc({(p.col / p.cols) * 100}% + 1px)" style:width="calc({(1 / p.cols) * 100}% - 3px)"
+                style:left={px(p.box.x, p.box.xpx + 1)} style:width={px(p.box.w, p.box.wpx - 3)} style:--depth={p.depth}
+                title={tip(p.e)}
                 role="button" tabindex="0" aria-label="{p.e.summary}, {timeText(evStart(p.e), cal.h12)}"
                 onpointerdown={(ev) => (p.startsBefore || p.endsAfter ? ev.stopPropagation() : down(ev, "move", p.e, p.top, p.bottom))}
                 onclick={(ev) => { if (p.startsBefore || p.endsAfter) onselect(p.e, (ev.currentTarget as HTMLElement).getBoundingClientRect()); }}
@@ -209,12 +215,14 @@
   .col { position: relative; border-left: 1px solid var(--border); cursor: cell; min-width: 0;
     background-image: repeating-linear-gradient(to bottom, var(--border) 0 1px, transparent 1px var(--hour)), repeating-linear-gradient(to bottom, transparent 0 calc(var(--hour) / 2), color-mix(in srgb, var(--border) 45%, transparent) calc(var(--hour) / 2) calc(var(--hour) / 2 + 1px), transparent calc(var(--hour) / 2 + 1px) var(--hour)); }
   .col.weekend { background-color: color-mix(in srgb, var(--bg-alt) 70%, transparent); }
-  .ev { position: absolute; box-sizing: border-box; cursor: pointer; border-radius: var(--radius-sm); padding: 2px 6px; overflow: hidden; display: flex; flex-direction: column; gap: 0; font-size: 0.8em; line-height: 1.25;
-    background: color-mix(in srgb, var(--c) 24%, var(--bg)); border-left: 3px solid var(--c); color: var(--text); box-shadow: 0 0 0 1px var(--bg); touch-action: none; z-index: 1; }
+  .ev { position: absolute; box-sizing: border-box; container-type: inline-size; cursor: pointer; border-radius: var(--radius-sm); padding: 2px 6px; overflow: hidden; display: flex; flex-direction: column; gap: 0; font-size: 0.8em; line-height: 1.25;
+    background: color-mix(in srgb, var(--c) 24%, var(--bg)); border-left: 3px solid var(--c); color: var(--text); box-shadow: 0 0 0 1px var(--bg); touch-action: none; z-index: calc(1 + var(--depth, 0)); }
+  /* drawn over a running event: opaque, with a ring of the page and a shadow so the one under it reads as a separate block */
+  .ev.over { box-shadow: 0 0 0 1px var(--bg), var(--shadow-sm); }
   /* a bar is an .ev too (selection, colours) but a grid item in a row: absolute dropped its grid-column (every bar on Monday), a column centred its words */
   .bar.ev { position: relative; flex-direction: row; }
   .ev:hover { background: color-mix(in srgb, var(--c) 34%, var(--bg)); }
-  .ev:focus-visible, .ev.sel, .bar.sel, .bar:focus-visible { outline: 2px solid var(--c); outline-offset: 1px; z-index: 3; }
+  .ev:focus-visible, .ev.sel, .bar.sel, .bar:focus-visible { outline: 2px solid var(--c); outline-offset: 1px; z-index: 40; }
   .ev.short { flex-direction: row; gap: 6px; align-items: baseline; }
   .ev.short .t { flex: 0 1 auto; min-width: 2.5em; }
   .ev.short .when { flex: 0 100 auto; min-width: 0; }
@@ -222,11 +230,17 @@
   .ev.free { background: color-mix(in srgb, var(--c) 10%, var(--bg)); }
   .ev.cancel .t, .bar.cancel { text-decoration: line-through; opacity: 0.7; }
   .ev.ghosted { opacity: 0.35; }
-  .t { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+  .t { font-weight: 600; overflow: hidden; text-overflow: ellipsis; min-width: 0; overflow-wrap: anywhere;
+    display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; flex: none; }
+  .ev.short .t { display: block; white-space: nowrap; }
   .when, .loc { color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
   .grip { position: absolute; left: 0; right: 0; bottom: 0; height: 7px; cursor: ns-resize; }
-  .slot-ghost { z-index: 4; pointer-events: none; box-shadow: var(--shadow-md, 0 4px 16px rgba(0,0,0,.25)); background: color-mix(in srgb, var(--c) 40%, var(--bg)); }
-  .now { position: absolute; left: -1px; right: 0; height: 2px; background: var(--red); z-index: 5; pointer-events: none; }
+  .slot-ghost { z-index: 41; pointer-events: none; box-shadow: var(--shadow-md, 0 4px 16px rgba(0,0,0,.25)); background: color-mix(in srgb, var(--c) 40%, var(--bg)); }
+  .now { position: absolute; left: -1px; right: 0; height: 2px; background: var(--red); z-index: 42; pointer-events: none; }
   .now::before { content: ""; position: absolute; left: -5px; top: -4px; width: 10px; height: 10px; border-radius: 50%; background: var(--red); }
+  /* narrow: the title alone (two lines when tall enough) rather than both cut — the rest is in the tooltip */
+  @container (max-width: 72px) {
+    .when, .loc { display: none; }
+  }
   @media (prefers-reduced-motion: no-preference) { .ev { transition: opacity 120ms var(--ease); } }
 </style>

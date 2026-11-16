@@ -286,11 +286,16 @@ pub struct AutomationConfig {
     /// The computers that run them, by host name; empty: every computer that opens the vault. A vault synced to
     /// several computers runs a schedule on one, so two never write its output at once (Syncthing conflict copies).
     pub schedules_on: Vec<String>,
+    /// Where each background job runs when the vault is also on a server (docs/design/DESIGN-server-role.md), over
+    /// what its plugin says: `server` (the always-on server, here when there is none), `device` (never a server) or
+    /// `any`. By the job's id in the schedule log (`"plugin.finance.bank_sync"`), a whole plugin (`"plugin.runs"`) or a
+    /// command's id.
+    pub background: std::collections::BTreeMap<String, crate::server_role::Background>,
 }
 
 impl Default for AutomationConfig {
     fn default() -> Self {
-        Self { run_schedules: true, schedules_on: Vec::new() }
+        Self { run_schedules: true, schedules_on: Vec::new(), background: Default::default() }
     }
 }
 
@@ -622,6 +627,8 @@ pub struct EditorConfig {
     pub backlinks: bool,
     /// Show the note's file name as a title above its first line (Obsidian's "inline title").
     pub inline_title: bool,
+    /// Editing a note's first `# heading` that says its file name renames the file too (when the caret leaves it).
+    pub heading_renames: bool,
     /// Typewriter scrolling in notes: the line being written stays at the middle of the pane, so
     /// the text moves and your eyes do not.
     pub typewriter: bool,
@@ -742,19 +749,6 @@ pub enum WebLinks {
     Browser,
 }
 
-/// How the desktop app on Linux shows a web page in a tab.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, TS, JsonSchema)]
-#[serde(rename_all = "lowercase")]
-#[ts(export)]
-pub enum WebTabView {
-    /// Inside the pane, like any part of Atlas: menus and previews draw over it. Sites that forbid being framed show all
-    /// the same, signed in (Atlas's WebKit hook lifts that for its own page only).
-    #[default]
-    Frame,
-    /// A browser view laid over the pane: it hides while a menu or a preview covers it.
-    Native,
-}
-
 /// When a notice (a failed schedule, a filed capture, a conflict copy, a plugin's word) also reaches the system's
 /// notifications, outside Atlas's window.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, TS, JsonSchema)]
@@ -837,14 +831,11 @@ pub struct WebConfig {
     /// Filter lists in Adblock Plus / uBlock Origin syntax, fetched once a week (uBlock's extended syntax — scriptlets —
     /// has no WebKit equivalent and is skipped). A change applies to the next window.
     pub filter_lists: Vec<String>,
-    /// Linux desktop app: a web tab is a frame inside the pane, or a browser view over it. A change applies to the next tab.
-    pub tab_view: WebTabView,
 }
 
 impl Default for WebConfig {
     fn default() -> Self {
         Self {
-            tab_view: WebTabView::Frame,
             open_links: WebLinks::Tab,
             block_ads: true,
             filter_lists: vec![
@@ -1058,6 +1049,8 @@ pub struct ActivityConfig {
     pub show_claude: bool,
     /// Show housekeeping commits (only history, session logs, HTML views touched) instead of one summary line.
     pub show_housekeeping: bool,
+    /// List every file made or changed, not only notes (pictures, data, a run's output).
+    pub show_files: bool,
     /// Changed files in the same folder collapse into one row from this many on.
     #[schemars(range(min = 2, max = 50))]
     pub group_threshold: u32,
@@ -1119,6 +1112,7 @@ impl Default for EditorConfig {
             fold_headings: true,
             backlinks: true,
             inline_title: true,
+            heading_renames: true,
             typewriter: false,
             vim_keys: VimKeys::Classic,
             vim_clipboard: true,
@@ -1164,7 +1158,7 @@ impl Default for FilesConfig {
 
 impl Default for ActivityConfig {
     fn default() -> Self {
-        Self { show_claude: true, show_housekeeping: false, group_threshold: 3 }
+        Self { show_claude: true, show_housekeeping: false, show_files: false, group_threshold: 3 }
     }
 }
 

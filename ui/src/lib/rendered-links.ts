@@ -11,6 +11,8 @@ export function followRenderedLink(e: MouseEvent, notePath: string, beside: bool
   const href = a.getAttribute("href") ?? "";
   if (a.classList.contains("internal-link")) {
     e.preventDefault();
+    // a web link drawn as the note it stands for (a filed DOI, doi-links.ts): Shift+click is still the page's
+    if (e.shiftKey && a.dataset.url) { void import("./web-links").then((m) => m.openOutside(a.dataset.url!)); return true; }
     void openWikilink(a.dataset.href ?? "", notePath, { beside });
     return true;
   }

@@ -19,6 +19,10 @@ type: focus
 ```
 
 ```view
+type: deadlines
+```
+
+```view
 type: tasks
 ```
 "#;

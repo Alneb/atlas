@@ -15,7 +15,6 @@ mod tray_tauri;
 #[cfg(target_os = "linux")]
 mod web_filters;
 #[cfg(target_os = "linux")]
-mod webtab;
 
 use std::path::PathBuf;
 use tauri::{Manager, WebviewUrl, WebviewWindowBuilder};
@@ -350,7 +349,7 @@ fn frame_any_extension() -> Option<PathBuf> {
 /// Web pages as tabs on Linux: the libsoup hook (frames/frames.rs, built by build.rs) is written under the cache and
 /// put in LD_PRELOAD before WebKit starts its processes; it acts in the network process only and takes itself out of
 /// LD_PRELOAD in every process it is loaded into, so the shells and helpers Atlas starts never carry it on. False: it
-/// could not be written (the web tabs keep the native view, webtab.rs).
+/// could not be written (a web tab then shows only sites that let themselves be framed, lib/web-links.ts).
 #[cfg(target_os = "linux")]
 fn frames_preload() -> bool {
     const LIB: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/libatlas-webkit-frames.so"));
@@ -371,11 +370,35 @@ fn frames_preload() -> bool {
     written
 }
 
-/// Tells the page it is in the desktop app (in a plain browser, web links open the browser's own tabs) and whether its
-/// iframes can show any site (lib/web-links.ts): on Windows the extension above removes the headers that forbid it, on
-/// Linux the libsoup hook (`frames_preload`).
-fn frames_any_page(frames: bool) -> &'static str {
-    if frames { "window.__atlasDesktop = true; window.__atlasFramesAnything = true;" } else { "window.__atlasDesktop = true;" }
+/// Tells the page it is in the desktop app (in a plain browser, web links open the browser's own tabs), whether its
+/// iframes can show any site (lib/web-links.ts: on Windows the extension above removes the headers that forbid it, on
+/// Linux the libsoup hook, `frames_preload`), and the token its web tabs' page script signs its messages with.
+fn frames_any_page(frames: bool) -> String {
+    format!("window.__atlasDesktop = true; window.__atlasFramesAnything = {frames}; window.__atlasFrameToken = {:?};", frame_token())
+}
+
+/// A random token for this run: only Atlas's top page (`frames_any_page`) and the web tabs' page script
+/// (`frame_script`) know it, so a framed site cannot pass its own messages off as the script's (Web.svelte).
+fn frame_token() -> &'static str {
+    static TOKEN: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+    TOKEN.get_or_init(|| atlas_core::auth::random_hex(16))
+}
+
+/// The web tabs' page script (frame_page.js) with this run's token.
+fn frame_script() -> String {
+    include_str!("frame_page.js").replace("__ATLAS_FRAME_TOKEN__", frame_token())
+}
+
+/// On Linux the page script runs in a script world of its own (WebKit's isolated world, as a browser extension's
+/// content script): a framed site's scripts share the page's DOM with it but not its variables, so they never see the
+/// token, nor can they wrap the functions it calls. Added to the window's content manager for every frame; wry's own
+/// scripts go into the page's world.
+#[cfg(target_os = "linux")]
+fn frame_script_isolated(view: &webkit2gtk::WebView) {
+    use webkit2gtk::{UserContentInjectedFrames, UserContentManagerExt, UserScript, UserScriptInjectionTime, WebViewExt};
+    if let Some(m) = view.user_content_manager() {
+        m.add_script(&UserScript::for_world(&frame_script(), UserContentInjectedFrames::AllFrames, UserScriptInjectionTime::Start, "atlas-frame", &[], &[]));
+    }
 }
 
 /// The core's "choose a folder" (the vault switcher's Choose…) is the system's own dialog, over this window: typing a whole
@@ -531,8 +554,13 @@ fn main() -> anyhow::Result<()> {
             // a notification's click, a second launch, the tray: one way to bring the window forward (shell.rs)
             let s = shell.clone();
             atlas_core::shell::on_show(move |show| s.show(show.open));
+            #[cfg(target_os = "linux")]
+            {
+                let h = handle.clone();
+                atlas_core::shell::on_forget_web_data(move |done| forget_web_data(&h, done));
+            }
             let s = shell.clone();
-            atlas_core::notify::on_notice(move |n, looked_at| s.notice(n, looked_at));
+            atlas_core::notify::on_notice(move |heard| s.notice(heard));
             let start_vault = vault.clone();
             atlas_core::shell::on_config(move |root, cfg| {
                 if same_folder(root, &start_vault) {
@@ -661,9 +689,13 @@ impl MainSpec {
         let spec = self.clone();
         let main = WebviewWindowBuilder::new(app, label, WebviewUrl::External(url))
             .title(title)
-            .initialization_script(frames_any_page(self.frames))
-            // a web tab's frame: its address, history, find and Atlas's keys (frame_page.js; inert elsewhere)
-            .initialization_script_for_all_frames(include_str!("frame_page.js"))
+            .initialization_script(frames_any_page(self.frames));
+        // a web tab's frame: its address, history, find and Atlas's keys (frame_page.js; inert elsewhere). Linux: in
+        // an isolated world, below; elsewhere in the page's world (WebView2 and WKWebView offer no isolated world
+        // for it), where the script keeps the functions it calls from before the site's scripts run.
+        #[cfg(not(target_os = "linux"))]
+        let main = main.initialization_script_for_all_frames(frame_script());
+        let main = main
             // OS file drops reach the page's own `drop` (the editor, the explorer, the capture popup); Tauri's
             // handler would take them first (on Windows the page then never sees a dropped file)
             .disable_drag_drop_handler()
@@ -717,8 +749,10 @@ impl MainSpec {
             }
             pinch_to_wheel(&w.inner());
             pen_as_pen(&w.inner());
+            frame_script_isolated(&w.inner());
+            // ads and trackers blocked in web tabs (every frame of this window), Atlas's own page spared (web_filters.rs)
+            browser::filter::apply_to_atlas(&w.inner());
             stay_in_atlas(&w.inner(), off_app);
-            webtab::attach(&w.inner()); // web pages as tabs, framing allowed or not
             // a document, not a browser: no back/forward page cache, small memory caches — Atlas is one page and never goes back to a page it left
             if let Some(c) = w.inner().context() {
                 use webkit2gtk::WebContextExt;
@@ -726,6 +760,15 @@ impl MainSpec {
             }
         })?;
         Ok(main)
+    }
+}
+
+/// Every website's data forgotten through the main window's WebContext (browser.rs `forget_site_data`), on GTK's thread.
+/// No window: `done` is dropped unheard, and the asker hears that.
+#[cfg(target_os = "linux")]
+fn forget_web_data(app: &tauri::AppHandle, done: atlas_core::shell::Forgotten) {
+    if let Some(w) = app.get_webview_window(MAIN_WINDOW) {
+        let _ = w.with_webview(move |v| browser::forget_site_data(&v.inner(), done));
     }
 }
 

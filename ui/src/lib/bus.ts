@@ -2,7 +2,7 @@
 import type { ServerEvent } from "./types";
 
 type Handlers = { [K in ServerEvent["type"]]: Set<(e: Extract<ServerEvent, { type: K }>) => void> };
-const handlers: Handlers = { fs: new Set(), gone: new Set(), open: new Set(), notify: new Set(), focus: new Set(), signin: new Set(), signinneeded: new Set(), signedin: new Set(), plugin: new Set() };
+const handlers: Handlers = { fs: new Set(), gone: new Set(), open: new Set(), notify: new Set(), focus: new Set(), signin: new Set(), signinneeded: new Set(), signedin: new Set(), plugin: new Set(), withdraw: new Set(), palette: new Set() };
 
 /** Atlas's own bookkeeping (`.atlas/cache/`: the layout, recent files; `.atlas/trash/`): written all the time, never
  *  a file a note, the tree, Today or git review shows — `fs` listeners skip it. */

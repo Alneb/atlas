@@ -203,13 +203,25 @@ impl Shell {
         }
     }
 
-    /// Every notice of this process (notify.rs `on_notice`): one nobody looked at waits in the tray.
-    pub fn notice(&self, n: &atlas_core::api::Notice, looked_at: bool) {
-        if looked_at {
-            return;
+    /// Every notice of this process (notify.rs `on_notice`): one nobody looked at waits in the tray, until it is seen
+    /// or withdrawn.
+    pub fn notice(&self, heard: atlas_core::notify::Heard<'_>) {
+        use atlas_core::notify::Heard;
+        let changed = {
+            let model = &mut self.state.lock().unwrap().model;
+            match heard {
+                Heard::Notice(_, true) => false,
+                Heard::Notice(n, false) => {
+                    let open = atlas_core::notify::opens(n).map(str::to_string);
+                    model.add_unseen(Unseen { title: n.title.clone(), source: n.source.clone(), open, id: n.id.clone(), subject: n.subject.clone() });
+                    true
+                }
+                Heard::Withdrawn(id) => model.withdraw(id),
+            }
+        };
+        if changed {
+            self.redraw();
         }
-        self.state.lock().unwrap().model.add_unseen(Unseen { title: n.title.clone(), source: n.source.clone(), open: atlas_core::notify::opens(n).map(str::to_string) });
-        self.redraw();
     }
 
     /// Closes a window hidden for `[desktop] sleep_after_min` minutes, checked every half minute.

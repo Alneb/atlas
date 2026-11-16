@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The home-screen widget's card: white, tinted to the vault's background when drawn (TodayWidget). -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+  <solid android:color="#ffffffff" />
+  <corners android:radius="24dp" />
+</shape>

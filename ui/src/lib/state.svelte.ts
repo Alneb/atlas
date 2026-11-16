@@ -33,7 +33,9 @@ export type ToastKind = "info" | "success" | "error";
  *  each repeat (`shown` counts them, so the time-left line starts again). */
 /** A button on a notice ("Open", "Undo"); running it closes the notice. */
 export interface ToastAction { label: string; run: () => void }
-export interface Toast { id: number; title: string; body?: string; kind: ToastKind; actions: ToastAction[]; count: number; life: number; shown: number }
+/** `notice` / `subject`: the core's notice id and subject (a notice from the core), which a later notice of that id
+ *  replaces and `withdraw` takes away. */
+export interface Toast { id: number; title: string; body?: string; kind: ToastKind; actions: ToastAction[]; count: number; life: number; shown: number; notice?: string; subject?: string }
 export const toasts = $state<Toast[]>([]);
 let toastSeq = 0;
 const MAX_TOASTS = 5;
@@ -48,8 +50,29 @@ function arm(id: number, ms: number) {
 /** `act`: the notice's buttons (a new mail's Open, a capture's Undo); a notice with one stays longer, and so does an
  *  error (it has more to read). The same notice again is counted on the one shown, not stacked. */
 export function toast(title: string, body?: string, kind: ToastKind = "info", ms = 4500, act?: ToastAction | ToastAction[]): void {
-  const actions = act ? [act].flat() : [];
+  showToast(title, body, kind, ms, act ? [act].flat() : [], {});
+}
+
+/** A notice from the core (`Event::Notify`): as `toast`, keyed by its id (a later one of that id replaces it in
+ *  place) and its subject, so `withdrawToasts` can take it away. */
+export function noticeToast(title: string, body: string | undefined, kind: ToastKind, actions: ToastAction[], keys: { notice?: string; subject?: string }): void {
+  showToast(title, body, kind, 4500, actions, keys);
+}
+
+/** `Event::Withdraw`: the toasts of this notice id, or about this subject, go. */
+export function withdrawToasts(id: string): void {
+  for (const t of toasts.filter((t) => t.notice === id || t.subject === id)) dismissToast(t.id);
+}
+
+function showToast(title: string, body: string | undefined, kind: ToastKind, ms: number, actions: ToastAction[], keys: { notice?: string; subject?: string }): void {
   const life = actions.length ? Math.max(ms, 9000) : kind === "error" ? Math.max(ms, 8000) : ms;
+  const again = keys.notice ? toasts.find((t) => t.notice === keys.notice) : undefined;
+  if (again) {
+    Object.assign(again, { title, body, kind, actions, subject: keys.subject, life });
+    again.shown++;
+    arm(again.id, life);
+    return;
+  }
   const same = !actions.length && toasts.find((t) => !t.actions.length && t.title === title && t.body === body && t.kind === kind);
   if (same) {
     same.count++;
@@ -59,7 +82,7 @@ export function toast(title: string, body?: string, kind: ToastKind = "info", ms
     return;
   }
   const id = ++toastSeq;
-  toasts.push({ id, title, body, kind, actions, count: 1, life, shown: 1 });
+  toasts.push({ id, title, body, kind, actions, count: 1, life, shown: 1, ...keys });
   arm(id, life);
   while (toasts.length > MAX_TOASTS) dismissToast(toasts[0].id);
 }

@@ -19,7 +19,7 @@ public final class CaptureTile extends TileService {
     @Override
     public void onClick() {
         if (ScreenService.shootThenOpen()) return; // the service closes the shade, takes the screen, opens the box
-        Intent i = new Intent(this, CaptureActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        Intent i = new Intent(this, CaptureActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK).putExtra(CaptureClock.EXTRA, CaptureClock.now());
         if (Build.VERSION.SDK_INT >= 34) {
             startActivityAndCollapse(PendingIntent.getActivity(this, 0, i, PendingIntent.FLAG_IMMUTABLE));
         } else {

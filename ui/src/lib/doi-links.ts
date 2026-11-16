@@ -1,15 +1,17 @@
-// A DOI link is a paper: `[Hedin 1965](https://doi.org/10.1103/PhysRev.139.A796)` opens that paper's note when the
-// library has it (its `doi`), and otherwise offers to file it there — the papers plugin writes its note and fetches its
-// PDF — then opens the new note. The link's text is never rewritten. Shift+click still opens the page in the browser
-// (web-links.ts `openOutside`); without the papers plugin, or when filing fails, the page opens as any web page.
-// A note's sources (its `sources` property: DOIs, arXiv ids, PDF links) the same way: `filedSource` says whether the library
-// has one, `openSource` opens it or files it through the catalog (a PDF link is downloaded and read for its metadata).
-import { api } from "./api";
-import { confirmDialog } from "./confirm";
+// A DOI link is a paper: `[Hedin 1965](https://doi.org/10.1103/PhysRev.139.A796)` stands for that paper's note once the
+// library has it (a paper note whose `doi` is that DOI): it is drawn and followed as the wikilink `[[citekey]]` would
+// be — its colour, its hover preview, a click and the menu open the note — and its text is never rewritten. Until then
+// it is dashed, and a click (or "Add to library…" in its menu) opens Catalog's own "Add to the catalog" dialog on it
+// (the catalog plugin's add.js: its preview card, then its add, which has the papers plugin write the note and fetch the
+// PDF), never a second way of filing. Shift+click still opens the page in the browser (web-links.ts `openOutside`);
+// without Catalog the page opens as any web page.
+// A note's sources (its `sources` property: DOIs, arXiv ids, PDF links) the same way: `filedSource` says whether the
+// library has one, `openSource` opens it or offers it to Catalog.
 import { library, onLibraryChange } from "./entities";
 import { openReadingNote } from "./papers";
+import { plugins, pluginOn } from "./plugin-registry.svelte";
 import { toast } from "./state.svelte";
-import { errText } from "./text";
+import { resolveLink } from "./vault";
 import type { Paper } from "./gen/Paper";
 
 /** The DOI a link names (`https://doi.org/10.…`, `dx.doi.org`, `doi:10.…`), or null. */
@@ -25,23 +27,27 @@ export async function paperWithDoi(doi: string): Promise<Paper | undefined> {
   return (await library()).find((p) => p.doi?.toLowerCase() === want);
 }
 
-/** Opens the paper the DOI names, filing it first when asked; false when the page should open instead. */
+/** Opens the paper the DOI names, else offers it to Catalog; false when the page should open instead. */
 export async function openDoi(doi: string): Promise<boolean> {
   const known = await paperWithDoi(doi);
   if (known) { await openReadingNote(known.key); return true; }
-  const add = await confirmDialog(`Add ${doi} to the library?`,
-    "Its note is made in the library and its PDF fetched when one can be found; this link then opens the note. Shift+click opens the page in the browser instead.",
-    "Add to library", false);
-  if (!add) return true;
-  try {
-    const r = await api.refsAdd(doi);
-    toast(r.created ? `Added ${r.paper.key}` : `Already in the library: ${r.paper.key}`, r.paper.title + (r.created && r.pdf ? " · PDF downloaded" : ""), r.created ? "success" : "info");
-    await openReadingNote(r.paper.key);
-    return true;
-  } catch (e) {
-    toast(`Could not add ${doi}`, errText(e), "error", 9000);
+  return addToLibrary(doi);
+}
+
+/** The plugin that files what is captured (`provides = ["catalog"]`, the catalog plugin), asked by role. */
+const catalogPlugin = () => plugins.list.find((p) => p.provides.includes("catalog") && p.has_helper && pluginOn(p)) ?? null;
+
+/** Catalog's "Add to the catalog" dialog on `text` (a DOI, an arXiv id, a PDF link, an ISBN): it looks the thing up,
+ *  shows what it would file and where, and on "Add" files it and opens its note. The one way a link files what it
+ *  names; false without Catalog (the page opens instead). */
+export function addToLibrary(text: string): boolean {
+  const p = catalogPlugin();
+  if (!p) {
+    toast("Catalog is off", "Switch on Catalog (Settings → Plugins) to add papers to the library from their links.", "info");
     return false;
   }
+  void import("./plugin-dialog").then((m) => m.openPluginDialog(p, text.trim(), { title: "Add to the catalog", width: 640, height: 460, view: "add.js" }));
+  return true;
 }
 
 /** An address without its scheme, `www.`, fragment or trailing slash: the same page however it was written. */
@@ -63,68 +69,84 @@ export async function filedSource(source: string): Promise<Paper | undefined> {
   return (await library()).find((p) => (ax && p.arxiv?.replace(/v\d+$/, "") === ax) || (p.url && sameUrl(p.url) === want));
 }
 
-/** Opens the note of a source (a DOI, an arXiv id, a PDF link), filing it through the catalog first when asked; false when
- *  nothing was opened (declined, or the catalog could not file it — the page opens instead). Never an empty note:
- *  the catalog files only what it recognises. */
+/** Opens the note of a source (a DOI, an arXiv id, a PDF link), else offers it to Catalog; false when nothing was
+ *  opened (no Catalog: the page opens instead). */
 export async function openSource(source: string): Promise<boolean> {
   const doi = doiOf(source);
   if (doi) return openDoi(doi);
   const known = await filedSource(source);
   if (known) { await openReadingNote(known.key); return true; }
-  const add = await confirmDialog("Add this source to the library?",
-    `${source}\n\nThe catalog files it: a PDF is downloaded and read for its title, authors and year. Shift+click opens the address in the browser instead.`,
-    "Add to library", false);
-  if (!add) return true;
-  try {
-    const r = (await api.pluginTool("catalog", "add", { text: source.trim() })) as { path?: string };
-    if (!r.path) throw new Error("the catalog filed nothing");
-    toast("In the library", r.path, "success");
-    const { openPath } = await import("./dock");
-    openPath(r.path);
-    return true;
-  } catch (e) {
-    toast("Could not add this source", errText(e), "error", 9000);
-    return false;
-  }
+  return addToLibrary(source);
 }
 
-// the library's DOIs for a look that cannot wait (the editor's decorations): null until it has answered once, and
-// again after it changes; the editors that asked meanwhile are told when it is there
-let dois: Set<string> | null = null;
+// the library's papers by DOI for a look that cannot wait (the editor's decorations): null until it has answered once,
+// and again after it changes; the editors that asked are redrawn once it answers (each passes one `ready` of its own)
+let dois: Map<string, Paper> | null = null;
 let asking: Promise<void> | null = null;
 const waiting = new Set<() => void>();
-onLibraryChange(() => { dois = null; asking = null; });
-
-/** Whether the library has this DOI, if known now; null while asking (then `ready` is called once it answers). */
-export function doiInLibraryNow(doi: string, ready: () => void): boolean | null {
-  if (dois) return dois.has(doi.toLowerCase());
-  waiting.add(ready);
+const ask = () => {
   asking ??= library().then((ps) => {
-    dois = new Set(ps.map((p) => p.doi?.toLowerCase()).filter((d): d is string => !!d));
+    dois = new Map(ps.filter((p) => p.doi).map((p) => [p.doi!.toLowerCase(), p]));
     const told = [...waiting];
     waiting.clear();
-    for (const f of told) f();
+    for (const f of told) try { f(); } catch { /* an editor closed meanwhile */ }
   });
+};
+// a paper filed (or gone): the editors that drew a DOI link draw it again, as the note link or as not filed
+const drawn = new Set<() => void>();
+onLibraryChange(() => {
+  dois = null;
+  asking = null;
+  for (const f of drawn) waiting.add(f);
+  drawn.clear();
+  if (waiting.size) ask();
+});
+
+/** The library's paper with this DOI if known now: undefined when it has none, null while asking (then `ready` is
+ *  called once it answers, and again whenever the library changes). */
+export function doiPaperNow(doi: string, ready: () => void): Paper | undefined | null {
+  if (dois) { drawn.add(ready); return dois.get(doi.toLowerCase()); }
+  waiting.add(ready);
+  ask();
   return null;
 }
 
-/** The editor's mark for a `[text](url)` link: a DOI the library has not got yet looks as in the reading view. */
-export function doiLinkMark(url: string, ready: () => void): { class: string; title: string } | null {
+/** The link `[[citekey]]` a filed paper's DOI link stands for: its key, once its note is a file the vault knows (an
+ *  entry with no note yet — a bare `info.yaml` — stays a web link, whose click makes the note: `openReadingNote`). */
+const noteLink = (p: Paper | undefined): string | null => (p && resolveLink(p.key, "") ? p.key : null);
+
+const notFiled = (doi: string) => `${doi} — not in the library: a click offers to add it`;
+const filedTitle = (p: Paper, doi: string) => `${p.key} — opens its note (${doi}; Shift+click: the page)`;
+
+/** The editor's mark for a `[text](url)` link: a filed DOI is drawn as the link `[[citekey]]` (its class and target,
+ *  so hover, preview and menu treat it as that note), one not filed yet is dashed. */
+export function doiLinkMark(url: string, ready: () => void): { class: string; title?: string; attributes?: Record<string, string> } | null {
   const doi = doiOf(url);
   if (!doi) return null;
-  const has = doiInLibraryNow(doi, ready);
-  return has === false ? { class: "doi-link not-in-library", title: `${doi} — not in the library: a click offers to add it` } : { class: "doi-link", title: "" };
+  const p = doiPaperNow(doi, ready);
+  if (p === null) return { class: "doi-link" };
+  if (!p) return { class: "doi-link not-in-library", title: notFiled(doi) };
+  const key = noteLink(p);
+  return key ? { class: "doi-link cm-hmd-internal-link", title: filedTitle(p, doi), attributes: { "data-target": key } } : { class: "doi-link", title: filedTitle(p, doi) };
 }
 
-/** Rendered HTML: each DOI link says whether the library has it (`.doi-link`, `.not-in-library`). */
+/** Rendered HTML: a filed DOI link becomes the vault link to its paper's note (`a.internal-link`, `data-href` the
+ *  citekey, its address kept in `data-url` for Shift+click); one not filed yet is `.not-in-library`. */
 export function markDoiLinks(root: HTMLElement): void {
-  const links = [...root.querySelectorAll<HTMLAnchorElement>("a[href]")].map((a) => [a, doiOf(a.href)] as const).filter(([, d]) => d);
+  const links = [...root.querySelectorAll<HTMLAnchorElement>("a[href]:not(.internal-link)")].map((a) => [a, doiOf(a.href)] as const).filter(([, d]) => d);
   if (!links.length) return;
   for (const [a, doi] of links) {
     a.classList.add("doi-link");
     void paperWithDoi(doi!).then((p) => {
       a.classList.toggle("not-in-library", !p);
-      a.title = p ? `${p.key} — opens its note` : `${doi} — not in the library: a click offers to add it`;
+      if (!p) { a.title = notFiled(doi!); return; }
+      a.title = filedTitle(p, doi!);
+      const key = noteLink(p);
+      if (!key) return; // its note is made by the first click (openDoi)
+      a.dataset.url = a.href;
+      a.classList.add("internal-link");
+      a.dataset.href = key;
+      a.setAttribute("href", "#"); // the app's web-link click (main.ts) leaves it to the vault link's (rendered-links.ts)
     });
   }
 }

@@ -23,7 +23,7 @@
       </intent-filter>
     </activity>
     <!-- the box: a translucent, dimmed window over whatever was on screen; out of the recent apps, its own task -->
-    <activity android:name=".CaptureActivity" android:exported="true" android:theme="@style/Capture" android:excludeFromRecents="true" android:taskAffinity="" android:launchMode="singleTask" android:windowSoftInputMode="stateAlwaysVisible|adjustResize">
+    <activity android:name=".CaptureActivity" android:enableOnBackInvokedCallback="true" android:exported="true" android:theme="@style/Capture" android:excludeFromRecents="true" android:taskAffinity="" android:launchMode="singleTask" android:windowSoftInputMode="stateAlwaysVisible|adjustResize">
       <intent-filter>
         <action android:name="android.intent.action.SEND" />
         <category android:name="android.intent.category.DEFAULT" />

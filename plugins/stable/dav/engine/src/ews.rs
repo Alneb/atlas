@@ -182,7 +182,7 @@ impl Client {
             let writable = f.find(T, "CreateContents").is_some_and(|c| c.trimmed() == "true");
             lock(&FOLDERS).insert(url.to_string(), id.clone());
             ids.push(id);
-            out.push(Calendar { url: url.to_string(), name, color: None, components: vec!["VEVENT".into()], writable });
+            out.push(Calendar { url: url.to_string(), name, color: None, components: vec!["VEVENT".into()], writable, alarm: None, alarm_day: None });
         }
         Ok(out)
     }

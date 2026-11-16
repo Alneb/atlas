@@ -10,6 +10,7 @@ use crate::pull;
 use crate::push;
 use crate::quick;
 use crate::recur::{self, Instance, Range};
+use crate::remind;
 use crate::store::{Kind, Object, Source, Store};
 use crate::sync::{self, Scope as SyncScope};
 use crate::uid;
@@ -43,6 +44,7 @@ pub fn table() -> Vec<(&'static str, Method)> {
         ("test_account", test_account),
         ("migrate", migrate),
         ("events", events),
+        ("deadlines", deadlines),
         ("add_event", add_event),
         ("remove_event", remove_event),
         ("sync", sync_method),
@@ -64,6 +66,8 @@ pub fn table() -> Vec<(&'static str, Method)> {
         ("invite_status", invite_status),
         ("contacts", contacts),
         ("agenda", agenda),
+        // the core's planned notices: events' alerts (remind.rs)
+        ("reminders", reminders),
     ]
 }
 
@@ -1027,6 +1031,44 @@ fn agenda(p: Value) -> Res {
     Ok(json!({ "from": today.to_string(), "to": to.to_string(), "tz": user.name(), "events": evs }))
 }
 
+/// The coming reminders of the visible calendars (remind.rs) as the core's planned notices: the scheduled tool's
+/// answer replaces the plugin's plan, and the core asks again just before one rings, so a moved or deleted event
+/// moves or drops it. Subscriptions are left out: their alerts are the publisher's, not the user's.
+fn reminders(p: Value) -> Res {
+    let s = conf::settings(&p);
+    if s["reminders"].as_bool() == Some(false) {
+        return Ok(json!({ "summary": "reminders are off in Settings", "planned": [] }));
+    }
+    fresh_enough(&p);
+    let user = conf::user_zone(&p);
+    let now = Utc::now();
+    let horizon = Duration::hours(p["hours"].as_i64().unwrap_or(remind::HORIZON_HOURS).clamp(1, 24 * 14));
+    let twelve = conf::text(&s, "time_format") == "12h";
+    let setting = remind::setting(&s["default_alert"]);
+    let srcs: Vec<Source> = visible(&s).into_iter().filter(|x| x.kind == Kind::Caldav).collect();
+    let ids: Vec<String> = srcs.iter().map(|x| x.id.clone()).collect();
+    let from = (now - remind::LATE - Duration::days(2)).timestamp();
+    let to = (now + horizon + Duration::days(8)).timestamp();
+    let mut rings: Vec<(remind::Ring, String)> = Vec::new();
+    for o in engine().store.in_range(&ids, from, to) {
+        let Some(src) = srcs.iter().find(|x| x.id == o.source) else { continue };
+        let Some(cal) = ics::parse(&o.ics).ok().and_then(|c| c.into_iter().find(|c| c.name == "VCALENDAR")) else { continue };
+        let defaults = remind::Defaults::of(src.alarm.as_deref(), src.alarm_day.as_deref(), setting, &user);
+        rings.extend(remind::coming(&cal, &user, now, horizon, &defaults).into_iter().map(|r| (r, src.name.clone())));
+    }
+    rings.sort_by(|a, b| (a.0.at, a.0.id()).cmp(&(b.0.at, b.0.id())));
+    let planned: Vec<Value> = rings
+        .iter()
+        .map(|(r, cal)| {
+            let mut v = remind::planned(r, &user, twelve);
+            v["calendar"] = json!(cal);
+            v
+        })
+        .collect();
+    let next = rings.first().map(|(r, _)| format!(", next at {}", user.rfc3339(r.at))).unwrap_or_default();
+    Ok(json!({ "summary": format!("{} reminders in the next {} h{next}", planned.len(), horizon.num_hours()), "planned": planned }))
+}
+
 // ----- the first tools
 
 /// Every account's calendars from the cache (read first when stale): ids to pass as `calendar`, which take new
@@ -1179,6 +1221,37 @@ fn events(p: Value) -> Res {
     Ok(json!({ "from": from.to_string(), "to": to.to_string(), "tz": user.name(), "events": evs }))
 }
 
+/// The deadline calendars among `all`, each named the way the other tools take a calendar (`find_source`); a name that
+/// finds none or several is passed over, never guessed.
+fn deadline_sources(s: &Value, all: &[Source]) -> Vec<Source> {
+    let mut out: Vec<Source> = Vec::new();
+    for want in conf::deadline_calendars(s) {
+        if let Ok(Some(x)) = find_source(&want, all) {
+            if !out.iter().any(|o| o.id == x.id) {
+                out.push(x);
+            }
+        }
+    }
+    out
+}
+
+/// The events of the deadline calendars between two days (default: today to 90 days on), from the cache only: no
+/// server is asked and no secret read, so the core's `from: deadlines` view (Home's box, the Deadlines page) stays as
+/// fast as a file read. The background sync keeps the cache fresh. No calendar marked: no events.
+fn deadlines(p: Value) -> Res {
+    let s = conf::settings(&p);
+    let user = conf::user_zone(&p);
+    let today = user.wall(Utc::now()).date();
+    let from = day_param(&p, "from", today)?;
+    let to = day_param(&p, "to", from + Duration::days(90))?;
+    if to < from {
+        return Err(error("to: is before from:"));
+    }
+    let srcs = deadline_sources(&s, &engine().store.sources());
+    let evs = if srcs.is_empty() { Vec::new() } else { instances(&srcs, &s, Range::days(from, to, &user), &user) };
+    Ok(json!({ "from": from.to_string(), "to": to.to_string(), "tz": user.name(), "events": evs }))
+}
+
 fn add_event(p: Value) -> Res {
     let title = param(&p, "title").ok_or_else(|| error("title: required"))?.to_string();
     let raw_start = param(&p, "start").or(param(&p, "date")).ok_or_else(|| error("start: required (2026-11-03, or 2026-11-03T14:00)"))?;
@@ -1293,7 +1366,7 @@ mod tests {
 
     fn cal(account: &str, path: &str, name: &str, writable: bool) -> Source {
         let url = format!("https://{account}.example/dav/{path}/");
-        Source { id: crate::store::calendar_id(account, &url, &[&url]), kind: Kind::Caldav, account: Some(account.into()), url, name: name.into(), color: None, writable, ctag: None, token: None, synced: 0, error: None }
+        Source { id: crate::store::calendar_id(account, &url, &[&url]), kind: Kind::Caldav, account: Some(account.into()), url, name: name.into(), color: None, writable, ctag: None, token: None, synced: 0, error: None, alarm: None, alarm_day: None }
     }
 
     #[test]
@@ -1327,6 +1400,15 @@ mod tests {
         assert_eq!(id("nope"), None);
         let both = find_source("personal", &list).unwrap_err();
         assert!(both.contains("home/personal") && both.contains("work/personal"), "{both}");
+    }
+
+    #[test]
+    fn deadline_calendars_are_the_ones_settings_name_by_id_or_unique_name() {
+        let list = vec![cal("home", "personal", "Personal", true), cal("work", "personal", "Personal", true), cal("work", "deadlines", "Deadlines", false)];
+        let ids = |s: Value| deadline_sources(&s, &list).into_iter().map(|x| x.id).collect::<Vec<_>>();
+        assert_eq!(ids(json!({})), Vec::<String>::new(), "none marked: no events");
+        assert_eq!(ids(json!({ "deadline_calendars": ["deadlines", "home/personal", "Deadlines"] })), ["work/deadlines", "home/personal"], "a name or an id, each once");
+        assert_eq!(ids(json!({ "deadline_calendars": ["personal", "nope", " "] })), Vec::<String>::new(), "a name two calendars share, or none has, is passed over");
     }
 
     #[test]

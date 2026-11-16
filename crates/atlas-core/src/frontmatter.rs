@@ -14,6 +14,20 @@ pub(crate) fn plain_key(key: &str) -> Result<&str> {
     Ok(k)
 }
 
+/// One property set in a note on disk (`PUT /api/property`, the agents' `atlas_set_property`).
+pub fn set_in_note(ws: &crate::Workspace, e: &crate::api::PropertyEdit) -> Result<()> {
+    // the properties panel's rule (plain_key): `#x` would be a YAML comment, `- x` a list item
+    if !e.path.ends_with(".md") || plain_key(&e.key).is_err() {
+        return Err(Error::BadRequest("a property edit needs a note and a plain key".into()));
+    }
+    let path = ws.resolve(&e.path)?;
+    let value = match &e.value {
+        Some(v) => serde_yaml::to_value(v).map_err(|x| Error::BadRequest(x.to_string()))?,
+        None => parse_cell(&e.text, e.list),
+    };
+    crate::vault_write::modify(&path, |text| Ok(set_property(text, e.key.trim(), &value)))
+}
+
 /// One properties-panel edit applied to the note's text (`POST /api/frontmatter/edit`).
 pub fn apply(text: &str, edit: &FrontmatterEdit) -> Result<String> {
     match edit {

@@ -25,7 +25,7 @@ export interface Translated {
 }
 
 import { expandAlign } from "../../../../ui/src/lib/math-align";
-import { equationTarget, linkText, noteEquations, numberedTex, refOf, type Equations } from "../../../../ui/src/lib/equations";
+import { equationTarget, linkText, noteEquations, numberedTex, numberedWhole, refOf, type Equations } from "../../../../ui/src/lib/equations";
 
 const IMAGE = /\.(png|jpe?g|gif|svg|webp|pdf|eps)$/i;
 // fenced blocks Atlas or Obsidian draw from a query: nothing to print
@@ -126,7 +126,7 @@ export async function numberEquations(md: string, read: (note: string) => Promis
     const own = /\\tag\*?\{([^}]*)\}/.exec(tex)?.[1];
     const num = own ?? (/\\(?:notag|nonumber)\b/.test(tex) ? null : String(++n));
     for (const l of labels) if (num && l !== AUTO) byLabel.set(l, num);
-    let bare = num && !own ? numberedTex(tex.trimEnd(), num) : numberedTex(tex).trimEnd(); // labels out, an env its twin
+    let bare = num && !own ? numberedWhole(numberedTex(tex.trimEnd()), num) : numberedTex(tex).trimEnd(); // labels out, an env its twin
     // the first display with this number is the one links go to (each road makes it a label: `equationMarks`)
     if (num && !anchored.has(num)) { anchored.add(num); bare = bare.replace(/\\tag\*?\{[^}]*\}/, (t) => t + ANCHOR); }
     return `$$${bare}\n$$`;

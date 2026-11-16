@@ -4,4 +4,9 @@
  * `POST /api/task/line`: one task line ticked (`done`) or opened again, as text — no file is read or
  * written (the note editor holds the line). Answers the lines that replace it (`TaskTicked`).
  */
-export type TaskTick = { text: string, done: boolean, };
+export type TaskTick = { text: string, done: boolean, 
+/**
+ * The note the line is in: given, a task ticked done withdraws the notices about it (notice_actions.rs
+ * `task_done`).
+ */
+path?: string, };

@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The home-screen widget (TodayWidget): the day and the vault, Capture, today's log, the open tasks. Colours are set
+     when drawn (the vault's palette): the shapes are white and tinted (ImageView.setColorFilter, which RemoteViews allows). -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android" android:id="@+id/widget_root"
+    android:layout_width="match_parent" android:layout_height="match_parent">
+  <ImageView android:id="@+id/widget_bg" android:layout_width="match_parent" android:layout_height="match_parent"
+      android:src="@drawable/widget_shape" android:scaleType="fitXY" android:importantForAccessibility="no" />
+  <LinearLayout android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical"
+      android:paddingLeft="16dp" android:paddingRight="12dp" android:paddingTop="12dp" android:paddingBottom="12dp">
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal"
+        android:gravity="center_vertical">
+      <LinearLayout android:id="@+id/widget_head" android:layout_width="0dp" android:layout_height="wrap_content"
+          android:layout_weight="1" android:orientation="vertical">
+        <TextView android:id="@+id/widget_date" android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:textSize="16sp" android:textStyle="bold" android:singleLine="true" android:ellipsize="end" />
+        <TextView android:id="@+id/widget_vault" android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:textSize="12sp" android:singleLine="true" android:ellipsize="end" />
+      </LinearLayout>
+      <FrameLayout android:id="@+id/widget_capture" android:layout_width="wrap_content" android:layout_height="40dp"
+          android:contentDescription="Capture">
+        <ImageView android:id="@+id/widget_capture_bg" android:layout_width="match_parent" android:layout_height="match_parent"
+            android:src="@drawable/widget_pill" android:scaleType="fitXY" android:importantForAccessibility="no" />
+        <TextView android:id="@+id/widget_capture_label" android:layout_width="wrap_content" android:layout_height="match_parent"
+            android:gravity="center" android:paddingLeft="16dp" android:paddingRight="16dp" android:text="+  Capture"
+            android:textSize="14sp" android:textStyle="bold" android:singleLine="true" />
+      </FrameLayout>
+    </LinearLayout>
+    <TextView android:id="@+id/widget_log_head" android:layout_width="wrap_content" android:layout_height="wrap_content"
+        android:layout_marginTop="10dp" android:text="Today’s log" android:textSize="12sp" />
+    <TextView android:id="@+id/widget_log" android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:paddingTop="2dp" android:paddingBottom="2dp" android:textSize="13sp" android:maxLines="4" android:ellipsize="end" />
+    <TextView android:id="@+id/widget_tasks_head" android:layout_width="wrap_content" android:layout_height="wrap_content"
+        android:layout_marginTop="8dp" android:text="Open tasks" android:textSize="12sp" />
+    <LinearLayout android:id="@+id/widget_tasks" android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:orientation="vertical" />
+    <TextView android:id="@+id/widget_status" android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:layout_marginTop="8dp" android:textSize="13sp" android:visibility="gone" />
+  </LinearLayout>
+</FrameLayout>

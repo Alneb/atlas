@@ -69,6 +69,10 @@ backlinks: boolean,
  */
 inline_title: boolean, 
 /**
+ * Editing a note's first `# heading` that says its file name renames the file too (when the caret leaves it).
+ */
+heading_renames: boolean, 
+/**
  * Typewriter scrolling in notes: the line being written stays at the middle of the pane, so
  * the text moves and your eyes do not.
  */

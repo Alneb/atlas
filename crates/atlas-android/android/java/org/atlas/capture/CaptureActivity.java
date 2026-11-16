@@ -18,6 +18,7 @@ public final class CaptureActivity extends Activity implements CaptureBox.Frame 
         box = new CaptureBox(this, this);
         setContentView(box.open(getIntent()));
         box.then(getIntent().getStringExtra("then"));
+        Shell.onBack(this, this::onBackPressed);
     }
 
     @Override public Activity activity() { return this; }

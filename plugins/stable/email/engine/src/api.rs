@@ -899,8 +899,7 @@ fn test_account(m: &Arc<Mail>, p: &Value) -> Result<Value, String> {
     };
     let host = acc.imap.host.clone();
     let r = m.rt.block_on(async {
-        let token = m.token(&acc).await?;
-        let c = crate::imap::Imap::connect(&acc, token).await?;
+        let c = m.sign_in(&acc).await?;
         c.logout().await;
         Ok::<_, String>(())
     });

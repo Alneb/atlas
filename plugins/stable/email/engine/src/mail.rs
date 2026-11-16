@@ -6,7 +6,7 @@ use crate::account::{self, Account};
 use crate::imap::Imap;
 use crate::index::Index;
 use crate::oauth;
-use crate::trouble::Fail;
+use crate::trouble::{Fail, Trouble};
 use serde_json::{json, Value};
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
@@ -155,8 +155,22 @@ impl Mail {
                 None => break,
             }
         }
+        self.sign_in(acc).await
+    }
+
+    /// A new connection, signed in. Outlook's IMAP at times refuses an access token Microsoft still renews
+    /// ("AUTHENTICATE failed."): the cached token is dropped and a fresh one tried once, as Thunderbird does.
+    pub async fn sign_in(&self, acc: &Account) -> Result<Imap, Fail> {
         let token = self.token(acc).await?;
-        Imap::connect(acc, token).await
+        match Imap::connect(acc, token).await {
+            Err(e) if e.trouble == Trouble::SignIn && matches!(acc.auth, account::Auth::Outlook { .. }) => {
+                oauth::forget(acc);
+                // a renewal Microsoft refuses now is a real sign-in trouble, said as such
+                let token = self.token(acc).await?;
+                Imap::connect(acc, token).await.map_err(refused_after_renewal)
+            }
+            r => r,
+        }
     }
 
     /// Hand a connection back for the next call (or close it when enough are kept).
@@ -216,5 +230,27 @@ impl Mail {
         v.sort();
         v.dedup();
         v
+    }
+}
+
+/// A fresh token refused while Microsoft still renews the sign-in: signing in again would give the same, so it is the
+/// server's trouble (tried again by itself), not the person's.
+fn refused_after_renewal(e: Fail) -> Fail {
+    if e.trouble != Trouble::SignIn {
+        return e;
+    }
+    Fail { trouble: Trouble::Other, text: format!("{}: Microsoft still accepts the sign-in, so nothing to sign in again; trying again by itself", e.text) }
+}
+
+#[cfg(test)]
+mod sign_in_tests {
+    use super::*;
+
+    #[test]
+    fn a_fresh_token_refused_is_the_servers_trouble() {
+        let e = refused_after_renewal(Fail::sign_in("Outlook's mail server refused the token (AUTHENTICATE failed.)"));
+        assert_eq!(e.trouble, Trouble::Other);
+        assert!(e.text.contains("AUTHENTICATE failed.") && !e.text.contains("sign in again:"), "{e}");
+        assert_eq!(refused_after_renewal(Fail::connection("gone")).trouble, Trouble::Connection);
     }
 }

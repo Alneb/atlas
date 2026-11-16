@@ -1,0 +1,21 @@
+{
+  "about": "Obsidian Tasks lines and what both readers make of them: the core (crates/atlas-core/src/tasks.rs, parse_line and the one writer render_line) and the task dialog's reader (ui/src/lib/task-line.ts). `fields` are the TaskFields the dialog edits (missing = the default: lead '- ', status ' ', priority 'none', the rest empty). Each line written back is `out`, or the line itself when absent: the Tasks plugin's order (description, priority, repeat, created, start, scheduled, due, done, block id).",
+  "lines": [
+    { "line": "- [ ] just text", "fields": { "description": "just text" } },
+    { "line": "- [ ] Submit the abstract #work ⏫ 🔁 every week ➕ 2026-10-01 🛫 2026-10-10 ⏳ 2026-10-14 📅 2026-10-17",
+      "fields": { "description": "Submit the abstract #work", "priority": "high", "repeat": "every week", "created": "2026-10-01", "start": "2026-10-10", "scheduled": "2026-10-14", "due": "2026-10-17" } },
+    { "line": "- [x] pay rent 🔺 📅 2026-11-01 ✅ 2026-11-02", "fields": { "status": "x", "done": true, "description": "pay rent", "priority": "highest", "due": "2026-11-01", "doneOn": "2026-11-02" } },
+    { "line": "- [X] an old one ⏬ ✅ 2026-09-30", "fields": { "status": "X", "done": true, "description": "an old one", "priority": "lowest", "doneOn": "2026-09-30" } },
+    { "line": "  * [ ] call Ana [[Ana Lopez]] 🔼 ⏳ 2026-10-12 ^t3f9a", "fields": { "lead": "  * ", "description": "call Ana [[Ana Lopez]]", "priority": "medium", "scheduled": "2026-10-12", "blockId": "t3f9a" } },
+    { "line": "1. [ ] read the paper [[smith2020]] ➕ 2026-10-01 📅 2026-10-20", "fields": { "lead": "1. ", "description": "read the paper [[smith2020]]", "created": "2026-10-01", "due": "2026-10-20" } },
+    { "line": "- [/] half done 🔽", "fields": { "status": "/", "description": "half done", "priority": "low" } },
+    { "line": "- [ ] water the plants #home 🔁 every 2 days when done 📅 2026-10-20 ^water-1", "fields": { "description": "water the plants #home", "repeat": "every 2 days when done", "due": "2026-10-20", "blockId": "water-1" } },
+    { "line": "- [ ] 09:05 a captured task 📅 2026-10-20", "fields": { "description": "09:05 a captured task", "due": "2026-10-20" } },
+    { "line": "- [ ] the variation selector ⏫️ 📅️ 2026-11-01", "out": "- [ ] the variation selector ⏫ 📅 2026-11-01",
+      "fields": { "description": "the variation selector", "priority": "high", "due": "2026-11-01" } },
+    { "line": "- [ ] fields out of order 📅 2026-10-12 ⏫ #home", "out": "- [ ] fields out of order #home ⏫ 📅 2026-10-12",
+      "fields": { "description": "fields out of order #home", "priority": "high", "due": "2026-10-12" } },
+    { "line": "- [ ] other markers 🗓 2026-11-01 ⌛ 2026-10-30", "out": "- [ ] other markers ⏳ 2026-10-30 📅 2026-11-01",
+      "fields": { "description": "other markers", "scheduled": "2026-10-30", "due": "2026-11-01" } }
+  ]
+}

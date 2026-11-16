@@ -37,6 +37,9 @@ pub enum Builtin {
     Focus { pane: FocusPane },
     #[serde(rename = "today")]
     Today {},
+    /// One of the window's own commands (the palette's, by id: `ui.*`, `plugin.<id>.<cmd>`), run as its key would.
+    #[serde(rename = "palette")]
+    Palette { command: String },
 }
 
 /// The argument-free identity of a built-in, for listing; `Builtin::kind` keeps the two in step.
@@ -47,15 +50,17 @@ pub enum BuiltinId {
     Notify,
     Focus,
     Today,
+    Palette,
 }
 
 impl BuiltinId {
-    pub const ALL: [Self; 5] = [
+    pub const ALL: [Self; 6] = [
         Self::Capture,
         Self::Open,
         Self::Notify,
         Self::Focus,
         Self::Today,
+        Self::Palette,
     ];
 
     /// (id, title, default keys, description)
@@ -68,6 +73,7 @@ impl BuiltinId {
             Self::Notify => ("notify", "Notify", None, "Show a notification in the UI"),
             Self::Focus => ("focus", "Focus pane", None, "Bring a pane to the front"),
             Self::Today => ("today", "Today", None, "Focus, today's log, open tasks and recent activity"),
+            Self::Palette => ("palette", "Run a window command", None, "Run one of the window's commands (the palette's, by id), as its key would"),
         }
     }
 
@@ -106,6 +112,7 @@ impl Builtin {
             Self::Notify { .. } => BuiltinId::Notify,
             Self::Focus { .. } => BuiltinId::Focus,
             Self::Today {} => BuiltinId::Today,
+            Self::Palette { .. } => BuiltinId::Palette,
         }
     }
 }
@@ -126,6 +133,9 @@ pub struct ScriptManifest {
     /// Run by itself while Atlas is open: `daily 03:00`, `every 2h`, `hourly` (see schedule.rs).
     #[serde(default)]
     pub schedule: Option<String>,
+    /// Which of the cores serving the vault runs the schedule (`server`, `device`, `any`: server_role.rs).
+    #[serde(default)]
+    pub background: crate::server_role::Background,
 }
 
 #[derive(Debug, Clone)]
@@ -279,6 +289,7 @@ pub async fn run(ws: &Workspace, bus: &EventBus, cmd: Command) -> Result<Value> 
             }
             Builtin::Notify { title, body } => Ok(json!({ "delivered": bus.emit(Event::Notify(crate::api::Notice { title, body, ..Default::default() }))? })),
             Builtin::Focus { pane } => Ok(json!({ "delivered": bus.emit(Event::Focus { pane })? })),
+            Builtin::Palette { command } => Ok(json!({ "delivered": bus.emit(Event::Palette { command })? })),
             Builtin::Today {} => {
                 let ws = ws.clone();
                 Ok(to_json(&blocking(move || today::today(ws.root(), &ws.config()?)).await?))
@@ -355,7 +366,7 @@ mod tests {
         let needs: Vec<&str> = BuiltinId::ALL.into_iter().filter(|b| b.needs_args()).map(|b| b.meta().0).collect();
         assert_eq!(
             needs,
-            vec!["capture", "open", "notify", "focus"]
+            vec!["capture", "open", "notify", "focus", "palette"]
         );
     }
 
@@ -367,6 +378,7 @@ mod tests {
             json!({"title": "done"}),
             json!({"pane": "terminal"}),
             json!({}),
+            json!({"command": "ui.theme"}),
         ];
         for (id, args) in BuiltinId::ALL.into_iter().zip(samples) {
             let tmp = tempfile::tempdir().unwrap();
@@ -439,6 +451,7 @@ mod tests {
                 description: None,
                 timeout_secs: None,
                 schedule: None,
+                background: Default::default(),
             },
         };
         let args = json!({ "text": "x".repeat(300_000) });
@@ -458,6 +471,7 @@ mod tests {
                 description: None,
                 timeout_secs: None,
                 schedule: None,
+                background: Default::default(),
             },
         };
         let t0 = std::time::Instant::now();

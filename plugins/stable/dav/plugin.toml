@@ -7,7 +7,7 @@
 title = "Calendar"
 description = "your calendars in a pane: month, week, day, agenda; several CalDAV or Outlook / Microsoft 365 (Exchange) accounts and ICS subscriptions; meetings; invitations from Email; contacts"
 icon = "calendar"
-version = "1.5.2"
+version = "1.7.0"
 rail = true          # a button for the Calendar pane (view.js)
 provides = ["calendar"]  # the role other plugins call it by (Email: `@calendar/tools/import_invite`, contacts, agenda)
 api = 12             # Settings v2: account cards (status, Test, presets), hidden / advanced fields, a drawn section
@@ -105,6 +105,31 @@ default = false
 group = "The pane"
 hint = "notes with important: true and a due: or event: date, as a calendar of their own (mail is never read)"
 
+[[setting]]
+key = "deadline_calendars"
+label = "Deadline calendars"
+kind = "list"
+group = "The pane"
+hint = "calendars whose events are deadlines (their id, e.g. work/deadlines, or a name only one calendar has): they join dated tasks and notes in Home's deadlines box and on the Deadlines page"
+
+# ----- Reminders: events' own alerts ring as notifications (engine/src/remind.rs, through the core's planned notices)
+[[setting]]
+key = "reminders"
+label = "Event reminders"
+kind = "toggle"
+default = true
+group = "Reminders"
+hint = "an event's own alerts ring as notifications on this device: the title, the time and the place; a click opens the note the event came from. Subscriptions' alerts never ring"
+
+[[setting]]
+key = "default_alert"
+label = "Alert for events that have none"
+kind = "choice"
+choices = ["off", "at start", "5 minutes", "10 minutes", "15 minutes", "30 minutes", "1 hour", "1 day"]
+default = "off"
+group = "Reminders"
+hint = "before the start of a timed event with no alert of its own, when its calendar's server keeps no default alert of its own (the server's wins). All-day events ring only with their own alert or the server's"
+
 # ----- Sync
 [[setting]]
 key = "refresh"
@@ -194,6 +219,11 @@ input = { from = { type = "string", description = "first day, YYYY-MM-DD (defaul
 secrets = ["*"]
 
 [[tool]]
+name = "deadlines"
+description = "The events of the calendars Settings marks as deadline calendars, between two days (default: today to 90 days on), from the local cache (no server asked): uid, summary, start, end, all_day, calendar, calendar_name, source. Empty when no calendar is marked. The core's `from: deadlines` view reads it."
+input = { from = { type = "string", description = "first day, YYYY-MM-DD (default today)", optional = true }, to = { type = "string", description = "last day, YYYY-MM-DD (default from + 90 days)", optional = true } }
+
+[[tool]]
 name = "agenda"
 description = "Today's events and the next days' (default: today only), in the user's local time, from every visible calendar of every account: each with day, time (\"10:00\" or \"all day\"), line (\"10:00 Group meeting\"), summary, start, end, location, calendar (id), calendar_name."
 input = { days = { type = "integer", description = "how many days from today (default 1)", optional = true } }
@@ -236,6 +266,13 @@ input = { paths = { type = "array", description = "only these vault paths (Atlas
 secrets = ["*"]
 timeout_secs = 300
 on = "fs"
+
+[[tool]]
+name = "reminders"
+description = "The coming reminders of the user's calendars: each alert (an event's own, else its calendar's default, else the one Settings names) that rings in the next hours, with when it rings, the event's title, time and place, and the note it came from. Atlas calls it by itself (on = \"plan\") and rings each one as a notification at its time. Read-only."
+input = { hours = { type = "integer", description = "how far ahead (default 36)", optional = true } }
+secrets = ["*"]
+on = "plan"
 
 # where it runs (PLUGIN-API.md, "Platforms"); a platform not named is untested (Android: only with `phone = true`)
 [platforms]

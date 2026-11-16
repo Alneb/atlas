@@ -42,9 +42,10 @@ public final class Look {
         dark = !eink && (c.getResources().getConfiguration().uiMode & Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES;
         // e-ink: everything a little larger, its text too (label)
         density = c.getResources().getDisplayMetrics().density * (eink ? EINK_SCALE : 1f);
+        int[] you = eink ? null : wallpaper(c, dark); // Android 12+: the accent is the wallpaper's (Material You)
         if (dark) {
             bg = 0xff1f2229; app = 0xff16181d; pop = 0xff262a32; hover = 0x0bffffff; border = 0x12ffffff; borderStrong = 0x1fffffff;
-            text = 0xffdcdfe5; muted = 0xff9aa1ad; faint = 0xff8b919c; accent = 0xff8aa4ff; accentSoft = 0x1f8aa4ff;
+            text = 0xffdcdfe5; muted = 0xff9aa1ad; faint = 0xff8b919c; accent = you != null ? you[0] : 0xff8aa4ff; accentSoft = accent & 0xffffff | 0x1f000000;
             purple = 0xffc4a7ff; green = 0xff86d1a0; red = 0xfff28b8f; accentFg = 0xff0b0d12;
         } else if (eink) {
             bg = 0xffffffff; app = 0xffffffff; pop = 0xffffffff; hover = 0x00000000; border = 0xff8a8a8a; borderStrong = 0xff000000;
@@ -52,7 +53,7 @@ public final class Look {
             purple = 0xff000000; green = 0xff145c2e; red = 0xff8f1a20; accentFg = 0xffffffff;
         } else {
             bg = 0xffffffff; app = 0xffeceef2; pop = 0xffffffff; hover = 0x0b0f172a; border = 0x160f172a; borderStrong = 0x240f172a;
-            text = 0xff23272e; muted = 0xff5b6270; faint = 0xff676c77; accent = 0xff4762d9; accentSoft = 0x1a4864dd;
+            text = 0xff23272e; muted = 0xff5b6270; faint = 0xff676c77; accent = you != null ? you[0] : 0xff4762d9; accentSoft = you != null ? you[0] & 0xffffff | 0x1a000000 : 0x1a4864dd;
             purple = 0xff8150d6; green = 0xff2f9e5c; red = 0xffd4464f; accentFg = 0xffffffff;
         }
     }
@@ -244,6 +245,21 @@ public final class Look {
 
     /** A CSS colour as the page computes it (`rgb(r, g, b)`, `#rrggbb`) as an opaque Android colour; `fallback` when it
      *  is neither (an empty string: the app's own). */
+    /** Material You (Android 12+): the wallpaper's colours as Material 3 picks them for a dark or light scheme —
+     *  {accent (primary: accent1 200 / 600), bars (surface: neutral1 900 / 50)} — or null on older Android. The app's
+     *  own accent (above), and what the page takes for Atlas's own palette (AtlasActivity Bridge.wallpaper). */
+    static int[] wallpaper(Context c, boolean dark) {
+        if (android.os.Build.VERSION.SDK_INT < 31) return null;
+        android.content.res.Resources r = c.getResources();
+        return new int[] {
+            r.getColor(dark ? android.R.color.system_accent1_200 : android.R.color.system_accent1_600, null),
+            r.getColor(dark ? android.R.color.system_neutral1_900 : android.R.color.system_neutral1_50, null),
+        };
+    }
+
+    /** `#rrggbb` of a colour (its alpha dropped), as the page writes colours. */
+    static String hex(int color) { return String.format(java.util.Locale.ROOT, "#%06x", color & 0xffffff); }
+
     public static int parseCss(String css, int fallback) {
         if (css == null) return fallback;
         String c = css.trim();

@@ -7,4 +7,9 @@ export type TaskRef = { path: string, line: number,
 /**
  * The task's text as the client saw it: when the line no longer holds it (an earlier tick shifted the lines), 409.
  */
-text?: string, };
+text?: string, 
+/**
+ * The task's Obsidian block id (`t3f9a`, without `^`): when given — or when `text` ends in one — the task is
+ * found by it wherever its line moved, and `line` + `text` are only the fallback (tasks.rs `find_block`).
+ */
+block?: string, };

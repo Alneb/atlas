@@ -45,6 +45,16 @@ final class Shell {
         d.setSystemUiVisibility(full ? View.SYSTEM_UI_FLAG_HIDE_NAVIGATION | View.SYSTEM_UI_FLAG_FULLSCREEN | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY : 0);
     }
 
+    /** Predictive back (Android 14+): an activity opted in by `android:enableOnBackInvokedCallback` in the manifest no
+     *  longer gets `onBackPressed` from the system; the gesture reaches `back` instead, which is that activity's own
+     *  `onBackPressed`, so there is one Back path for the gesture, the button and older Android. Below 34 the opt-in is
+     *  only the application's, which is not set (the capture overlay's window still wants the Back key), so the callback
+     *  is ignored there and the system calls `onBackPressed` as before. `super.onBackPressed()` still leaves the screen. */
+    static void onBack(Activity a, Runnable back) {
+        if (Build.VERSION.SDK_INT < 33) return;
+        a.getOnBackInvokedDispatcher().registerOnBackInvokedCallback(android.window.OnBackInvokedDispatcher.PRIORITY_DEFAULT, back::run);
+    }
+
     /** Pads `v` by the system bars and the keyboard, as they change. */
     static void padForBars(View v) {
         if (Build.VERSION.SDK_INT < 30) { v.setFitsSystemWindows(true); return; }

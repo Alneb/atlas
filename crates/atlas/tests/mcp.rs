@@ -47,7 +47,7 @@ fn handshake_tools_and_offline_calls() {
     assert_eq!(replies.len(), 7, "the notification gets no reply: {replies:?}");
     assert_eq!(replies[0]["result"]["serverInfo"]["name"], "atlas");
     let names: Vec<&str> = replies[1]["result"]["tools"].as_array().unwrap().iter().map(|t| t["name"].as_str().unwrap()).collect();
-    assert!(names.contains(&"atlas_context") && names.contains(&"atlas_open") && names.contains(&"atlas_tasks") && names.len() == 12, "{names:?}");
+    assert!(names.contains(&"atlas_context") && names.contains(&"atlas_open") && names.contains(&"atlas_tasks") && names.len() == 23, "{names:?}");
     assert!(replies[2]["result"]["isError"].is_null(), "{}", replies[2]);
     let today = replies[3]["result"]["content"][0]["text"].as_str().unwrap();
     assert!(today.contains("cumulant periodization") && today.contains("Mott transition"), "{today}");
@@ -128,4 +128,51 @@ fn a_plugins_word_to_agents_is_in_the_instructions_while_it_is_on() {
     let text = session(d.path(), &[init])[0]["result"]["instructions"].as_str().unwrap().to_string();
     assert!(text.contains("- [plugin remote] For a command on a host, use remote_run, never ssh in your own shell."), "{text}");
     assert!(!text.contains("Never shown"), "{text}");
+}
+
+/// The vault's structure as Atlas reads it (links, tags, properties, Bases, views, sync) works without the window; the
+/// window's commands need it, and say so.
+#[test]
+fn the_vaults_structure_is_read_and_a_property_set_without_the_window() {
+    let d = tempfile::tempdir().unwrap();
+    std::fs::write(d.path().join("mott.md"), "---\nstatus: draft\n---\n# Mott\nSee [[hubbard]]. #physics\n- [ ] write it up 📅 2026-12-01\n").unwrap();
+    std::fs::write(d.path().join("hubbard.md"), "# Hubbard\n#physics #model\n").unwrap();
+    let replies = session(
+        d.path(),
+        &[
+            call(1, "atlas_backlinks", json!({"path": "hubbard.md"})),
+            call(2, "atlas_tags", json!({})),
+            call(3, "atlas_set_property", json!({"path": "hubbard.md", "key": "status", "value": "done"})),
+            call(4, "atlas_properties", json!({})),
+            call(5, "atlas_base", json!({"src": "views:\n  - type: table\n    name: All\n"})),
+            call(6, "atlas_view", json!({"src": "from: tasks\n", "path": "mott.md"})),
+            call(7, "atlas_sync", json!({})),
+            call(8, "atlas_ui_commands", json!({})),
+            call(9, "atlas_ui_command", json!({"id": "ui.theme"})),
+            call(10, "atlas_base", json!({})),
+            call(11, "atlas_set_property", json!({"path": "hubbard.md", "key": "# no", "value": 1})),
+        ],
+    );
+    let text = |i: usize| replies[i]["result"]["content"][0]["text"].as_str().unwrap().to_string();
+    let ok = |i: usize| -> Value {
+        assert!(replies[i]["result"]["isError"].is_null(), "{}", replies[i]);
+        serde_json::from_str(&text(i)).unwrap()
+    };
+    assert_eq!(ok(0)["links"][0]["source"], "mott.md", "{}", text(0));
+    let tags = ok(1);
+    assert!(tags.as_array().unwrap().iter().any(|t| t["tag"] == "physics" && t["notes"] == 2), "{tags}");
+    ok(2);
+    assert!(std::fs::read_to_string(d.path().join("hubbard.md")).unwrap().starts_with("---\nstatus: done\n---\n# Hubbard\n"));
+    assert!(text(3).contains("status"), "{}", text(3));
+    let base = ok(4);
+    assert_eq!(base["views"][0]["rows"].as_array().map(Vec::len), Some(2), "{base}");
+    let view = ok(5);
+    assert!(view["rows"].as_array().unwrap().iter().any(|r| r["path"] == "mott.md"), "{view}");
+    assert!(ok(6)["state"].is_object(), "{}", text(6));
+    for i in [7, 8] {
+        assert_eq!(replies[i]["result"]["isError"], true, "the window's commands need the window: {}", replies[i]);
+        assert!(text(i).contains("not running"), "{}", text(i));
+    }
+    assert_eq!(replies[9]["result"]["isError"], true, "a base needs a file or its text");
+    assert_eq!(replies[10]["result"]["isError"], true, "not a property name");
 }

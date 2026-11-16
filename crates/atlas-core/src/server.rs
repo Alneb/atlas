@@ -151,6 +151,43 @@ async fn exists_get(State(st): S, Query(q): Query<PathQuery>) -> Result<Json<boo
     Ok(Json(with_ws(&st, move |ws| Ok(ws.resolve(&rel)?.exists())).await?))
 }
 
+/// When a file was made and last changed (today.rs `made`): a note's date beside its breadcrumbs.
+async fn file_made_get(State(st): S, Query(q): Query<PathQuery>) -> Result<Json<Option<crate::api::Made>>> {
+    let rel = required_path(q)?;
+    Ok(Json(with_ws(&st, move |ws| { ws.resolve(&rel)?; Ok(crate::today::made(ws.root(), &rel)) }).await?))
+}
+
+/// The Syncthing conflict copies left for the user (sync_merge.rs `left_copies`): every one, or with `?path=` the copies
+/// of that file. The Sync conflicts view lists them, a note's banner shows its own, a count of them comes from here.
+async fn sync_conflicts_get(State(st): S, Query(q): Query<PathQuery>) -> Result<Json<Vec<crate::sync_merge::ConflictCopy>>> {
+    let of = q.path.filter(|p| !p.is_empty());
+    Ok(Json(with_ws(&st, move |ws| {
+        if let Some(p) = &of {
+            ws.resolve(p)?; // in the vault
+        }
+        Ok(crate::sync_merge::left_copies(ws.root(), of.as_deref()))
+    }).await?))
+}
+
+/// `GET /api/sync/state` (sync_state.rs): this vault's sync state in plain words, or with `?path=` that of another vault
+/// on this device's list (Settings → Vaults & sync shows one line per vault). A path not on the list is refused.
+async fn sync_state_get(State(st): S, Query(q): Query<PathQuery>) -> Result<Json<crate::sync_state::SyncStatus>> {
+    let root = st.ws.root().to_path_buf();
+    let asked = q.path.filter(|p| !p.is_empty());
+    Ok(Json(
+        blocking(move || {
+            let Some(p) = asked else { return Ok(crate::sync_state::status(&root)) };
+            let real = std::path::Path::new(&p).canonicalize().map_err(|e| Error::BadRequest(format!("{p}: {e}")))?;
+            let listed = real == root || crate::vaults::list(&crate::vaults::list_file()).iter().any(|v| std::path::Path::new(&v.path).canonicalize().ok().as_ref() == Some(&real));
+            if !listed {
+                return Err(Error::BadRequest(format!("{p} is not a vault on this device's list")));
+            }
+            Ok(crate::sync_state::status(&real))
+        })
+        .await?,
+    ))
+}
+
 fn required_path(q: PathQuery) -> Result<String> {
     q.path.filter(|p| !p.is_empty()).ok_or_else(|| Error::BadRequest("missing ?path=".into()))
 }
@@ -718,8 +755,12 @@ async fn ui_state_get(State(st): S) -> Json<UiState> {
     Json(st.ui.read().map(|g| g.clone()).unwrap_or_default())
 }
 
-async fn ui_state_put(State(st): S, Json(state): Json<UiState>) -> StatusCode {
+async fn ui_state_put(State(st): S, Json(mut state): Json<UiState>) -> StatusCode {
     if let Ok(mut g) = st.ui.write() {
+        // the window sends its command list only when it changed
+        if state.commands.is_none() {
+            state.commands = g.commands.take();
+        }
         *g = state;
     }
     StatusCode::NO_CONTENT
@@ -841,19 +882,7 @@ async fn backlinks_get(State(st): S, Query(q): Query<PathQuery>) -> Result<Json<
 }
 
 async fn property_put(State(st): S, Json(e): Json<PropertyEdit>) -> Result<StatusCode> {
-    with_ws(&st, move |ws| {
-        // the properties panel's rule (frontmatter::plain_key): `#x` would be a YAML comment, `- x` a list item
-        if !e.path.ends_with(".md") || crate::frontmatter::plain_key(&e.key).is_err() {
-            return Err(Error::BadRequest("a property edit needs a note and a plain key".into()));
-        }
-        let path = ws.resolve(&e.path)?;
-        let value = match &e.value {
-            Some(v) => serde_yaml::to_value(v).map_err(|x| Error::BadRequest(x.to_string()))?,
-            None => crate::frontmatter::parse_cell(&e.text, e.list),
-        };
-        vault_write::modify(&path, |text| Ok(crate::frontmatter::set_property(text, e.key.trim(), &value)))
-    })
-    .await?;
+    with_ws(&st, move |ws| crate::frontmatter::set_in_note(&ws, &e)).await?;
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -1004,19 +1033,38 @@ fn may_reveal_outside(signed_in_server: bool, peer: std::net::IpAddr) -> bool {
 
 async fn task_tick(State(st): S, Json(t): Json<TaskRef>) -> Result<StatusCode> {
     let path = t.path.clone();
-    with_ws(&st, move |ws| crate::today::tick_ref(&ws, &t)).await?;
-    st.bus.publish(Event::Fs { paths: vec![path] });
+    let was = with_ws(&st, move |ws| crate::today::tick_ref(&ws, &t)).await?;
+    st.bus.publish(Event::Fs { paths: vec![path.clone()] });
+    crate::notice_actions::task_done(&st.bus, &path, &was);
     Ok(StatusCode::NO_CONTENT)
 }
 
-async fn task_line(Json(t): Json<TaskTick>) -> Result<Json<TaskTicked>> {
+/// A notice's button pressed on a page (its toast): answered by the same router as a press on the system's
+/// notification (notice_actions.rs), so Open, Snooze and a plugin's own buttons do the same from both.
+async fn notice_press(State(st): S, Json(p): Json<crate::api::NoticePress>) -> Result<StatusCode> {
+    let chosen = crate::events::Chosen { action: p.action, source: p.source, notice: p.notice, open: p.open };
+    crate::notice_actions::answer(&st.ws, &st.bus, &st.helpers, chosen, chrono::Utc::now()).await;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+async fn task_line(State(st): S, Json(t): Json<TaskTick>) -> Result<Json<TaskTicked>> {
     let lines = if t.done {
         crate::today::tick_line(&t.text, chrono::Local::now().date_naive())
     } else {
         crate::today::untick_line(&t.text).map(|l| vec![l])
     };
     let lines = lines.ok_or_else(|| Error::BadRequest(format!("not a {} task line: {}", if t.done { "open" } else { "done" }, t.text)))?;
+    if let (true, Some(path)) = (t.done, &t.path) {
+        crate::notice_actions::task_done(&st.bus, path, &t.text);
+    }
     Ok(Json(TaskTicked { lines }))
+}
+
+/// The task dialog's form → its line, by the core's one task writer; no file is read or written (the editor holds
+/// the line, as with `task/line`).
+async fn task_render(Json(f): Json<crate::api::TaskFields>) -> Result<Json<crate::api::TaskRendered>> {
+    let line = crate::tasks::Line::from_fields(&f, chrono::Local::now().date_naive()).map_err(Error::BadRequest)?;
+    Ok(Json(crate::api::TaskRendered { line: crate::tasks::render_line(&line) }))
 }
 
 async fn graph_get(State(st): S) -> Result<Json<Graph>> {
@@ -1284,8 +1332,9 @@ async fn css_snippets_get(State(st): S) -> Result<Json<Vec<CssSnippet>>> {
 }
 
 async fn view_post(State(st): S, Json(q): Json<ViewBlock>) -> Result<Json<ViewResult>> {
-    // A plugin's rows (`from: plugin:dav/events`) need its tool, called here; every other source reads files.
-    if let Some(r) = crate::views::from_plugin(&st.ws, &st.helpers, &q.src).await {
+    // A plugin's rows (`from: plugin:dav/events`, the calendar's part of `from: deadlines`) need its tool, called here;
+    // every other source reads files.
+    if let Some(r) = crate::views::from_plugin(&st.ws, &st.helpers, &q.path, &q.src).await {
         return Ok(Json(r?));
     }
     Ok(Json(with_ws(&st, move |ws| crate::views::evaluate(&ws, &q.path, &q.src)).await?))
@@ -1577,13 +1626,16 @@ async fn live_ws(State(st): S, Query(mut q): Query<LiveQuery>, upgrade: WebSocke
 
 async fn events_ws(State(st): S, upgrade: WebSocketUpgrade) -> Response {
     let rx = st.bus.subscribe();
-    upgrade.on_upgrade(move |socket| forward_events(socket, rx))
+    let vault = crate::notify::Presence::of_vault(st.ws.root());
+    upgrade.on_upgrade(move |socket| forward_events(socket, rx, vault))
 }
 
-/// The bus to one page; the page says on it whether it is looked at (`{"seen": …}`, notify.rs).
-async fn forward_events(mut socket: WebSocket, mut rx: tokio::sync::broadcast::Receiver<Event>) {
+/// The bus to one page; the page says on it whether it is looked at (`{"seen": …}`, notify.rs). It counts among the
+/// process's pages and its vault's (`vault`: a vault no page shows slows its background work).
+async fn forward_events(mut socket: WebSocket, mut rx: tokio::sync::broadcast::Receiver<Event>, vault: Arc<crate::notify::Presence>) {
     use tokio::sync::broadcast::error::RecvError;
     let page = crate::notify::Presence::global().join();
+    let shown = vault.join();
     loop {
         tokio::select! {
             ev = rx.recv() => match ev {
@@ -1603,6 +1655,7 @@ async fn forward_events(mut socket: WebSocket, mut rx: tokio::sync::broadcast::R
                 Some(Ok(Message::Text(t))) => {
                     if let Ok(s) = serde_json::from_str::<crate::notify::Seen>(&t) {
                         page.seen(s.seen);
+                        shown.seen(s.seen);
                     }
                 }
                 Some(Ok(_)) => {}
@@ -1860,6 +1913,17 @@ async fn shell_show(State(st): S, body: Option<Json<crate::shell::ShowRequest>>)
         true => Ok(StatusCode::NO_CONTENT),
         false => Err(Error::NotFound("no desktop window around this core".into())),
     }
+}
+
+/// "Web tabs: forget sign-ins and site data" (shell.rs): the desktop app forgets every website's data, Atlas's own
+/// kept; 404 from a core with no such shell around it.
+async fn shell_forget_web_data() -> Result<Json<serde_json::Value>> {
+    let (tx, rx) = oneshot::channel();
+    if !crate::shell::forget_web_data(Box::new(move |r| drop(tx.send(r)))) {
+        return Err(Error::NotFound("only the desktop app on Linux keeps web tabs' site data apart to forget".into()));
+    }
+    let sites = rx.await.map_err(|_| Error::BadRequest("the window went away before the data was forgotten".into()))?.map_err(Error::BadRequest)?;
+    Ok(Json(serde_json::json!({ "sites": sites })))
 }
 
 /// Settings → Agents (agents.rs): this machine's agents, for a local core; a server's agents use device tokens.
@@ -2224,6 +2288,7 @@ fn router(state: Arc<AppState>) -> Router {
         .route("/api/tree", get(tree))
         .route("/api/files", get(files_get))
         .route("/api/exists", get(exists_get))
+        .route("/api/file/made", get(file_made_get))
         // a drawing's pictures travel inside it: files.rs `text_limit` says what each kind may be
         .route("/api/file", get(file_get).put(file_put).layer(DefaultBodyLimit::max(files::MAX_DRAWING_BYTES as usize + 1024 * 1024)))
         // PDFs can exceed the global JSON limit; 512 MB covers scanned books.
@@ -2327,10 +2392,14 @@ fn router(state: Arc<AppState>) -> Router {
         .route("/api/tags/rename", post(tags_rename))
         .route("/api/task/tick", post(task_tick))
         .route("/api/task/line", post(task_line))
+        .route("/api/notices/action", post(notice_press))
+        .route("/api/task/render", post(task_render))
         .route("/api/fs/mkdir", post(fs_mkdir))
         .route("/api/fs/upload", post(fs_upload).layer(DefaultBodyLimit::max(1024 * 1024 * 1024)))
         .route("/api/fs/move", post(fs_move))
         .route("/api/fs/trash", post(fs_trash))
+        .route("/api/sync/conflicts", get(sync_conflicts_get))
+        .route("/api/sync/state", get(sync_state_get))
         .route("/api/fs/reveal-outside", post(fs_reveal_outside))
         .route("/api/open-outside", post(open_outside_post))
         .route("/api/desktop/capture-key", get(capture_key_get).post(capture_key_post))
@@ -2357,6 +2426,7 @@ fn router(state: Arc<AppState>) -> Router {
         .route("/api/version", get(|| async { Json(version_info()) }))
         .route("/api/local/link", post(local_link))
         .route("/api/shell/show", post(shell_show))
+        .route("/api/shell/forget-web-data", post(shell_forget_web_data))
         .route("/api/words/{lang}", get(words_get))
         .route("/api/agents", get(agents_get).post(agents_post))
         .route("/api/agents/terminals", put(agents_terminals_put))
@@ -2422,6 +2492,10 @@ struct VaultRun {
     merges: tokio::task::JoinHandle<()>,
     /// A local vault's notices to the system (notify.rs); a server's reach devices through the notifications plugin.
     notices: Option<tokio::task::JoinHandle<()>>,
+    /// Its planned notices (planned.rs: events' reminders), fired where notices reach a person.
+    planned: Option<tokio::task::JoinHandle<()>>,
+    /// The buttons pressed on its notifications (notice_actions.rs), answered where they are shown.
+    pressed: Option<tokio::task::JoinHandle<()>>,
 }
 
 impl ServerHandle {
@@ -2465,6 +2539,9 @@ impl ServerHandle {
             v.merges.abort();
             if let Some(n) = &v.notices {
                 n.abort();
+            }
+            for t in [&v.planned, &v.pressed].into_iter().flatten() {
+                t.abort();
             }
         }
         let r = (&mut self.task).await;
@@ -2655,6 +2732,10 @@ fn start_vault(root: &std::path::Path, port: u16, auth: Option<Arc<crate::auth::
     if let Err(e) = crate::vault_write::ignored_folder(&ws.cache_dir(), "Atlas's caches, rebuilt from the vault") {
         eprintln!("atlas: {}: {e}", ws.cache_dir().display());
     }
+    // a vault Syncthing shares keeps this device's state to itself on every device that serves it (phone, server)
+    if let Err(e) = crate::sync_ignore::ensure(ws.root()) {
+        eprintln!("atlas: {}: Syncthing's ignore patterns not added: {e}", ws.root().display());
+    }
     let server_file = ws.cache_dir().join("server.json");
     let sf = ServerFile { port, pid: std::process::id(), root: ws.root().to_string_lossy().into_owned(), path: prefix.to_string() };
     vault_write::cache::write(&server_file, serde_json::to_string_pretty(&sf)?.as_bytes())?;
@@ -2686,6 +2767,8 @@ fn start_vault(root: &std::path::Path, port: u16, auth: Option<Arc<crate::auth::
     let hooks = crate::capture_hooks::spawn(ws.clone(), bus.clone(), helpers.clone());
     let merges = crate::sync_merge::spawn(ws.clone(), bus.clone()); // Syncthing's conflict copies merged (DESIGN-mirror-v2 §4)
     let notices = served.is_none().then(|| crate::notify::spawn(ws.clone(), bus.clone(), crate::notify::Presence::global(), crate::notify::platform(&bus)));
+    let planned = served.is_none().then(|| crate::planned::spawn(ws.clone(), bus.clone(), helpers.clone()));
+    let pressed = served.is_none().then(|| crate::notice_actions::spawn(ws.clone(), bus.clone(), helpers.clone()));
     // a server's lease table outlives a restart (lease.rs `kept_in`); a desktop's core keeps none
     let leases = Arc::new(if served.is_some() { crate::lease::Leases::kept_in(ws.cache_dir().join("leases.json")) } else { Default::default() });
     // the sign-ins kept for plugins visited now and then, so a gate's idle limit never ends them between uses
@@ -2707,6 +2790,8 @@ fn start_vault(root: &std::path::Path, port: u16, auth: Option<Arc<crate::auth::
         leases,
         leasing: std::sync::Once::new(),
     });
+    // the mirror guard's refused leases and failed catch-ups become this vault's notices (sync_state.rs)
+    crate::sync_state::SyncState::of(state.ws.root()).attach(state.bus.clone());
     if state.served.is_none() {
         crate::mirror_guard::install_for_mirror(&state.ws); // a local vault with a copy on a server asks it before writing
         crate::guest::install(&state.ws); // a guest folder: read-only until its window's Edit switch
@@ -2727,7 +2812,7 @@ fn start_vault(root: &std::path::Path, port: u16, auth: Option<Arc<crate::auth::
             eprintln!("atlas: plugin {id}: its helper did not start with the vault: {e}");
         }
     }
-    Ok((routes, VaultRun { server_file, _watcher: watcher, scheduler, hooks, merges, notices }, state))
+    Ok((routes, VaultRun { server_file, _watcher: watcher, scheduler, hooks, merges, notices, planned, pressed }, state))
 }
 
 #[cfg(test)]

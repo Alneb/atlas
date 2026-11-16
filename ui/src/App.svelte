@@ -27,7 +27,9 @@
   import { openQuickCapture } from "./lib/quick-capture.svelte";
   import { appChord, matches, systemEditingChord } from "./lib/keys";
   import { palette, openPalette } from "./lib/palette.svelte";
+  import { setCommands } from "./lib/context.svelte";
   import { app, toast, paintTheme } from "./lib/state.svelte";
+  import { showNotice, withdrawNotice } from "./lib/notices";
   import { loadSettings, settings } from "./lib/settings.svelte";
   import { installDiagnostics } from "./lib/diagnostics";
   import { installNavInput } from "./lib/nav-input";
@@ -86,6 +88,15 @@
       void b.cmd.run();
       return;
     }
+  }
+
+  // agents see the palette's commands (atlas_ui_commands) and run one as its key would (atlas_ui_command), in view
+  $effect(() => setCommands(allCommands().map(({ id, title }) => ({ id, title }))));
+  function runForAgent(id: string): void {
+    const c = allCommands().find((x) => x.id === id);
+    if (!c) return toast("An agent asked for a command this window does not have", id, "error");
+    toast(`An agent ran “${c.title}”`);
+    void Promise.resolve().then(() => c.run()).catch((e) => toast(`“${c.title}” failed`, errText(e), "error"));
   }
 
   function focusPane(p: FocusTarget): void {
@@ -188,8 +199,10 @@
     const events = connectEvents(emit, (s) => (app.conn = s));
     const offs = [
       on("open", (e) => openPath(e.path, e.line)),
-      on("notify", (e) => toast(e.title, e.body, e.level === "failure" ? "error" : e.level === "success" ? "success" : "info")),
+      on("notify", showNotice),
+      on("withdraw", (e) => withdrawNotice(e.id)),
       on("focus", (e) => focusPane(e.pane)),
+      on("palette", (e) => runForAgent(e.command)),
       on("fs", (e) => { if (e.paths.length) e.paths.forEach(invalidate); else invalidateAll(); }),
       on("fs", (e) => { if (touches(e.paths, (p) => p === settings.path)) loadSettings().catch(() => {}); }),
       on("fs", (e) => { if (touches(e.paths, (p) => p === ".atlas/keys.toml" || p.startsWith(".atlas/commands/"))) void loadKeymap().catch(() => {}); }),

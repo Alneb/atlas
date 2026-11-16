@@ -621,6 +621,42 @@ async fn a_task_line_is_ticked_and_opened_again_as_text() {
     t.stop().await;
 }
 
+/// The first event on `ev` that `want` picks, within 5 s.
+async fn next_event(ev: &mut Ws, want: fn(&Event) -> bool) -> Event {
+    tokio::time::timeout(Duration::from_secs(5), async {
+        loop {
+            if let Some(Ok(Message::Text(m))) = ev.next().await {
+                let e: Event = serde_json::from_str(&m).unwrap();
+                if want(&e) {
+                    return e;
+                }
+            }
+        }
+    })
+    .await
+    .expect("the event")
+}
+
+/// A notice's button pressed on a page goes to the core's router (Open opens), and a task ticked done — from Home's
+/// tick or the editor's checkbox — withdraws the notices about it, by its subject.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_toasts_button_is_answered_and_a_task_done_withdraws_its_notices() {
+    let t = T::start().await;
+    let mut ev = ws_connect(t.port(), "/api/events", Some(&format!("http://127.0.0.1:{}", t.port()))).await.unwrap();
+    let (s, _) = t.send(reqwest::Method::POST, "/api/notices/action", json!({ "action": "atlas:open", "source": "cal", "notice": "cal:s1", "open": "notes/Seminar.md" })).await;
+    assert_eq!(s, StatusCode::NO_CONTENT);
+    assert_eq!(next_event(&mut ev, |e| matches!(e, Event::Open { .. })).await, Event::Open { path: "notes/Seminar.md".into(), line: None });
+
+    std::fs::write(t.root().join("tasks-done.md"), "# Tasks\n\n- [ ] Send the report 📅 2026-11-20 ^t3f9a\n").unwrap();
+    let (s, _) = t.send(reqwest::Method::POST, "/api/task/tick", json!({ "path": "tasks-done.md", "line": 3, "block": "t3f9a" })).await;
+    assert_eq!(s, StatusCode::NO_CONTENT);
+    assert_eq!(next_event(&mut ev, |e| matches!(e, Event::Withdraw { .. })).await, Event::Withdraw { id: "tasks-done.md#^t3f9a".into() });
+    let (s, _) = t.send(reqwest::Method::POST, "/api/task/line", json!({ "text": "- [ ] Call back ^c1", "done": true, "path": "notes/x.md" })).await;
+    assert_eq!(s, StatusCode::OK);
+    assert_eq!(next_event(&mut ev, |e| matches!(e, Event::Withdraw { .. })).await, Event::Withdraw { id: "notes/x.md#^c1".into() });
+    t.stop().await;
+}
+
 #[tokio::test(flavor = "multi_thread")]
 async fn a_switched_off_builtin_plugin_has_no_routes() {
     let t = T::start().await;

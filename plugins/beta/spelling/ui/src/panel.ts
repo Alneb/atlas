@@ -49,7 +49,13 @@ const CSS = `
 .sp td { padding: 3px 12px 3px 0; vertical-align: baseline; }
 .sp td.dict { color: var(--text-muted); font-family: var(--font-mono); font-size: 12px; }
 .sp form { display: flex; gap: 6px; margin-top: 6px; }
-.sp input { font: inherit; padding: 2px 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--text); width: 14em; }
+.sp tr.off td { color: var(--text-faint); }
+.sp label { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+.sp label.main { color: var(--text-muted); font-size: 12px; }
+.sp input[type=checkbox], .sp input[type=radio] { width: auto; margin: 0; accent-color: var(--accent); }
+.sp select { font: inherit; font-family: var(--font-mono); font-size: 12px; padding: 2px 6px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--text); }
+.sp select:disabled { opacity: .7; }
+.sp input[type=text], .sp form input { font: inherit; padding: 2px 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--text); width: 14em; }
 `;
 
 type Child = Node | string | null | undefined | false;
@@ -100,33 +106,53 @@ export function drawPanel(host: HTMLElement, model: () => PanelModel, act: Panel
   draw(model());
 }
 
-/** Settings → Spelling, above the form: what is installed and which language leads, the words added by hand (add, ×),
- *  and what the vault taught per language. The form below keeps the finer settings. */
+/** Settings → Spelling, above the form: every installed language with a switch (checked or not), the main one, its
+ *  variant (from what is installed, never typed), what the vault taught; the words added by hand (add, ×). */
 export interface SettingsModel {
   main: string;
-  /** `others`: that language's variants installed but not used (another leads) */
-  langs: { lang: string; name: string; dictionaries: string; others: string[]; learned: number }[];
+  /** `variant`: the chosen one's value ("" = the usual ones); `variants`: what is installed for it */
+  langs: { lang: string; name: string; on: boolean; variant: string; variants: { value: string; label: string }[]; learned: number }[];
   added: string[];
 }
 export interface SettingsActions {
   setMain(lang: string): Promise<void>;
+  setOn(lang: string, on: boolean): Promise<void>;
+  setVariant(lang: string, value: string): Promise<void>;
   add(word: string): Promise<void>;
   remove(word: string): Promise<void>;
 }
 
-export function drawSettings(host: HTMLElement, model: () => SettingsModel, act: SettingsActions) {
+/** Draws the section; returns its redraw, for what changes outside it (the words read at start, a hand edit, counts). */
+export function drawSettings(host: HTMLElement, model: () => SettingsModel, act: SettingsActions): () => void {
   host.replaceChildren(h("style", {}, CSS));
   const body = host.appendChild(h("div", { class: "sp" }));
   const draw = () => {
     const m = model();
+    const onCount = m.langs.filter((l) => l.on).length;
+    const row = (l: SettingsModel["langs"][number]) => {
+      const check = h("input", { type: "checkbox", "aria-label": `Check ${l.name}`, title: l.on && onCount === 1 ? "At least one language stays on" : l.on ? `Stop checking ${l.name}` : `Check ${l.name} too` });
+      check.checked = l.on;
+      check.disabled = l.on && onCount === 1;
+      check.addEventListener("change", () => void act.setOn(l.lang, check.checked).then(draw));
+      const main = h("input", { type: "radio", name: "sp-main", "aria-label": `${l.name} as the main language`, title: l.lang === m.main ? "The main language: used when a note says too little to tell" : `Make ${l.name} the main language` });
+      main.checked = l.on && l.lang === m.main;
+      main.disabled = !l.on;
+      main.addEventListener("change", () => void act.setMain(l.lang).then(draw));
+      const pick = h("select", { "aria-label": `${l.name}'s dictionary`, title: "Which installed dictionary checks it" }, ...l.variants.map((v) => h("option", { value: v.value }, v.label)));
+      pick.value = l.variant;
+      pick.disabled = l.variants.length < 2;
+      pick.addEventListener("change", () => void act.setVariant(l.lang, pick.value).then(draw));
+      return h("tr", { class: l.on ? "" : "off" },
+        h("td", {}, h("label", { class: "lang" }, check, l.name)),
+        h("td", {}, h("label", { class: "main" }, main, "main")),
+        h("td", { class: "dict" }, pick),
+        h("td", { class: "none" }, l.on ? `${l.learned} words learned from the vault` : "not checked"));
+    };
     const langs = h("section", {}, h("h3", {}, "Languages"),
       m.langs.length
-        ? h("table", {}, ...m.langs.map((l) => h("tr", {},
-          h("td", {}, h("button", { class: l.lang === m.main ? "on" : "", "aria-pressed": String(l.lang === m.main), title: l.lang === m.main ? "The main language: a note says too little to tell" : `Make ${l.name} the main language`, onclick: () => void act.setMain(l.lang).then(draw) }, l.name)),
-          h("td", { class: "dict", title: l.others.length ? `Also installed: ${l.others.join(", ")}` : "" }, l.dictionaries, l.others.length ? h("span", { class: "none" }, ` · ${l.others.length} more installed`) : null),
-          h("td", { class: "none" }, `${l.learned} words learned from the vault`))))
+        ? h("table", {}, ...m.langs.map(row))
         : h("div", { class: "none" }, "No Hunspell dictionary here, nor in the vault's .atlas/dictionaries: install one (hunspell-en, hunspell-es…) on a computer that opens this vault, or name a folder below."),
-      h("div", { class: "about" }, "A note's language is its lang: property, else guessed from its words; the highlighted one is used when a note says too little. Another variant (en_GB, es_MX…) is chosen under Dictionaries below."));
+      h("div", { class: "about" }, "Checked: the languages a note may be in. A note's language is its lang: property, else guessed among the checked ones; the main one is used when a note says too little. A word right in any checked language is not marked."));
     const input = h("input", { "aria-label": "A word to add", placeholder: "a word…", spellcheck: "false" });
     const form = h("form", {}, input, h("button", {}, "Add"));
     form.addEventListener("submit", (e) => { e.preventDefault(); const w = input.value.trim(); if (w) void act.add(w).then(draw); });
@@ -138,4 +164,5 @@ export function drawSettings(host: HTMLElement, model: () => SettingsModel, act:
     body.replaceChildren(langs, added);
   };
   draw();
+  return draw;
 }

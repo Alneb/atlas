@@ -39,6 +39,8 @@ public final class AtlasActivity extends Activity {
     static final String OPEN = "org.atlas.open";
     /** With OPEN: in the web editor, not the native plugin that opens such files (Notepad's "Open in Excalidraw"). */
     static final String WEB = "org.atlas.web";
+    /** With OPEN: the line to open the note at (the home-screen widget's task, TodayWidget). */
+    static final String LINE = "org.atlas.line";
     /** The path to open on the web once (WEB): nativeOpens says no to it the next time it is asked. */
     private volatile String webOnce;
     /** A native plugin's `[[link]]` to follow, and the vault file it is in (LINK_FROM): resolved by the page. */
@@ -100,6 +102,7 @@ public final class AtlasActivity extends Activity {
         Server.init(this);
         Shell.edgeToEdge(this, look);
         setContentView(frame());
+        Shell.onBack(this, this::onBackPressed); // the gesture (predictive back) takes the same path as the button
         Shortcuts.publish(this, look);
         asked = getIntent().getStringExtra(Shortcuts.PLACE);
         if (state == null) openAsked(getIntent()); // a notification's click with no window open
@@ -112,7 +115,8 @@ public final class AtlasActivity extends Activity {
     private void openAsked(Intent i) {
         String path = i.getStringExtra(OPEN);
         if (path != null && i.getBooleanExtra(WEB, false)) webOnce = path;
-        if (path != null) js("atlasShell.open(" + JSONObject.quote(path) + ")"); // js() waits for the page
+        int line = i.getIntExtra(LINE, 0);
+        if (path != null) js("atlasShell.open(" + JSONObject.quote(path) + (line > 0 ? "," + line : "") + ")"); // js() waits for the page
     }
 
     /** Only a file in front has a Back stack (the app's own places start afresh); its tab ids die with the page, so a
@@ -186,6 +190,7 @@ public final class AtlasActivity extends Activity {
         if (webInk != null) webInk.stop(); // the page asks again when it is shown (visibilitychange)
         final String v = shown;
         new Thread(() -> DeviceLog.write(v)).start(); // this phone's log in the vault, for the desktop to read
+        TodayWidget.refresh(this); // the home screen shows what was just done here
         super.onPause();
     }
 
@@ -194,6 +199,7 @@ public final class AtlasActivity extends Activity {
         super.onResume();
         String vault = vaults.current();
         new Thread(() -> Outbox.send(this)).start(); // captures kept while a server did not answer
+        TodayWidget.refresh(this);
         if (vault == null) { shown = null; go(new Screen(Kind.SETTINGS, ""), false); return; }
         // back from a system screen (a permission, a sign-in) to Settings: stay there; leaving it opens a vault chosen
         // there (go) — before, any return opened it at Home ("all options redirect to home")
@@ -605,7 +611,19 @@ public final class AtlasActivity extends Activity {
         @JavascriptInterface public String eink() { return String.valueOf(look.eink); }
         /** The page's background (`--bg`, as the vault's palette and theme draw it): the bars take it, so a black palette
          *  is not framed in the app's own grey-blue. "" puts the app's colour back. */
-        @JavascriptInterface public void paper(String css) { runOnUiThread(() -> repaper(Look.parseCss(css, look.bg))); }
+        @JavascriptInterface public void paper(String css) {
+            runOnUiThread(() -> { int c = Look.parseCss(css, look.bg); repaper(c); TodayWidget.paint(AtlasActivity.this, shown, c, 0); });
+        }
+        /** The page's accent (`--accent`), reported with paper: the home-screen widget is drawn in the vault's palette. */
+        @JavascriptInterface public void accent(String css) {
+            runOnUiThread(() -> TodayWidget.paint(AtlasActivity.this, shown, 0, Look.parseCss(css, 0)));
+        }
+        /** Material You (Android 12+): the wallpaper's {accent, bars} for the page's dark or light scheme as `#rrggbb`
+         *  JSON, "" on older Android. The page takes them when the vault keeps Atlas's own palette (settings.svelte.ts). */
+        @JavascriptInterface public String wallpaper(boolean dark) {
+            int[] you = look.eink ? null : Look.wallpaper(AtlasActivity.this, dark);
+            return you == null ? "" : "{\"accent\":\"" + Look.hex(you[0]) + "\",\"bars\":\"" + Look.hex(you[1]) + "\"}";
+        }
         /** native-shell.svelte.ts, before it makes a tab: a native plugin of this app opens the path instead. */
         @JavascriptInterface public String nativeOpens(String path) {
             if (path.equals(webOnce)) { webOnce = null; return "false"; } // asked for on the web this once

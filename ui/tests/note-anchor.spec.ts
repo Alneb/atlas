@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { anchorLine, sectionOf } from "../src/lib/note-anchor";
+import { anchorLine, linkParts, sectionOf } from "../src/lib/note-anchor";
 
 // A link's `#Heading` / `#^block` found in a note the Obsidian way (lib/note-anchor.ts): links, bookmarks and note
 // embeds all use it.
@@ -66,4 +66,13 @@ test("a block embed shows the block its id marks, without the id", () => {
   expect(sectionOf(md, "^tab")).toBe("| x |\n| - |\n| 1 |");
   expect(sectionOf(md, "^list")).toBe("- p\n- q");
   expect(sectionOf(md, "^none")).toBe(md);
+});
+
+test("a hovered link's target and anchor: the card shows that section (an equation with its number)", () => {
+  expect(linkParts("[[Screening#^eq-tf|the TF law]]")).toEqual(["Screening", "^eq-tf"]);
+  expect(linkParts("#Heading")).toEqual(["", "Heading"]);
+  expect(linkParts("Note")).toEqual(["Note", undefined]);
+  const md = "Intro\n\n$$\nE = mc^2 \\label{eq-e}\n$$\n\n## Later\ntext";
+  expect(sectionOf(md, "^eq-e")).toContain("\\tag{1}");
+  expect(sectionOf(md, "Later")).toBe("## Later\ntext");
 });

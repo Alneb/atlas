@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import { harness } from "atlas-helper/testing";
 import { translate, relative, mathPortable } from "./translate";
 import { macroDefinitions } from "../../../../ui/src/lib/tex-portable";
-import { latexErrors, yamlEntry, equationMarks } from "./helper";
+import { latexErrors, yamlEntry, equationMarks, typstSymbols, fitDisplays } from "./helper";
 
 const REPORT = `---
 author: Alice
@@ -112,6 +112,7 @@ test("PDF (Typst): pandoc writes Typst with the page and the bibliography, the c
   assert.deepEqual(r.written, ["exports/notes/Report.pdf"]);
   const pandoc = harness.ran.find((x) => x.program === "pandoc")!;
   assert.deepEqual(pandoc.args.slice(0, 5), ["-f", "markdown+mark-implicit_figures+implicit_figures", "-t", "typst", "-s"]);
+  assert.deepEqual(pandoc.args.slice(-2), ["--template", ".atlas/plugins/export/atlas.typst"], "Atlas's look");
   const input = pandoc.stdin!;
   for (const line of ['papersize: "us-letter"', "columns: 2", "toc: true", 'section-numbering: "1.1"', 'bibliography: "../../refs/refs.bib"', 'bibliographystyle: "american-physics-society"', 'title: "A report"'])
     assert.ok(input.includes(line), line);
@@ -231,4 +232,17 @@ test("a link to a figure reads Figure n, and the figure's block id is gone", asy
   const md = t.markdown.replace(/\s+/g, " ");
   assert.ok(md.includes("See Figure 2 and Far, Figure 1."), md);
   assert.ok(!md.includes("^fig-"), md);
+});
+
+test("Typst: the symbol names Typst 0.15 removed are renamed in math only", () => {
+  const typ = "The sect of $A sect B$ and $planck.reduce angle.l x angle.r$, $dot.circle.big$; a \\$sect\\$ in prose.";
+  assert.equal(typstSymbols(typ), "The sect of $A inter B$ and $planck chevron.l x chevron.r$, $dot.o.big$; a \\$sect\\$ in prose.");
+});
+
+test("LaTeX in two columns: a one-line display is boxed to the column, its tag and label outside; rows stay", () => {
+  const md = "Text $$a + b \\tag{3}\\label{eq-3}$$ more.\n\n$$\\begin{align} a \\\\ b \\end{align}$$\n\n$$x \\\\ y$$\n\n$$\\begin{pmatrix} 1 \\\\ 2 \\end{pmatrix}$$";
+  const out = fitDisplays(md);
+  assert.ok(out.includes("`\\begin{equation*}\\adjustbox{max width=\\dimexpr\\columnwidth-3em\\relax}{$\\displaystyle a + b$}\\tag{3}\\label{eq-3}\\end{equation*}`{=latex} more."), out);
+  assert.ok(out.includes("$$\\begin{align} a \\\\ b \\end{align}$$") && out.includes("$$x \\\\ y$$"), out);
+  assert.ok(out.includes("{$\\displaystyle \\begin{pmatrix} 1 \\\\ 2 \\end{pmatrix}$}"), out);
 });

@@ -275,6 +275,11 @@ export const actions: Action[] = [
   { id: "ui.capture-bar", title: "Capture in the bar", run: () => openPalette("capture") },
   // every capture by day, to triage (components/views/Captures.svelte): the `captures` block alone in a tab
   { id: "ui.captures", title: "Captures: triage what was captured", icon: "inbox", run: () => openCaptures() },
+  // what must be done by a day — dated tasks, notes with due:, deadline calendars (lib/deadlines.ts): its page, and its box on Home
+  { id: "ui.deadlines", title: "Deadlines: what is due, overdue first", icon: "flag", label: "Deadlines", run: () => void import("./deadlines").then((m) => m.openDeadlines()) },
+  { id: "ui.home.addDeadlines", title: "Home: add the deadlines box", icon: "flag", run: () => void import("./deadlines").then((m) => m.addDeadlinesToHome()) },
+  // every Syncthing conflict copy left to settle (components/views/SyncConflicts.svelte), with the note banner's ways out
+  { id: "ui.syncConflicts", title: "Sync conflicts: the copies Syncthing left to settle", icon: "refresh", run: () => void import("./sync-copies").then((m) => m.openSyncConflicts()) },
   // the notes that wait for a decision (unsorted, untagged, orphaned, stale): a Base of the vault (lib/note-triage.ts)
   { id: "ui.note-triage", title: "Notes: triage (unsorted, untagged, orphaned, stale)", icon: "table", run: () => void import("./note-triage").then((m) => m.openNoteTriage()) },
   // New…: every kind of new thing, each placed by its kind; the phone app's + opens it
@@ -324,6 +329,7 @@ export const actions: Action[] = [
   { id: "ui.panel.move", title: "Move terminal panel (bottom ↔ right)", run: () => setTerminalPosition(settings.config?.terminal.position === "right" ? "bottom" : "right") },
   { id: "ui.properties.inline", title: "Properties: show them in the note (as Obsidian)", run: () => setPropertiesView("inline") },
   { id: "ui.web", title: "Open web page…", run: () => openPalette("url") },
+  { id: "web.forgetSiteData", title: "Web tabs: forget sign-ins and site data", icon: "globe", run: () => void import("./web-links").then((m) => m.forgetWebData()) },
   { id: "ui.openWith", title: "Open with… (this file in another view)", keys: "Ctrl+Alt+O", run: () => openWith() },
   { id: "ui.focusFile", title: "Edit FOCUS.md", run: () => openPath(app.workspace?.config.focus ?? "FOCUS.md") },
   { id: "ui.resetLayout", title: "Reset layout", run: () => resetLayout() },

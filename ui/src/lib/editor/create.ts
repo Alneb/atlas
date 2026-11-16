@@ -45,7 +45,7 @@ import { PANE_ZOOM_EVENT } from "../pane-zoom";
 import type { Blame } from "../gen/Blame";
 
 export { codeTools } from "./code-extensions";
-export { headingRepeats } from "./note-extensions";
+export { headingRepeats } from "./heading-title";
 
 export type { VimModeLabel } from "./vim-glue";
 

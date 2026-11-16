@@ -32,7 +32,8 @@ final class Shortcuts {
         try { sm.setDynamicShortcuts(all); } catch (RuntimeException e) { /* a launcher's rate limit: next start */ }
     }
 
-    private static Intent place(Context c, String where) {
+    /** Atlas brought forward at a place (`PLACE`); also the home-screen widget's way to Today (TodayWidget). */
+    static Intent place(Context c, String where) {
         return new Intent(c, AtlasActivity.class).putExtra(PLACE, where)
             .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP); // the running one gets onNewIntent
     }

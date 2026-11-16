@@ -6,7 +6,7 @@ import { basename } from "./paths";
 import { createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import "@excalidraw/excalidraw/index.css";
-import { outline } from "./draw-ink"; // and the pen's crisp strokes (Excalidraw asks it: vite.config.ts inkStroke)
+import { outline } from "./draw-ink"; // and the pen's crisp strokes (Excalidraw asks it: scripts/dep-rewrites.ts)
 import { PAGE, type Page, arranged, columns, frameRef, heldView, nextPage, pageAt, pagesOf, wikiTarget } from "./draw-pages";
 import { openPath } from "./dock";
 import { resolveOrBeside } from "./vault";

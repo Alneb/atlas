@@ -5,7 +5,103 @@ and versions follow [Semantic Versioning](https://semver.org/) once 1.0 is out.
 
 ## [Unreleased]
 
+### Added
+- Web tabs block ads and trackers with the browsing windows' lists (Atlas's own page spared), and their page script's
+  messages carry a secret token, from an isolated script world on Linux, so a framed site cannot pose as it. "Web tabs:
+  forget sign-ins and site data" (also in Settings → Web) clears every website's cookies, storage and caches, keeping
+  Atlas's own, after a confirmation.
+- AI agents reach more of Atlas through MCP: the window's commands (`atlas_ui_commands`, `atlas_ui_command`, shown as
+  a toast "An agent ran …"), reads of backlinks, tags, properties, bases, views, captures, activity and sync state, and
+  setting one property (`atlas_set_property`, the same writer as the Properties panel). Plugins' notice/plan/log hooks
+  are no longer offered to agents.
+- A note whose first `# heading` says its file name is renamed when that heading is edited (once the caret leaves the
+  line), its tab following; off with "The title heading renames the file" (`[editor] heading_renames`, Settings →
+  Appearance).
+- A note's date at the right of its breadcrumbs: the day it was made (its `created:` / `date:` property, else its first
+  commit, else the file's creation — the rule the Activity card uses), the full time and its last change on hover.
+  From `GET /api/file/made`.
+- Today's Activity card lists notes only; a file button in its header (or "+ N files hidden — show" under the list) brings
+  files back, remembered as `[activity] show_files` (Settings → Home & Today). Made notes gather by folder like
+  changed ones, and many rows in sibling folders (a run per folder) gather under their parent; the tabs stay on one row.
+- A Sync conflicts view lists every Syncthing conflict copy left to settle — the note, the device (its short
+  Syncthing ID) and the date — with the note banner's ways out (Compare…, Show beside, Keep this one, Take the
+  other). It opens from the command "Sync conflicts" and from a line in Settings → Files & search that shows only
+  while copies are left; on the phone too. `GET /api/sync/conflicts` is the one listing behind it and the banner.
+- Settings → Vaults & sync: each vault on the device with its sync state in one plain line — what carries its files
+  (Syncthing or the mirror), whether its server answers or wants a sign-in, the last catch-up, writes refused as
+  behind or held by another device, captures waiting and conflict copies left. The phone's vault list and a vault's
+  details show the same words, from the same `GET /api/sync/state`. A server that stops answering, a sign-in it
+  wants and a refused write are also notices, each told once until it clears.
+- Deadlines: what must be done by a day — tasks with 📅, notes with `due:` (never mail, never done ones) and the
+  events of calendars marked as deadline calendars (Calendar 1.7.0) — in one list grouped Overdue · Today · This week
+  · Later. It is a box on Home (new homes have it; Settings → Home & Today → "Add the deadlines box" adds it to an
+  existing one), a Deadlines page of its own (a tile beside Home and the "Deadlines" command; the list and a month
+  calendar), and what the Today chips count. A task is ticked from the box; a view block says `from: deadlines`.
+- Notifications get buttons: an event's reminder rings with **Open** and **Snooze 10 min** on the desktop (D-Bus) and
+  the phone. Plugins can put their own buttons on a notice (`actions`), answered by their `on = "notice"` tool, and
+  take a notice away again (`withdraw`), its system notification closed. The in-app pop-ups show the same buttons;
+  a notice taken away also leaves the pop-ups and the tray's list of unseen notices. Ticking a task done takes away
+  the notices about it (a notice names its task as `subject`), and a reminder whose event was deleted goes while it
+  still shows.
+- A DOI link (`[Hedin 1965](https://doi.org/10.…)`) whose paper is in the library reads and opens as that paper's
+  `[[citekey]]` note, in the editor and the reading view, its words unchanged (hover preview, right-click menu;
+  Shift+click still opens the page). One not in the library offers Catalog's "Add to the catalog" dialog on a click
+  or from "Add to library…" in its menu; a note's unfiled `sources` use the same dialog.
+- Phone: on Android 12+ the app takes the wallpaper's colours (Material You), the page too when the vault keeps
+  Atlas's own palette; a resizable home-screen widget shows today's log, the open tasks and a Capture button, in the
+  vault's palette.
+- Calendar 1.6.0: event reminders. An event's own alerts (before or after its start or end, or at a set moment; a
+  repeating event's next occurrences) ring as desktop notifications with the title, the time and the place; a click
+  opens the note the event came from. A calendar's default alert from the server rings for events without one, and
+  Settings → Calendar → Reminders can add one of its own (off by default) or switch reminders off. Each rings once,
+  not again after a restart, and follows an event moved or deleted just before. Plugins can plan such notices too
+  (`on = "plan"` tools).
+
+### Changed
+- The phone's capture box opens ready to type: the keyboard comes with the window, and the core (the hint, the
+  completions, a share's text) answers on a thread of its own instead of before the first frame. The screen's
+  picture is written after the box opens; the accessibility button, gesture and volume keys no longer wait for a
+  shade that is not there. Each step's time is in logcat under the tag `AtlasCapture`.
+- Links shared from phone apps come out clean: the text is read from every place apps put it (the text, its ClipData,
+  several texts, an HTML text's links, the subject), the subject becomes a title (`Watch "…" on YouTube` → the
+  quoted title; an app's own name is dropped), and more tracking parameters go (Reddit's `share_*`, Spotify's `dlsi`,
+  Google Maps' `g_st`, Facebook's `mibextid`, TikTok's, and X's `s` and `t` on X only). Catalog 0.9.2 compares
+  addresses with the same rule, so a link read in a screenshot by OCR is the same item as the clean one.
+- Tasks: a task whose line ends in an Obsidian block id (`^abc`) is found by it, so ticking it on Home, in a task
+  block or by an agent works after lines above it moved; the id no longer shows in the task's title. The task
+  dialog's line is written by the core, in Obsidian Tasks' order. A recurring task's next occurrence does not copy
+  the id.
+- Linux desktop: web tabs are always frames inside their pane. The older native view laid over the pane (which blinked
+  under menus and drew wrongly) and its `[web] tab_view` setting are removed.
+- Export's Typst PDF has a look of its own instead of pandoc's bare template: a coloured title block and headings,
+  running heads, tinted code and quotes, ruled tables, Libertinus Math beside Libertinus text.
+- A hovered link to a heading or a block previews that section, not the top of the note; a link to an equation
+  (`[[Note#^eq-gap]]`, `[[#^eq-gap]]`) shows the equation with its number.
+- Numbered equations: each row of an `align`, `gather` or `eqnarray` gets its own number, as in LaTeX; a row's
+  `\label` names that row, `\notag` skips it.
+- A note's top strip reads as rows: a hairline under the path, then the format bar and the Properties heading over
+  one continuous line (the two share their height, even when a narrow bar wraps). The heading lost its inline rule,
+  and a button at the end of the path shows or hides the Properties panel, lit while it is open.
+
 ### Fixed
+- Spelling 0.4.0: check several languages — Settings → Spelling lists every installed one with a switch, the main one
+  and each one's dictionary picked from what is installed (no more typed `en=en_GB` or language codes; older settings
+  keep working). The lower bar's cell names the note it describes, follows the active tab and the focused editor at
+  once, and is gone for anything that is not a Markdown note or the mail being written (code files, PDFs, terminals).
+- Spelling 0.3.3: Settings → Spelling lists your words (and what the vault taught) once they are read, instead of
+  "None yet" when the page opened before they were.
+- Export 1.5.0: a note whose math uses ⟨ ⟩, ħ, ∩ or a circled operator compiles through Typst again (pandoc writes
+  their old names, which Typst 0.15 removed; they are renamed in math). In two columns a display wider than its
+  column is shrunk to fit instead of running over the other column, on both PDF roads.
+- Calendar 1.5.3: the week and day views lay overlapping events out as Google Calendar does. Events that start
+  together share the width only where they really overlap, and each widens across free columns; one starting later
+  is drawn over a running one, indented, so a long event keeps its width. A narrow block shows its title on two lines
+  instead of cutting both title and time; the whole event is in its tooltip.
+- Dim terminal text (SGR 2) is readable in the light theme: xterm asked it only half the minimum contrast; it now
+  gets the theme's full bar in both renderers (a checked build-time rewrite, `ui/scripts/dep-rewrites.ts`).
+- Email 1.7.2: Outlook's mail server refusing an access token ("AUTHENTICATE failed.") no longer asks for a new
+  sign-in: the token is renewed and tried again, as Thunderbird does; a fresh token refused while Microsoft still
+  renews the sign-in is reported as the server's trouble and retried by itself.
 - Email 1.7.1: Shift+click on a link in a message opens the system's browser in the desktop app too. Its WebKit ran
   no listener inside the message's frame (links, Ctrl+F, the frame's height following a picture or an unfolded
   quote); the frame now allows scripts, while its Content-Security-Policy (`script-src 'none'`) still refuses every

@@ -68,12 +68,12 @@ grouped by page, include matching **features** (with Try), and the box is focuse
 | page | options | features | panels | go further |
 |---|---|---|---|---|
 | Overview | — | palette, open file, capture, commands | cards per area: features with shortcuts, "N changed" | — |
-| Appearance | theme, colour scheme by day and by night (palette, palette_dark), contrast, shape, accent, text size, interface font, motion, e-ink screen and its full refresh, tabs, side panel, restore layout, tab preview, Ctrl+Tab, prose font/size/line height/width, code font/size, inline title | toggle theme, zoom, side panel, fullscreen, reset layout | live preview, CSS snippets | write a CSS snippet |
+| Appearance | theme, colour scheme by day and by night (palette, palette_dark), contrast, shape, accent, text size, interface font, motion, e-ink screen and its full refresh, tabs, side panel, restore layout, tab preview, Ctrl+Tab, prose font/size/line height/width, code font/size, inline title, title heading renames the file | toggle theme, zoom, side panel, fullscreen, reset layout | live preview, CSS snippets | write a CSS snippet |
 | Writing | vim, format bar, math and link preview, task chips/suggestions/short forms, properties and their spec, completions, slash menu, folding, typewriter, **live editing between devices**, backlinks, LaTeX snippets, attachments, date names, strict line breaks, notes.* (capture, inbox, fleeting note template, templates folder, templates by name or folder, **default template**) | vim, New…, new note, cycle a line, properties panel / inline, kit, outline, graph | — | put a live view in a note (copies a ```` ```view ```` example) |
 | Home & Today | home, focus, **daily log folder**, **daily log template**, activity.* | home, capture, edit FOCUS.md | — | reshape the home screen (opens Home.page) |
 | Code | autosave, tool bar, git gutter, line numbers, wrap, guides, minimap, breadcrumbs, lsp.* | problems, git, replace | — | — |
 | Files & search | ignore, index exclude, files.* | files, explorer, open file, search, history, open with, switch vault | open with | — |
-| Web | web.* (open links in **a tab**, a window or the browser; block ads; filter lists) | open web page | — | — |
+| Web | web.* (open links in **a tab**, a window or the browser; block ads — in web tabs too; filter lists) | open web page | sign-ins and site data (forget them) | — |
 | Server | — (kept outside the vault: `~/.config/atlas/server.toml`) | — | this Atlas serving or not; sign-in (password / proxy / both), trusted proxies, plain HTTP, AI agents; the password; device tokens (made, shown once, revoked); signed-in browsers, sign out everywhere (docs/guides/SERVER.md) | — |
 | References & PDF | pdf.* (the references' own settings are the Catalog · Science plugin's) | References | — | — |
 | Drawing | draw.* (folder, Rnote commands, notepad, **a new drawing's pages**) | new drawing, export as SVG | — | — |
@@ -181,10 +181,9 @@ After a day of features, Settings had fallen behind: many new things were not in
   - `web.open_links = "tab"` (the new default): what links already did — a tab of Atlas when the
     site allows framing, else a browsing window — but now a choice. `window` and `browser` skip the tab
     (`web-links.ts`); the app treats `tab` as `window` for what it opens (`main.rs`).
-  - `web.tab_view = "frame"` (default; the Linux desktop app): a web tab is a frame inside its pane — any site shows,
-    signed in, and Atlas's menus draw over it (the libsoup hook, DEVELOPING.md "Web pages as tabs, per platform");
-    `"native"`: the WebKit view laid over the pane. In a plain browser (a vault on a server) a web link opens a tab
-    of that browser instead, whatever these say.
+  - In the desktop app a web tab is a frame inside its pane — any site shows, signed in, and Atlas's menus draw over it
+    (DEVELOPING.md "Web pages as tabs, per platform"). In a plain browser (a vault on a server) a web link opens a tab
+    of that browser instead, whatever these say. (`web.tab_view` and its `"native"` view are gone; the key is ignored.)
   - `draw.page_format`: `ask` (default) or one of the formats of "New drawing" (A4, A4 landscape, A5, Letter, Boox,
     an endless canvas, a canvas with a corner); set, the question is skipped.
 - **Blurbs and commands** brought up to date: zen split and fullscreen (Appearance); default template,

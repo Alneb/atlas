@@ -45,6 +45,8 @@ pub fn caldav(store: &Store, client: &Remote, account: &str) -> Result<Pulled, D
             token: old.and_then(|o| o.token.clone()),
             synced: old.map_or(0, |o| o.synced),
             error: None,
+            alarm: c.alarm.clone(),
+            alarm_day: c.alarm_day.clone(),
         };
         if old.is_none_or(|o| o.name != src.name || o.color != src.color || o.writable != src.writable) {
             out.changed = true;
@@ -144,6 +146,8 @@ pub fn subscriptions(store: &Store, subs: &[Sub], force: bool) -> Pulled {
             token: None,
             synced: 0,
             error: None,
+            alarm: None,
+            alarm_day: None,
         };
         let moved = old.as_ref().is_some_and(|o| o.url != sub.url);
         let _ = store.put_source(&src);

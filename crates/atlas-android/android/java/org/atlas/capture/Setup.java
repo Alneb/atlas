@@ -78,7 +78,10 @@ final class Setup {
             if (kept + refused > 0) detail = kept + refused + " waiting · " + detail;
             Row r = look.row(a, Server.is(v) ? "server" : "vault", vaults.title(v), detail);
             if (v.equals(current)) r.label.setTextColor(look.accent);
-            if (mirror != null) answers(mirror, r, detail);
+            // the core's own sync state (the words the desktop's Settings → Vaults & sync shows) where asking costs no
+            // start: a server's vault, the one in use, a folder whose core runs; else only whether the mirror answers
+            if (Server.is(v) || v.equals(current) || Local.running(v.replaceAll("/+$", ""))) synced(v, mirror, r, detail);
+            else if (mirror != null) answers(mirror, r, detail);
             // a tap uses it, a folder and a server alike (a server that turns the app away offers its sign-in when it
             // opens); its details — name, mirror, sign-in, remove — behind ⋯ or a long press, as Android's Wi-Fi networks
             r.setOnClickListener(x -> { vaults.use(v); chosen(); draw(); });
@@ -131,6 +134,50 @@ final class Setup {
                 : p.front == SignIn.Front.ATLAS ? "its sign-in is refused" : "not answering: the folder is used";
             ANSWERED.put(mirror, new Object[] { said, System.currentTimeMillis() });
             a.runOnUiThread(() -> { if (r.isAttachedToWindow()) r.detail.setText(detail + " · " + said); });
+        }).start();
+    }
+
+    /** Each vault's sync state as its core words it (GET /api/sync/state), asked at most every 30 s: `{words, at}`. */
+    private static final java.util.Map<String, Object[]> SYNCED = new java.util.concurrent.ConcurrentHashMap<>();
+
+    /** The core's sync line written into the row (core sync_state.rs `words`, the desktop's same line); a core that
+     *  cannot say falls back to the mirror's probe. */
+    private void synced(String v, String mirror, Row r, String detail) {
+        Object[] seen = SYNCED.get(v);
+        if (seen != null) r.detail.setText(detail + " · " + seen[0]);
+        if (seen != null && System.currentTimeMillis() - (long) seen[1] < 30_000) return;
+        new Thread(() -> {
+            try {
+                String words = VaultFiles.syncState(a, v).optString("words");
+                SYNCED.put(v, new Object[] { words, System.currentTimeMillis() });
+                a.runOnUiThread(() -> { if (r.isAttachedToWindow()) r.detail.setText(detail + " · " + words); });
+            } catch (java.io.IOException e) {
+                if (mirror != null) a.runOnUiThread(() -> answers(mirror, r, detail));
+            }
+        }).start();
+    }
+
+    /** The sync state in a vault's details: the core's line, then what carries the files and why (the `.stfolder`
+     *  this app sees in the folder decides Syncthing or the mirror: mirror_guard::Bytes), and what is left. */
+    private void syncDetails(String v, TextView into) {
+        new Thread(() -> {
+            String text;
+            try {
+                JSONObject s = VaultFiles.syncState(a, v);
+                StringBuilder b = new StringBuilder(s.optString("words"));
+                boolean st = s.optBoolean("syncthing");
+                String bytes = s.optString("bytes", "");
+                if (bytes.equals("syncthing")) b.append("\nFiles carried by Syncthing: this app sees the folder's .stfolder");
+                else if (bytes.equals("mirror")) b.append("\nFiles carried by the mirror: this app sees no .stfolder in the folder");
+                else b.append(st ? "\nA Syncthing folder (.stfolder seen)" : "\nNot a Syncthing folder (no .stfolder seen)");
+                JSONObject c = s.optJSONObject("caught_up");
+                if (c != null) b.append("\nLast catch-up: ").append(java.text.DateFormat.getTimeInstance(java.text.DateFormat.SHORT).format(new java.util.Date(c.optLong("at"))))
+                    .append(c.has("error") ? ", failed: " + c.optString("error") : ", " + c.optInt("brought") + " brought");
+                if (!s.isNull("server_why") && s.has("server_why")) b.append("\nThe server: ").append(s.optString("server_why"));
+                text = b.toString();
+            } catch (java.io.IOException e) { text = "Sync state unknown: " + e.getMessage(); }
+            String said = text;
+            a.runOnUiThread(() -> into.setText(said));
         }).start();
     }
 
@@ -205,6 +252,14 @@ final class Setup {
         at.setPadding(look.dp(16), look.dp(4), look.dp(16), look.dp(8));
         at.setTextIsSelectable(true);
         box.addView(at);
+        // the sync state, from the vault's core (the one in use or a server's) — asking another folder starts its core
+        if (server || v.equals(vaults.current()) || Local.running(v.replaceAll("/+$", ""))) {
+            TextView sync = look.label(a, "Sync state…", 13, look.text);
+            sync.setPadding(look.dp(16), 0, look.dp(16), look.dp(8));
+            sync.setTextIsSelectable(true);
+            box.addView(sync);
+            syncDetails(v, sync);
+        }
         android.app.AlertDialog d = new android.app.AlertDialog.Builder(a).setTitle(vaults.title(v)).setView(box).setNegativeButton("Close", null).create();
         for (int i = 0; i < labels.size(); i++) {
             Runnable run = runs.get(i);

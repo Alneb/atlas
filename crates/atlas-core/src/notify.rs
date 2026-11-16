@@ -3,7 +3,7 @@
 //! platform's [`Notifier`]. The rules are the same on every device; only the notifier differs.
 use crate::api::{Notice, NoticeLevel};
 use crate::config::{NotificationsConfig, SystemNotices};
-use crate::events::EventBus;
+use crate::events::{EventBus, ToSystem};
 use crate::Workspace;
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -53,6 +53,18 @@ impl Presence {
     pub fn looked_at(&self) -> bool {
         self.pages.lock().unwrap().values().any(|&v| v)
     }
+
+    /// The pages of one vault (the global one counts every vault's): whether a window shows it at all, for the work
+    /// that can slow down while none does (the mirror's catch-up, DESIGN-server-role.md "Two vaults").
+    pub fn of_vault(root: &std::path::Path) -> Arc<Presence> {
+        static BY_VAULT: LazyLock<Mutex<HashMap<std::path::PathBuf, Arc<Presence>>>> = LazyLock::new(Default::default);
+        BY_VAULT.lock().unwrap_or_else(|e| e.into_inner()).entry(root.to_path_buf()).or_default().clone()
+    }
+
+    /// Whether any page is connected, looked at or not (a window in the background still shows the vault).
+    pub fn connected(&self) -> bool {
+        !self.pages.lock().unwrap().is_empty()
+    }
 }
 
 impl Page {
@@ -96,9 +108,12 @@ pub fn stay_of(seconds: u32, n: &Notice) -> Stay {
 
 /// The platform's notification shower. `replaces`: the handle an earlier notice of the same id got, to update it in
 /// place (D-Bus `replaces_id`, Android's notification id, a Windows toast's tag). `stay`: how long it shows, where the
-/// platform lets a program say (D-Bus; Android and Windows keep their own rules).
+/// platform lets a program say (D-Bus; Android and Windows keep their own rules). The notice's `actions` are its
+/// buttons; a press is said on the bus (`EventBus::chose`), the notifier having kept what it needs to name the notice.
+/// `withdraw`: the notification shown under `handle` is taken away (D-Bus `CloseNotification`, Android's `cancel`).
 pub trait Notifier: Send + Sync {
     fn show(&self, n: &Notice, replaces: Option<u32>, stay: Stay) -> Result<u32, String>;
+    fn withdraw(&self, handle: u32) -> Result<(), String>;
 }
 
 /// Says each notice on stderr: where no system notifier is reachable (a session without a notification server).
@@ -112,13 +127,20 @@ impl Notifier for LogNotifier {
         eprintln!("atlas: notice{}: {}{}", n.source.as_deref().map(|s| format!(" ({s})")).unwrap_or_default(), n.title, n.body.as_deref().map(|b| format!(" — {b}")).unwrap_or_default());
         Ok(handle)
     }
+
+    fn withdraw(&self, handle: u32) -> Result<(), String> {
+        eprintln!("atlas: notice {handle} withdrawn");
+        Ok(())
+    }
 }
 
-/// A click on one of Atlas's system notifications: the desktop shell brings its window forward (shell.rs; rebuilt
-/// with `open` if it was asleep), and a live page opens the note from the `Open` event the notifier publishes.
-#[cfg_attr(not(any(windows, all(target_os = "linux", not(target_os = "android")))), allow(dead_code))]
-fn clicked(open: Option<String>) {
-    crate::shell::show(crate::shell::Show { vault: None, open });
+/// A click on one of Atlas's system notifications, or its Open button: the desktop shell brings its window forward
+/// (shell.rs; rebuilt with `open` if it was asleep), and a live page opens the note from the `Open` event.
+pub fn open_notice(bus: &EventBus, open: Option<String>) {
+    crate::shell::show(crate::shell::Show { vault: None, open: open.clone() });
+    if let Some(path) = open {
+        bus.publish(crate::api::Event::Open { path, line: None });
+    }
 }
 
 /// Do not disturb (the tray's check mark): no system notification from this process while on, failures included.
@@ -133,12 +155,20 @@ pub fn quiet() -> bool {
     QUIET.load(Ordering::Relaxed)
 }
 
-type NoticeHook = Box<dyn Fn(&Notice, bool) + Send + Sync>;
+/// What the desktop shell's tray hears (notify.rs `on_notice`).
+pub enum Heard<'a> {
+    /// A notice, and whether a page was looked at when it came.
+    Notice(&'a Notice, bool),
+    /// `Event::Withdraw`: the notices of this id or about this subject are no longer news.
+    Withdrawn(&'a str),
+}
+
+type NoticeHook = Box<dyn Fn(Heard<'_>) + Send + Sync>;
 static OBSERVER: std::sync::OnceLock<NoticeHook> = std::sync::OnceLock::new();
 
-/// The desktop shell's tray hears every notice of every vault this process serves, and whether a page was looked at
-/// when it came (the tray gathers the unseen ones). Set once.
-pub fn on_notice(f: impl Fn(&Notice, bool) + Send + Sync + 'static) {
+/// The desktop shell's tray hears every notice of every vault this process serves, whether a page was looked at
+/// when it came (the tray gathers the unseen ones), and every withdrawal (it drops them again). Set once.
+pub fn on_notice(f: impl Fn(Heard<'_>) + Send + Sync + 'static) {
     let _ = OBSERVER.set(Box::new(f));
 }
 
@@ -155,12 +185,13 @@ pub fn opens(n: &Notice) -> Option<&str> {
     n.open.as_deref().filter(|o| !o.contains("://"))
 }
 
-type MakeNotifier = Box<dyn Fn() -> Box<dyn Notifier> + Send + Sync>;
+type MakeNotifier = Box<dyn Fn(&EventBus) -> Box<dyn Notifier> + Send + Sync>;
 static SHELL_NOTIFIER: std::sync::OnceLock<MakeNotifier> = std::sync::OnceLock::new();
 
 /// A shell that reaches the system itself gives its notifier here, before the first vault is served: the phone, whose
-/// notifications are Java's (atlas-android, `notices.rs`).
-pub fn set_platform(make: impl Fn() -> Box<dyn Notifier> + Send + Sync + 'static) {
+/// notifications are Java's (atlas-android, `notices.rs`). It is made per vault, with that vault's bus (where a press
+/// on a button is said).
+pub fn set_platform(make: impl Fn(&EventBus) -> Box<dyn Notifier> + Send + Sync + 'static) {
     let _ = SHELL_NOTIFIER.set(Box::new(make));
 }
 
@@ -172,7 +203,7 @@ pub fn platform(bus: &EventBus) -> Box<dyn Notifier> {
         return Box::new(LogNotifier { next: AtomicU64::new(0) });
     }
     if let Some(make) = SHELL_NOTIFIER.get() {
-        return make();
+        return make(bus);
     }
     #[cfg(all(target_os = "linux", not(target_os = "android")))]
     match linux::DBus::connect(bus.clone()) {
@@ -192,8 +223,7 @@ pub fn platform(bus: &EventBus) -> Box<dyn Notifier> {
 #[cfg(all(target_os = "linux", not(target_os = "android")))]
 mod linux {
     use super::{Notice, NoticeLevel, Notifier, Stay};
-    use crate::api::Event;
-    use crate::events::EventBus;
+    use crate::events::{Chosen, EventBus};
     use std::collections::HashMap;
     use std::sync::{Arc, Mutex};
     use zbus::zvariant::Value;
@@ -201,10 +231,21 @@ mod linux {
     const DEST: &str = "org.freedesktop.Notifications";
     const PATH: &str = "/org/freedesktop/Notifications";
 
+    /// What a notification shown needs when it is clicked or a button of it pressed: the notice's open, source, id.
+    #[derive(Clone)]
+    struct Kept {
+        open: Option<String>,
+        source: Option<String>,
+        id: Option<String>,
+    }
+
+    /// The server's key for a click on the body itself.
+    const DEFAULT: &str = "default";
+
     pub struct DBus {
         conn: zbus::blocking::Connection,
-        /// Each notification shown, and the vault path a click on it opens.
-        opens: Arc<Mutex<HashMap<u32, Option<String>>>>,
+        /// Each notification shown, and what a click on it or a press of its buttons needs.
+        shown: Arc<Mutex<HashMap<u32, Kept>>>,
         /// the server reads bodies as markup (`body-markup`, Plasma and GNOME do): `&`, `<`, `>` are escaped, or
         /// `Prof <prof@uni.example>` would lose its address as an unknown tag
         markup: bool,
@@ -229,9 +270,10 @@ mod linux {
             Self::on(zbus::blocking::Connection::session().map_err(|e| e.to_string())?, bus)
         }
 
-        /// Follows `ActionInvoked` on `conn`: a click on one of ours brings Atlas forward and opens its note.
+        /// Follows `ActionInvoked` on `conn`: a click on one of ours brings Atlas forward and opens its note; a press
+        /// of one of its buttons is said on the bus.
         pub fn on(conn: zbus::blocking::Connection, bus: EventBus) -> Result<Self, String> {
-            let opens: Arc<Mutex<HashMap<u32, Option<String>>>> = Arc::default();
+            let shown: Arc<Mutex<HashMap<u32, Kept>>> = Arc::default();
             let rule = zbus::MatchRule::builder()
                 .msg_type(zbus::message::Type::Signal)
                 .interface(DEST)
@@ -239,23 +281,24 @@ mod linux {
                 .map_err(|e| e.to_string())?
                 .build();
             let signals = zbus::blocking::MessageIterator::for_match_rule(rule, &conn, None).map_err(|e| e.to_string())?;
-            let clicked = opens.clone();
+            let clicked = shown.clone();
             std::thread::Builder::new()
                 .name("atlas-notify-clicks".into())
                 .spawn(move || {
                     for msg in signals.flatten() {
-                        let Ok((id, _action)) = msg.body().deserialize::<(u32, String)>() else { continue };
+                        let Ok((id, action)) = msg.body().deserialize::<(u32, String)>() else { continue };
                         // the signal is broadcast: another program's notifications are not ours to answer
-                        let Some(open) = clicked.lock().unwrap().get(&id).cloned() else { continue };
-                        super::clicked(open.clone());
-                        if let Some(path) = open {
-                            bus.publish(Event::Open { path, line: None });
+                        let Some(kept) = clicked.lock().unwrap().get(&id).cloned() else { continue };
+                        if action == DEFAULT {
+                            super::open_notice(&bus, kept.open);
+                        } else {
+                            bus.chose(Chosen { action, source: kept.source, notice: kept.id, open: kept.open });
                         }
                     }
                 })
                 .map_err(|e| e.to_string())?;
             let markup = reads_markup(&conn);
-            Ok(Self { conn, opens, markup })
+            Ok(Self { conn, shown, markup })
         }
     }
 
@@ -264,7 +307,11 @@ mod linux {
             let body = if self.markup { as_markup_text(&super::body_of(n)) } else { super::body_of(n) };
             // a click (`default`: the server's own click on the body) brings Atlas forward and opens a vault path
             let open = super::opens(n);
-            let actions = vec!["default", if open.is_some() { "Open" } else { "Show Atlas" }];
+            // the spec's flat list: key, label, key, label…; the notice's own buttons after the click
+            let mut actions = vec![DEFAULT, if open.is_some() { "Open" } else { "Show Atlas" }];
+            for a in &n.actions {
+                actions.extend([a.id.as_str(), a.label.as_str()]);
+            }
             // "critical" is what a server never puts away by itself (and shows over do-not-disturb): only for a failure
             // the person asked to keep until dismissed. With a stay, a failure is a normal one that shows longer.
             let urgency: u8 = if stay == Stay::UntilDismissed && n.level == Some(NoticeLevel::Failure) { 2 } else { 1 };
@@ -285,19 +332,26 @@ mod linux {
                 .call_method(Some(DEST), PATH, Some(DEST), "Notify", &("Atlas", replaces.unwrap_or(0), "atlas", n.title.as_str(), body.as_str(), actions, hints, expire))
                 .map_err(|e| e.to_string())?;
             let id: u32 = reply.body().deserialize().map_err(|e| e.to_string())?;
-            let mut opens = self.opens.lock().unwrap();
-            opens.insert(id, open.map(str::to_string));
+            let mut shown = self.shown.lock().unwrap();
+            shown.insert(id, Kept { open: open.map(str::to_string), source: n.source.clone(), id: n.id.clone() });
             // the server numbers its notifications upwards: only the last few hundred can still be clicked
-            if opens.len() > 512 {
-                opens.retain(|&k, _| k <= id && k > id.saturating_sub(256)); // (a restarted server counts from 1 again)
+            if shown.len() > 512 {
+                shown.retain(|&k, _| k <= id && k > id.saturating_sub(256)); // (a restarted server counts from 1 again)
             }
             Ok(id)
+        }
+
+        fn withdraw(&self, handle: u32) -> Result<(), String> {
+            self.shown.lock().unwrap().remove(&handle);
+            // a notification already closed (by the person, by the server) is no error: the server says nothing
+            self.conn.call_method(Some(DEST), PATH, Some(DEST), "CloseNotification", &(handle,)).map(drop).map_err(|e| e.to_string())
         }
     }
 
     #[cfg(test)]
     mod tests {
         use super::*;
+        use crate::api::{Event, NoticeAction};
         use std::io::BufRead;
         use std::time::{Duration, Instant};
 
@@ -305,8 +359,9 @@ mod linux {
         /// the expire_timeout.
         type Asked = Arc<Mutex<Vec<(String, u32, Vec<String>, u8, i32)>>>;
 
-        /// A notification server of the test's own, on a bus of its own: nothing reaches the desktop.
-        struct Fake(Asked);
+        /// A notification server of the test's own, on a bus of its own: nothing reaches the desktop. The second list:
+        /// the notifications closed.
+        struct Fake(Asked, Arc<Mutex<Vec<u32>>>);
 
         #[zbus::interface(name = "org.freedesktop.Notifications")]
         impl Fake {
@@ -315,6 +370,10 @@ mod linux {
                 let urgency = hints.get("urgency").and_then(|v| u8::try_from(&**v).ok()).unwrap_or(0);
                 self.0.lock().unwrap().push((summary, replaces, actions, urgency, timeout));
                 42
+            }
+
+            fn close_notification(&self, id: u32) {
+                self.1.lock().unwrap().push(id);
             }
         }
 
@@ -343,8 +402,8 @@ mod linux {
             std::io::BufReader::new(daemon.0.stdout.take().unwrap()).read_line(&mut addr).unwrap();
             let addr = addr.trim();
 
-            let asked: Asked = Arc::default();
-            let server = zbus::blocking::connection::Builder::address(addr).unwrap().name(DEST).unwrap().serve_at(PATH, Fake(asked.clone())).unwrap().build().unwrap();
+            let (asked, closed): (Asked, Arc<Mutex<Vec<u32>>>) = Default::default();
+            let server = zbus::blocking::connection::Builder::address(addr).unwrap().name(DEST).unwrap().serve_at(PATH, Fake(asked.clone(), closed.clone())).unwrap().build().unwrap();
             let bus = EventBus::default();
             let mut events = bus.subscribe();
             let client = zbus::blocking::connection::Builder::address(addr).unwrap().build().unwrap();
@@ -383,6 +442,26 @@ mod linux {
             };
             assert_eq!(opened, "notes/backup.md");
             assert!(events.try_recv().is_err(), "the other program's click opened nothing");
+
+            // its buttons after the click's; a press is said on the bus with the notice it was on
+            let mut chosen = bus.on_chosen();
+            let reminder = Notice::new("Seminar").source("dav").id("dav:s1").open("notes/Seminar.md").action(NoticeAction::new(NoticeAction::OPEN, "Open")).action(NoticeAction::snooze(10));
+            n.show(&reminder, None, secs(30)).unwrap();
+            let keys = asked.lock().unwrap().last().unwrap().2.clone();
+            assert_eq!(keys, ["default", "Open", "atlas:open", "Open", "atlas:snooze:10", "Snooze 10 min"]);
+            server.emit_signal(None::<zbus::names::BusName>, PATH, DEST, "ActionInvoked", &(42u32, "atlas:snooze:10")).unwrap();
+            let until = Instant::now() + Duration::from_secs(5);
+            let pressed = loop {
+                match chosen.try_recv() {
+                    Ok(c) => break c,
+                    Err(_) if Instant::now() < until => std::thread::sleep(Duration::from_millis(20)),
+                    Err(e) => panic!("no press heard: {e}"),
+                }
+            };
+            assert_eq!(pressed, Chosen { action: "atlas:snooze:10".into(), source: Some("dav".into()), notice: Some("dav:s1".into()), open: Some("notes/Seminar.md".into()) });
+
+            n.withdraw(42).unwrap();
+            assert_eq!(*closed.lock().unwrap(), [42], "withdrawn: closed on the server");
         }
     }
 }
@@ -393,7 +472,6 @@ mod linux {
 #[cfg(windows)]
 mod toast {
     use super::{Notice, Notifier, Stay};
-    use crate::api::Event;
     use crate::events::EventBus;
     use std::collections::VecDeque;
     use std::sync::atomic::{AtomicU32, Ordering};
@@ -436,10 +514,7 @@ mod toast {
             let (bus, open) = (self.bus.clone(), super::opens(n).map(str::to_string));
             toast
                 .Activated(&TypedEventHandler::new(move |_, _| {
-                    super::clicked(open.clone());
-                    if let Some(path) = open.clone() {
-                        bus.publish(Event::Open { path, line: None });
-                    }
+                    super::open_notice(&bus, open.clone());
                     Ok(())
                 }))
                 .map_err(|e| e.to_string())?;
@@ -450,6 +525,13 @@ mod toast {
                 kept.pop_front();
             }
             Ok(handle)
+        }
+
+        /// Not yet: the next step is `ToastNotificationManager::History().RemoveGroupedTagWithId(tag, group, APP_ID)`
+        /// (the tag is the handle, the group the source); the notice's buttons will be the toast's `<actions>`,
+        /// answered by `Activated`'s `ToastActivatedEventArgs.Arguments` (DESIGN-calendar-tasks-nudges.md §7, slice 3).
+        fn withdraw(&self, _handle: u32) -> Result<(), String> {
+            Ok(())
         }
     }
 
@@ -527,15 +609,26 @@ mod toast {
     }
 }
 
-/// The notices handed to a notifier, remembering each id's handle so a later one replaces it.
+/// The notices handed to a notifier, remembering each one's handle by its id (a later one replaces it) and its
+/// subject (a withdrawal by either takes it away).
 pub struct Delivery {
     notifier: Box<dyn Notifier>,
-    handles: HashMap<String, u32>,
+    held: Vec<Held>,
 }
+
+/// A system notification shown for a notice that has an id or a subject.
+struct Held {
+    id: Option<String>,
+    subject: Option<String>,
+    handle: u32,
+}
+
+/// How many shown notifications are remembered: the oldest beyond it is forgotten (long closed by then).
+const HELD_MAX: usize = 256;
 
 impl Delivery {
     pub fn new(notifier: Box<dyn Notifier>) -> Self {
-        Self { notifier, handles: HashMap::new() }
+        Self { notifier, held: Vec::new() }
     }
 
     /// Applies the rules and shows it; whether it was shown. A notifier's failure is said, never fatal.
@@ -543,11 +636,15 @@ impl Delivery {
         if !shown(cfg.system, n, looked_at, muted) {
             return false;
         }
-        let replaces = n.id.as_ref().and_then(|id| self.handles.get(id).copied());
+        let replaces = n.id.as_ref().and_then(|id| self.held.iter().find(|h| h.id.as_ref() == Some(id)).map(|h| h.handle));
         match self.notifier.show(n, replaces, stay_of(cfg.system_seconds, n)) {
             Ok(handle) => {
-                if let Some(id) = &n.id {
-                    self.handles.insert(id.clone(), handle);
+                if n.id.is_some() || n.subject.is_some() {
+                    self.held.retain(|h| h.handle != handle);
+                    self.held.push(Held { id: n.id.clone(), subject: n.subject.clone(), handle });
+                    if self.held.len() > HELD_MAX {
+                        self.held.remove(0);
+                    }
                 }
                 true
             }
@@ -556,6 +653,18 @@ impl Delivery {
                 false
             }
         }
+    }
+
+    /// Takes away the system notifications shown for the notices of this id or about this subject; whether any was.
+    pub fn withdraw(&mut self, id: &str) -> bool {
+        let (gone, kept): (Vec<Held>, Vec<Held>) = std::mem::take(&mut self.held).into_iter().partition(|h| h.id.as_deref() == Some(id) || h.subject.as_deref() == Some(id));
+        self.held = kept;
+        for h in &gone {
+            if let Err(e) = self.notifier.withdraw(h.handle) {
+                eprintln!("atlas: system notification not withdrawn ({id}): {e}");
+            }
+        }
+        !gone.is_empty()
     }
 }
 
@@ -567,20 +676,30 @@ pub fn spawn(ws: Workspace, bus: EventBus, presence: Arc<Presence>, notifier: Bo
     tokio::spawn(async move {
         let mut delivery = Delivery::new(notifier);
         loop {
-            let n = match rx.recv().await {
-                Ok(n) => n,
+            let said = match rx.recv().await {
+                Ok(s) => s,
                 Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => continue,
                 Err(_) => return,
             };
             let (ws, presence) = (ws.clone(), presence.clone());
             // the config read and a notifier's call (D-Bus) block: off the runtime's threads
             let offered = tokio::task::spawn_blocking(move || {
-                let cfg = ws.config().map(|c| c.notifications).unwrap_or_default();
-                let looked_at = presence.looked_at();
-                if let Some(f) = OBSERVER.get() {
-                    f(&n, looked_at);
+                match said {
+                    ToSystem::Show(n) => {
+                        let cfg = ws.config().map(|c| c.notifications).unwrap_or_default();
+                        let looked_at = presence.looked_at();
+                        if let Some(f) = OBSERVER.get() {
+                            f(Heard::Notice(&n, looked_at));
+                        }
+                        delivery.offer(&cfg, &n, looked_at, quiet());
+                    }
+                    ToSystem::Withdraw(id) => {
+                        if let Some(f) = OBSERVER.get() {
+                            f(Heard::Withdrawn(&id));
+                        }
+                        delivery.withdraw(&id);
+                    }
                 }
-                delivery.offer(&cfg, &n, looked_at, quiet());
                 delivery
             });
             match offered.await {
@@ -595,17 +714,84 @@ pub fn spawn(ws: Workspace, bus: EventBus, presence: Arc<Presence>, notifier: Bo
 mod tests {
     use super::*;
 
+    #[test]
+    fn each_vault_knows_whether_a_page_shows_it() {
+        let (a, b) = (std::path::Path::new("/vaults/a-presence-test"), std::path::Path::new("/vaults/b-presence-test"));
+        assert!(!Presence::of_vault(a).connected());
+        let page = Presence::of_vault(a).join();
+        assert!(Presence::of_vault(a).connected(), "the same table for the same vault");
+        assert!(!Presence::of_vault(b).connected(), "another vault's page is not this one's");
+        page.seen(false);
+        assert!(Presence::of_vault(a).connected(), "in the background, still shown");
+        drop(page);
+        assert!(!Presence::of_vault(a).connected(), "closed: gone");
+    }
+
     /// What a notifier was asked to show: each title, and the handle it was to replace.
     type Asked = Arc<Mutex<Vec<(String, Option<u32>)>>>;
 
-    /// Records what it was asked to show.
+    /// Records what it was asked to show; withdrawals are said as `withdrawn <handle>`, and each notice's buttons as
+    /// `buttons <ids>`.
     struct Shown(Asked);
     impl Notifier for Shown {
         fn show(&self, n: &Notice, replaces: Option<u32>, _stay: Stay) -> Result<u32, String> {
             let mut v = self.0.lock().unwrap();
             v.push((n.title.clone(), replaces));
-            Ok(replaces.unwrap_or(v.len() as u32))
+            let handle = replaces.unwrap_or(v.len() as u32);
+            if !n.actions.is_empty() {
+                v.push((format!("buttons {}", n.actions.iter().map(|a| a.id.as_str()).collect::<Vec<_>>().join(" ")), None));
+            }
+            Ok(handle)
         }
+        fn withdraw(&self, handle: u32) -> Result<(), String> {
+            self.0.lock().unwrap().push((format!("withdrawn {handle}"), None));
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn a_notices_buttons_reach_the_notifier_and_a_withdrawal_takes_its_id_away() {
+        use crate::api::NoticeAction;
+        let seen = Arc::new(Mutex::new(vec![]));
+        let mut d = Delivery::new(Box::new(Shown(seen.clone())));
+        let always = NotificationsConfig { system: SystemNotices::Always, ..Default::default() };
+        let task = Notice::new("Send the report").id("plan:t1").action(NoticeAction::new("done", "Done")).action(NoticeAction::snooze(10));
+        assert!(d.offer(&always, &task, false, false));
+        assert!(d.offer(&always, &Notice::new("other").id("mail:inbox"), false, false));
+        assert!(!d.withdraw("plan:nope"), "an id never shown: nothing to take away");
+        assert!(d.withdraw("plan:t1"));
+        assert!(!d.withdraw("plan:t1"), "once");
+        assert!(d.offer(&always, &task, false, false), "shown again after: a new one, replacing nothing");
+        let seen = seen.lock().unwrap().iter().map(|(t, r)| format!("{t}{}", r.map(|r| format!(" ↺{r}")).unwrap_or_default())).collect::<Vec<_>>();
+        assert_eq!(seen, ["Send the report", "buttons done atlas:snooze:10", "other", "withdrawn 1", "Send the report", "buttons done atlas:snooze:10"]);
+    }
+
+    #[test]
+    fn a_withdrawal_by_subject_takes_away_every_notification_about_it() {
+        let seen = Arc::new(Mutex::new(vec![]));
+        let mut d = Delivery::new(Box::new(Shown(seen.clone())));
+        let always = NotificationsConfig { system: SystemNotices::Always, ..Default::default() };
+        let task = "notes/Report.md#^t3f9a";
+        assert!(d.offer(&always, &Notice::new("Due today").id("deadline:1").subject(task), false, false));
+        assert!(d.offer(&always, &Notice::new("Time to start").subject(task), false, false));
+        assert!(d.offer(&always, &Notice::new("other").subject("notes/Other.md#^x"), false, false));
+        assert!(d.withdraw(task));
+        assert!(!d.withdraw(task), "once");
+        assert!(!d.withdraw("deadline:1"), "its id went with it");
+        let seen = seen.lock().unwrap().iter().map(|(t, _)| t.clone()).collect::<Vec<_>>();
+        assert_eq!(seen, ["Due today", "Time to start", "other", "withdrawn 1", "withdrawn 2"]);
+    }
+
+    #[test]
+    fn a_withdraw_event_reaches_the_system_channel_and_others_do_not() {
+        let bus = EventBus::default();
+        let mut rx = bus.on_notice();
+        bus.publish(crate::api::Event::Fs { paths: vec![] });
+        bus.publish(crate::api::Event::Notify(Notice::new("a").id("x")));
+        bus.publish(crate::api::Event::Withdraw { id: "x".into() });
+        assert_eq!(rx.try_recv().unwrap(), ToSystem::Show(Notice::new("a").id("x")));
+        assert_eq!(rx.try_recv().unwrap(), ToSystem::Withdraw("x".into()));
+        assert!(rx.try_recv().is_err());
     }
 
     #[test]
@@ -683,9 +869,11 @@ mod tests {
         std::fs::create_dir_all(dir.path().join(".atlas")).unwrap();
         std::fs::write(dir.path().join(".atlas/config.toml"), "[notifications]\nsystem = \"failures\"\n").unwrap();
         bus.publish(crate::api::Event::Notify(Notice::new("filed")));
-        bus.publish(crate::api::Event::Notify(Notice::new("backup failed").level(NoticeLevel::Failure)));
+        bus.publish(crate::api::Event::Notify(Notice::new("backup failed").level(NoticeLevel::Failure).id("backup")));
         until(2).await;
+        bus.publish(crate::api::Event::Withdraw { id: "backup".into() });
+        until(3).await;
         task.abort();
-        assert_eq!(titles(), ["nobody looks", "backup failed"]);
+        assert_eq!(titles(), ["nobody looks", "backup failed", "withdrawn 2"]);
     }
 }

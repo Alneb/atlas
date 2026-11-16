@@ -44,6 +44,7 @@ public final class PluginActivity extends Activity {
         root.addView(content, new FrameLayout.LayoutParams(-1, -1));
         setContentView(root);
         this.content = content;
+        Shell.onBack(this, this::onBackPressed);
     }
 
     private View content;

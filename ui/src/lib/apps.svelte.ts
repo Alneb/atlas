@@ -37,7 +37,11 @@ export function allApps(): AppTile[] {
     key: p.id, ids: [paneId(pluginSpec(p))], title: p.title, icon: p.icon && isIconName(p.icon) ? p.icon : "plugin", keys: cmd(`plugin.${p.id}`)?.keys, command: `plugin.${p.id}`, open: () => void cmd(`plugin.${p.id}`)?.run(),
   }));
   // no Capture tile: a popup with its own shortcut and the palette, not an app
-  return [{ key: "home", ids: [...new Set([home.id, "today"])], title: "Home", icon: "home", keys: homeCmd?.keys, command: "ui.today", open: () => void homeCmd?.run() }, ...builtins, ...vault];
+  const homeTile: AppTile = { key: "home", ids: [...new Set([home.id, "today"])], title: "Home", icon: "home", keys: homeCmd?.keys, command: "ui.today", open: () => void homeCmd?.run() };
+  // the Deadlines page (lib/deadlines.ts): a core page, so a tile of its own beside Home (hidden like any in Settings)
+  const due = cmd("ui.deadlines");
+  const deadlines: AppTile[] = due ? [{ key: "deadlines", ids: [paneId({ kind: "page", path: "Deadlines.page" })], title: "Deadlines", icon: "flag", keys: due.keys, command: due.id, open: () => void due.run() }] : [];
+  return [homeTile, ...deadlines, ...builtins, ...vault];
 }
 
 /** `apps` in the vault's order: the keys of `[ui] apps_order` first, as listed, then the rest as they came. */

@@ -4,4 +4,4 @@ import type { FocusPane } from "./FocusPane";
 /**
  * A built-in call as it arrives: `{"id": "...", "args": {...}}`.
  */
-export type Builtin = { "id": "capture", "args": { text: string, } } | { "id": "open", "args": { path: string, line?: number, } } | { "id": "notify", "args": { title: string, body?: string, } } | { "id": "focus", "args": { pane: FocusPane, } } | { "id": "today", "args": Record<symbol, never> };
+export type Builtin = { "id": "capture", "args": { text: string, } } | { "id": "open", "args": { path: string, line?: number, } } | { "id": "notify", "args": { title: string, body?: string, } } | { "id": "focus", "args": { pane: FocusPane, } } | { "id": "today", "args": Record<symbol, never> } | { "id": "palette", "args": { command: string, } };

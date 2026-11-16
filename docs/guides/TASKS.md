@@ -67,7 +67,9 @@ Code: `today::tick_task_on`, `tasks::next_occurrence`. It is the same for every 
 
 **In a note** the box of a task line, and Ctrl+L on a single to-do, tick the same way, though the note's text is in the editor rather than on disk: `POST /api/task/line {text, done}` hands the core one line and gets back the lines that replace it (`today::tick_line`; `untick_line` for a box opened again, which takes the `✅ date` off, as the Tasks plugin does). The box flips at once; the core's line replaces it when it answers, unless the line was edited meanwhile (then the plain flip stays). Code: `ui/src/lib/editor/task-tick.ts`.
 
-**The task dialog**: Obsidian Tasks' "Create or edit task" on any note's line — right-click → **Task…**, the phone's format bar (📅), or the palette ("Note: create or edit task…"). The form holds the description (with its #tags and [[links]]), the priority (highest … lowest), due / scheduled / start dates (with Today · Tomorrow · In a week), the repeat rule and done. Save writes the line back in Obsidian Tasks' field order (description, priority, 🔁, ➕, 🛫, ⏳, 📅, ✅), so a line edited here and in Obsidian stays the same; ticking it done here writes today's ✅. A plain line (`text`, `- item`, `1. item`) becomes a task with its list mark kept. If the line changed while the dialog was open (a sync), nothing is overwritten: the task goes on a new line below. Code: `ui/src/lib/task-line.ts` (parse / write, pure), `ui/src/components/TaskDialog.svelte`, `ui/src/lib/editor/task-dialog.ts`; spec `ui/tests/task-dialog.spec.ts`.
+**The task dialog**: Obsidian Tasks' "Create or edit task" on any note's line — right-click → **Task…**, the phone's format bar (📅), or the palette ("Note: create or edit task…"). The form holds the description (with its #tags and [[links]]), the priority (highest … lowest), due / scheduled / start dates (with Today · Tomorrow · In a week), the repeat rule and done. Save has the core write the line back (its one task writer, `tasks::render_line`, `POST /api/task/render`) in Obsidian Tasks' field order (description, priority, 🔁, ➕, 🛫, ⏳, 📅, ✅, a block id `^abc` last), so a line edited here and in Obsidian stays the same; ticking it done here writes today's ✅. A plain line (`text`, `- item`, `1. item`) becomes a task with its list mark kept. If the line changed while the dialog was open (a sync), nothing is overwritten: the task goes on a new line below. Code: `ui/src/lib/task-line.ts` (the form's reader, pure), `crates/atlas-core/src/tasks.rs` (`Line::from_fields`, `render_line`: the writer), `ui/src/components/TaskDialog.svelte`, `ui/src/lib/editor/task-dialog.ts`; specs `ui/tests/task-dialog.spec.ts`, and the round-trip list `ui/tests/fixtures/task-lines.json` both readers and the writer are checked against (`tasks.rs` tests, `ui/tests/task-fields.spec.ts`).
+
+**A task's block id**: an Obsidian block id ending a task's line (`- [ ] write the intro ^t3f9a`) is the task's identity: `[[note#^t3f9a]]` reaches it, and a tick that names it (`TaskRef.block`, or the id ending the text the client saw) finds the task wherever its line moved (`today::locate`, `tasks::find_block`); without one, the line number guarded by the text, as before. The id is not part of the task's title. Atlas adds one (`t` + 4 base-36 characters, unique in the note; `today::block_of`) only as part of an action the user took on that task — linking or snoozing it — never on its own. Ticking a recurring task leaves its next occurrence without the id, as the Tasks plugin does: the id stays with the task links were made for.
 
 
 
@@ -104,6 +106,32 @@ An option that is misspelt or has a value that is not one of the list is an erro
 
 Code: `tasks::Query` (`apply`: filter, sort, group, limit) and `views.rs` (`ask`). The filtering, sorting and grouping are done in the core, so every view — and a plugin's — gets the same rows.
 
+## Deadlines — `from: deadlines`
+
+What must be done by a day, from three sources in one query (`views.rs`, `from: deadlines`):
+
+- open tasks with a 📅 (with `scheduled: true`, a ⏳ counts when there is no 📅);
+- notes with a `due:` property that are not done (`done: true`, `status: done` or `cancelled`) — never kept mail
+  (an `email…` type or a `message_id`);
+- the events of the calendar plugin's **deadline calendars** (Settings → Plugins → Calendar → *Deadline calendars*),
+  through that plugin's `deadlines` tool, which reads its local cache only. An event made from a note that is already
+  listed shows once, as the note.
+
+Each row has `props.from` (`task`, `note`, `event`), `props.days` (from today; negative when overdue) and
+`props.group` (Overdue · Today · This week — the next seven days · Later), ordered by day, then priority, then title.
+`horizon: 30` leaves out what is further away (overdue always stays); `limit:` keeps the first rows. The other task
+options (`tag`, `due`…) are not asked of it, since its rows are notes and events too.
+
+It is drawn three ways, all from that one query:
+
+- the **`deadlines` block** — a `task-list` over `from: deadlines` (`deadlinesSrc` in `ui/src/lib/blocks.ts`): a task
+  row ticks its line through the one tick path, a note or an event shows a mark instead of a box. It is in the Home
+  template; a home made before has it added by Settings → Home & Today → *Add the deadlines box* (or the command
+  "Home: add the deadlines box"), which puts it above the open tasks, never twice;
+- the **Deadlines page** (`Deadlines.page`): the command "Deadlines" and its tile beside Home write it once from a
+  template (the box and a month calendar of the same rows), then it is the vault's file;
+- the **Today plugin's chips** ("2 due today · 1 overdue") count the Today and Overdue groups.
+
 ## What is not there (on purpose, or not yet)
 
 - No query language: the options above are the whole of it. A question they cannot ask is a plugin's row view over `atlas.query`, or a reason to add one option.
@@ -114,4 +142,4 @@ Code: `tasks::Query` (`apply`: filter, sort, group, limit) and `views.rs` (`ask`
 
 ## Tests
 
-`tasks.rs`: `a_task_line_is_read_by_the_shape_of_its_fields`, `a_recurring_task_ticked_makes_its_next_occurrence`, `a_block_filters_sorts_groups_and_limits`. `today.rs`: `ticking_a_task_written_with_fields_dates_it_and_a_recurring_one_leaves_its_next`, `all_tasks_lists_done_ones_too`. UI: `tasks-block.spec.ts` (grouping, priority, recurrence, a tag filter, and ticking a weekly task). Looked at in both themes.
+`tasks.rs`: `a_task_line_is_read_by_the_shape_of_its_fields`, `a_recurring_task_ticked_makes_its_next_occurrence`, `a_block_filters_sorts_groups_and_limits`. `today.rs`: `ticking_a_task_written_with_fields_dates_it_and_a_recurring_one_leaves_its_next`, `all_tasks_lists_done_ones_too`. `views.rs`: `deadlines_are_dated_tasks_and_notes_grouped_by_how_far_mail_and_done_notes_left_out`, `a_deadline_event_made_from_a_note_shows_once_as_the_note`; the Calendar engine's `deadline_calendars_are_the_ones_settings_name_by_id_or_unique_name`. UI: `tasks-block.spec.ts` (grouping, priority, recurrence, a tag filter, and ticking a weekly task), `deadlines.spec.ts` (the box's groups, a note row without a box, ticking a task, the Deadlines page made from its template). Looked at in both themes.

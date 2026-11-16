@@ -9,7 +9,7 @@ import java.util.List;
 
 /**
  * What the app on screen was showing, read once when the tile or the button is pressed: its views walked in reading order
- * (depth first, at most 600) and handed to Onscreen, which finds the thing's address and title — a browser's page, a YouTube
+ * (depth first, at most 600 or BUDGET_MS) and handed to Onscreen, which finds the thing's address and title — a browser's page, a YouTube
  * video, a Spotify song, a Letterboxd film, a Wikipedia article — or, in an app it does not know, the title it shows (a
  * guess, so the box offers it off). This class is only the Android side: the recognising is plain Java, tested.
  */
@@ -25,7 +25,9 @@ final class Page {
         List<Onscreen.Node> nodes = new ArrayList<>();
         ArrayDeque<AccessibilityNodeInfo> todo = new ArrayDeque<>();
         todo.push(root);
-        while (!todo.isEmpty() && nodes.size() < 600) {
+        // each view not prefetched is a call into the app: a busy screen is cut at BUDGET_MS, what was read is used
+        long until = android.os.SystemClock.uptimeMillis() + BUDGET_MS;
+        while (!todo.isEmpty() && nodes.size() < 600 && android.os.SystemClock.uptimeMillis() < until) {
             AccessibilityNodeInfo n = todo.pop();
             CharSequence extra = n.getExtras() == null ? null : n.getExtras().getCharSequence("url"); // Chromium's web root
             nodes.add(new Onscreen.Node(str(n.getText()), n.getViewIdResourceName(), str(n.getClassName()), str(n.getContentDescription()),
@@ -37,6 +39,9 @@ final class Page {
         if (f.guess != null && f.guess.equals(app)) f = new Onscreen.Found(null, null, null, null, null, null, false);
         return new Page(pkg, app, f);
     }
+
+    /** How long the walk may take: the box opens after it (ScreenService). The address bar and a title come first. */
+    static final long BUDGET_MS = 400;
 
     private static String str(CharSequence s) { return s == null ? null : s.toString(); }
 

@@ -354,6 +354,15 @@ pub struct Births {
     pub added: std::collections::HashMap<String, i64>,
 }
 
+/// When one file was first committed (seconds since 1970), following renames; None outside git or when untracked.
+pub fn born(root: &Path, rel: &str) -> Option<i64> {
+    if !has_git() {
+        return None;
+    }
+    let log = git_ok(root, &["log", "--follow", "--diff-filter=A", "--format=%at", "--", rel]).ok()?;
+    log.lines().filter_map(|l| l.trim().parse().ok()).last() // newest first: the last is the first add
+}
+
 pub fn births(root: &Path, since: i64, until: i64) -> Option<Births> {
     if !has_git() {
         let mut added = std::collections::HashMap::new();

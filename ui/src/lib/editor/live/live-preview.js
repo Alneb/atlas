@@ -1294,8 +1294,8 @@ export function buildDecorations(state, ranges, options = {}) {
           // Atlas: the target on the mark, for the hover preview (lib/preview.ts)
           const href = node.node.getChild("URL");
           const target = href ? state.doc.sliceString(href.from, href.to) : null;
-          const more = target ? opts.linkMark(target) : null; // Atlas: a DOI link not in the library (doi-links.ts)
-          add(node.from, node.to, Decoration.mark({ class: more ? `cm-link ${more.class}` : "cm-link", attributes: target ? { "data-href": target, ...(more?.title ? { title: more.title } : {}) } : undefined }));
+          const more = target ? opts.linkMark(target) : null; // Atlas: a DOI link, filed or not (doi-links.ts)
+          add(node.from, node.to, Decoration.mark({ class: more ? `cm-link ${more.class}` : "cm-link", attributes: target ? { "data-href": target, ...(more?.title ? { title: more.title } : {}), ...more?.attributes } : undefined }));
           if (!revealed(state, node.from, node.to)) {
             const url = node.node.getChild("URL");
             if (url) {

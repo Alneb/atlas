@@ -171,7 +171,7 @@ impl Imap {
                 tokio::time::timeout(TIMEOUT, client.authenticate("XOAUTH2", auth))
                     .await
                     .map_err(|_| Fail::connection(format!("{host} did not answer the sign-in")))?
-                    .map_err(|(e, _)| sign_in_failed(host, e, |_, why| format!("Outlook refused the sign-in ({why}): sign in again")))?
+                    .map_err(|(e, _)| sign_in_failed(host, e, |_, why| format!("Outlook's mail server refused the token ({why})")))?
             }
         };
         let mut me = Imap { s: session, caps: HashSet::new(), account: acc.name.clone(), selected: None };

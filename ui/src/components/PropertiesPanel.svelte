@@ -120,9 +120,11 @@
 
 <style>
   .props-panel { flex: none; width: min(calc(300px * var(--ui-scale, 1)), 42%); min-width: 0; display: flex; flex-direction: column; border-left: 1px solid var(--border); background: var(--bg-alt); }
+  /* beside the note it sits in the editor's grid (Editor.svelte .editor-row): its heading shares the format bar's row */
+  :global(html:not(.phone)) .props-panel { grid-column: 2; grid-row: 1 / -1; display: grid; grid-template-rows: subgrid; width: min(calc(300px * var(--ui-scale, 1)), 42cqi); }
   :global(html.phone) .props-panel { position: absolute; inset: 0; width: auto; z-index: 5; border-left: 0; }
   .grow { flex: 1; }
-  .side-head { flex: none; display: flex; align-items: center; gap: 8px; height: calc(36px * var(--ui-scale, 1)); box-sizing: border-box; padding: 0 10px 0 14px; border-bottom: 1px solid var(--border); }
+  .side-head { flex: none; display: flex; align-items: center; gap: 8px; height: auto; min-height: calc(36px * var(--ui-scale, 1)); box-sizing: border-box; padding: 0 10px 0 14px; border-bottom: 1px solid var(--border); }
   .side-title { font-size: calc(11px * var(--ui-scale, 1)); font-weight: 600; text-transform: uppercase; letter-spacing: .08em; color: var(--text-muted); }
   .body { flex: 1; min-height: 0; overflow: auto; display: flex; flex-direction: column; gap: 2px; padding: 6px 8px 16px; }
   /* one line per property, the name left and its value right (a name above each value

@@ -274,7 +274,7 @@ test("e-ink: the notepad's pens and paper — a highlighter is wide and see-thro
 
 // Strokes went missing and ink looked rough. A palm's brief two contacts
 // while the pen writes were a two-finger tap — undo, the stroke gone; and a pen stroke is saved marked for the crisp
-// outline (draw-ink.ts; vite.config.ts inkStroke makes Excalidraw ask it).
+// outline (draw-ink.ts; scripts/dep-rewrites.ts makes Excalidraw ask it).
 test("e-ink: a palm while the pen writes neither undoes nor moves the page; pen strokes are kept crisp", async ({ page }) => {
   await open(page, "manual");
   await page.keyboard.press("Meta+Shift+d"); await page.getByTestId("palette").getByText("Infinite canvas", { exact: true }).click(); // the format asked first (draw-new.ts)

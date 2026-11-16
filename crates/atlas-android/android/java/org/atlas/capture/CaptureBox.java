@@ -84,6 +84,37 @@ final class CaptureBox extends android.content.ContextWrapper {
     private boolean catalogOn;
     private java.util.List<String> catalogLinks = java.util.Collections.emptyList(); // read on the main thread at Save
     private final Handler ui = new Handler(Looper.getMainLooper());
+    /** This box's timings (logcat, tag AtlasCapture). */
+    private CaptureClock clock;
+    /** refresh's latest ask (the hint and the completions come from the core thread): an older answer is dropped. */
+    private volatile int hinted;
+    /** The screen this box waits for (Screens): a newer gesture's replaces it, a late older one is dropped. */
+    private String screenAsked;
+    private boolean focusedOnce;
+
+    /** The core's calls the box makes while it is open — the hint and the completions at every keystroke, a share's
+     *  text, the vault's names read — on one thread of their own, in order, never the UI's: the first call loads the
+     *  native library (the full app's is tens of megabytes), and a hint reads the vault's settings and its plugins'
+     *  manifests now and then (a vault on shared storage is slow to read). Saving has its own thread (save). */
+    private static Handler core;
+
+    static synchronized Handler core() {
+        if (core == null) {
+            android.os.HandlerThread t = new android.os.HandlerThread("capture-core");
+            t.start();
+            core = new Handler(t.getLooper());
+        }
+        return core;
+    }
+
+    /** Loads the core's library ahead of the box (a gesture, CaptureActivity's start), so its first hint is quick. */
+    static void warm() {
+        core().post(() -> {
+            long t = CaptureClock.now();
+            Core.describe("", "");
+            android.util.Log.i(CaptureClock.TAG, "core ready in " + (CaptureClock.now() - t) + " ms");
+        });
+    }
 
     CaptureBox(Context base, Frame frame) {
         super(base);
@@ -93,6 +124,9 @@ final class CaptureBox extends android.content.ContextWrapper {
     /** The box's view, for the frame to show. */
     View open(Intent intent) {
         opened = intent;
+        clock = CaptureClock.of(intent);
+        clock.mark("opening");
+        warm(); // queued first on the core thread: everything below that asks the core waits behind it, off the UI
         look = new Look(this);
         vaults = new Vaults(this);
         Server.init(this);
@@ -100,9 +134,11 @@ final class CaptureBox extends android.content.ContextWrapper {
         FrameLayout root = new FrameLayout(this);
         // a tap on the dimmed screen does nothing: on a tall e-ink screen most of it is "outside". Back or the card's ✕ leave (draft kept).
         if (Build.VERSION.SDK_INT >= 30) { // the frame's window is drawn edge to edge
+            final boolean[] keyboard = {false};
             root.setOnApplyWindowInsetsListener((v, in) -> {
                 android.graphics.Insets i = in.getInsets(WindowInsets.Type.systemBars() | WindowInsets.Type.ime());
                 v.setPadding(i.left, i.top, i.right, i.bottom); // never under the bars or the keyboard
+                if (!keyboard[0] && in.isVisible(WindowInsets.Type.ime())) { keyboard[0] = true; clock.mark("keyboard up"); }
                 return WindowInsets.CONSUMED;
             });
         } else {
@@ -122,31 +158,74 @@ final class CaptureBox extends android.content.ContextWrapper {
         FrameLayout.LayoutParams at = new FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM);
         at.setMargins(look.dp(10), 0, look.dp(10), look.dp(10));
         root.addView(column, at);
-        edit.setText(Core.underDraft(text(vaults.draft()), text(sharedText(intent))));
+        // the draft at once (Java's own preferences); a share's text joins it from the core thread (shareIn)
+        edit.setText(vaults.draft());
         edit.setSelection(edit.length());
+        edit.requestFocus(); // the window's first focus: the keyboard comes with the window (stateAlwaysVisible)
+        firstFrame(root);
         column.setTranslationY(look.dp(24));
         column.setAlpha(0f);
         column.animate().translationY(0).alpha(1f).setDuration(140).start();
         takeScreen(intent);
         takeFiles(intent);
+        shareIn(intent);
         lastScreenshot();
         readPlaying();
         drawChips();
-        if (vault == null) showVaultChoice(); else if (!Server.is(vault)) Core.prepare(vault);
+        if (vault == null) showVaultChoice(); else prepare(vault);
         new Thread(() -> Outbox.send(this)).start(); // captures kept while a server did not answer
         refresh();
+        clock.mark("box built");
         return root;
+    }
+
+    /** Logs the box's first frame on screen (the dimmed screen and the card; the keyboard is logged when it is up). */
+    private void firstFrame(View root) {
+        android.view.ViewTreeObserver.OnDrawListener[] once = new android.view.ViewTreeObserver.OnDrawListener[1];
+        once[0] = () -> {
+            if (once[0] == null) return;
+            android.view.ViewTreeObserver.OnDrawListener me = once[0];
+            once[0] = null;
+            clock.mark("first frame");
+            root.post(() -> root.getViewTreeObserver().removeOnDrawListener(me)); // not from inside onDraw
+        };
+        root.getViewTreeObserver().addOnDrawListener(once[0]);
+    }
+
+    /** The vault's note names and tags read for the completions (the core reads them on a thread of its own). */
+    private void prepare(String v) {
+        if (v != null && !Server.is(v)) core().post(() -> Core.prepare(v));
+    }
+
+    /** A share's or a selection's text, made by the core's rule (share.rs) on the core thread, then put under what is
+     *  in the box (never over a draft). A box moved into its activity carries its share in its draft already. */
+    private void shareIn(Intent i) {
+        Shared raw = Shared.of(i);
+        if (raw == null) return;
+        core().post(() -> {
+            String t = raw.quote != null ? Core.shareQuote(raw.quote) : Core.shareText(raw.subject, raw.text);
+            if (t == null || t.isEmpty()) return;
+            ui.post(() -> {
+                String now = edit.getText().toString();
+                String merged = Core.underDraft(now, t); // the library is loaded: the core thread just used it
+                if (merged.equals(now)) return;
+                edit.setText(merged);
+                edit.setSelection(edit.length());
+                clock.mark("shared text in");
+            });
+        });
     }
 
     /** Open already (one box at a time): a new tap of the tile brings a new screen. */
     void again(Intent i) {
         opened = i;
+        clock = CaptureClock.of(i);
+        clock.mark("opened again (the box was open)");
         takeScreen(i);
         lastScreenshot();
         readPlaying();
         drawChips();
-        String t = sharedText(i);
-        if (t != null) insert(t);
+        shareIn(i);
         takeFiles(i);
     }
 
@@ -187,7 +266,7 @@ final class CaptureBox extends android.content.ContextWrapper {
      *  else what to look up (`find`: a known app showing no address; readPlaying does it). */
     private void takeScreen(Intent i) {
         String s = i.getStringExtra("screen");
-        if (s != null) { drop(Piece.Kind.SCREEN); pieces.add(new Piece(Piece.Kind.SCREEN, "Screen", new File(s), false)); }
+        if (s != null) { drop(Piece.Kind.SCREEN); screenAsked = s; screen(s); }
         if (s != null || i.getStringExtra("link") != null) { link = i.getStringExtra("link"); linkOn = link != null; linkSearched = false; } // a new screen, a new thing
         find = null;
         screenPkg = i.getStringExtra("pkg");
@@ -196,6 +275,23 @@ final class CaptureBox extends android.content.ContextWrapper {
         } catch (IllegalArgumentException e) { /* a site this version does not know */ }
         if (s != null || i.getStringExtra("link") != null || i.getStringExtra("seen") != null) { seen = i.getStringExtra("seen"); seenOn = false; }
         app = i.getStringExtra("app");
+    }
+
+    /** The screen's picture once ScreenService has written it (Screens): its tile then, offered off. The box is open
+     *  and typing before that; the thumbnail comes from the pixels in memory, else it is decoded here off the UI. */
+    private void screen(String path) {
+        Screens.when(path, (f, thumb) -> new Thread(() -> {
+            if (f == null) return; // not written: the box goes on without it
+            Piece p = new Piece(Piece.Kind.SCREEN, "Screen", f, false, thumb);
+            p.thumb();
+            ui.post(() -> {
+                if (!path.equals(screenAsked)) return; // a newer screen came meanwhile
+                drop(Piece.Kind.SCREEN);
+                pieces.add(p);
+                drawChips();
+                clock.mark("screen shown");
+            });
+        }, "capture-screen-tile").start());
     }
 
     /** The song or video playing (Playing), off the main thread; the chip comes when it is known. When the screen's app
@@ -251,8 +347,8 @@ final class CaptureBox extends android.content.ContextWrapper {
 
     /** The newest picture in a Screenshots folder, if taken in the last half hour: offered (off) as "Last screenshot". */
     private void lastScreenshot() {
-        if (!canReadImages(this)) return;
         new Thread(() -> {
+            if (!canReadImages(this)) return; // asks the system: off the UI too
             Uri images = android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI;
             String[] cols = {android.provider.MediaStore.Images.Media._ID, android.provider.MediaStore.Images.Media.DISPLAY_NAME, android.provider.MediaStore.Images.Media.DATE_ADDED};
             String where = Build.VERSION.SDK_INT >= 29 ? android.provider.MediaStore.Images.Media.RELATIVE_PATH + " LIKE ?" : android.provider.MediaStore.Images.Media.DATA + " LIKE ?";
@@ -577,8 +673,7 @@ final class CaptureBox extends android.content.ContextWrapper {
             String[] f = forms[k];
             guides.addView(tool(icons[k], "Insert " + f[2] + ": " + f[0], v -> insert(f[1])));
         }
-        if (new Intent(android.provider.MediaStore.ACTION_IMAGE_CAPTURE).resolveActivity(getPackageManager()) != null)
-            guides.addView(tool("image", "Take a photo", v -> photo()));
+        if (hasCamera(this)) guides.addView(tool("image", "Take a photo", v -> photo()));
         guides.addView(tool("pen", "Draw", v -> draw(null)));
         card.addView(guides, lp(-1, -2, look.dp(26), look.dp(4), 0, 0));
         status = look.label(this, "", 12.5f, look.muted);
@@ -612,16 +707,33 @@ final class CaptureBox extends android.content.ContextWrapper {
         String t = edit.getText().toString();
         boolean empty = t.trim().isEmpty() && !clipOn && !linkOn && !seenOn && !playingOn && onPieces().isEmpty();
         status.setVisibility(t.trim().isEmpty() ? View.GONE : View.VISIBLE);
-        if (!saving) { status.setTextColor(look.muted); status.setText(Core.describe(vault == null ? "" : vault, t)); }
         pill.setText(vault == null ? "Choose a vault" : Vaults.name(vault));
         save.setAlpha(empty || vault == null ? 0.45f : 1f);
-        if (vault != null) completions(t);
+        hint(t);
     }
 
-    private void completions(String t) {
+    /** What the text becomes and the completions at the caret, asked on the core thread; the answer is shown only
+     *  while the text, the caret and the vault are still the ones asked about (keys typed meanwhile ask again). */
+    private void hint(String t) {
+        final int ask = ++hinted, caret = edit.getSelectionStart();
+        final String v = vault;
+        core().post(() -> {
+            if (ask != hinted) return; // a newer keystroke is queued behind this one
+            String says = Core.describe(v == null ? "" : v, t);
+            String offers = v == null ? "[]" : Core.suggest(v, t, caret);
+            ui.post(() -> {
+                if (ask != hinted || !t.equals(edit.getText().toString()) || !java.util.Objects.equals(v, vault)) return;
+                if (caret != edit.getSelectionStart()) { hint(t); return; } // moved after the ask (a completion taken): asked again where it is
+                if (!saving) { status.setTextColor(look.muted); status.setText(says); }
+                if (list.getTag() == null) completions(v == null ? "[]" : offers); // the vault list stays while it is open
+            });
+        });
+    }
+
+    private void completions(String json) {
         list.removeAllViews();
         try {
-            JSONArray a = new JSONArray(Core.suggest(vault, t, edit.getSelectionStart()));
+            JSONArray a = new JSONArray(json);
             for (int i = 0; i < Math.min(a.length(), 7); i++) {
                 JSONObject s = a.getJSONObject(i);
                 list.addView(row(s.optString("icon"), s.optString("label"), s.optString("detail"), v -> take(s)), lp(-1, look.dp(48), 0, 0, 0, 0)); // a row a finger hits: 48 dp
@@ -707,7 +819,8 @@ final class CaptureBox extends android.content.ContextWrapper {
         vaults.use(p);
         vault = p;
         list.setTag(null);
-        if (!Server.is(p)) Core.prepare(p);
+        list.setVisibility(View.GONE); // the completions come back with the next hint
+        prepare(p);
         refresh();
     }
 
@@ -718,6 +831,7 @@ final class CaptureBox extends android.content.ContextWrapper {
 
     /** The clipboard can be read only once the window has the focus (Android 10+). */
     void focused() {
+        if (!focusedOnce) { focusedOnce = true; clock.mark("window focused"); }
         edit.requestFocus();
         ((InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE)).showSoftInput(edit, 0);
         ClipboardManager cm = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
@@ -815,6 +929,13 @@ final class CaptureBox extends android.content.ContextWrapper {
     }
 
     private static final int TAKE_PHOTO = 41;
+    /** Whether a camera app answers: asked of the system once per process (a box opens many times; the answer stays). */
+    private static Boolean camera;
+
+    private static boolean hasCamera(Context c) {
+        if (camera == null) camera = new Intent(android.provider.MediaStore.ACTION_IMAGE_CAPTURE).resolveActivity(c.getPackageManager()) != null;
+        return camera;
+    }
 
     /** The camera app; its photo joins the pictures (onActivityResult), as a shared one does. */
     private void photo() {
@@ -876,12 +997,14 @@ final class CaptureBox extends android.content.ContextWrapper {
         final java.util.List<String> attach = new java.util.ArrayList<>();
         for (Piece p : on) attach.add(p.file.getPath());
         status.setText("Saving…");
+        final long asked = CaptureClock.now();
+        clock.mark("saving (" + attach.size() + " files)");
         new Thread(() -> {
             String r = Server.is(to) ? toServer(to, token, typed, attach)
                 : mirror != null ? toMirror(to, mirror, token, typed, attach)
                 : toFolder(to, typed, attach);
-            ui.post(() -> saved(r));
-        }).start();
+            ui.post(() -> { clock.mark("saved in " + (CaptureClock.now() - asked) + " ms"); saved(r); });
+        }, "capture-save").start();
     }
 
     /** Whether a folder vault lies outside the app's own storage (there no permission is needed). */
@@ -1032,7 +1155,8 @@ final class CaptureBox extends android.content.ContextWrapper {
         if (a != null) return a;
         vaults.keepDraft(edit.getText().toString());
         frame.close();
-        startActivity(new Intent(opened).setClass(this, CaptureActivity.class).putExtra("then", then.name()).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+        // the share is in the draft now: the reopened box must not add it again (Shared.DRAFTED)
+        startActivity(new Intent(opened).setClass(this, CaptureActivity.class).putExtra("then", then.name()).putExtra(Shared.DRAFTED, true).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
         return null;
     }
 
@@ -1059,18 +1183,59 @@ final class CaptureBox extends android.content.ContextWrapper {
         return d;
     }
 
-    private static String sharedText(Intent i) {
-        if (i == null) return null;
-        // text selected in another app (its selection menu): a quote, as the desktop box's selection chip
-        if (Intent.ACTION_PROCESS_TEXT.equals(i.getAction())) return orNull(Core.shareQuote(text(i.getCharSequenceExtra(Intent.EXTRA_PROCESS_TEXT))));
-        if (!Intent.ACTION_SEND.equals(i.getAction())) return null;
-        // the core takes the share-tracking parameters off every capture (atlas_text::links)
-        return orNull(Core.shareText(text(i.getStringExtra(Intent.EXTRA_SUBJECT)), text(i.getCharSequenceExtra(Intent.EXTRA_TEXT))));
-    }
+    /** What a share or a selection hands the box, read from wherever the other app put it — by shape, not by app:
+     *  the text (and a styled text's link targets the words hide), the HTML text's links when there is no plain one,
+     *  every text of a SEND_MULTIPLE, the ClipData items' texts and web addresses, the subject (else the title the share
+     *  sheet shows). The core makes the box's text of it (Core.shareText: tracking off, the subject as a title). */
+    static final class Shared {
+        final String subject, text, quote;
+        private Shared(String subject, String text, String quote) { this.subject = subject; this.text = text; this.quote = quote; }
 
-    /** Java's null as the core's "" (Core's text rules), and back. */
-    private static String text(CharSequence s) { return s == null ? "" : s.toString(); }
-    private static String orNull(String s) { return s == null || s.isEmpty() ? null : s; }
+        /** Extra set on the intent a box moved into its activity reopens with: its share is in the draft already. */
+        static final String DRAFTED = "org.atlas.capture.drafted";
+
+        static Shared of(Intent i) {
+            if (i == null || i.getBooleanExtra(DRAFTED, false)) return null;
+            // text selected in another app (its selection menu): a quote, as the desktop box's selection chip
+            if (Intent.ACTION_PROCESS_TEXT.equals(i.getAction())) {
+                CharSequence q = i.getCharSequenceExtra(Intent.EXTRA_PROCESS_TEXT);
+                return q == null || q.toString().trim().isEmpty() ? null : new Shared("", "", q.toString());
+            }
+            if (!Intent.ACTION_SEND.equals(i.getAction()) && !Intent.ACTION_SEND_MULTIPLE.equals(i.getAction())) return null;
+            java.util.List<String> texts = new java.util.ArrayList<>();
+            try {
+                CharSequence t = i.getCharSequenceExtra(Intent.EXTRA_TEXT);
+                addText(texts, t);
+                if (t == null) {
+                    java.util.ArrayList<CharSequence> many = i.getCharSequenceArrayListExtra(Intent.EXTRA_TEXT);
+                    if (many != null) for (CharSequence m : many) addText(texts, m);
+                }
+                if (texts.isEmpty()) for (String href : Shares.hrefs(i.getStringExtra(Intent.EXTRA_HTML_TEXT))) texts.add(href);
+                ClipData clip = i.getClipData();
+                if (clip != null) for (int k = 0; k < clip.getItemCount(); k++) {
+                    ClipData.Item it = clip.getItemAt(k);
+                    addText(texts, it.getText());
+                    Uri u = it.getUri();
+                    if (u != null && ("http".equals(u.getScheme()) || "https".equals(u.getScheme()))) texts.add(u.toString());
+                }
+            } catch (RuntimeException e) { /* a malformed extra (another app's parcel): what was read so far */ }
+            CharSequence subject = i.getCharSequenceExtra(Intent.EXTRA_SUBJECT);
+            if (subject == null) subject = i.getCharSequenceExtra(Intent.EXTRA_TITLE);
+            String text = Shares.join(texts);
+            String sub = subject == null ? "" : subject.toString();
+            return text.isEmpty() && sub.trim().isEmpty() ? null : new Shared(sub, text, null);
+        }
+
+        /** A text and, when it is styled, the addresses its links point to that its words do not show. */
+        private static void addText(java.util.List<String> out, CharSequence t) {
+            if (t == null) return;
+            out.add(t.toString());
+            if (t instanceof android.text.Spanned) {
+                android.text.Spanned sp = (android.text.Spanned) t;
+                for (android.text.style.URLSpan u : sp.getSpans(0, sp.length(), android.text.style.URLSpan.class)) if (Shares.isWeb(u.getURL())) out.add(u.getURL());
+            }
+        }
+    }
 
     /** A file the capture can carry; its thumbnail decoded once, small. */
     private static final class Piece {
@@ -1091,7 +1256,13 @@ final class CaptureBox extends android.content.ContextWrapper {
         }
 
         /** A piece whose picture is given (a drawing: its file is an Excalidraw scene, not a picture). */
-        Piece(File file, android.graphics.Bitmap thumb) { this(Kind.DRAWING, "Drawing", file, true); this.thumb = thumb; this.decoded = true; }
+        Piece(File file, android.graphics.Bitmap thumb) { this(Kind.DRAWING, "Drawing", file, true, thumb); }
+
+        /** A piece whose thumbnail is made already (the screen's, from its pixels in memory); null: decoded when asked. */
+        Piece(Kind kind, String label, File file, boolean on, android.graphics.Bitmap thumb) {
+            this(kind, label, file, on);
+            if (thumb != null) { this.thumb = thumb; this.decoded = true; }
+        }
 
         /** Null when the file is not a picture. */
         synchronized android.graphics.Bitmap thumb() {

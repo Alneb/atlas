@@ -34,6 +34,11 @@ impl Priority {
     pub fn from_name(s: &str) -> Option<Self> {
         [Self::Lowest, Self::Low, Self::Normal, Self::Medium, Self::High, Self::Highest].into_iter().find(|p| p.name() == s.trim().to_ascii_lowercase())
     }
+
+    /// The marker [`render`] writes it with (the Tasks plugin's first one); none for a task that says nothing.
+    fn mark(self) -> Option<&'static str> {
+        MARKERS.iter().find(|(_, f)| *f == Field::Priority(self)).map(|(m, _)| *m)
+    }
 }
 
 /// The emoji that start a field, and what they start.
@@ -80,6 +85,9 @@ pub struct Task {
     /// As written: `every week`, `every 2 months when done`.
     pub recurrence: Option<String>,
     pub tags: Vec<String>,
+    /// An Obsidian block id ending the line (`^t3f9a` → `t3f9a`): how a link (`[[note#^t3f9a]]`) or a nudge reaches
+    /// the task wherever its line moves. Not part of the title.
+    pub block: Option<String>,
 }
 
 /// The first `YYYY-MM-DD` of `s` that is a real day and not inside a word, and where it starts.
@@ -97,6 +105,9 @@ pub(crate) fn first_date(s: &str) -> Option<(NaiveDate, usize)> {
 
 /// Reads a task's text (what follows the checkbox).
 pub fn parse(text: &str) -> Task {
+    // the block id is the line's last word (Obsidian's rule), read before any field so a rule (`🔁 every week ^t1`)
+    // never takes it in
+    let (text, block) = split_block(text);
     // a captured task's time (`- [ ] 09:05 …`, capture.rs) says when it was written, not what it is
     let text = crate::captures::stamp(text).map_or(text, |(_, rest)| rest);
     // cut the text at every marker: the piece after a marker is that field's value
@@ -112,7 +123,7 @@ pub fn parse(text: &str) -> Task {
         }
     }
     cuts.sort_by_key(|c| c.0);
-    let mut t = Task { title: String::new(), due: None, scheduled: None, start: None, created: None, completed: None, priority: Priority::Normal, recurrence: None, tags: Vec::new() };
+    let mut t = Task { title: String::new(), due: None, scheduled: None, start: None, created: None, completed: None, priority: Priority::Normal, recurrence: None, tags: Vec::new(), block: block.map(str::to_string) };
     let mut title = text[..cuts.first().map_or(text.len(), |c| c.0)].to_string();
     for (k, (at, len, field)) in cuts.iter().enumerate() {
         // a marker's variation selector (`⏫\u{FE0F}`) is the marker's, not the value's or the title's
@@ -314,6 +325,12 @@ pub fn next_occurrence(line: &str, today: NaiveDate) -> Option<String> {
     for (r, new) in edits {
         out.replace_range(r, &new);
     }
+    // the next occurrence never takes the block id: an id is unique in its note, and links to it keep pointing at
+    // the task they were made for (the ticked one), as the Tasks plugin does
+    let (kept, block) = split_block(&out);
+    if block.is_some() {
+        out = kept.trim_end().to_string();
+    }
     if t.date().is_none() {
         // a rule and no date: the next one is due when the rule says
         out = format!("{} 📅 {}", out.trim_end(), next_anchor.format("%Y-%m-%d"));
@@ -338,6 +355,141 @@ fn blank(s: &str) -> bool {
 /// Does the line use the Tasks plugin's fields at all? (Then a tick also writes `✅ date`, as that plugin does.)
 pub fn uses_fields(line: &str) -> bool {
     MARKERS.iter().any(|(m, _)| line.contains(m))
+}
+
+// --- block ids ----------------------------------------------------------------------------------------
+
+/// `text` without the Obsidian block id that ends it, and that id (without `^`). The id is the last word, after
+/// whitespace, of letters, digits and `-` (Obsidian's and the Tasks plugin's shape); trailing whitespace and a CRLF
+/// line's `\r` are allowed after it.
+pub fn split_block(text: &str) -> (&str, Option<&str>) {
+    let end = text.trim_end();
+    let Some(i) = end.rfind(char::is_whitespace) else { return (text, None) };
+    let word = end[i..].trim_start();
+    match word.strip_prefix('^') {
+        Some(id) if !id.is_empty() && id.chars().all(|c| c.is_ascii_alphanumeric() || c == '-') => (&end[..end.len() - word.len()], Some(id)),
+        _ => (text, None),
+    }
+}
+
+/// The 1-based line of `text` that ends in the block id `id`: where a task given an id is, wherever its line moved.
+pub fn find_block(text: &str, id: &str) -> Option<u32> {
+    text.split('\n').position(|l| split_block(l).1 == Some(id)).and_then(|i| u32::try_from(i + 1).ok())
+}
+
+/// A block id not yet used in `text`: `t` + 4 base-36 characters (DESIGN-calendar-tasks-nudges §2.1). Drawn from a
+/// hash of `seed` (the task's line), so the same line in the same note gets the same id — tests stay deterministic,
+/// and a retried action does not mint a second one.
+pub fn new_block_id(text: &str, seed: &str) -> String {
+    use std::hash::{Hash, Hasher};
+    const DIGITS: &[u8; 36] = b"0123456789abcdefghijklmnopqrstuvwxyz";
+    (0u64..)
+        .map(|n| {
+            let mut h = std::collections::hash_map::DefaultHasher::new();
+            (seed, n).hash(&mut h);
+            let mut v = h.finish();
+            let mut id = String::from("t");
+            for _ in 0..4 {
+                id.push(DIGITS[(v % 36) as usize] as char);
+                v /= 36;
+            }
+            id
+        })
+        .find(|id| find_block(text, id).is_none())
+        .expect("an unused id among endless draws")
+}
+
+// --- the writer ---------------------------------------------------------------------------------------
+
+/// A task's text written back (what follows the box) in the Tasks plugin's order: the title (its tags and links
+/// in it), priority, 🔁 rule, ➕ created, 🛫 start, ⏳ scheduled, 📅 due, ✅ done, and the block id last — so a line
+/// edited here and in Obsidian stays the same line. The one writer of task fields: the task dialog asks it through
+/// `POST /api/task/render`.
+pub fn render(t: &Task) -> String {
+    let mut parts: Vec<String> = vec![t.title.trim().to_string()];
+    parts.extend(t.priority.mark().map(str::to_string));
+    if let Some(rule) = t.recurrence.as_deref().map(str::trim).filter(|r| !r.is_empty()) {
+        let every = rule.split_whitespace().next().is_some_and(|w| w.eq_ignore_ascii_case("every"));
+        parts.push(if every { format!("🔁 {rule}") } else { format!("🔁 every {rule}") });
+    }
+    for (mark, day) in [("➕", t.created), ("🛫", t.start), ("⏳", t.scheduled), ("📅", t.due), ("✅", t.completed)] {
+        parts.extend(day.map(|d| format!("{mark} {}", d.format("%Y-%m-%d"))));
+    }
+    parts.extend(t.block.as_deref().filter(|b| !b.is_empty()).map(|b| format!("^{b}")));
+    parts.retain(|p| !p.is_empty());
+    parts.join(" ")
+}
+
+/// A whole task line taken apart: what comes before the box, the box's status, a capture's time, the task.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Line {
+    /// Indentation and the list mark (`  - `, `1. `).
+    pub lead: String,
+    /// The character in the box: ` `, `x`, or another kept as it was (`/`, `-`).
+    pub status: char,
+    /// A captured task's `HH:MM` (captures.rs): kept first, as written.
+    pub stamp: Option<String>,
+    pub task: Task,
+}
+
+/// A task line taken apart; None when it is not a list item with a box.
+pub fn parse_line(line: &str) -> Option<Line> {
+    let line = line.strip_suffix('\r').unwrap_or(line);
+    let i = crate::today::checkbox(line)?;
+    let status = line[i + 1..].chars().next()?;
+    let text = line[i + 3..].trim();
+    let stamp = crate::captures::stamp(text).map(|(s, _)| s.to_string());
+    Some(Line { lead: line[..i].to_string(), status, stamp, task: parse(text) })
+}
+
+/// The line [`parse_line`] read, written back by [`render`].
+pub fn render_line(l: &Line) -> String {
+    let stamp = l.stamp.as_deref().map(|s| format!("{s} ")).unwrap_or_default();
+    format!("{}[{}] {stamp}{}", l.lead, l.status, render(&l.task))
+}
+
+impl Line {
+    /// The line the task dialog's form describes (`POST /api/task/render`), done on `today` when ticked there
+    /// without a day. An unknown priority or a date that is not `YYYY-MM-DD` is refused, never dropped.
+    pub fn from_fields(f: &crate::api::TaskFields, today: NaiveDate) -> Result<Line, String> {
+        let day = |what: &str, v: &str| -> Result<Option<NaiveDate>, String> {
+            let v = v.trim();
+            if v.is_empty() {
+                return Ok(None);
+            }
+            NaiveDate::parse_from_str(v, "%Y-%m-%d").map(Some).map_err(|_| format!("the {what} date is not YYYY-MM-DD: {v}"))
+        };
+        let priority = match f.priority.trim() {
+            "" | "none" => Priority::Normal,
+            p => Priority::from_name(p).ok_or_else(|| format!("no priority `{p}`"))?,
+        };
+        let was = f.status.chars().next().unwrap_or(' ');
+        // ticking keeps an `X`; opening a done one empties the box; another status (`/`, `-`) is kept as it was
+        let status = match (f.done, was) {
+            (true, 'X') => 'X',
+            (true, _) => 'x',
+            (false, 'x' | 'X') => ' ',
+            (false, c) => c,
+        };
+        let completed = if f.done { day("done", &f.done_on)?.or(Some(today)) } else { None };
+        let block = f.block_id.trim().trim_start_matches('^');
+        let title = f.description.split_whitespace().collect::<Vec<_>>().join(" ");
+        let task = Task {
+            // the tags as `parse` reads them, so the task is the same whichever way it was made
+            tags: parse(&title).tags,
+            title,
+            due: day("due", &f.due)?,
+            scheduled: day("scheduled", &f.scheduled)?,
+            start: day("start", &f.start)?,
+            created: day("created", &f.created)?,
+            completed,
+            priority,
+            recurrence: Some(f.repeat.trim().to_string()).filter(|r| !r.is_empty()),
+            block: Some(block.to_string()).filter(|b| !b.is_empty()),
+        };
+        let lead = if f.lead.is_empty() { "- ".to_string() } else { f.lead.clone() };
+        Ok(Line { lead, status, stamp: None, task })
+    }
 }
 
 // --- what a task block asks ---------------------------------------------------------------------------
@@ -641,5 +793,82 @@ mod tests {
         let by_due = titles(&q("group: due\nshow: all\nstarted: false"));
         assert_eq!(by_due.iter().map(|(_, g)| g.clone().unwrap()).collect::<Vec<_>>(), ["Overdue", "Overdue", "This week", "Later", "No date"], "groups arrive in the order of urgency");
         assert!(q("due: someday").apply(all(), today).is_err() && q("sort: colour").apply(all(), today).is_err() && q("group: mood").apply(all(), today).is_err() && q("priority: urgent").apply(all(), today).is_err());
+    }
+
+    /// The fields the task dialog's reader (ui/src/lib/task-line.ts) makes of a line, from the core's reading of it.
+    fn fields_of(l: &Line) -> crate::api::TaskFields {
+        let day = |d: Option<NaiveDate>| d.map(|d| d.format("%Y-%m-%d").to_string()).unwrap_or_default();
+        let t = &l.task;
+        crate::api::TaskFields {
+            lead: l.lead.clone(),
+            status: l.status.to_string(),
+            block_id: t.block.clone().unwrap_or_default(),
+            description: [l.stamp.as_deref(), Some(t.title.as_str())].into_iter().flatten().collect::<Vec<_>>().join(" "),
+            done: matches!(l.status, 'x' | 'X'),
+            priority: if t.priority == Priority::Normal { "none".into() } else { t.priority.name().into() },
+            repeat: t.recurrence.clone().unwrap_or_default(),
+            created: day(t.created),
+            start: day(t.start),
+            scheduled: day(t.scheduled),
+            due: day(t.due),
+            done_on: day(t.completed),
+        }
+    }
+
+    #[test]
+    fn obsidian_tasks_lines_come_back_as_they_went_in() {
+        // the list ui/tests/task-fields.spec.ts reads too: both readers agree, and the one writer gives the line back
+        let fixture: serde_json::Value = serde_json::from_str(include_str!("../../../ui/tests/fixtures/task-lines.json")).unwrap();
+        let cases = fixture["lines"].as_array().unwrap();
+        assert!(cases.len() >= 10);
+        for c in cases {
+            let line = c["line"].as_str().unwrap();
+            let out = c["out"].as_str().unwrap_or(line);
+            let want: crate::api::TaskFields = serde_json::from_value(c["fields"].clone()).unwrap();
+            let read = parse_line(line).unwrap_or_else(|| panic!("not read as a task: {line}"));
+            assert_eq!(fields_of(&read), want, "read: {line}");
+            assert_eq!(render_line(&read), out, "written back from the core's reading: {line}");
+            // the dialog's path: its fields (the TS reader's, the same) → the core's writer
+            let from_form = Line::from_fields(&want, d("2000-01-01")).unwrap();
+            assert_eq!(render_line(&from_form), out, "written back from the dialog's fields: {line}");
+            assert_eq!(parse_line(out).map(|l| render_line(&l)).as_deref(), Some(out), "the written line is stable: {out}");
+        }
+    }
+
+    #[test]
+    fn the_dialog_s_form_is_written_the_tasks_plugin_s_way() {
+        let today = d("2026-11-16");
+        let form = |f: crate::api::TaskFields| Line::from_fields(&f, today).map(|l| render_line(&l));
+        let base = || crate::api::TaskFields { description: "pay  rent #home".into(), ..Default::default() };
+        assert_eq!(form(crate::api::TaskFields { done: true, ..base() }).unwrap(), "- [x] pay rent #home ✅ 2026-11-16", "ticked there: today's ✅");
+        assert_eq!(form(crate::api::TaskFields { status: "x".into(), done_on: "2026-11-01".into(), ..base() }).unwrap(), "- [ ] pay rent #home", "opened again: no ✅");
+        assert_eq!(form(crate::api::TaskFields { repeat: "week".into(), ..base() }).unwrap(), "- [ ] pay rent #home 🔁 every week");
+        assert_eq!(form(crate::api::TaskFields { block_id: "^t1".into(), ..base() }).unwrap(), "- [ ] pay rent #home ^t1");
+        assert!(form(crate::api::TaskFields { due: "next friday".into(), ..base() }).is_err(), "a date not written as a day is refused");
+        assert!(form(crate::api::TaskFields { priority: "urgent".into(), ..base() }).is_err());
+    }
+
+    #[test]
+    fn a_block_id_is_the_line_s_last_word_and_never_the_title_s() {
+        assert_eq!(split_block("call Ana ^t3f9a"), ("call Ana ", Some("t3f9a")));
+        assert_eq!(split_block("call Ana ^t3f9a \r"), ("call Ana ", Some("t3f9a")));
+        assert_eq!(split_block("2^10 is big"), ("2^10 is big", None));
+        assert_eq!(split_block("a ^ b"), ("a ^ b", None));
+        assert_eq!(split_block("x^y"), ("x^y", None), "a caret inside a word is not an id");
+        let t = parse("call Ana 🔁 every week 📅 2026-10-12 ^t3f9a");
+        assert_eq!((t.title.as_str(), t.recurrence.as_deref(), t.block.as_deref()), ("call Ana", Some("every week"), Some("t3f9a")));
+        let note = "# Plan\n- [ ] a ^t1\n- [ ] b ^t2\r\n";
+        assert_eq!((find_block(note, "t1"), find_block(note, "t2"), find_block(note, "t3")), (Some(2), Some(3), None));
+        let id = new_block_id(note, "- [ ] c");
+        assert!(id.len() == 5 && id.starts_with('t') && id[1..].chars().all(|c| c.is_ascii_digit() || c.is_ascii_lowercase()), "{id}");
+        assert_eq!(id, new_block_id(note, "- [ ] c"), "the same line gets the same id");
+        let taken = format!("{note}- [ ] c ^{id}\n");
+        assert_ne!(new_block_id(&taken, "- [ ] c"), id, "an id never used twice in a note");
+    }
+
+    #[test]
+    fn the_next_occurrence_of_a_task_with_an_id_takes_no_id() {
+        let next = next_occurrence("- [ ] water 🔁 every week 📅 2026-10-12 ^t1", d("2026-10-12")).unwrap();
+        assert_eq!(next, "- [ ] water 🔁 every week 📅 2026-10-19");
     }
 }

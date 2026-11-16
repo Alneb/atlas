@@ -1,8 +1,10 @@
 // A task's box in a note ticks the way Home's list does (the core's `tick_line`, POST /api/task/line): `✅ day` on
 // a line written with the Tasks fields, the next occurrence of a recurring one above it; opened again, the date
-// goes. Completing a task works the same in every note, not only on Home.
+// goes. Completing a task works the same in every note, not only on Home; the note's path goes along, so a task
+// done withdraws the notices about it.
 import type { EditorView } from "@codemirror/view";
 import { api } from "../api";
+import { editorPath } from "./plugin-hooks";
 
 const BOX = /^(\s*(?:[-*+]|\d+[.)])\s+)\[([ xX])\]/;
 
@@ -16,7 +18,7 @@ export function tickTaskLine(view: EditorView, n: number): boolean {
   const at = line.from + m[1].length + 1;
   view.dispatch({ changes: { from: at, to: at + 1, insert: done ? "x" : " " }, userEvent: "input.task" });
   const flipped = view.state.doc.line(n).text;
-  void api.taskLine(line.text, done).then(({ lines }) => {
+  void api.taskLine(line.text, done, view.state.facet(editorPath) || undefined).then(({ lines }) => {
     if (!view.dom.isConnected || n > view.state.doc.lines) return;
     const now = view.state.doc.line(n);
     const text = lines.join("\n");

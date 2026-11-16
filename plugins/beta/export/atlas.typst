@@ -1,0 +1,234 @@
+// The Export plugin's Typst look (helper/helper.ts, the Typst road): pandoc's own Typst template with Atlas's title
+// block, headings, links, code, quotes and tables, and display equations shrunk to fit their column. A vault's Typst
+// preamble (the `typstPreamble` setting) comes after these rules and overrides any of them.
+#let horizontalrule = line(start: (25%,0%), end: (75%,0%), stroke: 0.5pt + luma(160))
+
+#show terms: it => {
+  it.children
+    .map(child => [
+      #strong[#child.term]
+      #block(inset: (left: 1.5em, top: -0.4em))[#child.description]
+      ])
+    .join()
+}
+
+#show figure.where(
+  kind: table
+): set figure.caption(position: $if(table-caption-position)$$table-caption-position$$else$top$endif$)
+
+#show figure.where(
+  kind: image
+): set figure.caption(position: $if(figure-caption-position)$$figure-caption-position$$else$bottom$endif$)
+
+#let content-to-string(content) = {
+  if content.has("text") {
+    content.text
+  } else if content.has("children") {
+    content.children.map(content-to-string).join("")
+  } else if content.has("body") {
+    content-to-string(content.body)
+  } else if content == [ ] {
+    " "
+  }
+}
+
+#let accent = rgb("#1f4e79")
+#let muted = luma(95)
+
+#let conf(
+  title: none,
+  subtitle: none,
+  authors: (),
+  keywords: (),
+  date: none,
+  abstract: none,
+  cols: 1,
+  margin: (x: 1.25in, y: 1.25in),
+  paper: "us-letter",
+  lang: "en",
+  region: "US",
+  font: (),
+  fontsize: 11pt,
+  sectionnumbering: none,
+  pagenumbering: "1",
+  doc,
+) = {
+  set document(
+    title: title,
+    author: authors.map(author => content-to-string(author.name)),
+    keywords: keywords,
+  )
+  set page(
+    paper: paper,
+    margin: margin,
+    numbering: pagenumbering,
+    columns: cols,
+    header: context {
+      if title != none and counter(page).get().first() > 1 {
+        set text(size: 0.8em, fill: muted)
+        smallcaps(title)
+        h(1fr)
+        counter(page).display()
+      }
+    },
+    footer: context {
+      if counter(page).get().first() == 1 and pagenumbering != none {
+        set text(size: 0.8em, fill: muted)
+        align(center, counter(page).display(pagenumbering))
+      }
+    },
+  )
+  set columns(gutter: 1.8em)
+  set par(justify: true, leading: 0.62em, spacing: 1.05em)
+  set text(lang: lang, region: region, font: font, size: fontsize)
+  // Libertinus's own math beside Libertinus text; Typst's bundled math font otherwise (and where it is missing)
+  show math.equation: set text(font: if font.len() > 0 and font.first() == "Libertinus Serif" { ("Libertinus Math", "New Computer Modern Math") } else { "New Computer Modern Math" })
+  // a display wider than its column (two columns, a long sum) is shrunk to the column instead of running over
+  show math.equation.where(block: true): it => layout(size => {
+    let w = measure(it).width
+    if w > size.width { scale(size.width / w * 100%, reflow: true, it) } else { it }
+  })
+
+  set heading(numbering: sectionnumbering)
+  show heading: set text(fill: accent, weight: "semibold", font: ("Libertinus Sans",) + font)
+  show heading: set block(above: 1.5em, below: 0.75em)
+  show heading.where(level: 1): set text(size: 1.3em)
+  show heading.where(level: 2): set text(size: 1.12em)
+  show heading.where(level: 3): set text(size: 1em)
+  show heading.where(level: 1): it => block(width: 100%, stroke: (bottom: 0.5pt + accent.lighten(60%)), inset: (bottom: 0.3em), it)
+
+  show link: set text(fill: accent)
+  show raw: set text(font: ("DejaVu Sans Mono",), size: 0.88em)
+  show raw.where(block: true): it => block(width: 100%, fill: luma(246), stroke: (left: 2pt + luma(205)), inset: (x: 8pt, y: 7pt), it)
+  show quote.where(block: true): it => block(width: 100%, fill: accent.lighten(94%), stroke: (left: 2pt + accent.lighten(45%)), inset: (x: 10pt, y: 8pt), it.body)
+  set table(inset: 6pt, stroke: (_, y) => if y == 0 { (top: 0.8pt + muted, bottom: 0.5pt + muted) })
+  show table.cell.where(y: 0): set text(weight: "semibold")
+  show figure.caption: set text(size: 0.9em, fill: muted)
+
+  place(top, float: true, scope: "parent", clearance: 1.8em, {
+    if title != none {
+      block(below: 0.6em, text(size: 2em, weight: "semibold", fill: accent, font: ("Libertinus Sans",) + font, title))
+      if subtitle != none {
+        block(above: 0em, below: 0.8em, text(size: 1.25em, fill: muted, subtitle))
+      }
+    }
+    if authors != none and authors != () {
+      let count = authors.len()
+      grid(
+        columns: (1fr,) * calc.min(count, 3),
+        row-gutter: 1em,
+        ..authors.map(author => {
+          text(size: 1.05em, author.name)
+          if author.affiliation != "" and author.affiliation != [] { linebreak(); text(size: 0.9em, fill: muted, author.affiliation) }
+          if author.email != "" and author.email != [] { linebreak(); text(size: 0.85em, fill: muted, author.email) }
+        })
+      )
+    }
+    if date != none {
+      block(above: 0.6em, text(size: 0.9em, fill: muted, date))
+    }
+    if abstract != none {
+      block(above: 1.2em, inset: (x: 1.5em), text(size: 0.92em)[#text(weight: "semibold", fill: accent)[Abstract] #h(0.6em) #abstract])
+    }
+    block(above: 1em, line(length: 100%, stroke: 0.8pt + accent))
+  })
+
+  doc
+}
+
+$if(smart)$
+$else$
+#set smartquote(enabled: false)
+
+$endif$
+$for(header-includes)$
+$header-includes$
+
+$endfor$
+#show: doc => conf(
+$if(title)$
+  title: [$title$],
+$endif$
+$if(subtitle)$
+  subtitle: [$subtitle$],
+$endif$
+$if(author)$
+  authors: (
+$for(author)$
+$if(author.name)$
+    ( name: [$author.name$],
+      affiliation: [$author.affiliation$],
+      email: [$author.email$] ),
+$else$
+    ( name: [$author$],
+      affiliation: "",
+      email: "" ),
+$endif$
+$endfor$
+    ),
+$endif$
+$if(keywords)$
+  keywords: ($for(keywords)$$keyword$$sep$,$endfor$),
+$endif$
+$if(date)$
+  date: [$date$],
+$endif$
+$if(lang)$
+  lang: "$lang$",
+$endif$
+$if(region)$
+  region: "$region$",
+$endif$
+$if(abstract)$
+  abstract: [$abstract$],
+$endif$
+$if(margin)$
+  margin: ($for(margin/pairs)$$margin.key$: $margin.value$,$endfor$),
+$endif$
+$if(papersize)$
+  paper: "$papersize$",
+$endif$
+$if(mainfont)$
+  font: ("$mainfont$",),
+$endif$
+$if(fontsize)$
+  fontsize: $fontsize$,
+$endif$
+$if(section-numbering)$
+  sectionnumbering: "$section-numbering$",
+$endif$
+  pagenumbering: $if(page-numbering)$"$page-numbering$"$else$none$endif$,
+  cols: $if(columns)$$columns$$else$1$endif$,
+  doc,
+)
+
+$for(include-before)$
+$include-before$
+
+$endfor$
+$if(toc)$
+#outline(
+  title: auto,
+  depth: $toc-depth$
+);
+$endif$
+
+$body$
+
+$if(citations)$
+$if(csl)$
+
+#set bibliography(style: "$csl$")
+$elseif(bibliographystyle)$
+
+#set bibliography(style: "$bibliographystyle$")
+$endif$
+$if(bibliography)$
+
+#bibliography($for(bibliography)$"$bibliography$"$sep$,$endfor$)
+$endif$
+$endif$
+$for(include-after)$
+
+$include-after$
+$endfor$
