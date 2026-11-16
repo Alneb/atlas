@@ -18,7 +18,8 @@ export function dragRow(dt: DataTransfer, row: { vault: true; path: string; dir?
     dt.setData("text/plain", row.path);
     const root = app.workspace?.root;
     if (root && isLocalCore()) dt.setData("text/uri-list", fileUrl(root, row.path));
-    if (!row.dir) dt.setData("DownloadURL", `application/octet-stream:${basename(row.path)}:${new URL(api.rawUrl(row.path), location.href).href}`);
+    // `mime:name:url` — a ':' in the name would split it wrong, so such a file goes without
+    if (!row.dir && !basename(row.path).includes(":")) dt.setData("DownloadURL", `application/octet-stream:${basename(row.path)}:${new URL(api.rawUrl(row.path), location.href).href}`);
   } else dt.setData(REMOTE_DRAG, JSON.stringify({ source: row.source, place: row.place, path: row.path, dir: row.dir } satisfies RemoteRow));
   dt.effectAllowed = "copyMove";
 }

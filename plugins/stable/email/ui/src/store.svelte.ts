@@ -217,7 +217,8 @@ export class Mail {
     const id = this.openId ?? this.cursor;
     const r = this.rows.find((x) => x.id === id);
     if (r) return [r];
-    if (this.open) return [{ id: this.open.messages.at(-1)!.id, thread: this.open.thread } as Row];
+    const last = this.open?.messages.at(-1);
+    if (this.open && last) return [{ id: last.id, thread: this.open.thread, folder_role: last.folder_role } as Row];
     return [];
   }
 
@@ -265,7 +266,7 @@ export class Mail {
     if (!rows.length) return;
     const ids = rows.map((r) => r.id);
     const threads = new Set(rows.map((r) => r.thread));
-    const before = this.rows;
+    const before = { rows: this.rows, total: this.total, cursor: this.cursor, seq: this.loadSeq };
     const at = Math.max(0, this.index(rows[0].id));
     const wasOpen = this.openId !== null && rows.some((r) => r.id === this.openId || r.thread === this.open?.thread);
     this.rows = this.rows.filter((r) => !threads.has(r.thread));
@@ -286,7 +287,9 @@ export class Mail {
       this.toast(`${label} ${n === 1 ? "1 conversation" : `${n} conversations`}`, "info", moved.length ? { undo: async () => { this.undos = this.undos.filter((u) => u.run !== undo); await undo(); this.later(); } } : {});
       this.loadCounts();
     } catch (e) {
-      this.rows = before;
+      // the list asked for since (another folder, a refresh) is not put back under the old rows: read it again
+      if (before.seq === this.loadSeq) { this.rows = before.rows; this.total = before.total; this.cursor = before.cursor; }
+      else void this.load(true);
       this.toast(`${label} failed: ${(e as Error).message}`, "error");
     }
   }
@@ -302,7 +305,11 @@ export class Mail {
   async trashMessage(id: number) {
     const t = this.open;
     if (!t) return;
-    if (t.messages.length === 1) { const row = this.rows.find((r) => r.thread === t.thread); if (row) return this.trash([row]); }
+    if (t.messages.length === 1) {
+      // the conversation's last message takes the conversation, listed or not (opened from a note, hidden by a search)
+      const row = this.rows.find((r) => r.thread === t.thread) ?? ({ id, thread: t.thread, folder_role: t.messages[0].folder_role } as Row);
+      return this.trash([row]);
+    }
     const msg = t.messages.find((m) => m.id === id);
     const what = msg?.draft ? "Draft" : "Message";
     t.messages = t.messages.filter((m) => m.id !== id);

@@ -318,18 +318,21 @@
     // the vault's own folders follow the disk (another program, the sidebar): the folder shown is read again; the
     // folder itself (or one above it) renamed or deleted → the nearest one still there
     let t: ReturnType<typeof setTimeout> | undefined;
+    let checking = false; // the folder itself was touched: a child's event within the wait must not drop that check
     const off = on("fs", (e) => {
       if (!isVault) return;
       const here = b.loc.path;
       if (here && touches(e.paths, (p) => p === here || here.startsWith(`${p}/`))) {
         clearTimeout(t);
+        checking = true;
         t = setTimeout(async () => {
+          checking = false;
           if (await api.exists(here).catch(() => true)) return void b.reload();
           const to = await nearestThere(here);
           await b.go({ ...b.loc, path: to }, { record: false });
           say(`“${basename(here)}” was moved or deleted; this is the folder above it.`, "bad");
         }, 300);
-      } else if (touches(e.paths, (p) => parentPath(p) === here)) {
+      } else if (!checking && touches(e.paths, (p) => parentPath(p) === here)) {
         clearTimeout(t); t = setTimeout(() => void b.reload(), 300);
       }
     });

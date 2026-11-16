@@ -20,6 +20,8 @@ and versions follow [Semantic Versioning](https://semver.org/) once 1.0 is out.
   own in Settings → Notes (`date_format`).
 
 ### Fixed
+- Email: Enter on a focused button presses it; a failed archive no longer shows the previous folder's mail; the last message of a conversation opened from a note deletes the conversation; dropping mail on its own folder does nothing; "Always from this sender" reports a failure; single-key commands act only when the pane was used last.
+- Files: thumbnails and the preview redraw for another or a changed file; the folder shown being moved still leads to the nearest one; an upload's "already exists" is the server's status, never a 409 in a message (a download could loop); dragging out a name with ':' works.
 - Bases: a formula the core refuses keeps its text in the form; `repeat()` and `replace("")` no longer run away; a day that does not exist (31 February) with a timezone stays text.
 - **Calendar 1.8.1:** the event card's Delete button deletes again; the card's quick create keeps what was typed.
 - **Activity** keeps the day's notes listed when a run writes many files; its tabs fit a narrow card.

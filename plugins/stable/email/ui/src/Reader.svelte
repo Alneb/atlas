@@ -110,8 +110,11 @@
   async function allow(m: Message) {
     const addr = m.from[0]?.addr;
     if (!addr) return;
-    await mail.call("allow_remote", { sender: addr });
-    remoteOk = [...remoteOk, ...t!.messages.filter((x) => x.from[0]?.addr === addr).map((x) => x.id)];
+    const thread = t;
+    try { await mail.call("allow_remote", { sender: addr }); }
+    catch (e) { mail.toast(`Pictures from ${addr} could not be allowed: ${(e as Error).message}`, "error"); return; }
+    if (!thread || t !== thread) return; // another conversation opened meanwhile: the rule is kept, this one's pictures not marked
+    remoteOk = [...remoteOk, ...thread.messages.filter((x) => x.from[0]?.addr === addr).map((x) => x.id)];
     mail.toast(`Pictures from ${addr} are shown from now on`);
   }
   async function unsubscribe() {

@@ -149,13 +149,18 @@
 
   let pending = $state("");
   let pendingTimer: ReturnType<typeof setTimeout> | undefined;
+  let usedLast = false;
+  const pointed = (e: PointerEvent) => { usedLast = !!root?.contains(e.target as Node); };
   function key(e: KeyboardEvent) {
     const t = e.target as HTMLElement;
     if (t.closest("input, textarea, select, [contenteditable=true], [role=dialog] input")) {
       if (e.key === "Escape" && t === searchBox) { searchBox?.blur(); }
       return;
     }
-    if (!root?.contains(t) && t !== document.body) return;
+    // focus on the page itself counts only when the last click was in this pane (not a note's text in another one)
+    if (!root?.contains(t) && !(t === document.body && usedLast)) return;
+    // Enter / Space on a focused button (a toast's Undo, a folder, the reader's tools) press it, not the list's open
+    if ((e.key === "Enter" || e.key === " ") && t.closest("button, a, [role=menuitem]")) return;
     const k = keyOf(e);
     if (["shift", "control", "alt", "meta"].includes(e.key.toLowerCase())) return;
     const seq = pending ? `${pending} ${k}` : k;
@@ -261,7 +266,7 @@
   const TABS: [Kind, string, string][] = [["person", "People", "person"], ["newsletter", "Newsletters", "news"], ["notification", "Notifications", "bell"]];
 </script>
 
-<svelte:window onkeydown={key} />
+<svelte:window onkeydown={key} onpointerdowncapture={pointed} />
 
 <div class="mail" class:narrow class:dark bind:this={root} bind:clientWidth={width}
   style:--side-w="{rail ? 56 : sideW}px" style:--list-w="{listW}px" style:--list-h="{listH}px">

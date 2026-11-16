@@ -42,26 +42,41 @@ function picture(src: FileSource, place: string, path: string, e: Entry, wanted:
 /** `use:thumb={…}` on an <img>: filled when its tile comes near the screen; `.has-thumb` on the tile once drawn. A text
  *  file's lines go in a `.excerpt` beside the <img> instead. */
 export function thumb(img: HTMLImageElement, a: { src: FileSource; place: string; path: string; entry: Entry }) {
-  let alive = true;
   const tile = img.closest(".x-row");
   img.onload = () => tile?.classList.add("has-thumb");
-  const io = new IntersectionObserver((seen) => {
-    if (!seen.some((x) => x.isIntersecting)) return;
-    io.disconnect();
-    void picture(a.src, a.place, a.path, a.entry, () => alive).then((d) => {
-      if (!d || !alive) return;
-      if (typeof d === "string") { img.src = d; return; }
-      if (!d.text) return;
-      img.after(Object.assign(document.createElement("span"), { className: "excerpt", textContent: d.text }));
-      tile?.classList.add("has-text");
-    });
-  }, { rootMargin: "300px" });
-  io.observe(img);
-  return {
-    destroy() {
+  let stop = () => {};
+  // drawn for one file; a reused <img> (another file selected, a tile kept across folders, a changed file) starts over
+  function draw(a: { src: FileSource; place: string; path: string; entry: Entry }) {
+    let alive = true;
+    const io = new IntersectionObserver((seen) => {
+      if (!seen.some((x) => x.isIntersecting)) return;
+      io.disconnect();
+      void picture(a.src, a.place, a.path, a.entry, () => alive).then((d) => {
+        if (!d || !alive) return;
+        if (typeof d === "string") { img.src = d; return; }
+        if (!d.text) return;
+        img.after(Object.assign(document.createElement("span"), { className: "excerpt", textContent: d.text }));
+        tile?.classList.add("has-text");
+      });
+    }, { rootMargin: "300px" });
+    io.observe(img);
+    stop = () => {
       alive = false;
       io.disconnect();
       if (img.nextElementSibling?.classList.contains("excerpt")) img.nextElementSibling.remove();
+      tile?.classList.remove("has-thumb", "has-text");
+      img.removeAttribute("src");
+    };
+  }
+  draw(a);
+  let was = a;
+  return {
+    update(next: typeof a) {
+      if (next.path === was.path && next.place === was.place && next.entry.modified === was.entry.modified) return;
+      was = next;
+      stop();
+      draw(next);
     },
+    destroy() { stop(); },
   };
 }

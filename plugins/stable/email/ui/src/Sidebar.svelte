@@ -56,7 +56,10 @@
     e.preventDefault();
     over = null;
     const ids: number[] = JSON.parse(e.dataTransfer?.getData("application/x-atlas-mail") || "[]");
-    const rows = mail.rows.filter((r) => ids.includes(r.id) && r.account === f.account);
+    const mine = mail.rows.filter((r) => ids.includes(r.id) && r.account === f.account);
+    // onto the folder they are already in: nothing to move (the engine skips them; the list must not hide them)
+    const rows = mine.filter((r) => r.folder !== f.path);
+    if (mine.length && !rows.length) return;
     if (rows.length) mail.moveTo(f.path, f.label, rows);
     else if (ids.length) mail.toast("Mail moves within its own account", "error");
   }
