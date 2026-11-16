@@ -44,6 +44,16 @@ subscriptions; invitations answered from the Email plugin; and tools for agents.
   (an event moved or deleted meanwhile moves or drops it), and keeps what fired in its cache, so a restart never
   rings one twice. A reminder more than 30 minutes late is dropped. Subscriptions' alerts never ring (they are the
   publisher's). The phone rings only once the calendar runs in its app (docs/design/DESIGN-calendar-tasks-nudges.md).
+- **Event notes and links** (DESIGN-calendar-tasks-nudges.md §2): an event gets a note only when asked — **Make a
+  note** on its card, "Calendar: link this note to an event…", a task time-blocked into it — in the folder Settings
+  names (`calendar/2026/2026-11-17 Title.md`): the event's time, place and calendar as properties, `links:`, a
+  `calendar.event` block drawing the live event, and your writing below, never touched. The note follows its event
+  after each sync; a deleted event's note is kept and marked `cancelled: true`. Other calendar apps see the links as
+  `Atlas: [[…]]` lines in the description. The card lists what the note links and what links to it.
+- **Tasks & deadlines** (a switch under "In the vault"): open tasks with 📅 / ⏳ and notes with `due:` on their day;
+  a task's card offers **Time-block…** (then drag the slot on the hours): the event, its note linking the task, and
+  the task's line given `⏳ day` and `[[event note|Tue 14:00]]` before its fields. Also "Calendar: time-block the task
+  at the caret…". When such an event moves, a toast offers **Move ⏳ too**.
 - **Moving an event between calendars**, of the same account or another: written there first, then removed here.
 - **Times** are your local time, 24-hour by default; time zones (IANA, Windows, VTIMEZONE) and DST are handled.
 - **The block `dav.upcoming`** (`days: 7`): today, tomorrow and the rest of the week as a compact agenda.

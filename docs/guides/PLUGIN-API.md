@@ -552,7 +552,7 @@ types are `crates/atlas-core/sdk/js/atlas-helper.d.ts`.
   with their fields read by the core (`path, line, text, done, title, due, scheduled, start, priority, tags,
   recurrence, block`: never parse the emoji yourself); `POST /api/task/tick` with `{ path, line, text, block? }` ticks
   one through the core's one tick path (409 when the line changed); `POST /api/task/block` with the same gives the
-  task a block id (`{ block }`) — only for an action the user took on it; `GET /api/device` answers `{ name,
+  task a block id (`{ block }`) — only for an action the user took on it; `POST /api/task/schedule` with `{ task, scheduled: "YYYY-MM-DD", link?: { target, label } }` plans it into an event (⏳ set, `[[target|label]]` before its fields, one per target, its block id kept last; `{ block, line }`) — the Calendar's Time-block; `GET /api/device` answers `{ name,
   schedules }`, this computer's name and whether the vault's schedules run here, for work that must happen on one
   device only (the Plan plugin's nudges).
 - **The web**: `fetch(url, {method, headers, body, timeout, every, missing, waits})` → text (`null` for a `missing`

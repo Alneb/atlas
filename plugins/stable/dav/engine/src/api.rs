@@ -74,6 +74,7 @@ pub fn table() -> Vec<(&'static str, Method)> {
         ("event_note", event_note_method),
         ("link_event", link_event),
         ("time_block", time_block),
+        ("move_tasks", move_tasks),
     ]
 }
 
@@ -1471,12 +1472,16 @@ fn event_get(p: Value) -> Res {
     let user = conf::user_zone(&p);
     let uid = param(&p, "uid").ok_or_else(|| error("uid: required"))?;
     let rid = param(&p, "rid");
-    let note = event_note::find(&conf::vault_root(), &event_note::folder(&s), uid, rid);
+    let root = conf::vault_root();
+    let note = event_note::find(&root, &event_note::folder(&s), uid, rid);
     let backlinks = match (&note, conf::serving()) {
         (Some((path, _)), true) => atlas_plugin::Atlas::new().get(&format!("/api/backlinks?path={}", url::form_urlencoded::byte_serialize(path.as_bytes()).collect::<String>())).unwrap_or(Value::Null),
         _ => Value::Null,
     };
-    let note = note.map(|(path, text)| json!({ "path": path, "links": event_note::links(&text), "cancelled": event_note::written(&text).cancelled }));
+    let note = note.map(|(path, text)| {
+        let links: Vec<event_note::Linked> = event_note::links(&text).iter().map(|l| event_note::resolve(&root, l)).collect();
+        json!({ "path": path, "links": links, "cancelled": event_note::written(&text).cancelled })
+    });
     let Some((i, src)) = event_note::instance_of(&engine().store, uid, rid, around(&p, &user), &user) else {
         return Ok(json!({ "event": null, "note": note, "backlinks": backlinks }));
     };
@@ -1523,6 +1528,36 @@ fn time_block(p: Value) -> Res {
     eprintln!("dav: time-blocked {link} into \"{}\" ({}) in {}", snap.title, snap.start, dst.id);
     changed();
     Ok(json!({ "uid": uid, "href": href.as_str(), "calendar": dst.id, "note": note, "block": block, "line": line["line"], "undo": undo, "start": snap.start, "label": label }))
+}
+
+/// "Move ⏳" after an event moved (the page offers it, the user presses it): every task its note links to by a block
+/// id gets ⏳ the event's new day and its link relabelled (the core's `POST /api/task/schedule`). `note`: the event
+/// note's path.
+fn move_tasks(p: Value) -> Res {
+    let s = conf::settings(&p);
+    let root = conf::vault_root();
+    let note = param(&p, "note").ok_or_else(|| error("note: required"))?;
+    let text = std::fs::read_to_string(root.join(note)).map_err(|e| error(format!("{note}: {e}")))?;
+    let snap = event_note::written(&text);
+    let day = snap.day().ok_or_else(|| error("the note has no start"))?;
+    let snap = Snapshot { title: String::new(), ..snap };
+    let label = event_note::slot_label(&snap, conf::text(&s, "time_format") == "12h");
+    let atlas = atlas_plugin::Atlas::new();
+    let mut moved = 0;
+    let mut failed = Vec::new();
+    for l in event_note::links(&text) {
+        let r = event_note::resolve(&root, &l);
+        let Some(block) = l.split("#^").nth(1).map(|b| b.trim_end_matches("]]").split('|').next().unwrap_or_default().to_string()) else { continue };
+        if r.task.as_deref() != Some(" ") {
+            continue; // done, or not a task: left alone
+        }
+        let task = json!({ "path": r.path, "line": r.line.unwrap_or(0), "block": block });
+        match atlas.post("/api/task/schedule", &json!({ "task": task, "scheduled": day.to_string(), "link": { "target": note, "label": label } })) {
+            Ok(_) => moved += 1,
+            Err(e) => failed.push(format!("{}: {e}", r.title)),
+        }
+    }
+    Ok(json!({ "moved": moved, "failed": failed, "day": day.to_string(), "label": label }))
 }
 
 #[cfg(test)]

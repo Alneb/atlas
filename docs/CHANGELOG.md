@@ -6,6 +6,11 @@ and versions follow [Semantic Versioning](https://semver.org/) once 1.0 is out.
 ## [Unreleased]
 
 ### Added
+- Calendar 1.8: events get notes on demand ("Make a note" on an event, "Calendar: link this note to an event…"),
+  kept in step with the event and marked cancelled when it is deleted; the event's card lists the note's links and
+  backlinks. A **Tasks & deadlines** layer shows dated tasks and notes in the pane, and **Time-block…** turns a task
+  into an event linked both ways: the task gets `⏳` and a link to the event's note; when the event moves, a toast
+  offers to move the `⏳` too. Agents: `dav_link_event`, `dav_time_block`.
 - The Plan plugin (beta) nudges you about open tasks when they fit your day: a task dated within a week or overdue,
   or marked ⏫/🔺, gets a notification at the first free gap in your calendar that holds it, outside quiet hours,
   once per morning, afternoon or evening, with **Done** (ticks it), **Snooze to 16:30** (the next free slot) and

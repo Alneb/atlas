@@ -15,9 +15,9 @@
   import Shortcuts from "./Shortcuts.svelte";
   import Icon from "./Icon.svelte";
   import CalendarPicker from "./CalendarPicker.svelte";
-  import { Cal, type Draft, type View } from "./store.svelte";
+  import { Cal, type Draft, type Moved, type View } from "./store.svelte";
   import { BY_KEY, COMMANDS, keyOf, shown, type Ui } from "./keys";
-  import { addDays, call, startOfDay, timeText, wall, ymd, type Ev, type PluginApi, type Quick } from "./api";
+  import { addDays, call, startOfDay, timeText, wall, ymd, type Ev, type PluginApi, type Quick, type TaskRow } from "./api";
 
   let { atlas }: { atlas: PluginApi } = $props();
   // svelte-ignore state_referenced_locally
@@ -76,6 +76,7 @@
   }
   function back() {
     if (help) { help = false; return; }
+    if (cal.placing) { cal.placing = null; return; }
     if (editor) { editor = null; return; }
     if (pop) { pop = null; return; }
     if (quickOpen) { quickOpen = false; return; }
@@ -161,10 +162,12 @@
     void (async () => { await cal.loadSources(); await cal.load(); void cal.sync(false); })();
     const offs = [
       atlas.helper.on("changed", () => { void cal.loadSources(); cal.later(); }),
+      // an event with linked tasks moved (dragged here, or synced from elsewhere): offer to move their ⏳
+      atlas.helper.on("moved", (d) => { for (const m of (d as { moved?: Moved[] }).moved ?? []) cal.offerMove(m); }),
     ];
     const tick = setInterval(() => (cal.now = new Date()), 30_000);
     // another part of Atlas asks to show a day (the Home card, a command)
-    const show = (e: Event) => { const d = (e as CustomEvent<{ date?: string; view?: View; quick?: boolean; create?: boolean }>).detail ?? {}; if (d.date) cal.go(new Date(`${d.date}T12:00`), d.view); else if (d.view) cal.setView(d.view); if (d.quick) openQuick(); if (d.create) newEvent(); };
+    const show = (e: Event) => { const d = (e as CustomEvent<{ date?: string; view?: View; quick?: boolean; create?: boolean; place?: TaskRow }>).detail ?? {}; if (d.date) cal.go(new Date(`${d.date}T12:00`), d.view); else if (d.view) cal.setView(d.view); if (d.quick) openQuick(); if (d.create) newEvent(); if (d.place) cal.startPlacing(d.place); };
     window.addEventListener("atlas-calendar:show", show);
     const pending = (window as unknown as { __atlasCalendarShow?: unknown }).__atlasCalendarShow;
     if (pending) { show(new CustomEvent("x", { detail: pending })); (window as unknown as { __atlasCalendarShow?: unknown }).__atlasCalendarShow = undefined; }
@@ -218,6 +221,14 @@
     </div>
   {/if}
 
+  {#if cal.placing}
+    <div class="placing" role="status">
+      <span class="tbox" aria-hidden="true"></span>
+      <span class="ptext">Time-block <b>{cal.placing.title}</b>: drag over the hours it takes, or click where it starts</span>
+      <button class="atlas-btn" onclick={() => (cal.placing = null)}>Cancel</button>
+    </div>
+  {/if}
+
   <div class="body">
     {#if sideShown}<aside class="side" aria-label="Calendars"><Sidebar {cal} oncreate={newEvent} /></aside>{/if}
     <main class="view">
@@ -231,7 +242,7 @@
       {:else if view === "month"}
         <MonthView {cal} days={cal.days()} {selected} onselect={select} oncreate={create} />
       {:else if view === "agenda"}
-        <AgendaView {cal} events={cal.events} from={cal.range().from} to={cal.range().to} {selected} onselect={select} />
+        <AgendaView {cal} events={cal.shownEvents()} from={cal.range().from} to={cal.range().to} {selected} onselect={select} />
       {:else if view === "year"}
         <YearView {cal} />
       {:else}
@@ -283,6 +294,9 @@
   .qprev { color: var(--text-muted); font-size: 0.9em; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .qprev b { color: var(--text); }
   .body { grid-row: 3; display: flex; min-height: 0; }
+  .placing { grid-row: 2; display: flex; align-items: center; gap: 10px; padding: 8px 14px; border-bottom: 1px solid var(--border); background: var(--accent-soft); color: var(--text); min-width: 0; flex-wrap: wrap; }
+  .ptext { flex: 1 1 240px; min-width: 0; overflow-wrap: anywhere; }
+  .placing .tbox { width: 11px; height: 11px; border: 1.5px solid var(--accent-strong); border-radius: 3px; flex: none; box-sizing: border-box; }
   .side { flex: none; width: 248px; border-right: 1px solid var(--border); background: var(--bg-alt); min-height: 0; }
   .view { flex: 1; min-width: 0; min-height: 0; position: relative; display: flex; flex-direction: column; }
   .view > :global(*) { flex: 1; min-height: 0; }

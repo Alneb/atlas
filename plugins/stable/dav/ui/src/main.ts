@@ -3,11 +3,12 @@
 // into an account card, and the engine's background sync.
 import { mount, unmount } from "svelte";
 import Upcoming from "./Upcoming.svelte";
+import EventBlock from "./EventBlock.svelte";
 import CalendarsSection from "./CalendarsSection.svelte";
-import { NEW_EVENT_DIALOG, call, newEventDialog, type NewEventSeed, type PluginApi } from "./api";
+import { NEW_EVENT_DIALOG, addDays, call, newEventDialog, span, hourCycle, ymd, type Ev, type NewEventSeed, type PluginApi, type TaskRow } from "./api";
 import { localDay } from "../../../../../ui/src/lib/local-day"; // today where the user is, not UTC's
 
-type Show = { date?: string; view?: string; quick?: boolean; create?: boolean };
+type Show = { date?: string; view?: string; quick?: boolean; create?: boolean; place?: TaskRow };
 
 export function register(atlas: PluginApi) {
   type Card = { name?: string; url?: string; user?: string; server?: string };
@@ -110,6 +111,63 @@ export function register(atlas: PluginApi) {
     const a = d as { title: string; start: string; outcome: string };
     atlas.toast(a.outcome === "updated" ? "Updated in your calendar" : "Added to your calendar", `${a.title} — ${a.start}`, "info", { run: () => show({ date: a.start.slice(0, 10), view: "day" }) });
   });
+
+  // ----- links (DESIGN-calendar-tasks-nudges §2.3): a note to an event, a task into the calendar
+
+  /** "Link to event…": the events of the weeks around today in the palette; the one picked gets `link` in its note's
+   *  `links:` (the note made on demand). */
+  const linkToEvent = (link: string) => {
+    const today = new Date();
+    atlas.pick({
+      placeholder: "Link to which event? (type to filter)", tag: "Link to event", icon: "calendar",
+      items: async () => {
+        const r = await call<{ events: Ev[] }>(atlas, "range", { from: ymd(addDays(today, -14)), to: ymd(addDays(today, 60)) }, 60);
+        const soon = (e: Ev) => Math.abs(new Date(e.start.length === 10 ? `${e.start}T12:00` : e.start).getTime() - today.getTime());
+        return r.events.filter((e) => e.calendar !== "notes").sort((a, b) => soon(a) - soon(b)).slice(0, 200)
+          .map((e) => ({ value: JSON.stringify({ uid: e.uid, rid: e.rid, start: e.start }), title: e.summary || "(no title)", detail: `${span(e, hourCycle(atlas.plugin.settings.time_format))} · ${e.calendar_name}` }));
+      },
+      onpick: async (v) => {
+        try {
+          const r = await call<{ note: string; made: boolean }>(atlas, "link_event", { ...JSON.parse(v), link }, 60);
+          atlas.toast("Linked to the event", `${link.replace(/\.md$/, "")} → ${r.note.replace(/\.md$/, "").split("/").pop()}`, "success", { label: "Open", run: () => atlas.open(r.note) });
+        } catch (e) { atlas.toast("Not linked", (e as Error).message, "error"); }
+      },
+    });
+  };
+  const activeNote = () => {
+    const a = atlas.context().active;
+    return a?.path && /\.md$/i.test(a.path) ? a.path : null;
+  };
+  atlas.registerCommand({
+    id: "link",
+    title: "Calendar: link this note to an event…",
+    run: () => { const n = activeNote(); if (n) linkToEvent(n); else atlas.toast("Calendar", "Open the note to link first.", "error"); },
+  });
+  // another plugin's "Link to event…" (Email: the conversation, saved as a note first)
+  window.addEventListener("atlas-calendar:link", (ev) => {
+    const { link, ack } = ((ev as CustomEvent).detail ?? {}) as { link?: string; ack?: boolean };
+    if (ack) window.dispatchEvent(new CustomEvent("atlas-calendar:heard"));
+    if (link) linkToEvent(link);
+  });
+  // the task under the caret into the calendar: the pane waits for the slot dragged on its hours
+  atlas.registerCommand({
+    id: "time-block",
+    title: "Calendar: time-block the task at the caret…",
+    run: async () => {
+      const sel = atlas.context().selection;
+      const line = sel ? (await atlas.readText(sel.path)).split("\n")[sel.from_line - 1] ?? "" : "";
+      const m = /^\s*(?:[-*+]|\d+[.)])\s+\[ \]\s+(.*)$/.exec(line);
+      if (!sel || !m) { atlas.toast("Calendar", "Put the caret on an open task (- [ ] …) first.", "error"); return; }
+      const title = m[1].replace(/\s+\^[\w-]+\s*$/, "").replace(/\s+(?:[⏫🔺🔼🔽⏬]|[📅⏳🛫➕✅]\s*\d{4}-\d{2}-\d{2}|🔁.*).*$/u, "").trim();
+      show({ view: "week", place: { path: sel.path, line: sel.from_line, title, date: "", done: false, props: { from: "task" } } });
+    },
+  });
+
+  // ```calendar.event``` in an event's note: the live event its uid names
+  atlas.registerBlock("calendar.event", (host, b) => {
+    const v = mount(EventBlock, { target: host, props: { atlas, props: b.props, onopen: (date: string) => show({ date, view: "day" }) } });
+    return () => unmount(v);
+  }, { title: "Calendar: the event of this note" });
 
   // ```view\ntype: dav.upcoming\ndays: 7\n``` — today, tomorrow, the week
   atlas.registerBlock("dav.upcoming", (host, b) => {

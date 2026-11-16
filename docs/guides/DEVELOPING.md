@@ -218,7 +218,7 @@ a plugin through `GET /api/tasks` — gets `today::listed` (path, line, the text
 priority, tags, recurrence, block id); none reads the emoji itself. Ticking is `POST /api/task/tick` → `today::tick_ref`
 (by block id, else line + text; the `✅ date` goes before a block id, which stays last), which also withdraws the
 notices about the task. A block id is added only for an action the user took on the task (`POST /api/task/block` →
-`today::block_of`: a nudge's Snooze, a link). `GET /api/device` tells a plugin whether this core runs the vault's
+`today::block_of`: a nudge's Snooze, a link). Planning a task into an event is `POST /api/task/schedule` → `today::schedule_ref` (its ⏳, a link to the event's note in its description before the fields, relabelled rather than doubled when the event moves, the block id kept last), through the same writer; the Calendar's Time-block and "Move ⏳ too" call it, and its event notes (one per event, made on demand, refreshed after each sync) are `plugins/stable/dav/engine/src/event_note.rs`. `GET /api/device` tells a plugin whether this core runs the vault's
 schedules, for work done on one device only. The Plan plugin (`plugins/beta/plan`) is built on these and on planned
 notices with buttons (above): it has no route or loop of its own in the core.
 

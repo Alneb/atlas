@@ -21,7 +21,7 @@
   const key = (e: Ev) => e.calendar + e.uid + (e.rid ?? "");
 
   function layout(week: Date[]) {
-    const bars = laneBars(cal.events, week);
+    const bars = laneBars(cal.shownEvents(), week);
     const used = Math.min(ROWS, Math.max(0, ...bars.map((b) => b.row + 1)));
     const shownBars = bars.filter((b) => b.row < ROWS - (bars.some((x) => x.row >= ROWS) ? 1 : 0));
     const cells = week.map((d, i) => {

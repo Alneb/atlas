@@ -1,10 +1,11 @@
 <script lang="ts">
   // The card on a click (Google's): an event's when in local time, where, which calendar, the note it came from,
   // who comes — with Edit (e), Delete (Del) and Open note; Join for an online meeting, and Going? Yes / Maybe / No for
-  // a meeting the user is invited to in an Exchange calendar (Exchange tells the organiser). Or, on empty space, a new event's title box: Enter saves,
-  // "More options" opens the editor.
+  // a meeting the user is invited to in an Exchange calendar (Exchange tells the organiser); the event's note (made on
+  // demand), what that note links (a time-blocked task) and what links to it. A task of the Tasks & deadlines layer
+  // shows its note and Time-block. Or, on empty space, a new event's title box: Enter saves, "More options" opens the editor.
   import { onMount } from "svelte";
-  import { meetingLink, notePath, ruleText, span, timeText, type Answer, type Ev } from "./api";
+  import { call, meetingLink, notePath, ruleText, span, timeText, type Answer, type Ev, type EventInfo, type Linked } from "./api";
   import type { Cal, Draft } from "./store.svelte";
   import CalendarPicker from "./CalendarPicker.svelte";
   import Icon from "./Icon.svelte";
@@ -41,7 +42,26 @@
     onclose();
     await cal.create({ summary: title.trim() || "(no title)", start: draft.all_day ? d(draft.start) : w(draft.start), end: draft.all_day ? d(draft.end) : w(draft.end), all_day: draft.all_day, calendar: target || undefined });
   }
-  const note = $derived(e ? notePath(e) : null);
+  // the event's note and links, asked of the engine when the card opens (a task row has none)
+  let info = $state<EventInfo | null>(null);
+  let making = $state(false);
+  onMount(() => {
+    if (!e || e.task || e.uid.startsWith("pending-") || e.calendar === "notes") return;
+    void call<EventInfo>(cal.atlas, "event", { uid: e.uid, rid: e.rid, start: e.start }).then((r) => { info = r; setTimeout(place, 0); }, () => {});
+  });
+  const note = $derived(info?.note?.path ?? (e ? notePath(e) : null));
+  const backlinks = $derived((info?.backlinks?.links ?? []).filter((b) => b.source !== note && !(info?.note?.links ?? []).some((l) => l.path === b.source)));
+  const openLinked = (l: Linked) => { cal.atlas.open(l.path, l.line); onclose(); };
+  /** "Note": the event's note made (once) and opened. */
+  async function makeNote() {
+    if (!e || making) return;
+    making = true;
+    try {
+      const r = await call<{ note: string }>(cal.atlas, "event_note", { uid: e.uid, rid: e.rid, start: e.start });
+      cal.atlas.open(r.note);
+      onclose();
+    } catch (err) { cal.toast(`No note made: ${(err as Error).message}`, "error"); } finally { making = false; }
+  }
   const join = $derived(e ? meetingLink(e) : null);
   const ANSWERS: [Answer, string][] = [["ACCEPTED", "Yes"], ["TENTATIVE", "Maybe"], ["DECLINED", "No"]];
   // the card's own copy: `e` is the event as it was when the card opened, the store's list moves on without it
@@ -57,7 +77,21 @@
 </script>
 
 <div class="pop" bind:this={card} style:left="{pos.left}px" style:top="{pos.top}px" role="dialog" aria-label={e ? e.summary : "New event"}>
-  {#if e}
+  {#if e?.task}
+    {@const t = e.task}
+    <div class="bar"><button class="tool" onclick={onclose} title="Close (Esc)"><Icon name="x" size={15} /></button></div>
+    <div class="head">
+      <span class="tsq" aria-hidden="true"></span>
+      <div><h2>{e.summary || "(no title)"}</h2>
+        <p class="when">{t.props.from === "note" ? "Due" : "Task"} · {span(e, cal.h12).replace(" · all day", "")}</p>
+      </div>
+    </div>
+    <p class="line faint"><Icon name="note" size={14} />{t.path.replace(/\.md$/, "")}</p>
+    <div class="acts start">
+      {#if t.props.from !== "note"}<button class="atlas-btn primary" onclick={() => { cal.startPlacing(t); onclose(); }}><Icon name="clock" size={14} />Time-block…</button>{/if}
+      <button class="atlas-btn" onclick={() => { cal.atlas.open(t.path, t.line ?? undefined); onclose(); }}><Icon name="note" size={14} />Open the note</button>
+    </div>
+  {:else if e}
     <div class="bar">
       {#if e.writable}<button class="tool" onclick={onedit} title="Edit (e)"><Icon name="pen" size={15} /></button>
         <button class="tool" onclick={() => { onclose(); void cal.remove(e); }} title="Delete (Del)"><Icon name="trash" size={15} /></button>{/if}
@@ -93,7 +127,22 @@
     {/if}
     {#if e.description}<p class="line desc"><Icon name="text" size={14} /><span>{e.description}</span></p>{/if}
     <p class="line faint"><Icon name="calendar" size={14} />{e.calendar_name}{e.writable ? "" : " · read-only"}</p>
-    {#if note}<button class="atlas-btn" onclick={() => { cal.atlas.open(note); onclose(); }}><Icon name="note" size={14} />Open the note</button>{/if}
+    {#if info?.note?.links.length}
+      <div class="line linked"><Icon name="link" size={14} />
+        <ul aria-label="Linked">
+          {#each info.note.links as l (l.link)}<li><button class="lk" class:done={l.task === "x"} onclick={() => openLinked(l)} title={l.path}>{#if l.task !== undefined}<span class="tsq small" class:checked={l.task === "x"} aria-hidden="true"></span>{/if}{l.title}</button></li>{/each}
+        </ul>
+      </div>
+    {/if}
+    {#if backlinks.length}
+      <div class="line linked"><Icon name="backlink" size={14} />
+        <ul aria-label="Linked from">
+          {#each backlinks.slice(0, 6) as b (b.source + b.line)}<li><button class="lk" onclick={() => { cal.atlas.open(b.source, b.line); onclose(); }} title={b.context}>{b.source.split("/").pop()?.replace(/\.md$/, "")}</button></li>{/each}
+        </ul>
+      </div>
+    {/if}
+    {#if note}<button class="atlas-btn" onclick={() => { cal.atlas.open(note); onclose(); }}><Icon name="note" size={14} />Open the note</button>
+    {:else if e.calendar !== "notes" && !e.uid.startsWith("pending-")}<button class="atlas-btn" onclick={makeNote} disabled={making} title="A note of its own for this event: its time and place as properties, your writing below"><Icon name="note" size={14} />Make a note</button>{/if}
     {#if e.url}<p class="line"><Icon name="link" size={14} /><a href={e.url} target="_blank" rel="noreferrer">{e.url}</a></p>{/if}
   {:else if draft}
     <div class="bar"><button class="tool" onclick={onclose} title="Close (Esc)"><Icon name="x" size={15} /></button></div>
@@ -140,5 +189,14 @@
   .answer { display: flex; align-items: center; gap: 6px; padding: 6px 0; font-size: 0.9em; }
   .answer span { color: var(--text-muted); margin-right: auto; }
   .answer .chosen { background: var(--accent-soft); border-color: var(--accent); color: var(--accent-strong, var(--accent)); }
-  .acts { display: flex; justify-content: flex-end; gap: 8px; }
+  .acts { display: flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
+  .acts.start { justify-content: flex-start; }
+  .tsq { width: 13px; height: 13px; border: 1.5px solid var(--text-muted); border-radius: 4px; flex: none; margin-top: 5px; box-sizing: border-box; }
+  .tsq.small { width: 10px; height: 10px; margin: 0; border-radius: 3px; }
+  .tsq.checked { background: var(--text-faint); border-color: var(--text-faint); }
+  .linked ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; min-width: 0; }
+  .lk { all: unset; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; color: var(--accent); overflow-wrap: anywhere; border-radius: var(--radius-sm); }
+  .lk:hover { text-decoration: underline; }
+  .lk:focus-visible { outline: 2px solid var(--accent); }
+  .lk.done { color: var(--text-muted); text-decoration: line-through; }
 </style>

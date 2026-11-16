@@ -216,6 +216,45 @@ pub fn add_link(text: &str, link: &str) -> Option<String> {
     Some(join(&lines, rest))
 }
 
+/// A link of an event note, as its card lists it: what it opens (the vault path and, for a task's block id, its
+/// line) and what to call it (a task's title, else the note's name).
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct Linked {
+    pub link: String,
+    pub path: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub line: Option<u32>,
+    pub title: String,
+    /// a task: open (` `) or done (`x`)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub task: Option<String>,
+}
+
+/// `[[notes/Thesis#^t3f9a|x]]` read in the vault at `root`: the file (`.md` added when the target has no extension),
+/// the line of the block id, a task's title and box.
+pub fn resolve(root: &Path, link: &str) -> Linked {
+    let inner = link.trim().trim_start_matches("[[").trim_end_matches("]]");
+    let (target, label) = inner.split_once('|').map_or((inner, None), |(t, l)| (t, Some(l)));
+    let (file, anchor) = target.split_once('#').map_or((target, None), |(f, a)| (f, Some(a)));
+    let path = if Path::new(file).extension().is_some() { file.to_string() } else { format!("{file}.md") };
+    let name = Path::new(file).file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+    let mut out = Linked { link: link.to_string(), path: path.clone(), line: None, title: label.unwrap_or(&name).to_string(), task: None };
+    let Some(block) = anchor.and_then(|a| a.strip_prefix('^')) else { return out };
+    let Ok(text) = std::fs::read_to_string(root.join(&path)) else { return out };
+    let want = format!("^{block}");
+    if let Some((i, line)) = text.lines().enumerate().find(|(_, l)| l.trim_end().ends_with(&want)) {
+        out.line = Some(i as u32 + 1);
+        let body = line.trim_start().trim_start_matches(['-', '*', '+']).trim_start();
+        if let Some(rest) = body.strip_prefix('[').and_then(|r| r.get(1..)).and_then(|r| r.strip_prefix("] ")) {
+            out.task = body.get(1..2).map(str::to_string);
+            let cut = rest.find(|c: char| "⏫🔺🔼🔽⏬📅⏳🛫➕✅🔁^".contains(c)).unwrap_or(rest.len());
+            let cut = rest[..cut].find(" [[").unwrap_or(cut);
+            out.title = rest[..cut].trim().to_string();
+        }
+    }
+    out
+}
+
 /// An event note's key: (uid, recurrence_id), when the text is one (`type: event` with a `uid`).
 pub fn key_of(text: &str) -> Option<(String, Option<String>)> {
     let m = crate::sync::frontmatter(text);
@@ -384,6 +423,19 @@ mod tests {
         let added = add_link(hand, "[[mail/x]]").unwrap();
         assert_eq!(added, "---\ntype: event\nuid: u1\nlinks: [\"[[a]]\", \"[[mail/x]]\"]\n---\nbody\n");
         assert_eq!(add_link(&added, "[[mail/x.md]]"), None, "the same target");
+    }
+
+    #[test]
+    fn a_link_is_resolved_to_its_file_line_and_task_title() {
+        let dir = std::env::temp_dir().join(format!("atlas-dav-resolve-{}", std::process::id()));
+        std::fs::create_dir_all(dir.join("notes")).unwrap();
+        std::fs::write(dir.join("notes/Thesis.md"), "# Thesis\n\n- [ ] Write the introduction [[calendar/2026/2026-11-17 Write|Tue 14:00]] ⏫ ⏳ 2026-11-17 ^t3f9a\n").unwrap();
+        let l = resolve(&dir, "[[notes/Thesis#^t3f9a]]");
+        assert_eq!((l.path.as_str(), l.line, l.title.as_str(), l.task.as_deref()), ("notes/Thesis.md", Some(3), "Write the introduction", Some(" ")));
+        let m = resolve(&dir, "[[mail/uni/Inbox/2026-11-10 Rapport|the report]]");
+        assert_eq!((m.path.as_str(), m.line, m.title.as_str()), ("mail/uni/Inbox/2026-11-10 Rapport.md", None, "the report"));
+        assert_eq!(resolve(&dir, "[[notes/Thesis]]").title, "Thesis");
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     const ICS: &str = "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VEVENT\r\nUID:6b1f@atlas\r\nSUMMARY:Write intro\r\nLOCATION:D3\r\nDTSTART:20261117T140000\r\nDTEND:20261117T150000\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n";

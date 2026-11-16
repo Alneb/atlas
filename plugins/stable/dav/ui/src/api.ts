@@ -19,7 +19,21 @@ export interface Ev {
   calendar: string; calendar_name: string; color?: string; href?: string; writable: boolean;
   /** the user's answer to a meeting they are invited to in an Exchange calendar (the card's Yes / Maybe / No) */
   answer?: Answer | "NEEDS-ACTION";
+  /** a row of the Tasks & deadlines layer drawn as an all-day item (not an event: no uid on a server) */
+  task?: TaskRow;
 }
+/** A deadline as the core's `from: deadlines` view gives it (a task with its line, or a note with `due:`). */
+export interface TaskRow { path: string; line: number | null; title: string; date: string; done: boolean | null; props: Record<string, string> }
+/** A link of an event's note, resolved by the engine (event_note.rs `Linked`). */
+export interface Linked { link: string; path: string; line?: number; title: string; task?: string }
+/** The engine's `event`: one occurrence, its note (made on demand) and that note's backlinks. */
+export interface EventInfo {
+  event: Ev | null;
+  note: { path: string; links: Linked[]; cancelled: boolean } | null;
+  backlinks: { links: { source: string; line: number; context: string }[] } | null;
+}
+/** The layer of the core's deadlines, kept like a calendar's visibility. */
+export const TASKS = "tasks";
 export type Answer = "ACCEPTED" | "TENTATIVE" | "DECLINED";
 
 /** The online meeting's join link (Teams, Zoom, Meet, Webex, Jitsi), from where an invitation puts it: the location,

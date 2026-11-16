@@ -1,5 +1,6 @@
 <script lang="ts">
-  // What just happened, at the bottom: "Moved “Seminar” · Undo", errors with the reason.
+  // What just happened, at the bottom: "Moved “Seminar” · Undo", errors with the reason; a button for what follows
+  // from it ("Open the note", "Move ⏳ too").
   import type { Cal } from "./store.svelte";
   let { cal }: { cal: Cal } = $props();
 </script>
@@ -8,6 +9,7 @@
   {#each cal.toasts as t (t.id)}
     <div class="toast" class:error={t.kind === "error"} role={t.kind === "error" ? "alert" : "status"}>
       <span class="text">{t.text}</span>
+      {#if t.action}<button onclick={async () => { cal.dismiss(t.id); await t.action?.run(); }}>{t.action.label}</button>{/if}
       {#if t.undo}<button onclick={async () => { cal.dismiss(t.id); await t.undo?.(); }}>Undo</button>{/if}
       <button class="x" onclick={() => cal.dismiss(t.id)} aria-label="Close">×</button>
     </div>

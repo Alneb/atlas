@@ -20,7 +20,7 @@
   let cols: HTMLDivElement | undefined = $state();
 
   const placed = $derived(days.map((d) => dayColumns(cal.events, d)));
-  const bars = $derived(laneBars(cal.events, days));
+  const bars = $derived(laneBars(cal.shownEvents(), days));
   const laneRows = $derived(Math.max(1, ...bars.map((b) => b.row + 1)));
   const hours = Array.from({ length: 24 }, (_, h) => h);
   // 00–23 on the 24-hour clock (the 00 line is the top edge, left unlabelled)
@@ -95,6 +95,8 @@
     if (!d) return;
     const t = (day: number, min: number) => new Date(days[day].getFullYear(), days[day].getMonth(), days[day].getDate(), 0, min);
     if (d.kind === "create") {
+      // a task being time-blocked takes the slot (a click: an hour from there)
+      if (cal.placing) { void cal.timeBlock(t(d.day, d.from), t(d.day, d.to)); return; }
       // the popover points at the new slot
       const r = cols!.getBoundingClientRect(), w = r.width / days.length;
       oncreate(t(d.day, d.from), t(d.day, d.to), false, new DOMRect(r.left + d.day * w, r.top + (d.from / 60) * HOUR, w, ((d.to - d.from) / 60) * HOUR));
@@ -118,6 +120,7 @@
 
   function laneClick(ev: MouseEvent, day: number) {
     if ((ev.target as HTMLElement).closest(".bar")) return;
+    if (cal.placing) return; // a time-block wants hours
     const d = days[day];
     oncreate(startOfDay(d), addDays(startOfDay(d), 1), true, (ev.currentTarget as HTMLElement).getBoundingClientRect());
   }
@@ -140,10 +143,10 @@
     <div class="lanecols">
       {#each days as _d, i (i)}<div class="lanecell" role="button" tabindex="-1" aria-label="New all-day event" style:grid-column={i + 1} onclick={(ev) => laneClick(ev, i)} onkeydown={() => {}}></div>{/each}
       {#each bars as b (b.e.calendar + b.e.uid + (b.e.rid ?? "") + b.from)}
-        <button class="bar ev" class:sel={isSel(b.e)} class:clipl={b.clippedStart} class:clipr={b.clippedEnd} class:cancel={b.e.status === "CANCELLED"} style:--c={color(b.e)}
+        <button class="bar ev" class:task={!!b.e.task} class:sel={isSel(b.e)} class:clipl={b.clippedStart} class:clipr={b.clippedEnd} class:cancel={b.e.status === "CANCELLED"} style:--c={color(b.e)}
           style:grid-column="{b.from + 1} / {b.to + 2}" style:grid-row={b.row + 1}
           onclick={(ev) => onselect(b.e, (ev.currentTarget as HTMLElement).getBoundingClientRect())} title={b.e.summary}>
-          {#if notePath(b.e)}<span class="dot" aria-hidden="true"></span>{/if}{b.e.summary || "(no title)"}
+          {#if b.e.task}<span class="tbox" aria-hidden="true"></span>{:else if notePath(b.e)}<span class="dot" aria-hidden="true"></span>{/if}{b.e.summary || "(no title)"}
         </button>
       {/each}
     </div>
@@ -175,7 +178,7 @@
             {/each}
             {#if drag && drag.moved && drag.day === i}
               <div class="ev slot-ghost" style:--c={drag.e ? color(drag.e) : "var(--accent)"} style:top="{(drag.from / 60) * HOUR}px" style:height="{((drag.to - drag.from) / 60) * HOUR - 2}px" style:left="1px" style:width="calc(100% - 3px)">
-                <span class="t">{drag.e?.summary ?? "New event"}</span>
+                <span class="t">{drag.e?.summary ?? cal.placing?.title ?? "New event"}</span>
                 <span class="when">{timeText(new Date(2000, 0, 1, 0, drag.from), cal.h12)} – {timeText(new Date(2000, 0, 1, 0, drag.to), cal.h12)}</span>
               </div>
             {/if}
@@ -207,6 +210,10 @@
   .bar.clipl { border-top-left-radius: 0; border-bottom-left-radius: 0; margin-left: 0; }
   .bar.clipr { border-top-right-radius: 0; border-bottom-right-radius: 0; margin-right: 0; }
   .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--c); flex: none; }
+  /* a task of the Tasks & deadlines layer: its box, not an event's colour block */
+  .bar.task { background: transparent; border: 1px dashed var(--border-strong); border-left-width: 1px; color: var(--text-muted); }
+  .bar.task:hover { background: var(--bg-hover); color: var(--text); }
+  .tbox { width: 9px; height: 9px; border: 1.5px solid currentColor; border-radius: 3px; flex: none; box-sizing: border-box; }
   .scroll { overflow-y: auto; min-height: 0; position: relative; }
   .body { position: relative; display: grid; grid-template-columns: var(--gutter) 1fr; height: calc(24 * var(--hour)); }
   .hours { position: relative; }

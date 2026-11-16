@@ -2,7 +2,7 @@
   // The side panel (Google's and Apple's): Create, a mini month to jump anywhere (the range on screen marked), and
   // the calendars under their account (one heading each, its sync error beside it), each with a colour box — a click
   // shows or hides one, the box's menu picks its colour.
-  import { addDays, addMonths, sameDay, startOfWeek, type Source } from "./api";
+  import { addDays, addMonths, sameDay, startOfWeek, TASKS, type Source } from "./api";
   import { NOTES, type Cal } from "./store.svelte";
   import Icon from "./Icon.svelte";
 
@@ -75,17 +75,23 @@
     {/if}
   {/each}
 
-  {#if notesOn}
-    <h3>In the vault</h3>
-    <ul>
+  <h3>In the vault</h3>
+  <ul>
+    <li>
+      <button class="cal" role="checkbox" aria-checked={!cal.isHidden(TASKS, "Tasks")} onclick={() => cal.toggle(TASKS, "Tasks")} title="Open tasks with a 📅 or ⏳ date and notes with due:, on their day (click one to time-block it)">
+        <span class="box" class:off={cal.isHidden(TASKS, "Tasks")} style:--c={cal.colorOf(TASKS)}>{#if !cal.isHidden(TASKS, "Tasks")}<svg viewBox="0 0 12 12" width="10" height="10" aria-hidden="true"><path d="M2.5 6.5l2.2 2.2L9.5 3.8" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" /></svg>{/if}</span>
+        <span class="name">Tasks &amp; deadlines</span>
+      </button>
+    </li>
+    {#if notesOn}
       <li>
         <button class="cal" role="checkbox" aria-checked={!cal.isHidden(NOTES, "Notes")} onclick={() => cal.toggle(NOTES, "Notes")} title="Notes marked important: true with due: / event:">
           <span class="box" class:off={cal.isHidden(NOTES, "Notes")} style:--c={cal.colorOf(NOTES)}>{#if !cal.isHidden(NOTES, "Notes")}<svg viewBox="0 0 12 12" width="10" height="10" aria-hidden="true"><path d="M2.5 6.5l2.2 2.2L9.5 3.8" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" /></svg>{/if}</span>
           <span class="name">Important notes</span>
         </button>
       </li>
-    </ul>
-  {/if}
+    {/if}
+  </ul>
   <button class="link add" onclick={() => cal.atlas.plugin.openSettings()}><Icon name="plus" size={13} />Add an account or a subscription…</button>
 </div>
 
