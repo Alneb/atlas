@@ -5,6 +5,23 @@ and versions follow [Semantic Versioning](https://semver.org/) once 1.0 is out.
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-11-16
+
+Calendar, tasks and notifications work together in this release:
+- **Plan (beta)** nudges you about due tasks when your day has room for them, with Done, Snooze and Open on the
+  notification. A "Why now?" section in Settings explains each nudge.
+- **Calendar 1.8** gives events notes and links. It also adds time-blocking a task and a layer of tasks and deadlines.
+- **Deadlines** gets a Home box and a page of its own.
+- **Notifications** have buttons on Linux, Windows and Android, and they disappear once dealt with.
+
+Also new:
+- **AI agents** reach far more of Atlas through MCP.
+- **Web tabs** block ads and trackers.
+- **Sync** says each vault's state in plain words, and a view lists the conflict copies left to settle.
+- **The phone** takes Material You colours and has a home-screen widget.
+- **Spelling** checks several languages.
+- **Notes:** a note's title heading renames its file.
+
 ### Added
 - Calendar 1.8: events get notes on demand ("Make a note" on an event, "Calendar: link this note to an event…"),
   kept in step with the event and marked cancelled when it is deleted; the event's card lists the note's links and
