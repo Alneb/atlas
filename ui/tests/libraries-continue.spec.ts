@@ -8,6 +8,9 @@ import { installBooks } from "./epub-fixture";
 // and `lastUsed` (the Books plugin reads both from the books' notes) are listed above the grid, most recent first;
 // a finished one (100 %) is left out; every cover with a progress gets a bar under it. Phone width, both themes.
 const PLUGIN = join(WS, ".atlas/plugins/books");
+// in the plugin's own folder (its `folder` setting's default, `books`), a subfolder of this spec's alone: other specs'
+// books live beside it
+const SHELF = join(WS, "books/continue");
 const BOOKS: [string, string | null][] = [
   // [title, note front matter or null for a book never opened]
   ["Dune", "progress: 42%\nlast_read: 2026-11-15T10:00:00Z"],
@@ -18,14 +21,14 @@ const BOOKS: [string, string | null][] = [
 
 test.beforeAll(() => {
   installBooks(PLUGIN);
-  rmSync(join(WS, "shelf"), { recursive: true, force: true });
-  mkdirSync(join(WS, "shelf"), { recursive: true });
+  rmSync(SHELF, { recursive: true, force: true });
+  mkdirSync(SHELF, { recursive: true });
   for (const [title, fm] of BOOKS) {
-    writeFileSync(join(WS, `shelf/${title}.epub`), "x"); // the library lists files; nothing here opens them
-    if (fm) writeFileSync(join(WS, `shelf/${title}.md`), `---\nbook: "[[${title}.epub]]"\n${fm}\n---\n`);
+    writeFileSync(join(SHELF, `${title}.epub`), "x"); // the library lists files; nothing here opens them
+    if (fm) writeFileSync(join(SHELF, `${title}.md`), `---\nbook: "[[${title}.epub]]"\n${fm}\n---\n`);
   }
 });
-test.afterAll(() => { rmSync(PLUGIN, { recursive: true, force: true }); rmSync(join(WS, "shelf"), { recursive: true, force: true }); });
+test.afterAll(() => { rmSync(PLUGIN, { recursive: true, force: true }); rmSync(SHELF, { recursive: true, force: true }); });
 
 test("Continue lists the books being read, latest first, finished ones left out; covers carry a progress bar", async ({ page }) => {
   await page.setViewportSize({ width: 412, height: 860 });
