@@ -1,0 +1,63 @@
+# Letterboxd for the catalog: films, with no key. A Letterboxd film link, an IMDb link or a bare IMDb id (`tt0816692`) is
+# recognised as a film; its Letterboxd page says the rest (Letterboxd answers any IMDb or TMDB id with the film's page,
+# which IMDb itself, closed to programs, does not): title, original title and language, year, director, cast, genres,
+# runtime, poster, synopsis, and the TMDB and IMDb ids. With your username, `sync` files every film you watched — your
+# rating, the day from your diary, your like (`liked: true`), your review — and runs by itself every hour; a Spanish film
+# keeps its Spanish title.
+title = "Catalog · Letterboxd"
+description = "films from Letterboxd and IMDb links, and everything you watched there"
+icon = "film"
+version = "0.5.1"
+api = 20
+needs = ">=0.3.0"          # the first core that reads `background` (older ones refuse the key)
+background = "server"  # the hourly feed poll writes film notes: one poller, not one per open device
+requires = ["catalog"]
+
+[permissions]
+net = ["letterboxd.com", "boxd.it"]  # boxd.it: the export's short links, followed to the film
+
+[[setting]]
+key = "username"
+label = "Your Letterboxd username"
+kind = "text"
+hint = "letterboxd.com/<username>: your watched films, ratings and reviews are filed as film notes (the profile must be public)"
+
+[[setting]]
+key = "watched"
+label = "Shelf for watched films"
+kind = "text"
+default = "[[watched]]"
+hint = "the status a watched film gets (as your vault writes it, e.g. [[watched]] or [[seen]])"
+
+[helper]
+js = "helper.js"                   # runs inside Atlas's core (QuickJS); built from helper/helper.ts
+idle = "10m"                       # it only answers: stopped when unused, started again by the next call
+
+[[tool]]
+name = "lookup"
+description = "A film's details from its Letterboxd slug, IMDb id or TMDB id: title, original title, language, year, director, cast, genres, runtime, poster, synopsis, other IDs."
+input = { kind = "string", ids = "object?", url = "string?" }
+
+[[tool]]
+name = "sync"
+description = "File the films the user watched on Letterboxd (diary feed, reviews, films list, each film's own page) as film notes with their rating, watched date, like and review. Does a slice each run and remembers where it got to; pages Letterboxd refuses to programs are named in the summary."
+input = { all = "boolean?" }
+timeout_secs = 300
+schedule = "every 1h"
+
+[[tool]]
+name = "import_export"
+description = "Read the user's Letterboxd export (letterboxd.com → Settings → Data → Export; the zip, or its unpacked folder, put in the vault) so the next syncs file every film in it — the whole films list and every review, which Letterboxd's pages refuse to programs — with its rating, newest watched date, like and newest review."
+input = { path = "string" }
+
+[contributes.catalog]
+recognize = [
+  { pattern = "(?i)letterboxd\\.com/(?:[\\w-]+/)?film/([\\w-]+)", kind = "movie", id = "letterboxd" },
+  { pattern = "(?i)imdb\\.com/(?:[a-z]{2}/)?title/(tt\\d{6,10})", kind = "movie", id = "imdb" },
+  { pattern = "(?:^|[^\\w/])(tt\\d{7,10})\\b", kind = "movie", id = "imdb" },
+]
+sources = [{ kind = "movie", tool = "lookup", priority = 60, needs = ["letterboxd", "imdb", "tmdb"] }]
+
+# where it runs (PLUGIN-API.md, "Platforms"); a platform not named is untested (Android: only with `phone = true`)
+[platforms]
+linux = "works"

@@ -19,7 +19,7 @@ test("the repository's phone plugins are carried, desktop-only ones are not", ()
   const all = bundled();
   const ids = all.map((p) => p.id);
   console.log(`carried: ${ids.join(", ")}`);
-  for (const id of ["books", "manga"]) assert.ok(ids.includes(id), `${id} carried`);
+  for (const id of ["audiobookshelf", "books", "manga"]) assert.ok(ids.includes(id), `${id} carried`);
   for (const id of ["email", "ssh", "run-tools", "finance"]) assert.ok(!ids.includes(id), `${id} (desktop only) not carried`);
   assert.ok(all.length >= 5 && all.length < 40, `a plausible count: ${all.length}`);
 });

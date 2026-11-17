@@ -1,0 +1,87 @@
+# Audiobookshelf, the user's audiobook server, in Atlas: a library (the Libraries page's Audiobooks) and a player with
+# its chapters, speed, a sleep timer, where you are written back to the server (docs/design/DESIGN-audiobooks.md); and
+# for the catalog, a book catalogued anywhere looked up there (narrator, listening time, a link to the audiobook) and
+# the server's whole library filed as book notes. One server, one token. The audio is played by the app's player
+# (`atlas.player`) through the core (`atlas.media`), and every request goes through it: the token is added there, never seen by the page or the helper.
+title = "Audiobookshelf"
+description = "your Audiobookshelf: audiobooks to listen to — chapters, speed, sleep timer, where you are synced — and as book notes in the catalog"
+phone = true # runs in the phone apps too (only plugins marked so start there)
+icon = "headphones"
+version = "0.16.0"
+api = 32
+needs = ">=0.3.0"          # the first core that reads `background` (older ones refuse the key)
+background = "server"  # the library sync writes book notes: one poller, not one per open device
+# it was two plugins: a vault that had them keeps the server, the token and the other settings
+replaces = ["audiobooks", "catalog-audiobookshelf"]
+
+# the phone's own listening app (android/): home, library, a book, the player, over the app's one player
+[android]
+main = "org.atlas.plugins.audiobookshelf.Audiobookshelf" # its places: `audiobookshelf:home`, `…:library`, `…:book/<item id>`, `…:playing` (Audiobookshelf.opens)
+launcher = { label = "Audiobooks", icon = "music", home = "audiobookshelf:home" } # its own app in the launcher (android-launchers.mjs)
+
+[permissions]
+net = ["*"]          # the server is a setting: any host
+secrets = true       # its API token
+
+[[setting]]
+key = "server"
+label = "Audiobookshelf address"
+kind = "text"
+hint = "https://abs.example.org — the address you open Audiobookshelf at"
+
+[[setting]]
+key = "token"
+label = "API token"
+kind = "secret"
+hint = "filled by the command “Audiobookshelf: sign in” (the server's OpenID: Authelia, Authentik…); or pasted: Audiobookshelf → Settings → API Keys → Add (newer versions), Settings → Users → your user → API token (older ones)"
+
+[[setting]]
+key = "openid_redirect"
+label = "OpenID return address"
+kind = "text"
+default = "audiobookshelf://oauth"
+hint = "where the server's sign-in returns: one of Audiobookshelf → Settings → Authentication → Allowed Mobile Redirect URIs (audiobookshelf://oauth is there by default)"
+
+[[setting]]
+key = "skip"
+label = "Skip back / forward (seconds)"
+kind = "number"
+default = 30
+
+[[setting]]
+key = "finished"
+label = "Shelf for finished audiobooks"
+kind = "text"
+default = "[[read]]"
+hint = "the status a book you finished listening to gets in the catalog (as your vault writes it); empty: left as it is"
+
+[helper]
+js = "helper.js"                   # runs inside Atlas's core (QuickJS); built from helper/helper.ts
+idle = "10m"                       # it only answers: stopped when unused, started again by the next call
+
+# the app's player (`atlas.player`) reports where you are; the helper syncs it to the server's play session (opened again
+# when the server ended it). It plays on the phone with the screen off: the page is not there to sync.
+[media]
+progress = "progress"
+
+[[tool]]
+name = "lookup"
+description = "A book's audiobook on the user's Audiobookshelf: narrator, listening time, the link to it (and the book's own details when Open Library has none)."
+input = { kind = "string", ids = "object?", url = "string?", hints = "object?" }
+secrets = ["token"]
+
+[[tool]]
+name = "sync"
+description = "File the user's Audiobookshelf library as book notes (narrator, listening time, link; finished ones on the finished shelf). A slice each run; remembers what it filed."
+input = { all = "boolean?" }
+timeout_secs = 300
+schedule = "every 6h"
+secrets = ["token"]
+
+# used while the catalog runs; the library and the player work without it
+[contributes.catalog]
+sources = [{ kind = ["book", "science_book"], tool = "lookup", priority = 40, needs = ["audiobookshelf", "isbn"] }]
+
+# where it runs (PLUGIN-API.md, "Platforms"); a platform not named is untested (Android: only with `phone = true`)
+[platforms]
+linux = "works"
