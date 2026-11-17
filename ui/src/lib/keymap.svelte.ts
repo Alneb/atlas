@@ -63,6 +63,7 @@ export function allCommands(): Cmd[] {
 }
 
 const hasSuper = (k: string) => onThisSystem(k, "windows") !== k;
+const parts = (k: string) => k.split("+").length;
 const withShift = (k: string) => (parseChord(k)?.shift ? k : k.replace(/\+([^+]+|\+)$/, "+Shift+$1"));
 
 /** The keys as this system types them (keys.ts `onThisSystem`: Super is Ctrl+Cmd on a Mac, Ctrl+Alt on Windows). On
@@ -76,8 +77,17 @@ export function forThisSystem(list: Cmd[], sys: KeySystem = keySystem()): Cmd[] 
   const free = (k: string) => !every.some((t) => sameChord(t, k));
   // a moved key whose Shift form is taken too (Ctrl+Alt+B add bookmark, Super+Shift+B browse) is left without a key
   // here, to be given one on the Keyboard page, rather than two commands answering it
+  const moved = (k: string) => (free(withShift(k)) ? withShift(k) : undefined);
+  // a Super key that already holds what Super stands for (Super+Alt+S on Windows) loses a modifier there and may land on
+  // a plain Super key's chord (Super+S → Ctrl+Alt+S): that one keeps it, this one moves the same way
+  const absorbed = (k: string) => parts(k) > parts(onThisSystem(k, sys)) - 1;
+  const plainSuper = list.flatMap(keysOf).filter((k) => hasSuper(k) && !absorbed(k)).map((k) => onThisSystem(k, sys));
+  const ofSuper = (k: string, movable: boolean) => {
+    const here = onThisSystem(k, sys);
+    return absorbed(k) && movable && plainSuper.some((t) => sameChord(t, here)) ? moved(here) : here;
+  };
   const fix = (k: string | undefined, movable: boolean) =>
-    !k ? k : hasSuper(k) ? onThisSystem(k, sys) : movable && taken.some((t) => sameChord(t, k)) ? (free(withShift(k)) ? withShift(k) : undefined) : k;
+    !k ? k : hasSuper(k) ? ofSuper(k, movable) : movable && taken.some((t) => sameChord(t, k)) ? moved(k) : k;
   return list.map((c) => ({ ...c, keys: fix(c.keys, c.keys === c.defaultKeys), defaultKeys: fix(c.defaultKeys, true), alsoKeys: c.alsoKeys?.flatMap((k) => fix(k, true) ?? []) }));
 }
 

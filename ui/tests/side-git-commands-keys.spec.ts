@@ -29,7 +29,7 @@ test("Commands: filter empty state, Esc clears the filter, the new-command form'
 
   const add = pane.getByRole("button", { name: "New command", exact: true });
   await add.click();
-  await expect(pane.getByLabel("Title")).toBeFocused();
+  await expect(pane.getByLabel("Title", { exact: true })).toBeFocused();
   await page.keyboard.press("Escape");
   await expect(pane.locator("form.new")).toHaveCount(0);
   await expect(add).toBeFocused();

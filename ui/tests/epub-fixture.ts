@@ -1,6 +1,7 @@
 // An EPUB built in the test (EPUB 3: container, package, nav, two chapters, a stylesheet) and the Books plugin copied
 // into the test workspace — shared by the Books specs (example-books, books-ink).
-import { copyFileSync, mkdirSync } from "node:fs";
+import { copyFileSync, mkdirSync, readdirSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 import { crc32, deflateRawSync } from "node:zlib";
 
@@ -38,6 +39,11 @@ export const EPUB = zip([
 
 /** The Books plugin's run-time files into `dir` (a workspace's `.atlas/plugins/books`). */
 export function installBooks(dir: string) {
-  mkdirSync(join(dir, "shared"), { recursive: true }); // view.js imports shared/marks.js and shared/ink.js
-  for (const f of ["plugin.toml", "main.js", "view.js", "shared/marks.js", "shared/ink.js", "helper.js"]) copyFileSync(new URL(`../../plugins/beta/books/${f}`, import.meta.url), join(dir, f));
+  // the manifest and every module, top level and shared/ (main.js and view.js import shared/*.js): a list named here
+  // fell behind each new module
+  const src = fileURLToPath(new URL("../../plugins/beta/books/", import.meta.url));
+  mkdirSync(join(dir, "shared"), { recursive: true });
+  for (const sub of ["", "shared/"]) {
+    for (const f of readdirSync(join(src, sub))) if (sub + f === "plugin.toml" || f.endsWith(".js")) copyFileSync(join(src, sub, f), join(dir, sub, f));
+  }
 }

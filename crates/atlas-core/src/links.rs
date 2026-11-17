@@ -1043,8 +1043,10 @@ mod tests {
         std::fs::write(d.path().join("a.md"), "[[b]]\n").unwrap();
         std::fs::write(d.path().join("b.md"), "# B\n").unwrap();
         let cfg = Config::default();
+        // kept: the other tests' vaults, built at the same time, would otherwise push it out of the few kept warm
+        keep_warm(d.path());
         warm_in_background(d.path(), &cfg);
-        let deadline = Instant::now() + Duration::from_secs(10);
+        let deadline = Instant::now() + Duration::from_secs(30);
         // stored once built, its links resolved just after
         let built = || CACHE.lock().unwrap().iter().find(|w| w.root == d.path() && w.index.resolved.get().is_some()).map(|w| w.index.clone());
         let warmed = loop {

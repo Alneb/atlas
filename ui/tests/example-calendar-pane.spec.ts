@@ -298,7 +298,7 @@ test("the agenda as a day, 3 days or a week: every day said, events and dated ta
   await expect(agenda.locator(".day")).toHaveCount(7);
   await agenda.getByRole("button", { name: "Day", exact: true }).click();
   await expect(agenda.locator(".day")).toHaveCount(1);
-  await cal.getByRole("button", { name: "Next" }).click(); // a day on: tomorrow, the task's day
+  await cal.getByRole("button", { name: "Next", exact: true }).click(); // a day on: tomorrow, the task's day
   await agenda.getByRole("button", { name: "Mark “Send the draft” as done" }).click();
   await expect.poll(() => ticked.length).toBe(1);
   expect(ticked[0]).toMatchObject({ path: "notes/thesis.md", line: 3 });

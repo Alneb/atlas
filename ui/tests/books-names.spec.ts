@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+// @ts-expect-error a plugin's module is plain JavaScript, loaded as the page loads it
 import { bookOfName } from "../../plugins/beta/books/shared/name.js";
 
 // A server shelf's books named from their files (plugins/beta/books/shared/name.js): the shapes downloaded books carry,

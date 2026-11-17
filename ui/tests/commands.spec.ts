@@ -12,7 +12,7 @@ test("Commands pane: create a command, run it, give it a shortcut, rebind a buil
 
   // a new command is a file in .atlas/commands/, listed as not yet committed
   await pane.getByRole("button", { name: "New command", exact: true }).click();
-  await pane.getByLabel("Title").fill("Say hello");
+  await pane.getByLabel("Title", { exact: true }).fill("Say hello");
   await pane.getByLabel("Command line").fill("echo hello from atlas");
   await pane.getByRole("button", { name: "Create", exact: true }).click();
   const row = pane.locator(".cmd", { hasText: "Say hello" });
@@ -53,7 +53,7 @@ test("a new command can get a schedule; a nonsense schedule is refused with the 
   await page.keyboard.press("Meta+Shift+K");
   const pane = page.locator(".commands");
   await pane.getByRole("button", { name: "New command", exact: true }).click();
-  await pane.getByLabel("Title").fill("Nightly tidy");
+  await pane.getByLabel("Title", { exact: true }).fill("Nightly tidy");
   await pane.getByLabel("Command line").fill("echo tidy");
   await pane.getByLabel("Schedule").fill("nightly");
   await pane.getByRole("button", { name: "Create", exact: true }).click();

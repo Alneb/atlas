@@ -125,7 +125,6 @@
 # ---- native: the app's own screens ----
 "books" = { native = "Books" }
 "manga" = { native = "Manga" }
-"audiobookshelf" = { native = "Audiobookshelf", note = "its own listening app: home (Continue listening, the server's shelves, search), library (books, series, authors, collections, playlists), a book, the player over MediaService; a kept download plays from the phone's cache through the core's media ticket (the page's); read-along, podcasts' own pane, stats and offline stay the page's pane" }
 # ---- the page, as on the desktop ----
 "notifications" = { native = "Notices", note = "what it raises reaches the shade through the core's notices, with their buttons, a channel per kind (NoticeKind); planned notices ring on time with the app gone (ReminderAlarms, exact alarms); the native Agenda lists what is planned (AgendaScreen)" }
 "plan" = { native = "AgendaScreen", note = "its dated tasks in the native Agenda (the top bar's calendar, the launcher's Agenda, the widget's Coming up): a day, 3 days or a week beside the Calendar's events, a task ticked through the core; its nudges ring on time with the app gone (ReminderAlarms); its settings are the page's" }
@@ -141,7 +140,6 @@
 # ---- not on the phone: their manifests say `no` for Android ----
 "catalog-anime" = { missing = "not made for the phone app" }
 "catalog-books" = { missing = "not made for the phone app" }
-"catalog-letterboxd" = { missing = "not made for the phone app" }
 "catalog-linkwarden" = { missing = "not made for the phone app" }
 "catalog-music" = { missing = "not made for the phone app" }
 "catalog-papers" = { missing = "not made for the phone app" }

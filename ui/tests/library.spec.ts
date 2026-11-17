@@ -94,7 +94,7 @@ test("Library: sort by year / title; delete an entry (asks, goes to the Trash, r
   await expect(lib.locator(".row")).toHaveCount(1);
   // edit in place
   await lib.locator(".detail").getByRole("button", { name: "Edit", exact: true }).click();
-  await lib.getByLabel("Title").fill("Throwaway, renamed");
+  await lib.getByLabel("Title", { exact: true }).fill("Throwaway, renamed");
   await lib.getByLabel(/^Tags/).fill("tmp, test");
   await lib.getByRole("button", { name: "Save" }).click();
   await expect(lib.locator(".detail h2")).toHaveText("Throwaway, renamed");

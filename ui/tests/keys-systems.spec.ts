@@ -45,6 +45,7 @@ for (const [sys, ua] of Object.entries(UA)) {
     const row = (id: string) => page.locator("li", { has: page.locator("code", { hasText: new RegExp(`^${id.replace(/\./g, "\\.")}$`) }) });
     await expect(row("ui.vault.next")).toContainText(sys === "mac" ? /Ctrl\s*Cmd\s*V/ : /Ctrl\s*Alt\s*V/);
     if (sys === "windows") await expect(row("ui.tabs.pin")).toContainText(/Ctrl\s*Alt\s*Shift\s*P/); // moved: Super+P took Ctrl+Alt+P
+    if (sys === "windows") await expect(row("player.quote")).toContainText(/Ctrl\s*Alt\s*Shift\s*S/); // moved: Super+S took Ctrl+Alt+S
     await expect(page.locator("[data-clash]")).toHaveCount(0);
     await ctx.close();
   });

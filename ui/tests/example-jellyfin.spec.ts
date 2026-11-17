@@ -23,6 +23,8 @@ test.beforeAll(async ({ request }) => {
   port = (server.address() as AddressInfo).port;
   await put(request, ".atlas/plugins/jellyfin/main.js", example("main.js"));
   await put(request, ".atlas/plugins/jellyfin/jf.js", example("jf.js"));
+  await put(request, ".atlas/plugins/jellyfin/client.js", example("client.js"));
+  await put(request, ".atlas/plugins/jellyfin/view.js", example("view.js"));
   await put(request, ".atlas/plugins/jellyfin/plugin.toml", example("plugin.toml"));
   await put(request, "notes/watched.md", "# Watched\n\n```view\ntype: jellyfin.watched\n```\n\nend\n");
 });

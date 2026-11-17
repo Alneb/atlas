@@ -250,9 +250,14 @@ pub fn check(features: &[Feature], table: &[Entry], classes: &BTreeSet<String>) 
         *v.counts.entry(f.kind).or_default() += 1;
         match line_for(table, f) {
             // its own source already says it is not on the phone, and why: that is its line (a plugin only the
-            // private tree has needs none in a table both trees share)
+            // private tree has needs none in a table both trees share); so does a plugin whose manifest names its
+            // native screen (`[android] main`): its class must still exist
             None => match &f.said {
                 Said::NotThere(why) => v.gaps.push((f.kind, f.id.clone(), why.clone())),
+                Said::NativeMain(c) if !classes.contains(simple(c)) => {
+                    v.offences.push(Offence::NoClass { kind: f.kind, key: f.id.clone(), class: c.clone() })
+                }
+                Said::NativeMain(_) => {}
                 _ => v.offences.push(Offence::Unlisted { feature: f.clone() }),
             },
             Some(e) => {

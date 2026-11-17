@@ -368,6 +368,7 @@ test("on the phone the library is the page's, and a chapter is handed to the app
 });
 
 test("pure: what a reading change makes of a series for its note (the catalog's rule)", async () => {
+  // @ts-expect-error a plugin's module is plain JavaScript, loaded as the page loads it
   const { engagement, suwayomiId } = await import("../../plugins/beta/manga/suwayomi.js");
   expect(engagement(0, 20, false)).toEqual({ why: "opened" });
   expect(engagement(1, 20, false)).toEqual({ why: "progress", progress: 0.05 });

@@ -136,12 +136,18 @@ test("the tree folds back what it unfolded for the last file, follows the explor
   await expect(treeRow(page, "fold-h/paper.pdf")).toBeVisible();
   await expect(treeRow(page, "fold-h/paper.pdf.md")).toHaveCount(0);
   // hidden files: a toggle in the explorer's More menu
-  await page.locator(".explorer").getByRole("button", { name: "More" }).click();
-  await page.getByRole("menuitem", { name: "Show hidden files" }).click();
+  await hiddenFiles(page, "Show");
   await expect(xrow(page, "paper.pdf.md")).toBeVisible();
   await expect(xrow(page, ".secret.md")).toBeVisible();
   await expect(treeRow(page, "fold-h/.secret.md")).toBeVisible();
-  await page.locator(".explorer").getByRole("button", { name: "More" }).click();
-  await page.getByRole("menuitem", { name: "Hide hidden files" }).click();
+  await hiddenFiles(page, "Hide");
   await expect(treeRow(page, "fold-h/.secret.md")).toHaveCount(0);
 });
+
+/** The explorer's hidden-files toggle: its own button when the pane is wide, in the More menu when narrow. */
+async function hiddenFiles(page: Page, word: "Show" | "Hide") {
+  const toggle = page.locator(".explorer").getByRole("button", { name: "Hidden", exact: true });
+  if (await toggle.isVisible()) return toggle.click();
+  await page.locator(".explorer").getByRole("button", { name: "More" }).click();
+  await page.getByRole("menuitem", { name: `${word} hidden files` }).click();
+}

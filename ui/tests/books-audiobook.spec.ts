@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { readFileSync } from "node:fs";
+// @ts-expect-error a plugin's module is plain JavaScript, loaded as the page loads it
 import { audiobookItem, matchTitle, normTitle } from "../../plugins/beta/books/audiobook.js";
 
 // The Books readers' audiobook (plugins/beta/books/audiobook.js): which audiobook the book's note names, and the text's
