@@ -13,7 +13,7 @@ import java.util.Map;
  * same sign-in as the vault:
  * a sign-in in front (Authelia) gives its session to its whole domain, so a request carries the app's cookies for that
  * address (the in-app sign-in keeps them in the WebView's store) and the session of every signed-in server of the same
- * domain (a browser sign-in, kept per server). When the sign-in still answers, {@link SignInNeeded}: the plugin offers
+ * domain (a browser sign-in, kept per server), and a bypass key kept for its host (Signins). When the sign-in still answers, {@link SignInNeeded}: the plugin offers
  * {@link #signIn}. On the VPN, with no sign-in in front, a request is just a request.
  */
 public final class Web {
@@ -40,6 +40,8 @@ public final class Web {
             h.setInstanceFollowRedirects(false); // a redirect to another host is the sign-in in front: said, not followed
             String cookie = cookies(c, url);
             if (!cookie.isEmpty()) h.setRequestProperty("Cookie", cookie);
+            // a gate's bypass key kept for this host (the device's sign-ins, the core's one rule; https only)
+            for (Map.Entry<String, String> k : Signins.keys(c, url).entrySet()) h.setRequestProperty(k.getKey(), k.getValue());
             if (body != null) {
                 h.setDoOutput(true);
                 h.setRequestProperty("Content-Type", type);

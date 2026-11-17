@@ -55,6 +55,10 @@ pub trait LeaseLink: Send + Sync {
     fn versions(&self) -> std::result::Result<Vec<Recent>, Unreachable> {
         Err(Unreachable::new("this link carries no files"))
     }
+    /// This device's presence told to the server; everyone's back (crate::devices). Only a device's link reports.
+    fn report(&self, _me: &crate::devices::Device) -> std::result::Result<Vec<crate::devices::Device>, Unreachable> {
+        Err(Unreachable::new("this link reports no presence"))
+    }
 }
 
 /// What a write hands the server with its lease: the new bytes, the file gone, or nothing (too large for the mirror,
@@ -195,25 +199,30 @@ impl<L: LeaseLink> LeaseGuard<L> {
             };
             // behind: the server's copy brought here at once (no Syncthing needed); a change computed from the old copy
             // then fails as before (the caller reads again, now the last version), an addition goes on top of it
+            let mut newer = crate::sync_state::Newer::Syncthing;
             if let Why::Behind { last } = &why {
-                if self.pull(rel, last) && adds {
-                    continue;
+                if self.pull(rel, last) {
+                    if adds {
+                        continue;
+                    }
+                    newer = crate::sync_state::Newer::Here;
+                } else if self.link.carries() {
+                    newer = crate::sync_state::Newer::ServerDisk;
                 }
             }
             match &why {
                 Why::Behind { .. } if !adds => {
-                    self.state.refused(rel, crate::sync_state::Refused::Behind);
+                    self.state.refused(rel, crate::sync_state::Refused::Behind { newer });
                     return Err(Error::Conflict { current: None });
                 }
                 _ if Instant::now() >= until => {
-                    self.state.refused(rel, match &why {
+                    let refused = match &why {
                         Why::HeldBy(h) => crate::sync_state::Refused::Held { by: h.clone() },
-                        Why::Behind { .. } => crate::sync_state::Refused::Behind,
-                    });
-                    return Err(Error::Other(anyhow::anyhow!(match why {
-                        Why::HeldBy(h) => format!("{rel} is being written by {h}; try again in a moment"),
-                        Why::Behind { .. } => format!("{rel}: Syncthing has not brought the server's newer copy yet"),
-                    })))
+                        Why::Behind { .. } => crate::sync_state::Refused::Behind { newer },
+                    };
+                    self.state.refused(rel, refused.clone());
+                    // the writer's error says the same as the notice: what happened, what to do
+                    return Err(Error::Other(anyhow::anyhow!("{rel} was not saved. {}", crate::sync_state::refusal_words(&refused))));
                 }
                 _ => std::thread::sleep(self.poll),
             }
@@ -569,7 +578,8 @@ impl Remote {
     /// blocking client may not start its own.
     fn post<B: serde::Serialize + Send + 'static>(&self, what: &str, body: B) -> std::result::Result<String, Unreachable> {
         let url = reqwest::Url::parse(&format!("{}api/lease/{what}", self.mirror)).map_err(|e| Unreachable::new(e.to_string()))?;
-        let cookie = crate::service_signin::cookie_header(&self.store, &url).ok().flatten();
+        // the gate's session and its bypass key (this client follows no redirect)
+        let kept = crate::service_signin::site_headers(&self.store, &url).map(|k| k.headers).unwrap_or_default();
         std::thread::spawn(move || {
             // one client for every call: its kept connection spares each write two TCP + TLS handshakes; made (and, being
             // static, never dropped) off the async runtime, where a blocking client may not start or end
@@ -586,8 +596,8 @@ impl Remote {
                 .as_ref()
                 .map_err(|e| Unreachable::new(e.clone()))?;
             let mut req = client.post(url).header("x-atlas", "1").json(&body);
-            if let Some(c) = cookie {
-                req = req.header("cookie", c);
+            for (k, v) in kept {
+                req = req.header(k, v);
             }
             let res = req.send().map_err(|e| Unreachable::new(e.to_string()))?;
             // a redirect is the gate's sign-in page (a 401/403 its refusal): signed out counts as not answering (the
@@ -636,6 +646,10 @@ impl LeaseLink for Remote {
     fn ping(&self) -> std::result::Result<(), Unreachable> {
         self.post("versions", FileBody { path: String::new(), holder: self.holder.clone() }).map(drop)
     }
+    fn report(&self, me: &crate::devices::Device) -> std::result::Result<Vec<crate::devices::Device>, Unreachable> {
+        let text = self.post("presence", me.clone())?;
+        serde_json::from_str(&text).map_err(|e| Unreachable::new(e.to_string()))
+    }
 }
 
 /// The server's own core in its table.
@@ -672,6 +686,7 @@ pub fn install_for_mirror(ws: &crate::Workspace) {
             let guard = Arc::new(LeaseGuard::new(ws.root(), link).naming(&host));
             ws.set_write_guard(guard.clone());
             catch_up_now_and_then(Arc::downgrade(&guard));
+            report_now_and_then(Arc::downgrade(&guard));
         }
         None => ws.clear_write_guard(),
     }
@@ -710,6 +725,49 @@ fn catch_up_now_and_then<L: LeaseLink + 'static>(guard: std::sync::Weak<LeaseGua
     });
     if let Err(e) = spawned {
         eprintln!("atlas: mirror: no catch-up thread: {e}");
+    }
+}
+
+/// This device as `crate::devices` lists it, its presence now.
+pub fn this_device() -> crate::devices::Device {
+    crate::devices::Device {
+        id: device_id(),
+        name: crate::platform::proc::hostname(),
+        kind: crate::devices::Kind::here(),
+        active_at: crate::notify::Presence::global().active_at(),
+        reported_at: chrono::Utc::now().timestamp_millis(),
+        alarms: None,
+    }
+}
+
+/// A thread that tells the server this device's presence at once and then every minute, keeping everyone's answer in
+/// `devices::Table::global()`, while the guard lives. Each minute, shown or not: a desktop in use with no Atlas
+/// window is still the device the person is at (DESIGN-calendar-tasks-nudges §3.7's five minutes).
+fn report_now_and_then<L: LeaseLink + 'static>(guard: std::sync::Weak<LeaseGuard<L>>) {
+    let spawned = std::thread::Builder::new().name("mirror-presence".into()).spawn(move || {
+        let mut said = None; // a failure is said once, not each minute
+        loop {
+            let Some(g) = guard.upgrade() else { return };
+            // a phone's report carries the alarms its app set for this vault (devices::Alarms; none on a desktop)
+            let me = crate::devices::Device { alarms: crate::devices::Alarms::of_vault(&g.root), ..this_device() };
+            match g.link.report(&me) {
+                Ok(all) => {
+                    crate::devices::Table::global().replace(all);
+                    said = None;
+                }
+                Err(e) if said.as_ref() != Some(&e.why) => {
+                    // an older server answers 404: it keeps no presence
+                    eprintln!("atlas: mirror: presence not reported ({})", e.why);
+                    said = Some(e.why);
+                }
+                Err(_) => {}
+            }
+            drop(g);
+            std::thread::sleep(CATCH_UP_EVERY);
+        }
+    });
+    if let Err(e) = spawned {
+        eprintln!("atlas: mirror: no presence thread: {e}");
     }
 }
 
@@ -801,7 +859,7 @@ mod tests {
         let desk = LeaseGuard::new(desktop.path(), Shared(leases.clone(), server.path().into(), "desktop", offline.clone())).quick();
         desk.before("log.md", &WriteKind::Write, now(desktop.path(), "log.md")).unwrap(); // held, never handed back
         let e = srv.before("log.md", &WriteKind::Append, None).unwrap_err().to_string();
-        assert!(e.contains("being written by desktop"), "{e}");
+        assert!(e.contains("log.md was not saved. desktop was writing it"), "{e}");
         *offline.lock().unwrap() = true;
         srv.before("log.md", &WriteKind::Write, now(server.path(), "log.md")).expect("no server: written here only");
     }

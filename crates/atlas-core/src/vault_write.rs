@@ -106,8 +106,14 @@ impl Workspace {
     }
     /// Back to [`NoGuard`].
     pub fn clear_write_guard(&self) {
-        GUARDS.write().unwrap_or_else(|e| e.into_inner()).retain(|(r, _)| r != self.root());
+        clear_guard(self.root());
     }
+}
+
+/// The vault at `root` unguarded, with or without its `Workspace` at hand (a guest closed while requests may still hold
+/// its state: guest.rs `forget`).
+pub fn clear_guard(root: &Path) {
+    GUARDS.write().unwrap_or_else(|e| e.into_inner()).retain(|(r, _)| r != root);
 }
 
 /// The guard of the vault holding `abs`, with that vault's root; `None` when no vault there has one (the common

@@ -89,6 +89,22 @@ mod tests {
     }
 }
 
+/// The plugins this app carries (`bundled`: the APK's `plugins/` assets, unpacked by Bundled.java) brought into a
+/// folder vault being opened, through the core's install path (plugin_install::sync_bundled): `{updated, replaced,
+/// left}`. Before `serve`, so the core starts with them.
+pub fn bundled_plugins(vault: &Path, bundled: &Path) -> Value {
+    serde_json::to_value(atlas_core::plugin_install::sync_bundled(vault, bundled)).unwrap_or_else(|e| json!({ "error": e.to_string() }))
+}
+
+/// One carried plugin added to a folder vault that lacks it (Settings → Plugins, "Add to this vault"): `{id, version}`
+/// or `{error}`.
+pub fn bundled_add(vault: &Path, bundled: &Path, id: &str) -> Value {
+    match atlas_core::plugin_install::add_bundled(vault, bundled, id) {
+        Ok(i) => json!({ "id": i.id, "version": i.version }),
+        Err(e) => json!({ "error": e.to_string() }),
+    }
+}
+
 /// A folder vault's mirror on the phone (docs/design/DESIGN-mirror-v2.md): the in-app core is told the server vault holding the folder's copy — on its vault list,
 /// as the desktop's — and given this app's sign-in for that server (`a=b; c=d`, the gate's session: Authelia's, for the
 /// whole domain), so its writes take the server's leases and its live rooms are the server's, as the desktop's. After `serve`

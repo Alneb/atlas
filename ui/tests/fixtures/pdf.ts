@@ -24,3 +24,22 @@ export function textPdf(pages: { lines: string[]; links?: PdfLink[] }[]): string
   });
   return writePdf(objs);
 }
+
+/** One letter page of a two-column paper (Helvetica 10 pt, a line every 12 pt): the left column at 72 pt, the right
+ *  at 320 pt; in the right column every odd line is one short word, so white lies inside the column beside it. */
+export function twoColumnPdf(lines = 40): string {
+  const long = "words of a column that runs on and on";
+  let body = "";
+  for (let i = 0; i < lines; i++) {
+    const y = 700 - i * 12;
+    body += `BT /F1 10 Tf 72 ${y} Td (left ${long} ${i}) Tj ET\n`;
+    body += `BT /F1 10 Tf 320 ${y} Td (${i % 2 ? "end." : `right ${long} ${i}`}) Tj ET\n`;
+  }
+  return writePdf([
+    "<</Type/Catalog/Pages 2 0 R>>",
+    "<</Type/Pages/Kids[4 0 R]/Count 1>>",
+    "<</Type/Font/Subtype/Type1/BaseFont/Helvetica>>",
+    "<</Type/Page/Parent 2 0 R/MediaBox[0 0 612 792]/Resources<</Font<</F1 3 0 R>>>>/Contents 5 0 R>>",
+    `<</Length ${body.length}>>\nstream\n${body}endstream`,
+  ]);
+}

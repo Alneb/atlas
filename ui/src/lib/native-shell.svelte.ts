@@ -18,6 +18,8 @@ import { deliverPenDraft, deliverPenStroke } from "./pen-target";
 import { openPluginSettings } from "./plugin-settings.svelte";
 import { librariesSpec, openLibraries } from "./libraries.svelte";
 import { paneId } from "./panes";
+import { emit } from "./bus";
+import { attachPlaceSwipe } from "./place-swipe";
 
 /** What the app injects (AtlasActivity's `addJavascriptInterface`); strings only, as the bridge requires. */
 interface Bridge {
@@ -31,6 +33,10 @@ interface Bridge {
   /** a service's gate, signed in in the app's own window and handed to the in-app core (service-signin.ts) */
   signInDoor?(url: string): void;
   /** the app's own readers with a place of their own (Books, Manga): `[{ plugin, title }]`, and opening one */
+  /** a sideways fling on a place's page: "1" the next place of the bottom bar, "-1" the one before (place-swipe.ts) */
+  swipe?(by: string): void;
+  /** `atlas.signIn` in the app's own sign-in window (signin.ts) */
+  signIn?(url: string, back: string): void;
 }
 
 const bridge = (globalThis as unknown as { AtlasNative?: Bridge }).AtlasNative;
@@ -84,6 +90,8 @@ export function attachNativeShell(): () => void {
     back: () => navigate(-1),
     /** a command by id (the + → "ui.new") */
     command: (id: string) => allCommands().find((c) => c.id === id)?.run(),
+    /** the address the app's sign-in window came back to (signin.ts, the bridge's signIn), as the desktop hands it */
+    signedIn: (url: string) => emit({ type: "signin", url }),
     /** the system Back, first: closes what is open over the page (lib/back.ts); false when nothing was */
     dismiss: () => dismiss(),
     // the ⋮ menu's file actions (AtlasActivity.menu); a tab follows a rename and closes with its file (gone-files.ts)
@@ -120,6 +128,8 @@ export function attachNativeShell(): () => void {
     bridge.openNative?.(path);
     return true;
   });
+  // a fling on Home, the Library, Files or Search steps between them, as on the bottom bar (the app ignores it on a file)
+  const unswipe = bridge.swipe ? attachPlaceSwipe(document, (by) => bridge.swipe?.(String(by))) : () => {};
   bridge.ready();
-  return () => { stop(); setNativeOpener(null); document.documentElement.classList.remove("native-shell"); };
+  return () => { stop(); unswipe(); setNativeOpener(null); document.documentElement.classList.remove("native-shell"); };
 }

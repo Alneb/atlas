@@ -746,26 +746,9 @@ fn pdf_text(bytes: &[u8]) -> (String, usize, crate::firstpage::Info) {
         let doc = pdf_oxide::PdfDocument::from_bytes(bytes.to_vec()).ok()?;
         let count = doc.page_count().ok()?;
         let text = (0..count.min(ID_PAGES)).map(|i| doc.extract_text(i).unwrap_or_default()).collect::<Vec<_>>().join("\x0c");
-        Some((text, count, pdf_info(&doc)))
+        Some((text, count, atlas_catalog::first_page::info_of(&doc)))
     };
     std::panic::catch_unwind(read).ok().flatten().unwrap_or_default() // a malformed PDF never stops an import
-}
-
-/// The PDF's Info dictionary: `/Title`, `/Author`, `/CreationDate` (text strings: UTF-16 with its mark, else
-/// PDFDocEncoding, read as Latin-1).
-fn pdf_info(doc: &pdf_oxide::PdfDocument) -> crate::firstpage::Info {
-    let dict = doc.trailer().as_dict().and_then(|t| t.get("Info")).and_then(|i| doc.resolve_object(i).ok());
-    let get = |key: &str| -> Option<String> {
-        let v = doc.resolve_object(dict.as_ref()?.as_dict()?.get(key)?).ok()?;
-        let b = v.as_string()?;
-        let s = match b {
-            [0xFE, 0xFF, rest @ ..] => String::from_utf16_lossy(&rest.as_chunks::<2>().0.iter().map(|&c| u16::from_be_bytes(c)).collect::<Vec<_>>()),
-            [0xEF, 0xBB, 0xBF, rest @ ..] => String::from_utf8_lossy(rest).into_owned(),
-            _ => b.iter().map(|&c| c as char).collect(),
-        };
-        Some(s.split_whitespace().collect::<Vec<_>>().join(" ")).filter(|s| !s.is_empty())
-    };
-    crate::firstpage::Info { title: get("Title"), author: get("Author"), created: get("CreationDate") }
 }
 
 #[cfg(test)]

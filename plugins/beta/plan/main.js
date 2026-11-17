@@ -45,7 +45,35 @@ function draw(host, r) {
     ? `${b.perDay} nudges a day, ${b.gap} min apart — measured from ${b.days} days: ${b.nudges} nudges, ${b.acted} acted on.`
     : `${b.perDay} nudges a day, ${b.gap} min apart — until the ledger has 14 days (${b.days} so far).`;
   root.append(el("div", budget));
-  if (!r.plans) root.append(el("div", `${r.device} does not run this vault's schedules ([automation] schedules_on): it does not nudge.`, "muted"));
+  // presence (§3.2): a nudge due now waits while no one has used this device for 30 min, unless it is urgent
+  root.append(el("div", r.used ? `${r.device} last used ${short(r.used)} — a nudge due now waits while no one has used it for 30 min, unless it is urgent.` : `${r.device} does not say whether someone is using it: nudges are not held for it.`, "muted"));
+  // the device rule (§3.7): the computer used in the last 5 min, else a phone running Atlas, else the planner
+  const says = r.at
+    ? r.at.here
+      ? `Nudges ring here: ${r.at.why}.${r.plans ? "" : " This device plans for itself while you are at it."}`
+      : `Nudges ring on ${r.at.name}: ${r.at.why}.${r.plans ? " This device still writes plan/next.md." : ""}`
+    : !r.plans
+      ? r.local
+        ? `${r.device} does not run this vault's schedules, but plans for itself: ${r.local} (plan/next.md older than 2 hours).`
+        : `${r.device} does not run this vault's schedules ([automation] schedules_on): the planner's nudges ring there.`
+      : null;
+  if (says) root.append(el("div", says, "muted"));
+  // a phone trusted with a nudge while its app is closed: it set an exact alarm for it (§3.7)
+  for (const h of r.handed || []) root.append(el("div", `A nudge rings on ${h.name}: ${h.why}.`, "muted"));
+  // the quiet hours measured from the devices' use (§3.3a): proposed here, used only with "Quiet hours measured" on
+  const q = r.quiet;
+  if (q) {
+    const hh = (m) => `${String(Math.floor(m / 60)).padStart(2, "0")}:00`;
+    const range = q.from !== null ? `${hh(q.from)}–${hh(q.to)}` : null;
+    root.append(el("div", !q.measured
+      ? `Quiet hours are measured once your devices' use is known for 14 days (${q.days} so far).`
+      : !range
+        ? `Quiet hours measured from ${q.days} days of use: no hour was unused on 80 % of them.`
+        : q.used
+          ? `Quiet hours measured from ${q.days} days of use: ${range} — in use (Quiet hours measured is on).`
+          : `Quiet hours measured from ${q.days} days of use: ${range} — turn on “Quiet hours measured” to use them instead of the range set.`,
+    "muted"));
+  }
   root.append(el("h4", "Next"));
   const next = el("ul", undefined, "next");
   const decisions = [...r.decisions].sort((a, b) => String(a.at || "~").localeCompare(String(b.at || "~")));
@@ -59,6 +87,21 @@ function draw(host, r) {
   }
   if (!decisions.length) next.append(el("li", "No open task may nudge now.", "muted"));
   root.append(next);
+  // when each kind of task gets done (the habit of the hour): its busiest hours, once it moves nudges
+  const habits = (r.habits || []).filter((h) => h.done > 0);
+  if (habits.length) {
+    root.append(el("h4", "When you get things done"));
+    const list = el("ul", undefined, "next");
+    for (const h of habits.slice(0, 8)) {
+      const top = h.hours.map((n, i) => [n, i]).filter(([n]) => n > 0).sort((a, b) => b[0] - a[0]).slice(0, 3).map(([, i]) => `${String(i).padStart(2, "0")}:00`);
+      const what = el("span", undefined, "what");
+      what.append(el("span", h.group), el("span", h.done >= r.habitMin ? `most often ${top.join(", ")}` : `${h.done} of ${r.habitMin} done times before it moves nudges`, "why"));
+      const li = el("li");
+      li.append(el("span", `${h.done} done`, "when"), what);
+      list.append(li);
+    }
+    root.append(list);
+  }
   root.append(el("h4", "Ledger"));
   const ledger = el("ul", undefined, "ledger");
   for (const l of r.recent) ledger.append(el("li", readable(l)));

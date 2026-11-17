@@ -2,10 +2,11 @@
 # them as planned notices with Done / Snooze / Open; this plugin decides which task, when and why, and keeps the
 # ledger of what happened (plan/ledger/<month> <device>.md). README.md has the rules and the formula.
 title = "Plan"
-description = "nudges for your tasks when they fit your day, with Done / Snooze / Open"
+description = "nudges for your tasks when they fit your day, with Done / Snooze / Open; habits nagged in their window until done"
 icon = "bell"
-version = "0.1.2"
+version = "0.10.0"
 api = 28
+needs = ">=0.3.0"          # the first core that reads `background` (older ones refuse the key); on a core without hooks the ntfy nudges go without buttons
 phone = true
 
 [helper]
@@ -24,6 +25,14 @@ label = "Quiet hours"
 kind = "text"
 default = "22:30-08:00"
 hint = "no nudge between these times (HH:MM-HH:MM)"
+group = "When"
+
+[[setting]]
+key = "quiet_measured"
+label = "Quiet hours measured"
+kind = "toggle"
+default = false
+hint = "use the quiet hours measured from when your devices were in use and tasks were ticked (once 14 days are known; Why now? below shows them) instead of the range above"
 group = "When"
 
 [[setting]]
@@ -104,11 +113,43 @@ hint = "0: measured (45 until there are 14 days of ledger)"
 group = "Budget"
 
 [[setting]]
+key = "ntfy_fallback"
+label = "Through ntfy when no device runs Atlas"
+kind = "toggle"
+default = true
+group = "Elsewhere"
+hint = "the server sends a nudge that comes due through the Notifications plugin's ntfy, with Done and Snooze buttons, while none of your devices runs Atlas (a vault with a server, mirrored)"
+
+[[setting]]
+key = "ntfy_text"
+label = "Say the task on ntfy"
+kind = "toggle"
+default = false
+group = "Elsewhere"
+hint = "off: the message only says “A task is waiting”; the task's name and reasons stay on your devices"
+
+[[setting]]
+key = "server_url"
+label = "Server's address for the buttons"
+kind = "text"
+group = "Elsewhere"
+advanced = true
+hint = "e.g. https://atlas.example.org; empty: as your devices reach the server"
+
+[[setting]]
 key = "ledger"
 label = "Ledger folder"
 kind = "text"
 default = "plan/ledger"
 hint = "a note per device and month: what was nudged, snoozed, done"
+advanced = true
+
+[[setting]]
+key = "habits"
+label = "Folder for new habits"
+kind = "text"
+default = "habits"
+hint = "where `habit gym mon wed fri 18:00` in a capture makes its note; a note anywhere with a habit: property is one"
 advanced = true
 
 [[setting]]
@@ -126,9 +167,29 @@ on = "plan"
 
 [[tool]]
 name = "pressed"
-description = "Done or Snooze pressed on a nudge (Atlas calls it, on = \"notice\")."
+description = "Done or Snooze pressed on a nudge, or Done / Skip today on a habit's nag (Atlas calls it, on = \"notice\")."
 input = {}
 on = "notice"
+
+[[tool]]
+name = "fallback"
+description = "When no device of the person runs Atlas, send the nudges that come due through ntfy with Done / Snooze buttons (the server runs it by itself)."
+input = {}
+schedule = "every 5m"
+background = "server"  # the ntfy fallback is for when no device of the person runs Atlas: only the always-on server can send it
+timeout_secs = 60
+
+[[tool]]
+name = "press"
+description = "Done or Snooze pressed on a nudge sent through ntfy (the button's signed address, on = \"hook\")."
+input = {}
+on = "hook"
+
+[[tool]]
+name = "capture"
+description = "After every capture: a line `habit <kind> [days] [HH:MM | HH:MM-HH:MM]` (habit gym mon wed fri 18:00, habit sleep 23:30) makes the habit's note, once. Answers the note, or skipped."
+input = { text = "string", path = "string?", line = "integer?" }
+on = "capture"
 
 [[tool]]
 name = "explain"

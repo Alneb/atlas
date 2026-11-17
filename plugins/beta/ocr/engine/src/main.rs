@@ -18,6 +18,10 @@ fn fail<T>(why: impl Into<String>) -> Result<T> {
     Err(Error { status: None, why: why.into() })
 }
 
+fn is_pdf(name: &str) -> bool {
+    name.to_ascii_lowercase().ends_with(".pdf")
+}
+
 fn is_picture(name: &str) -> bool {
     name.rsplit_once('.').is_some_and(|(_, ext)| PICTURES.contains(&ext.to_ascii_lowercase().as_str()))
 }
@@ -195,11 +199,16 @@ impl Reader {
     }
 
     fn read(&mut self, atlas: &Atlas, path: &Path, languages: &str) -> Result<String> {
-        let (img, scale) = prepare(image::open(path).or_else(|e| fail(format!("{}: {e}", path.display())))?);
+        let img = image::open(path).or_else(|e| fail(format!("{}: {e}", path.display())))?;
+        self.read_image(atlas, img, &path.display().to_string(), languages)
+    }
+
+    fn read_image(&mut self, atlas: &Atlas, img: image::DynamicImage, name: &str, languages: &str) -> Result<String> {
+        let (img, scale) = prepare(img);
         let (w, h) = img.dimensions();
         let api = self.engine(atlas, languages)?;
         let (w, h) = (i32::try_from(w).or_else(|_| fail("too wide"))?, i32::try_from(h).or_else(|_| fail("too tall"))?);
-        api.set_image(img.as_raw(), w, h, 1, w).or_else(|e| fail(format!("{}: {e}", path.display())))?;
+        api.set_image(img.as_raw(), w, h, 1, w).or_else(|e| fail(format!("{name}: {e}")))?;
         api.set_source_resolution(96 * scale).or_else(|e| fail(e.to_string()))?; // a screen's 96, times what prepare enlarged
         let text = api.get_utf8_text().or_else(|e| fail(e.to_string()))?;
         Ok(tidy(text.lines().map(mend_links)))
@@ -350,7 +359,14 @@ fn main() {
         m.add("read", move |p| {
             let root = PathBuf::from(std::env::var("ATLAS_ROOT").unwrap_or_else(|_| ".".into()));
             let path = str_param(&p, "path")?;
-            let text = reader.borrow_mut().read(&atlas, &locate(&atlas, &root, "", path)?, &languages(&p))?;
+            let text = if is_pdf(path) {
+                // a scanned PDF: its first page, as the core draws it for its cover
+                let jpg = atlas.get_bytes(&format!("/api/thumb?path={}", atlas_plugin::q(path)))?;
+                let img = image::load_from_memory(&jpg).or_else(|e| fail(format!("{path}: its first page: {e}")))?;
+                reader.borrow_mut().read_image(&atlas, img, path, &languages(&p))?
+            } else {
+                reader.borrow_mut().read(&atlas, &locate(&atlas, &root, "", path)?, &languages(&p))?
+            };
             Ok(json!({ "text": text }))
         });
     }

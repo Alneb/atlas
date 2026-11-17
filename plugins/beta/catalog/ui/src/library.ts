@@ -12,6 +12,23 @@ export function sortItems(items: LibraryItem[], by: { id: string; desc?: boolean
   });
 }
 
+/** The "Continue" row: items begun and not finished (`progress` below 1, or none given) that say when they were last
+ *  used, the most recent first, `max` at most. */
+export function continueRow(items: LibraryItem[], max: number): LibraryItem[] {
+  return items
+    .filter((i) => typeof i.lastUsed === "number" && i.lastUsed > 0 && (i.progress ?? 0) < 1)
+    .sort((a, b) => b.lastUsed! - a.lastUsed! || a.id.localeCompare(b.id))
+    .slice(0, max);
+}
+
+/** The items each source gave last (by its id), for the page's life: shown at once when the page comes back to it. */
+export const seen = new Map<string, LibraryItem[]>();
+
+/** Where the page was in each source (by its id), for the page's life: what was picked, the tab, the side's scope,
+ *  the search, the order, the layout and the list's scroll. */
+export interface Place { scope: { kind: "all" } | { kind: "group"; name: string } | { kind: "tag"; name: string }; tab: string | null; q: string; selId: string | null; sortId: string; layout: "list" | "covers"; scroll: number }
+export const place = new Map<string, Place>();
+
 /** The words of `q` all in the item's text. */
 export function matches(item: LibraryItem, q: string): boolean {
   const hay = item.text.toLowerCase();
@@ -58,6 +75,7 @@ export function mergeSources(id: string, title: string, icon: string, parts: Lib
   const owner = (item: LibraryItem) => own.get(item.id);
   const declared = (p: LibrarySource) => (typeof p.tabs === "function" ? p.tabs() : p.tabs) ?? [];
   const tabsOf = (p: LibrarySource, i: number): LibraryTab[] => {
+    if (p.from) return []; // a service's part is a "From <service>" section, never a tab beside the vault's
     const t = declared(p);
     return t.length ? t.map((x) => ({ ...x, id: `${i}${sep}${x.id}` })) : [{ id: `${i}${sep}`, title: p.title }];
   };
@@ -74,10 +92,13 @@ export function mergeSources(id: string, title: string, icon: string, parts: Lib
     async load() {
       own.clear();
       const lists = await Promise.all(parts.map((p) => p.load().catch(() => [] as LibraryItem[])));
-      return lists.flatMap((items, i) => items.map((item) => {
-        const merged = { ...item, id: `${i}${sep}${item.id}`, tab: `${i}${sep}${declared(parts[i]).length ? item.tab ?? "" : ""}` };
+      // one thing, one entry: a file two sources list (a folder library and the Books plugin's e-books) shows once
+      const files = new Set<string>();
+      return lists.flatMap((items, i) => items.flatMap((item) => {
+        if (item.note && !(item.from ?? parts[i].from)) { if (files.has(item.note)) return []; files.add(item.note); }
+        const merged = { ...item, id: `${i}${sep}${item.id}`, tab: parts[i].from ? undefined : `${i}${sep}${declared(parts[i]).length ? item.tab ?? "" : ""}`, from: item.from ?? parts[i].from };
         own.set(merged.id, { part: parts[i], item });
-        return merged;
+        return [merged];
       }));
     },
     tabs: () => parts.flatMap(tabsOf),
@@ -85,6 +106,8 @@ export function mergeSources(id: string, title: string, icon: string, parts: Lib
     groupOrder: union(parts.map((p) => p.groupOrder ?? []), (x) => x),
     regroup: parts.some((p) => p.regroup) ? async (items, group) => { for (const [p, xs] of byPart(items)) await p.regroup?.(xs, group); } : undefined,
     layouts: union(parts.map((p) => p.layouts), (x) => x),
+    from: parts.every((p) => p.from) ? parts[0].from : undefined,
+    homes: union(parts.map((p) => p.homes ?? []), (h) => h.from),
     sorts: union(parts.map((p) => p.sorts), (s) => s.id),
     search: parts[0].search,
     empty: parts.map((p) => p.empty).join(" "),
@@ -117,7 +140,7 @@ export function bySubject(list: LibraryEntry[]): Shown[] {
     if (!m || parts.some((p, i) => m!.members![i] !== p.id)) {
       const title = parts.find((p) => slug(p.title) === s)?.title ?? parts[0].title;
       const icon = parts[0].icon;
-      m = { id: parts[0].id, title, icon, by: parts[0].by, subject: s, members: parts.map((p) => p.id),
+      m = { id: parts[0].id, title, icon, by: parts[0].by, subject: s, members: parts.map((p) => p.id), from: parts.every((p) => p.from) ? parts[0].from : undefined,
         source: async () => mergeSources(parts[0].id, title, icon, await Promise.all(parts.map((p) => p.source()))) };
       mergedCache.set(key, m);
     }

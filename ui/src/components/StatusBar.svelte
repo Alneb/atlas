@@ -11,6 +11,13 @@
   import { zoomPane } from "../lib/pane-zoom";
   import Popover from "./Popover.svelte";
   import type { StatusCell } from "../lib/plugin-status.svelte";
+  import { elsewhere, openElsewhere, placeDetail } from "../lib/where.svelte";
+  import { clockOf, nowPlaying, shellPlayer } from "../lib/player.svelte";
+  import { plugins, pluginSpec } from "../lib/plugin-registry.svelte";
+  import { open, openPath } from "../lib/dock";
+
+  /** A file's name as the tabs say it: no folders, a note without `.md`. */
+  const short = (p: string) => p.split("/").pop()!.replace(/\.md$/i, "");
 
   const connLabel = $derived(app.conn === "open" ? "Connected" : app.conn === "connecting" ? "Connecting…" : "Offline — retrying");
   const plural = (n: number, w: string) => `${n} ${w}${n === 1 ? "" : "s"}`;
@@ -19,6 +26,15 @@
   /** The cell whose panel is open, and its button (the popover's anchor). */
   let opened = $state<{ cell: StatusCell; anchor: HTMLElement } | null>(null);
   const toggle = (cell: StatusCell, anchor: HTMLElement) => { opened = opened?.cell.key === cell.key ? null : { cell, anchor }; };
+  /** What the app's player plays (lib/player.svelte.ts): its pane opened again from the lower bar. */
+  function showPlaying() {
+    const s = nowPlaying.s, p = s && plugins.list.find((x) => x.id === s.plugin);
+    // a film: its note, where its notes are written (mpv is its own window; a vault video's "note" is the file itself)
+    if (s?.video) { if (s.note && /\.md$/i.test(s.note)) openPath(s.note); return; }
+    if (!s || !p?.view) return;
+    const spec = pluginSpec(p);
+    if (spec.kind === "plugin") open({ ...spec, title: s.title, icon: "headphones", ...(s.open !== undefined ? { arg: s.open } : {}) });
+  }
   /** The plugin draws its panel into the popover's body; its cleanup runs when the popover closes. */
   function drawn(host: HTMLElement, cell: StatusCell) {
     const done = cell.panel?.(host, () => { opened = null; });
@@ -33,7 +49,22 @@
     <button class="cell zoom" data-cell="zoom" onclick={() => zoomPane(0)} title={tipFor(`This tab is shown at ${zoomShown.percent} % of the settings' sizes. Click for 100 %`, "ui.zoomReset")}>{zoomShown.percent} %</button>
   {/if}
   {#if dirtyCount}<span class="saving">{dirtyCount} unsaved</span>{/if}
+  <!-- what the other devices show (lib/where.svelte.ts): a click opens it here -->
+  {#each elsewhere.slice(0, 2) as d (d.peer)}
+    <button class="cell elsewhere" data-testid="elsewhere" onclick={() => openElsewhere(d.peer)} title="{d.name} shows {placeDetail(d.at)}. Click to open it here, at that place">
+      <Icon name="eye" size={12} />{d.name}: {short(d.at.path)}{d.at.page ? ` · p. ${d.at.page}` : ""}
+    </button>
+  {/each}
+  {#if elsewhere.length > 2}<button class="cell elsewhere" onclick={() => openElsewhere()} title="Other devices: what they show">+{elsewhere.length - 2}</button>{/if}
   <span class="grow"></span>
+  {#if nowPlaying.s}
+    {@const s = nowPlaying.s}
+    <span class="playing" data-testid="now-playing">
+      <button class="cell" onclick={showPlaying} title="{s.title}{s.author ? ` — ${s.author}` : ''}{s.chapter >= 0 ? ` · ${s.chapters[s.chapter].title}` : ''}{s.error ? ` · ${s.error}` : ''}. Click to show the player">
+        <Icon name={s.video ? "film" : "headphones"} size={12} />{s.title} · {clockOf(s.at)}</button>
+      <button class="pp" onclick={() => shellPlayer.toggle()} aria-label={s.playing ? "Pause" : "Play"} title={s.playing ? "Pause" : "Play"}>{s.playing ? "❚❚" : "▶"}</button>
+    </span>
+  {/if}
   {#each statusCells as c (c.key)}
     {#if c.panel}<button class="cell" class:open={opened?.cell.key === c.key} title={c.title} data-cell={c.key} aria-haspopup="dialog" aria-expanded={opened?.cell.key === c.key} onclick={(e) => toggle(c, e.currentTarget)}>{c.text}</button>
     {:else if c.run}<button class="cell" title={c.title} data-cell={c.key} onclick={() => void c.run?.()}>{c.text}</button>
@@ -65,7 +96,12 @@
   /* a plugin's cell: quiet text; a button only shows it on hover */
   .cell { max-width: 28ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   button.cell { padding: 1px 6px; border-radius: 5px; color: inherit; }
+  .elsewhere { display: inline-flex; align-items: center; gap: 4px; }
   button.cell:hover, button.cell.open { background: var(--bg-hover); color: var(--text); }
+  .playing { display: inline-flex; align-items: center; gap: 2px; color: var(--text-muted); }
+  .playing .cell { display: inline-flex; align-items: center; gap: 5px; font-variant-numeric: tabular-nums; }
+  .pp { padding: 1px 6px; border-radius: 5px; color: var(--accent); font-size: .9em; }
+  .pp:hover { background: var(--bg-hover); }
   .saving { color: var(--yellow); }
   .vim { font-family: var(--font-mono); font-size: calc(10.5px * var(--ui-scale, 1)); font-weight: 600; letter-spacing: .06em; padding: 1px 8px; border-radius: 5px; color: var(--text-muted); background: var(--bg-hover); min-width: 64px; text-align: center; }
   .vim[data-mode="INSERT"] { color: var(--bg); background: var(--green); }

@@ -24,8 +24,16 @@ test("Library lists papers, searches, shows details, copies the citekey", async 
   await side.getByRole("button", { name: /All references/ }).click();
   await expect(lib.locator(".row")).toHaveCount(2);
   await side.getByRole("button", { name: /Philosophy/ }).click();
-  await lib.locator(".detail").getByRole("button", { name: "anderson1972more" }).click();
+  // the panel: the first page's fields, the seldom-used actions behind "⋯"
+  await expect(lib.locator(".detail dl")).toContainText("anderson1972more");
+  await lib.locator(".detail").getByRole("button", { name: "More" }).click();
+  await page.getByRole("menuitem", { name: "Copy citekey" }).click();
   expect(await page.evaluate(() => navigator.clipboard.readText())).toBe("anderson1972more");
+  // a right-click on a row: its panel's actions, its shelf, then the rows every file has
+  await lib.locator(".row").first().click({ button: "right" });
+  await expect(page.getByRole("menuitem", { name: "Copy link" })).toBeVisible();
+  await expect(page.getByRole("menuitem", { name: "Show in the explorer" })).toBeVisible();
+  await page.keyboard.press("Escape");
 });
 
 test("dropping a PDF on the Library adds an entry with the file", async ({ page, request }) => {
@@ -96,7 +104,8 @@ test("Library: sort by year / title; delete an entry (asks, goes to the Trash, r
   expect(note.text).toContain("title: Throwaway, renamed");
   expect(note.text).toMatch(/keywords:\n {2}- tmp\n {2}- test/);
   expect((await request.get("/api/file?path=refs/papers/throwaway/info.yaml", { headers: h })).status()).toBe(404);
-  await lib.locator(".detail").getByRole("button", { name: "Delete…" }).click();
+  await lib.locator(".detail").getByRole("button", { name: "More" }).click();
+  await page.getByRole("menuitem", { name: "Delete…" }).click();
   await page.getByRole("button", { name: "Move to Trash" }).click();
   await expect(lib.locator(".row")).toHaveCount(0);
   const bib = await (await request.get("/api/file?path=refs/refs.bib", { headers: h })).json();

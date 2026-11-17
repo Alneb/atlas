@@ -4,7 +4,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { harness, Status } from "atlas-helper/testing";
-import { auth, muted, oneAtATime, sendWith, sourceOf, syncWith, yamlValue, type Message, type Net, type Vault } from "./helper";
+import { auth, buttonsOf, muted, oneAtATime, sendWith, sourceOf, syncWith, yamlValue, type Message, type Net, type Vault } from "./helper";
 
 /** ntfy: each topic's messages, `since=<id>` honoured as the real one does; the POSTs made. */
 function ntfy(topics: Record<string, Message[]>) {
@@ -101,6 +101,33 @@ test("the inbox is captured, and send goes through Apprise or ntfy", async () =>
   assert.equal((await sendWith(net, { text: "done", settings: { server: "https://ntfy.example.org", phone_topic: "me" }, secrets: {} })).through, "ntfy");
   assert.equal(posts.at(-1)!.url, "https://ntfy.example.org/me?title=Atlas");
   await assert.rejects(sendWith(net, { text: "x", settings: {} }), /phone's topic/);
+});
+
+test("a message with buttons goes to ntfy as JSON, even when Apprise is set, each press a POST that clears it", async () => {
+  const { net, posts } = ntfy({});
+  const set = { server: "https://ntfy.example.org/", phone_topic: "me", apprise: "https://apprise.example.org/notify/key" };
+  const hook = "https://atlas.example.org/api/plugins/plan/hook/press?t=abc.def";
+  const r = await sendWith(net, { text: "A task is waiting", title: "Plan", settings: set, secrets: { token: "tk" }, click: "https://atlas.example.org/", actions: [{ label: "Done", url: hook, body: "done" }, { label: "Snooze", url: hook }] });
+  assert.deepEqual(r, { sent: true, through: "ntfy", buttons: 2 });
+  const sent = posts.at(-1)!;
+  assert.equal(sent.url, "https://ntfy.example.org", "ntfy's JSON publishing: the server's root");
+  assert.equal(sent.headers.Authorization, "Bearer tk");
+  assert.deepEqual(JSON.parse(sent.body), {
+    topic: "me", title: "Plan", message: "A task is waiting", click: "https://atlas.example.org/",
+    actions: [
+      { action: "http", label: "Done", url: hook, method: "POST", body: "done", clear: true },
+      { action: "http", label: "Snooze", url: hook, method: "POST", clear: true },
+    ],
+  });
+  // no phone topic: Apprise, which cannot carry buttons, says so
+  assert.deepEqual(await sendWith(net, { text: "x", settings: { apprise: set.apprise }, actions: [{ label: "Done", url: hook }] }), { sent: true, through: "apprise", buttons: 0 });
+});
+
+test("only well-formed buttons are kept, three at most", () => {
+  const url = "https://atlas.example.org/h";
+  assert.deepEqual(buttonsOf([{ label: "A", url }, { label: "", url }, { label: "B", url: "javascript:alert(1)" }, { label: "C", url: "https://x y" }, null, { label: "D", url, method: "put" }, { label: "E", url }, { label: "F", url }]),
+    [{ label: "A", url }, { label: "D", url, method: "PUT" }, { label: "E", url }]);
+  assert.deepEqual(buttonsOf("no"), []);
 });
 
 test("through the core: the poll is fetched, the note written and the last id kept in the cache", async () => {

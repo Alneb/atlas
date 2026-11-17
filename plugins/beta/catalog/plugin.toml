@@ -7,7 +7,7 @@ rail = false                # its pane (view.js, built from ui/) is the Librarie
 description = "anything you capture, recognised, enriched and filed in its library"
 phone = true # runs in the phone apps too (only plugins marked so start there)
 icon = "grid" # not References' library icon (a vault may show both)
-version = "0.9.2"
+version = "0.16.0"
 api = 24
 provides = ["catalog", "libraries"]    # the roles the core and the page ask for (not this id): "libraries" = its pane
                                        # is the Libraries page (atlas.openLibrary, the Library tile, the phone's Library)
@@ -29,13 +29,19 @@ idle = "10m"                       # it only answers: stopped when unused, start
 name = "add"
 description = "Catalogue a link, DOI, arXiv id or other identifier: recognise what it is, gather metadata from every catalog source, and write (or update) its note in the right library (`note`: the existing note it is, chosen by the user — only its gaps are filled when it has no IDs yet; `kind` + `ids`: the thing a sync already knows, filed by those IDs even when the words find it no more). Returns the note's path, what was done and each step."
 input = { text = "string", kind = "string?", ids = "object?", own = "object?", note = "string?" }
+timeout_secs = 300 # a link to a file no plugin claims is downloaded (up to 180 s) before its note is made
+
+[[tool]]
+name = "note"
+description = "The note of a thing another plugin shows (an Audiobookshelf book, a Suwayomi series, a Jellyfin film, an EPUB or a manga folder in the vault): found by the vault file's own note (a note claiming it by `file`, else the one beside it), by its IDs anywhere in the vault, or by its name; made only once it is yours — `why`: opened (never made), progress (with `progress` 0–1: from 1 %), finished, rated, reviewed, wrote, asked. A server item's note goes in its kind's folder (filed as `add` does, `fields` — what the server says — filling the gaps); a vault file's beside it through the core. A found note gets only the IDs, type and file link it lacks. Returns `path` (null: not yours yet) and `made`."
+input = { kind = "string", ids = "object?", fields = "object?", file = "string?", own = "object?", why = "string?", progress = "number?" }
 timeout_secs = 120
 
 [[tool]]
 name = "capture"
 description = "After every capture (any app): a link or identifier in it is catalogued as add does; plain words are left alone (no search). Answers the note, or skipped."
 input = { text = "string", path = "string?", line = "integer?" }
-timeout_secs = 120
+timeout_secs = 300
 on = "capture"
 
 [[setting]]
@@ -51,6 +57,24 @@ label = "File links from every capture"
 kind = "toggle"
 default = true
 hint = "a link, DOI, ISBN or IMDb id captured anywhere (the capture box, the phone, the desktop, an agent) becomes its note in its library, and the capture links to it"
+
+[[setting]]
+key = "documents"
+label = "Documents folder"
+kind = "text"
+default = "documents"
+hint = "where a link to a file (a PDF, an EPUB…) that no other catalog plugin claims is downloaded, under its own name, with its note beside it; an ISBN in its first pages files it as a book instead"
+
+[[tool]]
+name = "download"
+description = "Download the file a link points to (a PDF, an EPUB, a DjVu…) into the documents folder under its own name and make its note (`type: document`, `url`, `title`); an ISBN in a PDF's first pages files it as a book note linking the file. Kept even when another plugin would claim the link (a paper). Returns the note's path and the file's."
+input = { text = "string" }
+timeout_secs = 300
+
+[[tool]]
+name = "document_types"
+description = "The file extensions `download` keeps as documents (`pdf`, `epub`…): a link whose address ends in one is offered for download."
+input = {}
 
 [[tool]]
 name = "preview"

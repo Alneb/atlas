@@ -20,6 +20,8 @@ final class SettingsPages {
         /** A call of the vault's own Settings in the note view (`view('settings')`, `pluginSettings('id')`). */
         void web(String call);
         void switchPlugin(String id, boolean on);
+        /** A plugin this app carries (Bundled) added to the folder vault on screen. */
+        void addPlugin(String id);
         /** The vault on screen, or null before one is chosen. */
         String vault();
         /** Its plugins as VaultFiles.plugins lists them ([] until read). */
@@ -78,14 +80,21 @@ final class SettingsPages {
 
     private void plugins(LinearLayout col) {
         JSONArray all = nav.plugins();
+        // the plugins the app carries (Bundled) matter to a folder vault: a server's vault has the server's plugins
+        java.util.List<String> carried = Server.is(nav.vault()) ? new java.util.ArrayList<>() : Bundled.ids(a);
         col.addView(look.heading(a, "Built into this app"));
         LinearLayout built = look.card(a);
         for (NativePlugin p : NativePlugins.ALL) built.addView(pluginRow(p.id(), true));
+        for (String id : carried) {
+            if (NativePlugins.byId(id) != null) continue;
+            built.addView(VaultFiles.plugin(all, id) != null ? pluginRow(id, false) : addRow(id));
+        }
         col.addView(built);
+        if (!carried.isEmpty()) col.addView(note("This app carries these plugins: a copy in this vault older than the app's is updated when the vault opens (one changed in the vault is left as it is). One the vault lacks is added from its row."));
         LinearLayout others = look.card(a);
         for (int i = 0; i < all.length(); i++) {
             String id = all.optJSONObject(i).optString("id");
-            if (NativePlugins.byId(id) == null) others.addView(pluginRow(id, false));
+            if (NativePlugins.byId(id) == null && !carried.contains(id)) others.addView(pluginRow(id, false));
         }
         if (others.getChildCount() > 0) {
             col.addView(look.heading(a, "In this vault"));
@@ -106,6 +115,16 @@ final class SettingsPages {
         // the switch is the vault's own choice (its `off` list), whether or not the plugin can run on this device
         r.addView(switchOf(listed == null ? builtIn : !listed.optBoolean("off"), on -> nav.switchPlugin(id, on)));
         r.setOnClickListener(v -> { if (builtIn) nav.page("plugin:" + id); else nav.web("pluginSettings(" + JSONObject.quote(id) + ")"); });
+        return r;
+    }
+
+    /** A plugin the app carries that the vault lacks: what it is, and a tap adds it (the vault decides, not the app). */
+    private View addRow(String id) {
+        String toml = Bundled.manifest(a, id);
+        String what = manifestField(toml, "description");
+        Row r = look.row(a, "plus", titleFrom(toml, id), (what == null ? "" : what + " — ") + "not in this vault: tap to add it");
+        if (r.detail != null) r.detail.setMaxLines(2);
+        r.setOnClickListener(v -> nav.addPlugin(id));
         return r;
     }
 
@@ -198,9 +217,19 @@ final class SettingsPages {
     /** A plugin's title: as the vault lists it, else its carried manifest's `title`, else its id. */
     private static String titleOf(String id, JSONObject listed) {
         if (!text(listed, "title").isEmpty()) return text(listed, "title");
-        String toml = NativePlugins.manifest(id);
-        java.util.regex.Matcher m = toml == null ? null : java.util.regex.Pattern.compile("(?m)^title\\s*=\\s*\"([^\"]+)\"").matcher(toml);
-        return m != null && m.find() ? m.group(1) : id;
+        return titleFrom(NativePlugins.manifest(id), id);
+    }
+
+    /** A manifest's `title`, else `id`. */
+    private static String titleFrom(String toml, String id) {
+        String t = manifestField(toml, "title");
+        return t != null ? t : id;
+    }
+
+    /** A plugin.toml's top-level `key = "value"` (null text or no such key: null). */
+    private static String manifestField(String toml, String key) {
+        java.util.regex.Matcher m = toml == null ? null : java.util.regex.Pattern.compile("(?m)^" + key + "\\s*=\\s*\"([^\"]+)\"").matcher(toml.split("(?m)^\\[", 2)[0]);
+        return m != null && m.find() ? m.group(1) : null;
     }
 
     private interface OnSwitch { void to(boolean on); }

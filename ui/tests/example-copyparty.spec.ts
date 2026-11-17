@@ -148,7 +148,7 @@ test("Books lists a server folder's books beside the vault's, and a server's boo
   writeFileSync(join(ROOT, "hdd1/Physics/Books/.hist/Hidden Copy.epub"), "PK\n");
   const books = (f: string) => readFileSync(fileURLToPath(new URL(`../../plugins/beta/books/${f}`, import.meta.url)), "utf8");
   const BOOKS = ".atlas/plugins/books";
-  for (const f of ["main.js", "view.js", "shared/marks.js"]) await put(request, `${BOOKS}/${f}`, books(f));
+  for (const f of ["main.js", "view.js", "shared/marks.js", "shared/ink.js"]) await put(request, `${BOOKS}/${f}`, books(f));
   await put(request, `${BOOKS}/plugin.toml`, books("plugin.toml"));
   await put(request, ".atlas/plugin-settings/books.toml", 'folder = "books-remote-spec"\n\n[[remote]]\nserver = "nas"\nfolder = "/Physics/Books"\n');
   await request.put("/api/file", { headers: H, data: { path: "books-remote-spec/Local Tales.epub", text: "PK not a book either\n" } });

@@ -5,6 +5,361 @@ and versions follow [Semantic Versioning](https://semver.org/) once 1.0 is out.
 
 ## [Unreleased]
 
+### Added
+- **Suwayomi's downloads followed (Manga 0.18.0):** while the server downloads a series' chapters, the series shows
+  how many are left, the one under way and how far it is, and any that failed.
+- **Habits (Plan 0.10.0):** a note with `habit: gym` (or `running`, `sleep`, anything) is nagged in its window —
+  every 30 minutes by default — until you press **Done** or **Skip today**. `habit gym mon wed fri 18:00` in any
+  capture makes the note. Presets fill the days and the window; the ledger keeps what happened.
+- **Drag a task onto the calendar's hours (Calendar 1.11.0):** a task of the Tasks & deadlines layer dragged from the
+  all-day lane onto the hours is time-blocked there, an hour from where it lands.
+- **Link an event while writing (Calendar 1.10.0):** `[[` and two letters offer your calendar's events of the weeks
+  around today among the notes; picking one makes the event's note (once) and writes the link to it.
+- **Block a task from its nudge (Plan 0.9.0):** with the Calendar plugin, a nudge has **Block 16:30** beside Snooze:
+  that slot becomes an event for the task, with its note linking it and ⏳ on the task's line. The event reminds you
+  then; the nudges wait until the block is over and come back if the task is still open.
+- **The audiobook in the Books reader (Books 0.18.0, Audiobookshelf 0.15.0):** when a book's note names its
+  audiobook (`audiobookshelf: <item id>` or an `audiobook:` link to the item) and the Audiobookshelf plugin is set up,
+  the reader's bar on the desktop and on the phone has a ▶ that plays it through the app's one player. While it plays,
+  a row in the reader shows play / pause, the time and the chapter, with **Go to where the audio is** and **Bring the
+  audio here**, which bring the text and the audio to each other's chapter by its title.
+- **A switch to a recently used vault finds its notes indexed:** a vault the desktop starts ahead has its note index
+  built in the background at the lowest priority (the first graph of a 3,000-note vault: 1 s → 47 ms), and the
+  window's own vault keeps its index however long it stays unused.
+- **The PDF reader goes on to the next column:** zoomed to a column (a double-click on the page's white), Space,
+  Page Down or ↓ at the column's end show the next column from its top — the one beside it, else the next page's
+  first — instead of scrolling further down the page. The core's column finder gives it (`POST /api/pdf-column` with
+  `after`); on the phone (Books 0.20.0) a turn at a zoomed column's end does the same, from the same finder.
+- **Quiet hours measured, and nudges left to the phone's alarms (Plan 0.8.0):** each device writes, once a day, the
+  hours it was in use as one line of its Plan ledger; from 14 days of them Settings → Plan → Why now? proposes the
+  quiet hours (the longest run of hours unused, and with nothing ticked, on 80 % of the days), and the new **Quiet
+  hours measured** toggle (off by default) makes the planner use them. The phone app now says which nudges it set
+  exact alarms for (with the vault's presence, through the mirror server): when no computer is in use and the app is
+  closed, a nudge the phone armed exactly rings there, and the planning computer and the server's ntfy fallback leave
+  it alone; a new nudge, or one the phone could only set an inexact alarm for, stays with the planner.
+- **A server vault's key past its gate, from the vault switcher:** a server vault's row (or a folder mirrored on a
+  server) has **Key…**: a header key that the sign-in in front of it lets through (an Authelia bypass), the server's
+  host filled in. It is the same key Settings → Sign-ins lists (one form for both), kept on this machine — also when
+  the switcher is opened on a server vault's page — and sent by the bridge, the mirror and the plugins to that host
+  over https only. The button reads **Key ✓** once a kept key names the host.
+- **Manga: a series' note once it is yours (Manga 0.16.0, Catalog 0.12.1):** a series gets its one note when you turn a page past a
+  chapter's first, finish or mark a chapter, or press **Its note** (new on the series page, desktop and phone) — not
+  when you open it. A Suwayomi series' note is the catalog's Manga note, found again after a server reinstall by its
+  source and address, and says which chapter you are at; a vault series' note stays its folder's.
+- **Your libraries, and the servers' apart (plugin API 33, Catalog 0.12.0, Manga 0.15.0, Jellyfin 0.3.0):** a library
+  is a folder or a Base of the vault with a kind — books, comics, audio, films, papers, pictures, drawings — in
+  `[ui] libraries`; a folder's menu in the file explorer has **Show as a library** (its kind guessed from its files),
+  and the new **Settings → Libraries** adds, orders, hides and sets each one's kind, order and layout. The core lists
+  its things with what their notes say (author, cover, how far, when last read) and what you were in the middle of
+  first. On the Libraries page a server's things are never mixed with yours: Suwayomi's series, a server folder's
+  books, Jellyfin's films come under a **From <service>** band with a button into that service's app, and a library
+  that is a server's alone is a tab after yours, under "On your servers". Covers are larger. The old list of library
+  ids reads as it is.
+- **The phone's Library is native:** your libraries as chips, then Continue, then the covers (or a list), with search
+  and the order at the top, read from the vault's core so it shows while the page loads; Manga's and Audiobookshelf's
+  apps are chips apart, under "Servers"; More… opens the page's other libraries. In Files, a folder's ⋮ has **Show as a
+  library**.
+- **Jellyfin's film notes are the catalog's (Jellyfin 0.3.0):** a film's or a series' note is found by its TMDB/IMDb
+  ids through the catalog's one rule; a film you go on watching opens with its note, one only just started has none
+  until *Its note* makes it. The "Folder for film notes" setting is gone (the catalog's Films folder holds them).
+- **Audiobookshelf as a native app on the phone (Audiobookshelf 0.13.0):** the home (Continue listening, the
+  server's shelves, search), the library (books as covers, series, authors, collections, playlists), a book's screen
+  (details, chapters, bookmarks, Play / Go on) and the player (chapter, ±skip, speed, sleep, chapters) are Android
+  screens over the app's one player, the requests through the core with the token never in Java, where you are synced
+  as from the page. The shell's `TopBar`, `Tile`, `Json` and `PlaceList` are now shared by every native plugin.
+- **One note per thing (Catalog 0.12.0):** a book on Audiobookshelf, a series on Suwayomi, a film on Jellyfin, an EPUB
+  or a manga folder in the vault has one note, and gets it only once it is yours — read or listened past its start, a
+  chapter finished, rated, reviewed, written on, or asked for; opening or listing never makes one. The rule is the
+  catalog's tool `note`, asked by every plugin on the desktop and by the phone's native screens alike: it finds the
+  thing's note by the vault file's own note, by its IDs anywhere in the vault, or by its name, and adds only the IDs
+  and file link it lacks — so an EPUB joins the note its audiobook already has. A note that claims a file by its `file`
+  property is now that file's note for every reader (the core's companion lookup).
+- **Zoom to a PDF's column (Books 0.17.0):** on the phone a double tap, on the desktop a double-click on the page's
+  white (between lines, a margin), zooms so the text column there fills the width — one column of a two-column paper,
+  not a fixed 2.5×; again goes back. Both ask the core, which finds the column from the page's characters.
+- **A page strip in the phone's PDF reader (Books 0.17.0):** while the bars show, the pages as small pictures along
+  the bottom, the one read framed; drag the row, tap to jump. A turn while zoomed shows the next page sharp at once
+  (the pages either side are drawn ahead at the zoomed size).
+- **Find in a PDF on the phone shows the first match at once (Books 0.17.0):** pages are searched one by one from the
+  one shown; the bar counts on as the rest come, ✕ stops it, and every match on the page is framed.
+- **The agenda as a day, 3 days or a week (Calendar 1.9.0):** the Calendar's Agenda lists a day, three days or a week
+  with every day said (or the coming 60 days, as before), the events beside the dated tasks, and a task's box ticks it
+  through the core as Home does. Plugins tick a listed task with `atlas.tickTask` (plugin API 31).
+- **The Agenda on the phone:** a native screen (the top bar's calendar button, the launcher's *Agenda*) lists a day,
+  three days or a week — the Calendar's events and the dated tasks, every day said — from the same answers as the
+  desktop's Agenda; a task opens at its line or is ticked from its menu, an event opens the Calendar at its day. The
+  home-screen widget shows what is coming up next.
+- **Books: free ink over a reflowed ebook page:** a Pen and an Eraser in the EPUB reader; the ink is pinned to the
+  words under it and kept in em, so it stays with them after a font, margin or window change. Kept in the book's note
+  as marks (plugin API 30: `atlas.changeMarks`, `atlas.samples`); the phone's reader writes the same marks and offers
+  to move an older `.ink.json` into the note.
+- **Audiobookshelf offline (Audiobookshelf 0.12.0, plugin API 32):** *Keep offline* in the player downloads a book or
+  an episode to the device; it then plays from the kept files, with no server at all when it is out of reach, and the
+  listening done offline is sent to the server as a local session once it answers again. A plugin's
+  `atlas.media({ file })` plays a file of its own cache, served by the core with ranges.
+- **Audiobookshelf's listening stats (Audiobookshelf 0.11.0):** the home ends with your listening, from the server's
+  own stats (every app counted): today, the last seven days as bars, the time in all, and what you listened to most.
+- **Audiobookshelf's podcasts (Audiobookshelf 0.10.0):** a Podcasts library beside Audiobooks on the Libraries page,
+  a podcast opens on its episodes (newest first, each with its date, length and how far you are), and an episode plays
+  in the player as itself, its place kept per episode on the server — also when the server ended its session.
+- **Audiobookshelf's read-along (Audiobookshelf 0.9.0):** a book whose Audiobookshelf item carries its ebook gets
+  *Read along* in the player: the ebook opens beside it (the phone's own reader first), at the place Audiobookshelf
+  keeps (`ebookLocation`, `ebookProgress`) when that is newer than the ebook's note; the reader's newer place goes back
+  to the server every 30 s and when the player closes, so Audiobookshelf's own apps open it there too. A plugin's
+  `atlas.open(pdf, page)` reaches the phone's reader at that page.
+- **Audiobookshelf's bookmarks (Audiobookshelf 0.8.0):** the player's Bookmarks tab lists the book's bookmarks from
+  the server, adds one at the time you are at with a note, goes to one, removes one — the same ones Audiobookshelf's
+  own apps show. *Into the note* writes a bookmark into the book's note (the catalog's) as a time link
+  `[[Book#t=1:02:03]]`, which seeks the book when it plays. Plugins get the link's form as `atlas.player.timeLink`.
+- **Audiobookshelf's shelves and search (Audiobookshelf 0.7.0):** the pane opened with no book (the command
+  *Audiobooks: shelves and search*, or *Shelves* in the Audiobooks library's header) shows the server's own shelves
+  for you — Continue listening, Recently added, Recent series, Discover, Listen again, Newest episodes — then your
+  collections and playlists, and searches every library on the server (books, podcasts, series, authors). The
+  library's groups list collections and playlists beside series and authors.
+- **Who is where:** each device of a vault says which file it shows and where in it (a PDF's page, a note's line);
+  the desktop's lower bar shows a chip per other device that opens that file at that place, and the phone's Files
+  lists "On your other devices" above the vault's folders. The core keeps the last place of each (`GET /api/where`,
+  a mirrored vault asking its server). Settings → Writing → "Show your other devices what this one shows" turns it
+  off for a vault.
+- **Plan: the habit knows the weekday:** a kind of task usually done at a different hour on some weekday is nudged at
+  that weekday's hour; with few done times on a weekday, the every-day habit holds. Every task ticked counts now, not
+  only the nudged ones (seen by the planner's 5-minute round).
+- **Hooks for plugins:** a plugin can give something outside Atlas an address to call with no sign-in — a button of
+  a notification sent through ntfy, a webhook — `POST /api/plugins/<id>/hook/<name>?t=<token>`, each token signed by
+  the vault's core for one use and expiring by itself (at most a week); it reaches the plugin's `on = "hook"` tool.
+  A server's gate must let these paths through (docs/guides/SERVER.md).
+- **Plan: nudges through ntfy when no device runs Atlas (Plan 0.7.0, Notifications 0.6.0):** a vault kept on a
+  server sends the nudges that come due through the Notifications plugin's ntfy while none of your devices has run
+  Atlas for 10 minutes, with **Done** and **Snooze** buttons that work from the phone without the app; the message
+  says only "A task is waiting" unless Settings → Plan allows the task's name. Notifications' `send` takes buttons.
+- **Manga: Browse on the desktop:** the Suwayomi server's sources by language, a source's popular, latest or searched
+  series, and a series found there added to the library — from the Comics page's header or a command; the phone opens
+  its own Browse from the same command.
+- **Manga: download on the server:** a Suwayomi series' unread chapters queued in Suwayomi's own Downloads, from the
+  series on the desktop and a chapter's long press on the phone; the chapters the server keeps are marked.
+- **A downloaded document is named by its first page:** a PDF kept from a link (Catalog) is titled as its first page
+  names it, with its author and year, by the same reader the references use for a PDF without identifiers; else by
+  its file name.
+- **Close a guest folder without restarting:** a Close button on the guest bar, and Settings → Vaults & sync lists
+  the guest folders open, each with Close. The core stops serving it, removes its link and Atlas's state for it, and
+  leaves its files; its window closes by itself.
+- **Notes while a film plays:** two settings under Writing (`[player]`): typing in a note pauses the film, which
+  plays on a few seconds after the last key (`pause_on_type`, `resume_after`); and a line started while it plays
+  begins with its time as a link that seeks it (`stamp_lines`), outside the properties and code. Both off by default.
+- **Native Files and Search on the phone:** the bottom bar's Files and Search are now the app's own lists over the
+  vault's core — folders with breadcrumbs, sticky sections, pull to refresh, a menu per row (open, open with, rename,
+  copy a link, trash), and search results as you type with the desktop's ranking, a hit opening at its line. Both
+  work while the note view is still loading or has failed; the page's panes stay for the desktop and the browser.
+- **A link to a file is kept as the file (Catalog 0.11.0):** in a vault where no catalog plugin claims it (no
+  Catalog · Papers), a captured or added link to a PDF, an EPUB, a DjVu… is downloaded into the documents folder (a
+  setting, `documents`) under its own name, with its companion note (`type: document`, its `url`, a title from the
+  name); an ISBN in a PDF's first pages files it as that book's note instead, linking the file. The captures' triage
+  shows **Download** (`w`) on a capture that links to a file, beside **Catalogue** (`c`), and says the note made or
+  why none was.
+- **Manga's Browse on the phone (Manga 0.12.0):** the library's **+** opens the Suwayomi server's sources by
+  language, a source's Popular, Latest or a search as covers that load as you scroll, and a series' screen with its
+  author, status, genres and description and **Add to library** with its categories (or change them, or remove it).
+  The library's tabs follow the categories' order on the server.
+- **Reminders ring on time on the phone, asleep or closed:** the app keeps an exact alarm at each folder vault's next
+  planned notice (a calendar reminder, a snoozed one, Plan's nudges with their 2-minute grace from `plan/next.md`);
+  it wakes the app's own core, which rings it as it does when open. Where Android withholds exact alarms, an inexact
+  one that still fires in Doze.
+- **Android notifications by kind:** Reminders, Nudges, Mail, Sync and Other, each silenced or made louder on its own
+  in Android's settings (the per-plugin channels of older builds are removed).
+- **The phone's note view recovers by itself:** a crashed or killed page is made again where it was, with its open
+  files (and stops after three crashes in two minutes, waiting for a tap); back in the app, a server that restarted
+  or was updated reloads the page once; memory is let go when Android runs short. Each failure is logged by name
+  (`adb logcat -s AtlasWeb`) and said in a toast.
+- **Jellyfin 0.2.0, a client (beta, from the example):** films and series on the Libraries page (posters, Continue,
+  watched marks), a film played in mpv from where it was left, where you are written back to Jellyfin's play session,
+  the film's note beside it (the catalog's when it is on, else one made in the setting's folder), the sign-in by
+  Jellyfin's Quick Connect (a code approved in Jellyfin, no password typed in Atlas).
+- **Manga on the phone is a reader app of its own (Manga 0.11.0):** a native library with the Suwayomi server's
+  categories as tabs, the vault's series beside them and a Reading tab that opens a series where it was left; covers in
+  a grid or a list with unread counts, a filter, pull to refresh. A series screen with Continue (the half-read chapter,
+  else the next unread), chapters read and unread, kept for offline, a long press to mark read or unread or keep one;
+  the next five unread kept in one tap. In the reader, swipes and taps turn pages on phones and e-ink alike, the page
+  slides with the finger, fit width scrolls before it turns, pinch and double tap zoom, and a page between chapters
+  says what was finished, what comes next and whether chapters are missing. The library and series open offline as
+  last seen.
+- **Video plays in mpv, and notes are written while watching.** A film or an episode (a plugin's item marked
+  `video`, or a video kept in the vault) plays in mpv's own window, driven by the desktop's core; the lower bar shows
+  and controls it as it does an audiobook. In the note beside it, Super+Alt+T writes the time as a link
+  (`[[film#t=1:02:03]]`; a click on one seeks the film, or starts a vault video there), Super+Alt+S quotes the subtitle
+  shown, Super+Alt+F attaches the frame shown with its time.
+- **A test that fails when the phone has no path for a feature:** every command, plugin and Settings page is found in
+  the repository and must have a line in `crates/atlas-android/parity.toml` saying how the Android app does it — the
+  page, a named native screen (checked to exist) or missing with a reason. The gaps are printed on every run; a new
+  feature without a line, a native screen that does not exist, a stale line, or a plugin marked against its manifest
+  fails with the line to paste (`cargo test -p atlas-android --lib -- parity`).
+- **The phone app carries its plugins:** every plugin made for the phone comes inside the app, and a vault on the phone
+  is brought up to them when it opens — an older copy is updated (settings kept, the old one in the trash), a retired
+  plugin is replaced by its successor (Audiobookshelf for the old catalog one), and a copy changed in the vault is
+  left as it is and said. A short message names what was updated. Plugins the vault does not have are listed in
+  Settings → Plugins under "Built into this app", one tap adding one.
+- **Settings → Sign-ins, one page for every way past a sign-in in front of a service:** a "Which one do I need?" line,
+  then three sections — sessions kept from a sign-in gate (Authelia, Authentik…), OpenID providers with the vault's
+  provider explained in plain words, and keys that skip the gate. Each kept item shows its hosts, since and until
+  when, the plugins using it and a Forget button; empty sections say what will appear there and when. A key is
+  entered in a password field, listed only as "key kept", and sent only to the hosts named (`abs.example.org` or
+  `*.example.org`; `*.org` and `*` are refused with the reason), only over https. The page moved out of Accounts,
+  and Settings now says "sign-in gate" everywhere for forward-auth (Server's sign-in choices included).
+- **Audiobookshelf signs in through Authelia (Audiobookshelf 0.6.0):** the command *Audiobookshelf: sign in* uses the
+  server's own OpenID sign-in (Authelia or any provider), as its apps do, and keeps the token; no token to paste.
+  Plugins' sign-ins (`atlas.signIn`) now come back on the phone too, in the app's own sign-in window.
+- **PDFs on the phone fit the width, crop their margins and keep the zoom (Books 0.15.0):** Settings → Fit: whole
+  page or width; Margins: shown or cropped (found from the drawn page, so scans crop too). The zoom stays from page
+  to page, and a turn on a page taller than the screen first steps down a screenful, then shows the next page from its
+  top (back: the page before from its bottom). A finger moves any page larger than the screen.
+- **Swipe between Home, Library, Files, Search and Settings on the phone:** a sideways fling on the bottom bar, or on
+  a place's page where nothing scrolls sideways (tables, fields and selections keep their own gestures).
+- **Audiobooks play on when their tab is closed (Audiobookshelf 0.5.0):** the app has one player now, outside any tab:
+  closing the player's tab no longer stops the book, a second book replaces the first instead of playing over it, and
+  the status bar shows what plays with a play/pause button (a click opens the player again). Where you are is sent to
+  Audiobookshelf by Atlas itself every 15 s, on pause and at the end, also when the tab is gone; a session the server
+  ended is opened again without losing the time listened. On the phone the player becomes the app's media service:
+  it plays with the screen off, with the lock screen's, the notification's and a headset's controls (needs a device
+  to confirm). Plugins play through it with `atlas.player` and hear where you are through `[media] progress`.
+- **Book highlights stay where you made them (Books 0.14.0):** a highlight remembers its chapter and its place, so a
+  phrase that occurs twice is marked where you chose it and not in other chapters; a new highlight goes under the
+  note's *Highlights* heading instead of at the very end; quotes and callouts of your own elsewhere in the note are no
+  longer taken for highlights; a tap on a highlight removes it (after asking); on the phone, a highlight in the Notes
+  panel opens the book at it.
+- **Books and comics from a server vault read offline on the phone:** a file opened once is kept on the device and
+  opened from there when the server does not answer (the reader says *Offline — the copy on this device*); a download
+  is streamed to the device instead of held in memory, a broken one never replaces the good copy, and a PDF no longer
+  asks the server about the file at every page.
+- **Continue where you left off (Catalog 0.10.0, Books 0.13.1, Manga 0.10.1, Audiobookshelf 0.4.1):** the Libraries
+  page shows a Continue row of the books, comics and audiobooks you are in the middle of, latest first, and a progress
+  bar under every cover; on a phone one tap on a cover opens it. Items show at once when you come back to the page.
+- **Comics read offline on the phone and the Boox (Manga 0.10.0):** a Suwayomi chapter read once, or kept with
+  *Keep 5 for offline*, opens in the native reader without the server, with its series' chapters as last seen. The web
+  page and the native reader now keep one copy in the vault's cache instead of two that never met.
+- **Contents and "Back to page N" in the phone's PDF reader (Books 0.13.0):** the Contents tab lists the PDF's own
+  outline with the section you are in marked, and every jump — a section, a link, find, the slider, a bookmark —
+  leaves a chip that takes you back to the page you left. The EPUB reader's chip is now the same one.
+- **See what your other devices have open:** the status bar names the note (or PDF page) another device shows —
+  the Boox, the phone, another window — and one click opens it here; also the command *Open what another device
+  shows*.
+- **Highlights can be removed on the Boox:** a pen tap on a highlight, underline or struck passage in a PDF offers
+  Remove or another colour (yellow, green, blue, red); Undo takes it back, and the desktop sees the change.
+- **Typing on the phone:** a row above the keyboard while a note is typed in — undo, redo, indent and outdent, to-do,
+  list, heading, bold, italic, `[[`, a web link, a photo and dictation — and the note shrinks above it, so the caret is
+  never hidden. In the phone app, upload buttons now open the system's file picker (they did nothing before).
+- **Plan 0.6.0 nudges on the device you are at:** each device of a mirrored vault tells the server when it was last
+  used; a nudge rings on the computer used in the last 5 minutes, else on the phone while Atlas runs there, else on
+  the planning computer as before. Settings → Plan says which and why.
+- **Plan 0.5.0 keeps nudging when the planning computer sleeps:** the planner writes its plan to `plan/next.md`;
+  another device plans for itself once that is 2 hours old.
+- **Plan 0.4.0 waits for you:** a nudge due now waits while no one has used the computer for 30 minutes (the screen
+  locked or idle, as the system says) unless the task is urgent; Settings → Plan says when the computer was last used.
+- **Back and Forward inside panes:** the mouse's side buttons, swipes, Super+[ / Super+] and the phone's Back step
+  through the explorer's folders, a web tab's pages, Email's folders, searches and conversations (Email 1.8.6) and
+  Calendar's views and dates (Calendar 1.8.3) before going to the previous pane.
+- **File dialogs are the desktop's own on Linux** (KDE's on Plasma), through the portal.
+- **Dismissing a notification reaches its plugin** (desktop, Android, Windows), as `atlas:dismissed` on its
+  `on = "notice"` tool. **Plan 0.3.0 backs off:** each dismissal lowers that task's score for the day, and three in
+  three days pause it until its line is edited or it comes due.
+- **Plan 0.2.0 learns when you get things done:** once a kind of task (its first tag, else its folder) has 10 done
+  times in the ledger, its nudge moves to the hour of the day it is usually done ("you usually finish #writing in the
+  afternoon"); a nudge in the hour before lowers the next one's score. Settings → Plan lists each kind's hours.
+
+### Changed
+- **A downloaded scan is named by its first page, read by OCR (Catalog 0.16.0, OCR 0.3.0):** a PDF with no text at
+  all has its first page read by the OCR plugin (the page as the core draws it for its cover), then named as any
+  document is — its title, authors and year, or an ISBN that files it as a book. Without the OCR plugin, the PDF's Info
+  or its file name, as before. A plugin's helper now receives a non-text answer (a picture) as its bytes
+  (`Atlas::get_bytes`).
+- **Jellyfin follows the library rule (Jellyfin 0.4.0):** Films and series lists only what you watched or started;
+  the whole server is its own tab — the **Jellyfin** button in the library's header, Continue first, then every
+  cover by All / Films / Series with a filter; a click plays a film or asks a series' episode.
+- **A downloaded document whose first page names nothing is named by the PDF itself (Catalog 0.15.0, Catalog ·
+  Papers 0.7.3):** a scan or a poster gets the title and author its maker gave the PDF (its Info dictionary), as a
+  reference already did; a tool's stand-in ("Microsoft Word - …", "untitled") is ignored. The PDF naming is now the
+  catalog's, and catalog-papers uses the catalog's.
+- **Apps in the phone's bottom bar:** a tap opens a menu of direct links — Manga, Audiobooks (each with its launcher
+  icon, straight into its own screens) and the Agenda. The Library shows the same apps as a row of buttons at its top,
+  always in view, instead of chips at the far end of its row of libraries.
+- **The libraries list only what is yours; each server is its own tab (Catalog 0.14.0, Books 0.22.0, Manga 0.17.0,
+  Audiobookshelf 0.16.0):** a server's things no longer fill the Libraries page under "From <service>". A thing joins
+  the library once it is yours (read or listened past its start, a note, a bookmark); everything else is in the
+  service's own tab, a button in the library's header: a server's shelf of books opens in the explorer on that
+  folder, Suwayomi in the Manga pane's new library screen (its categories, unread counts, Browse sources; the command
+  "Manga: Suwayomi's library"), Audiobookshelf in its own home. On the phone the buttons open the native Manga and
+  Audiobooks screens. Audiobooks and podcasts you have started stay in the library.
+- **The library's right-click menu (Catalog 0.13.0):** a right-click on a reference, a book or a film gives what its panel
+  offers — Open, Read, Notes, its shelf, Edit, Delete… — then the rows every file has (Open beside, Show in the explorer,
+  Copy link), instead of only the file's rows; on several picked, what can be done to all of them. Plugins open such
+  a menu of their own with `atlas.shell.popMenu` (plugin API 34).
+- **Books named as books (Books 0.21.0):** a shelf of downloaded books lists each by the title, author,
+  series and year its file's name carries — "(Series) Author - Title_ Subtitle-Publisher (Year)", "[Author] Title",
+  "Author - 2004 - Title" — with the author, year and folder under it instead of the server's whole path; sorts by
+  author and year; the panel shows the file, its folder and the server, and a lettered tile while a cover loads.
+- **A library item's panel says more:** under its buttons, its picture (a paper's first page, a book's cover) beside
+  its fields (for a reference: citekey, added, PDF, notes), whatever the layout; the seldom-used actions (copy the
+  citekey, `\cite` or BibTeX; Delete…) behind a "⋯" button (`more` on a library action, plugin API 34); the linked
+  mentions right under the item instead of at the column's foot.
+- **The library keeps its place:** coming back to a library (Back after opening a paper, another tab) finds the same
+  item picked, the same tab, search, order and scroll; and the empty detail column stays at the right instead of
+  dropping under the list.
+- **A book gets its note once you are past its start (Books 0.19.0):** opening an e-book or a PDF in Books no longer
+  makes its note; until you are 1 % in (or set a bookmark) its place stays in the library's `reading.json`, then the
+  note is made and the place moves there — on the desktop and the phone alike, the catalog's one-note rule.
+- **A PDF read on the desktop says its place in its note:** the PDF reader writes `reading_page`, `progress` and
+  `last_read` into the PDF's note, the properties the phone's reader writes, after a page is held for a few seconds
+  (and on closing), and opens at the note's page when another device read further since. So the phone and the desktop
+  continue each other, the Libraries' Continue row lists a PDF read on the desktop, and Audiobookshelf's read-along
+  follows it. A PDF with no note gets none from being read.
+- **Audiobookshelf files only the books you listen to (Audiobookshelf 0.14.0):** a book gets its one note — the
+  catalog's, found by its ids wherever it is — when you are past its start or finish it, on the desktop or the phone
+  (or in Audiobookshelf's own apps, seen by the 6-hourly `sync`), and when you write a bookmark into it. `sync` no
+  longer files the server's whole library; notes it filed before for books never opened are left as they are.
+- **Only the vaults you used lately start ahead:** a desktop window starts the other vaults on its list 20 s
+  after its own, so switching is a page load; it now starts only those opened in the last 3 days (at most 2). An older
+  vault starts when you switch to it (a fraction of a second) and until then holds no watch on its folders, no
+  threads and no scheduled jobs.
+- **Sign-ins are the device's, not each vault's:** a gate's session, an OpenID sign-in and a bypass key kept in one
+  vault now serve every vault on the machine and the server vaults reached from it (a vault's old ones move over the
+  first time it is opened). On the phone, the header typed in **A token or a header…** is now that same kind of key for
+  the server's host, and the phone's own screens for Suwayomi and Audiobookshelf send it too.
+- **Deadlines are Home's:** the left bar has no Deadlines button any more (one app fewer); what is due is the
+  deadlines box on Home, and a home document without it is offered the box once, with one click to add it. The
+  Deadlines page stays in the command palette.
+- **Background work runs where it belongs:** Finance's bank sync and prices, Notifications' poll and the feed polls of
+  the catalog's services run on the vault's server when it has one (a device with a mirror leaves them to it), so one
+  core writes their notes instead of each open one; Calendar, Syncthing and OCR say they run everywhere, and why. A
+  plugin with a schedule or a file hook must now name its `background`, with its reason (PLUGIN-API.md). The server
+  needs those plugins signed in.
+
+### Fixed
+- **Event notes written by one computer (Calendar 1.9.1):** after a sync, only the computer that runs the vault's
+  schedules (`[automation] schedules_on`) brings the event notes up to date and offers to move a moved event's
+  tasks; before, every open Atlas wrote the same notes, which sync could copy back and forth.
+- **Sync failures say what happened and what to do:** a save the server refused names the note and where its newer
+  version is (already here, not brought by Syncthing yet, or still reaching the server) instead of "Syncthing has not
+  brought the server's newer copy yet"; a server that does not answer gives its reason; conflict copies point to Sync
+  conflicts; and Settings → Vaults & sync and the phone's vault list say when this device's Syncthing is not running,
+  has the folder or a device paused, or does not share the folder at all (read from Syncthing's own config). The
+  phone's row for a server's vault says whether the server answers when it cannot read its state.
+- **Manga and PDF pages turn again on phones:** a finger's touch was taken for a resting palm on phones that report
+  a fingertip as wide, so swipes and taps in the manga and PDF readers did nothing. The size rule now applies only on
+  a device with a pen.
+- **The phone app's colours follow the vault's theme everywhere:** the bars' text and icons, Settings, sheets and
+  the readers took the phone's light or dark mode while the page took the vault's theme and palette — unreadable bars
+  with a dark vault on a light phone. The open-files count sits inside its icon at any font size.
+- **Turned PDF pages on the phone:** on a page the PDF turns itself (landscape tables, scanned spreads) or whose box
+  does not start at the corner, a long press selected other words or none, and highlights, ink and text boxes from
+  the desktop were drawn in the wrong place. The phone's reader now maps the screen through each page's box and turn,
+  as the desktop does.
+- **Audiobookshelf 0.4.0's player holds up:** your speed is remembered, the audio is fetched again once and resumed
+  when it stops working, quick skips no longer race, listening time is kept until the server has it, media keys and
+  the lock screen show the book and its chapter.
+- **Reading on the phone and the Boox no longer rewrites the book's note at every page** (Books 0.12.2, Manga 0.9.1):
+  where you are is written on a new chapter, on leaving the reader, and otherwise every two minutes at most, and not
+  at all when only the time would change — less sync traffic, fewer conflict copies.
+- To-do, list and heading on an empty line leave the caret after the new `- [ ] `, not before it.
+- A PDF tab's hover card shows the page it was left on instead of blank pages.
+
 ## [0.3.1] - 2026-11-16
 
 ### Added

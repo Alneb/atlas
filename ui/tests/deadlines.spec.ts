@@ -55,3 +55,28 @@ test("the deadlines box groups what is due, ticks a task in its note, shows a no
   await expect.poll(() => read(request, "Deadlines.page")).toContain("view: deadlines");
   await expect(page.locator(".atlas-pane-page .tasks .task", { hasText: "dl renew the passport" }).first()).toBeVisible();
 });
+
+// What is due is Home's: no button of its own in the left bar, and a home document without the box is offered it once.
+test("deadlines have no left-bar button; Home offers their box once and adds it on the click", async ({ page, request }) => {
+  const cfg = async () => (await (await request.get("/api/config", { headers: H })).json()).config;
+  const before = await cfg();
+  await put(request, "notes/dl/Home.page", "title: Home\nrows:\n  - [{ view: greeting }]\n");
+  await request.put("/api/config", { headers: H, data: { ...before, home: "notes/dl/Home.page" } });
+  try {
+    await page.goto("/");
+    await page.getByText("Finish the GW notes.").waitFor();
+    await expect(page.getByRole("navigation", { name: "Activity" }).getByRole("button", { name: "Deadlines" })).toHaveCount(0);
+    await page.evaluate(() => { for (const k of Object.keys(localStorage)) if (k.startsWith("atlas-deadlines-offered")) localStorage.removeItem(k); });
+    await runCommand(page, "Home", "Home (your home document)");
+    const offer = page.locator(".toast", { hasText: "What is due is on Home now" });
+    await expect(offer).toBeVisible();
+    for (const scheme of ["light", "dark"] as const) {
+      await page.emulateMedia({ colorScheme: scheme });
+      await offer.screenshot({ path: `test-results/deadlines-on-home-${scheme}.png` });
+    }
+    await offer.getByRole("button", { name: "Add the box" }).click();
+    await expect.poll(() => read(request, "notes/dl/Home.page")).toContain("deadlines");
+  } finally {
+    await request.put("/api/config", { headers: H, data: before });
+  }
+});

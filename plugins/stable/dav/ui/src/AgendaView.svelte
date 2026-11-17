@@ -1,7 +1,9 @@
 <script lang="ts">
-  // Agenda (Google's "schedule"): the coming days as a list grouped by day, only days with something; also the
-  // search's results (each event once, at its next occurrence). The one view beside the day at phone width.
-  import { addDays, evEnd, evStart, notePath, sameDay, startOfDay, timeText, type Ev } from "./api";
+  // Agenda (Google's "schedule"): the days as a list grouped by day — a day, 3 days or a week with every day said (the
+  // phone's native agenda shows the same), or the coming 60 days with only the days that have something; also the
+  // search's results (each event once, at its next occurrence). The one view beside the day at phone width. A task of
+  // the Tasks & deadlines layer has a box that ticks it through the core (Cal.tick).
+  import { addDays, evEnd, evStart, notePath, sameDay, SPANS, startOfDay, timeText, type Ev } from "./api";
   import { onDay } from "./layout";
   import type { Cal } from "./store.svelte";
   import Icon from "./Icon.svelte";
@@ -18,9 +20,10 @@
       return [...by.entries()].map(([k, evs]) => ({ day: new Date(k), evs }));
     }
     const out: { day: Date; evs: Ev[] }[] = [];
+    const every = cal.span !== "60days"; // a short span says its empty days too
     for (let d = from; d <= to; d = addDays(d, 1)) {
       const evs = onDay(events, d).sort((a, b) => Number(!a.all_day) - Number(!b.all_day) || evStart(a).getTime() - evStart(b).getTime());
-      if (evs.length) out.push({ day: d, evs });
+      if (evs.length || every) out.push({ day: d, evs });
     }
     return out;
   });
@@ -36,6 +39,11 @@
 </script>
 
 <div class="agenda">
+  {#if !search}
+    <div class="spans" role="group" aria-label="How many days">
+      {#each SPANS as [v, l] (v)}<button class:on={cal.span === v} aria-pressed={cal.span === v} onclick={() => cal.setSpan(v)}>{l}</button>{/each}
+    </div>
+  {/if}
   {#if !groups.length}
     <div class="empty">{search ? "No event matches." : "Nothing in the coming days."}</div>
   {/if}
@@ -46,8 +54,13 @@
         <span class="w">{g.day.toLocaleDateString(undefined, { weekday: "short" })}<br />{g.day.toLocaleDateString(undefined, { month: "short", year: g.day.getFullYear() === cal.now.getFullYear() ? undefined : "numeric" })}</span>
       </button>
       <ul>
+        {#if !g.evs.length}<li class="free">Nothing planned</li>{/if}
         {#each g.evs as e (e.calendar + e.uid + (e.rid ?? ""))}
-          <li>
+          <li class:task={!!e.task}>
+            {#if e.task && cal.canTick && e.task.line != null}
+              {@const t = e.task}
+              <button class="tick" onclick={() => cal.tick(t)} title="Mark as done" aria-label="Mark “{e.summary}” as done"></button>
+            {/if}
             <button class="row" class:sel={isSel(e)} class:cancel={e.status === "CANCELLED"} style:--c={color(e)} onclick={(ev) => onselect(e, (ev.currentTarget as HTMLElement).getBoundingClientRect())}>
               <span class="dot" aria-hidden="true"></span>
               <span class="time">{when(e, g.day)}</span>
@@ -65,6 +78,15 @@
 
 <style>
   .agenda { height: 100%; overflow-y: auto; padding: 6px 0 40px; }
+  .spans { display: flex; gap: 6px; padding: 4px 14px 8px; flex-wrap: wrap; }
+  .spans button { all: unset; cursor: pointer; padding: 3px 12px; border-radius: 999px; border: 1px solid var(--border); color: var(--text-muted); font-size: 0.85em; }
+  .spans button:hover { background: var(--bg-hover); }
+  .spans button.on { background: var(--accent-soft, color-mix(in srgb, var(--accent) 16%, var(--bg))); border-color: transparent; color: var(--text); font-weight: 600; }
+  .spans button:focus-visible, .tick:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .free { padding: 6px 8px; color: var(--text-faint); font-size: 0.9em; }
+  li.task { display: flex; align-items: center; gap: 2px; }
+  .tick { all: unset; box-sizing: border-box; cursor: pointer; flex: none; width: 16px; height: 16px; margin-left: 6px; border: 1.5px solid var(--text-muted); border-radius: 4px; }
+  .tick:hover { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent); }
   .empty { padding: 40px; text-align: center; color: var(--text-faint); }
   .day { display: grid; grid-template-columns: 92px 1fr; gap: 8px; padding: 6px 14px; border-bottom: 1px solid var(--border); }
   .date { all: unset; cursor: pointer; display: flex; gap: 8px; align-items: flex-start; padding: 4px 0; color: var(--text-muted); }

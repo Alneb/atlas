@@ -38,10 +38,8 @@ export function allApps(): AppTile[] {
   }));
   // no Capture tile: a popup with its own shortcut and the palette, not an app
   const homeTile: AppTile = { key: "home", ids: [...new Set([home.id, "today"])], title: "Home", icon: "home", keys: homeCmd?.keys, command: "ui.today", open: () => void homeCmd?.run() };
-  // the Deadlines page (lib/deadlines.ts): a core page, so a tile of its own beside Home (hidden like any in Settings)
-  const due = cmd("ui.deadlines");
-  const deadlines: AppTile[] = due ? [{ key: "deadlines", ids: [paneId({ kind: "page", path: "Deadlines.page" })], title: "Deadlines", icon: "flag", keys: due.keys, command: due.id, open: () => void due.run() }] : [];
-  return [homeTile, ...deadlines, ...builtins, ...vault];
+  // no Deadlines tile: what is due is a box on Home (lib/deadlines.ts, `offerOnHome`); its page stays in the palette
+  return [homeTile, ...builtins, ...vault];
 }
 
 /** `apps` in the vault's order: the keys of `[ui] apps_order` first, as listed, then the rest as they came. */

@@ -3,7 +3,7 @@
 // one, the switch, and the editors' read-only state that follows it.
 import { Compartment, EditorState, type Extension } from "@codemirror/state";
 import { ViewPlugin, type EditorView } from "@codemirror/view";
-import { api, ownCore } from "./api";
+import { api, ApiError, ownCore } from "./api";
 import { errText } from "./text";
 import { toast } from "./state.svelte";
 import type { GuestInfo } from "./gen/GuestInfo";
@@ -23,10 +23,29 @@ function relock(): void {
   for (const v of views) v.dispatch({ effects: slot.reconfigure(locked()) });
 }
 
-/** Asked once at the window's start. */
+/** How often a guest's window asks whether it is still served (closed from Settings → Vaults of another window). */
+const STILL_OPEN_MS = 5_000;
+
+/** Asked once at the window's start; a guest's window then closes itself once its guest is closed. */
 export async function loadGuest(): Promise<void> {
   guest.info = await api.guest().catch(() => null);
-  if (guest.info) relock();
+  if (!guest.info) return;
+  relock();
+  let t: ReturnType<typeof setInterval> | undefined = undefined;
+  const gone = () => { clearInterval(t); window.close(); };
+  // a closed guest's address is no vault any more (404); another failure (the core restarting) is not a close
+  t = setInterval(() => {
+    api.guest().then((g) => { if (!g) gone(); }, (e) => { if (e instanceof ApiError && e.status === 404) gone(); });
+  }, STILL_OPEN_MS);
+}
+
+/** Closes the guest at `folder` without a restart (core `POST /api/guests/close`); its window closes with it. */
+export async function closeGuest(folder: string): Promise<boolean> {
+  try {
+    await api.guestClose(folder);
+    if (guest.info?.folder === folder) window.close();
+    return true;
+  } catch (e) { toast("The guest folder was not closed", errText(e), "error"); return false; }
 }
 
 export async function setGuestEditing(on: boolean): Promise<void> {

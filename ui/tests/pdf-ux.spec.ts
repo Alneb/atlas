@@ -222,3 +222,23 @@ for (const theme of ["light", "dark"] as const) test(`the find bar and its match
   expect(bg).not.toBe("rgba(0, 0, 0, 0)");
   await page.screenshot({ path: `test-results/pdf-find-${theme}.png` });
 });
+
+// Where you are, in the PDF's note (lib/pdf-reading.ts): the phone's properties, read on opening, written after a page
+// is held; a PDF without a note gets none from reading it.
+test("the place is the note's: opened at its page, the page held written back; no note is made by reading", async ({ page }) => {
+  const NOTE = `${DIR}/ux.md`;
+  const pane = await openPdf(page);
+  await pane.locator(".page-in").fill("3");
+  await pane.locator(".page-in").press("Enter");
+  await page.waitForTimeout(9000); // past the hold (NOTE_AFTER_MS)
+  expect((await page.request.get(`/api/file?path=${encodeURIComponent(NOTE)}`, { headers: H })).ok(), "reading made no note").toBe(false);
+
+  const now = new Date().toISOString().replace(/\.\d+Z$/, "Z");
+  await page.request.put("/api/file", { headers: H, data: { path: NOTE, text: `---\nreading_page: 2\nlast_read: ${now}\n---\n` } });
+  const again = await openPdf(page);
+  await expect(again.locator(".page-in")).toHaveValue("2");
+  await again.locator(".page-in").fill("3");
+  await again.locator(".page-in").press("Enter");
+  await expect.poll(async () => (await (await page.request.get(`/api/file?path=${encodeURIComponent(NOTE)}`, { headers: H })).json()).text, { timeout: 15000 })
+    .toMatch(/reading_page: '?3'?[\s\S]*progress: '?100%'?/);
+});

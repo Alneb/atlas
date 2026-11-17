@@ -17,7 +17,8 @@ import {
 import { mount, unmount } from "svelte";
 import { basename, paneId, paneIcon, paneTitle, paneZone, specZone, type PaneKind, type PaneSpec, type SpecOf } from "./panes";
 import { getDock, setDock, kindOf, panelZone, zoneGroup } from "./dock-instance";
-import { besideActive, placement, reveal, hidePanel, setContentVisible, constrainTerminal, placeTerminalPanel, keepShape, nextTerminalN, noteToolSizes } from "./dock-panels";
+import { besideActive, placement, reveal, hidePanel, setContentVisible, constrainTerminal, placeTerminalPanel, keepShape, nextTerminalN, noteToolSizes, paneElement } from "./dock-panels";
+import { offerStep, paneCanStep } from "./pane-nav";
 import { canStep, jumpTo, noteVisit, stepHistory, visits } from "./nav-history";
 import { travelSign } from "./nav-signs";
 import { isSideKind, showSide, sideInBar, sidePanel, toggleSide, type SideId, type SideKind } from "./side-panel.svelte";
@@ -441,9 +442,10 @@ export function setNativeOpener(fn: ((path: string) => boolean) | null): void { 
 /** `path` handed to the phone app's native plugin that opens it (a reader): false off the phone, or none opens it. */
 export const openNative = (path: string): boolean => nativeOpener?.(path) ?? false;
 
-/** `anchor`: the link's `#…` (`Chapter 3`), handed to a plugin's pane that shows the file (`atlas.anchor`). */
+/** `anchor`: the link's `#…` (`Chapter 3`), handed to a plugin's pane that shows the file (`atlas.anchor`). A PDF's
+ *  `line` is its page, which the phone's native reader is handed as `path#page=N` (openPdfAt's form). */
 export function openPath(path: string, line?: number, opts: { beside?: boolean; anchor?: string } = {}): void {
-  if (openNative(path)) return;
+  if (openNative(line !== undefined && /\.pdf$/i.test(path) ? `${path}#page=${line}` : path)) return;
   openIntent.path = path;
   openIntent.t = Date.now();
   open(resolveSpec(path, line, opts.anchor), { beside: opts.beside }); // the vault's "Open with… → always", a plugin's claim, else the usual viewer
@@ -498,7 +500,6 @@ export function focusOrOpen<K extends PaneKind>(kind: K, make: () => SpecOf<K>, 
   else open(make());
 }
 
-/** Go to the previous (-1) or next (+1) visited pane; a closed one is reopened. */
 /** The history of tabs as a list (roadmap 7.3: "a way to see the history"): pick one to go back to it. */
 export function historyList(): void {
   const items = visits().map(({ visit, here, index }) => ({ value: String(index), title: paneTitle(visit.spec), detail: here ? "here" : "path" in visit.spec && visit.spec.path ? shownPath(String(visit.spec.path)) : undefined, icon: paneIcon(visit.spec) }));
@@ -511,14 +512,19 @@ export function historyList(): void {
 let steppedAt = 0;
 /** A step was taken a moment ago (the mouse's side button): the browser's own Back for that same press is not another. */
 export const steppedJustNow = (): boolean => Date.now() - steppedAt < 400;
-export function navigate(step: -1 | 1): void {
+/** Back (-1) / forward (+1): first inside the pane (its own places, lib/pane-nav.ts) — the one under the pointer when
+ *  `at` is given (a mouse button, a swipe), else the active one — then to the previous / next pane visited, a closed
+ *  one reopened. Whether a step was taken. */
+export function navigate(step: -1 | 1, at?: Element | null): boolean {
   steppedAt = Date.now();
   const leaving = getDock()?.activePanel;
+  if (offerStep(step, at ?? (leaving ? paneElement(leaving.id) : null))) return true;
   const went = stepHistory(step, leaving?.id, (v) => { if (!show(v.id)) open(v.spec); });
-  if (!went) return;
+  if (!went) return false;
   travelSign(step < 0, paneTitle(went.visit.spec), went.at, went.of);
   // back closes the tab it leaves, forward opens it again from the history
   if (step < 0 && leaving && leaving.id !== went.visit.id && closesOnBack(leaving)) leaving.api.close();
+  return true;
 }
 
 /** A document tab (one with a file: never a terminal), nothing unsaved, not pinned, not an app (Home, a plugin's
@@ -529,8 +535,12 @@ function closesOnBack(p: IDockviewPanel): boolean {
     && !app.dirty[p.id] && !tabFacts.pinned(p.id) && !isApp(p.id, spec);
 }
 
-/** Whether back (-1) / forward (+1) has anywhere to go — the swipe sign greys out when not. */
-export const canNavigate = (step: -1 | 1): boolean => canStep(step, getDock()?.activePanel?.id);
+/** Whether back (-1) / forward (+1) has anywhere to go, in the pane (at `at`, else the active one) or between panes —
+ *  the swipe sign greys out when not. */
+export function canNavigate(step: -1 | 1, at?: Element | null): boolean {
+  const active = getDock()?.activePanel;
+  return paneCanStep(step, at ?? (active ? paneElement(active.id) : null)) || canStep(step, active?.id);
+}
 
 // --- the two tool panels (lib/dock-panels.ts), by key ---------------------------------------------
 

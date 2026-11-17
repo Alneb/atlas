@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
 
-// Settings → Accounts, "Sign-ins for plugins" (components/settings/SigninsPanel.svelte, core service_signin.rs): each
+// Settings → Sign-ins (components/settings/SigninsPanel.svelte, core service_signin.rs): each
 // kept sign-in with the plugins it is sent for, a sign-in started ahead of any plugin from a typed address, and the
 // OpenID providers signed in (plugin_oauth.rs), one shared by the plugins that use it.
 test("a kept sign-in says which plugins it is sent for; one can be started from an address", async ({ page }) => {
@@ -17,14 +17,15 @@ test("a kept sign-in says which plugins it is sent for; one can be started from 
   await page.keyboard.press("F1");
   await page.keyboard.type("Settings");
   await page.getByTestId("palette").getByText("Settings", { exact: true }).first().click();
-  await page.locator(".nav.accounts").click();
+  await page.getByRole("navigation", { name: "Settings pages" }).getByRole("button", { name: "Sign-ins", exact: true }).click();
   const panel = page.getByTestId("signins-panel");
-  await expect(panel.locator("li").nth(0)).toContainText("for linkwarden, jellyfin");
-  await expect(panel.locator("li").nth(1)).toContainText("ended");
-  await expect(panel.locator("li").nth(1)).toContainText("no plugin names it yet");
+  const gate = panel.getByRole("list", { name: "Gate sessions" }).locator("li");
+  await expect(gate.nth(0)).toContainText("Used by linkwarden, jellyfin");
+  await expect(gate.nth(1)).toContainText("ended");
+  await expect(gate.nth(1)).toContainText("No plugin names this host yet");
   const provider = panel.locator("li", { hasText: "auth.example.org" });
-  await expect(provider).toContainText("renews itself");
-  await expect(provider).toContainText("for immich, paperless");
+  await expect(provider).toContainText("Renews itself");
+  await expect(provider).toContainText("Used by immich, paperless");
   await panel.getByLabel("Sign in at a service's address").fill("media.example.org");
   await panel.getByRole("button", { name: "Sign in", exact: true }).click();
   await expect.poll(() => page.evaluate(() => (window as unknown as { opened: string[] }).opened)).toEqual([expect.stringContaining("/signin/door?url=https%3A%2F%2Fmedia.example.org")]);

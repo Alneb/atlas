@@ -347,14 +347,21 @@ impl Helpers {
             let (routes, id, r) = (self.routes.get().cloned(), id.to_string(), r.clone());
             tokio::spawn(async move {
                 let (n, status, body) = match call {
-                    Err((n, why)) => (n, 400, json!({ "error": why })),
+                    Err((n, why)) => (n, 400, CallReply::Json(json!({ "error": why }))),
                     Ok(c) => {
                         let n = c.n;
                         let (status, body) = answer_call(routes, &id, c).await;
                         (n, status, body)
                     }
                 };
-                let _ = r.send(&json!({ "reply": n, "status": status, "body": body }).to_string()).await;
+                let msg = match body {
+                    CallReply::Json(body) => json!({ "reply": n, "status": status, "body": body }),
+                    CallReply::Bytes(b) => {
+                        use base64::Engine;
+                        json!({ "reply": n, "status": status, "bytes": base64::engine::general_purpose::STANDARD.encode(b) })
+                    }
+                };
+                let _ = r.send(&msg.to_string()).await;
             });
         } else if let Some(n) = msg.get("id").and_then(Value::as_u64) {
             let Some(tx) = r.waiting.lock().unwrap().remove(&n) else { return };
@@ -416,17 +423,23 @@ impl Helpers {
 /// One call back from a helper, through the vault's routes as the plugin (the guard reads the [`Caller`] mark).
 ///
 /// [`Caller`]: crate::helper_api::Caller
-async fn answer_call(routes: Option<axum::Router>, id: &str, c: crate::helper_api::Call) -> (u16, Value) {
+/// A call's answer on the pipe: JSON (or text) as `body`, anything else (a picture, a PDF) as base64 `bytes`.
+enum CallReply {
+    Json(Value),
+    Bytes(Vec<u8>),
+}
+
+async fn answer_call(routes: Option<axum::Router>, id: &str, c: crate::helper_api::Call) -> (u16, CallReply) {
     use tower::ServiceExt;
     let Some(routes) = routes else {
-        return (503, json!({ "error": "Atlas is not serving this vault here (atlas mcp started the helper): start Atlas to call it back" }));
+        return (503, CallReply::Json(json!({ "error": "Atlas is not serving this vault here (atlas mcp started the helper): start Atlas to call it back" })));
     };
     use crate::helper_api::CallBody;
     // the URL guard (`may`) cannot see a file route's target: read it here, where the body is at hand
     if c.verb != axum::http::Method::GET {
         let body = if let CallBody::Json(j) = &c.body { Some(j) } else { None };
         if let Err(why) = crate::helper_api::may_write(id, &c.path, body) {
-            return (403, json!({ "error": why }));
+            return (403, CallReply::Json(json!({ "error": why })));
         }
     }
     let kind = if matches!(c.body, CallBody::Bytes(_)) { "application/octet-stream" } else { "application/json" };
@@ -439,12 +452,13 @@ async fn answer_call(routes: Option<axum::Router>, id: &str, c: crate::helper_ap
         CallBody::Json(j) => axum::body::Body::from(j.to_string()),
         CallBody::Bytes(b) => axum::body::Body::from(b),
     };
-    let Ok(req) = req.body(body) else { return (400, json!({ "error": format!("not a request: {}", c.path) })) };
+    let Ok(req) = req.body(body) else { return (400, CallReply::Json(json!({ "error": format!("not a request: {}", c.path) }))) };
     let Ok(res) = routes.oneshot(req).await; // a Router never fails: its error is Infallible
     let status = res.status().as_u16();
     let bytes = axum::body::to_bytes(res.into_body(), 256 * 1024 * 1024).await.unwrap_or_default();
-    let text = String::from_utf8_lossy(&bytes);
-    (status, if text.trim().is_empty() { Value::Null } else { serde_json::from_str(&text).unwrap_or_else(|_| Value::String(text.into_owned())) })
+    // not text (a thumbnail, a raw file): its bytes as they are, which a lossy string would break
+    let Ok(text) = std::str::from_utf8(&bytes) else { return (status, CallReply::Bytes(bytes.to_vec())) };
+    (status, CallReply::Json(if text.trim().is_empty() { Value::Null } else { serde_json::from_str(text).unwrap_or_else(|_| Value::String(text.to_string())) }))
 }
 
 impl Drop for Running {
@@ -709,5 +723,18 @@ fn main() {
         assert_eq!(h.state("h"), "crashed");
         h.stop("h"); // "restart": the count is forgotten
         assert_eq!(h.state("h"), "stopped");
+    }
+
+    /// A call answered with bytes (a thumbnail) reaches the helper as those bytes, not a text that lost them.
+    #[tokio::test]
+    async fn a_call_answered_with_bytes_keeps_them() {
+        let jpg = vec![0xff_u8, 0xd8, 0xff, 0x00, 0x10];
+        let body = jpg.clone();
+        let routes = axum::Router::new()
+            .route("/api/thumb", axum::routing::get(move || async move { body }))
+            .route("/api/x", axum::routing::get(|| async { axum::Json(json!({ "a": 1 })) }));
+        let call = |path: &str| crate::helper_api::Call::parse(json!({ "call": 1, "verb": "GET", "path": path }).as_object().unwrap()).unwrap().unwrap();
+        assert!(matches!(answer_call(Some(routes.clone()), "h", call("/api/thumb")).await, (200, CallReply::Bytes(b)) if b == jpg));
+        assert!(matches!(answer_call(Some(routes), "h", call("/api/x")).await, (200, CallReply::Json(v)) if v == json!({ "a": 1 })));
     }
 }

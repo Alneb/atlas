@@ -1,8 +1,9 @@
 <script lang="ts">
   // A guest folder's window (lib/guest.svelte.ts): which folder, whose plugins, and the Edit switch — always in view,
-  // so a window that writes into a folder outside the vault never looks like the vault's own.
+  // so a window that writes into a folder outside the vault never looks like the vault's own; Close ends it
+  // without a restart.
   import Icon from "./Icon.svelte";
-  import { guest, setGuestEditing } from "../lib/guest.svelte";
+  import { closeGuest, guest, setGuestEditing } from "../lib/guest.svelte";
 
   const info = $derived(guest.info!);
   const name = (p: string) => p.replace(/[\\/]+$/, "").split(/[\\/]/).pop() ?? p;
@@ -15,6 +16,7 @@
   <span class="state">{info.editing ? "Editing: changes are saved into this folder" : "Read-only"}</span>
   <button class="switch" class:on={info.editing} role="switch" aria-checked={info.editing} aria-label="Edit this folder" onclick={() => void setGuestEditing(!info.editing)}><span></span></button>
   <span class="label">Edit</span>
+  <button class="btn close" title="Close this guest folder: its window, its link and Atlas's state for it (its files stay)" onclick={() => void closeGuest(info.folder)}>Close</button>
 </div>
 
 <style>
@@ -26,6 +28,7 @@
   .state { white-space: nowrap; color: var(--text-muted); }
   .editing .state { color: var(--orange); font-weight: 600; }
   .label { font-weight: 600; }
+  .close { flex: none; padding: 1px 10px; font-size: 12px; }
   .switch { width: 34px; height: 20px; flex: none; border-radius: 10px; background: var(--border-strong); position: relative; transition: background .15s; }
   .switch span { position: absolute; top: 3px; left: 3px; width: 14px; height: 14px; border-radius: 50%; background: var(--bg); transition: transform .15s; box-shadow: var(--shadow-sm); }
   .switch.on { background: var(--orange); }

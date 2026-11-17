@@ -4,7 +4,9 @@
 //!
 //! - the core's own ids (`atlas:…`): Open does what a click does; Snooze puts a planned notice off (planned.rs);
 //! - any other id goes to the notice's source plugin, to its tool with `on = "notice"`, called with
-//!   `{ notice_id, action, open }` — the same `on` mechanism as `capture`, `fs` or `plan` (plugin_tools.rs).
+//!   `{ notice_id, action, open }` — the same `on` mechanism as `capture`, `fs` or `plan` (plugin_tools.rs);
+//! - the person dismissing the notification (`atlas:dismissed`, no button: the platform says it) goes there too, so a
+//!   plugin can back off; quietly, as nobody pressed anything: a plugin that does not listen, or fails, is only logged.
 //!
 //! A plugin's answer here (and a scheduled job's, schedule.rs) may carry `notices: [{ title, … }]`, said as notices
 //! from it, and `withdraw: ["id", …]`, the notices taken away (`Event::Withdraw`): [`say`], the one reader of both.
@@ -27,6 +29,8 @@ enum Asked {
     Snooze(u32),
     /// The source plugin's own action.
     Plugin(String),
+    /// The person dismissed the notification: told to the source plugin, failures only logged.
+    Dismissed,
     /// An `atlas:` id this core does not know (a newer core's, a typo): said in the log.
     Unknown(String),
 }
@@ -36,6 +40,9 @@ impl Asked {
         let Some(own) = action.strip_prefix("atlas:") else { return Self::Plugin(action.to_string()) };
         if action == NoticeAction::OPEN {
             return Self::Open;
+        }
+        if action == NoticeAction::DISMISSED {
+            return Self::Dismissed;
         }
         match own.strip_prefix("snooze:").map(str::parse::<u32>) {
             Some(Ok(m)) if m > 0 => Self::Snooze(m),
@@ -85,25 +92,34 @@ pub async fn answer(ws: &Workspace, bus: &EventBus, helpers: &Helpers, c: Chosen
                 eprintln!("atlas: {plugin}: Snooze pressed on {id}, which no plan lists any more");
             }
         }
-        Asked::Plugin(action) => to_plugin(ws, bus, helpers, &c, &action).await,
+        Asked::Plugin(action) => to_plugin(ws, bus, helpers, &c, &action, true).await,
+        Asked::Dismissed => to_plugin(ws, bus, helpers, &c, NoticeAction::DISMISSED, false).await,
         Asked::Unknown(action) => eprintln!("atlas: a notice's button `{action}` is none this core knows"),
     }
 }
 
-/// The source plugin's `on = "notice"` tool answers it; its failure is a notice from it.
-async fn to_plugin(ws: &Workspace, bus: &EventBus, helpers: &Helpers, c: &Chosen, action: &str) {
+/// The source plugin's `on = "notice"` tool answers it. `pressed`: a person pressed a button, so a plugin that cannot
+/// answer is logged and its failure is a notice from it; a dismissal (not pressed) is quiet — most plugins ignore it.
+async fn to_plugin(ws: &Workspace, bus: &EventBus, helpers: &Helpers, c: &Chosen, action: &str, pressed: bool) {
     let Ok(cfg) = ws.config() else { return };
     let Some(plugin) = c.source.as_deref() else {
-        return eprintln!("atlas: `{action}` pressed on a notice with no source: nobody to answer it");
+        if pressed {
+            eprintln!("atlas: `{action}` pressed on a notice with no source: nobody to answer it");
+        }
+        return;
     };
     let tools = crate::plugin_tools::listening(ws.root(), &cfg, EVENT);
     let Some((_, tool)) = tools.iter().find(|(p, _)| p == plugin) else {
-        return eprintln!("atlas: {plugin}: `{action}` pressed, but it has no tool with on = \"{EVENT}\" here");
+        if pressed {
+            eprintln!("atlas: {plugin}: `{action}` pressed, but it has no tool with on = \"{EVENT}\" here");
+        }
+        return;
     };
     let store = crate::secrets::Store::for_vault(ws.root());
     let input = json!({ "notice_id": c.notice, "action": action, "open": c.open });
     match crate::plugin_tools::call(ws.root(), &cfg, helpers, &store, plugin, tool, input).await {
         Ok(v) => say(bus, plugin, &v),
+        Err(e) if !pressed => eprintln!("atlas: {plugin}: a dismissal was not taken: {e}"),
         Err(e) => bus.publish(Event::Notify(Notice::new(format!("{plugin}: “{action}” failed")).body(e.to_string()).source(plugin).level(crate::api::NoticeLevel::Failure))),
     }
 }
@@ -141,6 +157,7 @@ mod tests {
     #[test]
     fn the_cores_own_ids_are_told_from_a_plugins() {
         assert_eq!(Asked::of("atlas:open"), Asked::Open);
+        assert_eq!(Asked::of(NoticeAction::DISMISSED), Asked::Dismissed);
         assert_eq!(Asked::of(&NoticeAction::snooze(10).id), Asked::Snooze(10));
         assert_eq!(Asked::of("done"), Asked::Plugin("done".into()));
         assert_eq!(Asked::of("snooze:10"), Asked::Plugin("snooze:10".into()), "a plugin's own snooze is its own");
@@ -182,6 +199,11 @@ mod tests {
         // another plugin's notice: not this tool's to answer
         answer(&ws, &bus, &helpers, pressed("done", "mail"), Utc::now()).await;
         assert!(events.try_recv().is_err());
+
+        // a dismissal reaches it the same way, as `atlas:dismissed`
+        answer(&ws, &bus, &helpers, pressed(NoticeAction::DISMISSED, "plan"), Utc::now()).await;
+        let Ok(Event::Notify(n)) = events.try_recv() else { panic!("the plugin heard the dismissal") };
+        assert_eq!(n.title, "atlas:dismissed on plan:t1");
     }
 
     #[tokio::test]
@@ -193,5 +215,7 @@ mod tests {
         assert_eq!((n.title.as_str(), n.level), ("plan: “done” failed", Some(crate::api::NoticeLevel::Failure)));
         answer(&ws, &bus, &helpers, pressed(NoticeAction::OPEN, "plan"), Utc::now()).await;
         assert_eq!(events.try_recv().unwrap(), Event::Open { path: "notes/Report.md".into(), line: None }, "Open opens, as a click does");
+        answer(&ws, &bus, &helpers, pressed(NoticeAction::DISMISSED, "plan"), Utc::now()).await;
+        assert!(events.try_recv().is_err(), "a dismissal the plugin fails to take is only logged: nobody pressed anything");
     }
 }

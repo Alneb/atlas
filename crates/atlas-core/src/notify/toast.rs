@@ -89,7 +89,7 @@ mod winrt {
     use windows::core::{IInspectable, Interface, Ref, HSTRING};
     use windows::Data::Xml::Dom::XmlDocument;
     use windows::Foundation::TypedEventHandler;
-    use windows::UI::Notifications::{ToastActivatedEventArgs, ToastNotification, ToastNotificationManager, ToastNotifier};
+    use windows::UI::Notifications::{ToastActivatedEventArgs, ToastDismissalReason, ToastDismissedEventArgs, ToastNotification, ToastNotificationManager, ToastNotifier};
 
     /// The same as the Tauri bundle's identifier, so Windows groups the toasts under one app.
     const APP_ID: &str = "dev.atlas.app";
@@ -130,6 +130,16 @@ mod winrt {
                     match pressed(&said) {
                         Pressed::Body => super::super::open_notice(&bus, open.clone()),
                         Pressed::Action(action) => bus.chose(Chosen { action, source: source.clone(), notice: id.clone(), open: open.clone() }),
+                    }
+                    Ok(())
+                }))
+                .map_err(|e| e.to_string())?;
+            // closed by the person (not timed out, not withdrawn by us): the core's `atlas:dismissed`
+            let (bus, open, source, id) = (self.bus.clone(), super::super::opens(n).map(str::to_string), n.source.clone(), n.id.clone());
+            toast
+                .Dismissed(&TypedEventHandler::new(move |_, args: Ref<ToastDismissedEventArgs>| {
+                    if args.ok().ok().and_then(|a| a.Reason().ok()) == Some(ToastDismissalReason::UserCanceled) {
+                        bus.chose(Chosen { action: crate::api::NoticeAction::DISMISSED.into(), source: source.clone(), notice: id.clone(), open: open.clone() });
                     }
                     Ok(())
                 }))

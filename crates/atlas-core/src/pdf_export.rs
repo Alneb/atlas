@@ -648,7 +648,8 @@ fn annotation(m: &Mark, rotate: u8, fonts: &Dictionary) -> Option<(Dictionary, O
             let res = dictionary! { "Font" => fonts.clone() };
             ("Stamp", r, appearance(r, ops, res, rotate), with_tags(""), Some(c), dictionary! { "Name" => name })
         }
-        Body::Bookmark { .. } | Body::Deleted => return None,
+        // ink pinned to a reflowed book's words has no PDF page to go on
+        Body::Bookmark { .. } | Body::TextInk { .. } | Body::Deleted => return None,
     };
     let mut d = dictionary! {
         "Type" => "Annot", "Subtype" => subtype, "Rect" => nums(&rect), "NM" => text(m.id.as_str()), "F" => 4,

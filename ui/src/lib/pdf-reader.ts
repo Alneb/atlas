@@ -8,6 +8,7 @@ import { boxShown, charAt, findWords, lineBoxes, piecesOf, runsOf, textOf, toPag
 import { dpr } from "./pdf-pages";
 import type { TextPiece } from "./atlas-mark";
 import { keepCapped } from "./capped";
+import { api } from "./api";
 
 export type Zoom = "page-width" | "page-fit" | number;
 export type { OutlineItem };
@@ -53,6 +54,14 @@ export interface Reader {
   setZoom(z: Zoom): void;
   /** Scales by `f`, keeping the point under `origin` (client px) still; the pages are redrawn once it rests. */
   zoomBy(f: number, origin?: { x: number; y: number }): void;
+  /** Double-click: zooms so the text column under the client point (core pdf_columns.rs, the phone's too) fills the
+   *  width, the point kept at its height; again on a page zoomed so, back to the zoom before. False: no text there. */
+  zoomToColumn(x: number, y: number): Promise<boolean>;
+  /** Zoomed to a column and its end in view: reading on goes to the next column (nextColumn), not further down. */
+  atColumnEnd(): boolean;
+  /** The column after the zoomed one — beside it on the page, else the next page's first — shown from its top;
+   *  false when there is none (the last page's last column). */
+  nextColumn(): Promise<boolean>;
   /** Fits again after the view's size changed (a preset zoom only). */
   refit(): void;
   /** The view is shown again after being hidden (a background tab): its pages drawn anew — a hidden page's canvas can
@@ -135,6 +144,9 @@ export async function openReader(container: HTMLElement, path: string, eng: PdfE
   const handlers = new Map<keyof Events, Set<(e: never) => void>>();
   const emit = <K extends keyof Events>(k: K, e: Events[K]) => handlers.get(k)?.forEach((f) => (f as Handler<K>)(e));
   let scale = 1, zoom: Zoom = start.zoom, turns = 0, spread = false, current = 1, gone = false;
+  /** Zoomed to a column by a double-click: the zoom before, which the next double-click goes back to, and the column
+   *  shown (page n, its box in shown points), which a reader going on at its end leaves for the next one. */
+  let columnZoom: { before: Zoom; n: number; col: [number, number, number, number] } | null = null;
   let fittedWidth = 0; // the view's width at the last fit: 0 while it was laid out hidden
   let tops: number[] = [], heights: number[] = [];
 
@@ -312,6 +324,20 @@ export async function openReader(container: HTMLElement, path: string, eng: PdfE
 
   // ── text, links, annotations ─────────────────────────────────────────────────────────────────────────────────
   const texts = new Map<number, Promise<Text>>();
+  /** Page n's characters' boxes (shown points, four numbers each), spaces and generated ones left out: what the
+   *  core's column finder (pdf_columns.rs) measures. */
+  async function charBoxes(n: number): Promise<number[]> {
+    const { shown } = await textOfPage(n);
+    const boxes: number[] = [];
+    for (let i = 0; i < shown.codes.length; i++) if (!shown.generated[i] && !/\s/.test(String.fromCodePoint(shown.codes[i]))) for (let k = 0; k < 4; k++) boxes.push(shown.boxes[i * 4 + k]);
+    return boxes;
+  }
+  /** Column `col` of page n (shown points) across the middle of the view, where the reader's rotation puts it. */
+  function centreOn(n: number, col: [number, number, number, number]): void {
+    const v = views[n - 1], [rw, rh] = size(n, true), k = scale * PX;
+    const mx = (col[0] + col[2]) / 2, my = (col[1] + col[3]) / 2;
+    container.scrollLeft = v.div.offsetLeft + [mx, rh - my, rw - mx, my][turns] * k - container.clientWidth / 2;
+  }
   function textOfPage(n: number): Promise<Text> {
     let t = texts.get(n);
     if (!t) {
@@ -479,12 +505,56 @@ export async function openReader(container: HTMLElement, path: string, eng: PdfE
       if (current !== n) { current = n; emit("page", n); }
       update();
     },
-    setZoom(z) { zoom = z; rescale(scaleFor(z)); },
+    setZoom(z) { columnZoom = null; zoom = z; rescale(scaleFor(z)); },
     zoomBy(f, origin) {
+      columnZoom = null;
       // not rounded: a slow pinch's steps are smaller than a percent, and rounding undid each one
       zoom = Math.min(MAX_SCALE, Math.max(MIN_SCALE, scale * f));
       const r = container.getBoundingClientRect();
       rescale(zoom, origin ? origin.x - r.left : undefined, origin ? origin.y - r.top : undefined);
+    },
+    async zoomToColumn(x, y) {
+      const at = reader.pageAt(x, y);
+      if (!at) return false;
+      if (columnZoom) { const back = columnZoom.before; reader.setZoom(back); return true; }
+      const boxes = await charBoxes(at.n);
+      const col = boxes.length ? await api.pdfColumn(boxes, at.X, at.Y).catch(() => null) : null;
+      if (!col || gone) return false;
+      // the column's width across the view (a quarter turn shows its height across), a little room either side
+      const across = turns & 1 ? col[3] - col[1] : col[2] - col[0];
+      const next = Math.min(MAX_SCALE, Math.max(MIN_SCALE, Math.max(1, container.clientWidth - SIDE * 2) / (across * 1.04 * PX)));
+      const before = zoom;
+      const r = container.getBoundingClientRect();
+      zoom = next;
+      rescale(next, x - r.left, y - r.top);
+      // the column's middle in the middle of the view (where the reader's rotation puts it across the page)
+      centreOn(at.n, col);
+      columnZoom = { before, n: at.n, col };
+      return true;
+    },
+    atColumnEnd() {
+      if (!columnZoom || turns !== 0) return false; // a turned page reads across: plain scrolling there
+      const { n, col } = columnZoom;
+      return container.scrollTop + container.clientHeight >= tops[n - 1] + col[3] * scale * PX - 2;
+    },
+    async nextColumn() {
+      if (!columnZoom || turns !== 0) return false;
+      const { n, col } = columnZoom;
+      const here = await charBoxes(n);
+      let next = here.length ? await api.pdfColumn(here, 0, 0, col).catch(() => null) : null, m = n;
+      // the page's last column: the next page's first (its leftmost, measured at its middle), skipping blank pages
+      while (!next && m < info.pages) {
+        m++;
+        const boxes = await charBoxes(m);
+        const [, h] = size(m, true);
+        next = boxes.length ? await api.pdfColumn(boxes, 0, h / 2).catch(() => null) : null;
+      }
+      if (!next || gone || !columnZoom) return false;
+      columnZoom = { ...columnZoom, n: m, col: next };
+      centreOn(m, next);
+      container.scrollTop = tops[m - 1] + next[1] * scale * PX - SIDE;
+      update();
+      return true;
     },
     refit() {
       if (typeof zoom === "number") return;

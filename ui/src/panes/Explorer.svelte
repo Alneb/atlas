@@ -38,6 +38,7 @@
   import "../lib/other-vaults"; // the other vaults as a source of places
   import { bytes } from "../lib/text";
   import { dateTip, showDate } from "../lib/dates";
+  import { paneSteps } from "../lib/pane-nav";
 
   let { spec, panel }: PaneProps<"explorer"> = $props();
 
@@ -166,7 +167,7 @@
     if (ed) run(act.finishEdit, ed, value, ok); else focusList();
   }
 
-  /** The mouse's side buttons and a swipe over the explorer (lib/nav-input.ts `atlas-nav`): its own folders first. */
+  /** Back / Forward over the explorer (lib/pane-nav.ts): its own folders first. */
   let rootEl = $state<HTMLDivElement>();
   // a long path in a narrow pane: the crumbs scrolled to their end, so the folder shown is the one in view
   let crumbsEl = $state<HTMLDivElement>();
@@ -176,14 +177,9 @@
   $effect(() => {
     const el = rootEl;
     if (!el) return;
-    const onNav = (e: Event) => {
-      const way = (e as CustomEvent<-1 | 1>).detail < 0 ? "back" : "fwd";
-      if (!b.history[way].length) return; // nothing there: the app's own back / forward
-      e.preventDefault();
-      b.travel(way);
-    };
-    el.addEventListener("atlas-nav", onNav);
-    return () => el.removeEventListener("atlas-nav", onNav);
+    const way = (d: -1 | 1): "back" | "fwd" => (d < 0 ? "back" : "fwd");
+    // nothing there that way: the app's own back / forward
+    return paneSteps(el, (d) => { if (!b.history[way(d)].length) return false; b.travel(way(d)); return true; }, (d) => b.history[way(d)].length > 0);
   });
 
   // the tab keeps where it is (a restored layout opens there) and says it in its title
@@ -515,7 +511,7 @@
   .crumbs button:hover { color: var(--text); background: var(--bg-active); }
   .crumbs button:last-child { color: var(--text); font-weight: 600; }
   .crumbs .sep { display: inline-flex; color: var(--text-faint); padding: 0 1px; }
-  .crumbs.cut { mask-image: linear-gradient(to right, transparent, #000 28px); }
+  .crumbs.cut { mask-image: linear-gradient(to right, transparent, var(--text) 28px); }
   .path { flex: 1; min-width: 0; font: inherit; font-family: var(--font-mono); color: var(--text); background: var(--bg-elev); border: 1px solid var(--accent); border-radius: var(--radius-sm); padding: 3px 6px; outline: none; }
   .btn { display: inline-flex; align-items: center; min-height: 26px; padding: 0 9px; border-radius: var(--radius-sm); border: 1px solid var(--border); color: var(--text-muted); flex: none; white-space: nowrap; }
   .btn:hover { color: var(--text); background: var(--bg-hover); border-color: var(--border-strong); }
@@ -580,7 +576,7 @@
   /* a long name on two lines, then cut */
   .list.thumbs .label { max-width: 100%; text-align: center; font-size: .95em; line-height: 1.3; white-space: normal; overflow-wrap: anywhere;
     display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; }
-  .list.thumbs .acts { top: 6px; transform: none; right: 6px; gap: 2px; padding: 2px; border-radius: var(--radius-sm); background: var(--bg-elev); border: 1px solid var(--border); box-shadow: 0 1px 3px rgb(0 0 0 / .15); }
+  .list.thumbs .acts { top: 6px; transform: none; right: 6px; gap: 2px; padding: 2px; border-radius: var(--radius-sm); background: var(--bg-elev); border: 1px solid var(--border); box-shadow: var(--shadow-sm); }
   .list.thumbs .acts button { display: grid; place-items: center; width: 24px; min-height: 24px; padding: 0; }
   .pic { position: relative; display: flex; align-items: center; justify-content: center; width: 100%; aspect-ratio: 4 / 3; border-radius: 8px; background: var(--bg-elev);
     box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--border) 70%, transparent); overflow: hidden; color: var(--text-faint); transition: box-shadow .12s; }

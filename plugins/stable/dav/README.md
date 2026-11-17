@@ -14,6 +14,10 @@ subscriptions; invitations answered from the Email plugin; and tools for agents.
   Esc cancels); a click shows the event's card, `e` the full editor (title, all-day, start / end, repeat, place,
   description, calendar, guests). A repeating event asks "this event / this and following / all events". Every change shows at
   once, is written behind, and has Undo; a refusal rolls back with the server's reason.
+- **The agenda as a day, 3 days or a week** (Agenda's chips; 60 days stays the default): every day of the span is
+  listed, an empty one said, with the events and the dated tasks of the Tasks & deadlines layer (the core's
+  `from: deadlines`); a task's box ticks it through the core as Home does (plugin API 31, `atlas.tickTask`). The
+  phone's native Agenda shows the same days from the same two answers.
 - **Keys** after Google Calendar's: `d` `w` `x` `m` `a` `y` (or 1–6) the views, `t` today, `j`/`k` next / previous,
   `g` go to a date, `c` new event, `q` quick add, `e` edit, Delete, `/` search, `r` sync, `s` the side panel, `?` the
   key sheet.
@@ -48,12 +52,15 @@ subscriptions; invitations answered from the Email plugin; and tools for agents.
   note** on its card, "Calendar: link this note to an event…", a task time-blocked into it — in the folder Settings
   names (`calendar/2026/2026-11-17 Title.md`): the event's time, place and calendar as properties, `links:`, a
   `calendar.event` block drawing the live event, and your writing below, never touched. The note follows its event
-  after each sync; a deleted event's note is kept and marked `cancelled: true`. Other calendar apps see the links as
+  after each sync, written by the computer that runs the vault's schedules (`[automation] schedules_on`; every
+  computer when none is named), so two never write the same notes for sync to copy; a deleted event's note is kept and marked `cancelled: true`. Other calendar apps see the links as
   `Atlas: [[…]]` lines in the description. The card lists what the note links and what links to it.
+  In a note, `[[` and two letters offer the calendar's events of the weeks around today beside the notes: a pick makes
+  the event's note (once) and writes the link to it.
 - **Tasks & deadlines** (a switch under "In the vault"): open tasks with 📅 / ⏳ and notes with `due:` on their day;
   a task's card offers **Time-block…** (then drag the slot on the hours): the event, its note linking the task, and
-  the task's line given `⏳ day` and `[[event note|Tue 14:00]]` before its fields. Also "Calendar: time-block the task
-  at the caret…". When such an event moves, a toast offers **Move ⏳ too**.
+  the task's line given `⏳ day` and `[[event note|Tue 14:00]]` before its fields — or drag the task from the all-day lane onto the hours (an hour from where it lands). Also
+  "Calendar: time-block the task at the caret…". When such an event moves, a toast offers **Move ⏳ too**.
 - **Moving an event between calendars**, of the same account or another: written there first, then removed here.
 - **Times** are your local time, 24-hour by default; time zones (IANA, Windows, VTIMEZONE) and DST are handled.
 - **The block `dav.upcoming`** (`days: 7`): today, tomorrow and the rest of the week as a compact agenda.

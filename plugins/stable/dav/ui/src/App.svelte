@@ -25,6 +25,8 @@
 
   let width = $state(1200);
   let root: HTMLDivElement | undefined = $state();
+  // Back / Forward (mouse buttons, swipes, Super+[, the phone's Back) step through the views and dates shown
+  $effect(() => (root ? cal.steps.attach(root) : undefined));
   let sideOpen = $state(true);
   let help = $state(false);
   let searchBox: HTMLInputElement | undefined = $state();

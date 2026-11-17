@@ -194,6 +194,9 @@ public final class PageInk extends View implements PenBar.Pen {
                     if (n != null) { drawing.clear(); edit(n); return true; }
                     InkStore.Shape post = postitAt(e.getX(), e.getY(), r);
                     if (post != null) { drawing.clear(); host.toast(post.text.isEmpty() ? "An empty post-it" : post.text); return true; }
+                    // a highlight, underline or strike tapped (not while the pen writes: there a dot is a full stop)
+                    InkStore.Shape passage = !inks() ? passageAt(e.getX(), e.getY(), r) : null;
+                    if (passage != null) { drawing.clear(); quick.repaint(0); passageMenu(passage); return true; }
                     if (tool == Tool.TEXT && writing) { drawing.clear(); write((e.getX() - r.left) / r.width(), (e.getY() - r.top) / r.height()); return true; }
                 }
                 // writing (the pen bar out): the pen only writes — a dot is ink (an i's, a full stop), never a page
@@ -319,6 +322,48 @@ public final class PageInk extends View implements PenBar.Pen {
             if (x >= px - pad && x <= px + side + pad && y >= py - pad && y <= py + side + pad) return sh;
         }
         return null;
+    }
+
+    /** The passage's mark (highlight, underline, strike) under a tap, the last drawn first. */
+    private InkStore.Shape passageAt(float x, float y, RectF r) {
+        InkStore.Sheet s = sheets.get(page);
+        if (s == null) return null;
+        float pad = host.look().dp(4);
+        for (int i = s.shapes.size() - 1; i >= 0; i--) {
+            InkStore.Shape sh = s.shapes.get(i);
+            if (sh.id == null || !sh.passage() || sh.boxes == null) continue;
+            for (int b = 0; b + 3 < sh.boxes.length; b += 4) {
+                float l = r.left + sh.boxes[b] * r.width(), t = r.top + sh.boxes[b + 1] * r.height();
+                float rt = r.left + sh.boxes[b + 2] * r.width(), bt = r.top + sh.boxes[b + 3] * r.height();
+                if (x >= l - pad && x <= rt + pad && y >= t - pad && y <= bt + pad) return sh;
+            }
+        }
+        return null;
+    }
+
+    /** The desktop's colours for a passage (pdf-marks), by name. */
+    private static final String[][] PASSAGE_COLOURS = { { "Yellow", "#FFE066" }, { "Green", "#8CE99A" }, { "Blue", "#74C0FC" }, { "Red", "#FFA8A8" } };
+
+    /** Remove the mark, or give it another colour: one change, undone as ink is, written as that one mark. */
+    private void passageMenu(InkStore.Shape sh) {
+        String[] items = new String[1 + PASSAGE_COLOURS.length];
+        items[0] = "Remove the " + sh.kind;
+        for (int i = 0; i < PASSAGE_COLOURS.length; i++) items[i + 1] = PASSAGE_COLOURS[i][0];
+        String words = sh.text == null || sh.text.isEmpty() ? "" : "“" + (sh.text.length() > 80 ? sh.text.substring(0, 80) + "…" : sh.text) + "”";
+        new AlertDialog.Builder(getContext()).setTitle(words.isEmpty() ? "This " + sh.kind : words)
+            .setItems(items, (d, which) -> {
+                InkStore.Sheet s = sheet();
+                int at = s.shapes.indexOf(sh);
+                if (at < 0) return;
+                remember();
+                if (which == 0) s.shapes.remove(at);
+                else s.shapes.set(at, sh.recoloured(InkStore.color(PASSAGE_COLOURS[which - 1][1])));
+                invalidate();
+                quick.repaint(0);
+                later();
+            })
+            .setNegativeButton("Cancel", null)
+            .show();
     }
 
     /** The desktop's marks under this reader's ink: a highlight's lines filled (grey on e-ink), an underline or a strike

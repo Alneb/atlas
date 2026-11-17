@@ -8,25 +8,32 @@
   import { marquee } from "../../../../../ui/src/lib/marquee";
   import Select from "../../../../../ui/src/components/Select.svelte";
   import type { LibraryAction, LibraryDetail, LibraryForm, LibraryItem, LibrarySource, PluginApi } from "../../../../../ui/src/lib/plugin-api";
-  import { counted, groupTree, inGroup, GROUP_SEP, matches, sortItems } from "./library";
+  import { continueRow, counted, groupTree, inGroup, GROUP_SEP, matches, place, seen, sortItems } from "./library";
   import Icon from "./Icon.svelte";
   import LibraryCover from "./LibraryCover.svelte";
 
   let { atlas, source }: { atlas: PluginApi; source: LibrarySource } = $props();
+  /** Items in the Continue row at most. */
+  const CONTINUE = 8;
   const toast = (title: string, body?: string, kind: "info" | "error" = "info", timeout?: number) => atlas.toast(title, body, kind, { timeout });
   const richTitle = (t: string) => atlas.richTitle(t);
-  let items = $state<LibraryItem[]>([]);
+  // what the source gave last, shown at once when the page comes back to it (a tab switch, a pane reopened) while it
+  // loads again behind: an Audiobookshelf or Suwayomi asked from scratch left the page blank for seconds
+  let items = $state<LibraryItem[]>(untrack(() => seen.get(source.id) ?? []));
   let error = $state("");
-  let q = $state("");
+  let q = $state(untrack(() => place.get(source.id)?.q ?? ""));
   // what the side narrows to: a group (collections, shelves) or a tag
   type Scope = { kind: "all" } | { kind: "group"; name: string } | { kind: "tag"; name: string };
-  let scope = $state<Scope>({ kind: "all" });
-  let tab = $state<string | null>(null);
+  // where the page was, kept per source for the page's life: coming back (Back after opening a paper, a tab switch)
+  // finds the same item picked, the same tab, search and scroll, not the list's top with nothing picked
+  const was = untrack(() => place.get(source.id));
+  let scope = $state<Scope>(was?.scope ?? { kind: "all" });
+  let tab = $state<string | null>(was?.tab ?? null);
   let tagsOpen = $state(false);
-  let selId = $state<string | null>(null);
+  let selId = $state<string | null>(untrack(() => place.get(source.id)?.selId ?? null));
   // a page's source never changes: its defaults are read once
-  let sortId = $state(untrack(() => source.sorts[0]?.id ?? ""));
-  let layout = $state(untrack(() => source.layouts[0]));
+  let sortId = $state(untrack(() => place.get(source.id)?.sortId ?? source.sorts[0]?.id ?? ""));
+  let layout = $state(untrack(() => place.get(source.id)?.layout ?? source.layouts[0]));
   let tools = $state<LibraryAction[]>([]);
   let list: HTMLDivElement;
 
@@ -35,7 +42,11 @@
       // an item that did not change keeps its object, so its card and cover are not drawn again: a sync rewriting notes
       // one by one redrew the whole library each time
       const before = new Map(items.map((i) => [i.id, i]));
-      items = (await source.load()).map((i) => { const o = before.get(i.id); return o && JSON.stringify(o) === JSON.stringify(i) ? o : i; });
+      // only what is yours: a server's things (`from`) are its app's, reached by its button in the header — a thing
+      // joins the library when it becomes yours (its note). A source that is wholly a service's keeps its items.
+      const loaded = await source.load();
+      items = (source.from ? loaded : loaded.filter((i) => !i.from)).map((i) => { const o = before.get(i.id); return o && JSON.stringify(o) === JSON.stringify(i) ? o : i; });
+      seen.set(source.id, items);
       error = "";
     }
     catch (e) { error = errText(e); }
@@ -61,8 +72,25 @@
   const inScope = (i: LibraryItem) =>
     (!tab || i.tab === tab) && (scope.kind === "all" || (scope.kind === "group" ? inGroup(i.groups, scope.name) : (i.tags ?? []).includes(scope.name)));
   const shown = $derived(items.filter((i) => inScope(i) && matches(i, q)));
-  const sorted = $derived(sortItems(shown, source.sorts.find((s) => s.id === sortId) ?? { id: "" }));
+  // the vault's own things first; a service's (Suwayomi's series, Jellyfin's films) after, each under "From <service>"
+  const fromOf = (i: LibraryItem | undefined) => (i ? i.from ?? source.from ?? "" : "");
+  const sorted = $derived.by(() => {
+    const all = sortItems(shown, source.sorts.find((s) => s.id === sortId) ?? { id: "" });
+    const services = [...new Set(all.map(fromOf).filter(Boolean))];
+    return [...all.filter((i) => !fromOf(i)), ...services.flatMap((f) => all.filter((i) => fromOf(i) === f))];
+  });
+  const ownCount = $derived(items.filter((i) => !fromOf(i)).length);
+  const homeOf = (from: string) => source.homes?.find((h) => h.from === from);
   const sel = $derived(sorted.find((i) => i.id === selId) ?? sorted[0] ?? null);
+  // what you were reading or listening to: the tab's unfinished items by when they were last used (not while searching
+  // or narrowed to a group, where it would hide what was asked for)
+  // what you were in the middle of is the vault's (a service's own Continue is its app's), unless all is a service's
+  const continuing = $derived(q || scope.kind !== "all" ? [] : continueRow(items.filter((i) => (!tab || i.tab === tab) && (!ownCount || !fromOf(i))), CONTINUE));
+  /** An item opened as a double click does (the source's `open`), else picked. */
+  function openItem(i: LibraryItem) {
+    if (source.open) source.open(i);
+    else { selId = i.id; picked = [i.id]; }
+  }
   // narrow (a phone, a thin pane): one column, the groups a row of chips, the item's card a sheet opened by a tap —
   // never the first item's card by itself, which kept a third of a phone's width
   let width = $state(1000);
@@ -155,6 +183,8 @@
   const pickedItems = $derived(sorted.filter((i) => pickedSet.has(i.id)));
   const isPicked = (i: LibraryItem) => (picked.length > 1 ? pickedSet.has(i.id) : sheet?.id === i.id);
   function click(e: MouseEvent, i: LibraryItem) {
+    // on a phone a tap on the cover opens it (the most common thing, one tap); on its words, the card
+    if (narrow && source.open && !e.ctrlKey && !e.metaKey && !e.shiftKey && (e.target as HTMLElement).closest(".wrap")) { source.open(i); return; }
     if (e.ctrlKey || e.metaKey) {
       const base = picked.length ? picked : sel ? [sel.id] : [];
       picked = base.includes(i.id) ? base.filter((x) => x !== i.id) : [...base, i.id];
@@ -164,6 +194,39 @@
     } else picked = [i.id];
     if (!e.shiftKey) anchor = i.id;
     selId = i.id;
+  }
+  /** A right-click on an item: what its panel offers (open, its shelf, its actions), then what any file has. The item
+   *  is picked first, as a click picks it; an item among several picked keeps them, its menu is theirs (`many`). */
+  async function menu(e: MouseEvent, i: LibraryItem) {
+    if (typeof atlas.shell.popMenu !== "function") return; // an app before API v34: its own file menu
+    if (picked.length > 1 && pickedSet.has(i.id)) {
+      atlas.shell.popMenu(e, manyActions.map((a) => ({ label: a.label, icon: a.icon, danger: a.danger, disabled: a.disabled, run: () => act(a) })));
+      return;
+    }
+    picked = [i.id]; anchor = i.id; selId = i.id;
+    const d = source.detail(i);
+    // the menu opens while the event is dispatched; a source that answers later gets the file's rows only
+    const now = d instanceof Promise ? null : d;
+    const rows: ({ label: string; icon?: string; danger?: boolean; disabled?: boolean; detail?: string; run: () => unknown } | null)[] = [];
+    // the source's Open leads unless the panel has a first action of its own (References' Read)
+    if (source.open && !now?.actions.some((a) => a.primary)) rows.push({ label: "Open", icon: "book-open", run: () => source.open!(i) });
+    if (now) {
+      const row = (a: LibraryAction) => ({ label: "confirm" in a ? `${a.label.replace(/…$/, "")}…` : a.label, icon: a.icon, danger: a.danger, disabled: a.disabled, run: () => act(a) });
+      // the panel's buttons, its shelf, then the seldom-used ones, a delete last
+      rows.push(...now.actions.filter((a) => !a.more && !a.danger).map(row));
+      if (now.choice) {
+        rows.push(null);
+        for (const o of now.choice.options) rows.push({ label: `${o.on ? "✓ " : ""}${o.label}`, detail: now.choice.label, disabled: o.on, run: () => run(o.run) });
+      }
+      rows.push(null, ...now.actions.filter((a) => a.more && !a.danger).map(row));
+      rows.push(null, ...now.actions.filter((a) => a.danger).map(row));
+    }
+    atlas.shell.popMenu(e, rows.map((r) => r && { ...r, run: async () => { await r.run(); } }), { path: i.note, openLabel: source.open ? "Open its note" : "Open" });
+  }
+  /** The panel's "⋯": the seldom-used actions as a menu under the button. */
+  function moreMenu(e: MouseEvent, more: LibraryAction[]) {
+    if (typeof atlas.shell.popMenu !== "function") return;
+    atlas.shell.popMenu(e, more.map((a) => ({ label: a.label, icon: a.icon, danger: a.danger, disabled: a.disabled, run: async () => { await act(a); } })));
   }
   let before: string[] = [];
   function dragPick(ids: string[], add: boolean) {
@@ -209,13 +272,20 @@
     return { destroy: off };
   }
 
+  $effect(() => { place.set(source.id, { scope, tab, q, selId, sortId, layout, scroll: untrack(() => place.get(source.id)?.scroll ?? 0) }); });
+  const keepScroll = () => { const p = place.get(source.id); if (p && list) p.scroll = list.scrollTop; };
+
   onMount(() => {
+    // the list's scroll back where it was once the items are drawn (the seen ones are, at once)
+    const at = place.get(source.id)?.scroll ?? 0;
+    if (at && list) requestAnimationFrame(() => { list.scrollTop = at; });
+    list?.addEventListener("scroll", keepScroll, { passive: true });
     void load();
     void source.tools?.().then((t) => (tools = t), () => {});
     let t: ReturnType<typeof setTimeout> | undefined;
     // a burst of changes (a sync filing notes) reloads once it pauses
     const off = source.watch?.(() => { clearTimeout(t); t = setTimeout(load, 1200); });
-    return () => { off?.(); clearTimeout(t); };
+    return () => { off?.(); clearTimeout(t); list?.removeEventListener("scroll", keepScroll); };
   });
 </script>
 
@@ -241,6 +311,11 @@
         {#each source.layouts as l (l)}<button role="radio" aria-checked={layout === l} class:on={layout === l} onclick={() => (layout = l)}>{l === "covers" ? "Covers" : "List"}</button>{/each}
       </div>
     {/if}
+    <!-- each service's own app, in its own tab (a server folder in the explorer, Suwayomi, Audiobookshelf): what is
+         there and not yet yours is found there, not listed here -->
+    {#each source.homes ?? [] as h (h.from)}
+      <button class="btn home" title="Open {h.from} in its own tab: what is there, yours or not" onclick={() => void run(h.run)}><Icon name="server" size={14} /> {h.label} <Icon name="external-link" size={12} /></button>
+    {/each}
     {#if source.add}
       <form class="add" onsubmit={(e) => { e.preventDefault(); void add(); }}>
         <input placeholder={source.add.placeholder} bind:value={addText} spellcheck="false" disabled={adding} />
@@ -256,6 +331,20 @@
     </div>
   {/if}
   {#if error}<p class="muted pad">{error}</p>{/if}
+  {#if continuing.length}
+    <section class="continue" aria-label="Continue">
+      <h4>Continue</h4>
+      <div class="strip">
+        {#each continuing as i (i.id)}
+          <button class="go" onclick={() => openItem(i)} title={source.open ? `Open ${i.title}` : i.title}>
+            <LibraryCover {atlas} cover={i.cover} title={i.title} />
+            <span class="t">{@html richTitle(i.title)}</span>
+            {#if i.progress}<span class="bar" style:--p={i.progress} aria-label="{Math.round(i.progress * 100)} %"></span>{/if}
+          </button>
+        {/each}
+      </div>
+    </section>
+  {/if}
   <div class="body" class:bare={!groups.length && !tags.length}>
     {#if groups.length || tags.length}
       <nav class="side" aria-label={source.groupsTitle ?? "Groups"}>
@@ -288,22 +377,32 @@
       </nav>
     {/if}
     <div class="list" class:covers={layout === "covers"} class:empty-list={!items.length} bind:this={list} use:marquee={{ pick: dragPick }}>
-      {#each sorted as i (i.id)}
+      {#each sorted as i, n (i.id)}
+        {#if fromOf(i) && fromOf(i) !== fromOf(sorted[n - 1])}
+          {@const home = homeOf(fromOf(i))}
+          <div class="from-head" role="heading" aria-level="3">
+            <Icon name="server" size={14} /><span class="fh">From {fromOf(i)}</span>
+            <span class="fc">{sorted.filter((x) => fromOf(x) === fromOf(i)).length}</span>
+            {#if home}<button class="btn from-home" onclick={() => void run(home.run)}>{home.label} <Icon name="external-link" size={12} /></button>{/if}
+          </div>
+        {/if}
         {#if layout === "covers"}
-          <button class="card" class:sel={isPicked(i)} data-pick={i.id} draggable={source.regroup ? "true" : undefined} ondragstart={(e) => dragItem(e, i)} onclick={(e) => click(e, i)} ondblclick={() => source.open?.(i)} title={i.sub}>
+          <button class="card" class:sel={isPicked(i)} data-pick={i.id} draggable={source.regroup ? "true" : undefined} ondragstart={(e) => dragItem(e, i)} onclick={(e) => click(e, i)} ondblclick={() => source.open?.(i)} oncontextmenu={(e) => void menu(e, i)} title={i.sub}>
             <LibraryCover {atlas} cover={i.cover} title={i.title} />
+            {#if i.progress}<span class="bar" style:--p={i.progress} aria-label="{Math.round(i.progress * 100)} %"></span>{/if}
             <span class="t">{@html richTitle(i.title)}</span>
             {#if i.sub}<span class="m">{i.sub}</span>{/if}
           </button>
         {:else}
-          <button class="row" class:sel={isPicked(i)} data-pick={i.id} draggable={source.regroup ? "true" : undefined} ondragstart={(e) => dragItem(e, i)} onclick={(e) => click(e, i)} ondblclick={() => source.open?.(i)}>
+          <button class="row" class:sel={isPicked(i)} data-pick={i.id} draggable={source.regroup ? "true" : undefined} ondragstart={(e) => dragItem(e, i)} onclick={(e) => click(e, i)} ondblclick={() => source.open?.(i)} oncontextmenu={(e) => void menu(e, i)}>
             <span class="t">{@html richTitle(i.title)}</span>
             {#if i.sub}<span class="m">{i.sub}</span>{/if}
             {#if i.flags?.length}<span class="flags">{#each i.flags as f (f.label)}<span class="flag" class:red={f.tone === "red"}>{f.label}</span>{/each}</span>{/if}
+            {#if i.progress}<span class="bar" style:--p={i.progress} aria-label="{Math.round(i.progress * 100)} %"></span>{/if}
           </button>
         {/if}
       {:else}
-        <p class="muted pad none">{items.length ? "Nothing matches." : source.empty}</p>
+        <p class="muted pad none">{items.length ? "Nothing matches." : source.homes?.length ? `Nothing of yours yet. What is on ${source.homes.map((h) => h.from).join(" or ")} is in its own tab (the button above); a thing comes here once you read it or write about it.` : source.empty}</p>
       {/each}
     </div>
     {#if pickedItems.length > 1}
@@ -326,14 +425,23 @@
             <div class="actions"><button class="btn primary">Save</button><button type="button" class="btn" onclick={() => (form = null)}>Cancel</button></div>
           </form>
         {/if}
-        {#if layout === "covers"}<LibraryCover {atlas} cover={sel.cover} title={sel.title} big />{/if}
         {#if detail.kind}<div class="kind">{detail.kind}</div>{/if}
         <h2>{@html richTitle(detail.title)}</h2>
         {#each detail.lines ?? [] as l, n (n)}<p class={l.muted ? "venue" : "authors"}>{l.text}</p>{/each}
-        {#if detail.fields?.length}
-          <dl>{#each detail.fields as [k, v] (k)}<dt>{k}</dt><dd>{v}</dd>{/each}</dl>
+        <div class="actions">
+          {#each detail.actions.filter((a) => !a.more) as a (a.label)}{@render button(a)}{/each}
+          {#if detail.actions.some((a) => a.more)}
+            {@const more = detail.actions.filter((a) => a.more)}
+            <button class="btn" title="More: {more.map((a) => a.label).join(', ')}" aria-label="More" onclick={(e) => moreMenu(e, more)}><Icon name="more" size={14} /></button>
+          {/if}
+        </div>
+        <!-- under the buttons: its picture (a paper's first page, a book's cover) beside its fields, whatever the layout -->
+        {#if sel.cover || detail.fields?.length}
+          <div class="facts" class:pic={!!sel.cover}>
+            {#if sel.cover}<div class="facts-pic">{#key sel.id}<LibraryCover {atlas} cover={sel.cover} title={sel.title} big />{/key}</div>{/if}
+            {#if detail.fields?.length}<dl>{#each detail.fields as [k, v] (k)}<dt>{k}</dt><dd>{v}</dd>{/each}</dl>{/if}
+          </div>
         {/if}
-        <div class="actions">{#each detail.actions as a (a.label)}{@render button(a)}{/each}</div>
         {#if detail.choice}
           <div class="choice" role="radiogroup" aria-label={detail.choice.label}>
             <span>{detail.choice.label}</span>
@@ -416,7 +524,16 @@
   .twisty:hover { color: var(--text); }
   .picked { margin: 8px 0 12px; padding-left: 18px; font-size: .9em; color: var(--text-muted); }
   .picked li { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .list.covers { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 14px 12px; align-content: start; padding: 12px; }
+  .list.covers { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 16px 14px; align-content: start; padding: 14px; }
+  /* a service's things, apart from the vault's: a band across the list with the way into the service's own app */
+  .from-head { grid-column: 1 / -1; display: flex; align-items: center; gap: 8px; margin: 14px 0 2px; padding: 8px 10px; border-radius: var(--radius-sm);
+    background: var(--bg-alt); border: 1px solid var(--border); color: var(--text-muted); font-size: calc(12px * var(--ui-scale, 1)); }
+  .from-head:first-child { margin-top: 0; }
+  .from-head .fh { font-weight: 600; letter-spacing: .02em; color: var(--heading); }
+  .from-head .fc { color: var(--text-faint); font-variant-numeric: tabular-nums; }
+  .home { display: inline-flex; align-items: center; gap: 6px; }
+  .from-home { margin-left: auto; display: inline-flex; align-items: center; gap: 5px; }
+  .mine-none { grid-column: 1 / -1; margin: 4px 2px 0; color: var(--text-muted); }
   .row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 10px; width: 100%; text-align: left; padding: 8px 10px; border-radius: var(--radius-sm); }
   .row:hover { background: var(--bg-hover); }
   .row.sel { background: var(--accent-soft); box-shadow: inset 2px 0 0 var(--accent); }
@@ -430,13 +547,28 @@
   .card .m { font-size: .8em; }
   .t { grid-column: 1; color: var(--heading); font-weight: 550; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .m { grid-column: 1; color: var(--text-muted); font-size: .9em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  /* how far along: a thin bar, the done part in the accent */
+  .bar { display: block; height: 3px; border-radius: 2px; background: linear-gradient(to right, var(--accent) calc(var(--p) * 100%), var(--border) 0); }
+  .row .bar { grid-column: 1 / -1; margin-top: 3px; }
+  .continue { flex: none; padding: 8px 16px 10px; border-bottom: 1px solid var(--border); }
+  .continue h4 { margin: 0 0 6px; font-size: calc(10.5px * var(--ui-scale, 1)); font-weight: 600; text-transform: uppercase; letter-spacing: .07em; color: var(--text-muted); }
+  .strip { display: flex; gap: 12px; overflow-x: auto; scrollbar-width: thin; padding-bottom: 2px; }
+  .go { flex: none; width: 104px; display: flex; flex-direction: column; gap: 4px; padding: 3px; border-radius: var(--radius-sm); text-align: left; }
+  .go:hover { background: var(--bg-hover); }
+  .go .t { font-size: .82em; font-weight: 500; white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; }
+  .narrow .continue { padding: 6px 12px 8px; }
   .flags { grid-column: 2; grid-row: 1 / span 2; display: flex; gap: 4px; align-items: center; }
   .flag { font-size: calc(11px * var(--ui-scale, 1)); padding: 1px 6px; border-radius: 999px; background: var(--bg-hover); color: var(--text-muted); }
   .flag.red { color: var(--red); background: color-mix(in srgb, var(--red) 14%, transparent); }
-  /* a column, so the linked mentions sit at the bottom however short the item's card is */
+  /* a column; the linked mentions follow the item (at the bottom of a short card they stood apart, the column blank) */
   .detail { overflow: auto; padding: 18px 22px 40px; display: flex; flex-direction: column; }
   .detail > :global(*) { flex-shrink: 0; }
-  .links-bar { position: sticky; bottom: -40px; margin: auto -22px -40px; padding-top: 18px; display: flex; flex-direction: column; max-height: 50vh; }
+  .facts { display: grid; gap: 14px; margin: 8px 0 4px; }
+  .facts.pic { grid-template-columns: minmax(110px, 42%) minmax(0, 1fr); align-items: start; }
+  .facts-pic :global(.cover.big) { max-height: 240px; margin: 0; }
+  .facts dl { margin: 0; }
+  .narrow .facts.pic { grid-template-columns: 110px minmax(0, 1fr); }
+  .links-bar { position: sticky; bottom: -40px; margin: 22px -22px -40px; padding-top: 18px; display: flex; flex-direction: column; max-height: 50vh; }
   .links-bar :global(.backlinks) { max-height: 50vh; }
   .kind { text-transform: uppercase; letter-spacing: .07em; font-size: calc(11px * var(--ui-scale, 1)); color: var(--text-faint); }
   h2 { margin: 4px 0 6px; font-size: calc(19px * var(--ui-scale, 1)); color: var(--heading); line-height: 1.3; }
@@ -458,7 +590,7 @@
   .abstract { margin: 0; line-height: 1.6; color: var(--text); }
   .pad { padding: 12px 16px; }
   /* the covers are a grid: the "nothing here" line spans all its columns (on a phone it sat in one, a word a line) */
-  .none { grid-column: 1 / -1; }
+  .list .none { grid-column: 1 / -1; } /* only the list's: the detail's empty column must stay in its own column */
 
   /* narrow: one column; groups as a row of chips; the card as a sheet over the list */
   .narrow header { padding: 10px 12px; gap: 8px; }

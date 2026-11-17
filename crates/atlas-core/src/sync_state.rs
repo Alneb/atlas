@@ -45,9 +45,22 @@ pub enum Reach {
 #[ts(export)]
 pub enum Refused {
     /// This copy was older than the server's last version: the change, computed from the old one, was not written.
-    Behind,
+    Behind { newer: Newer },
     /// Another device held the path's lease for longer than the write could wait.
     Held { by: String },
+}
+
+/// Where the server's newer version is, when a write was refused as behind.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, ts_rs::TS)]
+#[serde(rename_all = "snake_case")]
+#[ts(export)]
+pub enum Newer {
+    /// Fetched here at once (the mirror carries the files): it can be looked at now.
+    Here,
+    /// This device's Syncthing carries the files and has not brought it yet.
+    Syncthing,
+    /// The server's table has it but its disk not yet (still arriving there from the device that wrote it).
+    ServerDisk,
 }
 
 /// One refused write.
@@ -100,6 +113,23 @@ pub struct SyncState {
 
 fn now_ms() -> u64 {
     std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_millis() as u64)
+}
+
+/// What a refused write's notice says: what happened, then what to do.
+pub fn refusal_words(refused: &Refused) -> String {
+    match refused {
+        Refused::Behind { newer: Newer::Here } => {
+            "The server had a newer version of it, written on another device. That version is here now: look at it and make your change again.".into()
+        }
+        Refused::Behind { newer: Newer::ServerDisk } => {
+            "The server has a newer version of it, written on another device, that is still reaching the server's disk. Save again in a minute.".into()
+        }
+        Refused::Behind { newer: Newer::Syncthing } => "The server has a newer version of it, written on another device, which Syncthing has not brought here yet. \
+             Make your change again once it arrives; if it does not come within a minute, check that Syncthing runs on this device and that neither \
+             the folder nor the other device is paused (the vault's sync line says which)."
+            .into(),
+        Refused::Held { by } => format!("{by} was writing it, longer than this save could wait. Save again in a moment."),
+    }
 }
 
 /// The vaults this process tracks, by root (as `Workspace::root` spells it).
@@ -168,12 +198,7 @@ impl SyncState {
             let extra = s.refused.len().saturating_sub(KEEP_REFUSED);
             s.refused.drain(..extra);
         }
-        let notice = match &refused {
-            Refused::Behind => Notice::new(format!("{path} was not saved: this copy was behind"))
-                .body("The server had a newer version of it. The newer version is brought here; look at it and make the change again."),
-            Refused::Held { by } => Notice::new(format!("{path} was not saved: {by} is writing it"))
-                .body(format!("{by} held the note longer than this write could wait. Try again in a moment.")),
-        };
+        let notice = Notice::new(format!("{path} was not saved")).body(refusal_words(&refused));
         self.tell(&format!("sync:refused:{path}"), notice.level(NoticeLevel::Warning).open(path));
     }
 
@@ -243,6 +268,11 @@ pub struct SyncStatus {
     pub captures_waiting: u32,
     /// Syncthing conflict copies left for the user (sync_merge.rs `left_copies`).
     pub conflict_copies: u32,
+    /// What this device's Syncthing says of the folder (syncthing_here.rs), for a Syncthing folder whose config is
+    /// found here; absent otherwise.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub syncthing_here: Option<crate::syncthing_here::SyncthingHere>,
     pub level: NoticeLevel,
     /// The one line both apps show.
     pub words: String,
@@ -269,6 +299,7 @@ pub fn status(root: &Path) -> SyncStatus {
         here_only: 0,
         captures_waiting: crate::capture::waiting_here(root) as u32,
         conflict_copies: crate::sync_merge::left_copies(root, None).len() as u32,
+        syncthing_here: if syncthing { crate::syncthing_here::of(root) } else { None },
         level: NoticeLevel::Info,
         words: String::new(),
     };
@@ -300,8 +331,27 @@ fn plural(n: u32, one: &str, many: &str) -> String {
     format!("{n} {}", if n == 1 { one } else { many })
 }
 
+/// The server's reason, short enough for the line: its first clause, at most 60 characters.
+fn short(why: &str) -> String {
+    let first = why.split([';', '\n']).next().unwrap_or(why).trim();
+    if first.chars().count() > 60 { format!("{}…", first.chars().take(59).collect::<String>()) } else { first.to_string() }
+}
+
+/// What this device's Syncthing says, when it is news: what happened and what to do.
+fn syncthing_words(here: &crate::syncthing_here::SyncthingHere) -> Option<String> {
+    use crate::syncthing_here::SyncthingHere as H;
+    match here {
+        H::Runs => None,
+        H::NotRunning => Some("Syncthing is not running on this device: changes wait here until it is started".into()),
+        H::FolderPaused { label } => Some(format!("Syncthing has the folder \"{label}\" paused: resume it there, or nothing comes or goes")),
+        H::DevicesPaused { names } => Some(format!("Syncthing has {} paused: resume it there, or changes do not reach it", names.join(", "))),
+        H::NotShared => Some("this device's Syncthing shares no folder holding this vault, though it has a .stfolder: add the folder in Syncthing".into()),
+    }
+}
+
 /// The status line, and how much it needs looking at: what carries the vault, whether its server answers, then only
-/// what is worth saying (a catch-up, refused writes, writes or captures waiting, conflict copies).
+/// what is worth saying (a catch-up, refused writes, writes or captures waiting, conflict copies). Every warning says
+/// what happened and what to do about it.
 pub fn words(s: &SyncStatus, now: u64) -> (NoticeLevel, String) {
     let mut level = NoticeLevel::Info;
     let warn = |l: &mut NoticeLevel| *l = NoticeLevel::Warning;
@@ -312,16 +362,17 @@ pub fn words(s: &SyncStatus, now: u64) -> (NoticeLevel, String) {
         (_, Some(m)) if !s.open => parts.push(format!("Mirrored on {}; not open here, so not followed", host(m))),
         (_, Some(m)) => {
             let h = host(m);
+            let why = s.server_why.as_deref().map(|w| format!(" ({})", short(w))).unwrap_or_default();
             parts.push(match s.server {
                 Reach::Unknown => format!("Mirrored on {h}, not asked yet"),
                 Reach::Answers => format!("{h} answers"),
                 Reach::Signin => {
                     warn(&mut level);
-                    format!("Sign in to {h}: writes stay here meanwhile")
+                    format!("Sign in to {h}: its sign-in gate turned this device away, so writes stay here until you do")
                 }
                 Reach::Offline => {
                     warn(&mut level);
-                    format!("{h} does not answer: writes stay here")
+                    format!("{h} does not answer{why}: writes stay on this device and reach it when it answers again")
                 }
             });
             parts.push(match s.bytes {
@@ -329,6 +380,11 @@ pub fn words(s: &SyncStatus, now: u64) -> (NoticeLevel, String) {
                 _ => "the mirror carries the files".into(),
             });
             match &s.caught_up {
+                // a failure while the server answers is news of its own; else the line above already says why
+                Some(CatchUp { at, error: Some(e), .. }) if s.server == Reach::Answers => {
+                    warn(&mut level);
+                    parts.push(format!("catch-up failed {} ({}): newer copies from the server may be missing here", ago(*at, now), short(e)));
+                }
                 Some(CatchUp { at, error: Some(_), .. }) => parts.push(format!("catch-up failed {}", ago(*at, now))),
                 Some(CatchUp { at, brought: Some(n), .. }) if *n > 0 => parts.push(format!("caught up {} ({} brought)", ago(*at, now), plural(*n, "file", "files"))),
                 Some(CatchUp { at, .. }) => parts.push(format!("caught up {}", ago(*at, now))),
@@ -336,23 +392,35 @@ pub fn words(s: &SyncStatus, now: u64) -> (NoticeLevel, String) {
             }
         }
     }
+    if let Some(w) = s.syncthing_here.as_ref().and_then(syncthing_words) {
+        warn(&mut level);
+        parts.push(w);
+    }
     if s.refused_count > 0 {
         warn(&mut level);
-        let last = s.refused.last().map(|r| match &r.refused {
-            Refused::Behind => format!(", the last as behind ({})", ago(r.at, now)),
-            Refused::Held { by } => format!(", the last held by {by} ({})", ago(r.at, now)),
+        let n = plural(s.refused_count, "write", "writes");
+        parts.push(match s.refused.last() {
+            Some(r) => {
+                let what = match &r.refused {
+                    Refused::Behind { newer: Newer::Here } => "the server had a newer copy, now here: open it and make the change again".to_string(),
+                    Refused::Behind { newer: Newer::ServerDisk } => "the server's newer copy is still reaching its disk: save again in a minute".to_string(),
+                    Refused::Behind { newer: Newer::Syncthing } => "the server has a newer copy Syncthing has not brought yet: make the change again once it arrives".to_string(),
+                    Refused::Held { by } => format!("{by} was writing it: save again"),
+                };
+                format!("{n} not saved, the last {} ({}): {what}", r.path, ago(r.at, now))
+            }
+            None => format!("{n} not saved"),
         });
-        parts.push(format!("{} refused{}", plural(s.refused_count, "write", "writes"), last.unwrap_or_default()));
     }
     if s.here_only > 0 {
-        parts.push(format!("{} made here only", plural(s.here_only, "write", "writes")));
+        parts.push(format!("{} made here only, sent when the server answers", plural(s.here_only, "write", "writes")));
     }
     if s.captures_waiting > 0 {
         parts.push(format!("{} waiting", plural(s.captures_waiting, "capture", "captures")));
     }
     if s.conflict_copies > 0 {
         warn(&mut level);
-        parts.push(format!("{} to settle", plural(s.conflict_copies, "conflict copy", "conflict copies")));
+        parts.push(format!("{} to settle: open Sync conflicts", plural(s.conflict_copies, "conflict copy", "conflict copies")));
     }
     if level == NoticeLevel::Info && s.server == Reach::Answers {
         level = NoticeLevel::Success;
@@ -380,6 +448,7 @@ mod tests {
             here_only: 0,
             captures_waiting: 0,
             conflict_copies: 0,
+            syncthing_here: None,
             level: NoticeLevel::Info,
             words: String::new(),
         }
@@ -399,18 +468,22 @@ mod tests {
         s.server = Reach::Answers;
         assert_eq!(words(&s, NOW), (NoticeLevel::Success, "notes.example.org answers · Syncthing carries the files".into()));
         s.server = Reach::Signin;
-        assert_eq!(words(&s, NOW), (NoticeLevel::Warning, "Sign in to notes.example.org: writes stay here meanwhile · Syncthing carries the files".into()));
+        assert_eq!(
+            words(&s, NOW),
+            (NoticeLevel::Warning, "Sign in to notes.example.org: its sign-in gate turned this device away, so writes stay here until you do · Syncthing carries the files".into())
+        );
 
         let mut m = status(Seat::MirroredDevice, Some("https://notes.example.org/v/notes/"), false);
         m.server = Reach::Offline;
+        m.server_why = Some("connection refused; retried later".into());
         m.caught_up = Some(CatchUp { at: NOW - 3 * MIN, brought: None, error: Some("timed out".into()) });
         m.here_only = 2;
         assert_eq!(
             words(&m, NOW),
-            (NoticeLevel::Warning, "notes.example.org does not answer: writes stay here · the mirror carries the files · catch-up failed 3 min ago · 2 writes made here only".into())
+            (NoticeLevel::Warning, "notes.example.org does not answer (connection refused): writes stay on this device and reach it when it answers again · the mirror carries the files · catch-up failed 3 min ago · 2 writes made here only, sent when the server answers".into())
         );
         m.open = false;
-        assert_eq!(words(&m, NOW).1, "Mirrored on notes.example.org; not open here, so not followed · 2 writes made here only");
+        assert_eq!(words(&m, NOW).1, "Mirrored on notes.example.org; not open here, so not followed · 2 writes made here only, sent when the server answers");
     }
 
     #[test]
@@ -428,7 +501,7 @@ mod tests {
             words(&s, NOW),
             (
                 NoticeLevel::Warning,
-                "notes.example.org answers · the mirror carries the files · caught up just now · 3 writes refused, the last held by phone-1a2b (1 min ago) · 1 capture waiting · 2 conflict copies to settle".into()
+                "notes.example.org answers · the mirror carries the files · caught up just now · 3 writes not saved, the last a.md (1 min ago): phone-1a2b was writing it: save again · 1 capture waiting · 2 conflict copies to settle: open Sync conflicts".into()
             )
         );
     }
@@ -462,8 +535,8 @@ mod tests {
         let bus = EventBus::default();
         let mut rx = bus.subscribe();
         st.attach(bus);
-        st.refused("a.md", Refused::Behind);
-        st.refused("a.md", Refused::Behind);
+        st.refused("a.md", Refused::Behind { newer: Newer::Syncthing });
+        st.refused("a.md", Refused::Behind { newer: Newer::Syncthing });
         st.refused("b.md", Refused::Held { by: "phone".into() });
         let ids: Vec<_> = std::iter::from_fn(|| match rx.try_recv() {
             Ok(Event::Notify(n)) => Some(n.id.unwrap_or_default()),
@@ -472,9 +545,56 @@ mod tests {
         .collect();
         assert_eq!(ids, ["sync:refused:a.md", "sync:refused:b.md"]);
         for i in 0..10 {
-            st.refused(&format!("n{i}.md"), Refused::Behind);
+            st.refused(&format!("n{i}.md"), Refused::Behind { newer: Newer::Syncthing });
         }
         let s = st.seen().clone();
         assert_eq!((s.refused_count, s.refused.len(), s.refused.last().map(|r| r.path.as_str())), (13, KEEP_REFUSED, Some("n9.md")));
+    }
+
+    #[test]
+    fn a_write_refused_as_behind_says_where_the_newer_copy_is_and_what_to_do() {
+        let mut s = status(Seat::MirroredDevice, Some("https://notes.example.org/"), true);
+        s.server = Reach::Answers;
+        s.refused_count = 1;
+        let said = |s: &SyncStatus| words(s, NOW).1.split(" · ").last().unwrap().to_string();
+        s.refused = vec![Refusal { path: "a.md".into(), refused: Refused::Behind { newer: Newer::Syncthing }, at: NOW }];
+        assert_eq!(said(&s), "1 write not saved, the last a.md (just now): the server has a newer copy Syncthing has not brought yet: make the change again once it arrives");
+        s.refused[0].refused = Refused::Behind { newer: Newer::Here };
+        assert_eq!(said(&s), "1 write not saved, the last a.md (just now): the server had a newer copy, now here: open it and make the change again");
+        s.refused[0].refused = Refused::Behind { newer: Newer::ServerDisk };
+        assert_eq!(said(&s), "1 write not saved, the last a.md (just now): the server's newer copy is still reaching its disk: save again in a minute");
+        // the writer's error and the notice: what happened, then what to do, Syncthing named as the thing to check
+        let w = refusal_words(&Refused::Behind { newer: Newer::Syncthing });
+        assert!(w.contains("Syncthing has not brought here yet") && w.contains("check that Syncthing runs on this device"), "{w}");
+    }
+
+    #[test]
+    fn this_devices_syncthing_is_named_when_it_stops_the_files() {
+        use crate::syncthing_here::SyncthingHere as H;
+        let mut s = status(Seat::LoneDevice, None, true);
+        s.syncthing_here = Some(H::Runs);
+        assert_eq!(words(&s, NOW), (NoticeLevel::Info, "Shared by Syncthing, no server".into()), "running: nothing to say");
+        s.syncthing_here = Some(H::NotRunning);
+        assert_eq!(
+            words(&s, NOW),
+            (NoticeLevel::Warning, "Shared by Syncthing, no server · Syncthing is not running on this device: changes wait here until it is started".into())
+        );
+        s.syncthing_here = Some(H::FolderPaused { label: "Notes".into() });
+        assert_eq!(words(&s, NOW).1, "Shared by Syncthing, no server · Syncthing has the folder \"Notes\" paused: resume it there, or nothing comes or goes");
+        s.syncthing_here = Some(H::DevicesPaused { names: vec!["phone".into()] });
+        assert_eq!(words(&s, NOW).1, "Shared by Syncthing, no server · Syncthing has phone paused: resume it there, or changes do not reach it");
+        s.syncthing_here = Some(H::NotShared);
+        assert!(words(&s, NOW).1.ends_with("add the folder in Syncthing"));
+    }
+
+    #[test]
+    fn a_catch_up_failing_while_the_server_answers_is_a_warning_with_its_reason() {
+        let mut s = status(Seat::MirroredDevice, Some("https://notes.example.org/"), false);
+        s.server = Reach::Answers;
+        s.caught_up = Some(CatchUp { at: NOW - MIN, brought: None, error: Some("500 Internal Server Error".into()) });
+        assert_eq!(
+            words(&s, NOW),
+            (NoticeLevel::Warning, "notes.example.org answers · the mirror carries the files · catch-up failed 1 min ago (500 Internal Server Error): newer copies from the server may be missing here".into())
+        );
     }
 }

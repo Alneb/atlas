@@ -31,6 +31,12 @@ test("the terminal takes the keys however it is reached", async ({ page }) => {
   await toEditor();
   await pane.locator(".xterm-screen").click({ position: { x: 60, y: 30 } });
   await expect(typed(page), "a click on the text").toHaveCount(1);
+  // …and its tab is the active one: F11 takes the terminal over the window, not the note clicked before
+  await page.keyboard.press("F11");
+  await expect(pane.locator(".xterm-screen"), "F11 after a click in the terminal").toBeVisible();
+  await expect(page.locator(".cm-content:visible"), "the note is not the one made full").toHaveCount(0);
+  await page.keyboard.press("F11");
+  await expect(page.locator(".cm-content:visible").first()).toBeVisible();
 
   // its tab in the left bar
   await toEditor();

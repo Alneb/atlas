@@ -18,6 +18,8 @@ path = "src/main.rs"
 pdf_oxide = "0.3.78"
 atlas-plugin = { path = "../../../../crates/atlas-plugin" }
 atlas-text = { path = "../../../../crates/atlas-text" }
+# a PDF's naming (first page, Info dictionary) is the catalog's: its engine linked as a library, the plugin still standing alone
+atlas-catalog = { path = "../../catalog/engine" }
 serde = { workspace = true }
 serde_json = { workspace = true }
 serde_yaml = "0.9"

@@ -27,7 +27,7 @@ test("install from a folder (on, permissions said), switch off and on, update ke
   await page.getByTestId("palette").getByText("Settings", { exact: true }).first().click();
   await page.getByRole("button", { name: /^Plugins( \d+)?$/ }).first().click();
 
-  await page.getByRole("button", { name: "Install…" }).click();
+  await page.getByRole("button", { name: "Install from elsewhere…" }).click();
   await page.keyboard.type(src);
   await page.keyboard.press("Enter");
   await expect(page.getByText("Installed Carried")).toBeVisible();
@@ -61,8 +61,8 @@ test("install from a folder (on, permissions said), switch off and on, update ke
 });
 
 // A release's plugins (scripts/dev/plugin-pack.mjs: plugins.json beside atlas-plugin-<id>.tar.gz), served here by a
-// local stand-in for the release's download address: listed in "Install…", installed from the archive's address.
-test("Install… lists the release's plugins and installs one from its archive's address", async ({ page, request }) => {
+// local stand-in for the release's download address: listed in "Install from elsewhere…", installed from the archive's address.
+test("Install from elsewhere… lists the release's plugins and installs one from its archive's address", async ({ page, request }) => {
   const { createServer } = await import("node:http");
   const { execFileSync } = await import("node:child_process");
   const { readFileSync } = await import("node:fs");
@@ -93,7 +93,7 @@ test("Install… lists the release's plugins and installs one from its archive's
     await page.keyboard.type("Settings");
     await page.getByTestId("palette").getByText("Settings", { exact: true }).first().click();
     await page.getByRole("button", { name: /^Plugins( \d+)?$/ }).first().click();
-    await page.getByRole("button", { name: "Install…" }).click();
+    await page.getByRole("button", { name: "Install from elsewhere…" }).click();
     const palette = page.getByTestId("palette");
     await expect(palette.getByText("Released 2.0.0", { exact: true })).toBeVisible();
     await expect(palette.getByText(/not built for this computer/)).toBeVisible();

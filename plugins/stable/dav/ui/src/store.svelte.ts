@@ -1,7 +1,8 @@
 // The Calendar pane's state: the calendars, the events of the range on screen (from the engine's cache, at once),
 // the view and the day it is on, and every change — made on screen first (optimistic), written behind, with an Undo
 // in the toast and a roll-back with the reason when the server refuses (UI-STYLE §4).
-import { addDays, addMonths, call, evEnd, evStart, hourCycle, hueColor, startOfDay, startOfWeek, wall, weekStart, ymd, TASKS, type Account, type Answer, type Ev, type PluginApi, type Source, type TaskRow } from "./api";
+import { Steps } from "../../../../../ui/src/lib/pane-nav";
+import { addDays, addMonths, agendaRange, agendaStep, call, evEnd, evStart, hourCycle, hueColor, isSpan, sameDay, startOfDay, startOfWeek, wall, weekStart, ymd, TASKS, type Account, type Answer, type Ev, type PluginApi, type Source, type Span, type TaskRow } from "./api";
 
 export type View = "day" | "week" | "workweek" | "month" | "agenda" | "year";
 export type Scope = "this" | "following" | "all";
@@ -24,6 +25,8 @@ export class Cal {
   accounts = $state<Account[]>([]);
   events = $state<Ev[]>([]);
   view = $state<View>("week");
+  /** How much the Agenda shows (api.ts `Span`), kept on this device as the view is. */
+  span = $state<Span>(isSpan(stored("span")) ? (stored("span") as Span) : "60days");
   cursor = $state(startOfDay(new Date()));
   loading = $state(true);
   syncing = $state(false);
@@ -77,7 +80,7 @@ export class Cal {
       case "week": { const s = startOfWeek(cursor, this.first); return { from: s, to: addDays(s, 6) }; }
       case "workweek": { const s = startOfWeek(cursor, 1); return { from: s, to: addDays(s, 4) }; }
       case "month": { const s = startOfWeek(new Date(cursor.getFullYear(), cursor.getMonth(), 1), this.first); return { from: s, to: addDays(s, 41) }; }
-      case "agenda": return { from: cursor, to: addDays(cursor, 59) };
+      case "agenda": return agendaRange(this.span, cursor, this.first);
       case "year": return { from: new Date(cursor.getFullYear(), 0, 1), to: new Date(cursor.getFullYear(), 11, 31) };
     }
   }
@@ -147,6 +150,24 @@ export class Cal {
     } catch { return []; }
   }
 
+  /** A task of the layer ticked through the core (`atlas.tickTask`, as Home ticks: its ✅ date, a repeating one's next
+   *  occurrence): gone from the list at once, back with the reason when the core refuses. Null on an Atlas older than
+   *  plugin API 31, which has no tick for plugins: the row then has no box. */
+  get canTick(): boolean { return typeof (this.atlas as Partial<PluginApi>).tickTask === "function"; }
+  async tick(t: TaskRow): Promise<void> {
+    if (!this.canTick || t.line == null) return;
+    const before = this.tasks;
+    this.tasks = before.filter((e) => !(e.task && e.task.path === t.path && e.task.line === t.line));
+    try {
+      await this.atlas.tickTask(t.path, t.line);
+      this.toast(`Done: “${t.title}”`, "success", undefined, { label: "Open the note", run: () => this.atlas.open(t.path, t.line ?? undefined) });
+      void this.load(true); // a repeating task's next occurrence
+    } catch (e) {
+      this.tasks = before;
+      this.toast(`Not ticked: ${(e as Error).message}`, "error");
+    }
+  }
+
   /** Every item of the range: the events, then the layer's tasks. */
   shownEvents(): Ev[] { return this.tasks.length ? [...this.events, ...this.tasks] : this.events; }
 
@@ -207,8 +228,28 @@ export class Cal {
 
   // ----- moving around
 
-  setView(v: View) { this.view = v; store("view", v); this.results = null; void this.load(); }
-  go(d: Date, v?: View) { this.cursor = startOfDay(d); if (v) this.setView(v); else void this.load(); }
+  /** Back / Forward through the views and dates shown (the app's Back asks it first; App.svelte attaches it) */
+  steps = new Steps<{ view: View; day: number }>(() => this.spot(), (p) => {
+    this.cursor = new Date(p.day);
+    this.view = p.view; store("view", p.view); this.results = null; void this.load();
+  });
+  private spot() { return { view: this.view, day: this.cursor.getTime() }; }
+
+  setView(v: View) {
+    const was = this.spot();
+    this.view = v; store("view", v); this.results = null; void this.load();
+    this.steps.left(was);
+  }
+  /** The Agenda's length (a day, 3 days, a week, 60 days): the range read again. */
+  setSpan(s: Span) {
+    this.span = s; store("span", s); void this.load();
+  }
+  go(d: Date, v?: View) {
+    const was = this.spot();
+    this.cursor = startOfDay(d);
+    if (v) this.steps.unrecorded(() => this.setView(v)); else void this.load();
+    this.steps.left(was);
+  }
   today() { this.go(new Date()); }
   step(dir: 1 | -1) {
     const c = this.cursor;
@@ -217,7 +258,7 @@ export class Cal {
       week: () => addDays(c, 7 * dir),
       workweek: () => addDays(c, 7 * dir),
       month: () => addMonths(new Date(c.getFullYear(), c.getMonth(), 1), dir),
-      agenda: () => addDays(c, 30 * dir),
+      agenda: () => addDays(c, agendaStep(this.span) * dir),
       year: () => new Date(c.getFullYear() + dir, c.getMonth(), 1),
     } as Record<View, () => Date>)[this.shown()]();
     this.go(next);
@@ -226,7 +267,7 @@ export class Cal {
   title(narrowView: View = this.shown()): string {
     const { from, to } = this.range(narrowView);
     const c = this.cursor;
-    if (narrowView === "day") return c.toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+    if (narrowView === "day" || (narrowView === "agenda" && sameDay(from, to))) return c.toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long", year: "numeric" });
     if (narrowView === "month") return c.toLocaleDateString(undefined, { month: "long", year: "numeric" });
     if (narrowView === "year") return String(c.getFullYear());
     const sameMonth = from.getMonth() === to.getMonth();

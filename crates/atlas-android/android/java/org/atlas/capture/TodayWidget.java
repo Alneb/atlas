@@ -20,13 +20,14 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 
 /** The home-screen widget (docs/guides/ANDROID.md, "The home-screen widget"): the day, the last lines of today's log,
- *  the open tasks and a Capture button, in the vault's palette. The data is Home's own — the core's `GET /api/today`,
+ *  what comes next (the Agenda's events and dated tasks of the coming week: Agenda, AgendaRows.next; a tap opens the
+ *  Agenda), the open tasks and a Capture button, in the vault's palette. The data is Home's own — the core's `GET /api/today`,
  *  reached as every native screen reaches a vault (VaultFiles.OnServer: the in-app core for a folder, the server for a
  *  server's vault); nothing here reads a task. Resizable: rows past the widget's height are cut by its frame. Drawn
  *  again every 30 minutes (updatePeriodMillis), when the app comes forward or leaves, and when the page reports its
  *  colours (paint). */
 public final class TodayWidget extends AppWidgetProvider {
-    private static final int MAX_TASKS = 12, MAX_LOG = 4;
+    private static final int MAX_TASKS = 12, MAX_LOG = 4, MAX_NEXT = 4;
     private static final String PREFS = "widget";
 
     @Override
@@ -82,7 +83,7 @@ public final class TodayWidget extends AppWidgetProvider {
         v.setTextViewText(res(c, "widget_date", "id"), android.text.format.DateFormat.format("EEEE d MMMM", System.currentTimeMillis()));
         v.setTextColor(res(c, "widget_date", "id"), text);
         v.setTextViewText(res(c, "widget_vault", "id"), vault == null ? "Atlas" : known.title(vault));
-        for (String id : new String[] { "widget_vault", "widget_log_head", "widget_tasks_head", "widget_status" }) v.setTextColor(res(c, id, "id"), muted);
+        for (String id : new String[] { "widget_vault", "widget_log_head", "widget_next_head", "widget_tasks_head", "widget_status" }) v.setTextColor(res(c, id, "id"), muted);
         v.setTextColor(res(c, "widget_log", "id"), text);
         // the box, as the tile and the launcher's Capture start it (CaptureTile, Shortcuts)
         v.setOnClickPendingIntent(res(c, "widget_capture", "id"), activity(c, 1, new Intent(c, CaptureActivity.class)));
@@ -98,6 +99,8 @@ public final class TodayWidget extends AppWidgetProvider {
         String lines = log == null ? "" : lastLines(log.optString("text", ""));
         v.setTextViewText(res(c, "widget_log", "id"), lines.isEmpty() ? "Nothing yet today" : lines);
         if (log != null && !log.optString("path").isEmpty()) v.setOnClickPendingIntent(res(c, "widget_log", "id"), activity(c, 3, open(c, log.optString("path"), 0)));
+
+        next(c, v, vault, accent, text);
 
         JSONArray all = today.optJSONArray("tasks");
         int n = all == null ? 0 : all.length();
@@ -117,6 +120,29 @@ public final class TodayWidget extends AppWidgetProvider {
         }
         v.setViewVisibility(res(c, "widget_status", "id"), View.GONE);
         return v;
+    }
+
+    /** "Coming up": the next things of the coming week, each a tap to the Agenda; nothing shown when there are none. */
+    private static void next(Context c, RemoteViews v, String vault, int accent, int text) {
+        int box = res(c, "widget_next", "id"), head = res(c, "widget_next_head", "id");
+        v.removeAllViews(box);
+        java.time.LocalDate today = java.time.LocalDate.now();
+        Agenda.Read r = Agenda.read(c, vault, today, today.plusDays(6));
+        List<AgendaRows.Item> next = AgendaRows.next(r.items, java.time.LocalDateTime.now(), MAX_NEXT);
+        v.setViewVisibility(head, next.isEmpty() ? View.GONE : View.VISIBLE);
+        v.setOnClickPendingIntent(head, activity(c, 4, Shortcuts.place(c, "agenda")));
+        boolean h12 = !android.text.format.DateFormat.is24HourFormat(c);
+        for (int i = 0; i < next.size(); i++) {
+            RemoteViews row = new RemoteViews(c.getPackageName(), res(c, "widget_task", "layout"));
+            int label = res(c, "widget_task_text", "id");
+            SpannableStringBuilder s = new SpannableStringBuilder("▸  ");
+            s.setSpan(new ForegroundColorSpan(accent), 0, 1, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+            s.append(AgendaRows.nextLine(next.get(i), today, h12));
+            row.setTextViewText(label, s);
+            row.setTextColor(label, text);
+            row.setOnClickPendingIntent(label, activity(c, 4, Shortcuts.place(c, "agenda")));
+            v.addView(box, row);
+        }
     }
 
     private static RemoteViews status(Context c, RemoteViews v, String why) {

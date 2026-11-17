@@ -485,6 +485,13 @@ fn main() -> anyhow::Result<()> {
     // where the binary's name "atlas-app" matched no desktop file and the window showed Wayland's generic icon.
     #[cfg(target_os = "linux")]
     gtk::glib::set_prgname(Some("atlas"));
+    // The WebView's own file choosers (`<input type=file>`: attach, import, upload) are GTK's FileChooserNative, which
+    // goes through the portal — the desktop's dialog — only in a sandbox or when asked; asked here, before GTK starts,
+    // unless the person set it. Programs started from Atlas inherit it, which gives them the same dialog.
+    #[cfg(target_os = "linux")]
+    if std::env::var_os("GTK_USE_PORTAL").is_none() {
+        std::env::set_var("GTK_USE_PORTAL", "1");
+    }
     // `atlas-app [folder]` is the app; `atlas-app --capture [folder]` the quick-capture box
     let args: Vec<std::ffi::OsString> = std::env::args_os().skip(1).collect();
     #[cfg(target_os = "linux")]

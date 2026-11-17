@@ -4,9 +4,9 @@
 // round-tripping.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { add, keyOf, parse, renderLine, type Entry } from "./ledger";
-import { judge, measure, minutesOf, plan, settingsOf, type Busy, type Input, type Task } from "./plan";
-import { fixedClock, instant, MIN, type Clock } from "./time";
+import { add, hoursOf, hoursText, keyOf, lineMark, markOf, parse, renderLine, type Entry } from "./ledger";
+import { blockOf, DISMISS_PAUSE, groupOf, judge, measure, minutesOf, plan, quietOf, settingsOf, type Busy, type Input, type Task } from "./plan";
+import { addDays, fixedClock, instant, MIN, type Clock } from "./time";
 
 const OFFSET = 60;
 /** 2026-11-16 at a local time. */
@@ -27,6 +27,15 @@ function input(c: Clock, tasks: Task[], over: Partial<Input> = {}): Input {
 }
 
 const intro = task("Write the introduction ⏫ 📅 2026-11-17 ^t3f9a");
+
+test("with a calendar that can time-block, a nudge offers Block in Snooze's slot, before Open", () => {
+  const cal = [busy("10:00", "11:30"), busy("11:40", "14:00"), busy("14:45", "16:00")];
+  const n = plan(input(clock("10:00"), [intro], { busy: cal, canBlock: true })).planned[0];
+  assert.deepEqual(n.actions.map((a) => a.id), ["done", "snooze:2026-11-16T16:00", "block:2026-11-16T16:00+30", "atlas:open"], "a phone shows the first three: Open is the tap anyway");
+  assert.equal(n.actions[2].label, "Block 16:00");
+  assert.deepEqual(blockOf("block:2026-11-16T16:00+30"), { start: "2026-11-16T16:00", minutes: 30 });
+  assert.equal(blockOf("snooze:2026-11-16T16:00"), null);
+});
 
 test("a due-tomorrow ⏫ task is nudged at the first gap that holds it, with its reasons", () => {
   // busy 10:00–11:30 and 11:40–14:00; 14:00–14:45 is free (45 min ≥ 30), then busy again
@@ -86,6 +95,18 @@ test("done is never nudged: a ticked line, a vanished line, a recurring task's t
   assert.ok(!out.planned.some((p) => p.id === "plan:notes/Home.md#^tw4t"), "the ticked occurrence is out");
   assert.ok(out.planned.every((p) => p.at >= "2026-11-16T12:00"), `the next occurrence not in the window just nudged: ${out.planned.map((p) => p.at)}`);
   assert.ok(!out.writes.some((w) => w.entry.kind === "nudged"), "nothing nudged now");
+});
+
+test("a task ticked between two rounds, never nudged, is a done time; not at a first round, not twice", () => {
+  const ticked = { ...intro, done: true, text: `${intro.text} ✅ 2026-11-16` };
+  const was = new Set([keyOf(intro)]);
+  const r = plan(input(clock("16:10"), [ticked], { wasOpen: was }));
+  assert.deepEqual(r.writes.map((w) => [w.entry.kind, w.entry.key, w.entry.detail, w.entry.at]), [["done", keyOf(intro), "seen ticked, never nudged", at("16:10")]]);
+  // the helper's first round (nothing known open): a tick made before it is never given this hour
+  assert.deepEqual(plan(input(clock("16:10"), [ticked], {})).writes, []);
+  // recorded already (this device's last round, or another device's): not again
+  const once = plan(input(clock("16:15"), [ticked], { wasOpen: was, entries: r.writes.map((w) => w.entry) }));
+  assert.deepEqual(once.writes.filter((w) => w.entry.kind === "done"), []);
 });
 
 test("a snooze is honoured at its moment, whatever the score, and then rings", () => {
@@ -190,4 +211,185 @@ test("the ledger round-trips through its note, newest first, hand lines kept", (
     [at("14:21"), "snoozed", keyOf(name), at("16:30"), false, ""],
     [at("14:05"), "nudged", keyOf(name), undefined, false, "score 2.4 · due tomorrow, ⏫, 50 min free"],
   ]);
+});
+
+/** `n` #writing tasks done on the days before 2026-11-16 at `hhmm`, with their ledger lines. */
+function doneBefore(n: number, hhmm: string): { tasks: Task[]; entries: Entry[] } {
+  const tasks: Task[] = [], entries: Entry[] = [];
+  for (let i = 0; i < n; i++) {
+    const day = `2026-11-${String(15 - i).padStart(2, "0")}`;
+    const t = task(`Draft part ${i} ^d${i}`, { done: true, tags: ["writing"], path: "notes/Drafts.md" });
+    tasks.push(t);
+    entries.push({ at: at(hhmm, day), kind: "done", key: keyOf({ path: t.path, title: t.title, block: t.block }), detail: "from the notification" });
+  }
+  return { tasks, entries };
+}
+
+test("once a kind has 10 done times, its nudge moves to the hour it is usually done, the same day", () => {
+  const essay = task("Write the essay 📅 2026-11-19 ^e1", { tags: ["writing"] });
+  const known = doneBefore(10, "16:10");
+  const r = plan(input(clock("09:00"), [essay, ...known.tasks], { entries: known.entries }));
+  const n = r.planned.find((p) => p.id === "plan:notes/Thesis.md#^e1");
+  assert.equal(n?.at, "2026-11-16T16:00:00+01:00", JSON.stringify(r.decisions));
+  assert.match(n!.body, /you usually finish #writing in the afternoon/);
+  assert.deepEqual(r.habits.map((h) => [h.group, h.done, h.hours[16]]), [["#writing", 10, 10]]);
+  // nine are not enough: the first gap that holds it
+  const few = doneBefore(9, "16:10");
+  const r9 = plan(input(clock("09:00"), [essay, ...few.tasks], { entries: few.entries }));
+  assert.equal(r9.planned.find((p) => p.id === "plan:notes/Thesis.md#^e1")?.at, "2026-11-16T09:00:00+01:00");
+  // another kind is not moved by #writing's habit
+  const other = task("Pay the rent 📅 2026-11-19 ^r1", { tags: ["admin"] });
+  const ro = plan(input(clock("09:00"), [other, ...known.tasks], { entries: known.entries }));
+  assert.equal(ro.planned.find((p) => p.id === "plan:notes/Thesis.md#^r1")?.at, "2026-11-16T09:00:00+01:00");
+});
+
+/** #writing tasks done at `hhmm` on each of `days` (`YYYY-MM-DD`), named `prefix…`, with their ledger lines. */
+function doneOn(days: string[], hhmm: string, prefix: string): { tasks: Task[]; entries: Entry[] } {
+  const tasks: Task[] = [], entries: Entry[] = [];
+  days.forEach((day, i) => {
+    const t = task(`${prefix} ${i} ^${prefix}${i}`, { done: true, tags: ["writing"], path: "notes/Drafts.md" });
+    tasks.push(t);
+    entries.push({ at: at(hhmm, day), kind: "done", key: keyOf({ path: t.path, title: t.title, block: t.block }), detail: "ticked" });
+  });
+  return { tasks, entries };
+}
+
+test("the weekday: a kind done at 10 on Mondays and at 16 on other days is nudged at 10 on a Monday, at 16 on a Tuesday", () => {
+  const essay = task("Write the essay 📅 2026-11-20 ^e1", { tags: ["writing"] });
+  // twelve Mondays before 2026-11-16 (a Monday) at 10:10; the ten days before it at 16:10 (one of them a Tuesday)
+  const mondays = doneOn(Array.from({ length: 12 }, (_, w) => new Date(Date.UTC(2026, 10, 9 - 7 * w)).toISOString().slice(0, 10)), "10:10", "mon");
+  const others = doneOn(Array.from({ length: 10 }, (_, i) => `2026-11-${String(15 - i).padStart(2, "0")}`).filter((d) => d !== "2026-11-09"), "16:10", "day");
+  const tasks = [essay, ...mondays.tasks, ...others.tasks], entries = [...mondays.entries, ...others.entries];
+  const at = (day: string) => plan(input(clock("09:00", day), tasks, { entries })).planned.find((p) => p.id === "plan:notes/Thesis.md#^e1")?.at;
+  assert.equal(at("2026-11-16"), "2026-11-16T10:00:00+01:00", "a Monday: the Mondays' hour");
+  assert.equal(at("2026-11-17"), "2026-11-17T16:00:00+01:00", "a Tuesday: the every-day hour, the Mondays' habit left to Mondays");
+});
+
+test("a habit never moves a nudge to another day, nor into busy time", () => {
+  const essay = task("Write the essay 📅 2026-11-19 ^e1", { tags: ["writing"] });
+  const known = doneBefore(12, "16:10");
+  const r = plan(input(clock("09:00"), [essay, ...known.tasks], { entries: known.entries, busy: [busy("15:00", "18:00")] }));
+  const n = r.planned.find((p) => p.id === "plan:notes/Thesis.md#^e1");
+  assert.equal(n?.at.slice(0, 10), "2026-11-16");
+  assert.ok(!/^2026-11-16T1[5-7]/.test(n!.at), n!.at);
+  // its kind's tag first, else its folder
+  assert.equal(groupOf({ path: "notes/thesis/Intro.md", tags: [] }), "notes/thesis/");
+  assert.equal(groupOf({ path: "Top.md", tags: ["Writing", "x"] }), "#writing");
+});
+
+test("fatigue: a nudge in the hour before lowers the score of the next one", () => {
+  const s = settingsOf({ digest: false, threshold: 1.8 });
+  const big = task("Finish the referee report ⏫ 📅 2026-11-23 ^b1"); // ⏫ × due in 7 days: 2
+  const other = { path: "notes/Other.md", title: "Other", block: "o1" };
+  const before: Entry = { at: at("08:50"), kind: "nudged", key: keyOf(other), important: true, detail: "" };
+  const r = plan(input(clock("09:00"), [big], { settings: s, entries: [before] }));
+  // 2 × 0.8 = 1.6 below 1.8 until 08:50's nudge is an hour old
+  assert.equal(r.planned.find((p) => p.id === "plan:notes/Thesis.md#^b1")?.at, "2026-11-16T10:00:00+01:00");
+});
+
+test("a dismissal: × 0.6 that day; three of the same line in three days pause the task until it changes or comes due", () => {
+  const dismissed = (hhmm: string, day: string, text = intro.text): Entry => ({ at: at(hhmm, day), kind: "dismissed", key: keyOf(intro), detail: `line ${lineMark(text)}` });
+  // one this morning: 3.2 × 0.6
+  const once = plan(input(clock("15:00"), [intro], { entries: [dismissed("09:00", "2026-11-16")] }));
+  assert.equal(once.decisions[0].score, 1.9);
+  assert.equal(plan(input(clock("15:00"), [intro], { entries: [dismissed("09:00", "2026-11-15")] })).decisions[0].score, 3.2, "yesterday's does not weigh today");
+
+  const three = ["2026-11-14", "2026-11-15", "2026-11-16"].map((d) => dismissed("09:00", d));
+  assert.equal(three.length, DISMISS_PAUSE);
+  const paused = plan(input(clock("15:00"), [intro], { entries: three }));
+  assert.deepEqual(paused.planned, []);
+  assert.match(paused.decisions[0].why, /^paused: dismissed 3 times since 2026-11-14/);
+
+  // the line edited since (another date): the old dismissals are about another version of it
+  const edited = three.map((e) => ({ ...e, detail: `line ${lineMark("Write the introduction ⏫ 📅 2026-11-19")}` }));
+  assert.equal(plan(input(clock("15:00"), [intro], { entries: edited })).planned.length, 1);
+  // a block id given since is no edit
+  assert.equal(lineMark("Write the introduction ⏫ 📅 2026-11-17"), lineMark(intro.text));
+  // due today: back
+  const today = task("Write the introduction ⏫ 📅 2026-11-16 ^t3f9a");
+  const marked = three.map((e) => ({ ...e, detail: `line ${lineMark(today.text)}` }));
+  assert.equal(plan(input(clock("15:00"), [today], { entries: marked })).planned.length, 1);
+  // older than three days: two left, not paused
+  const old = [dismissed("09:00", "2026-11-12"), ...three.slice(1)];
+  assert.equal(plan(input(clock("15:00"), [intro], { entries: old })).planned.length, 1);
+});
+
+test("a dismissal's ledger line round-trips with its line mark", () => {
+  const c = clock("15:00");
+  const e: Entry = { at: at("14:58"), kind: "dismissed", key: keyOf(intro), detail: `line ${lineMark(intro.text)}` };
+  const line = renderLine(e, c, { path: intro.path, title: intro.title, block: intro.block });
+  assert.equal(line, `- 2026-11-16 14:58 · dismissed · [[notes/Thesis#^t3f9a|Write the introduction]] · line ${lineMark(intro.text)}`);
+  const back = parse(line, c)[0];
+  assert.equal(back.kind, "dismissed");
+  assert.equal(markOf(back), lineMark(intro.text));
+});
+
+test("presence: no one at this device for 30 min weighs a nudge now by 0.6, not the moments after; unknown weighs nothing", () => {
+  const essay = task("Draft the essay 📅 2026-11-19 ^e55a"); // 1 × (1 + 4/14) = 1.3
+  const at10 = "2026-11-16T10:00:00+01:00", at1015 = "2026-11-16T10:15:00+01:00";
+  const decided = (activeAt: number | null | undefined) => plan(input(clock("10:00"), [essay], { activeAt })).decisions[0];
+  assert.equal(decided(undefined).at, at10, "presence unknown: now");
+  assert.equal(decided(at("09:45")).at, at10, "used 15 min ago: now");
+  const away = decided(at("09:10"));
+  assert.equal(away.at, at1015, "away 50 min: 0.8 is under the threshold now; the next moment is not weighed");
+  assert.equal(away.score, 1.3);
+  const held = plan(input(clock("10:00"), [essay], { activeAt: at("09:10"), settings: settingsOf({ digest: false, threshold: 1.2 }) }));
+  assert.equal(held.decisions[0].at, at1015);
+  const urgent = plan(input(clock("10:00"), [intro], { activeAt: at("08:00") })).decisions[0];
+  assert.equal(urgent.at, at10, "3.2 × 0.6 still passes: an urgent task rings whoever is there");
+  assert.equal(urgent.score, 1.9);
+  const nudged = plan(input(clock("10:00"), [essay], { activeAt: at("09:10") })).writes;
+  assert.equal(nudged.length, 0, "nothing recorded while held");
+});
+
+/** A `used` line for each of the `n` days before 2026-11-16, its hours `from` to `to` (end excluded). */
+function usedDays(n: number, from: number, to: number): Entry[] {
+  const c = clock("12:00");
+  const hours = Array.from({ length: to - from }, (_, i) => from + i);
+  return Array.from({ length: n }, (_, i) => parse(`- ${addDays("2026-11-16", -1 - i)} 23:59 · used · ${hoursText(hours)}`, c)[0]);
+}
+
+test("a day's use is one ledger line of hour ranges, read back as its hours", () => {
+  const c = clock("12:00");
+  assert.equal(hoursText([21, 8, 9, 10, 23, 14, 9]), "08:00–11:00, 14:00–15:00, 21:00–22:00, 23:00–24:00");
+  assert.deepEqual(hoursOf("08:00–11:00, 14:00–15:00, 23:00–24:00"), [8, 9, 10, 14, 23]);
+  const line = renderLine({ at: at("23:59", "2026-11-15"), kind: "used", detail: hoursText([8, 9]) }, c);
+  assert.equal(line, "- 2026-11-15 23:59 · used · 08:00–10:00");
+  const [e] = parse(line, c);
+  assert.equal(e.kind, "used", "a line about no task, as the digest");
+  assert.equal(e.key, undefined);
+  assert.deepEqual(hoursOf(e.detail), [8, 9]);
+  assert.equal(measure(usedDays(20, 8, 23), settingsOf({}), c).measured, false, "days of use are not days of nudging: the budget is not measured from them");
+});
+
+test("quiet hours measured: the longest run of hours unused on 80 % of 14 days or more, ticks counting as use", () => {
+  const c = clock("12:00");
+  assert.deepEqual(quietOf(usedDays(13, 8, 23), c), { from: null, to: null, days: 13, measured: false, used: false }, "13 days: not yet");
+  const q = quietOf(usedDays(20, 8, 23), c);
+  assert.deepEqual([q.from, q.to, q.days, q.measured], [23 * 60, 8 * 60, 20, true], "23:00–08:00, across midnight");
+  // a laptop used 8–18 and a phone used 18–23 on the same days: the union is what counts
+  const two = quietOf([...usedDays(15, 8, 18), ...usedDays(15, 18, 23)], c);
+  assert.deepEqual([two.from, two.to, two.days], [23 * 60, 8 * 60, 15]);
+  // a tick at 23:30 on 4 days of 20 (20 %): still quiet; on 5 (25 %): 23:00 is in use
+  const ticks = (n: number) => Array.from({ length: n }, (_, i) => ({ at: at("23:30", addDays("2026-11-16", -1 - i)), kind: "done" as const, key: "notes/a.md|x", detail: "" }));
+  assert.equal(quietOf([...usedDays(20, 8, 23), ...ticks(4)], c).from, 23 * 60);
+  assert.equal(quietOf([...usedDays(20, 8, 23), ...ticks(5)], c).from, 0);
+  // lines older than 28 days, and today's, are not counted
+  const old = Array.from({ length: 20 }, (_, i) => parse(`- ${addDays("2026-11-16", -30 - i)} 23:59 · used · 08:00–23:00`, c)[0]);
+  assert.equal(quietOf(old, c).days, 0);
+  // in use every hour: nothing proposed
+  assert.equal(quietOf(usedDays(20, 0, 24), c).from, null);
+});
+
+test("the measured quiet hours replace Settings' range only with `quiet_measured` on", () => {
+  const long = task("Write the introduction ⏫ 📅 2026-11-17 ⏱ 45m ^t3f9a");
+  const entries = usedDays(20, 8, 23);
+  const off = plan(input(clock("22:00"), [long], { entries }));
+  assert.equal(off.planned[0].at, "2026-11-17T08:00:00+01:00", "22:30 is quiet: 30 min do not hold 45");
+  assert.deepEqual([off.quiet.from, off.quiet.used], [23 * 60, false], "proposed, not used");
+  const on = plan(input(clock("22:00"), [long], { entries, settings: settingsOf({ digest: false, quiet_measured: true }) }));
+  assert.equal(on.planned[0].at, "2026-11-16T22:00:00+01:00", "quiet from 23:00: an hour free now");
+  assert.equal(on.quiet.used, true);
+  const early = plan(input(clock("22:00"), [long], { entries: usedDays(5, 8, 23), settings: settingsOf({ digest: false, quiet_measured: true }) }));
+  assert.equal(early.planned[0].at, "2026-11-17T08:00:00+01:00", "too few days: Settings' range holds");
 });

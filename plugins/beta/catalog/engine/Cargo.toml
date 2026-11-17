@@ -17,6 +17,8 @@ path = "src/main.rs"
 atlas-plugin = { path = "../../../../crates/atlas-plugin" }
 atlas-template = { path = "../../../../crates/atlas-template" }
 atlas-text = { path = "../../../../crates/atlas-text" }
+# a PDF's Info dictionary (first_page.rs), the reader catalog-papers already used
+pdf_oxide = "0.3.78"
 serde = { workspace = true }
 serde_json = { workspace = true }
 serde_yaml = "0.9"

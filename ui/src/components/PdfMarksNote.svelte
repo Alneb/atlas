@@ -21,7 +21,16 @@
   const marks = $derived(marksOfBlock(source));
   const onPassage = (m: Mark) => m.kind === "postit" && !!m.on && marks.some((o) => o.id === m.on);
   const pages = $derived([...new Set(marks.map((m) => m.page))].sort((a, b) => a - b));
-  const own = (n: number) => marks.filter((m) => m.page === n && !onPassage(m) && m.kind !== "ink");
+  const own = (n: number) => marks.filter((m) => m.page === n && !onPassage(m) && m.kind !== "ink" && m.kind !== "text-ink");
+  // a reflowed book's ink (an EPUB's note, the Books plugin): `page` is a chapter, each stroke pinned to a character
+  const written = (n: number) => marks.filter((m) => m.page === n && m.kind === "text-ink");
+  const reflowed = $derived(marks.some((m) => m.kind === "text-ink"));
+  /** The book beside the note (the Books plugin's companion rule: `x.epub` → `x.md`), opened at the ink's words. */
+  function goInk(n: number, e: MouseEvent) {
+    const first = written(n)[0];
+    const k = first && first.kind === "text-ink" ? first.k : 0;
+    void openWikilink(`${note.replace(/\.md$/i, ".epub")}#chapter=${n}&k=${k}`, note, { beside: e.button === 1 || e.ctrlKey }).catch(() => {});
+  }
   const notesOn = (id: string) => marks.filter((m) => m.kind === "postit" && m.on === id);
   const inked = (n: number) => marks.some((m) => m.page === n && m.kind === "ink");
   const TEXT = new Set(["highlight", "underline", "strike"]);
@@ -70,11 +79,11 @@
 <section class="pdf-marks-note" aria-label="Marks">
   <header>
     <span class="title">Marks</span>
-    <span class="faint">{marks.length} on {pages.length} page{pages.length === 1 ? "" : "s"}{#if pdf} · {pdf.split("/").pop()}{:else if file} · {file.replace(/\/$/, "")}{/if}</span>
+    <span class="faint">{marks.length} on {pages.length} {reflowed ? "chapter" : "page"}{pages.length === 1 ? "" : "s"}{#if pdf} · {pdf.split("/").pop()}{:else if file} · {file.replace(/\/$/, "")}{/if}</span>
   </header>
   {#each pages as n (n)}
     <div class="page">
-      <div class="page-no">p. {n}</div>
+      <div class="page-no">{reflowed && written(n).length ? "ch." : "p."} {n}</div>
       <div class="items">
         {#each own(n) as m (m.id)}
           <div class="item" id={m.id} data-kind={m.kind}>
@@ -95,6 +104,9 @@
             {#if m.tags?.length}<span class="tags">{#each m.tags as t (t)}<span class="tag">#{t}</span>{/each}</span>{/if}
           </div>
         {/each}
+        {#if written(n).length}
+          <button class="line" onclick={(e) => goInk(n, e)} onauxclick={(e) => goInk(n, e)} title="Open the book at this ink"><span class="kind">Handwriting</span><span class="faint">{written(n).length} stroke{written(n).length === 1 ? "" : "s"}</span></button>
+        {/if}
         {#if inked(n) && pdf}
           <button class="ink" onclick={(e) => go(marks.find((m) => m.page === n && m.kind === "ink")!, e)} title="Handwriting on page {n}"><canvas use:picture={{ page: n, ink: true }}></canvas></button>
         {:else if inked(n) && chapter}

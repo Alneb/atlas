@@ -70,7 +70,7 @@
   {#if st}
     <h3>This Atlas</h3>
     {#if st.serving}
-      <p class="desc">Serving this vault to the network on port {st.port}. You are signed in {me?.via === "proxy" ? `by your proxy as ${me.user}` : me?.via === "token" ? `with the token “${me.device}”` : "with the password"}.</p>
+      <p class="desc">Serving this vault to the network on port {st.port}. You are signed in {me?.via === "proxy" ? `by your sign-in gate as ${me.user}` : me?.via === "token" ? `with the token “${me.device}”` : "with the password"}.</p>
       {#if me?.signOut}<button class="btn" onclick={() => void api.signOut().then(() => location.assign("/login"))}>Sign out of this browser</button>{/if}
     {:else}
       <p class="desc">Not serving to the network (the desktop listens on this machine only, with no sign-in). To serve a vault from a server: <code>atlas serve --listen 0.0.0.0:7700</code>. What you set below is what it starts with; it is kept in <code>{st.files.settings}</code>, never in the vault.</p>
@@ -79,18 +79,18 @@
 
     <h3>How people sign in</h3>
     <div class="modes" role="radiogroup" aria-label="Sign-in">
-      {#each [["password", "Password", "Atlas's own sign-in page, with the password below."], ["proxy", "Your proxy (Authelia)", "Only a request from a trusted proxy that names the user (forward-auth). Security keys come from the proxy."], ["both", "Both", "The proxy's word when there is one, the sign-in page otherwise."]] as [id, label, what] (id)}
+      {#each [["password", "Password", "Atlas's own sign-in page, with the password below."], ["proxy", "A sign-in gate (Authelia…)", "Only a request that came through your gate and names the user. Security keys and second factors are the gate's."], ["both", "Both", "The gate's word when a request came through it, Atlas's sign-in page otherwise."]] as [id, label, what] (id)}
         <label class="mode"><input type="radio" name="auth" value={id} bind:group={mode} /><span><strong>{label}</strong><span class="muted">{what}</span></span></label>
       {/each}
     </div>
     {#if mode !== "password"}
-      <label class="row"><span>Trusted proxies</span><input placeholder="10.0.0.2, 10.88.0.0/16, or *" bind:value={proxies} aria-label="Trusted proxies" /></label>
-      <label class="row"><span>User header</span><input bind:value={header} aria-label="User header" /></label>
+      <label class="row"><span>The gate's addresses</span><input placeholder="10.0.0.2, 10.88.0.0/16, or *" bind:value={proxies} aria-label="The gate's addresses" title="Where requests through the gate come from (its reverse proxy): only these may name the user" /></label>
+      <label class="row"><span>The gate's user header</span><input bind:value={header} aria-label="The gate's user header" /></label>
     {/if}
     <label class="check"><input type="checkbox" bind:checked={plain} /> Allow the password over plain HTTP from other machines <span class="muted">(only on a network you trust: a LAN or VPN)</span></label>
     <label class="check"><input type="checkbox" bind:checked={mcp} /> Let AI agents in (<code>atlas mcp</code>) <span class="muted">(off on a server by default; the desktop is not affected)</span></label>
     <div class="actions"><button class="btn primary" onclick={() => void saveOptions()}>Save sign-in options</button><span class="msg">{optsMsg}</span></div>
-    <p class="muted">Terminals, plugin helpers and code blocks work in a signed-in browser as on the desktop, so the sign-in is what stands between the internet and this machine: beyond your own network, put Authelia (with a security key) in front.</p>
+    <p class="muted">Terminals, plugin helpers and code blocks work in a signed-in browser as on the desktop, so the sign-in is what stands between the internet and this machine: beyond your own network, put a sign-in gate (Authelia, with a security key) in front.</p>
 
     {#if mode !== "proxy"}
       <h3>Password</h3>
@@ -129,7 +129,7 @@
   .mode { display: flex; gap: 8px; align-items: flex-start; padding: 6px 8px; border: 1px solid var(--border); border-radius: var(--radius-sm); cursor: pointer; }
   .mode:has(input:checked) { border-color: var(--accent); background: var(--accent-soft); }
   .mode > span { display: grid; gap: 1px; } .mode .muted { margin: 0; }
-  .row { display: grid; grid-template-columns: 9em 1fr; gap: 8px; align-items: center; margin: 4px 0; }
+  .row { display: grid; grid-template-columns: 12em 1fr; gap: 8px; align-items: center; margin: 4px 0; }
   .check { display: flex; gap: 6px; align-items: baseline; flex-wrap: wrap; margin: 6px 0; }
   .check .muted { display: inline; margin: 0; }
   input:not([type]), input[type="password"], select { font: inherit; color: var(--text); background: var(--bg-elev); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 4px 8px; min-width: 0; }

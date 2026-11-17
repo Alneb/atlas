@@ -160,7 +160,7 @@ fn human(slug: &str) -> String {
 }
 
 /// One name as a string, several as a list: what a property looks like when a person reads it.
-fn names_value(names: Vec<String>) -> Option<Value> {
+pub(crate) fn names_value(names: Vec<String>) -> Option<Value> {
     match names.len() {
         0 => None,
         1 => names.into_iter().next().map(Value::String),

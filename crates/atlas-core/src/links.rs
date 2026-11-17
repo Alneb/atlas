@@ -66,7 +66,8 @@ pub(crate) struct Index {
 type Resolved = HashMap<String, Box<[Option<FileId>]>>;
 
 /// The vaults' indexes, the most recently used first. The desktop's one core serves several vaults, so one slot would
-/// rebuild from scratch on every switch; a vault unused for [`IDLE`] (or beyond [`WARM_VAULTS`]) is dropped.
+/// rebuild from scratch on every switch; a vault unused for [`IDLE`] (or beyond [`WARM_VAULTS`]) is dropped — except a
+/// vault [`keep_warm`] named (the desktop window's own), which is never dropped.
 struct Warm {
     root: PathBuf,
     used: Instant,
@@ -75,6 +76,8 @@ struct Warm {
     walked: Option<(Stamp, Instant)>,
 }
 static CACHE: Mutex<Vec<Warm>> = Mutex::new(Vec::new());
+/// The vaults whose index is never dropped, idle or not ([`keep_warm`]).
+static KEPT: Mutex<Vec<PathBuf>> = Mutex::new(Vec::new());
 const WARM_VAULTS: usize = 3;
 const IDLE: Duration = Duration::from_secs(30 * 60);
 /// How long an unchanged generation is taken at its word before walking anyway (a blind spot the watcher cannot see,
@@ -457,12 +460,56 @@ fn refresh(
     keep(&mut lock(), root, now, index, stamp.map(|s| (s, now)))
 }
 
-/// `index` stored as `root`'s, at the front of the warm list.
+/// `index` stored as `root`'s, at the front of the warm list. Idle vaults go, then the least recently used beyond
+/// [`WARM_VAULTS`] — never a kept one ([`keep_warm`]).
 fn keep(warm: &mut Vec<Warm>, root: &Path, now: Instant, index: Arc<Index>, walked: Option<(Stamp, Instant)>) -> Arc<Index> {
-    warm.retain(|w| w.root != root && now.saturating_duration_since(w.used) < IDLE);
+    let kept = KEPT.lock().unwrap_or_else(|e| e.into_inner()).clone();
+    let is_kept = |w: &Warm| kept.contains(&w.root);
+    warm.retain(|w| w.root != root && (is_kept(w) || now.saturating_duration_since(w.used) < IDLE));
     warm.insert(0, Warm { root: root.to_path_buf(), used: now, index: index.clone(), walked });
-    warm.truncate(WARM_VAULTS);
+    while warm.len() > WARM_VAULTS {
+        let Some(i) = warm.iter().rposition(|w| !is_kept(w)) else { break };
+        warm.remove(i);
+    }
     index
+}
+
+/// `root`'s index (canonical, as `Workspace::root`) is never dropped for being idle or for other vaults being used:
+/// the desktop's window comes back to its own vault after any time away, and would otherwise find the index of
+/// thousands of notes to build again (0.2–0.5 s, docs/decisions/PERFORMANCE.md "Two vaults open").
+pub(crate) fn keep_warm(root: &Path) {
+    let mut kept = KEPT.lock().unwrap_or_else(|e| e.into_inner());
+    if !kept.iter().any(|k| k == root) {
+        kept.push(root.to_path_buf());
+    }
+}
+
+/// Builds `root`'s index (and its links resolved) on a thread of its own at the lowest CPU priority, so the first
+/// look at a vault started ahead of use (its graph, backlinks, Bases, tags) finds it built. One that is being built is
+/// not built twice ([`scan`]'s lock); a request arriving meanwhile waits for this build instead of starting its own.
+pub(crate) fn warm_in_background(root: &Path, cfg: &Config) {
+    let (dir, cfg) = (root.to_path_buf(), cfg.clone());
+    let spawned = std::thread::Builder::new().name("atlas-index-warm".into()).spawn(move || {
+        lowest_priority();
+        let t = Instant::now();
+        let index = scan(&dir, &cfg);
+        let _ = index.resolved();
+        eprintln!("atlas: note index of {} built ahead — {} notes in {:.2}s", dir.display(), index.parsed.len(), t.elapsed().as_secs_f32());
+    });
+    if let Err(e) = spawned {
+        eprintln!("atlas: note index of {} not built ahead: {e}", root.display());
+    }
+}
+
+/// This thread at nice 19 (Linux and Android set the niceness per thread): background work never takes the CPU from
+/// a window's requests or the owner's other programs.
+fn lowest_priority() {
+    #[cfg(any(target_os = "linux", target_os = "android"))]
+    // SAFETY: gettid and setpriority take no pointers; a failure only leaves the thread at its priority
+    unsafe {
+        let tid = libc::syscall(libc::SYS_gettid) as libc::id_t;
+        libc::setpriority(libc::PRIO_PROCESS, tid, 19);
+    }
 }
 
 /// `prev`'s index brought up to date: unchanged notes keep their `Arc<Parsed>`, an unchanged file list keeps its
@@ -612,6 +659,24 @@ pub fn relations_to_missing(root: &Path, cfg: &Config, stem: &str) -> Vec<String
     out.sort();
     out.dedup();
     out
+}
+
+/// The note that claims `path` as its thing by property `key` (`file: "[[Dune.epub]]"`: a catalog note of a thing
+/// whose file is in the vault — docs/design/DESIGN-server-libraries.md §3.5), the first by path. A folder (a manga
+/// series) is no link target, so its claim is matched by the link's written path.
+pub(crate) fn claimed_by(root: &Path, cfg: &Config, path: &str, key: &str) -> Option<String> {
+    let index = scan(root, cfg);
+    let want = path.trim_matches('/');
+    let mut srcs: Vec<&String> = index.parsed.keys().filter(|s| s.as_str() != want).collect();
+    srcs.sort();
+    srcs.into_iter()
+        .find(|src| {
+            index.links_of(src).any(|(l, t)| {
+                l.relation.as_deref() == Some(key)
+                    && (t == Some(want) || (t.is_none() && decode(l.target.split(['#', '|']).next().unwrap_or("")).trim().trim_matches('/') == want))
+            })
+        })
+        .cloned()
 }
 
 /// A wikilink's note name, lower case: no `#section`, `|label`, folder or `.md`.
@@ -950,6 +1015,47 @@ mod tests {
         assert_eq!(roots(&warm), ["/d", "/c", "/a"], "the least recently used goes first");
         refresh(&warm, Path::new("/d"), t0 + IDLE + Duration::from_secs(1), None, |prev| prev.unwrap());
         assert_eq!(roots(&warm), ["/d"], "idle vaults are dropped");
+    }
+
+    #[test]
+    fn the_kept_vault_stays_warm_idle_or_not() {
+        let empty = || Arc::new(Index::new(Arc::new(Names::new(Vec::new())), HashMap::new()));
+        let (warm, t0) = (Mutex::new(Vec::new()), Instant::now());
+        let own = Path::new("/kept-own-vault");
+        keep_warm(own);
+        let first = refresh(&warm, own, t0, None, |_| empty());
+        for (i, v) in ["/kept-x", "/kept-y", "/kept-z"].iter().enumerate() {
+            refresh(&warm, Path::new(v), t0 + IDLE * (i as u32 + 2), None, |_| empty());
+        }
+        let roots = |w: &Mutex<Vec<Warm>>| w.lock().unwrap().iter().map(|w| w.root.to_string_lossy().into_owned()).collect::<Vec<_>>();
+        assert_eq!(roots(&warm), ["/kept-z", "/kept-own-vault"], "the others went idle; the kept one stays");
+        for v in ["/kept-a", "/kept-b", "/kept-c"] {
+            refresh(&warm, Path::new(v), t0 + IDLE * 5, None, |_| empty());
+        }
+        assert!(roots(&warm).contains(&own.to_string_lossy().into_owned()), "beyond WARM_VAULTS the kept one stays too");
+        let again = refresh(&warm, own, t0 + IDLE * 5, None, |prev| prev.expect("still warm"));
+        assert!(Arc::ptr_eq(&first, &again));
+    }
+
+    #[test]
+    fn an_index_warmed_in_the_background_is_the_one_a_request_finds() {
+        let d = tempfile::tempdir().unwrap();
+        std::fs::write(d.path().join("a.md"), "[[b]]\n").unwrap();
+        std::fs::write(d.path().join("b.md"), "# B\n").unwrap();
+        let cfg = Config::default();
+        warm_in_background(d.path(), &cfg);
+        let deadline = Instant::now() + Duration::from_secs(10);
+        // stored once built, its links resolved just after
+        let built = || CACHE.lock().unwrap().iter().find(|w| w.root == d.path() && w.index.resolved.get().is_some()).map(|w| w.index.clone());
+        let warmed = loop {
+            if let Some(i) = built() {
+                break i;
+            }
+            assert!(Instant::now() < deadline, "the background build finished, its links resolved");
+            std::thread::sleep(Duration::from_millis(10));
+        };
+        assert_eq!(warmed.parsed.len(), 2);
+        assert!(Arc::ptr_eq(&warmed, &scan(d.path(), &cfg)), "a request finds that index, not one of its own");
     }
 
     #[test]

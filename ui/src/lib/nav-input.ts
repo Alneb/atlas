@@ -26,20 +26,13 @@ function ownsWheel(el: Element | null): boolean {
   return !!el?.closest?.("[data-wheel], .excalidraw");
 }
 
-/** Back / forward offered first to the pane under the pointer (`atlas-nav`, cancelable, detail: -1 | 1): the explorer
- *  moves through its own folders; a pane that cancels it has used it. */
-function paneTakes(target: EventTarget | null, step: -1 | 1): boolean {
-  const el = target instanceof Element ? target : null;
-  return !!el && !el.dispatchEvent(new CustomEvent("atlas-nav", { detail: step, bubbles: true, cancelable: true }));
-}
-
 export function installNavInput(): () => void {
   // buttons 3/4 = back/forward; swallow them before the webview acts on its own page history
   const stop = (e: MouseEvent) => { if (e.button === 3 || e.button === 4) e.preventDefault(); };
   const onUp = (e: MouseEvent) => {
     if (e.button !== 3 && e.button !== 4) return;
     e.preventDefault();
-    if (!paneTakes(e.target, e.button === 3 ? -1 : 1)) navigate(e.button === 3 ? -1 : 1);
+    navigate(e.button === 3 ? -1 : 1, e.target as Element); // the pane under the pointer steps first (lib/pane-nav.ts)
   };
 
   let acc = 0, last = 0, until = 0, idle: ReturnType<typeof setTimeout> | undefined;
@@ -54,11 +47,11 @@ export function installNavInput(): () => void {
     acc += e.deltaX;
     // the sign at the edge follows the fingers; a pause ends the gesture and takes it away
     const step = acc < 0 ? -1 : 1; // fingers to the right (negative deltaX) = back, as in browsers
-    swipeSign(acc / SWIPE_PX, canNavigate(step));
+    swipeSign(acc / SWIPE_PX, canNavigate(step, e.target as Element));
     clearTimeout(idle);
     idle = setTimeout(() => { acc = 0; hideSwipe(); }, SWIPE_IDLE_MS);
     if (Math.abs(acc) < SWIPE_PX) return;
-    if (!paneTakes(e.target, step)) navigate(step);
+    navigate(step, e.target as Element);
     acc = 0;
     until = now + COOLDOWN_MS;
     setTimeout(hideSwipe, 160); // the filled arrow is seen for a moment

@@ -56,6 +56,35 @@ test("the vault switcher lists every vault with what it is, links a folder to it
   await expect(dlg).toHaveCount(0);
 });
 
+test("a server vault's row keeps a header key past its gate, in this machine's sign-ins", async ({ page }, info) => {
+  await page.goto("/");
+  await page.getByText("Finish the GW notes.").waitFor();
+  await page.keyboard.press("Control+Alt+v");
+  const dlg = page.getByTestId("vault-switcher");
+  const server = dlg.locator('[data-vault="notes.invalid · other"]');
+  await server.hover();
+  await server.getByRole("button", { name: "Key…" }).click();
+  const form = server.getByTestId("bypass-key-form");
+  await expect(form.getByRole("textbox", { name: "Hosts" })).toHaveValue("notes.invalid");
+  // a whole top-level domain is refused before anything is sent
+  await form.getByRole("textbox", { name: "Hosts" }).fill("*.invalid");
+  await form.getByLabel("Key", { exact: true }).fill("fake-key-123");
+  await form.getByRole("button", { name: "Keep key" }).click();
+  await expect(form.getByRole("alert")).toContainText("every site under it");
+  await form.getByRole("textbox", { name: "Hosts" }).fill("notes.invalid");
+  for (const scheme of ["light", "dark"] as const) { // judged in both themes (docs/guides/UI-STYLE.md)
+    await page.evaluate((t) => (document.documentElement.dataset.theme = t), scheme);
+    await dlg.screenshot({ path: info.outputPath(`vault-switcher-key-${scheme}.png`) });
+  }
+  await form.getByRole("button", { name: "Keep key" }).click();
+  await expect(server.getByRole("button", { name: "Key ✓" })).toBeVisible();
+  // kept as one bypass rule of the sign-ins (Settings → Sign-ins lists it), its value never listed
+  const rules = await page.evaluate(() => fetch("/api/signin/bypass", { headers: { "x-atlas": "1" } }).then((r) => r.json()));
+  expect(rules).toContainEqual({ hosts: ["notes.invalid"], header: "X-Api-Key" });
+  expect(JSON.stringify(rules)).not.toContain("fake-key-123");
+  await page.evaluate(() => fetch("/api/signin/bypass", { method: "DELETE", headers: { "x-atlas": "1", "content-type": "application/json" }, body: JSON.stringify({ hosts: ["notes.invalid"], header: "X-Api-Key" }) }));
+});
+
 test("the vault whose page loads in a window with the focus is the one opened last: the capture box starts on it", async ({ page }) => {
   await page.goto("/");
   await page.getByText("Finish the GW notes.").waitFor();

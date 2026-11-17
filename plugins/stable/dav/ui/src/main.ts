@@ -138,6 +138,45 @@ export function register(atlas: PluginApi) {
     const a = atlas.context().active;
     return a?.path && /\.md$/i.test(a.path) ? a.path : null;
   };
+
+  // `[[` and two letters or more: the calendar's events of the weeks around today among the notes; a pick makes the
+  // event's note (once, as the card's "Make a note") and writes the link to it — the event note's backlinks then list
+  // the note it was written in
+  let known: { at: number; events: Ev[] } | null = null;
+  const eventsAround = async () => {
+    if (known && Date.now() - known.at < 60_000) return known.events;
+    const today = new Date();
+    const r = await call<{ events: Ev[] }>(atlas, "range", { from: ymd(addDays(today, -30)), to: ymd(addDays(today, 60)) }, 30);
+    known = { at: Date.now(), events: r.events.filter((e) => e.uid && !e.task && e.calendar !== "notes") };
+    return known.events;
+  };
+  const LINKING = /\[\[([^\]\n|#]{2,})$/;
+  atlas.editor.registerCompletion({
+    where: "note",
+    trigger: LINKING,
+    async complete({ before }) {
+      if (!ready()) return null;
+      const q = LINKING.exec(before)?.[1].trim().toLowerCase() ?? "";
+      if (q.length < 2) return null;
+      const today = Date.now();
+      const near = (e: Ev) => Math.abs(new Date(e.start.length === 10 ? `${e.start}T12:00` : e.start).getTime() - today);
+      const hits = (await eventsAround().catch(() => [] as Ev[])).filter((e) => (e.summary ?? "").toLowerCase().includes(q)).sort((a, b) => near(a) - near(b)).slice(0, 5);
+      return hits.map((e) => ({
+        label: e.summary, kind: "event",
+        detail: `event · ${span(e, hourCycle(atlas.plugin.settings.time_format))}`,
+        apply(view, from, to) {
+          const typed = view.state.sliceDoc(from, to);
+          void call<{ note: string }>(atlas, "event_note", { uid: e.uid, rid: e.rid, start: e.start }, 60).then((r) => {
+            // the text may have changed while the note was made: then nothing is written over it
+            if (view.state.sliceDoc(from, to) !== typed) return;
+            const closing = view.state.sliceDoc(to, to + 2) === "]]" ? "" : "]]";
+            const insert = `[[${r.note.replace(/\.md$/, "").split("/").pop()}${closing}`;
+            view.dispatch({ changes: { from, to, insert }, selection: { anchor: from + insert.length + (closing ? 0 : 2) } });
+          }, (err) => atlas.toast("No event note", (err as Error).message, "error"));
+        },
+      }));
+    },
+  });
   atlas.registerCommand({
     id: "link",
     title: "Calendar: link this note to an event…",

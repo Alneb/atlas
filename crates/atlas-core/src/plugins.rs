@@ -123,6 +123,9 @@ struct Manifest {
     #[serde(default)]
     #[allow(dead_code)]
     android: Option<AndroidManifest>,
+    /// `[media]`: what the app's player (`atlas.player`) asks of the plugin while it plays the plugin's media.
+    #[serde(default)]
+    media: Option<MediaManifest>,
     /// Where its tools' background work runs (`server`, `device`, `any`; server_role.rs): the default of each `[[tool]]`
     /// that does not say.
     #[serde(default)]
@@ -209,11 +212,16 @@ impl Replaced {
 /// What the installed plugin `id` replaces (`replaces`), valid ids other than its own; empty when it does not parse.
 pub fn replaces(root: &Path, id: &str) -> Vec<Replaced> {
     let Ok(m) = read_manifest(root, id) else { return Vec::new() };
-    let all: Vec<Replaced> = match m.replaces {
+    replaced_of(m.replaces, Some(id))
+}
+
+/// A manifest's `replaces` as the plugins it names: valid ids, never its own (`own`, when known).
+fn replaced_of(r: Replaces, own: Option<&str>) -> Vec<Replaced> {
+    let all: Vec<Replaced> = match r {
         Replaces::Ids(ids) => ids.into_iter().map(|id| Replaced { id, renames: Default::default(), set: Default::default(), if_off: Default::default() }).collect(),
         Replaces::Renamed(t) => t.into_iter().map(|(id, c)| Replaced { id, renames: c.rename, set: c.set, if_off: c.if_off }).collect(),
     };
-    all.into_iter().filter(|r| valid_id(&r.id) && r.id != id).collect()
+    all.into_iter().filter(|r| valid_id(&r.id) && Some(r.id.as_str()) != own).collect()
 }
 
 /// `[android]`.
@@ -231,6 +239,33 @@ struct AndroidManifest {
     #[serde(default)]
     #[allow(dead_code)]
     place: Option<String>,
+    /// The plugin as its own app in the phone's launcher (its own task in recents), on its native place `home`; turned
+    /// into the full app's manifest by scripts/dev/android-launchers.mjs.
+    #[serde(default)]
+    launcher: Option<AndroidLauncher>,
+}
+
+/// `[android] launcher = { label, icon, home }`.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
+#[allow(dead_code)]
+struct AndroidLauncher {
+    /// The name under the icon ("Audiobooks").
+    label: String,
+    /// One of the app's icon names (`ic_<name>`), drawn on Atlas's tile.
+    icon: String,
+    /// The native place it opens (`audiobookshelf:home`).
+    home: String,
+}
+
+/// `[media]`.
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct MediaManifest {
+    /// The helper method the player's position reports go to (`progress = "progress"`): every 15 s while playing, on
+    /// pause, at the end and on close, also with no page open (the phone plays on with the screen off). The plugin
+    /// writes the place where it belongs (its server, the item's note); plugin_media.rs `progress_call`.
+    progress: Option<String>,
 }
 
 /// `[helper]`.
@@ -351,6 +386,14 @@ pub fn agent_parts(root: &Path, id: &str) -> Result<(Vec<crate::agent_terminals:
 }
 
 /// The permissions plugin `id` declares.
+/// The helper method `[media] progress` names, if the plugin has one.
+pub fn media_progress(root: &Path, id: &str) -> Result<Option<String>> {
+    if !valid_id(id) {
+        return Err(Error::BadRequest(format!("bad plugin id {id:?}")));
+    }
+    Ok(read_manifest(root, id)?.media.and_then(|m| m.progress).filter(|m| !m.trim().is_empty()))
+}
+
 pub fn permissions(root: &Path, id: &str) -> Result<Permissions> {
     if !valid_id(id) {
         return Err(Error::BadRequest(format!("bad plugin id {id:?}")));
@@ -377,10 +420,16 @@ pub fn permissions(root: &Path, id: &str) -> Result<Permissions> {
 /// toast's `timeout`; `atlas.mountLibrary` gone (the page is the Catalog's own); v25 `atlas.editor.prose` (a small
 /// editor for prose outside a note, with the plugins' editor hooks); v26 `atlas.editor.words` (a language's general word
 /// frequencies, words.rs); v27 a status cell's `panel` (drawn by the plugin in a popover over the lower bar); v28
-/// `atlas.openLink(url, { outside })` (a web link opened as Atlas opens links; Shift+click's system browser).
+/// `atlas.openLink(url, { outside })` (a web link opened as Atlas opens links; Shift+click's system browser); v29
+/// `atlas.player` (the app's one player, outside any pane; the phone's plays in the background) and `[media] progress`;
+/// v30 `atlas.changeMarks` (a file's marks changed, as `atlas.marks` reads them) and `atlas.samples` (a stroke's samples
+/// encoded the core's way): an EPUB's ink as `text-ink` marks; v31 `atlas.tickTask` (a listed task ticked as Home ticks it:
+/// the Calendar's agenda); v32 `atlas.media({ file })` (a kept file of the plugin's cache played as a server's media is:
+/// Audiobookshelf's offline listening); v33 a library's `from` and `homes` (a server's things apart, under "From <service>",
+/// with the way into its app).
 /// The page's number must be the same (a test holds it). A manifest with a key this Atlas does not know and an `api`
 /// above it is refused with "update Atlas", not with the parser's error (`read_manifest`).
-pub const API_VERSION: u32 = 28;
+pub const API_VERSION: u32 = 34;
 
 /// `"1.2.3"` → `[1, 2, 3]` (missing parts are 0; anything after a non-digit part is ignored).
 fn version_parts(v: &str) -> [u64; 3] {
@@ -655,6 +704,8 @@ pub struct Summary {
     pub version: Option<String>,
     pub permissions: Permissions,
     pub has_helper: bool,
+    /// The ids of the plugins it takes the place of (`replaces`).
+    pub replaces: Vec<String>,
 }
 
 /// Reads a `plugin.toml` text as this Atlas would: an error when it does not parse or needs a newer Atlas.
@@ -663,7 +714,8 @@ pub fn summary_of(text: &str) -> std::result::Result<Summary, String> {
     if let Some(why) = too_old_for(&m, env!("CARGO_PKG_VERSION")) {
         return Err(why);
     }
-    Ok(Summary { title: m.title, version: m.version, has_helper: m.helper.is_some(), permissions: m.permissions })
+    let replaces = replaced_of(m.replaces, None).into_iter().map(|r| r.id).collect();
+    Ok(Summary { title: m.title, version: m.version, has_helper: m.helper.is_some(), permissions: m.permissions, replaces })
 }
 
 /// The `[settings]` a vault has in its copy of a manifest (None: none, or the text does not parse).
@@ -1250,6 +1302,45 @@ mod tests {
             }
         }
         assert!(n > 10, "only {n} plugins found under {}", repo.display());
+    }
+
+    /// Every background job a shipped plugin has (a `schedule`, an `on = "fs"` / `"start"` hook) names where it runs,
+    /// and any word but `device` gives its reason in a comment on the `background` line (PLUGIN-API.md, "Where
+    /// background work runs"): the default `any` runs it on every core, so a job writing notes would race the
+    /// person's edits and the other cores' copies (Syncthing conflicts). Saying it is a decision, not a default.
+    #[test]
+    fn every_shipped_background_job_says_where_it_runs_and_why() {
+        let repo = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../plugins");
+        // the `background` line of a block of manifest text, with its comment
+        let line_of = |block: &str| block.lines().map(str::trim).find(|l| l.starts_with("background")).map(str::to_string);
+        let (mut wrong, mut jobs) = (Vec::new(), 0);
+        for tier in std::fs::read_dir(&repo).unwrap().flatten() {
+            for p in std::fs::read_dir(tier.path()).into_iter().flatten().flatten() {
+                let Ok(text) = std::fs::read_to_string(p.path().join("plugin.toml")) else { continue };
+                let m: Manifest = toml::from_str(&text).unwrap();
+                let id = p.file_name().to_string_lossy().into_owned();
+                // the top level ends at the first table; each `[[tool]]` block runs to the next table
+                let top = text.split("\n[").next().unwrap_or("");
+                for t in m.tools.iter().filter(|t| t.schedule.is_some() || t.on.as_deref().is_some_and(crate::plugin_tools::background_event)) {
+                    jobs += 1;
+                    let own = text.split("\n[[tool]]").skip(1).map(|b| b.split("\n[").next().unwrap_or(b)).find(|b| b.lines().any(|l| l.trim() == format!("name = \"{}\"", t.name)));
+                    let (word, line) = match (t.background, m.background) {
+                        (Some(w), _) => (w, own.and_then(line_of)),
+                        (None, Some(w)) => (w, line_of(top)),
+                        (None, None) => {
+                            wrong.push(format!("{id}: tool {} runs in the background and says no `background`", t.name));
+                            continue;
+                        }
+                    };
+                    let why = line.as_deref().and_then(|l| l.split_once('#')).map(|(_, c)| c.trim()).unwrap_or("");
+                    if word != crate::server_role::Background::Device && why.is_empty() {
+                        wrong.push(format!("{id}: tool {} runs {} with no reason on its `background` line", t.name, word.words()));
+                    }
+                }
+            }
+        }
+        assert!(jobs >= 5, "only {jobs} background jobs found under {}", repo.display());
+        assert!(wrong.is_empty(), "{}", wrong.join("\n"));
     }
 
     /// The page modules of a plugin folder that import from another plugin's folder: (importing file, plugin, path in

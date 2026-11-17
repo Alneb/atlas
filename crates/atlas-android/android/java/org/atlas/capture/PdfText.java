@@ -65,6 +65,19 @@ public final class PdfText {
         return out;
     }
 
+    /** Every printed character's box in the page's shown space (points, y down: left, top, right, bottom, four floats
+     *  each), spaces left out: what the column under a finger is found from (Pdfium.column). */
+    public float[] shownBoxes(PageSpace s) {
+        float[] out = new float[4 * codes.length];
+        int k = 0;
+        for (int i = 0; i < codes.length; i++) {
+            if (blank(i)) continue;
+            float[] f = s.boxFraction(boxes[i]);
+            out[k++] = f[0] * s.shownW(); out[k++] = f[1] * s.shownH(); out[k++] = f[2] * s.shownW(); out[k++] = f[3] * s.shownH();
+        }
+        return java.util.Arrays.copyOf(out, k);
+    }
+
     /** The text of characters from..to. */
     public String text(int from, int to) {
         StringBuilder s = new StringBuilder();

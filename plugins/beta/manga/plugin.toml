@@ -6,7 +6,7 @@ title = "Manga"
 description = "a manga and comics library and reader like Mihon: series, chapters, read from where you left, right-to-left, webtoon, e-ink paging"
 phone = true # runs in the phone apps too (only plugins marked so start there)
 icon = "file"
-version = "0.9.0"
+version = "0.18.0"
 api = 20
 claims = ["*.cbz", "*.cbr", "*.cb7", "*.cbt"] # opens here on a click (API 7); all but .cbz made into one first (helper/helper.ts)
 
@@ -21,7 +21,8 @@ net = ["*"]
 
 [android]
 main = "org.atlas.plugins.manga.Manga"
-opens = ["*.cbz"]                      # and a folder of pictures, a `suwayomi:<chapter id>/<name>` chapter (Manga.opens): the reader only, the library is the web side's
+opens = ["*.cbz"]                      # and a folder of pictures, a `suwayomi:<chapter id>/<name>` chapter, the app's own `manga:library` and `manga:series/<key>` (Manga.opens): the library, a series and the reader, native
+launcher = { label = "Manga", icon = "pages", home = "manga:library" } # its own app in the launcher (android-launchers.mjs)
 
 [[setting]]
 key = "folder"
@@ -36,6 +37,14 @@ label = "Suwayomi server"
 kind = "text"
 default = ""
 hint = "your Suwayomi (Tachiyomi's server), e.g. https://manga.example.org: its library beside the folder's, read page by page from it, where you are written back. Behind Authelia: the vault's sign-in (on the VPN none)"
+
+[[setting]]
+key = "library_layout"
+label = "Library on the phone"
+kind = "choice"
+choices = ["grid", "list"]
+default = "grid"
+hint = "the phone's own library: covers in a grid, or a list (its bar switches it too)"
 
 [[setting]]
 key = "mode"

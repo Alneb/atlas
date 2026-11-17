@@ -206,6 +206,12 @@ pub enum Body {
     /// A note folded to an icon at `at`; `on`: the highlight it comments.
     Postit { at: [f64; 2], text: String, #[serde(default, skip_serializing_if = "Option::is_none")] on: Option<MarkId> },
     Ink { strokes: Vec<Stroke> },
+    /// Ink on a reflowed book (an EPUB), which has no fixed pages: `page` is the chapter (the spine's order, from 1),
+    /// the strokes are pinned to character `k` of the chapter's text (whitespace collapsed, as the Books plugin's
+    /// `textMap` counts it — the highlights' own measure), their samples in em from that character's top left (y
+    /// down) and `width` in em. Drawn from where the character is now and at the text's size now, the ink moves and
+    /// scales with its words when the font, the size or the margins change (docs/design/DESIGN-ebook-ink.md).
+    TextInk { k: u32, strokes: Vec<Stroke> },
     /// A region of the page (a figure, an equation), shown in the note as a picture of that part.
     Clip { rect: Quad, #[serde(default, skip_serializing_if = "String::is_empty")] title: String },
     Stamp { at: [f64; 2], stamp: Stamp },
@@ -223,6 +229,7 @@ impl Body {
             Body::TextBox { .. } => "text-box",
             Body::Postit { .. } => "postit",
             Body::Ink { .. } => "ink",
+            Body::TextInk { .. } => "text-ink",
             Body::Clip { .. } => "clip",
             Body::Stamp { .. } => "stamp",
             Body::Bookmark { .. } => "bookmark",
@@ -649,6 +656,25 @@ mod tests {
         let out = write("", &b);
         assert!(out.contains("m-ddddddd1 deleted p1"), "{out}");
         assert_eq!(read(&out).marks.values().next().unwrap().version, 3);
+    }
+
+    #[test]
+    fn ink_on_a_reflowed_book_keeps_its_character_and_em_places() {
+        // a stroke starting left of and above its character: negative em places survive the codec
+        let samples = Samples((0..12).map(|i| Sample { x: -0.4 + i as f64 * 0.25, y: 1.1 - i as f64 * 0.05, pressure: 0.5, tilt_x: 0.0, tilt_y: 0.0, t: i * 9 }).collect());
+        let samples = Samples::decode(&samples.encode()).unwrap();
+        let m = Mark { id: MarkId::parse("m-ccccccc1").unwrap(), page: 4, version: 1, color: None, device: Some("desktop".into()),
+            created: Some("2026-11-17T10:00".into()), tags: vec![],
+            body: Body::TextInk { k: 1234, strokes: vec![Stroke { pen: "pen".into(), width: 0.08, color: None, opacity: 1.0, samples: samples.clone(), openink: None }] } };
+        let line = m.line();
+        assert!(line.starts_with("m-ccccccc1 text-ink p4 {"), "{line}");
+        assert!(line.contains("\"k\":1234"), "{line}");
+        let back = Mark::from_line(&line).unwrap();
+        assert_eq!(back, m);
+        let Body::TextInk { strokes, .. } = back.body else { unreachable!() };
+        assert!((strokes[0].samples.0[0].x + 0.4).abs() < 1e-9 && (strokes[0].samples.0[0].y - 1.1).abs() < 1e-9);
+        // an EPUB's marks are its own note's, as a PDF's (not a series' block, as a comic chapter's)
+        assert_eq!(holder("books/quantum.epub"), ("books/quantum.epub".to_string(), None));
     }
 
     #[test]

@@ -180,7 +180,11 @@ impl Atlas {
         let Some(line) = PIPE.next(Want::Reply(n), &stdin_line) else { return fail("Atlas closed the pipe") };
         let msg: Value = serde_json::from_str(&line).unwrap_or(Value::Null);
         let status = msg.get("status").and_then(Value::as_u64).unwrap_or(500) as u16;
-        let value = msg.get("body").cloned().unwrap_or(Value::Null);
+        // an answer that is not text (a picture) comes as base64 `bytes`: handed on as `{"bytes": "<base64>"}`
+        let value = match msg.get("bytes") {
+            Some(b) => json!({ "bytes": b }),
+            None => msg.get("body").cloned().unwrap_or(Value::Null),
+        };
         if !(200..300).contains(&status) {
             let why = value.get("error").and_then(Value::as_str).map_or_else(|| value.to_string(), str::to_string);
             return Err(Error { status: Some(status), why: format!("{} {path}: {why}", verb.as_str()) });
@@ -190,6 +194,15 @@ impl Atlas {
 
     pub fn get(&self, path: &str) -> Result<Value> {
         self.call(Verb::Get, path, None)
+    }
+
+    /// A call answered with bytes (`/api/thumb`, `/api/raw`): the bytes; a JSON or text answer is not bytes.
+    pub fn get_bytes(&self, path: &str) -> Result<Vec<u8>> {
+        let v = self.get(path)?;
+        match v.get("bytes").and_then(Value::as_str).and_then(unbase64) {
+            Some(b) => Ok(b),
+            None => fail(format!("GET {path}: answered no bytes")),
+        }
     }
 
     pub fn post(&self, path: &str, body: &Value) -> Result<Value> {
@@ -322,6 +335,28 @@ fn base64(b: &[u8]) -> String {
     out
 }
 
+/// Standard base64 back to bytes; None when it is not base64.
+fn unbase64(s: &str) -> Option<Vec<u8>> {
+    let val = |c: u8| match c {
+        b'A'..=b'Z' => Some(c - b'A'),
+        b'a'..=b'z' => Some(c - b'a' + 26),
+        b'0'..=b'9' => Some(c - b'0' + 52),
+        b'+' => Some(62),
+        b'/' => Some(63),
+        _ => None,
+    };
+    let s = s.trim_end_matches('=').as_bytes();
+    let mut out = Vec::with_capacity(s.len() * 3 / 4);
+    for c in s.chunks(4) {
+        let mut n = 0u32;
+        for (i, &b) in c.iter().enumerate() {
+            n |= u32::from(val(b)?) << (18 - 6 * i);
+        }
+        out.extend_from_slice(&n.to_be_bytes()[1..c.len()]);
+    }
+    Some(out)
+}
+
 /// Percent-encodes a query or path part.
 pub fn q(s: &str) -> String {
     s.bytes().map(|b| if b.is_ascii_alphanumeric() || b"-._~".contains(&b) { (b as char).to_string() } else { format!("%{b:02X}") }).collect()
@@ -452,6 +487,14 @@ mod tests {
         assert!(d.join("c/b/x.md").is_file());
         assert_eq!(through_atlas(&d.join("c/b/x.md")), None);
         std::fs::remove_dir_all(d).unwrap();
+    }
+
+    #[test]
+    fn base64_back_to_bytes() {
+        for b in [&b""[..], b"a", b"ab", b"abc", b"abcd", &[0xff, 0xd8, 0xff, 0x00, 0x10]] {
+            assert_eq!(unbase64(&base64(b)).as_deref(), Some(b));
+        }
+        assert_eq!(unbase64("!!"), None);
     }
 
     #[test]

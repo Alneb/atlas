@@ -35,6 +35,7 @@ import { defineEx, yankToClipboard, exHooks, modeLabel, stashVisual, restoreVisu
 import { defineWordMotions } from "./vim-words";
 import { tabKey, untouchedTaskList } from "./tab-keys";
 import { placeOf, keepPlace, topIn, type Place } from "./places";
+import { placeHooks } from "../registry";
 import { noteExtensions, mdOptions } from "./note-extensions";
 import { codeExtensions, codeOptions, countProblems, openReplace } from "./code-extensions";
 import { setDiagnosticsEffect } from "@codemirror/lint";
@@ -201,7 +202,12 @@ export function createEditor(o: EditorOptions): AtlasEditor {
     last = { head: view.state.selection.main.head, top: last?.top ?? view.viewport.from };
     view.requestMeasure({ key: readKey, read: (v) => { if (v.dom.isConnected && last) last = { ...last, top: topIn(v) }; } });
   };
-  keep = () => { read(); clearTimeout(keepTimer); keepTimer = setTimeout(() => { if (!destroyed && last) keepPlace(o.path, last); }, 500); };
+  keep = () => { read(); clearTimeout(keepTimer); keepTimer = setTimeout(() => {
+    if (destroyed || !last) return;
+    keepPlace(o.path, last);
+    const line = view.state.doc.lineAt(Math.min(last.head, view.state.doc.length)).number;
+    for (const f of placeHooks) f(o.path, line); // the other devices hear the line (lib/where.svelte.ts)
+  }, 500); };
   if (left) {
     // after the first layout, and again once rendered blocks have their heights
     const top = Math.min(left.top, view.state.doc.length);

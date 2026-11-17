@@ -74,7 +74,8 @@ grouped by page, include matching **features** (with Try), and the box is focuse
 | Code | autosave, tool bar, git gutter, line numbers, wrap, guides, minimap, breadcrumbs, lsp.* | problems, git, replace | — | — |
 | Files & search | ignore, index exclude, files.* | files, explorer, open file, search, history, open with, switch vault | open with | — |
 | Web | web.* (open links in **a tab**, a window or the browser; block ads — in web tabs too; filter lists) | open web page | sign-ins and site data (forget them) | — |
-| Server | — (kept outside the vault: `~/.config/atlas/server.toml`) | — | this Atlas serving or not; sign-in (password / proxy / both), trusted proxies, plain HTTP, AI agents; the password; device tokens (made, shown once, revoked); signed-in browsers, sign out everywhere (docs/guides/SERVER.md) | — |
+| Sign-ins | — (the OpenID provider fields `plugins.oidc_*` are drawn by the panel) | — | one page for every way past a sign-in in front of a service, under "Which one do I need?": sessions kept from a sign-in gate (Authelia, Authentik…: hosts, since/until, the plugins using each, Forget, sign in ahead at an address); OpenID providers (renews, the plugins using each, Forget) and the vault's provider in plain words; keys that skip the gate (hosts and header only, the key in a password field, "key kept" after saving; hosts checked as the core does: `*.org` and `*` refused) | — |
+| Server | — (kept outside the vault: `~/.config/atlas/server.toml`) | — | this Atlas serving or not; sign-in (password / a sign-in gate / both), the gate's addresses and user header, plain HTTP, AI agents; the password; device tokens (made, shown once, revoked); signed-in browsers, sign out everywhere (docs/guides/SERVER.md) | — |
 | References & PDF | pdf.* (the references' own settings are the Catalog · Science plugin's) | References | — | — |
 | Drawing | draw.* (folder, Rnote commands, notepad, **a new drawing's pages**) | new drawing, export as SVG | — | — |
 | Terminal & agents | terminal.* | terminal, panel, Claude, send to Claude, move panel, new shell | — | — |
@@ -148,8 +149,10 @@ would cycle):
 - Suggestions (fonts, Claude installs) load lazily and slowly (font scan). Until they arrive, those fields are text
   boxes with a "default" placeholder.
 - **One place per thing.** A panel appears on one page only, and a field a panel edits is in `HIDDEN` so it is not
-  placed again as a row: the plugins' sign-ins and the OpenID provider fields (`plugins.oidc_*`) are Accounts' only
-  (SigninsPanel draws the fields). A page's `group` is required, so a new page cannot land outside the nav's order.
+  placed again as a row: the sign-ins in front of services and the OpenID provider fields (`plugins.oidc_*`) are
+  Sign-ins' only (SigninsPanel draws the fields; Accounts links there). A page's `group` is required, so a new page cannot land outside the nav's order.
+- **One word for forward-auth: "gate".** Sign-ins, Server, Accounts and the sign-in toast all call Authelia and its
+  kind a *sign-in gate*; "proxy" is not used for it in Settings (the reverse proxy is only the gate's address).
 - **A plugin's file buttons open its settings file** (`.atlas/plugin-settings/<id>.toml`, the one its page writes);
   its manifest and code are links at the foot of its page, for whoever writes plugins.
 
@@ -159,7 +162,7 @@ under a second "Plugins" heading, the OpenID sign-ins showed three times (Accoun
 three fields there), "Edit the file" stood loose at the nav's foot, and a plugin's row had a manifest icon beside its
 settings gear that looked like settings. Now: Accounts on top (every sign-in); General (Overview, Appearance,
 Keyboard); Working (Writing, Home & Today, Code, Files & search, Web, References & PDF, Drawing, Terminal & agents);
-Connections (AI agents, Server); Plugins (the list, Automation, then each plugin's page, built-ins first); Advanced
+Connections (AI agents, Vaults & sync, Sign-ins, Server); Plugins (the list, Automation, then each plugin's page, built-ins first); Advanced
 (the settings file, rendering — on every host now, the rendering field only where it does something, by `x-hosts`).
 
 

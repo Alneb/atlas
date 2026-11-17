@@ -1,0 +1,46 @@
+# Jellyfin, the user's film and series server, in Atlas (docs/design/DESIGN-video-player.md): a library (the Libraries
+# page's Films and series) whose films play in mpv on the desktop from where they were left, where you are written back
+# to Jellyfin (its "continue watching" and played marks stay right), and each film's note beside it to write in while
+# watching (Super+Alt+T the time, Super+Alt+S the subtitle, Super+Alt+F the frame). Also the block `jellyfin.watched`.
+# The stream goes through the core (`atlas.media`): the token is added there, never seen by the page.
+title = "Jellyfin"
+description = "your Jellyfin: films and series to watch in mpv, where you are synced, a note per film written while watching"
+phone = true # runs in the phone apps too (only plugins marked so start there)
+icon = "film"
+version = "0.4.0"
+api = 34
+
+[permissions]
+net = ["*"]          # the server is a setting: any host
+secrets = true       # its access token
+
+[[setting]]
+key = "server"
+label = "Jellyfin address"
+kind = "text"
+hint = "https://media.example.org — the address you open Jellyfin at"
+
+[[setting]]
+key = "token"
+label = "Access token"
+kind = "secret"
+hint = "filled by the command “Jellyfin: sign in” (Quick Connect: a code you approve in Jellyfin); or pasted: Jellyfin → Dashboard → API keys"
+
+[[setting]]
+key = "device"
+label = "This device's id"
+kind = "text"
+default = "atlas"
+hint = "how Jellyfin lists this player among your devices"
+
+[helper]
+js = "helper.js"                   # runs inside Atlas's core (QuickJS)
+idle = "10m"
+
+# the app's player reports where you are; the helper tells Jellyfin's play session
+[media]
+progress = "progress"
+
+# where it runs (PLUGIN-API.md, "Platforms"); a platform not named is untested (Android: only with `phone = true`)
+[platforms]
+linux = "works"

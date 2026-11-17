@@ -1,6 +1,7 @@
 package org.atlas.plugins.manga;
 
 import android.view.Gravity;
+import android.view.View;
 import android.widget.FrameLayout;
 import android.widget.TextView;
 
@@ -8,40 +9,107 @@ import org.atlas.capture.Host;
 import org.atlas.capture.NativePlugin;
 import org.json.JSONObject;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.ExecutorService;
 
-/** The reader's frame (the library is browsed on the web side, view.js): a chapter handed over — a vault .cbz, a vault
- *  folder of pictures, a Suwayomi chapter — has its series and place found away from the UI, then the reader opens at
- *  the page it was left on; a reading mode changed in the reader makes it again at the same page. Back past the reader
- *  is the app's: back to the library it came from. */
+/** The plugin's frame, a stack of places as a reader app has them: the library (LibraryView), Browse (the server's
+ *  sources, SourcesView, and a source's series, SourceView), a series (SeriesView), the reader (ReaderView); Back goes down one, and past the first the app takes it. What it opens on:
+ *  `manga:library`, `manga:series/<vault path or suwayomi:<id>>` (the page's Comics library hands a series over), or a
+ *  chapter — a vault .cbz, a vault folder of pictures, a Suwayomi chapter — whose series and place are found away from
+ *  the UI, the reader opening at the page it was left on. A reading mode changed in the reader makes it again at the
+ *  same page. */
 final class MangaScreen extends FrameLayout implements NativePlugin.Back {
+    /** The addresses of the plugin's own places (Manga.opens). */
+    static final String LIBRARY = "manga:library", SERIES = "manga:series/", BROWSE = "manga:browse";
+
     final Host host;
-    private final TextView status;
+    private final List<View> stack = new ArrayList<>();
+    private TextView status;
     private final ExecutorService opener = Pages.pool(1, "manga-open");
+    /** The reader's series (its chapters and where you are). */
     private Library.Series series;
-    private JSONObject reading;
-    private ReaderView reader;
+    /** A series was added to or removed from the server's library (a series' screen): the library lists again when
+     *  it is shown. */
+    boolean libraryChanged;
 
     MangaScreen(Host host, String path) {
         super(host.activity());
         this.host = host;
         setBackgroundColor(host.look().bg);
-        status = host.look().label(getContext(), "Opening " + Chapter.titleOf(path) + "…", 15, host.look().muted);
-        status.setGravity(Gravity.CENTER);
-        status.setPadding(host.look().dp(32), 0, host.look().dp(32), 0);
-        addView(status, new LayoutParams(-1, -1));
-        Pages.run(opener, () -> open(path));
+        if (path.startsWith(SERIES)) series(path.substring(SERIES.length()), null, null, null, false);
+        else if (BROWSE.equals(path)) { push(new LibraryView(this)); browse(); } // Back goes to the library
+        else if (path.startsWith("manga:")) push(new LibraryView(this));
+        else {
+            status = host.look().label(getContext(), "Opening " + Chapter.titleOf(path) + "…", 15, host.look().muted);
+            status.setGravity(Gravity.CENTER);
+            status.setPadding(host.look().dp(32), 0, host.look().dp(32), 0);
+            addView(status, new LayoutParams(-1, -1));
+            Pages.run(opener, () -> open(path));
+        }
     }
+
+    // ---- the stack ----
+
+    private void push(View v) {
+        if (!stack.isEmpty()) stack.get(stack.size() - 1).setVisibility(GONE); // kept as it was: Back shows it again
+        stack.add(v);
+        addView(v, new LayoutParams(-1, -1));
+        v.requestFocus(); // the reader's volume keys
+        if (host.eink()) post(host::einkRefresh); // a whole new screen: no ghost of the last one
+    }
+
+    private void pop() {
+        View gone = stack.remove(stack.size() - 1);
+        removeView(gone);
+        View top = stack.get(stack.size() - 1);
+        top.setVisibility(VISIBLE);
+        top.requestFocus();
+        Library.Series s = gone instanceof ReaderView ? series : gone instanceof SeriesView ? ((SeriesView) gone).series() : null;
+        if (top instanceof SeriesView) ((SeriesView) top).returned();
+        if (top instanceof LibraryView) {
+            if (libraryChanged) { libraryChanged = false; ((LibraryView) top).reload(); }
+            else ((LibraryView) top).returned(s);
+        }
+        if (top instanceof SourceView && gone instanceof SeriesView) ((SourceView) top).returned((SeriesView) gone);
+        if (host.eink()) post(host::einkRefresh);
+    }
+
+    /** A series' screen: `known` when the library has it already (a vault series), else found by its key; `resume`:
+     *  straight on into the reader where it was left (the library's Reading tab). */
+    void series(String key, String title, String coverUrl, Library.Series known, boolean resume) {
+        push(new SeriesView(this, key, title, coverUrl, known, resume));
+    }
+
+    /** Browse: the server's sources. */
+    void browse() { push(new SourcesView(this)); }
+
+    /** A source's series (popular first). */
+    void source(Browse.Source s) { push(new SourceView(this, s)); }
+
+    /** The reader on chapter `i` of `s` at `page`, over the screen shown (Back returns to it). */
+    void read(Library.Series s, int i, int page) {
+        series = s;
+        if (s.reading == null) s.reading = new JSONObject();
+        push(new ReaderView(this, s, s.reading, i, page));
+    }
+
+    /** The reader made again (a reading mode changed) on chapter `i` at `page`, in place of the one shown. */
+    void read(int i, int page) {
+        View top = stack.isEmpty() ? null : stack.get(stack.size() - 1);
+        if (top instanceof ReaderView) { stack.remove(stack.size() - 1); removeView(top); }
+        push(new ReaderView(this, series, series.reading, i, page));
+    }
+
+    // ---- a chapter handed over ----
 
     /** Away from the UI: the series (listing a folder, or asking the server), where you are, then the reader. */
     private void open(String path) {
         try {
             Library.Series s;
-            JSONObject r;
             int i;
             if (Suwayomi.is(path)) {
                 s = Suwayomi.series(host, path);
-                r = s.reading;
                 int id = Suwayomi.idOf(path);
                 i = -1;
                 for (int k = 0; k < s.chapters.size() && i < 0; k++) if (Suwayomi.idOf(s.chapters.get(k)) == id) i = k;
@@ -49,14 +117,13 @@ final class MangaScreen extends FrameLayout implements NativePlugin.Back {
             } else {
                 s = local(path);
                 if (s == null) { post(() -> { host.openInWeb(path); host.activity().finish(); }); return; } // no chapter: the app's own view
-                r = Library.reading(host, s);
-                s.reading = r;
+                s.reading = Library.reading(host, s);
                 i = Math.max(0, s.chapters.indexOf(Manga.chapterPath(host, path)));
             }
             String ch = s.chapters.get(i);
-            int page = Library.isRead(r, ch) ? 0 : Library.pageOf(r, ch);
+            int page = Library.isRead(s.reading, ch) ? 0 : Library.pageOf(s.reading, ch);
             final int at = i;
-            post(() -> { series = s; reading = r; read(at, page); });
+            post(() -> { removeView(status); read(s, at, page); });
         } catch (Exception e) {
             post(() -> status.setText("Cannot open " + Chapter.titleOf(path) + ": " + e.getMessage()));
         }
@@ -83,17 +150,14 @@ final class MangaScreen extends FrameLayout implements NativePlugin.Back {
         return s;
     }
 
-    /** The reader on chapter `i` at `page`, in place of the one shown (a mode changed). */
-    void read(int i, int page) {
-        if (reader != null) removeView(reader);
-        status.setVisibility(GONE);
-        reader = new ReaderView(this, series, reading, i, page);
-        addView(reader, new LayoutParams(-1, -1));
-        reader.requestFocus(); // the volume keys
-        if (host.eink()) post(host::einkRefresh); // a whole new screen: no ghost of the last one
+    /** The top place's own Back first (the reader's bars, the library's filter), then down one place. */
+    @Override public boolean back() {
+        if (stack.isEmpty()) return false;
+        View top = stack.get(stack.size() - 1);
+        if (top instanceof NativePlugin.Back && ((NativePlugin.Back) top).back()) return true;
+        if (stack.size() > 1) { pop(); return true; }
+        return false;
     }
-
-    @Override public boolean back() { return reader != null && reader.back(); }
 
     @Override protected void onDetachedFromWindow() { opener.shutdownNow(); super.onDetachedFromWindow(); }
 }

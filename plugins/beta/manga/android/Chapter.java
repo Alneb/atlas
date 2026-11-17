@@ -7,7 +7,6 @@ import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Enumeration;
 import java.util.List;
-import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
@@ -44,10 +43,7 @@ final class Chapter {
     }
 
     /** A chapter's (or a loose .cbz series') name: the last part of its path, without .cbz. */
-    static String titleOf(String path) {
-        String name = path.endsWith("/") ? path.substring(0, path.length() - 1) : path;
-        return name.substring(name.lastIndexOf('/') + 1).replaceFirst("(?i)\\.cbz$", "");
-    }
+    static String titleOf(String path) { return Transition.titleOf(path); }
 
     static boolean isZip(String path) { return path.toLowerCase(java.util.Locale.ROOT).endsWith(".cbz"); }
 
@@ -64,17 +60,6 @@ final class Chapter {
 
     void close() { try { if (zip != null) zip.close(); } catch (IOException e) { /* closed */ } }
 
-    private static final Pattern NUM = Pattern.compile("\\d+|\\D+");
-
-    /** "p2" before "p10": numbers compared as numbers, the rest as text (how chapters and pages are named). */
-    static int natural(String a, String b) {
-        Matcher x = NUM.matcher(a.toLowerCase(java.util.Locale.ROOT)), y = NUM.matcher(b.toLowerCase(java.util.Locale.ROOT));
-        while (x.find() && y.find()) {
-            String p = x.group(), q = y.group();
-            int c = Character.isDigit(p.charAt(0)) && Character.isDigit(q.charAt(0))
-                ? new java.math.BigInteger(p).compareTo(new java.math.BigInteger(q)) : p.compareTo(q);
-            if (c != 0) return c;
-        }
-        return a.length() - b.length();
-    }
+    /** "p2" before "p10" (Shelf.natural). */
+    static int natural(String a, String b) { return Shelf.natural(a, b); }
 }

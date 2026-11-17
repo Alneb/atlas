@@ -4,6 +4,9 @@
 //! A joiner is told its own id (`{"t":"hello","peer":n,"writer":w}`); the others hear `{"t":"join"}` and `{"t":"leave"}`
 //! from it. One device saves for the room, its **writer** (docs/design/DESIGN-mirror-v2.md §3): the earliest still there;
 //! when it leaves, everyone hears `{"t":"writer","peer":w}` (unstamped, from the room itself).
+//! One room is read as well as relayed: [`WHERE`], where each device says what it shows (`{"t":"at",…}`, ui
+//! lib/where.svelte.ts). Its devices' last places are kept ([`Rooms::places`]), so a client with no socket — the phone
+//! app's native screens — asks `GET /api/where` who is where.
 use axum::extract::ws::{Message, WebSocket};
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -19,10 +22,58 @@ const ROOM: u64 = 0;
 /// What a room carries: who said it (a peer, or [`ROOM`]) and the message.
 type Said = (u64, String);
 
+/// The room where the devices say what they show: never a file, only a room's name.
+pub const WHERE: &str = ".atlas/cache/where";
+
+/// A device's place, as it last said in the [`WHERE`] room: the file it shows and where in it.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+pub struct Place {
+    /// its number in the room (a new one each time it joins)
+    pub peer: u64,
+    /// what it calls itself (`desktop`, `phone`, `Boox`)
+    pub name: String,
+    /// a stable id of the device (the phone app's, a browser's), when it said one: how a device knows itself in the list
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub device: Option<String>,
+    pub path: String,
+    /// a PDF's page
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub page: Option<u32>,
+    /// a note's line (1-based), where its caret is
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub line: Option<u32>,
+}
+
+impl Place {
+    /// `{"t":"at","path":…,"page"?,"line"?,"device"?}` from `peer`, else `None` (another message, or a malformed one).
+    fn of(peer: u64, name: &str, message: &str) -> Option<Self> {
+        #[derive(serde::Deserialize)]
+        struct At {
+            t: String,
+            path: String,
+            page: Option<u32>,
+            line: Option<u32>,
+            device: Option<String>,
+        }
+        let at: At = serde_json::from_str(message).ok()?;
+        let fits = |s: &str, n: usize| !s.is_empty() && s.len() <= n;
+        (at.t == "at" && fits(&at.path, 4096)).then(|| Place {
+            peer,
+            name: name.to_string(),
+            device: at.device.filter(|d| fits(d, 128)),
+            path: at.path,
+            page: at.page.filter(|&p| p > 0),
+            line: at.line.filter(|&l| l > 0),
+        })
+    }
+}
+
 struct Room {
     tx: broadcast::Sender<Said>,
     /// in the order they came: the first is the writer
     members: Vec<u64>,
+    /// the [`WHERE`] room only: each member's last place
+    places: HashMap<u64, Place>,
 }
 
 #[derive(Default)]
@@ -37,7 +88,7 @@ impl Rooms {
     fn join(&self, path: &str) -> (u64, broadcast::Sender<Said>, broadcast::Receiver<Said>, u64) {
         let peer = self.next.fetch_add(1, Ordering::Relaxed) + 1;
         let mut rooms = self.rooms.lock().expect("rooms");
-        let room = rooms.entry(path.to_string()).or_insert_with(|| Room { tx: broadcast::channel(256).0, members: Vec::new() });
+        let room = rooms.entry(path.to_string()).or_insert_with(|| Room { tx: broadcast::channel(256).0, members: Vec::new(), places: HashMap::new() });
         room.members.push(peer);
         (peer, room.tx.clone(), room.tx.subscribe(), room.members[0])
     }
@@ -48,6 +99,7 @@ impl Rooms {
         let Some(room) = rooms.get_mut(path) else { return };
         let was = room.members.first().copied();
         room.members.retain(|&p| p != peer);
+        room.places.remove(&peer);
         match room.members.first().copied() {
             None => {
                 rooms.remove(path);
@@ -62,6 +114,38 @@ impl Rooms {
     /// How many devices have `path` open.
     pub fn count(&self, path: &str) -> usize {
         self.rooms.lock().expect("rooms").get(path).map_or(0, |r| r.members.len())
+    }
+
+    /// Where each device in the [`WHERE`] room is, as it last said, in the order they joined; a device that has said
+    /// nothing yet is not listed.
+    pub fn places(&self) -> Vec<Place> {
+        let rooms = self.rooms.lock().expect("rooms");
+        let Some(room) = rooms.get(WHERE) else { return Vec::new() };
+        room.members.iter().filter_map(|p| room.places.get(p).cloned()).collect()
+    }
+
+    /// `peer` said `message` in `path`'s room: kept when it is a place in the [`WHERE`] room; `{"t":"nowhere"}` (it
+    /// stopped sharing its place) forgets it.
+    fn heard(&self, path: &str, peer: u64, name: &str, message: &str) {
+        if path != WHERE {
+            return;
+        }
+        let place = Place::of(peer, name, message);
+        let nowhere = place.is_none() && serde_json::from_str::<serde_json::Value>(message).is_ok_and(|m| m["t"] == "nowhere");
+        if place.is_none() && !nowhere {
+            return;
+        }
+        if let Some(room) = self.rooms.lock().expect("rooms").get_mut(path) {
+            match place {
+                Some(p) if room.members.contains(&peer) => {
+                    room.places.insert(peer, p);
+                }
+                Some(_) => {}
+                None => {
+                    room.places.remove(&peer);
+                }
+            }
+        }
     }
 
     /// Who saves `path` for its room (`None`: nobody has it open).
@@ -94,6 +178,7 @@ pub async fn session(mut socket: WebSocket, rooms: std::sync::Arc<Rooms>, path: 
                 msg = socket.recv() => match msg {
                     Some(Ok(Message::Text(t))) => {
                         if t.len() <= MAX_MESSAGE && serde_json::from_str::<serde::de::IgnoredAny>(&t).is_ok() {
+                            rooms.heard(&path, peer, &name, &t);
                             let _ = tx.send((peer, stamped(peer, &t)));
                         }
                     }
@@ -139,5 +224,34 @@ mod tests {
         rooms.leave("d.excalidraw", c);
         assert_eq!((rooms.count("d.excalidraw"), rooms.writer("d.excalidraw")), (0, None));
         assert_eq!(stamped(3, r#"{"t":"pointer","x":1}"#), r#"{"from":3,"m":{"t":"pointer","x":1}}"#);
+    }
+
+    #[test]
+    fn the_where_room_keeps_each_devices_last_place_until_it_leaves() {
+        let rooms = Rooms::default();
+        let (a, ..) = rooms.join(WHERE);
+        let (b, ..) = rooms.join(WHERE);
+        assert!(rooms.places().is_empty(), "nobody said anything yet");
+        rooms.heard(WHERE, a, "desktop", r#"{"t":"at","path":"notes/a.md","line":12,"device":"d-1"}"#);
+        rooms.heard(WHERE, b, "phone", r#"{"t":"at","path":"x.pdf","page":3}"#);
+        rooms.heard(WHERE, b, "phone", r#"{"t":"at","path":"y.pdf","page":4}"#);
+        rooms.heard(WHERE, a, "desktop", r#"{"t":"pointer","x":1}"#); // not a place: the last one stays
+        rooms.heard(WHERE, a, "desktop", r#"{"t":"at","path":""}"#); // no file: ignored
+        let places = rooms.places();
+        assert_eq!(places.len(), 2);
+        assert_eq!((places[0].peer, places[0].path.as_str(), places[0].line, places[0].device.as_deref()), (a, "notes/a.md", Some(12), Some("d-1")));
+        assert_eq!((places[1].name.as_str(), places[1].path.as_str(), places[1].page, places[1].line), ("phone", "y.pdf", Some(4), None));
+        let json = serde_json::to_value(&places[1]).unwrap();
+        assert_eq!(json, serde_json::json!({ "peer": b, "name": "phone", "path": "y.pdf", "page": 4 }), "nothing unsaid on the wire");
+        // another room's messages are relayed only, never kept
+        let (c, ..) = rooms.join("n.md");
+        rooms.heard("n.md", c, "Boox", r#"{"t":"at","path":"n.md"}"#);
+        assert_eq!(rooms.places().len(), 2);
+        rooms.leave(WHERE, a);
+        assert_eq!(rooms.places().iter().map(|p| p.peer).collect::<Vec<_>>(), vec![b], "a device that left is nowhere");
+        rooms.heard(WHERE, a, "desktop", r#"{"t":"at","path":"late.md"}"#);
+        assert_eq!(rooms.places().len(), 1, "a message after leaving is not kept");
+        rooms.heard(WHERE, b, "phone", r#"{"t":"nowhere"}"#);
+        assert!(rooms.places().is_empty(), "a device that stopped sharing its place is not listed");
     }
 }

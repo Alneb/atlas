@@ -71,10 +71,10 @@ function vaultLinkPath(a: HTMLAnchorElement): string | null {
 
 /** A row that names a file (`data-path`, and `data-line` for a place in it: a search hit, a task, a change) in a part
  *  with no menu of its own: the things done with any file, the same everywhere. */
-export function fileItems(path: string, line?: number): MenuItem[] {
+export function fileItems(path: string, line?: number, openLabel = "Open"): MenuItem[] {
   const name = path.slice(path.lastIndexOf("/") + 1).replace(/\.md$/i, "");
   return [
-    { label: "Open", icon: "file-text", run: () => openPath(path, line) },
+    { label: openLabel, icon: "file-text", run: () => openPath(path, line) },
     { label: "Open beside", icon: "panel-right", run: () => openPath(path, line, { beside: true }) },
     "sep",
     ...revealItems(path),
@@ -107,6 +107,20 @@ export function appMenuItems(el: Element, selection: string): MenuItem[] {
   if (link && !link.classList.contains("internal-link") && /^(https?|mailto):/i.test(link.href)) out.push(...linkItems(link));
   if (selection.trim()) out.push(...(out.length ? ["sep" as const] : []), ...selectionItems(selection));
   return out.length ? out : anywhere();
+}
+
+/** A part's own menu at the pointer (a plugin's `atlas.shell.popMenu`): its rows, then, for a vault file, the rows
+ *  every file has — the note's Open named `openLabel` when the part's own Open does something else (a reader). */
+export function partMenu(e: MouseEvent, rows: MenuItem[], path?: string, openLabel?: string): void {
+  if (pressedByHand()) return; // the phone's long press stays the system's, as everywhere
+  e.preventDefault();
+  // a file row the part already has (its own Copy link) is not said twice
+  const own = new Set(rows.flatMap((r) => (typeof r === "object" && "label" in r ? [r.label] : [])));
+  const file = path ? fileItems(path, undefined, openLabel).filter((r) => !(typeof r === "object" && "label" in r && own.has(r.label))) : [];
+  const all: MenuItem[] = [...rows, "sep", ...file];
+  // no separator first, last or twice
+  const items = all.filter((r, i) => r !== "sep" || (i > 0 && all[i - 1] !== "sep" && all.slice(i + 1).some((x) => x !== "sep")));
+  if (items.length) popMenu(atPointer(e, items));
 }
 
 /** Installs the menu for the whole window; returns its removal. */

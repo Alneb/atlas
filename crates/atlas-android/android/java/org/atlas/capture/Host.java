@@ -40,10 +40,13 @@ public final class Host {
 
     public long modified(String path) { return files.modified(path); }
 
-    public InputStream read(String path) throws IOException { return files.read(path); }
+    public InputStream read(String path) throws IOException { InputStream in = files.read(path); told(); return in; }
 
     /** For java.util.zip.ZipFile and the like, which want a file (a server's: a copy in the cache). */
-    public File local(String path) throws IOException { return files.local(path); }
+    public File local(String path) throws IOException { File f = files.local(path); told(); return f; }
+
+    /** A server vault's file opened from the copy on the device (offline): said once per file. */
+    private void told() { String n = files.offlineNotice(); if (n != null) toast("Offline — the copy on this device: " + new File(n).getName()); }
 
     public String readText(String path) {
         try (InputStream in = read(path)) {
@@ -98,6 +101,8 @@ public final class Host {
     public String companionNote(String file) throws IOException { return VaultFiles.companionNote(activity, vault, file); }
     /** The note of `file`, made by the core when missing (the vault's template rules, the file's block): its path. */
     public String ensureCompanionNote(String file, String title, org.json.JSONObject properties) throws IOException { return VaultFiles.ensureCompanionNote(activity, vault, file, title, properties); }
+    /** The note of a thing this plugin shows, by the catalog's one rule (VaultFiles.thingNote): `{path, made}`. */
+    public JSONObject thingNote(JSONObject thing) throws IOException { return VaultFiles.thingNote(activity, vault, thing); }
 
     /** PDF `pdf`'s marks, from its note (core pdf_marks.rs): `{note, marks}`. Never on the UI thread. */
     public JSONObject pdfMarks(String pdf) throws IOException { return VaultFiles.pdfMarks(activity, vault, pdf); }
@@ -113,6 +118,39 @@ public final class Host {
     /** This plugin's settings changed (key → value), saved where the vault keeps them, as Settings saves them: null,
      *  or why not. Never on the UI thread (a server's vault answers over the network). */
     public String saveSettings(JSONObject values) { return VaultFiles.saveSettings(activity, vault, plugin, values); }
+
+    // ---- the network, the player: through the vault's core, as the plugin's web side reaches them ----
+
+    /** A request of this plugin through the core (`atlas.fetch`'s, plugin_net.rs `FetchRequest`: url, method, headers —
+     *  `{secret, prefix}` filled in by the core, never seen here —, body, save_to…): `{status, ok, text, saved, signin…}`.
+     *  Never on the UI thread. */
+    public JSONObject fetch(JSONObject request) throws IOException { return VaultFiles.pluginFetch(activity, vault, plugin, request); }
+
+    /** `url` as an address the app's player can play, through the core (`atlas.media`), `headers` as fetch takes them. */
+    public String media(String url, JSONObject headers) throws IOException { return VaultFiles.pluginMedia(activity, vault, plugin, url, headers); }
+
+    /** The app's one player (MediaService, the page's `atlas.player`) on `item` — `{key, title, author, cover, tracks:
+     *  [{src, start, duration}], chapters: [{start, end, title}], at, speed}` — reporting where you are to this plugin's
+     *  `[media] progress` through the core. Never on the UI thread (the core's address may start it). */
+    public void play(JSONObject item) throws IOException {
+        String report = VaultFiles.coreBase(activity, vault) + "/api/plugins/" + VaultFiles.OnServer.q(plugin) + "/media/progress";
+        java.util.Map<String, String> headers = VaultFiles.coreHeaders(activity, vault);
+        String arg;
+        try { arg = new JSONObject().put("plugin", plugin).put("item", item).put("report", report).toString(); }
+        catch (org.json.JSONException e) { throw new IOException(e.getMessage()); }
+        activity.runOnUiThread(() -> MediaService.command(activity, "play", arg, headers));
+    }
+
+    /** A command to the player: resume, pause, seek (seconds), speed, sleep (minutes, -1 the chapter's end, 0 off),
+     *  close, state (say it again). */
+    public void player(String cmd, String arg) { activity.runOnUiThread(() -> MediaService.command(activity, cmd, arg == null ? "null" : arg, null)); }
+
+    /** The player's state as it changes (the page's PlayerState JSON, or "null"), on the UI thread, until `stop` runs. */
+    public Runnable watchPlayer(java.util.function.Consumer<String> state) {
+        MediaService.Listener l = json -> activity.runOnUiThread(() -> state.accept(json));
+        MediaService.watchers.add(l);
+        return () -> MediaService.watchers.remove(l);
+    }
 
     public boolean eink() { return look.eink; }
 
@@ -270,6 +308,29 @@ public final class Host {
     public void openLink(String link, String from) {
         activity.startActivity(new Intent(activity, AtlasActivity.class).putExtra(AtlasActivity.LINK, link).putExtra(AtlasActivity.LINK_FROM, from)
             .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP));
+    }
+
+    /** Whether another plugin's place `place` (`audiobookshelf:play/<item>`) can be opened from here: a screen of this
+     *  app opens it, its plugin is on in this vault and ready (NativePlugin.ready). Asked before showing a button that
+     *  opens it, so a plugin that is off or not set up shows none. Never on the UI thread. */
+    public boolean offers(String place) {
+        NativePlugin p = Natives.other(plugin, place);
+        if (p == null) return false;
+        try {
+            org.json.JSONArray all = VaultFiles.plugins(activity, vault);
+            if (!VaultFiles.on(all, p.id())) return false;
+            JSONObject listed = VaultFiles.plugin(all, p.id());
+            JSONObject s = listed == null ? null : listed.optJSONObject("settings");
+            return p.ready(s == null ? new JSONObject() : s);
+        } catch (Exception e) { return false; }
+    }
+
+    /** Another plugin's place `place` above this screen (Back comes here again), unlike openPlugin, which replaces it:
+     *  a reader handing a moment to another plugin (its audiobook's player) and carrying on after. */
+    public void openOver(String place) {
+        NativePlugin p = Natives.other(plugin, place);
+        if (p != null) PluginActivity.start(activity, p.id(), place);
+        else toast("Nothing in this app opens " + place);
     }
 
     /** Back to the app on a drawing, in its web editor this once (Excalidraw's every tool) rather than its native plugin. */

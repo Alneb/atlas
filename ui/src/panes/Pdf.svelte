@@ -1,6 +1,8 @@
 <script module lang="ts">
   import { releaseCanvases } from "../lib/release-canvases";
-  import { load, loadRaw, save, saveRaw } from "../lib/prefs";
+  import { loadRaw, save, saveRaw } from "../lib/prefs";
+  import { pdfPosKey, pdfPosition } from "../lib/pdf-position";
+  import { notedPlace, readingNote, writePlace } from "../lib/pdf-reading";
   import { superOf } from "../lib/keys";
   let lastUsed: HTMLElement | null = null; // the PDF pane the pointer was last in (see onWin below)
 </script>
@@ -75,7 +77,7 @@
   let findInput = $state<HTMLInputElement | null>(null);
 
   // per-viewer conveniences (which page, which zoom, dark pages): browser storage, never required
-  const posKey = () => `atlas.pdf.pos:${spec.path}`;
+  const posKey = () => pdfPosKey(spec.path);
   let posTimer = 0;
   function rememberPosition() {
     if (!container?.clientWidth) return; // hidden: nothing being read to remember
@@ -83,14 +85,32 @@
     posTimer = window.setTimeout(() => {
       if (!r || !container?.clientWidth) return;
       const at = r.where();
-      save(posKey(), { page: at.page, y: at.y, scale: String(r.zoom) });
+      save(posKey(), { page: at.page, y: at.y, scale: String(r.zoom), t: Date.now() });
+      notePlace(at.page);
       if (panel.isActive) tellWhere({ path: spec.path, page: r.page }); // the page, for a device that follows this one
     }, 400);
+  }
+  // where you are, also in the PDF's note when it has one (lib/pdf-reading.ts): a page held a while, then written once
+  let readingAt: Promise<string | null> | null = null;
+  const noteOfPdf = () => (readingAt ??= readingNote(spec.path));
+  let noteTimer = 0, notedPage = 0, pendingPage = 0;
+  const NOTE_AFTER_MS = 8000; // a page turned past, not read, is not written
+  function notePlace(page: number) {
+    pendingPage = page;
+    clearTimeout(noteTimer);
+    noteTimer = window.setTimeout(flushPlace, NOTE_AFTER_MS);
+  }
+  function flushPlace() {
+    clearTimeout(noteTimer); noteTimer = 0;
+    const page = pendingPage, total = r?.pages ?? 0;
+    if (!page || page === notedPage) return;
+    notedPage = page;
+    void noteOfPdf().then((note) => (note ? writePlace(note, page, total) : undefined)).catch(() => { notedPage = 0; });
   }
   /** The page and zoom this PDF was left at (the zoom saved as "page-width", "page-fit" or a number). */
   function savedPosition(): { page?: number; y?: number | null; zoom?: Zoom } {
     try {
-      const pos = load<{ page?: number; y?: number | null; scale?: string }>(posKey(), {});
+      const pos = pdfPosition(spec.path);
       const z = pos.scale === "page-width" || pos.scale === "page-fit" ? pos.scale : Number(pos.scale) > 0 ? Number(pos.scale) : undefined;
       return { ...(pos.page ? { page: pos.page, y: typeof pos.y === "number" ? pos.y : null } : {}), ...(z !== undefined ? { zoom: z } : {}) };
     } catch { return {}; }
@@ -221,6 +241,12 @@
     if (mod || typing) return;
     if (picked && (e.key === "Delete" || e.key === "Backspace")) { e.preventDefault(); e.stopPropagation(); deletePicked(); return; }
     if (picked && e.key === "Escape") { e.preventDefault(); e.stopPropagation(); unpick(); return; }
+    // zoomed to a column and at its end: Space / PageDown / ↓ go on to the next column, as reading does
+    if ((e.key === " " || e.key === "PageDown" || e.key === "ArrowDown") && !e.shiftKey && r?.atColumnEnd()) {
+      e.preventDefault(); e.stopPropagation();
+      void r.nextColumn();
+      return;
+    }
     // ← / → turn the page (the page before / after the one in view), as a book reader does
     if ((e.key === "ArrowLeft" || e.key === "ArrowRight") && !e.altKey && !e.shiftKey) {
       e.preventDefault(); e.stopPropagation();
@@ -243,6 +269,14 @@
     else if (k === "d") toggleDark();
     else return;
     e.preventDefault();
+  }
+
+  // A double-click on the page's white (between lines, a margin, the gutter) zooms to the text column there, the
+  // phone's double tap (core pdf_columns.rs); on a word it still selects the word. Again: the zoom before.
+  function columnZoom(e: MouseEvent) {
+    if (!r || tool !== "select" || erasing || (e.target as HTMLElement).closest(".textLayer span, a, .linkLayer section, [data-annotation-id]")) return;
+    e.preventDefault();
+    void r.zoomToColumn(e.clientX, e.clientY).then((ok) => { if (!ok) flash("No text column there", 2000); });
   }
 
   // Ctrl+wheel and a touchpad pinch zoom the pages smoothly: scaled at once, drawn sharp when the gesture rests
@@ -283,6 +317,10 @@
   async function openViewer(): Promise<void> {
     try {
       const was = savedPosition();
+      // read further on another device (its note's place newer than this viewer's): opened there
+      const noted = spec.page ? null : await noteOfPdf().then((n) => (n ? notedPlace(n) : null));
+      if (noted && noted.page !== was.page && noted.at > (pdfPosition(spec.path).t ?? 0)) { was.page = noted.page; was.y = null; }
+      if (noted) notedPage = noted.page;
       const reader = await openReader(container, spec.path, await engine(engineName), { zoom: was.zoom ?? openZoom(), page: spec.page ?? was.page, y: spec.page ? null : was.y });
       if (disposed) { reader.destroy(); return; }
       r = reader;
@@ -336,6 +374,7 @@
     return () => {
       disposed = true;
       marks?.stop(); offPan(); offActive.dispose(); pdfPages.delete(panel.id); ro.disconnect(); clearTimeout(posTimer); clearTimeout(exportTimer);
+      if (noteTimer) flushPlace(); // closed while a page was being held: its place still goes to the note
       // closed within the export's wait: the note still follows the last marks, once they are saved
       const reader = r;
       void (tools?.destroy() ?? Promise.resolve()).finally(() => { reader?.destroy(); if (exportTimer !== 0) { exportTimer = 0; void toNotes(); } });
@@ -456,7 +495,7 @@
       {#if picked && barAt}
         <PdfMarkBar mark={picked} at={barAt} onrecolor={(hex) => editPicked(recoloured(picked!, hex))} onreword={(t) => editPicked(reworded(picked!, t))} ondelete={deletePicked} onclose={unpick} />
       {/if}
-      <div class="viewer-container" tabindex="-1" onscroll={() => { if (picked) placeBar(); }} class:inking={tool === "ink"} class:noting={tool === "text" || tool === "postit" || tool === "clip" || tool === "stamp"} class:can-pan={tool === "select" && !erasing} class:erasing class:dark bind:this={container} onwheel={pinch} onclickcapture={eraseClick}>
+      <div class="viewer-container" tabindex="-1" onscroll={() => { if (picked) placeBar(); }} class:inking={tool === "ink"} class:noting={tool === "text" || tool === "postit" || tool === "clip" || tool === "stamp"} class:can-pan={tool === "select" && !erasing} class:erasing class:dark bind:this={container} onwheel={pinch} onclickcapture={eraseClick} ondblclick={columnZoom}>
         <div class="pdfViewer"></div>
       </div>
       {#if error}

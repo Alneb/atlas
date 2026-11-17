@@ -97,19 +97,30 @@ fn applies(c: &Cookie, host: &str, path: &str, https: bool, at: u64) -> bool {
     host_ok && path_ok && (https || !c.secure) && c.expires.is_none_or(|e| e > at)
 }
 
+/// Where the sign-ins are kept: the device's store, not the vault's (a gate's session and a bypass key are this
+/// machine's way past the gate, for every vault on it and for the phone's native screens). A vault's own `@signin`
+/// section, from before, is moved there the first time it is asked (`Store::move_section`). Every read and write of
+/// the section goes through here.
+pub(crate) fn signins(store: &Store) -> Result<Store> {
+    let device = store.device();
+    store.move_section(SECTION, &device)?;
+    Ok(device)
+}
+
 /// Keep what a sign-in window ended with on `host` (replacing an earlier sign-in there).
 pub fn keep(store: &Store, host: &str, cookies: Vec<Cookie>) -> Result<()> {
+    let store = &signins(store)?;
     let entry = Entry { at: now(), cookies, renewed: None, ended: false };
     store.set(SECTION, &key(host), &serde_json::to_string(&entry).map_err(|e| crate::Error::Other(e.into()))?)
 }
 
 pub fn forget(store: &Store, host: &str) -> Result<bool> {
-    store.delete(SECTION, &key(host))
+    signins(store)?.delete(SECTION, &key(host))
 }
 
 fn entries(store: &Store) -> Result<Vec<(String, Entry)>> {
     let mut out = Vec::new();
-    for (name, raw) in store.values(SECTION, None)? {
+    for (name, raw) in signins(store)?.values(SECTION, None)? {
         let Some(host) = name.strip_prefix("door.") else { continue };
         if let Ok(e) = serde_json::from_str::<Entry>(&raw) {
             out.push((host.to_string(), e));
@@ -189,6 +200,7 @@ async fn touch_at(store: &Store, host: &str, address: &str) -> Result<()> {
         }
     }
     let gate = detect(&url, &url, status, &headers, false).is_some();
+    let store = &signins(store)?;
     let Some(raw) = store.get(SECTION, &key(host))? else { return Ok(()) };
     let Ok(mut e) = serde_json::from_str::<Entry>(&raw) else { return Ok(()) };
     if gate {
@@ -291,8 +303,199 @@ pub fn detect(asked: &reqwest::Url, landed: &reqwest::Url, status: u16, headers:
     door.then(|| Needed::Door { host, page: asked.to_string() })
 }
 
+// ── a gate's bypass: a shared key in a header that skips the sign-in in front ────────────────────────────────────
+// A reverse proxy may let a request holding a shared key past its gate (an Authelia bypass for native clients that
+// cannot do a browser login). The key is a password to every host behind it, so it is sent only
+// where it was meant for: to the hosts named — `abs.example.org` exactly, or `*.example.org` for its subdomains (never
+// a look-alike: `evilexample.org`, `example.org.evil.net`) — only over https, and never on with a redirect to
+// another host (the callers' clients follow none, or none off the host, when it is sent). Kept in the vault's secrets
+// beside the gates' sessions, never shown to a page: listed by its hosts and header name only.
+
+/// One bypass as it is listed: where it is sent and in which header; its value stays in the store.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, TS)]
+#[ts(export)]
+pub struct Bypass {
+    /// `abs.example.org` or `*.example.org` (its subdomains), lowercase, one or more
+    pub hosts: Vec<String>,
+    /// the header's name (`X-Api-Key`…)
+    pub header: String,
+}
+
+#[derive(Serialize, Deserialize)]
+struct BypassKept {
+    #[serde(flatten)]
+    rule: Bypass,
+    value: String,
+}
+
+const BYPASS: &str = "bypass";
+
+/// Whether `pattern` (an exact host, or `*.domain` for its subdomains) names `host`. Never a bare `*`, never a
+/// pattern with a wildcard elsewhere.
+pub fn host_matches(pattern: &str, host: &str) -> bool {
+    let (p, h) = (pattern.trim().trim_end_matches('.').to_ascii_lowercase(), host.trim().trim_end_matches('.').to_ascii_lowercase());
+    if h.is_empty() || p.is_empty() {
+        return false;
+    }
+    match p.strip_prefix("*.") {
+        Some(domain) => !domain.is_empty() && !domain.contains('*') && h.len() > domain.len() + 1 && h.ends_with(&format!(".{domain}")),
+        None => !p.contains('*') && p == h,
+    }
+}
+
+/// A rule's hosts checked: each an exact host or `*.domain` with at least two labels (`*.org` would name a whole
+/// top-level domain), and a header name that is a token.
+fn checked(rule: &Bypass) -> Result<Bypass> {
+    let bad = |why: String| crate::Error::BadRequest(why);
+    let hosts: Vec<String> = rule.hosts.iter().map(|h| h.trim().trim_end_matches('.').to_ascii_lowercase()).filter(|h| !h.is_empty()).collect();
+    if hosts.is_empty() {
+        return Err(bad("a bypass needs the hosts it is for (abs.example.org, or *.example.org)".into()));
+    }
+    for h in &hosts {
+        let bare = h.strip_prefix("*.").unwrap_or(h);
+        let ok = !bare.contains('*') && bare.contains('.') && bare.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '.') && !bare.starts_with('.') && !bare.contains("..");
+        if !ok {
+            return Err(bad(format!("{h:?} is not a host or a *.domain (two labels at least)")));
+        }
+    }
+    let header = rule.header.trim().to_string();
+    let reserved = ["cookie", "authorization", "host", "content-length", "transfer-encoding", "connection"];
+    if header.is_empty() || !header.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_') || reserved.contains(&header.to_ascii_lowercase().as_str()) {
+        return Err(bad(format!("{header:?} is not a header name a bypass may use")));
+    }
+    Ok(Bypass { hosts, header })
+}
+
+fn bypasses(store: &Store) -> Result<Vec<BypassKept>> {
+    Ok(signins(store)?.get(SECTION, BYPASS)?.and_then(|raw| serde_json::from_str(&raw).ok()).unwrap_or_default())
+}
+
+fn keep_bypasses(store: &Store, all: &[BypassKept]) -> Result<()> {
+    let store = &signins(store)?;
+    if all.is_empty() {
+        store.delete(SECTION, BYPASS)?;
+        return Ok(());
+    }
+    store.set(SECTION, BYPASS, &serde_json::to_string(all).map_err(|e| crate::Error::Other(e.into()))?)
+}
+
+/// The bypasses kept, without their values.
+pub fn bypass_list(store: &Store) -> Result<Vec<Bypass>> {
+    Ok(bypasses(store)?.into_iter().map(|b| b.rule).collect())
+}
+
+/// Keep a bypass (replacing one with the same header and hosts); `value` empty keeps the old value of that rule.
+pub fn bypass_set(store: &Store, rule: &Bypass, value: &str) -> Result<()> {
+    let rule = checked(rule)?;
+    let mut all = bypasses(store)?;
+    let old = all.iter().position(|b| b.rule.header.eq_ignore_ascii_case(&rule.header) && b.rule.hosts == rule.hosts);
+    let value = match (value.trim(), old) {
+        ("", Some(i)) => all[i].value.clone(),
+        ("", None) => return Err(crate::Error::BadRequest("a bypass needs its key".into())),
+        (v, _) => v.to_string(),
+    };
+    if let Some(i) = old {
+        all.remove(i);
+    }
+    all.push(BypassKept { rule, value });
+    keep_bypasses(store, &all)
+}
+
+/// Forget the bypass sent in `header` to `hosts`; whether there was one.
+pub fn bypass_forget(store: &Store, rule: &Bypass) -> Result<bool> {
+    let Ok(rule) = checked(rule) else { return Ok(false) };
+    let mut all = bypasses(store)?;
+    let before = all.len();
+    all.retain(|b| !(b.rule.header.eq_ignore_ascii_case(&rule.header) && b.rule.hosts == rule.hosts));
+    let gone = all.len() < before;
+    keep_bypasses(store, &all)?;
+    Ok(gone)
+}
+
+/// The bypass header for a request to `url`: its first rule naming the host, over https only.
+pub fn bypass_header(store: &Store, url: &reqwest::Url) -> Result<Option<(String, String)>> {
+    if url.scheme() != "https" && url.scheme() != "wss" {
+        return Ok(None);
+    }
+    let host = url.host_str().unwrap_or_default();
+    Ok(bypasses(store)?.into_iter().find(|b| b.rule.hosts.iter().any(|p| host_matches(p, host))).map(|b| (b.rule.header, b.value)))
+}
+
+/// Everything kept for a request to `url` — the gate's session cookie and the bypass header — as the headers to add:
+/// the one place every outgoing path asks (plugins' fetch and media, remote vaults, the mirror, the phone's servers).
+/// `secret`: one of them is a key that must not follow a redirect off the host (the bypass).
+pub struct SiteHeaders {
+    pub headers: Vec<(String, String)>,
+    pub secret: bool,
+}
+
+pub fn site_headers(store: &Store, url: &reqwest::Url) -> Result<SiteHeaders> {
+    let mut headers = Vec::new();
+    if let Some(c) = cookie_header(store, url)? {
+        headers.push(("cookie".to_string(), c));
+    }
+    let bypass = bypass_header(store, url)?;
+    let secret = bypass.is_some();
+    headers.extend(bypass);
+    Ok(SiteHeaders { headers, secret })
+}
+
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn the_sign_ins_are_the_devices_and_a_vaults_old_ones_move_there_once() {
+        let sdir = tempfile::tempdir().unwrap();
+        let (a, b) = (tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap());
+        let (va, vb) = (Store::in_dir(sdir.path(), a.path()), Store::in_dir(sdir.path(), b.path()));
+        // from before: a vault kept its own sign-in, a key and a plugin secret
+        va.set(SECTION, "door.old.example.org", r#"{"at":1,"cookies":[{"name":"s","value":"v","domain":"old.example.org","host_only":true,"path":"/","secure":true,"expires":null}]}"#).unwrap();
+        va.set("net", "token", "plugin's own").unwrap();
+        // the device already has a newer sign-in to the same host: it wins
+        let device = Store::device_in(sdir.path());
+        assert!(device.same(&va.device()) && device.same(&vb.device()), "one device store for every vault of the folder");
+        bypass_set(&vb, &Bypass { hosts: vec!["atlas.example.org".into()], header: "X-Api-Key".into() }, "k").unwrap();
+        // seen from the other vault: the key kept from the first, the old vault's sign-in moved over
+        assert_eq!(bypass_list(&va).unwrap().len(), 1, "a key kept in one vault is the device's");
+        assert_eq!(list(&vb).unwrap().iter().map(|k| k.host.as_str()).collect::<Vec<_>>(), ["old.example.org"]);
+        assert!(va.names(SECTION).unwrap().is_empty(), "moved out of the vault's file");
+        assert_eq!(va.get("net", "token").unwrap().as_deref(), Some("plugin's own"), "a plugin's secrets stay the vault's");
+        let h = site_headers(&vb, &"https://atlas.example.org/v/notes/".parse().unwrap()).unwrap();
+        assert!(h.headers.contains(&("X-Api-Key".to_string(), "k".to_string())));
+        // a second vault with an older copy of the same host: the device's entry is kept
+        vb.set(SECTION, "door.old.example.org", r#"{"at":0,"cookies":[]}"#).unwrap();
+        assert_eq!(list(&vb).unwrap()[0].cookies, 1, "what the device has wins over a vault's leftover");
+        assert!(vb.names(SECTION).unwrap().is_empty());
+    }
+
+    #[test]
+    fn a_bypass_goes_only_to_the_hosts_it_names_over_https() {
+        assert!(host_matches("abs.example.org", "ABS.example.org."));
+        assert!(host_matches("*.example.org", "abs.example.org") && host_matches("*.example.org", "a.b.example.org"));
+        assert!(!host_matches("*.example.org", "example.org"), "*.domain: its subdomains, not the domain itself");
+        assert!(!host_matches("*.example.org", "evilexample.org") && !host_matches("*.example.org", "example.org.evil.net"));
+        assert!(!host_matches("example.org", "abs.example.org") && !host_matches("*", "abs.example.org") && !host_matches("a*.example.org", "ab.example.org"));
+        let (sdir, vault) = (tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap());
+        let store = Store::in_dir(sdir.path(), vault.path());
+        let rule = Bypass { hosts: vec!["*.Example.org".into()], header: "X-Api-Key".into() };
+        assert!(bypass_set(&store, &Bypass { hosts: vec!["*.org".into()], header: "X-Api-Key".into() }, "k").is_err(), "a whole top-level domain");
+        assert!(bypass_set(&store, &Bypass { hosts: vec!["*".into()], header: "X-Api-Key".into() }, "k").is_err());
+        assert!(bypass_set(&store, &Bypass { hosts: vec!["abs.example.org".into()], header: "Cookie".into() }, "k").is_err(), "not a header of the sign-ins'");
+        assert!(bypass_set(&store, &rule, "").is_err(), "a new bypass needs its key");
+        bypass_set(&store, &rule, "s3cret").unwrap();
+        assert_eq!(bypass_list(&store).unwrap(), vec![Bypass { hosts: vec!["*.example.org".into()], header: "X-Api-Key".into() }], "listed without its value");
+        let at = |u: &str| bypass_header(&store, &u.parse().unwrap()).unwrap();
+        assert_eq!(at("https://abs.example.org/api/me"), Some(("X-Api-Key".into(), "s3cret".into())));
+        assert_eq!(at("http://abs.example.org/api/me"), None, "never over plain http");
+        assert_eq!(at("https://evilexample.org/"), None);
+        assert_eq!(at("https://example.org/"), None);
+        let h = site_headers(&store, &"https://abs.example.org/".parse().unwrap()).unwrap();
+        assert!(h.secret && h.headers.iter().any(|(n, _)| n == "X-Api-Key"), "a secret: the callers follow no redirect off the host with it");
+        bypass_set(&store, &rule, "").unwrap();
+        assert_eq!(at("https://abs.example.org/").unwrap().1, "s3cret", "saved again without a value: the key kept");
+        assert!(bypass_forget(&store, &rule).unwrap());
+        assert_eq!(at("https://abs.example.org/"), None);
+    }
+
     use super::*;
 
     /// A stand-in gated service: each connection gets the next canned answer.

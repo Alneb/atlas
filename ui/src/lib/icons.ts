@@ -2,6 +2,13 @@
 import type { IconName } from "./panes";
 
 const P: Record<IconName, string> = {
+  mic: '<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21M8.5 21h7"/>',
+  camera: '<path d="M4 8.5A2 2 0 0 1 6 6.5h2l1.5-2h5l1.5 2h2a2 2 0 0 1 2 2V18a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z"/><circle cx="12" cy="13" r="3.5"/>',
+  indent: '<path d="M11 6h9M11 12h9M11 18h9"/><path d="m4 9 3 3-3 3"/>',
+  outdent: '<path d="M11 6h9M11 12h9M11 18h9"/><path d="m7 9-3 3 3 3"/>',
+  brackets: '<path d="M7 4H4.5v16H7M10 4H8.5v16H10M17 4h2.5v16H17M14 4h1.5v16H14"/>',
+  "keyboard-down": '<rect x="3" y="3.5" width="18" height="11" rx="2"/><path d="M7 7.5h.01M11 7.5h.01M15 7.5h.01M8 11h8"/><path d="m9 18 3 3 3-3"/>',
+  key: '<circle cx="7.5" cy="15.5" r="4"/><path d="m10.4 12.6 9.1-9.1M16 7l2.5 2.5M18.5 4.5 21 7"/>',
   user: '<circle cx="12" cy="8" r="4"/><path d="M4.5 20.5a7.5 7.5 0 0 1 15 0"/>',
   plugin: '<path d="M9 3.5v4M15 3.5v4"/><path d="M6 7.5h12v4a6 6 0 0 1-12 0z"/><path d="M12 17.5v3"/>',
   today: '<rect x="3" y="4.5" width="18" height="16.5" rx="2.5"/><path d="M8 2.5v4M16 2.5v4M3 10h18"/><path d="M8.5 15l2.3 2.3L15.5 12.8"/>',
@@ -84,6 +91,7 @@ const P: Record<IconName, string> = {
   "panel-bottom": '<rect x="3" y="4" width="18" height="16" rx="2.5"/><path d="M3 14.5h18"/>',
   "panel-right": '<rect x="3" y="4" width="18" height="16" rx="2.5"/><path d="M14.5 4v16"/>',
   outline: '<path d="M4 6h16M8 11h12M8 16h12M4 11h.01M4 16h.01"/>',
+  film: '<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M7 3v18M17 3v18M3 12h18M3 7.5h4M3 16.5h4M17 7.5h4M17 16.5h4"/>',
   headphones: '<path d="M3 18v-6a9 9 0 0 1 18 0v6"/><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/>',
   library: '<path d="M5 4.5h3.5v15H5zM10.5 4.5H14v15h-3.5z"/><path d="m16 5.2 3.3-.9 3.2 14.6-3.3.9z"/>',
   scissors: '<circle cx="6" cy="6" r="2.6"/><circle cx="6" cy="18" r="2.6"/><path d="M20 4 8.1 15.9M14.5 14.5 20 20M8.1 8.1 12 12"/>',

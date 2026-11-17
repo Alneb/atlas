@@ -294,7 +294,9 @@
 </script>
 
 <!-- svelte-ignore a11y_no_static_element_interactions -- a click on the padding gives the terminal its keys too -->
-<div class="term-pane" data-preset={spec.preset} onpointerdown={(e) => { if (e.target === e.currentTarget) { e.preventDefault(); terminals.get(panel.id)?.focus(); } }}>
+<!-- a press anywhere in it makes its tab the active one (F11, Super+F and every "this tab" command act on it): the
+     overlay a terminal is drawn in sits outside its group, and its focus did not always reach dockview -->
+<div class="term-pane" data-preset={spec.preset} onpointerdowncapture={() => { if (!panel.isActive) panel.setActive(); }} onpointerdown={(e) => { if (e.target === e.currentTarget) { e.preventDefault(); terminals.get(panel.id)?.focus(); } }}>
   <div class="term-host" bind:this={host} onfocusin={() => { const t = terminals.get(panel.id); if (t) t.usedAt = Date.now(); }}></div>
   {#if conn === "connecting"}<div class="term-status">connecting…</div>{/if}
 </div>

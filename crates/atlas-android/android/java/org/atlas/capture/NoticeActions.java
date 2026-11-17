@@ -7,7 +7,8 @@ import android.content.Intent;
 import android.util.Log;
 
 /** A button on one of the core's notifications (Notices.show), other than Open: the notification goes, and the press
- *  goes to the core, which answers it (notice_actions.rs: the core's Snooze, or the notice's plugin's own action). */
+ *  goes to the core, which answers it (notice_actions.rs: the core's Snooze, or the notice's plugin's own action).
+ *  Its delete intent comes here too, as `atlas:dismissed` (the notification is already gone). */
 public final class NoticeActions extends BroadcastReceiver {
     @Override
     public void onReceive(Context c, Intent intent) {

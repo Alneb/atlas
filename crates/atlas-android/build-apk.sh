@@ -75,16 +75,32 @@ helpers_for() { # helpers_for <app> <arch:abi>
 }
 for app in $apps; do full_app "$app" && for pair in $abis; do helpers_for "$app" "$pair"; done; done
 
+# The plugins the full apps carry (docs/guides/ANDROID.md, "Plugins bundled in the app"): every phone-ready plugin's
+# run-time files as the APK's plugins/<id>/ assets; the app brings a folder vault's older copies up to them on opening
+# it (Bundled.java → plugin_install::sync_bundled). The selection's test first: a wrong rule fails the build.
+case " $apps " in *" atlas "*|*" boox "*)
+  echo "[apk]   the carried plugins (scripts/dev/bundle-plugins.mjs)"
+  node --test "$repo/scripts/dev/bundle-plugins.test.mjs"
+  node "$repo/scripts/dev/bundle-plugins.mjs" copy "$work/assets-full"
+  for app in $apps; do full_app "$app" && for pair in $abis; do cp -r "$work/assets-full" "$work/assets-$app-${pair#*:}"; done; done ;;
+esac
+
 echo "[apk] 2/4 the Java screen (javac → d8) and the resources (the icons generated from the desktop box's paths)"
 # the plain-Java logic first (the screen recognisers, the capture's addresses): a wrong guess fails the build, not the phone
 bash "$repo/crates/atlas-android/android/test/run.sh"
 mkdir -p "$work/classes" "$work/res"
 # the native plugins' Java (docs/refactor/REFACTOR-native-plugins.md) compiled with the app, and the list it reads generated
 mapfile -t plugin_dirs < <(bash "$repo/crates/atlas-android/native-plugins.sh" "$work/NativePlugins.java")
+# a native plugin's own launcher entry ([android] launcher): its activity in the full app's manifest, its adaptive icon,
+# the class it names (android-launchers.mjs; its test first)
+node --test "$repo/scripts/dev/android-launchers.test.mjs"
+mkdir -p "$work/launcher-res"
+node "$repo/scripts/dev/android-launchers.mjs" "$repo/crates/atlas-android/android/AndroidManifest.atlas.xml" "$work/AndroidManifest.atlas.xml" "$work/launcher-res" "$work/PluginLaunchers.java"
 plugin_java=(); for d in "${plugin_dirs[@]+"${plugin_dirs[@]}"}"; do while IFS= read -r f; do plugin_java+=("$f"); done < <(find "$d" -name '*.java'); done
-javac -nowarn -source 17 -target 17 -cp "$jar" -d "$work/classes" "$repo"/crates/atlas-android/android/java/org/atlas/capture/*.java "$repo"/crates/atlas-android/android/java/org/atlas/notepad/*.java "$work/NativePlugins.java" "${plugin_java[@]+"${plugin_java[@]}"}"
+javac -nowarn -source 17 -target 17 -cp "$jar" -d "$work/classes" "$repo"/crates/atlas-android/android/java/org/atlas/capture/*.java "$repo"/crates/atlas-android/android/java/org/atlas/notepad/*.java "$work/NativePlugins.java" "$work/PluginLaunchers.java" "${plugin_java[@]+"${plugin_java[@]}"}"
 "$bt/d8" --release --min-api $api --lib "$jar" --output "$work" $(find "$work/classes" -name '*.class')
 cp -r "$repo/crates/atlas-android/android/res/." "$work/res/"
+cp -r "$work/launcher-res/." "$work/res/"
 cargo run -q -p atlas-android --bin android-res -- "$work/res"
 "$bt/aapt2" compile --dir "$work/res" -o "$work/res.zip"
 key=$tc/atlas-debug.keystore
@@ -97,11 +113,12 @@ for app in $apps; do
   case $app in atlas) name=atlas;; boox) name=atlas-boox;; *) name=atlas-capture;; esac
   name=$name$([ "$abi" = arm64-v8a ] || echo "-$abi")
   manifest=$repo/crates/atlas-android/android/AndroidManifest.$app.xml
+  [ "$app" = atlas ] && manifest=$work/AndroidManifest.atlas.xml # with the plugins' launcher entries
   if [ "$app" = boox ]; then # the full app's manifest as its own package: beside "Atlas" on the same tablet
     manifest=$work/AndroidManifest.boox.xml
     sed -e 's/package="org.atlas.app"/package="org.atlas.boox"/' -e 's/android:label="Atlas"/android:label="Atlas for Boox"/' \
       -e 's/android:scheme="org.atlas.app"/android:scheme="org.atlas.boox"/' \
-      -e 's/android:authorities="org.atlas.app.photos"/android:authorities="org.atlas.boox.photos"/' "$repo/crates/atlas-android/android/AndroidManifest.atlas.xml" > "$manifest"
+      -e 's/android:authorities="org.atlas.app.photos"/android:authorities="org.atlas.boox.photos"/' -e 's/android:taskAffinity="org.atlas.plugin\./android:taskAffinity="org.atlas.boox.plugin./' "$work/AndroidManifest.atlas.xml" > "$manifest"
     grep -q 'package="org.atlas.boox"' "$manifest" && grep -q 'android:scheme="org.atlas.boox"' "$manifest" && ! grep -q 'org.atlas.app.photos' "$manifest" || { echo "[apk] the Boox manifest was not made (the full app's changed shape)" >&2; exit 1; }
   fi
   echo "[apk] 3/4 $name: linked with $(basename "$manifest"), the library and the code in, aligned"

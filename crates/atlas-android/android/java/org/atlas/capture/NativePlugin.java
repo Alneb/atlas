@@ -16,6 +16,10 @@ public interface NativePlugin {
      *  libraries are the page's, which hands a book over (`atlas.openNative`). */
     View view(Host host, String path);
 
+    /** Whether it is set up enough for another plugin to offer its places (`settings`: its own, the defaults filled
+     *  in): a server's client without its server says no, and the place is not offered (Host.offers). */
+    default boolean ready(org.json.JSONObject settings) { return true; }
+
     /** A plugin's screen with places inside it (a library, a series, the reader): Back goes up one of them first;
      *  false = it is at its top, the app takes Back. */
     interface Back { boolean back(); }

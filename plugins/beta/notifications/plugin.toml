@@ -6,8 +6,10 @@ title = "Notifications"
 description = "your server's notifications (ntfy, Apprise), a note per source"
 phone = true
 icon = "bell"
-version = "0.5.0"
+version = "0.6.0"
 api = 19
+needs = ">=0.3.0"          # the first core that reads `background` (older ones refuse the key)
+background = "server"  # the ntfy poll files notes: one poller (the server is the hub), not one per open device
 # the ntfy plugin's sending and inbox are this plugin's: a vault that had it keeps its server, topics and token
 [replaces]
 ntfy = { rename = { topic = "phone_topic" } }
@@ -83,7 +85,7 @@ timeout_secs = 60
 [[tool]]
 name = "send"
 description = "Send a short message to the user's phone (through Apprise when set, else their ntfy topic). Use it when the user asks to be told or reminded on their phone, e.g. when a long job ends."
-input = { text = "string", title = { type = "string", description = "the notification's title (default: Atlas)", optional = true } }
+input = { text = "string", title = { type = "string", description = "the notification's title (default: Atlas)", optional = true }, actions = { type = "array", description = "buttons, for other plugins: [{ label, url, method?, body? }], each press a request from the phone (a hook's address); sent through ntfy, which alone shows them (at most 3)", optional = true }, click = { type = "string", description = "the address a tap on the notification opens", optional = true } }
 secrets = ["token", "password"]
 timeout_secs = 40
 

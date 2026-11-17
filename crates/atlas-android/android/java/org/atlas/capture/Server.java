@@ -27,6 +27,7 @@ final class Server {
         // a server's address is looked up again soon, and a failed lookup never kept: after a network change (Wi-Fi ↔ data, a VPN) it is found anew
         java.security.Security.setProperty("networkaddress.cache.ttl", "20");
         java.security.Security.setProperty("networkaddress.cache.negative.ttl", "0");
+        new Thread(() -> Signins.migrate(app), "signins-migrate").start(); // a server's header of before → the one store
     }
 
     /**
@@ -52,9 +53,9 @@ final class Server {
         // Bearer only with no gate in front: a sign-in in front (Authelia) reads `Authorization` as its own credentials and
         // refuses the request whatever its session cookie says
         else if (!token.isEmpty()) h.put("Authorization", "Bearer " + token); // a server from before x-atlas-token
-        String extra = v.header(server);
-        int colon = extra.indexOf(':');
-        if (colon > 0) h.put(extra.substring(0, colon).trim(), extra.substring(colon + 1).trim());
+        // a gate's bypass key: the device's sign-ins (Signins → the core's service_signin.rs), the one rule every path
+        // sends — to the hosts it names only, over https only
+        h.putAll(Signins.keys(c, server));
         return h;
     }
 

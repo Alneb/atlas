@@ -46,6 +46,26 @@ export function placeDeadlines(m: PageModel): boolean {
   return true;
 }
 
+/** Whether a home document already shows the deadlines: a `.page` with the block, a note with the `view` block. */
+export function hasDeadlinesBox(path: string, text: string): boolean {
+  if (!path.endsWith(".page")) return MD_HAS.test(text);
+  try { return parsePage(text).model.rows.some((r) => r.columns.flat().some((b) => b.type === "deadlines")); } catch { return true; } // unreadable: never offered
+}
+const MD_HAS = /^type:\s*deadlines\s*$/m;
+
+const OFFERED = "atlas-deadlines-offered";
+/** Deadlines have no tile of their own: they are Home's. A home document without the box is offered it once per
+ *  vault and device, with one click to add it (the home is the user's file, so it is changed only on that click). */
+export async function offerOnHome(path: string): Promise<void> {
+  const key = `${OFFERED}:${path}`;
+  try { if (localStorage.getItem(key)) return; } catch { return; }
+  const doc = await api.file(path).catch(() => null);
+  if (!doc || hasDeadlinesBox(path, doc.text)) return;
+  try { localStorage.setItem(key, "1"); } catch { /* offered again next time */ }
+  toast("What is due is on Home now", "Deadlines no longer have their own button: add their box to your home document.", "info", 12000,
+    { label: "Add the box", run: () => void addDeadlinesToHome() });
+}
+
 const MD_BOX = "```view\ntype: deadlines\n```\n";
 
 /** Settings → Home & Today, "Add the deadlines box": the home document is the user's, so it is changed only here,
@@ -60,7 +80,7 @@ export async function addDeadlinesToHome(): Promise<void> {
       const { model, doc: yaml } = parsePage(doc.text);
       text = placeDeadlines(model) ? writePage(model, yaml) : null;
     } else {
-      text = /^type:\s*deadlines\s*$/m.test(doc.text) ? null : `${doc.text.replace(/\n*$/, "\n\n")}${MD_BOX}`;
+      text = MD_HAS.test(doc.text) ? null : `${doc.text.replace(/\n*$/, "\n\n")}${MD_BOX}`;
     }
     if (text === null) { toast("Home already has the deadlines box", path); openPath(path); return; }
     await api.putFile(path, text, doc.mtime);

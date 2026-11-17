@@ -924,6 +924,9 @@ pub struct NoticeAction {
 impl NoticeAction {
     /// The core's Open: what a click on the notification does (its `open`, else Atlas brought forward).
     pub const OPEN: &'static str = "atlas:open";
+    /// Not a button: what the platform's notifier says when the person dismisses the notification (swiped away,
+    /// closed); it reaches the source plugin's `on = "notice"` tool like a press (notice_actions.rs).
+    pub const DISMISSED: &'static str = "atlas:dismissed";
 
     pub fn new(id: impl Into<String>, label: impl Into<String>) -> Self {
         Self { id: id.into(), label: label.into() }

@@ -45,3 +45,19 @@ test("a page follows what another shows: the note, then the PDF and its page; Es
   await expect(page.locator("html.glance")).toHaveCount(0);
   for (const p of ["notes/glance-a.md", "books/glance.pdf"]) await request.post(`/api/fs/trash?path=${encodeURIComponent(p)}`, { headers: H });
 });
+
+test("what another device shows is a chip in the status bar: one click opens it here", async ({ page, request }) => {
+  await request.put("/api/file", { headers: H, data: { path: "notes/elsewhere-a.md", text: "# Elsewhere A\n\nOpen on the other device.\n" } });
+  await request.put("/api/file", { headers: H, data: { path: "notes/elsewhere-b.md", text: "# Elsewhere B\n\nOpen here.\n" } });
+  const other = await page.context().newPage();
+  for (const p of [page, other]) { await p.goto("/"); await expect(p.getByTestId("sidebar")).toBeVisible({ timeout: 20_000 }); }
+  await atlas(page).open("notes/elsewhere-b.md");
+  await atlas(other).open("notes/elsewhere-a.md");
+  const chip = page.getByTestId("elsewhere").filter({ hasText: "elsewhere-a" });
+  await expect(chip).toBeVisible({ timeout: 15_000 });
+  await chip.click();
+  await expect(page.locator(".cm-content", { hasText: "Open on the other device." })).toBeVisible();
+  // both show the same note now: nothing elsewhere to go to
+  await expect(page.getByTestId("elsewhere")).toHaveCount(0);
+  for (const p of ["notes/elsewhere-a.md", "notes/elsewhere-b.md"]) await request.post(`/api/fs/trash?path=${encodeURIComponent(p)}`, { headers: H });
+});

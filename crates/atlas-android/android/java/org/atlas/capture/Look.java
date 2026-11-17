@@ -1,5 +1,7 @@
 package org.atlas.capture;
 
+import org.json.JSONObject;
+
 import android.content.Context;
 import android.content.res.ColorStateList;
 import android.content.res.Configuration;
@@ -33,29 +35,60 @@ public final class Look {
         return b.matches("(?i).+\\.(md|markdown|txt|page)") && !b.matches("(?i).+\\.excalidraw\\.md") ? b.replaceFirst("(?i)\\.(md|markdown|txt|page)$", "") : b;
     }
 
+    /** The page's tokens each of Look's colours is read from (null: kept as the app's own), in the constructor's order. */
+    private static final String[] TOKENS = { "--bg-elev", "--bg-app", "--bg-elev", "--bg-hover", "--border", "--border-strong", "--text", "--text-muted", "--text-faint", "--accent", "--accent-soft", null, null, null, "--accent-fg" };
+    private static final String PREFS = "atlas.look", KEY = "page";
+
+    static boolean systemDark(Context c) { return (c.getResources().getConfiguration().uiMode & Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES; }
+
+    /** The page's look as last saved, or null: none yet, or it follows the phone and the phone has since turned dark or
+     *  light (the page sends the new one as it loads). */
+    private static JSONObject saved(Context c, boolean systemDark) {
+        try {
+            String s = c.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(KEY, null);
+            if (s == null) return null;
+            JSONObject o = new JSONObject(s);
+            return o.optBoolean("system", false) && o.optBoolean("dark") != systemDark ? null : o;
+        } catch (Exception e) { return null; }
+    }
+
+    /** The page's look (lib/settings.svelte.ts: {dark, system, "--bg": …}) kept for every native screen made after;
+     *  true when it differs from the one kept (the screens on show are then drawn again). */
+    static boolean save(Context c, String json) {
+        android.content.SharedPreferences p = c.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+        if (json == null || json.equals(p.getString(KEY, null))) return false;
+        try { new JSONObject(json); } catch (Exception e) { return false; }
+        p.edit().putString(KEY, json).apply();
+        return true;
+    }
+
     /** Whether the last Look made was e-ink: what `Host.einkScreen` answers, where there is no Context to ask. */
     static volatile boolean einkApp = isEink();
 
     Look(Context c) {
         eink = Edition.of(c) == Edition.BOOX || isEink(); // the Boox app is always e-ink
         einkApp = eink;
-        dark = !eink && (c.getResources().getConfiguration().uiMode & Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES;
+        boolean dark = !eink && systemDark(c);
         // e-ink: everything a little larger, its text too (label)
         density = c.getResources().getDisplayMetrics().density * (eink ? EINK_SCALE : 1f);
-        int[] you = eink ? null : wallpaper(c, dark); // Android 12+: the accent is the wallpaper's (Material You)
+        // the vault's own look, as its page last drew it (the theme the phone chose, its palette, its accent): every
+        // native screen takes the page's colours, so the app's bars, Settings, sheets and readers match the page
+        JSONObject page = eink ? null : saved(c, dark);
+        if (page != null) dark = page.optBoolean("dark", dark);
+        this.dark = dark;
+        int[] you = eink || page != null ? null : wallpaper(c, dark); // Android 12+: the accent is the wallpaper's (Material You)
+        int[] t; // bg, app, pop, hover, border, borderStrong, text, muted, faint, accent, accentSoft, purple, green, red, accentFg
         if (dark) {
-            bg = 0xff1f2229; app = 0xff16181d; pop = 0xff262a32; hover = 0x0bffffff; border = 0x12ffffff; borderStrong = 0x1fffffff;
-            text = 0xffdcdfe5; muted = 0xff9aa1ad; faint = 0xff8b919c; accent = you != null ? you[0] : 0xff8aa4ff; accentSoft = accent & 0xffffff | 0x1f000000;
-            purple = 0xffc4a7ff; green = 0xff86d1a0; red = 0xfff28b8f; accentFg = 0xff0b0d12;
+            int a = you != null ? you[0] : 0xff8aa4ff;
+            t = new int[] { 0xff1f2229, 0xff16181d, 0xff262a32, 0x0bffffff, 0x12ffffff, 0x1fffffff, 0xffdcdfe5, 0xff9aa1ad, 0xff8b919c, a, a & 0xffffff | 0x1f000000, 0xffc4a7ff, 0xff86d1a0, 0xfff28b8f, 0xff0b0d12 };
         } else if (eink) {
-            bg = 0xffffffff; app = 0xffffffff; pop = 0xffffffff; hover = 0x00000000; border = 0xff8a8a8a; borderStrong = 0xff000000;
-            text = 0xff000000; muted = 0xff1f1f1f; faint = 0xff3a3a3a; accent = 0xff000000; accentSoft = 0xffe4e4e4;
-            purple = 0xff000000; green = 0xff145c2e; red = 0xff8f1a20; accentFg = 0xffffffff;
+            t = new int[] { 0xffffffff, 0xffffffff, 0xffffffff, 0x00000000, 0xff8a8a8a, 0xff000000, 0xff000000, 0xff1f1f1f, 0xff3a3a3a, 0xff000000, 0xffe4e4e4, 0xff000000, 0xff145c2e, 0xff8f1a20, 0xffffffff };
         } else {
-            bg = 0xffffffff; app = 0xffeceef2; pop = 0xffffffff; hover = 0x0b0f172a; border = 0x160f172a; borderStrong = 0x240f172a;
-            text = 0xff23272e; muted = 0xff5b6270; faint = 0xff676c77; accent = you != null ? you[0] : 0xff4762d9; accentSoft = you != null ? you[0] & 0xffffff | 0x1a000000 : 0x1a4864dd;
-            purple = 0xff8150d6; green = 0xff2f9e5c; red = 0xffd4464f; accentFg = 0xffffffff;
+            t = new int[] { 0xffffffff, 0xffeceef2, 0xffffffff, 0x0b0f172a, 0x160f172a, 0x240f172a, 0xff23272e, 0xff5b6270, 0xff676c77, you != null ? you[0] : 0xff4762d9, you != null ? you[0] & 0xffffff | 0x1a000000 : 0x1a4864dd, 0xff8150d6, 0xff2f9e5c, 0xffd4464f, 0xffffffff };
         }
+        if (page != null) for (int i = 0; i < TOKENS.length; i++) if (TOKENS[i] != null) t[i] = cssColor(page.optString(TOKENS[i], null), t[i]);
+        bg = t[0]; app = t[1]; pop = t[2]; hover = t[3]; border = t[4]; borderStrong = t[5]; text = t[6]; muted = t[7]; faint = t[8];
+        accent = t[9]; accentSoft = t[10]; purple = t[11]; green = t[12]; red = t[13]; accentFg = t[14];
     }
 
     // faint and the light accent are a step darker (lighter in dark) than the desktop's tokens: on a phone they carry
@@ -259,6 +292,19 @@ public final class Look {
 
     /** `#rrggbb` of a colour (its alpha dropped), as the page writes colours. */
     static String hex(int color) { return String.format(java.util.Locale.ROOT, "#%06x", color & 0xffffff); }
+
+    /** A CSS colour (#rrggbb, rgb(), rgba() with its alpha kept) as ARGB; `fallback` when it is none. */
+    static int cssColor(String css, int fallback) {
+        if (css == null) return fallback;
+        java.util.regex.Matcher m = java.util.regex.Pattern.compile("rgba\\(\\s*(\\d+)[ ,]+(\\d+)[ ,]+(\\d+)[ ,/]+([0-9.]+)").matcher(css.trim());
+        if (m.find()) {
+            try {
+                int a = Math.round(Math.max(0, Math.min(1, Float.parseFloat(m.group(4)))) * 255);
+                return a << 24 | Integer.parseInt(m.group(1)) << 16 | Integer.parseInt(m.group(2)) << 8 | Integer.parseInt(m.group(3));
+            } catch (NumberFormatException e) { return fallback; }
+        }
+        return parseCss(css, fallback);
+    }
 
     public static int parseCss(String css, int fallback) {
         if (css == null) return fallback;

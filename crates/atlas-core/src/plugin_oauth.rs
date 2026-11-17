@@ -183,7 +183,7 @@ fn answer(r: reqwest::blocking::Response, what: &str) -> Result<serde_json::Valu
 /// The plugin's value, else the vault's; neither is an error naming both.
 fn either(own: &Option<String>, vault: &str, what: &str, key: &str) -> Result<String> {
     own.as_deref().map(str::trim).filter(|v| !v.is_empty()).or(Some(vault.trim()).filter(|v| !v.is_empty())).map(String::from).ok_or_else(|| {
-        Error::BadRequest(format!("oauth: no {what}: the plugin names none and Settings → Accounts → Sign-ins for plugins has none ([plugins] {key})"))
+        Error::BadRequest(format!("oauth: no {what}: the plugin names none and Settings → Sign-ins → “Your provider, for every plugin” has none ([plugins] {key})"))
     })
 }
 
@@ -320,7 +320,7 @@ fn share(secrets: &Store, v: &serde_json::Value, token_endpoint: &str, client_id
         issuer: issuer.into(),
         renewed: now(),
     };
-    secrets.set(SECTION, &provider_key(token_endpoint), &serde_json::to_string(&t).map_err(|e| Error::Other(e.into()))?)?;
+    crate::service_signin::signins(secrets)?.set(SECTION, &provider_key(token_endpoint), &serde_json::to_string(&t).map_err(|e| Error::Other(e.into()))?)?;
     Ok(t)
 }
 
@@ -329,7 +329,7 @@ fn link(secrets: &Store, id: &str, name: &str, provider: &str) -> Result<()> {
 }
 
 fn shared(secrets: &Store, provider: &str) -> Result<Option<Tokens>> {
-    Ok(secrets.get(SECTION, provider)?.and_then(|t| serde_json::from_str(&t).ok()))
+    Ok(crate::service_signin::signins(secrets)?.get(SECTION, provider)?.and_then(|t| serde_json::from_str(&t).ok()))
 }
 
 /// The provider plugin `id`'s sign-in `name` uses, and its tokens. A plugin's own tokens from before sharing move to
@@ -389,7 +389,7 @@ pub fn ready(root: &Path, secrets: &Store, id: &str, name: &str, resource: &str)
     let vault = crate::config::Config::load(root).map(|c| c.plugins).unwrap_or_default();
     let issuer = vault.oidc_issuer.trim().trim_end_matches('/');
     if !issuer.is_empty() {
-        for key in secrets.names(SECTION)?.into_iter().filter(|k| k.starts_with("oidc.")) {
+        for key in crate::service_signin::signins(secrets)?.names(SECTION)?.into_iter().filter(|k| k.starts_with("oidc.")) {
             if shared(secrets, &key)?.is_some_and(|t| t.issuer == issuer && fresh_or_renewable(&t)) {
                 link(secrets, id, name, &key)?;
                 return Ok(true);
@@ -482,7 +482,7 @@ pub struct OidcSignin {
 /// Every provider signed in, with the plugins that use it (`ids`: the vault's plugins).
 pub fn providers(secrets: &Store, ids: &[String]) -> Result<Vec<OidcSignin>> {
     let mut out = Vec::new();
-    for key in secrets.names(SECTION)?.into_iter().filter(|k| k.starts_with("oidc.")) {
+    for key in crate::service_signin::signins(secrets)?.names(SECTION)?.into_iter().filter(|k| k.starts_with("oidc.")) {
         let Some(t) = shared(secrets, &key)? else { continue };
         let mut plugins = Vec::new();
         for id in ids {
@@ -502,14 +502,14 @@ pub fn forget(secrets: &Store, key: &str) -> Result<bool> {
     if !key.starts_with("oidc.") {
         return Err(Error::BadRequest(format!("oauth: {key:?} is not a provider's sign-in")));
     }
-    secrets.delete(SECTION, key)
+    crate::service_signin::signins(secrets)?.delete(SECTION, key)
 }
 
 /// Refresh tokens end unused (Authelia: 30 days) and rotate on use: a provider not used for a week is renewed, so a
 /// sign-in outlives a quiet month. Called by the sign-ins' keep-alive.
 pub fn keep_alive(secrets: &Store) {
     const QUIET: u64 = 7 * 86400;
-    for key in secrets.names(SECTION).unwrap_or_default().into_iter().filter(|k| k.starts_with("oidc.")) {
+    for key in crate::service_signin::signins(secrets).and_then(|s| s.names(SECTION)).unwrap_or_default().into_iter().filter(|k| k.starts_with("oidc.")) {
         if shared(secrets, &key).ok().flatten().is_some_and(|t| !t.refresh.is_empty() && now().saturating_sub(t.renewed) > QUIET) {
             if let Err(e) = renew(secrets, &key) {
                 eprintln!("atlas: keeping the OpenID sign-in {key}: {e}");
@@ -687,7 +687,7 @@ mod tests {
         assert!(!secrets.get("net", "oauth.authelia").unwrap().unwrap().contains("ref-1"), "the plugin keeps only a link");
         let listed = providers(&secrets, &["net".into()]).unwrap();
         assert_eq!((listed.len(), listed[0].plugins.as_slice(), listed[0].issuer.as_str()), (1, ["net".to_string()].as_slice(), format!("http://127.0.0.1:{port}").as_str()));
-        assert!(secrets.get(SECTION, &listed[0].key).unwrap().unwrap().contains("ref-1"), "the provider's tokens, shared");
+        assert!(crate::service_signin::signins(&secrets).unwrap().get(SECTION, &listed[0].key).unwrap().unwrap().contains("ref-1"), "the provider's tokens, shared");
 
         let seen = server.join().unwrap();
         assert!(seen[1].contains("grant_type=authorization_code") && seen[1].contains("code=the-code") && seen[1].contains("code_verifier="), "{}", seen[1]);

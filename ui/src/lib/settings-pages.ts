@@ -10,12 +10,13 @@ import type { BuiltinId } from "./builtin-plugins";
 
 export type PageId =
   | "overview" | "appearance" | "writing" | "today" | "code" | "files" | "web" | "server" | "papers" | "drawing"
-  | "terminal" | "desktop" | "keyboard" | "plugins" | "automation" | "agents" | "advanced" | "latex" | "vaults";
+  | "terminal" | "desktop" | "keyboard" | "plugins" | "automation" | "agents" | "advanced" | "latex" | "vaults" | "signins" | "libraries";
 
 /** Custom panels drawn by the Settings UI beside the generated fields. */
-export type Panel = "overview" | "device" | "preview" | "apps" | "snippets" | "keys" | "plugins" | "scripts" | "drafts" | "openwith" | "capturekey" | "server" | "agents" | "templates" | "file" | "syncconflicts" | "vaults" | "webdata";
+export type Panel = "overview" | "device" | "preview" | "apps" | "snippets" | "keys" | "plugins" | "scripts" | "drafts" | "openwith" | "capturekey" | "server" | "agents" | "templates" | "file" | "syncconflicts" | "vaults" | "webdata" | "signins" | "libraries";
 
-/** The nav's groups, in this order: Accounts stands above them all (every sign-in is there). */
+/** The nav's groups, in this order: Accounts stands above them all (the services' accounts; getting past a gate in
+ *  front of a service is Connections → Sign-ins). */
 export type Group = "general" | "working" | "connections" | "plugins" | "advanced";
 export const GROUPS: { id: Group; title: string }[] = [
   { id: "general", title: "General" }, { id: "working", title: "Working" }, { id: "connections", title: "Connections" },
@@ -75,10 +76,10 @@ export const PAGES: PageDef[] = [
     next: [{ label: "Write a CSS snippet", why: "Restyle anything — a file in .atlas/snippets/ applies live on save.", run: "settings.newSnippet" }],
   },
   {
-    id: "writing", title: "Writing", group: "working", icon: "edit", blurb: "Notes in markdown: vim, links, citations, math, the / menu, properties, capture and templates. A plain note starts from the default template, which the New… list leaves out; a template's `template_title:` names it there and is never copied into its notes. A note open on two devices is edited together, live. In a note Ctrl+B is bold, Ctrl+I italic, Ctrl+K a link, Ctrl+Q turns a line into a list item or a to-do.",
-    fields: ["vim", "editor.vim_keys", "editor.vim_clipboard", "editor.format_bar", "editor.math_preview", "editor.link_preview", "editor.task_chips", "editor.task_suggest", "editor.task_short_forms", "editor.properties", "editor.properties_spec", "editor.link_completion", "editor.citation_completion", "editor.slash_menu", "editor.fold_headings", "editor.typewriter", "editor.live",
+    id: "writing", title: "Writing", group: "working", icon: "edit", blurb: "Notes in markdown: vim, links, citations, math, the / menu, properties, capture and templates. A plain note starts from the default template, which the New… list leaves out; a template's `template_title:` names it there and is never copied into its notes. A note open on two devices is edited together, live, and each device shows what the others have open (the lower bar's device chips; the phone's Files): one click opens it there. In a note Ctrl+B is bold, Ctrl+I italic, Ctrl+K a link, Ctrl+Q turns a line into a list item or a to-do.",
+    fields: ["vim", "editor.vim_keys", "editor.vim_clipboard", "editor.format_bar", "editor.math_preview", "editor.link_preview", "editor.task_chips", "editor.task_suggest", "editor.task_short_forms", "editor.properties", "editor.properties_spec", "editor.link_completion", "editor.citation_completion", "editor.slash_menu", "editor.fold_headings", "editor.typewriter", "editor.live", "ui.share_place",
       "editor.backlinks",
-      "editor.attachment_folder", "editor.date_names", "editor.date_format", "editor.strict_line_breaks", "notes.*"],
+      "editor.attachment_folder", "editor.date_names", "editor.date_format", "editor.strict_line_breaks", "notes.*", "player.*"],
     features: ["ui.vim", "ui.new", "ui.note.new", "note.cycle", "note.insert-template", "ui.properties", "ui.properties.inline", "ui.kit.install", "ui.outline", "ui.graph"], panels: ["templates"],
     next: [{ label: "Put a live view in a note", why: "A ```view block (calendar, list, table) over the note's own tasks or a folder.", run: "settings.viewHelp" }],
   },
@@ -102,12 +103,20 @@ export const PAGES: PageDef[] = [
     features: ["ui.files", "ui.explorer", "ui.quickOpen", "ui.search", "ui.history", "ui.openWith", "ui.vault"], panels: ["syncconflicts", "openwith"],
   },
   {
+    id: "libraries", title: "Libraries", group: "working", icon: "library", blurb: "Your books, comics, audiobooks, films and drawings as libraries: a folder or a Base each, with covers and what you were in the middle of first. What a server holds (Suwayomi, Jellyfin, Audiobookshelf) is listed apart, under “From …”.",
+    fields: [], features: ["ui.libraries"], panels: ["libraries"],
+  },
+  {
     id: "web", title: "Web", group: "working", icon: "globe", blurb: keyText("Links to web pages: in a tab of Atlas (in the desktop app any site, with ads and trackers blocked; elsewhere when the site allows it), in a browsing window of Atlas (Alt+← / Alt+→ back and forward, Super+Shift+O to your browser, Ctrl+W close) with ads and trackers blocked, or in your own browser."),
     fields: ["web.*"], features: ["ui.web"], panels: ["webdata"],
   },
   {
     id: "vaults", title: "Vaults & sync", group: "connections", icon: "repeat", blurb: "Each vault on this device and how it is kept in step with the others: Syncthing or the mirror carrying its files, whether its server answers, writes it refused, captures waiting and conflict copies left. The vault switcher opens, makes and links them.",
     fields: [], features: ["ui.vault"], panels: ["vaults"],
+  },
+  {
+    id: "signins", title: "Sign-ins", group: "connections", icon: "key", blurb: "How Atlas gets past a sign-in in front of your services, for its plugins and remote vaults: a session kept from a gate (Authelia, Authentik…), an OpenID provider's token, or a key that skips the gate. Nothing here is stored in the vault.",
+    fields: [], features: [], panels: ["signins"],
   },
   {
     id: "server", title: "Server", group: "connections", icon: "server", blurb: "Serving a vault to other machines and the phone (atlas serve --listen): who may sign in, the password, device tokens.",
@@ -135,7 +144,7 @@ export const PAGES: PageDef[] = [
     next: [{ label: "Turn a shell line into a command", why: "A command gets a palette entry, a shortcut and an optional schedule.", run: "ui.commands" }],
   },
   {
-    id: "plugins", title: "Plugins", group: "plugins", icon: "plugin", blurb: "The plugins in this vault: switch one on or off, open its page (its settings, problems and actions), install, update or remove. Their sign-ins are under Accounts.",
+    id: "plugins", title: "Plugins", group: "plugins", icon: "plugin", blurb: "The plugins in this vault: switch one on or off, open its page (its settings, problems and actions), install, update or remove. Their accounts are under Accounts; getting past a gate in front of a service, under Sign-ins.",
     fields: [], features: [], panels: ["plugins"],
     next: [
       { label: "Write a plugin", why: "A folder in .atlas/plugins/ with a view.js and an optional data script; reloads on save.", run: "settings.pluginHelp" },
@@ -165,7 +174,7 @@ export const PAGES: PageDef[] = [
 export const HIDDEN = new Set(["ui.css_snippets_off", "ui.apps_order", "ui.apps_hidden", "ui.libraries", "plugins.off", "files.open_with",
   // where each background job runs: in the vault's config.toml for now (docs/design/DESIGN-server-role.md), a panel is to come
   "automation.background",
-  // Accounts → Sign-ins for plugins edits these (components/settings/SigninsPanel.svelte)
+  // Sign-ins → "Signed in with OpenID" edits these, with plain labels (components/settings/SigninsPanel.svelte)
   "plugins.oidc_issuer", "plugins.oidc_client_id", "plugins.oidc_redirect",
   // read by nothing since the Snippets plugin took over typing: shown, it looked like the plugin's own switch
   "latex.snippets",

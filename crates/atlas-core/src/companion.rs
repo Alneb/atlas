@@ -21,6 +21,9 @@ use std::path::Path;
 pub const LEGACY: &str = "notes.md";
 /// The vault's template for these notes, in `[notes] templates`, when it has one.
 pub(crate) const TEMPLATE: &str = "literature";
+/// The property by which a note elsewhere claims a file or folder as its thing (`file: "[[Dune.epub]]"`): that note
+/// is the thing's one note, before any beside it.
+pub const CLAIM: &str = "file";
 /// The property that marks a folder's own note as an entry (a reference) a file inside it belongs to.
 const ENTRY_MARK: &str = "citekey";
 
@@ -50,6 +53,10 @@ pub fn ensure(root: &Path, cfg: &Config, req: &CompanionRequest, now: NaiveDateT
         props: req.properties.clone(),
         block: String::new(),
     };
+    // a note that names this thing as its `file` (the catalog's note of a book whose EPUB is here) is its one note
+    if let Some(note) = crate::links::claimed_by(root, cfg, rel, CLAIM) {
+        return Ok(CompanionNote { path: note, created: false, migrated_from: None });
+    }
     if folder && req.find {
         return Ok(CompanionNote { path: format!("{rel}/{}", file_name(stem)), created: false, migrated_from: None });
     }
@@ -493,6 +500,26 @@ book: '[[dune.epub]]'
         // a book inside a paper's folder: the paper's note (one note per thing)
         ensure(d.path(), &cfg, &paper(), now()).unwrap();
         assert_eq!(find("refs/papers/maier2005quantum/review.pdf").path, "refs/papers/maier2005quantum/maier2005quantum.md");
+    }
+
+    #[test]
+    fn a_note_that_claims_a_file_or_folder_is_its_one_note() {
+        let (d, cfg) = vault();
+        std::fs::create_dir_all(d.path().join("books")).unwrap();
+        std::fs::create_dir_all(d.path().join("notes/books")).unwrap();
+        std::fs::create_dir_all(d.path().join("manga/Berserk")).unwrap();
+        std::fs::write(d.path().join("books/Dune.epub"), b"PK").unwrap();
+        std::fs::write(d.path().join("notes/books/Dune.md"), "---\ntype: book\nfile: \"[[Dune.epub]]\"\n---\n").unwrap();
+        std::fs::write(d.path().join("notes/books/Berserk.md"), "---\ntype: manga\nfile: \"[[manga/Berserk]]\"\n---\n").unwrap();
+        let r = ensure(d.path(), &cfg, &file("books/Dune.epub"), now()).unwrap();
+        assert_eq!((r.path.as_str(), r.created), ("notes/books/Dune.md", false), "the catalog's note, no `Dune.md` beside it");
+        assert!(!d.path().join("books/Dune.md").exists());
+        let found = ensure(d.path(), &cfg, &CompanionRequest { find: true, ..file("manga/Berserk/") }, now()).unwrap();
+        assert_eq!(found.path, "notes/books/Berserk.md", "a folder claimed by its written path");
+        // a link elsewhere in a note's text is no claim
+        std::fs::write(d.path().join("books/Other.epub"), b"PK").unwrap();
+        std::fs::write(d.path().join("notes/mention.md"), "I read [[Other.epub]].\n").unwrap();
+        assert_eq!(ensure(d.path(), &cfg, &CompanionRequest { find: true, ..file("books/Other.epub") }, now()).unwrap().path, "books/Other.md");
     }
 
     #[test]

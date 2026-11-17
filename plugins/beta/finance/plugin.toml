@@ -7,8 +7,10 @@
 title = "Finance"
 description = "your money as a plain-text ledger: accounts, funds, budgets and bank imports, checked against the bank's own balances"
 icon = "chart"
-version = "0.1.4"
+version = "0.1.5"
 api = 9
+needs = ">=0.3.0"          # the first core that reads `background` (older ones refuse the key)
+background = "server"  # bank sync and prices write the journal: one writer, on the always-on machine that holds the bank's consent
 rail = true
 
 [permissions]

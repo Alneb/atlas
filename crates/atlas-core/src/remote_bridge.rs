@@ -67,8 +67,11 @@ pub async fn forward(store: &Store, base: &str, rest: &str, query: Option<&str>,
             req = req.header(k, v);
         }
     }
-    if let Ok(Some(c)) = crate::service_signin::cookie_header(store, &url) {
-        req = req.header("cookie", c);
+    // the gate's session and its bypass key (this client follows no redirect: none leaves the host)
+    if let Ok(kept) = crate::service_signin::site_headers(store, &url) {
+        for (k, v) in kept.headers {
+            req = req.header(k, v);
+        }
     }
     let res = match req.body(body).send().await {
         Ok(r) => r,
@@ -105,9 +108,11 @@ pub async fn connect(store: &Store, http: &str) -> Option<Upstream> {
     use tokio_tungstenite::tungstenite::client::IntoClientRequest;
     let url = http.replacen("https://", "wss://", 1).replacen("http://", "ws://", 1);
     let mut req = url.as_str().into_client_request().ok()?;
-    let cookie = reqwest::Url::parse(http).ok().and_then(|u| crate::service_signin::cookie_header(store, &u).ok().flatten());
-    if let Some(c) = cookie.and_then(|c| c.parse().ok()) {
-        req.headers_mut().insert("cookie", c);
+    let kept = reqwest::Url::parse(http).ok().and_then(|u| crate::service_signin::site_headers(store, &u).ok());
+    for (k, v) in kept.map(|k| k.headers).unwrap_or_default() {
+        if let (Ok(k), Ok(v)) = (axum::http::HeaderName::from_bytes(k.as_bytes()), v.parse()) {
+            req.headers_mut().insert(k, v);
+        }
     }
     req.headers_mut().insert("x-atlas", axum::http::HeaderValue::from_static("1"));
     let connecting = tokio_tungstenite::connect_async(req);

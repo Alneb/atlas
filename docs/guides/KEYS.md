@@ -75,6 +75,7 @@ The rule: Super is the main key for the app, Ctrl is for the classic things (tex
 | library · problems · commands pane | **Super+Shift+L** · **Super+M** · **Super+Shift+K** | Ctrl+Shift+L · Ctrl+Shift+M · Ctrl+Shift+K |
 | drawing · left bar · settings | **Super+Shift+D** · **Super+S** · **Super+,** | Ctrl+Alt+D · Ctrl+Alt+S · Ctrl+, |
 | home · back / forward | Super+H · Super+[ / ] | (unchanged) |
+| watching a film: insert the time · quote the subtitle · grab the frame | **Super+Alt+T** · **Super+Alt+S** · **Super+Alt+F** (into the note being written; mpv's own keys work in its window) | — (new) |
 | capture box: the vault list · the vault before / after | **Super+V** · **Super+↑ / ↓** (shown in the box's footer) | Alt+V · Alt+↑ / ↓ (still work) |
 | capture box: take the screen · the last screenshot · the clipboard · the page you were on | **Super+S** · **Super+Shift+S** · **Super+C** · **Super+U** (in the chips, or their hover note) | — (the box is its own window: Atlas's Super+S / Super+C do not apply there; KDE binds none of them) |
 | browsing window: the page in the desktop's browser | **Super+Shift+O** (Super+O is the outline) | Ctrl+Shift+O (never released) |

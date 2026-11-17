@@ -48,7 +48,7 @@ final class ReaderView extends FrameLayout implements NativePlugin.Back {
     private final String path;
     private final boolean eink;
     private final WebView web;
-    private final TextView footLeft, footRight, chip;
+    private final TextView footLeft, footRight;
     private final LinearLayout footer;
     private final ReaderBars bars;
     private PenBar penBar; // made after the tabs that open it
@@ -67,6 +67,16 @@ final class ReaderView extends FrameLayout implements NativePlugin.Back {
     /** Where you were before a jump (contents, slider, a link): "Back to p. N" takes you there. */
     private int backSpine = -1;
     private double backAt;
+    // the book's audiobook (DESIGN-server-libraries.md §4): the item its note names (`audiobookshelf:`, an `audiobook:`
+    // link; AudioChapters), kept only when the audiobook plugin offers its place here (on, its server set: Host.offers)
+    private static final String AUDIO_PLUGIN = "audiobookshelf", PLAY = AUDIO_PLUGIN + ":play/";
+    private String audioItem;
+    /** The app's player's state while it holds that audiobook (MediaService's JSON), else null. */
+    private JSONObject heard;
+    private Runnable unwatchPlayer = () -> {};
+    private View listenAction;
+    private LinearLayout along;
+    private TextView alongToggle, alongWhere, toAudio, toText;
 
     @SuppressLint({"SetJavaScriptEnabled", "AddJavascriptInterface"})
     ReaderView(BooksScreen screen, String path) {
@@ -100,6 +110,12 @@ final class ReaderView extends FrameLayout implements NativePlugin.Back {
                 super.draw(cv);
                 if (!penLine.isEmpty()) { cv.save(); cv.translate(getScrollX(), getScrollY()); cv.drawPath(penLine, penPaint); cv.restore(); }
             }
+
+            // turned, or the audiobook's row came or went: the pages are laid out again for the new size, where you are
+            @Override protected void onSizeChanged(int w, int h, int ow, int oh) {
+                super.onSizeChanged(w, h, ow, oh);
+                if (doc != null && ow > 0 && (w != ow || h != oh)) ReaderView.this.post(() -> { double at = fraction(); styled(); open(spine, at, ""); });
+            }
         };
         web.setVerticalScrollBarEnabled(false);
         web.setHorizontalScrollBarEnabled(false);
@@ -112,6 +128,8 @@ final class ReaderView extends FrameLayout implements NativePlugin.Back {
         web.addJavascriptInterface(new Bridge(), "AtlasBook");
         web.setVisibility(INVISIBLE);
         column.addView(web, new LinearLayout.LayoutParams(-1, 0, 1));
+        along = alongRow(c);
+        column.addView(along, new LinearLayout.LayoutParams(-1, -2));
 
         footer = new LinearLayout(c);
         footer.setGravity(Gravity.CENTER_VERTICAL);
@@ -134,6 +152,8 @@ final class ReaderView extends FrameLayout implements NativePlugin.Back {
         bars.action("bookmark", "Bookmark this page", this::toggleBookmark);
         bars.action("note", "The book's note", () -> host.openInWeb(notePath()));
         bars.action("search", "Search the book", this::searchPanel);
+        listenAction = bars.action("music", "Listen to the audiobook", () -> { if (audioItem != null) host.openOver(PLAY + audioItem); });
+        listenAction.setVisibility(GONE); // until its plugin offers it (load)
         contentsTab = bars.tab("contents", "Contents", this::contents);
         bars.tab("pen", "Pen", () -> { bars.show(false); penBar.show(true); });
         aaTab = bars.tab("type_size", "Aa", () -> new TypeSheet(this, bars).show(aaTab));
@@ -146,15 +166,6 @@ final class ReaderView extends FrameLayout implements NativePlugin.Back {
             @Override public void onStopTrackingTouch(SeekBar s) { jumpTo(s.getProgress() / 1000.0); }
         });
         penBar = new PenBar(host, this, ink);
-
-        chip = look.label(c, "", 14, look.accentFg);
-        chip.setPadding(look.dp(16), look.dp(10), look.dp(16), look.dp(10));
-        chip.setBackground(look.round(look.accent, 20, 0));
-        chip.setVisibility(GONE);
-        chip.setOnClickListener(v -> { int s = backSpine; double a = backAt; backSpine = -1; chip.setVisibility(GONE); open(s, a, ""); });
-        LayoutParams cp = new LayoutParams(-2, -2, Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL);
-        cp.bottomMargin = look.dp(40);
-        addView(chip, cp);
 
         footLeft.setText("Opening…");
         screen.io.execute(this::load);
@@ -170,8 +181,14 @@ final class ReaderView extends FrameLayout implements NativePlugin.Back {
             JSONObject e = Shelf.entryOf(host, path);
             String note = host.exists(notePath()) ? host.readText(notePath()) : "";
             ink.load();
+            java.util.Map<String, String> props = org.atlas.capture.Props.read(note);
+            String item = AudioChapters.itemOf(props.get("audiobookshelf"), props.get("audiobook"));
+            final String audio = item != null && host.offers(PLAY + item) ? item : null;
             post(() -> {
-                passages = Highlights.in(note);
+                audioItem = audio;
+                if (audio != null) { unwatchPlayer = host.watchPlayer(this::playerSaid); host.player("state", null); } // said again: it may play already
+                showAlong();
+                passages.clear(); passages.addAll(Highlights.in(note));
                 doc = d;
                 yours = s;
                 entry = e;
@@ -190,14 +207,29 @@ final class ReaderView extends FrameLayout implements NativePlugin.Back {
     /** The book's note beside it (`x.epub` → `x.md`): its highlights, quoted (docs/PHILOSOPHY.md §1). */
     private String notePath() { return Shelf.knownNote(path); } // the book's one note (Shelf.noteOf)
 
-    /** The passages the note quotes, marked in every chapter. */
-    private org.json.JSONArray passages = new org.json.JSONArray();
+    /** The highlights the note keeps (Highlights.in), marked in their chapter by the page (marks.js). */
+    private final java.util.List<Highlights.Highlight> passages = new java.util.concurrent.CopyOnWriteArrayList<>(); // read by the WebView's thread too
+
+    /** The highlights as the page's marks.js takes them: [{ text, chapter?, k? }]. */
+    private String passagesJson() {
+        JSONArray a = new JSONArray();
+        try {
+            for (Highlights.Highlight h : passages) {
+                JSONObject o = new JSONObject().put("text", h.text); // a removed one: "" (kept, so the indices hold)
+                if (h.chapter > 0) o.put("chapter", h.chapter);
+                if (h.k >= 0) o.put("k", h.k);
+                a.put(o);
+            }
+        } catch (org.json.JSONException e) { /* plain values */ }
+        return a.toString();
+    }
 
     private String name() { return Formats.bare(path.substring(path.lastIndexOf('/') + 1)); }
 
     /** The page's colours and CSS from the settings (again after the Aa sheet changes them). */
     private void styled() {
         int[] c = Typeset.colors(options, eink);
+        if (ink != null) ink.textColor(c[1]); // ink without a colour of its own: the text's
         setBackgroundColor(c[0]);
         web.setBackgroundColor(c[0]);
         footer.setBackgroundColor(c[0]);
@@ -303,25 +335,30 @@ final class ReaderView extends FrameLayout implements NativePlugin.Back {
         bars.slider.setProgress((int) Math.round(prog * 1000));
         String chapter = doc.chapterLabel(spine).isEmpty() ? "Chapter " + (spine + 1) : doc.chapterLabel(spine);
         bars.where(chapter);
+        showAlong(); // "Bring the audio here" follows the text's chapter
         bars.info(chapter + (paged ? " · page " + (page + 1) + " of " + pages : ""), Math.round(prog * 100) + " %" + (paged && pages - page > 1 ? " · " + (pages - page - 1) + " left in the chapter" : ""));
         placeInk();
+        // the jump landed: the chip goes back to where it was taken from (ReaderBars.backTo)
         if (backSpine >= 0 && !(backSpine == spine && Math.abs(backAt - at) < 1e-6)) {
-            chip.setText("Back to " + (doc.chapterLabel(backSpine).isEmpty() ? "chapter " + (backSpine + 1) : doc.chapterLabel(backSpine)));
-            chip.setVisibility(VISIBLE);
-            removeCallbacks(hideChip);
-            postDelayed(hideChip, 8000);
+            final int s = backSpine;
+            final double a = backAt;
+            backSpine = -1;
+            bars.backTo("Back to " + (doc.chapterLabel(s).isEmpty() ? "chapter " + (s + 1) : doc.chapterLabel(s)), () -> open(s, a, ""));
         }
-        removeCallbacks(save);
-        postDelayed(save, 700);
+        // written on a new chapter, on leaving, else every two minutes at most (ReadingPlace): not at every turn
+        if (place.moved(String.valueOf(spine), System.currentTimeMillis())) {
+            removeCallbacks(save);
+            postDelayed(save, 700);
+        }
     }
 
-    private final Runnable hideChip = this::hideChip;
-    private void hideChip() { chip.setVisibility(GONE); backSpine = -1; }
+    private final org.atlas.capture.ReadingPlace place = new org.atlas.capture.ReadingPlace();
 
     private final Runnable save = this::save;
     private void save() {
         final int s = spine;
         final double at = fraction(), prog = progress(spine, at);
+        place.saved(String.valueOf(s), System.currentTimeMillis());
         background(() -> { try { Shelf.saveAt(host, path, s, at, prog); } catch (Exception e) { post(() -> host.toast("Where you are was not saved: " + e.getMessage())); } });
     }
 
@@ -381,7 +418,105 @@ final class ReaderView extends FrameLayout implements NativePlugin.Back {
     void chrome(boolean on) {
         bars.show(on);
         if (eink) post(host::einkRefresh);
-        if (on) chip.setVisibility(GONE);
+    }
+
+    // ---- the book's audiobook: a row while the app's player holds it ------------------------------------------------
+
+    /** Play / pause, the time and the audio's chapter, "Go to where the audio is" and "Bring the audio here" (each
+     *  shown only when the other side has a chapter of that title: AudioChapters.match). */
+    private LinearLayout alongRow(Context c) {
+        LinearLayout row = new LinearLayout(c);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        row.setPadding(look.dp(8), look.dp(2), look.dp(8), look.dp(2));
+        row.setBackground(look.round(look.pop, 0, look.border));
+        alongToggle = look.label(c, "▶", 18, look.text);
+        alongToggle.setGravity(Gravity.CENTER);
+        alongToggle.setBackground(look.pressable(0, 22, 0));
+        alongToggle.setOnClickListener(v -> { if (heard != null) host.player(heard.optBoolean("playing") ? "pause" : "resume", null); });
+        row.addView(alongToggle, new LinearLayout.LayoutParams(look.dp(44), look.dp(44)));
+        alongWhere = look.label(c, "", 13, look.muted);
+        alongWhere.setSingleLine(true);
+        alongWhere.setEllipsize(TextUtils.TruncateAt.END);
+        row.addView(alongWhere, new LinearLayout.LayoutParams(0, -2, 1));
+        toAudio = alongButton(c, "To the audio", "Go to where the audio is", () -> {
+            Epub.Toc t = heard == null ? null : inText(heard);
+            if (t != null) { remember(); open(doc.spine().indexOf(t.path), 0, t.frag); }
+        });
+        toText = alongButton(c, "Audio here", "Bring the audio here", () -> {
+            int j = heard == null ? -1 : inAudio(heard);
+            JSONObject ch = j < 0 ? null : heard.optJSONArray("chapters").optJSONObject(j);
+            if (ch != null) host.player("seek", String.valueOf(ch.optDouble("start", 0)));
+        });
+        row.addView(toAudio);
+        row.addView(toText);
+        row.setVisibility(GONE);
+        return row;
+    }
+
+    private TextView alongButton(Context c, String label, String what, Runnable run) {
+        TextView b = look.label(c, label, 13, look.text);
+        b.setGravity(Gravity.CENTER);
+        b.setPadding(look.dp(10), 0, look.dp(10), 0);
+        b.setMinHeight(look.dp(44));
+        b.setBackground(look.pressable(0, 8, 0));
+        b.setContentDescription(what);
+        b.setOnClickListener(v -> run.run());
+        return b;
+    }
+
+    /** The player's state: kept while it holds this book's audiobook (not an episode, not another plugin's). */
+    private void playerSaid(String json) {
+        JSONObject s = null;
+        try { if (json != null && json.trim().startsWith("{")) s = new JSONObject(json); } catch (Exception e) { /* nothing loaded */ }
+        JSONObject key = s == null ? null : s.optJSONObject("key");
+        heard = key != null && AUDIO_PLUGIN.equals(s.optString("plugin")) && audioItem != null && audioItem.equals(key.optString("item")) && key.optString("episode", "").isEmpty() ? s : null;
+        showAlong();
+    }
+
+    private static String audioChapter(JSONObject s) {
+        JSONArray chs = s.optJSONArray("chapters");
+        JSONObject ch = chs == null ? null : chs.optJSONObject(s.optInt("chapter", -1));
+        return ch == null ? "" : ch.optString("title", "");
+    }
+
+    /** The contents entry (of a chapter in the spine) titled as the audio's chapter, or null. */
+    private Epub.Toc inText(JSONObject s) {
+        if (doc == null) return null;
+        java.util.List<Epub.Toc> entries = new java.util.ArrayList<>();
+        java.util.List<String> titles = new java.util.ArrayList<>();
+        for (Epub.Toc t : doc.toc()) if (doc.spine().contains(t.path)) { entries.add(t); titles.add(t.label); }
+        int i = AudioChapters.match(titles, audioChapter(s));
+        return i < 0 ? null : entries.get(i);
+    }
+
+    /** The audio's chapter titled as the text's chapter, its index, or -1. */
+    private int inAudio(JSONObject s) {
+        if (doc == null) return -1;
+        JSONArray chs = s.optJSONArray("chapters");
+        java.util.List<String> titles = new java.util.ArrayList<>();
+        for (int i = 0; chs != null && i < chs.length(); i++) titles.add(chs.optJSONObject(i) == null ? "" : chs.optJSONObject(i).optString("title", ""));
+        return AudioChapters.match(titles, doc.chapterLabel(spine));
+    }
+
+    /** The bar's ▶ while the audiobook is offered and not in the player; the row while it is. Showing or hiding the
+     *  row changes the page's height: the text is laid out again (the WebView's onSizeChanged). */
+    private void showAlong() {
+        if (listenAction == null || along == null) return;
+        listenAction.setVisibility(audioItem != null && heard == null ? VISIBLE : GONE);
+        int want = heard != null ? VISIBLE : GONE;
+        if (along.getVisibility() != want) along.setVisibility(want);
+        if (heard == null) return;
+        boolean playing = heard.optBoolean("playing");
+        String key = playing ? "❚❚" : "▶";
+        if (!key.contentEquals(alongToggle.getText())) { alongToggle.setText(key); alongToggle.setContentDescription(playing ? "Pause the audiobook" : "Play the audiobook"); }
+        // on e-ink the time by the minute: a line changing every second would flash the screen
+        long at = (long) heard.optDouble("at", 0), of = (long) heard.optDouble("duration", 0);
+        if (eink) at -= at % 60;
+        String ch = audioChapter(heard);
+        String where = android.text.format.DateUtils.formatElapsedTime(at) + " / " + android.text.format.DateUtils.formatElapsedTime(of) + (ch.isEmpty() ? "" : " · " + ch);
+        if (!where.contentEquals(alongWhere.getText())) alongWhere.setText(where);
+        toAudio.setVisibility(inText(heard) != null ? VISIBLE : GONE);
+        toText.setVisibility(inAudio(heard) >= 0 ? VISIBLE : GONE);
     }
 
     // ---- contents --------------------------------------------------------------------------------------------------
@@ -421,10 +556,15 @@ final class ReaderView extends FrameLayout implements NativePlugin.Back {
             String ch = doc.chapterLabel(n.spine).isEmpty() ? "chapter " + (n.spine + 1) : doc.chapterLabel(n.spine);
             l.addView(bars.row(n.text.replace('\n', ' '), ch, false, 0, () -> { chrome(false); remember(); openAtChar(n.spine, n.k); }));
         }
-        if (passages.length() > 0) l.addView(look.heading(c, "Highlights"));
-        for (int i = 0; i < passages.length(); i++) {
-            String q = passages.optString(i);
-            l.addView(bars.row("“" + (q.length() > 120 ? q.substring(0, 120) + "…" : q) + "”", null, false, 0, () -> host.openInWeb(notePath())));
+        boolean any = false;
+        for (Highlights.Highlight h : passages) any |= !h.text.isEmpty();
+        if (any) l.addView(look.heading(c, "Highlights"));
+        for (Highlights.Highlight h : passages) {
+            String q = h.text;
+            if (q.isEmpty()) continue; // removed
+            // anchored: to the passage in the book; written before anchors: to the note, as before
+            Runnable go = h.anchored() && h.chapter <= doc.spine().size() ? () -> { chrome(false); remember(); openAtChar(h.chapter - 1, h.k); } : () -> host.openInWeb(notePath());
+            l.addView(bars.row("“" + (q.length() > 120 ? q.substring(0, 120) + "…" : q) + "”", h.where, false, 0, go));
         }
         if (l.getChildCount() == 0) l.addView(bars.row("Nothing yet. The pen writes on the page; Pen → T types a note; a line along text highlights it; the ribbon at the top bookmarks.", null, false, 0, null));
         bars.panel(notesTab, "Notes", l);
@@ -791,21 +931,49 @@ final class ReaderView extends FrameLayout implements NativePlugin.Back {
 
     /** The selection kept in the book's note (made the first time with the book's properties) and marked here. */
     private void highlightSelection() {
-        web.evaluateJavascript("(function(){ var t = String(window.getSelection()).replace(/\\s+/g, ' ').trim(); if (t && window.atlasMarks) atlasMarks.markPassages(document, [t]); window.getSelection().removeAllRanges(); return t; })()", r -> {
-            String text;
-            try { text = new org.json.JSONArray("[" + r + "]").optString(0, ""); } catch (Exception e) { text = ""; }
+        // the passage and where it starts in the chapter's text (its anchor, marks.js offsetOf), marked here at once
+        web.evaluateJavascript("(function(){ var s = window.getSelection(), t = String(s).replace(/\\s+/g, ' ').trim(); if (!t || !window.atlasMarks) return null;"
+            + " var r = s.rangeCount ? s.getRangeAt(0) : null, k = r ? atlasMarks.offsetOf(document, r.startContainer, r.startOffset) : -1;"
+            + " atlasMarks.markPassages(document, [{ text: t, k: k }], " + (spine + 1) + ", " + passages.size() + "); s.removeAllRanges(); return { text: t, k: k }; })()", r -> {
+            JSONObject got;
+            try { got = new JSONObject(r); } catch (Exception e) { got = new JSONObject(); }
+            String text = got.optString("text", "");
             if (text.isEmpty()) return;
-            passages.put(text);
+            final int k = got.optInt("k", -1);
             final String quote = text, where = (doc.chapterLabel(spine).isEmpty() ? "" : doc.chapterLabel(spine) + ", ") + "chapter " + (spine + 1);
+            passages.add(new Highlights.Highlight(Highlights.squash(text), where, spine + 1, k));
             final String title = doc.title(), author = doc.author();
             background(() -> {
                 try {
-                    String md = Highlights.noteText(host, path, notePath(), title, author);
-                    host.write(notePath(), (md.replaceAll("\\n*$", "\n") + Highlights.block(quote, where)).getBytes(StandardCharsets.UTF_8));
+                    String md = BookNote.text(host, path, notePath(), title, author);
+                    host.write(notePath(), Highlights.add(md, Highlights.block(quote, where, k)).getBytes(StandardCharsets.UTF_8));
                     post(() -> host.toast("Kept in the book's note"));
                 } catch (Exception e) { post(() -> host.toast("Not kept: " + e.getMessage())); }
             });
         });
+    }
+
+    /** A tap on highlight `p` (its index in `passages`): asked, then its quote taken out of the note and its marks off
+     *  the page. The others keep their index (a removed one stays as null in the list until the book is opened again). */
+    private void askRemove(int p) {
+        if (p < 0 || p >= passages.size()) return;
+        Highlights.Highlight h = passages.get(p);
+        if (h == null || h.text.isEmpty()) return;
+        new android.app.AlertDialog.Builder(host.activity())
+            .setMessage("Remove this highlight?\n\n“" + (h.text.length() > 300 ? h.text.substring(0, 300) + "…" : h.text) + "”")
+            .setNegativeButton("Cancel", null)
+            .setPositiveButton("Remove", (dl, w) -> background(() -> {
+                try {
+                    String md = host.exists(notePath()) ? host.readText(notePath()) : "", out = Highlights.remove(md, h.text, h.k);
+                    if (out.equals(md)) { post(() -> host.toast("Not found in the book's note (changed elsewhere?)")); return; }
+                    host.write(notePath(), out.getBytes(StandardCharsets.UTF_8));
+                    post(() -> {
+                        passages.set(p, Highlights.Highlight.GONE);
+                        web.evaluateJavascript("atlasMarks.unmark(document, " + p + ")", null);
+                    });
+                } catch (Exception e) { post(() -> host.toast("Not removed: " + e.getMessage())); }
+            }))
+            .show();
     }
 
     // ---- the page (the WebView's side) -----------------------------------------------------------------------------
@@ -822,7 +990,7 @@ final class ReaderView extends FrameLayout implements NativePlugin.Back {
                 if (!doc.has(entry)) return new WebResourceResponse("text/plain", "utf-8", 404, "Not in the book", null, new ByteArrayInputStream(new byte[0]));
                 String type = doc.type(entry);
                 if (doc.spine().contains(entry) && (type.contains("html") || type.contains("xml"))) {
-                    byte[] page = chapter(Epub.text(doc.bytes(entry)), type).getBytes(StandardCharsets.UTF_8);
+                    byte[] page = chapter(Epub.text(doc.bytes(entry)), type, doc.spine().indexOf(entry) + 1).getBytes(StandardCharsets.UTF_8);
                     return new WebResourceResponse(type.contains("xhtml") || type.endsWith("+xml") ? "application/xhtml+xml" : "text/html", "utf-8", new ByteArrayInputStream(page));
                 }
                 return new WebResourceResponse(type, null, doc.open(entry));
@@ -836,15 +1004,16 @@ final class ReaderView extends FrameLayout implements NativePlugin.Back {
     private static final Pattern HEAD = Pattern.compile("<head\\b[^>]*>", Pattern.CASE_INSENSITIVE);
     private static final Pattern HTML = Pattern.compile("<html\\b[^>]*>", Pattern.CASE_INSENSITIVE);
 
-    /** The chapter with its scripts out and the reader's head in (written as XML: most chapters are XHTML). */
-    private String chapter(String html, String type) {
+    /** The chapter (`number`: 1-based, the spine's order — the highlights' anchor) with its scripts out and the
+     *  reader's head in (written as XML: most chapters are XHTML). */
+    private String chapter(String html, String type, int number) {
         html = SCRIPT.matcher(html).replaceAll("");
         boolean paged = Typeset.paged(options, eink);
         String head = "<meta http-equiv=\"Content-Security-Policy\" content=\"default-src https://book.local data: blob:; script-src 'nonce-" + nonce
             + "'; style-src https://book.local 'unsafe-inline'; img-src https://book.local data: blob:; font-src https://book.local data:\"/>"
             + "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no\"/>"
             + "<style id=\"atlas-type\">/*<![CDATA[*/\n" + css + "\n/*]]>*/</style>"
-            + "<script nonce=\"" + nonce + "\">//<![CDATA[\n" + marks() + "\nwindow.atlasPassages = " + passages + ";\n" + PAGER.replace("%PAGED%", String.valueOf(paged)) + "\n" + INK_JS + "\n//]]></script>";
+            + "<script nonce=\"" + nonce + "\">//<![CDATA[\n" + marks() + "\nwindow.atlasPassages = " + passagesJson() + ";\nwindow.atlasChapter = " + number + ";\n" + PAGER.replace("%PAGED%", String.valueOf(paged)) + "\n" + INK_JS + "\n//]]></script>";
         Matcher m = HEAD.matcher(html);
         if (m.find()) return html.substring(0, m.end()) + head + html.substring(m.end());
         m = HTML.matcher(html);
@@ -883,12 +1052,14 @@ final class ReaderView extends FrameLayout implements NativePlugin.Back {
         "function noteText(h){ var i = h.indexOf('#'); if (i < 0) return null; var f = h.slice(0, i); if (f && location.pathname.split('/').pop() !== f.split('/').pop()) return null;",
         "  var el = document.getElementById(decodeURIComponent(h.slice(i + 1))); if (!el) return null; var box = el.closest('aside, li, p, dd, div') || el;",
         "  return (box.textContent || '').replace(/\\s+/g, ' ').trim(); }",
-        "function ready(){ try { if (window.atlasMarks && window.atlasPassages) atlasMarks.markPassages(document, atlasPassages); } catch (e) {} AtlasBook.ready(pages()); }",
+        "function ready(){ try { if (window.atlasMarks && window.atlasPassages) atlasMarks.markPassages(document, atlasPassages, window.atlasChapter); } catch (e) {} AtlasBook.ready(pages()); }",
         "window.addEventListener('load', function(){ (document.fonts ? document.fonts.ready : Promise.resolve()).then(function(){ requestAnimationFrame(ready); }); });",
         "document.addEventListener('click', function(e){",
         "  var a = e.target.closest ? e.target.closest('a[href]') : null;",
         "  if (a) { e.preventDefault(); var h = a.getAttribute('href'); if (isNote(a)) AtlasBook.note(h, noteText(h) || ''); else AtlasBook.link(h); return; }",
         "  var s = window.getSelection(); if (s && String(s).length) return;",
+        // a highlight (its index in the reader's list, marks.js data-p): Remove offered instead of a page turn
+        "  var hl = e.target.closest ? e.target.closest('mark.atlas-hl[data-p]') : null; if (hl) { e.preventDefault(); AtlasBook.highlight(+hl.dataset.p); return; }",
         "  AtlasBook.tap(e.clientX / W(), e.clientY / innerHeight);",
         "}, true);",
         "var x0 = 0, y0 = 0, t0 = 0;",
@@ -899,18 +1070,13 @@ final class ReaderView extends FrameLayout implements NativePlugin.Back {
         "})();");
 
     /** The pinned notes' side (EpubInk): a character's index `k` in the chapter's text (marks.js textMap) under a point,
-     *  where characters are now (viewport CSS px: left, top, line height) with the text's em, the words around one. */
+     *  where characters are now (viewport CSS px: left, top, line height) with the text's em, the words around one —
+     *  marks.js `charAt` / `charBox`, the web reader's own (one measure on both, so ink lands on the same words). */
     private static final String INK_JS = String.join("\n",
         "window.atlasInk = {",
-        "  at: function(x, y){ var r = document.caretRangeFromPoint(x, y); if (!r) return -1; var n = r.startContainer, o = r.startOffset;",
-        "    if (n.nodeType !== 3) { var w = document.createTreeWalker(n.childNodes[o] || n, 4); var t = w.nextNode(); if (!t) return -1; n = t; o = 0; }",
-        "    var m = atlasMarks.textMap(document), ni = m.nodes.indexOf(n); if (ni < 0) return -1;",
-        "    for (var k = 0; k < m.at.length; k++) if (m.at[k][0] > ni || (m.at[k][0] === ni && m.at[k][1] >= o)) return k;",
-        "    return m.at.length - 1; },",
+        "  at: function(x, y){ return atlasMarks.charAt(document, x, y); },",
         "  where: function(ks){ var m = atlasMarks.textMap(document), em = parseFloat(getComputedStyle(document.body).fontSize) || 16, out = [];",
-        "    for (var i = 0; i < ks.length; i++) { var k = ks[i]; if (k < 0 || k >= m.at.length) { out.push(null); continue; }",
-        "      var a = m.at[k], node = m.nodes[a[0]], r = document.createRange(); r.setStart(node, a[1]); r.setEnd(node, Math.min(a[1] + 1, node.data.length));",
-        "      var b = r.getClientRects()[0] || r.getBoundingClientRect(); out.push([b.left, b.top, b.height || em]); }",
+        "    for (var i = 0; i < ks.length; i++) { var b = atlasMarks.charBox(document, m, ks[i]); out.push(b ? [b.x, b.y, b.h || em] : null); }",
         "    return { em: em, at: out }; },",
         "  quote: function(k){ var t = atlasMarks.textMap(document).text, a = Math.max(0, t.lastIndexOf(' ', Math.max(0, k - 40)) + 1), b = t.indexOf(' ', Math.min(t.length, k + 60));",
         "    return t.slice(a, b < 0 ? t.length : b); }",
@@ -920,6 +1086,7 @@ final class ReaderView extends FrameLayout implements NativePlugin.Back {
     private final class Bridge {
         @JavascriptInterface public void ready(int n) { post(() -> laidOut(n)); }
         @JavascriptInterface public void tap(float x, float y) { post(() -> ReaderView.this.tap(x, y)); }
+        @JavascriptInterface public void highlight(int p) { post(() -> askRemove(p)); }
         @JavascriptInterface public void swipe(int dir) { post(() -> turn(dir)); }
         @JavascriptInterface public void link(String href) { post(() -> ReaderView.this.link(href)); }
         @JavascriptInterface public void note(String href, String text) { post(() -> footnote(href, text)); }
@@ -966,11 +1133,6 @@ final class ReaderView extends FrameLayout implements NativePlugin.Back {
 
     // ---- the frame -------------------------------------------------------------------------------------------------
 
-    @Override protected void onSizeChanged(int w, int h, int ow, int oh) {
-        super.onSizeChanged(w, h, ow, oh);
-        if (doc != null && ow > 0 && (w != ow || h != oh)) post(() -> { double at = fraction(); styled(); open(spine, at, ""); }); // turned: laid out again
-    }
-
     @Override public boolean back() {
         if (bars.back()) return true;
         if (penBar.shown()) { penBar.show(false); return true; }
@@ -987,8 +1149,9 @@ final class ReaderView extends FrameLayout implements NativePlugin.Back {
     }
 
     @Override protected void onDetachedFromWindow() {
+        unwatchPlayer.run();
         removeCallbacks(save);
-        if (doc != null) save.run();
+        if (doc != null && place.leaving()) save.run();
         final Doc d = doc;
         if (d != null) background(() -> { try { d.close(); } catch (Exception e) { /* closed */ } });
         web.destroy();

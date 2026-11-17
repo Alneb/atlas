@@ -30,11 +30,15 @@ import java.util.regex.Pattern;
 /** Free notes on a reflowed book. A reflowed page has no fixed place, so each note is pinned to a character of its chapter —
  *  `k`, its index in the chapter's text with whitespace collapsed (marks.js textMap, the highlights' own measure) — and
  *  drawn from where that character is now, its size in the text's em: a bigger font or other margins move the note
- *  with its words. Ink: `x.epub.ink.json` beside the book, `{ chapters: { "<spine>": [{k, w, color, opacity, pts}] } }`
- *  (pts and w in em from the character's top left). Typed notes: in the book's note, a list under "## Notes" —
- *  `- text <!-- atlas-note ch=N k=K id=ID -->` then the passage they sit at — so they read and search as notes. */
+ *  with its words (docs/design/DESIGN-ebook-ink.md). Ink: `text-ink` marks in the book's note, written through the core
+ *  (InkStore.textInk, pdf_marks.rs) as the web reader writes them — pts and width in em from the character's top left.
+ *  An older `x.epub.ink.json` beside the book is shown, and moved into the note when the reader says yes. Typed notes:
+ *  in the book's note, a list under "## Notes" — `- text <!-- atlas-note ch=N k=K id=ID -->` then the passage they
+ *  sit at — so they read and search as notes. */
 final class EpubInk extends View implements PenBar.Pen {
-    static final class Mark { int k; float w; int color = 0xff000000; float opacity = 1; float[] pts; }
+    /** One stroke. `color` 0: the text's own colour; `id` its mark's in the note (null: not written yet, or `legacy`:
+     *  still only in the older .ink.json). */
+    static final class Mark { String id; boolean legacy; int k; float w; int color; float opacity = 1; float[] pts; }
     static final class Note { int spine, k; String text, id; }
 
     private final Host host;
@@ -51,8 +55,9 @@ final class EpubInk extends View implements PenBar.Pen {
     private int color = 0xff000000;
     private float widthTimes = 1;
     private final float density;
-    private final Runnable save = this::saveInk;
-    private boolean dirty;
+    /** The note's writes, one after another (a stroke, then its undo, land in that order). */
+    private final java.util.concurrent.ExecutorService writes = java.util.concurrent.Executors.newSingleThreadExecutor(r -> { Thread t = new Thread(r, "book-ink"); t.setDaemon(true); return t; });
+    private int textColor = 0xff000000;
 
     EpubInk(Context c, Host host, String book, String note) {
         super(c);
@@ -84,8 +89,19 @@ final class EpubInk extends View implements PenBar.Pen {
 
     private String inkFile() { return InkStore.file(book); }
 
-    /** Read away from the UI thread. */
+    /** The page's text colour: what ink without a colour of its own is drawn in. */
+    void textColor(int c) { textColor = c; invalidate(); }
+
+    /** Read away from the UI thread: the note's ink, and an older .ink.json's (offered to be moved into the note). */
     void load() {
+        try {
+            for (InkStore.TextInk t : InkStore.textInk(host, book)) {
+                Mark m = new Mark();
+                m.id = t.id; m.k = t.k; m.w = t.width; m.color = t.color; m.opacity = t.opacity; m.pts = t.pts;
+                marks.computeIfAbsent(t.chapter - 1, x -> new ArrayList<>()).add(m);
+            }
+        } catch (Exception e) { post(() -> host.toast("The book's ink could not be read: " + e.getMessage())); }
+        boolean old = false;
         try {
             if (host.exists(inkFile())) {
                 JSONObject ch = new JSONObject(host.readText(inkFile())).optJSONObject("chapters");
@@ -98,42 +114,66 @@ final class EpubInk extends View implements PenBar.Pen {
                         JSONArray p = o == null ? null : o.optJSONArray("pts");
                         if (p == null || p.length() < 4) continue;
                         Mark m = new Mark();
+                        m.legacy = old = true;
                         m.k = o.optInt("k"); m.w = (float) o.optDouble("w", 0.1);
-                        m.color = InkStore.color(o.optString("color", "#000000")); m.opacity = (float) o.optDouble("opacity", 1);
+                        int c = InkStore.color(o.optString("color", "#000000"));
+                        m.color = (c & 0xffffff) == 0 ? 0 : c; m.opacity = (float) o.optDouble("opacity", 1);
                         m.pts = new float[p.length() & ~1];
                         for (int j = 0; j < m.pts.length; j++) m.pts[j] = (float) p.optDouble(j);
                         out.add(m);
                     }
-                    try { marks.put(Integer.parseInt(key), out); } catch (NumberFormatException e) { /* not a chapter */ }
+                    try { marks.computeIfAbsent(Integer.parseInt(key), x -> new ArrayList<>()).addAll(out); } catch (NumberFormatException e) { /* not a chapter */ }
                 }
             }
         } catch (Exception e) { post(() -> host.toast("The book's ink could not be read: " + e.getMessage())); }
         List<Note> n = notesIn(host.exists(note) ? host.readText(note) : "");
-        post(() -> { notes.clear(); notes.addAll(n); invalidate(); });
+        final boolean offer = old;
+        post(() -> { notes.clear(); notes.addAll(n); invalidate(); if (offer) offerMove(); });
     }
 
-    private void later() { dirty = true; removeCallbacks(save); postDelayed(save, 1500); }
-    void flush() { removeCallbacks(save); if (dirty) saveInk(); }
+    /** The older .ink.json's strokes moved into the book's note, after a yes (PHILOSOPHY §2): each one a mark, then the
+     *  file to the vault's trash. Until then they are shown, and the eraser leaves them. */
+    private void offerMove() {
+        new AlertDialog.Builder(getContext()).setTitle("Ink in an older file")
+            .setMessage("This book's ink is in " + inkFile().substring(inkFile().lastIndexOf('/') + 1) + ". Move it into the book's note, where every device reads it? The old file goes to the vault's trash.")
+            .setPositiveButton("Move", (d, w) -> {
+                List<int[]> where = new ArrayList<>();
+                List<Mark> old = new ArrayList<>();
+                for (Map.Entry<Integer, List<Mark>> e : marks.entrySet()) for (Mark m : e.getValue()) if (m.legacy) { old.add(m); where.add(new int[] { e.getKey() }); }
+                writes.execute(() -> {
+                    try {
+                        for (int i = 0; i < old.size(); i++) { Mark m = old.get(i); m.id = InkStore.putTextInk(host, book, textInk(m, where.get(i)[0])); m.legacy = false; }
+                        host.trash(inkFile());
+                        post(() -> host.toast("The ink is in the book's note now"));
+                    } catch (Exception e) { post(() -> host.toast("The ink was not moved: " + e.getMessage())); }
+                });
+            })
+            .setNegativeButton("Later", null).show();
+    }
 
-    private void saveInk() {
-        if (!dirty) return;
-        dirty = false;
-        final byte[] bytes;
-        try {
-            JSONObject ch = new JSONObject();
-            for (Map.Entry<Integer, List<Mark>> e : marks.entrySet()) {
-                if (e.getValue().isEmpty()) continue;
-                JSONArray list = new JSONArray();
-                for (Mark m : e.getValue()) {
-                    JSONArray p = new JSONArray();
-                    for (float v : m.pts) p.put(Math.round(v * 1000) / 1000.0);
-                    list.put(new JSONObject().put("k", m.k).put("w", Math.round(m.w * 1000) / 1000.0).put("color", InkStore.hex(m.color)).put("opacity", m.opacity).put("pts", p));
-                }
-                ch.put(String.valueOf(e.getKey()), list);
-            }
-            bytes = new JSONObject().put("chapters", ch).toString().getBytes(StandardCharsets.UTF_8);
-        } catch (Exception e) { return; }
-        new Thread(() -> { try { host.write(inkFile(), bytes); } catch (Exception e) { post(() -> host.toast("The ink was not saved: " + e.getMessage())); } }, "book-ink").start();
+    private static InkStore.TextInk textInk(Mark m, int spine) {
+        InkStore.TextInk t = new InkStore.TextInk();
+        t.id = m.id; t.chapter = spine + 1; t.k = m.k; t.width = m.w; t.color = m.color; t.opacity = m.opacity; t.pts = m.pts;
+        return t;
+    }
+
+    /** Mark `m` of chapter `spine` written into the note (its id kept from the answer). */
+    private void put(Mark m, int spine) {
+        InkStore.TextInk t = textInk(m, spine);
+        writes.execute(() -> {
+            try { m.id = InkStore.putTextInk(host, book, t); }
+            catch (Exception e) { post(() -> host.toast("The ink was not saved: " + e.getMessage())); }
+        });
+    }
+
+    /** The marks `gone` taken out of the note (those already written). */
+    private void drop(List<Mark> gone) {
+        writes.execute(() -> {
+            List<String> ids = new ArrayList<>();
+            for (Mark m : gone) if (m.id != null && !m.legacy) ids.add(m.id);
+            try { InkStore.removeTextInk(host, book, ids); }
+            catch (Exception e) { post(() -> host.toast("The ink was not saved: " + e.getMessage())); }
+        });
     }
 
     // ---- the chapter on screen -------------------------------------------------------------------------------------
@@ -181,7 +221,7 @@ final class EpubInk extends View implements PenBar.Pen {
     void stroke(int k, float ax, float ay, float emPx, float[] pts, boolean highlighter) {
         Mark m = new Mark();
         m.k = k;
-        m.color = highlighter ? (color & 0xffffff) == 0 ? 0xff9e9e9e : color : color;
+        m.color = highlighter ? (color & 0xffffff) == 0 ? 0xff9e9e9e : color : (color & 0xffffff) == 0 ? 0 : color; // black: the text's colour
         m.opacity = highlighter ? 0.4f : 1;
         m.w = (highlighter ? emPx * 0.9f : penPx()) / emPx;
         m.pts = new float[pts.length];
@@ -191,9 +231,9 @@ final class EpubInk extends View implements PenBar.Pen {
         em = emPx;
         placed.put(m, new float[] { ax, ay, emPx });
         final int s = spine;
-        undo.push(() -> { List<Mark> l = marks.get(s); if (l != null) l.remove(m); placed.remove(m); invalidate(); later(); });
+        undo.push(() -> { List<Mark> l = marks.get(s); if (l != null) l.remove(m); placed.remove(m); invalidate(); drop(java.util.Collections.singletonList(m)); });
         invalidate();
-        later();
+        put(m, s);
     }
 
     /** The strokes the eraser's path (view px) passes over go. */
@@ -204,7 +244,7 @@ final class EpubInk extends View implements PenBar.Pen {
         List<Mark> gone = new ArrayList<>();
         for (Mark m : list) {
             float[] at = placed.get(m);
-            if (at == null) continue;
+            if (at == null || m.legacy) continue; // an older file's ink: moved into the note first
             outer:
             for (int i = 0; i + 1 < m.pts.length; i += 2) {
                 float x = at[0] + m.pts[i] * em, y = at[1] + m.pts[i + 1] * em;
@@ -214,9 +254,9 @@ final class EpubInk extends View implements PenBar.Pen {
         if (gone.isEmpty()) return;
         list.removeAll(gone);
         final int s = spine;
-        undo.push(() -> { marks.computeIfAbsent(s, x -> new ArrayList<>()).addAll(gone); invalidate(); later(); });
+        undo.push(() -> { marks.computeIfAbsent(s, x -> new ArrayList<>()).addAll(gone); invalidate(); for (Mark m : gone) put(m, s); });
         invalidate();
-        later();
+        drop(gone);
     }
 
     /** The typed note whose mark is near (x, y) on screen, or null. */
@@ -312,7 +352,7 @@ final class EpubInk extends View implements PenBar.Pen {
         new Thread(() -> {
             try {
                 synchronized (EpubInk.class) {
-                    String md = Highlights.noteText(host, book, note, "", "");
+                    String md = BookNote.text(host, book, note, "", "");
                     host.write(note, e.apply(md).getBytes(StandardCharsets.UTF_8));
                 }
             } catch (Exception ex) { post(() -> host.toast("The note was not saved: " + ex.getMessage())); }
@@ -362,7 +402,7 @@ final class EpubInk extends View implements PenBar.Pen {
             p.rewind();
             p.moveTo(at[0] + m.pts[0] * em, at[1] + m.pts[1] * em);
             for (int i = 2; i + 1 < m.pts.length; i += 2) p.lineTo(at[0] + m.pts[i] * em, at[1] + m.pts[i + 1] * em);
-            paint.setColor(m.color);
+            paint.setColor(m.color == 0 ? textColor : m.color);
             paint.setAlpha(Math.round(255 * m.opacity));
             paint.setStrokeWidth(Math.max(1f, m.w * em));
             c.drawPath(p, paint);
@@ -379,5 +419,4 @@ final class EpubInk extends View implements PenBar.Pen {
         }
     }
 
-    @Override protected void onDetachedFromWindow() { flush(); super.onDetachedFromWindow(); }
 }

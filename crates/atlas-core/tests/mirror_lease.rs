@@ -86,6 +86,35 @@ async fn the_mirror_carries_writes_both_ways_without_syncthing() {
     // and without signing in, nothing
     let anon = http.post(format!("{base}/api/lease/ask")).header("x-atlas", "1").json(&serde_json::json!({ "path": "log.md", "holder": "desktop", "have": null }));
     assert_eq!(anon.send().await.unwrap().status(), StatusCode::UNAUTHORIZED);
+
+    // presence (atlas_core::devices): the desktop and the phone report through the same link; each gets everyone's
+    // back, and the server's own `/api/device` lists them, none of them here; the phone's alarms travel with its report
+    use atlas_core::devices::{Alarms, Device, Kind};
+    use atlas_core::mirror_guard::LeaseLink;
+    let link = |id: &str| Remote { mirror: format!("{base}/"), holder: id.into(), store: atlas_core::secrets::Store::in_dir(secrets.path(), ws.root()), bytes: Bytes::Mirror };
+    let me = |id: &str, kind, active_at| Device { id: id.into(), name: id.into(), kind, active_at, reported_at: 0, alarms: None };
+    let armed = Alarms { exact: true, armed_at: 900, nudges: vec![60_000] };
+    let report = |id: &'static str, kind, at| {
+        let (l, mut d) = (link(id), me(id, kind, at));
+        if kind == Kind::Phone {
+            d.alarms = Some(armed.clone());
+        }
+        tokio::task::spawn_blocking(move || l.report(&d).map_err(|e| e.why))
+    };
+    report("presence-phone", Kind::Phone, Some(1_000)).await.unwrap().unwrap();
+    let all = report("presence-laptop", Kind::Desktop, None).await.unwrap().unwrap();
+    let ours: Vec<_> = all.iter().filter(|d| d.id.starts_with("presence-")).map(|d| (d.id.as_str(), d.kind, d.active_at)).collect();
+    assert_eq!(ours, vec![("presence-laptop", Kind::Desktop, None), ("presence-phone", Kind::Phone, Some(1_000))]);
+    assert!(all.iter().all(|d| d.reported_at > 1_700_000_000_000), "stamped by the server's clock: {all:?}");
+    let dev: serde_json::Value = http.get(format!("{base}/api/device")).header("x-atlas", "1").header("cookie", &session).send().await.unwrap().json().await.unwrap();
+    let listed: Vec<_> = dev["devices"].as_array().unwrap().iter().filter(|d| d["id"].as_str().unwrap().starts_with("presence-")).map(|d| (d["kind"].as_str().unwrap(), d["here"].as_bool().unwrap())).collect();
+    assert_eq!(listed, vec![("desktop", false), ("phone", false)], "{dev}");
+    let phone = dev["devices"].as_array().unwrap().iter().find(|d| d["id"] == "presence-phone").unwrap();
+    assert_eq!(phone["alarms"], serde_json::json!({ "exact": true, "armed_at": 900, "nudges": [60_000] }), "{dev}");
+    assert!(all.iter().find(|d| d.id == "presence-laptop").unwrap().alarms.is_none());
+    // a device may not report as the server
+    let as_server = http.post(format!("{base}/api/lease/presence")).header("x-atlas", "1").header("cookie", &session).json(&me("server", Kind::Desktop, None));
+    assert_eq!(as_server.send().await.unwrap().status(), StatusCode::BAD_REQUEST);
     ws.clear_write_guard();
 }
 

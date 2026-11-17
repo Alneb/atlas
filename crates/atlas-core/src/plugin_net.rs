@@ -147,6 +147,11 @@ pub(crate) fn checked_url(perm: &Permissions, id: &str, url: &str) -> Result<req
     Ok(u)
 }
 
+/// A file of plugin `id`'s own cache (`.atlas/cache/plugins/<id>/<rel>`), as `save_to` names one: nowhere else.
+pub(crate) fn cache_file(root: &Path, id: &str, rel: &str) -> Result<std::path::PathBuf> {
+    Ok(save_path(root, id, rel, SaveIn::Cache)?.0)
+}
+
 /// Where `save_to` lands: inside the plugin's own cache or remote-copies folder, nowhere else.
 fn save_path(root: &Path, id: &str, save_to: &str, into: SaveIn) -> Result<(std::path::PathBuf, String)> {
     let clean = save_to.trim().trim_start_matches('/');
@@ -192,12 +197,23 @@ pub(crate) fn header_value(perm: &Permissions, secrets: &Store, id: &str, v: &He
     }
 }
 
-/// A kept sign-in (a gate's cookie) for this address, when the plugin names its host and brings no cookie of its own.
-pub(crate) fn kept_cookie(perm: &Permissions, secrets: &Store, url: &reqwest::Url, headers: &BTreeMap<String, HeaderValue>) -> Result<Option<String>> {
-    if !host_named(&perm.net, url.host_str().unwrap_or_default()) || headers.keys().any(|n| n.eq_ignore_ascii_case("cookie")) {
-        return Ok(None);
+/// What is kept for this address (service_signin::site_headers: a gate's session cookie, a gate's bypass key), when
+/// the plugin names its host; a cookie only when it brings none of its own, a header only when it sets none of that
+/// name. `secret`: a bypass key is among them (then no redirect may leave the host).
+pub(crate) fn kept_headers(perm: &Permissions, secrets: &Store, url: &reqwest::Url, headers: &BTreeMap<String, HeaderValue>) -> Result<crate::service_signin::SiteHeaders> {
+    let mut kept = crate::service_signin::SiteHeaders { headers: vec![], secret: false };
+    if !host_named(&perm.net, url.host_str().unwrap_or_default()) {
+        return Ok(kept);
     }
-    crate::service_signin::cookie_header(secrets, url)
+    let all = crate::service_signin::site_headers(secrets, url)?;
+    kept.secret = all.secret;
+    kept.headers = all.headers.into_iter().filter(|(n, _)| !headers.keys().any(|k| k.eq_ignore_ascii_case(n))).collect();
+    Ok(kept)
+}
+
+/// Only the kept gate cookie (plugin_oauth's silent sign-in reads the gate's session alone).
+pub(crate) fn kept_cookie(perm: &Permissions, secrets: &Store, url: &reqwest::Url, headers: &BTreeMap<String, HeaderValue>) -> Result<Option<String>> {
+    Ok(kept_headers(perm, secrets, url, headers)?.headers.into_iter().find(|(n, _)| n == "cookie").map(|(_, v)| v))
 }
 
 pub fn fetch(root: &Path, secrets: &Store, id: &str, req: &FetchRequest) -> Result<FetchResponse> {
@@ -208,7 +224,8 @@ pub fn fetch(root: &Path, secrets: &Store, id: &str, req: &FetchRequest) -> Resu
     let allowed = perm.net.clone();
     // a secret in a header of the plugin's naming or in the form is not one reqwest drops on a redirect to another host
     // (it drops only Authorization and Cookie): then a redirect may not leave the host asked
-    let carries_secret = req.headers.values().chain(req.form.iter().flat_map(|f| f.values())).any(|v| !matches!(v, HeaderValue::Text(_)));
+    let kept = kept_headers(&perm, secrets, &url, &req.headers)?;
+    let carries_secret = kept.secret || req.headers.values().chain(req.form.iter().flat_map(|f| f.values())).any(|v| !matches!(v, HeaderValue::Text(_)));
     let first_host = url.host_str().unwrap_or_default().to_ascii_lowercase();
     let client = reqwest::blocking::Client::builder().use_preconfigured_tls(crate::tls_chain::config())
         .timeout(Duration::from_secs(req.timeout_secs.unwrap_or(DEFAULT_TIMEOUT).clamp(1, MAX_TIMEOUT)))
@@ -238,9 +255,9 @@ pub fn fetch(root: &Path, secrets: &Store, id: &str, req: &FetchRequest) -> Resu
     }
     let mut call = client.request(method, url);
     let wants_json = req.headers.iter().any(|(n, v)| n.eq_ignore_ascii_case("accept") && matches!(v, HeaderValue::Text(t) if t.contains("json")));
-    // a kept sign-in to this site (a gate's cookie), unless the plugin brings cookies of its own
-    if let Some(c) = kept_cookie(&perm, secrets, &asked, &req.headers)? {
-        call = call.header("cookie", c);
+    // what is kept for this site (a gate's cookie, its bypass key), unless the plugin brings its own
+    for (name, v) in kept.headers {
+        call = call.header(name.as_str(), v);
     }
     let value = |v: &HeaderValue| header_value(&perm, secrets, id, v);
     for (name, v) in &req.headers {

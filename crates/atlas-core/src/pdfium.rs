@@ -15,6 +15,7 @@ type TextPage = *mut c_void;
 type Bitmap = *mut c_void;
 type Search = *mut c_void;
 type Link = *mut c_void;
+type Bookmark = *mut c_void;
 
 #[repr(C)]
 #[derive(Default)]
@@ -66,6 +67,8 @@ api! {
     FPDF_GetPageSizeByIndexF: fn(Doc, c_int, *mut SizeF) -> c_int;
     FPDF_LoadPage: fn(Doc, c_int) -> Page;
     FPDF_ClosePage: fn(Page) -> ();
+    FPDF_GetPageBoundingBox: fn(Page, *mut RectF) -> c_int;
+    FPDFPage_GetRotation: fn(Page) -> c_int;
     FPDFBitmap_Create: fn(c_int, c_int, c_int) -> Bitmap;
     FPDFBitmap_FillRect: fn(Bitmap, c_int, c_int, c_int, c_int, c_ulong) -> c_int;
     FPDFBitmap_GetBuffer: fn(Bitmap) -> *mut u8;
@@ -92,6 +95,11 @@ api! {
     FPDFAction_GetDest: fn(Doc, *mut c_void) -> *mut c_void;
     FPDFAction_GetURIPath: fn(Doc, *mut c_void, *mut c_void, c_ulong) -> c_ulong;
     FPDFDest_GetDestPageIndex: fn(Doc, *mut c_void) -> c_int;
+    FPDFBookmark_GetFirstChild: fn(Doc, Bookmark) -> Bookmark;
+    FPDFBookmark_GetNextSibling: fn(Doc, Bookmark) -> Bookmark;
+    FPDFBookmark_GetTitle: fn(Bookmark, *mut c_void, c_ulong) -> c_ulong;
+    FPDFBookmark_GetDest: fn(Doc, Bookmark) -> *mut c_void;
+    FPDFBookmark_GetAction: fn(Bookmark) -> *mut c_void;
 }
 
 /// A box in page points: left, bottom, right, top (y up).
@@ -104,6 +112,20 @@ pub enum Target {
     Page(u32),
     Web(String),
 }
+
+/// One entry of a document's outline (its bookmarks, the table of contents), in reading order.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Section {
+    pub title: String,
+    /// 0 for a top-level entry, one more per level below
+    pub depth: u32,
+    /// the page it goes to, 1-based; None when it goes nowhere in this document (a heading only, or a web address)
+    pub page: Option<u32>,
+}
+
+/// Outlines deeper than this, or longer, are cut there: a malformed file can loop its siblings back on themselves.
+const OUTLINE_DEPTH: u32 = 16;
+const OUTLINE_MAX: usize = 10_000;
 
 struct State {
     api: Api,
@@ -210,7 +232,7 @@ fn with_text<T>(api: &Api, page: Page, f: impl FnOnce(TextPage) -> T) -> Result<
     Ok(out)
 }
 
-/// Each page's width and height in points.
+/// Each page's width and height in points as shown: its `/Rotate` applied (a quarter turn swaps them), cropped.
 pub fn pages(pdf: &Path) -> Result<Vec<(f32, f32)>, String> {
     with_doc(pdf, |api, doc| {
         // SAFETY: an open document, indices below its page count
@@ -222,6 +244,30 @@ pub fn pages(pdf: &Path) -> Result<Vec<(f32, f32)>, String> {
                 (s.width, s.height)
             })
             .collect())
+    })
+}
+
+/// Where a page's points are shown: the box shown (its crop box, in page points) and its own `/Rotate` in quarter
+/// turns clockwise. Characters, links, find's boxes and the note's marks are page points (y up, the box's origin
+/// wherever the file put it); the page is drawn turned and cropped, so a point on screen goes through this (the
+/// desktop's `pdf-geom.ts` toShown / toPage, the phone's `PageSpace.java`).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Space {
+    pub view: Box4,
+    pub rotate: u8,
+}
+
+/// Page `n`'s space. Separate from `pages` because it loads the page: asked for the pages shown, not all of them.
+pub fn space(pdf: &Path, n: u32) -> Result<Space, String> {
+    with_doc(pdf, |api, doc| {
+        with_page(api, doc, n, |page| {
+            let mut r = RectF::default();
+            // SAFETY: a loaded page
+            let ok = unsafe { (api.FPDF_GetPageBoundingBox)(page, &mut r) } != 0;
+            let rotate = (unsafe { (api.FPDFPage_GetRotation)(page) }.rem_euclid(4)) as u8;
+            let view = if ok { [r.left.min(r.right), r.bottom.min(r.top), r.left.max(r.right), r.bottom.max(r.top)] } else { [0.0, 0.0, 612.0, 792.0] };
+            Space { view, rotate }
+        })
     })
 }
 
@@ -355,6 +401,46 @@ pub fn links(pdf: &Path, n: u32) -> Result<Vec<(Box4, Target)>, String> {
     })
 }
 
+/// The document's outline (bookmarks), depth first; empty when it has none.
+pub fn outline(pdf: &Path) -> Result<Vec<Section>, String> {
+    with_doc(pdf, |api, doc| {
+        let mut out = vec![];
+        walk(api, doc, std::ptr::null_mut(), 0, &mut out);
+        Ok(out)
+    })
+}
+
+fn walk(api: &Api, doc: Doc, parent: Bookmark, depth: u32, out: &mut Vec<Section>) {
+    if depth >= OUTLINE_DEPTH {
+        return;
+    }
+    // SAFETY: bookmarks are the open document's, alive while it is; titles are read with the length PDFium gives
+    let mut b = unsafe { (api.FPDFBookmark_GetFirstChild)(doc, parent) };
+    while !b.is_null() && out.len() < OUTLINE_MAX {
+        let title = unsafe {
+            let len = (api.FPDFBookmark_GetTitle)(b, std::ptr::null_mut(), 0) as usize;
+            let mut buf = vec![0u16; len.div_ceil(2)];
+            if len > 0 {
+                (api.FPDFBookmark_GetTitle)(b, buf.as_mut_ptr().cast(), len as c_ulong);
+            }
+            String::from_utf16_lossy(&buf).trim_end_matches('\0').trim().to_string()
+        };
+        let page = unsafe {
+            let mut dest = (api.FPDFBookmark_GetDest)(doc, b);
+            if dest.is_null() {
+                let action = (api.FPDFBookmark_GetAction)(b);
+                if !action.is_null() && (api.FPDFAction_GetType)(action) == ACTION_GOTO {
+                    dest = (api.FPDFAction_GetDest)(doc, action);
+                }
+            }
+            if dest.is_null() { -1 } else { (api.FPDFDest_GetDestPageIndex)(doc, dest) }
+        };
+        out.push(Section { title, depth, page: (page >= 0).then(|| page as u32 + 1) });
+        walk(api, doc, b, depth + 1, out);
+        b = unsafe { (api.FPDFBookmark_GetNextSibling)(doc, b) };
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -365,12 +451,13 @@ mod tests {
         p.exists().then_some(p)
     }
 
-    /// Two pages of Helvetica text; page 1 links to page 2 and to a web address.
+    /// Two pages of Helvetica text; page 1 links to page 2 and to a web address; an outline of two chapters, the first
+    /// with a section under it, and a heading that goes nowhere.
     fn text_pdf() -> Vec<u8> {
         let text = |l: &str| format!("BT /F1 18 Tf 72 700 Td ({l}) Tj ET");
         let (a, b) = (text("The quantum dot model"), text("quantum again"));
         let objs = [
-            "<< /Type /Catalog /Pages 2 0 R >>".to_string(),
+            "<< /Type /Catalog /Pages 2 0 R /Outlines 10 0 R >>".to_string(),
             "<< /Type /Pages /Kids [4 0 R 6 0 R] /Count 2 >>".into(),
             "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>".into(),
             "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 5 0 R /Annots [8 0 R 9 0 R] >>".into(),
@@ -379,7 +466,17 @@ mod tests {
             format!("<< /Length {} >>\nstream\n{b}\nendstream", b.len()),
             "<< /Type /Annot /Subtype /Link /Rect [72 600 200 620] /Dest [6 0 R /XYZ 0 792 0] >>".into(),
             "<< /Type /Annot /Subtype /Link /Rect [72 560 200 580] /A << /S /URI /URI (https://example.org/) >> >>".into(),
+            "<< /Type /Outlines /First 11 0 R /Last 14 0 R /Count 4 >>".into(),
+            "<< /Title (Introduction) /Parent 10 0 R /Next 13 0 R /First 12 0 R /Last 12 0 R /Count 1 /Dest [4 0 R /Fit] >>".into(),
+            "<< /Title (The model) /Parent 11 0 R /A << /S /GoTo /D [6 0 R /XYZ 0 700 0] >> >>".into(),
+            "<< /Title (Appendix) /Parent 10 0 R /Prev 11 0 R /Next 14 0 R /Dest [6 0 R /Fit] >>".into(),
+            "<< /Title <FEFF00C9007400E9> /Parent 10 0 R /Prev 13 0 R >>".into(),
         ];
+        pdf_of(&objs)
+    }
+
+    /// A PDF of these objects (numbered from 1, the first the catalog), with its cross-reference table.
+    fn pdf_of(objs: &[String]) -> Vec<u8> {
         let mut out = String::from("%PDF-1.4\n");
         let mut at = vec![];
         for (i, o) in objs.iter().enumerate() {
@@ -418,6 +515,110 @@ mod tests {
         assert_eq!(px.len(), 306 * 396 * 4);
         assert!(px.chunks(4).any(|p| p[0] < 128), "some text drawn dark on the white page");
         assert_eq!(links(&pdf, 1).unwrap().into_iter().map(|l| l.1).collect::<Vec<_>>(), [Target::Page(2), Target::Web("https://example.org/".into())]);
+        let sec = |title: &str, depth, page| Section { title: title.into(), depth, page };
+        assert_eq!(
+            outline(&pdf).unwrap(),
+            [sec("Introduction", 0, Some(1)), sec("The model", 1, Some(2)), sec("Appendix", 0, Some(2)), sec("Été", 0, None)],
+            "depth first, a GoTo action's page too, a UTF-16 title, a heading that goes nowhere"
+        );
         assert!(pages(&d.path().join("missing.pdf")).is_err());
+        assert_eq!(space(&pdf, 1).unwrap(), Space { view: [0.0, 0.0, 612.0, 792.0], rotate: 0 });
+    }
+
+    /// pdf-geom.ts toShown: page points (y up) → the shown page's points from its top left.
+    fn to_shown(s: Space, x: f32, y: f32) -> (f32, f32) {
+        let [x0, y0, x1, y1] = s.view;
+        match s.rotate & 3 {
+            1 => (y - y0, x - x0),
+            2 => (x1 - x, y - y0),
+            3 => (y1 - y, x1 - x),
+            _ => (x - x0, y1 - y),
+        }
+    }
+
+    /// A page turned by its own `/Rotate 90`, its media box not at the origin: PDFium gives the shown size, but the
+    /// characters in page points — so a reader that maps the screen to the page by the shown size alone selects the
+    /// wrong words (or none). Through `space` a character's box lands where its glyph is drawn.
+    #[test]
+    fn a_rotated_pages_characters_are_found_where_they_are_drawn_through_its_space() {
+        let Some(lib) = host_lib() else {
+            eprintln!("skipped: no local/pdfium/8086-linux-x64 (DESIGN-pdfium-android.md says how to fetch it)");
+            return;
+        };
+        init(&lib).unwrap();
+        let text = "BT /F1 40 Tf 150 300 Td (WWWW) Tj ET";
+        let objs = [
+            "<< /Type /Catalog /Pages 2 0 R >>".to_string(),
+            "<< /Type /Pages /Kids [4 0 R] /Count 1 >>".into(),
+            "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>".into(),
+            "<< /Type /Page /Parent 2 0 R /MediaBox [100 50 500 650] /Rotate 90 /Resources << /Font << /F1 3 0 R >> >> /Contents 5 0 R >>".into(),
+            format!("<< /Length {} >>\nstream\n{text}\nendstream", text.len()),
+        ];
+        let d = tempfile::tempdir().unwrap();
+        let pdf = d.path().join("turned.pdf");
+        std::fs::write(&pdf, pdf_of(&objs)).unwrap();
+        assert_eq!(pages(&pdf).unwrap(), vec![(600.0, 400.0)], "the shown size: turned");
+        let sp = space(&pdf, 1).unwrap();
+        assert_eq!(sp, Space { view: [100.0, 50.0, 500.0, 650.0], rotate: 1 });
+        let cs = chars(&pdf, 1).unwrap();
+        let w = cs.iter().find(|c| c.0 == 'W').unwrap().1;
+        assert!(w[0] >= 150.0 && w[0] < 160.0 && w[1] > 290.0 && w[3] < 345.0, "page points, unturned: {w:?}");
+        // the glyph's centre, shown: where the drawn page is dark
+        let (cx, cy) = to_shown(sp, (w[0] + w[2]) / 2.0, (w[1] + w[3]) / 2.0);
+        let (pw, ph) = (600usize, 400usize);
+        let px = render(&pdf, 1, pw as u32, ph as u32, 0, true).unwrap();
+        let dark = |x: f32, y: f32| {
+            // any dark pixel within 6 points of (x, y): the centre of a W may fall between its strokes
+            (-6..=6).any(|dy: i32| (-6..=6).any(|dx: i32| {
+                let (i, j) = ((x as i32 + dx).clamp(0, pw as i32 - 1) as usize, (y as i32 + dy).clamp(0, ph as i32 - 1) as usize);
+                px[(j * pw + i) * 4] < 128
+            }))
+        };
+        assert!(dark(cx, cy), "the character's box, through its space, is on its glyph: ({cx}, {cy})");
+        // what the reader did before: the shown size alone, as if unturned at the origin — off the glyph
+        let (nx, ny) = ((w[0] + w[2]) / 2.0, 400.0 - (w[1] + w[3]) / 2.0);
+        assert!(!dark(nx, ny), "without the space the point is elsewhere: ({nx}, {ny})");
+    }
+
+    /// A two-column page read by PDFium: its characters, taken to the shown space, give each column under a point
+    /// (pdf_columns.rs, what the phone's reader and the desktop's pane zoom to on a double tap).
+    #[test]
+    fn a_two_column_pages_characters_give_its_columns() {
+        let Some(lib) = host_lib() else {
+            eprintln!("skipped: no local/pdfium/8086-linux-x64 (DESIGN-pdfium-android.md says how to fetch it)");
+            return;
+        };
+        init(&lib).unwrap();
+        let mut text = String::from("BT /F1 10 Tf ");
+        for (x, words) in [(72, "left words of the first column here"), (312, "right words in the second column")] {
+            for i in 0..30 {
+                text += &format!("1 0 0 1 {x} {} Tm ({words} {i}) Tj ", 700 - 12 * i);
+            }
+        }
+        text += "ET";
+        let objs = [
+            "<< /Type /Catalog /Pages 2 0 R >>".to_string(),
+            "<< /Type /Pages /Kids [4 0 R] /Count 1 >>".into(),
+            "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>".into(),
+            "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 5 0 R >>".into(),
+            format!("<< /Length {} >>\nstream\n{text}\nendstream", text.len()),
+        ];
+        let d = tempfile::tempdir().unwrap();
+        let pdf = d.path().join("columns.pdf");
+        std::fs::write(&pdf, pdf_of(&objs)).unwrap();
+        let sp = space(&pdf, 1).unwrap();
+        let shown: Vec<crate::pdf_columns::Rect> = chars(&pdf, 1)
+            .unwrap()
+            .into_iter()
+            .filter(|(c, _)| !c.is_whitespace())
+            .map(|(_, b)| {
+                let ((ax, ay), (bx, by)) = (to_shown(sp, b[0], b[1]), to_shown(sp, b[2], b[3]));
+                [ax.min(bx), ay.min(by), ax.max(bx), ay.max(by)]
+            })
+            .collect();
+        let left = crate::pdf_columns::column_at(&shown, 150.0, 250.0).expect("the left column");
+        assert!(left[0] >= 70.0 && left[0] < 75.0 && left[2] < 312.0, "{left:?}");
+        let right = crate::pdf_columns::column_at(&shown, 400.0, 250.0).expect("the right column");
+        assert!(right[0] >= 310.0 && right[0] < 315.0 && right[2] < 560.0, "{right:?}");
     }
 }

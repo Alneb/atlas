@@ -5,6 +5,7 @@ import type { NoticeLevel } from "./NoticeLevel";
 import type { Reach } from "./Reach";
 import type { Refusal } from "./Refusal";
 import type { Seat } from "./Seat";
+import type { SyncthingHere } from "./SyncthingHere";
 
 /**
  * `GET /api/sync/state`: everything [`words`] says, and the facts it says it from.
@@ -41,7 +42,12 @@ captures_waiting: number,
 /**
  * Syncthing conflict copies left for the user (sync_merge.rs `left_copies`).
  */
-conflict_copies: number, level: NoticeLevel, 
+conflict_copies: number, 
+/**
+ * What this device's Syncthing says of the folder (syncthing_here.rs), for a Syncthing folder whose config is
+ * found here; absent otherwise.
+ */
+syncthing_here?: SyncthingHere, level: NoticeLevel, 
 /**
  * The one line both apps show.
  */

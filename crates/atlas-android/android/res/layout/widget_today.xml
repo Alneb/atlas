@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- The home-screen widget (TodayWidget): the day and the vault, Capture, today's log, the open tasks. Colours are set
+<!-- The home-screen widget (TodayWidget): the day and the vault, Capture, today's log, what comes next (the Agenda's
+     events and dated tasks), the open tasks. Colours are set
      when drawn (the vault's palette): the shapes are white and tinted (ImageView.setColorFilter, which RemoteViews allows). -->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android" android:id="@+id/widget_root"
     android:layout_width="match_parent" android:layout_height="match_parent">
@@ -29,6 +30,10 @@
         android:layout_marginTop="10dp" android:text="Today’s log" android:textSize="12sp" />
     <TextView android:id="@+id/widget_log" android:layout_width="match_parent" android:layout_height="wrap_content"
         android:paddingTop="2dp" android:paddingBottom="2dp" android:textSize="13sp" android:maxLines="4" android:ellipsize="end" />
+    <TextView android:id="@+id/widget_next_head" android:layout_width="wrap_content" android:layout_height="wrap_content"
+        android:layout_marginTop="8dp" android:text="Coming up" android:textSize="12sp" android:visibility="gone" />
+    <LinearLayout android:id="@+id/widget_next" android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:orientation="vertical" />
     <TextView android:id="@+id/widget_tasks_head" android:layout_width="wrap_content" android:layout_height="wrap_content"
         android:layout_marginTop="8dp" android:text="Open tasks" android:textSize="12sp" />
     <LinearLayout android:id="@+id/widget_tasks" android:layout_width="match_parent" android:layout_height="wrap_content"

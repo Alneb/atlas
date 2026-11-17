@@ -66,7 +66,10 @@ function rewriteLineStarts(view: EditorView, start: RegExp, head: (m: RegExpExec
       changes.push({ from: line.from, to: line.from + m[0].length, insert: head(m) });
     }
   }
-  view.dispatch({ changes, userEvent: "input.format" });
+  // a caret at the line's start (an empty line) or inside the old start goes after the new one: typing continues the
+  // to-do, not before its box
+  const set = state.changes(changes);
+  view.dispatch({ changes: set, selection: state.selection.map(set, 1), userEvent: "input.format" });
 }
 
 /** Each line of the selection: text → to-do → done → to-do… (a plain or bulleted line becomes `- [ ]`). */
@@ -118,7 +121,7 @@ function insertTable(view: EditorView): void {
 }
 
 /** The note editor the keyboard is in, if any (class `live-cm`: lib/editor/create.ts). */
-const focusedNote = (): EditorView | null => {
+export const focusedNote = (): EditorView | null => {
   const el = (document.activeElement as HTMLElement | null)?.closest<HTMLElement>(".cm-editor.live-cm");
   return el ? EditorView.findFromDOM(el) : null;
 };

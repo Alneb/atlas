@@ -3,12 +3,16 @@
 // and where you are is in the series' note (its folder's own `<series>/<name>.md`), so the phone and the desktop carry
 // on from each other. Screens as Mihon's: Series (Continue, chapters) →
 // Reader (paged right to left / left to right / vertical, or webtoon). A .cbz is unzipped here, in the page.
-import { suwayomi, isRemote, PAGE_W } from "./suwayomi.js";
+import { suwayomi, isRemote, PAGE_W, engagement } from "./suwayomi.js";
 
 const PICTURE = /\.(jpe?g|png|webp|gif|avif|bmp)$/i;
 const ZIP = /\.cb[zr7t]$/i; // a chapter archive; only a .cbz is read in the page, the others made into one (helper/helper.ts)
 const CBZ = /\.cbz$/i;
 const READING = "reading.json";
+/** What the pane is opened on to browse the server's sources (main.js's command; on the phone `manga:browse`). */
+export const BROWSE = "suwayomi:browse";
+/** The pane on the server's own library (Suwayomi's): its own tab, apart from the Libraries page's Comics (what is yours). */
+export const SERVER = "suwayomi:library";
 const KEEP = 5; // chapters a Suwayomi series keeps for offline at a click // the older place file: read once, the note is written from then on
 
 // ---- where you are, in the series' note: reading_chapter · reading_page · last_read
@@ -87,6 +91,41 @@ export default function mount(host, atlas) {
     if (!notes.has(s.path)) notes.set(s.path, Promise.resolve(atlas.companion ? atlas.companion(`${s.path}/`, { find: true }) : `${s.path}/${s.path.split("/").pop()}.md`).catch(() => `${s.path}/${s.path.split("/").pop()}.md`));
     return notes.get(s.path);
   };
+  /** The series' one note by the catalog's rule (its `note` tool, DESIGN-server-libraries §3): found, or made once the
+   *  series is yours (`why`: engagement()). A vault series' note is its folder's (made by the core), a server's in the
+   *  catalog's Manga folder. Without the catalog, a vault series still gets its folder's note from the core once read. */
+  async function thingNote(s, why) {
+    const title = s.title ?? s.path.split("/").pop();
+    const thing = s.remote ? await suw.thing(s) : { kind: "manga", file: `${s.path}/`, fields: { title } };
+    if (!thing) return null;
+    try {
+      const r = await atlas.post("/api/plugins/@catalog/tools/note", { ...thing, ...why });
+      if (r?.path) notes.set(s.path, Promise.resolve(r.path));
+      return r?.path ?? null;
+    } catch {
+      if (s.remote || why.why === "opened" || !atlas.companion) return null;
+      const p = await atlas.companion(`${s.path}/`, { find: false, title });
+      notes.set(s.path, Promise.resolve(p));
+      return p;
+    }
+  }
+  /** A server series' note told where you are (`reading_chapter`, `last_read`; the place itself is the server's), the
+   *  note asked for once it is yours and remembered for the pane's life. */
+  const remoteNotes = new Map(), remoteTold = new Map();
+  async function remoteNote(s, r, why) {
+    let note = remoteNotes.get(s.path);
+    if (note === null) return; // asked once this pane and none could be made (no catalog, the server out of reach)
+    if (note === undefined) {
+      if (why.why === "opened") return;
+      note = await thingNote(s, why).catch(() => null);
+      remoteNotes.set(s.path, note);
+      if (!note) return;
+    }
+    if (!r.last || remoteTold.get(s.path) === r.last) return;
+    remoteTold.set(s.path, r.last);
+    await atlas.writeProperty(note, "reading_chapter", r.last);
+    await atlas.writeProperty(note, "last_read", new Date().toISOString().replace(/\.\d+Z$/, "Z"));
+  }
   const migrated = new Set();
   async function reading(s) {
     if (s.remote) return s.reading ?? {};
@@ -97,18 +136,19 @@ export default function mount(host, atlas) {
     } catch { /* no note yet */ }
     let old;
     try { old = JSON.parse(await atlas.readText(`${s.path}/${READING}`)); } catch { return {}; }
-    if (!migrated.has(s.path)) { migrated.add(s.path); void saveReading(s, (r) => Object.assign(r, old)); } // into the note once; `atlas companions` then retires the file
+    if (!migrated.has(s.path)) { migrated.add(s.path); void saveReading(s, (r) => Object.assign(r, old), { why: "progress", progress: 1 }); } // into the note once; `atlas companions` then retires the file
     return old;
   }
   /** Library.mark / setRead: read again just before writing, so what the phone wrote meanwhile is kept. */
   let writes = Promise.resolve(); // one at a time: two read-change-writes at once would each drop the other's change
-  function saveReading(s, change) {
+  function saveReading(s, change, why = { why: "opened" }) {
     if (s.remote) { // kept here at once, each chapter that changed written back to the server
       const r = (s.reading ??= { chapters: {} }), before = JSON.stringify(r.chapters);
       r.chapters ??= {};
       change(r);
       const was = JSON.parse(before);
       writes = writes.then(() => Promise.all(s.chapters.filter((ch) => JSON.stringify(r.chapters[nameOf(ch)]) !== JSON.stringify(was[nameOf(ch)])).map((ch) => suw.mark(ch, r.chapters[nameOf(ch)]?.page ?? 0, !!r.chapters[nameOf(ch)]?.read))))
+        .then(() => remoteNote(s, r, why).catch(() => {}))
         .catch((e) => atlas.toast("Manga", `Not saved on Suwayomi: ${e.message ?? e}`, "error"));
       return writes;
     }
@@ -117,8 +157,9 @@ export default function mount(host, atlas) {
       const r = await reading(s);
       r.chapters ??= {};
       change(r);
-      const note = await noteOf(s), title = s.title ?? s.path.split("/").pop();
-      await atlas.createFile(note, `---\ntitle: ${JSON.stringify(title)}\n---\n# ${title}\n`); // false when it is there
+      // the note made only once the series is yours, by the catalog's rule (never written here)
+      const note = (await atlas.exists(await noteOf(s)).catch(() => false)) ? await noteOf(s) : await thingNote(s, why);
+      if (!note) return;
       for (const [k, v] of Object.entries(readingProps(r))) if (v != null) await atlas.writeProperty(note, k, v);
     }).catch((e) => atlas.toast("Manga", `Not saved: ${e.message ?? e}`, "error"));
     return writes;
@@ -158,9 +199,10 @@ export default function mount(host, atlas) {
   }
   function series(s) {
     const head = el("div", "m-bar");
-    const backBtn = el("button", "atlas-btn", "‹ Library");
-    backBtn.title = "The comics, on the Libraries page";
-    backBtn.onclick = toLibrary;
+    // back where it was opened from: the server's library (its own tab), else the Libraries page's Comics
+    const backBtn = el("button", "atlas-btn", stack.length > 1 ? "‹ Back" : "‹ Library");
+    backBtn.title = stack.length > 1 ? "Back to the list it was opened from" : "The comics, on the Libraries page";
+    backBtn.onclick = back;
     head.append(backBtn, el("div", "m-title", s.title));
     const top = el("div", "m-series"), pic = el("div", "m-cover big"), img = el("img"), side = el("div", "m-side");
     img.alt = "";
@@ -199,8 +241,55 @@ export default function mount(host, atlas) {
         } catch (e) { atlas.toast("Manga", `Kept ${done} of ${next.length}: ${e.message ?? e}`, "error"); }
         keep.disabled = false; keep.textContent = `Keep ${KEEP} for offline`;
       };
-      side.append(fresh, keep);
+      // the unread chapters downloaded by the server itself: kept there, they read even once their source is gone
+      const onServer = el("button", "atlas-btn", "Download on the server");
+      // while the server downloads this series' chapters: how many are left and the one under way, every few seconds
+      const queued = el("div", "m-queue");
+      queued.hidden = true;
+      let watching = 0;
+      const watchQueue = () => {
+        clearTimeout(watching);
+        const look = async () => {
+          if (gone || !queued.isConnected) return;
+          let q;
+          try { q = await suw.queue(); } catch { queued.hidden = true; return; }
+          const mine = q.items.filter((i) => i.series === s.remote);
+          if (!mine.length) {
+            if (!queued.hidden) { queued.hidden = true; await suw.chapters(s).catch(() => {}); }
+            return;
+          }
+          const now = mine.find((i) => i.state === "DOWNLOADING") ?? mine[0];
+          const failed = mine.filter((i) => i.state === "ERROR").length;
+          queued.hidden = false;
+          queued.textContent = `${q.running ? "Downloading on the server" : "Queued on the server (its downloader is stopped)"}: ${mine.length} left · ${now.name} ${Math.round(now.progress * 100)} %${failed ? ` · ${failed} failed` : ""}`;
+          watching = setTimeout(look, 3000);
+        };
+        void look();
+      };
+      onServer.title = "Queue the unread chapters in Suwayomi's own Downloads: the server keeps them";
+      onServer.onclick = async () => {
+        onServer.disabled = true;
+        try {
+          const r = await reading(s), n = await suw.download(s, s.chapters.filter((ch) => !isRead(r, ch)));
+          atlas.toast("Manga", n ? `${n} chapter${n === 1 ? "" : "s"} of ${s.title} queued in Suwayomi's downloads` : "Every unread chapter is on the server already", n ? "success" : undefined);
+          if (n) watchQueue();
+        } catch (e) { atlas.toast("Manga", String(e.message ?? e), "error"); }
+        onServer.disabled = false;
+      };
+      side.append(fresh, keep, onServer, queued);
+      watchQueue(); // a queue started earlier (here or in Suwayomi) shows too
     }
+    // the series' one note: opened, made when it has none (asking makes it yours)
+    const noteBtn = el("button", "atlas-btn", "Its note");
+    noteBtn.title = "The series' note in the vault — your review, rating, what you write; made now if it has none";
+    noteBtn.onclick = async () => {
+      noteBtn.disabled = true;
+      const have = !s.remote && (await atlas.exists(await noteOf(s)).catch(() => false)) ? await noteOf(s) : await thingNote(s, { why: "asked" }).catch(() => null);
+      noteBtn.disabled = false;
+      if (have) atlas.open(have, undefined, { beside: true });
+      else atlas.toast("Manga", s.remote && suw.offline ? "Suwayomi cannot be reached: the series' note waits for it." : "No note made: a series' note is the Catalog's (switch the Catalog plugin on).", "error");
+    };
+    side.append(noteBtn);
     if (s.remote && suw.offline) side.append(el("div", "m-offline", `Suwayomi cannot be reached (${suw.offline}): the chapters as last seen; the ones opened before read from the copies kept.`));
     top.append(pic, side);
     const list = el("div", "m-chapters");
@@ -217,11 +306,12 @@ export default function mount(host, atlas) {
         row.title = "Click: read · right-click: mark read / unread";
         const page = pageOf(r, ch);
         row.append(el("span", "m-ch-name", ch.endsWith("/") ? nameOf(ch).slice(0, -1) : nameOf(ch).replace(ZIP, "")), el("span", "m-ch-at", isRead(r, ch) ? "read" : page ? `page ${page + 1}` : ""));
+        if (s.remote && suw.onServer(s, ch)) { const d = el("span", "m-ch-kept", "⤓"); d.title = "Downloaded on the server"; row.lastChild.append(d); }
         row.onclick = () => read(s, i, isRead(r, ch) ? 0 : page);
         row.oncontextmenu = (e) => {
           e.preventDefault();
           const read = !isRead(r, ch);
-          void saveReading(s, (x) => { const c = (x.chapters[nameOf(ch)] ??= {}); c.read = read; if (!read) c.page = 0; }).then(refresh);
+          void saveReading(s, (x) => { const c = (x.chapters[nameOf(ch)] ??= {}); c.read = read; if (!read) c.page = 0; }, engagement(0, 0, read)).then(refresh);
         };
         list.append(row);
       });
@@ -254,11 +344,11 @@ export default function mount(host, atlas) {
     const setBar = (on) => { barOn = on; bar.classList.toggle("on", on); };
     const label = () => `${nameOf(s.chapters[index]).replace(/\/$/, "").replace(ZIP, "")} · ${page + 1} / ${ch?.count ?? "…"}`;
     // the page shown, saved once the reader rests on it; flushed at once on a chapter change and on leaving
-    const flush = () => { clearTimeout(saveT); const f = pending; pending = null; if (f) void saveReading(s, f); };
+    const flush = () => { clearTimeout(saveT); const f = pending; pending = null; if (f) void saveReading(s, f.change, f.why); };
     const remember = () => {
       clearTimeout(saveT);
       const at = page, of = ch.count, name = nameOf(s.chapters[index]);
-      pending = (r) => { const c = (r.chapters[name] ??= {}); c.page = at; if (at >= of - 1) c.read = true; r.last = name; };
+      pending = { change: (r) => { const c = (r.chapters[name] ??= {}); c.page = at; if (at >= of - 1) c.read = true; r.last = name; }, why: engagement(at, of, false) };
       saveT = setTimeout(flush, 400);
     };
     // e-ink: a full refresh every N page turns (Mihon's option) clears the ghosts of the last pages
@@ -378,6 +468,196 @@ export default function mount(host, atlas) {
     return () => { flush(); offInk(); sized.disconnect(); root.removeEventListener("keydown", keys); watch?.disconnect(); ch?.done(); };
   }
 
+  // ---- Browse: the server's sources (android/SourcesView.java, SourceView.java, the series' Add to library) ---------
+  const bar = (title, backLabel) => {
+    const head = el("div", "m-bar"), b = el("button", "atlas-btn", backLabel);
+    b.onclick = back;
+    head.append(b, el("div", "m-title", title));
+    return head;
+  };
+  /** The installed sources by language (the reader's own first, then all-language ones), a filter over their names. */
+  function browse() {
+    const filter = el("input", "atlas-input m-filter");
+    filter.placeholder = "Filter the sources…";
+    const head = bar("Browse Suwayomi", "‹ Back");
+    head.append(filter);
+    const list = el("div", "m-sources");
+    root.append(head, list);
+    const mine = (navigator.language || "en").slice(0, 2).toLowerCase();
+    const rank = (lang) => (lang === mine ? 0 : lang === "all" ? 1 : lang === "localsourcelang" ? 2 : 3);
+    const words = { all: "All languages", localsourcelang: "On the server" };
+    const name = (code) => words[code] ?? (() => { try { return new Intl.DisplayNames([navigator.language || "en"], { type: "language" }).of(code) ?? code; } catch { return code; } })();
+    let all = [];
+    const draw = () => {
+      const f = filter.value.trim().toLowerCase();
+      const shown = all.filter((x) => !f || `${x.label} ${x.name}`.toLowerCase().includes(f));
+      list.replaceChildren();
+      if (!shown.length) { list.append(el("div", "atlas-notice", all.length ? "No source by that name." : "No sources: install extensions in Suwayomi.")); return; }
+      const langs = [...new Set(shown.map((x) => x.lang))].sort((a, b) => rank(a) - rank(b) || name(a).localeCompare(name(b)));
+      for (const lang of langs) {
+        list.append(el("h3", "m-lang", name(lang)));
+        for (const x of shown.filter((y) => y.lang === lang)) {
+          const row = el("button", "m-ch m-source");
+          const icon = el("img");
+          icon.alt = "";
+          if (x.icon) void suw.found({ id: `source-${x.id}`, cover: x.icon }).then((u) => { if (u) icon.src = u; }, () => {});
+          row.append(icon, el("span", "m-ch-name", x.label), el("span", "m-ch-at", x.nsfw ? "18+" : ""));
+          row.onclick = () => push(() => source(x));
+          list.append(row);
+        }
+      }
+    };
+    filter.oninput = draw;
+    void suw.sources().then((x) => { all = x; if (!gone) draw(); }, (e) => list.append(el("div", "atlas-notice", String(e.message ?? e))));
+    setTimeout(() => filter.focus(), 0);
+  }
+  /** Suwayomi's library — the server's, not the vault's: its series by category as covers, unread counts, the way
+   *  into Browse. A series opened here reads as any; it joins the Libraries page once it is yours (its note). */
+  function serverLibrary() {
+    const head = bar("Suwayomi", "‹ Comics");
+    const go = el("button", "atlas-btn", "Browse sources");
+    go.onclick = () => push(browse);
+    const filter = el("input", "atlas-input m-filter");
+    filter.placeholder = "Filter the series…";
+    head.append(filter, go);
+    const tabs = el("div", "m-tabs"), grid = el("div", "m-grid");
+    root.append(head, tabs, grid);
+    let all = [], cat = "";
+    const draw = () => {
+      const f = filter.value.trim().toLowerCase();
+      grid.replaceChildren();
+      const shown = all.filter((x) => (!cat || (x.categories ?? []).includes(cat)) && (!f || x.title.toLowerCase().includes(f)));
+      for (const x of shown) {
+        const card = el("button", "m-found"), pic = el("div", "m-cover"), img = el("img");
+        img.alt = "";
+        pic.append(img);
+        void coverFor(x).then((u) => { if (u) img.src = u; });
+        card.append(pic, el("div", "m-found-title", x.title), el("div", "m-found-in", x.unread ? `${x.unread} unread` : "all read"));
+        card.onclick = () => void ready(x).then(() => push(() => series(x)));
+        grid.append(card);
+      }
+      if (!shown.length) grid.append(el("div", "atlas-notice", all.length ? "Nothing matches." : "Nothing in Suwayomi's library yet: Browse sources to add series."));
+    };
+    const drawTabs = () => {
+      tabs.replaceChildren();
+      const cats = [...new Set(all.flatMap((x) => x.categories ?? []))];
+      if (!cats.length) return;
+      for (const [c, label] of [["", "All"], ...cats.map((x) => [x, x])]) {
+        const b = el("button", "atlas-btn", label);
+        b.classList.toggle("on", c === cat);
+        b.onclick = () => { cat = c; drawTabs(); draw(); };
+        tabs.append(b);
+      }
+    };
+    filter.oninput = draw;
+    void suw.library().then((x) => { if (gone) return; all = x.sort((a, b) => natural(a.title, b.title)); drawTabs(); draw(); },
+      (e) => grid.append(el("div", "atlas-notice", `Suwayomi: ${e.message ?? e}`)));
+  }
+  /** A source's Popular, Latest or a search, as covers; More asks the next page; a series appears once. */
+  function source(src) {
+    const head = bar(src.label, "‹ Sources");
+    const tabs = el("div", "m-tabs"), q = el("input", "atlas-input m-filter");
+    q.placeholder = `Search ${src.label}…`;
+    const grid = el("div", "m-grid"), more = el("button", "atlas-btn m-more", "More");
+    root.append(head, tabs, grid, more);
+    let type = "POPULAR", page = 0, asked = 0;
+    const seen = new Set();
+    const load = async () => {
+      const mine = ++asked; // an answer for a list left meanwhile is dropped
+      more.disabled = true; more.textContent = "Loading…";
+      try {
+        const r = await suw.listing(src.id, type, page + 1, q.value);
+        if (mine !== asked || gone) return;
+        page++;
+        for (const m of r.mangas) {
+          if (seen.has(m.id)) continue;
+          seen.add(m.id);
+          const card = el("button", "m-found"), pic = el("div", "m-cover"), img = el("img");
+          img.alt = "";
+          pic.append(img);
+          void suw.found(m).then((u) => { if (u) img.src = u; }, () => {});
+          card.append(pic, el("div", "m-found-title", m.title));
+          if (m.inLibrary) card.append(el("div", "m-found-in", "In your library"));
+          card.onclick = () => push(() => found(m.id));
+          grid.append(card);
+        }
+        more.hidden = !r.more;
+        if (!seen.size) grid.append(el("div", "atlas-notice", type === "SEARCH" ? "Nothing found." : "This source lists nothing."));
+      } catch (e) { if (mine === asked) grid.append(el("div", "atlas-notice", String(e.message ?? e))); }
+      more.disabled = false; more.textContent = "More";
+    };
+    const restart = (t) => { type = t; page = 0; seen.clear(); grid.replaceChildren(); more.hidden = true; for (const b of tabs.querySelectorAll("button")) b.classList.toggle("on", b.dataset.type === t); if (t !== "SEARCH" || q.value.trim()) void load(); };
+    for (const [t, label] of [["POPULAR", "Popular"], ...(src.latest ? [["LATEST", "Latest"]] : [])]) {
+      const b = el("button", "atlas-btn", label);
+      b.dataset.type = t;
+      b.onclick = () => restart(t);
+      tabs.append(b);
+    }
+    tabs.append(q);
+    q.onkeydown = (e) => { if (e.key === "Enter" && q.value.trim()) { e.stopPropagation(); restart("SEARCH"); } };
+    more.onclick = () => void load();
+    restart("POPULAR");
+  }
+  /** A series found in a source: who made it, how it stands, its description; Add to library (or Remove), then Read. */
+  function found(id) {
+    const head = bar("…", "‹ Back");
+    const top = el("div", "m-series"), pic = el("div", "m-cover big"), img = el("img"), side = el("div", "m-side");
+    img.alt = "";
+    pic.append(img);
+    top.append(pic, side);
+    const about = el("p", "m-about");
+    root.append(head, top, about);
+    side.append(el("div", "m-count", "Asking the server…"));
+    const draw = (d) => {
+      head.querySelector(".m-title").textContent = d.title;
+      const who = [d.author, d.artist && d.artist !== d.author ? d.artist : ""].filter(Boolean).join(", ");
+      side.replaceChildren(el("h2", "", d.title), el("div", "m-count", [who, d.status, d.source, d.chapters ? `${d.chapters} chapter${d.chapters === 1 ? "" : "s"}` : ""].filter(Boolean).join(" · ")));
+      const add = el("button", d.inLibrary ? "atlas-btn" : "atlas-btn primary", d.inLibrary ? "Remove from library" : "Add to library");
+      add.onclick = async () => {
+        add.disabled = true;
+        try {
+          await suw.setInLibrary(d.id, !d.inLibrary);
+          d.inLibrary = !d.inLibrary;
+          atlas.toast("Manga", d.inLibrary ? `${d.title} is in your library` : `${d.title} left your library`, "success");
+          draw(d);
+        } catch (e) { atlas.toast("Manga", String(e.message ?? e), "error"); add.disabled = false; }
+      };
+      side.append(add);
+      if (d.inLibrary) {
+        // its categories, as the phone's Add to library asks them: a chip each, on or off at a click
+        const cats = el("div", "m-cats");
+        side.append(cats);
+        void suw.categories().then((all) => {
+          for (const c of all) {
+            const chip = el("button", "atlas-btn m-cat", c.name);
+            const paint = () => { chip.classList.toggle("on", d.categories.includes(c.id)); chip.setAttribute("aria-pressed", String(d.categories.includes(c.id))); };
+            chip.title = "In this category or not (Suwayomi's categories: the library's tabs)";
+            chip.onclick = async () => {
+              const on = !d.categories.includes(c.id);
+              try { await suw.setCategory(d.id, c.id, on); d.categories = on ? [...d.categories, c.id] : d.categories.filter((x) => x !== c.id); paint(); }
+              catch (e) { atlas.toast("Manga", String(e.message ?? e), "error"); }
+            };
+            paint();
+            cats.append(chip);
+          }
+        }, () => {});
+        const go = el("button", "atlas-btn primary", "Read");
+        go.onclick = () => void scan().then((all) => {
+          const s = all.find((x) => x.remote === d.id);
+          if (s) void ready(s).then(() => push(() => series(s)));
+          else atlas.toast("Manga", `${d.title} is not in the library the server lists yet.`, "error");
+        });
+        side.append(go);
+      }
+      about.textContent = [d.genres.join(", "), d.description].filter(Boolean).join("\n\n");
+    };
+    void suw.details(id).then((d) => {
+      if (gone) return;
+      if (d.cover) void suw.found({ id: d.id, cover: d.cover }).then((u) => { if (u) img.src = u; }, () => {});
+      draw(d);
+    }, (e) => side.replaceChildren(el("div", "atlas-notice", String(e.message ?? e))));
+  }
+
   root.addEventListener("keydown", (e) => {
     if ((e.key === "Escape" || e.key === "Backspace") && stack.length > 1 && !(e.target instanceof HTMLInputElement)) { e.preventDefault(); back(); show.refresh?.(); }
   });
@@ -391,6 +671,12 @@ export default function mount(host, atlas) {
       stack.push(() => series(s));
       void reading(s).then((r) => push(() => reader(s, s.chapters.indexOf(atlas.path), isRead(r, atlas.path) ? 0 : pageOf(r, atlas.path))));
     });
+  } else if (atlas.arg === SERVER) { // the server's library, its own tab (the Comics library's Suwayomi button)
+    if (suw.on) push(serverLibrary);
+    else root.append(el("div", "atlas-notice", "No Suwayomi server set: Settings → Plugins → Manga."));
+  } else if (atlas.arg === BROWSE) { // Browse Suwayomi's sources (the command, the series screen's +)
+    if (suw.on) push(browse);
+    else root.append(el("div", "atlas-notice", "No Suwayomi server set: Settings → Plugins → Manga."));
   } else if (atlas.arg) { // a series of the Libraries page's Comics
     void scan().then((all) => {
       const s = all.find((x) => x.path === atlas.arg);
@@ -425,6 +711,25 @@ function style() {
   .manga .m-ch:hover { background: var(--bg-hover); }
   .manga .m-ch.read .m-ch-name { color: var(--text-faint); }
   .manga .m-ch-at { color: var(--text-muted); white-space: nowrap; }
+  .manga .m-queue { color: var(--text-muted); font-size: .92em; font-variant-numeric: tabular-nums; max-width: 260px; }
+  .manga .m-filter { flex: 1; min-width: 120px; max-width: 320px; margin-left: auto; }
+  .manga .m-sources { padding: 4px 14px 18px; display: flex; flex-direction: column; }
+  .manga .m-lang { margin: 14px 0 4px; font-size: 0.85em; text-transform: uppercase; letter-spacing: .04em; color: var(--text-muted); }
+  .manga .m-source { align-items: center; justify-content: flex-start; }
+  .manga .m-source img { width: 28px; height: 28px; border-radius: 6px; flex: none; object-fit: cover; }
+  .manga .m-source img:not([src]) { visibility: hidden; }
+  .manga .m-source .m-ch-name { flex: 1; }
+  .manga .m-tabs { display: flex; gap: 6px; padding: 10px 14px; align-items: center; flex-wrap: wrap; }
+  .manga .m-tabs .on { background: var(--accent-soft); border-color: var(--accent); }
+  .manga .m-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 14px; padding: 4px 14px 14px; }
+  .manga .m-found { display: flex; flex-direction: column; gap: 6px; padding: 0; border: 0; background: none; color: var(--text); font: inherit; text-align: left; cursor: pointer; }
+  .manga .m-found-title { font-size: 0.92em; line-height: 1.25; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .manga .m-found-in { font-size: 0.8em; color: var(--accent); }
+  .manga .m-cats { display: flex; flex-wrap: wrap; gap: 6px; flex-basis: 100%; }
+  .manga .m-cat.on { background: var(--accent-soft); border-color: var(--accent); }
+  .manga .m-more { margin: 0 14px 18px; }
+  .manga .m-about { padding: 0 18px 18px; margin: 0; white-space: pre-wrap; color: var(--text-muted); max-width: 70ch; line-height: 1.5; }
+  .manga .m-ch-kept { color: var(--accent); margin-left: 6px; font-size: 0.95em; }
   .manga .m-reader { position: absolute; inset: 0; overflow: auto; display: flex; align-items: center; justify-content: center; background: var(--bg); }
   .manga .m-reader.bg-black { background: #000; } .manga .m-reader.bg-white { background: #fff; } .manga .m-reader.bg-grey { background: #888; }
   .manga .m-reader.webtoon { flex-direction: column; justify-content: flex-start; }

@@ -67,6 +67,7 @@ export async function openHome(still: () => boolean = () => true): Promise<void>
   const spec: PaneSpec = !path ? { kind: "today" } : path.endsWith(".page") ? { kind: "page", path, title: title ?? undefined } : { kind: "editor", path };
   setHomeSpec(spec); // Home is an app, not a tab (lib/apps.svelte.ts)
   open(spec);
+  if (path) void import("./deadlines").then((m) => m.offerOnHome(path)); // what is due lives on Home: offered once when it lacks the box
 }
 
 /** An address opens as it is (`example.org` gets https://), anything else is searched for, in a tab (web-links.ts). */
@@ -263,12 +264,16 @@ export const actions: Action[] = [
   { id: "file.rename", title: "File: rename this file…", run: () => { const p = context.active?.path; if (p) renameFile(p); else toast("Rename", "Open the file to rename first."); } },
   { id: "note.task-edit", title: "Note: create or edit task…", where: "note", run: () => noteFormat.run?.("taskDialog") },
   { id: "note.insert-template", title: "Note: insert a template…", where: "note", run: () => noteFormat.run?.("insertTemplate") },
+  // notes while watching (lib/watch-notes.ts): what plays, into the note being written
+  { id: "player.time", title: "Player: insert the time as a link", keys: "Super+Alt+T", run: () => void import("./watch-notes").then((m) => m.insertTime()) },
+  { id: "player.quote", title: "Player: quote the subtitle shown", keys: "Super+Alt+S", run: () => void import("./watch-notes").then((m) => m.quoteSubtitle()) },
+  { id: "player.frame", title: "Player: grab the frame into the note", keys: "Super+Alt+F", run: () => void import("./watch-notes").then((m) => m.grabFrame()) },
   { id: "note.cycle", title: "Note: cycle this line — text, list item, to-do, text", keys: "Ctrl+Q", where: "note", run: () => noteFormat.run?.("cycle") },
   { id: "ui.quickOpen", title: "Open file…", keys: "Super+P", alsoKeys: ["Ctrl+P"], run: () => openPalette("files") },
   // no default keys: Alt+←/→ move by word in the editor; the mouse's side buttons and a swipe do this (nav-input.ts)
-  { id: "ui.back", title: "Go back (previous pane)", keys: "Super+[", run: () => navigate(-1) },
+  { id: "ui.back", title: "Go back (in the pane, else the previous pane)", keys: "Super+[", run: () => { navigate(-1); } },
   { id: "ui.history", title: "History: the tabs visited, to go back to one…", run: () => historyList() },
-  { id: "ui.forward", title: "Go forward", keys: "Super+]", run: () => navigate(1) },
+  { id: "ui.forward", title: "Go forward", keys: "Super+]", run: () => { navigate(1); } },
   { id: "ui.today", title: "Home (your home document)", icon: "today", label: "Home", keys: "Super+H", run: () => void openHome() },
   { id: "ui.capture", title: "Capture (a popup over the current pane)", keys: "Super+C", run: () => openQuickCapture() },
   // the bar as a capture box, wherever one is: the same completions (task fields, [[notes, #tags, @days)
@@ -334,6 +339,7 @@ export const actions: Action[] = [
   { id: "ui.focusFile", title: "Edit FOCUS.md", run: () => openPath(app.workspace?.config.focus ?? "FOCUS.md") },
   { id: "ui.resetLayout", title: "Reset layout", run: () => resetLayout() },
   { id: "ui.python.env", title: "Python: choose the environment (for the Python server and new terminals)", icon: "terminal", run: () => void import("./python-env").then((m) => m.choosePythonEnv()) },
+  { id: "ui.elsewhere", title: "Open what another device shows", icon: "eye", run: () => void import("./where.svelte").then((m) => m.openElsewhere()) },
   { id: "ui.glance", title: "Glance: follow another device (what it shows, full screen)", icon: "eye", run: () => void import("./where.svelte").then((m) => m.followDevice()) },
   { id: "ui.symbols", title: "Go to a symbol in the project (functions, classes…)", icon: "file-code", run: () => goToSymbol() },
   { id: "ui.problems", title: "Problems: errors and warnings of the current file", keys: "Super+M", run: () => showProblems() },

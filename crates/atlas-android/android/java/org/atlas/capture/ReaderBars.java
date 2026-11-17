@@ -19,6 +19,8 @@ import android.widget.TextView;
  *  - at the bottom: where you are in words (chapter · page, % and what is left), a slider, and a row of tabs with an
  *    icon over a word (Contents · Pen · Aa · Notes · Settings), KOReader's bottom menu;
  *  - a tab opens its panel above the bottom bar (a list, settings), the page still visible over it.
+ *  - after a jump (contents, a link, find, the slider), a "Back to …" chip low in the middle for a while (`backTo`);
+ *  - a reader's own strip just above the bottom bar while no panel is open (`strip`: the PDF reader's pages).
  *  Flat on e-ink (lines, no shadow, nothing animated), elevated elsewhere. Lives in the reader's FrameLayout. */
 public final class ReaderBars {
     private final Look look;
@@ -31,6 +33,7 @@ public final class ReaderBars {
     private View tabOn;
     private Runnable onHide = () -> {};
     private Runnable panelClosed; // the open panel's "closed" (the Aa panel keeps its settings then)
+    private View strip; // the reader's own row above the bottom bar (strip), or null
 
     public ReaderBars(Host host, FrameLayout parent, Runnable back) {
         this.look = host.look();
@@ -178,8 +181,11 @@ public final class ReaderBars {
     public boolean shown() { return top.getVisibility() == View.VISIBLE; }
 
     public void show(boolean on) {
+        if (on) hideBack();
         top.setVisibility(on ? View.VISIBLE : View.GONE);
         bottom.setVisibility(on ? View.VISIBLE : View.GONE);
+        placeStrip();
+        placeBack();
         if (!on) { closePanel(); onHide.run(); }
         else top.post(this::placePanel);
     }
@@ -190,6 +196,7 @@ public final class ReaderBars {
     public boolean over(float x, float y) {
         if (!shown()) return false;
         if (y < top.getBottom() || y > bottom.getTop()) return true;
+        if (strip != null && strip.getVisibility() == View.VISIBLE && y >= strip.getTop() && y <= strip.getBottom()) return true;
         return panelBox.getVisibility() == View.VISIBLE && y >= panelBox.getTop() && y <= panelBox.getBottom();
     }
 
@@ -213,6 +220,26 @@ public final class ReaderBars {
         panelBox.setVisibility(View.VISIBLE);
         mark(tab);
         placePanel();
+        placeStrip();
+    }
+
+    /** `v`, `height` px tall, just above the bottom bar whenever the bars show and no panel is open (a panel takes
+     *  that place): a reader's own row, such as the PDF reader's page strip. Touches on it are its own. */
+    public void strip(View v, int height) {
+        strip = v;
+        v.setVisibility(View.GONE);
+        v.setElevation(look.elevation(3));
+        parent.addView(v, new FrameLayout.LayoutParams(-1, height, Gravity.BOTTOM));
+    }
+
+    private void placeStrip() {
+        if (strip == null) return;
+        boolean on = shown() && !panelOpen();
+        strip.setVisibility(on ? View.VISIBLE : View.GONE);
+        if (!on) return;
+        FrameLayout.LayoutParams lp = (FrameLayout.LayoutParams) strip.getLayoutParams();
+        if (lp.bottomMargin != bottom.getHeight()) { lp.bottomMargin = bottom.getHeight(); strip.setLayoutParams(lp); }
+        if (bottom.getHeight() == 0) bottom.post(() -> { placeStrip(); placeBack(); }); // not laid out yet
     }
 
     /** The scroll view inside the panel (to scroll a list to where you are), or null. */
@@ -237,6 +264,7 @@ public final class ReaderBars {
         panelBox.setVisibility(View.GONE);
         panelBody.removeAllViews();
         mark(null);
+        placeStrip();
         Runnable r = panelClosed;
         panelClosed = null;
         if (was && r != null) r.run();
@@ -293,6 +321,49 @@ public final class ReaderBars {
         TextView h = look.label(c, s, 12.5f, look.faint);
         h.setPadding(look.dp(12), look.dp(2), look.dp(12), look.dp(6));
         return h;
+    }
+
+    // ---- "Back to …" ---------------------------------------------------------------------------------------------
+
+    /** How long the chip stays after a jump. */
+    private static final long BACK_MS = 8000;
+    private TextView backChip;
+    private final Runnable backGone = this::hideBack;
+
+    /** A "Back to …" chip after a jump: `label` on it, a tap runs `go` (the place before the jump); gone after a while,
+     *  when the bars show, or on the next jump (which brings its own). One for every reader. */
+    public void backTo(String label, Runnable go) {
+        if (backChip == null) {
+            backChip = look.label(c, "", 14, look.accentFg);
+            backChip.setPadding(look.dp(16), look.dp(10), look.dp(16), look.dp(10));
+            backChip.setMinHeight(look.dp(44));
+            backChip.setGravity(Gravity.CENTER_VERTICAL);
+            backChip.setBackground(look.round(look.accent, 20, 0));
+            parent.addView(backChip, new FrameLayout.LayoutParams(-2, -2, Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL));
+        }
+        placeBack();
+        backChip.bringToFront();
+        backChip.setText(label);
+        backChip.setContentDescription(label);
+        backChip.setOnClickListener(v -> { hideBack(); go.run(); });
+        backChip.setVisibility(View.VISIBLE);
+        backChip.removeCallbacks(backGone);
+        backChip.postDelayed(backGone, BACK_MS);
+    }
+
+    /** Low on the page, or above the bottom bar while it shows (a slider jump leaves the bars up). */
+    private void placeBack() {
+        if (backChip == null) return;
+        FrameLayout.LayoutParams cp = (FrameLayout.LayoutParams) backChip.getLayoutParams();
+        int above = bottom.getHeight() + (strip != null && strip.getVisibility() == View.VISIBLE ? strip.getLayoutParams().height : 0);
+        int m = shown() ? Math.max(above, look.dp(120)) + look.dp(12) : look.dp(40);
+        if (cp.bottomMargin != m) { cp.bottomMargin = m; backChip.setLayoutParams(cp); }
+    }
+
+    public void hideBack() {
+        if (backChip == null) return;
+        backChip.removeCallbacks(backGone);
+        backChip.setVisibility(View.GONE);
     }
 
     /** Back: the panel, then the bars; false when nothing was open. */

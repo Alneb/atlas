@@ -121,10 +121,10 @@ final class Vaults {
 
     String gate(String url) { return prefs.getString("gate:" + url, ""); }
 
-    /** An extra header for the server, `Name: value` (a key some front lets through; generic, optional, empty for none). */
-    void keepHeader(String url, String header) { prefs.edit().putString("header:" + url, header).apply(); }
+    /** The extra header of before (`Name: value`, per server): moved into the device's sign-ins by Signins.migrate. */
+    String legacyHeader(String url) { return prefs.getString("header:" + url, ""); }
 
-    String header(String url) { return prefs.getString("header:" + url, ""); }
+    void dropLegacyHeader(String url) { prefs.edit().remove("header:" + url).apply(); }
 
     /** How this phone is signed in to a server, in a few words. */
     String how(Context c, String url) {

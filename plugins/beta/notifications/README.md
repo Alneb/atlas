@@ -18,6 +18,11 @@ else your phone's ntfy topic) and turns what the phone sends to an inbox topic i
   with the note you are in).
 - **Editor menu**: "Send the selection to my phone".
 - **Tools for agents**: `notifications_sync`, `notifications_send` (only when the user asks to be told on the phone).
+- **Buttons, for other plugins**: `send` takes `actions: [{ label, url, method?, body? }]` (at most 3) and `click`
+  (the address a tap opens). A message with buttons always goes to **your phone's topic through ntfy** — Apprise
+  cannot carry them — published as ntfy's JSON message, each button an `http` action that calls its address from the
+  phone and clears the notification. Another plugin's hook is what such an address is (docs/guides/PLUGIN-API.md,
+  `on = "hook"`): the Plan plugin's Done / Snooze on a nudge sent while no device runs Atlas.
 
 ## Settings
 

@@ -24,14 +24,23 @@ final class Core {
     static native String pdfiumInit(String lib);
     /** Each page's width, height in points, pair after pair. Throws IllegalArgumentException with why. */
     static native float[] pdfiumPages(String pdf);
+    /** Page n's space: left, bottom, right, top of the box shown (points), its quarter turns. */
+    static native float[] pdfiumSpace(String pdf, int n);
     /** Page n (1-based) drawn w × h, RGBA bytes (an ARGB_8888 bitmap's), turned `turns` quarters more. */
     static native byte[] pdfiumRender(String pdf, int n, int w, int h, int turns);
     /** Page n's characters: code point, left, bottom, right, top (points, y up), five floats each. */
     static native float[] pdfiumChars(String pdf, int n);
     /** Page n's matches of `query` (case ignored): per match, its box count k, then k boxes of four floats. */
     static native float[] pdfiumFind(String pdf, int n, String query);
+    /** The text column under (x, y) of a page whose characters' boxes (left, top, right, bottom, shown points) are
+     *  `boxes`: its box, or none (crates/atlas-core/src/pdf_columns.rs, the desktop's too). */
+    static native float[] pdfColumn(float[] boxes, float x, float y);
+    /** The column read after `col` (as pdfColumn gives it) on that page, or none after its last (pdf_columns.rs). */
+    static native float[] pdfColumnAfter(float[] boxes, float[] col);
     /** Page n's links: [{box, page} | {box, url}] or {error}. */
     static native String pdfiumLinks(String pdf, int n);
+    /** The document's outline: [{title, depth, page?}] depth first, or {error}. */
+    static native String pdfiumOutline(String pdf);
     /** The full app's core: Atlas's server for the vault, inside the app (crates/atlas-android/src/serve.rs) → {port, open, key} or {error}; `open` a one-time address (the core is locked to this app), `key` for the native screens' own calls (Local);
      *  `env`: what the plugin helpers it starts need (Helpers.environment). */
     static native String serve(String vault, String home, String env);
@@ -44,7 +53,19 @@ final class Core {
     /** A sign-in to a service's gate made in the app (a plugin met it): its cookies given to the in-app core, which sends
      *  them with its plugins' requests there, as the desktop's sign-in window does. */
     static native String keepSignin(String vault, String url, String cookies);
+    /** The plugins the app carries (`bundled`: Bundled.dir) brought into folder vault `vault` through the core's install
+     *  path (full app only, never on the UI thread): {updated, replaced, left}, each [{id, title, …}]. */
+    static native String bundledPlugins(String vault, String bundled);
+    /** Carried plugin `id` added to folder vault `vault` (full app only): {id, version} or {error}. */
+    static native String bundledAdd(String vault, String bundled, String id);
     /** `{version, api, ui}` of the interface the app carries (full app only). */
+    /** The device's sign-ins (crates/atlas-android/src/signins.rs, the core's one store): what to send to `url` past its
+     *  gate, `{headers, secret}`; `home` the app's folder. In every app, the capture one too. */
+    static native String siteHeaders(String home, String url);
+    /** `Name: value` typed for the server at `url`, kept as a bypass rule for its host: `{ok, host, header}` or `{error}`. */
+    static native String keepHeader(String home, String url, String line);
+    /** The header name of the key kept for `url`'s host, `{header}` (never its value). */
+    static native String keptHeader(String home, String url);
     static native String version();
     /** The Boox pens (crates/atlas-android/src/ink.rs, openink's engine): a stroke's ink — left, top, right, bottom (NaN:
      *  empty), then polygons `n, x0, y0, …` or dabs `x, y, size, angle, alpha` — from its samples `x, y, pressure, tiltX,

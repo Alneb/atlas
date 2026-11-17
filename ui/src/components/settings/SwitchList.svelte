@@ -1,6 +1,6 @@
 <script lang="ts">
   // A list of things each with a switch and its place: the apps in the left bar (`[ui] apps_hidden` / `apps_order`,
-  // the same lists the tiles' right-click changes) and the Library page's libraries (`[ui] libraries`).
+  // the same lists the tiles' right-click changes).
   import Icon from "../Icon.svelte";
   import type { IconName } from "../../lib/panes";
 

@@ -1,10 +1,13 @@
 // The pane's state, one object every view reads (DESIGN-mail-ui §5): the accounts and folders, the list a view shows,
 // the cursor and the checked rows, the conversation open, the composers, and the actions — optimistic (the list
 // changes at once, the engine is asked behind), each one with an Undo and a rollback with the reason when it fails.
+import { Steps } from "../../../../../ui/src/lib/pane-nav";
 import { askYes, call, setting, snoozeTimes, type Account, type Draft, type Folder, type Moved, type PluginApi, type Row, type Thread } from "./api";
 
 export type ViewName = "inbox" | "unimportant" | "starred" | "snoozed" | "drafts" | "sent" | "scheduled" | "attachments" | "folder" | "all";
 export interface View { name: ViewName; account: string | null; folder: string | null; label: string }
+/** Where the pane is, for Back / Forward: the folder or view, the search, the conversation open. */
+export interface Place { view: View; query: string; open: number | null }
 export type Quick = "" | "unread" | "starred" | "attachments" | "mentions";
 export type Kind = "" | "person" | "newsletter" | "notification";
 export interface Toast { id: number; text: string; kind: "info" | "error" | "success"; undo?: () => Promise<void>; action?: { label: string; run: () => void }; until: number }
@@ -47,8 +50,26 @@ export class Mail {
   private asking = new Set<number>();
   private timer: ReturnType<typeof setTimeout> | undefined;
 
+  /** Back / Forward through the folders, searches and conversations visited (the app's Back asks it first) */
+  steps = new Steps<Place>(() => this.place(), (p) => this.goTo(p));
+  /** told after a step, for what the view keeps itself (the search box's text, the narrow layout's screen) */
+  stepped: (p: Place) => void = () => {};
+
   constructor(atlas: PluginApi) {
     this.atlas = atlas;
+  }
+
+  place(): Place { return { view: { ...this.view }, query: this.query, open: this.openId }; }
+
+  /** Back to a place: its list (read again only when it is another), then its conversation or none. */
+  private goTo(p: Place) {
+    const sameList = JSON.stringify(p.view) === JSON.stringify(this.view) && p.query === this.query;
+    if (!sameList) {
+      Object.assign(this, { view: p.view, query: p.query, quick: "", kind: "", checked: [], cursor: null });
+      this.load();
+    }
+    if (p.open !== null) void this.read(p.open); else this.close();
+    this.stepped(p);
   }
 
   call<T>(method: string, params: Record<string, unknown> = {}, timeout = 120) {
@@ -162,17 +183,22 @@ export class Mail {
   }
 
   go(v: View) {
+    const was = this.place();
     this.view = v;
     this.query = "";
     this.quick = "";
     this.kind = "";
     this.checked = [];
     this.cursor = null;
+    this.steps.left(was);
     this.load();
   }
 
   search(q: string) {
+    const was = this.place();
     this.query = q;
+    // one step per search, not per letter typed: recorded on starting and on clearing one
+    if (!was.query || !q) this.steps.left(was);
     this.load();
   }
 
@@ -189,8 +215,10 @@ export class Mail {
   }
 
   async read(id: number) {
+    const was = this.place();
     this.cursor = id;
     this.openId = id;
+    this.steps.left(was);
     // another conversation: the old one leaves the reader at once (the loading view shows), so Archive or Delete
     // pressed meanwhile never acts on one thing while another is on screen
     if (this.open && !this.open.messages.some((m) => m.id === id)) this.open = null;
@@ -208,7 +236,7 @@ export class Mail {
     }
   }
 
-  close() { this.openId = null; this.open = null; }
+  close() { const was = this.place(); this.openId = null; this.open = null; this.steps.left(was); }
 
   // ----- what the actions act on: the checked conversations, else the open one, else the cursor's
 
@@ -275,8 +303,8 @@ export class Mail {
     const next = this.rows[Math.min(at, this.rows.length - 1)] ?? null;
     this.cursor = next?.id ?? null;
     if (wasOpen) {
-      if (next && setting(this.atlas, "after_action", "next") === "next") this.read(next.id);
-      else this.close();
+      // the pane moves by itself: no step back to a conversation that left the list
+      this.steps.unrecorded(() => { if (next && setting(this.atlas, "after_action", "next") === "next") this.read(next.id); else this.close(); });
     }
     try {
       const r = await run(ids);

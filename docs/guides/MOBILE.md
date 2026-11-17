@@ -39,6 +39,19 @@ A read-only WebKit probe on the real vault (`scripts/dev/webkit-probe.mjs`'s `re
 Reported from the phone app: the notes renderer still had problems — PDFs and some blocks did not render correctly in Settings and in the app, and links were hard to tap. Checked with a Playwright phone probe (412×860, touch, both themes; with and without a fake `AtlasNative` bridge for the app's view) on a demo vault holding a PDF, a picture, a calendar view, tasks, a callout, a table, code, a Base and note embeds.
 
 - **Settings**: on a phone a list of areas (48 px rows, the search box at 16 px so the browser does not zoom), one area opens as its own page with *‹ All settings*; no autofocus (it raised the keyboard). Option rows: the words get the width, a control that does not fit beside them goes under them, a switch stays at the right — by size, not by kind (`SettingField.svelte`).
+- **The row above the keyboard** (`components/KeyboardBar.svelte`, `keyboardBar` in lib/phone.svelte.ts): while a note
+  has the focus and the keyboard is up (`keyboard.up`: `--keyboard` covers the bottom, or the window is 120 px shorter
+  than the tallest it was at this width — the app's WebView shrinks for the keyboard; Back hides the keyboard and
+  keeps the focus, and the row goes with the keyboard), one row of 48 px keys sits on the keyboard, the caret scrolled
+  into sight above it when the keyboard comes up — Undo, Redo, Outdent, Indent (what Tab and Shift+Tab do; a
+  touch keyboard has neither), To-do, List, Heading, Bold, Italic, `[[` (the note picker), a web link, **a photo** (the
+  system's picker; the picture saved beside the note and embedded, the editor's paste path) and **Dictate** (the
+  phone app: Android's speech recognizer through `AtlasNative.dictate` → `atlasDictated(text)`; a browser: the Web
+  Speech API when it has one), and *Hide the keyboard* at its end. Each key is the desktop's function
+  (lib/editor/md-format.ts) and never takes the focus, so the keyboard stays up. The bar is in the shell's column and
+  the shell ends at the keyboard's top (`.shell.typing`), so the note shrinks above it and the caret is never under
+  it; the bottom tab bar gives way while it shows. The app's WebView answers `<input type=file>` with the system's
+  picker (`onShowFileChooser`; before, every upload button in the app did nothing).
 - **Keyboard hints hidden** (class `keys-only`, base.css): shortcut chips in Settings, the Overview, the palette's rows and footer, the capture box's "Enter to save", the Commands pane's shortcut buttons — nothing to press on a phone.
 - **Touch sizes**: `.icon-btn` 40 px (the Files pane's tools, every pane header), Search's option buttons 36 px, the PDF toolbar 50 px high with 40 px tools, scrolling sideways instead of squeezing (the file name is the top bar's there).
 - **Links**: a tap on a link is taken at `touchend` (create.ts) — before, the tap first moved the caret onto the link's line, which revealed the `[[…]]` markup and moved the link from under the finger; now no caret moves and no keyboard opens. A larger invisible hit box around links on a phone (`::after`, markdown.css), the underline unchanged.
@@ -75,7 +88,7 @@ node scripts/dev/phone-audit.mjs --url http://127.0.0.1:7790/ --vault <copy> --o
 
 - ~~Touch sizes inside the panes~~ — **done** (Android's 48 dp minimum, and a CSS px is a dp in the WebView): the note's format bar 44 × 48 px; the path crumbs 44 px tall; icon buttons stay 40 px to the eye but take taps 4 px above and below (an invisible `::after` strip, never sideways onto a neighbour; not on `.tipped` buttons, whose `::after` is their tooltip). (The file tree's rows are 40 px on a phone already; context menus' rows 44 px since.)
 - ~~The keyboard~~ — **done**: `--keyboard` (lib/phone.svelte.ts, from `visualViewport`) is how much of the bottom the on-screen keyboard covers; the toasts, the capture button and the tabs sheet sit above it. In the app's WebView (`adjustResize`) it stays 0: the WebView itself shrinks.
-- ~~Swipes~~ — between files: **done in the app** (a fling on the native top bar, docs/guides/ANDROID.md); from the left edge: dropped — the edges are the system's Back gesture on Android and in a phone's browser. In a phone's browser the same swipe on `PhoneTop` (spec `phone-back.spec.ts`).
+- ~~Swipes~~ — between files: **done in the app** (a fling on the native top bar, docs/guides/ANDROID.md); from the left edge: dropped — the edges are the system's Back gesture on Android and in a phone's browser. In a phone's browser the same swipe on `PhoneTop` (spec `phone-back.spec.ts`). Between the places (Home, Library, Files, Search, Settings): **done in the app** — a fling on the bottom bar, or on a place's page where nothing scrolls sideways (`place-swipe.ts`).
 - **Back** — **done** (`lib/back.ts`): open overlays register how they close; the app's system Back closes them first (`atlasShell.dismiss`), and in a phone's browser one guard history entry makes the system Back close an overlay, then go back a place (`navigate(-1)`), and only then leave Atlas (before, Back left Atlas at once: the app kept no browser history). Spec `phone-back.spec.ts`.
 - **Sideways** — **done**: a phone turned sideways is a phone (`PHONE_QUERY` adds `(max-height: 480px) and (pointer: coarse)`), and inside the app the page is always one.
 - **The shape audit**: `scripts/dev/phone-audit.mjs` — see below.

@@ -1,199 +1,199 @@
-import { $ as e, C as t, F as n, H as r, I as i, J as a, L as o, O as s, Q as c, S as l, St as u, T as d, U as f, V as p, W as m, X as h, Y as g, Z as _, _t as v, a as y, at as b, bt as x, d as S, dt as C, f as w, ft as T, g as E, gt as D, h as O, ht as k, i as A, k as j, l as M, mt as N, nt as P, p as F, pt as I, q as L, r as R, rt as z, s as B, st as V, ut as H, v as U, x as W, xt as G, yt as K } from "./ui-lib/layout.js";
+import { $ as e, B as t, Ct as n, D as r, E as i, Et as a, G as o, J as s, K as c, M as l, N as u, Q as d, S as f, T as p, Tt as m, V as h, Z as g, _t as _, a as v, b as y, bt as b, c as x, dt as S, et as C, f as w, g as T, gt as E, h as D, ht as O, i as k, k as A, lt as j, m as M, mt as N, nt as P, ot as F, q as I, r as L, rt as R, st as z, tt as B, vt as V, wt as H, xt as U, y as W, yt as G, z as K } from "./ui-lib/layout.js";
 //#region plugins/stable/dav/ui/src/Upcoming.svelte
-var q = e("<div class=\"atlas-notice error\"> <div class=\"actions\"><button class=\"atlas-btn\">Settings…</button></div></div>"), J = e("<div class=\"atlas-empty\">Reading the calendar…</div>"), Y = e("<div class=\"atlas-empty\">Nothing.</div>"), ee = e("<button class=\"ev svelte-10ncuqf\"><span class=\"bar svelte-10ncuqf\" aria-hidden=\"true\"></span> <span class=\"t svelte-10ncuqf\"> </span> <span class=\"s svelte-10ncuqf\"> </span></button>"), te = e("<button class=\"more svelte-10ncuqf\"> </button>"), ne = e("<section class=\"svelte-10ncuqf\"><button class=\"day svelte-10ncuqf\"> </button> <!> <!> <!></section>"), re = e("<div class=\"up svelte-10ncuqf\"><!></div>"), ie = {
+var ee = R("<div class=\"atlas-notice error\"> <div class=\"actions\"><button class=\"atlas-btn\">Settings…</button></div></div>"), te = R("<div class=\"atlas-empty\">Reading the calendar…</div>"), ne = R("<div class=\"atlas-empty\">Nothing.</div>"), re = R("<button class=\"ev svelte-10ncuqf\"><span class=\"bar svelte-10ncuqf\" aria-hidden=\"true\"></span> <span class=\"t svelte-10ncuqf\"> </span> <span class=\"s svelte-10ncuqf\"> </span></button>"), ie = R("<button class=\"more svelte-10ncuqf\"> </button>"), q = R("<section class=\"svelte-10ncuqf\"><button class=\"day svelte-10ncuqf\"> </button> <!> <!> <!></section>"), J = R("<div class=\"up svelte-10ncuqf\"><!></div>"), ae = {
 	hash: "svelte-10ncuqf",
 	code: ".up.svelte-10ncuqf {display:grid;gap:8px;container-type:inline-size;}section.svelte-10ncuqf {display:grid;gap:1px;}.day.svelte-10ncuqf {all:unset;cursor:pointer;font-size:0.75em;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-faint);font-weight:600;padding:2px 0;}.day.svelte-10ncuqf:hover {color:var(--text);}.ev.svelte-10ncuqf, .more.svelte-10ncuqf {all:unset;box-sizing:border-box;cursor:pointer;display:flex;align-items:center;gap:8px;padding:3px 6px;border-radius:var(--radius-sm);min-width:0;}.ev.svelte-10ncuqf:hover, .more.svelte-10ncuqf:hover {background:var(--bg-hover);}.ev.svelte-10ncuqf:focus-visible, .day.svelte-10ncuqf:focus-visible, .more.svelte-10ncuqf:focus-visible {outline:2px solid var(--accent);outline-offset:-1px;}.bar.svelte-10ncuqf {width:3px;align-self:stretch;border-radius:2px;background:var(--c);flex:none;}.t.svelte-10ncuqf {width:4.6em;flex:none;color:var(--text-muted);font-variant-numeric:tabular-nums;font-size:0.9em;}.s.svelte-10ncuqf {flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}.more.svelte-10ncuqf {color:var(--text-muted);font-size:0.85em;}"
 };
-function X(e, n) {
-	x(n, !0), f(e, ie);
-	let r = D(N([])), a = D(""), o = D(!1), l = Math.max(1, Math.min(31, Number(n.options.days ?? 7) || 7)), h = t(/* @__PURE__ */ new Date()), y = v(() => w(n.atlas.plugin.settings.time_format));
-	async function E() {
+function Y(i, c) {
+	H(c, !0), I(i, ae);
+	let d = b(V([])), m = b(""), h = b(!1), v = Math.max(1, Math.min(31, Number(c.options.days ?? 7) || 7)), y = r(/* @__PURE__ */ new Date()), C = U(() => D(c.atlas.plugin.settings.time_format));
+	async function T() {
 		try {
-			let e = await M(n.atlas, "range", {
-				from: s(h),
-				to: s(B(h, l - 1)),
-				notes: n.atlas.plugin.settings.show_notes !== !1
+			let e = await w(c.atlas, "range", {
+				from: l(y),
+				to: l(x(y, v - 1)),
+				notes: c.atlas.plugin.settings.show_notes !== !1
 			}, 30);
-			k(r, e.events, !0), k(a, "");
+			G(d, e.events, !0), G(m, "");
 		} catch (e) {
-			k(a, e.message, !0);
+			G(m, e.message, !0);
 		}
-		k(o, !0);
+		G(h, !0);
 	}
-	j(() => {
-		E(), M(n.atlas, "watch", {}, 30).then(E, () => {});
-		let e, t = n.atlas.helper.on("changed", () => {
-			clearTimeout(e), e = setTimeout(() => void E(), 250);
+	u(() => {
+		T(), w(c.atlas, "watch", {}, 30).then(T, () => {});
+		let e, t = c.atlas.helper.on("changed", () => {
+			clearTimeout(e), e = setTimeout(() => void T(), 250);
 		});
 		return () => {
 			clearTimeout(e), t();
 		};
 	});
-	let O = v(() => Array.from({ length: l }, (e, t) => B(h, t)).map((e) => ({
+	let k = U(() => Array.from({ length: v }, (e, t) => x(y, t)).map((e) => ({
 		d: e,
-		evs: R(b(r), e).sort((e, t) => Number(!e.all_day) - Number(!t.all_day) || S(e).getTime() - S(t).getTime())
-	})).filter((e, t) => t < 2 || e.evs.length)), A = (e) => W(e, h) ? "Today" : W(e, B(h, 1)) ? "Tomorrow" : e.toLocaleDateString(void 0, {
+		evs: L(j(d), e).sort((e, t) => Number(!e.all_day) - Number(!t.all_day) || M(e).getTime() - M(t).getTime())
+	})).filter((e, t) => t < 2 || e.evs.length)), F = (e) => p(e, y) ? "Today" : p(e, x(y, 1)) ? "Tomorrow" : e.toLocaleDateString(void 0, {
 		weekday: "long",
 		day: "numeric",
 		month: "short"
 	});
-	function P(e, t) {
-		let r = e ? U(e) : null;
-		r ? n.atlas.open(r) : n.onopen(s(t));
+	function R(e, t) {
+		let n = e ? f(e) : null;
+		n ? c.atlas.open(n) : c.onopen(l(t));
 	}
-	var F = re(), G = H(F), X = (e) => {
-		var t = q(), r = H(t, !0), i = I(r), o = T(i);
-		u(t), V(() => g(r, b(a))), z("click", o, () => n.atlas.plugin.openSettings()), _(e, t);
-	}, Z = (e) => {
-		var t = J();
-		_(e, t);
-	}, Q = (e) => {
-		var t = c(), n = C(t);
-		m(n, 17, () => b(O), (e) => e.d.getTime(), (e, t) => {
-			var n = ne(), r = H(n), a = T(r, !0), o = I(r, 2), s = (e) => {
-				var t = Y();
-				_(e, t);
+	var W = J(), K = N(W), Y = (t) => {
+		var n = ee(), r = N(n, !0), i = _(r), o = E(i);
+		a(n), S(() => e(r, j(m))), z("click", o, () => c.atlas.plugin.openSettings()), B(t, n);
+	}, X = (e) => {
+		var t = te();
+		B(e, t);
+	}, Z = (n) => {
+		var r = P(), i = O(r);
+		s(i, 17, () => j(k), (e) => e.d.getTime(), (n, r) => {
+			var i = q(), c = N(i), l = E(c, !0), u = _(c, 2), d = (e) => {
+				var t = ne();
+				B(e, t);
 			};
-			L(o, (e) => {
-				b(t).evs.length || e(s);
+			g(u, (e) => {
+				j(r).evs.length || e(d);
 			});
-			var c = I(o, 2);
-			m(c, 17, () => b(t).evs.slice(0, 6), (e) => e.calendar + e.uid + (e.rid ?? ""), (e, n) => {
-				var r = ee();
-				let a;
-				var o = I(H(r), 2), s = T(o, !0), c = I(o, 2), l = T(c, !0);
-				u(r), V((e) => {
-					i(r, "title", b(n).calendar_name), a = p(r, "", a, { "--c": b(n).color ?? "var(--accent)" }), g(s, e), g(l, b(n).summary || "(no title)");
-				}, [() => b(n).all_day ? "all day" : d(S(b(n)), b(y))]), z("click", r, () => P(b(n), b(t).d)), _(e, r);
+			var f = _(u, 2);
+			s(f, 17, () => j(r).evs.slice(0, 6), (e) => e.calendar + e.uid + (e.rid ?? ""), (n, i) => {
+				var s = re();
+				let c;
+				var l = _(N(s), 2), u = E(l, !0), d = _(l, 2), f = E(d, !0);
+				a(s), S((n) => {
+					t(s, "title", j(i).calendar_name), c = o(s, "", c, { "--c": j(i).color ?? "var(--accent)" }), e(u, n), e(f, j(i).summary || "(no title)");
+				}, [() => j(i).all_day ? "all day" : A(M(j(i)), j(C))]), z("click", s, () => R(j(i), j(r).d)), B(n, s);
 			});
-			var l = I(c, 2), f = (e) => {
-				var n = te(), r = T(n);
-				V(() => g(r, `+${b(t).evs.length - 6} more`)), z("click", n, () => P(null, b(t).d)), _(e, n);
+			var p = _(f, 2), m = (t) => {
+				var n = ie(), i = E(n);
+				S(() => e(i, `+${j(r).evs.length - 6} more`)), z("click", n, () => R(null, j(r).d)), B(t, n);
 			};
-			L(l, (e) => {
-				b(t).evs.length > 6 && e(f);
-			}), u(n), V((e) => g(a, e), [() => A(b(t).d)]), z("click", r, () => P(null, b(t).d)), _(e, n);
-		}), _(e, t);
+			g(p, (e) => {
+				j(r).evs.length > 6 && e(m);
+			}), a(i), S((t) => e(l, t), [() => F(j(r).d)]), z("click", c, () => R(null, j(r).d)), B(n, i);
+		}), B(n, r);
 	};
-	L(G, (e) => {
-		b(a) ? e(X) : b(o) ? e(Q, -1) : e(Z, 1);
-	}), u(F), _(e, F), K();
+	g(K, (e) => {
+		j(m) ? e(Y) : j(h) ? e(Z, -1) : e(X, 1);
+	}), a(W), B(i, W), n();
 }
-P(["click"]);
+F(["click"]);
 //#endregion
 //#region plugins/stable/dav/ui/src/EventBlock.svelte
-var Z = e("<div class=\"atlas-notice error\"> </div>"), Q = e("<div class=\"atlas-empty\">Reading the calendar…</div>"), ae = e("<div class=\"atlas-empty\"> </div>"), oe = e("<span class=\"warn svelte-1bk2mts\">Cancelled</span>"), $ = e("<span class=\"line svelte-1bk2mts\"><!> </span>"), se = e("<a class=\"atlas-btn join svelte-1bk2mts\" target=\"_blank\" rel=\"noreferrer\" data-outside=\"\"><!>Join</a>"), ce = e("<span class=\"sq svelte-1bk2mts\" aria-hidden=\"true\"></span> <div class=\"main svelte-1bk2mts\"><button title=\"Open this day in the calendar\"> </button> <!> <!> <!> <span class=\"line faint svelte-1bk2mts\"><!> </span></div> <!>", 1), le = e("<div class=\"evb svelte-1bk2mts\"><!></div>"), ue = {
+var X = R("<div class=\"atlas-notice error\"> </div>"), Z = R("<div class=\"atlas-empty\">Reading the calendar…</div>"), oe = R("<div class=\"atlas-empty\"> </div>"), se = R("<span class=\"warn svelte-1bk2mts\">Cancelled</span>"), Q = R("<span class=\"line svelte-1bk2mts\"><!> </span>"), ce = R("<a class=\"atlas-btn join svelte-1bk2mts\" target=\"_blank\" rel=\"noreferrer\" data-outside=\"\"><!>Join</a>"), le = R("<span class=\"sq svelte-1bk2mts\" aria-hidden=\"true\"></span> <div class=\"main svelte-1bk2mts\"><button title=\"Open this day in the calendar\"> </button> <!> <!> <!> <span class=\"line faint svelte-1bk2mts\"><!> </span></div> <!>", 1), ue = R("<div class=\"evb svelte-1bk2mts\"><!></div>"), de = {
 	hash: "svelte-1bk2mts",
 	code: ".evb.svelte-1bk2mts {display:flex;gap:10px;align-items:flex-start;container-type:inline-size;min-width:0;}.sq.svelte-1bk2mts {width:12px;height:12px;border-radius:3px;background:var(--c);flex:none;margin-top:4px;}.main.svelte-1bk2mts {display:grid;gap:2px;flex:1;min-width:0;}.when.svelte-1bk2mts {all:unset;cursor:pointer;font-weight:600;color:var(--heading);overflow-wrap:anywhere;border-radius:var(--radius-sm);}.when.svelte-1bk2mts:hover {text-decoration:underline;}.when.svelte-1bk2mts:focus-visible {outline:2px solid var(--accent);}.cancel.svelte-1bk2mts {text-decoration:line-through;}.warn.svelte-1bk2mts {color:var(--red);font-size:0.88em;}.line.svelte-1bk2mts {display:flex;gap:6px;align-items:center;color:var(--text);font-size:0.9em;min-width:0;overflow-wrap:anywhere;}.line.svelte-1bk2mts .icon {color:var(--text-faint);flex:none;}.faint.svelte-1bk2mts {color:var(--text-muted);}.join.svelte-1bk2mts {display:inline-flex;align-items:center;gap:6px;text-decoration:none;flex:none;}"
 };
-function de(e, t) {
-	x(t, !0), f(e, ue);
-	let n = D(null), a = D(""), o = D(""), s = v(() => w(t.atlas.plugin.settings.time_format)), c = v(() => b(n)?.event ?? null), d = v(() => b(c) ? O(b(c)) : null);
-	async function m() {
+function fe(r, s) {
+	H(s, !0), I(r, de);
+	let l = b(null), d = b(""), f = b(""), p = U(() => D(s.atlas.plugin.settings.time_format)), h = U(() => j(l)?.event ?? null), v = U(() => j(h) ? W(j(h)) : null);
+	async function y() {
 		try {
-			let e = await t.props(), r = (t) => e[t] === void 0 || e[t] === null ? "" : String(e[t]);
-			if (!r("uid")) {
-				k(a, "This note names no event (its uid property is empty).");
+			let e = await s.props(), t = (t) => e[t] === void 0 || e[t] === null ? "" : String(e[t]);
+			if (!t("uid")) {
+				G(d, "This note names no event (its uid property is empty).");
 				return;
 			}
-			k(o, r("start"), !0), k(n, await M(t.atlas, "event", {
-				uid: r("uid"),
-				rid: r("recurrence_id") || void 0,
-				start: b(o)
-			}, 30), !0), k(a, "");
+			G(f, t("start"), !0), G(l, await w(s.atlas, "event", {
+				uid: t("uid"),
+				rid: t("recurrence_id") || void 0,
+				start: j(f)
+			}, 30), !0), G(d, "");
 		} catch (e) {
-			k(a, e.message, !0);
+			G(d, e.message, !0);
 		}
 	}
-	j(() => {
-		m();
-		let e, n = t.atlas.helper.on("changed", () => {
-			clearTimeout(e), e = setTimeout(() => void m(), 300);
+	u(() => {
+		y();
+		let e, t = s.atlas.helper.on("changed", () => {
+			clearTimeout(e), e = setTimeout(() => void y(), 300);
 		});
 		return () => {
-			clearTimeout(e), n();
+			clearTimeout(e), t();
 		};
 	});
-	let h = v(() => b(c)?.status === "CANCELLED" || !b(c) && !!b(n)?.note?.cancelled);
-	var y = le();
-	let S;
-	var E = H(y), N = (e) => {
-		var t = Z(), n = T(t, !0);
-		V(() => g(n, b(a))), _(e, t);
+	let x = U(() => j(h)?.status === "CANCELLED" || !j(h) && !!j(l)?.note?.cancelled);
+	var C = ue();
+	let T;
+	var A = N(C), M = (t) => {
+		var n = X(), r = E(n, !0);
+		S(() => e(r, j(d))), B(t, n);
 	}, P = (e) => {
-		var t = Q();
-		_(e, t);
-	}, F = (e) => {
-		var t = ae(), n = T(t, !0);
-		V(() => g(n, b(h) ? "This event was deleted from its calendar; the note is kept." : "This event is not in the calendar's cache (not synced yet, or its calendar is hidden).")), _(e, t);
-	}, R = (e) => {
-		var n = ce(), a = I(C(n), 2), f = H(a);
-		let p;
-		var m = T(f, !0), v = I(f, 2), y = (e) => {
-			var t = oe();
-			_(e, t);
+		var t = Z();
+		B(e, t);
+	}, F = (t) => {
+		var n = oe(), r = E(n, !0);
+		S(() => e(r, j(x) ? "This event was deleted from its calendar; the note is kept." : "This event is not in the calendar's cache (not synced yet, or its calendar is hidden).")), B(t, n);
+	}, L = (n) => {
+		var r = le(), o = _(O(r), 2), l = N(o);
+		let u;
+		var d = E(l, !0), y = _(l, 2), b = (e) => {
+			var t = se();
+			B(e, t);
 		};
-		L(v, (e) => {
-			b(h) && e(y);
+		g(y, (e) => {
+			j(x) && e(b);
 		});
-		var x = I(v, 2), S = (e) => {
-			var t = $(), n = H(t);
-			A(n, {
+		var C = _(y, 2), w = (t) => {
+			var n = Q(), r = N(n);
+			k(r, {
 				name: "pin",
 				size: 13
 			});
-			var r = I(n, 1, !0);
-			u(t), V(() => g(r, b(c).location)), _(e, t);
+			var i = _(r, 1, !0);
+			a(n), S(() => e(i, j(h).location)), B(t, n);
 		};
-		L(x, (e) => {
-			b(c).location && e(S);
+		g(C, (e) => {
+			j(h).location && e(w);
 		});
-		var w = I(x, 2), E = (e) => {
-			var t = $(), n = H(t);
-			A(n, {
+		var T = _(C, 2), D = (t) => {
+			var n = Q(), r = N(n);
+			k(r, {
 				name: "people",
 				size: 13
 			});
-			var r = I(n);
-			u(t), V((e) => g(r, `${e ?? ""}${b(c).attendees.length > 4 ? ` and ${b(c).attendees.length - 4} more` : ""}`), [() => b(c).attendees.slice(0, 4).map((e) => e.name ?? e.email).join(", ")]), _(e, t);
+			var i = _(r);
+			a(n), S((t) => e(i, `${t ?? ""}${j(h).attendees.length > 4 ? ` and ${j(h).attendees.length - 4} more` : ""}`), [() => j(h).attendees.slice(0, 4).map((e) => e.name ?? e.email).join(", ")]), B(t, n);
 		};
-		L(w, (e) => {
-			b(c).attendees?.length && e(E);
+		g(T, (e) => {
+			j(h).attendees?.length && e(D);
 		});
-		var D = I(w, 2), O = H(D);
-		A(O, {
+		var A = _(T, 2), M = N(A);
+		k(M, {
 			name: "calendar",
 			size: 13
 		});
-		var k = I(O, 1, !0);
-		u(D), u(a);
-		var j = I(a, 2), M = (e) => {
-			var t = se(), n = H(t);
-			A(n, {
+		var P = _(M, 1, !0);
+		a(A), a(o);
+		var F = _(o, 2), I = (e) => {
+			var n = ce(), r = N(n);
+			k(r, {
 				name: "video",
 				size: 14
-			}), G(), u(t), V(() => i(t, "href", b(d))), _(e, t);
+			}), m(), a(n), S(() => t(n, "href", j(v))), B(e, n);
 		};
-		L(j, (e) => {
-			b(d) && e(M);
-		}), V((e) => {
-			p = r(f, 1, "when svelte-1bk2mts", null, p, { cancel: b(h) }), g(m, e), g(k, b(c).calendar_name);
-		}, [() => l(b(c), b(s))]), z("click", f, () => t.onopen((b(c).start ?? b(o)).slice(0, 10))), _(e, n);
+		g(F, (e) => {
+			j(v) && e(I);
+		}), S((t) => {
+			u = c(l, 1, "when svelte-1bk2mts", null, u, { cancel: j(x) }), e(d, t), e(P, j(h).calendar_name);
+		}, [() => i(j(h), j(p))]), z("click", l, () => s.onopen((j(h).start ?? j(f)).slice(0, 10))), B(n, r);
 	};
-	L(E, (e) => {
-		b(a) ? e(N) : b(n) ? b(c) ? e(R, -1) : e(F, 2) : e(P, 1);
-	}), u(y), V(() => S = p(y, "", S, { "--c": b(c)?.color ?? "var(--accent)" })), _(e, y), K();
+	g(A, (e) => {
+		j(d) ? e(M) : j(l) ? j(h) ? e(L, -1) : e(F, 2) : e(P, 1);
+	}), a(C), S(() => T = o(C, "", T, { "--c": j(h)?.color ?? "var(--accent)" })), B(r, C), n();
 }
-P(["click"]);
+F(["click"]);
 //#endregion
 //#region plugins/stable/dav/ui/src/CalendarsSection.svelte
-var fe = e("<p class=\"none svelte-1ajrurb\"> </p>"), pe = e("<p class=\"none svelte-1ajrurb\">No calendar yet: add an account above, then they show here.</p>"), me = e("<span class=\"ro svelte-1ajrurb\">· read-only</span>"), he = e("<button class=\"pc svelte-1ajrurb\" role=\"radio\"></button>"), ge = e("<li class=\"svelte-1ajrurb\"><label class=\"svelte-1ajrurb\"><input type=\"checkbox\"/> <span class=\"sq svelte-1ajrurb\"></span> <!></label> <code class=\"svelte-1ajrurb\"> </code> <span class=\"pal svelte-1ajrurb\" role=\"radiogroup\"></span></li>"), _e = e("<h4 class=\"svelte-1ajrurb\"> </h4> <ul class=\"svelte-1ajrurb\"></ul>", 1), ve = e("<!> <!>", 1), ye = {
+var pe = R("<p class=\"none svelte-1ajrurb\"> </p>"), $ = R("<p class=\"none svelte-1ajrurb\">No calendar yet: add an account above, then they show here.</p>"), me = R("<span class=\"ro svelte-1ajrurb\">· read-only</span>"), he = R("<button class=\"pc svelte-1ajrurb\" role=\"radio\"></button>"), ge = R("<li class=\"svelte-1ajrurb\"><label class=\"svelte-1ajrurb\"><input type=\"checkbox\"/> <span class=\"sq svelte-1ajrurb\"></span> <!></label> <code class=\"svelte-1ajrurb\"> </code> <span class=\"pal svelte-1ajrurb\" role=\"radiogroup\"></span></li>"), _e = R("<h4 class=\"svelte-1ajrurb\"> </h4> <ul class=\"svelte-1ajrurb\"></ul>", 1), ve = R("<!> <!>", 1), ye = {
 	hash: "svelte-1ajrurb",
 	code: "h4.svelte-1ajrurb {margin:10px 0 4px;font-size:0.78em;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-faint);}ul.svelte-1ajrurb {list-style:none;margin:0;padding:0;display:grid;gap:4px;}li.svelte-1ajrurb {display:flex;align-items:center;gap:10px;flex-wrap:wrap;min-width:0;}label.svelte-1ajrurb {display:flex;align-items:center;gap:8px;flex:1 1 12em;min-width:0;color:var(--text);}.sq.svelte-1ajrurb {width:12px;height:12px;border-radius:4px;background:var(--c);flex:none;}.ro.svelte-1ajrurb {color:var(--text-faint);}code.svelte-1ajrurb {color:var(--text-faint);font-size:0.8em;}.pal.svelte-1ajrurb {display:flex;gap:4px;}.pc.svelte-1ajrurb {all:unset;cursor:pointer;width:16px;height:16px;border-radius:50%;background:var(--c);}.pc[aria-checked=\"true\"].svelte-1ajrurb {box-shadow:0 0 0 2px var(--bg-elev, var(--bg)), 0 0 0 4px var(--c);}.pc.svelte-1ajrurb:focus-visible {outline:2px solid var(--accent);outline-offset:2px;}.none.svelte-1ajrurb {color:var(--text-faint);margin:4px 0;}"
 };
-function be(e, t) {
-	x(t, !0), f(e, ye);
-	let r = [
+function be(r, i) {
+	H(i, !0), I(r, ye);
+	let c = [
 		"#3b82f6",
 		"#0ea5e9",
 		"#14b8a6",
@@ -204,76 +204,76 @@ function be(e, t) {
 		"#ec4899",
 		"#a855f7",
 		"#64748b"
-	], a = D(N([])), s = D(N([])), c = D(""), l = D(N([])), d = D(N({}));
-	function h() {
-		let e = t.ctx.settings();
-		k(l, (e.hidden ?? []).slice(), !0), k(d, Object.fromEntries((e.colors ?? []).flatMap((e) => {
+	], l = b(V([])), d = b(V([])), f = b(""), p = b(V([])), m = b(V({}));
+	function v() {
+		let e = i.ctx.settings();
+		G(p, (e.hidden ?? []).slice(), !0), G(m, Object.fromEntries((e.colors ?? []).flatMap((e) => {
 			let t = e.lastIndexOf(":");
 			return t > 0 ? [[e.slice(0, t).trim(), e.slice(t + 1).trim()]] : [];
 		})), !0);
 	}
-	j(() => {
-		h(), t.ctx.call("sources", {}, 30).then((e) => {
+	u(() => {
+		v(), i.ctx.call("sources", {}, 30).then((e) => {
 			let t = e;
-			k(a, t.sources, !0), k(s, t.accounts ?? [], !0);
-		}, (e) => k(c, String(e?.message ?? e), !0));
+			G(l, t.sources, !0), G(d, t.accounts ?? [], !0);
+		}, (e) => G(f, String(e?.message ?? e), !0));
 	});
-	let y = v(() => [...b(s).map((e) => ({
+	let y = U(() => [...j(d).map((e) => ({
 		title: e.name,
-		items: b(a).filter((t) => t.account === e.name)
+		items: j(l).filter((t) => t.account === e.name)
 	})), {
 		title: "Subscriptions",
-		items: b(a).filter((e) => e.kind === "ics")
-	}].filter((e) => e.items.length)), S = (e) => !b(l).includes(e.id) && !b(l).includes(e.name), w = (e) => b(d)[e.id] ?? b(d)[e.name] ?? e.shown_color ?? e.color ?? F(e.id);
-	function E(e) {
-		k(l, S(e) ? [...b(l), e.id] : b(l).filter((t) => t !== e.id && t !== e.name), !0), t.ctx.save({ hidden: b(l) });
+		items: j(l).filter((e) => e.kind === "ics")
+	}].filter((e) => e.items.length)), x = (e) => !j(p).includes(e.id) && !j(p).includes(e.name), C = (e) => j(m)[e.id] ?? j(m)[e.name] ?? e.shown_color ?? e.color ?? T(e.id);
+	function w(e) {
+		G(p, x(e) ? [...j(p), e.id] : j(p).filter((t) => t !== e.id && t !== e.name), !0), i.ctx.save({ hidden: j(p) });
 	}
-	function O(e, n) {
-		let r = Object.fromEntries(Object.entries(b(d)).filter(([t]) => t !== e.name));
-		k(d, {
-			...r,
-			[e.id]: n
-		}, !0), t.ctx.save({ colors: Object.entries(b(d)).map(([e, t]) => `${e}: ${t}`) });
+	function D(e, t) {
+		let n = Object.fromEntries(Object.entries(j(m)).filter(([t]) => t !== e.name));
+		G(m, {
+			...n,
+			[e.id]: t
+		}, !0), i.ctx.save({ colors: Object.entries(j(m)).map(([e, t]) => `${e}: ${t}`) });
 	}
-	var A = ve(), M = C(A), P = (e) => {
-		var t = fe(), n = T(t, !0);
-		V(() => g(n, b(c))), _(e, t);
-	}, R = (e) => {
-		var t = pe();
-		_(e, t);
+	var k = ve(), A = O(k), M = (t) => {
+		var n = pe(), r = E(n, !0);
+		S(() => e(r, j(f))), B(t, n);
+	}, P = (e) => {
+		var t = $();
+		B(e, t);
 	};
-	L(M, (e) => {
-		b(c) ? e(P) : b(y).length || e(R, 1);
+	g(A, (e) => {
+		j(f) ? e(M) : j(y).length || e(P, 1);
 	});
-	var B = I(M, 2);
-	m(B, 17, () => b(y), (e) => e.title, (e, t) => {
-		var a = _e(), s = C(a), c = T(s, !0), l = I(s, 2);
-		m(l, 21, () => b(t).items, (e) => e.id, (e, t) => {
-			var a = ge(), s = H(a), c = H(s);
-			n(c);
-			var l = I(c, 2);
-			let d;
-			var f = I(l, 1, !0), h = I(f), v = (e) => {
+	var F = _(A, 2);
+	s(F, 17, () => j(y), (e) => e.title, (n, r) => {
+		var i = _e(), l = O(i), u = E(l, !0), d = _(l, 2);
+		s(d, 21, () => j(r).items, (e) => e.id, (n, r) => {
+			var i = ge(), l = N(i), u = N(l);
+			K(u);
+			var d = _(u, 2);
+			let f;
+			var p = _(d, 1, !0), m = _(p), v = (e) => {
 				var t = me();
-				_(e, t);
+				B(e, t);
 			};
-			L(h, (e) => {
-				b(t).writable || e(v);
-			}), u(s);
-			var y = I(s, 2), x = T(y, !0), C = I(y, 2);
-			m(C, 20, () => r, (e) => e, (e, n) => {
-				var r = he();
+			g(m, (e) => {
+				j(r).writable || e(v);
+			}), a(l);
+			var y = _(l, 2), b = E(y, !0), T = _(y, 2);
+			s(T, 20, () => c, (e) => e, (e, n) => {
+				var i = he();
 				let a;
-				V((e) => {
-					i(r, "aria-checked", e), i(r, "aria-label", n), a = p(r, "", a, { "--c": n });
-				}, [() => w(b(t)) === n]), z("click", r, () => O(b(t), n)), _(e, r);
-			}), u(C), u(a), V((e, n) => {
-				o(c, e), d = p(l, "", d, { "--c": n }), g(f, b(t).name), g(x, b(t).id), i(C, "aria-label", `Colour of ${b(t).name ?? ""}`);
-			}, [() => S(b(t)), () => w(b(t))]), z("change", c, () => E(b(t))), _(e, a);
-		}), u(l), V(() => g(c, b(t).title)), _(e, a);
-	}), _(e, A), K();
+				S((e) => {
+					t(i, "aria-checked", e), t(i, "aria-label", n), a = o(i, "", a, { "--c": n });
+				}, [() => C(j(r)) === n]), z("click", i, () => D(j(r), n)), B(e, i);
+			}), a(T), a(i), S((n, i) => {
+				h(u, n), f = o(d, "", f, { "--c": i }), e(p, j(r).name), e(b, j(r).id), t(T, "aria-label", `Colour of ${j(r).name ?? ""}`);
+			}, [() => x(j(r)), () => C(j(r))]), z("change", u, () => w(j(r))), B(n, i);
+		}), a(d), S(() => e(u, j(r).title)), B(n, i);
+	}), B(r, k), n();
 }
-P(["change", "click"]);
+F(["change", "click"]);
 //#endregion
 //#region ui/src/lib/local-day.ts
 var xe = (e = /* @__PURE__ */ new Date()) => `${e.getFullYear()}-${String(e.getMonth() + 1).padStart(2, "0")}-${String(e.getDate()).padStart(2, "0")}`;
@@ -302,14 +302,14 @@ function Se(e) {
 	}), e.registerCommand({
 		id: "new",
 		title: "Calendar: new event",
-		run: () => typeof e.openDialog == "function" ? void e.openDialog(y, {
+		run: () => typeof e.openDialog == "function" ? void e.openDialog(v, {
 			title: "New event",
 			width: 640,
 			height: 560
 		}) : r({ create: !0 })
 	}), window.addEventListener("atlas-calendar:new", (t) => {
 		let { ack: n, ...i } = t.detail ?? {};
-		n && window.dispatchEvent(new CustomEvent("atlas-calendar:heard")), typeof e.openDialog == "function" ? e.openDialog(E(i), {
+		n && window.dispatchEvent(new CustomEvent("atlas-calendar:heard")), typeof e.openDialog == "function" ? e.openDialog(y(i), {
 			title: i.guests?.length ? "New meeting" : "New event",
 			width: 640,
 			height: 600
@@ -328,7 +328,7 @@ function Se(e) {
 			}
 			e.toast("Calendar", "Looking for important notes…");
 			try {
-				let t = await M(e, "sync", {}, 300), n = (t.events ?? []).filter((e) => e.outcome === "failed").map((e) => `${e.title}: ${e.why}`);
+				let t = await w(e, "sync", {}, 300), n = (t.events ?? []).filter((e) => e.outcome === "failed").map((e) => `${e.title}: ${e.why}`);
 				e.toast("Calendar", [t.summary, ...n.slice(0, 3)].join("\n"), n.length ? "error" : void 0);
 			} catch (t) {
 				e.toast("Calendar", t.message, "error");
@@ -339,8 +339,8 @@ function Se(e) {
 		title: "Calendar: test the accounts",
 		run: async () => {
 			try {
-				await M(e, "refresh", { force: !0 }, 300);
-				let t = await M(e, "calendars");
+				await w(e, "refresh", { force: !0 }, 300);
+				let t = await w(e, "calendars");
 				if (!t.accounts.length) {
 					e.toast("Calendar", "No account yet.", "error"), e.plugin.openSettings();
 					return;
@@ -361,8 +361,8 @@ function Se(e) {
 				return;
 			}
 			try {
-				let t = await M(e, "test_account", { record: n }, 60);
-				e.toast(String(n.name ?? "Account"), t.text, t.ok ? "success" : "error"), t.ok && M(e, "refresh", { force: !0 }, 300).catch(() => {});
+				let t = await w(e, "test_account", { record: n }, 60);
+				e.toast(String(n.name ?? "Account"), t.text, t.ok ? "success" : "error"), t.ok && w(e, "refresh", { force: !0 }, 300).catch(() => {});
 			} catch (t) {
 				e.toast("Calendar", t.message, "error");
 			}
@@ -372,7 +372,7 @@ function Se(e) {
 		title: "Calendar: sync now",
 		run: async () => {
 			try {
-				let t = await M(e, "refresh", { force: !0 }, 300);
+				let t = await w(e, "refresh", { force: !0 }, 300);
 				e.toast("Calendar", t.errors.length ? t.errors.join("\n") : "Every account and subscription is up to date.", t.errors.length ? "error" : "success");
 			} catch (t) {
 				e.toast("Calendar", t.message, "error");
@@ -388,8 +388,8 @@ function Se(e) {
 				return;
 			}
 			try {
-				let t = await M(e, "test_subscription", { record: n }, 60);
-				e.toast("Subscription", t.summary, "success"), M(e, "refresh", { force: !0 }, 120).catch(() => {});
+				let t = await w(e, "test_subscription", { record: n }, 60);
+				e.toast("Subscription", t.summary, "success"), w(e, "refresh", { force: !0 }, 120).catch(() => {});
 			} catch (t) {
 				e.toast("Subscription", t.message, "error");
 			}
@@ -401,16 +401,16 @@ function Se(e) {
 			view: "day"
 		}) });
 	});
-	let i = (t) => {
+	let a = (t) => {
 		let n = /* @__PURE__ */ new Date();
 		e.pick({
 			placeholder: "Link to which event? (type to filter)",
 			tag: "Link to event",
 			icon: "calendar",
 			items: async () => {
-				let t = await M(e, "range", {
-					from: s(B(n, -14)),
-					to: s(B(n, 60))
+				let t = await w(e, "range", {
+					from: l(x(n, -14)),
+					to: l(x(n, 60))
 				}, 60), r = (e) => Math.abs(new Date(e.start.length === 10 ? `${e.start}T12:00` : e.start).getTime() - n.getTime());
 				return t.events.filter((e) => e.calendar !== "notes").sort((e, t) => r(e) - r(t)).slice(0, 200).map((t) => ({
 					value: JSON.stringify({
@@ -419,12 +419,12 @@ function Se(e) {
 						start: t.start
 					}),
 					title: t.summary || "(no title)",
-					detail: `${l(t, w(e.plugin.settings.time_format))} · ${t.calendar_name}`
+					detail: `${i(t, D(e.plugin.settings.time_format))} · ${t.calendar_name}`
 				}));
 			},
 			onpick: async (n) => {
 				try {
-					let r = await M(e, "link_event", {
+					let r = await w(e, "link_event", {
 						...JSON.parse(n),
 						link: t
 					}, 60);
@@ -440,17 +440,60 @@ function Se(e) {
 	}, o = () => {
 		let t = e.context().active;
 		return t?.path && /\.md$/i.test(t.path) ? t.path : null;
-	};
-	e.registerCommand({
+	}, s = null, c = async () => {
+		if (s && Date.now() - s.at < 6e4) return s.events;
+		let t = /* @__PURE__ */ new Date(), n = await w(e, "range", {
+			from: l(x(t, -30)),
+			to: l(x(t, 60))
+		}, 30);
+		return s = {
+			at: Date.now(),
+			events: n.events.filter((e) => e.uid && !e.task && e.calendar !== "notes")
+		}, s.events;
+	}, u = /\[\[([^\]\n|#]{2,})$/;
+	e.editor.registerCompletion({
+		where: "note",
+		trigger: u,
+		async complete({ before: t }) {
+			if (!n()) return null;
+			let r = u.exec(t)?.[1].trim().toLowerCase() ?? "";
+			if (r.length < 2) return null;
+			let a = Date.now(), o = (e) => Math.abs(new Date(e.start.length === 10 ? `${e.start}T12:00` : e.start).getTime() - a);
+			return (await c().catch(() => [])).filter((e) => (e.summary ?? "").toLowerCase().includes(r)).sort((e, t) => o(e) - o(t)).slice(0, 5).map((t) => ({
+				label: t.summary,
+				kind: "event",
+				detail: `event · ${i(t, D(e.plugin.settings.time_format))}`,
+				apply(n, r, i) {
+					let a = n.state.sliceDoc(r, i);
+					w(e, "event_note", {
+						uid: t.uid,
+						rid: t.rid,
+						start: t.start
+					}, 60).then((e) => {
+						if (n.state.sliceDoc(r, i) !== a) return;
+						let t = n.state.sliceDoc(i, i + 2) === "]]" ? "" : "]]", o = `[[${e.note.replace(/\.md$/, "").split("/").pop()}${t}`;
+						n.dispatch({
+							changes: {
+								from: r,
+								to: i,
+								insert: o
+							},
+							selection: { anchor: r + o.length + (t ? 0 : 2) }
+						});
+					}, (t) => e.toast("No event note", t.message, "error"));
+				}
+			}));
+		}
+	}), e.registerCommand({
 		id: "link",
 		title: "Calendar: link this note to an event…",
 		run: () => {
 			let t = o();
-			t ? i(t) : e.toast("Calendar", "Open the note to link first.", "error");
+			t ? a(t) : e.toast("Calendar", "Open the note to link first.", "error");
 		}
 	}), window.addEventListener("atlas-calendar:link", (e) => {
 		let { link: t, ack: n } = e.detail ?? {};
-		n && window.dispatchEvent(new CustomEvent("atlas-calendar:heard")), t && i(t);
+		n && window.dispatchEvent(new CustomEvent("atlas-calendar:heard")), t && a(t);
 	}), e.registerCommand({
 		id: "time-block",
 		title: "Calendar: time-block the task at the caret…",
@@ -474,7 +517,7 @@ function Se(e) {
 			});
 		}
 	}), e.registerBlock("calendar.event", (t, n) => {
-		let i = a(de, {
+		let i = d(fe, {
 			target: t,
 			props: {
 				atlas: e,
@@ -485,9 +528,9 @@ function Se(e) {
 				})
 			}
 		});
-		return () => h(i);
+		return () => C(i);
 	}, { title: "Calendar: the event of this note" }), e.registerBlock("dav.upcoming", (t, n) => {
-		let i = a(X, {
+		let i = d(Y, {
 			target: t,
 			props: {
 				atlas: e,
@@ -498,7 +541,7 @@ function Se(e) {
 				})
 			}
 		});
-		return () => h(i);
+		return () => C(i);
 	}, {
 		title: "Calendar: upcoming",
 		options: [{
@@ -507,7 +550,7 @@ function Se(e) {
 			kind: "number"
 		}]
 	}), e.plugin.settings.url && e.plugin.settings.user && !t().length && (async () => {
-		let t = await M(e, "migrate", {}, 60);
+		let t = await w(e, "migrate", {}, 60);
 		t.values && (await e.plugin.saveSettings(t.values), e.toast("Calendar", `Your calendar account is now the card “${t.name}” (Settings → Calendar → Accounts); add more there.`, "success"));
 	})().catch((t) => e.toast("Calendar: account not moved", String(t.message ?? t), "error")), e.helper.on("settings:renamed", (t) => {
 		let { key: n, from: r, to: i } = t;
@@ -519,23 +562,23 @@ function Se(e) {
 			colors: (o.colors ?? []).map(a)
 		}).catch((t) => e.toast("Calendar", `The renamed account's calendars kept their old ids: ${t.message}`, "error"));
 	});
-	let c = e.plugin.registerSettingsSection?.({
+	let f = e.plugin.registerSettingsSection?.({
 		id: "calendars",
 		title: "Calendars",
 		hint: "Which calendars the pane shows, and their colours.",
 		place: "before",
 		mount(e, t) {
-			let n = a(be, {
+			let n = d(be, {
 				target: e,
 				props: { ctx: t }
 			});
-			return () => h(n);
+			return () => C(n);
 		}
-	}), u = setTimeout(() => {
-		M(e, "watch", {}, 60).catch(() => {});
+	}), p = setTimeout(() => {
+		w(e, "watch", {}, 60).catch(() => {});
 	}, 5e3);
 	return () => {
-		clearTimeout(u), c?.();
+		clearTimeout(p), f?.();
 	};
 }
 //#endregion

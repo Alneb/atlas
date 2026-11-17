@@ -9,7 +9,8 @@ filed by the catalog as if it had been typed.
 
 - **A capture hook** (`on = "capture"`): for each picture a capture embeds (png, jpg, jpeg, webp, gif, bmp), the text
   is read and written under it in the capture's note; the text is handed to the catalog's capture tool.
-- **The tool `read`** `{ path }`: the text of any picture of the vault, for agents.
+- **The tool `read`** `{ path }`: the text of any picture of the vault, for agents — or of a PDF's first page (a
+  scan, which has no text: the core's drawing of that page, `/api/thumb`). The catalog names a downloaded scan with it.
 - Tesseract and Leptonica are compiled into the helper; each language's model (a few MB, the fast models) is fetched
   once into the plugin's cache: by the tool `prepare` (`on = "start"`) when the vault opens, the plugin is installed or
   its languages change, so the first capture never waits for a download. Nothing else leaves the machine.

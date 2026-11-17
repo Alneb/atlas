@@ -1,6 +1,7 @@
 //! The pipeline: load → recognise → dedupe → fetch → merge → write → sync, each stage narrated. All it needs from
 //! Atlas goes through [`Host`], so it is tested against a vault in memory and run against the core over the pipe.
 use crate::contrib::Registry;
+use crate::document::FileLink;
 use crate::kind::{Kind, Kinds, Origin, Writer, KINDS_DIR};
 use crate::merge::{identifying, merge, Fetched, Merged};
 use crate::model::{Fields, Ids, KindName, Narration, PluginId, Stage};
@@ -25,6 +26,12 @@ pub trait Host {
     fn clip(&self, input: Value) -> Result<Value, Fail>;
     /// every note under `folder` (any depth) with its properties
     fn notes_in(&self, folder: &str) -> Result<Vec<(String, Fields)>, Fail>;
+    /// every note in the vault having one of these properties, with its properties (the core's index, not a read of
+    /// each note): a thing's note found by its IDs wherever it is
+    fn notes_with(&self, properties: &[String]) -> Result<Vec<(String, Fields)>, Fail>;
+    /// the note a vault file or folder has (`POST /api/companion` with `find`: a note claiming it by `file`, its entry's,
+    /// or the one beside it), only when it exists
+    fn companion_find(&self, file: &str) -> Result<Option<String>, Fail>;
     fn props(&self, path: &str) -> Result<Fields, Fail>;
     /// a vault file's text (None: there is none) — the rules, a kind's template
     fn read(&self, path: &str) -> Result<Option<String>, Fail>;
@@ -33,6 +40,25 @@ pub trait Host {
     /// the local time as `YYYY-MM-DD HH:MM`, for a kind's `{now}` / `{today}`
     fn now(&self) -> String;
     fn set_property(&self, path: &str, key: &str, value: &Value) -> Result<(), Fail>;
+    /// a file fetched through the core's fetch into this plugin's cache (`save_to` = `cache_name`), never read here
+    fn download(&self, url: &str, cache_name: &str) -> Result<Downloaded, Fail>;
+    /// a file moved through the core (`POST /api/fs/move`: never over another, the links follow)
+    fn move_file(&self, from: &str, to: &str) -> Result<(), Fail>;
+    /// the file's companion note, made by the core's one path (`POST /api/companion`) with these properties in order
+    fn companion(&self, file: &str, title: &str, properties: &[(String, Value)]) -> Result<String, Fail>;
+    /// a PDF's text as the core extracts it for search (pages end in a form feed); None: none (yet)
+    fn pdf_text(&self, path: &str) -> Option<String>;
+    /// a PDF's Info dictionary (its maker's title, author, date), read where the vault is; empty when unreadable
+    fn pdf_info(&self, path: &str) -> crate::first_page::Info;
+}
+
+/// A file the core fetched into the plugin's cache.
+#[derive(Debug, Clone)]
+pub struct Downloaded {
+    /// its vault path in the cache (`.atlas/cache/plugins/catalog/downloads/…`)
+    pub saved: String,
+    /// what the site said it is (`application/pdf`; a page: `text/html`)
+    pub content_type: String,
 }
 
 /// A service in front that wants a sign-in before it answers (the core's fetch says so: Authelia's portal, an OIDC
@@ -54,6 +80,9 @@ pub struct Pick {
     /// the note the user says this thing is (an old note named otherwise: "Inglorious Basterds" for TMDB's
     /// "Inglourious Basterds"), instead of looking for one
     pub note: Option<String>,
+    /// what the service holding the thing says about it (an Audiobookshelf item's title, author, cover): below every
+    /// source, so a thing no source knows is still filed (the note of a thing, thing.rs)
+    pub known: Fields,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -93,6 +122,9 @@ pub struct Added {
     pub kind: KindName,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub signin: Vec<SignIn>,
+    /// the file a link to a document was downloaded as (`documents/x.pdf`); `path` is its note
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub file: Option<String>,
 }
 
 /// Every answer carries the run's narration beside its result.
@@ -120,13 +152,29 @@ struct Got {
 /// A source at least this trusted (a metadata service, not a page's own tags) may re-kind a thing a pattern recognised.
 const RE_KIND_TRUST: i32 = 50;
 
+/// What a downloaded document's note says it is (`type: document`).
+pub const DOCUMENT: &str = "document";
+/// The kind an ISBN in a document's pages files it as (or the kind a vault files books as instead).
+const BOOK: &str = "book";
+
 pub struct Engine<H: Host> {
     pub host: H,
+    /// where a link to a document no subplugin claims is downloaded (the `documents` setting)
+    pub documents: String,
 }
 
 impl<H: Host> Engine<H> {
     pub fn new(host: H) -> Self {
-        Engine { host }
+        Engine { host, documents: "documents".into() }
+    }
+
+    /// The documents folder the `documents` setting names (blank: the default).
+    pub fn with_documents(mut self, folder: &str) -> Self {
+        let f = folder.trim().trim_matches('/');
+        if !f.is_empty() {
+            self.documents = f.to_string();
+        }
+        self
     }
 
     /// The catalog's kinds, the subplugins' contributions, and the vault's own kind files over both.
@@ -173,6 +221,9 @@ impl<H: Host> Engine<H> {
     pub fn preview(&self, text: &str, pick: &Pick) -> Result<Told<Preview>, Fail> {
         let mut say = Narration::default();
         let reg = self.load(&mut say);
+        if let Some(link) = self.unclaimed_file(&reg, text, pick) {
+            return Ok(Told { result: self.document_preview(&reg, &link, &mut say)?, steps: say });
+        }
         let p = self.look(&reg, text, pick, &mut say)?;
         Ok(Told { result: p, steps: say })
     }
@@ -180,6 +231,9 @@ impl<H: Host> Engine<H> {
     pub fn add(&self, text: &str, pick: &Pick) -> Result<Told<Added>, Fail> {
         let mut say = Narration::default();
         let reg = self.load(&mut say);
+        if let Some(link) = self.unclaimed_file(&reg, text, pick) {
+            return self.keep_file(&reg, &link, say);
+        }
         let p = self.look(&reg, text, pick, &mut say)?;
         // words that several things match: never filed on a guess (the card, or the agent, picks one by its IDs)
         if p.searched && !p.others.is_empty() && pick.ids.is_none() {
@@ -190,7 +244,139 @@ impl<H: Host> Engine<H> {
         let (path, outcome) = self.write(&kind, &p, &mut say)?;
         let mut signin = p.signin;
         self.sync(&reg, &kind, &path, &p.merged, &p.placement, &mut signin, &mut say);
-        Ok(Told { result: Added { path, outcome, kind: kind.name, signin }, steps: say })
+        Ok(Told { result: Added { path, outcome, kind: kind.name, signin, file: None }, steps: say })
+    }
+
+    /// The file a link points to (a PDF, an EPUB…) downloaded into the documents folder with its note, whoever else
+    /// would claim the link: the captures' "Download".
+    pub fn download(&self, text: &str) -> Result<Told<Added>, Fail> {
+        let mut say = Narration::default();
+        let reg = self.load(&mut say);
+        let url = crate::recognize::first_url(text).ok_or("no link in the text")?;
+        let link = FileLink::of(&url).ok_or_else(|| format!("{url} is not a link to a document (a PDF, an EPUB, a DjVu…)"))?;
+        self.keep_file(&reg, &link, say)
+    }
+
+    /// A link to a document that no subplugin's pattern claims (catalog-papers claims PDFs where References runs), when
+    /// nothing was picked on the card: kept as a file, not read as a page.
+    fn unclaimed_file(&self, reg: &Registry, text: &str, pick: &Pick) -> Option<FileLink> {
+        if pick.kind.is_some() || pick.ids.is_some() || pick.note.is_some() {
+            return None;
+        }
+        let link = FileLink::of(&crate::recognize::first_url(text)?)?;
+        recognise(reg, text).iter().all(|c| c.by.is_empty()).then_some(link)
+    }
+
+    /// The note that already holds this link (`url` or `source`): a document kept before, or the book it was filed as.
+    fn kept(&self, reg: &Registry, link: &FileLink, say: &mut Narration) -> Result<Option<String>, Fail> {
+        let want = link.canonical();
+        let mut places = vec![self.documents.clone()];
+        if let Some(book) = reg.kinds.get(&reg.filed_as(&KindName::new(BOOK))) {
+            places.extend(folders(book, &reg.rules));
+        }
+        for f in places {
+            for (path, props) in self.host.notes_in(&f)? {
+                if ["url", "source"].iter().any(|k| props.get(*k).and_then(Value::as_str).is_some_and(|v| crate::model::canonical_url(v) == want)) {
+                    say.say(Stage::Dedupe, format!("already kept: {path} (same link)"));
+                    return Ok(Some(path));
+                }
+            }
+        }
+        Ok(None)
+    }
+
+    /// What `keep_file` would do, nothing fetched or written.
+    fn document_preview(&self, reg: &Registry, link: &FileLink, say: &mut Narration) -> Result<Preview, Fail> {
+        say.say(Stage::Recognise, format!("a link to a file ({}) no plugin claims: it would be downloaded into {}/ with its note", link.ext, self.documents));
+        let url = crate::model::IdName::new("url");
+        let candidate = Candidate { kind: KindName::new(DOCUMENT), ids: Ids::from([(url, link.canonical())]), url: Some(link.url.clone()), by: Vec::new(), label: None };
+        let merged = Merged { ids: candidate.ids.clone(), fields: Fields::from([("title".to_string(), Value::String(link.stem().to_string()))]), ..Merged::default() };
+        let (path, exists) = match self.kept(reg, link, say)? {
+            Some(p) => (p, true),
+            None => (format!("{}/{}.md", self.documents, link.stem()), false),
+        };
+        let placement = Placement { folder: self.documents.clone(), ..Placement::default() };
+        Ok(Preview { candidate, label: "Document".into(), merged, path, exists, placement, signin: Vec::new(), others: Vec::new(), searched: false })
+    }
+
+    /// The file downloaded through the core into the documents folder under its own name, then its note: a book's
+    /// (by the ISBN its first pages give, when a source knows it), else the companion note the core makes for a file.
+    fn keep_file(&self, reg: &Registry, link: &FileLink, mut say: Narration) -> Result<Told<Added>, Fail> {
+        let document = KindName::new(DOCUMENT);
+        if let Some(path) = self.kept(reg, link, &mut say)? {
+            return Ok(Told { result: Added { path, outcome: Outcome::Unchanged, kind: document, signin: Vec::new(), file: None }, steps: say });
+        }
+        let got = self.host.download(&link.url, &link.cache_name())?;
+        if crate::document::is_page(&got.content_type) {
+            return Err(format!("{} answered a web page ({}), not the file: a sign-in or a download page stands in front of it", link.url, got.content_type));
+        }
+        say.say(Stage::Fetch, format!("downloaded {} ({})", link.name, if got.content_type.is_empty() { "no content type" } else { &got.content_type }));
+        let file = crate::document::free_name(&self.documents, link, |p| self.host.exists(p))?;
+        self.host.move_file(&got.saved, &file)?;
+        say.say(Stage::Write, format!("kept as {file}"));
+        let text = if link.ext == "pdf" { self.pdf_words(&file, &mut say) } else { None };
+        let isbn = text.as_deref().and_then(|t| recognise(reg, t).into_iter().find_map(|c| c.ids.get(&crate::model::IdName::new("isbn")).cloned()));
+        if let Some(isbn) = &isbn {
+            match self.as_book(reg, link, &file, isbn) {
+                Ok(mut book) => {
+                    say.say(Stage::Recognise, format!("its pages give ISBN {isbn}: filed as a book"));
+                    say.0.append(&mut book.steps.0);
+                    book.result.file = Some(file);
+                    return Ok(Told { result: book.result, steps: say });
+                }
+                Err(e) => say.problem(Stage::Fetch, format!("ISBN {isbn}: not filed as a book ({e}); kept as a document")),
+            }
+        }
+        let mut props = vec![("type".to_string(), Value::String(DOCUMENT.into())), ("url".to_string(), Value::String(link.url.clone()))];
+        if let Some(isbn) = isbn {
+            props.push(("isbn".into(), Value::String(isbn)));
+        }
+        // named as its first page names it (title, authors, year), else as its Info dictionary does, else by its file
+        // name — the references' own reading (crate::first_page: `read`, then `from_info`)
+        let first = text.as_deref().and_then(|t| crate::first_page::read(t.split('\x0c').next().unwrap_or(t), &link.name));
+        let first = first.or_else(|| (link.ext == "pdf").then(|| crate::first_page::from_info(&self.host.pdf_info(&file), &link.name)).flatten());
+        if let Some(p) = &first {
+            say.say(Stage::Recognise, format!("it names itself: {}", p.title));
+            if let Some(a) = crate::clip::names_value(p.authors.clone()) {
+                props.push(("author".into(), a));
+            }
+            if let Some(y) = p.year.as_deref().and_then(|y| y.parse::<i64>().ok()) {
+                props.push(("year".into(), Value::from(y)));
+            }
+        }
+        let title = first.as_ref().map_or(link.stem(), |p| p.title.as_str());
+        let note = self.host.companion(&file, title, &props)?;
+        say.say(Stage::Write, format!("its note: {note}"));
+        Ok(Told { result: Added { path: note, outcome: Outcome::Created, kind: document, signin: Vec::new(), file: Some(file) }, steps: say })
+    }
+
+    /// A downloaded PDF's first pages as text: the core's extraction, else — a scan, with no text at all — its first
+    /// page read by the OCR plugin (`ocr.read`), when the vault has it.
+    fn pdf_words(&self, file: &str, say: &mut Narration) -> Option<String> {
+        let text = self.host.pdf_text(file).map(|t| crate::document::first_pages(&t));
+        if text.as_deref().is_some_and(|t| t.chars().any(char::is_alphanumeric)) {
+            return text;
+        }
+        match self.host.tool(&PluginId::new("ocr"), "read", json!({ "path": file })) {
+            Ok(v) => {
+                let read = v["text"].as_str().unwrap_or_default().to_string();
+                say.say(Stage::Recognise, format!("a scan: its first page read by OCR ({} characters)", read.len()));
+                Some(read).filter(|t| !t.trim().is_empty())
+            }
+            Err(e) => {
+                say.say(Stage::Recognise, format!("a scan, not read (OCR: {e})"));
+                None
+            }
+        }
+    }
+
+    /// The book an ISBN names, filed by the book kind's own sources (Catalog · Books: Open Library), the file linked
+    /// from its note and the link kept as its source.
+    fn as_book(&self, reg: &Registry, link: &FileLink, file: &str, isbn: &str) -> Result<Told<Added>, Fail> {
+        let kind = reg.filed_as(&KindName::new(BOOK));
+        let ids = Ids::from([(crate::model::IdName::new("isbn"), isbn.to_string())]);
+        let own = Fields::from([("file".to_string(), Value::String(format!("[[{file}]]")))]);
+        self.add(&format!("ISBN {isbn} {}", link.url), &Pick { kind: Some(kind), ids: Some(ids), own, note: None, known: Fields::new() })
     }
 
     /// Fetch again for a note the catalog knows, and bring its owned properties up to date.
@@ -221,7 +407,7 @@ impl<H: Host> Engine<H> {
             outcome = Outcome::Updated;
         }
         self.sync(&reg, &kind, path, &merged, &placement, &mut signin, &mut say);
-        Ok(Told { result: Added { path: path.into(), outcome, kind: kind.name, signin }, steps: say })
+        Ok(Told { result: Added { path: path.into(), outcome, kind: kind.name, signin, file: None }, steps: say })
     }
 
     fn look(&self, reg: &Registry, text: &str, pick: &Pick, say: &mut Narration) -> Result<Preview, Fail> {
@@ -279,6 +465,9 @@ impl<H: Host> Engine<H> {
             }
         }
         let mut merged = got.merged;
+        for (k, v) in &pick.known {
+            merged.fields.entry(k.clone()).or_insert_with(|| v.clone());
+        }
         // the address it was captured from stays with it (`source`), whatever else identifies it
         if let Some(u) = &candidate.url {
             let id = crate::model::IdName::new("url");
@@ -646,7 +835,7 @@ pub fn title_from_url(url: &str) -> Option<String> {
 /// Whether a note is the thing these fields describe, by name: its file name (less a ` (year)`) or its `title` is the
 /// thing's title, original title or other title, compared without case, accents or punctuation, and the years agree
 /// within one when both have one (a festival premiere and the release: Puparia 2020 / 2021). Only for notes with none of the kind's IDs: a note with other IDs is another thing.
-fn named_as(path: &str, props: &Fields, fields: &Fields) -> bool {
+pub(crate) fn named_as(path: &str, props: &Fields, fields: &Fields) -> bool {
     fn plain(s: &str) -> String {
         let folded: String = s.chars().map(|c| match c {
             'á' | 'à' | 'ä' | 'â' => 'a', 'é' | 'è' | 'ë' | 'ê' => 'e', 'í' | 'ì' | 'ï' | 'î' => 'i', 'ó' | 'ò' | 'ö' | 'ô' => 'o', 'ú' | 'ù' | 'ü' | 'û' => 'u', 'ñ' => 'n', 'ç' => 'c',
@@ -714,6 +903,8 @@ mod tests {
         contributions: Value,
         tools: Box<ToolFn>,
         calls: RefCell<Vec<String>>,
+        /// what a downloaded PDF's Info dictionary says (default: nothing)
+        info: crate::first_page::Info,
     }
 
     impl Host for Fake {
@@ -730,6 +921,22 @@ mod tests {
         fn notes_in(&self, folder: &str) -> Result<Vec<(String, Fields)>, Fail> {
             let pre = format!("{folder}/");
             Ok(self.files.borrow().iter().filter(|(p, _)| p.starts_with(&pre)).map(|(p, t)| (p.clone(), fm(t))).collect())
+        }
+        fn notes_with(&self, properties: &[String]) -> Result<Vec<(String, Fields)>, Fail> {
+            Ok(self.files.borrow().iter().filter(|(p, _)| p.ends_with(".md")).map(|(p, t)| (p.clone(), fm(t))).filter(|(_, f)| properties.iter().any(|k| f.contains_key(k))).collect())
+        }
+        fn companion_find(&self, file: &str) -> Result<Option<String>, Fail> {
+            // the core's rule: a note claiming the file by `file`, else `<name>.md` beside it when there is one
+            let files = self.files.borrow();
+            let link = format!("[[{}]]", file.trim_end_matches('/'));
+            if let Some((p, _)) = files.iter().find(|(p, t)| p.ends_with(".md") && fm(t).get("file").and_then(Value::as_str) == Some(link.as_str())) {
+                return Ok(Some(p.clone()));
+            }
+            let beside = match file.strip_suffix('/') {
+                Some(dir) => format!("{dir}/{}.md", dir.rsplit('/').next().unwrap_or(dir)),
+                None => format!("{}.md", file.rsplit_once('.').map_or(file, |(s, _)| s)),
+            };
+            Ok(files.contains_key(&beside).then_some(beside))
         }
         fn props(&self, path: &str) -> Result<Fields, Fail> {
             self.files.borrow().get(path).map(|t| fm(t)).ok_or_else(|| format!("{path}: not found"))
@@ -764,6 +971,40 @@ mod tests {
             files.insert(path.into(), format!("---\n{}---\n{body}", serde_yaml::to_string(&props).unwrap()));
             Ok(())
         }
+        fn download(&self, url: &str, cache_name: &str) -> Result<Downloaded, Fail> {
+            self.calls.borrow_mut().push(format!("download {url}"));
+            let v = (self.tools)("core", "download", &json!({ "url": url }))?;
+            let saved = format!(".atlas/cache/plugins/catalog/{cache_name}");
+            self.files.borrow_mut().insert(saved.clone(), "%PDF-1.7".into());
+            Ok(Downloaded { saved, content_type: v["content_type"].as_str().unwrap_or_default().into() })
+        }
+        fn move_file(&self, from: &str, to: &str) -> Result<(), Fail> {
+            let mut files = self.files.borrow_mut();
+            if files.contains_key(to) {
+                return Err(format!("{to} is there already"));
+            }
+            let body = files.remove(from).ok_or_else(|| format!("{from}: not found"))?;
+            files.insert(to.into(), body);
+            Ok(())
+        }
+        fn companion(&self, file: &str, title: &str, properties: &[(String, Value)]) -> Result<String, Fail> {
+            // the core's shape: `<name>.md` beside the file, the caller's properties, then the title, the file's block
+            let note = match file.strip_suffix('/') {
+                Some(dir) => format!("{dir}/{}.md", dir.rsplit('/').next().unwrap_or(dir)),
+                None => format!("{}.md", file.rsplit_once('.').unwrap().0),
+            };
+            // as JSON, which is YAML too: a title with a `: ` in it stays one value
+            let mut fm: String = properties.iter().map(|(k, v)| format!("{k}: {v}\n")).collect();
+            fm += &format!("title: {}\n", json!(title));
+            self.files.borrow_mut().entry(note.clone()).or_insert(format!("---\n{fm}---\n# {title}\n\n```view\ntype: pdf\npath: \"{file}\"\n```\n"));
+            Ok(note)
+        }
+        fn pdf_text(&self, path: &str) -> Option<String> {
+            (self.tools)("core", "pdf_text", &json!({ "path": path })).ok().and_then(|v| v.as_str().map(str::to_string))
+        }
+        fn pdf_info(&self, _path: &str) -> crate::first_page::Info {
+            self.info.clone()
+        }
     }
 
     fn fm(t: &str) -> Fields {
@@ -790,6 +1031,7 @@ mod tests {
                 _ => Err(format!("no tool {plugin}.{tool}")),
             }),
             calls: RefCell::new(Vec::new()),
+            info: Default::default(),
         }
     }
 
@@ -1031,6 +1273,165 @@ mod tests {
         assert!(again.matches("## Review").count() == 1 && !again.contains("Otra cosa"), "{again}");
     }
 
+    const GROUP_THEORY: &str = "chapters 9 and 10 https://files.example.org/Livros/Group%20Theory%20(2010).pdf";
+
+    /// A vault without catalog-papers: the core's fetch answers a PDF, its text as `pdf_text` says.
+    fn documents_vault(pdf_text: Option<&'static str>) -> Fake {
+        let mut f = web_and_linkwarden();
+        f.tools = Box::new(move |plugin, tool, input| match (plugin, tool) {
+            ("core", "download") => {
+                assert!(input["url"].as_str().unwrap().ends_with("Group%20Theory%20(2010).pdf"), "the link as captured: {input}");
+                Ok(json!({ "content_type": "application/pdf" }))
+            }
+            ("core", "pdf_text") => pdf_text.map(|t| json!(t)).ok_or_else(|| "no text".to_string()),
+            ("catalog", "clip") => Err("a file, not a page: not read".into()),
+            ("catalog-books", "lookup") => match input["ids"]["isbn"].as_str() {
+                Some("9783540328971") => Ok(json!({ "fields": { "title": "Group Theory", "author": ["Mildred S. Dresselhaus"], "year": 2008 } })),
+                _ => Ok(json!({ "fields": {} })),
+            },
+            _ => Err(format!("no tool {plugin}.{tool}")),
+        });
+        f
+    }
+
+    /// A document whose first page names it (lecture notes: a title, a line of names, a date) is titled as a reader
+    /// would, with its author and year — catalog-papers' reader (`crate::first_page`); a page that names nothing
+    /// leaves the file's name.
+    #[test]
+    fn a_downloaded_document_is_named_by_its_first_page() {
+        let page = "Group Theory: Application to the Physics of Condensed Matter\nMildred S. Dresselhaus, Gene Dresselhaus and Ado Jorio\nPublished 2008\n\x0cContents\n";
+        let e = Engine::new(documents_vault(Some(page)));
+        let r = e.add(GROUP_THEORY, &Pick::default()).unwrap();
+        assert_eq!(r.result.path, "documents/Group Theory (2010).md", "the note beside the file keeps the file's name");
+        let props = fm(&e.host.files.borrow()[&r.result.path]);
+        assert_eq!(props["title"], json!("Group Theory: Application to the Physics of Condensed Matter"));
+        assert_eq!(props["author"], json!(["Mildred S. Dresselhaus", "Gene Dresselhaus", "Ado Jorio"]));
+        assert_eq!(props["year"], json!(2008));
+    }
+
+    /// A page that names nothing (a scan): the PDF's Info dictionary names it, as it does a reference's
+    /// (`first_page::from_info`): its title, its author, the year it was made.
+    #[test]
+    fn a_downloaded_document_whose_page_says_nothing_is_named_by_its_info() {
+        let mut f = documents_vault(Some("ON TH E\nPROPERTIES OFA GAS\n"));
+        f.info = crate::first_page::Info { title: Some("Group Theory and Its Applications".into()), author: Some("Mildred S. Dresselhaus".into()), created: Some("D:20100104120000".into()) };
+        let e = Engine::new(f);
+        let r = e.add(GROUP_THEORY, &Pick::default()).unwrap();
+        let props = fm(&e.host.files.borrow()[&r.result.path]);
+        assert_eq!(props["title"], json!("Group Theory and Its Applications"));
+        assert_eq!(props["author"], json!("Mildred S. Dresselhaus"), "one author: a value, as the catalog writes one");
+        assert_eq!(props["year"], json!(2010));
+    }
+
+    /// A scan has no text: its first page is read by the OCR plugin, and named from what it reads.
+    #[test]
+    fn a_downloaded_scan_is_named_by_its_first_page_read_by_ocr() {
+        let mut f = documents_vault(None);
+        let inner = std::mem::replace(&mut f.tools, Box::new(|_, _, _| Err(String::new())));
+        f.tools = Box::new(move |plugin, tool, input| match (plugin, tool) {
+            ("ocr", "read") => {
+                assert_eq!(input["path"], json!("documents/Group Theory (2010).pdf"), "the file as kept");
+                Ok(json!({ "text": "Group Theory: Application to the Physics of Condensed Matter\nMildred S. Dresselhaus, Gene Dresselhaus and Ado Jorio\nPublished 2008\n" }))
+            }
+            _ => inner(plugin, tool, input),
+        });
+        let e = Engine::new(f);
+        let r = e.add(GROUP_THEORY, &Pick::default()).unwrap();
+        let props = fm(&e.host.files.borrow()[&r.result.path]);
+        assert_eq!(props["title"], json!("Group Theory: Application to the Physics of Condensed Matter"));
+        assert_eq!(props["year"], json!(2008));
+
+        // without the OCR plugin: the file's name, as before
+        let e = Engine::new(documents_vault(None));
+        let r = e.add(GROUP_THEORY, &Pick::default()).unwrap();
+        assert_eq!(fm(&e.host.files.borrow()[&r.result.path])["title"], json!("Group Theory (2010)"));
+    }
+
+    fn with_books(mut f: Fake) -> Fake {
+        f.contributions["catalog-books"] = json!({
+            "recognize": [{ "pattern": "(?i)\\bISBN(?:-1[03])?:?\\s*([\\dX](?:[\\d\\- ]{8,15})[\\dX])\\b", "kind": "book", "id": "isbn" }],
+            "sources": [{ "kind": "book", "tool": "lookup", "priority": 65, "needs": ["isbn"] }]
+        });
+        f
+    }
+
+    #[test]
+    fn a_link_to_a_pdf_no_plugin_claims_is_downloaded_with_its_companion_note_once() {
+        let e = Engine::new(documents_vault(None));
+        let r = e.add(GROUP_THEORY, &Pick::default()).unwrap();
+        assert_eq!((r.result.outcome, r.result.kind.as_str()), (Outcome::Created, DOCUMENT));
+        assert_eq!((r.result.file.as_deref(), r.result.path.as_str()), (Some("documents/Group Theory (2010).pdf"), "documents/Group Theory (2010).md"));
+        let files = e.host.files.borrow().clone();
+        assert_eq!(files["documents/Group Theory (2010).pdf"], "%PDF-1.7", "moved out of the cache, not copied");
+        assert!(!files.keys().any(|k| k.starts_with(".atlas/cache/")), "{:?}", files.keys());
+        let props = fm(&files["documents/Group Theory (2010).md"]);
+        assert_eq!((props["type"].clone(), props["url"].clone(), props["title"].clone()), (json!("document"), json!("https://files.example.org/Livros/Group%20Theory%20(2010).pdf"), json!("Group Theory (2010)")));
+        let calls = e.host.calls.borrow().clone();
+        assert!(!calls.iter().any(|c| c == "clip" || c.starts_with("catalog-linkwarden")), "never read as a page, never a web page's links: {calls:?}");
+
+        // captured again: the note that holds the link, nothing downloaded twice
+        let again = e.add(&format!("{GROUP_THEORY}?utm_source=x"), &Pick::default()).unwrap();
+        assert_eq!((again.result.outcome, again.result.path.as_str()), (Outcome::Unchanged, "documents/Group Theory (2010).md"));
+        assert_eq!(e.host.calls.borrow().iter().filter(|c| c.starts_with("download ")).count(), 1);
+
+        // the folder is the `documents` setting's; the preview says where, fetching nothing
+        let e = Engine::new(documents_vault(None)).with_documents("/Library/Docs/");
+        let p = e.preview(GROUP_THEORY, &Pick::default()).unwrap().result;
+        assert_eq!((p.path.as_str(), p.exists, p.label.as_str()), ("Library/Docs/Group Theory (2010).md", false, "Document"));
+        assert!(e.host.calls.borrow().is_empty(), "{:?}", e.host.calls.borrow());
+    }
+
+    #[test]
+    fn a_pdf_link_another_plugin_claims_is_its_own_and_download_keeps_the_file_anyway() {
+        let mut f = documents_vault(None);
+        f.contributions["catalog-papers"] = json!({
+            "kinds": [{ "name": "paper", "folder": "refs/papers", "ids": [{ "id": "pdf", "property": "url" }], "writer": { "by": "plugin", "plugin": "catalog-papers", "tool": "add" } }],
+            "recognize": [{ "pattern": "(?i)(https?://[^\\s<>\"]+\\.pdf(?:[?#][^\\s<>\"]*)?)", "kind": "paper", "id": "pdf" }]
+        });
+        let tools = std::mem::replace(&mut f.tools, Box::new(|_, _, _| Err("unset".into())));
+        f.tools = Box::new(move |plugin, tool, input| match (plugin, tool) {
+            ("catalog-papers", "add") => Ok(json!({ "path": "refs/papers/dresselhaus2008group/dresselhaus2008group.md" })),
+            _ => tools(plugin, tool, input),
+        });
+        let e = Engine::new(f);
+        let r = e.add(GROUP_THEORY, &Pick::default()).unwrap();
+        assert_eq!((r.result.outcome, r.result.kind.as_str()), (Outcome::Delegated, "paper"));
+        assert!(!e.host.calls.borrow().iter().any(|c| c.starts_with("download ")), "References downloads its own");
+
+        let d = e.download(GROUP_THEORY).unwrap();
+        assert_eq!((d.result.kind.as_str(), d.result.path.as_str()), (DOCUMENT, "documents/Group Theory (2010).md"));
+        assert!(e.download("https://example.org/post").unwrap_err().contains("not a link to a document"));
+    }
+
+    #[test]
+    fn an_isbn_in_the_first_pages_files_the_pdf_as_a_book_linking_the_file() {
+        let e = Engine::new(with_books(documents_vault(Some("Group Theory\x0cSpringer\nISBN 978-3-540-32897-1\x0c"))));
+        let r = e.add(GROUP_THEORY, &Pick::default()).unwrap();
+        assert_eq!((r.result.outcome, r.result.kind.as_str(), r.result.path.as_str()), (Outcome::Created, "book", "notes/books/Group Theory.md"));
+        assert_eq!(r.result.file.as_deref(), Some("documents/Group Theory (2010).pdf"));
+        let props = e.host.props(&r.result.path).unwrap();
+        assert_eq!((props["isbn"].clone(), props["file"].clone()), (json!("9783540328971"), json!("[[documents/Group Theory (2010).pdf]]")));
+        assert_eq!(props["source"], json!("https://files.example.org/Livros/Group%20Theory%20(2010).pdf"));
+        assert!(!e.host.files.borrow().contains_key("documents/Group Theory (2010).md"), "the book's note instead of a companion");
+        // captured again: found as that book, by its link
+        assert_eq!(e.add(GROUP_THEORY, &Pick::default()).unwrap().result.path, "notes/books/Group Theory.md");
+    }
+
+    #[test]
+    fn an_isbn_no_source_knows_stays_on_the_document_and_a_page_is_no_file() {
+        let e = Engine::new(with_books(documents_vault(Some("ISBN 0-306-40615-2\x0c"))));
+        let r = e.add(GROUP_THEORY, &Pick::default()).unwrap();
+        assert_eq!((r.result.kind.as_str(), r.result.path.as_str()), (DOCUMENT, "documents/Group Theory (2010).md"));
+        assert_eq!(fm(&e.host.files.borrow()[&r.result.path])["isbn"], json!("0306406152"));
+        assert!(r.steps.problems().iter().any(|p| p.contains("not filed as a book")), "{:?}", r.steps);
+
+        let mut f = documents_vault(None);
+        f.tools = Box::new(|_, tool, _| if tool == "download" { Ok(json!({ "content_type": "text/html; charset=utf-8" })) } else { Err("no".into()) });
+        let e = Engine::new(f);
+        assert!(e.add(GROUP_THEORY, &Pick::default()).unwrap_err().contains("answered a web page"));
+        assert!(!e.host.files.borrow().keys().any(|k| k.starts_with("documents/")));
+    }
+
     #[test]
     fn plain_text_is_not_catalogued_and_says_why() {
         let e = Engine::new(web_and_linkwarden());
@@ -1049,5 +1450,85 @@ mod tests {
         assert_eq!(title_from_url("https://files.example.org/Livros/Dresselhaus%20-%20Group%20Theory%20(2010).pdf").as_deref(), Some("Dresselhaus Group Theory (2010)"));
         assert_eq!(title_from_url("https://files.example.org/books/Teor%C3%ADa%20de%20grupos.pdf").as_deref(), Some("Teoría de grupos"));
         assert_eq!(atlas_text::links::percent_decoded("100%25 and 50% off"), "100% and 50% off");
+    }
+
+    // ---- the note of a thing (thing.rs) ------------------------------------------------------------------------
+
+    fn no_sources(files: &[(&str, &str)]) -> Fake {
+        Fake {
+            files: RefCell::new(files.iter().map(|(p, t)| (p.to_string(), t.to_string())).collect()),
+            contributions: json!({}),
+            tools: Box::new(|plugin, tool, _| Err(format!("no tool {plugin}.{tool}"))),
+            calls: RefCell::new(Vec::new()),
+            info: Default::default(),
+        }
+    }
+
+    fn book(ids: &[(&str, &str)], title: &str, file: Option<&str>) -> crate::thing::Thing {
+        crate::thing::Thing {
+            kind: Some(KindName::new("book")),
+            ids: ids.iter().map(|(k, v)| (IdName::new(*k), v.to_string())).collect(),
+            known: serde_json::from_value(json!({ "title": title, "author": "Frank Herbert" })).unwrap(),
+            file: file.map(str::to_string),
+            own: Fields::new(),
+        }
+    }
+
+    #[test]
+    fn a_server_item_gets_its_note_only_once_it_is_yours_and_only_one() {
+        use crate::thing::Why;
+        let e = Engine::new(no_sources(&[]));
+        let dune = book(&[("audiobookshelf", "li_42")], "Dune", None);
+        let looked = e.note_of(&dune, Why::Opened).unwrap();
+        assert_eq!(looked.result.path, None, "listed or opened: no note");
+        assert_eq!(e.note_of(&dune, Why::Progress(0.004)).unwrap().result.path, None, "a tap on play is not listening");
+        assert!(e.host.files.borrow().is_empty(), "nothing written");
+        let made = e.note_of(&dune, Why::Progress(0.3)).unwrap();
+        assert!(made.result.made, "{:?}", made.steps);
+        let path = made.result.path.clone().unwrap();
+        assert_eq!(path, "notes/books/Dune.md");
+        let text = e.host.files.borrow()[&path].clone();
+        assert!(text.contains("type: book") && text.contains("audiobookshelf: li_42") && text.contains("author: '[[Frank Herbert]]'"), "{text}");
+        // asked again from any side: the same note, never a second
+        let again = e.note_of(&dune, Why::Rated).unwrap();
+        assert_eq!((again.result.path.as_deref(), again.result.made), (Some(path.as_str()), false));
+    }
+
+    #[test]
+    fn an_epub_joins_the_note_its_audiobook_made_and_claims_it() {
+        use crate::thing::Why;
+        let abs = "---\ntype: book\ntitle: Dune\nisbn: '9780441013593'\naudiobookshelf: li_42\n---\n\nMy review.\n";
+        let e = Engine::new(no_sources(&[("notes/books/Dune.md", abs), ("books/Dune.epub", "PK")]));
+        let epub = book(&[("isbn", "978-0-441-01359-3")], "Dune", Some("books/Dune.epub"));
+        let r = e.note_of(&epub, Why::Opened).unwrap();
+        assert_eq!(r.result.path.as_deref(), Some("notes/books/Dune.md"), "found by its ISBN: {:?}", r.steps);
+        let text = e.host.files.borrow()["notes/books/Dune.md"].clone();
+        assert!(text.contains("file: '[[books/Dune.epub]]'") && text.contains("My review."), "the file claimed, the rest untouched: {text}");
+        assert_eq!(e.host.companion_find("books/Dune.epub").unwrap().as_deref(), Some("notes/books/Dune.md"), "the reader's own lookup finds it now");
+        assert!(!e.host.files.borrow().contains_key("books/Dune.md"), "no second note beside the book");
+    }
+
+    #[test]
+    fn a_vault_file_or_folder_gets_its_note_beside_it_through_the_core() {
+        use crate::thing::Why;
+        let e = Engine::new(no_sources(&[("books/Emma.epub", "PK")]));
+        let emma = book(&[], "Emma", Some("books/Emma.epub"));
+        assert_eq!(e.note_of(&emma, Why::Opened).unwrap().result.path, None);
+        let r = e.note_of(&emma, Why::Wrote).unwrap();
+        assert_eq!(r.result.path.as_deref(), Some("books/Emma.md"));
+        assert!(e.host.files.borrow()["books/Emma.md"].contains("type: \"book\""), "the kind's type through the companion path");
+        // a manga series' folder: its folder note, found from then on
+        let berserk = crate::thing::Thing { kind: Some(KindName::new("manga")), file: Some("manga/Berserk/".into()), known: serde_json::from_value(json!({ "title": "Berserk" })).unwrap(), ..Default::default() };
+        assert_eq!(e.note_of(&berserk, Why::Finished).unwrap().result.path.as_deref(), Some("manga/Berserk/Berserk.md"));
+        assert!(!e.note_of(&berserk, Why::Opened).unwrap().result.made);
+    }
+
+    #[test]
+    fn a_thing_found_by_id_anywhere_is_never_a_note_of_another_kind() {
+        use crate::thing::Why;
+        // a film note that happens to share an id property name is not the book
+        let e = Engine::new(no_sources(&[("notes/films/X.md", "---\ntype: movie\nsource: https://x.org/a\n---\n")]));
+        let b = book(&[("url", "https://x.org/a")], "X", None);
+        assert_eq!(e.note_of(&b, Why::Opened).unwrap().result.path, None);
     }
 }

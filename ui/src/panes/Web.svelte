@@ -9,6 +9,7 @@
   import { open } from "../lib/dock";
   import { framesAnything, frameToken, openOutside } from "../lib/web-links";
   import Icon from "../components/Icon.svelte";
+  import { paneSteps } from "../lib/pane-nav";
 
   let { spec, panel }: PaneProps<"web"> = $props();
   // svelte-ignore state_referenced_locally -- a pane's spec is fixed for its lifetime
@@ -45,6 +46,7 @@
     const u = normal(url);
     if (!u) return;
     url = shown = u;
+    ahead = 0; // a new address: no forward history left
     panel.updateParameters({ url: u });
     setTitle(null, u);
     src = u;
@@ -106,6 +108,20 @@
     if (m) heard(new CustomEvent("atlas-web", { detail: { id: panel.id, ...m } }));
   }
 
+  // The app's Back / Forward (mouse buttons, swipes, Super+[, the phone's Back) go through the page's history first.
+  // A frame cannot tell its forward history: Forward is taken only after a Back taken here.
+  let root = $state<HTMLDivElement>();
+  let ahead = 0;
+  $effect(() => {
+    if (!root || !framed) return;
+    return paneSteps(root, (d) => (d < 0 ? nav.back : ahead > 0) && (stepPage(d), true), (d) => (d < 0 ? nav.back : ahead > 0));
+  });
+  /** One page back or forward in the frame (the bar's arrows, the app's Back). */
+  function stepPage(d: -1 | 1) {
+    ahead = Math.max(0, ahead - d);
+    ask({ op: d < 0 ? "back" : "forward" });
+  }
+
   onMount(() => {
     if (!framed) return;
     window.addEventListener("message", fromFrame);
@@ -114,11 +130,11 @@
 </script>
 
 <!-- svelte-ignore a11y_no_static_element_interactions -->
-<div class="web-pane" onkeydown={(e) => { if (e.ctrlKey && !e.altKey && !e.shiftKey && e.key.toLowerCase() === "f") { e.preventDefault(); openFind(); } }}>
+<div class="web-pane" bind:this={root} onkeydown={(e) => { if (e.ctrlKey && !e.altKey && !e.shiftKey && e.key.toLowerCase() === "f") { e.preventDefault(); openFind(); } }}>
   <div class="bar">
     {#if framed}
-      <button class="icon-btn" title="Back (Alt+←)" disabled={!nav.back} onclick={() => ask({ op: "back" })}><Icon name="arrow-left" size={14} /></button>
-      <button class="icon-btn" title="Forward (Alt+→)" disabled={!nav.forward} onclick={() => ask({ op: "forward" })}><Icon name="arrow-right" size={14} /></button>
+      <button class="icon-btn" title="Back (Alt+←)" disabled={!nav.back} onclick={() => stepPage(-1)}><Icon name="arrow-left" size={14} /></button>
+      <button class="icon-btn" title="Forward (Alt+→)" disabled={!nav.forward} onclick={() => stepPage(1)}><Icon name="arrow-right" size={14} /></button>
     {/if}
     <button class="icon-btn" class:spin={nav.loading} title="Reload (F5)" onclick={reload}><Icon name="refresh" size={14} /></button>
     <input bind:this={address} bind:value={url} onkeydown={(e) => { if (e.key === "Enter") go(); }} spellcheck="false" aria-label="Address" />

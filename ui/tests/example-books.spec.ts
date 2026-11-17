@@ -1,50 +1,17 @@
 import { test, expect } from "@playwright/test";
 import { openFile } from "./open";
-import { copyFileSync, mkdirSync, readFileSync, rmSync, writeFileSync, existsSync } from "node:fs";
+import { mkdirSync, readFileSync, rmSync, writeFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
-import { crc32, deflateRawSync } from "node:zlib";
 import { WS } from "../playwright.config";
+import { EPUB, installBooks } from "./epub-fixture";
 
 // The books plugin (plugins/beta/books/view.js): an EPUB built here (EPUB 3: container, package, nav,
 // two chapters, a stylesheet), read in the page — the library, the reader, the contents, a link inside the book,
 // paging, and where you are written to the book's note (reading_chapter, reading_at, progress, last_read).
 const PLUGIN = join(WS, ".atlas/plugins/books");
 
-function zip(files: [string, string, boolean][]): Buffer {
-  const locals: Buffer[] = [], central: Buffer[] = [];
-  let at = 0;
-  for (const [name, text, deflate] of files) {
-    const data = Buffer.from(text), body = deflate ? deflateRawSync(data) : data, n = Buffer.from(name);
-    const h = Buffer.alloc(30); h.writeUInt32LE(0x04034b50, 0); h.writeUInt16LE(20, 4); h.writeUInt16LE(deflate ? 8 : 0, 8);
-    h.writeUInt32LE(crc32(data), 14); h.writeUInt32LE(body.length, 18); h.writeUInt32LE(data.length, 22); h.writeUInt16LE(n.length, 26);
-    const c = Buffer.alloc(46); c.writeUInt32LE(0x02014b50, 0); c.writeUInt16LE(20, 4); c.writeUInt16LE(20, 6); c.writeUInt16LE(deflate ? 8 : 0, 10);
-    c.writeUInt32LE(crc32(data), 16); c.writeUInt32LE(body.length, 20); c.writeUInt32LE(data.length, 24); c.writeUInt16LE(n.length, 28); c.writeUInt32LE(at, 42);
-    locals.push(h, n, body); central.push(c, n);
-    at += 30 + n.length + body.length;
-  }
-  const cd = Buffer.concat(central), end = Buffer.alloc(22);
-  end.writeUInt32LE(0x06054b50, 0); end.writeUInt16LE(files.length, 8); end.writeUInt16LE(files.length, 10); end.writeUInt32LE(cd.length, 12); end.writeUInt32LE(at, 16);
-  return Buffer.concat([...locals, cd, end]);
-}
-const xhtml = (title: string, body: string) => `<?xml version="1.0" encoding="utf-8"?><html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops"><head><title>${title}</title><link rel="stylesheet" href="../style/book.css"/></head><body>${body}</body></html>`;
-const para = (n: number) => Array.from({ length: n }, (_, i) => `<p>Paragraph ${i + 1} of a long chapter about superconducting qubits, written long enough that it needs several pages on a small screen.</p>`).join("");
-
-const EPUB = zip([
-  ["mimetype", "application/epub+zip", false],
-  ["META-INF/container.xml", `<?xml version="1.0"?><container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container"><rootfiles><rootfile full-path="OEBPS/content.opf" media-type="application/oebps-package+xml"/></rootfiles></container>`, true],
-  ["OEBPS/content.opf", `<?xml version="1.0"?><package xmlns="http://www.idpf.org/2007/opf" version="3.0"><metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:title>Quantum Notes</dc:title><dc:creator>A. Author</dc:creator></metadata>
-    <manifest><item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/><item id="c1" href="text/one.xhtml" media-type="application/xhtml+xml"/><item id="c2" href="text/two.xhtml" media-type="application/xhtml+xml"/><item id="css" href="style/book.css" media-type="text/css"/></manifest>
-    <spine><itemref idref="c1"/><itemref idref="c2"/></spine></package>`, true],
-  ["OEBPS/nav.xhtml", xhtml("Contents", `<nav epub:type="toc"><ol><li><a href="text/one.xhtml">One: qubits</a></li><li><a href="text/two.xhtml#end">Two: readout</a></li></ol></nav>`), true],
-  ["OEBPS/text/one.xhtml", xhtml("One", `<h1>One</h1><p><a href="two.xhtml">to chapter two</a></p>${para(40)}<script>document.title = "ran";</script>`), true],
-  ["OEBPS/text/two.xhtml", xhtml("Two", `<h1>Two</h1>${para(3)}<p id="end">The end of the book.</p>`), true],
-  ["OEBPS/style/book.css", "h1 { letter-spacing: 2px; }", false],
-]);
-
 test.beforeAll(() => {
-  mkdirSync(PLUGIN, { recursive: true });
-  mkdirSync(join(PLUGIN, "shared"), { recursive: true }); // view.js imports shared/marks.js
-  for (const f of ["plugin.toml", "main.js", "view.js", "shared/marks.js", "helper.js"]) copyFileSync(new URL(`../../plugins/beta/books/${f}`, import.meta.url), join(PLUGIN, f));
+  installBooks(PLUGIN);
   rmSync(join(WS, "books"), { recursive: true, force: true });
   mkdirSync(join(WS, "books/physics"), { recursive: true });
   writeFileSync(join(WS, "books/physics/quantum.epub"), EPUB);
@@ -55,11 +22,31 @@ test("a book's note: its highlights read back, the attribution line left out", a
   // the plugin is plain JS without types: imported by a variable path, its shape stated here
   const view = "../../plugins/beta/books/view.js";
   const { highlightsIn, notePathOf, highlightBlock } = (await import(view)) as {
-    highlightsIn(md: string): string[]; notePathOf(book: string): string; highlightBlock(text: string, where: string): string;
+    highlightsIn(md: string): { text: string; chapter?: number; k?: number }[]; notePathOf(book: string): string; highlightBlock(text: string, where: string, k?: number): string;
   };
   expect(notePathOf("books/a/quantum.epub")).toBe("books/a/quantum.md");
   const md = "---\nbook: '[[quantum.epub]]'\ntitle: Quantum Notes\n---\n# Quantum Notes\n\n## Highlights\n" + highlightBlock("two  spaces\nand a line", "One, chapter 1") + "\nMy own words.\n" + highlightBlock("second", "Two, chapter 2");
-  expect(highlightsIn(md)).toEqual(["two spaces and a line", "second"]);
+  expect(highlightsIn(md).map((h) => h.text)).toEqual(["two spaces and a line", "second"]);
+});
+
+test("highlights are anchored: the occurrence chosen, its own chapter, only under the heading, a new one under it", async () => {
+  const view = "../../plugins/beta/books/view.js";
+  type H = { text: string; chapter?: number; k?: number; where?: string };
+  const { highlightsIn, highlightBlock, addHighlight } = (await import(view)) as {
+    highlightsIn(md: string): H[]; highlightBlock(text: string, where: string, k?: number): string; addHighlight(md: string, block: string): string;
+  };
+  const { pick } = (globalThis as unknown as { atlasMarks: { pick(text: string, ps: (string | H)[], chapter?: number): { k: number; len: number }[] } }).atlasMarks;
+  // a phrase twice in a chapter: the one chosen is marked, not the first; nowhere in another chapter
+  const text = "the cat sat. later the cat sat again.";
+  expect(pick(text, [{ text: "the cat sat", chapter: 2, k: 19 }], 2)).toEqual([{ k: 19, len: 11 }]);
+  expect(pick(text, [{ text: "the cat sat", chapter: 3, k: 19 }], 2)).toEqual([]);
+  expect(pick(text, ["the cat sat"], 2)).toEqual([{ k: 0, len: 11 }]); // written before anchors: the first, as before
+  // only quotes under `## Highlights` count, callouts never; a new one goes at the end of that section
+  const md = "> [!note] mine\n> my own quote\n\n## Highlights\n" + highlightBlock("the cat sat", "Two, chapter 2", 19) + "\n> [!tip]\n> not one\n\n## Thoughts\n\n> also mine\n";
+  expect(highlightsIn(md)).toEqual([{ text: "the cat sat", where: "Two, chapter 2", chapter: 2, k: 19 }]);
+  const added = addHighlight(md, highlightBlock("more", "Three, chapter 3", 4));
+  expect(added.indexOf("> more")).toBeLessThan(added.indexOf("## Thoughts"));
+  expect(highlightsIn(added).map((h) => h.text)).toEqual(["the cat sat", "more"]);
 });
 
 test("the pen over a book: a dot is a tap, a line along the text marks it, a bar down the margin marks its lines", async () => {
@@ -146,6 +133,14 @@ test("books: the library, an EPUB read in the page, paged, its contents and link
   await pane.getByRole("button", { name: "‹ Library" }).click();
   await openBook();
   await expect(book.locator("mark.atlas-hl")).toHaveText(["Paragraph 1", "superconducting qubits"]);
+  // anchored: "superconducting qubits" is in every paragraph of the chapter, but only the one chosen is marked; a tap on
+  // it asks, then takes it out of the note and off the page, the other highlight kept
+  expect(readFileSync(note, "utf8")).toMatch(/> — Two: readout, chapter 2 <!-- atlas-hl k=\d+ -->/);
+  await book.locator("mark.atlas-hl", { hasText: "superconducting qubits" }).click();
+  await page.getByRole("button", { name: "Remove" }).click();
+  await expect(book.locator("mark.atlas-hl")).toHaveText(["Paragraph 1"]);
+  await expect.poll(() => readFileSync(note, "utf8")).not.toContain("> superconducting qubits");
+  expect(readFileSync(note, "utf8")).toContain("> Paragraph 1");
 
   // search the whole book: every chapter's hits, a click opens the chapter at the page of the find, marked
   await pane.getByRole("button", { name: "Search" }).click();

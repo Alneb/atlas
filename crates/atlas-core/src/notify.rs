@@ -6,7 +6,7 @@ use crate::config::{NotificationsConfig, SystemNotices};
 use crate::events::{EventBus, ToSystem};
 use crate::Workspace;
 use std::collections::HashMap;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicI64, AtomicU64, Ordering};
 use std::sync::{Arc, LazyLock, Mutex};
 
 /// Whether a notice goes to the system. `looked_at`: a page of this core is visible and focused; `muted`: its source
@@ -23,11 +23,15 @@ pub fn shown(mode: SystemNotices, n: &Notice, looked_at: bool, muted: bool) -> b
 }
 
 /// The pages of this process and whether each is looked at, as they report it on their event socket (`seen`). Kept
-/// per process, not per vault: a focused window of one vault means the person is looking at Atlas.
+/// per process, not per vault: a focused window of one vault means the person is looking at Atlas. With them, when the
+/// person last used this device (`active_at`): a page coming into focus, and the system's idle state sampled once a
+/// minute (`watch`, platform/idle.rs) — the presence the planner of nudges weighs (DESIGN-calendar-tasks-nudges §3.2).
 #[derive(Default)]
 pub struct Presence {
     pages: Mutex<HashMap<u64, bool>>,
     next: AtomicU64,
+    /// ms since the epoch; 0 while unknown
+    active: AtomicI64,
 }
 
 /// One page's place in [`Presence`]; gone with its socket.
@@ -65,12 +69,53 @@ impl Presence {
     pub fn connected(&self) -> bool {
         !self.pages.lock().unwrap().is_empty()
     }
+
+    /// When the person last used this device (ms since the epoch), as far as it is known.
+    pub fn active_at(&self) -> Option<i64> {
+        Some(self.active.load(Ordering::Relaxed)).filter(|&t| t > 0)
+    }
+
+    fn active_by(&self, t: i64) {
+        self.active.fetch_max(t, Ordering::Relaxed);
+    }
+
+    /// One sample of the system's idle state at `now`: in use is now; idle since a moment is that moment; idle since
+    /// an unknown moment keeps the last; no answer leaves it to the pages (a page looked at is in use).
+    pub fn sampled(&self, idle: Option<crate::platform::idle::Idle>, now: i64) {
+        use crate::platform::idle::Idle;
+        match idle {
+            Some(Idle::No) => self.active_by(now),
+            Some(Idle::Since(Some(t))) => self.active_by(t.min(now)),
+            Some(Idle::Since(None)) => {}
+            None if self.looked_at() => self.active_by(now),
+            None => {}
+        }
+    }
+
+    /// Samples the system's idle state now and once a minute, for the life of the process (once per process).
+    pub fn watch(self: &Arc<Self>) {
+        static STARTED: AtomicBool = AtomicBool::new(false);
+        if STARTED.swap(true, Ordering::Relaxed) {
+            return;
+        }
+        let me = self.clone();
+        let spawned = std::thread::Builder::new().name("presence".into()).spawn(move || loop {
+            me.sampled(crate::platform::idle::idle(), chrono::Utc::now().timestamp_millis());
+            std::thread::sleep(std::time::Duration::from_secs(60));
+        });
+        if let Err(e) = spawned {
+            eprintln!("atlas: presence: not watched: {e}");
+        }
+    }
 }
 
 impl Page {
     /// What the page reported: visible and focused, or not.
     pub fn seen(&self, looked_at: bool) {
         self.presence.pages.lock().unwrap().insert(self.id, looked_at);
+        if looked_at {
+            self.presence.active_by(chrono::Utc::now().timestamp_millis());
+        }
     }
 }
 
@@ -294,6 +339,7 @@ pub fn platform(bus: &EventBus) -> Box<dyn Notifier> {
 #[cfg(all(target_os = "linux", not(target_os = "android")))]
 mod linux {
     use super::{Notice, NoticeLevel, Notifier, Stay};
+    use crate::api::NoticeAction;
     use crate::events::{Chosen, EventBus};
     use std::collections::HashMap;
     use std::sync::{Arc, Mutex};
@@ -341,29 +387,34 @@ mod linux {
             Self::on(zbus::blocking::Connection::session().map_err(|e| e.to_string())?, bus)
         }
 
-        /// Follows `ActionInvoked` on `conn`: a click on one of ours brings Atlas forward and opens its note; a press
-        /// of one of its buttons is said on the bus.
+        /// Follows `ActionInvoked` and `NotificationClosed` on `conn`: a click on one of ours brings Atlas forward and
+        /// opens its note; a press of one of its buttons is said on the bus, and so is its dismissal by the person
+        /// (`NoticeAction::DISMISSED`).
         pub fn on(conn: zbus::blocking::Connection, bus: EventBus) -> Result<Self, String> {
             let shown: Arc<Mutex<HashMap<u32, Kept>>> = Arc::default();
-            let rule = zbus::MatchRule::builder()
-                .msg_type(zbus::message::Type::Signal)
-                .interface(DEST)
-                .and_then(|r| r.member("ActionInvoked"))
-                .map_err(|e| e.to_string())?
-                .build();
+            // both members on one stream: a press arrives before the close that follows it, which is then no dismissal
+            let rule = zbus::MatchRule::builder().msg_type(zbus::message::Type::Signal).interface(DEST).map_err(|e| e.to_string())?.build();
             let signals = zbus::blocking::MessageIterator::for_match_rule(rule, &conn, None).map_err(|e| e.to_string())?;
             let clicked = shown.clone();
             std::thread::Builder::new()
                 .name("atlas-notify-clicks".into())
                 .spawn(move || {
                     for msg in signals.flatten() {
-                        let Ok((id, action)) = msg.body().deserialize::<(u32, String)>() else { continue };
-                        // the signal is broadcast: another program's notifications are not ours to answer
-                        let Some(kept) = clicked.lock().unwrap().get(&id).cloned() else { continue };
-                        if action == DEFAULT {
-                            super::open_notice(&bus, kept.open);
-                        } else {
-                            bus.chose(Chosen { action, source: kept.source, notice: kept.id, open: kept.open });
+                        let member = msg.header().member().map(|m| m.to_string()).unwrap_or_default();
+                        let said = match member.as_str() {
+                            "ActionInvoked" => msg.body().deserialize::<(u32, String)>().ok().map(|(id, a)| (id, Some(a))),
+                            // reason 2: dismissed by the person (1 expired, 3 closed by us, 4 anything else)
+                            "NotificationClosed" => msg.body().deserialize::<(u32, u32)>().ok().map(|(id, why)| (id, (why == 2).then(|| NoticeAction::DISMISSED.to_string()))),
+                            _ => None,
+                        };
+                        let Some((id, action)) = said else { continue };
+                        // the signal is broadcast: another program's notifications are not ours to answer; once
+                        // answered (pressed, closed) one is forgotten
+                        let Some(kept) = clicked.lock().unwrap().remove(&id) else { continue };
+                        match action {
+                            Some(a) if a == DEFAULT => super::open_notice(&bus, kept.open),
+                            Some(action) => bus.chose(Chosen { action, source: kept.source, notice: kept.id, open: kept.open }),
+                            None => {}
                         }
                     }
                 })
@@ -530,6 +581,28 @@ mod linux {
                 }
             };
             assert_eq!(pressed, Chosen { action: "atlas:snooze:10".into(), source: Some("dav".into()), notice: Some("dav:s1".into()), open: Some("notes/Seminar.md".into()) });
+            let next = |chosen: &mut tokio::sync::broadcast::Receiver<Chosen>| {
+                let until = Instant::now() + Duration::from_secs(5);
+                loop {
+                    match chosen.try_recv() {
+                        Ok(c) => return Some(c),
+                        Err(_) if Instant::now() < until => std::thread::sleep(Duration::from_millis(20)),
+                        Err(_) => return None,
+                    }
+                }
+            };
+
+            // dismissals: the close after a press is none; expired (1) or closed by us (3) is none; closed by the
+            // person (2) is said as atlas:dismissed with its notice
+            server.emit_signal(None::<zbus::names::BusName>, PATH, DEST, "NotificationClosed", &(42u32, 2u32)).unwrap();
+            n.show(&reminder, None, secs(30)).unwrap();
+            server.emit_signal(None::<zbus::names::BusName>, PATH, DEST, "NotificationClosed", &(42u32, 1u32)).unwrap();
+            n.show(&reminder, None, secs(30)).unwrap();
+            server.emit_signal(None::<zbus::names::BusName>, PATH, DEST, "NotificationClosed", &(42u32, 2u32)).unwrap();
+            server.emit_signal(None::<zbus::names::BusName>, PATH, DEST, "NotificationClosed", &(42u32, 2u32)).unwrap();
+            let dismissed = next(&mut chosen).expect("a dismissal heard");
+            assert_eq!(dismissed, Chosen { action: NoticeAction::DISMISSED.into(), source: Some("dav".into()), notice: Some("dav:s1".into()), open: Some("notes/Seminar.md".into()) });
+            assert_eq!(next(&mut chosen), None, "said once: the second close was of one already answered");
 
             n.withdraw(42).unwrap();
             assert_eq!(*closed.lock().unwrap(), [42], "withdrawn: closed on the server");
@@ -807,6 +880,29 @@ mod tests {
         assert!(p.looked_at());
         drop(b);
         assert!(!p.looked_at(), "a closed page counts no more");
+    }
+
+    #[test]
+    fn the_last_use_is_the_latest_of_the_systems_samples_and_a_page_in_focus() {
+        use crate::platform::idle::Idle;
+        let p = Arc::new(Presence::default());
+        assert_eq!(p.active_at(), None, "unknown until something says");
+        p.sampled(None, 1_000);
+        assert_eq!(p.active_at(), None, "no system answer and no page looked at: still unknown");
+        p.sampled(Some(Idle::No), 2_000);
+        assert_eq!(p.active_at(), Some(2_000));
+        p.sampled(Some(Idle::Since(Some(1_500))), 9_000);
+        assert_eq!(p.active_at(), Some(2_000), "an idle time before the last use moves nothing back");
+        p.sampled(Some(Idle::Since(Some(5_000))), 9_000);
+        assert_eq!(p.active_at(), Some(5_000), "idle since 5 s: used until then");
+        p.sampled(Some(Idle::Since(None)), 60_000);
+        assert_eq!(p.active_at(), Some(5_000), "locked since a moment unsaid: the last use stands");
+        let page = p.join();
+        page.seen(true);
+        assert!(p.active_at().unwrap() > 60_000, "a page coming into focus is a use, now");
+        let t = p.active_at().unwrap();
+        p.sampled(None, t + 60_000);
+        assert_eq!(p.active_at(), Some(t + 60_000), "no system answer: a page looked at is in use");
     }
 
     #[tokio::test]

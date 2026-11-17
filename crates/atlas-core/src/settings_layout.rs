@@ -15,7 +15,7 @@ const WORDS: &[(&str, &str)] = &[
 const LABELS: &[(&str, &str)] = &[
     ("ui_font", "Interface font"), ("font_size", "Text size"), ("min_size", "Minimum size"), ("off", "Switched off"),
     ("index_exclude", "Agent files (kept apart from your notes)"), ("side_panel", "Side panel: where it sits"),
-    ("restore_layout", "Reopen the last tabs at start"), ("tab_preview", "Preview a tab on hover"), ("link_preview", "Preview a link on hover"),
+    ("restore_layout", "Reopen the last tabs at start"), ("tab_preview", "Preview a tab on hover"), ("share_place", "Show your other devices what this one shows"), ("link_preview", "Preview a link on hover"),
     ("tab_switcher", "Ctrl+Tab"), ("libraries", "Libraries shown"), ("apps_order", "Apps: order in the left bar"), ("apps_hidden", "Apps: hidden from the left bar"), ("properties", "Properties"), ("properties_spec", "Property spec (file)"),
     ("dir", "Folder"), ("templates", "Templates folder"), ("template_rules", "Templates by name or folder"),
     ("default_template", "Default template (a plain note starts from it)"), ("strict_line_breaks", "Strict line breaks"),

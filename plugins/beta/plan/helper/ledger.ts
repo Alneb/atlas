@@ -5,13 +5,20 @@
 //   - 2026-11-16 14:05 · nudged · [[notes/Thesis#^t3f9a|Write the introduction]] · score 2.4 · due tomorrow, ⏫, 50 min free
 //   - 2026-11-16 14:21 · snoozed → 16:30 · [[notes/Thesis#^t3f9a|Write the introduction]]
 //   - 2026-11-16 16:48 · done · [[notes/Thesis#^t3f9a|Write the introduction]] · from the notification
+//   - 2026-11-16 17:02 · dismissed · [[notes/Thesis#^t3f9a|Write the introduction]] · line 1c9e04a2
 //   - 2026-11-17 08:00 · digest · 1 overdue, 2 due today
+//   - 2026-11-16 23:59 · used · 08:00–12:00, 14:00–15:00, 21:00–23:00
 //
+// A `used` line is a device's day of presence (§3.3a): the hours it was seen in use, written once, after the day
+// (stamped 23:59 of it), for the quiet hours measured (plan.ts `quietOf`).
 // A task is named by its block id when it has one (`[[note#^id|title]]`), else by its note and title
 // (`[[note|title]]`): the key the plan, the notices and the ledger share.
 import { fromStamp, stamp, wall, type Clock } from "./time";
 
-export type Kind = "nudged" | "snoozed" | "done" | "digest";
+export type Kind = "nudged" | "snoozed" | "done" | "dismissed" | "digest" | "used";
+const KINDS: readonly Kind[] = ["nudged", "snoozed", "done", "dismissed", "digest", "used"];
+/** The kinds about no task (no link on their line). */
+const UNLINKED: readonly Kind[] = ["digest", "used"];
 
 export interface Entry {
   at: number;
@@ -66,11 +73,11 @@ export function parseLine(line: string, c: Clock): Entry | null {
   const head = parts[0].trim();
   const snooze = /^snoozed → (?:(\d{4}-\d{2}-\d{2}) )?(\d{1,2}:\d{2})$/.exec(head);
   const kind = (snooze ? "snoozed" : head) as Kind;
-  if (!["nudged", "snoozed", "done", "digest"].includes(kind)) return null;
+  if (!KINDS.includes(kind)) return null;
   const e: Entry = { at, kind, detail: "", line: line.trim() };
   if (snooze) e.until = fromStamp(`${snooze[1] ?? m[1].slice(0, 10)} ${snooze[2]}`, c) ?? undefined;
   let rest = parts.slice(1);
-  if (kind !== "digest") {
+  if (!UNLINKED.includes(kind)) {
     const link = rest[0] && fromLink(rest[0]);
     if (!link) return null;
     Object.assign(e, link);
@@ -81,7 +88,30 @@ export function parseLine(line: string, c: Clock): Entry | null {
   return e;
 }
 
-/** A ledger line for an entry about `task` (none for a digest). */
+/** A day's hours in use (0–23) as a `used` line says them: `08:00–12:00, 14:00–15:00` (each range's end excluded). */
+export function hoursText(hours: Iterable<number>): string {
+  const hs = [...new Set(hours)].filter((h) => h >= 0 && h < 24).sort((a, b) => a - b);
+  const out: string[] = [];
+  const two = (h: number) => `${String(h).padStart(2, "0")}:00`;
+  for (let i = 0; i < hs.length; ) {
+    let j = i;
+    while (j + 1 < hs.length && hs[j + 1] === hs[j] + 1) j += 1;
+    out.push(`${two(hs[i])}–${two(hs[j] + 1)}`);
+    i = j + 1;
+  }
+  return out.join(", ");
+}
+
+/** The hours a `used` line's detail names (the inverse of hoursText); a range it cannot read is left out. */
+export function hoursOf(detail: string): number[] {
+  const out: number[] = [];
+  for (const m of detail.matchAll(/(\d{2}):00[–-](\d{2}):00/g)) {
+    for (let h = Number(m[1]); h < Math.min(24, Number(m[2])); h++) out.push(h);
+  }
+  return out;
+}
+
+/** A ledger line for an entry about `task` (none for a digest or a day's use). */
 export function renderLine(e: Entry, c: Clock, task?: TaskName): string {
   let head: string = e.kind;
   if (e.kind === "snoozed" && e.until !== undefined) {
@@ -113,6 +143,17 @@ export function add(text: string | null, lines: string[], device: string, month:
   const rest = fm ? body.slice(fm[0].length) : body;
   return top + lines.join("\n") + "\n" + rest.replace(/^\n+/, "");
 }
+
+/** A mark of a task's line as written (its block id aside: given on a snooze, it is no edit), so a dismissal can say
+ *  which version of the task it was about: `line <8 hex digits>` in its detail (FNV-1a). */
+export function lineMark(text: string): string {
+  let h = 0x811c9dc5;
+  for (const ch of text.replace(/\s+\^[\w-]+\s*$/, "").trim()) h = Math.imul(h ^ ch.codePointAt(0)!, 0x01000193) >>> 0;
+  return h.toString(16).padStart(8, "0");
+}
+
+/** The line mark a dismissal's detail carries, if any. */
+export const markOf = (e: Entry): string | undefined => /(?:^|· )line ([0-9a-f]{8})\b/.exec(e.detail)?.[1];
 
 /** The latest entry about a task (by its key, or — for a nudge's window rule — its title key). */
 export function latest(entries: Entry[], key: string): Entry | undefined {

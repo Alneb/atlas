@@ -7,10 +7,12 @@
 title = "Calendar"
 description = "your calendars in a pane: month, week, day, agenda; several CalDAV or Outlook / Microsoft 365 (Exchange) accounts and ICS subscriptions; meetings; invitations from Email; contacts"
 icon = "calendar"
-version = "1.8.2"
+version = "1.11.0"
 rail = true          # a button for the Calendar pane (view.js)
 provides = ["calendar"]  # the role other plugins call it by (Email: `@calendar/tools/import_invite`, contacts, agenda)
 api = 12             # Settings v2: account cards (status, Test, presets), hidden / advanced fields, a drawn section
+needs = ">=0.3.0"          # the first core that reads `background` (older ones refuse the key)
+background = "any"  # the fs hook writes no vault file, only the calendar, each event's UID from its note's path: a second core puts the same event
 
 [helper]
 # built by engine/build.sh: one static binary per platform (it also runs in the server's container)

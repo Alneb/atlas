@@ -41,7 +41,13 @@ test("filter the folder, then every folder below it; the selected file previewed
   await pane.getByLabel("Filter this folder").press("Escape");
   await expect(labels).toHaveText(["deep", "apple notes.md", "banana.md"]);
   // Split: another explorer, at the same folder
-  await pane.getByRole("button", { name: "Split" }).click();
+  // Split is in the bar on a wide pane, in More on a narrow one (a CI window)
+  const splitBtn = pane.getByRole("button", { name: "Split" });
+  if (await splitBtn.isVisible()) await splitBtn.click();
+  else {
+    await pane.getByRole("button", { name: "More" }).click();
+    await page.getByRole("menuitem", { name: "Split: another explorer beside" }).click();
+  }
   await expect(page.locator(".explorer")).toHaveCount(2);
   await expect(page.locator(".explorer").nth(1).locator(".crumbs")).toContainText("xf");
 });

@@ -4,10 +4,14 @@
 pub mod clip;
 pub mod collection;
 pub mod contrib;
+pub mod document;
 pub mod engine;
+/// A PDF's naming (its first page, its Info dictionary): the catalog's, linked by catalog-papers for its references.
+pub mod first_page;
 pub mod kind;
 pub mod merge;
 pub mod model;
 pub mod note;
 pub mod recognize;
 pub mod rules;
+pub mod thing;

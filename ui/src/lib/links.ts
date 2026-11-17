@@ -6,6 +6,8 @@ import { openDrawingAt, openPath, openPdfAt } from "./dock";
 import { placeOf } from "./pdf-place";
 import { anchorLine, MARK_ID } from "./note-anchor";
 import { api } from "./api";
+import { nowPlaying, shellPlayer } from "./player.svelte";
+import { timeOfFragment } from "./player-time";
 
 export async function resolveWikilink(target: string, fromPath: string): Promise<string> {
   return (await whereLinkPoints(target, fromPath)).path;
@@ -34,6 +36,7 @@ async function makeLinkedNote(path: string): Promise<{ path: string; line: numbe
 /** Opens what a link names; a PDF at the page its `#page=…` names, its label's words selected there (lib/pdf-place.ts). */
 export async function openWikilink(target: string, fromPath: string, opts: { beside?: boolean } = {}): Promise<void> {
   const where = await whereLinkPoints(target, fromPath);
+  if (await seekByLink(target, where.path)) return;
   if (!where.found && /\.md$/i.test(where.path)) {
     const made = await makeLinkedNote(where.path);
     if (made) { openPath(made.path, made.line, opts); return; }
@@ -58,4 +61,19 @@ async function openNoteAt(path: string, section: string, opts: { beside?: boolea
   }
   const text = await api.file(path).then((f) => f.text, () => null);
   openPath(path, text == null ? undefined : anchorLine(text, section), { ...opts, anchor: section });
+}
+
+const VIDEO = /\.(mkv|mp4|webm|mov|avi|m4v)$/i;
+/** A time link (`[[film#t=1:02:03]]`, lib/watch-notes.ts): the thing playing seeks there; a video of the vault starts
+ *  there. False when the link names no time, or nothing to play (it opens as any link). */
+async function seekByLink(target: string, path: string): Promise<boolean> {
+  const t = timeOfFragment(target.split("|")[0].split("#").slice(1).join("#"));
+  if (t === null) return false;
+  const s = nowPlaying.s;
+  if (s?.note && s.note === path) { shellPlayer.seek(t); return true; }
+  if (VIDEO.test(path)) {
+    await shellPlayer.play({ key: null, title: path.split("/").pop()!, tracks: [], video: true, file: path, note: path, at: t });
+    return true;
+  }
+  return false;
 }

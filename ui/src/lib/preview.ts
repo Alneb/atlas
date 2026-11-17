@@ -17,7 +17,7 @@ import { terminals } from "./registry";
 
 export type PreviewTarget =
   /** `anchor`: a heading or `^block` of a note — the card shows that section (an equation with its number) */
-  | { kind: "file"; path: string; title?: string; anchor?: string }
+  | { kind: "file"; path: string; title?: string; anchor?: string; page?: number }
   | { kind: "url"; url: string }
   | { kind: "pane"; title: string; detail: string }
   /** a link to a file the vault does not have: opening it starts a new note there */
@@ -85,7 +85,13 @@ export async function drawPreview(card: HTMLElement, t: PreviewTarget, width = C
       body.append(pre);
       return;
     }
-    // a note or a text file is read as a link's preview is: its pane shrunk to the card is text too small to read
+    // a note or a text file is read as a link's preview is: its pane shrunk to the card is text too small to read.
+    // A PDF is drawn from its file at the page it was left on: a copy of its pane starts at the top, where the
+    // reader has let the far pages' canvases go, so it came out blank.
+    if (t.path && /\.pdf$/i.test(t.path)) {
+      const { pdfPosition } = await import("./pdf-position");
+      return drawPreview(card, { kind: "file", path: t.path, title: t.title, page: pdfPosition(t.path).page ?? 1 });
+    }
     const readable = !!t.path && TEXT.test(t.path);
     const mini = !readable && el && miniature(el, width);
     if (mini) { head.textContent = t.title; body.classList.add("preview-mini"); body.append(mini); return; }
@@ -104,6 +110,7 @@ export async function drawPreview(card: HTMLElement, t: PreviewTarget, width = C
     return;
   }
   head.textContent = t.title ?? (t.anchor ? `${shownName(t.path)} › ${t.anchor.replace(/^\^/, "")}` : shownName(t.path));
+  if (t.page && t.page > 1) head.textContent += ` · p. ${t.page}`;
   if (IMAGE_RE.test(t.path)) {
     const img = document.createElement("img");
     img.src = await thumbUrl(t.path, 360); // the shared cache's: a hover never leaves a blob URL behind
@@ -112,7 +119,7 @@ export async function drawPreview(card: HTMLElement, t: PreviewTarget, width = C
   } else if (/\.pdf$/i.test(t.path)) {
     const { pageBitmap, paint, dpr } = await import("./pdf-pages");
     const canvas = document.createElement("canvas");
-    paint(canvas, await pageBitmap(t.path, 1, 340 * dpr()));
+    paint(canvas, await pageBitmap(t.path, t.page ?? 1, 340 * dpr()));
     canvas.style.width = "100%";
     body.append(canvas);
   } else if (/\.md$/i.test(t.path)) {

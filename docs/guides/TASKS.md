@@ -129,8 +129,9 @@ It is drawn three ways, all from that one query:
 - the **`deadlines` block** — a `task-list` over `from: deadlines` (`deadlinesSrc` in `ui/src/lib/blocks.ts`): a task
   row ticks its line through the one tick path, a note or an event shows a mark instead of a box. It is in the Home
   template; a home made before has it added by Settings → Home & Today → *Add the deadlines box* (or the command
-  "Home: add the deadlines box"), which puts it above the open tasks, never twice;
-- the **Deadlines page** (`Deadlines.page`): the command "Deadlines" and its tile beside Home write it once from a
+  "Home: add the deadlines box"), which puts it above the open tasks, never twice. Deadlines have no button of their
+  own in the left bar: opening Home on a home document without the box offers it once, with one click to add it;
+- the **Deadlines page** (`Deadlines.page`): the command "Deadlines" writes it once from a
   template (the box and a month calendar of the same rows), then it is the vault's file;
 - the **Today plugin's chips** ("2 due today · 1 overdue") count the Today and Overdue groups.
 

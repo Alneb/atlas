@@ -28,6 +28,12 @@ const readingFetch = (req) => {
   if (!/\/api\/plugins\/[^/]+\/fetch$/.test(new URL(req.url()).pathname)) return false;
   try { const b = JSON.parse(req.postData() ?? "{}"); return (b.method ?? "GET").toUpperCase() === "GET" && !b.save_to && !b.body_file; } catch { return false; }
 };
+/** A plugin helper's call that only reads (References' `list`, a `get`, a `bibtex`): let through, as a reading fetch is. */
+const READ_METHODS = new Set(["list", "get", "bibtex", "search", "status"]);
+const readingHelper = (req) => {
+  if (!/\/api\/plugins\/[^/]+\/helper$/.test(new URL(req.url()).pathname)) return false;
+  try { return READ_METHODS.has(JSON.parse(req.postData() ?? "{}").method); } catch { return false; }
+};
 // ATLAS_PROBE_COPY=1: the vault behind ATLAS_URL is a copy (target/probe-vault…), so writes and plugin helper calls go
 // through too — a plugin's view that asks its helper (POST) shows what it really shows
 const COPY = !!process.env.ATLAS_PROBE_COPY;
@@ -57,7 +63,7 @@ export async function readOnlyPage({ url = coreUrl(), dist, width = 1500, height
   if (!COPY) await page.routeWebSocket(/.*/, (ws) => ws.close()); // a copy may talk to its core (a language server, live events)
   await page.route("**/*", async (r) => {
     const req = r.request(), u = new URL(req.url());
-    if (u.pathname.startsWith("/api/")) return COPY || req.method() === "GET" || READS.test(u.pathname) || readingFetch(req) ? r.continue() : r.fulfill({ status: 200, contentType: "application/json", body: "{}" });
+    if (u.pathname.startsWith("/api/")) return COPY || req.method() === "GET" || READS.test(u.pathname) || readingFetch(req) || readingHelper(req) ? r.continue() : r.fulfill({ status: 200, contentType: "application/json", body: "{}" });
     if (dist) {
       const f = join(dist, u.pathname === "/" ? "index.html" : decodeURIComponent(u.pathname));
       if (existsSync(f) && !f.endsWith("/")) return r.fulfill({ body: readFileSync(f), contentType: TYPES[extname(f)] ?? "application/octet-stream" });

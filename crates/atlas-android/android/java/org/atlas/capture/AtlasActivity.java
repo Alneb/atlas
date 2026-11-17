@@ -51,11 +51,12 @@ public final class AtlasActivity extends Activity {
      *  Search, or
      *  a tab (`arg`: its id) / a view (Settings…). */
     private enum Kind {
-        HOME, LIBRARY, FILES, SEARCH, SETTINGS, NOTE;
-        /** shown by the note view (the WebView), not drawn natively */
-        boolean web() { return this != SETTINGS; }
+        HOME, LIBRARY, FILES, SEARCH, AGENDA, SETTINGS, NOTE;
+        /** shown by the note view (the WebView), not drawn natively (Settings; the Library, Files, Search, the Agenda:
+         *  LibraryScreen, FilesScreen, SearchScreen, AgendaScreen) */
+        boolean web() { return this != SETTINGS && this != LIBRARY && this != FILES && this != SEARCH && this != AGENDA; }
         /** the whole page call that shows it (NOTE: the tab, by its id) */
-        String call() { return this == HOME ? "atlasShell.home()" : this == LIBRARY ? "atlasShell.view('libraries')" : this == FILES ? "atlasShell.view('files')" : this == SEARCH ? "atlasShell.view('search')" : null; }
+        String call() { return this == HOME ? "atlasShell.home()" : null; }
     }
 
     private static final class Screen {
@@ -75,13 +76,13 @@ public final class AtlasActivity extends Activity {
     private TextView title, count;
     private ImageView back;
     private View brand;           // in Back's place where Back goes nowhere (Home)
-    private final View[] pills = new View[5]; // the bottom bar's mark behind the current place's icon
+    private final View[] pills = new View[6]; // the bottom bar's mark behind the current place's icon
     private View fab, bottom, topBar, topLine;
     /** The bars' backgrounds, recoloured to the vault's palette when the page says it (Bridge.paper). */
     private final java.util.List<View> paper = new java.util.ArrayList<>();
     private View unfull;          // fullscreen's way out, in a corner
     private boolean full;         // fullscreen: the page alone, no bars of the app's or the system's (setFull)
-    private final TextView[] tabsOfBar = new TextView[5];
+    private final TextView[] tabsOfBar = new TextView[6];
     private String shown;         // the vault on screen
     private boolean ready;        // the page's bridge is up
     private static final long READY_WAIT_MS = 20_000; // then a page that never said "ready" is shown anyway
@@ -93,6 +94,10 @@ public final class AtlasActivity extends Activity {
     private Screen at = new Screen(Kind.HOME, "");
     private String asked;         // the place a launcher shortcut asked for, taken on resume
     private JSONArray tabs = new JSONArray();
+    // the note view's health (WebHealth): its renderer's restarts, the core's answer when the page opened, when the app left
+    private final WebHealth.Restarts restarts = new WebHealth.Restarts();
+    private String coreSeen;
+    private long pausedAt;
 
     @Override
     protected void onCreate(Bundle state) {
@@ -191,6 +196,8 @@ public final class AtlasActivity extends Activity {
         final String v = shown;
         new Thread(() -> DeviceLog.write(v)).start(); // this phone's log in the vault, for the desktop to read
         TodayWidget.refresh(this); // the home screen shows what was just done here
+        new Thread(() -> ReminderAlarms.plan(getApplicationContext())).start(); // the reminders ring with the app gone
+        pausedAt = System.currentTimeMillis();
         super.onPause();
     }
 
@@ -205,11 +212,15 @@ public final class AtlasActivity extends Activity {
         // there (go) — before, any return opened it at Home ("all options redirect to home")
         if (!vault.equals(shown) && !(at.kind == Kind.SETTINGS && shown != null)) open(vault, shown == null); // first open (the activity made again): where it was
         else if (!at.kind.web()) render(); // back from the capture box or a settings screen: the place as it is now
+        if (vault.equals(shown) && ready && pausedAt > 0 && System.currentTimeMillis() - pausedAt >= WebHealth.AWAY_MS) checkCore(vault, false);
         String want = asked;
         asked = null;
         if ("new".equals(want)) { view("command('ui.new')"); return; } // as the + does: a note, a template, a drawing
-        Kind place = "search".equals(want) ? Kind.SEARCH : "files".equals(want) ? Kind.FILES : "home".equals(want) ? Kind.HOME : null;
-        if (place != null && place != at.kind) go(new Screen(place, ""), true);
+        Kind place = "search".equals(want) ? Kind.SEARCH : "files".equals(want) ? Kind.FILES : "home".equals(want) ? Kind.HOME : "agenda".equals(want) ? Kind.AGENDA : null;
+        if (place == Kind.AGENDA && shown != null) files(); // the screens of this vault, then the Agenda at today
+        if (place == Kind.AGENDA && agendaScreen != null) agendaScreen.today();
+        if (place == Kind.AGENDA && at.kind == Kind.AGENDA) render();
+        else if (place != null && place != at.kind) go(new Screen(place, ""), true);
     }
 
     // ---- the frame -----------------------------------------------------------------------------------------------
@@ -243,13 +254,21 @@ public final class AtlasActivity extends Activity {
         brand.setOnClickListener(v -> quickVaults());
         FrameLayout tabsButton = new FrameLayout(this);
         tabsButton.addView(iconButton("tabs", "Open files", v -> tabSheet()));
-        count = look.label(this, "", 10.5f, look.text);
+        // the number sits in the icon's front square (icons.rs Tabs: a 13-unit square at 4,7 of 24, so its middle is
+        // 1.5 dp left of and 1.5 dp below the button's); sized in dp, not sp, and without the font's line padding: in
+        // sp the phone's font size and the e-ink scale grew it out of the square, and the padding set it low
+        count = new TextView(this);
+        count.setTextColor(look.text);
         count.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
+        count.setIncludeFontPadding(false);
         count.setGravity(Gravity.CENTER);
+        count.setMaxLines(1);
         FrameLayout.LayoutParams cp = new FrameLayout.LayoutParams(look.dp(13), look.dp(13), Gravity.CENTER);
-        cp.setMargins(0, look.dp(3), look.dp(3), 0);
+        cp.setMargins(0, look.dp(3), look.dp(3), 0); // with CENTER, half of each margin: 1.5 dp left, 1.5 dp down
         count.setClickable(false);
         tabsButton.addView(count, cp);
+        // the Agenda (AgendaScreen): a place of the app's own, one tap from anywhere, outside the bottom bar's five
+        top.addView(iconButton("calendar", "Agenda", v -> go(new Screen(Kind.AGENDA, ""), true)));
         top.addView(tabsButton);
         top.addView(iconButton("more", "More options", this::menu));
         root.addView(top, new LinearLayout.LayoutParams(-1, look.dp(64)));
@@ -293,8 +312,8 @@ public final class AtlasActivity extends Activity {
         row.setBackgroundColor(look.bg);
         paper.add(row);
         // the vault's libraries (drawings, references, comics, books…: docs/design/DESIGN-libraries-everywhere.md)
-        String[][] items = { { "today", "Home" }, { "library", "Library" }, { "vault", "Files" }, { "search", "Search" }, { "settings", "Settings" } };
-        Kind[] kinds = { Kind.HOME, Kind.LIBRARY, Kind.FILES, Kind.SEARCH, Kind.SETTINGS };
+        // Apps: a menu of direct links (Manga, Audiobooks, the Agenda…), not a place of its own (BAR's null)
+        String[][] items = { { "today", "Home" }, { "library", "Library" }, { "vault", "Files" }, { "search", "Search" }, { "grid", "Apps" }, { "settings", "Settings" } };
         for (int i = 0; i < items.length; i++) {
             // Material 3's navigation bar: the icon on a pill when current, the label under it
             LinearLayout item = new LinearLayout(this);
@@ -315,8 +334,8 @@ public final class AtlasActivity extends Activity {
             b.setGravity(Gravity.CENTER);
             b.setPadding(0, look.dp(3), 0, 0);
             item.addView(b);
-            Kind k = kinds[i];
-            item.setOnClickListener(v -> go(new Screen(k, ""), true));
+            Kind k = BAR[i];
+            item.setOnClickListener(v -> { if (k == null) appsMenu(v); else go(new Screen(k, ""), true); });
             item.setContentDescription(items[i][1]);
             item.setMinimumHeight(look.dp(64));
             item.setPadding(0, look.dp(6), 0, look.dp(6));
@@ -324,6 +343,7 @@ public final class AtlasActivity extends Activity {
             tabsOfBar[i] = b;
             pills[i] = pill;
         }
+        flingBetweenPlaces(row);
         bar.addView(row);
         bottom = bar;
         root.addView(bar);
@@ -374,6 +394,43 @@ public final class AtlasActivity extends Activity {
         title.setOnTouchListener((v, e) -> g.onTouchEvent(e));
     }
 
+    /** The bottom bar's places in its order (a swipe steps through them). */
+    private static final Kind[] PLACES = { Kind.HOME, Kind.LIBRARY, Kind.FILES, Kind.SEARCH, Kind.SETTINGS };
+    /** The bottom bar, left to right: the places, and (null) Apps, the menu of direct links. */
+    private static final Kind[] BAR = { Kind.HOME, Kind.LIBRARY, Kind.FILES, Kind.SEARCH, null, Kind.SETTINGS };
+
+    /** A sideways fling on the bottom bar steps to the place beside, as a tap on it would. A tap still taps: the
+     *  bar's items see every touch, and only an UP that ended a fling is kept from them. */
+    private void flingBetweenPlaces(LinearLayout row) {
+        android.view.GestureDetector g = new android.view.GestureDetector(this, new android.view.GestureDetector.SimpleOnGestureListener() {
+            @Override public boolean onDown(android.view.MotionEvent e) { return true; }
+            @Override public boolean onFling(android.view.MotionEvent a, android.view.MotionEvent b, float vx, float vy) {
+                if (a == null || Math.abs(vx) < Math.abs(vy) * 1.5f || Math.abs(b.getX() - a.getX()) < look.dp(48)) return false;
+                return stepPlace(vx < 0 ? 1 : -1);
+            }
+        });
+        for (int i = 0; i < row.getChildCount(); i++) row.getChildAt(i).setOnTouchListener((v, e) -> {
+            boolean flung = g.onTouchEvent(e);
+            if (e.getActionMasked() != android.view.MotionEvent.ACTION_UP || !flung) return false;
+            v.setPressed(false); // the fling is the gesture: no tap on the item it ended over
+            return true;
+        });
+    }
+
+    /** The place `by` from the one on screen in the bottom bar's order, shown with a slide of the title; false at
+     *  either end, or from an open file (whose sideways swipe is the top bar's, between files). */
+    private boolean stepPlace(int by) {
+        int here = java.util.Arrays.asList(PLACES).indexOf(at.kind);
+        if (here < 0 || !ready) return false;
+        int next = here + by;
+        if (next < 0 || next >= PLACES.length) return false;
+        go(new Screen(PLACES[next], ""), true);
+        title.setTranslationX(look.dp(28) * by);
+        title.setAlpha(0.3f);
+        title.animate().translationX(0).alpha(1).setDuration(160).start();
+        return true;
+    }
+
     /** The open file `by` places from the one on screen (Home: the first or the last), shown with a slide of the title. */
     private boolean stepFile(int by) {
         java.util.List<String> ids = new java.util.ArrayList<>();
@@ -391,7 +448,34 @@ public final class AtlasActivity extends Activity {
         return true;
     }
 
+    /** The chrome made again in a new Look (the page's colours changed): the same WebView moved into it, the place,
+     *  the tabs' count and the bars' colour as they were; the system bars' icons dark or light to match. */
+    private void relook() {
+        String was = title.getText().toString();
+        look = new Look(this);
+        paper.clear();
+        if (web != null && web.getParent() != null) ((android.view.ViewGroup) web.getParent()).removeView(web);
+        setContentView(frame());
+        if (web != null) ((FrameLayout) place.getParent()).addView(web, 1, new FrameLayout.LayoutParams(-1, -1));
+        Shell.edgeToEdge(this, look);
+        if (paperColor != 0) repaper(paperColor);
+        int files = 0;
+        for (int i = 0; i < tabs.length(); i++) if (tabs.optJSONObject(i) != null && tabs.optJSONObject(i).optBoolean("file")) files++;
+        showCount(files);
+        if (at == null) return;
+        title.setText(was);
+        paintChrome();
+        if (at.kind == Kind.SETTINGS) { place.removeAllViews(); place.addView(settings()); }
+        else if (!at.kind.web()) render(); // Files, Search: drawn again in the new colours
+        else if (!ready) render(); // its "Opening…" again
+        if (full) { int b = View.GONE; topBar.setVisibility(b); topLine.setVisibility(b); bottom.setVisibility(b); unfull.setVisibility(View.VISIBLE); }
+    }
+
+    /** The bars' colour the page last gave (0: none yet, the Look's own). */
+    private int paperColor;
+
     private void repaper(int color) {
+        paperColor = color;
         for (View v : paper) v.setBackgroundColor(color);
         if (web != null) web.setBackgroundColor(color);
     }
@@ -427,16 +511,16 @@ public final class AtlasActivity extends Activity {
         go(new Screen(Kind.HOME, ""), false);
         resumedHistory = resumeTo != null ? takeKeptHistory(vault) : null;
         if (resumeTo == null) { // not a file in front: the app's place it was at
-            for (Kind k : new Kind[] { Kind.LIBRARY, Kind.FILES, Kind.SEARCH }) if (k.name().equals(was)) go(new Screen(k, ""), false);
+            for (Kind k : new Kind[] { Kind.LIBRARY, Kind.FILES, Kind.SEARCH, Kind.AGENDA }) if (k.name().equals(was)) go(new Screen(k, ""), false);
         }
         // a page that never says it is ready (a script error, a server answering something else): shown anyway, with why
         WebView mine = web;
         place.postDelayed(() -> {
             if (ready || web != mine || !vault.equals(shown)) return;
-            android.util.Log.e("AtlasPage", "not ready after " + READY_WAIT_MS + " ms: showing the page as it is");
             web.setVisibility(View.VISIBLE);
             place.setVisibility(View.GONE);
-            android.widget.Toast.makeText(this, Vaults.name(vault) + " did not finish opening: its page as it is (adb logcat -s AtlasPage)", android.widget.Toast.LENGTH_LONG).show();
+            if (!at.kind.web()) paintChrome(); // Files, Search stay in front: they need no page
+            failed(WebHealth.Failure.NOT_READY, Vaults.name(vault)); // its page's console: adb logcat -s AtlasPage
             // a server whose sign-in in front turned the page's scripts away: say so and offer to sign in, not a blank page
             if (Server.is(vault)) new Thread(() -> {
                 SignIn.Probe p = SignIn.probe(this, vault, true);
@@ -445,6 +529,9 @@ public final class AtlasActivity extends Activity {
         }, READY_WAIT_MS);
         if (Server.is(vault)) { started(vault); return; }
         new Thread(() -> {
+            // the plugins this app carries, through the core's install path, before the core reads them (Bundled)
+            String plugins = Bundled.sync(this, vault);
+            if (plugins != null) runOnUiThread(() -> android.widget.Toast.makeText(this, plugins, android.widget.Toast.LENGTH_LONG).show());
             String r = Core.serve(vault, getFilesDir().getPath(), Helpers.environment(this)); // the helpers linked by name on PATH
             // the folder's copy on a server (set, or the server vault of the same name): the page edits notes and drawings
             // there while it answers, with this app's sign-in for it, as the desktop does
@@ -549,6 +636,22 @@ public final class AtlasActivity extends Activity {
         });
         // the page's console in logcat (`adb logcat -s AtlasPage`): a release WebView cannot be inspected otherwise
         w.setWebChromeClient(new WebChromeClient() {
+            /** `<input type=file>` (the explorer's upload, a photo for a note): the system's picker. A WebView answers
+             *  nothing to it until its app does this, so every such button did nothing in the app. */
+            @Override
+            public boolean onShowFileChooser(WebView v, android.webkit.ValueCallback<Uri[]> cb, FileChooserParams p) {
+                if (choosing != null) choosing.onReceiveValue(null); // one picker at a time: the last one asked wins
+                Intent pick = p.createIntent();
+                if (p.getMode() == FileChooserParams.MODE_OPEN_MULTIPLE) pick.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true);
+                try {
+                    startActivityForResult(pick, PICK_FILES);
+                    choosing = cb;
+                    return true;
+                } catch (android.content.ActivityNotFoundException e) {
+                    return false; // no picker on this device: the page's input gets nothing
+                }
+            }
+
             @Override
             public boolean onConsoleMessage(android.webkit.ConsoleMessage m) {
                 boolean bad = m.messageLevel() == android.webkit.ConsoleMessage.MessageLevel.ERROR;
@@ -561,8 +664,7 @@ public final class AtlasActivity extends Activity {
             /** The page's renderer died (out of memory, a crash): say so and start the vault again, never a blank screen. */
             @Override
             public boolean onRenderProcessGone(WebView v, android.webkit.RenderProcessGoneDetail d) {
-                android.util.Log.e("AtlasPage", "renderer gone (crashed: " + d.didCrash() + ")");
-                if (v == web && shown != null) open(shown, true); // open() takes the dead view out and destroys it; back where it was
+                rendererGone(v, d.didCrash() ? "it crashed" : "out of memory");
                 return true; // handled: the app lives on
             }
 
@@ -600,12 +702,82 @@ public final class AtlasActivity extends Activity {
         }).start());
     }
 
+    private static final int PICK_FILES = 41, DICTATE = 42;
+    /** The page's file input waiting for the picker's answer. */
+    private android.webkit.ValueCallback<Uri[]> choosing;
+
+    @Override
+    protected void onActivityResult(int request, int code, Intent data) {
+        if (request == PICK_FILES) {
+            android.webkit.ValueCallback<Uri[]> cb = choosing;
+            choosing = null;
+            if (cb != null) cb.onReceiveValue(picked(code, data));
+        } else if (request == DICTATE) {
+            java.util.ArrayList<String> heard = code == RESULT_OK && data != null ? data.getStringArrayListExtra(android.speech.RecognizerIntent.EXTRA_RESULTS) : null;
+            said(heard == null || heard.isEmpty() ? "" : heard.get(0));
+        } else {
+            super.onActivityResult(request, code, data);
+        }
+    }
+
+    /** The files a picker chose: several (clip data) or one; null when cancelled. */
+    private static Uri[] picked(int code, Intent data) {
+        if (code != RESULT_OK || data == null) return null;
+        android.content.ClipData clip = data.getClipData();
+        if (clip != null && clip.getItemCount() > 0) {
+            Uri[] all = new Uri[clip.getItemCount()];
+            for (int i = 0; i < all.length; i++) all[i] = clip.getItemAt(i).getUri();
+            return all;
+        }
+        return data.getData() != null ? new Uri[] { data.getData() } : null;
+    }
+
+    /** Dictated words to the page (KeyboardBar.svelte's `atlasDictated`); "" when nothing was heard. */
+    private void said(String text) {
+        if (web != null) web.evaluateJavascript("globalThis.atlasDictated && atlasDictated(" + JSONObject.quote(text) + ")", null);
+    }
+
+    /** This install's id, made once and kept (the app's prefs): what the page says with its place in the `where` room,
+     *  so the native Files knows which of the places listed is this phone's own. */
+    static String deviceId(android.content.Context c) {
+        SharedPreferences p = c.getSharedPreferences("atlas-device", MODE_PRIVATE);
+        String id = p.getString("id", "");
+        if (id.isEmpty()) {
+            id = "phone-" + java.util.UUID.randomUUID().toString().substring(0, 8);
+            p.edit().putString("id", id).apply();
+        }
+        return id;
+    }
+
     /** The page's side of the shell (native-shell.svelte.ts). Called on the WebView's thread: everything goes to the main one. */
     private final class Bridge {
+        /** Dictation for the note being typed in: the system's speech recognizer (its own screen, its own microphone
+         *  permission), the words handed back through `said`. */
+        @JavascriptInterface public void dictate() {
+            runOnUiThread(() -> {
+                Intent ask = new Intent(android.speech.RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
+                    .putExtra(android.speech.RecognizerIntent.EXTRA_LANGUAGE_MODEL, android.speech.RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
+                try {
+                    startActivityForResult(ask, DICTATE);
+                } catch (android.content.ActivityNotFoundException e) {
+                    android.widget.Toast.makeText(AtlasActivity.this, "No speech recognizer on this phone", android.widget.Toast.LENGTH_SHORT).show();
+                    said("");
+                }
+            });
+        }
         @JavascriptInterface public void ready() { runOnUiThread(AtlasActivity.this::pageReady); }
+        /** This phone's id in the vault's `where` room (ui lib/where.svelte.ts): the native Files leaves itself out of
+         *  who is where by it (WhereRows). */
+        @JavascriptInterface public String deviceId() { return AtlasActivity.deviceId(AtlasActivity.this); }
         /** The page's fullscreen (Super+F, a drawing's ⛶): the app's (setFull), the page being always one pane here. */
         @JavascriptInterface public void toggleFullscreen() { runOnUiThread(() -> setFull(!full)); }
         @JavascriptInterface public void tabs(String json) { runOnUiThread(() -> tabsChanged(json)); }
+        /** The page's whole look (lib/settings.svelte.ts nativeLook: the theme, palette and accent as its tokens): kept
+         *  for every native screen (Look.save), and this window's own chrome drawn again in it when it changed. */
+        @JavascriptInterface public void look(String json) { runOnUiThread(() -> { if (Look.save(AtlasActivity.this, json)) relook(); }); }
+        /** A sideways fling on a place's page that began on nothing that scrolls or edits sideways (lib/place-swipe.ts):
+         *  "1" the next place, "-1" the one before; ignored on an open file. */
+        @JavascriptInterface public void swipe(String by) { runOnUiThread(() -> stepPlace("1".equals(by) ? 1 : -1)); }
         /** The system's font size (Settings → Display → Font size), for the page's `--ui-scale`. */
         /** An e-ink screen (Look.isEink): the page's `ui.eink = "auto"` turns its e-ink mode on (lib/eink.ts). */
         @JavascriptInterface public String eink() { return String.valueOf(look.eink); }
@@ -631,9 +803,18 @@ public final class AtlasActivity extends Activity {
         }
         /** `path` may name a place in the file after `#` (a drawing's `#Page 2`): the plugin is chosen by the file, handed all. */
         /** service-signin.ts: a plugin met a service's gate. */
+        /** signin.ts `atlas.signIn`: the provider's page in the app's sign-in window; the address it comes back to goes
+         *  to the page (atlasShell.signedIn), as the desktop's sign-in window hands it over. */
+        @JavascriptInterface public void signIn(String url, String back) {
+            runOnUiThread(() -> SignInWebActivity.oauth(AtlasActivity.this, url, back, at -> js("atlasShell.signedIn(" + JSONObject.quote(at) + ")")));
+        }
         @JavascriptInterface public void signInDoor(String url) { runOnUiThread(() -> AtlasActivity.this.signInDoor(url)); }
         @JavascriptInterface public void openNative(String path) { runOnUiThread(() -> { NativePlugin p = nativeFor(path.split("#", 2)[0]); if (p != null) PluginActivity.start(AtlasActivity.this, p.id(), path); }); }
         /** lib/eink.ts's automatic refreshes: the calm one, no flash (Look.calmRefresh). */
+        /** The app's player (ui/src/lib/player.svelte.ts → MediaService): a command and its JSON argument. */
+        @JavascriptInterface public void player(String cmd, String arg) {
+            runOnUiThread(() -> { hearPlayer(); MediaService.command(AtlasActivity.this, cmd, arg, playerHeaders()); });
+        }
         @JavascriptInterface public void einkRefresh() { runOnUiThread(() -> Look.calmRefresh(web)); }
         /** lib/eink.ts, the command "E-ink: clear the screen": the full, flashing one (Look.fullRefresh). */
         @JavascriptInterface public void einkClear() { runOnUiThread(() -> Look.fullRefresh(web)); }
@@ -725,6 +906,9 @@ public final class AtlasActivity extends Activity {
 
     private void pageReady() {
         ready = true;
+        coreSeen = null;
+        String seenFor = shown;
+        if (seenFor != null) new Thread(() -> { String a = coreAnswer(seenFor); runOnUiThread(() -> { if (seenFor.equals(shown)) coreSeen = a; }); }, "core-seen").start();
         // a server whose page opened with nothing to sign in with lets anyone in: remembered so
         if (shown != null && Server.is(shown) && "not signed in".equals(vaults.how(this, shown))) vaults.markOpen(shown, true);
         readPlugins(); // installed or switched on since the vault opened
@@ -775,6 +959,13 @@ public final class AtlasActivity extends Activity {
         return null;
     }
 
+    /** The open files' number on the tabs button. */
+    private void showCount(int files) {
+        int n = Math.min(files, 99);
+        count.setTextSize(android.util.TypedValue.COMPLEX_UNIT_DIP, n >= 10 ? 8.5f : 10f); // two digits inside the square too
+        count.setText(n == 0 ? "" : String.valueOf(n));
+    }
+
     private void tabsChanged(String json) {
         try { tabs = new JSONArray(json); } catch (Exception e) { return; }
         JSONArray files = new JSONArray();
@@ -784,7 +975,7 @@ public final class AtlasActivity extends Activity {
             if (t.optBoolean("file")) files.put(t.optString("path"));
             if (t.optBoolean("active")) active = t;
         }
-        count.setText(files.length() == 0 ? "" : String.valueOf(Math.min(files.length(), 99)));
+        showCount(files.length());
         remember(files);
         if (!at.kind.web()) return;
         if (at.kind != Kind.NOTE) {
@@ -895,7 +1086,7 @@ public final class AtlasActivity extends Activity {
         placeTab = activeTab(); // the page may still report it once before showing the new place
         // Library, Files, Search remembered too: a vault opened again by itself (the phone turning to its night theme
         // recreates the app) comes back there, as it does to the file in front (pageReady)
-        if (shown != null && (s.kind == Kind.LIBRARY || s.kind == Kind.FILES || s.kind == Kind.SEARCH || s.kind == Kind.HOME)) {
+        if (shown != null && (s.kind == Kind.LIBRARY || s.kind == Kind.FILES || s.kind == Kind.SEARCH || s.kind == Kind.AGENDA || s.kind == Kind.HOME)) {
             prefs().edit().putString(WHERE + shown, s.kind.name()).remove(PLACE + shown).apply(); // no file in front now
         }
         render();
@@ -912,7 +1103,9 @@ public final class AtlasActivity extends Activity {
 
     private boolean fabShown() { return !full && !typing && at != null && (at.kind == Kind.HOME || at.kind == Kind.FILES); }
 
-    private void render() {
+    /** What the bars show for the place on screen — which views are shown, Back or the brand, the current place's
+     *  pill — with no call to the page (relook draws it again in new colours this way). */
+    private void paintChrome() {
         boolean note = at.kind.web() && ready;
         if (web != null) web.setVisibility(note ? View.VISIBLE : View.GONE);
         applyInk(); // a native screen over the page: no ink there
@@ -921,17 +1114,21 @@ public final class AtlasActivity extends Activity {
         boolean nowhere = history.isEmpty() || (at.kind != Kind.NOTE && at.kind != Kind.SETTINGS); // an app's own place: no Back
         back.setVisibility(nowhere ? View.GONE : View.VISIBLE);
         brand.setVisibility(nowhere ? View.VISIBLE : View.GONE);
-        Kind[] order = { Kind.HOME, Kind.LIBRARY, Kind.FILES, Kind.SEARCH, Kind.SETTINGS };
-        for (int i = 0; i < order.length; i++) {
-            boolean on = order[i] == at.kind;
+        for (int i = 0; i < BAR.length; i++) {
+            boolean on = BAR[i] != null && BAR[i] == at.kind;
             tabsOfBar[i].setTextColor(on ? look.text : look.muted);
             tabsOfBar[i].setTypeface(on ? MEDIUM : android.graphics.Typeface.DEFAULT);
             pills[i].setBackground(on ? look.round(look.accentSoft, 16, 0) : null);
             ((ImageView) ((FrameLayout) pills[i]).getChildAt(0)).getDrawable().setTint(on ? look.accent : look.muted);
         }
+    }
+
+    private void render() {
+        paintChrome();
         String name = shown == null ? "Atlas" : Vaults.name(shown);
         if (at.kind == Kind.SETTINGS) { title.setText(SettingsPages.title(at.arg)); place.removeAllViews(); place.addView(settings()); return; }
         if (at.kind != Kind.NOTE && ready) place(null); // the user went Home (Files, Search): that is where to come back
+        if (nativePlace()) return; // Files, Search: drawn here, the page loading or not
         title.setText(at.kind == Kind.HOME ? name : at.kind == Kind.LIBRARY ? "Library" : at.kind == Kind.FILES ? "Files" : at.kind == Kind.SEARCH ? "Search" : title.getText().toString());
         if (!ready) { place.removeAllViews(); place.addView(quiet("Opening " + name + "…")); }
         if (at.kind.call() != null) js(at.kind.call());
@@ -951,6 +1148,19 @@ public final class AtlasActivity extends Activity {
         }, "plugin-on").start();
     }
 
+    /** A plugin this app carries added to the folder vault on screen (Bundled.add), then the plugins read again. */
+    private void addPlugin(String id) {
+        String v = shown;
+        if (v == null) return;
+        new Thread(() -> {
+            String err = Bundled.add(this, v, id);
+            runOnUiThread(() -> {
+                android.widget.Toast.makeText(this, err == null ? "Added to " + Vaults.name(v) : "Not added: " + err, android.widget.Toast.LENGTH_LONG).show();
+                readPlugins();
+            });
+        }, "plugin-add").start();
+    }
+
     /** A quiet line in the middle of an empty screen (opening, an error). */
     private TextView quiet(String s) {
         TextView t = look.label(this, s, 14.5f, look.muted);
@@ -965,6 +1175,7 @@ public final class AtlasActivity extends Activity {
             public void page(String arg) { go(new Screen(Kind.SETTINGS, arg), true); }
             public void web(String call) { view(call); }
             public void switchPlugin(String id, boolean on) { AtlasActivity.this.switchPlugin(id, on); }
+            public void addPlugin(String id) { AtlasActivity.this.addPlugin(id); }
             public String vault() { return shown; }
             public JSONArray plugins() { return pluginsOfShown; }
         });
@@ -974,11 +1185,101 @@ public final class AtlasActivity extends Activity {
         return sv;
     }
 
+    // ---- Files and Search, native (FilesScreen, SearchScreen; DESIGN-android-native-app.md §3) --------------------
+
+    private FilesScreen filesScreen;
+    private SearchScreen searchScreen;
+    private AgendaScreen agendaScreen;
+    private LibraryScreen libraryScreen;
+    private String placesOf; // the vault the three were made for: another vault, new ones
+
+    /** The vault on screen's Files (made for it on first use, kept while it is shown: its folder, its query). */
+    private FilesScreen files() {
+        if (filesScreen == null || !String.valueOf(shown).equals(placesOf)) newPlaces();
+        return filesScreen;
+    }
+
+    private void newPlaces() {
+        placesOf = String.valueOf(shown);
+        FilesScreen.Shell shell = new FilesScreen.Shell() {
+            public void open(String path, int line) { openFromPlace(path, line); }
+            public void openWith(String path) { AtlasActivity.this.openWith(path); }
+            public void copyLink(String path) { AtlasActivity.this.copyLink(path); }
+            public boolean pageReady() { return ready; }
+            public void step(int by) { stepPlace(by); }
+        };
+        filesScreen = new FilesScreen(this, shown, shell);
+        searchScreen = new SearchScreen(this, shown, shell);
+        libraryScreen = new LibraryScreen(this, shown, new LibraryScreen.Shell() {
+            public void open(String path, int line) { openFromPlace(path, line); }
+            public void openWith(String path) { AtlasActivity.this.openWith(path); }
+            public void copyLink(String path) { AtlasActivity.this.copyLink(path); }
+            public boolean pageReady() { return ready; }
+            public void step(int by) { stepPlace(by); }
+            public java.util.List<LibraryRows.App> apps() { return libraryApps(); }
+            public void openApp(String id, String address) { PluginActivity.start(AtlasActivity.this, id, address); }
+            public void pageLibraries() { view("view('libraries')"); }
+        });
+        agendaScreen = new AgendaScreen(this, shown, new AgendaScreen.Shell() {
+            public void open(String path, int line) { openFromPlace(path, line); }
+            public void calendar(String day) { calendarAt(day); }
+        });
+    }
+
+    /** The page's Calendar pane at `day` (the Calendar plugin's own "open" and its `atlas-calendar:show` event, as its
+     *  commands use them): an event's card and its editor stay the page's. */
+    private void calendarAt(String day) {
+        view("command('plugin.dav.open')");
+        js("setTimeout(() => window.dispatchEvent(new CustomEvent('atlas-calendar:show', { detail: { date: " + JSONObject.quote(day) + ", view: 'day' } })), 600)");
+    }
+
+    /** The plugins running on this vault whose native side has a library app of its own (`<id>:library`: Manga's,
+     *  Audiobookshelf's), for the Library's "Servers" chips: a server's things in its app, never mixed with the vault's. */
+    private java.util.List<LibraryRows.App> libraryApps() {
+        java.util.List<LibraryRows.App> out = new java.util.ArrayList<>();
+        for (NativePlugin p : NativePlugins.ALL) {
+            if (!running(p.id())) continue;
+            LibraryRows.App app = LibraryRows.app(p.id(), p::opens, NativePlugins.manifest(p.id()));
+            if (app != null) out.add(app);
+        }
+        return out;
+    }
+
+    /** The Library, Files, Search or the Agenda on screen, drawn natively from the vault's core; false for any other place. */
+    private boolean nativePlace() {
+        if (shown == null || (at.kind != Kind.LIBRARY && at.kind != Kind.FILES && at.kind != Kind.SEARCH && at.kind != Kind.AGENDA)) return false;
+        files(); // the screens, for this vault
+        title.setText(at.kind == Kind.LIBRARY ? "Library" : at.kind == Kind.FILES ? "Files" : at.kind == Kind.SEARCH ? "Search" : "Agenda");
+        place.removeAllViews();
+        place.addView(at.kind == Kind.LIBRARY ? libraryScreen.view(look) : at.kind == Kind.FILES ? filesScreen.view(look) : at.kind == Kind.SEARCH ? searchScreen.view(look) : agendaScreen.view(look));
+        if (at.kind == Kind.SEARCH) searchScreen.focus();
+        return true;
+    }
+
+    /** A row of Files or Search opened as any file opens: its native plugin, else the note view at `line` — a place
+     *  of its own, Back returning to the list. */
+    private void openFromPlace(String path, int line) {
+        NativePlugin p = nativeFor(path);
+        // a PDF's "line" is its page (who is where hands one): the reader is handed Obsidian's `#page=N`
+        boolean pdfPage = line > 0 && path.toLowerCase(java.util.Locale.ROOT).endsWith(".pdf");
+        if (p != null) { PluginActivity.start(this, p.id(), pdfPage ? path + "#page=" + line : path); return; }
+        Screen s = new Screen(Kind.NOTE, null);
+        s.path = path;
+        // already in front in the page (these places leave its tabs alone): no tab report will come, so taken now
+        for (int i = 0; i < tabs.length(); i++) {
+            JSONObject t = tabs.optJSONObject(i);
+            if (t != null && t.optBoolean("active") && path.equals(t.optString("path"))) { s.arg = t.optString("id"); title.setText(t.optString("title")); }
+        }
+        go(s, true);
+        js("atlasShell.open(" + JSONObject.quote(path) + (line > 0 ? "," + line : "") + ")");
+    }
+
     /** Back: first whatever the page has open over the note (the palette, a menu, a dialog, a Settings area), then the
      *  app's own places. */
     @Override
     public void onBackPressed() {
         if (full) { setFull(false); return; }
+        if (at.kind == Kind.FILES && filesScreen != null && filesScreen.up()) return; // the folder above first
         if (!ready || !at.kind.web() || web.getVisibility() != View.VISIBLE) { backOut(); return; }
         web.evaluateJavascript("window.atlasShell && atlasShell.dismiss ? atlasShell.dismiss() : false", r -> { if (!"true".equals(r)) backOut(); });
     }
@@ -1133,7 +1434,7 @@ public final class AtlasActivity extends Activity {
         if (path != null) {
             // the file's own actions
             menuItem(card, pop, "note", "Rename…", () -> rename(path));
-            menuItem(card, pop, "chevron", "Show in Files", () -> { go(new Screen(Kind.FILES, ""), true); js("atlasShell.reveal(" + JSONObject.quote(path) + ")"); });
+            menuItem(card, pop, "chevron", "Show in Files", () -> { files().reveal(path); go(new Screen(Kind.FILES, ""), true); });
             menuItem(card, pop, "more", "Open with…", () -> openWith(path));
             menuItem(card, pop, "link", "Copy a link to it", () -> copyLink(path));
             menuItem(card, pop, "search", "Outline", () -> view("view('outline')"));
@@ -1144,6 +1445,25 @@ public final class AtlasActivity extends Activity {
         menuItem(card, pop, "settings", "Vault settings", () -> view("view('settings')"));
         menuItem(card, pop, "server", "Phone and vaults", () -> go(new Screen(Kind.SETTINGS, ""), true));
         pop.showAsDropDown(anchor, -look.dp(200), -look.dp(4));
+    }
+
+    /** The bottom bar's Apps: direct links to the apps of this vault's plugins (Manga, Audiobooks: their own screens,
+     *  as their launcher icons open them) and to the Agenda, in a menu over the bar. */
+    private void appsMenu(View anchor) {
+        LinearLayout card = new LinearLayout(this);
+        card.setOrientation(LinearLayout.VERTICAL);
+        card.setPadding(look.dp(6), look.dp(6), look.dp(6), look.dp(6));
+        card.setBackground(look.round(look.pop, 16, look.border));
+        card.setElevation(look.elevation(8));
+        android.widget.PopupWindow pop = new android.widget.PopupWindow(card, look.dp(244), -2, true);
+        pop.setElevation(look.elevation(8));
+        pop.setBackgroundDrawable(new android.graphics.drawable.ColorDrawable(0));
+        for (LibraryRows.App app : libraryApps())
+            menuItem(card, pop, app.icon, app.title, () -> PluginActivity.start(this, app.id, app.address));
+        menuItem(card, pop, "calendar", "Agenda", () -> go(new Screen(Kind.AGENDA, ""), true));
+        card.measure(View.MeasureSpec.UNSPECIFIED, View.MeasureSpec.UNSPECIFIED);
+        // above the bar, its middle over the Apps item
+        pop.showAsDropDown(anchor, (anchor.getWidth() - look.dp(244)) / 2, -anchor.getHeight() - card.getMeasuredHeight() - look.dp(8));
     }
 
     private String pathOf(String id) {
@@ -1205,8 +1525,104 @@ public final class AtlasActivity extends Activity {
         card.addView(r);
     }
 
+    /** What the player's service sends to reach the core of the vault on screen: a server's sign-in (Server.headerMap),
+     *  or the in-app core's cookie (it is locked to this app's WebView). */
+    private java.util.Map<String, String> playerHeaders() {
+        if (shown != null && Server.is(shown)) return Server.headerMap(this, shown);
+        java.util.Map<String, String> h = new java.util.HashMap<>();
+        String url = web == null ? null : web.getUrl();
+        String cookie = url == null ? null : android.webkit.CookieManager.getInstance().getCookie(url);
+        if (cookie != null) h.put("Cookie", cookie);
+        return h;
+    }
+
+    /** The player's state shown on the page, as it changes (`window.__atlasPlayer`, player.svelte.ts). */
+    private void hearPlayer() {
+        MediaService.listener = json -> runOnUiThread(() -> { if (web != null) web.evaluateJavascript("window.__atlasPlayer&&window.__atlasPlayer(" + json + ")", null); });
+    }
+
+    // ---- the note view's failures (WebHealth; DESIGN-android-native-app.md §7) -------------------------------------
+
+    /** A failure of the note view: logged by its name (`adb logcat -s AtlasWeb`), said in a toast when it says something. */
+    private void failed(WebHealth.Failure f, String what) {
+        android.util.Log.e(WebHealth.TAG, f.name + ": " + what);
+        String say = f.says(what);
+        if (say != null && !isFinishing()) android.widget.Toast.makeText(this, say, android.widget.Toast.LENGTH_LONG).show();
+    }
+
+    /** Renderer of `v` gone: an old view is only let go; the current one is made again at the place and its tabs
+     *  (open(…, true)), unless it keeps dying — then a message waits for a tap instead of a loop. */
+    private void rendererGone(WebView v, String why) {
+        if (v != web) { v.destroy(); return; }
+        if (shown == null) return;
+        if (restarts.allow(System.currentTimeMillis())) { failed(WebHealth.Failure.RENDERER_GONE, why); open(shown, true); return; }
+        failed(WebHealth.Failure.RENDERER_LOOP, why);
+        ready = false; // calls wait for the next page (js)
+        ((FrameLayout) web.getParent()).removeView(web);
+        web.destroy();
+        web = webView(); // one view, not loaded: nothing runs until the tap
+        web.setVisibility(View.GONE);
+        ((FrameLayout) place.getParent()).addView(web, 1, new FrameLayout.LayoutParams(-1, -1));
+        String vault = shown;
+        TextView m = quiet("The page of " + Vaults.name(vault) + " keeps stopping (" + why + "). Tap to open it again.");
+        m.setOnClickListener(x -> { if (vault.equals(shown)) open(vault, true); });
+        place.removeAllViews();
+        place.addView(m);
+        place.setVisibility(View.VISIBLE);
+    }
+
+    /** On resume after a while away: the core asked; another core than the page's (restarted, updated) reloads the page
+     *  once, no answer is asked again once and then said (WebHealth.onResume). */
+    private void checkCore(String vault, boolean retried) {
+        new Thread(() -> {
+            String now = coreAnswer(vault);
+            runOnUiThread(() -> {
+                if (!vault.equals(shown) || isFinishing()) return;
+                switch (WebHealth.onResume(coreSeen, now, retried)) {
+                    case NOTHING: if (coreSeen == null) coreSeen = now; break;
+                    case RETRY: place.postDelayed(() -> checkCore(vault, true), 4_000); break;
+                    case SAY_DOWN: failed(WebHealth.Failure.CORE_DOWN, Vaults.name(vault)); break;
+                    case RELOAD: failed(WebHealth.Failure.CORE_RESTARTED, Vaults.name(vault)); open(vault, true); break;
+                }
+            });
+        }, "core-check").start();
+    }
+
+    /** The core's address and `/api/version` answer for `vault` (the in-app core with its key, a server with the app's
+     *  sign-in): its version, commit and interface digest, the cheapest GET there is; null when it does not answer.
+     *  Off the UI thread. */
+    private String coreAnswer(String vault) {
+        try {
+            boolean server = Server.is(vault);
+            Local.Endpoint here = server ? null : Local.of(this, vault);
+            String base = server ? SignIn.base(vault) : here.base;
+            java.net.HttpURLConnection h = (java.net.HttpURLConnection) new java.net.URL(base + "/api/version").openConnection();
+            h.setInstanceFollowRedirects(false);
+            h.setConnectTimeout(5000);
+            h.setReadTimeout(5000);
+            h.setRequestProperty("x-atlas", "1");
+            if (server) Server.headers(this, vault, h);
+            else if (!here.key.isEmpty()) h.setRequestProperty("x-atlas-token", here.key);
+            if (h.getResponseCode() != 200) return null;
+            // the address too: the in-app core made again (same build) listens on another port, a new core all the same
+            return base + "\n" + new String(Bytes.all(h.getInputStream()), java.nio.charset.StandardCharsets.UTF_8);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    /** Memory low: the WebView's caches let go (WebHealth.trim), the page in view kept. */
+    @Override
+    public void onTrimMemory(int level) {
+        super.onTrimMemory(level);
+        if (web == null || WebHealth.trim(level) != WebHealth.Trim.CACHES) return;
+        android.util.Log.w(WebHealth.TAG, WebHealth.Failure.MEMORY_LOW.name + ": level " + level + ", the page's caches let go");
+        web.clearCache(false); // the memory cache only: the files on disk stay
+    }
+
     @Override
     protected void onDestroy() {
+        MediaService.listener = null; // the page is gone; the service plays on and reports to the core itself
         if (web != null) web.destroy();
         super.onDestroy();
     }

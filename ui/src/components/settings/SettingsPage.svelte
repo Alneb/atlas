@@ -12,8 +12,7 @@
   import SnippetsPanel from "./SnippetsPanel.svelte";
   import SwitchList from "./SwitchList.svelte";
   import { allApps, ordered, appHidden, setAppHidden, moveApp } from "../../lib/apps.svelte";
-  import { libraryChoices, libraryHidden, librariesPage, setLibraryHidden, moveLibrary } from "../../lib/libraries.svelte";
-  import { isIconName } from "../../lib/icons";
+  import LibrariesPanel from "./LibrariesPanel.svelte";
   import TemplatesPanel from "./TemplatesPanel.svelte";
   import KeysPanel from "./KeysPanel.svelte";
   import { renderInlineMarkdown } from "../../lib/markdown";
@@ -26,6 +25,7 @@
   import VaultsSyncPanel from "./VaultsSyncPanel.svelte";
   import SyncConflictsPanel from "./SyncConflictsPanel.svelte";
   import WebDataPanel from "./WebDataPanel.svelte";
+  import SigninsPanel from "./SigninsPanel.svelte";
   import { allCommands, keysOf } from "../../lib/keymap.svelte";
   import { chordLabel } from "../../lib/keys";
   import { pageDef, type Placed, type NextRung } from "../../lib/settings-pages";
@@ -80,10 +80,7 @@
     {:else if panel === "apps"}
       <SwitchList title="Apps in the left bar" label="Apps" items={ordered(allApps())} hidden={appHidden} setHidden={setAppHidden} move={moveApp}
         desc="The tiles above the tabs. A hidden app still opens from the palette and its keys; a plugin's pane gets a tile when its manifest says <code>rail = true</code>." />
-      {#if librariesPage()}
-        <SwitchList title="Libraries" label="Libraries" items={libraryChoices().map((e) => ({ key: e.id, title: e.title, icon: isIconName(e.icon) ? e.icon : "library" }))} hidden={libraryHidden} setHidden={setLibraryHidden} move={moveLibrary} movable={(k) => !libraryHidden(k)}
-          desc="The tabs of the Library page (the Catalog plugin's), in this order: Atlas's own and those your plugins add (the catalog adds one per group of kinds)." />
-      {/if}
+    {:else if panel === "libraries"}<LibrariesPanel />
     {:else if panel === "snippets"}<SnippetsPanel onnew={() => (naming = "snippet")} />
     {:else if panel === "templates"}<TemplatesPanel />
     {:else if panel === "keys"}<KeysPanel />
@@ -96,6 +93,7 @@
     {:else if panel === "vaults"}<VaultsSyncPanel />
     {:else if panel === "syncconflicts"}<SyncConflictsPanel />
     {:else if panel === "webdata"}<WebDataPanel />
+    {:else if panel === "signins"}<SigninsPanel />
     {:else if panel === "file"}
       <section class="panel"><h3>The settings file</h3>
         <p class="what">Every page here writes <code>{settings.path}</code>, and a change made in the file shows here at once. Your comments in it are kept.</p>

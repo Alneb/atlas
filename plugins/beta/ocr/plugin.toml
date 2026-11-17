@@ -6,8 +6,10 @@
 title = "OCR"
 description = "the text in captured screenshots, read on this machine and kept under them"
 icon = "image"
-version = "0.2.4"
+version = "0.3.0"
 api = 20
+needs = ">=0.3.0"          # the first core that reads `background` (older ones refuse the key)
+background = "any"  # prepare only fetches models into this core's cache: every core that may read a capture needs them
 
 [permissions]
 net = ["raw.githubusercontent.com"]
@@ -19,7 +21,7 @@ idle = "10m"                       # it only answers: stopped when unused, start
 
 [[tool]]
 name = "read"
-description = "The text in a picture of the vault (a screenshot, a photo of a page), read on this machine in the languages of the setting."
+description = "The text in a picture of the vault (a screenshot, a photo of a page) or of a PDF's first page (a scan), read on this machine in the languages of the setting."
 input = { path = "string" }
 timeout_secs = 300
 

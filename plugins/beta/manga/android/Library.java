@@ -27,6 +27,10 @@ final class Library {
          *  its chapters; both kept up to date here as you read, the note or the server written behind). */
         int remote;
         JSONObject reading;
+        /** Why a server's chapters are the ones last seen (it could not be reached); "" when it answered. */
+        String offline = "";
+        /** A server's chapters it keeps itself (its Downloads), by id: they read even once their source is gone. */
+        final java.util.Set<Integer> onServer = new java.util.HashSet<>();
         Series(String path, String title) { this.path = path; this.title = title; }
     }
 
@@ -43,6 +47,77 @@ final class Library {
     static String folder(Host host) {
         String f = host.settings().optString("folder", "manga").trim();
         return f.isEmpty() ? "manga" : f.replaceAll("^/+|/+$", "");
+    }
+
+    /** The vault's series, as view.js `seriesIn` lists them: each folder of the library folder that holds chapters, and
+     *  each .cbz loose there (a series of one). Their chapters listed, not yet where you are. Never on the UI thread. */
+    static List<Series> inVault(Host host) {
+        List<Series> out = new ArrayList<>();
+        String folder = folder(host);
+        if (!host.isDir(folder)) return out; // a vault with only Suwayomi
+        for (String e : host.list(folder)) {
+            String name = e.replaceAll("/+$", "");
+            name = name.substring(name.lastIndexOf('/') + 1);
+            if (e.endsWith("/")) {
+                Series s = new Series(folder + "/" + name, name);
+                chapters(host, s);
+                if (!s.chapters.isEmpty()) out.add(s);
+            } else if (Chapter.isZip(name)) {
+                Series s = new Series(folder + "/" + name, Chapter.titleOf(name));
+                s.chapters.add(s.path);
+                out.add(s);
+            }
+        }
+        return out;
+    }
+
+    /** A vault series as the library lists it: its chapters, how many unread, when last read (its note). */
+    static Shelf.Item item(Series s) {
+        Shelf.Item it = new Shelf.Item(s.path, s.title, Shelf.Origin.VAULT);
+        it.chapters = s.chapters.size();
+        JSONObject r = s.reading == null ? new JSONObject() : s.reading;
+        int read = 0;
+        for (String c : s.chapters) if (isRead(r, c)) read++;
+        it.unread = it.chapters - read;
+        it.lastRead = r.has("last") ? lastRead(r) : 0;
+        return it;
+    }
+
+    /** The note's `last_read` in ms (0: none, or not a time). */
+    static long lastRead(JSONObject reading) {
+        String at = reading.optString("at", "");
+        try { return at.isEmpty() ? 1 : java.time.Instant.parse(at).toEpochMilli(); } // started with no time: still started
+        catch (java.time.format.DateTimeParseException e) { return 1; }
+    }
+
+    /** Chapters marked read or unread (a long press in the series), in memory at once and written behind: a vault
+     *  series' note (chapter_progress, as the reader writes it), a server's series on the server. Unread forgets the
+     *  chapter's page too. `done` on the saver's thread with null or why it failed. */
+    static void setRead(Host host, Series s, List<String> chapters, boolean read, java.util.function.Consumer<String> done) {
+        if (s.reading == null) s.reading = new JSONObject();
+        for (String c : chapters) mark(s.reading, c, read);
+        Pages.run(saver, () -> {
+            String why = null;
+            try {
+                if (s.remote > 0) { for (String c : chapters) Suwayomi.mark(host, c, 0, read); if (read) remoteNote(host, s, "finished", 0); }
+                else if (host.isDir(s.path)) {
+                    JSONObject r = reading(host, s); // the note as it is now
+                    for (String c : chapters) mark(r, c, read);
+                    save(host, s, r, Thing.why(0, 0, read), 0);
+                }
+            } catch (Exception e) { why = e.getMessage() == null ? e.toString() : e.getMessage(); }
+            if (done != null) done.accept(why);
+        });
+    }
+
+    /** One chapter read (at page 0) or unread (no entry: never opened) in the screens' shape. */
+    private static void mark(JSONObject r, String chapter, boolean read) {
+        try {
+            JSONObject all = r.optJSONObject("chapters");
+            if (all == null) { all = new JSONObject(); r.put("chapters", all); }
+            if (read) all.put(name(chapter), new JSONObject().put("read", true).put("page", 0));
+            else all.remove(name(chapter));
+        } catch (org.json.JSONException e) { /* left as it was */ }
     }
 
     /** A series' chapters: its .cbz files and picture folders; a folder of pictures alone is one chapter. */
@@ -89,7 +164,7 @@ final class Library {
         if (t == null) return new JSONObject();
         try {
             JSONObject old = new JSONObject(t);
-            save(host, s, old); // into the note once; `atlas companions` then retires the file
+            save(host, s, old, "progress", 1); // into the note once; `atlas companions` then retires the file
             return old;
         } catch (Exception e) { return new JSONObject(); }
     }
@@ -110,16 +185,63 @@ final class Library {
             if (!c.optBoolean("read")) c.put("page", parse(p.get("reading_page")));
         }
         if (p.get("reader_options") != null) r.put("options", new JSONObject(p.get("reader_options")));
+        if (p.get("last_read") != null) r.put("at", p.get("last_read")); // for the library's Reading tab; never written back from here
         return r;
     }
 
     private static int parse(String v) { try { return v == null ? 0 : Integer.parseInt(v.trim()); } catch (NumberFormatException e) { return 0; } }
 
-    /** The screens' shape → the series' note (view.js readingProps), made when missing. */
-    static void save(Host host, Series s, JSONObject r) throws Exception {
+    /** The series' one note by the catalog's rule (Host.thingNote, DESIGN-server-libraries §3): found, or made once
+     *  the series is yours (`why`: Thing.why). Its path, or null: not yours yet, or none could be made. Without the
+     *  catalog, a vault series still gets its folder's note from the core once read. Never on the UI thread. */
+    static String thingNote(Host host, Series s, String why, double progress) {
+        try {
+            JSONObject thing = s.remote > 0 ? Suwayomi.thing(host, s.remote)
+                : new JSONObject().put("kind", "manga").put("file", s.path + "/").put("fields", new JSONObject().put("title", s.title));
+            thing.put("why", why);
+            if ("progress".equals(why)) thing.put("progress", progress);
+            JSONObject r = host.thingNote(thing);
+            String p = r.isNull("path") ? null : r.optString("path", null);
+            if (p != null) notes.put(s.path, p);
+            return p;
+        } catch (Exception e) {
+            if (s.remote > 0 || "opened".equals(why)) return null;
+            try { String p = host.ensureCompanionNote(s.path + "/", s.title, null); notes.put(s.path, p); return p; }
+            catch (Exception again) { return null; }
+        }
+    }
+
+    private static final Map<String, String> remoteNotes = new ConcurrentHashMap<>(), remoteTold = new ConcurrentHashMap<>();
+
+    /** A server series' note told which chapter you are at and when (the place itself is the server's): asked for once
+     *  it is yours, remembered for the app's life ("" once none could be made). Never on the UI thread. */
+    static void remoteNote(Host host, Series s, String why, double progress) {
+        String note = remoteNotes.get(s.path);
+        if ("".equals(note)) return;
+        if (note == null) {
+            if ("opened".equals(why)) return;
+            note = thingNote(host, s, why, progress);
+            remoteNotes.put(s.path, note == null ? "" : note);
+            if (note == null) return;
+        }
+        String last = s.reading == null ? "" : s.reading.optString("last", "");
+        if (last.isEmpty() || last.equals(remoteTold.get(s.path))) return;
+        remoteTold.put(s.path, last);
+        String text = host.readText(note);
+        if (text == null) return;
+        Map<String, String> set = new LinkedHashMap<>();
+        set.put("reading_chapter", last);
+        set.put("last_read", java.time.Instant.now().toString().replaceFirst("\\.\\d+Z$", "Z"));
+        try { host.write(note, Props.set(text, set).getBytes(StandardCharsets.UTF_8)); } catch (Exception e) { remoteTold.remove(s.path); }
+    }
+
+    /** The screens' shape → the series' note (view.js readingProps); a series with no note gets one only once it is
+     *  yours (thingNote), else nothing is kept. */
+    static void save(Host host, Series s, JSONObject r, String why, double far) throws Exception {
         String note = noteOf(host, s);
-        // a note of its own when missing, made by the core as on every device (the vault's template rules)
-        String text = host.exists(note) ? host.readText(note) : host.readText(host.ensureCompanionNote(s.path + "/", s.title, null));
+        if (!host.exists(note)) note = thingNote(host, s, why, far);
+        if (note == null) return;
+        String text = host.readText(note);
         JSONObject chapters = r.optJSONObject("chapters"), progress = new JSONObject();
         if (chapters != null) for (Iterator<String> it = chapters.keys(); it.hasNext(); ) {
             String k = it.next();
@@ -134,18 +256,26 @@ final class Library {
         set.put("last_read", java.time.Instant.now().toString().replaceFirst("\\.\\d+Z$", "Z"));
         set.put("chapter_progress", progress.toString());
         set.put("reader_options", r.optJSONObject("options") != null ? r.optJSONObject("options").toString() : null);
-        host.write(note, Props.set(text, set).getBytes(StandardCharsets.UTF_8));
+        // nothing but the time changed: the note is left alone
+        String stamp = set.remove("last_read");
+        String moved = Props.set(text, set);
+        if (moved.equals(text)) return;
+        Map<String, String> t = new LinkedHashMap<>();
+        t.put("last_read", stamp);
+        host.write(note, Props.set(moved, t).getBytes(StandardCharsets.UTF_8));
     }
 
     /** Saves where you are in a chapter (and that it was read once on its last page), behind the UI: a vault series'
      *  note, a server's series on the server. A series that is no folder (a loose .cbz) keeps nothing. */
-    static void mark(Host host, Series s, String chapter, int page, int pages) {
+    static void mark(Host host, Series s, String chapter, int page, int pages, boolean write) {
         if (s.remote > 0) {
             if (s.reading == null) s.reading = new JSONObject();
-            remember(host, chapter, page, place(s.reading, chapter, page, page >= pages - 1));
+            boolean read = place(s.reading, chapter, page, page >= pages - 1);
+            remember(host, s, chapter, page, read, Thing.why(page, pages, read), Thing.progress(page, pages));
             return;
         }
         if (s.reading != null) place(s.reading, chapter, page, page >= pages - 1); // the reader's copy (its chapter list)
+        if (!write) return; // kept in memory: the reader writes it on a new chapter, the last page or leaving
         long ask = asks.incrementAndGet();
         newest.put(chapter, ask);
         Pages.run(saver, () -> { if (newest.get(chapter) == ask) markNow(host, s, chapter, page, pages); });
@@ -156,7 +286,7 @@ final class Library {
         try {
             JSONObject r = reading(host, s); // the note as it is now: another device may have read on
             place(r, chapter, page, page >= pages - 1);
-            save(host, s, r);
+            save(host, s, r, Thing.why(page, pages, page >= pages - 1), Thing.progress(page, pages));
         } catch (Exception e) { /* kept for next time */ }
     }
 
@@ -183,18 +313,18 @@ final class Library {
                 if (!host.isDir(s.path)) return;
                 JSONObject r = reading(host, s);
                 r.put("options", options);
-                save(host, s, r);
+                save(host, s, r, "opened", 0); // options alone never make a note
             } catch (Exception e) { host.toast("Not saved: " + e.getMessage()); }
         });
     }
 
     /** A server's series: sent to the server behind (its place is already in `s.reading`). */
-    private static void remember(Host host, String chapter, int page, boolean read) {
+    private static void remember(Host host, Series s, String chapter, int page, boolean read, String why, double progress) {
         long ask = asks.incrementAndGet();
         newest.put(chapter, ask);
         Pages.run(saver, () -> {
             if (newest.get(chapter) != ask) return;
-            try { Suwayomi.mark(host, chapter, page, read); }
+            try { Suwayomi.mark(host, chapter, page, read); remoteNote(host, s, why, progress); }
             catch (Exception e) { // said once a minute, not at every page turned
                 if (System.currentTimeMillis() - told > 60_000) { told = System.currentTimeMillis(); host.toast("Not saved on " + Suwayomi.base(host) + ": " + e.getMessage()); }
             }

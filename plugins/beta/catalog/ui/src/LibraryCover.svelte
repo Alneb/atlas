@@ -36,8 +36,8 @@
 <div class="wrap" class:big bind:this={box}>
   {#if url}
     <img class="cover" class:big src={url} alt="" />
-  {:else if !big}
-    <div class="cover tile" aria-hidden="true" style:--hue={hue}>{initial}</div>
+  {:else}
+    <div class="cover tile" class:big aria-hidden="true" style:--hue={hue}>{initial}</div>
   {/if}
 </div>
 
@@ -46,5 +46,7 @@
   .cover.big { aspect-ratio: auto; max-height: 280px; width: auto; max-width: 100%; margin-bottom: 10px; }
   .tile { display: grid; place-items: center; font-size: 2.2em; font-weight: 600; box-shadow: none;
     background: hsl(var(--hue) 32% 50% / .22); color: hsl(var(--hue) 40% 42%); } /* literal: a hue per title */
+  /* the panel's: a tile its column's width while the picture is missing or on its way, not a blank column */
+  .tile.big { aspect-ratio: 2 / 3; width: 100%; max-height: 240px; font-size: 3em; }
   .wrap { width: 100%; min-height: 1px; }
 </style>

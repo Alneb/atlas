@@ -1,0 +1,195 @@
+# How the phone does every feature of Atlas (docs/design/DESIGN-android-native-app.md §9), checked by
+# `cargo test -p atlas-android --lib -- parity` (src/parity.rs). The features are found in the repository; this table
+# only says, for each, how the Android app gets it:
+#   "id" = "page"                      the WebView does it as on the desktop (reached through the app's Commands, its
+#                                      bars, or the page's own view)
+#   "id" = { native = "Class" }        a Java class of the app or of a plugin's android/ (the file must exist)
+#   "id" = { missing = "why" }         not on the phone yet: allowed, listed on every run
+# An inline table may add `note = "…"` (what is partly there, what is planned); a page line with a note is written
+# `{ page = true, note = "…" }`. A pattern with `*` covers a whole family; an exact line wins over it. A test failure
+# prints the lines to add or remove. "Unverified on the phone" means nobody has seen it work there yet: it is listed as
+# missing until someone does.
+
+[commands]
+# ---- the page's built-in commands (ui/src/lib/actions.ts and the tables it spreads) ----
+"player.time" = "page"
+"player.quote" = { missing = "the subtitle line comes from mpv, not in the phone app yet" }
+"player.frame" = { missing = "the frame comes from mpv, not in the phone app yet" }
+"ui.palette" = { page = true, note = "the app's ⋮ → Commands opens it" }
+"ui.commands" = "page"
+"ui.new" = { page = true, note = "the app's + calls it (AtlasActivity)" }
+"ui.note.new" = "page"
+"ui.drawing" = "page"
+"ui.today" = { page = true, note = "the Home place of the app's bottom bar calls it (AtlasActivity)" }
+"ui.files" = { native = "FilesScreen", note = "the bottom bar's Files: the core's tree on a PlaceList, breadcrumbs, a menu per row; the page's pane stays for the desktop and the browser" }
+"ui.explorer" = { native = "FilesScreen", note = "the Files place is the phone's explorer (folders, rename, trash); no drag and drop" }
+"ui.search" = { native = "SearchScreen", note = "the bottom bar's Search: the core's /api/search as you type, names then lines; no regex, whole-word or replace there (the page's Replace does it)" }
+"ui.quickOpen" = "page"
+"ui.replace" = "page"
+"ui.libraries" = { native = "LibraryScreen", note = "the bottom bar's Library: the vault's own libraries from the core (/api/libraries, /api/library), Continue, covers or a list, search, order; the servers' apps (Manga, Audiobookshelf) as chips apart; More… is the page's (Drawings, References, the plugins' others)" }
+"ui.library" = { page = true, note = "planned native with the libraries (§4)" }
+"ui.capture" = { native = "CaptureActivity", note = "the phone's capture: the + long press, the Quick Settings tile, the share target; the page's popup runs too" }
+"ui.capture-bar" = "page"
+"ui.captures" = "page"
+"ui.close" = { native = "AtlasActivity", note = "the ⋮ menu's Close this file and the open files' sheet" }
+"ui.fullscreen" = { native = "AtlasActivity", note = "the ⋮ menu's Fullscreen" }
+"file.rename" = { native = "AtlasActivity", note = "the ⋮ menu's Rename…, a native dialog" }
+"ui.trashFile" = { native = "AtlasActivity", note = "the ⋮ menu's Move to the trash…" }
+"ui.openWith" = { native = "AtlasActivity", note = "the ⋮ menu's Open with…, the page's openers as a native list" }
+"ui.outline" = { page = true, note = "the ⋮ menu opens the page's outline" }
+"ui.settings" = { page = true, note = "the vault's settings; the phone's own are native (SettingsPages)" }
+"ui.eink-refresh" = { native = "Look", note = "on an e-ink screen the page asks the app for its refresh (Look.calmRefresh)" }
+"ui.back" = { page = true, note = "the system Back first closes what is open over the page (atlasShell.dismiss)" }
+"ui.forward" = "page"
+"ui.history" = "page"
+"ui.graph" = "page"
+"ui.deadlines" = "page"
+"ui.home.addDeadlines" = "page"
+"ui.focusFile" = "page"
+"ui.note-triage" = "page"
+"ui.kit.install" = "page"
+"ui.syncConflicts" = "page"
+"ui.properties" = "page"
+"ui.properties.inline" = "page"
+"ui.paper.notes" = "page"
+"ui.theme" = "page"
+"ui.vim" = "page"
+"ui.reload" = "page"
+"ui.resetLayout" = "page"
+"ui.zoomIn" = "page"
+"ui.zoomOut" = "page"
+"ui.zoomReset" = "page"
+"ui.zoomAllIn" = "page"
+"ui.zoomAllOut" = "page"
+"ui.zoomAllReset" = "page"
+"ui.glance" = "page"
+"ui.elsewhere" = "page"
+"ui.vault" = "page"
+"ui.vault.next" = "page"
+"ui.vault.mirror" = "page"
+"ui.bookmark.add" = "page"
+"ui.bookmarks" = "page"
+"ui.bookmarks.edit" = "page"
+"ui.workspace.save" = "page"
+"ui.workspace.switch" = "page"
+# the page's tab commands; the app's own open files' sheet is native (AtlasActivity) and lists only files
+"ui.tabs.*" = "page"
+"note.bold" = "page"
+"note.italic" = "page"
+"note.link" = "page"
+"note.cycle" = "page"
+"note.task" = "page"
+"note.task-edit" = "page"
+"note.insert-template" = "page"
+"draw.exportSvg" = "page"
+"draw.properties" = "page"
+"pdf.export-marks" = "page"
+"pdf.export-marks-flat" = "page"
+"pdf.migrate-marks" = "page"
+# run-time families: one command per bookmark, per saved workspace
+"bookmark.*" = "page"
+"workspace.*" = "page"
+# not on the phone
+"ui.terminal" = { missing = "the phone app has no shell terminal" }
+"ui.terminal.new" = { missing = "the phone app has no shell terminal" }
+"ui.panel" = { missing = "the terminal panel: the phone app has no shell terminal" }
+"ui.panel.move" = { missing = "the terminal panel: the phone app has no shell terminal" }
+"ui.claude" = { missing = "an AI agent runs in a shell terminal, which the phone app has not" }
+"ui.claude.new" = { missing = "an AI agent runs in a shell terminal, which the phone app has not" }
+"ui.sendToClaude" = { missing = "an AI agent runs in a shell terminal, which the phone app has not" }
+"ui.python.env" = { missing = "a phone runs no Python" }
+"ui.git" = { missing = "the core runs the `git` program, which the phone does not have" }
+"ui.git.blame" = { missing = "the core runs the `git` program, which the phone does not have" }
+"ui.vault.guest" = { missing = "unverified on the phone: a guest vault opens a window of its own, which the native shell has no place for" }
+"ui.open-in-browser" = { missing = "unverified on the phone: the in-app core listens only for the app" }
+"ui.browse" = { missing = "unverified on the phone: web tabs inside the note view's WebView" }
+"ui.web" = { missing = "unverified on the phone: web tabs inside the note view's WebView" }
+"web.forgetSiteData" = { missing = "unverified on the phone: web tabs inside the note view's WebView" }
+"ui.sidebar" = { missing = "unverified on the phone: the native shell hides the page's bars and draws its own" }
+"ui.sidebar.arrange" = { missing = "unverified on the phone: the native shell hides the page's bars and draws its own" }
+"ui.sidePanel" = { missing = "unverified on the phone: the native shell hides the page's bars and draws its own" }
+"ui.sidePanel.move" = { missing = "unverified on the phone: the native shell hides the page's bars and draws its own" }
+"ui.symbols" = { missing = "unverified on the phone: a project's symbols come from code tools the phone may not run" }
+"ui.problems" = { missing = "unverified on the phone: a file's problems come from code tools the phone may not run" }
+# ---- the core's built-ins (atlas_core::commands::BuiltinId), run by the in-app core for the page ----
+"core:capture" = { page = true, note = "the phone's own capture is CaptureActivity" }
+"core:open" = "page"
+"core:notify" = "page"
+"core:focus" = "page"
+"core:today" = "page"
+"core:palette" = "page"
+
+[plugins]
+# what each plugin's manifest says about Android is checked: a plugin that runs there cannot be `missing`, one that
+# says `no` must be; the reason given for `missing` here is its manifest's.
+# ---- native: the app's own screens ----
+"books" = { native = "Books" }
+"manga" = { native = "Manga" }
+"audiobookshelf" = { native = "Audiobookshelf", note = "its own listening app: home (Continue listening, the server's shelves, search), library (books, series, authors, collections, playlists), a book, the player over MediaService; a kept download plays from the phone's cache through the core's media ticket (the page's); read-along, podcasts' own pane, stats and offline stay the page's pane" }
+# ---- the page, as on the desktop ----
+"notifications" = { native = "Notices", note = "what it raises reaches the shade through the core's notices, with their buttons, a channel per kind (NoticeKind); planned notices ring on time with the app gone (ReminderAlarms, exact alarms); the native Agenda lists what is planned (AgendaScreen)" }
+"plan" = { native = "AgendaScreen", note = "its dated tasks in the native Agenda (the top bar's calendar, the launcher's Agenda, the widget's Coming up): a day, 3 days or a week beside the Calendar's events, a task ticked through the core; its nudges ring on time with the app gone (ReminderAlarms); its settings are the page's" }
+"catalog" = { page = true, note = "its library pages planned native with the libraries (§4); the note of a thing (its `note` tool, the one-note rule) is asked by the native screens through Host.thingNote, the same call" }
+"copyparty" = "page"
+"kiwix" = "page"
+"predictor" = "page"
+"snippets" = "page"
+"spelling" = "page"
+"today" = "page"
+"jellyfin" = { page = true, note = "the library and the reports work; a film plays its sound only until libmpv is in the app (DESIGN-video-player.md §3)" }
+"weather" = "page"
+# ---- not on the phone: their manifests say `no` for Android ----
+"catalog-anime" = { missing = "not made for the phone app" }
+"catalog-books" = { missing = "not made for the phone app" }
+"catalog-letterboxd" = { missing = "not made for the phone app" }
+"catalog-linkwarden" = { missing = "not made for the phone app" }
+"catalog-music" = { missing = "not made for the phone app" }
+"catalog-papers" = { missing = "not made for the phone app" }
+"catalog-tmdb" = { missing = "not made for the phone app" }
+"catalog-wikipedia" = { missing = "not made for the phone app" }
+"catalog-youtube" = { missing = "not made for the phone app" }
+"claude" = { missing = "not made for the phone app" }
+"dav" = { missing = "not made for the phone app", note = "a vault on the phone runs no Calendar engine; a server's vault does, and its events reach the native Agenda (AgendaScreen) and the page's pane" }
+"downloader" = { missing = "not made for the phone app" }
+"email" = { missing = "not made for the phone app" }
+"export" = { missing = "not made for the phone app" }
+"finance" = { missing = "not made for the phone app" }
+"ocr" = { missing = "not made for the phone app" }
+"print" = { missing = "not made for the phone app" }
+"rnote" = { missing = "not made for the phone app" }
+"run-tools" = { missing = "the phone app has no shell terminal" }
+"ssh" = { missing = "not made for the phone app" }
+"syncthing" = { missing = "not made for the phone app" }
+"zstd" = { missing = "not made for the phone app" }
+
+[settings]
+# ---- the page's Settings (PAGES in ui/src/lib/settings-pages.ts), opened by the app's ⋮ → Vault settings ----
+"overview" = "page"
+"appearance" = "page"
+"writing" = "page"
+"today" = "page"
+"code" = "page"
+"files" = "page"
+"web" = "page"
+"vaults" = { page = true, note = "the phone's own vault list is native (phone:vaults)" }
+"signins" = "page"
+"libraries" = { page = true, note = "the phone adds a library from a folder's ⋮ in Files (Show as a library); kind, order and layout are the page's Settings" }
+"papers" = "page"
+"drawing" = "page"
+"terminal" = { page = true, note = "shown, though the phone app has no shell terminal" }
+"keyboard" = "page"
+"plugins" = { page = true, note = "the phone's own plugin list is native (phone:plugins)" }
+"automation" = "page"
+"latex" = "page"
+"advanced" = "page"
+# shown only elsewhere, by their `only`
+"server" = { missing = "Settings shows this page only on: browser" }
+"desktop" = { missing = "Settings shows this page only on: app" }
+"agents" = { missing = "Settings shows this page only on: app" }
+# ---- the phone's native Settings (SettingsPages.java) ----
+"phone:capture" = { native = "Setup" }
+"phone:vaults" = { native = "Setup" }
+"phone:plugins" = { native = "SettingsPages" }
+"phone:plugin:*" = { native = "PluginForm" }
+"phone:vault-settings" = { native = "ConfigPages" }
+"phone:cfg:*" = { native = "ConfigPages" }

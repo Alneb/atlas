@@ -2403,18 +2403,38 @@ function Ki(e, t) {
 	let n = $(e);
 	return Fi(n, -((n.getDay() - t + 7) % 7));
 }
-function qi(e) {
+var qi = [
+	["day", "Day"],
+	["3days", "3 days"],
+	["week", "Week"],
+	["60days", "60 days"]
+], Ji = (e) => qi.some(([t]) => t === e);
+function Yi(e, t, n) {
+	if (e === "week") {
+		let e = Ki(t, n);
+		return {
+			from: e,
+			to: Fi(e, 6)
+		};
+	}
+	return {
+		from: t,
+		to: Fi(t, e === "day" ? 0 : e === "3days" ? 2 : 59)
+	};
+}
+var Xi = (e) => e === "day" ? 1 : e === "3days" ? 3 : e === "week" ? 7 : 30;
+function Zi(e) {
 	return e === "12h";
 }
-var Ji = (e) => e ? { hour12: !0 } : { hourCycle: "h23" };
-function Yi(e, t) {
+var Qi = (e) => e ? { hour12: !0 } : { hourCycle: "h23" };
+function $i(e, t) {
 	return e.toLocaleTimeString(void 0, {
 		hour: "2-digit",
 		minute: "2-digit",
-		...Ji(t)
+		...Qi(t)
 	});
 }
-function Xi(e, t) {
+function ea(e, t) {
 	let n = Hi(e), r = Ui(e), i = (e) => e.toLocaleDateString(void 0, {
 		weekday: "short",
 		day: "numeric",
@@ -2424,15 +2444,15 @@ function Xi(e, t) {
 		let e = Fi(r, -1);
 		return Li(n, e) ? `${i(n)} · all day` : `${i(n)} – ${i(e)}`;
 	}
-	return Li(n, r) || r.getHours() === 0 && r.getMinutes() === 0 && r.getTime() - n.getTime() < 864e5 ? `${i(n)} · ${Yi(n, t)} – ${Yi(r, t)}` : `${i(n)} ${Yi(n, t)} – ${i(r)} ${Yi(r, t)}`;
+	return Li(n, r) || r.getHours() === 0 && r.getMinutes() === 0 && r.getTime() - n.getTime() < 864e5 ? `${i(n)} · ${$i(n, t)} – ${$i(r, t)}` : `${i(n)} ${$i(n, t)} – ${i(r)} ${$i(r, t)}`;
 }
-function Zi(e) {
+function ta(e) {
 	let t = 0;
 	for (let n of e) t = (t * 31 + n.charCodeAt(0)) % 360;
 	return `hsl(${t} 62% 52%)`;
 }
-var Qi = (e) => e.source && !e.source.includes("@") && /\.md$/i.test(e.source) ? e.source : null;
-function $i(e) {
+var na = (e) => e.source && !e.source.includes("@") && /\.md$/i.test(e.source) ? e.source : null;
+function ra(e) {
 	let t = [
 		"SU",
 		"MO",
@@ -2472,7 +2492,7 @@ function $i(e) {
 		}
 	];
 }
-function ea(e) {
+function ia(e) {
 	if (!e) return "";
 	let t = Object.fromEntries(e.split(";").map((e) => e.split("="))), n = {
 		DAILY: "day",
@@ -2482,11 +2502,11 @@ function ea(e) {
 	}[t.FREQ] ?? t.FREQ?.toLowerCase(), r = Number(t.INTERVAL ?? 1), i = r > 1 ? `Every ${r} ${n}s` : `Every ${n}`;
 	return t.BYDAY && (i += ` on ${t.BYDAY.split(",").map((e) => e.slice(-2)).join(", ")}`), t.COUNT && (i += `, ${t.COUNT} times`), t.UNTIL && (i += `, until ${t.UNTIL.slice(0, 4)}-${t.UNTIL.slice(4, 6)}-${t.UNTIL.slice(6, 8)}`), i;
 }
-var ta = JSON.stringify({ dialog: "new-event" }), na = (e = {}) => JSON.stringify({
+var aa = JSON.stringify({ dialog: "new-event" }), oa = (e = {}) => JSON.stringify({
 	dialog: "new-event",
 	...e
 });
-function ra(e) {
+function sa(e) {
 	try {
 		let t = typeof e == "string" ? JSON.parse(e) : null;
 		return t?.dialog === "new-event" ? {
@@ -2500,7 +2520,7 @@ function ra(e) {
 }
 //#endregion
 //#region plugins/stable/dav/ui/src/Icon.svelte
-var ia = {
+var ca = {
 	calendar: "M4 6h16v14H4zM4 10h16M8 3v4M16 3v4",
 	back: "M15 18l-6-6 6-6",
 	right: "M9 6l6 6-6 6",
@@ -2524,20 +2544,20 @@ var ia = {
 	link: "M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1",
 	backlink: "M21 3L11 13M11 7v6h6M19 14v6H4V5h6",
 	sparkle: "M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"
-}, aa = /* @__PURE__ */ vr("<svg class=\"icon svelte-16m1c18\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path></path></svg>"), oa = {
+}, la = /* @__PURE__ */ vr("<svg class=\"icon svelte-16m1c18\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path></path></svg>"), ua = {
 	hash: "svelte-16m1c18",
 	code: ".icon.svelte-16m1c18 {flex:none;display:block;}"
 };
-function sa(e, t) {
-	Kr(e, oa);
+function da(e, t) {
+	Kr(e, ua);
 	let n = Di(t, "size", 3, 16), r = Di(t, "title", 3, "");
-	var i = aa(), a = nn(i);
+	var i = la(), a = nn(i);
 	xn(() => {
-		pi(i, "width", n()), pi(i, "height", n()), pi(i, "aria-hidden", r() ? void 0 : "true"), pi(i, "role", r() ? "img" : void 0), pi(i, "aria-label", r() || void 0), pi(a, "d", ia[t.name] ?? ia.calendar);
+		pi(i, "width", n()), pi(i, "height", n()), pi(i, "aria-hidden", r() ? void 0 : "true"), pi(i, "role", r() ? "img" : void 0), pi(i, "aria-label", r() || void 0), pi(a, "d", ca[t.name] ?? ca.calendar);
 	}), xr(e, i);
 }
-function ca(e, t, n = 30, r = 14) {
-	let i = $(t).getTime(), a = Fi($(t), 1).getTime(), o = new ua(), s = e.filter((e) => !Wi(e)).map((e) => ({
+function fa(e, t, n = 30, r = 14) {
+	let i = $(t).getTime(), a = Fi($(t), 1).getTime(), o = new ma(), s = e.filter((e) => !Wi(e)).map((e) => ({
 		e,
 		s: Hi(e).getTime(),
 		t: Math.max(Ui(e).getTime(), Hi(e).getTime() + 9e5)
@@ -2552,9 +2572,9 @@ function ca(e, t, n = 30, r = 14) {
 		col: 0,
 		span: 1,
 		cols: 1,
-		box: la,
+		box: pa,
 		among: o,
-		over: new ua()
+		over: new ma()
 	})).sort((e, t) => e.top - t.top || t.bottom - e.bottom), c = [];
 	for (let e of s) {
 		c = c.filter((t) => t.bottom > e.top);
@@ -2570,7 +2590,7 @@ function ca(e, t, n = 30, r = 14) {
 			xpx: e.host.box.xpx + r,
 			w: e.host.box.w,
 			wpx: e.host.box.wpx - r
-		} : la, n = e.col / e.cols, i = e.span / e.cols;
+		} : pa, n = e.col / e.cols, i = e.span / e.cols;
 		e.box = {
 			x: t.x + n * t.w,
 			xpx: t.xpx + n * t.wpx,
@@ -2588,12 +2608,12 @@ function ca(e, t, n = 30, r = 14) {
 		endsAfter: e.endsAfter
 	}));
 }
-var la = {
+var pa = {
 	x: 0,
 	xpx: 0,
 	w: 1,
 	wpx: 0
-}, ua = class {
+}, ma = class {
 	cluster = [];
 	ends = [];
 	end = -Infinity;
@@ -2611,13 +2631,13 @@ var la = {
 		for (let n of this.cluster) {
 			n.cols = e;
 			let r = n.col + 1;
-			for (; r < e && !da(t[r], n);) r++;
+			for (; r < e && !ha(t[r], n);) r++;
 			n.span = r - n.col;
 		}
 		this.cluster = [], this.ends = [], this.end = -Infinity;
 	}
 };
-function da(e, t) {
+function ha(e, t) {
 	let n = 0, r = e.length;
 	for (; n < r;) {
 		let i = n + r >> 1;
@@ -2625,7 +2645,7 @@ function da(e, t) {
 	}
 	return n < e.length && e[n].top < t.bottom;
 }
-function fa(e, t) {
+function ga(e, t) {
 	if (!t.length) return [];
 	let n = $(t[0]).getTime(), r = (e) => Math.round((e - n) / Pi), i = e.filter(Wi).map((e) => {
 		let t = Hi(e).getTime(), n = Ui(e).getTime() - 1;
@@ -2647,7 +2667,7 @@ function fa(e, t) {
 		};
 	});
 }
-function pa(e, t) {
+function _a(e, t) {
 	let n = $(t).getTime(), r = Fi($(t), 1).getTime();
 	return e.filter((e) => {
 		let t = Hi(e).getTime(), i = Math.max(Ui(e).getTime(), t + 1);
@@ -2655,4 +2675,4 @@ function pa(e, t) {
 	});
 }
 //#endregion
-export { gr as $, Di as A, ri as B, $ as C, m as Ct, Gi as D, Bi as E, di as F, Ir as G, Qr as H, pi as I, Dr as J, Fr as K, fi as L, Si as M, vi as N, zi as O, _i as P, br as Q, ai as R, Xi as S, Te as St, Yi as T, Kr as U, ei as V, Br as W, jr as X, Er as Y, xr as Z, ra as _, pt as _t, ta as a, Z as at, ea as b, Ge as bt, Ii as c, hn as ct, Hi as d, tn as dt, vr as et, qi as f, nn as ft, na as g, P as gt, ji as h, F as ht, sa as i, sr as it, wi as j, Oi as k, Ni as l, Yt as lt, Wi as m, Kt as mt, fa as n, lr as nt, ki as o, er as ot, Zi as p, rn as pt, Nr as q, pa as r, cr as rt, Fi as s, xn as st, ca as t, yr as tt, Ui as u, en as ut, Qi as v, tt as vt, Ki as w, Li as x, Ee as xt, $i as y, Ke as yt, ii as z };
+export { Er as $, Bi as A, pi as B, ra as C, Ke as Ct, $ as D, m as Dt, ea as E, Te as Et, wi as F, ei as G, ai as H, Si as I, Br as J, Qr as K, vi as L, zi as M, Oi as N, Ki as O, Di as P, Dr as Q, _i as R, na as S, tt as St, Li as T, Ee as Tt, ii as U, fi as V, ri as W, Fr as X, Ir as Y, Nr as Z, Ji as _, rn as _t, aa as a, yr as at, oa as b, P as bt, Fi as c, sr as ct, Xi as d, xn as dt, jr as et, Ni as f, hn as ft, ta as g, nn as gt, Zi as h, tn as ht, da as i, vr as it, Gi as j, $i as k, Ii as l, Z as lt, Hi as m, en as mt, ga as n, br as nt, qi as o, lr as ot, Ui as p, Yt as pt, Kr as q, _a as r, gr as rt, ki as s, cr as st, fa as t, xr as tt, Yi as u, er as ut, Wi as v, Kt as vt, ia as w, Ge as wt, sa as x, pt as xt, ji as y, F as yt, di as z };

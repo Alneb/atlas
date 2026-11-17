@@ -1375,6 +1375,11 @@ fn sync_method(p: Value) -> Res {
 
 /// After the cache changed: every event note follows its event (event_note::round); the ones that moved are answered.
 fn notes_round() -> Vec<event_note::Moved> {
+    // the event notes are generated files: written by the one core that runs the vault's schedules
+    // (`[automation] schedules_on`), so two computers never write the same notes for sync to copy
+    if !schedules_here() {
+        return Vec::new();
+    }
     let p = json!({});
     let Some(s) = conf::read_settings(&p) else { return Vec::new() };
     let root = conf::vault_root();
@@ -1387,6 +1392,15 @@ fn notes_round() -> Vec<event_note::Moved> {
             eprintln!("dav: {path}: not written ({e})");
         }
     })
+}
+
+/// Whether this core runs the vault's schedules (`GET /api/device`); a helper not served by Atlas (a test, a run by
+/// hand) is the only writer there is.
+fn schedules_here() -> bool {
+    if !conf::serving() {
+        return true;
+    }
+    atlas_plugin::Atlas::new().get("/api/device").map_or(true, |d| d["schedules"].as_bool() != Some(false))
 }
 
 /// The day a call names (`start`, as the pane or the note has it), else today: where the occurrence is looked for.

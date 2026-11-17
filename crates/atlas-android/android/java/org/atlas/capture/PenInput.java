@@ -14,8 +14,16 @@ public final class PenInput {
 
     private final float palmPx;
     private long penSeenAt = -1_000_000;
+    /** A pen seen on this device (static: every screen's PenInput), so a wide contact may be the hand that writes. */
+    private static volatile boolean penEver;
 
-    public PenInput(Context c) { palmPx = PALM_MM / 25.4f * c.getResources().getDisplayMetrics().xdpi; }
+    public PenInput(Context c) {
+        palmPx = PALM_MM / 25.4f * c.getResources().getDisplayMetrics().xdpi;
+        if (!penEver) for (int id : android.view.InputDevice.getDeviceIds()) { // a device with a stylus (the Boox): from the start
+            android.view.InputDevice d = android.view.InputDevice.getDevice(id);
+            if (d != null && d.supportsSource(android.view.InputDevice.SOURCE_STYLUS)) { penEver = true; break; }
+        }
+    }
 
     /** The pen's tip or its eraser end (the first pointer). */
     public static boolean pen(MotionEvent e) { int t = e.getToolType(0); return t == MotionEvent.TOOL_TYPE_STYLUS || t == MotionEvent.TOOL_TYPE_ERASER; }
@@ -40,7 +48,7 @@ public final class PenInput {
     /** Every event the view sees, touches and hovers alike: notes when the pen was near. Returns `e`'s being the pen. */
     public boolean saw(MotionEvent e) {
         boolean p = pen(e);
-        if (p) penSeenAt = e.getEventTime();
+        if (p) { penSeenAt = e.getEventTime(); penEver = true; }
         return p;
     }
 
@@ -50,7 +58,10 @@ public final class PenInput {
         if (e.getEventTime() - penSeenAt < PEN_NEAR_MS) return true;
         for (int i = 0; i < e.getPointerCount(); i++) {
             int t = e.getToolType(i);
-            if (t == MotionEvent.TOOL_TYPE_STYLUS || t == MotionEvent.TOOL_TYPE_ERASER || e.getTouchMajor(i) > palmPx) return true;
+            if (t == MotionEvent.TOOL_TYPE_STYLUS || t == MotionEvent.TOOL_TYPE_ERASER) return true;
+            // a contact's size only on a device a pen has been used on: phones report a fingertip's size in their own
+            // way (some above 15 mm), and every swipe and tap of the readers was then taken for a palm and dropped
+            if (penEver && e.getTouchMajor(i) > palmPx) return true;
         }
         return false;
     }

@@ -74,9 +74,9 @@ test("Settings → Server: the password, a phone's token shown once and revoked,
   await expect(p.locator(".token", { hasText: "phone" })).toHaveCount(0);
   await expect(p.locator(".shown")).toHaveCount(0);
 
-  // the sign-in options: Authelia in front, agents still off unless ticked
+  // the sign-in options: a gate (Authelia) in front, agents still off unless ticked
   await p.getByRole("radio", { name: /Both/ }).check();
-  await p.getByLabel("Trusted proxies").fill("10.0.0.2");
+  await p.getByLabel("The gate's addresses").fill("10.0.0.2");
   await p.getByRole("button", { name: "Save sign-in options" }).click();
   await expect(p).toContainText("Saved");
   const toml = readFileSync(`${WS}-server.toml`, "utf8");

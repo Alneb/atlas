@@ -135,10 +135,13 @@ test("the tree folds back what it unfolded for the last file, follows the explor
   await treeRow(page, "fold-h").click();
   await expect(treeRow(page, "fold-h/paper.pdf")).toBeVisible();
   await expect(treeRow(page, "fold-h/paper.pdf.md")).toHaveCount(0);
-  await page.locator(".explorer .btn", { hasText: "Hidden" }).click();
+  // hidden files: a toggle in the explorer's More menu
+  await page.locator(".explorer").getByRole("button", { name: "More" }).click();
+  await page.getByRole("menuitem", { name: "Show hidden files" }).click();
   await expect(xrow(page, "paper.pdf.md")).toBeVisible();
   await expect(xrow(page, ".secret.md")).toBeVisible();
   await expect(treeRow(page, "fold-h/.secret.md")).toBeVisible();
-  await page.locator(".explorer .btn", { hasText: "Hidden" }).click();
+  await page.locator(".explorer").getByRole("button", { name: "More" }).click();
+  await page.getByRole("menuitem", { name: "Hide hidden files" }).click();
   await expect(treeRow(page, "fold-h/.secret.md")).toHaveCount(0);
 });

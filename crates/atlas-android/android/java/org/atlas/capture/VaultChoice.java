@@ -139,7 +139,8 @@ final class VaultChoice {
         a.startActivity(new Intent(a, SignInWebActivity.class).putExtra("server", server));
     }
 
-    /** By hand: a device token (`atlas server token phone --scope capture`), and a header some front lets through — any name. */
+    /** By hand: a device token (`atlas server token phone --scope capture`), and a header some front lets through — any
+     *  name — kept as the device's bypass key for the server's host (Signins), the same store the core sends from. */
     static void manual(Activity a, Look look, Vaults vaults, String server, Consumer<String> chosen) {
         LinearLayout form = new LinearLayout(a);
         form.setOrientation(LinearLayout.VERTICAL);
@@ -148,9 +149,9 @@ final class VaultChoice {
         token.setHint("atl_… (atlas server token phone --scope capture)");
         token.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD);
         token.setText(vaults.token(server));
-        header.setHint("optional: Header-Name: value");
+        String kept = Signins.kept(a, server); // its name only: a key is never shown again
+        header.setHint(kept.isEmpty() ? "optional: Header-Name: value" : "kept: " + kept + " (type Name: value to change it)");
         header.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD);
-        header.setText(vaults.header(server));
         form.addView(token);
         form.addView(header);
         new android.app.AlertDialog.Builder(a)
@@ -158,7 +159,12 @@ final class VaultChoice {
             .setView(form)
             .setPositiveButton("Use it", (d, w) -> {
                 if (token.length() > 0) vaults.useServer(server, token.getText().toString().trim()); else vaults.use(server);
-                vaults.keepHeader(server, header.getText().toString().trim());
+                String line = header.getText().toString().trim();
+                if (!line.isEmpty()) {
+                    // the device's sign-ins, a bypass rule for this host (the desktop's Settings → Sign-ins rule)
+                    String why = server.startsWith("https://") ? Signins.keep(a, server, line) : "a key is sent over https only";
+                    android.widget.Toast.makeText(a, why == null ? "Key kept for " + Vaults.name(server) : "Header not kept: " + why, android.widget.Toast.LENGTH_LONG).show();
+                }
                 chosen.accept(server);
             })
             .setNegativeButton("Cancel", null)

@@ -20,6 +20,8 @@ public final class SignInWebActivity extends Activity {
         super.onCreate(state);
         String service = getIntent().getStringExtra("service");
         if (service != null) { serviceSignIn(service); return; }
+        String oauth = getIntent().getStringExtra("oauth");
+        if (oauth != null) { oauthSignIn(oauth, getIntent().getStringExtra("back")); return; }
         String server = getIntent().getStringExtra("server");
         if (server == null) { finish(); return; }
         Look look = new Look(this);
@@ -57,6 +59,50 @@ public final class SignInWebActivity extends Activity {
         Shell.padForBars(web);
         setContentView(web);
         web.loadUrl(SignIn.appUrl(server, SignIn.scopeApp(this)));
+    }
+
+    // ---- a provider's sign-in page whose answer comes back to an address (atlas.signIn, signin.ts) -----------------
+
+    private static final java.util.Map<String, java.util.function.Consumer<String>> answers = new java.util.concurrent.ConcurrentHashMap<>();
+
+    /** `url` (an OpenID provider's sign-in, or a service's own: Audiobookshelf's /auth/openid) in the app's WebView;
+     *  when it heads for an address starting with `back` — any scheme, `audiobookshelf://oauth` too — the window closes
+     *  and `done` gets that address (the code in it). On the phone the browser would have kept it. */
+    static void oauth(Activity a, String url, String back, java.util.function.Consumer<String> done) {
+        answers.put(url, done);
+        a.startActivity(new android.content.Intent(a, SignInWebActivity.class).putExtra("oauth", url).putExtra("back", back));
+    }
+
+    private void oauthSignIn(String url, String back) {
+        Look look = new Look(this);
+        Shell.edgeToEdge(this, look);
+        WebView web = new WebView(this);
+        web.getSettings().setJavaScriptEnabled(true);
+        web.getSettings().setDomStorageEnabled(true);
+        CookieManager.getInstance().setAcceptCookie(true);
+        CookieManager.getInstance().setAcceptThirdPartyCookies(web, true);
+        web.setWebViewClient(new WebViewClient() {
+            @Override
+            public boolean shouldOverrideUrlLoading(WebView v, WebResourceRequest r) { return caught(r.getUrl().toString()); }
+
+            @Override
+            public void onPageStarted(WebView v, String at, android.graphics.Bitmap icon) { if (at != null) caught(at); } // a return address over http
+
+            private boolean caught(String at) {
+                if (back == null || !at.startsWith(back)) {
+                    String scheme = String.valueOf(android.net.Uri.parse(at).getScheme());
+                    return !(scheme.equals("http") || scheme.equals("https")); // the sign-in's own pages; any other link stays put
+                }
+                CookieManager.getInstance().flush();
+                java.util.function.Consumer<String> done = answers.remove(url);
+                finish();
+                if (done != null) done.accept(at);
+                return true;
+            }
+        });
+        Shell.padForBars(web);
+        setContentView(web);
+        web.loadUrl(url);
     }
 
     // ---- a service of the user's (Suwayomi, Audiobookshelf) behind the same sign-in: Web.signIn ---------------------

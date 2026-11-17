@@ -9,6 +9,14 @@
   <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
   <!-- "kept captures were sent" (OutboxJob), asked for the first time a capture is kept offline -->
   <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+  <!-- the app's player (MediaService): a book plays on with the screen off, the CPU kept awake while it plays -->
+  <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+  <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+  <uses-permission android:name="android.permission.WAKE_LOCK" />
+  <!-- reminders on time with the phone asleep (ReminderAlarms): exact alarms. Android 13+ grants USE_EXACT_ALARM to a
+       calendar/reminder app at install; 12 has SCHEDULE_EXACT_ALARM (granted, revocable). Withheld: inexact, still while idle -->
+  <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" android:maxSdkVersion="32" />
+  <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
   <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" />
   <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="29" />
   <!-- the last screenshot, when all-files access is not given -->
@@ -53,6 +61,8 @@
         <category android:name="android.intent.category.LAUNCHER" />
       </intent-filter>
     </activity-alias>
+    <!-- a native plugin as its own app in the launcher ([android] launcher): generated here by build-apk.sh -->
+    <!-- plugin launchers (scripts/dev/android-launchers.mjs) -->
     <!-- signing in to a server (docs/guides/ANDROID.md, "Signing in"): the browser comes back to the app's own address -->
     <activity android:name="org.atlas.capture.SignedInActivity" android:exported="true" android:launchMode="singleTask" android:theme="@android:style/Theme.Translucent.NoTitleBar">
       <intent-filter>
@@ -98,9 +108,19 @@
       <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>
       <meta-data android:name="android.appwidget.provider" android:resource="@xml/today_widget" />
     </receiver>
+    <!-- the reminders' alarms (ReminderAlarms): its own ring, and set again after a restart of the phone, an update, a
+         change of the exact-alarm permission. Exported for those system broadcasts; a ring is checked against the app's vaults -->
+    <receiver android:name="org.atlas.capture.ReminderAlarms" android:exported="true">
+      <intent-filter>
+        <action android:name="android.intent.action.BOOT_COMPLETED" />
+        <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+        <action android:name="android.app.action.SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED" />
+      </intent-filter>
+    </receiver>
     <!-- the buttons on the core's notifications other than Open (Notices, NoticeActions) -->
     <receiver android:name="org.atlas.capture.NoticeActions" android:exported="false" />
     <!-- captures kept while a server did not answer, sent once there is a network (Outbox) -->
+    <service android:name="org.atlas.capture.MediaService" android:exported="false" android:foregroundServiceType="mediaPlayback" />
     <service android:name="org.atlas.capture.OutboxJob" android:exported="false" android:permission="android.permission.BIND_JOB_SERVICE" />
   </application>
 </manifest>

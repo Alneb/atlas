@@ -47,6 +47,51 @@ impl Store {
         Self { file: dir.join(format!("{name}-{:016x}.json", fnv1a(full.to_string_lossy().as_bytes()))), mounted: None }
     }
 
+    /// This device's own store, beside the vaults' files (`device.json`: no vault file has a name without its hash):
+    /// what belongs to the machine and not to one vault — the sign-ins past a gate (service_signin.rs), which every
+    /// vault on this device, a server vault reached from it and the phone's native screens all send.
+    pub fn device(&self) -> Store {
+        Store { file: self.file.with_file_name("device.json"), mounted: self.mounted.clone() }
+    }
+
+    /// The device store of the secrets folder `dir` (the phone asks with its app folder's, before any vault is open).
+    pub fn device_in(dir: &Path) -> Store {
+        Store { file: dir.join("device.json"), mounted: None }
+    }
+
+    /// Whether two stores are the same file.
+    pub fn same(&self, other: &Store) -> bool {
+        self.file == other.file
+    }
+
+    /// `plugin`'s whole section moved from this store into `to` — what `to` has already wins — and removed here; a
+    /// no-op once moved (one read of this file). How a vault's sign-ins became the device's.
+    pub fn move_section(&self, plugin: &str, to: &Store) -> Result<()> {
+        if self.same(to) || !self.read()?.contains_key(plugin) {
+            return Ok(());
+        }
+        let mut moved = BTreeMap::new();
+        self.edit(|t| match t.remove(plugin) {
+            Some(section) => {
+                moved = section;
+                true
+            }
+            None => false,
+        })?;
+        to.edit(|t| {
+            let into = t.entry(plugin.to_string()).or_default();
+            let mut changed = false;
+            for (k, v) in std::mem::take(&mut moved) {
+                if let std::collections::btree_map::Entry::Vacant(slot) = into.entry(k) {
+                    slot.insert(v);
+                    changed = true;
+                }
+            }
+            changed
+        })
+        .map(|_| ())
+    }
+
     /// The host's file for `plugin`'s `name`, when one is mounted (names that are not plain never reach the disk).
     fn mounted_file(&self, plugin: &str, name: &str) -> Option<PathBuf> {
         let plain = |s: &str| valid(s) && !s.starts_with('.');

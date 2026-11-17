@@ -28,7 +28,8 @@ export function registerMenu(plugin: string, where: MenuPlace, fn: Builder["fn"]
   return () => set.delete(b);
 }
 
-const row = (plugin: string, it: PluginMenuItem): MenuItem => ({
+/** A plugin's row as the menu draws it; its `run` guarded (a throw is a line in the plugin's log). */
+export const pluginRow = (plugin: string, it: PluginMenuItem): MenuItem => ({
   label: String(it.label), hint: it.hint, detail: it.detail, danger: it.danger, disabled: it.disabled,
   icon: it.icon && isIconName(it.icon) ? it.icon : undefined,
   run: () => { void guard(plugin, `menu row “${it.label}”`, () => it.run(), undefined); },
@@ -40,7 +41,7 @@ export function pluginRows(where: MenuPlace, target: MenuTarget): { top: MenuIte
   const top: MenuItem[] = [], end: MenuItem[] = [];
   for (const b of builders.get(where) ?? []) {
     for (const it of guard(b.plugin, `menu("${where}")`, () => b.fn(target), null) ?? [])
-      if (it && typeof it.label === "string" && typeof it.run === "function") (it.top ? top : end).push(row(b.plugin, it));
+      if (it && typeof it.label === "string" && typeof it.run === "function") (it.top ? top : end).push(pluginRow(b.plugin, it));
   }
   return { top: top.length ? [...top, "sep"] : [], end: end.length ? ["sep", ...end] : [] };
 }

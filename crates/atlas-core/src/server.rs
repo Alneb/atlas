@@ -52,6 +52,8 @@ struct AppState {
     live: Arc<crate::live::Rooms>,
     /// The plugins' media addresses, their secrets filled in and kept here (plugin_media.rs).
     media: crate::plugin_media::Media,
+    /// The player's video engine (mpv.rs): only the desktop's own core runs it.
+    mpv: crate::mpv::Mpv,
     /// The desktop's one core for every local vault (server_desktop.rs), when this vault is served by it.
     desktop: desktop::DesktopLink,
     /// A server's write leases for the devices mirroring this vault (mirror_guard.rs); its own writes take them once a
@@ -356,11 +358,55 @@ async fn plugin_settings_put(State(st): S, UrlPath(id): UrlPath<String>, Json(va
 
 /// `atlas.fetch`: a request made by the core for a plugin, to a host its manifest lists.
 /// A sign-in met on the way is also told to the page, which offers it — a helper's fetch too.
+/// A report of the app's player (`atlas.player`: the desktop's shell player, the phone's MediaService) to the plugin
+/// whose media it plays: its helper's `[media] progress` method answers (plugin_media.rs `progress_call`), e.g. with a
+/// new `key` when it had to open a new session on its server.
+async fn plugin_media_progress_post(State(st): S, UrlPath(id): UrlPath<String>, Json(report): Json<serde_json::Value>) -> Result<Json<serde_json::Value>> {
+    let id = plugin_named(&st, id).await?;
+    let (ws, id2) = (st.ws.clone(), id.clone());
+    let (method, params) = blocking(move || crate::plugin_media::progress_call(ws.root(), &ws.config()?, &crate::secrets::Store::for_vault(ws.root()), &id2, report)).await?;
+    let answer = st.helpers.call(&id, &method, params, crate::helper::CALL_TIMEOUT).await?;
+    // a report's answer never carries secrets out: `_secrets` kept (when allowed), as for any helper call
+    let ws = st.ws.clone();
+    let answer = blocking(move || {
+        let allowed = crate::plugins::permissions(ws.root(), &id)?.secrets;
+        crate::plugin_tools::keep_secrets(&crate::secrets::Store::for_vault(ws.root()), &id, allowed, answer)
+    })
+    .await?;
+    Ok(Json(answer))
+}
+
 /// A plugin's media to play (plugin_media.rs): the page's address for it, the secret kept here.
 async fn plugin_media_post(State(st): S, UrlPath(id): UrlPath<String>, Json(req): Json<crate::plugin_media::MediaRequest>) -> Result<Json<crate::plugin_media::MediaAddress>> {
     let st2 = st.clone();
     let ticket = with_ws(&st, move |ws| st2.media.prepare(ws.root(), &crate::secrets::Store::for_vault(ws.root()), &id, &req)).await?;
     Ok(Json(crate::plugin_media::MediaAddress { src: format!("{}/media/{ticket}", st.prefix), ticket }))
+}
+
+/// The video engine's state (mpv.rs), polled by the page while it plays.
+async fn mpv_state(State(st): S) -> Json<crate::mpv::State> {
+    let st2 = st.clone();
+    Json(tokio::task::spawn_blocking(move || st2.mpv.state()).await.unwrap_or_default())
+}
+
+/// A command to the video engine: mpv opens its window on this machine, so only the desktop's core asked from it
+/// (the file manager's guard).
+async fn mpv_post(State(st): S, axum::extract::ConnectInfo(peer): axum::extract::ConnectInfo<std::net::SocketAddr>, Json(cmd): Json<crate::mpv::Command>) -> Response {
+    if !may_reveal_outside(st.auth.is_some(), peer.ip()) {
+        return forbidden("mpv plays where you are: only on the desktop's own core");
+    }
+    let st2 = st.clone();
+    match blocking(move || st2.mpv.run(st2.ws.root(), cmd)).await {
+        Ok(v) => Json(v).into_response(),
+        Err(e) => e.into_response(),
+    }
+}
+
+/// The frame mpv shows now, as a PNG (the page attaches it to the note).
+async fn mpv_frame(State(st): S) -> Result<Response> {
+    let st2 = st.clone();
+    let png = blocking(move || st2.mpv.frame()).await?;
+    Ok(([(header::CONTENT_TYPE, HeaderValue::from_static("image/png")), (header::CACHE_CONTROL, HeaderValue::from_static("no-store"))], png).into_response())
 }
 
 /// `<audio src>`'s request (no `x-atlas` header can be set there: outside /api, the ticket its own key), streamed.
@@ -421,6 +467,28 @@ async fn signin_doors_get(State(st): S) -> Result<Json<Vec<crate::service_signin
         crate::service_signin::with_users(&crate::secrets::Store::for_vault(ws.root()), &plugins)
     })
     .await?))
+}
+
+/// A gate's bypass keys (service_signin.rs): listed by their hosts and header, never their values.
+async fn signin_bypass_get(State(st): S) -> Result<Json<Vec<crate::service_signin::Bypass>>> {
+    Ok(Json(with_ws(&st, |ws| crate::service_signin::bypass_list(&crate::secrets::Store::for_vault(ws.root()))).await?))
+}
+
+#[derive(serde::Deserialize)]
+struct BypassPut {
+    #[serde(flatten)]
+    rule: crate::service_signin::Bypass,
+    /// the key; empty keeps the one kept for the same header and hosts
+    #[serde(default)]
+    value: String,
+}
+
+async fn signin_bypass_put(State(st): S, Json(b): Json<BypassPut>) -> Result<Json<bool>> {
+    Ok(Json(with_ws(&st, move |ws| crate::service_signin::bypass_set(&crate::secrets::Store::for_vault(ws.root()), &b.rule, &b.value).map(|_| true)).await?))
+}
+
+async fn signin_bypass_delete(State(st): S, Json(rule): Json<crate::service_signin::Bypass>) -> Result<Json<bool>> {
+    Ok(Json(with_ws(&st, move |ws| crate::service_signin::bypass_forget(&crate::secrets::Store::for_vault(ws.root()), &rule)).await?))
 }
 
 async fn signin_door_delete(State(st): S, UrlPath(host): UrlPath<String>) -> Result<Json<bool>> {
@@ -532,6 +600,44 @@ async fn plugin_tool_post(State(st): S, UrlPath((id, name)): UrlPath<(String, St
     let cfg = with_ws(&st, |ws| ws.config()).await?;
     let store = crate::secrets::Store::for_vault(st.ws.root());
     Ok(Json(crate::plugin_tools::call(st.ws.root(), &cfg, &st.helpers, &store, &id, &name, args).await?))
+}
+
+/// A token for one of the plugin's hooks and the address to call it at (hooks.rs). Only the plugin itself (its helper,
+/// helper_api.rs `may`) or a signed-in page asks.
+async fn plugin_hook_sign(State(st): S, UrlPath(id): UrlPath<String>, Json(ask): Json<crate::hooks::SignAsk>) -> Result<Json<crate::hooks::Signed>> {
+    let id = plugin_named(&st, id).await?;
+    let (root, prefix) = (st.ws.root().to_path_buf(), st.prefix.clone());
+    let now = chrono::Utc::now().timestamp();
+    Ok(Json(blocking(move || crate::hooks::signed(&crate::secrets::Store::for_vault(&root), &prefix, &id, ask, now)).await?))
+}
+
+/// A hook called from outside, with no sign-in: its token admits it (signed by this vault for this plugin and hook,
+/// in time); the plugin's `on = "hook"` tool of that name answers `{ data, body }`, and what its answer says about
+/// notices is said.
+async fn plugin_hook_call(State(st): S, UrlPath((id, name)): UrlPath<(String, String)>, Query(q): Query<std::collections::HashMap<String, String>>, body: Bytes) -> Response {
+    let refuse = |code: StatusCode, why: String| (code, Json(ApiError { error: why, mtime: None })).into_response();
+    let root = st.ws.root().to_path_buf();
+    let (token, now) = (q.get("t").cloned().unwrap_or_default(), chrono::Utc::now().timestamp());
+    let (id_, name_) = (id.clone(), name.clone());
+    let checked = blocking(move || crate::hooks::verify(&crate::secrets::Store::for_vault(&root), &id_, &name_, &token, now)).await;
+    let data = match checked {
+        Ok(Ok(d)) => d,
+        Ok(Err(r)) => return refuse(StatusCode::FORBIDDEN, r.why().into()),
+        Err(e) => return e.into_response(),
+    };
+    let Ok(cfg) = with_ws(&st, |ws| ws.config()).await else { return refuse(StatusCode::INTERNAL_SERVER_ERROR, "the vault's settings unreadable".into()) };
+    if !crate::plugin_tools::listening(st.ws.root(), &cfg, crate::hooks::EVENT).iter().any(|(p, t)| *p == id && *t == name) {
+        return refuse(StatusCode::NOT_FOUND, format!("plugin {id} has no hook {name} here"));
+    }
+    let store = crate::secrets::Store::for_vault(st.ws.root());
+    let input = serde_json::json!({ "data": data, "body": crate::hooks::body_of(&body) });
+    match crate::plugin_tools::call(st.ws.root(), &cfg, &st.helpers, &store, &id, &name, input).await {
+        Ok(v) => {
+            crate::notice_actions::say(&st.bus, &id, &v);
+            Json(serde_json::json!({ "ok": true })).into_response()
+        }
+        Err(e) => e.into_response(),
+    }
 }
 
 async fn plugin_helper_get(State(st): S, UrlPath(id): UrlPath<String>) -> Json<serde_json::Value> {
@@ -866,6 +972,30 @@ struct PdfExportQuery {
 
 /// "Export with marks": a copy beside the PDF, its marks as real annotations or (`mode=flat`) drawn into the pages
 /// (crate::pdf_export).
+/// A page's character boxes and a point (pdf_columns.rs): the page reads them with its own engine.
+#[derive(serde::Deserialize)]
+struct ColumnAsk {
+    /// Left, top, right, bottom in shown points, four numbers a character.
+    boxes: Vec<f32>,
+    #[serde(default)]
+    x: f32,
+    #[serde(default)]
+    y: f32,
+    /// Instead of the point: the column read after this one (a zoomed column's end), null after the last.
+    #[serde(default)]
+    after: Option<crate::pdf_columns::Rect>,
+}
+
+/// The text column under the point (double-click zooms to it), or the one after `after`, or null; the phone asks the
+/// same functions over JNI.
+async fn pdf_column_post(Json(q): Json<ColumnAsk>) -> Json<Option<crate::pdf_columns::Rect>> {
+    let rects: Vec<crate::pdf_columns::Rect> = q.boxes.chunks_exact(4).map(|c| [c[0], c[1], c[2], c[3]]).collect();
+    Json(match q.after {
+        Some(col) => crate::pdf_columns::column_after(&rects, col),
+        None => crate::pdf_columns::column_at(&rects, q.x, q.y),
+    })
+}
+
 async fn pdf_export_post(State(st): S, Query(q): Query<PdfExportQuery>) -> Result<Json<crate::pdf_export::Exported>> {
     let r = with_ws(&st, move |ws| crate::pdf_export::export(&ws, &q.pdf, q.mode)).await?;
     st.bus.publish(Event::Fs { paths: vec![r.path.clone()] });
@@ -1075,11 +1205,18 @@ async fn task_schedule(State(st): S, Json(q): Json<TaskSchedule>) -> Result<Json
 }
 
 /// This core's computer: its name and whether the vault's schedules run here (`[automation] schedules_on`) — what a
-/// plugin that must act on one device only (the Plan plugin's nudges) asks.
+/// plugin that must act on one device only (the Plan plugin's nudges) asks — and when the person last used it
+/// (`active_at`, ms since the epoch, null while unknown: notify.rs `Presence`).
 async fn device_get(State(st): S) -> Result<Json<serde_json::Value>> {
     let host = crate::platform::proc::hostname();
     let cfg = with_ws(&st, |ws| ws.config()).await?;
-    Ok(Json(serde_json::json!({ "name": host, "schedules": cfg.automation.schedules_here(&host) })))
+    let active_at = crate::notify::Presence::global().active_at();
+    // the devices of a mirrored vault (their reports through the server), or, on the server, those that reported to it
+    // (none known: no device id made for a vault that is not mirrored)
+    let all = crate::devices::Table::global().all();
+    let devices = if all.is_empty() { vec![] } else { crate::devices::with_here(all, crate::mirror_guard::this_device()) };
+    // `person`: this core shows notices to someone (a desktop's, the phone's); a server's has no one at it
+    Ok(Json(serde_json::json!({ "name": host, "schedules": cfg.automation.schedules_here(&host), "person": st.served.is_none(), "active_at": active_at, "devices": devices })))
 }
 
 /// A notice's button pressed on a page (its toast): answered by the same router as a press on the system's
@@ -1322,6 +1459,12 @@ async fn lease_versions(State(st): S, Json(q): Json<crate::mirror_guard::FileBod
     Ok(Json(recent))
 }
 
+/// `POST /api/lease/presence` (crate::devices): a device's presence kept in memory; everyone's back.
+async fn lease_presence(State(st): S, Json(d): Json<crate::devices::Device>) -> Result<Json<Vec<crate::devices::Device>>> {
+    leased_path(&st, ".", &d.id)?;
+    Ok(Json(crate::devices::Table::global().report(d, chrono::Utc::now().timestamp_millis())))
+}
+
 /// A lease is asked of a server only, for a path inside the vault, by a device other than the server's own core; the
 /// first ask makes this core's own writes take leases too.
 fn leased_path(st: &AppState, path: &str, holder: &str) -> Result<(PathBuf, String)> {
@@ -1351,6 +1494,21 @@ async fn vaults_active_post(State(st): S) -> Result<StatusCode> {
 /// `GET /api/guest`: this window's guest folder, `null` for a vault (guest.rs).
 async fn guest_get(State(st): S) -> Json<Option<crate::guest::GuestInfo>> {
     Json(crate::guest::info(st.ws.root()))
+}
+
+/// `GET /api/guests`: the guest folders open in this desktop's core (Settings → Vaults).
+async fn guests_get() -> Json<Vec<crate::guest::GuestInfo>> {
+    Json(crate::guest::open_guests())
+}
+
+/// `POST /api/guests/close {folder}`: a guest closed without a restart — no longer served (its tasks and watcher
+/// stopped), its `.atlas` link and state removed, its files kept. Its window closes itself when it finds it gone.
+async fn guests_close_post(State(st): S, Json(q): Json<crate::guest::GuestClose>) -> Result<Json<()>> {
+    let d = desktop::of(&st).ok_or_else(|| Error::BadRequest("a guest folder is closed in the desktop app".into()))?;
+    let root = crate::guest::root_of(&q.folder).ok_or_else(|| Error::NotFound(format!("no guest folder {} is open", q.folder)))?;
+    d.close(&root).await;
+    blocking(move || crate::guest::forget(&root)).await?;
+    Ok(Json(()))
 }
 
 /// `POST /api/guest/edit`: the guest window's Edit switch.
@@ -1678,6 +1836,43 @@ async fn live_ws(State(st): S, Query(mut q): Query<LiveQuery>, upgrade: WebSocke
     }))
 }
 
+/// `GET /api/where`: who is where — each device in the `where` room and the file it shows (live.rs `Rooms::places`), for
+/// a client that has no socket in it (the phone app's native screens). A local vault with a copy on a server has its
+/// rooms there (`live_ws`), so the server is asked (signed in as the live socket is, none of this request's headers
+/// passed on but `x-atlas`); it not answering, this core's own room.
+/// The vault's libraries (libraries.rs): the list, one with its items, a folder or Base added.
+async fn libraries_get(State(st): S) -> Result<Json<Vec<crate::libraries::LibraryInfo>>> {
+    Ok(Json(with_ws(&st, |ws| Ok(crate::libraries::list(&ws.config()?))).await?))
+}
+
+#[derive(serde::Deserialize)]
+struct LibraryQuery {
+    id: String,
+    sort: Option<String>,
+}
+
+async fn library_get(State(st): S, Query(q): Query<LibraryQuery>) -> Result<Json<crate::libraries::LibraryView>> {
+    Ok(Json(with_ws(&st, move |ws| crate::libraries::view(&ws, &q.id, q.sort.as_deref())).await?))
+}
+
+async fn libraries_add(State(st): S, Json(req): Json<crate::libraries::LibraryAdd>) -> Result<Json<crate::config::LibrarySpec>> {
+    let spec = with_ws(&st, move |ws| crate::libraries::add(&ws, &req)).await?;
+    st.bus.publish(Event::Fs { paths: vec![crate::config::CONFIG_FILE.into()] });
+    Ok(Json(spec))
+}
+
+async fn where_get(State(st): S) -> Response {
+    if let Some(m) = st.served.is_none().then(|| crate::mirror_guard::mirror_of(st.ws.root())).flatten() {
+        let store = crate::secrets::Store::for_vault(st.ws.root());
+        let headers = HeaderMap::from_iter([(header::HeaderName::from_static("x-atlas"), HeaderValue::from_static("1"))]);
+        let asked = crate::remote_bridge::forward(&store, m.trim_end_matches('/'), "api/where", None, axum::http::Method::GET, &headers, Default::default()).await;
+        if asked.status().is_success() {
+            return asked;
+        }
+    }
+    Json(serde_json::json!({ "devices": st.live.places() })).into_response()
+}
+
 async fn events_ws(State(st): S, upgrade: WebSocketUpgrade) -> Response {
     let rx = st.bus.subscribe();
     let (vault, unseen) = (crate::notify::Presence::of_vault(st.ws.root()), crate::notify::unseen_of(st.ws.root()));
@@ -1889,6 +2084,11 @@ async fn guard(State(st): S, mut req: Request, next: Next) -> Response {
         }
         return next.run(req).await;
     }
+    // a hook's call from outside (an ntfy button on a phone): no sign-in, no header — its signed token is checked by
+    // the handler (hooks.rs)
+    if crate::hooks::is_call(req.method(), vault_path(req.uri().path())) {
+        return next.run(req).await;
+    }
     if let Some(auth) = st.auth.clone() {
         return guard_server(&auth, req, next).await;
     }
@@ -2064,6 +2264,7 @@ async fn guard_server(auth: &crate::auth::Auth, mut req: Request, next: Next) ->
             return forbidden("missing header x-atlas: 1");
         }
     }
+    crate::hooks::seen(h); // the address the person's devices reach this server by, for hooks' links
     req.extensions_mut().insert(who);
     next.run(req).await
 }
@@ -2364,7 +2565,10 @@ fn router(state: Arc<AppState>) -> Router {
         .route("/api/plugins/{id}/remove", post(plugin_remove_post))
         .route("/api/plugins/{id}/fetch", post(plugin_fetch_post))
         .route("/api/plugins/{id}/media", post(plugin_media_post))
+        .route("/api/plugins/{id}/media/progress", post(plugin_media_progress_post))
         .route("/media/{ticket}", get(media_get))
+        .route("/api/player/mpv", get(mpv_state).post(mpv_post))
+        .route("/api/player/mpv/frame", get(mpv_frame))
         .route("/plugin-files/{rev}/{*path}", get(plugin_file_get))
         .route("/api/plugins/{id}/contributions", get(plugin_contributions_get))
         .route("/api/plugins/{id}/helper", get(plugin_helper_get).post(plugin_helper_post))
@@ -2372,6 +2576,8 @@ fn router(state: Arc<AppState>) -> Router {
         // an older one killed them, and the page then asks before reloading
         .route("/api/ui/build", get(|| async { Json(serde_json::json!({ "build": crate::ui_files::build(), "terminals_survive": true })) }))
         .route("/api/plugins/{id}/tools/{name}", post(plugin_tool_post))
+        .route("/api/plugins/{id}/hooks/sign", post(plugin_hook_sign))
+        .route("/api/plugins/{id}/hook/{name}", post(plugin_hook_call))
         .route("/api/plugins/{id}/helper/stop", post(plugin_helper_stop))
         .route("/api/plugins/{id}/secrets", get(plugin_secrets_get))
         .route("/api/plugins/{id}/secrets/{name}", get(plugin_secret_get).put(plugin_secret_put).delete(plugin_secret_delete))
@@ -2397,15 +2603,21 @@ fn router(state: Arc<AppState>) -> Router {
         .route("/api/signin/door", post(signin_door_post))
         .route("/api/signin/doors", get(signin_doors_get))
         .route("/api/signin/doors/{host}", delete(signin_door_delete))
+        .route("/api/signin/bypass", get(signin_bypass_get).put(signin_bypass_put).delete(signin_bypass_delete))
         .route("/api/signin/tokens", get(signin_tokens_get))
         .route("/api/signin/tokens/{key}", delete(signin_token_delete))
         .route("/signin/door", get(signin_door_page))
         .route("/api/events", get(events_ws))
         .route("/api/live", get(live_ws))
+        .route("/api/where", get(where_get))
+        .route("/api/libraries", get(libraries_get))
+        .route("/api/libraries/add", post(libraries_add))
+        .route("/api/library", get(library_get))
         .route("/api/lease/ask", post(lease_ask))
         .route("/api/lease/done", post(lease_done).layer(DefaultBodyLimit::max(crate::mirror_guard::CARRY_MAX as usize * 4 / 3 + 64 * 1024)))
         .route("/api/lease/file", post(lease_file))
         .route("/api/lease/versions", post(lease_versions))
+        .route("/api/lease/presence", post(lease_presence))
         .route("/api/web/frameable", get(web_frameable_get))
         .route("/remote/{host}/{*rest}", axum::routing::any(remote_any))
         .route("/api/pty", get(pty_ws))
@@ -2421,6 +2633,7 @@ fn router(state: Arc<AppState>) -> Router {
         .route("/api/pdf-marks", get(pdf_marks_get).post(pdf_marks_post))
         .route("/api/pdf-of-note", get(pdf_of_note_get))
         .route("/api/pdf-export", post(pdf_export_post))
+        .route("/api/pdf-column", post(pdf_column_post))
         .route("/api/typst/svg", post(typst_svg_post))
         .route("/api/backlinks", get(backlinks_get))
         .route("/api/link-targets", get(link_targets_get))
@@ -2440,6 +2653,8 @@ fn router(state: Arc<AppState>) -> Router {
         .route("/api/vaults/active", post(vaults_active_post))
         .route("/api/guest", get(guest_get))
         .route("/api/guest/edit", post(guest_edit_post))
+        .route("/api/guests", get(guests_get))
+        .route("/api/guests/close", post(guests_close_post))
         .route("/api/usage", post(usage_post))
         .route("/api/tools/suggestions", get(tools_suggestions_get))
         .route("/api/tools/keep", post(tools_keep_post))
@@ -2562,6 +2777,18 @@ struct VaultRun {
     pressed: Option<tokio::task::JoinHandle<()>>,
 }
 
+impl VaultRun {
+    /// Its background tasks stopped (a clean stop of the core, or a guest closed); the watcher goes with the value.
+    fn stop(&self) {
+        for t in [&self.scheduler, &self.hooks, &self.merges] {
+            t.abort();
+        }
+        for t in [&self.notices, &self.planned, &self.pressed].into_iter().flatten() {
+            t.abort();
+        }
+    }
+}
+
 impl ServerHandle {
     pub fn port(&self) -> u16 {
         self.info.port
@@ -2598,15 +2825,7 @@ impl ServerHandle {
             None => Vec::new(),
         };
         for v in self.vaults.iter().chain(lazy.iter().map(|s| s.run())) {
-            v.scheduler.abort();
-            v.hooks.abort();
-            v.merges.abort();
-            if let Some(n) = &v.notices {
-                n.abort();
-            }
-            for t in [&v.planned, &v.pressed].into_iter().flatten() {
-                t.abort();
-            }
+            v.stop();
         }
         let r = (&mut self.task).await;
         self.remove_server_file();
@@ -2830,6 +3049,9 @@ fn start_vault(root: &std::path::Path, port: u16, auth: Option<Arc<crate::auth::
     let scheduler = crate::schedule::spawn(ws.clone(), bus.clone(), helpers.clone());
     let hooks = crate::capture_hooks::spawn(ws.clone(), bus.clone(), helpers.clone());
     let merges = crate::sync_merge::spawn(ws.clone(), bus.clone()); // Syncthing's conflict copies merged (DESIGN-mirror-v2 §4)
+    if served.is_none() {
+        crate::notify::Presence::global().watch(); // a server has no person at it: its presence is its devices' (slice 7)
+    }
     let notices = served.is_none().then(|| crate::notify::spawn(ws.clone(), bus.clone(), crate::notify::Presence::global(), crate::notify::platform(&bus)));
     let planned = served.is_none().then(|| crate::planned::spawn(ws.clone(), bus.clone(), helpers.clone()));
     let pressed = served.is_none().then(|| crate::notice_actions::spawn(ws.clone(), bus.clone(), helpers.clone()));
@@ -2850,6 +3072,7 @@ fn start_vault(root: &std::path::Path, port: u16, auth: Option<Arc<crate::auth::
         served,
         live: Default::default(),
         media: Default::default(),
+        mpv: Default::default(),
         desktop: Default::default(),
         leases,
         leasing: std::sync::Once::new(),

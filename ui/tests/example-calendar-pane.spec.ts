@@ -243,3 +243,99 @@ test("the card's trash button deletes the event through the engine (the card clo
   await expect(page.locator(".toast", { hasText: "Deleted “Dentist”" })).toBeVisible();
   await expect(cal.getByText("Dentist", { exact: true })).toHaveCount(0); // the toast names it too
 });
+
+test("Back and Forward step through the views shown before leaving the pane (lib/pane-nav.ts)", async ({ page }) => {
+  test.setTimeout(120_000);
+  const cal = await openPane(page);
+  await expect(cal.locator(".tg")).toBeVisible({ timeout: 30_000 });
+  await cal.locator("h1").click();
+  await page.keyboard.press("m");
+  await expect(cal.locator(".month")).toBeVisible();
+  await page.keyboard.press("a");
+  await expect(cal.locator(".agenda")).toBeVisible();
+  // Super+[ is the app's Back: the pane's own places first
+  await page.keyboard.press("Meta+BracketLeft");
+  await expect(cal.locator(".month")).toBeVisible();
+  await page.keyboard.press("Meta+BracketLeft");
+  await expect(cal.locator(".tg")).toBeVisible();
+  await page.keyboard.press("Meta+BracketRight");
+  await expect(cal.locator(".month")).toBeVisible();
+  await expect(cal).toBeVisible(); // still the Calendar: no other pane was stepped to
+});
+
+test("the agenda as a day, 3 days or a week: every day said, events and dated tasks, a task ticked through the core", async ({ page }) => {
+  test.setTimeout(120_000);
+  // one event today from the engine, one task due tomorrow from the core's deadlines (the phone's agenda reads the same two)
+  const at = (h: number) => { const d = new Date(today.getFullYear(), today.getMonth(), today.getDate(), h); return d.toISOString(); };
+  const day = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  const ticked: Record<string, unknown>[] = [];
+  await page.route("**/api/plugins/dav/helper", async (route) => {
+    const body = route.request().postDataJSON() as { method: string; params: Record<string, unknown> };
+    if (body.method === "watch") return route.fulfill({ json: { sources: [{ id: "home/personal", kind: "caldav", account: "home", url: "http://127.0.0.1:9/caldav/personal/", name: "Personal", writable: true, synced: 0 }], write: "home/personal", accounts: [], configured: true } });
+    if (body.method === "range") return route.fulfill({ json: { events: [{ uid: "g1", summary: "Group meeting", start: at(10), end: at(11), all_day: false, location: "Room 4", recurring: false, free: false, calendar: "home/personal", calendar_name: "Personal", writable: true }] } });
+    return route.continue();
+  });
+  await page.route("**/api/view", async (route) => {
+    const src = String((route.request().postDataJSON() as { src: string }).src);
+    if (!src.includes("from: deadlines")) return route.continue();
+    return route.fulfill({ json: { kind: "list", rows: ticked.length ? [] : [{ path: "notes/thesis.md", line: 3, title: "Send the draft", date: day(tomorrow), done: false, props: { from: "task" } }] } });
+  });
+  await page.route("**/api/task/tick", async (route) => { ticked.push(route.request().postDataJSON() as Record<string, unknown>); return route.fulfill({ status: 204 }); });
+  const cal = await openPane(page);
+  await cal.locator("h1").click();
+  await page.keyboard.press("a");
+  const agenda = cal.locator(".agenda");
+  await agenda.getByRole("button", { name: "3 days", exact: true }).click();
+  await expect(agenda.locator(".day")).toHaveCount(3);
+  await expect(agenda.locator(".row", { hasText: "Group meeting" })).toBeVisible();
+  await expect(agenda.locator(".row", { hasText: "Send the draft" })).toBeVisible();
+  await expect(agenda.getByText("Nothing planned")).toHaveCount(1); // the third day
+  for (const scheme of ["light", "dark"] as const) { // judged in both themes (docs/guides/UI-STYLE.md)
+    await page.emulateMedia({ colorScheme: scheme });
+    await cal.screenshot({ path: `test-results/calendar-agenda-3days-${scheme}.png` });
+  }
+  await agenda.getByRole("button", { name: "Week", exact: true }).click();
+  await expect(agenda.locator(".day")).toHaveCount(7);
+  await agenda.getByRole("button", { name: "Day", exact: true }).click();
+  await expect(agenda.locator(".day")).toHaveCount(1);
+  await cal.getByRole("button", { name: "Next" }).click(); // a day on: tomorrow, the task's day
+  await agenda.getByRole("button", { name: "Mark “Send the draft” as done" }).click();
+  await expect.poll(() => ticked.length).toBe(1);
+  expect(ticked[0]).toMatchObject({ path: "notes/thesis.md", line: 3 });
+  await expect(agenda.locator(".row", { hasText: "Send the draft" })).toHaveCount(0);
+  await expect(page.locator(".toast", { hasText: "Done: “Send the draft”" })).toBeVisible();
+});
+
+// A task of the Tasks & deadlines layer dragged from the all-day lane onto the hours is time-blocked there: the
+// engine's `time_block` asked with that slot (answered here: CI has no CalDAV server to write the event to).
+test("a task dragged from the layer onto 14:00 is time-blocked at 14:00", async ({ page, request }) => {
+  const day = `${today.getFullYear()}-${pad(today.getMonth() + 1)}-${pad(today.getDate())}`;
+  await request.put("/api/file", { headers: { "x-atlas": "1" }, data: { path: "notes/cal-task.md", text: `- [ ] Draft the abstract 📅 ${day}\n` } });
+  const seen: { asked?: { start?: string; end?: string; task?: { path: string } } } = {};
+  await page.route("**/api/plugins/dav/helper", async (r) => {
+    const b = r.request().postDataJSON() as { method: string; params: typeof seen.asked };
+    if (b.method !== "time_block") return r.continue();
+    seen.asked = b.params;
+    return r.fulfill({ json: { note: "calendar/x.md", label: "14:00", undo: 1 } });
+  });
+  try {
+    const cal = await openPane(page);
+    const layer = cal.getByRole("checkbox", { name: /Tasks & deadlines/ });
+    if ((await layer.getAttribute("aria-checked")) !== "true") await layer.click();
+    const bar = cal.locator(".tg .bar.task", { hasText: "Draft the abstract" });
+    await expect(bar).toBeVisible({ timeout: 20_000 });
+    const hour = cal.locator(".tg .hl", { hasText: /^14:00$/ });
+    await hour.scrollIntoViewIfNeeded();
+    const [b, h, d] = [await bar.boundingBox(), await hour.boundingBox(), await cal.locator(".tg .dayhead.today").boundingBox()];
+    await page.mouse.move(b!.x + b!.width / 2, b!.y + b!.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(d!.x + d!.width / 2, h!.y + 4, { steps: 8 });
+    await expect(cal.locator(".slot-ghost")).toContainText("Draft the abstract");
+    await page.mouse.up();
+    await expect.poll(() => seen.asked?.start).toBe(`${day}T14:00`);
+    expect(seen.asked?.end).toBe(`${day}T15:00`);
+    expect(seen.asked?.task?.path).toBe("notes/cal-task.md");
+  } finally {
+    await request.post(`/api/fs/trash?path=${encodeURIComponent("notes/cal-task.md")}`, { headers: { "x-atlas": "1" } });
+  }
+});

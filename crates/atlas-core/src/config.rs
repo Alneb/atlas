@@ -49,6 +49,8 @@ pub struct Config {
     pub notifications: NotificationsConfig,
     /// The desktop app around its window: closing it, the tray, starting with the session.
     pub desktop: DesktopConfig,
+    /// Notes while a film plays (the player's video engine, mpv).
+    pub player: PlayerConfig,
 }
 
 /// What the keys every other program uses do while vim is on.
@@ -366,6 +368,10 @@ pub struct UiConfig {
     /// Resting the pointer on a tab in the left bar shows what it holds (a note, a picture, a PDF's
     /// first page).
     pub tab_preview: bool,
+    /// Tell your other devices which file this one shows (and where in it), so each can open it in one click: the
+    /// lower bar's device chips on the desktop, "On your other devices" in the phone's Files. Off: this vault's devices
+    /// keep their place to themselves; the others are still listed.
+    pub share_place: bool,
     /// Ctrl+Tab: `glance` shows the focused split's tabs, most recent first, and switches when Ctrl
     /// is let go (Esc stays); `cycle` steps through every tab in the bar's order.
     pub tab_switcher: TabSwitcher,
@@ -374,15 +380,75 @@ pub struct UiConfig {
     pub sleep_after_min: u32,
     /// The tabs seen last never sleep, however long unseen: switching among these stays instant.
     pub awake_tabs: u32,
-    /// The libraries the Library page shows, in this order, by id: the core's `drawings` and `references`, a plugin's
-    /// own (`books`, `manga`…), the catalog's one per group of kinds (`catalog.films-series`, `catalog.music`…). Empty:
-    /// every one the vault has. Settings → Appearance → Libraries lists them all with a switch and a place.
-    pub libraries: Vec<String>,
+    /// The vault's libraries, in this order (libraries.rs; docs/design/DESIGN-android-native-app.md §4): a folder or a
+    /// Base of a kind (`{ id = "books", kind = "books", folder = "Books" }`), or a library Atlas or a plugin gives, by
+    /// its id (`drawings`, `references`, `catalog.music`…; a bare `"drawings"` reads as `{ id = "drawings" }`). The
+    /// page shows one library per kind: a plugin's library of the same kind joins it. When the list names none of the
+    /// libraries Atlas and the plugins give, every one of them shows. Settings → Libraries edits it.
+    #[serde(deserialize_with = "crate::libraries::specs_any")]
+    #[schemars(with = "Vec<LibrarySpec>")]
+    pub libraries: Vec<LibrarySpec>,
     /// The apps at the top of the left bar (Home, the Library, plugins' panes with `rail = true`) put first, in this
     /// order, by key (`home`, a built-in's or a plugin's id); the others follow in their own order.
     pub apps_order: Vec<String>,
     /// Apps not shown at the top of the left bar (same keys); they still open from the palette and their keys.
     pub apps_hidden: Vec<String>,
+}
+
+/// One library of the vault (`[ui] libraries`): a view over files with a kind — a folder's files, a Base's notes — or
+/// one Atlas or a plugin gives, named by its id (neither `folder` nor `base`).
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, TS, JsonSchema)]
+#[serde(default)]
+#[ts(export)]
+pub struct LibrarySpec {
+    /// Stable and unique in the list: a given library's own id (`drawings`), else made from the folder or Base.
+    pub id: String,
+    /// Shown as its name; empty: the folder's or Base's name, or what its giver calls it.
+    pub title: String,
+    pub kind: LibraryKind,
+    /// The vault folder whose files (and below) are the items.
+    pub folder: String,
+    /// The `.base` whose first view's notes are the items.
+    pub base: String,
+    /// `title` (default), `modified`, `last_read` or any property; a leading `-` sorts the biggest / newest first.
+    pub sort: String,
+    pub layout: LibraryLayout,
+    /// Kept in the list (its folder, kind, sort) but not shown.
+    pub hidden: bool,
+}
+
+/// What a library holds: which files are its items and how they look. A plugin's library of a kind joins the vault's
+/// library of that kind (one library per kind).
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash, Serialize, Deserialize, TS, JsonSchema)]
+#[serde(rename_all = "lowercase")]
+#[ts(export)]
+pub enum LibraryKind {
+    /// Every file, notes and others.
+    #[default]
+    Any,
+    Notes,
+    /// EPUB, MOBI, AZW, FB2, DjVu and PDF.
+    Books,
+    /// CBZ, CBR, CB7.
+    Comics,
+    /// Audiobooks and music: M4B, MP3, M4A, Ogg, Opus, FLAC.
+    Audio,
+    Video,
+    Pictures,
+    /// PDFs.
+    Papers,
+    /// Excalidraw drawings.
+    Drawings,
+}
+
+/// How a library's items are drawn: covers in a grid, or a list of lines.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, TS, JsonSchema)]
+#[serde(rename_all = "lowercase")]
+#[ts(export)]
+pub enum LibraryLayout {
+    #[default]
+    Covers,
+    List,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS, JsonSchema)]
@@ -1064,6 +1130,26 @@ pub struct ActivityConfig {
     pub group_threshold: u32,
 }
 
+/// Writing in a note while a film plays (docs/design/DESIGN-video-player.md §5).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS, JsonSchema)]
+#[serde(default)]
+#[ts(export)]
+pub struct PlayerConfig {
+    /// Typing in a note pauses the film that plays, so nothing is missed while a thought is written down.
+    pub pause_on_type: bool,
+    /// Seconds without a key after which a film paused by typing plays on (0: it stays paused until you play it).
+    #[schemars(range(min = 0, max = 60))]
+    pub resume_after: u32,
+    /// A line started while a film plays begins with the time, as a link that seeks it (`[[film#t=1:02:03]]`).
+    pub stamp_lines: bool,
+}
+
+impl Default for PlayerConfig {
+    fn default() -> Self {
+        Self { pause_on_type: false, resume_after: 2, stamp_lines: false }
+    }
+}
+
 /// Where a new vault's daily logs go.
 pub const DEFAULT_LOG_DIR: &str = "notes/log";
 
@@ -1092,13 +1178,14 @@ impl Default for Config {
             web: WebConfig::default(),
             notifications: NotificationsConfig::default(),
             desktop: DesktopConfig::default(),
+            player: PlayerConfig::default(),
         }
     }
 }
 
 impl Default for UiConfig {
     fn default() -> Self {
-        Self { theme: Theme::System, accent: String::new(), palette: Palette::default(), palette_dark: None, contrast: Contrast::default(), shape: Shape::default(), ui_font: String::new(), font_size: 14, gpu_rendering: GpuRendering::Auto, css_snippets_off: Vec::new(), tabs: TabsLayout::Vertical, side_panel: SidePanelPlace::Dock, motion: Motion::default(), notices: NoticeCorner::default(), eink: Eink::Auto, eink_refresh: EinkRefresh::Often, restore_layout: true, tab_preview: true, tab_switcher: TabSwitcher::Glance, sleep_after_min: 10, awake_tabs: 8, libraries: Vec::new(), apps_order: Vec::new(), apps_hidden: Vec::new() }
+        Self { theme: Theme::System, accent: String::new(), palette: Palette::default(), palette_dark: None, contrast: Contrast::default(), shape: Shape::default(), ui_font: String::new(), font_size: 14, gpu_rendering: GpuRendering::Auto, css_snippets_off: Vec::new(), tabs: TabsLayout::Vertical, side_panel: SidePanelPlace::Dock, motion: Motion::default(), notices: NoticeCorner::default(), eink: Eink::Auto, eink_refresh: EinkRefresh::Often, restore_layout: true, tab_preview: true, share_place: true, tab_switcher: TabSwitcher::Glance, sleep_after_min: 10, awake_tabs: 8, libraries: Vec::new(), apps_order: Vec::new(), apps_hidden: Vec::new() }
     }
 }
 
@@ -1352,8 +1439,27 @@ fn edit_value(v: &toml::Value) -> toml_edit::Value {
         toml::Value::Integer(i) => (*i).into(),
         toml::Value::Float(f) => (*f).into(),
         toml::Value::Boolean(b) => (*b).into(),
+        toml::Value::Array(a) if a.iter().any(toml::Value::is_table) => {
+            // a list of tables reads best one per line
+            let mut out: toml_edit::Array = a.iter().map(edit_value).collect();
+            for v in out.iter_mut() {
+                v.decor_mut().set_prefix("\n  ");
+            }
+            out.set_trailing("\n");
+            out.set_trailing_comma(true);
+            toml_edit::Value::Array(out)
+        }
         toml::Value::Array(a) => toml_edit::Value::Array(a.iter().map(edit_value).collect()),
-        // datetimes and inline tables do not occur in Config
+        // a table inside a list (`[ui] libraries`): written inline, one per entry
+        // its `id` first, and without the empty and off fields (their defaults: the round-trip check in `save_now`
+        // refuses a write that would read back otherwise)
+        toml::Value::Table(t) => {
+            let blank = |v: &toml::Value| matches!(v, toml::Value::String(s) if s.is_empty()) || *v == toml::Value::Boolean(false);
+            let fields = t.iter().filter(|(_, v)| !blank(v));
+            let (id, rest): (Vec<_>, Vec<_>) = fields.partition(|(k, _)| k.as_str() == "id");
+            toml_edit::Value::InlineTable(id.into_iter().chain(rest).map(|(k, v)| (k.as_str(), edit_value(v))).collect())
+        }
+        // datetimes do not occur in Config
         other => other.to_string().parse().unwrap_or_else(|_| other.to_string().into()),
     }
 }

@@ -23,7 +23,7 @@
   <span class="num">{num(cell.value)}</span>
 {:else if cell.t === "date" || (cell.t === "text" && isDate(cell.value))}
   {@const raw = cell.t === "date" ? cell.text : cell.value}
-  <span class="date" title={dateTip(raw)}>{showDate(raw)}</span>
+  <span class="date" title={dateTip(raw)} data-value={raw}>{showDate(raw)}</span>
 {:else if cell.t === "text"}
   {cell.value}
 {/if}

@@ -44,6 +44,7 @@ import { gatedCompletion, syncSource } from "./completion-gate";
 import { completionTab } from "./tab-keys";
 import { citing, mdSymbols } from "./completion-sources";
 import { figureCaptions } from "./figure-captions";
+import { watching } from "./watching";
 
 // Fold like Obsidian: headings and lists only. lang-markdown makes every multi-line block foldable,
 // which put arrows beside ordinary paragraphs; lists inside the frontmatter are YAML, not lists.
@@ -146,6 +147,7 @@ export function noteExtensions(path: string, viewRef: { view: EditorView | null 
       mathPreview(() => settings.config?.editor.math_preview ?? true),
       taskChips(() => settings.config?.editor.task_chips ?? true),
       logLines(isLog),
+      watching(),
       mentions,
       noteSuggestions(path),
       // paste / drop files → saved beside the note (editor.attachment_folder) and embedded
@@ -198,7 +200,7 @@ export function noteExtensions(path: string, viewRef: { view: EditorView | null 
 }
 
 /** The files' embeds (lib/attach.ts) inserted at `at`, the caret after them. */
-async function attachAt(view: EditorView, notePath: string, files: File[], at: number): Promise<void> {
+export async function attachAt(view: EditorView, notePath: string, files: File[], at: number): Promise<void> {
   const done = await attachFiles(notePath, files);
   if (!done.length) return;
   const insert = done.map((a) => a.embed).join("\n");

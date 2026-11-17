@@ -5,7 +5,6 @@
   import { onMount } from "svelte";
   import Icon from "../Icon.svelte";
   import FormFields from "../FormFields.svelte";
-  import SigninsPanel from "./SigninsPanel.svelte";
   import { applies, newCard, secretHint, type Card, type OptionField, type RecordsField } from "../../lib/block-options";
   import { accountLists, cardsOf, recordsField, refreshStatus, saveCards, statusOf, summaryOf, testAccount, type AccountList } from "../../lib/accounts.svelte";
   import { runPluginCommand } from "../../lib/plugins.svelte";
@@ -171,7 +170,7 @@
   {/each}
 
   {#if !only}
-    <section class="list"><SigninsPanel /></section>
+    <p class="none">Getting past a sign-in in front of a service — a gate (Authelia…), OpenID, a key that skips the gate — is under <button class="link" onclick={() => (settingsNav.want = "signins")}>Sign-ins</button>.</p>
     {#if !lists.length}<p class="none">No plugin here keeps accounts yet. A plugin opts in with <code>account = {"{ kind = \"Mail\" }"}</code> on a records setting (PLUGIN-API.md, “Accounts”).</p>{/if}
     <p class="foot">{total} account{total === 1 ? "" : "s"} · passwords and sign-ins are kept outside the vault, never in a file.</p>
   {/if}

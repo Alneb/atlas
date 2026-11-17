@@ -131,10 +131,47 @@
 			summary
 		};
 	}
+	/** The buttons asked for, as far as they are well-formed (an https or http address, a label); at most 3, ntfy's limit. */
+	function buttonsOf(raw) {
+		if (!Array.isArray(raw)) return [];
+		return raw.filter((b) => b && typeof b.label === "string" && b.label.trim() && /^https?:\/\/[^\s]+$/.test(String(b.url ?? ""))).slice(0, 3).map((b) => ({
+			label: b.label.trim(),
+			url: String(b.url),
+			...b.method ? { method: String(b.method).toUpperCase() } : {},
+			...typeof b.body === "string" ? { body: b.body } : {}
+		}));
+	}
 	async function sendWith(net, p) {
 		const s = p.settings ?? {};
 		const text = String(p.text ?? ""), title = String(p.title || "Atlas");
 		if (!text.trim()) throw new Error("nothing to send");
+		const buttons = buttonsOf(p.actions), click = /^https?:\/\//.test(String(p.click ?? "")) ? String(p.click) : "";
+		const server = (str(s.server) || "https://ntfy.sh").replace(/\/+$/, ""), topic = str(s.phone_topic);
+		if ((buttons.length || click) && topic) {
+			const actions = buttons.map((b) => ({
+				action: "http",
+				label: b.label,
+				url: b.url,
+				method: b.method ?? "POST",
+				...b.body !== void 0 ? { body: b.body } : {},
+				clear: true
+			}));
+			await net.post(server, JSON.stringify({
+				topic,
+				title,
+				message: text,
+				...actions.length ? { actions } : {},
+				...click ? { click } : {}
+			}), {
+				"Content-Type": "application/json",
+				...auth(p)
+			});
+			return {
+				sent: true,
+				through: "ntfy",
+				buttons: buttons.length
+			};
+		}
 		const apprise = str(s.apprise);
 		if (apprise) {
 			await net.post(apprise, JSON.stringify({
@@ -143,15 +180,16 @@
 			}), { "Content-Type": "application/json" });
 			return {
 				sent: true,
-				through: "apprise"
+				through: "apprise",
+				buttons: 0
 			};
 		}
-		const topic = str(s.phone_topic);
 		if (!topic) throw new Error("set the Apprise address or your phone's topic first: Settings → Notifications");
-		await net.post(`${(str(s.server) || "https://ntfy.sh").replace(/\/+$/, "")}/${encodeURIComponent(topic)}?${atlas.qs({ title })}`, text, auth(p));
+		await net.post(`${server}/${encodeURIComponent(topic)}?${atlas.qs({ title })}`, text, auth(p));
 		return {
 			sent: true,
-			through: "ntfy"
+			through: "ntfy",
+			buttons: 0
 		};
 	}
 	const net = {
@@ -221,6 +259,7 @@
 	});
 	//#endregion
 	exports.auth = auth;
+	exports.buttonsOf = buttonsOf;
 	exports.lineOf = lineOf;
 	exports.muted = muted;
 	exports.oneAtATime = oneAtATime;

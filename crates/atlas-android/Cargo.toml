@@ -46,3 +46,5 @@ libc = "0.2"
 tempfile = "3"
 regex = "1"
 walkdir = "2"
+# the parity table (src/parity.rs reads parity.toml)
+toml = "0.9"

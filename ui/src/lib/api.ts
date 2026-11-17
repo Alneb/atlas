@@ -123,7 +123,15 @@ export const api = {
   guest: () => request<GuestInfo | null>("GET", "/api/guest"),
   /** The guest window's Edit switch. */
   guestEdit: (on: boolean) => request<GuestInfo>("POST", "/api/guest/edit", { body: { on } }),
+  /** The guest folders open in this desktop's core (Settings → Vaults). */
+  guests: () => request<GuestInfo[]>("GET", "/api/guests"),
+  /** A guest closed now: no longer served, its link and state removed, its files kept. */
+  guestClose: (folder: string) => request<null>("POST", "/api/guests/close", { body: { folder } }),
   /** `blocked` filled by the core (the one rule); `android`: as the phone app sees them. */
+  /** The vault's libraries (`[ui] libraries`, libraries.rs), one with its items, a folder or Base added. */
+  libraries: () => request<import("./gen/LibraryInfo").LibraryInfo[]>("GET", "/api/libraries"),
+  library: (id: string) => request<import("./gen/LibraryView").LibraryView>("GET", "/api/library", { query: { id } }),
+  addLibrary: (req: Partial<import("./gen/LibraryAdd").LibraryAdd>) => request<import("./gen/LibrarySpec").LibrarySpec>("POST", "/api/libraries/add", { body: req }),
   plugins: (platform?: "android") => request<Plugin[]>("GET", "/api/plugins", { query: { platform } }),
   /** What a capture's text will become (capture.rs `describe`), for `vault` when it is not this window's. */
   describeCapture: (text: string, vault?: string) => request<CaptureHint>("POST", "/api/capture/describe", { body: { text, vault } }),
@@ -157,6 +165,12 @@ export const api = {
   forgetServiceSignin: (host: string) => request<boolean>("DELETE", `/api/signin/doors/${encodeURIComponent(host)}`),
   oidcSignins: () => request<import("./gen/OidcSignin").OidcSignin[]>("GET", "/api/signin/tokens"),
   forgetOidcSignin: (key: string) => request<boolean>("DELETE", `/api/signin/tokens/${encodeURIComponent(key)}`),
+  /** A gate's bypass keys (service_signin.rs): hosts and header only, never the key. `value` empty keeps the kept key.
+   *  Always this machine's own core (`base: ""`), also on a server vault's page through the bridge: the key is what
+   *  this machine sends to get past the server's gate, so it is kept here, never on the server. */
+  signinBypasses: () => request<import("./gen/Bypass").Bypass[]>("GET", "/api/signin/bypass", { base: "" }),
+  setSigninBypass: (rule: import("./gen/Bypass").Bypass, value: string) => request<boolean>("PUT", "/api/signin/bypass", { body: { ...rule, value }, base: "" }),
+  forgetSigninBypass: (rule: import("./gen/Bypass").Bypass) => request<boolean>("DELETE", "/api/signin/bypass", { body: rule, base: "" }),
   /** Settings → AI agents (agents.rs): this machine's agents, each with its own token; 400 on a server (device tokens there). */
   agents: () => request<AgentsState>("GET", "/api/agents"),
   allowAgent: (name: string) => request<{ token: string; mcp: unknown }>("POST", "/api/agents", { body: { name } }),
@@ -280,6 +294,11 @@ export const api = {
     request<import("./gen/PdfExported").PdfExported>("POST", "/api/pdf-export", { query: { pdf, mode } }),
   /** A ```typst fence drawn by the core (typst_doc.rs): its pages as SVG, or Typst's errors. */
   typstSvg: (path: string, source: string) => request<import("./gen/TypstDrawn").TypstDrawn>("POST", "/api/typst/svg", { body: { path, source } }),
+  /** The text column under (x, y) of a page whose characters' boxes (left, top, right, bottom in shown points, four
+   *  numbers each) are `boxes` (core pdf_columns.rs, the phone's reader asks the same); null: no text there. */
+  /** The text column under (x, y) of a page (pdf_columns.rs), or, with `after`, the column read after that one. */
+  pdfColumn: (boxes: number[], x: number, y: number, after?: [number, number, number, number]) =>
+    request<[number, number, number, number] | null>("POST", "/api/pdf-column", { body: { boxes, x, y, ...(after ? { after } : {}) } }),
   pdfOfNote: (note: string) => request<{ pdf: string | null }>("GET", "/api/pdf-of-note", { query: { note } }),
   /** Changes a PDF's marks (its note made with the first one); the marks after. */
   changePdfMarks: (pdf: string, ops: import("./gen/Op").Op[]) => request<import("./gen/PdfMarks").PdfMarks>("POST", "/api/pdf-marks", { query: { pdf }, body: ops }),
@@ -323,7 +342,18 @@ export const api = {
   /** A request made by the core for a plugin (`atlas.fetch`): only to hosts its manifest lists. */
   pluginFetch: (id: string, req: PluginFetchRequest) => request<PluginFetchResponse>("POST", `/api/plugins/${encodeURIComponent(id)}/fetch`, { body: req }),
   /** A plugin's media address (core plugin_media.rs): the ticket the core keeps its headers under, secrets filled in. */
-  pluginMedia: (id: string, req: { url: string; headers?: PluginFetchRequest["headers"] }) => request<{ src: string; ticket: string }>("POST", `/api/plugins/${encodeURIComponent(id)}/media`, { body: req }),
+  /** A report of the app's player to the plugin whose media it plays (lib/player.svelte.ts; the core's `[media] progress`). */
+  mediaProgress: (id: string, report: object) => request<{ key?: unknown } | null>("POST", `/api/plugins/${encodeURIComponent(id)}/media/progress`, { body: report }),
+  /** The player's video engine (mpv.rs): always the desktop's own core (`base: ""`), whatever vault the page shows —
+   *  mpv opens its window where the person sits; a server's stream reaches it through the bridge. */
+  mpv: (cmd: { cmd: string; [k: string]: unknown }) => request<null>("POST", "/api/player/mpv", { body: cmd, base: "" }),
+  mpvState: () => request<MpvState>("GET", "/api/player/mpv", { base: "" }),
+  /** The frame mpv shows now (a PNG), or null when nothing plays there. */
+  mpvFrame: async (): Promise<Blob | null> => {
+    const res = await fetch(url("/api/player/mpv/frame", undefined, ""), { headers: { "x-atlas": "1" } });
+    return res.status === 200 ? res.blob() : null;
+  },
+  pluginMedia: (id: string, req: { url: string; headers?: PluginFetchRequest["headers"] } | { file: string }) => request<{ src: string; ticket: string }>("POST", `/api/plugins/${encodeURIComponent(id)}/media`, { body: req }),
   /** The plugins the configured release offers ([plugins] release_index), marked with what this vault has. */
   availablePlugins: () => request<import("./gen/Available").Available[]>("GET", "/api/plugins/available"),
   /** Copy a plugin into the vault (a folder, a git address, an archive); it arrives switched off. */
@@ -490,3 +520,6 @@ export function ptyEnd(ws: WebSocket): void {
   if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify("end" satisfies PtyControl));
   ws.close();
 }
+
+/** mpv.rs `State`. */
+export interface MpvState { running: boolean; at: number; duration: number; playing: boolean; speed: number; ended: boolean; sub_text: string; error: string }

@@ -97,6 +97,22 @@ export function startOfWeek(d: Date, first: number): Date {
   return addDays(s, -((s.getDay() - first + 7) % 7));
 }
 
+// ----- the agenda's lengths
+
+/** How much the Agenda shows: a day, three days, a week (from the week's first day) — every day listed, the empty
+ *  ones said — or the coming 60 days, only the days with something. The phone's native agenda has the same first three
+ *  (AgendaRows.java), over the same answers (the engine's `range`, the core's `from: deadlines`). */
+export type Span = "day" | "3days" | "week" | "60days";
+export const SPANS: [Span, string][] = [["day", "Day"], ["3days", "3 days"], ["week", "Week"], ["60days", "60 days"]];
+export const isSpan = (s: unknown): s is Span => SPANS.some(([v]) => v === s);
+/** The days a span shows from `cursor` (first, last inclusive). */
+export function agendaRange(span: Span, cursor: Date, first: number): { from: Date; to: Date } {
+  if (span === "week") { const s = startOfWeek(cursor, first); return { from: s, to: addDays(s, 6) }; }
+  return { from: cursor, to: addDays(cursor, span === "day" ? 0 : span === "3days" ? 2 : 59) };
+}
+/** Days one step (← →) moves the agenda. */
+export const agendaStep = (span: Span) => (span === "day" ? 1 : span === "3days" ? 3 : span === "week" ? 7 : 30);
+
 // ----- words
 
 /** 12-hour only when the setting asks for it; else the 24-hour clock whatever the locale. */

@@ -18,8 +18,9 @@ import type { CodeTool } from "./plugin-code-tools";
 import type { NativeSample, PenOptions } from "./pen-target";
 import type { EmbedRender } from "./embed-registry";
 import type { Live, LiveHandlers } from "./live";
+import type { Player } from "./player.svelte";
 
-export const PLUGIN_API_VERSION = 28;
+export const PLUGIN_API_VERSION = 34;
 
 /** What a plugin's view gets. Kept small and stable: plugins outlive app refactors. */
 export interface PluginApi {
@@ -54,7 +55,7 @@ export interface PluginApi {
   /** Run the plugin's data script (`data = …` in plugin.toml) with `args`; resolves to its JSON. */
   data(args?: unknown): Promise<unknown>;
   /** `{ beside: true }`: next to the active tab (the other split, or a new one on the right)
-   *  instead of over it — a paper's PDF and its notes side by side. */
+   *  instead of over it — a paper's PDF and its notes side by side. A PDF's `line` is its page. */
   open(path: string, line?: number, opts?: { beside?: boolean }): void;
   /** (v6) `path` to the phone app's own reader (a native plugin's `opens`: an .epub, a .cbz, `suwayomi:<id>/<name>`):
    *  true when the app took it; false on the desktop or in a browser — show it in the page then. */
@@ -115,6 +116,10 @@ export interface PluginApi {
   /** The rows a ```view block of this YAML gets (`type: task-list\nfrom: tasks\ndue: today`: today's tasks), evaluated
    *  as if the block were in `path` (default: none). */
   view(src: string, path?: string): Promise<import("./gen/ViewResult").ViewResult>;
+  /** (v31) Ticks the open task at `path`:`line` (1-based) as Home does: its done date, the next occurrence of a
+   *  repeating one, the notices about it withdrawn (`POST /api/task/tick`). `text`, the task as listed, guards against
+   *  a line that moved; a view's row (`view()`) gives `path` and `line`. */
+  tickTask(path: string, line: number, text?: string): Promise<void>;
   /** (v7) Draws `![[file]]` in notes for these files: `patterns` are extensions (`"epub"`) or globs (`"maps/*.json"`);
    *  `render(host, { path, anchor, options, width, note, compact, open })` → cleanup (may be async). Asked before the
    *  core's own embeds (the newest registration wins); pictures stay the core's. Embeds drawn already are drawn again
@@ -169,6 +174,12 @@ export interface PluginApi {
    *  page: an `<svg>` filling its positioned parent. `size`: the page in the marks' space, PDF points (default: a
    *  picture page, 1000 × 1000 — its fractions). */
   marksSvg(marks: readonly import("./gen/Mark").Mark[], page: number, size?: [number, number]): SVGSVGElement;
+  /** (v30) Changes to a file's marks, kept by the core in its note as `marks` reads them (the note made with the first
+   *  mark): `put` adds a mark or replaces the one with its id, `remove` leaves a tombstone so a copy elsewhere does not
+   *  bring it back → the marks after. An EPUB's ink is `text-ink` marks, pinned to a chapter's character. */
+  changeMarks(file: string, ops: import("./gen/Op").Op[]): Promise<{ note: string | null; marks: import("./gen/Mark").Mark[] }>;
+  /** (v30) A pen stroke's samples as marks keep them (`Stroke.samples`): encoded and decoded the core's way. */
+  samples: { encode(samples: readonly import("./gen/Sample").Sample[]): string; decode(s: string): import("./gen/Sample").Sample[] };
   /** (v13) The vault's templates: name, title, the folder their notes go in, their questions and when each applies by
    *  itself (docs/guides/TEMPLATES.md). */
   templates(): Promise<import("./gen/TemplateInfo").TemplateInfo[]>;
@@ -208,8 +219,18 @@ export interface PluginApi {
   fetch(url: string, init?: PluginFetchInit): Promise<PluginResponse>;
   /** An address the page can play (`<audio src>`, `<video src>`) for media on a server that wants the plugin's secret
    *  on every request (Audiobookshelf's token): the core asks the server with the headers given here — a secret named,
-   *  filled in by the core, never in the page — passing the player's ranges through. Same hosts as `fetch`. */
-  media(url: string, init?: { headers?: PluginFetchInit["headers"] }): Promise<string>;
+   *  filled in by the core, never in the page — passing the player's ranges through. Same hosts as `fetch`. (v32)
+   *  `{ file }`: a file of the plugin's own cache instead (a download kept for offline, `fetch`'s `saveTo`), served by
+   *  the core from disk with the same ranges. */
+  media(src: string | { file: string }, init?: { headers?: PluginFetchInit["headers"] }): Promise<string>;
+  /** The app's one player, outside any pane (lib/player.svelte.ts): `play({ key, title, author, cover, tracks, chapters,
+   *  at, speed, open })` plays a plugin's audio — tracks are `atlas.media` addresses with their `start` in the item's
+   *  time — and replaces whatever played; closing the pane does not stop it. On the phone it is the app's media service
+   *  (the screen may go off; the lock screen and a headset control it). Where you are is reported to the plugin's helper
+   *  method named by `[media] progress` (every 15 s, on pause, at the end, on close: `{ key, at, duration, listened,
+   *  state }`; an answer `{ key }` replaces the key). `pause`, `resume`, `toggle`, `seek(t)`, `skip(±s)`, `chapter(±1)`,
+   *  `speed(x)`, `sleep({ minutes } | "chapter" | null)`, `close` act on what plays; `state()` and `on(fn)` show it. */
+  player: Player;
   /** OpenID Connect sign-ins (Authelia, any provider; needs `[permissions] secrets = true` and the provider's host in
    *  `net`): `signIn` opens the provider's page (the desktop's sign-in window) and keeps the tokens on the server; a
    *  header `{ oauth: name }` in `fetch` is then `Bearer <access token>`, renewed by the core. In a browser the page
@@ -323,6 +344,11 @@ export interface PluginApi {
   shell: {
     /** Rows in a right-click menu (`file`, `tab`, `editor`, `block`): `fn(target)` → rows, shown after the app's. */
     menu(where: MenuPlace, fn: (target: MenuTarget) => PluginMenuItem[] | null | undefined | void): () => void;
+    /** (v34) A right-click menu of the plugin's own, at the pointer: call it from a `contextmenu` handler. `rows` (null:
+     *  a separator), then, when `about.path` names a vault file, the rows every file has (Open beside, Show in the explorer,
+     *  Copy link…; their Open named `about.openLabel` when the plugin's own Open does something else). A long press by
+     *  a finger or a pen is left to the system, as the app's own menus leave it. */
+    popMenu(e: MouseEvent, rows: (PluginMenuItem | null)[], about?: { path?: string; openLabel?: string }): void;
     /** A tool in the side panel, beside Files / Search / Outline / Git: `mount(host)` draws it (and may return
      *  its cleanup). It also becomes a command, "Side panel: <title>". */
     sideTool(t: { id: string; title: string; icon?: string; mount(host: HTMLElement): void | (() => void) }): () => void;
@@ -439,6 +465,14 @@ export interface LibraryItem {
   sort: Record<string, string | number>;
   /** The vault file the item is (its note, the drawing): the links to it shown under its card, as under a note. */
   note?: string;
+  /** How far along it is, 0–1 (a book read, an audiobook heard): a bar under its cover. 1 is finished. */
+  progress?: number;
+  /** When it was last read, listened to or opened (ms since 1970): with `progress` below 1, it is in the page's
+   *  "Continue" row, the most recent first. */
+  lastUsed?: number;
+  /** The service it lives on when it is not the vault's (`"Suwayomi"`, `"Jellyfin"`): the page draws it under
+   *  "From <service>", apart from the vault's own things. Default: its source's `from`. */
+  from?: string;
 }
 
 /** Something to do with an item: a button in its detail (or a header tool). `icon`: one of the app's icon names. */
@@ -447,6 +481,9 @@ export type LibraryAction = {
   icon?: string;
   title?: string;
   primary?: boolean;
+  /** (v34) Seldom used (a copy, a delete): behind the panel's "⋯" button and in the item's right-click menu, not a
+   *  button of its own. */
+  more?: boolean;
   danger?: boolean;
   disabled?: boolean;
 } & (
@@ -505,6 +542,12 @@ export interface LibrarySource {
   regroup?(items: LibraryItem[], group: string): Promise<void>;
   /** How items are drawn; the first is the default, more than one gives a switch. */
   layouts: ("list" | "covers")[];
+  /** The service every item lives on, when none is the vault's (Jellyfin's films): the page lists the library with
+   *  the services', apart from the vault's own, and its items under "From <service>". */
+  from?: string;
+  /** Each service's own app (its home, its browse screen), a button on its "From <service>" section: on the desktop
+   *  the server apps have no button of their own in the left bar, the Library is the way in. */
+  homes?: { from: string; label: string; run: () => unknown }[];
   /** Sort orders; the first is the default. `desc`: biggest / newest first. */
   sorts: { id: string; label: string; desc?: boolean }[];
   /** The search box's placeholder. */
@@ -539,5 +582,7 @@ export interface LibraryEntry {
   by: string;
   /** What it is a library of (`LibrarySource.subject`); default: its title's slug. */
   subject?: string;
+  /** A service's library (`LibrarySource.from`), not the vault's: listed apart. */
+  from?: string;
   source(): LibrarySource | Promise<LibrarySource>;
 }

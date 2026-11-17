@@ -38,6 +38,9 @@ abstract class VaultFiles {
     abstract InputStream read(String path) throws IOException;
     /** For java.util.zip.ZipFile and the like, which want a file: the file itself, or a copy fetched into the cache. */
     abstract File local(String path) throws IOException;
+    /** A file just opened from the copy kept on the device because the server did not answer, once per file (null:
+     *  none) — a server vault's; the reader says so. */
+    String offlineNotice() { return null; }
     /** The file whole, never half of it. */
     abstract void write(String path, byte[] bytes) throws IOException;
     /** A drawing was written: its companion note follows. Null, or why it could not. */
@@ -173,6 +176,18 @@ abstract class VaultFiles {
         } catch (org.json.JSONException e) { throw new IOException(e.getMessage()); }
     }
 
+    /** The note of a thing a native screen shows (an Audiobookshelf book, a Suwayomi series, an EPUB): the catalog's
+     *  one rule, its `note` tool (docs/design/DESIGN-server-libraries.md §3) — found, or made once it is yours (`why`:
+     *  opened, progress + `progress`, finished, rated, reviewed, wrote, asked) — the same call the page makes. `{path,
+     *  made}`, path null when it has none yet. Never on the UI thread. Throws with why (no catalog in the vault). */
+    static JSONObject thingNote(Context c, String vault, JSONObject thing) throws IOException {
+        try {
+            JSONObject r = new JSONObject(new String(new OnServer(c, vault).send("POST", "/api/plugins/@catalog/tools/note", "application/json", thing.toString().getBytes(StandardCharsets.UTF_8)), StandardCharsets.UTF_8));
+            if (r.has("error")) throw new IOException(r.optString("error"));
+            return r;
+        } catch (org.json.JSONException e) { throw new IOException("the catalog answered something else: " + e.getMessage()); }
+    }
+
     /** `POST /api/companion` with `req`, to the vault's server or the core here: the note's path. */
     private static String companion(Context c, String vault, JSONObject req) throws IOException {
         try {
@@ -213,6 +228,41 @@ abstract class VaultFiles {
             if (r.has("error")) throw new IOException(r.optString("error"));
             return r;
         } catch (org.json.JSONException e) { throw new IOException(e.getMessage()); }
+    }
+
+    /** One request of plugin `id` through the vault's core (`POST /api/plugins/<id>/fetch`, plugin_net.rs), as the
+     *  plugin's web side makes it with `atlas.fetch`: its secrets (`{secret, prefix}` headers) are filled in by the core,
+     *  never seen here. `{status, ok, headers, text, saved, url, signin}`. Never on the UI thread. Throws with why. */
+    static JSONObject pluginFetch(Context c, String vault, String id, JSONObject req) throws IOException {
+        try { return new JSONObject(new String(new OnServer(c, vault).send("POST", "/api/plugins/" + OnServer.q(id) + "/fetch", "application/json", req.toString().getBytes(StandardCharsets.UTF_8)), StandardCharsets.UTF_8)); }
+        catch (org.json.JSONException e) { throw new IOException("the core answered something else: " + e.getMessage()); }
+    }
+
+    /** A plugin's media address (`POST /api/plugins/<id>/media`, plugin_media.rs): `url` played through the core with
+     *  `headers` (a secret filled in there): the absolute `/media/<ticket>` address MediaService plays with
+     *  coreHeaders. Never on the UI thread. */
+    static String pluginMedia(Context c, String vault, String id, String url, JSONObject headers) throws IOException {
+        try {
+            JSONObject req = new JSONObject().put("url", url);
+            if (headers != null) req.put("headers", headers);
+            JSONObject r = new JSONObject(new String(new OnServer(c, vault).send("POST", "/api/plugins/" + OnServer.q(id) + "/media", "application/json", req.toString().getBytes(StandardCharsets.UTF_8)), StandardCharsets.UTF_8));
+            return coreBase(c, vault) + "/media/" + r.getString("ticket");
+        } catch (org.json.JSONException e) { throw new IOException("the core answered something else: " + e.getMessage()); }
+    }
+
+    /** The address of the vault's core: a server's, or the one running in this app for a folder (started if needed). */
+    static String coreBase(Context c, String vault) throws IOException {
+        return Server.is(vault) ? vault.replaceAll("/+$", "") : Local.of(c, vault.replaceAll("/+$", "")).base;
+    }
+
+    /** What reaching that core takes outside this class (MediaService's tracks and reports): a server's sign-in, or the
+     *  in-app core's key. */
+    static java.util.Map<String, String> coreHeaders(Context c, String vault) throws IOException {
+        if (Server.is(vault)) return Server.headerMap(c, vault.replaceAll("/+$", ""));
+        java.util.Map<String, String> h = new java.util.HashMap<>();
+        String key = Local.of(c, vault.replaceAll("/+$", "")).key;
+        if (!key.isEmpty()) h.put("x-atlas-token", key);
+        return h;
     }
 
     /** The vault's settings with their schema, `{config, schema, defaults, path}` (GET /api/config). Never on the UI
@@ -295,6 +345,11 @@ abstract class VaultFiles {
         /** The folder, for a vault on the phone; null for a server's. */
         private final File folder;
         private final File cache;
+        /** When the copies in `cache` were last checked (ServerCopy): one per vault, as the cache is. */
+        private final ServerCopy copies = new ServerCopy(System::currentTimeMillis);
+        /** Paths already said to be an offline copy, so a reader is told once, not at every page. */
+        private final java.util.Set<String> told = java.util.Collections.synchronizedSet(new java.util.HashSet<>());
+        private volatile String notice;
 
         OnServer(Context c, String vault) {
             this.c = c.getApplicationContext();
@@ -388,10 +443,50 @@ abstract class VaultFiles {
 
         @Override long modified(String path) { JSONObject e = entry(path); return e == null ? 0 : e.optLong("modified", 0) * 1000; }
 
+        /** As modified(), but a server that cannot be reached throws instead of reading as "not there" (ServerCopy
+         *  must tell the two apart: offline, the copy is used; gone, it is not). */
+        private long modifiedOnline(String path) throws IOException {
+            String p = path.replaceAll("^/+|/+$", "");
+            byte[] tree = get("/api/tree?path=" + q(parent(p)));
+            try {
+                JSONArray a = new JSONArray(new String(tree, StandardCharsets.UTF_8));
+                for (int i = 0; i < a.length(); i++) if (p.equals(a.getJSONObject(i).optString("path"))) return a.getJSONObject(i).optLong("modified", 0) * 1000;
+            } catch (org.json.JSONException e) { /* an odd answer: unknown */ }
+            return 0;
+        }
+
+        /** The file's bytes streamed into `to` (a book is large: never whole in memory). */
+        private void fetch(String path, OutputStream to) throws IOException {
+            off(() -> {
+                HttpURLConnection h = open("GET", "/api/raw?path=" + q(path));
+                try {
+                    if (h.getResponseCode() >= 300) answer(h); // throws, saying why
+                    try (InputStream in = h.getInputStream()) {
+                        byte[] buf = new byte[65536];
+                        for (int n; (n = in.read(buf)) > 0; ) to.write(buf, 0, n);
+                    }
+                    return null;
+                } finally { h.disconnect(); }
+            });
+        }
+
+        private File cached(String path) { return new File(cache, Integer.toHexString(path.hashCode()) + "-" + new File(path).getName()); }
+
         @Override InputStream read(String path) throws IOException {
             byte[] kept = PendingWrites.waitingFor(c, base, path); // written offline, not sent yet: the newest
-            return new ByteArrayInputStream(kept != null ? kept : get("/api/raw?path=" + q(path)));
+            if (kept != null) return new ByteArrayInputStream(kept);
+            try { return new ByteArrayInputStream(get("/api/raw?path=" + q(path))); }
+            catch (Refused r) { throw r; }
+            catch (IOException offline) {
+                File f = cached(path); // opened before: its copy, as local() would give it
+                if (folder == null && f.isFile()) { said(path); return new java.io.FileInputStream(f); }
+                throw offline;
+            }
         }
+
+        private void said(String path) { if (told.add(path)) notice = path; }
+
+        @Override String offlineNotice() { String n = notice; notice = null; return n; }
 
         /** A folder vault's file itself (nothing copied: a book is large); a server's fetched into the app's cache (kept
          *  while unchanged on the server: a chapter is read many times). */
@@ -401,18 +496,19 @@ abstract class VaultFiles {
                 if (!f.getPath().startsWith(folder.getCanonicalPath())) throw new IOException("outside the vault: " + path);
                 return f;
             }
-            File f = new File(cache, Integer.toHexString(path.hashCode()) + "-" + new File(path).getName());
+            File f = cached(path);
             byte[] kept = PendingWrites.waitingFor(c, base, path);
             if (kept != null) {
                 if (!cache.isDirectory() && !cache.mkdirs()) throw new IOException("no cache folder");
                 try (FileOutputStream o = new FileOutputStream(f)) { o.write(kept); }
+                copies.changed(path);
                 return f;
             }
-            long at = modified(path);
-            if (f.isFile() && at != 0 && f.lastModified() == at) return f;
-            if (!cache.isDirectory() && !cache.mkdirs()) throw new IOException("no cache folder");
-            try (FileOutputStream o = new FileOutputStream(f)) { o.write(get("/api/raw?path=" + q(path))); }
-            if (at != 0) f.setLastModified(at);
+            ServerCopy.Got got = copies.get(f, path, new ServerCopy.Server() {
+                @Override public long modified(String p) throws IOException { return modifiedOnline(p); }
+                @Override public void fetch(String p, OutputStream to) throws IOException { OnServer.this.fetch(p, to); }
+            });
+            if (got == ServerCopy.Got.OFFLINE) said(path); else told.remove(path);
             return f;
         }
 
@@ -424,6 +520,7 @@ abstract class VaultFiles {
         @Override void write(String path, byte[] bytes) throws IOException {
             try {
                 writeNow(path, bytes);
+                copies.changed(path); // the next open fetches what was just written
                 PendingWrites.drop(c, base, path); // an older offline save of it must not follow
             } catch (Refused r) {
                 PendingWrites.keep(c, base, path, bytes);

@@ -10,6 +10,7 @@ import type { LspConfig } from "./LspConfig";
 import type { NotesConfig } from "./NotesConfig";
 import type { NotificationsConfig } from "./NotificationsConfig";
 import type { PdfConfig } from "./PdfConfig";
+import type { PlayerConfig } from "./PlayerConfig";
 import type { PluginsConfig } from "./PluginsConfig";
 import type { TerminalConfig } from "./TerminalConfig";
 import type { UiConfig } from "./UiConfig";
@@ -61,4 +62,8 @@ latex: LatexConfig, automation: AutomationConfig, plugins: PluginsConfig, notes:
 /**
  * The desktop app around its window: closing it, the tray, starting with the session.
  */
-desktop: DesktopConfig, };
+desktop: DesktopConfig, 
+/**
+ * Notes while a film plays (the player's video engine, mpv).
+ */
+player: PlayerConfig, };

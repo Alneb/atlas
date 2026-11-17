@@ -40,6 +40,12 @@ public final class Pdfium {
         return out;
     }
 
+    /** Page n's space: its box shown and its own /Rotate (PageSpace); `w` × `h`, the shown size, when it cannot be read. */
+    public static PageSpace space(String pdf, int n, float w, float h) {
+        try { return PageSpace.of(Core.pdfiumSpace(pdf, n), w, h); }
+        catch (IllegalArgumentException e) { return PageSpace.plain(w, h); }
+    }
+
     /** Page n (1-based) drawn w × h on white, turned `turns` quarters more than its own /Rotate. */
     public static Bitmap render(String pdf, int n, int w, int h, int turns) {
         byte[] px = Core.pdfiumRender(pdf, n, w, h, turns);
@@ -65,6 +71,21 @@ public final class Pdfium {
     /** Page n's text, to select words in (PdfText). */
     public static PdfText text(String pdf, int n) { return new PdfText(Core.pdfiumChars(pdf, n)); }
 
+    /** The text column under the shown point (x, y) of a page whose characters are `shownBoxes` (PdfText.shownBoxes):
+     *  left, top, right, bottom in shown points, or null when there is no text there. The core decides
+     *  (crates/atlas-core/src/pdf_columns.rs), as for the desktop's double-click; it needs no PDFium. */
+    public static float[] column(float[] shownBoxes, float x, float y) {
+        float[] c = Core.pdfColumn(shownBoxes, x, y);
+        return c != null && c.length == 4 ? c : null;
+    }
+
+    /** The column read after `col` (column's box) on a page whose characters are `shownBoxes`: the one beside it, or
+     *  null after the page's last (the reader goes on to the next page's first). */
+    public static float[] columnAfter(float[] shownBoxes, float[] col) {
+        float[] c = Core.pdfColumnAfter(shownBoxes, col);
+        return c != null && c.length == 4 ? c : null;
+    }
+
     /** Page n's matches of `query`, each the boxes of its lines ({left, bottom, right, top}). */
     public static List<float[][]> find(String pdf, int n, String query) {
         float[] f = Core.pdfiumFind(pdf, n, query);
@@ -82,6 +103,14 @@ public final class Pdfium {
     public static org.json.JSONArray links(String pdf, int n) throws org.json.JSONException {
         String s = Core.pdfiumLinks(pdf, n);
         if (s.startsWith("{")) throw new org.json.JSONException(new org.json.JSONObject(s).optString("error", "no links"));
+        return new org.json.JSONArray(s);
+    }
+
+    /** The document's outline (its bookmarks, the table of contents), depth first: [{title, depth, page?}]; empty
+     *  when it has none. */
+    public static org.json.JSONArray outline(String pdf) throws org.json.JSONException {
+        String s = Core.pdfiumOutline(pdf);
+        if (s.startsWith("{")) throw new org.json.JSONException(new org.json.JSONObject(s).optString("error", "no outline"));
         return new org.json.JSONArray(s);
     }
 }

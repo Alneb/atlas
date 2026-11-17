@@ -16,14 +16,15 @@ use std::path::Path;
 pub struct Caller(pub String);
 
 /// What a plugin's helper may reach: everything a signed-in page may, except the sign-ins and what acts as another
-/// plugin: its secrets, its sign-ins, its fetch (which fills in its secrets), its settings, its update and removal.
+/// plugin: its secrets, its sign-ins, its fetch (which fills in its secrets), its settings, its update and removal, and
+/// signing its hooks' tokens (hooks.rs).
 /// Another plugin's data, contributions, helper and tools stay open: those run that plugin's own code.
 pub fn may(id: &str, path: &str) -> bool {
     // the user's sign-ins (to services, OAuth returns) are the page's and the sign-in window's, never a helper's
     if path.starts_with("/api/signin") {
         return false;
     }
-    const OWN: [&str; 6] = ["secrets", "oauth", "fetch", "settings", "update", "remove"];
+    const OWN: [&str; 7] = ["secrets", "oauth", "fetch", "settings", "update", "remove", "hooks"];
     match path.strip_prefix("/api/plugins/").and_then(|r| r.split_once('/')) {
         Some((other, rest)) if OWN.iter().any(|o| rest.split('/').next() == Some(*o)) => other == id,
         _ => true,
@@ -149,6 +150,7 @@ mod tests {
         assert!(may("demo-a", "/api/file"));
         assert!(!may("demo-a", "/api/plugins/demo-b/fetch") && !may("demo-a", "/api/plugins/demo-b/settings"), "never as another plugin");
         assert!(!may("demo-a", "/api/plugins/demo-b/oauth/start") && may("demo-a", "/api/plugins/demo-a/fetch"));
+        assert!(!may("demo-a", "/api/plugins/demo-b/hooks/sign") && may("demo-a", "/api/plugins/demo-a/hooks/sign"), "a hook's token only for itself");
         assert!(may("demo-a", "/api/plugins/demo-b/tools/find") && may("demo-a", "/api/plugins/demo-b/helper"), "its code, its rules");
         assert!(!may("demo-a", "/api/signin/door") && !may("demo-a", "/api/signin"), "a helper never plants or reads a sign-in");
     }

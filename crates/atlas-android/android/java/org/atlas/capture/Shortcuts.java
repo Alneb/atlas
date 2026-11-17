@@ -17,7 +17,7 @@ import java.util.List;
 final class Shortcuts {
     private Shortcuts() {}
 
-    /** The extra naming the place an `AtlasActivity` intent opens: "search", "files", "home", or "new" (New…). */
+    /** The extra naming the place an `AtlasActivity` intent opens: "search", "files", "home", "agenda", or "new" (New…). */
     static final String PLACE = "org.atlas.place";
 
     static void publish(Context c, Look look) {
@@ -27,6 +27,7 @@ final class Shortcuts {
         all.add(make(c, look, "capture", "Capture", "plus", new Intent(c, CaptureActivity.class)));
         all.add(make(c, look, "new", "New note", "note", place(c, "new")));
         all.add(make(c, look, "home", "Today", "today", place(c, "home")));
+        all.add(make(c, look, "agenda", "Agenda", "calendar", place(c, "agenda")));
         all.add(make(c, look, "search", "Search", "search", place(c, "search")));
         all.add(make(c, look, "files", "Files", "vault", place(c, "files")));
         try { sm.setDynamicShortcuts(all); } catch (RuntimeException e) { /* a launcher's rate limit: next start */ }

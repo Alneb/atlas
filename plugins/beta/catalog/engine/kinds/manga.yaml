@@ -1,7 +1,7 @@
 name: manga
 label: Manga
 folder: notes/manga  # under notes/: the top level holds kinds of file, not topics
-ids: [{ id: anilist }, { id: mangadex }, { id: myanimelist }, { id: url, property: source }]
+ids: [{ id: anilist }, { id: mangadex }, { id: myanimelist }, { id: suwayomi }, { id: url, property: source }]  # suwayomi: <source id>:<series url> (survives a reinstall)
 properties: [author, year, publication, chapters, volumes, genres, original_title, aka, cover]
 as_links: [author]
 body: description

@@ -88,6 +88,8 @@ A token made by the CLI reaches a running server when it starts again; one made 
 
 In the proxy's site for Atlas, forward-auth to Authelia as for the other services, and pass `Remote-User` through; then `auth = "proxy"` (or `"both"` to keep the password for the LAN) and the proxy's address in `trusted_proxies`. Atlas never sees the user's Authelia password or security key.
 
+**Hooks pass the gate.** One kind of request comes from outside with no sign-in: a plugin's hook, `POST …/api/plugins/<id>/hook/<name>?t=<token>` — the Done / Snooze buttons of a nudge sent through ntfy to a phone that has no Atlas app (the Plan plugin), a webhook. Each such address carries its own token, signed by the vault's core for that one use and expiring by itself (docs/guides/PLUGIN-API.md, `on = "hook"`), so the gate must let these paths through to Atlas, which checks the token. With Authelia, an `access_control` rule before the others: `domain: atlas.example.org`, `resources: ['^(/v/[^/]+)?/api/plugins/[^/]+/hook/[^/?]+([?].*)?$']`, `policy: bypass`. Without that rule nothing breaks: the buttons get the gate's sign-in page and do nothing.
+
 ## Signing in a phone (or any app), whatever is in front
 
 Everything, the Android app included, signs in through Authelia (or a similar gate, autodetected) for both the remote Atlas server and every plugin, with YubiKey / FIDO2 support, and without an API bypass in the gate.

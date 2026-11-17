@@ -214,6 +214,12 @@
   }
 
   let root: HTMLDivElement | undefined = $state();
+  // Back / Forward (mouse buttons, swipes, Super+[, the phone's Back) step through folders, searches and conversations
+  $effect(() => (root ? mail.steps.attach(root) : undefined));
+  mail.stepped = (p) => {
+    searchText = p.query;
+    if (narrow) screen = p.open !== null ? "reader" : "list";
+  };
   onMount(() => {
     mail.start();
     const offs = [

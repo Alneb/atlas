@@ -180,26 +180,55 @@ pub fn set_editing(root: &Path, on: bool) -> Result<GuestInfo> {
     info(root).ok_or_else(|| Error::NotFound("the guest's state is gone".into()))
 }
 
-/// At the desktop core's start, before any guest is served: every guest of an earlier run forgotten — its folder's
-/// `.atlas` link removed (only when it still points at that state), its state deleted. Returns how many.
+/// Every guest open in this core (`GET /api/guests`: Settings → Vaults lists them, each with Close).
+pub fn open_guests() -> Vec<GuestInfo> {
+    let roots: Vec<PathBuf> = GUESTS.lock().unwrap_or_else(|e| e.into_inner()).iter().map(|(r, _)| r.clone()).collect();
+    roots.iter().filter_map(|r| info(r)).collect()
+}
+
+/// The root served for the open guest whose folder is `folder` (as `GuestInfo::folder` gives it).
+pub fn root_of(folder: &str) -> Option<PathBuf> {
+    GUESTS.lock().unwrap_or_else(|e| e.into_inner()).iter().map(|(r, _)| r.clone()).find(|r| mark_of(r).is_some_and(|m| m.folder == folder))
+}
+
+/// `POST /api/guests/close`.
+#[derive(Debug, Clone, Deserialize, TS)]
+#[ts(export)]
+pub struct GuestClose {
+    /// The guest's folder (`GuestInfo::folder`).
+    pub folder: String,
+}
+
+/// A guest closed now rather than at the next start, once the core stopped serving it: forgotten as [`sweep`] would.
+pub fn forget(root: &Path) -> Result<()> {
+    let r = forget_slot(&slot(root)); // the link goes through the guard, which allows `.atlas`
+    GUESTS.lock().unwrap_or_else(|e| e.into_inner()).retain(|(r, _)| r != root);
+    vault_write::clear_guard(root); // opened again, it is prepared outside any guarded vault
+    r
+}
+
+/// One guest's state forgotten: its folder's `.atlas` link removed (only when it still points at that state), then the
+/// state itself. The folder's own files are never touched.
+fn forget_slot(slot: &Path) -> Result<()> {
+    let state = slot.join(".atlas");
+    if let Some(m) = std::fs::read_to_string(state.join(MARK)).ok().and_then(|t| toml::from_str::<Mark>(&t).ok()) {
+        let link = Path::new(&m.folder).join(".atlas");
+        if std::fs::read_link(&link).is_ok_and(|t| t == state) {
+            // the folder's own entry: through its guard when one is still installed (it allows `.atlas`)
+            vault_write::remove_link(&link).map_err(|e| Error::Other(anyhow::anyhow!("the guest link {} stays: {e}", link.display())))?;
+        }
+    }
+    outside::remove_dir_all(slot).map_err(|e| Error::Other(anyhow::anyhow!("the guest state {} stays: {e}", slot.display())))
+}
+
+/// At the desktop core's start, before any guest is served: every guest of an earlier run forgotten. Returns how many.
 pub fn sweep() -> usize {
     let Ok(dir) = std::fs::read_dir(home()) else { return 0 };
     let mut n = 0;
     for slot in dir.flatten().map(|e| e.path()) {
-        let state = slot.join(".atlas");
-        if let Some(m) = std::fs::read_to_string(state.join(MARK)).ok().and_then(|t| toml::from_str::<Mark>(&t).ok()) {
-            let link = Path::new(&m.folder).join(".atlas");
-            if std::fs::read_link(&link).is_ok_and(|t| t == state) {
-                // the folder's own entry: through its guard when one is still installed (it allows `.atlas`)
-                if let Err(e) = vault_write::remove_link(&link) {
-                    eprintln!("atlas: the guest link {} stays: {e}", link.display());
-                    continue;
-                }
-            }
-        }
-        match outside::remove_dir_all(&slot) {
+        match forget_slot(&slot) {
             Ok(()) => n += 1,
-            Err(e) => eprintln!("atlas: the guest state {} stays: {e}", slot.display()),
+            Err(e) => eprintln!("atlas: {e}"),
         }
     }
     n
@@ -241,6 +270,15 @@ mod tests {
         assert!(set_editing(&root, true).unwrap().editing);
         vault_write::write(&root.join("a.md"), b"changed").unwrap();
         ws.clear_write_guard();
+
+        // closed now: no longer listed, its link and state gone, its files kept; opened again it starts afresh
+        let listed = open_guests();
+        assert_eq!(listed.len(), 1);
+        assert_eq!(root_of(&listed[0].folder).as_deref(), Some(root.as_path()));
+        forget(&root).unwrap();
+        assert!(open_guests().is_empty() && root.join(".atlas").symlink_metadata().is_err() && !slot(&root).exists());
+        assert_eq!(std::fs::read_to_string(root.join("a.md")).unwrap(), "changed");
+        let root = prepare(&folder, &vault).map_err(|e| format!("{e:?}")).unwrap();
 
         assert_eq!(sweep(), 1);
         assert!(root.join(".atlas").symlink_metadata().is_err(), "the link is gone");

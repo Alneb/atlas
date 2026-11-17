@@ -4,7 +4,8 @@
 //        first; what came to the inbox topic is captured. Runs every 5 minutes on the server (`schedule`) and when a
 //        page asks, one sync at a time. Answers what is new and which sources are loud (not muted), and says it to
 //        the pages as a `synced` event.
-// send — a message to the phone: through the Apprise API when its address is set, else to the phone's ntfy topic.
+// send — a message to the phone: through the Apprise API when its address is set, else to the phone's ntfy topic; one
+//        with buttons (`actions`: another plugin's hook addresses) always through ntfy, which alone shows them.
 // The logic takes its transport, so helper.test.ts runs it against a stand-in ntfy.
 import type { Params } from "atlas-helper";
 
@@ -159,19 +160,40 @@ export async function syncWith(net: Net, vault: Vault, p: Params) {
   return { new: fresh, loud: loud.slice(-20), captured, problems, summary };
 }
 
+/** A button on the phone's notification (ntfy's `http` action): pressing it calls `url` from the phone, with no Atlas
+ *  app needed — another plugin's hook (`on = "hook"`, its token in the address). */
+export interface Button { label: string; url: string; method?: string; body?: string }
+
+/** The buttons asked for, as far as they are well-formed (an https or http address, a label); at most 3, ntfy's limit. */
+export function buttonsOf(raw: unknown): Button[] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .filter((b: any) => b && typeof b.label === "string" && b.label.trim() && /^https?:\/\/[^\s]+$/.test(String(b.url ?? "")))
+    .slice(0, 3)
+    .map((b: any) => ({ label: b.label.trim(), url: String(b.url), ...(b.method ? { method: String(b.method).toUpperCase() } : {}), ...(typeof b.body === "string" ? { body: b.body } : {}) }));
+}
+
 export async function sendWith(net: Net, p: Params) {
   const s = p.settings ?? {};
   const text = String(p.text ?? ""), title = String(p.title || "Atlas");
   if (!text.trim()) throw new Error("nothing to send");
+  const buttons = buttonsOf(p.actions), click = /^https?:\/\//.test(String(p.click ?? "")) ? String(p.click) : "";
+  const server = (str(s.server) || "https://ntfy.sh").replace(/\/+$/, ""), topic = str(s.phone_topic);
+  // buttons are ntfy's: with a phone topic they go straight to ntfy (Apprise would drop them), as one JSON message;
+  // each press is a POST from the phone, and the notification goes away with it
+  if ((buttons.length || click) && topic) {
+    const actions = buttons.map((b) => ({ action: "http", label: b.label, url: b.url, method: b.method ?? "POST", ...(b.body !== undefined ? { body: b.body } : {}), clear: true }));
+    await net.post(server, JSON.stringify({ topic, title, message: text, ...(actions.length ? { actions } : {}), ...(click ? { click } : {}) }), { "Content-Type": "application/json", ...auth(p) });
+    return { sent: true, through: "ntfy", buttons: buttons.length };
+  }
   const apprise = str(s.apprise);
   if (apprise) {
     await net.post(apprise, JSON.stringify({ title, body: text }), { "Content-Type": "application/json" });
-    return { sent: true, through: "apprise" };
+    return { sent: true, through: "apprise", buttons: 0 };
   }
-  const topic = str(s.phone_topic);
   if (!topic) throw new Error("set the Apprise address or your phone's topic first: Settings → Notifications");
-  await net.post(`${(str(s.server) || "https://ntfy.sh").replace(/\/+$/, "")}/${encodeURIComponent(topic)}?${atlas.qs({ title })}`, text, auth(p));
-  return { sent: true, through: "ntfy" };
+  await net.post(`${server}/${encodeURIComponent(topic)}?${atlas.qs({ title })}`, text, auth(p));
+  return { sent: true, through: "ntfy", buttons: 0 };
 }
 
 // --- the core's side: its fetch, the vault's files, the kept ids in the plugin's cache ---

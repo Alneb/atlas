@@ -39,6 +39,10 @@ export function signIn(url: string, back: string): Promise<string> {
   for (const w of waiting) if (w.back === back) { waiting.delete(w); w.fail(new Error("replaced by a new sign-in")); }
   return new Promise((done, fail) => {
     waiting.add({ back, done, fail });
-    window.open(url, "_blank");
+    // the phone app: its own sign-in window, which hands the address back (atlasShell.signedIn); its WebView's
+    // window.open would have gone to the browser, which never comes back
+    const phone = (globalThis as unknown as { AtlasNative?: { signIn?(url: string, back: string): void } }).AtlasNative;
+    if (phone?.signIn) phone.signIn(url, back);
+    else window.open(url, "_blank");
   });
 }

@@ -4,6 +4,7 @@
 use crate::net::Net;
 use serde_json::Value as Json;
 use serde_yaml::{Mapping, Value};
+pub use atlas_catalog::first_page::split_names;
 
 // --- identifiers -----------------------------------------------------------------------------------------------
 
@@ -231,22 +232,6 @@ pub fn last_first(name: &str) -> String {
         Some((given, family)) => format!("{family}, {}", given.trim()),
         None => name.trim().to_string(),
     }
-}
-
-/// Several people written in one string, as indexes and a PDF's Info dictionary do ("Herbert Goldstein, Charles
-/// Poole, John Safko", "A. Smith and B. Jones", "Doe, J.; Roe, R."): one name each. Commas separate people only when
-/// every part is a whole name (has a space); "Goldstein, Herbert" is one person.
-pub fn split_names(s: &str) -> Vec<String> {
-    let mut out = Vec::new();
-    for part in s.split([';', '\n']).flat_map(|p| p.split(" and ")).flat_map(|p| p.split(" & ")) {
-        let commas: Vec<&str> = part.split(',').map(str::trim).filter(|p| !p.is_empty()).collect();
-        if commas.len() > 1 && commas.iter().all(|c| c.contains(' ')) {
-            out.extend(commas.into_iter().map(String::from));
-        } else if !part.trim().is_empty() {
-            out.push(part.trim().to_string());
-        }
-    }
-    out
 }
 
 /// The feed's first entry; None when arXiv has none (an unknown id answers an empty feed).

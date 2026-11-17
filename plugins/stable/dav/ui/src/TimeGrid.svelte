@@ -4,7 +4,7 @@
   // or side by side when they start together). Drag on empty space makes an event, drag an event moves it
   // (across days too), drag its lower edge resizes it — 15-minute steps; Esc cancels; a click selects.
   import { onMount } from "svelte";
-  import { addDays, evEnd, evStart, sameDay, startOfDay, timeText, notePath, type Ev } from "./api";
+  import { addDays, evEnd, evStart, sameDay, startOfDay, timeText, notePath, type Ev, type TaskRow } from "./api";
   import { dayColumns, laneBars } from "./layout";
   import type { Cal } from "./store.svelte";
 
@@ -114,6 +114,48 @@
     await cal.change(e, { start: w(start), end: w(end), from_start: e.start }, scope, d.kind === "move" ? "Moved" : "Resized");
   }
 
+  // ----- a task of the layer dragged from the all-day lane onto the hours: time-blocked there (an hour), as
+  // Time-block… then a slot would do. The bar is outside the hours, so the drag is followed on the window.
+  let taskDrag = $state<{ t: TaskRow; x0: number; y0: number; moved: boolean } | null>(null);
+  let swallowClick = false;
+  const blockable = (e: Ev) => !!e.task && e.task.done !== true && e.task.props.from !== "note" && e.task.line !== null;
+  function taskDown(ev: PointerEvent, e: Ev) {
+    if (ev.button !== 0 || !blockable(e)) return;
+    taskDrag = { t: e.task!, x0: ev.clientX, y0: ev.clientY, moved: false };
+    window.addEventListener("pointermove", taskMove);
+    window.addEventListener("pointerup", taskUp, { once: true });
+  }
+  const overHours = (ev: PointerEvent) => {
+    const r = cols?.getBoundingClientRect();
+    const vis = scroller?.getBoundingClientRect();
+    return !!r && !!vis && ev.clientX >= r.left && ev.clientX <= r.right && ev.clientY >= vis.top && ev.clientY <= vis.bottom;
+  };
+  function taskMove(ev: PointerEvent) {
+    const t = taskDrag;
+    if (!t) return;
+    if (!t.moved && Math.hypot(ev.clientX - t.x0, ev.clientY - t.y0) < 4) return;
+    t.moved = true;
+    document.body.style.userSelect = "none";
+    if (!overHours(ev)) { drag = null; return; }
+    const p = where(ev), from = Math.min(24 * 60 - 60, snap(p.min));
+    drag = { kind: "create", day: p.day, from, to: from + 60, grab: from, x0: t.x0, y0: t.y0, moved: true, len: 60 };
+  }
+  function taskUp(ev: PointerEvent) {
+    window.removeEventListener("pointermove", taskMove);
+    const t = taskDrag, d = drag;
+    taskDrag = null;
+    if (!t?.moved) return; // a click: the bar's own (its card)
+    // the click a release may send to the bar is not a click on it; one that never comes must not eat the next
+    swallowClick = true;
+    setTimeout(() => (swallowClick = false), 0);
+    drag = null;
+    document.body.style.userSelect = "";
+    if (!d || !overHours(ev)) return;
+    const at = (min: number) => new Date(days[d.day].getFullYear(), days[d.day].getMonth(), days[d.day].getDate(), 0, min);
+    cal.placing = t.t;
+    void cal.timeBlock(at(d.from), at(d.to));
+  }
+
   function key(ev: KeyboardEvent) {
     if (drag && ev.key === "Escape") { drag = null; document.body.style.userSelect = ""; ev.stopPropagation(); }
   }
@@ -145,7 +187,9 @@
       {#each bars as b (b.e.calendar + b.e.uid + (b.e.rid ?? "") + b.from)}
         <button class="bar ev" class:task={!!b.e.task} class:sel={isSel(b.e)} class:clipl={b.clippedStart} class:clipr={b.clippedEnd} class:cancel={b.e.status === "CANCELLED"} style:--c={color(b.e)}
           style:grid-column="{b.from + 1} / {b.to + 2}" style:grid-row={b.row + 1}
-          onclick={(ev) => onselect(b.e, (ev.currentTarget as HTMLElement).getBoundingClientRect())} title={b.e.summary}>
+          onpointerdown={(ev) => taskDown(ev, b.e)}
+          onclick={(ev) => { if (swallowClick) { swallowClick = false; return; } onselect(b.e, (ev.currentTarget as HTMLElement).getBoundingClientRect()); }}
+          title={blockable(b.e) ? `${b.e.summary} — drag it onto the hours to time-block it` : b.e.summary}>
           {#if b.e.task}<span class="tbox" aria-hidden="true"></span>{:else if notePath(b.e)}<span class="dot" aria-hidden="true"></span>{/if}{b.e.summary || "(no title)"}
         </button>
       {/each}
@@ -178,7 +222,7 @@
             {/each}
             {#if drag && drag.moved && drag.day === i}
               <div class="ev slot-ghost" style:--c={drag.e ? color(drag.e) : "var(--accent)"} style:top="{(drag.from / 60) * HOUR}px" style:height="{((drag.to - drag.from) / 60) * HOUR - 2}px" style:left="1px" style:width="calc(100% - 3px)">
-                <span class="t">{drag.e?.summary ?? cal.placing?.title ?? "New event"}</span>
+                <span class="t">{drag.e?.summary ?? taskDrag?.t.title ?? cal.placing?.title ?? "New event"}</span>
                 <span class="when">{timeText(new Date(2000, 0, 1, 0, drag.from), cal.h12)} – {timeText(new Date(2000, 0, 1, 0, drag.to), cal.h12)}</span>
               </div>
             {/if}

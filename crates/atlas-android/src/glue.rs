@@ -79,6 +79,23 @@ pub extern "system" fn Java_org_atlas_capture_Core_keepSignin(mut env: JNIEnv, _
     ret(&mut env, move || crate::serve::keep_signin(Path::new(&v), &u, &c).to_string())
 }
 
+/// The plugins the app carries brought into a folder vault on opening it (serve.rs `bundled_plugins`): `{updated,
+/// replaced, left}`.
+#[cfg(feature = "full")]
+#[no_mangle]
+pub extern "system" fn Java_org_atlas_capture_Core_bundledPlugins(mut env: JNIEnv, _: JClass, vault: JString, bundled: JString) -> jstring {
+    let (v, b) = (arg(&mut env, &vault), arg(&mut env, &bundled));
+    ret(&mut env, move || crate::serve::bundled_plugins(Path::new(&v), Path::new(&b)).to_string())
+}
+
+/// One carried plugin added to a folder vault (serve.rs `bundled_add`): `{id, version}` or `{error}`.
+#[cfg(feature = "full")]
+#[no_mangle]
+pub extern "system" fn Java_org_atlas_capture_Core_bundledAdd(mut env: JNIEnv, _: JClass, vault: JString, bundled: JString, id: JString) -> jstring {
+    let (v, b, i) = (arg(&mut env, &vault), arg(&mut env, &bundled), arg(&mut env, &id));
+    ret(&mut env, move || crate::serve::bundled_add(Path::new(&v), Path::new(&b), &i).to_string())
+}
+
 /// A JPEG XL for the native plugins (image.rs): `[width, height, ARGB…]`, or null when it is not one.
 #[no_mangle]
 pub extern "system" fn Java_org_atlas_capture_Core_decodeJxl(env: JNIEnv, _: JClass, bytes: jni::objects::JByteArray) -> jni::sys::jintArray {
@@ -295,6 +312,17 @@ pub extern "system" fn Java_org_atlas_capture_Core_pdfiumPages(mut env: JNIEnv, 
     give_floats(&mut env, move || -> Result<Vec<f32>, String> { Ok(crate::pdfium::pages(Path::new(&p))?.into_iter().flat_map(|(w, h)| [w, h]).collect()) })
 }
 
+/// Page `n`'s space: the box shown (left, bottom, right, top in page points) and its own quarter turns, five floats
+/// (pdfium::space; PageSpace.java maps the screen through it).
+#[no_mangle]
+pub extern "system" fn Java_org_atlas_capture_Core_pdfiumSpace(mut env: JNIEnv, _: JClass, pdf: JString, n: jint) -> jfloatArray {
+    let p = arg(&mut env, &pdf);
+    give_floats(&mut env, move || -> Result<Vec<f32>, String> {
+        let s = crate::pdfium::space(Path::new(&p), n.max(1) as u32)?;
+        Ok(vec![s.view[0], s.view[1], s.view[2], s.view[3], s.rotate as f32])
+    })
+}
+
 /// Page `n` drawn `w` × `h`, RGBA (ARGB_8888's bytes): for `Bitmap.copyPixelsFromBuffer`.
 #[no_mangle]
 pub extern "system" fn Java_org_atlas_capture_Core_pdfiumRender(mut env: JNIEnv, _: JClass, pdf: JString, n: jint, w: jint, h: jint, turns: jint) -> jbyteArray {
@@ -328,6 +356,29 @@ pub extern "system" fn Java_org_atlas_capture_Core_pdfiumFind(mut env: JNIEnv, _
     })
 }
 
+/// The text column under (x, y) of a page whose characters' boxes are `boxes` (left, top, right, bottom in shown
+/// points, four floats each): its box, four floats, or none (atlas_core::pdf_columns, the desktop's too).
+#[no_mangle]
+pub extern "system" fn Java_org_atlas_capture_Core_pdfColumn(mut env: JNIEnv, _: JClass, boxes: JFloatArray, x: jfloat, y: jfloat) -> jfloatArray {
+    let f = floats(&env, &boxes);
+    give_floats(&mut env, move || -> Result<Vec<f32>, String> {
+        let rects: Vec<[f32; 4]> = f.chunks_exact(4).map(|c| [c[0], c[1], c[2], c[3]]).collect();
+        Ok(atlas_core::pdf_columns::column_at(&rects, x, y).map(Vec::from).unwrap_or_default())
+    })
+}
+
+/// The column read after `col` (four floats, as pdfColumn gives it) on a page whose characters' boxes are `boxes`: its
+/// box, or none after the page's last column (atlas_core::pdf_columns::column_after, the desktop's too).
+#[no_mangle]
+pub extern "system" fn Java_org_atlas_capture_Core_pdfColumnAfter(mut env: JNIEnv, _: JClass, boxes: JFloatArray, col: JFloatArray) -> jfloatArray {
+    let (f, c) = (floats(&env, &boxes), floats(&env, &col));
+    give_floats(&mut env, move || -> Result<Vec<f32>, String> {
+        let col: [f32; 4] = c.as_slice().try_into().map_err(|_| "a column is four floats".to_string())?;
+        let rects: Vec<[f32; 4]> = f.chunks_exact(4).map(|c| [c[0], c[1], c[2], c[3]]).collect();
+        Ok(atlas_core::pdf_columns::column_after(&rects, col).map(Vec::from).unwrap_or_default())
+    })
+}
+
 /// Page `n`'s links as JSON: `[{box, page} | {box, url}]`, or `{error}`.
 #[no_mangle]
 pub extern "system" fn Java_org_atlas_capture_Core_pdfiumLinks(mut env: JNIEnv, _: JClass, pdf: JString, n: jint) -> jstring {
@@ -344,4 +395,35 @@ pub extern "system" fn Java_org_atlas_capture_Core_pdfiumLinks(mut env: JNIEnv, 
         .to_string(),
         Err(e) => serde_json::json!({ "error": e }).to_string(),
     })
+}
+
+/// The document's outline as JSON: `[{title, depth, page?}]` (depth first), or `{error}`.
+#[no_mangle]
+pub extern "system" fn Java_org_atlas_capture_Core_pdfiumOutline(mut env: JNIEnv, _: JClass, pdf: JString) -> jstring {
+    let p = arg(&mut env, &pdf);
+    ret(&mut env, move || match crate::pdfium::outline(Path::new(&p)) {
+        Ok(ss) => serde_json::Value::Array(ss.into_iter().map(|s| serde_json::json!({ "title": s.title, "depth": s.depth, "page": s.page })).collect()).to_string(),
+        Err(e) => serde_json::json!({ "error": e }).to_string(),
+    })
+}
+
+/// What to send to an address past its gate, from the device's sign-ins (signins.rs): `{headers, secret}` or `{error}`.
+#[no_mangle]
+pub extern "system" fn Java_org_atlas_capture_Core_siteHeaders(mut env: JNIEnv, _: JClass, home: JString, url: JString) -> jstring {
+    let (h, u) = (arg(&mut env, &home), arg(&mut env, &url));
+    ret(&mut env, move || crate::signins::site_headers(Path::new(&h), &u).to_string())
+}
+
+/// `Name: value` typed for a server, kept as a bypass rule for its host (signins.rs): `{ok, host, header}` or `{error}`.
+#[no_mangle]
+pub extern "system" fn Java_org_atlas_capture_Core_keepHeader(mut env: JNIEnv, _: JClass, home: JString, url: JString, line: JString) -> jstring {
+    let (h, u, l) = (arg(&mut env, &home), arg(&mut env, &url), arg(&mut env, &line));
+    ret(&mut env, move || crate::signins::keep_header(Path::new(&h), &u, &l).to_string())
+}
+
+/// The header name of the key kept for an address's host, `{header}` (signins.rs).
+#[no_mangle]
+pub extern "system" fn Java_org_atlas_capture_Core_keptHeader(mut env: JNIEnv, _: JClass, home: JString, url: JString) -> jstring {
+    let (h, u) = (arg(&mut env, &home), arg(&mut env, &url));
+    ret(&mut env, move || crate::signins::kept_header(Path::new(&h), &u).to_string())
 }

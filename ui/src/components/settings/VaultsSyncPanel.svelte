@@ -6,10 +6,14 @@
   import { api } from "../../lib/api";
   import { errReason } from "../../lib/text";
   import type { SyncStatus } from "../../lib/gen/SyncStatus";
+  import type { GuestInfo } from "../../lib/gen/GuestInfo";
+  import { closeGuest } from "../../lib/guest.svelte";
 
   type Row = { name: string; path: string; current: boolean; state: SyncStatus | null; error: string };
   let rows = $state<Row[]>([]);
   let error = $state("");
+  /** The guest folders open now (core guest.rs), each closable here; none off the desktop. */
+  let guests = $state<GuestInfo[]>([]);
 
   async function load(): Promise<void> {
     try {
@@ -23,7 +27,9 @@
       }));
       error = "";
     } catch (e) { error = errReason(e); }
+    guests = await api.guests().catch(() => []);
   }
+  const close = async (g: GuestInfo) => { if (await closeGuest(g.folder)) guests = guests.filter((x) => x.folder !== g.folder); };
   onMount(() => { void load(); const t = setInterval(() => void load(), 30_000); return () => clearInterval(t); });
 
   const signIn = (address: string) => window.open(`/signin/door?url=${encodeURIComponent(new URL(address).origin + "/")}`, "_blank");
@@ -47,6 +53,16 @@
   {:else}
     {#if !error}<p class="muted">No vault on this device's list.</p>{/if}
   {/each}
+  {#if guests.length}
+    <h3>Guest folders open</h3>
+    <p class="desc">Folders opened as a guest, each in a window of its own: not on the list, forgotten when Atlas restarts. Close one to end it now; its files stay.</p>
+    {#each guests as g (g.folder)}
+      <div class="vault guest" data-testid="guest-row">
+        <div class="head"><strong>{g.folder.split(/[\\/]/).pop()}</strong><span class="tag">{g.editing ? "editing" : "read-only"}</span><span class="muted path">{home(g.folder)}</span></div>
+        <button class="btn" onclick={() => void close(g)}>Close</button>
+      </div>
+    {/each}
+  {/if}
 </section>
 
 <style>

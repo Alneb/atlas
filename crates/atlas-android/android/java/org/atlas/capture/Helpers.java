@@ -43,7 +43,8 @@ final class Helpers {
         }
     }
 
-    private static void delete(File f) {
+    /** `f` and everything under it (a link itself, never what it points to). */
+    static void delete(File f) {
         File[] kids = f.listFiles();
         if (kids != null && !Files.isSymbolicLink(f.toPath())) for (File k : kids) delete(k);
         f.delete();

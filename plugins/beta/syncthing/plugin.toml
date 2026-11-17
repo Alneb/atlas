@@ -5,8 +5,10 @@
 title = "Syncthing"
 description = "asks Syncthing to sync a file the moment it changes, instead of after its own delay"
 icon = "refresh"
-version = "0.2.0"
+version = "0.2.1"
 api = 15
+needs = ">=0.3.0"          # the first core that reads `background` (older ones refuse the key)
+background = "any"  # each core asks its own Syncthing to scan its own copy; writes nothing in the vault
 
 [permissions]
 net = ["127.0.0.1", "localhost"]

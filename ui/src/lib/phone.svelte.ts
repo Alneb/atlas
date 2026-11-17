@@ -10,6 +10,13 @@ export const PHONE_QUERY = "(max-width: 720px), (max-height: 480px) and (pointer
 /** Inside the phone app (AtlasActivity's bridge) the page is a phone's whatever its shape. */
 const inApp = "AtlasNative" in globalThis;
 export const phone = $state({ on: false, sheet: false });
+/** Whether the row above the keyboard shows (components/KeyboardBar.svelte: a note is being typed in on a phone). */
+export const keyboardBar = $state({ on: false });
+/** Whether the on-screen keyboard is up: it covers the bottom (a browser, `--keyboard`) or the window shrank under it
+ *  (the app's WebView, resized for it) by more than a toolbar's height from the tallest it was at this width. */
+export const keyboard = $state({ up: false });
+const KEYBOARD_MIN = 120;
+let tallest = { width: 0, height: 0 };
 const backToWide: (() => void)[] = [];
 /** Runs when the screen turns wide again (the side tools opened as panes go back to the left bar: lib/dock.ts). */
 export function onWide(fn: () => void): void { backToWide.push(fn); }
@@ -47,9 +54,14 @@ function keyboardRoom(): () => void {
   const set = () => {
     const covered = Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop));
     document.documentElement.style.setProperty("--keyboard", `${covered}px`);
+    // a turn of the phone is a new width: its tallest starts again
+    if (tallest.width !== window.innerWidth) tallest = { width: window.innerWidth, height: 0 };
+    tallest.height = Math.max(tallest.height, window.innerHeight);
+    keyboard.up = covered > KEYBOARD_MIN || tallest.height - window.innerHeight > KEYBOARD_MIN;
   };
   set();
   vv.addEventListener("resize", set);
   vv.addEventListener("scroll", set);
-  return () => { vv.removeEventListener("resize", set); vv.removeEventListener("scroll", set); };
+  window.addEventListener("resize", set);
+  return () => { vv.removeEventListener("resize", set); vv.removeEventListener("scroll", set); window.removeEventListener("resize", set); };
 }

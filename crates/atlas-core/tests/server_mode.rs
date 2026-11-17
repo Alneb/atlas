@@ -291,6 +291,22 @@ async fn a_guest_folder_is_served_beside_the_vault_read_only_until_edit_and_neve
     std::fs::create_dir_all(other.join(".atlas")).unwrap();
     let as_vault: serde_json::Value = post("/v/Work/api/vaults/open", serde_json::json!({ "path": other, "guest": true })).await.unwrap().json().await.unwrap();
     assert!(as_vault["guest"].is_null(), "{as_vault}");
+
+    // listed from the vault's window, and closed from there without a restart: no longer served, its link gone, its
+    // files kept; opened again it is served afresh
+    let listed: serde_json::Value = get("/v/Work/api/guests").await.unwrap().json().await.unwrap();
+    let folder = listed[0]["folder"].as_str().unwrap().to_string();
+    assert_eq!(listed.as_array().map(Vec::len), Some(1), "{listed}");
+    assert!(post("/v/Work/api/guests/close", serde_json::json!({ "folder": folder })).await.unwrap().status().is_success());
+    assert_eq!(get(&format!("{at}/api/guest")).await.unwrap().status(), StatusCode::NOT_FOUND, "no longer served");
+    assert!(docs.join(".atlas").symlink_metadata().is_err() && docs.join("readme.md").is_file());
+    assert!(get("/v/Work/api/guests").await.unwrap().json::<serde_json::Value>().await.unwrap().as_array().unwrap().is_empty());
+    assert_eq!(post("/v/Work/api/guests/close", serde_json::json!({ "folder": folder })).await.unwrap().status(), StatusCode::NOT_FOUND);
+    let again: serde_json::Value = post("/v/Work/api/vaults/open", serde_json::json!({ "path": docs, "guest": true })).await.unwrap().json().await.unwrap();
+    let at = again["url"].as_str().unwrap().trim_end_matches('/').to_string();
+    let info: serde_json::Value = get(&format!("{at}/api/guest")).await.unwrap().json().await.unwrap();
+    assert_eq!(info["editing"], false, "read-only again: {info}");
+
     srv.shutdown().await.unwrap();
     assert_eq!(atlas_core::guest::sweep(), 1);
     assert!(docs.join(".atlas").symlink_metadata().is_err() && docs.join("readme.md").is_file());

@@ -25,9 +25,17 @@ public final class PageSource {
 
     private static final ExecutorService render = Executors.newSingleThreadExecutor();
     private static final Handler ui = new Handler(Looper.getMainLooper());
-    private static final LruCache<String, Bitmap> cache = new LruCache<String, Bitmap>(64 * 1024 * 1024) {
+    /** Rendered pages. A page zoomed in the reader is drawn up to 3200 px wide (about 50 MB), and the pages either side
+     *  are rendered ahead at that size too, so a turn shows them sharp: room for three such, more on a phone that
+     *  gives more memory. */
+    private static final LruCache<String, Bitmap> cache = new LruCache<String, Bitmap>((int) Math.max(64L << 20, Math.min(192L << 20, Runtime.getRuntime().maxMemory() / 2))) {
         @Override protected int sizeOf(String k, Bitmap b) { return b.getByteCount(); }
     };
+    /** Pages drawn small for a page strip (thumb), apart from the pages read: a strip scrolled by never pushes them out. */
+    private static final LruCache<String, Bitmap> thumbs = new LruCache<String, Bitmap>(12 << 20) {
+        @Override protected int sizeOf(String k, Bitmap b) { return b.getByteCount(); }
+    };
+    private static final java.util.Set<String> thumbsAsked = new java.util.HashSet<>();
     /** Pages being rendered, and who waits for each: a prefetch (no one) and the reader drawing the same page right
      *  after must both be told — the second ask was dropped, and the page stayed blank until touched. */
     private static final Map<String, java.util.List<Runnable>> asked = new HashMap<>();
@@ -115,6 +123,25 @@ public final class PageSource {
         }
     }
 
+    /** Page `page` drawn `px` wide for a page strip: now if it was drawn, else null and `ready` on the UI thread once it
+     *  is. Drawn on the render thread, so after the pages already asked for; `wanted` is asked there first (a strip
+     *  scrolled past it no longer wants it: nothing drawn). */
+    public static Bitmap thumb(Host host, String path, int page, int px, java.util.function.BooleanSupplier wanted, Runnable ready) {
+        String key = path + "#" + page + "~" + px;
+        Bitmap b = thumbs.get(key);
+        if (b != null) return b;
+        synchronized (thumbsAsked) { if (!thumbsAsked.add(key)) return null; }
+        render.execute(() -> {
+            Bitmap got = null;
+            try { if (wanted.getAsBoolean()) got = draw(host, path, page, px); }
+            catch (Exception | OutOfMemoryError e) { android.util.Log.w("AtlasPages", path + " thumb " + page + ": " + e); }
+            if (got != null) thumbs.put(key, got);
+            synchronized (thumbsAsked) { thumbsAsked.remove(key); }
+            if (got != null && ready != null) ui.post(ready);
+        });
+        return null;
+    }
+
     /** Page `page` of `path` about `px` wide, waited for (an export drawing every page): never on the UI thread's
      *  only path to the renderer — it runs on the render thread and this one waits. Null when it cannot be read. */
     public static Bitmap pageNow(Host host, String path, int page, float px) {
@@ -132,6 +159,26 @@ public final class PageSource {
     /** Pages `from`..`to` rendered ahead at about `px` wide (the next turn is then instant); nothing returned. */
     public static void prefetch(Host host, String path, int from, int to, float px) {
         for (int i = from; i <= to; i++) if (i >= 1) page(host, path, i, px, null);
+    }
+
+    private static final Map<String, PageSpace> spaces = new HashMap<>();
+
+    /** Page `page`'s space if it was read already, else null (never blocks: for the UI thread). */
+    public static PageSpace knownSpace(String path, int page) { synchronized (spaces) { return spaces.get(path + "#" + page); } }
+
+    /** Where page `page`'s points are shown: its box and own /Rotate from PDFium (PageSpace); without PDFium, its
+     *  shown size at the origin (PdfRenderer gives no more). Blocking: never on the UI thread. */
+    public static PageSpace space(Host host, String path, int page) {
+        String k = path + "#" + page;
+        synchronized (spaces) { PageSpace s = spaces.get(k); if (s != null) return s; }
+        float[][] all = sizes(host, path);
+        float[] wh = page >= 1 && page <= all.length ? all[page - 1] : new float[] { 612, 792 };
+        PageSpace out = PageSpace.plain(wh[0], wh[1]);
+        if (Pdfium.ready(host.activity())) {
+            try { out = Pdfium.space(host.local(path).getAbsolutePath(), page, wh[0], wh[1]); } catch (java.io.IOException ignored) { }
+        }
+        synchronized (spaces) { spaces.put(k, out); }
+        return out;
     }
 
     /** Every page's size in points ([w, h] each), or an empty array when the PDF cannot be read. Blocking: never on

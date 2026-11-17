@@ -36,6 +36,8 @@ export function referencesSource(): LibrarySource {
   const item = (p: Paper): LibraryItem => ({
     id: p.key,
     note: `${p.dir}/${p.key}.md`,
+    // its first page (the panel's picture; the list draws none): the core's thumbnail of the PDF
+    cover: p.pdf ?? undefined,
     title: p.title,
     sub: [lastNames(p), p.year, p.venue].filter(Boolean).join(" · "),
     flags: [...(p.pdf ? [{ label: "PDF", tone: "red" as const }] : []), ...(p.has_notes ? [{ label: "notes" }] : [])],
@@ -71,13 +73,20 @@ export function referencesSource(): LibrarySource {
         kind: `${typeWords(p.kind)}${p.year ? ` · ${p.year}` : ""}`,
         title: p.title,
         lines: [{ text: p.authors.join("; ") }, ...(p.venue ? [{ text: p.venue, muted: true }] : [])],
+        fields: [
+          ["Citekey", p.key],
+          ...(p.added ? [["Added", p.added.slice(0, 10)] as [string, string]] : []),
+          ["PDF", p.pdf ? p.pdf.slice(p.pdf.lastIndexOf("/") + 1) : "none yet — drop one here"],
+          ["Notes", p.has_notes ? "yes" : "none yet"],
+        ],
         actions: [
           { label: "Read", icon: "pdf", primary: true, title: "Open the PDF (its note: “Note” in the PDF's bar) (R)", run: () => readPaper(p) },
           { label: "Open PDF", disabled: !p.pdf, title: "Only the PDF (Enter)", run: () => openPdf(p) },
           { label: p.has_notes ? "Notes" : "New notes", icon: "edit", run: () => openReadingNote(p.key) },
-          { label: p.key, icon: "copy", run: () => copy(p.key, "citekey") },
-          { label: "\\cite", run: () => copy(`\\cite{${p.key}}`, "\\cite") },
-          { label: "BibTeX", run: async () => copy(await api.refsBibtex(p.key), "BibTeX") },
+          { label: "Copy link", icon: "link", title: `[[${p.key}]]: citing is linking`, run: () => copy(`[[${p.key}]]`, "link") },
+          { label: "Copy citekey", icon: "copy", more: true, run: () => copy(p.key, "citekey") },
+          { label: "Copy \\cite", icon: "copy", more: true, run: () => copy(`\\cite{${p.key}}`, "\\cite") },
+          { label: "Copy BibTeX", icon: "copy", more: true, run: async () => copy(await api.refsBibtex(p.key), "BibTeX") },
           {
             label: "Edit", title: "Edit title, authors, year, venue, collections, tags",
             edit: {
@@ -96,7 +105,7 @@ export function referencesSource(): LibrarySource {
             },
           },
           {
-            label: "Delete…", danger: true, title: "Remove this entry (its folder goes to the Trash)",
+            label: "Delete…", danger: true, more: true, title: "Remove this entry (its folder goes to the Trash)",
             confirm: { title: `Remove “${p.title}” (${p.key}) from the library?`, hint: "Its folder (metadata, PDF, notes) goes to the Trash; refs.bib is rewritten.", button: "Move to Trash" },
             run: async () => {
               const r = await api.refsDelete(p.key);

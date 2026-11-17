@@ -130,8 +130,11 @@ final class Setup {
         if (seen != null && System.currentTimeMillis() - (long) seen[1] < 60_000) return;
         new Thread(() -> {
             SignIn.Probe p = SignIn.probe(a, mirror, true);
-            String said = p.front == SignIn.Front.OPEN ? "answers" : p.front == SignIn.Front.PROXY ? "sign in to use it"
-                : p.front == SignIn.Front.ATLAS ? "its sign-in is refused" : "not answering: the folder is used";
+            // what happened, then what to do (the same as the core's sync line, sync_state.rs `words`)
+            String said = p.front == SignIn.Front.OPEN ? "the server answers"
+                : p.front == SignIn.Front.PROXY ? "sign in to the server from its details (⋯): writes stay on this phone until then"
+                : p.front == SignIn.Front.ATLAS ? "the server refused this phone's sign-in: sign in again from its details (⋯)"
+                : "the server does not answer: writes stay on this phone and reach it when it answers again";
             ANSWERED.put(mirror, new Object[] { said, System.currentTimeMillis() });
             a.runOnUiThread(() -> { if (r.isAttachedToWindow()) r.detail.setText(detail + " · " + said); });
         }).start();
@@ -141,7 +144,7 @@ final class Setup {
     private static final java.util.Map<String, Object[]> SYNCED = new java.util.concurrent.ConcurrentHashMap<>();
 
     /** The core's sync line written into the row (core sync_state.rs `words`, the desktop's same line); a core that
-     *  cannot say falls back to the mirror's probe. */
+     *  cannot say falls back to probing the server (the mirror's, or the server vault's own). */
     private void synced(String v, String mirror, Row r, String detail) {
         Object[] seen = SYNCED.get(v);
         if (seen != null) r.detail.setText(detail + " · " + seen[0]);
@@ -152,7 +155,10 @@ final class Setup {
                 SYNCED.put(v, new Object[] { words, System.currentTimeMillis() });
                 a.runOnUiThread(() -> { if (r.isAttachedToWindow()) r.detail.setText(detail + " · " + words); });
             } catch (java.io.IOException e) {
-                if (mirror != null) a.runOnUiThread(() -> answers(mirror, r, detail));
+                // the core could not say: whether the server answers, and why not, is still worth a line — a server's
+                // vault (whose state the server itself words) as much as a folder's mirror
+                String probe = mirror != null ? mirror : Server.is(v) ? v : null;
+                if (probe != null) a.runOnUiThread(() -> answers(probe, r, detail));
             }
         }).start();
     }

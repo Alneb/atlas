@@ -116,6 +116,15 @@ final class Shelf {
         try { double d = Double.parseDouble(t); return v.contains("%") ? d / 100 : d; } catch (NumberFormatException e) { return 0; }
     }
 
+    /** How far into a book counts as past its start (the catalog's one-note rule, thing.rs PAST_START): from there, or
+     *  once a bookmark is set, the book is yours and gets its note; before, its place stays in reading.json. */
+    static final double PAST_START = 0.01;
+
+    static boolean yours(JSONObject e) {
+        JSONArray marks = e.optJSONArray("bookmarks");
+        return e.optDouble("progress", 0) >= PAST_START || (marks != null && marks.length() > 0);
+    }
+
     private static String pct(double f, int decimals) {
         double m = Math.pow(10, decimals);
         double v = Math.round(f * 100 * m) / m;
@@ -128,6 +137,14 @@ final class Shelf {
         String note = noteOf(host, book);
         boolean pdf = book.toLowerCase(Locale.ROOT).endsWith(".pdf");
         String text = host.exists(note) ? host.readText(note) : null;
+        if (text == null && !yours(e)) { // barely begun: the place waits in the library's reading.json, no note yet
+            final JSONObject entry = e;
+            updateFile(host, readingFor(host, book), r -> {
+                if (!r.has("books")) r.put("books", new JSONObject());
+                r.getJSONObject("books").put(book, entry);
+            });
+            return;
+        }
         if (text == null) { // a note of its own, made by the core as on every device (the vault's template rules, the book's block)
             String name = book.substring(book.lastIndexOf('/') + 1), title = name.replaceFirst("\\.[^.]+$", "");
             note = host.ensureCompanionNote(book, title, new JSONObject().put(pdf ? "pdf" : "book", "[[" + name + "]]"));
@@ -143,7 +160,12 @@ final class Shelf {
         if (e.has("updated")) set.put("last_read", e.optString("updated"));
         set.put("reader_options", e.optJSONObject("options") != null ? e.optJSONObject("options").toString() : null);
         set.put("reader_bookmarks", e.optJSONArray("bookmarks") != null && e.optJSONArray("bookmarks").length() > 0 ? e.optJSONArray("bookmarks").toString() : null);
-        host.write(note, Props.set(text, set).getBytes(StandardCharsets.UTF_8));
+        // nothing but the time changed (the same place written again): the note is left alone
+        String stamp = set.remove("last_read");
+        String moved = Props.set(text, set);
+        if (moved.equals(text)) return;
+        if (stamp != null) { java.util.Map<String, String> t = new java.util.LinkedHashMap<>(); t.put("last_read", stamp); moved = Props.set(moved, t); }
+        host.write(note, moved.getBytes(StandardCharsets.UTF_8));
     }
 
     /** Where you are: spine entry `spine`, `at` of the way through it (0–1), `progress` of the way through the book

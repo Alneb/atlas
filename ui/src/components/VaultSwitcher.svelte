@@ -8,6 +8,10 @@
   import { toast } from "../lib/state.svelte";
   import { askFolder, askServer, forgetVault, openVault, setMirror, vaultListing, type VaultEntry } from "../lib/vaults";
   import { forgetMirrorState, hostOf, reach, serverVaults, type MirrorState } from "../lib/mirror";
+  import { api } from "../lib/api";
+  import { hostMatches } from "../lib/service-signin";
+  import type { Bypass } from "../lib/gen/Bypass";
+  import BypassKeyForm from "./BypassKeyForm.svelte";
 
   /** `linkMirror`: opened from a note ("edit live on its mirror"): this window's folder at its mirror form. */
   let { onclose, linkMirror = false }: { onclose: () => void; linkMirror?: boolean } = $props();
@@ -23,11 +27,20 @@
   /** The folder whose mirror is being set, the address typed, the server vaults offered. */
   let linking = $state<{ path: string; address: string; offers: { name: string; address: string }[] } | null>(null);
   let removing = $state("");
+  /** A server's key past its gate (Settings → Sign-ins, "Keys that skip the sign-in"): the bypass rules kept, and the
+   *  row whose key form is open. One store for every outgoing path (service_signin.rs `site_headers`): the bridge to a
+   *  server vault, its mirror, the plugins' fetches. */
+  let keys = $state<Bypass[]>([]);
+  let keying = $state("");
+  const serverOf = (e: VaultEntry) => (e.kind === "server" ? e.path : e.mirror) ?? "";
+  const keyFor = (address: string) => { const h = hostOf(address); return keys.find((b) => b.hosts.some((p) => hostMatches(p, h))); };
+  async function loadKeys() { try { keys = await api.signinBypasses(); } catch { keys = []; /* a core that keeps none (a server's page) */ } }
 
   async function load() {
     try {
       const l = await vaultListing();
       entries = l.entries; manage = l.manage;
+      if (l.entries.some(serverOf)) void loadKeys(); // kept on this machine's core, also from a server vault's page
       for (const e of l.entries) if (e.mirror) void reach(e.mirror).then((s) => { reached = { ...reached, [e.mirror!]: s }; });
       const here = linkMirror && l.entries.find((e) => e.current && e.kind === "folder" && e.managed);
       if (here) void startLinking(here);
@@ -138,12 +151,25 @@
               {/if}
             </span>
           </button>
-          {#if e.managed}
+          {#if e.managed || serverOf(e)}
             <span class="acts">
               {#if e.mirror && reached[e.mirror] === "signin"}<button class="act" onclick={() => { window.open(`/signin/door?url=${encodeURIComponent(new URL(e.mirror!).origin + "/")}`, "_blank"); }} title="The mirror's sign-in page, in a window of Atlas">Sign in</button>{/if}
-              {#if e.kind === "folder"}<button class="act" onclick={() => void startLinking(e)} title="Link this folder to its copy on a server">{e.mirror ? "Mirror…" : "Link mirror…"}</button>{/if}
-              {#if !e.current}<button class="act" class:danger={removing === e.path} onclick={() => void remove(e)} title="Take it off this list (nothing is deleted)">{removing === e.path ? "Remove?" : "Remove"}</button>{/if}
+              {#if e.managed && e.kind === "folder"}<button class="act" onclick={() => void startLinking(e)} title="Link this folder to its copy on a server">{e.mirror ? "Mirror…" : "Link mirror…"}</button>{/if}
+              {#if serverOf(e)}
+                {@const k = keyFor(serverOf(e))}
+                <button class="act" class:on={!!k} onclick={() => (keying = keying === e.path ? "" : e.path)}
+                  title={k ? `A key is kept for ${hostOf(serverOf(e))} (sent in ${k.header}); change it here, forget it in Settings → Sign-ins` : `A header key that lets this machine past the sign-in in front of ${hostOf(serverOf(e))} (a gate's bypass)`}>{k ? `Key ✓` : "Key…"}</button>
+              {/if}
+              {#if e.managed && !e.current}<button class="act" class:danger={removing === e.path} onclick={() => void remove(e)} title="Take it off this list (nothing is deleted)">{removing === e.path ? "Remove?" : "Remove"}</button>{/if}
             </span>
+          {/if}
+          {#if keying === e.path}
+            {@const k = keyFor(serverOf(e))}
+            <div class="link keyrow">
+              <p>A key in a header that the sign-in in front of {hostOf(serverOf(e))} lets through (a gate's bypass, such as Authelia's) — for when this machine cannot sign in there. It opens every host the rule names and skips your second factor: prefer “Sign in” when you can.{k ? ` Kept now: in ${k.header}.` : ""}</p>
+              <BypassKeyForm hosts={hostOf(serverOf(e))} header={k?.header ?? "X-Api-Key"} oncancel={() => (keying = "")}
+                onkept={() => { void loadKeys(); toast("Key kept", `Sent to ${hostOf(serverOf(e))} over https from now on.`); keying = ""; }} />
+            </div>
           {/if}
           {#if linking?.path === e.path}
             <form class="link" onsubmit={(ev) => { ev.preventDefault(); void saveMirror(linking!.address); }}>
@@ -217,6 +243,7 @@
   .act { font: inherit; font-size: calc(12px * var(--ui-scale, 1)); color: var(--text-muted); background: transparent; border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 3px 8px; cursor: pointer; }
   .act:hover { color: var(--text); border-color: var(--border-strong); }
   .act.danger { color: var(--red); border-color: var(--red); }
+  .act.on { color: var(--green); border-color: color-mix(in srgb, var(--green) 45%, transparent); }
   .link { flex-basis: 100%; display: flex; flex-direction: column; gap: 8px; margin: 0 10px 10px 38px; padding: 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); }
   .link p { margin: 0; font-size: calc(12.5px * var(--ui-scale, 1)); color: var(--text-muted); line-height: 1.45; }
   .link input { font: inherit; color: var(--text); background: var(--bg-elev); border: 1px solid var(--border-strong); border-radius: var(--radius-sm); padding: 6px 9px; outline: none; }

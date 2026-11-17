@@ -63,7 +63,7 @@ impl ToolManifest {
 
 /// The `on` events that are background work (no person's action behind them on this core): they follow
 /// `background`. A capture's, a log's or a template's hook runs where the person acted.
-fn background_event(event: &str) -> bool {
+pub(crate) fn background_event(event: &str) -> bool {
     matches!(event, "fs" | "start")
 }
 
@@ -204,11 +204,11 @@ fn timeout_of(t: &ToolManifest) -> Duration {
     t.timeout_secs.map(Duration::from_secs).unwrap_or(crate::helper::CALL_TIMEOUT)
 }
 
-/// Whether agents see a tool: not one that only answers the core's own rounds (`on = "plan"`, `"notice"`, `"log"`),
+/// Whether agents see a tool: not one that only answers the core's own rounds (`on = "plan"`, `"notice"`, `"log"`, `"hook"`),
 /// whose arguments are the core's and whose answer means nothing to an agent. A capture's or a file change's hook stays:
 /// called by hand it does its work (files a link, syncs).
 fn for_agents(t: &ToolManifest) -> bool {
-    !matches!(t.on.as_deref(), Some("plan" | "notice" | "log"))
+    !matches!(t.on.as_deref(), Some("plan" | "notice" | "log" | "hook"))
 }
 
 /// Every tool agents may call (`atlas mcp`): those of the switched-on plugins that have a helper. A plugin whose

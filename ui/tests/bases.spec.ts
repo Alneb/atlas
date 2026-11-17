@@ -66,7 +66,7 @@ test("click a Base cell to edit the note's property in place (frontmatter only)"
   await expect(input).toHaveValue("2025-03-10");
   await input.fill("2025-03-11");
   await input.press("Enter");
-  await expect(row.locator("td").nth(1).locator(".date")).toHaveAttribute("title", "2025-03-11");
+  await expect(row.locator("td").nth(1).locator(".date")).toHaveAttribute("data-value", "2025-03-11"); // the value; its text and tooltip follow the date settings
   await expect.poll(async () => (await (await request.get("/api/file?path=db/l2.md", { headers: h })).json()).text)
     .toBe("---\ntype: Lecture\ndate: 2025-03-11\ntopics: [\"[[Topic]]\"]\n---\nSecond.\n");
   // Esc cancels
@@ -74,7 +74,7 @@ test("click a Base cell to edit the note's property in place (frontmatter only)"
   await pane.locator(".cell-edit").fill("2025-04-01");
   await pane.locator(".cell-edit").press("Escape");
   await expect(pane.locator(".cell-edit")).toHaveCount(0);
-  await expect(row.locator("td").nth(1).locator(".date")).toHaveAttribute("title", "2025-03-11");
+  await expect(row.locator("td").nth(1).locator(".date")).toHaveAttribute("data-value", "2025-03-11"); // the value; its text and tooltip follow the date settings
 });
 
 // Notion parity: + New (folder / properties from the filters), a board grouped by a property (drag a

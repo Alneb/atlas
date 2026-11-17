@@ -1,5 +1,6 @@
 <script lang="ts">
   // File tree over /api/tree, lazily expanded; open folders refresh on fs events.
+  import { addLibrary, openLibraries } from "../lib/libraries.svelte";
   import { VAULT_DRAG, dragRow } from "../lib/explorer/drag";
   import { dirOf, basename } from "../lib/paths";
   import { atPointer, type MenuAt } from "../lib/menu";
@@ -86,6 +87,8 @@
     ];
     items.push(...revealItems(path || dir, isDir));
     if (path && !isDir) items.push("sep", { label: "Open with…", icon: "plugin", run: () => openWith(path) });
+    // a folder of books, comics, films… or a Base, as one of the vault's libraries (libraries.rs guesses its kind)
+    if (path && (isDir || path.endsWith(".base"))) items.push({ label: "Show as a library", icon: "library", run: () => void addLibrary(isDir ? { folder: path } : { base: path }).then((l) => l && openLibraries(l.id)) });
     if (path) items.push("sep",
       { label: "Rename…", icon: "edit", hint: "F2", run: () => rename(path) },
       { label: "Copy path", icon: "copy", run: () => void navigator.clipboard.writeText(path).then(() => toast("Copied", path)) },

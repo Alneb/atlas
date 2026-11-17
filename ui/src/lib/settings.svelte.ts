@@ -81,11 +81,20 @@ function apply(c: WorkspaceConfig): void {
   const shell = nativeLook();
   shell?.paper?.(you?.bars ?? getComputedStyle(root).getPropertyValue("--bg-app").trim());
   shell?.accent?.(getComputedStyle(root).getPropertyValue("--accent").trim());
+  // and the whole look, so the app's native screens (its bars' text and icons, Settings, sheets, the readers) are
+  // drawn in the page's theme, palette and accent rather than the phone's own light or dark (Look.save)
+  if (shell?.look) {
+    const css = getComputedStyle(root), tokens: Record<string, string | boolean> = { dark: theme === "dark", system: follows };
+    for (const t of NATIVE_TOKENS) tokens[t] = css.getPropertyValue(t).trim();
+    shell.look(JSON.stringify(tokens));
+  }
   for (const f of listeners) f(c);
 }
 
 /** The phone app's side of the look (AtlasActivity's Bridge; each call missing in an older app). */
-interface NativeLook { paper?(css: string): void; accent?(css: string): void; wallpaper?(dark: boolean): string }
+interface NativeLook { paper?(css: string): void; accent?(css: string): void; wallpaper?(dark: boolean): string; look?(json: string): void }
+/** The tokens the app's Look takes (Look.java TOKENS). */
+const NATIVE_TOKENS = ["--bg-app", "--bg-elev", "--bg-hover", "--border", "--border-strong", "--text", "--text-muted", "--text-faint", "--accent", "--accent-soft", "--accent-fg"];
 const nativeLook = () => (globalThis as unknown as { AtlasNative?: NativeLook }).AtlasNative;
 /** The wallpaper's colours for a dark or light scheme, `#rrggbb` each; null when the app has none to give. */
 function wallpaper(dark: boolean): { accent: string; bars: string } | null {

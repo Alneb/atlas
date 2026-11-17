@@ -352,15 +352,18 @@ pub fn install(root: &Path, source: &Source, id: Option<&str>, replace: bool) ->
         }
         // the files the release brought: an update carries over only the others (the plugin's own), so a file a later
         // release drops does not come back
-        let shipped: Vec<toml::Value> = walkdir::WalkDir::new(&from)
+        let shipped: Vec<String> = walkdir::WalkDir::new(&from)
             .into_iter()
             .flatten()
             .filter(|e| e.file_type().is_file())
-            .filter_map(|e| e.path().strip_prefix(&from).ok().map(|r| toml::Value::String(r.to_string_lossy().replace('\\', "/"))))
+            .filter_map(|e| e.path().strip_prefix(&from).ok().map(|r| r.to_string_lossy().replace('\\', "/")))
             .collect();
+        // and what they were, so a later look can tell a copy changed in the vault from the one installed (`changed_here`)
+        let digest = digest_of(&from, &shipped);
+        let listed = toml::Value::Array(shipped.into_iter().map(toml::Value::String).collect());
         vault_write::cache::write(
             &from.join(SOURCE_FILE),
-            format!("# Where this plugin was installed from (`atlas plugin update {id}` goes back there).\nkind = {:?}\nfrom = {:?}\ninstalled = {:?}\n{}shipped = {}\n", source.kind(), source.recorded(), chrono::Local::now().format("%Y-%m-%d").to_string(), commit.map(|c| format!("commit = {c:?}\n")).unwrap_or_default(), toml::Value::Array(shipped)).as_bytes(),
+            format!("# Where this plugin was installed from (`atlas plugin update {id}` goes back there).\nkind = {:?}\nfrom = {:?}\ninstalled = {:?}\n{}shipped = {listed}\ndigest = {digest:?}\n", source.kind(), source.recorded(), chrono::Local::now().format("%Y-%m-%d").to_string(), commit.map(|c| format!("commit = {c:?}\n")).unwrap_or_default()).as_bytes(),
         )?;
         // a plugin installed is meant to be used: it starts on, also when an earlier copy had been switched off (an
         // update keeps whatever the vault chose)
@@ -501,28 +504,215 @@ pub fn update(root: &Path, id: &str) -> Result<Installed> {
     if !plugins::valid_id(id) {
         return Err(Error::BadRequest(format!("bad plugin id {id:?}")));
     }
-    let text = std::fs::read_to_string(root.join(PLUGINS_DIR).join(id).join(SOURCE_FILE))
-        .map_err(|_| Error::BadRequest(format!("plugin {id} was not installed from anywhere (no {SOURCE_FILE} in its folder): nothing to update from")))?;
-    let t: toml::Table = toml::from_str(&text).map_err(|e| Error::BadRequest(format!("{SOURCE_FILE}: {e}")))?;
+    let t = source_record(root, id).ok_or_else(|| Error::BadRequest(format!("plugin {id} was not installed from anywhere (no readable {SOURCE_FILE} in its folder): nothing to update from")))?;
     let from = t.get("from").and_then(|v| v.as_str()).ok_or_else(|| Error::BadRequest(format!("{SOURCE_FILE}: no `from`")))?;
-    // files the plugin made in its folder (an accounts list) are not in the source: they survive the update. The ones
-    // the last release brought (`shipped`; an install from before it was kept: none known) do not.
-    let shipped: std::collections::HashSet<String> =
-        t.get("shipped").and_then(|v| v.as_array()).into_iter().flatten().filter_map(|v| v.as_str().map(str::to_string)).collect();
+    reinstall(root, id, &Source::parse(from))
+}
+
+/// The `.source` an install left in plugin `id`'s folder, read; None when there is none or it does not parse.
+fn source_record(root: &Path, id: &str) -> Option<toml::Table> {
+    toml::from_str(&std::fs::read_to_string(root.join(PLUGINS_DIR).join(id).join(SOURCE_FILE)).ok()?).ok()
+}
+
+/// The files the last install of `id` brought (`shipped`; an install from before it was kept, or a copy made by hand:
+/// none known).
+fn shipped_of(record: Option<&toml::Table>) -> Vec<String> {
+    record.and_then(|t| t.get("shipped")?.as_array().cloned()).into_iter().flatten().filter_map(|v| v.as_str().map(str::to_string)).collect()
+}
+
+/// Plugin `id`, already in the vault, installed over from `source`. Files the plugin made in its folder (an accounts
+/// list) are not in the source: they survive. The ones the last install brought do not (a file a later version drops
+/// does not come back).
+fn reinstall(root: &Path, id: &str, source: &Source) -> Result<Installed> {
+    let shipped: std::collections::HashSet<String> = shipped_of(source_record(root, id).as_ref()).into_iter().collect();
     let dir = root.join(PLUGINS_DIR).join(id);
     let mut own = vec![];
     for e in walkdir::WalkDir::new(&dir).into_iter().flatten().filter(|e| e.file_type().is_file()) {
         if let Ok(rel) = e.path().strip_prefix(&dir) {
-            if !shipped.contains(&rel.to_string_lossy().replace('\\', "/")) {
+            let rel_s = rel.to_string_lossy().replace('\\', "/");
+            if rel_s != SOURCE_FILE && !shipped.contains(&rel_s) {
                 own.push((rel.to_path_buf(), std::fs::read(e.path())?));
             }
         }
     }
-    let done = install(root, &Source::parse(from), Some(id), true)?;
+    let done = install(root, source, Some(id), true)?;
     for (rel, bytes) in own {
         let _ = vault_write::create(&dir.join(&rel), &bytes)?; // one the new version ships wins
     }
     Ok(done)
+}
+
+/// One fingerprint of a plugin's files as installed (sha-256 over each path and its bytes, in order). `plugin.toml` is
+/// left out: older vaults keep their settings in it and the phone's own settings form rewrites it, and an update
+/// carries those settings over anyway (`move_settings_out`). A file listed but missing counts as a change.
+fn digest_of(dir: &Path, files: &[String]) -> String {
+    use sha2::Digest;
+    let mut names: Vec<&String> = files.iter().filter(|f| *f != "plugin.toml" && *f != SOURCE_FILE).collect();
+    names.sort();
+    let mut h = sha2::Sha256::new();
+    for f in names {
+        h.update(f.as_bytes());
+        h.update([0]);
+        match std::fs::read(dir.join(f)) {
+            Ok(bytes) => {
+                h.update((bytes.len() as u64).to_le_bytes());
+                h.update(&bytes);
+            }
+            Err(_) => h.update(b"\x01missing"),
+        }
+    }
+    h.finalize().iter().map(|b| format!("{b:02x}")).collect()
+}
+
+/// Whether plugin `id`'s folder was changed in the vault since it was installed: its shipped files no longer match the
+/// digest the install recorded. Unknown (no `.source`, or one from before digests were kept) is "not changed": the
+/// caller then relies on the version alone.
+fn changed_here(root: &Path, id: &str) -> bool {
+    let Some(t) = source_record(root, id) else { return false };
+    let Some(recorded) = t.get("digest").and_then(|v| v.as_str()) else { return false };
+    digest_of(&root.join(PLUGINS_DIR).join(id), &shipped_of(Some(&t))) != recorded
+}
+
+// ---- the plugins an app carries (the phone app's APK: crates/atlas-android/build-apk.sh, scripts/dev/bundle-plugins.mjs)
+
+/// What [`sync_bundled`] did to a vault, for the app to say in a line.
+#[derive(Debug, Clone, Default, Serialize, PartialEq)]
+pub struct BundledReport {
+    /// Plugins the vault had at an older version, now the carried one.
+    pub updated: Vec<BundledChange>,
+    /// Carried plugins installed in place of older plugins the vault had (`replaces`); those went to the trash.
+    pub replaced: Vec<BundledChange>,
+    /// Plugins with a newer carried version that were not touched, and why (changed in the vault, the install failed).
+    pub left: Vec<BundledLeft>,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq)]
+pub struct BundledChange {
+    pub id: String,
+    pub title: String,
+    /// The vault's version before (an update; None: it had none).
+    pub from: Option<String>,
+    pub to: Option<String>,
+    /// The plugins it took the place of (a replacement).
+    pub replaces: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq)]
+pub struct BundledLeft {
+    pub id: String,
+    pub title: String,
+    pub why: String,
+}
+
+/// What to do with one carried plugin in a vault: an exhaustive set, decided before anything is written.
+#[derive(Debug, PartialEq)]
+enum BundledStep {
+    /// The vault has it at an older version and unchanged: install the carried one over it.
+    Update { from: Option<String> },
+    /// The vault lacks it but has plugins it replaces: install it, which retires them (`adopt_replaced`).
+    Replace(Vec<String>),
+    /// The vault has an older copy changed in place: left as it is, and said.
+    Leave(String),
+    /// Same or newer here, or a plugin this vault never had: the vault decides.
+    Nothing,
+}
+
+/// The vault's own copy's `version` (its manifest read loosely: one this Atlas no longer parses still says it).
+fn vault_version(root: &Path, id: &str) -> Option<String> {
+    let text = std::fs::read_to_string(root.join(PLUGINS_DIR).join(id).join("plugin.toml")).ok()?;
+    toml::from_str::<toml::Table>(&text).ok()?.get("version")?.as_str().map(str::to_string)
+}
+
+fn bundled_step(root: &Path, id: &str, carried: &plugins::Summary) -> BundledStep {
+    if root.join(PLUGINS_DIR).join(id).is_dir() {
+        let have = vault_version(root, id);
+        let Some(to) = carried.version.as_deref() else { return BundledStep::Nothing };
+        if !newer(to, have.as_deref().unwrap_or_default()) {
+            return BundledStep::Nothing;
+        }
+        if changed_here(root, id) {
+            return BundledStep::Leave(format!("changed in this vault since it was installed ({} here, {to} in the app)", have.as_deref().unwrap_or("no version")));
+        }
+        return BundledStep::Update { from: have };
+    }
+    let had: Vec<String> = carried.replaces.iter().filter(|r| root.join(PLUGINS_DIR).join(r).is_dir()).cloned().collect();
+    if had.is_empty() { BundledStep::Nothing } else { BundledStep::Replace(had) }
+}
+
+/// The carried plugins in `bundled` (one folder per id, each holding its `plugin.toml`), read; a folder that does not
+/// read as a plugin this Atlas runs is skipped and said on stderr.
+fn carried(bundled: &Path) -> Vec<(String, PathBuf, plugins::Summary)> {
+    let mut out: Vec<_> = std::fs::read_dir(bundled)
+        .into_iter()
+        .flatten()
+        .flatten()
+        .filter(|e| e.path().join("plugin.toml").is_file())
+        .filter_map(|e| {
+            let id = e.file_name().to_string_lossy().into_owned();
+            let text = std::fs::read_to_string(e.path().join("plugin.toml")).ok()?;
+            match plugins::summary_of(&text) {
+                Ok(m) if plugins::valid_id(&id) => Some((id, e.path(), m)),
+                Ok(_) => None,
+                Err(why) => {
+                    eprintln!("atlas: carried plugin {id}: {why}");
+                    None
+                }
+            }
+        })
+        .collect();
+    out.sort_by(|a, b| a.0.cmp(&b.0));
+    out
+}
+
+/// Brings the vault's plugins up to the versions an app carries (`bundled`): each one the vault has at an older
+/// version is updated through the install path (its settings and own files kept, the old copy to the trash); each one
+/// that replaces plugins the vault has is installed in their place. A copy changed in the vault is left and reported.
+/// Plugins the vault does not have and that replace nothing are not added: the vault decides (`add_bundled`).
+pub fn sync_bundled(root: &Path, bundled: &Path) -> BundledReport {
+    let mut report = BundledReport::default();
+    for (id, dir, m) in carried(bundled) {
+        let left = |why: String| BundledLeft { id: id.clone(), title: m.title.clone(), why };
+        match bundled_step(root, &id, &m) {
+            BundledStep::Nothing => {}
+            BundledStep::Leave(why) => report.left.push(left(why)),
+            BundledStep::Update { from } => match {
+                let before = source_record(root, &id);
+                reinstall(root, &id, &Source::Folder(dir.clone())).and_then(|_| keep_origin(root, &id, before.as_ref()))
+            } {
+                Ok(()) => report.updated.push(BundledChange { id: id.clone(), title: m.title.clone(), from, to: m.version.clone(), replaces: vec![] }),
+                Err(e) => report.left.push(left(format!("the update failed: {e}"))),
+            },
+            BundledStep::Replace(had) => match install(root, &Source::Folder(dir.clone()), Some(&id), false) {
+                Ok(_) => report.replaced.push(BundledChange { id: id.clone(), title: m.title.clone(), from: None, to: m.version.clone(), replaces: had }),
+                Err(e) => report.left.push(left(format!("installing it in place of {} failed: {e}", had.join(", ")))),
+            },
+        }
+    }
+    report
+}
+
+/// After an update from the app's carried copy: a `.source` that pointed somewhere every device reaches (a release's
+/// address, a git repository) keeps pointing there, so `atlas plugin update` on a desktop sharing the vault still
+/// works; the record of what was installed (`shipped`, `digest`) is the new one's.
+fn keep_origin(root: &Path, id: &str, before: Option<&toml::Table>) -> Result<()> {
+    let reachable = |t: &toml::Table| matches!(t.get("kind").and_then(|v| v.as_str()), Some("git" | "download"));
+    let (Some(old), Some(mut now)) = (before.filter(|t| reachable(t)), source_record(root, id)) else { return Ok(()) };
+    for k in ["kind", "from"] {
+        if let Some(v) = old.get(k) {
+            now.insert(k.into(), v.clone());
+        }
+    }
+    now.remove("commit"); // the carried copy is not that commit
+    let text = toml::to_string(&now).map_err(|e| Error::BadRequest(format!("{SOURCE_FILE}: {e}")))?;
+    vault_write::write(&root.join(PLUGINS_DIR).join(id).join(SOURCE_FILE), format!("# Where this plugin was installed from (`atlas plugin update {id}` goes back there); updated from the copy an app carries.\n{text}").as_bytes())
+}
+
+/// Plugin `id` of those an app carries, added to a vault that lacks it (the person chose it in Settings).
+pub fn add_bundled(root: &Path, bundled: &Path, id: &str) -> Result<Installed> {
+    if !plugins::valid_id(id) || !bundled.join(id).join("plugin.toml").is_file() {
+        return Err(Error::NotFound(format!("no carried plugin {id}")));
+    }
+    install(root, &Source::Folder(bundled.join(id)), Some(id), false)
 }
 
 /// Takes a plugin out of the vault: its folder goes to `.atlas/trash/` (returned), nothing is deleted.
@@ -645,6 +835,97 @@ mod tests {
         std::fs::write(src.join("plugin.toml"), "titel = \"typo\"\n").unwrap();
         assert!(install(root, &Source::Folder(src), Some("bad"), false).is_err());
         assert!(!root.join(PLUGINS_DIR).join("bad").exists());
+    }
+
+    /// The plugins an app carries: an older unchanged copy is updated (its settings and own files kept), the same
+    /// version is left alone, one replacing a plugin the vault has is installed in its place (the old one to the
+    /// trash, its settings carried), an older copy changed in the vault is left and said, and a plugin the vault never
+    /// had is not added until asked.
+    #[test]
+    fn bundled_plugins_update_older_copies_replace_retired_ones_and_leave_changed_ones() {
+        let (vault, elsewhere, app) = (tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap());
+        let root = vault.path();
+        let plugin = |dir: &Path, id: &str, toml: &str, js: &str| {
+            let d = dir.join(id);
+            std::fs::create_dir_all(&d).unwrap();
+            std::fs::write(d.join("plugin.toml"), toml).unwrap();
+            std::fs::write(d.join("main.js"), js).unwrap();
+            d
+        };
+        let put = |rel: &str, text: &str| {
+            std::fs::create_dir_all(root.join(rel).parent().unwrap()).unwrap();
+            std::fs::write(root.join(rel), text).unwrap();
+        };
+        // what the app carries
+        let carried = app.path();
+        plugin(carried, "books", "title = \"Books\"\nversion = \"0.15.0\"\n", "// books 0.15\n");
+        plugin(carried, "plan", "title = \"Plan\"\nversion = \"0.6.0\"\n", "// plan 0.6\n");
+        plugin(carried, "audiobookshelf", "title = \"Audiobookshelf\"\nversion = \"0.6.0\"\nreplaces = [\"catalog-audiobookshelf\"]\n", "// abs 0.6\n");
+        plugin(carried, "manga", "title = \"Manga\"\nversion = \"0.10.1\"\n", "// manga 0.10.1\n");
+        plugin(carried, "weather", "title = \"Weather\"\nversion = \"0.4.1\"\n", "// weather\n");
+        // the vault: books installed at an older version (with a file of its own and a setting), plan at the same
+        // version, a retired plugin copied in by hand, manga installed old and then edited in place
+        let old_books = plugin(elsewhere.path(), "books", "title = \"Books\"\nversion = \"0.12.0\"\n\n[settings]\nfont = \"serif\"\n", "// books 0.12\n");
+        install(root, &Source::Folder(old_books), Some("books"), false).unwrap();
+        put(&format!("{PLUGINS_DIR}/books/marks.json"), "[]");
+        let same = plugin(elsewhere.path(), "plan", "title = \"Plan\"\nversion = \"0.6.0\"\n", "// plan, the vault's\n");
+        install(root, &Source::Folder(same), Some("plan"), false).unwrap();
+        put(&format!("{PLUGINS_DIR}/catalog-audiobookshelf/plugin.toml"), "title = \"Catalog Audiobookshelf\"\nversion = \"0.2.0\"\n");
+        put(".atlas/plugin-settings/catalog-audiobookshelf.toml", "server = \"https://books.example.org\"\n");
+        let old_manga = plugin(elsewhere.path(), "manga", "title = \"Manga\"\nversion = \"0.9.0\"\n", "// manga 0.9\n");
+        install(root, &Source::Folder(old_manga), Some("manga"), false).unwrap();
+        assert!(!changed_here(root, "manga"), "just installed: unchanged");
+        put(&format!("{PLUGINS_DIR}/manga/main.js"), "// manga 0.9, fixed by hand\n");
+        assert!(changed_here(root, "manga"), "an edited file is a change");
+
+        let got = sync_bundled(root, carried);
+        let ids = |v: &[BundledChange]| v.iter().map(|c| c.id.clone()).collect::<Vec<_>>();
+        assert_eq!(ids(&got.updated), ["books"], "{got:?}");
+        assert_eq!((got.updated[0].from.as_deref(), got.updated[0].to.as_deref()), (Some("0.12.0"), Some("0.15.0")));
+        assert_eq!(ids(&got.replaced), ["audiobookshelf"], "{got:?}");
+        assert_eq!(got.replaced[0].replaces, ["catalog-audiobookshelf"]);
+        assert_eq!(got.left.iter().map(|l| l.id.as_str()).collect::<Vec<_>>(), ["manga"], "{got:?}");
+        assert!(got.left[0].why.contains("changed in this vault"), "{}", got.left[0].why);
+
+        let dir = |id: &str| root.join(PLUGINS_DIR).join(id);
+        // older → updated, keeping the vault's setting and the plugin's own file; the old copy in the trash
+        assert_eq!(std::fs::read_to_string(dir("books").join("main.js")).unwrap(), "// books 0.15\n");
+        assert!(dir("books").join("marks.json").is_file(), "the plugin's own file survives the update");
+        assert!(std::fs::read_to_string(root.join(".atlas/plugin-settings/books.toml")).unwrap().contains("serif"), "the setting carried");
+        // same version → nothing
+        assert_eq!(std::fs::read_to_string(dir("plan").join("main.js")).unwrap(), "// plan, the vault's\n");
+        // replaced → the new plugin in, the old one in the trash with its settings carried
+        assert!(dir("audiobookshelf").join("main.js").is_file() && !dir("catalog-audiobookshelf").exists());
+        let trash = root.join(".atlas/trash");
+        let trashed: Vec<String> = walkdir::WalkDir::new(&trash).into_iter().flatten().map(|e| e.path().to_string_lossy().into_owned()).collect();
+        assert!(trashed.iter().any(|p| p.contains("catalog-audiobookshelf")), "the retired plugin is in the trash: {trashed:?}");
+        assert!(std::fs::read_to_string(root.join(".atlas/plugin-settings/audiobookshelf.toml")).unwrap().contains("books.example.org"), "its settings carried");
+        assert!(!crate::workspace::Workspace::open(root).unwrap().config().unwrap().plugins.off.contains(&"audiobookshelf".to_string()), "on, as the one it replaces was");
+        // changed in the vault → left as it is
+        assert_eq!(std::fs::read_to_string(dir("manga").join("main.js")).unwrap(), "// manga 0.9, fixed by hand\n");
+        // never had → not added
+        assert!(!dir("weather").exists());
+        // a second look changes nothing (manga still left and said)
+        let again = sync_bundled(root, carried);
+        assert!(again.updated.is_empty() && again.replaced.is_empty() && again.left.len() == 1, "{again:?}");
+        // the vault asks for one it lacks
+        let added = add_bundled(root, carried, "weather").unwrap();
+        assert_eq!((added.id.as_str(), added.version.as_deref()), ("weather", Some("0.4.1")));
+        assert!(add_bundled(root, carried, "nothing-such").is_err());
+
+        // a copy made by hand (no record of its install) is updated by version alone; one from a release keeps its
+        // address, so a desktop sharing the vault still updates from there
+        put(&format!("{PLUGINS_DIR}/weather/plugin.toml"), "title = \"Weather\"\nversion = \"0.1.0\"\n");
+        std::fs::remove_file(dir("weather").join(SOURCE_FILE)).unwrap();
+        let rel = format!("{PLUGINS_DIR}/plan/{SOURCE_FILE}");
+        let plan_src = std::fs::read_to_string(root.join(&rel)).unwrap();
+        put(&rel, &plan_src.replace("kind = \"folder\"", "kind = \"download\"").lines().map(|l| if l.starts_with("from") { "from = \"https://example.org/atlas-plugin-plan.tar.gz\"".to_string() } else { l.to_string() }).collect::<Vec<_>>().join("\n"));
+        put(&format!("{PLUGINS_DIR}/plan/plugin.toml"), "title = \"Plan\"\nversion = \"0.5.0\"\n");
+        let third = sync_bundled(root, carried);
+        assert_eq!(ids(&third.updated), ["plan", "weather"], "{third:?}");
+        let rec = source_record(root, "plan").unwrap();
+        assert_eq!((rec["kind"].as_str(), rec["from"].as_str()), (Some("download"), Some("https://example.org/atlas-plugin-plan.tar.gz")));
+        assert!(rec.contains_key("digest"));
     }
 
     /// A merged plugin takes over those it `replaces`: settings (renamed) and secrets carried, folders and settings files
