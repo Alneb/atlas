@@ -308,7 +308,14 @@ impl Default for AutomationConfig {
 impl AutomationConfig {
     /// Whether the computer named `host` runs the schedules.
     pub fn schedules_here(&self, host: &str) -> bool {
-        self.run_schedules && (self.schedules_on.is_empty() || self.schedules_on.iter().any(|h| h.trim().eq_ignore_ascii_case(host)))
+        self.run_schedules && self.named_here(host)
+    }
+
+    /// Whether the computer named `host` is one of those `schedules_on` names (every computer when it names none).
+    /// Unlike [`Self::schedules_here`], `run_schedules = false` does not change it: switching the timer off leaves a
+    /// round's manual call (a button, an agent) where it was.
+    pub fn named_here(&self, host: &str) -> bool {
+        self.schedules_on.is_empty() || self.schedules_on.iter().any(|h| h.trim().eq_ignore_ascii_case(host))
     }
 }
 

@@ -134,6 +134,7 @@ export default defineConfig({
     viewport: { width: 1500, height: 900 },
     colorScheme: "dark", // ui.theme follows the desktop by default; the tests look at the dark side
     reducedMotion: "reduce", // ui.motion is on by default; the tests check end states, not transitions
+    screenshot: "only-on-failure", // with error-context.md, uploaded by CI (ci.yml "Failed specs' pages")
     // Playwright's pinned browser may be newer than the cached one; ATLAS_PW_CHROME overrides.
     launchOptions: process.env.ATLAS_PW_CHROME ? { executablePath: process.env.ATLAS_PW_CHROME } : {},
   },

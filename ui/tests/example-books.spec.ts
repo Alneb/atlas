@@ -35,12 +35,12 @@ test("highlights are anchored: the occurrence chosen, its own chapter, only unde
   const { highlightsIn, highlightBlock, addHighlight } = (await import(view)) as {
     highlightsIn(md: string): H[]; highlightBlock(text: string, where: string, k?: number): string; addHighlight(md: string, block: string): string;
   };
-  const { pick } = (globalThis as unknown as { atlasMarks: { pick(text: string, ps: (string | H)[], chapter?: number): { k: number; len: number }[] } }).atlasMarks;
+  const { pick } = (globalThis as unknown as { atlasMarks: { pick(text: string, ps: (string | H)[], chapter?: number): { k: number; len: number; p: number }[] } }).atlasMarks;
   // a phrase twice in a chapter: the one chosen is marked, not the first; nowhere in another chapter
   const text = "the cat sat. later the cat sat again.";
-  expect(pick(text, [{ text: "the cat sat", chapter: 2, k: 19 }], 2)).toEqual([{ k: 19, len: 11 }]);
+  expect(pick(text, [{ text: "the cat sat", chapter: 2, k: 19 }], 2)).toEqual([{ k: 19, len: 11, p: 0 }]); // `p`: which passage (a tap on its mark removes that one)
   expect(pick(text, [{ text: "the cat sat", chapter: 3, k: 19 }], 2)).toEqual([]);
-  expect(pick(text, ["the cat sat"], 2)).toEqual([{ k: 0, len: 11 }]); // written before anchors: the first, as before
+  expect(pick(text, ["the cat sat"], 2)).toEqual([{ k: 0, len: 11, p: 0 }]); // written before anchors: the first, as before
   // only quotes under `## Highlights` count, callouts never; a new one goes at the end of that section
   const md = "> [!note] mine\n> my own quote\n\n## Highlights\n" + highlightBlock("the cat sat", "Two, chapter 2", 19) + "\n> [!tip]\n> not one\n\n## Thoughts\n\n> also mine\n";
   expect(highlightsIn(md)).toEqual([{ text: "the cat sat", where: "Two, chapter 2", chapter: 2, k: 19 }]);

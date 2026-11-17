@@ -14,6 +14,7 @@
 //! Run through `node scripts/dev/two-vaults.mjs`, which makes the vaults in target/ and keeps the run away from the
 //! machine's own vault list, state and notifications. Directly:
 //! `cargo run --release -p atlas-core --example two_vaults -- <open|ahead> <vault A> <vault B> [idle seconds] [B age in days]`
+#![allow(clippy::disallowed_methods)] // a measurement writes its throwaway vault list directly, as the tests write their fixtures
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};

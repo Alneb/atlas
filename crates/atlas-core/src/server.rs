@@ -608,7 +608,13 @@ async fn plugin_hook_sign(State(st): S, UrlPath(id): UrlPath<String>, Json(ask):
     let id = plugin_named(&st, id).await?;
     let (root, prefix) = (st.ws.root().to_path_buf(), st.prefix.clone());
     let now = chrono::Utc::now().timestamp();
-    Ok(Json(blocking(move || crate::hooks::signed(&crate::secrets::Store::for_vault(&root), &prefix, &id, ask, now)).await?))
+    Ok(Json(
+        blocking(move || {
+            let standing_ok = crate::plugin_tools::standing_hook(&root, &id, &ask.hook);
+            crate::hooks::signed(&crate::secrets::Store::for_vault(&root), &prefix, &id, ask, standing_ok, now)
+        })
+        .await?,
+    ))
 }
 
 /// A hook called from outside, with no sign-in: its token admits it (signed by this vault for this plugin and hook,
@@ -620,8 +626,8 @@ async fn plugin_hook_call(State(st): S, UrlPath((id, name)): UrlPath<(String, St
     let (token, now) = (q.get("t").cloned().unwrap_or_default(), chrono::Utc::now().timestamp());
     let (id_, name_) = (id.clone(), name.clone());
     let checked = blocking(move || crate::hooks::verify(&crate::secrets::Store::for_vault(&root), &id_, &name_, &token, now)).await;
-    let data = match checked {
-        Ok(Ok(d)) => d,
+    let admitted = match checked {
+        Ok(Ok(a)) => a,
         Ok(Err(r)) => return refuse(StatusCode::FORBIDDEN, r.why().into()),
         Err(e) => return e.into_response(),
     };
@@ -629,8 +635,13 @@ async fn plugin_hook_call(State(st): S, UrlPath((id, name)): UrlPath<(String, St
     if !crate::plugin_tools::listening(st.ws.root(), &cfg, crate::hooks::EVENT).iter().any(|(p, t)| *p == id && *t == name) {
         return refuse(StatusCode::NOT_FOUND, format!("plugin {id} has no hook {name} here"));
     }
+    // a standing address holds only while its hook still takes one (the manifest may have dropped `standing`)
+    let (root, id_, name_) = (st.ws.root().to_path_buf(), id.clone(), name.clone());
+    if admitted.standing && !blocking(move || Ok(crate::plugin_tools::standing_hook(&root, &id_, &name_))).await.unwrap_or(false) {
+        return refuse(StatusCode::FORBIDDEN, format!("hook {name} of {id} no longer takes standing addresses"));
+    }
     let store = crate::secrets::Store::for_vault(st.ws.root());
-    let input = serde_json::json!({ "data": data, "body": crate::hooks::body_of(&body) });
+    let input = serde_json::json!({ "data": admitted.data, "body": crate::hooks::body_of(&body) });
     match crate::plugin_tools::call(st.ws.root(), &cfg, &st.helpers, &store, &id, &name, input).await {
         Ok(v) => {
             crate::notice_actions::say(&st.bus, &id, &v);
@@ -989,7 +1000,7 @@ struct ColumnAsk {
 /// The text column under the point (double-click zooms to it), or the one after `after`, or null; the phone asks the
 /// same functions over JNI.
 async fn pdf_column_post(Json(q): Json<ColumnAsk>) -> Json<Option<crate::pdf_columns::Rect>> {
-    let rects: Vec<crate::pdf_columns::Rect> = q.boxes.chunks_exact(4).map(|c| [c[0], c[1], c[2], c[3]]).collect();
+    let rects: Vec<crate::pdf_columns::Rect> = q.boxes.as_chunks::<4>().0.to_vec(); // a trailing partial box is dropped
     Json(match q.after {
         Some(col) => crate::pdf_columns::column_after(&rects, col),
         None => crate::pdf_columns::column_at(&rects, q.x, q.y),

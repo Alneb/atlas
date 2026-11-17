@@ -319,7 +319,7 @@ impl Session {
         let tmp = std::env::temp_dir().join(format!("atlas-frame-{}.png", crate::auth::random_hex(6)));
         let made = self.call(&[json!("screenshot-to-file"), json!(tmp.to_string_lossy()), json!("video")]);
         let bytes = std::fs::read(&tmp);
-        let _ = std::fs::remove_file(&tmp);
+        let _ = crate::vault_write::outside::remove_file(&tmp); // the system temp dir, no vault's
         made?;
         Ok(bytes?)
     }
@@ -333,7 +333,7 @@ impl Session {
         }
         let _ = self.child.kill();
         let _ = self.child.wait();
-        let _ = std::fs::remove_file(&self.socket);
+        let _ = crate::vault_write::outside::remove_file(&self.socket);
     }
 }
 

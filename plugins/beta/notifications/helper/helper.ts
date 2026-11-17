@@ -6,6 +6,11 @@
 //        the pages as a `synced` event.
 // send — a message to the phone: through the Apprise API when its address is set, else to the phone's ntfy topic; one
 //        with buttons (`actions`: another plugin's hook addresses) always through ntfy, which alone shows them.
+// apprise — a notification posted to the source's standing address (Apprise's `jsons://` target, or any webhook alike):
+//        filed as a message of that source, said when the source is not muted. The address names its source and a
+//        nonce; a nonce the plugin no longer keeps (a newer address made for the source) is refused.
+// apprise_address — makes that address for a source (a fresh nonce kept as the plugin's secret, the core's standing
+//        hook signed) and answers it as the URL to paste into Apprise.
 // The logic takes its transport, so helper.test.ts runs it against a stand-in ntfy.
 import type { Params } from "atlas-helper";
 
@@ -198,6 +203,60 @@ export async function sendWith(net: Net, p: Params) {
 
 // --- the core's side: its fetch, the vault's files, the kept ids in the plugin's cache ---
 
+/** What Apprise's `json://` target posts — `{ version, title, message, type }` — and what a webhook alike may: its
+ *  text as `message` or `body`, its type one of Apprise's. */
+export interface Posted { title?: unknown; message?: unknown; body?: unknown; type?: unknown }
+/** Apprise's types as ntfy's priorities, so a source's note marks them alike: a failure urgent, a warning high. */
+const BY_TYPE: Record<string, number> = { failure: 5, warning: 4 };
+
+/** A posted notification as a message: an object read as Apprise's, plain text as the message itself. */
+export function postedMessage(posted: unknown, nowSecs: number, id: string): Message {
+  const p: Posted = posted && typeof posted === "object" ? (posted as Posted) : { message: posted };
+  return { id, time: nowSecs, title: str(p.title), message: str(p.message) || str(p.body), priority: BY_TYPE[str(p.type).toLowerCase()] ?? 3 };
+}
+
+/** The standing addresses' nonces, a source's each (the plugin's secret `hook_nonces`, JSON). */
+export function noncesOf(p: Params): Record<string, string> {
+  try {
+    const n = JSON.parse(p.secrets?.hook_nonces ?? "{}");
+    return n && typeof n === "object" ? (n as Record<string, string>) : {};
+  } catch {
+    return {};
+  }
+}
+
+/** A call to a standing address: `data` is what the address carries ({ source, nonce }), `body` what was posted. Filed
+ *  under the source; refused (thrown: the caller gets the error) when the nonce is not the source's current one. */
+export async function hookIn(vault: Vault, p: Params & { data?: { source?: unknown; nonce?: unknown }; body?: unknown }, nowSecs: number) {
+  const source = sourceOf({ tags: [str(p.data?.source)] }, "apprise");
+  const kept = noncesOf(p)[source];
+  if (!kept || kept !== str(p.data?.nonce)) throw new Error(`the address of ${source} was replaced: make a new one (Notifications: an address for Apprise…)`);
+  const folder = (str(p.settings?.folder) || "notifications").replace(/^\/+|\/+$/g, ""), path = `${folder}/${source}.md`;
+  const m = postedMessage(p.body, nowSecs, `a${nowSecs}`);
+  if (!m.title && !m.message) return { skipped: "nothing in it" };
+  const props = await fileIn(vault, path, source, "apprise", [lineOf(m)]);
+  const loud = muted(props, vault.today()) ? [] : [{ source, path, title: m.title || source, text: (m.message ?? "").slice(0, 200) }];
+  return { new: 1, loud, summary: `1 from ${source}` };
+}
+
+/** A fresh nonce: what tells this address from the one before (the token's signature is the security, not this). */
+const nonce = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
+
+/** Where the core signs a standing address (`ttl_secs: 0`: the hook's `standing = true`). */
+export interface Signer { sign(data: Record<string, string>): Promise<{ path: string; origin: string | null }> }
+
+/** The address Apprise posts to for `source`: a new nonce (the older address stops), the core's signature, as an
+ *  Apprise URL — `jsons://host/path?-t=token` (a `-` key is a query parameter Apprise passes on) — and as plain https. */
+export async function addressFor(signer: Signer, p: Params & { source?: unknown; origin?: unknown }) {
+  const source = sourceOf({ tags: [str(p.source)] }, "apprise");
+  const fresh = nonce(), signed = await signer.sign({ source, nonce: fresh });
+  const origin = (str(p.origin) || signed.origin || "").replace(/\/+$/, "");
+  if (!origin) throw new Error("this server's address is not known yet: open Atlas once through it (its https address), or give it here");
+  const url = `${origin}${signed.path}`, [base, query] = url.split("?");
+  const apprise = `${base.replace(/^http(s?):/, "json$1:")}?${query.replace(/^t=/, "-t=")}`;
+  return { source, url, apprise, _secrets: { hook_nonces: JSON.stringify({ ...noncesOf(p), [source]: fresh }) } };
+}
+
 const net: Net = {
   // `missing: []`: a 404 (a topic that is not there) is an error said in the answer, not an empty topic
   get: async (url, headers) => (await atlas.fetch(url, { headers, timeout: 30, missing: [] })) ?? "",
@@ -255,4 +314,10 @@ atlas.methods({
     return r;
   }),
   send: (p) => sendWith(net, p),
+  apprise: async (p: Params) => {
+    const r = await hookIn(vault, p, Math.floor(Date.now() / 1000));
+    if ("loud" in r) atlas.event("synced", { new: r.new, loud: r.loud });
+    return r;
+  },
+  apprise_address: (p: Params) => addressFor({ sign: (data) => atlas.post("/api/plugins/notifications/hooks/sign", { hook: "apprise", data, ttl_secs: 0 }) }, p),
 });

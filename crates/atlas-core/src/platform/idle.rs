@@ -23,7 +23,7 @@ pub fn of_hints(locked: bool, idle: bool, idle_since_us: u64) -> Idle {
     if !locked && !idle {
         return Idle::No;
     }
-    Idle::Since((idle && idle_since_us > 0).then(|| (idle_since_us / 1000) as i64))
+    Idle::Since((idle && idle_since_us > 0).then_some((idle_since_us / 1000) as i64))
 }
 
 #[cfg(all(target_os = "linux", not(target_os = "android")))]

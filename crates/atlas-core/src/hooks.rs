@@ -10,6 +10,12 @@
 //! sends out. A valid call goes to the plugin's tool of that name with `on = "hook"`, given `{ data, body }`; its
 //! answer's `notices` / `withdraw` are said as a notice button's are (notice_actions.rs `say`).
 //!
+//! A **standing** address is the one exception to the expiry: a service that posts to Atlas for good (Apprise's
+//! `json://` target, a forge's webhook) cannot be handed a new link each week. A hook whose tool declares
+//! `standing = true` may be signed with no expiry (`ttl_secs = 0`, [`Life::Standing`]); the address works while the tool
+//! still says so. Revoking one is the plugin's: it puts its own nonce in the data and refuses a call whose nonce it no
+//! longer keeps ("a new address" in its settings changes it).
+//!
 //! The gate in front of a server (Authelia…) must let `/api/plugins/*/hook/*` through: the token is the check.
 use crate::secrets::Store;
 use crate::{Error, Result};
@@ -31,14 +37,31 @@ pub const MAX_TTL: u64 = 7 * 24 * 3600;
 const KEY_OWNER: &str = ".core";
 const KEY_NAME: &str = "hook_key";
 
-/// What a token says: whose hook, which, the plugin's data, until when (Unix seconds).
+/// How long a token lives.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Life {
+    /// This many seconds, 1 to [`MAX_TTL`].
+    For(u64),
+    /// No expiry: for a hook whose tool declares `standing = true` (checked by the caller, and again at each call).
+    Standing,
+}
+
+/// What a token says: whose hook, which, the plugin's data, until when (Unix seconds; none: standing).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 struct Claim {
     p: String,
     h: String,
     #[serde(default)]
     d: Value,
-    e: i64,
+    #[serde(default)]
+    e: Option<i64>,
+}
+
+/// A token that holds: the plugin's data, and whether it is a standing address (no expiry).
+#[derive(Debug, Clone, PartialEq)]
+pub struct Admitted {
+    pub data: Value,
+    pub standing: bool,
 }
 
 /// Why a token was refused.
@@ -91,22 +114,26 @@ fn key(store: &Store) -> Result<Vec<u8>> {
     Ok(k)
 }
 
-/// A token for `plugin`'s hook `hook` carrying `data`, valid `ttl` seconds from `now` (Unix seconds).
-pub fn sign(store: &Store, plugin: &str, hook: &str, data: Value, ttl: u64, now: i64) -> Result<String> {
-    if ttl == 0 || ttl > MAX_TTL {
-        return Err(Error::BadRequest(format!("a hook token lives from 1 s to {MAX_TTL} s (7 days), not {ttl}")));
-    }
+/// A token for `plugin`'s hook `hook` carrying `data`, valid for `life` from `now` (Unix seconds).
+pub fn sign(store: &Store, plugin: &str, hook: &str, data: Value, life: Life, now: i64) -> Result<String> {
+    let e = match life {
+        Life::For(ttl) if ttl == 0 || ttl > MAX_TTL => {
+            return Err(Error::BadRequest(format!("a hook token lives from 1 s to {MAX_TTL} s (7 days), not {ttl}")));
+        }
+        Life::For(ttl) => Some(now + ttl as i64),
+        Life::Standing => None,
+    };
     if !valid_name(hook) {
         return Err(Error::BadRequest(format!("hook name {hook:?}: letters, digits, - and _")));
     }
-    let claim = Claim { p: plugin.into(), h: hook.into(), d: data, e: now + ttl as i64 };
+    let claim = Claim { p: plugin.into(), h: hook.into(), d: data, e };
     let body = B64.encode(serde_json::to_vec(&claim).map_err(|e| Error::Other(e.into()))?);
     let mac = B64.encode(hmac(&key(store)?, body.as_bytes()));
     Ok(format!("{body}.{mac}"))
 }
 
 /// The data of a token for `plugin`'s hook `hook`, when it is one this vault signed and its time is not over.
-pub fn verify(store: &Store, plugin: &str, hook: &str, token: &str, now: i64) -> Result<std::result::Result<Value, Refused>> {
+pub fn verify(store: &Store, plugin: &str, hook: &str, token: &str, now: i64) -> Result<std::result::Result<Admitted, Refused>> {
     let Some((body, mac)) = token.split_once('.') else { return Ok(Err(Refused::Forged)) };
     let Ok(mac) = B64.decode(mac) else { return Ok(Err(Refused::Forged)) };
     // no key yet: nothing was ever signed here
@@ -118,10 +145,10 @@ pub fn verify(store: &Store, plugin: &str, hook: &str, token: &str, now: i64) ->
     if claim.p != plugin || claim.h != hook {
         return Ok(Err(Refused::Elsewhere));
     }
-    if claim.e <= now {
-        return Ok(Err(Refused::Expired));
+    match claim.e {
+        Some(e) if e <= now => Ok(Err(Refused::Expired)),
+        e => Ok(Ok(Admitted { data: claim.d, standing: e.is_none() })),
     }
-    Ok(Ok(claim.d))
 }
 
 fn valid_name(s: &str) -> bool {
@@ -170,6 +197,7 @@ pub struct SignAsk {
     pub hook: String,
     #[serde(default)]
     pub data: Value,
+    /// 1 to [`MAX_TTL`]; 0: a standing address, for a hook whose tool declares `standing = true`.
     pub ttl_secs: u64,
 }
 
@@ -182,8 +210,14 @@ pub struct Signed {
     pub origin: Option<String>,
 }
 
-pub fn signed(store: &Store, prefix: &str, plugin: &str, ask: SignAsk, now: i64) -> Result<Signed> {
-    let token = sign(store, plugin, &ask.hook, ask.data, ask.ttl_secs, now)?;
+/// `standing_ok`: whether the hook's tool declares `standing = true` (the only case `ttl_secs = 0` is taken).
+pub fn signed(store: &Store, prefix: &str, plugin: &str, ask: SignAsk, standing_ok: bool, now: i64) -> Result<Signed> {
+    let life = match ask.ttl_secs {
+        0 if standing_ok => Life::Standing,
+        0 => return Err(Error::BadRequest(format!("hook {:?} has no standing address: its tool needs `standing = true` (else ttl_secs 1 to {MAX_TTL})", ask.hook))),
+        ttl => Life::For(ttl),
+    };
+    let token = sign(store, plugin, &ask.hook, ask.data, life, now)?;
     let path = format!("{}/api/plugins/{plugin}/hook/{}?t={token}", prefix.trim_end_matches('/'), ask.hook);
     Ok(Signed { token, path, origin: origin() })
 }
@@ -219,16 +253,16 @@ mod tests {
     fn a_token_says_its_data_to_its_hook_only_and_only_in_time() {
         let (_d, s) = store();
         let data = json!({ "notice_id": "plan:notes/Report.md#^t3f9a", "action": "done" });
-        let t = sign(&s, "plan", "press", data.clone(), 3600, 1_000).unwrap();
+        let t = sign(&s, "plan", "press", data.clone(), Life::For(3600), 1_000).unwrap();
         assert!(!t.contains(['/', '+', '=', '&', '?']), "fit for a query without escaping: {t}");
-        assert_eq!(verify(&s, "plan", "press", &t, 1_000).unwrap(), Ok(data));
+        assert_eq!(verify(&s, "plan", "press", &t, 1_000).unwrap(), Ok(Admitted { data, standing: false }));
         assert_eq!(verify(&s, "plan", "press", &t, 4_600).unwrap(), Err(Refused::Expired), "its hour over");
         assert_eq!(verify(&s, "plan", "other", &t, 1_000).unwrap(), Err(Refused::Elsewhere));
         assert_eq!(verify(&s, "mail", "press", &t, 1_000).unwrap(), Err(Refused::Elsewhere));
         // the data changed (Done made into another task's, or the expiry pushed): the signature no longer holds
         let (body, mac) = t.split_once('.').unwrap();
         let mut claim: Claim = serde_json::from_slice(&B64.decode(body).unwrap()).unwrap();
-        claim.e += 1_000_000;
+        claim.e = claim.e.map(|e| e + 1_000_000);
         let forged = format!("{}.{mac}", B64.encode(serde_json::to_vec(&claim).unwrap()));
         assert_eq!(verify(&s, "plan", "press", &forged, 1_000).unwrap(), Err(Refused::Forged));
         assert_eq!(verify(&s, "plan", "press", "nonsense", 1_000).unwrap(), Err(Refused::Forged));
@@ -238,21 +272,41 @@ mod tests {
     #[test]
     fn another_vaults_key_signs_nothing_here_and_the_key_is_kept() {
         let ((_a, a), (_b, b)) = (store(), store());
-        let t = sign(&a, "plan", "press", json!(1), 60, 0).unwrap();
+        let t = sign(&a, "plan", "press", json!(1), Life::For(60), 0).unwrap();
         assert_eq!(verify(&b, "plan", "press", &t, 0).unwrap(), Err(Refused::Forged), "no key there at all");
-        sign(&b, "plan", "press", json!(1), 60, 0).unwrap();
+        sign(&b, "plan", "press", json!(1), Life::For(60), 0).unwrap();
         assert_eq!(verify(&b, "plan", "press", &t, 0).unwrap(), Err(Refused::Forged), "another key");
-        assert_eq!(verify(&a, "plan", "press", &t, 0).unwrap(), Ok(json!(1)), "the first key kept between signings");
+        assert_eq!(verify(&a, "plan", "press", &t, 0).unwrap().map(|a| a.data), Ok(json!(1)), "the first key kept between signings");
         assert!(a.names(".core").unwrap().contains(&"hook_key".to_string()));
     }
 
     #[test]
     fn a_token_lives_at_most_a_week_and_names_a_plain_hook() {
         let (_d, s) = store();
-        assert!(sign(&s, "plan", "press", Value::Null, 0, 0).is_err());
-        assert!(sign(&s, "plan", "press", Value::Null, MAX_TTL + 1, 0).is_err());
-        assert!(sign(&s, "plan", "pr/ess", Value::Null, 60, 0).is_err());
-        assert!(sign(&s, "plan", "press", Value::Null, MAX_TTL, 0).is_ok());
+        assert!(sign(&s, "plan", "press", Value::Null, Life::For(0), 0).is_err());
+        assert!(sign(&s, "plan", "press", Value::Null, Life::For(MAX_TTL + 1), 0).is_err());
+        assert!(sign(&s, "plan", "pr/ess", Value::Null, Life::For(60), 0).is_err());
+        assert!(sign(&s, "plan", "press", Value::Null, Life::For(MAX_TTL), 0).is_ok());
+    }
+
+    /// A standing address never expires, says it is one, and is signed only for a hook that may have one; a token signed
+    /// before standing ones existed (its expiry a plain number) still reads.
+    #[test]
+    fn a_standing_address_lives_until_its_hook_stops_taking_one() {
+        let (_d, s) = store();
+        let data = json!({ "source": "backups", "nonce": "k3" });
+        let t = sign(&s, "notifications", "apprise", data.clone(), Life::Standing, 0).unwrap();
+        assert_eq!(verify(&s, "notifications", "apprise", &t, i64::MAX / 2).unwrap(), Ok(Admitted { data: data.clone(), standing: true }), "years later");
+        let ask = |ttl| SignAsk { hook: "apprise".into(), data: data.clone(), ttl_secs: ttl };
+        let why = signed(&s, "", "notifications", ask(0), false, 0).unwrap_err().to_string();
+        assert!(why.contains("standing = true"), "{why}");
+        let ok = signed(&s, "/v/x", "notifications", ask(0), true, 0).unwrap();
+        assert!(ok.path.starts_with("/v/x/api/plugins/notifications/hook/apprise?t="), "{}", ok.path);
+        // the older shape: `e` a number
+        let old = B64.encode(br#"{"p":"plan","h":"press","d":1,"e":50}"#);
+        let old = format!("{old}.{}", B64.encode(hmac(&key(&s).unwrap(), old.as_bytes())));
+        assert_eq!(verify(&s, "plan", "press", &old, 10).unwrap(), Ok(Admitted { data: json!(1), standing: false }));
+        assert_eq!(verify(&s, "plan", "press", &old, 50).unwrap(), Err(Refused::Expired));
     }
 
     #[test]

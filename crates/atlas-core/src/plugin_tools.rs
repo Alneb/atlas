@@ -48,6 +48,10 @@ pub struct ToolManifest {
     /// installed, updated or its settings saved (capture_hooks.rs).
     #[serde(default)]
     pub on: Option<String>,
+    /// For an `on = "hook"` tool: its address may be signed with no expiry (hooks.rs, `Life::Standing`) — for a service
+    /// that posts to it for good (Apprise's `json://`, a webhook). The plugin revokes one by the data it put in it.
+    #[serde(default)]
+    pub standing: bool,
     /// Where its `schedule` and its `fs` / `start` hooks run when several cores serve the vault (server_role.rs); unset:
     /// the plugin's `background`, else every core.
     #[serde(default)]
@@ -59,6 +63,11 @@ impl ToolManifest {
     pub fn background(&self) -> crate::server_role::Background {
         self.background.unwrap_or_default()
     }
+}
+
+/// Whether hook `name` of plugin `id` takes standing addresses (an `on = "hook"` tool with `standing = true`).
+pub fn standing_hook(root: &Path, id: &str, name: &str) -> bool {
+    crate::plugins::tool_parts(root, id).is_ok_and(|(tools, _, _)| tools.iter().any(|t| t.name == name && t.on.as_deref() == Some(crate::hooks::EVENT) && t.standing))
 }
 
 /// The `on` events that are background work (no person's action behind them on this core): they follow
@@ -233,7 +242,8 @@ pub fn list(root: &Path, cfg: &Config) -> Vec<Tool> {
 
 /// Runs tool `name` of plugin `id` with the agent's `args`.
 pub async fn call(root: &Path, cfg: &Config, helpers: &Helpers, secrets: &Store, id: &str, name: &str, args: Value) -> Result<Value> {
-    let _turn = crate::tool_turns::take(root, id, name).await; // a round never runs twice at once
+    // a round never runs twice at once, nor on a core the vault does not run its rounds on
+    let _turn = crate::tool_turns::take(root, &cfg.automation, id, name).await.map_err(Error::BadRequest)?;
     // reading every manifest and the secret store (a keyring over D-Bus may take seconds) runs off the async threads,
     // as does keeping a rotated secret: the core's other requests never wait behind a plugin's preparation
     let (root, off, store, id_, name_) = (root.to_path_buf(), cfg.plugins.off.clone(), secrets.clone(), id.to_string(), name.to_string());

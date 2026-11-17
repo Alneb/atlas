@@ -140,7 +140,8 @@ pub async fn tick(ws: &Workspace, bus: &EventBus, helpers: Option<&crate::helper
 /// `tick` on a core in `seat`: a job whose `background` names another kind of core is left to it (server_role.rs).
 async fn tick_at(ws: &Workspace, bus: &EventBus, helpers: Option<&crate::helper::Helpers>, now: DateTime<Local>, seat: crate::server_role::Seat) {
     let Ok(cfg) = ws.config() else { return };
-    if !cfg.automation.schedules_here(&crate::platform::proc::hostname()) {
+    let host = crate::platform::proc::hostname();
+    if !cfg.automation.schedules_here(&host) {
         return;
     }
     let cache = ws.cache_dir();
@@ -155,7 +156,7 @@ async fn tick_at(ws: &Workspace, bus: &EventBus, helpers: Option<&crate::helper:
             Job::Tool(t) => format!("plugin.{}", t.plugin),
             Job::Command(_) => String::new(),
         };
-        j.background().in_vault(&cfg.automation.background, &[&id, &plugin]).runs_at(seat)
+        crate::server_role::job_here(&cfg.automation, &host, seat, j.background(), &[&id, &plugin]).is_ok()
     });
     for job in jobs {
         let id = job.id();

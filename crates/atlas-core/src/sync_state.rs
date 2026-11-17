@@ -21,6 +21,11 @@ use std::time::{Duration, Instant};
 /// in the afternoon), or once it cleared and came back.
 pub const RETELL: Duration = Duration::from_secs(6 * 3600);
 
+/// How long the server may stay silent before it is a notice. A blip (a laptop waking, Wi-Fi roaming, a proxy closing a
+/// kept connection) costs nothing — the write is made here and merged when it answers — so it shows only in the
+/// vault's sync line; an outage that lasts is told. A sign-in the gate asks for is told at once: waiting will not help.
+pub const QUIET_OUTAGE: Duration = Duration::from_secs(120);
+
 /// How many refused writes the state keeps by name (the newest); the count covers all of them.
 const KEEP_REFUSED: usize = 5;
 
@@ -100,6 +105,8 @@ struct Seen {
     refused_count: u32,
     /// writes made with the server unreachable, since it last answered
     here_only: u32,
+    /// when it stopped answering (the first failure since it last answered)
+    offline_since: Option<Instant>,
 }
 
 /// One vault's live state in this process, and the bus its notices go to (none in a process that serves no page:
@@ -162,16 +169,26 @@ impl SyncState {
             s.reach = Reach::Answers;
             s.why = None;
             s.here_only = 0;
+            s.offline_since = None;
         }
         self.clear("sync:server");
     }
 
-    /// The server could not be asked: `signin` when its gate wants a sign-in.
+    /// The server could not be asked: `signin` when its gate wants a sign-in. Told at once for a sign-in, else only once
+    /// it has not answered for [`QUIET_OUTAGE`] (the sync line says it meanwhile).
     pub fn unreachable(&self, host: &str, why: &str, signin: bool) {
-        {
+        self.unreachable_at(host, why, signin, Instant::now());
+    }
+
+    fn unreachable_at(&self, host: &str, why: &str, signin: bool, now: Instant) {
+        let lasted = {
             let mut s = self.seen();
             s.reach = if signin { Reach::Signin } else { Reach::Offline };
             s.why = Some(why.to_string());
+            now.saturating_duration_since(*s.offline_since.get_or_insert(now))
+        };
+        if !signin && lasted < QUIET_OUTAGE {
+            return;
         }
         let notice = if signin {
             Notice::new(format!("Sign in to {host} to keep this vault in step"))
@@ -512,18 +529,25 @@ mod tests {
         let bus = EventBus::default();
         let mut rx = bus.subscribe();
         st.attach(bus);
+        let t0 = Instant::now();
+        st.unreachable_at("notes.example.org", "error sending request", false, t0);
+        st.unreachable_at("notes.example.org", "error sending request", false, t0 + Duration::from_secs(60));
+        assert!(rx.try_recv().is_err(), "a blip is the sync line's, not a notice");
+        assert_eq!(st.seen().reach, Reach::Offline);
         for _ in 0..5 {
-            st.unreachable("notes.example.org", "connection refused", false);
+            st.unreachable_at("notes.example.org", "connection refused", false, t0 + QUIET_OUTAGE);
         }
         st.written_here_only();
-        let Ok(Event::Notify(n)) = rx.try_recv() else { panic!("one notice") };
+        let Ok(Event::Notify(n)) = rx.try_recv() else { panic!("one notice, once it lasted") };
         assert_eq!((n.id.as_deref(), n.source.as_deref(), n.level), (Some("sync:server"), Some("sync"), Some(NoticeLevel::Warning)));
         assert!(rx.try_recv().is_err(), "the same failure is told once");
         assert_eq!(st.seen().here_only, 1);
 
         st.answered();
         let seen = st.seen().clone(); // one guard: the mutex is not reentrant
-        assert_eq!((seen.reach, seen.here_only), (Reach::Answers, 0));
+        assert_eq!((seen.reach, seen.here_only, seen.offline_since), (Reach::Answers, 0, None));
+        st.unreachable_at("notes.example.org", "error sending request", false, t0 + QUIET_OUTAGE * 3);
+        assert!(rx.try_recv().is_err(), "after an answer the grace starts again");
         st.unreachable("notes.example.org", "302", true);
         let Ok(Event::Notify(n)) = rx.try_recv() else { panic!("news again once it had answered") };
         assert!(n.title.starts_with("Sign in to notes.example.org"));

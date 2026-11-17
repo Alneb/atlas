@@ -590,16 +590,33 @@ impl Remote {
                         .redirect(reqwest::redirect::Policy::none())
                         .connect_timeout(Duration::from_secs(3))
                         .timeout(Duration::from_secs(8))
+                        // a kept connection let go before the proxy in front of the server closes it on its side
+                        // (reused after that, it fails as "error sending request"); probed while it is kept
+                        .pool_idle_timeout(Duration::from_secs(20))
+                        .tcp_keepalive(Duration::from_secs(15))
                         .build()
                         .map_err(|e| e.to_string())
                 })
                 .as_ref()
                 .map_err(|e| Unreachable::new(e.clone()))?;
-            let mut req = client.post(url).header("x-atlas", "1").json(&body);
-            for (k, v) in kept {
-                req = req.header(k, v);
+            let send = || {
+                let mut req = client.post(url.clone()).header("x-atlas", "1").json(&body);
+                for (k, v) in &kept {
+                    req = req.header(k, v);
+                }
+                req.send()
+            };
+            // a request that never got through (a connection the server had closed, a network that just came back) is
+            // sent once more on a fresh one; a timeout is not (a save waits on it). Asking again is harmless: the same
+            // device renewing its lease is granted, a `done` twice is the same `done`.
+            let res = match send() {
+                Err(e) if !e.is_timeout() && (e.is_connect() || e.is_request()) => {
+                    std::thread::sleep(Duration::from_millis(300));
+                    send()
+                }
+                other => other,
             }
-            let res = req.send().map_err(|e| Unreachable::new(e.to_string()))?;
+            .map_err(|e| Unreachable::new(e.to_string()))?;
             // a redirect is the gate's sign-in page (a 401/403 its refusal): signed out counts as not answering (the
             // write stays here), told apart so the state can say a sign-in helps
             let status = res.status();

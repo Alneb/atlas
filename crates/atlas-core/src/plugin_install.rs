@@ -675,13 +675,14 @@ pub fn sync_bundled(root: &Path, bundled: &Path) -> BundledReport {
         match bundled_step(root, &id, &m) {
             BundledStep::Nothing => {}
             BundledStep::Leave(why) => report.left.push(left(why)),
-            BundledStep::Update { from } => match {
+            BundledStep::Update { from } => {
                 let before = source_record(root, &id);
-                reinstall(root, &id, &Source::Folder(dir.clone())).and_then(|_| keep_origin(root, &id, before.as_ref()))
-            } {
-                Ok(()) => report.updated.push(BundledChange { id: id.clone(), title: m.title.clone(), from, to: m.version.clone(), replaces: vec![] }),
-                Err(e) => report.left.push(left(format!("the update failed: {e}"))),
-            },
+                let updated = reinstall(root, &id, &Source::Folder(dir.clone())).and_then(|_| keep_origin(root, &id, before.as_ref()));
+                match updated {
+                    Ok(()) => report.updated.push(BundledChange { id: id.clone(), title: m.title.clone(), from, to: m.version.clone(), replaces: vec![] }),
+                    Err(e) => report.left.push(left(format!("the update failed: {e}"))),
+                }
+            }
             BundledStep::Replace(had) => match install(root, &Source::Folder(dir.clone()), Some(&id), false) {
                 Ok(_) => report.replaced.push(BundledChange { id: id.clone(), title: m.title.clone(), from: None, to: m.version.clone(), replaces: had }),
                 Err(e) => report.left.push(left(format!("installing it in place of {} failed: {e}", had.join(", ")))),

@@ -79,6 +79,18 @@ jobs:
           name: gate-logs
           path: /tmp/atlas-gate/
           if-no-files-found: ignore
+      # a failed spec's page as it stood (Playwright's error-context.md: the accessibility tree) and its screenshot:
+      # what a failure log alone cannot say (which tab was there, what the pane showed)
+      - name: Failed specs' pages
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: e2e-failures
+          path: |
+            ui/test-results/**/error-context.md
+            ui/test-results/**/test-failed-*.png
+          if-no-files-found: ignore
+          retention-days: 7
 
   port:
     name: Port (${{ matrix.os }})

@@ -210,9 +210,9 @@ test("manga on e-ink: a refresh asked on each page turn (flash_every = 1)", asyn
 });
 
 // The user's Suwayomi (plugins/beta/manga/suwayomi.js; its GraphQL API as a real server answers it): a
-// stand-in server with one series of two chapters; its library beside the vault's, a chapter read from it page by page,
-// where you are written back with updateChapter, and the Libraries page's Comics listing both.
-test("Suwayomi: its library beside the vault's, a chapter read from it, where you are written back", async ({ page, request }) => {
+// stand-in server with one series of two chapters; its library in its own tab (the Comics library's header button),
+// a chapter read from it page by page, where you are written back with updateChapter.
+test("Suwayomi: its library in its own tab, a chapter read from it, where you are written back", async ({ page, request }) => {
   const marks: { id: number; page: number; read: boolean }[] = [];
   let fetched = false, updates = 0; // a source looked at again (fetchMangaAndChapters) finds a third chapter
   const queued: number[][] = []; // chapters queued in the server's own downloads (enqueueChapterDownloads)
@@ -264,19 +264,20 @@ test("Suwayomi: its library beside the vault's, a chapter read from it, where yo
     await page.getByTestId("palette").getByText("Manga: library", { exact: true }).first().click();
     const libs = page.locator(".libraries");
     await expect(libs.locator(".card", { hasText: "Blue Period" })).toBeVisible(); // the vault's
-    const blame = libs.locator(".card", { hasText: "BLAME!" });
-    await expect(blame.locator(".m")).toHaveText("2 unread"); // the server's unread count
+    // only what is yours is listed: the server's series are in its own tab, behind the header's button
+    await expect(libs.locator(".card", { hasText: "BLAME!" })).toHaveCount(0);
+    await libs.getByRole("button", { name: "Suwayomi", exact: false }).first().click();
+    const pane = page.locator(".manga");
+    const blame = pane.locator(".m-found", { hasText: "BLAME!" });
+    await expect(blame.locator(".m-found-in")).toHaveText("2 unread"); // the server's unread count
     await expect(blame.locator("img")).toHaveAttribute("src", /^blob:/); // its cover, from the server
     await expect.poll(() => blame.locator("img").evaluate((i: HTMLImageElement) => i.naturalWidth)).toBe(3); // decoded: PNG by now
-    // its Suwayomi categories as folders under "Suwayomi" at the side (Suwayomi's own Default left out)
-    await expect(libs.getByRole("button", { name: "Close Suwayomi" })).toBeVisible(); // a top folder starts open
-    await libs.locator('button.item[title="Suwayomi › Weekly"]').click();
-    await expect(libs.locator(".card", { hasText: "Blue Period" })).toHaveCount(0);
+    // its Suwayomi categories as tabs (Suwayomi's own Default left out)
+    await expect(pane.locator(".m-tabs button")).toHaveText(["All", "Weekly"]);
+    await pane.locator(".m-tabs").getByRole("button", { name: "Weekly" }).click();
     await expect(blame).toBeVisible();
-    await expect(libs.locator('button.item[title="Suwayomi › Default"]')).toHaveCount(0);
     await blame.click();
-    await libs.locator(".detail").getByRole("button", { name: "Read" }).click();
-    const pane = page.locator(".manga");
+    await expect(pane.getByRole("button", { name: "‹ Back" })).toBeVisible(); // back to the server's library
     await expect(pane.locator(".m-ch .m-ch-name")).toHaveText(["Chapter 001 - The Net's Offspring", "Chapter 002 - Fifteen Billion"]);
     await pane.getByRole("button", { name: "Start" }).click();
     await expect(pane.locator(".m-num")).toHaveText("1 / 3");

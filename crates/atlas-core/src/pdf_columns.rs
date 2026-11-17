@@ -104,7 +104,7 @@ fn runs(pieces: &[Rect], h: f32) -> Vec<(f32, f32)> {
     let mut out: Vec<(f32, f32)> = Vec::new();
     let mut start = None;
     for i in 0..=n {
-        let dense = i < n && cover[i] as f32 > DENSE * peak;
+        let dense = cover.get(i).is_some_and(|&c| c as f32 > DENSE * peak); // i == n: past the end, a run closes
         match (dense, start) {
             (true, None) => start = Some(i),
             (false, Some(s)) => {

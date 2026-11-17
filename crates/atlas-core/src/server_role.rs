@@ -79,6 +79,33 @@ impl Background {
     }
 }
 
+/// Whether a job (a round: a scheduled tool, or a vault command's schedule) may run on this core, by both of the vault's
+/// rules: the computers `[automation] schedules_on` names, and the kind of core its `background` names (the vault's word
+/// over the plugin's, `ids` most precise first). The scheduler skips a job refused here, and a round called by hand —
+/// a page's button, an agent over MCP on another machine — is refused with the same reason, so a round that writes
+/// files (Runs) runs on one machine only. `Err` says where it runs instead.
+pub fn job_here(auto: &crate::config::AutomationConfig, host: &str, seat: Seat, bg: Background, ids: &[&str]) -> Result<(), String> {
+    if !auto.named_here(host) {
+        return Err(format!("this vault's rounds run on {} ([automation] schedules_on), not on {host}", auto.schedules_on.join(", ")));
+    }
+    let bg = bg.in_vault(&auto.background, ids);
+    if !bg.runs_at(seat) {
+        return Err(format!("it runs {} (its `background`), and this core is {}", bg.words(), seat.words()));
+    }
+    Ok(())
+}
+
+impl Seat {
+    /// For a refusal: what this core is, in words.
+    pub fn words(self) -> &'static str {
+        match self {
+            Seat::Server => "the vault's server",
+            Seat::MirroredDevice => "a device whose vault has a copy on a server",
+            Seat::LoneDevice => "a device",
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
