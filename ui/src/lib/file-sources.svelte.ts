@@ -80,7 +80,7 @@ const EXCERPT_BYTES = 1200;
 
 export const REMOTE = ".atlas/remote/";
 /** Pictures the core can thumbnail (`/api/thumb`): IMAGE_RE (paths.ts) without the drawn kinds (svg, ico). */
-export const IMAGE = /\.(png|jpe?g|gif|webp|avif|bmp)$/i;
+export const IMAGE = /\.(png|jpe?g|gif|webp|avif|jxl|bmp)$/i;
 /** The last listings of the folders seen in this run ("source\nplace\npath", the newest 300: browse.svelte.ts): a
  *  folder seen before shows at once and is refreshed behind. */
 export const listings = new Map<string, { path: string; entries: Entry[] }>();

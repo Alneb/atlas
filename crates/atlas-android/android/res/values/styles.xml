@@ -11,6 +11,28 @@
     <item name="android:statusBarColor">@android:color/transparent</item>
     <item name="android:navigationBarColor">@android:color/transparent</item>
   </style>
+  <!-- the capture box when the vault's look is not the system's (Look.dark): its platform parts (the field's caret and
+       selection, dialogs, check boxes) in the vault's light or dark, not the phone's (CaptureActivity.onCreate) -->
+  <style name="CaptureLight" parent="@android:style/Theme.DeviceDefault.Light">
+    <item name="android:windowNoTitle">true</item>
+    <item name="android:windowActionBar">false</item>
+    <item name="android:windowIsTranslucent">true</item>
+    <item name="android:windowBackground">@android:color/transparent</item>
+    <item name="android:backgroundDimEnabled">true</item>
+    <item name="android:backgroundDimAmount">0.45</item>
+    <item name="android:statusBarColor">@android:color/transparent</item>
+    <item name="android:navigationBarColor">@android:color/transparent</item>
+  </style>
+  <style name="CaptureDark" parent="@android:style/Theme.DeviceDefault">
+    <item name="android:windowNoTitle">true</item>
+    <item name="android:windowActionBar">false</item>
+    <item name="android:windowIsTranslucent">true</item>
+    <item name="android:windowBackground">@android:color/transparent</item>
+    <item name="android:backgroundDimEnabled">true</item>
+    <item name="android:backgroundDimAmount">0.45</item>
+    <item name="android:statusBarColor">@android:color/transparent</item>
+    <item name="android:navigationBarColor">@android:color/transparent</item>
+  </style>
   <!-- a normal screen (Settings, the full app): drawn edge to edge, the bars transparent over the app's background -->
   <style name="App" parent="@android:style/Theme.DeviceDefault.DayNight">
     <item name="android:windowNoTitle">true</item>

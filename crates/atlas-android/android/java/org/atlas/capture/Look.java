@@ -98,6 +98,25 @@ public final class Look {
 
     public int dp(float v) { return Math.round(v * density); }
 
+    /** A menu card in `pop` shown by `anchor` — above it (the bottom bar's menus) or under it — its middle over the
+     *  anchor and always whole on the screen: inside the window's visible part, clear of the system bars, 8 dp from the
+     *  edges. Measured at the popup's own width (measured unbounded, its rows did not wrap and its height was wrong),
+     *  placed at a position of the screen (a dropdown's offsets are shifted by the platform when the menu would not fit). */
+    void showBy(android.widget.PopupWindow pop, View card, View anchor, boolean above) {
+        int w = pop.getWidth(), m = dp(8);
+        android.graphics.Rect frame = new android.graphics.Rect();
+        anchor.getWindowVisibleDisplayFrame(frame);
+        card.measure(View.MeasureSpec.makeMeasureSpec(w, View.MeasureSpec.EXACTLY), View.MeasureSpec.makeMeasureSpec(frame.height() - 2 * m, View.MeasureSpec.AT_MOST));
+        int h = card.getMeasuredHeight();
+        if (h >= frame.height() - 2 * m) pop.setHeight(h); // a menu as tall as the screen: no taller
+        int[] at = new int[2];
+        anchor.getLocationOnScreen(at);
+        int x = Math.max(frame.left + m, Math.min(at[0] + (anchor.getWidth() - w) / 2, frame.right - w - m));
+        int y = above ? at[1] - h - m : at[1] + anchor.getHeight() + m;
+        y = Math.max(frame.top + m, Math.min(y, frame.bottom - h - m));
+        pop.showAtLocation(anchor, Gravity.TOP | Gravity.START, x, y);
+    }
+
     /** Boox tablets: Onyx's framework carries its e-ink refresh API (`android.onyx.ViewUpdateHelper`, which Onyx's own
      *  SDK finds the same way — boox_5c_re docs/ONYX-EPD-PEN.md); else the maker or brand says Onyx. */
     static boolean isEink() {

@@ -25,9 +25,16 @@ function forget(p: Promise<string>): void {
   }, () => {});
 }
 
+/** A picture's file as a blob: URL — a JPEG XL as the core's decoding of it (see `JXL_WIDTH`). */
 export function blobUrl(path: string): Promise<string> {
-  return cached(path, () => api.raw(path).then((b) => URL.createObjectURL(b)));
+  return cached(path, () => (isJxl(path) ? api.thumb(path, JXL_WIDTH) : api.raw(path)).then((b) => URL.createObjectURL(b)));
 }
+
+/** JPEG XL is decoded by the core (jxl-oxide, thumbs.rs), never by the page's engine: Chrome's and Firefox's read none,
+ *  WebKit's can stall the page on a large one, Android's WebView has none. The core's PNG at this width (its largest,
+ *  kept in its cache) stands for the file wherever a picture is shown. */
+const JXL_WIDTH = 2048;
+const isJxl = (path: string) => /\.jxl$/i.test(path);
 
 /** A small version of an image (`/api/thumb`, downscaled + cached by the core) as a blob: URL.
  *  Galleries use this: full-size figures (10+ megapixels each) stall the WebView when decoded. */

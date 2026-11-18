@@ -1461,9 +1461,7 @@ public final class AtlasActivity extends Activity {
         for (LibraryRows.App app : libraryApps())
             menuItem(card, pop, app.icon, app.title, () -> PluginActivity.start(this, app.id, app.address));
         menuItem(card, pop, "calendar", "Agenda", () -> go(new Screen(Kind.AGENDA, ""), true));
-        card.measure(View.MeasureSpec.UNSPECIFIED, View.MeasureSpec.UNSPECIFIED);
-        // above the bar, its middle over the Apps item
-        pop.showAsDropDown(anchor, (anchor.getWidth() - look.dp(244)) / 2, -anchor.getHeight() - card.getMeasuredHeight() - look.dp(8));
+        look.showBy(pop, card, anchor, true); // above the bar, its middle over the Apps item, whole on the screen
     }
 
     private String pathOf(String id) {

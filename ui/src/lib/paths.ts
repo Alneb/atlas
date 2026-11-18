@@ -33,7 +33,7 @@ export const slug = (s: string): string =>
   s.normalize("NFD").replace(/\p{M}+/gu, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
 
 /** A picture: it opens in the image pane and keeps its extension in its name. */
-export const IMAGE_RE = /\.(png|jpe?g|gif|svg|webp|avif|bmp|ico)$/i;
+export const IMAGE_RE = /\.(png|jpe?g|gif|svg|webp|avif|jxl|bmp|ico)$/i;
 
 /** A text note: its extension is never shown outside the file explorers. */
 const NOTE_EXT = /\.(md|markdown|txt|page)$/i;

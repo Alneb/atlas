@@ -13,6 +13,11 @@ public final class CaptureActivity extends Activity implements CaptureBox.Frame 
 
     @Override
     protected void onCreate(Bundle state) {
+        // light or dark as the vault's look says (the page's theme, kept by Look), not the phone's: the box's own
+        // colours follow the vault, and the platform's parts must too, or they come out in the other theme
+        Look look = new Look(this);
+        int style = look.eink ? 0 : getResources().getIdentifier(look.dark ? "CaptureDark" : "CaptureLight", "style", getPackageName());
+        if (style != 0) setTheme(style);
         super.onCreate(state);
         if (Build.VERSION.SDK_INT >= 30) getWindow().setDecorFitsSystemWindows(false);
         box = new CaptureBox(this, this);
