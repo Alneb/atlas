@@ -52,7 +52,7 @@ test("dropping a PDF on the Library adds an entry with the file", async ({ page,
   });
   await expect(lib.locator(".row")).toHaveCount(before + 1);
   await expect(lib.locator(".detail h2")).toHaveText("Dropped lecture notes");
-  await expect(lib.locator(".detail").getByRole("button", { name: /Open PDF/ })).toBeEnabled();
+  await expect(lib.locator(".detail").getByRole("button", { name: "Read", exact: true })).toBeEnabled(); // it has its PDF: Read opens it
   const bib = await (await request.get("/api/file?path=refs/refs.bib", { headers: { "x-atlas": "1" } })).json();
   expect(bib.text).toContain("dropped");
 

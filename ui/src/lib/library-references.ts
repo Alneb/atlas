@@ -86,8 +86,8 @@ export function referencesSource(): LibrarySource {
           ["Citekey", p.key],
         ],
         actions: [
-          { label: "Read", icon: "pdf", primary: true, title: "Open the PDF (its note: “Note” in the PDF's bar) (R)", run: () => readPaper(p) },
-          { label: "Open PDF", disabled: !p.pdf, title: "Only the PDF (Enter)", run: () => openPdf(p) },
+          // one button to read (it was beside an "Open PDF" that did the same): the PDF, or its notes when it has none
+          { label: p.pdf ? "Read" : "Read the notes", icon: "pdf", primary: true, title: "Open the PDF (its note: “Note” in the PDF's bar) (R, Enter)", run: () => readPaper(p) },
           { label: p.has_notes ? "Notes" : "New notes", icon: "edit", run: () => openReadingNote(p.key) },
           { label: "Copy link", icon: "link", title: `[[${p.key}]]: citing is linking`, run: () => copy(`[[${p.key}]]`, "link") },
           { label: "Copy citekey", icon: "copy", more: true, run: () => copy(p.key, "citekey") },

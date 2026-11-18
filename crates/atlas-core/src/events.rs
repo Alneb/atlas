@@ -208,9 +208,15 @@ pub fn spawn_watcher(root: &Path, cfg: Config, bus: EventBus) -> Result<WatcherG
             is_change(&ev.kind)
                 && ev.paths.iter().any(|p| cb_root.rel(p).is_some_and(|r| !r.is_empty() && watchable(&cb_cfg, &r)))
         };
-        // an error or a queue overflow may hide a change: counted as one
-        if res.as_ref().map_or(true, |ev| ev.need_rescan() || seen(ev)) {
-            bump.changed();
+        // an error or a queue overflow may hide a change: counted as one whose paths are not known (the index walks);
+        // otherwise the paths themselves, so the index patches just those (links.rs `patch`)
+        match &res {
+            Ok(ev) if !ev.need_rescan() => {
+                if seen(ev) {
+                    bump.changed_paths(ev.paths.iter().filter_map(|p| cb_root.rel(p)).filter(|r| !r.is_empty() && watchable(&cb_cfg, r)));
+                }
+            }
+            _ => bump.changed(),
         }
         let _ = tx.send(res);
     })

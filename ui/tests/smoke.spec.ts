@@ -140,6 +140,7 @@ test("search options: match case, whole word, regex", async ({ page }) => {
   await expect.poll(() => pane.locator(".line-hit").count()).toBeLessThan(any);
   await pane.getByLabel("Match case").click();
   await pane.getByLabel("Regular expression").click();
+  await pane.getByLabel("All files' text").click(); // E_kin is in a .tsv: notes and PDFs only, by default
   await pane.getByLabel("Search", { exact: true }).fill("E_kin\\s");
   await expect(pane.locator(".line-hit").first()).toBeVisible();
 });

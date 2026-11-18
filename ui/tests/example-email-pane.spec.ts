@@ -323,9 +323,13 @@ test("Link: a conversation linked to any note is kept in its own note's links, l
   test.setTimeout(120_000);
   await put(request, "notes/Link target.md", "# Link target\n\nMy own text.\n");
   const mail = await openPane(page);
-  await mail.locator(".list .row", { hasText: "Cluster time on iq" }).click();
+  // whichever conversation is first: the tests before this one move the stand-in server's mail about
+  const first = mail.locator(".list .row").first();
+  await expect(first).toBeVisible({ timeout: 30_000 });
+  const subject = (await first.locator(".subject").innerText()).trim();
+  await first.click();
   const reader = mail.getByRole("region", { name: "The conversation" });
-  await expect(reader.locator("h2.subject")).toContainText("Cluster time on iq");
+  await expect(reader.locator("h2.subject")).toContainText(subject);
   // a visible Link button, not an entry hidden under ⋯
   await reader.getByRole("button", { name: "Link" }).click();
   await reader.getByRole("menuitem", { name: /To a note or a mail/ }).click();
@@ -338,7 +342,7 @@ test("Link: a conversation linked to any note is kept in its own note's links, l
   await expect.poll(async () => {
     const r = await request.get("/api/files", { headers: H });
     const files = (await r.json()) as string[];
-    const note = files.find((f) => f.startsWith("mail/") && f.includes("Cluster time on iq"));
+    const note = files.find((f) => f.startsWith("mail/") && f.includes(subject));
     return note ? (await read(request, note)) ?? "" : "";
   }, { timeout: 20_000 }).toContain("[[notes/Link target]]");
   expect(await read(request, "notes/Link target.md")).toBe("# Link target\n\nMy own text.\n");

@@ -77,8 +77,10 @@ struct Warm {
     root: PathBuf,
     used: Instant,
     index: Arc<Index>,
-    /// The vault's generation read before the index's walk, and when (None: no watcher vouches for this vault).
+    /// The vault's generation read before the index's walk (or patch), and when (None: no watcher vouches for it).
     walked: Option<(Stamp, Instant)>,
+    /// When the index last walked the whole vault: patches are taken only within [`FULL_EVERY`] of it.
+    full: Instant,
 }
 static CACHE: Mutex<Vec<Warm>> = Mutex::new(Vec::new());
 /// The vaults whose index is never dropped, idle or not ([`keep_warm`]).
@@ -88,6 +90,11 @@ const IDLE: Duration = Duration::from_secs(30 * 60);
 /// How long an unchanged generation is taken at its word before walking anyway (a blind spot the watcher cannot see,
 /// e.g. a folder moved in during its 250 ms batch, lasts at most this long).
 const TRUST: Duration = Duration::from_secs(30);
+/// How long patches (only the paths the watcher named) stand in for a walk before the whole vault is walked again — a
+/// change no event told of is found within this long.
+const FULL_EVERY: Duration = Duration::from_secs(5 * 60);
+/// More changed paths than this: a walk is as quick (a sync bringing a big folder, a checkout).
+const PATCH_MAX: usize = 400;
 
 /// Files larger than this are not scanned (multi-MB transcripts, generated dumps).
 const MAX_BYTES: u64 = 4 << 20;
@@ -433,45 +440,59 @@ pub(crate) fn scan(root: &Path, cfg: &Config) -> Arc<Index> {
     let _one = building.lock().unwrap_or_else(|e| e.into_inner());
     // read before the walk: a change while it runs makes the next request walk again
     let stamp = crate::vault_changes::stamp(root, cfg);
-    refresh(&CACHE, root, Instant::now(), stamp, |prev| rebuild(root, cfg, prev))
+    refresh(&CACHE, root, Instant::now(), stamp, |prev, since| {
+        // the watcher named every path changed since the last look: only those are looked at (no walk of the vault)
+        if let (Some(i), Some(was)) = (&prev, since) {
+            if let Some(paths) = crate::vault_changes::since(root, cfg, was).filter(|p| p.len() <= PATCH_MAX) {
+                return (patch(root, cfg, i.clone(), &paths), false);
+            }
+        }
+        (rebuild(root, cfg, prev), true)
+    })
 }
 
 /// `root`'s entry of the warm list brought up to date by `build` — or kept without a walk when its watcher saw no change
 /// since (the same `stamp`, within [`TRUST`]) — and moved to the front; vaults idle for [`IDLE`] or beyond the first
 /// [`WARM_VAULTS`] are dropped (their memory with them). The list is locked only to look and to store, not for `build`.
+/// `build` gets the index there was and, while patches may stand in for a walk ([`FULL_EVERY`]), the stamp it was
+/// made at; it answers the new index and whether it walked the whole vault.
 fn refresh(
     cache: &Mutex<Vec<Warm>>,
     root: &Path,
     now: Instant,
     stamp: Option<Stamp>,
-    build: impl FnOnce(Option<Arc<Index>>) -> Arc<Index>,
+    build: impl FnOnce(Option<Arc<Index>>, Option<Stamp>) -> (Arc<Index>, bool),
 ) -> Arc<Index> {
     let lock = || cache.lock().unwrap_or_else(|e| e.into_inner());
     let unchanged = |w: &Warm| {
         stamp.is_some() && w.walked.is_some_and(|(s, at)| Some(s) == stamp && now.saturating_duration_since(at) < TRUST)
     };
-    let prev = {
+    let (prev, since, full) = {
         let mut warm = lock();
         match warm.iter().position(|w| w.root == root) {
             Some(i) if unchanged(&warm[i]) => {
                 let w = warm.remove(i);
-                return keep(&mut warm, root, now, w.index, w.walked);
+                return keep(&mut warm, root, now, w.index, w.walked, w.full);
             }
-            Some(i) => Some(warm[i].index.clone()),
-            None => None,
+            Some(i) => {
+                let w = &warm[i];
+                let recent = now.saturating_duration_since(w.full) < FULL_EVERY;
+                (Some(w.index.clone()), w.walked.map(|(s, _)| s).filter(|_| recent && stamp.is_some()), w.full)
+            }
+            None => (None, None, now),
         }
     };
-    let index = build(prev);
-    keep(&mut lock(), root, now, index, stamp.map(|s| (s, now)))
+    let (index, walked_all) = build(prev, since);
+    keep(&mut lock(), root, now, index, stamp.map(|s| (s, now)), if walked_all { now } else { full })
 }
 
 /// `index` stored as `root`'s, at the front of the warm list. Idle vaults go, then the least recently used beyond
 /// [`WARM_VAULTS`] — never a kept one ([`keep_warm`]).
-fn keep(warm: &mut Vec<Warm>, root: &Path, now: Instant, index: Arc<Index>, walked: Option<(Stamp, Instant)>) -> Arc<Index> {
+fn keep(warm: &mut Vec<Warm>, root: &Path, now: Instant, index: Arc<Index>, walked: Option<(Stamp, Instant)>, full: Instant) -> Arc<Index> {
     let kept = KEPT.lock().unwrap_or_else(|e| e.into_inner()).clone();
     let is_kept = |w: &Warm| kept.contains(&w.root);
     warm.retain(|w| w.root != root && (is_kept(w) || now.saturating_duration_since(w.used) < IDLE));
-    warm.insert(0, Warm { root: root.to_path_buf(), used: now, index: index.clone(), walked });
+    warm.insert(0, Warm { root: root.to_path_buf(), used: now, index: index.clone(), walked, full });
     while warm.len() > WARM_VAULTS {
         let Some(i) = warm.iter().rposition(|w| !is_kept(w)) else { break };
         warm.remove(i);
@@ -556,6 +577,53 @@ fn rebuild(root: &Path, cfg: &Config, prev: Option<Arc<Index>>) -> Arc<Index> {
     if read > 0 || gone {
         disk::save_in_background(root, index.clone());
     }
+    index
+}
+
+/// `prev` with only `paths` looked at again (what the watcher named since it was made): each path — a file, or a
+/// folder created, moved or removed with everything under it — is taken out, then what the walk would list at it now
+/// (`walk::files_under`) goes back in, its notes read again; every other note keeps its parse, unread and unstatted.
+/// New files go at the end of the walk order. The same `Arc` comes back when nothing the index holds changed.
+fn patch(root: &Path, cfg: &Config, prev: Arc<Index>, paths: &[String]) -> Arc<Index> {
+    let under = |f: &str, p: &str| f == p || f.strip_prefix(p).is_some_and(|r| r.starts_with('/'));
+    let touched = |f: &str| paths.iter().any(|p| under(f, p));
+    // what the walk would list at the changed paths now
+    let mut now: Vec<(PathBuf, String)> = Vec::new();
+    let mut listed = std::collections::HashSet::new();
+    for p in paths {
+        for (abs, rel) in walk::files_under(root, &root.join(p), cfg) {
+            if listed.insert(rel.clone()) {
+                now.push((abs, rel));
+            }
+        }
+    }
+    // a file still there keeps its place in the walk order; one gone leaves it; a new one goes at the end
+    let had: std::collections::HashSet<&str> = prev.names.files.iter().map(String::as_str).collect();
+    let mut files: Vec<String> = prev.names.files.iter().filter(|f| !touched(f) || listed.contains(f.as_str())).cloned().collect();
+    files.extend(now.iter().filter(|(_, r)| !had.contains(r.as_str())).map(|(_, r)| r.clone()));
+    let mut parsed: FileCache = prev.parsed.iter().filter(|(f, _)| !touched(f)).map(|(f, p)| (f.clone(), p.clone())).collect();
+    let mut read = 0;
+    for (abs, rel) in &now {
+        if !rel.to_lowercase().ends_with(".md") || cfg.index_excluded(rel) {
+            continue;
+        }
+        let Ok(meta) = abs.metadata() else { continue };
+        let p = match prev.parsed.get(rel) {
+            Some(p) if p.mtime == meta.modified().ok() && p.size == meta.len() => p.clone(),
+            _ => {
+                read += 1;
+                Arc::new(parse_note(abs, &meta))
+            }
+        };
+        parsed.insert(rel.clone(), p);
+    }
+    let same_files = files == prev.names.files;
+    if same_files && read == 0 && parsed.len() == prev.parsed.len() {
+        return prev;
+    }
+    let names = if same_files { prev.names.clone() } else { Arc::new(Names::new(files)) };
+    let index = Arc::new(Index::new(names, shrunk(parsed)));
+    disk::save_in_background(root, index.clone());
     index
 }
 
@@ -1084,19 +1152,54 @@ mod tests {
     }
 
     #[test]
+    fn a_patch_of_the_changed_paths_gives_the_index_a_walk_gives() {
+        let d = tempfile::tempdir().unwrap();
+        let r = d.path();
+        let cfg = Config::default();
+        std::fs::create_dir_all(r.join("notes")).unwrap();
+        std::fs::write(r.join("notes/a.md"), "[[b]]").unwrap();
+        std::fs::write(r.join("notes/b.md"), "# B").unwrap();
+        std::fs::write(r.join("old.md"), "[[a]]").unwrap();
+        let first = rebuild(r, &cfg, None);
+        // a note written, a folder of notes arriving, a note removed
+        std::thread::sleep(Duration::from_millis(20));
+        std::fs::write(r.join("notes/a.md"), "[[b]] and [[c]]").unwrap();
+        std::fs::create_dir_all(r.join("new/deep")).unwrap();
+        std::fs::write(r.join("new/deep/c.md"), "#tag").unwrap();
+        std::fs::write(r.join("new/pic.png"), "x").unwrap();
+        std::fs::remove_file(r.join("old.md")).unwrap();
+        let paths = ["notes/a.md", "new", "old.md"].map(String::from);
+        let patched = patch(r, &cfg, first.clone(), &paths);
+        let walked = rebuild(r, &cfg, None);
+        let set = |i: &Index| { let mut f = i.names.files.clone(); f.sort(); f };
+        assert_eq!(set(&patched), set(&walked), "the same files");
+        let mut a: Vec<_> = patched.parsed.keys().cloned().collect();
+        let mut b: Vec<_> = walked.parsed.keys().cloned().collect();
+        a.sort();
+        b.sort();
+        assert_eq!(a, b, "the same notes");
+        assert_eq!(patched.parsed["notes/a.md"].links.len(), 2, "the written note read again");
+        assert!(Arc::ptr_eq(&patched.parsed["notes/b.md"], &first.parsed["notes/b.md"]), "an untouched note kept, unread");
+        assert_eq!(patched.names.resolve_target("c", true, "notes/a.md").as_deref(), Some("new/deep/c.md"));
+        // nothing the index holds changed: the same index
+        let again = patch(r, &cfg, patched.clone(), &["notes/b.md".to_string()]);
+        assert!(Arc::ptr_eq(&again, &patched));
+    }
+
+    #[test]
     fn several_vaults_stay_warm_until_idle_or_too_many() {
         let empty = || Arc::new(Index::new(Arc::new(Names::new(Vec::new())), HashMap::new()));
         let (warm, t0) = (Mutex::new(Vec::new()), Instant::now());
-        let a = refresh(&warm, Path::new("/a"), t0, None, |_| empty());
-        refresh(&warm, Path::new("/b"), t0, None, |_| empty());
-        let again = refresh(&warm, Path::new("/a"), t0, None, |prev| prev.expect("a is still warm"));
+        let a = refresh(&warm, Path::new("/a"), t0, None, |_, _| (empty(), true));
+        refresh(&warm, Path::new("/b"), t0, None, |_, _| (empty(), true));
+        let again = refresh(&warm, Path::new("/a"), t0, None, |prev, _| (prev.expect("a is still warm"), true));
         assert!(Arc::ptr_eq(&a, &again), "switching vaults does not drop the other's index");
         for v in ["/c", "/d"] {
-            refresh(&warm, Path::new(v), t0, None, |_| empty());
+            refresh(&warm, Path::new(v), t0, None, |_, _| (empty(), true));
         }
         let roots = |w: &Mutex<Vec<Warm>>| w.lock().unwrap().iter().map(|w| w.root.to_string_lossy().into_owned()).collect::<Vec<_>>();
         assert_eq!(roots(&warm), ["/d", "/c", "/a"], "the least recently used goes first");
-        refresh(&warm, Path::new("/d"), t0 + IDLE + Duration::from_secs(1), None, |prev| prev.unwrap());
+        refresh(&warm, Path::new("/d"), t0 + IDLE + Duration::from_secs(1), None, |prev, _| (prev.unwrap(), true));
         assert_eq!(roots(&warm), ["/d"], "idle vaults are dropped");
     }
 
@@ -1106,17 +1209,17 @@ mod tests {
         let (warm, t0) = (Mutex::new(Vec::new()), Instant::now());
         let own = Path::new("/kept-own-vault");
         keep_warm(own);
-        let first = refresh(&warm, own, t0, None, |_| empty());
+        let first = refresh(&warm, own, t0, None, |_, _| (empty(), true));
         for (i, v) in ["/kept-x", "/kept-y", "/kept-z"].iter().enumerate() {
-            refresh(&warm, Path::new(v), t0 + IDLE * (i as u32 + 2), None, |_| empty());
+            refresh(&warm, Path::new(v), t0 + IDLE * (i as u32 + 2), None, |_, _| (empty(), true));
         }
         let roots = |w: &Mutex<Vec<Warm>>| w.lock().unwrap().iter().map(|w| w.root.to_string_lossy().into_owned()).collect::<Vec<_>>();
         assert_eq!(roots(&warm), ["/kept-z", "/kept-own-vault"], "the others went idle; the kept one stays");
         for v in ["/kept-a", "/kept-b", "/kept-c"] {
-            refresh(&warm, Path::new(v), t0 + IDLE * 5, None, |_| empty());
+            refresh(&warm, Path::new(v), t0 + IDLE * 5, None, |_, _| (empty(), true));
         }
         assert!(roots(&warm).contains(&own.to_string_lossy().into_owned()), "beyond WARM_VAULTS the kept one stays too");
-        let again = refresh(&warm, own, t0 + IDLE * 5, None, |prev| prev.expect("still warm"));
+        let again = refresh(&warm, own, t0 + IDLE * 5, None, |prev, _| (prev.expect("still warm"), true));
         assert!(Arc::ptr_eq(&first, &again));
     }
 
@@ -1152,15 +1255,15 @@ mod tests {
         let slow = {
             let warm = warm.clone();
             std::thread::spawn(move || {
-                refresh(&warm, Path::new("/slow"), Instant::now(), None, |_| {
+                refresh(&warm, Path::new("/slow"), Instant::now(), None, |_, _| {
                     started.send(()).unwrap();
                     held.recv().unwrap();
-                    empty()
+                    (empty(), true)
                 });
             })
         };
         wait.recv().unwrap();
-        refresh(&warm, Path::new("/quick"), Instant::now(), None, |_| empty());
+        refresh(&warm, Path::new("/quick"), Instant::now(), None, |_, _| (empty(), true));
         release.send(()).unwrap();
         slow.join().unwrap();
         assert_eq!(warm.lock().unwrap().len(), 2);
@@ -1175,26 +1278,33 @@ mod tests {
         feed.register();
         let (warm, t0) = (Mutex::new(Vec::new()), Instant::now());
         let stamp = || crate::vault_changes::stamp(root, &cfg);
-        let first = refresh(&warm, root, t0, stamp(), |_| empty());
-        let kept = refresh(&warm, root, t0, stamp(), |_| panic!("no change: no walk"));
+        let first = refresh(&warm, root, t0, stamp(), |_, _| (empty(), true));
+        let kept = refresh(&warm, root, t0, stamp(), |_, _| panic!("no change: no walk"));
         assert!(Arc::ptr_eq(&first, &kept));
         feed.changed();
-        let mut walked = false;
-        refresh(&warm, root, t0, stamp(), |prev| {
-            walked = true;
-            prev.unwrap()
+        let mut asked = None;
+        refresh(&warm, root, t0, stamp(), |prev, since| {
+            asked = Some(since);
+            (prev.unwrap(), false)
         });
-        assert!(walked, "a change: walked again");
+        assert!(matches!(asked, Some(Some(_))), "a change: built again, given the stamp it was made at (a patch may do)");
         let mut walked = false;
-        refresh(&warm, root, t0 + TRUST, stamp(), |prev| {
+        refresh(&warm, root, t0 + TRUST, stamp(), |prev, _| {
             walked = true;
-            prev.unwrap()
+            (prev.unwrap(), true)
         });
         assert!(walked, "trusted for a while only");
+        let mut since_given = None;
+        refresh(&warm, root, t0 + TRUST + FULL_EVERY, { feed.changed(); stamp() }, |prev, since| {
+            since_given = Some(since);
+            (prev.unwrap(), true)
+        });
+        assert_eq!(since_given, Some(None), "a whole walk is due again: no patch offered");
         let mut walked = false;
-        refresh(&warm, root, t0 + TRUST, None, |prev| {
+        refresh(&warm, root, t0 + TRUST, None, |prev, since| {
+            assert!(since.is_none(), "no watcher: no patch");
             walked = true;
-            prev.unwrap()
+            (prev.unwrap(), true)
         });
         assert!(walked, "no watcher: always walked");
     }

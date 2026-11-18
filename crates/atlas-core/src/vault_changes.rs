@@ -6,7 +6,8 @@ use crate::config::Config;
 use std::hash::{Hash, Hasher};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering::SeqCst};
-use std::sync::{Arc, RwLock};
+use std::collections::VecDeque;
+use std::sync::{Arc, Mutex, RwLock};
 
 /// A vault's generation: equal stamps mean no change was seen in between. Drawn from one counter for every vault and
 /// watcher, so a stamp of a stopped watcher never equals a later one's.
@@ -26,11 +27,43 @@ struct Shared {
     /// What the walk sees ([`walk::keep`]): a write Atlas makes elsewhere (a run's files in an ignored folder, its own
     /// cache) leaves the generation alone, or every such write would make the next index request walk the vault.
     walked: Config,
+    /// Which paths each generation changed ([`since`]): what lets the index patch those paths instead of walking.
+    log: Mutex<Log>,
 }
+
+/// The changed paths, generation by generation: `None` for a change whose paths are not known (a queue overflow, a
+/// folder whose watch came after its files) — the index walks then. At most [`LOG_MAX`] entries; older ones drop off
+/// and `floor` says from which generation on the log is whole.
+struct Log {
+    entries: VecDeque<(u64, Option<String>)>,
+    floor: u64,
+}
+
+/// Enough for a burst of saves, a sync bringing a folder, a git checkout of a few hundred files; beyond, a walk.
+const LOG_MAX: usize = 2048;
 
 impl Shared {
     fn changed(&self) {
-        self.gen.store(NEXT.fetch_add(1, SeqCst), SeqCst);
+        self.moved(None);
+    }
+
+    fn changed_at(&self, rel: String) {
+        self.moved(Some(rel));
+    }
+
+    fn moved(&self, rel: Option<String>) {
+        let gen = NEXT.fetch_add(1, SeqCst);
+        {
+            let mut log = self.log.lock().unwrap_or_else(|e| e.into_inner());
+            log.entries.push_back((gen, rel));
+            while log.entries.len() > LOG_MAX {
+                if let Some((g, _)) = log.entries.pop_front() {
+                    log.floor = g;
+                }
+            }
+        }
+        // stored after the log has it: a stamp read now never misses its paths
+        self.gen.store(gen, SeqCst);
     }
 }
 
@@ -42,8 +75,21 @@ pub struct Feed(Arc<Shared>);
 pub struct Bump(Arc<Shared>);
 
 impl Bump {
+    /// A change whose paths are not known (an error, an overflow): the next index request walks.
     pub fn changed(&self) {
         self.0.changed();
+    }
+
+    /// These paths (vault-relative, as the walk names them) changed: created, written, removed or renamed.
+    pub fn changed_paths<I: IntoIterator<Item = String>>(&self, rels: I) {
+        let mut any = false;
+        for rel in rels {
+            any = true;
+            self.0.changed_at(rel);
+        }
+        if !any {
+            self.0.changed();
+        }
     }
 }
 
@@ -55,6 +101,7 @@ impl Feed {
             gen: AtomicU64::new(0),
             whole: AtomicBool::new(true),
             walked: cfg.clone(),
+            log: Mutex::new(Log { entries: VecDeque::new(), floor: 0 }),
         };
         s.changed();
         Feed(Arc::new(s))
@@ -91,8 +138,9 @@ pub(crate) fn touched(abs: &Path) {
     let feeds = FEEDS.read().unwrap_or_else(|e| e.into_inner());
     for s in feeds.iter() {
         let Ok(rel) = abs.strip_prefix(&s.root) else { continue };
-        if crate::walk::keep(&s.walked, &rel.to_string_lossy()) {
-            s.changed();
+        let rel = rel.to_string_lossy().replace('\\', "/");
+        if crate::walk::keep(&s.walked, &rel) {
+            s.changed_at(rel);
         }
     }
 }
@@ -104,6 +152,28 @@ pub(crate) fn stamp(root: &Path, cfg: &Config) -> Option<Stamp> {
     let feeds = FEEDS.read().unwrap_or_else(|e| e.into_inner());
     let s = feeds.iter().find(|s| s.root == root && s.key == key && s.whole.load(SeqCst))?;
     Some(Stamp(s.gen.load(SeqCst)))
+}
+
+/// The paths changed in `root` since `from` (a stamp read before an earlier walk), each once — or None when some
+/// change since has no known paths, the log no longer reaches back that far, or no complete watcher speaks for the
+/// vault: then only a walk can say.
+pub(crate) fn since(root: &Path, cfg: &Config, from: Stamp) -> Option<Vec<String>> {
+    let key = walk_key(cfg);
+    let feeds = FEEDS.read().unwrap_or_else(|e| e.into_inner());
+    let s = feeds.iter().find(|s| s.root == root && s.key == key && s.whole.load(SeqCst))?;
+    let log = s.log.lock().unwrap_or_else(|e| e.into_inner());
+    if from.0 < log.floor {
+        return None;
+    }
+    let mut seen = std::collections::HashSet::new();
+    let mut out = Vec::new();
+    for (_, rel) in log.entries.iter().filter(|(g, _)| *g > from.0) {
+        let rel = rel.as_ref()?;
+        if seen.insert(rel.as_str()) {
+            out.push(rel.clone());
+        }
+    }
+    Some(out)
 }
 
 /// What decides which files the walk and the index see: the ignore list, the agent's files, the templates folder.
@@ -138,6 +208,19 @@ mod tests {
         let mut other = cfg.clone();
         other.ignore.push("runs".into());
         assert_eq!(stamp(root, &other), None, "another configuration: the watcher's folders may not be the walk's");
+        let d = stamp(root, &cfg).unwrap();
+        touched(&root.join("notes/y.md"));
+        feed.bump().changed_paths(["notes/z.md".to_string(), "notes/y.md".to_string()]);
+        assert_eq!(since(root, &cfg, d), Some(vec!["notes/y.md".to_string(), "notes/z.md".to_string()]), "each path once");
+        let e = stamp(root, &cfg).unwrap();
+        assert_eq!(since(root, &cfg, e), Some(vec![]), "nothing since");
+        feed.bump().changed();
+        assert_eq!(since(root, &cfg, e), None, "a change with no paths: only a walk can say");
+        let f = stamp(root, &cfg).unwrap();
+        for i in 0..LOG_MAX + 1 {
+            touched(&root.join(format!("n{i}.md")));
+        }
+        assert_eq!(since(root, &cfg, f), None, "the log no longer reaches back");
         feed.missed();
         assert_eq!(stamp(root, &cfg), None, "a folder without its watch");
         drop(feed);

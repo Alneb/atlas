@@ -37,8 +37,9 @@ test("the Library's Notes renames a legacy notes.md to <citekey>.md, which shows
   const lib = page.locator(".library");
   await lib.getByPlaceholder(/Search title/).fill("hubbard 1963");
   await expect(lib.locator(".row")).toHaveCount(1);
-  await expect(lib.locator(".row .flag", { hasText: "notes" })).toBeVisible(); // a legacy note counts
-  await lib.locator(".detail").getByRole("button", { name: "Notes" }).click();
+  // a legacy note counts: the button says Notes, not New notes (rows flag only a missing PDF)
+  await expect(lib.locator(".detail").getByRole("button", { name: "Notes", exact: true })).toBeVisible();
+  await lib.locator(".detail").getByRole("button", { name: "Notes", exact: true }).click();
   await expect(page.locator(".dv-tab.dv-active-tab")).toContainText("hubbard1963electron");
 
   const note = await (await request.get(`/api/file?path=${DIR}/hubbard1963electron.md`, { headers: H })).json();

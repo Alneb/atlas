@@ -21,7 +21,7 @@ test.afterEach(async ({ request }) => {
   await request.put("/api/file", { headers: H, data: { path: ".atlas/cache/layout.json", text: "null" } });
 });
 
-test("the Library is a plugin: an app at the top of the bar, gone when switched off", async ({ page, request }) => {
+test("the Library is a plugin: an app at the top of the bar; References off leaves the tile to the other libraries", async ({ page, request }) => {
   await page.goto("/");
   await page.getByText("Finish the GW notes.").waitFor();
   // the apps at the top of the bar: Home first, then the built-in plugins that are on
@@ -32,15 +32,11 @@ test("the Library is a plugin: an app at the top of the bar, gone when switched 
   expect(order.findIndex((l) => l.startsWith("Library"))).toBeGreaterThan(order.indexOf("Home"));
 
   await setOff(request, ["library"]);
-  await expect(lib).toHaveCount(0);
-  await page.getByText("Finish the GW notes.").click();
-  await page.keyboard.press("Meta+Shift+l"); // its key does nothing while it is off
-  await page.waitForTimeout(400);
-  await expect(page.locator(`[data-testid=apps] .app.open[aria-label^="Library"]`)).toHaveCount(0);
-  await page.keyboard.press("Meta+e");
-  await page.keyboard.type("Library: references, then the vault's other libraries");
-  // exact: the bar's last row offers to capture what was typed ("Capture “Library (papers)”"), which is not the command
-  await expect(page.getByTestId("palette").getByText("Library: references, then the vault's other libraries", { exact: true })).toHaveCount(0);
+  // References (the built-in plugin) off: the tile is the Libraries page's, so it stays while the vault has other
+  // libraries (the catalog's), and opens them without References
+  await expect(lib).toHaveCount(1);
+  await lib.click();
+  await expect(page.locator('.library[data-source="references"]')).toHaveCount(0);
   await page.keyboard.press("Escape");
 
   // Settings → Plugins lists it, with the same switch as a vault plugin

@@ -563,7 +563,10 @@ function librarySource(atlas, title = null) {
           const key = (k.library?.key ?? []).map((x) => vaultName(k, x));
           const skip = new Set(["title", cover, ...key, g && vaultName(k, g), "tags", "aliases", "cssclasses", "cover", "image", "poster", "kind", "type", "created", "updated", "modified"].filter(Boolean));
           const own = propsOf(k).filter((p) => !skip.has(p));
-          const rest = Object.keys(props).filter((p) => !skip.has(p) && !own.includes(p) && !/^https?:/i.test(fieldText(props[p])) && !/(^|_)(url|id|ids)$/i.test(p));
+          // a service's id (IMDb's tt0002023, Wikidata's Q42, Open Library's OL7353617M) is what its link below is
+          // made of, not something to read: left out by its shape whatever the property is called
+          const idLike = (v) => /^[a-z]{0,3}\d{4,}[a-z]?$/i.test(v.trim());
+          const rest = Object.keys(props).filter((p) => !skip.has(p) && !own.includes(p) && !/^https?:/i.test(fieldText(props[p])) && !/(^|_)(url|id|ids)$/i.test(p) && !idLike(fieldText(props[p])));
           return [...own.map((p) => [human(p), cellText(value(row, p)) || fieldText(props[p])]), ...rest.map((p) => [human(p), fieldText(props[p])])].filter(([, v]) => v && v.length < 400);
         })(),
         actions: [
