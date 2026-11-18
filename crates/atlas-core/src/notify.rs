@@ -689,6 +689,7 @@ impl Delivery {
 /// here when that half is built.
 pub fn spawn(ws: Workspace, bus: EventBus, presence: Arc<Presence>, notifier: Box<dyn Notifier>) -> tokio::task::JoinHandle<()> {
     let mut rx = bus.on_notice();
+    crate::notice_relay::attach(ws.root(), bus.clone()); // the other devices' notices are published here
     tokio::spawn(async move {
         let mut delivery = Delivery::new(notifier);
         loop {
@@ -702,6 +703,7 @@ pub fn spawn(ws: Workspace, bus: EventBus, presence: Arc<Presence>, notifier: Bo
             let offered = tokio::task::spawn_blocking(move || {
                 match said {
                     ToSystem::Show(n) => {
+                        crate::notice_relay::raised(ws.root(), crate::notice_relay::Item::Show(n.clone())); // to the other devices
                         let cfg = ws.config().map(|c| c.notifications).unwrap_or_default();
                         let looked_at = presence.looked_at();
                         if let Some(f) = OBSERVER.get() {
@@ -713,6 +715,7 @@ pub fn spawn(ws: Workspace, bus: EventBus, presence: Arc<Presence>, notifier: Bo
                         delivery.offer(&cfg, &n, looked_at, quiet());
                     }
                     ToSystem::Withdraw(id) => {
+                        crate::notice_relay::raised(ws.root(), crate::notice_relay::Item::Withdraw(id.clone()));
                         if let Some(f) = OBSERVER.get() {
                             f(Heard::Withdrawn(&id));
                         }

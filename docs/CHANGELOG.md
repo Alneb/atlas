@@ -5,6 +5,11 @@ and versions follow [Semantic Versioning](https://semver.org/) once 1.0 is out.
 
 ## [Unreleased]
 
+### Added
+- **A vault's notices on every device:** a notice raised on one device (or on the server) reaches the person's other
+  devices through the vault's server within a minute, and dismissing or withdrawing it on one takes it away on the
+  others. Needs the server to run this version.
+
 ### Changed
 - **A vault opened on a computer for the first time is "always on"**: it starts with Atlas and keeps its schedules,
   plugin rounds and notices going with no window on it; Settings → Vaults & sync turns it off. A vault list from before

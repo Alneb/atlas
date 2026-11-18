@@ -544,6 +544,12 @@ A client built anywhere in the core, the CLI or the desktop app (a plugin's `fet
 
 A meta plugin (the catalog) owns a mechanism; its subplugins add to it without code in the core: `requires = ["<id>"]` and a free-form `[contributes.<id>]` table in their `plugin.toml`. The core only (1) refuses to load a plugin whose requirement is missing, broken or off — one predicate, `plugins::blocked` (core: tools) mirrored by `pluginBlocked` (page: main.js, panes, commands), with Settings showing the reason — (2) starts required plugins first, and (3) serves `GET /api/plugins/{id}/contributions` (`plugins::contributions`). Everything else, including the table's shape, belongs to the meta plugin. Tests: `plugins::tests::a_subplugin_contributes_to_its_meta_plugin_only_while_both_can_run`, `ui/tests/plugin-requires.spec.ts`.
 
+### A vault's notices on every device (notice_relay.rs)
+Nothing to do in a plugin: every notice and withdrawal on a vault's bus is relayed by the core. notify.rs hands each to
+`notice_relay::raised` (the server's ring, or this device's outbox); the mirror's presence thread exchanges the outbox
+once a minute (`POST /api/lease/notices`) and publishes the others' items on the vault's bus, marked so they are not
+sent on again. Give a notice a stable `id` (or `subject`) so its withdrawal reaches the other devices' copies.
+
 ### Linking a plugin's thing to notes (mail ↔ note ↔ event)
 One shape for every plugin whose things become notes: the link is kept in **the plugin's own note** of the thing
 (`links:`, written by that plugin — Email's conversation note, Calendar's event note), never in the user's note; the

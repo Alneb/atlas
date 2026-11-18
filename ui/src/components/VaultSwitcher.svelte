@@ -152,6 +152,7 @@
               {:else if e.warm && e.alwaysOn}<span class="badge warm" title="Running in the background: its schedules, plugin rounds and notices go on; switching is instant">running</span>
               {:else if e.warm}<span class="badge warm" title="Started already: switching is instant">ready</span>{/if}
               {#if e.kind === "server"}<span class="badge">server</span>{/if}
+              {#if e.unseen && !e.current}<span class="badge news" title="{e.unseen} notice{e.unseen === 1 ? '' : 's'} came while it was not shown">{e.unseen} new</span>{/if}
               {#if e.mirror}
                 {@const s = reached[e.mirror]}
                 <span class="badge mirror {s ?? ''}" title="Mirrored on {e.mirror}{s ? ` — ${MIRROR_WORD[s]}` : ''}">⇄ {hostOf(e.mirror)}</span>
@@ -245,6 +246,7 @@
   .badge { font-size: calc(11px * var(--ui-scale, 1)); color: var(--text-muted); border: 1px solid var(--border); border-radius: 999px; padding: 1px 8px; white-space: nowrap; }
   .badge.here { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 45%, transparent); }
   .badge.warm { color: var(--green); border-color: color-mix(in srgb, var(--green) 40%, transparent); }
+  .badge.news { color: var(--accent-fg); background: var(--accent); border-color: var(--accent); }
   .badge.bad { color: var(--red); border-color: color-mix(in srgb, var(--red) 40%, transparent); }
   .badge.mirror.online { color: var(--green); }
   .badge.mirror.offline { opacity: .6; }

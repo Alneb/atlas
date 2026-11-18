@@ -253,7 +253,7 @@ mod tests {
     use super::*;
 
     fn vault(path: &Path, last_opened: i64) -> crate::vaults::Vault {
-        crate::vaults::Vault { name: String::new(), path: path.to_string_lossy().into_owned(), last_opened, missing: false, url: None, mirror: None, warm: false, always_on: true }
+        crate::vaults::Vault { name: String::new(), path: path.to_string_lossy().into_owned(), last_opened, missing: false, url: None, mirror: None, warm: false, always_on: true, unseen: None }
     }
 
     /// Only the vaults marked "always on" start with the app, however recently the others were opened; never the

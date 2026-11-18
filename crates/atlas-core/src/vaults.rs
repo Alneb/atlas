@@ -38,6 +38,15 @@ pub struct Vault {
     /// notifications go on in the background (docs/design/DESIGN-vaults-together.md). Others start when opened.
     #[serde(default)]
     pub always_on: bool,
+    /// Its notices that came while no page of it was looked at (notify.rs `UnseenList`): the switcher's badge. Said by
+    /// the core serving it, never written to the list.
+    #[serde(default, skip_deserializing, skip_serializing_if = "is_zero")]
+    #[ts(optional)]
+    pub unseen: Option<u32>,
+}
+
+fn is_zero(n: &Option<u32>) -> bool {
+    n.is_none_or(|n| n == 0)
 }
 
 /// `GET /api/vaults`.
@@ -192,7 +201,7 @@ pub fn remember(file: &Path, root: &Path, now_ms: i64) -> Result<()> {
         // second vault silently stopped its schedules and notices: DESIGN-vaults-together.md §1)
         let (mirror, always_on) = v.iter().find(|x| x.path == path).map(|x| (x.mirror.clone(), x.always_on)).unwrap_or((None, true));
         v.retain(|x| x.path != path);
-        v.insert(0, Vault { name, path, last_opened: now_ms, missing: false, url: None, mirror, warm: false, always_on });
+        v.insert(0, Vault { name, path, last_opened: now_ms, missing: false, url: None, mirror, warm: false, always_on, unseen: None });
         Ok(())
     })
 }
@@ -271,7 +280,7 @@ pub fn remember_server(file: &Path, url: &str, now_ms: i64) -> Result<()> {
     let name = vault.map_or_else(|| host.to_string(), |v| format!("{host} · {v}"));
     change(file, |v| {
         v.retain(|x| x.path != url);
-        v.insert(0, Vault { name, path: url.to_string(), last_opened: now_ms, missing: false, url: Some(url.to_string()), mirror: None, warm: false, always_on: false });
+        v.insert(0, Vault { name, path: url.to_string(), last_opened: now_ms, missing: false, url: Some(url.to_string()), mirror: None, warm: false, always_on: false, unseen: None });
         Ok(())
     })
 }
@@ -354,18 +363,22 @@ mod tests {
         let (file, a, b) = (d.path().join("vaults.toml"), d.path().join("A"), d.path().join("B"));
         std::fs::create_dir_all(&a).unwrap();
         std::fs::create_dir_all(&b).unwrap();
-        remember(&file, &a, 1).unwrap();
-        let path = |p: &Path| crate::paths::real(p).unwrap().to_string_lossy().into_owned();
-        assert!(list(&file).iter().find(|v| v.path == path(&a)).unwrap().always_on, "first opened: always on");
-        set_always_on(&file, &path(&a), false).unwrap();
+        remember(&file, &b, 1).unwrap();
         remember(&file, &a, 2).unwrap();
-        assert!(!list(&file).iter().find(|v| v.path == path(&a)).unwrap().always_on, "switched off: a reopen keeps it off");
-        // a list written before the key existed: the folders opened in the last 3 days start, as they did
-        let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis() as i64;
-        std::fs::write(&file, format!("[[vault]]\nname = \"A\"\npath = \"{}\"\nlast_opened = {}\nmissing = false\n\n[[vault]]\nname = \"B\"\npath = \"{}\"\nlast_opened = 1\nmissing = false\n", path(&a), now - 1000, path(&b))).unwrap();
+        // each folder as the list spells it (on Windows a verbatim path): what the code under test wrote
         let l = list(&file);
-        assert!(l.iter().find(|v| v.path == path(&a)).unwrap().always_on, "opened lately: on");
-        assert!(!l.iter().find(|v| v.path == path(&b)).unwrap().always_on, "not opened for long: off");
+        let (pa, pb) = (l[0].path.clone(), l[1].path.clone());
+        assert!(l[0].always_on && l[1].always_on, "first opened: always on");
+        set_always_on(&file, &pa, false).unwrap();
+        remember(&file, &a, 3).unwrap();
+        assert!(!list(&file).iter().find(|v| v.path == pa).unwrap().always_on, "switched off: a reopen keeps it off");
+        // a list written before the key existed: the folders opened in the last 3 days start, as they did (paths as
+        // TOML literal strings: a Windows path's backslashes are no escapes there)
+        let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis() as i64;
+        std::fs::write(&file, format!("[[vault]]\nname = \"A\"\npath = '{pa}'\nlast_opened = {}\nmissing = false\n\n[[vault]]\nname = \"B\"\npath = '{pb}'\nlast_opened = 1\nmissing = false\n", now - 1000)).unwrap();
+        let l = list(&file);
+        assert!(l.iter().find(|v| v.path == pa).unwrap().always_on, "opened lately: on");
+        assert!(!l.iter().find(|v| v.path == pb).unwrap().always_on, "not opened for long: off");
     }
 
     #[test]

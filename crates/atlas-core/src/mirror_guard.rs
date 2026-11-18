@@ -59,6 +59,10 @@ pub trait LeaseLink: Send + Sync {
     fn report(&self, _me: &crate::devices::Device) -> std::result::Result<Vec<crate::devices::Device>, Unreachable> {
         Err(Unreachable::new("this link reports no presence"))
     }
+    /// This device's notices handed to the server, everyone else's back (crate::notice_relay). Only a device's link.
+    fn notices(&self, _q: crate::notice_relay::Exchange) -> std::result::Result<crate::notice_relay::Answer, Unreachable> {
+        Err(Unreachable::new("this link relays no notices"))
+    }
 }
 
 /// What a write hands the server with its lease: the new bytes, the file gone, or nothing (too large for the mirror,
@@ -674,6 +678,10 @@ impl LeaseLink for Remote {
         let text = self.post("presence", me.clone())?;
         serde_json::from_str(&text).map_err(|e| Unreachable::new(e.to_string()))
     }
+    fn notices(&self, q: crate::notice_relay::Exchange) -> std::result::Result<crate::notice_relay::Answer, Unreachable> {
+        let text = self.post("notices", q)?;
+        serde_json::from_str(&text).map_err(|e| Unreachable::new(e.to_string()))
+    }
 }
 
 /// The server's own core in its table.
@@ -681,6 +689,7 @@ pub const SERVER: &str = "server";
 
 /// A server's vault: its own writes take the lease in `leases` (asked of it by the devices mirroring it).
 pub fn install_on_server(ws: &crate::Workspace, leases: Arc<Leases<ContentHash>>) {
+    crate::notice_relay::serve(ws.root()); // the vault's notices meet here (notice_relay.rs)
     let link = Local { leases, root: ws.root().to_path_buf(), holder: SERVER.into() };
     ws.set_write_guard(Arc::new(LeaseGuard::new(ws.root(), link)));
     eprintln!("atlas: mirror: {} is mirrored by a device; its writes take leases", ws.root().display());
@@ -778,6 +787,12 @@ fn report_now_and_then<L: LeaseLink + 'static>(guard: std::sync::Weak<LeaseGuard
                 Ok(all) => {
                     crate::devices::Table::global().replace(all);
                     said = None;
+                    // the vault's notices with the same minute: this device's handed over, the others' shown here
+                    let (out, since) = crate::notice_relay::outgoing(&g.root);
+                    match g.link.notices(crate::notice_relay::Exchange { holder: me.id.clone(), since, out: out.clone() }) {
+                        Ok(answer) => crate::notice_relay::received(&g.root, answer),
+                        Err(_) => crate::notice_relay::failed(&g.root, out), // an older server: kept, tried again
+                    }
                 }
                 Err(e) if said.as_ref() != Some(&e.why) => {
                     // an older server answers 404: it keeps no presence

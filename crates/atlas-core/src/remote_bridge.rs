@@ -213,7 +213,7 @@ mod tests {
     #[test]
     fn the_bridge_goes_to_the_listed_servers_and_the_mirrors_of_folders_only() {
         let v = |path: &str, url: Option<&str>, mirror: Option<&str>| crate::vaults::Vault {
-            name: "x".into(), path: path.into(), last_opened: 0, missing: false, url: url.map(Into::into), mirror: mirror.map(Into::into), warm: false, always_on: false,
+            name: "x".into(), path: path.into(), last_opened: 0, missing: false, url: url.map(Into::into), mirror: mirror.map(Into::into), warm: false, always_on: false, unseen: None,
         };
         let list = [v("/home/u/Work", None, Some("https://mirror.example.org/v/work/")), v("https://notes.example.org:8443/", Some("https://notes.example.org:8443/"), None)];
         assert_eq!(base_in(&list, "mirror.example.org").as_deref(), Some("https://mirror.example.org"));

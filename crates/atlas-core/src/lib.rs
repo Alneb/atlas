@@ -71,6 +71,7 @@ pub mod companion_tidy;
 pub mod live;
 pub mod mirror_guard;
 pub mod notice_actions;
+pub mod notice_relay;
 pub mod notify;
 pub mod relink;
 pub mod remote_bridge;

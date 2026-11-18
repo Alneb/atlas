@@ -1330,7 +1330,7 @@ async fn vaults_get(State(st): S) -> Result<Json<crate::vaults::VaultList>> {
     if let Some(served) = &st.served {
         // a server: its own vaults, each at its address (the picker goes there)
         let url = |name: &str| if served.len() == 1 { "/".to_string() } else { format!("/v/{name}/") };
-        let vaults = served.iter().map(|v| crate::vaults::Vault { name: v.name.clone(), path: v.root.to_string_lossy().into_owned(), last_opened: 0, missing: false, url: Some(url(&v.name)), mirror: None, warm: true, always_on: true }).collect();
+        let vaults = served.iter().map(|v| crate::vaults::Vault { name: v.name.clone(), path: v.root.to_string_lossy().into_owned(), last_opened: 0, missing: false, url: Some(url(&v.name)), mirror: None, warm: true, always_on: true, unseen: None }).collect();
         return Ok(Json(crate::vaults::VaultList { current: st.ws.root().to_string_lossy().into_owned(), vaults, manage: false }));
     }
     let current = st.ws.root().to_string_lossy().into_owned();
@@ -1344,6 +1344,13 @@ async fn vaults_get(State(st): S) -> Result<Json<crate::vaults::VaultList>> {
                     v.url = Some(d.url_of(std::path::Path::new(&v.path)));
                     v.warm = d.warm(std::path::Path::new(&v.path));
                 }
+            }
+            // each vault's unseen notices, as the core serving it keeps them (the switcher's badge): a vault this core
+            // does not serve has none here
+            for v in vaults.iter_mut().filter(|v| v.url.as_deref().is_none_or(|u| u.starts_with('/'))) {
+                let root = std::path::Path::new(&v.path).canonicalize().unwrap_or_else(|_| v.path.clone().into());
+                let n = crate::notify::unseen_of(&root).lock().unwrap_or_else(|e| e.into_inner()).count;
+                v.unseen = (n > 0).then_some(n as u32);
             }
             // `current` in the list's own spelling of it (a symlink, a trailing slash, another form of the same folder),
             // so the page finds this window's entry: its mirror button acted on nothing otherwise
@@ -1489,6 +1496,13 @@ async fn lease_versions(State(st): S, Json(q): Json<crate::mirror_guard::FileBod
 async fn lease_presence(State(st): S, Json(d): Json<crate::devices::Device>) -> Result<Json<Vec<crate::devices::Device>>> {
     leased_path(&st, ".", &d.id)?;
     Ok(Json(crate::devices::Table::global().report(d, chrono::Utc::now().timestamp_millis())))
+}
+
+/// `POST /api/lease/notices` (crate::notice_relay): a device's notices into the vault's ring, the others' back.
+async fn lease_notices(State(st): S, Json(q): Json<crate::notice_relay::Exchange>) -> Result<Json<crate::notice_relay::Answer>> {
+    leased_path(&st, ".", &q.holder)?;
+    st.leasing.call_once(|| crate::mirror_guard::install_on_server(&st.ws, st.leases.clone()));
+    Ok(Json(crate::notice_relay::exchange(st.ws.root(), q)))
 }
 
 /// A lease is asked of a server only, for a path inside the vault, by a device other than the server's own core; the
@@ -2702,6 +2716,7 @@ fn router(state: Arc<AppState>) -> Router {
         .route("/api/lease/file", post(lease_file))
         .route("/api/lease/versions", post(lease_versions))
         .route("/api/lease/presence", post(lease_presence))
+        .route("/api/lease/notices", post(lease_notices))
         .route("/api/web/frameable", get(web_frameable_get))
         .route("/remote/{host}/{*rest}", axum::routing::any(remote_any))
         .route("/api/pty", get(pty_ws))

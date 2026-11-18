@@ -106,6 +106,8 @@ export interface VaultEntry {
   /** A folder of this computer started with the app and kept running in the background (its schedules, rounds and
    *  notices go on with no window on it); null where it cannot be set (a server's vault, a server's page). */
   alwaysOn: boolean | null;
+  /** Its notices that came while it was not shown (the core serving it says; 0 when it does not serve it). */
+  unseen: number;
   go(): void;
 }
 
@@ -129,7 +131,7 @@ export async function vaultListing(): Promise<VaultListing> {
     if (server && mirrors.has(slash(v.path))) continue; // shown as its folder's mirror
     entries.push({
       name: v.name, path: v.path, kind: server ? "server" : "folder", current: !remote && slash(v.path) === slash(l.current), missing: v.missing,
-      warm: v.warm, mirror: v.mirror, managed: l.manage, alwaysOn: l.manage && !server && !own(v) ? (v.always_on ?? false) : null, // an older core says nothing: off
+      warm: v.warm, mirror: v.mirror, managed: l.manage, unseen: v.unseen ?? 0, alwaysOn: l.manage && !server && !own(v) ? (v.always_on ?? false) : null, // an older core says nothing: off
       go: () => {
         if (remote && v.path === l.current) location.href = "/"; // back to this desktop's own vault
         else if (own(v)) location.replace(v.url!); // no history entry: Back never lands in the other vault
@@ -140,11 +142,11 @@ export async function vaultListing(): Promise<VaultListing> {
   for (const v of theirs?.vaults ?? []) {
     const address = `https://${remote}${v.url ?? "/"}`;
     if (mirrors.has(slash(address))) continue;
-    entries.push({ name: v.name, path: address, kind: "server", current: slash(address) === here, missing: false, warm: false, managed: false, alwaysOn: null, go: () => { location.href = throughBridge(address); } });
+    entries.push({ name: v.name, path: address, kind: "server", current: slash(address) === here, missing: false, warm: false, managed: false, alwaysOn: null, unseen: v.unseen ?? 0, go: () => { location.href = throughBridge(address); } });
   }
   // a vault served by `atlas serve` is on no list: this window's vault is shown all the same
   if (!remote && !entries.some((e) => e.current)) {
-    entries.push({ name: l.current.split(/[\\/]/).filter(Boolean).pop() ?? l.current, path: l.current, kind: "folder", current: true, missing: false, warm: true, managed: false, alwaysOn: null, go: () => {} });
+    entries.push({ name: l.current.split(/[\\/]/).filter(Boolean).pop() ?? l.current, path: l.current, kind: "folder", current: true, missing: false, warm: true, managed: false, alwaysOn: null, unseen: 0, go: () => {} });
   }
   // the vault of this window first, then as the list has them (most recently opened first)
   entries.sort((a, b) => Number(b.current) - Number(a.current));
