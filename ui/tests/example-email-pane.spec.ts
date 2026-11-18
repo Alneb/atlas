@@ -337,7 +337,8 @@ test("Link: a conversation linked to any note is kept in its own note's links, l
   await expect(palette).toBeVisible();
   await page.keyboard.type("Link target");
   await palette.getByText("Link target", { exact: true }).first().click();
-  await expect(mail.locator(".toast")).toContainText("Linked to Link target");
+  // the save's own toast ("Saved as a note") may still be showing beside it
+  await expect(mail.locator(".toast", { hasText: "Linked to Link target" })).toBeVisible();
   // the link lives in the conversation's note (Email's file), the user's note is not written
   await expect.poll(async () => {
     const r = await request.get("/api/files", { headers: H });

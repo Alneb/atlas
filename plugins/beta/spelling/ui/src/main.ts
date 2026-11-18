@@ -34,7 +34,9 @@ export async function register(atlas: PluginApi) {
   };
 
   // --- what is known -------------------------------------------------------------------------------------------
-  const installed: string[] = ((await atlas.helper.call("dictionaries", { folder: setting("folder") }).catch(() => [])) as string[]) ?? [];
+  // a list of names, or nothing: an answer of another shape (an older helper, a stand-in) must not stop the plugin
+  const answer = await atlas.helper.call("dictionaries", { folder: setting("folder") }).catch(() => []);
+  const installed: string[] = Array.isArray(answer) ? answer.filter((d): d is string => typeof d === "string") : [];
   /** every installed language's dictionaries, the ones turned on and the main one (langs.ts) */
   const { chosen, langs, main: fallback } = languagesFrom(installed, atlas.plugin.settings);
   const NAMES: Record<string, string> = { en: "English", es: "Spanish", fr: "French", de: "German", it: "Italian", pt: "Portuguese", ca: "Catalan", nl: "Dutch", pl: "Polish", ru: "Russian", sv: "Swedish", da: "Danish", nb: "Norwegian", fi: "Finnish", cs: "Czech", el: "Greek", tr: "Turkish", ro: "Romanian", hu: "Hungarian", uk: "Ukrainian", gl: "Galician", eu: "Basque" };

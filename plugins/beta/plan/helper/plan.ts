@@ -478,6 +478,21 @@ export function blockOf(action: string): { start: string; minutes: number } | nu
   return m ? { start: m[1], minutes: Number(m[2]) } : null;
 }
 
+/** A task's words as a notification shows them: an embedded picture or note left out, a link as its text
+ *  (`[[note|text]]` → text, `[[folder/note]]` → note, `[text](url)` → text) — a log line often starts with a pasted
+ *  picture. The title itself (what names the task in the ledger) is never changed. */
+export function shown(title: string): string {
+  const out = title
+    .replace(/!\[\[[^\]]*\]\]/g, "")
+    .replace(/!\[[^\]]*\]\([^)]*\)/g, "")
+    .replace(/\[\[([^\]|]*)\|([^\]]*)\]\]/g, "$2")
+    .replace(/\[\[([^\]]*)\]\]/g, (_, t: string) => t.split("#")[0].split("/").pop() ?? t)
+    .replace(/\[([^\]]*)\]\([^)]*\)/g, "$1")
+    .replace(/\s+/g, " ")
+    .trim();
+  return out || "A task with a picture";
+}
+
 /** The planned notice of a nudge at `at`. Block (when the calendar can) comes before Open: a phone shows three
  *  buttons, and a tap on the notification opens the task anyway. */
 function nudge(j: Judged, at: number, why: string, free: Free, s: Settings, c: Clock, canBlock = false): Planned {
@@ -486,7 +501,7 @@ function nudge(j: Judged, at: number, why: string, free: Free, s: Settings, c: C
     at: rfc3339(at, c),
     until: rfc3339(at + RING, c),
     id: `plan:${j.key}`,
-    title: t.title,
+    title: shown(t.title),
     body: why,
     open: t.path,
     ...(t.block ? { subject: `${t.path}#^${t.block}` } : {}),
@@ -550,7 +565,7 @@ export function plan(input: Input): Output {
     if (ringing) {
       const why = ringing.detail.replace(/^score [\d.]+ · /, "").replace(MARKS, "");
       planned.push(nudge(j, ringing.at, why, free, s, c, input.canBlock));
-      decisions.push({ title: j.task.title, path: j.task.path, at: rfc3339(ringing.at, c), score: 0, why: `ringing · ${why}` });
+      decisions.push({ title: shown(j.task.title), path: j.task.path, at: rfc3339(ringing.at, c), score: 0, why: `ringing · ${why}` });
       continue;
     }
     // a snooze is a promise: kept at its moment, whatever the score (§3.3)
@@ -559,13 +574,13 @@ export function plan(input: Input): Output {
       if (at <= now) commit(j, at, true, why, j.urgency);
       planned.push(nudge(j, at, why, free, s, c, input.canBlock));
       taken.push({ at, important: true });
-      decisions.push({ title: j.task.title, path: j.task.path, at: rfc3339(at, c), score: round1(j.urgency), why });
+      decisions.push({ title: shown(j.task.title), path: j.task.path, at: rfc3339(at, c), score: round1(j.urgency), why });
       continue;
     }
     // dismissed DISMISS_PAUSE times in DISMISS_DAYS: paused until its line changes or it comes due (§3.5)
     const dismissed = dismissalsOf(entries, j).filter((e) => e.at > now - DISMISS_DAYS * DAY);
     if (j.eligible && dismissed.length >= DISMISS_PAUSE && !(j.task.due && j.task.due <= today)) {
-      decisions.push({ title: j.task.title, path: j.task.path, score: round1(j.urgency), why: `paused: dismissed ${dismissed.length} times since ${wall(dismissed[dismissed.length - 1].at, c).day}; editing the task, or its due day, brings it back` });
+      decisions.push({ title: shown(j.task.title), path: j.task.path, score: round1(j.urgency), why: `paused: dismissed ${dismissed.length} times since ${wall(dismissed[dismissed.length - 1].at, c).day}; editing the task, or its due day, brings it back` });
       continue;
     }
     if (j.eligible) waiting.push(j);
@@ -601,7 +616,7 @@ export function plan(input: Input): Output {
       if (chosen === undefined || ranked > top + 1e-9) { chosen = t; top = ranked; }
     }
     if (chosen === undefined) {
-      decisions.push({ title: j.task.title, path: j.task.path, score: round1(j.urgency), why: held || "no free moment in 36 h" });
+      decisions.push({ title: shown(j.task.title), path: j.task.path, score: round1(j.urgency), why: held || "no free moment in 36 h" });
       continue;
     }
     const room = free.room(chosen, j.minutes), score = scoreAt(chosen);
@@ -613,7 +628,7 @@ export function plan(input: Input): Output {
     planned.push(nudge(j, chosen, why, free, s, c, input.canBlock));
     taken.push({ at: chosen, important: j.important });
     if (wall(chosen, c).day === today) scheduledToday.add(j.key);
-    decisions.push({ title: j.task.title, path: j.task.path, at: rfc3339(chosen, c), score: round1(score), why });
+    decisions.push({ title: shown(j.task.title), path: j.task.path, at: rfc3339(chosen, c), score: round1(score), why });
   }
 
   if (s.digest) digest(input, judged, scheduledToday, entries, writes, planned);
@@ -637,7 +652,7 @@ function digest(input: Input, judged: Judged[], scheduledToday: Set<string>, ent
   const dueToday = judged.filter((j) => j.task.due === today);
   const unslotted = judged.filter((j) => j.eligible && !scheduledToday.has(j.key) && !overdue.includes(j) && !dueToday.includes(j));
   const counts = [overdue.length && `${overdue.length} overdue`, dueToday.length && `${dueToday.length} due today`, unslotted.length && `${unslotted.length} with no slot today`].filter(Boolean).join(", ");
-  const names = [...overdue, ...dueToday, ...unslotted].slice(0, 3).map((j) => j.task.title);
+  const names = [...overdue, ...dueToday, ...unslotted].slice(0, 3).map((j) => shown(j.task.title));
   const moment = given ? given.at : now >= from ? floorMinute(now) : from;
   if (!given && moment <= now) writes.push({ entry: { at: moment, kind: "digest", detail: counts || "nothing due" } });
   // nothing due: the ledger records the day was looked at, but a notice saying so is noise

@@ -31,6 +31,13 @@ async function note(page: Page, path: string, mode?: Mode) {
   return ed;
 }
 
+
+// the notes these tests write go again: other specs count the vault's links (known-c ends linking [[hubbard]] —
+// side-graph's Local graph of hubbard found it in the same shard)
+test.afterAll(async ({ request }) => {
+  for (const p of ["panel", "choice", "rename", "known-a", "known-b", "known-c"]) await request.post(`/api/fs/trash?path=${encodeURIComponent(`props/${p}.md`)}`, { headers: H });
+});
+
 test("by default a note's properties are hidden behind one line that opens the panel on a click", async ({ page }) => {
   const before = await read(page, "props/hidden.md");
   const ed = await note(page, "props/hidden.md");

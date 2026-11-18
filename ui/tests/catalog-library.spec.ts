@@ -83,7 +83,7 @@ test("the catalog's library is the library page: kinds as tabs, shelves, covers 
   // its shelf is the Shelf choice (not a field twice), its service ids are the links below (not raw ids in the fields)
   await expect(detail.getByRole("radio", { name: "To watch" })).toHaveAttribute("aria-checked", "true");
   await expect(detail.getByText("tt0002023")).toHaveCount(0);
-  await expect(detail.locator(".links")).toContainText("IMDb");
+  await expect(detail.getByRole("button", { name: "Open on IMDb" })).toBeVisible(); // its one service: the button, not a link again
 
   // the shelf changed in place, written to the note as a link
   await detail.getByRole("radio", { name: "Watched" }).click();

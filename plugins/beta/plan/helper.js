@@ -953,6 +953,12 @@
 			minutes: Number(m[2])
 		} : null;
 	}
+	/** A task's words as a notification shows them: an embedded picture or note left out, a link as its text
+	*  (`[[note|text]]` → text, `[[folder/note]]` → note, `[text](url)` → text) — a log line often starts with a pasted
+	*  picture. The title itself (what names the task in the ledger) is never changed. */
+	function shown(title) {
+		return title.replace(/!\[\[[^\]]*\]\]/g, "").replace(/!\[[^\]]*\]\([^)]*\)/g, "").replace(/\[\[([^\]|]*)\|([^\]]*)\]\]/g, "$2").replace(/\[\[([^\]]*)\]\]/g, (_, t) => t.split("#")[0].split("/").pop() ?? t).replace(/\[([^\]]*)\]\([^)]*\)/g, "$1").replace(/\s+/g, " ").trim() || "A task with a picture";
+	}
 	/** The planned notice of a nudge at `at`. Block (when the calendar can) comes before Open: a phone shows three
 	*  buttons, and a tap on the notification opens the task anyway. */
 	function nudge(j, at, why, free, s, c, canBlock = false) {
@@ -961,7 +967,7 @@
 			at: rfc3339(at, c),
 			until: rfc3339(at + RING, c),
 			id: `plan:${j.key}`,
-			title: t.title,
+			title: shown(t.title),
 			body: why,
 			open: t.path,
 			...t.block ? { subject: `${t.path}#^${t.block}` } : {},
@@ -1069,7 +1075,7 @@
 				const why = ringing.detail.replace(/^score [\d.]+ · /, "").replace(MARKS, "");
 				planned.push(nudge(j, ringing.at, why, free, s, c, input.canBlock));
 				decisions.push({
-					title: j.task.title,
+					title: shown(j.task.title),
 					path: j.task.path,
 					at: rfc3339(ringing.at, c),
 					score: 0,
@@ -1086,7 +1092,7 @@
 					important: true
 				});
 				decisions.push({
-					title: j.task.title,
+					title: shown(j.task.title),
 					path: j.task.path,
 					at: rfc3339(at, c),
 					score: round1(j.urgency),
@@ -1097,7 +1103,7 @@
 			const dismissed = dismissalsOf(entries, j).filter((e) => e.at > now - DISMISS_DAYS * DAY);
 			if (j.eligible && dismissed.length >= 3 && !(j.task.due && j.task.due <= today)) {
 				decisions.push({
-					title: j.task.title,
+					title: shown(j.task.title),
 					path: j.task.path,
 					score: round1(j.urgency),
 					why: `paused: dismissed ${dismissed.length} times since ${wall(dismissed[dismissed.length - 1].at, c).day}; editing the task, or its due day, brings it back`
@@ -1149,7 +1155,7 @@
 			}
 			if (chosen === void 0) {
 				decisions.push({
-					title: j.task.title,
+					title: shown(j.task.title),
 					path: j.task.path,
 					score: round1(j.urgency),
 					why: held || "no free moment in 36 h"
@@ -1174,7 +1180,7 @@
 			});
 			if (wall(chosen, c).day === today) scheduledToday.add(j.key);
 			decisions.push({
-				title: j.task.title,
+				title: shown(j.task.title),
 				path: j.task.path,
 				at: rfc3339(chosen, c),
 				score: round1(score),
@@ -1214,7 +1220,7 @@
 			...overdue,
 			...dueToday,
 			...unslotted
-		].slice(0, 3).map((j) => j.task.title);
+		].slice(0, 3).map((j) => shown(j.task.title));
 		const moment = given ? given.at : now >= from ? floorMinute(now) : from;
 		if (!given && moment <= now) writes.push({ entry: {
 			at: moment,

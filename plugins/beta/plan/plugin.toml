@@ -4,7 +4,7 @@
 title = "Plan"
 description = "nudges for your tasks when they fit your day, with Done / Snooze / Open; habits nagged in their window until done"
 icon = "bell"
-version = "0.11.0"
+version = "0.11.1"
 api = 28
 needs = ">=0.3.0"          # the first core that reads `background` (older ones refuse the key); on a core without hooks the ntfy nudges go without buttons
 phone = true

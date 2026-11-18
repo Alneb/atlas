@@ -5,7 +5,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { add, hoursOf, hoursText, keyOf, lineMark, markOf, parse, renderLine, type Entry } from "./ledger";
-import { blockOf, DISMISS_PAUSE, groupOf, judge, measure, minutesOf, plan, quietOf, settingsOf, type Busy, type Input, type Task } from "./plan";
+import { blockOf, DISMISS_PAUSE, groupOf, judge, measure, minutesOf, plan, quietOf, settingsOf, shown, type Busy, type Input, type Task } from "./plan";
 import { addDays, fixedClock, instant, MIN, type Clock } from "./time";
 
 const OFFSET = 60;
@@ -181,6 +181,13 @@ test("an undated task left open for days may nudge (a daily log's - [ ] line), b
   const n = plan(input(clock("10:00"), [log("2026-11-10", "check host bath hyb")])).planned;
   assert.equal(n.length, 1);
   assert.match(n[0].body ?? n[0].title, /open 6 days|check host bath hyb/);
+});
+
+test("a nudge says a task's words: no pasted picture, links as their text", () => {
+  assert.equal(shown("![[Pasted image 20261104152853.png|160]] check this out"), "check this out");
+  assert.equal(shown("read [[refs/papers/downey2024doping|Downey]] and [[GW+DMFT#Screening]]"), "read Downey and GW+DMFT");
+  assert.equal(shown("see [the notes](https://example.org/x)"), "see the notes");
+  assert.equal(shown("![[only.png]]"), "A task with a picture");
 });
 
 test("the morning digest: once, at the first moment after quiet hours", () => {
