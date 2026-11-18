@@ -66,6 +66,9 @@ final class Core {
     static native String keepHeader(String home, String url, String line);
     /** The header name of the key kept for `url`'s host, `{header}` (never its value). */
     static native String keptHeader(String home, String url);
+    /** A device token from the server at `url` with the gate's key kept for its host (the sign-in with no page):
+     *  `{token}` or `{error, status}`. Blocking: never on the main thread. */
+    static native String tokenByKey(String home, String url, String app, String name);
     static native String version();
     /** The Boox pens (crates/atlas-android/src/ink.rs, openink's engine): a stroke's ink — left, top, right, bottom (NaN:
      *  empty), then polygons `n, x0, y0, …` or dabs `x, y, size, angle, alpha` — from its samples `x, y, pressure, tiltX,

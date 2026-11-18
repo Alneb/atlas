@@ -68,7 +68,7 @@ pub async fn forward(store: &Store, base: &str, rest: &str, query: Option<&str>,
     }
     let mut res = match send(store, &url, &method, headers, body.clone()).await {
         Ok(r) => r,
-        Err(e) => return e,
+        Err(e) => return *e,
     };
     if res.status() == reqwest::StatusCode::UNAUTHORIZED {
         // a token the server no longer knows (revoked there), or none yet: a new one, if the key gets one
@@ -76,7 +76,7 @@ pub async fn forward(store: &Store, base: &str, rest: &str, query: Option<&str>,
         if sign_in_by_key(store, base).await {
             res = match send(store, &url, &method, headers, body).await {
                 Ok(r) => r,
-                Err(e) => return e,
+                Err(e) => return *e,
             };
         }
     }
@@ -94,7 +94,7 @@ pub async fn forward(store: &Store, base: &str, rest: &str, query: Option<&str>,
 
 /// The request sent with the page's headers and what this device keeps for the server (the gate's session or key,
 /// Atlas's token; this client follows no redirect: none leaves the host); a failure already said as the answer.
-async fn send(store: &Store, url: &reqwest::Url, method: &Method, headers: &HeaderMap, body: Bytes) -> Result<reqwest::Response, Response> {
+async fn send(store: &Store, url: &reqwest::Url, method: &Method, headers: &HeaderMap, body: Bytes) -> Result<reqwest::Response, Box<Response>> {
     let host = url.host_str().unwrap_or_default();
     let mut req = client().request(method.clone(), url.clone()).header("accept-encoding", "identity");
     for (k, v) in headers {
@@ -107,13 +107,13 @@ async fn send(store: &Store, url: &reqwest::Url, method: &Method, headers: &Head
             req = req.header(k, v);
         }
     }
-    req.body(body).send().await.map_err(|e| {
+    req.body(body).send().await.map_err(|e| -> Box<Response> {
         // `unsent`: the server never had the request (no connection), so the page may do it here instead; after a
         // timeout it may have been done there — 504, never redone elsewhere
         if e.is_timeout() && !e.is_connect() {
-            said(StatusCode::GATEWAY_TIMEOUT, serde_json::json!({ "error": format!("{host} took too long: {e}") }))
+            Box::new(said(StatusCode::GATEWAY_TIMEOUT, serde_json::json!({ "error": format!("{host} took too long: {e}") })))
         } else {
-            said(StatusCode::BAD_GATEWAY, serde_json::json!({ "error": format!("{host} did not answer: {e}"), "unsent": e.is_connect() }))
+            Box::new(said(StatusCode::BAD_GATEWAY, serde_json::json!({ "error": format!("{host} did not answer: {e}"), "unsent": e.is_connect() })))
         }
     })
 }

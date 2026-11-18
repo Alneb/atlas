@@ -421,6 +421,14 @@ pub extern "system" fn Java_org_atlas_capture_Core_keepHeader(mut env: JNIEnv, _
     ret(&mut env, move || crate::signins::keep_header(Path::new(&h), &u, &l).to_string())
 }
 
+/// A device token from a server with the gate's key kept for its host, `{token}` or `{error, status}` (signins.rs).
+/// Blocking (a request): never on the main thread.
+#[no_mangle]
+pub extern "system" fn Java_org_atlas_capture_Core_tokenByKey(mut env: JNIEnv, _: JClass, home: JString, url: JString, app: JString, name: JString) -> jstring {
+    let (h, u, a, n) = (arg(&mut env, &home), arg(&mut env, &url), arg(&mut env, &app), arg(&mut env, &name));
+    ret(&mut env, move || crate::signins::token_by_key(Path::new(&h), &u, &a, &n).to_string())
+}
+
 /// The header name of the key kept for an address's host, `{header}` (signins.rs).
 #[no_mangle]
 pub extern "system" fn Java_org_atlas_capture_Core_keptHeader(mut env: JNIEnv, _: JClass, home: JString, url: JString) -> jstring {

@@ -40,6 +40,19 @@ final class Signins {
         }
     }
 
+    /** Atlas's device token from `server` with the gate's key kept for its host: {token, null} or {null, why}. Blocking. */
+    static String[] tokenByKey(Context c, String server) {
+        try {
+            JSONObject r = new JSONObject(Core.tokenByKey(c.getFilesDir().getPath(), server, SignIn.app(c), SignIn.device()));
+            String token = r.optString("token", "");
+            return token.isEmpty() ? new String[] {null, r.optString("error", "no token")} : new String[] {token, null};
+        } catch (UnsatisfiedLinkError e) {
+            return new String[] {null, "this app has no core of its own"};
+        } catch (Exception e) {
+            return new String[] {null, String.valueOf(e.getMessage())};
+        }
+    }
+
     /** The header name of the key kept for `server`'s host, "" when none. */
     static String kept(Context c, String server) {
         try { return new JSONObject(Core.keptHeader(c.getFilesDir().getPath(), server)).optString("header", "").replace("null", ""); }

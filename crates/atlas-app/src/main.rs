@@ -14,6 +14,8 @@ mod tray_sni;
 mod tray_tauri;
 #[cfg(target_os = "linux")]
 mod web_filters;
+#[cfg(target_os = "linux")]
+mod webauthn;
 
 use std::path::PathBuf;
 use tauri::{Manager, WebviewUrl, WebviewWindowBuilder};
@@ -268,8 +270,11 @@ fn remote_window(url: tauri::Url) -> anyhow::Result<()> {
     let host = url.host_str().unwrap_or_default().to_string();
     eprintln!("atlas-app: a vault on a server, window → {url}");
     tauri::Builder::default()
+        .invoke_handler(tauri::generate_handler![webauthn_get])
         .setup(move |app| {
+            webauthn_capability(app, "main"); // the server's gate signs in inside this window
             WebviewWindowBuilder::new(app, "main", WebviewUrl::External(url))
+                .initialization_script(WEBAUTHN_SCRIPT)
                 .title(format!("Atlas — {host}"))
                 // OS file drops reach the page's own `drop` (the editor, the explorer, the capture popup); Tauri's
                 // handler would take them first (on Windows the page then never sees a dropped file)
@@ -559,7 +564,7 @@ fn main() -> anyhow::Result<()> {
     let server = Some(server);
     let vault = root.clone();
 
-    let builder = tauri::Builder::default().plugin(tauri_plugin_dialog::init());
+    let builder = tauri::Builder::default().plugin(tauri_plugin_dialog::init()).invoke_handler(tauri::generate_handler![webauthn_get]);
     #[cfg(target_os = "macos")]
     let builder = builder.plugin(capture_key(root.clone()));
     // the link a rebuilt window opens with: a locked core's one-time codes are spent, so a fresh one each time
@@ -571,6 +576,8 @@ fn main() -> anyhow::Result<()> {
     builder
         .setup(move |app| {
             let handle = app.handle().clone();
+            webauthn_capability(app, "door-*");
+            webauthn_capability(app, "signin-*");
             browser::prepare(&handle, atlas_core::config::Config::load(&vault).map(|c| c.web).unwrap_or_default());
             let spec = MainSpec { home: url.clone(), core: core.clone(), vault: vault.clone(), frames };
             let open_main: background::OpenMain = Box::new(move |app, open| {
@@ -891,7 +898,10 @@ fn pen_as_pen(view: &webkit2gtk::WebView) {
 fn signin_return(page: &tauri::Url) -> Option<tauri::Url> {
     let back: tauri::Url = page.query_pairs().find(|(k, _)| k == "redirect_uri")?.1.parse().ok()?;
     let local = matches!(back.host_str(), Some("localhost" | "127.0.0.1" | "[::1]"));
-    (local && matches!(back.scheme(), "http" | "https")).then_some(back)
+    // an app's own address (`audiobookshelf://oauth`, a mobile client's redirect a server allows) is caught as well:
+    // the window stops there, nothing outside ever sees it
+    let app_scheme = !matches!(back.scheme(), "http" | "https" | "file" | "data" | "javascript" | "blob" | "about");
+    ((local && matches!(back.scheme(), "http" | "https")) || app_scheme).then_some(back)
 }
 
 /// Whether `to` is the sign-in's return address (with its `?code=…`): same scheme, host and port, path under it.
@@ -910,6 +920,7 @@ fn signin_window(app: &tauri::AppHandle, page: tauri::Url, back: tauri::Url, cor
     let label = format!("signin-{}", N.fetch_add(1, std::sync::atomic::Ordering::Relaxed));
     let (app2, label2) = (app.clone(), label.clone());
     let built = WebviewWindowBuilder::new(app, &label, WebviewUrl::External(page.clone()))
+        .initialization_script(WEBAUTHN_SCRIPT) // the provider's page may ask for the security key (webauthn.rs)
         .title("Sign in — Atlas")
         .inner_size(520.0, 720.0)
         .center()
@@ -959,6 +970,43 @@ fn door_target(to: &tauri::Url) -> Option<tauri::Url> {
     matches!(page.scheme(), "http" | "https").then_some(page)
 }
 
+/// What the sign-in windows run first: a security key for their pages on Linux (webauthn.js; elsewhere the webview
+/// has its own WebAuthn, and the script leaves it alone).
+#[cfg(target_os = "linux")]
+const WEBAUTHN_SCRIPT: &str = webauthn::SCRIPT;
+#[cfg(not(target_os = "linux"))]
+const WEBAUTHN_SCRIPT: &str = "";
+
+/// A sign-in page's `navigator.credentials.get` (webauthn.js), answered with a security key over USB for the page's own
+/// origin — read from the window, never taken from the page.
+#[tauri::command]
+async fn webauthn_get(webview: tauri::Webview, request: serde_json::Value) -> Result<serde_json::Value, String> {
+    #[cfg(target_os = "linux")]
+    {
+        let origin = webview.url().map_err(|e| e.to_string())?.origin().ascii_serialization();
+        let ask: webauthn::Ask = serde_json::from_value(request).map_err(|e| e.to_string())?;
+        let signed = tauri::async_runtime::spawn_blocking(move || webauthn::get(&origin, &ask)).await.map_err(|e| e.to_string())??;
+        serde_json::to_value(signed).map_err(|e| e.to_string())
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        let _ = (webview, request);
+        Err("this platform's webview answers security keys itself".into())
+    }
+}
+
+/// `webauthn_get` granted to the windows labelled `windows` (`door-*`: the sign-in windows; `main` for a vault on a
+/// server, whose gate signs in inside it) on any https page — the only command a page may call.
+fn webauthn_capability(app: &tauri::App, windows: &str) {
+    let cap = tauri::ipc::CapabilityBuilder::new(format!("webauthn-{}", windows.trim_end_matches("-*")))
+        .window(windows)
+        .remote("https://*".into())
+        .permission("allow-webauthn-get");
+    if let Err(e) = app.add_capability(cap) {
+        eprintln!("atlas-app: no security keys in the sign-in windows ({e})");
+    }
+}
+
 /// A service's gate (Authelia, Authentik…) in a window of Atlas: the user signs in on its page (a security key works
 /// there), and once a page of the service itself has loaded, its cookies go to the core (POST /api/signin/door),
 /// which sends them with the plugins' later requests to that site — then the window closes. A page of the service
@@ -969,6 +1017,7 @@ fn door_window(app: &tauri::AppHandle, page: tauri::Url, core: String) {
     let host = page.host_str().unwrap_or_default().to_ascii_lowercase();
     let done = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
     let built = WebviewWindowBuilder::new(app, &label, WebviewUrl::External(page.clone()))
+        .initialization_script(WEBAUTHN_SCRIPT) // the security key (webauthn.rs)
         .title(format!("Sign in to {host} — Atlas"))
         .inner_size(520.0, 720.0)
         .center()
@@ -1194,5 +1243,10 @@ mod tests {
         for plain in ["https://example.org/page", "https://x.example/auth?redirect_uri=https://app.example/cb", "https://x.example/?redirect_uri=file:///etc"] {
             assert!(signin_return(&plain.parse().unwrap()).is_none(), "{plain} goes to the browser");
         }
+        // a server's sign-in returning to an app's own address (Audiobookshelf's mobile redirect): caught here too
+        let abs: tauri::Url = "https://abs.example.org/auth/openid?code_challenge=x&redirect_uri=audiobookshelf%3A%2F%2Foauth&client_id=Audiobookshelf-App".parse().unwrap();
+        let back = signin_return(&abs).expect("an app scheme is caught");
+        assert!(returns_to(&"audiobookshelf://oauth?code=1&state=s".parse().unwrap(), &back));
+        assert!(!returns_to(&"https://abs.example.org/login".parse().unwrap(), &back));
     }
 }

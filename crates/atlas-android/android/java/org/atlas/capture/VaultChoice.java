@@ -70,9 +70,26 @@ final class VaultChoice {
     static void signIn(Activity a, Look look, Vaults vaults, String server, Consumer<String> chosen) {
         android.widget.Toast.makeText(a, "Looking at " + Vaults.name(server) + "…", android.widget.Toast.LENGTH_SHORT).show();
         new Thread(() -> {
+            // the gate's key kept for this server: the device token with it, no page at all (the server's
+            // `atlas server gate-key`); any refusal falls back to the ways in below, saying why
+            String keyWhy = null;
+            if (server.startsWith("https://") && !Signins.kept(a, server).isEmpty()) {
+                String[] got = Signins.tokenByKey(a, server);
+                if (got[0] != null) {
+                    a.runOnUiThread(() -> signedInByKey(a, vaults, server, got[0], chosen));
+                    return;
+                }
+                keyWhy = got[1];
+            }
+            String why = keyWhy;
             SignIn.Probe p = SignIn.probe(a, server, false);
+            if (why != null) android.util.Log.w("AtlasSignIn", server + ": the gate's key got no token: " + why);
             // the screen may have closed during the probe (up to 18 s): a dialog on it would crash (BadTokenException)
-            a.runOnUiThread(() -> { if (!a.isFinishing() && !a.isDestroyed()) offer(a, look, vaults, server, p, chosen); });
+            a.runOnUiThread(() -> {
+                if (a.isFinishing() || a.isDestroyed()) return;
+                if (why != null) android.widget.Toast.makeText(a, "The gate's key got no token: " + why, android.widget.Toast.LENGTH_LONG).show();
+                offer(a, look, vaults, server, p, chosen);
+            });
         }).start();
     }
 
@@ -135,6 +152,14 @@ final class VaultChoice {
         d.show();
     }
 
+    /** Signed in with the gate's key: the token kept for the server, the vault's page let in. */
+    private static void signedInByKey(Activity a, Vaults vaults, String server, String token, Consumer<String> chosen) {
+        vaults.useServer(server, token);
+        android.widget.Toast.makeText(a, "Signed in to " + Vaults.name(server) + " with the gate's key", android.widget.Toast.LENGTH_LONG).show();
+        Server.verify(a, server);
+        chosen.accept(server);
+    }
+
     static void web(Activity a, String server) {
         a.startActivity(new Intent(a, SignInWebActivity.class).putExtra("server", server));
     }
@@ -164,6 +189,20 @@ final class VaultChoice {
                     // the device's sign-ins, a bypass rule for this host (the desktop's Settings → Sign-ins rule)
                     String why = server.startsWith("https://") ? Signins.keep(a, server, line) : "a key is sent over https only";
                     android.widget.Toast.makeText(a, why == null ? "Key kept for " + Vaults.name(server) : "Header not kept: " + why, android.widget.Toast.LENGTH_LONG).show();
+                    if (why == null && token.length() == 0) {
+                        // the key kept and no token typed: the token from the key, then the vault
+                        new Thread(() -> {
+                            String[] got = Signins.tokenByKey(a, server);
+                            a.runOnUiThread(() -> {
+                                if (got[0] != null) signedInByKey(a, vaults, server, got[0], chosen);
+                                else {
+                                    android.widget.Toast.makeText(a, "The key got no token from " + Vaults.name(server) + ": " + got[1], android.widget.Toast.LENGTH_LONG).show();
+                                    chosen.accept(server);
+                                }
+                            });
+                        }).start();
+                        return;
+                    }
                 }
                 chosen.accept(server);
             })

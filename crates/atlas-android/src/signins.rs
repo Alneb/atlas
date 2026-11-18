@@ -60,6 +60,20 @@ fn keep_header_in(store: &Store, url: &str, line: &str) -> Value {
     }
 }
 
+/// A device token from the Atlas server at `url` with the gate's key this device keeps for its host — the sign-in
+/// without any page (service_signin::atlas_token_by_gate_key): `{token}`, or `{error, status}` (`status` 0: no key kept
+/// or no answer). `app`: `atlas`, `boox` or `capture`.
+pub fn token_by_key(home: &Path, url: &str, app: &str, name: &str) -> Value {
+    let store = device_store(home);
+    let Ok(rt) = tokio::runtime::Builder::new_current_thread().enable_all().build() else { return json!({ "error": "no runtime", "status": 0 }) };
+    match rt.block_on(service_signin::atlas_token_by_gate_key(&store, url, app, name)) {
+        Ok(token) => json!({ "token": token }),
+        Err(service_signin::NoToken::NoKey) => json!({ "error": "no key kept for this server", "status": 0 }),
+        Err(service_signin::NoToken::Refused(status, why)) => json!({ "error": why, "status": status }),
+        Err(service_signin::NoToken::Unreachable(why)) => json!({ "error": why, "status": 0 }),
+    }
+}
+
 /// The header name of the key kept for `url`'s host, `{header}` (null: none) — the form says it is there, never its value.
 pub fn kept_header(home: &Path, url: &str) -> Value {
     kept_header_in(&device_store(home), url)

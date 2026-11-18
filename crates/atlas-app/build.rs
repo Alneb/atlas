@@ -1,6 +1,9 @@
 fn main() {
     frames_library();
-    tauri_build::build()
+    // the app's one command a page may call: a sign-in window's security key (webauthn.rs), granted per window kind
+    // at run time (main.rs `webauthn_capability`)
+    tauri_build::try_build(tauri_build::Attributes::new().app_manifest(tauri_build::AppManifest::new().commands(&["webauthn_get"])))
+        .expect("tauri-build")
 }
 
 /// Linux: the web tabs' libsoup hook (frames/frames.rs) as a shared library in OUT_DIR, embedded by main.rs. Plain rustc,

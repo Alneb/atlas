@@ -13,6 +13,7 @@ finish-args:
   - --socket=wayland
   - --socket=fallback-x11
   - --device=dri
+  - --device=all             # a security key (FIDO2 over /dev/hidraw*) in the sign-in windows (crates/atlas-app webauthn.rs)
   - --filesystem=home        # vaults are ordinary folders, anywhere in the home folder
   - --talk-name=org.freedesktop.Notifications
   - --talk-name=org.freedesktop.secrets
