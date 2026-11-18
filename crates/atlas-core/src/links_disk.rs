@@ -33,9 +33,20 @@ pub fn load(root: &Path) -> FileCache {
 
 /// `index`'s parses written for the next start, on a background thread — unless one is being written for this vault
 /// or the last started under [`SAVE_GAP`] ago.
+/// A background save is under way ([`save_in_background`]: one at a time, for every vault).
+static SAVING: AtomicBool = AtomicBool::new(false);
+
+/// Waits until no background save is under way — for a test that writes the file itself right after a build (the
+/// build's save, at the lowest priority, could otherwise land after it and put the build's parses back).
+#[cfg(test)]
+pub fn settle() {
+    while SAVING.load(Relaxed) {
+        std::thread::sleep(std::time::Duration::from_millis(5));
+    }
+}
+
 pub fn save_in_background(root: &Path, index: Arc<Index>) {
     static LAST: LazyLock<Mutex<Vec<(PathBuf, Instant)>>> = LazyLock::new(Default::default);
-    static SAVING: AtomicBool = AtomicBool::new(false);
     {
         let mut last = LAST.lock().unwrap_or_else(|e| e.into_inner());
         if last.iter().any(|(r, at)| r == root && at.elapsed() < SAVE_GAP) || SAVING.swap(true, Relaxed) {

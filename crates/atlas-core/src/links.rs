@@ -947,6 +947,7 @@ mod tests {
         std::fs::write(r.join("a.md"), "---\ntitle: Alpha\nup: \"[[b]]\"\nn: 3\n---\nSee [[b#Sec|it]] and ![[fig.png]] #tag/x\n").unwrap();
         std::fs::write(r.join("b.md"), "# B\nback to [[a]]\n").unwrap();
         let first = rebuild(r, &cfg, None);
+        disk::settle(); // the build's own save (any test's, at the lowest priority) is done before ours
         disk::save(r, &first.parsed).unwrap();
         let mut kept = disk::load(r);
         assert_eq!(kept.len(), 2);
@@ -959,6 +960,7 @@ mod tests {
         let mut marked = (*kept["a.md"]).clone();
         marked.tags.push("from-disk".into());
         kept.insert("a.md".into(), Arc::new(marked));
+        disk::settle();
         disk::save(r, &kept).unwrap();
         std::thread::sleep(Duration::from_millis(20));
         std::fs::write(r.join("b.md"), "# B\nback to [[a]] and [[c]]\n").unwrap();

@@ -131,8 +131,20 @@ fn read(file: &Path) -> Vec<Vault> {
 /// The list, or why it cannot be read (a hand edit gone wrong); none yet is an empty list.
 fn read_checked(file: &Path) -> std::result::Result<Vec<Vault>, String> {
     let text = std::fs::read_to_string(file).unwrap_or_default();
-    toml::from_str::<ListFile>(&text).map(|l| l.vault).map_err(|e| e.to_string())
+    let mut v = toml::from_str::<ListFile>(&text).map(|l| l.vault).map_err(|e| e.to_string())?;
+    // a list from before "always on" existed: the vaults the old rule started (a folder opened in the last 3 days)
+    // keep starting, so an update stops nothing that ran
+    if !text.contains("always_on") {
+        let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_millis() as i64);
+        for x in v.iter_mut().filter(|x| x.url.is_none() && now - x.last_opened < OLD_RULE_MS) {
+            x.always_on = true;
+        }
+    }
+    Ok(v)
 }
+
+/// The window of the rule before "always on": a folder opened this recently was started ahead.
+const OLD_RULE_MS: i64 = 3 * 24 * 3600 * 1000;
 
 fn write(file: &Path, vaults: Vec<Vault>) -> Result<()> {
     let text = toml::to_string(&ListFile { vault: vaults }).map_err(|e| Error::Other(e.into()))?;
@@ -175,8 +187,10 @@ pub fn remember(file: &Path, root: &Path, now_ms: i64) -> Result<()> {
     let path = root.to_string_lossy().into_owned();
     let name = root.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_else(|| path.clone());
     change(file, |v| {
-        // a reopen keeps its mirror and its "always on"
-        let (mirror, always_on) = v.iter().find(|x| x.path == path).map(|x| (x.mirror.clone(), x.always_on)).unwrap_or_default();
+        // a reopen keeps its mirror and its "always on"; a folder opened here for the first time is always on — both
+        // vaults load and do their background work by themselves, the switch in Settings turns one off (left off, the
+        // second vault silently stopped its schedules and notices: DESIGN-vaults-together.md §1)
+        let (mirror, always_on) = v.iter().find(|x| x.path == path).map(|x| (x.mirror.clone(), x.always_on)).unwrap_or((None, true));
         v.retain(|x| x.path != path);
         v.insert(0, Vault { name, path, last_opened: now_ms, missing: false, url: None, mirror, warm: false, always_on });
         Ok(())
@@ -334,6 +348,26 @@ pub fn open_window(root: &Path) -> Result<()> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn a_folder_opened_here_first_is_always_on_and_a_reopen_keeps_the_choice() {
+        let d = tempfile::tempdir().unwrap();
+        let (file, a, b) = (d.path().join("vaults.toml"), d.path().join("A"), d.path().join("B"));
+        std::fs::create_dir_all(&a).unwrap();
+        std::fs::create_dir_all(&b).unwrap();
+        remember(&file, &a, 1).unwrap();
+        let path = |p: &Path| crate::paths::real(p).unwrap().to_string_lossy().into_owned();
+        assert!(list(&file).iter().find(|v| v.path == path(&a)).unwrap().always_on, "first opened: always on");
+        set_always_on(&file, &path(&a), false).unwrap();
+        remember(&file, &a, 2).unwrap();
+        assert!(!list(&file).iter().find(|v| v.path == path(&a)).unwrap().always_on, "switched off: a reopen keeps it off");
+        // a list written before the key existed: the folders opened in the last 3 days start, as they did
+        let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis() as i64;
+        std::fs::write(&file, format!("[[vault]]\nname = \"A\"\npath = \"{}\"\nlast_opened = {}\nmissing = false\n\n[[vault]]\nname = \"B\"\npath = \"{}\"\nlast_opened = 1\nmissing = false\n", path(&a), now - 1000, path(&b))).unwrap();
+        let l = list(&file);
+        assert!(l.iter().find(|v| v.path == path(&a)).unwrap().always_on, "opened lately: on");
+        assert!(!l.iter().find(|v| v.path == path(&b)).unwrap().always_on, "not opened for long: off");
+    }
+
     #[test]
     fn throwaway_folders_are_the_temp_folders_and_cargos_target() {
         let tmp = tempfile::tempdir().unwrap();

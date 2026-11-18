@@ -5,6 +5,11 @@ and versions follow [Semantic Versioning](https://semver.org/) once 1.0 is out.
 
 ## [Unreleased]
 
+### Changed
+- **A vault opened on a computer for the first time is "always on"**: it starts with Atlas and keeps its schedules,
+  plugin rounds and notices going with no window on it; Settings → Vaults & sync turns it off. A vault list from before
+  the switch keeps the vaults opened in the last three days starting, as they did.
+
 ## [0.4.1] - 2026-11-18
 
 ### Added

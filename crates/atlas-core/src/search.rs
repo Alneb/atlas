@@ -130,7 +130,8 @@ pub fn search_in_lane(root: &Path, cfg: &Config, q: &str, o: Opts, lane: Option<
     narrow.settle(root, cfg);
     let named: std::collections::HashSet<&str> = names.iter().map(String::as_str).collect();
     let incoming = index.incoming();
-    let mut ranked: Vec<(Rank, FileLines)> = found.into_iter().map(|f| (rank(root, &f, &named, incoming), f)).collect();
+    let mtime = |rel: &str| index.parsed.get(rel).and_then(|p| p.mtime);
+    let mut ranked: Vec<(Rank, FileLines)> = found.into_iter().map(|f| (rank(root, &f, &named, incoming, mtime(&f.rel)), f)).collect();
     ranked.sort_by_key(|r| r.0);
     let mut out = SearchResults { files: Vec::new(), lines: Vec::new(), counts: Default::default() };
     // a hit in a hidden note is its thing's (a drawing's note text → the drawing; companion::thing_of), as the names are;
@@ -153,8 +154,9 @@ pub fn search_in_lane(root: &Path, cfg: &Config, q: &str, o: Opts, lane: Option<
 /// it; a note; more matches (up to [`MAX_COUNT`]); more notes linking to it (a hub of the vault above a stray note);
 /// the newest. So a note about the thing leads, not the walk's order.
 type Rank = (bool, bool, bool, std::cmp::Reverse<usize>, std::cmp::Reverse<u32>, std::cmp::Reverse<std::time::SystemTime>);
-fn rank(root: &Path, f: &FileLines, named: &std::collections::HashSet<&str>, incoming: &std::collections::HashMap<String, u32>) -> Rank {
-    let modified = std::fs::metadata(root.join(&f.rel)).and_then(|m| m.modified()).unwrap_or(std::time::UNIX_EPOCH);
+/// `known`: the note's time from the note index (no stat); other files are asked of the disk.
+fn rank(root: &Path, f: &FileLines, named: &std::collections::HashSet<&str>, incoming: &std::collections::HashMap<String, u32>, known: Option<std::time::SystemTime>) -> Rank {
+    let modified = known.or_else(|| std::fs::metadata(root.join(&f.rel)).and_then(|m| m.modified()).ok()).unwrap_or(std::time::UNIX_EPOCH);
     let linked = incoming.get(&f.rel).copied().unwrap_or(0);
     (!named.contains(f.rel.as_str()), !f.titled, !f.rel.ends_with(".md"), std::cmp::Reverse(f.count), std::cmp::Reverse(linked), std::cmp::Reverse(modified))
 }
