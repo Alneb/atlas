@@ -141,10 +141,14 @@ test("books: ink drawn over a reflowed page stays with its words, in the book's 
   // a narrower window: the column moves, the ink moves with its character, the same distance from it
   await page.setViewportSize({ width: 900, height: 800 });
   await expect.poll(async () => (await inkState(page, k)).box!.x).not.toBeCloseTo(before.box!.x, 0);
-  const after = await inkState(page, k);
-  expect(after.starts).toHaveLength(1);
-  expect(after.starts[0]!.x - after.box!.x).toBeCloseTo(offset.x, 0);
-  expect(after.starts[0]!.y - after.box!.y).toBeCloseTo(offset.y, 0);
+  // the column settles over a few frames after the resize (the ink is placed again on each): judged once it has
+  let after = before;
+  await expect(async () => {
+    after = await inkState(page, k);
+    expect(after.starts).toHaveLength(1);
+    expect(after.starts[0]!.x - after.box!.x).toBeCloseTo(offset.x, 0);
+    expect(after.starts[0]!.y - after.box!.y).toBeCloseTo(offset.y, 0);
+  }).toPass({ timeout: 5000 });
   await page.screenshot({ path: test.info().outputPath("ink-reflowed.png") });
 
   // the eraser takes it off the page and out of the note (a tombstone stays); Ctrl+Z brings it back

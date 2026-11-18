@@ -158,6 +158,7 @@ export const api = {
   server: () => request<ServerState>("GET", "/api/server"),
   serverOptions: (o: ServerOptions) => request<void>("PUT", "/api/server/options", { body: o }),
   serverPassword: (current: string | null, next: string) => request<void>("POST", "/api/server/password", { body: { current, new: next } }),
+  serverGateKey: (header: string, key: string | null) => request<void>("PUT", "/api/server/gate-key", { body: { header, key } }),
   serverToken: (name: string, scope: "capture" | "full") => request<{ token: string }>("POST", "/api/server/tokens", { body: { name, scope } }),
   serverRevoke: (name: string) => request<void>("DELETE", `/api/server/tokens/${encodeURIComponent(name)}`),
   /** Sign-ins to services kept for the plugins (service_signin.rs): hosts and dates, never a cookie. */

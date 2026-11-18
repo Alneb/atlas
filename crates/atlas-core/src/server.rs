@@ -2265,6 +2265,13 @@ async fn guard_server(auth: &crate::auth::Auth, mut req: Request, next: Next) ->
         return next.run(req).await;
     }
     let h = req.headers();
+    // the gate key is this request's credential: checked by the handler (device_by_gate_key), not as a sign-in
+    if path == "/api/auth/device" && req.method() == axum::http::Method::POST {
+        if h.get("x-atlas") != Some(&HeaderValue::from_static("1")) {
+            return forbidden("missing header x-atlas: 1");
+        }
+        return next.run(req).await;
+    }
     if h.get(crate::auth::CLIENT_HEADER).is_some_and(|v| v == "mcp") && !auth.settings().mcp {
         return forbidden("AI agents (atlas mcp) are off on this server: Settings → Server");
     }
@@ -2379,6 +2386,7 @@ async fn login_post(State(st): S, axum::extract::ConnectInfo(peer): axum::extrac
         }
         Ok(Err(Refused::NoPassword)) => login_page(&st, &next, Some("This server signs in through its proxy only."), StatusCode::FORBIDDEN),
         Ok(Err(Refused::PlainHttp)) => login_page(&st, &next, Some("Not over plain HTTP: open this server through HTTPS (allow_plain_http in its server.toml allows it on a trusted network)."), StatusCode::FORBIDDEN),
+        Ok(Err(Refused::NoGateKey)) => login_page(&st, &next, Some("Wrong password."), StatusCode::UNAUTHORIZED), // (said by the gate key's path only)
         Err(e) => login_page(&st, &next, Some(&e.to_string()), StatusCode::INTERNAL_SERVER_ERROR),
     }
 }
@@ -2428,6 +2436,7 @@ async fn server_get(State(st): S) -> Result<Json<ServerState>> {
             mcp: s.mcp,
         },
         has_password: s.password_hash.is_some(),
+        gate_key_header: s.gate_key.as_ref().map(|g| g.header.clone()),
         tokens: a.tokens().iter().map(|t| IssuedToken::of(t, true)).collect(),
         sessions: a.session_count(),
         files: ServerFiles { settings: crate::auth::settings_file().display().to_string(), state: crate::auth::state_file().display().to_string() },
@@ -2439,7 +2448,7 @@ async fn server_options_put(State(st): S, Json(o): Json<ServerOptions>) -> Resul
     let proxies = o.trusted_proxies.iter().map(|p| p.trim()).filter(|p| !p.is_empty()).map(|p| p.parse().map_err(Error::BadRequest)).collect::<Result<Vec<_>>>()?;
     let header = Some(o.remote_user_header.trim().to_string()).filter(|h| !h.is_empty() && h != "Remote-User");
     let a = auth_of(&st)?;
-    let new = crate::auth::ServerSettings { auth: o.auth, trusted_proxies: proxies, remote_user_header: header, allow_plain_http: o.allow_plain_http, mcp: o.mcp, password_hash: None };
+    let new = crate::auth::ServerSettings { auth: o.auth, trusted_proxies: proxies, remote_user_header: header, allow_plain_http: o.allow_plain_http, mcp: o.mcp, password_hash: None, gate_key: None };
     tokio::task::spawn_blocking(move || a.set_options(new)).await.map_err(|e| Error::Other(e.into()))?.map_err(Error::Other)?;
     Ok(StatusCode::NO_CONTENT)
 }
@@ -2453,6 +2462,22 @@ struct PasswordChange {
 async fn server_password_post(State(st): S, Json(p): Json<PasswordChange>) -> Result<StatusCode> {
     let a = auth_of(&st)?;
     tokio::task::spawn_blocking(move || a.set_password(p.current.as_deref(), &p.new))
+        .await
+        .map_err(|e| Error::Other(e.into()))?
+        .map_err(|e| Error::BadRequest(e.to_string()))?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+#[derive(serde::Deserialize)]
+struct GateKeySet {
+    header: String,
+    /// `None` forgets the key
+    key: Option<String>,
+}
+
+async fn server_gate_key_put(State(st): S, Json(g): Json<GateKeySet>) -> Result<StatusCode> {
+    let a = auth_of(&st)?;
+    tokio::task::spawn_blocking(move || a.set_gate_key(&g.header, g.key.as_deref()))
         .await
         .map_err(|e| Error::Other(e.into()))?
         .map_err(|e| Error::BadRequest(e.to_string()))?;
@@ -2492,6 +2517,38 @@ struct AppQuery {
 
 /// A refusal of the sign-in step: its status and why.
 type Refused = (StatusCode, String);
+
+#[derive(serde::Deserialize)]
+struct DeviceAsk {
+    /// `atlas` (the phone), `boox`, `capture` or `desktop` (a desktop opening a vault of this server)
+    app: String,
+    #[serde(default)]
+    name: String,
+}
+
+/// `POST /api/auth/device`: an app holding the gate's bypass key (in the header the gate checks, set on this server with
+/// `atlas server gate-key`) gets its device token — the sign-in of Atlas's own apps when the gate lets them past
+/// without its page. Before the guard asks who it is (the key is the credential), `x-atlas: 1` still required.
+async fn device_by_gate_key(State(st): S, axum::extract::ConnectInfo(peer): axum::extract::ConnectInfo<std::net::SocketAddr>, h: HeaderMap, Json(ask): Json<DeviceAsk>) -> Response {
+    use crate::auth::{Refused as No, Scope};
+    let Some(auth) = st.auth.clone() else { return forbidden("not a server") };
+    let (label, scope) = match APPS.iter().find(|a| a.0 == ask.app) {
+        Some(a) => (a.1, a.3),
+        None if ask.app == "desktop" => ("Atlas desktop", Scope::Full),
+        None => return (StatusCode::BAD_REQUEST, Json(ApiError { error: format!("no app called {}", ask.app), mtime: None })).into_response(),
+    };
+    let base = if ask.name.trim().is_empty() { label.to_string() } else { format!("{} ({label})", ask.name.trim()) };
+    let name = format!("{base} · {}", chrono::Local::now().format("%Y-%m-%d %H:%M:%S"));
+    let said = |status: StatusCode, why: String| (status, Json(ApiError { error: why, mtime: None })).into_response();
+    match tokio::task::spawn_blocking(move || auth.device_by_gate_key(peer, &h, &name, scope)).await {
+        Ok(Ok(token)) => (StatusCode::OK, [(header::CACHE_CONTROL, "no-store")], Json(serde_json::json!({ "token": token, "scope": scope_word(scope) }))).into_response(),
+        Ok(Err(No::Wait(d))) => said(StatusCode::TOO_MANY_REQUESTS, format!("too many wrong keys: try again in {} s", d.as_secs().max(1))),
+        Ok(Err(No::PlainHttp)) => said(StatusCode::FORBIDDEN, "the gate's key only over HTTPS".into()),
+        Ok(Err(No::NoGateKey)) => said(StatusCode::NOT_FOUND, "this server takes no gate key (atlas server gate-key sets one)".into()),
+        Ok(Err(No::Wrong | No::NoPassword)) => said(StatusCode::UNAUTHORIZED, "not the gate's key".into()),
+        Err(e) => said(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()),
+    }
+}
 
 fn refused(r: Refused) -> Response {
     (r.0, Json(ApiError { error: r.1, mtime: None })).into_response()
@@ -2730,6 +2787,7 @@ fn router(state: Arc<AppState>) -> Router {
         .route("/api/ui/log", post(ui_log_post))
         .route("/login", get(login_get).post(login_post))
         .route("/api/auth/me", get(auth_me))
+        .route("/api/auth/device", post(device_by_gate_key))
         .route("/api/version", get(|| async { Json(version_info()) }))
         .route("/api/local/link", post(local_link))
         .route("/api/shell/show", post(shell_show))
@@ -2743,6 +2801,7 @@ fn router(state: Arc<AppState>) -> Router {
         .route("/api/server", get(server_get))
         .route("/api/server/options", put(server_options_put))
         .route("/api/server/password", post(server_password_post))
+        .route("/api/server/gate-key", put(server_gate_key_put))
         .route("/api/server/tokens", post(server_token_post))
         .route("/api/server/tokens/{name}", axum::routing::delete(server_token_delete))
         .route("/api/server/signout-all", post(server_signout_all))
@@ -2973,7 +3032,7 @@ pub async fn serve_vaults(vaults: Vaults, listen: Listen) -> anyhow::Result<Serv
             let names: Vec<String> = list.iter().map(|v| v.name.clone()).collect();
             let st = first_state.expect("at least one vault");
             // `/` → the first vault; the sign-in and the app's files (scripts, styles) are shared by all
-            let signin = Router::new().route("/login", get(login_get).post(login_post)).with_state(st.clone());
+            let signin = Router::new().route("/login", get(login_get).post(login_post)).route("/api/auth/device", post(device_by_gate_key)).with_state(st.clone());
             let top = top
                 .route("/", get(move || async move { axum::response::Redirect::to(&format!("/v/{first}/")) }))
                 .merge(signin)

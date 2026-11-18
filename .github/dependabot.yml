@@ -1,5 +1,7 @@
 # Dependency updates: one grouped pull request per ecosystem a month (each pull request runs the whole CI), and only
-# for versions a week old or more.
+# for versions a week old or more. Cargo and npm update only the lock file, within the ranges the manifests allow: a
+# version that changes the API (a major, or a 0.x minor for crates) is moved to by hand — one grouped pull request of
+# 36 crates with such versions among them could never build.
 version: 2
 updates:
   - package-ecosystem: cargo
@@ -7,12 +9,14 @@ updates:
     schedule: { interval: monthly }
     cooldown: { default-days: 7 }
     groups: { cargo: { patterns: ["*"] } }
+    versioning-strategy: lockfile-only
     open-pull-requests-limit: 1
   - package-ecosystem: npm
     directory: /ui
     schedule: { interval: monthly }
     cooldown: { default-days: 7 }
     groups: { npm: { patterns: ["*"] } }
+    versioning-strategy: lockfile-only
     open-pull-requests-limit: 1
   - package-ecosystem: github-actions
     directory: /

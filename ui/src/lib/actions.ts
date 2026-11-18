@@ -1,5 +1,5 @@
 // Built-in UI actions: one table drives the palette, the global keymap and the key hints.
-import type { BuiltinId } from "./builtin-plugins";
+import { builtinOn, type BuiltinId } from "./builtin-plugins";
 import { openCaptures, openQuickCapture } from "./quick-capture.svelte";
 import { errText } from "./text";
 import { renameFile } from "./rename-file";
@@ -325,7 +325,9 @@ export const actions: Action[] = [
   // the Libraries page is a plugin's pane (the Catalog's: libraries.svelte.ts); without one on, a notice says so
   { id: "ui.libraries", title: "Libraries (drawings, references, films, comics…)", icon: "library", label: "Libraries", run: () => openLibraries() },
   // one Library page: References is its first library
-  { id: "ui.library", title: "Library: references, then the vault's other libraries", icon: "library", label: "Library", keys: "Super+Shift+L", plugin: "library", run: () => openLibraries("references") },
+  // the Library page is the Catalog's: its tile and key stay when References (the built-in "library") is off — a
+  // vault of books and films only, no papers — and open the page at its first library then
+  { id: "ui.library", title: "Library: references, then the vault's other libraries", icon: "library", label: "Library", keys: "Super+Shift+L", run: () => openLibraries(builtinOn("library") ? "references" : undefined) },
   { id: "ui.git", title: "Git: changes and history", icon: "git", label: "Git", keys: "Super+G", run: () => { open({ kind: "git" }); } },
   { id: "ui.git.blame", title: "Git: who changed each line (blame)", icon: "git", run: () => void toggleBlame() },
   { id: "ui.sidePanel", title: "Show / hide the side panel (files, search, outline, git)", icon: "folder-tree", label: "Side panel (show / hide)", keys: "Super+B", run: () => toggleSidePanel() },

@@ -435,9 +435,69 @@ pub fn site_headers(store: &Store, url: &reqwest::Url) -> Result<SiteHeaders> {
         headers.push(("cookie".to_string(), c));
     }
     let bypass = bypass_header(store, url)?;
-    let secret = bypass.is_some();
+    let token = atlas_token(store, url)?;
+    let secret = bypass.is_some() || token.is_some();
     headers.extend(bypass);
+    headers.extend(token.map(|t| (crate::auth::TOKEN_HEADER.to_string(), t)));
     Ok(SiteHeaders { headers, secret })
+}
+
+// ── Atlas's own device token for an Atlas server, got with the gate's key ────────────────────────────────────────
+// Behind a gate whose bypass key this device keeps, Atlas's apps never see the gate's page: the key takes the request
+// past the gate, and the Atlas server behind it hands a device token for the key (`POST /api/auth/device`, its
+// `atlas server gate-key`). The token is then sent to that server only (its exact host and port), beside the key.
+
+const ATLAS_TOKEN: &str = "atlas-token.";
+
+/// `url`'s host and port as tokens are kept by.
+fn authority(url: &reqwest::Url) -> String {
+    let host = url.host_str().unwrap_or_default().trim_end_matches('.').to_ascii_lowercase();
+    url.port().map_or(host.clone(), |p| format!("{host}:{p}"))
+}
+
+/// The Atlas device token kept for the server at `url`.
+pub fn atlas_token(store: &Store, url: &reqwest::Url) -> Result<Option<String>> {
+    signins(store)?.get(SECTION, &format!("{ATLAS_TOKEN}{}", authority(url)))
+}
+
+pub fn keep_atlas_token(store: &Store, url: &reqwest::Url, token: &str) -> Result<()> {
+    signins(store)?.set(SECTION, &format!("{ATLAS_TOKEN}{}", authority(url)), token)
+}
+
+/// Forget the token of the server at `url` (it refused it: revoked there).
+pub fn forget_atlas_token(store: &Store, url: &reqwest::Url) -> Result<bool> {
+    signins(store)?.delete(SECTION, &format!("{ATLAS_TOKEN}{}", authority(url)))
+}
+
+/// Why no token came from a server: it has no gate key, refused this one, or did not answer.
+#[derive(Debug, PartialEq, Eq)]
+pub enum NoToken {
+    /// No bypass key is kept for that host on this device.
+    NoKey,
+    /// The server said no (its status and words).
+    Refused(u16, String),
+    Unreachable(String),
+}
+
+/// A device token from the Atlas server at `base` (`https://atlas.example.org`, or a vault's `…/v/<name>`), asked with
+/// the bypass key this device keeps for its host, kept for that server and returned. `app`: `desktop`, `atlas`
+/// (the phone), `boox` or `capture` — what the token may do follows from it.
+pub async fn atlas_token_by_gate_key(store: &Store, base: &str, app: &str, name: &str) -> std::result::Result<String, NoToken> {
+    let url = reqwest::Url::parse(&format!("{}/api/auth/device", base.trim_end_matches('/'))).map_err(|e| NoToken::Unreachable(e.to_string()))?;
+    let Some((header, key)) = bypass_header(store, &url).ok().flatten() else { return Err(NoToken::NoKey) };
+    // no redirect followed: the key must not leave this host
+    let client = reqwest::Client::builder().use_preconfigured_tls(crate::tls_chain::config()).redirect(reqwest::redirect::Policy::none())
+        .timeout(std::time::Duration::from_secs(20)).build().map_err(|e| NoToken::Unreachable(e.to_string()))?;
+    let res = client.post(url.clone()).header(header, key).header("x-atlas", "1").json(&serde_json::json!({ "app": app, "name": name })).send().await
+        .map_err(|e| NoToken::Unreachable(e.to_string()))?;
+    let status = res.status().as_u16();
+    let body: serde_json::Value = res.json().await.unwrap_or_default();
+    let Some(token) = body["token"].as_str().filter(|_| status == 200) else {
+        let why = body["error"].as_str().map_or_else(|| format!("answered {status}"), str::to_string);
+        return Err(NoToken::Refused(status, why));
+    };
+    keep_atlas_token(store, &url, token).map_err(|e| NoToken::Unreachable(e.to_string()))?;
+    Ok(token.to_string())
 }
 
 #[cfg(test)]

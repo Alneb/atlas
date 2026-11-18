@@ -6,7 +6,12 @@ import type { ServerOptions } from "./ServerOptions";
 /**
  * Settings → Server: how this core serves itself (`GET /api/server`, docs/guides/SERVER.md).
  */
-export type ServerState = { serving: boolean, port: number, options: ServerOptions, hasPassword: boolean, sessions: number, 
+export type ServerState = { serving: boolean, port: number, options: ServerOptions, hasPassword: boolean, 
+/**
+ * The header the gate's bypass key is checked in, when one is set (`atlas server gate-key`): apps holding the key
+ * get their device token without a page.
+ */
+gateKeyHeader: string | null, sessions: number, 
 /**
  * Why the server can't serve yet (no password set for password sign-in, …).
  */

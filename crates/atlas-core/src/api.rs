@@ -2138,6 +2138,9 @@ pub struct ServerState {
     pub port: u16,
     pub options: ServerOptions,
     pub has_password: bool,
+    /// The header the gate's bypass key is checked in, when one is set (`atlas server gate-key`): apps holding the key
+    /// get their device token without a page.
+    pub gate_key_header: Option<String>,
     #[ts(type = "number")]
     pub sessions: usize,
     /// Why the server can't serve yet (no password set for password sign-in, …).

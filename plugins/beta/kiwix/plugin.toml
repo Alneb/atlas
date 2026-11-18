@@ -3,8 +3,8 @@
 # address, which the catalog files as a note (reading the page) — the archive itself stays on the server.
 title = "Kiwix"
 description = "search your Kiwix server's offline library (Wikipedia, dictionaries, docs) and open or save an article"
-icon = "library"
-version = "0.1.0"
+icon = "globe" # its own: the library icon is the Library tile's (two looked like two libraries)
+version = "0.1.1"
 api = 4
 phone = true # runs in the phone apps too
 rail = true

@@ -120,6 +120,18 @@ pub struct ServerSettings {
     pub password_hash: Option<String>,
     /// AI agents through `atlas mcp` on this server. Off by default; the desktop is not affected.
     pub mcp: bool,
+    /// The gate's bypass key (a rule of the sign-in in front letting native apps past with a shared key in a header):
+    /// a request carrying it may ask for a device token (`POST /api/auth/device`), so the apps sign in with the key
+    /// alone, without the gate's page. Set with `atlas server gate-key`; only the key's SHA-256 is kept.
+    pub gate_key: Option<GateKey>,
+}
+
+/// The header the gate's bypass key travels in and the key's SHA-256 (the key is long and random, as the gate's own
+/// rule needs it: a hash without salt or stretching is enough to keep it out of the file).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct GateKey {
+    pub header: String,
+    pub sha256: String,
 }
 
 impl ServerSettings {
@@ -202,6 +214,8 @@ pub enum Refused {
     NoPassword,
     /// A password over plain HTTP from another machine, which `allow_plain_http` does not allow.
     PlainHttp,
+    /// No gate key is set on this server (`atlas server gate-key`).
+    NoGateKey,
 }
 
 pub struct Auth {
@@ -394,7 +408,26 @@ impl Auth {
     /// (switching the mode under a signed-in browser could lock it out mid-session).
     pub fn set_options(&self, new: ServerSettings) -> anyhow::Result<()> {
         let file = load_settings_from(&self.settings_file)?;
-        save_settings_to(&self.settings_file, &ServerSettings { password_hash: file.password_hash, ..new })
+        save_settings_to(&self.settings_file, &ServerSettings { password_hash: file.password_hash, gate_key: file.gate_key, ..new })
+    }
+
+    /// The gate's bypass key that lets an app get its device token (`None` forgets it): at once and in server.toml.
+    /// A key shorter than 24 characters is refused — it opens the gate and this server both.
+    pub fn set_gate_key(&self, header: &str, key: Option<&str>) -> anyhow::Result<()> {
+        let gate_key = match key.map(str::trim) {
+            None => None,
+            Some(k) if k.chars().count() < 24 => anyhow::bail!("the gate's key is at least 24 characters (it is a password to everything behind the gate)"),
+            Some(k) => {
+                let header = header.trim();
+                anyhow::ensure!(!header.is_empty() && header.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_'), "{header:?} is not a header name");
+                Some(GateKey { header: header.to_string(), sha256: sha256(k) })
+            }
+        };
+        let mut file = load_settings_from(&self.settings_file)?;
+        file.gate_key = gate_key.clone();
+        save_settings_to(&self.settings_file, &file)?;
+        self.settings.write().unwrap().gate_key = gate_key;
+        Ok(())
     }
 
     /// A new password, at once and in server.toml. `current` must match the old one when there is one.
@@ -561,18 +594,7 @@ impl Auth {
         }
         let ip = self.client_ip(peer, h);
         let from = guesser(ip);
-        // the attempt is counted before the (slow) check, under one lock: guesses sent in parallel each find the wait
-        // the one before them set, instead of all passing an empty table first
-        let n = {
-            let mut f = self.failures.lock().unwrap();
-            f.retain(|_, (_, until)| *until + MAX_WAIT > now); // long-quiet addresses are forgotten
-            if let Some((_, until)) = f.get(&from).filter(|(_, until)| *until > now) {
-                return Err(Refused::Wait(until.duration_since(now).unwrap_or_default()));
-            }
-            let n = f.get(&from).map_or(0, |(n, _)| *n) + 1;
-            f.insert(from, (n, now + wait_after(n)));
-            n
-        };
+        let n = self.attempt(from, now)?;
         if !password_ok(hash, password) {
             eprintln!("atlas: wrong password from {ip} ({n} in a row)");
             return Err(Refused::Wrong);
@@ -586,6 +608,48 @@ impl Auth {
         st.sessions.push(Session { hash: sha256(&token), created: t, last_used: t, agent });
         self.save(&st);
         eprintln!("atlas: signed in from {ip}");
+        Ok(token)
+    }
+
+    /// One more try from `from` (a password, a gate key) counted — before the check, under one lock: guesses sent in
+    /// parallel each find the wait the one before them set, instead of all passing an empty table first. Its number in
+    /// a row, or the wait still to go.
+    fn attempt(&self, from: IpAddr, now: SystemTime) -> Result<u32, Refused> {
+        let mut f = self.failures.lock().unwrap();
+        f.retain(|_, (_, until)| *until + MAX_WAIT > now); // long-quiet addresses are forgotten
+        if let Some((_, until)) = f.get(&from).filter(|(_, until)| *until > now) {
+            return Err(Refused::Wait(until.duration_since(now).unwrap_or_default()));
+        }
+        let n = f.get(&from).map_or(0, |(n, _)| *n) + 1;
+        f.insert(from, (n, now + wait_after(n)));
+        Ok(n)
+    }
+
+    /// An app that holds the gate's bypass key ([`ServerSettings::gate_key`], in its header) gets a device token named
+    /// `name`: the sign-in without any page. Counted as a password is (a wrong key waits longer each time), never
+    /// over plain HTTP from another machine.
+    pub fn device_by_gate_key(&self, peer: SocketAddr, h: &HeaderMap, name: &str, scope: Scope) -> Result<String, Refused> {
+        self.device_by_gate_key_at(peer, h, name, scope, SystemTime::now())
+    }
+
+    fn device_by_gate_key_at(&self, peer: SocketAddr, h: &HeaderMap, name: &str, scope: Scope, now: SystemTime) -> Result<String, Refused> {
+        let Some(gate) = self.settings().gate_key else { return Err(Refused::NoGateKey) };
+        if !self.https(peer, h) && !peer.ip().is_loopback() {
+            return Err(Refused::PlainHttp);
+        }
+        let ip = self.client_ip(peer, h);
+        let from = guesser(ip);
+        let n = self.attempt(from, now)?;
+        let sent = h.get(gate.header.as_str()).and_then(|v| v.to_str().ok()).map(str::trim).unwrap_or_default();
+        // the hashes compared whole, every byte (no early return on the first that differs)
+        let same = !sent.is_empty() && sha256(sent).bytes().zip(gate.sha256.bytes()).fold(0u8, |d, (a, b)| d | (a ^ b)) == 0 && gate.sha256.len() == 64;
+        if !same {
+            eprintln!("atlas: a wrong gate key from {ip} ({n} in a row)");
+            return Err(Refused::Wrong);
+        }
+        self.failures.lock().unwrap().remove(&from);
+        let token = self.add_token(name, scope).map_err(|_| Refused::Wrong)?;
+        eprintln!("atlas: {name} signed in with the gate's key from {ip}");
         Ok(token)
     }
 
@@ -698,6 +762,35 @@ mod tests {
         a.sign_out(&c);
         assert_eq!(a.identify_at(at(LAN), &c, t0), None);
         assert_eq!(a.identify_at(at(LAN), &headers(&[("cookie", &format!("{SESSION_COOKIE}=forged"))]), t0), None);
+    }
+
+    #[test]
+    fn the_gates_key_gets_an_app_its_token_and_nothing_else_does() {
+        let dir = tempfile::tempdir().unwrap();
+        let a = auth(AuthMode::Proxy, &dir);
+        let key = "k3y-of-the-gate-0123456789abcdef";
+        let t0 = SystemTime::now();
+        let with = |k: &str| headers(&[("x-forwarded-proto", "https"), ("x-api-key", k)]);
+        assert_eq!(a.device_by_gate_key_at(at(PROXY), &with(key), "Pixel", Scope::Full, t0), Err(Refused::NoGateKey), "none set: none taken");
+        assert!(a.set_gate_key("X-Api-Key", Some("short")).is_err(), "a short key is refused");
+        a.set_gate_key("X-Api-Key", Some(key)).unwrap();
+        assert!(!std::fs::read_to_string(dir.path().join("server.toml")).unwrap().contains(key), "only its hash is written");
+        // the right key: a device token that then signs the app in
+        let token = a.device_by_gate_key_at(at(PROXY), &with(key), "Pixel", Scope::Full, t0).unwrap();
+        assert_eq!(a.identify_at(at(LAN), &headers(&[("x-atlas-token", &token)]), t0), Some(Who::Device { name: "Pixel".into(), scope: Scope::Full }));
+        // a wrong key, or none, is a wrong guess and waits like a password
+        assert_eq!(a.device_by_gate_key_at(at(PROXY), &with("not-the-key-0123456789abcdef"), "B", Scope::Full, t0), Err(Refused::Wrong));
+        assert!(matches!(a.device_by_gate_key_at(at(PROXY), &with(key), "C", Scope::Full, t0 + Duration::from_millis(500)), Err(Refused::Wait(_))));
+        assert_eq!(a.device_by_gate_key_at(at(PROXY), &headers(HTTPS), "D", Scope::Full, t0 + Duration::from_secs(5)), Err(Refused::Wrong));
+        // never over plain HTTP from another machine
+        assert_eq!(a.device_by_gate_key_at(at(LAN), &headers(&[("x-api-key", key)]), "E", Scope::Full, t0 + Duration::from_secs(60)), Err(Refused::PlainHttp));
+        // the key alone is no sign-in: only the token is
+        assert_eq!(a.identify_at(at(PROXY), &with(key), t0), None);
+        // kept across a restart; forgotten when asked
+        let again = Auth::new(load_settings_from(&dir.path().join("server.toml")).unwrap(), dir.path().join("server.json"));
+        assert!(again.settings().gate_key.is_some());
+        again.set_gate_key("X-Api-Key", None).unwrap();
+        assert_eq!(again.device_by_gate_key_at(at(PROXY), &with(key), "F", Scope::Full, t0 + Duration::from_secs(600)), Err(Refused::NoGateKey));
     }
 
     #[test]

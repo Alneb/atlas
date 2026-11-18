@@ -10,7 +10,7 @@
 //!           links (u32 count; each: target · flags u8 (1 wiki, 2 embed, 4 has a relation) · line u32 · context · relation?)
 //! strings: u32 byte length, UTF-8
 //! ```
-//! Written beside and renamed over; a save runs on a lowest-priority thread, at most one at a time per vault.
+//! Written through vault_write::cache (beside, then renamed over); a save runs on a lowest-priority thread, at most one at a time per vault.
 
 use super::{FileCache, Index, Parsed, RawLink};
 use std::path::{Path, PathBuf};
@@ -58,13 +58,7 @@ pub fn save_in_background(root: &Path, index: Arc<Index>) {
 }
 
 pub fn save(root: &Path, parsed: &FileCache) -> std::io::Result<()> {
-    let out = root.join(FILE);
-    if let Some(dir) = out.parent() {
-        std::fs::create_dir_all(dir)?;
-    }
-    let tmp = crate::search_index::temp_beside(&out);
-    std::fs::write(&tmp, encode(parsed))?;
-    std::fs::rename(tmp, out)
+    crate::vault_write::cache::write(&root.join(FILE), &encode(parsed)).map_err(std::io::Error::other)
 }
 
 fn ns(t: Option<SystemTime>) -> u64 {

@@ -489,6 +489,11 @@ pub mod cache {
         check(abs);
         raw::atomic(abs, raw::Replace::Always, |f| Ok(f.write_all(bytes)?)).map(|_| ())
     }
+    /// [`write`], the bytes streamed by `fill` (an index too large to build in memory twice).
+    pub fn write_with(abs: &Path, fill: impl FnOnce(&mut std::fs::File) -> Result<()>) -> Result<()> {
+        check(abs);
+        raw::atomic(abs, raw::Replace::Always, fill).map(|_| ())
+    }
     pub fn append(abs: &Path, bytes: &[u8]) -> Result<()> {
         check(abs);
         raw::append(abs, bytes)

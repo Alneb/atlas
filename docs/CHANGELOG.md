@@ -5,6 +5,18 @@ and versions follow [Semantic Versioning](https://semver.org/) once 1.0 is out.
 
 ## [Unreleased]
 
+### Fixed
+- **Library covers:** titles no longer drawn over the covers after coming back to the library (Catalog 0.16.1).
+- **A book's panel shows all it knows** (authors, ISBN, edition, subjects… every property of its note), and its
+  service is no longer listed twice (the "Open on …" button and the same link under it).
+- **A paper's panel shows its note's details:** status, volume, issue, pages, publication date, publisher, ISSN,
+  language, topics, project.
+- **A library that needs signing in shows a Sign in button** (Audiobookshelf 0.16.1, any library's `setup`), never the
+  request's error ("has no secret token").
+- **The Library tile stays when References is switched off** (a vault of books and films, no papers): it opens the
+  Library at its first library.
+- **Kiwix has its own icon** (a globe), no longer the Library's (it looked like a second library).
+
 ## [0.4.0] - 2026-11-17
 
 ### Added

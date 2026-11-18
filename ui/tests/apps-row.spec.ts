@@ -53,3 +53,21 @@ test("a tile is moved and hidden from its right-click, and shown again from Sett
   await expect(tile).toBeVisible();
   await expect.poll(async () => (await cfg(request)).ui.apps_hidden).not.toContain("appdemo");
 });
+
+// References (the built-in "library") off — a vault of books and films only — keeps the Library tile: the page is the
+// Catalog's, opened at its first library
+test("the Library tile stays when References is switched off", async ({ page, request }) => {
+  const c = await cfg(request);
+  const was = [...c.plugins.off];
+  c.plugins.off = [...new Set([...was, "library"])];
+  await request.put("/api/config", { headers: H, data: c });
+  try {
+    await page.goto("/");
+    await page.getByText("Finish the GW notes.").waitFor();
+    await expect(page.getByTestId("apps").locator('.app[aria-label="Library"]')).toBeVisible();
+  } finally {
+    const back = await cfg(request);
+    back.plugins.off = was;
+    await request.put("/api/config", { headers: H, data: back });
+  }
+});

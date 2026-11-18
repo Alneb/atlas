@@ -7,6 +7,7 @@ import { openPath } from "./dock";
 import { errText } from "./text";
 import { openReadingNote, readPaper } from "./papers";
 import { toast } from "./state.svelte";
+import { noteProps } from "./plugin-host-api.svelte";
 import type { Paper } from "./types";
 import type { LibraryItem, LibrarySource } from "./plugin-api";
 
@@ -67,14 +68,16 @@ export function referencesSource(): LibrarySource {
     ],
     search: "Search title, author, year, key, tag…",
     empty: "No papers yet — add one by DOI or arXiv id.",
-    detail(i) {
+    async detail(i) {
       const p = paper(i);
+      const props = await noteProps(`${p.dir}/${p.key}.md`).catch(() => ({} as Record<string, unknown>));
       return {
         kind: `${typeWords(p.kind)}${p.year ? ` · ${p.year}` : ""}`,
         title: p.title,
         lines: [{ text: p.authors.join("; ") }, ...(p.venue ? [{ text: p.venue, muted: true }] : [])],
         fields: [
           ["Citekey", p.key],
+          ...noteFields(props),
           ...(p.added ? [["Added", p.added.slice(0, 10)] as [string, string]] : []),
           ["PDF", p.pdf ? p.pdf.slice(p.pdf.lastIndexOf("/") + 1) : "none yet — drop one here"],
           ["Notes", p.has_notes ? "yes" : "none yet"],
@@ -164,4 +167,17 @@ export function referencesSource(): LibrarySource {
     keys: { r: (i) => readPaper(paper(i)), n: (i) => void openReadingNote(i.id), c: (i) => void copy(i.id, "citekey") },
     open: (i) => openPdf(paper(i)),
   };
+}
+
+/** What the paper's note says beyond the title, authors, year and venue shown above: its status, the journal's
+ *  volume, issue and pages, when it was published, the publisher, ISBN / ISSN, its language, topics and project. */
+const NOTE_FIELDS: [string, string][] = [
+  ["status", "Status"], ["published", "Published"], ["volume", "Volume"], ["issue", "Issue"], ["pages", "Pages"],
+  ["numPages", "Pages in all"], ["edition", "Edition"], ["publisher", "Publisher"], ["place", "Place"], ["series", "Series"],
+  ["ISBN", "ISBN"], ["ISSN", "ISSN"], ["language", "Language"], ["topics", "Topics"], ["project", "Project"], ["sources", "Sources"],
+];
+function noteFields(props: Record<string, unknown>): [string, string][] {
+  const text = (v: unknown): string => Array.isArray(v) ? v.map(text).filter(Boolean).join(", ") : v == null ? "" : String(v).replace(/^\[\[|\]\]$/g, "").replace(/\|.*$/, "").trim();
+  // Zotero's `published` says the date twice ("1994-04-15 1994-4-15"): the first is enough
+  return NOTE_FIELDS.map(([k, label]) => [label, k === "published" ? text(props[k]).split(" ")[0] : text(props[k])] as [string, string]).filter(([, v]) => v);
 }

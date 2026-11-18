@@ -594,9 +594,21 @@ mod linux {
 
             // dismissals: the close after a press is none; expired (1) or closed by us (3) is none; closed by the
             // person (2) is said as atlas:dismissed with its notice
+            // each close heard before the next show of the same id (the listener runs on its own thread): a barrier —
+            // signals are handled in order, so once a marker notice's close is heard, the one before it was too
+            let forgotten = |n: &DBus| {
+                n.shown.lock().unwrap().insert(99, Kept { open: None, source: None, id: None });
+                server.emit_signal(None::<zbus::names::BusName>, PATH, DEST, "NotificationClosed", &(99u32, 3u32)).unwrap();
+                let until = Instant::now() + Duration::from_secs(5);
+                while n.shown.lock().unwrap().contains_key(&99) && Instant::now() < until {
+                    std::thread::sleep(Duration::from_millis(10));
+                }
+            };
             server.emit_signal(None::<zbus::names::BusName>, PATH, DEST, "NotificationClosed", &(42u32, 2u32)).unwrap();
+            forgotten(&n);
             n.show(&reminder, None, secs(30)).unwrap();
             server.emit_signal(None::<zbus::names::BusName>, PATH, DEST, "NotificationClosed", &(42u32, 1u32)).unwrap();
+            forgotten(&n);
             n.show(&reminder, None, secs(30)).unwrap();
             server.emit_signal(None::<zbus::names::BusName>, PATH, DEST, "NotificationClosed", &(42u32, 2u32)).unwrap();
             server.emit_signal(None::<zbus::names::BusName>, PATH, DEST, "NotificationClosed", &(42u32, 2u32)).unwrap();

@@ -209,7 +209,7 @@ fn by_property(cfg: &Config, index: &crate::links::Snapshot, q: &str, agent: boo
             v => shown(v).into_iter().collect(),
         };
         if values.iter().any(|x| x.contains(&want)) {
-            hits.push((!values.iter().any(|x| *x == want), rel));
+            hits.push((!values.contains(&want), rel));
         }
     }
     hits.sort();
@@ -388,7 +388,8 @@ fn is_title(line: &str) -> bool {
 
 /// Each file's [`worth_reading`] verdict, kept while its size and modified time stay the same: a vault's thousands of
 /// binaries (archives, pictures, a run's outputs) are not opened again by every search.
-static SNIFFED: std::sync::LazyLock<std::sync::Mutex<std::collections::HashMap<std::path::PathBuf, (u64, std::time::SystemTime, bool)>>> =
+type Sniffs = std::collections::HashMap<std::path::PathBuf, (u64, std::time::SystemTime, bool)>;
+static SNIFFED: std::sync::LazyLock<std::sync::Mutex<Sniffs>> =
     std::sync::LazyLock::new(Default::default);
 
 /// [`worth_reading`], remembered in [`SNIFFED`]; a file that cannot be read is not worth it (and not remembered).

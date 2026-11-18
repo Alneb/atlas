@@ -578,9 +578,16 @@ impl Remote {
     /// blocking client may not start its own.
     fn post<B: serde::Serialize + Send + 'static>(&self, what: &str, body: B) -> std::result::Result<String, Unreachable> {
         let url = reqwest::Url::parse(&format!("{}api/lease/{what}", self.mirror)).map_err(|e| Unreachable::new(e.to_string()))?;
-        // the gate's session and its bypass key (this client follows no redirect)
-        let kept = crate::service_signin::site_headers(&self.store, &url).map(|k| k.headers).unwrap_or_default();
+        let (store, origin) = (self.store.clone(), url.origin().ascii_serialization());
         std::thread::spawn(move || {
+            // behind a gate whose key this device keeps: Atlas's device token got with it first (remote_bridge)
+            if crate::service_signin::atlas_token(&store, &url).ok().flatten().is_none() && crate::service_signin::bypass_header(&store, &url).ok().flatten().is_some() {
+                if let Ok(rt) = tokio::runtime::Builder::new_current_thread().enable_all().build() {
+                    rt.block_on(crate::remote_bridge::sign_in_by_key(&store, &origin));
+                }
+            }
+            // the gate's session and its bypass key, Atlas's token (this client follows no redirect)
+            let kept = crate::service_signin::site_headers(&store, &url).map(|k| k.headers).unwrap_or_default();
             // one client for every call: its kept connection spares each write two TCP + TLS handshakes; made (and, being
             // static, never dropped) off the async runtime, where a blocking client may not start or end
             static CLIENT: std::sync::OnceLock<std::result::Result<reqwest::blocking::Client, String>> = std::sync::OnceLock::new();

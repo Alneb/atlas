@@ -330,7 +330,7 @@
       {#each tabCounts as t (t.id)}<button class="chip" class:on={tab === t.id} aria-pressed={tab === t.id} onclick={() => (tab = tab === t.id ? null : t.id)}>{t.title} <span class="c">{t.n}</span></button>{/each}
     </div>
   {/if}
-  {#if error}<p class="muted pad">{error}</p>{/if}
+  {#if error}<p class="muted pad">{source.setup ? source.empty : error}{#if source.setup} <button class="btn primary" onclick={() => void run(async () => { await source.setup?.run(); await load(); })}>{source.setup.label}</button>{/if}</p>{/if}
   {#if continuing.length}
     <section class="continue" aria-label="Continue">
       <h4>Continue</h4>
@@ -402,7 +402,7 @@
           </button>
         {/if}
       {:else}
-        <p class="muted pad none">{items.length ? "Nothing matches." : source.homes?.length ? `Nothing of yours yet. What is on ${source.homes.map((h) => h.from).join(" or ")} is in its own tab (the button above); a thing comes here once you read it or write about it.` : source.empty}</p>
+        <p class="muted pad none">{items.length ? "Nothing matches." : source.homes?.length ? `Nothing of yours yet. What is on ${source.homes.map((h) => h.from).join(" or ")} is in its own tab (the button above); a thing comes here once you read it or write about it.` : source.empty}{#if !items.length && source.setup} <button class="btn primary" onclick={() => void run(async () => { await source.setup?.run(); await load(); })}>{source.setup.label}</button>{/if}</p>
       {/each}
     </div>
     {#if pickedItems.length > 1}
@@ -540,7 +540,9 @@
   .card { display: flex; flex-direction: column; gap: 4px; text-align: left; padding: 4px; border-radius: var(--radius-sm); min-width: 0; }
   /* a library of thousands: items out of view are not laid out or painted (still in the page, for the marquee and keys) */
   .row { content-visibility: auto; contain-intrinsic-size: auto 52px; }
-  .card { content-visibility: auto; contain-intrinsic-size: auto 230px; }
+  /* never a card: its height (a cover's 2:3 at the column's width, then two lines) is not one number, and WebKit kept
+     the guessed one for cards laid out again after the pane came back (titles drawn over the covers); covers already
+     load only near the view (LibraryCover) */
   .card:hover { background: var(--bg-hover); }
   .card.sel { background: var(--accent-soft); box-shadow: 0 0 0 2px var(--accent); }
   .card .t { font-size: .92em; white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; }

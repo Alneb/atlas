@@ -30,7 +30,7 @@ export const BUILTINS: Builtin[] = [
   {
     // id "library" kept: vaults switch it off by that name. Its button opens the Libraries page (the Catalog plugin's
     // pane, libraries.svelte.ts) at References, the library it adds; without that page, no button.
-    id: "library", title: "Library", icon: "library", button: { command: "ui.library", pane: () => (librariesPage() ? librariesSpec("references") : null) },
+    id: "library", title: "Library", icon: "library", button: { command: "ui.library", pane: () => (librariesPage() ? librariesSpec(builtinOn("library") ? "references" : undefined) : null) },
     description: "References (your papers, books, theses and lecture notes) as the first library of the Library page — the Catalog plugin's — \\cite completion and the PDF reader's paper actions. The references themselves — their notes, refs.bib, the Zotero connector, PDF sources — are the Catalog · Science plugin's.",
     parts: "References in the Library page · commands · \\cite completion",
   },

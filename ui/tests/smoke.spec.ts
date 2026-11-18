@@ -162,7 +162,8 @@ test("the PDF switch narrows the search to the PDFs' text: the files left out, a
 test("the notes' lines by default; All adds every text file's (code, logs), a file's name always matches", async ({ page, request }) => {
   const H = { "x-atlas": "1" };
   await request.put("/api/file", { headers: H, data: { path: "notes/allswitch.md", text: "the quokka in a note\n" } });
-  await request.put("/api/file", { headers: H, data: { path: "runs/allswitch.log", text: "step 3: quokka converged\n" } });
+  // a log outside runs/ (on the default ignore list: no walk, and so no search, sees it)
+  await request.put("/api/file", { headers: H, data: { path: "logs/allswitch.log", text: "step 3: quokka converged\n" } });
   await request.put("/api/file", { headers: H, data: { path: "code/quokka.py", text: "x = 1\n" } });
   await page.goto("/");
   await page.getByText("Finish the GW notes.").waitFor();
@@ -175,5 +176,5 @@ test("the notes' lines by default; All adds every text file's (code, logs), a fi
   await pane.getByLabel("All files' text").click();
   await expect(pane.locator(".line-hit")).toHaveCount(2);
   await expect(pane.locator(".hit-file", { hasText: "allswitch.log" })).toBeVisible();
-  for (const path of ["notes/allswitch.md", "runs/allswitch.log", "code/quokka.py"]) await request.post(`/api/fs/trash?path=${encodeURIComponent(path)}`, { headers: H });
+  for (const path of ["notes/allswitch.md", "logs/allswitch.log", "code/quokka.py"]) await request.post(`/api/fs/trash?path=${encodeURIComponent(path)}`, { headers: H });
 });

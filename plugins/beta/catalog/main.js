@@ -553,7 +553,16 @@ function librarySource(atlas, title = null) {
       return {
         kind: kindTitle(k), title: item.title,
         lines: (k.library?.key ?? []).map((p) => cellText(value(row, vaultName(k, p)))).filter(Boolean).length ? [{ text: item.sub ?? "" }] : [],
-        fields: propsOf(k).filter((p) => p !== "title" && p !== cover && !(k.library?.key ?? []).map((x) => vaultName(k, x)).includes(p)).map((p) => [human(p), cellText(value(row, p))]).filter(([, v]) => v),
+        // the kind's own fields first, then whatever else the note says (authors, ISBN, edition, subjects…): every
+        // property with a value, but the title, the picture, the line under the title, the shelf and what is shown
+        // elsewhere (tags, links to services, the note's own bookkeeping)
+        fields: (() => {
+          const key = (k.library?.key ?? []).map((x) => vaultName(k, x));
+          const skip = new Set(["title", cover, ...key, g && vaultName(k, g), "tags", "aliases", "cssclasses", "cover", "image", "poster", "kind", "type", "created", "updated", "modified"].filter(Boolean));
+          const own = propsOf(k).filter((p) => !skip.has(p));
+          const rest = Object.keys(props).filter((p) => !skip.has(p) && !own.includes(p) && !/^https?:/i.test(fieldText(props[p])) && !/(^|_)(url|id|ids)$/i.test(p));
+          return [...own.map((p) => [human(p), cellText(value(row, p)) || fieldText(props[p])]), ...rest.map((p) => [human(p), fieldText(props[p])])].filter(([, v]) => v && v.length < 400);
+        })(),
         actions: [
           { label: "Open note", icon: "edit", primary: true, run: () => atlas.open(item.id) },
           ...links.slice(0, 1).map((l) => ({ label: `Open on ${l.label}`, icon: "link", run: () => (atlas.openLink ? atlas.openLink(l.url) : window.open(l.url, "_blank", "noopener")) })), // as Atlas opens any link
@@ -563,7 +572,7 @@ function librarySource(atlas, title = null) {
           { label: "Edit", edit: { fields: editable.map((p) => ({ key: p, label: human(p), value: fieldText(props[p]), half: editable.length > 3 })), save: async (v) => { for (const p of editable) if (v[p] !== fieldText(props[p])) await atlas.writeProperty(item.id, p, v[p]); } } },
           ...(atlas.trash ? [{ label: "Delete…", danger: true, confirm: { title: `Move ${item.title} to the Trash?`, hint: "Its note goes to .atlas/trash/, where it can be taken back.", button: "Delete" }, run: () => atlas.trash(item.id) }] : []),
         ],
-        links: links,
+        links: links.slice(1), // the first is the button above
         // its shelf, changed in place (the kind's `group` property, as a link like the catalog writes it)
         choice: g && (k.library?.shelves ?? []).length
           ? { label: "Shelf", options: k.library.shelves.map((sh) => ({ label: human(sh), on: sh === now, run: () => atlas.writeProperty(item.id, vaultName(k, g), `[[${sh}]]`) })) }

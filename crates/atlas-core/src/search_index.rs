@@ -182,7 +182,7 @@ impl Segment {
         read_at(&file, dict_at, &mut raw).ok()?;
         let room = end - post_at;
         let mut dict = Vec::with_capacity(ntri);
-        for e in raw.chunks_exact(12) {
+        for e in raw.as_chunks::<12>().0 {
             let w = |i: usize| u32::from_le_bytes(e[i..i + 4].try_into().unwrap());
             let (t, off, n) = (w(0), w(4), w(8));
             if off as u64 + n as u64 > room || dict.last().is_some_and(|&(p, _, _)| p >= t) {
@@ -392,21 +392,18 @@ pub fn build(files: &[(PathBuf, String)], out: &Path) -> io::Result<Built> {
         head.extend(v.to_le_bytes());
     }
 
-    if let Some(dir) = out.parent() {
-        std::fs::create_dir_all(dir)?;
-    }
-    let tmp = temp_beside(out);
-    {
-        let mut w = io::BufWriter::new(File::create(&tmp)?);
+    crate::vault_write::cache::write_with(out, |f| {
+        let mut w = io::BufWriter::new(f);
         w.write_all(&head)?;
         w.write_all(&docs)?;
         w.write_all(&table)?;
         for (_, b) in &dict {
             w.write_all(b)?;
         }
-        w.into_inner().map_err(|e| e.into_error())?.sync_all()?;
-    }
-    std::fs::rename(&tmp, out)?;
+        w.flush()?;
+        Ok(())
+    })
+    .map_err(io::Error::other)?;
     Ok(Built { files: paths.len(), text_bytes, index_bytes: end, trigrams: dict.len() })
 }
 
@@ -436,14 +433,6 @@ impl std::hash::Hasher for TrigramHasher {
     }
 }
 
-/// A temporary name beside `out`, unique to this write: two writers (a background rebuild and a direct one) never
-/// rename each other's file away.
-pub(crate) fn temp_beside(out: &Path) -> PathBuf {
-    static N: AtomicUsize = AtomicUsize::new(0);
-    let name = out.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
-    out.with_file_name(format!("{name}.{}-{}.tmp", std::process::id(), N.fetch_add(1, Relaxed)))
-}
-
 fn leb128(mut v: u32, out: &mut Vec<u8>) {
     while v >= 0x80 {
         out.push((v as u8) | 0x80);
@@ -454,7 +443,9 @@ fn leb128(mut v: u32, out: &mut Vec<u8>) {
 
 /// Each vault's segment as last loaded, with the file's modified time it was loaded at (another process — the CLI, a
 /// second window's core — may have rebuilt it). `None`: none on disk, or a bad one.
-static SEGMENTS: LazyLock<Mutex<HashMap<PathBuf, (Option<SystemTime>, Option<Arc<Segment>>)>>> = LazyLock::new(Default::default);
+/// Each vault's segment with the file time it was read at.
+type Loaded = HashMap<PathBuf, (Option<SystemTime>, Option<Arc<Segment>>)>;
+static SEGMENTS: LazyLock<Mutex<Loaded>> = LazyLock::new(Default::default);
 
 /// This vault's segment, reloaded when its file changed.
 fn segment(root: &Path) -> Option<Arc<Segment>> {
@@ -619,7 +610,7 @@ mod tests {
                 continue;
             }
             let a = (rng.next() as usize) % (chars.len() - 1);
-            let z = a + 1 + (rng.next() as usize) % (chars.len() - a - 1).min(12).max(1);
+            let z = a + 1 + (rng.next() as usize) % (chars.len() - a - 1).clamp(1, 12);
             let q: String = chars[a..z.min(chars.len())].iter().collect();
             if q.trim().is_empty() {
                 continue;
@@ -712,7 +703,7 @@ mod tests {
         let cfg = Config::load(root).unwrap();
         let files = covered_files(root, &cfg);
         let out = tempfile::tempdir().unwrap();
-        let path = out.path().join("trigrams.idx");
+        let path = out.path().join(FILE);
         let t = Instant::now();
         let b = build(&files, &path).unwrap();
         eprintln!("BUILD {} files, {} MB text → {} MB index ({:.0} %), {} trigrams, {:.1?}",

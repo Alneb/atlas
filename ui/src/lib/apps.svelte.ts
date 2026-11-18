@@ -29,7 +29,8 @@ export type AppKey = string;
 export function allApps(): AppTile[] {
   const cmds = allCommands(), cmd = (id: string) => cmds.find((c) => c.id === id);
   const homeCmd = cmd("ui.today");
-  const builtins = BUILTINS.filter((b) => builtinOn(b.id)).flatMap((b): AppTile[] => {
+  // the Library tile is the Libraries page's (the Catalog's): there with References switched off too
+  const builtins = BUILTINS.filter((b) => b.id === "library" || builtinOn(b.id)).flatMap((b): AppTile[] => {
     const c = b.button && cmd(b.button.command), pane = b.button?.pane();
     return c && pane ? [{ key: b.id, ids: [paneId(pane)], title: c.label ?? b.title, icon: b.icon, keys: c.keys, command: c.id, open: () => void c.run() }] : [];
   });

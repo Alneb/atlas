@@ -36,6 +36,16 @@ enum ServerAction {
     Revoke { name: String },
     /// End every browser's session (device tokens stay).
     SignOutAll,
+    /// The sign-in gate's bypass key (asked on the terminal, or read from stdin): Atlas's apps that hold it get their
+    /// device token with it, without the gate's page or Atlas's password.
+    GateKey {
+        /// The header the gate checks the key in.
+        #[arg(long, default_value = "X-Api-Key")]
+        header: String,
+        /// Forget the key: the apps sign in on a page again.
+        #[arg(long)]
+        forget: bool,
+    },
 }
 
 #[derive(Clone, Copy, clap::ValueEnum)]
@@ -346,6 +356,7 @@ fn server_action(action: &ServerAction) -> Result<()> {
     match action {
         ServerAction::Status => {
             let s = auth.settings();
+            println!("gate key: {}", s.gate_key.as_ref().map_or("not set".to_string(), |g| format!("set, in {}", g.header)));
             println!("sign-in: {:?}; password: {}; trusted proxies: [{}]; plain HTTP from others: {}; AI agents: {}", s.auth, if s.password_hash.is_some() { "set" } else { "not set" }, s.trusted_proxies.iter().map(ToString::to_string).collect::<Vec<_>>().join(", "), s.allow_plain_http, if s.mcp { "on" } else { "off" });
             for t in auth.tokens() {
                 println!("  token {:<16} {:?}, last used {}", t.name, t.scope, t.last_used.map_or("never".into(), |u| chrono::DateTime::from_timestamp(u as i64, 0).map_or(u.to_string(), |d| d.with_timezone(&chrono::Local).format("%Y-%m-%d").to_string())));
@@ -378,6 +389,14 @@ fn server_action(action: &ServerAction) -> Result<()> {
             println!("revoked “{name}”");
         }
         ServerAction::SignOutAll => println!("{} session(s) ended", auth.sign_out_everywhere()),
+        ServerAction::GateKey { header, forget: true } => {
+            auth.set_gate_key(header, None)?;
+            println!("gate key forgotten");
+        }
+        ServerAction::GateKey { header, forget: false } => {
+            auth.set_gate_key(header, Some(&ask("The gate's bypass key: ")?))?;
+            println!("gate key set: apps sending it in {header} get their token ({})", atlas_core::auth::settings_file().display());
+        }
     }
     Ok(())
 }

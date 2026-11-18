@@ -61,6 +61,15 @@ export function register(atlas) {
     // tab — the library lists only what you have started; on the phone the app's own Audiobooks screen
     homes: [{ from: "Audiobookshelf", label: "Audiobookshelf", run: () => atlas.openNative?.("audiobookshelf:home") || home() }],
     sorts: [{ id: "recent", label: "last listened", desc: true }, { id: "title", label: "title" }, { id: "author", label: "author" }],
+    // not signed in (no token yet), or no server named: a button, never the request's error
+    setup: {
+      label: "Sign in to Audiobookshelf",
+      run: async () => {
+        if (!abs(atlas).on && atlas.openSettings) return atlas.openSettings();
+        try { await openidSignIn(atlas); atlas.toast?.("Signed in to Audiobookshelf", "Its token is kept with the plugin's secrets."); }
+        catch (e) { atlas.toast?.("Not signed in to Audiobookshelf", String(e?.message ?? e), "error"); }
+      },
+    },
     search: "Search the audiobooks…", empty: "No audiobooks: your Audiobookshelf's address in Settings → Plugins → Audiobookshelf, then the command “Audiobookshelf: sign in” (or an API token there).",
     detail: (item) => ({
       kind: "Audiobook", title: item.title, lines: [{ text: item.sub ?? "" }, ...(item.book.series ? [{ text: item.book.series, muted: true }] : [])],

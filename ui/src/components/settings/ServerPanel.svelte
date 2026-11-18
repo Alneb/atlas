@@ -19,6 +19,8 @@
   let optsMsg = $state("");
   // password
   let current = $state(""), next = $state(""), again = $state(""), pwMsg = $state<{ ok: boolean; text: string } | null>(null);
+  // the gate's bypass key: apps holding it get their token without a page
+  let gateHeader = $state("X-Api-Key"), gateKey = $state(""), gateMsg = $state<{ ok: boolean; text: string } | null>(null);
   // tokens
   let tokName = $state(""), tokScope = $state<"capture" | "full">("capture"), shown = $state<{ name: string; token: string } | null>(null), tokMsg = $state("");
 
@@ -26,6 +28,7 @@
     try {
       [st, me] = await Promise.all([api.server(), api.me()]);
       mode = st.options.auth; proxies = st.options.trustedProxies.join(", "); header = st.options.remoteUserHeader; plain = st.options.allowPlainHttp; mcp = st.options.mcp;
+      gateHeader = st.gateKeyHeader ?? gateHeader;
       error = "";
     } catch (e) { error = errText(e); }
   }
@@ -49,6 +52,14 @@
       current = next = again = "";
       await load();
     } catch (e) { pwMsg = { ok: false, text: why(e) }; }
+  }
+  async function setGateKey(forget = false): Promise<void> {
+    try {
+      await api.serverGateKey(gateHeader, forget ? null : gateKey);
+      gateMsg = { ok: true, text: forget ? "Forgotten: the apps sign in on a page again." : "Set: apps that send it get their token." };
+      gateKey = "";
+      await load();
+    } catch (e) { gateMsg = { ok: false, text: why(e) }; }
   }
   async function makeToken(): Promise<void> {
     try {
@@ -100,6 +111,14 @@
       <div class="actions"><button class="btn primary" disabled={!next} onclick={() => void setPassword()}>{st.hasPassword ? "Change password" : "Set password"}</button>
         {#if pwMsg}<span class="msg" class:bad={!pwMsg.ok}>{pwMsg.text}</span>{/if}</div>
     {/if}
+
+    <h3>The gate's key</h3>
+    <p class="desc">When your sign-in gate lets Atlas's apps past with a key in a header (a bypass rule for native apps), give the same key here: the desktop and the phone, holding it, get their device token without the gate's page or a password. Security keys stay for the sign-ins that still need the gate (a service's OpenID). {st.gateKeyHeader ? `Set, checked in ${st.gateKeyHeader}.` : "Not set."}</p>
+    <div class="actions"><input placeholder="Header (X-Api-Key)" aria-label="The gate key's header" bind:value={gateHeader} />
+      <input type="password" autocomplete="off" placeholder="The gate's key" aria-label="The gate's key" bind:value={gateKey} />
+      <button class="btn primary" disabled={!gateKey.trim() || !gateHeader.trim()} onclick={() => void setGateKey()}>{st.gateKeyHeader ? "Change the key" : "Set the key"}</button>
+      {#if st.gateKeyHeader}<button class="btn" onclick={() => void setGateKey(true)}>Forget it</button>{/if}
+      {#if gateMsg}<span class="msg" class:bad={!gateMsg.ok}>{gateMsg.text}</span>{/if}</div>
 
     <h3>Devices</h3>
     <p class="desc">A token lets an app in without the password — the phone's capture app, a script. <em>Capture</em> may only add captures (and read the names its completions need); <em>Full</em> may do everything.</p>

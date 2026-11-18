@@ -554,6 +554,9 @@ export interface LibrarySource {
   search: string;
   /** Shown when the library is empty. */
   empty: string;
+  /** What makes the library work when it cannot load yet (sign in to its server): a button in the empty library and
+   *  in place of a failed load, never a raw error. */
+  setup?: { label: string; run: () => unknown };
   /** Async when it reads more than the item holds (the catalog's service links, from the note's properties). */
   detail(item: LibraryItem): LibraryDetail | Promise<LibraryDetail>;
   /** The add box: an identifier typed in; resolves to the new item's id, to select it. */
