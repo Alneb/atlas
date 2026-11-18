@@ -203,7 +203,7 @@ registerBlock({
   tab: (c) => (str(c.options.path) ? { kind: "editor", path: str(c.options.path) } : null),
 });
 // the links to a file, as under a note ("Linked mentions"): the note it sits in, or `path` (a library's card)
-registerBlock({ ...lazyBlock("backlinks", "Linked mentions", () => import("../components/Backlinks.svelte"), (c) => ({ path: str(c.options.path) || c.doc })), icon: "link", bare: true });
+registerBlock({ ...lazyBlock("backlinks", "Linked mentions", () => import("../components/Backlinks.svelte"), (c) => ({ path: str(c.options.path) || c.doc, open: c.options.open === true })), icon: "link", bare: true });
 // `library` and `libraries` blocks written before the Libraries page became a plugin's pane: that pane (an old
 // `library` at References), or the plugin's "switched off" where none gives it (libraries.svelte.ts)
 for (const old of ["library", "libraries"]) {

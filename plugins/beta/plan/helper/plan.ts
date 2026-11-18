@@ -39,6 +39,8 @@ export interface Settings {
   /** Use the quiet hours measured from the devices' use (quietOf) instead of the range above, once they exist. */
   quietMeasured: boolean;
   horizon: number;
+  /** An open task with no date may nudge once it has waited this many days (its ➕ date, else its note's date): 0 = never. */
+  stale: number;
   threshold: number;
   /** 0: measured from the ledger. */
   maxPerDay: number;
@@ -66,6 +68,7 @@ export function settingsOf(raw: Record<string, unknown> = {}): Settings {
     quietTo: to ?? 8 * 60,
     quietMeasured: raw.quiet_measured === true,
     horizon: num("horizon", 7),
+    stale: num("stale", 2),
     threshold: num("threshold", 1),
     maxPerDay: num("max_per_day", 0),
     minGap: num("min_gap", 0),
@@ -318,8 +321,19 @@ function pressure(t: Task, today: string): { p: number; words: string } {
   return { p, words };
 }
 
-/** Which tasks may nudge (§3.1, decision 7): dated within the horizon or overdue, or priority ≥ high; not in an
- *  excluded folder; its 🛫 start come. Important (not budgeted): ⏫/🔺, overdue, due today. */
+/** When a task was written: its ➕ created date, else a date in its note's name (a daily log's `2026-11-05.md`, a
+ *  report's "… 2026-11-04 to 11-18": the first full date) — null when neither says. */
+export function writtenOf(t: Task): string | null {
+  const created = /➕\s*(\d{4}-\d{2}-\d{2})/u.exec(t.text);
+  if (created) return created[1];
+  const name = t.path.split("/").pop() ?? "";
+  return /(\d{4}-\d{2}-\d{2})/.exec(name)?.[1] ?? null;
+}
+
+/** Which tasks may nudge (§3.1, decision 7): dated within the horizon or overdue, or priority ≥ high — and, with no
+ *  date at all, one left open `stale` days or more (most real to-dos are written undated: a daily log's `- [ ] …`
+ *  lines; without this nothing ever qualified). Not in an excluded folder, not untitled; its 🛫 start come. Important
+ *  (not budgeted): ⏫/🔺, overdue, due today — an old undated task never is, so the budget holds it. */
 export function judge(t: Task, s: Settings, today: string): Judged {
   const name = { path: t.path, title: t.title, block: t.block };
   const high = t.priority === "high" || t.priority === "highest";
@@ -327,12 +341,19 @@ export function judge(t: Task, s: Settings, today: string): Judged {
   const excluded = s.exclude.some((f) => t.path === f || t.path.startsWith(`${f}/`));
   const started = !t.start || t.start <= today;
   const within = !!date && daysBetween(today, date) <= s.horizon;
-  const { p, words } = pressure(t, today);
+  const written = date ? null : writtenOf(t);
+  const waited = written ? daysBetween(written, today) : -1;
+  const stale = !date && s.stale > 0 && waited >= s.stale;
+  const pr = pressure(t, today);
+  // an old undated task presses as a task due within the week does, a little more each day it waits (1 → 1.5 over a
+  // fortnight): enough to pass the threshold in a free gap, never as much as one due tomorrow (1.6)
+  const p = stale ? 1 + Math.min(waited - s.stale, 14) / 28 : pr.p;
+  const words = stale ? `open ${waited} days` : pr.words;
   return {
     task: t,
     key: keyOf(name),
     titleKey: titleKey(name),
-    eligible: !t.done && !excluded && started && (within || high),
+    eligible: !t.done && !excluded && started && !!t.title.trim() && (within || high || stale),
     important: high || (!!t.due && t.due <= today),
     urgency: (WEIGHT[t.priority] ?? 1) * p,
     minutes: minutesOf(t, s),
@@ -616,7 +637,7 @@ function digest(input: Input, judged: Judged[], scheduledToday: Set<string>, ent
   const dueToday = judged.filter((j) => j.task.due === today);
   const unslotted = judged.filter((j) => j.eligible && !scheduledToday.has(j.key) && !overdue.includes(j) && !dueToday.includes(j));
   const counts = [overdue.length && `${overdue.length} overdue`, dueToday.length && `${dueToday.length} due today`, unslotted.length && `${unslotted.length} with no slot today`].filter(Boolean).join(", ");
-  const names = [...overdue, ...dueToday].slice(0, 3).map((j) => j.task.title);
+  const names = [...overdue, ...dueToday, ...unslotted].slice(0, 3).map((j) => j.task.title);
   const moment = given ? given.at : now >= from ? floorMinute(now) : from;
   if (!given && moment <= now) writes.push({ entry: { at: moment, kind: "digest", detail: counts || "nothing due" } });
   // nothing due: the ledger records the day was looked at, but a notice saying so is noise

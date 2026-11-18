@@ -97,3 +97,13 @@ Linux works; the others are untested.
 Beta, and the strongest candidate for stable: `cargo test -p atlas-email` (against an IMAP + SMTP stand-in,
 `engine/src/fake.rs`) and the specs `ui/tests/example-email-pane.spec.ts`, `example-email.spec.ts`. What it still
 needs: saved notes, rules and attachments written through Atlas's API instead of directly to disk.
+
+## Linking a conversation
+
+The reader's **Link** button links the conversation to any note (a mail saved as a note too), to an event (the
+Calendar plugin's chooser), or copies `[[its note]]` to paste. The conversation is saved as its note first and the
+link is kept there, in `links:` (saving it again keeps the property), so no other note is written. Under the subject,
+**Linked** lists what the conversation links to and what links to it — notes, events, other mails; a mail opens as
+the mail in this pane. Other plugins ask Email for a mail with the window event `atlas-email:pick` (`{ seed, reply }`:
+the user searches, the chosen conversation is saved, `reply(note)`), and open a mail's note as the mail with
+`atlas-email:open-note` (`{ path }`); each answers `atlas-email:heard`.

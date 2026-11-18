@@ -31,6 +31,50 @@ export function register(atlas: PluginApi) {
       openMail({ compose: { subject, body: body.replace(/^# .+\n+/, "") } });
     });
   } });
+  // a link to a mail saved as a note, followed from another plugin (the Calendar's card): the mail opens in the pane
+  // when the index still has it, else the note (what is left of it)
+  window.addEventListener("atlas-email:open-note", (ev) => {
+    const { path } = ((ev as CustomEvent).detail ?? {}) as { path?: string };
+    if (!path) return;
+    window.dispatchEvent(new CustomEvent("atlas-email:heard"));
+    void (async () => {
+      const props = await atlas.noteProps(path).catch(() => ({} as Record<string, unknown>));
+      const r = await call<{ id: number | null }>(atlas, "find", { message_id: props.message_id, account: props.account }).catch(() => ({ id: null }));
+      if (r.id) openMail({ id: r.id }); else atlas.open(path);
+    })();
+  });
+  // another plugin asks for a mail to link (the Calendar's "Link a mail…" on an event): the user searches the mail
+  // index in the palette, the chosen conversation is saved as its note (Email's own path) and that note handed back
+  window.addEventListener("atlas-email:pick", (ev) => {
+    const { seed, reply } = ((ev as CustomEvent).detail ?? {}) as { seed?: string; reply?: (note: string | null) => void };
+    window.dispatchEvent(new CustomEvent("atlas-email:heard"));
+    if (!reply) return;
+    type Hit = { title: string; detail: string; date: string; open: { args: { message_id: string; account: string } } };
+    const found = async (q: string) => {
+      if (!q.trim()) return [];
+      const r = await call<{ hits: Hit[] }>(atlas, "vault_search", { q, limit: 20 });
+      return r.hits.map((h) => ({ value: JSON.stringify(h.open.args), title: h.title || "(no subject)", detail: `${h.date.slice(0, 10)} · ${h.detail}`, icon: "mail" as const }));
+    };
+    let answered = false;
+    const answer = (note: string | null) => { if (!answered) { answered = true; reply(note); } };
+    atlas.pick({
+      placeholder: "Which mail? Words, from:, to:, subject:…",
+      tag: "Link a mail",
+      icon: "mail",
+      seed,
+      // the matches of the asker's words first (an event's title); an Atlas whose palette searches (API 35) asks
+      // again as the user types, an older one filters these
+      items: () => found(seed ?? ""),
+      search: found,
+      onpick: async (v) => {
+        try {
+          const r = await call<{ path: string }>(atlas, "agent_save_note", JSON.parse(v) as Record<string, unknown>);
+          answer(r.path);
+        } catch (e) { atlas.toast("Email", `The mail was not saved: ${(e as Error).message}`, "error"); answer(null); }
+      },
+      oncancel: () => answer(null),
+    });
+  });
   atlas.registerCommand({ id: "accounts", title: "Email: accounts…", run: () => atlas.plugin.openSettings() });
   atlas.registerCommand({ id: "signin", title: "Email: sign in to Outlook…", run: (arg?: unknown) => void signin(atlas, (arg as { record?: Card })?.record) });
   // Thunderbird's accounts and local mail: one dialog over the app (API 20); a tab of its own on an older one

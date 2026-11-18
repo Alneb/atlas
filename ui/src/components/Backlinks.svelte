@@ -13,14 +13,18 @@
   import Icon from "./Icon.svelte";
   let box = $state<HTMLElement>();
 
-  let { path }: { path: string } = $props();
+  // `open`: shown unfolded until folded here — an item's panel (the Library), where the mentions are the point; its
+  // choice is remembered apart from the one under notes (folded until asked)
+  let { path, open = false }: { path: string; open?: boolean } = $props();
   let links = $state<Backlink[]>([]);
   let unlinked = $state<Backlink[]>([]);
-  const KEY = "atlas.backlinks.open";
+  // svelte-ignore state_referenced_locally
+  const KEY = open ? "atlas.backlinks.open.panel" : "atlas.backlinks.open";
   let expanded = $state(readOpen());
 
   function readOpen(): boolean {
-    return loadRaw(KEY) === "1"; // folded until asked
+    const saved = loadRaw(KEY);
+    return saved === null || saved === undefined || saved === "" ? open : saved === "1"; // under a note: folded until asked
   }
   function toggle() {
     expanded = !expanded;

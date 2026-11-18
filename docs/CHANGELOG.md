@@ -5,7 +5,28 @@ and versions follow [Semantic Versioning](https://semver.org/) once 1.0 is out.
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-11-18
+
+### Added
+- **Nudges for the to-dos you actually write** (Plan 0.11.0): an open task with no date — a daily log's `- [ ] …`
+  line — may nudge once it has waited two days (Settings → Plan → "An undated task nudges after"; 0 turns it off),
+  a little more insistent each day, within the day's budget. Before, only dated or ⏫ tasks could, which left most
+  real to-dos out.
+- **Link a mail to anything, from the mail** (Email 1.11.0): a **Link** button in the reader — to any note or a mail
+  saved as a note, to an event, or copy the link. The link is kept in the conversation's own note (`links:`), so your
+  notes are not written. Under the subject, **Linked** lists everything linked with the conversation both ways
+  (notes, events, mails); a linked mail opens as the mail in the Email pane, not as its note.
+- **Link a note or a mail from an event** (Calendar 1.13.0): the event card has **Link a note…** and **Link a
+  mail…** (search your mail in the palette; the conversation is saved as a note and linked). Linked mails open in
+  Email.
+- **Plugin API 35:** `atlas.pickNote()` (the palette's note chooser), `atlas.backlinks(path)`, and a chooser's
+  `search(q)` (choices that follow the typed text).
+
 ### Fixed
+- **An item's panel in the Library is readable in its narrow column** (Catalog 0.16.4): the picture on its own line
+  above the fields instead of squeezing them (values broke inside words), the file's name and "Notes: yes" gone (the
+  buttons say it), web addresses shown as links named by their site, and the linked mentions open under the item
+  instead of folded at the foot of an empty column.
 - **Library covers:** titles no longer drawn over the covers after coming back to the library (Catalog 0.16.1).
 - **A book's panel shows all it knows** (authors, ISBN, edition, subjects… every property of its note), and its
   service is no longer listed twice (the "Open on …" button and the same link under it).

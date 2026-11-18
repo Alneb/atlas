@@ -165,6 +165,24 @@ test("which tasks may nudge: dated within the week or overdue, or ⏫; not befor
   assert.equal(minutesOf(task("tagged", { tags: ["writing"] }), settingsOf({ durations: "writing=60, admin=15" })), 60);
 });
 
+test("an undated task left open for days may nudge (a daily log's - [ ] line), budgeted, never important", () => {
+  const s = settingsOf({}), today = "2026-11-16";
+  const log = (day: string, title: string) => task(title, { path: `notes/log/2026/11-November/${day}.md` });
+  const old = judge(log("2026-11-12", "probar las soluciones"), s, today);
+  assert.equal(old.eligible, true, "written 4 days ago in the log, still open");
+  assert.equal(old.important, false, "an old undated task waits for the budget");
+  assert.equal(old.dateWords, "open 4 days");
+  assert.equal(judge(log("2026-11-15", "written yesterday"), s, today).eligible, false, "not yet stale");
+  assert.equal(judge(task("created ➕ 2026-11-10"), s, today).eligible, true, "its ➕ date when it has one");
+  assert.equal(judge(task("someday"), s, today).eligible, false, "no date anywhere: never");
+  assert.equal(judge(log("2026-11-01", "  "), s, today).eligible, false, "an empty template line is no task");
+  assert.equal(judge(log("2026-11-01", "old"), settingsOf({ stale: 0 }), today).eligible, false, "0: off");
+  // the planner nudges it in a free gap
+  const n = plan(input(clock("10:00"), [log("2026-11-10", "check host bath hyb")])).planned;
+  assert.equal(n.length, 1);
+  assert.match(n[0].body ?? n[0].title, /open 6 days|check host bath hyb/);
+});
+
 test("the morning digest: once, at the first moment after quiet hours", () => {
   const s = settingsOf({});
   const late = task("Pay the rent 📅 2026-11-14"), today = task("Send the form 📅 2026-11-16", { line: 4 });

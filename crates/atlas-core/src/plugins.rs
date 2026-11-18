@@ -428,9 +428,10 @@ pub fn permissions(root: &Path, id: &str) -> Result<Permissions> {
 /// Audiobookshelf's offline listening); v33 a library's `from` and `homes` (a server's things apart, under "From <service>",
 /// with the way into its app); v34 `atlas.shell.popMenu` (an item's own right-click menu) and the helpers'
 /// `atlas.convert.unzstd` (a `.zst` read by the core's decoder: no `zstd` program, the phone too).
+/// v35 `atlas.pickNote` (the palette's note chooser) and `atlas.backlinks(path)` (the notes linking to a file).
 /// The page's number must be the same (a test holds it). A manifest with a key this Atlas does not know and an `api`
 /// above it is refused with "update Atlas", not with the parser's error (`read_manifest`).
-pub const API_VERSION: u32 = 34;
+pub const API_VERSION: u32 = 35;
 
 /// `"1.2.3"` → `[1, 2, 3]` (missing parts are 0; anything after a non-digit part is ignored).
 fn version_parts(v: &str) -> [u64; 3] {

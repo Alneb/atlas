@@ -448,6 +448,64 @@ export class Mail {
     setTimeout(() => { window.removeEventListener("atlas-calendar:heard", ack); if (!heard) this.toast("No Calendar plugin to link the event in: turn it on in Settings → Plugins.", "error"); }, 400);
   }
 
+  /** "Link to a note…": any note — a mail saved as a note too — picked in the palette goes into the `links:` of this
+   *  conversation's note (Email's own note, saved first; re-saving keeps the property), the way an event's note keeps
+   *  its links. The user's notes are not written: the target shows the mail as a backlink. */
+  async linkToNote() {
+    const t = this.open;
+    if (!t) return;
+    if (!this.atlas.pickNote) { this.toast("Linking needs a newer Atlas: copy the link instead.", "error"); return void this.copyLink(); }
+    const target = await this.atlas.pickNote({ placeholder: `Link “${t.subject || "this mail"}” to which note or mail?`, tag: "Link to a note" });
+    if (!target) return;
+    const note = await this.noteOfOpen();
+    if (!note) return;
+    if (target === note) { this.toast("That is this conversation's own note", "error"); return; }
+    try {
+      const props = await this.atlas.noteProps(note);
+      const links = (Array.isArray(props.links) ? props.links : props.links ? [props.links] : []).map(String);
+      const link = `[[${target.replace(/\.md$/i, "")}]]`;
+      if (links.some((l) => l.replace(/\|.*\]\]$/, "]]") === link)) { this.toast("Already linked", "success"); return; }
+      await this.atlas.writeProperty(note, "links", [...links, link]);
+      this.toast(`Linked to ${target.split("/").pop()?.replace(/\.md$/i, "")}`, "success", { action: { label: "Open", run: () => void this.openLinked(target) } });
+      void this.loadLinked();
+    } catch (e) { this.toast(`Could not link it: ${(e as Error).message}`, "error"); }
+  }
+
+  /** A linked note opened: a mail's note opens as the mail in this pane (its conversation), any other note beside. */
+  async openLinked(path: string, line?: number) {
+    const props = await this.atlas.noteProps(path).catch(() => ({} as Record<string, unknown>));
+    if (isMailNote(props)) {
+      try {
+        const r = await this.call<{ id: number | null }>("find", { message_id: props.message_id, account: props.account });
+        if (r.id) { await this.read(r.id); return; }
+      } catch { /* not in the index: the note is what is left of it */ }
+    }
+    this.atlas.open(path, line, { beside: true });
+  }
+
+  /** The open conversation's links both ways: what its note links to (`links:`, set by Link) and the notes and events
+   *  that link to it (the core's link index). Empty for a conversation never saved (nothing can link to it yet). */
+  linked = $state<Linked[]>([]);
+  async loadLinked() {
+    const t = this.open;
+    const note = t?.saved;
+    if (!t || !note || !this.atlas.backlinks) { this.linked = []; return; }
+    try {
+      const [props, back] = await Promise.all([this.atlas.noteProps(note), this.atlas.backlinks(note)]);
+      const out = (Array.isArray(props.links) ? props.links : props.links ? [props.links] : []).map(String)
+        .map((l) => /^\[\[([^\]|#]+)/.exec(l)?.[1]).filter((x): x is string => !!x).map((x) => (/\.\w+$/.test(x) ? x : `${x}.md`));
+      const seen = new Set<string>([note]);
+      const rows = [...out.map((source) => ({ source, line: 0, context: "", to: true })), ...back.map((b) => ({ ...b, to: false }))]
+        .filter((r) => !seen.has(r.source) && seen.add(r.source)).slice(0, 16);
+      const kinds = await Promise.all(rows.map(async (r) => {
+        const p = await this.atlas.noteProps(r.source).catch(() => ({} as Record<string, unknown>));
+        const kind: Linked["kind"] = p.type === "event" ? "event" : isMailNote(p) ? "mail" : "note";
+        return { ...r, kind };
+      }));
+      if (this.open?.thread === t.thread) this.linked = kinds;
+    } catch { if (this.open?.thread === t.thread) this.linked = []; }
+  }
+
   /** "Copy a link": `[[the conversation's note]]`, to paste in any note (the note saved first). */
   async copyLink() {
     const path = await this.noteOfOpen();
@@ -506,4 +564,12 @@ export class Mail {
   }
 
   closeComposer(key: number) { this.composers = this.composers.filter((c) => c.key !== key); }
+}
+
+/** A note linked with the open conversation: `to` when its note links there, else it links to the mail. */
+export type Linked = { source: string; line: number; context: string; to: boolean; kind: "note" | "event" | "mail" };
+
+/** A note Email saved a conversation (or one message) as: opened as the mail, not as the note. */
+export function isMailNote(props: Record<string, unknown>): props is Record<string, unknown> & { message_id: string; account: string } {
+  return (props.type === "email-thread" || props.type === "email") && typeof props.message_id === "string";
 }

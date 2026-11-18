@@ -54,7 +54,9 @@ subscriptions; invitations answered from the Email plugin; and tools for agents.
   `calendar.event` block drawing the live event, and your writing below, never touched. The note follows its event
   after each sync, written by the computer that runs the vault's schedules (`[automation] schedules_on`; every
   computer when none is named), so two never write the same notes for sync to copy; a deleted event's note is kept and marked `cancelled: true`. Other calendar apps see the links as
-  `Atlas: [[…]]` lines in the description. The card lists what the note links and what links to it.
+  `Atlas: [[…]]` lines in the description. The card lists what the note links and what links to it. From the card,
+  **Link a note…** links any note (a mail saved as a note too) and **Link a mail…** searches the mail (the Email
+  plugin saves the chosen conversation as its note); a linked mail opens as the mail in Email.
   In a note, `[[` and two letters offer the calendar's events of the weeks around today beside the notes: a pick makes
   the event's note (once) and writes the link to it.
 - **Tasks & deadlines** (a switch under "In the vault"): open tasks with 📅 / ⏳ and notes with `due:` on their day;

@@ -27,6 +27,21 @@
     remoteOk = [];
   });
 
+  // ----- what links to this conversation: read when it opens or is saved, again when a note changes (a link added
+  // here, the Calendar writing an event note's `links:`, the user's own typing elsewhere)
+  $effect(() => { void t?.thread; void t?.saved; void mail.loadLinked(); });
+  $effect(() => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const off = mail.atlas.onFilesChanged((paths) => {
+      if (!paths.some((p) => p.endsWith(".md"))) return;
+      clearTimeout(timer);
+      timer = setTimeout(() => void mail.loadLinked(), 400);
+    });
+    return () => { clearTimeout(timer); off(); };
+  });
+  let linkMenu = $state(false);
+  const title = (p: string) => p.split("/").pop()?.replace(/\.md$/i, "") ?? p;
+
   // ----- find in the conversation (Ctrl+F): every message opened, the matches marked in their frames
 
   let scroller: HTMLElement | undefined = $state();
@@ -148,12 +163,20 @@
         <span class="grow"></span>
         <button class="tool" onclick={() => mail.saveNote()} title={t.saved ? `Saved as ${t.saved} — save again to add new messages` : "Save as note (⇧N)"} class:on={!!t.saved}><Icon name="note" /></button>
         <div class="menu-wrap">
+          <button class="tool labelled" onclick={() => (linkMenu = !linkMenu)} aria-expanded={linkMenu} title="Link this conversation to a note or an event"><Icon name="link" /><span>Link</span></button>
+          {#if linkMenu}
+            <div class="menu" role="menu" tabindex="-1" onmouseleave={() => (linkMenu = false)}>
+              <button role="menuitem" onclick={() => { linkMenu = false; void mail.linkToNote(); }}><Icon name="note" size={14} /> To a note or a mail…</button>
+              <button role="menuitem" onclick={() => { linkMenu = false; void mail.linkToEvent(); }}><Icon name="calendar" size={14} /> To an event…</button>
+              <button role="menuitem" onclick={() => { linkMenu = false; void mail.copyLink(); }}><Icon name="attach" size={14} /> Copy the link to paste</button>
+            </div>
+          {/if}
+        </div>
+        <div class="menu-wrap">
           <button class="tool" onclick={() => (menu = !menu)} aria-expanded={menu} title="More"><Icon name="more" /></button>
           {#if menu}
             <div class="menu" role="menu" tabindex="-1" onmouseleave={() => (menu = false)}>
               {#if t.saved}<button role="menuitem" onclick={() => { menu = false; mail.atlas.open(t.saved!, undefined, { beside: true }); }}>Open the note</button>{/if}
-              <button role="menuitem" onclick={() => { menu = false; void mail.copyLink(); }}>Copy a link to paste in a note</button>
-              <button role="menuitem" onclick={() => { menu = false; void mail.linkToEvent(); }}>Link to an event…</button>
               <button role="menuitem" onclick={() => { menu = false; mail.importance(true); }}>Mark important</button>
               <button role="menuitem" onclick={() => { menu = false; mail.importance(false); }}>Not important…</button>
               {#if unsub}<button role="menuitem" onclick={() => { menu = false; unsubscribe(); }}>Unsubscribe</button>{/if}
@@ -171,6 +194,16 @@
         <span class="faint">{`${t.messages.length} message${t.messages.length === 1 ? "" : "s"}${t.messages.at(-1)?.folder_label ? ` · ${t.messages.at(-1)?.folder_label}` : ""}`}</span>
         {#if unsub}<button class="link" onclick={unsubscribe}>Unsubscribe</button>{/if}
       </div>
+      {#if mail.linked.length}
+        <div class="linked" aria-label="Linked">
+          <span class="faint"><Icon name="link" size={13} /> Linked</span>
+          {#each mail.linked as l (l.source)}
+            <button class="lchip" class:event={l.kind === "event"} onclick={() => void mail.openLinked(l.source, l.line || undefined)} title={l.context || l.source}>
+              <Icon name={l.kind === "event" ? "calendar" : l.kind === "mail" ? "inbox" : "note"} size={13} />{title(l.source)}
+            </button>
+          {/each}
+        </div>
+      {/if}
       {#if findOpen}
         <div class="find" role="search">
           <Icon name="search" size={14} />
@@ -295,9 +328,17 @@
   .find .count { font-size: 0.85em; white-space: nowrap; }
   .find .tool:disabled { opacity: 0.4; cursor: default; }
   .menu-wrap { position: relative; }
+  .tool.labelled { display: inline-flex; gap: 5px; padding: 5px 9px; border: 1px solid var(--border); color: var(--text); }
+  .tool.labelled span { font-size: 0.88em; }
+  .linked { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 6px; font-size: 0.86em; }
+  .linked .faint { display: inline-flex; gap: 4px; align-items: center; }
+  .lchip { all: unset; cursor: pointer; display: inline-flex; gap: 5px; align-items: center; padding: 2px 9px; border-radius: 999px; border: 1px solid var(--border); color: var(--text); max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .lchip:hover { background: var(--bg-hover); }
+  .lchip.event { border-color: color-mix(in srgb, var(--accent) 50%, var(--border)); }
   .menu { position: absolute; right: 0; top: 100%; z-index: 5; min-width: 200px; background: var(--bg-elev); border: 1px solid var(--border-strong); border-radius: var(--radius); box-shadow: var(--shadow-md, var(--shadow-sm)); padding: 4px; display: grid; }
   .menu button { all: unset; cursor: pointer; padding: 7px 10px; border-radius: var(--radius-sm); }
   .menu button:hover { background: var(--bg-hover); }
+  .menu button { display: flex; align-items: center; gap: 8px; }
   .cards { padding: 12px 16px; display: grid; gap: 8px; }
   .card { border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-alt); overflow: hidden; }
   .card.open { background: var(--bg); box-shadow: var(--shadow-sm); }

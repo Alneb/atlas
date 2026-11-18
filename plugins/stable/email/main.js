@@ -626,6 +626,46 @@ function Q(e) {
 				} });
 			});
 		}
+	}), window.addEventListener("atlas-email:open-note", (t) => {
+		let { path: r } = t.detail ?? {};
+		r && (window.dispatchEvent(new CustomEvent("atlas-email:heard")), (async () => {
+			let t = await e.noteProps(r).catch(() => ({})), i = await E(e, "find", {
+				message_id: t.message_id,
+				account: t.account
+			}).catch(() => ({ id: null }));
+			i.id ? n({ id: i.id }) : e.open(r);
+		})());
+	}), window.addEventListener("atlas-email:pick", (t) => {
+		let { seed: n, reply: r } = t.detail ?? {};
+		if (window.dispatchEvent(new CustomEvent("atlas-email:heard")), !r) return;
+		let i = async (t) => t.trim() ? (await E(e, "vault_search", {
+			q: t,
+			limit: 20
+		})).hits.map((e) => ({
+			value: JSON.stringify(e.open.args),
+			title: e.title || "(no subject)",
+			detail: `${e.date.slice(0, 10)} · ${e.detail}`,
+			icon: "mail"
+		})) : [], a = !1, o = (e) => {
+			a || (a = !0, r(e));
+		};
+		e.pick({
+			placeholder: "Which mail? Words, from:, to:, subject:…",
+			tag: "Link a mail",
+			icon: "mail",
+			seed: n,
+			items: () => i(n ?? ""),
+			search: i,
+			onpick: async (t) => {
+				try {
+					let n = await E(e, "agent_save_note", JSON.parse(t));
+					o(n.path);
+				} catch (t) {
+					e.toast("Email", `The mail was not saved: ${t.message}`, "error"), o(null);
+				}
+			},
+			oncancel: () => o(null)
+		});
 	}), e.registerCommand({
 		id: "accounts",
 		title: "Email: accounts…",

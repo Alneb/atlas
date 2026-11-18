@@ -4,7 +4,7 @@
 title = "Plan"
 description = "nudges for your tasks when they fit your day, with Done / Snooze / Open; habits nagged in their window until done"
 icon = "bell"
-version = "0.10.0"
+version = "0.11.0"
 api = 28
 needs = ">=0.3.0"          # the first core that reads `background` (older ones refuse the key); on a core without hooks the ntfy nudges go without buttons
 phone = true
@@ -64,6 +64,14 @@ label = "Days ahead"
 kind = "number"
 default = 7
 hint = "a task dated within this many days (or overdue) may nudge; a ⏫ or 🔺 one always may"
+group = "What counts"
+
+[[setting]]
+key = "stale"
+label = "An undated task nudges after (days)"
+kind = "number"
+default = 2
+hint = "a task with no date (a log's - [ ] line) may nudge once it has been open this long, within the daily budget; 0: never"
 group = "What counts"
 
 [[setting]]

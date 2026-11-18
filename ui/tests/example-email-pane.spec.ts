@@ -318,3 +318,34 @@ test("Ctrl+F finds in the conversation's frames; a pasted picture goes in the te
   expect(sent).toMatch(/Content-ID: <pasted-1\.png>/i);
   expect(sent).toContain("[image: pasted-1.png]");
 });
+
+test("Link: a conversation linked to any note is kept in its own note's links, listed under Linked, the target untouched", async ({ page, request }) => {
+  test.setTimeout(120_000);
+  await put(request, "notes/Link target.md", "# Link target\n\nMy own text.\n");
+  const mail = await openPane(page);
+  await mail.locator(".list .row", { hasText: "Cluster time on iq" }).click();
+  const reader = mail.getByRole("region", { name: "The conversation" });
+  await expect(reader.locator("h2.subject")).toContainText("Cluster time on iq");
+  // a visible Link button, not an entry hidden under ⋯
+  await reader.getByRole("button", { name: "Link" }).click();
+  await reader.getByRole("menuitem", { name: /To a note or a mail/ }).click();
+  const palette = page.getByTestId("palette");
+  await expect(palette).toBeVisible();
+  await page.keyboard.type("Link target");
+  await palette.getByText("Link target", { exact: true }).first().click();
+  await expect(mail.locator(".toast")).toContainText("Linked to Link target");
+  // the link lives in the conversation's note (Email's file), the user's note is not written
+  await expect.poll(async () => {
+    const r = await request.get("/api/files", { headers: H });
+    const files = (await r.json()) as string[];
+    const note = files.find((f) => f.startsWith("mail/") && f.includes("Cluster time on iq"));
+    return note ? (await read(request, note)) ?? "" : "";
+  }, { timeout: 20_000 }).toContain("[[notes/Link target]]");
+  expect(await read(request, "notes/Link target.md")).toBe("# Link target\n\nMy own text.\n");
+  // listed under the subject, both themes looked at
+  const chip = reader.getByRole("button", { name: "Link target" });
+  await expect(chip).toBeVisible({ timeout: 15_000 });
+  await page.screenshot({ path: "test-results/email-linked-light.png" });
+  await page.emulateMedia({ colorScheme: "dark" });
+  await page.screenshot({ path: "test-results/email-linked-dark.png" });
+});

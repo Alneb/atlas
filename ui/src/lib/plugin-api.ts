@@ -20,7 +20,7 @@ import type { EmbedRender } from "./embed-registry";
 import type { Live, LiveHandlers } from "./live";
 import type { Player } from "./player.svelte";
 
-export const PLUGIN_API_VERSION = 34;
+export const PLUGIN_API_VERSION = 35;
 
 /** What a plugin's view gets. Kept small and stable: plugins outlive app refactors. */
 export interface PluginApi {
@@ -196,6 +196,12 @@ export interface PluginApi {
   /** Ask the user to choose (or type) a value in the palette: Atlas's one chooser. Returns a function that
    *  closes it if it is still showing (the answer came another way). */
   pick(req: PickRequest): () => void;
+  /** (v35) Ask the user for a note in the palette (recent ones first, then every note the link index knows, mail
+   *  saved as notes included) → its path, or null when the chooser was closed. What "Link to a note…" asks with. */
+  pickNote(o?: { placeholder?: string; tag?: string }): Promise<string | null>;
+  /** (v35) The notes that link to `path` (the core's link index, the "Linked mentions" of a note): each with the line
+   *  and the line's text. What a plugin shows as "linked from" beside its own thing (a mail's note, an event's). */
+  backlinks(path: string): Promise<{ source: string; line: number; context: string }[]>;
   /** Open a sign-in page (OAuth) whose answer comes back to `back`, a localhost address such as
    *  `https://localhost`. The desktop app shows it in a window of its own and resolves with the whole address
    *  it ended on (`?code=…` or `?error=…`); in a browser it opens a tab and never resolves, so keep a way to

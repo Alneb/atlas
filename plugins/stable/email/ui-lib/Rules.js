@@ -2444,6 +2444,7 @@ var Pi = {
 	open: "M14 4h6v6M20 4l-9 9M18 14v6H4V6h6",
 	lock: "M6 11h12v9H6zM8 11V8a4 4 0 0 1 8 0v3",
 	save: "M12 4v11M7 10l5 5 5-5M5 20h14",
+	link: "M10 14a4.5 4.5 0 0 0 6.4 0l3-3a4.5 4.5 0 0 0-6.4-6.4l-1.2 1.2M14 10a4.5 4.5 0 0 0-6.4 0l-3 3a4.5 4.5 0 0 0 6.4 6.4l1.2-1.2",
 	keyboard: "M3 6h18v12H3zM7 10h.01M11 10h.01M15 10h.01M7 14h10"
 }, Fi = /* @__PURE__ */ Sr("<svg class=\"icon svelte-jfnn1v\" viewBox=\"0 0 24 24\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path></path></svg>"), Ii = {
 	hash: "svelte-jfnn1v",

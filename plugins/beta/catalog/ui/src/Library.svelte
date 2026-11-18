@@ -268,7 +268,7 @@
 
   /** The app's "Linked mentions" of `path`, as under a note. */
   function backlinks(host: HTMLElement, path: string) {
-    const off = atlas.mountBlock(host, { type: "backlinks", path });
+    const off = atlas.mountBlock(host, { type: "backlinks", path, open: true });
     return { destroy: off };
   }
 
@@ -563,15 +563,23 @@
   .flag { font-size: calc(11px * var(--ui-scale, 1)); padding: 1px 6px; border-radius: 999px; background: var(--bg-hover); color: var(--text-muted); }
   .flag.red { color: var(--red); background: color-mix(in srgb, var(--red) 14%, transparent); }
   /* a column; the linked mentions follow the item (at the bottom of a short card they stood apart, the column blank) */
-  .detail { overflow: auto; padding: 18px 22px 40px; display: flex; flex-direction: column; }
+  .detail { overflow: auto; padding: 18px 22px 40px; display: flex; flex-direction: column; container-type: inline-size; }
   .detail > :global(*) { flex-shrink: 0; }
   .facts { display: grid; gap: 14px; margin: 8px 0 4px; }
-  .facts.pic { grid-template-columns: minmax(110px, 42%) minmax(0, 1fr); align-items: start; }
+  /* the picture a fixed, modest width: the fields get the rest (beside a 42 % picture they broke letter by letter) */
+  .facts.pic { grid-template-columns: 120px minmax(0, 1fr); align-items: start; }
+  .facts-pic :global(.cover.big) { width: 120px; }
   .facts-pic :global(.cover.big) { max-height: 240px; margin: 0; }
   .facts dl { margin: 0; }
-  .narrow .facts.pic { grid-template-columns: 110px minmax(0, 1fr); }
-  .links-bar { position: sticky; bottom: -40px; margin: 22px -22px -40px; padding-top: 18px; display: flex; flex-direction: column; max-height: 50vh; }
-  .links-bar :global(.backlinks) { max-height: 50vh; }
+  .narrow .facts.pic { grid-template-columns: 96px minmax(0, 1fr); }
+  /* a narrow panel (the usual ~300 px column): the picture on its own line, the fields the panel's whole width —
+     beside it the values broke inside words */
+  @container (max-width: 460px) {
+    .facts.pic { grid-template-columns: minmax(0, 1fr); }
+    .facts-pic :global(.cover.big) { width: auto; max-width: 140px; max-height: 190px; }
+  }
+  /* the mentions follow the item, open (an item's panel is where they matter), never pinned under an empty column */
+  .links-bar { margin: 22px -22px 0; padding-top: 4px; display: flex; flex-direction: column; }
   .kind { text-transform: uppercase; letter-spacing: .07em; font-size: calc(11px * var(--ui-scale, 1)); color: var(--text-faint); }
   h2 { margin: 4px 0 6px; font-size: calc(19px * var(--ui-scale, 1)); color: var(--heading); line-height: 1.3; }
   .authors { margin: 0; color: var(--text); }

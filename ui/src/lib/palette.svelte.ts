@@ -18,6 +18,9 @@ export interface PickRequest {
   tag: string;
   icon?: IconName;
   items: PickItem[] | (() => Promise<PickItem[]>);
+  /** Choices that depend on the text typed (a mail search): asked again as the typing pauses, listed after `items`
+   *  as they come, in the order given (the asker ranked them; they are not filtered by their titles). */
+  search?: (q: string) => Promise<PickItem[]>;
   /** Offer the typed text as a new value ("New course “X”"); returns that row's title, or null when the text offers
    *  nothing (a rename to the same name). */
   typed?: (text: string) => string | null;

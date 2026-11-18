@@ -41,7 +41,9 @@ export function referencesSource(): LibrarySource {
     cover: p.pdf ?? undefined,
     title: p.title,
     sub: [lastNames(p), p.year, p.venue].filter(Boolean).join(" · "),
-    flags: [...(p.pdf ? [{ label: "PDF", tone: "red" as const }] : []), ...(p.has_notes ? [{ label: "notes" }] : [])],
+    // only the exception is flagged: nearly every entry has its PDF and its note, so a badge on each said nothing;
+    // one without a PDF is the one to act on (drop one on it)
+    flags: p.pdf ? [] : [{ label: "no PDF", tone: "red" as const }],
     tab: typeOf(p),
     groups: p.collections,
     tags: p.tags,
@@ -75,12 +77,13 @@ export function referencesSource(): LibrarySource {
         kind: `${typeWords(p.kind)}${p.year ? ` · ${p.year}` : ""}`,
         title: p.title,
         lines: [{ text: p.authors.join("; ") }, ...(p.venue ? [{ text: p.venue, muted: true }] : [])],
+        // what the reader wants to know about the work; the file's name and "has notes" are the buttons' business
+        // (Open PDF is disabled without one, Notes says New notes), the addresses are links below
         fields: [
-          ["Citekey", p.key],
           ...noteFields(props),
+          ...(p.pdf ? [] : [["PDF", "none yet — drop one here"] as [string, string]]),
           ...(p.added ? [["Added", p.added.slice(0, 10)] as [string, string]] : []),
-          ["PDF", p.pdf ? p.pdf.slice(p.pdf.lastIndexOf("/") + 1) : "none yet — drop one here"],
-          ["Notes", p.has_notes ? "yes" : "none yet"],
+          ["Citekey", p.key],
         ],
         actions: [
           { label: "Read", icon: "pdf", primary: true, title: "Open the PDF (its note: “Note” in the PDF's bar) (R)", run: () => readPaper(p) },
@@ -116,10 +119,10 @@ export function referencesSource(): LibrarySource {
             },
           },
         ],
-        links: [
+        links: noteLinks(props, [
           ...(p.doi ? [{ label: `doi:${p.doi}`, url: `https://doi.org/${p.doi}` }] : []),
           ...(p.arxiv ? [{ label: `arXiv:${p.arxiv}`, url: `https://arxiv.org/abs/${p.arxiv}` }] : []),
-        ],
+        ]),
         body: p.abstract_text ? { title: "Abstract", text: p.abstract_text } : undefined,
       };
     },
@@ -174,8 +177,16 @@ export function referencesSource(): LibrarySource {
 const NOTE_FIELDS: [string, string][] = [
   ["status", "Status"], ["published", "Published"], ["volume", "Volume"], ["issue", "Issue"], ["pages", "Pages"],
   ["numPages", "Pages in all"], ["edition", "Edition"], ["publisher", "Publisher"], ["place", "Place"], ["series", "Series"],
-  ["ISBN", "ISBN"], ["ISSN", "ISSN"], ["language", "Language"], ["topics", "Topics"], ["project", "Project"], ["sources", "Sources"],
+  ["ISBN", "ISBN"], ["ISSN", "ISSN"], ["language", "Language"], ["topics", "Topics"], ["project", "Project"],
 ];
+/** The note's web addresses (`sources`, `url`) as links after the item's own (DOI, arXiv), each address once, named by
+ *  its site: an address is something to open, not a field to read character by character. */
+function noteLinks(props: Record<string, unknown>, own: { label: string; url: string }[]): { label: string; url: string }[] {
+  const urls = [props.sources, props.url].flat().map((v) => (v == null ? "" : String(v).trim())).filter((u) => /^https?:\/\//i.test(u));
+  const seen = new Set(own.map((l) => l.url.toLowerCase()));
+  const site = (u: string) => { try { return new URL(u).hostname.replace(/^www\./, ""); } catch { return u; } };
+  return [...own, ...urls.filter((u) => !seen.has(u.toLowerCase()) && seen.add(u.toLowerCase())).map((u) => ({ label: site(u), url: u }))];
+}
 function noteFields(props: Record<string, unknown>): [string, string][] {
   const text = (v: unknown): string => Array.isArray(v) ? v.map(text).filter(Boolean).join(", ") : v == null ? "" : String(v).replace(/^\[\[|\]\]$/g, "").replace(/\|.*$/, "").trim();
   // Zotero's `published` says the date twice ("1994-04-15 1994-4-15"): the first is enough

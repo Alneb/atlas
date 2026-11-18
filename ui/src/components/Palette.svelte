@@ -39,6 +39,20 @@
     const src = palette.pick?.items;
     return Array.isArray(src) ? src : loaded?.req === palette.pick ? loaded.list : [];
   });
+  // a chooser whose choices follow the text (`PickRequest.search`): the newest answer, kept with its request
+  let searched = $state.raw<{ req: unknown; list: PickItem[] } | null>(null);
+  const pickSearches = new Newest(160);
+  $effect(() => {
+    const req = palette.open && palette.mode === "pick" ? palette.pick : null;
+    const query = q.trim();
+    if (!req?.search) { pickSearches.stop(); searched = null; return; }
+    const ask = req.search;
+    pickSearches.run(async (still) => {
+      const list = await ask(query).catch((err) => { toast("Could not search", errText(err), "error"); return []; });
+      if (still()) searched = { req, list };
+    });
+    return () => pickSearches.stop();
+  });
   /** the text the search last finished for, found or failed: the capture row waits for it */
   let answered = $state("");
   let fileHits = $state<string[]>([]);
@@ -164,6 +178,13 @@
           key: `p:${p.value}:${p.title}`, section: p.section ?? "", title: p.title, detail: p.detail, icon: p.icon ?? req.icon ?? "command", score: s, hl,
           run: () => req.onpick(p.value, false),
         }));
+        if (searched?.req === req) {
+          const listed = new Set(ranked.map((r) => r.key));
+          for (const [i, p] of searched.list.entries()) {
+            const key = `p:${p.value}:${p.title}`;
+            if (!listed.has(key)) ranked.push({ key, section: p.section ?? "", title: p.title, detail: p.detail, icon: p.icon ?? req.icon ?? "command", score: -2 - i, hl: [], run: () => req.onpick(p.value, false) });
+          }
+        }
         const exact = picks.some((p) => p.title.toLowerCase() === query.toLowerCase() || p.value === query);
         const offer = req.typed && query && !exact ? req.typed(query) : null;
         if (offer) ranked.push({ key: "p:new", section: req.typedAs?.section ?? "New", title: offer, icon: req.typedAs?.icon ?? "plus", score: -1, hl: [], run: () => req.onpick(query, true) });

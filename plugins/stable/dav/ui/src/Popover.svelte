@@ -53,7 +53,45 @@
   });
   const note = $derived(info?.note?.path ?? (e ? notePath(e) : null));
   const backlinks = $derived((info?.backlinks?.links ?? []).filter((b) => b.source !== note && !(info?.note?.links ?? []).some((l) => l.path === b.source)));
-  const openLinked = (l: Linked) => { cal.atlas.open(l.path, l.line); onclose(); };
+  /** A linked note opened — a mail saved as a note opens as the mail in Email (`atlas-email:open-note`), else the note. */
+  async function openPath(path: string, line?: number) {
+    const props = await cal.atlas.noteProps(path).catch(() => ({} as Record<string, unknown>));
+    const mail = (props.type === "email-thread" || props.type === "email") && typeof props.message_id === "string";
+    let heard = false;
+    if (mail) {
+      const ack = () => (heard = true);
+      window.addEventListener("atlas-email:heard", ack, { once: true });
+      window.dispatchEvent(new CustomEvent("atlas-email:open-note", { detail: { path } }));
+      window.removeEventListener("atlas-email:heard", ack);
+    }
+    if (!heard) cal.atlas.open(path, line);
+    onclose();
+  }
+  const openLinked = (l: Linked) => void openPath(l.path, l.line);
+  /** "Link a note…" / "Link a mail…" from the card: the chosen note (a mail is saved as its note by Email first) goes
+   *  into this event's note's `links:` (the note made on demand), then the card shows it. */
+  let linking = $state(false);
+  async function linkHere(path: string | null) {
+    if (!e || !path) return;
+    linking = true;
+    try {
+      await call(cal.atlas, "link_event", { uid: e.uid, rid: e.rid, start: e.start, link: path }, 60);
+      info = await call<EventInfo>(cal.atlas, "event", { uid: e.uid, rid: e.rid, start: e.start });
+      setTimeout(place, 0);
+    } catch (err) { cal.toast(`Not linked: ${(err as Error).message}`, "error"); } finally { linking = false; }
+  }
+  async function linkNote() {
+    if (!cal.atlas.pickNote) { cal.toast("Linking from here needs a newer Atlas: use “Calendar: link this note to an event…” in the note.", "error"); return; }
+    void linkHere(await cal.atlas.pickNote({ placeholder: `Link which note or mail to “${e?.summary ?? "this event"}”?`, tag: "Link to the event" }));
+  }
+  function linkMail() {
+    let heard = false;
+    const ack = () => (heard = true);
+    window.addEventListener("atlas-email:heard", ack, { once: true });
+    window.dispatchEvent(new CustomEvent("atlas-email:pick", { detail: { seed: e?.summary ?? "", reply: (note: string | null) => void linkHere(note) } }));
+    window.removeEventListener("atlas-email:heard", ack);
+    if (!heard) cal.toast("No Email plugin to choose a mail from: turn it on in Settings → Plugins.", "error");
+  }
   /** "Note": the event's note made (once) and opened. */
   async function makeNote() {
     if (!e || making) return;
@@ -139,8 +177,14 @@
     {#if backlinks.length}
       <div class="line linked"><Icon name="backlink" size={14} />
         <ul aria-label="Linked from">
-          {#each backlinks.slice(0, 6) as b, i (b.source + ":" + b.line + ":" + i)}<li><button class="lk" onclick={() => { cal.atlas.open(b.source, b.line); onclose(); }} title={b.context}>{b.source.split("/").pop()?.replace(/\.md$/, "")}</button></li>{/each}
+          {#each backlinks.slice(0, 6) as b, i (b.source + ":" + b.line + ":" + i)}<li><button class="lk" onclick={() => void openPath(b.source, b.line)} title={b.context}>{b.source.split("/").pop()?.replace(/\.md$/, "")}</button></li>{/each}
         </ul>
+      </div>
+    {/if}
+    {#if e.calendar !== "notes" && !e.uid.startsWith("pending-") && !e.task}
+      <div class="acts start">
+        <button class="atlas-btn" onclick={linkNote} disabled={linking} title="Link a note (or a mail saved as a note) to this event"><Icon name="link" size={14} />Link a note…</button>
+        <button class="atlas-btn" onclick={linkMail} disabled={linking} title="Search your mail and link a conversation to this event (it is saved as a note)"><Icon name="mail" size={14} />Link a mail…</button>
       </div>
     {/if}
     {#if note}<button class="atlas-btn" onclick={() => { cal.atlas.open(note); onclose(); }}><Icon name="note" size={14} />Open the note</button>
