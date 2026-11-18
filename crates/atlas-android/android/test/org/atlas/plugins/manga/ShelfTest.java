@@ -38,6 +38,7 @@ public final class ShelfTest {
     public static void main(String[] a) {
         tabs();
         shelves();
+        orders();
         resume();
         small();
         System.out.println("ShelfTest: " + (ran - failed) + "/" + ran + " passed");
@@ -90,5 +91,21 @@ public final class ShelfTest {
         eq("ms stay ms", 1_700_000_000_000L, Shelf.millis(1_700_000_000_000L));
         eq("never read", 0L, Shelf.millis(0));
         eq("natural order", true, Shelf.natural("ch 2", "ch 10") < 0);
+    }
+
+    /** The order chosen for the library: every tab follows it, turned round on asking, ties by title. */
+    private static void orders() {
+        Shelf.Item a = server("Alpha", 0), b = server("Beta 10", 5), c = server("Beta 9", 9), d = server("Gamma", 1);
+        a.unread = 3; b.unread = 12; c.unread = 0; d.unread = 3;
+        a.chapters = 40; b.chapters = 12; c.chapters = 90; d.chapters = 3;
+        List<Shelf.Item> all = Arrays.asList(d, c, b, a);
+        String tab = "srv";
+        eq("auto: by title, numbers as numbers", Arrays.asList("Alpha", "Beta 9", "Beta 10", "Gamma"), titles(Shelf.shelf(tab, all, "", tab, Shelf.Order.AUTO, false)));
+        eq("auto, Reading: last read first", Arrays.asList("Beta 9", "Beta 10", "Gamma"), titles(Shelf.shelf(Shelf.READING, all, "", tab, Shelf.Order.AUTO, false)));
+        eq("title, turned round", Arrays.asList("Gamma", "Beta 10", "Beta 9", "Alpha"), titles(Shelf.shelf(tab, all, "", tab, Shelf.Order.TITLE, true)));
+        eq("unread: most first, a tie by title", Arrays.asList("Beta 10", "Alpha", "Gamma", "Beta 9"), titles(Shelf.shelf(tab, all, "", tab, Shelf.Order.UNREAD, false)));
+        eq("chapters: most first", Arrays.asList("Beta 9", "Alpha", "Beta 10", "Gamma"), titles(Shelf.shelf(tab, all, "", tab, Shelf.Order.CHAPTERS, false)));
+        eq("last read on another tab: newest first, never read last", Arrays.asList("Beta 9", "Beta 10", "Gamma", "Alpha"), titles(Shelf.shelf(tab, all, "", tab, Shelf.Order.LAST_READ, false)));
+        eq("the setting's words", Arrays.asList(Shelf.Order.UNREAD, Shelf.Order.AUTO, Shelf.Order.LAST_READ), Arrays.asList(Shelf.Order.of("unread"), Shelf.Order.of("nonsense"), Shelf.Order.of("last read")));
     }
 }

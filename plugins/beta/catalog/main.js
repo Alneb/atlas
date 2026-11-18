@@ -456,6 +456,9 @@ const IN = {
   paper: "References",
 };
 const libraryOf = (k) => k.library?.in ?? IN[k.name] ?? kindTitle(k);
+/** A kind References writes itself (papers: refs.bib, their folders): never a catalog library's. A kind a vault puts in
+ *  References (`library.in: References`, its books with its papers) is the catalog's, its tab merged into References'. */
+const isPaper = (k) => !k.library?.in && IN[k.name] === "References";
 const slug = (t) => t.toLowerCase().normalize("NFKD").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 /** The properties whose values are an item's filters beside its shelf (names, as the side's tags). */
 const FACETS = ["genres", "topics", "tags"];
@@ -471,7 +474,7 @@ function librarySource(atlas, title = null) {
   const value = (row, prop) => { const i = data.at(prop); return i >= 0 ? row.cells[i] : null; };
   const titleOfRow = (row) => cellText(value(row, "title")) || row.path.split("/").pop().replace(/\.md$/, "");
   // References' kinds (papers) are written by References only (refs.bib, their folders): never in a catalog library
-  const mine = (k) => (title === null ? libraryOf(k) !== "References" : libraryOf(k) === title);
+  const mine = (k) => !isPaper(k) && (title === null || libraryOf(k) === title);
   // the kind's cover property, else the usual ones or the note's first picture (noteCover)
   const coverOf = (k, row) => async () => {
     const cell = k.library?.cover ? value(row, vaultName(k, k.library.cover)) : null;
@@ -636,7 +639,7 @@ function plainAbout(text) {
 function registerLibraries(atlas) {
   let gone = [], shown = "", timer = 0;
   const make = () => kinds(atlas).then(async (list) => {
-    const titles = [...new Set(list.map(libraryOf))].filter((t) => t !== "References");
+    const titles = [...new Set(list.filter((k) => !isPaper(k)).map(libraryOf))];
     const sources = titles.map((t) => ({ t, src: librarySource(atlas, t) }));
     const held = await Promise.all(sources.map(({ src }) => src.load().then((items) => items.length > 0, () => false)));
     const keep = sources.filter((_, i) => held[i]);

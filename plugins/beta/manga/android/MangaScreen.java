@@ -37,7 +37,9 @@ final class MangaScreen extends FrameLayout implements NativePlugin.Back {
         super(host.activity());
         this.host = host;
         setBackgroundColor(host.look().bg);
-        if (path.startsWith(SERIES)) series(path.substring(SERIES.length()), null, null, null, false);
+        // opened on a series or a chapter (Continue, a link, the launcher): the places under it are made too, so Back
+        // steps reader → series → library as if you had come that way, and only then leaves
+        if (path.startsWith(SERIES)) { push(new LibraryView(this)); series(path.substring(SERIES.length()), null, null, null, false); }
         else if (BROWSE.equals(path)) { push(new LibraryView(this)); browse(); } // Back goes to the library
         else if (path.startsWith("manga:")) push(new LibraryView(this));
         else {
@@ -123,7 +125,13 @@ final class MangaScreen extends FrameLayout implements NativePlugin.Back {
             String ch = s.chapters.get(i);
             int page = Library.isRead(s.reading, ch) ? 0 : Library.pageOf(s.reading, ch);
             final int at = i;
-            post(() -> { removeView(status); read(s, at, page); });
+            post(() -> {
+                removeView(status);
+                push(new LibraryView(this));
+                // a vault series is known as it is; a server's is asked again by its key (its cover, its categories)
+                series(s.remote != 0 ? "suwayomi:" + s.remote : s.path, s.title, null, s.remote != 0 ? null : s, false);
+                read(s, at, page);
+            });
         } catch (Exception e) {
             post(() -> status.setText("Cannot open " + Chapter.titleOf(path) + ": " + e.getMessage()));
         }

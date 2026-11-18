@@ -47,7 +47,11 @@ pub struct PluginHit {
     #[serde(default)]
     pub date: Option<String>,
     /// the tool of the same plugin that opens it, and its arguments
+    #[serde(default)]
     pub open: PluginOpen,
+    /// or a web address, opened as any web link is (a tab, `[web] open_links`): a server's page (Kiwix's article)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub url: Option<String>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, TS)]

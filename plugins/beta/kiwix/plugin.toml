@@ -4,10 +4,10 @@
 title = "Kiwix"
 description = "search your Kiwix server's offline library (Wikipedia, dictionaries, docs) and open or save an article"
 icon = "globe" # its own: the library icon is the Library tile's (two looked like two libraries)
-version = "0.1.1"
-api = 4
+version = "0.2.0"
+api = 16 # a JavaScript helper (`[helper] js`) answers the search
 phone = true # runs in the phone apps too
-rail = true
+rail = false # no tile: its articles come in Atlas's search (the `search` tool below)
 
 [permissions]
 net = ["*"] # the server is a setting: any host
@@ -23,6 +23,18 @@ key = "books"
 label = "Books to offer"
 kind = "text"
 hint = "words a book's name or title must contain, comma-separated (wikipedia, wiktionary); empty: every book of the server"
+
+# its articles in the vault's search (Ctrl+Shift+F): titles matching the words, each opening the article as a web page
+[helper]
+js = "helper.js"                   # run in the core (QuickJS), built from helper/helper.ts
+idle = "10m"
+
+[[tool]]
+name = "search"
+description = "The vault's search asking the offline library: the articles whose titles match the words (kiwix-serve's suggestions)."
+input = { q = "string", limit = "integer?" }
+method = "search"
+on = "search"
 
 # where it runs (PLUGIN-API.md, "Platforms"); a platform not named is untested (Android: only with `phone = true`)
 [platforms]

@@ -70,6 +70,9 @@ final class LibraryView extends LinearLayout implements org.atlas.capture.Native
     /** Why the server's library could not be listed (null: it was, or there is no server). */
     private String failure;
     private boolean grid, loaded;
+    /** The order chosen (the plugin's `library_order` and `library_descending`; the bar's sort button). */
+    private Shelf.Order sortBy;
+    private boolean descending;
 
     LibraryView(MangaScreen screen) {
         super(screen.getContext());
@@ -81,6 +84,8 @@ final class LibraryView extends LinearLayout implements org.atlas.capture.Native
         setBackgroundColor(look.bg);
         Context c = getContext();
         grid = !"list".equals(host.settings().optString("library_layout", "grid"));
+        sortBy = Shelf.Order.of(host.settings().optString("library_order", "auto"));
+        descending = host.settings().optBoolean("library_descending", false);
         String base = Suwayomi.base(host);
         if (!base.isEmpty()) server = base.replaceFirst("^https?://", "").replaceFirst("/.*$", "");
 
@@ -88,6 +93,7 @@ final class LibraryView extends LinearLayout implements org.atlas.capture.Native
         bar.title("Manga");
         if (!base.isEmpty()) bar.action("plus", "Browse: find new series in the server's sources", screen::browse);
         bar.action("search", "Filter by title", this::toggleFilter);
+        bar.action("arrow_down", "Order the library", this::chooseOrder);
         layoutButton = bar.action(grid ? "menu" : "grid", grid ? "Show as a list" : "Show as a grid", this::toggleLayout);
         bar.action("repeat", "Look for new chapters", () -> { if (pull != null) pull.start(); });
         addView(bar, new LayoutParams(-1, -2));
@@ -205,7 +211,7 @@ final class LibraryView extends LinearLayout implements org.atlas.capture.Native
     private static String first(List<String> names) { return names.size() > 1 && Shelf.READING.equals(names.get(0)) ? names.get(1) : names.get(0); }
 
     private void fill() {
-        shown = tab == null ? new ArrayList<>() : Shelf.shelf(tab, items, filter.getText().toString(), server);
+        shown = tab == null ? new ArrayList<>() : Shelf.shelf(tab, items, filter.getText().toString(), server, sortBy, descending);
         adapter.notifyDataSetChanged();
         if (shown.isEmpty()) {
             status.setText(!loaded ? "Opening the library…"
@@ -254,6 +260,34 @@ final class LibraryView extends LinearLayout implements org.atlas.capture.Native
         fill();
         String v = grid ? "grid" : "list";
         Pages.run(io, () -> { String said = host.saveSettings(settings("library_layout", v)); if (said != null) host.toast("Not saved: " + said); });
+    }
+
+    /** The library's order: one of Shelf.Order's, and turned round or not; kept as the plugin's settings. */
+    private void chooseOrder() {
+        Shelf.Order[] all = Shelf.Order.values();
+        String[] labels = new String[all.length];
+        for (int i = 0; i < all.length; i++) labels[i] = all[i].label;
+        android.widget.CheckBox round = new android.widget.CheckBox(getContext());
+        round.setText("Turned round");
+        round.setTextColor(look.text);
+        round.setChecked(descending);
+        round.setPadding(look.dp(8), 0, 0, 0);
+        LinearLayout foot = new LinearLayout(getContext());
+        foot.setPadding(look.dp(20), look.dp(4), look.dp(20), 0);
+        foot.addView(round);
+        new android.app.AlertDialog.Builder(getContext())
+            .setTitle("Order the library")
+            .setSingleChoiceItems(labels, sortBy.ordinal(), (d, w) -> { sortBy = all[w]; })
+            .setView(foot)
+            .setPositiveButton("Done", (d, w) -> {
+                descending = round.isChecked();
+                fill();
+                JSONObject s = settings("library_order", sortBy.word);
+                try { s.put("library_descending", descending); } catch (org.json.JSONException ignored) {}
+                Pages.run(io, () -> { String said = host.saveSettings(s); if (said != null) host.toast("Not saved: " + said); });
+            })
+            .setNegativeButton("Cancel", (d, w) -> sortBy = Shelf.Order.of(host.settings().optString("library_order", "auto")))
+            .show();
     }
 
     private static JSONObject settings(String k, String v) {

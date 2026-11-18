@@ -4,7 +4,7 @@ title = "Books"
 description = "an EPUB library and reader: your font, size and margins; paged (always on e-ink) or scrolled; the table of contents; read from where you left on any device"
 phone = true # runs in the phone apps too (only plugins marked so start there)
 icon = "file-text"
-version = "0.22.0"
+version = "0.23.0"
 api = 20
 claims = ["*.epub"]                    # an .epub opens here on a click (API 7: the default editor; "Open with…" offers it too)
 
@@ -16,6 +16,14 @@ idle = "10m"                       # it only answers: stopped when unused, start
 [android]                              # the native reader in the Atlas apps (docs/design/DESIGN-native-book-reader.md)
 main = "org.atlas.plugins.books.Books"
 opens = ["*.epub", "*.mobi", "*.azw", "*.azw3", "*.prc", "*.fb2", "*.fb2.zip"]   # Formats.java; PDFs come from the notepad (always here), text stays a note
+
+[[setting]]
+key = "library_tab"
+label = "Library tab"
+kind = "choice"
+choices = ["books", "references"]
+default = "books"
+hint = "where the Libraries page lists the e-books: a Books tab of their own, or with the papers in References (a research vault's books); applies on the next start"
 
 [[setting]]
 key = "folder"

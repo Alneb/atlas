@@ -17,6 +17,7 @@
   import InputDialog from "../components/InputDialog.svelte";
   import { editors, paneFocus, searchRequest } from "../lib/registry";
   import { toast } from "../lib/state.svelte";
+  import { openWeb } from "../lib/web-links";
   import { copy, partMenu } from "../lib/app-menu";
 
   let { spec, panel }: PaneProps<"search"> = $props();
@@ -110,6 +111,7 @@
 
   /** A plugin's hit opened by its own tool (the Email pane shows the message). */
   function openHit(plugin: string, h: PluginHit) {
+    if (h.url) return void openWeb(h.url); // a server's page (Kiwix's article): as any web link
     api.pluginTool(plugin, h.open.tool, h.open.args).catch((e) => toast(errText(e)));
   }
   const shortDate = (iso: string) => {

@@ -78,14 +78,41 @@ final class Shelf {
         return out;
     }
 
-    /** What tab `tab` lists, matching `filter` (words of the title, any case; null or "": all): Reading by last read,
-     *  newest first; the others by title, numbers as numbers. `server`: the name `tabs` gave a server with no
-     *  categories. */
+    /** The library's order (the plugin's `library_order`, the bar's sort button): `AUTO` is Reading by last read,
+     *  newest first, and the other tabs by title; the others apply to every tab. */
+    enum Order {
+        AUTO("auto", "Reading by last read, the rest by title"), TITLE("title", "Title"), LAST_READ("last read", "Last read"),
+        UNREAD("unread", "Unread chapters"), CHAPTERS("chapters", "Chapters");
+        final String word, label;
+        Order(String word, String label) { this.word = word; this.label = label; }
+        /** The setting's word; anything else is AUTO. */
+        static Order of(String word) {
+            for (Order o : values()) if (o.word.equals(word)) return o;
+            return AUTO;
+        }
+    }
+
+    /** What tab `tab` lists, matching `filter` (words of the title, any case; null or "": all), in the default order. */
     static List<Item> shelf(String tab, List<Item> items, String filter, String server) {
+        return shelf(tab, items, filter, server, Order.AUTO, false);
+    }
+
+    /** What tab `tab` lists, matching `filter`, in `order` (`descending` turns it round; a tie goes by title, numbers
+     *  as numbers). `server`: the name `tabs` gave a server with no categories. Last read, unread and chapters run from
+     *  the most when not turned round (what one looks for first). */
+    static List<Item> shelf(String tab, List<Item> items, String filter, String server, Order order, boolean descending) {
         List<Item> out = new ArrayList<>();
         for (Item i : items) if (in(tab, i, server) && matches(i, filter)) out.add(i);
-        if (READING.equals(tab)) out.sort(Comparator.comparingLong((Item i) -> -i.lastRead));
-        else out.sort((a, b) -> natural(a.title, b.title));
+        Comparator<Item> byTitle = (a, b) -> natural(a.title, b.title);
+        Comparator<Item> c;
+        switch (order == Order.AUTO ? (READING.equals(tab) ? Order.LAST_READ : Order.TITLE) : order) {
+            case LAST_READ: c = Comparator.comparingLong((Item i) -> -i.lastRead); break;
+            case UNREAD: c = Comparator.comparingInt((Item i) -> -i.unread); break;
+            case CHAPTERS: c = Comparator.comparingInt((Item i) -> -i.chapters); break;
+            default: c = byTitle;
+        }
+        c = c.thenComparing(byTitle);
+        out.sort(descending ? c.reversed() : c);
         return out;
     }
 

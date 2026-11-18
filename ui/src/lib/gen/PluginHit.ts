@@ -16,4 +16,8 @@ date: string | null,
 /**
  * the tool of the same plugin that opens it, and its arguments
  */
-open: PluginOpen, };
+open: PluginOpen, 
+/**
+ * or a web address, opened as any web link is (a tab, `[web] open_links`): a server's page (Kiwix's article)
+ */
+url?: string | null, };
