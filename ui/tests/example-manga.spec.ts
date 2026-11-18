@@ -98,7 +98,9 @@ test("manga: the library, a series, a .cbz read in the page, and where you are s
   await page.screenshot({ path: test.info().outputPath("series.png") });
   // "Its note": the one note, opened beside — the same note the place went into
   await pane.getByRole("button", { name: "Its note" }).click();
-  await expect.poll(() => page.getByTestId("sidebar").locator(".tab", { hasText: "Blue Period" }).count()).toBeGreaterThan(1); // the pane's and the note's
+  // the note's tab (the series pane is the Libraries page, a place of the left bar, not a tab), the series still beside
+  await expect(page.getByTestId("sidebar").locator(".tab", { hasText: "Blue Period" })).toHaveCount(1);
+  await expect(pane.getByRole("button", { name: "Read again" })).toBeVisible();
   for (const scheme of ["light", "dark"] as const) {
     await page.emulateMedia({ colorScheme: scheme }); // judged in both themes (docs/guides/UI-STYLE.md)
     await page.screenshot({ path: test.info().outputPath(`series-note-${scheme}.png`) });
@@ -359,8 +361,8 @@ test("on the phone the library is the page's, and a chapter is handed to the app
   const tabs = page.locator(".libraries .which");
   await expect(tabs.getByRole("tab")).not.toHaveText([/↗/]); // no tab leaves the page for a native library
   await tabs.getByRole("tab", { name: /Comics/ }).click();
+  // a comic's card opens its series in the Manga pane at once (no detail step between)
   await page.locator(".libraries .card", { hasText: "Blue Period" }).click();
-  await page.locator(".libraries .detail").getByRole("button", { name: "Read" }).click();
   const pane = page.locator(".manga");
   await pane.getByRole("button", { name: /Start|Continue|Read again/ }).click();
   await expect.poll(() => page.evaluate(() => (window as unknown as { opened: string[] }).opened)).toEqual([expect.stringMatching(/^manga\/Blue Period\/Chapter (9|10)\.cbz$/)]);

@@ -408,6 +408,15 @@ export class Cal {
     } finally { await this.load(true); }
   }
 
+  /** A copy of `e` at the same time in its own calendar (or the default one when it is read-only), not repeating
+   *  guests: the copy is the user's own event, nobody is invited by duplicating. */
+  duplicate(e: Ev): Promise<boolean> {
+    const s = evStart(e), en = evEnd(e);
+    // an all-day end is already the day after, which is what the engine takes
+    const at = e.all_day ? { start: ymd(s), end: ymd(en) } : { start: wall(s), end: wall(en) };
+    return this.create({ summary: e.summary, ...at, all_day: e.all_day, location: e.location, description: e.description, rrule: e.rrule, calendar: e.writable ? e.calendar : undefined });
+  }
+
   async search(q: string) {
     this.query = q;
     if (!q.trim()) { this.results = null; return; }

@@ -1,7 +1,7 @@
 // The app's right-click menu wherever no part of it has its own: the WebView's (Back, Reload, Inspect…) is not an
 // app's, and its Back left the app. What the place offers: a text field's clipboard, a row naming a file (`data-path`:
-// open, beside, reveal, copy its link), a link (open, copy), the selected text (copy, search the vault), else the ways
-// to go anywhere (commands, search). A part with its own
+// open, beside, reveal, copy its link), a link (open, copy), the selected text (copy, search the vault), else what the
+// pane under it does (lib/pane-menu.ts) and the ways to go anywhere (commands, search). A part with its own
 // menu (the editor, tabs, files, a terminal…) prevents the default and this one stays away. Shift+right-click keeps
 // the WebView's (spelling suggestions, Inspect); a long press by a finger or a pen stays the phone's own.
 import type { MenuItem } from "./menu";
@@ -14,8 +14,10 @@ import { keysOf } from "./keymap.svelte";
 import { toast } from "./state.svelte";
 import { resolveLink } from "./vault";
 import { dirOf } from "./paths";
+import { paneMenuItems } from "./pane-menu";
 
-const copy = (text: string) => navigator.clipboard.writeText(text).catch(() => toast("Clipboard", "Could not copy — the window refused."));
+/** The clipboard, a refusal said in a toast (every menu's Copy rows). */
+export const copy = (text: string) => navigator.clipboard.writeText(text).catch(() => toast("Clipboard", "Could not copy — the window refused."));
 
 type Field = HTMLInputElement | HTMLTextAreaElement | HTMLElement;
 /** The editable field under the pointer: an <input> that takes text, a <textarea>, or a contenteditable outside
@@ -106,17 +108,20 @@ export function appMenuItems(el: Element, selection: string): MenuItem[] {
   const out: MenuItem[] = [];
   if (link && !link.classList.contains("internal-link") && /^(https?|mailto):/i.test(link.href)) out.push(...linkItems(link));
   if (selection.trim()) out.push(...(out.length ? ["sep" as const] : []), ...selectionItems(selection));
-  return out.length ? out : anywhere();
+  if (out.length) return out;
+  // the open space of a pane: what that pane does, then the ways to go anywhere (lib/pane-menu.ts)
+  const pane = paneMenuItems(el);
+  return pane.length ? [...pane, "sep", ...anywhere()] : anywhere();
 }
 
 /** A part's own menu at the pointer (a plugin's `atlas.shell.popMenu`): its rows, then, for a vault file, the rows
  *  every file has — the note's Open named `openLabel` when the part's own Open does something else (a reader). */
-export function partMenu(e: MouseEvent, rows: MenuItem[], path?: string, openLabel?: string): void {
+export function partMenu(e: MouseEvent, rows: MenuItem[], path?: string, openLabel?: string, line?: number): void {
   if (pressedByHand()) return; // the phone's long press stays the system's, as everywhere
   e.preventDefault();
   // a file row the part already has (its own Copy link) is not said twice
   const own = new Set(rows.flatMap((r) => (typeof r === "object" && "label" in r ? [r.label] : [])));
-  const file = path ? fileItems(path, undefined, openLabel).filter((r) => !(typeof r === "object" && "label" in r && own.has(r.label))) : [];
+  const file = path ? fileItems(path, line, openLabel).filter((r) => !(typeof r === "object" && "label" in r && own.has(r.label))) : [];
   const all: MenuItem[] = [...rows, "sep", ...file];
   // no separator first, last or twice
   const items = all.filter((r, i) => r !== "sep" || (i > 0 && all[i - 1] !== "sep" && all.slice(i + 1).some((x) => x !== "sep")));

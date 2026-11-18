@@ -68,6 +68,12 @@ css_snippets_off: Array<string>,
  */
 tabs: TabsLayout, 
 /**
+ * One tab per pane: opening a file or a view in the editor area replaces what that pane shows instead of adding
+ * a tab beside it (Back and Forward step through what it showed). Splits each keep their own; terminals keep
+ * their tabs; an unsaved or pinned tab is never replaced.
+ */
+one_tab: boolean, 
+/**
  * Where the side panel (files, search, outline, git) shows: its own column beside the editors
  * (`dock`), or inside the left bar, under the list of tabs (`sidebar`; vertical tabs only).
  */

@@ -6,7 +6,7 @@
   import { onMount } from "svelte";
   import { settings, loadSuggestions } from "../lib/settings.svelte";
   import { load, save } from "../lib/prefs";
-  import { leaves, sectionDescription, isModified, fieldTitle, sectionTitle, shownOn } from "../lib/settings-schema";
+  import { leaves, sectionDescription, isModified, fieldTitle, sectionTitle, fieldHere } from "../lib/settings-schema";
   import { placeFields, GROUPS, hostOf, pageDef } from "../lib/settings-pages";
   import { nativeShell } from "../lib/native-shell.svelte";
   import { apiBase } from "../lib/api";
@@ -40,7 +40,7 @@
   const fields = $derived.by(() => { void settings.schema; return leaves(); });
   const host = $derived(hostOf({ server: !!me.info?.server, phone: nativeShell.on, path: apiBase() }));
   // a setting that does nothing here (a terminal's on the phone) is not offered (its `x-hosts`)
-  const pages = $derived(placeFields([...fields].filter(([, s]) => shownOn(s, host)).map(([p]) => p), host, sectionTitle));
+  const pages = $derived(placeFields([...fields].filter(([p, s]) => fieldHere(p, s, host)).map(([p]) => p), host, sectionTitle));
   // each plugin with settings is a page of its own, under the core's (components/settings/PluginPage.svelte)
   const pluginPages = $derived(plugins.list.filter((p) => p.fields.length).sort((a, b) => a.title.localeCompare(b.title)));
   const builtinPages = $derived(pages.filter((p) => p.plugin));

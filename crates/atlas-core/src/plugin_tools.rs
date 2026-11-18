@@ -48,10 +48,6 @@ pub struct ToolManifest {
     /// installed, updated or its settings saved (capture_hooks.rs).
     #[serde(default)]
     pub on: Option<String>,
-    /// For an `on = "hook"` tool: its address may be signed with no expiry (hooks.rs, `Life::Standing`) — for a service
-    /// that posts to it for good (Apprise's `json://`, a webhook). The plugin revokes one by the data it put in it.
-    #[serde(default)]
-    pub standing: bool,
     /// Where its `schedule` and its `fs` / `start` hooks run when several cores serve the vault (server_role.rs); unset:
     /// the plugin's `background`, else every core.
     #[serde(default)]
@@ -63,11 +59,6 @@ impl ToolManifest {
     pub fn background(&self) -> crate::server_role::Background {
         self.background.unwrap_or_default()
     }
-}
-
-/// Whether hook `name` of plugin `id` takes standing addresses (an `on = "hook"` tool with `standing = true`).
-pub fn standing_hook(root: &Path, id: &str, name: &str) -> bool {
-    crate::plugins::tool_parts(root, id).is_ok_and(|(tools, _, _)| tools.iter().any(|t| t.name == name && t.on.as_deref() == Some(crate::hooks::EVENT) && t.standing))
 }
 
 /// The `on` events that are background work (no person's action behind them on this core): they follow
@@ -217,7 +208,42 @@ fn timeout_of(t: &ToolManifest) -> Duration {
 /// whose arguments are the core's and whose answer means nothing to an agent. A capture's or a file change's hook stays:
 /// called by hand it does its work (files a link, syncs).
 fn for_agents(t: &ToolManifest) -> bool {
-    !matches!(t.on.as_deref(), Some("plan" | "notice" | "log" | "hook"))
+    !matches!(t.on.as_deref(), Some("plan" | "notice" | "log" | "hook" | "search"))
+}
+
+/// How long the vault's search waits for a plugin's answer: a slow plugin's group is left out, never waited for.
+const SEARCH_DEADLINE: std::time::Duration = std::time::Duration::from_millis(1500);
+
+/// The vault's search asked of every plugin with an `on = "search"` tool, at once, each given `{ q, limit }` and
+/// [`SEARCH_DEADLINE`]: their hits, a group per plugin that found anything, in the plugins' order. A plugin that
+/// fails or is late is left out (logged).
+pub async fn search(root: &Path, cfg: &Config, helpers: &Helpers, secrets: &Store, q: &str, limit: usize) -> Vec<crate::api::PluginHits> {
+    let names: std::collections::HashMap<String, String> = crate::plugins::list(root).into_iter().map(|p| (p.id, p.title)).collect();
+    let asks = listening(root, cfg, "search").into_iter().map(|(plugin, tool)| {
+        let args = serde_json::json!({ "q": q, "limit": limit });
+        async move {
+            let answer = tokio::time::timeout(SEARCH_DEADLINE, call(root, cfg, helpers, secrets, &plugin, &tool, args)).await;
+            (plugin, answer)
+        }
+    });
+    let mut out = Vec::new();
+    for (plugin, answer) in futures_util::future::join_all(asks).await {
+        let hits = match answer {
+            Ok(Ok(v)) => serde_json::from_value::<Vec<crate::api::PluginHit>>(v.get("hits").cloned().unwrap_or_default()).unwrap_or_default(),
+            Ok(Err(e)) => {
+                eprintln!("plugin {plugin}: search: {e}");
+                continue;
+            }
+            Err(_) => {
+                eprintln!("plugin {plugin}: search: no answer within {SEARCH_DEADLINE:?}");
+                continue;
+            }
+        };
+        if !hits.is_empty() {
+            out.push(crate::api::PluginHits { name: names.get(&plugin).cloned().unwrap_or_else(|| plugin.clone()), plugin, hits });
+        }
+    }
+    out
 }
 
 /// Every tool agents may call (`atlas mcp`): those of the switched-on plugins that have a helper. A plugin whose

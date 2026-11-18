@@ -1,10 +1,12 @@
 // Every command of the pane in one list (DESIGN-mail-ui §4): its key, its words, what it does. The key handler, the
 // command palette (Ctrl+K) and the key sheet (?) all read this list, so a key can never be missing from either.
 import type { Mail } from "./store.svelte";
+import type { Row } from "./api";
 
 /** What the views lend the commands: the pickers, the search box, the sheets. */
 export interface Ui {
-  pick(kind: "move" | "label" | "snooze" | "go" | "template"): void;
+  /** `rows`: what it acts on, when not what is checked or open (a right-clicked row) */
+  pick(kind: "move" | "label" | "snooze" | "go" | "template", rows?: Row[]): void;
   focusSearch(): void;
   help(): void;
   palette(): void;

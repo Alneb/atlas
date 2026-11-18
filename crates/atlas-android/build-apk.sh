@@ -56,10 +56,14 @@ engines() {
     abi=${pair#*:} triple=${pair%%:*}-linux-android
     T=$(echo "$triple" | tr 'a-z-' 'A-Z_')
     export "CC_${triple//-/_}=$bin/$triple$api-clang" "AR_${triple//-/_}=$bin/llvm-ar" "CARGO_TARGET_${T}_LINKER=$bin/$triple$api-clang"
-    cargo build -p atlas-catalog --target "$triple" $([ $profile = release ] && echo --profile android)
     mkdir -p "$repo/crates/atlas-android/helpers/$abi"
-    "$bin/llvm-strip" -o "$repo/crates/atlas-android/helpers/$abi/catalog" "$repo/target/$triple/$([ $profile = release ] && echo android || echo debug)/catalog"
-    echo "[apk]   engine catalog ($abi): $(du -h "$repo/crates/atlas-android/helpers/$abi/catalog" | cut -f1)"
+    # crate:binary — the Rust helpers of the phone's plugins (their run lines read $ATLAS_PLUGIN_BIN first)
+    for engine in atlas-catalog:catalog atlas-papers:papers atlas-syncthing:syncthing; do
+      crate=${engine%%:*} name=${engine#*:}
+      cargo build -p "$crate" --target "$triple" $([ $profile = release ] && echo --profile android)
+      "$bin/llvm-strip" -o "$repo/crates/atlas-android/helpers/$abi/$name" "$repo/target/$triple/$([ $profile = release ] && echo android || echo debug)/$name"
+      echo "[apk]   engine $name ($abi): $(du -h "$repo/crates/atlas-android/helpers/$abi/$name" | cut -f1)"
+    done
   done
 }
 case " $apps " in *" atlas "*|*" boox "*) engines ;; esac

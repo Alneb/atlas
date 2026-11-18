@@ -137,7 +137,7 @@ pub fn matching(m: &Mail, acc: &Account, rule: &Rule, ids: &[i64]) -> Vec<i64> {
     let list = ids.iter().map(|i| i.to_string()).collect::<Vec<_>>().join(",");
     let (mut cond, args) = q.filter().unwrap_or_else(|| ("1=1".into(), vec![]));
     cond = format!("({cond}) AND m.id IN ({list})");
-    m.index.list(&Scope { folders: vec![], filter: Some((cond, args)), text: q.text.clone(), flat: true, pin: false }, ids.len(), 0).into_iter().map(|c| c.id).collect()
+    m.index.list(&Scope { folders: vec![], filter: Some((cond, args)), text: q.text.clone(), flat: true, pin: false, by_date: true, substring: None }, ids.len(), 0).into_iter().map(|c| c.id).collect()
 }
 
 /// Runs the rules on new inbox mail of an account; what each did goes to the page as an event.

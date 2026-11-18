@@ -138,19 +138,21 @@ test("a plugin started again lists its server once", async ({ page, request }) =
   await expect(places).toHaveCount(1);
 });
 
-test("Books lists a server folder's books beside the vault's, and a server's book opens from its local copy", async ({ page, request }) => {
+test("Books lists the vault's books; a server's shelf opens in the explorer, a book there from its local copy", async ({ page, request }) => {
   test.setTimeout(60_000);
   mkdirSync(join(ROOT, "hdd1/Physics/Books/Shelf"), { recursive: true });
   writeFileSync(join(ROOT, "hdd1/Physics/Books/Shelf/Remote Quanta.epub"), "PK not really a book\n");
-  // the user's shelves are mostly PDFs (2026-10-21: "the books dont load from copyparty"); copyparty's `.hist` is skipped
+  // a shelf is often mostly PDFs; copyparty's `.hist` is skipped
   writeFileSync(join(ROOT, "hdd1/Physics/Books/Shelf/Remote Fields.pdf"), "%PDF-1.4 not really one\n");
   mkdirSync(join(ROOT, "hdd1/Physics/Books/.hist"), { recursive: true });
   writeFileSync(join(ROOT, "hdd1/Physics/Books/.hist/Hidden Copy.epub"), "PK\n");
   const books = (f: string) => readFileSync(fileURLToPath(new URL(`../../plugins/beta/books/${f}`, import.meta.url)), "utf8");
   const BOOKS = ".atlas/plugins/books";
-  for (const f of ["main.js", "view.js", "shared/marks.js", "shared/ink.js"]) await put(request, `${BOOKS}/${f}`, books(f));
+  // every module main.js and view.js import (a missing one and the plugin does not start: no E-books tab)
+  for (const f of ["main.js", "view.js", "audiobook.js", "helper.js", "shared/marks.js", "shared/ink.js", "shared/name.js"]) await put(request, `${BOOKS}/${f}`, books(f));
   await put(request, `${BOOKS}/plugin.toml`, books("plugin.toml"));
-  await put(request, ".atlas/plugin-settings/books.toml", 'folder = "books-remote-spec"\n\n[[remote]]\nserver = "nas"\nfolder = "/Physics/Books"\n');
+  const SETTINGS = ".atlas/plugin-settings/books.toml", settingsBefore = (await read(request, SETTINGS)) ?? "";
+  await put(request, SETTINGS, 'folder = "books-remote-spec"\n\n[[remote]]\nserver = "nas"\nfolder = "/Physics/Books"\n');
   await request.put("/api/file", { headers: H, data: { path: "books-remote-spec/Local Tales.epub", text: "PK not a book either\n" } });
   try {
     await page.goto("/");
@@ -160,18 +162,22 @@ test("Books lists a server folder's books beside the vault's, and a server's boo
     await page.getByTestId("palette").getByText("Libraries (drawings, references, films, comics…)").click();
     const libs = page.locator(".libraries");
     await libs.getByRole("tab", { name: "E-books" }).click();
+    // the library lists what is the vault's; the server's shelf is behind its header button
     const titles = libs.locator(".library .t");
-    await expect(titles.filter({ hasText: "Remote Quanta" })).toBeVisible({ timeout: 20_000 });
     await expect(titles.filter({ hasText: "Local Tales" })).toBeVisible();
-    await expect(titles.filter({ hasText: "Remote Fields" })).toBeVisible();
-    await expect(titles.filter({ hasText: "Hidden Copy" })).toHaveCount(0);
-    // the server's folders at the side, as on disk: a folder leaves its books only
-    await libs.locator(".side .tree-row .item", { hasText: "Shelf" }).click(); // the tree: nas › Shelf
-    await expect(titles.filter({ hasText: "Local Tales" })).toHaveCount(0);
-    await titles.filter({ hasText: "Remote Quanta" }).click();
-    await libs.getByRole("button", { name: "Read" }).click();
+    await expect(titles.filter({ hasText: "Remote Quanta" })).toHaveCount(0);
+    await libs.getByRole("button", { name: "nas" }).click();
+    // the explorer on that folder: copyparty's `.hist` left out, a book opened from its local copy
+    const pane = page.locator(".explorer");
+    const row = (name: string) => pane.locator(".x-row", { has: page.locator(".label", { hasText: new RegExp(`^${name.replace(/[.[\]]/g, "\\$&")}$`) }) });
+    await expect(row("Shelf")).toBeVisible({ timeout: 20_000 });
+    await expect(row(".hist")).toHaveCount(0);
+    await row("Shelf").dblclick();
+    await expect(row("Remote Fields.pdf")).toBeVisible();
+    await row("Remote Quanta.epub").dblclick();
     await expect.poll(async () => (await request.get(`/api/file?path=${encodeURIComponent(".atlas/remote/copyparty/nas/Physics/Books/Shelf/Remote Quanta.epub")}`, { headers: H })).status(), "its local copy").toBe(200);
   } finally {
     await put(request, `${BOOKS}/plugin.toml`, books("plugin.toml"));
+    await put(request, SETTINGS, settingsBefore); // the specs after it read the books folder again (libraries-continue)
   }
 });

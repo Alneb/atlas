@@ -29,7 +29,7 @@ import { rememberFile } from "./recent";
 import { app } from "./state.svelte";
 import { iconSvg } from "./icons";
 import { setPanes } from "./context.svelte";
-import { onSettings } from "./settings.svelte";
+import { onSettings, settings } from "./settings.svelte";
 import { resolveSpec } from "./openers";
 import { api } from "./api";
 import type { PaneRef } from "./types";
@@ -416,11 +416,22 @@ export function open(spec: PaneSpec, opts: { activate?: boolean; beside?: boolea
     ...((opts.beside && besideActive()) || placement(specZone(spec))),
   } as AddPanelOptions<PaneSpec>);
   setOpening(null);
+  if (opts.activate !== false && !opts.beside) replaceInGroup(panel);
   // a pane added to a hidden tool panel (a new shell, an SSH session while Ctrl+J hid the terminals) shows it, as
   // asking again for an open one does; added in the background it stays hidden, its always-rendered content too
   if (opts.activate !== false) reveal(panel.group);
   else if (!panel.group.api.isVisible) setContentVisible(panel.group, false);
   return panel.api;
+}
+
+/** One tab per pane (`ui.one_tab`): the pane just opened in the editor area takes the place of what its group showed —
+ *  every other tab there closes, but a terminal, an unsaved or a pinned one. Splits are other groups: untouched. */
+function replaceInGroup(panel: IDockviewPanel): void {
+  if (!settings.config?.ui.one_tab || panelZone(panel) !== "main") return;
+  for (const p of [...panel.group.panels]) {
+    const spec = p.params as PaneSpec | undefined;
+    if (p.id !== panel.id && spec?.kind !== "terminal" && !app.dirty[p.id] && !tabFacts.pinned(p.id)) p.api.close();
+  }
 }
 
 // the usage journal (toolsmith miners): one entry per file per 10 s, so tab-hopping is not "use"

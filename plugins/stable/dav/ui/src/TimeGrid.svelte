@@ -8,9 +8,11 @@
   import { dayColumns, laneBars } from "./layout";
   import type { Cal } from "./store.svelte";
 
-  let { cal, days, selected, onselect, oncreate }: {
+  let { cal, days, selected, onselect, onmenu, oncreate }: {
     cal: Cal; days: Date[]; selected: Ev | null;
     onselect: (e: Ev, at: DOMRect) => void;
+    /** a right-click on an event: its menu (App's `eventMenu`) */
+    onmenu: (e: Ev, ev: MouseEvent) => void;
     oncreate: (start: Date, end: Date, allDay: boolean, at: DOMRect) => void;
   } = $props();
 
@@ -89,6 +91,8 @@
   }
 
   async function up(ev: PointerEvent) {
+    // a task dragged from the lane is released here too, before the window hears it: that drop is taskUp's
+    if (taskDrag) return;
     const d = drag;
     drag = null;
     document.body.style.userSelect = "";
@@ -187,7 +191,7 @@
       {#each bars as b (b.e.calendar + b.e.uid + (b.e.rid ?? "") + b.from)}
         <button class="bar ev" class:task={!!b.e.task} class:sel={isSel(b.e)} class:clipl={b.clippedStart} class:clipr={b.clippedEnd} class:cancel={b.e.status === "CANCELLED"} style:--c={color(b.e)}
           style:grid-column="{b.from + 1} / {b.to + 2}" style:grid-row={b.row + 1}
-          onpointerdown={(ev) => taskDown(ev, b.e)}
+          onpointerdown={(ev) => taskDown(ev, b.e)} oncontextmenu={(ev) => onmenu(b.e, ev)}
           onclick={(ev) => { if (swallowClick) { swallowClick = false; return; } onselect(b.e, (ev.currentTarget as HTMLElement).getBoundingClientRect()); }}
           title={blockable(b.e) ? `${b.e.summary} — drag it onto the hours to time-block it` : b.e.summary}>
           {#if b.e.task}<span class="tbox" aria-hidden="true"></span>{:else if notePath(b.e)}<span class="dot" aria-hidden="true"></span>{/if}{b.e.summary || "(no title)"}
@@ -209,7 +213,7 @@
                 class:ghosted={drag?.e === p.e && drag.moved}
                 style:--c={color(p.e)} style:top="{(p.top / 60) * HOUR}px" style:height="{Math.max(14, ((p.bottom - p.top) / 60) * HOUR - 2)}px"
                 style:left={px(p.box.x, p.box.xpx + 1)} style:width={px(p.box.w, p.box.wpx - 3)} style:--depth={p.depth}
-                title={tip(p.e)}
+                title={tip(p.e)} oncontextmenu={(ev) => onmenu(p.e, ev)}
                 role="button" tabindex="0" aria-label="{p.e.summary}, {timeText(evStart(p.e), cal.h12)}"
                 onpointerdown={(ev) => (p.startsBefore || p.endsAfter ? ev.stopPropagation() : down(ev, "move", p.e, p.top, p.bottom))}
                 onclick={(ev) => { if (p.startsBefore || p.endsAfter) onselect(p.e, (ev.currentTarget as HTMLElement).getBoundingClientRect()); }}

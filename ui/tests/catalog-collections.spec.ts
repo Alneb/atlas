@@ -71,10 +71,14 @@ test("a collection's index page is the Library page over its base: shelves in th
   await page.screenshot({ path: "test-results/catalog-shelves-dark.png" });
 
   // drag Past Lives onto To watch at the side: its note's status changes, the shelves follow
-  await lib.locator(".card", { hasText: "Past Lives" }).dragTo(shelf("To watch"));
+  // (in the list, where every film fits beside the shelves: a cover far down the column would be scrolled away from
+  // under the pointer while the shelf is scrolled to, and the drag would start on another card)
+  await lib.getByRole("radiogroup", { name: "Layout" }).getByRole("radio", { name: "List" }).click();
+  await lib.locator(".row", { hasText: "Past Lives" }).dragTo(shelf("To watch"));
   await expect(shelf("To watch").locator(".c")).toHaveText("3");
   const status = async () => (await request.get(`/api/file?path=${encodeURIComponent("Films/Past Lives.md")}`, { headers: H }).then((r) => r.json())).text;
   await expect.poll(status).toMatch(/status: ["']?\[\[to-watch\]\]["']?/);
+  await lib.getByRole("radiogroup", { name: "Layout" }).getByRole("radio", { name: "Covers" }).click();
   // and without dragging: the shelf chosen in its card
   await lib.locator(".card", { hasText: "Past Lives" }).click();
   await lib.locator(".detail").getByRole("radio", { name: "Watched" }).click();

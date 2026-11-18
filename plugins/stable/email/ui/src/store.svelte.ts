@@ -29,6 +29,8 @@ export class Mail {
   total = $state(0);
   unread = $state(0);
   chips = $state<[string, string][]>([]);
+  /** a search's order: the best matches first (relevance with recency, the engine's), or the newest first */
+  byDate = $state(false);
   loading = $state(false);
   error = $state("");
   /** the row the keyboard is on (its message id) */
@@ -108,7 +110,7 @@ export class Mail {
     const v = this.view;
     return {
       view: v.name === "folder" ? "" : v.name, account: v.account ?? "", folder: v.folder ?? "",
-      query: this.query, quick: this.quick, kind: this.split ? this.kind || "person" : "", pin: this.pinning, ...extra,
+      query: this.query, quick: this.quick, kind: this.split ? this.kind || "person" : "", pin: this.pinning, by_date: this.byDate, ...extra,
     };
   }
 

@@ -216,8 +216,11 @@ export const api = {
   /** A definition outside the vault, read for a look (lsp.rs `peek`): `line` 0-based, as the language server says. */
   lspPeek: (uri: string, line: number) => request<import("./gen/LspPeek").LspPeek>("GET", "/api/lsp/peek", { query: { uri, line: String(line) } }),
   /** `pdf`: the PDFs' text instead of the files; `names`: only the names, no file read (answered at once). */
-  search: (q: string, o: { case?: boolean; word?: boolean; regex?: boolean; agent?: boolean; pdf?: boolean; names?: boolean } = {}) =>
-    request<SearchResult>("GET", "/api/search", { query: { q, case: o.case ? "true" : undefined, word: o.word ? "true" : undefined, regex: o.regex ? "true" : undefined, agent: o.agent ? "true" : undefined, pdf: o.pdf ? "true" : undefined, names: o.names ? "true" : undefined } }),
+  /** `lane`: the asker's own id (a Search pane's): a newer search in the same lane stops this one reading files. */
+  search: (q: string, o: { case?: boolean; word?: boolean; regex?: boolean; agent?: boolean; pdf?: boolean; all?: boolean; names?: boolean; lane?: string } = {}) =>
+    request<SearchResult>("GET", "/api/search", { query: { q, case: o.case ? "true" : undefined, word: o.word ? "true" : undefined, regex: o.regex ? "true" : undefined, agent: o.agent ? "true" : undefined, pdf: o.pdf ? "true" : undefined, all: o.all ? "true" : undefined, names: o.names ? "true" : undefined, lane: o.lane } }),
+  /** The plugins' answers to a search (mail…), a group per plugin; each hit opens through `pluginTool(plugin, open.tool, open.args)`. */
+  searchPlugins: (q: string) => request<import("./gen/PluginHits").PluginHits[]>("GET", "/api/search/plugins", { query: { q } }),
   /** Every tag with its number of notes; a tag's notes are `search("tag:<name>").files`. */
   tags: () => request<import("./gen/TagCount").TagCount[]>("GET", "/api/tags"),
   /** A tag renamed in every note, the tags nested under it too (core tags.rs `rename`). */

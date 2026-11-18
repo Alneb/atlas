@@ -77,6 +77,8 @@ pub mod remote_bridge;
 pub mod web_frame;
 pub mod schedule;
 pub mod search;
+pub mod search_index;
+pub mod search_text;
 pub mod secrets;
 pub mod server;
 pub mod server_role;

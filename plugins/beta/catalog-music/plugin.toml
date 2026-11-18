@@ -4,8 +4,9 @@
 # cover (Cover Art Archive), found by the link itself or by artist and title. Asked at most once a second, as it asks.
 title = "Catalog · Music"
 description = "albums, songs and artists from any music link, filled in by MusicBrainz"
+phone = true # runs in the phone apps too: its helper is JavaScript in the core (QuickJS), no program of its own
 icon = "music"
-version = "0.3.0"
+version = "0.4.0"
 api = 19
 requires = ["catalog"]
 

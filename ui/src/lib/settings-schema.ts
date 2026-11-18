@@ -4,6 +4,8 @@ import { settings, updateSettings } from "./settings.svelte";
 import { toast } from "./state.svelte";
 import { deviceChose, deviceKeeps, deviceLook, resetDeviceLook, setDeviceLook } from "./device-look.svelte";
 import type { SettingsHost } from "./settings-pages";
+import { einkOn, einkScreen } from "./eink";
+import type { Eink } from "./gen/Eink";
 
 export type Schema = {
   $ref?: string; type?: string | string[]; description?: string; properties?: Record<string, Schema>;
@@ -54,6 +56,14 @@ export function sectionTitle(sec: string): string {
 export const choiceLabel = (s: Schema, value: string): string => s["x-labels"]?.[value] ?? value;
 /** Whether a setting does something where Settings runs. */
 export const shownOn = (s: Schema, host: SettingsHost): boolean => !s["x-hosts"] || s["x-hosts"].includes(host);
+
+/** Fields that mean something only on some screens: shown there, and wherever they are in effect (so a mode set on
+ *  elsewhere can still be turned off here). The e-ink ones: on an e-ink screen (a Boox), or with e-ink mode on. */
+const einkHere = () => einkScreen() || einkOn((vaultValue("ui.eink") as Eink | undefined) ?? "auto");
+const ONLY_ON: Record<string, () => boolean> = { "ui.eink": einkHere, "ui.eink_refresh": einkHere };
+
+/** Whether Settings shows field `path` here: its host, then the screen it is for. */
+export const fieldHere = (path: string, s: Schema, host: SettingsHost): boolean => shownOn(s, host) && (ONLY_ON[path]?.() ?? true);
 
 /** A section's description (`ui` → "Appearance."), for search. */
 export function sectionDescription(sec: string): string {

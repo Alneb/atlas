@@ -192,74 +192,6 @@
 			buttons: 0
 		};
 	}
-	/** Apprise's types as ntfy's priorities, so a source's note marks them alike: a failure urgent, a warning high. */
-	const BY_TYPE = {
-		failure: 5,
-		warning: 4
-	};
-	/** A posted notification as a message: an object read as Apprise's, plain text as the message itself. */
-	function postedMessage(posted, nowSecs, id) {
-		const p = posted && typeof posted === "object" ? posted : { message: posted };
-		return {
-			id,
-			time: nowSecs,
-			title: str(p.title),
-			message: str(p.message) || str(p.body),
-			priority: BY_TYPE[str(p.type).toLowerCase()] ?? 3
-		};
-	}
-	/** The standing addresses' nonces, a source's each (the plugin's secret `hook_nonces`, JSON). */
-	function noncesOf(p) {
-		try {
-			const n = JSON.parse(p.secrets?.hook_nonces ?? "{}");
-			return n && typeof n === "object" ? n : {};
-		} catch {
-			return {};
-		}
-	}
-	/** A call to a standing address: `data` is what the address carries ({ source, nonce }), `body` what was posted. Filed
-	*  under the source; refused (thrown: the caller gets the error) when the nonce is not the source's current one. */
-	async function hookIn(vault, p, nowSecs) {
-		const source = sourceOf({ tags: [str(p.data?.source)] }, "apprise");
-		const kept = noncesOf(p)[source];
-		if (!kept || kept !== str(p.data?.nonce)) throw new Error(`the address of ${source} was replaced: make a new one (Notifications: an address for Apprise…)`);
-		const path = `${(str(p.settings?.folder) || "notifications").replace(/^\/+|\/+$/g, "")}/${source}.md`;
-		const m = postedMessage(p.body, nowSecs, `a${nowSecs}`);
-		if (!m.title && !m.message) return { skipped: "nothing in it" };
-		return {
-			new: 1,
-			loud: muted(await fileIn(vault, path, source, "apprise", [lineOf(m)]), vault.today()) ? [] : [{
-				source,
-				path,
-				title: m.title || source,
-				text: (m.message ?? "").slice(0, 200)
-			}],
-			summary: `1 from ${source}`
-		};
-	}
-	/** A fresh nonce: what tells this address from the one before (the token's signature is the security, not this). */
-	const nonce = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
-	/** The address Apprise posts to for `source`: a new nonce (the older address stops), the core's signature, as an
-	*  Apprise URL — `jsons://host/path?-t=token` (a `-` key is a query parameter Apprise passes on) — and as plain https. */
-	async function addressFor(signer, p) {
-		const source = sourceOf({ tags: [str(p.source)] }, "apprise");
-		const fresh = nonce(), signed = await signer.sign({
-			source,
-			nonce: fresh
-		});
-		const origin = (str(p.origin) || signed.origin || "").replace(/\/+$/, "");
-		if (!origin) throw new Error("this server's address is not known yet: open Atlas once through it (its https address), or give it here");
-		const url = `${origin}${signed.path}`, [base, query] = url.split("?");
-		return {
-			source,
-			url,
-			apprise: `${base.replace(/^http(s?):/, "json$1:")}?${query.replace(/^t=/, "-t=")}`,
-			_secrets: { hook_nonces: JSON.stringify({
-				...noncesOf(p),
-				[source]: fresh
-			}) }
-		};
-	}
 	const net = {
 		get: async (url, headers) => await atlas.fetch(url, {
 			headers,
@@ -323,31 +255,14 @@
 			});
 			return r;
 		}),
-		send: (p) => sendWith(net, p),
-		apprise: async (p) => {
-			const r = await hookIn(vault, p, Math.floor(Date.now() / 1e3));
-			if ("loud" in r) atlas.event("synced", {
-				new: r.new,
-				loud: r.loud
-			});
-			return r;
-		},
-		apprise_address: (p) => addressFor({ sign: (data) => atlas.post("/api/plugins/notifications/hooks/sign", {
-			hook: "apprise",
-			data,
-			ttl_secs: 0
-		}) }, p)
+		send: (p) => sendWith(net, p)
 	});
 	//#endregion
-	exports.addressFor = addressFor;
 	exports.auth = auth;
 	exports.buttonsOf = buttonsOf;
-	exports.hookIn = hookIn;
 	exports.lineOf = lineOf;
 	exports.muted = muted;
-	exports.noncesOf = noncesOf;
 	exports.oneAtATime = oneAtATime;
-	exports.postedMessage = postedMessage;
 	exports.sendWith = sendWith;
 	exports.sourceOf = sourceOf;
 	exports.syncWith = syncWith;

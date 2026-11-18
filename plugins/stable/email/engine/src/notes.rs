@@ -259,7 +259,7 @@ pub async fn save(m: &Mail, thread: i64) -> Result<String, String> {
     }
     let mut items = vec![];
     for x in msgs {
-        let raw = crate::sync::body(m, x.id).await?;
+        let raw = crate::sync::whole(m, x.id).await?; // its attachments are saved beside the note
         let label = m.index.folder(&x.account, &x.folder).map(|f| f.label).unwrap_or_else(|| x.folder.clone());
         items.push((x, raw, label));
     }

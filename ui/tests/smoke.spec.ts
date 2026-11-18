@@ -158,3 +158,22 @@ test("the PDF switch narrows the search to the PDFs' text: the files left out, a
   await pane.getByLabel("Only the PDFs' text").click();
   await expect(pane.locator(".line-hit").first()).toBeVisible();
 });
+
+test("the notes' lines by default; All adds every text file's (code, logs), a file's name always matches", async ({ page, request }) => {
+  const H = { "x-atlas": "1" };
+  await request.put("/api/file", { headers: H, data: { path: "notes/allswitch.md", text: "the quokka in a note\n" } });
+  await request.put("/api/file", { headers: H, data: { path: "runs/allswitch.log", text: "step 3: quokka converged\n" } });
+  await request.put("/api/file", { headers: H, data: { path: "code/quokka.py", text: "x = 1\n" } });
+  await page.goto("/");
+  await page.getByText("Finish the GW notes.").waitFor();
+  await page.keyboard.press("Control+Shift+F");
+  const pane = page.locator(".search-pane");
+  await pane.getByLabel("Search", { exact: true }).fill("quokka");
+  await expect(pane.locator(".line-hit")).toHaveCount(1);
+  await expect(pane.locator(".hit-file")).toContainText(["notes/allswitch"]);
+  await expect(pane.locator(".file-hit"), "the name matches whatever the switch").toContainText(["quokka"]);
+  await pane.getByLabel("All files' text").click();
+  await expect(pane.locator(".line-hit")).toHaveCount(2);
+  await expect(pane.locator(".hit-file", { hasText: "allswitch.log" })).toBeVisible();
+  for (const path of ["notes/allswitch.md", "runs/allswitch.log", "code/quokka.py"]) await request.post(`/api/fs/trash?path=${encodeURIComponent(path)}`, { headers: H });
+});

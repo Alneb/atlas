@@ -39,8 +39,4 @@
   .what { min-width: 0; }
   label { font-weight: 500; }
   .desc { margin: 2px 0 0; color: var(--text-faint); font-size: calc(12.5px * var(--ui-scale, 1)); }
-  .switch { flex: none; width: 38px; height: 22px; border-radius: 11px; background: var(--border-strong); position: relative; transition: background .15s; }
-  .switch span { position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%; background: var(--bg); transition: transform .15s; box-shadow: var(--shadow-sm); }
-  .switch.on { background: var(--accent); }
-  .switch.on span { transform: translateX(16px); }
 </style>

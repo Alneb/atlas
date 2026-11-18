@@ -10,23 +10,29 @@
   import { fileIcon } from "../lib/panes";
   import { shownName, shownPath } from "../lib/paths";
   import type { SearchResult } from "../lib/types";
+  import type { PluginHits } from "../lib/gen/PluginHits";
+  import type { PluginHit } from "../lib/gen/PluginHit";
   import type { PaneProps } from "../lib/dock";
   import Icon from "../components/Icon.svelte";
   import InputDialog from "../components/InputDialog.svelte";
   import { editors, paneFocus, searchRequest } from "../lib/registry";
   import { toast } from "../lib/state.svelte";
+  import { copy, partMenu } from "../lib/app-menu";
 
   let { spec, panel }: PaneProps<"search"> = $props();
   // svelte-ignore state_referenced_locally -- a pane's spec is fixed for its lifetime
   let q = $state(spec.q ?? "");
   let res = $state<SearchResult | null>(null);
+  /** what the plugins found (mail…): their own groups, after the files' */
+  let others = $state<PluginHits[]>([]);
   let titles = $state(new Map<string, string>()); // a file found by its title → that title
   let busy = $state(false);
   let error = $state("");
   let input: HTMLInputElement;
   let sel = $state(0);
 
-  type Row = { path: string; line?: number; text?: string };
+  /** A row the keys move over: a file (at a line), or a plugin's hit (opened by its tool). */
+  type Row = { path: string; line?: number; text?: string; plugin?: string; hit?: PluginHit };
   // a page at a time: the names, then the files whose text matches (each with its first lines); "Show more" adds a page
   const PAGE = 50;
   let nFiles = $state(PAGE);
@@ -47,27 +53,41 @@
     for (const [path, hits] of [...allGroups].slice(0, nGroups)) m.set(path, hits.map((h) => ({ ...h, idx: idx++ })));
     return m;
   });
-  const rows = $derived<Row[]>([...shownFiles.map((path) => ({ path })), ...[...grouped].flatMap(([path, hits]) => hits.map((h) => ({ path, line: h.line, text: h.text })))]);
+  const fileRows = $derived<Row[]>([...shownFiles.map((path) => ({ path })), ...[...grouped].flatMap(([path, hits]) => hits.map((h) => ({ path, line: h.line, text: h.text })))]);
+  /** the plugins' hits come after the files', numbered on from them */
+  const rows = $derived<Row[]>([...fileRows, ...others.flatMap((g) => g.hits.map((hit) => ({ path: "", plugin: g.plugin, hit })))]);
+  const pluginIdx = (g: number, i: number) => fileRows.length + others.slice(0, g).reduce((n, x) => n + x.hits.length, 0) + i;
   /** Matching lines in a file, all of them (the list shows the first few). */
   const countOf = (path: string) => res?.counts?.[path] ?? allGroups.get(path)?.length ?? 0;
 
   // line-search options (VS Code's Aa / ab / .*); read in the effect, so a toggle re-runs the search
   // `pdf`: only the text of the vault's PDFs (the core's pdf_text cache); without it their hits follow the files'.
-  let opts = $state({ case: false, word: false, regex: false, agent: false, pdf: false });
+  // `all`: every text file's lines, not only the notes' (code, logs, a run's outputs) — off: they are most of a vault's
+  // bytes and few of its answers
+  let opts = $state({ case: false, word: false, regex: false, agent: false, pdf: false, all: false });
   const searches = new Newest(180);
+  /** This pane's lane: its newer search stops the core reading files for the one before (search.rs `Turn`). */
+  const lane = `search-${Math.random().toString(36).slice(2, 10)}`;
   let rerun = $state(0); // bumped after a replace: same query, new results
   $effect(() => {
     void rerun;
     const o = { ...opts };
     const query = q.trim();
+    others = [];
     if (!query) { searches.stop(); res = null; busy = false; return; } // a search still answering is now stale
     searches.run(async (still) => {
       busy = true;
+      // the plugins asked beside the files (the core waits for each at most a second and a half): their groups when they come
+      if (!o.pdf && !o.regex) void api.searchPlugins(query).then((r) => { if (still()) others = r; }, () => {});
       // notes found by their title: after the names, one list for the keys
       const show = (r: SearchResult, all: Titled[]) => {
         const t = besides(all, r.files);
         titles = new Map(t.map((x) => [x.path, x.title]));
-        res = { ...r, files: [...r.files, ...t.map((x) => x.path)] };
+        // a note whose title is the query, or starts with it, leads: before names that only contain it
+        const want = query.toLowerCase();
+        const lead = (x: Titled) => x.title.toLowerCase() === want ? 0 : x.title.toLowerCase().startsWith(want) ? 1 : 2;
+        const first = t.filter((x) => lead(x) < 2).sort((a, b) => lead(a) - lead(b)).map((x) => x.path);
+        res = { ...r, files: [...first, ...r.files, ...t.filter((x) => lead(x) === 2).map((x) => x.path)] };
         sel = 0;
         nFiles = nGroups = PAGE;
       };
@@ -75,7 +95,7 @@
         // the names and titles first (no file read: a tenth of a second), then the lines once the files are read
         let read = false;
         const titled = o.pdf ? Promise.resolve([]) : titledNotes(query);
-        const full = api.search(query, o).then((r) => ((read = true), r));
+        const full = api.search(query, { ...o, lane }).then((r) => ((read = true), r));
         if (!o.pdf) void Promise.all([api.search(query, { ...o, names: true }), titled]).then(([n, all]) => { if (still() && !read) show(n, all); }, () => {});
         const [r, all] = await Promise.all([full, titled]);
         if (still()) { show(r, all); error = ""; }
@@ -87,6 +107,15 @@
     });
     return () => searches.stop();
   });
+
+  /** A plugin's hit opened by its own tool (the Email pane shows the message). */
+  function openHit(plugin: string, h: PluginHit) {
+    api.pluginTool(plugin, h.open.tool, h.open.args).catch((e) => toast(errText(e)));
+  }
+  const shortDate = (iso: string) => {
+    const d = new Date(iso);
+    return isNaN(+d) ? "" : d.toLocaleDateString(undefined, d.getFullYear() === new Date().getFullYear() ? { month: "short", day: "numeric" } : { year: "numeric", month: "short", day: "numeric" });
+  };
 
   const esc = escapeHtml;
   /** The server's match rules in JS (literal / whole word / smart case / regex), for highlighting
@@ -156,7 +185,19 @@
   }
 
   // opening a result is what makes a search "used" (typing alone is not journaled)
-  function go(r: Row) { if (q.trim()) api.usage({ kind: "search", q: q.trim() }); openPath(r.path, r.line); }
+  /** A text hit's right-click: its line copied, its file kept out of (or back in) the replace, then its file's rows at the line. */
+  function hitMenu(e: MouseEvent, path: string, line: number, text: string) {
+    const out = excluded.has(path);
+    partMenu(e, [
+      { label: "Copy the line", icon: "copy", run: () => void copy(text.trim()) },
+      ...(replacing ? [{ label: out ? "Include in the replace" : "Leave out of the replace", icon: (out ? "plus" : "close") as "plus" | "close", run: () => exclude(path) }] : []),
+    ], path, undefined, line);
+  }
+  function go(r: Row) {
+    if (r.plugin && r.hit) return openHit(r.plugin, r.hit);
+    if (q.trim()) api.usage({ kind: "search", q: q.trim() });
+    openPath(r.path, r.line);
+  }
   function onkeydown(e: KeyboardEvent) {
     if (e.key === "ArrowDown") { e.preventDefault(); sel = Math.min(sel + 1, rows.length - 1); scrollSel(); }
     else if (e.key === "ArrowUp") { e.preventDefault(); sel = Math.max(sel - 1, 0); scrollSel(); }
@@ -190,6 +231,7 @@
       <button class="opt" class:on={opts.word} aria-pressed={opts.word} title="Whole word" aria-label="Whole word" onclick={() => (opts.word = !opts.word)}><u>ab</u></button>
       <button class="opt" class:on={opts.regex} aria-pressed={opts.regex} title="Regular expression" aria-label="Regular expression" onclick={() => (opts.regex = !opts.regex)}>.*</button>
       <button class="opt pdf" class:on={opts.pdf} aria-pressed={opts.pdf} title="Only the PDFs' text (papers, books, slides): their hits come after the notes' anyway" aria-label="Only the PDFs' text" onclick={() => { opts.pdf = !opts.pdf; if (opts.pdf) toggleReplace(false); }}>PDF</button>
+      <button class="opt" class:on={opts.all} aria-pressed={opts.all} disabled={opts.pdf} title="Also the lines of every other text file — code, logs, a run's outputs, data. Off: the notes' and the PDFs' only (any file still matches by its name)" aria-label="All files' text" onclick={() => (opts.all = !opts.all)}>All</button>
       <button class="opt" class:on={opts.agent} aria-pressed={opts.agent} title="Also search the agent's own files (Claude's memory, session logs, instructions) — left out by default" aria-label="Include the agent's files" onclick={() => (opts.agent = !opts.agent)}><Icon name="claude" size={12} /></button>
     </span>
   </div>
@@ -223,17 +265,26 @@
               aria-label="{excluded.has(path) ? 'Include' : 'Exclude'} {path}"><Icon name={excluded.has(path) ? "plus" : "close"} size={12} /></button>{/if}
           </div>
           {#each hits as h (h.idx)}
-            <button class="hit line-hit" class:sel={sel === h.idx} data-idx={h.idx} data-path={path} data-line={h.line} onclick={() => go({ path, line: h.line })} onmouseenter={() => (sel = h.idx)}>
+            <button class="hit line-hit" class:sel={sel === h.idx} data-idx={h.idx} data-path={path} data-line={h.line} onclick={() => go({ path, line: h.line })} oncontextmenu={(e) => hitMenu(e, path, h.line, h.text)} onmouseenter={() => (sel = h.idx)}>
               <span class="ln">{h.line}</span><span class="txt">{@html mark(h.text)}</span>
             </button>
           {/each}
         {/each}
         {#if allGroups.size > nGroups}<button class="more" onclick={() => (nGroups += PAGE)}>Show {Math.min(PAGE, allGroups.size - nGroups)} more files of {allGroups.size - nGroups}</button>{/if}
       {/if}
+      {#each others as g, gi (g.plugin)}
+        <div class="group-label">{g.name} <span class="n">{g.hits.length}</span></div>
+        {#each g.hits as h, i (i)}
+          <button class="hit plugin-hit" class:sel={sel === pluginIdx(gi, i)} data-idx={pluginIdx(gi, i)} onclick={() => openHit(g.plugin, h)} onmouseenter={() => (sel = pluginIdx(gi, i))} title={h.detail ?? ""}>
+            <span class="fname">{h.title || "(no subject)"}</span>{#if h.date}<span class="fdir">{shortDate(h.date)}</span>{/if}
+            {#if h.detail}<span class="detail">{h.detail}</span>{/if}
+          </button>
+        {/each}
+      {/each}
       <!-- an empty result says what to try next: the switches that narrowed it, else fewer words -->
-      {#if !busy && !res.files.length && !res.lines.length}<p class="faint small pad">{opts.pdf ? "No PDF has" : "No file has"} “{q}”. {opts.case || opts.word || opts.regex
+      {#if !busy && !res.files.length && !res.lines.length && !others.length}<p class="faint small pad">{opts.pdf ? "No PDF has" : "No file has"} “{q}”. {opts.case || opts.word || opts.regex
         ? `Try with ${[opts.case && "Match case", opts.word && "Whole word", opts.regex && "Regular expression"].filter(Boolean).join(", ")} off.`
-        : "Try fewer or shorter words."}</p>{/if}
+        : opts.all || opts.pdf ? "Try fewer or shorter words." : "Try fewer or shorter words — or All, for code, logs and data too."}</p>{/if}
     {:else}
       <p class="faint small pad">{opts.pdf ? "Type to search the text of every PDF: each hit opens its page." : "Type to search the names and the text of every file, the PDFs' included."}<span class="keys-only keys-line"><kbd>↑</kbd> <kbd>↓</kbd> to move, <kbd>Enter</kbd> to open</span></p>
     {/if}
@@ -265,6 +316,8 @@
   .hit { display: flex; align-items: baseline; gap: 8px; width: 100%; text-align: left; padding: 4px 8px; border-radius: var(--radius-sm); color: var(--text-muted); font-size: calc(12.5px * var(--ui-scale, 1)); }
   .hit.sel { background: var(--bg-active); color: var(--text); }
   .file-hit { align-items: center; }
+  .plugin-hit { flex-wrap: wrap; align-items: baseline; column-gap: 8px; }
+  .plugin-hit .detail { flex-basis: 100%; min-width: 0; color: var(--text-faint); font-size: calc(11.5px * var(--ui-scale, 1)); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .fname { color: var(--text); white-space: nowrap; }
   .fdir { color: var(--text-faint); font-size: calc(11.5px * var(--ui-scale, 1)); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .hit-file { display: flex; align-items: center; gap: 6px; font-size: calc(12px * var(--ui-scale, 1)); color: var(--text); padding: 8px 8px 2px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

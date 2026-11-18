@@ -161,6 +161,7 @@ A note's tags are its frontmatter `tags:` (a list, or words separated by commas 
 
 - **`tags` block** (`{view: tags}` in a `.page`, a ```` ```view ```` in a note, or the sidebar's page): every tag with its number of notes, nested ones indented; a click lists the tag's notes, a note opens. `ui/src/components/views/Tags.svelte`.
 - **`tag:<name>`** in quick open (Ctrl+P) and in the Search pane lists the notes with that tag or one nested under it (`search.rs`; the palette shows the core's answer as it is, `tagQuery` in `Palette.svelte`).
+- **`<property>:<value>`** in the Search pane (`status:draft`, `author:smith`, `type:email-thread`) lists the notes whose property holds the value — case ignored, a list's items each, a link's name without its brackets; the exact value first, then the notes containing it. It is answered from the note index, with no note read (`search::by_property`), and only when some note has that property: `http://…` stays a text search.
 - API: `GET /api/tags` → `[{tag, notes}]`.
 
 Tests: `tags.rs` (two), `ui/tests/tags.spec.ts`.

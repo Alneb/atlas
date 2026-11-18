@@ -5,10 +5,10 @@
 
 <section class="settings-panel preview" aria-label="Preview">
   <div class="note">
-    <h4>Hubbard model, cluster DMFT</h4>
-    <p>Each site couples to a bath; the <a href="#preview" onclick={(e) => e.preventDefault()}>self-energy</a> is local to the cluster. <mark>Highlighted</mark> and <code>inline code</code>, <span class="tag">#dmft</span>.</p>
+    <h4>A note’s heading</h4>
+    <p>Body text as notes show it, with a <a href="#preview" onclick={(e) => e.preventDefault()}>link to another note</a>, <mark>highlighted</mark> words, <code>inline code</code> and a <span class="tag">#tag</span>.</p>
   </div>
-  <pre class="code"><span class="kw">fn</span> <span class="fn">hop</span>(t: <span class="ty">f64</span>) -&gt; <span class="ty">f64</span> {"{"} t * <span class="num">0.5</span> {"}"} <span class="cm">// code font</span></pre>
+  <pre class="code"><span class="kw">fn</span> <span class="fn">half</span>(x: <span class="ty">f64</span>) -&gt; <span class="ty">f64</span> {"{"} x * <span class="num">0.5</span> {"}"} <span class="cm">// code font</span></pre>
   <div class="ui"><button class="primary">Primary</button><span class="sel">selected text</span><span class="muted">interface text</span></div>
 </section>
 

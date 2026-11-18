@@ -7,9 +7,11 @@
   import { laneEvent } from "./api";
   import type { Cal } from "./store.svelte";
 
-  let { cal, days, selected, onselect, oncreate }: {
+  let { cal, days, selected, onselect, onmenu, oncreate }: {
     cal: Cal; days: Date[]; selected: Ev | null;
     onselect: (e: Ev, at: DOMRect) => void;
+    /** a right-click on an event: its menu (App's `eventMenu`) */
+    onmenu: (e: Ev, ev: MouseEvent) => void;
     oncreate: (start: Date, end: Date, allDay: boolean, at: DOMRect) => void;
   } = $props();
 
@@ -57,12 +59,12 @@
         {/each}
         {#each L.bars as b (key(b.e) + b.from)}
           <button class="bar" class:sel={isSel(b.e)} class:clipl={b.clippedStart} class:clipr={b.clippedEnd} style:--c={color(b.e)} style:grid-column="{b.from + 1} / {b.to + 2}" style:grid-row={b.row + 2}
-            onclick={(ev) => onselect(b.e, (ev.currentTarget as HTMLElement).getBoundingClientRect())} title={b.e.summary}>{b.e.summary || "(no title)"}</button>
+            onclick={(ev) => onselect(b.e, (ev.currentTarget as HTMLElement).getBoundingClientRect())} oncontextmenu={(ev) => onmenu(b.e, ev)} title={b.e.summary}>{b.e.summary || "(no title)"}</button>
         {/each}
         {#each L.cells as c, i (i)}
           {#each c.timed as e, k (key(e))}
             <button class="line" class:sel={isSel(e)} class:cancel={e.status === "CANCELLED"} style:--c={color(e)} style:grid-column={i + 1} style:grid-row={L.used + 2 + k}
-              onclick={(ev) => onselect(e, (ev.currentTarget as HTMLElement).getBoundingClientRect())} title="{timeText(evStart(e), cal.h12)} {e.summary}">
+              onclick={(ev) => onselect(e, (ev.currentTarget as HTMLElement).getBoundingClientRect())} oncontextmenu={(ev) => onmenu(e, ev)} title="{timeText(evStart(e), cal.h12)} {e.summary}">
               <span class="dot" aria-hidden="true"></span><span class="tm">{timeText(evStart(e), cal.h12)}</span><span class="tt">{e.summary || "(no title)"}</span>
             </button>
           {/each}

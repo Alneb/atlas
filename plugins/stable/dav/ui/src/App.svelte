@@ -17,7 +17,7 @@
   import CalendarPicker from "./CalendarPicker.svelte";
   import { Cal, type Draft, type Moved, type View } from "./store.svelte";
   import { BY_KEY, COMMANDS, keyOf, shown, type Ui } from "./keys";
-  import { addDays, call, startOfDay, timeText, wall, ymd, type Ev, type PluginApi, type Quick, type TaskRow } from "./api";
+  import { addDays, call, notePath, startOfDay, timeText, wall, ymd, type Ev, type PluginApi, type Quick, type TaskRow } from "./api";
 
   let { atlas }: { atlas: PluginApi } = $props();
   // svelte-ignore state_referenced_locally
@@ -52,6 +52,21 @@
   // ----- what the commands need
 
   function select(e: Ev, at: DOMRect) { pop = { e, at }; editor = null; }
+  /** An event's right-click menu: what its card and editor do, at the pointer; then, for an event from a note, the
+   *  rows every file has (the shell's popMenu). A task of the deadlines layer has only its note. */
+  function eventMenu(e: Ev, ev: MouseEvent) {
+    if (typeof atlas.shell.popMenu !== "function") return; // an app before API v34: the WebView's own menu
+    const at = (ev.currentTarget as HTMLElement).getBoundingClientRect();
+    const note = e.task?.path ?? notePath(e) ?? undefined;
+    const rows = e.task ? [] : [
+      { label: "Show", icon: "calendar", run: () => select(e, at) },
+      { label: "Edit…", icon: "pen", disabled: !e.writable, run: () => edit(e) },
+      { label: "Duplicate", icon: "copy", run: () => void cal.duplicate(e) },
+      null,
+      { label: "Delete", icon: "trash", danger: true, disabled: !e.writable, run: () => void cal.remove(e) },
+    ];
+    atlas.shell.popMenu(ev, rows, { path: note, openLabel: "Open its note" });
+  }
   function create(start: Date, end: Date, allDay: boolean, at: DOMRect) {
     if (!cal.newCalendar()) { cal.toast(cal.configured ? "No calendar of your accounts takes new events (all read-only?)" : "Add a calendar account in Settings first", "error"); return; }
     pop = { draft: { start, end, all_day: allDay }, at };
@@ -240,16 +255,16 @@
         <div class="atlas-notice">No calendar account yet: add one in Settings (its server address, user name and app password; as many as you have) — or subscribe to a public calendar there.<div class="actions"><button class="atlas-btn primary" onclick={() => atlas.plugin.openSettings()}>Settings…</button></div></div>
       {/if}
       {#if cal.results}
-        <AgendaView {cal} events={cal.results} from={startOfDay(new Date())} to={startOfDay(new Date())} {selected} onselect={select} search />
+        <AgendaView {cal} events={cal.results} from={startOfDay(new Date())} to={startOfDay(new Date())} {selected} onselect={select} onmenu={eventMenu} search />
       {:else if view === "month"}
-        <MonthView {cal} days={cal.days()} {selected} onselect={select} oncreate={create} />
+        <MonthView {cal} days={cal.days()} {selected} onselect={select} onmenu={eventMenu} oncreate={create} />
       {:else if view === "agenda"}
-        <AgendaView {cal} events={cal.shownEvents()} from={cal.range().from} to={cal.range().to} {selected} onselect={select} />
+        <AgendaView {cal} events={cal.shownEvents()} from={cal.range().from} to={cal.range().to} {selected} onselect={select} onmenu={eventMenu} />
       {:else if view === "year"}
         <YearView {cal} />
       {:else}
         {#key view + cal.range().from.getTime()}
-          <TimeGrid {cal} days={cal.days()} {selected} onselect={select} oncreate={create} />
+          <TimeGrid {cal} days={cal.days()} {selected} onselect={select} onmenu={eventMenu} oncreate={create} />
         {/key}
       {/if}
     </main>

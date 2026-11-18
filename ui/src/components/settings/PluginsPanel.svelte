@@ -87,11 +87,6 @@
   .props span + span::before { content: " · "; color: var(--text-faint); }
   .props i { font-style: normal; color: var(--text-faint); }
   .props i::after { content: ": "; }
-  .switch { flex: none; width: 34px; height: 20px; border-radius: 10px; background: var(--border-strong); position: relative; }
-  .switch span { position: absolute; top: 3px; left: 3px; width: 14px; height: 14px; border-radius: 50%; background: var(--bg); transition: transform .15s; }
-  .switch.on { background: var(--accent); }
-  .switch.on span { transform: translateX(14px); }
-  .switch:disabled { opacity: .4; }
   .icon-btn { display: grid; place-items: center; width: 26px; height: 26px; border-radius: var(--radius-sm); color: var(--text-muted); }
   .icon-btn:hover { background: var(--bg-active); color: var(--text); }
   .btn { display: inline-flex; gap: 6px; align-items: center; margin: 8px 0 4px; padding: 3px 10px; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); }

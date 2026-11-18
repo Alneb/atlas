@@ -4,8 +4,9 @@
 # book as one (`instead`); without it, books are books.
 title = "Catalog · Books"
 description = "books by ISBN, Open Library or Goodreads, filled in by Open Library"
+phone = true # runs in the phone apps too: its helper is JavaScript in the core (QuickJS), no program of its own
 icon = "book"
-version = "0.3.0"
+version = "0.4.0"
 # the merged Catalog · Open sources is split again into its five plugins; a vault that had it keeps nothing of it
 # but its settings (sources, contact), which these do not need
 api = 19

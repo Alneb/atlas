@@ -22,6 +22,15 @@ agent: boolean,
  */
 pdf: boolean, 
 /**
+ * Read every text file, not only the notes (code, logs, a run's outputs, data): off by default.
+ */
+all: boolean, 
+/**
  * Only the names (files matched by name), no file read: answered at once, before the lines.
  */
-names: boolean, };
+names: boolean, 
+/**
+ * Who asks, as a line of searches (a Search pane's own id): a newer search in the same lane makes this one stop
+ * reading files, so the searches typed on the way to a word do not all read the vault to the end.
+ */
+lane?: string, };

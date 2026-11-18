@@ -1,5 +1,5 @@
-// The helper through the SDK's harness, zstd faked (`harness.exec`) and the core's file API recorded. The pruning runs
-// against a fake cache: `find` lists `cache`, `rm` deletes from it, `touch` stamps a copy with the current time.
+// The helper through the SDK's harness, the core's decoder faked (`harness.native`, its own test is convert.rs) and the
+// core's file API recorded. The pruning runs against a fake cache: `find` lists `cache`, `rm` deletes from it.
 import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import { harness } from "atlas-helper/testing";
@@ -17,6 +17,8 @@ let cache: Map<string, { mtime: number; size: number }>;
 let extra = "";
 let removed: string[] = [];
 let warned: string[] = [];
+/** What the core's decoder was asked: `convert.unzstd` paths. */
+let decoded: string[] = [];
 
 beforeEach(() => {
   harness.reset();
@@ -25,20 +27,22 @@ beforeEach(() => {
   extra = "";
   removed = [];
   warned = [];
+  decoded = [];
+  // the copy written afresh: its mtime is now
+  harness.native = (op, a) => {
+    if (op !== "convert.unzstd") throw new Error(`no native ${op}`);
+    decoded.push(a.path);
+    const out = `.atlas/cache/plugins/test/${String(a.path).replace(/\.zst$/i, "")}`;
+    cache.set(out.slice(DIR.length - 1), { mtime: Date.now() / 1000, size: 10 * MB });
+    return out;
+  };
   console.warn = (m: string) => void warned.push(m);
   harness.api = (verb, path, body) => {
     if (verb === "PUT" && path === "/api/file") written.push(body.path);
     return {};
   };
   harness.exec = (program, args) => {
-    const now = Date.now() / 1000;
-    if (program === "zstd") {
-      const out = args[args.indexOf("-o") + 1].slice(DIR.length + 1);
-      cache.set(out, { mtime: now - 1000 * HOUR, size: 10 * MB }); // zstd keeps the .zst's old mtime
-    } else if (program === "touch") {
-      const f = cache.get(args.at(-1)!.slice(DIR.length + 1));
-      if (f) f.mtime = now;
-    } else if (program === "find" && args.includes("-printf")) {
+    if (program === "find" && args.includes("-printf")) {
       const list = [...cache].map(([rel, f]) => `${f.mtime}\t${f.size}\t${rel}\0`).join("");
       return { status: 0, stdout: list + extra, stderr: "" };
     } else if (program === "rm") {
@@ -58,25 +62,24 @@ test("the copy keeps the folders and the inner name, so it opens in that file's 
   assert.equal(copyPath("zstd", "x.ZST"), ".atlas/cache/plugins/zstd/x");
 });
 
-test("open decompresses into the cache and answers the copy's path", async () => {
+test("open decompresses into the cache by the core's decoder and answers the copy's path", async () => {
   const r = await harness.call("open", { path: "runs/a/b.tsv.zst" });
-  const out = r.path;
-  assert.equal(out, ".atlas/cache/plugins/test/runs/a/b.tsv");
-  assert.deepEqual(written, [out], "the folder is made through the core first");
-  assert.equal(harness.ran[0].program, "zstd");
-  assert.deepEqual(harness.ran[0].args, ["-d", "-q", "-f", "-o", `./${out}`, "./runs/a/b.tsv.zst"]);
-  assert.deepEqual([harness.ran[1].program, ...harness.ran[1].args], ["touch", "-c", `./${out}`], "stamped as opened now");
+  assert.equal(r.path, ".atlas/cache/plugins/test/runs/a/b.tsv");
+  assert.deepEqual(decoded, ["runs/a/b.tsv.zst"]);
+  assert.deepEqual(written, [], "the core makes the folders");
+  assert.equal(harness.ran.filter((x) => x.program === "zstd").length, 0, "no zstd program: the phone has none");
 });
 
-test("zstd's error is the answer", async () => {
-  harness.exec = () => ({ status: 1, stdout: "", stderr: "zstd: b.tsv.zst: unsupported format\n" });
-  await assert.rejects(harness.call("open", { path: "b.tsv.zst" }), /unsupported format/);
+test("the decoder's error is the answer", async () => {
+  harness.native = () => { throw new Error("b.tsv.zst: not Zstandard data this reads (bad magic)"); };
+  await assert.rejects(harness.call("open", { path: "b.tsv.zst" }), /not Zstandard data/);
 });
 
 test("only a .zst inside the vault", async () => {
   await assert.rejects(harness.call("open", { path: "a.tsv" }), /not a \.zst/);
   await assert.rejects(harness.call("open", { path: "../x.zst" }), /not a vault path/);
   assert.equal(harness.ran.length, 0);
+  assert.deepEqual(decoded, []);
 });
 
 test("copies not opened for a day are deleted, newer ones kept, empty folders taken away", async () => {
@@ -111,7 +114,7 @@ test("the limits come from the settings", async () => {
   assert.deepEqual(removed, [`${DIR}/a.tsv`, `${DIR}/b.tsv`]);
 });
 
-test("the copy just made is never deleted, even alone over the cap or with zstd's old mtime", async () => {
+test("the copy just made is never deleted, even alone over the cap or with an old mtime", async () => {
   const files = [{ rel: "big.tsv", mtime: ago(1000), size: 900 * MB }, { rel: "x.tsv", mtime: ago(1), size: 1 }];
   assert.deepEqual(victims(files, "big.tsv", ago(0), 24 * HOUR, 500 * MB), ["x.tsv"]);
   // through open: the new 10 MB copy alone is over a 1 MB cap; the other goes, it stays
@@ -126,13 +129,13 @@ test("nothing outside the cache is touched, whatever find answers", async () => 
   cache.set("old.tsv", { mtime: ago(99), size: 1 });
   await harness.call("open", { path: "x.tsv.zst" });
   assert.deepEqual(removed, [`${DIR}/old.tsv`]);
-  for (const r of harness.ran.filter((r) => r.program !== "zstd")) {
+  for (const r of harness.ran) {
     for (const a of r.args.filter((a) => a.startsWith("./"))) assert.ok(a === DIR || a.startsWith(`${DIR}/`), a);
   }
   assert.deepEqual(parseListing(`1\t2\ta\tb\0`), [{ rel: "a\tb", mtime: 1, size: 2 }], "a tab in a name survives");
 });
 
-test("a pruning failure is logged, never the open's", async () => {
+test("a pruning failure is logged, never the open's (the phone: no find)", async () => {
   harness.exec = (program) =>
     program === "find" ? { status: 1, stdout: "", stderr: "find: -printf: unknown primary\n" } : { status: 0, stdout: "", stderr: "" };
   const r = await harness.call("open", { path: "x.tsv.zst" });

@@ -31,6 +31,14 @@ pub struct Report {
 }
 
 const BATCH: usize = 250;
+/// The longest one sync of an account may take. A sync only one at a time per account (`begin_sync`), so one stuck on a
+/// connection that stopped answering would hold every later one off — the mail no longer updating, with no error said.
+/// Past this it is given up (its connections dropped) and the next round starts afresh. Generous: a first sync of a
+/// large account fetches headers in batches and may take minutes.
+const SYNC_DEADLINE: Duration = Duration::from_secs(20 * 60);
+/// How long one IDLE waits before it is issued again: well under the 29 minutes servers allow, and short enough that a
+/// connection a router dropped without a word is noticed (with the socket's keepalive) and opened again.
+const IDLE_FOR: Duration = Duration::from_secs(9 * 60);
 const FLAG_WINDOW: usize = 500;
 
 /// The order folders are synced in: what people look at first.
@@ -59,11 +67,14 @@ pub async fn account(m: &Mail, acc: &Account, only: Option<&[String]>) -> Result
         return Ok(Report::default());
     }
     m.event("status", json!({ "account": acc.name, "state": "syncing" }));
-    let mut r = account_inner(m, acc, only).await;
+    let mut r = within_deadline(account_inner(m, acc, only)).await;
     // servers hang up on idle or busy connections: a sync only asks what changed, so a new connection just goes on
-    if r.as_ref().is_err_and(|e| crate::imap::connection_lost(&e.text)) {
+    if r.as_ref().is_err_and(|e| crate::imap::connection_lost(&e.text) || e.text.starts_with(STALLED)) {
         m.drop_conns(&acc.name);
-        r = account_inner(m, acc, only).await;
+        r = within_deadline(account_inner(m, acc, only)).await;
+    }
+    if r.as_ref().is_err_and(|e| e.text.starts_with(STALLED)) {
+        m.drop_conns(&acc.name); // a stalled connection is never handed to the next sync
     }
     m.end_sync(&acc.name);
     match &r {
@@ -80,6 +91,13 @@ pub async fn account(m: &Mail, acc: &Account, only: Option<&[String]>) -> Result
         Err(e) => m.event("status", unreachable_status(&acc.name, e)),
     }
     r.map_err(String::from)
+}
+
+const STALLED: &str = "the server stopped answering in the middle of a sync";
+
+/// A sync given at most [`SYNC_DEADLINE`]: past it, a connection failure the caller retries once on new connections.
+async fn within_deadline(sync: impl std::future::Future<Output = Result<Report, Fail>>) -> Result<Report, Fail> {
+    tokio::time::timeout(SYNC_DEADLINE, sync).await.unwrap_or_else(|_| Err(Fail::connection(format!("{STALLED} (over {} min)", SYNC_DEADLINE.as_secs() / 60))))
 }
 
 /// The status of an account that could not be synced: `offline` when the way to the server failed (tried again by
@@ -239,11 +257,25 @@ pub async fn bodies(m: &Mail, c: &mut Imap, acc: &Account, n: usize) -> Result<(
     Ok(())
 }
 
-/// The body of one message: from the cache, else fetched (and kept).
+/// The body of one message: from the cache, else fetched (and kept). The kept copy may have its big attachments left
+/// out (`parse::slim`): what reads them asks [`whole`].
 pub async fn body(m: &Mail, id: i64) -> Result<Vec<u8>, String> {
     if let Some(b) = m.index.body(id) {
         return Ok(b);
     }
+    fetch(m, id).await
+}
+
+/// The whole message, every attachment in it: the kept copy when nothing was left out of it, else the server's.
+pub async fn whole(m: &Mail, id: i64) -> Result<Vec<u8>, String> {
+    match m.index.body(id) {
+        Some(b) if !crate::parse::is_slim(&b) => Ok(b),
+        _ => fetch(m, id).await,
+    }
+}
+
+/// One message from its server (and kept, slim).
+async fn fetch(m: &Mail, id: i64) -> Result<Vec<u8>, String> {
     let msg = m.index.msg(id).ok_or("that message is gone")?;
     let acc = m.account(Some(&msg.account))?;
     let mut c = m.conn(&acc).await?;
@@ -318,7 +350,7 @@ async fn idle_loop(m: Arc<Mail>, name: String) {
             let (caps, account_name) = (c.caps.clone(), c.account.clone());
             let mut idle = c.s.idle();
             idle.init().await.map_err(|e| format!("IDLE: {e}"))?;
-            let (wait, _stop) = idle.wait_with_timeout(Duration::from_secs(25 * 60));
+            let (wait, _stop) = idle.wait_with_timeout(IDLE_FOR);
             let got = wait.await.map_err(|e| format!("IDLE: {e}"))?;
             let s = idle.done().await.map_err(|e| format!("IDLE: {e}"))?;
             let c = Imap { s, caps, account: account_name, selected: None };
@@ -413,6 +445,19 @@ mod tests {
         assert_eq!(rows[0].snippet, "Le séminaire est jeudi à 14 h.", "bodies prefetched");
         assert!(rows[1].has_attachments);
         assert!(events.lock().unwrap().iter().any(|(n, _)| n == "changed"));
+    }
+
+    /// A sync that never ends (a connection that went silent) is given up at the deadline, as a connection failure: the
+    /// account's next sync is not held off by it.
+    #[tokio::test(start_paused = true)]
+    async fn a_sync_stuck_past_its_deadline_is_given_up() {
+        let r = within_deadline(std::future::pending::<Result<Report, Fail>>()).await;
+        let e = r.unwrap_err();
+        assert!(e.text.starts_with(STALLED) && e.trouble == Trouble::Connection, "{}", e.text);
+        assert!(within_deadline(async { Ok(Report::default()) }).await.is_ok());
+        assert!(crate::imap::connection_lost("IDLE: Connection timed out (os error 110)"));
+        assert!(crate::imap::connection_lost("Connection reset by peer (os error 104)"));
+        assert!(!crate::imap::connection_lost("NO [AUTHENTICATIONFAILED] Invalid credentials"));
     }
 
     #[test]

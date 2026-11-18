@@ -81,11 +81,18 @@ const TIMEOUT: Duration = Duration::from_secs(30);
 /// ("STARTTLS" for IMAP; SMTP does its own after EHLO).
 pub async fn open(server: &Server) -> Result<Stream, String> {
     let addr = format!("{}:{}", server.host, server.port);
-    let tcp = tokio::time::timeout(TIMEOUT, TcpStream::connect(&addr))
+    // every address raced, not tried in turn: a broken IPv6 route would otherwise use the whole timeout (connect.rs)
+    let tcp = tokio::time::timeout(TIMEOUT, crate::connect::connect(&server.host, server.port))
         .await
         .map_err(|_| format!("{addr} did not answer in {} s", TIMEOUT.as_secs()))?
         .map_err(|e| format!("cannot reach {addr}: {e}"))?;
     let _ = tcp.set_nodelay(true);
+    // probes while idle, so a connection that died silently (the laptop slept, a router forgot it) fails within about a
+    // minute instead of hanging an IDLE or a sync for good; the system's default would wait two hours
+    let keep = socket2::TcpKeepalive::new().with_time(Duration::from_secs(45)).with_interval(Duration::from_secs(10));
+    #[cfg(any(target_os = "linux", target_os = "android", target_os = "macos"))]
+    let keep = keep.with_retries(3);
+    let _ = socket2::SockRef::from(&tcp).set_tcp_keepalive(&keep);
     match server.security {
         Security::Tls => tls(tcp, &server.host).await,
         Security::None => Ok(Stream::Plain(tcp)),
@@ -570,7 +577,9 @@ fn failed(cmd: &str, e: async_imap::error::Error) -> String {
 
 /// The connection itself is gone or stuck (not one command refused): only a new connection can go on.
 pub fn connection_lost(e: &str) -> bool {
-    e.contains("closed the connection") || e.contains("did not finish")
+    // the server hung up, or the socket died under us (the keepalive gave up, a reset after a network change)
+    let e = e.to_ascii_lowercase();
+    ["closed the connection", "did not finish", "timed out", "connection reset", "broken pipe", "not connected"].iter().any(|w| e.contains(w))
 }
 
 fn first_word(cmd: &str) -> &str {

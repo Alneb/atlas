@@ -91,8 +91,9 @@ test("while a film plays, a new line starts with its time and typing pauses it u
     await expect(page.getByTestId("now-playing").getByRole("button", { name: "Pause" })).toBeVisible();
 
     await page.locator(".cm-content").getByText("Notes:").click();
-    await page.keyboard.press("End");
-    await page.keyboard.press("Enter");
+    // a new line under it (the tests' vault has vim on: `o` there, End + Enter without it)
+    if (await page.locator(".cm-fat-cursor").count()) await page.keyboard.press("o");
+    else { await page.keyboard.press("End"); await page.keyboard.press("Enter"); }
     await page.keyboard.type("x");
     await expect.poll(() => noteText(request), { timeout: 15_000 }).toMatch(/\n\[\[film\.mkv#t=1:0\d\]\] x/);
     // the key paused it; a second later it plays on by itself

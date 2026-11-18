@@ -26,6 +26,13 @@ pub struct Query {
 }
 
 impl Query {
+    /// The words as parts of subjects and names (the `names` trigram table): each of three characters or more,
+    /// all required; `None` when there is none that long.
+    pub fn substring(&self) -> Option<String> {
+        let long: Vec<String> = self.words.iter().filter(|w| w.chars().count() >= 3).map(|w| format!("\"{}\"", w.replace('"', ""))).collect();
+        (!long.is_empty()).then(|| long.join(" AND "))
+    }
+
     pub fn is_empty(&self) -> bool {
         self.sql.is_empty() && self.text.is_none() && self.folder.is_none() && self.account.is_none()
     }

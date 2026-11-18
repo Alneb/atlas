@@ -11,6 +11,14 @@ use std::sync::Mutex;
 
 /// Bumped when the schema changes: an older index is dropped and synced again (it is only a cache).
 const SCHEMA: i64 = 3;
+/// The word index: subject, people, body as words (accents folded), with prefix indexes of 2 and 3 characters so the
+/// word being typed (`"lat"*`) is answered from the index, not a scan of every term.
+const FTS: &str = "subject, people, body, content='', contentless_delete=1, prefix='2 3', tokenize='unicode61 remove_diacritics 2'";
+/// Subjects and people as trigrams: a part of a word (`attice` in "lattice", a piece of an address) is found when the
+/// words find nothing ([`Scope::substring`]). Bodies stay words only (the trigram index of every body would be large).
+const NAMES: &str = "subject, people, content='', contentless_delete=1, tokenize='trigram'";
+/// Raised when the search tables change (`Index::upgrade_search` rebuilds them from the rows and the kept bodies).
+const SEARCH_VERSION: u32 = 2;
 
 pub struct Index {
     db: Mutex<Connection>,
@@ -92,7 +100,17 @@ pub struct Scope {
     pub flat: bool,
     /// important (starred) conversations first: the inbox's pinned section
     pub pin: bool,
+    /// with `text`, newest first as without it, instead of the best matches first ([`RANK`])
+    pub by_date: bool,
+    /// an FTS5 trigram query over subjects and people (`NAMES`): what is listed when `text` finds nothing, or alone
+    /// when there is no `text`
+    pub substring: Option<String>,
 }
+
+/// How a search's matches are ordered: `h.r`, FTS5's bm25 with the subject weighing 8, the people 4, the body 1
+/// ([`Index::list`]), divided by one plus the message's age in five-year units — a match from this week above an equal
+/// one from years ago, a much better old one still above a poor new one. Smaller is better (bm25 is negative).
+const RANK: &str = "h.r / (1.0 + max(0, strftime('%s','now') - m.date) / 157680000.0)";
 
 /// A conversation as the list shows it.
 #[derive(Debug, Clone, Serialize)]
@@ -166,7 +184,7 @@ impl Index {
         let v: i64 = db.query_row("PRAGMA user_version", [], |r| r.get(0)).map_err(e)?;
         if v != SCHEMA {
             db.execute_batch(
-                "DROP TABLE IF EXISTS bodies; DROP TABLE IF EXISTS fts; DROP TABLE IF EXISTS msgids; DROP TABLE IF EXISTS messages;
+                "DROP TABLE IF EXISTS bodies; DROP TABLE IF EXISTS fts; DROP TABLE IF EXISTS names; DROP TABLE IF EXISTS msgids; DROP TABLE IF EXISTS messages;
                  DROP TABLE IF EXISTS threads; DROP TABLE IF EXISTS folders; DROP TABLE IF EXISTS contacts; DROP TABLE IF EXISTS prefs;",
             )
             .map_err(e)?;
@@ -191,10 +209,12 @@ impl Index {
                  CREATE TABLE msgids (account TEXT NOT NULL, msgid TEXT NOT NULL, thread INTEGER NOT NULL, PRIMARY KEY (account, msgid));
                  CREATE INDEX msgids_thread ON msgids(thread);
                  CREATE TABLE bodies (id INTEGER PRIMARY KEY REFERENCES messages(id) ON DELETE CASCADE, raw BLOB NOT NULL, at INTEGER NOT NULL);
-                 CREATE VIRTUAL TABLE fts USING fts5(subject, people, body, content='', contentless_delete=1, tokenize='unicode61 remove_diacritics 2');
+                 CREATE VIRTUAL TABLE fts USING fts5({FTS});
+                 CREATE VIRTUAL TABLE names USING fts5({NAMES});
                  CREATE TABLE contacts (addr TEXT PRIMARY KEY, name TEXT NOT NULL DEFAULT '', sent INTEGER NOT NULL DEFAULT 0,
                    received INTEGER NOT NULL DEFAULT 0, last INTEGER NOT NULL DEFAULT 0);
                  CREATE TABLE prefs (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+                 INSERT INTO prefs VALUES ('search_version', '{SEARCH_VERSION}');
                  PRAGMA user_version = {SCHEMA};"
             ))
             .map_err(e)?;
@@ -389,7 +409,9 @@ impl Index {
             )
             .map_err(err)?;
             let id = tx.last_insert_rowid();
-            tx.execute("INSERT INTO fts(rowid, subject, people, body) VALUES (?1, ?2, ?3, '')", params![id, e.subject, people_text(e)]).map_err(err)?;
+            let ppl = people_text(e);
+            tx.execute("INSERT INTO fts(rowid, subject, people, body) VALUES (?1, ?2, ?3, '')", params![id, e.subject, ppl]).map_err(err)?;
+            tx.execute("INSERT INTO names(rowid, subject, people) VALUES (?1, ?2, ?3)", params![id, e.subject, ppl]).map_err(err)?;
             tx.execute("UPDATE threads SET last=max(last, ?2) WHERE id=?1", params![thread, e.date]).map_err(err)?;
             contacts_seen(&tx, e, own)?;
             added.push(id);
@@ -548,8 +570,10 @@ impl Index {
 
     // ----- bodies
 
+    /// The kept copy of a message (its big attachments left out: `parse::slim`), unpacked.
     pub fn body(&self, id: i64) -> Option<Vec<u8>> {
-        self.db().query_row("SELECT raw FROM bodies WHERE id=?1", [id], |r| r.get(0)).optional().ok().flatten()
+        let kept: Vec<u8> = self.db().query_row("SELECT raw FROM bodies WHERE id=?1", [id], |r| r.get(0)).optional().ok().flatten()?;
+        unpack(&kept)
     }
 
     /// A body fetched: kept, and what it says goes into the row (snippet, attachments) and the search index.
@@ -565,9 +589,9 @@ impl Index {
             .optional()
             .map_err(err)?;
         let Some((subject, from, to, cc)) = row else { return Ok(()) };
-        tx.execute("INSERT OR REPLACE INTO bodies(id, raw, at) VALUES (?1, ?2, strftime('%s','now'))", params![id, raw]).map_err(err)?;
+        tx.execute("INSERT OR REPLACE INTO bodies(id, raw, at) VALUES (?1, ?2, strftime('%s','now'))", params![id, pack(raw)]).map_err(err)?;
         tx.execute("UPDATE messages SET snippet=?2, has_att=?3 WHERE id=?1", params![id, snippet, has_att]).map_err(err)?;
-        let ppl = [people(&from), people(&to), people(&cc)].concat().iter().map(|p| format!("{} {}", p.name, p.addr)).collect::<Vec<_>>().join(" ");
+        let ppl = people_line(&from, &to, &cc);
         tx.execute("DELETE FROM fts WHERE rowid=?1", [id]).map_err(err)?;
         tx.execute("INSERT INTO fts(rowid, subject, people, body) VALUES (?1, ?2, ?3, ?4)", params![id, subject, ppl, text]).map_err(err)?;
         tx.commit().map_err(err)
@@ -619,6 +643,40 @@ impl Index {
         n
     }
 
+    /// The search tables made again as `FTS` and `NAMES` say when they changed (`search_version`): subjects and
+    /// people from the rows, then the kept bodies' words through [`Index::reparse`] (asked for by lowering
+    /// `parse_version`). Nothing is fetched from a server. → whether it ran.
+    pub fn upgrade_search(&self) -> bool {
+        if self.pref("search_version").and_then(|v| v.parse::<u32>().ok()).unwrap_or(1) >= SEARCH_VERSION {
+            return false;
+        }
+        let rows: Vec<(i64, String, String, String, String)> = {
+            let db = self.db();
+            let Ok(mut st) = db.prepare("SELECT id, subject, from_json, to_json, cc_json FROM messages") else { return false };
+            st.query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?))).map(|r| r.filter_map(Result::ok).collect()).unwrap_or_default()
+        };
+        let mut db = self.db();
+        let Ok(tx) = db.transaction() else { return false };
+        let made = tx
+            .execute_batch(&format!("DROP TABLE IF EXISTS fts; DROP TABLE IF EXISTS names; CREATE VIRTUAL TABLE fts USING fts5({FTS}); CREATE VIRTUAL TABLE names USING fts5({NAMES});"))
+            .is_ok();
+        if !made {
+            return false;
+        }
+        for (id, subject, from, to, cc) in rows {
+            let ppl = people_line(&from, &to, &cc);
+            let _ = tx.execute("INSERT INTO fts(rowid, subject, people, body) VALUES (?1, ?2, ?3, '')", params![id, subject, ppl]);
+            let _ = tx.execute("INSERT INTO names(rowid, subject, people) VALUES (?1, ?2, ?3)", params![id, subject, ppl]);
+        }
+        if tx.commit().is_err() {
+            return false;
+        }
+        drop(db);
+        self.set_pref("parse_version", "1"); // every kept body's words again
+        self.set_pref("search_version", &SEARCH_VERSION.to_string());
+        true
+    }
+
     /// Kept bodies read again when the parser has changed (`parse::VERSION`): previews and the search's text follow
     /// it with no trip to a server. → how many were read again.
     pub fn reparse(&self) -> usize {
@@ -633,8 +691,7 @@ impl Index {
         };
         let mut n = 0;
         for id in ids {
-            let raw: Option<Vec<u8>> = self.db().query_row("SELECT raw FROM bodies WHERE id=?1", [id], |r| r.get(0)).optional().ok().flatten();
-            if let Some(raw) = raw {
+            if let Some(raw) = self.body(id) {
                 if self.set_body(id, &raw).is_ok() {
                     n += 1;
                 }
@@ -642,6 +699,56 @@ impl Index {
         }
         self.set_pref("parse_version", &parse::VERSION.to_string());
         n
+    }
+
+    /// Bodies kept before they were packed (whole, uncompressed) packed now, a batch per transaction, then the file
+    /// [`Index::compact`]ed after — once per index (`packed_version`). Nothing is fetched again: what is left out is what the server still has. → how many.
+    pub fn pack_kept(&self) -> usize {
+        if self.pref("packed_version").is_some_and(|v| v == "1") {
+            return 0;
+        }
+        let ids: Vec<i64> = {
+            let db = self.db();
+            // a zstd frame starts with its magic number; a kept message never does
+            let Ok(mut st) = db.prepare("SELECT id FROM bodies WHERE substr(raw, 1, 4) != x'28B52FFD'") else { return 0 };
+            st.query_map([], |r| r.get(0)).map(|r| r.filter_map(Result::ok).collect()).unwrap_or_default()
+        };
+        let mut n = 0;
+        for batch in ids.chunks(64) {
+            let mut db = self.db();
+            let Ok(tx) = db.transaction() else { return n };
+            for &id in batch {
+                let raw: Option<Vec<u8>> = tx.query_row("SELECT raw FROM bodies WHERE id=?1", [id], |r| r.get(0)).optional().ok().flatten();
+                if let Some(raw) = raw.filter(|r| !is_packed(r)) {
+                    if tx.execute("UPDATE bodies SET raw=?2 WHERE id=?1", params![id, pack(&raw)]).is_ok() {
+                        n += 1;
+                    }
+                }
+            }
+            if tx.commit().is_err() {
+                return n;
+            }
+        }
+        self.set_pref("packed_version", "1");
+        n
+    }
+
+    /// The file made smaller when over a quarter of it is free pages (bodies packed, re-read or pruned leave their old
+    /// pages free: SQLite reuses them but never gives them back). `VACUUM` rewrites the file once. → bytes given back.
+    pub fn compact(&self) -> u64 {
+        let db = self.db();
+        let pragma = |p: &str| db.query_row(&format!("PRAGMA {p}"), [], |r| r.get::<_, i64>(0)).unwrap_or(0);
+        let (size, pages, free) = (pragma("page_size"), pragma("page_count"), pragma("freelist_count"));
+        if free * 4 < pages || free == 0 {
+            return 0;
+        }
+        match db.execute_batch("VACUUM") {
+            Ok(()) => (free * size) as u64,
+            Err(e) => {
+                eprintln!("email: the index could not be compacted: {e}");
+                0
+            }
+        }
     }
 
     /// Ids of messages whose body is not kept, newest first, among `ids` (or the newest of the account when empty).
@@ -688,17 +795,38 @@ impl Index {
 
     /// Conversations (or messages, `flat`) in a scope, newest first.
     pub fn list(&self, scope: &Scope, limit: usize, offset: usize) -> Vec<Conversation> {
-        let (cond, args) = self.scope_sql(scope);
+        if let Some(parts) = self.by_parts(scope) {
+            return self.list(&parts, limit, offset);
+        }
+        let (cond, mut args) = self.scope_sql(scope);
         let db = self.db();
         let group = if scope.flat { "m.id" } else { "m.thread" };
-        let sql = format!(
-            "WITH f AS (SELECT {group} AS k, max(m.date) AS d, max(m.id) AS newest, {pin} AS p FROM messages m WHERE {cond} GROUP BY {group} ORDER BY p DESC, d DESC, newest DESC LIMIT {limit} OFFSET {offset})
-             SELECT f.k, f.newest FROM f ORDER BY f.p DESC, f.d DESC, f.newest DESC",
-            pin = if scope.pin { "max(m.flagged)" } else { "0" }
-        );
+        let pin = if scope.pin { "max(m.flagged)" } else { "0" };
+        // words searched: each conversation scored by its best message ([`RANK`]), unless the date order is asked for
+        let ranked = scope.text.as_ref().filter(|t| !t.trim().is_empty() && !scope.by_date);
+        let sql = match ranked {
+            Some(t) => {
+                args.push(t.clone().into());
+                format!(
+                    "WITH h AS MATERIALIZED (SELECT rowid AS id, bm25(fts, 8.0, 4.0, 1.0) AS r FROM fts WHERE fts MATCH ?{n}),
+                     f AS (SELECT {group} AS k, max(m.date) AS d, max(m.id) AS newest, {pin} AS p, min({rank}) AS s
+                           FROM messages m JOIN h ON h.id = m.id WHERE {cond} GROUP BY {group} ORDER BY p DESC, s, d DESC, newest DESC LIMIT {limit} OFFSET {offset})
+                     SELECT f.k, f.newest FROM f ORDER BY f.p DESC, f.s, f.d DESC, f.newest DESC",
+                    n = args.len(),
+                    rank = RANK,
+                )
+            }
+            None => format!(
+                "WITH f AS (SELECT {group} AS k, max(m.date) AS d, max(m.id) AS newest, {pin} AS p FROM messages m WHERE {cond} GROUP BY {group} ORDER BY p DESC, d DESC, newest DESC LIMIT {limit} OFFSET {offset})
+                 SELECT f.k, f.newest FROM f ORDER BY f.p DESC, f.d DESC, f.newest DESC"
+            ),
+        };
         let mut st = match db.prepare(&sql) {
             Ok(s) => s,
-            Err(_) => return vec![],
+            Err(e) => {
+                eprintln!("email: a list's query failed: {e}");
+                return vec![];
+            }
         };
         let keys: Vec<(i64, i64)> = st.query_map(params_from_iter(args), |r| Ok((r.get(0)?, r.get(1)?))).map(|r| r.filter_map(Result::ok).collect()).unwrap_or_default();
         drop(st);
@@ -725,8 +853,23 @@ impl Index {
             .collect()
     }
 
+    /// The scope searched by parts of words ([`Scope::substring`]) when its words match nothing at all.
+    fn by_parts(&self, scope: &Scope) -> Option<Scope> {
+        scope.text.as_ref()?;
+        let substring = scope.substring.clone()?;
+        let words = Scope { substring: None, ..scope.clone() };
+        (self.count_of(&words).0 == 0).then(|| Scope { text: None, substring: Some(substring), by_date: true, ..scope.clone() })
+    }
+
     /// How many conversations a scope holds, and how many of them are unread.
     pub fn count(&self, scope: &Scope) -> (i64, i64) {
+        match self.by_parts(scope) {
+            Some(parts) => self.count_of(&parts),
+            None => self.count_of(scope),
+        }
+    }
+
+    fn count_of(&self, scope: &Scope) -> (i64, i64) {
         let (cond, args) = self.scope_sql(scope);
         let db = self.db();
         let group = if scope.flat { "m.id" } else { "m.thread" };
@@ -757,6 +900,9 @@ impl Index {
         if let Some(t) = scope.text.as_ref().filter(|t| !t.trim().is_empty()) {
             args.push(t.clone().into());
             cond.push(format!("m.id IN (SELECT rowid FROM fts WHERE fts MATCH ?{})", args.len()));
+        } else if let Some(t) = scope.substring.as_ref() {
+            args.push(t.clone().into());
+            cond.push(format!("m.id IN (SELECT rowid FROM names WHERE names MATCH ?{})", args.len()));
         }
         (cond.join(" AND "), args)
     }
@@ -823,8 +969,36 @@ fn dedupe_in(all: &HashSet<(String, String)>, msgs: Vec<Msg>) -> Vec<Msg> {
     out
 }
 
+
+/// What a kept message is stored as: its slim copy (`parse::slim`: big attachments left out), zstd-compressed (mail
+/// text compresses several times).
+fn pack(raw: &[u8]) -> Vec<u8> {
+    let slim = parse::slim(raw);
+    ruzstd::encoding::compress_to_vec(slim.as_deref().unwrap_or(raw), ruzstd::encoding::CompressionLevel::Fastest)
+}
+
+fn is_packed(kept: &[u8]) -> bool {
+    kept.starts_with(&[0x28, 0xB5, 0x2F, 0xFD])
+}
+
+/// A kept message as [`pack`] stored it; one kept before packing is returned as it is.
+fn unpack(kept: &[u8]) -> Option<Vec<u8>> {
+    use std::io::Read;
+    if !is_packed(kept) {
+        return Some(kept.to_vec());
+    }
+    let mut out = Vec::with_capacity(kept.len() * 4);
+    ruzstd::decoding::StreamingDecoder::new(kept).ok()?.read_to_end(&mut out).ok()?;
+    Some(out)
+}
+
 fn err(e: rusqlite::Error) -> String {
     format!("mail index: {e}")
+}
+
+/// The people of a row (its JSON columns) as the search indexes them: names and addresses.
+fn people_line(from: &str, to: &str, cc: &str) -> String {
+    [people(from), people(to), people(cc)].concat().iter().map(|p| format!("{} {}", p.name, p.addr)).collect::<Vec<_>>().join(" ")
 }
 
 fn people_text(e: &Envelope) -> String {
@@ -867,6 +1041,7 @@ fn labels_of(gm: &str, flags: &str) -> Vec<String> {
 
 fn delete_where(tx: &Transaction, cond: &str, args: impl rusqlite::Params + Clone) -> Result<usize, String> {
     tx.execute(&format!("DELETE FROM fts WHERE rowid IN (SELECT id FROM messages WHERE {cond})"), args.clone()).map_err(err)?;
+    tx.execute(&format!("DELETE FROM names WHERE rowid IN (SELECT id FROM messages WHERE {cond})"), args.clone()).map_err(err)?;
     tx.execute(&format!("DELETE FROM messages WHERE {cond}"), args).map_err(err)
 }
 
@@ -1235,6 +1410,97 @@ mod tests {
         assert!(!ix.msg(ids[0]).unwrap().cached);
     }
 
+    /// Words searched: the best matches first (the subject weighs most), an equal match newer above an older one, and
+    /// the date order on request; a part of a word in a subject or a name found when the words find nothing.
+    #[test]
+    fn a_search_ranks_by_relevance_and_age_and_finds_parts_of_names() {
+        let ix = setup();
+        let mails = [
+            mail("old@x", "Lattice gauge notes", "", "", "Ana <ana@x.example>", "Tue, 15 Sep 2020 10:00:00 +0000"),
+            mail("new@x", "Lattice gauge notes", "", "", "Bo <bo@x.example>", "Tue, 15 Sep 2026 10:00:00 +0000"),
+            mail("body@x", "Weekly digest", "", "", "Cy <cy@x.example>", "Wed, 16 Sep 2026 10:00:00 +0000"),
+        ];
+        let incs: Vec<_> = mails.iter().enumerate().map(|(i, m)| inc(i as u32 + 1, m, &[])).collect();
+        let ids = ix.add("a", "INBOX", OWN, &incs).unwrap();
+        ix.set_body(ids[2], mails[2].replace("body of body@x", "a short line on lattice gauge theory").as_bytes()).unwrap();
+        let q = |text: &str, by_date: bool| {
+            let p = crate::search::parse(text, 0);
+            ix.list(&Scope { text: p.text.clone(), substring: p.substring(), by_date, flat: true, ..Default::default() }, 10, 0).into_iter().map(|c| c.subject).collect::<Vec<_>>()
+        };
+        assert_eq!(q("lattice ", false), ["Lattice gauge notes", "Lattice gauge notes", "Weekly digest"], "in the subject before in the body");
+        let first = ix.list(&Scope { text: crate::search::parse("lattice ", 0).text, flat: true, ..Default::default() }, 1, 0);
+        assert_eq!(first[0].id, ids[1], "of two equal matches, the newer");
+        assert_eq!(q("lattice ", true), ["Weekly digest", "Lattice gauge notes", "Lattice gauge notes"], "the date order on request");
+        assert!(q("attice ", false).len() == 2, "a part of a subject's word: {:?}", q("attice ", false));
+        assert_eq!(q("x.examp ", false).len(), 3, "a part of an address");
+        assert_eq!(ix.count(&Scope { text: crate::search::parse("attice ", 0).text, substring: crate::search::parse("attice ", 0).substring(), flat: true, ..Default::default() }).0, 2);
+        assert!(q("zzz", false).is_empty());
+    }
+
+    /// An index made before the prefix and trigram tables: made again from its rows and kept bodies, nothing fetched.
+    #[test]
+    fn an_older_search_index_is_made_again_from_what_is_kept() {
+        let ix = setup();
+        let raw = mail("a@x", "Cluster time", "", "", "Ana <ana@x.example>", "Tue, 15 Sep 2026 10:00:00 +0000");
+        let ids = ix.add("a", "INBOX", OWN, &[inc(1, &raw, &[])]).unwrap();
+        ix.set_body(ids[0], raw.replace("body of a@x", "the hubbard model").as_bytes()).unwrap();
+        ix.set_pref("parse_version", &parse::VERSION.to_string());
+        // as the older engine left it: no names table, the version below
+        ix.db().execute_batch("DROP TABLE names; DROP TABLE fts; CREATE VIRTUAL TABLE fts USING fts5(subject, people, body, content='', contentless_delete=1);").unwrap();
+        ix.set_pref("search_version", "1");
+        assert!(ix.upgrade_search());
+        assert_eq!(ix.reparse(), 1, "the kept body's words again");
+        let s = |t: &str| { let p = crate::search::parse(t, 0); Scope { text: p.text.clone(), substring: p.substring(), ..Default::default() } };
+        assert_eq!(ix.list(&s("hubbard"), 10, 0).len(), 1);
+        assert_eq!(ix.list(&s("luster "), 10, 0).len(), 1, "parts of names");
+        assert!(!ix.upgrade_search(), "once");
+    }
+
+    /// Pages freed (bodies pruned, packed, re-read) are given back to the disk once they are over a quarter of the file.
+    #[test]
+    fn a_mostly_free_index_file_is_compacted() {
+        let d = tempfile::tempdir().unwrap();
+        let path = d.path().join("index.sqlite");
+        let ix = Index::open(&path).unwrap();
+        ix.set_folders("a", &[("INBOX".into(), "Inbox".into(), Some("inbox".into()), None)]).unwrap();
+        let mails: Vec<String> = (0..40).map(|i| mail(&format!("m{i}@x"), "s", "", "", "a@x.example", "Tue, 15 Sep 2026 10:00:00 +0000")).collect();
+        let incs: Vec<_> = mails.iter().enumerate().map(|(i, m)| inc(i as u32 + 1, m, &[])).collect();
+        let ids = ix.add("a", "INBOX", OWN, &incs).unwrap();
+        // incompressible bodies, so they take their room
+        let mut seed = 1u64;
+        for (id, m) in ids.iter().zip(&mails) {
+            let noise: String = (0..20_000).map(|_| { seed = seed.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407); char::from(b'a' + (seed >> 59) as u8 % 26) }).collect();
+            ix.set_body(*id, format!("{m}{noise}\r\n").as_bytes()).unwrap();
+        }
+        assert_eq!(ix.compact(), 0, "nothing free yet");
+        ix.prune_bodies(0).unwrap();
+        let _ = ix.db().execute_batch("PRAGMA wal_checkpoint(TRUNCATE)");
+        let before = std::fs::metadata(&path).unwrap().len();
+        assert!(ix.compact() > 0);
+        let _ = ix.db().execute_batch("PRAGMA wal_checkpoint(TRUNCATE)");
+        assert!(std::fs::metadata(&path).unwrap().len() < before / 2, "the file shrank");
+    }
+
+    /// A body is kept compressed and read back as it was; one kept before packing is still read, then packed once.
+    #[test]
+    fn kept_bodies_are_packed_and_read_back_whole() {
+        let ix = setup();
+        let raw = mail("a@x", "Cluster time", "", "", "Ana <ana@x.example>", "Tue, 15 Sep 2026 10:00:00 +0000");
+        let raw = format!("{raw}{}", "the same paragraph again and again\r\n".repeat(200));
+        let ids = ix.add("a", "INBOX", OWN, &[inc(1, &raw, &[]), inc(2, &raw.replace("Cluster", "Lattice"), &[])]).unwrap();
+        ix.set_body(ids[0], raw.as_bytes()).unwrap();
+        assert_eq!(ix.body(ids[0]).unwrap(), raw.as_bytes());
+        let stored: i64 = ix.db().query_row("SELECT length(raw) FROM bodies WHERE id=?1", [ids[0]], |r| r.get(0)).unwrap();
+        assert!((stored as usize) < raw.len() / 5, "compressed: {stored} of {}", raw.len());
+        // a body kept by an older engine: whole, uncompressed
+        ix.db().execute("INSERT INTO bodies(id, raw, at) VALUES (?1, ?2, 0)", params![ids[1], raw.as_bytes()]).unwrap();
+        assert_eq!(ix.body(ids[1]).unwrap(), raw.as_bytes(), "read as it is");
+        assert_eq!(ix.pack_kept(), 1);
+        assert_eq!(ix.body(ids[1]).unwrap(), raw.as_bytes());
+        assert_eq!(ix.pack_kept(), 0, "once per index");
+        assert_eq!(ix.compact(), 0, "a memory index with nothing freed: left as it is");
+    }
+
     #[test]
     fn the_address_book_learns_who_i_write_to() {
         let ix = setup();
@@ -1262,4 +1528,30 @@ mod tests {
         assert!(ix.uids("a", "Sent").is_empty());
         assert_eq!(ix.folders(Some("a")).len(), 1);
     }
+}
+
+/// What packing does to a real index (read-only: opened with SQLITE_OPEN_READ_ONLY, nothing written): one kept body in
+/// ten, its stored size against its packed one, and the time. `ATLAS_TEST_MAIL_INDEX=…/index.sqlite cargo test … -- --ignored`.
+#[cfg(test)]
+#[test]
+#[ignore]
+fn packing_measured_on_a_real_index() {
+    let Ok(path) = std::env::var("ATLAS_TEST_MAIL_INDEX") else { return eprintln!("skipped: ATLAS_TEST_MAIL_INDEX is unset") };
+    let db = Connection::open_with_flags(&path, rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY).unwrap();
+    let mut st = db.prepare("SELECT raw FROM bodies WHERE id % 10 = 0").unwrap();
+    let (mut n, mut before, mut slimmed, mut after, mut slim_msgs) = (0usize, 0usize, 0usize, 0usize, 0usize);
+    let t = std::time::Instant::now();
+    for raw in st.query_map([], |r| r.get::<_, Vec<u8>>(0)).unwrap().filter_map(Result::ok) {
+        let raw = unpack(&raw).unwrap();
+        let s = parse::slim(&raw);
+        slim_msgs += s.is_some() as usize;
+        slimmed += s.as_ref().map_or(raw.len(), Vec::len);
+        after += pack(&raw).len();
+        before += raw.len();
+        n += 1;
+    }
+    eprintln!(
+        "PACK {n} bodies: {} MB → slim {} MB ({slim_msgs} with files left out) → packed {} MB ({:.1} %), {:.1?}",
+        before >> 20, slimmed >> 20, after >> 20, after as f64 * 100.0 / before.max(1) as f64, t.elapsed()
+    );
 }

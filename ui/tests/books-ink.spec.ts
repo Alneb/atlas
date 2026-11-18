@@ -95,8 +95,11 @@ async function openBook(page: Page) {
   await page.goto("/");
   await page.getByText("Finish the GW notes.").waitFor();
   await page.keyboard.press("Meta+Shift+f");
-  await page.locator('.row[data-path="inked"]').click();
-  await page.locator('.row[data-path="inked/quantum.epub"]').click();
+  // the folder may still be open from the spec before (the tree keeps what was open): a click would close it
+  const epub = page.locator('.row[data-path="inked/quantum.epub"]');
+  await page.locator('.row[data-path="inked"]').waitFor();
+  if (!(await epub.isVisible())) await page.locator('.row[data-path="inked"]').click();
+  await epub.click();
   await expect(page.locator(".books").frameLocator("iframe.b-frame").locator("h1")).toHaveText("One");
 }
 
@@ -107,11 +110,12 @@ test("books: ink drawn over a reflowed page stays with its words, in the book's 
   await openBook(page);
   const pane = page.locator(".books"), book = pane.frameLocator("iframe.b-frame");
 
-  // the pen: a line under the start of the first paragraph (the one after the link)
+  // the pen: a line under the middle of the first paragraph's first line (the one after the link) — mid-line, so a
+  // narrower column moves its words (the column keeps its left margin: a line's first word would stay put)
   await pane.getByRole("button", { name: "Pen" }).click();
   await expect(pane.getByRole("button", { name: "Pen" })).toHaveAttribute("aria-pressed", "true");
   const p = (await book.locator("p").nth(1).boundingBox())!;
-  const y = p.y + 22, x0 = p.x + 10;
+  const y = p.y + 22, x0 = p.x + p.width * 0.55;
   await page.mouse.move(x0, y);
   await page.mouse.down();
   for (let i = 1; i <= 12; i++) await page.mouse.move(x0 + i * 15, y + (i % 2));

@@ -6,7 +6,7 @@
   import Dialog from "./Dialog.svelte";
   import { errText } from "../lib/text";
   import { toast } from "../lib/state.svelte";
-  import { askFolder, askServer, forgetVault, openVault, setMirror, vaultListing, type VaultEntry } from "../lib/vaults";
+  import { askFolder, askServer, forgetVault, openVault, setAlwaysOn, setMirror, vaultListing, type VaultEntry } from "../lib/vaults";
   import { forgetMirrorState, hostOf, reach, serverVaults, type MirrorState } from "../lib/mirror";
   import { api } from "../lib/api";
   import { hostMatches } from "../lib/service-signin";
@@ -67,6 +67,12 @@
     if (e.missing) return toast("The folder is not there", `${e.path} — plugged out or moved? Take it off the list, or open it where it is now.`, "error", 7000);
     onclose();
     e.go();
+  }
+  /** "Always on": started with the app and kept running with no window on it; switched on, it starts now. */
+  async function toggleAlwaysOn(e: VaultEntry) {
+    const on = !e.alwaysOn;
+    try { await setAlwaysOn(e.path, on); e.alwaysOn = on; if (on) e.warm = true; entries = [...entries]; }
+    catch (err) { toast("Not changed", errText(err), "error"); }
   }
   const isAddress = (a: string) => /^https?:\/\/\S+$/.test(a.trim());
   function act(fn: () => void) { onclose(); fn(); }
@@ -143,6 +149,7 @@
             <span class="badges">
               {#if e.current}<span class="badge here">this window</span>
               {:else if e.missing}<span class="badge bad">folder not found</span>
+              {:else if e.warm && e.alwaysOn}<span class="badge warm" title="Running in the background: its schedules, plugin rounds and notices go on; switching is instant">running</span>
               {:else if e.warm}<span class="badge warm" title="Started already: switching is instant">ready</span>{/if}
               {#if e.kind === "server"}<span class="badge">server</span>{/if}
               {#if e.mirror}
@@ -151,8 +158,12 @@
               {/if}
             </span>
           </button>
-          {#if e.managed || serverOf(e)}
+          {#if e.managed || serverOf(e) || e.alwaysOn !== null}
             <span class="acts">
+              {#if e.alwaysOn !== null}
+                <button class="act" class:on={e.alwaysOn} role="switch" aria-checked={e.alwaysOn} data-testid="switcher-always-on" onclick={() => void toggleAlwaysOn(e)}
+                  title={e.alwaysOn ? `${e.name} starts with the app and keeps running with no window on it (its schedules, plugin rounds, notices) — click to start it only when opened` : `Start ${e.name} with the app and keep it running in the background: its schedules, plugin rounds and notices go on with no window on it`}>{e.alwaysOn ? "Always on ✓" : "Always on"}</button>
+              {/if}
               {#if e.mirror && reached[e.mirror] === "signin"}<button class="act" onclick={() => { window.open(`/signin/door?url=${encodeURIComponent(new URL(e.mirror!).origin + "/")}`, "_blank"); }} title="The mirror's sign-in page, in a window of Atlas">Sign in</button>{/if}
               {#if e.managed && e.kind === "folder"}<button class="act" onclick={() => void startLinking(e)} title="Link this folder to its copy on a server">{e.mirror ? "Mirror…" : "Link mirror…"}</button>{/if}
               {#if serverOf(e)}

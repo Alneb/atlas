@@ -4,8 +4,9 @@
 # largest thumbnail. A YouTube Music link is a song; its artist is the channel without " - Topic".
 title = "Catalog · YouTube"
 description = "YouTube videos and YouTube Music songs, with their clean address"
+phone = true # runs in the phone apps too: its helper is JavaScript in the core (QuickJS), no program of its own
 icon = "video"
-version = "0.3.0"
+version = "0.4.0"
 api = 19
 requires = ["catalog"]
 

@@ -12,12 +12,6 @@ else your phone's ntfy topic) and turns what the phone sends to an inbox topic i
   time (`?poll=1&since=<id>`) goes into `<folder>/<source>.md` as a line (time, priority mark, title, text, an "open"
   link), long bodies folded as a quote; the note's `unread` grows. Messages from sources that are not muted become
   toasts in every open window (the helper's `synced` event). Messages to the inbox topic are captured into today's log.
-- **Straight from Apprise** (no ntfy in between): "Notifications: an address for Apprise…" asks for a source (`backups`,
-  `updates`…) and copies `<source>=jsons://<this server>/…/hook/apprise?-t=<token>` — the line for Apprise's config, so
-  that tag's notifications are posted to Atlas. Each post (`{ title, message, type }`, Apprise's `json://` target) is
-  filed in that source's note like an ntfy message; `failure` is marked urgent, `warning` high. The address does not
-  expire (the core's standing hook, `standing = true`); making it again for the source replaces it, and the older one
-  is refused. The server's gate (Authelia…) must let `/api/plugins/*/hook/*` through. Needs Atlas 0.3.2.
 - **A bell** in the status bar with the unread count; opening a source's note marks it read.
 - **Commands**: "Notifications: check now", "Notifications: a source's notes…", "Notifications: mute a source…" (a
   day, a week, a month, until unmuted — muted sources are still logged), "Notifications: send to my phone…" (titled
@@ -56,5 +50,4 @@ inside Atlas's core (no Python, the same on the phone).
 
 ## Status
 
-Beta. Unit tests against a stand-in ntfy (`helper/helper.test.ts`), including two syncs at once, and Apprise's posts
-to a standing address (filed under the source, an older address refused, the URL's shape).
+Beta. Unit tests against a stand-in ntfy (`helper/helper.test.ts`), including two syncs at once.

@@ -1,8 +1,9 @@
-// The Zstandard plugin's helper: `open` decompresses a vault's `x.tsv.zst` with the machine's zstd (run by the core,
-// `atlas.exec`) into `.atlas/cache/plugins/<id>/x.tsv`, the same folders as the original, and answers that path for the
-// page to open. Always made afresh (zstd reads ~1 GB/s); the .zst is never written. After each open the cache is pruned
-// (copies not opened for `cache_hours`, then the oldest past `cache_mb`) with find/rm/touch: the core's file API has no
-// stat and deletes only into the trash. Tests: helper.test.ts.
+// The Zstandard plugin's helper: `open` decompresses a vault's `x.tsv.zst` with the core's own decoder
+// (`atlas.convert.unzstd`: Rust, no `zstd` program — so the phone too) into `.atlas/cache/plugins/<id>/x.tsv`, the same
+// folders as the original, and answers that path for the page to open. Always made afresh; the .zst is never written.
+// After each open the cache is pruned (copies not opened for `cache_hours`, then the oldest past `cache_mb`) with
+// find/rm (the core's file API has no stat and deletes only into the trash) — where those programs are not there (the
+// phone), the pruning is skipped and the open still answers. Tests: helper.test.ts.
 import type { Params } from "atlas-helper";
 
 const HOUR = 3600;
@@ -75,17 +76,11 @@ async function open(params: Params) {
   const path = String(params.path ?? "").trim().replace(/^\/+/, "");
   if (!/[^/]\.zst$/i.test(path)) throw new Error(`not a .zst file: ${path || "(none)"}`);
   if (path.split("/").some((p) => p === ".." || p === ".")) throw new Error(`not a vault path: ${path}`);
-  const out = copyPath(atlas.id, path);
-  await atlas.write(out, ""); // makes its folders (zstd does not)
-  // `./` so a name starting with "-" is never read as an option
-  const r = await atlas.exec("zstd", ["-d", "-q", "-f", "-o", `./${out}`, `./${path}`], { locale: "C", timeout: 600 }).catch((e: Error) => {
-    throw new Error(/not installed/.test(e.message) ? "zstd is not installed on the machine running Atlas" : e.message);
-  });
-  if (r.status !== 0) throw new Error((r.stderr || r.stdout).trim() || `zstd failed (${r.status ?? "killed"})`);
-  // zstd gives the copy the .zst's mtime: touched, the mtime is the last open, which the pruning goes by. A failure
-  // here costs only the pruning, never the open.
+  // written afresh, so its mtime is this open, which the pruning goes by
+  const out = atlas.convert.unzstd(path);
+  if (out !== copyPath(atlas.id, path)) throw new Error(`zstd: the copy is at ${out}, not where this plugin looks`);
+  // a failure here costs only the pruning, never the open
   try {
-    await run("touch", ["-c", `./${out}`]);
     await prune(out.slice(cacheDir(atlas.id).length + 1), params.settings ?? {});
   } catch (e) {
     console.warn(`zstd: the cache was not pruned: ${(e as Error).message}`);

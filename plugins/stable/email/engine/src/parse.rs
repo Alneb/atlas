@@ -367,7 +367,7 @@ pub fn body_of(m: &Message) -> Body {
             _ if mime == "text/calendar" => "invite.ics".to_string(),
             _ => format!("part {i}.{}", mime.rsplit('/').next().unwrap_or("bin")),
         });
-        attachments.push(Attachment { part: i as u32, name, mime, size: p.len(), cid, inline });
+        attachments.push(Attachment { part: i as u32, name, mime, size: left_out(p).unwrap_or(p.len()), cid, inline });
     }
     Body { html: any_html.then_some(html), text, flowed, attachments, invite, forwarded }
 }
@@ -376,6 +376,9 @@ pub fn body_of(m: &Message) -> Body {
 pub fn part_bytes(raw: &[u8], part: u32) -> Option<(Vec<u8>, String, String)> {
     let m = parser().parse(raw)?;
     let p = m.parts.get(part as usize)?;
+    if left_out(p).is_some() {
+        return None; // not in this copy (slim): the caller asks the server for the whole message (sync::whole)
+    }
     let mime = p.content_type().map(|c| format!("{}/{}", c.ctype(), c.subtype().unwrap_or("octet-stream"))).unwrap_or_else(|| "application/octet-stream".into());
     let name = p.attachment_name().unwrap_or("attachment").to_string();
     let bytes = match &p.body {
@@ -385,6 +388,62 @@ pub fn part_bytes(raw: &[u8], part: u32) -> Option<(Vec<u8>, String, String)> {
         PartType::Multipart(_) => return None,
     };
     Some((bytes, name, mime))
+}
+
+/// The header a kept copy puts on a part whose content it left out ([`slim`]): the content's decoded size.
+pub const LEFT_OUT: &str = "X-Atlas-Left-Out";
+/// Attachments at least this big are left out of the kept copy; smaller ones (a signature, a small invite) stay.
+pub const LEAVE_OUT_FROM: usize = 32 << 10;
+
+/// The decoded size of a part [`slim`] left out; `None` for a part that is all there.
+fn left_out(p: &mail_parser::MessagePart) -> Option<usize> {
+    p.headers.iter().find(|h| h.name.as_str().eq_ignore_ascii_case(LEFT_OUT)).and_then(|h| h.value.as_text()).and_then(|t| t.trim().parse().ok())
+}
+
+/// Whether this copy has parts left out (a quick look for the header: no parse).
+pub fn is_slim(raw: &[u8]) -> bool {
+    let needle = format!("\n{LEFT_OUT}:");
+    raw.windows(needle.len()).any(|w| w.eq_ignore_ascii_case(needle.as_bytes()))
+}
+
+/// The message as the index keeps it: every attachment of [`LEAVE_OUT_FROM`] or more has its content cut and a
+/// [`LEFT_OUT`] header with its size in its place — its name, type, size and position stay, so the reader lists it
+/// and opening it fetches the whole message from the server (the server is the store). Text, HTML, the pictures the
+/// HTML shows, invitations and forwarded messages are kept whole. `None`: nothing to leave out.
+pub fn slim(raw: &[u8]) -> Option<Vec<u8>> {
+    let m = parser().parse(raw)?;
+    let body = body_of(&m);
+    let mut cuts: Vec<(usize, usize, usize, usize)> = Vec::new(); // (where the header goes, body start, body end, size)
+    for a in body.attachments.iter().filter(|a| !a.inline && a.size >= LEAVE_OUT_FROM) {
+        let Some(p) = m.parts.get(a.part as usize) else { continue };
+        if !matches!(p.body, PartType::Binary(_) | PartType::InlineBinary(_)) || left_out(p).is_some() {
+            continue;
+        }
+        let (start, end) = (p.offset_body as usize, p.offset_end as usize);
+        if end <= start || end > raw.len() {
+            continue;
+        }
+        // the header goes before the blank line that ends the part's headers
+        let head = &raw[..start];
+        let at = if head.ends_with(b"\r\n\r\n") { start - 2 } else if head.ends_with(b"\n\n") { start - 1 } else { continue };
+        cuts.push((at, start, end, a.size));
+    }
+    if cuts.is_empty() {
+        return None;
+    }
+    cuts.sort();
+    let mut out = Vec::with_capacity(raw.len() / 4);
+    let mut from = 0;
+    for (at, start, end, size) in cuts {
+        let eol: &[u8] = if raw[..start].ends_with(b"\r\n") { b"\r\n" } else { b"\n" };
+        out.extend_from_slice(&raw[from..at]);
+        out.extend_from_slice(format!("{LEFT_OUT}: {size}").as_bytes());
+        out.extend_from_slice(eol);
+        out.extend_from_slice(&raw[at..start]);
+        from = end;
+    }
+    out.extend_from_slice(&raw[from..]);
+    Some(out)
 }
 
 /// The cid: images of a message: content id → (mime, bytes), for the reader to show in place.
@@ -731,6 +790,44 @@ mod tests {
         let (bytes, name, mime) = part_bytes(raw, pdf.part).unwrap();
         assert_eq!((bytes.as_slice(), name.as_str(), mime.as_str()), (&b"%PDF-1.4\n"[..], "paper.pdf", "application/pdf"));
         assert_eq!(inline_images(raw)[0].0, "logo@x");
+    }
+
+    /// The kept copy without its big attachments: it reads the same (text, the files listed with their sizes and
+    /// positions, the pictures the HTML shows), the big file's content is not there (so the server is asked), a small
+    /// one's still is.
+    #[test]
+    fn a_slim_copy_lists_every_file_but_holds_only_the_small_ones() {
+        use base64::Engine;
+        let b64 = |n: usize, seed: u8| {
+            let bytes: Vec<u8> = (0..n).map(|i| (i as u8).wrapping_mul(31).wrapping_add(seed)).collect();
+            let s = base64::engine::general_purpose::STANDARD.encode(bytes);
+            s.as_bytes().chunks(76).map(|c| std::str::from_utf8(c).unwrap()).collect::<Vec<_>>().join("\r\n")
+        };
+        for eol in ["\r\n", "\n"] {
+            let raw = format!(
+                "From: a@b.c\r\nSubject: s\r\nContent-Type: multipart/mixed; boundary=\"m\"\r\n\r\n--m\r\nContent-Type: multipart/related; boundary=\"r\"\r\n\r\n--r\r\nContent-Type: text/html\r\n\r\n<p>see <img src=\"cid:logo@x\"></p>\r\n--r\r\nContent-Type: image/png\r\nContent-ID: <logo@x>\r\nContent-Transfer-Encoding: base64\r\n\r\n{}\r\n--r--\r\n--m\r\nContent-Type: application/pdf; name=\"big.pdf\"\r\nContent-Disposition: attachment; filename=\"big.pdf\"\r\nContent-Transfer-Encoding: base64\r\n\r\n{}\r\n--m\r\nContent-Type: text/plain; name=\"small.txt\"\r\nContent-Disposition: attachment; filename=\"small.txt\"\r\n\r\nsmall file\r\n--m--\r\n",
+                b64(50_000, 1),
+                b64(200_000, 2)
+            )
+            .replace("\r\n", eol);
+            let raw = raw.as_bytes();
+            let whole = body(raw).unwrap();
+            let slim_raw = slim(raw).expect("the big file is left out");
+            assert!(slim_raw.len() < raw.len() / 2, "{} of {}", slim_raw.len(), raw.len());
+            assert!(is_slim(&slim_raw) && !is_slim(raw));
+            let slimmed = body(&slim_raw).unwrap();
+            let files = |b: &Body| b.attachments.iter().map(|a| (a.part, a.name.clone(), a.mime.clone(), a.size, a.inline)).collect::<Vec<_>>();
+            assert_eq!(files(&slimmed), files(&whole), "every file listed as before, its size too");
+            assert_eq!(slimmed.html, whole.html);
+            let big = whole.attachments.iter().find(|a| a.name == "big.pdf").unwrap();
+            assert_eq!(big.size, 200_000);
+            assert!(part_bytes(raw, big.part).is_some());
+            assert!(part_bytes(&slim_raw, big.part).is_none(), "not in the slim copy: never an empty file");
+            let small = whole.attachments.iter().find(|a| a.name == "small.txt").unwrap();
+            assert_eq!(part_bytes(&slim_raw, small.part).unwrap().0, b"small file");
+            assert_eq!(inline_images(&slim_raw), inline_images(raw), "the picture the HTML shows is kept, whatever its size");
+            assert!(slim(&slim_raw).is_none(), "nothing more to leave out");
+        }
     }
 
     #[test]

@@ -34,6 +34,10 @@ pub struct Vault {
     /// The desktop's one core: already started, so switching to it is only a page load.
     #[serde(default, skip_deserializing)]
     pub warm: bool,
+    /// Started with the app and kept running whether or not a window shows it: its schedules, plugin rounds, hooks and
+    /// notifications go on in the background (docs/design/DESIGN-vaults-together.md). Others start when opened.
+    #[serde(default)]
+    pub always_on: bool,
 }
 
 /// `GET /api/vaults`.
@@ -171,9 +175,10 @@ pub fn remember(file: &Path, root: &Path, now_ms: i64) -> Result<()> {
     let path = root.to_string_lossy().into_owned();
     let name = root.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_else(|| path.clone());
     change(file, |v| {
-        let mirror = v.iter().find(|x| x.path == path).and_then(|x| x.mirror.clone()); // a reopen keeps its mirror
+        // a reopen keeps its mirror and its "always on"
+        let (mirror, always_on) = v.iter().find(|x| x.path == path).map(|x| (x.mirror.clone(), x.always_on)).unwrap_or_default();
         v.retain(|x| x.path != path);
-        v.insert(0, Vault { name, path, last_opened: now_ms, missing: false, url: None, mirror, warm: false });
+        v.insert(0, Vault { name, path, last_opened: now_ms, missing: false, url: None, mirror, warm: false, always_on });
         Ok(())
     })
 }
@@ -191,6 +196,25 @@ pub fn set_mirror(file: &Path, path: &str, mirror: Option<&str>) -> Result<()> {
         entry.mirror = mirror;
         Ok(())
     })
+}
+
+/// Marks the local vault `path` as started with the app and kept running (`on`), or started only when opened.
+pub fn set_always_on(file: &Path, path: &str, on: bool) -> Result<()> {
+    change(file, |v| {
+        let Some(entry) = v.iter_mut().find(|x| x.path == path && x.url.is_none()) else {
+            return Err(Error::NotFound(format!("{path}: not a folder on the vault list")));
+        };
+        entry.always_on = on;
+        Ok(())
+    })
+}
+
+/// `POST /api/vaults/always-on`.
+#[derive(Debug, Clone, Deserialize, TS)]
+#[ts(export)]
+pub struct AlwaysOnRequest {
+    pub path: String,
+    pub on: bool,
 }
 
 /// What a window started without knowing its vault shows: the folder asked for, else the vault
@@ -233,7 +257,7 @@ pub fn remember_server(file: &Path, url: &str, now_ms: i64) -> Result<()> {
     let name = vault.map_or_else(|| host.to_string(), |v| format!("{host} · {v}"));
     change(file, |v| {
         v.retain(|x| x.path != url);
-        v.insert(0, Vault { name, path: url.to_string(), last_opened: now_ms, missing: false, url: Some(url.to_string()), mirror: None, warm: false });
+        v.insert(0, Vault { name, path: url.to_string(), last_opened: now_ms, missing: false, url: Some(url.to_string()), mirror: None, warm: false, always_on: false });
         Ok(())
     })
 }

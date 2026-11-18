@@ -3,8 +3,9 @@
 # coming out, genres, the description and the cover; a MangaDex title is matched through the links MangaDex keeps.
 title = "Catalog · Manga and anime"
 description = "manga and anime from AniList, MyAnimeList and MangaDex links, filled in by AniList"
+phone = true # runs in the phone apps too: its helper is JavaScript in the core (QuickJS), no program of its own
 icon = "book"
-version = "0.3.0"
+version = "0.4.0"
 api = 19
 requires = ["catalog"]
 

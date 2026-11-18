@@ -5,6 +5,10 @@
  */
 export type ReplaceRequest = { q: string, with: string, case: boolean, word: boolean, regex: boolean, agent: boolean, 
 /**
+ * Every text file, not only the notes (as the search that listed them).
+ */
+all: boolean, 
+/**
  * Only these files (the ones the user left ticked); all matching files when absent.
  */
 only?: Array<string>, };

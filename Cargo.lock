@@ -509,7 +509,7 @@ dependencies = [
 
 [[package]]
 name = "atlas"
-version = "0.3.1"
+version = "0.4.0"
 dependencies = [
  "anyhow",
  "atlas-core",
@@ -524,7 +524,7 @@ dependencies = [
 
 [[package]]
 name = "atlas-android"
-version = "0.3.1"
+version = "0.4.0"
 dependencies = [
  "anyhow",
  "atlas-capture",
@@ -549,7 +549,7 @@ dependencies = [
 
 [[package]]
 name = "atlas-app"
-version = "0.3.1"
+version = "0.4.0"
 dependencies = [
  "adblock",
  "anyhow",
@@ -579,7 +579,7 @@ dependencies = [
 
 [[package]]
 name = "atlas-capture"
-version = "0.3.1"
+version = "0.4.0"
 dependencies = [
  "anyhow",
  "atlas-core",
@@ -627,7 +627,7 @@ dependencies = [
 
 [[package]]
 name = "atlas-core"
-version = "0.3.1"
+version = "0.4.0"
 dependencies = [
  "anyhow",
  "arboard",
@@ -660,10 +660,12 @@ dependencies = [
  "pdf_oxide",
  "portable-pty",
  "regex",
+ "regex-syntax",
  "reqwest 0.12.28",
  "rquickjs",
  "rust-embed",
  "rustls",
+ "ruzstd",
  "schemars 1.2.3",
  "scraper",
  "serde",
@@ -715,9 +717,11 @@ dependencies = [
  "rand 0.8.8",
  "regex",
  "rusqlite",
+ "ruzstd",
  "serde",
  "serde_json",
  "sha2 0.10.9",
+ "socket2",
  "tempfile",
  "tokio",
  "tokio-rustls",
@@ -779,21 +783,21 @@ dependencies = [
 
 [[package]]
 name = "atlas-pen"
-version = "0.3.1"
+version = "0.4.0"
 dependencies = [
  "openink-shape",
 ]
 
 [[package]]
 name = "atlas-plugin"
-version = "0.3.1"
+version = "0.4.0"
 dependencies = [
  "serde_json",
 ]
 
 [[package]]
 name = "atlas-rar"
-version = "0.3.1"
+version = "0.4.0"
 dependencies = [
  "cmake",
  "flate2",
@@ -825,7 +829,7 @@ dependencies = [
 
 [[package]]
 name = "atlas-template"
-version = "0.3.1"
+version = "0.4.0"
 dependencies = [
  "chrono",
  "serde_json",
@@ -8348,6 +8352,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "ruzstd"
+version = "0.8.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a7c1c839d570d835527c9a5e4db7cb2198683a988cb9d7293fc8674e6bd58fc8"
+dependencies = [
+ "twox-hash",
+]
+
+[[package]]
 name = "ryu"
 version = "1.0.23"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -10309,6 +10322,12 @@ dependencies = [
  "serde_derive",
  "syntect",
 ]
+
+[[package]]
+name = "twox-hash"
+version = "2.1.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "86a801b3cea342a06d468c8710662aa29e5e05e4f5c0d62f00bbb7f2ad7941c2"
 
 [[package]]
 name = "typed-arena"

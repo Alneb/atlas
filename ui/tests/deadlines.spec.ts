@@ -63,13 +63,17 @@ test("deadlines have no left-bar button; Home offers their box once and adds it 
   await put(request, "notes/dl/Home.page", "title: Home\nrows:\n  - [{ view: greeting }]\n");
   await request.put("/api/config", { headers: H, data: { ...before, home: "notes/dl/Home.page" } });
   try {
+    // never offered on this device yet (cleared before the page starts: Home opens with it, and offers then)
+    await page.addInitScript(() => { for (const k of Object.keys(localStorage)) if (k.startsWith("atlas-deadlines-offered")) localStorage.removeItem(k); });
     await page.goto("/");
-    await page.getByText("Finish the GW notes.").waitFor();
-    await expect(page.getByRole("navigation", { name: "Activity" }).getByRole("button", { name: "Deadlines" })).toHaveCount(0);
-    await page.evaluate(() => { for (const k of Object.keys(localStorage)) if (k.startsWith("atlas-deadlines-offered")) localStorage.removeItem(k); });
-    await runCommand(page, "Home", "Home (your home document)");
+    // Home is the page above (a greeting only): the vault's FOCUS line is not on it
+    await page.getByTestId("sidebar").waitFor();
+    await expect(page.getByTestId("sidebar").getByRole("button", { name: "Deadlines" })).toHaveCount(0);
     const offer = page.locator(".toast", { hasText: "What is due is on Home now" });
     await expect(offer).toBeVisible();
+    // once: Home opened again offers nothing more
+    await runCommand(page, "Home", "Home (your home document)");
+    await expect(offer).toHaveCount(1);
     for (const scheme of ["light", "dark"] as const) {
       await page.emulateMedia({ colorScheme: scheme });
       await offer.screenshot({ path: `test-results/deadlines-on-home-${scheme}.png` });

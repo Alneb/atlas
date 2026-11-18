@@ -10,7 +10,10 @@ own IMAP/SMTP accounts (a password) or Outlook / Microsoft 365 (OAuth2), several
   time; a narrow pane collapses to one column.
 - **A local index** of every account (SQLite with full-text search, in the plugin's cache): headers, flags,
   conversations, the address book and the newest bodies, so lists, counts and search answer at once. The inbox is live
-  (IMAP IDLE); other folders are checked every few minutes. Deleting the index loses nothing.
+  (IMAP IDLE); other folders are checked every few minutes. Deleting the index loses nothing. A kept message is
+  stored compressed and without its big attachments (32 KB and over): they stay listed with their name and size, and
+  opening, saving or forwarding one fetches it from the server — about an eighth of the space, so far more mail is
+  readable offline in the same cap.
 - **Notes only on Save**: *Save as note* (⇧N, the reader's button, or a rule's `save`) writes the conversation as
   `mail/<account>/<folder>/<date> <subject>.md` with its files beside it; saving again adds new messages. Such a note
   is drawn as mail, with Reply and Forward.
@@ -35,7 +38,12 @@ own IMAP/SMTP accounts (a password) or Outlook / Microsoft 365 (OAuth2), several
   disk or the vault, drafts saved to the server, Undo send, Send later, templates (notes in `mail/templates/`), a
   forgotten-attachment check.
 - **Search** with operators: `from: to: cc: subject: has:attachment is:unread|starred|snoozed list: label: in:
-  account: before: after: older_than: newer_than: larger: smaller:`, phrases and `-word`.
+  account: before: after: older_than: newer_than: larger: smaller:`, phrases and `-word`. The best matches come
+  first — the words in the subject weigh most, then the people, then the body, a newer message above an equally good
+  older one — or the newest first (the switch beside the search's chips). The word being typed is answered as a
+  prefix from the index; when the words match nothing, parts of words in subjects and names are looked for (`attice`
+  finds "Lattice"). **The vault's search lists mail too**, in its own group under the files; a hit opens the
+  conversation here.
 - **Find in a conversation** (Ctrl+F): every message opened, the matches marked in the mails themselves (case and
   accents ignored), folded quotes opened; Enter / Shift+Enter step.
 - **Pictures pasted into a mail** go where the cursor is (`![](cid:pasted-1.png)` in the text) and leave inline, in a

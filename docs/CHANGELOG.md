@@ -5,7 +5,20 @@ and versions follow [Semantic Versioning](https://semver.org/) once 1.0 is out.
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-11-17
+
 ### Added
+- **One tab per pane** (Settings → Appearance): opening a file replaces what the pane shows instead of adding a tab;
+  splits keep one each, terminals keep their tabs, Back and Forward step through what it showed.
+- **Right-click menus where things are drawn:** a mail conversation (Email 1.8.9: Reply, Reply all, Forward, Archive,
+  Mark read, Star, Snooze…, Move to…, Label…, Save as note, Spam, Delete — on the conversation clicked, not the one open,
+  with their keys; then its note's rows once saved), a task row (Mark done, then its note at the task's line), a search
+  hit (Copy the line, leave its file out of the replace, then its file at the line), a PDF page (with words
+  selected: Highlight, Underline, Strike through, Copy, Copy link to the passage; on a mark: its link, Delete; always:
+  the link to the page clicked and its bookmark).
+- **Right-click menus that fit (Calendar 1.12.0):** a right-click on a pane's open space offers that pane's own commands, its plugin's settings, its file, full screen and close; on a calendar event, Show, Edit…, Duplicate and Delete (and, for an event from a note, the note's rows).
+- **`.zst` files without the `zstd` program (Zstandard 0.3.0, plugin API 34):** the core decompresses them itself (`atlas.convert.unzstd` for helpers), so they open on the phone too.
+- **Syncthing and Catalog · Science on the phone (Syncthing 0.3.0, Catalog · Science 0.8.0):** their helpers are built into the Android apps; Syncthing there asks for its API key in its settings.
 - **Suwayomi's downloads followed (Manga 0.18.0):** while the server downloads a series' chapters, the series shows
   how many are left, the one under way and how far it is, and any that failed.
 - **Habits (Plan 0.10.0):** a note with `habit: gym` (or `running`, `sleep`, anything) is nagged in its window —
@@ -265,6 +278,26 @@ and versions follow [Semantic Versioning](https://semver.org/) once 1.0 is out.
   afternoon"); a nudge in the hour before lowers the next one's score. Settings → Plan lists each kind's hours.
 
 ### Changed
+- **Mail search ranks by relevance (Email 1.9.0):** the best matches first — words in the subject, then the people,
+  then the body, newer above older — with a switch back to newest first; a word being typed is answered from prefix
+  indexes; when no word matches, parts of words in subjects and names are found (`attice` → "Lattice").
+- **The mail index takes about an eighth of the space (Email 1.9.0):** kept messages are compressed and keep their big
+  attachments' names and sizes, not their contents, which are fetched from the server when opened, saved or forwarded.
+  Messages kept before are converted once in the background; nothing is downloaded again. The index file gives the
+  freed space back to the disk (Email 1.9.1): on a real account set, 1.7 GB → 270 MB.
+- **Search reads the notes, not the logs:** by default the Search pane, the palette and saved searches look in the notes'
+  lines and the PDFs' text only; code, logs, a run's outputs and data files come in with the new **All** switch (Replace
+  too). Any file still matches by its name. Binary files are no longer reopened by every search.
+- **A kept mail is searched by its words:** its HTML (tags, links' addresses, styles, hidden ids) is no longer matched.
+- **Mail in the vault's search (Email 1.10.0):** the Search pane lists the conversations matching the words in their
+  own group under the files, from the mail's own index; a click opens it in the Email pane. Any plugin can answer the
+  search (`on = "search"`). The keys reach those hits too (↓, Enter); the Email pane's Best match / Newest first
+  switch shows for any search, not only one with operators (Email 1.10.1); quick open lists `key:value`'s notes.
+- **Search by property:** `status:draft`, `author:smith` list the notes whose property holds the value, at once.
+- **Search ranks notes many others link to first** when they match as well as a lone note.
+- **A vault opens without reading every note again:** the note index (links, properties, tags) is kept on disk and
+  only notes changed since are read at a start.
+- **Search reads only the notes that can hold the query:** an index on disk (`.atlas/cache/search/`, under a tenth of the text's size, built in the background) lists them; what is found is the same, an edit is found at once.
 - **A downloaded scan is named by its first page, read by OCR (Catalog 0.16.0, OCR 0.3.0):** a PDF with no text at
   all has its first page read by the OCR plugin (the page as the core draws it for its cover), then named as any
   document is — its title, authors and year, or an ISBN that files it as a book. Without the OCR plugin, the PDF's Info
@@ -332,6 +365,22 @@ and versions follow [Semantic Versioning](https://semver.org/) once 1.0 is out.
   needs those plugins signed in.
 
 ### Fixed
+- **A task dropped on the calendar's hours is time-blocked (Calendar 1.11.1):** it opened the new-event box instead.
+- **Download offered for a captured link with brackets in it** (`Group Theory (2010).pdf`).
+- **Mail that stopped updating (Email 1.8.7):** one sync stuck on a connection that went silent — a laptop asleep, a
+  router that forgot it — held off every later sync of the account, with no error shown. A sync now gives up after
+  20 minutes and starts afresh on new connections; the connections probe themselves while idle (a dead one fails in
+  about a minute, not two hours); IDLE is renewed every 9 minutes; a reset or timed-out connection is retried at once.
+- **Mail that never loaded on a network with broken IPv6 (Email 1.8.8):** the mail server's addresses were tried one
+  after another, its IPv6 one first; where IPv6 is handed out but goes nowhere that attempt hung until the 30-second
+  limit and IPv4 was never tried, so every sync failed. The addresses are now raced the way browsers do (Happy
+  Eyeballs): IPv6 and IPv4 alternated, a new attempt every quarter second, the first connection up wins. Sending too.
+- **A server blip is no longer a notice:** a mirrored vault's write that could not reach the server is sent once more
+  on a fresh connection, kept connections are let go before a proxy drops them, and "<server> does not answer" comes
+  only after two minutes of silence (the sync chip says offline at once). A sign-in the gate wants is still told at once.
+- **A plugin's round runs on one machine:** a scheduled tool called by hand — a button, an agent over MCP on the
+  server — runs only where the vault runs its rounds (`[automation] schedules_on`, the tool's `background`), and is
+  refused elsewhere with where it runs; so the Runs round never runs on the server and the desktop at once.
 - **Event notes written by one computer (Calendar 1.9.1):** after a sync, only the computer that runs the vault's
   schedules (`[automation] schedules_on`) brings the event notes up to date and offers to move a moved event's
   tasks; before, every open Atlas wrote the same notes, which sync could copy back and forth.

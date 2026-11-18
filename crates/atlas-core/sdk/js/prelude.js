@@ -233,6 +233,7 @@
     convert: Object.freeze({
       comicToCbz: (path) => native("convert.cbz", { path }),
       djvuToPdf: (path) => native("convert.pdf", { path }),
+      unzstd: (path) => native("convert.unzstd", { path }),
       typstPdf: (path, to, o = {}) => native("convert.typst", { path, to, ...(o.source === undefined ? {} : { source: String(o.source) }), ...(o.fence ? { fence: true } : {}) }),
     }),
   });

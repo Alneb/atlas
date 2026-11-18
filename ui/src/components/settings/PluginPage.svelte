@@ -159,11 +159,6 @@
   .savebar span { color: var(--text-muted); }
   .savebar.saved { color: var(--green, #3fb950); gap: 6px; padding: 8px 16px; font-weight: 600; animation: fade 2s ease-in forwards; }
   @keyframes fade { 70% { opacity: 1; } 100% { opacity: 0; } }
-  .switch { flex: none; width: 38px; height: 22px; border-radius: 11px; background: var(--border-strong); position: relative; }
-  .switch span { position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%; background: var(--bg); transition: transform .15s; }
-  .switch.on { background: var(--accent); }
-  .switch.on span { transform: translateX(16px); }
-  .switch:disabled { opacity: .4; }
   .log { font-size: calc(12px * var(--ui-scale, 1)); }
   .log summary { color: var(--red); cursor: pointer; }
   .log .line { display: block; padding: 2px 0 2px 12px; color: var(--text-muted); font-family: var(--font-mono); overflow-wrap: anywhere; }

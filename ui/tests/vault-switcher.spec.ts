@@ -56,6 +56,30 @@ test("the vault switcher lists every vault with what it is, links a folder to it
   await expect(dlg).toHaveCount(0);
 });
 
+// "Always on" where the vault is chosen: a folder of this computer started with the app and kept running in the
+// background (core: POST /api/vaults/always-on; answered here, so no vault starts in the tests). A server's row has none.
+test("a folder's row switches it always on, and then it reads as running", async ({ page }) => {
+  const asked: unknown[] = [];
+  await page.route("**/api/vaults/always-on", (r) => { asked.push(r.request().postDataJSON()); return r.fulfill({ status: 204 }); });
+  await page.goto("/");
+  await page.getByText("Finish the GW notes.").waitFor();
+  await page.keyboard.press("Control+Alt+v");
+  const dlg = page.getByTestId("vault-switcher");
+  const other = dlg.locator('[data-vault="Other Notes"]');
+  const on = other.getByTestId("switcher-always-on");
+  await other.hover(); // a row's actions show on the row pointed at
+  await expect(on).toHaveAttribute("aria-checked", "false");
+  await on.click();
+  await expect(on).toHaveAttribute("aria-checked", "true");
+  await expect(other.locator(".badge.warm")).toHaveText("running");
+  expect(asked).toEqual([{ path: OTHER, on: true }]);
+  await expect(dlg.locator('[data-vault="notes.invalid · other"]').getByTestId("switcher-always-on")).toHaveCount(0);
+  for (const scheme of ["light", "dark"] as const) { // judged in both themes (docs/guides/UI-STYLE.md)
+    await page.emulateMedia({ colorScheme: scheme });
+    await dlg.screenshot({ path: test.info().outputPath(`switcher-always-on-${scheme}.png`) });
+  }
+});
+
 test("a server vault's row keeps a header key past its gate, in this machine's sign-ins", async ({ page }, info) => {
   await page.goto("/");
   await page.getByText("Finish the GW notes.").waitFor();

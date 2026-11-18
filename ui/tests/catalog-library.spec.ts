@@ -64,8 +64,13 @@ test("the catalog's library is the library page: kinds as tabs, shelves, covers 
   await expect(chips.nth(0)).toHaveText(/All\s*5/);
   await expect(chips.nth(1)).toHaveText(/Films\s*3/);
   await expect(chips.nth(2)).toHaveText(/Albums\s*2/);
-  // covers come as pictures: the films' poster property, an album's embedded picture, the other's PDF's first page
-  await expect(lib.locator(".card img")).toHaveCount(5, { timeout: 15000 });
+  // covers come as pictures: the films' poster property, an album's embedded picture, the other's PDF's first page —
+  // each asked as its card comes near the view (LibraryCover.svelte), so each is scrolled to
+  for (let i = 0; i < 5; i++) {
+    const card = lib.locator(".card").nth(i);
+    await card.scrollIntoViewIfNeeded();
+    await expect(card.locator("img")).toHaveCount(1, { timeout: 15000 });
+  }
 
   await lib.locator(".types .chip", { hasText: "Films" }).click();
   await expect(lib.locator(".card")).toHaveCount(3);

@@ -8,6 +8,7 @@
   import type { ViewRow } from "../../lib/gen/ViewRow";
   import { openPath } from "../../lib/dock";
   import Icon from "../Icon.svelte";
+  import { partMenu } from "../../lib/app-menu";
   import type { IconName } from "../../lib/panes";
   // `deadlines`: the list is `from: deadlines` (Home's box, the Deadlines page): its groups tinted by urgency, each row
   // saying where it comes from, and an empty list saying what would show
@@ -36,6 +37,12 @@
   const KIND: Record<string, { icon: IconName; label: string }> = { note: { icon: "file-text", label: "A note due that day" }, event: { icon: "calendar", label: "An event in a deadline calendar" } };
   const dateTitle = (r: ViewRow) => r.props.from === "event" ? `${r.props.calendar_name ?? "calendar"}: ${r.props.start ?? r.date}`
     : r.props.due ? `due ${r.props.due}` : r.props.scheduled ? `scheduled ${r.props.scheduled}` : `starts ${r.props.start}`;
+  /** A row's right-click: an open task's Mark done (the box's tick) first, then the rows every file has, at its line. */
+  function rowMenu(e: MouseEvent, r: ViewRow) {
+    if (!r.path) return;
+    const tick = !other(r) && !r.done ? [{ label: "Mark done", icon: "check" as const, run: () => ontick(r) }] : [];
+    partMenu(e, tick, r.path, undefined, r.line ?? undefined);
+  }
 </script>
 
 {#if !rows.length}
@@ -46,7 +53,7 @@
   <!-- a recurring event has no path or line and comes once per day: its date keeps each one apart (and the index) -->
   {#each withHeads as { r, head }, i (`${r.path}:${r.line ?? ""}:${r.title}:${r.date ?? ""}:${i}`)}
     {#if head !== null}<li class="head" data-group={head}><span>{head}</span><span class="n">{count(head)}</span></li>{/if}
-    <li class="task" class:done={r.done} data-priority={r.props.priority ?? "normal"} data-from={r.props.from}>
+    <li class="task" class:done={r.done} data-priority={r.props.priority ?? "normal"} data-from={r.props.from} oncontextmenu={(e) => rowMenu(e, r)}>
       {#if other(r)}
         {@const k = KIND[r.props.from ?? "note"] ?? KIND.note}
         <span class="kind" title={k.label} aria-label={k.label}><Icon name={k.icon} size={13} /></span>

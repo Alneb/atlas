@@ -118,8 +118,10 @@ export interface AtlasHelper {
    *  vault-relative path): a comic archive (zip, tar, 7z; RAR through bsdtar/unar/unrar) into a .cbz, a DjVu book into a
    *  PDF with its text. Throws with the reason.
    *  `typstPdf` (API 20): the vault's `.typ` at `path` — or `source` standing there, its pictures read beside it —
-   *  compiled by the core's Typst into the PDF `to` (a vault path) → `to`; `fence`: the page sized to what it holds. */
-  convert: { comicToCbz(path: string): string; djvuToPdf(path: string): string; typstPdf(path: string, to: string, o?: { source?: string; fence?: boolean }): string };
+   *  compiled by the core's Typst into the PDF `to` (a vault path) → `to`; `fence`: the page sized to what it holds.
+   *  `unzstd` (API 34): a vault `x/y.tsv.zst` decompressed to `.atlas/cache/plugins/<id>/x/y.tsv`, every frame, made
+   *  afresh on each call → that path (a Rust decoder: no `zstd` program needed, so the phone too). */
+  convert: { comicToCbz(path: string): string; djvuToPdf(path: string): string; typstPdf(path: string, to: string, o?: { source?: string; fence?: boolean }): string; unzstd(path: string): string };
 }
 
 declare global {

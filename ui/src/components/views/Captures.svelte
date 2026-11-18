@@ -155,10 +155,21 @@
   $effect(() => {
     const id = catalog?.id;
     if (!id) { documentLink = null; return; }
-    void api.pluginTool(id, "document_types", {}).then((exts) => {
+    let live = true, timer: ReturnType<typeof setTimeout> | undefined;
+    // asked again a few times when it fails: the catalog's helper may still be starting (a vault just opened, the
+    // plugin just updated); an older catalog without the tool keeps failing, and no Download is offered
+    const ask = (tries: number) => void api.pluginTool(id, "document_types", {}).then((exts) => {
+      if (!live) return;
       const list = Array.isArray(exts) ? exts.filter((e): e is string => typeof e === "string" && /^[a-z0-9]+$/i.test(e)) : [];
-      documentLink = list.length ? new RegExp(`https?://[^\\s<>"')\\]]+\\.(?:${list.join("|")})(?=[?#\\s)\\]>"]|$)`, "i") : null;
-    }, () => { documentLink = null; }); // an older catalog without the tool: no Download offered
+      // brackets may sit inside the address (`Group%20Theory%20(2010).pdf`); one after the extension ends it
+      documentLink = list.length ? new RegExp(`https?://[^\\s<>"'\\]]+\\.(?:${list.join("|")})(?=[?#\\s)\\]>"]|$)`, "i") : null;
+    }, () => {
+      if (!live) return;
+      documentLink = null;
+      if (tries < 4) timer = setTimeout(() => ask(tries + 1), 1000 * 2 ** tries);
+    });
+    ask(0);
+    return () => { live = false; clearTimeout(timer); };
   });
   const isFileLink = (c: CaptureItem) => !!documentLink?.test(c.text);
   /** One of the catalog's tools on the capture's text, then the capture linked to the note it made; the note (with

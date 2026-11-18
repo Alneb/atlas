@@ -6,8 +6,9 @@
 # keeps its Spanish title.
 title = "Catalog · Letterboxd"
 description = "films from Letterboxd and IMDb links, and everything you watched there"
+phone = true # runs in the phone apps too: its helper is JavaScript in the core (QuickJS), no program of its own
 icon = "film"
-version = "0.5.1"
+version = "0.6.0"
 api = 20
 needs = ">=0.3.0"          # the first core that reads `background` (older ones refuse the key)
 background = "server"  # the hourly feed poll writes film notes: one poller, not one per open device

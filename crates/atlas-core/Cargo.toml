@@ -38,10 +38,12 @@ schemars = { version = "1", features = ["preserve_order"] }
 toml_edit = "0.25.15"
 serde_yaml = "0.9"
 regex = "1"
+regex-syntax = "0.8" # a regex's required literals, for the search index (search_index.rs)
 # PDFium loaded at run time (src/pdfium.rs): covers here, the phone reader's pages, text, find and links
 libloading = "0.8"
 image = { version = "0.25", default-features = false, features = ["png", "jpeg", "webp"] }
 zip = { version = "8", default-features = false, features = ["deflate"] } # an EPUB's cover (thumbs.rs), comics (convert.rs)
+ruzstd = "0.8" # a `.zst` read as the file it holds (convert.rs `unzstd`, the Zstandard plugin): pure Rust, so the phone too
 # comic archives and DjVu books made readable (convert.rs), pure Rust so the phone does it too
 tar = "0.4"
 flate2 = "1"

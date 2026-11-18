@@ -8,7 +8,7 @@
   import { hue, initials, senders, snoozeTimes, when, type Row } from "./api";
   import type { Mail } from "./store.svelte";
 
-  let { mail, compact = false, onopen }: { mail: Mail; compact?: boolean; onopen: (r: Row) => void } = $props();
+  let { mail, compact = false, onopen, onmenu }: { mail: Mail; compact?: boolean; onopen: (r: Row) => void; onmenu?: (e: MouseEvent, r: Row) => void } = $props();
 
   const H = $derived(compact ? 34 : 76);
   // the inbox's important conversations come first (the engine's order) under their own heading, the rest under another
@@ -97,7 +97,7 @@
       <div class="row" class:unread={r.unread > 0} class:cursor={mail.cursor === r.id} class:open={mail.openId === r.id} class:checked
         style:top="{y(at)}px" style:height="{H}px" style:transform={sx ? `translateX(${sx}px)` : undefined}
         role="option" aria-selected={checked || mail.openId === r.id} tabindex="-1" draggable="true"
-        onclick={(e) => click(e, r)} onkeydown={() => {}} ondragstart={(e) => drag(e, r)}
+        onclick={(e) => click(e, r)} oncontextmenu={(e) => onmenu?.(e, r)} onkeydown={() => {}} ondragstart={(e) => drag(e, r)}
         onpointerdown={(e) => down(e, r)} onpointermove={moveP} onpointerup={(e) => up(e, r)} onpointercancel={() => (swipe = null)}>
         {#if sx}<div class="swipe" class:left={sx < 0}>{sx < 0 ? "Archive" : r.unread ? "Read" : "Unread"}</div>{/if}
         <button class="avatar" style:--h={hue(r.from.at(-1)?.addr ?? r.subject)} onclick={(e) => { e.stopPropagation(); mail.toggle(r.thread); }} aria-label={checked ? "Uncheck" : "Check"} aria-pressed={checked}>

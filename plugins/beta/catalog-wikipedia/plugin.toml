@@ -4,8 +4,9 @@
 # sources need (IMDb, MusicBrainz, Goodreads, AniList…). Any language's Wikipedia; no key. Not Wikidata.
 title = "Catalog · Wikipedia"
 description = "Wikipedia pages about films, albums, books… filed as what they are"
+phone = true # runs in the phone apps too: its helper is JavaScript in the core (QuickJS), no program of its own
 icon = "globe"
-version = "0.3.0"
+version = "0.4.0"
 api = 19
 requires = ["catalog"]
 

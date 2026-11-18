@@ -4,7 +4,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { harness, Status } from "atlas-helper/testing";
-import { addressFor, auth, buttonsOf, hookIn, muted, oneAtATime, postedMessage, sendWith, sourceOf, syncWith, yamlValue, type Message, type Net, type Signer, type Vault } from "./helper";
+import { auth, buttonsOf, muted, oneAtATime, sendWith, sourceOf, syncWith, yamlValue, type Message, type Net, type Vault } from "./helper";
 
 /** ntfy: each topic's messages, `since=<id>` honoured as the real one does; the POSTs made. */
 function ntfy(topics: Record<string, Message[]>) {
@@ -182,53 +182,4 @@ test("a source's note has a name a link can reach and properties YAML reads back
   assert.equal(sourceOf({ tags: ["###"] }, "server"), "server", "a tag of nothing but marks: the topic");
   assert.equal(yamlValue("backups"), "backups");
   for (const v of ["ntfy: server", "true", "2026", "- x", "a #b", "[x]", "'q'"]) assert.equal(yamlValue(v), JSON.stringify(v), v);
-});
-
-// Apprise's standing address: what its jsons:// target posts is filed under the address's source; an address made
-// again for the source replaces the older one, whose calls are then refused.
-test("an Apprise post is filed under its address's source, a failure marked urgent; a muted source is not loud", async () => {
-  const { vault, files } = memory();
-  const nonces = { secrets: { hook_nonces: JSON.stringify({ backups: "n1" }) } };
-  const posted = { version: "1.0", title: "Backup failed", message: "restic: repository locked\nretry at 04:00", type: "failure" };
-  const r = await hookIn(vault, { ...settings(), ...nonces, data: { source: "backups", nonce: "n1" }, body: posted }, 1_761_350_400);
-  assert.equal(r.new, 1);
-  const note = files["notifications/backups.md"];
-  assert.match(note, /^---\ntype: notifications\nsource: backups\nfrom: apprise\n/);
-  assert.match(note, /🔴 \*\*Backup failed\*\* — restic: repository locked/);
-  assert.match(note, /\n  > retry at 04:00/);
-  assert.deepEqual(r.loud?.map((l) => l.title), ["Backup failed"]);
-  // muted: still filed, not said
-  files["notifications/backups.md"] = note.replace("muted: false", "muted: true");
-  const again = await hookIn(vault, { ...settings(), ...nonces, data: { source: "backups", nonce: "n1" }, body: "plain text" }, 1_761_350_500);
-  assert.deepEqual(again.loud, []);
-  assert.match(files["notifications/backups.md"], /unread: 2/);
-  // an older address of the source, or one never made: refused, nothing filed
-  await assert.rejects(hookIn(vault, { ...settings(), ...nonces, data: { source: "backups", nonce: "n0" }, body: posted }, 1), /was replaced/);
-  await assert.rejects(hookIn(vault, { ...settings(), ...nonces, data: { source: "updates", nonce: "n1" }, body: posted }, 1), /was replaced/);
-  assert.equal(files["notifications/updates.md"], undefined);
-});
-
-test("a post's type is its priority; text alone is the message", () => {
-  assert.equal(postedMessage({ title: "t", body: "b", type: "Warning" }, 0, "x").priority, 4);
-  assert.equal(postedMessage({ message: "m", type: "info" }, 0, "x").priority, 3);
-  assert.deepEqual(postedMessage("just words", 5, "x"), { id: "x", time: 5, title: "", message: "just words", priority: 3 });
-});
-
-test("an address for Apprise: jsons:// with the token as a passed-on parameter, a fresh nonce kept beside the others", async () => {
-  const signed: Record<string, string>[] = [];
-  const signer = (origin: string | null): Signer => ({ sign: async (d) => (signed.push(d), { path: "/v/notes/api/plugins/notifications/hook/apprise?t=abc.def", origin }) });
-  const p = { settings: {}, secrets: { hook_nonces: JSON.stringify({ updates: "u1" }) } };
-  const a = await addressFor(signer("https://atlas.example.org"), { ...p, source: "backups" });
-  assert.equal(a.apprise, "jsons://atlas.example.org/v/notes/api/plugins/notifications/hook/apprise?-t=abc.def");
-  assert.equal(a.url, "https://atlas.example.org/v/notes/api/plugins/notifications/hook/apprise?t=abc.def");
-  const kept = JSON.parse(a._secrets.hook_nonces);
-  assert.equal(kept.updates, "u1", "the other sources' addresses still hold");
-  assert.equal(kept.backups, signed[0].nonce);
-  assert.equal(signed[0].source, "backups");
-  // made again: another nonce, the older address replaced
-  const b = await addressFor(signer("https://atlas.example.org"), { ...p, source: "backups" });
-  assert.notEqual(JSON.parse(b._secrets.hook_nonces).backups, kept.backups);
-  // plain http stays json://; no address known and none given: said
-  assert.match((await addressFor(signer(null), { ...p, source: "x", origin: "http://10.0.0.2:7340/" })).apprise, /^json:\/\/10\.0\.0\.2:7340\/v\/notes\//);
-  await assert.rejects(addressFor(signer(null), { ...p, source: "x" }), /address is not known/);
 });

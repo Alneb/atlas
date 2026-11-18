@@ -608,13 +608,7 @@ async fn plugin_hook_sign(State(st): S, UrlPath(id): UrlPath<String>, Json(ask):
     let id = plugin_named(&st, id).await?;
     let (root, prefix) = (st.ws.root().to_path_buf(), st.prefix.clone());
     let now = chrono::Utc::now().timestamp();
-    Ok(Json(
-        blocking(move || {
-            let standing_ok = crate::plugin_tools::standing_hook(&root, &id, &ask.hook);
-            crate::hooks::signed(&crate::secrets::Store::for_vault(&root), &prefix, &id, ask, standing_ok, now)
-        })
-        .await?,
-    ))
+    Ok(Json(blocking(move || crate::hooks::signed(&crate::secrets::Store::for_vault(&root), &prefix, &id, ask, now)).await?))
 }
 
 /// A hook called from outside, with no sign-in: its token admits it (signed by this vault for this plugin and hook,
@@ -626,8 +620,8 @@ async fn plugin_hook_call(State(st): S, UrlPath((id, name)): UrlPath<(String, St
     let (token, now) = (q.get("t").cloned().unwrap_or_default(), chrono::Utc::now().timestamp());
     let (id_, name_) = (id.clone(), name.clone());
     let checked = blocking(move || crate::hooks::verify(&crate::secrets::Store::for_vault(&root), &id_, &name_, &token, now)).await;
-    let admitted = match checked {
-        Ok(Ok(a)) => a,
+    let data = match checked {
+        Ok(Ok(d)) => d,
         Ok(Err(r)) => return refuse(StatusCode::FORBIDDEN, r.why().into()),
         Err(e) => return e.into_response(),
     };
@@ -635,13 +629,8 @@ async fn plugin_hook_call(State(st): S, UrlPath((id, name)): UrlPath<(String, St
     if !crate::plugin_tools::listening(st.ws.root(), &cfg, crate::hooks::EVENT).iter().any(|(p, t)| *p == id && *t == name) {
         return refuse(StatusCode::NOT_FOUND, format!("plugin {id} has no hook {name} here"));
     }
-    // a standing address holds only while its hook still takes one (the manifest may have dropped `standing`)
-    let (root, id_, name_) = (st.ws.root().to_path_buf(), id.clone(), name.clone());
-    if admitted.standing && !blocking(move || Ok(crate::plugin_tools::standing_hook(&root, &id_, &name_))).await.unwrap_or(false) {
-        return refuse(StatusCode::FORBIDDEN, format!("hook {name} of {id} no longer takes standing addresses"));
-    }
     let store = crate::secrets::Store::for_vault(st.ws.root());
-    let input = serde_json::json!({ "data": admitted.data, "body": crate::hooks::body_of(&body) });
+    let input = serde_json::json!({ "data": data, "body": crate::hooks::body_of(&body) });
     match crate::plugin_tools::call(st.ws.root(), &cfg, &st.helpers, &store, &id, &name, input).await {
         Ok(v) => {
             crate::notice_actions::say(&st.bus, &id, &v);
@@ -840,19 +829,30 @@ async fn note_templates(State(st): S) -> Result<Json<Vec<crate::notes::TemplateI
 }
 
 async fn replace_post(State(st): S, Json(r): Json<ReplaceRequest>) -> Result<Json<ReplaceResult>> {
-    let o = search::Opts { case: r.case, word: r.word, regex: r.regex, agent: r.agent, pdf: false };
+    let o = search::Opts { case: r.case, word: r.word, regex: r.regex, agent: r.agent, pdf: false, within: search::Within::from_all(r.all) };
     Ok(Json(with_ws(&st, move |ws| search::replace(&ws, &r.q, o, &r.with, r.only.as_deref())).await?))
 }
 
 async fn search_get(State(st): S, Query(q): Query<SearchQuery>) -> Result<Json<SearchResults>> {
-    let o = search::Opts { case: q.case, word: q.word, regex: q.regex, agent: q.agent, pdf: q.pdf };
+    let o = search::Opts { case: q.case, word: q.word, regex: q.regex, agent: q.agent, pdf: q.pdf, within: search::Within::from_all(q.all) };
     Ok(Json(
         with_ws(&st, move |ws| {
             let cfg = ws.config()?;
-            Ok(if q.names { SearchResults { files: search::names_with(ws.root(), &cfg, &q.q, o), ..Default::default() } } else { search::search_with(ws.root(), &cfg, &q.q, o) })
+            Ok(if q.names { SearchResults { files: search::names_with(ws.root(), &cfg, &q.q, o), ..Default::default() } } else { search::search_in_lane(ws.root(), &cfg, &q.q, o, q.lane.as_deref()) })
         })
         .await?,
     ))
+}
+
+/// The plugins' answers to a search of the vault (mail from the Email plugin…), asked apart from the files' search so
+/// the pane shows those first and the plugins' groups when they come.
+async fn search_plugins_get(State(st): S, Query(q): Query<SearchQuery>) -> Result<Json<Vec<crate::api::PluginHits>>> {
+    if q.q.trim().chars().count() < 2 {
+        return Ok(Json(Vec::new()));
+    }
+    let cfg = with_ws(&st, |ws| ws.config()).await?;
+    let store = crate::secrets::Store::for_vault(st.ws.root());
+    Ok(Json(crate::plugin_tools::search(st.ws.root(), &cfg, &st.helpers, &store, q.q.trim(), 8).await))
 }
 
 /// Append-only, capped at ~1 MB (then restarted), so a looping error cannot fill the disk.
@@ -1330,7 +1330,7 @@ async fn vaults_get(State(st): S) -> Result<Json<crate::vaults::VaultList>> {
     if let Some(served) = &st.served {
         // a server: its own vaults, each at its address (the picker goes there)
         let url = |name: &str| if served.len() == 1 { "/".to_string() } else { format!("/v/{name}/") };
-        let vaults = served.iter().map(|v| crate::vaults::Vault { name: v.name.clone(), path: v.root.to_string_lossy().into_owned(), last_opened: 0, missing: false, url: Some(url(&v.name)), mirror: None, warm: true }).collect();
+        let vaults = served.iter().map(|v| crate::vaults::Vault { name: v.name.clone(), path: v.root.to_string_lossy().into_owned(), last_opened: 0, missing: false, url: Some(url(&v.name)), mirror: None, warm: true, always_on: true }).collect();
         return Ok(Json(crate::vaults::VaultList { current: st.ws.root().to_string_lossy().into_owned(), vaults, manage: false }));
     }
     let current = st.ws.root().to_string_lossy().into_owned();
@@ -1405,6 +1405,21 @@ async fn vaults_mirror_post(State(st): S, Json(q): Json<crate::vaults::MirrorReq
         Ok(())
     })
     .await?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+/// `POST /api/vaults/always-on`: a local vault started with the app and kept running (its background work goes on),
+/// or not; marked on, it starts now. Marked off, it keeps running until the app restarts.
+async fn vaults_always_on_post(State(st): S, Json(q): Json<crate::vaults::AlwaysOnRequest>) -> Result<StatusCode> {
+    if st.served.is_some() {
+        return Err(Error::BadRequest("a server runs every vault it serves: \"always on\" is a desktop's choice".into()));
+    }
+    let (path, on) = (q.path.clone(), q.on);
+    blocking(move || crate::vaults::set_always_on(&crate::vaults::list_file(), &path, on)).await?;
+    if let (true, Some(d)) = (q.on, desktop::of(&st)) {
+        let root = std::path::PathBuf::from(&q.path);
+        tokio::spawn(async move { d.start(&root).await });
+    }
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -2606,6 +2621,7 @@ fn router(state: Arc<AppState>) -> Router {
         .route("/api/note/new", post(note_new))
         .route("/api/note/templates", get(note_templates))
         .route("/api/search", get(search_get))
+        .route("/api/search/plugins", get(search_plugins_get))
         .route("/api/replace", post(replace_post))
         .route("/api/commands", get(commands_get).post(commands_post))
         .route("/api/keys", get(keys_get).put(keys_put))
@@ -2661,6 +2677,7 @@ fn router(state: Arc<AppState>) -> Router {
         .route("/api/vaults/forget", post(vaults_forget_post))
         .route("/api/vaults/pick", post(vaults_pick_post))
         .route("/api/vaults/mirror", post(vaults_mirror_post))
+        .route("/api/vaults/always-on", post(vaults_always_on_post))
         .route("/api/vaults/active", post(vaults_active_post))
         .route("/api/guest", get(guest_get))
         .route("/api/guest/edit", post(guest_edit_post))

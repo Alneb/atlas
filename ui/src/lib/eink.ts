@@ -15,11 +15,15 @@ const bridge = () => (globalThis as unknown as { AtlasNative?: Bridge }).AtlasNa
 /** Inside the phone app (its bridge is there): the screen is the phone's, so its own dark mode decides the theme. */
 export const inPhoneApp = (): boolean => bridge() !== undefined;
 
-/** Whether the e-ink mode is on: "auto" asks the screen (the phone app's bridge on a Boox, or `(update: slow)`). */
-export function einkOn(mode: Eink): boolean {
-  if (mode !== "auto") return mode === "on";
+/** Whether this screen is an e-ink one: the phone app's bridge on a Boox says so, or the browser (`(update: slow)`). */
+export function einkScreen(): boolean {
   if (bridge()?.eink?.() === "true") return true;
   return typeof matchMedia === "function" && matchMedia("(update: slow)").matches;
+}
+
+/** Whether the e-ink mode is on: "auto" asks the screen ([`einkScreen`]). */
+export function einkOn(mode: Eink): boolean {
+  return mode === "auto" ? einkScreen() : mode === "on";
 }
 
 const isOn = () => document.documentElement.classList.contains("eink"); // settings.svelte.ts sets it from einkOn

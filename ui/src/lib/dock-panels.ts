@@ -58,6 +58,12 @@ export const paneElement = (id: string): HTMLElement | undefined => {
   return p && contentOf(p);
 };
 
+/** The pane holding `el` (its id and spec), if any: what a right-click inside it is about (lib/pane-menu.ts). */
+export function panelAt(el: Element): { id: string; spec: import("./panes").PaneSpec | undefined } | null {
+  const p = getDock()?.panels.find((x) => contentOf(x)?.contains(el));
+  return p ? { id: p.id, spec: p.params as import("./panes").PaneSpec | undefined } : null;
+}
+
 /** Always-rendered panes (terminals) live in an overlay that keeps a min height even when their
  *  group is hidden, so their content is hidden explicitly. */
 export function setContentVisible(g: DockviewGroupPanel, on: boolean): void {

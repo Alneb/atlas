@@ -10,6 +10,9 @@ use std::sync::{Arc, Mutex};
 use crate::vault_changes::Stamp;
 use std::time::{Duration, Instant, SystemTime};
 
+#[path = "links_disk.rs"]
+mod disk;
+
 /// One link as written in a source note (target not yet resolved).
 #[derive(Debug, Clone, PartialEq)]
 struct RawLink {
@@ -60,6 +63,8 @@ pub(crate) struct Index {
     /// Each note's links resolved, made by the first request that needs them and kept for the index's life: backlinks,
     /// Bases, tags and the link completion each resolved every link of the vault per request before.
     resolved: std::sync::OnceLock<Resolved>,
+    /// How many notes link to each file, made once per index (search ranks by it).
+    incoming: std::sync::OnceLock<HashMap<String, u32>>,
 }
 
 /// For each note, the file each of its links points at (`None`: unresolved), in [`Parsed::links`] order.
@@ -503,7 +508,7 @@ pub(crate) fn warm_in_background(root: &Path, cfg: &Config) {
 
 /// This thread at nice 19 (Linux and Android set the niceness per thread): background work never takes the CPU from
 /// a window's requests or the owner's other programs.
-fn lowest_priority() {
+pub(crate) fn lowest_priority() {
     #[cfg(any(target_os = "linux", target_os = "android"))]
     // SAFETY: gettid and setpriority take no pointers; a failure only leaves the thread at its priority
     unsafe {
@@ -515,19 +520,25 @@ fn lowest_priority() {
 /// `prev`'s index brought up to date: unchanged notes keep their `Arc<Parsed>`, an unchanged file list keeps its
 /// [`Names`], and an index with nothing changed is returned as is.
 fn rebuild(root: &Path, cfg: &Config, prev: Option<Arc<Index>>) -> Arc<Index> {
+    // no index in memory yet (a start): the parses kept on disk stand in for it (links_disk.rs)
+    let kept = if prev.is_none() { disk::load(root) } else { FileCache::new() };
+    let earlier = |rel: &str| prev.as_ref().map_or(kept.get(rel), |i| i.parsed.get(rel));
     let mut files = Vec::new();
     let mut parsed: FileCache = HashMap::new();
-    let mut reused = 0;
+    let (mut reused, mut read) = (0, 0);
     for (abs, rel) in walk::files(root, cfg) {
         if rel.to_lowercase().ends_with(".md") && !cfg.index_excluded(&rel) {
             if let Ok(meta) = abs.metadata() {
                 let mtime = meta.modified().ok();
-                let p = match prev.as_ref().and_then(|i| i.parsed.get(&rel)) {
-                    Some(p) if p.mtime == mtime => {
+                let p = match earlier(&rel) {
+                    Some(p) if p.mtime == mtime && p.size == meta.len() => {
                         reused += 1;
                         p.clone()
                     }
-                    _ => Arc::new(parse_note(&abs, &meta)),
+                    _ => {
+                        read += 1;
+                        Arc::new(parse_note(&abs, &meta))
+                    }
                 };
                 parsed.insert(rel.clone(), p);
             }
@@ -535,11 +546,17 @@ fn rebuild(root: &Path, cfg: &Config, prev: Option<Arc<Index>>) -> Arc<Index> {
         files.push(rel);
     }
     let same_files = prev.as_ref().is_some_and(|i| i.names.files == files);
-    match prev {
-        Some(i) if same_files && reused == parsed.len() && reused == i.parsed.len() => i,
+    let gone = prev.as_ref().map_or(kept.len(), |i| i.parsed.len()) != reused;
+    let index = match prev {
+        Some(i) if same_files && read == 0 && !gone => return i,
         Some(i) if same_files => Arc::new(Index::new(i.names.clone(), shrunk(parsed))),
         _ => Arc::new(Index::new(Arc::new(Names::new(files)), shrunk(parsed))),
+    };
+    // what changed is kept for the next start (a start that read nothing new writes nothing)
+    if read > 0 || gone {
+        disk::save_in_background(root, index.clone());
     }
+    index
 }
 
 fn shrunk(mut m: FileCache) -> FileCache {
@@ -584,7 +601,7 @@ pub(crate) fn snapshot(root: &Path, cfg: &Config) -> Snapshot {
 
 impl Index {
     pub(crate) fn new(names: Arc<Names>, parsed: FileCache) -> Self {
-        Index { names, parsed, resolved: std::sync::OnceLock::new() }
+        Index { names, parsed, resolved: std::sync::OnceLock::new(), incoming: std::sync::OnceLock::new() }
     }
 
     /// Every note's links resolved (once per index).
@@ -633,6 +650,11 @@ impl Index {
             }
         }
         stats
+    }
+
+    /// How many distinct notes link to each file ([`LinkStats::incoming`]), kept for the index's life.
+    pub fn incoming(&self) -> &HashMap<String, u32> {
+        self.incoming.get_or_init(|| self.link_stats(None).incoming)
     }
 
     /// The files each note's links resolve to (unresolved links left out).
@@ -845,6 +867,67 @@ mod tests {
 
     fn targets(s: &str) -> Vec<(String, bool, bool)> {
         parse(s).into_iter().map(|l| (l.target, l.wiki, l.embed)).collect()
+    }
+
+    /// The parses kept on disk read back as they were made, and a start takes them for every note unchanged since —
+    /// a changed note is read again.
+    #[test]
+    fn a_start_takes_the_parses_kept_on_disk_for_unchanged_notes() {
+        let d = tempfile::tempdir().unwrap();
+        let r = d.path();
+        let cfg = Config::default();
+        std::fs::write(r.join("a.md"), "---\ntitle: Alpha\nup: \"[[b]]\"\nn: 3\n---\nSee [[b#Sec|it]] and ![[fig.png]] #tag/x\n").unwrap();
+        std::fs::write(r.join("b.md"), "# B\nback to [[a]]\n").unwrap();
+        let first = rebuild(r, &cfg, None);
+        disk::save(r, &first.parsed).unwrap();
+        let mut kept = disk::load(r);
+        assert_eq!(kept.len(), 2);
+        for (rel, p) in &first.parsed {
+            let k = &kept[rel];
+            assert_eq!((&k.links, &k.props, &k.tags, k.size, k.mtime, k.ctime), (&p.links, &p.props, &p.tags, p.size, p.mtime, p.ctime), "{rel}");
+            assert_eq!(k.words.bits(), p.words.bits());
+        }
+        // marked so a reuse shows: the kept parse of a.md carries a tag the file does not have
+        let mut marked = (*kept["a.md"]).clone();
+        marked.tags.push("from-disk".into());
+        kept.insert("a.md".into(), Arc::new(marked));
+        disk::save(r, &kept).unwrap();
+        std::thread::sleep(Duration::from_millis(20));
+        std::fs::write(r.join("b.md"), "# B\nback to [[a]] and [[c]]\n").unwrap();
+        let started = rebuild(r, &cfg, None);
+        assert!(started.parsed["a.md"].tags.contains(&"from-disk".to_string()), "unchanged: taken from disk, not read");
+        assert_eq!(started.parsed["b.md"].links.len(), 2, "changed: read again");
+        // a damaged file is ignored
+        std::fs::write(r.join(disk::FILE), b"ATNI\x01").unwrap();
+        assert!(disk::load(r).is_empty());
+    }
+
+    /// On a real vault (read-only: nothing is written to it): every note read and parsed, against the same parses
+    /// encoded and loaded back. `ATLAS_TEST_VAULT=… cargo test … -- --ignored --nocapture`.
+    #[test]
+    #[ignore]
+    fn kept_parses_measured_on_a_real_vault() {
+        let Ok(root) = std::env::var("ATLAS_TEST_VAULT") else { return eprintln!("skipped: ATLAS_TEST_VAULT is unset") };
+        let root = Path::new(&root);
+        let cfg = Config::load(root).unwrap();
+        let t = Instant::now();
+        let files: Vec<_> = walk::files(root, &cfg).collect();
+        let walked = t.elapsed();
+        let mut parsed = FileCache::new();
+        for (abs, rel) in files.iter().filter(|(_, rel)| rel.to_lowercase().ends_with(".md") && !cfg.index_excluded(rel)) {
+            if let Ok(meta) = abs.metadata() {
+                parsed.insert(rel.clone(), Arc::new(parse_note(abs, &meta)));
+            }
+        }
+        let read = t.elapsed() - walked;
+        let t = Instant::now();
+        let bytes = disk::encode(&parsed);
+        let enc = t.elapsed();
+        let t = Instant::now();
+        let back = disk::decode(&bytes).unwrap();
+        eprintln!("NOTES {} files walked in {walked:.0?}; {} notes read and parsed in {read:.0?}; kept: {} KB, written in {enc:.0?}, loaded in {:.0?}",
+            files.len(), parsed.len(), bytes.len() >> 10, t.elapsed());
+        assert_eq!(back.len(), parsed.len());
     }
 
     #[test]

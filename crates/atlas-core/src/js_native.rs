@@ -25,8 +25,9 @@ pub fn call(root: &Path, id: &str, op: &str, args: &Value) -> Result<Value, Stri
         "convert.cbz" => crate::convert::comic_to_cbz(root, id, s("path")).map(Value::from),
         "convert.pdf" => crate::convert::djvu_to_pdf(root, id, s("path")).map(Value::from),
         "convert.typst" => convert_typst(root, args),
+        "convert.unzstd" => crate::convert::unzstd(root, id, s("path")).map(Value::from),
         "cache.head" => cache_head(root, id, s("name"), args.get("bytes").and_then(Value::as_u64).unwrap_or(8)),
-        other => Err(format!("no native {other:?} (html.select, html.unescape, csv.parse, zip.list, zip.read, hash.sha256, convert.cbz, convert.pdf, convert.typst, cache.head)")),
+        other => Err(format!("no native {other:?} (html.select, html.unescape, csv.parse, zip.list, zip.read, hash.sha256, convert.cbz, convert.pdf, convert.typst, convert.unzstd, cache.head)")),
     }
 }
 

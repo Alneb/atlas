@@ -4,8 +4,7 @@
 // toasts here. The bell in the status bar counts what is unread; opening a source's note reads it. A source is muted
 // from its note's `muted:` (true, or a date), here with "Notifications: mute a source…" (sources.js, a dialog). "Send
 // to my phone" (a command, the editor menu) goes through the helper's `send`, as the agents' `notifications_send` tool
-// does; the command's form is send.js, a dialog. "Notifications: an address for Apprise…" makes a source's standing
-// address (the helper's `apprise_address`) that Apprise's jsons:// target posts to (the helper's `apprise` hook).
+// does; the command's form is send.js, a dialog.
 const folderOf = (atlas) => String(atlas.plugin.settings.folder || "notifications").replace(/\/+$/, "");
 /** A source's name: its note's, under the folder. */
 export const sourceName = (atlas, path) => path.slice(folderOf(atlas).length + 1, -3);
@@ -112,18 +111,6 @@ export function register(atlas) {
     placeholder: "What to send to your phone…", tag: "Phone", items: [], typed: (t) => `Send “${t}”`,
     onpick: (text) => void send(text, from()),
   }) });
-  // a standing address for Apprise: Apprise posts a tag's notifications to it (its config: `<tag>=<the jsons:// URL>`);
-  // made again for a source, the older one stops
-  atlas.registerCommand({ id: "apprise-address", title: "Notifications: an address for Apprise…", run: async () => {
-    const source = await atlas.input?.("Which source is this address for?", { hint: "its tag in Apprise, its note here: backups, updates…", ok: "Make the address" });
-    if (!source) return;
-    try {
-      const r = await atlas.helper.call("apprise_address", { source });
-      const a = r.result ?? r;
-      await navigator.clipboard.writeText(`${a.source}=${a.apprise}`).catch(() => {});
-      atlas.toast(`Address for ${a.source} copied`, `Paste it into Apprise's config: ${a.source}=${a.apprise}. An older address of ${a.source} no longer works.`, "success", { label: "Open its note", run: () => atlas.open(`${folder()}/${a.source}.md`) });
-    } catch (e) { atlas.toast("No address made", String(e.message ?? e).replace(/^\w+Error: /, ""), "error"); }
-  } });
   atlas.shell.menu("editor", (t) => ((t.selection ?? "").trim() ? [{ label: "Send the selection to my phone", icon: "arrow-up", run: () => send(t.selection.trim(), from()) }] : []));
 
   void sync(true); // then the core's schedule, every 5 minutes; its findings arrive as `synced`

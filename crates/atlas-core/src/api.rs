@@ -25,6 +25,40 @@ pub struct WorkspaceInfo {
     pub config: Config,
 }
 
+/// One plugin's answer to a search of the vault (`GET /api/search/plugins`, a tool with `on = "search"`).
+#[derive(Debug, Clone, Default, Serialize, Deserialize, TS)]
+#[ts(export)]
+pub struct PluginHits {
+    /// The plugin's id, and its name as shown (the group's heading).
+    pub plugin: String,
+    pub name: String,
+    pub hits: Vec<PluginHit>,
+}
+
+/// One thing a plugin found: what the row shows, and the plugin tool that opens it.
+#[derive(Debug, Clone, Default, Serialize, Deserialize, TS)]
+#[ts(export)]
+pub struct PluginHit {
+    pub title: String,
+    /// a second line: who, where, a snippet
+    #[serde(default)]
+    pub detail: Option<String>,
+    /// when (RFC 3339), shown short
+    #[serde(default)]
+    pub date: Option<String>,
+    /// the tool of the same plugin that opens it, and its arguments
+    pub open: PluginOpen,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, TS)]
+#[ts(export)]
+pub struct PluginOpen {
+    pub tool: String,
+    #[ts(type = "Record<string, unknown>")]
+    #[serde(default)]
+    pub args: serde_json::Value,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "lowercase")]
 #[ts(export)]
@@ -660,9 +694,17 @@ pub struct SearchQuery {
     /// Only the text of the vault's PDFs, not the files (without it both, the PDFs' hits after the files').
     #[serde(default)]
     pub pdf: bool,
+    /// Read every text file, not only the notes (code, logs, a run's outputs, data): off by default.
+    #[serde(default)]
+    pub all: bool,
     /// Only the names (files matched by name), no file read: answered at once, before the lines.
     #[serde(default)]
     pub names: bool,
+    /// Who asks, as a line of searches (a Search pane's own id): a newer search in the same lane makes this one stop
+    /// reading files, so the searches typed on the way to a word do not all read the vault to the end.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub lane: Option<String>,
 }
 
 /// Replace across files (POST /api/replace): the search options plus the replacement.
@@ -679,6 +721,9 @@ pub struct ReplaceRequest {
     pub regex: bool,
     #[serde(default)]
     pub agent: bool,
+    /// Every text file, not only the notes (as the search that listed them).
+    #[serde(default)]
+    pub all: bool,
     /// Only these files (the ones the user left ticked); all matching files when absent.
     #[serde(default)]
     #[ts(optional)]

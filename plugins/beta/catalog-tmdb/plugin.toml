@@ -6,8 +6,9 @@
 # the API is faster and adds the IMDb and TVDB ids.
 title = "Catalog · TMDB"
 description = "films and series: search, details, posters, credits"
+phone = true # runs in the phone apps too: its helper is JavaScript in the core (QuickJS), no program of its own
 icon = "film"
-version = "0.3.0"
+version = "0.4.0"
 api = 16
 requires = ["catalog"]
 

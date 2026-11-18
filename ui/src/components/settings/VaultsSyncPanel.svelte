@@ -8,8 +8,11 @@
   import type { SyncStatus } from "../../lib/gen/SyncStatus";
   import type { GuestInfo } from "../../lib/gen/GuestInfo";
   import { closeGuest } from "../../lib/guest.svelte";
+  import { setAlwaysOn } from "../../lib/vaults";
 
-  type Row = { name: string; path: string; current: boolean; state: SyncStatus | null; error: string };
+  // `alwaysOn`: started with the app, its schedules, plugin rounds and notices going on with no window on it (null: a
+  // server's page, where every vault it serves runs)
+  type Row = { name: string; path: string; current: boolean; state: SyncStatus | null; error: string; alwaysOn: boolean | null };
   let rows = $state<Row[]>([]);
   let error = $state("");
   /** The guest folders open now (core guest.rs), each closable here; none off the desktop. */
@@ -22,8 +25,9 @@
       const listed = l.manage ? l.vaults.filter((v) => !v.missing && !/^https?:/.test(v.path)) : l.vaults.filter((v) => v.path === l.current);
       rows = await Promise.all(listed.map(async (v): Promise<Row> => {
         const current = v.path === l.current;
-        try { return { name: v.name, path: v.path, current, state: await api.syncState(current ? undefined : v.path), error: "" }; }
-        catch (e) { return { name: v.name, path: v.path, current, state: null, error: errReason(e) }; }
+        const alwaysOn = l.manage ? v.always_on : null;
+        try { return { name: v.name, path: v.path, current, state: await api.syncState(current ? undefined : v.path), error: "", alwaysOn }; }
+        catch (e) { return { name: v.name, path: v.path, current, state: null, error: errReason(e), alwaysOn }; }
       }));
       error = "";
     } catch (e) { error = errReason(e); }
@@ -32,6 +36,11 @@
   const close = async (g: GuestInfo) => { if (await closeGuest(g.folder)) guests = guests.filter((x) => x.folder !== g.folder); };
   onMount(() => { void load(); const t = setInterval(() => void load(), 30_000); return () => clearInterval(t); });
 
+  async function toggleAlwaysOn(r: Row): Promise<void> {
+    const on = !r.alwaysOn;
+    try { await setAlwaysOn(r.path, on); r.alwaysOn = on; error = ""; }
+    catch (e) { error = `${r.name}: ${errReason(e)}`; }
+  }
   const signIn = (address: string) => window.open(`/signin/door?url=${encodeURIComponent(new URL(address).origin + "/")}`, "_blank");
   const home = (p: string) => p.replace(/^\/home\/[^/]+/, "~");
 </script>
@@ -48,6 +57,12 @@
         {#if r.state.server === "signin" && r.state.mirror}<button class="btn" onclick={() => signIn(r.state!.mirror!)}>Sign in to the server</button>{/if}
       {:else}
         <div class="line warning">Its state could not be read: {r.error}</div>
+      {/if}
+      {#if r.alwaysOn !== null}
+        <div class="always">
+          <button class="switch" class:on={r.alwaysOn} role="switch" aria-checked={r.alwaysOn} aria-label="Keep {r.name} running in the background" data-testid="vault-always-on" onclick={() => void toggleAlwaysOn(r)}><span></span></button>
+          <span class="muted">{r.alwaysOn ? "Always on: starts with Atlas; its schedules, plugins and notices run with no window on it" : "Starts when opened: nothing of it runs in the background until then"}</span>
+        </div>
       {/if}
     </div>
   {:else}
@@ -78,4 +93,5 @@
   .line.warning { color: var(--orange); }
   .line.failure { color: var(--red); }
   .bad { color: var(--red); }
+  .always { display: flex; gap: 8px; align-items: center; font-size: calc(12.5px * var(--ui-scale, 1)); }
 </style>

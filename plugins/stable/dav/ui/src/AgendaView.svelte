@@ -8,9 +8,11 @@
   import type { Cal } from "./store.svelte";
   import Icon from "./Icon.svelte";
 
-  let { cal, events, from, to, selected, onselect, search = false }: {
+  let { cal, events, from, to, selected, onselect, onmenu, search = false }: {
     cal: Cal; events: Ev[]; from: Date; to: Date; selected: Ev | null; search?: boolean;
     onselect: (e: Ev, at: DOMRect) => void;
+    /** a right-click on an event: its menu (App's `eventMenu`) */
+    onmenu: (e: Ev, ev: MouseEvent) => void;
   } = $props();
 
   const groups = $derived.by(() => {
@@ -61,7 +63,7 @@
               {@const t = e.task}
               <button class="tick" onclick={() => cal.tick(t)} title="Mark as done" aria-label="Mark “{e.summary}” as done"></button>
             {/if}
-            <button class="row" class:sel={isSel(e)} class:cancel={e.status === "CANCELLED"} style:--c={color(e)} onclick={(ev) => onselect(e, (ev.currentTarget as HTMLElement).getBoundingClientRect())}>
+            <button class="row" class:sel={isSel(e)} class:cancel={e.status === "CANCELLED"} style:--c={color(e)} onclick={(ev) => onselect(e, (ev.currentTarget as HTMLElement).getBoundingClientRect())} oncontextmenu={(ev) => onmenu(e, ev)}>
               <span class="dot" aria-hidden="true"></span>
               <span class="time">{when(e, g.day)}</span>
               <span class="what">{e.summary || "(no title)"}{#if e.location}<span class="loc">{" · "}{e.location}</span>{/if}</span>

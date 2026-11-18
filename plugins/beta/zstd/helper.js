@@ -79,24 +79,9 @@
 		const path = String(params.path ?? "").trim().replace(/^\/+/, "");
 		if (!/[^/]\.zst$/i.test(path)) throw new Error(`not a .zst file: ${path || "(none)"}`);
 		if (path.split("/").some((p) => p === ".." || p === ".")) throw new Error(`not a vault path: ${path}`);
-		const out = copyPath(atlas.id, path);
-		await atlas.write(out, "");
-		const r = await atlas.exec("zstd", [
-			"-d",
-			"-q",
-			"-f",
-			"-o",
-			`./${out}`,
-			`./${path}`
-		], {
-			locale: "C",
-			timeout: 600
-		}).catch((e) => {
-			throw new Error(/not installed/.test(e.message) ? "zstd is not installed on the machine running Atlas" : e.message);
-		});
-		if (r.status !== 0) throw new Error((r.stderr || r.stdout).trim() || `zstd failed (${r.status ?? "killed"})`);
+		const out = atlas.convert.unzstd(path);
+		if (out !== copyPath(atlas.id, path)) throw new Error(`zstd: the copy is at ${out}, not where this plugin looks`);
 		try {
-			await run("touch", ["-c", `./${out}`]);
 			await prune(out.slice(cacheDir(atlas.id).length + 1), params.settings ?? {});
 		} catch (e) {
 			console.warn(`zstd: the cache was not pruned: ${e.message}`);

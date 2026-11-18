@@ -1,11 +1,12 @@
 # Zstandard: a click on `x.tsv.zst` (any `*.zst`) opens the file it holds, `x.tsv`, in the view that file gets (the table,
-# the text editor…). The helper decompresses it with the machine's `zstd` into the plugin's cache; the .zst is never
+# the text editor…). The helper decompresses it with the core's own decoder (no `zstd` program) into the plugin's cache; the .zst is never
 # changed, so the copy is for reading: an edit of it stays in the cache. Copy into a vault's .atlas/plugins/.
 title = "Zstandard"
-description = "open .zst files as the file they hold (x.tsv.zst as the table of x.tsv), decompressed with zstd"
+description = "open .zst files as the file they hold (x.tsv.zst as the table of x.tsv), decompressed by Atlas itself"
 icon = "file"
-version = "0.2.0"
-api = 17
+version = "0.3.0"
+phone = true # the decoder is the core's: nothing for the phone to run (the cache pruning needs find/rm, skipped there)
+api = 34                   # atlas.convert.unzstd
 claims = ["*.zst"]
 
 [[setting]]
@@ -23,7 +24,7 @@ default = 500
 hint = "past this, the copies opened longest ago are deleted (never the one just opened)"
 
 [permissions]
-exec = ["zstd", "find", "rm", "touch"]   # run by the core (atlas.exec): zstd decompresses; find/rm/touch prune the cache
+exec = ["find", "rm"]   # run by the core (atlas.exec): the cache's pruning
 
 [helper]
 js = "helper.js"                   # run in the core (QuickJS), built from helper/helper.ts
@@ -32,5 +33,5 @@ idle = "10m"                       # it only answers: stopped when unused, start
 # where it runs (PLUGIN-API.md, "Platforms"); a platform not named is untested (Android: only with `phone = true`)
 [platforms]
 linux = "works"
-macos = { support = "untested", why = "needs zstd on the PATH (Homebrew); pruning the cache needs GNU find (-printf)" }
-windows = { support = "untested", why = "needs zstd.exe on the PATH" }
+macos = { support = "untested", why = "pruning the cache needs GNU find (-printf): without it copies are kept" }
+windows = { support = "untested", why = "pruning the cache needs find and rm: without them copies are kept" }

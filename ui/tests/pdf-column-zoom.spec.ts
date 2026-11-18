@@ -57,8 +57,9 @@ for (const theme of ["light", "dark"] as const) test(`a double-click zooms to th
 test("at a zoomed column's end, Space goes on to the next column from its top", async ({ page }) => {
   const pane = await open(page, "light");
   const viewer = pane.locator(".viewer-container");
-  // the left column, zoomed
-  let p = await at(pane, 200, 100);
+  // the left column, zoomed: a double-click in the white of its margin (on its words it selects a word; the nearest
+  // column is the one zoomed)
+  let p = await at(pane, 50, 100);
   await page.mouse.dblclick(p.x, p.y);
   await expect(pane.locator(".zoom-label")).toHaveText(/%$/);
   const view = (await viewer.boundingBox())!;

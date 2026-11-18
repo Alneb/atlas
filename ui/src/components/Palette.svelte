@@ -122,8 +122,10 @@
   /** Where a command stands among the ones run lately; the rest after them, in their order (the sort is stable). */
   const ranAt = (ran: string[], id: string) => { const i = ran.indexOf(id); return i < 0 ? ran.length : i; };
 
-  /** `tag:name` asks the core for a tag's notes: its answer is the list, not something to match by name. */
-  const tagQuery = (q: string) => /^tag:/i.test(q.trim());
+  /** `tag:name` asks the core for a tag's notes, `key:value` for the notes with that property (search.rs
+   *  `by_property`): its answer is the list, not something to match by name. The section says which. */
+  const listedBy = (q: string): string | null => /^tag:/i.test(q.trim()) ? "Notes with this tag" : /^[\p{L}\p{N}_-]+:(?!\/\/)\S/u.test(q.trim()) ? "Notes with this property" : null;
+  const filesFor = (q: string) => fileItems(fileHits, listedBy(q) ? "" : q, listedBy(q) ?? "Files");
   const titledItems = (): Item[] => titledHits.map((t) => ({
     key: `t:${t.path}`, section: "By title", title: t.title, detail: shownName(t.path), icon: fileIcon(t.path), score: 0, hl: [],
     run: () => openPath(t.path), beside: () => openPath(t.path, undefined, { beside: true }),
@@ -169,7 +171,7 @@
       }
       case "files": {
         if (!query) return fileItems(recentFiles(), "", "Recent");
-        const found = fileItems(fileHits, tagQuery(query) ? "" : query, tagQuery(query) ? "Notes with this tag" : "Files");
+        const found = filesFor(query);
         // no file is called that: offer to make the note (Obsidian's quick switcher) — once the search
         // has answered, so Enter typed early never creates what was about to be found
         const called = (f: Item) => !!f.path && [basename(f.path), shownName(f.path)].some((n) => n.toLowerCase() === query.toLowerCase());
@@ -186,10 +188,10 @@
           .slice(0, query ? 12 : 50)
           .map(({ item: c, score: s, hl }) => ({ key: `c:${c.id}`, section: ran.includes(c.id) ? "Recent commands" : "Commands", title: c.title, detail: c.description ?? (c.source === "script" ? "script" : undefined), keys: c.keys, icon: "command" as IconName, score: s, hl, run: c.run }));
         if (query.startsWith(">")) return cmds;
-        const files = query ? fileItems(fileHits, tagQuery(query) ? "" : query, tagQuery(query) ? "Notes with this tag" : "Files") : fileItems(recentFiles().slice(0, 6), "", "Recent files");
+        const files = query ? filesFor(query) : fileItems(recentFiles().slice(0, 6), "", "Recent files");
         const heads = query ? headingItems(query).slice(0, 5) : [];
         // the text of notes, after names: three letters at least, a few lines (the Search pane has them all)
-        const lines: Item[] = query.length >= 3 && hitsFor === query && !tagQuery(query)
+        const lines: Item[] = query.length >= 3 && hitsFor === query
           ? lineHits.slice(0, 8).map((h): Item => ({
               key: `l:${h.path}:${h.line}`, section: "In notes", title: h.text.trim().slice(0, 140), detail: `${shownName(h.path)}:${h.line}`, icon: "search", score: 0, hl: [],
               run: () => { openPath(h.path, h.line); }, beside: () => { openPath(h.path, h.line, { beside: true }); },

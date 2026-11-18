@@ -26,6 +26,32 @@ pub struct Opts {
     /// Only the text of the vault's PDFs (pdf_text.rs's cache), not the files; without it the PDFs' hits come after
     /// the files' (a quarter of the results at most).
     pub pdf: bool,
+    /// Which files' text is read: the notes (the default) or every text file.
+    pub within: Within,
+}
+
+/// Which files a content search reads. Names are matched over every file either way.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum Within {
+    /// The notes (`.md`) and the PDFs' text: what is written to be read. Logs, a run's outputs, data and code are not
+    /// (on a research vault they are most of the bytes and few of the answers).
+    #[default]
+    Notes,
+    /// Every text file (the Search pane's "All files" switch).
+    Everything,
+}
+
+impl Within {
+    pub fn from_all(all: bool) -> Within {
+        if all { Within::Everything } else { Within::Notes }
+    }
+    /// Whether this file's text is read.
+    pub fn reads(self, rel: &str) -> bool {
+        match self {
+            Within::Everything => true,
+            Within::Notes => rel.rsplit_once('.').is_some_and(|(_, ext)| ext.eq_ignore_ascii_case("md")),
+        }
+    }
 }
 
 pub fn search(root: &Path, cfg: &Config, q: &str) -> SearchResults {
@@ -33,6 +59,38 @@ pub fn search(root: &Path, cfg: &Config, q: &str) -> SearchResults {
 }
 
 pub fn search_with(root: &Path, cfg: &Config, q: &str, o: Opts) -> SearchResults {
+    search_in_lane(root, cfg, q, o, None)
+}
+
+/// The newest search of each lane (vault, asker): a search that is no longer the newest of its lane stops reading.
+static LANES: std::sync::LazyLock<std::sync::Mutex<std::collections::HashMap<(std::path::PathBuf, String), u64>>> = std::sync::LazyLock::new(Default::default);
+
+/// A search's turn in its lane: [`Turn::stale`] once a newer search of the same lane started. No lane: never stale.
+pub struct Turn {
+    lane: Option<((std::path::PathBuf, String), u64)>,
+}
+
+impl Turn {
+    pub fn take(root: &Path, lane: Option<&str>) -> Turn {
+        let lane = lane.filter(|l| !l.is_empty()).map(|l| {
+            let key = (root.to_path_buf(), l.to_string());
+            let mut lanes = LANES.lock().unwrap_or_else(|e| e.into_inner());
+            let n = lanes.entry(key.clone()).or_default();
+            *n += 1;
+            (key, *n)
+        });
+        Turn { lane }
+    }
+    pub fn stale(&self) -> bool {
+        self.lane.as_ref().is_some_and(|(key, n)| LANES.lock().unwrap_or_else(|e| e.into_inner()).get(key) != Some(n))
+    }
+}
+
+/// [`search_with`] for an asker's `lane`: superseded by a newer search of the lane, it stops reading files and answers
+/// what it found so far (the asker drops it anyway).
+pub fn search_in_lane(root: &Path, cfg: &Config, q: &str, o: Opts, lane: Option<&str>) -> SearchResults {
+    let turn = Turn::take(root, lane);
+    let stop = || turn.stale();
     if q.trim().is_empty() {
         return SearchResults::default();
     }
@@ -40,28 +98,39 @@ pub fn search_with(root: &Path, cfg: &Config, q: &str, o: Opts) -> SearchResults
     if let Some(tag) = q.trim().strip_prefix("tag:") {
         return SearchResults { files: crate::tags::notes(root, cfg, tag), ..Default::default() };
     }
-    // one walk for both the lines and the names
-    let walked: Vec<(std::path::PathBuf, String)> = walk::files(root, cfg).filter(|(_, rel)| o.agent || !cfg.is_agent_file(rel)).collect();
+    // the vault's files from the link index (kept current by the watcher), not a walk per search: one list for both the
+    // lines and the names
+    let index = crate::links::snapshot(root, cfg);
+    if let Some(files) = by_property(cfg, &index, q, o.agent) {
+        return SearchResults { files, ..Default::default() };
+    }
+    let walked: Vec<(std::path::PathBuf, String)> = listed(cfg, &index, o.agent).map(|rel| (root.join(&rel), rel)).collect();
     crate::pdf_text::catch_up(root, cfg);
     if o.pdf {
         let mut out = SearchResults::default();
-        for f in pdf_lines(root, cfg, q, o, &walked).into_iter().take(MAX_FILES) {
+        let narrow = crate::search_index::Narrow::of(root, q, o.regex);
+        let found = pdf_lines(root, cfg, q, o, &walked, &narrow, &stop);
+        narrow.settle(root, cfg);
+        for f in found.into_iter().take(MAX_FILES) {
             out.counts.insert(f.rel, f.count as u32);
             out.lines.extend(f.lines);
         }
         return out;
     }
-    let index = crate::links::snapshot(root, cfg);
     let props = |rel: &str| index.parsed.get(rel).and_then(|p| p.props_whole());
     let names = if o.regex { Vec::new() } else { match_names(root, walked.iter().map(|(_, rel)| rel.clone()), q, props) };
     // every file read (on several threads), the PDFs' text at the same time; then ranked, not in the walk's order
-    let texts = walked.iter().filter(|&(abs, _)| small(abs)).cloned();
+    // the on-disk index first leaves out the notes and PDF texts that cannot hold the query (search_index.rs)
+    let narrow = crate::search_index::Narrow::of(root, q, o.regex);
+    let texts: Vec<_> = walked.iter().filter(|&(abs, rel)| o.within.reads(rel) && small(abs) && narrow.keeps(abs, rel)).cloned().collect();
     let (found, pdf) = std::thread::scope(|s| {
-        let pdf = s.spawn(|| pdf_lines(root, cfg, q, o, &walked));
-        (file_lines(q, o, texts, true), pdf.join().unwrap_or_default())
+        let pdf = s.spawn(|| pdf_lines(root, cfg, q, o, &walked, &narrow, &stop));
+        (file_lines(q, o, texts.into_iter(), true, &stop), pdf.join().unwrap_or_default())
     });
+    narrow.settle(root, cfg);
     let named: std::collections::HashSet<&str> = names.iter().map(String::as_str).collect();
-    let mut ranked: Vec<(Rank, FileLines)> = found.into_iter().map(|f| (rank(root, &f, &named), f)).collect();
+    let incoming = index.incoming();
+    let mut ranked: Vec<(Rank, FileLines)> = found.into_iter().map(|f| (rank(root, &f, &named, incoming), f)).collect();
     ranked.sort_by_key(|r| r.0);
     let mut out = SearchResults { files: Vec::new(), lines: Vec::new(), counts: Default::default() };
     // a hit in a hidden note is its thing's (a drawing's note text → the drawing; companion::thing_of), as the names are;
@@ -81,11 +150,13 @@ pub fn search_with(root: &Path, cfg: &Config, q: &str, o: Opts) -> SearchResults
 }
 
 /// How a file with matching lines ranks (smaller first): its name matches the query too; a heading or the title says
-/// it; a note; more matches (up to [`MAX_COUNT`]); the newest. So a note about the thing leads, not the walk's order.
-type Rank = (bool, bool, bool, std::cmp::Reverse<usize>, std::cmp::Reverse<std::time::SystemTime>);
-fn rank(root: &Path, f: &FileLines, named: &std::collections::HashSet<&str>) -> Rank {
+/// it; a note; more matches (up to [`MAX_COUNT`]); more notes linking to it (a hub of the vault above a stray note);
+/// the newest. So a note about the thing leads, not the walk's order.
+type Rank = (bool, bool, bool, std::cmp::Reverse<usize>, std::cmp::Reverse<u32>, std::cmp::Reverse<std::time::SystemTime>);
+fn rank(root: &Path, f: &FileLines, named: &std::collections::HashSet<&str>, incoming: &std::collections::HashMap<String, u32>) -> Rank {
     let modified = std::fs::metadata(root.join(&f.rel)).and_then(|m| m.modified()).unwrap_or(std::time::UNIX_EPOCH);
-    (!named.contains(f.rel.as_str()), !f.titled, !f.rel.ends_with(".md"), std::cmp::Reverse(f.count), std::cmp::Reverse(modified))
+    let linked = incoming.get(&f.rel).copied().unwrap_or(0);
+    (!named.contains(f.rel.as_str()), !f.titled, !f.rel.ends_with(".md"), std::cmp::Reverse(f.count), std::cmp::Reverse(linked), std::cmp::Reverse(modified))
 }
 
 /// Only the names [`search_with`] would list, without reading a file: what the Search pane shows at once, while the
@@ -98,18 +169,69 @@ pub fn names_with(root: &Path, cfg: &Config, q: &str, o: Opts) -> Vec<String> {
         return crate::tags::notes(root, cfg, tag);
     }
     let index = crate::links::snapshot(root, cfg);
+    if let Some(files) = by_property(cfg, &index, q, o.agent) {
+        return files;
+    }
     let props = |rel: &str| index.parsed.get(rel).and_then(|p| p.props_whole());
-    match_names(root, walk::files(root, cfg).filter(|(_, rel)| o.agent || !cfg.is_agent_file(rel)).map(|(_, rel)| rel), q, props)
+    match_names(root, listed(cfg, &index, o.agent), q, props)
+}
+
+/// `key:value` — the notes whose property `key` holds `value` (case ignored; a list's items each; a link's name
+/// without its brackets), answered from the note index with no file read: those whose value is `value` first, then
+/// those containing it, each by path. `None` when the query is not of that shape or no note has a property `key` (so
+/// `http://…` or `note: …` stay a text search).
+fn by_property(cfg: &Config, index: &crate::links::Snapshot, q: &str, agent: bool) -> Option<Vec<String>> {
+    let (key, want) = q.trim().split_once(':')?;
+    let want = want.trim().to_lowercase();
+    if key.is_empty() || want.is_empty() || !key.chars().all(|c| c.is_alphanumeric() || c == '_' || c == '-') {
+        return None;
+    }
+    let shown = |v: &serde_yaml::Value| -> Option<String> {
+        let s = match v {
+            serde_yaml::Value::String(s) => s.clone(),
+            serde_yaml::Value::Number(n) => n.to_string(),
+            serde_yaml::Value::Bool(b) => b.to_string(),
+            _ => return None,
+        };
+        let s = s.trim();
+        Some(s.strip_prefix("[[").and_then(|x| x.strip_suffix("]]")).unwrap_or(s).to_lowercase())
+    };
+    let mut any = false;
+    let mut hits: Vec<(bool, &str)> = Vec::new();
+    for (rel, p) in &index.parsed {
+        let Some(v) = p.props_whole().and_then(|props| props.get(key)) else { continue };
+        any = true;
+        if !agent && cfg.is_agent_file(rel) {
+            continue;
+        }
+        let values: Vec<String> = match v {
+            serde_yaml::Value::Sequence(items) => items.iter().filter_map(shown).collect(),
+            v => shown(v).into_iter().collect(),
+        };
+        if values.iter().any(|x| x.contains(&want)) {
+            hits.push((!values.iter().any(|x| *x == want), rel));
+        }
+    }
+    hits.sort();
+    any.then(|| hits.into_iter().map(|(_, rel)| rel.to_string()).take(MAX_NAMES).collect())
 }
 
 /// The PDFs' text (pdf_text.rs's cache), each hit mapped back to its PDF and page, most matches first; only PDFs this
 /// walk found: the text of one deleted, moved or now excluded stays in the cache until the next pass.
-fn pdf_lines(root: &Path, cfg: &Config, q: &str, o: Opts, walked: &[(std::path::PathBuf, String)]) -> Vec<FileLines> {
+fn pdf_lines(
+    root: &Path,
+    cfg: &Config,
+    q: &str,
+    o: Opts,
+    walked: &[(std::path::PathBuf, String)],
+    narrow: &crate::search_index::Narrow,
+    stop: &(dyn Fn() -> bool + Sync),
+) -> Vec<FileLines> {
     if !root.join(crate::pdf_text::CACHE).is_dir() {
         return Vec::new();
     }
     let pdfs: std::collections::HashSet<&str> = walked.iter().map(|(_, rel)| rel.as_str()).filter(|r| r.to_lowercase().ends_with(".pdf")).collect();
-    let mut found: Vec<FileLines> = file_lines(q, o, text_files(root, cfg, o, crate::pdf_text::CACHE), false)
+    let mut found: Vec<FileLines> = file_lines(q, o, text_files(root, cfg, o, crate::pdf_text::CACHE).filter(|(abs, rel)| narrow.keeps(abs, rel)), false, stop)
         .into_iter()
         .filter_map(|f| {
             let lines = crate::pdf_text::hits(f.lines, root);
@@ -121,30 +243,69 @@ fn pdf_lines(root: &Path, cfg: &Config, q: &str, o: Opts, walked: &[(std::path::
     found
 }
 
+/// The vault's files as the link index lists them (the walk's ignore rules, in its order), the agent's own left out
+/// unless asked for.
+fn listed<'a>(cfg: &'a Config, index: &'a crate::links::Snapshot, agent: bool) -> impl Iterator<Item = String> + 'a {
+    index.files().iter().filter(move |rel| agent || !cfg.is_agent_file(rel)).cloned()
+}
+
 /// Every whitespace token must appear (case-insensitive) in the path; basename hits rank first.
 pub fn match_files(root: &Path, cfg: &Config, q: &str, agent: bool) -> Vec<String> {
     match_names(root, walk::files(root, cfg).filter(|(_, rel)| agent || !cfg.is_agent_file(rel)).map(|(_, rel)| rel), q, |_| None)
 }
 
+/// How well a file's name answers the query, best first.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+enum NameRank {
+    /// The name (without its extension) is the query: `Report.md` for "report".
+    Exact,
+    /// The name starts with the query.
+    Starts,
+    /// Every word of the query starts a word of the name ("cl dm" → "Cluster DMFT").
+    WordStarts,
+    /// Every word is somewhere in the name.
+    InName,
+    /// Only the folders and the name together hold every word.
+    InPath,
+}
+
+fn name_rank(stem: &str, base: &str, tokens: &[String], whole: &str) -> NameRank {
+    let words: Vec<&str> = stem.split(|c: char| !c.is_alphanumeric()).filter(|w| !w.is_empty()).collect();
+    if stem == whole {
+        NameRank::Exact
+    } else if stem.starts_with(whole) {
+        NameRank::Starts
+    } else if tokens.iter().all(|t| words.iter().any(|w| w.starts_with(t.as_str()))) {
+        NameRank::WordStarts
+    } else if tokens.iter().all(|t| base.contains(t.as_str())) {
+        NameRank::InName
+    } else {
+        NameRank::InPath
+    }
+}
+
 /// [`match_files`] over paths already walked.
 fn match_names<'p>(root: &Path, paths: impl Iterator<Item = String>, q: &str, props: impl Fn(&str) -> Option<&'p crate::note_props::Props> + Copy) -> Vec<String> {
     let tokens: Vec<String> = q.split_whitespace().map(str::to_lowercase).collect();
-    let mut hits: Vec<(bool, usize, String)> = paths
+    let whole = tokens.join(" ");
+    let mut hits: Vec<(NameRank, bool, usize, String)> = paths
         .filter_map(|rel| {
             let low = rel.to_lowercase();
             if !tokens.iter().all(|t| low.contains(t.as_str())) {
                 return None;
             }
             let base = low.rsplit('/').next().unwrap_or(&low);
-            let in_base = tokens.iter().all(|t| base.contains(t.as_str()));
-            Some((!in_base, rel.len(), rel))
+            let stem = base.rsplit_once('.').map_or(base, |(s, _)| s);
+            let rank = name_rank(stem, base, &tokens, &whole);
+            // then notes before other files, then the shorter name, then the path
+            Some((rank, !low.ends_with(".md"), stem.len(), rel))
         })
         .collect();
     hits.sort();
     // one hit per thing: a PDF's ink, a mail's attachment, a hidden note are their thing's hit (companion::thing_of)
     let mut seen = std::collections::HashSet::new();
     hits.into_iter()
-        .map(|(_, _, p)| crate::companion::thing_in(root, &p, props).unwrap_or(p))
+        .map(|(_, _, _, p)| crate::companion::thing_in(root, &p, props).unwrap_or(p))
         .filter(|p| seen.insert(p.clone()))
         .take(MAX_NAMES)
         .collect()
@@ -153,7 +314,7 @@ fn match_names<'p>(root: &Path, paths: impl Iterator<Item = String>, q: &str, pr
 /// The lines matching `q` (fixed-string, smart-case unless the options say otherwise): each file's first
 /// [`LINES_PER_FILE`], in the files' order.
 pub fn rg_lines(root: &Path, cfg: &Config, q: &str, o: Opts) -> Vec<LineHit> {
-    file_lines(q, o, text_files(root, cfg, o, "."), true).into_iter().flat_map(|f| f.lines).collect()
+    file_lines(q, o, text_files(root, cfg, o, "."), true, &|| false).into_iter().flat_map(|f| f.lines).collect()
 }
 
 /// One file's matches: its first [`LINES_PER_FILE`] lines, and how many there are (up to [`MAX_COUNT`]).
@@ -167,8 +328,8 @@ struct FileLines {
 
 /// ripgrep's searcher over these files (absolute, relative), every file read, in the files' order. The files are read
 /// on several threads (a vault holds thousands; one thread took seconds); `sniff` first leaves out what is not worth
-/// reading ([`worth_reading`]).
-fn file_lines(q: &str, o: Opts, files: impl Iterator<Item = (std::path::PathBuf, String)>, sniff: bool) -> Vec<FileLines> {
+/// reading ([`worth_reading`]). `stop` true: the search was superseded, the files left are not read.
+fn file_lines(q: &str, o: Opts, files: impl Iterator<Item = (std::path::PathBuf, String)>, sniff: bool, stop: &(dyn Fn() -> bool + Sync)) -> Vec<FileLines> {
     use std::sync::atomic::{AtomicUsize, Ordering::Relaxed};
     let Ok(m) = grep_matcher(q, o) else { return Vec::new() }; // a regex being typed
     let files: Vec<_> = files.collect();
@@ -184,11 +345,16 @@ fn file_lines(q: &str, o: Opts, files: impl Iterator<Item = (std::path::PathBuf,
                 loop {
                     let i = next.fetch_add(1, Relaxed);
                     let Some((abs, rel)) = files.get(i) else { break };
-                    if sniff && !worth_reading(abs, rel) {
+                    if i % 64 == 0 && stop() {
+                        break; // superseded: a newer search of the same lane runs
+                    }
+                    if sniff && !sniffed(abs, rel) {
                         continue;
                     }
                     let mut f = FileLines { rel: rel.clone(), count: 0, titled: false, lines: Vec::new() };
-                    let _ = searcher.search_path(&m, abs, UTF8(|n, line| {
+                    // a note is searched as its words (its HTML blanked, lines kept: search_text.rs); other files as they are
+                    let note = rel.rsplit_once('.').is_some_and(|(_, e)| e.eq_ignore_ascii_case("md")).then(|| std::fs::read_to_string(abs).ok()).flatten();
+                    let sink = UTF8(|n, line| {
                         if let Some(text) = shown_line(line) {
                             f.count += 1;
                             f.titled |= rel.ends_with(".md") && is_title(&text); // a `#` in code is a comment
@@ -197,7 +363,11 @@ fn file_lines(q: &str, o: Opts, files: impl Iterator<Item = (std::path::PathBuf,
                             }
                         }
                         Ok(f.count < MAX_COUNT)
-                    }));
+                    });
+                    let _ = match &note {
+                        Some(text) => searcher.search_slice(&m, crate::search_text::searchable(text).as_bytes(), sink),
+                        None => searcher.search_path(&m, abs, sink),
+                    };
                     if f.count > 0 {
                         per_file.lock().unwrap_or_else(|e| e.into_inner()).push((i, f));
                     }
@@ -214,6 +384,25 @@ fn file_lines(q: &str, o: Opts, files: impl Iterator<Item = (std::path::PathBuf,
 fn is_title(line: &str) -> bool {
     let t = line.trim_start();
     (t.starts_with('#') && t.trim_start_matches('#').starts_with(' ')) || t.starts_with("title:") || t.starts_with("aliases:")
+}
+
+/// Each file's [`worth_reading`] verdict, kept while its size and modified time stay the same: a vault's thousands of
+/// binaries (archives, pictures, a run's outputs) are not opened again by every search.
+static SNIFFED: std::sync::LazyLock<std::sync::Mutex<std::collections::HashMap<std::path::PathBuf, (u64, std::time::SystemTime, bool)>>> =
+    std::sync::LazyLock::new(Default::default);
+
+/// [`worth_reading`], remembered in [`SNIFFED`]; a file that cannot be read is not worth it (and not remembered).
+fn sniffed(abs: &Path, rel: &str) -> bool {
+    let Ok(meta) = std::fs::metadata(abs) else { return false };
+    let stamp = (meta.len(), meta.modified().unwrap_or(std::time::UNIX_EPOCH));
+    if let Some(&(len, at, verdict)) = SNIFFED.lock().unwrap_or_else(|e| e.into_inner()).get(abs) {
+        if (len, at) == stamp {
+            return verdict;
+        }
+    }
+    let verdict = worth_reading(abs, rel);
+    SNIFFED.lock().unwrap_or_else(|e| e.into_inner()).insert(abs.to_path_buf(), (stamp.0, stamp.1, verdict));
+    verdict
 }
 
 /// Worth a content search, by the file's first 4 KB (the shape, as rg's binary sniff; no list of extensions): not
@@ -273,13 +462,13 @@ fn grep_matcher(q: &str, o: Opts) -> Result<RegexMatcher> {
 }
 
 /// Largest file searched, as rg's `--max-filesize`.
-const MAX_FILE: u64 = 5 << 20;
+pub(crate) const MAX_FILE: u64 = 5 << 20;
 
 /// The files searched in `dir` ("." = the workspace, by the walk's ignores and, unless `o.agent`, without the agent's
 /// files; any other folder whole), at most [`MAX_FILE`] long, as (absolute, relative).
 fn text_files<'a>(root: &'a Path, cfg: &'a Config, o: Opts, dir: &str) -> Box<dyn Iterator<Item = (std::path::PathBuf, String)> + 'a> {
     let files: Box<dyn Iterator<Item = (std::path::PathBuf, String)>> = if dir == "." {
-        Box::new(walk::files(root, cfg).filter(move |(_, rel)| o.agent || !cfg.is_agent_file(rel)))
+        Box::new(walk::files(root, cfg).filter(move |(_, rel)| (o.agent || !cfg.is_agent_file(rel)) && o.within.reads(rel)))
     } else {
         Box::new(walkdir::WalkDir::new(root.join(dir)).into_iter().filter_map(|e| e.ok()).filter(|e| e.file_type().is_file()).filter_map(|e| {
             let rel = crate::paths::rel_path(root, e.path())?;
@@ -427,6 +616,57 @@ fn looks_encoded(text: &str) -> bool {
 mod tests {
     use super::*;
 
+    /// Where a search's time goes on a real vault, stage by stage, read-only (no PDF text catch-up, nothing written):
+    /// `ATLAS_TEST_VAULT=<vault> cargo test -p atlas-core --lib search::tests::stages -- --ignored --nocapture`.
+    #[test]
+    #[ignore]
+    fn stages() {
+        let Ok(root) = std::env::var("ATLAS_TEST_VAULT") else { return eprintln!("skipped: ATLAS_TEST_VAULT is unset") };
+        let root = std::path::Path::new(&root);
+        let cfg = Config::load(root).unwrap();
+        for q in ["zzqx", "zzqx"] {
+            let t = std::time::Instant::now();
+            let walked: Vec<_> = walk::files(root, &cfg).filter(|(_, rel)| !cfg.is_agent_file(rel)).collect();
+            let walk = t.elapsed();
+            let index = crate::links::snapshot(root, &cfg);
+            let snap = t.elapsed();
+            let props = |rel: &str| index.parsed.get(rel).and_then(|p| p.props_whole());
+            let names = match_names(root, walked.iter().map(|(_, rel)| rel.clone()), q, props);
+            let named = t.elapsed();
+            let texts: Vec<_> = walked.iter().filter(|&(abs, _)| small(abs)).cloned().collect();
+            let bytes: u64 = texts.iter().filter_map(|(abs, _)| std::fs::metadata(abs).ok()).map(|m| m.len()).sum();
+            let sized = t.elapsed();
+            // the sniff alone (remembered after the first query), then the search of what passed it
+            let worth: Vec<_> = texts.iter().filter(|(abs, rel)| sniffed(abs, rel)).cloned().collect();
+            let sniff = t.elapsed();
+            // what the default search reads now: the notes only
+            let t_notes = std::time::Instant::now();
+            let notes = file_lines(q, Opts::default(), texts.iter().filter(|(_, rel)| Within::Notes.reads(rel)).cloned(), true, &|| false);
+            eprintln!("{q:>12}: NOTES ONLY {} files hit, {:.0?} (+ walk/index/names {:.0?})", notes.len(), t_notes.elapsed(), named);
+            let found = file_lines(q, Opts::default(), worth.iter().cloned(), false, &|| false);
+            let read = t.elapsed();
+            eprintln!("{q:>12}: sniff {} → {} worth reading {:.0?} | search {:.0?} on {} threads", texts.len(), worth.len(), sniff - sized, read - sniff,
+                std::thread::available_parallelism().map_or(0, |n| n.get()));
+            eprintln!(
+                "{q:>12}: walk {} files {walk:.0?} | index {:.0?} | names {} {:.0?} | stat {} files {} MB {:.0?} | lines {} files {:.0?} | total {read:.0?}",
+                walked.len(), snap - walk, names.len(), named - snap, texts.len(), bytes >> 20, sized - named, found.len(), read - sized
+            );
+        }
+        // what is read in full: the files the sniff lets through, by extension, the biggest first
+        let mut by: std::collections::HashMap<String, (usize, u64)> = Default::default();
+        for (abs, rel) in walk::files(root, &cfg).filter(|(abs, rel)| small(abs) && worth_reading(abs, rel)) {
+            let ext = rel.rsplit_once('.').map_or("", |(_, e)| e).to_lowercase();
+            let e = by.entry(ext).or_default();
+            e.0 += 1;
+            e.1 += std::fs::metadata(&abs).map_or(0, |m| m.len());
+        }
+        let mut by: Vec<_> = by.into_iter().collect();
+        by.sort_by_key(|(_, (_, b))| std::cmp::Reverse(*b));
+        for (ext, (n, b)) in by.iter().take(15) {
+            eprintln!("read: .{ext:<10} {n:>6} files {:>6} MB", b >> 20);
+        }
+    }
+
     #[test]
     fn smart_case_counts_only_the_capitals_a_pattern_matches() {
         let (lit, re) = (Opts::default(), Opts { regex: true, ..Opts::default() });
@@ -524,6 +764,20 @@ mod tests {
     }
 
     #[test]
+    fn a_sniff_is_remembered_until_the_file_changes() {
+        let d = tempfile::tempdir().unwrap();
+        let p = d.path().join("data");
+        std::fs::write(&p, b"\0\x01binary").unwrap();
+        assert!(!sniffed(&p, "data"));
+        // the same size and time: the verdict kept (a file rewritten in place within the clock's step would be missed
+        // until it changes again — size and time are what every watcher here trusts)
+        assert!(!sniffed(&p, "data"));
+        std::fs::write(&p, b"now plain words in a longer line of text").unwrap();
+        assert!(sniffed(&p, "data"), "rewritten: sniffed again");
+        assert!(!sniffed(&d.path().join("gone"), "gone"));
+    }
+
+    #[test]
     fn only_text_worth_reading_is_searched() {
         let d = tempfile::tempdir().unwrap();
         let r = d.path();
@@ -533,9 +787,117 @@ mod tests {
         std::fs::write(r.join("blob.bin"), b"energy\0\x01\x02").unwrap();
         std::fs::write(r.join("table.md"), format!("energy\n{numbers}")).unwrap(); // a note is always read
         std::fs::write(r.join("script.py"), "# the energy of the bath\nprint(1)\n").unwrap();
-        let mut hits: Vec<_> = search(r, &Config::default(), "energy").lines.into_iter().map(|l| l.path).collect();
+        let every = Opts { within: Within::Everything, ..Default::default() };
+        let mut hits: Vec<_> = search_with(r, &Config::default(), "energy", every).lines.into_iter().map(|l| l.path).collect();
         hits.sort();
         assert_eq!(hits, ["script.py", "table.md"]);
+    }
+
+    #[test]
+    fn a_kept_mail_is_found_by_its_words_not_its_html() {
+        let d = tempfile::tempdir().unwrap();
+        let r = d.path();
+        std::fs::write(r.join("mail.md"), "# Booking\n<div class=\"email-html\">\n<a href=\"https://airline.example\">manage the booking</a>\n</div>\n").unwrap();
+        assert!(search(r, &Config::default(), "airline").lines.is_empty(), "an attribute is not a word of the mail");
+        assert!(search(r, &Config::default(), "email-html").lines.is_empty());
+        let hits = search(r, &Config::default(), "manage").lines;
+        assert_eq!(hits.iter().map(|h| (h.line, h.text.trim())).collect::<Vec<_>>(), [(3, "manage the booking")]);
+    }
+
+    #[test]
+    fn of_equal_matches_the_note_more_notes_link_to_comes_first() {
+        let d = tempfile::tempdir().unwrap();
+        let r = d.path();
+        std::fs::write(r.join("hub.md"), "about spin waves\n").unwrap();
+        std::fs::write(r.join("stray.md"), "about spin waves\n").unwrap();
+        for i in 0..3 {
+            std::fs::write(r.join(format!("l{i}.md")), "see [[hub]]\n").unwrap();
+        }
+        // the stray note is the newer: without the links it would lead
+        std::thread::sleep(std::time::Duration::from_millis(20));
+        std::fs::write(r.join("stray.md"), "about spin waves\n").unwrap();
+        let order: Vec<String> = search(r, &Config::default(), "spin waves").lines.into_iter().map(|l| l.path).collect();
+        assert_eq!(order, ["hub.md", "stray.md"]);
+    }
+
+    #[test]
+    fn a_property_is_searched_by_key_and_value() {
+        let d = tempfile::tempdir().unwrap();
+        let r = d.path();
+        let cfg = Config::default();
+        std::fs::write(r.join("a.md"), "---\nstatus: Draft\nauthor: \"[[Ana Smith]]\"\n---\nx\n").unwrap();
+        std::fs::write(r.join("b.md"), "---\nstatus: drafted\ntags: [x]\nauthor: [Bo, Ana Smith]\n---\ny\n").unwrap();
+        std::fs::write(r.join("c.md"), "---\nstatus: done\n---\nsee http://example.org/x\n").unwrap();
+        let files = |q: &str| search(r, &cfg, q).files;
+        assert_eq!(files("status:draft"), ["a.md", "b.md"], "the exact value first, then those containing it");
+        assert_eq!(files("author:ana smith"), ["a.md", "b.md"], "a link's name, a list's items");
+        assert!(files("status:nothing").is_empty());
+        assert_eq!(names_with(r, &cfg, "status:done", Opts::default()), ["c.md"], "the instant list too");
+        assert!(!search(r, &cfg, "http://example").lines.is_empty(), "no property `http`: a text search");
+    }
+
+    /// The on-disk index changes what is read, never what is found: the same lines with and without it, a note
+    /// edited after it was built found by its new words, and the PDFs' text narrowed the same way.
+    #[test]
+    fn the_index_finds_what_reading_every_note_finds() {
+        let d = tempfile::tempdir().unwrap();
+        let r = d.path();
+        let cfg = Config::default();
+        std::fs::create_dir_all(r.join("notes")).unwrap();
+        for i in 0..30 {
+            std::fs::write(r.join(format!("notes/n{i}.md")), format!("# Note {i}\nword{i} shared\n{}\n", if i % 3 == 0 { "Hubbard model" } else { "lattice" })).unwrap();
+        }
+        let lines = |q: &str, o: Opts| {
+            let mut v: Vec<_> = search_with(r, &cfg, q, o).lines.into_iter().map(|l| (l.path, l.line)).collect();
+            v.sort();
+            v
+        };
+        let queries = [("hubbard", Opts::default()), ("word1", Opts::default()), ("Note 2", Opts::default()), ("sh", Opts::default()), (r"mod+el$", Opts { regex: true, ..Default::default() })];
+        let before: Vec<_> = queries.iter().map(|(q, o)| lines(q, *o)).collect();
+        assert_eq!(before[0].len(), 10);
+        let files: Vec<_> = crate::links::snapshot(r, &cfg).files().iter().map(|rel| (r.join(rel), rel.clone())).collect();
+        crate::search_index::build(&files, &r.join(crate::search_index::FILE)).unwrap();
+        for ((q, o), want) in queries.iter().zip(&before) {
+            assert_eq!(&lines(q, *o), want, "{q:?} with the index");
+        }
+        std::thread::sleep(std::time::Duration::from_millis(20));
+        std::fs::write(r.join("notes/n1.md"), "# Note 1\nnow about the Hubbard model\n").unwrap();
+        assert_eq!(lines("hubbard", Opts::default()).len(), 11, "an edit is found before the index is rebuilt");
+    }
+
+    #[test]
+    fn a_file_made_between_two_searches_is_found() {
+        // the files come from the link index, not a walk: it must see a new one
+        let d = tempfile::tempdir().unwrap();
+        let r = d.path();
+        std::fs::write(r.join("a.md"), "the lattice\n").unwrap();
+        assert_eq!(search(r, &Config::default(), "lattice").lines.len(), 1);
+        std::fs::write(r.join("b.md"), "another lattice\n").unwrap();
+        let res = search(r, &Config::default(), "lattice");
+        assert_eq!(res.lines.len(), 2, "{res:?}");
+        assert_eq!(names_with(r, &Config::default(), "b", Opts::default()), ["b.md"]);
+    }
+
+    #[test]
+    fn by_default_only_the_notes_are_read_but_every_name_matches() {
+        let d = tempfile::tempdir().unwrap();
+        let r = d.path();
+        std::fs::write(r.join("note.md"), "the lattice\n").unwrap();
+        std::fs::write(r.join("Upper.MD"), "the lattice\n").unwrap();
+        std::fs::write(r.join("run.log"), "the lattice\n").unwrap();
+        std::fs::write(r.join("lattice.py"), "the lattice\n").unwrap();
+        let res = search(r, &Config::default(), "lattice");
+        let mut read: Vec<_> = res.lines.iter().map(|l| l.path.as_str()).collect();
+        read.sort();
+        assert_eq!(read, ["Upper.MD", "note.md"]);
+        assert_eq!(res.files, ["lattice.py"], "names are matched over every file");
+        let every = Opts { within: Within::Everything, ..Default::default() };
+        assert_eq!(search_with(r, &Config::default(), "lattice", every).lines.len(), 4);
+        // replace follows the same rule: the log is left alone unless every file is asked for
+        let ws = Workspace::open(r).unwrap();
+        let done = replace(&ws, "lattice", Opts::default(), "chain", None).unwrap();
+        assert_eq!(done.files.len(), 2);
+        assert_eq!(std::fs::read_to_string(r.join("run.log")).unwrap(), "the lattice\n");
     }
 
     #[test]
@@ -546,10 +908,11 @@ mod tests {
             std::fs::write(r.join(format!("a{i:02}.py")), "# the lattice\n").unwrap();
             std::fs::write(r.join(format!("z{i:02}.md")), "the lattice\n").unwrap();
         }
-        let hits: Vec<_> = search(r, &Config::default(), "lattice").lines.into_iter().map(|l| l.path).collect();
+        let every = Opts { within: Within::Everything, ..Default::default() };
+        let hits: Vec<_> = search_with(r, &Config::default(), "lattice", every).lines.into_iter().map(|l| l.path).collect();
         assert_eq!(hits.len(), 80);
         assert!(hits[..40].iter().all(|p| p.ends_with(".md")), "{hits:?}");
-        assert_eq!(hits, search(r, &Config::default(), "lattice").lines.into_iter().map(|l| l.path).collect::<Vec<_>>());
+        assert_eq!(hits, search_with(r, &Config::default(), "lattice", every).lines.into_iter().map(|l| l.path).collect::<Vec<_>>());
     }
 
     /// The files with matching lines come best first, not in the walk's order: the name, then a heading, then a note,
@@ -564,7 +927,7 @@ mod tests {
         std::fs::write(r.join("notes/ccc.md"), "# The lattice\nmore\n").unwrap();
         std::fs::write(r.join("notes/lattice-notes.md"), "one lattice\n").unwrap();
         std::fs::write(r.join("aaa.py"), "# lattice lattice lattice\nlattice\n").unwrap();
-        let res = search(r, &Config::default(), "lattice");
+        let res = search_with(r, &Config::default(), "lattice", Opts { within: Within::Everything, ..Default::default() });
         let mut order: Vec<&str> = res.lines.iter().map(|l| l.path.as_str()).collect();
         order.dedup();
         assert_eq!(order, ["notes/lattice-notes.md", "notes/ccc.md", "notes/bbb.md", "notes/aaa.md", "aaa.py"]);
@@ -614,4 +977,29 @@ mod tests {
         hits.sort(); // ripgrep searches files in parallel: their order is not fixed
         assert_eq!(hits, ["notes/dmft/bath.md", "notes/runs/alpha.md"]);
     }
+
+    /// The name that is the query leads, then one that starts with it, then words at word starts, then anywhere in the
+    /// name, then only across the folders — not the shortest path first.
+    #[test]
+    fn a_name_that_is_the_query_leads() {
+        let paths = ["a/Report draft 2.md", "notes/projects/Report.md", "x/reports/old.md", "Reporting.pdf", "y/Quarterly report.md", "Report.pdf"];
+        let got = match_names(Path::new("/nonexistent"), paths.iter().map(|p| p.to_string()), "report", |_| None);
+        assert_eq!(got, ["notes/projects/Report.md", "Report.pdf", "a/Report draft 2.md", "Reporting.pdf", "y/Quarterly report.md", "x/reports/old.md"]);
+        let words = match_names(Path::new("/nonexistent"), ["b/Cluster DMFT.md", "a/xcl dmx.md"].iter().map(|p| p.to_string()), "cl dm", |_| None);
+        assert_eq!(words, ["b/Cluster DMFT.md", "a/xcl dmx.md"], "word starts before letters inside words");
+    }
+
+    /// A newer search of the same lane makes the older one stale; another lane, or none, is never touched.
+    #[test]
+    fn a_newer_search_in_its_lane_supersedes_the_older() {
+        let root = Path::new("/vault-lanes-test");
+        let first = Turn::take(root, Some("pane-1"));
+        let other = Turn::take(root, Some("pane-2"));
+        let none = Turn::take(root, None);
+        assert!(!first.stale());
+        let second = Turn::take(root, Some("pane-1"));
+        assert!(first.stale() && !second.stale(), "the older one stops");
+        assert!(!other.stale() && !none.stale());
+    }
+
 }

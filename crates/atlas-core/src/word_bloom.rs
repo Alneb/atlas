@@ -26,6 +26,14 @@ impl Words {
         Self(set)
     }
 
+    /// The filter's bits, to keep on disk (links_disk.rs), and back.
+    pub fn bits(&self) -> &[u64] {
+        &self.0
+    }
+    pub fn from_bits(bits: Box<[u64]>) -> Self {
+        Self(bits)
+    }
+
     /// Whether the text may hold every word of `lower` (an empty filter, e.g. a note too large to look at, may hold
     /// anything).
     pub fn may_hold_all(&self, lower: &str) -> bool {

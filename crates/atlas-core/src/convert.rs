@@ -256,9 +256,74 @@ pub fn djvu_to_pdf(root: &Path, id: &str, rel: &str) -> Result<String, String> {
     Ok(out_rel)
 }
 
+/// Zstandard file `rel` (`x/y.tsv.zst`) decompressed into plugin `id`'s cache under its own name without `.zst`
+/// (`.atlas/cache/plugins/<id>/x/y.tsv`: the name keeps the view it opens in) → that path. Made afresh on each ask (a
+/// copy edited by mistake is not kept over the .zst), with every frame the file holds, skippable frames skipped — what
+/// `zstd -d` gives. In Rust, not the `zstd` program: the phone has none.
+pub fn unzstd(root: &Path, id: &str, rel: &str) -> Result<String, String> {
+    use std::io::BufRead;
+    // `.zst` in any case, as the plugin names the copy
+    let cut = rel.len().checked_sub(4).filter(|&i| rel.is_char_boundary(i) && rel[i..].eq_ignore_ascii_case(".zst"));
+    let Some(stem) = cut.map(|i| &rel[..i]).filter(|s| !s.is_empty() && !s.ends_with('/')) else {
+        return Err(format!("not a .zst file: {rel}"));
+    };
+    let src = crate::paths::safe_join(root, rel).map_err(|e| e.to_string())?;
+    let out_rel = format!(".atlas/cache/plugins/{id}/{stem}");
+    let out = crate::paths::safe_join(root, &out_rel).map_err(|e| e.to_string())?;
+    let mut input = std::io::BufReader::new(std::fs::File::open(&src).map_err(|e| format!("{rel}: {e}"))?);
+    made(&out, |part| {
+        let mut w = std::io::BufWriter::new(crate::vault_write::cache::file(part).map_err(|e| e.to_string())?);
+        let mut frames = 0;
+        while !input.fill_buf().map_err(|e| format!("{rel}: {e}"))?.is_empty() {
+            use ruzstd::decoding::errors::{FrameDecoderError, ReadFrameHeaderError};
+            match ruzstd::decoding::StreamingDecoder::new(&mut input) {
+                Ok(mut frame) => std::io::copy(&mut frame, &mut w).map(drop).map_err(|e| format!("{rel}: {e}"))?,
+                // a skippable frame (metadata some tools add): its bytes passed over
+                Err(FrameDecoderError::ReadFrameHeaderError(ReadFrameHeaderError::SkipFrame { length, .. })) => {
+                    std::io::copy(&mut (&mut input).take(u64::from(length)), &mut std::io::sink()).map_err(|e| format!("{rel}: {e}"))?;
+                }
+                Err(e) => return Err(format!("{rel}: not Zstandard data this reads ({e})")),
+            }
+            frames += 1;
+        }
+        if frames == 0 {
+            return Err(format!("{rel}: empty"));
+        }
+        w.flush().map_err(|e| e.to_string())
+    })?;
+    Ok(out_rel)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_zst_is_read_whole_into_the_cache_under_its_own_name() {
+        use ruzstd::encoding::{compress_to_vec, CompressionLevel};
+        let d = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(d.path().join("data")).unwrap();
+        // two frames (as `cat a.zst b.zst` makes) with a skippable frame between: all of it, as `zstd -d` gives
+        let mut bytes = compress_to_vec(&b"U\tE\n3.0\t-1.25\n"[..], CompressionLevel::Fastest);
+        bytes.extend_from_slice(&[0x50, 0x2A, 0x4D, 0x18, 3, 0, 0, 0, 9, 9, 9]);
+        bytes.extend(compress_to_vec(&b"5.5\t-0.90\n"[..], CompressionLevel::Fastest));
+        std::fs::write(d.path().join("data/sweep.tsv.zst"), &bytes).unwrap();
+        let out = unzstd(d.path(), "zstd", "data/sweep.tsv.zst").unwrap();
+        assert_eq!(out, ".atlas/cache/plugins/zstd/data/sweep.tsv");
+        assert_eq!(std::fs::read_to_string(d.path().join(&out)).unwrap(), "U\tE\n3.0\t-1.25\n5.5\t-0.90\n");
+        // asked again: made afresh, the same
+        assert_eq!(unzstd(d.path(), "zstd", "data/sweep.tsv.zst").unwrap(), out);
+    }
+
+    #[test]
+    fn what_is_not_zstandard_or_not_a_zst_is_refused_and_leaves_nothing() {
+        let d = tempfile::tempdir().unwrap();
+        std::fs::write(d.path().join("a.tsv.zst"), b"not zstd at all").unwrap();
+        assert!(unzstd(d.path(), "zstd", "a.tsv.zst").unwrap_err().contains("not Zstandard"));
+        assert!(!d.path().join(".atlas/cache/plugins/zstd/a.tsv").exists());
+        assert!(unzstd(d.path(), "zstd", "a.tsv").unwrap_err().contains("not a .zst"));
+        assert!(unzstd(d.path(), "zstd", "../x.zst").is_err());
+    }
 
     fn png() -> Vec<u8> {
         let mut b = vec![];

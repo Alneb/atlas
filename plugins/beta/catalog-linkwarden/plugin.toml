@@ -4,8 +4,9 @@
 # (`{ collection: Newsletters }`) — docs/refactor/REFACTOR-catalog.md, "Linkwarden".
 title = "Catalog · Linkwarden"
 description = "every catalogued link also saved in Linkwarden, in its library's collection"
+phone = true # runs in the phone apps too: its helper is JavaScript in the core (QuickJS), no program of its own
 icon = "link"
-version = "0.3.0"
+version = "0.4.0"
 api = 16
 requires = ["catalog"]
 

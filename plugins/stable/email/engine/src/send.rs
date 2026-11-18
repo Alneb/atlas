@@ -115,7 +115,7 @@ pub async fn draft_of(m: &Mail, c: &Compose) -> Result<(Account, Draft), String>
         } else if let Some(path) = &f.path {
             vault_file(m, path)?
         } else if let Some((id, part)) = f.from {
-            let raw = crate::sync::body(m, id).await?;
+            let raw = crate::sync::whole(m, id).await?;
             parse::part_bytes(&raw, part).map(|x| x.0).ok_or_else(|| format!("{} is no longer in the message", f.name))?
         } else {
             return Err(format!("{}: no data", f.name));
@@ -150,6 +150,10 @@ pub async fn send(m: &Mail, c: &Compose) -> Result<Value, String> {
 
 /// SMTP, then the copy in Sent (unless the server files it) → (refused recipients, whether a copy was kept).
 async fn deliver(m: &Mail, acc: &Account, from: &str, rcpt: &[String], raw: &[u8]) -> Result<(Vec<Value>, bool), String> {
+    if parse::is_slim(raw) {
+        // the index's copy with attachments left out (parse::slim) must never go out as the message
+        return Err("the message's attachments are not all here: not sent".into());
+    }
     let token = m.token(acc).await?;
     let sent = match crate::smtp::send(acc, token, from, rcpt, &compose::without_bcc(raw)).await {
         // an organisation that turns SMTP sign-in off (535 5.7.3) still lets the mailbox send through Exchange
@@ -365,7 +369,7 @@ pub async fn send_due(m: &Mail, acc: &Account) -> Result<usize, String> {
         if !flags.split_whitespace().any(|f| f.eq_ignore_ascii_case(SEND_LATER)) {
             continue;
         }
-        let raw = crate::sync::body(m, id).await?;
+        let raw = crate::sync::whole(m, id).await?; // sent as it is: every attachment in it
         let Some(p) = parse::parser().parse(&raw[..]) else { continue };
         let Some(at) = p.header_raw("X-Atlas-Send-At").and_then(|v| v.trim().parse::<i64>().ok()) else { continue };
         if at > now {

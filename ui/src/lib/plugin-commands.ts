@@ -8,7 +8,7 @@ import { guard } from "./plugin-log.svelte";
 import type { PluginCommand } from "./plugin-api";
 import { pluginOn, pluginSpec, starting, type Plugin } from "./plugin-registry.svelte";
 
-const ACTION_PREFIX = "plugin.";
+export const ACTION_PREFIX = "plugin.";
 
 // each plugin's commands by `<plugin>.<command>`, for the buttons that run one with an argument (runPluginCommand)
 const commandRuns = new Map<string, (arg?: unknown) => unknown>();

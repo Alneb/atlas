@@ -426,7 +426,8 @@ pub fn permissions(root: &Path, id: &str) -> Result<Permissions> {
 /// encoded the core's way): an EPUB's ink as `text-ink` marks; v31 `atlas.tickTask` (a listed task ticked as Home ticks it:
 /// the Calendar's agenda); v32 `atlas.media({ file })` (a kept file of the plugin's cache played as a server's media is:
 /// Audiobookshelf's offline listening); v33 a library's `from` and `homes` (a server's things apart, under "From <service>",
-/// with the way into its app).
+/// with the way into its app); v34 `atlas.shell.popMenu` (an item's own right-click menu) and the helpers'
+/// `atlas.convert.unzstd` (a `.zst` read by the core's decoder: no `zstd` program, the phone too).
 /// The page's number must be the same (a test holds it). A manifest with a key this Atlas does not know and an `api`
 /// above it is refused with "update Atlas", not with the parser's error (`read_manifest`).
 pub const API_VERSION: u32 = 34;

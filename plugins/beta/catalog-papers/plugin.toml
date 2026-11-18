@@ -8,7 +8,8 @@
 title = "Catalog · Science"
 description = "everything science: papers by DOI or arXiv id into References, with metadata, the open-access PDF (arXiv, OpenAlex, Unpaywall, Semantic Scholar, Europe PMC, CORE), refs.bib and the Zotero connector"
 icon = "book"
-version = "0.7.3"
+version = "0.8.0"
+phone = true # runs in the phone apps too: its helper is built into them
 api = 19
 provides = ["references"]                 # the role the core and the page ask for (not this id)
 # no `requires`: References stands alone; its [contributes.catalog] patterns count only where the catalog runs
@@ -22,7 +23,7 @@ secrets = true
 
 [helper]
 # built by engine/build.sh (crate atlas-papers): one static binary per platform
-run = "\"$ATLAS_PLUGIN_DIR/bin/$ATLAS_PLUGIN_TARGET/papers\""
+run = "\"${ATLAS_PLUGIN_BIN:-$ATLAS_PLUGIN_DIR/bin/$ATLAS_PLUGIN_TARGET}/papers\""  # the phone: the app's own copy (APK)
 # with the vault, so the Zotero Connector's listener is up when the setting is on
 start = "open"
 

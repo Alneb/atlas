@@ -67,4 +67,13 @@ test("a task-list block groups by date, shows priority and recurrence, filters b
   await expect.poll(() => read(request, "notes/chores.md")).toContain(`- [x] water the plants 🔁 every week 📅 ${day(-1)} #home ✅ ${day(0)}`);
   expect(await read(request, "notes/chores.md")).toContain(`- [ ] water the plants 🔁 every week 📅 ${day(6)} #home`);
   await expect(first.locator(".task", { hasText: "water the plants" }).locator(".date"), "the next one shows, in a week").not.toHaveClass(/late/);
+
+  // a row's right-click: Mark done first (what its box does), then the rows every file has
+  await first.locator(".task", { hasText: "fix figure 2" }).click({ button: "right" });
+  const menu = page.getByRole("menu");
+  await expect(menu.getByRole("menuitem").first()).toHaveText(/Mark done/);
+  await expect(menu.getByRole("menuitem", { name: /Copy link/ })).toBeVisible();
+  await page.screenshot({ path: test.info().outputPath("task-menu.png") });
+  await menu.getByRole("menuitem", { name: /Mark done/ }).click();
+  await expect.poll(() => read(request, "notes/chores.md")).toContain(`- [x] fix figure 2 ⏫ 📅 ${day(0)} #work/figures ✅ ${day(0)}`);
 });

@@ -20,8 +20,19 @@ fn main() {
     // a newer parser: kept bodies read again behind, then the lists redrawn
     let again = m.clone();
     std::thread::spawn(move || {
+        if again.index.upgrade_search() {
+            eprintln!("email: search tables made again (prefixes, parts of names)");
+        }
         let n = again.index.reparse();
         let j = again.index.rejoin();
+        let packed = again.index.pack_kept();
+        if packed > 0 {
+            eprintln!("email: {packed} kept messages packed (big attachments left to the server, compressed)");
+        }
+        let freed = again.index.compact();
+        if freed > 0 {
+            eprintln!("email: the index compacted, {} MB given back", freed >> 20);
+        }
         if n > 0 {
             eprintln!("email: {n} kept messages read again with the newer parser");
         }

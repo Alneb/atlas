@@ -9,6 +9,7 @@ pub mod ical;
 pub mod render;
 pub mod search;
 pub mod compose;
+pub mod connect;
 pub mod imap;
 pub mod oauth;
 pub mod smtp;

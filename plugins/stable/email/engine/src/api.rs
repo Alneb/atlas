@@ -74,6 +74,7 @@ pub fn table() -> Vec<(&'static str, Method)> {
         ("agent_accounts", agent_accounts),
         ("consent_answer", consent_answer),
         ("agent_open", agent_open),
+        ("vault_search", vault_search),
         ("agent_save_note", agent_save_note),
         ("preview", preview),
         ("find", find),
@@ -279,7 +280,8 @@ fn scope_of(m: &Mail, p: &Value) -> Scope {
         args.push(account.clone().unwrap().into());
         extra.push(format!("m.account=?{}", args.len()));
     }
-    Scope { folders, filter: (!extra.is_empty()).then(|| (extra.join(" AND "), args)), text: q.text, flat: p.get("flat").and_then(Value::as_bool).unwrap_or(false), pin: p.get("pin").and_then(Value::as_bool).unwrap_or(false) }
+    let substring = q.substring();
+    Scope { folders, filter: (!extra.is_empty()).then(|| (extra.join(" AND "), args)), text: q.text, substring, flat: p.get("flat").and_then(Value::as_bool).unwrap_or(false), pin: p.get("pin").and_then(Value::as_bool).unwrap_or(false), by_date: p.get("by_date").and_then(Value::as_bool).unwrap_or(false) }
 }
 
 fn row(c: &Conversation, m: &Mail) -> Value {
@@ -513,7 +515,7 @@ fn label(m: &Arc<Mail>, p: &Value) -> Result<Value, String> {
 fn attachment(m: &Arc<Mail>, p: &Value) -> Result<Value, String> {
     let id = p.get("id").and_then(Value::as_i64).ok_or("which message?")?;
     let part = p.get("part").and_then(Value::as_u64).ok_or("which file?")? as u32;
-    let raw = m.rt.block_on(sync::body(m, id))?;
+    let raw = m.rt.block_on(sync::whole(m, id))?;
     let (bytes, name, mime) = parse::part_bytes(&raw, part).ok_or("that file is no longer in the message")?;
     let name = if name == "attachment" { s(p, "name").to_string() } else { name };
     let fname = crate::notes::note_file(&name);
@@ -1016,6 +1018,29 @@ fn agent_open(m: &Arc<Mail>, p: &Value) -> Result<Value, String> {
     }
 }
 
+/// The vault's search asking the mail (`on = "search"`): the best conversations for `q` — the same search language
+/// and ranking as the pane's, trash and junk left out — each opened in the Email pane by the `open` tool.
+fn vault_search(m: &Arc<Mail>, p: &Value) -> Result<Value, String> {
+    let limit = p.get("limit").and_then(Value::as_u64).unwrap_or(8).min(50) as usize;
+    let q = crate::search::parse(s(p, "q"), chrono::Utc::now().timestamp());
+    if q.is_empty() {
+        return Ok(json!({ "hits": [] }));
+    }
+    let scope = Scope { filter: q.filter(), text: q.text.clone(), substring: q.substring(), ..Default::default() };
+    let hits: Vec<Value> = m
+        .index
+        .list(&scope, limit, 0)
+        .into_iter()
+        .filter_map(|c| {
+            let x = m.index.msg(c.id)?;
+            let who = c.from.iter().map(Person::display).collect::<Vec<_>>().join(", ");
+            let detail = if c.snippet.is_empty() { who } else { format!("{who} — {}", c.snippet) };
+            Some(json!({ "title": c.subject, "detail": detail, "date": iso(c.date), "open": { "tool": "open", "args": { "message_id": x.message_id, "account": x.account } } }))
+        })
+        .collect();
+    Ok(json!({ "hits": hits }))
+}
+
 /// An agent's "keep this mail as a note": the conversation saved as Save as note does (the same path, updated when
 /// saved before), so it can be linked — to an event (dav_link_event) or from a note as `[[path]]`.
 fn agent_save_note(m: &Arc<Mail>, p: &Value) -> Result<Value, String> {
@@ -1037,7 +1062,7 @@ fn agent_list(m: &Arc<Mail>, p: &Value) -> Result<Value, String> {
     let folder = Some(s(p, "folder")).filter(|f| !f.is_empty()).map(String::from).or_else(|| m.index.role(&acc.name, "inbox").map(|f| f.path)).unwrap_or_else(|| "INBOX".into());
     let _ = m.rt.block_on(sync::account(m, &acc, Some(std::slice::from_ref(&folder))));
     let filter = unseen.then(|| ("m.seen=0".to_string(), vec![]));
-    let rows = m.index.list(&Scope { folders: vec![(acc.name.clone(), folder.clone())], filter, text: None, flat: true, pin: false }, limit, 0);
+    let rows = m.index.list(&Scope { folders: vec![(acc.name.clone(), folder.clone())], filter, text: None, flat: true, pin: false, by_date: true, substring: None }, limit, 0);
     let list = |ps: &[Person]| ps.iter().map(Person::display).collect::<Vec<_>>().join(", ");
     let out: Vec<Value> = rows
         .iter()
@@ -1094,7 +1119,7 @@ fn agent_attachment(m: &Arc<Mail>, p: &Value) -> Result<Value, String> {
     let want = p.get("part").and_then(Value::as_u64).map(|n| n.to_string()).unwrap_or_else(|| s(p, "name").to_string());
     let acc = consent(m, s(p, "account"), &format!("an attachment ({want}) of the message uid {}", p.get("uid").map(|u| u.to_string()).unwrap_or_default()))?;
     let x = find_msg(m, &acc.name, p)?;
-    let raw = m.rt.block_on(sync::body(m, x.id))?;
+    let raw = m.rt.block_on(sync::whole(m, x.id))?;
     let b = parse::body(&raw).ok_or("cannot read the message")?;
     let files: Vec<&parse::Attachment> = b.attachments.iter().filter(|a| !a.inline).collect();
     let a = match p.get("part").and_then(Value::as_u64) {
@@ -1194,6 +1219,20 @@ mod tests {
     fn call_(m: &Arc<Mail>, name: &str, p: Value) -> Value {
         let f = table().into_iter().find(|(n, _)| *n == name).unwrap().1;
         call(m, f, &p).unwrap()
+    }
+
+    /// The vault's search finds the mail by its words, and each hit says how the `open` tool shows it.
+    #[test]
+    fn the_vault_search_asks_the_mail() {
+        let (m, _s, _e, _d) = harness(true);
+        call_(&m, "sync", json!({}));
+        let r = call_(&m, "vault_search", json!({ "q": "draft", "limit": 5 }));
+        let hits = r["hits"].as_array().unwrap();
+        assert!(!hits.is_empty(), "{r}");
+        assert_eq!(hits[0]["open"]["tool"], "open");
+        assert!(hits[0]["open"]["args"]["message_id"].as_str().is_some_and(|id| !id.is_empty()));
+        assert!(hits[0]["date"].as_str().unwrap().starts_with("20"));
+        assert_eq!(call_(&m, "vault_search", json!({ "q": "zzqx" }))["hits"], json!([]));
     }
 
     #[test]

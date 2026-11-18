@@ -60,18 +60,17 @@
     mail.read(r.id);
     if (narrow) screen = "reader";
   }
-  const accountOfTargets = () => mail.targets()[0]?.account ?? mail.view.account ?? mail.accounts[0]?.name;
-
-  function pick(kind: "move" | "label" | "snooze" | "go" | "template") {
+  /** The conversations a picker acts on: taken when it opens (a right-clicked row's, else what is checked or open). */
+  function pick(kind: "move" | "label" | "snooze" | "go" | "template", rows: Row[] = mail.targets()) {
     if (kind === "snooze") {
       atlas.pick({
         placeholder: "Snooze until… (tomorrow 9, mon 14:00, 3h, 2026-11-02 08:00)", tag: "Snooze",
         items: snoozeTimes().map((s) => ({ value: String(s.at), title: s.label })),
         typed: (t) => { const at = parseWhen(t); return at ? `Until ${new Date(at * 1000).toLocaleString(undefined, { weekday: "short", day: "numeric", month: "short", hour: "2-digit", hourCycle: "h23", minute: "2-digit" })}` : "Type a time: tomorrow 9, mon 14:00, 3h"; },
-        onpick: (v, isNew) => { const at = isNew ? parseWhen(v) : Number(v); if (at) mail.snooze(at); },
+        onpick: (v, isNew) => { const at = isNew ? parseWhen(v) : Number(v); if (at) mail.snooze(at, rows); },
       });
     } else if (kind === "move" || kind === "go") {
-      const acc = kind === "move" ? accountOfTargets() : null;
+      const acc = kind === "move" ? rows[0]?.account ?? mail.view.account ?? mail.accounts[0]?.name : null;
       const fs: Folder[] = mail.folders.filter((f) => (!acc || f.account === acc) && f.role !== "other" && f.role !== "view" && f.role !== "all");
       atlas.pick({
         placeholder: kind === "move" ? "Move to which folder?" : "Go to which folder?", tag: kind === "move" ? "Move" : "Go to",
@@ -82,24 +81,24 @@
             try {
               const r = await mail.call<{ path: string }>("folder_create", { account: acc, name: v });
               await mail.loadFolders();
-              mail.moveTo(r.path, v);
+              mail.moveTo(r.path, v, rows);
             } catch (e) { mail.toast(`No folder made: ${(e as Error).message}`, "error"); }
             return;
           }
           const [a, path] = v.split("\u0000");
           const f = mail.folders.find((x) => x.account === a && x.path === path);
-          if (kind === "move") mail.moveTo(path, f?.label ?? path);
+          if (kind === "move") mail.moveTo(path, f?.label ?? path, rows);
           else mail.go({ name: "folder", account: a, folder: path, label: f?.label ?? path });
         },
       });
     } else if (kind === "label") {
       const have = new Set(mail.rows.flatMap((r) => r.labels));
-      const on = new Set(mail.targets().flatMap((r) => r.labels));
+      const on = new Set(rows.flatMap((r) => r.labels));
       atlas.pick({
         placeholder: "Label… (a label it has is taken off)", tag: "Label",
         items: [...have].sort().map((l) => ({ value: l, title: l.replace(/^\$/, ""), detail: on.has(l) ? "on it — pick to take it off" : undefined })),
         typed: (t) => `New label “${t}”`,
-        onpick: (l) => (on.has(l) ? mail.label([], [l]) : mail.label([l], [])),
+        onpick: (l) => (on.has(l) ? mail.label([], [l], rows) : mail.label([l], [], rows)),
       });
     } else {
       atlas.pick({
@@ -108,6 +107,34 @@
         onpick: (v) => { const t = JSON.parse(v) as Template; mail.compose({ subject: t.subject ?? "", to: t.to ?? "", cc: t.cc ?? "", body: t.body }); },
       });
     }
+  }
+
+  /** A conversation's right-click: what its keys do, on it (or on everything checked, when it is checked), named and
+   *  keyed as in the command table; then, once it is saved as a note, the rows every file has. */
+  function rowMenu(e: MouseEvent, r: Row) {
+    if (typeof atlas.shell.popMenu !== "function") return; // an app before API v34: the WebView's own menu
+    const rows = mail.checked.includes(r.thread) ? mail.targets() : [r];
+    const row = (id: string, run: () => unknown, more: { danger?: boolean; label?: string } = {}) => {
+      const c = COMMANDS.find((x) => x.id === id);
+      return c ? { label: more.label ?? c.title, hint: shown(c.keys)[0], danger: more.danger, run: () => void run() } : null;
+    };
+    const inTrash = rows.every((x) => x.folder_role === "trash");
+    atlas.shell.popMenu(e, [
+      row("reply", () => mail.reply("reply", r.id)),
+      row("reply-all", () => mail.reply("all", r.id)),
+      row("forward", () => mail.reply("forward", r.id)),
+      null,
+      row("archive", () => mail.archive(rows)),
+      row("toggle-read", () => mail.toggleRead(rows), { label: rows.some((x) => x.unread > 0) ? "Mark read" : "Mark unread" }),
+      row("star", () => mail.toggleStar(rows), { label: rows.some((x) => x.flagged) ? "Unstar" : "Star" }),
+      mail.view.name === "snoozed" ? row("unsnooze", () => mail.unsnooze(rows)) : row("snooze", () => pick("snooze", rows)),
+      row("move", () => pick("move", rows)),
+      row("label", () => pick("label", rows)),
+      row("note", () => mail.saveNote(r.thread), { label: r.saved ? "Save as note again" : "Save as note" }),
+      null,
+      row("spam", () => mail.spam(rows)),
+      row("trash", () => mail.trash(rows), { danger: true, label: inTrash ? "Delete for good" : "Delete" }),
+    ], { path: r.saved ?? undefined, openLabel: "Open its note" });
   }
 
   function palette() {
@@ -300,8 +327,8 @@
               <button class="tool" onclick={chooseLayout} title="Layout and density"><Icon name="layout" /></button>
               <button class="tool" onclick={palette} title="All commands (Ctrl+K)"><Icon name="keyboard" /></button>
             </div>
-            {#if mail.chips.length}
-              <div class="chips">{#each mail.chips as [op, v] (op + v)}<span class="chip"><b>{op}:</b>{v}</span>{/each}{#if mail.query}<button class="link" onclick={searchServer}>Search the servers too ↵</button>{/if}</div>
+            {#if mail.chips.length || mail.query}
+              <div class="chips">{#each mail.chips as [op, v] (op + v)}<span class="chip"><b>{op}:</b>{v}</span>{/each}{#if mail.query}<button class="link" onclick={() => { mail.byDate = !mail.byDate; mail.load(); }} title="Best matches first (the words in the subject or the people weigh most, newer above older), or the newest first">{mail.byDate ? "Newest first" : "Best match"}</button><button class="link" onclick={searchServer}>Search the servers too ↵</button>{/if}</div>
             {/if}
             {#if mail.checked.length}
               <div class="selbar" role="toolbar" aria-label="Checked conversations">
@@ -349,7 +376,7 @@
               {:else}<p class="faint">Nothing here{mail.quick ? " with that filter" : ""}.</p>{/if}
             </div>
           {:else}
-            <MessageList {mail} {compact} onopen={open} />
+            <MessageList {mail} {compact} onopen={open} onmenu={rowMenu} />
           {/if}
         </section>
       {/if}

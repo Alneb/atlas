@@ -354,6 +354,10 @@ pub struct UiConfig {
     /// Where open tabs are listed: a vertical sidebar (Zen-style, with pinned tabs) or the
     /// classic horizontal strip above each pane.
     pub tabs: TabsLayout,
+    /// One tab per pane: opening a file or a view in the editor area replaces what that pane shows instead of adding
+    /// a tab beside it (Back and Forward step through what it showed). Splits each keep their own; terminals keep
+    /// their tabs; an unsaved or pinned tab is never replaced.
+    pub one_tab: bool,
     /// Where the side panel (files, search, outline, git) shows: its own column beside the editors
     /// (`dock`), or inside the left bar, under the list of tabs (`sidebar`; vertical tabs only).
     pub side_panel: SidePanelPlace,
@@ -1192,7 +1196,7 @@ impl Default for Config {
 
 impl Default for UiConfig {
     fn default() -> Self {
-        Self { theme: Theme::System, accent: String::new(), palette: Palette::default(), palette_dark: None, contrast: Contrast::default(), shape: Shape::default(), ui_font: String::new(), font_size: 14, gpu_rendering: GpuRendering::Auto, css_snippets_off: Vec::new(), tabs: TabsLayout::Vertical, side_panel: SidePanelPlace::Dock, motion: Motion::default(), notices: NoticeCorner::default(), eink: Eink::Auto, eink_refresh: EinkRefresh::Often, restore_layout: true, tab_preview: true, share_place: true, tab_switcher: TabSwitcher::Glance, sleep_after_min: 10, awake_tabs: 8, libraries: Vec::new(), apps_order: Vec::new(), apps_hidden: Vec::new() }
+        Self { theme: Theme::System, accent: String::new(), palette: Palette::default(), palette_dark: None, contrast: Contrast::default(), shape: Shape::default(), ui_font: String::new(), font_size: 14, gpu_rendering: GpuRendering::Auto, css_snippets_off: Vec::new(), tabs: TabsLayout::Vertical, one_tab: false, side_panel: SidePanelPlace::Dock, motion: Motion::default(), notices: NoticeCorner::default(), eink: Eink::Auto, eink_refresh: EinkRefresh::Often, restore_layout: true, tab_preview: true, share_place: true, tab_switcher: TabSwitcher::Glance, sleep_after_min: 10, awake_tabs: 8, libraries: Vec::new(), apps_order: Vec::new(), apps_hidden: Vec::new() }
     }
 }
 

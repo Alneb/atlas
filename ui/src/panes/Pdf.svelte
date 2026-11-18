@@ -27,7 +27,9 @@
   import { api } from "../lib/api";
   import { exportWithMarks } from "../lib/pdf-export";
   import { ensureNoteOf, notesBeside } from "../lib/papers";
-  import { placeLink } from "../lib/pdf-place";
+  import { placeLink, type PdfPlace } from "../lib/pdf-place";
+  import { copy, partMenu } from "../lib/app-menu";
+  import { pressedByHand } from "../lib/menu";
   import Icon from "../components/Icon.svelte";
   import PdfThumbs from "../components/PdfThumbs.svelte";
   import PdfMarksList from "../components/PdfMarksList.svelte";
@@ -58,9 +60,47 @@
   // a link to this page, or to the selected passage by its words (lib/pdf-place.ts)
   async function copyLink() {
     const sel = (await r?.selection()) ?? [];
-    const link = sel.length ? placeLink(spec.path, { page: sel[0].page, quote: sel.map((s) => s.text).join(" ") }) : placeLink(spec.path, { page: current || 1 });
-    try { await navigator.clipboard.writeText(link); flash(sel.length ? "Link to the selected passage copied" : `Link to page ${current || 1} copied`); }
+    await copyPlace(sel.length ? { page: sel[0].page, quote: sel.map((s) => s.text).join(" ") } : { page: current || 1 });
+  }
+  /** A link to a place of this PDF on the clipboard, said in the bar (the link itself when the clipboard refuses). */
+  async function copyPlace(place: PdfPlace) {
+    const link = placeLink(spec.path, place);
+    const what = place.quote ? "the selected passage" : place.annotation ? "the mark" : `page ${place.page}`;
+    try { await navigator.clipboard.writeText(link); flash(`Link to ${what} copied`); }
     catch { flash(link, 8000); }
+  }
+
+  /** A page's right-click: the selection's marks and links, the mark under the pointer, the page's link and bookmark,
+   *  then the PDF's file rows. Off the pages, the pane's own menu (pane-menu.ts). */
+  async function pageMenu(e: MouseEvent) {
+    const at = r?.pageAt(e.clientX, e.clientY);
+    if (!r || !at || pressedByHand()) return;
+    e.preventDefault(); // now: what follows waits on the reader
+    const sel = await r.selection();
+    const [x, y] = await r.toPagePoint(at.n, at.X, at.Y).catch(() => [NaN, NaN]);
+    const hit = marks && Number.isFinite(x) ? markAt(marks.marks(), at.n, x, y) : null;
+    const hasBookmark = !!marks?.marks().some((m) => m.page === at.n && m.kind === "bookmark");
+    const words = sel.map((s) => s.text).join(" ");
+    const textRows = sel.length ? [
+      { label: "Highlight", icon: "highlighter" as const, hint: "H", run: () => void tools?.markSelection("highlight") },
+      { label: "Underline", hint: "U", run: () => void tools?.markSelection("underline") },
+      { label: "Strike through", hint: "X", run: () => void tools?.markSelection("strike") },
+      "sep" as const,
+      { label: "Copy", icon: "copy" as const, hint: "Ctrl+C", run: () => void copy(words) },
+      { label: "Copy link to the passage", icon: "link" as const, run: () => void copyPlace({ page: sel[0].page, quote: words }) },
+      "sep" as const,
+    ] : [];
+    const markRows = hit ? [
+      { label: "Copy link to the mark", icon: "link" as const, run: () => void copyPlace({ page: at.n, annotation: hit.id }) },
+      { label: "Delete the mark", icon: "trash" as const, danger: true, run: () => void tools?.remove(hit.id) },
+      "sep" as const,
+    ] : [];
+    partMenu(e, [
+      ...textRows, ...markRows,
+      { label: `Copy link to page ${at.n}`, icon: "link", run: () => void copyPlace({ page: at.n }) },
+      { label: hasBookmark ? `Take page ${at.n}'s bookmark away` : `Bookmark page ${at.n}`, icon: "bookmark", hint: "B",
+        run: () => void tools?.toggleBookmark(at.n).then((on) => { seeBookmark(); flash(on ? `Page ${at.n} bookmarked` : "Bookmark taken away"); }) },
+    ], spec.path);
   }
   let rotation = $state(0);
   const rotate = () => { r?.rotate(); rotation = r?.rotation ?? 0; };
@@ -495,7 +535,7 @@
       {#if picked && barAt}
         <PdfMarkBar mark={picked} at={barAt} onrecolor={(hex) => editPicked(recoloured(picked!, hex))} onreword={(t) => editPicked(reworded(picked!, t))} ondelete={deletePicked} onclose={unpick} />
       {/if}
-      <div class="viewer-container" tabindex="-1" onscroll={() => { if (picked) placeBar(); }} class:inking={tool === "ink"} class:noting={tool === "text" || tool === "postit" || tool === "clip" || tool === "stamp"} class:can-pan={tool === "select" && !erasing} class:erasing class:dark bind:this={container} onwheel={pinch} onclickcapture={eraseClick} ondblclick={columnZoom}>
+      <div class="viewer-container" tabindex="-1" onscroll={() => { if (picked) placeBar(); }} class:inking={tool === "ink"} class:noting={tool === "text" || tool === "postit" || tool === "clip" || tool === "stamp"} class:can-pan={tool === "select" && !erasing} class:erasing class:dark bind:this={container} onwheel={pinch} onclickcapture={eraseClick} oncontextmenu={pageMenu} ondblclick={columnZoom}>
         <div class="pdfViewer"></div>
       </div>
       {#if error}

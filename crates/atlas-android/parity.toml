@@ -129,6 +129,14 @@
 "notifications" = { native = "Notices", note = "what it raises reaches the shade through the core's notices, with their buttons, a channel per kind (NoticeKind); planned notices ring on time with the app gone (ReminderAlarms, exact alarms); the native Agenda lists what is planned (AgendaScreen)" }
 "plan" = { native = "AgendaScreen", note = "its dated tasks in the native Agenda (the top bar's calendar, the launcher's Agenda, the widget's Coming up): a day, 3 days or a week beside the Calendar's events, a task ticked through the core; its nudges ring on time with the app gone (ReminderAlarms); its settings are the page's" }
 "catalog" = { page = true, note = "its library pages planned native with the libraries (§4); the note of a thing (its `note` tool, the one-note rule) is asked by the native screens through Host.thingNote, the same call" }
+"catalog-anime" = { page = true, note = "a catalog source: its JavaScript helper runs in the phone's core as on the desktop" }
+"catalog-books" = { page = true, note = "a catalog source: its JavaScript helper runs in the phone's core as on the desktop" }
+"catalog-letterboxd" = { page = true, note = "a catalog source: its JavaScript helper runs in the phone's core as on the desktop" }
+"catalog-linkwarden" = { page = true, note = "a catalog source: its JavaScript helper runs in the phone's core as on the desktop" }
+"catalog-music" = { page = true, note = "a catalog source: its JavaScript helper runs in the phone's core as on the desktop" }
+"catalog-tmdb" = { page = true, note = "a catalog source: its JavaScript helper runs in the phone's core as on the desktop" }
+"catalog-wikipedia" = { page = true, note = "a catalog source: its JavaScript helper runs in the phone's core as on the desktop" }
+"catalog-youtube" = { page = true, note = "a catalog source: its JavaScript helper runs in the phone's core as on the desktop" }
 "copyparty" = "page"
 "kiwix" = "page"
 "predictor" = "page"
@@ -137,15 +145,10 @@
 "today" = "page"
 "jellyfin" = { page = true, note = "the library and the reports work; a film plays its sound only until libmpv is in the app (DESIGN-video-player.md §3)" }
 "weather" = "page"
+"catalog-papers" = { page = true, note = "its helper is built into the APK (build-apk.sh engines); the Zotero connector's listener has no browser to answer there" }
+"zstd" = { page = true, note = "decompressed by the core's decoder (convert.unzstd); the cache is not pruned there (no find/rm)" }
+"syncthing" = { page = true, note = "its helper is built into the APK; the API key is set in its settings (a phone's Syncthing config is not readable)" }
 # ---- not on the phone: their manifests say `no` for Android ----
-"catalog-anime" = { missing = "not made for the phone app" }
-"catalog-books" = { missing = "not made for the phone app" }
-"catalog-linkwarden" = { missing = "not made for the phone app" }
-"catalog-music" = { missing = "not made for the phone app" }
-"catalog-papers" = { missing = "not made for the phone app" }
-"catalog-tmdb" = { missing = "not made for the phone app" }
-"catalog-wikipedia" = { missing = "not made for the phone app" }
-"catalog-youtube" = { missing = "not made for the phone app" }
 "claude" = { missing = "not made for the phone app" }
 "dav" = { missing = "not made for the phone app", note = "a vault on the phone runs no Calendar engine; a server's vault does, and its events reach the native Agenda (AgendaScreen) and the page's pane" }
 "downloader" = { missing = "not made for the phone app" }
@@ -157,8 +160,6 @@
 "rnote" = { missing = "not made for the phone app" }
 "run-tools" = { missing = "the phone app has no shell terminal" }
 "ssh" = { missing = "not made for the phone app" }
-"syncthing" = { missing = "not made for the phone app" }
-"zstd" = { missing = "not made for the phone app" }
 
 [settings]
 # ---- the page's Settings (PAGES in ui/src/lib/settings-pages.ts), opened by the app's ⋮ → Vault settings ----
