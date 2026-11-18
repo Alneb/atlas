@@ -28,7 +28,7 @@ serde_json.workspace = true
 serde.workspace = true
 reqwest = { workspace = true, features = ["blocking", "rustls-tls"] }
 # the tray icon's pixels (main.rs `tray_pixels`), as atlas-capture reads its own
-png = "0.17"
+png = "0.18"
 
 [dev-dependencies]
 tempfile = "3"
@@ -53,7 +53,7 @@ tauri = { version = "2", features = ["tray-icon"] }
 # panic on an async thread ("Cannot start a runtime from within a runtime")
 ksni = { version = "0.3", default-features = false, features = ["async-io"] }
 # KDE's tablet mode followed over D-Bus (tablet.rs); the core's own zbus, blocking calls on a thread
-zbus = "5"
+zbus = "6"
 # filter lists → WebKit content-blocker rules, for the browsing windows' ad blocking (web_filters.rs; moved out of the
 # core, which the phone and the server build without needing it: REFACTOR-core-to-plugins.md #9)
 adblock = { version = "0.13", features = ["content-blocking"] }
@@ -63,6 +63,6 @@ webkit2gtk = "2.0"
 gtk = "0.18"
 # WebKit's content filter store (browser.rs: ad blocking), which the Rust bindings do not cover
 webkit2gtk-sys = { version = "2.0", features = ["v2_24"] }
-gio-sys = "0.18"
-glib-sys = "0.18"
-gobject-sys = "0.18"
+gio-sys = "0.22"
+glib-sys = "0.22"
+gobject-sys = "0.22"
