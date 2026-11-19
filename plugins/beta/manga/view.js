@@ -511,6 +511,17 @@ export default function mount(host, atlas) {
     void suw.sources().then((x) => { all = x; if (!gone) draw(); }, (e) => list.append(el("div", "atlas-notice", String(e.message ?? e))));
     setTimeout(() => filter.focus(), 0);
   }
+  /** The library's order, the phone's setting (`library_order`, `library_descending`): what the server says of a series
+   *  here is its title and its unread chapters, so "unread" orders by them, "auto" puts the series with chapters left
+   *  first, and the orders the server cannot say here (last read, chapters) fall back to the title. */
+  function ordered(list) {
+    const by = String(S.library_order ?? "auto"), turn = S.library_descending === true ? -1 : 1;
+    const title = (a, b) => natural(a.title, b.title);
+    const cmp = by === "unread" ? (a, b) => (b.unread - a.unread) || title(a, b)
+      : by === "auto" ? (a, b) => (Number(b.unread > 0) - Number(a.unread > 0)) || title(a, b)
+      : title;
+    return [...list].sort((a, b) => turn * cmp(a, b));
+  }
   /** Suwayomi's library — the server's, not the vault's: its series by category as covers, unread counts, the way
    *  into Browse. A series opened here reads as any; it joins the Libraries page once it is yours (its note). */
   function serverLibrary() {
@@ -519,14 +530,19 @@ export default function mount(host, atlas) {
     go.onclick = () => push(browse);
     const filter = el("input", "atlas-input m-filter");
     filter.placeholder = "Filter the series…";
-    head.append(filter, go);
+    // only the series with chapters left to read: a chip beside the filter, as the phone's library has
+    const unreadOnly = el("button", "atlas-btn", "Unread");
+    unreadOnly.title = "Only the series with chapters left to read";
+    let onlyUnread = false;
+    unreadOnly.onclick = () => { onlyUnread = !onlyUnread; unreadOnly.classList.toggle("on", onlyUnread); draw(); };
+    head.append(filter, unreadOnly, go);
     const tabs = el("div", "m-tabs"), grid = el("div", "m-grid");
     root.append(head, tabs, grid);
     let all = [], cat = "";
     const draw = () => {
       const f = filter.value.trim().toLowerCase();
       grid.replaceChildren();
-      const shown = all.filter((x) => (!cat || (x.categories ?? []).includes(cat)) && (!f || x.title.toLowerCase().includes(f)));
+      const shown = ordered(all.filter((x) => (!cat || (x.categories ?? []).includes(cat)) && (!f || x.title.toLowerCase().includes(f)) && (!onlyUnread || x.unread > 0)));
       for (const x of shown) {
         const card = el("button", "m-found"), pic = el("div", "m-cover"), img = el("img");
         img.alt = "";

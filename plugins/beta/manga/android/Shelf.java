@@ -37,6 +37,8 @@ final class Shelf {
         int chapters = -1, unread;
         /** When it was last read (ms since 1970; 0: never). */
         long lastRead;
+        /** How many chapters are kept on this device or the server's disk (-1: not known); a vault series is files. */
+        int downloaded = -1;
         /** A server's cover address (its `thumbnailUrl`, relative to the server); null for the vault's. */
         String cover;
 
@@ -92,6 +94,27 @@ final class Shelf {
         }
     }
 
+    /** Which series the library shows (the plugin's `library_show`; the order dialog). */
+    enum Show {
+        ALL("all", "Every series"), UNREAD("unread", "With chapters left to read"), STARTED("started", "Started"),
+        DOWNLOADED("downloaded", "Downloaded");
+        final String word, label;
+        Show(String word, String label) { this.word = word; this.label = label; }
+        /** The setting's word; anything else is ALL. */
+        static Show of(String word) {
+            for (Show s : values()) if (s.word.equals(word)) return s;
+            return ALL;
+        }
+        boolean keeps(Item i) {
+            switch (this) {
+                case UNREAD: return i.unread > 0;
+                case STARTED: return i.lastRead > 0;
+                case DOWNLOADED: return i.origin == Origin.VAULT || i.downloaded > 0;
+                default: return true;
+            }
+        }
+    }
+
     /** What tab `tab` lists, matching `filter` (words of the title, any case; null or "": all), in the default order. */
     static List<Item> shelf(String tab, List<Item> items, String filter, String server) {
         return shelf(tab, items, filter, server, Order.AUTO, false);
@@ -101,8 +124,13 @@ final class Shelf {
      *  as numbers). `server`: the name `tabs` gave a server with no categories. Last read, unread and chapters run from
      *  the most when not turned round (what one looks for first). */
     static List<Item> shelf(String tab, List<Item> items, String filter, String server, Order order, boolean descending) {
+        return shelf(tab, items, filter, server, order, descending, Show.ALL);
+    }
+
+    /** The same, keeping only the series `show` keeps. */
+    static List<Item> shelf(String tab, List<Item> items, String filter, String server, Order order, boolean descending, Show show) {
         List<Item> out = new ArrayList<>();
-        for (Item i : items) if (in(tab, i, server) && matches(i, filter)) out.add(i);
+        for (Item i : items) if (in(tab, i, server) && matches(i, filter) && show.keeps(i)) out.add(i);
         Comparator<Item> byTitle = (a, b) -> natural(a.title, b.title);
         Comparator<Item> c;
         switch (order == Order.AUTO ? (READING.equals(tab) ? Order.LAST_READ : Order.TITLE) : order) {

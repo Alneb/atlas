@@ -79,6 +79,7 @@ final class Library {
         int read = 0;
         for (String c : s.chapters) if (isRead(r, c)) read++;
         it.unread = it.chapters - read;
+        it.downloaded = it.chapters; // the vault's series are files here
         it.lastRead = r.has("last") ? lastRead(r) : 0;
         return it;
     }

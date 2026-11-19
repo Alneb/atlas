@@ -104,7 +104,7 @@ final class Suwayomi {
     static List<Shelf.Item> library(Host host, String[] offline, List<Browse.Category> categories) throws IOException {
         Kept kept = kept(host);
         byte[] b = kept.fresh(Kept.library(), () -> {
-            JSONObject data = query(host, "{ mangas(condition: {inLibrary: true}) { nodes { id title thumbnailUrl user { unreadCount } categories { nodes { name default } } } } " + Browse.CATEGORIES_FIELD + " }", new HashMap<>());
+            JSONObject data = query(host, "{ mangas(condition: {inLibrary: true}) { nodes { id title thumbnailUrl downloadCount user { unreadCount } categories { nodes { name default } } } } " + Browse.CATEGORIES_FIELD + " }", new HashMap<>());
             JSONObject cats = data.optJSONObject("categories");
             try { return utf8(new JSONObject().put("nodes", list(data, "mangas", "nodes")).put("categories", cats == null ? new JSONObject() : cats)); } catch (org.json.JSONException e) { throw new IOException(e.getMessage()); }
         });
@@ -118,6 +118,7 @@ final class Suwayomi {
             Shelf.Item it = new Shelf.Item(SCHEME + m.optInt("id"), m.optString("title"), Shelf.Origin.SERVER);
             JSONObject u = m.optJSONObject("user");
             it.unread = u == null ? 0 : u.optInt("unreadCount");
+            it.downloaded = m.optInt("downloadCount", -1);
             it.cover = m.optString("thumbnailUrl", null);
             JSONObject cats = m.optJSONObject("categories");
             JSONArray cn = cats == null ? null : cats.optJSONArray("nodes");

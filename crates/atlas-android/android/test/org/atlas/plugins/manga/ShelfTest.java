@@ -39,6 +39,7 @@ public final class ShelfTest {
         tabs();
         shelves();
         orders();
+        shows();
         resume();
         small();
         System.out.println("ShelfTest: " + (ran - failed) + "/" + ran + " passed");
@@ -70,6 +71,21 @@ public final class ShelfTest {
         eq("the filter matches nothing", new ArrayList<String>(), titles(Shelf.shelf("Weekly", lib, "zzz", "S")));
         List<Shelf.Item> plain = Arrays.asList(server("B", 0), server("A", 0), vault("V", 0));
         eq("a server with no categories: its one tab lists all of it", Arrays.asList("A", "B"), titles(Shelf.shelf("Suwayomi", plain, null, "Suwayomi")));
+    }
+
+    static void shows() {
+        Shelf.Item fresh = server("Fresh", 0), started = server("Started", 9), kept = server("Kept", 0), local = vault("Local", 0);
+        fresh.unread = 12; fresh.downloaded = 0;
+        started.unread = 0; started.downloaded = 0;
+        kept.downloaded = 3;
+        List<Shelf.Item> lib = Arrays.asList(fresh, started, kept, server("Unknown", 0), local);
+        List<Shelf.Item> plainLib = new ArrayList<>(lib);
+        eq("all", Arrays.asList("Fresh", "Kept", "Started", "Unknown"), titles(Shelf.shelf("S", plainLib, null, "S", Shelf.Order.TITLE, false, Shelf.Show.ALL)));
+        eq("unread: chapters left", Arrays.asList("Fresh"), titles(Shelf.shelf("S", plainLib, null, "S", Shelf.Order.TITLE, false, Shelf.Show.UNREAD)));
+        eq("started: read once", Arrays.asList("Started"), titles(Shelf.shelf("S", plainLib, null, "S", Shelf.Order.TITLE, false, Shelf.Show.STARTED)));
+        eq("downloaded: the server's kept ones", Arrays.asList("Kept"), titles(Shelf.shelf("S", plainLib, null, "S", Shelf.Order.TITLE, false, Shelf.Show.DOWNLOADED)));
+        eq("downloaded: the vault's series are files", Arrays.asList("Local"), titles(Shelf.shelf(Shelf.VAULT, plainLib, null, "S", Shelf.Order.TITLE, false, Shelf.Show.DOWNLOADED)));
+        eq("an unknown word is all", Shelf.Show.ALL, Shelf.Show.of("whatever"));
     }
 
     static void resume() {
