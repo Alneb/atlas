@@ -42,3 +42,27 @@ test("Move to…: a row's menu moves it into a folder chosen in the palette", as
   await expect.poll(async () => (await request.get("/api/file?path=mv-to/note.md", { headers: H })).status()).toBe(200);
   await expect(xrow(page, "note.md")).toHaveCount(0);
 });
+
+test("a folder's README shows above its files", async ({ page, request }) => {
+  await put(request, "rd/README.md", "# About this folder\n\nThe runs of November.\n");
+  await put(request, "rd/run.md", "# A run\n");
+  await explorerAt(page, "rd/run.md", "rd");
+  await expect(page.locator(".explorer .x-readme")).toContainText("The runs of November.");
+});
+
+test("several rows picked with Ctrl move together through one Move to…", async ({ page, request }) => {
+  await put(request, "pk/a.md", "# A\n");
+  await put(request, "pk/b.md", "# B\n");
+  await put(request, "pk/c.md", "# C\n");
+  await put(request, "pk-to/keep.md", "# Keep\n");
+  await explorerAt(page, "pk/a.md", "pk");
+  await xrow(page, "a.md").click();
+  await xrow(page, "b.md").click({ modifiers: ["Control"] });
+  await expect(page.locator(".explorer .x-row.picked")).toHaveCount(2);
+  await xrow(page, "b.md").click({ button: "right" });
+  await page.getByRole("menuitem", { name: /Move 2 items to…/ }).click();
+  await page.keyboard.type("pk-to");
+  await page.getByTestId("palette").getByText("pk-to", { exact: true }).first().click();
+  for (const f of ["a.md", "b.md"]) await expect.poll(async () => (await request.get(`/api/file?path=pk-to/${f}`, { headers: H })).status()).toBe(200);
+  expect((await request.get("/api/file?path=pk/c.md", { headers: H })).status()).toBe(200); // not picked: stays
+});

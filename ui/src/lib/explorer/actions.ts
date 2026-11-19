@@ -57,6 +57,26 @@ export function askDelete(h: Here, e: Entry): void {
   });
 }
 
+/** Several rows at once (picked with Ctrl / Shift): one question, each removed in turn, the failures said together. */
+export function askDeleteMany(h: Here, es: Entry[]): void {
+  const remove = h.src.remove;
+  if (!remove || !es.length) return;
+  h.ask({
+    text: h.isVault ? `Move ${es.length} items to the Trash?` : `Delete ${es.length} items from ${h.title}? It cannot be undone.`,
+    yes: h.isVault ? "Move to Trash" : "Delete", danger: true,
+    run: async () => {
+      const failed: string[] = [];
+      for (const e of es) {
+        try { await remove.call(h.src, h.loc.place, joinPath(h.loc.path, e.name), e.kind === "dir"); }
+        catch (err) { failed.push(`${e.name}: ${why(err)}`); }
+      }
+      h.say(failed.length ? `Not all removed — ${failed.join("; ")}` : `${es.length} items ${h.isVault ? "moved to the Trash" : "deleted"}.`, failed.length ? "bad" : "ok");
+      await h.reload();
+      h.focus();
+    },
+  });
+}
+
 /** A typed name done (`ok`: Enter) → the folder made or the row renamed. */
 export async function finishEdit(h: Here, ed: Editing, value: string, ok: boolean): Promise<void> {
   const to = value.trim();

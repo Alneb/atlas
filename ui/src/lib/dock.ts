@@ -17,7 +17,7 @@ import {
 import { mount, unmount } from "svelte";
 import { basename, paneId, paneIcon, paneTitle, paneZone, specZone, type PaneKind, type PaneSpec, type SpecOf } from "./panes";
 import { getDock, setDock, kindOf, panelZone, zoneGroup } from "./dock-instance";
-import { besideActive, placement, reveal, hidePanel, setContentVisible, constrainTerminal, placeTerminalPanel, keepShape, nextTerminalN, noteToolSizes, paneElement } from "./dock-panels";
+import { besideActive, holdToolSizes, placement, reveal, hidePanel, setContentVisible, constrainTerminal, placeTerminalPanel, keepShape, nextTerminalN, noteToolSizes, paneElement } from "./dock-panels";
 import { offerStep, paneCanStep } from "./pane-nav";
 import { canStep, jumpTo, noteVisit, stepHistory, visits } from "./nav-history";
 import { travelSign } from "./nav-signs";
@@ -407,6 +407,7 @@ export function open(spec: PaneSpec, opts: { activate?: boolean; beside?: boolea
     return existing.api;
   }
   setOpening(opts.activate === false ? null : id);
+  const groupsBefore = dock.groups.length, restoreTools = holdToolSizes();
   const panel = dock.addPanel({
     id,
     component: spec.kind,
@@ -421,6 +422,8 @@ export function open(spec: PaneSpec, opts: { activate?: boolean; beside?: boolea
     ...((opts.beside && besideActive()) || placement(specZone(spec))),
   } as AddPanelOptions<PaneSpec>);
   setOpening(null);
+  // a new group among the editors takes its room from them, not from the side panel or the terminal
+  if (dock.groups.length > groupsBefore && specZone(spec) === "main") restoreTools();
   if (opts.activate !== false && !opts.beside) replaceInGroup(panel);
   // a pane added to a hidden tool panel (a new shell, an SSH session while Ctrl+J hid the terminals) shows it, as
   // asking again for an open one does; added in the background it stays hidden, its always-rendered content too

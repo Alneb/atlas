@@ -151,6 +151,35 @@
     return i >= 0 ? i : Math.max(0, Math.min(lastSel, shown.length - 1));
   });
   const current = $derived(shown[sel] as Entry | undefined);
+  /** Rows picked together (Ctrl+click toggles, Shift+click a range, Ctrl+A all), by name; empty: the selection alone. */
+  let picked = $state<string[]>([]);
+  const pickedEntries = $derived(shown.filter((x) => picked.includes(x.name)));
+  // another folder: nothing carried over. Keyed on the folder's string, not `loc` (a new object whenever the
+  // browser's state changes, a click included, which would clear the picks it just made)
+  const pickedIn = $derived(`${loc.source}:${loc.place}:${loc.path}`);
+  $effect(() => { void pickedIn; picked = []; });
+  /** A row clicked with Ctrl / Shift: picked with the others; a plain click picks nothing more. */
+  function pickClick(ev: MouseEvent, e: Entry, i: number): boolean {
+    if (ev.shiftKey) {
+      const [a, z] = [Math.min(sel, i), Math.max(sel, i)];
+      picked = [...new Set([...picked, ...shown.slice(a, z + 1).map((x) => x.name)])];
+      return true;
+    }
+    if (ev.ctrlKey || ev.metaKey) {
+      const base = picked.length ? picked : current ? [current.name] : [];
+      picked = base.includes(e.name) ? base.filter((n) => n !== e.name) : [...base, e.name];
+      return true;
+    }
+    picked = [];
+    return false;
+  }
+  /** The folder's README.md (any case) or its own note `<folder>.md`, in the vault: shown above the list. */
+  const readme = $derived.by(() => {
+    if (!isVault || b.mode !== "ready") return null;
+    const own = `${(loc.path.split("/").pop() ?? "").toLowerCase()}.md`;
+    const hit = b.entries.find((x) => x.kind !== "dir" && /^readme\.md$/i.test(x.name)) ?? (loc.path ? b.entries.find((x) => x.kind !== "dir" && x.name.toLowerCase() === own) : undefined);
+    return hit ? joinPath(loc.path, hit.name) : null;
+  });
   const crumbs = $derived.by(() => {
     const abs = loc.path.startsWith("/"), parts = loc.path.split("/").filter(Boolean);
     const root = { path: abs ? "/" : "", label: abs ? "/" : placeTitle };
@@ -245,6 +274,15 @@
     if (e) b.selName = e.name;
     const path = e ? joinPath(loc.path, e.name) : loc.path;
     const items: MenuItem[] = [];
+    // several picked and the click on one of them: what can be done to all of them
+    if (e && pickedEntries.length > 1 && picked.includes(e.name)) {
+      const many = pickedEntries;
+      if (s.rename && isVault) items.push({ label: `Move ${many.length} items to…`, icon: "folder-open", run: () => moveTo(many) });
+      if (s.remove) items.push({ label: isVault ? `Move ${many.length} items to Trash…` : `Delete ${many.length} items…`, icon: "close", danger: true, run: () => run(act.askDeleteMany, many) });
+      items.push({ label: "Clear the picks", icon: "close", hint: "Esc", run: () => { picked = []; } });
+      menu = atPointer(ev, items);
+      return;
+    }
     if (e) items.push({ label: "Open", icon: e.kind === "dir" ? "folder-open" : "file", hint: "Enter", run: () => void enter(e) });
     if (e && isVault && e.kind !== "dir") items.push({ label: "Quick look", icon: "eye", hint: "Space", run: () => { looking = true; } });
     if (e && isVault && e.kind !== "dir") items.push({ label: "Open with…", icon: "plugin", run: () => openWith(path) });
@@ -255,7 +293,7 @@
     if (e) {
       items.push("sep", { label: "Copy path", icon: "copy", run: () => void navigator.clipboard.writeText(isVault ? path : `${loc.place}:${path}`).then(() => toast("Copied", path)) });
       if (s.rename) items.push({ label: "Rename…", icon: "edit", hint: "F2", run: () => rename(e) });
-      if (s.rename && isVault) items.push({ label: "Move to…", icon: "folder-open", hint: "a folder of the vault", run: () => moveTo(e) });
+      if (s.rename && isVault) items.push({ label: "Move to…", icon: "folder-open", hint: "a folder of the vault", run: () => moveTo([e]) });
       if (s.remove) items.push("sep", { label: isVault ? "Move to Trash…" : "Delete…", icon: "close", hint: "Del", danger: true, run: () => run(act.askDelete, e) });
       if (isVault) items.push(...pluginMenu("file", { path, dir: e.kind === "dir" }));
     }
@@ -264,20 +302,24 @@
 
   /** "Move to…": a folder of the vault chosen in the palette (the folders the vault has, this one's first), the entry
    *  moved there with the source's own rename (the vault's: links into it kept up to date by the core's move). */
-  function moveTo(e: Entry): void {
-    const from = joinPath(loc.path, e.name);
+  function moveTo(es: Entry[]): void {
+    const froms = es.map((e) => joinPath(loc.path, e.name));
     const dirs = new Set<string>([""]);
     for (const f of vaultFiles()) for (let i = f.indexOf("/"); i > 0; i = f.indexOf("/", i + 1)) dirs.add(f.slice(0, i));
-    const options = [...dirs].filter((d) => d !== loc.path && d !== from && !d.startsWith(`${from}/`)).sort((a, b) => a.localeCompare(b));
+    const options = [...dirs].filter((d) => d !== loc.path && !froms.some((f) => d === f || d.startsWith(`${f}/`))).sort((a, b) => a.localeCompare(b));
+    const what = es.length === 1 ? es[0].name : `${es.length} items`;
     pick({
-      placeholder: `Move ${e.name} into which folder?`, tag: "Move to", icon: "folder-open",
+      placeholder: `Move ${what} into which folder?`, tag: "Move to", icon: "folder-open",
       items: options.map((d) => ({ value: d, title: d || "The vault's top", detail: d ? undefined : "/", icon: "folder" })),
       onpick: async (dir) => {
-        try {
-          await src!.rename!(loc.place, from, joinPath(dir, e.name));
-          say(`Moved ${e.name} into ${dir || "the vault's top"}.`, "ok", joinPath(dir, e.name));
-          void b.reload();
-        } catch (err) { say(`Not moved: ${errText(err)}`, "bad"); }
+        const failed: string[] = [];
+        for (const e of es) {
+          try { await src!.rename!(loc.place, joinPath(loc.path, e.name), joinPath(dir, e.name)); }
+          catch (err) { failed.push(`${e.name}: ${errText(err)}`); }
+        }
+        say(failed.length ? `Not all moved — ${failed.join("; ")}` : `Moved ${what} into ${dir || "the vault's top"}.`, failed.length ? "bad" : "ok", es.length === 1 ? joinPath(dir, es[0].name) : undefined);
+        picked = [];
+        void b.reload();
       },
     });
   }
@@ -311,6 +353,9 @@
   function onKey(e: KeyboardEvent): void {
     if (b.mode !== "ready" || editing || typing) return;
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "f") { e.preventDefault(); e.stopPropagation(); filterEl?.focus(); filterEl?.select(); return; }
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "a") { e.preventDefault(); e.stopPropagation(); picked = shown.map((x) => x.name); return; }
+    if (e.key === "Escape" && picked.length) { e.preventDefault(); e.stopPropagation(); picked = []; return; }
+    if (e.key === "Delete" && pickedEntries.length > 1) { e.preventDefault(); e.stopPropagation(); run(act.askDeleteMany, pickedEntries); return; }
     const n = shown.length, cur = current;
     const action = explorerKey(e, {
       travel: (w) => b.travel(w), up: () => b.up(), typePath: () => (typing = true), toggleHidden: toggleShowAll,
@@ -454,6 +499,11 @@
         <button class="btn" onclick={() => { confirm = null; listEl?.focus(); }}>Cancel</button>
       </div>
     {/if}
+    <!-- the folder's README, or its own note (<folder>/<folder>.md), above its files: what the folder is for, as copyparty shows
+         a prologue -->
+    {#if readme}
+      <details class="x-readme" open><summary>{readme.split("/").pop()}</summary><div class="x-readme-body" use:previewOf={readme}></div></details>
+    {/if}
     <div class="list" class:thumbs={view === "thumbs"} bind:this={listEl} tabindex="0" role="listbox" aria-label="Files in {loc.path || placeTitle}" class:drop-here={dropDir === loc.path}
       onkeydown={onKey} oncontextmenu={(e) => rowMenu(e, null)} ondragover={dragOver} ondragleave={(e) => { if (!(e.currentTarget as HTMLElement).contains(e.relatedTarget as Node)) dropDir = null; }} ondrop={drop}>
       {#if b.mode === "loading"}
@@ -486,10 +536,10 @@
         {#each shown as e, i (e.name)}
           {@const renaming = editing?.kind === "rename" && editing.name === e.name}
           <!-- svelte-ignore a11y_click_events_have_key_events (the list takes the keys) -->
-          <div class="x-row {e.kind}" tabindex="-1" class:sel={i === sel} class:drop-into={dropDir !== null && dropDir !== loc.path && dropDir === joinPath(loc.path, e.name)}
+          <div class="x-row {e.kind}" tabindex="-1" class:sel={i === sel} class:picked={picked.includes(e.name)} class:drop-into={dropDir !== null && dropDir !== loc.path && dropDir === joinPath(loc.path, e.name)}
             role="option" aria-selected={i === sel} data-name={e.name} data-dir={e.kind === "dir" ? "" : undefined} draggable={!renaming && !coarse}
             onpointerdown={(ev) => (tap = ev.pointerType)}
-            onclick={() => { b.selName = e.name; focusList(); if (tap !== "mouse" && !renaming) void enter(e); }} ondblclick={() => void enter(e)} oncontextmenu={(ev) => { ev.stopPropagation(); rowMenu(ev, e); }} ondragstart={(ev) => dragStart(ev, e)}>
+            onclick={(ev) => { const many = pickClick(ev, e, i); b.selName = e.name; focusList(); if (!many && tap !== "mouse" && !renaming) void enter(e); }} ondblclick={() => void enter(e)} oncontextmenu={(ev) => { ev.stopPropagation(); rowMenu(ev, e); }} ondragstart={(ev) => dragStart(ev, e)}>
             <span class="name">
               {#if view === "thumbs"}
                 <span class="pic"><Icon name={iconOf(e)} size={e.kind === "dir" ? 44 : 34} />
@@ -697,6 +747,12 @@
     .list:not(.thumbs) .acts { display: none; }
   }
   @container (max-width: 480px) { .list:not(.thumbs) .acts { display: none; } }
+  /* rows picked together (Ctrl / Shift): marked apart from the keyboard's selection */
+  .x-row.picked { background: color-mix(in srgb, var(--accent) 16%, transparent); }
+  /* a folder's README above its files: a few lines, the rest a scroll away */
+  .x-readme { margin: 6px 10px 4px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-alt); }
+  .x-readme summary { cursor: pointer; padding: 4px 10px; color: var(--text-muted); font-size: .9em; }
+  .x-readme-body { max-height: 180px; overflow: auto; padding: 0 12px 8px; }
   /* quick look: over the whole pane, the file as large as it fits */
   .quicklook { position: absolute; inset: 0; z-index: 20; display: flex; flex-direction: column; background: var(--bg); outline: none; }
   .ql-head { display: flex; align-items: center; gap: 8px; padding: 6px 10px; border-bottom: 1px solid var(--border); min-width: 0; }

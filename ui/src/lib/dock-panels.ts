@@ -14,6 +14,21 @@ export function besideActive(): Partial<AddPanelOptions> | null {
   return { position: other ? { referenceGroup: other } : { referenceGroup: active, direction: "right" } };
 }
 
+/** The side panel's width and the terminal panel's size now, and a function that puts them back. A new split
+ *  among the editors (a file opened beside) sits in the same row as a terminal docked on the right, and the
+ *  grid shares the room out among all of them: the terminal narrowed (its TUI reflowing) for an editor's split. */
+export function holdToolSizes(): () => void {
+  const side = zoneGroup("side"), bottom = zoneGroup("bottom"), right = alongRight();
+  const held = (g: typeof side) => (g && g.api.isVisible && !inZone(g, "main") ? g : null);
+  const s = held(side), t = held(bottom);
+  const sw = s?.api.width, tw = t?.api.width, th = t?.api.height;
+  return () => {
+    if (s && sw && s.api.width !== sw) s.api.setSize({ width: sw });
+    if (t && right && tw && t.api.width !== tw) t.api.setSize({ width: tw });
+    if (t && !right && th && t.api.height !== th) t.api.setSize({ height: th });
+  };
+}
+
 /** The tool panels' sizes while editors are open, so both get them back when the editors return. */
 const kept = { side: 290, bottom: 300 };
 const alongRight = () => settings.config?.terminal.position === "right";
