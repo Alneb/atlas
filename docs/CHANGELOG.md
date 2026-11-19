@@ -6,12 +6,20 @@ and versions follow [Semantic Versioning](https://semver.org/) once 1.0 is out.
 ## [Unreleased]
 
 ### Added
+- **A vault in a window of its own:** the vault switcher's **New window** opens another vault beside this one, this
+  window staying where it is (desktop app).
+- **A task's right-click offers Time-block…** (Home, Deadlines, task blocks): the calendar opens on the week to pick
+  the slot. Plugins add their own rows to a task's menu (`atlas.shell.menu("task", …)`).
+- **"No nudge until tomorrow"** in a task's right-click (Plan 0.12.0): Plan leaves it alone until the next morning.
 - **A vault's notices on every device:** a notice raised on one device (or on the server) reaches the person's other
-  devices through the vault's server within a minute, and dismissing or withdrawing it on one takes it away on the
+  devices through the vault's server within 15 seconds while Atlas shows the vault (a minute otherwise), and dismissing or withdrawing it on one takes it away on the
   others. Needs the server to run this version.
 - **Settings → Notifications → "This device only":** the sources whose notices stay on the device that raised them.
 
 ### Changed
+- **`atlas companions` removed:** the one-off migration to one note per thing (a PDF's or a book's earlier side
+  notes and drawings' SVG exports) has run everywhere it was needed; a vault last opened with 0.4.1 or older can run it
+  with that version first.
 - **A vault opened on a computer for the first time is "always on"**: it starts with Atlas and keeps its schedules,
   plugin rounds and notices going with no window on it; Settings → Vaults & sync turns it off. A vault list from before
   the switch keeps the vaults opened in the last three days starting, as they did.
@@ -34,6 +42,7 @@ and versions follow [Semantic Versioning](https://semver.org/) once 1.0 is out.
   `search(q)` (choices that follow the typed text).
 
 ### Fixed
+- **A paper's panel shows your notes:** the first lines of its note under the abstract, with "Open the notes".
 - **An item's panel in the Library is readable in its narrow column** (Catalog 0.16.4): the picture on its own line
   above the fields instead of squeezing them (values broke inside words), the file's name and "Notes: yes" gone (the
   buttons say it), web addresses shown as links named by their site, and the linked mentions open under the item

@@ -124,6 +124,7 @@ export function referencesSource(): LibrarySource {
           ...(p.arxiv ? [{ label: `arXiv:${p.arxiv}`, url: `https://arxiv.org/abs/${p.arxiv}` }] : []),
         ]),
         body: p.abstract_text ? { title: "Abstract", text: p.abstract_text } : undefined,
+        notes: await ownWords(`${p.dir}/${p.key}.md`).then((text) => (text ? { text, open: () => void openReadingNote(p.key) } : undefined)),
       };
     },
     add: {
@@ -187,6 +188,27 @@ function noteLinks(props: Record<string, unknown>, own: { label: string; url: st
   const site = (u: string) => { try { return new URL(u).hostname.replace(/^www\./, ""); } catch { return u; } };
   return [...own, ...urls.filter((u) => !seen.has(u.toLowerCase()) && seen.add(u.toLowerCase())).map((u) => ({ label: site(u), url: u }))];
 }
+/** The person's own words in a paper's note: its text with the properties, the blocks the generator puts there
+ *  (the paper, its marks), embeds, its title line, HTML tags (Zotero's notes) and empty headings left out — the first ~500 characters, or "" when none. */
+async function ownWords(path: string): Promise<string> {
+  const text = await api.file(path).then((f) => f.text, () => "");
+  const own = text
+    .replace(/^---[\s\S]*?\n---\n?/, "")
+    .replace(/```[\s\S]*?```/g, "")
+    .replace(/!\[\[[^\]]*\]\]/g, "")
+    .replace(/^\s*# .*\n/, "") // the note's own title, the panel's heading already
+    // a note from Zotero is HTML: its words, a paragraph or a line break as a new line
+    .replace(/<\/(p|div|h[1-6]|li)>|<br\s*\/?>/gi, "\n")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&nbsp;/g, " ").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"')
+    .split("\n")
+    .filter((l) => !/^#{1,6}\s*\S*\s*$/.test(l.trim()) || l.trim().split(/\s+/).length > 2) // a lone template heading
+    .join("\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+  return own.length > 500 ? `${own.slice(0, 500).replace(/\s+\S*$/, "")}…` : own;
+}
+
 function noteFields(props: Record<string, unknown>): [string, string][] {
   const text = (v: unknown): string => Array.isArray(v) ? v.map(text).filter(Boolean).join(", ") : v == null ? "" : String(v).replace(/^\[\[|\]\]$/g, "").replace(/\|.*$/, "").trim();
   // Zotero's `published` says the date twice ("1994-04-15 1994-4-15"): the first is enough

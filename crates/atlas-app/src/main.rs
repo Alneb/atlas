@@ -948,17 +948,41 @@ fn signin_window(app: &tauri::AppHandle, page: tauri::Url, back: tauri::Url, cor
 }
 
 /// The page's ask for a service sign-in (core `/signin/door?url=…` on this computer): the service's address.
-/// A guest folder's page (`/v/<name>/?guest=1`, core guest.rs): it opens in a window of Atlas, not the browser.
+/// A page that opens in a window of Atlas, not the browser: a guest folder's (`/v/<name>/?guest=1`, core guest.rs), or
+/// a vault of this core asked for in a window of its own (`/v/<name>/?window=1`: the vault switcher's "Open in a new
+/// window").
 fn guest_page(to: &tauri::Url) -> bool {
-    to.path().starts_with("/v/") && to.query_pairs().any(|(k, v)| k == "guest" && v == "1")
+    to.path().starts_with("/v/") && to.query_pairs().any(|(k, v)| (k == "guest" || k == "window") && v == "1")
 }
 
 fn guest_window(app: &tauri::AppHandle, spec: &MainSpec, page: tauri::Url) {
     static N: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
-    let label = format!("guest-{}", N.fetch_add(1, std::sync::atomic::Ordering::Relaxed));
-    if let Err(e) = spec.window(app, &label, "Atlas — guest folder", page) {
-        eprintln!("atlas: the guest folder's window did not open: {e}");
+    let guest = page.query_pairs().any(|(k, v)| k == "guest" && v == "1");
+    let label = format!("{}-{}", if guest { "guest" } else { "vault" }, N.fetch_add(1, std::sync::atomic::Ordering::Relaxed));
+    let name = page.path().trim_start_matches("/v/").split('/').next().unwrap_or("").to_string();
+    let title = if guest { "Atlas — guest folder".to_string() } else { format!("Atlas — {}", urlencoding_decode(&name)) };
+    if let Err(e) = spec.window(app, &label, &title, page) {
+        eprintln!("atlas: the window did not open: {e}");
     }
+}
+
+/// A vault's name from its `/v/<name>/` path segment (percent-decoded; kept as is when it is not valid).
+fn urlencoding_decode(s: &str) -> String {
+    let bytes = s.as_bytes();
+    let mut out = Vec::with_capacity(bytes.len());
+    let mut i = 0;
+    while i < bytes.len() {
+        if bytes[i] == b'%' && i + 3 <= bytes.len() {
+            if let Ok(b) = u8::from_str_radix(&s[i + 1..i + 3], 16) {
+                out.push(b);
+                i += 3;
+                continue;
+            }
+        }
+        out.push(bytes[i]);
+        i += 1;
+    }
+    String::from_utf8(out).unwrap_or_else(|_| s.to_string())
 }
 
 fn door_target(to: &tauri::Url) -> Option<tauri::Url> {

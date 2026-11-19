@@ -494,6 +494,25 @@ function Se(e) {
 	}), window.addEventListener("atlas-calendar:link", (e) => {
 		let { link: t, ack: n } = e.detail ?? {};
 		n && window.dispatchEvent(new CustomEvent("atlas-calendar:heard")), t && a(t);
+	}), e.shell.menu?.("task", (e) => {
+		if (!e.path || !e.line || e.done || !e.selection) return [];
+		let t = e.selection.replace(/\s+\^[\w-]+\s*$/, "");
+		return [{
+			label: "Time-block…",
+			icon: "calendar",
+			hint: "Pick the slot on the calendar's hours",
+			run: () => r({
+				view: "week",
+				place: {
+					path: e.path,
+					line: e.line,
+					title: t,
+					date: "",
+					done: !1,
+					props: { from: "task" }
+				}
+			})
+		}];
 	}), e.registerCommand({
 		id: "time-block",
 		title: "Calendar: time-block the task at the caret…",

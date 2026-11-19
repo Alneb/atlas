@@ -5,10 +5,11 @@ import type { MenuItem } from "./menu";
 import { isIconName } from "./icons";
 import { guard } from "./plugin-log.svelte";
 
-export type MenuPlace = "file" | "tab" | "editor" | "block" | "terminal";
+export type MenuPlace = "file" | "tab" | "editor" | "block" | "terminal" | "task";
 /** What was right-clicked. `file`: path (+ dir: true for a folder) · `tab`: path?, kind · `editor`: path,
- *  selection · `block`: type, note · `terminal`: nothing (the terminal's "+" menu: what to start). */
-export interface MenuTarget { path?: string; dir?: boolean; kind?: string; selection?: string; type?: string; note?: string }
+ *  selection · `block`: type, note · `terminal`: nothing (the terminal's "+" menu: what to start) · `task`: a task
+ *  row of a list (Home, Deadlines, a task block): path, line, its words as `selection`, `done`. */
+export interface MenuTarget { path?: string; dir?: boolean; kind?: string; selection?: string; type?: string; note?: string; line?: number; done?: boolean }
 /** A plugin's row: plain data, so the shape survives changes to the menu component. */
 export interface PluginMenuItem {
   label: string; run(): void | Promise<void>; icon?: string; hint?: string; detail?: string; danger?: boolean; disabled?: boolean;
@@ -17,7 +18,7 @@ export interface PluginMenuItem {
 }
 type Builder = { plugin: string; fn: (t: MenuTarget) => PluginMenuItem[] | null | undefined | void };
 
-const PLACES: readonly MenuPlace[] = ["file", "tab", "editor", "block", "terminal"];
+const PLACES: readonly MenuPlace[] = ["file", "tab", "editor", "block", "terminal", "task"];
 const builders = new Map<MenuPlace, Set<Builder>>(PLACES.map((p) => [p, new Set<Builder>()]));
 
 export function registerMenu(plugin: string, where: MenuPlace, fn: Builder["fn"]): () => void {

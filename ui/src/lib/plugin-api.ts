@@ -518,6 +518,8 @@ export interface LibraryDetail {
   links?: { label: string; url: string }[];
   /** A longer text under its own heading (an abstract, a synopsis). */
   body?: { title: string; text: string };
+  /** The person's own writing about it (the first lines of its note), with the way to the rest. */
+  notes?: { text: string; open: () => void };
   /** One of a few values, changed in place: a film's shelf (to watch, watched…). */
   choice?: { label: string; options: { label: string; on: boolean; run: () => unknown }[] };
 }

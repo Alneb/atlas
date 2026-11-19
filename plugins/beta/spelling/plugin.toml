@@ -4,7 +4,7 @@
 title = "Spelling"
 description = "marks misspelled words in notes, from the machine's dictionaries and the vault's own words"
 icon = "check"
-version = "0.4.1"
+version = "0.4.2"
 api = 22
 phone = true
 
@@ -42,17 +42,17 @@ hint = "a language's variant other than the usual, e.g. en=en_GB, es=es_MX"
 
 [[setting]]
 key = "min_uses"
-label = "A vault word after"
+label = "Learn a word used this often"
 kind = "number"
 default = 3
-hint = "uses in the vault after which a word the dictionary lacks counts as right"
+hint = "a word no dictionary has counts as right once the vault uses it this many times (a name, a term of your field)"
 
 [[setting]]
 key = "min_notes"
-label = "…in at least"
+label = "…in this many notes"
 kind = "number"
 default = 2
-hint = "notes (a typo repeated in one note is not learned)"
+hint = "and in at least this many different notes: a typo repeated inside one note is never learned"
 
 [[setting]]
 key = "folder"
@@ -67,3 +67,7 @@ label = "Keep the dictionaries in the vault"
 kind = "toggle"
 default = true
 hint = "copy the dictionaries in use into .atlas/dictionaries (about 1 MB a language), so the server and the phone, which have none of their own, check spelling too"
+
+# where it runs (PLUGIN-API.md, "Platforms"): used daily on Linux; Android with `phone = true`
+[platforms]
+linux = "works"

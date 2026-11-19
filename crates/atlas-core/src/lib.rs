@@ -67,7 +67,6 @@ pub mod property_spec;
 pub mod pty;
 pub mod python_env;
 pub mod companion;
-pub mod companion_tidy;
 pub mod live;
 pub mod mirror_guard;
 pub mod notice_actions;

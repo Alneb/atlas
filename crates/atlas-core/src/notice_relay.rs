@@ -13,7 +13,8 @@ use crate::events::EventBus;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::path::{Path, PathBuf};
-use std::sync::{LazyLock, Mutex};
+use std::sync::{Condvar, LazyLock, Mutex};
+use std::time::Duration;
 
 /// What travels: a notice to show, or the id/subject whose notices are no longer news.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -69,6 +70,21 @@ struct Vault {
 }
 
 static VAULTS: LazyLock<Mutex<HashMap<PathBuf, Vault>>> = LazyLock::new(Default::default);
+/// Rung when a device's outbox gets an item: the exchange goes at once, not at its next turn ([`wait`]).
+static WAKE: LazyLock<(Mutex<u64>, Condvar)> = LazyLock::new(|| (Mutex::new(0), Condvar::new()));
+
+/// A device's exchange loop waits here: until `timeout`, or sooner when a notice of this device waits to be sent.
+pub fn wait(timeout: Duration) {
+    let (lock, ring) = &*WAKE;
+    let rung = *lock.lock().unwrap_or_else(|e| e.into_inner());
+    let _ = ring.wait_timeout_while(lock.lock().unwrap_or_else(|e| e.into_inner()), timeout, |n| *n == rung);
+}
+
+fn ring_wake() {
+    let (lock, ring) = &*WAKE;
+    *lock.lock().unwrap_or_else(|e| e.into_inner()) += 1;
+    ring.notify_all();
+}
 
 fn with<T>(root: &Path, f: impl FnOnce(&mut Vault) -> T) -> T {
     let mut all = VAULTS.lock().unwrap_or_else(|e| e.into_inner());
@@ -112,6 +128,7 @@ pub fn raised(root: &Path, item: Item) {
             while v.outbox.len() > OUTBOX {
                 v.outbox.pop_front();
             }
+            ring_wake();
         }
     });
 }

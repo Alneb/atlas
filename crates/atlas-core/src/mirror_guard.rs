@@ -779,36 +779,47 @@ pub fn this_device() -> crate::devices::Device {
 fn report_now_and_then<L: LeaseLink + 'static>(guard: std::sync::Weak<LeaseGuard<L>>) {
     let spawned = std::thread::Builder::new().name("mirror-presence".into()).spawn(move || {
         let mut said = None; // a failure is said once, not each minute
+        let mut reported: Option<std::time::Instant> = None;
         loop {
             let Some(g) = guard.upgrade() else { return };
-            // a phone's report carries the alarms its app set for this vault (devices::Alarms; none on a desktop)
             let me = crate::devices::Device { alarms: crate::devices::Alarms::of_vault(&g.root), ..this_device() };
-            match g.link.report(&me) {
-                Ok(all) => {
-                    crate::devices::Table::global().replace(all);
-                    said = None;
-                    // the vault's notices with the same minute: this device's handed over, the others' shown here
-                    let (out, since) = crate::notice_relay::outgoing(&g.root);
-                    match g.link.notices(crate::notice_relay::Exchange { holder: me.id.clone(), since, out: out.clone() }) {
-                        Ok(answer) => crate::notice_relay::received(&g.root, answer),
-                        Err(_) => crate::notice_relay::failed(&g.root, out), // an older server: kept, tried again
+            // presence once a minute; a phone's report carries the alarms its app set for this vault (none on a desktop)
+            if reported.is_none_or(|at| at.elapsed() >= CATCH_UP_EVERY) {
+                reported = Some(std::time::Instant::now());
+                match g.link.report(&me) {
+                    Ok(all) => {
+                        crate::devices::Table::global().replace(all);
+                        said = None;
                     }
+                    Err(e) if said.as_ref() != Some(&e.why) => {
+                        // an older server answers 404: it keeps no presence
+                        eprintln!("atlas: mirror: presence not reported ({})", e.why);
+                        said = Some(e.why);
+                    }
+                    Err(_) => {}
                 }
-                Err(e) if said.as_ref() != Some(&e.why) => {
-                    // an older server answers 404: it keeps no presence
-                    eprintln!("atlas: mirror: presence not reported ({})", e.why);
-                    said = Some(e.why);
-                }
-                Err(_) => {}
             }
+            // the vault's notices more often (crate::notice_relay): this device's handed over, the others' shown here
+            let (out, since) = crate::notice_relay::outgoing(&g.root);
+            match g.link.notices(crate::notice_relay::Exchange { holder: me.id.clone(), since, out: out.clone() }) {
+                Ok(answer) => crate::notice_relay::received(&g.root, answer),
+                Err(_) => crate::notice_relay::failed(&g.root, out), // an older server or none: kept, tried again
+            }
+            // the next turn in a while — sooner while a page shows the vault (a phone in a pocket asks once a minute) —
+            // or at once when a notice of this device waits to be sent
+            let shown = crate::notify::Presence::of_vault(&g.root).connected();
             drop(g);
-            std::thread::sleep(CATCH_UP_EVERY);
+            crate::notice_relay::wait(if shown { NOTICES_EVERY } else { CATCH_UP_EVERY });
         }
     });
     if let Err(e) = spawned {
         eprintln!("atlas: mirror: no presence thread: {e}");
     }
 }
+
+/// How often a device asks its server for the other devices' notices while a page shows the vault (else once a
+/// minute, with its presence); its own go at once.
+const NOTICES_EVERY: Duration = Duration::from_secs(15);
 
 /// This device's name in the lease table: stable across restarts (`~/.local/state/atlas/device-id`), made once.
 pub fn device_id() -> Holder {

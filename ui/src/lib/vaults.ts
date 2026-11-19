@@ -108,6 +108,8 @@ export interface VaultEntry {
   alwaysOn: boolean | null;
   /** Its notices that came while it was not shown (the core serving it says; 0 when it does not serve it). */
   unseen: number;
+  /** Its page on this desktop's one core (`/v/<name>/`), when it has one: what "Open in a new window" opens. */
+  page?: string;
   go(): void;
 }
 
@@ -131,7 +133,7 @@ export async function vaultListing(): Promise<VaultListing> {
     if (server && mirrors.has(slash(v.path))) continue; // shown as its folder's mirror
     entries.push({
       name: v.name, path: v.path, kind: server ? "server" : "folder", current: !remote && slash(v.path) === slash(l.current), missing: v.missing,
-      warm: v.warm, mirror: v.mirror, managed: l.manage, unseen: v.unseen ?? 0, alwaysOn: l.manage && !server && !own(v) ? (v.always_on ?? false) : null, // an older core says nothing: off
+      warm: v.warm, mirror: v.mirror, managed: l.manage, unseen: v.unseen ?? 0, page: !remote && own(v) ? v.url : undefined, alwaysOn: l.manage && !server && !own(v) ? (v.always_on ?? false) : null, // an older core says nothing: off
       go: () => {
         if (remote && v.path === l.current) location.href = "/"; // back to this desktop's own vault
         else if (own(v)) location.replace(v.url!); // no history entry: Back never lands in the other vault
@@ -165,6 +167,16 @@ export const setAlwaysOn = (path: string, on: boolean): Promise<void> => ownCore
 
 /** Takes a vault off the list (its folder stays as it is). */
 export const forgetVault = (path: string): Promise<void> => ownCore("POST", "/api/vaults/forget", { path });
+
+/** A vault of this desktop in a window of Atlas of its own (atlas-app opens a `?window=1` page so), started first when
+ *  it is not yet; this window stays on its vault. */
+export async function openVaultWindow(path: string): Promise<void> {
+  try {
+    const r = await ownCore<{ url?: string } | undefined>("POST", "/api/vaults/open", { path });
+    if (r?.url) window.open(`${r.url}${r.url.includes("?") ? "&" : "?"}window=1`, "_blank");
+    else toast("Vault opened in its own window", path, "success");
+  } catch (e) { toast("Could not open the vault", errText(e), "error"); }
+}
 
 export { askFolder, askServer, openVault };
 

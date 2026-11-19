@@ -188,6 +188,12 @@ export function register(atlas: PluginApi) {
     if (ack) window.dispatchEvent(new CustomEvent("atlas-calendar:heard"));
     if (link) linkToEvent(link);
   });
+  // a task row's right-click (Home, Deadlines, a task block): Time-block… — the pane waits for the slot, as below
+  atlas.shell.menu?.("task", (t) => {
+    if (!t.path || !t.line || t.done || !t.selection) return [];
+    const title = t.selection.replace(/\s+\^[\w-]+\s*$/, "");
+    return [{ label: "Time-block…", icon: "calendar", hint: "Pick the slot on the calendar's hours", run: () => show({ view: "week", place: { path: t.path!, line: t.line!, title, date: "", done: false, props: { from: "task" } } }) }];
+  });
   // the task under the caret into the calendar: the pane waits for the slot dragged on its hours
   atlas.registerCommand({
     id: "time-block",

@@ -1848,6 +1848,27 @@
 			action
 		});
 	}
+	/** A task row's "No nudge until tomorrow" (its right-click): the task at `path`/`line` snoozed until tomorrow's first
+	*  moment (Settings' digest time, after quiet hours) — the notification's own Snooze path, so the ledger says the
+	*  same. `{ until }`: when it may nudge again; `{}` when no open task is there. */
+	async function snoozeTask(p) {
+		const c = clockOf(p);
+		const s = settingsOf(p.settings ?? {});
+		const open = (await tasks("all")).find((t) => !t.done && t.path === String(p.path ?? "") && t.line === Number(p.line));
+		if (!open) return {};
+		const key = keyOf({
+			path: open.path,
+			title: open.title,
+			block: open.block
+		});
+		const until = stamp(instant(addDays(wall(c.now, c).day, 1), Math.max(s.digestAt, s.quietTo), c), c).replace(" ", "T");
+		await pressed({
+			...p,
+			notice_id: `plan:${key}`,
+			action: `snooze:${until}`
+		});
+		return { until };
+	}
 	/** For Settings: the budget as measured, the plan's decisions and the ledger's last lines. Writes nothing. */
 	async function explain(p) {
 		const c = clockOf(p);
@@ -1885,7 +1906,8 @@
 		explain,
 		fallback,
 		press,
-		capture
+		capture,
+		snoozeTask
 	});
 	//#endregion
 	exports.capture = capture;
@@ -1895,5 +1917,6 @@
 	exports.nudges = nudges;
 	exports.press = press;
 	exports.pressed = pressed;
+	exports.snoozeTask = snoozeTask;
 	return exports;
 })({});

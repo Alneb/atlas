@@ -392,6 +392,22 @@ export async function press(p: Params) {
   return pressed({ ...p, notice_id: data.notice_id, action });
 }
 
+/** A task row's "No nudge until tomorrow" (its right-click): the task at `path`/`line` snoozed until tomorrow's first
+ *  moment (Settings' digest time, after quiet hours) — the notification's own Snooze path, so the ledger says the
+ *  same. `{ until }`: when it may nudge again; `{}` when no open task is there. */
+export async function snoozeTask(p: Params) {
+  const c = clockOf(p);
+  const s = settingsOf(p.settings ?? {});
+  const all = await tasks("all");
+  const open = all.find((t) => !t.done && t.path === String(p.path ?? "") && t.line === Number(p.line));
+  if (!open) return {};
+  const key = keyOf({ path: open.path, title: open.title, block: open.block });
+  const day = addDays(wall(c.now, c).day, 1);
+  const until = stamp(instant(day, Math.max(s.digestAt, s.quietTo), c), c).replace(" ", "T");
+  await pressed({ ...p, notice_id: `plan:${key}`, action: `snooze:${until}` });
+  return { until };
+}
+
 /** For Settings: the budget as measured, the plan's decisions and the ledger's last lines. Writes nothing. */
 export async function explain(p: Params) {
   const c = clockOf(p);
@@ -403,4 +419,4 @@ export async function explain(p: Params) {
   return { device: out.device, plans: out.plans, local: out.local, rings: out.rings, at, used, handed, budget: out.budget, quiet: out.quiet, decisions: out.decisions, habits: out.habits, habitMin: HABIT_MIN, recent };
 }
 
-atlas.methods({ nudges, pressed, explain, fallback, press, capture });
+atlas.methods({ nudges, pressed, explain, fallback, press, capture, snoozeTask });

@@ -458,6 +458,8 @@
           </div>
         {/if}
         {#if detail.body}<h3>{detail.body.title}</h3><p class="abstract">{detail.body.text}</p>{/if}
+        <!-- what the person wrote about it: the first lines of its note, the way to the rest -->
+        {#if detail.notes}<h3>Your notes</h3><p class="abstract own">{detail.notes.text}</p><button class="atlas-btn more-notes" onclick={() => detail?.notes?.open()}>Open the notes</button>{/if}
         <!-- the links to it, as under a note (the app's backlinks block) -->
         {#if sel.note}<div class="links-bar">{#key sel.note}<div use:backlinks={sel.note}></div>{/key}</div>{/if}
       </aside>
@@ -580,6 +582,8 @@
   }
   /* the mentions follow the item, open (an item's panel is where they matter), never pinned under an empty column */
   .links-bar { margin: 22px -22px 0; padding-top: 4px; display: flex; flex-direction: column; }
+  .abstract.own { white-space: pre-line; }
+  .more-notes { align-self: flex-start; margin-top: 4px; }
   .kind { text-transform: uppercase; letter-spacing: .07em; font-size: calc(11px * var(--ui-scale, 1)); color: var(--text-faint); }
   h2 { margin: 4px 0 6px; font-size: calc(19px * var(--ui-scale, 1)); color: var(--heading); line-height: 1.3; }
   .authors { margin: 0; color: var(--text); }

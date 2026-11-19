@@ -190,6 +190,14 @@ test("Snooze gives the task a block id, records the promise, and the plan keeps 
   assert.deepEqual(p.planned.map((x: any) => [x.id, x.at]), [["plan:notes/Home.md#^tnew1", "2026-11-16T16:30:00+01:00"]]);
 });
 
+test("a task's right-click snoozes it until tomorrow morning, the notification's own way; none for a line with no task", async () => {
+  const c = core({ "notes/Home.md": "- [ ] Call the bank 📅 2026-11-20\n" });
+  const r = await call("snoozeTask", "10:05", { path: "notes/Home.md", line: 1 });
+  assert.equal(r.until, "2026-11-17T08:00", "tomorrow's first moment: the digest's time after quiet hours");
+  assert.match(c.files[LEDGER], /snoozed → .*\[\[notes\/Home#\^tnew1\|Call the bank\]\]/);
+  assert.deepEqual(await call("snoozeTask", "10:06", { path: "notes/Home.md", line: 7 }), {});
+});
+
 test("Block time-blocks the task through the calendar, and the nudges wait for the block's end", async () => {
   const c = core({ "notes/Home.md": "- [ ] Call the bank 📅 2026-11-20\n" });
   const offered = (await call("nudges", "10:00")).planned;

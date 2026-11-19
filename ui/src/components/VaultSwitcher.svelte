@@ -6,7 +6,7 @@
   import Dialog from "./Dialog.svelte";
   import { errText } from "../lib/text";
   import { toast } from "../lib/state.svelte";
-  import { askFolder, askServer, forgetVault, openVault, setAlwaysOn, setMirror, vaultListing, type VaultEntry } from "../lib/vaults";
+  import { askFolder, askServer, forgetVault, openVault, openVaultWindow, setAlwaysOn, setMirror, vaultListing, type VaultEntry } from "../lib/vaults";
   import { forgetMirrorState, hostOf, reach, serverVaults, type MirrorState } from "../lib/mirror";
   import { api } from "../lib/api";
   import { hostMatches } from "../lib/service-signin";
@@ -159,8 +159,11 @@
               {/if}
             </span>
           </button>
-          {#if e.managed || serverOf(e) || e.alwaysOn !== null}
+          {#if e.managed || serverOf(e) || e.alwaysOn !== null || (e.page && !e.current)}
             <span class="acts">
+              <!-- the desktop app opens this as a window of Atlas of its own (atlas-app `guest_page`), the switcher's
+                   window staying on its vault -->
+              {#if e.page && !e.current}<button class="act" onclick={() => { void openVaultWindow(e.path); onclose(); }} title="{e.name} in a window of its own, this one staying where it is">New window</button>{/if}
               {#if e.alwaysOn !== null}
                 <button class="act" class:on={e.alwaysOn} role="switch" aria-checked={e.alwaysOn} data-testid="switcher-always-on" onclick={() => void toggleAlwaysOn(e)}
                   title={e.alwaysOn ? `${e.name} starts with the app and keeps running with no window on it (its schedules, plugin rounds, notices) — click to start it only when opened` : `Start ${e.name} with the app and keep it running in the background: its schedules, plugin rounds and notices go on with no window on it`}>{e.alwaysOn ? "Always on ✓" : "Always on"}</button>

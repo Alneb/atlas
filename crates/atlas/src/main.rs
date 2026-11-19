@@ -111,13 +111,6 @@ enum Action {
         #[arg(long)]
         apply: bool,
     },
-    /// One note per thing (docs/design/DESIGN-shared-notes.md §4): the notes earlier versions left beside a PDF or a
-    /// book (a note of its ink, a reader's note beside the paper's) and drawings' SVG exports. Says what it would do;
-    /// `--apply` merges the reading places into the owning notes and moves the extras to the Trash (copies first).
-    Companions {
-        #[arg(long)]
-        apply: bool,
-    },
 }
 
 #[derive(Subcommand)]
@@ -518,7 +511,7 @@ async fn main() -> Result<()> {
         return Ok(());
     }
     let ws = Workspace::open(workspace_root(cli.workspace)?)?;
-    // this process writes the vault too (drawings, companions, plugins, a capture with no core running, MCP): a mirrored
+    // this process writes the vault too (drawings, plugins, a capture with no core running, MCP): a mirrored
     // vault's writes take the server's lease here as they do in the serving core
     atlas_core::mirror_guard::install_for_mirror(&ws);
     if let Action::Mcp = cli.action {
@@ -535,21 +528,6 @@ async fn main() -> Result<()> {
             Some(s) => println!("{} drawings, {:.1} MB → {:.1} MB; the originals: {s}", r.drawings.len(), mb(b), mb(a)),
             None if apply => println!("nothing to compact"),
             None => println!("{} drawings, {:.1} MB → {:.1} MB — run again with --apply", r.drawings.len(), mb(b), mb(a)),
-        }
-        return Ok(());
-    }
-    if let Action::Companions { apply } = cli.action {
-        let plan = atlas_core::companion_tidy::plan(ws.root(), &ws.config()?)?;
-        for t in &plan {
-            println!("{} {}", if apply { "done:" } else { "would tidy" }, t.what());
-        }
-        match (apply, plan.is_empty()) {
-            (_, true) => println!("nothing to tidy: one note per thing"),
-            (false, false) => println!("{} to tidy — run again with --apply", plan.len()),
-            (true, false) => {
-                let snap = tokio::task::block_in_place(|| atlas_core::companion_tidy::apply(&ws, &plan))?;
-                println!("{} tidied; copies of everything touched: {}", plan.len(), snap.unwrap_or_default());
-            }
         }
         return Ok(());
     }
@@ -586,7 +564,7 @@ async fn main() -> Result<()> {
     }
     let server = Server::find(&ws).await;
     match cli.action {
-        Action::Serve { .. } | Action::Server { .. } | Action::Mcp | Action::Guide { .. } | Action::Plugin { .. } | Action::PaperNotes | Action::Drawings { .. } | Action::Companions { .. } => unreachable!("handled above"),
+        Action::Serve { .. } | Action::Server { .. } | Action::Mcp | Action::Guide { .. } | Action::Plugin { .. } | Action::PaperNotes | Action::Drawings { .. } => unreachable!("handled above"),
         Action::Capture { text } => {
             let text = if text.is_empty() { std::io::read_to_string(std::io::stdin())? } else { text.join(" ") };
             let r: CaptureResult = match &server {

@@ -111,6 +111,16 @@ function draw(host, r) {
 }
 
 export function register(atlas) {
+  // a task row's right-click (Home, Deadlines, a task block): no nudge about it until tomorrow
+  atlas.shell.menu?.("task", (t) => {
+    if (!t.path || !t.line || t.done) return [];
+    return [{ label: "No nudge until tomorrow", icon: "bell", hint: "Plan leaves this task alone until tomorrow morning", run: async () => {
+      try {
+        const r = await atlas.helper.call("snoozeTask", { path: t.path, line: t.line });
+        atlas.toast("Plan", r?.until ? `No nudge about it before ${String(r.until).replace("T", " ")}` : "That task is no longer open", r?.until ? "success" : "info");
+      } catch (e) { atlas.toast("Plan", `Not snoozed: ${e?.message ?? e}`, "error"); }
+    } }];
+  });
   atlas.plugin.registerSettingsSection?.({
     id: "why", title: "Why now?", place: "after",
     hint: "The budget as measured, each task's next nudge or what holds it back, and the ledger's last lines.",
