@@ -703,8 +703,11 @@ pub fn spawn(ws: Workspace, bus: EventBus, presence: Arc<Presence>, notifier: Bo
             let offered = tokio::task::spawn_blocking(move || {
                 match said {
                     ToSystem::Show(n) => {
-                        crate::notice_relay::raised(ws.root(), crate::notice_relay::Item::Show(n.clone())); // to the other devices
                         let cfg = ws.config().map(|c| c.notifications).unwrap_or_default();
+                        // to the other devices, unless its source is kept to this one (Settings → Notifications)
+                        if !n.source.as_ref().is_some_and(|src| cfg.this_device_only.iter().any(|x| x == src)) {
+                            crate::notice_relay::raised(ws.root(), crate::notice_relay::Item::Show(n.clone()));
+                        }
                         let looked_at = presence.looked_at();
                         if let Some(f) = OBSERVER.get() {
                             f(Heard::Notice(&n, looked_at));

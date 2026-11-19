@@ -9,6 +9,7 @@ and versions follow [Semantic Versioning](https://semver.org/) once 1.0 is out.
 - **A vault's notices on every device:** a notice raised on one device (or on the server) reaches the person's other
   devices through the vault's server within a minute, and dismissing or withdrawing it on one takes it away on the
   others. Needs the server to run this version.
+- **Settings → Notifications → "This device only":** the sources whose notices stay on the device that raised them.
 
 ### Changed
 - **A vault opened on a computer for the first time is "always on"**: it starts with Atlas and keeps its schedules,

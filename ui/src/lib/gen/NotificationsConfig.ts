@@ -13,4 +13,10 @@ system: SystemNotices,
  * How many seconds a system notification stays on the desktop before the system puts it away; a failure stays
  * three times as long. 0: until you close it. (A phone keeps its notifications by its own rules.)
  */
-system_seconds: number, };
+system_seconds: number, 
+/**
+ * Sources whose notices stay on the device that raised them (a plugin's id, `atlas`, a notifications source):
+ * every other vault notice also reaches your other devices through the vault's server, and is taken away on all
+ * of them when dismissed on one.
+ */
+this_device_only: Array<string>, };

@@ -862,11 +862,15 @@ pub struct NotificationsConfig {
     /// three times as long. 0: until you close it. (A phone keeps its notifications by its own rules.)
     #[schemars(range(min = 0, max = 120))]
     pub system_seconds: u32,
+    /// Sources whose notices stay on the device that raised them (a plugin's id, `atlas`, a notifications source):
+    /// every other vault notice also reaches your other devices through the vault's server, and is taken away on all
+    /// of them when dismissed on one.
+    pub this_device_only: Vec<String>,
 }
 
 impl Default for NotificationsConfig {
     fn default() -> Self {
-        Self { system: SystemNotices::default(), system_seconds: 10 }
+        Self { system: SystemNotices::default(), system_seconds: 10, this_device_only: Vec::new() }
     }
 }
 
