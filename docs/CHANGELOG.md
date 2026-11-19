@@ -5,6 +5,22 @@ and versions follow [Semantic Versioning](https://semver.org/) once 1.0 is out.
 
 ## [Unreleased]
 
+## [0.4.4] - 2026-11-20
+
+### Fixed
+- **JPEG XL pictures with their own colour profile open** (manga pages, on the phone above all): the decoder had no
+  colour management and refused them.
+- **A split among the editors no longer narrows a terminal docked on the right.**
+- **A tab's zoom is kept** when another window or a browser tab on the vault changes its sidebar.
+- Catalog prefers a real publishing house when Open Library lists several publishers.
+
+### Added
+- **The explorer picks several files** (Ctrl / Shift click, Ctrl+A) to move or delete together, and shows a folder's
+  README above its files.
+- **Ctrl+Tab's glance** shows each tab's icon and tells terminals apart by the title their program set; a card can be
+  clicked.
+- **Home's open tasks have the Tasks tab's right-click menu.**
+
 ## [0.4.3] - 2026-11-19
 
 ### Fixed
