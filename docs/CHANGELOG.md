@@ -5,6 +5,8 @@ and versions follow [Semantic Versioning](https://semver.org/) once 1.0 is out.
 
 ## [Unreleased]
 
+## [0.4.3] - 2026-11-19
+
 ### Fixed
 - **The explorer opens the folder asked for**, also when an explorer tab was already open and asleep (it showed the
   folder it was first opened on).
