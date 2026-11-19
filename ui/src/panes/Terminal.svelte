@@ -96,6 +96,9 @@
     });
     const fit = new FitAddon();
     term.loadAddon(fit);
+    // the title a program gives its terminal (OSC 0/2: Claude Code's topic, a shell's cwd, vim's file)
+    let screenTitle = "";
+    term.onTitleChange((t) => { screenTitle = t.trim(); });
     // a web address in the output opens as Atlas opens links (a web tab; Shift+click the system's browser), without
     // what closes it in prose — "(https://x.org/a)." gave xterm's default the ")." too, and it opened a plain window
     term.loadAddon(new WebLinksAddon((e, uri) => {
@@ -212,6 +215,7 @@
       paste: (t) => term.paste(t),
       run: (cmd) => { term.paste(cmd); term.input("\r"); },
       focus,
+      title: () => screenTitle,
       lines: (n) => {
         const b = term.buffer.active, end = b.baseY + b.cursorY + 1;
         return Array.from({ length: Math.min(n, end) }, (_, i) => b.getLine(end - Math.min(n, end) + i)?.translateToString(true) ?? "");

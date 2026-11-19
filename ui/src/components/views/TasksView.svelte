@@ -9,7 +9,7 @@
   import { openPath } from "../../lib/dock";
   import Icon from "../Icon.svelte";
   import { partMenu } from "../../lib/app-menu";
-  import { pluginRows } from "../../lib/plugin-menus";
+  import { taskMenu } from "../../lib/task-menu";
   import type { IconName } from "../../lib/panes";
   // `deadlines`: the list is `from: deadlines` (Home's box, the Deadlines page): its groups tinted by urgency, each row
   // saying where it comes from, and an empty list saying what would show
@@ -41,10 +41,9 @@
   /** A row's right-click: an open task's Mark done (the box's tick) first, then the rows every file has, at its line. */
   function rowMenu(e: MouseEvent, r: ViewRow) {
     if (!r.path) return;
-    const tick = !other(r) && !r.done ? [{ label: "Mark done", icon: "check" as const, run: () => ontick(r) }] : [];
-    // what plugins do with a task (the Calendar's Time-block…), after the app's own
-    const plugins = other(r) ? { top: [], end: [] } : pluginRows("task", { path: r.path, line: r.line ?? undefined, selection: r.title, done: !!r.done });
-    partMenu(e, [...plugins.top, ...tick, ...plugins.end], r.path, undefined, r.line ?? undefined);
+    // a note with a due: or an event is not a task line: only its file's rows
+    if (other(r)) return partMenu(e, [], r.path, undefined, r.line ?? undefined);
+    taskMenu(e, { path: r.path, line: r.line ?? undefined, title: r.title, done: !!r.done }, () => ontick(r));
   }
 </script>
 

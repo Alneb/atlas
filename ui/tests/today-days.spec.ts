@@ -46,6 +46,19 @@ test("ticking a task on Today writes [x] in its note and drops it from the list"
   expect(text).toContain("- [x] tick me from Today");
 });
 
+test("a task on Today has the Tasks tab's right-click: Mark done, then its file's rows", async ({ page, request }) => {
+  const h = { "x-atlas": "1" };
+  await request.put("/api/file", { headers: h, data: { path: "notes/tick-menu.md", text: "# Tick\n\n- [ ] tick me from its menu\n" } });
+  await page.goto("/");
+  await page.getByText("Finish the GW notes.").waitFor();
+  const li = page.locator(".task-li", { has: page.getByRole("button", { name: "Mark done: tick me from its menu" }) });
+  await li.locator(".task").click({ button: "right" });
+  await page.getByRole("menuitem", { name: "Mark done" }).click();
+  await expect(li).toHaveCount(0);
+  const text = (await (await request.get("/api/file?path=notes/tick-menu.md", { headers: h })).json()).text;
+  expect(text).toContain("- [x] tick me from its menu");
+});
+
 // the user's log, 2026-10-09: a task holding a long `code` path wrapped one word per line, since the
 // flex task item made each text run and the code its own column
 test("a log task with inline code wraps as one paragraph, not as columns", async ({ page, request }) => {

@@ -27,3 +27,13 @@ test("a fresh window takes the sidebar's state from the vault's file and writes 
   await expect.poll(async () => (await saved(request)).sidebar?.collapsed).toBe(false);
   expect((await saved(request)).sidePanel).toMatchObject({ kind: "files" });
 });
+
+test("a window writes only what it changed: another window's tab zoom survives its sidebar change", async ({ page, request }) => {
+  await restore(request, false); // this window reads nothing at start: it knows no zoom at all
+  await request.put("/api/file", { headers: H, data: { path: FILE, text: JSON.stringify({ paneZoom: { "editor:elsewhere.md": 2 } }) } });
+  await page.goto("/");
+  await page.getByText("Finish the GW notes.").waitFor();
+  await page.getByTestId("sidebar-toggle").click();
+  await expect.poll(async () => (await saved(request)).sidebar?.collapsed).toBe(true);
+  expect((await saved(request)).paneZoom).toEqual({ "editor:elsewhere.md": 2 });
+});

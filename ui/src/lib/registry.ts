@@ -51,6 +51,8 @@ export interface TerminalHandle {
   focus(): void;
   /** The last `n` lines up to the cursor, as text (hover previews). */
   lines(n: number): string[];
+  /** The title the program running in it set (OSC 0/2), "" when none. */
+  title(): string;
 }
 export const terminals = new Map<string, TerminalHandle>();
 

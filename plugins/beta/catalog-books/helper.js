@@ -3,6 +3,12 @@
 	Object.defineProperty(exports, Symbol.toStringTag, { value: "Module" });
 	//#region plugins/beta/catalog-books/helper/helper.ts
 	const OL = "https://openlibrary.org";
+	/** The publisher among several an edition lists: Open Library mixes in imprints and data slips (a physics textbook's
+	*  "Pearson Dental" before "Pearson Education"), so a name that reads as a publishing house goes first; else the first. */
+	function publisherOf(names) {
+		const all = names.map((n) => n.trim()).filter(Boolean);
+		return all.find((n) => /press|publish|education|verlag|[ée]ditions|books|academic|university/i.test(n)) ?? all[0];
+	}
 	/** '1965', 'August 1990', 'Jun 01, 1990' → the year. */
 	function yearOf(text) {
 		const m = /\b(1[5-9]\d\d|20\d\d)\b/.exec(String(text ?? ""));
@@ -74,7 +80,7 @@
 			author: oneOrList(authors),
 			year: yearOf(work.first_publish_date) ?? yearOf(ed.publish_date),
 			pages: ed.number_of_pages,
-			publisher: ed.publishers?.[0],
+			publisher: publisherOf(ed.publishers ?? []),
 			genres: genres(work.subjects),
 			description: textOf(work.description) ?? textOf(ed.description),
 			cover: cover !== void 0 ? `https://covers.openlibrary.org/b/id/${cover}-L.jpg` : void 0
@@ -91,6 +97,7 @@
 	atlas.methods({ lookup });
 	//#endregion
 	exports.lookup = lookup;
+	exports.publisherOf = publisherOf;
 	exports.withCoauthors = withCoauthors;
 	exports.yearOf = yearOf;
 	return exports;

@@ -24,7 +24,7 @@ export const SIDE_HEIGHT = { min: 120, start: 320 } as const;
 /** `focus` counts the requests to put the keys in the panel (Ctrl+Shift+F while it is in the bar). */
 export const sidePanel = $state({ kind: "files", visible: true, height: SIDE_HEIGHT.start, ...load<Partial<Prefs>>(KEYS.sidePanel, {}), focus: 0 } as Prefs & { focus: number });
 const prefs = (): Prefs => ({ kind: sidePanel.kind, visible: sidePanel.visible, height: sidePanel.height });
-const keep = (): void => { save(KEYS.sidePanel, prefs()); saveShellPrefs(); };
+const keep = (): void => { save(KEYS.sidePanel, prefs()); saveShellPrefs("sidePanel"); };
 shellPart("sidePanel", {
   get: prefs,
   set: (v) => {

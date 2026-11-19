@@ -57,3 +57,31 @@ test("Ctrl+Tab glances over this split's tabs, most recent first", async ({ page
   await expect(glance).toHaveCount(0);
   await expect.poll(() => title(page)).toContain("g-one.md");
 });
+
+test("the glance tells terminals apart by the title their program set, and a card can be clicked", async ({ page }) => {
+  await page.goto("/");
+  await page.getByText("Finish the GW notes.").waitFor();
+  const term = () => page.locator(".term-pane:visible").first();
+  await page.keyboard.press("Control+`");
+  await expect(term().locator(".xterm-helper-textarea")).toBeFocused();
+  // as Claude Code names its terminal by the conversation's topic (OSC 0); `sleep` holds the shell's own prompt title off
+  await page.keyboard.type("echo glance-first-$((2*3)); printf '\\033]0;topic-one\\007'; sleep 30\n");
+  await expect(term()).toContainText("glance-first-6");
+  await page.evaluate(() => (window as any).__atlas.run("ui.terminal.new"));
+  await expect(page.locator(".term-pane")).toHaveCount(2);
+  await term().locator(".xterm-screen").click();
+  await expect(term().locator(".xterm-helper-textarea")).toBeFocused();
+  await page.keyboard.type("echo glance-second-$((3*3))\n");
+  await expect(term()).toContainText("glance-second-9");
+
+  const glance = page.getByTestId("tab-glance");
+  await page.keyboard.down("Control");
+  await page.keyboard.press("Tab");
+  await expect(glance).toBeVisible();
+  const cards = glance.locator(".glance-card");
+  await expect(cards.nth(1).locator(".glance-screen")).toHaveText("topic-one");
+  await cards.nth(1).click(); // chosen by the mouse, Ctrl still held
+  await expect(glance).toHaveCount(0);
+  await page.keyboard.up("Control");
+  await expect(term()).toContainText("glance-first-6");
+});

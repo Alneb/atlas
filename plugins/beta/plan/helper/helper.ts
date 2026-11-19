@@ -102,7 +102,11 @@ async function record(writes: Write[], folder: string, deviceName: string, c: Cl
     } catch {
       text = null;
     }
-    const lines = list.sort((a, b) => b.entry.at - a.entry.at).map((w) => renderLine(w.entry, c, w.task));
+    // a line the file already has is not written again: another core on this vault under the same device name (two
+    // installs running at once) decided the same nudge in the same minute, and the ledger showed it twice
+    const have = new Set((text ?? "").split("\n"));
+    const lines = list.sort((a, b) => b.entry.at - a.entry.at).map((w) => renderLine(w.entry, c, w.task)).filter((l) => !have.has(l));
+    if (!lines.length) continue;
     await atlas.write(path, add(text, lines, deviceName, month));
   }
 }

@@ -123,7 +123,7 @@ export function register(atlas) {
     // the server's own thumbnail (`?th=j`: a JPEG of a picture, or of a video / PDF when the server has the tools for it),
     // kept in the plugin's cache; anything else (copyparty answers with an icon) shows the file's icon
     thumb: async (name, path) => {
-      if (!/\.(png|jpe?g|gif|webp|avif|bmp|heic|tiff?|mp4|mkv|webm|mov|pdf)$/i.test(path)) return null;
+      if (!/\.(png|jpe?g|gif|webp|avif|jxl|bmp|heic|tiff?|mp4|mkv|webm|mov|pdf)$/i.test(path)) return null; // JPEG XL too: the server's JPEG of it is what a WebView without a JPEG XL decoder (Android's) can show
       // made once: a thumbnail fetched before is the file kept in the cache (a library of 900 covers asked the server
       // for each one on every visit); a month later it is asked again
       const key = `${name}\n${path}`, kept = thumbs[key];

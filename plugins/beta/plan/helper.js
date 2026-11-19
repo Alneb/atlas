@@ -141,7 +141,7 @@
 	}
 	/** A day's hours in use (0–23) as a `used` line says them: `08:00–12:00, 14:00–15:00` (each range's end excluded). */
 	function hoursText(hours) {
-		const hs = [...new Set(hours)].filter((h) => h >= 0 && h < 24).sort((a, b) => a - b);
+		const hs = [...new Set(hours)].filter((h) => Number.isInteger(h) && h >= 0 && h < 24).sort((a, b) => a - b);
 		const out = [];
 		const two = (h) => `${String(h).padStart(2, "0")}:00`;
 		for (let i = 0; i < hs.length;) {
@@ -1391,7 +1391,9 @@
 			} catch {
 				text = null;
 			}
-			const lines = list.sort((a, b) => b.entry.at - a.entry.at).map((w) => renderLine(w.entry, c, w.task));
+			const have = new Set((text ?? "").split("\n"));
+			const lines = list.sort((a, b) => b.entry.at - a.entry.at).map((w) => renderLine(w.entry, c, w.task)).filter((l) => !have.has(l));
+			if (!lines.length) continue;
 			await atlas.write(path, add(text, lines, deviceName, month));
 		}
 	}

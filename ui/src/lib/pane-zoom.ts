@@ -13,6 +13,8 @@ import { zoomShown } from "./zoom-status.svelte";
 const STEP = 1.1, MOST = 8; // ten percent a press, between 1.1^-8 and 1.1^8
 const WHEEL_STEP = 1 / 120; // a wheel notch (120) zooms one step
 const steps = new Map<string, number>();
+/** Tabs zoomed (or reset) in this window since the last write: only these go over the file's levels. */
+const touched = new Set<string>();
 let dock: DockviewApi | undefined;
 
 /** How much larger than the settings' sizes this pane draws (1 = as set). */
@@ -44,12 +46,13 @@ let frame = 0;
 function zoomTo(p: IDockviewPanel, next: number): void {
   next = Math.max(-MOST, Math.min(MOST, next));
   if (Math.abs(next) < 1e-6) steps.delete(p.id); else steps.set(p.id, next);
+  touched.add(p.id);
   pending.add(p);
   frame ||= requestAnimationFrame(() => {
     frame = 0;
     pending.forEach(paint);
     pending.clear();
-    saveShellPrefs();
+    saveShellPrefs("paneZoom");
   });
 }
 
@@ -87,5 +90,12 @@ shellPart("paneZoom", {
     steps.clear();
     for (const [id, n] of Object.entries(v)) if (typeof n === "number" && Number.isFinite(n) && n && Math.abs(n) <= MOST) steps.set(id, n);
     dock?.panels.forEach(paint);
+  },
+  // the file's levels (other windows' tabs too) with this window's changes over them
+  merge: (saved) => {
+    const out: Record<string, unknown> = { ...saved };
+    for (const id of touched) { const n = steps.get(id); if (n) out[id] = n; else delete out[id]; }
+    touched.clear();
+    return out;
   },
 });

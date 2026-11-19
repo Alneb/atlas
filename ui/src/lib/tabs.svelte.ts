@@ -372,7 +372,7 @@ export function gotoTab(n: number | "last"): void {
 
 // --- sidebar geometry ------------------------------------------------------------------------------
 
-function saveSidebar(): void { save(KEYS.sidebar, $state.snapshot(tabs.sidebar)); saveShellPrefs(); }
+function saveSidebar(): void { save(KEYS.sidebar, $state.snapshot(tabs.sidebar)); saveShellPrefs("sidebar"); }
 shellPart("sidebar", {
   get: () => $state.snapshot(tabs.sidebar),
   set: (v) => {

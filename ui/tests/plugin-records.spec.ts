@@ -123,7 +123,12 @@ test("records are cards: add, when, group, a secret per card, make main, save", 
 
   // renamed ("the name of the accounts cannot be changed"): the card's secret follows it, nothing is forgotten
   const form3 = await openForm(page);
-  await form3.getByRole("group", { name: "bob" }).getByLabel("Name").fill("robert");
+  // Greet saved the form and reloaded the plugin: on a slow runner the reloaded form can land after the edit and
+  // wipe it (no save bar then) — edit again until the save bar shows. The first card is bob's (cards keep their order).
+  await expect(async () => {
+    await form3.getByLabel("Name").first().fill("robert");
+    await expect(form3.getByRole("button", { name: "Save" })).toBeVisible({ timeout: 1500 });
+  }).toPass({ timeout: 15000 });
   await form3.getByRole("button", { name: "Save" }).click();
   await expect(form3.getByRole("status")).toHaveCount(0); // saved: a page now, the save bar goes
   await expect.poll(() => secret(request, "people.robert.pin")).toBe("1234");

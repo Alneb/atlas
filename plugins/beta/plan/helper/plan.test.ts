@@ -418,3 +418,7 @@ test("the measured quiet hours replace Settings' range only with `quiet_measured
   const early = plan(input(clock("22:00"), [long], { entries: usedDays(5, 8, 23), settings: settingsOf({ digest: false, quiet_measured: true }) }));
   assert.equal(early.planned[0].at, "2026-11-17T08:00:00+01:00", "too few days: Settings' range holds");
 });
+
+test("a used line says whole hours only", () => {
+  assert.equal(hoursText([1.9, 9, 10, 10.13]), "09:00–11:00");
+});

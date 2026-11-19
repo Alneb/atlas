@@ -141,7 +141,7 @@ pub fn isbn_book(net: &dyn Net, isbn: &str) -> Result<Mapping, String> {
         put(&mut m, "title", Some(title));
         m.insert("author".into(), Value::Sequence(names(&b["authors"], "name")));
         put(&mut m, "date", b["publish_date"].as_str().and_then(year_in).map(String::from));
-        put(&mut m, "publisher", b["publishers"][0]["name"].as_str().map(String::from));
+        put(&mut m, "publisher", publisher_of(b["publishers"].as_array().into_iter().flatten().filter_map(|p| p["name"].as_str())));
         put(&mut m, "numPages", b["number_of_pages"].as_u64().map(|n| n.to_string()));
         put(&mut m, "url", b["url"].as_str().map(String::from));
     } else {
@@ -165,6 +165,16 @@ pub fn isbn_book(net: &dyn Net, isbn: &str) -> Result<Mapping, String> {
 }
 
 /// The first four-digit year in a free-form date ("June 2010", "2010-06-01").
+/// The publisher among several an edition lists: Open Library's records mix in imprints and data slips (a physics
+/// textbook's "Pearson Dental" before "Pearson Education"), so a name that reads as a publishing house goes first;
+/// none such: the first, as listed.
+fn publisher_of<'a>(names: impl Iterator<Item = &'a str>) -> Option<String> {
+    const HOUSE: [&str; 9] = ["press", "publish", "education", "verlag", "editions", "éditions", "books", "academic", "university"];
+    let names: Vec<&str> = names.map(str::trim).filter(|n| !n.is_empty()).collect();
+    let house = |n: &str| { let l = n.to_lowercase(); HOUSE.iter().any(|w| l.contains(w)) };
+    names.iter().find(|n| house(n)).or(names.first()).map(|n| n.to_string())
+}
+
 fn year_in(d: &str) -> Option<&str> {
     d.as_bytes().windows(4).position(|w| w.iter().all(u8::is_ascii_digit) && matches!(w[0], b'1' | b'2')).map(|i| &d[i..i + 4])
 }
@@ -484,6 +494,14 @@ fn absolute(u: &str, page: &str) -> String {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn of_several_publishers_a_publishing_house_goes_first() {
+        assert_eq!(super::publisher_of(["Pearson Dental", "Pearson Education"].into_iter()).as_deref(), Some("Pearson Education"));
+        assert_eq!(super::publisher_of(["Ace"].into_iter()).as_deref(), Some("Ace"));
+        assert_eq!(super::publisher_of(["Springer", "Gardners"].into_iter()).as_deref(), Some("Springer"));
+        assert_eq!(super::publisher_of([" ", ""].into_iter()), None);
+    }
+
     /// One string with several people (Open Library's authors, an Info dictionary): one name each, "Last, First".
     #[test]
     fn several_people_in_one_string_are_split() {

@@ -3,7 +3,7 @@ import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import { harness } from "atlas-helper/testing";
 import "./helper";
-import { withCoauthors, yearOf } from "./helper";
+import { publisherOf, withCoauthors, yearOf } from "./helper";
 
 test("a co-author Open Library keeps only on the edition is an author too", () => {
   // Ashcroft & Mermin, ISBN 9780030839931: the work links Ashcroft alone
@@ -51,4 +51,10 @@ test("a book is a book: reference or not is the vault's (Catalog · Science), ne
   const a = answers({ ...WORK, title: "Modern Quantum Mechanics", subjects: ["Quantum theory", "Textbooks"] });
   harness.web = (url) => a[url] ?? null;
   assert.equal("kind" in (await harness.call("lookup", { kind: "book", ids: { isbn: "9780441172719" } })), false);
+});
+
+test("of several publishers, a publishing house goes first; else the first listed", () => {
+  assert.equal(publisherOf(["Pearson Dental", "Pearson Education"]), "Pearson Education");
+  assert.equal(publisherOf(["Ace"]), "Ace");
+  assert.equal(publisherOf([" ", ""]), undefined);
 });

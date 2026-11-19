@@ -21,6 +21,7 @@
   import { complete } from "../lib/textarea-complete";
   import { renderInlineMarkdown } from "../lib/markdown";
   import { chipEl, sayDate, taskTextWithChips } from "../lib/task-chips";
+  import { taskMenu } from "../lib/task-menu";
   import type { Today } from "../lib/types";
   import type { DockviewPanelApi } from "dockview-core";
   import { todayData, refreshToday, useToday } from "../lib/today-store.svelte";
@@ -416,7 +417,7 @@
           {#if today && today.tasks.length}
             <ul class="tasks">
               {#each tasks as t (t.path + ":" + t.line)}
-                <li class="task-li">
+                <li class="task-li" oncontextmenu={(e) => taskMenu(e, { path: t.path, line: t.line, title: titleOf(t.text) }, () => void markDone(t))}>
                   <button class="task-box" aria-label="Mark done: {t.text}" title="Mark done (writes [x] in {t.path})" onclick={() => markDone(t)}></button>
                   <button class="task" data-path={t.path} data-line={t.line} onclick={() => openPath(t.path, t.line)} title="{t.path}:{t.line}">
                     <span class="task-text">{@html inline(titleOf(t.text))}<span class="task-chips" use:chips={t.text}></span></span>

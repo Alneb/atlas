@@ -90,7 +90,9 @@ export function parseLine(line: string, c: Clock): Entry | null {
 
 /** A day's hours in use (0–23) as a `used` line says them: `08:00–12:00, 14:00–15:00` (each range's end excluded). */
 export function hoursText(hours: Iterable<number>): string {
-  const hs = [...new Set(hours)].filter((h) => h >= 0 && h < 24).sort((a, b) => a - b);
+  // whole hours only: a fraction (an hour kept by something else in the day's cache) wrote "1.9:00–2.9:00", which no
+  // reader of the line understands
+  const hs = [...new Set(hours)].filter((h) => Number.isInteger(h) && h >= 0 && h < 24).sort((a, b) => a - b);
   const out: string[] = [];
   const two = (h: number) => `${String(h).padStart(2, "0")}:00`;
   for (let i = 0; i < hs.length; ) {

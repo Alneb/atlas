@@ -107,6 +107,10 @@
 .tab-glance .glance-title { font-size: calc(12.5px * var(--ui-scale, 1)); color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .tab-glance .glance-where { font-size: calc(11px * var(--ui-scale, 1)); color: var(--text-faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; direction: rtl; text-align: left; }
 .tab-glance .glance-card.chosen .glance-title { color: var(--accent-strong); }
+.tab-glance .glance-card { cursor: pointer; }
+.tab-glance .glance-title svg { vertical-align: -2px; color: var(--text-muted); }
+.tab-glance .glance-hint { color: var(--text-faint); }
+.tab-glance .glance-screen { margin-top: 3px; font-family: var(--font-mono, monospace); font-size: calc(10.5px * var(--ui-scale, 1)); color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* lib/image-peek.ts: a picture shown large while Ctrl is held over it (click-through: being within it keeps it, lib/image-peek.ts) */
 .image-peek { position: fixed; inset: 0; margin: auto; z-index: 95; max-width: 86vw; max-height: 86vh; object-fit: contain; pointer-events: none;

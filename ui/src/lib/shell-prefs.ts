@@ -7,21 +7,28 @@ import { api } from "./api";
 import { readText } from "./vault-files";
 
 const FILE = ".atlas/cache/shell.json";
-type Part = { get: () => unknown; set: (v: Record<string, unknown>) => void };
+/** `merge`: how this window's choices go over the file's (another window's) — the whole part by default; a part
+ *  keyed by tab (the zoom) gives back the file's keys with only the ones this window touched replaced. */
+type Part = { get: () => unknown; set: (v: Record<string, unknown>) => void; merge?: (saved: Record<string, unknown>) => unknown };
 const parts = new Map<string, Part>();
 let loaded = false;
 
 /** A part of the shell that wants its choices in the file: `get` gives them, `set` takes saved ones. */
 export function shellPart(name: string, part: Part): void { parts.set(name, part); }
 
+async function readAll(): Promise<Record<string, unknown> | null> {
+  const text = await readText(FILE);
+  const all: unknown = text ? JSON.parse(text) : null;
+  return all && typeof all === "object" ? (all as Record<string, unknown>) : null;
+}
+
 export async function loadShellPrefs(read = true): Promise<void> {
   if (!read) { loaded = true; return; } // nothing restored at start: the file is still kept current
   try {
-    const text = await readText(FILE);
-    const all: unknown = text ? JSON.parse(text) : null;
-    if (all && typeof all === "object") {
+    const all = await readAll();
+    if (all) {
       for (const [name, p] of parts) {
-        const v = (all as Record<string, unknown>)[name];
+        const v = all[name];
         if (v && typeof v === "object") p.set(v as Record<string, unknown>);
       }
     }
@@ -30,12 +37,29 @@ export async function loadShellPrefs(read = true): Promise<void> {
 }
 
 let t: ReturnType<typeof setTimeout> | undefined;
-/** Write the file a moment after a part changed (never before it was read: that would erase it). */
-export function saveShellPrefs(): void {
+/** The parts changed here since the last write. */
+const dirty = new Set<string>();
+/** Write the parts this window changed a moment after the change (never before the file was read: that would erase
+ *  it). Read-modify-write: a second window or a browser tab on the vault writing its sidebar used to write its own
+ *  idea of every other part too — the zoom of tabs it never had went back to 100 % at the next start. */
+export function saveShellPrefs(part: string): void {
   if (!loaded) return;
+  dirty.add(part);
   clearTimeout(t);
-  t = setTimeout(() => {
-    const all = Object.fromEntries([...parts].map(([name, p]) => [name, p.get()]));
-    void api.putFile(FILE, JSON.stringify(all, null, 1)).catch((e) => console.warn("[atlas] shell prefs not saved", e));
-  }, 400);
+  t = setTimeout(() => void write(), 400);
+}
+
+async function write(): Promise<void> {
+  const names = [...dirty];
+  dirty.clear();
+  let all: Record<string, unknown> = {};
+  try { all = (await readAll()) ?? {}; } catch { /* unreadable: written anew */ }
+  for (const name of names) {
+    const p = parts.get(name);
+    if (!p) continue;
+    const saved = all[name];
+    all[name] = p.merge && saved && typeof saved === "object" ? p.merge(saved as Record<string, unknown>) : p.get();
+  }
+  for (const [name, p] of parts) if (!(name in all)) all[name] = p.get(); // a part the file has not yet: as here
+  await api.putFile(FILE, JSON.stringify(all, null, 1)).catch((e) => console.warn("[atlas] shell prefs not saved", e));
 }

@@ -179,6 +179,10 @@ mod tests {
         std::fs::write(&cache, "Introduction\nnothing here\n\u{c}The Hubbard model\non page two\n").unwrap();
         std::fs::create_dir_all(d.path().join("refs")).unwrap();
         std::fs::write(d.path().join("refs/paper.pdf"), "%PDF-1.4\n").unwrap();
+        // dated with its PDF's time, as `refresh` leaves it: the first search's catch-up in the background would
+        // otherwise read this fake PDF again (to no text) and, when it won the race, empty the second search
+        let pdf_time = std::fs::metadata(d.path().join("refs/paper.pdf")).unwrap().modified().unwrap();
+        crate::vault_write::cache::date(&cache, pdf_time).unwrap();
         // the text of a PDF no longer in the vault is not a hit
         std::fs::write(d.path().join(super::CACHE).join("refs/gone.pdf.txt"), "Hubbard, gone\n").unwrap();
         std::fs::write(d.path().join("note.md"), "Hubbard in a note\n").unwrap();

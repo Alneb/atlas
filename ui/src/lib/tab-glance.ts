@@ -4,9 +4,13 @@
 // like Alt+Tab. `[ui] tab_switcher = cycle` keeps the older step through every tab in the bar's order.
 // The chosen tab is shown in the pane behind once the choice rests (REST_MS): stepping quickly past tabs draws only
 // the cards (names, no previews), never each tab passed over — a PDF or an editor drawn, or a sleeping tab woken, at
-// every step was what made the glance slow. Esc goes back.
+// every step was what made the glance slow. Esc goes back. Each card: the tab's icon, its name (with the folder when
+// another tab has the same name), where it is, and for a terminal the title its program set or its last line —
+// several Claude tabs are otherwise all "Claude". A card can be clicked.
 import type { DockviewApi } from "dockview-core";
 import { tabs } from "./tabs.svelte";
+import { iconSvg } from "./icons";
+import { terminals } from "./registry";
 
 const DRAW_MS = 120;
 /** How long a choice must rest before the pane behind shows it. */
@@ -42,7 +46,7 @@ export function glanceOrder(d: DockviewApi): string[] {
   return [...seen, ...here.filter((id) => !seen.includes(id))];
 }
 
-let state: { ids: string[]; at: number; el: HTMLElement | null; timer: ReturnType<typeof setTimeout>; rest?: ReturnType<typeof setTimeout>; show: () => void } | null = null;
+let state: { ids: string[]; at: number; el: HTMLElement | null; timer: ReturnType<typeof setTimeout>; rest?: ReturnType<typeof setTimeout>; show: () => void; pick: (i: number) => void } | null = null;
 
 /** Ctrl+Tab (+1) or Ctrl+Shift+Tab (-1) while the glance is open or to open it. */
 export function glance(d: DockviewApi, step: 1 | -1): void {
@@ -62,7 +66,7 @@ export function glance(d: DockviewApi, step: 1 | -1): void {
   if (ids.length < 2) return;
   const from = ids[0];
   glancing = true;
-  state = { ids, at: step === 1 ? 1 : ids.length - 1, el: null, timer: setTimeout(draw, DRAW_MS), show: showSoon };
+  state = { ids, at: step === 1 ? 1 : ids.length - 1, el: null, timer: setTimeout(draw, DRAW_MS), show: showSoon, pick: (i) => { if (state) { state.at = i; finish(true); } } };
   showSoon();
   const up = (e: KeyboardEvent) => { if (e.key === "Control") finish(true); };
   const esc = (e: KeyboardEvent) => {
@@ -90,6 +94,14 @@ export function glance(d: DockviewApi, step: 1 | -1): void {
   window.addEventListener("blur", end);
 }
 
+/** What tells one terminal (one shell, one Claude) from another: the title its program set, else its last line above
+ *  the cursor's (the cursor's own is the prompt, the same in every shell). */
+function terminalLine(id: string): string | undefined {
+  const t = terminals.get(id);
+  if (!t) return undefined;
+  return t.title() || t.lines(12).slice(0, -1).map((l) => l.trim()).filter(Boolean).at(-1);
+}
+
 function draw(): void {
   if (!state) return;
   clearTimeout(state.timer);
@@ -107,11 +119,18 @@ function draw(): void {
       card.setAttribute("role", "option");
       const title = document.createElement("div");
       title.className = "glance-title";
-      title.textContent = t?.title ?? id;
+      if (t) title.innerHTML = iconSvg(t.icon, 13);
+      title.append(` ${t?.title ?? id}`);
+      if (t?.hint) { const h = document.createElement("span"); h.className = "glance-hint"; h.textContent = ` ${t.hint}`; title.append(h); }
       const where = document.createElement("div");
       where.className = "glance-where";
       where.textContent = t?.path ?? t?.tip ?? "";
-      card.append(title, where);
+      card.append(title);
+      if (where.textContent && where.textContent !== t?.title) card.append(where); // a terminal's tip is its name again
+      const screen = terminalLine(id);
+      if (screen) { const sc = document.createElement("div"); sc.className = "glance-screen"; sc.textContent = screen; card.append(sc); }
+      const i = state.ids.indexOf(id);
+      card.addEventListener("mousedown", (e) => { e.preventDefault(); state?.pick(i); });
       el.append(card);
     }
     document.body.append(el);
