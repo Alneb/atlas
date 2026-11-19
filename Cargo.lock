@@ -5516,6 +5516,7 @@ dependencies = [
  "jxl-oxide-common",
  "jxl-render",
  "jxl-threadpool",
+ "moxcms",
  "tracing",
 ]
 
