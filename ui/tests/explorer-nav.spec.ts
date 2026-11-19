@@ -17,6 +17,21 @@ const openNote = (page: Page, path: string) => page.evaluate((p) => (window as a
 const xrow = (page: Page, name: string) => page.locator(".explorer .x-row", { has: page.locator(".label", { hasText: new RegExp(`^${name.replace(/[.[\]]/g, "\\$&")}$`) }) });
 const treeRow = (page: Page, path: string) => page.locator(`.tree .row[data-path="${path}"]`);
 
+test("an explorer tab put to sleep goes to the folder asked for when it wakes, not the one it first showed", async ({ page, request }) => {
+  await put(request, "sleep-a/one.md");
+  await put(request, "sleep-b/two.md");
+  await start(page);
+  await openNote(page, "sleep-a/one.md");
+  await page.locator(".editor-pane .crumbs button", { hasText: "sleep-a" }).click();
+  await expect(page.locator(".explorer .crumbs")).toContainText("sleep-a");
+  // another tab in front, the explorer put to sleep (as one unseen a while, or restored in the background)
+  await openNote(page, "sleep-b/two.md");
+  await page.evaluate(() => (window as any).__atlas.hibernate(0));
+  await page.locator(".editor-pane .crumbs button", { hasText: "sleep-b" }).click();
+  await expect(page.locator(".explorer .crumbs")).toContainText("sleep-b");
+  await expect(page.locator(".explorer .crumbs")).not.toContainText("sleep-a");
+});
+
 test("Show in the explorer moves the explorer already open, the file selected; a note's breadcrumb opens it there", async ({ page, request }) => {
   await put(request, "nav-a/one.md");
   await put(request, "nav-b/inner/two.md");

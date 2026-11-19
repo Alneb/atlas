@@ -1,6 +1,7 @@
 // The explorer list's keys (Dolphin's): ↑ ↓ Home End PageUp PageDown move · Enter open · Backspace / Alt+↑ the folder
 // above · Alt+← / Alt+→ back / forward · F2 rename · Delete (asks) · Ctrl+L type a path · F5 refresh · Ctrl+H hidden
-// files · a letter jumps to the next name starting with it (typed quickly: a prefix). In Thumbnails ← → move one tile.
+// files · Space a quick look (the file large over the list; ← → the folder's other files, Space / Esc close) · a letter
+// jumps to the next name starting with it (typed quickly: a prefix). In Thumbnails ← → move one tile.
 import type { Way } from "./browse.svelte";
 
 export interface KeyActions {
@@ -15,6 +16,8 @@ export interface KeyActions {
   rename(): void;
   remove(): void;
   typeAhead(ch: string): void;
+  /** Space: the quick look of the selected file. */
+  look(): void;
 }
 /** Where the selection is: `line` = rows per line (Thumbnails: tiles per line, else 1). */
 export interface KeyAt { sel: number; n: number; line: number; thumbs: boolean }
@@ -28,7 +31,7 @@ export function explorerKey(e: KeyboardEvent, a: KeyActions, at: KeyAt): (() => 
   const keys: Record<string, () => unknown> = {
     ArrowDown: () => a.move(sel + line), ArrowUp: () => a.move(sel - line), Home: () => a.move(0), End: () => a.move(n - 1),
     PageDown: () => a.move(sel + 10), PageUp: () => a.move(sel - 10),
-    Enter: a.enter, Backspace: a.up, F5: a.reload, F2: a.rename, Delete: a.remove,
+    Enter: a.enter, Backspace: a.up, F5: a.reload, F2: a.rename, Delete: a.remove, " ": a.look,
     ...(at.thumbs ? { ArrowRight: () => a.move(sel + 1), ArrowLeft: () => a.move(sel - 1) } : {}),
   };
   return keys[k] ?? (k.length === 1 && k !== " " ? () => a.typeAhead(k) : undefined);

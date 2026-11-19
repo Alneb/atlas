@@ -456,6 +456,7 @@ mod tests {
         assert!(e.text.starts_with(STALLED) && e.trouble == Trouble::Connection, "{}", e.text);
         assert!(within_deadline(async { Ok(Report::default()) }).await.is_ok());
         assert!(crate::imap::connection_lost("IDLE: Connection timed out (os error 110)"));
+        assert!(crate::imap::connection_lost("IDLE: io: peer closed connection without sending TLS close_notify: https://docs.rs/rustls/"), "a TLS hang-up in IDLE is a lost connection, not an error to show");
         assert!(crate::imap::connection_lost("Connection reset by peer (os error 104)"));
         assert!(!crate::imap::connection_lost("NO [AUTHENTICATIONFAILED] Invalid credentials"));
     }

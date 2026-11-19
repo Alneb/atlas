@@ -42,10 +42,19 @@
   function setTitle(t: string | null | undefined, u: string) {
     try { panel.setTitle(t?.trim() || new URL(u).host || u); } catch { /* keep */ }
   }
+  /** The addresses this tab showed, in order: Back's own way when the page cannot say its history (its script did not
+   *  run there, or stopped answering) — the button and the mouse's Back never dead-end on such a page. */
+  // svelte-ignore state_referenced_locally -- the address it opened on starts the trail
+  let trail: string[] = initial ? [initial] : [];
+  /** The page itself says it can go back (its script answered with its history). */
+  let pageBack = false;
+  let stepping = false;
+  const remember = (u: string) => { if (!stepping && trail.at(-1) !== u) trail = [...trail, u].slice(-50); stepping = false; };
   function go() {
     const u = normal(url);
     if (!u) return;
     url = shown = u;
+    remember(u);
     ahead = 0; // a new address: no forward history left
     panel.updateParameters({ url: u });
     setTitle(null, u);
@@ -90,6 +99,7 @@
     if (d.action === "files" || d.action === "palette") return void allCommands().find((c) => c.id === (d.action === "files" ? "ui.quickOpen" : "ui.palette"))?.run();
     if (d.url && d.url !== shown) {
       shown = d.url;
+      remember(d.url);
       hover = ""; // a new page: the old one's link is gone
       // the address follows the page unless it is being typed in
       if (document.activeElement !== address || !document.hasFocus()) url = d.url;
@@ -97,7 +107,8 @@
     }
     if (d.url) setTitle(d.title, d.url);
     // a frame cannot know its forward history: the button stays on
-    nav = { back: !!d.back, forward: true, loading: !!d.loading };
+    pageBack = !!d.back;
+    nav = { back: pageBack || trail.length > 1, forward: true, loading: !!d.loading };
   }
 
   /** A frame's page script speaking: only from that frame's window (another page's messages are not this pane's) and
@@ -119,6 +130,15 @@
   /** One page back or forward in the frame (the bar's arrows, the app's Back). */
   function stepPage(d: -1 | 1) {
     ahead = Math.max(0, ahead - d);
+    // the page's own history when it says it has one; else this tab's trail (the address before, loaded again)
+    if (d < 0 && !pageBack && trail.length > 1) {
+      trail = trail.slice(0, -1);
+      stepping = true;
+      url = shown = trail.at(-1)!;
+      src = shown;
+      if (frame) frame.src = shown; // the same address as the frame was given first is loaded again too
+      return;
+    }
     ask({ op: d < 0 ? "back" : "forward" });
   }
 

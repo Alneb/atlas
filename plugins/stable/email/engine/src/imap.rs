@@ -579,7 +579,8 @@ fn failed(cmd: &str, e: async_imap::error::Error) -> String {
 pub fn connection_lost(e: &str) -> bool {
     // the server hung up, or the socket died under us (the keepalive gave up, a reset after a network change)
     let e = e.to_ascii_lowercase();
-    ["closed the connection", "did not finish", "timed out", "connection reset", "broken pipe", "not connected"].iter().any(|w| e.contains(w))
+    // ("peer closed connection … close_notify": rustls's words for a server hanging up over TLS, as IDLE reports it raw)
+    ["closed the connection", "did not finish", "timed out", "connection reset", "broken pipe", "not connected", "peer closed connection", "close_notify"].iter().any(|w| e.contains(w))
 }
 
 fn first_word(cmd: &str) -> &str {

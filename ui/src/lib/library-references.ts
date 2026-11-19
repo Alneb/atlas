@@ -2,6 +2,7 @@
 // entry's fields, read through the catalog-papers helper's endpoints. Keys: Enter opens the PDF, r reads, n notes,
 // c copies the citekey.
 import { api } from "./api";
+import { openExplorer } from "./file-sources.svelte";
 import { on, touches } from "./bus";
 import { openPath } from "./dock";
 import { errText } from "./text";
@@ -90,6 +91,7 @@ export function referencesSource(): LibrarySource {
           { label: p.pdf ? "Read" : "Read the notes", icon: "pdf", primary: true, title: "Open the PDF (its note: “Note” in the PDF's bar) (R, Enter)", run: () => readPaper(p) },
           { label: p.has_notes ? "Notes" : "New notes", icon: "edit", run: () => openReadingNote(p.key) },
           { label: "Copy link", icon: "link", title: `[[${p.key}]]: citing is linking`, run: () => copy(`[[${p.key}]]`, "link") },
+          { label: "Folder", icon: "folder-open", title: `${p.dir}: its PDF, its notes and its files, in the explorer`, run: () => openExplorer("vault", "", p.dir) },
           { label: "Copy citekey", icon: "copy", more: true, run: () => copy(p.key, "citekey") },
           { label: "Copy \\cite", icon: "copy", more: true, run: () => copy(`\\cite{${p.key}}`, "\\cite") },
           { label: "Copy BibTeX", icon: "copy", more: true, run: async () => copy(await api.refsBibtex(p.key), "BibTeX") },

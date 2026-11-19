@@ -60,7 +60,11 @@
   const VIEW = "atlas.explorer.view";
   let view = $state<"list" | "thumbs">(loadRaw(VIEW) === "thumbs" ? "thumbs" : "list");
   const setView = (v: typeof view) => { view = v; saveRaw(VIEW, v); };
-  let sort = $state<{ by: "name" | "size" | "modified"; desc: boolean }>({ by: "name", desc: false });
+  // the order: remembered in this browser, as the view is (one choice for every explorer tab)
+  const SORT = "atlas.explorer.sort";
+  const savedSort = (() => { try { const v = JSON.parse(loadRaw(SORT) ?? "null"); return v && ["name", "size", "modified"].includes(v.by) ? { by: v.by as "name" | "size" | "modified", desc: !!v.desc } : null; } catch { return null; } })();
+  let sort = $state<{ by: "name" | "size" | "modified"; desc: boolean }>(savedSort ?? { by: "name", desc: false });
+  $effect(() => saveRaw(SORT, JSON.stringify(sort)));
   // the filter: names containing it, here; with `deep` ("Below"), every file under this folder (the vault's own list)
   let filter = $state("");
   let deep = $state(false);
@@ -125,6 +129,10 @@
     };
     draw(path);
     return { update: draw, destroy: () => undo() };
+  }
+  /** The quick look takes the keys as it opens. */
+  function grabFocus(el: HTMLElement) {
+    queueMicrotask(() => el.focus());
   }
   /** Split: another explorer beside this one, at the same folder, to drag between. */
   const split = () => open({ kind: "explorer", source: loc.source, place: loc.place, path: loc.path, n: (spec.n ?? 0) + 1 }, { beside: true });
@@ -247,6 +255,25 @@
     menu = atPointer(ev, items);
   }
 
+  // ---- quick look (Space): the selected file large over the list, as copyparty-ui's lightbox ---------
+  let looking = $state(false);
+  const lookFiles = $derived(shown.filter((x) => x.kind !== "dir"));
+  /** ← → in the quick look: the folder's previous or next file (folders skipped), the list's selection with it. */
+  function lookStep(by: number): void {
+    const i = lookFiles.findIndex((x) => x.name === current?.name);
+    const next = lookFiles[(i + by + lookFiles.length) % lookFiles.length];
+    if (next) b.selName = next.name;
+  }
+  function lookKey(e: KeyboardEvent): void {
+    const act = ({ ArrowRight: () => lookStep(1), ArrowDown: () => lookStep(1), ArrowLeft: () => lookStep(-1), ArrowUp: () => lookStep(-1),
+      " ": () => { looking = false; }, Escape: () => { looking = false; }, Enter: () => { looking = false; if (current) enter(current); } } as Record<string, () => void>)[e.key];
+    if (!act) return;
+    e.preventDefault();
+    e.stopPropagation();
+    act();
+    if (!looking) queueMicrotask(() => focusList());
+  }
+
   // ---- keys -----------------------------------------------------------------------------------------
   const ahead = new TypeAhead();
   function onKey(e: KeyboardEvent): void {
@@ -259,6 +286,7 @@
       enter: () => cur && enter(cur), reload: () => b.reload(),
       rename: () => { if (cur && src?.rename) rename(cur); }, remove: () => { if (cur) run(act.askDelete, cur); },
       typeAhead: (ch) => { const hit = ahead.next(ch, shown.map((x) => x.name), sel); if (hit) b.selName = hit; },
+      look: () => { if (cur && cur.kind !== "dir" && isVault) looking = true; },
     }, { sel, n, line: view === "thumbs" ? perLine() : 1, thumbs: view === "thumbs" });
     if (!action) return;
     e.preventDefault();
@@ -486,12 +514,29 @@
       {/if}
     </aside>
   {/if}
+  {#if looking && current && current.kind !== "dir"}
+    {@const cur = current}
+    {@const at = lookFiles.findIndex((x) => x.name === cur.name)}
+    <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+    <div class="quicklook" role="dialog" aria-modal="true" aria-label="Quick look: {cur.name}" tabindex="-1" onkeydown={lookKey} use:grabFocus>
+      <header class="ql-head">
+        <button class="icon-btn" aria-label="Previous file" title="Previous (←)" onclick={() => lookStep(-1)}><span class="flip"><Icon name="chevron" size={16} /></span></button>
+        <b>{cur.name.split("/").pop()}</b>
+        <span class="ql-meta">{at + 1} of {lookFiles.length} · {bytes(cur.size)}{cur.modified ? ` · ${showDate(cur.modified * 1000)}` : ""}</span>
+        <button class="icon-btn" aria-label="Next file" title="Next (→)" onclick={() => lookStep(1)}><Icon name="chevron" size={16} /></button>
+        <span class="grow"></span>
+        <button class="btn" onclick={() => { looking = false; enter(cur); }} title="Open it in a tab (Enter)">Open</button>
+        <button class="icon-btn" aria-label="Close" title="Close (Space, Esc)" onclick={() => { looking = false; focusList(); }}><Icon name="close" size={16} /></button>
+      </header>
+      {#key cur.name}<div class="ql-body" use:previewOf={joinPath(loc.path, cur.name)}></div>{/key}
+    </div>
+  {/if}
   <input type="file" multiple hidden bind:this={fileInput} onchange={(e) => { const f = [...(e.currentTarget.files ?? [])]; e.currentTarget.value = ""; run(act.putFiles, f); }} />
 </div>
 {#if menu}<ContextMenu x={menu.x} y={menu.y} items={menu.items} onclose={() => (menu = null)} />{/if}
 
 <style>
-  .explorer { display: flex; height: 100%; min-height: 0; container-type: inline-size; font-size: calc(13px * var(--ui-scale, 1)); color: var(--text); background: var(--bg); }
+  .explorer { position: relative; display: flex; height: 100%; min-height: 0; container-type: inline-size; font-size: calc(13px * var(--ui-scale, 1)); color: var(--text); background: var(--bg); }
   button { font: inherit; color: inherit; background: transparent; border: 0; cursor: pointer; }
   /* the bar measures the room it has (the preview takes its part of the pane) */
   .main { flex: 1; min-width: 0; display: flex; flex-direction: column; container-type: inline-size; }
@@ -620,4 +665,12 @@
     .list:not(.thumbs) .acts { display: none; }
   }
   @container (max-width: 480px) { .list:not(.thumbs) .acts { display: none; } }
+  /* quick look: over the whole pane, the file as large as it fits */
+  .quicklook { position: absolute; inset: 0; z-index: 20; display: flex; flex-direction: column; background: var(--bg); outline: none; }
+  .ql-head { display: flex; align-items: center; gap: 8px; padding: 6px 10px; border-bottom: 1px solid var(--border); min-width: 0; }
+  .ql-head b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ql-meta { color: var(--text-faint); font-size: .86em; white-space: nowrap; }
+  .ql-head .grow { flex: 1; }
+  .ql-body { flex: 1; overflow: auto; padding: 12px; display: flex; justify-content: center; }
+  .ql-body :global(img), .ql-body :global(video) { max-width: 100%; max-height: 100%; object-fit: contain; }
 </style>

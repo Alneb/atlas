@@ -5,6 +5,11 @@ and versions follow [Semantic Versioning](https://semver.org/) once 1.0 is out.
 
 ## [Unreleased]
 
+### Fixed
+- **The explorer opens the folder asked for**, also when an explorer tab was already open and asleep (it showed the
+  folder it was first opened on).
+- **A paper's panel has a Folder button**: its folder (PDF, notes, files) in the explorer.
+
 ## [0.4.2] - 2026-11-19
 
 ### Added

@@ -128,7 +128,7 @@ html{overflow-y:hidden;background:${base}}
 body{margin:0;padding:4px 2px 8px;font:14px/1.55 ${font};color:${fg};background:${base};overflow-wrap:anywhere;overflow-x:auto}
 img{max-width:100%;height:auto}
 img:not([src]),img[src^="http"]:not([data-ok]){min-height:0}
-a{color:${t.link}}
+a{color:${t.link};cursor:pointer}
 blockquote{margin:.5em 0 .5em .2em;padding-left:.9em;border-left:3px solid ${t.border};color:${t.muted}}
 blockquote blockquote{border-left-color:${t.borderStrong}}
 .atlas-plain{white-space:normal;font-size:15px;line-height:1.6;max-width:72ch}
@@ -155,11 +155,25 @@ mark.atlas-find.cur{background:${t.dark ? "#c77700" : "#ff9f1a"};color:${t.dark 
     d.addEventListener("toggle", fit, true);
     // a web link: as Atlas opens links, Shift+click in the browser. Left to the frame (`<base target=_blank>`), every
     // link became a tab of the desktop window, Shift or not. An Atlas without openLink keeps the frame's way.
-    d.addEventListener("click", (e) => {
+    const linkOf = (e: MouseEvent) => {
       const a = (e.target as Element | null)?.closest?.("a[href]") as HTMLAnchorElement | null;
-      if (!a || !atlas?.openLink || !/^https?:/i.test(a.href) || e.button !== 0) return;
+      return a && atlas?.openLink && /^https?:/i.test(a.href) && e.button === 0 ? a : null;
+    };
+    // Shift+press: the system's browser. Taken at the press — WebKit gives a Shift+click on a link to the text
+    // selection (or its own new window) before any `click`, so the click handler below never saw the Shift
+    d.addEventListener("mousedown", (e) => {
+      const a = e.shiftKey ? linkOf(e) : null;
+      if (!a) return;
       e.preventDefault();
-      atlas.openLink(a.href, { outside: e.shiftKey });
+      e.stopPropagation();
+      atlas!.openLink!(a.href, { outside: true });
+      atlas!.toast?.("Opened in your browser", a.href);
+    }, true);
+    d.addEventListener("click", (e) => {
+      const a = linkOf(e);
+      if (!a) return;
+      e.preventDefault();
+      if (!e.shiftKey) atlas!.openLink!(a.href, { outside: false }); // a Shift one went at its press
     });
     // Ctrl+F inside the message is the pane's find (Reader.svelte), not lost in the frame
     d.addEventListener("keydown", (e) => {

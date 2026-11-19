@@ -2710,7 +2710,7 @@ html{overflow-y:hidden;background:${c}}
 body{margin:0;padding:4px 2px 8px;font:14px/1.55 ${u};color:${l};background:${c};overflow-wrap:anywhere;overflow-x:auto}
 img{max-width:100%;height:auto}
 img:not([src]),img[src^="http"]:not([data-ok]){min-height:0}
-a{color:${s.link}}
+a{color:${s.link};cursor:pointer}
 blockquote{margin:.5em 0 .5em .2em;padding-left:.9em;border-left:3px solid ${s.border};color:${s.muted}}
 blockquote blockquote{border-left-color:${s.borderStrong}}
 .atlas-plain{white-space:normal;font-size:15px;line-height:1.6;max-width:72ch}
@@ -2733,9 +2733,17 @@ mark.atlas-find.cur{background:${s.dark ? "#c77700" : "#ff9f1a"};color:${s.dark 
 		};
 		r(), new ResizeObserver(r).observe(e.documentElement);
 		for (let t of Array.from(e.images)) t.addEventListener("load", r);
-		e.addEventListener("toggle", r, !0), e.addEventListener("click", (e) => {
+		e.addEventListener("toggle", r, !0);
+		let i = (e) => {
 			let n = e.target?.closest?.("a[href]");
-			n && t.atlas?.openLink && /^https?:/i.test(n.href) && e.button === 0 && (e.preventDefault(), t.atlas.openLink(n.href, { outside: e.shiftKey }));
+			return n && t.atlas?.openLink && /^https?:/i.test(n.href) && e.button === 0 ? n : null;
+		};
+		e.addEventListener("mousedown", (e) => {
+			let n = e.shiftKey ? i(e) : null;
+			n && (e.preventDefault(), e.stopPropagation(), t.atlas.openLink(n.href, { outside: !0 }), t.atlas.toast?.("Opened in your browser", n.href));
+		}, !0), e.addEventListener("click", (e) => {
+			let n = i(e);
+			n && (e.preventDefault(), e.shiftKey || t.atlas.openLink(n.href, { outside: !1 }));
 		}), e.addEventListener("keydown", (e) => {
 			(e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "f" && (e.preventDefault(), Z(c)?.dispatchEvent(new KeyboardEvent("keydown", {
 				key: e.key,

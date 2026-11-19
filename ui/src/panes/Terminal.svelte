@@ -4,6 +4,7 @@
   import { Terminal } from "@xterm/xterm";
   import { FitAddon } from "@xterm/addon-fit";
   import { WebLinksAddon } from "@xterm/addon-web-links";
+  import { openOutside, openWeb } from "../lib/web-links";
   import { Unicode11Addon } from "@xterm/addon-unicode11";
   import { WebglAddon } from "@xterm/addon-webgl";
   import { openPty, ptyResize, ptyEnd, vaultScoped } from "../lib/api";
@@ -95,7 +96,12 @@
     });
     const fit = new FitAddon();
     term.loadAddon(fit);
-    term.loadAddon(new WebLinksAddon());
+    // a web address in the output opens as Atlas opens links (a web tab; Shift+click the system's browser), without
+    // what closes it in prose — "(https://x.org/a)." gave xterm's default the ")." too, and it opened a plain window
+    term.loadAddon(new WebLinksAddon((e, uri) => {
+      const u = uri.replace(/[)\].,;:!?'"]+$/, "");
+      if (e.shiftKey) openOutside(u); else openWeb(u);
+    }));
     // Unicode 11 widths, as zsh and fastfetch count them: with xterm's Unicode 6 an emoji or icon took one column where
     // the shell put two, and a prompt's decoration or a logo slid and wrapped (worst in a narrow column)
     term.loadAddon(new Unicode11Addon());
