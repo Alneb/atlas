@@ -180,6 +180,43 @@ pub fn shell() -> Option<String> {
         .clone()
 }
 
+/// The marker the launchers written by [`write_command_launchers`] carry: one without it is the user's own and is left.
+#[cfg(target_os = "linux")]
+const LAUNCHER_MARK: &str = "# Written by Atlas's Flatpak";
+
+/// Inside the Flatpak: `atlas` and `atlas-capture` made callable from any terminal, agent or shortcut on the host —
+/// a two-line script each in `~/.local/bin` running the sandbox's own (`flatpak run --command=…`). Written at each
+/// start when missing or still Atlas's (a file of the user's of that name is never touched); outside a Flatpak, nothing.
+#[cfg(target_os = "linux")]
+pub fn write_command_launchers() {
+    if !sandboxed() {
+        return;
+    }
+    let (Some(home), Some(id)) = (crate::platform::dirs::home(), std::env::var("FLATPAK_ID").ok()) else { return };
+    let bin = home.join(".local/bin");
+    for name in ["atlas", "atlas-capture"] {
+        let path = bin.join(name);
+        let text = format!("#!/bin/sh\n{LAUNCHER_MARK} ({id}): `{name}` from the app's sandbox. Removing it is fine: the app writes it again when it starts.\nexec flatpak run --command={name} {id} \"$@\"\n");
+        match std::fs::read_to_string(&path) {
+            Ok(had) if had == text => continue,
+            Ok(had) if !had.contains(LAUNCHER_MARK) => continue, // the user's own command of that name
+            _ => {}
+        }
+        // ~/.local/bin is the user's own folder, outside any vault (its parents made by the writer)
+        let done = crate::vault_write::outside::write(&path, text.as_bytes()).map_err(|e| e.to_string()).and_then(|_| {
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755)).map_err(|e| e.to_string())
+        });
+        if let Err(e) = done {
+            eprintln!("atlas: no `{name}` launcher in {}: {e}", bin.display());
+        }
+    }
+}
+
+/// A Flatpak is Linux's alone: elsewhere there is nothing to write.
+#[cfg(not(target_os = "linux"))]
+pub fn write_command_launchers() {}
+
 #[cfg(test)]
 mod tests {
     use super::*;

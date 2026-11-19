@@ -766,6 +766,19 @@ public final class AtlasActivity extends Activity {
             });
         }
         @JavascriptInterface public void ready() { runOnUiThread(AtlasActivity.this::pageReady); }
+        /** `atlas.systemPrint`: a PDF (its bytes, base64) in Android's print dialog → "" or why it could not. */
+        @JavascriptInterface public String print(String title, String base64) {
+            try {
+                java.io.File f = SystemPrint.keep(AtlasActivity.this, android.util.Base64.decode(base64, android.util.Base64.DEFAULT));
+                runOnUiThread(() -> {
+                    try { SystemPrint.show(AtlasActivity.this, title, f); }
+                    catch (RuntimeException e) { android.widget.Toast.makeText(AtlasActivity.this, "Not printed: " + e.getMessage(), android.widget.Toast.LENGTH_LONG).show(); }
+                });
+                return "";
+            } catch (Exception e) {
+                return String.valueOf(e.getMessage());
+            }
+        }
         /** This phone's id in the vault's `where` room (ui lib/where.svelte.ts): the native Files leaves itself out of
          *  who is where by it (WhereRows). */
         @JavascriptInterface public String deviceId() { return AtlasActivity.deviceId(AtlasActivity.this); }

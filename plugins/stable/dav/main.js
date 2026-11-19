@@ -494,7 +494,7 @@ function Se(e) {
 	}), window.addEventListener("atlas-calendar:link", (e) => {
 		let { link: t, ack: n } = e.detail ?? {};
 		n && window.dispatchEvent(new CustomEvent("atlas-calendar:heard")), t && a(t);
-	}), e.shell.menu?.("task", (e) => {
+	}), (e.version ?? 0) >= 35 && e.shell.menu?.("task", (e) => {
 		if (!e.path || !e.line || e.done || !e.selection) return [];
 		let t = e.selection.replace(/\s+\^[\w-]+\s*$/, "");
 		return [{

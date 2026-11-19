@@ -199,6 +199,9 @@ export interface PluginApi {
   /** (v35) Ask the user for a note in the palette (recent ones first, then every note the link index knows, mail
    *  saved as notes included) → its path, or null when the chooser was closed. What "Link to a note…" asks with. */
   pickNote(o?: { placeholder?: string; tag?: string }): Promise<string | null>;
+  /** (v35) The system's own print dialog for a vault PDF (the phone's: its printers, "Save as PDF") → true once shown;
+   *  undefined where the system has none to give (the desktop prints through CUPS: the Print plugin's `lp`). */
+  systemPrint?: (path: string, title?: string) => Promise<true>;
   /** (v35) The notes that link to `path` (the core's link index, the "Linked mentions" of a note): each with the line
    *  and the line's text. What a plugin shows as "linked from" beside its own thing (a mail's note, an event's). */
   backlinks(path: string): Promise<{ source: string; line: number; context: string }[]>;

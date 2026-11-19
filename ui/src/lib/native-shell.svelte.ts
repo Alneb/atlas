@@ -37,10 +37,21 @@ interface Bridge {
   swipe?(by: string): void;
   /** `atlas.signIn` in the app's own sign-in window (signin.ts) */
   signIn?(url: string, back: string): void;
+  /** a PDF (base64) in Android's print dialog (SystemPrint.java) → "" or why not */
+  print?(title: string, base64: string): string;
 }
 
 const bridge = (globalThis as unknown as { AtlasNative?: Bridge }).AtlasNative;
 export const nativeShell = { on: !!bridge };
+
+/** The system's print dialog for a PDF's bytes (the phone's), or false when this app has none. */
+export function nativePrint(title: string, bytes: Uint8Array): boolean | string {
+  if (!bridge?.print) return false;
+  let bin = "";
+  for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  return bridge.print(title, btoa(bin)) || true;
+}
+export const nativePrints = (): boolean => !!bridge?.print;
 
 /** The app signs in to a service's gate itself (a browser tab can't hand its cookies over); false without that app. */
 export function nativeSignInDoor(url: string): boolean {

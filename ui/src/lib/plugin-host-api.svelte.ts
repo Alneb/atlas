@@ -29,6 +29,7 @@ import { registerLibrary as addLibrary, openLibraries, shownLibraries, watchLibr
 import { registerEmbed } from "./embed-registry";
 import { pick } from "./palette.svelte";
 import { pickNote } from "./pick-note";
+import { nativePrint, nativePrints } from "./native-shell.svelte";
 import { registerSuggestion } from "./suggestions";
 import { isIconName } from "./icons";
 import Plot from "../components/Plot.svelte";
@@ -192,6 +193,15 @@ export function pluginApi(p: Plugin, at: PaneAt = {}): PluginApi {
     },
     pick: (req) => pick(req),
     pickNote: (o = {}) => pickNote(o),
+    systemPrint: nativePrints()
+      ? async (path, title) => {
+          const r = await fetch(await blobUrl(path));
+          if (!r.ok) throw new Error(`${path}: ${r.status}`);
+          const said = nativePrint(title ?? path.split("/").pop() ?? "Atlas", new Uint8Array(await r.arrayBuffer()));
+          if (said !== true) throw new Error(said || "this app has no print dialog");
+          return true;
+        }
+      : undefined,
     backlinks: async (path) => (await api.backlinks(path)).links.map((b) => ({ source: b.source, line: b.line, context: b.context })),
     signIn: (url, back) => signIn(url, back),
     signInReturned: (back) => returned(back),

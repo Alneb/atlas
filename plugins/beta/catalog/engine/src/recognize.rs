@@ -18,45 +18,32 @@ pub struct Candidate {
     pub label: Option<String>,
 }
 
-/// The first address in the text: `https://…`, or the whole text when it is a bare `host.tld/…`.
+/// The first address in the text: `https://…`, or the whole text when it is a bare `host.tld/…` (atlas-text's, the
+/// capture box's hint uses the same).
 pub fn first_url(text: &str) -> Option<String> {
-    let re = regex::Regex::new(r#"https?://[^\s<>"'`]+"#).expect("static pattern");
-    if let Some(m) = re.find(text) {
-        return Some(crate::model::trim_link_end(m.as_str()).to_string());
-    }
-    let t = text.trim();
-    let bare = regex::Regex::new(r"^(www\.)?[a-z0-9-]+(\.[a-z0-9-]+)*\.[a-z]{2,}(/\S*)?$").expect("static pattern");
-    bare.is_match(&t.to_ascii_lowercase()).then(|| format!("https://{t}"))
+    atlas_text::recognize::first_url(text, crate::model::trim_link_end)
 }
 
-/// The candidates for `text`, most likely first (most patterns matched; ties in the registry's order).
+/// The candidates for `text`, most likely first (most patterns matched; ties in the registry's order) — the matching
+/// is atlas-text's `recognize`, shared with the capture box's hint so the two never disagree.
 pub fn recognise(reg: &Registry, text: &str) -> Vec<Candidate> {
     let url = first_url(text);
-    let mut out: Vec<(usize, Candidate)> = Vec::new();
-    for p in &reg.patterns {
-        for caps in p.re.captures_iter(text) {
-            let Some(m) = caps.get(p.group) else { continue };
-            let value = normalise(&p.id, m.as_str());
-            if value.is_empty() {
-                continue;
-            }
-            let at = match out.iter().position(|(_, c)| c.kind == p.kind) {
-                Some(i) => i,
-                None => {
-                    out.push((0, Candidate { kind: p.kind.clone(), ids: Ids::new(), url: url.clone(), by: Vec::new(), label: None }));
-                    out.len() - 1
+    let patterns: Vec<atlas_text::recognize::Pattern<'_>> = reg.patterns.iter().map(|p| atlas_text::recognize::Pattern { re: &p.re, group: p.group }).collect();
+    let found = atlas_text::recognize::matches(&patterns, text, |i, raw| normalise(&reg.patterns[i].id, raw));
+    let mut out: Vec<Candidate> = atlas_text::recognize::by_kind(&found, |i| reg.patterns[i].kind.clone())
+        .into_iter()
+        .map(|(kind, ms)| {
+            let mut c = Candidate { kind, ids: Ids::new(), url: url.clone(), by: Vec::new(), label: None };
+            for m in ms {
+                let p = &reg.patterns[m.pattern];
+                c.ids.entry(p.id.clone()).or_insert_with(|| m.value.clone());
+                if !c.by.contains(&p.plugin) {
+                    c.by.push(p.plugin.clone());
                 }
-            };
-            let (hits, c) = &mut out[at];
-            *hits += 1;
-            c.ids.entry(p.id.clone()).or_insert(value);
-            if !c.by.contains(&p.plugin) {
-                c.by.push(p.plugin.clone());
             }
-        }
-    }
-    out.sort_by_key(|(hits, _)| std::cmp::Reverse(*hits)); // stable: ties keep the registry's order
-    let mut out: Vec<Candidate> = out.into_iter().map(|(_, c)| c).collect();
+            c
+        })
+        .collect();
     if let Some(u) = url {
         let article = KindName::new(crate::kind::WEB_PAGE);
         if out.is_empty() && reg.kinds.get(&article).is_some() {

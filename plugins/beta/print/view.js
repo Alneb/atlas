@@ -58,7 +58,10 @@ export default function mount(host, atlas) {
   let pdf = null, preparing = true;
   let unmount = () => {};
   const say = (text, err = false) => { status.textContent = text; status.classList.toggle("err", err); };
-  atlas.helper.call("printers", {}, { timeout: 30 }).then((list) => {
+  // the phone: its own print dialog chooses the printer and the options (atlas.systemPrint); no CUPS to ask
+  const system = typeof atlas.systemPrint === "function";
+  if (system) say("Android's print dialog chooses the printer, the copies and the pages.");
+  if (!system) atlas.helper.call("printers", {}, { timeout: 30 }).then((list) => {
     for (const p of list) if (![...printer.options].some((o) => o.value === p.value)) printer.append(el("option", { value: p.value, textContent: p.label }));
     printer.value = String(s.printer ?? "");
   }, (e) => say(String(e?.message ?? e), true));
@@ -73,6 +76,12 @@ export default function mount(host, atlas) {
 
   go.onclick = async () => {
     go.disabled = true;
+    if (system) {
+      try { await atlas.systemPrint(pdf, path.split("/").pop()); say("The print dialog is open."); }
+      catch (e) { say(String(e?.message ?? e), true); }
+      finally { go.disabled = false; }
+      return;
+    }
     say(`Sending to ${printer.value || "the default printer"}…`);
     const settings = { ...s, printer: printer.value, copies: Number(copies.value) || 1, sides: sides.value, media: media.value, pages: pages.value.trim(), landscape: landscape.checked, fit: fit.checked };
     try {

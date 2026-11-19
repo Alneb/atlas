@@ -8,10 +8,12 @@ use std::path::{Path, PathBuf};
 use std::sync::{LazyLock, Mutex};
 use std::time::{Duration, Instant};
 
-type Patterns = Vec<(Regex, String)>;
+/// A contributed pattern: its regex, the group holding the ID (as the catalog reads it: default 1, 0 the whole match)
+/// and the kind it names.
+/// None: the catalog files nothing from captures here (off, or "File links from every capture" off).
+type Patterns = Option<Vec<(Regex, usize, String)>>;
 static PATTERNS: LazyLock<Mutex<HashMap<PathBuf, (Instant, Patterns)>>> = LazyLock::new(Mutex::default);
 const FRESH: Duration = Duration::from_secs(30);
-static LINK: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"https?://\S+").expect("static"));
 
 /// The patterns of the catalog plugins that can run in this vault (none when the catalog is off, or its
 /// `on_capture` setting — "File links from every capture" — is false), read again after FRESH so a change shows up.
@@ -25,19 +27,19 @@ fn patterns(root: &Path, cfg: &Config) -> Patterns {
     let all = crate::plugins::list(root);
     // the role, not a plugin's id: whichever plugin `provides = ["catalog"]` (its contributions are `[contributes.catalog]`)
     let on = crate::plugins::provider(&all, &cfg.plugins.off, "catalog").is_some_and(|p| p.settings.get("on_capture") != Some(&serde_json::Value::Bool(false)));
-    let mut out = vec![];
-    if on {
+    let mut out = on.then(Vec::new);
+    if let Some(out) = out.as_mut() {
         for (_, t) in crate::plugins::contributions(root, &cfg.plugins.off, "catalog").unwrap_or_default() {
             for r in t["recognize"].as_array().into_iter().flatten() {
                 if let (Some(p), Some(k)) = (r["pattern"].as_str(), r["kind"].as_str()) {
-                    if let Ok(re) = Regex::new(p) {
-                        out.push((re, k.to_string()));
+                    let group = r["group"].as_u64().unwrap_or(1) as usize;
+                    // a pattern without its ID group is left out, as the catalog leaves it out (contrib.rs)
+                    if let Ok(re) = Regex::new(p).map_err(drop).and_then(|re| if group < re.captures_len() { Ok(re) } else { Err(()) }) {
+                        out.push((re, group, k.to_string()));
                     }
                 }
             }
         }
-        // a link no pattern knows: the catalog's own web page kind
-        out.push((LINK.clone(), WEB_PAGE.into()));
     }
     cache.insert(root.to_path_buf(), (Instant::now(), out.clone()));
     out
@@ -45,9 +47,22 @@ fn patterns(root: &Path, cfg: &Config) -> Patterns {
 
 const WEB_PAGE: &str = "article";
 
-/// The kind the catalog would file this text as, by the first pattern that matches; None: it will not catalogue it.
+/// The kind the catalog would file this text as — atlas-text's `recognize`, the catalog engine's own matching: the
+/// kind most patterns hit, a match counting only with its ID; else a link (a bare `host.tld/…` too) is a web page;
+/// None: it will not catalogue it.
 pub fn kind_of(root: &Path, cfg: &Config, text: &str) -> Option<String> {
-    patterns(root, cfg).into_iter().find(|(re, _)| re.is_match(text)).map(|(_, k)| k)
+    let all = patterns(root, cfg)?; // None: the catalog files nothing from captures here
+    let ps: Vec<atlas_text::recognize::Pattern<'_>> = all.iter().map(|(re, group, _)| atlas_text::recognize::Pattern { re, group: *group }).collect();
+    let found = atlas_text::recognize::matches(&ps, text, |_, raw| raw.trim().to_string());
+    if let Some((kind, _)) = atlas_text::recognize::by_kind(&found, |i| all[i].2.clone()).into_iter().next() {
+        return Some(kind);
+    }
+    atlas_text::recognize::first_url(text, link_end).map(|_| WEB_PAGE.to_string())
+}
+
+/// What follows a link in prose and is not part of it (a full stop, a closing bracket).
+fn link_end(s: &str) -> &str {
+    s.trim_end_matches(['.', ',', ';', ':', '!', '?', ')', ']', '>', '\'', '"'])
 }
 
 /// A kind in words: "a film", "an album", "a web page".

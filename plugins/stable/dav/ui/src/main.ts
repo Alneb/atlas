@@ -189,7 +189,8 @@ export function register(atlas: PluginApi) {
     if (link) linkToEvent(link);
   });
   // a task row's right-click (Home, Deadlines, a task block): Time-block… — the pane waits for the slot, as below
-  atlas.shell.menu?.("task", (t) => {
+  // the "task" place is API 35's: an older Atlas refuses an unknown place, so it is asked only where it exists
+  if ((atlas.version ?? 0) >= 35) atlas.shell.menu?.("task", (t) => {
     if (!t.path || !t.line || t.done || !t.selection) return [];
     const title = t.selection.replace(/\s+\^[\w-]+\s*$/, "");
     return [{ label: "Time-block…", icon: "calendar", hint: "Pick the slot on the calendar's hours", run: () => show({ view: "week", place: { path: t.path!, line: t.line!, title, date: "", done: false, props: { from: "task" } } }) }];

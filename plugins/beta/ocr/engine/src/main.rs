@@ -296,6 +296,36 @@ fn str_param<'a>(p: &'a Value, key: &str) -> Result<&'a str> {
     }
 }
 
+/// What was typed in a capture beside its pictures: the text with every embed (`![[…]]`, `![…](…)`) taken out.
+fn typed_words(text: &str) -> String {
+    let mut out = String::new();
+    let mut rest = text;
+    while let Some(at) = rest.find('!') {
+        out.push_str(&rest[..at]);
+        let tail = &rest[at..];
+        // `![[name]]`, or `![alt](address)`: skipped whole; any other `!` kept
+        let skip = if let Some(inner) = tail.strip_prefix("![[") {
+            inner.find("]]").map(|e| 3 + e + 2)
+        } else if let Some(inner) = tail.strip_prefix("![") {
+            inner.find("](").and_then(|m| inner[m + 2..].find(')').map(|e| 2 + m + 2 + e + 1))
+        } else {
+            None
+        };
+        match skip {
+            Some(n) => {
+                out.push(' ');
+                rest = &tail[n..];
+            }
+            None => {
+                out.push('!');
+                rest = &tail[1..];
+            }
+        }
+    }
+    out.push_str(rest);
+    out.split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
 /// After a capture: each picture in it read, its text put under it, and all of it offered to the catalog.
 fn on_capture(atlas: &Atlas, reader: &mut Reader, p: &Value) -> Result<Value> {
     let text = str_param(p, "text")?;
@@ -337,8 +367,10 @@ fn on_capture(atlas: &Atlas, reader: &mut Reader, p: &Value) -> Result<Value> {
     if !failed.is_empty() {
         said = format!("{said} ({} of {} pictures; not read: {})", read.len(), pictures.len(), failed.join("; "));
     }
-    // a link or an identifier in the picture is filed like a typed one (the catalog skips plain words)
-    let all: String = read.iter().map(|(_, w)| w.as_str()).collect::<Vec<_>>().join("\n");
+    // a link or an identifier in the picture is filed like a typed one (the catalog skips plain words); the words typed
+    // beside the picture go with it, so they help decide what it is ("a film:" over a poster's screenshot)
+    let typed = typed_words(text);
+    let all: String = std::iter::once(typed.as_str()).filter(|t| !t.is_empty()).chain(read.iter().map(|(_, w)| w.as_str())).collect::<Vec<_>>().join("\n");
     let filed = if p.pointer("/settings/to_catalog").and_then(Value::as_bool) == Some(false) {
         None
     } else {
@@ -386,6 +418,14 @@ fn main() {
 
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn the_words_typed_beside_a_picture_go_to_the_catalog_with_what_was_read() {
+        assert_eq!(super::typed_words("a film: ![[Pasted image 1.png]] seen today"), "a film: seen today");
+        assert_eq!(super::typed_words("![[shot.png]]"), "", "only a picture: nothing typed");
+        assert_eq!(super::typed_words("see ![x](a.png) here"), "see here");
+    }
+
     use super::*;
 
     #[test]

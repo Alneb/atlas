@@ -5,7 +5,11 @@ and versions follow [Semantic Versioning](https://semver.org/) once 1.0 is out.
 
 ## [Unreleased]
 
+## [0.4.2] - 2026-11-19
+
 ### Added
+- **Print on the phone** (Print 0.6.0): the Print dialog hands the document to Android's own print dialog (its
+  printers, copies and pages, or Save as PDF).
 - **A vault in a window of its own:** the vault switcher's **New window** opens another vault beside this one, this
   window staying where it is (desktop app).
 - **A task's right-click offers Time-block…** (Home, Deadlines, task blocks): the calendar opens on the week to pick
@@ -17,6 +21,10 @@ and versions follow [Semantic Versioning](https://semver.org/) once 1.0 is out.
 - **Settings → Notifications → "This device only":** the sources whose notices stay on the device that raised them.
 
 ### Changed
+- **The Flatpak is the same Atlas as the installed binaries:** it keeps its settings, vault list, sign-ins and device
+  id where the binaries do (`~/.config/atlas`, `~/.local/state/atlas`), not in the sandbox's own folder, and at its
+  start it makes `atlas` and `atlas-capture` callable from any terminal (`~/.local/bin`, small launchers into the
+  sandbox) — the command line, agents (`atlas mcp`) and the capture shortcut work with only the Flatpak installed.
 - **`atlas companions` removed:** the one-off migration to one note per thing (a PDF's or a book's earlier side
   notes and drawings' SVG exports) has run everywhere it was needed; a vault last opened with 0.4.1 or older can run it
   with that version first.

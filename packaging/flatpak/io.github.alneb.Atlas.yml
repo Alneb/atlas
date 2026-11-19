@@ -15,6 +15,7 @@ finish-args:
   - --device=dri
   - --device=all             # a security key (FIDO2 over /dev/hidraw*) in the sign-in windows (crates/atlas-app webauthn.rs)
   - --filesystem=home        # vaults are ordinary folders, anywhere in the home folder
+  - --filesystem=xdg-run/atlas:create  # the local key the `atlas` command signs in with, shared with the host's (auth.rs)
   - --talk-name=org.freedesktop.Notifications
   - --talk-name=org.freedesktop.secrets
   - --system-talk-name=org.freedesktop.login1   # whether the session is locked or idle (platform/idle.rs)

@@ -33,7 +33,10 @@ pub fn base(base: Base) -> PathBuf {
         Base::Cache => "XDG_CACHE_HOME",
         Base::Runtime => "XDG_RUNTIME_DIR",
     };
-    if let Some(p) = var(xdg) {
+    // inside the Flatpak the XDG variables name the sandbox's own folders (`~/.var/app/<id>/…`): Atlas keeps to the
+    // user's, the same the installed binaries use (the vault list, the secrets, the device id — one Atlas either way);
+    // the sandbox may write them (`--filesystem=home`, `xdg-run/atlas`)
+    if let Some(p) = var(xdg).filter(|p| !flatpak_own(p)) {
         return p;
     }
     let home = home().unwrap_or_default();
@@ -60,6 +63,18 @@ pub fn base(base: Base) -> PathBuf {
             Base::Cache => home.join(".cache"),
             Base::Runtime => std::env::temp_dir(),
         }
+    }
+}
+
+/// A folder the Flatpak gave this app as its own (`~/.var/app/<FLATPAK_ID>/…`), not the user's.
+fn flatpak_own(p: &Path) -> bool {
+    sandbox_own(p, std::env::var_os("FLATPAK_ID").as_deref(), home().as_deref())
+}
+
+fn sandbox_own(p: &Path, id: Option<&std::ffi::OsStr>, home: Option<&Path>) -> bool {
+    match (id, home) {
+        (Some(id), Some(h)) => p.starts_with(h.join(".var/app").join(id)),
+        _ => false,
     }
 }
 
@@ -97,5 +112,14 @@ mod tests {
         assert_eq!(tilde(&p), "~/notes/a.md");
         assert_eq!(expand_tilde("/abs/x"), PathBuf::from("/abs/x"));
         assert_eq!(expand_tilde("rel/x"), PathBuf::from("rel/x"));
+    }
+
+    #[test]
+    fn inside_the_flatpak_its_own_folders_are_not_atlass() {
+        let (h, id) = (Path::new("/home/u"), Some(std::ffi::OsStr::new("io.github.alneb.Atlas")));
+        assert!(sandbox_own(Path::new("/home/u/.var/app/io.github.alneb.Atlas/config"), id, Some(h)), "the sandbox's config: not used");
+        assert!(!sandbox_own(Path::new("/home/u/.config"), id, Some(h)), "the user's own");
+        assert!(!sandbox_own(Path::new("/home/u/.var/app/io.github.alneb.Atlas/config"), None, Some(h)), "outside a Flatpak nothing changes");
+        assert!(!sandbox_own(Path::new("/home/u/.var/app/org.other.App/config"), id, Some(h)), "another app's is not ours to judge");
     }
 }

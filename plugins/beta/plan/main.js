@@ -112,7 +112,8 @@ function draw(host, r) {
 
 export function register(atlas) {
   // a task row's right-click (Home, Deadlines, a task block): no nudge about it until tomorrow
-  atlas.shell.menu?.("task", (t) => {
+  // the "task" place is API 35's: an older Atlas refuses an unknown place, so it is asked only where it exists
+  if ((atlas.version ?? 0) >= 35) atlas.shell.menu?.("task", (t) => {
     if (!t.path || !t.line || t.done) return [];
     return [{ label: "No nudge until tomorrow", icon: "bell", hint: "Plan leaves this task alone until tomorrow morning", run: async () => {
       try {
