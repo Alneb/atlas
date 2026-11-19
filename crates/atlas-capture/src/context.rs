@@ -49,7 +49,9 @@ pub enum Clip {
 
 /// Where this box keeps what it takes (the screen, a copied picture): the session's runtime folder, removed on exit.
 pub fn scratch() -> PathBuf {
-    atlas_core::platform::dirs::base(atlas_core::platform::dirs::Base::Runtime).join(format!("atlas-capture-{}", std::process::id()))
+    // under `atlas/` of the runtime folder: the one the Flatpak shares with the host (`xdg-run/atlas`), so a tool run on
+    // the host (Spectacle) can write into it
+    atlas_core::platform::dirs::atlas(atlas_core::platform::dirs::Base::Runtime).join(format!("capture-{}", std::process::id()))
 }
 
 /// What is playing (MPRIS: a music player, a browser's video through Plasma's integration): the first player that
@@ -602,7 +604,10 @@ pub fn take_screen() -> Result<PathBuf> {
     let dir = scratch();
     std::fs::create_dir_all(&dir)?;
     let file = dir.join(format!("Screen {}.png", chrono::Local::now().format("%Y-%m-%d %H%M%S")));
-    run(Command::new("spectacle").args(["--background", "--nonotify", "--current", "--output"]).arg(&file), Duration::from_secs(8)).context("spectacle")?;
+    // Spectacle is the desktop's: inside the Flatpak it runs on the host (flatpak-spawn), not in the sandbox, which has none
+    let mut spectacle = Command::new("spectacle");
+    spectacle.args(["--background", "--nonotify", "--current", "--output"]).arg(&file);
+    run(&mut atlas_core::platform::host::std_command(spectacle)?, Duration::from_secs(8)).context("spectacle")?;
     if !file.exists() {
         bail!("spectacle wrote nothing");
     }

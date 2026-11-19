@@ -487,6 +487,7 @@ fn leave_appimage_interpreters() {
 fn main() -> anyhow::Result<()> {
     leave_appimage_interpreters();
     // the Flatpak: `atlas` and `atlas-capture` callable from the host's terminals, agents and shortcuts (host.rs)
+    atlas_core::platform::host::fit_locale(); // before anything starts a `sh` (the runtime may lack the locale asked)
     atlas_core::platform::host::write_command_launchers();
     // GTK's Wayland app id (X11: WM_CLASS) is the program name; "atlas" makes KWin find atlas.desktop and its Icon=atlas,
     // where the binary's name "atlas-app" matched no desktop file and the window showed Wayland's generic icon.

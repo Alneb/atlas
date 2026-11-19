@@ -156,7 +156,7 @@
 "export" = { missing = "not made for the phone app" }
 "finance" = { missing = "not made for the phone app" }
 "ocr" = { missing = "not made for the phone app" }
-"print" = { missing = "not made for the phone app" }
+"print" = "page"   # its dialog in the page; the system print dialog through the bridge (atlas.systemPrint, SystemPrint.java)
 "rnote" = { missing = "not made for the phone app" }
 "run-tools" = { missing = "the phone app has no shell terminal" }
 "ssh" = { missing = "not made for the phone app" }

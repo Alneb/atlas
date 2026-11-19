@@ -213,6 +213,38 @@ pub fn write_command_launchers() {
     }
 }
 
+/// Inside the Flatpak: a locale the person's environment names (`LC_ALL`, `LANG`…) that the runtime cannot load
+/// (`en_US.UTF-8` from a global override while the runtime carries no such data) made every `sh` this process starts
+/// say "setlocale: cannot change locale" (each helper's log, each terminal). Then `C.UTF-8` — always there, still
+/// UTF-8 — stands in for this process and what it starts. Outside a Flatpak, or with a locale that loads, nothing.
+#[cfg(target_os = "linux")]
+pub fn fit_locale() {
+    if !sandboxed() {
+        return;
+    }
+    let wanted = ["LC_ALL", "LC_CTYPE", "LANG"].iter().find_map(|k| std::env::var(k).ok().filter(|v| !v.is_empty()));
+    let Some(name) = wanted else { return };
+    let Ok(c) = std::ffi::CString::new(name) else { return };
+    // SAFETY: newlocale only reads the name; a locale it makes is freed at once
+    let loads = unsafe {
+        let l = libc::newlocale(libc::LC_ALL_MASK, c.as_ptr(), std::ptr::null_mut());
+        if !l.is_null() {
+            libc::freelocale(l);
+        }
+        !l.is_null()
+    };
+    if !loads {
+        // SAFETY: at the very start of main, before any thread reads the environment
+        unsafe {
+            std::env::set_var("LC_ALL", "C.UTF-8");
+        }
+    }
+}
+
+/// Elsewhere there is no Flatpak and nothing to fit.
+#[cfg(not(target_os = "linux"))]
+pub fn fit_locale() {}
+
 /// A Flatpak is Linux's alone: elsewhere there is nothing to write.
 #[cfg(not(target_os = "linux"))]
 pub fn write_command_launchers() {}

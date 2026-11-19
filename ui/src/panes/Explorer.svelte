@@ -10,6 +10,10 @@
   import { loadRaw, saveRaw } from "../lib/prefs";
   import { basename } from "../lib/paths";
   import { vaultReady, vaultFiles, onVaultChange } from "../lib/vault";
+  import { pick } from "../lib/palette.svelte";
+  import { createNote } from "../lib/notes-system";
+  import { inputDialog } from "../lib/confirm";
+  import { errText } from "../lib/text";
   import { atPointer, below, type MenuAt } from "../lib/menu";
   import type { PaneProps } from "../lib/dock";
   import { open, openPath } from "../lib/dock";
@@ -242,17 +246,45 @@
     const path = e ? joinPath(loc.path, e.name) : loc.path;
     const items: MenuItem[] = [];
     if (e) items.push({ label: "Open", icon: e.kind === "dir" ? "folder-open" : "file", hint: "Enter", run: () => void enter(e) });
+    if (e && isVault && e.kind !== "dir") items.push({ label: "Quick look", icon: "eye", hint: "Space", run: () => { looking = true; } });
     if (e && isVault && e.kind !== "dir") items.push({ label: "Open with…", icon: "plugin", run: () => openWith(path) });
     if (e && remote) items.push({ label: "Download into the vault…", icon: "arrow-down", run: () => run(act.download, e) });
-    if (s.mkdir) items.push("sep", { label: "New folder", icon: "folder", run: () => (editing = { kind: "new" }) });
+    if (isVault) items.push("sep", { label: "New note here", icon: "file-text", run: newNoteHere });
+    if (s.mkdir) { if (!isVault) items.push("sep"); items.push({ label: "New folder", icon: "folder", run: () => (editing = { kind: "new" }) }); }
     if (s.upload || isVault) items.push({ label: "Upload from this computer…", icon: "arrow-up", run: () => fileInput?.click() });
     if (e) {
       items.push("sep", { label: "Copy path", icon: "copy", run: () => void navigator.clipboard.writeText(isVault ? path : `${loc.place}:${path}`).then(() => toast("Copied", path)) });
       if (s.rename) items.push({ label: "Rename…", icon: "edit", hint: "F2", run: () => rename(e) });
+      if (s.rename && isVault) items.push({ label: "Move to…", icon: "folder-open", hint: "a folder of the vault", run: () => moveTo(e) });
       if (s.remove) items.push("sep", { label: isVault ? "Move to Trash…" : "Delete…", icon: "close", hint: "Del", danger: true, run: () => run(act.askDelete, e) });
       if (isVault) items.push(...pluginMenu("file", { path, dir: e.kind === "dir" }));
     }
     menu = atPointer(ev, items);
+  }
+
+  /** "Move to…": a folder of the vault chosen in the palette (the folders the vault has, this one's first), the entry
+   *  moved there with the source's own rename (the vault's: links into it kept up to date by the core's move). */
+  function moveTo(e: Entry): void {
+    const from = joinPath(loc.path, e.name);
+    const dirs = new Set<string>([""]);
+    for (const f of vaultFiles()) for (let i = f.indexOf("/"); i > 0; i = f.indexOf("/", i + 1)) dirs.add(f.slice(0, i));
+    const options = [...dirs].filter((d) => d !== loc.path && d !== from && !d.startsWith(`${from}/`)).sort((a, b) => a.localeCompare(b));
+    pick({
+      placeholder: `Move ${e.name} into which folder?`, tag: "Move to", icon: "folder-open",
+      items: options.map((d) => ({ value: d, title: d || "The vault's top", detail: d ? undefined : "/", icon: "folder" })),
+      onpick: async (dir) => {
+        try {
+          await src!.rename!(loc.place, from, joinPath(dir, e.name));
+          say(`Moved ${e.name} into ${dir || "the vault's top"}.`, "ok", joinPath(dir, e.name));
+          void b.reload();
+        } catch (err) { say(`Not moved: ${errText(err)}`, "bad"); }
+      },
+    });
+  }
+  /** "New note here": a note in this folder, made the way every new note is (its template, the vault's rules). */
+  async function newNoteHere(): Promise<void> {
+    const title = await inputDialog(`New note in ${loc.path || "the vault's top"}`, "", "Its title").catch(() => null);
+    if (title?.trim()) await createNote(title.trim(), undefined, loc.path);
   }
 
   // ---- quick look (Space): the selected file large over the list, as copyparty-ui's lightbox ---------

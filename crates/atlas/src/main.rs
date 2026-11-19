@@ -465,6 +465,7 @@ fn to_workspace_rel(ws: &Workspace, path: &Path) -> Result<String> {
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    atlas_core::platform::host::fit_locale(); // inside the Flatpak: a locale the runtime cannot load is not passed on
     let cli = Cli::parse();
     if let Action::Server { action } = &cli.action {
         return server_action(action);
