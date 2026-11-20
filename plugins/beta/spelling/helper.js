@@ -1,6 +1,6 @@
 // Built from helper/helper.ts by scripts/dev/plugin-ui.mjs: edit the sources, not this file.
 (function() {
-	//#region ui/src/lib/editor/prose.ts
+	// ui/src/lib/editor/prose.ts
 	/** The end of a YAML front matter at the start of `text`, or 0. */
 	function frontMatterEnd(text) {
 		const m = /^---[ \t]*\r?\n[\s\S]*?\r?\n(?:---|\.\.\.)[ \t]*(?:\r?\n|$)/.exec(text);
@@ -78,8 +78,7 @@
 	function ownWriting(text) {
 		return !/^message_id:/m.test(text.slice(0, frontMatterEnd(text)));
 	}
-	//#endregion
-	//#region ui/src/lib/editor/dictionaries.ts
+	// ui/src/lib/editor/dictionaries.ts
 	/** The vault's folder of dictionaries (synced with the vault, unlike the machine's). */
 	const VAULT_DICTIONARIES = ".atlas/dictionaries";
 	/** The vault, through a helper's `atlas`. */
@@ -177,8 +176,7 @@
 		}
 		return kept;
 	}
-	//#endregion
-	//#region plugins/beta/spelling/helper/helper.ts
+	// plugins/beta/spelling/helper/helper.ts
 	const exec = (cmd, args, opts) => atlas.exec(cmd, args, opts);
 	const vault = vaultFiles(atlas);
 	const machine = machineFiles(exec);
@@ -233,5 +231,4 @@
 		notes,
 		count
 	});
-	//#endregion
 })();

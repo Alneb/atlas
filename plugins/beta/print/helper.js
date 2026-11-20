@@ -1,7 +1,7 @@
 // Built from helper/helper.ts by scripts/dev/plugin-ui.mjs: edit the sources, not this file.
 (function(exports) {
 	Object.defineProperty(exports, Symbol.toStringTag, { value: "Module" });
-	//#region plugins/beta/print/helper/helper.ts
+	// plugins/beta/print/helper/helper.ts
 	const SIDES = {
 		"one-sided": "one-sided",
 		"two-sided (long edge)": "two-sided-long-edge",
@@ -88,7 +88,6 @@
 		prepare,
 		print
 	});
-	//#endregion
 	exports.lpArgs = lpArgs;
 	return exports;
 })({});

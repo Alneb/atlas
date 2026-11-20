@@ -1,5 +1,5 @@
 import { $ as e, A as t, B as n, C as r, Ct as i, D as a, Dt as o, E as s, Et as c, F as l, G as u, H as d, I as f, J as p, K as m, L as h, M as g, N as _, O as v, P as y, Q as b, R as x, S, St as C, T as w, Tt as T, U as ee, W as te, X as E, Y as D, Z as O, _ as k, _t as A, at as j, bt as M, c as N, ct as ne, d as re, dt as P, et as F, f as I, ft as ie, g as L, gt as R, h as z, ht as B, i as V, it as ae, j as H, k as oe, l as se, lt as U, m as W, mt as G, n as ce, nt as le, o as K, ot as q, p as ue, pt as de, q as fe, r as pe, rt as J, s as me, st as Y, t as he, tt as X, u as ge, ut as _e, v as ve, vt as Z, w as ye, wt as be, x as xe, xt as Q, y as Se, yt as $, z as Ce } from "./ui-lib/layout.js";
-//#region ui/src/lib/pane-nav.ts
+// ui/src/lib/pane-nav.ts
 var we = globalThis.atlasPaneNav ??= [];
 function Te(e, t, n) {
 	let r = {
@@ -24,13 +24,7 @@ var Ee = class {
 		this.here = e, this.apply = t, this.same = n, this.max = r;
 	}
 	left(e) {
-		if (!this.#e && !this.same(e, this.here())) {
-			if (this.back.length && this.same(this.back[this.back.length - 1], e)) {
-				this.fwd = [];
-				return;
-			}
-			this.back = [...this.back, e].slice(-this.max), this.fwd = [];
-		}
+		this.#e || this.same(e, this.here()) || (this.back.length && this.same(this.back[this.back.length - 1], e) || (this.back = [...this.back, e].slice(-this.max)), this.fwd = []);
 	}
 	can(e) {
 		return (e < 0 ? this.back : this.fwd).length > 0;
@@ -674,11 +668,8 @@ var Ee = class {
 		});
 	}
 	async search(e) {
-		if (this.query = e, !e.trim()) {
-			this.results = null;
-			return;
-		}
-		try {
+		if (this.query = e, !e.trim()) this.results = null;
+		else try {
 			this.results = (await I(this.atlas, "search", { q: e })).events;
 		} catch (e) {
 			this.toast(e.message, "error");
@@ -913,8 +904,7 @@ function qe(t, r) {
 	}), Y("click", ne, () => $(a, se(U(a), -1), !0)), Y("click", F, () => $(a, se(U(a), 1), !0)), Y("click", q, () => r.cal.toggle(me, "Tasks")), Y("click", ye, () => r.cal.atlas.plugin.openSettings()), X(t, S), i();
 }
 q(["click"]);
-//#endregion
-//#region plugins/stable/dav/ui/src/TimeGrid.svelte
+// plugins/stable/dav/ui/src/TimeGrid.svelte
 var Je = J("<button title=\"Open this day\"><span class=\"wd svelte-16enfn0\"> </span> <span class=\"num svelte-16enfn0\"> </span></button>"), Ye = J("<div class=\"lanecell svelte-16enfn0\" role=\"button\" tabindex=\"-1\" aria-label=\"New all-day event\"></div>"), Xe = J("<span class=\"tbox svelte-16enfn0\" aria-hidden=\"true\"></span>"), Ze = J("<span class=\"dot svelte-16enfn0\" aria-hidden=\"true\"></span>"), Qe = J("<button><!> </button>"), $e = J("<div class=\"hl svelte-16enfn0\"> </div>"), et = J("<span class=\"loc svelte-16enfn0\"> </span>"), tt = J("<div class=\"grip svelte-16enfn0\" role=\"separator\" aria-label=\"Change the end\"></div>"), nt = J("<div role=\"button\" tabindex=\"0\"><span class=\"t svelte-16enfn0\"> </span> <span class=\"when svelte-16enfn0\"> </span> <!> <!></div>"), rt = J("<div class=\"ev slot-ghost svelte-16enfn0\"><span class=\"t svelte-16enfn0\"> </span> <span class=\"when svelte-16enfn0\"> </span></div>"), it = J("<div class=\"now svelte-16enfn0\" aria-hidden=\"true\"></div>"), at = J("<div role=\"gridcell\" tabindex=\"-1\"><!> <!> <!></div>"), ot = J("<div class=\"tg svelte-16enfn0\"><div class=\"head svelte-16enfn0\"><div class=\"gutter tz svelte-16enfn0\" title=\"Times in your zone\"></div> <!></div> <div class=\"lane svelte-16enfn0\"><div class=\"gutter label svelte-16enfn0\">all-day</div> <div class=\"lanecols svelte-16enfn0\"><!> <!></div></div> <div class=\"scroll svelte-16enfn0\"><div class=\"body svelte-16enfn0\"><div class=\"gutter hours svelte-16enfn0\"></div> <div class=\"cols svelte-16enfn0\" role=\"grid\" tabindex=\"-1\" aria-label=\"Hours\"></div></div></div></div>"), st = {
 	hash: "svelte-16enfn0",
 	code: ".tg.svelte-16enfn0 {display:grid;grid-template-rows:auto auto 1fr;height:100%;min-height:0;--gutter: 56px;}.head.svelte-16enfn0, .lane.svelte-16enfn0 {display:grid;grid-template-columns:var(--gutter) 1fr;border-bottom:1px solid var(--border);}.head.svelte-16enfn0 {grid-template-columns:var(--gutter) repeat(var(--n), 1fr);}.gutter.svelte-16enfn0 {color:var(--text-faint);font-size:0.75em;}.tz.svelte-16enfn0 {align-self:end;padding:0 6px 6px;font-size:0.68em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}.dayhead.svelte-16enfn0 {all:unset;cursor:pointer;display:flex;align-items:baseline;justify-content:center;gap:6px;padding:6px 2px;color:var(--text-muted);border-left:1px solid var(--border);min-width:0;}.dayhead.svelte-16enfn0:hover {background:var(--bg-hover);}.dayhead.svelte-16enfn0:focus-visible {outline:2px solid var(--accent);outline-offset:-2px;}.wd.svelte-16enfn0 {font-size:0.78em;text-transform:uppercase;letter-spacing:0.04em;}.num.svelte-16enfn0 {font-size:1.25em;font-weight:600;color:var(--heading);font-variant-numeric:tabular-nums;min-width:1.8em;text-align:center;border-radius:999px;}.dayhead.today.svelte-16enfn0 .wd:where(.svelte-16enfn0) {color:var(--accent-strong);}.dayhead.today.svelte-16enfn0 .num:where(.svelte-16enfn0) {background:var(--accent);color:var(--accent-fg);}.label.svelte-16enfn0 {align-self:center;padding:0 6px;text-align:right;}.lanecols.svelte-16enfn0 {display:grid;grid-template-columns:repeat(var(--n), 1fr);grid-auto-rows:22px;row-gap:2px;padding:3px 0;min-height:26px;max-height:120px;overflow-y:auto;}.lanecell.svelte-16enfn0 {grid-row:1 / span var(--rows);border-left:1px solid var(--border);cursor:cell;}.bar.svelte-16enfn0 {all:unset;box-sizing:border-box;cursor:pointer;z-index:1;margin:0 3px;padding:0 8px;border-radius:var(--radius-sm);background:color-mix(in srgb, var(--c) 26%, var(--bg));color:var(--text);font-size:0.82em;line-height:22px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:flex;align-items:center;gap:6px;border-left:3px solid var(--c);}.bar.clipl.svelte-16enfn0 {border-top-left-radius:0;border-bottom-left-radius:0;margin-left:0;}.bar.clipr.svelte-16enfn0 {border-top-right-radius:0;border-bottom-right-radius:0;margin-right:0;}.dot.svelte-16enfn0 {width:6px;height:6px;border-radius:50%;background:var(--c);flex:none;}\n  /* a task of the Tasks & deadlines layer: its box, not an event's colour block */.bar.task.svelte-16enfn0 {background:transparent;border:1px dashed var(--border-strong);border-left-width:1px;color:var(--text-muted);}.bar.task.svelte-16enfn0:hover {background:var(--bg-hover);color:var(--text);}.tbox.svelte-16enfn0 {width:9px;height:9px;border:1.5px solid currentColor;border-radius:3px;flex:none;box-sizing:border-box;}.scroll.svelte-16enfn0 {overflow-y:auto;min-height:0;position:relative;}.body.svelte-16enfn0 {position:relative;display:grid;grid-template-columns:var(--gutter) 1fr;height:calc(24 * var(--hour));}.hours.svelte-16enfn0 {position:relative;}.hl.svelte-16enfn0 {position:absolute;right:8px;transform:translateY(-50%);font-variant-numeric:tabular-nums;white-space:nowrap;}.cols.svelte-16enfn0 {display:grid;grid-template-columns:repeat(var(--n), 1fr);position:relative;touch-action:pan-y;}.col.svelte-16enfn0 {position:relative;border-left:1px solid var(--border);cursor:cell;min-width:0;background-image:repeating-linear-gradient(to bottom, var(--border) 0 1px, transparent 1px var(--hour)), repeating-linear-gradient(to bottom, transparent 0 calc(var(--hour) / 2), color-mix(in srgb, var(--border) 45%, transparent) calc(var(--hour) / 2) calc(var(--hour) / 2 + 1px), transparent calc(var(--hour) / 2 + 1px) var(--hour));}.col.weekend.svelte-16enfn0 {background-color:color-mix(in srgb, var(--bg-alt) 70%, transparent);}.ev.svelte-16enfn0 {position:absolute;box-sizing:border-box;container-type:inline-size;cursor:pointer;border-radius:var(--radius-sm);padding:2px 6px;overflow:hidden;display:flex;flex-direction:column;gap:0;font-size:0.8em;line-height:1.25;background:color-mix(in srgb, var(--c) 24%, var(--bg));border-left:3px solid var(--c);color:var(--text);box-shadow:0 0 0 1px var(--bg);touch-action:none;z-index:calc(1 + var(--depth, 0));}\n  /* drawn over a running event: opaque, with a ring of the page and a shadow so the one under it reads as a separate block */.ev.over.svelte-16enfn0 {box-shadow:0 0 0 1px var(--bg), var(--shadow-sm);}\n  /* a bar is an .ev too (selection, colours) but a grid item in a row: absolute dropped its grid-column (every bar on Monday), a column centred its words */.bar.ev.svelte-16enfn0 {position:relative;flex-direction:row;}.ev.svelte-16enfn0:hover {background:color-mix(in srgb, var(--c) 34%, var(--bg));}.ev.svelte-16enfn0:focus-visible, .ev.sel.svelte-16enfn0, .bar.sel.svelte-16enfn0, .bar.svelte-16enfn0:focus-visible {outline:2px solid var(--c);outline-offset:1px;z-index:40;}.ev.short.svelte-16enfn0 {flex-direction:row;gap:6px;align-items:baseline;}.ev.short.svelte-16enfn0 .t:where(.svelte-16enfn0) {flex:0 1 auto;min-width:2.5em;}.ev.short.svelte-16enfn0 .when:where(.svelte-16enfn0) {flex:0 100 auto;min-width:0;}.ev.ro.svelte-16enfn0 {cursor:default;}.ev.free.svelte-16enfn0 {background:color-mix(in srgb, var(--c) 10%, var(--bg));}.ev.cancel.svelte-16enfn0 .t:where(.svelte-16enfn0), .bar.cancel.svelte-16enfn0 {text-decoration:line-through;opacity:0.7;}.ev.ghosted.svelte-16enfn0 {opacity:0.35;}.t.svelte-16enfn0 {font-weight:600;overflow:hidden;text-overflow:ellipsis;min-width:0;overflow-wrap:anywhere;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;line-clamp:2;flex:none;}.ev.short.svelte-16enfn0 .t:where(.svelte-16enfn0) {display:block;white-space:nowrap;}.when.svelte-16enfn0, .loc.svelte-16enfn0 {color:var(--text-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-variant-numeric:tabular-nums;}.grip.svelte-16enfn0 {position:absolute;left:0;right:0;bottom:0;height:7px;cursor:ns-resize;}.slot-ghost.svelte-16enfn0 {z-index:41;pointer-events:none;box-shadow:var(--shadow-md, 0 4px 16px rgba(0,0,0,.25));background:color-mix(in srgb, var(--c) 40%, var(--bg));}.now.svelte-16enfn0 {position:absolute;left:-1px;right:0;height:2px;background:var(--red);z-index:42;pointer-events:none;}.now.svelte-16enfn0::before {content:\"\";position:absolute;left:-5px;top:-4px;width:10px;height:10px;border-radius:50%;background:var(--red);}\n  /* narrow: the title alone (two lines when tall enough) rather than both cut — the rest is in the tooltip */\n  @container (max-width: 72px) {.when.svelte-16enfn0, .loc.svelte-16enfn0 {display:none;}\n  }\n  @media (prefers-reduced-motion: no-preference) {.ev.svelte-16enfn0 {transition:opacity 120ms var(--ease);} }"
@@ -1122,11 +1112,7 @@ function ct(t, r) {
 			() => z(U(i).e) ? `${U(i).e.summary} — drag it onto the hours to time-block it` : U(i).e.summary,
 			() => T(U(i).e)
 		]), Y("pointerdown", a, (e) => B(e, U(i).e)), Y("contextmenu", a, (e) => r.onmenu(U(i).e, e)), Y("click", a, (e) => {
-			if (L) {
-				L = !1;
-				return;
-			}
-			r.onselect(U(i).e, e.currentTarget.getBoundingClientRect());
+			L ? L = !1 : r.onselect(U(i).e, e.currentTarget.getBoundingClientRect());
 		}), X(t, a);
 	}), c(ve), c(ge);
 	var xe = A(ge, 2), Se = G(xe), Ce = G(Se);
@@ -1240,8 +1226,7 @@ q([
 	"pointermove",
 	"pointerup"
 ]);
-//#endregion
-//#region plugins/stable/dav/ui/src/MonthView.svelte
+// plugins/stable/dav/ui/src/MonthView.svelte
 var lt = J("<div class=\"wd svelte-13jyj5s\"> </div>"), ut = J("<div role=\"button\" tabindex=\"-1\"><button class=\"num svelte-13jyj5s\" title=\"Open this day\"> </button></div>"), dt = J("<button> </button>"), ft = J("<button><span class=\"dot svelte-13jyj5s\" aria-hidden=\"true\"></span><span class=\"tm svelte-13jyj5s\"> </span><span class=\"tt svelte-13jyj5s\"> </span></button>"), pt = J("<button class=\"more svelte-13jyj5s\"> </button>"), mt = J("<!> <!>", 1), ht = J("<div class=\"week svelte-13jyj5s\"><!> <!> <!></div>"), gt = J("<div class=\"month svelte-13jyj5s\"><div class=\"wds svelte-13jyj5s\"></div> <div class=\"weeks svelte-13jyj5s\"></div></div>"), _t = {
 	hash: "svelte-13jyj5s",
 	code: ".month.svelte-13jyj5s {display:grid;grid-template-rows:auto 1fr;height:100%;min-height:0;}.wds.svelte-13jyj5s {display:grid;grid-template-columns:repeat(7, 1fr);border-bottom:1px solid var(--border);}.wd.svelte-13jyj5s {padding:6px 8px;font-size:0.75em;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-faint);}.weeks.svelte-13jyj5s {display:grid;grid-template-rows:repeat(var(--rows), minmax(96px, 1fr));min-height:0;overflow-y:auto;}.week.svelte-13jyj5s {display:grid;grid-template-columns:repeat(7, minmax(0, 1fr));grid-template-rows:26px repeat(4, 21px) 1fr;row-gap:1px;border-bottom:1px solid var(--border);position:relative;min-height:0;}.cell.svelte-13jyj5s {grid-row:1 / -1;border-left:1px solid var(--border);padding:2px 4px;cursor:cell;min-width:0;}.cell.svelte-13jyj5s:first-child {border-left:0;}.cell.weekend.svelte-13jyj5s {background:color-mix(in srgb, var(--bg-alt) 70%, transparent);}.cell.other.svelte-13jyj5s {background:color-mix(in srgb, var(--bg-alt) 90%, transparent);}.cell.other.svelte-13jyj5s .num:where(.svelte-13jyj5s) {color:var(--text-faint);}.num.svelte-13jyj5s {all:unset;cursor:pointer;font-size:0.82em;font-weight:600;color:var(--text-muted);padding:1px 6px;border-radius:999px;font-variant-numeric:tabular-nums;}.num.svelte-13jyj5s:hover {background:var(--bg-hover);color:var(--text);}.today.svelte-13jyj5s .num:where(.svelte-13jyj5s) {background:var(--accent);color:var(--accent-fg);}.num.svelte-13jyj5s:focus-visible, .bar.svelte-13jyj5s:focus-visible, .line.svelte-13jyj5s:focus-visible, .more.svelte-13jyj5s:focus-visible {outline:2px solid var(--accent);outline-offset:-1px;}.bar.svelte-13jyj5s, .line.svelte-13jyj5s, .more.svelte-13jyj5s {all:unset;box-sizing:border-box;cursor:pointer;z-index:1;min-width:0;font-size:0.8em;line-height:20px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}.bar.svelte-13jyj5s {margin:0 3px;padding:0 7px;border-radius:var(--radius-sm);background:color-mix(in srgb, var(--c) 26%, var(--bg));border-left:3px solid var(--c);color:var(--text);}.bar.clipl.svelte-13jyj5s {margin-left:0;border-top-left-radius:0;border-bottom-left-radius:0;}.bar.clipr.svelte-13jyj5s {margin-right:0;border-top-right-radius:0;border-bottom-right-radius:0;}.line.svelte-13jyj5s {display:flex;align-items:center;gap:5px;margin:0 3px;padding:0 4px;border-radius:var(--radius-sm);color:var(--text);}.line.svelte-13jyj5s:hover, .bar.svelte-13jyj5s:hover {background:color-mix(in srgb, var(--c) 18%, var(--bg-hover));}.sel.svelte-13jyj5s {outline:2px solid var(--c);outline-offset:-1px;}.cancel.svelte-13jyj5s .tt:where(.svelte-13jyj5s) {text-decoration:line-through;opacity:0.7;}.dot.svelte-13jyj5s {width:7px;height:7px;border-radius:50%;background:var(--c);flex:none;}.tm.svelte-13jyj5s {color:var(--text-muted);font-variant-numeric:tabular-nums;flex:none;}.tt.svelte-13jyj5s {overflow:hidden;text-overflow:ellipsis;min-width:0;}.more.svelte-13jyj5s {margin:0 3px;padding:0 6px;color:var(--text-muted);font-weight:600;border-radius:var(--radius-sm);}.more.svelte-13jyj5s:hover {background:var(--bg-hover);color:var(--text);}\n  @container (max-width: 760px) {.tm.svelte-13jyj5s {display:none;} }"
@@ -1362,8 +1347,7 @@ q([
 	"keydown",
 	"contextmenu"
 ]);
-//#endregion
-//#region plugins/stable/dav/ui/src/AgendaView.svelte
+// plugins/stable/dav/ui/src/AgendaView.svelte
 var yt = J("<button> </button>"), bt = J("<div class=\"spans svelte-zo3qq8\" role=\"group\" aria-label=\"How many days\"></div>"), xt = J("<div class=\"empty svelte-zo3qq8\"> </div>"), St = J("<li class=\"free svelte-zo3qq8\">Nothing planned</li>"), Ct = J("<button class=\"tick svelte-zo3qq8\" title=\"Mark as done\"></button>"), wt = J("<span class=\"loc svelte-zo3qq8\"> </span>"), Tt = J("<span class=\"ic svelte-zo3qq8\" title=\"Repeats\"><!></span>"), Et = J("<span class=\"ic svelte-zo3qq8\" title=\"From a note\"><!></span>"), Dt = J("<li><!> <button><span class=\"dot svelte-zo3qq8\" aria-hidden=\"true\"></span> <span class=\"time svelte-zo3qq8\"> </span> <span class=\"what svelte-zo3qq8\"> <!></span> <!> <!> <span class=\"cal svelte-zo3qq8\"> </span></button></li>"), Ot = J("<section><button class=\"date svelte-zo3qq8\" title=\"Open this day\"><span class=\"n svelte-zo3qq8\"> </span> <span class=\"w svelte-zo3qq8\"> <br/> </span></button> <ul class=\"svelte-zo3qq8\"><!> <!></ul></section>"), kt = J("<div class=\"agenda svelte-zo3qq8\"><!> <!> <!></div>"), At = {
 	hash: "svelte-zo3qq8",
 	code: ".agenda.svelte-zo3qq8 {height:100%;overflow-y:auto;padding:6px 0 40px;}.spans.svelte-zo3qq8 {display:flex;gap:6px;padding:4px 14px 8px;flex-wrap:wrap;}.spans.svelte-zo3qq8 button:where(.svelte-zo3qq8) {all:unset;cursor:pointer;padding:3px 12px;border-radius:999px;border:1px solid var(--border);color:var(--text-muted);font-size:0.85em;}.spans.svelte-zo3qq8 button:where(.svelte-zo3qq8):hover {background:var(--bg-hover);}.spans.svelte-zo3qq8 button.on:where(.svelte-zo3qq8) {background:var(--accent-soft, color-mix(in srgb, var(--accent) 16%, var(--bg)));border-color:transparent;color:var(--text);font-weight:600;}.spans.svelte-zo3qq8 button:where(.svelte-zo3qq8):focus-visible, .tick.svelte-zo3qq8:focus-visible {outline:2px solid var(--accent);outline-offset:1px;}.free.svelte-zo3qq8 {padding:6px 8px;color:var(--text-faint);font-size:0.9em;}li.task.svelte-zo3qq8 {display:flex;align-items:center;gap:2px;}.tick.svelte-zo3qq8 {all:unset;box-sizing:border-box;cursor:pointer;flex:none;width:16px;height:16px;margin-left:6px;border:1.5px solid var(--text-muted);border-radius:4px;}.tick.svelte-zo3qq8:hover {border-color:var(--accent);background:color-mix(in srgb, var(--accent) 14%, transparent);}.empty.svelte-zo3qq8 {padding:40px;text-align:center;color:var(--text-faint);}.day.svelte-zo3qq8 {display:grid;grid-template-columns:92px 1fr;gap:8px;padding:6px 14px;border-bottom:1px solid var(--border);}.date.svelte-zo3qq8 {all:unset;cursor:pointer;display:flex;gap:8px;align-items:flex-start;padding:4px 0;color:var(--text-muted);}.n.svelte-zo3qq8 {font-size:1.5em;font-weight:650;color:var(--heading);min-width:1.6em;text-align:right;font-variant-numeric:tabular-nums;line-height:1.1;}.w.svelte-zo3qq8 {font-size:0.75em;text-transform:uppercase;letter-spacing:0.04em;line-height:1.35;}.today.svelte-zo3qq8 .n:where(.svelte-zo3qq8) {color:var(--accent-strong);}.date.svelte-zo3qq8:focus-visible, .row.svelte-zo3qq8:focus-visible {outline:2px solid var(--accent);outline-offset:-2px;}ul.svelte-zo3qq8 {list-style:none;margin:0;padding:0;display:grid;gap:1px;min-width:0;}.row.svelte-zo3qq8 {all:unset;box-sizing:border-box;cursor:pointer;display:flex;align-items:center;gap:10px;width:100%;padding:6px 8px;border-radius:var(--radius-sm);min-width:0;}.row.svelte-zo3qq8:hover {background:var(--bg-hover);}.row.sel.svelte-zo3qq8 {background:color-mix(in srgb, var(--c) 16%, var(--bg));}.dot.svelte-zo3qq8 {width:9px;height:9px;border-radius:50%;background:var(--c);flex:none;}.time.svelte-zo3qq8 {flex:none;width:11.5em;white-space:nowrap;color:var(--text-muted);font-variant-numeric:tabular-nums;font-size:0.9em;}.what.svelte-zo3qq8 {flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text);}.loc.svelte-zo3qq8 {color:var(--text-muted);}.cancel.svelte-zo3qq8 .what:where(.svelte-zo3qq8) {text-decoration:line-through;opacity:0.7;}.ic.svelte-zo3qq8 {color:var(--text-faint);flex:none;}.cal.svelte-zo3qq8 {flex:none;color:var(--text-faint);font-size:0.8em;max-width:12em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}\n  @container (max-width: 560px) {.day.svelte-zo3qq8 {grid-template-columns:1fr;gap:0;padding:6px 10px;}.date.svelte-zo3qq8 {padding-bottom:0;}.time.svelte-zo3qq8 {width:auto;min-width:5.5em;}.cal.svelte-zo3qq8 {display:none;}\n  }"
@@ -1499,8 +1483,7 @@ function jt(t, r) {
 	}), c(g), X(t, g), i();
 }
 q(["click", "contextmenu"]);
-//#endregion
-//#region plugins/stable/dav/ui/src/YearView.svelte
+// plugins/stable/dav/ui/src/YearView.svelte
 var Mt = J("<span class=\"h svelte-18a11kl\"> </span>"), Nt = J("<button> </button>"), Pt = J("<span></span>"), Ft = J("<section><button class=\"mname svelte-18a11kl\"> </button> <div class=\"days svelte-18a11kl\"><!> <!></div></section>"), It = J("<div class=\"year svelte-18a11kl\"></div>"), Lt = {
 	hash: "svelte-18a11kl",
 	code: ".year.svelte-18a11kl {height:100%;overflow-y:auto;display:grid;grid-template-columns:repeat(auto-fill, minmax(210px, 1fr));gap:18px 24px;padding:16px 20px 40px;align-content:start;}.mname.svelte-18a11kl {all:unset;cursor:pointer;font-weight:650;color:var(--heading);margin-bottom:6px;display:block;}.mname.svelte-18a11kl:hover {color:var(--accent-strong);}.days.svelte-18a11kl {display:grid;grid-template-columns:repeat(7, 1fr);gap:2px;}.h.svelte-18a11kl {font-size:0.7em;color:var(--text-faint);text-align:center;}.d.svelte-18a11kl {all:unset;cursor:pointer;text-align:center;font-size:0.78em;padding:3px 0;border-radius:var(--radius-sm);font-variant-numeric:tabular-nums;color:var(--text-muted);background:color-mix(in srgb, var(--accent) calc(var(--k) * 55%), transparent);}.d.svelte-18a11kl:hover {outline:1px solid var(--accent);}.d.svelte-18a11kl:focus-visible {outline:2px solid var(--accent);}.d.today.svelte-18a11kl {background:var(--accent);color:var(--accent-fg);font-weight:700;}"
@@ -1549,8 +1532,7 @@ function Rt(t, r) {
 	}), c(f), X(t, f), i();
 }
 q(["click"]);
-//#endregion
-//#region plugins/stable/dav/ui/src/CalendarPicker.svelte
+// plugins/stable/dav/ui/src/CalendarPicker.svelte
 var zt = J("<option> </option>"), Bt = J("<optgroup></optgroup>"), Vt = J("<span><span class=\"dot svelte-zssqw9\" aria-hidden=\"true\"></span> <select aria-label=\"Calendar\" class=\"svelte-zssqw9\"><!><!></select></span>"), Ht = {
 	hash: "svelte-zssqw9",
 	code: ".pick.svelte-zssqw9 {display:inline-flex;align-items:center;gap:8px;min-width:0;flex:1;}.pick.compact.svelte-zssqw9 {flex:0 1 auto;}.dot.svelte-zssqw9 {width:12px;height:12px;border-radius:4px;background:var(--c);flex:none;}select.svelte-zssqw9 {font:inherit;color:var(--text);background-color:var(--bg);border:1px solid var(--border-strong);border-radius:var(--radius-sm);padding:5px 28px 5px 8px;min-width:0;flex:1;color-scheme:light dark;appearance:none;-webkit-appearance:none;background-image:linear-gradient(45deg, transparent 50%, var(--text-muted) 50%), linear-gradient(135deg, var(--text-muted) 50%, transparent 50%);background-position:calc(100% - 15px) 50%, calc(100% - 10px) 50%;background-size:5px 5px;background-repeat:no-repeat;}.compact.svelte-zssqw9 select:where(.svelte-zssqw9) {flex:0 1 auto;max-width:16em;}select.svelte-zssqw9:disabled {opacity:0.6;}select.svelte-zssqw9:focus-visible {outline:2px solid var(--accent);outline-offset:-1px;}"
@@ -1597,8 +1579,7 @@ function Ut(t, r) {
 		_ = m(g, 1, "pick svelte-zssqw9", null, _, { compact: s() }), b = u(v, "", b, { "--c": e }), x.disabled = o(), n(x, "title", a());
 	}, [() => a() ? r.cal.colorOf(a()) : "transparent"]), d(x, a), X(t, g), i();
 }
-//#endregion
-//#region plugins/stable/dav/ui/src/Popover.svelte
+// plugins/stable/dav/ui/src/Popover.svelte
 var Wt = J("<button class=\"atlas-btn primary svelte-id2g6u\"><!>Time-block…</button>"), Gt = J("<div class=\"bar svelte-id2g6u\"><button class=\"tool svelte-id2g6u\" title=\"Close (Esc)\"><!></button></div> <div class=\"head svelte-id2g6u\"><span class=\"tsq svelte-id2g6u\" aria-hidden=\"true\"></span> <div><h2 class=\"svelte-id2g6u\"> </h2> <p class=\"when svelte-id2g6u\"> </p></div></div> <p class=\"line faint svelte-id2g6u\"><!> </p> <div class=\"acts start svelte-id2g6u\"><!> <button class=\"atlas-btn svelte-id2g6u\"><!>Open the note</button></div>", 1), Kt = J("<button class=\"tool svelte-id2g6u\" title=\"Edit (e)\"><!></button> <button class=\"tool svelte-id2g6u\" title=\"Delete (Del)\"><!></button>", 1), qt = J("<p class=\"sub svelte-id2g6u\"><!> </p>"), Jt = J("<p class=\"sub warn svelte-id2g6u\">Cancelled</p>"), Yt = J("<button> </button>"), Xt = J("<div class=\"answer svelte-id2g6u\" role=\"group\" aria-label=\"Going?\"><span class=\"svelte-id2g6u\">Going?</span> <!></div>"), Zt = J("<a class=\"atlas-btn join svelte-id2g6u\" target=\"_blank\" rel=\"noreferrer\" data-outside=\"\" title=\"Opens in your browser (Teams, Zoom… take it from there)\"><!>Join the meeting</a>"), Qt = J("<a target=\"_blank\" rel=\"noreferrer\" class=\"svelte-id2g6u\"> </a>"), $t = J("<p class=\"line svelte-id2g6u\"><!><!></p>"), en = J("<li> <span class=\"faint svelte-id2g6u\">organiser</span></li>"), tn = J("<li> <span> </span></li>"), nn = J("<li class=\"faint svelte-id2g6u\"> </li>"), rn = J("<div class=\"line people svelte-id2g6u\"><!> <ul class=\"svelte-id2g6u\"><!> <!> <!></ul></div>"), an = J("<p class=\"line desc svelte-id2g6u\"><!><span class=\"svelte-id2g6u\"> </span></p>"), on = J("<span aria-hidden=\"true\"></span>"), sn = J("<li><button><!> </button></li>"), cn = J("<div class=\"line linked svelte-id2g6u\"><!> <ul aria-label=\"Linked\" class=\"svelte-id2g6u\"></ul></div>"), ln = J("<li><button class=\"lk svelte-id2g6u\"> </button></li>"), un = J("<div class=\"line linked svelte-id2g6u\"><!> <ul aria-label=\"Linked from\" class=\"svelte-id2g6u\"></ul></div>"), dn = J("<div class=\"acts start svelte-id2g6u\"><button class=\"atlas-btn svelte-id2g6u\" title=\"Link a note (or a mail saved as a note) to this event\"><!>Link a note…</button> <button class=\"atlas-btn svelte-id2g6u\" title=\"Search your mail and link a conversation to this event (it is saved as a note)\"><!>Link a mail…</button></div>"), fn = J("<button class=\"atlas-btn svelte-id2g6u\"><!>Open the note</button>"), pn = J("<button class=\"atlas-btn svelte-id2g6u\" title=\"A note of its own for this event: its time and place as properties, your writing below\"><!>Make a note</button>"), mn = J("<p class=\"line svelte-id2g6u\"><!><a target=\"_blank\" rel=\"noreferrer\" class=\"svelte-id2g6u\"> </a></p>"), hn = J("<div class=\"bar svelte-id2g6u\"><!> <button class=\"tool svelte-id2g6u\" title=\"Close (Esc)\"><!></button></div> <div class=\"head svelte-id2g6u\"><span class=\"sq svelte-id2g6u\"></span> <div><h2> </h2> <p class=\"when svelte-id2g6u\"> </p> <!> <!></div></div> <!> <!> <!> <!> <!> <p class=\"line faint svelte-id2g6u\"><!> </p> <!> <!> <!> <!> <!>", 1), gn = J("<div class=\"bar svelte-id2g6u\"><button class=\"tool svelte-id2g6u\" title=\"Close (Esc)\"><!></button></div> <input class=\"title svelte-id2g6u\" placeholder=\"Add a title\" aria-label=\"Title\"/> <p class=\"when svelte-id2g6u\"> </p> <div class=\"line faint svelte-id2g6u\"><!><!></div> <div class=\"acts svelte-id2g6u\"><button class=\"atlas-btn svelte-id2g6u\">More options</button> <button class=\"atlas-btn primary svelte-id2g6u\">Save</button></div>", 1), _n = J("<div class=\"pop svelte-id2g6u\" role=\"dialog\"><!></div>"), vn = {
 	hash: "svelte-id2g6u",
 	code: ".pop.svelte-id2g6u {position:absolute;z-index:50;width:min(360px, calc(100% - 16px));box-sizing:border-box;background:var(--bg-elev);border:1px solid var(--border-strong);border-radius:var(--radius);box-shadow:var(--shadow-md, 0 10px 30px rgba(0,0,0,.3));padding:8px 14px 14px;display:grid;gap:8px; animation: svelte-id2g6u-in 120ms var(--ease);}\n  @keyframes svelte-id2g6u-in { from { opacity: 0; transform: translateY(4px); } }\n  @media (prefers-reduced-motion: reduce) {.pop.svelte-id2g6u { animation: none;} }.bar.svelte-id2g6u {display:flex;justify-content:flex-end;gap:2px;margin:0 -8px -4px 0;}.tool.svelte-id2g6u {all:unset;cursor:pointer;padding:6px;border-radius:var(--radius-sm);color:var(--text-muted);display:grid;place-items:center;min-width:24px;min-height:24px;box-sizing:border-box;}.tool.svelte-id2g6u:hover {background:var(--bg-hover);color:var(--text);}.tool.svelte-id2g6u:focus-visible {outline:2px solid var(--accent);}.head.svelte-id2g6u {display:flex;gap:12px;align-items:flex-start;}.sq.svelte-id2g6u {width:14px;height:14px;border-radius:4px;background:var(--c);flex:none;margin-top:5px;}h2.svelte-id2g6u {margin:0;font-size:1.15em;font-weight:600;color:var(--heading);overflow-wrap:anywhere;}.cancel.svelte-id2g6u {text-decoration:line-through;}.when.svelte-id2g6u {margin:2px 0 0;color:var(--text-muted);font-size:0.92em;}.sub.svelte-id2g6u {margin:2px 0 0;color:var(--text-faint);font-size:0.85em;display:flex;align-items:center;gap:4px;}.warn.svelte-id2g6u {color:var(--red);}.line.svelte-id2g6u {margin:0;display:flex;gap:10px;align-items:flex-start;color:var(--text);font-size:0.9em;min-width:0;overflow-wrap:anywhere;}.line.svelte-id2g6u .icon {margin-top:2px;color:var(--text-faint);}.desc.svelte-id2g6u span:where(.svelte-id2g6u) {white-space:pre-wrap;max-height:9em;overflow:auto;}.people.svelte-id2g6u ul:where(.svelte-id2g6u) {list-style:none;margin:0;padding:0;display:grid;gap:2px;}.faint.svelte-id2g6u {color:var(--text-faint);}.ps.svelte-id2g6u {font-size:0.8em;color:var(--text-faint);}.ps-accepted.svelte-id2g6u {color:var(--green);}.ps-declined.svelte-id2g6u {color:var(--red);}.ps-tentative.svelte-id2g6u {color:var(--yellow);}a.svelte-id2g6u {color:var(--accent);}.atlas-btn.svelte-id2g6u {display:inline-flex;align-items:center;gap:6px;justify-self:start;}.title.svelte-id2g6u {all:unset;font-size:1.15em;font-weight:600;color:var(--heading);border-bottom:2px solid var(--accent);padding:4px 0;}.title.svelte-id2g6u::placeholder {color:var(--text-faint);font-weight:400;}.join.svelte-id2g6u {text-decoration:none;}.answer.svelte-id2g6u {display:flex;align-items:center;gap:6px;padding:6px 0;font-size:0.9em;}.answer.svelte-id2g6u span:where(.svelte-id2g6u) {color:var(--text-muted);margin-right:auto;}.answer.svelte-id2g6u .chosen:where(.svelte-id2g6u) {background:var(--accent-soft);border-color:var(--accent);color:var(--accent-strong, var(--accent));}.acts.svelte-id2g6u {display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap;}.acts.start.svelte-id2g6u {justify-content:flex-start;}.tsq.svelte-id2g6u {width:13px;height:13px;border:1.5px solid var(--text-muted);border-radius:4px;flex:none;margin-top:5px;box-sizing:border-box;}.tsq.small.svelte-id2g6u {width:10px;height:10px;margin:0;border-radius:3px;}.tsq.checked.svelte-id2g6u {background:var(--text-faint);border-color:var(--text-faint);}.linked.svelte-id2g6u ul:where(.svelte-id2g6u) {list-style:none;margin:0;padding:0;display:grid;gap:2px;min-width:0;}.lk.svelte-id2g6u {all:unset;cursor:pointer;display:inline-flex;align-items:center;gap:6px;color:var(--accent);overflow-wrap:anywhere;border-radius:var(--radius-sm);}.lk.svelte-id2g6u:hover {text-decoration:underline;}.lk.svelte-id2g6u:focus-visible {outline:2px solid var(--accent);}.lk.done.svelte-id2g6u {color:var(--text-muted);text-decoration:line-through;}"
@@ -1674,14 +1655,10 @@ function yn(t, r) {
 		}
 	}
 	async function F() {
-		if (!r.cal.atlas.pickNote) {
-			r.cal.toast("Linking from here needs a newer Atlas: use “Calendar: link this note to an event…” in the note.", "error");
-			return;
-		}
-		re(await r.cal.atlas.pickNote({
+		r.cal.atlas.pickNote ? re(await r.cal.atlas.pickNote({
 			placeholder: `Link which note or mail to “${a()?.summary ?? "this event"}”?`,
 			tag: "Link to the event"
-		}));
+		})) : r.cal.toast("Linking from here needs a newer Atlas: use “Calendar: link this note to an event…” in the note.", "error");
 	}
 	function ie() {
 		let e = !1, t = () => e = !0;
@@ -2062,8 +2039,7 @@ function yn(t, r) {
 	}), X(t, ce), i();
 }
 q(["click", "keydown"]);
-//#endregion
-//#region plugins/stable/dav/ui/src/Editor.svelte
+// plugins/stable/dav/ui/src/Editor.svelte
 var bn = J("<div class=\"scrim svelte-aeatm8\" role=\"presentation\"></div>"), xn = J("<header class=\"svelte-aeatm8\"><h2 class=\"svelte-aeatm8\"> </h2> <button class=\"tool svelte-aeatm8\" aria-label=\"Close\"><!></button></header>"), Sn = J("<input class=\"hm svelte-aeatm8\" inputmode=\"numeric\" placeholder=\"HH:MM\" aria-label=\"Starts at\"/>"), Cn = J("<input class=\"hm svelte-aeatm8\" inputmode=\"numeric\" placeholder=\"HH:MM\" aria-label=\"Ends at\"/>"), wn = J("<option> </option>"), Tn = J("<div class=\"row svelte-aeatm8\"><!><span class=\"guests svelte-aeatm8\"> <span class=\"faint svelte-aeatm8\"> </span></span></div>"), En = J("<div class=\"row svelte-aeatm8\"><!><input placeholder=\"Add guests (addresses, comma-separated): it becomes a meeting\" aria-label=\"Guests\" class=\"svelte-aeatm8\"/></div>"), Dn = J("<div class=\"atlas-notice error\"> </div>"), On = J("<!> <div tabindex=\"-1\"><!> <input class=\"title svelte-aeatm8\" placeholder=\"Add a title\" aria-label=\"Title\"/> <div class=\"row when svelte-aeatm8\"><!> <div class=\"times svelte-aeatm8\"><input type=\"date\" aria-label=\"Starts on\" class=\"svelte-aeatm8\"/> <!> <span class=\"to svelte-aeatm8\">to</span> <!> <input type=\"date\" aria-label=\"Ends on\" class=\"svelte-aeatm8\"/> <label class=\"check svelte-aeatm8\"><input type=\"checkbox\" class=\"svelte-aeatm8\"/> All day</label></div></div> <div class=\"row svelte-aeatm8\"><!> <select aria-label=\"Repeat\" class=\"svelte-aeatm8\"></select></div> <div class=\"row svelte-aeatm8\"><!><input placeholder=\"Add a place\" aria-label=\"Place\" class=\"svelte-aeatm8\"/></div> <div class=\"row svelte-aeatm8\"><!> <!></div> <!> <div class=\"row top svelte-aeatm8\"><!><textarea rows=\"5\" placeholder=\"Add a description\" aria-label=\"Description\" class=\"svelte-aeatm8\"></textarea></div> <p class=\"zone svelte-aeatm8\"> </p> <!> <footer class=\"svelte-aeatm8\"><span class=\"hint svelte-aeatm8\">Ctrl+Enter saves</span> <button class=\"atlas-btn\">Cancel</button> <button class=\"atlas-btn primary\">Save</button></footer></div>", 1), kn = {
 	hash: "svelte-aeatm8",
 	code: ".scrim.svelte-aeatm8 {position:absolute;inset:0;background:color-mix(in srgb, var(--bg) 55%, transparent);z-index:70;}.ed.svelte-aeatm8 {position:absolute;z-index:71;left:50%;top:50%;transform:translate(-50%, -50%);width:min(620px, calc(100% - 24px));max-height:calc(100% - 24px);overflow:auto;box-sizing:border-box;background:var(--bg-elev);border:1px solid var(--border-strong);border-radius:var(--radius);box-shadow:var(--shadow-md, 0 10px 30px rgba(0,0,0,.3));padding:12px 18px 16px;display:grid;gap:12px;}.ed.bare.svelte-aeatm8 {position:static;transform:none;width:auto;height:100%;max-height:none;border:0;border-radius:0;box-shadow:none;background:var(--bg);padding:16px;align-content:start;}header.svelte-aeatm8 {display:flex;align-items:center;}h2.svelte-aeatm8 {flex:1;margin:0;font-size:0.85em;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-faint);}.tool.svelte-aeatm8 {all:unset;cursor:pointer;padding:6px;border-radius:var(--radius-sm);color:var(--text-muted);display:grid;place-items:center;}.tool.svelte-aeatm8:hover {background:var(--bg-hover);}.title.svelte-aeatm8 {all:unset;font-size:1.35em;font-weight:600;color:var(--heading);border-bottom:2px solid var(--border-strong);padding:4px 0;}.title.svelte-aeatm8:focus {border-bottom-color:var(--accent);}.title.svelte-aeatm8:focus-visible {outline:none;}.ed.svelte-aeatm8 select:where(.svelte-aeatm8) {appearance:none;-webkit-appearance:none;padding-right:28px;background-image:linear-gradient(45deg, transparent 50%, var(--text-muted) 50%), linear-gradient(135deg, var(--text-muted) 50%, transparent 50%);background-position:calc(100% - 15px) 50%, calc(100% - 10px) 50%;background-size:5px 5px;background-repeat:no-repeat;}.ed.svelte-aeatm8 select:where(.svelte-aeatm8):disabled {opacity:0.6;}.row.svelte-aeatm8 {display:flex;gap:12px;align-items:center;color:var(--text-faint);min-width:0;}.row.top.svelte-aeatm8 {align-items:flex-start;}.times.svelte-aeatm8 {display:flex;flex-wrap:wrap;gap:6px;align-items:center;}.to.svelte-aeatm8 {color:var(--text-muted);}input.svelte-aeatm8:not(.title):not([type=checkbox]), select.svelte-aeatm8, textarea.svelte-aeatm8 {font:inherit;color:var(--text);background-color:var(--bg);border:1px solid var(--border-strong);border-radius:var(--radius-sm);padding:5px 8px;min-width:0;color-scheme:light dark;}.row.svelte-aeatm8 > input:where(.svelte-aeatm8), .row.svelte-aeatm8 > select:where(.svelte-aeatm8), textarea.svelte-aeatm8 {flex:1;}textarea.svelte-aeatm8 {resize:vertical;}input.svelte-aeatm8:focus-visible, select.svelte-aeatm8:focus-visible, textarea.svelte-aeatm8:focus-visible {outline:2px solid var(--accent);outline-offset:-1px;}.hm.svelte-aeatm8 {width:5.5em;font-variant-numeric:tabular-nums;text-align:center;}.check.svelte-aeatm8 {display:flex;gap:6px;align-items:center;color:var(--text);margin-left:6px;}.guests.svelte-aeatm8 {color:var(--text);}.faint.svelte-aeatm8 {color:var(--text-faint);}.zone.svelte-aeatm8 {margin:0;color:var(--text-faint);font-size:0.82em;}footer.svelte-aeatm8 {display:flex;gap:8px;align-items:center;justify-content:flex-end;}.hint.svelte-aeatm8 {flex:1;color:var(--text-faint);font-size:0.82em;}"
@@ -2268,8 +2244,7 @@ q([
 	"keydown",
 	"change"
 ]);
-//#endregion
-//#region plugins/stable/dav/ui/src/Toasts.svelte
+// plugins/stable/dav/ui/src/Toasts.svelte
 var jn = J("<button class=\"svelte-osdry5\"> </button>"), Mn = J("<button class=\"svelte-osdry5\">Undo</button>"), Nn = J("<div><span class=\"text svelte-osdry5\"> </span> <!> <!> <button class=\"x svelte-osdry5\" aria-label=\"Close\">×</button></div>"), Pn = J("<div class=\"toasts svelte-osdry5\" aria-live=\"polite\"></div>"), Fn = {
 	hash: "svelte-osdry5",
 	code: ".toasts.svelte-osdry5 {position:absolute;left:50%;bottom:16px;transform:translateX(-50%);z-index:60;display:grid;gap:8px;justify-items:center;pointer-events:none;width:min(560px, calc(100% - 32px));}.toast.svelte-osdry5 {pointer-events:auto;display:flex;align-items:center;gap:12px;padding:9px 10px 9px 14px;border-radius:var(--radius);background:var(--heading);color:var(--bg);box-shadow:var(--shadow-md, var(--shadow-sm));max-width:100%; animation: svelte-osdry5-in 120ms var(--ease);}.toast.error.svelte-osdry5 {background:var(--red);color:#fff;}.text.svelte-osdry5 {min-width:0;overflow-wrap:anywhere;}button.svelte-osdry5 {all:unset;cursor:pointer;font-weight:700;color:var(--accent);padding:2px 6px;border-radius:var(--radius-sm);}.error.svelte-osdry5 button:where(.svelte-osdry5) {color:#fff;text-decoration:underline;}button.svelte-osdry5:hover {background:color-mix(in srgb, currentColor 14%, transparent);}button.svelte-osdry5:focus-visible {outline:2px solid currentColor;}.x.svelte-osdry5 {color:inherit;opacity:0.7;font-weight:400;}\n  @keyframes svelte-osdry5-in { from { opacity: 0; transform: translateY(6px); } }\n  @media (prefers-reduced-motion: reduce) {.toast.svelte-osdry5 { animation: none;} }"
@@ -2305,8 +2280,7 @@ function In(t, r) {
 	}), c(a), X(t, a), i();
 }
 q(["click"]);
-//#endregion
-//#region plugins/stable/dav/ui/src/keys.ts
+// plugins/stable/dav/ui/src/keys.ts
 var Ln = (e) => (t) => t.setView(e), Rn = [
 	{
 		id: "day",
@@ -2467,8 +2441,7 @@ var Bn = new Map(Rn.flatMap((e) => (e.keys ?? "").split(",").map((e) => e.trim()
 function Vn(e) {
 	return e ? e.split(",").map((e) => e.trim()).filter(Boolean).slice(0, 2).map((e) => e.replace("ctrl+", "Ctrl+").replace("shift+", "⇧").replace("arrowright", "→").replace("arrowleft", "←").replace("escape", "Esc").replace("enter", "Enter").replace("delete", "Del").replace("backspace", "⌫").replace(/^(⇧)?([a-z])$/, (e, t, n) => t ? `⇧${n.toUpperCase()}` : n)) : [];
 }
-//#endregion
-//#region plugins/stable/dav/ui/src/Shortcuts.svelte
+// plugins/stable/dav/ui/src/Shortcuts.svelte
 var Hn = J("<kbd class=\"svelte-17nm084\"> </kbd>"), Un = J("<div class=\"row svelte-17nm084\"><span> </span><span class=\"keys svelte-17nm084\"></span></div>"), Wn = J("<section><h3 class=\"svelte-17nm084\"> </h3> <!></section>"), Gn = J("<div class=\"scrim svelte-17nm084\" role=\"presentation\"></div> <div class=\"sheet svelte-17nm084\" role=\"dialog\" aria-label=\"Keyboard shortcuts\" aria-modal=\"true\"><header class=\"svelte-17nm084\"><h2 class=\"svelte-17nm084\">Keyboard shortcuts</h2><button class=\"x svelte-17nm084\" aria-label=\"Close\">×</button></header> <div class=\"cols svelte-17nm084\"></div> <p class=\"hint svelte-17nm084\">Drag on the grid to make an event, drag one to move it, its lower edge to resize (15-minute steps). Esc cancels a drag.</p></div>", 1), Kn = {
 	hash: "svelte-17nm084",
 	code: ".scrim.svelte-17nm084 {position:absolute;inset:0;background:color-mix(in srgb, var(--bg) 50%, transparent);z-index:70;}.sheet.svelte-17nm084 {position:absolute;z-index:71;left:50%;top:50%;transform:translate(-50%, -50%);width:min(760px, calc(100% - 32px));max-height:calc(100% - 40px);overflow:auto;background:var(--bg-elev);border:1px solid var(--border-strong);border-radius:var(--radius);box-shadow:var(--shadow-md, 0 8px 30px rgba(0,0,0,.3));padding:14px 18px;}header.svelte-17nm084 {display:flex;align-items:center;}h2.svelte-17nm084 {margin:0;flex:1;font-size:1.1em;color:var(--heading);}h3.svelte-17nm084 {margin:10px 0 4px;font-size:0.75em;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-faint);}.cols.svelte-17nm084 {display:grid;grid-template-columns:repeat(auto-fit, minmax(220px, 1fr));gap:4px 24px;}.row.svelte-17nm084 {display:flex;justify-content:space-between;gap:8px;padding:3px 0;color:var(--text-muted);}.keys.svelte-17nm084 {display:flex;gap:4px;}kbd.svelte-17nm084 {font:600 0.85em var(--font-mono);padding:1px 6px;border-radius:var(--radius-sm);border:1px solid var(--border-strong);background:var(--bg);color:var(--text);}.hint.svelte-17nm084 {color:var(--text-faint);font-size:0.86em;margin:12px 0 0;}.x.svelte-17nm084 {all:unset;cursor:pointer;font-size:1.3em;padding:0 6px;color:var(--text-muted);}"
@@ -2495,8 +2468,7 @@ function qn(t, n) {
 	}), X(t, a), i();
 }
 q(["click"]);
-//#endregion
-//#region plugins/stable/dav/ui/src/App.svelte
+// plugins/stable/dav/ui/src/App.svelte
 var Jn = J("<button class=\"tool svelte-1i74804\" title=\"Side panel (s)\" aria-label=\"Side panel\"><!></button>"), Yn = J("<span class=\"spin svelte-1i74804\" aria-label=\"Working\"></span>"), Xn = J("<option> </option>"), Zn = J("<select class=\"vsel svelte-1i74804\" aria-label=\"View\"></select>"), Qn = J("<button> </button>"), $n = J("<div class=\"seg svelte-1i74804\" role=\"group\" aria-label=\"View\"></div>"), er = J("<button class=\"tool svelte-1i74804\" title=\"Sync now (r)\" aria-label=\"Sync\"><!></button> <button class=\"tool svelte-1i74804\" title=\"All commands (Ctrl+K)\" aria-label=\"All commands\"><!></button>", 1), tr = J("<span class=\"qprev svelte-1i74804\"><b class=\"svelte-1i74804\"> </b> </span>"), nr = J("<div class=\"quick svelte-1i74804\"><!> <input placeholder=\"lunch with Ana tomorrow 13:00 · examen 15 nov · réunion lundi à 10h @ D3\" aria-label=\"Quick add\" class=\"svelte-1i74804\"/> <!> <!> <button class=\"atlas-btn primary\">Add</button></div>"), rr = J("<div class=\"placing svelte-1i74804\" role=\"status\"><span class=\"tbox svelte-1i74804\" aria-hidden=\"true\"></span> <span class=\"ptext svelte-1i74804\">Time-block <b> </b>: drag over the hours it takes, or click where it starts</span> <button class=\"atlas-btn\">Cancel</button></div>"), ir = J("<aside class=\"side svelte-1i74804\" aria-label=\"Calendars\"><!></aside>"), ar = J("<div class=\"atlas-notice error\"> <div class=\"actions\"><button class=\"atlas-btn\">Try again</button><button class=\"atlas-btn\">Settings…</button></div></div>"), or = J("<div class=\"atlas-notice\">No calendar account yet: add one in Settings (its server address, user name and app password; as many as you have) — or subscribe to a public calendar there.<div class=\"actions\"><button class=\"atlas-btn primary\">Settings…</button></div></div>"), sr = J("<button class=\"fab svelte-1i74804\" aria-label=\"New event\" title=\"New event (c)\"><!></button>"), cr = J("<div class=\"popscrim svelte-1i74804\" role=\"presentation\"></div> <!>", 1), lr = J("<div tabindex=\"-1\" role=\"application\" aria-label=\"Calendar\"><header class=\"top svelte-1i74804\"><!> <button class=\"atlas-btn today svelte-1i74804\" title=\"Today (t)\">Today</button> <div class=\"nav svelte-1i74804\"><button class=\"tool svelte-1i74804\" title=\"Previous (k)\" aria-label=\"Previous\"><!></button> <button class=\"tool svelte-1i74804\" title=\"Next (j)\" aria-label=\"Next\"><!></button></div> <h1 class=\"svelte-1i74804\"> </h1> <!> <span class=\"grow svelte-1i74804\"></span> <div><!> <input aria-label=\"Search events\" class=\"svelte-1i74804\"/></div> <!> <button class=\"tool svelte-1i74804\" title=\"Quick add in words (q)\" aria-label=\"Quick add\"><!></button> <!></header> <!> <!> <div class=\"body svelte-1i74804\"><!> <main class=\"view svelte-1i74804\"><!> <!></main></div> <!> <!> <!> <!> <!></div>"), ur = {
 	hash: "svelte-1i74804",
 	code: ".calendar.svelte-1i74804:focus {outline:none;}.calendar.svelte-1i74804 {position:relative;height:100%;display:grid;grid-template-rows:auto auto 1fr;color:var(--text);background:var(--bg);font-size:calc(14px * var(--ui-scale, 1));container-type:inline-size;overflow:hidden;}.top.svelte-1i74804 {grid-row:1;display:flex;align-items:center;gap:8px;padding:8px 12px;border-bottom:1px solid var(--border);min-width:0;}h1.svelte-1i74804 {margin:0 0 0 4px;font-size:1.2em;font-weight:600;color:var(--heading);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:6em;flex:0 1 auto;}.nav.svelte-1i74804 {display:flex;}.grow.svelte-1i74804 {flex:1;}.today.svelte-1i74804 {flex:none;}.tool.svelte-1i74804 {all:unset;cursor:pointer;padding:6px;border-radius:var(--radius-sm);color:var(--text-muted);display:grid;place-items:center;min-width:24px;min-height:24px;flex:none;}.tool.svelte-1i74804:hover {background:var(--bg-hover);color:var(--text);}.tool.svelte-1i74804:focus-visible, .seg.svelte-1i74804 button:where(.svelte-1i74804):focus-visible, .fab.svelte-1i74804:focus-visible {outline:2px solid var(--accent);outline-offset:-2px;}.search.svelte-1i74804 {display:flex;align-items:center;gap:6px;background:var(--bg-hover);border:1px solid transparent;border-radius:var(--radius);padding:0 8px;color:var(--text-faint);width:200px;flex:0 1 auto;min-width:70px;}.search.svelte-1i74804:focus-within, .search.on.svelte-1i74804 {border-color:var(--accent);background:var(--bg);color:var(--text);}.search.svelte-1i74804 input:where(.svelte-1i74804) {all:unset;flex:1;min-width:0;padding:6px 0;color:var(--text);}.search.svelte-1i74804 input:where(.svelte-1i74804)::placeholder {color:var(--text-faint);}.seg.svelte-1i74804 {display:flex;border:1px solid var(--border-strong);border-radius:var(--radius-sm);overflow:hidden;flex:none;}.seg.svelte-1i74804 button:where(.svelte-1i74804) {all:unset;cursor:pointer;padding:4px 10px;font-size:0.86em;color:var(--text-muted);}.seg.svelte-1i74804 button:where(.svelte-1i74804) + button:where(.svelte-1i74804) {border-left:1px solid var(--border);}.seg.svelte-1i74804 button:where(.svelte-1i74804):hover {background:var(--bg-hover);color:var(--text);}.seg.svelte-1i74804 button.on:where(.svelte-1i74804) {background:var(--accent-soft);color:var(--accent-strong);font-weight:600;}.vsel.svelte-1i74804 {appearance:none;-webkit-appearance:none;font:inherit;color:var(--text);background-color:var(--bg);border:1px solid var(--border-strong);border-radius:var(--radius-sm);padding:4px 26px 4px 8px;flex:none;background-image:linear-gradient(45deg, transparent 50%, var(--text-muted) 50%), linear-gradient(135deg, var(--text-muted) 50%, transparent 50%);background-position:calc(100% - 14px) 50%, calc(100% - 9px) 50%;background-size:5px 5px;background-repeat:no-repeat;}.spin.svelte-1i74804 {width:12px;height:12px;border-radius:50%;border:2px solid var(--border-strong);border-top-color:var(--accent); animation: svelte-1i74804-spin 0.8s linear infinite;flex:none;}\n  @keyframes svelte-1i74804-spin { to { transform: rotate(360deg); } }\n  @media (prefers-reduced-motion: reduce) {.spin.svelte-1i74804 { animation: none;} }.quick.svelte-1i74804 {grid-row:2;display:flex;align-items:center;gap:10px;padding:8px 14px;border-bottom:1px solid var(--border);background:var(--bg-alt);color:var(--accent-strong);min-width:0;flex-wrap:wrap;}.quick.svelte-1i74804 input:where(.svelte-1i74804) {all:unset;flex:1 1 260px;min-width:0;color:var(--text);font-size:1.02em;padding:4px 0;}.quick.svelte-1i74804 input:where(.svelte-1i74804)::placeholder {color:var(--text-faint);}.qprev.svelte-1i74804 {color:var(--text-muted);font-size:0.9em;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}.qprev.svelte-1i74804 b:where(.svelte-1i74804) {color:var(--text);}.body.svelte-1i74804 {grid-row:3;display:flex;min-height:0;}.placing.svelte-1i74804 {grid-row:2;display:flex;align-items:center;gap:10px;padding:8px 14px;border-bottom:1px solid var(--border);background:var(--accent-soft);color:var(--text);min-width:0;flex-wrap:wrap;}.ptext.svelte-1i74804 {flex:1 1 240px;min-width:0;overflow-wrap:anywhere;}.placing.svelte-1i74804 .tbox:where(.svelte-1i74804) {width:11px;height:11px;border:1.5px solid var(--accent-strong);border-radius:3px;flex:none;box-sizing:border-box;}.side.svelte-1i74804 {flex:none;width:248px;border-right:1px solid var(--border);background:var(--bg-alt);min-height:0;}.view.svelte-1i74804 {flex:1;min-width:0;min-height:0;position:relative;display:flex;flex-direction:column;}.view.svelte-1i74804 > * {flex:1;min-height:0;}.view.svelte-1i74804 > .atlas-notice {flex:none;margin:10px 14px;}.popscrim.svelte-1i74804 {position:absolute;inset:0;z-index:49;}.fab.svelte-1i74804 {all:unset;cursor:pointer;position:absolute;right:18px;bottom:22px;z-index:40;width:52px;height:52px;border-radius:16px;display:grid;place-items:center;background:var(--accent);color:var(--accent-fg);box-shadow:var(--shadow-md, 0 6px 18px rgba(0,0,0,.3));}.narrow.svelte-1i74804 .top:where(.svelte-1i74804) {flex-wrap:wrap;row-gap:6px;padding:8px;}.narrow.svelte-1i74804 h1:where(.svelte-1i74804) {order:10;flex-basis:100%;margin:0;font-size:1.05em;}.narrow.svelte-1i74804 .search:where(.svelte-1i74804) {width:auto;flex:1 1 60px;min-width:60px;}\n  @container (max-width: 1100px) {.seg.svelte-1i74804 button:where(.svelte-1i74804) {padding:4px 7px;} }"
@@ -2557,18 +2529,14 @@ function dr(r, s) {
 		});
 	}
 	function ue(e, t, n, r) {
-		if (!u.newCalendar()) {
-			u.toast(u.configured ? "No calendar of your accounts takes new events (all read-only?)" : "Add a calendar account in Settings first", "error");
-			return;
-		}
-		$(F, {
+		u.newCalendar() ? $(F, {
 			draft: {
 				start: e,
 				end: t,
 				all_day: n
 			},
 			at: r
-		}, !0);
+		}, !0) : u.toast(u.configured ? "No calendar of your accounts takes new events (all read-only?)" : "Add a calendar account in Settings first", "error");
 	}
 	function pe() {
 		let e = new Date(u.cursor), n = /* @__PURE__ */ new Date(), r = new Date(e.getFullYear(), e.getMonth(), e.getDate(), n.getHours() + 1, 0);
@@ -2609,27 +2577,7 @@ function dr(r, s) {
 		}, !0), $(F, null));
 	}
 	function he() {
-		if (U(y)) {
-			$(y, !1);
-			return;
-		}
-		if (u.placing) {
-			u.placing = null;
-			return;
-		}
-		if (U(L)) {
-			$(L, null);
-			return;
-		}
-		if (U(F)) {
-			$(F, null);
-			return;
-		}
-		if (U(w)) {
-			$(w, !1);
-			return;
-		}
-		u.results && ($(C, ""), u.search(""));
+		U(y) ? $(y, !1) : u.placing ? u.placing = null : U(L) ? $(L, null) : U(F) ? $(F, null) : U(w) ? $(w, !1) : u.results && ($(C, ""), u.search(""));
 	}
 	function ge() {
 		s.atlas.pick({
@@ -2644,11 +2592,8 @@ function dr(r, s) {
 			}],
 			typed: (e) => `Go to “${e}”`,
 			onpick: async (e, t) => {
-				if (!t) {
-					u.go(/* @__PURE__ */ new Date(`${e}T12:00`));
-					return;
-				}
-				try {
+				if (!t) u.go(/* @__PURE__ */ new Date(`${e}T12:00`));
+				else try {
 					let t = await I(s.atlas, "quick", { text: e });
 					u.go(/* @__PURE__ */ new Date(`${t.start.slice(0, 10)}T12:00`));
 				} catch (e) {
@@ -2704,11 +2649,8 @@ function dr(r, s) {
 	let xe;
 	function Se() {
 		clearTimeout(xe), xe = setTimeout(async () => {
-			if (!U(D).trim()) {
-				$(j, null);
-				return;
-			}
-			try {
+			if (!U(D).trim()) $(j, null);
+			else try {
 				$(j, await I(s.atlas, "quick", { text: U(D) }), !0);
 			} catch {
 				$(j, null);
@@ -3092,8 +3034,7 @@ q([
 	"keydown",
 	"change"
 ]);
-//#endregion
-//#region plugins/stable/dav/ui/src/NewEvent.svelte
+// plugins/stable/dav/ui/src/NewEvent.svelte
 var fr = J("<div class=\"none svelte-19uhe47\"><p class=\"svelte-19uhe47\">No calendar to write to: add an account (CalDAV, or Outlook / Microsoft 365) in the Calendar's settings.</p> <button class=\"atlas-btn\">Open its settings</button></div>"), pr = J("<p class=\"none svelte-19uhe47\">Loading the calendars…</p>"), mr = {
 	hash: "svelte-19uhe47",
 	code: ".none.svelte-19uhe47 {padding:16px;display:grid;gap:10px;justify-items:start;color:var(--text-muted);margin:0;}.none.svelte-19uhe47 p:where(.svelte-19uhe47) {margin:0;}"
@@ -3151,8 +3092,7 @@ function hr(e, n) {
 	}), X(e, u), i();
 }
 q(["click"]);
-//#endregion
-//#region plugins/stable/dav/ui/src/view.ts
+// plugins/stable/dav/ui/src/view.ts
 function gr(e, t) {
 	let n = xe(t.arg);
 	if (n) {
@@ -3173,5 +3113,4 @@ function gr(e, t) {
 	});
 	return () => F(r);
 }
-//#endregion
 export { gr as default };

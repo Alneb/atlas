@@ -1,7 +1,7 @@
 // Built from helper/helper.ts by scripts/dev/plugin-ui.mjs: edit the sources, not this file.
 (function(exports) {
 	Object.defineProperty(exports, Symbol.toStringTag, { value: "Module" });
-	//#region plugins/beta/catalog-linkwarden/helper/helper.ts
+	// plugins/beta/catalog-linkwarden/helper/helper.ts
 	const FROM_IDS = [
 		["doi", (id) => `https://doi.org/${id}`],
 		["arxiv", (id) => `https://arxiv.org/abs/${id}`],
@@ -60,7 +60,6 @@
 		return { fields: id !== void 0 && id !== null ? { linkwarden: `${base}/links/${id}` } : {} };
 	}
 	atlas.methods({ save });
-	//#endregion
 	exports.linkOf = linkOf;
 	return exports;
 })({});

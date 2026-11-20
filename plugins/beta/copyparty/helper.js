@@ -1,7 +1,7 @@
 // Built from helper/helper.ts by scripts/dev/plugin-ui.mjs: edit the sources, not this file.
 (function(exports) {
 	Object.defineProperty(exports, Symbol.toStringTag, { value: "Module" });
-	//#region plugins/beta/copyparty/helper/helper.ts
+	// plugins/beta/copyparty/helper/helper.ts
 	/** The most folders a search walks: a library of books is a few hundred. */
 	const WALK = 300;
 	function servers(params) {
@@ -158,7 +158,6 @@
 		list,
 		file
 	});
-	//#endregion
 	exports.WALK = WALK;
 	exports.fileUrl = fileUrl;
 	exports.matches = matches;

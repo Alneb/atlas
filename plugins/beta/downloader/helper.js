@@ -1,7 +1,7 @@
 // Built from helper/helper.ts by scripts/dev/plugin-ui.mjs: edit the sources, not this file.
 (function(exports) {
 	Object.defineProperty(exports, Symbol.toStringTag, { value: "Module" });
-	//#region plugins/beta/downloader/helper/helper.ts
+	// plugins/beta/downloader/helper/helper.ts
 	/** `{name}` in a template replaced by each value, put through `quote` (JSON-escaped in a body, URL-escaped in an address). */
 	function fill(template, values, quote) {
 		return Object.entries(values).reduce((out, [k, v]) => out.replaceAll(`{${k}}`, quote(String(v ?? ""))), template);
@@ -131,7 +131,6 @@
 		return { fields: { [answer]: made.value } };
 	}
 	atlas.methods({ send });
-	//#endregion
 	exports.answerOf = answerOf;
 	exports.presetOf = presetOf;
 	return exports;

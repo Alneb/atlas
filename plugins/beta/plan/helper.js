@@ -1,7 +1,7 @@
 // Built from helper/helper.ts by scripts/dev/plugin-ui.mjs: edit the sources, not this file.
 (function(exports) {
 	Object.defineProperty(exports, Symbol.toStringTag, { value: "Module" });
-	//#region plugins/beta/plan/helper/time.ts
+	// plugins/beta/plan/helper/time.ts
 	const MIN = 6e4;
 	const HOUR = 60 * MIN;
 	const DAY = 24 * HOUR;
@@ -76,8 +76,7 @@
 	}
 	/** The instant floored to its minute. */
 	const floorMinute = (ms) => Math.floor(ms / MIN) * MIN;
-	//#endregion
-	//#region plugins/beta/plan/helper/ledger.ts
+	// plugins/beta/plan/helper/ledger.ts
 	const KINDS = [
 		"nudged",
 		"snoozed",
@@ -196,8 +195,7 @@
 	}
 	/** The line mark a dismissal's detail carries, if any. */
 	const markOf = (e) => /(?:^|· )line ([0-9a-f]{8})\b/.exec(e.detail)?.[1];
-	//#endregion
-	//#region plugins/beta/plan/helper/devices.ts
+	// plugins/beta/plan/helper/devices.ts
 	/** A desktop used this recently is where the person is. */
 	const AT_DESKTOP = 5 * MIN;
 	/** A phone whose core reported this recently is running Atlas, so it can ring. */
@@ -276,8 +274,7 @@
 	function running(devices, now) {
 		return devices.filter((d) => now - d.reportedAt <= PHONE_UP);
 	}
-	//#endregion
-	//#region plugins/beta/plan/helper/next.ts
+	// plugins/beta/plan/helper/next.ts
 	/** A plan this old is no longer the planner's word: another device plans for itself. */
 	const STALE = 2 * HOUR;
 	/** The plan is written again after this even when it has not changed. */
@@ -336,8 +333,7 @@
 		if (now - next.plannedAt < STALE) return null;
 		return `${next.device} last planned ${stamp(next.plannedAt, c)}`;
 	}
-	//#endregion
-	//#region plugins/beta/plan/helper/habits.ts
+	// plugins/beta/plan/helper/habits.ts
 	const WEEK = [
 		"sun",
 		"mon",
@@ -561,8 +557,7 @@
 			writes
 		};
 	}
-	//#endregion
-	//#region plugins/beta/plan/helper/plan.ts
+	// plugins/beta/plan/helper/plan.ts
 	/** The plugin's settings (as Settings saved them, defaults filled in by the core) → numbers the planner uses. */
 	function settingsOf(raw = {}) {
 		const num = (k, d) => {
@@ -1243,8 +1238,7 @@
 			}] : []
 		});
 	}
-	//#endregion
-	//#region plugins/beta/plan/helper/fallback.ts
+	// plugins/beta/plan/helper/fallback.ts
 	/** The ledger mark of a nudge sent through ntfy (left out of its reasons while it rings). */
 	const NTFY = " · (ntfy)";
 	/** The messages for what has just come due (the plan's `writes` of nudges and the digest), each with its planned
@@ -1291,8 +1285,7 @@
 		if (/^https?:\/\/[^\s/]+(\/[^\s]*)?$/.test(own)) return own.replace(/\/v\/[^/]+$/, "").replace(/\/+$/, "");
 		return typeof origin === "string" && /^https?:\/\/[^\s/]+$/.test(origin) ? origin : null;
 	}
-	//#endregion
-	//#region plugins/beta/plan/helper/helper.ts
+	// plugins/beta/plan/helper/helper.ts
 	/** The clock: this device's, or a test's fixed moment and zone (`now` ms, `offset` minutes east of UTC). */
 	function clockOf(p) {
 		return typeof p.now === "number" ? fixedClock(p.now, Number(p.offset ?? 0)) : systemClock();
@@ -1913,7 +1906,6 @@
 		capture,
 		snoozeTask
 	});
-	//#endregion
 	exports.capture = capture;
 	exports.explain = explain;
 	exports.fallback = fallback;

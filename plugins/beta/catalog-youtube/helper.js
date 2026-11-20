@@ -1,7 +1,7 @@
 // Built from helper/helper.ts by scripts/dev/plugin-ui.mjs: edit the sources, not this file.
 (function(exports) {
 	Object.defineProperty(exports, Symbol.toStringTag, { value: "Module" });
-	//#region plugins/beta/catalog-youtube/helper/helper.ts
+	// plugins/beta/catalog-youtube/helper/helper.ts
 	/** The watch address with nothing else: what TubeArchivist or a music downloader is handed. */
 	const cleanUrl = (vid, kind) => `https://${kind === "song" ? "music.youtube.com" : "www.youtube.com"}/watch?v=${vid}`;
 	const TOPIC = " - Topic";
@@ -48,7 +48,6 @@
 		return fromOembed(o, vid, kind);
 	}
 	atlas.methods({ lookup });
-	//#endregion
 	exports.lookup = lookup;
 	return exports;
 })({});

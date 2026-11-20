@@ -1,7 +1,7 @@
 // Built from helper/helper.ts by scripts/dev/plugin-ui.mjs: edit the sources, not this file.
 (function(exports) {
 	Object.defineProperty(exports, Symbol.toStringTag, { value: "Module" });
-	//#region plugins/beta/notifications/helper/helper.ts
+	// plugins/beta/notifications/helper/helper.ts
 	const STATE = `.atlas/cache/${atlas.id}.json`;
 	/** Where the Python helper kept a topic's last id (one file per topic), read once so an upgrade files nothing twice. */
 	const OLD_SINCE = (topic) => `.atlas/cache/plugins/${atlas.id}/since-${topic.replace(/[^\w.-]/g, "_")}`;
@@ -257,7 +257,6 @@
 		}),
 		send: (p) => sendWith(net, p)
 	});
-	//#endregion
 	exports.auth = auth;
 	exports.buttonsOf = buttonsOf;
 	exports.lineOf = lineOf;

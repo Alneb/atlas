@@ -1,7 +1,7 @@
 // Built from helper/helper.ts by scripts/dev/plugin-ui.mjs: edit the sources, not this file.
 (function(exports) {
 	Object.defineProperty(exports, Symbol.toStringTag, { value: "Module" });
-	//#region plugins/beta/zstd/helper/helper.ts
+	// plugins/beta/zstd/helper/helper.ts
 	const HOUR = 3600;
 	const MB = 1048576;
 	/** The plugin's cache folder, vault-relative. Nothing outside it is ever deleted. */
@@ -89,7 +89,6 @@
 		return { path: out };
 	}
 	atlas.methods({ open });
-	//#endregion
 	exports.cacheDir = cacheDir;
 	exports.copyPath = copyPath;
 	exports.parseListing = parseListing;

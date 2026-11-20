@@ -1,7 +1,7 @@
 // Built from helper/helper.ts by scripts/dev/plugin-ui.mjs: edit the sources, not this file.
 (function(exports) {
 	Object.defineProperty(exports, Symbol.toStringTag, { value: "Module" });
-	//#region plugins/beta/catalog-tmdb/helper/helper.ts
+	// plugins/beta/catalog-tmdb/helper/helper.ts
 	const API = "https://api.themoviedb.org/3";
 	const IMG = "https://image.tmdb.org/t/p/w500";
 	const SITE = "https://www.themoviedb.org";
@@ -275,7 +275,6 @@
 		search: async (params) => await hasToken() ? searchWith(apiGet, params) : siteSearchWith(siteText, params),
 		details: async (params) => await hasToken() ? detailsWith(apiGet, params) : siteDetailsWith(siteText, params)
 	});
-	//#endregion
 	exports.detailsWith = detailsWith;
 	exports.pageFields = pageFields;
 	exports.runtime = runtime;

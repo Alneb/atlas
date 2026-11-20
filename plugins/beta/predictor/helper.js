@@ -1,6 +1,6 @@
 // Built from helper/helper.ts by scripts/dev/plugin-ui.mjs: edit the sources, not this file.
 (function() {
-	//#region ui/src/lib/editor/prose.ts
+	// ui/src/lib/editor/prose.ts
 	/** The end of a YAML front matter at the start of `text`, or 0. */
 	function frontMatterEnd(text) {
 		const m = /^---[ \t]*\r?\n[\s\S]*?\r?\n(?:---|\.\.\.)[ \t]*(?:\r?\n|$)/.exec(text);
@@ -78,8 +78,7 @@
 	function ownWriting(text) {
 		return !/^message_id:/m.test(text.slice(0, frontMatterEnd(text)));
 	}
-	//#endregion
-	//#region ui/src/lib/editor/dictionaries.ts
+	// ui/src/lib/editor/dictionaries.ts
 	/** The vault's folder of dictionaries (synced with the vault, unlike the machine's). */
 	const VAULT_DICTIONARIES = ".atlas/dictionaries";
 	/** The vault, through a helper's `atlas`. */
@@ -197,16 +196,14 @@
 		}
 		return [...out].sort();
 	}
-	//#endregion
-	//#region plugins/beta/predictor/ui/src/model.ts
+	// plugins/beta/predictor/ui/src/model.ts
 	/** A text's sentences as lists of words (a sentence ends at . ! ? ; : a line break or a blank). */
 	function sentences(text, wordsOf) {
 		return text.split(/[.!?;:]+(?:\s|$)|\n+/).map((s) => wordsOf(s).map((w) => w.word)).filter((s) => s.length);
 	}
 	/** Sentences as one compact text (words by spaces, sentences by lines): what the helper answers and the page keeps. */
 	const packSentences = (sents) => sents.map((s) => s.join(" ")).join("\n");
-	//#endregion
-	//#region plugins/beta/predictor/helper/helper.ts
+	// plugins/beta/predictor/helper/helper.ts
 	const exec = (cmd, args, opts) => atlas.exec(cmd, args, opts);
 	const vault = vaultFiles(atlas);
 	const machine = machineFiles(exec);
@@ -246,5 +243,4 @@
 		count,
 		lexicon
 	});
-	//#endregion
 })();

@@ -1,7 +1,7 @@
 // Built from helper/helper.ts by scripts/dev/plugin-ui.mjs: edit the sources, not this file.
 (function(exports) {
 	Object.defineProperty(exports, Symbol.toStringTag, { value: "Module" });
-	//#region ui/src/lib/tex-portable.ts
+	// ui/src/lib/tex-portable.ts
 	/** The macros every formula in Atlas may use, as KaTeX's `macros` option writes them (`#1` for an argument). */
 	const MACROS = {
 		"\\R": "\\mathbb{R}",
@@ -19,8 +19,7 @@
 	function macroDefinitions(command, macros = MACROS) {
 		return Object.entries(macros).map(([name, body]) => `\\${command}{${name}}${body.includes("#1") ? "[1]" : ""}{${body}}`).join("\n");
 	}
-	//#endregion
-	//#region ui/src/lib/math-align.ts
+	// ui/src/lib/math-align.ts
 	const RELATIONS = [
 		":=",
 		"=:",
@@ -92,8 +91,7 @@
 		const lines = m[2].split("\n").map((l) => l.trim().replace(/\\\\$/, "").trim()).filter(Boolean);
 		return `\\begin{${m[1]}}${lines.length ? `\n${lines.map(alignLine).join(" \\\\\n")}\n` : ""}\\end{${m[1]}}`;
 	}
-	//#endregion
-	//#region ui/src/lib/fence-walk.ts
+	// ui/src/lib/fence-walk.ts
 	/** A walk over a note's lines: `code(line)` for each in order says whether it is code (a fence line or inside one). */
 	function fences$1() {
 		let open = null;
@@ -125,8 +123,7 @@
 			return false;
 		} };
 	}
-	//#endregion
-	//#region ui/src/lib/equations.ts
+	// ui/src/lib/equations.ts
 	const ID_AFTER_CLOSE = /\$\$[ \t]*\^([A-Za-z0-9-]+)[ \t]*$/;
 	const LABEL = /\\label\{([^}]+)\}/;
 	const LABELS = /\\label\{[^}]*\}/g;
@@ -277,8 +274,7 @@
 	/** What a link to an equation or figure reads, from what it reads in its own note (`refOf`): "(3)" there, "Note (3)"
 	*  from another; "Figure 2" there, "Note, Figure 2" from another. */
 	const linkText = (note, ref) => !note ? ref : `${note.split("/").pop()}${ref.startsWith("(") ? " " : ", "}${ref}`;
-	//#endregion
-	//#region plugins/beta/export/helper/translate.ts
+	// plugins/beta/export/helper/translate.ts
 	const IMAGE = /\.(png|jpe?g|gif|svg|webp|pdf|eps)$/i;
 	const QUERY_FENCES = /* @__PURE__ */ new Set([
 		"view",
@@ -556,8 +552,7 @@
 			fences: t.fences
 		};
 	}
-	//#endregion
-	//#region plugins/beta/export/helper/helper.ts
+	// plugins/beta/export/helper/helper.ts
 	const FORMATS = [
 		"pdf-typst",
 		"pdf-latex",
@@ -1014,7 +1009,6 @@
 		describe,
 		export: exportNote
 	});
-	//#endregion
 	exports.LAYOUTS = LAYOUTS;
 	exports.equationMarks = equationMarks;
 	exports.fitDisplays = fitDisplays;

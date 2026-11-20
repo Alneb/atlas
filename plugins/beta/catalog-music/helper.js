@@ -1,7 +1,7 @@
 // Built from helper/helper.ts by scripts/dev/plugin-ui.mjs: edit the sources, not this file.
 (function(exports) {
 	Object.defineProperty(exports, Symbol.toStringTag, { value: "Module" });
-	//#region plugins/beta/catalog-music/helper/helper.ts
+	// plugins/beta/catalog-music/helper/helper.ts
 	const API = "https://musicbrainz.org/ws/2";
 	const COVERS = "https://coverartarchive.org";
 	const SURE = 90;
@@ -139,7 +139,6 @@
 		};
 	}
 	atlas.methods({ lookup });
-	//#endregion
 	exports.cleanArtist = cleanArtist;
 	exports.cleanTitle = cleanTitle;
 	exports.firstAlbum = firstAlbum;

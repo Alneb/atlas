@@ -31,7 +31,9 @@ function writeRnote() {
 function track(page: Page): { errs: string[]; external: string[] } {
   const errs: string[] = [], external: string[] = [];
   page.on("pageerror", (e) => errs.push(e.message));
-  page.on("console", (m) => m.type() === "error" && errs.push(m.text()));
+  // Excalidraw listens for `unload`, which newer Chromium refuses by its permissions policy and logs as an error: the
+  // browser's own refusal, harmless (WebKitGTK, the app's engine, allows it), not one of ours
+  page.on("console", (m) => m.type() === "error" && !m.text().startsWith("Permissions policy violation: unload") && errs.push(m.text()));
   page.on("response", (r) => r.status() === 404 && errs.push(`404 ${new URL(r.url()).pathname}${new URL(r.url()).search}`)); // which one
   page.on("request", (r) => { const u = new URL(r.url()); if (!["127.0.0.1", "localhost"].includes(u.hostname) && u.protocol.startsWith("http")) external.push(r.url()); });
   return { errs, external };

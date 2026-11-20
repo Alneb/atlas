@@ -1,4 +1,4 @@
-//#region \0rolldown/runtime.js
+// \0rolldown/runtime.js
 var e = Object.defineProperty, t = (t, n) => {
 	let r = {};
 	for (var i in t) e(r, i, {
@@ -169,9 +169,7 @@ function f(e, t = /* @__PURE__ */ new Set()) {
 					source: r,
 					on: i
 				})));
-				continue;
-			}
-			for (let t of p.triggers) try {
+			} else for (let t of p.triggers) try {
 				e(s(t, p, n, r));
 			} catch (e) {
 				c.push({
@@ -306,8 +304,7 @@ function _(e) {
 		problems: n
 	};
 }
-//#endregion
-//#region plugins/beta/snippets/ui/src/convert.ts
+// plugins/beta/snippets/ui/src/convert.ts
 function v(e) {
 	let t = [...e.matchAll(/\$\{?(\d+)/g)].map((e) => Number(e[1]));
 	if (!t.length) return e;
@@ -375,11 +372,7 @@ function ee(e) {
 	let t = /* @__PURE__ */ new Map(), n = 0, r = [];
 	for (let i of e.split("\n")) {
 		let e = i.trim();
-		if (e.startsWith("//")) {
-			r.push(e);
-			continue;
-		}
-		/\btrigger\s*:/.test(e.replace(/\/\/.*$/, "")) && (r.length && t.set(n, r), r = [], n++);
+		e.startsWith("//") ? r.push(e) : /\btrigger\s*:/.test(e.replace(/\/\/.*$/, "")) && (r.length && t.set(n, r), r = [], n++);
 	}
 	return {
 		before: t,
@@ -416,30 +409,14 @@ function D(e) {
 			}
 			if (!l || l.trigger == null || l.replacement == null) return;
 			let u = y(l.trigger);
-			if (b.has(u)) {
-				n.push(`${u}: ${b.get(u)}`);
-				return;
-			}
-			if (x.has(u)) {
-				i || (i = !0, n.push("the spacing regexes: one rule, in two commands(...) lines"), t.push("  // the automatic spacing: a bare name gets its backslash, a letter after a command a space"), t.push(`  commands(${JSON.stringify(s("GREEK"))}, { digit: "subscript" }),`), t.push(`  commands(${JSON.stringify([.../* @__PURE__ */ new Set([
-					...s("SYMBOL"),
-					...s("MORE_SYMBOLS"),
-					...S
-				])])}, { digit: "space" }),`));
-				return;
-			}
-			if (typeof l.trigger == "string" && C.has(l.trigger)) {
-				t.push(`  // off, in options.units() below: ${E(l)}`), a = !0, r++;
-				return;
-			}
-			if (l.trigger === "-d" || l.trigger === "-u") {
-				t.push(`  ${E(l).replace(/\),$/, ", { when: (at) => !/[A-Za-z0-9})]$/.test(at.before) }),")}`), n.push(`${l.trigger}: not after an operand, so a-d stays a subtraction`), r++;
-				return;
-			}
-			String(l.trigger) === "/([A-Za-z])(\\d)/" && (l = {
+			b.has(u) ? n.push(`${u}: ${b.get(u)}`) : x.has(u) ? i || (i = !0, n.push("the spacing regexes: one rule, in two commands(...) lines"), t.push("  // the automatic spacing: a bare name gets its backslash, a letter after a command a space"), t.push(`  commands(${JSON.stringify(s("GREEK"))}, { digit: "subscript" }),`), t.push(`  commands(${JSON.stringify([.../* @__PURE__ */ new Set([
+				...s("SYMBOL"),
+				...s("MORE_SYMBOLS"),
+				...S
+			])])}, { digit: "space" }),`)) : typeof l.trigger == "string" && C.has(l.trigger) ? (t.push(`  // off, in options.units() below: ${E(l)}`), a = !0, r++) : l.trigger === "-d" || l.trigger === "-u" ? (t.push(`  ${E(l).replace(/\),$/, ", { when: (at) => !/[A-Za-z0-9})]$/.test(at.before) }),")}`), n.push(`${l.trigger}: not after an operand, so a-d stays a subtraction`), r++) : (String(l.trigger) === "/([A-Za-z])(\\d)/" && (l = {
 				...l,
 				trigger: /(?<![\\A-Za-z])([A-Za-z])(\d)/
-			}, n.push("letter + digit: not when the letter ends a command, so \\times10 is safe")), t.push(`  ${E(l)}`), r++;
+			}, n.push("letter + digit: not when the letter ends a command, so \\times10 is safe")), t.push(`  ${E(l)}`), r++);
 		});
 		for (let e of l) t.push(`  ${e}`);
 	}
@@ -455,8 +432,7 @@ function D(e) {
 		dropped: n
 	};
 }
-//#endregion
-//#region plugins/beta/snippets/ui/src/stops.ts
+// plugins/beta/snippets/ui/src/stops.ts
 function O(e, t = "", n = !1) {
 	let r = "", i = /* @__PURE__ */ new Map(), a = (e, t) => (i.get(e) ?? i.set(e, []).get(e)).push(t);
 	for (let n = 0; n < e.length;) {
@@ -480,13 +456,12 @@ function O(e, t = "", n = !1) {
 				let t = 0;
 				for (; n < e.length; n++) {
 					let i = e[n];
-					if (i === "\\" && n + 1 < e.length) {
-						r += i + e[++n];
-						continue;
+					if (i === "\\" && n + 1 < e.length) r += i + e[++n];
+					else {
+						if (i === "{") t++;
+						else if (i === "}" && t-- === 0) break;
+						r += i;
 					}
-					if (i === "{") t++;
-					else if (i === "}" && t-- === 0) break;
-					r += i;
 				}
 				n++;
 			}
@@ -494,9 +469,7 @@ function O(e, t = "", n = !1) {
 				from: t,
 				to: r.length
 			});
-			continue;
-		}
-		r += e[n++];
+		} else r += e[n++];
 	}
 	let o = (e) => !n && e === 0 ? Infinity : e, s = [...i.keys()].sort((e, t) => o(e) - o(t)).map((e) => i.get(e)), c = s[s.length - 1];
 	return s.length && (n || !i.has(0)) && !c.some((e) => e.from === r.length) && s.push([{
@@ -572,16 +545,12 @@ function k(e) {
 			to: r,
 			insert: o
 		};
-		if (l.length < 2) {
-			e.dispatch({
-				changes: u,
-				selection: l.length ? m(l[0]) : { anchor: n + o.length },
-				scrollIntoView: !0,
-				userEvent: "input.complete"
-			});
-			return;
-		}
-		e.dispatch({
+		l.length < 2 ? e.dispatch({
+			changes: u,
+			selection: l.length ? m(l[0]) : { anchor: n + o.length },
+			scrollIntoView: !0,
+			userEvent: "input.complete"
+		}) : e.dispatch({
 			changes: u,
 			selection: m(l[0]),
 			effects: s.of({
@@ -639,8 +608,7 @@ function k(e) {
 		}
 	};
 }
-//#endregion
-//#region plugins/beta/snippets/ui/src/words.ts
+// plugins/beta/snippets/ui/src/words.ts
 var A = "achieve achieved actors actually agree aligned all allow allowed allsec analogous anderson angle another app appear appears applications apply applying approach approaches appropriate approximation archive around assets assume atom atomic atoms auto automatically axis band bands bandwidth bare basically bastante become becomes been begins between bigger bipartite bottom bound boundary box branch branches brothers call called callout capture captures catalog cell challenges change changes changing closing coexistence coincide color colorblind comes command commands comment comments commit common commutation commute commutes compilation constant constants continuation continued contributors controlled copies copy copyright correct correction correlated correlation correlations corresponding corresponds cosas cost coveralls crossing cuando cumul cumulant cuprates custom cutoff damping decreasing dee deep degeneracy degenerate degrees design designed details determined detuned developing differ difference differences different difficult diffraction director directory distance eigenvectors either eliminate ellos enable entanglement equivalent escape essentially esto estoy exchange exist existing expand expanded expansion expect expected experimental experimentally experiments explain explicitly exponential exponentially exponents export expressed expression expressions factor factorized fall falls fill filled filling finally follow following follows formally formula formulas found fraction free freedom freely full fund fundamental funds further generators geometry grand ground hamiltonian hand handle happen happens historia history hopping hoppings important inbox include included includes including incomplete incompressible increase increases increasing infinite infinity info information install installation installed insulator insulators integer integral integrate integrated intensity inter interact interacting interaction interactions interesting interface interference intermediate internship into intro introduce introduction invariant inverse inversion irreps island jupytext karakeep keep keeps lands language languages letterboxd library limit machine macroscopic mapped matching maximum maxiter meeting menu meta metal metallic microscopic minimum missing mixing mode model models modern modes modificados modification modified modify modulation module moment momenta momentum mother much muchas mucho multiple multitext mundo music must muy need needed needs negative normal normalization normalized nublado nuestro null number numbers numerical numerically numpy occupancy occupation occupied onto operator operators opposite other otherwise parameter parameters parte particle particles particular partie partner partners parts phenomena photon pick pinned pip point points power preset principal principle produced produces product products propagating propagation properties property proportional proposed quadratic quasiparticle range rather readthedocs really repository reproduce restart retain second secret secrets section sector sectors see seed seems sees separate separated sets settings setup sign similar simple simulation simulations since single singlet singular small smaller smallest some something speed spin spins stand standard stands start started starting steps still stop stopped stops strange subbath subbaths subject submit subspace subtopic summer superconductor superconductors support suppressed sweep sweeps tanto that their them theme themes themselves then theory there therefore thermal these thesis they three toda today todo todos together tokens tol tolerance too tool tools top topic topics topology tot total touches toward tpi typical unchanged under understand understanding upper using usually valley vector vectors wavevector weather week well what whether will www".split(" "), j = /^(?:\\[A-Za-z]+|\\.|[^A-Za-z\s])/, M = /^\\(?:langle|lvert|lVert|lfloor|lceil|lbrace)(?![A-Za-z])/, te = /^\\(?:rangle|rvert|rVert|rfloor|rceil|rbrace)(?![A-Za-z])/, ne = /^\\(begin|end)\{([A-Za-z]+\*?)\}/, re = /^(?:equation|align|alignat|flalign|gather|multline|eqnarray|displaymath|math)\*?$/;
 function N(e) {
 	let t = [], n = (e, n, r) => (t.push({
@@ -668,8 +636,7 @@ function ie(e) {
 	let r = +!!/[\^_]$/.test(e.slice(0, n.from)), i = n.from - r, a = t[t.length - 2];
 	return a?.kind === "close" && a.to === i ? a.from : i;
 }
-//#endregion
-//#region plugins/beta/snippets/ui/src/sorted-words.ts
+// plugins/beta/snippets/ui/src/sorted-words.ts
 var F = class {
 	text;
 	constructor(e) {
@@ -719,7 +686,7 @@ function R(e) {
 	let t = e.length > 1 ? e[e.length - 1] : void 0;
 	return t && e[0].endsWith(t) ? t : e[0];
 }
-function oe(e) {
+function z(e) {
 	let t = e.editor.codemirror, n = k(t), { EditorView: r, keymap: i } = t.view, { Prec: a } = t.state, o = [], s = I, c = [], l = new L(A, null), u = [], d = null;
 	async function f() {
 		let t = await fetch(e.assetUrl("words.txt"));
@@ -836,18 +803,18 @@ function oe(e) {
 	function N(e, t, n) {
 		if (/^[A-Za-z]$/.test(n)) return !1;
 		let r = e.state.doc.lineAt(t), i = M(e.state.doc.sliceString(Math.max(r.from, t - ae), t)).toLowerCase();
-		return !i || l.has(i) || !l.grows(i) ? !1 : z(e, t, "", !0, !0);
+		return !i || l.has(i) || !l.grows(i) ? !1 : B(e, t, "", !0, !0);
 	}
-	function oe(e, t) {
+	function z(e, t) {
 		let n = e.state.selection.main.head;
 		t === " " && /[ \t{([]/.test(e.state.sliceDoc(n - 1, n)) || e.dispatch(e.state.replaceSelection(t));
 	}
-	function z(e, t, n, r, i = !1) {
+	function B(e, t, n, r, i = !1) {
 		if (!o.length) return !1;
 		let a = D(e, t);
 		if (!a && !i && n && N(e, t, n)) {
 			let t = e.state.selection.main.head;
-			return z(e, t, n, r) || oe(e, n), !0;
+			return B(e, t, n, r) || z(e, n), !0;
 		}
 		let u = e.state.doc.lineAt(t), d = e.state.doc.sliceString(Math.max(u.from, t - ae), t) + n, f, p = () => f ??= g(e, t), m = (e) => t + n.length - e, h = (e) => r === e.auto && !e.visual, _ = (t, n) => !t.when || t.when(v(e, d.slice(0, d.length - n))), x = (t) => h(t) && y(t, p(), e), S = (e) => {
 			if (!e.plain || !d.endsWith(e.plain) || e.typo && l.has(e.plain.toLowerCase())) return !1;
@@ -901,7 +868,7 @@ function oe(e) {
 			}
 			if (!j(e, a)) return !1;
 			let p = e.state.selection.main.head;
-			return n && !z(e, p, n, r) && oe(e, n), !0;
+			return n && !B(e, p, n, r) && z(e, n), !0;
 		}
 		if (!C) return !1;
 		let F = C.s, I = C.m ? R(C.m) : F.plain;
@@ -918,7 +885,7 @@ function oe(e) {
 		}
 		return w(e, F, C.m, m(C.len), t, n);
 	}
-	function se(e, t, n, r) {
+	function oe(e, t, n, r) {
 		let i = g(e, t), a = o.find((t) => t.visual && t.plain === r && y(t, i, e));
 		if (!a) return !1;
 		let s = e.state.sliceDoc(t, n), c = b(a, null, v(e, e.state.sliceDoc(e.state.doc.lineAt(t).from, t), s));
@@ -931,19 +898,19 @@ function oe(e) {
 		}
 		return S(e, a, c, t, n, "", s), !0;
 	}
-	function B(e, t, n) {
+	function V(e, t, n) {
 		return !")]}".includes(n) || e.state.sliceDoc(t, t + 1) !== n || g(e, t).kind !== "math" ? !1 : (e.dispatch({
 			selection: { anchor: t + 1 },
 			userEvent: "select"
 		}), !0);
 	}
-	function V(e, t, r) {
+	function H(e, t, r) {
 		return r === "{" && n.active(e.state) && /[_^]\{$/.test(e.state.sliceDoc(Math.max(0, t - 2), t)) && e.state.sliceDoc(t, t + 1) === "}";
 	}
-	function ce(e, t, n) {
+	function se(e, t, n) {
 		return n === " " && x.get(e)?.doc === e.state.doc && /[{([ \t]/.test(e.state.sliceDoc(t - 1, t));
 	}
-	function H(e, t, n) {
+	function U(e, t, n) {
 		if (n !== "^" && n !== "_") return t;
 		let r = e.state.doc.lineAt(t), i = e.state.sliceDoc(Math.max(r.from, t - ae), t), a = /([A-Za-z0-9}\])|])( +)$/.exec(i);
 		if (!a || g(e, t).kind !== "math") return t;
@@ -957,31 +924,31 @@ function oe(e) {
 			userEvent: "delete"
 		}), o;
 	}
-	function U(e) {
+	function W(e) {
 		let { head: t } = e.state.selection.main, n = P(e.state.doc.sliceString(t, Math.min(e.state.doc.length, e.state.doc.lineAt(t).to + 4e3)));
 		return n === null ? null : t + n;
 	}
-	function W(e, t) {
+	function G(e, t) {
 		return t !== null && (e.dispatch({
 			selection: { anchor: t },
 			scrollIntoView: !0
 		}), !0);
 	}
-	let G = (e) => W(e, U(e));
-	function K(e) {
-		let { head: t } = e.state.selection.main, n = Math.max(0, t - 4e3), r = ie(e.state.doc.sliceString(n, t));
-		return W(e, r === null ? null : n + r);
-	}
+	let K = (e) => G(e, W(e));
 	function q(e) {
+		let { head: t } = e.state.selection.main, n = Math.max(0, t - 4e3), r = ie(e.state.doc.sliceString(n, t));
+		return G(e, r === null ? null : n + r);
+	}
+	function ce(e) {
 		let t = D(e, e.state.selection.main.head);
 		return !!t && j(e, t);
 	}
 	function J(e, t, n, r) {
 		if (r.length !== 1 || e.state.selection.ranges.length > 1 || !_(e)) return !1;
-		if (t !== n) return se(e, t, n, r);
-		if (V(e, t, r) || ce(e, t, r)) return !0;
-		let i = H(e, t, r);
-		return i === t ? z(e, t, r, !0) || B(e, t, r) : (z(e, i, r, !0) || e.dispatch(e.state.replaceSelection(r)), !0);
+		if (t !== n) return oe(e, t, n, r);
+		if (H(e, t, r) || se(e, t, r)) return !0;
+		let i = U(e, t, r);
+		return i === t ? B(e, t, r, !0) || V(e, t, r) : (B(e, i, r, !0) || e.dispatch(e.state.replaceSelection(r)), !0);
 	}
 	let Y = (e) => g(e, e.state.selection.main.head).kind === "math", le = {
 		overList: (e) => E.has(e) || n.active(e.state),
@@ -1001,11 +968,11 @@ function oe(e) {
 			run: (e) => {
 				if (!_(e)) return n.next(e);
 				let t = e.state.selection.main.empty, r = e.state.selection.main.head;
-				if (t && (q(e) || z(e, r, "", !1) || !n.active(e.state) && N(e, r, ""))) return !0;
-				let i = t && Y(e), a = n.currentEnd(e.state), o = i && a !== null ? U(e) : null;
-				return o !== null && o <= a ? G(e) : n.next(e) || i && G(e);
+				if (t && (ce(e) || B(e, r, "", !1) || !n.active(e.state) && N(e, r, ""))) return !0;
+				let i = t && Y(e), a = n.currentEnd(e.state), o = i && a !== null ? W(e) : null;
+				return o !== null && o <= a ? K(e) : n.next(e) || i && K(e);
 			},
-			shift: (e) => n.prev(e) || _(e) && e.state.selection.main.empty && Y(e) && K(e)
+			shift: (e) => n.prev(e) || _(e) && e.state.selection.main.empty && Y(e) && q(e)
 		}]))
 	];
 	function de(e, i, a = "") {
@@ -1018,11 +985,7 @@ function oe(e) {
 		try {
 			for (let t of e) {
 				let { from: e, to: r } = o.state.selection.main;
-				if (t === "	") {
-					z(o, e, "", !1) || n.next(o);
-					continue;
-				}
-				J(o, e, r, t) || o.dispatch(o.state.replaceSelection(t));
+				t === "	" ? B(o, e, "", !1) || n.next(o) : J(o, e, r, t) || o.dispatch(o.state.replaceSelection(t));
 			}
 			return o.state.doc.toString();
 		} finally {
@@ -1042,16 +1005,15 @@ function oe(e) {
 		placeOf: g
 	};
 }
-//#endregion
-//#region plugins/beta/snippets/ui/src/std.ts
-var z = /* @__PURE__ */ t({
-	align: () => U,
-	greek: () => se,
-	matrix: () => H,
-	operators: () => B,
-	sequence: () => W,
-	symbols: () => V
-}), se = "alpha beta gamma Gamma delta Delta epsilon varepsilon zeta eta theta vartheta Theta iota kappa lambda Lambda mu nu xi Xi omicron pi Pi varpi rho varrho sigma Sigma varsigma tau upsilon Upsilon phi Phi varphi chi psi Psi omega Omega".split(" "), B = "arcsin arccos arctan arccot arccsc arcsec sinh cosh tanh coth sech csch sin cos tan cot csc sec exp log ln det sum prod int iint iiint oint".split(" "), V = "parallel perp partial nabla hbar ell infty oplus ominus otimes square star dagger vee wedge subseteq subset supseteq supset emptyset exists nexists forall implies impliedby iff setminus neg lor land bigcup bigcap cdot times simeq approx quad qquad leq geq neq gg ll equiv sim propto rightarrow leftarrow Rightarrow Leftarrow leftrightarrow to mapsto cap cup dots vdots ddots langle rangle".split(" "), ce = {
+// plugins/beta/snippets/ui/src/std.ts
+var B = /* @__PURE__ */ t({
+	align: () => W,
+	greek: () => oe,
+	matrix: () => U,
+	operators: () => V,
+	sequence: () => G,
+	symbols: () => H
+}), oe = "alpha beta gamma Gamma delta Delta epsilon varepsilon zeta eta theta vartheta Theta iota kappa lambda Lambda mu nu xi Xi omicron pi Pi varpi rho varrho sigma Sigma varsigma tau upsilon Upsilon phi Phi varphi chi psi Psi omega Omega".split(" "), V = "arcsin arccos arctan arccot arccsc arcsec sinh cosh tanh coth sech csch sin cos tan cot csc sec exp log ln det sum prod int iint iiint oint".split(" "), H = "parallel perp partial nabla hbar ell infty oplus ominus otimes square star dagger vee wedge subseteq subset supseteq supset emptyset exists nexists forall implies impliedby iff setminus neg lor land bigcup bigcap cdot times simeq approx quad qquad leq geq neq gg ll equiv sim propto rightarrow leftarrow Rightarrow Leftarrow leftrightarrow to mapsto cap cup dots vdots ddots langle rangle".split(" "), se = {
 	p: "pmatrix",
 	b: "bmatrix",
 	B: "Bmatrix",
@@ -1059,30 +1021,30 @@ var z = /* @__PURE__ */ t({
 	V: "Vmatrix",
 	m: "matrix"
 };
-function H(e, t, n = "p") {
-	let r = ce[n] ?? "pmatrix", i = 1;
+function U(e, t, n = "p") {
+	let r = se[n] ?? "pmatrix", i = 1;
 	return `\\begin{${r}}\n${Array.from({ length: e }, () => Array.from({ length: t }, () => `\${${i++}}`).join(" & ")).join(" \\\\\n")}\n\\end{${r}}$0`;
 }
-function U(e) {
+function W(e) {
 	return `\\begin{align}\n${e.split("\n").map((e) => e.trim().replace(/^\$+|\$+$/g, "").trim()).filter(Boolean).map((e) => /(?<![\\<>!])=|\\(?:leq|geq|neq|approx|equiv|sim|simeq|implies|iff)(?![A-Za-z])/.test(e) ? e.replace(/(?<![\\<>!])=|\\(?:leq|geq|neq|approx|equiv|sim|simeq|implies|iff)(?![A-Za-z])/, (e) => `&${e}`) : `&${e}`).join(" \\\\\n")}\n\\end{align}$0`;
 }
-var W = (e, t) => `${e}_1 ${t} ${e}_2 ${t} \\cdots ${t} ${e}_{\${1:n}}$0`, G = {
-	spacing: (e = {}) => i.option("Automatic spacing", "Bare names get their backslash, a letter after a command a space (\\sin x), a number after an operator a space (\\times 10), a digit after a Greek letter a subscript.", [i.commands(se, { digit: "subscript" }), i.commands([...B, ...V], { digit: "space" })], e),
-	matrices: (e = {}) => i.option("Matrices by size", "33pmat, 24bmat: the size in the trigger, a stop in each cell. p b B v V for the brackets.", [i.math(/(\d)(\d)([pbBvV]?)mat/, (e) => H(+e[1], +e[2], e[3] || "p"), { name: "A matrix by size" })], e),
+var G = (e, t) => `${e}_1 ${t} ${e}_2 ${t} \\cdots ${t} ${e}_{\${1:n}}$0`, K = {
+	spacing: (e = {}) => i.option("Automatic spacing", "Bare names get their backslash, a letter after a command a space (\\sin x), a number after an operator a space (\\times 10), a digit after a Greek letter a subscript.", [i.commands(oe, { digit: "subscript" }), i.commands([...V, ...H], { digit: "space" })], e),
+	matrices: (e = {}) => i.option("Matrices by size", "33pmat, 24bmat: the size in the trigger, a stop in each cell. p b B v V for the brackets.", [i.math(/(\d)(\d)([pbBvV]?)mat/, (e) => U(+e[1], +e[2], e[3] || "p"), { name: "A matrix by size" })], e),
 	sequences: (e = {}) => i.option("Sequences", "xsum → x_1 + x_2 + … + x_n, xprod, xleq, and x1dots → x_1, x_2, …, x_n.", [
-		i.math(/([A-Za-z])sum/, (e) => W(e[1], "+"), {
+		i.math(/([A-Za-z])sum/, (e) => G(e[1], "+"), {
 			name: "A written-out sum",
 			priority: 1
 		}),
-		i.math(/([A-Za-z])prod/, (e) => W(e[1], "\\times"), {
+		i.math(/([A-Za-z])prod/, (e) => G(e[1], "\\times"), {
 			name: "A written-out product",
 			priority: 1
 		}),
-		i.math(/([A-Za-z])leq/, (e) => W(e[1], "\\leq"), {
+		i.math(/([A-Za-z])leq/, (e) => G(e[1], "\\leq"), {
 			name: "An ordered sequence",
 			priority: 1
 		}),
-		i.math(/([A-Za-z])1dots/, (e) => W(e[1], ","), {
+		i.math(/([A-Za-z])1dots/, (e) => G(e[1], ","), {
 			name: "A list",
 			priority: 1
 		})
@@ -1093,7 +1055,7 @@ var W = (e, t) => `${e}_1 ${t} ${e}_2 ${t} \\cdots ${t} ${e}_{\${1:n}}$0`, G = {
 		i.math(`${e} `, `\\${e} `)
 	]), e),
 	derivatives: (e = {}) => i.option("Derivatives by their letters", "dydt → a fraction, ddx → d/dx, with any letters.", [i.math(/d([a-ce-z])d([a-ce-z])/, "\\frac{d [[0]]}{d [[1]]} ", { name: "A derivative by its letters" }), i.math(/dd([a-ce-z])/, "\\frac{d}{d [[0]]} ", { name: "d/dx" })], e),
-	align: (e = {}) => i.option("Align a selection", "Select lines of math and type A: each is aligned at its first relation, inside align.", [i.visual("A", (e, t) => U(t.selection), { name: "Align what is selected" })], e),
+	align: (e = {}) => i.option("Align a selection", "Select lines of math and type A: each is aligned at its first relation, inside align.", [i.visual("A", (e, t) => W(t.selection), { name: "Align what is selected" })], e),
 	colors: (e = {}) => i.option("Colour a selection", "Select math and type R: \\textcolor{red}{…}.", [i.visual("R", "\\textcolor{${1:red}}{${VISUAL}}$0", { name: "Colour what is selected" })], e),
 	autoAlign: (e = {}) => i.option("Auto-align", "malign writes a $$align block: plain lines, drawn as an align with each line at its first relation (=, \\leq, \\approx…). menv stays plain math.", [i.text("malign", "$$align\n$1\n$$", {
 		word: !0,
@@ -1136,10 +1098,10 @@ var W = (e, t) => `${e}_1 ${t} ${e}_2 ${t} \\cdots ${t} ${e}_{\${1:n}}$0`, G = {
 			name: "Flip the first letter's case"
 		})
 	], e)
-}, K = ".atlas/snippets", q = `${K}/converted.js`, J = `${K}/latex.js`, Y = {
+}, q = ".atlas/snippets", ce = `${q}/converted.js`, J = `${q}/latex.js`, Y = {
 	...i,
-	std: z,
-	options: G
+	std: B,
+	options: K
 };
 function le(e) {
 	try {
@@ -1173,12 +1135,12 @@ async function de(e, t, n) {
 async function fe(e) {
 	let t = await fetch(e.assetUrl("starter.js"));
 	if (!t.ok) throw Error(`starter.js: ${t.status}`);
-	let n = await t.text(), r = await e.exists(J) ? await e.readText(J) : null;
+	let n = await t.text(), r = await e.exists(".atlas/snippets/latex.js") ? await e.readText(J) : null;
 	return r !== n && (r !== null && await e.trash(J), await e.writeText(J, n), !0);
 }
 async function pe(e, t = !0) {
 	let n = [], r = [], i = [];
-	await e.exists(".atlas/snippets").catch(() => !1) && (i = (await e.list(K).catch(() => [])).filter((e) => !e.dir && e.name.endsWith(".js")).map((e) => e.path).sort());
+	await e.exists(".atlas/snippets").catch(() => !1) && (i = (await e.list(q).catch(() => [])).filter((e) => !e.dir && e.name.endsWith(".js")).map((e) => e.path).sort());
 	let a = /* @__PURE__ */ new Map(), o = [];
 	for (let t of i) if (/\bexport\s+default\b/.test(await e.readText(t).catch(() => ""))) {
 		o.push(t);
@@ -1194,7 +1156,7 @@ async function pe(e, t = !0) {
 			});
 		}
 	}
-	let s = await e.editor.legacySnippets().catch(() => null), c = !!s?.sources.some((e) => e.trim()), l = c && !o.includes(q) && !o.includes(J);
+	let s = await e.editor.legacySnippets().catch(() => null), c = !!s?.sources.some((e) => e.trim()), l = c && !o.includes(".atlas/snippets/converted.js") && !o.includes(".atlas/snippets/latex.js");
 	if (l) {
 		let e = _(s);
 		n.push({
@@ -1223,8 +1185,7 @@ async function pe(e, t = !0) {
 		wroteStarter: !1
 	};
 }
-//#endregion
-//#region plugins/beta/snippets/ui/src/rank.ts
+// plugins/beta/snippets/ui/src/rank.ts
 var me = (e, t) => {
 	let n = 0;
 	for (let r = 0; r < t.length && n < e.length; r++) t[r] === e[n] && (n === 0 && r > 0 && /[a-z]/.test(t[r - 1]) || n++);
@@ -1237,8 +1198,7 @@ function he(e, t) {
 	let r = t.toLowerCase(), i = e.name?.toLowerCase();
 	return t.length < 3 || !i ? null : i.includes(r) ? 1 : me(r, i) ? 2 : null;
 }
-//#endregion
-//#region plugins/beta/snippets/ui/src/settings.ts
+// plugins/beta/snippets/ui/src/settings.ts
 var ge = {
 	kind: "math",
 	form: "inline",
@@ -1396,10 +1356,9 @@ function Se(e, t) {
 	};
 	u();
 }
-//#endregion
-//#region plugins/beta/snippets/ui/src/main.ts
+// plugins/beta/snippets/ui/src/main.ts
 async function Ce(e) {
-	let t = oe(e), n = null, r = async () => (n = await pe(e), t.use(n), n.wroteStarter && e.toast("Snippets", `The plugin's LaTeX set is now ${J}, kept current by the plugin (a replaced copy goes to .atlas/trash). Settings → Snippets switches each snippet and option; your own snippets go in another file there.`, "info"), n);
+	let t = z(e), n = null, r = async () => (n = await pe(e), t.use(n), n.wroteStarter && e.toast("Snippets", `The plugin's LaTeX set is now ${J}, kept current by the plugin (a replaced copy goes to .atlas/trash). Settings → Snippets switches each snippet and option; your own snippets go in another file there.`, "info"), n);
 	e.editor.extension(t.extension), e.editor.claimTab(t.claim), await r(), t.loadWords().catch((e) => console.warn("snippets: the word list did not load, only the short one holds:", e)), e.onFilesChanged((e) => {
 		(!e.length || e.some((e) => e.startsWith(".atlas/snippets/") || e === ".atlas/config.toml")) && r();
 	});
@@ -1446,7 +1405,7 @@ async function Ce(e) {
 			e.toast("Snippets", "There is no old snippet file to convert here.", "info");
 			return;
 		}
-		let i = q;
+		let i = ce;
 		if (n?.modules.includes(i)) {
 			e.toast("Snippets", `${i} is there already. Move it aside to convert again.`, "info");
 			return;
@@ -1473,5 +1432,4 @@ async function Ce(e) {
 		})
 	});
 }
-//#endregion
 export { Ce as register };

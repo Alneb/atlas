@@ -1,5 +1,5 @@
 import { $ as e, B as t, Ct as n, D as r, E as i, Et as a, G as o, J as s, K as c, M as l, N as u, Q as d, S as f, T as p, Tt as m, V as h, Z as g, _t as _, a as v, b as y, bt as b, c as x, dt as S, et as C, f as w, g as T, gt as E, h as D, ht as O, i as k, k as A, lt as j, m as M, mt as N, nt as P, ot as F, q as I, r as L, rt as R, st as z, tt as B, vt as V, wt as H, xt as U, y as W, yt as G, z as K } from "./ui-lib/layout.js";
-//#region plugins/stable/dav/ui/src/Upcoming.svelte
+// plugins/stable/dav/ui/src/Upcoming.svelte
 var ee = R("<div class=\"atlas-notice error\"> <div class=\"actions\"><button class=\"atlas-btn\">Settings…</button></div></div>"), te = R("<div class=\"atlas-empty\">Reading the calendar…</div>"), ne = R("<div class=\"atlas-empty\">Nothing.</div>"), re = R("<button class=\"ev svelte-10ncuqf\"><span class=\"bar svelte-10ncuqf\" aria-hidden=\"true\"></span> <span class=\"t svelte-10ncuqf\"> </span> <span class=\"s svelte-10ncuqf\"> </span></button>"), ie = R("<button class=\"more svelte-10ncuqf\"> </button>"), q = R("<section class=\"svelte-10ncuqf\"><button class=\"day svelte-10ncuqf\"> </button> <!> <!> <!></section>"), J = R("<div class=\"up svelte-10ncuqf\"><!></div>"), ae = {
 	hash: "svelte-10ncuqf",
 	code: ".up.svelte-10ncuqf {display:grid;gap:8px;container-type:inline-size;}section.svelte-10ncuqf {display:grid;gap:1px;}.day.svelte-10ncuqf {all:unset;cursor:pointer;font-size:0.75em;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-faint);font-weight:600;padding:2px 0;}.day.svelte-10ncuqf:hover {color:var(--text);}.ev.svelte-10ncuqf, .more.svelte-10ncuqf {all:unset;box-sizing:border-box;cursor:pointer;display:flex;align-items:center;gap:8px;padding:3px 6px;border-radius:var(--radius-sm);min-width:0;}.ev.svelte-10ncuqf:hover, .more.svelte-10ncuqf:hover {background:var(--bg-hover);}.ev.svelte-10ncuqf:focus-visible, .day.svelte-10ncuqf:focus-visible, .more.svelte-10ncuqf:focus-visible {outline:2px solid var(--accent);outline-offset:-1px;}.bar.svelte-10ncuqf {width:3px;align-self:stretch;border-radius:2px;background:var(--c);flex:none;}.t.svelte-10ncuqf {width:4.6em;flex:none;color:var(--text-muted);font-variant-numeric:tabular-nums;font-size:0.9em;}.s.svelte-10ncuqf {flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}.more.svelte-10ncuqf {color:var(--text-muted);font-size:0.85em;}"
@@ -80,8 +80,7 @@ function Y(i, c) {
 	}), a(W), B(i, W), n();
 }
 F(["click"]);
-//#endregion
-//#region plugins/stable/dav/ui/src/EventBlock.svelte
+// plugins/stable/dav/ui/src/EventBlock.svelte
 var X = R("<div class=\"atlas-notice error\"> </div>"), Z = R("<div class=\"atlas-empty\">Reading the calendar…</div>"), oe = R("<div class=\"atlas-empty\"> </div>"), se = R("<span class=\"warn svelte-1bk2mts\">Cancelled</span>"), Q = R("<span class=\"line svelte-1bk2mts\"><!> </span>"), ce = R("<a class=\"atlas-btn join svelte-1bk2mts\" target=\"_blank\" rel=\"noreferrer\" data-outside=\"\"><!>Join</a>"), le = R("<span class=\"sq svelte-1bk2mts\" aria-hidden=\"true\"></span> <div class=\"main svelte-1bk2mts\"><button title=\"Open this day in the calendar\"> </button> <!> <!> <!> <span class=\"line faint svelte-1bk2mts\"><!> </span></div> <!>", 1), ue = R("<div class=\"evb svelte-1bk2mts\"><!></div>"), de = {
 	hash: "svelte-1bk2mts",
 	code: ".evb.svelte-1bk2mts {display:flex;gap:10px;align-items:flex-start;container-type:inline-size;min-width:0;}.sq.svelte-1bk2mts {width:12px;height:12px;border-radius:3px;background:var(--c);flex:none;margin-top:4px;}.main.svelte-1bk2mts {display:grid;gap:2px;flex:1;min-width:0;}.when.svelte-1bk2mts {all:unset;cursor:pointer;font-weight:600;color:var(--heading);overflow-wrap:anywhere;border-radius:var(--radius-sm);}.when.svelte-1bk2mts:hover {text-decoration:underline;}.when.svelte-1bk2mts:focus-visible {outline:2px solid var(--accent);}.cancel.svelte-1bk2mts {text-decoration:line-through;}.warn.svelte-1bk2mts {color:var(--red);font-size:0.88em;}.line.svelte-1bk2mts {display:flex;gap:6px;align-items:center;color:var(--text);font-size:0.9em;min-width:0;overflow-wrap:anywhere;}.line.svelte-1bk2mts .icon {color:var(--text-faint);flex:none;}.faint.svelte-1bk2mts {color:var(--text-muted);}.join.svelte-1bk2mts {display:inline-flex;align-items:center;gap:6px;text-decoration:none;flex:none;}"
@@ -185,8 +184,7 @@ function fe(r, s) {
 	}), a(C), S(() => T = o(C, "", T, { "--c": j(h)?.color ?? "var(--accent)" })), B(r, C), n();
 }
 F(["click"]);
-//#endregion
-//#region plugins/stable/dav/ui/src/CalendarsSection.svelte
+// plugins/stable/dav/ui/src/CalendarsSection.svelte
 var pe = R("<p class=\"none svelte-1ajrurb\"> </p>"), $ = R("<p class=\"none svelte-1ajrurb\">No calendar yet: add an account above, then they show here.</p>"), me = R("<span class=\"ro svelte-1ajrurb\">· read-only</span>"), he = R("<button class=\"pc svelte-1ajrurb\" role=\"radio\"></button>"), ge = R("<li class=\"svelte-1ajrurb\"><label class=\"svelte-1ajrurb\"><input type=\"checkbox\"/> <span class=\"sq svelte-1ajrurb\"></span> <!></label> <code class=\"svelte-1ajrurb\"> </code> <span class=\"pal svelte-1ajrurb\" role=\"radiogroup\"></span></li>"), _e = R("<h4 class=\"svelte-1ajrurb\"> </h4> <ul class=\"svelte-1ajrurb\"></ul>", 1), ve = R("<!> <!>", 1), ye = {
 	hash: "svelte-1ajrurb",
 	code: "h4.svelte-1ajrurb {margin:10px 0 4px;font-size:0.78em;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-faint);}ul.svelte-1ajrurb {list-style:none;margin:0;padding:0;display:grid;gap:4px;}li.svelte-1ajrurb {display:flex;align-items:center;gap:10px;flex-wrap:wrap;min-width:0;}label.svelte-1ajrurb {display:flex;align-items:center;gap:8px;flex:1 1 12em;min-width:0;color:var(--text);}.sq.svelte-1ajrurb {width:12px;height:12px;border-radius:4px;background:var(--c);flex:none;}.ro.svelte-1ajrurb {color:var(--text-faint);}code.svelte-1ajrurb {color:var(--text-faint);font-size:0.8em;}.pal.svelte-1ajrurb {display:flex;gap:4px;}.pc.svelte-1ajrurb {all:unset;cursor:pointer;width:16px;height:16px;border-radius:50%;background:var(--c);}.pc[aria-checked=\"true\"].svelte-1ajrurb {box-shadow:0 0 0 2px var(--bg-elev, var(--bg)), 0 0 0 4px var(--c);}.pc.svelte-1ajrurb:focus-visible {outline:2px solid var(--accent);outline-offset:2px;}.none.svelte-1ajrurb {color:var(--text-faint);margin:4px 0;}"
@@ -274,11 +272,9 @@ function be(r, i) {
 	}), B(r, k), n();
 }
 F(["change", "click"]);
-//#endregion
-//#region ui/src/lib/local-day.ts
+// ui/src/lib/local-day.ts
 var xe = (e = /* @__PURE__ */ new Date()) => `${e.getFullYear()}-${String(e.getMonth() + 1).padStart(2, "0")}-${String(e.getDate()).padStart(2, "0")}`;
-//#endregion
-//#region plugins/stable/dav/ui/src/main.ts
+// plugins/stable/dav/ui/src/main.ts
 function Se(e) {
 	let t = () => e.plugin.settings.accounts ?? [], n = () => t().some((e) => e.name && e.user && (e.url || e.server === "exchange")) || !!(e.plugin.settings.url && e.plugin.settings.user), r = (t = {}) => {
 		window.__atlasCalendarShow = t, e.openView(void 0, {
@@ -322,16 +318,15 @@ function Se(e) {
 		id: "sync",
 		title: "Calendar: put important notes on the server",
 		run: async () => {
-			if (!n()) {
-				e.toast("Calendar", "Add a calendar account first.", "error"), e.plugin.openSettings();
-				return;
-			}
-			e.toast("Calendar", "Looking for important notes…");
-			try {
-				let t = await w(e, "sync", {}, 300), n = (t.events ?? []).filter((e) => e.outcome === "failed").map((e) => `${e.title}: ${e.why}`);
-				e.toast("Calendar", [t.summary, ...n.slice(0, 3)].join("\n"), n.length ? "error" : void 0);
-			} catch (t) {
-				e.toast("Calendar", t.message, "error");
+			if (!n()) e.toast("Calendar", "Add a calendar account first.", "error"), e.plugin.openSettings();
+			else {
+				e.toast("Calendar", "Looking for important notes…");
+				try {
+					let t = await w(e, "sync", {}, 300), n = (t.events ?? []).filter((e) => e.outcome === "failed").map((e) => `${e.title}: ${e.why}`);
+					e.toast("Calendar", [t.summary, ...n.slice(0, 3)].join("\n"), n.length ? "error" : void 0);
+				} catch (t) {
+					e.toast("Calendar", t.message, "error");
+				}
 			}
 		}
 	}), e.registerCommand({
@@ -356,11 +351,8 @@ function Se(e) {
 		title: "Calendar: test an account",
 		run: async (t) => {
 			let n = t?.record;
-			if (!n) {
-				e.plugin.openSettings();
-				return;
-			}
-			try {
+			if (!n) e.plugin.openSettings();
+			else try {
 				let t = await w(e, "test_account", { record: n }, 60);
 				e.toast(String(n.name ?? "Account"), t.text, t.ok ? "success" : "error"), t.ok && w(e, "refresh", { force: !0 }, 300).catch(() => {});
 			} catch (t) {
@@ -383,11 +375,8 @@ function Se(e) {
 		title: "Calendar: test a subscription",
 		run: async (t) => {
 			let n = t?.record;
-			if (!n) {
-				e.plugin.openSettings();
-				return;
-			}
-			try {
+			if (!n) e.plugin.openSettings();
+			else try {
 				let t = await w(e, "test_subscription", { record: n }, 60);
 				e.toast("Subscription", t.summary, "success"), w(e, "refresh", { force: !0 }, 120).catch(() => {});
 			} catch (t) {
@@ -600,5 +589,4 @@ function Se(e) {
 		clearTimeout(p), f?.();
 	};
 }
-//#endregion
 export { Se as register };

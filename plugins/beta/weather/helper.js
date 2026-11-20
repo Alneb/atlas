@@ -1,6 +1,6 @@
 // Built from helper/helper.ts by scripts/dev/plugin-ui.mjs: edit the sources, not this file.
 (function() {
-	//#region plugins/beta/weather/helper/helper.ts
+	// plugins/beta/weather/helper/helper.ts
 	const CODES = {
 		0: ["clear sky", "despejado"],
 		1: ["mainly clear", "mayormente despejado"],
@@ -218,5 +218,4 @@
 		log_made: logDay,
 		fill_today: fillToday
 	});
-	//#endregion
 })();

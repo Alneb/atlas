@@ -1,5 +1,5 @@
-//#region \0rolldown/runtime.js
-var e = Object.create, t = Object.defineProperty, n = Object.getOwnPropertyDescriptor, r = Object.getOwnPropertyNames, i = Object.getPrototypeOf, a = Object.prototype.hasOwnProperty, o = (e, t) => () => (t || (e((t = { exports: {} }).exports, t), e = null), t.exports), s = (e, i, o, s) => {
+// \0rolldown/runtime.js
+var e = Object.create, t = Object.defineProperty, n = Object.getOwnPropertyDescriptor, r = Object.getOwnPropertyNames, i = Object.getPrototypeOf, a = Object.prototype.hasOwnProperty, o = (e, t) => () => (t || (e((t = { exports: {} }).exports, t, t.exports), e = null), t.exports), s = (e, i, o, s) => {
 	if (i && typeof i == "object" || typeof i == "function") for (var c = r(i), l = 0, u = c.length, d; l < u; l++) d = c[l], !a.call(e, d) && d !== o && t(e, d, {
 		get: ((e) => i[e]).bind(null, d),
 		enumerable: !(s = n(i, d)) || s.enumerable
@@ -383,8 +383,7 @@ function ee(e, t, n, r) {
 	let [s, c] = [...a].sort((e, t) => t[1] - e[1])[0] ?? [n, 0];
 	return o >= 12 && c >= 3 ? s : n;
 }
-//#endregion
-//#region ui/src/lib/editor/dictionaries.ts
+// ui/src/lib/editor/dictionaries.ts
 var F = {
 	en: [["en_US", "en_CA"], ["en_GB", "en_AU"]],
 	es: [[
@@ -407,15 +406,13 @@ function te(e, t) {
 	}
 	return n;
 }
-//#endregion
-//#region ui/src/lib/paths.ts
+// ui/src/lib/paths.ts
 var I = (e) => e.replace(/\/+$/, "").split("/").pop() || e, L = /\.(md|markdown|txt|page)$/i, R = (e) => L.test(e) && !/\.excalidraw\.md$/i.test(e);
 function ne(e) {
 	let t = I(e);
 	return R(t) ? t.replace(L, "") : t;
 }
-//#endregion
-//#region plugins/beta/spelling/ui/src/langs.ts
+// plugins/beta/spelling/ui/src/langs.ts
 var z = (e) => e.split(/[_-]/)[0].toLowerCase();
 function re(e, t) {
 	let n = te(e, t.dictionaries), r = [...n.keys()];
@@ -444,8 +441,7 @@ function oe(e, t) {
 	let n = t.available.filter((t) => e.includes(t));
 	return n.length === t.usual.length && n.every((e) => t.usual.includes(e)) ? null : n;
 }
-//#endregion
-//#region ui/src/lib/editor/vault-count.ts
+// ui/src/lib/editor/vault-count.ts
 function se(e, t, n, r = 20) {
 	let i = /* @__PURE__ */ new Map(), a = !1, o = (e, n) => {
 		for (let r of n) {
@@ -477,8 +473,7 @@ function se(e, t, n, r = 20) {
 		}
 	};
 }
-//#endregion
-//#region plugins/beta/spelling/ui/src/judge.ts
+// plugins/beta/spelling/ui/src/judge.ts
 function ce(e, t) {
 	let n = e.replace(/['’]s$/u, "");
 	if (n.length < 3 || /\p{Lu}/u.test(n.slice(1))) return !1;
@@ -487,8 +482,7 @@ function ce(e, t) {
 	let a = n.split(/[-‐]/u);
 	return a.length < 2 || !a.every(i);
 }
-//#endregion
-//#region ui/src/lib/editor/spell-rank.ts
+// ui/src/lib/editor/spell-rank.ts
 var B = {
 	substitute: .38,
 	nearKey: .2,
@@ -569,8 +563,7 @@ function fe(e, t, n = 6) {
 	}
 	return ue(e, i, r, t.uses, n);
 }
-//#endregion
-//#region plugins/beta/spelling/ui/src/words.ts
+// plugins/beta/spelling/ui/src/words.ts
 var pe = ".atlas/spelling/words.md", J = /^```words[ \t]*\n([\s\S]*?)^```/m;
 function me(e) {
 	let t = J.exec(e)?.[1] ?? "";
@@ -584,8 +577,7 @@ function ge(e, t) {
 	let n = "```words\n" + [...me(e), t].filter((e, t, n) => n.indexOf(e) === t).sort((e, t) => e.localeCompare(t)).join("\n") + "\n```";
 	return J.test(e) ? e.replace(J, n + "\n").replace(/```\n\n$/, "```\n") : (e.trim() ? e.replace(/\s*$/, "\n\n") : "# This vault's words\n\nWords the spell checker takes as right here, one per line.\n\n") + n + "\n";
 }
-//#endregion
-//#region plugins/beta/spelling/ui/src/panel.ts
+// plugins/beta/spelling/ui/src/panel.ts
 var Y = "\n.sp { display: flex; flex-direction: column; gap: 12px; padding: 4px 2px; }\n.sp h3 { margin: 0 0 6px; font-size: 11px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; color: var(--text-faint); }\n.sp .langs { display: flex; flex-wrap: wrap; gap: 4px; }\n.sp button { font: inherit; color: var(--text); background: none; border: 1px solid var(--border); border-radius: 6px; padding: 2px 8px; cursor: pointer; }\n.sp button:hover { background: var(--bg-hover); }\n.sp .langs button.on, .sp table button.on { border-color: var(--accent); color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, transparent); }\n.sp .about { margin-top: 4px; color: var(--text-faint); font-size: 11.5px; }\n.sp ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; max-height: 240px; overflow: auto; }\n.sp li.word { display: flex; align-items: center; gap: 6px; padding: 2px 0; }\n.sp li.word .w { border: none; padding: 1px 4px; text-decoration: underline wavy var(--red); text-decoration-thickness: 1px; text-underline-offset: 3px; }\n.sp li.word .line { color: var(--text-faint); font-size: 11px; min-width: 44px; }\n.sp li.word .fix { border-color: transparent; background: var(--bg-hover); padding: 1px 6px; }\n.sp li.word .fix:hover { border-color: var(--accent); }\n.sp li.word .keep { margin-left: auto; color: var(--text-faint); border-color: transparent; padding: 1px 5px; }\n.sp .none { color: var(--text-faint); }\n.sp .chips { display: flex; flex-wrap: wrap; gap: 4px; max-height: 120px; overflow: auto; }\n.sp .chip { display: inline-flex; align-items: center; gap: 2px; padding: 1px 2px 1px 7px; border-radius: 10px; background: var(--bg-hover); }\n.sp .chip button { border: none; padding: 0 5px; color: var(--text-faint); border-radius: 10px; }\n.sp .chip.plain { padding: 1px 7px; color: var(--text-muted); }\n.sp .foot { display: flex; justify-content: flex-end; }\n.sp table { border-collapse: collapse; }\n.sp td { padding: 3px 12px 3px 0; vertical-align: baseline; }\n.sp td.dict { color: var(--text-muted); font-family: var(--font-mono); font-size: 12px; }\n.sp form { display: flex; gap: 6px; margin-top: 6px; }\n.sp tr.off td { color: var(--text-faint); }\n.sp label { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }\n.sp label.main { color: var(--text-muted); font-size: 12px; }\n.sp input[type=checkbox], .sp input[type=radio] { width: auto; margin: 0; accent-color: var(--accent); }\n.sp select { font: inherit; font-family: var(--font-mono); font-size: 12px; padding: 2px 6px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--text); }\n.sp select:disabled { opacity: .7; }\n.sp input[type=text], .sp form input { font: inherit; padding: 2px 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--text); width: 14em; }\n";
 function X(e, t = {}, ...n) {
 	let r = document.createElement(e);
@@ -669,8 +661,7 @@ function ve(e, t, n) {
 	};
 	return i(), i;
 }
-//#endregion
-//#region plugins/beta/spelling/ui/src/main.ts
+// plugins/beta/spelling/ui/src/main.ts
 async function ye(e) {
 	let { state: t, view: n, language: r } = e.editor.codemirror, i = (t) => e.plugin.settings[t], a = () => Number(i("min_uses") ?? 3), o = () => Number(i("min_notes") ?? 2), s = (t, n) => {
 		let r = `atlas.spelling.told.${t}`;
@@ -718,14 +709,14 @@ async function ye(e) {
 			suggest: (e) => [...new Set(n.flatMap((t) => t.suggest(e)))]
 		};
 		let r = u.get(t);
-		return r ? (g.set(t, "loading"), y(t), Promise.all(r.map((t) => e.helper.call("dictionary", {
+		return r && (g.set(t, "loading"), y(t), Promise.all(r.map((t) => e.helper.call("dictionary", {
 			name: t,
 			folder: i("folder")
 		}, { timeout: 60 }))).then((e) => {
 			g.set(t, e.map(({ aff: e, dic: t }) => (0, O.default)(e, t))), L();
 		}).catch((e) => {
 			console.warn(`spelling: ${r.join(", ")} did not load:`, e), g.delete(t);
-		}), null) : null;
+		})), null;
 	}, v = /* @__PURE__ */ new Map(), y = (t) => {
 		if (e.editor.words) return v.has(t) || (v.set(t, null), e.editor.words(t).then((e) => v.set(t, e)).catch(() => {})), v.get(t) ?? void 0;
 	}, b = (e, t) => {
@@ -773,26 +764,16 @@ async function ye(e) {
 		let t = R(e), n = t ? z(t) : "";
 		return u.has(n) ? n : ee(e.state.doc.sliceString(0, 2e4), d.length ? d : [f], f);
 	}, V = null, H = null, U = /* @__PURE__ */ new WeakMap(), W = e.context(), G = null, K = "", q = (t, n = "") => {
-		if (t + "\n" + n !== K) {
-			if (K = t + "\n" + n, !t) {
-				G?.remove(), G = null;
-				return;
+		t + "\n" + n !== K && (K = t + "\n" + n, t ? G ? G.set(t, n) : G = e.shell.statusItem({
+			id: "spelling",
+			text: t,
+			title: n,
+			panelWidth: 420,
+			run: () => e.plugin.openSettings(),
+			panel: (e, t) => {
+				V && _e(e, () => ye(V), xe(V, t));
 			}
-			if (G) {
-				G.set(t, n);
-				return;
-			}
-			G = e.shell.statusItem({
-				id: "spelling",
-				text: t,
-				title: n,
-				panelWidth: 420,
-				run: () => e.plugin.openSettings(),
-				panel: (e, t) => {
-					V && _e(e, () => ye(V), xe(V, t));
-				}
-			});
-		}
+		}) : (G?.remove(), G = null));
 	}, ue = (e) => !!e && P.has(e) && e.dom.isConnected, de = (e) => W.open.some((t) => t.path === e) || W.active?.path === e;
 	function J() {
 		let t = [...P].filter(ue), n = t.find((e) => e.hasFocus);
@@ -960,11 +941,7 @@ async function ye(e) {
 			this.view = e, P.add(e), this.decorations = Se(e);
 		}
 		update(e) {
-			if (e.transactions.some((e) => e.effects.some((e) => e.is(F)))) {
-				this.decorations = Se(e.view);
-				return;
-			}
-			e.focusChanged && (e.view.hasFocus && (H = e.view), Y()), e.docChanged && (this.decorations = this.decorations.map(e.changes)), (e.docChanged || e.viewportChanged || e.selectionSet) && (clearTimeout(this.timer), this.timer = window.setTimeout(() => this.view.dispatch({ effects: F.of(null) }), e.docChanged ? 400 : 120));
+			e.transactions.some((e) => e.effects.some((e) => e.is(F))) ? this.decorations = Se(e.view) : (e.focusChanged && (e.view.hasFocus && (H = e.view), Y()), e.docChanged && (this.decorations = this.decorations.map(e.changes)), (e.docChanged || e.viewportChanged || e.selectionSet) && (clearTimeout(this.timer), this.timer = window.setTimeout(() => this.view.dispatch({ effects: F.of(null) }), e.docChanged ? 400 : 120)));
 		}
 		destroy() {
 			clearTimeout(this.timer), P.delete(this.view), H === this.view && (H = null), queueMicrotask(Y);
@@ -1036,5 +1013,4 @@ async function ye(e) {
 		w.counted && t.length && w.count(t).then(L);
 	}), await C(), T().catch((e) => console.warn("spelling: the vault's words were not counted:", e));
 }
-//#endregion
 export { ye as register };

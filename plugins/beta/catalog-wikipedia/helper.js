@@ -1,7 +1,7 @@
 // Built from helper/helper.ts by scripts/dev/plugin-ui.mjs: edit the sources, not this file.
 (function(exports) {
 	Object.defineProperty(exports, Symbol.toStringTag, { value: "Module" });
-	//#region plugins/beta/catalog-wikipedia/helper/helper.ts
+	// plugins/beta/catalog-wikipedia/helper/helper.ts
 	const PAGE = /https?:\/\/([a-z]{2,3}(?:-[a-z]+)?)\.(?:m\.)?wikipedia\.org\/wiki\/([^\s?#]+)/i;
 	const EDGE = String.raw`(?:(?<![\p{L}\p{N}_])(?=[\p{L}\p{N}_])|(?<=[\p{L}\p{N}_])(?![\p{L}\p{N}_]))`;
 	const words = (src) => new RegExp(src.replaceAll(String.raw`\b`, EDGE), "iu");
@@ -84,7 +84,6 @@
 		}] };
 	}
 	atlas.methods({ recognize });
-	//#endregion
 	exports.kindOf = kindOf;
 	exports.qualifier = qualifier;
 	exports.queryUrl = queryUrl;

@@ -1,7 +1,7 @@
 // Built from helper/helper.ts by scripts/dev/plugin-ui.mjs: edit the sources, not this file.
 (function(exports) {
 	Object.defineProperty(exports, Symbol.toStringTag, { value: "Module" });
-	//#region plugins/beta/catalog-letterboxd/helper/helper.ts
+	// plugins/beta/catalog-letterboxd/helper/helper.ts
 	const SITE = "https://letterboxd.com";
 	const STATE = `.atlas/cache/${atlas.id}.json`;
 	const PER_RUN = 40;
@@ -481,7 +481,6 @@
 			}, (s) => atlas.write(STATE, JSON.stringify(s, null, 1)));
 		}
 	});
-	//#endregion
 	exports.diary = diary;
 	exports.filmFromPage = filmFromPage;
 	exports.filmsPage = filmsPage;

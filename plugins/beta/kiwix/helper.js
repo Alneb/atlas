@@ -1,7 +1,7 @@
 // Built from helper/helper.ts by scripts/dev/plugin-ui.mjs: edit the sources, not this file.
 (function(exports) {
 	Object.defineProperty(exports, Symbol.toStringTag, { value: "Module" });
-	//#region plugins/beta/kiwix/helper/helper.ts
+	// plugins/beta/kiwix/helper/helper.ts
 	/** The server's books, kept a while: listed once, not on every keystroke of a search. */
 	let kept = null;
 	const KEEP_MS = 6e5;
@@ -69,7 +69,6 @@ search: async (params) => {
 		}
 		return { hits: hits.slice(0, limit) };
 	} });
-	//#endregion
 	exports.booksOf = booksOf;
 	exports.chosen = chosen;
 	return exports;

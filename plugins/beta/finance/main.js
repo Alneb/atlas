@@ -1,5 +1,5 @@
 import { $ as e, A as t, B as n, H as r, J as i, K as a, M as o, O as s, P as c, Q as l, V as u, W as d, X as f, Y as p, Z as m, a as h, i as g, j as _, k as v, n as y, o as b, r as x, t as S, tt as C, w } from "./ui-lib/Spending.js";
-//#region plugins/beta/finance/ui/src/Block.svelte
+// plugins/beta/finance/ui/src/Block.svelte
 var T = c("<div class=\"atlas-notice error\"> </div>"), E = c("<div class=\"atlas-empty\">Reading the journal…</div>"), D = c("<div class=\"finance-block svelte-duo2s6\"><!></div>"), O = {
 	hash: "svelte-duo2s6",
 	code: ".finance-block.svelte-duo2s6 {font-size:0.95em;}"
@@ -63,8 +63,7 @@ function k(c, _) {
 		n(N) ? e(L) : _.kind === "register" ? e(R, 1) : n(j) ? _.kind === "balance" ? e(B, 3) : e(V, -1) : e(z, 2);
 	}), C(F), o(c, F), l();
 }
-//#endregion
-//#region plugins/beta/finance/ui/src/main.ts
+// plugins/beta/finance/ui/src/main.ts
 var A = [
 	["balance", "Finance: balances"],
 	["spending", "Finance: this month"],
@@ -110,5 +109,4 @@ function j(e) {
 		}]
 	});
 }
-//#endregion
 export { j as register };

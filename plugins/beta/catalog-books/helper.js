@@ -1,7 +1,7 @@
 // Built from helper/helper.ts by scripts/dev/plugin-ui.mjs: edit the sources, not this file.
 (function(exports) {
 	Object.defineProperty(exports, Symbol.toStringTag, { value: "Module" });
-	//#region plugins/beta/catalog-books/helper/helper.ts
+	// plugins/beta/catalog-books/helper/helper.ts
 	const OL = "https://openlibrary.org";
 	/** The publisher among several an edition lists: Open Library mixes in imprints and data slips (a physics textbook's
 	*  "Pearson Dental" before "Pearson Education"), so a name that reads as a publishing house goes first; else the first. */
@@ -95,7 +95,6 @@
 		};
 	}
 	atlas.methods({ lookup });
-	//#endregion
 	exports.lookup = lookup;
 	exports.publisherOf = publisherOf;
 	exports.withCoauthors = withCoauthors;

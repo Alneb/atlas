@@ -1,7 +1,7 @@
 // Built from helper/helper.ts by scripts/dev/plugin-ui.mjs: edit the sources, not this file.
 (function(exports) {
 	Object.defineProperty(exports, Symbol.toStringTag, { value: "Module" });
-	//#region plugins/beta/catalog-anime/helper/helper.ts
+	// plugins/beta/catalog-anime/helper/helper.ts
 	const ANILIST = "https://graphql.anilist.co";
 	const MANGADEX = "https://api.mangadex.org";
 	const QUERY = `query ($id: Int, $mal: Int, $type: MediaType) {
@@ -92,7 +92,6 @@
 		};
 	}
 	atlas.methods({ lookup });
-	//#endregion
 	exports.lookup = lookup;
 	exports.plain = plain;
 	return exports;

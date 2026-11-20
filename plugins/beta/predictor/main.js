@@ -1,4 +1,4 @@
-//#region ui/src/lib/editor/prose.ts
+// ui/src/lib/editor/prose.ts
 var e = /* @__PURE__ */ new Set([
 	"FencedCode",
 	"CodeBlock",
@@ -68,8 +68,7 @@ function o(e, t, n, r) {
 	let [l, u] = [...s].sort((e, t) => t[1] - e[1])[0] ?? [n, 0];
 	return c >= 12 && u >= 3 ? l : n;
 }
-//#endregion
-//#region plugins/beta/predictor/ui/src/model.ts
+// plugins/beta/predictor/ui/src/model.ts
 var s = () => ({
 	words: /* @__PURE__ */ new Map(),
 	forms: /* @__PURE__ */ new Map(),
@@ -197,8 +196,7 @@ function y(e, t, n, r) {
 		firstWord: u || l.length
 	} : null;
 }
-//#endregion
-//#region ui/src/lib/editor/vault-count.ts
+// ui/src/lib/editor/vault-count.ts
 function b(e, t, n, r = 20) {
 	let i = /* @__PURE__ */ new Map(), a = !1, o = (e, n) => {
 		for (let r of n) {
@@ -230,8 +228,7 @@ function b(e, t, n, r = 20) {
 		}
 	};
 }
-//#endregion
-//#region plugins/beta/predictor/ui/src/main.ts
+// plugins/beta/predictor/ui/src/main.ts
 var x = [
 	"en",
 	"es",
@@ -388,5 +385,4 @@ async function S(e) {
 		} })
 	]), _().catch((e) => console.warn("predictor: the vault was not learned:", e));
 }
-//#endregion
 export { S as register };

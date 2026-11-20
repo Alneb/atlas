@@ -1,7 +1,7 @@
 // Built from helper/helper.ts by scripts/dev/plugin-ui.mjs: edit the sources, not this file.
 (function(exports) {
 	Object.defineProperty(exports, Symbol.toStringTag, { value: "Module" });
-	//#region plugins/beta/audiobookshelf/abs.js
+	// plugins/beta/audiobookshelf/abs.js
 	/** What a play session is opened with (here and by the helper, which opens one again when the server ended it): the
 	*  device (its listening stats are per device) and the audio played as the files are — the app's player takes them all. */
 	function playBody(device) {
@@ -25,8 +25,7 @@
 			]
 		};
 	}
-	//#endregion
-	//#region plugins/beta/audiobookshelf/helper/helper.ts
+	// plugins/beta/audiobookshelf/helper/helper.ts
 	const STATE = `.atlas/cache/${atlas.id}.json`;
 	/** Player reports the server could not take (offline), kept until it answers again: a file of their own, so the
 	*  catalog's `sync` and the player's reports never write over each other. */
@@ -355,7 +354,6 @@
 			save: (s) => atlas.write(STATE, JSON.stringify(s, null, 1))
 		}, params)
 	});
-	//#endregion
 	exports.bookOf = bookOf;
 	exports.duration = duration;
 	exports.lookupWith = lookupWith;

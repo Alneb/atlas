@@ -1,6 +1,6 @@
 // Built from helper/helper.ts by scripts/dev/plugin-ui.mjs: edit the sources, not this file.
 (function() {
-	//#region plugins/beta/jellyfin/jf.js
+	// plugins/beta/jellyfin/jf.js
 	/** Jellyfin counts time in ticks of 100 ns. */
 	const TICKS = 1e7;
 	const ticks = (s) => Math.round(Math.max(0, Number(s) || 0) * TICKS);
@@ -34,8 +34,7 @@
 			}
 		};
 	}
-	//#endregion
-	//#region plugins/beta/jellyfin/helper/helper.ts
+	// plugins/beta/jellyfin/helper/helper.ts
 	const serverOf = (p) => String(p.settings?.server ?? "").trim().replace(/\/+$/, "");
 	atlas.methods({ progress: async (params) => {
 		const server = serverOf(params);
@@ -48,5 +47,4 @@
 		});
 		return { key };
 	} });
-	//#endregion
 })();
