@@ -3,7 +3,7 @@
 // player as itself (`<item>/<episode>`: the server's `/play/<episode>`), so where you are is kept per episode.
 import { clock } from "./abs.js";
 import { episodesOf, progressMap } from "./shelf.js";
-import { el } from "./cards.js";
+import { el, notLoaded } from "./cards.js";
 
 const day = (ms) => (ms ? new Date(ms).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" }) : "");
 
@@ -37,7 +37,7 @@ export function podcast(root, atlas, a, item) {
         li.append(b);
         return li;
       }));
-    } catch (e) { status.textContent = `Not loaded: ${e.message ?? e}`; }
+    } catch (e) { notLoaded(status, atlas, e, load); }
   }
   void load();
   return { reload: load };

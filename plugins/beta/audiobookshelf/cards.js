@@ -6,6 +6,21 @@ import { clock } from "./abs.js";
 export const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; };
 
 /** The line under a card's title. */
+/** What a pane shows when the server could not be read: never the raw error. Not set up (no address or token, a
+ *  sign-in refused) → what is missing and a button to the plugin's settings; anything else → that the server did not
+ *  answer, the reason small, and Try again. `retry` reloads. */
+export function notLoaded(status, atlas, e, retry) {
+  const why = String(e?.message ?? e ?? "");
+  const setup = /no secret|not set|no server|server_url|sign in|signin|401|403|unauthori[sz]ed/i.test(why);
+  const box = el("div", "abs-empty");
+  box.append(el("p", "abs-empty-title", setup ? "Audiobookshelf is not connected yet" : "Audiobookshelf did not answer"));
+  box.append(el("p", "abs-dim", setup ? "Add your server's address and sign in (or paste an API token) in this plugin's settings." : "The server may be off or out of reach. " + why.replace(/^.*?: (\d{3} )?/, "")));
+  const btn = el("button", "atlas-btn", setup ? "Open its settings" : "Try again");
+  btn.onclick = () => (setup && atlas.openSettings ? atlas.openSettings() : retry());
+  box.append(btn);
+  status.replaceChildren(box);
+}
+
 export function subOf(c) {
   if (c.kind === "episode") return [c.sub, c.duration && clock(c.duration, true)].filter(Boolean).join(" · ");
   if (c.kind === "show") return [c.author, c.episodes ? `${c.episodes} episodes` : ""].filter(Boolean).join(" · ");
@@ -82,6 +97,8 @@ export function style() {
 .abs-add { display: flex; gap: 6px; padding: 8px 0; }
 .abs-add input, .abs-search { flex: 1; min-width: 0; padding: 6px 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg-elev); color: var(--text); }
 .abs-empty { color: var(--text-muted); padding: 8px 0; }
+.abs-empty-title { color: var(--text); font-weight: 600; margin: 0 0 4px; }
+.abs-empty .atlas-btn { margin-top: 8px; }
 .abs-home { padding: 16px 20px 32px; display: flex; flex-direction: column; gap: 18px; color: var(--text); }
 .abs-home-bar { display: flex; gap: 8px; align-items: center; }
 .abs-lib-title { margin: 8px 0 0; font-size: 1.1em; color: var(--text-muted); font-weight: 600; }

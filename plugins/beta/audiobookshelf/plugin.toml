@@ -7,7 +7,7 @@ title = "Audiobookshelf"
 description = "your Audiobookshelf: audiobooks to listen to — chapters, speed, sleep timer, where you are synced — and as book notes in the catalog"
 phone = true # runs in the phone apps too (only plugins marked so start there)
 icon = "headphones"
-version = "0.16.1"
+version = "0.16.2"
 api = 32
 needs = ">=0.3.0"          # the first core that reads `background` (older ones refuse the key)
 background = "server"  # the library sync writes book notes: one poller, not one per open device

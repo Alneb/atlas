@@ -4,7 +4,7 @@
 // podcast in its episodes; a series, a collection or a playlist opens as a sheet of its cards here.
 import { cardOf, collectionsOf, hitsOf, playlistsOf, progressMap, shelvesOf, statsOf } from "./shelf.js";
 import { clock } from "./abs.js";
-import { el, rowEl, cardEl } from "./cards.js";
+import { el, rowEl, cardEl, notLoaded } from "./cards.js";
 
 export function home(root, atlas, a) {
   root.className = "abs-home";
@@ -38,7 +38,7 @@ export function home(root, atlas, a) {
       }));
       status.textContent = shelves.some((s) => s.rows.length) ? "" : "Nothing on the shelves yet.";
       if (!search.value.trim()) draw();
-    } catch (e) { status.textContent = `Not loaded: ${e.message ?? e}`; }
+    } catch (e) { notLoaded(status, atlas, e, load); }
   }
   function draw() {
     const many = shelves.length > 1;
