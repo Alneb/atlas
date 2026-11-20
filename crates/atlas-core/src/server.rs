@@ -3187,15 +3187,19 @@ fn start_vault(root: &std::path::Path, port: u16, auth: Option<Arc<crate::auth::
     }
     let routes = router(state.clone());
     state.helpers.answer_with(routes.clone()); // helpers' calls back (helper_api.rs); a cycle that lives as long as the vault
-    // the vault's former [refs] settings become catalog-papers' (REFACTOR-references-plugin.md), keys it has win
-    if let Err(e) = crate::plugins::adopt_config_section(state.ws.root(), "refs", "catalog-papers") {
-        eprintln!("atlas: [refs] → catalog-papers settings: {e}");
+    // The vault's plugins and their settings brought up to date. Not in a guest folder: its plugins and settings are
+    // its opener's (linked, guest.rs), which the opener's own start updates — a guest never writes them.
+    if !crate::guest::is_guest(state.ws.root()) {
+        // the vault's former [refs] settings become catalog-papers' (REFACTOR-references-plugin.md), keys it has win
+        if let Err(e) = crate::plugins::adopt_config_section(state.ws.root(), "refs", "catalog-papers") {
+            eprintln!("atlas: [refs] → catalog-papers settings: {e}");
+        }
+        // settings values never live in a manifest: an older vault's `[settings]` move to .atlas/plugin-settings/ (once)
+        crate::plugins::move_all_settings_out(state.ws.root());
+        // a merged plugin copied in by hand takes over the settings of the plugins it replaces (plugin_install.rs)
+        crate::plugin_install::adopt_all_replaced(state.ws.root());
+        crate::plugins::hide_legacy_rails(state.ws.root());
     }
-    // settings values never live in a manifest: an older vault's `[settings]` move to .atlas/plugin-settings/ (once)
-    crate::plugins::move_all_settings_out(state.ws.root());
-    // a merged plugin copied in by hand takes over the settings of the plugins it replaces (plugin_install.rs)
-    crate::plugin_install::adopt_all_replaced(state.ws.root());
-    crate::plugins::hide_legacy_rails(state.ws.root());
     for id in crate::plugins::helpers_started_with_vault(state.ws.root(), &off) {
         if let Err(e) = state.helpers.start(&id) {
             eprintln!("atlas: plugin {id}: its helper did not start with the vault: {e}");

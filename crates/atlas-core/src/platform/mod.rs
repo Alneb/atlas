@@ -5,6 +5,7 @@ pub mod capture_key;
 pub mod dirs;
 pub mod host;
 pub mod idle;
+pub mod link;
 pub mod open;
 pub mod proc;
 pub mod run_line;

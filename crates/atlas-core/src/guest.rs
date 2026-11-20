@@ -88,7 +88,7 @@ pub fn prepare(folder: &Path, opener: &Path) -> std::result::Result<PathBuf, Ref
     let link = folder.join(".atlas");
     let state = slot(&folder).join(".atlas");
     match link.symlink_metadata() {
-        Ok(m) if m.file_type().is_symlink() && std::fs::read_link(&link).is_ok_and(|t| t == state) => {}
+        Ok(m) if m.file_type().is_symlink() && crate::platform::link::points_at(&link, &state) => {}
         Ok(_) => return Err(Refused::AVault),
         Err(_) => {}
     }
@@ -134,13 +134,23 @@ pub fn is_guest(root: &Path) -> bool {
     mark_of(root).is_some()
 }
 
-/// Refuses every change outside its `.atlas` while editing is off.
+/// Refuses every change outside its `.atlas` while editing is off, and always one into what its `.atlas` links to
+/// from the opener ([`SHARED`]: the opener's plugins and their settings, which a guest uses but never changes — a
+/// plugin installed, updated or set up from a guest's window would land in the opener's vault).
 struct ReadOnly {
     editing: AtomicBool,
 }
 
+/// `rel` (from the guest's root) inside one of the opener's folders its `.atlas` links to.
+fn the_openers(rel: &str) -> bool {
+    SHARED.iter().any(|name| rel.strip_prefix(".atlas/").and_then(|r| r.strip_prefix(name)).is_some_and(|r| r.is_empty() || r.starts_with('/')))
+}
+
 impl WriteGuard for ReadOnly {
     fn before(&self, rel: &str, _: &WriteKind, _: Option<ContentHash>) -> Result<()> {
+        if the_openers(rel) {
+            return Err(Error::BadRequest(format!("a guest folder uses its opener's plugins and their settings but does not change them ({rel}): change them in the vault's own window")));
+        }
         if self.editing.load(Ordering::Relaxed) || rel == ".atlas" || rel.starts_with(".atlas/") {
             return Ok(());
         }
@@ -213,7 +223,7 @@ fn forget_slot(slot: &Path) -> Result<()> {
     let state = slot.join(".atlas");
     if let Some(m) = std::fs::read_to_string(state.join(MARK)).ok().and_then(|t| toml::from_str::<Mark>(&t).ok()) {
         let link = Path::new(&m.folder).join(".atlas");
-        if std::fs::read_link(&link).is_ok_and(|t| t == state) {
+        if crate::platform::link::points_at(&link, &state) {
             // the folder's own entry: through its guard when one is still installed (it allows `.atlas`)
             vault_write::remove_link(&link).map_err(|e| Error::Other(anyhow::anyhow!("the guest link {} stays: {e}", link.display())))?;
         }
@@ -237,6 +247,16 @@ pub fn sweep() -> usize {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_openers_folders_are_the_two_linked_ones_only() {
+        for rel in [".atlas/plugins", ".atlas/plugins/x/main.js", ".atlas/plugin-settings", ".atlas/plugin-settings/x.json"] {
+            assert!(the_openers(rel), "{rel}");
+        }
+        for rel in [".atlas/plugins-old/x", ".atlas/cache/plugins/x", ".atlas/config.toml", "plugins/x", ".atlas"] {
+            assert!(!the_openers(rel), "{rel}");
+        }
+    }
 
     /// One test, as `ATLAS_GUESTS` is process-wide.
     #[test]
@@ -267,8 +287,11 @@ mod tests {
         assert!(vault_write::write(&root.join("a.md"), b"changed").is_err(), "read-only until Edit");
         vault_write::cache::write(&root.join(".atlas/cache/x.json"), b"{}").unwrap();
         assert_eq!(std::fs::read_to_string(root.join("a.md")).unwrap(), "# A\n");
+        assert!(vault_write::write(&root.join(".atlas/plugins/viewer/main.js"), b"x").is_err(), "the opener's plugins");
         assert!(set_editing(&root, true).unwrap().editing);
         vault_write::write(&root.join("a.md"), b"changed").unwrap();
+        assert!(vault_write::write(&root.join(".atlas/plugins/viewer/main.js"), b"x").is_err(), "not even with Edit on");
+        assert!(!vault.join(".atlas/plugins/viewer/main.js").exists());
         ws.clear_write_guard();
 
         // closed now: no longer listed, its link and state gone, its files kept; opened again it starts afresh
