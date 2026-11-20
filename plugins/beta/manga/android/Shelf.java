@@ -54,7 +54,7 @@ final class Shelf {
      *  Browse.categories); one it does not name goes after, by name. */
     static List<String> tabs(List<Item> items, String server, List<String> order) {
         List<String> out = new ArrayList<>();
-        boolean started = false, vault = false, uncategorised = false, remote = false;
+        boolean started = false, vault = false, remote = false;
         Set<String> cats = new java.util.TreeSet<>((a, b) -> {
             int x = order.indexOf(a), y = order.indexOf(b);
             if (x < 0) x = Integer.MAX_VALUE;
@@ -67,13 +67,12 @@ final class Shelf {
             started |= i.lastRead > 0;
             if (i.origin == Origin.VAULT) { vault = true; continue; }
             remote = true;
-            if (i.categories.isEmpty()) uncategorised = true;
             cats.addAll(i.categories);
         }
         if (started) out.add(READING);
         if (remote && cats.isEmpty()) out.add(server);
         else {
-            if (uncategorised) out.add(DEFAULT);
+            if (remote) out.add(DEFAULT); // every series, the vault's too: one in a category was found only on its own tab
             out.addAll(cats);
         }
         if (vault) out.add(VAULT);
@@ -127,10 +126,12 @@ final class Shelf {
         return shelf(tab, items, filter, server, order, descending, Show.ALL);
     }
 
-    /** The same, keeping only the series `show` keeps. */
+    /** The same, keeping only the series `show` keeps. A search looks on every shelf, not only the tab shown: a series
+     *  on "Reading" was "Nothing here matches" when searched from "Default". */
     static List<Item> shelf(String tab, List<Item> items, String filter, String server, Order order, boolean descending, Show show) {
         List<Item> out = new ArrayList<>();
-        for (Item i : items) if (in(tab, i, server) && matches(i, filter) && show.keeps(i)) out.add(i);
+        boolean searching = filter != null && !filter.trim().isEmpty();
+        for (Item i : items) if ((searching || in(tab, i, server)) && matches(i, filter) && show.keeps(i)) out.add(i);
         Comparator<Item> byTitle = (a, b) -> natural(a.title, b.title);
         Comparator<Item> c;
         switch (order == Order.AUTO ? (READING.equals(tab) ? Order.LAST_READ : Order.TITLE) : order) {
@@ -147,9 +148,10 @@ final class Shelf {
     private static boolean in(String tab, Item i, String server) {
         if (READING.equals(tab)) return i.lastRead > 0;
         if (VAULT.equals(tab)) return i.origin == Origin.VAULT;
+        if (DEFAULT.equals(tab)) return true; // everything
         if (i.origin != Origin.SERVER) return false;
         if (tab.equals(server) && !DEFAULT.equals(tab)) return true; // the one tab of a server with no categories
-        return DEFAULT.equals(tab) ? i.categories.isEmpty() : i.categories.contains(tab);
+        return i.categories.contains(tab);
     }
 
     /** Every word of `filter` in the title (any case, any order). */

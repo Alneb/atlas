@@ -55,7 +55,9 @@ export function linkOf(t: TaskName): string {
 
 /** A link back to the task's key and title key. */
 function fromLink(link: string): { key: string; titleKey: string } | null {
-  const m = /^\[\[([^\]|#]+)(?:#\^([\w-]+))?(?:\|([^\]]*))?\]\]$/.exec(link.trim());
+  // the alias may hold single brackets (a title with a link or a pasted picture: `Ver [Chungking Express]`): taken up
+  // to the closing `]]` — `[^\]]*` read no such line back, the nudge was never seen, and it rang every five minutes
+  const m = /^\[\[([^\]|#]+)(?:#\^([\w-]+))?(?:\|(.*))?\]\]$/.exec(link.trim());
   if (!m) return null;
   const path = /\.\w+$/.test(m[1]) ? m[1] : `${m[1]}.md`;
   const t = { path, title: m[3] ?? "", block: m[2] };

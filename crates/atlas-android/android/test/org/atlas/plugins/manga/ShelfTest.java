@@ -54,21 +54,22 @@ public final class ShelfTest {
         List<Shelf.Item> plain = Arrays.asList(server("A", 0), server("B", 0));
         eq("a server with no categories is one tab, named for it", Arrays.asList("Suwayomi"), Shelf.tabs(plain, "Suwayomi"));
         List<Shelf.Item> allIn = Arrays.asList(server("A", 0, "Weekly"), server("B", 0, "Weekly"));
-        eq("no Default when every series has a category", Arrays.asList("Weekly"), Shelf.tabs(allIn, "Suwayomi"));
+        eq("Default (everything) even when every series has a category", Arrays.asList("Default", "Weekly"), Shelf.tabs(allIn, "Suwayomi"));
         eq("only the vault", Arrays.asList("In the vault"), Shelf.tabs(Arrays.asList(vault("x", 0)), "Suwayomi"));
         eq("an empty library has no tabs", new ArrayList<String>(), Shelf.tabs(new ArrayList<>(), "Suwayomi"));
-        eq("categories in natural order", Arrays.asList("Vol 2", "Vol 10"), Shelf.tabs(Arrays.asList(server("a", 0, "Vol 10"), server("b", 0, "Vol 2")), "S"));
+        eq("categories in natural order, after Default", Arrays.asList("Default", "Vol 2", "Vol 10"), Shelf.tabs(Arrays.asList(server("a", 0, "Vol 10"), server("b", 0, "Vol 2")), "S"));
     }
 
     static void shelves() {
         List<Shelf.Item> lib = Arrays.asList(server("Vinland Saga", 30, "Weekly"), server("Akira", 0), server("Monster 10", 0, "Weekly"),
             server("Monster 2", 0, "Weekly"), vault("Local Comic", 50), vault("Another", 0));
         eq("a category's series by title, numbers as numbers", Arrays.asList("Monster 2", "Monster 10", "Vinland Saga"), titles(Shelf.shelf("Weekly", lib, null, "S")));
-        eq("Default: the server's series in no category", Arrays.asList("Akira"), titles(Shelf.shelf("Default", lib, "", "S")));
+        eq("Default: every series, in a category or not, the vault's too", Arrays.asList("Akira", "Another", "Local Comic", "Monster 2", "Monster 10", "Vinland Saga"), titles(Shelf.shelf("Default", lib, "", "S")));
         eq("the vault's tab", Arrays.asList("Another", "Local Comic"), titles(Shelf.shelf(Shelf.VAULT, lib, null, "S")));
         eq("Reading: started ones, last read first, from both", Arrays.asList("Local Comic", "Vinland Saga"), titles(Shelf.shelf(Shelf.READING, lib, null, "S")));
         eq("the filter: every word, any case", Arrays.asList("Monster 10"), titles(Shelf.shelf("Weekly", lib, "monster 10", "S")));
         eq("the filter matches nothing", new ArrayList<String>(), titles(Shelf.shelf("Weekly", lib, "zzz", "S")));
+        eq("a search looks on every shelf, not only the tab shown", Arrays.asList("Vinland Saga"), titles(Shelf.shelf("Default", lib, "vinland", "S")));
         List<Shelf.Item> plain = Arrays.asList(server("B", 0), server("A", 0), vault("V", 0));
         eq("a server with no categories: its one tab lists all of it", Arrays.asList("A", "B"), titles(Shelf.shelf("Suwayomi", plain, null, "Suwayomi")));
     }

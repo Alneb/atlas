@@ -98,7 +98,7 @@
 	}
 	/** A link back to the task's key and title key. */
 	function fromLink(link) {
-		const m = /^\[\[([^\]|#]+)(?:#\^([\w-]+))?(?:\|([^\]]*))?\]\]$/.exec(link.trim());
+		const m = /^\[\[([^\]|#]+)(?:#\^([\w-]+))?(?:\|(.*))?\]\]$/.exec(link.trim());
 		if (!m) return null;
 		const t = {
 			path: /\.\w+$/.test(m[1]) ? m[1] : `${m[1]}.md`,
@@ -582,6 +582,7 @@
 			quietMeasured: raw.quiet_measured === true,
 			horizon: num("horizon", 7),
 			stale: num("stale", 2),
+			staleMax: num("stale_max", 30),
 			threshold: num("threshold", 1),
 			maxPerDay: num("max_per_day", 0),
 			minGap: num("min_gap", 0),
@@ -778,7 +779,8 @@
 	}
 	/** Which tasks may nudge (§3.1, decision 7): dated within the horizon or overdue, or priority ≥ high — and, with no
 	*  date at all, one left open `stale` days or more (most real to-dos are written undated: a daily log's `- [ ] …`
-	*  lines; without this nothing ever qualified). Not in an excluded folder, not untitled; its 🛫 start come. Important
+	*  lines; without this nothing ever qualified) but not over `staleMax` (a task open for months is a someday: those
+	*  rang, 164 to 418 days old). Not in an excluded folder, not untitled; its 🛫 start come. Important
 	*  (not budgeted): ⏫/🔺, overdue, due today — an old undated task never is, so the budget holds it. */
 	function judge(t, s, today) {
 		const name = {
@@ -793,7 +795,7 @@
 		const within = !!date && daysBetween(today, date) <= s.horizon;
 		const written = date ? null : writtenOf(t);
 		const waited = written ? daysBetween(written, today) : -1;
-		const stale = !date && s.stale > 0 && waited >= s.stale;
+		const stale = !date && s.stale > 0 && waited >= s.stale && waited <= s.staleMax;
 		const pr = pressure(t, today);
 		const p = stale ? 1 + Math.min(waited - s.stale, 14) / 28 : pr.p;
 		const words = stale ? `open ${waited} days` : pr.words;

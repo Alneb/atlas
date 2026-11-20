@@ -177,6 +177,10 @@ test("an undated task left open for days may nudge (a daily log's - [ ] line), b
   assert.equal(judge(task("someday"), s, today).eligible, false, "no date anywhere: never");
   assert.equal(judge(log("2026-11-01", "  "), s, today).eligible, false, "an empty template line is no task");
   assert.equal(judge(log("2026-11-01", "old"), settingsOf({ stale: 0 }), today).eligible, false, "0: off");
+  // open for months: a someday, not a to-do (164 to 418 days old ones rang)
+  const months = task("Ver [[Chungking Express]]", { path: "notes/periodic/2025/09-septiembre/2025-09-28 dom..md" });
+  assert.equal(judge(months, s, today).eligible, false, "past stale_max (30)");
+  assert.equal(judge(months, settingsOf({ stale_max: 500 }), today).eligible, true, "its own limit");
   // the planner nudges it in a free gap
   const n = plan(input(clock("10:00"), [log("2026-11-10", "check host bath hyb")])).planned;
   assert.equal(n.length, 1);
@@ -421,4 +425,12 @@ test("the measured quiet hours replace Settings' range only with `quiet_measured
 
 test("a used line says whole hours only", () => {
   assert.equal(hoursText([1.9, 9, 10, 10.13]), "09:00–11:00");
+});
+
+test("a nudge whose title holds brackets is read back from the ledger (it rang every five minutes)", () => {
+  const c = clock("10:00");
+  const t = { path: "notes/periodic/2025/09-septiembre/2025-09-28 dom..md", title: "Ver [[Chungking Express]]" };
+  const line = renderLine({ at: at("09:33", "2026-11-16"), kind: "nudged", key: keyOf(t), detail: "score 1.5" }, c, t);
+  const [e] = parse(line, c);
+  assert.equal(e?.key, keyOf(t), line);
 });

@@ -41,6 +41,8 @@ export interface Settings {
   horizon: number;
   /** An open task with no date may nudge once it has waited this many days (its ➕ date, else its note's date): 0 = never. */
   stale: number;
+  /** …and no longer once it has waited more than this many days: left that long, it is a someday, not a to-do. */
+  staleMax: number;
   threshold: number;
   /** 0: measured from the ledger. */
   maxPerDay: number;
@@ -69,6 +71,7 @@ export function settingsOf(raw: Record<string, unknown> = {}): Settings {
     quietMeasured: raw.quiet_measured === true,
     horizon: num("horizon", 7),
     stale: num("stale", 2),
+    staleMax: num("stale_max", 30),
     threshold: num("threshold", 1),
     maxPerDay: num("max_per_day", 0),
     minGap: num("min_gap", 0),
@@ -332,7 +335,8 @@ export function writtenOf(t: Task): string | null {
 
 /** Which tasks may nudge (§3.1, decision 7): dated within the horizon or overdue, or priority ≥ high — and, with no
  *  date at all, one left open `stale` days or more (most real to-dos are written undated: a daily log's `- [ ] …`
- *  lines; without this nothing ever qualified). Not in an excluded folder, not untitled; its 🛫 start come. Important
+ *  lines; without this nothing ever qualified) but not over `staleMax` (a task open for months is a someday: those
+ *  rang, 164 to 418 days old). Not in an excluded folder, not untitled; its 🛫 start come. Important
  *  (not budgeted): ⏫/🔺, overdue, due today — an old undated task never is, so the budget holds it. */
 export function judge(t: Task, s: Settings, today: string): Judged {
   const name = { path: t.path, title: t.title, block: t.block };
@@ -343,7 +347,7 @@ export function judge(t: Task, s: Settings, today: string): Judged {
   const within = !!date && daysBetween(today, date) <= s.horizon;
   const written = date ? null : writtenOf(t);
   const waited = written ? daysBetween(written, today) : -1;
-  const stale = !date && s.stale > 0 && waited >= s.stale;
+  const stale = !date && s.stale > 0 && waited >= s.stale && waited <= s.staleMax;
   const pr = pressure(t, today);
   // an old undated task presses as a task due within the week does, a little more each day it waits (1 → 1.5 over a
   // fortnight): enough to pass the threshold in a free gap, never as much as one due tomorrow (1.6)
