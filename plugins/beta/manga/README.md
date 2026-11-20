@@ -40,13 +40,16 @@ a click.
   series' chapters, the series says so under the buttons: how many are left, the one under way and how far, the failed
   ones (`downloadStatus`, every 3 s).
 - **On the phone**: a reader app of its own (`android/`). Its **library** (*Manga: library*) shows the Suwayomi
-  server's categories as tabs, the vault's series in theirs and a **Reading** tab that opens a series where it was
-  left; covers in a grid or a list, unread counts, a filter, pull to refresh. A **series** (also what a tap in the
+  server's categories as tabs, the vault's series in theirs and a **Reading** tab (started series, last read first);
+  a tap opens the series' screen, whose Continue goes on where you were; covers in a grid or a list, unread counts, a filter, pull to refresh. A **series** (also what a tap in the
   page's Comics opens there) has Continue, its chapters read and unread, a long press to mark read or unread, keep
   one for offline or download it (or every unread one) on the server ("on the server" on its row), and **Keep the next 5 for offline**. The **reader** turns pages by swipe or tap in every mode,
   slides the page with the finger (not on e-ink), scrolls before it turns in fit width, zooms by pinch and double tap,
-  and shows a page between chapters (what was finished, what is next, chapters missing). It fetches pages in
-  parallel, decodes them at the screen's size (JPEG XL included) and works only on the pages near where you are.
+  and shows a page between chapters (what was finished, what is next, chapters missing), which a quick second swipe
+  does not run past. It preloads as Mihon does: the page on screen first, then the next five the way you read, two
+  behind and the next chapter's first three near a chapter's end, in that order (a page turned away from is dropped
+  before it is fetched); a page on its way shows a spinner and its download's percentage; pages are decoded at about
+  the screen's size (JPEG XL and AVIF in Rust, at the normal priority) and kept decoded in memory.
   Both sides keep a Suwayomi chapter's page list and pictures, a series' chapters and the covers in one place, the
   vault's `.atlas/cache/plugins/manga/suwayomi/` (`android/Kept.java` gives the layout): a chapter read once, or kept
   for offline on either side, opens and reads with the server out of reach, the library and its series as last seen.

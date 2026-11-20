@@ -5,6 +5,11 @@ and versions follow [Semantic Versioning](https://semver.org/) once 1.0 is out.
 
 ## [Unreleased]
 
+### Fixed
+- **`atlas` is found by everything the Flatpak starts**: agent tabs, terminals and helpers get `~/.local/bin` (the
+  Flatpak's `atlas` launcher) first on their PATH, so an agent's `atlas mcp` starts the Flatpak's, not some other
+  build; when the session's PATH lacks that folder, a `~/.config/environment.d` drop-in adds it from the next login.
+
 ## [0.4.6] - 2026-11-20
 
 ### Fixed

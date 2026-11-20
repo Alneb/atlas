@@ -378,9 +378,28 @@ final class Suwayomi {
     }
 
     /** A page's bytes, kept in the vault's cache (Kept.page, where the web side keeps it too): a page read once is
-     *  there offline, and turning back costs nothing. Written whole, once fetched whole. */
-    static byte[] page(Host host, String chapter, int i, String url) throws IOException {
-        return kept(host).once(Kept.page(idOf(chapter), i), () -> Web.get(host.activity(), url));
+     *  there offline, and turning back costs nothing. The bytes are answered as soon as they are here and written
+     *  behind (BEHIND): writing a 3 MB page into a server's vault before showing it cost seconds a page. */
+    static byte[] page(Host host, String chapter, int i, String url) throws IOException { return page(host, chapter, i, url, null); }
+
+    /** As page(), `progress` told how far the download has come (Web.get). */
+    static byte[] page(Host host, String chapter, int i, String url, java.util.function.IntConsumer progress) throws IOException {
+        return kept(host).once(Kept.page(idOf(chapter), i), () -> Web.get(host.activity(), url, progress), BEHIND);
+    }
+
+    /** The cache's writes of pages, one at a time behind the reader at a low priority; with a few waiting, the next one
+     *  is written by the thread that fetched it (a "keep for offline" never piles up pages in memory). */
+    private static final java.util.concurrent.ThreadPoolExecutor BEHIND = behind();
+
+    private static java.util.concurrent.ThreadPoolExecutor behind() {
+        java.util.concurrent.ThreadPoolExecutor e = new java.util.concurrent.ThreadPoolExecutor(1, 1, 30, java.util.concurrent.TimeUnit.SECONDS,
+            new java.util.concurrent.ArrayBlockingQueue<>(4), r -> {
+                Thread t = new Thread(() -> { android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_BACKGROUND); r.run(); }, "manga-keep-behind");
+                t.setDaemon(true);
+                return t;
+            }, new java.util.concurrent.ThreadPoolExecutor.CallerRunsPolicy());
+        e.allowCoreThreadTimeOut(true);
+        return e;
     }
 
     /** Where you are, written back to the server (Mihon's other clients see it). */

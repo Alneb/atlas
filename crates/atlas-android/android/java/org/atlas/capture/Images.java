@@ -5,7 +5,7 @@ import android.graphics.BitmapFactory;
 
 /** Pictures for the native plugins, at the size they are shown (a manga page is decoded for the screen, not whole):
  *  the app's Rust library for JPEG XL, which no Android decoder reads, and for AVIF, which Android's decoders refuse in
- *  forms manga sources serve (Core.decodePicture); Android's own for the rest (JPEG, PNG, WebP, GIF, HEIF). Null when
+ *  forms manga sources serve (Core.decodePictureFit); Android's own for the rest (JPEG, PNG, WebP, GIF, HEIF). Null when
  *  it is not a picture. */
 public final class Images {
     private Images() {}
@@ -38,7 +38,7 @@ public final class Images {
     }
 
     private static Bitmap rust(byte[] b, int maxW, int maxH) {
-        int[] r = Core.decodePicture(b);
+        int[] r = Core.decodePictureFit(b, maxW, maxH); // already about the size shown (a whole factor smaller)
         if (r == null || r.length < 2) return null;
         Bitmap full = Bitmap.createBitmap(r, 2, r[0], r[0], r[1], Bitmap.Config.ARGB_8888);
         float k = Math.min(1f, Math.min(maxW / (float) r[0], maxH / (float) r[1]));

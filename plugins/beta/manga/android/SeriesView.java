@@ -60,21 +60,18 @@ final class SeriesView extends LinearLayout implements org.atlas.capture.NativeP
     /** Server chapters every page of which is kept here (by chapter id), and the ones being kept now ("3 / 20"). */
     private Set<Integer> kept = new HashSet<>();
     private final Map<String, String> keeping = new HashMap<>();
-    /** Open the reader at Continue as soon as the chapters are known (the library's Reading tab). */
-    private boolean readOnLoad;
     /** A server series' cover address, as the library listed it (null: the kept one, else the server's usual one). */
     private final String coverUrl;
     /** A server series' details (null: a vault's, or the server out of reach). */
     private Browse.Details details;
 
-    SeriesView(MangaScreen screen, String key, String title, String coverUrl, Library.Series known, boolean readOnLoad) {
+    SeriesView(MangaScreen screen, String key, String title, String coverUrl, Library.Series known) {
         super(screen.getContext());
         this.screen = screen;
         this.host = screen.host;
         this.look = host.look();
         this.key = key;
         this.title = title;
-        this.readOnLoad = readOnLoad;
         this.coverUrl = coverUrl;
         covers = new Covers(host);
         Context c = getContext();
@@ -159,7 +156,7 @@ final class SeriesView extends LinearLayout implements org.atlas.capture.NativeP
         body.addView(status, new FrameLayout.LayoutParams(-1, -1));
         addView(body, new LayoutParams(-1, 0, 1));
 
-        if (known != null) { series = known; post(this::shown); } // once on screen: Continue may open the reader over it
+        if (known != null) { series = known; post(this::shown); }
         load(known != null);
     }
 
@@ -289,7 +286,6 @@ final class SeriesView extends LinearLayout implements org.atlas.capture.NativeP
         keepButton.setVisibility(series.remote > 0 && unread > 0 ? VISIBLE : GONE);
         covers.show(cover, series.path, series.remote > 0 ? covers.server(coverItem()) : covers.vault(series));
         adapter.notifyDataSetChanged();
-        if (readOnLoad && r.kind != Shelf.Kind.NONE) { readOnLoad = false; read(r.chapter, r.page); }
         if (host.eink()) post(host::einkRefresh);
     }
 

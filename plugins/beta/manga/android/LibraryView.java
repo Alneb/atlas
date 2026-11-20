@@ -251,9 +251,10 @@ final class LibraryView extends LinearLayout implements org.atlas.capture.Native
         body.addView(pull, 0, new FrameLayout.LayoutParams(-1, -1));
     }
 
+    /** A series' screen, from every tab (Mihon's library): its Continue button goes on where you were — a tap never
+     *  drops you into a chapter you did not choose. */
     private void open(Shelf.Item it) {
-        boolean resume = Shelf.READING.equals(tab); // Reading: straight to where it was left
-        screen.series(it.key, it.title, it.cover, vault.get(it.key), resume);
+        screen.series(it.key, it.title, it.cover, vault.get(it.key));
     }
 
     private void toggleLayout() {

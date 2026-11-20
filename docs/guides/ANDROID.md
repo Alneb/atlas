@@ -307,7 +307,8 @@ in `MangaScreen` (Back goes down one place, past the first the app takes it):
 
 - **The library** (`LibraryView`, address `manga:library`; the command *Manga: library* on the phone): the server's
   categories as tabs, the vault's own series (the manga folder) in theirs, and **Reading** — what was started, last
-  read first — whose series open straight in the reader where they were left. Covers in a grid or a list (the bar's
+  read first. A tap on any tab opens the series' screen (as in Mihon), whose Continue goes on where you were: a tap
+  never drops you into a chapter you did not choose. Covers in a grid or a list (the bar's
   button, kept as the setting `library_layout`), the unread count on each, a filter by title, pull to refresh (the
   server's library update: it looks for new chapters). The server's library is kept (`library.json` in the plugin's
   cache) and shown as last seen when the server cannot be reached. Which tabs exist and what each lists are
@@ -328,7 +329,23 @@ in `MangaScreen` (Back goes down one place, past the first the app takes it):
   the finger comes down (the bars, the pen or a palm, else the page) and the first touch is always taken, so a gesture
   is never split or dropped. A page slides with the finger and out on a turn (no animation on e-ink). Past a
   chapter's end comes the transition page (`Transition`: finished, next, and a warning when chapter numbers skip),
-  then the next chapter at its first page; back from a chapter's start, the previous one at its last.
+  then the next chapter at its first page; back from a chapter's start, the previous one at its last. A turn the same
+  way crosses the transition page only once it has been on screen 400 ms (`Transition.mayCross`), so two quick swipes
+  never run on into another chapter unseen.
+- **Pages, fast** (`Pages`, `Prefetch`, `PrefetchTest`): the reader's page work goes through two queues — fetching
+  (two at once: the page waited for and the next, as more only split the bandwidth) and decoding (two at once) — that
+  take their work in the order it is wanted: the page on screen, then 5 ahead the way you are reading (back counts),
+  2 behind, and from 5 pages before a chapter's end the next chapter (opened then) and its first 3 pages. A page turned
+  away from is dropped before it is fetched; at most 24 wait. A page still on its way shows a spinner and the
+  percentage of its download (`Web.get` with a progress, Content-Length); on e-ink no spinner, the percentage in
+  quarters. Decoded pages stay in a 128 MB memory LRU (about 19 screen pages on a 1080 × 2400 phone) and show at once.
+  A Suwayomi page's bytes are answered as soon as they are fetched; its copy in the cache is written behind, one at a
+  time (`Kept.once` with a writer). JPEG XL and AVIF come over from Rust already reduced by a whole factor towards the
+  screen (`Core.decodePictureFit`, `image.rs` `decode_fit`: a box filter; a 2142 × 3056 page reaches Java as
+  1071 × 1528, a quarter of the pixels), and the JPEG XL decoder runs on threads made by the decoding thread: on
+  Android a thread made by a background-priority one runs on the slow cores, and rayon's global pool, first made by a
+  cover's decode in the library, kept every later page there. The decoding threads run at the normal priority. Each
+  page's size, fetch and decode times go to the app's log (`atlas-manga`, in the device log).
 - **Offline**: a chapter opened once, or kept, opens with no network — its page list and pictures are in
   `.atlas/cache/plugins/manga/suwayomi/` (`Kept`, `KeptTest`), shared with the web side; a series' chapters and the
   library come from there when the server does not answer.

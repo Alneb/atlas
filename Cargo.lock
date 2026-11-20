@@ -538,6 +538,7 @@ dependencies = [
  "atlas-pen",
  "atlas-text",
  "chrono",
+ "image",
  "jni 0.21.1",
  "libc",
  "openink-pen",

@@ -17,8 +17,10 @@ final class Core {
     /** Vault folders under root: [{name, path, kind}]. */
     static native String findVaults(String root);
     /** A JPEG XL or AVIF picture (no Android decoder reads the one, many AVIFs fail the other): [width, height, ARGB…],
-     *  or null (crates/atlas-android/src/image.rs). */
-    static native int[] decodePicture(byte[] bytes);
+     *  or null (crates/atlas-android/src/image.rs) — made smaller by a whole factor while it stays about the size it is
+     *  shown at in maxW × maxH (≤ 0: unbound): fewer pixels across JNI and into the Bitmap. Its JPEG XL threads are made
+     *  by the calling thread, so they run at its priority. */
+    static native int[] decodePictureFit(byte[] bytes, int maxW, int maxH);
     /** A built-in plugin's form from the manifest the app carries: {fields, settings} or {error}. */
     static native String pluginForm(String manifest);
     /** PDFium (crates/atlas-core/src/pdfium.rs), through Pdfium.java: "" once libpdfium.so at `lib` is loaded, else why. */

@@ -42,6 +42,16 @@ final class Kept {
         return got;
     }
 
+    /** As once(), the answer kept by `later` (a writer behind the reader): the bytes are the caller's as soon as they
+     *  are here, the copy follows. A page asked again before it is written is only asked twice. */
+    byte[] once(String path, Ask ask, java.util.concurrent.Executor later) throws IOException {
+        byte[] had = readOrNull(path);
+        if (had != null && had.length > 0) return had;
+        byte[] got = ask.get();
+        later.execute(() -> keep(path, got));
+        return got;
+    }
+
     /** For what changes (a series' chapters, where you are in them): the server's answer, kept; the kept one when the
      *  server cannot be reached — `offline` is then why. With nothing kept, the server's failure. */
     byte[] fresh(String path, Ask ask) throws IOException {

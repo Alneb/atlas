@@ -17,10 +17,13 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.RejectedExecutionException;
 
-/** A chapter's pages as pictures, for the reader: the bytes fetched on a small pool (a Suwayomi page is a ~4 s network
- *  call, a .cbz entry a read), decoded on another at the size they are shown (a JPEG XL page takes ~2 s on the Boox),
- *  kept in a memory LRU. Only pages near where you are are worked on: one turned past is dropped before it costs
- *  anything. Answers on the UI thread. */
+/** A chapter's pages as pictures, for the reader, as Mihon preloads them: the bytes fetched on a small pool (a
+ *  Suwayomi page is a few MB over the network, a .cbz entry a read), decoded on another at about the size they are
+ *  shown, kept in a memory LRU. Both pools take their work in the order it is wanted (Prefetch: the page on screen,
+ *  then the next ones the way you read, the ones behind, the next chapter's first), so the page you wait for never
+ *  queues behind a prefetch, and a page turned past is dropped before it costs anything. The decoding threads run at
+ *  the normal priority: on Android a background thread (and every thread it makes, as the JPEG XL decoder's) runs on
+ *  the slow cores. Each page's fetch and decode times go to the app's log (DeviceLog). Answers on the UI thread. */
 final class Pages {
     /** A page's picture, or why there is none; both null: dropped (the reader moved on). */
     static final class Got {
@@ -31,37 +34,61 @@ final class Pages {
 
     interface Done { void got(Got g); }
 
+    /** How far a page's bytes have come (0–100, -1: the size is unknown), on the UI thread. */
+    interface Progress { void progress(String chapter, int page, int percent); }
+
     /** No bound on that side (fit width, webtoon: a page as tall as its width makes it). */
     static final int ANY = Integer.MAX_VALUE / 4;
-    /** ~7 screen-sized pages (17 MB each on the Boox). Bitmaps live outside the Java heap since Android 8. */
+    /** ~19 screen-sized pages on a 1080 × 2400 phone (7 on the Boox). Bitmaps live outside the Java heap since Android 8. */
     private static final int MEMORY = 128 * 1024 * 1024;
-    /** The pages worth working on: one behind, three ahead (and the next chapter's first two). */
-    private static final int BEHIND = 1, AHEAD = 3;
+    private static final String LOG = "atlas-manga";
+
+    /** A queued piece of work and what to do when it is dropped unstarted. */
+    private static final class Work {
+        final Runnable run, drop;
+        Work(Runnable run, Runnable drop) { this.run = run; this.drop = drop; }
+    }
 
     private final Host host;
     private final Handler ui = new Handler(Looper.getMainLooper());
-    private final ExecutorService fetch = pool(3, "manga-fetch"), decode = pool(2, "manga-decode");
+    private final Prefetch<Work> fetching = new Prefetch<>(w -> w.drop.run()), decoding = new Prefetch<>(w -> w.drop.run());
+    private final List<Thread> workers = new ArrayList<>();
     private final LruCache<String, Bitmap> memory = new LruCache<String, Bitmap>(MEMORY) {
         @Override protected int sizeOf(String k, Bitmap b) { return b.getAllocationByteCount(); }
     };
     private final Map<String, List<Done>> pending = new HashMap<>(); // UI thread only
     private volatile Chapter near, ahead;
-    private volatile int center;
+    private volatile Progress progress;
+    private volatile Prefetch.Focus lastFocus;
 
-    Pages(Host host) { this.host = host; }
-
-    /** Where you are: pages far from it are dropped from the queues. */
-    void focus(Chapter c, int page) { near = c; center = page; }
-
-    /** The next chapter, opened ahead: its first pages are wanted too. */
-    void ahead(Chapter c) { ahead = c; }
-
-    /** By path, not identity: a chapter opened again is a new Chapter with the same pages. */
-    private boolean wanted(Chapter c, int p) {
-        Chapter n = near, a = ahead;
-        return n != null && n.path.equals(c.path) && p >= center - BEHIND && p <= center + AHEAD
-            || a != null && a.path.equals(c.path) && p < 2;
+    Pages(Host host) {
+        this.host = host;
+        // two fetches at once: the page on screen and the next (more only split the bandwidth the one you wait for
+        // needs); two decodes, each on every core (the JPEG XL decoder's own threads)
+        for (int i = 0; i < 2; i++) workers.add(worker(fetching, "manga-fetch", android.os.Process.THREAD_PRIORITY_DEFAULT + android.os.Process.THREAD_PRIORITY_LESS_FAVORABLE));
+        for (int i = 0; i < 2; i++) workers.add(worker(decoding, "manga-decode", android.os.Process.THREAD_PRIORITY_DEFAULT));
     }
+
+    /** Where you are (page `page` of `c`, the last turn on or back), and the next chapter when it is open: what is
+     *  far from it is dropped from the queues. */
+    void focus(Chapter c, int page, boolean forward) {
+        near = c;
+        Chapter a = ahead;
+        Prefetch.Focus f = new Prefetch.Focus(c.path, page, c.size(), forward, a == null ? null : a.path);
+        fetching.focus(f);
+        decoding.focus(f);
+        lastFocus = f;
+    }
+
+    /** The next chapter, opened ahead (null: none): its first pages are wanted too. */
+    void ahead(Chapter c) {
+        ahead = c;
+        Prefetch.Focus f = lastFocus;
+        if (f != null && near != null) focus(near, f.page, f.forward);
+    }
+
+    /** Told how far the page being fetched has come (the reader's progress indicator). */
+    void onProgress(Progress p) { progress = p; }
 
     /** The chapter to read a page from: the open one when it is the same (an older one may be closed). */
     private Chapter live(Chapter c) {
@@ -86,35 +113,67 @@ final class Pages {
     }
 
     private void start(String k, Chapter c, int p, int w, int h) {
-        run(fetch, () -> {
-            if (!wanted(c, p)) { finish(k, c, p, w, h, null, null); return; }
+        Runnable dropped = () -> finish(k, c, p, w, h, null, null);
+        fetching.add(c.path, p, new Work(() -> {
             byte[] bytes;
-            try { bytes = live(c).page(p); }
-            catch (Throwable e) { finish(k, c, p, w, h, null, e.getMessage() == null ? e.toString() : e.getMessage()); return; }
-            run(decode, () -> {
-                if (!wanted(c, p)) { finish(k, c, p, w, h, null, null); return; }
+            long t0 = System.nanoTime();
+            int[] said = { -2 };
+            try {
+                bytes = live(c).page(p, percent -> {
+                    int shown = Prefetch.shown(percent, host.eink());
+                    if (shown == said[0]) return;
+                    said[0] = shown;
+                    Progress to = progress;
+                    if (to != null) ui.post(() -> to.progress(c.path, p, shown));
+                });
+            } catch (Throwable e) { finish(k, c, p, w, h, null, e.getMessage() == null ? e.toString() : e.getMessage()); return; }
+            long fetched = (System.nanoTime() - t0) / 1_000_000;
+            decoding.add(c.path, p, new Work(() -> {
                 Bitmap b = null;
                 String why;
+                long t1 = System.nanoTime();
                 try { b = decode(host, bytes, w, h, memory); why = b == null ? unreadable(bytes) : null; }
                 catch (Throwable e) { why = "could not decode: " + e; } // never a dead worker with a page waiting on it
+                android.util.Log.i(LOG, c.title + " page " + (p + 1) + ": " + bytes.length / 1024 + " KB in " + fetched + " ms, decoded"
+                    + (b == null ? " (failed)" : " to " + b.getWidth() + "×" + b.getHeight()) + " in " + (System.nanoTime() - t1) / 1_000_000 + " ms");
                 finish(k, c, p, w, h, b, why);
-            });
-        });
+            }, dropped));
+        }, dropped));
     }
 
     private void finish(String k, Chapter c, int p, int w, int h, Bitmap b, String error) {
         ui.post(() -> {
             List<Done> waiting = pending.get(k);
-            if (b == null && error == null && waiting != null && !waiting.isEmpty() && wanted(c, p)) { start(k, c, p, w, h); return; } // wanted again meanwhile
+            if (b == null && error == null && waiting != null && !waiting.isEmpty() && fetching.wanted(c.path, p)) { start(k, c, p, w, h); return; } // wanted again meanwhile
             pending.remove(k);
             if (b != null) memory.put(k, b);
             if (waiting != null) for (Done d : waiting) d.got(new Got(b, error));
         });
     }
 
-    void close() { fetch.shutdownNow(); decode.shutdownNow(); memory.evictAll(); }
+    void close() {
+        fetching.close();
+        decoding.close();
+        for (Thread t : workers) t.interrupt();
+        memory.evictAll();
+    }
 
     private static String key(Chapter c, int p, int w, int h) { return c.path + "#" + p + "@" + w + "x" + h; }
+
+    /** A daemon thread at `priority` doing `queue`'s work, soonest first, until it is closed. */
+    private static Thread worker(Prefetch<Work> queue, String name, int priority) {
+        Thread t = new Thread(() -> {
+            android.os.Process.setThreadPriority(priority);
+            try {
+                for (Work w; (w = queue.take()) != null; ) {
+                    try { w.run.run(); } catch (RuntimeException e) { android.util.Log.w(LOG, name + ": " + e); }
+                }
+            } catch (InterruptedException closed) { /* the reader is gone */ }
+        }, name);
+        t.setDaemon(true);
+        t.start();
+        return t;
+    }
 
     // ---- decoding ----------------------------------------------------------------------------------------------
 

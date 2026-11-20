@@ -27,11 +27,11 @@ const WITH_ENV: &str = r#"exec 3<"$1" && rm -f -- "$1" && shift && exec flatpak-
 /// `--watch-bus` ends the host's process when ours ends, even by SIGKILL (a timeout, a stopped helper); a SIGTERM
 /// is passed on by flatpak-spawn itself.
 pub fn wrap(program: &OsStr, args: &[OsString], cwd: Option<&Path>, env: &[(OsString, OsString)]) -> std::io::Result<(OsString, Vec<OsString>)> {
-    let spawn = spawn_args(program, args, cwd);
+    let (spawn, env) = with_launchers(program, args, cwd, env, host_path());
     if env.is_empty() {
         return Ok(("flatpak-spawn".into(), spawn));
     }
-    with_env_file(WITH_ENV, env, spawn)
+    with_env_file(WITH_ENV, &env, spawn)
 }
 
 /// Like [`wrap`], for a terminal tab whose pty is the process's stdin. Flatpak's session helper makes that pty the
@@ -40,20 +40,49 @@ pub fn wrap(program: &OsStr, args: &[OsString], cwd: Option<&Path>, env: &[(OsSt
 /// and then the host's shell has none. So the leader is `timeout --foreground 0` (no limit): it opens nothing,
 /// runs the rest as a child that can take no terminal, and passes on the signals it gets.
 pub fn wrap_terminal(argv: &[OsString], cwd: Option<&Path>, env: &[(OsString, OsString)]) -> std::io::Result<(OsString, Vec<OsString>)> {
-    let (program, args) = with_env_file(WITH_ENV, env, spawn_args(&argv[0], &argv[1..], cwd))?;
+    let (spawn, env) = with_launchers(&argv[0], &argv[1..], cwd, env, host_path());
+    let (program, args) = with_env_file(WITH_ENV, &env, spawn)?;
     let mut out: Vec<OsString> = vec!["--foreground".into(), "0".into(), program];
     out.extend(args);
     Ok(("timeout".into(), out))
 }
 
-/// `flatpak-spawn`'s arguments that start `program args` on the host, in `cwd`.
-fn spawn_args(program: &OsStr, args: &[OsString], cwd: Option<&Path>) -> Vec<OsString> {
+/// `flatpak-spawn`'s arguments and the variables for `program args` with the launchers' folder first on its PATH
+/// (`host`: the host session's PATH so placed, None when unknown — then PATH is left as it is). A PATH in `env` is the
+/// caller's and gets the folder put first; otherwise `host` goes on the line (`--env=PATH=…`: no secret in it), so a
+/// command without variables still needs no file.
+fn with_launchers(
+    program: &OsStr,
+    args: &[OsString],
+    cwd: Option<&Path>,
+    env: &[(OsString, OsString)],
+    host: Option<&OsStr>,
+) -> (Vec<OsString>, Vec<(OsString, OsString)>) {
+    let mut env = env.to_vec();
+    let mut path_arg = None;
+    match (env.iter_mut().find(|(k, _)| k == "PATH"), launcher_dir()) {
+        (Some((_, v)), Some(dir)) => *v = launchers_first(&dir, &v.to_string_lossy()).into(),
+        (Some(_), None) => {}
+        (None, _) => {
+            path_arg = host.map(|p| {
+                let mut a = OsString::from("--env=PATH=");
+                a.push(p);
+                a
+            })
+        }
+    }
+    (spawn_args(program, args, cwd, path_arg), env)
+}
+
+/// `flatpak-spawn`'s arguments that start `program args` on the host, in `cwd`, with `path_arg` (`--env=PATH=…`) if any.
+fn spawn_args(program: &OsStr, args: &[OsString], cwd: Option<&Path>, path_arg: Option<OsString>) -> Vec<OsString> {
     let mut spawn: Vec<OsString> = vec!["--host".into(), "--watch-bus".into()];
     if let Some(cwd) = cwd {
         let mut d = OsString::from("--directory=");
         d.push(cwd);
         spawn.push(d);
     }
+    spawn.extend(path_arg);
     spawn.push("--".into());
     spawn.push(program.into());
     spawn.extend(args.iter().cloned());
@@ -180,36 +209,92 @@ pub fn shell() -> Option<String> {
         .clone()
 }
 
+/// The host session's own PATH (None outside a Flatpak, or when the host does not say).
+fn session_path() -> Option<&'static str> {
+    if !sandboxed() {
+        return None;
+    }
+    static PATH: OnceLock<Option<String>> = OnceLock::new();
+    PATH.get_or_init(|| {
+        let o = std::process::Command::new("flatpak-spawn")
+            .args(["--host", "sh", "-c", r#"printf %s "$PATH""#])
+            .stdin(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .output()
+            .ok()?;
+        let s = String::from_utf8_lossy(&o.stdout).trim().to_string();
+        (o.status.success() && !s.is_empty()).then_some(s)
+    })
+    .as_deref()
+}
+
+/// The PATH what Atlas starts on the host gets: the session's with the launchers' folder first. The session's PATH (the
+/// one systemd gives flatpak-spawn) often lacks `~/.local/bin` — only an interactive shell's rc adds it — so an agent
+/// tab could not run `atlas` (its MCP server), and a native `atlas` elsewhere on it would win over the Flatpak's.
+fn host_path() -> Option<&'static OsStr> {
+    static PATH: OnceLock<Option<OsString>> = OnceLock::new();
+    PATH.get_or_init(|| Some(launchers_first(&launcher_dir()?, session_path()?).into())).as_deref()
+}
+
+/// Where [`write_command_launchers`] puts `atlas` and `atlas-capture`: `~/.local/bin`, the per-user folder for programs.
+fn launcher_dir() -> Option<PathBuf> {
+    Some(crate::platform::dirs::home()?.join(".local/bin"))
+}
+
+/// `path` (a `:` list) with `dir` first and nowhere else.
+fn launchers_first(dir: &Path, path: &str) -> String {
+    let dir = dir.to_string_lossy();
+    let dir = dir.trim_end_matches('/');
+    let rest = path.split(':').filter(|e| !e.is_empty() && e.trim_end_matches('/') != dir);
+    std::iter::once(dir).chain(rest).collect::<Vec<_>>().join(":")
+}
+
+/// Whether `path` (a `:` list) names `dir`, with or without a trailing `/`.
+#[cfg(any(target_os = "linux", test))]
+fn has_dir(path: &str, dir: &Path) -> bool {
+    let dir = dir.to_string_lossy();
+    path.split(':').any(|e| !e.is_empty() && e.trim_end_matches('/') == dir.trim_end_matches('/'))
+}
+
 /// The marker the launchers written by [`write_command_launchers`] carry: one without it is the user's own and is left.
 #[cfg(target_os = "linux")]
 const LAUNCHER_MARK: &str = "# Written by Atlas's Flatpak";
 
 /// Inside the Flatpak: `atlas` and `atlas-capture` made callable from any terminal, agent or shortcut on the host —
-/// a two-line script each in `~/.local/bin` running the sandbox's own (`flatpak run --command=…`). Written at each
-/// start when missing or still Atlas's (a file of the user's of that name is never touched); outside a Flatpak, nothing.
+/// a two-line script each in `~/.local/bin` running the sandbox's own (`flatpak run --command=…`), never a build of
+/// the repository. When the host session's PATH lacks that folder, a drop-in in `~/.config/environment.d` puts it
+/// first from the next login (what Atlas starts gets it at once: [`host_path`]). Written at each start when missing or
+/// still Atlas's (a file of the user's of that name is never touched); outside a Flatpak, nothing.
 #[cfg(target_os = "linux")]
 pub fn write_command_launchers() {
     if !sandboxed() {
         return;
     }
-    let (Some(home), Some(id)) = (crate::platform::dirs::home(), std::env::var("FLATPAK_ID").ok()) else { return };
-    let bin = home.join(".local/bin");
+    let (Some(home), Some(bin), Ok(id)) = (crate::platform::dirs::home(), launcher_dir(), std::env::var("FLATPAK_ID")) else { return };
     for name in ["atlas", "atlas-capture"] {
-        let path = bin.join(name);
         let text = format!("#!/bin/sh\n{LAUNCHER_MARK} ({id}): `{name}` from the app's sandbox. Removing it is fine: the app writes it again when it starts.\nexec flatpak run --command={name} {id} \"$@\"\n");
-        match std::fs::read_to_string(&path) {
-            Ok(had) if had == text => continue,
-            Ok(had) if !had.contains(LAUNCHER_MARK) => continue, // the user's own command of that name
-            _ => {}
-        }
-        // ~/.local/bin is the user's own folder, outside any vault (its parents made by the writer)
-        let done = crate::vault_write::outside::write(&path, text.as_bytes()).map_err(|e| e.to_string()).and_then(|_| {
-            use std::os::unix::fs::PermissionsExt;
-            std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755)).map_err(|e| e.to_string())
-        });
-        if let Err(e) = done {
-            eprintln!("atlas: no `{name}` launcher in {}: {e}", bin.display());
-        }
+        write_marked(&bin.join(name), &text, 0o755);
+    }
+    if session_path().is_some_and(|p| !has_dir(p, &bin)) {
+        let text = format!("{LAUNCHER_MARK} ({id}): the folder of its `atlas` command on the session's PATH, which lacked it.\n# Read at login (systemd environment.d); a file of this name without this line is left alone.\nPATH=${{HOME}}/.local/bin:${{PATH}}\n");
+        write_marked(&home.join(".config/environment.d/60-atlas-path.conf"), &text, 0o644);
+    }
+}
+
+/// Writes `text` to `path` (a file of the user's own folders, outside any vault) unless it already holds it or is a
+/// file of the user's (one without [`LAUNCHER_MARK`]).
+#[cfg(target_os = "linux")]
+fn write_marked(path: &Path, text: &str, mode: u32) {
+    match std::fs::read_to_string(path) {
+        Ok(had) if had == text || !had.contains(LAUNCHER_MARK) => return,
+        _ => {}
+    }
+    let done = crate::vault_write::outside::write(path, text.as_bytes()).map_err(|e| e.to_string()).and_then(|_| {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(path, std::fs::Permissions::from_mode(mode)).map_err(|e| e.to_string())
+    });
+    if let Err(e) = done {
+        eprintln!("atlas: could not write {}: {e}", path.display());
     }
 }
 
@@ -299,6 +384,29 @@ mod tests {
         let (program, args) = wrap(OsStr::new("lpstat"), &["-e".into()], None, &[]).unwrap();
         assert_eq!(program, "flatpak-spawn");
         assert_eq!(args, ["--host", "--watch-bus", "--", "lpstat", "-e"]);
+    }
+
+    /// The session's PATH lacked `~/.local/bin` (systemd's), so an agent tab's `atlas mcp` was not found, and a native
+    /// `atlas` earlier on it would have won over the Flatpak's launcher.
+    #[test]
+    fn the_launchers_folder_comes_first_on_the_path_and_only_once() {
+        let dir = Path::new("/home/u/.local/bin");
+        assert_eq!(launchers_first(dir, "/usr/bin:/home/u/.cargo/bin:/home/u/.local/bin/::/bin"), "/home/u/.local/bin:/usr/bin:/home/u/.cargo/bin:/bin");
+        assert_eq!(launchers_first(dir, "/usr/bin"), "/home/u/.local/bin:/usr/bin");
+        assert!(has_dir("/usr/bin:/home/u/.local/bin/", dir) && !has_dir("/usr/bin:/home/u/.local/binx", dir));
+    }
+
+    #[test]
+    fn a_command_gets_the_hosts_path_on_its_line_and_a_callers_path_gets_the_folder_first() {
+        let host = OsStr::new("/home/u/.local/bin:/usr/bin");
+        let (spawn, env) = with_launchers(OsStr::new("claude"), &[], None, &[], Some(host));
+        assert_eq!(spawn, ["--host", "--watch-bus", "--env=PATH=/home/u/.local/bin:/usr/bin", "--", "claude"]);
+        assert!(env.is_empty(), "no file for a command without variables");
+        let Some(dir) = launcher_dir() else { return };
+        let given = [(OsString::from("PATH"), OsString::from("/venv/bin:/usr/bin"))];
+        let (spawn, env) = with_launchers(OsStr::new("python3"), &[], None, &given, Some(host));
+        assert_eq!(spawn, ["--host", "--watch-bus", "--", "python3"], "the caller's PATH is not overridden on the line");
+        assert_eq!(env[0].1, OsString::from(format!("{}:/venv/bin:/usr/bin", dir.display())));
     }
 
     #[test]

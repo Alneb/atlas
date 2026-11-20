@@ -49,8 +49,11 @@ final class Chapter {
 
     int size() { return pages.size(); }
 
-    byte[] page(int i) throws IOException {
-        if (remote != null) return Suwayomi.page(host, path, i, remote.get(i));
+    byte[] page(int i) throws IOException { return page(i, null); }
+
+    /** Page i's bytes; `progress` (may be null) told how far a server's page has come (0–100, -1: size unknown). */
+    byte[] page(int i, java.util.function.IntConsumer progress) throws IOException {
+        if (remote != null) return Suwayomi.page(host, path, i, remote.get(i), progress);
         if (zip != null) {
             try (InputStream in = zip.getInputStream(zip.getEntry(pages.get(i)))) { return org.atlas.capture.Bytes.all(in); }
         }

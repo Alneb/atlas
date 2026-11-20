@@ -26,12 +26,16 @@ public final class Web {
     }
 
     /** GET → the body. */
-    public static byte[] get(Context c, String url) throws IOException { return send(c, url, "GET", null, null); }
+    public static byte[] get(Context c, String url) throws IOException { return send(c, url, "GET", null, null, null); }
+
+    /** GET → the body; `progress` (may be null) told the percentage read as it comes (-1 when the server gives no
+     *  size), from the thread reading. */
+    public static byte[] get(Context c, String url, java.util.function.IntConsumer progress) throws IOException { return send(c, url, "GET", null, null, progress); }
 
     /** POST `body` of `type` → the answer's body (a GraphQL query: `application/json`). */
-    public static byte[] post(Context c, String url, String type, byte[] body) throws IOException { return send(c, url, "POST", type, body); }
+    public static byte[] post(Context c, String url, String type, byte[] body) throws IOException { return send(c, url, "POST", type, body, null); }
 
-    private static byte[] send(Context c, String url, String method, String type, byte[] body) throws IOException {
+    private static byte[] send(Context c, String url, String method, String type, byte[] body, java.util.function.IntConsumer progress) throws IOException {
         HttpURLConnection h = (HttpURLConnection) new URL(url).openConnection();
         try {
             h.setRequestMethod(method);
@@ -51,11 +55,11 @@ public final class Web {
             if (code >= 300 && code < 400) {
                 String to = h.getHeaderField("Location");
                 if (to != null && !host(new URL(new URL(url), to).toString()).equals(host(url))) throw new SignInNeeded(url);
-                return send(c, new URL(new URL(url), to).toString(), method, type, body); // the same service elsewhere
+                return send(c, new URL(new URL(url), to).toString(), method, type, body, progress); // the same service elsewhere
             }
             if (code == 401) throw new SignInNeeded(url);
             if (code >= 400) throw new IOException(host(url) + " answered " + code);
-            try (InputStream in = h.getInputStream()) { return Bytes.all(in); }
+            try (InputStream in = h.getInputStream()) { return progress == null ? Bytes.all(in) : Bytes.all(in, h.getContentLengthLong(), progress); }
         } finally {
             h.disconnect();
         }

@@ -99,7 +99,7 @@ final class SourceView extends LinearLayout implements org.atlas.capture.NativeP
         grid.setAdapter(adapter);
         grid.setOnItemClickListener((p, v, i, id) -> {
             Browse.Found f = paging.items.get(i);
-            screen.series(f.key(), f.title, f.cover, null, false);
+            screen.series(f.key(), f.title, f.cover, null);
         });
         grid.setOnScrollListener(new AbsListView.OnScrollListener() {
             @Override public void onScrollStateChanged(AbsListView v, int state) {}

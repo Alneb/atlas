@@ -89,6 +89,19 @@ public final class KeptTest {
         eq("a cover at the web side's path", "JPG", s(vault.files.get(".atlas/cache/plugins/manga/suwayomi/covers/7")));
         eq("a chapter's folder holds its pages", true, Kept.page(42, 3).startsWith(Kept.chapterDir(42) + "/"));
 
+        // a page answered before it is written: the copy follows when the writer behind gets to it
+        java.util.List<Runnable> behind = new java.util.ArrayList<>();
+        Server late = new Server("JXL");
+        eq("the bytes at once", "JXL", s(k.once(Kept.page(11, 0), late, behind::add)));
+        eq("not written yet", false, vault.files.containsKey(Kept.page(11, 0)));
+        for (Runnable r : behind) r.run();
+        eq("written behind", "JXL", s(vault.files.get(Kept.page(11, 0))));
+        eq("then read from the copy", "JXL", s(k.once(Kept.page(11, 0), late, behind::add)));
+        eq("the server asked once", 1, late.asked);
+        Mem full2 = new Mem();
+        full2.full = true;
+        eq("a copy written behind onto a full disk is no failure", "JXL", s(new Kept(full2).once(Kept.page(11, 1), late, Runnable::run)));
+
         System.out.println("KeptTest: " + (ran - failed) + "/" + ran + " passed");
         if (failed > 0) System.exit(1);
     }

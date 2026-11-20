@@ -32,7 +32,9 @@ import java.util.concurrent.ExecutorService;
  *  background, page number, and on e-ink no animation and a full refresh every N pages (Host.einkRefresh). The bars
  *  (ReaderBars): the chapters from the top bar, at the bottom where you are, a page slider, the chapters before and
  *  after, Pen, Settings (the mode, kept per series). Pages come from Pages (fetched and decoded away from the UI, the
- *  next ones ahead); the next chapter is opened before its end. The pen writes on a page (PenBar, PageInk:
+ *  next ones ahead the way you read: Prefetch); a page still on its way shows a spinner and how far its download has
+ *  come; the next chapter is opened Prefetch.AHEAD pages before its end, its first pages fetched behind. Between two
+ *  chapters the transition page (Transition), which a turn crosses only once it has been seen (Transition.mayCross). The pen writes on a page (PenBar, PageInk:
  *  a block per chapter in the series' note, InkStore.pictures); a pen tap is a tap. Plugin settings (plugin.toml) are the defaults,
  *  a series' `reader_options` override them. */
 final class ReaderView extends FrameLayout implements NativePlugin.Back {
@@ -58,7 +60,10 @@ final class ReaderView extends FrameLayout implements NativePlugin.Back {
     private final ImageView image;
     private final ScrollView scroller;        // fit width, and webtoon's column
     private final LinearLayout column;        // webtoon: the pages one under the other
-    private final TextView pageNumber, status;
+    private final TextView pageNumber, status, percent;
+    /** A page on its way: a spinner (none on e-ink, where it would only ghost) and how far it has come. */
+    private final LinearLayout loading;
+    private final android.widget.ProgressBar spinner;
     private final ReaderBars bars;
     private PenBar penBar; // made after the tabs that open it
     private final View chaptersButton, settingsTab;
@@ -66,6 +71,10 @@ final class ReaderView extends FrameLayout implements NativePlugin.Back {
     /** The page between chapters, and the end of a webtoon chapter's column (the same words). */
     private final LinearLayout transition;
     private Edge edge = Edge.NONE;
+    /** When the transition page came on screen (Transition.mayCross). */
+    private long edgeAt;
+    /** The last turn went on (false: back): the pages fetched ahead are the ones that way (Prefetch). */
+    private boolean forward = true;
     /** The gestures (Gestures: pure), the double tap, and the zoom of a page in fit screen (Zoom: pure). */
     private final Gestures.Touch touch;
     private final Gestures.Taps taps;
@@ -145,6 +154,23 @@ final class ReaderView extends FrameLayout implements NativePlugin.Back {
         status.setVisibility(GONE);
         addView(status, new LayoutParams(-1, -2, Gravity.CENTER));
 
+        loading = new LinearLayout(c);
+        loading.setOrientation(LinearLayout.VERTICAL);
+        loading.setGravity(Gravity.CENTER);
+        spinner = new android.widget.ProgressBar(c);
+        spinner.setIndeterminate(true);
+        if (spinner.getIndeterminateDrawable() != null) spinner.getIndeterminateDrawable().setTint(ink2);
+        spinner.setVisibility(host.eink() ? GONE : VISIBLE);
+        loading.addView(spinner, new LinearLayout.LayoutParams(host.look().dp(44), host.look().dp(44)));
+        percent = host.look().label(c, "", 13, ink2);
+        percent.setGravity(Gravity.CENTER);
+        percent.setPadding(0, host.look().dp(10), 0, 0);
+        loading.addView(percent, new LinearLayout.LayoutParams(-2, -2));
+        loading.setVisibility(GONE);
+        addView(loading, new LayoutParams(-2, -2, Gravity.CENTER));
+        // the page waited for says how far its download has come
+        pages.onProgress((path, p, pct) -> { if (chapter != null && chapter.path.equals(path) && p == page && loading.getVisibility() == VISIBLE) percent.setText(pct < 0 ? "" : pct + " %"); });
+
         transition = new LinearLayout(c);
         transition.setOrientation(LinearLayout.VERTICAL);
         transition.setGravity(Gravity.CENTER);
@@ -184,8 +210,16 @@ final class ReaderView extends FrameLayout implements NativePlugin.Back {
 
     /** The middle of the screen says what is happening (null: nothing, the page is there). */
     private void say(String s) {
+        waiting(null);
         status.setText(s == null ? "" : s);
         status.setVisibility(s == null ? GONE : VISIBLE);
+    }
+
+    /** The spinner (on e-ink its words alone) with `label` under it — a page's percentage follows as its download
+     *  says — or, null, none. */
+    private void waiting(String label) {
+        if (label != null) { status.setVisibility(GONE); percent.setText(label.isEmpty() && host.eink() ? "…" : label); }
+        loading.setVisibility(label != null ? VISIBLE : GONE);
     }
 
     private static String why(Throwable e) { return e.getMessage() == null ? e.toString() : e.getMessage(); }
@@ -203,7 +237,7 @@ final class ReaderView extends FrameLayout implements NativePlugin.Back {
         image.setImageDrawable(null);
         column.removeAllViews();
         leaveEdge();
-        say("Opening " + Chapter.titleOf(path) + "…");
+        waiting("Opening " + Chapter.titleOf(path));
         Pages.run(opener, () -> {
             try {
                 Chapter c = new Chapter(host, path);
@@ -233,7 +267,8 @@ final class ReaderView extends FrameLayout implements NativePlugin.Back {
         if (mode == Gestures.Layout.WEBTOON) webtoon(p); else show(p);
     }
 
-    /** Near the end of a chapter the next one is opened and its first pages fetched: going on costs no wait. */
+    /** Near the end of a chapter (Prefetch.nearEnd) the next one is opened and its first pages fetched: going on costs
+     *  no wait. */
     private void follow() {
         if (followingAsked || index + 1 >= series.chapters.size()) return;
         followingAsked = true;
@@ -248,8 +283,7 @@ final class ReaderView extends FrameLayout implements NativePlugin.Back {
                     following = c;
                     followingFor = i;
                     pages.ahead(c);
-                    pages.load(c, 0, pageW, pageH, null);
-                    pages.load(c, 1, pageW, pageH, null);
+                    for (int k = 0; k < Prefetch.NEXT; k++) pages.load(c, k, pageW, mode == Gestures.Layout.WEBTOON ? Pages.ANY : pageH, null);
                 });
             } catch (Exception e) { /* opened when it is reached, and said then */ }
         });
@@ -257,11 +291,11 @@ final class ReaderView extends FrameLayout implements NativePlugin.Back {
 
     // ---- a page at a time ----
 
-    /** Page `p` on screen (from memory at once, else "loading" until it comes), the next three and the one before
-     *  asked for behind it. */
+    /** Page `p` on screen (from memory at once, else the spinner until it comes), the pages around it asked for
+     *  behind it, soonest first (Prefetch.around). */
     private void show(int p) {
         page = p;
-        pages.focus(chapter, p);
+        pages.focus(chapter, p, forward);
         where(p);
         markAt(p);
         int flash = options.optInt("flash_every", 1);
@@ -269,7 +303,7 @@ final class ReaderView extends FrameLayout implements NativePlugin.Back {
         ink.page(p + 1);
         final Chapter ch = chapter;
         zoom.reset(); // a turn while zoomed shows the next page whole
-        if (pages.cached(ch, p, pageW, pageH) == null) { image.setImageDrawable(null); say("Page " + (p + 1) + " of " + ch.size() + "…"); }
+        if (pages.cached(ch, p, pageW, pageH) == null) { image.setImageDrawable(null); waiting(""); }
         pages.load(ch, p, pageW, pageH, g -> {
             if (ch != chapter || page != p) return;
             if (g.bitmap != null) {
@@ -284,9 +318,8 @@ final class ReaderView extends FrameLayout implements NativePlugin.Back {
                 if (flashNow) ui.postDelayed(host::einkRefresh, 60); // after the page is drawn
             } else if (g.error != null) say("Page " + (p + 1) + ": " + g.error + "\n(turn back to it to try again)");
         });
-        for (int k = p + 1; k <= p + 3; k++) pages.load(ch, k, pageW, pageH, null);
-        pages.load(ch, p - 1, pageW, pageH, null);
-        if (p >= ch.size() - 3) follow();
+        for (int k : Prefetch.around(p, ch.size(), forward)) pages.load(ch, k, pageW, pageH, null);
+        if (Prefetch.nearEnd(p, ch.size())) follow();
     }
 
     /** Where you are, on the bars and the page number. */
@@ -301,6 +334,7 @@ final class ReaderView extends FrameLayout implements NativePlugin.Back {
     /** The slider let go on page `p`. */
     private void go(int p) {
         if (chapter == null || p < 0 || p >= chapter.size()) return;
+        forward = p >= page;
         if (mode != Gestures.Layout.WEBTOON) { show(p); return; }
         View v = column.getChildAt(p);
         if (v != null) scroller.scrollTo(0, v.getTop());
@@ -354,6 +388,7 @@ final class ReaderView extends FrameLayout implements NativePlugin.Back {
      *  its first page (back: the previous one at its last). */
     private void turn(boolean forward) {
         if (chapter == null) return;
+        this.forward = forward;
         if (mode == Gestures.Layout.WEBTOON) {
             if (!scroller.canScrollVertically(forward ? 1 : -1)) { // the chapter's end (its transition is the column's end) or start
                 if (forward) openChapter(index + 1, 0); else if (index > 0) openChapter(index - 1, Integer.MAX_VALUE);
@@ -363,6 +398,9 @@ final class ReaderView extends FrameLayout implements NativePlugin.Back {
             if (host.eink()) scroller.scrollBy(0, dy); else scroller.smoothScrollBy(0, dy); // no animation on e-ink
             return;
         }
+        // a turn that comes too soon after the one that showed the transition page stays on it: two quick swipes (or a
+        // swipe while a page was still loading) no longer run on into the next or the previous chapter unseen
+        if (edge != Edge.NONE && (forward == (edge == Edge.END)) && !Transition.mayCross(edgeAt, android.os.SystemClock.uptimeMillis())) return;
         if (edge == Edge.END) {
             if (forward) openChapter(index + 1, 0); // at the series' end it stays: the page says so, Back goes to the series
             else { leaveEdge(); atBottom = true; show(chapter.size() - 1); }
@@ -399,7 +437,7 @@ final class ReaderView extends FrameLayout implements NativePlugin.Back {
         if (o == null) hint = forward ? "Back goes to the series." : null;
         else {
             Chapter f = forward && following != null && followingFor == other ? following : null;
-            hint = (f != null ? f.size() + " pages · " : "") + (forward ? "turn the page to read it" : "turn back to read it");
+            hint = (f != null ? f.size() + " pages · " : "") + (forward ? "turn the page to read it" : "turn back once more to read it; turn on to stay here");
         }
         if (hint != null) {
             TextView h = host.look().label(getContext(), hint, 13, transitionInk);
@@ -412,6 +450,7 @@ final class ReaderView extends FrameLayout implements NativePlugin.Back {
 
     private void showEdge(Edge e) {
         edge = e;
+        edgeAt = android.os.SystemClock.uptimeMillis();
         boolean forward = e == Edge.END;
         fillTransition(transition, forward);
         image.setVisibility(INVISIBLE);
@@ -477,20 +516,21 @@ final class ReaderView extends FrameLayout implements NativePlugin.Back {
         Library.mark(host, series, chapter.path, p, chapter.size(), write);
     }
 
-    /** Page `p` is the one read: it and its neighbours filled, pages far from it let go (17 MB each), their height
-     *  kept so nothing moves. */
+    /** Page `p` is the one read: it and the pages Prefetch wants around it filled, pages far from it let go (several
+     *  MB each), their height kept so nothing moves. */
     private void seen(int p) {
+        forward = p >= page;
         page = p;
-        pages.focus(chapter, p);
+        pages.focus(chapter, p, forward);
         where(p);
         markAt(p);
         final Chapter ch = chapter;
         for (int k = 0; k < Math.min(ch.size(), column.getChildCount()); k++) {
             ImageView v = (ImageView) column.getChildAt(k);
-            if (k >= p - 1 && k <= p + 3) { if (v.getDrawable() == null) fill(ch, k, v); }
-            else if (Math.abs(k - p) > 5 && v.getDrawable() != null) { v.setMinimumHeight(v.getHeight()); v.setImageDrawable(null); }
+            if (k == p || Prefetch.rank(new Prefetch.Focus("", p, ch.size(), forward, null), "", k) >= 0) { if (v.getDrawable() == null) fill(ch, k, v); }
+            else if (Math.abs(k - p) > Prefetch.AHEAD + 2 && v.getDrawable() != null) { v.setMinimumHeight(v.getHeight()); v.setImageDrawable(null); }
         }
-        if (p >= ch.size() - 3) follow();
+        if (Prefetch.nearEnd(p, ch.size())) follow();
     }
 
     private void fill(Chapter ch, int k, ImageView v) {

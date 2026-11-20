@@ -70,6 +70,13 @@ final class Transition {
         return out;
     }
 
+    /** How long the transition page stays before a turn the same way crosses to the other chapter (ms). */
+    static final long CROSS_MS = 400;
+
+    /** Whether a turn at `now` may go on past the transition page shown at `shownAt` (both on one clock, in ms): not
+     *  the second of two quick swipes, nor a turn queued while it slid in. */
+    static boolean mayCross(long shownAt, long now) { return now - shownAt >= CROSS_MS; }
+
     /** `Suwayomi.SCHEME`, here so this class needs nothing of Android's (Suwayomi reaches the network). */
     static final String SERVER = "suwayomi:";
 

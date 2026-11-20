@@ -291,10 +291,22 @@ pub fn jxl_head(b: &[u8]) -> bool {
     b.starts_with(&[0xff, 0x0a]) || b.starts_with(b"\0\0\0\x0cJXL \r\n\x87\n")
 }
 
-/// A JPEG XL's first frame in sRGB, as RGBA (the phone's native plugins use it too: atlas-android `image.rs`).
+/// A JPEG XL's first frame in sRGB, as RGBA, on rayon's global pool (the thumbnails).
 pub fn decode_jxl(bytes: &[u8]) -> Result<image::RgbaImage> {
+    decode_jxl_on(bytes, None)
+}
+
+/// As `decode_jxl`, on `threads` threads of its own made by the calling thread (None: rayon's global pool). The
+/// phone's readers use it (atlas-android `image.rs`): a new thread inherits its maker's priority, and on Android a
+/// background-priority thread runs on the slow cores — the global pool, first made by a cover's background decode,
+/// left every later page decoding there.
+pub fn decode_jxl_on(bytes: &[u8], threads: Option<usize>) -> Result<image::RgbaImage> {
     let fail = |what: &str, e: &dyn std::fmt::Display| Error::BadRequest(format!("{what}: {e}"));
-    let mut jxl = jxl_oxide::JxlImage::builder().read(std::io::Cursor::new(bytes)).map_err(|e| fail("not a JPEG XL picture", &e))?;
+    let mut builder = jxl_oxide::JxlImage::builder();
+    if let Some(n) = threads {
+        builder = builder.pool(jxl_oxide::JxlThreadPool::rayon(Some(n.max(1))));
+    }
+    let mut jxl = builder.read(std::io::Cursor::new(bytes)).map_err(|e| fail("not a JPEG XL picture", &e))?;
     let (w, h) = (jxl.width(), jxl.height());
     if w as u64 * h as u64 > MAX_JXL_PIXELS {
         return Err(Error::BadRequest(format!("a JPEG XL picture of {w}×{h}: more than {MAX_JXL_PIXELS} pixels")));

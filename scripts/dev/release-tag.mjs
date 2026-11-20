@@ -30,10 +30,33 @@ function notes(v) {
   const end = lines.findIndex((l, i) => i > start && l.startsWith("## "));
   const body = lines.slice(start + 1, end < 0 ? undefined : end).join("\n").trim();
   if (!body) fail(`the "## [${v}]" section of docs/CHANGELOG.md is empty`);
-  return body;
+  return unwrap(body);
 }
 
-const message = `Atlas ${version}\n\n${notes(version)}\n`;
+/** `md` with each paragraph and list item on one line: GitHub shows a release text's single line breaks as breaks, so
+ *  the changelog's wrapped lines came out ragged. A line starts anew after a blank line, as a heading, list item,
+ *  table row or code fence, and after a heading, table row or fence. */
+function unwrap(md) {
+  const starts = (l) => /^\s*([-*+]|\d+\.)\s|^\s*(#|\||```)/.test(l);
+  const closed = (l) => /^\s*(#|\||```)/.test(l);
+  const out = [];
+  for (const line of md.split("\n")) {
+    const prev = out.at(-1);
+    if (line.trim() && prev?.trim() && !starts(line) && !closed(prev)) out[out.length - 1] = `${prev.trimEnd()} ${line.trim()}`;
+    else out.push(line);
+  }
+  return out.join("\n");
+}
+
+/** What each of a release's files is, after its notes: a release carries some fifty, three of them APKs. */
+const WHICH_FILE = `### Which file
+- **Linux**: \`atlas.flatpak\` (\`flatpak install --user atlas.flatpak\`; at its first start it puts \`atlas\` and \`atlas-capture\` in \`~/.local/bin\`), the \`.AppImage\`, or the \`.deb\` / \`.rpm\`.
+- **macOS** (Apple silicon): the \`.dmg\`. **Windows**: the \`-setup.exe\`. Neither is signed yet.
+- **Android**: \`atlas.apk\` (the full app), \`atlas-boox.apk\` (the same app tuned for Boox e-ink and its pen), \`atlas-capture.apk\` (only the capture box).
+- \`atlas\`, \`atlas-app\`, \`atlas-capture\`: the bare Linux x86-64 programs (the CLI and core, the desktop app, the capture box), for a server or a hand install.
+- \`atlas-plugin-*.tar.gz\` and \`plugins.json\`: the plugins, which Atlas installs itself from **Install a plugin**.`;
+
+const message = `Atlas ${version}\n\n${notes(version)}\n\n${WHICH_FILE}\n`;
 if (print) { process.stdout.write(message); process.exit(0); }
 
 // the tag names a release of what public holds: its version must be this one

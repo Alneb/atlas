@@ -34,6 +34,8 @@ reqwest.workspace = true
 openink-stroke = { path = "../vendor/openink-stroke" }
 # the pen's shape snapping: atlas-pen (Atlas's and openink's recognisers, arrows, regular shapes), shared with the core
 atlas-pen = { path = "../atlas-pen" }
+# the pictures the core decodes (src/image.rs), made smaller before they cross JNI: the core's own version, no codecs
+image = { version = "0.25", default-features = false }
 
 [target.'cfg(target_os = "android")'.dependencies]
 jni = "0.21"

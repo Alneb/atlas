@@ -26,7 +26,10 @@ test("a kept sign-in says which plugins it is sent for; one can be started from 
   const provider = panel.locator("li", { hasText: "auth.example.org" });
   await expect(provider).toContainText("Renews itself");
   await expect(provider).toContainText("Used by immich, paperless");
-  await panel.getByLabel("Sign in at a service's address").fill("media.example.org");
-  await panel.getByRole("button", { name: "Sign in", exact: true }).click();
+  // the typed address is folded under the services (each of which has its own "Sign in")
+  const other = panel.locator("details", { hasText: "Sign in at another address" });
+  await other.getByText("Sign in at another address").click();
+  await other.getByLabel("Sign in at a service's address").fill("media.example.org");
+  await other.getByRole("button", { name: "Sign in", exact: true }).click();
   await expect.poll(() => page.evaluate(() => (window as unknown as { opened: string[] }).opened)).toEqual([expect.stringContaining("/signin/door?url=https%3A%2F%2Fmedia.example.org")]);
 });

@@ -39,7 +39,7 @@ final class MangaScreen extends FrameLayout implements NativePlugin.Back {
         setBackgroundColor(host.look().bg);
         // opened on a series or a chapter (Continue, a link, the launcher): the places under it are made too, so Back
         // steps reader → series → library as if you had come that way, and only then leaves
-        if (path.startsWith(SERIES)) { push(new LibraryView(this)); series(path.substring(SERIES.length()), null, null, null, false); }
+        if (path.startsWith(SERIES)) { push(new LibraryView(this)); series(path.substring(SERIES.length()), null, null, null); }
         else if (BROWSE.equals(path)) { push(new LibraryView(this)); browse(); } // Back goes to the library
         else if (path.startsWith("manga:")) push(new LibraryView(this));
         else {
@@ -77,10 +77,9 @@ final class MangaScreen extends FrameLayout implements NativePlugin.Back {
         if (host.eink()) post(host::einkRefresh);
     }
 
-    /** A series' screen: `known` when the library has it already (a vault series), else found by its key; `resume`:
-     *  straight on into the reader where it was left (the library's Reading tab). */
-    void series(String key, String title, String coverUrl, Library.Series known, boolean resume) {
-        push(new SeriesView(this, key, title, coverUrl, known, resume));
+    /** A series' screen: `known` when the library has it already (a vault series), else found by its key. */
+    void series(String key, String title, String coverUrl, Library.Series known) {
+        push(new SeriesView(this, key, title, coverUrl, known));
     }
 
     /** Browse: the server's sources. */
@@ -129,7 +128,7 @@ final class MangaScreen extends FrameLayout implements NativePlugin.Back {
                 removeView(status);
                 push(new LibraryView(this));
                 // a vault series is known as it is; a server's is asked again by its key (its cover, its categories)
-                series(s.remote != 0 ? "suwayomi:" + s.remote : s.path, s.title, null, s.remote != 0 ? null : s, false);
+                series(s.remote != 0 ? "suwayomi:" + s.remote : s.path, s.title, null, s.remote != 0 ? null : s);
                 read(s, at, page);
             });
         } catch (Exception e) {

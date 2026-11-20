@@ -204,6 +204,8 @@ public final class GesturesTest {
     }
 
     static void transitions() {
+        eq("a turn right after the transition page came stays on it", false, Transition.mayCross(1000, 1000 + 120));
+        eq("a deliberate turn crosses", true, Transition.mayCross(1000, 1000 + Transition.CROSS_MS));
         List<String> on = Transition.lines("manga/X/Ch 12.cbz", "manga/X/Ch 13.cbz", true);
         eq("finished, next", "[Finished: Ch 12, Next: Ch 13]", on.toString());
         eq("a gap is warned", "[Finished: Ch 12, Next: Ch 15, ⚠ 2 chapters are missing (13–14)]", Transition.lines("manga/X/Ch 12.cbz", "manga/X/Ch 15.cbz", true).toString());

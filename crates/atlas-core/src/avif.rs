@@ -72,12 +72,12 @@ fn decode_av1(obu: &[u8], max_pixels: u32) -> Result<Planes> {
         let mut pic: Dav1dPicture = Default::default();
         for _ in 0..64 {
             if data.sz > 0 {
-                let r = dav1d_send_data(dec.0.clone(), NonNull::new(&mut data)).0;
+                let r = dav1d_send_data(dec.0, NonNull::new(&mut data)).0;
                 if r != 0 && r != AGAIN {
                     return Err(fail("the AV1 data was refused"));
                 }
             }
-            match dav1d_get_picture(dec.0.clone(), NonNull::new(&mut pic)).0 {
+            match dav1d_get_picture(dec.0, NonNull::new(&mut pic)).0 {
                 0 => {
                     let out = planes(&pic);
                     dav1d_picture_unref(NonNull::new(&mut pic));
@@ -121,7 +121,7 @@ unsafe fn planes(p: &Dav1dPicture) -> Result<Planes> {
     };
     let y = read(0, w, h, p.stride[0]);
     let (u, v) = if cw > 0 { (read(1, cw, ch, p.stride[1]), read(2, cw, ch, p.stride[1])) } else { (vec![], vec![]) };
-    Ok(Planes { w, h, layout, y, u, v, cw, full_range: seq.color_range != 0, mtrx: seq.mtrx as u32 })
+    Ok(Planes { w, h, layout, y, u, v, cw, full_range: seq.color_range != 0, mtrx: seq.mtrx })
 }
 
 /// An AVIF still as RGBA, its alpha too; no more than `max_pixels` (a picture from a manga source is untrusted).
