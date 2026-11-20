@@ -1,7 +1,7 @@
 // The pane's pieces drawn the same everywhere (home.js, view.js): an element maker, a card (a book, a podcast, an
 // episode, a group of them), a row of cards, and the pane's one style sheet. Colours are the app's theme variables only,
 // so the light and the dark theme both hold.
-import { clock } from "./abs.js";
+import { clock, openidSignIn } from "./abs.js";
 
 export const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; };
 
@@ -12,12 +12,25 @@ export const el = (tag, cls, text) => { const e = document.createElement(tag); i
 export function notLoaded(status, atlas, e, retry) {
   const why = String(e?.message ?? e ?? "");
   const setup = /no secret|not set|no server|server_url|sign in|signin|401|403|unauthori[sz]ed/i.test(why);
+  const hasServer = !!String(atlas.plugin?.settings?.server ?? "").trim();
   const box = el("div", "abs-empty");
   box.append(el("p", "abs-empty-title", setup ? "Audiobookshelf is not connected yet" : "Audiobookshelf did not answer"));
-  box.append(el("p", "abs-dim", setup ? "Add your server's address and sign in (or paste an API token) in this plugin's settings." : "The server may be off or out of reach. " + why.replace(/^.*?: (\d{3} )?/, "")));
+  box.append(el("p", "abs-dim", setup ? (hasServer ? "Sign in with your server's account (Authelia) — or paste an API token in this plugin's settings." : "Add your server's address in this plugin's settings, then sign in.") : "The server may be off or out of reach. " + why.replace(/^.*?: (\d{3} )?/, "")));
+  const row = el("div", "abs-empty-actions");
+  if (setup && hasServer) {
+    // the server is known: its sign-in (Authelia…) right here, then the shelves
+    const go = el("button", "atlas-btn primary", "Sign in");
+    go.onclick = async () => {
+      go.disabled = true;
+      try { await openidSignIn(atlas); retry(); }
+      catch (err) { go.disabled = false; box.querySelector(".abs-dim").textContent = `The sign-in did not finish: ${err?.message ?? err}`; }
+    };
+    row.append(go);
+  }
   const btn = el("button", "atlas-btn", setup ? "Open its settings" : "Try again");
   btn.onclick = () => (setup && atlas.openSettings ? atlas.openSettings() : retry());
-  box.append(btn);
+  row.append(btn);
+  box.append(row);
   status.replaceChildren(box);
 }
 
@@ -98,7 +111,7 @@ export function style() {
 .abs-add input, .abs-search { flex: 1; min-width: 0; padding: 6px 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg-elev); color: var(--text); }
 .abs-empty { color: var(--text-muted); padding: 8px 0; }
 .abs-empty-title { color: var(--text); font-weight: 600; margin: 0 0 4px; }
-.abs-empty .atlas-btn { margin-top: 8px; }
+.abs-empty-actions { display: flex; gap: 8px; margin-top: 8px; }
 .abs-home { padding: 16px 20px 32px; display: flex; flex-direction: column; gap: 18px; color: var(--text); }
 .abs-home-bar { display: flex; gap: 8px; align-items: center; }
 .abs-lib-title { margin: 8px 0 0; font-size: 1.1em; color: var(--text-muted); font-weight: 600; }
