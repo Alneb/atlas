@@ -6,7 +6,7 @@ import { WS } from "../playwright.config";
 import { createServer, type Server } from "node:http";
 import { execFileSync } from "node:child_process";
 // @ts-expect-error a plugin's module is plain JavaScript, loaded as the page loads it
-import { said, suwayomi, kept } from "../../plugins/beta/manga/suwayomi.js";
+import { said, suwayomi, kept, lastReadOf } from "../../plugins/beta/manga/suwayomi.js";
 
 // The manga plugin's web side (plugins/beta/manga/view.js): the library from the vault's manga/ folder, a series, and
 // a .cbz unzipped in the page; where you are written to the series' note (its folder's own), as the Android screens write it.
@@ -315,7 +315,8 @@ test("Suwayomi: its library in its own tab, a chapter read from it, where you ar
         : query.includes("mangas(") ? { mangas: { nodes: [{ id: 6, title: "BLAME!", thumbnailUrl: "/api/v1/manga/6/thumbnail", user: { unreadCount: 2 },
           categories: { nodes: [{ name: "Default", default: true }, { name: "Weekly", default: false }] } }] } }
         : query.includes("chapters(") ? { chapters: { nodes: [
-          { id: 9597, name: "Chapter 001 - The Net's Offspring", isDownloaded: true, user: { isRead: false, lastPageRead: 0, lastReadAt: "0" } },
+          // where you are, as a real server gives it back once it was sent (the Reading tab comes from it)
+          { id: 9597, name: "Chapter 001 - The Net's Offspring", isDownloaded: true, user: marks.length ? { isRead: false, lastPageRead: 1, lastReadAt: "1700000000" } : { isRead: false, lastPageRead: 0, lastReadAt: "0" } },
           { id: 9598, name: "Chapter 002 - Fifteen Billion", user: { isRead: false, lastPageRead: 0, lastReadAt: "0" } },
           ...(fetched ? [{ id: 9599, name: "Chapter 003 - The Electro-Fishers", user: { isRead: false, lastPageRead: 0, lastReadAt: "0" } }] : [])] } }
         : query.includes("fetchMangaAndChapters") ? (fetched = true, { fetchMangaAndChapters: { clientMutationId: null } })
@@ -374,6 +375,12 @@ test("Suwayomi: its library in its own tab, a chapter read from it, where you ar
     await page.keyboard.type("Manga: look for new chapters");
     await page.getByTestId("palette").getByText("Manga: look for new chapters on Suwayomi").first().click();
     await expect.poll(() => updates).toBe(1);
+    // the library now has the phone's Reading tab (a series with a page read), before All and the categories
+    await pane.getByRole("button", { name: "‹ Back" }).click();
+    await expect(pane.locator(".m-tabs button")).toHaveText(["Reading", "All", "Weekly"]);
+    await pane.locator(".m-tabs").getByRole("button", { name: "Reading" }).click();
+    await expect(blame).toBeVisible();
+    await blame.click();
     // the next unread chapters kept for offline: every page of each fetched into the cache now
     await pane.getByRole("button", { name: "Keep 5 for offline" }).click();
     await expect(page.getByText("3 chapters of BLAME! kept for offline")).toBeVisible();
@@ -480,6 +487,13 @@ test("a Suwayomi error is one line, and a source gone says what to do", () => {
 // What the server answered is kept: with it unreachable the library and a series' chapters are the last ones seen, a
 // chapter opened before reads from the kept pictures without asking anything, and where you are waits and is sent
 // with the server's next answer (said once).
+test("pure: a server series' last read, as the phone's library takes it (the Reading tab)", () => {
+  expect(lastReadOf(undefined)).toBe(0);
+  expect(lastReadOf([{ user: { isRead: false, lastPageRead: 0, lastReadAt: "1700000000" } }])).toBe(0); // only opened
+  // seconds and ms both, the latest of the read or started ones
+  expect(lastReadOf([{ user: { isRead: true, lastReadAt: "1700000000" } }, { user: { lastPageRead: 3, lastReadAt: "1700000500000" } }])).toBe(1700000500000);
+});
+
 test("pure: Suwayomi keeps the page lists of the chapters opened last", async () => {
   const store = kept("http://s.example.org", { getItem: () => null, setItem: () => {} });
   const atlas = { plugin: { id: "manga" }, async fetch() { return { ok: true, json: async () => ({ data: { fetchChapterPages: { pages: ["/p"] } } }) }; } };

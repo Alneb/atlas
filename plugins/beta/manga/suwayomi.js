@@ -35,6 +35,19 @@ const idOf = (chapter) => Number(chapter.slice(SCHEME.length).split("/")[0]);
 const KEEP_PAGES = 300;
 /** What a server answered, kept in the page's storage per server: { library, chapters: {<manga id>: nodes},
  *  pages: {c<chapter id>: urls}, the last opened last, marks: {<chapter id>: { page, read }} not yet sent }. In memory only when storage is off. */
+/** When a series was last read, in ms (0: never), from its kept chapters (what the server said, or a place not sent
+ *  yet): the phone's Suwayomi.keptLastRead. Suwayomi's `lastReadAt` is seconds, some versions ms. */
+export function lastReadOf(nodes) {
+  let last = 0;
+  for (const c of nodes ?? []) {
+    const u = c?.user;
+    if (!u || !(u.isRead || Number(u.lastPageRead) > 0)) continue;
+    const t = Number(u.lastReadAt) || 0;
+    last = Math.max(last, t <= 0 ? 0 : t < 1e11 ? t * 1000 : t);
+  }
+  return last;
+}
+
 export function kept(base, storage = globalThis.localStorage) {
   const key = `atlas.manga.suwayomi:${base}`;
   let data = {};
@@ -110,9 +123,10 @@ export function suwayomi(atlas, address, store) {
      *  out), its chapters asked when it is opened. */
     async library() {
       if (!base) return [];
-      const nodes = await keptOr(async () => (await query("{ mangas(condition: {inLibrary: true}) { nodes { id title thumbnailUrl user { unreadCount } categories { nodes { name default } } } } }")).mangas?.nodes ?? [],
+      const nodes = await keptOr(async () => (await query("{ mangas(condition: {inLibrary: true}) { nodes { id title thumbnailUrl downloadCount user { unreadCount } categories { nodes { name default } } } } }")).mangas?.nodes ?? [],
         () => k.library, (v) => (k.library = v));
       return nodes.map((m) => ({ path: SCHEME + m.id, title: m.title, remote: m.id, coverUrl: base + m.thumbnailUrl, unread: m.user?.unreadCount ?? 0, chapters: null, dir: true,
+        downloaded: m.downloadCount ?? -1, lastRead: lastReadOf(k.chapters[m.id]),
         categories: (m.categories?.nodes ?? []).filter((c) => !c.default).map((c) => String(c.name)) }));
     },
     /** The series as the catalog's `note` tool takes it: its stable id, what the server says of it. Null when the server

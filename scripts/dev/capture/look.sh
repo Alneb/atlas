@@ -9,6 +9,9 @@
 #   bash scripts/dev/capture/look.sh keys  <binary> <out-dir>      real keys (X11 through Xwayland, XTEST):
 #                                                                     a to-do with a date, a link, the vault
 #                                                                     menu, Enter — then what was written
+# A real drag in any window of the nested session (the desktop app's drag-and-drop, which Playwright cannot show):
+# `run` a script that starts the app on a throwaway vault, then scripts/dev/capture/xdrag.py x0 y0 x1 y1 with
+# DISPLAY set to the nested X (the first X socket newer than the start) and shot.py before and after.
 # ATLAS_LOOK_SCALE=1.5 runs the nested screen at that scale (fractional scaling: the box gets wp_fractional_scale).
 # ATLAS_LOOK_STATES (one "name|text" per line) limits `shots` to those states; ATLAS_LOOK_PLUGINS (folders) are copied
 # into both vaults' .atlas/plugins.
@@ -49,10 +52,11 @@ unset WAYLAND_DISPLAY DISPLAY
 if [ -n "${ATLAS_LOOK_INSIDE:-}" ]; then
   # KWin exits with this script (--exit-with-session): no trap, no kill (a trap killing $PPID left it running)
   export WAYLAND_DISPLAY=atlas-look
-  # the nested Xwayland: the X socket that appeared after KWin started (never :0); the helpers check the size too
+  # the nested Xwayland: the first X socket that appeared after KWin started (never :0); the helpers check the size
+  # too. KWin may open two at once (X4 and X5): the higher one never answered, a connection to it hung.
   nested_x() {
     local sock=
-    for _ in $(seq 50); do sock=$(find /tmp/.X11-unix -maxdepth 1 -name 'X*' -newer "$K/started" -user "$(id -u)" | sort | tail -1); [ -n "$sock" ] && break; sleep 0.1; done
+    for _ in $(seq 50); do sock=$(find /tmp/.X11-unix -maxdepth 1 -name 'X*' -newer "$K/started" -user "$(id -u)" | sort -V | head -1); [ -n "$sock" ] && break; sleep 0.1; done
     [ -n "$sock" ] && [ "$sock" != /tmp/.X11-unix/X0 ] || { echo "[look] no nested X display"; return 1; }
     echo ":${sock##*/X}"
   }

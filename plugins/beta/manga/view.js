@@ -717,31 +717,57 @@ export default function mount(host, atlas) {
     void suw.sources().then((x) => { all = x; if (!gone) draw(); }, (e) => list.append(el("div", "atlas-notice", String(e.message ?? e))));
     setTimeout(() => filter.focus(), 0);
   }
-  /** The library's order, the phone's setting (`library_order`, `library_descending`): what the server says of a series
-   *  here is its title and its unread chapters, so "unread" orders by them, "auto" puts the series with chapters left
-   *  first, and the orders the server cannot say here (last read, chapters) fall back to the title. */
-  function ordered(list) {
+  /** The library's order, the phone's setting (`library_order`, `library_descending`; Shelf.Order there): "auto" is
+   *  Reading by last read, newest first, and the other tabs the series with chapters left first, then by title. The
+   *  server does not say a series' chapter count here: "chapters" falls back to the title. */
+  function ordered(list, reading) {
     const by = String(S.library_order ?? "auto"), turn = S.library_descending === true ? -1 : 1;
     const title = (a, b) => natural(a.title, b.title);
+    const last = (a, b) => (b.lastRead - a.lastRead) || title(a, b);
     const cmp = by === "unread" ? (a, b) => (b.unread - a.unread) || title(a, b)
-      : by === "auto" ? (a, b) => (Number(b.unread > 0) - Number(a.unread > 0)) || title(a, b)
+      : by === "last read" ? last
+      : by === "auto" ? (reading ? last : (a, b) => (Number(b.unread > 0) - Number(a.unread > 0)) || title(a, b))
       : title;
     return [...list].sort((a, b) => turn * cmp(a, b));
   }
+  /** Which series the library shows (`library_show`; Shelf.Show on the phone). */
+  const shows = (x) => {
+    switch (String(S.library_show ?? "all")) {
+      case "unread": return x.unread > 0;
+      case "started": return x.lastRead > 0;
+      case "downloaded": return x.downloaded > 0;
+      default: return true;
+    }
+  };
+  /** A choice of the plugin's settings on the library's bar: shown as it is, saved as the phone's bar saves it. */
+  function settingPicker(key, choices, title, redraw) {
+    const sel = el("select", "atlas-input m-pick");
+    sel.title = title;
+    for (const [v, label] of choices) { const o = el("option", "", label); o.value = v; sel.append(o); }
+    sel.value = String(S[key] ?? choices[0][0]);
+    sel.onchange = () => {
+      S[key] = sel.value;
+      redraw();
+      void atlas.plugin.saveSettings?.({ [key]: sel.value })?.catch?.((e) => atlas.toast("Manga", `Not saved: ${e.message ?? e}`, "error"));
+    };
+    return sel;
+  }
+  const READING_TAB = "\u0000reading"; // never a category's name
   /** Suwayomi's library — the server's, not the vault's: its series by category as covers, unread counts, the way
-   *  into Browse. A series opened here reads as any; it joins the Libraries page once it is yours (its note). */
+   *  into Browse. Its tabs are the phone's: Reading (what was started, last read first), All (every series: the
+   *  default shelf), then the server's categories. A series opened here reads as any; it joins the Libraries page
+   *  once it is yours (its note). */
   function serverLibrary() {
     const head = bar("Suwayomi", "‹ Comics");
     const go = el("button", "atlas-btn", "Browse sources");
     go.onclick = () => push(browse);
     const filter = el("input", "atlas-input m-filter");
     filter.placeholder = "Filter the series…";
-    // only the series with chapters left to read: a chip beside the filter, as the phone's library has
-    const unreadOnly = el("button", "atlas-btn", "Unread");
-    unreadOnly.title = "Only the series with chapters left to read";
-    let onlyUnread = false;
-    unreadOnly.onclick = () => { onlyUnread = !onlyUnread; unreadOnly.classList.toggle("on", onlyUnread); draw(); };
-    head.append(filter, unreadOnly, go);
+    const show = settingPicker("library_show", [["all", "Every series"], ["unread", "Unread"], ["started", "Started"], ["downloaded", "Downloaded"]],
+      "Which series the library shows (the phone's library the same)", () => draw());
+    const order = settingPicker("library_order", [["auto", "Auto order"], ["title", "Title"], ["last read", "Last read"], ["unread", "Unread"]],
+      "The library's order (Auto: Reading by last read, the rest unread first)", () => draw());
+    head.append(filter, show, order, go);
     const tabs = el("div", "m-tabs"), grid = el("div", "m-grid");
     root.append(head, tabs, grid);
     let all = [], cat = "";
@@ -749,7 +775,8 @@ export default function mount(host, atlas) {
       const f = filter.value.trim().toLowerCase();
       grid.replaceChildren();
       // a search looks on every shelf, not only the tab shown (the phone's library the same)
-      const shown = ordered(all.filter((x) => (f || !cat || (x.categories ?? []).includes(cat)) && (!f || x.title.toLowerCase().includes(f)) && (!onlyUnread || x.unread > 0)));
+      const onTab = (x) => !cat ? true : cat === READING_TAB ? x.lastRead > 0 : (x.categories ?? []).includes(cat);
+      const shown = ordered(all.filter((x) => (f || onTab(x)) && (!f || x.title.toLowerCase().includes(f)) && shows(x)), cat === READING_TAB && !f);
       tabs.classList.toggle("searching", !!f);
       for (const x of shown) {
         const card = el("button", "m-found"), pic = el("div", "m-cover"), img = el("img");
@@ -765,8 +792,10 @@ export default function mount(host, atlas) {
     const drawTabs = () => {
       tabs.replaceChildren();
       const cats = [...new Set(all.flatMap((x) => x.categories ?? []))];
-      if (!cats.length) return;
-      for (const [c, label] of [["", "All"], ...cats.map((x) => [x, x])]) {
+      const started = all.some((x) => x.lastRead > 0);
+      const list = [...(started ? [[READING_TAB, "Reading"]] : []), ["", "All"], ...cats.map((x) => [x, x])];
+      if (list.length < 2) return; // one shelf: no tabs
+      for (const [c, label] of list) {
         const b = el("button", "atlas-btn", label);
         b.classList.toggle("on", c === cat);
         b.onclick = () => { cat = c; drawTabs(); draw(); };
@@ -943,6 +972,7 @@ function style() {
   .manga .m-source img { width: 28px; height: 28px; border-radius: 6px; flex: none; object-fit: cover; }
   .manga .m-source img:not([src]) { visibility: hidden; }
   .manga .m-source .m-ch-name { flex: 1; }
+  .manga .m-pick { width: auto; }
   .manga .m-tabs { display: flex; gap: 6px; padding: 10px 14px; align-items: center; flex-wrap: wrap; }
   .manga .m-tabs .on { background: var(--accent-soft); border-color: var(--accent); }
   .manga .m-tabs.searching .on { background: none; border-color: var(--border); } /* a search shows every shelf */

@@ -42,7 +42,9 @@ a click.
   a chapter opened before reads from the kept pictures (a page is never downloaded twice), and where you are waits
   and is sent with the server's next answer.
   Its categories are folders under "Suwayomi" at the Comics side (Suwayomi › Weekly), its own Default left out. In the pane's Suwayomi library (its own tab) a search looks on
-  every category, not only the one shown, as the phone's does.
+  every category, not only the one shown, as the phone's does. Its tabs are the phone's: **Reading** (the series started, last read first),
+  **All** (every series: the default) and the categories; its bar sets **Library shows** and **Library order**, the
+  phone's settings.
   A series' **New chapters?** asks the server to look at its source again; the command "Manga: look for new chapters
   on Suwayomi" starts the server's update of the whole library (new chapters then show as unread counts).
   **Keep 5 for offline** fetches every page of the next five unread chapters now, so they open without the server.
