@@ -66,18 +66,37 @@ function signInThroughBridge(page: string): void {
   setTimeout(() => clearInterval(t), 300_000);
 }
 
+/** A page served by a server behind a sign-in gate (Authelia's forward-auth): once the gate's session ends, every call
+ *  is redirected to the gate's own domain, which the browser refuses (CORS) as a bare "Failed to fetch" — the page sat
+ *  empty, nothing said why. A call failing so is asked again without following redirects; a redirect means the gate
+ *  wants a sign-in, and the page is loaded again, which goes through the sign-in and comes back here. At most once a
+ *  minute (a gate that keeps redirecting must not reload the page in a loop). */
+async function signInAgainIfGated(to: string): Promise<void> {
+  if (typeof location === "undefined" || /^https?:/.test(to)) return; // only the page's own server (a remote vault through the bridge has its own door)
+  const KEY = "atlas.gate-reload";
+  try { if (Date.now() - Number(sessionStorage.getItem(KEY) ?? 0) < 60_000) return; } catch { return; }
+  let gated = false;
+  try { gated = (await fetch(to, { headers: { "x-atlas": "1" }, redirect: "manual" })).type === "opaqueredirect"; } catch { /* offline: not a gate */ }
+  if (!gated) return;
+  try { sessionStorage.setItem(KEY, String(Date.now())); } catch { /* no storage: still once, this page */ }
+  console.warn("[atlas] the server's sign-in ended: loading the page again to sign in");
+  location.reload();
+}
+
 // Every call goes to this vault's own core (apiBase): a mirrored vault's writes are local, and the core asks the server
 // for a lease first (core mirror_guard.rs; docs/design/DESIGN-mirror-v2.md). `base: ""` is the desktop's own core
 // whatever vault the page shows (ownCore).
 async function request<T>(method: string, path: string, opts: { query?: Query; body?: unknown; base?: string; signal?: AbortSignal } = {}): Promise<T> {
   const headers: Record<string, string> = { "x-atlas": "1" };
   if (opts.body !== undefined) headers["content-type"] = "application/json";
-  const res = await fetch(url(path, opts.query, opts.base), {
-    method,
-    headers,
-    body: opts.body === undefined ? undefined : JSON.stringify(opts.body),
-    signal: opts.signal,
-  });
+  const to = url(path, opts.query, opts.base);
+  let res: Response;
+  try {
+    res = await fetch(to, { method, headers, body: opts.body === undefined ? undefined : JSON.stringify(opts.body), signal: opts.signal });
+  } catch (e) {
+    if (!(e instanceof DOMException && e.name === "AbortError")) void signInAgainIfGated(to);
+    throw e;
+  }
   const text = await res.text();
   let data: unknown = undefined;
   try { data = text ? JSON.parse(text) : undefined; } catch { data = text; }
