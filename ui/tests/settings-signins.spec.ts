@@ -12,10 +12,12 @@ test("Settings → Sign-ins: a bypass key is kept, listed without its value, a *
   await page.keyboard.press("Meta+,");
   await page.getByRole("navigation", { name: "Settings pages" }).getByRole("button", { name: "Sign-ins", exact: true }).click();
   const p = page.getByTestId("signins-panel");
-  await expect(p).toContainText("Which one do I need?");
-  for (const h of ["Signed in through a gate", "Signed in with OpenID", "Keys that skip the sign-in"]) await expect(p.getByRole("heading", { name: h })).toBeVisible();
-  // empty states say what will appear and when
-  await expect(p).toContainText("No gate session yet");
+  // first what the vault's plugins point at, then the sessions kept; the rest folded as Advanced
+  for (const h of ["Your services", "Login sessions kept"]) await expect(p.getByRole("heading", { name: h })).toBeVisible();
+  await expect(p.getByRole("heading", { name: "Keys that skip the login" })).toBeHidden();
+  await expect(p).toContainText("None yet");
+  await p.getByText(/^Advanced:/).click();
+  for (const h of ["An OpenID provider for plugins", "Keys that skip the login"]) await expect(p.getByRole("heading", { name: h })).toBeVisible();
   await expect(p).toContainText("No OpenID sign-in yet");
   await expect(p).toContainText("No key.");
 
@@ -58,4 +60,25 @@ test("Settings → Sign-ins: a bypass key is kept, listed without its value, a *
   await expect(p).toContainText("No key.");
   const after = await page.evaluate(() => fetch("/api/signin/bypass", { headers: { "x-atlas": "1" } }).then((r) => r.json()));
   expect(after).toEqual([]);
+});
+
+// A plugin pointing at a server is listed under "Your services" with what it is missing: the login page's session and,
+// for one with a secret, its own login — each a button, nothing to type.
+test("Settings → Sign-ins: a plugin's server is listed with a Sign in for each missing login", async ({ page, request }) => {
+  const H = { "x-atlas": "1" };
+  await request.put("/api/file", { headers: H, data: { path: ".atlas/plugins/svcdemo/plugin.toml", text: 'title = "Service demo"\n\n[[setting]]\nkey = "server"\nlabel = "Server"\nkind = "text"\ndefault = "https://svc.example.org"\n\n[[setting]]\nkey = "token"\nlabel = "Token"\nkind = "secret"\n' } });
+  try {
+    await page.goto("/");
+    await page.getByText("Finish the GW notes.").waitFor();
+    await page.keyboard.press("Meta+,");
+    await page.getByRole("navigation", { name: "Settings pages" }).getByRole("button", { name: "Sign-ins", exact: true }).click();
+    const row = page.getByTestId("signins-panel").locator('[data-service="svcdemo"]');
+    await expect(row).toContainText("Service demo");
+    await expect(row).toContainText("svc.example.org");
+    await expect(row).toContainText("Its own login: not yet");
+    await expect(row.getByRole("button", { name: "Sign in", exact: true })).toBeVisible();
+    await expect(row.getByRole("button", { name: "Open its settings" })).toBeVisible();
+  } finally {
+    await request.post("/api/fs/trash?path=.atlas/plugins/svcdemo", { headers: H });
+  }
 });

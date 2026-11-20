@@ -1,6 +1,7 @@
 <script lang="ts">
-  // Settings → Sign-ins (docs/design/SERVICE-SIGNIN.md): every way Atlas gets past a sign-in in front of a service, as
-  // one page in three sections, most preferred first —
+  // Settings → Sign-ins (docs/design/SERVICE-SIGNIN.md): first "Your services" — each plugin's server with its login
+  // page session and its own login, a button for what is missing, nothing to type — then the sessions kept; the
+  // OpenID provider and the bypass keys folded under Advanced (most people never need them). Underneath, three ways —
   //  1. gate sessions: a forward-auth gate's (Authelia, Authentik…) cookies kept per host from the sign-in window,
   //     kept alive by the core (service_signin.rs; `GET/DELETE /api/signin/doors`);
   //  2. OpenID: one token per provider shared by the plugins (plugin_oauth.rs; `GET/DELETE /api/signin/tokens`), and the
@@ -19,6 +20,9 @@
   import BypassKeyForm from "../BypassKeyForm.svelte";
   import { valueOf } from "../../lib/settings-schema";
   import { settings, updateSettings } from "../../lib/settings.svelte";
+  import { allCommands } from "../../lib/keymap.svelte";
+  import { openSettingsAt, pluginPageId } from "../../lib/settings-nav.svelte";
+  import type { Plugin } from "../../lib/gen/Plugin";
 
   let kept = $state<Kept[]>([]);
   let tokens = $state<OidcSignin[]>([]);
@@ -30,8 +34,35 @@
   const users = (ps: string[], none: string) => (ps.length ? `Used by ${ps.join(", ")}` : none);
   const ruleId = (b: Bypass) => `${b.header}\u0000${b.hosts.join(",")}`;
 
+  // ── your services: every plugin's server (an http(s) address among its settings), with the two things a service
+  // behind a gate may need — the gate's session (Authelia's cookies, kept by the sign-in window) and the service's
+  // own login (its token, a secret of the plugin, which its sign-in command gets through the same Authelia)
+  type Service = { plugin: Plugin; url: string; host: string; secrets: string[]; has: string[] };
+  let services = $state<Service[]>([]);
+  async function loadServices(): Promise<void> {
+    const ps = (await api.plugins()).filter((p) => !p.blocked);
+    const found: Service[] = [];
+    for (const p of ps) {
+      const urls = Object.values(p.settings ?? {}).filter((v): v is string => typeof v === "string" && /^https?:\/\/[^\s/]+/i.test(v.trim()));
+      if (!urls.length) continue;
+      const url = urls[0].trim(), secrets = p.fields.filter((f) => f.kind === "secret" && !f.hidden).map((f) => f.key);
+      const has = secrets.length ? await api.pluginSecretNames(p.id).catch(() => []) : [];
+      found.push({ plugin: p, url, host: new URL(url).host, secrets, has });
+    }
+    services = found.sort((a, b) => a.plugin.title.localeCompare(b.plugin.title));
+  }
+  /** The kept session that reaches `host`: the plugin is among its users, or its cookies' host covers the address. */
+  const gateOf = (sv: Service): Kept | undefined => kept.find((k) => !k.ended && (k.plugins.includes(sv.plugin.id) || sv.host === k.host || sv.host.endsWith(`.${k.host.replace(/^[^.]+\./, "")}`)));
+  /** The plugin's own sign-in command (`<plugin>.signin`, `….sign-in`, `….login`), when it has one. */
+  const signinCommand = (sv: Service) => allCommands().find((c) => c.id.startsWith(`${sv.plugin.id}.`) && /\.(sign-?in|log-?in)$/i.test(c.id));
+  const ownLogin = (sv: Service) => sv.secrets.length > 0 && sv.secrets.some((k) => sv.has.includes(k));
+  async function runSignin(sv: Service): Promise<void> {
+    const c = signinCommand(sv);
+    if (c) { await c.run(); await load(); } else openSettingsAt(pluginPageId(sv.plugin.id));
+  }
+
   async function load(): Promise<void> {
-    try { [kept, tokens, keys] = await Promise.all([api.serviceSignins(), api.oidcSignins(), api.signinBypasses()]); error = ""; } catch (e) { error = errText(e); }
+    try { [kept, tokens, keys] = await Promise.all([api.serviceSignins(), api.oidcSignins(), api.signinBypasses()]); await loadServices(); error = ""; } catch (e) { error = errText(e); }
   }
   /** One forget path for the three kinds: the call, then the lists again; a failure is shown, never swallowed. */
   async function forget(run: () => Promise<unknown>): Promise<void> {
@@ -70,12 +101,34 @@
 </script>
 
 <div class="signins" data-testid="signins-panel">
-  <p class="which"><b>Which one do I need?</b> A service shows a login page in front of it → <b>sign in through the gate</b>. A plugin asks for a token → <b>OpenID</b>. Something that cannot sign in at all, such as a scheduled sync → <b>a key</b>, as a last resort.</p>
   {#if error}<p class="bad" role="alert">{error}</p>{/if}
 
+  <section class="settings-panel" aria-labelledby="signins-services">
+    <h3 id="signins-services">Your services</h3>
+    <p class="desc">Atlas signs in the way a browser does: your login page (Authelia…) in a window, its cookies kept and renewed. A service behind it may also want its own login — the same page again, its token kept.</p>
+    {#if services.length}
+      <ul class="items" aria-label="Services">
+        {#each services as sv (sv.plugin.id)}
+          {@const gate = gateOf(sv)}
+          {@const cmd = signinCommand(sv)}
+          <li data-service={sv.plugin.id}>
+            <div class="what"><span class="host">{sv.plugin.title}</span><span class="meta">{sv.host}</span>
+              <span class="meta">{#if gate}<span class="chip ok">signed in</span> through {gate.host}{:else}<span class="chip">no login page session</span> fine at home if your network skips it{/if}</span>
+              {#if sv.secrets.length || cmd}<span class="meta">Its own login: {#if ownLogin(sv)}<span class="chip ok">done</span>{:else}<span class="chip bad">not yet</span>{/if}</span>{/if}
+            </div>
+            <div class="acts">
+              {#if !gate}<button class="btn" onclick={() => openServiceSignin(sv.url)}>Sign in</button>{/if}
+              {#if (sv.secrets.length || cmd) && !ownLogin(sv)}<button class="btn primary" onclick={() => void runSignin(sv)}>{cmd ? `Sign in to ${sv.plugin.title}` : "Open its settings"}</button>{/if}
+            </div>
+          </li>
+        {/each}
+      </ul>
+    {:else if !error}<p class="empty">No plugin points at a server yet.</p>{/if}
+  </section>
+
   <section class="settings-panel" aria-labelledby="signins-gate">
-    <h3 id="signins-gate">Signed in through a gate</h3>
-    <p class="desc">A gate (Authelia, Authentik, oauth2-proxy…) puts one login page in front of your services. Sign in once in Atlas's window — tick “Remember me” — and every plugin that names the service gets through; Atlas keeps the session alive for as long as the gate allows.</p>
+    <h3 id="signins-gate">Login sessions kept</h3>
+    <p class="desc">One per login page (Authelia, Authentik…): it opens every service behind that page.</p>
     {#if kept.length}
       <ul class="items" aria-label="Gate sessions">
         {#each kept as k (k.host)}
@@ -89,16 +142,22 @@
           </li>
         {/each}
       </ul>
-    {:else if !error}<p class="empty">No gate session yet. When a plugin first meets a gate, Atlas offers the sign-in and the session appears here. You can also sign in ahead, below.</p>{/if}
-    <form class="line" onsubmit={(e) => { e.preventDefault(); signInAt(); }}>
-      <input placeholder="links.example.org" bind:value={address} aria-label="Sign in at a service's address" />
-      <button class="btn" type="submit" disabled={!address.trim()}>Sign in</button>
-    </form>
-    <p class="hint">The address of any service behind the gate; one session opens every service behind the same gate.</p>
+    {:else if !error}<p class="empty">None yet: “Sign in” on a service above opens its login page once.</p>{/if}
+    <details class="more">
+      <summary>Sign in at another address</summary>
+      <form class="line" onsubmit={(e) => { e.preventDefault(); signInAt(); }}>
+        <input placeholder="a service's address" bind:value={address} aria-label="Sign in at a service's address" />
+        <button class="btn" type="submit" disabled={!address.trim()}>Sign in</button>
+      </form>
+      <p class="hint">Any service behind your login page (not the login page itself): Atlas opens it, follows it to the login, and keeps the session for every service behind it.</p>
+    </details>
   </section>
 
+  <details class="advanced">
+  <summary>Advanced: an OpenID provider for plugins, keys that skip the login</summary>
+
   <section class="settings-panel" aria-labelledby="signins-oidc">
-    <h3 id="signins-oidc">Signed in with OpenID</h3>
+    <h3 id="signins-oidc">An OpenID provider for plugins</h3>
     <p class="desc">Some services take a token from your OpenID provider (Authelia can be one) instead of a login page. Atlas signs in once per provider and shares the token with every plugin that asks; it renews the token by itself.</p>
     {#if tokens.length}
       <ul class="items" aria-label="OpenID providers">
@@ -124,7 +183,7 @@
   </section>
 
   <section class="settings-panel" aria-labelledby="signins-key">
-    <h3 id="signins-key">Keys that skip the sign-in</h3>
+    <h3 id="signins-key">Keys that skip the login</h3>
     <p class="desc">A gate may let a request through when it carries a shared key in a header. Use one only for what cannot sign in — a scheduled sync, a native client: the key opens every host behind the gate, says nothing of who you are and skips your second factor. Prefer a gate session or OpenID.</p>
     {#if keys.length}
       <ul class="items" aria-label="Bypass keys">
@@ -151,12 +210,15 @@
     </ul>
     <div class="keyform"><BypassKeyForm onkept={() => void load()} /></div>
   </section>
+  </details>
 </div>
 
 <style>
+  .advanced, .more { margin-top: 10px; }
+  .advanced > summary, .more > summary { cursor: pointer; color: var(--text-muted); padding: 6px 0; }
+  .acts { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+  .chip.ok { color: var(--green, #2e7d32); }
   .signins { display: flex; flex-direction: column; gap: 14px; }
-  .which { margin: 0; padding: 10px 14px; border-radius: var(--radius); background: var(--card-bg); border: 1px solid var(--card-border); color: var(--text-muted); font-size: calc(12.5px * var(--ui-scale, 1)); line-height: 1.5; max-width: 85ch; }
-  .which b { color: var(--text); font-weight: 600; }
   h3 { margin: 10px 0 2px; } /* its look: SettingsPage */
   h4 { margin: 0; font-size: calc(13px * var(--ui-scale, 1)); color: var(--text); }
   .desc, .hint, .empty { margin: 0 0 8px; color: var(--text-faint); font-size: calc(12.5px * var(--ui-scale, 1)); line-height: 1.45; max-width: 85ch; }
