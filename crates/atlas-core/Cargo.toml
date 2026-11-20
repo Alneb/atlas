@@ -50,6 +50,10 @@ flate2 = "1"
 sevenz-rust2 = { version = "0.24", default-features = false, features = ["bzip2", "ppmd", "deflate"] }
 djvu-rs = { version = "0.43", default-features = false, features = ["std", "pdf"] }
 # JPEG XL thumbnails (src/thumbs.rs): pure Rust, so the phone's build needs no C either
+# AVIF (src/avif.rs): the container by avif-parse, AV1 by rav1d (the Rust port of dav1d) without its assembly, so the
+# phone's build needs no C or nasm either. Android's own decoders refuse common manga AVIFs; the core had none.
+avif-parse = "2"
+rav1d = { version = "1.1", default-features = false, features = ["bitdepth_8", "bitdepth_16"] }
 # `moxcms`: pure-Rust colour management, so a page with its own ICC profile converts to sRGB (without it: "color
 # management system is not available" — 3 of 15 real manga pages failed, on the phone where no other decoder exists)
 jxl-oxide = { version = "0.12", features = ["moxcms"] }

@@ -16,8 +16,9 @@ final class Core {
     static native String attach(String vault, String name, String source);
     /** Vault folders under root: [{name, path, kind}]. */
     static native String findVaults(String root);
-    /** A JPEG XL picture (no Android decoder reads one): [width, height, ARGB…], or null (crates/atlas-android/src/image.rs). */
-    static native int[] decodeJxl(byte[] bytes);
+    /** A JPEG XL or AVIF picture (no Android decoder reads the one, many AVIFs fail the other): [width, height, ARGB…],
+     *  or null (crates/atlas-android/src/image.rs). */
+    static native int[] decodePicture(byte[] bytes);
     /** A built-in plugin's form from the manifest the app carries: {fields, settings} or {error}. */
     static native String pluginForm(String manifest);
     /** PDFium (crates/atlas-core/src/pdfium.rs), through Pdfium.java: "" once libpdfium.so at `lib` is loaded, else why. */

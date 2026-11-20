@@ -96,11 +96,12 @@ pub extern "system" fn Java_org_atlas_capture_Core_bundledAdd(mut env: JNIEnv, _
     ret(&mut env, move || crate::serve::bundled_add(Path::new(&v), Path::new(&b), &i).to_string())
 }
 
-/// A JPEG XL for the native plugins (image.rs): `[width, height, ARGB…]`, or null when it is not one.
+/// A JPEG XL or an AVIF for the native plugins (image.rs): `[width, height, ARGB…]`, or null when it is neither or
+/// does not decode.
 #[no_mangle]
-pub extern "system" fn Java_org_atlas_capture_Core_decodeJxl(env: JNIEnv, _: JClass, bytes: jni::objects::JByteArray) -> jni::sys::jintArray {
+pub extern "system" fn Java_org_atlas_capture_Core_decodePicture(env: JNIEnv, _: JClass, bytes: jni::objects::JByteArray) -> jni::sys::jintArray {
     let Ok(b) = env.convert_byte_array(&bytes) else { return std::ptr::null_mut() };
-    let Ok(Ok((w, h, px))) = std::panic::catch_unwind(move || crate::image::decode_jxl(&b)) else { return std::ptr::null_mut() };
+    let Ok(Ok((w, h, px))) = std::panic::catch_unwind(move || crate::image::decode(&b)) else { return std::ptr::null_mut() };
     let mut all = Vec::with_capacity(px.len() + 2);
     all.extend([w as i32, h as i32]);
     all.extend(px);

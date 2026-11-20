@@ -1,7 +1,7 @@
 //! Image thumbnails (`GET /api/thumb?path=&w=`): a figure gallery must not make the UI decode
 //! 4368×2301 PNGs to show them 160 px wide (the runs view froze WebKit that way). Downscaled once,
-//! cached in `.atlas/cache/thumbs/` until the source changes. JPEG XL (manga covers and pages) is always turned into
-//! PNG here: WebKit's own decoder can hang the page on one, and Android has none.
+//! cached in `.atlas/cache/thumbs/` until the source changes. JPEG XL and AVIF (manga covers and pages) are always
+//! turned into PNG here: WebKit's own decoder can hang the page on a JPEG XL, and Android reads neither reliably.
 use crate::error::{Error, Result};
 use crate::workspace::Workspace;
 use std::hash::{Hash, Hasher};
@@ -33,9 +33,14 @@ pub fn thumbnail(ws: &Workspace, rel: &str, w: u32) -> Result<(Vec<u8>, &'static
         let page = cbz_first_page(&src)?;
         if jxl_head(&page) {
             image::DynamicImage::ImageRgba8(decode_jxl(&page)?)
+        } else if crate::avif::is_avif(&page) {
+            image::DynamicImage::ImageRgba8(crate::avif::decode_avif(&page, MAX_JXL_PIXELS)?)
         } else {
             image::load_from_memory(&page).map_err(bad(rel))?
         }
+    } else if let Some(img) = avif_of(&src) {
+        // decoded here like a JPEG XL (Android's WebView and decoders refuse many); one that fails passes through below
+        image::DynamicImage::ImageRgba8(img)
     } else {
         let reader = image::ImageReader::open(&src)?.with_guessed_format()?;
         let format = reader.format();
@@ -270,7 +275,19 @@ fn is_jxl(path: &Path) -> bool {
     jxl_head(&head[..n])
 }
 
-fn jxl_head(b: &[u8]) -> bool {
+/// An AVIF file decoded, when it is one and decodes; None sends it on as it is (a browser may still read it).
+fn avif_of(path: &Path) -> Option<image::RgbaImage> {
+    use std::io::Read;
+    let mut head = [0u8; 12];
+    let n = std::fs::File::open(path).and_then(|mut f| f.read(&mut head)).ok()?;
+    if !crate::avif::is_avif(&head[..n]) {
+        return None;
+    }
+    crate::avif::decode_avif(&std::fs::read(path).ok()?, MAX_JXL_PIXELS).map_err(|e| eprintln!("atlas: {}: {e}", path.display())).ok()
+}
+
+/// Whether `b` starts a JPEG XL (the bare codestream or the ISO container).
+pub fn jxl_head(b: &[u8]) -> bool {
     b.starts_with(&[0xff, 0x0a]) || b.starts_with(b"\0\0\0\x0cJXL \r\n\x87\n")
 }
 
@@ -438,7 +455,7 @@ mod tests {
         let (s, _) = thumbnail(&ws, "small.png", 300).unwrap();
         assert_eq!(s, std::fs::read(d.path().join("small.png")).unwrap(), "small enough: unchanged");
         assert!(thumbnail(&ws, "../etc/passwd", 300).is_err());
-        // a format the core does not decode (AVIF, by its `ftyp` box) passes through for the browser to decode
+        // an AVIF the core cannot decode (by its `ftyp` box, a broken one) passes through for the browser to try
         let avif = b"\0\0\0\x1cftypavif\0\0\0\0avifmif1miaf not decoded here";
         std::fs::write(d.path().join("cover"), avif).unwrap();
         assert_eq!(thumbnail(&ws, "cover", 300).unwrap(), (avif.to_vec(), "image/avif"));

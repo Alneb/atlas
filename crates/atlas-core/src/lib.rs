@@ -115,6 +115,7 @@ pub mod walk;
 pub mod wall_clock;
 pub mod word_bloom;
 pub mod auth;
+pub mod avif;
 pub mod login_page;
 pub mod signin_return;
 pub mod workspace;
