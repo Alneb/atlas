@@ -5,6 +5,14 @@ and versions follow [Semantic Versioning](https://semver.org/) once 1.0 is out.
 
 ## [Unreleased]
 
+### Added
+- **New tabs on top** (Settings → Appearance): a tab opened goes first in its list, and at the left of a horizontal
+  strip, instead of last.
+
+### Fixed
+- **Closing the last editor tab and opening another keeps the layout**: the side panel no longer stays stretched
+  across most of the window.
+
 ## [0.4.7] - 2026-11-20
 
 ### Added

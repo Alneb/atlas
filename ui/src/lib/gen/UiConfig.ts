@@ -74,6 +74,11 @@ tabs: TabsLayout,
  */
 one_tab: boolean, 
 /**
+ * New tabs on top: a tab opened goes first in its list (at the left of a horizontal strip) instead of last, so
+ * the newest is always at the top. Terminals too; a tab opened beside another still goes beside it.
+ */
+new_tabs_first: boolean, 
+/**
  * Where the side panel (files, search, outline, git) shows: its own column beside the editors
  * (`dock`), or inside the left bar, under the list of tabs (`sidebar`; vertical tabs only).
  */

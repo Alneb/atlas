@@ -419,7 +419,7 @@ export function open(spec: PaneSpec, opts: { activate?: boolean; beside?: boolea
     // 8 PDFs open) — and keeps its place through pane-scroll.ts
     renderer: spec.kind === "terminal" ? "always" : "onlyWhenVisible",
     inactive: opts.activate === false,
-    ...((opts.beside && besideActive()) || placement(specZone(spec))),
+    ...((opts.beside && besideActive()) || newestFirst(placement(specZone(spec)))),
   } as AddPanelOptions<PaneSpec>);
   setOpening(null);
   // a new group among the editors takes its room from them, not from the side panel or the terminal
@@ -430,6 +430,14 @@ export function open(spec: PaneSpec, opts: { activate?: boolean; beside?: boolea
   if (opts.activate !== false) reveal(panel.group);
   else if (!panel.group.api.isVisible) setContentVisible(panel.group, false);
   return panel.api;
+}
+
+/** New tabs on top (`ui.new_tabs_first`): a pane added to an existing group goes first in it — the side list and a
+ *  horizontal strip both follow the group's order, and so do drags. A new group (a split) is left as placed. */
+function newestFirst(at: Partial<AddPanelOptions>): Partial<AddPanelOptions> {
+  const pos = at.position;
+  if (!settings.config?.ui.new_tabs_first || !pos || !("referenceGroup" in pos) || pos.direction) return at;
+  return { ...at, position: { ...pos, index: 0 } };
 }
 
 /** One tab per pane (`ui.one_tab`): the pane just opened in the editor area takes the place of what its group showed —

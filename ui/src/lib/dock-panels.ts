@@ -18,6 +18,9 @@ export function besideActive(): Partial<AddPanelOptions> | null {
  *  among the editors (a file opened beside) sits in the same row as a terminal docked on the right, and the
  *  grid shares the room out among all of them: the terminal narrowed (its TUI reflowing) for an editor's split. */
 export function holdToolSizes(): () => void {
+  // with no editor open the tool panels fill the window: the first editor gets their kept sizes back (keepShape,
+  // noteToolSizes), and holding the stretched ones would leave the side panel across most of the window
+  if (!zoneGroup("main")) return () => {};
   const side = zoneGroup("side"), bottom = zoneGroup("bottom"), right = alongRight();
   const held = (g: typeof side) => (g && g.api.isVisible && !inZone(g, "main") ? g : null);
   const s = held(side), t = held(bottom);
