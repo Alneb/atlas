@@ -15,7 +15,8 @@ a click.
   finished, what comes next and its pages, or that it was the last): one more turn crosses, so a turn back from a
   chapter's first page never lands in the previous chapter by accident. A bar along the bottom shows how far you are
   (from the right in right to left) and goes to a page on a click. Keys: the arrows (in the reading direction), Space
-  / Shift+Space, Page Up / Down, Home / End; a page taller than the view (fit width) scrolls before it turns. The
+  / Shift+Space, Page Up / Down, Home / End; a page taller than the view (fit width) scrolls before it turns. **z** is a magnifier in the paged modes: the page twice as
+  large where the pointer is, following it; z again, Escape or a turn ends it (the phone pinches). The
   wheel turns one page per gesture in the paged modes, after a pause at a tall page's edge. Tap zones as Mihon's. The
   reading mode and the scale are changed from the reader's bar (a tap in the middle) for this series: kept in its
   note's `reader_options` as the phone keeps them (a server's series: the plugin's settings).

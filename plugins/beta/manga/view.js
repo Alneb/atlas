@@ -564,6 +564,7 @@ export default function mount(host, atlas) {
     }
     function turn(d) {
       if (!ch) return;
+      lens(false); // a new page opens whole
       if (webtoon) { view.scrollBy({ top: d * view.clientHeight * 0.85 }); return; }
       if (gap === "next") {
         if (d < 0) void draw();
@@ -652,6 +653,18 @@ export default function mount(host, atlas) {
       turn(wheelSum > 0 ? 1 : -1);
       wheelSum = 0; wheelRest = now + 350;
     }, { passive: false });
+    // the magnifier (the phone's pinch, on a desktop): `z` shows the page twice as large, the part under the pointer
+    // (it follows the mouse); `z` again or a page turn ends it. Paged modes only: webtoon scrolls at its width.
+    const lens = (on) => {
+      view.classList.toggle("lens", on);
+      if (!on) { view.style.removeProperty("--lens-x"); view.style.removeProperty("--lens-y"); }
+    };
+    view.addEventListener("mousemove", (e) => {
+      if (!view.classList.contains("lens")) return;
+      const r = view.getBoundingClientRect();
+      view.style.setProperty("--lens-x", `${Math.round(((e.clientX - r.left) / r.width) * 100)}%`);
+      view.style.setProperty("--lens-y", `${Math.round(((e.clientY - r.top) / r.height) * 100)}%`);
+    });
     const keys = (e) => {
       if (e.target instanceof HTMLSelectElement || e.target instanceof HTMLInputElement || e.ctrlKey || e.metaKey || e.altKey) return;
       const k = e.key;
@@ -662,6 +675,8 @@ export default function mount(host, atlas) {
       else if (!webtoon && !gap && (down || up) && scrolls(down ? 1 : -1, view.clientHeight * (big ? 0.85 : 0.2))) { /* scrolled */ }
       else if (k === fwd || down) turn(1);
       else if (k === bwd || up) turn(-1);
+      else if ((k === "z" || k === "Z") && !webtoon && !gap) lens(!view.classList.contains("lens"));
+      else if (k === "Escape" && view.classList.contains("lens")) lens(false);
       else if ((k === "Home" || k === "End") && ch && !webtoon) { page = k === "Home" ? 0 : ch.count - 1; void draw(); }
       else return;
       e.preventDefault(); e.stopPropagation();
@@ -767,8 +782,15 @@ export default function mount(host, atlas) {
       "Which series the library shows (the phone's library the same)", () => draw());
     const order = settingPicker("library_order", [["auto", "Auto order"], ["title", "Title"], ["last read", "Last read"], ["unread", "Unread"]],
       "The library's order (Auto: Reading by last read, the rest unread first)", () => draw());
-    head.append(filter, show, order, go);
+    const layout = settingPicker("library_layout", [["grid", "Covers"], ["list", "List"]],
+      "Covers in a grid, or a list (the phone's library the same)", () => grid.classList.toggle("m-list", S.library_layout === "list"));
+    // what the server has now (the phone's pull to refresh): new series, unread counts after an update
+    const refresh = el("button", "atlas-btn", "↻");
+    refresh.title = "Ask the server again";
+    refresh.setAttribute("aria-label", "Refresh the library");
+    head.append(filter, show, order, layout, refresh, go);
     const tabs = el("div", "m-tabs"), grid = el("div", "m-grid");
+    grid.classList.toggle("m-list", S.library_layout === "list");
     root.append(head, tabs, grid);
     let all = [], cat = "";
     const draw = () => {
@@ -803,8 +825,10 @@ export default function mount(host, atlas) {
       }
     };
     filter.oninput = draw;
-    void suw.library().then((x) => { if (gone) return; all = x.sort((a, b) => natural(a.title, b.title)); drawTabs(); draw(); },
-      (e) => grid.append(el("div", "atlas-notice", `Suwayomi: ${e.message ?? e}`)));
+    const load = () => suw.library().then((x) => { if (gone) return; all = x.sort((a, b) => natural(a.title, b.title)); drawTabs(); draw(); },
+      (e) => grid.replaceChildren(el("div", "atlas-notice", `Suwayomi: ${e.message ?? e}`)));
+    refresh.onclick = () => { refresh.disabled = true; void load().finally(() => (refresh.disabled = false)); };
+    void load();
   }
   /** A source's Popular, Latest or a search, as covers; More asks the next page; a series appears once. */
   function source(src) {
@@ -912,6 +936,7 @@ export default function mount(host, atlas) {
   }
 
   root.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && root.querySelector(".m-reader.lens")) return; // Escape ends the magnifier first (the reader's keys)
     if ((e.key === "Escape" || e.key === "Backspace") && stack.length > 1 && !(e.target instanceof HTMLInputElement)) { e.preventDefault(); back(); show.refresh?.(); }
   });
 
@@ -976,6 +1001,12 @@ function style() {
   .manga .m-tabs { display: flex; gap: 6px; padding: 10px 14px; align-items: center; flex-wrap: wrap; }
   .manga .m-tabs .on { background: var(--accent-soft); border-color: var(--accent); }
   .manga .m-tabs.searching .on { background: none; border-color: var(--border); } /* a search shows every shelf */
+  /* the list layout: a small cover, the title and its unread count on one row */
+  .manga .m-grid.m-list { grid-template-columns: 1fr; gap: 4px; }
+  .manga .m-grid.m-list .m-found { flex-direction: row; align-items: center; gap: 12px; padding: 4px 6px; border-radius: 8px; }
+  .manga .m-grid.m-list .m-found:hover { background: var(--bg-elev); }
+  .manga .m-grid.m-list .m-cover { width: 40px; flex: none; border-radius: 4px; }
+  .manga .m-grid.m-list .m-found-title { flex: 1; }
   .manga .m-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 14px; padding: 4px 14px 14px; }
   .manga .m-found { display: flex; flex-direction: column; gap: 6px; padding: 0; border: 0; background: none; color: var(--text); font: inherit; text-align: left; cursor: pointer; }
   .manga .m-found-title { font-size: 0.92em; line-height: 1.25; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
@@ -990,6 +1021,8 @@ function style() {
   .manga .m-reader.webtoon { flex-direction: column; justify-content: flex-start; }
   .manga .m-ink { position: absolute; pointer-events: none; }
   .manga .m-reader.webtoon .m-page { width: min(100%, 900px); display: block; }
+  .manga .m-reader.lens { overflow: hidden; cursor: zoom-in; }
+  .manga .m-reader.lens .m-page { transform: scale(2); transform-origin: var(--lens-x, 50%) var(--lens-y, 50%); }
   .manga .m-reader.webtoon .m-page:not([src]) { min-height: 40vh; } /* room for a page not loaded yet; a loaded one keeps its shape */
   .manga .m-reader.paged.fit-screen .m-page { max-width: 100%; max-height: 100%; object-fit: contain; }
   .manga .m-reader.paged.fit-width { align-items: flex-start; } .manga .m-reader.paged.fit-width .m-page { width: 100%; }

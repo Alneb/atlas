@@ -6,7 +6,7 @@ title = "Manga"
 description = "a manga and comics library and reader like Mihon: series, chapters, read from where you left, right-to-left, webtoon, e-ink paging"
 phone = true # runs in the phone apps too (only plugins marked so start there)
 icon = "file"
-version = "0.25.0"
+version = "0.25.2"
 api = 20
 claims = ["*.cbz", "*.cbr", "*.cb7", "*.cbt"] # opens here on a click (API 7); all but .cbz made into one first (helper/helper.ts)
 
@@ -40,11 +40,11 @@ hint = "your Suwayomi (Tachiyomi's server), e.g. https://manga.example.org: its 
 
 [[setting]]
 key = "library_layout"
-label = "Library on the phone"
+label = "Library layout"
 kind = "choice"
 choices = ["grid", "list"]
 default = "grid"
-hint = "the phone's own library: covers in a grid, or a list (its bar switches it too)"
+hint = "the library on the phone and the desktop: covers in a grid, or a list (both bars switch it too)"
 
 [[setting]]
 key = "library_order"

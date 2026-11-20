@@ -365,6 +365,12 @@ test("Suwayomi: its library in its own tab, a chapter read from it, where you ar
     await page.keyboard.press("ArrowLeft");
     await expect(pane.locator(".m-num")).toHaveText("2 / 3");
     await expect.poll(() => marks.at(-1)).toEqual({ id: 9597, page: 1, read: false }); // where you are, on the server
+    // the magnifier: z doubles the page, Escape ends it (and only it: the reader stays)
+    await page.keyboard.press("z");
+    await expect(pane.locator(".m-reader.lens")).toHaveCount(1);
+    await page.keyboard.press("Escape");
+    await expect(pane.locator(".m-reader.lens")).toHaveCount(0);
+    await expect(pane.locator(".m-num")).toHaveText("2 / 3");
 
     // new chapters: the series asks the server to look at its source again; the library's update is a command
     await page.keyboard.press("Escape");
@@ -377,6 +383,11 @@ test("Suwayomi: its library in its own tab, a chapter read from it, where you ar
     await expect.poll(() => updates).toBe(1);
     // the library now has the phone's Reading tab (a series with a page read), before All and the categories
     await pane.getByRole("button", { name: "‹ Back" }).click();
+    await expect(pane.locator(".m-tabs button")).toHaveText(["Reading", "All", "Weekly"]);
+    // the list layout and a refresh, from the bar
+    await pane.locator("select[title^='Covers in a grid']").selectOption("list");
+    await expect(pane.locator(".m-grid.m-list")).toHaveCount(1);
+    await pane.getByRole("button", { name: "Refresh the library" }).click();
     await expect(pane.locator(".m-tabs button")).toHaveText(["Reading", "All", "Weekly"]);
     await pane.locator(".m-tabs").getByRole("button", { name: "Reading" }).click();
     await expect(blame).toBeVisible();
