@@ -5,10 +5,23 @@ and versions follow [Semantic Versioning](https://semver.org/) once 1.0 is out.
 
 ## [Unreleased]
 
+## [0.4.7] - 2026-11-20
+
+### Added
+- **Sign-ins lead with your services**: Settings → Sign-ins lists the services your plugins use, each with its own
+  Sign in; another address and the OpenID / key options are folded below.
+- **Apps row**: five tiles, the rest behind a +, and the row fits the bar.
+- **Manga**: the Default shelf lists every series and search looks on every shelf; the phone's reader preloads the
+  next pages as Mihon does, with JPEG XL and AVIF pages decoded near screen size.
+- **Audiobookshelf**: Sign in right in the not-connected box.
+
 ### Fixed
 - **`atlas` is found by everything the Flatpak starts**: agent tabs, terminals and helpers get `~/.local/bin` (the
   Flatpak's `atlas` launcher) first on their PATH, so an agent's `atlas mcp` starts the Flatpak's, not some other
   build; when the session's PATH lacks that folder, a `~/.config/environment.d` drop-in adds it from the next login.
+- **Audiobookshelf** not set up says so, with its settings, instead of a raw error.
+- **Plan** no longer nudges about months-old tasks, and bracketed titles read back as written.
+- **Release notes** read as paragraphs, with a guide to which of the release's files to take.
 
 ## [0.4.6] - 2026-11-20
 
