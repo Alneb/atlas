@@ -71,3 +71,26 @@ test("the Library tile stays when References is switched off", async ({ page, re
     await request.put("/api/config", { headers: H, data: back });
   }
 });
+
+// More than five apps: five tiles (the one in front among them) and a + listing the rest, each opening its app.
+test("past five apps, a + lists the rest", async ({ page, request }) => {
+  const extra = ["one", "two", "three", "four", "five", "six"];
+  for (const n of extra) {
+    await put(request, `.atlas/plugins/many${n}/plugin.toml`, `title = "Many ${n}"\nrail = true\nicon = "chart"\n`);
+    await put(request, `.atlas/plugins/many${n}/view.js`, `export default function mount(host) { host.innerHTML = "<p class=many>${n}</p>"; }\n`);
+  }
+  try {
+    await page.goto("/");
+    await page.getByText("Finish the GW notes.").waitFor();
+    const apps = page.getByTestId("apps");
+    await expect(apps.locator(".app:not(.more)")).toHaveCount(5);
+    await page.getByTestId("apps-more").click();
+    await page.getByRole("menuitem", { name: "Many six" }).click();
+    await expect(page.locator("p.many", { hasText: "six" })).toBeVisible();
+    // the app in front keeps a tile in the row
+    await expect(apps.locator('.app[aria-label="Many six"]')).toBeVisible();
+    await expect(apps.locator(".app:not(.more)")).toHaveCount(5);
+  } finally {
+    for (const n of extra) await request.post(`/api/fs/trash?path=.atlas/plugins/many${n}`, { headers: H });
+  }
+});

@@ -22,15 +22,30 @@
     const more = tabs.apps.filter((t) => !l.some((a) => a.ids.includes(t.id))).map((t): AppTile => ({ key: t.id, ids: [t.id], title: t.title, icon: t.icon, open: () => activate(t.id) }));
     return [...l, ...more];
   });
+  /** At most FIRST tiles in the row; the rest behind a + (a row of eight icons was too many to tell apart). The app in
+   *  front always has its tile: past the first FIRST, it takes the last place. */
+  const FIRST = 5;
+  const row = $derived.by((): AppTile[] => {
+    if (apps.length <= FIRST + 1) return apps; // one more fits where the + would go
+    const head = apps.slice(0, FIRST), front = apps.find(isActive);
+    return front && !head.includes(front) ? [...head.slice(0, FIRST - 1), front] : head;
+  });
+  const rest = $derived(apps.filter((a) => !row.includes(a)));
+  /** The +: the other apps, each with its icon and keys, then where to arrange them. */
+  function moreApps(e: MouseEvent): void {
+    const items: MenuItem[] = rest.map((a) => ({ label: a.title, icon: a.icon, hint: a.keys, run: () => go(a) }));
+    items.push("sep", { label: "Arrange the apps…", icon: "settings", run: () => openSettingsAt("appearance") });
+    side.menu = atPointer(e, items);
+  }
   /** the tile's open tab: the shown one first, else any */
   const openId = (a: AppTile) => (a.ids.includes(tabs.active ?? "") ? tabs.active : a.ids.find((id) => tabs.apps.some((t) => t.id === id))) ?? null;
   const isActive = (a: AppTile) => a.ids.includes(tabs.active ?? "");
   // collapsed to icons, the apps are one icon: the one in front (else the first) — a column of every app pushed the
   // rest of the bar down, so nothing kept its height between the two widths; the others are a hover (peek) away
-  const shown = $derived(wide ? apps : apps.filter(isActive).slice(0, 1).concat(apps.some(isActive) ? [] : apps.slice(0, 1)));
+  const shown = $derived(wide ? row : apps.filter(isActive).slice(0, 1).concat(apps.some(isActive) ? [] : apps.slice(0, 1)));
   // …and the one icon stands in a box as tall as the open bar's rows of tiles (its grid below: 36 px tiles, 4 px gaps,
   // 8 px sides), so the tabs under it keep their place when the bar opens over the panes
-  const openRows = $derived(Math.ceil(apps.length / Math.max(1, Math.floor((tabs.sidebar.width - 16 + 4) / 40))));
+  const openRows = $derived(Math.ceil((row.length + (rest.length ? 1 : 0)) / Math.max(1, Math.floor((tabs.sidebar.width - 16 + 4) / 40))));
   const go = (a: AppTile) => { const id = openId(a); if (id) activate(id); else a.open(); };
   const appTip = (a: AppTile) => `${a.title}${a.keys ? ` · ${a.keys}` : ""}${openId(a) ? "" : " (opens it)"}`;
   /** Its tab's Close, then where the tile sits (`[ui] apps_order` / `apps_hidden`, also in Settings → Appearance). */
@@ -60,6 +75,9 @@
         data-app-id={a.ids[0]} onclick={() => go(a)} onauxclick={(e) => { if (e.button === 1 && id) { e.preventDefault(); closeTab(id); } }}
         onmousedown={(e) => { if (e.button === 1) e.preventDefault(); }} oncontextmenu={(e) => appMenu(e, a)}><Icon name={a.icon} size={16} /></button>
     {/each}
+    {#if wide && rest.length}
+      <button class="app more" aria-label="More apps ({rest.length})" title="{rest.length} more: {rest.map((a) => a.title).join(', ')}" data-testid="apps-more" onclick={moreApps}><Icon name="plus" size={16} /></button>
+    {/if}
   </div>
 {/if}
 
