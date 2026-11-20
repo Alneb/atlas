@@ -6,9 +6,11 @@
 // Immediate: a press, a wheel notch or a pinch sets the text size at once (no picture scaled first, no glide); a
 // gesture's events are folded into one size per frame.
 import type { DockviewApi, IDockviewPanel } from "dockview-core";
+import { EditorView } from "@codemirror/view";
 import { onSettings, settings } from "./settings.svelte";
 import { saveShellPrefs, shellPart } from "./shell-prefs";
 import { zoomShown } from "./zoom-status.svelte";
+import { wheelPixels } from "./wheel";
 
 const STEP = 1.1, MOST = 8; // ten percent a press, between 1.1^-8 and 1.1^8
 const WHEEL_STEP = 1 / 120; // a wheel notch (120) zooms one step
@@ -32,10 +34,24 @@ function paint(p: IDockviewPanel): void {
   const c = settings.config, el = p.view.content.element, f = paneZoom(p.id);
   if (!c) return;
   const vars: [string, string][] = [["--ui-scale", `calc(${(c.ui.font_size / 14) * f} * var(--eink-scale, 1))`], ["--code-size", `${c.editor.code_font_size * f}px`], ["--prose-size", `${c.editor.prose_font_size * f}px`]];
+  const back = holdPlace(el);
   for (const [k, v] of vars) { if (f === 1) el.style.removeProperty(k); else el.style.setProperty(k, v); }
   window.dispatchEvent(new CustomEvent(PANE_ZOOM_EVENT, { detail: p.id }));
   window.dispatchEvent(new Event("resize")); // editors measure their lines again
+  back();
   if (p === dock?.activePanel) showActive();
+}
+
+/** The editors' places in `el` before a size change, and a function that puts each back: the line at the top stays at
+ *  the top. A scroll offset in pixels kept the same number while every line grew or shrank, so a zoom threw the
+ *  reader to another part of the note. */
+function holdPlace(el: HTMLElement): () => void {
+  const views = [...el.querySelectorAll<HTMLElement>(".cm-editor")].map((e) => EditorView.findFromDOM(e)).filter((v): v is EditorView => !!v);
+  const tops = views.filter((v) => v.scrollDOM.scrollTop > 0).map((v) => {
+    const into = v.scrollDOM.getBoundingClientRect().top - v.documentTop; // how far the view has scrolled into the text
+    return { v, pos: v.lineBlockAtHeight(into).from };
+  });
+  return () => { for (const { v, pos } of tops) v.dispatch({ effects: EditorView.scrollIntoView(pos, { y: "start" }) }); };
 }
 
 /** Panes whose size changed since the last frame: drawn once at the next one. */
@@ -70,8 +86,7 @@ function onWheel(e: WheelEvent): void {
   const p = dock.panels.find((x) => x.view.content.element.contains(e.target as Node));
   if (!p) return;
   e.preventDefault();
-  const px = e.deltaMode === 1 ? e.deltaY * 40 : e.deltaY; // lines → pixels
-  zoomTo(p, (steps.get(p.id) ?? 0) - px * WHEEL_STEP);
+  zoomTo(p, (steps.get(p.id) ?? 0) - wheelPixels(e) * WHEEL_STEP);
 }
 
 /** Called once, right after the dock is created. */

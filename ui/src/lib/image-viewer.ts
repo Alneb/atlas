@@ -2,6 +2,7 @@
 // their middle, one finger pans a zoomed picture, a double tap goes fit ⇄ 2.5×, a tap that moved nothing closes it, as
 // do Back (back.ts) and Escape. The desktop's own viewer is the Image pane; this is for a picture inside a note.
 import { closable } from "./back";
+import { wheelPixels } from "./wheel";
 
 const MAX = 8;
 
@@ -69,7 +70,7 @@ export function showImage(src: string, alt = ""): void {
   let closing: ReturnType<typeof setTimeout> | undefined;
   box.addEventListener("pointerup", up);
   box.addEventListener("pointercancel", (e) => { pts.delete(e.pointerId); pinch = null; tap = null; });
-  box.addEventListener("wheel", (e) => { e.preventDefault(); zoomAt(v.s * Math.exp(-e.deltaY / 300), e.clientX, e.clientY); }, { passive: false });
+  box.addEventListener("wheel", (e) => { e.preventDefault(); zoomAt(v.s * Math.exp(-wheelPixels(e) / 300), e.clientX, e.clientY); }, { passive: false });
   box.addEventListener("contextmenu", (e) => e.preventDefault());
   const key = (e: KeyboardEvent) => { if (e.key === "Escape") { e.stopPropagation(); close(); } };
   addEventListener("keydown", key, true);

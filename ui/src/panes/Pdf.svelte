@@ -1,4 +1,5 @@
 <script module lang="ts">
+  import { wheelPixels } from "../lib/wheel";
   import { releaseCanvases } from "../lib/release-canvases";
   import { loadRaw, save, saveRaw } from "../lib/prefs";
   import { pdfPosKey, pdfPosition } from "../lib/pdf-position";
@@ -324,8 +325,7 @@
   function pinch(e: WheelEvent) {
     if (!e.ctrlKey || !r) return;
     e.preventDefault();
-    const px = e.deltaMode === 1 ? e.deltaY * 40 : e.deltaY;
-    r.zoomBy(Math.exp(-px / 300), { x: e.clientX, y: e.clientY });
+    r.zoomBy(Math.exp(-wheelPixels(e) / 300), { x: e.clientX, y: e.clientY });
   }
 
   // Keys typed with nothing focused go to the PDF pane used last (a press on a page normally focuses its scroll box).

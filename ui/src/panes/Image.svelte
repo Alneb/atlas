@@ -4,6 +4,7 @@
   // fit ⇄ 100 %.
   import { onMount } from "svelte";
   import { blobUrl } from "../lib/raw";
+  import { wheelPixels } from "../lib/wheel";
   import type { PaneProps } from "../lib/dock";
 
   let { spec }: PaneProps<"image"> = $props();
@@ -31,7 +32,7 @@
   function onWheel(e: WheelEvent): void {
     e.preventDefault();
     const r = frame!.getBoundingClientRect();
-    if (e.ctrlKey) return zoomAt(view.s * Math.exp(-e.deltaY * 0.0025), e.clientX - r.left, e.clientY - r.top);
+    if (e.ctrlKey) return zoomAt(view.s * Math.exp(-wheelPixels(e) * 0.0025), e.clientX - r.left, e.clientY - r.top);
     view = { ...view, x: view.x - e.deltaX, y: view.y - e.deltaY, fit: false };
   }
 

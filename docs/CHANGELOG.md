@@ -5,11 +5,16 @@ and versions follow [Semantic Versioning](https://semver.org/) once 1.0 is out.
 
 ## [Unreleased]
 
+## [0.4.8] - 2026-11-20
+
 ### Added
 - **New tabs on top** (Settings → Appearance): a tab opened goes first in its list, and at the left of a horizontal
   strip, instead of last.
 
 ### Fixed
+- **Numbered lists keep their dot when a note is zoomed**: the number no longer sits alone on a line.
+- **Zooming a note keeps your place**: the line at the top stays at the top.
+- **Ctrl+wheel zooms pictures and PDFs with any mouse**: a wheel that counts in lines zoomed by under a percent a notch.
 - **Closing the last editor tab and opening another keeps the layout**: the side panel no longer stays stretched
   across most of the window.
 

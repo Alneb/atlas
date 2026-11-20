@@ -96,20 +96,22 @@ html.phone .live-cm .cm-content { padding: 20px 16px 45vh; }
 .markdown .cm-codeblock-first { border-top: 1px solid var(--border); border-radius: var(--radius) var(--radius) 0 0; padding-top: 8px !important; color: var(--text-faint); }
 .markdown .cm-codeblock-last { border-bottom: 1px solid var(--border); border-radius: 0 0 var(--radius) var(--radius); padding-bottom: 8px !important; color: var(--text-faint); }
 
-/* lists: hanging indent rebuilt per line (28px = LIST_INDENT in live-preview.js) */
-.markdown .cm-list { text-indent: -28px; }
+/* lists: hanging indent rebuilt per line, in em so it grows with the note's zoom (1.75em = 28px at 16px; LIST_INDENT
+   in live-preview.js). In px, a zoomed-in "1." no longer fit its column and wrapped inside it: the number on one line,
+   the dot on the next. The mark never wraps; a longer number ("10.") pushes the text over a little instead. */
+.markdown .cm-list { text-indent: -1.75em; }
 .markdown .cm-list.cm-list-cont { text-indent: 0; }
-.markdown .cm-list-1 { padding-left: 28px !important; }
-.markdown .cm-list-2 { padding-left: 56px !important; }
-.markdown .cm-list-3 { padding-left: 84px !important; }
-.markdown .cm-list-4 { padding-left: 112px !important; }
-.markdown .cm-list-5 { padding-left: 140px !important; }
-.markdown .cm-list-6 { padding-left: 168px !important; }
-.markdown .cm-list-mark { display: inline-block; width: 28px; box-sizing: border-box; text-align: right; padding-right: 9px; color: var(--text-faint); text-indent: 0; }
+.markdown .cm-list-1 { padding-left: 1.75em !important; }
+.markdown .cm-list-2 { padding-left: 3.5em !important; }
+.markdown .cm-list-3 { padding-left: 5.25em !important; }
+.markdown .cm-list-4 { padding-left: 7em !important; }
+.markdown .cm-list-5 { padding-left: 8.75em !important; }
+.markdown .cm-list-6 { padding-left: 10.5em !important; }
+.markdown .cm-list-mark { display: inline-block; min-width: 1.75em; white-space: nowrap; box-sizing: border-box; text-align: right; padding-right: .56em; color: var(--text-faint); text-indent: 0; }
 .markdown .cm-list-mark-ordered { color: var(--text-muted); font-variant-numeric: tabular-nums; }
-/* a task's box in the bullet's 28px column, ending where a bullet ends (9px before the text): a list mixing to-dos and
+/* a task's box in the bullet's 1.75em column, ending where a bullet ends (.56em before the text): a list mixing to-dos and
    plain items keeps one text edge */
-.markdown .cm-task-mark { margin: 0 9px 0 calc(19px - 1em); text-indent: 0; vertical-align: baseline; }
+.markdown .cm-task-mark { margin: 0 .56em 0 .19em; text-indent: 0; vertical-align: baseline; }
 .markdown .cm-line:has(.cm-task-mark:checked) { color: var(--text-muted); }
 
 /* blocks rendered by markdown-it inside the editor (tables, fences, $$, embeds) */

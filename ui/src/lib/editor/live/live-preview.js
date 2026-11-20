@@ -439,7 +439,7 @@ function headingLevel(name) {
  * `padding-left` on `.markdown ul, .markdown ol` in redesign.css. Keep the two
  * in step, or the same list lands at a different x in the two modes.
  */
-const LIST_INDENT = 28;
+const LIST_INDENT = "1.75em"; // editor.css's .cm-list-N steps (em: they grow with the note's zoom)
 const MAX_LIST_DEPTH = 6;
 
 /** How deeply a ListItem nests, counting the lists it sits inside (1-based). */
@@ -454,7 +454,7 @@ function listDepth(node) {
 /**
  * The bullet or number standing in for the source marker.
  *
- * It is `inline-block` at exactly LIST_INDENT wide so that, combined with the
+ * It is `inline-block` at least LIST_INDENT wide (never wrapping) so that, combined with the
  * line's hanging indent, the item's text starts on the same column as the
  * reader's <li> -- and wrapped lines line up under it rather than under the
  * marker.
