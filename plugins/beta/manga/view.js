@@ -5,7 +5,7 @@
 // Reader (paged right to left / left to right / vertical, or webtoon). A .cbz is unzipped here, in the page.
 import { suwayomi, isRemote, PAGE_W, engagement } from "./suwayomi.js";
 
-const PICTURE = /\.(jpe?g|png|webp|gif|avif|bmp)$/i;
+const PICTURE = /\.(jpe?g|png|webp|gif|avif|jxl|bmp)$/i;
 const ZIP = /\.cb[zr7t]$/i; // a chapter archive; only a .cbz is read in the page, the others made into one (helper/helper.ts)
 const CBZ = /\.cbz$/i;
 const READING = "reading.json";
@@ -13,6 +13,7 @@ const READING = "reading.json";
 export const BROWSE = "suwayomi:browse";
 /** The pane on the server's own library (Suwayomi's): its own tab, apart from the Libraries page's Comics (what is yours). */
 export const SERVER = "suwayomi:library";
+const MODES = ["right to left", "left to right", "vertical", "webtoon"], SCALES = ["fit screen", "fit width", "fit height", "original"]; // plugin.toml's choices
 const KEEP = 5; // chapters a Suwayomi series keeps for offline at a click // the older place file: read once, the note is written from then on
 
 // ---- where you are, in the series' note: reading_chapter · reading_page · last_read
@@ -55,6 +56,18 @@ export const nameOf = (ch) => ch.slice(ch.lastIndexOf("/", ch.length - 2) + 1);
 export function zipEntries(index) {
   return [...index].filter(([name]) => PICTURE.test(name) && !name.includes("__MACOSX")).map(([name, e]) => ({ name, ...e })).sort((a, b) => natural(a.name, b.name));
 }
+/** Whether a picture needs the core's decoder → "jxl" | "avif" | null, by its name or its first bytes (a page named
+ *  .jpg that is a JPEG XL is common in scanlation archives). Browsers and Android's WebView show no JPEG XL, WebKitGTK
+ *  can hang on one, and AVIF is not decoded everywhere: those go through the core (`thumbs.rs`), as a Suwayomi page does. */
+export function coreDecodes(name, head) {
+  const b = head ?? new Uint8Array(0), at = (i, text) => [...text].every((c, j) => b[i + j] === c.charCodeAt(0));
+  if ((b[0] === 0xff && b[1] === 0x0a) || (at(4, "JXL ") && b[3] === 0x0c)) return "jxl";
+  if (at(4, "ftyp") && at(8, "avif")) return "avif";
+  const ext = /\.(jxl|avif)$/i.exec(name)?.[1]?.toLowerCase();
+  return b.length >= 12 ? null : ext ?? null; // bytes that say otherwise win over the name
+}
+/** A short stable key for a path (FNV-1a), naming a chapter's folder in the cache. */
+const keyOf = (text) => { let h = 0x811c9dc5; for (let i = 0; i < text.length; i++) h = Math.imul(h ^ text.charCodeAt(i), 0x01000193); return (h >>> 0).toString(36); };
 
 export default function mount(host, atlas) {
   const S = atlas.plugin.settings ?? {};
@@ -177,12 +190,30 @@ export default function mount(host, atlas) {
     }
     const cbz = CBZ.test(ch) ? ch : (await atlas.helper.call("as_cbz", { path: ch }, { timeout: 600 })).path;
     const buf = await (await fetch(await atlas.fileUrl(cbz))).arrayBuffer();
-    const list = zipEntries(atlas.zip.index(buf)), made = new Map();
+    const list = zipEntries(atlas.zip.index(buf)), made = new Map(), key = `${keyOf(cbz)}-${buf.byteLength}`;
+    const mine = new Set(); // the blob: URLs made here, let go with the chapter (the core's thumbnails are the app's, kept)
     return {
       count: list.length,
-      url(i) { if (!made.has(i)) made.set(i, atlas.zip.blob(buf, list[i]).then((b) => URL.createObjectURL(b))); return made.get(i); },
-      done() { for (const p of made.values()) void p.then((u) => URL.revokeObjectURL(u)); made.clear(); },
+      url(i) {
+        if (!made.has(i)) { const got = zipPage(buf, list[i], `${key}/${i}`, mine); got.catch(() => made.delete(i)); made.set(i, got); }
+        return made.get(i);
+      },
+      done() { for (const u of mine) URL.revokeObjectURL(u); mine.clear(); made.clear(); },
     };
+  }
+  /** One picture of a .cbz as an address for `<img>`: a JPEG XL or an AVIF written once into the plugin's cache and
+   *  shown through the core's thumbnails (decoded there, `coreDecodes`); any other as a blob. An Atlas without
+   *  `writeBytes` (before API 23) shows the blob as it is. */
+  async function zipPage(buf, entry, rest, mine) {
+    const blob = await atlas.zip.blob(buf, entry);
+    const ext = coreDecodes(entry.name, new Uint8Array(await blob.slice(0, 16).arrayBuffer()));
+    const own = () => { const u = URL.createObjectURL(blob); mine.add(u); return u; };
+    if (!ext || !atlas.writeBytes) return own();
+    const there = `.atlas/cache/plugins/${atlas.plugin?.id ?? "manga"}/pages/${rest}.${ext}`;
+    try {
+      if (!(await atlas.exists?.(there).catch(() => false))) await atlas.writeBytes(there, blob);
+      return await atlas.thumbUrl(there, PAGE_W);
+    } catch { return own(); }
   }
   /** A cover: the series' cover.* picture (Mihon's convention), else its first chapter's first page. */
   const cover = (s) => (s.remote ? suw.cover(s) : coverOf(atlas, s));
@@ -305,7 +336,7 @@ export default function mount(host, atlas) {
         row.classList.toggle("read", isRead(r, ch));
         row.title = "Click: read · right-click: mark read / unread";
         const page = pageOf(r, ch);
-        row.append(el("span", "m-ch-name", ch.endsWith("/") ? nameOf(ch).slice(0, -1) : nameOf(ch).replace(ZIP, "")), el("span", "m-ch-at", isRead(r, ch) ? "read" : page ? `page ${page + 1}` : ""));
+        row.append(el("span", "m-ch-name", chapterName(ch)), el("span", "m-ch-at", isRead(r, ch) ? "read" : page ? `page ${page + 1}` : ""));
         if (s.remote && suw.onServer(s, ch)) { const d = el("span", "m-ch-kept", "⤓"); d.title = "Downloaded on the server"; row.lastChild.append(d); }
         row.onclick = () => read(s, i, isRead(r, ch) ? 0 : page);
         row.oncontextmenu = (e) => {
@@ -324,25 +355,66 @@ export default function mount(host, atlas) {
 
   // ---- Reader -------------------------------------------------------------------------------------------
   /** On the phone the app's own reader takes the chapter (the pen, e-ink paging; it keeps its place itself); here, the
-   *  page's. A folder chapter is handed with its trailing slash, which is how the app tells it from any other path. */
-  function read(s, i, page) {
-    if (!atlas.openNative?.(s.chapters[i])) push(() => reader(s, i, page));
+   *  page's, with the series' own reader options (its note's `reader_options`, as the phone keeps them). A folder
+   *  chapter is handed with its trailing slash, which is how the app tells it from any other path. */
+  const ownOptions = new Map(); // series path → options changed in this pane (a server's series has no note to keep them)
+  async function read(s, i, page) {
+    if (atlas.openNative?.(s.chapters[i])) return;
+    const r = await reading(s).catch(() => ({}));
+    push(() => reader(s, i, page, { ...(r.options ?? {}), ...(ownOptions.get(s.path) ?? {}) }));
   }
-  function reader(s, index, start) {
-    const mode = String(S.mode || "right to left"), webtoon = mode === "webtoon", rtl = mode === "right to left";
-    const fit = String(S.scale || "fit screen").replace(/\s+/g, "-");
-    const view = el("div", `m-reader ${webtoon ? "webtoon" : "paged"} ${fit} bg-${String(S.background || "automatic")}`);
+  const chapterName = (ch) => nameOf(ch).replace(/\/$/, "").replace(ZIP, "");
+  /** Mihon's reader: pages fetched and decoded ahead (the next ones, the next chapter near the end), a page between
+   *  chapters (what was finished, what comes: a turn past a chapter's edge never lands in the other by accident), a
+   *  progress bar to click, keys, the wheel and taps; the mode and the scale changed from its bar. */
+  function reader(s, index, start, own = {}) {
+    const O = { ...S, ...own };
+    const mode = MODES.includes(O.mode) ? O.mode : MODES[0], webtoon = mode === "webtoon", rtl = mode === "right to left";
+    const scale = SCALES.includes(O.scale) ? O.scale : SCALES[0];
+    const view = el("div", `m-reader ${webtoon ? "webtoon" : "paged"} ${scale.replace(/\s+/g, "-")} bg-${String(O.background || "automatic")}`);
     const bar = el("div", "m-bar m-over");
     const backBtn = el("button", "atlas-btn", "‹ " + s.title);
     backBtn.onclick = back;
     const where = el("div", "m-title");
-    bar.append(backBtn, where);
+    bar.append(backBtn, where, pick("Reading mode", MODES, mode, "mode"));
+    if (!webtoon) bar.append(pick("Scale", SCALES, scale, "scale"));
     const num = el("div", "m-num");
-    num.hidden = S.page_number === false;
-    root.append(view, bar, num);
-    let ch = null, page = 0, saveT = 0, pending = null, barOn = false;
+    num.hidden = O.page_number === false;
+    // how far into the chapter: a bar along the bottom (from the right when reading right to left), a click goes there
+    const progress = el("div", `m-progress${rtl ? " rtl" : ""}`), fill = el("i");
+    progress.append(fill);
+    progress.title = "Go to a page";
+    progress.onclick = (e) => {
+      if (!ch || webtoon) return;
+      const r = progress.getBoundingClientRect(), f = (e.clientX - r.left) / r.width;
+      page = Math.max(0, Math.min(ch.count - 1, Math.floor((rtl ? 1 - f : f) * ch.count)));
+      void draw();
+    };
+    const spin = el("div", "m-spin");
+    spin.hidden = true;
+    root.append(view, bar, num, progress, spin);
+
+    /** A choice of the bar, for this series: kept in its note (a server's series: the plugin's settings, as the phone
+     *  does), and the reader made again at the same page. */
+    function pick(label, list, now, key) {
+      const sel = el("select", "atlas-input m-pick");
+      sel.title = label; sel.setAttribute("aria-label", label);
+      for (const x of list) { const o = el("option", "", x); o.value = x; o.selected = x === now; sel.append(o); }
+      sel.onchange = () => {
+        own = { ...own, [key]: sel.value };
+        ownOptions.set(s.path, { ...(ownOptions.get(s.path) ?? {}), [key]: sel.value });
+        if (s.remote) void atlas.plugin.saveSettings?.({ [key]: sel.value })?.catch?.((e) => atlas.toast("Manga", `Not saved: ${e.message ?? e}`, "error"));
+        else void saveReading(s, (r) => { r.options = { ...(r.options ?? {}), [key]: sel.value }; });
+        const again = () => reader(s, index, page, own);
+        stack[stack.length - 1] = again;
+        show(again);
+      };
+      return sel;
+    }
+
+    let ch = null, page = 0, gap = null, seq = 0, saveT = 0, pending = null, barOn = false, img = null;
     const setBar = (on) => { barOn = on; bar.classList.toggle("on", on); };
-    const label = () => `${nameOf(s.chapters[index]).replace(/\/$/, "").replace(ZIP, "")} · ${page + 1} / ${ch?.count ?? "…"}`;
+    const loading = (on) => { spin.hidden = !on; };
     // the page shown, saved once the reader rests on it; flushed at once on a chapter change and on leaving
     const flush = () => { clearTimeout(saveT); const f = pending; pending = null; if (f) void saveReading(s, f.change, f.why); };
     const remember = () => {
@@ -351,24 +423,69 @@ export default function mount(host, atlas) {
       pending = { change: (r) => { const c = (r.chapters[name] ??= {}); c.page = at; if (at >= of - 1) c.read = true; r.last = name; }, why: engagement(at, of, false) };
       saveT = setTimeout(flush, 400);
     };
+    const shown = () => {
+      num.textContent = `${page + 1} / ${ch.count}`;
+      where.textContent = `${chapterName(s.chapters[index])} · ${page + 1} / ${ch.count}`;
+      fill.style.width = `${((page + 1) / ch.count) * 100}%`;
+      remember();
+    };
     // e-ink: a full refresh every N page turns (Mihon's option) clears the ghosts of the last pages
     let turns = 0;
-    const every = Number(S.flash_every ?? 1);
-    const shown = () => {
-      num.textContent = `${page + 1} / ${ch.count}`; where.textContent = label(); remember();
-      if (!webtoon && atlas.eink?.on && every > 0 && ++turns % every === 0) atlas.eink.refresh(); // webtoon: eink.ts refreshes when a scroll rests
+    const every = Number(O.flash_every ?? 1);
+    const flash = () => { if (!webtoon && atlas.eink?.on && every > 0 && ++turns % every === 0) atlas.eink.refresh(); }; // webtoon: eink.ts refreshes when a scroll rests
+
+    // the chapters open now: the one read and its neighbours, opened ahead (a .cbz fetched, a server's page list asked)
+    const near = new Map();
+    const chapterAt = (i) => {
+      if (!near.has(i)) { const p = pages(s.chapters[i]); p.catch(() => near.delete(i)); near.set(i, p); }
+      return near.get(i);
     };
+    const keepNear = (keep) => { for (const [i, p] of near) if (!keep.includes(i)) { near.delete(i); void p.then((c) => c.done(), () => {}); } };
+    // a page as a decoded picture, asked once: a turn onto a page asked ahead shows it at once
+    const pics = new WeakMap();
+    function picture(c, i) {
+      let m = pics.get(c);
+      if (!m) pics.set(c, (m = new Map()));
+      if (!m.has(i)) {
+        const got = c.url(i).then(async (u) => { const im = new Image(); im.alt = ""; im.src = u; await im.decode(); return im; });
+        got.catch(() => m.delete(i)); // asked again at the next turn onto it (the server out of reach a moment)
+        m.set(i, got);
+      }
+      return m.get(i);
+    }
+    const AHEAD = 4;
+    /** The pages after the one shown (and the one before), then the next chapter's first ones once its end is near;
+     *  pictures far behind are let go. */
+    function ahead() {
+      if (!ch) return;
+      for (let d = 1; d <= AHEAD && page + d < ch.count; d++) void picture(ch, page + d).catch(() => {});
+      if (page > 0) void picture(ch, page - 1).catch(() => {});
+      const m = pics.get(ch);
+      if (m) for (const i of [...m.keys()]) if (i < page - 3 || i > page + AHEAD + 3) m.delete(i);
+      if (index + 1 < s.chapters.length && page >= ch.count - AHEAD)
+        void chapterAt(index + 1).then((c) => { if (!webtoon) for (let i = 0; i < Math.min(2, c.count); i++) void picture(c, i).catch(() => {}); }, () => {});
+    }
 
     async function open(i, at) {
       flush();
-      ch?.done();
-      index = i;
-      view.replaceChildren(el("div", "atlas-empty", "Opening the chapter…"));
-      try { ch = await pages(s.chapters[i]); } catch (e) { view.replaceChildren(el("div", "atlas-notice error", `This chapter did not open: ${e.message ?? e}`)); return; }
-      if (gone) return ch.done();
-      if (!ch.count) { view.replaceChildren(el("div", "atlas-notice", "This chapter has no pictures.")); return; }
+      const mine = ++seq;
+      index = i; gap = null;
+      loading(true);
+      let c;
+      try { c = await chapterAt(i); } catch (e) {
+        if (mine !== seq) return;
+        loading(false);
+        view.replaceChildren(el("div", "atlas-notice error", `This chapter did not open: ${e.message ?? e}`));
+        return;
+      }
+      if (gone || mine !== seq) return;
+      keepNear([i - 1, i, i + 1]);
+      ch = c;
+      if (!ch.count) { loading(false); view.replaceChildren(el("div", "atlas-notice", "This chapter has no pictures.")); return; }
       page = Math.max(0, Math.min(at === -1 ? ch.count - 1 : at, ch.count - 1));
       ink = webtoon ? [] : await readInk();
+      if (gone || mine !== seq) return;
+      loading(false);
       view.replaceChildren();
       if (webtoon) strip(); else void draw();
     }
@@ -380,40 +497,94 @@ export default function mount(host, atlas) {
       .then((r) => { inkNote = r.note; return r.marks; }, () => []);
     function drawInk() {
       over.replaceChildren();
-      if (webtoon || !img.naturalWidth || !atlas.marksSvg) return;
+      if (webtoon || gap || !img?.naturalWidth || !img.isConnected || !atlas.marksSvg) return;
       Object.assign(over.style, { left: `${img.offsetLeft}px`, top: `${img.offsetTop}px`, width: `${img.offsetWidth}px`, height: `${img.offsetHeight}px` });
       if (ink.some((m) => m.page === page + 1)) over.append(atlas.marksSvg(ink, page + 1));
     }
     const offInk = atlas.onFilesChanged((paths) => { if (ch && inkNote && paths.includes(inkNote)) void readInk().then((k) => { ink = k; drawInk(); }); });
     const sized = new ResizeObserver(() => drawInk());
-    // paged: one picture, the next one fetched ahead
-    const img = el("img", "m-page");
-    img.alt = "";
-    img.onload = () => drawInk();
     sized.observe(view);
+
+    /** Paged: the page's number at once, its picture when it is ready (at once when asked ahead; "Loading" only for one
+     *  that takes a moment); a turn made meanwhile wins over a slower answer. */
     async function draw() {
-      if (!img.isConnected) view.replaceChildren(img, over);
-      img.src = await ch.url(page);
-      view.scrollTop = 0;
+      const mine = ++seq, c = ch, at = page;
+      gap = null;
       shown();
-      if (page + 1 < ch.count) void ch.url(page + 1);
+      const slow = setTimeout(() => { if (mine === seq) loading(true); }, 120);
+      let pic;
+      try { pic = await picture(c, at); } catch (e) {
+        clearTimeout(slow);
+        if (mine !== seq) return;
+        loading(false);
+        const box = el("div", "atlas-notice error m-failed", `Page ${at + 1} did not load: ${e?.message ?? "the picture could not be read"} `), again = el("button", "atlas-btn", "Try again");
+        again.onclick = (ev) => { ev.stopPropagation(); void draw(); };
+        box.append(again);
+        view.replaceChildren(box);
+        return;
+      }
+      clearTimeout(slow);
+      if (mine !== seq || gone) return;
+      loading(false);
+      pic.className = "m-page";
+      img = pic;
+      view.replaceChildren(img, over);
+      view.scrollTop = 0;
+      drawInk();
+      flash();
+      ahead();
+    }
+    /** The page between two chapters (Mihon's transition): what was finished and what comes next (or came before), so
+     *  one more turn is needed to cross; at the last chapter, that it was the last. */
+    function transition(which) {
+      seq++; gap = which;
+      loading(false);
+      const box = el("div", "m-gap");
+      const row = (what, i) => { const r = el("div", "m-gap-row"); r.append(el("span", "m-gap-what", what), el("span", "m-gap-name", chapterName(s.chapters[i]))); return r; };
+      if (which === "next") {
+        box.append(row("Finished", index));
+        if (index + 1 < s.chapters.length) {
+          const next = row("Next", index + 1), count = el("span", "m-gap-pages");
+          next.append(count);
+          void chapterAt(index + 1).then((c) => { count.textContent = `${c.count} page${c.count === 1 ? "" : "s"}`; for (let i = 0; i < Math.min(2, c.count); i++) void picture(c, i).catch(() => {}); }, () => {});
+          box.append(next);
+        } else {
+          box.append(el("div", "m-gap-end", "That was the last chapter."));
+          const toSeries = el("button", "atlas-btn", "‹ " + s.title);
+          toSeries.onclick = (e) => { e.stopPropagation(); back(); show.refresh?.(); };
+          box.append(toSeries);
+        }
+      } else {
+        box.append(row("Previous", index - 1), row("Current", index));
+        void chapterAt(index - 1).then((c) => { if (c.count) void picture(c, c.count - 1).catch(() => {}); }, () => {});
+      }
+      view.replaceChildren(box);
+      num.textContent = which === "next" ? "end" : "start";
+      fill.style.width = which === "next" ? "100%" : "0%";
     }
     function turn(d) {
       if (!ch) return;
       if (webtoon) { view.scrollBy({ top: d * view.clientHeight * 0.85 }); return; }
+      if (gap === "next") {
+        if (d < 0) void draw();
+        else if (index + 1 < s.chapters.length) void open(index + 1, 0);
+        else atlas.toast("Manga", "That was the last chapter.");
+        return;
+      }
+      if (gap === "prev") { if (d > 0) void draw(); else void open(index - 1, -1); return; }
       const p = page + d;
-      if (p >= 0 && p < ch.count) { page = p; void draw(); return; }
-      if (p < 0 && index > 0) void open(index - 1, -1);
-      else if (p >= ch.count && index + 1 < s.chapters.length) void open(index + 1, 0);
-      else atlas.toast("Manga", p < 0 ? "This is the first chapter." : "That was the last chapter.");
+      if (p >= 0 && p < ch.count) { page = p; void draw(); }
+      else if (p >= ch.count) transition("next");
+      else if (index > 0) transition("prev");
+      else atlas.toast("Manga", "This is the first chapter.");
     }
     // webtoon: every picture under the other, the page in view is where you are (one that failed asked again a moment
-    // later, while it is still near the view)
+    // later, while it is still near the view); the next chapter opened ahead near the end
     let watch = null;
     function strip() {
       watch?.disconnect();
       const load = new IntersectionObserver((xs) => { for (const x of xs) if (x.isIntersecting) { load.unobserve(x.target); void ch.url(+x.target.dataset.i).then((u) => (x.target.src = u), () => setTimeout(() => load.observe(x.target), 5000)); } }, { root: view, rootMargin: "150% 0px" });
-      const at = new IntersectionObserver((xs) => { for (const x of xs) if (x.isIntersecting) { page = +x.target.dataset.i; shown(); } }, { root: view, threshold: 0.5 });
+      const at = new IntersectionObserver((xs) => { for (const x of xs) if (x.isIntersecting) { page = +x.target.dataset.i; shown(); ahead(); } }, { root: view, threshold: 0.5 });
       watch = { disconnect: () => { load.disconnect(); at.disconnect(); } };
       for (let i = 0; i < ch.count; i++) {
         const p = el("img", "m-page");
@@ -422,16 +593,19 @@ export default function mount(host, atlas) {
       }
       const goto = view.children[page];
       if (goto) requestAnimationFrame(() => goto.scrollIntoView());
-      const next = el("button", "atlas-btn m-next", index + 1 < s.chapters.length ? "Next chapter ›" : "The last chapter");
+      const end = el("div", "m-gap m-gap-strip");
+      end.append(el("div", "m-gap-row", `Finished ${chapterName(s.chapters[index])}`));
+      const next = el("button", "atlas-btn primary m-next", index + 1 < s.chapters.length ? `Next: ${chapterName(s.chapters[index + 1])} ›` : "That was the last chapter");
       next.disabled = index + 1 >= s.chapters.length;
-      next.onclick = () => void open(index + 1, 0);
-      view.append(next);
+      next.onclick = (e) => { e.stopPropagation(); void open(index + 1, 0); };
+      end.append(next);
+      view.append(end);
       shown();
     }
 
     // Mihon's tap zones, as ReaderView.zone (x, y from 0 to 1): +1 next, -1 previous (left to right), 0 the bar, null nothing
     function zone(x, y) {
-      const kind = String(S.taps || "default");
+      const kind = String(O.taps || "default");
       let t;
       switch (kind) {
         case "off": t = x > 0.33 && x < 0.66 && y > 0.33 && y < 0.66 ? 0 : null; break;
@@ -442,7 +616,7 @@ export default function mount(host, atlas) {
         default: t = x < 0.33 ? -1 : x > 0.66 ? 1 : 0;
       }
       if (mode === "vertical" && kind === "default") t = y < 0.33 ? -1 : y > 0.66 ? 1 : 0;
-      if (S.invert_taps && t) t = -t;
+      if (O.invert_taps && t) t = -t;
       return t;
     }
     view.onclick = (e) => {
@@ -455,17 +629,49 @@ export default function mount(host, atlas) {
       if (rtl) t = -t; // right to left: the left side goes on
       turn(t);
     };
+    /** A page taller than the view (fit width) scrolls before it turns: → whether it moved. */
+    const scrolls = (d, by) => {
+      const room = d > 0 ? view.scrollHeight - view.clientHeight - view.scrollTop : view.scrollTop;
+      if (room <= 2) return false;
+      view.scrollBy({ top: d * by });
+      return true;
+    };
+    // the wheel turns pages in the paged modes: one turn per gesture (a touchpad sends many), a tall page scrolled to
+    // its edge first, and a pause there before it turns (a scroll that reaches the bottom does not turn by itself)
+    let wheelSum = 0, wheelRest = 0, scrolledAt = 0;
+    view.addEventListener("wheel", (e) => {
+      if (webtoon || e.ctrlKey) return; // webtoon scrolls; Ctrl+wheel zooms
+      const dy = e.deltaY * (e.deltaMode === 1 ? 40 : e.deltaMode === 2 ? view.clientHeight : 1), now = performance.now();
+      const room = dy > 0 ? view.scrollHeight - view.clientHeight - view.scrollTop : view.scrollTop;
+      if (!gap && room > 2) { scrolledAt = now; return; } // the page scrolls itself
+      e.preventDefault();
+      if (now - scrolledAt < 250) { scrolledAt = now; return; } // still the stream that scrolled: it must stop first
+      if (now < wheelRest) return;
+      wheelSum += dy;
+      if (Math.abs(wheelSum) < 40) return;
+      turn(wheelSum > 0 ? 1 : -1);
+      wheelSum = 0; wheelRest = now + 350;
+    }, { passive: false });
     const keys = (e) => {
+      if (e.target instanceof HTMLSelectElement || e.target instanceof HTMLInputElement || e.ctrlKey || e.metaKey || e.altKey) return;
       const k = e.key;
       const fwd = rtl ? "ArrowLeft" : "ArrowRight", bwd = rtl ? "ArrowRight" : "ArrowLeft";
-      if (k === fwd || k === " " || k === "PageDown" || (!webtoon && k === "ArrowDown")) turn(1);
-      else if (k === bwd || k === "PageUp" || (!webtoon && k === "ArrowUp")) turn(-1);
+      const big = k === " " || k === "PageDown" || k === "PageUp", down = (k === " " && !e.shiftKey) || k === "PageDown" || k === "ArrowDown";
+      const up = (k === " " && e.shiftKey) || k === "PageUp" || k === "ArrowUp";
+      if (webtoon && (down || up) && !big) view.scrollBy({ top: (down ? 1 : -1) * view.clientHeight * 0.2 });
+      else if (!webtoon && !gap && (down || up) && scrolls(down ? 1 : -1, view.clientHeight * (big ? 0.85 : 0.2))) { /* scrolled */ }
+      else if (k === fwd || down) turn(1);
+      else if (k === bwd || up) turn(-1);
+      else if ((k === "Home" || k === "End") && ch && !webtoon) { page = k === "Home" ? 0 : ch.count - 1; void draw(); }
       else return;
       e.preventDefault(); e.stopPropagation();
     };
     root.addEventListener("keydown", keys);
     void open(index, start);
-    return () => { flush(); offInk(); sized.disconnect(); root.removeEventListener("keydown", keys); watch?.disconnect(); ch?.done(); };
+    return () => {
+      seq++; flush(); offInk(); sized.disconnect(); root.removeEventListener("keydown", keys); watch?.disconnect();
+      keepNear([]);
+    };
   }
 
   // ---- Browse: the server's sources (android/SourcesView.java, SourceView.java, the series' Add to library) ---------
@@ -542,7 +748,9 @@ export default function mount(host, atlas) {
     const draw = () => {
       const f = filter.value.trim().toLowerCase();
       grid.replaceChildren();
-      const shown = ordered(all.filter((x) => (!cat || (x.categories ?? []).includes(cat)) && (!f || x.title.toLowerCase().includes(f)) && (!onlyUnread || x.unread > 0)));
+      // a search looks on every shelf, not only the tab shown (the phone's library the same)
+      const shown = ordered(all.filter((x) => (f || !cat || (x.categories ?? []).includes(cat)) && (!f || x.title.toLowerCase().includes(f)) && (!onlyUnread || x.unread > 0)));
+      tabs.classList.toggle("searching", !!f);
       for (const x of shown) {
         const card = el("button", "m-found"), pic = el("div", "m-cover"), img = el("img");
         img.alt = "";
@@ -685,7 +893,7 @@ export default function mount(host, atlas) {
       const inSeries = list.includes(atlas.path);
       const s = inSeries ? { path: dir, title: dir.split("/").pop(), chapters: list, dir: true } : { path: atlas.path, title: atlas.path.split("/").pop().replace(ZIP, ""), chapters: [atlas.path], dir: false };
       stack.push(() => series(s));
-      void reading(s).then((r) => push(() => reader(s, s.chapters.indexOf(atlas.path), isRead(r, atlas.path) ? 0 : pageOf(r, atlas.path))));
+      void reading(s).then((r) => push(() => reader(s, s.chapters.indexOf(atlas.path), isRead(r, atlas.path) ? 0 : pageOf(r, atlas.path), r.options ?? {})));
     });
   } else if (atlas.arg === SERVER) { // the server's library, its own tab (the Comics library's Suwayomi button)
     if (suw.on) push(serverLibrary);
@@ -737,6 +945,7 @@ function style() {
   .manga .m-source .m-ch-name { flex: 1; }
   .manga .m-tabs { display: flex; gap: 6px; padding: 10px 14px; align-items: center; flex-wrap: wrap; }
   .manga .m-tabs .on { background: var(--accent-soft); border-color: var(--accent); }
+  .manga .m-tabs.searching .on { background: none; border-color: var(--border); } /* a search shows every shelf */
   .manga .m-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 14px; padding: 4px 14px 14px; }
   .manga .m-found { display: flex; flex-direction: column; gap: 6px; padding: 0; border: 0; background: none; color: var(--text); font: inherit; text-align: left; cursor: pointer; }
   .manga .m-found-title { font-size: 0.92em; line-height: 1.25; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
@@ -750,14 +959,31 @@ function style() {
   .manga .m-reader.bg-black { background: #000; } .manga .m-reader.bg-white { background: #fff; } .manga .m-reader.bg-grey { background: #888; }
   .manga .m-reader.webtoon { flex-direction: column; justify-content: flex-start; }
   .manga .m-ink { position: absolute; pointer-events: none; }
-  .manga .m-reader.webtoon .m-page { width: min(100%, 900px); min-height: 40vh; display: block; }
+  .manga .m-reader.webtoon .m-page { width: min(100%, 900px); display: block; }
+  .manga .m-reader.webtoon .m-page:not([src]) { min-height: 40vh; } /* room for a page not loaded yet; a loaded one keeps its shape */
   .manga .m-reader.paged.fit-screen .m-page { max-width: 100%; max-height: 100%; object-fit: contain; }
   .manga .m-reader.paged.fit-width { align-items: flex-start; } .manga .m-reader.paged.fit-width .m-page { width: 100%; }
   .manga .m-reader.paged.fit-height .m-page { height: 100%; }
-  .manga .m-next { margin: 20px auto 40px; }
   .manga .m-over { position: absolute; left: 0; right: 0; top: 0; visibility: hidden; }
   .manga .m-over.on { visibility: visible; }
-  .manga .m-num { position: absolute; bottom: 6px; left: 50%; transform: translateX(-50%); padding: 1px 8px; border-radius: 6px; background: var(--bg-elev); color: var(--text-muted); font-size: .9em; pointer-events: none; }
+  .manga .m-num { position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%); padding: 1px 8px; border-radius: 6px; background: var(--bg-elev); color: var(--text-muted); font-size: .9em; pointer-events: none; }
+  .manga .m-pick { width: auto; flex: none; }
+  .manga .m-over .m-title { flex: 1; }
+  .manga .m-progress { position: absolute; left: 0; right: 0; bottom: 0; height: 4px; background: color-mix(in srgb, var(--text) 12%, transparent); cursor: pointer; transition: height .12s; }
+  .manga .m-progress:hover { height: 8px; }
+  .manga .m-progress > i { display: block; height: 100%; width: 0; background: var(--accent); }
+  .manga .m-progress.rtl > i { margin-left: auto; }
+  .manga .m-spin { position: absolute; left: 50%; top: 50%; width: 28px; height: 28px; margin: -14px 0 0 -14px; border-radius: 50%; border: 3px solid color-mix(in srgb, var(--text) 18%, transparent); border-top-color: var(--accent); animation: m-spin .8s linear infinite; pointer-events: none; }
+  @keyframes m-spin { to { transform: rotate(360deg); } }
+  :root.eink .manga .m-spin { animation: none; }
+  .manga .m-gap { display: flex; flex-direction: column; gap: 12px; padding: 22px 26px; max-width: 440px; margin: auto; border-radius: 10px; background: var(--bg-elev); color: var(--text); box-shadow: 0 0 0 1px var(--border); }
+  .manga .m-gap-row { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; }
+  .manga .m-gap-what { flex-basis: 100%; font-size: .8em; text-transform: uppercase; letter-spacing: .05em; color: var(--text-muted); }
+  .manga .m-gap-name { font-weight: 600; font-size: 1.1em; }
+  .manga .m-gap-pages { color: var(--text-muted); font-size: .9em; }
+  .manga .m-gap-end { color: var(--text-muted); }
+  .manga .m-gap-strip { margin: 24px auto 48px; align-items: center; text-align: center; }
+  .manga .m-gap-strip .m-next { margin: 0; }
   .manga .atlas-notice { margin: 18px; }
   .manga .m-offline { color: var(--text-muted); font-size: .85em; max-width: 42ch; }
   `;
@@ -782,7 +1008,7 @@ export async function chaptersOf(atlas, path) {
  *  core's thumbnails). */
 export async function coverOf(atlas, s) {
   const list = (dir) => atlas.list(dir).catch(() => []);
-  const own = s.dir && (await list(s.path)).find((e) => !e.dir && /^cover\.(jpe?g|png|webp)$/i.test(e.name));
+  const own = s.dir && (await list(s.path)).find((e) => !e.dir && /^cover\.(jpe?g|png|webp|avif|jxl)$/i.test(e.name));
   if (own) return atlas.thumbUrl(own.path, 300);
   const ch = s.chapters[0];
   if (!ch.endsWith("/")) return CBZ.test(ch) ? atlas.thumbUrl(ch, 300) : null;

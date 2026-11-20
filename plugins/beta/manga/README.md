@@ -9,9 +9,23 @@ a click.
 
 - **The Comics library** (Libraries page, id `comics`): the folder's series and the Suwayomi library, grouped by where
   they come from; a series opens in the pane.
-- **The pane**: the series page (chapters, read / unread, where you are) and the reader (the reading mode and scale of
-  the settings, tap zones, keys). The series are listed only on the Libraries page: the command **Manga: library**
-  and the series page's **‹ Library** open it there.
+- **The pane**: the series page (chapters, read / unread, where you are) and the reader. The reader decodes the next
+  four pages ahead (and opens the next chapter near the end), so a turn shows a page already drawn; a page that takes
+  a moment shows a spinner, one that fails a Try again. Between two chapters it shows a page of its own (what was
+  finished, what comes next and its pages, or that it was the last): one more turn crosses, so a turn back from a
+  chapter's first page never lands in the previous chapter by accident. A bar along the bottom shows how far you are
+  (from the right in right to left) and goes to a page on a click. Keys: the arrows (in the reading direction), Space
+  / Shift+Space, Page Up / Down, Home / End; a page taller than the view (fit width) scrolls before it turns. The
+  wheel turns one page per gesture in the paged modes, after a pause at a tall page's edge. Tap zones as Mihon's. The
+  reading mode and the scale are changed from the reader's bar (a tap in the middle) for this series: kept in its
+  note's `reader_options` as the phone keeps them (a server's series: the plugin's settings).
+- **Pictures**: JPEG, PNG, WebP, GIF, BMP, AVIF and JPEG XL pages. A JPEG XL or AVIF page (by its name or its first
+  bytes) is decoded by Atlas's core, never by the page's engine: browsers and Android's WebView show no JPEG XL,
+  WebKitGTK can hang on one, and AVIF is not decoded everywhere. In a `.cbz` such a page is written once into
+  `.atlas/cache/plugins/manga/pages/` and shown through the core's thumbnails (up to 2048 px), as a folder's pictures
+  and a Suwayomi page always are.
+- The series are listed only on the Libraries page: the command **Manga: library** and the series page's
+  **‹ Library** open it there.
 - **Where you are** is kept per series in its one note, so devices carry on from each other. A series gets that note
   only once it is yours — a page turned past a chapter's first, a chapter finished or marked read, or **Its note**
   (the series page, on the desktop and the phone) — by the catalog's rule (its `note` tool;
@@ -27,7 +41,8 @@ a click.
   it cannot be reached, the library and a series' chapters are the ones last seen (grouped as "offline: as last seen"),
   a chapter opened before reads from the kept pictures (a page is never downloaded twice), and where you are waits
   and is sent with the server's next answer.
-  Its categories are folders under "Suwayomi" at the Comics side (Suwayomi › Weekly), its own Default left out.
+  Its categories are folders under "Suwayomi" at the Comics side (Suwayomi › Weekly), its own Default left out. In the pane's Suwayomi library (its own tab) a search looks on
+  every category, not only the one shown, as the phone's does.
   A series' **New chapters?** asks the server to look at its source again; the command "Manga: look for new chapters
   on Suwayomi" starts the server's update of the whole library (new chapters then show as unread counts).
   **Keep 5 for offline** fetches every page of the next five unread chapters now, so they open without the server.

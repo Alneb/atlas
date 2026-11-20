@@ -136,21 +136,56 @@ pub fn thread_cpu() -> Option<std::time::Duration> {
     None
 }
 
-/// This machine's name ("" when unknown).
+/// This machine's name as its person knows it ("" when unknown): the host name, or, where that is only a placeholder
+/// (`localhost` on every Android device: its kernel's name is refused to apps), the device's model ("Pixel 8a"). A
+/// placeholder shared by two devices made them one: the Plan ledger's `plan/ledger/<month> <device>.md` written by
+/// both (a Syncthing conflict), `[automation] schedules_on` unable to tell them apart, the mirror's devices alike.
 pub fn hostname() -> String {
-    #[cfg(any(target_os = "linux", target_os = "android"))]
-    if let Ok(h) = std::fs::read_to_string("/proc/sys/kernel/hostname") {
-        return h.trim().to_string();
-    }
-    #[cfg(unix)]
+    let kernel = || {
+        #[cfg(any(target_os = "linux", target_os = "android"))]
+        if let Ok(h) = std::fs::read_to_string("/proc/sys/kernel/hostname") {
+            return h;
+        }
+        String::new()
+    };
+    let gethostname = || {
+        #[cfg(unix)]
+        {
+            let mut buf = [0u8; 256];
+            if unsafe { libc::gethostname(buf.as_mut_ptr().cast(), buf.len()) } == 0 {
+                let end = buf.iter().position(|&b| b == 0).unwrap_or(buf.len());
+                return String::from_utf8_lossy(&buf[..end]).into_owned();
+            }
+        }
+        String::new()
+    };
+    let env = || ["HOSTNAME", "COMPUTERNAME"].iter().find_map(|v| std::env::var(v).ok()).unwrap_or_default();
+    first_name(&[&kernel, &gethostname, &android_model, &env])
+}
+
+/// The first of `names` (asked in order, lazily) that names a machine, trimmed; "" when none does.
+fn first_name(names: &[&dyn Fn() -> String]) -> String {
+    names.iter().map(|n| n().trim().to_string()).find(|n| !placeholder(n)).unwrap_or_default()
+}
+
+/// A host name that names no machine in particular: none, or what systems answer when none was given.
+fn placeholder(name: &str) -> bool {
+    let n = name.trim().to_ascii_lowercase();
+    n.is_empty() || n == "(none)" || n == "localhost" || n.starts_with("localhost.")
+}
+
+/// The device's model, from Android's system properties ("" elsewhere, or when unset).
+fn android_model() -> String {
+    #[cfg(target_os = "android")]
     {
-        let mut buf = [0u8; 256];
-        if unsafe { libc::gethostname(buf.as_mut_ptr().cast(), buf.len()) } == 0 {
-            let end = buf.iter().position(|&b| b == 0).unwrap_or(buf.len());
-            return String::from_utf8_lossy(&buf[..end]).trim().to_string();
+        let mut buf = [0u8; 92]; // PROP_VALUE_MAX, the longest value a property holds
+        // SAFETY: a NUL-terminated name and a buffer of PROP_VALUE_MAX bytes, as the call requires
+        let n = unsafe { libc::__system_property_get(c"ro.product.model".as_ptr(), buf.as_mut_ptr().cast()) };
+        if n > 0 {
+            return String::from_utf8_lossy(&buf[..(n as usize).min(buf.len())]).into_owned();
         }
     }
-    ["HOSTNAME", "COMPUTERNAME"].iter().find_map(|v| std::env::var(v).ok()).unwrap_or_default().trim().to_string()
+    String::new()
 }
 
 /// A number that changes when a path names another file: the inode on Unix. Windows' file index needs an open
@@ -180,5 +215,19 @@ mod tests {
     #[test]
     fn a_hostname_is_known() {
         assert!(!hostname().is_empty());
+        assert!(!placeholder(&hostname()), "{}", hostname());
+    }
+
+    #[test]
+    fn localhost_is_no_device_name_and_the_next_answer_is_taken() {
+        // Android's answers: the kernel's name refused, gethostname's placeholder, then the model
+        let (refused, placeholder_, model, never) = (|| String::new(), || "localhost\n".to_string(), || " Pixel 8a ".to_string(), || -> String { unreachable!("asked only until one names the device") });
+        assert_eq!(first_name(&[&refused, &placeholder_, &model, &never]), "Pixel 8a");
+        assert_eq!(first_name(&[&|| "laptop\n".to_string(), &never]), "laptop");
+        assert_eq!(first_name(&[&refused, &placeholder_]), "", "nothing better: unknown, never \"localhost\"");
+        for p in ["", " ", "localhost", "LOCALHOST", "localhost.localdomain", "(none)"] {
+            assert!(placeholder(p), "{p:?}");
+        }
+        assert!(!placeholder("homeserver") && !placeholder("my-localhost-box"));
     }
 }

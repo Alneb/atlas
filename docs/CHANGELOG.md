@@ -5,6 +5,13 @@ and versions follow [Semantic Versioning](https://semver.org/) once 1.0 is out.
 
 ## [Unreleased]
 
+## [0.4.9] - 2026-11-20
+
+### Fixed
+- **The tray icon shows in the Flatpak**: the sandbox hid the desktop's tray watcher (`ServiceUnknown` at every start,
+  so closing the window quit Atlas); the manifest now lets it through, and the icon registers without a bus name
+  of its own.
+
 ## [0.4.8] - 2026-11-20
 
 ### Added

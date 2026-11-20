@@ -96,7 +96,9 @@ impl TrayView for View {
 /// Puts the icon in the tray. Err: no tray host answers (nothing shows it), said by the caller.
 pub async fn start(shell: Arc<Shell>, icons: Icons, model: Model) -> Result<(), String> {
     let tray = Sni { model, shell: shell.clone(), icons: Arc::new(icons) };
-    let handle = tray.spawn().await.map_err(|e| e.to_string())?;
+    // in the Flatpak the bus refuses the well-known name ksni asks for (`org.kde.StatusNotifierItem-<pid>-<n>`): the item
+    // registers under its connection's own name, which the spec allows (the manifest lets it reach the watcher)
+    let handle = tray.disable_dbus_name(atlas_core::platform::host::sandboxed()).spawn().await.map_err(|e| e.to_string())?;
     shell.tray_online(true);
     shell.set_tray(Arc::new(View(handle)));
     Ok(())

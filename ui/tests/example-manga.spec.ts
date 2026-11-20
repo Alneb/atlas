@@ -11,6 +11,7 @@ import { said, suwayomi, kept } from "../../plugins/beta/manga/suwayomi.js";
 // The manga plugin's web side (plugins/beta/manga/view.js): the library from the vault's manga/ folder, a series, and
 // a .cbz unzipped in the page; where you are written to the series' note (its folder's own), as the Android screens write it.
 const PLUGIN = join(WS, ".atlas/plugins/manga");
+const FIXTURE = (name: string) => readFileSync(new URL(`../../crates/atlas-android/tests/fixtures/${name}`, import.meta.url));
 // a 2×3 PNG per page, each a different grey so the pages differ
 function png(grey: number): Buffer {
   const chunk = (type: string, data: Buffer) => {
@@ -49,6 +50,12 @@ test.beforeAll(() => {
   mkdirSync(series, { recursive: true });
   writeFileSync(join(series, "Chapter 10.cbz"), cbz([["p1.png", png(200), true]]));
   writeFileSync(join(series, "Chapter 9.cbz"), cbz([["p10.png", png(30), true], ["p2.png", png(90), false], ["p1.png", png(10), true], ["__MACOSX/p1.png", png(0), false]]));
+  // pictures a browser cannot be trusted with: a JPEG XL, and an AVIF named .jpg (found by its bytes)
+  rmSync(join(WS, ".atlas/cache/plugins/manga/pages"), { recursive: true, force: true });
+  const kaiju = join(WS, "manga/Kaiju");
+  mkdirSync(kaiju, { recursive: true });
+  writeFileSync(join(kaiju, "Chapter 1.cbz"), cbz([["p1.png", png(60), true], ["p2.jxl", FIXTURE("tiny.jxl"), false], ["p3.jpg", FIXTURE("tiny.avif"), false]]));
+  writeFileSync(join(kaiju, "Chapter 2.cbz"), cbz([["p1.png", png(120), true], ["p2.png", png(160), true]]));
 });
 test.afterAll(() => { rmSync(PLUGIN, { recursive: true, force: true }); rmSync(join(WS, "manga"), { recursive: true, force: true }); });
 
@@ -88,6 +95,10 @@ test("manga: the library, a series, a .cbz read in the page, and where you are s
   await expect.poll(() => [prop("reading_chapter"), prop("reading_page"), progress()["Chapter 9.cbz"]]).toEqual(["Chapter 9.cbz", "1", 1]);
   expect(existsSync(join(WS, "manga/Blue Period/reading.json"))).toBe(false);
   await page.keyboard.press("ArrowLeft");
+  await expect(pane.locator(".m-num")).toHaveText("3 / 3");
+  // past the last page, the page between chapters first (no jump into the next by accident), then the next chapter
+  await page.keyboard.press("ArrowLeft");
+  await expect(pane.locator(".m-gap")).toContainText("Chapter 10");
   await page.keyboard.press("ArrowLeft");
   await expect(pane.locator(".m-num")).toHaveText("1 / 1");
   await expect.poll(() => [prop("reading_chapter"), progress()]).toEqual(["Chapter 10.cbz", { "Chapter 9.cbz": "read", "Chapter 10.cbz": "read" }]);
@@ -209,6 +220,72 @@ test("manga on e-ink: a refresh asked on each page turn (flash_every = 1)", asyn
   await reader.click({ position: { x: box.width * 0.9, y: box.height / 2 } });
   await expect(pane.locator(".m-over")).not.toHaveClass(/\bon\b/);
   await expect(pane.locator(".m-num")).toHaveText("2 / 3");
+});
+
+test("the reader: JPEG XL and AVIF through the core, pages ahead, a page between chapters, wheel, progress, mode", async ({ page }) => {
+  const errs: string[] = [];
+  page.on("pageerror", (e) => errs.push(e.message));
+  await page.goto("/");
+  await page.getByText("Finish the GW notes.").waitFor();
+  await page.keyboard.press("F1");
+  await page.keyboard.type("Manga: library");
+  await page.getByTestId("palette").getByText("Manga: library", { exact: true }).first().click();
+  await page.locator(".libraries .card", { hasText: "Kaiju" }).first().click();
+  await page.locator(".libraries .detail").getByRole("button", { name: "Read" }).click();
+  const pane = page.locator(".manga"), num = pane.locator(".m-num");
+  await pane.getByRole("button", { name: "Start" }).click();
+  await expect(num).toHaveText("1 / 3");
+  // the next pages asked ahead: the JPEG XL and the AVIF are in the plugin's cache before they are turned to
+  const cache = join(WS, ".atlas/cache/plugins/manga/pages");
+  const inCache = () => (existsSync(cache) ? execFileSync("find", [cache, "-type", "f"]).toString().split("\n").filter(Boolean).map((f) => f.split("/").pop()).sort() : []);
+  await expect.poll(inCache).toEqual(["1.jxl", "2.avif"]);
+  const shown = () => pane.locator(".m-page").evaluate((i: HTMLImageElement) => i.complete && i.naturalWidth);
+  await page.keyboard.press("ArrowLeft");
+  await expect(num).toHaveText("2 / 3");
+  await expect.poll(shown).toBeGreaterThan(0); // Chromium reads no JPEG XL: decoded by the core
+  await page.keyboard.press("ArrowLeft");
+  await expect(num).toHaveText("3 / 3");
+  await expect.poll(shown).toBeGreaterThan(0);
+  // the page between chapters: what was finished, what comes, its pages (opened ahead)
+  await page.keyboard.press("ArrowLeft");
+  const gap = pane.locator(".m-gap");
+  await expect(gap).toContainText("Finished");
+  await expect(gap).toContainText("Chapter 2");
+  await expect(gap).toContainText("2 pages");
+  await expect(num).toHaveText("end");
+  for (const scheme of ["light", "dark"] as const) {
+    await page.emulateMedia({ colorScheme: scheme });
+    await page.screenshot({ path: test.info().outputPath(`transition-${scheme}.png`) });
+  }
+  await page.emulateMedia({ colorScheme: "light" });
+  await page.keyboard.press("ArrowRight"); // back: the chapter's last page again
+  await expect(num).toHaveText("3 / 3");
+  await page.keyboard.press("ArrowLeft");
+  await page.keyboard.press("ArrowLeft");
+  await expect(num).toHaveText("1 / 2");
+  // back from a chapter's first page: the page between first, never the previous chapter at once
+  await page.keyboard.press("ArrowRight");
+  await expect(pane.locator(".m-gap")).toContainText("Previous");
+  await page.keyboard.press("ArrowLeft");
+  await expect(num).toHaveText("1 / 2");
+  // the wheel turns a page (fit screen: nothing to scroll)
+  const reader = pane.locator(".m-reader"), box = (await reader.boundingBox())!;
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.wheel(0, 200);
+  await expect(num).toHaveText("2 / 2");
+  // the progress bar: right to left, its right end is the start
+  const bar = pane.locator(".m-progress"), pb = (await bar.boundingBox())!;
+  await page.mouse.click(pb.x + pb.width * 0.95, pb.y + pb.height / 2);
+  await expect(num).toHaveText("1 / 2");
+  // the mode from the reader's bar, kept for this series in its note
+  await reader.click({ position: { x: box.width / 2, y: box.height / 2 } });
+  await pane.getByLabel("Reading mode").selectOption("left to right");
+  await expect(num).toHaveText("1 / 2");
+  await page.keyboard.press("ArrowRight"); // left to right: → goes on
+  await expect(num).toHaveText("2 / 2");
+  const note = join(WS, "manga/Kaiju/Kaiju.md");
+  await expect.poll(() => (existsSync(note) ? readFileSync(note, "utf8") : "")).toContain("left to right");
+  expect(errs).toEqual([]);
 });
 
 // The user's Suwayomi (plugins/beta/manga/suwayomi.js; its GraphQL API as a real server answers it): a
@@ -379,6 +456,18 @@ test("pure: what a reading change makes of a series for its note (the catalog's 
   expect(engagement(0, 0, true)).toEqual({ why: "finished" });
   expect(suwayomiId("2499283573021220255", "/manga/123")).toBe("2499283573021220255:/manga/123");
   expect(suwayomiId("", "/manga/123")).toBe("");
+});
+
+test("pure: which pictures go through the core's decoder", async () => {
+  // @ts-expect-error a plugin's module is plain JavaScript, loaded as the page loads it
+  const { coreDecodes } = await import("../../plugins/beta/manga/view.js");
+  const head = (b: Buffer) => new Uint8Array(b.subarray(0, 16));
+  expect(coreDecodes("p.jxl", head(FIXTURE("tiny.jxl")))).toBe("jxl");
+  expect(coreDecodes("p.jpg", head(FIXTURE("tiny.avif")))).toBe("avif"); // the bytes, not the name
+  expect(coreDecodes("p.jxl", new Uint8Array([0xff, 0x0a]))).toBe("jxl"); // a bare codestream
+  expect(coreDecodes("p.png", head(png(1)))).toBe(null);
+  expect(coreDecodes("p.avif", head(png(1)))).toBe(null); // a PNG named .avif shows as it is
+  expect(coreDecodes("p.avif", new Uint8Array(0))).toBe("avif"); // no bytes: the name says
 });
 
 test("a Suwayomi error is one line, and a source gone says what to do", () => {

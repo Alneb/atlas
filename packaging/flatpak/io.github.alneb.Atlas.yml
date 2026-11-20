@@ -18,6 +18,7 @@ finish-args:
   - --filesystem=xdg-run/atlas:create  # the local key the `atlas` command signs in with, shared with the host's (auth.rs)
   - --talk-name=org.freedesktop.Notifications
   - --talk-name=org.freedesktop.secrets
+  - --talk-name=org.kde.StatusNotifierWatcher  # the tray icon (tray_sni.rs): KDE's and every SNI host's watcher
   - --system-talk-name=org.freedesktop.login1   # whether the session is locked or idle (platform/idle.rs)
   # what a vault runs (plugin helpers, vault commands, atlas.exec, terminals, language servers) is the user's and
   # starts on the host with `flatpak-spawn --host` (crates/atlas-core/src/platform/host.rs)

@@ -337,13 +337,25 @@ const RETRY_AFTER: std::time::Duration = std::time::Duration::from_secs(5);
 pub struct Told {
     file: PathBuf,
     set: Mutex<BTreeSet<String>>,
+    /// The copies the last summary line named, in this process: the ten-minute sweep logs the same old copies only
+    /// when they change, not 144 times a day (the journal read like a stream of new conflicts).
+    logged: Mutex<Option<BTreeSet<String>>>,
 }
 
 impl Told {
     pub fn of(ws: &Workspace) -> Arc<Self> {
         let file = ws.cache_dir().join("sync-told.json");
         let set = std::fs::read(&file).ok().and_then(|b| serde_json::from_slice(&b).ok()).unwrap_or_default();
-        Arc::new(Self { file, set: Mutex::new(set) })
+        Arc::new(Self { file, set: Mutex::new(set), logged: Mutex::new(None) })
+    }
+
+    /// Whether the copies left differ from those the last summary line named (true at the first sweep of a run).
+    fn line_is_news(&self, left: &[String]) -> bool {
+        let now: BTreeSet<String> = left.iter().cloned().collect();
+        let mut last = self.logged.lock().unwrap_or_else(|e| e.into_inner());
+        let news = last.as_ref() != Some(&now);
+        *last = Some(now);
+        news
     }
 
     /// Whether `copy` is news (remembered from now on).
@@ -426,6 +438,7 @@ fn settle_found(ws: &Workspace, bus: &EventBus, told: &Told) -> Vec<String> {
         }
     }
     told.keep_only(&left);
+    let line_is_news = told.line_is_news(&left);
     if left.is_empty() {
         return later;
     }
@@ -433,7 +446,9 @@ fn settle_found(ws: &Workspace, bus: &EventBus, told: &Told) -> Vec<String> {
         let more = if l.len() > 5 { format!(" and {} more", l.len() - 5) } else { String::new() };
         format!("{}{more}", l.iter().take(5).cloned().collect::<Vec<_>>().join(", "))
     };
-    eprintln!("atlas: sync: {} conflict copies left for the user (no base or the same lines changed): {}", left.len(), list(&left));
+    if line_is_news {
+        eprintln!("atlas: sync: {} conflict copies left for the user (no base or the same lines changed): {}", left.len(), list(&left));
+    }
     // a restart is not news: only copies never announced on this device make a notice
     let news: Vec<String> = left.iter().filter(|c| told.first_time(c)).cloned().collect();
     if news.is_empty() {
@@ -681,6 +696,18 @@ mod tests {
         std::fs::write(d.path().join(a), "theirs\n").unwrap();
         settle_found(&ws, &bus, &Told::of(&ws));
         assert_eq!(heard(), 1);
+    }
+
+    #[test]
+    fn the_sweep_names_the_same_old_copies_once_per_run_not_every_ten_minutes() {
+        let d = tempfile::tempdir().unwrap();
+        let told = Told::of(&Workspace::open(d.path()).unwrap());
+        let (a, b) = ("notes/log.sync-conflict-20261112-102507-ABCDEFG.md".to_string(), "x.sync-conflict-20261106-131923-ABCDEFG.png".to_string());
+        assert!(told.line_is_news(&[a.clone(), b.clone()]), "the run's first sweep says what is left");
+        assert!(!told.line_is_news(&[b.clone(), a.clone()]), "the same copies ten minutes later: nothing to say");
+        assert!(told.line_is_news(std::slice::from_ref(&a)), "one settled: the line changes");
+        assert!(told.line_is_news(&[]) && !told.line_is_news(&[]));
+        assert!(told.line_is_news(&[a]), "back again: said again");
     }
 
     #[test]
