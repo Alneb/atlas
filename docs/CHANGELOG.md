@@ -5,6 +5,8 @@ and versions follow [Semantic Versioning](https://semver.org/) once 1.0 is out.
 
 ## [Unreleased]
 
+## [0.4.5] - 2026-11-20
+
 ### Fixed
 - **AVIF pictures open everywhere**, the phone included: the core decodes AVIF itself (pure Rust: avif-parse and
   rav1d), for thumbnails and covers, and the phone's manga reader uses it instead of Android's decoders, which refused
