@@ -5,4 +5,4 @@ Comment=Notes, papers, mail, code and terminals over plain files
 Exec=atlas-app %F
 Icon=io.github.alneb.Atlas
 Categories=Office;Development;Science;
-StartupWMClass=atlas
+StartupWMClass=io.github.alneb.Atlas

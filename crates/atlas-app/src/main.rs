@@ -484,15 +484,23 @@ fn leave_appimage_interpreters() {
     }
 }
 
+/// The window's app id: the Flatpak's id inside the Flatpak (its desktop file's name), else "atlas".
+#[cfg(target_os = "linux")]
+fn window_app_id() -> String {
+    std::env::var("FLATPAK_ID").ok().filter(|id| !id.is_empty()).unwrap_or_else(|| "atlas".into())
+}
+
 fn main() -> anyhow::Result<()> {
     leave_appimage_interpreters();
     // the Flatpak: `atlas` and `atlas-capture` callable from the host's terminals, agents and shortcuts (host.rs)
     atlas_core::platform::host::fit_locale(); // before anything starts a `sh` (the runtime may lack the locale asked)
     atlas_core::platform::host::write_command_launchers();
-    // GTK's Wayland app id (X11: WM_CLASS) is the program name; "atlas" makes KWin find atlas.desktop and its Icon=atlas,
-    // where the binary's name "atlas-app" matched no desktop file and the window showed Wayland's generic icon.
+    // GTK's Wayland app id (X11: WM_CLASS) is the program name, and the desktop matches a window to its launcher by it:
+    // the name of the desktop file that started it. Installed by hand that is atlas.desktop ("atlas-app", the binary's
+    // name, matched none: Wayland's generic icon); in the Flatpak it is the Flatpak's id (io.github.alneb.Atlas.desktop
+    // — "atlas" there matched nothing once the hand install was gone, and the window was not the taskbar's pinned Atlas).
     #[cfg(target_os = "linux")]
-    gtk::glib::set_prgname(Some("atlas"));
+    gtk::glib::set_prgname(Some(&window_app_id()));
     // The WebView's own file choosers (`<input type=file>`: attach, import, upload) are GTK's FileChooserNative, which
     // goes through the portal — the desktop's dialog — only in a sandbox or when asked; asked here, before GTK starts,
     // unless the person set it. Programs started from Atlas inherit it, which gives them the same dialog.

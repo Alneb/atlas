@@ -5,6 +5,14 @@ and versions follow [Semantic Versioning](https://semver.org/) once 1.0 is out.
 
 ## [Unreleased]
 
+## [0.4.6] - 2026-11-20
+
+### Fixed
+- **The Flatpak's window belongs to its launcher**: it now reports the Flatpak's id, so the taskbar shows it as the
+  pinned Atlas with its icon (it reported "atlas", which matched no desktop file once a hand install was gone).
+- **A page behind an expired sign-in gate signs in again** instead of staying empty (a server vault behind Authelia
+  on the phone or in a browser).
+
 ## [0.4.5] - 2026-11-20
 
 ### Fixed
