@@ -17,7 +17,9 @@ test("pictures far down a note are drawn at their size at once, none at the plac
   const first = page.locator('img.cm-embed-image[alt="sizes-a.svg"]');
   await expect.poll(() => first.evaluate((el) => Math.round(el.getBoundingClientRect().height))).toBe(420);
   await page.waitForTimeout(1500); // the background learning
-  await page.locator(".cm-content").getByText("The end.").scrollIntoViewIfNeeded();
+  // the editor draws only the lines near the screen: scroll its scroller to the end, then the far picture is built
+  await page.locator(".cm-scroller").first().evaluate((el) => { el.scrollTop = el.scrollHeight; });
+  await expect(page.locator(".cm-content").getByText("The end.")).toBeVisible();
   const far = page.locator('img.cm-embed-image[alt="sizes-b.svg"]');
   await expect(far).toHaveCount(1);
   expect(await far.getAttribute("height"), "the far picture's box reserved when it is built").toBe("260");
