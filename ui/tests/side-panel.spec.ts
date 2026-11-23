@@ -129,3 +129,16 @@ test("the tab list's headings keep one order: terminal, then the editors", async
     expect(await heads(), `after ${key}`).toEqual(want);
   }
 });
+
+// The keys in the side panel beside the editors (a dock column, not a tab with vertical tabs): the tab last in front
+// stays marked as the current one, as an editor's tab stays marked while the explorer has the focus in VS Code.
+test("the current tab stays marked while the side panel beside the editors has the keys", async ({ page }) => {
+  await page.goto("/");
+  await page.getByText("Finish the GW notes.").waitFor();
+  await openFile(page, "journal.md");
+  const tab = page.getByTestId("sidebar").locator(".tab", { hasText: shownName("journal.md") }).first();
+  await expect(tab).toHaveClass(/\bactive\b/);
+  await page.keyboard.press("Meta+Shift+f");
+  await expect(page.locator(".dv-groupview .side-pane").first()).toBeVisible();
+  await expect(tab).toHaveClass(/\bactive\b/);
+});

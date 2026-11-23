@@ -64,13 +64,18 @@ function item(p: IDockviewPanel, activeId: string | null): TabItem {
     active: p.id === activeId, shown: p.group.activePanel === p };
 }
 
+/** The tab last marked current: kept marked while the keys are in the side panel (not a tab with vertical tabs). */
+let lastMarked: string | null = null;
+
 function refresh(): void {
   const d = getDock();
   if (!d) return;
   const v = vertical();
   const hidden = new Set(v ? tabs.pins.map(pinId) : []);
   const app = (p: IDockviewPanel) => v && isApp(p.id, p.params as PaneSpec);
-  const activeId = d.activePanel?.id ?? null;
+  const focused = d.activePanel, inSide = !!focused && v && panelZone(focused) === "side";
+  if (focused && !inSide) lastMarked = focused.id;
+  const activeId = inSide ? (lastMarked && d.getPanel(lastMarked) ? lastMarked : null) : focused?.id ?? null;
   // order: terminal, editors left→right / top→bottom (hidden groups measure 0). With vertical tabs the
   // side panel is not a group of tabs: its tools are the row on top of it (SideHead.svelte).
   const all = d.groups.map((g) => ({ g, zone: groupZone(g), r: g.element.getBoundingClientRect() }));

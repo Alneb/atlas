@@ -209,6 +209,35 @@ class InlineHtmlWidget extends KeyedWidget {
 // the way back; a picture built without a size is 0 px tall until it loads, so everything under it jumps as it
 // arrives — fast scrolling through a note of large figures stuttered. Known, the box has its final height at once.
 const imageSizes = new Map();
+// Keyed by the embed's own target (the URL handed to the <img> is a 1×1 placeholder until the file is fetched, then a
+// blob URL), recorded only from the real picture.
+const isReal = (url) => !!url && !url.startsWith("data:");
+// …and learned ahead: every picture of the note is a widget as soon as the note opens (the decorations cover the
+// whole document), so its size is fetched then, in the background, a few at a time — the first pass through the
+// note no longer jumps either. A picture that fails is not retried (the widget shows it missing).
+const sizeQueue = [], sizeAsked = new Set();
+let sizeLoading = 0;
+const idle = (fn) => (typeof requestIdleCallback === "function" ? requestIdleCallback(fn, { timeout: 500 }) : setTimeout(fn, 50));
+function learnSize(src, resolve) {
+  if (imageSizes.has(src) || sizeAsked.has(src) || typeof Image === "undefined") return;
+  sizeAsked.add(src);
+  sizeQueue.push({ src, resolve, tries: 0 });
+  idle(nextSize);
+}
+function nextSize() {
+  while (sizeLoading < 4 && sizeQueue.length) {
+    const job = sizeQueue.shift(), url = job.resolve(job.src);
+    // the file not fetched yet (resolve started that): asked again shortly, for ~10 s at most
+    if (!isReal(url)) { if (url && ++job.tries < 40) setTimeout(() => { sizeQueue.push(job); idle(nextSize); }, 250); continue; }
+    const probe = new Image();
+    sizeLoading++;
+    const done = () => { sizeLoading--; if (probe.naturalWidth) imageSizes.set(job.src, [probe.naturalWidth, probe.naturalHeight]); idle(nextSize); };
+    probe.decoding = "async";
+    probe.addEventListener("load", done, { once: true });
+    probe.addEventListener("error", done, { once: true });
+    probe.src = url;
+  }
+}
 
 class ImageWidget extends KeyedWidget {
   /** `opts`: Obsidian's `|600` / `|600x400` size and the vault's `|center` (from its CSS snippet). */
@@ -217,6 +246,7 @@ class ImageWidget extends KeyedWidget {
     this.src = src;
     this.resolve = resolve;
     this.opts = opts;
+    if (resolve && !/^(https?|data|blob):/.test(src)) learnSize(src, resolve); // remote pictures load only when shown
   }
   toDOM(view) {
     const host = document.createElement("span");
@@ -227,13 +257,13 @@ class ImageWidget extends KeyedWidget {
     const img = document.createElement("img");
     img.className = "cm-embed-image";
     const url = this.resolve(this.src);
-    const known = imageSizes.get(url);
+    const known = imageSizes.get(this.src);
     if (known) { img.width = known[0]; img.height = known[1]; } // reserves the box (max-width + height: auto keep the ratio)
     img.decoding = "async"; // decoded off the main thread: a large PNG no longer holds up the scroll
     img.src = url;
     img.alt = this.src;
     if (this.opts.width) img.style.width = `${this.opts.width}px`;
-    img.addEventListener("load", () => { if (img.naturalWidth) imageSizes.set(url, [img.naturalWidth, img.naturalHeight]); }, { once: true });
+    img.addEventListener("load", () => { if (img.naturalWidth && isReal(img.src)) imageSizes.set(this.src, [img.naturalWidth, img.naturalHeight]); });
     // A broken embed must not collapse to an invisible 0x0 box, or the line
     // looks empty and unclickable -- but the swap happens one level down.
     // A remote URL that is not an image (a video page) becomes a link instead.
