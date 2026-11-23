@@ -59,8 +59,10 @@ test("Escape closes the find bar, clears its matches, and the pane's keys work a
   await page.keyboard.press("Escape");
   await expect(pane.locator(".findbar")).toHaveCount(0);
   await expect(pane.locator(".findLayer > div")).toHaveCount(0);
-  await page.keyboard.press("d");
+  // dark pages with the app's dark theme (the tests' colour scheme); D flips the document in front
   await expect(pane.locator(".viewer-container")).toHaveClass(/dark/);
+  await page.keyboard.press("d");
+  await expect(pane.locator(".viewer-container")).not.toHaveClass(/dark/);
 });
 
 test("the find button closes the bar and its matches with it", async ({ page }) => {
@@ -83,8 +85,10 @@ test("Escape on the page closes an open find bar", async ({ page }) => {
   await expect(pane.locator(".findbar input")).not.toBeFocused();
   await expect(pane.locator(".findLayer > div").first()).toBeAttached();
   // the click on the page took the keys from the find box: D is the pane's, not the query's
-  await page.keyboard.press("d");
+  // dark pages with the app's dark theme (the tests' colour scheme); D flips the document in front
   await expect(pane.locator(".viewer-container")).toHaveClass(/dark/);
+  await page.keyboard.press("d");
+  await expect(pane.locator(".viewer-container")).not.toHaveClass(/dark/);
   await expect(pane.locator(".findbar input")).toHaveValue("quantum");
   await page.keyboard.press("Escape");
   await expect(pane.locator(".findbar")).toHaveCount(0);

@@ -15,7 +15,8 @@ test("a view block shows its section's dated tasks as a calendar, and ticks them
   await expect(cal.locator(".item")).toHaveCount(2); // the section's dated tasks only
   await expect(cal.locator(".undated")).toContainText("someday");
   await expect(cal).not.toContainText("not mine");
-  await cal.getByRole("checkbox", { name: "Done: read Georges" }).check();
+  // a click, not check(): a done task is drawn without its box, so check() could not see it stay ticked (a race)
+  await cal.getByRole("checkbox", { name: "Done: read Georges" }).click();
   await expect.poll(text).toContain("- [x] read Georges 📅 2026-10-12");
   await expect(cal.locator(".item.done")).toHaveCount(1);
   // the note changes elsewhere → the block follows

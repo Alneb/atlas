@@ -109,6 +109,21 @@ struct Seen {
     offline_since: Option<Instant>,
 }
 
+thread_local! {
+    /// The plugin whose helper made the write running on this thread (`by_plugin`), if any.
+    static BY_PLUGIN: std::cell::RefCell<Option<String>> = const { std::cell::RefCell::new(None) };
+}
+
+/// Runs `op` (a request's work) as written by plugin `id`'s helper, or by a person when `None`. A plugin's refused
+/// write is its own error to handle — a fetch that another device made first, say — so it is logged, neither a notice nor
+/// a count on the sync line: "x was not saved, make your change again" spoke of a change the person never made.
+pub fn by_plugin<T>(id: Option<String>, op: impl FnOnce() -> T) -> T {
+    let before = BY_PLUGIN.with(|p| std::mem::replace(&mut *p.borrow_mut(), id));
+    let out = op();
+    BY_PLUGIN.with(|p| *p.borrow_mut() = before);
+    out
+}
+
 /// One vault's live state in this process, and the bus its notices go to (none in a process that serves no page:
 /// the CLI, `atlas mcp`).
 #[derive(Default)]
@@ -207,6 +222,10 @@ impl SyncState {
 
     /// A write's lease refused.
     pub fn refused(&self, path: &str, refused: Refused) {
+        if let Some(id) = BY_PLUGIN.with(|p| p.borrow().clone()) {
+            eprintln!("atlas: mirror: plugin {id}'s write of {path} refused: {}", refusal_words(&refused));
+            return;
+        }
         {
             let mut s = self.seen();
             s.refused_count += 1;
@@ -573,6 +592,16 @@ mod tests {
         }
         let s = st.seen().clone();
         assert_eq!((s.refused_count, s.refused.len(), s.refused.last().map(|r| r.path.as_str())), (13, KEEP_REFUSED, Some("n9.md")));
+    }
+
+    #[test]
+    fn a_plugins_refused_write_is_its_own_error_not_the_persons_notice() {
+        let dir = tempfile::tempdir().unwrap();
+        let st = SyncState::of(dir.path());
+        by_plugin(Some("runs".into()), || st.refused("runs/a/scan.log", Refused::Behind { newer: Newer::Syncthing }));
+        assert_eq!(st.seen().refused_count, 0, "a fetch another device made first is not the person's lost change");
+        st.refused("notes/a.md", Refused::Behind { newer: Newer::Syncthing });
+        assert_eq!(st.seen().refused_count, 1);
     }
 
     #[test]

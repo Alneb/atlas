@@ -582,6 +582,10 @@
   }
   /* the mentions follow the item, open (an item's panel is where they matter), never pinned under an empty column */
   .links-bar { margin: 22px -22px 0; padding-top: 4px; display: flex; flex-direction: column; }
+  /* folded, the bar alone would stand mid-column over blank space: it goes to the column's foot instead; open, the
+     mentions follow the item and take the rest of the column (no third of it, as under a note) */
+  .links-bar:has(:global(.backlinks:not(.open))) { margin-top: auto; }
+  .links-bar :global(.backlinks.open) { max-height: none; }
   .abstract.own { white-space: pre-line; }
   .more-notes { align-self: flex-start; margin-top: 4px; }
   .kind { text-transform: uppercase; letter-spacing: .07em; font-size: calc(11px * var(--ui-scale, 1)); color: var(--text-faint); }

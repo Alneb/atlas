@@ -349,8 +349,14 @@ pub async fn run_script_with(root: &Path, script: &ScriptCommand, env: &[(String
     Ok(serde_json::from_str(&stdout).unwrap_or(Value::String(stdout)))
 }
 
+tokio::task_local! {
+    /// The plugin whose helper's request is being served (server.rs `guard`), carried into its blocking work.
+    pub(crate) static PLUGIN_CALLER: String;
+}
+
 pub(crate) async fn blocking<T: Send + 'static>(f: impl FnOnce() -> Result<T> + Send + 'static) -> Result<T> {
-    tokio::task::spawn_blocking(f).await.map_err(|e| Error::Other(e.into()))?
+    let caller = PLUGIN_CALLER.try_with(|id| id.clone()).ok();
+    tokio::task::spawn_blocking(move || crate::sync_state::by_plugin(caller, f)).await.map_err(|e| Error::Other(e.into()))?
 }
 
 fn to_json<T: Serialize>(v: &T) -> Value {

@@ -142,7 +142,7 @@ html.phone .live-cm .cm-content { padding: 20px 16px 45vh; }
 .markdown .cm-embed-image-host.is-centered + .cm-figure-caption { text-align: center; }
 /* the caret's buffers between the picture and its caption would each take a line (the caret is never there) */
 .markdown .cm-line:has(> .cm-figure-caption) > .cm-widgetBuffer { display: none; }
-.markdown .cm-embed-image { display: block; margin: .5em 0; max-width: 100%; border-radius: 6px; }
+.markdown .cm-embed-image { display: block; margin: .5em 0; max-width: 100%; height: auto; border-radius: 6px; }
 .markdown .cm-embed-image-host.is-centered .cm-embed-image { margin-inline: auto; }
 .markdown .cm-embed-link { display: inline-block; margin: .3em 0; color: var(--accent); }
 .markdown .cm-html-tag { color: var(--text-faint); }

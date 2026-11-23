@@ -17,7 +17,7 @@ import {
 import { mount, unmount } from "svelte";
 import { basename, paneId, paneIcon, paneTitle, paneZone, specZone, type PaneKind, type PaneSpec, type SpecOf } from "./panes";
 import { getDock, setDock, kindOf, panelZone, zoneGroup } from "./dock-instance";
-import { besideActive, holdToolSizes, placement, reveal, hidePanel, setContentVisible, constrainTerminal, placeTerminalPanel, keepShape, nextTerminalN, noteToolSizes, paneElement } from "./dock-panels";
+import { besideActive, holdToolSizes, placement, reveal, hidePanel, setContentVisible, constrainTerminal, placeTerminalPanel, keepShape, nextTerminalN, noteToolSizes, restoreToolSizes, paneElement } from "./dock-panels";
 import { offerStep, paneCanStep } from "./pane-nav";
 import { canStep, jumpTo, noteVisit, stepHistory, visits } from "./nav-history";
 import { travelSign } from "./nav-signs";
@@ -247,7 +247,11 @@ export function initDock(el: HTMLElement, components: PaneComponents): DockviewA
   dock.onDidRemovePanel(reportPanes);
   dock.onDidAddPanel(numberTerminals);
   dock.onDidRemovePanel(numberTerminals);
-  dock.onDidLayoutChange(noteToolSizes);
+  // sizes the person set: noted when a split bar is let go (dockview tells no drag of its own)
+  let dragging = false;
+  el.addEventListener("pointerdown", (e) => { dragging = !!(e.target as Element | null)?.closest?.(".dv-sash"); }, true);
+  window.addEventListener("pointerup", () => { if (dragging) { dragging = false; requestAnimationFrame(noteToolSizes); } }, true);
+  dock.onDidRemoveGroup(() => requestAnimationFrame(restoreToolSizes));
   reportPanes();
   let lastPos: string | undefined;
   onSettings(moveSidePanel);

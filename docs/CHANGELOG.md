@@ -5,6 +5,19 @@ and versions follow [Semantic Versioning](https://semver.org/) once 1.0 is out.
 
 ## [Unreleased]
 
+### Fixed
+
+- The Library's item panel: folded "Linked mentions" stood alone mid-column over blank space; folded they sit at the
+  column's foot, open they follow the item and take the rest of the column (Catalog 0.16.9).
+- Scrolling fast through a note of large pictures and many formulas stuttered: a picture coming back into view was
+  0 px tall until it loaded (everything under it jumped), and every formula was laid out by KaTeX again. A picture's
+  size is remembered and reserved, decoded off the main thread, and a formula drawn once is reused.
+- The terminal panel and the side panel keep the size you dragged them to: closing a split among the editors gave its
+  room to the terminal, which then kept that size; the sizes are also kept across a restart (shell.json).
+- A plugin's background write that a vault's server refused (a Runs fetch of a log another copy had already
+  brought) showed as "x was not saved — make your change again" for a change the person never made: it is now the
+  plugin's own error, in its log, neither a notice nor a count on the sync line.
+
 ## [0.4.10] - 2026-11-23
 
 ### Added

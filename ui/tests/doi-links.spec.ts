@@ -79,6 +79,7 @@ test("a DOI link: dashed when not in the library (its menu offers Catalog's dial
   await page.getByRole("menuitem", { name: /Add to library/ }).click();
   const dialog = page.locator(".cat-add");
   await expect(dialog.locator("input")).toHaveValue(UNKNOWN);
-  await expect(dialog.getByText("Add to Papers: A test paper")).toBeVisible({ timeout: 15_000 });
+  await expect(dialog.locator(".cat-preview .cat-title")).toHaveText("A test paper", { timeout: 15_000 });
+  await expect(dialog.locator(".cat-preview")).toContainText("Paper");
   expect(errs).toEqual([]);
 });

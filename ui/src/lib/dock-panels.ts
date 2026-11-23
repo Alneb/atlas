@@ -4,6 +4,7 @@ import type { AddPanelOptions, DockviewGroupPanel } from "dockview-core";
 import { getDock, inZone, kindOf, zoneGroup, type Zone } from "./dock-instance";
 import { editors } from "./registry";
 import { settings, updateSettings } from "./settings.svelte";
+import { saveShellPrefs, shellPart } from "./shell-prefs";
 
 /** Where "beside the active tab" is: another main split, or a new one to its right. Null when
  *  nothing main is open (the pane then goes where it usually would). */
@@ -32,14 +33,30 @@ export function holdToolSizes(): () => void {
   };
 }
 
-/** The tool panels' sizes while editors are open, so both get them back when the editors return. */
+/** The tool panels' sizes as the person last set them (a split bar dragged), kept in shell.json: the editors coming
+ *  back, a split closed and a restart all give them back. Noted only after a drag — noted on every layout change, a
+ *  closed split's room handed to the terminal became its new size. */
 const kept = { side: 290, bottom: 300 };
 const alongRight = () => settings.config?.terminal.position === "right";
+shellPart("toolSizes", {
+  get: () => ({ ...kept }),
+  set: (v) => { for (const k of ["side", "bottom"] as const) if (typeof v[k] === "number" && v[k] > 80) kept[k] = v[k] as number; },
+});
+const toolGroup = (zone: "side" | "bottom") => { const g = zoneGroup(zone); return g && g.api.isVisible && !inZone(g, "main") ? g : null; };
 export function noteToolSizes(): void {
-  const side = zoneGroup("side"), bottom = zoneGroup("bottom");
   if (!zoneGroup("main")) return;
-  if (side?.api.isVisible && !inZone(side, "main")) kept.side = side.api.width;
-  if (bottom?.api.isVisible && !inZone(bottom, "main")) kept.bottom = alongRight() ? bottom.api.width : bottom.api.height;
+  const side = toolGroup("side"), bottom = toolGroup("bottom"), before = JSON.stringify(kept);
+  if (side) kept.side = side.api.width;
+  if (bottom) kept.bottom = alongRight() ? bottom.api.width : bottom.api.height;
+  if (JSON.stringify(kept) !== before) saveShellPrefs("toolSizes");
+}
+/** The tool panels back at their kept sizes (after a split among the editors closed: its room stays with the editors). */
+export function restoreToolSizes(): void {
+  if (!zoneGroup("main")) return;
+  const side = toolGroup("side"), bottom = toolGroup("bottom"), right = alongRight();
+  if (side && Math.abs(side.api.width - kept.side) > 2) side.api.setSize({ width: kept.side });
+  if (bottom && right && Math.abs(bottom.api.width - kept.bottom) > 2) bottom.api.setSize({ width: kept.bottom });
+  if (bottom && !right && Math.abs(bottom.api.height - kept.bottom) > 2) bottom.api.setSize({ height: kept.bottom });
 }
 
 /** The shape every placement keeps: the terminal along the window's whole bottom (or right) edge,

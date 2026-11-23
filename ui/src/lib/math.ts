@@ -76,8 +76,28 @@ function compat(source: string, block: boolean): string {
     .replace(/\\text\{([^{}]*)\}/g, (_m, body: string) => `\\text{${body.replace(/(?<!\\)([_^])/g, (c) => (c === "_" ? "\\_" : "\\^{}"))}}`);
 }
 
+// Formulas drawn before, by source: CodeMirror builds a formula's widget again each time its line scrolls back into
+// view, and a note of hundreds of formulas re-ran KaTeX's layout on every pass (a stutter when scrolling fast). Dropped
+// whenever the macros change (a formula's \newcommand); a formula that defines one is never kept.
+const drawn = new Map<string, string>();
+let drawnFor = "";
+const DRAWN_MAX = 4000;
+const DEFINES = /\\(?:re)?newcommand|\\def\b|\\gdef\b/;
+
 export function renderMathInto(host: HTMLElement, source: string, block: boolean): void {
-  if (katex) { katex.render(compat(source, block), host, opts(block)); return; }
+  if (katex) {
+    const now = String(Object.keys(macros).length); // a macro added by a note's preamble or the settings
+    if (now !== drawnFor) { drawn.clear(); drawnFor = now; }
+    const key = (block ? "B" : "I") + source, hit = drawn.get(key);
+    if (hit !== undefined) { host.innerHTML = hit; return; }
+    katex.render(compat(source, block), host, opts(block)); // throws on a bad formula: the widget shows its source
+    if (DEFINES.test(source)) drawn.clear(); // a definition (perhaps of a name kept already): everything anew
+    else {
+      if (drawn.size >= DRAWN_MAX) drawn.delete(drawn.keys().next().value!);
+      drawn.set(key, host.innerHTML);
+    }
+    return;
+  }
   host.innerHTML = PENDING(source, block);
   void loadMath();
 }

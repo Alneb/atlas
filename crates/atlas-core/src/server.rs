@@ -2122,7 +2122,8 @@ async fn guard(State(st): S, mut req: Request, next: Next) -> Response {
         if st.auth.is_some() {
             req.extensions_mut().insert(crate::auth::Who::Device { name: format!("plugin {id}"), scope: crate::auth::Scope::Full });
         }
-        return next.run(req).await;
+        // its writes are the plugin's own: a refused one is its error, not the person's notice (sync_state::by_plugin)
+        return crate::commands::PLUGIN_CALLER.scope(id, next.run(req)).await;
     }
     // a hook's call from outside (an ntfy button on a phone): no sign-in, no header — its signed token is checked by
     // the handler (hooks.rs)

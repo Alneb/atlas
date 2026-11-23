@@ -205,6 +205,11 @@ class InlineHtmlWidget extends KeyedWidget {
  * So the root is a stable wrapper and the fallback is swapped INSIDE it. A
  * mutation inside a widget's own DOM is one CodeMirror expects and ignores.
  */
+// Atlas: each picture's natural size, once loaded. CodeMirror drops a widget scrolled far away and builds it again on
+// the way back; a picture built without a size is 0 px tall until it loads, so everything under it jumps as it
+// arrives — fast scrolling through a note of large figures stuttered. Known, the box has its final height at once.
+const imageSizes = new Map();
+
 class ImageWidget extends KeyedWidget {
   /** `opts`: Obsidian's `|600` / `|600x400` size and the vault's `|center` (from its CSS snippet). */
   constructor(src, resolve, opts = {}) {
@@ -221,9 +226,14 @@ class ImageWidget extends KeyedWidget {
     const remeasure = () => view?.requestMeasure();
     const img = document.createElement("img");
     img.className = "cm-embed-image";
-    img.src = this.resolve(this.src);
+    const url = this.resolve(this.src);
+    const known = imageSizes.get(url);
+    if (known) { img.width = known[0]; img.height = known[1]; } // reserves the box (max-width + height: auto keep the ratio)
+    img.decoding = "async"; // decoded off the main thread: a large PNG no longer holds up the scroll
+    img.src = url;
     img.alt = this.src;
     if (this.opts.width) img.style.width = `${this.opts.width}px`;
+    img.addEventListener("load", () => { if (img.naturalWidth) imageSizes.set(url, [img.naturalWidth, img.naturalHeight]); }, { once: true });
     // A broken embed must not collapse to an invisible 0x0 box, or the line
     // looks empty and unclickable -- but the swap happens one level down.
     // A remote URL that is not an image (a video page) becomes a link instead.

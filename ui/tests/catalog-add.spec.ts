@@ -44,7 +44,9 @@ test("Add to the catalog… opens a dialog: look up, the matches as chips, Add o
   await expect(dialog.locator("input")).toBeFocused({ timeout: 15_000 });
   await page.keyboard.type("dune");
   await page.keyboard.press("Enter");
-  await expect(dialog.getByText("Add to Films: Dune")).toBeVisible({ timeout: 15_000 });
+  // the card: what would be filed (its kind, its title), Add as the main button
+  await expect(dialog.locator(".cat-preview .cat-title")).toHaveText("Dune", { timeout: 15_000 });
+  await expect(dialog.locator(".cat-preview")).toContainText("Film");
   await expect(dialog.getByRole("button", { name: "Dune (book)" })).toBeVisible();
   for (const scheme of ["light", "dark"] as const) { // judged in both themes (docs/guides/UI-STYLE.md)
     await page.emulateMedia({ colorScheme: scheme });
