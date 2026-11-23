@@ -103,11 +103,13 @@ async function save(label: string, mut: Parameters<typeof updateSettings>[0]): P
 export const setValue = (path: string, value: unknown) => (deviceKeeps(path) ? setDeviceLook(path, value) : save("Setting", (c) => put(c, path, value)));
 export const resetValue = (path: string) => (deviceKeeps(path) ? resetDeviceLook(path) : setValue(path, JSON.parse(JSON.stringify(defaultOf(path) ?? null))));
 
-// Zoom: the four text sizes move together, each inside its schema range (config.rs `#[schemars(range)]`). The
-// interface's size is a screen's look (device-look.svelte.ts): moved where it is kept, the device's or the vault's.
-const SIZES = ["ui.font_size", "editor.code_font_size", "editor.prose_font_size", "terminal.font_size"];
-/** `step` px larger or smaller; 0 = back to the default sizes. */
-export const zoom = (step: -1 | 0 | 1) => {
+// Zoom, two app-wide sizes: the interface's (Settings, Home, the bars) and the content's (notes, code, terminals) —
+// each text size inside its schema range (config.rs `#[schemars(range)]`); a tab's own zoom (pane-zoom.ts) on top.
+// The interface's size is a screen's look (device-look.svelte.ts): moved where it is kept, the device's or the vault's.
+const SIZE_SETS = { ui: ["ui.font_size"], content: ["editor.code_font_size", "editor.prose_font_size", "terminal.font_size"] } as const;
+/** `step` px larger or smaller; 0 = back to the default sizes. `which`: the interface's size or the content's. */
+export const zoom = (step: -1 | 0 | 1, which: keyof typeof SIZE_SETS = "content") => {
+  const SIZES: readonly string[] = SIZE_SETS[which];
   const ranges = leaves();
   const next = (p: string, now: unknown) => {
     const { minimum = -Infinity, maximum = Infinity } = ranges.get(p) ?? {};

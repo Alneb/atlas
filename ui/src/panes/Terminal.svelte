@@ -12,7 +12,7 @@
   import { settings, onSettings } from "../lib/settings.svelte";
   import type { PaneProps } from "../lib/dock";
   import { terminals } from "../lib/registry";
-  import { paneZoom, PANE_ZOOM_EVENT } from "../lib/pane-zoom";
+  import { paneZoom, PANE_ZOOM_EVENT, wheelZoom } from "../lib/pane-zoom";
   import { closePanel } from "../lib/dock";
   import { getDock } from "../lib/dock-instance";
   import { wikilinkProvider } from "../lib/terminal-wikilinks";
@@ -30,6 +30,10 @@
     } catch { return "window"; }
   }
   const ZOOM_KEYS = new Set(["Equal", "Minus", "Digit0", "NumpadAdd", "NumpadSubtract", "Numpad0"]);
+  // by the character too: on a Spanish (or German…) keyboard + and - are other keys (BracketRight, Slash), which the
+  // codes above missed — the shell got Ctrl++ and the terminal never zoomed there
+  const ZOOM_CHARS = new Set(["+", "=", "-", "0"]);
+  const zoomChord = (e: KeyboardEvent) => e.ctrlKey && !e.metaKey && (ZOOM_KEYS.has(e.code) || ZOOM_CHARS.has(e.key)) && (!e.shiftKey || e.key === "+");
   const size = () => Math.round((settings.config?.terminal.font_size ?? 13) * paneZoom(panel.id));
   let host: HTMLDivElement;
   let conn = $state<"connecting" | "open" | "exited">("connecting");
@@ -151,7 +155,7 @@
     term.attachCustomKeyEventHandler((e) => {
       // the zoom chords (Ctrl+= / Ctrl+- / Ctrl+0, with Alt: everything) are the app's: xterm sent them to the shell
       // and stopped them, so a terminal never zoomed
-      if (e.ctrlKey && !e.shiftKey && !e.metaKey && ZOOM_KEYS.has(e.code)) return false;
+      if (zoomChord(e)) return false;
       if (e.type !== "keydown" || !e.ctrlKey || !e.shiftKey || e.altKey) return true;
       if (e.code === "KeyC") { copySel(); return false; }
       if (e.code === "KeyV") { pasteIn(); return false; }
@@ -270,6 +274,10 @@
     const offSettings = onSettings(resize);
     const onZoom = (e: Event) => { if ((e as CustomEvent).detail === panel.id) resize(); };
     window.addEventListener(PANE_ZOOM_EVENT, onZoom);
+    // Ctrl+wheel: the tab's zoom — taken before xterm, whose scrolling marks the wheel handled (the app's zoom ignores
+    // a handled wheel, so the terminal never zoomed by wheel or pinch)
+    const onWheel = (e: WheelEvent) => { if (e.ctrlKey && wheelZoom(e, panel.id)) { e.preventDefault(); e.stopPropagation(); } };
+    host.addEventListener("wheel", onWheel, { capture: true, passive: false });
     // a terminal's own right-click menu (the app's would offer a text field's, on xterm's hidden textarea)
     const onMenu = (e: MouseEvent) => {
       if (e.shiftKey) return;
@@ -291,6 +299,7 @@
       offActive.dispose();
       offSettings();
       window.removeEventListener(PANE_ZOOM_EVENT, onZoom);
+      host.removeEventListener("wheel", onWheel, { capture: true });
       clearTimeout(settle);
       window.removeEventListener("atlas-resize-end", onResizeEnd);
       themeObs.disconnect();

@@ -1,7 +1,7 @@
 <script module lang="ts">
   import { wheelPixels } from "../lib/wheel";
   import { releaseCanvases } from "../lib/release-canvases";
-  import { loadRaw, save, saveRaw } from "../lib/prefs";
+  import { save } from "../lib/prefs";
   import { pdfPosKey, pdfPosition } from "../lib/pdf-position";
   import { notedPlace, readingNote, writePlace } from "../lib/pdf-reading";
   import { superOf } from "../lib/keys";
@@ -35,6 +35,7 @@
   import PdfThumbs from "../components/PdfThumbs.svelte";
   import PdfMarksList from "../components/PdfMarksList.svelte";
   import { settings } from "../lib/settings.svelte";
+  import { app } from "../lib/state.svelte";
   import { chosenEngine, engine, otherEngine, type EngineName } from "../lib/pdf-engine";
 
   let { spec, panel }: PaneProps<"pdf"> = $props();
@@ -111,7 +112,11 @@
   let outlineOpen = $state(false);
   let side = $state<"outline" | "pages" | "marks">("outline");
   let current = $state(1);
-  let dark = $state(loadRaw("atlas.pdf.dark") === "1");
+  // dark pages as the setting says (`[pdf] dark_pages`: with the app's theme by default); D flips this document for
+  // the moment, not remembered — a remembered switch outlived the theme it was chosen for
+  let darkFlip = $state(false);
+  const darkMode = $derived(pdfCfg()?.dark_pages ?? "app");
+  const dark = $derived((darkMode === "always" || (darkMode === "app" && app.theme === "dark")) !== darkFlip);
   let outline = $state.raw<OutlineItem[]>([]);
   // older marks, in the PDF's companion drawing: shown and erasable until moved into the note (`atlas pdf-marks migrate`)
   let marks: MarksView | null = null;
@@ -156,7 +161,7 @@
       return { ...(pos.page ? { page: pos.page, y: typeof pos.y === "number" ? pos.y : null } : {}), ...(z !== undefined ? { zoom: z } : {}) };
     } catch { return {}; }
   }
-  function toggleDark() { dark = !dark; saveRaw("atlas.pdf.dark", dark ? "1" : "0"); }
+  function toggleDark() { darkFlip = !darkFlip; }
   function toggleSide(which: "outline" | "pages" | "marks") { if (outlineOpen && side === which) outlineOpen = false; else { side = which; outlineOpen = true; } }
 
   function flash(s: string, ms = 2500) { status = s; setTimeout(() => { if (status === s) status = ""; }, ms); }

@@ -5,6 +5,45 @@ and versions follow [Semantic Versioning](https://semver.org/) once 1.0 is out.
 
 ## [Unreleased]
 
+## [0.4.10] - 2026-11-23
+
+### Added
+
+- Two AI agent plugins beside Claude: **pi** (the pi coding agent; each tab resumes its own conversation by
+  `--session-id`) and **Codex** (OpenAI's Codex CLI; a tab starts a new conversation). Each has a command and a
+  configuration folder setting; their READMEs say how to register Atlas's MCP server.
+- The "Add to the catalog" dialog (a DOI link's click) shows what it would file — authors, year, journal, the abstract,
+  whether an open-access PDF comes — with Add as the main button (Enter), a spinner while it files, and the sources' log
+  folded away.
+
+### Changed
+
+- Two zooms: the interface (Settings, Today, the file tree, the bars) has one size for the whole app, which Ctrl+± or
+  Ctrl+wheel over it changes; notes, PDFs and terminals have an app-wide size (Ctrl+Alt+±) and each tab its own zoom on
+  top (Ctrl+±). Zooming Settings used to grow Settings alone.
+- PDF pages follow the app's theme: dark pages with the dark theme (`[pdf] dark_pages`: app, always, never); D flips the
+  document in front for the moment instead of a switch remembered across themes.
+- In the dark theme, pictures drawn on white (plots, diagrams, scanned pages) are darkened to match; photos are left as
+  they are (`[editor] dark_pictures`, Settings → Appearance).
+
+### Fixed
+
+- The terminal zooms like any tab (Ctrl+wheel, and Ctrl++ by the character, so on any keyboard layout); a new
+  terminal tab starts at the normal size instead of the zoom of a closed one in its place.
+- Dragging a tab to the top of the tab list: the pin hint floats over the apps row, so the first rows take the drop.
+- `[[#heading]]` opened in a new tab made an empty note named `.md`: a link with no note name is the note itself.
+- The catalog's preview named a paper `refs/papers/<key> <key>.md` (the slash of the kind's `{citekey}/{citekey}`
+  became a space), so it never saw a paper already filed; a template's own `/` is a folder again, a value's is not.
+- Settings → Appearance: the preview's code line ran past the card; it wraps.
+- A table or a display formula inside a callout stood outside the callout's box (a band across it, with a second quote
+  bar): such a block now takes the callout's colours and edges (live-preview.js `inCallouts`).
+- The preview under a display formula being edited drew `\label{…}` in red; labels are left out as in the note. A
+  formula that does not parse yet no longer shows another formula's last drawing.
+- Ctrl over a picture looks under the pointer when Ctrl goes down (a scroll left the last picture entered, which came up
+  instead), waits a short hold (a quick Ctrl+click or a Ctrl shortcut shows nothing), and display formulas grow too.
+- The apps row counts its tiles from the width it really has: in a panel of its own the tiles wrapped onto rows instead
+  of going behind the +.
+
 ## [0.4.9] - 2026-11-20
 
 ### Fixed

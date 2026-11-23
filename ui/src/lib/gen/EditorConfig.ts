@@ -65,6 +65,11 @@ fold_headings: boolean,
  */
 backlinks: boolean, 
 /**
+ * In the dark theme, pictures drawn on white (plots, diagrams, scans of a page) are darkened to match; photos are
+ * left as they are. Told apart by the picture itself: a light border and few colours.
+ */
+dark_pictures: boolean, 
+/**
  * Show the note's file name as a title above its first line (Obsidian's "inline title").
  */
 inline_title: boolean, 

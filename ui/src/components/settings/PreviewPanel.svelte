@@ -21,9 +21,11 @@
   mark { background: var(--highlight-bg); color: inherit; border-radius: 3px; padding: 0 2px; }
   .note code { font-family: var(--code-font, var(--font-mono)); color: var(--inline-code); background: var(--code-bg); border-radius: 4px; padding: 0 4px; font-size: .9em; }
   .tag { background: var(--tag-bg); color: var(--tag-color); border-radius: 999px; padding: 0 7px; font-size: .9em; }
-  .code { margin: 0; padding: 8px 12px; background: var(--code-bg); border-radius: var(--radius-sm); font-family: var(--code-font, var(--font-mono)); font-size: var(--code-size, 14px); color: var(--syn-variable); }
+  /* wraps rather than running past the card: a wide code font must still fit a narrow Settings column */
+  .code { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; padding: 8px 12px; background: var(--code-bg); border-radius: var(--radius-sm); font-family: var(--code-font, var(--font-mono)); font-size: var(--code-size, 14px); color: var(--syn-variable); }
   .kw { color: var(--syn-keyword); } .fn { color: var(--syn-function); } .ty { color: var(--syn-type); } .num { color: var(--syn-number); } .cm { color: var(--syn-comment); }
-  .ui { display: flex; gap: 12px; align-items: center; }
+  .ui { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+  .preview { min-width: 0; overflow: hidden; }
   .primary { background: var(--accent); color: var(--accent-fg); padding: 4px 12px; border-radius: var(--radius-sm); font-weight: 600; }
   .sel { background: var(--accent-sel); padding: 0 3px; }
   .muted { color: var(--text-muted); }

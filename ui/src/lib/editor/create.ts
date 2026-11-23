@@ -4,6 +4,7 @@
 // editor.js; the textarea-adapter glue is deliberately not ported.
 import { diff } from "../frontmatter-edit";
 import { installImagePeek } from "../image-peek";
+import { installDarkPictures } from "../dark-pictures";
 import { basename } from "../paths";
 import { onVaultChange } from "../vault";
 import type { Problems } from "../state.svelte";
@@ -92,6 +93,7 @@ export interface AtlasEditor {
 
 export const isMarkdown = (path: string) => /\.(md|markdown)$/i.test(path);
 
+installDarkPictures(); // pictures drawn on white, darkened in the dark theme (lib/dark-pictures.ts)
 installImagePeek(); // Ctrl over a picture: shown large (lib/image-peek.ts); once, for every editor and view
 
 export function createEditor(o: EditorOptions): AtlasEditor {

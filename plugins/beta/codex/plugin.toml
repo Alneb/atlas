@@ -1,0 +1,34 @@
+# OpenAI's Codex CLI as an AI agent of Atlas (docs/refactor/REFACTOR-agents-as-plugins.md): Codex sessions in the
+# terminal (the + menu, Super+K) with the command and Codex home of the settings below. Codex cannot be given a
+# session id to start with, so a tab starts a new conversation; `codex resume` inside picks an earlier one. README.md.
+title = "Codex"
+description = "OpenAI Codex CLI sessions in the terminal"
+icon = "terminal"
+version = "0.1.0"
+api = 16
+
+[[agent]]
+id = "codex"
+title = "Codex"
+icon = "terminal"
+command = "{command:codex}"
+env = { CODEX_HOME = "{account}" }
+send_selection = "@{path} (lines {from}-{to}) "
+
+[[setting]]
+key = "command"
+label = "Command"
+kind = "text"
+default = "codex"
+hint = "what a Codex session runs: codex, a path, or a wrapper; add options here (`codex --model gpt-5-codex`, `codex resume --last`)"
+
+[[setting]]
+key = "account"
+label = "Codex home (optional)"
+kind = "text"
+hint = "a Codex configuration folder (CODEX_HOME: config.toml, sign-in, sessions), to run as another account; empty: ~/.codex"
+
+# where it runs (PLUGIN-API.md, "Platforms"); a platform not named is untested (Android: only with `phone = true`)
+[platforms]
+linux = { support = "untested", why = "Codex is not installed on the machine it was written on; the agent is only a command line" }
+android = { support = "no", why = "a terminal agent" }

@@ -315,12 +315,12 @@ export const actions: Action[] = [
   { id: "ui.theme", title: "Toggle light / dark theme", icon: () => (app.theme === "dark" ? "sun" : "moon"), label: "Toggle theme", run: () => toggleTheme() },
   { id: "ui.settings", title: "Settings", icon: "settings", keys: "Super+,", run: () => { open({ kind: "settings" }); } },
   // the keys zoom the tab they are in (lib/pane-zoom.ts); everything at once is its own trio
-  { id: "ui.zoomIn", title: "Zoom in: this tab's text larger", keys: "Ctrl+Plus", alsoKeys: ["Ctrl+="], yieldTo: PAGE_ZOOM, run: () => zoomPane(1) },
-  { id: "ui.zoomOut", title: "Zoom out: this tab's text smaller", keys: "Ctrl+Minus", yieldTo: PAGE_ZOOM, run: () => zoomPane(-1) },
-  { id: "ui.zoomReset", title: "Zoom: this tab back to the normal size", keys: "Ctrl+0", yieldTo: PAGE_ZOOM, run: () => zoomPane(0) },
-  { id: "ui.zoomAllIn", title: "Zoom everything in (all text sizes, a setting)", keys: "Ctrl+Alt+Plus", alsoKeys: ["Ctrl+Alt+="], run: () => zoom(1) },
-  { id: "ui.zoomAllOut", title: "Zoom everything out (all text sizes, a setting)", keys: "Ctrl+Alt+Minus", run: () => zoom(-1) },
-  { id: "ui.zoomAllReset", title: "Zoom everything: back to the default text sizes", keys: "Ctrl+Alt+0", run: () => zoom(0) },
+  { id: "ui.zoomIn", title: "Zoom in: this tab larger (over the interface: the interface)", keys: "Ctrl+Plus", alsoKeys: ["Ctrl+="], yieldTo: PAGE_ZOOM, fromTerminal: true, run: () => zoomPane(1) },
+  { id: "ui.zoomOut", title: "Zoom out: this tab smaller (over the interface: the interface)", keys: "Ctrl+Minus", yieldTo: PAGE_ZOOM, fromTerminal: true, run: () => zoomPane(-1) },
+  { id: "ui.zoomReset", title: "Zoom: this tab back to the normal size", keys: "Ctrl+0", yieldTo: PAGE_ZOOM, fromTerminal: true, run: () => zoomPane(0) },
+  { id: "ui.zoomAllIn", title: "Zoom in every note, PDF and terminal (a setting)", keys: "Ctrl+Alt+Plus", alsoKeys: ["Ctrl+Alt+="], fromTerminal: true, run: () => zoom(1) },
+  { id: "ui.zoomAllOut", title: "Zoom out every note, PDF and terminal (a setting)", keys: "Ctrl+Alt+Minus", fromTerminal: true, run: () => zoom(-1) },
+  { id: "ui.zoomAllReset", title: "Notes, PDFs and terminals back to the default text sizes", keys: "Ctrl+Alt+0", fromTerminal: true, run: () => zoom(0) },
   { id: "ui.outline", title: "Outline of the current note", icon: "outline", label: "Outline", keys: "Super+O", run: () => { open({ kind: "outline" }); } },
   // the Libraries page is a plugin's pane (the Catalog's: libraries.svelte.ts); without one on, a notice says so
   { id: "ui.libraries", title: "Libraries (drawings, references, films, comics…)", icon: "library", label: "Libraries", run: () => openLibraries() },

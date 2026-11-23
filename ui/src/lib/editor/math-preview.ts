@@ -10,6 +10,7 @@ import { StateField, type EditorState, type Extension } from "@codemirror/state"
 import { Decoration, EditorView, WidgetType, showTooltip, type DecorationSet, type Tooltip } from "@codemirror/view";
 import { syntaxTree } from "@codemirror/language";
 import { renderMathInto } from "../math";
+import { numberedTex } from "../equations";
 
 interface Formula { from: number; to: number; source: string; block: boolean }
 
@@ -90,21 +91,23 @@ function texFormulaAt(state: EditorState): Formula | null {
   return best;
 }
 
-// one drawing per editor state would redraw (and flicker) at every key: the last good one is kept here
-let lastGood = "";
+// one drawing per editor state would redraw (and flicker) at every key: the last good one is kept here — of THIS
+// formula only (where it starts): a broken formula just clicked into must not show another one drawn before
+let lastGood = "", lastGoodAt = -1;
 function draw(f: Formula): HTMLElement {
   const dom = document.createElement("div");
   dom.className = "cm-math-preview";
   const body = dom.appendChild(document.createElement("div"));
   let failed: string | null = null;
   try {
-    renderMathInto(body, f.source, f.block);
+    // `\label{…}` is Atlas's (equations.ts), not KaTeX's: out, as the rendered note draws it
+    renderMathInto(body, f.block ? numberedTex(f.source) : f.source, f.block);
     // the renderer does not throw on a formula it cannot read: it draws the source in red, with the reason as its title
     failed = body.querySelector<HTMLElement>(".katex-error")?.title ?? null;
   } catch (e) { failed = errText(e); }
-  if (failed === null) { lastGood = body.innerHTML; return dom; }
-  body.innerHTML = lastGood; // what it looked like before this keystroke broke it
-  body.classList.add("stale");
+  if (failed === null) { lastGood = body.innerHTML; lastGoodAt = f.from; return dom; }
+  if (lastGoodAt === f.from) { body.innerHTML = lastGood; body.classList.add("stale"); } // before this keystroke broke it
+  else body.replaceChildren();
   const why = dom.appendChild(document.createElement("div"));
   why.className = "why";
   why.textContent = failed.replace(/^(KaTeX parse error|ParseError):\s*/, "");

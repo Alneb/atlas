@@ -112,7 +112,20 @@ function style() {
 .cat-capture { display: flex; gap: 6px; margin: 0 0 14px; }
 .cat-capture input { flex: 1; padding: 7px 10px; border: 1px solid var(--border); border-radius: var(--radius-sm, 6px); background: var(--bg); color: var(--text); font: inherit; }
 .cat-preview { border: 1px solid var(--accent); border-radius: var(--radius-sm, 8px); padding: 10px; margin: 0 0 14px; display: grid; grid-template-columns: 90px 1fr; gap: 12px; }
-.cat-preview .steps { color: var(--text-faint); font-size: .8em; margin: 6px 0 0; padding-left: 16px; }
+.cat-preview .steps { color: var(--text-faint); font-size: .8em; margin: 8px 0 0; }
+.cat-preview .steps summary { cursor: pointer; }
+.cat-preview .steps ul { margin: 4px 0 0; padding-left: 16px; }
+.cat-info { min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.cat-info .cat-empty { margin: 0; }
+.cat-title { font-size: 1.1em; line-height: 1.3; color: var(--heading, var(--text)); }
+.cat-meta { color: var(--text-muted); font-size: .92em; }
+.cat-abstract { margin: 2px 0; font-size: .88em; color: var(--text-muted); display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
+.cat-path { font-size: .85em; overflow-wrap: anywhere; }
+.cat-go { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); padding: 5px 18px; font-weight: 600; cursor: pointer; }
+.cat-go:hover { background: var(--accent); color: var(--accent-fg); filter: brightness(1.08); }
+.cat-go:disabled { opacity: .7; cursor: progress; }
+.cat-busy::before { content: ""; display: inline-block; width: .8em; height: .8em; margin-right: 6px; vertical-align: -1px; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: cat-spin .8s linear infinite; }
+@keyframes cat-spin { to { transform: rotate(360deg); } }
 @media (max-width: 560px) { .cat-item { grid-template-columns: 1fr; } .cat-item .cat-cover { max-height: 300px; justify-self: center; width: 60%; } }
 `;
   document.head.append(s);
@@ -351,38 +364,67 @@ export function addBox(atlas, { ondone, text = "" }) {
     return list;
   };
 
+  // the card says what would be filed (title, who, when, where, whether a PDF comes), Add (or Enter) files it; while
+  // it works the card says so and Escape still closes; the sources' log is folded away
+  let adding = null; // the card's Add while one is shown, for Enter
   const look = async (text, pick = {}) => {
-    preview.replaceChildren(el("p", "cat-empty", "Recognising and asking the sources…"));
+    adding = null;
+    preview.replaceChildren(el("p", "cat-empty cat-busy", "Recognising and asking the sources…"));
     try {
       const r = await atlas.helper.call("preview", { text, ...pick }, { timeout: 120 });
       const p = r.result ?? r;
       const f = p.merged?.fields ?? {};
       const card = el("div", "cat-preview");
       card.append(coverBox(atlas, f.cover || f.poster ? { t: "text", value: String(f.cover || f.poster) } : null, f.title));
-      const info = el("div");
-      info.append(el("b", "", `${p.exists ? "Already in" : "Add to"} ${p.label}: ${f.title ?? text}`), el("div", "cat-empty", p.path));
-      const add = el("button", "cat-btn", p.exists ? "Open" : "Add");
+      const info = el("div", "cat-info");
+      info.append(el("small", "cat-empty", `${p.exists ? "Already in the library" : "New"} · ${p.label}`), el("b", "cat-title", String(f.title ?? text)));
+      const who = [].concat(f.authors ?? f.author ?? []).map(String);
+      const meta = [who.length > 3 ? `${who.slice(0, 3).join("; ")} et al.` : who.join("; "), f.year, f.journal ?? f.publisher].filter(Boolean).join(" · ");
+      if (meta) info.append(el("div", "cat-meta", meta));
+      if (f.abstract) info.append(el("p", "cat-abstract", String(f.abstract).replace(/\$[^$]*\$/g, (m) => m.slice(1, -1))));
+      const facts = [p.path];
+      if (p.label === "Paper" && !p.exists) facts.push(f.pdf ? "an open-access PDF will be downloaded" : "no open-access PDF found");
+      info.append(el("div", "cat-empty cat-path", facts.join(" · ")));
+      const add = el("button", "cat-btn cat-go", p.exists ? "Open" : "Add");
+      add.title = p.exists ? "Open its note (Enter)" : "File it and open its note (Enter)";
       add.onclick = async () => {
         if (p.exists) return ondone(p.path);
+        if (add.disabled) return;
         add.disabled = true;
+        add.textContent = "Adding…";
+        const busy = el("span", "cat-empty cat-busy", p.label === "Paper" ? "writing the note, fetching the PDF…" : "writing the note…");
+        actions.append(busy);
         try {
           const done = await atlas.helper.call("add", { text, kind: p.candidate?.kind, ids: p.searched ? p.candidate?.ids : undefined }, { timeout: 120 });
           preview.replaceChildren();
           input.value = "";
+          adding = null;
           ondone(done.result?.path ?? p.path);
-        } catch (err) { atlas.toast("Not added", String(err?.message ?? err), "error"); add.disabled = false; }
+        } catch (err) { atlas.toast("Not added", String(err?.message ?? err), "error"); add.disabled = false; add.textContent = "Add"; busy.remove(); }
       };
-      const steps = el("ul", "steps");
-      (r.steps ?? []).slice(-6).forEach((s) => steps.append(el("li", "", s.explanation ?? String(s))));
       const actions = el("div", "cat-line");
       actions.append(add);
       info.append(actions);
       if (p.others?.length) info.append(choices(text, p));
-      info.append(steps);
+      const log = (r.steps ?? []).filter((s) => s.stage !== "load");
+      if (log.length) {
+        const more = el("details", "steps");
+        more.append(el("summary", "", `How it was found (${log.length})`));
+        const ul = el("ul");
+        log.forEach((s) => ul.append(el("li", s.problem ? "cat-err" : "", s.explanation ?? String(s))));
+        more.append(ul);
+        info.append(more);
+      }
       card.append(info);
       preview.replaceChildren(card);
+      adding = add;
+      add.focus();
     } catch (err) { preview.replaceChildren(el("p", "cat-err", String(err?.message ?? err))); }
   };
+  // Enter outside the field adds what the card shows (in the field it looks up what was typed)
+  box.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && e.target !== input && e.target?.tagName !== "BUTTON" && adding && !adding.disabled) { e.preventDefault(); adding.click(); }
+  });
 
   capture.onsubmit = (e) => {
     e.preventDefault();

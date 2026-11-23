@@ -34,6 +34,7 @@ const FIELD_LABELS: &[(&str, &str)] = &[
     ("lsp.language", "Servers' message language"), ("lsp.inlay_hints", "Inlay hints"), ("lsp.python_env", "Python environment"),
     ("latex.snippets", "Snippets while typing math"), ("latex.snippets_file", "Snippets file"), ("latex.variables_file", "Snippet variables file"),
     ("draw.page_format", "A new drawing's pages"), ("web.open_links", "Web links open in"), ("pdf.export_on_save", "Export annotations on save"),
+    ("pdf.dark_pages", "Dark pages"), ("editor.dark_pictures", "Darken pictures drawn on white (dark theme)"),
     ("notifications.system", "System notifications"),
     ("notifications.system_seconds", "A system notification stays (seconds)"),
     ("ui.sleep_after_min", "Tabs sleep after (minutes)"), ("desktop.on_close", "Closing the window"),

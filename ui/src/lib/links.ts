@@ -17,6 +17,8 @@ export async function resolveWikilink(target: string, fromPath: string): Promise
 async function whereLinkPoints(target: string, fromPath: string): Promise<{ path: string; found: boolean }> {
   await vaultReady();
   const clean = target.split("#")[0].split("|")[0].trim();
+  // `[[#heading]]`, `[[#^block]]`: a place in the note itself (never a note named ".md")
+  if (!clean) return { path: fromPath, found: true };
   const dir = fromPath.includes("/") ? fromPath.slice(0, fromPath.lastIndexOf("/")) : "";
   const hit = resolveLink(clean, dir);
   if (hit) return { path: hit, found: true };

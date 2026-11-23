@@ -211,3 +211,22 @@ test("a tab dropped on a row's top half lands right above it, on its bottom half
   await row(page, first).dragTo(row(page, "FOCUS.md"), { targetPosition: { x: 40, y: h - 4 } });
   await expect.poll(async () => { const t = await rowTitles(page); return t.indexOf(first) - t.indexOf("FOCUS"); }).toBe(1);
 });
+
+// "it looks like it works for the tabs in the end but not the ones in the beginning": the first rows must take a drop
+// too — with nothing pinned, the "drop here to pin" place that shows during a drag must not lie over them
+test("a tab dropped on the first row lands above it, with nothing pinned", async ({ page }) => {
+  await page.goto("/");
+  await page.getByText("Finish the GW notes.").waitFor();
+  for (const [q, name] of [["journal", "journal.md"], ["run.py", "run.py"], ["FOCUS", "FOCUS.md"], ["hubbard", "hubbard.md"]]) await openFile(page, q, name);
+  await expect(side(page).locator(".pin")).toHaveCount(0);
+  const start = await rowTitles(page);
+  const first = start[0], second = start[1], last = start.at(-1)!;
+  await row(page, last).dragTo(row(page, first), { targetPosition: { x: 40, y: 3 } });
+  await expect.poll(async () => (await rowTitles(page))[0]).toBe(last);
+  await expect(side(page).locator(".pin")).toHaveCount(0); // not pinned instead
+  // and the second row's top half
+  const now = await rowTitles(page);
+  await row(page, now.at(-1)!).dragTo(row(page, now[1]), { targetPosition: { x: 40, y: 3 } });
+  await expect.poll(async () => (await rowTitles(page))[1]).toBe(now.at(-1));
+  void second;
+});

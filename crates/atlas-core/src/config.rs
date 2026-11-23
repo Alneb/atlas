@@ -709,6 +709,9 @@ pub struct EditorConfig {
     pub fold_headings: bool,
     /// "Linked mentions" under each note: the notes that link to it, with the line around the link.
     pub backlinks: bool,
+    /// In the dark theme, pictures drawn on white (plots, diagrams, scans of a page) are darkened to match; photos are
+    /// left as they are. Told apart by the picture itself: a light border and few colours.
+    pub dark_pictures: bool,
     /// Show the note's file name as a title above its first line (Obsidian's "inline title").
     pub inline_title: bool,
     /// Editing a note's first `# heading` that says its file name renames the file too (when the caret leaves it).
@@ -973,6 +976,21 @@ pub struct PdfConfig {
     /// What reads PDFs: the reader, covers, thumbnails, previews and embedded pages. One engine per document, never
     /// both; a file the chosen one cannot open offers the other.
     pub engine: PdfEngine,
+    /// Dark pages: follow the app's theme (dark with the dark theme), always, or never. D in the reader flips the
+    /// document in front for the moment.
+    pub dark_pages: PdfDark,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS, JsonSchema)]
+#[serde(rename_all = "lowercase")]
+#[ts(export)]
+pub enum PdfDark {
+    /// As the app: dark pages with the dark theme.
+    App,
+    /// Always dark pages.
+    Always,
+    /// Never: the pages as printed.
+    Never,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS, JsonSchema)]
@@ -1010,7 +1028,7 @@ pub enum PdfZoom {
 
 impl Default for PdfConfig {
     fn default() -> Self {
-        Self { color: AnnotationColor::Yellow, ink_thickness: 2, open_zoom: PdfZoom::PageWidth, export_on_save: false, engine: PdfEngine::Pdfium }
+        Self { color: AnnotationColor::Yellow, ink_thickness: 2, open_zoom: PdfZoom::PageWidth, export_on_save: false, engine: PdfEngine::Pdfium, dark_pages: PdfDark::App }
     }
 }
 
@@ -1224,6 +1242,7 @@ impl Default for EditorConfig {
             slash_menu: true,
             fold_headings: true,
             backlinks: true,
+            dark_pictures: true,
             inline_title: true,
             heading_renames: true,
             typewriter: false,

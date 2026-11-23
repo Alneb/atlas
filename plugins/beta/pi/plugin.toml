@@ -1,0 +1,38 @@
+# pi (the pi coding agent) as an AI agent of Atlas (docs/refactor/REFACTOR-agents-as-plugins.md): pi sessions in the
+# terminal (the + menu, Super+K), each tab resuming its own conversation — pi's `--session-id` opens the session with
+# that id in the working folder, making it the first time — with the command and agent folder of the settings below.
+# README.md.
+title = "pi"
+description = "pi coding agent sessions in the terminal, each tab resuming its own conversation"
+icon = "terminal"
+version = "0.1.0"
+api = 16
+
+[[agent]]
+id = "pi"
+title = "pi"
+icon = "terminal"
+command = "{command:pi}"
+env = { PI_CODING_AGENT_DIR = "{account}" }
+# the same arguments start and resume: pi makes the session when the folder has none with that id
+new_session = ["--session-id", "{session}"]
+resume_session = ["--session-id", "{session}"]
+send_selection = "@{path} (lines {from}-{to}) "
+
+[[setting]]
+key = "command"
+label = "Command"
+kind = "text"
+default = "pi"
+hint = "what a pi session runs: pi, a path, or a wrapper; add options here (`pi --model sonnet`, `pi --thinking high`)"
+
+[[setting]]
+key = "account"
+label = "Agent folder (optional)"
+kind = "text"
+hint = "pi's configuration folder (PI_CODING_AGENT_DIR: its settings, sign-ins, sessions), to run as another setup; empty: ~/.pi/agent"
+
+# where it runs (PLUGIN-API.md, "Platforms"); a platform not named is untested (Android: only with `phone = true`)
+[platforms]
+linux = "works"
+android = { support = "no", why = "a terminal agent" }

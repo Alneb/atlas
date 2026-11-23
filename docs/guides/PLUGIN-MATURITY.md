@@ -79,6 +79,7 @@ is the manifest’s `api` (the current one is 20; an older number still loads, s
 | zstd | beta | ~ 11 / 0 | ✓ | ✓ | ✓ | ✓ | – | ✓ | ~ | 17 | ✓ | ✓ | 0.2.0 | real use; an end-to-end spec (1); tried only on Linux (8); 1.0 (12) |
 | ocr | beta | ~ 6 / 0 | ✓ | ✓ | ✓ | ~ | ~ | ✓ | ✓ | 15 | ✓ | ✓ | 0.2.1 | an end-to-end spec (1); progress for long pages (6) |
 | claude | beta | ✗ 0 / 0 | ✓ | ✓ | ✓ | ✓ | – | ~ | ✗ | 4 | ✓ | ✓ | 0.5.0 | tests (1); says it reads the account on the core's machine (7, 8) |
+| pi, codex | beta | ✗ 0 / 0 | ✓ | ✓ | ✓ | ✓ | – | ~ | ✗ | 16 | ✓ | ✓ | 0.1.0 | declarations only (an `[[agent]]` each, the core's agent terminals); real use; Codex untested (not installed where written) |
 | today | beta | ~ 0 / 2 | ✓ | ✓ | ✓ | ~ | – | ✓ | ✓ | 19 | ✓ | ✓ | 0.3.0 | unit tests (1) |
 | weather | beta | ~ 1 / 0 | ✓ | ✓ | ✓ | ~ | – | ✓ | ✓ | 15 | ✓ | ✓ | 0.3.3 | an end-to-end spec (1) |
 | notifications | beta | ~ 3 / 0 | ✓ | ✓ | ✓ | ✓ | – | ✓ | ✓ | 19 | ✓ | ✓ | 0.4.0 | an end-to-end spec (1); the Apprise hook into Atlas (DESIGN-notifications.md step 1) |

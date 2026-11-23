@@ -164,6 +164,9 @@ html.phone .markdown a::after, html.phone .markdown .cm-link::after, html.phone 
 .markdown .cm-callout-last { border-bottom: 1px solid var(--border); border-radius: 0 0 var(--radius) var(--radius); padding-bottom: 8px !important; }
 .markdown .cm-callout-first.cm-callout-last { border-radius: var(--radius); }
 .markdown .cm-callout-title, .markdown .cm-callout-label { font-weight: 650; color: var(--callout-ink, inherit); }
+/* a block widget inside a callout (a table, a formula: live-preview.js `inCallouts`) renders its lines with their `>`:
+   the callout box is the quote, so the inner blockquote draws no second bar */
+.markdown .cm-callout-widget > blockquote { border: 0; margin: 0; padding: 0; color: inherit; }
 
 /* Obsidian-style Properties (lib/properties.ts): shared by the editor's frontmatter widget and the reader */
 /* padding, not margin: CodeMirror measures a block widget by its border box, margins shift the gutter */

@@ -180,22 +180,26 @@ impl Kind {
 }
 
 /// `{title} ({year})` with the fields: a placeholder without a value takes its surrounding brackets with it;
-/// characters a file name or a wikilink cannot hold become spaces.
+/// characters a file name or a wikilink cannot hold become spaces in a value. A `/` of the template itself is a
+/// folder (`{citekey}/{citekey}`: the note in a folder of its own); each part is tidied and capped on its own.
 fn fill(template: &str, fields: &Fields) -> String {
     let re = regex::Regex::new(r"(\(\s*)?\{(\w+)\}(\s*\))?").expect("static pattern");
+    let unsafe_char = |c: char| "/\\:*?\"<>|#^[]\n\r\t".contains(c);
     let filled = re.replace_all(template, |c: &regex::Captures| {
-        let v = fields.get(&c[2]).map(text_of).unwrap_or_default();
-        if v.is_empty() {
+        let v: String = fields.get(&c[2]).map(text_of).unwrap_or_default().chars().map(|c| if unsafe_char(c) { ' ' } else { c }).collect();
+        if v.trim().is_empty() {
             String::new()
         } else {
             format!("{}{v}{}", c.get(1).map_or("", |m| m.as_str()), c.get(3).map_or("", |m| m.as_str()))
         }
     });
-    let safe: String = filled.chars().map(|c| if "/\\:*?\"<>|#^[]\n\r\t".contains(c) { ' ' } else { c }).collect();
-    let words: Vec<&str> = safe.split_whitespace().collect();
-    let mut name = words.join(" ");
-    name.truncate(name.char_indices().nth(120).map_or(name.len(), |(i, _)| i));
-    name.trim_end_matches(['.', ' ']).to_string()
+    let part = |p: &str| {
+        let safe: String = p.chars().map(|c| if unsafe_char(c) { ' ' } else { c }).collect();
+        let mut name = safe.split_whitespace().collect::<Vec<_>>().join(" ");
+        name.truncate(name.char_indices().nth(120).map_or(name.len(), |(i, _)| i));
+        name.trim_end_matches(['.', ' ']).to_string()
+    };
+    filled.split('/').map(part).filter(|p| !p.is_empty()).collect::<Vec<_>>().join("/")
 }
 
 /// A field as plain text: strings as they are, numbers printed, a list's first element.
@@ -310,6 +314,10 @@ mod tests {
         assert_eq!(k.note_path(&fields(json!({"title": "Dune"}))), "notes/clips/Dune.md");
         assert_eq!(k.note_path(&fields(json!({"title": "A/B: #1 [draft]?"}))), "notes/clips/A B 1 draft.md");
         assert_eq!(k.note_path(&fields(json!({}))), "notes/clips/Untitled.md");
+        // the template's own slash is a folder (a paper in a folder of its own); a value's never is
+        k.note_name = "{citekey}/{citekey}".into();
+        assert_eq!(k.note_path(&fields(json!({"citekey": "hedin1965new"}))), "notes/clips/hedin1965new/hedin1965new.md");
+        assert_eq!(k.note_path(&fields(json!({"citekey": "a/b"}))), "notes/clips/a b/a b.md");
     }
 
     #[test]

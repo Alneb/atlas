@@ -108,9 +108,11 @@ class KeyedWidget extends WidgetType {
   constructor(key) {
     super();
     this.key = key;
+    /** the callout box a block widget stands in (`inCallouts`): its lines' classes, which a replaced line loses */
+    this.boxClass = "";
   }
   eq(other) {
-    return other.constructor === this.constructor && other.key === this.key;
+    return other.constructor === this.constructor && other.key === this.key && other.boxClass === this.boxClass;
   }
   ignoreEvent() {
     return false;
@@ -267,6 +269,33 @@ class LinkLabelWidget extends KeyedWidget {
 class EmbedChipWidget extends KeyedWidget {
   toDOM() {
     return chip("cm-embed-chip", this.key);
+  }
+}
+
+/**
+ * A block widget inside a callout (a table, a display formula) replaces whole lines, and with them the line classes
+ * that draw the callout's box: it would stand outside the box, a white band across it. Such a widget takes the classes
+ * of the lines it replaces -- the callout's colours, and its first/last edge when it opens or closes the callout.
+ */
+function inCallouts(state, deco, calloutLines) {
+  if (!calloutLines.size) return;
+  for (const r of deco) {
+    const w = r.value.spec?.widget;
+    if (!r.value.spec?.block || !(w instanceof KeyedWidget) || r.from >= r.to) continue;
+    const first = state.doc.lineAt(r.from), last = state.doc.lineAt(r.to);
+    const top = calloutLines.get(first.from), bottom = calloutLines.get(last.from);
+    if (!top || !bottom) continue;
+    const kind = top.split(" ").filter((c) => c === "cm-callout" || c.startsWith("callout-"));
+    const edges = [top.includes("cm-callout-first") && "cm-callout-first", bottom.includes("cm-callout-last") && "cm-callout-last"].filter(Boolean);
+    w.boxClass = [...kind, ...edges].join(" ");
+    if (!Object.prototype.hasOwnProperty.call(w, "toDOM")) {
+      const draw = w.toDOM;
+      w.toDOM = function (view) {
+        const dom = draw.call(this, view);
+        if (this.boxClass) dom.classList.add(...this.boxClass.split(" "), "cm-callout-widget");
+        return dom;
+      };
+    }
   }
 }
 
@@ -907,6 +936,8 @@ export function buildDecorations(state, ranges, options = {}) {
   const add = (from, to, value) => {
     if (from <= to) deco.push(value.range(from, to));
   };
+  // a callout's line classes by line start (the Blockquote branch), for the block widgets inside it (`inCallouts`)
+  const calloutLines = new Map();
 
   /**
    * Colour a revealed formula: dim `$`/`$$`, highlight the LaTeX between them.
@@ -1470,6 +1501,7 @@ export function buildDecorations(state, ranges, options = {}) {
             const edge =
               (line.from === node.from ? " cm-callout-first" : "") +
               (line.to >= node.to ? " cm-callout-last" : "");
+            if (kind) calloutLines.set(line.from, `cm-callout callout-${kind}${edge}`);
             add(
               line.from,
               line.from,
@@ -1527,6 +1559,7 @@ export function buildDecorations(state, ranges, options = {}) {
     });
   }
 
+  inCallouts(state, deco, calloutLines);
   // `true` tells CodeMirror to sort; ranges are produced in tree order, which is
   // close to but not exactly the required order once line decorations are mixed in.
   return Decoration.set(deco, true);

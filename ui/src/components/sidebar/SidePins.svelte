@@ -24,8 +24,11 @@
   });
   /** One row of tiles, the rest behind a + (rows of icons were too many to tell apart). The app in front always has its
    *  tile: past the first FIRST, it takes the last place. */
-  /** As many tiles as one row of the bar holds at its width (36 px tiles, 4 px gaps, 8 px sides), the + taking the last place. */
-  const perRow = $derived(Math.max(2, Math.floor((tabs.sidebar.width - 16 + 4) / 40)));
+  /** As many tiles as one row holds at the width the row really has (36 px tiles at the UI's scale, 4 px gaps, 8 px
+   *  sides), the + taking the last place. Measured, not the side bar's stored width: in a panel of its own that width
+   *  said more fitted than did, and the tiles wrapped onto rows. */
+  let rowWidth = $state(0);
+  const perRow = $derived(Math.max(2, Math.floor((((wide && rowWidth) || tabs.sidebar.width) - 16 + 4) / 40)));
   const FIRST = $derived(perRow - 1);
   const row = $derived.by((): AppTile[] => {
     if (apps.length <= perRow) return apps; // they all fit: no +
@@ -70,7 +73,7 @@
 </script>
 
 {#if apps.length}
-  <div class="apps" class:wide role="toolbar" aria-label="Apps" data-testid="apps" style:--open-rows={wide ? undefined : openRows}>
+  <div class="apps" class:wide bind:clientWidth={rowWidth} role="toolbar" aria-label="Apps" data-testid="apps" style:--open-rows={wide ? undefined : openRows}>
     {#each shown as a (a.ids[0])}
       {@const id = openId(a)}
       <button class="app" class:active={isActive(a)} class:open={!!id} aria-label={a.title} aria-pressed={isActive(a)} title={appTip(a)}
@@ -123,7 +126,9 @@
   .pins.wide.empty { display: none; }
   /* the drop place floats over the rows below: appearing as a drag starts, it must not move what is being aimed at */
   .pins.wide.empty.dropping { display: block; height: 0; padding: 0; z-index: 3; }
-  .pins.wide.empty.dropping .pins-hint { position: absolute; top: 0; left: 8px; right: 8px; background: var(--bg-app); }
+  /* …over the apps row above it (no tab is dropped there), never over the tab list below: lying on its first rows it took
+     their drops (a drag to the top of the list pinned the tab, or did nothing) */
+  .pins.wide.empty.dropping .pins-hint { position: absolute; bottom: 4px; left: 8px; right: 8px; background: var(--bg-app); }
   .pins.empty:not(.wide) { display: none; }
   .pin { width: 36px; height: 28px; border-radius: 10px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; padding: 0; min-width: 0;
     background: var(--bg-hover); border: 1px solid var(--border); color: var(--text-muted); transition: background .12s, border-color .12s, color .12s; }

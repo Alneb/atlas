@@ -60,3 +60,39 @@ test("the large picture stays while the pointer is within it, Ctrl held", async 
   await expect(big).toHaveCount(0);
   await page.keyboard.up("Control");
 });
+
+// A display formula grows with Ctrl as a picture does; its preview while edited leaves `\label{…}` out; a quick Ctrl+click
+// (an action, not a look) shows nothing large.
+test("a formula grows with Ctrl held; its edit preview hides the label; a quick Ctrl+click shows nothing", async ({ page, request }) => {
+  await request.put("/api/file", { headers: H, data: { path: "notes/peek-math.md", text: "# Math\n\n$$\nE = mc^2 \\label{eq-peek}\n$$\n\nend\n" } });
+  await page.goto("/");
+  await page.getByText("Finish the GW notes.").waitFor();
+  await openFile(page, "peek-math.md");
+  const formula = page.locator(".cm-content .katex-display").first();
+  await expect(formula).toBeVisible();
+  await formula.hover();
+  await page.keyboard.down("Control");
+  const big = page.locator(".image-peek.math-peek");
+  await expect(big).toBeVisible();
+  await expect(big).toContainText("E");
+  await page.keyboard.up("Control");
+  await expect(big).toHaveCount(0);
+
+  // a quick Ctrl+click on the text: no large copy flashes
+  await page.locator(".cm-line", { hasText: "end" }).hover();
+  await page.keyboard.down("Control");
+  await page.mouse.down();
+  await page.mouse.up();
+  await page.keyboard.up("Control");
+  await page.waitForTimeout(300);
+  await expect(page.locator(".image-peek")).toHaveCount(0);
+
+  // the caret in the formula: its source shows, and the preview under it draws no `\label`
+  await page.locator(".cm-line", { hasText: "end" }).click();
+  await page.keyboard.press("ArrowUp");
+  await page.keyboard.press("ArrowUp");
+  const preview = page.locator(".cm-math-preview-block");
+  await expect(preview).toBeVisible();
+  await expect(preview).not.toContainText("label");
+  await expect(preview.locator(".katex-error")).toHaveCount(0);
+});

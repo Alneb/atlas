@@ -32,21 +32,36 @@ test("Ctrl++ zooms the tab it is pressed in, not the others; Ctrl+0 puts it back
   await expect.poll(size).toBeCloseTo(base, 1);
 });
 
-test("Ctrl+Alt++ and Ctrl+Alt+- zoom everything, Ctrl+Alt+0 resets", async ({ page }) => {
+test("Ctrl+Alt++ and Ctrl+Alt+- zoom every note, PDF and terminal, not the interface; Ctrl+Alt+0 resets", async ({ page }) => {
   // the set scale (base.css folds it into --ui-scale with the e-ink factor, a calc())
+  const scale = async () => Number(await rootVar(page, "--ui-scale-set"));
+  const prose = async () => parseFloat(await rootVar(page, "--prose-size"));
+  await page.goto("/");
+  await page.getByText("Finish the GW notes.").waitFor();
+  const [s0, p0] = [await scale(), await prose()];
+  await page.keyboard.press("Control+Alt++");
+  await expect.poll(prose).toBeGreaterThan(p0);
+  expect(await scale(), "the interface keeps its size").toBeCloseTo(s0, 3);
+  await page.keyboard.press("Control+Alt+-");
+  await expect.poll(prose).toBeCloseTo(p0, 1);
+  await page.keyboard.press("Control+Alt++");
+  await page.keyboard.press("Control+Alt+0");
+  await expect.poll(() => rootVar(page, "--prose-size"), "set in the same save, painted a moment later").toBe("15px");
+});
+
+// the interface (Settings, Today, the file tree…) has one size for the whole app: a zoom over it changes that size
+test("Ctrl++ over Settings zooms the whole interface; Ctrl+0 there resets it", async ({ page }) => {
   const scale = async () => Number(await rootVar(page, "--ui-scale-set"));
   await page.goto("/");
   await page.getByText("Finish the GW notes.").waitFor();
   const [s0, p0] = [await scale(), await rootVar(page, "--prose-size")];
-  await page.keyboard.press("Control+Alt++");
+  await page.keyboard.press("Meta+,");
+  await expect(page.getByRole("heading", { name: "Settings" })).toBeVisible();
+  await page.keyboard.press("Control++");
   await expect.poll(scale).toBeGreaterThan(s0);
-  expect(await rootVar(page, "--prose-size")).not.toBe(p0);
-  await page.keyboard.press("Control+Alt+-");
-  await expect.poll(scale).toBeCloseTo(s0, 3);
-  await page.keyboard.press("Control+Alt++");
-  await page.keyboard.press("Control+Alt+0");
+  expect(await rootVar(page, "--prose-size"), "notes keep their size").toBe(p0);
+  await page.keyboard.press("Control+0");
   await expect.poll(scale).toBe(1);
-  await expect.poll(() => rootVar(page, "--prose-size"), "set in the same save, painted a moment later").toBe("15px");
 });
 
 // zoom is immediate: a key press sets the size at the next frame, never a picture-scale or a glide;

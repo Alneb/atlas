@@ -11,6 +11,7 @@ import { onSettings, settings } from "./settings.svelte";
 import { saveShellPrefs, shellPart } from "./shell-prefs";
 import { zoomShown } from "./zoom-status.svelte";
 import { wheelPixels } from "./wheel";
+import type { PaneKind } from "./panes";
 
 const STEP = 1.1, MOST = 8; // ten percent a press, between 1.1^-8 and 1.1^8
 const WHEEL_STEP = 1 / 120; // a wheel notch (120) zooms one step
@@ -31,7 +32,7 @@ function showActive(): void {
 }
 
 function paint(p: IDockviewPanel): void {
-  const c = settings.config, el = p.view.content.element, f = paneZoom(p.id);
+  const c = settings.config, el = p.view.content.element, f = isContent(p) ? paneZoom(p.id) : 1; // the interface: no zoom of its own
   if (!c) return;
   const vars: [string, string][] = [["--ui-scale", `calc(${(c.ui.font_size / 14) * f} * var(--eink-scale, 1))`], ["--code-size", `${c.editor.code_font_size * f}px`], ["--prose-size", `${c.editor.prose_font_size * f}px`]];
   const back = holdPlace(el);
@@ -72,21 +73,47 @@ function zoomTo(p: IDockviewPanel, next: number): void {
   });
 }
 
-/** `step` presses larger or smaller on the active tab; 0 = back to the settings' size. */
+// Two kinds of tab: content (a note, a PDF, a terminal…) zooms on its own, on top of the content's app-wide size; the
+// interface (Settings, Today, the file tree, a search…) and the bars have one size for the whole app, which a zoom over
+// them changes (`[ui] font_size`) — a zoom of Settings alone left the rest of the interface as it was.
+// Every kind decided here (a new kind fails to compile until it is); a plugin's view (mail, a reader) and a block are
+// content.
+const CONTENT: Record<PaneKind, boolean> = {
+  editor: true, terminal: true, pdf: true, image: true, web: true, diff: true, table: true, base: true, page: true,
+  excalidraw: true, graph: true, plugin: true, block: true, commit: true,
+  today: false, files: false, explorer: false, search: false, settings: false, git: false, outline: false, commands: false,
+};
+const isContent = (p: IDockviewPanel): boolean => CONTENT[(p.params as { kind?: PaneKind } | undefined)?.kind ?? "settings"] ?? false;
+const zoomUi = (step: -1 | 0 | 1) => void import("./settings-schema").then((m) => m.zoom(step, "ui"));
+
+/** `step` presses larger or smaller on the active tab — the interface when that tab is not content; 0 = back to the
+ *  settings' size. */
 export function zoomPane(step: -1 | 0 | 1): void {
   const p = dock?.activePanel;
-  if (!p) return;
+  if (!p || !isContent(p)) return zoomUi(step);
   zoomTo(p, step === 0 ? 0 : (steps.get(p.id) ?? 0) + step);
 }
+
+// a wheel over the interface: one step of the interface's size per notch (120 px), however the wheel reports
+let uiWheel = 0;
 
 /** Ctrl+wheel and a touchpad pinch (WebKit sends it as a wheel with Ctrl) over a pane zoom that pane.
  *  Heard last (bubbling, on window): a pane with a zoom of its own (a PDF, the graph) takes it first. */
 function onWheel(e: WheelEvent): void {
   if (!e.ctrlKey || e.defaultPrevented || !dock) return;
   const p = dock.panels.find((x) => x.view.content.element.contains(e.target as Node));
-  if (!p) return;
   e.preventDefault();
+  if (p && isContent(p)) { zoomTo(p, (steps.get(p.id) ?? 0) - wheelPixels(e) * WHEEL_STEP); return; }
+  uiWheel -= wheelPixels(e);
+  while (Math.abs(uiWheel) >= 120) { const up = uiWheel > 0; uiWheel += up ? -120 : 120; zoomUi(up ? 1 : -1); }
+}
+
+/** Ctrl+wheel on the pane `id` (a terminal, whose own wheel handling hides it from `onWheel`); false if no such pane. */
+export function wheelZoom(e: WheelEvent, id: string): boolean {
+  const p = dock?.panels.find((x) => x.id === id);
+  if (!p) return false;
   zoomTo(p, (steps.get(p.id) ?? 0) - wheelPixels(e) * WHEEL_STEP);
+  return true;
 }
 
 /** Called once, right after the dock is created. */
@@ -95,6 +122,14 @@ export function attachPaneZoom(d: DockviewApi): void {
   window.addEventListener("wheel", onWheel, { passive: false });
   d.panels.forEach(paint);
   d.onDidAddPanel(paint);
+  // a terminal's id names a slot (`terminal:claude:1`), not what runs in it: the next tab there is another session,
+  // which took the closed one's zoom (a new Claude tab opened small). Closed, its zoom is forgotten; an editor's id is
+  // its file, whose zoom is kept for the next time it opens.
+  d.onDidRemovePanel((p) => {
+    if (!p.id.startsWith("terminal:") || !steps.delete(p.id)) return;
+    touched.add(p.id);
+    saveShellPrefs("paneZoom");
+  });
   d.onDidActivePanelChange(showActive);
   onSettings(() => d.panels.forEach(paint));
 }

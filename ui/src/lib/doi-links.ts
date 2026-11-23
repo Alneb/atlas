@@ -46,7 +46,7 @@ export function addToLibrary(text: string): boolean {
     toast("Catalog is off", "Switch on Catalog (Settings → Plugins) to add papers to the library from their links.", "info");
     return false;
   }
-  void import("./plugin-dialog").then((m) => m.openPluginDialog(p, text.trim(), { title: "Add to the catalog", width: 640, height: 460, view: "add.js" }));
+  void import("./plugin-dialog").then((m) => m.openPluginDialog(p, text.trim(), { title: "Add to the catalog", width: 720, height: 560, view: "add.js" }));
   return true;
 }
 
