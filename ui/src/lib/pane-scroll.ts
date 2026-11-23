@@ -11,12 +11,25 @@ export interface ScrollKeeper {
   dispose(): void;
 }
 
+/** Every shown pane's "put my positions back": dockview re-parents a pane that stays shown when the grid around it
+ *  changes (a group closed or split beside it), and the browser drops its scroll positions without telling it. */
+const shownPanes = new Set<() => void>();
+/** After the grid changed (dock.ts): every shown pane takes its positions back, now and once laid out. */
+let regridAt = 0;
+export function putBackScrolls(): void {
+  regridAt = performance.now();
+  for (const f of shownPanes) f();
+  requestAnimationFrame(() => { for (const f of shownPanes) f(); });
+}
+
 export function keepScroll(root: HTMLElement): ScrollKeeper {
   const at = new Map<Element, [number, number]>();
   let noting = true;
   const onScroll = (e: Event) => {
     if (!noting || !root.isConnected) return;
     const el = e.target instanceof Element ? e.target : null;
+    // the drop to the top a re-parenting causes is reported a moment after the grid changed: not the user's
+    if (el && el.scrollTop === 0 && performance.now() - regridAt < 400 && (at.get(el)?.[0] ?? 0) > 0) return;
     if (el) at.set(el, [el.scrollTop, el.scrollLeft]);
   };
   // scroll does not bubble: capture sees every scroller inside
@@ -28,6 +41,8 @@ export function keepScroll(root: HTMLElement): ScrollKeeper {
       if (el.scrollLeft !== left) el.scrollLeft = left;
     }
   };
+  const again = () => { if (noting && root.isConnected) put(); };
+  shownPanes.add(again);
   return {
     hidden() { noting = false; },
     shown() {
@@ -36,6 +51,6 @@ export function keepScroll(root: HTMLElement): ScrollKeeper {
       // a scroller sized a frame later (an editor measuring itself) takes it then
       requestAnimationFrame(() => { put(); noting = true; });
     },
-    dispose() { root.removeEventListener("scroll", onScroll, { capture: true }); at.clear(); },
+    dispose() { root.removeEventListener("scroll", onScroll, { capture: true }); at.clear(); shownPanes.delete(again); },
   };
 }

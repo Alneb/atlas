@@ -144,13 +144,18 @@
     key: `t:${t.path}`, section: "By title", title: t.title, detail: shownName(t.path), icon: fileIcon(t.path), score: 0, hl: [],
     run: () => openPath(t.path), beside: () => openPath(t.path, undefined, { beside: true }),
   }));
+  /** A note's lead over a file with the same name (a picture, a script). */
+  const NOTE_FIRST = 120;
+  const best = (xs: Item[]) => xs.length ? Math.max(...xs.map((x) => x.score)) : -Infinity;
   function fileItems(paths: string[], query: string, section: string): Item[] {
     // rank by basename first, full path as tiebreak
     return paths
       .map((p) => {
-        const base = basename(p);
+        // matched by the name shown (a note without its .md); a note leads the pictures and files named like it:
+        // it is what is linked and read (PHILOSOPHY.md, companion notes)
+        const base = shownName(p);
         const mb = fuzzy(query, base), mp = fuzzy(query, p);
-        const s = Math.max(mb ? mb.score + 50 : -Infinity, mp ? mp.score : -Infinity);
+        const s = Math.max(mb ? mb.score + 50 : -Infinity, mp ? mp.score : -Infinity) + (p.endsWith(".md") ? NOTE_FIRST : 0);
         return { p, base, s: query ? s : 0, hl: mb?.indices ?? [] };
       })
       .filter((x) => x.s > -Infinity)
@@ -225,7 +230,11 @@
           key: "cap", section: "Capture", title: `Capture “${query}”`, detail: `${captureWhat()} — or press ${keysOf("ui.palette") ?? keyText("Super+E")} again`, icon: "plus", score: -2, hl: [],
           run: () => captureNow(query),
         }] : [];
-        return query ? [...cmds.slice(0, 8), ...heads, ...files, ...titledItems(), ...lines, ...capture] : [...files, ...cmds];
+        if (!query) return [...files, ...cmds];
+        // the kinds in the order of their best match: a command whose letters are strewn over its title follows a
+        // file named by what was typed (the sort is stable: commands, headings, files on a tie)
+        const kinds = [cmds.slice(0, 8), heads, files].sort((x, y) => best(y) - best(x));
+        return [...kinds.flat(), ...titledItems(), ...lines, ...capture];
       }
     }
   });

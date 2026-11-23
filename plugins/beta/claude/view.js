@@ -3266,7 +3266,7 @@ function Ar(e, t) {
 		l.checked && ae();
 	});
 	let A = () => {
-		i ? window.dispatchEvent(new CustomEvent(Er, { detail: i })) : t.pane?.close();
+		t.pane?.close(), i && window.dispatchEvent(new CustomEvent(Er, { detail: i }));
 	};
 	u.addEventListener("click", A), a.addEventListener(Tr, A);
 	let j = 0, M = async () => {

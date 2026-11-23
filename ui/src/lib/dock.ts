@@ -35,6 +35,7 @@ import { api } from "./api";
 import type { PaneRef } from "./types";
 import { shownPath } from "./paths";
 import { isApp } from "./apps.svelte";
+import { putBackScrolls } from "./pane-scroll";
 import { librariesSpec } from "./libraries.svelte";
 import { SveltePane, setOpening, type AnyLoader, type PaneComponents } from "./pane-host";
 
@@ -251,7 +252,9 @@ export function initDock(el: HTMLElement, components: PaneComponents): DockviewA
   let dragging = false;
   el.addEventListener("pointerdown", (e) => { dragging = !!(e.target as Element | null)?.closest?.(".dv-sash"); }, true);
   window.addEventListener("pointerup", () => { if (dragging) { dragging = false; requestAnimationFrame(noteToolSizes); } }, true);
-  dock.onDidRemoveGroup(() => requestAnimationFrame(restoreToolSizes));
+  dock.onDidRemoveGroup(() => { putBackScrolls(); requestAnimationFrame(restoreToolSizes); });
+  // a group added or gone re-parents the panes around it: the browser dropped their scroll (pane-scroll.ts)
+  dock.onDidAddGroup(() => putBackScrolls());
   reportPanes();
   let lastPos: string | undefined;
   onSettings(moveSidePanel);

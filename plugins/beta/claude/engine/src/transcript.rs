@@ -56,7 +56,7 @@ pub fn conversations(dir: &Path, most: usize, titles: &mut Titles) -> Vec<Value>
             Some((ms, p, m.len()))
         })
         .collect();
-    found.sort_by(|a, b| b.0.cmp(&a.0));
+    found.sort_by_key(|a| std::cmp::Reverse(a.0));
     found.truncate(most);
     found
         .into_iter()

@@ -55,7 +55,8 @@ export function register(atlas) {
   // button (API 36) or Super+Alt+K in it shows that tab's conversation, "Terminal" (or the key again) goes back to it;
   // anywhere else the key shows the conversation Claude wrote to last.
   const shows = new Map(); // a tab's session → bring that terminal back
-  const rendered = (session) => atlas.openView(session ? JSON.stringify({ tab: session }) : "conversation", { title: "Claude, rendered", icon: "claude" });
+  // a pop-up over the app, never a tab: no tab to manage and never an app tile; Escape or the key closes it
+  const rendered = (session) => void atlas.openDialog(session ? JSON.stringify({ tab: session }) : "conversation", { title: "Claude, rendered", width: Math.round(window.innerWidth * 0.9), height: Math.round(window.innerHeight * 0.9), view: "view.js" });
   if ((atlas.version ?? 0) >= 36 && atlas.terminal?.button) {
     atlas.terminal.button({ id: "rendered", title: "Rendered conversation (Super+Alt+K)", icon: "file-text", run: (tab) => {
       if (tab.session) shows.set(tab.session, tab.show);

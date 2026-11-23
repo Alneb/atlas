@@ -257,7 +257,8 @@ export default function (host: HTMLElement, atlas: PluginApi) {
 
   picker.addEventListener("change", () => { follow.checked = false; void look(); });
   follow.addEventListener("change", () => { if (follow.checked) void look(); });
-  const goBack = () => { if (tab) window.dispatchEvent(new CustomEvent(SHOW_TAB, { detail: tab })); else atlas.pane?.close(); };
+  // shown in a pop-up (main.js): closing it is going back; from a tab, that tab is brought to the front too
+  const goBack = () => { atlas.pane?.close(); if (tab) window.dispatchEvent(new CustomEvent(SHOW_TAB, { detail: tab })); };
   back.addEventListener("click", goBack);
   root.addEventListener(BACK, goBack);
   void known;
