@@ -388,7 +388,7 @@ mod raw {
                     r
                 }
                 Replace::Always => {
-                    std::fs::rename(&tmp, abs)?;
+                    replace(&tmp, abs)?;
                     Ok(Created::New)
                 }
             }
@@ -397,6 +397,21 @@ mod raw {
             let _ = std::fs::remove_file(&tmp);
         }
         result
+    }
+
+    /// `tmp` renamed over `abs`. Windows refuses that ("access is denied") while any other handle has `abs` open — the
+    /// indexer or a thumbnailer reading the file it just saw change — so there it is tried again for about a second.
+    fn replace(tmp: &Path, abs: &Path) -> Result<()> {
+        let mut tries = 0;
+        loop {
+            match std::fs::rename(tmp, abs) {
+                Err(e) if cfg!(windows) && e.kind() == std::io::ErrorKind::PermissionDenied && tries < 20 => {
+                    tries += 1;
+                    std::thread::sleep(std::time::Duration::from_millis(50));
+                }
+                r => return Ok(r?),
+            }
+        }
     }
 
     /// `abs` made from `tmp`'s bytes only if it does not exist (O_EXCL): `Replace::IfAbsent` where hard links are refused.
@@ -445,7 +460,7 @@ mod raw {
             let mut f = opts.open(&tmp)?;
             f.write_all(bytes)?;
             f.sync_all()?;
-            Ok(std::fs::rename(&tmp, abs)?)
+            replace(&tmp, abs)
         })();
         if result.is_err() {
             let _ = std::fs::remove_file(&tmp);
